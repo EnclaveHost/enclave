@@ -1,0 +1,544 @@
+{
+ "format": "measured-composition-closeout/1",
+ "written": "2026-10-22T19:32:05Z",
+ "task": "work/resume-after-checkpoint-20261022/measured-closeout-task.txt",
+ "status": "CLOSEOUT PACKAGING DONE; every focused suite passed, including the two that needed the root-authorized 1536 MiB cap (job-d MCP end to end 4/4, job-e custody Chrome 1/1). NOT imaged, NOT measured, NOT activated, NOT published.",
+ "requirementsReread": "work/effective-goal-requirements.txt (unchanged since 2026-10-22 00:25 local); admin controls untouched",
+ "finalSource": {
+  "tree": "tree-c (measured-composition/tree-c)",
+  "scratchCaptureCommit": "2c36d3882bf473bb5224fc90c13f006dd826e082",
+  "gitTree": "3031c20c7d0083f05b36160c851e5872a72725c3",
+  "captureRepo": "tree-c/.git (new local repo, no remote, no parent; SteveDeFacto, 2026-10-22T00:00:00Z)",
+  "paths": 8341,
+  "lsTree": {
+   "file": "out/c/capture-ls-tree.txt",
+   "sha256": "4a71093310a1ec4ae23f94e25aa1f610352250a9b3d2163d30ad282136dd2a7c"
+  },
+  "publishedLineageCheck": "root's published commit is the same source iff `git rev-parse <commit>^{tree}` == 3031c20c7d0083f05b36160c851e5872a72725c3 (tree ids carry no parent/author/date)",
+  "composition": "tree-c = tree-b (C1/C3/C4 + cost + B1 + C2, root-accepted) + the closeout layer below; compose-c.py re-asserted the candidate dir is still tree 56ea9f45 + the same 6 changed / 5 added paths",
+  "inventory": {
+   "file": "tree-c.inventory.json",
+   "sha256": "c2b5ecdc5f9ff9c9ba6743a4829cd44e678c6ddcade849f56bb23b3da8cd8a4f"
+  },
+  "closeoutLayer": {
+   "Dockerfile": {
+    "before": "ad7f788ffcd70687d73e665610fa59ceeff2013823089e06ee51c4b7fb321482",
+    "after": "45af52d3f675b985ad79500456ac21f8f7e015f196a9471f9dbd531adfd4f87f"
+   },
+   "docs/network/hosted-mcp.md": {
+    "before": "08a95c0615dcf92309a0f50c4620e7ca6fd9b6a1b507376c475f966d05ea34d7",
+    "after": "097938b0752d6027ba5bca20f1f0fb12dd6ff90663428f9004483640c6b47dfa"
+   },
+   "docs/network/measured-control-guest.md": {
+    "before": "59045b826071e98bbd7785c6ea7140c985a7f2475315128050afac8158ace140",
+    "after": "b8a207e166c96755c675c21ec5da31748d2ce081770e9e6066016649403fb1f7"
+   },
+   "metal/README.md": {
+    "before": "27a192f8b08b6b73933b71df95c147c74bbdd08351515d1149c90b4333f91312",
+    "after": "50c1933c9778961432b7610608c2fa5a29c93baacefb3606d882b667382a79e3"
+   },
+   "metal/build-image.mjs": {
+    "before": "aa9d725a8e03ed671e185eb327f53a4464f68b37bacc9dab7639c1cc77e99abb",
+    "after": "ccd648ed9ed3fa0a748c59f9e6c95eea3015bee5fc08c1e0024f6fcb9e79c4ac"
+   },
+   "metal/guest/mcp-server-entry.mjs": {
+    "before": null,
+    "after": "ea2723ffeb72e0637359746722e08563649a936b1b7b795c11f16c528ac1735a"
+   },
+   "metal/overlay-control-image.py": {
+    "before": "e0db43724ba9cf62a98c144215ce1f15e7d93f5e2dac0fcb32be1ef45829ede6",
+    "after": "1067a535413f88e0c66b80441a734d5dc7771ac79e24129df25df8a1d4aeea56"
+   },
+   "scripts/build-mcp-guest-bundle.mjs": {
+    "before": "314ce200aa8e427ad58575bb5fca5fb9d0212c50e199eed8d128f573b974c22f",
+    "after": "40621335fb63e7095b9ee27d4245f7f4ce778e9e8054a7a4ba753cad321e8be3"
+   },
+   "test/mcp-guest-bundle.test.mjs": {
+    "before": null,
+    "after": "a3edd00fb20eca3158c2ffdf6e7c5fd0f245a4b46deeda6044df2f262d5e976c"
+   },
+   "test/metal-control-overlay.test.py": {
+    "before": "96352fe4017d9e50bbfc944e7bf009e1ca58dd0eb6aa31c0cfebe1f1c20b5d0c",
+    "after": "c3d1358d2b5c8aa991059a4466ce43a5f49adf614223561f2adc6edec874c831"
+   }
+  },
+  "patches": {
+   "closeout.diff (tree-b -> tree-c sources)": "ba499d955dcf4315d04688d92286d0f4e8e9a0f4a554d5bbb3de60ec64f5d3e1",
+   "earlier (candidate -> tree-b), unchanged": {
+    "composition-carriers-c3-c4.diff": "cc5b5192796d8e52c9552571a30c7e853eb9fc825b67d96b3eff62031cc0cdf5",
+    "composition-cost.diff": "6be4545d67b4bb83f6f9869110fa6e70b2a925736d3efa935d6aa1beba13ab9a",
+    "composition-b1-overlay.diff": "82a9657fd3a81c07ee39288e7d0f3760d076b0f6a7232c5a06cf1378b86c4b75",
+    "c2-attestation-route.diff": "7b926e2c063054fce6bf93b3f9a9b0ca56a92c8d0b7bcab15e81ae710006bd92"
+   }
+  },
+  "vsCandidate56ea9f45": {
+   "changedPaths": 59,
+   "undeclared": []
+  }
+ },
+ "bundlePins": {
+  "all (tree-c)": {
+   "relay/network-runtime.bundle.mjs": "8399d1434e0587c246c77bfbea5d8afac65ada130cc96abffe291afde588af1e",
+   "relay/network-runtime.bundle.mjs.manifest.json": "16a1cebb8c2baedbb1a90eb3139972a3c739857508cd53a85f6daf2f74489b89",
+   "windows/node/host-admission.bundle.mjs": "40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25",
+   "metal/guest/host-policy.bundle.mjs": "acfa1b0099530d4c27fe451d7d3f1d124b3f7a213171557c1c2d926976e0dc3c",
+   "windows/node/lease-gas-runtime.bundle.mjs": "008cdca1240372d3dccedc2f58fecfcdca6377245ad67d4970a2efe79757f4e7",
+   "windows/node/lease-gas-runtime.bundle.mjs.manifest.json": "a7fde25eae445eebc483d4a2ff57b569746eb60ddd64bbf33aca4f3831fb3ad1",
+   "metal/guest/lease-gas-conduit.bundle.mjs": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6",
+   "metal/guest/lease-gas-conduit.bundle.mjs.manifest.json": "c12ae3efcae557f9bb462eb55fa9eed444426ebab608b8bc4d49992ebbf96f2d",
+   "metal/guest/platform-api.bundle.mjs": "ede48c36cb30b36dc7f2b5d308660a195d2dd257aeb73f18d6468c0d5f9d0c8c",
+   "metal/guest/platform-api.bundle.mjs.manifest.json": "a9b91407d9cb5b275998276eab9c7871efa7a2cbaeba0fcda90c147cce3dcce4",
+   "metal/guest/mcp-server.bundle.mjs": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f",
+   "metal/guest/mcp-server.bundle.mjs.manifest.json": "d3dc292084ed045c6ebee1dbd4810a2f5fa14329edb721832d7938df788948ae",
+   "site/vendor/custody.js": "68fc8b8c30bc81371f001de00c38e362cc274759c26b21fe38dfd8937e4e91d6",
+   "site/vendor/custody.MANIFEST.json": "f123bc43173d4a9f9ced5faa1f639c7f64575e1f1e46445c7ca55a3c14009539"
+  },
+  "unchangedFromTreeB": "network runtime 8399d143, host-admission 40e8ba71, metal host-policy acfa1b00, lease 008cdca1/421d6584 (+ manifests), platform-api ede48c36 (+ a9b91407), all 10 host-service package files: byte-equal to tree-b (asserted)",
+  "changed": {
+   "metal/guest/mcp-server.bundle.mjs": {
+    "treeB": "12d60756",
+    "treeC": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f"
+   },
+   "metal/guest/mcp-server.bundle.mjs.manifest.json": {
+    "treeB": "84cfd5ea",
+    "treeC": "d3dc292084ed045c6ebee1dbd4810a2f5fa14329edb721832d7938df788948ae"
+   },
+   "site/vendor/custody.js": "69f5b846 -> 68fc8b8c30bc81371f001de00c38e362cc274759c26b21fe38dfd8937e4e91d6",
+   "site/vendor/custody.MANIFEST.json": "f123bc43173d4a9f9ced5faa1f639c7f64575e1f1e46445c7ca55a3c14009539"
+  }
+ },
+ "item1_dockerfile": {
+  "status": "DONE, verified",
+  "change": "COPY network/host-owner-nomination.mjs ./network/ and COPY metal/guest/owner-nomination.mjs ./metal/guest/ (Dockerfile ad7f788f -> 45af52d3f675b985ad79500456ac21f8f7e015f196a9471f9dbd531adfd4f87f)",
+  "evidence": [
+   "test/supervisor-image-closure.test.mjs 2/2 (was 1/2 on tree-a and tree-b: out/a/t-control-supervisor-image-closure.log, out/b/t-c2-supervisor-image-closure.log)",
+   "dockerfile-closure.mjs: 39 closure files, missing [] (out/c/dockerfile-closure.json)",
+   "attestation-route test 3/3 still matches the relay COPY line"
+  ]
+ },
+ "item2_sidecarGuard": {
+  "status": "DONE, verified",
+  "rule": "every manifest-named path (platform API sidecars beside the bundle, MCP runtimeFiles by image path) must be non-empty, relative, with no empty/./.. component, no backslash or NUL; MCP runtime files only under opt/; no named file may replace another selected file or opt/metal/manifest.json (identical shared source allowed: fixtures/tpm-roots.pem)",
+  "tests": "test/metal-control-overlay.test.py 16/16; new test_control_direct_refuses_sidecar_and_runtime_file_names_that_are_not_plain_or_collide: platform API sidecars \"\", \".\", \"..\", \"../escape.pem\", \"/abs.pem\", \"a//b.pem\", \"a/./b.pem\", \"fixtures/../b.pem\", \"fixtures/\", \"a\\\\b.pem\" refused as not normal; \"platform-api.bundle.mjs\", \"gsup.mjs\", \"manifest.json\", \"mcp-server.bundle.mjs\" refused as replacing; MCP runtime files \"\", \"opt/../etc/x\", \"opt//x\", \"/opt/x\", \"opt/./x\", \"opt/x/\" not normal, \"app/x.pem\", \"etc/passwd\" not under opt/, opt/metal/{gsup.mjs,platform-api.bundle.mjs,mcp-server.bundle.mjs,manifest.json} and a different-source tpm-roots refused; each refusal creates no output. Existing namespace tests unchanged and passing."
+ },
+ "item3_mcp": {
+  "status": "DONE and verified (incl. end to end 4/4 at 1536)",
+  "findings": [
+   "the committed MCP bundle reads two files beside itself at run time that NO image builder installed: ../contracts/deployments/contract-pins-base.json (network/native-host-policy.mjs, loaded by the hosted management tools via cli/independent-host.mjs) and ./fixtures/tpm-roots.pem (relay/vbs-policy.mjs, Windows VBS host verification). build-image.mjs had the same gap.",
+   "the MCP bundle carried two bundled-library \"am I main?\" checks (windows/node/host-identity.mjs -> process.exit; cli/independent-capacity.mjs), loaded lazily by the capacity/quorum tools, that match argv[1] when the bundle is the main script - the defect class root already fixed for platform-api (argv-guard entry). Control probe: tree-b bundle ARGV1=<root>/opt/metal/mcp-server.bundle.mjs; tree-c ARGV1=<root>/opt/metal/mcp-server.bundle.mjs (enclave host role) (out/c/probe-b.log, probe-c.log)."
+  ],
+  "changes": {
+   "metal/guest/mcp-server-entry.mjs (new)": "argv-guard, then mcp/server.mjs main(argv.slice(2)) with the same error/exit as its own main block (the reviewed platform-api-entry pattern)",
+   "scripts/build-mcp-guest-bundle.mjs": "bundle entry = the wrapper (manifest keeps entry mcp/server.mjs, adds bundleEntry); must-carry check; RUNTIME_FILES by image path; refuses a bundle that reads an undeclared file beside itself; manifest runtimeFiles {source, sha256}",
+   "metal/build-image.mjs": "installs the MCP runtime files (normal path under opt/, never over different bytes, sha-checked) and records mcpBundle.runtimeFiles; the reviewed copyFileSync line is unchanged",
+   "metal/overlay-control-image.py": "--control direct installs /opt/metal/mcp-server.bundle.mjs + runtime files after checking bundle sha/bytes and each file against the committed manifest; records mcpBundle exactly as build-image.mjs (path, sha256, bytes, inputs, manifestSha256, runtimeFiles)",
+   "docs": "hosted-mcp.md code row, measured-control-guest.md, metal/README.md"
+  },
+  "manifestDelta": {
+   "inputsChanged": {
+    "metal/guest/mcp-server-entry.mjs": [
+     "-",
+     "ea2723ff"
+    ],
+    "network/host-services/argv-guard.mjs": [
+     "-",
+     "35238208"
+    ]
+   },
+   "keysAdded": [
+    "bundleEntry",
+    "runtimeFiles"
+   ],
+   "runtimeFiles": {
+    "opt/metal/fixtures/tpm-roots.pem": {
+     "source": "relay/fixtures/tpm-roots.pem",
+     "sha256": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+    },
+    "opt/contracts/deployments/contract-pins-base.json": {
+     "source": "contracts/deployments/contract-pins-base.json",
+     "sha256": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d"
+    }
+   },
+   "bundleEntry": "metal/guest/mcp-server-entry.mjs"
+  },
+  "evidence": [
+   "overlay test (real commit): MCP bundle and runtime files installed with manifest hashes, mcpBundle record, and EVERY new URL(<relative>, import.meta.url) in the installed MCP and platform-api bundles resolves to an installed entry",
+   "test/mcp-guest-bundle.test.mjs 2/2 (manifest/guard/runtime files; laid out as the image, gsup argv shape: main reached behind the guard)",
+   "mcp-hosted-control static tests 3/3 (launch argv /opt/metal/mcp-server.bundle.mjs, gsup direct branch, builder copy line, manifest inputs == tree)",
+   "builder --check OK; node --check OK",
+   "input manifest: 59 inputs = tree-b 57 unchanged + /opt/metal/mcp-server.bundle.mjs + /opt/contracts/deployments/contract-pins-base.json (tpm-roots shared with the platform-api sidecar)"
+  ],
+  "notRun": "none: tests 4-7 passed in job-d (out/d/t-mcp-e2e.log)"
+ },
+ "item4_custody": {
+  "status": "DONE and verified (incl. Chrome 1/1 at 1536)",
+  "delta": {
+   "site/vendor/custody.js": {
+    "before": "69f5b846ef8fd7ee4d8ab29e67035243184c1dfb5c27dbd29a895a000e4dc15f",
+    "after": "68fc8b8c30bc81371f001de00c38e362cc274759c26b21fe38dfd8937e4e91d6",
+    "bytes": [
+     308748,
+     308895
+    ]
+   },
+   "manifestChangedKeys": [
+    "bytes",
+    "sha256"
+   ],
+   "deps": "unchanged (esbuild 0.28.1, @noble/curves 1.9.1, hashes 1.8.0, ciphers 1.3.0, viem 2.53.1)"
+  },
+  "cause": "the only byte region that differs is custody/rules.mjs validateRules: the candidate's rules accept an optional boolean ownerRead (absent from published main 7752a423); the committed browser bundle predates it",
+  "evidence": [
+   "build-custody-vendor --check OK (was FAIL on the untouched candidate, tree-a, tree-b)",
+   "test/custody-browser.test.mjs test 1 (committed bytes == fresh build, no node: import) 1/1 (job-c2; also passed in job-c before the guard stop)"
+  ],
+  "notRun": "none: Chrome test passed in job-e (out/d/t-custody-chrome.log); job-d attempt failed on the TMPDIR socket-path limit (raw log kept)"
+ },
+ "tests": {
+  "job-c:t-overlay": {
+   "counts": {
+    "tests": 16,
+    "result": "OK"
+   },
+   "log": "out/c/t-overlay.log"
+  },
+  "job-c:t-mcp-guest-bundle": {
+   "counts": {
+    "tests": 2,
+    "pass": 2,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/c/t-mcp-guest-bundle.log"
+  },
+  "job-c:t-metal-lease-gas-conduit": {
+   "counts": {
+    "tests": 12,
+    "pass": 12,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/c/t-metal-lease-gas-conduit.log"
+  },
+  "job-c:t-measured-control-builder-overlay": {
+   "counts": {
+    "tests": 1,
+    "pass": 1,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/c/t-measured-control-builder-overlay.log"
+  },
+  "job-c:t-owner-nomination-image": {
+   "counts": {
+    "tests": 1,
+    "pass": 1,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/c/t-owner-nomination-image.log"
+  },
+  "job-c:t-c2-attestation-route": {
+   "counts": {
+    "tests": 3,
+    "pass": 3,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/c/t-c2-attestation-route.log"
+  },
+  "job-c:t-supervisor-image-closure": {
+   "counts": {
+    "tests": 2,
+    "pass": 2,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/c/t-supervisor-image-closure.log"
+  },
+  "job-c2:t-custody-vendor-fresh-build": {
+   "counts": {
+    "tests": 1,
+    "pass": 1,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/c/t-custody-vendor-fresh-build.log"
+  },
+  "job-c2:t-mcp-hosted-control-static": {
+   "counts": {
+    "tests": 3,
+    "pass": 3,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/c/t-mcp-hosted-control-static.log"
+  },
+  "job-c2:t-mcp-hosted-control-full": {
+   "counts": {
+    "tests": 7,
+    "pass": 3,
+    "fail": 0,
+    "skipped": 4
+   },
+   "log": "out/c/t-mcp-hosted-control-full.log"
+  },
+  "job-d:t-mcp-hosted-control-e2e": {
+   "counts": {
+    "tests": 4,
+    "pass": 4,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/d/t-mcp-e2e.log"
+  },
+  "job-e:t-custody-chrome": {
+   "counts": {
+    "tests": 1,
+    "pass": 1,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/d/t-custody-chrome.log"
+  },
+  "job-d:t-custody-chrome (failed, environment)": {
+   "counts": {
+    "tests": 1,
+    "pass": 0,
+    "fail": 1,
+    "skipped": 0
+   },
+   "log": "out/d/t-custody-chrome.FAILED-socket-path.log"
+  }
+ },
+ "testsNotCounted": {
+  "job-c custody Chrome run": "guard-stopped (921 MiB), no result",
+  "job-c3 MCP end-to-end": "guard-stopped (615 MiB), no result",
+  "job-d custody Chrome": "TMPDIR socket-path failure, superseded by job-e"
+ },
+ "testsNotRepeated (unchanged bytes)": "platform-api artifact smoke 6/6 and bundle verifier 1/1, relay-u7 8/8, cli-attest 3/3 (tree-b, job-2): platform-api and api-relay bytes are identical in tree-c",
+ "imageBuild": {
+  "status": "NOT RUN (root publishes the source first)",
+  "recipe": "set -e; REPO=<root's published clone>; COMMIT=<the published commit>; B=/home/steven/enclave-prod/dist-sdshield-2857356cd; O=<new output dir>; [ \"$(git -C \"$REPO\" rev-parse \"$COMMIT^{tree}\")\" = 3031c20c7d0083f05b36160c851e5872a72725c3 ]; [ \"$(git -C \"$REPO\" show \"$COMMIT:metal/overlay-control-image.py\" | sha256sum | cut -c1-64)\" = 1067a535413f88e0c66b80441a734d5dc7771ac79e24129df25df8a1d4aeea56 ] && cmp <(git -C \"$REPO\" show \"$COMMIT:metal/overlay-control-image.py\") \"$REPO/metal/overlay-control-image.py\"; MEASURE=\"$HOME/.local/bin/sev-snp-measure --mode snp --vcpus 4 --vcpu-family 26 --vcpu-model 2 --vcpu-stepping 1 --vmm-type QEMU --ovmf $HOME/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd\"; [ \"$($MEASURE --append \"console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app\" --kernel $B/vmlinuz --initrd $B/initramfs.cpio.gz --output-format hex)\" = \"$(cat $B/MEASUREMENT)\" ]; python3 \"$REPO/metal/overlay-control-image.py\" --control direct \"$B\" \"$O\" \"$COMMIT\"; $MEASURE --append \"console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct\" --kernel \"$O/vmlinuz\" --initrd \"$O/initramfs.cpio.gz\" --output-format hex | tee \"$O/MEASUREMENT\"",
+  "runAs": "ONE shared-queue job (overlay staging precedent 768 MiB; root sets the cap); bash, set -e",
+  "verifiedBaseInputs": {
+   "dir": "/home/steven/enclave-prod/dist-sdshield-2857356cd",
+   "manifestSha256": "cc2571bb5b0c85b53b6bcf232331562578335bfd315bd0173c52ad6f80f776e0",
+   "initramfs": {
+    "bytes": 279165154,
+    "sha256": "516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc"
+   },
+   "kernel": {
+    "kver": "7.2.3-arch1-2",
+    "path": "/boot/vmlinuz-linux",
+    "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+   },
+   "MEASUREMENT": "b8376e15f7f94f9b40e9891a19be4779b1635b1c6e269e820ee09cf9313c9dfcc810072bd4ab3d1f4b19e1b6794ac35d",
+   "checks": "initramfs + kernel == manifest (job-c2); cmdline == cmdlineTemplate; production kernel 7.2.3-arch1-2 kept",
+   "ovmf": "OVMF.amdsev.fd sha256 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9"
+  },
+  "expectedInputs": {
+   "file": "out/c/INPUT-MANIFEST.json",
+   "sha256": "4513131150f981e49af5d31be7d6de2c019fe920d638aee3335d0d06d107ef96",
+   "count": 59,
+   "measuredCmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct",
+   "packagesFromBase": [
+    {
+     "name": "cors",
+     "version": "2.8.6"
+    },
+    {
+     "name": "express",
+     "version": "4.22.2"
+    },
+    {
+     "name": "jose",
+     "version": "5.10.0"
+    },
+    {
+     "name": "viem",
+     "version": "2.53.1"
+    },
+    {
+     "name": "ws",
+     "version": "8.21.1"
+    }
+   ],
+   "platformApiBundle": {
+    "bytes": 8520656,
+    "inputs": 2196,
+    "path": "/opt/metal/platform-api.bundle.mjs",
+    "sha256": "ede48c36cb30b36dc7f2b5d308660a195d2dd257aeb73f18d6468c0d5f9d0c8c",
+    "sidecars": {
+     "/opt/metal/fixtures/tpm-roots.pem": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+    }
+   },
+   "mcpBundle": {
+    "bytes": 4979943,
+    "inputs": 2972,
+    "manifestSha256": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f",
+    "path": "/opt/metal/mcp-server.bundle.mjs",
+    "runtimeFiles": {
+     "/opt/contracts/deployments/contract-pins-base.json": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d",
+     "/opt/metal/fixtures/tpm-roots.pem": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+    },
+    "sha256": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f"
+   }
+  },
+  "after": [
+   "extract the output and compare every installed entry with out/c/INPUT-MANIFEST.json (same tree => same 59 inputs; only manifest.json records the commit)",
+   "independent re-measure",
+   "the image manifest records COMMIT, so the measurement belongs to the published commit, not to scratch 2c36d388"
+  ]
+ },
+ "doAddresses": {
+  "method": "literal scan of the four DigitalOcean addresses (134.199.235.187, 134.209.248.172, 165.245.191.129, 146.190.246.39) over all 59 image inputs, every generated bundle and every source file outside test/ and docs/; plus enclave.host names in the image inputs",
+  "inTheImage": "0 address literals in all 59 inputs and all generated bundles (host-admission, metal host-policy, network runtime, platform-api, mcp-server, lease bundles, host-service packages): no DO policy mirror, relay or control address is baked into the direct image",
+  "remainingInSource": [
+   {
+    "where": "relay/native-discovery.mjs:11",
+    "what": "routeFor(): api.enclavehost.eth and mcp.enclavehost.eth -> the four DO addresses, kind \"control\"",
+    "path": "REQUIRED CONTROL ROUTE today, not transport: native clients resolving the Enclave API/MCP names are sent to the Platform API/MCP services that still run on the DO fronts. Not imported by any runtime module in the tree (only its test); deployed separately. It must be repointed to the measured hosts once the direct image serves the Platform API/MCP (addresses not known before that deployment): a cutover step for root, not changed here."
+   },
+   {
+    "where": "contracts/deployments/service-index-activation-base.json",
+    "what": "evidence record (2026-10-20) of the deployed on-chain service index: advertisement.endpoints and cold-discovery directory origins = the four DO hosts at :8188",
+    "path": "REQUIRED DISCOVERY DATA today (the directory replicas are application services on DO; cold discovery contacted only them). Not read by runtime code; the live value is on chain, so changing it is an admin service-index update (no contract change here)."
+   },
+   {
+    "where": "network/local-app-router.mjs:100",
+    "what": "comment (2026-10-18 incident)",
+    "path": "none"
+   },
+   {
+    "where": "network/platform-host-policy-config.mjs:18-20",
+    "what": "comment above PRODUCTION_MIRRORS = [] still describes four regional endpoints",
+    "path": "none (comment; the list is empty)"
+   }
+  ],
+  "namesInTheImage": [
+   {
+    "name": "api.enclave.host",
+    "where": "session-api-auth DEFAULT_API_HOSTS; supervisor SECRETS_API default; gsup/agent legacy relay comments and probe default",
+    "path": "direct mode: SECRETS_API/CERTS_API/DNS_API/DOMAINS_API are forced empty by measured-control directSupervisorEnv (refused otherwise), the agent gets no relay so its probe never runs; DEFAULT_API_HOSTS only names URL bases a wallet-session signature may cover (no outbound call). The LEGACY (non-direct) path still dials wss://api.enclave.host/v1/fleet-tunnel = DO fronts: REQUIRED for that legacy path, not used by the direct image."
+   },
+   {
+    "name": "ipfs.enclave.host",
+    "where": "supervisor IPFS_GATEWAY default",
+    "path": "direct mode sets IPFS_GATEWAY to the bound config's replicas: unused"
+   },
+   {
+    "name": "api./mcp./www./get./ipfs./app./probe.enclave.host",
+    "where": "platform-api bundle (relay zones and defaults), service-index/host-admission names",
+    "path": "names the Platform API serves or recognizes; their public DNS currently points at the DO fronts, so moving it to the measured hosts is a DNS/cutover step (root)"
+   }
+  ]
+ },
+ "remainingDecisions": [
+  "publish tree 3031c20c7d0083f05b36160c851e5872a72725c3 on a published lineage (any parent); then run the recipe with that commit",
+  "the regenerated host-service packages and site vendor bytes are not image content: deploying them is separate",
+  "after the image runs Platform API/MCP: repoint relay/native-discovery.mjs control routes and the on-chain service-index directory advertisement away from DO (admin action), and move public DNS for the enclave.host service names",
+  "activation dependencies unchanged from RESULT.json (allowlists/measurements, owner configs + non-DO carriers, admin-signed document before any anchor, Windows swap 6bef372d -> 40e8ba71)"
+ ],
+ "effects": {
+  "image": false,
+  "measurement": false,
+  "ssh": false,
+  "activation": false,
+  "wallet": false,
+  "funds": false,
+  "contracts": false,
+  "adminChanges": false,
+  "push": false,
+  "gitExistingRepos": "none written (upstream.git and work/enclave read only)",
+  "newScratchRepo": "tree-c/.git",
+  "preserved": "tree-a, tree-b, out/a, out/b, RESULT.json unchanged",
+  "readOnlyLink": "job-c3 linked work/enclave/contracts/foundry/out into tree-c (gitignored) for one run; no file there is newer than the job; link removed",
+  "sshStubs": "every job-d/job-e test command ran with ssh/scp/sftp denied first in PATH; 0 invocations"
+ },
+ "tools": {
+  "compose-c.py": "b86ae02894d6e394a77837ae2499e9151d0627d3435fe1b72fe049333cfbc450",
+  "run-tree-c.py": "0ff717803ef396353914e4db6803fb777bba96424461dfc7b7860d2405e02dbf",
+  "input-manifest-c.py": "6b0aec6a422ae3c2918c3de80b9cd3ed3cc5352314d347b5d7bf5ef94e29cd55",
+  "job-c.sh": "0cfaec4376921bc246d97211d9e62a0b1f57991067144432344b51b92ebc6e66",
+  "job-c2.sh": "10127a213ca2a5637c76c3bee5f212d949c6d705d123e8c2041004562f8e930d",
+  "job-c3.sh": "d43fe88d42126363ab737640563a1e3eb881582939d8b596da8f73895d592d1b",
+  "q.sh": "91de07048551deb30575e01ef6251a28fa4a75d1ebda6d984fac2677058672ec",
+  "dockerfile-closure.mjs": "d4966a592f37bfabd85a1b1f60d7986888f6103795d52a6d49c3faeacf945135",
+  "job-d.sh": "e9042972c29bb2b45af9cb1200ca446806b34f185b2cd755ff043f4a31ab82b9",
+  "job-e.sh": "8526cfc1876dde41d99d1cbf66539a3d9c79da5e46d7e0f3d04ceafc7e435b1d"
+ },
+ "queue": {
+  "job-c": "512, run-tree-c all OK, then guard stop 921 MiB at the Chrome test (rawlogs/job-c.out)",
+  "job-c2": "512, EXIT 0, peak 175 MiB",
+  "job-c3": "512, guard stop 615 MiB (MCP e2e)",
+  "job-d": "1536, MCP e2e pass, Chrome env failure, peak 1131 MiB",
+  "job-e": "1536, EXIT 0, peak 1482 MiB"
+ },
+ "revision": {
+  "r2": "2026-10-22T19:38:02Z",
+  "previousSha256": "9ceca598350c4081866ad28af3060dae52bc184568a72fe5884513eada8a962f",
+  "change": "adds finalLargeCapTests; item3/item4 notRun resolved; tree identity re-verified; no source change"
+ },
+ "finalLargeCapTests": {
+  "authorization": "root 2026-10-22: shared-queue cap 1536 MiB for ONLY these two suites",
+  "tree": {
+   "commit": "2c36d3882bf473bb5224fc90c13f006dd826e082",
+   "gitTree": "3031c20c7d0083f05b36160c851e5872a72725c3",
+   "verifiedBeforeAndAfter": "rev-parse HEAD^{tree} and git status (clean) at the start and end of job-d and job-e"
+  },
+  "sshDenial": {
+   "stubs": {
+    "sshstub/bin/ssh": "660a6d9303e09ce8c3eeff29447e97306e79a3240e05afc6f2b3a0c0be5751e0",
+    "sshstub/bin/scp": "0e70529081626c123c7da8f2cb753ba244d979025ffa0dd01288f11a1e269855",
+    "sshstub/bin/sftp": "c135eb8f9e548879d2e6213156b8eb0d440927b29b89c6add3dee652c72b35f5"
+   },
+   "rule": "each stub logs and exits 255; PATH puts measured-composition/sshstub/bin FIRST for every test command",
+   "proof": "command -v ssh/scp/sftp -> the stubs; shell `ssh -V` exit 255; a node child spawnSync(\"ssh\") status 255 with the stub message (job-d, job-e)",
+   "invocationsDuringTests": 0,
+   "invocationLog": "sshstub/invocations.log (3 lines, all proofs: proof-shell, proof-node, proof-node-e)",
+   "sourceGrep": "no ssh/scp/sftp use in the two suites, their helpers or mcp/"
+  },
+  "priorJobResidue": {
+   "foundrySymlink": "tree-c/contracts/foundry/out absent before job-d (job-c3 had removed it); no target touched",
+   "tmpBuildDir": "/tmp/enclave-lease-gas-forge-c88f14e4d67956b24057.building-f2WulC: EMPTY, created 12:29:51 local inside job-c3 (guard-killed) -> rmdir; the 2026-10-20 forge caches of other workers left untouched",
+   "processes": "no anvil/forge/solc/Chrome-for-Testing process of the earlier jobs was running (the chromium crashpad handlers are the user's browser, ~25 h old); nothing killed"
+  },
+  "job-d": {
+   "cap": 1536,
+   "peakTreeRssMiB": 1131,
+   "started": "2026-10-22T19:35:04Z",
+   "mcpEndToEnd": {
+    "file": "test/mcp-hosted-control.test.mjs",
+    "selection": "tests 4-7 by name (1-3 passed in job-c2)",
+    "result": "4/4 pass, 0 skip",
+    "log": "out/d/t-mcp-e2e.log",
+    "foundryOut": "work/enclave/contracts/foundry/out linked READ-ONLY at the gitignored tree-c path for this step only, removed by trap; fingerprint of every file (path size mtime) identical before/after: 2f85514d5f1bc92a3f6b2bc60cbb68de0f8d3f536e30b63b47c90c48de0a6658",
+    "forge": "the rig's lease-gas build ran offline into TMPDIR (measured-composition/tmp/d), never into contracts/foundry/out",
+    "leftAfter": "no new anvil"
+   },
+   "custodyChrome": {
+    "result": "FAILED (environment): \"chrome did not start\" - its TMPDIR measured-composition/tmp/d/ is 108 bytes, so Chrome's singleton socket under $TMPDIR/org.chromium.Chromium.* exceeds the 107-byte unix socket limit (memory: unix-socket-path-limit); not a source defect",
+    "rawLog": "out/d/t-custody-chrome.FAILED-socket-path.log"
+   }
+  },
+  "job-e": {
+   "cap": 1536,
+   "peakTreeRssMiB": 1482,
+   "note": "within 54 MiB of the cap",
+   "custodyChrome": {
+    "file": "test/custody-browser.test.mjs",
+    "selection": "\"Chrome encrypts to the committee...\" only (test 1 passed in job-c and job-c2)",
+    "tmpdir": "/tmp/mcd-XXXXXX (15 bytes), created and removed by the job",
+    "result": "1/1 pass, 0 skip",
+    "log": "out/d/t-custody-chrome.log",
+    "leftAfter": "no new Chrome"
+   }
+  },
+  "rawGuardStops": {
+   "job-c (512)": "Chrome 921 MiB",
+   "job-c3 (512)": "MCP e2e 615 MiB",
+   "logs": "rawlogs/job-c.out, rawlogs/job-c3.out, out/c/t-custody-browser.job-c-guardstopped.log"
+  }
+ }
+}

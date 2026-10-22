@@ -15,10 +15,12 @@ for directory in ('controller-bounds-validation', 'postgres-init-stage', 'produc
         rel = p.relative_to(base / directory)
         if any(x in ('logs', 'runs', '__pycache__', 'secrets') for x in rel.parts):
             continue
-        if p.is_file() and not p.is_symlink() and not p.name.startswith('logs-'):
+        if p.is_file() and not p.is_symlink() and not p.name.startswith('logs-') and p.suffix not in ('.out', '.log'):
             paths.add(p)
-for p in (base / 'production-run').iterdir():
-    if p.is_file() and p.suffix in ('.py', '.sh'):
+for p in (base / 'production-run').rglob('*'):
+    if any(x in ('runs', 'secrets', '__pycache__') for x in p.relative_to(base / 'production-run').parts):
+        continue
+    if p.is_file() and not p.is_symlink() and p.suffix in ('.py', '.sh'):
         paths.add(p)
 for directory in ('src', 'tools', 'base', 'patches'):
     for p in (base / 'measured-composition' / directory).rglob('*'):

@@ -1,0 +1,391 @@
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -34,6 +34,9 @@
+ # designated lease relays from the pinned service index (network/lease-relay-discovery.mjs), the shared policy adapter, and the index client's own graph
+ COPY network/lease-relay-discovery.mjs network/host-policy-adapters.mjs network/service-index.mjs network/directory-client.mjs network/network-authorities.mjs network/network-policy-core.mjs network/network-policy.mjs network/provider-directory.mjs network/provider-qualification.mjs network/route-record.mjs ./network/
+ COPY relay/net-guard.mjs relay/attestation-paths.mjs ./relay/
++# the operator's bound owner nomination (checked at startup; network/host-owner-nomination.mjs proposes it on chain)
++COPY network/host-owner-nomination.mjs ./network/
++COPY metal/guest/owner-nomination.mjs ./metal/guest/
+ # If you add the spawn implementation in its own files, COPY them here too.
+ ENV PORT=8080
+ EXPOSE 8080
+--- a/docs/network/hosted-mcp.md
++++ b/docs/network/hosted-mcp.md
+@@ -16,7 +16,7 @@
+ 
+ | piece | where |
+ | --- | --- |
+-| code | `/opt/metal/mcp-server.bundle.mjs`: a reproducible esbuild bundle of `mcp/server.mjs` and its whole closure, built by `scripts/build-mcp-guest-bundle.mjs`. Its manifest (`metal/guest/mcp-server.bundle.mjs.manifest.json`) records the sha256 of every input, and `--check` refuses a stale one. `metal/build-image.mjs` copies it into the image, so the SNP measurement covers it, and records it in the image manifest (`mcpBundle`). |
++| code | `/opt/metal/mcp-server.bundle.mjs`: a reproducible esbuild bundle of `mcp/server.mjs` and its whole closure, built by `scripts/build-mcp-guest-bundle.mjs`. Its manifest (`metal/guest/mcp-server.bundle.mjs.manifest.json`) records the sha256 of every input, and `--check` refuses a stale one. Its entry is `metal/guest/mcp-server-entry.mjs` (the host-role argv guard, then `mcp/server.mjs`'s `main`), so no bundled library's "am I main?" check can run inside the adapter. The manifest's `runtimeFiles` name, by image path, the files the bundled code reads beside itself (`/opt/metal/fixtures/tpm-roots.pem`, `/opt/contracts/deployments/contract-pins-base.json`); the builder refuses an undeclared one. `metal/build-image.mjs` and `metal/overlay-control-image.py --control direct` copy the bundle and those files into the image, so the SNP measurement covers them, and record them in the image manifest (`mcpBundle`). |
+ | runtime | the guest's own `/usr/local/bin/node`. No new runtime or interpreter. |
+ | configuration | the optional `mcp` member of the direct config (`enclave-direct-control-config/v1`). HOST_DATA binds that config, so the adapter's configuration is attested. A config without `mcp` keeps its exact bytes and digest, and its guest starts no adapter. |
+ | state | `/run/measured-control/mcp-state` (0700): the adapter's management and capacity rollback floors, on the guest's RAM fs. |
+--- a/docs/network/measured-control-guest.md
++++ b/docs/network/measured-control-guest.md
+@@ -141,9 +141,10 @@
+      --supervisor <ref@sha256> --wasm <ref@sha256> --ovmf <owner-pinned OVMF>
+    ```
+    Alternatively, use `python3 metal/overlay-control-image.py --control direct BASE OUT COMMIT` over a verified
+-   `snp-guest-per-app` base image. It keeps the base's kernel and modules, installs the commit's runtime and its platform
+-   API bundle with the bundle's sidecars (checked against the committed bundle manifest), and appends
+-   `metal.control=direct` to the measured cmdline. A base that already carries a control mode must be overlaid with the
++   `snp-guest-per-app` base image. It keeps the base's kernel and modules, installs the commit's runtime, its platform
++   API bundle with the bundle's sidecars and its hosted MCP bundle with the bundle's runtime files (each checked against
++   its committed bundle manifest; a manifest-named file must be a plain relative path and may not replace another file),
++   and appends `metal.control=direct` to the measured cmdline. A base that already carries a control mode must be overlaid with the
+    same `--control`.
+ 3. **Recompute the launch digest independently**, on a second machine or a second rebuild:
+    ```
+--- a/metal/README.md
++++ b/metal/README.md
+@@ -551,7 +551,8 @@
+ measurement. Recompute and verify the new launch measurement before activation.
+ This command does not start a VM or replace the live image. With `--control direct`
+ (over a `snp-guest-per-app` base) it also installs the committed platform API bundle
+-and its sidecars, records them as `build-image.mjs --control direct` does, and
++with its sidecars and the hosted MCP bundle with its runtime files, records them as
++`build-image.mjs --control direct` does, and
+ appends `metal.control=direct` to the measured cmdline; the kernel stays the base's.
+ 
+ Host contract pins also govern session authentication. A pinned host trusts only
+--- a/metal/build-image.mjs
++++ b/metal/build-image.mjs
+@@ -289,8 +289,20 @@
+ fs.copyFileSync(path.join(HERE, 'guest', 'mcp-server.bundle.mjs'), path.join(md, 'mcp-server.bundle.mjs'));
+ const mcpBundle = (() => { const f = path.join(md, 'mcp-server.bundle.mjs');
+   let manifest = null; try { manifest = JSON.parse(fs.readFileSync(path.join(HERE, 'guest', 'mcp-server.bundle.mjs.manifest.json'), 'utf8')); } catch {}
++  // the files its code reads beside itself at run time (manifest runtimeFiles: image path -> source + sha256), inside the
++  // measurement like the bundle: a normal relative path under opt/ only, never over a file this build already placed
++  const runtimeFiles = {};
++  for (const [at, s] of Object.entries(manifest?.runtimeFiles || {})) {
++    if (typeof at !== 'string' || !at.startsWith('opt/') || at.split('/').some((p) => p === '' || p === '.' || p === '..') || at.includes('\\'))
++      throw new Error(`MCP runtime file ${JSON.stringify(at)} is not a normal path under opt/`);
++    const to = path.join(ROOT, at);
++    if (fs.existsSync(to) && sha256File(to) !== s.sha256) throw new Error(`MCP runtime file ${at} would replace different bytes`);
++    fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(path.join(HERE, '..', s.source), to);
++    if (sha256File(to) !== s.sha256) throw new Error(`MCP runtime file ${at} does not match its manifest`);
++    runtimeFiles['/' + at] = s.sha256;
++  }
+   return { path: '/opt/metal/mcp-server.bundle.mjs', sha256: sha256File(f), bytes: fs.statSync(f).size, inputs: manifest ? Object.keys(manifest.inputs || {}).length : null,
+-           manifestSha256: manifest ? manifest.sha256 ?? null : null }; })();
++           manifestSha256: manifest ? manifest.sha256 ?? null : null, runtimeFiles }; })();
+ // the platform API role (docs/network/hosted-platform-api.md): a reproducible bundle of metal/guest/platform-api-role.mjs with
+ // the unchanged relay closure (scripts/build-platform-api-guest-bundle.mjs --check), plus the one file the relay reads beside
+ // its module at run time; started by gsup only for a bound config with a platformApi member
+--- /dev/null
++++ b/metal/guest/mcp-server-entry.mjs
+@@ -0,0 +1,8 @@
++// Bundle entry of the hosted MCP adapter (scripts/build-mcp-guest-bundle.mjs): the argv guard, then mcp/server.mjs's main.
++// Inside the ONE bundle every module's import.meta.url is the bundle's, so a bundled library's "am I the main script?" check
++// (windows/node/host-identity.mjs and cli/independent-capacity.mjs, both loaded lazily by capacity and quorum tools) would run
++// that library's command line and exit the adapter. The same guard as the platform API entry and the host-role packages.
++// It makes mcp/server.mjs's own check false as well, so its main runs here, with the same arguments and failure exit.
++import '../../network/host-services/argv-guard.mjs';
++import { main } from '../../mcp/server.mjs';
++main(process.argv.slice(2)).catch((e) => { process.stderr.write(`mcp/server: ${e.message}\n`); process.exit(1); });
+--- a/metal/overlay-control-image.py
++++ b/metal/overlay-control-image.py
+@@ -4,8 +4,9 @@
+ Preserves untouched cpio entries, adds missing directories, and records exact inputs.
+ --control direct makes the MEASURED independent control image (docs/network/measured-control-guest.md) over a verified
+ snp-guest-per-app base, as build-image.mjs --control direct does, keeping the base's kernel and modules: it installs the
+-committed platform API bundle and its sidecars (checked against the committed bundle manifest) and appends
+-metal.control=direct to the measured cmdline. Without it the output is exactly what this tool always produced.
++committed platform API bundle with its sidecars and the hosted MCP bundle with its runtime files (each checked against its
++committed bundle manifest; no file may replace another) and appends metal.control=direct to the measured cmdline. Without it
++the output is exactly what this tool always produced.
+ """
+ import gzip, hashlib, io, json, posixpath, re, shutil, stat, subprocess, sys
+ from pathlib import Path
+@@ -139,10 +140,45 @@
+         out.append({'name': name, 'version': str(pkg.get('version', ''))})
+     return out
+ REQUIRED = {'app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/agent.mjs', 'opt/metal/manifest.json'}
+-# --control direct: the platform API role bundle build-image.mjs installs for a direct control image, its manifest (read,
+-# not installed: the image manifest records it) and the files it reads beside itself (manifest sidecars)
++# --control direct: the platform API role bundle and the hosted MCP adapter bundle build-image.mjs installs for a direct
++# control image, their manifests (read, not installed: the image manifest records them) and the files each reads at run time
++# (platform API manifest sidecars, beside the bundle; MCP manifest runtimeFiles, by image path)
+ PLATFORM_API_BUNDLE = 'metal/guest/platform-api.bundle.mjs'
++MCP_BUNDLE = 'metal/guest/mcp-server.bundle.mjs'
+ CONTROL_TOKEN, ISOLATION_TOKEN = 'metal.control=direct', 'metal.isolation=snp-guest-per-app'
++def normal_name(rel, what):
++    """A manifest-named file path: relative, normal, every component a real name (no empty, '.', '..'; no backslash/NUL)."""
++    if not isinstance(rel, str) or not rel or rel.startswith('/') or '\\' in rel or '\0' in rel \
++            or any(p in ('', '.', '..') for p in rel.split('/')):
++        raise ValueError(what+' '+json.dumps(rel)+' is not a normal relative path')
++    return rel
++def place(files, target, source, what):
++    """Add target -> source to an install set; a different file already there is refused (never silently replaced)."""
++    if target == 'opt/metal/manifest.json' or files.get(target, source) != source:
++        raise ValueError(what+' would replace /'+target)
++    files[target] = source
++def mcp_files(commit, repo, taken):
++    """-> ({image path: source path}, the image manifest's mcpBundle) for the commit's hosted MCP bundle; taken: the paths
++    already selected (runtime files go under opt/ only and never over another file)."""
++    data = committed(commit, repo, MCP_BUNDLE)
++    raw = committed(commit, repo, MCP_BUNDLE+'.manifest.json')
++    if data is None or raw is None:
++        raise ValueError('the commit has no '+MCP_BUNDLE+' and manifest, which a direct control image carries')
++    manifest = json.loads(raw)
++    if sha(data) != manifest.get('sha256') or len(data) != manifest.get('bytes'):
++        raise ValueError('the hosted MCP guest bundle does not match its manifest (scripts/build-mcp-guest-bundle.mjs)')
++    files, runtime = dict(taken), {}
++    place(files, 'opt/metal/mcp-server.bundle.mjs', MCP_BUNDLE, 'the hosted MCP bundle')
++    for at, s in sorted((manifest.get('runtimeFiles') or {}).items()):
++        if not normal_name(at, 'MCP runtime file').startswith('opt/'):
++            raise ValueError('MCP runtime file '+at+' is not under opt/')
++        side = committed(commit, repo, s['source'])
++        if side is None or sha(side) != s['sha256']:
++            raise ValueError('MCP runtime file '+at+' does not match its manifest')
++        place(files, at, s['source'], 'MCP runtime file '+at)
++        runtime['/'+at] = s['sha256']
++    return {k: v for k, v in files.items() if k not in taken}, {'path': '/opt/metal/mcp-server.bundle.mjs', 'sha256': sha(data), 'bytes': len(data),
++        'inputs': len(manifest['inputs']), 'manifestSha256': manifest['sha256'], 'runtimeFiles': runtime}
+ def platform_api_files(commit, repo):
+     """-> ({image path: source path}, the image manifest's platformApiBundle) for the commit's platform API bundle."""
+     data = committed(commit, repo, PLATFORM_API_BUNDLE)
+@@ -154,12 +190,12 @@
+         raise ValueError('the platform API guest bundle does not match its manifest (scripts/build-platform-api-guest-bundle.mjs)')
+     files, sidecars = {'opt/metal/platform-api.bundle.mjs': PLATFORM_API_BUNDLE}, {}
+     for beside, s in sorted((manifest.get('sidecars') or {}).items()):
+-        if posixpath.isabs(beside) or posixpath.normpath(beside) != beside or beside.startswith('../'):
+-            raise ValueError('platform API sidecar '+beside+' is not a path beside the bundle')
++        normal_name(beside, 'platform API sidecar')
+         side = committed(commit, repo, s['source'])
+         if side is None or sha(side) != s['sha256']:
+             raise ValueError('platform API sidecar '+beside+' does not match its manifest')
+-        files['opt/metal/'+beside], sidecars['/opt/metal/'+beside] = s['source'], s['sha256']
++        place(files, 'opt/metal/'+beside, s['source'], 'platform API sidecar '+beside)
++        sidecars['/opt/metal/'+beside] = s['sha256']
+     return files, {'path': '/opt/metal/platform-api.bundle.mjs', 'sha256': manifest['sha256'], 'bytes': len(data),
+                    'inputs': len(manifest['inputs']), 'sidecars': sidecars}
+ def direct_cmdline(base, m):
+@@ -253,7 +289,10 @@
+         if 'opt/metal/measured-control.mjs' not in paths:
+             raise ValueError('the commit\'s gsup.mjs runs no measured control (metal/guest/measured-control.mjs)')
+         pa_files, pa_record = platform_api_files(commit, repo)
+-        paths.update(pa_files)
++        for k, v in pa_files.items():
++            place(paths, k, v, 'platform API file')
++        mcp_add, mcp_record = mcp_files(commit, repo, paths)
++        paths.update(mcp_add)
+     replacements = {k: committed(commit, repo, v) for k,v in paths.items()}
+     m.pop('expectedMeasurement', None)
+     m.pop('initramfs', None)
+@@ -265,7 +304,7 @@
+         'files': [{'path': '/'+k, 'source': paths[k], 'sha256': sha(v)} for k,v in replacements.items()]}
+     if control:
+         # the same records build-image.mjs --control direct writes; the kernel and modules stay the base's (m['kernel'])
+-        m['control'], m['platformApiBundle'], m['cmdlineTemplate'] = control, pa_record, cmdline[0]
++        m['control'], m['platformApiBundle'], m['mcpBundle'], m['cmdlineTemplate'] = control, pa_record, mcp_record, cmdline[0]
+         m['controlOverlay']['control'] = control
+     replacements['opt/metal/manifest.json'] = b''  # filled after namespace validation
+     # Validate the whole namespace before emitting output. A symlink in a parent
+--- a/scripts/build-mcp-guest-bundle.mjs
++++ b/scripts/build-mcp-guest-bundle.mjs
+@@ -9,11 +9,20 @@
+ import { createHash } from "node:crypto";
+ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+ const entry = "mcp/server.mjs", output = path.join(root, "metal/guest/mcp-server.bundle.mjs");
++// the bundle ENTRY is the argv-guarded wrapper (metal/guest/mcp-server-entry.mjs) that calls mcp/server.mjs's main
++const bundleEntry = "metal/guest/mcp-server-entry.mjs";
++// Files the bundled code reads beside itself at run time (new URL(<relative>, import.meta.url)), as IMAGE paths -> repository
++// source. The bundle runs as /opt/metal/mcp-server.bundle.mjs, so "./fixtures/tpm-roots.pem" (relay/vbs-policy.mjs, Windows VBS
++// hosts) is opt/metal/fixtures/tpm-roots.pem and "../contracts/deployments/contract-pins-base.json" (network/native-host-policy.mjs,
++// the management tools) is opt/contracts/deployments/contract-pins-base.json. The image builders install them with these hashes.
++export const BUNDLE_DIR = "opt/metal";
++export const RUNTIME_FILES = Object.freeze({ "opt/metal/fixtures/tpm-roots.pem": "relay/fixtures/tpm-roots.pem",
++  "opt/contracts/deployments/contract-pins-base.json": "contracts/deployments/contract-pins-base.json" });
+ const args = process.argv.slice(2);
+ const outIdx = args.indexOf("--out");
+ if (args.some((a, i) => !(a === "--check" || a === "--out" || (outIdx >= 0 && i === outIdx + 1)))) throw new Error("usage: build-mcp-guest-bundle.mjs [--check] [--out DIR]");
+ const result = await build({
+-  absWorkingDir: root, entryPoints: [entry], outfile: output,
++  absWorkingDir: root, entryPoints: [bundleEntry], outfile: output,
+   platform: "node", format: "esm", target: "node20", bundle: true, minify: false, write: false, metafile: true, legalComments: "none", preserveSymlinks: true,
+   // esm output of cjs dependencies needs a require for node builtins
+   banner: { js: "// Generated by scripts/build-mcp-guest-bundle.mjs from mcp/server.mjs; do not edit.\nimport { createRequire as __mcpCreateRequire } from 'node:module'; const require = __mcpCreateRequire(import.meta.url);" },
+@@ -27,7 +36,17 @@
+   if (rel.startsWith("..") || path.isAbsolute(rel)) throw new Error(`bundle input outside the tree: ${rel}`);
+   inputs[rel] = sha(await fs.readFile(path.resolve(root, rel)));
+ }
+-const manifest = JSON.stringify({ bundle: "metal/guest/mcp-server.bundle.mjs", entry, sha256: sha(bytes), bytes: bytes.length, inputs }, null, 2) + "\n";
++for (const must of [entry, bundleEntry, "network/host-services/argv-guard.mjs"])
++  if (!inputs[must]) throw new Error(`the bundle does not carry ${must}`);
++// every relative file the bundled code resolves against its own URL must be a declared runtime file (none silently missing)
++const text = bytes.toString("utf8");
++for (const m of text.matchAll(/new URL\(\s*["'](\.{1,2}\/[^"']+)["']\s*,\s*import\.meta\.url\s*\)/g)) {
++  const at = path.posix.normalize(`${BUNDLE_DIR}/${m[1]}`);
++  if (!RUNTIME_FILES[at]) throw new Error(`the bundle reads ${m[1]} beside itself (${at}), which is not a declared runtime file`);
++}
++const runtimeFiles = {};
++for (const [at, src] of Object.entries(RUNTIME_FILES)) runtimeFiles[at] = { source: src, sha256: sha(await fs.readFile(path.join(root, src))) };
++const manifest = JSON.stringify({ bundle: "metal/guest/mcp-server.bundle.mjs", entry, bundleEntry, sha256: sha(bytes), bytes: bytes.length, inputs, runtimeFiles }, null, 2) + "\n";
+ if (args.includes("--check")) {
+   if (!bytes.equals(await fs.readFile(output))) throw new Error("the hosted MCP guest bundle is stale; run node scripts/build-mcp-guest-bundle.mjs");
+   if (manifest !== await fs.readFile(output + ".manifest.json", "utf8")) throw new Error("the hosted MCP guest bundle manifest is stale");
+@@ -37,4 +56,4 @@
+   await fs.writeFile(path.join(dir, "mcp-server.bundle.mjs"), bytes);
+   await fs.writeFile(path.join(dir, "mcp-server.bundle.mjs.manifest.json"), manifest);
+ }
+-console.log(`hosted MCP guest bundle: ${bytes.length} bytes, sha256:${sha(bytes)}, ${Object.keys(inputs).length} inputs${args.includes("--check") ? " (verified)" : ""}`);
++console.log(`hosted MCP guest bundle: ${bytes.length} bytes, sha256:${sha(bytes)}, ${Object.keys(inputs).length} inputs, ${Object.keys(runtimeFiles).length} runtime file(s)${args.includes("--check") ? " (verified)" : ""}`);
+--- /dev/null
++++ b/test/mcp-guest-bundle.test.mjs
+@@ -0,0 +1,54 @@
++// The hosted MCP adapter bundle as the measured control image carries it (/opt/metal/mcp-server.bundle.mjs and its manifest
++// runtimeFiles at their image paths; scripts/build-mcp-guest-bundle.mjs, metal/build-image.mjs, metal/overlay-control-image.py):
++// the argv-guarded entry and the declared runtime files. (The adapter's behaviour end to end is test/mcp-hosted-control.test.mjs.)
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { spawnSync } from "node:child_process";
++import { createHash } from "node:crypto";
++import { fileURLToPath, pathToFileURL } from "node:url";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const BUNDLE = path.join(REPO, "metal/guest/mcp-server.bundle.mjs");
++const m = JSON.parse(fs.readFileSync(BUNDLE + ".manifest.json", "utf8"));
++const sha = (b) => createHash("sha256").update(b).digest("hex");
++const read = (rel) => fs.readFileSync(path.join(REPO, rel));
++const RELATIVE_READS = /new URL\(\s*["'](\.{1,2}\/[^"']+)["']\s*,\s*import\.meta\.url\s*\)/g;
++const rels = [...fs.readFileSync(BUNDLE, "utf8").matchAll(RELATIVE_READS)].map((x) => x[1]);
++
++test("the manifest names the guarded entry, and every file the bundled code reads beside itself is a declared runtime file", () => {
++  assert.equal(m.sha256, sha(fs.readFileSync(BUNDLE)));
++  assert.equal(m.entry, "mcp/server.mjs");
++  assert.equal(m.bundleEntry, "metal/guest/mcp-server-entry.mjs");
++  for (const f of [m.entry, m.bundleEntry, "network/host-services/argv-guard.mjs"]) assert.equal(m.inputs[f], sha(read(f)), f);
++  // the lazily loaded libraries whose own "am I main?" checks the guard has to make false
++  for (const f of ["windows/node/host-identity.mjs", "cli/independent-capacity.mjs"]) assert.ok(m.inputs[f], `${f} is bundled`);
++  assert.ok(rels.length >= 2, "the bundle reads files beside itself");
++  for (const rel of rels) assert.ok(m.runtimeFiles[path.posix.normalize(`opt/metal/${rel}`)], `${rel} is a declared runtime file`);
++  for (const [at, s] of Object.entries(m.runtimeFiles)) {
++    assert.match(at, /^opt\/[^]+$/); assert.equal(path.posix.normalize(at), at);
++    assert.equal(s.sha256, sha(read(s.source)), `${at} <- ${s.source}`);
++  }
++});
++
++test("laid out as the image lays it out, the bundle runs the adapter's main behind the argv guard and finds its runtime files", (t) => {
++  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-guest-bundle-"));
++  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
++  const at = path.join(root, "opt/metal/mcp-server.bundle.mjs");
++  fs.mkdirSync(path.dirname(at), { recursive: true }); fs.copyFileSync(BUNDLE, at);
++  for (const [img, s] of Object.entries(m.runtimeFiles)) {
++    fs.mkdirSync(path.dirname(path.join(root, img)), { recursive: true }); fs.copyFileSync(path.join(REPO, s.source), path.join(root, img));
++  }
++  for (const rel of rels) assert.ok(fs.existsSync(fileURLToPath(new URL(rel, pathToFileURL(at)))), `${rel} resolves to an installed file`);
++  // gsup's argv shape (measured-control.mjs directMcpLaunch), with a config that does not exist: main must be reached (its
++  // error, exit 1) and, by then, the guard must have renamed argv[1] so no bundled library can take the bundle for itself
++  const probe = path.join(root, "probe.mjs");
++  fs.writeFileSync(probe, 'process.on("exit", () => process.stderr.write("ARGV1=" + process.argv[1] + "\\n"));\n');
++  const r = spawnSync(process.execPath, ["--import", pathToFileURL(probe).href, at, "--config", path.join(root, "absent.json"), "--remote", "--listen", "127.0.0.1:0"],
++    { cwd: root, encoding: "utf8", timeout: 30000 });
++  assert.equal(r.status, 1, r.stderr);
++  assert.match(r.stderr, /^mcp\/server: /m);
++  assert.ok(r.stderr.includes(`ARGV1=${at} (enclave host role)\n`), r.stderr);
++});
+--- a/test/metal-control-overlay.test.py
++++ b/test/metal-control-overlay.test.py
+@@ -1,4 +1,4 @@
+-import gzip, hashlib, importlib.util, io, json, stat, subprocess, tempfile, unittest
++import gzip, hashlib, importlib.util, io, json, re, stat, subprocess, tempfile, unittest
+ from pathlib import Path
+ REPO=Path(__file__).resolve().parent.parent
+ spec=importlib.util.spec_from_file_location('overlay_control_image', REPO/'metal/overlay-control-image.py')
+@@ -151,8 +151,25 @@
+         self.assertEqual(m['platformApiBundle'],{'path':'/opt/metal/platform-api.bundle.mjs','sha256':pm['sha256'],'bytes':len(bundle),
+             'inputs':len(pm['inputs']),'sidecars':{'/opt/metal/'+k:v['sha256'] for k,v in pm['sidecars'].items()}})
+         self.assertEqual((out/'vmlinuz').read_bytes(),(self.base/'vmlinuz').read_bytes());self.assertEqual(m['kernel'],base_m['kernel'])
++        # the hosted MCP adapter, as build-image.mjs installs it and measured-control.mjs launches it (MCP_BUNDLE), with its runtime files
++        mm=json.loads(mod.committed(COMMIT,REPO,mod.MCP_BUNDLE+'.manifest.json'));mcp=mod.committed(COMMIT,REPO,mod.MCP_BUNDLE)
++        self.assertEqual(after['opt/metal/mcp-server.bundle.mjs'][1],mcp);self.assertEqual(mod.sha(mcp),mm['sha256'])
++        self.assertTrue(mm['runtimeFiles']);self.assertNotIn('opt/metal/mcp-server.bundle.mjs.manifest.json',after)
++        for at,s in mm['runtimeFiles'].items():
++            self.assertEqual(after[at][1],mod.committed(COMMIT,REPO,s['source']));self.assertEqual(mod.sha(after[at][1]),s['sha256'])
++        self.assertEqual(m['mcpBundle'],{'path':'/opt/metal/mcp-server.bundle.mjs','sha256':mm['sha256'],'bytes':len(mcp),'inputs':len(mm['inputs']),
++            'manifestSha256':mm['sha256'],'runtimeFiles':{'/'+k:v['sha256'] for k,v in mm['runtimeFiles'].items()}})
++        launch=mod.committed(COMMIT,REPO,'metal/guest/measured-control.mjs').decode()
++        self.assertIn("export const MCP_BUNDLE = '/opt/metal/mcp-server.bundle.mjs';",launch)
++        self.assertIn("export const PLATFORM_API_BUNDLE = '/opt/metal/platform-api.bundle.mjs';",launch)
++        # CLOSURE: every file either bundle resolves against its own URL at run time is in the image, at that path
++        import posixpath,re
++        for b in ['opt/metal/mcp-server.bundle.mjs','opt/metal/platform-api.bundle.mjs']:
++            rels=re.findall(r"""new URL\(\s*["'](\.{1,2}/[^"']+)["']\s*,\s*import\.meta\.url\s*\)""",after[b][1].decode())
++            self.assertTrue(rels,b)
++            for rel in rels:self.assertIn(posixpath.normpath(posixpath.join(posixpath.dirname(b),rel)),after,b+' reads '+rel)
+         inimage=json.loads(after['opt/metal/manifest.json'][1])
+-        self.assertEqual((inimage['control'],inimage['platformApiBundle'],inimage['controlOverlay']['control']),('direct',m['platformApiBundle'],'direct'))
++        self.assertEqual((inimage['control'],inimage['platformApiBundle'],inimage['mcpBundle'],inimage['controlOverlay']['control']),('direct',m['platformApiBundle'],m['mcpBundle'],'direct'))
+         self.assertNotIn('expectedMeasurement',m)
+         for key in ['unchanged-link','unchanged-file','app','opt','opt/metal']:self.assertEqual(before[key],after[key])
+         self.assertTrue(stat.S_ISDIR(after['opt/metal/fixtures'][0][1]))
+@@ -181,7 +198,7 @@
+         self.direct_base()
+         with self.assertRaisesRegex(ValueError,'must be direct'):mod.overlay(self.base,self.root/'x',COMMIT,REPO,'indirect')
+         self.assertFalse((self.root/'x').exists())
+-    def fixture_commit(self,bundle=b'export {};\n',sidecar=b'roots\n',manifest=None,gsup="import './measured-control.mjs';\n"):
++    def fixture_commit(self,bundle=b'export {};\n',sidecar=b'roots\n',manifest=None,gsup="import './measured-control.mjs';\n",mcp_manifest=None,pins=b'{}\n',no_mcp=False):
+         repo=self.root/('repo%d'%len(list(self.root.glob('repo*'))));repo.mkdir()
+         git=lambda *a:subprocess.check_output(['git','-c','user.name=t','-c','user.email=t@t',*a],cwd=repo)
+         git('init','-q')
+@@ -192,18 +209,32 @@
+         w('metal/guest/gsup.mjs',gsup);w(mod.PLATFORM_API_BUNDLE,bundle);w('relay/fixtures/tpm-roots.pem',sidecar)
+         w(mod.PLATFORM_API_BUNDLE+'.manifest.json',json.dumps(manifest if manifest is not None else {'sha256':mod.sha(bundle),'bytes':len(bundle),
+             'inputs':{'metal/guest/platform-api-entry.mjs':'0'*64},'sidecars':{'fixtures/tpm-roots.pem':{'source':'relay/fixtures/tpm-roots.pem','sha256':mod.sha(sidecar)}}}))
++        if not no_mcp:
++            w(mod.MCP_BUNDLE,b'export {};\n');w('contracts/deployments/contract-pins-base.json',pins)
++            w(mod.MCP_BUNDLE+'.manifest.json',json.dumps(mcp_manifest if mcp_manifest is not None else self.mcp_manifest()))
+         git('add','-A');git('commit','-qm','t');return repo,git('rev-parse','HEAD').decode().strip()
++    def mcp_manifest(self,**o):
++        rf={'opt/metal/fixtures/tpm-roots.pem':{'source':'relay/fixtures/tpm-roots.pem','sha256':mod.sha(b'roots\n')},
++            'opt/contracts/deployments/contract-pins-base.json':{'source':'contracts/deployments/contract-pins-base.json','sha256':mod.sha(b'{}\n')}}
++        return {'sha256':mod.sha(b'export {};\n'),'bytes':11,'inputs':{'mcp/server.mjs':'0'*64},'runtimeFiles':rf,**o}
+     def test_control_direct_checks_the_committed_bundle_manifest(self):
+         self.direct_base()
+         repo,c=self.fixture_commit();out=self.root/'ok';m=mod.overlay(self.base,out,c,repo,'direct');after=self.read(out)
+         self.assertEqual((after['opt/metal/platform-api.bundle.mjs'][1],after['opt/metal/fixtures/tpm-roots.pem'][1]),(b'export {};\n',b'roots\n'))
+         self.assertEqual(m['platformApiBundle']['inputs'],1)
++        # the MCP adapter and its runtime files; the shared, identical fixtures/tpm-roots.pem is one entry
++        self.assertEqual((after['opt/metal/mcp-server.bundle.mjs'][1],after['opt/contracts/deployments/contract-pins-base.json'][1]),(b'export {};\n',b'{}\n'))
++        self.assertEqual(sorted(m['mcpBundle']['runtimeFiles']),['/opt/contracts/deployments/contract-pins-base.json','/opt/metal/fixtures/tpm-roots.pem'])
++        for d in ['opt/contracts','opt/contracts/deployments']:self.assertTrue(stat.S_ISDIR(after[d][0][1]),d)
+         good=lambda **o:{'sha256':mod.sha(b'export {};\n'),'bytes':11,'inputs':{},'sidecars':{'fixtures/tpm-roots.pem':{'source':'relay/fixtures/tpm-roots.pem','sha256':mod.sha(b'roots\n')}},**o}
+         for i,(kw,msg) in enumerate([({'manifest':good(sha256='0'*64)},'does not match its manifest'),
+                                      ({'manifest':good(bytes=12)},'does not match its manifest'),
+                                      ({'sidecar':b'other roots\n','manifest':good()},'sidecar fixtures/tpm-roots.pem does not match'),
+-                                     ({'manifest':good(sidecars={'../escape.pem':{'source':'relay/fixtures/tpm-roots.pem','sha256':mod.sha(b'roots\n')}})},'not a path beside'),
+-                                     ({'gsup':''},'runs no measured control')]):
++                                     ({'gsup':''},'runs no measured control'),
++                                     ({'mcp_manifest':self.mcp_manifest(sha256='0'*64)},'hosted MCP guest bundle does not match its manifest'),
++                                     ({'mcp_manifest':self.mcp_manifest(bytes=12)},'hosted MCP guest bundle does not match its manifest'),
++                                     ({'pins':b'{"other":1}\n'},'MCP runtime file opt/contracts/deployments/contract-pins-base.json does not match'),
++                                     ({'no_mcp':True},'has no metal/guest/mcp-server.bundle.mjs and manifest')]):
+             repo,c=self.fixture_commit(**kw)
+             with self.assertRaisesRegex(ValueError,msg):mod.overlay(self.base,self.root/('bad%d'%i),c,repo,'direct')
+             self.assertFalse((self.root/('bad%d'%i)).exists())
+@@ -211,6 +242,20 @@
+         subprocess.check_output(['git','rm','-q',mod.PLATFORM_API_BUNDLE+'.manifest.json'],cwd=repo)
+         subprocess.check_output(['git','-c','user.name=t','-c','user.email=t@t','commit','-qm','no manifest'],cwd=repo)
+         with self.assertRaisesRegex(ValueError,'has no metal/guest/platform-api.bundle.mjs and manifest'):mod.overlay(self.base,self.root/'nom','HEAD',repo,'direct')
++    def test_control_direct_refuses_sidecar_and_runtime_file_names_that_are_not_plain_or_collide(self):
++        self.direct_base();roots={'source':'relay/fixtures/tpm-roots.pem','sha256':mod.sha(b'roots\n')}
++        pa=lambda name:{'manifest':{'sha256':mod.sha(b'export {};\n'),'bytes':11,'inputs':{},'sidecars':{name:roots}}}
++        cases=[(pa(n),'is not a normal relative path') for n in ['','.','..','../escape.pem','/abs.pem','a//b.pem','a/./b.pem','fixtures/../b.pem','fixtures/','a\\b.pem']]
++        cases+=[(pa(n),'would replace /opt/metal/'+n) for n in ['platform-api.bundle.mjs','gsup.mjs','manifest.json','mcp-server.bundle.mjs']]
++        rf=lambda at,src='relay/fixtures/tpm-roots.pem',h=mod.sha(b'roots\n'):{'mcp_manifest':self.mcp_manifest(runtimeFiles={at:{'source':src,'sha256':h}})}
++        cases+=[(rf(at),'is not a normal relative path') for at in ['','opt/../etc/x','opt//x','/opt/x','opt/./x','opt/x/']]
++        cases+=[(rf('app/x.pem'),'is not under opt/'),(rf('etc/passwd'),'is not under opt/')]
++        cases+=[(rf(at),'would replace /'+at) for at in ['opt/metal/gsup.mjs','opt/metal/platform-api.bundle.mjs','opt/metal/mcp-server.bundle.mjs','opt/metal/manifest.json']]
++        cases+=[(rf('opt/metal/fixtures/tpm-roots.pem',src='contracts/deployments/contract-pins-base.json',h=mod.sha(b'{}\n')),'would replace /opt/metal/fixtures/tpm-roots.pem')]
++        for i,(kw,msg) in enumerate(cases):
++            repo,c=self.fixture_commit(**kw)
++            with self.assertRaisesRegex(ValueError,re.escape(msg)):mod.overlay(self.base,self.root/('n%d'%i),c,repo,'direct')
++            self.assertFalse((self.root/('n%d'%i)).exists())
+     def test_optional_guest_helpers_follow_the_commit(self):
+         gsup=subprocess.check_output(['git','show',COMMIT+':metal/guest/gsup.mjs'],cwd=REPO).decode()
+         files=mod.guest_files(COMMIT,REPO)

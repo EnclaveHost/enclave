@@ -1,0 +1,21 @@
+{
+  "recordedAt": "2026-10-22T19:43:34.100370+00:00",
+  "purpose": "Source preservation, not completion or release approval",
+  "candidateCommit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+  "production": {
+    "postgresInit": "Applied; database identity and contents preserved",
+    "indexd": "v27 migration and first postcheck passed; v28 not started"
+  },
+  "validation": {
+    "controller": "8 stages and 9 recovery checks passed",
+    "mcp": "4 end-to-end checks passed, alongside 3 earlier static checks",
+    "custodyChrome": "1 browser encryption check passed after correcting temporary socket path"
+  },
+  "remaining": [
+    "v27 soak and v28 migration",
+    "measured image build and activation",
+    "non-provider control-service cutover",
+    "public app lease/routing recovery",
+    "outage and feature parity verification"
+  ]
+}

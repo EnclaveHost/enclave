@@ -28,7 +28,7 @@ def main(argv):
         if e.endswith("?"):
             print(f"  info {e[:-1]} = {d.get(e[:-1])!r}")
             continue
-        m = re.fullmatch(r"([A-Za-z0-9_.]+)(=|~)(.*)", e)
+        m = re.fullmatch(r"([A-Za-z0-9_.-]+)(=|~)(.*)", e)
         k, op, want = m.groups()
         got = d.get(k)
         ok = got is not None and (got == want if op == "=" else re.fullmatch(want, got) is not None)

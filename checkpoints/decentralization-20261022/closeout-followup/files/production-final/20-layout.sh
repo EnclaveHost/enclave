@@ -27,7 +27,7 @@ for pair in "replicactl.py:$V/frozen/replicactl.r5-production.restorefix.bounds.
   vm 300 "sudo sh -c 'set -C; umask 077; cat > $D/${pair%%:*}'" < "${pair#*:}" || die "staging ${pair%%:*} failed"
 done
 f=$(ev 20.staged.out)
-vm 60 "cd $D && sudo sha256sum replicactl.py live-primary.profile.json fence.indexd c2.indexd | awk '{print \$2\"=\"\$1}'" > "$f"
+vm 60 "sudo sha256sum $D/replicactl.py $D/live-primary.profile.json $D/fence.indexd $D/c2.indexd | awk '{n=\$2; sub(\".*/\", \"\", n); print n \"=\" \$1}'" > "$f" || true
 kv "$f" replicactl.py="$H_CTL" live-primary.profile.json="$H_PROFILE" fence.indexd="$H_FENCE" c2.indexd="$H_C2" || die "staged hashes differ"
 
 say "L1. migration files (root:root 0644, dir 0755)"
@@ -36,7 +36,7 @@ while IFS=: read -r name h; do
   vm 60 "sudo sh -c 'set -C; umask 022; cat > /opt/enclave-indexd/migration/$name'" < "$M/$name" || die "staging $name failed"
 done <<< "$MIGRATION_FILES"
 f=$(ev 20.migration.out)
-vm 60 "cd /opt/enclave-indexd/migration && sudo sha256sum * | awk '{print \$2\"=\"\$1}'" > "$f"
+vm 60 "sudo sh -c 'sha256sum /opt/enclave-indexd/migration/*' | awk '{n=\$2; sub(\".*/\", \"\", n); print n \"=\" \$1}'" > "$f" || true
 kv "$f" $(printf '%s\n' "$MIGRATION_FILES" | tr ':' '=') || die "migration file hashes differ"
 
 say "L2. releases (umask 022): stock from the LIVE binary, then fence, then c2"

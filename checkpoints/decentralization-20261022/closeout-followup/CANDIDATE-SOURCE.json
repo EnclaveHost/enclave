@@ -1,0 +1,15 @@
+{
+  "branch": "candidate/decentralized-control-20261022",
+  "commit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+  "tree": "0021f3abbe1e3dfc121032189c6434c1d093d3f0",
+  "parent": "7752a4239b3bec2cf452491cd1b95164a8c2bdb8",
+  "workerSourceTree": "3031c20c7d0083f05b36160c851e5872a72725c3",
+  "restoredFromCheckpoint": [
+    ".gitleaks.toml",
+    "test/helpers/platform-policy-world.mjs",
+    "test/platform-policy-world-blocks.test.mjs",
+    "isolation/m2/encvol/roots/cacert-2026-09-25.pem"
+  ],
+  "checkpoint": "4f84f213cf3d15716af90cc25728282c60330d7d",
+  "status": "Prepared locally; secret scans and remote publication pending. Runtime image input bytes unchanged from tree-c."
+}

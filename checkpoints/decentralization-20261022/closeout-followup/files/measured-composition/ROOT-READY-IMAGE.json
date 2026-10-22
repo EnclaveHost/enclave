@@ -1,0 +1,170 @@
+{
+ "format": "root-ready-image/1",
+ "written": "2026-10-22T19:38:02Z",
+ "status": "READY FOR ROOT TO PUBLISH THE SOURCE, then for an authorized image build. Nothing built, measured, published or activated.",
+ "source": {
+  "gitTree": "3031c20c7d0083f05b36160c851e5872a72725c3",
+  "scratchCommit": "2c36d3882bf473bb5224fc90c13f006dd826e082 (measured-composition/tree-c/.git; no parent, no remote)",
+  "paths": 8341,
+  "lsTree": {
+   "file": "out/c/capture-ls-tree.txt",
+   "sha256": "4a71093310a1ec4ae23f94e25aa1f610352250a9b3d2163d30ad282136dd2a7c"
+  },
+  "inventory": {
+   "file": "tree-c.inventory.json",
+   "sha256": "c2b5ecdc5f9ff9c9ba6743a4829cd44e678c6ddcade849f56bb23b3da8cd8a4f"
+  },
+  "publishRule": "publish the exact tree on a recoverable GitHub lineage (any parent/author/date); the image is valid for that commit only if `git rev-parse <commit>^{tree}` == 3031c20c7d0083f05b36160c851e5872a72725c3",
+  "notInTheCommit": "relay/network-runtime.bundle.mjs(+manifest): gitignored build prerequisite of the platform-api bundle; the committed platform-api bundle already inlines it (8399d143) and the image tool never reads it",
+  "patchSeries": {
+   "composition-carriers-c3-c4.diff": "cc5b5192796d8e52c9552571a30c7e853eb9fc825b67d96b3eff62031cc0cdf5",
+   "composition-cost.diff": "6be4545d67b4bb83f6f9869110fa6e70b2a925736d3efa935d6aa1beba13ab9a",
+   "composition-b1-overlay.diff": "82a9657fd3a81c07ee39288e7d0f3760d076b0f6a7232c5a06cf1378b86c4b75",
+   "c2-attestation-route.diff": "7b926e2c063054fce6bf93b3f9a9b0ca56a92c8d0b7bcab15e81ae710006bd92",
+   "closeout.diff": "ba499d955dcf4315d04688d92286d0f4e8e9a0f4a554d5bbb3de60ec64f5d3e1"
+  }
+ },
+ "bundlePins": {
+  "relay/network-runtime.bundle.mjs": "8399d1434e0587c246c77bfbea5d8afac65ada130cc96abffe291afde588af1e",
+  "relay/network-runtime.bundle.mjs.manifest.json": "16a1cebb8c2baedbb1a90eb3139972a3c739857508cd53a85f6daf2f74489b89",
+  "windows/node/host-admission.bundle.mjs": "40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25",
+  "metal/guest/host-policy.bundle.mjs": "acfa1b0099530d4c27fe451d7d3f1d124b3f7a213171557c1c2d926976e0dc3c",
+  "windows/node/lease-gas-runtime.bundle.mjs": "008cdca1240372d3dccedc2f58fecfcdca6377245ad67d4970a2efe79757f4e7",
+  "windows/node/lease-gas-runtime.bundle.mjs.manifest.json": "a7fde25eae445eebc483d4a2ff57b569746eb60ddd64bbf33aca4f3831fb3ad1",
+  "metal/guest/lease-gas-conduit.bundle.mjs": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6",
+  "metal/guest/lease-gas-conduit.bundle.mjs.manifest.json": "c12ae3efcae557f9bb462eb55fa9eed444426ebab608b8bc4d49992ebbf96f2d",
+  "metal/guest/platform-api.bundle.mjs": "ede48c36cb30b36dc7f2b5d308660a195d2dd257aeb73f18d6468c0d5f9d0c8c",
+  "metal/guest/platform-api.bundle.mjs.manifest.json": "a9b91407d9cb5b275998276eab9c7871efa7a2cbaeba0fcda90c147cce3dcce4",
+  "metal/guest/mcp-server.bundle.mjs": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f",
+  "metal/guest/mcp-server.bundle.mjs.manifest.json": "d3dc292084ed045c6ebee1dbd4810a2f5fa14329edb721832d7938df788948ae",
+  "site/vendor/custody.js": "68fc8b8c30bc81371f001de00c38e362cc274759c26b21fe38dfd8937e4e91d6",
+  "site/vendor/custody.MANIFEST.json": "f123bc43173d4a9f9ced5faa1f639c7f64575e1f1e46445c7ca55a3c14009539"
+ },
+ "imageInputs": {
+  "file": "out/c/INPUT-MANIFEST.json",
+  "sha256": "4513131150f981e49af5d31be7d6de2c019fe920d638aee3335d0d06d107ef96",
+  "count": 59,
+  "measuredCmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct",
+  "platformApiBundle": {
+   "bytes": 8520656,
+   "inputs": 2196,
+   "path": "/opt/metal/platform-api.bundle.mjs",
+   "sha256": "ede48c36cb30b36dc7f2b5d308660a195d2dd257aeb73f18d6468c0d5f9d0c8c",
+   "sidecars": {
+    "/opt/metal/fixtures/tpm-roots.pem": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+   }
+  },
+  "mcpBundle": {
+   "bytes": 4979943,
+   "inputs": 2972,
+   "manifestSha256": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f",
+   "path": "/opt/metal/mcp-server.bundle.mjs",
+   "runtimeFiles": {
+    "/opt/contracts/deployments/contract-pins-base.json": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d",
+    "/opt/metal/fixtures/tpm-roots.pem": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+   },
+   "sha256": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f"
+  },
+  "packagesFromBase": [
+   {
+    "name": "cors",
+    "version": "2.8.6"
+   },
+   {
+    "name": "express",
+    "version": "4.22.2"
+   },
+   {
+    "name": "jose",
+    "version": "5.10.0"
+   },
+   {
+    "name": "viem",
+    "version": "2.53.1"
+   },
+   {
+    "name": "ws",
+    "version": "8.21.1"
+   }
+  ]
+ },
+ "verifiedBase": {
+  "dir": "/home/steven/enclave-prod/dist-sdshield-2857356cd",
+  "manifestSha256": "cc2571bb5b0c85b53b6bcf232331562578335bfd315bd0173c52ad6f80f776e0",
+  "initramfs": {
+   "bytes": 279165154,
+   "sha256": "516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc"
+  },
+  "kernel": {
+   "kver": "7.2.3-arch1-2",
+   "path": "/boot/vmlinuz-linux",
+   "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "MEASUREMENT": "b8376e15f7f94f9b40e9891a19be4779b1635b1c6e269e820ee09cf9313c9dfcc810072bd4ab3d1f4b19e1b6794ac35d",
+  "checks": "initramfs + kernel == manifest (job-c2); cmdline == cmdlineTemplate; production kernel 7.2.3-arch1-2 kept",
+  "ovmf": "OVMF.amdsev.fd sha256 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9"
+ },
+ "recipe": "set -e; REPO=<root's published clone>; COMMIT=<the published commit>; B=/home/steven/enclave-prod/dist-sdshield-2857356cd; O=<new output dir>; [ \"$(git -C \"$REPO\" rev-parse \"$COMMIT^{tree}\")\" = 3031c20c7d0083f05b36160c851e5872a72725c3 ]; [ \"$(git -C \"$REPO\" show \"$COMMIT:metal/overlay-control-image.py\" | sha256sum | cut -c1-64)\" = 1067a535413f88e0c66b80441a734d5dc7771ac79e24129df25df8a1d4aeea56 ] && cmp <(git -C \"$REPO\" show \"$COMMIT:metal/overlay-control-image.py\") \"$REPO/metal/overlay-control-image.py\"; MEASURE=\"$HOME/.local/bin/sev-snp-measure --mode snp --vcpus 4 --vcpu-family 26 --vcpu-model 2 --vcpu-stepping 1 --vmm-type QEMU --ovmf $HOME/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd\"; [ \"$($MEASURE --append \"console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app\" --kernel $B/vmlinuz --initrd $B/initramfs.cpio.gz --output-format hex)\" = \"$(cat $B/MEASUREMENT)\" ]; python3 \"$REPO/metal/overlay-control-image.py\" --control direct \"$B\" \"$O\" \"$COMMIT\"; $MEASURE --append \"console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct\" --kernel \"$O/vmlinuz\" --initrd \"$O/initramfs.cpio.gz\" --output-format hex | tee \"$O/MEASUREMENT\"",
+ "recipeRunAs": "one shared-queue job (bash; overlay staging precedent 768 MiB; root sets the cap); ssh-denying stub first in PATH as for the tests",
+ "afterBuild": [
+  "extract the output and compare every installed entry with out/c/INPUT-MANIFEST.json (same tree => same 59 inputs; only manifest.json records the commit)",
+  "independent re-measure",
+  "the image manifest records COMMIT, so the measurement belongs to the published commit, not to scratch 2c36d388"
+ ],
+ "evidence": {
+  "RESULT-closeout.json": "289a833a3e93fc3ba06938eeeef9278628901a5bc8b88c9fafe458376be81029",
+  "RESULT.json (tree-a/tree-b)": "baab91622530caae30df8203ae9bcae219f10e18413348161dadb58d81589874",
+  "allFocusedSuites": "pass: overlay 16/16, mcp-guest-bundle 2/2, MCP static 3/3 + end to end 4/4, custody fresh build 1/1 + Chrome 1/1, supervisor-image-closure 2/2, attestation-route 3/3, metal-lease-gas-conduit 12/12, measured-control builder/overlay 1/1, owner-nomination image 1/1; tree-b (unchanged bytes): platform-api artifact smoke 6/6, bundle verifier 1/1, relay-u7 8/8, cli-attest 3/3"
+ },
+ "doAddresses": {
+  "method": "literal scan of the four DigitalOcean addresses (134.199.235.187, 134.209.248.172, 165.245.191.129, 146.190.246.39) over all 59 image inputs, every generated bundle and every source file outside test/ and docs/; plus enclave.host names in the image inputs",
+  "inTheImage": "0 address literals in all 59 inputs and all generated bundles (host-admission, metal host-policy, network runtime, platform-api, mcp-server, lease bundles, host-service packages): no DO policy mirror, relay or control address is baked into the direct image",
+  "remainingInSource": [
+   {
+    "where": "relay/native-discovery.mjs:11",
+    "what": "routeFor(): api.enclavehost.eth and mcp.enclavehost.eth -> the four DO addresses, kind \"control\"",
+    "path": "REQUIRED CONTROL ROUTE today, not transport: native clients resolving the Enclave API/MCP names are sent to the Platform API/MCP services that still run on the DO fronts. Not imported by any runtime module in the tree (only its test); deployed separately. It must be repointed to the measured hosts once the direct image serves the Platform API/MCP (addresses not known before that deployment): a cutover step for root, not changed here."
+   },
+   {
+    "where": "contracts/deployments/service-index-activation-base.json",
+    "what": "evidence record (2026-10-20) of the deployed on-chain service index: advertisement.endpoints and cold-discovery directory origins = the four DO hosts at :8188",
+    "path": "REQUIRED DISCOVERY DATA today (the directory replicas are application services on DO; cold discovery contacted only them). Not read by runtime code; the live value is on chain, so changing it is an admin service-index update (no contract change here)."
+   },
+   {
+    "where": "network/local-app-router.mjs:100",
+    "what": "comment (2026-10-18 incident)",
+    "path": "none"
+   },
+   {
+    "where": "network/platform-host-policy-config.mjs:18-20",
+    "what": "comment above PRODUCTION_MIRRORS = [] still describes four regional endpoints",
+    "path": "none (comment; the list is empty)"
+   }
+  ],
+  "namesInTheImage": [
+   {
+    "name": "api.enclave.host",
+    "where": "session-api-auth DEFAULT_API_HOSTS; supervisor SECRETS_API default; gsup/agent legacy relay comments and probe default",
+    "path": "direct mode: SECRETS_API/CERTS_API/DNS_API/DOMAINS_API are forced empty by measured-control directSupervisorEnv (refused otherwise), the agent gets no relay so its probe never runs; DEFAULT_API_HOSTS only names URL bases a wallet-session signature may cover (no outbound call). The LEGACY (non-direct) path still dials wss://api.enclave.host/v1/fleet-tunnel = DO fronts: REQUIRED for that legacy path, not used by the direct image."
+   },
+   {
+    "name": "ipfs.enclave.host",
+    "where": "supervisor IPFS_GATEWAY default",
+    "path": "direct mode sets IPFS_GATEWAY to the bound config's replicas: unused"
+   },
+   {
+    "name": "api./mcp./www./get./ipfs./app./probe.enclave.host",
+    "where": "platform-api bundle (relay zones and defaults), service-index/host-admission names",
+    "path": "names the Platform API serves or recognizes; their public DNS currently points at the DO fronts, so moving it to the measured hosts is a DNS/cutover step (root)"
+   }
+  ]
+ },
+ "notDone": [
+  "image build and launch measurement (root authorizes after publishing)",
+  "relay allowlist / METAL_ALLOWED_MEASUREMENTS / Platform-API group measurements[]",
+  "owner configs with platformPolicyCarriers and real non-DO carriers; admin-signed policy document before any anchor",
+  "Windows host-admission swap 6bef372d -> 40e8ba71",
+  "repoint relay/native-discovery.mjs control routes, the on-chain service-index directory advertisement and public DNS away from DigitalOcean after the measured hosts serve Platform API/MCP",
+  "deploying the regenerated host-service packages / site vendor bytes (not image content)"
+ ]
+}

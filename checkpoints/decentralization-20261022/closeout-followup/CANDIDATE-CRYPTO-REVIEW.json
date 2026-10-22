@@ -1,0 +1,1173 @@
+{
+  "commit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+  "findings": 194,
+  "allVerifiedPublicConstantsOrSourceDigests": true,
+  "verified": [
+    {
+      "rule": "eth-key",
+      "file": ".gitleaks.toml",
+      "line": 317,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/generatePrivateKey.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": ".gitleaks.toml",
+      "line": 318,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": ".gitleaks.toml",
+      "line": 319,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": ".gitleaks.toml",
+      "line": 320,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-ecc/build/cjs/ec_private_key.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": ".gitleaks.toml",
+      "line": 321,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-ecc/build/es2015/ec_private_key.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": ".gitleaks.toml",
+      "line": 322,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/private_key_info.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": ".gitleaks.toml",
+      "line": 323,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-rsa/build/cjs/rsa_private_key.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": ".gitleaks.toml",
+      "line": 324,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-rsa/build/es2015/rsa_private_key.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": ".gitleaks.toml",
+      "line": 325,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-x509/build/cjs/extensions/private_key_usage_period.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": ".gitleaks.toml",
+      "line": 326,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-x509/build/es2015/extensions/private_key_usage_period.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": ".gitleaks.toml",
+      "line": 327,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/generatePrivateKey.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": ".gitleaks.toml",
+      "line": 328,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": ".gitleaks.toml",
+      "line": 329,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "contracts/EnclaveServiceIndex.sol",
+      "line": 46,
+      "classification": "Public secp256k1 group-order half constant"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124363,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124632,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124866,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126180,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126238,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124747,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124971,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125138,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125387,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125439,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125529,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125608,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125782,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126106,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126358,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124420,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124611,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124812,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124932,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124996,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125019,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125042,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125227,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125308,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125485,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125688,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125721,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125875,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125900,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126047,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126074,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126147,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126216,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126308,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124394,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124467,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124589,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124670,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124727,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124780,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124843,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124913,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125168,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125258,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125462,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125651,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125854,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125924,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125978,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126263,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124446,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124483,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124497,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124532,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124705,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124891,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 124959,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125064,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125080,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125125,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125203,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125274,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125289,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125344,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125365,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125423,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125506,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125553,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125567,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125586,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125668,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125741,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125755,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125820,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125945,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 125965,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126034,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126132,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126285,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126334,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 126384,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/mcp-server.bundle.mjs.manifest.json",
+      "line": 212,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/generatePrivateKey.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/mcp-server.bundle.mjs.manifest.json",
+      "line": 216,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/mcp-server.bundle.mjs.manifest.json",
+      "line": 219,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 214079,
+      "classification": "Public bytes32 address-book key for registry"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 72768,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73037,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73271,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74585,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74643,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73152,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73376,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73543,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73792,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73844,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73934,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74013,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74187,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74511,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74763,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 72825,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73016,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73217,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73337,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73401,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73424,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73447,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73632,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73713,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73890,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74093,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74126,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74280,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74305,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74452,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74479,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74552,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74621,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74713,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 72799,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 72872,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 72994,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73075,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73132,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73185,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73248,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73318,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73573,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73663,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73867,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74056,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74259,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74329,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74383,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74668,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 72851,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 72888,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 72902,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 72937,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73110,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73296,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73364,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73469,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73485,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73530,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73608,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73679,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73694,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73749,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73770,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73828,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73911,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73958,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73972,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 73991,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74073,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74146,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74160,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74225,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74350,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74370,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74439,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74537,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74690,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74739,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "mnemonic",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 74789,
+      "classification": "Inside the exact complete public BIP39 English dictionary (2048 words); not a generated wallet phrase"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 525,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-ecc/build/cjs/ec_private_key.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 532,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-ecc/build/es2015/ec_private_key.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 551,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/encrypted_private_key_info.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 553,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/private_key_info.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 563,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-rsa/build/cjs/rsa_private_key.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 573,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-rsa/build/es2015/rsa_private_key.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 654,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-x509/build/cjs/extensions/private_key_usage_period.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 697,
+      "classification": "Independently recomputed public source SHA256: relay/node_modules/@peculiar/asn1-x509/build/es2015/extensions/private_key_usage_period.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1041,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/generatePrivateKey.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1045,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1048,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "network/host-services/packages/credit-vault-submitter.package.json",
+      "line": 259,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/generatePrivateKey.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "network/host-services/packages/credit-vault-submitter.package.json",
+      "line": 263,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+    },
+    {
+      "rule": "eth-key",
+      "file": "network/host-services/packages/credit-vault-submitter.package.json",
+      "line": 266,
+      "classification": "Independently recomputed public source SHA256: node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+    }
+  ],
+  "gitleaks": "separate scan required; not claimed here",
+  "override": "Repository-documented confirmed-false-positive override only; hooks remain enabled."
+}

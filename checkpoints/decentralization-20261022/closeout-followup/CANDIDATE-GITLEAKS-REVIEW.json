@@ -1,0 +1,274 @@
+{
+  "commit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+  "findings": 38,
+  "allVerifiedFalsePositives": true,
+  "override": "Repository-documented --no-verify for confirmed false positives only; no global rule changes",
+  "verified": [
+    {
+      "rule": "coinbase-access-token",
+      "file": "network/host-services/packages/policy-mirror.package.json",
+      "line": 200,
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08",
+      "classification": "Independently recomputed SHA256 of public source: node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "scripts/network/verify-profile.mjs",
+      "line": 54,
+      "lineSha256": "78ea1ba6189f5267d8b4799e2e60a5b8d276eacd9cddf14bda0df90952c331f4",
+      "classification": "Public Solidity contract-name mapping"
+    },
+    {
+      "rule": "coinbase-access-token",
+      "file": "network/host-services/packages/directory-replica.package.json",
+      "line": 244,
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08",
+      "classification": "Independently recomputed SHA256 of public source: node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "network/host-services/packages/credit-vault-submitter.package.json",
+      "line": 259,
+      "lineSha256": "e49589aee781c7541cb897b9af10a17407168669264f5cc387133eb1170d16a0",
+      "classification": "Independently recomputed SHA256 of public source: node_modules/viem/_esm/accounts/generatePrivateKey.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "network/host-services/packages/credit-vault-submitter.package.json",
+      "line": 263,
+      "lineSha256": "dc74cb2ade1568b2793a461337e9a50da38d462ac65ce0e17cd166dc162f9cf6",
+      "classification": "Independently recomputed SHA256 of public source: node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "network/host-services/packages/credit-vault-submitter.package.json",
+      "line": 266,
+      "lineSha256": "1c0054fcc0763fdde5e59c6bba1ea030e5a08e759fe965d2974f3182a6d9c5d7",
+      "classification": "Independently recomputed SHA256 of public source: node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+    },
+    {
+      "rule": "coinbase-access-token",
+      "file": "network/host-services/packages/credit-vault-submitter.package.json",
+      "line": 348,
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08",
+      "classification": "Independently recomputed SHA256 of public source: node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "rule": "coinbase-access-token",
+      "file": "network/host-services/packages/route-dns.package.json",
+      "line": 231,
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08",
+      "classification": "Independently recomputed SHA256 of public source: node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "test/authority-profile.test.mjs",
+      "line": 53,
+      "lineSha256": "0f6eda427afb01a53cf26259ba58f71045eaf907caa19a88264da0d9a5a2b61d",
+      "classification": "Public Solidity contract-name mapping in test fixture"
+    },
+    {
+      "rule": "coinbase-access-token",
+      "file": "metal/guest/mcp-server.bundle.mjs.manifest.json",
+      "line": 301,
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08",
+      "classification": "Independently recomputed SHA256 of public source: node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "rule": "coinbase-access-token",
+      "file": "metal/guest/mcp-server.bundle.mjs.manifest.json",
+      "line": 1506,
+      "lineSha256": "e864c8c1176798a8664a7fd576f385419829d358dc6d45578037bf53d6241b0d",
+      "classification": "Independently recomputed SHA256 of public source: relay/node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "rule": "coinbase-access-token",
+      "file": "metal/guest/mcp-server.bundle.mjs.manifest.json",
+      "line": 2699,
+      "lineSha256": "0f491cef45e87175114bf676f704490833e0266ed8327d1bdcd8061e5c3d3379",
+      "classification": "Independently recomputed SHA256 of public source: sdk/sessions/node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "metal/guest/mcp-server.bundle.mjs.manifest.json",
+      "line": 212,
+      "lineSha256": "e49589aee781c7541cb897b9af10a17407168669264f5cc387133eb1170d16a0",
+      "classification": "Independently recomputed SHA256 of public source: node_modules/viem/_esm/accounts/generatePrivateKey.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "metal/guest/mcp-server.bundle.mjs.manifest.json",
+      "line": 216,
+      "lineSha256": "dc74cb2ade1568b2793a461337e9a50da38d462ac65ce0e17cd166dc162f9cf6",
+      "classification": "Independently recomputed SHA256 of public source: node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "metal/guest/mcp-server.bundle.mjs.manifest.json",
+      "line": 219,
+      "lineSha256": "1c0054fcc0763fdde5e59c6bba1ea030e5a08e759fe965d2974f3182a6d9c5d7",
+      "classification": "Independently recomputed SHA256 of public source: node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "test/service-index.test.mjs",
+      "line": 90,
+      "lineSha256": "eafc7fb2fc9985e0a082a1aa56b8b66f5a32bbf37549b596f3d1236a0b377b3a",
+      "classification": "Literal recordKey=0xabc test fixture, not a valid private key"
+    },
+    {
+      "rule": "coinbase-access-token",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 173,
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08",
+      "classification": "Independently recomputed SHA256 of public source: node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "rule": "coinbase-access-token",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1130,
+      "lineSha256": "e864c8c1176798a8664a7fd576f385419829d358dc6d45578037bf53d6241b0d",
+      "classification": "Independently recomputed SHA256 of public source: relay/node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 525,
+      "lineSha256": "a7979575624143928c77a6ddb0cd80db30a9022ec6ae0ca41bcf01150d8a8397",
+      "classification": "Independently recomputed SHA256 of public source: relay/node_modules/@peculiar/asn1-ecc/build/cjs/ec_private_key.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 532,
+      "lineSha256": "3fb2cfe0fbc63370a41230d5eb9b158a3fe0cd87dbae22fc8cef631ad79acd42",
+      "classification": "Independently recomputed SHA256 of public source: relay/node_modules/@peculiar/asn1-ecc/build/es2015/ec_private_key.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 553,
+      "lineSha256": "9e6c1693986edcfbcf33cedc1e1b265d829668673c6918ef5419503f78f7005d",
+      "classification": "Independently recomputed SHA256 of public source: relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/private_key_info.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 563,
+      "lineSha256": "d605f8da3d8d6107ecebe6d8500f7109cc39b4d7768a0c85e3ca82955e65ff0d",
+      "classification": "Independently recomputed SHA256 of public source: relay/node_modules/@peculiar/asn1-rsa/build/cjs/rsa_private_key.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 573,
+      "lineSha256": "1fa21cea0c7de52b6c71b8f2ee71c20d838eaf45d0bdc4c8d1f1e36c252f0f87",
+      "classification": "Independently recomputed SHA256 of public source: relay/node_modules/@peculiar/asn1-rsa/build/es2015/rsa_private_key.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 654,
+      "lineSha256": "24b207d065d95dcdd5b2d00dd0a1367dc5512746ae857bd5964804399fdafe29",
+      "classification": "Independently recomputed SHA256 of public source: relay/node_modules/@peculiar/asn1-x509/build/cjs/extensions/private_key_usage_period.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 697,
+      "lineSha256": "91633d43bad526a0d658b63c00a50c103c4b257f1f9fdaa41caecbcf6e538605",
+      "classification": "Independently recomputed SHA256 of public source: relay/node_modules/@peculiar/asn1-x509/build/es2015/extensions/private_key_usage_period.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1041,
+      "lineSha256": "acdcbda851b474e3bc2fa3baad4e70e2b90b558c646fdf90d3dfebb432679b9a",
+      "classification": "Independently recomputed SHA256 of public source: relay/node_modules/viem/_esm/accounts/generatePrivateKey.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1045,
+      "lineSha256": "4d8e877144342168c63eae44afb0671fcd3fc235acd24d2edad836a5f8420a72",
+      "classification": "Independently recomputed SHA256 of public source: relay/node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+    },
+    {
+      "rule": "ethereum-private-key-labelled",
+      "file": "metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1048,
+      "lineSha256": "5c2f84f9b91f7df912d54ed0383099a56a322a666ccac469b585a3cc72abe644",
+      "classification": "Independently recomputed SHA256 of public source: relay/node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 107599,
+      "lineSha256": "9651ec62eeafad0b100692ec443fb948da66d5480e0e9b341e7e8e6e0f332c51",
+      "classification": "JavaScript object spread and property references; no credential literal"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "metal/guest/mcp-server.bundle.mjs",
+      "line": 147566,
+      "lineSha256": "3ce3eab5829091ed37649d194b1d07e4e61cda10a604c1f6266301250ae5ff18",
+      "classification": "Public TLS domain-separation string"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 111527,
+      "lineSha256": "1debff58111fae812884240bf0151ac752d88cf01c111dcffd1a4c450a049194",
+      "classification": "ASN.1 JavaScript class declaration"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 112368,
+      "lineSha256": "02f580d4f4a0956a22c2eb997a71af4bdf295e275ff425e6ac2492514eca77bd",
+      "classification": "ASN.1 JavaScript class export"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 112763,
+      "lineSha256": "245a434069c39d5b1cc8b99f831d6429e7914e83981b44a9110a2cde49cb9c46",
+      "classification": "ASN.1 JavaScript class export"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 114537,
+      "lineSha256": "fb7ec8474de680b0f9293958fa75ce37d9fbac79f9944de5d4d9d6bff9b0f423",
+      "classification": "ASN.1 JavaScript class export"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 114538,
+      "lineSha256": "d1b122c16a3ee46aed2ebb03f196b9128592da1803b3912654ace8b5fbf35bb7",
+      "classification": "ASN.1 JavaScript decorator expression"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 131564,
+      "lineSha256": "448995ed052ab91a8e3d86365ba35aecfc46dfb3da5ebcf9aaf3c17f4a6e77e5",
+      "classification": "Runtime eligibility predicate containing property references; no credential literal"
+    },
+    {
+      "rule": "generic-api-key",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 132239,
+      "lineSha256": "3ce3eab5829091ed37649d194b1d07e4e61cda10a604c1f6266301250ae5ff18",
+      "classification": "Public TLS domain-separation string"
+    },
+    {
+      "rule": "ethereum-private-key-env",
+      "file": "metal/guest/platform-api.bundle.mjs",
+      "line": 214079,
+      "lineSha256": "dccb1de32b39a8612e859a988007d17fa01ce1f01a7e177f5843959933c57f8c",
+      "classification": "Public bytes32 address-book registry key"
+    }
+  ]
+}

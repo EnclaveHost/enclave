@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-22T19:24:44.440931+00:00",
+  "capturedAt": "2026-10-22T19:43:34.076149+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -147,16 +147,34 @@
       "bytes": 30580
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/RESULT-closeout.json",
+      "stored": "files/measured-composition/RESULT-closeout.json",
+      "sha256": "289a833a3e93fc3ba06938eeeef9278628901a5bc8b88c9fafe458376be81029",
+      "bytes": 29568
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/measured-composition/RESULT.json",
       "stored": "files/measured-composition/RESULT.json",
       "sha256": "baab91622530caae30df8203ae9bcae219f10e18413348161dadb58d81589874",
       "bytes": 37757
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/ROOT-READY-IMAGE.json",
+      "stored": "files/measured-composition/ROOT-READY-IMAGE.json",
+      "sha256": "5c437d80a9599a8a861970517c354d6ba9cb7c8967cbe55038d4f3022ca30e2a",
+      "bytes": 11827
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/measured-composition/patches/c2-attestation-route.diff",
       "stored": "files/measured-composition/patches/c2-attestation-route.diff",
       "sha256": "7b926e2c063054fce6bf93b3f9a9b0ca56a92c8d0b7bcab15e81ae710006bd92",
       "bytes": 21288
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/patches/closeout.diff",
+      "stored": "files/measured-composition/patches/closeout.diff",
+      "sha256": "ba499d955dcf4315d04688d92286d0f4e8e9a0f4a554d5bbb3de60ec64f5d3e1",
+      "bytes": 33720
     },
     {
       "source": "work/resume-after-checkpoint-20261022/measured-composition/patches/composition-b1-overlay.diff",
@@ -255,6 +273,12 @@
       "bytes": 1483
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/input-manifest-c.py",
+      "stored": "files/measured-composition/tools/input-manifest-c.py",
+      "sha256": "6b0aec6a422ae3c2918c3de80b9cd3ed3cc5352314d347b5d7bf5ef94e29cd55",
+      "bytes": 5918
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/input-manifest.py",
       "stored": "files/measured-composition/tools/input-manifest.py",
       "sha256": "d7b481e9d4370c3a5cd7bea18be83ea2f3870a901a6845352ce1231884a6980d",
@@ -271,6 +295,42 @@
       "stored": "files/measured-composition/tools/job-3.sh",
       "sha256": "0bb16567ed2ed9bfd4ea1cc89aaa31206d40dd59ecaa76389ab62782c8da2f60",
       "bytes": 1290
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/job-c.sh",
+      "stored": "files/measured-composition/tools/job-c.sh",
+      "sha256": "0cfaec4376921bc246d97211d9e62a0b1f57991067144432344b51b92ebc6e66",
+      "bytes": 2555
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/job-c2.sh",
+      "stored": "files/measured-composition/tools/job-c2.sh",
+      "sha256": "10127a213ca2a5637c76c3bee5f212d949c6d705d123e8c2041004562f8e930d",
+      "bytes": 2274
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/job-c3.sh",
+      "stored": "files/measured-composition/tools/job-c3.sh",
+      "sha256": "d43fe88d42126363ab737640563a1e3eb881582939d8b596da8f73895d592d1b",
+      "bytes": 1186
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/job-d.sh",
+      "stored": "files/measured-composition/tools/job-d.sh",
+      "sha256": "e9042972c29bb2b45af9cb1200ca446806b34f185b2cd755ff043f4a31ab82b9",
+      "bytes": 4865
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/job-e.sh",
+      "stored": "files/measured-composition/tools/job-e.sh",
+      "sha256": "8526cfc1876dde41d99d1cbf66539a3d9c79da5e46d7e0f3d04ceafc7e435b1d",
+      "bytes": 2464
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/run-tree-c.py",
+      "stored": "files/measured-composition/tools/run-tree-c.py",
+      "sha256": "0ff717803ef396353914e4db6803fb777bba96424461dfc7b7860d2405e02dbf",
+      "bytes": 19539
     },
     {
       "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/run-tree.py",
@@ -359,14 +419,44 @@
     {
       "source": "work/resume-after-checkpoint-20261022/production-final/20-layout.sh",
       "stored": "files/production-final/20-layout.sh",
-      "sha256": "33de44c0d3e840768b197ae14579640d0e97641eda4ea654401c8c945167b76f",
-      "bytes": 6752
+      "sha256": "df58cd550255aa07f8b94c6c9e4831e90348a3fa25b512e9c831ff6e698c862a",
+      "bytes": 6833
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-final/30-upgrade-v27.sh",
+      "stored": "files/production-final/30-upgrade-v27.sh",
+      "sha256": "76976b5a57d6cd6966dfef60b44786cfa9c8f840b39f9dc8b9a454d82c1e8b60",
+      "bytes": 573
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-final/40-upgrade-v28.sh",
+      "stored": "files/production-final/40-upgrade-v28.sh",
+      "sha256": "d4dba19f5f115ee110541bfe667a9f8441132d99a590ef15e84efeb1b211771e",
+      "bytes": 1053
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-final/50-postcheck.sh",
+      "stored": "files/production-final/50-postcheck.sh",
+      "sha256": "c83c0479976a0d1acf8204db07939e4fd00683441afe6804d9c4b87c8d6324e1",
+      "bytes": 3306
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-final/README.md",
+      "stored": "files/production-final/README.md",
+      "sha256": "dc80d44cb9d9307013ec47f7329f6a8e2cca736e02d372106765ca55266c2811",
+      "bytes": 7704
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-final/ROOT-INCIDENT.md",
+      "stored": "files/production-final/ROOT-INCIDENT.md",
+      "sha256": "c14c9d8cba88f4e46e057524a16e5fc8ac0d9aaad63da7b1e500c699d160e5ca",
+      "bytes": 1751
     },
     {
       "source": "work/resume-after-checkpoint-20261022/production-final/check_kv.py",
       "stored": "files/production-final/check_kv.py",
-      "sha256": "1b943660ac1eb0a4475de0044b6afe641a6ab7a94bf64e38e2f73d800ccad44c",
-      "bytes": 1363
+      "sha256": "a9dda591e8799cfb7bf9d8d21c4e9bc288f456518530de0b0d93bf7525d6f19e",
+      "bytes": 1364
     },
     {
       "source": "work/resume-after-checkpoint-20261022/production-final/lib.sh",
@@ -375,10 +465,28 @@
       "bytes": 5173
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/production-final/selfcheck.sh",
+      "stored": "files/production-final/selfcheck.sh",
+      "sha256": "c2cbb1089915d36f0e6271225a37deec460870202ef42cde631b014631eb0816",
+      "bytes": 2455
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-final/upgrade-common.sh",
+      "stored": "files/production-final/upgrade-common.sh",
+      "sha256": "97eeaa1e99df6cb24717c38d18d307427e1850fd463ca07351bd8b913b4732b1",
+      "bytes": 2957
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/production-run/capture-fresh.py",
       "stored": "files/production-run/capture-fresh.py",
       "sha256": "ad5e702f6dd4dc68336aadbd00f56c9a402fd70bb4e3a2164eaec2ebabf5cbe0",
       "bytes": 3378
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-run/inspect-worker-staging.sh",
+      "stored": "files/production-run/inspect-worker-staging.sh",
+      "sha256": "7510d86611cd1939c9dafcc1174f80c2f4f7a52c4ef0e845e90b4d9a7769a226",
+      "bytes": 745
     },
     {
       "source": "work/resume-after-checkpoint-20261022/production-run/pg-init-before.sh",
@@ -411,16 +519,82 @@
       "bytes": 833
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/production-run/public-health.py",
+      "stored": "files/production-run/public-health.py",
+      "sha256": "a27f7c6b8832057a88a0c1a6e8b6b49cdd6db8770e96b414d5116fc06c39e53b",
+      "bytes": 1370
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-run/publish-source-tree.py",
+      "stored": "files/production-run/publish-source-tree.py",
+      "sha256": "07917ebcfc0d1132defdaa2a3566a7a16d1fdd9986cf00968dddde04379aaf36",
+      "bytes": 2418
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/production-run/remove-fresh-plaintext.py",
       "stored": "files/production-run/remove-fresh-plaintext.py",
       "sha256": "9529a5ebcc07ef3964d74e8efcfa7bdde00ca8a2dee81d28646f740c62cc27fb",
       "bytes": 1083
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/production-run/remove-worker-staging.py",
+      "stored": "files/production-run/remove-worker-staging.py",
+      "sha256": "5ad4a0150ca0a3092752e6e1d05ae87983441d0d0d3a9ef8e3ad4f9f08224324",
+      "bytes": 1488
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-run/reviewed-steps/20-layout.sh",
+      "stored": "files/production-run/reviewed-steps/20-layout.sh",
+      "sha256": "1abbd2f238c90321932214bf48318ac58905a0779d90a5604861cef68977c516",
+      "bytes": 6760
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-run/reviewed-steps/21-layout-continue.sh",
+      "stored": "files/production-run/reviewed-steps/21-layout-continue.sh",
+      "sha256": "8ee3010c50be2c90e0c8870a777537a21d3372b93446731e64eeb74de04c7915",
+      "bytes": 4747
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-run/reviewed-steps/30-upgrade-v27.sh",
+      "stored": "files/production-run/reviewed-steps/30-upgrade-v27.sh",
+      "sha256": "76976b5a57d6cd6966dfef60b44786cfa9c8f840b39f9dc8b9a454d82c1e8b60",
+      "bytes": 573
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-run/reviewed-steps/40-upgrade-v28.sh",
+      "stored": "files/production-run/reviewed-steps/40-upgrade-v28.sh",
+      "sha256": "d4dba19f5f115ee110541bfe667a9f8441132d99a590ef15e84efeb1b211771e",
+      "bytes": 1053
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-run/reviewed-steps/50-postcheck.sh",
+      "stored": "files/production-run/reviewed-steps/50-postcheck.sh",
+      "sha256": "c83c0479976a0d1acf8204db07939e4fd00683441afe6804d9c4b87c8d6324e1",
+      "bytes": 3306
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-run/reviewed-steps/check_kv.py",
+      "stored": "files/production-run/reviewed-steps/check_kv.py",
+      "sha256": "a9dda591e8799cfb7bf9d8d21c4e9bc288f456518530de0b0d93bf7525d6f19e",
+      "bytes": 1364
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-run/reviewed-steps/lib.sh",
+      "stored": "files/production-run/reviewed-steps/lib.sh",
+      "sha256": "3b24af54242654f5f4bf2dfddc1e8a67f030b494d320b564d03fe061cb2237d5",
+      "bytes": 5186
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/production-run/reviewed-steps/upgrade-common.sh",
+      "stored": "files/production-run/reviewed-steps/upgrade-common.sh",
+      "sha256": "97eeaa1e99df6cb24717c38d18d307427e1850fd463ca07351bd8b913b4732b1",
+      "bytes": 2957
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "bf3d2936c08be4df7da81e2e4868183f3b93ab05b2a83a0ecb9bc17bce1d29c6",
-      "bytes": 2756
+      "sha256": "218a9f232a31569f7c4d675bc419cd3a8b4eafa15ec45053e0fb02489da26efd",
+      "bytes": 2941
     }
   ],
   "unchangedAlreadyPreserved": [
