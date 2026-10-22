@@ -32,6 +32,15 @@ const HEX96 = /^[0-9a-f]{96}$/;
 const keccakBytes = (b) => keccak256(b);
 export const registryIdOf = (publicUrl) => keccak256(toHex(String(publicUrl).replace(/\/+$/, '')));   // EnclaveRegistry.idOf(endpoint)
 export const proofAddressOf = (statement) => addressOfPublicKey(statement.keys.proof.publicKey, keccakBytes);
+/**
+ * The platform host policy's chipId for a VERIFIED report's claims: "0x" + sha256 of the 64-byte SNP CHIP_ID (the
+ * EnclaveSecretVaultV2 Machine.chipId, custody/v2/daemon.mjs). null for a zero (masked) or malformed CHIP_ID.
+ */
+export function policyChipIdOf(claims) {
+  const c = String(claims?.chipId ?? '');
+  if (!/^[0-9a-f]{128}$/.test(c) || !/[1-9a-f]/.test(c) || claims.maskChipKey === true) return null;
+  return '0x' + sha256Hex(Buffer.from(c, 'hex'));
+}
 
 function endpointOf(raw) {
   let u; try { u = new URL(String(raw)); } catch { throw new Error('control endpoint is not a URL'); }
@@ -131,6 +140,8 @@ export async function verifyMeasuredControl({ url, expect = {}, collateral = nul
     return result('rejected');   // "limited" too: an omitted security check is not readiness
   }
   pass('report', `SEV-SNP report verified: measurement ${identity.measurement.slice(0, 16)}… is allowed, it binds this statement and our nonce, its role is the control guest, HOST_DATA binds the config`);
+  // the chip, only from a report the verifier accepted (VCEK-signed, VCEK hardware id = CHIP_ID); null when masked or zero
+  identity.chipId = policyChipIdOf(v.claims);
   // 6. the running supervisor holds the minted keys (a second connection, pinned to the attested key)
   try {
     const a = await tlsGet(url, '/v1/attestation', { timeoutMs, pinSha256: st.keys.controlTls.spkiSha256, maxBytes: 1024 * 1024 });

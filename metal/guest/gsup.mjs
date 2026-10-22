@@ -431,10 +431,13 @@ async function startDirectControl() {
   fs.writeFileSync(P.serveConfig, JSON.stringify({ statement: P.statement, tlsKey: P.tlsKey, tlsCert: P.tlsCert, port: plan.config.controlPort,
     upstream: { host: '127.0.0.1', port: 8080 }, mode: MODE, vcekB64: typeof fw.vcek === 'string' ? fw.vcek : '',
     routes: plan.mcp ? [plan.mcp.route] : [],
-    ...(plan.platformApi ? { hostRoutes: [plan.platformApi.hostRoute], prefixRoutes: [plan.platformApi.prefixRoute], sni: plan.platformApi.sni } : {}) }), { mode: 0o600 });
+    ...(plan.platformApi ? { hostRoutes: [plan.platformApi.hostRoute], prefixRoutes: [plan.platformApi.prefixRoute], sni: plan.platformApi.sni } : {}),
+    // native control names (bound nativeControl): served only with the control key and a CA leaf over it, installed after boot
+    ...(plan.native ? { native: plan.native } : {}) }), { mode: 0o600 });
   log(`direct control: config ${plan.digest.slice(0, 16)}… ${plan.bound ? 'BOUND by HOST_DATA' : `NOT BOUND (mode=${MODE} has no report: a lab launch that proves nothing)`}; `
     + `operator ${plan.config.identity.operator}${plan.selling ? '' : ' (no operator key: not selling)'}; proof key, session key and control TLS key minted in this guest `
-    + `(TLS sha256:${keys.controlTls.spkiSha256.slice(0, 16)}…); front on :${plan.config.controlPort}`);
+    + `(TLS sha256:${keys.controlTls.spkiSha256.slice(0, 16)}…); front on :${plan.config.controlPort}`
+    + (plan.native ? `; native names ${plan.native.names.join(', ')} wait for a native CA leaf over that key` : ''));
   status({ ok: true, configDigest: plan.digest, hostData: plan.hostData, bound: plan.bound, controlPort: plan.config.controlPort, controlTlsSpkiSha256: keys.controlTls.spkiSha256 });
   start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], plan.env, { cwd: '/app' });
   // the agent serves the loopback RAD the supervisor's claim gate reads (teeOk); no relay, no tunnel, no token

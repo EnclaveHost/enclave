@@ -115,6 +115,49 @@ Per-app guests are still launched by guestd on the host and attested separately 
 
 Legacy metal boots (no `metal.control` token) take exactly the previous path.
 
+## Native control names (optional `nativeControl`)
+
+A guest that runs the platform API role can also serve the native control names `api.enclavehost.eth` and
+`mcp.enclavehost.eth`. Native clients verify these names with the existing native CA. The guest presents, for exactly
+these SNI names, a native-CA leaf whose public key is THIS boot's attested control TLS key. Nothing else is accepted: the
+group's shared WebPKI key is refused, and so is a leaf for any other key.
+
+- **Config.** `"nativeControl": { "names": [<sorted subset of the two names>], "caSha256": "<sha256 of the native CA DER>" }`.
+  It needs `platformApi`, and the names must differ from `platformApi.hostname`. HOST_DATA binds it like every member. The
+  statement then states `native: { names, caSha256 }`; other statements keep their exact bytes.
+- **Certificate.** The leaf is public, and the CA holder issues it OUTSIDE the guest, over the attested public key.
+  The guest's private key never leaves the guest. Run `scripts/native-control-certificate.mjs`:
+  - `request` verifies the boot against its trusted config, measurements and the original registry;
+  - `issue` runs where the CA key is kept, reading the key only through openssl;
+  - `install` sends the leaf over a connection pinned to the attested key on the secure socket.
+- **Acceptance.** The front accepts `PUT /.well-known/enclave-native-certificate` only under these conditions:
+  - one install at a time;
+  - a declared length up to 16 KiB;
+  - the body within 10 s;
+  - the chain is the leaf plus the bound CA;
+  - the leaf carries the guest's own key;
+  - a real TLS handshake under that CA succeeds for every bound name;
+  - the leaf expires strictly later than the installed one.
+
+  A refused or interrupted install leaves the current leaf serving.
+- **Serving.** A native name with no current leaf fails the handshake; it is never served under another key. SNI and Host
+  must name the same native name, or the front answers 421. `api.enclavehost.eth` reaches the platform API role exactly as
+  its WebPKI host does. `mcp.enclavehost.eth` reaches the relay's own MCP endpoint (`/mcp` on that host, path and query
+  kept). The hosted independent MCP adapter's `POST /mcp` route is unchanged.
+- **Discovery.** `network/native-control-routes.mjs` takes candidate addresses from kind-9 `native-control` ads in the pinned
+  service index. For each address it checks, in order:
+  - the native TLS connection;
+  - the leaf key equals the attested key;
+  - the unchanged `verifyMeasuredControl` at that address;
+  - a fresh platform host policy decision for THAT registry id.
+
+  The advertiser is never judged. The chip is the verifier's: `0x` + sha256 of the verified 64-byte CHIP_ID (null when
+  masked or zero). It is added to that host's chain facts, never replacing them, so a `chipId` deny or allowlist entry
+  matches per host. A host whose chip is not proven is refused while the policy denies any `chipId`.
+
+Issuance remains a deployment prerequisite: the native CA key is held in one place today (the minipc control VM).
+Distributed issuance or custody is not provided here.
+
 ## Platform limits
 
 - **SEV-SNP only.** HOST_DATA binding and the evidence path are implemented for SNP. TDX is refused.

@@ -45,6 +45,13 @@ Each entry's `kind` is one of `registryId`, `operator`, `owner`, `chipId` or `en
 
 - `owner` means the **accepted** host wallet on the host-ownership extension, read at the
   agreed block, never a value the host reports about itself.
+- `chipId` is `0x` + lowercase hex sha256 of the 64-byte SEV-SNP report CHIP_ID: the EnclaveSecretVaultV2
+  `Machine.chipId`. No chain read carries a chip. An entry is matched only where an enforcement point supplies a
+  chip that a VCEK-verified report proved:
+  - custody v2 machines (the vault record, checked against the member's verified quote);
+  - native control routes (`network/native-control-routes.mjs`, from `verifyMeasuredControl`'s verified report).
+  Where a native control host's chip is not proven, a `chipId` denial refuses instead of admitting. Other enforcement
+  points that judge only registry facts do not see chip entries.
 - Denials always win.
 - Expiry never lifts a ban. A stale policy refuses NEW hosts.
 

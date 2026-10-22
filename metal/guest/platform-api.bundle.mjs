@@ -117488,7 +117488,7 @@ var require_x509_cjs = __commonJS({
     var _X509Certificate_signature;
     var _X509Certificate_extensions;
     var _X509Certificate_publicKey;
-    var X509Certificate14 = class extends PemData {
+    var X509Certificate15 = class extends PemData {
       get publicKey() {
         if (!tslib.__classPrivateFieldGet(this, _X509Certificate_publicKey, "f")) {
           tslib.__classPrivateFieldSet(this, _X509Certificate_publicKey, new PublicKey(this.asn.tbsCertificate.subjectPublicKeyInfo), "f");
@@ -117736,13 +117736,13 @@ var require_x509_cjs = __commonJS({
       }
     };
     _X509Certificate_tbs = /* @__PURE__ */ new WeakMap(), _X509Certificate_serialNumber = /* @__PURE__ */ new WeakMap(), _X509Certificate_subjectName = /* @__PURE__ */ new WeakMap(), _X509Certificate_subject = /* @__PURE__ */ new WeakMap(), _X509Certificate_issuerName = /* @__PURE__ */ new WeakMap(), _X509Certificate_issuer = /* @__PURE__ */ new WeakMap(), _X509Certificate_notBefore = /* @__PURE__ */ new WeakMap(), _X509Certificate_notAfter = /* @__PURE__ */ new WeakMap(), _X509Certificate_signatureAlgorithm = /* @__PURE__ */ new WeakMap(), _X509Certificate_signature = /* @__PURE__ */ new WeakMap(), _X509Certificate_extensions = /* @__PURE__ */ new WeakMap(), _X509Certificate_publicKey = /* @__PURE__ */ new WeakMap();
-    X509Certificate14.NAME = "Certificate";
+    X509Certificate15.NAME = "Certificate";
     var X509Certificates = class extends Array {
       constructor(param) {
         super();
         if (PemData.isAsnEncoded(param)) {
           this.import(param);
-        } else if (param instanceof X509Certificate14) {
+        } else if (param instanceof X509Certificate15) {
           this.push(param);
         } else if (Array.isArray(param)) {
           for (const item of param) {
@@ -117776,7 +117776,7 @@ var require_x509_cjs = __commonJS({
         this.clear();
         for (const item of signedData.certificates || []) {
           if (item.certificate) {
-            this.push(new X509Certificate14(item.certificate));
+            this.push(new X509Certificate15(item.certificate));
           }
         }
       }
@@ -117981,7 +117981,7 @@ var require_x509_cjs = __commonJS({
           throw Error("Cannot convert ASN.1 signature value to WebCrypto format");
         }
         asnX509.signatureValue = asnSignature;
-        return new X509Certificate14(asn1Schema.AsnConvert.serialize(asnX509));
+        return new X509Certificate15(asn1Schema.AsnConvert.serialize(asnX509));
       }
     };
     var _X509CrlEntry_serialNumber;
@@ -118197,7 +118197,7 @@ var require_x509_cjs = __commonJS({
         let publicKey;
         const paramsKey = params.publicKey;
         try {
-          if (paramsKey instanceof X509Certificate14) {
+          if (paramsKey instanceof X509Certificate15) {
             keyAlgorithm = {
               ...paramsKey.publicKey.algorithm,
               ...paramsKey.signatureAlgorithm
@@ -118401,7 +118401,7 @@ var require_x509_cjs = __commonJS({
     exports.TextObject = TextObject;
     exports.UPN = UPN;
     exports.URL = URL2;
-    exports.X509Certificate = X509Certificate14;
+    exports.X509Certificate = X509Certificate15;
     exports.X509CertificateGenerator = X509CertificateGenerator;
     exports.X509Certificates = X509Certificates;
     exports.X509ChainBuilder = X509ChainBuilder2;
@@ -243177,7 +243177,8 @@ import http7 from "node:http";
 import https5 from "node:https";
 import net6 from "node:net";
 import tls2 from "node:tls";
-import { createHash as createHash36, createPublicKey as createPublicKey16, generateKeyPairSync as generateKeyPairSync5, randomBytes as randomBytes25, sign as cryptoSign2 } from "node:crypto";
+import { createHash as createHash36, createPublicKey as createPublicKey16, generateKeyPairSync as generateKeyPairSync5, randomBytes as randomBytes25, sign as cryptoSign2, X509Certificate as X509Certificate12 } from "node:crypto";
+import { duplexPair } from "node:stream";
 import { fileURLToPath as fileURLToPath3, pathToFileURL } from "node:url";
 function canonicalJson(v) {
   if (v === null || typeof v === "boolean" || typeof v === "string") return JSON.stringify(v);
@@ -243211,7 +243212,7 @@ function url(v, what) {
   return u3;
 }
 function canonicalDirectConfig(raw) {
-  const OPTIONAL_MEMBERS = ["leaseGas", "mcp", "platformApi", "ownerNomination", "platformPolicyCarriers"];
+  const OPTIONAL_MEMBERS = ["leaseGas", "mcp", "platformApi", "ownerNomination", "platformPolicyCarriers", "nativeControl"];
   const fields2 = raw && typeof raw === "object" && !Array.isArray(raw) && OPTIONAL_MEMBERS.some((k3) => Object.hasOwn(raw, k3)) ? Object.fromEntries(Object.entries(raw).filter(([k3]) => !OPTIONAL_MEMBERS.includes(k3))) : raw;
   only(fields2, [
     "format",
@@ -243291,6 +243292,7 @@ function canonicalDirectConfig(raw) {
   }) : null;
   if (mcp && platformApi && [platformApi.apiPort, platformApi.peerPort].includes(mcp.port)) bad6("mcp.port must differ from both platformApi ports");
   const platformPolicyCarriers = raw.platformPolicyCarriers !== void 0 ? directPolicyCarriers(raw.platformPolicyCarriers) : null;
+  const nativeControl = raw.nativeControl !== void 0 ? directNativeControl(raw.nativeControl, { platformApi }) : null;
   return deepFreeze({
     format: CONFIG_FORMAT,
     chainId: CHAIN_ID4,
@@ -243310,8 +243312,20 @@ function canonicalDirectConfig(raw) {
     ...mcp ? { mcp } : {},
     ...platformApi ? { platformApi } : {},
     ...ownerNomination ? { ownerNomination } : {},
-    ...platformPolicyCarriers ? { platformPolicyCarriers } : {}
+    ...platformPolicyCarriers ? { platformPolicyCarriers } : {},
+    ...nativeControl ? { nativeControl } : {}
   });
+}
+function directNativeControl(raw, { platformApi }) {
+  only(raw, ["names", "caSha256"], "nativeControl");
+  if (!platformApi) bad6("nativeControl needs the platformApi member: the native control names are served by the platform API role");
+  if (!Array.isArray(raw.names) || raw.names.length < 1 || raw.names.some((n) => !NATIVE_NAMES.includes(n)) || new Set(raw.names).size !== raw.names.length)
+    bad6(`nativeControl.names: one or more of ${NATIVE_NAMES.join(", ")}, each once`);
+  const names = [...raw.names].sort();
+  if (names.join() !== raw.names.join()) bad6("nativeControl.names must be written sorted");
+  if (names.includes(platformApi.hostname)) bad6("nativeControl.names must not include platformApi.hostname: a native name never shares the WebPKI route");
+  if (typeof raw.caSha256 !== "string" || !HEX647.test(raw.caSha256)) bad6("nativeControl.caSha256: sha256 (64 lowercase hex) of the native CA certificate (DER)");
+  return { names, caSha256: raw.caSha256 };
 }
 function directPolicyCarriers(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) bad6("platformPolicyCarriers must be an object");
@@ -243492,10 +243506,14 @@ function parseStatement(text) {
   }
   if (canonicalJson(o) !== text) bad6("statement is not in canonical form: the bound bytes are exactly the served bytes");
   only(
-    Object.hasOwn(o || {}, "ownerNomination") ? Object.fromEntries(Object.entries(o).filter(([k3]) => k3 !== "ownerNomination")) : o,
+    o && typeof o === "object" && !Array.isArray(o) ? Object.fromEntries(Object.entries(o).filter(([k3]) => k3 !== "ownerNomination" && k3 !== "native")) : o,
     ["format", "role", "mode", "chainId", "configDigest", "hostData", "identity", "keys", "runtime", "bootId"],
     "statement"
   );
+  if (Object.hasOwn(o, "native")) {
+    only(o.native, ["names", "caSha256"], "statement native names");
+    if (!Array.isArray(o.native.names) || !o.native.names.length || o.native.names.some((n) => !NATIVE_NAMES.includes(n)) || [...new Set(o.native.names)].sort().join() !== o.native.names.join() || !HEX647.test(o.native.caSha256)) bad6("statement native names malformed");
+  }
   if (Object.hasOwn(o, "ownerNomination")) {
     only(o.ownerNomination, ["ownershipContract", "ownershipCodeHash", "hostId", "owner"], "statement owner nomination");
     if (!/^0x[0-9a-f]{40}$/.test(o.ownerNomination.ownershipContract) || !/^0x[0-9a-f]{40}$/.test(o.ownerNomination.owner) || !/^0x[0-9a-f]{64}$/.test(o.ownerNomination.ownershipCodeHash) || !/^0x[0-9a-f]{64}$/.test(o.ownerNomination.hostId)) bad6("statement owner nomination malformed");
@@ -243552,6 +243570,54 @@ function configfsReporter({ root: root3 = "/sys/kernel/config/tsm/report", vcekB
     }
   };
 }
+function handshake({ keyPem, leafPem, caPem, name, timeoutMs = 5e3 }) {
+  return new Promise((resolve3, reject) => {
+    const [a, b4] = duplexPair();
+    const server2 = new tls2.TLSSocket(a, { isServer: true, secureContext: tls2.createSecureContext({ key: keyPem, cert: leafPem, minVersion: "TLSv1.2" }) });
+    const client = tls2.connect({ socket: b4, servername: name, ca: caPem, rejectUnauthorized: true, minVersion: "TLSv1.2" });
+    let done = false;
+    const finish = (e) => {
+      if (done) return;
+      done = true;
+      clearTimeout(t);
+      client.destroy();
+      server2.destroy();
+      if (e) reject(e);
+      else resolve3();
+    };
+    const t = setTimeout(() => finish(new Error("handshake timed out")), timeoutMs);
+    server2.on("error", () => {
+    });
+    client.once("secureConnect", () => finish(client.authorized ? null : new Error(String(client.authorizationError || "not authorized"))));
+    client.once("error", (e) => finish(e));
+  });
+}
+async function checkNativeCertificate(chainPem, { keyPem, caSha256, names, now = Date.now() }) {
+  if (typeof chainPem !== "string" || Buffer.byteLength(chainPem) > MAX_NATIVE_CHAIN_BYTES) bad6(`a native certificate chain is PEM text up to ${MAX_NATIVE_CHAIN_BYTES} bytes`);
+  const blocks = chainPem.match(PEM_CERT) || [];
+  if (blocks.length !== 2 || blocks.join("").replace(/\r/g, "").trim() !== chainPem.replace(/\r/g, "").trim()) bad6("a native certificate chain is exactly two PEM certificates: the leaf, then the native CA");
+  let leaf, ca2;
+  try {
+    leaf = new X509Certificate12(blocks[0]);
+    ca2 = new X509Certificate12(blocks[1]);
+  } catch (e) {
+    bad6(`unparseable certificate: ${e.message}`);
+  }
+  if (sha256Hex4(ca2.raw) !== caSha256 || !ca2.ca) bad6("the chain does not end in the bound native CA");
+  if (leaf.ca) bad6("the leaf is a CA certificate");
+  const own = createPublicKey16(keyPem).export({ type: "spki", format: "der" });
+  if (!leaf.publicKey.export({ type: "spki", format: "der" }).equals(own)) bad6("the leaf does not certify this guest's attested control TLS key");
+  const validFrom = Date.parse(leaf.validFrom), validTo = Date.parse(leaf.validTo);
+  if (!(validFrom <= now && now < validTo)) bad6("the leaf is not valid now");
+  for (const name of names) {
+    try {
+      await handshake({ keyPem, leafPem: blocks[0], caPem: blocks[1], name });
+    } catch (e) {
+      bad6(`the leaf does not serve ${name} under the native CA: ${String(e.message).slice(0, 160)}`);
+    }
+  }
+  return { leafPem: blocks[0], caPem: blocks[1], validFrom, validTo };
+}
 function createControlFront({
   statementText,
   keyPem,
@@ -243563,18 +243629,47 @@ function createControlFront({
   routes = [],
   hostRoutes = [],
   prefixRoutes = [],
-  sni = {}
+  sni = {},
+  native = null
 }) {
-  parseStatement(statementText);
+  const statement = parseStatement(statementText);
+  if (native) {
+    if (!statement.native || !Array.isArray(native.names) || native.names.join() !== statement.native.names.join() || native.caSha256 !== statement.native.caSha256 || native.upstream?.host !== "127.0.0.1" || !Number.isInteger(native.upstream?.port) || !HOSTNAME.test(String(native.apiHost)) || native.names.includes(native.apiHost) || Object.keys(sni).some((n) => native.names.includes(n.toLowerCase()))) bad6("front native names must be the statement's bound names and CA, to the platform API role, with no SNI certificate of their own");
+  } else if (statement.native) bad6("the statement names native control names but the front was given none");
   for (const r of routes) if (!/^\/[a-z0-9-]+$/.test(String(r.path)) || r.path === EVIDENCE_PATH || r.upstream?.host !== "127.0.0.1" || !/^\/[a-z0-9/-]+$/.test(String(r.rewrite)))
     bad6("front routes are exact /<name> paths to a 127.0.0.1 service under a fixed path");
   for (const r of hostRoutes) if (!HOSTNAME.test(String(r.host)) || r.upstream?.host !== "127.0.0.1" || !Number.isInteger(r.upstream?.port)) bad6("front host routes name a DNS host and a 127.0.0.1 service");
   for (const r of prefixRoutes) if (!/^\/[a-z0-9-]+\/$/.test(String(r.prefix)) || r.upstream?.host !== "127.0.0.1" || !Number.isInteger(r.upstream?.port)) bad6("front prefix routes are /<name>/ to a 127.0.0.1 service");
   const hostOfReq = (req) => String(req.headers.host || "").toLowerCase().replace(/:\d+$/, "").replace(/\.+$/, "");
   const routeOf = (req, pathname) => hostRoutes.find((r) => r.host === hostOfReq(req)) || prefixRoutes.find((r) => pathname.startsWith(r.prefix)) || routes.find((r) => pathname === r.path) || null;
+  let nativeCert = null, installing = false, bodyHeld = false;
+  const nativeCtx = () => nativeCert && Date.now() >= nativeCert.validFrom && Date.now() < nativeCert.validTo ? nativeCert.ctx : null;
+  const installNativeCertificate = async (chainPem) => {
+    if (installing) throw new ControlError("another native certificate install is in progress");
+    installing = true;
+    try {
+      const c = await checkNativeCertificate(chainPem, { keyPem, caSha256: native.caSha256, names: native.names });
+      if (nativeCert && Date.now() < nativeCert.validTo && c.validTo <= nativeCert.validTo) bad6("the installed native certificate expires no earlier than this one");
+      const ctx = tls2.createSecureContext({ key: keyPem, cert: c.leafPem, minVersion: "TLSv1.2" });
+      if (native.certificateFile) {
+        const tmp = native.certificateFile + ".tmp";
+        fs24.writeFileSync(tmp, c.leafPem + c.caPem, { mode: 420 });
+        fs24.renameSync(tmp, native.certificateFile);
+      }
+      nativeCert = { ...c, ctx };
+      return { names: native.names, validFrom: new Date(c.validFrom).toISOString(), validTo: new Date(c.validTo).toISOString() };
+    } finally {
+      installing = false;
+    }
+  };
   const sniCache = /* @__PURE__ */ new Map();
   const SNICallback = (name, cb2) => {
-    const s = sni[String(name || "").toLowerCase()];
+    const lname = String(name || "").toLowerCase();
+    if (native && native.names.includes(lname)) {
+      const ctx = nativeCtx();
+      return ctx ? cb2(null, ctx) : cb2(new Error(`no current native certificate for ${lname}`));
+    }
+    const s = sni[lname];
     if (!s) return cb2(null, null);
     try {
       const st3 = fs24.statSync(s.certFile).mtimeMs + ":" + fs24.statSync(s.keyFile).mtimeMs, c = sniCache.get(name);
@@ -243615,8 +243710,73 @@ function createControlFront({
       });
       return;
     }
+    if (native && u3.pathname === NATIVE_CERT_PATH) {
+      if (req.method === "GET") {
+        if (!nativeCert) return json2(res, 404, { error: "no_native_certificate" });
+        res.writeHead(200, { "content-type": "application/x-pem-file", "cache-control": "no-store" });
+        return res.end(nativeCert.leafPem + nativeCert.caPem);
+      }
+      if (req.method !== "PUT") return json2(res, 405, { error: "method" });
+      const len = Number(req.headers["content-length"]);
+      if (req.headers["transfer-encoding"] || !Number.isSafeInteger(len) || len < 1) return json2(res, 411, { error: "length_required" });
+      if (len > MAX_NATIVE_CHAIN_BYTES) return json2(res, 413, { error: "too_large" });
+      if (installing || bodyHeld) return json2(res, 429, { error: "busy" });
+      bodyHeld = true;
+      const chunks = [];
+      let size10 = 0, released = false;
+      const release = () => {
+        if (!released) {
+          released = true;
+          bodyHeld = false;
+          clearTimeout(timer);
+        }
+      };
+      const timer = setTimeout(() => {
+        release();
+        json2(res, 408, { error: "body_timeout" });
+        req.destroy();
+      }, NATIVE_BODY_MS);
+      req.on("data", (c) => {
+        size10 += c.length;
+        if (size10 > len) {
+          release();
+          json2(res, 413, { error: "too_large" });
+          req.destroy();
+        } else chunks.push(c);
+      });
+      req.on("close", release);
+      req.on("error", release);
+      req.on("end", () => {
+        if (released) return;
+        release();
+        installNativeCertificate(Buffer.concat(chunks).toString("utf8")).then(
+          (r) => json2(res, 200, r),
+          (e) => json2(res, /in progress/.test(String(e?.message)) ? 429 : 400, { error: "native_certificate_refused", message: String(e?.message || e).slice(0, 300) })
+        );
+      });
+      return;
+    }
     const headers = {};
     for (const [k3, v] of Object.entries(req.headers)) if (!HOP.has(k3.toLowerCase())) headers[k3] = v;
+    if (native) {
+      const h3 = hostOfReq(req), sn3 = String(req.socket.servername || "").toLowerCase();
+      if (native.names.includes(h3) || native.names.includes(sn3)) {
+        if (h3 !== sn3) return json2(res, 421, { error: "misdirected_request", message: "a native control name is served only on a TLS connection made for that name" });
+        Object.assign(headers, { host: native.apiHost, "x-enclave-client-ip": String(req.socket.remoteAddress || "").replace(/^::ffff:/, "") });
+        const toPath2 = (h3 === "mcp.enclavehost.eth" ? "/mcp" : u3.pathname) + u3.search;
+        const up3 = http7.request({ host: native.upstream.host, port: native.upstream.port, method: req.method, path: toPath2, headers }, (r) => {
+          const hh2 = {};
+          for (const [k3, v] of Object.entries(r.headers)) if (!HOP.has(k3.toLowerCase())) hh2[k3] = v;
+          res.writeHead(r.statusCode || 502, hh2);
+          r.pipe(res);
+        });
+        up3.on("error", () => {
+          if (!res.headersSent) json2(res, 502, { error: "service_unreachable" });
+          else res.destroy();
+        });
+        return req.pipe(up3);
+      }
+    }
     const route = routeOf(req, u3.pathname), to3 = route ? route.upstream : upstream;
     if (route && route.host) {
       headers.host = route.host;
@@ -243636,7 +243796,17 @@ function createControlFront({
     req.pipe(up2);
   });
   server2.on("upgrade", (req, socket, head) => {
-    const route = hostRoutes.find((r) => r.host === hostOfReq(req));
+    let route = hostRoutes.find((r) => r.host === hostOfReq(req));
+    if (native) {
+      const h3 = hostOfReq(req), sn3 = String(req.socket.servername || "").toLowerCase();
+      if (native.names.includes(h3) || native.names.includes(sn3)) {
+        if (h3 !== sn3 || h3 !== "api.enclavehost.eth") {
+          socket.end("HTTP/1.1 421 Misdirected Request\r\ncontent-length: 0\r\n\r\n");
+          return;
+        }
+        route = { host: native.apiHost, upstream: native.upstream };
+      }
+    }
     if (!route || !String(req.url || "").startsWith("/") || String(req.url).startsWith("//")) {
       socket.end("HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\n\r\n");
       return;
@@ -243656,6 +243826,10 @@ function createControlFront({
     up2.on("error", () => socket.destroy());
     socket.on("error", () => up2.destroy());
   });
+  if (native) {
+    server2.installNativeCertificate = installNativeCertificate;
+    server2.nativeState = () => ({ installing, bodyHeld, validTo: nativeCert ? nativeCert.validTo : null });
+  }
   return server2;
 }
 async function serveMain(argv) {
@@ -243671,11 +243845,13 @@ async function serveMain(argv) {
     routes: Array.isArray(cfg3.routes) ? cfg3.routes : [],
     hostRoutes: Array.isArray(cfg3.hostRoutes) ? cfg3.hostRoutes : [],
     prefixRoutes: Array.isArray(cfg3.prefixRoutes) ? cfg3.prefixRoutes : [],
-    sni: cfg3.sni && typeof cfg3.sni === "object" ? cfg3.sni : {}
+    sni: cfg3.sni && typeof cfg3.sni === "object" ? cfg3.sni : {},
+    native: cfg3.native || null
   });
+  if (cfg3.native && fs24.existsSync(cfg3.native.certificateFile)) await front.installNativeCertificate(fs24.readFileSync(cfg3.native.certificateFile, "utf8")).then((r) => console.log(`[control] native control certificate for ${r.names.join(", ")} until ${r.validTo}`), (e) => console.error(`[control] installed native certificate refused: ${e.message}`));
   front.listen(cfg3.port, "0.0.0.0", () => console.log(`[control] measured control front on :${cfg3.port} (mode ${cfg3.mode}); evidence at ${EVIDENCE_PATH}`));
 }
-var CONFIG_FORMAT, STATEMENT_FORMAT, EVIDENCE_FORMAT, DOMAIN, EVIDENCE_PATH, CHAIN_ID4, sha25616, sha256Hex4, CONTROL_ROLE, MAX_STATEMENT_BYTES, ControlError, bad6, deepFreeze, ADDR5, ZERO_ADDR3, HEX647, REQUIRED_CONTRACTS, OPTIONAL_CONTRACTS, IPV4, hostOf, intIn, CARRIER_BASE, MAX_CARRIERS, MCP_FIELDS, PA_FIELDS, HOSTNAME, PLATFORM_API_ROLE_ENV, SECRET_NAME, configDigest, hostDataHex, GUEST_PATHS, DIRECT_FLAVOR_KEYS, jwkThumbprint3, bindingFor, HOP;
+var CONFIG_FORMAT, STATEMENT_FORMAT, EVIDENCE_FORMAT, DOMAIN, EVIDENCE_PATH, CHAIN_ID4, sha25616, sha256Hex4, CONTROL_ROLE, MAX_STATEMENT_BYTES, ControlError, bad6, deepFreeze, ADDR5, ZERO_ADDR3, HEX647, REQUIRED_CONTRACTS, OPTIONAL_CONTRACTS, IPV4, hostOf, intIn, NATIVE_NAMES, CARRIER_BASE, MAX_CARRIERS, MCP_FIELDS, PA_FIELDS, HOSTNAME, PLATFORM_API_ROLE_ENV, SECRET_NAME, configDigest, hostDataHex, GUEST_PATHS, DIRECT_FLAVOR_KEYS, jwkThumbprint3, bindingFor, NATIVE_CERT_PATH, MAX_NATIVE_CHAIN_BYTES, NATIVE_BODY_MS, PEM_CERT, HOP;
 var init_measured_control = __esm({
   "metal/guest/measured-control.mjs"() {
     init_lease_gas_conduit_bundle();
@@ -243721,6 +243897,7 @@ var init_measured_control = __esm({
       if (!Number.isSafeInteger(v) || v < lo2 || v > hi2) bad6(`${what} must be an integer ${lo2}..${hi2}`);
       return v;
     };
+    NATIVE_NAMES = Object.freeze(["api.enclavehost.eth", "mcp.enclavehost.eth"]);
     CARRIER_BASE = /^https?:\/\/[A-Za-z0-9.-]{1,200}(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~-]{1,64}){0,8}$/;
     MAX_CARRIERS = 16;
     MCP_FIELDS = ["port", "managementDirectories", "capacityDirectories", "capacityCold", "maxHosts", "storagePlan", "grantFrontend", "sessionScan", "usdc"];
@@ -243755,12 +243932,17 @@ config ${digestHex}
       platformApiConfig: "/run/measured-control/platform-api.json",
       platformApiHandoffKey: "/run/measured-control/platform-api-handoff.key",
       platformApiDir: "/run/measured-control/platform-api",
+      nativeCertificate: "/run/measured-control/native-certificate.pem",
       // the supervisor image's shared host-admission bundle (supervisor.js imports it): checked only when the config names carriers
       hostAdmissionBundle: "/app/windows/node/host-admission.bundle.mjs"
     });
     DIRECT_FLAVOR_KEYS = Object.freeze(["CHAIN_ID", "USDC_ADDRESS", "PAYMENT_WINDOW_SEC", "GRACE_SEC", "PAY_POLL_SEC", "SESSION_TTL"]);
     jwkThumbprint3 = (jwk) => sha25616(`{"crv":"${jwk.crv}","kty":"${jwk.kty}","x":"${jwk.x}","y":"${jwk.y}"}`).toString("base64url");
     bindingFor = (statementText, nonce3) => reportDataFor(statementText, nonce3).subarray(0, 32);
+    NATIVE_CERT_PATH = "/.well-known/enclave-native-certificate";
+    MAX_NATIVE_CHAIN_BYTES = 16384;
+    NATIVE_BODY_MS = 1e4;
+    PEM_CERT = /-----BEGIN CERTIFICATE-----\r?\n[A-Za-z0-9+/=\r\n]+?-----END CERTIFICATE-----\r?\n?/g;
     HOP = /* @__PURE__ */ new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "host"]);
     if (process.argv[1] && path9.resolve(process.argv[1]) === fileURLToPath3(import.meta.url) && process.argv[2] === "serve")
       serveMain(process.argv).catch((e) => {
@@ -243772,7 +243954,12 @@ config ${digestHex}
 
 // metal/measured-control-verify.mjs
 import https6 from "node:https";
-import { randomBytes as randomBytes26, X509Certificate as X509Certificate12 } from "node:crypto";
+import { randomBytes as randomBytes26, X509Certificate as X509Certificate13 } from "node:crypto";
+function policyChipIdOf(claims) {
+  const c = String(claims?.chipId ?? "");
+  if (!/^[0-9a-f]{128}$/.test(c) || !/[1-9a-f]/.test(c) || claims.maskChipKey === true) return null;
+  return "0x" + sha256Hex4(Buffer.from(c, "hex"));
+}
 function endpointOf(raw) {
   let u3;
   try {
@@ -243815,7 +244002,7 @@ function tlsGet(origin, pathAndQuery, { timeoutMs = 15e3, maxBytes = MAX_EVIDENC
     });
     req.on("socket", (s) => s.once("secureConnect", () => {
       try {
-        peerSpki = new X509Certificate12(s.getPeerCertificate(true).raw).publicKey.export({ type: "spki", format: "der" });
+        peerSpki = new X509Certificate13(s.getPeerCertificate(true).raw).publicKey.export({ type: "spki", format: "der" });
       } catch (e) {
         req.destroy(new Error(`no peer certificate: ${e.message}`));
         return;
@@ -243929,6 +244116,7 @@ async function verifyMeasuredControl({ url: url2, expect: expect2 = {}, collater
     return result("rejected");
   }
   pass("report", `SEV-SNP report verified: measurement ${identity2.measurement.slice(0, 16)}\u2026 is allowed, it binds this statement and our nonce, its role is the control guest, HOST_DATA binds the config`);
+  identity2.chipId = policyChipIdOf(v.claims);
   try {
     const a = await tlsGet(url2, "/v1/attestation", { timeoutMs, pinSha256: st3.keys.controlTls.spkiSha256, maxBytes: 1024 * 1024 });
     const j3 = a.status === 200 ? JSON.parse(a.body.toString("utf8")) : null;
@@ -244062,7 +244250,7 @@ import http8 from "node:http";
 import https7 from "node:https";
 import net7 from "node:net";
 import { spawn as spawn2 } from "node:child_process";
-import { createHash as createHash37, createHmac as createHmac10, timingSafeEqual as timingSafeEqual16, X509Certificate as X509Certificate13 } from "node:crypto";
+import { createHash as createHash37, createHmac as createHmac10, timingSafeEqual as timingSafeEqual16, X509Certificate as X509Certificate14 } from "node:crypto";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // node_modules/@noble/curves/esm/ed25519.js
@@ -245823,7 +246011,7 @@ ${target}`).digest("hex");
 }
 var spkiOf = (cert) => {
   try {
-    return new X509Certificate13(cert.raw).publicKey.export({ type: "spki", format: "der" });
+    return new X509Certificate14(cert.raw).publicKey.export({ type: "spki", format: "der" });
   } catch {
     return Buffer.alloc(0);
   }
