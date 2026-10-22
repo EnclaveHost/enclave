@@ -1,0 +1,14 @@
+{
+ "commit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+ "tree": "0021f3abbe1e3dfc121032189c6434c1d093d3f0",
+ "method": "git archive of the commit (read-only checkout measured-image-build/src)",
+ "sourceFiles": 8334,
+ "sourceListSha256": "b8d3d5f69eda6be899b99df1dfbe385e6e828cbac312908c7a87c1289cc54978",
+ "nodeModules": {
+  "from": "work/enclave/node_modules (real copy)",
+  "lockPackagesChecked": 139,
+  "mismatches": [],
+  "mismatchCount": 0,
+  "verifierClosureMismatches": []
+ }
+}

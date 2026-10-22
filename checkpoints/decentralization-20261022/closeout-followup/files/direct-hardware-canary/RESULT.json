@@ -1,0 +1,70 @@
+{
+ "format": "direct-control-canary-result/1",
+ "written": "2026-10-22T20:44:21.049179+00:00",
+ "status": "SOURCE READY FOR ROOT REVIEW. NO HARDWARE RUN: no QEMU was launched, no SNP guest booted, no quote collected. Unit/source tests and a read-only preflight only.",
+ "expectedMeasurement": "bdadc7bb667eac1ff783b4538991cc6dafcda9c89b80a5d4b60a0f280e32e2ee0c45dd0b4f3f3415c347c30651b597e6",
+ "measurementNote": "the 96-hex value comes from measured-image-build/public/BUILD-RECEIPT.json and equals the image MEASUREMENT file; the value in the task text (\u2026a5c61b599fd59fc) is NOT it and is used nowhere",
+ "frozen": {
+  "FROZEN-PINS.json": "6025fff2c77f368f797c93c0ea0676eaaded7dac9902db07012507946f877cf5",
+  "pins": 20,
+  "recheckedAt": [
+   "--preflight",
+   "--run before the run dir",
+   "the child immediately before the launcher starts"
+  ]
+ },
+ "rootReviewFixes": {
+  "acceptance requires every promised check": "verify-canary.mjs acceptance(): verifier hardware parts + evidence config/HOST_DATA/TLS/same-boot/mode/exact runtime/bare roles are REQUIRED (exit 0 only on pass); registry and operator label are diagnostic. run-canary.py accept(): verifier acceptance, pins at launch, one QEMU start, argv checks, no-key evidence, fw_cfg modes, cleanup ownership, protected QEMUs, user services, collateral source, private removal, no error.",
+  "notSelling label": "removed; no-key/no-claim authority = no_key_evidence() from the launcher's own host config and the fw_cfg it wrote (registryKey/fleetSecret/relay/tunnel empty, no certs/ACME/volumes/leaseGas/nomination, direct = owner config, isolation = refused stand-ins), plus restricted netdev in the actual QEMU argv; operatorMatchesConfig is diagnostic",
+  "pending registry": "separate diagnostic; no fake registry; a verified registry cannot compensate (tested)",
+  "group signals bound to ownership": "signal_owned_group(): killpg only while an owned (pid,starttime) identity is alive AND in that pgid; unbound launcher identity refuses all group signals",
+  "parent try/finally": "supervise(): SIGTERM/SIGINT/SIGHUP/exception -> stop ONLY its unique transient scope, prove inactive + empty cgroup + no survivor naming the run, then scrub run/private; logs/results kept; terminal.json always written",
+  "scrub after forced cleanup": "parent scrubs a leftover private/ only after proven absence; with a survivor it keeps private/ and fails (tested)",
+  "pins at the launch boundary": "FROZEN-PINS.json (20 pins incl. qemu-restrict.sh, stubs, canary helpers, image, OVMF, QEMU, node, receipt, inputs, tree source list, node_modules list) verified before the scope and in the child before spawning the launcher"
+ },
+ "tests": {
+  "queue": "work/claude-test-queue.py --mib 256, unique --log per job (rawlogs/<name>.guard.log)",
+  "unit-3": {
+   "node test/canary-launcher.test.mjs": "4/4 pass",
+   "python test/test_run_canary.py": "18/18 OK",
+   "sshStubInvocations": 0,
+   "protectedIdentitiesAfter": "3483499:87503396, 3817658:32598976 (unchanged)",
+   "peakTreeRssMiB": 209,
+   "log": "rawlogs/unit-3.out, rawlogs/unit-node.tap, rawlogs/unit-python.log"
+  },
+  "coverage": [
+   "published launcher dry run with the canary host config through qemu-restrict.sh and a FAKE QEMU: measured cmdline, 4 vCPU/4096 MiB, pinned OVMF/kernel/initrd, kernel-hashes, host-data = HOST_DATA of the owner config, restricted netdev with one loopback forward to 8444, no drives; fw_cfg 0600 with empty registryKey/fleetSecret/relay/tunnel, direct = owner config, isolation stand-ins; published planDirectBoot ok/bound/not selling, REGISTRY_ENABLED 0, no REGISTRY_PRIVATE_KEY, Enclave APIs empty, host policy production, no mcp/platformApi; wrong HOST_DATA refused",
+   "qemu-restrict.sh refusals: wrong/missing binary pin, zero/two netdevs, restrict=off, guestfwd, non-loopback hostfwd, tap",
+   "acceptance(): runtime mismatch/missing, mcp role, HOST_DATA mismatch, other boot, dev mode, report false, wrong measurement, supervisor unknown -> fail; verified registry cannot compensate; operator label diagnostic",
+   "accept(): 19 single-check mutations (service drift, protected change, relaunch, no QEMU, netdev, key in fw_cfg, fw_cfg mode, owned alive, refused, collateral, private, pins changed/unchecked, error, verifier exit/acceptance) all fail",
+   "no_key_evidence(): registryKeyFile, relayUrl, registryKey, fleetSecret, certsApi, production guestd ports, isolation.release, other direct config, missing fw_cfg, selling config -> caught",
+   "argv_checks(): restrict missing, plain-port forward, extra forward, cmdline without control, smp, drive, host-data, OVMF, other binary -> fail",
+   "ownership on DISPOSABLE subprocesses: owned group stopped + absence proven; TERM-ignoring group gets SIGKILL only while owned; stale (pid,starttime) never signalled; a process in the TEST's own group never group-signalled; unbound launcher refused; reaped identity not alive",
+   "supervise() with disposable transient scopes canary-harness-test-<rand>: SIGTERM to the parent stops only its scope, cgroup empty, inner sleep identity gone, private scrubbed, logs kept, nonzero code; normal exit 3 recorded; a survivor naming the run blocks the scrub and fails"
+  ]
+ },
+ "preflight": {
+  "job": "preflight-1 (queue 256): freeze + run-canary.py --preflight",
+  "result": "PREFLIGHT PASS (16 gates) - SNP on, /dev/sev+kvm rw, CPU 26/2/1, 32 CPUs, frozen pins hold, measurement 96 hex = image, measured cmdline, protected QEMUs present with recorded identity, MemAvailable 88058 >= 23552, collateral present, disk, stubs first in PATH and executable",
+  "log": "rawlogs/preflight-1.out",
+  "collateral": "cached Turin CRL thisUpdate 2026-09-22 nextUpdate 2026-11-09 (not stale), chain valid to 2048, 1 VCEK (rawlogs/crl-info.out)"
+ },
+ "sources": {
+  "SOURCES.json": "d422449db90fd97f4d9e98e17827dd29fe6e3b7e0e94d5d594e2681053d73fb1",
+  "PLANNED-EFFECTS.json": "d101186de88fd5094bf6e3adbbab9842f1b28b6c36aab45bf544237fb2e94ea7",
+  "RECIPE.md": "9d4570da1d2a14d8362184bfe8795bc05bae2360e31118bd1fda722eaf035dbc"
+ },
+ "recipe": "RECIPE.md: sha256sum FROZEN-PINS.json; . tools/env.sh; python3 canary/run-canary.py --preflight; python3 canary/run-canary.py --run [--kds on|off] [--registry on|off]",
+ "scope": "BARE direct control only (quote, bound config, attested TLS key, running supervisor keys, exact runtime). Platform API/MCP role prerequisites are NOT exercised: platformApi needs 3-7 registered members with distinct operators, admins/recovery keys, sealed credentials and genesis; mcp needs a nonzero sessionVaultFactory, directories and a port. Their bundles/closure were verified in the image build only.",
+ "notDone": [
+  "hardware run (root)",
+  "root review of FROZEN-PINS.json / this source",
+  "any production, allowlist, DNS, registry or contract action"
+ ],
+ "untouched": [
+  "measured-image-build (image, src, receipts) read only",
+  "tree/ = published commit, unchanged since staging (pin)",
+  "production collateral source read only",
+  "native-control worker's future source"
+ ]
+}

@@ -18,3 +18,7 @@ Excluded: credentials, private runtime configuration, production backups, raw ag
 `native-control-attested`, `direct-hardware-canary`, and `storage-client-interop` contain active implementation drafts. Their root review notes identify unresolved security, acceptance and cleanup issues. These files are recovery snapshots only; no completed test or production readiness claim applies to them. The hardware canary has not run. The older measured image remains pinned to its original source and does not contain the new native TLS changes.
 
 `storage-public-read` records a public Base snapshot (block 52955698), preserved catalog metadata for a future version, and host admission preflight observations. The first preflight was unreadable; the second admitted the host under the existing unanchored-policy compatibility rule. This does not establish an activated moderation policy or readiness to deploy storage replicas.
+
+## Additional recovery snapshot at 20:48 UTC
+
+The canary recipe, frozen input pins, unit-test source and result report are now preserved. Its reported launcher and cleanup unit checks pass (4 Node checks and 18 Python checks); the actual hardware canary has not run. Native attested-control code and real-TLS tests remain active drafts. The storage compatibility integration is still in progress; its packed-object fixture has not demonstrated compaction, so full backward compatibility is not established. These distinctions are part of the checkpoint, not deferred deployment approval.

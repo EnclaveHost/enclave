@@ -1,0 +1,75 @@
+{
+ "format": "direct-control-canary-sources/1",
+ "written": "2026-10-22T20:43:52.146709+00:00",
+ "publishedSource": {
+  "commit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+  "tree": "0021f3abbe1e3dfc121032189c6434c1d093d3f0",
+  "staged": "tree/ = git archive of the commit (8334 source files, list sha b8d3d5f6...) + work/enclave root node_modules (139 lock packages, 0 version mismatches)",
+  "sources": {
+   "commit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+   "tree": "0021f3abbe1e3dfc121032189c6434c1d093d3f0",
+   "method": "git archive of the commit (read-only checkout measured-image-build/src)",
+   "sourceFiles": 8334,
+   "sourceListSha256": "b8d3d5f69eda6be899b99df1dfbe385e6e828cbac312908c7a87c1289cc54978",
+   "nodeModules": {
+    "from": "work/enclave/node_modules (real copy)",
+    "lockPackagesChecked": 139,
+    "mismatches": [],
+    "mismatchCount": 0,
+    "verifierClosureMismatches": []
+   }
+  }
+ },
+ "publishedModulesUsed": {
+  "launcher": "tree/metal/enclave-metal.mjs (+ its imports; no npm package)",
+  "verifier": "tree/metal/measured-control-verify.mjs verifyMeasuredControl/tlsGet, tree/verifier/collateral-cache.mjs, collateral.mjs, metal-box.mjs TCB_FLOORS, tree/metal/guest/platform-api-verify.mjs quorumRegistry, viem 2.53.1",
+  "config": "tree/metal/guest/measured-control.mjs canonicalDirectConfig/configDigest/hostDataHex/planDirectBoot",
+  "guard": "tree/test/helpers/memory-guard.mjs"
+ },
+ "image": {
+  "dir": "measured-image-build/image/dist-direct-6f2c7da46",
+  "pins": {
+   "image/MEASUREMENT": "cd13ed09f067dd9c0cbc5648cadab00c12324e1d2678a2fb6f070f615b50bc3a",
+   "image/cmdline": "fd236eb2762c457bbe20376216e078f3aab3f2f40a3646f9509137b8f67fabb6",
+   "image/initramfs.cpio.gz": "f778b9d8d843d2245876ff20da0f453ab5a8b0e0eda5bf9aa0a8d2d7d6e7fa60",
+   "image/manifest.json": "d187f8fd85c6dc9cad7845da8df62dfb46b175e3f359488621105110c4cec9de",
+   "image/vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "measurement": "bdadc7bb667eac1ff783b4538991cc6dafcda9c89b80a5d4b60a0f280e32e2ee0c45dd0b4f3f3415c347c30651b597e6"
+ },
+ "external": {
+  "ovmf": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+  "qemu /usr/bin/qemu-system-x86_64 (QEMU 11.1.2)": "a2250f5e2b3b07c754473c0817df1cccf6c3c2443fc616dc474c4c311fa6ef1c",
+  "node /usr/bin/node (v22.23.3)": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9",
+  "collateralSource": "/home/steven/enclave-prod/capacity-audit/state/amd (public AMD Turin chain, CRL valid to 2026-11-09, 1 VCEK; COPIED, fingerprinted before/after, never written)"
+ },
+ "canaryFiles": {
+  "FROZEN-PINS.json": "6025fff2c77f368f797c93c0ea0676eaaded7dac9902db07012507946f877cf5",
+  "RECIPE.md": "9d4570da1d2a14d8362184bfe8795bc05bae2360e31118bd1fda722eaf035dbc",
+  "SOURCES-tree.json": "46782ba2f195ac634ec37090556be72bf726f1dcf09a512cdb184385b42caf5a",
+  "bin/scp": "9305c6f76cc65bcafe96110a2f0fc02597603c9a35a3101966119360e48dbf44",
+  "bin/sftp": "52434582a974c39655582f6f4bed89bb9c5cb2e4cd2198e6761ef28af321a7bd",
+  "bin/ssh": "ea2ed034610e66777062820080d3f536139793c47a7fc570c26699ded0432dfd",
+  "canary/owner-config.mjs": "3509db936da3328a4f45aa13b68a06edbb9f8da31986733cb8f3d2c286e556e8",
+  "canary/qemu-restrict.sh": "3fd3a1dc0d6bce94217fd06c3cddde57697e3a9da4a8adea303c7f991bf9d75f",
+  "canary/run-canary.py": "a82b6eafcfc51430011c3f6c1b1e41c280731e2c7030f0ba8d256224d6fb509d",
+  "canary/verify-canary.mjs": "67979154f53d96c7b9fd0a5fd605911257b8c145911638eb7547aa17f2003d4f",
+  "test/canary-launcher.test.mjs": "c652b77a7234a1bc3e7ee0e97352c53d55e4465eeff6dedd34d3ccfc5f67ebb7",
+  "test/fake-qemu.sh": "4599e22c159ab4f1e012ae336bba4f2c128d7385ad2f0a5ce511b02237f9d1af",
+  "test/supervise_driver.py": "ea5009d9e8e6d6de7d934a0440d3b5e9fbf3d638cbd27ab6b3db29e0b1a9d92a",
+  "test/test_run_canary.py": "d0052d5170ac62697bc040444d1ffe46f34bc850325cc74e465258b5b50b2973",
+  "tools/crl-info.mjs": "ff60823358bb3552bba4ac892ccdc1cb60987067e568f13ce79f760db315a580",
+  "tools/env.sh": "27c55f45e3efa01d5afb2b3997c691be741fc1b916319fd55f1ea450c2d0e5aa",
+  "tools/freeze-and-preflight.sh": "105bb59db68ccf0f0f6c426929aafe901fc47be9f17ad5224cc26b0d1c115a39",
+  "tools/freeze.py": "ec2ec2bb3dc4c8420991cab44f57444cc538c73fc89ec21e37a4aaf4d4e15d94",
+  "tools/q.sh": "91de07048551deb30575e01ef6251a28fa4a75d1ebda6d984fac2677058672ec",
+  "tools/stage-tree.sh": "0da7babf4dd73e6366b1c0cf522549f471c0edd18d208c4ff895542fc95de419",
+  "tools/unit-checks.sh": "9968937e7e02df9eaefea9b1326b12bb258e2c46e3d6720fa3be68b2ba76d803",
+  "tree.sha256": "b8d3d5f69eda6be899b99df1dfbe385e6e828cbac312908c7a87c1289cc54978"
+ },
+ "frozenPins": {
+  "file": "FROZEN-PINS.json",
+  "sha256": "6025fff2c77f368f797c93c0ea0676eaaded7dac9902db07012507946f877cf5",
+  "count": 20
+ }
+}

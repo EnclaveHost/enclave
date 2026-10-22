@@ -12,8 +12,9 @@
 //      EnclaveRegistry row (through the RPC quorum) active with the bound operator and this boot's proof key. Same boot and
 //      key as step 1, or nothing;
 //   3. ADMISSION, fresh: the platform host policy decision for THAT registry id (the serving host, never the advertiser),
-//      admit === true, with the decision's registry row naming the same operator. A ban on the host, its operator, owner,
-//      chip or endpoint withdraws the route at the next refresh.
+//      admit === true, with the decision's registry row naming the same operator. A ban on the host's registry id, operator,
+//      accepted owner or registered endpoint withdraws the route at the next refresh. A chipId entry cannot be matched here
+//      (nativeHostDecision): while the accepted policy denies any chipId, every native control route is refused.
 // A route is the exact address verified, lives at most routeTtlMs (60 s, as an app route record) and never past the leaf, and
 // the configured failure domain (the DigitalOcean fleet) is never probed. No route: native discovery answers unavailable.
 //
@@ -160,6 +161,19 @@ export async function verifyNativeControlEndpoint({ address, names = NATIVE_NAME
   return { address, names: ok.map((n) => n.name), registryId: v.identity.registryId, operator: v.identity.operator, bootId: st.bootId, expiresAt, refused };
 }
 
+/**
+ * The platform host policy decision for the ATTESTED host, as native routes use it. The policy's chipId kind is a 32-byte
+ * value; no source derives it from the verified 64-byte SNP CHIP_ID and no enforcement point supplies one, so a chipId deny
+ * entry cannot be evaluated for this host. Rather than serve a host an administrator may have banned by chip, every native
+ * route is refused while the accepted policy carries a chipId denial. -> { admit, status, reason, host }
+ */
+export function nativeHostDecision(decision, acceptedPolicy = null) {
+  if (!decision || decision.admit !== true) return decision || { admit: false, reason: 'no decision' };
+  if (acceptedPolicy && Array.isArray(acceptedPolicy.deny) && acceptedPolicy.deny.some((e) => e && e.kind === 'chipId'))
+    return { ...decision, admit: false, status: 'chip-unverifiable', reason: `platform policy #${acceptedPolicy.sequence} denies by chipId, which native control routes cannot match to a verified chip: refused` };
+  return decision;
+}
+
 const bounded = (p, ms, what) => { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(`${what} timed out after ${ms} ms`)), ms); t.unref?.(); })]).finally(() => clearTimeout(t)); };
 /**
  * One discovery round -> { routes: { [name]: { addresses, expiresAt } }, verified, excluded, rejected, blockNumber }.
@@ -225,7 +239,9 @@ const list = (v) => String(v || '').split(',').map((x) => x.trim()).filter(Boole
  *   NATIVE_CONTROL_OPERATORS      optional operator addresses read directly
  *   ENCLAVE_PLATFORM_HOST_POLICY* the unchanged platform host policy resolution (production unless explicitly "off")
  */
-export async function controlRoutesFromEnv(env, { caPem, log = () => {}, fetch = globalThis.fetch, now = Date.now } = {}) {
+export async function controlRoutesFromEnv(env, { caPem, log = () => {}, fetch = globalThis.fetch, now = Date.now,
+  // test fixtures only (offline): the SYNTHETIC AMD collateral and its pinned ARK, and loopback ports for public addresses
+  collateral: testCollateral = null, roots = null, dial = undefined } = {}) {
   const m = /^(0x[0-9a-fA-F]{40})@(0x[0-9a-fA-F]{64})$/.exec(String(env.NATIVE_CONTROL_SERVICE_INDEX || '').trim());
   if (!m) throw new Error('NATIVE_CONTROL_SERVICE_INDEX must be <index address>@<runtime code hash>');
   const indexPin = validateIndexPin({ chainId: 8453, address: m[1], codeHash: m[2].toLowerCase() });
@@ -251,10 +267,11 @@ export async function controlRoutesFromEnv(env, { caPem, log = () => {}, fetch =
   // explicit "off" serves NOTHING here: an endpoint routed for the platform's own control names is always judged
   if (!runtime) throw new Error('native control routes need the platform host policy: it is explicitly off');
   const decide = freshAdmissions(runtime.gate);
+  const decideHost = async (id) => nativeHostDecision((await decide([id]))[lc(id)], runtime.gate.accepted()?.policy || null);
   const registry = quorumRegistry({ rpcs, quorum, registry: env.NATIVE_CONTROL_REGISTRY.toLowerCase() });
-  const collateral = httpCollateral({ fetchImpl: fetch });
-  const expect = { measurements, minTcb: TCB_FLOORS, crl: 'required' };
+  const collateral = testCollateral || httpCollateral({ fetchImpl: fetch });
+  const expect = { measurements, minTcb: TCB_FLOORS, crl: 'required', ...(roots ? { roots } : {}) };
   return cachedControlRoutes(() => discoverControlRoutes({ now, excludeAddresses: exclude,
     readCandidates: () => readControlCandidates({ peers, indexPin, operators, now }),
-    verifyEndpoint: (address) => verifyNativeControlEndpoint({ address, caPem, expect, collateral, registry, now, decideHost: async (id) => (await decide([id]))[lc(id)] }) }), { log, now });
+    verifyEndpoint: (address) => verifyNativeControlEndpoint({ address, caPem, expect, collateral, registry, now, decideHost, ...(dial ? { dial } : {}) }) }), { log, now });
 }

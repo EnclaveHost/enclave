@@ -262,6 +262,7 @@ def gates():
     gate('public AMD collateral cache present (copied read-only at run time)', (COLLATERAL_SRC / 'Turin/chain.pem').is_file(), str(COLLATERAL_SRC))
     gate('runs/ parent has >= 2 GiB free', shutil.disk_usage(D).free >= 2 << 30)
     gate('ssh/scp/sftp stubs first in PATH', all(shutil.which(c) == str(STUB_BIN / c) for c in ('ssh', 'scp', 'sftp')))
+    gate('qemu-restrict.sh and the stubs are executable', all(os.access(x, os.X_OK) for x in [D / 'canary/qemu-restrict.sh'] + [STUB_BIN / c for c in ('ssh', 'scp', 'sftp')]))
     return g
 
 # ---- child (inside the transient scope) ----------------------------------------------------------------------------------
@@ -476,7 +477,7 @@ def main():
     env = dict(PATH=f'{STUB_BIN}:/usr/bin:/usr/sbin:/bin', HOME=os.environ['HOME'], LANG='C.UTF-8',
                XDG_RUNTIME_DIR=os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}'),
                DBUS_SESSION_BUS_ADDRESS=os.environ.get('DBUS_SESSION_BUS_ADDRESS', f'unix:path=/run/user/{os.getuid()}/bus'))
-    cmd = ['systemd-run', '--user', '--scope', '--quiet', f'--unit={unit}', '-p', f'MemoryMax={CAP_MIB}M', '-p', 'MemorySwapMax=0',
+    cmd = ['systemd-run', '--user', '--scope', '--quiet', '--expand-environment=no', f'--unit={unit}', '-p', f'MemoryMax={CAP_MIB}M', '-p', 'MemorySwapMax=0',
            str(NODE), str(TREE / 'test/helpers/memory-guard.mjs'), '--max-rss-mib', str(CAP_MIB), '--floor-available-mib', str(FLOOR_MIB),
            '--log', str(run / 'memory.log'), '--', 'timeout', '--signal=TERM', f'--kill-after={KILL_AFTER_S}s', f'{CHILD_TIMEOUT_S}s',
            sys.executable, str(pathlib.Path(__file__).resolve()), '--child', str(run)] + sum(([f'--{k}', v] for k, v in ARGS.items()), [])

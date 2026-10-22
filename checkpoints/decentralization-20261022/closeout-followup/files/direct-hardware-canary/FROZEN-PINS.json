@@ -1,0 +1,29 @@
+{
+ "format": "direct-control-canary-frozen-pins/1",
+ "writtenAt": "2026-10-22T20:42:40.701459+00:00",
+ "sourceCommit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+ "sourceTree": "0021f3abbe1e3dfc121032189c6434c1d093d3f0",
+ "expectedMeasurement": "bdadc7bb667eac1ff783b4538991cc6dafcda9c89b80a5d4b60a0f280e32e2ee0c45dd0b4f3f3415c347c30651b597e6",
+ "pins": {
+  "bin/scp": "9305c6f76cc65bcafe96110a2f0fc02597603c9a35a3101966119360e48dbf44",
+  "bin/sftp": "52434582a974c39655582f6f4bed89bb9c5cb2e4cd2198e6761ef28af321a7bd",
+  "bin/ssh": "ea2ed034610e66777062820080d3f536139793c47a7fc570c26699ded0432dfd",
+  "canary/owner-config.mjs": "3509db936da3328a4f45aa13b68a06edbb9f8da31986733cb8f3d2c286e556e8",
+  "canary/qemu-restrict.sh": "3fd3a1dc0d6bce94217fd06c3cddde57697e3a9da4a8adea303c7f991bf9d75f",
+  "canary/run-canary.py": "a82b6eafcfc51430011c3f6c1b1e41c280731e2c7030f0ba8d256224d6fb509d",
+  "canary/verify-canary.mjs": "67979154f53d96c7b9fd0a5fd605911257b8c145911638eb7547aa17f2003d4f",
+  "image/MEASUREMENT": "cd13ed09f067dd9c0cbc5648cadab00c12324e1d2678a2fb6f070f615b50bc3a",
+  "image/cmdline": "fd236eb2762c457bbe20376216e078f3aab3f2f40a3646f9509137b8f67fabb6",
+  "image/initramfs.cpio.gz": "f778b9d8d843d2245876ff20da0f453ab5a8b0e0eda5bf9aa0a8d2d7d6e7fa60",
+  "image/manifest.json": "d187f8fd85c6dc9cad7845da8df62dfb46b175e3f359488621105110c4cec9de",
+  "image/vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
+  "inputs": "cf079da724d640d3cbc1d985d8c443180dafc87faa09c9c5532cf33a684c0c63",
+  "node": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9",
+  "ovmf": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+  "qemu": "a2250f5e2b3b07c754473c0817df1cccf6c3c2443fc616dc474c4c311fa6ef1c",
+  "receipt": "950a06b424c19648c077f9e339e346730b2c846baa4d52c299baa74096354a5a",
+  "tree.sha256": "b8d3d5f69eda6be899b99df1dfbe385e6e828cbac312908c7a87c1289cc54978",
+  "tree/node_modules": "4e08fbc6ca7e1c652de132553f9890f71ede01662bc49b1225b1eb1c667934f5",
+  "tree/source-files": "b8d3d5f69eda6be899b99df1dfbe385e6e828cbac312908c7a87c1289cc54978"
+ }
+}

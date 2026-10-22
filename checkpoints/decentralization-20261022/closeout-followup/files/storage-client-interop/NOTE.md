@@ -28,7 +28,7 @@ is refused after enrollment. All of it runs against a real indexd at schema v28 
 
 ## Isolation and cleanup
 
-One queue job (1024 MiB; prior runs with 3 indexers and 2 instances peaked at 1175-1350 MiB, and this run uses 1 indexer
+One queue job (1536 MiB, root-authorized after two 1024 guard stops at 1027-1028 MiB; prior runs with 3 indexers and 2 instances peaked at 1175-1350 MiB, and this run uses 1 indexer
 and 1 instance at a time). It runs:
 
 `unshare -rn --pid --fork --kill-child --mount-proc` (private network namespace, loopback only, so no public Sia,
@@ -60,5 +60,5 @@ RPC or live storage is reachable; private PID namespace, so EVERY process dies w
 
 ```
 cd work/resume-after-checkpoint-20261022/storage-client-interop
-python3 ../../claude-test-queue.py --mib 1024 --log logs/run-1.guard.log -- bash run-ns.sh i1 > logs/run-1.out 2>&1
+python3 ../../claude-test-queue.py --mib 1536 --log logs/run-5.guard.log -- bash run-ns.sh i5 > logs/run-5.out 2>&1
 ```

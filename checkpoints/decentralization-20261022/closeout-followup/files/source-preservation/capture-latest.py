@@ -67,8 +67,10 @@ for directory in ('direct-hardware-canary', 'native-control-attested', 'storage-
         if p.is_file() and not p.is_symlink() and p.suffix in ('.txt', '.md', '.py', '.sh', '.mjs'):
             paths.add(p)
 for relative in ('metal/guest/gsup.mjs', 'metal/guest/measured-control.mjs', 'relay/native-discovery.mjs',
-                 'test/native-discovery.test.mjs', 'network/native-control-routes.mjs', 'scripts/native-control-certificate.mjs'):
+                 'test/native-discovery.test.mjs', 'test/native-control-attested.test.mjs', 'network/native-control-routes.mjs', 'scripts/native-control-certificate.mjs'):
     paths.add(base / 'native-control-attested/repo' / relative)
+for name in ('FROZEN-PINS.json', 'PLANNED-EFFECTS.json', 'RESULT.json', 'SOURCES-tree.json', 'SOURCES.json'):
+    paths.add(base / 'direct-hardware-canary' / name)
 paths.add(Path(__file__).resolve())
 entries = []
 unchanged = []

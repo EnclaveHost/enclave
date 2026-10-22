@@ -580,7 +580,9 @@ def main():
         check("L: 0.1.8 leaves an OPEN multipart upload jot/open (1 part)", st == 200 and open_uid and len(open_parts) == 1, st)
         t = time.time()
         hz = old.healthz()
-        while time.time() - t < 300 and not ((hz.get("compactor") or {}).get("compacted_objects", 0) > 0):
+        # 0.1.8 compacts only objects older than 300 s (store.rs:496 `cutoff = now() - 300`), every compactEverySecs (30 s):
+        # wait past that age plus two intervals
+        while time.time() - t < 420 and not ((hz.get("compactor") or {}).get("compacted_objects", 0) > 0):
             time.sleep(5)
             hz = old.healthz()
         R["healthz018"] = hz
