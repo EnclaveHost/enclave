@@ -1,0 +1,42 @@
+--- runner/vm_fresh_backup.py
++++ runner/vm_fresh_backup.foreground.py
+@@ -13,7 +13,8 @@
+   - Resume runs in `finally`, also on SIGTERM/SIGINT/SIGHUP, and is verified (ActiveState=active, SubState=running,
+     MainPID>0) - it is never assumed. A failed resume is reported as such (exit 4), never as success.
+   - Deadlines: every command has a timeout; the stopped window has its own budget (--quiesce-budget); copies check it
+-    per chunk; pg_dump also runs under `timeout` INSIDE the container.
++    per chunk; pg_dump also runs under `timeout --foreground` INSIDE the container (it signals and reaps the tool only:
++    nothing is ever orphaned to the postmaster, PID 1 of the container).
+   - Nothing secret is printed or logged: indexd.yml is copied as bytes (sha256 + size only), never parsed or echoed;
+     command stderr is reduced to a sanitized first line without file contents; no password, seed or row is read.
+   - Coupling: after the capture the unit must still be stopped with no indexd process, or the backup is marked
+@@ -100,7 +101,7 @@
+ 
+ 
+ def psql(sql, timeout=30):
+-    script = 'exec timeout -k 5 20 psql -U "${POSTGRES_USER:-postgres}" -d "$1" -X -A -t -q -v ON_ERROR_STOP=1 -c "$2"'
++    script = 'exec timeout --foreground -k 5 20 psql -U "${POSTGRES_USER:-postgres}" -d "$1" -X -A -t -q -v ON_ERROR_STOP=1 -c "$2"'
+     rc, out, err = run(["docker", "exec", "-e", "PGOPTIONS=" + PGOPTS, PG, "sh", "-c", script, "psql", DB, sql], timeout)
+     if rc != 0:
+         raise RuntimeError(f"psql rc:{rc} {clean_err(err)}")
+@@ -224,7 +225,7 @@
+         a = self.a
+         dump_fd = self.excl("indexd.pgdump")
+         try:
+-            script = ('exec timeout -k 5 "$2" pg_dump -U "${POSTGRES_USER:-postgres}" --format=custom --no-owner --no-acl '
++            script = ('exec timeout --foreground -k 5 "$2" pg_dump -U "${POSTGRES_USER:-postgres}" --format=custom --no-owner --no-acl '
+                       '--lock-wait-timeout=5000 "$1"')
+             left = max(1, int(deadline - time.monotonic()))
+             rc, _, err = run(["docker", "exec", PG, "sh", "-c", script, "pg_dump", DB, str(min(a.dump_timeout, left))],
+@@ -303,9 +304,9 @@
+         rc, out, err = run(["docker", "inspect", "-f", "{{.State.Running}}", PG], 20)
+         if rc != 0 or out.decode().strip() != "true":
+             raise Refused("PostgreSQL container is not running")
+-        rc, _, _ = run(["docker", "exec", PG, "sh", "-c", "command -v timeout >/dev/null"], 20)
++        rc, _, _ = run(["docker", "exec", PG, "sh", "-c", "command -v timeout >/dev/null && timeout --foreground 5 true"], 20)
+         if rc != 0:
+-            raise Refused("no `timeout` inside the PostgreSQL container: pg_dump could not be bounded")
++            raise Refused("no `timeout` with --foreground inside the PostgreSQL container: pg_dump could not be bounded")
+         v = int(psql("SELECT db_version FROM global_settings"))
+         if v != a.expect_db_version:
+             raise Refused(f"db_version {v} != expected {a.expect_db_version}")

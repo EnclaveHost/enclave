@@ -1,0 +1,255 @@
+--- a/docs/network/measured-control-guest.md
++++ b/docs/network/measured-control-guest.md
+@@ -140,8 +140,11 @@
+    node metal/build-image.mjs --isolation snp-guest-per-app --control direct \
+      --supervisor <ref@sha256> --wasm <ref@sha256> --ovmf <owner-pinned OVMF>
+    ```
+-   Alternatively, use `python3 metal/overlay-control-image.py BASE OUT COMMIT` over a verified base image built with
+-   `--control direct`.
++   Alternatively, use `python3 metal/overlay-control-image.py --control direct BASE OUT COMMIT` over a verified
++   `snp-guest-per-app` base image. It keeps the base's kernel and modules, installs the commit's runtime and its platform
++   API bundle with the bundle's sidecars (checked against the committed bundle manifest), and appends
++   `metal.control=direct` to the measured cmdline. A base that already carries a control mode must be overlaid with the
++   same `--control`.
+ 3. **Recompute the launch digest independently**, on a second machine or a second rebuild:
+    ```
+    sev-snp-measure --mode snp --vcpus <cpus> --vcpu-family/model/stepping <the host's> --vmm-type QEMU \
+--- a/metal/README.md
++++ b/metal/README.md
+@@ -549,7 +549,10 @@
+ records every installed source hash, adds required parent directories, rejects
+ symlink parents and hardlinked replacement targets, and removes the obsolete
+ measurement. Recompute and verify the new launch measurement before activation.
+-This command does not start a VM or replace the live image.
++This command does not start a VM or replace the live image. With `--control direct`
++(over a `snp-guest-per-app` base) it also installs the committed platform API bundle
++and its sidecars, records them as `build-image.mjs --control direct` does, and
++appends `metal.control=direct` to the measured cmdline; the kernel stays the base's.
+ 
+ Host contract pins also govern session authentication. A pinned host trusts only
+ `sessionVaultFactory` and `deployments` from that document; it ignores the mutable
+--- a/metal/overlay-control-image.py
++++ b/metal/overlay-control-image.py
+@@ -1,7 +1,11 @@
+ #!/usr/bin/env python3
+ """Stage a measured control runtime from committed files over a verified base image.
+-Usage: overlay-control-image.py BASE OUT COMMIT. Never modifies BASE or starts a VM.
++Usage: overlay-control-image.py [--control direct] BASE OUT COMMIT. Never modifies BASE or starts a VM.
+ Preserves untouched cpio entries, adds missing directories, and records exact inputs.
++--control direct makes the MEASURED independent control image (docs/network/measured-control-guest.md) over a verified
++snp-guest-per-app base, as build-image.mjs --control direct does, keeping the base's kernel and modules: it installs the
++committed platform API bundle and its sidecars (checked against the committed bundle manifest) and appends
++metal.control=direct to the measured cmdline. Without it the output is exactly what this tool always produced.
+ """
+ import gzip, hashlib, io, json, posixpath, re, shutil, stat, subprocess, sys
+ from pathlib import Path
+@@ -135,6 +139,44 @@
+         out.append({'name': name, 'version': str(pkg.get('version', ''))})
+     return out
+ REQUIRED = {'app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/agent.mjs', 'opt/metal/manifest.json'}
++# --control direct: the platform API role bundle build-image.mjs installs for a direct control image, its manifest (read,
++# not installed: the image manifest records it) and the files it reads beside itself (manifest sidecars)
++PLATFORM_API_BUNDLE = 'metal/guest/platform-api.bundle.mjs'
++CONTROL_TOKEN, ISOLATION_TOKEN = 'metal.control=direct', 'metal.isolation=snp-guest-per-app'
++def platform_api_files(commit, repo):
++    """-> ({image path: source path}, the image manifest's platformApiBundle) for the commit's platform API bundle."""
++    data = committed(commit, repo, PLATFORM_API_BUNDLE)
++    raw = committed(commit, repo, PLATFORM_API_BUNDLE+'.manifest.json')
++    if data is None or raw is None:
++        raise ValueError('the commit has no '+PLATFORM_API_BUNDLE+' and manifest, which a direct control image needs')
++    manifest = json.loads(raw)
++    if sha(data) != manifest.get('sha256') or len(data) != manifest.get('bytes'):
++        raise ValueError('the platform API guest bundle does not match its manifest (scripts/build-platform-api-guest-bundle.mjs)')
++    files, sidecars = {'opt/metal/platform-api.bundle.mjs': PLATFORM_API_BUNDLE}, {}
++    for beside, s in sorted((manifest.get('sidecars') or {}).items()):
++        if posixpath.isabs(beside) or posixpath.normpath(beside) != beside or beside.startswith('../'):
++            raise ValueError('platform API sidecar '+beside+' is not a path beside the bundle')
++        side = committed(commit, repo, s['source'])
++        if side is None or sha(side) != s['sha256']:
++            raise ValueError('platform API sidecar '+beside+' does not match its manifest')
++        files['opt/metal/'+beside], sidecars['/opt/metal/'+beside] = s['source'], s['sha256']
++    return files, {'path': '/opt/metal/platform-api.bundle.mjs', 'sha256': manifest['sha256'], 'bytes': len(data),
++                   'inputs': len(manifest['inputs']), 'sidecars': sidecars}
++def direct_cmdline(base, m):
++    """The base's measured cmdline with metal.control=direct appended; the base must be the per-app SEV-SNP tier and its
++    cmdline file must be its manifest's template (the measurement is computed from them)."""
++    text = (base/'cmdline').read_text()
++    line = text.rstrip('\n')
++    if m.get('isolation') != 'snp-guest-per-app' or ISOLATION_TOKEN not in line.split():
++        raise ValueError('--control direct needs a snp-guest-per-app base image (the control guest runs no apps itself)')
++    if m.get('cmdlineTemplate') != line:
++        raise ValueError('the base cmdline is not its manifest\'s cmdlineTemplate')
++    controls = [t for t in line.split() if t.startswith('metal.control=')]
++    if controls == [CONTROL_TOKEN] and line.endswith(' '+CONTROL_TOKEN) and m.get('control') == 'direct':
++        return line, text[len(line):]                  # an earlier direct overlay: the measured cmdline stays as it is
++    if controls or 'control' in m:
++        raise ValueError('the base cmdline or manifest already names another control mode')
++    return line+' '+CONTROL_TOKEN, text[len(line):]
+ sha = lambda b: hashlib.sha256(b).hexdigest()
+ def file_sha(file):
+     with file.open('rb') as f:
+@@ -187,7 +229,9 @@
+     prefix = b'070701' + b''.join(f'{n:08x}'.encode() for n in fields) + nm
+     return prefix + b'\0' * (-len(prefix) % 4) + data + b'\0' * (-len(data) % 4)
+ 
+-def overlay(base, out, commit, repo):
++def overlay(base, out, commit, repo, control=''):
++    if control not in ('', 'direct'):
++        raise ValueError('--control must be direct')
+     if out.exists():
+         raise ValueError('output exists')
+     m = json.loads((base/'manifest.json').read_text())
+@@ -196,9 +240,20 @@
+         raise ValueError('base initramfs hash mismatch')
+     if file_sha(base/'vmlinuz') != m['kernel']['sha256']:
+         raise ValueError('base kernel hash mismatch')
++    cmdline = None
++    if control:
++        cmdline = direct_cmdline(base, m)
++    elif 'control' in m or 'metal.control=' in (base/'cmdline').read_text():
++        # the base's platform API bundle would stay the base's while the rest moves to the commit
++        raise ValueError('the base is a control image: overlay it with --control '+str(m.get('control', '')))
+     commit = subprocess.check_output(['git', 'rev-parse', commit+'^{commit}'], cwd=repo, text=True).strip()
+     installed_app, packages = app_files(commit, repo)
+     paths = {**{'app/'+p: p for p in installed_app}, **{'opt/metal/'+p: 'metal/guest/'+p for p in guest_files(commit, repo)}}
++    if control:
++        if 'opt/metal/measured-control.mjs' not in paths:
++            raise ValueError('the commit\'s gsup.mjs runs no measured control (metal/guest/measured-control.mjs)')
++        pa_files, pa_record = platform_api_files(commit, repo)
++        paths.update(pa_files)
+     replacements = {k: committed(commit, repo, v) for k,v in paths.items()}
+     m.pop('expectedMeasurement', None)
+     m.pop('initramfs', None)
+@@ -208,6 +263,10 @@
+     m['controlOverlay'] = {'baseInitramfsSha256': base_sha, 'commit': commit,
+         'builder': 'metal/overlay-control-image.py', 'builderSha256': file_sha(Path(__file__)),
+         'files': [{'path': '/'+k, 'source': paths[k], 'sha256': sha(v)} for k,v in replacements.items()]}
++    if control:
++        # the same records build-image.mjs --control direct writes; the kernel and modules stay the base's (m['kernel'])
++        m['control'], m['platformApiBundle'], m['cmdlineTemplate'] = control, pa_record, cmdline[0]
++        m['controlOverlay']['control'] = control
+     replacements['opt/metal/manifest.json'] = b''  # filled after namespace validation
+     # Validate the whole namespace before emitting output. A symlink in a parent
+     # must not redirect newly installed trusted runtime files elsewhere.
+@@ -281,6 +340,8 @@
+                         body(f, fields[6], z)
+         shutil.copy2(base/'vmlinuz', out/'vmlinuz')
+         shutil.copy2(base/'cmdline', out/'cmdline')
++        if cmdline:
++            (out/'cmdline').write_text(cmdline[0]+cmdline[1])
+         file = out/'initramfs.cpio.gz'
+         m['initramfs'] = {'sha256': file_sha(file), 'bytes': file.stat().st_size}
+         (out/'manifest.json').write_text(json.dumps(m, indent=2)+'\n')
+@@ -291,10 +352,15 @@
+     return m
+ 
+ if __name__ == '__main__':
+-    if len(sys.argv) != 4:
++    args, control = sys.argv[1:], ''
++    if args[:1] == ['--control']:
++        control, args = (args[1] if len(args) > 1 else ''), args[2:]
++        if control != 'direct':
++            raise SystemExit('--control must be direct')
++    if len(args) != 3:
+         raise SystemExit(__doc__)
+     try:
+-        result = overlay(Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3], Path(__file__).resolve().parent.parent)
++        result = overlay(Path(args[0]), Path(args[1]), args[2], Path(__file__).resolve().parent.parent, control)
+         print(json.dumps(result['initramfs']))
+     except (ValueError, OSError, subprocess.CalledProcessError) as e:
+         raise SystemExit(str(e))
+--- a/test/metal-control-overlay.test.py
++++ b/test/metal-control-overlay.test.py
+@@ -125,6 +125,92 @@
+             with self.assertRaisesRegex(ValueError,msg):mod.committed(c,repo,rel)
+         files,_=mod.supervisor_closure(lambda r:(lambda d:d.decode() if d is not None else None)(mod.committed(c,repo,r)),mod.SUPERVISOR_ROOTS)
+         self.assertEqual(files,['addressbook.js','relay/chain.mjs','supervisor.js'])
++    # --control direct: the measured control image over a verified per-app base, keeping its kernel
++    TEMPLATE='console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app'
++    def direct_base(self,cmdline=None,**manifest):
++        self.base_image()
++        line=self.TEMPLATE if cmdline is None else cmdline
++        (self.base/'cmdline').write_text(line+'\n')
++        m=json.loads((self.base/'manifest.json').read_text());m.update({'isolation':'snp-guest-per-app','cmdlineTemplate':line,**manifest})
++        (self.base/'manifest.json').write_text(json.dumps(m))
++        return self.read(self.base)
++    def test_control_direct_installs_the_platform_api_trio_over_the_base_kernel(self):
++        before=self.direct_base();base_m=json.loads((self.base/'manifest.json').read_text())
++        out=self.root/'out';m=mod.overlay(self.base,out,COMMIT,REPO,'direct');after=self.read(out)
++        pm=json.loads(mod.committed(COMMIT,REPO,mod.PLATFORM_API_BUNDLE+'.manifest.json'))
++        bundle=mod.committed(COMMIT,REPO,mod.PLATFORM_API_BUNDLE)
++        self.assertEqual(after['opt/metal/platform-api.bundle.mjs'][1],bundle);self.assertEqual(mod.sha(bundle),pm['sha256'])
++        self.assertTrue(pm['sidecars'])
++        for beside,s in pm['sidecars'].items():
++            self.assertEqual(after['opt/metal/'+beside][1],mod.committed(COMMIT,REPO,s['source']))
++            self.assertEqual(mod.sha(after['opt/metal/'+beside][1]),s['sha256'])
++        self.assertNotIn('opt/metal/platform-api.bundle.mjs.manifest.json',after)     # read, recorded, not installed
++        self.assertEqual(after['opt/metal/measured-control.mjs'][1],mod.committed(COMMIT,REPO,'metal/guest/measured-control.mjs'))
++        self.assertEqual((out/'cmdline').read_text(),self.TEMPLATE+' metal.control=direct\n')
++        self.assertEqual((m['control'],m['cmdlineTemplate']),('direct',self.TEMPLATE+' metal.control=direct'))
++        self.assertEqual(m['platformApiBundle'],{'path':'/opt/metal/platform-api.bundle.mjs','sha256':pm['sha256'],'bytes':len(bundle),
++            'inputs':len(pm['inputs']),'sidecars':{'/opt/metal/'+k:v['sha256'] for k,v in pm['sidecars'].items()}})
++        self.assertEqual((out/'vmlinuz').read_bytes(),(self.base/'vmlinuz').read_bytes());self.assertEqual(m['kernel'],base_m['kernel'])
++        inimage=json.loads(after['opt/metal/manifest.json'][1])
++        self.assertEqual((inimage['control'],inimage['platformApiBundle'],inimage['controlOverlay']['control']),('direct',m['platformApiBundle'],'direct'))
++        self.assertNotIn('expectedMeasurement',m)
++        for key in ['unchanged-link','unchanged-file','app','opt','opt/metal']:self.assertEqual(before[key],after[key])
++        self.assertTrue(stat.S_ISDIR(after['opt/metal/fixtures'][0][1]))
++        second=self.root/'second';mod.overlay(self.base,second,COMMIT,REPO,'direct')
++        self.assertEqual((out/'initramfs.cpio.gz').read_bytes(),(second/'initramfs.cpio.gz').read_bytes())
++        # a direct image overlaid again keeps ONE control token; a plain overlay of it is refused (its bundle would go stale)
++        again=self.root/'again';m2=mod.overlay(out,again,COMMIT,REPO,'direct');self.read(again)
++        self.assertEqual(((again/'cmdline').read_text(),m2['cmdlineTemplate']),(self.TEMPLATE+' metal.control=direct\n',m['cmdlineTemplate']))
++        with self.assertRaisesRegex(ValueError,'is a control image'):mod.overlay(out,self.root/'plain',COMMIT,REPO)
++        self.assertFalse((self.root/'plain').exists())
++    def test_plain_overlay_is_unchanged_by_the_control_option(self):
++        self.direct_base();out=self.root/'out';m=mod.overlay(self.base,out,COMMIT,REPO);after=self.read(out)
++        for k in ['control','platformApiBundle']:self.assertNotIn(k,m)
++        self.assertEqual(m['cmdlineTemplate'],self.TEMPLATE);self.assertNotIn('control',m['controlOverlay'])
++        self.assertNotIn('opt/metal/platform-api.bundle.mjs',after)
++        self.assertEqual((out/'cmdline').read_bytes(),(self.base/'cmdline').read_bytes())
++    def test_control_direct_refuses_a_base_it_cannot_measure_as_direct(self):
++        cases=[(lambda:self.base_image(),'snp-guest-per-app base'),
++               (lambda:self.direct_base(cmdlineTemplate='something else'),'not its manifest'),
++               (lambda:self.direct_base(self.TEMPLATE+' metal.control=other'),'another control mode'),
++               (lambda:self.direct_base(control='other'),'another control mode')]
++        for i,(make,msg) in enumerate(cases):
++            make()
++            with self.assertRaisesRegex(ValueError,msg):mod.overlay(self.base,self.root/('out%d'%i),COMMIT,REPO,'direct')
++            self.assertFalse((self.root/('out%d'%i)).exists())
++        self.direct_base()
++        with self.assertRaisesRegex(ValueError,'must be direct'):mod.overlay(self.base,self.root/'x',COMMIT,REPO,'indirect')
++        self.assertFalse((self.root/'x').exists())
++    def fixture_commit(self,bundle=b'export {};\n',sidecar=b'roots\n',manifest=None,gsup="import './measured-control.mjs';\n"):
++        repo=self.root/('repo%d'%len(list(self.root.glob('repo*'))));repo.mkdir()
++        git=lambda *a:subprocess.check_output(['git','-c','user.name=t','-c','user.email=t@t',*a],cwd=repo)
++        git('init','-q')
++        def w(rel,data):
++            p=repo/rel;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data if isinstance(data,bytes) else data.encode())
++        for rel in mod.SUPERVISOR_ROOTS+mod.APP_FILES:w(rel,'')
++        for f in mod.GUEST_FILES+['measured-control.mjs']:w('metal/guest/'+f,'')
++        w('metal/guest/gsup.mjs',gsup);w(mod.PLATFORM_API_BUNDLE,bundle);w('relay/fixtures/tpm-roots.pem',sidecar)
++        w(mod.PLATFORM_API_BUNDLE+'.manifest.json',json.dumps(manifest if manifest is not None else {'sha256':mod.sha(bundle),'bytes':len(bundle),
++            'inputs':{'metal/guest/platform-api-entry.mjs':'0'*64},'sidecars':{'fixtures/tpm-roots.pem':{'source':'relay/fixtures/tpm-roots.pem','sha256':mod.sha(sidecar)}}}))
++        git('add','-A');git('commit','-qm','t');return repo,git('rev-parse','HEAD').decode().strip()
++    def test_control_direct_checks_the_committed_bundle_manifest(self):
++        self.direct_base()
++        repo,c=self.fixture_commit();out=self.root/'ok';m=mod.overlay(self.base,out,c,repo,'direct');after=self.read(out)
++        self.assertEqual((after['opt/metal/platform-api.bundle.mjs'][1],after['opt/metal/fixtures/tpm-roots.pem'][1]),(b'export {};\n',b'roots\n'))
++        self.assertEqual(m['platformApiBundle']['inputs'],1)
++        good=lambda **o:{'sha256':mod.sha(b'export {};\n'),'bytes':11,'inputs':{},'sidecars':{'fixtures/tpm-roots.pem':{'source':'relay/fixtures/tpm-roots.pem','sha256':mod.sha(b'roots\n')}},**o}
++        for i,(kw,msg) in enumerate([({'manifest':good(sha256='0'*64)},'does not match its manifest'),
++                                     ({'manifest':good(bytes=12)},'does not match its manifest'),
++                                     ({'sidecar':b'other roots\n','manifest':good()},'sidecar fixtures/tpm-roots.pem does not match'),
++                                     ({'manifest':good(sidecars={'../escape.pem':{'source':'relay/fixtures/tpm-roots.pem','sha256':mod.sha(b'roots\n')}})},'not a path beside'),
++                                     ({'gsup':''},'runs no measured control')]):
++            repo,c=self.fixture_commit(**kw)
++            with self.assertRaisesRegex(ValueError,msg):mod.overlay(self.base,self.root/('bad%d'%i),c,repo,'direct')
++            self.assertFalse((self.root/('bad%d'%i)).exists())
++        repo,c=self.fixture_commit()
++        subprocess.check_output(['git','rm','-q',mod.PLATFORM_API_BUNDLE+'.manifest.json'],cwd=repo)
++        subprocess.check_output(['git','-c','user.name=t','-c','user.email=t@t','commit','-qm','no manifest'],cwd=repo)
++        with self.assertRaisesRegex(ValueError,'has no metal/guest/platform-api.bundle.mjs and manifest'):mod.overlay(self.base,self.root/'nom','HEAD',repo,'direct')
+     def test_optional_guest_helpers_follow_the_commit(self):
+         gsup=subprocess.check_output(['git','show',COMMIT+':metal/guest/gsup.mjs'],cwd=REPO).decode()
+         files=mod.guest_files(COMMIT,REPO)

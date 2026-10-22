@@ -1,0 +1,231 @@
+{
+  "capturedAt": "2026-10-22T19:12:56.779965+00:00",
+  "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
+  "entries": [
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/b2/B2-RUNNER-FOREGROUND.patch",
+      "stored": "files/controller-bounds-validation/b2/B2-RUNNER-FOREGROUND.patch",
+      "sha256": "d7a81f3772ceaa50b827bfdec379bfc9203de285fad0c3d009e24d6410858af9",
+      "bytes": 3034
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/b2/test/fakes/_fake.py",
+      "stored": "files/controller-bounds-validation/b2/test/fakes/_fake.py",
+      "sha256": "483deae222403c318f8173ed6adbdbf242ab21bff5a3d6a6f78f4f66e96623b0",
+      "bytes": 954
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/b2/test/fakes/docker",
+      "stored": "files/controller-bounds-validation/b2/test/fakes/docker",
+      "sha256": "a48d0cfa175815827834987065cb3f12685b55ec02edc606a9d6e3c60399cb52",
+      "bytes": 1339
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/b2/test/fakes/pgrep",
+      "stored": "files/controller-bounds-validation/b2/test/fakes/pgrep",
+      "sha256": "0a40efd477bafbb594e8974696a9154cbc702f97a6e5f3767f79ef8c690b2707",
+      "bytes": 212
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/b2/test/fakes/ssh",
+      "stored": "files/controller-bounds-validation/b2/test/fakes/ssh",
+      "sha256": "74de71a65f9e0536386f7d40b1438e8aba703d94b0c3e2d3f81967059f2ece4c",
+      "bytes": 869
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/b2/test/fakes/systemctl",
+      "stored": "files/controller-bounds-validation/b2/test/fakes/systemctl",
+      "sha256": "ee3fe381ce69ffa480dd17008804b516e6c91780834bd4607ecfaf16a24431f3",
+      "bytes": 1053
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/b2/test/test_runner.py",
+      "stored": "files/controller-bounds-validation/b2/test/test_runner.py",
+      "sha256": "5b3f178bae077ebc11af0934077e5a0c829355c83a539667762d7ef11c53e5de",
+      "bytes": 16641
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/b2/vm_fresh_backup.foreground.py",
+      "stored": "files/controller-bounds-validation/b2/vm_fresh_backup.foreground.py",
+      "sha256": "62f4369029f6f66d1811ce25f9358a326b030913f67e1592df0f367600c67eb4",
+      "bytes": 26230
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/derive.py",
+      "stored": "files/controller-bounds-validation/derive.py",
+      "sha256": "c95fa63ab7e9c86b8b932c3a3d3594ef41c92a03beaff8be353a15fee4110363",
+      "bytes": 4328
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/derived/replicactl.fixture-r5.restorefix.bounds.py",
+      "stored": "files/controller-bounds-validation/derived/replicactl.fixture-r5.restorefix.bounds.py",
+      "sha256": "0a6f56868d481238815f8b8dca41c764790cd38a55030854cedaab047d281a98",
+      "bytes": 55895
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/frozen/CONTROLLER-BOUNDS-PROPOSAL.patch",
+      "stored": "files/controller-bounds-validation/frozen/CONTROLLER-BOUNDS-PROPOSAL.patch",
+      "sha256": "561af966e550b138a1fd31d19d7255090799531279e7b8e59fd022928f2db00d",
+      "bytes": 7728
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/frozen/replicactl.fixture-r5.restorefix.4e0a76a0.py",
+      "stored": "files/controller-bounds-validation/frozen/replicactl.fixture-r5.restorefix.4e0a76a0.py",
+      "sha256": "4e0a76a039bbc126df0d23855106f95e5dd9ea424cce7973cc65f34538b337a3",
+      "bytes": 53824
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/frozen/replicactl.r5-production.restorefix.bounds.py",
+      "stored": "files/controller-bounds-validation/frozen/replicactl.r5-production.restorefix.bounds.py",
+      "sha256": "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83",
+      "bytes": 48770
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/frozen/replicactl.r5-production.restorefix.fd097a2a.py",
+      "stored": "files/controller-bounds-validation/frozen/replicactl.r5-production.restorefix.fd097a2a.py",
+      "sha256": "fd097a2a2f480e0d0aded033effb2f7992b8852f43e2f3f072bff1056fef4452",
+      "bytes": 46699
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/test_units.py",
+      "stored": "files/controller-bounds-validation/test_units.py",
+      "sha256": "02a116f7e3adced17e5b3be259c98b9d22c3a54a4960fc4d6fb9c55eaab96303",
+      "bytes": 8662
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/validate.py",
+      "stored": "files/controller-bounds-validation/validate.py",
+      "sha256": "6c052c8c8642e5e693bb963f05fc22b8b2f73d9d56929261956a46963dd52efe",
+      "bytes": 30580
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/RESULT.json",
+      "stored": "files/measured-composition/RESULT.json",
+      "sha256": "baab91622530caae30df8203ae9bcae219f10e18413348161dadb58d81589874",
+      "bytes": 37757
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/patches/c2-attestation-route.diff",
+      "stored": "files/measured-composition/patches/c2-attestation-route.diff",
+      "sha256": "7b926e2c063054fce6bf93b3f9a9b0ca56a92c8d0b7bcab15e81ae710006bd92",
+      "bytes": 21288
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/patches/composition-b1-overlay.diff",
+      "stored": "files/measured-composition/patches/composition-b1-overlay.diff",
+      "sha256": "82a9657fd3a81c07ee39288e7d0f3760d076b0f6a7232c5a06cf1378b86c4b75",
+      "bytes": 18928
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/patches/composition-carriers-c3-c4.diff",
+      "stored": "files/measured-composition/patches/composition-carriers-c3-c4.diff",
+      "sha256": "cc5b5192796d8e52c9552571a30c7e853eb9fc825b67d96b3eff62031cc0cdf5",
+      "bytes": 23380
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/patches/composition-cost.diff",
+      "stored": "files/measured-composition/patches/composition-cost.diff",
+      "sha256": "6be4545d67b4bb83f6f9869110fa6e70b2a925736d3efa935d6aa1beba13ab9a",
+      "bytes": 55488
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/control-candidate.sh",
+      "stored": "files/measured-composition/tools/control-candidate.sh",
+      "sha256": "1e87ddfcc6f53753627e4280de4111fdd4180730bea99242e1fa74ef7e5c8355",
+      "bytes": 1349
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/dockerfile-closure.mjs",
+      "stored": "files/measured-composition/tools/dockerfile-closure.mjs",
+      "sha256": "d4966a592f37bfabd85a1b1f60d7986888f6103795d52a6d49c3faeacf945135",
+      "bytes": 1483
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/input-manifest.py",
+      "stored": "files/measured-composition/tools/input-manifest.py",
+      "sha256": "d7b481e9d4370c3a5cd7bea18be83ea2f3870a901a6845352ce1231884a6980d",
+      "bytes": 5515
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/job-2.sh",
+      "stored": "files/measured-composition/tools/job-2.sh",
+      "sha256": "14d846de5b66cdc6c39e80e4ea7d49920459e41ee1b69e269420e29118fdd8db",
+      "bytes": 1564
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/job-3.sh",
+      "stored": "files/measured-composition/tools/job-3.sh",
+      "sha256": "0bb16567ed2ed9bfd4ea1cc89aaa31206d40dd59ecaa76389ab62782c8da2f60",
+      "bytes": 1290
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/tools/run-tree.py",
+      "stored": "files/measured-composition/tools/run-tree.py",
+      "sha256": "5ddab95561d4c9ebe90daad075867c2a121e7c9bc7c2708f27914ee617ffeca4",
+      "bytes": 18065
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/postgres-init-stage/compare.py",
+      "stored": "files/postgres-init-stage/compare.py",
+      "sha256": "fc49f168909a9d25f668e3ac834fa45f98c83ef5dd523a5b7728abfddffbe14d",
+      "bytes": 4056
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/postgres-init-stage/enclave-indexd-postgres.service.candidate",
+      "stored": "files/postgres-init-stage/enclave-indexd-postgres.service.candidate",
+      "sha256": "59b60ddd739d3ff5e27317faf794f4c25ce150acff38d2ec1a3de0322afdd183",
+      "bytes": 745
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/postgres-init-stage/enclave-indexd-postgres.service.init.patch",
+      "stored": "files/postgres-init-stage/enclave-indexd-postgres.service.init.patch",
+      "sha256": "c98b6dea7500e9519bbfb117bff5390061d8aadb652ef4fe7cf5114f01ffbea7",
+      "bytes": 1195
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/postgres-init-stage/enclave-indexd-postgres.service.rollback-e0a45f51",
+      "stored": "files/postgres-init-stage/enclave-indexd-postgres.service.rollback-e0a45f51",
+      "sha256": "e0a45f510d35181c02800f08a65d1b6da308dbc236ff4b495c11d9ba7d280012",
+      "bytes": 738
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/postgres-init-stage/pg-init-probe.sh",
+      "stored": "files/postgres-init-stage/pg-init-probe.sh",
+      "sha256": "78db5755fa212b710a1b74199d702fe3378a26bcb928ea20c1697b170a561f61",
+      "bytes": 9223
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
+      "stored": "files/source-preservation/capture-latest.py",
+      "sha256": "7b67360477310e7b2b909597b6d23df6a2272255a5fdcbce36c921722d9b53c0",
+      "bytes": 2562
+    }
+  ],
+  "unchangedAlreadyPreserved": [
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/base/metal-control-overlay.test.py.orig",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/base/overlay-control-image.py.7a120502",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/src/b1/docs/network/measured-control-guest.md",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/src/b1/metal/README.md",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/src/b1/metal/overlay-control-image.py",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/src/b1/test/metal-control-overlay.test.py",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/src/c2/Dockerfile",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/src/c2/relay/api-relay.js",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/src/c2/relay/attestation-paths.mjs",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/src/c2/relay/boxhost.js",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/src/c2/supervisor.js",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/src/c2/test/attestation-route.test.mjs",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/src/c2/test/cli-attest-verifier.test.mjs",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/src/c2/test/relay-u7-eligible-routing.test.mjs",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tools/compose.py",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tools/job-1.sh",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tools/q.sh",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tree-a.inventory.json",
+    "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tree-b.inventory.json"
+  ],
+  "exclusions": [
+    "credentials and private configuration",
+    "live run directories and raw transcripts",
+    "generated images/binaries and dependency caches",
+    "copied base trees preserved earlier"
+  ]
+}

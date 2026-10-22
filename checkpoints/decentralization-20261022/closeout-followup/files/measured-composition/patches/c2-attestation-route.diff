@@ -1,0 +1,285 @@
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -33,7 +33,7 @@
+ COPY client/lease-executor-client.mjs client/lease-executor-authority.mjs ./client/
+ # designated lease relays from the pinned service index (network/lease-relay-discovery.mjs), the shared policy adapter, and the index client's own graph
+ COPY network/lease-relay-discovery.mjs network/host-policy-adapters.mjs network/service-index.mjs network/directory-client.mjs network/network-authorities.mjs network/network-policy-core.mjs network/network-policy.mjs network/provider-directory.mjs network/provider-qualification.mjs network/route-record.mjs ./network/
+-COPY relay/net-guard.mjs ./relay/
++COPY relay/net-guard.mjs relay/attestation-paths.mjs ./relay/
+ # If you add the spawn implementation in its own files, COPY them here too.
+ ENV PORT=8080
+ EXPOSE 8080
+--- a/relay/api-relay.js
++++ b/relay/api-relay.js
+@@ -122,6 +122,7 @@
+ import { hostNames, hostNamesRouter } from "./host-names.mjs";
+ import { dataDir, JsonStore, dataFile, rpcPool } from "./store.js";
+ import { screenAddress } from "./ofac.js";
++import { RAD_PATHS } from "./attestation-paths.mjs";
+ import { expectedGuest, prepareGuestUpdate, prewarmReleasePredictions } from "./secrets-release.mjs";
+ import { custodyConfig, createCustodyReader } from "./custody-state.mjs";
+ import { expectedForRow, prepareForRow } from "./guest-prediction-row.mjs";
+@@ -1492,10 +1493,12 @@
+ // needs percent-encoding, backslashes, repeated slashes or dot segments, so any of those refuses. A trailing slash is
+ // tolerated. Canonical = percent-decoded (up to three levels), backslashes as slashes, repeated slashes collapsed, dot
+ // segments resolved, lower-cased; a path that will not decode is refused. null = allowed.
++// RAD_PATHS (relay/attestation-paths.mjs): the box's raw attestation document under its canonical path and the
++// wire-compatibility alias deployed supervisors and older verifiers use.
+ // /v1/host/capacity: the box's operator-signed capacity record, its off-chain liveness evidence for readers that hold no
+ // relay trust (docs/network/host-liveness.md); public, read-only, and verified by every reader against the registry row
+ const BOX_OWN_SURFACES = new Set(["/availability", "/health", "/v1/health", "/v1/version", "/v1/pricing", "/v1/session-jwks",
+-                                  "/v1/net-map", "/v1/udp-map", "/v1/attestation", "/.well-known/Cloud Provider-attestation", "/v1/host/capacity"]);
++                                  "/v1/net-map", "/v1/udp-map", "/v1/attestation", ...RAD_PATHS, "/v1/host/capacity"]);
+ const CUSTODY_SURFACES = new Map([["/v2/custody/info", "GET"], ["/v2/custody/challenge", "POST"], ["/v2/custody/release", "POST"],
+                                    ["/v2/custody/evidence", "POST"], ["/v2/custody/join", "POST"], ["/v2/custody/approve", "POST"],
+                                    ["/v2/custody/code-approve", "POST"]]);
+@@ -3059,7 +3062,7 @@
+   // untouched over that box's tunnel.
+   //
+   // This is what makes a tunnel box verifiable. Every attestation verifier
+-  // takes a bare HOST and builds /.well-known/Cloud Provider-attestation from it, so
++  // takes a bare HOST and builds the attestation path (RAD_PATHS) from it, so
+   // the /t/<name> path form below gets truncated to the relay's own hostname
+   // and ends up verifying the RELAY (found 2026-07-28: every metal0-hosted app
+   // failed in-browser this way). With a real host the URL survives, and once
+--- /dev/null
++++ b/relay/attestation-paths.mjs
+@@ -0,0 +1,21 @@
++// The HTTP paths of a box's public raw attestation document (RAD): the ONE place that names them. supervisor.js serves
++// the document under every path in RAD_PATHS and advertises ADVERTISED_RAD_PATH as verification.attestationEndpoint;
++// relay/api-relay.js lets an ineligible box's tunnel answer every path in RAD_PATHS (BOX_OWN_SURFACES). Both are exact,
++// lower-case paths: the relay compares them after canonicalizing (percent-decoding and lower-casing) the request path.
++//
++// CANONICAL_RAD_PATH is Enclave's name, the same /.well-known/enclave-attestation the guest agent, the isolation fronts
++// and app origins already answer.
++//
++// LEGACY_RAD_PATH is a WIRE-COMPATIBILITY ALIAS, not product branding. It is the exact path today's deployed system
++// speaks: production supervisors serve the document there and advertise it, the deployed relays pass only it for an
++// ineligible box, and earlier verifier tools build it from a bare host name. Its bytes come from the hosted-attestation
++// path format this protocol first interoperated with, and they must stay exactly as they are for those verifiers. Keep
++// it out of every other file; code and tests refer to it through this module.
++//
++// ADVERTISED_RAD_PATH stays the legacy path while any relay that fronts boxes predates CANONICAL_RAD_PATH: such a relay
++// refuses the canonical path for an ineligible box, so advertising it there would break clients that follow the
++// advertised URL. Switching the advertised path, and later retiring the alias, are changes to this file only.
++export const CANONICAL_RAD_PATH = "/.well-known/enclave-attestation";
++export const LEGACY_RAD_PATH = "/.well-known/tinfoil-attestation";
++export const RAD_PATHS = Object.freeze([CANONICAL_RAD_PATH, LEGACY_RAD_PATH]);
++export const ADVERTISED_RAD_PATH = LEGACY_RAD_PATH;
+--- a/relay/boxhost.js
++++ b/relay/boxhost.js
+@@ -3,9 +3,9 @@
+ //
+ // WHY A HOSTNAME AT ALL. A tunnel box used to be reachable only as a PATH on
+ // the relay: https://api.enclave.host/t/<name>/…. That works for proxying and
+-// nothing else. The attestation verifiers of the time (the Cloud Provider tools we
+-// used until 2026-10, the site's in-browser check) took a bare HOST and built
+-// /.well-known/Cloud Provider-attestation from it, so a path-scoped
++// nothing else. The attestation verifiers of the time (the hosted-attestation
++// tools we used until 2026-10, the site's in-browser check) took a bare HOST and
++// built the attestation path (relay/attestation-paths.mjs) from it, so a path-scoped
+ // endpoint gets truncated to the relay's own hostname and verifies the RELAY.
+ // Worse, the client's TLS terminates at the relay, so the quote's reportData
+ // (which binds the BOX's key) can never match the certificate the browser
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -58,6 +58,8 @@
+ import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender } from "./network/lease-gas-runtime.mjs";
+ import { checkOwnerNomination, OWNER_NOMINATION_ENV } from "./metal/guest/owner-nomination.mjs";
+ import { createOwnerNominator } from "./network/host-owner-nomination.mjs";
++// the public raw attestation document's paths (canonical + the wire-compatibility alias): named in one module
++import { RAD_PATHS, ADVERTISED_RAD_PATH } from "./relay/attestation-paths.mjs";
+ // Wallet sessions (SessionVault) as owner credentials, verified on chain: shared with the Windows node.
+ import { createSessionApiAuth, isSessionHeader, hasScope, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES }
+   from "./windows/node/session-api-auth.mjs";
+@@ -4697,9 +4699,9 @@
+ // ---- REAL ATTESTATION -------------------------------------------------------
+ // The guest agent (metal/guest/agent.mjs) holds the box's transport key and produces the AMD SEV-SNP report whose
+ // report_data binds it; this supervisor reads the stored document over loopback (ATTESTATION_URL, set by metal/guest/gsup.mjs),
+-// relays it verbatim under RAD_PATH (a legacy name kept for wire compatibility: the relay's allowlist and older clients use
+-// it) and PARSES the report so the registers are inspectable. It never asserts trust on a client's behalf.
+-const RAD_PATH        = "/.well-known/Cloud Provider-attestation";
++// relays it verbatim under RAD_PATHS (relay/attestation-paths.mjs: the canonical path and the wire-compatibility alias the
++// deployed relays and older clients use) and PARSES the report so the registers are inspectable. It never asserts trust
++// on a client's behalf.
+ const ATTESTATION_URL = process.env.ATTESTATION_URL || "";                 // explicit RAD URL override
+ const RAD_CACHE_MS    = parseInt(process.env.RAD_CACHE_MS || "300000", 10); // convenience-copy staleness bound
+ const sha256Hex = (b) => createHash("sha256").update(b).digest("hex");
+@@ -4865,7 +4867,7 @@
+       library: "verifier/ in https://github.com/EnclaveHost/enclave (Node: verifier/consumer.mjs verifyMetalBox; browser: verifyMetalBoxWeb)",
+       freshAttestation: box ? `${box.relay}/v1/enclaves/${box.name}/attestation?nonce=<64 hex of your own>` : null,
+       repo: ENCLAVE_REPO || null,
+-      attestationEndpoint: (origin || "") + RAD_PATH,
++      attestationEndpoint: (origin || "") + ADVERTISED_RAD_PATH,
+     },
+     tlsKeyFingerprint: null,
+     app: rec ? appMeasurement(rec) : null,
+@@ -8187,8 +8189,8 @@
+   catch (e) { fail(res, 502, "attestation_error", e.message); }
+ });
+ 
+-// The RAW attestation document, PUBLIC and verbatim, under its legacy path name (RAD_PATH; the relay's ineligible-box
+-// allowlist and older clients read exactly this path and parse {format, body}). It carries no freshness: a client that
++// The RAW attestation document, PUBLIC and verbatim, under RAD_PATHS (the canonical path and the legacy alias the relay's
++// ineligible-box allowlist and older clients read; both parse {format, body}). It carries no freshness: a client that
+ // verifies asks the relay for a fresh document over its own nonce (verification.freshAttestation).
+ //
+ // On metal the document lives on a private loopback port
+@@ -8203,7 +8205,7 @@
+ // trusting this enclave with a byte. We serve the cached copy (RAD_CACHE_MS)
+ // rather than re-fetching per request, for the same reason the shim does:
+ // quote generation is not free and this endpoint is unauthenticated.
+-app.get(RAD_PATH, async (req, res) => {
++app.get(RAD_PATHS, async (req, res) => {
+   try { res.json((await fetchEnclaveRad(originOf(req))).doc); }
+   catch (e) { fail(res, 503, "attestation_unavailable", e.message); }
+ });
+--- /dev/null
++++ b/test/attestation-route.test.mjs
+@@ -0,0 +1,80 @@
++// The raw attestation document's paths (relay/attestation-paths.mjs): ONE module names them, the supervisor serves the
++// document under each and advertises the alias today's relays pass, and no other source spells the alias.
++// (The relay side, an ineligible box's allowlist, is test/relay-u7-eligible-routing.test.mjs.)
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import http from "node:http";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { spawn } from "node:child_process";
++import { fileURLToPath } from "node:url";
++import { bootDaemon } from "./helpers/daemon.mjs";
++import * as P from "../relay/attestation-paths.mjs";
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++
++test("the module names the canonical path and the exact wire bytes deployed verifiers request", () => {
++  assert.equal(P.CANONICAL_RAD_PATH, "/.well-known/enclave-attestation");
++  // protocol compatibility: the path production supervisors serve and advertise and the deployed relays allow
++  assert.equal(P.LEGACY_RAD_PATH, "/.well-known/tinfoil-attestation");
++  assert.deepEqual([...P.RAD_PATHS], [P.CANONICAL_RAD_PATH, P.LEGACY_RAD_PATH]);
++  assert.ok(Object.isFrozen(P.RAD_PATHS));
++  assert.equal(P.ADVERTISED_RAD_PATH, P.LEGACY_RAD_PATH);
++  for (const p of P.RAD_PATHS) assert.equal(p, p.toLowerCase(), "the relay compares lower-cased canonical paths");
++});
++
++test("no other source spells the alias; the supervisor and the relay take the paths from the module", () => {
++  const alias = P.LEGACY_RAD_PATH.slice("/.well-known/".length);
++  const allowed = new Set(["relay/attestation-paths.mjs", "test/attestation-route.test.mjs"]);
++  const generated = /(\.bundle\.mjs$|(^|\/)dist\/|^site\/vendor\/|^network\/host-services\/packages\/)/;
++  const hits = [];
++  const walk = (dir) => {
++    for (const e of fs.readdirSync(path.join(REPO, dir), { withFileTypes: true })) {
++      const rel = dir ? `${dir}/${e.name}` : e.name;
++      if (e.isDirectory()) { if (!["node_modules", ".git"].includes(e.name)) walk(rel); continue; }
++      if (!e.isFile() || !/\.(m?js|cjs|ts|json|md|html|py|sh|go|rs|sol|txt)$/.test(e.name) || generated.test(rel) || allowed.has(rel)) continue;
++      if (fs.readFileSync(path.join(REPO, rel), "utf8").includes(alias)) hits.push(rel);
++    }
++  };
++  walk("");
++  assert.deepEqual(hits, []);
++  const sup = fs.readFileSync(path.join(REPO, "supervisor.js"), "utf8"), relay = fs.readFileSync(path.join(REPO, "relay/api-relay.js"), "utf8");
++  assert.match(sup, /^import \{ RAD_PATHS, ADVERTISED_RAD_PATH \} from "\.\/relay\/attestation-paths\.mjs";$/m);
++  assert.match(sup, /^app\.get\(RAD_PATHS, /m);
++  assert.match(sup, /attestationEndpoint: \(origin \|\| ""\) \+ ADVERTISED_RAD_PATH,/);
++  assert.match(relay, /^import \{ RAD_PATHS \} from "\.\/attestation-paths\.mjs";$/m);
++  assert.match(relay, /"\/v1\/attestation", \.\.\.RAD_PATHS, "\/v1\/host\/capacity"\]\);/);
++  assert.doesNotMatch(sup + relay, /Cloud Provider-attestation|\bRAD_PATH\b/);
++  // the published supervisor image ships the module beside net-guard (test/supervisor-image-closure.test.mjs checks the rest)
++  assert.match(fs.readFileSync(path.join(REPO, "Dockerfile"), "utf8"), /^COPY relay\/net-guard\.mjs relay\/attestation-paths\.mjs \.\/relay\/$/m);
++});
++
++test("the supervisor serves the same document under both paths and advertises the alias", async (t) => {
++  const doc = { format: "sev-snp-guest-metal-v1", body: Buffer.from("report").toString("base64") };
++  let fetched = 0;
++  const rad = http.createServer((req, res) => {           // the guest agent's loopback document (ATTESTATION_URL)
++    fetched++;
++    res.writeHead(req.url === "/.well-known/enclave-attestation" ? 200 : 404, { "content-type": "application/json" });
++    res.end(JSON.stringify(doc));
++  });
++  await new Promise((r) => rad.listen(0, "127.0.0.1", r));
++  t.after(() => rad.close());
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rad-route-"));
++  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const PUBLIC = "https://relay.test/t/box1";
++  const { child, port } = await bootDaemon({
++    start: (p) => spawn(process.execPath, [path.join(REPO, "supervisor.js")], { cwd: REPO, stdio: ["ignore", "pipe", "pipe"], env: {
++      PATH: process.env.PATH, PORT: String(p), SECRET: "test-secret", SESSION_KEY_DIR: path.join(dir, "keys"), STATE_FILE: path.join(dir, "state.json"),
++      MOCK_SPAWN: "1", BASE_RPC: "http://127.0.0.1:9", PUBLIC_URL: PUBLIC, ADDRESS_BOOK_ADDRESS: "", REGISTRY_ENABLED: "", CLAIM_ENABLED: "",
++      ATTESTATION_URL: `http://127.0.0.1:${rad.address().port}/.well-known/enclave-attestation`, RAD_CACHE_MS: "0" } }),
++    claimed: (out, p) => out.includes(`enclave supervisor on :${p}`), timeoutMs: 30000,
++  });
++  t.after(() => child.kill("SIGKILL"));
++  const get = async (p) => { const r = await fetch(`http://127.0.0.1:${port}${p}`); return { status: r.status, body: await r.json().catch(() => null) }; };
++  for (const p of P.RAD_PATHS) assert.deepEqual(await get(p), { status: 200, body: doc }, p);
++  assert.ok(fetched >= 2, "each path read the guest agent's document");
++  for (const p of [`${P.CANONICAL_RAD_PATH}/x`, `${P.LEGACY_RAD_PATH}x`, "/.well-known/other-attestation"]) assert.equal((await get(p)).status, 404, p);
++  const att = await get("/v1/attestation");
++  assert.equal(att.status, 200, JSON.stringify(att.body));
++  assert.equal(att.body.verification.attestationEndpoint, PUBLIC + P.ADVERTISED_RAD_PATH);
++});
+--- a/test/cli-attest-verifier.test.mjs
++++ b/test/cli-attest-verifier.test.mjs
+@@ -15,6 +15,7 @@
+ import { spawn } from "node:child_process";
+ import { createHash, randomBytes } from "node:crypto";
+ import { synthChain, synthReport } from "./helpers/snp-synth.mjs";
++import { ADVERTISED_RAD_PATH } from "../relay/attestation-paths.mjs";
+ 
+ const REPO = new URL("..", import.meta.url).pathname, CLI = path.join(REPO, "cli", "enclave.mjs");
+ const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+@@ -40,8 +41,8 @@
+       return send(200, { name: "box1", nonce: nonce.toString("hex"), document: { format: "sev-snp-guest-metal-v1", body, transportKey: SP.toString("base64"), name: "box1" }, operatorAllowlist: { source: "test", admittedAtAttach: MEAS, measurements: [MEAS] } });
+     }
+     if (m) return send(404, { error: "no_box", message: `no attested SEV-SNP box named ${m[1]}` });
+-    if (u.pathname === "/v1/deployments/dep_metal/attestation") return send(200, { verification: { attestationEndpoint: `${base}/t/box1/.well-known/Cloud Provider-attestation` } });
+-    if (u.pathname === "/v1/deployments/dep_gone/attestation") return send(200, { verification: { attestationEndpoint: `${base}/t/nobox/.well-known/Cloud Provider-attestation` } });
++    if (u.pathname === "/v1/deployments/dep_metal/attestation") return send(200, { verification: { attestationEndpoint: `${base}/t/box1${ADVERTISED_RAD_PATH}` } });
++    if (u.pathname === "/v1/deployments/dep_gone/attestation") return send(200, { verification: { attestationEndpoint: `${base}/t/nobox${ADVERTISED_RAD_PATH}` } });
+     if (u.pathname === "/v1/deployments/dep_shield/attestation") return send(409, { error: "shield_tls_only" });
+     send(404, { error: "not_found" });
+   });
+--- a/test/relay-u7-eligible-routing.test.mjs
++++ b/test/relay-u7-eligible-routing.test.mjs
+@@ -23,6 +23,8 @@
+ import os from "node:os";
+ import fs from "node:fs";
+ import { bootDaemon, listenOnFreePort } from "./helpers/daemon.mjs";
++// the raw attestation document's paths: the canonical one and the wire-compatibility alias deployed clients request
++import { CANONICAL_RAD_PATH, LEGACY_RAD_PATH } from "../relay/attestation-paths.mjs";
+ 
+ const RELAY_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "relay");
+ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+@@ -313,10 +315,10 @@
+   // its own read-only surfaces stay reachable, by path and by box hostname
+   // ("/v1/./health" is resolved to "/v1/health" by the client and the relay's own URL parse BEFORE the gate, so the box
+   //  receives exactly its own surface: that is the same request, not an encoding of another)
+-  for (const p of ["/availability", "/Availability", "/availability/", "/v1/health", "/v1/./health", "/v1/attestation", "/.well-known/Cloud Provider-attestation"])
++  for (const p of ["/availability", "/Availability", "/availability/", "/v1/health", "/v1/./health", "/v1/attestation", CANONICAL_RAD_PATH, LEGACY_RAD_PATH])
+     assert.equal((await getJ(origin, `/t/${NAME}${p}`)).status, 200, p);
+   assert.equal((await getJ(origin, "/availability", boxHost)).status, 200);
+-  assert.equal((await getJ(origin, "/.well-known/Cloud Provider-attestation", boxHost)).status, 200);
++  for (const p of [CANONICAL_RAD_PATH, LEGACY_RAD_PATH]) assert.equal((await getJ(origin, p, boxHost)).status, 200, p);
+   // everything else is refused: the tenant paths, enclave-5d's five, the encodings, the collection, and any other path
+   const before = seen.length;
+   const refused = async (p, h = {}, init = {}) => {
+@@ -331,9 +333,9 @@
+                    `/X/${D_E}/`, `/V1/Deployments/${D_E}/logs`,                                            // enclave-5d's case variants
+                    `//x/${D_E}/`, `/%78/${D_E}/`, `/v1//deployments/${D_E}`, `/v1/%64eployments/${D_E}`, `/%2578/${D_E}/`,
+                    "/v1/tls-bridge", "/hello", "/v1/secrets", "/%E0%A4%A",                                 // anything else
+-                   "/v1/attestation/verify", "/.well-known/other",                                          // exact entries, no prefixes
++                   "/v1/attestation/verify", "/.well-known/other", `${CANONICAL_RAD_PATH}/x`, `${LEGACY_RAD_PATH}x`, // exact entries, no prefixes
+                    // enclave-5d's round-2 finding: a raw tenant path that CANONICALIZES to an own surface
+-                   `/x/${D_E}/..%2F..%2Favailability`, `/x/${D_E}/..%2f..%2f.well-known/Cloud Provider-attestation`,
++                   `/x/${D_E}/..%2F..%2Favailability`, `/x/${D_E}/..%2f..%2f${CANONICAL_RAD_PATH.slice(1)}`, `/x/${D_E}/..%2f..%2f${LEGACY_RAD_PATH.slice(1)}`,
+                    `/x/${D_E}/..%252F..%252Favailability`, `/v1/deployments/${D_E}/..%2F..%2F..%2Fv1%2Fhealth`,
+                    "//availability", "/%61vailability"])
+     await refused(`/t/${NAME}${p}`);
+@@ -351,7 +353,7 @@
+   const SENT = "sentinel-" + randomBytes(8).toString("hex");
+   const cred = { authorization: `Bearer ${SENT}`, cookie: `session=${SENT}`, "proxy-authorization": `Basic ${SENT}` };
+   for (const [p, h] of [[`/t/${NAME}/availability`, cred], ["/availability", { ...cred, ...boxHost }],
+-                        [`/t/${NAME}/v1/attestation`, cred], ["/.well-known/Cloud Provider-attestation", { ...cred, ...boxHost }]]) {
++                        [`/t/${NAME}/v1/attestation`, cred], [CANONICAL_RAD_PATH, { ...cred, ...boxHost }], [LEGACY_RAD_PATH, { ...cred, ...boxHost }]]) {
+     const n = headersSeen.length;
+     const r = await fetch(origin + p, { headers: h });
+     assert.equal(r.status, 200, p);

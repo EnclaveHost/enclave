@@ -1,0 +1,13 @@
+[Unit]
+Description=PostgreSQL for Enclave Sia indexd
+After=docker.service
+Requires=docker.service
+[Service]
+Type=simple
+ExecStart=/usr/bin/docker run --rm --init --name enclave-indexd-postgres --network host --read-only --memory 1g --env-file /etc/enclave-indexd/postgres.env --mount type=bind,source=/var/lib/enclave-indexd/postgres,target=/var/lib/postgresql --tmpfs /var/run/postgresql:rw,size=16m --tmpfs /tmp:rw,size=64m postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336 postgres -c listen_addresses=127.0.0.1 -c shared_buffers=128MB -c max_connections=50
+ExecStop=/usr/bin/docker stop --time 120 enclave-indexd-postgres
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=150
+[Install]
+WantedBy=multi-user.target

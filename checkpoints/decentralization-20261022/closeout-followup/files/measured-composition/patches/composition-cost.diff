@@ -1,0 +1,643 @@
+--- a/cli/lease-gas.mjs
++++ b/cli/lease-gas.mjs
+@@ -24,12 +24,14 @@
+   claimant <id> <operator> (--allow | --deny)           allowlist (claim policy "allowlist")
+ policy flags: --max-gas-price-gwei G  --max-per-op-eth X  --epoch-cap-eth X  --epoch-sec S  --renew-window S  --min-extension S
+               --claim-cooldown S  --max-claims-per-epoch N  --claim-policy any|self-hosted|allowlist  --no-sponsor-release
++cost model: --renew-lead-sec S   a rate-0 lease's measured renew lead (default: the renew window, the earliest a sponsored
++              renew may land: a rate-0 renew restarts the lease from its own block, so it renews every leaseSec - lead)
+ output: --format tx (default) | metamask | safe;  --json for machine output
+ signing: --signer URL --from 0x… | --signer-mode handoff --from 0x… (journaled, existing signer); else unsigned`;
+ 
+ const VAL = ["--lease-gas", "--lease-gas-digest", "--inventory", "--ids", "--per-app-eth", "--per-app-wei", "--days", "--payer", "--eth", "--wei", "--compute-eth",
+   "--as", "--to", "--format", "--max-gas-price-gwei", "--max-per-op-eth", "--epoch-cap-eth", "--epoch-sec", "--renew-window", "--min-extension", "--claim-cooldown",
+-  "--max-claims-per-epoch", "--claim-policy", "--candidate-operator", "--candidate-enclave", "--vault-factory", "--min-days"];
++  "--max-claims-per-epoch", "--claim-policy", "--candidate-operator", "--candidate-enclave", "--vault-factory", "--min-days", "--renew-lead-sec"];
+ const BOOL = ["--all", "--allow", "--deny", "--disable", "--no-sponsor-release", "--reconfigure", "--owner-can-act"];
+ const ID = /^0x[0-9a-fA-F]{64}$/;
+ const big = (_k, v) => (typeof v === "bigint" ? v.toString() : v);
+@@ -90,9 +92,12 @@
+   return ids.map((id) => ({ id }));
+ }
+ 
++// the renewal cadence differs by rate (the ledger restarts a rate-0 renew from its own block, extends a paid one from
++// leaseUntil): the rate of the live lease when there is one, otherwise unknown and counted conservatively
+ async function costFor(H, st, policy) {
++  const lead = H.f["renew-lead-sec"] !== undefined ? intFlag(H.f["renew-lead-sec"], "--renew-lead-sec") : null;
+   return O.costModel({ limits: H.live.limits, policy: policy || st.reserve, effectiveFee: H.fee.effective, l1UpperWei: st.l1.upperBoundWei,
+-    l1UpperAuthWei: st.l1.upperBoundAuthWei, leaseSec: st.ledger.leaseSec });
++    l1UpperAuthWei: st.l1.upperBoundAuthWei, leaseSec: st.ledger.leaseSec, rate6: O.knownRate6(st), renewLeadSec: lead });
+ }
+ 
+ // ---- status ----------------------------------------------------------------------------------------------------------
+@@ -122,7 +127,7 @@
+     ctx.say(`  owner of record ${a.ledger.owner} (${a.ownerKind.kind}${a.ownerKind.detail ? ": " + a.ownerKind.detail : ""}); rate ${a.ledger.rate6} µUSDC/s; lease ${a.ledger.leaseLive ? "LIVE" : "expired"} until ${new Date(a.ledger.leaseUntil * 1000).toISOString()}`);
+     ctx.say(`  reserve ${eth(r.balanceWei)}; ${r.configured ? (r.enabled ? "ENABLED" : "configured, DISABLED") : "NOT CONFIGURED"}; claims: ${r.claimPolicy}; release ${r.sponsorRelease ? "sponsored" : "not sponsored"}`);
+     if (r.configured) ctx.say(`  caps: ${eth(r.maxPerOpWei)} per op, ${eth(r.epochCapWei)} per ${r.epochSec}s epoch (${eth(r.epochLeftWei)} left, ${r.epochClaims}/${r.maxClaimsPerEpoch} claims); gas price cap ${formatGwei(r.maxGasPrice)} gwei; renew window ${r.renewWindow}s`);
+-    ctx.say(`  charge now (upper, at ${formatGwei(c.price)} gwei): claim ${eth(c.perOp.claim)}, renew ${eth(c.perOp.renew)}, release ${eth(c.perOp.release)}; ~${c.renewsPerDay.toFixed(1)} renewals/day = ${eth(c.renewPerDayWei)}/day (steady state of a rate-0 / fully funded lease, at the fee read now: not a forecast)`);
++    ctx.say(`  charge now (upper, at ${formatGwei(c.price)} gwei): claim ${eth(c.perOp.claim)}, renew ${eth(c.perOp.renew)}, release ${eth(c.perOp.release)}; ${c.renewsPerDay === null ? `renewals/day not bounded (${c.renewal.basis})` : `~${c.renewsPerDay.toFixed(1)} renewals/day = ${eth(c.renewPerDayWei)}/day (steady state at the fee read now, not a forecast; ${c.renewal.basis})`}`);
+     ctx.say(`  L1: upper bound ${eth(a.l1.upperBoundWei)}, charged share ${eth(a.l1.chargedShareWei)}; proof cutover ${a.gates.proofRequiredFrom ? new Date(a.gates.proofRequiredFrom * 1000).toISOString() + (a.gates.proofCutoverPassed ? " (passed)" : "") : "not set"}; ${a.gates.claimBondNote}`);
+     if (a.runner) ctx.say(`  runner ${a.runner.operator}: renew ${a.runner.renew.status}, release ${a.runner.release.status}; ${a.runner.delegatedToExecutor ? "delegated to the executor" : "not yet delegated"}; operator ETH ${eth(a.runner.operatorEthWei)}; payout${a.runner.registry?.payoutIsOwner ? " = owner" : " ≠ owner"}`);
+     if (a.candidate) ctx.say(`  candidate ${a.candidate.operator}: claim ${a.candidate.claim.status}`);
+@@ -134,7 +139,10 @@
+   detail: k.kind === "credit-vault" ? `UNSUPPORTED: ${k.label} ${k.factory}${k.bindingVerified ? "" : " (binding not verified)"}` : k.kind === "session-vault" ? `vault of ${k.factoryName}, owner ${k.vaultOwner}` : k.kind === "safe" ? `${k.threshold} of ${k.owners.length}` : k.kind === "eoa-7702" ? `delegated to ${k.delegate}` : k.kind === "contract" ? `unidentified contract, code ${k.codeHash}` : "" });
+ const costView = (c) => ({ price: c.price, effectiveFee: c.effectiveFee, ownerCap: c.ownerCap, ceiling: c.ceiling, priceLimitedBy: c.priceLimitedBy,
+   perOp: Object.fromEntries(Object.entries(c.perOp).map(([k, v]) => [k, v.wei])), atOwnerCap: Object.fromEntries(Object.entries(c.atOwnerCap).map(([k, v]) => [k, v.wei])),
+-  renewsPerDay: Number(c.renewsPerDay.toFixed(2)), renewPerDayWei: c.renewPerDayWei, formula: c.formula });
++  renewsPerDay: c.renewsPerDay === null ? null : Number(c.renewsPerDay.toFixed(2)), renewPerDayWei: c.renewPerDayWei, formula: c.formula,
++  renewal: { model: c.renewal.model, rate6: c.renewal.rate6, cycleSec: c.renewal.cycleSec, renewLeadSec: c.renewal.renewLeadSec ?? null,
++    renewLeadFrom: c.renewal.renewLeadFrom ?? null, extensionSec: c.renewal.extensionSec ?? null, renewWindow: c.renewal.renewWindow,
++    refused: c.renewal.refused ?? null, unbounded: c.renewal.unbounded ?? null, basis: c.renewal.basis } });
+ 
+ // ---- policy from flags -------------------------------------------------------------------------------------------------
+ function policyFrom(H, current, l1UpperAuthWei) {   // per-op caps are sized for the worst operation: a first claim with its authorization
+@@ -305,7 +313,7 @@
+     apps.push({ id, appRef: st.ledger.appRef, owner: st.ledger.owner, ownerKind: kindView(kind), rate6: st.ledger.rate6, leaseLive: st.ledger.leaseLive,
+       leaseUntil: st.ledger.leaseUntil, runnerOperator: st.ledger.runnerOperator, inventoryOperator: inventory?.operator, reserveNow: st.reserve.balanceWei,
+       configuredNow: st.reserve.configured, amount: { wei: amount.wei, eth: formatEther(amount.wei), basis: amount.basis },
+-      lastsDaysAtTodaysFee: cost.renewPerDayWei > 0n ? Number((st.reserve.balanceWei + amount.wei) * 10n / cost.renewPerDayWei) / 10 : null, policy: p, steps });
++      lastsDaysAtTodaysFee: cost.renewPerDayWei ? Number((st.reserve.balanceWei + amount.wei) * 10n / cost.renewPerDayWei) / 10 : null, policy: p, steps });
+   }
+   // what each sender needs, and has (agreed)
+   const bySender = {};
+--- a/docs/network/app-funded-leases.md
++++ b/docs/network/app-funded-leases.md
+@@ -33,6 +33,30 @@
+ destination. Deposits are contract calls identifying the application, not plain ETH
+ transfers.
+ 
++## Budgeting renewals
++
++`lease-gas status` and `lease-gas plan --days N` count renewals according to the
++deployed ledger (rev 16d `_burnLease`). Rate-0 and paid leases renew at different rates:
++
++- **Rate 0 (self-hosted).** A renewal restarts the lease from its own block
++  (`leaseUntil = block.timestamp + leaseSec`), so the time left when it lands is lost.
++  The lease renews once every `leaseSec - lead` seconds. A sponsored renewal cannot land
++  more than `renewWindow` before `leaseUntil`, so the model uses the window as its
++  conservative lead. At leaseSec 1800 and window 300 that is one renewal every 1500 s,
++  or 57.6 a day. On Base on 2026-10-21, renewals landed 222–280 s early, a 1520–1628 s
++  cycle (about 56 a day). `--renew-lead-sec S` substitutes a measured lead.
++- **Paid.** A renewal extends from the previous `leaseUntil`, so the lease renews once
++  per `leaseSec` (48 a day at 1800) wherever the renewal lands. A compute balance topped
++  up in small amounts buys shorter extensions. The reserve refuses any extension below
++  the owner's `minExtension`.
++- **Rate unknown.** With no live lease, the next claim sets the rate, so the model counts
++  the more frequent case.
++
++A renew window of `leaseSec` or more leaves the free renewal rate unbounded. A minimum
++extension above `leaseSec` blocks every sponsored operation (`ExtensionTooShort`).
++`status` warns about both cases and `--days` refuses to count them. All figures use the
++fee read at that moment and are not a forecast.
++
+ ## Windows runtime
+ 
+ The Windows host imports `windows/node/lease-gas-runtime.bundle.mjs`, built from the
+--- a/network/lease-gas-owner.mjs
++++ b/network/lease-gas-owner.mjs
+@@ -15,6 +15,7 @@
+ //
+ // Nothing here is a promise that a lease will land: statusOf is POLICY eligibility; the money is checked in finish()
+ // against the measured charge. costModel() states the formula and the owner's own caps; it is a quote, not a forecast.
++// Its renewal count follows the deployed ledger, under which rate-0 and paid leases renew at different rates (renewalCadence).
+ import fs from "node:fs";
+ import crypto from "node:crypto";
+ import { getAddress, encodeFunctionData, decodeFunctionResult, keccak256, formatEther, isAddress } from "viem";
+@@ -353,39 +354,110 @@
+   return { gas, price: gasPrice, l1, wei: gas * gasPrice + l1 };
+ }
+ /**
+- * Renewals a lease needs to stay up for `seconds` from its claim, by the DEPLOYED ledger's rule (rev 16d: claim() buys
+- * min(leaseSec, balance / rate); renew() extends FROM leaseUntil by min(leaseSec, balance / rate)): after the claim and n
+- * renewals the lease covers (n + 1) x extensionSec, so n = ceil(seconds / extensionSec) - 1. The renew window only moves
+- * WHEN each renewal is sent (renewWindow - 15 s before leaseUntil), never how many there are.
+- *   - rate 0 (self-hosted) or a compute balance covering every quantum: extensionSec = leaseSec (the steady state is
+- *     86400 / leaseSec renewals a day: 48 for leaseSec 1800);
+- *   - a PARTLY funded paid lease buys shorter extensions and renews more often until its balance runs out: bound it by
+- *     passing a shorter extensionSec (the owner's minExtension is the floor the reserve sponsors).
++ * How often one lease renews, by the DEPLOYED ledger's rule (rev 16d, test/fixtures/ledger-rev16d-source/EnclaveDeployments.sol
++ * _burnLease) and the reserve's renew gate (contracts/EnclaveLeaseGasReserve.sol statusOf). The two kinds of lease differ:
++ *   - rate 0 (self-hosted): a free renew restarts the lease from its OWN block (leaseUntil = block.timestamp + leaseSec), so
++ *     the lease time left when it lands is given up: one renew every leaseSec - lead seconds, `lead` being how long before
++ *     leaseUntil it lands. A sponsored renew cannot land earlier than leaseUntil - renewWindow (NotInRenewWindow), so the
++ *     owner's renewWindow is the conservative lead: a 1500 s cycle, 57.6 a day, at leaseSec 1800 and window 300. (Base,
++ *     2026-10-21, 458 renewals: hosts renewing at min(15 min, renewWindow - 15 s) landed 222..280 s early; free cycle
++ *     1520..1628 s, median 1538, about 56 a day.)
++ *   - rate > 0 (paid): a renew extends FROM leaseUntil by min(leaseSec, balance6 / rate) (extensionSec, default leaseSec)
++ *     whenever it lands: one renew per extensionSec; the window moves only WHEN. A compute balance topped up in small
++ *     amounts buys shorter extensions: bound that with extensionSec (the reserve refuses one below minExtension).
++ *   - rate unknown (null: no live lease, and the next claim snapshots a new rate): whichever renews more often.
++ * The inputs are explicit: a rate-0 or unknown-rate cadence needs renewLeadSec or renewWindow (there is no silent default).
++ * A minExtension above leaseSec is a policy the reserve refuses outright (ExtensionTooShort): `refused` says so.
++ */
++export function renewalCadence({ leaseSec, rate6 = null, renewWindow = null, renewLeadSec = null, extensionSec = null, minExtension = null } = {}) {
++  const given = (v) => v !== null && v !== undefined;
++  const int = (v, what) => { const x = Number(v); if (!Number.isSafeInteger(x) || x < 0) throw new OwnerRefusal(`${what} must be a whole number of seconds`); return x; };
++  const L = int(leaseSec, "leaseSec");
++  if (L === 0) throw new OwnerRefusal("leaseSec must be positive");
++  const rate = given(rate6) ? BigInt(rate6) : null;
++  if (rate !== null && rate < 0n) throw new OwnerRefusal("a rate cannot be negative");
++  const ext = given(extensionSec) ? int(extensionSec, "extensionSec") : L;
++  if (ext === 0 || ext > L) throw new OwnerRefusal(`a lease extension must be 1 s to leaseSec (${L} s)`);
++  const win = given(renewWindow) ? int(renewWindow, "renewWindow") : null;
++  const minExt = given(minExtension) ? int(minExtension, "minExtension") : null;
++  if (minExt !== null && given(extensionSec) && ext < L && ext < minExt) throw new OwnerRefusal(`the reserve refuses an extension of ${ext} s: the owner's minimum extension is ${minExt} s`);
++  const c = { leaseSec: L, rate6: rate, renewWindow: win, renewLeadSec: null, renewLeadFrom: null, extensionSec: ext, minExtension: minExt,
++    freeCycleSec: null, paidCycleSec: null, cycleSec: null, model: null, basis: null,
++    refused: minExt !== null && L < minExt ? `ExtensionTooShort: no renew or claim can buy the owner's minimum extension ${minExt} s (leaseSec is ${L} s); the reserve sponsors none` : null };
++  if (rate === null || rate > 0n) c.paidCycleSec = ext;
++  if (rate === null || rate === 0n) {
++    let lead;
++    if (given(renewLeadSec)) {
++      lead = int(renewLeadSec, "renewLeadSec"); c.renewLeadFrom = "given";
++      if (win !== null && lead > win) throw new OwnerRefusal(`a sponsored renew cannot land ${lead} s before leaseUntil: the reserve's renew window is ${win} s`);
++    } else if (win !== null) { lead = win; c.renewLeadFrom = "the renew window (the earliest a sponsored renew may land)"; }
++    else throw new OwnerRefusal("a rate-0 lease restarts from its renew's own block: name the renew window (or the measured renew lead) to count its renewals");
++    if (lead >= L) throw new OwnerRefusal(`a renew lead of ${lead} s is not below leaseSec ${L} s: nothing bounds how often a free lease renews (a renew window below leaseSec, or the hosts' measured lead, bounds it)`, { unbounded: true });
++    c.renewLeadSec = lead; c.freeCycleSec = L - lead;
++  }
++  const free = `rate 0 (self-hosted): each renew restarts the lease from its own block, one every ${L} - ${c.renewLeadSec} = ${c.freeCycleSec} s (lead: ${c.renewLeadFrom})`;
++  const paid = `paid: each renew extends from leaseUntil by ${ext} s, one every ${ext} s`;
++  if (rate === 0n) Object.assign(c, { model: "rate-0", cycleSec: c.freeCycleSec, basis: free });
++  else if (rate !== null) Object.assign(c, { model: "paid", cycleSec: ext, basis: `${paid} (rate ${rate} µUSDC/s)` });
++  else if (c.freeCycleSec <= ext) Object.assign(c, { model: "rate-unknown", cycleSec: c.freeCycleSec, basis: `rate unknown (no live lease; the next claim sets it), counted as the more frequent: ${free}` });
++  else Object.assign(c, { model: "rate-unknown", cycleSec: ext, basis: `rate unknown (no live lease; the next claim sets it), counted as the more frequent: ${paid}` });
++  return c;
++}
++/**
++ * Renewals a lease needs to stay up for `seconds` from its claim (`opts`: renewalCadence's inputs, or its result).
++ *   - paid: the claim and every renew buy extensionSec, so n = ceil(seconds / extensionSec) - 1;
++ *   - rate 0: the claim covers leaseSec and every renew adds leaseSec - lead, so n = ceil((seconds - leaseSec) / cycle);
++ *   - rate unknown: the larger of the two.
+  * Integer arithmetic only.
+  */
+-export function renewalsFor(seconds, { leaseSec, extensionSec = leaseSec }) {
+-  const T = BigInt(seconds), ext = BigInt(extensionSec);
+-  if (ext <= 0n) throw new OwnerRefusal("a lease extension must be positive");
+-  if (T <= ext) return 0n;
+-  return (T + ext - 1n) / ext - 1n;
++export function renewalsFor(seconds, opts) {
++  if (!opts || typeof opts !== "object") throw new OwnerRefusal("renewalsFor(seconds, { leaseSec, rate6, renewWindow | renewLeadSec }): rate-0 and paid leases renew at different rates");
++  const c = renewalCadence(opts);
++  const T = BigInt(seconds);
++  if (T < 0n) throw new OwnerRefusal("a period cannot be negative");
++  const L = BigInt(c.leaseSec);
++  const counts = [];
++  if (c.paidCycleSec !== null) { const ext = BigInt(c.paidCycleSec); counts.push(T <= ext ? 0n : (T + ext - 1n) / ext - 1n); }
++  if (c.freeCycleSec !== null) { const cyc = BigInt(c.freeCycleSec); counts.push(T <= L ? 0n : (T - L + cyc - 1n) / cyc); }
++  return counts.reduce((m, x) => (x > m ? x : m));
++}
++/** The steady-state renewals a day (display; budgets use renewalsFor). `opts`: renewalCadence's inputs, or its result. */
++export function renewsPerDay(opts) {
++  if (!opts || typeof opts !== "object") throw new OwnerRefusal("renewsPerDay({ leaseSec, rate6, renewWindow | renewLeadSec }): rate-0 and paid leases renew at different rates");
++  return 86400 / renewalCadence(opts).cycleSec;
++}
++/** The rate the lease's renewals are charged at, when the chain fixes it: a LIVE lease held by a runner renews at its
++ *  claimed rate. Otherwise null (unknown: the next claim snapshots the claimant's rate). */
++export function knownRate6(st) {
++  return st?.ledger?.leaseLive && lc(st.ledger.runnerOperator || ZERO) !== ZERO ? BigInt(st.ledger.rate6) : null;
+ }
+-/** The steady-state renewals a day of a rate-0 / fully funded lease (display only; budgets use renewalsFor). */
+-export const renewsPerDay = (leaseSec) => 86400 / Number(leaseSec);
+ /**
+  * The cost model at a given price: per-op charge per kind at min(effective fee, owner cap, ceiling), what the owner's caps
+  * allow, and a per-day figure for renewals only (claims and releases are events). ILLUSTRATIVE: it is the price NOW.
++ * The renewal cadence is renewalCadence's for this lease: `rate6` (null = unknown, counted conservatively), the policy's
++ * renew window (an unconfigured reserve: the default policy's), and an optional measured `renewLeadSec`/`extensionSec`.
+  */
+-export function costModel({ limits, policy, effectiveFee, l1UpperWei, l1UpperAuthWei = l1UpperWei, leaseSec }) {
++export function costModel({ limits, policy, effectiveFee, l1UpperWei, l1UpperAuthWei = l1UpperWei, leaseSec, rate6 = null, renewLeadSec = null, extensionSec = null }) {
+   const cap = policy && BigInt(policy.maxGasPrice) > 0n ? BigInt(policy.maxGasPrice) : limits.maxGasPriceCeiling;
+   const price = [effectiveFee, cap, limits.maxGasPriceCeiling].reduce((m, x) => (x < m ? x : m));
+   const atCap = [cap, limits.maxGasPriceCeiling].reduce((m, x) => (x < m ? x : m));
+   const per = {}, worst = {};
+   for (const k of ["claim", "renew", "release"]) { per[k] = chargeOf({ kind: k, gasPrice: price, limits, l1UpperWei, l1UpperAuthWei }); worst[k] = chargeOf({ kind: k, gasPrice: atCap, limits, l1UpperWei, l1UpperAuthWei }); }
+-  const rpd = renewsPerDay(leaseSec);
+-  const perDayWei = (per.renew.wei * 86400n + BigInt(leaseSec) - 1n) / BigInt(leaseSec);   // steady state, rounded up
++  // the reserve's configure() requires a window of at least 30 s: below that the reserve is unconfigured (reads 0)
++  const configuredWindow = policy && Number(policy.renewWindow) >= 30 ? Number(policy.renewWindow) : null;
++  const renewWindow = configuredWindow ?? POLICY_DEFAULTS.renewWindow;
++  const minExtension = policy && Number(policy.minExtension) >= 1 ? Number(policy.minExtension) : null;
++  let renewal;
++  try { renewal = renewalCadence({ leaseSec, rate6, renewWindow, renewLeadSec, extensionSec, minExtension }); }
++  catch (e) {
++    if (!(e instanceof OwnerRefusal && e.unbounded)) throw e;
++    renewal = { leaseSec: Number(leaseSec), rate6: rate6 === null || rate6 === undefined ? null : BigInt(rate6), renewWindow, cycleSec: null, model: "unbounded", unbounded: e.message, basis: e.message, refused: null };
++  }
++  if (configuredWindow === null) renewal.basis += ` (the reserve is not configured: the default policy's ${renewWindow} s window)`;
++  const rpd = renewal.cycleSec ? 86400 / renewal.cycleSec : null;
++  const perDayWei = renewal.cycleSec ? (per.renew.wei * 86400n + BigInt(renewal.cycleSec) - 1n) / BigInt(renewal.cycleSec) : null;   // steady state, rounded up
+   return { price, effectiveFee, ownerCap: cap, ceiling: limits.maxGasPriceCeiling, priceLimitedBy: effectiveFee > atCap ? "owner cap / ceiling (relays will refuse: they would be paid below their cost)" : "market fee",
+-    perOp: per, atOwnerCap: worst, renewsPerDay: rpd, renewPerDayWei: perDayWei, leaseSec: Number(leaseSec),
+-    renewalModel: "steady state of a rate-0 / fully funded lease: one renew per leaseSec (the ledger extends FROM leaseUntil); a partly funded paid lease renews more often",
++    perOp: per, atOwnerCap: worst, renewsPerDay: rpd, renewPerDayWei: perDayWei, leaseSec: Number(leaseSec), renewal, renewalModel: renewal.basis,
+     formula: `(measured gas + ${INTRINSIC_GAS} + ${CALLDATA_GAS_PER_BYTE} x ${CANONICAL_LENGTH} + overhead[kind]) x min(tx gas price, owner cap, ceiling) + l1Bps/10000 x L1 upper bound` };
+ }
+ 
+@@ -480,6 +552,8 @@
+       out.push({ level: "action", text: `a ${k} may charge up to ${cost.perOp[k].wei} wei at the current fee, above the per-op cap ${r.maxPerOpWei}: raise --max-per-op` });
+     if (r.configured && cost.renewPerDayWei > 0n && r.balanceWei < cost.renewPerDayWei * BigInt(minDays))
+       out.push({ level: "warn", text: `the reserve covers about ${Number(r.balanceWei * 10n / (cost.renewPerDayWei || 1n)) / 10} days of renewals at the current fee (below ${minDays}): deposit more` });
++    if (r.configured && cost.renewal?.refused) out.push({ level: "warn", text: `${cost.renewal.refused}: lower --min-extension to at most leaseSec` });
++    if (r.configured && cost.renewal?.unbounded) out.push({ level: "warn", text: `${cost.renewal.unbounded}: lower --renew-window` });
+   }
+   if (st.gates.claimBond6 > 0n) out.push({ level: "info", text: st.gates.claimBondNote });
+   if (st.runner) {
+@@ -505,11 +579,14 @@
+   const n = Number(days);
+   if (!Number.isFinite(n) || n <= 0 || n > 3650) throw new OwnerRefusal("--days must be a number of days from 0 to 3650");
+   if (!cost) throw new OwnerRefusal("--days needs the live fee (a quorum read)");
++  if (!cost.renewal) throw new OwnerRefusal("--days needs the lease's renewal cadence (costModel): rate-0 and paid leases renew at different rates");
++  if (cost.renewal.unbounded) throw new OwnerRefusal(`--days cannot be counted: ${cost.renewal.unbounded}`);
++  if (cost.renewal.refused) throw new OwnerRefusal(`--days would buy nothing: ${cost.renewal.refused}`);
+   // one claim (with its authorization: the worst case) + the renewals N days need (renewalsFor) + one release, at the fee read now
+   if (!Number.isInteger(n * 86400)) throw new OwnerRefusal("--days must be a whole number of seconds");
+-  const renewals = renewalsFor(n * 86400, { leaseSec: cost.leaseSec });
+-  return { wei: cost.perOp.claim.wei + renewals * cost.perOp.renew.wei + cost.perOp.release.wei, renewals,
+-    basis: `one claim + ${renewals} renewals (${n} days of a rate-0 / fully funded lease, leaseSec ${cost.leaseSec}) + one release at ${cost.price} wei/gas - the fee read now, not a forecast` };
++  const renewals = renewalsFor(n * 86400, cost.renewal);
++  return { wei: cost.perOp.claim.wei + renewals * cost.perOp.renew.wei + cost.perOp.release.wei, renewals, renewal: cost.renewal.model,
++    basis: `one claim + ${renewals} renewals (${n} days, leaseSec ${cost.renewal.leaseSec}; ${cost.renewal.basis}) + one release at ${cost.price} wei/gas - the fee read now, not a forecast` };
+ }
+ export function parseEthAmount(s) {
+   const m = /^(\d{1,9})(?:\.(\d{1,18}))?$/.exec(String(s).trim());
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -9500,7 +9500,7 @@
+ // with unresolved placeholders and nothing anywhere saying why.
+ const SECRETS_CAPABLE  = !/^(0|false|off)$/i.test(process.env.SECRETS_CAPABLE || "1") && !!SECRETS_API;
+ const CLAIM_POLL_SEC   = parseInt(process.env.CLAIM_POLL_SEC || "60", 10);    // sweep + audit + renew cadence
+-const RENEW_MARGIN_SEC = parseInt(process.env.RENEW_MARGIN_SEC || "600", 10); // renew when less lease than this remains (early renewal is FREE: the contract extends FROM leaseUntil, so a wide margin only buys more attempts)
++const RENEW_MARGIN_SEC = parseInt(process.env.RENEW_MARGIN_SEC || "600", 10); // renew when less lease than this remains (a PAID renew extends FROM leaseUntil, so early costs nothing; a rate-0 renew restarts at block.timestamp + leaseSec, so the margin is lost and renews come every leaseSec - margin; a sponsored renew waits for the reserve window, leaseGasRenewDue)
+ const CLAIM_MAX_PER_SWEEP = parseInt(process.env.CLAIM_MAX_PER_SWEEP || "3", 10); // new adoptions kicked off per pass (resumes uncapped)
+ // CPU-only work prefers CPU-only enclaves: a GPU enclave waits this long after
+ // a CPU-only deployment becomes claimable (created, or its last lease expired)
+--- /dev/null
++++ b/test/lease-gas-cost-model-ledger.test.mjs
+@@ -0,0 +1,115 @@
++// The owner cost model's renewal count against the DEPLOYED ledger itself (rev 16d source, built and run on a local anvil:
++// test/helpers/lease-gas-world.mjs), not a transcription of it: a rate-0 (self-hosted) lease and a paid lease are claimed
++// and renewed a fixed lead before leaseUntil until they cover the same period, and the count each needed is what
++// renewalsFor says. The reserve's own renew gate (statusOf) fixes the conservative lead (the renew window) and refuses an
++// extension below the owner's minimum, as renewalCadence says. Local chain only: no RPC, no relay, nothing on Base.
++import { test, before, after } from "node:test";
++import assert from "node:assert/strict";
++import { startWorld, haveAnvil, ZERO32 } from "./helpers/lease-gas-world.mjs";
++import { KIND, STATUS } from "../client/lease-executor-client.mjs";
++import { renewalCadence, renewalsFor, OwnerRefusal } from "../network/lease-gas-owner.mjs";
++
++const T = { skip: !haveAnvil && "needs anvil and forge", timeout: 240_000 };
++let W, o, selfOp, paidOp;
++before(async () => {
++  if (!haveAnvil) return;
++  W = await startWorld();
++  o = await W.owner();
++  selfOp = await W.operator("self.example:443"); paidOp = await W.operator("paid.example:443");
++  // the owner names itself the payout wallet of its own box: the ledger's rate for o's deployments there is 0 (rev 12)
++  await W.write(o.key, W.addr.registry, W.A.registry.abi, "setPayoutWallet", [selfOp.enclaveId]);
++  // local test chain only: the operators send their own ledger calls here (the reserve path is checked by statusOf below)
++  await W.fund(selfOp.address); await W.fund(paidOp.address);
++});
++after(() => W?.stop());
++
++const leaseSec = async () => Number(await W.pc.readContract({ address: W.addr.ledger, abi: W.A.ledger.abi, functionName: "leaseSec" }));
++const blockTime = async (rc) => Number((await W.pc.getBlock({ blockNumber: rc.blockNumber })).timestamp);
++const claim = async (op, id) => blockTime(await W.write(op.key, W.addr.ledger, W.A.ledger.abi, "claim", [id, op.enclaveId]));
++async function renewAt(op, id, ts) {
++  await W.rpc("evm_setNextBlockTimestamp", [ts]);
++  return blockTime(await W.write(op.key, W.addr.ledger, W.A.ledger.abi, "renew", [id]));
++}
++/** Claim, then renew `lead` s before every leaseUntil until the lease covers `seconds` from the claim; the ledger's own
++ *  leaseUntil after every step. */
++async function keepUp(op, id, seconds, lead) {
++  const t0 = await claim(op, id);
++  const steps = [];
++  let until = Number((await W.row(id)).leaseUntil);
++  while (until - t0 < seconds) {
++    const landed = await renewAt(op, id, until - lead);
++    const next = Number((await W.row(id)).leaseUntil);
++    steps.push({ landed, before: until, after: next });
++    until = next;
++  }
++  return { t0, steps, rate6: (await W.row(id)).rate };
++}
++// at "latest", which anvil runs at the latest mined block's own timestamp; an explicit blockNumber there answers as of one
++// second earlier (measured: at 300 s remaining "latest" says Ready, the same block by number NotInRenewWindow)
++const statusOf = async (id, op) => {
++  const [st] = await W.pc.readContract({ address: W.addr.reserve, abi: W.A.reserve.abi, functionName: "statusOf", args: [id, KIND.renew, ZERO32, op.address], blockTag: "latest" });
++  return STATUS[Number(st)];
++};
++/** the reserve's renew status exactly `remaining` s before leaseUntil (a block mined at that time) */
++async function statusAtRemaining(id, op, remaining) {
++  await W.warpTo(Number((await W.row(id)).leaseUntil) - remaining);
++  return statusOf(id, op);
++}
++
++test("a rate-0 renew restarts the lease from its own block; a paid renew extends from leaseUntil; renewalsFor counts each", T, async () => {
++  const L = await leaseSec();
++  assert.equal(L, 1800, "the rev-16d ledger's lease quantum");
++  const period = 3 * 3600, lead = 260;   // ~ the measured landing lead on Base (2026-10-21: 222..280 s at renewWindow 300)
++  const free = await keepUp(selfOp, await W.create(o, { fund6: 0n }), period, lead);
++  assert.equal(free.rate6, 0n, "self-hosted: rate 0");
++  for (const s of free.steps) {
++    assert.equal(s.before - s.landed, lead);
++    assert.equal(s.after, s.landed + L, "rate 0: leaseUntil = the renew's block + leaseSec (the lead is given up)");
++  }
++  const paid = await keepUp(paidOp, await W.create(o, { fund6: 100_000_000n }), period, lead);
++  assert.ok(paid.rate6 > 0n, "a box the owner does not name: a paid rate");
++  for (const s of paid.steps) assert.equal(s.after, s.before + L, "paid: leaseUntil = the previous leaseUntil + leaseSec, wherever the renew lands");
++  // the counts the ledger needed are the model's; the free lease needed more for the same period
++  assert.equal(BigInt(free.steps.length), renewalsFor(period, { leaseSec: L, rate6: free.rate6, renewLeadSec: lead, renewWindow: 300 }));
++  assert.equal(BigInt(paid.steps.length), renewalsFor(period, { leaseSec: L, rate6: paid.rate6, renewWindow: 300 }));
++  assert.equal(free.steps.length, 6); assert.equal(paid.steps.length, 5);
++  // an unknown rate is counted as the more frequent of the two
++  assert.equal(renewalsFor(period, { leaseSec: L, renewLeadSec: lead, renewWindow: 300 }), BigInt(free.steps.length));
++  // and the cycle the ledger produced is the model's cycleSec
++  for (let i = 1; i < free.steps.length; i++) assert.equal(free.steps[i].landed - free.steps[i - 1].landed, renewalCadence({ leaseSec: L, rate6: 0n, renewLeadSec: lead }).cycleSec);
++  for (let i = 1; i < paid.steps.length; i++) assert.equal(paid.steps[i].landed - paid.steps[i - 1].landed, renewalCadence({ leaseSec: L, rate6: paid.rate6 }).cycleSec);
++});
++
++test("the reserve's renew window is the earliest a sponsored renew may land: the conservative rate-0 lead", T, async () => {
++  const id = await W.create(o, { fund6: 0n });
++  await W.enable(o, id, { p: { renewWindow: 300 } });
++  await claim(selfOp, id);
++  assert.equal(await statusAtRemaining(id, selfOp, 301), "NotInRenewWindow");
++  assert.equal(await statusAtRemaining(id, selfOp, 300), "Ready");
++  // the model takes the window as the lead when none is measured, and refuses a lead the reserve would not sponsor
++  const c = renewalCadence({ leaseSec: 1800, rate6: 0n, renewWindow: 300 });
++  assert.equal(c.renewLeadSec, 300); assert.equal(c.cycleSec, 1500);
++  assert.throws(() => renewalCadence({ leaseSec: 1800, rate6: 0n, renewWindow: 300, renewLeadSec: 301 }), /cannot land 301 s before leaseUntil/);
++});
++
++test("minimum extension: a paid lease's last short extension and a rate-0 policy above leaseSec are refused as the model says", T, async () => {
++  // a paid lease whose balance buys leaseSec at the claim and then 599 s / 600 s more
++  const probe = await keepUp(paidOp, await W.create(o, { fund6: 100_000_000n }), 1, 0);   // claim only: read the rate this box charges
++  const rate = probe.rate6;
++  for (const [extra, want] of [[599n, "ExtensionTooShort"], [600n, "Ready"]]) {
++    const id = await W.create(o, { fund6: rate * (1800n + extra) });
++    await W.enable(o, id, { p: { renewWindow: 300, minExtension: 600 } });
++    await claim(paidOp, id);
++    assert.equal((await W.row(id)).balance6, rate * extra, "the claim burned one full quantum");
++    assert.equal(await statusAtRemaining(id, paidOp, 200), want, `${extra} s left`);
++    if (want === "Ready") assert.equal(renewalCadence({ leaseSec: 1800, rate6: rate, extensionSec: Number(extra), minExtension: 600 }).cycleSec, 600);
++    else assert.throws(() => renewalCadence({ leaseSec: 1800, rate6: rate, extensionSec: Number(extra), minExtension: 600 }), OwnerRefusal);
++  }
++  // rate 0 buys exactly leaseSec: a minimum extension above it refuses every sponsored renew
++  const id = await W.create(o, { fund6: 0n });
++  await W.enable(o, id, { p: { renewWindow: 300, minExtension: 1801 } });
++  await claim(selfOp, id);
++  assert.equal(await statusAtRemaining(id, selfOp, 200), "ExtensionTooShort");
++  assert.match(renewalCadence({ leaseSec: 1800, rate6: 0n, renewWindow: 300, minExtension: 1801 }).refused, /^ExtensionTooShort/);
++  assert.equal(renewalCadence({ leaseSec: 1800, rate6: 0n, renewWindow: 300, minExtension: 1800 }).refused, null);
++});
+--- a/test/lease-gas-cost-model.test.mjs
++++ b/test/lease-gas-cost-model.test.mjs
+@@ -1,52 +1,164 @@
+-// The owner cost model's renewal count follows the DEPLOYED ledger (rev 16d): claim() buys one extension, renew()
+-// extends FROM leaseUntil (frozen source test/fixtures/ledger-rev16d-source/EnclaveDeployments.sol renew -> _burnLease(d, d.leaseUntil)).
+-// A host renews renewWindow - 15 s before leaseUntil; that moves WHEN, never HOW MANY. Pure arithmetic, no chain.
++// The owner cost model's renewal count follows the DEPLOYED ledger (rev 16d, frozen source
++// test/fixtures/ledger-rev16d-source/EnclaveDeployments.sol), where the two kinds of lease renew at different rates:
++//   - _burnLease: until = (rate == 0 ? block.timestamp : from) + secs, and renew() passes from = leaseUntil. A rate-0
++//     (self-hosted) renew therefore restarts the lease from its own block and gives up the lead it landed with: one renew
++//     every leaseSec - lead. A paid renew extends from leaseUntil: one per extension, wherever it lands.
++//   - the reserve sponsors a renew only inside [leaseUntil - renewWindow, leaseUntil] (NotInRenewWindow), so the window is
++//     the conservative rate-0 lead. Measured on Base 2026-10-21 (458 renewals, renewWindow 300): free cycle 1520..1628 s.
++// Pure arithmetic against an independent transcription of those rules; the ledger itself runs in
++// test/lease-gas-cost-model-ledger.test.mjs.
+ import { test } from "node:test";
+ import assert from "node:assert/strict";
+ import fs from "node:fs";
+ import path from "node:path";
+ import { fileURLToPath } from "node:url";
+-import { renewalsFor, renewsPerDay, budgetAmount } from "../network/lease-gas-owner.mjs";
++import { renewalCadence, renewalsFor, renewsPerDay, budgetAmount, costModel, knownRate6, advise, OwnerRefusal } from "../network/lease-gas-owner.mjs";
+ 
+-/** Simulate the ledger: claim at 0; while the lease would end inside the period, renew `lead` before leaseUntil. */
+-function simulate(seconds, { ext, lead }) {
++/** The ledger's rule, transcribed: claim at 0 buys `ext`; while the lease ends inside the period, a renew lands `lead`
++ *  before leaseUntil and sets leaseUntil = (rate 0 ? landing : leaseUntil) + ext. */
++function ledger(seconds, { rate0, leaseSec, ext = leaseSec, lead }) {
+   let until = ext, renewals = 0;
+   const at = [];
+-  while (until < seconds) { at.push(until - lead); until += ext; renewals++; }
++  while (until < seconds) { const landing = until - lead; at.push(landing); until = (rate0 ? landing : until) + ext; renewals++; }
+   return { renewals, at };
+ }
++const L = 1800;
+ 
+-test("the frozen ledger source extends a renew FROM leaseUntil (the premise of the model)", () => {
++test("the frozen ledger source: a rate-0 lease restarts from the renew's block, a paid one extends from leaseUntil", () => {
+   const src = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "fixtures/ledger-rev16d-source/EnclaveDeployments.sol"), "utf8");
+   const renew = src.slice(src.indexOf("function renew(bytes32 id) external"), src.indexOf("function renew(bytes32 id) external") + 900);
+   assert.match(renew, /_burnLease\(d, d\.leaseUntil\)/);
++  const burn = src.slice(src.indexOf("function _burnLease("), src.indexOf("function _burnLease(") + 1600);
++  assert.match(burn, /uint256 secs = rate == 0 \? leaseSec : d\.balance6 \/ rate;/);
++  assert.match(burn, /until = \(rate == 0 \? uint64\(block\.timestamp\) : from\) \+ uint64\(secs\);/);
++  // and the reserve's renew gate: no sponsored renew earlier than renewWindow before leaseUntil, none below minExtension
++  const reserve = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../contracts/EnclaveLeaseGasReserve.sol"), "utf8");
++  assert.match(reserve, /if \(block\.timestamp \+ r\.renewWindow < d\.leaseUntil\) return \(Status\.NotInRenewWindow, d\.owner\);/);
++  assert.match(reserve, /if \(secs == 0 \|\| secs < r\.minExtension\) return \(Status\.ExtensionTooShort, d\.owner\);/);
+ });
+ 
+-test("31 days at several renew windows: the count is the recurrence's, independent of the window; 48 a day steady", () => {
+-  const T = 31 * 86400, leaseSec = 1800;
+-  for (const renewWindow of [30, 300, 900, 1799]) {
+-    const sim = simulate(T, { ext: leaseSec, lead: renewWindow - 15 });
+-    assert.equal(renewalsFor(T, { leaseSec }), BigInt(sim.renewals), `window ${renewWindow}`);
+-    // every renewal is inside its window and one leaseSec apart (no drift from the window)
+-    for (let i = 1; i < sim.at.length; i++) assert.equal(sim.at[i] - sim.at[i - 1], leaseSec);
++test("31 days: a paid lease needs 48 a day whatever the lead; a rate-0 lease needs more, by its lead", () => {
++  const T = 31 * 86400;
++  for (const lead of [0, 15, 222, 260, 280, 285, 300]) {
++    const free = ledger(T, { rate0: true, leaseSec: L, lead }), paid = ledger(T, { rate0: false, leaseSec: L, lead });
++    assert.equal(renewalsFor(T, { leaseSec: L, rate6: 0n, renewLeadSec: lead }), BigInt(free.renewals), `rate 0, lead ${lead}`);
++    assert.equal(renewalsFor(T, { leaseSec: L, rate6: 5n, renewWindow: 300 }), BigInt(paid.renewals), `paid, lead ${lead}`);
++    assert.equal(paid.renewals, 31 * 48 - 1);
++    for (let i = 1; i < free.at.length; i++) assert.equal(free.at[i] - free.at[i - 1], L - lead, "rate 0: one renew per leaseSec - lead");
++    for (let i = 1; i < paid.at.length; i++) assert.equal(paid.at[i] - paid.at[i - 1], L, "paid: one renew per leaseSec");
++    if (lead > 0) assert.ok(free.renewals > paid.renewals);
++    else assert.equal(free.renewals, paid.renewals, "a renew landing exactly at leaseUntil loses nothing");
+   }
+-  assert.equal(renewalsFor(T, { leaseSec }), BigInt(31 * 48 - 1));
+-  assert.equal(renewsPerDay(1800), 48);
+-  assert.equal(renewalsFor(86400, { leaseSec }), 47n, "one day: the claim covers the first half hour");
+-  assert.equal(renewalsFor(1800, { leaseSec }), 0n);
+-  assert.equal(renewalsFor(1801, { leaseSec }), 1n);
+ });
+ 
+-test("a partly funded paid lease (shorter extensions) renews more often: bounded by the shorter extension", () => {
+-  const T = 31 * 86400;
+-  for (const ext of [600, 1200, 1799]) assert.equal(renewalsFor(T, { leaseSec: 1800, extensionSec: ext }), BigInt(simulate(T, { ext, lead: 285 }).renewals));
+-  assert.ok(renewalsFor(T, { leaseSec: 1800, extensionSec: 600 }) > renewalsFor(T, { leaseSec: 1800 }));
++test("renewals a day: 57.6 at the 300 s window bound, ~56 at the measured lead, 48 paid; the old one-argument shape refuses", () => {
++  assert.equal(renewsPerDay({ leaseSec: L, rate6: 0n, renewWindow: 300 }), 57.6);
++  assert.equal(renewsPerDay({ leaseSec: L, rate6: 0n, renewWindow: 300, renewLeadSec: 262 }), 86400 / 1538);   // the measured median cycle
++  assert.equal(renewsPerDay({ leaseSec: L, rate6: 2n, renewWindow: 300 }), 48);
++  assert.equal(renewsPerDay({ leaseSec: L, renewWindow: 300 }), 57.6, "rate unknown: the more frequent");
++  // the window bound is never below what the chain showed: the fastest measured free cycle was 1520 s
++  assert.ok(renewsPerDay({ leaseSec: L, rate6: 0n, renewWindow: 300 }) >= 86400 / 1520);
++  assert.throws(() => renewsPerDay(1800), /different rates/);
++  assert.throws(() => renewalsFor(86400), /different rates/);
++  assert.throws(() => renewalsFor(86400, { leaseSec: L }), /name the renew window/, "the old shape counts no rate-0 lease silently");
++  assert.throws(() => renewalsFor(86400, { leaseSec: L, rate6: 0n }), /name the renew window/);
++  assert.equal(renewalsFor(86400, { leaseSec: L, rate6: 1n }), 47n, "a paid count needs no lead");
++});
++
++test("boundaries: the claim's own quantum, one second past it, one cycle past it", () => {
++  const free = { leaseSec: L, rate6: 0n, renewWindow: 300 }, paid = { leaseSec: L, rate6: 1n };
++  for (const o of [free, paid]) { assert.equal(renewalsFor(0, o), 0n); assert.equal(renewalsFor(L, o), 0n); assert.equal(renewalsFor(L + 1, o), 1n); }
++  assert.equal(renewalsFor(L + 1500, free), 1n); assert.equal(renewalsFor(L + 1501, free), 2n);
++  assert.equal(renewalsFor(2 * L, paid), 1n); assert.equal(renewalsFor(2 * L + 1, paid), 2n);
++  assert.equal(renewalsFor(L + 1500, paid), 1n);
++  // the result of renewalCadence is itself an input (budgets pass the cost model's cadence)
++  assert.equal(renewalsFor(31 * 86400, renewalCadence(free)), renewalsFor(31 * 86400, free));
++});
++
++test("explicit inputs are checked: lead within the window and below leaseSec, extension within leaseSec and minExtension", () => {
++  assert.throws(() => renewalCadence({ leaseSec: L, rate6: 0n, renewWindow: 300, renewLeadSec: 301 }), /cannot land 301 s/);
++  const e = (() => { try { renewalCadence({ leaseSec: L, rate6: 0n, renewWindow: 1800 }); } catch (x) { return x; } })();
++  assert.ok(e instanceof OwnerRefusal && e.unbounded, "a window of leaseSec or more bounds nothing");
++  assert.throws(() => renewalCadence({ leaseSec: L, renewLeadSec: 1800 }), /not below leaseSec/);
++  assert.doesNotThrow(() => renewalCadence({ leaseSec: L, rate6: 3n, renewWindow: 1800 }), "a paid lease does not depend on the lead");
++  for (const bad of [{ leaseSec: 0, rate6: 1n }, { leaseSec: L, rate6: -1n }, { leaseSec: L, rate6: 1n, extensionSec: 0 }, { leaseSec: L, rate6: 1n, extensionSec: L + 1 },
++    { leaseSec: L, rate6: 0n, renewLeadSec: -1 }, { leaseSec: L, rate6: 0n, renewLeadSec: 1.5 }, { leaseSec: "x", rate6: 1n }])
++    assert.throws(() => renewalCadence(bad), OwnerRefusal, JSON.stringify(bad, (_k, v) => (typeof v === "bigint" ? String(v) : v)));
++  assert.throws(() => renewalCadence({ leaseSec: L, rate6: 1n, extensionSec: 599, minExtension: 600 }), /minimum extension is 600 s/);
++  assert.equal(renewalCadence({ leaseSec: L, rate6: 1n, extensionSec: 600, minExtension: 600 }).cycleSec, 600);
++  assert.match(renewalCadence({ leaseSec: L, rate6: 0n, renewWindow: 300, minExtension: 1801 }).refused, /^ExtensionTooShort/);
++  assert.equal(renewalCadence({ leaseSec: L, rate6: 0n, renewWindow: 300, minExtension: 600 }).refused, null);
+ });
+ 
+-test("--days budgets are exact integer wei: claim + renewals + release, no Number rounding", () => {
+-  const cost = { leaseSec: 1800, price: 6_000_000n, perOp: { claim: { wei: 2_105_297_625_249n }, renew: { wei: 1_272_191_893_751n }, release: { wei: 1_135_457_893_750n } } };
+-  const a = budgetAmount({ days: 30 }, cost);
+-  assert.equal(a.renewals, 1439n);
+-  assert.equal(a.wei, 2_105_297_625_249n + 1439n * 1_272_191_893_751n + 1_135_457_893_750n);
+-  assert.throws(() => budgetAmount({}, cost), /no default amount/);
++test("an unknown rate counts the more frequent of rate 0 and paid, at every period", () => {
++  for (const extensionSec of [undefined, 600, 1499, 1500, 1501]) for (const T of [1, 1800, 1801, 3300, 3301, 86400, 31 * 86400]) {
++    const free = renewalsFor(T, { leaseSec: L, rate6: 0n, renewWindow: 300 }), paid = renewalsFor(T, { leaseSec: L, rate6: 1n, extensionSec });
++    assert.equal(renewalsFor(T, { leaseSec: L, renewWindow: 300, extensionSec }), free > paid ? free : paid, `T ${T}, extension ${extensionSec}`);
++  }
++  assert.equal(renewalCadence({ leaseSec: L, renewWindow: 300, extensionSec: 600 }).cycleSec, 600, "a short paid extension renews more often than rate 0");
++  assert.equal(renewalCadence({ leaseSec: L, renewWindow: 300 }).model, "rate-unknown");
++});
++
++test("the rate is known only for a live lease held by a runner (the next claim snapshots a new one)", () => {
++  const st = (leaseLive, runnerOperator, rate6) => ({ ledger: { leaseLive, runnerOperator, rate6 } });
++  const op = "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0";
++  assert.equal(knownRate6(st(true, op, 0n)), 0n);
++  assert.equal(knownRate6(st(true, op, 2n)), 2n);
++  assert.equal(knownRate6(st(false, op, 2n)), null, "expired: the next claim decides");
++  assert.equal(knownRate6(st(true, "0x0000000000000000000000000000000000000000", 0n)), null);
++  assert.equal(knownRate6(undefined), null);
++});
++
++// a cost model at a fixed fee (the limits shape appStatus reads)
++const LIMITS = { maxGasPriceCeiling: 10n ** 9n, overhead: { claim: 29_500n, renew: 24_000n, release: 7_000n }, minClaimInterval: 60n, l1Bps: 0n };
++const POLICY = { maxGasPrice: 50_000_000n, renewWindow: 300, minExtension: 600 };
++const model = (o = {}) => costModel({ limits: LIMITS, policy: POLICY, effectiveFee: 6_000_000n, l1UpperWei: 0n, leaseSec: L, ...o });
++
++test("costModel: per-day renewals and wei by the lease's rate; an unconfigured reserve uses the default window and says so", () => {
++  const free = model({ rate6: 0n }), paid = model({ rate6: 2n }), unknown = model(), measured = model({ rate6: 0n, renewLeadSec: 260 });
++  const renew = free.perOp.renew.wei;
++  assert.equal(free.renewsPerDay, 57.6); assert.equal(free.renewPerDayWei, (renew * 86400n + 1499n) / 1500n);
++  assert.equal(paid.renewsPerDay, 48); assert.equal(paid.renewPerDayWei, renew * 48n);
++  assert.equal(unknown.renewsPerDay, 57.6); assert.equal(unknown.renewal.model, "rate-unknown");
++  assert.equal(measured.renewal.cycleSec, 1540); assert.equal(measured.renewal.renewLeadFrom, "given");
++  assert.match(free.renewalModel, /restarts the lease from its own block/); assert.match(paid.renewalModel, /extends from leaseUntil/);
++  const unconfigured = model({ policy: { maxGasPrice: 0n, renewWindow: 0, minExtension: 0 }, rate6: 0n });
++  assert.equal(unconfigured.renewal.renewWindow, 300); assert.match(unconfigured.renewalModel, /not configured: the default policy's 300 s window/);
++  assert.throws(() => model({ rate6: 0n, renewLeadSec: 301 }), /cannot land 301 s/, "an explicit lead the reserve would refuse is an error, not a figure");
++});
++
++test("costModel: a window of leaseSec or more is reported unbounded, not counted; advise warns", () => {
++  const c = model({ policy: { ...POLICY, renewWindow: 1800 }, rate6: 0n });
++  assert.equal(c.renewsPerDay, null); assert.equal(c.renewPerDayWei, null); assert.match(c.renewal.unbounded, /nothing bounds how often/);
++  assert.equal(model({ policy: { ...POLICY, renewWindow: 1800 }, rate6: 2n }).renewsPerDay, 48, "a paid lease is still bounded");
++  const st = { reserve: { configured: true, enabled: true, balanceWei: 10n ** 14n, maxGasPrice: 50_000_000n, maxPerOpWei: 10n ** 15n }, gates: { claimBond6: 0n }, runner: null, ledger: { rate6: 0n } };
++  assert.ok(advise(st, { cost: c }).some((x) => x.level === "warn" && /nothing bounds/.test(x.text)));
++  const refused = model({ policy: { ...POLICY, minExtension: 1801 }, rate6: 0n });
++  assert.ok(advise(st, { cost: refused }).some((x) => x.level === "warn" && /ExtensionTooShort/.test(x.text)));
++});
++
++test("advise: the reserve's runway uses the corrected per-day figure", () => {
++  const free = model({ rate6: 0n });
++  const days = (cost) => Number(/covers about ([\d.]+) days/.exec(advise({ reserve: { configured: true, enabled: true, balanceWei: cost.renewPerDayWei * 2n,
++    maxGasPrice: 50_000_000n, maxPerOpWei: 10n ** 15n }, gates: { claimBond6: 0n }, runner: null, ledger: { rate6: 0n } }, { cost: free }).find((x) => /covers about/.test(x.text)).text)[1]);
++  assert.equal(days(free), 2);
++  // the same balance under the old 48-a-day figure would have read 2.4 days
++  assert.ok(free.renewPerDayWei > model({ rate6: 2n }).renewPerDayWei);
++});
++
++test("--days budgets are exact integer wei: claim + renewals + release, counted by the lease's rate", () => {
++  const per = { claim: { wei: 2_105_297_625_249n }, renew: { wei: 1_272_191_893_751n }, release: { wei: 1_135_457_893_750n } };
++  const cost = (rate6) => ({ leaseSec: L, price: 6_000_000n, perOp: per, renewal: renewalCadence({ leaseSec: L, rate6, renewWindow: 300 }) });
++  for (const [rate6, n] of [[0n, 1727n], [2n, 1439n], [null, 1727n]]) {
++    const a = budgetAmount({ days: 30 }, cost(rate6));
++    assert.equal(a.renewals, n, `rate ${rate6}`);
++    assert.equal(a.wei, per.claim.wei + n * per.renew.wei + per.release.wei);
++    assert.match(a.basis, new RegExp(`one claim \\+ ${n} renewals \\(30 days, leaseSec 1800; `));
++  }
++  assert.equal(budgetAmount({ days: 30 }, cost(0n)).renewals, BigInt(ledger(30 * 86400, { rate0: true, leaseSec: L, lead: 300 }).renewals));
++  assert.throws(() => budgetAmount({}, cost(0n)), /no default amount/);
++  assert.throws(() => budgetAmount({ days: 30 }, { leaseSec: L, price: 1n, perOp: per }), /renewal cadence/, "an old cost object is refused, not counted at 48 a day");
++  assert.throws(() => budgetAmount({ days: 30 }, model({ policy: { ...POLICY, renewWindow: 1800 }, rate6: 0n })), /cannot be counted/);
++  assert.throws(() => budgetAmount({ days: 30 }, model({ policy: { ...POLICY, minExtension: 1801 }, rate6: 0n })), /would buy nothing: ExtensionTooShort/);
++  assert.equal(budgetAmount({ perAppWei: "12345" }, null).wei, 12345n, "a fixed amount needs no cost model");
+ });
+--- a/test/lease-gas-owner-cli.test.mjs
++++ b/test/lease-gas-owner-cli.test.mjs
+@@ -254,11 +254,16 @@
+   const pw = (await cli(lg("plan", "--ids", ids[0], "--max-gas-price-gwei", "0.05", "--per-app-wei", "12345"))).json;
+   assert.equal(pw.apps[0].amount.wei, "12345");
+   const pd = (await cli(lg("plan", "--ids", ids[0], "--max-gas-price-gwei", "0.05", "--days", "7"))).json;
+-  // the deployed ledger extends a renew FROM leaseUntil: covering 7 days takes ceil(604800 / leaseSec) - 1 renewals
+-  const m = /one claim \+ (\d+) renewals \(7 days of a rate-0 \/ fully funded lease, leaseSec (\d+)\)/.exec(pd.apps[0].amount.basis);
++  // an unclaimed app's rate is unknown (the next claim sets it), so it is counted as the more frequent, rate 0: the deployed
++  // ledger restarts a rate-0 renew from its own block, and a sponsored one lands at most renewWindow (300) early, so
++  // covering 7 days takes ceil((604800 - leaseSec) / (leaseSec - 300)) renewals (a paid lease: ceil(604800 / leaseSec) - 1)
++  const m = /one claim \+ (\d+) renewals \(7 days, leaseSec (\d+); rate unknown /.exec(pd.apps[0].amount.basis);
+   assert.ok(m, pd.apps[0].amount.basis);
+   const leaseSec = BigInt(m[2]), n = BigInt(m[1]);
+-  assert.equal(n, (604800n + leaseSec - 1n) / leaseSec - 1n);
++  assert.equal(n, (604800n - leaseSec + (leaseSec - 300n) - 1n) / (leaseSec - 300n));
++  assert.ok(n > (604800n + leaseSec - 1n) / leaseSec - 1n, "more than the paid count");
++  assert.equal(pd.costModel.renewal.model, "rate-unknown"); assert.equal(pd.costModel.renewal.cycleSec, Number(leaseSec) - 300);
++  assert.equal(pd.costModel.renewsPerDay, Number((86400 / (Number(leaseSec) - 300)).toFixed(2)));
+   const per = pd.costModel.perOp;
+   assert.equal(BigInt(pd.apps[0].amount.wei), BigInt(per.claim) + n * BigInt(per.renew) + BigInt(per.release), "integer wei: claim + n renewals + release");
+   assert.ok(BigInt(pd.apps[0].amount.wei) > 0n);
+@@ -270,6 +275,31 @@
+   assert.match(wrong.err, /not the reviewed/);
+ });
+ 
++test("status: a live rate-0 lease renews from its own block, a paid one from leaseUntil, an unclaimed one is counted conservatively", T, async () => {
++  const o = await W.owner();
++  const self = await W.operator("cadence-self.example:443"), paid = await W.operator("cadence-paid.example:443");
++  await W.write(o.key, W.addr.registry, W.A.registry.abi, "setPayoutWallet", [self.enclaveId]);   // the owner's own box: rate 0
++  const ids = [await W.create(o, { fund6: 0n }), await W.create(o, { fund6: 100_000_000n }), await W.create(o)];
++  for (const id of ids) await W.enable(o, id, { p: { renewWindow: 300 } });
++  // local chain only: the operators claim with their own ETH here (the claim path is not what this checks)
++  for (const [op, id] of [[self, ids[0]], [paid, ids[1]]]) { await W.fund(op.address); await W.write(op.key, W.addr.ledger, W.A.ledger.abi, "claim", [id, op.enclaveId]); }
++  const rows = (await cli(lg("status", "--ids", ids.join(",")))).json.apps;
++  const L = rows[0].ledger.leaseSec;
++  assert.deepEqual(rows.map((r) => r.cost.renewal.model), ["rate-0", "paid", "rate-unknown"]);
++  assert.deepEqual(rows.map((r) => r.cost.renewal.cycleSec), [L - 300, L, L - 300]);
++  assert.deepEqual(rows.map((r) => r.cost.renewsPerDay), [Number((86400 / (L - 300)).toFixed(2)), 86400 / L, Number((86400 / (L - 300)).toFixed(2))]);
++  assert.equal(BigInt(rows[1].cost.renewPerDayWei), BigInt(rows[1].cost.perOp.renew) * 86400n / BigInt(L));
++  assert.equal(rows[0].cost.renewal.renewLeadSec, 300); assert.match(rows[0].cost.renewal.renewLeadFrom, /renew window/);
++  // a measured lead is an explicit input: it moves the rate-0 cycle, never the paid one; a lead the reserve would refuse fails
++  const measured = (await cli(lg("status", "--ids", ids.join(","), "--renew-lead-sec", "260"))).json.apps;
++  assert.deepEqual(measured.map((r) => r.cost.renewal.cycleSec), [L - 260, L, L - 260]);
++  assert.equal(measured[0].cost.renewal.renewLeadFrom, "given");
++  const bad = await cli(lg("status", ids[0], "--renew-lead-sec", "301"), { expectFail: true });
++  assert.match(bad.err, /cannot land 301 s before leaseUntil/);
++  const text = (await cli(lg("status", ids[0]), { json: false })).out;
++  assert.match(text, /renewals\/day = .* rate 0 \(self-hosted\): each renew restarts the lease from its own block, one every 1800 - 300 = 1500 s/);
++});
++
+ // A CREDIT VAULT owner of record (root review 2026-10-20, work/credit-vault-independence-interface.txt section 1). The
+ // fixture is the production configuration on the local chain: the d36100ae factory (test/fixtures/credit-vault-d36100ae.json,
+ // byte-identical to the live one) is deployed, then its runtime and its implementation's runtime are placed at the

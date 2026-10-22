@@ -1,0 +1,734 @@
+{
+ "format": "measured-composition-result/1",
+ "written": "2026-10-22T19:09:03Z",
+ "task": "work/resume-after-checkpoint-20261022/measured-composition-task.txt",
+ "status": "SOURCE COMPOSITION PREPARED AND LOCALLY VERIFIED (bundles rebuilt + focused tests). NOT built into an image, NOT measured, NOT activated, NOT committed to any existing repository. NOT READY for activation: C2 needs root/user approval, the image build/measurement and every activation dependency below are open.",
+ "observedVsPrepared": {
+  "observed (this run, local only)": [
+   "every composed bundle rebuilt twice independently (tree-a and tree-b) with identical bytes for all non-C2 artifacts",
+   "40e8ba71/acfa1b00/008cdca1/421d6584 (+ manifests a7fde25e/c12ae3ef) reproduced byte for byte from the composed source",
+   "builder --check (rebuild == committed bytes and manifest) for host-admission, windows lease, metal lease, platform-api, mcp-server, host-service packages, aa/credit-vault/host-policy/host-capacity/management vendors; network runtime fixpoint",
+   "focused tests listed under tests (queue 512)",
+   "overlay --control direct selection dry run over the READ-ONLY production base (no image written)"
+  ],
+  "prepared, not executed": [
+   "the image build + launch measurement (command below)",
+   "commit onto any published lineage",
+   "any deployment, relay/allowlist/measurement list change, owner config, anchor or Windows swap"
+  ]
+ },
+ "effects": {
+  "image": false,
+  "measurement": false,
+  "ssh": false,
+  "registry": false,
+  "contracts": false,
+  "wallet": false,
+  "networkSpend": false,
+  "production": false,
+  "gitExistingRepos": "none written (upstream.git read with ls-tree only; work/enclave read only)",
+  "gitNewScratchRepos": [
+   "measured-composition/tree-a/.git",
+   "measured-composition/tree-b/.git (new local repositories, no remote: the deterministic capture the overlay tool needs as COMMIT)"
+  ],
+  "writesOutsideOwnedDir": "none (TMPDIR under measured-composition/tmp; the platform-bundle-smoke harness was only executed, its BUNDLE_DIR pointed into measured-composition/tmp)"
+ },
+ "sourceInventory": {
+  "base": {
+   "candidateDir": "work/resume-20261021/reconciled-candidate",
+   "gitTree": "56ea9f45ae50cdd8ff0830802f34759fbd37fe1e (reconciliation/upstream.git)",
+   "list": "reconciliation/candidate-all.sha256 6eba65854c14ef910de2f5c72e3921d992f120bcdcbea3f45ed03df502daeb0f",
+   "rootLaterInPlaceUpdates (kept, not rolled back)": {
+    "network/public-directory.mjs": {
+     "tree56ea9f45": "a480b674",
+     "now": "95edf767"
+    },
+    "network/route-record.mjs": {
+     "tree56ea9f45": "be3bfab7",
+     "now": "9ba9f6d3"
+    },
+    "relay/certs.js": {
+     "tree56ea9f45": "e15802cf",
+     "now": "237834d8"
+    },
+    "test/certs.test.mjs": {
+     "tree56ea9f45": "6aa8375d",
+     "now": "983754d9"
+    },
+    "windows/installer/install-host.ps1": {
+     "tree56ea9f45": "0dc5a801",
+     "now": "ac2c2754"
+    },
+    "windows/node/hvcert.mjs": {
+     "tree56ea9f45": "91b9f2db",
+     "now": "3a87d9b8"
+    }
+   },
+   "rootLaterAddedTests (kept)": {
+    "test/route-context-churn.test.mjs": "23bff4bd7a9126410f65c5fcfce7a0e2d755c22e7a7c0e6b30c5d39f946f20dc",
+    "test/route-partial-qualification.test.mjs": "34c9686cd972149ef783d8cddd40fcf178c7444a9fc9f62a4dd835005628c477",
+    "test/route-resign-admin-ban.test.mjs": "18a6c64ac477b43a7e66b4ed03fa8344450c4f882b5239d410a5de77669f1a9a",
+    "test/route-same-route-churn.test.mjs": "6dbef2f491ab148758c8bbaf9407ce29e5f2396f78787803b011b6c1fd6c3072",
+    "test/windows-node-hvcert-pending.test.mjs": "885c297f1913bc37fb268ebdf6440dfd16949071a91f740b9b92bd0cf8e8730c"
+   },
+   "skipped": [
+    "metal/__pycache__/overlay-control-image.cpython-314.pyc"
+   ],
+   "files": 8334
+  },
+  "overlays (tree-a and tree-b)": {
+   "cli/lease-gas.mjs": {
+    "item": "cost",
+    "source": "work/enclave/cli/lease-gas.mjs",
+    "before": "27d49989da78bcf35ebc3c6db11e05dccfd8c78a9c4a0fae6ae203c3b44fc2e9",
+    "after": "9f34e04ec59614f5be4bdefdc3f991833d8903051ef5bdedaa14f2877391bbdd",
+    "why": "accepted lease cost correction (cost-result.json)"
+   },
+   "docs/network/app-funded-leases.md": {
+    "item": "cost",
+    "source": "work/enclave/docs/network/app-funded-leases.md",
+    "before": "81a851805a607075f5648d67aefe886fa5d445fcd9dc1bd5764b3046fe91333e",
+    "after": "76e74d074d6c87fe5b6ba59b5ed339239a347f9ece6f961596abc51f487b81b1",
+    "why": "accepted lease cost correction"
+   },
+   "docs/network/measured-control-guest.md": {
+    "item": "B1",
+    "source": "work/resume-after-checkpoint-20261022/measured-composition/src/b1/docs/network/measured-control-guest.md",
+    "before": "9c4a492f1a3eb645fff2d6249ff20f21dd5551b13914e8c2bfcdc2fd88d4c657",
+    "after": "59045b826071e98bbd7785c6ea7140c985a7f2475315128050afac8158ace140",
+    "why": "documents --control direct"
+   },
+   "metal/README.md": {
+    "item": "B1",
+    "source": "work/resume-after-checkpoint-20261022/measured-composition/src/b1/metal/README.md",
+    "before": "5fd7a0aed2d2b2eb33dd4af3109db04fd04a001cca5dc25dbac1c798c5a793e3",
+    "after": "27a192f8b08b6b73933b71df95c147c74bbdd08351515d1149c90b4333f91312",
+    "why": "documents --control direct"
+   },
+   "metal/guest/measured-control.mjs": {
+    "item": "P1",
+    "source": "work/claude-resumed-20261022/cutover-review/measured-carrier-integration-r2/src/metal/guest/measured-control.mjs",
+    "before": "18f472149238dd4409abd2c87dfe71a48dbb151c778e9a735bf40302cd8cd332",
+    "after": "f2648d65a16654d35f396bbc10e73e6c2e4a10624093275c66013f546aa9f3e6",
+    "why": "measured-carrier-integration-r2: bound platformPolicyCarriers -> ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS (patch 0ecce76f)"
+   },
+   "metal/overlay-control-image.py": {
+    "item": "B1",
+    "source": "work/resume-after-checkpoint-20261022/measured-composition/src/b1/metal/overlay-control-image.py",
+    "before": "7a120502034f2c7f70930355dab1357ac9e4816188993a5601a69abd36a7159c",
+    "after": "e0db43724ba9cf62a98c144215ce1f15e7d93f5e2dac0fcb32be1ef45829ede6",
+    "why": "--control direct: platform-api trio + metal.control=direct over the verified base kernel"
+   },
+   "network/host-admission-node.mjs": {
+    "item": "P1/C4",
+    "source": "work/claude-resumed-20261022/platform-activation/platform-carrier/src/network/host-admission-node.mjs",
+    "before": null,
+    "after": "3ec697f489433cf4ee1f9a2a5e4000bc292edbcb48cd351188e278511b748982",
+    "why": "platform-carrier: the Windows/host bundle entry (source of 40e8ba71)"
+   },
+   "network/host-admission-runtime.mjs": {
+    "item": "C4",
+    "source": "work/lease-readiness-20261022/tree/network/host-admission-runtime.mjs",
+    "before": "f9e009dadf3bb3a7d6f6823153f06864a9a58c0b3f2e2df1f35c3a606b2d83ec",
+    "after": "cb42269dad71148d2efc20a1167847472e9e94e9a915c3a50f564179c53739e2",
+    "why": "superset of the candidate's f9e009da (cron fix kept): adds decision()/validUntil, refusal() unchanged; the source of 6bef372d/40e8ba71"
+   },
+   "network/host-service-gate-carriers.mjs": {
+    "item": "P1/C4",
+    "source": "work/claude-resumed-20261022/platform-activation/platform-carrier/src/network/host-service-gate-carriers.mjs",
+    "before": null,
+    "after": "9766bf87d999b0e42335b5b852e267230064a6bc58b6cb7291bded6ecd3d911f",
+    "why": "platform-carrier: policy carriers wrapper for the host gate (source of 40e8ba71)"
+   },
+   "network/lease-gas-owner.mjs": {
+    "item": "cost",
+    "source": "work/enclave/network/lease-gas-owner.mjs",
+    "before": "ddd3ba9bb016562c9387bd7418f016c03fbcc5b9db9706bad5905da81762afe5",
+    "after": "92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988",
+    "why": "accepted lease cost correction (cost-result.json)"
+   },
+   "network/platform-host-policy-config.mjs": {
+    "item": "C3",
+    "source": "work/cron-startup-20261021/release-source/source/network/platform-host-policy-config.mjs",
+    "before": "6422d065bae0d4f5fdd4b512601281dab744b3d8d13b8614678ccabf035b0fdb",
+    "after": "8ec507e0a13d94ccd06824c7011dcc6d32bcecac1da10ea05951ca9ffd65bb74",
+    "why": "PRODUCTION_MIRRORS = [] (no DigitalOcean /platform-policy mirrors); book, hostOwnership, RPC quorum unchanged"
+   },
+   "scripts/build-host-admission.mjs": {
+    "item": "P1/C4",
+    "source": "work/claude-resumed-20261022/platform-activation/platform-carrier/src/scripts/build-host-admission.mjs",
+    "before": "63cc137788e950a85280d10b8891a48f69ad9f56dec2729da9a6cd3c4f1d0ea2",
+    "after": "aafa8d5471e6675357afb9d777d459f5544bfa2e10334c067c15674c1f9296fb",
+    "why": "platform-carrier: Windows entry -> network/host-admission-node.mjs; metal entry unchanged"
+   },
+   "supervisor.js": {
+    "item": "cost",
+    "source": "work/resume-after-checkpoint-20261022/cost-bundle/patches/supervisor-comment.diff",
+    "before": "8a37ab6a80fbe00ff94114acd93241894421c23f5c7be3184f2d7e6d30cd7eff",
+    "after": "fad47c9d1467668fa6cc85bf6662160adda014db5b9f66e88b5bb44a9db89c06",
+    "why": "comment-only correction at line 9503 (cost-bundle-result.json; code before // identical)"
+   },
+   "test/lease-gas-cost-model-ledger.test.mjs": {
+    "item": "cost",
+    "source": "work/enclave/test/lease-gas-cost-model-ledger.test.mjs",
+    "before": null,
+    "after": "22084761d9ff4a6513172ba4de8cf8d5c14130d42adbfdb0b338777ae1a473f1",
+    "why": "accepted lease cost correction (new test)"
+   },
+   "test/lease-gas-cost-model.test.mjs": {
+    "item": "cost",
+    "source": "work/enclave/test/lease-gas-cost-model.test.mjs",
+    "before": "48ce8ffe23b76ecadfeb14cac91875f1158ecf2f04a7555eb41208c78eb0d9b7",
+    "after": "8a39e218297262f611a2d873578f9b0085abcd339c547bb177a7a8ac93b7785d",
+    "why": "accepted lease cost correction"
+   },
+   "test/lease-gas-owner-cli.test.mjs": {
+    "item": "cost",
+    "source": "work/enclave/test/lease-gas-owner-cli.test.mjs",
+    "before": "ffc100c4636a89377fb144ab273e49b6b5b53eb1e04bc69d665468d7a150076b",
+    "after": "79fb06e94175822ab3f5b772a1ddd4bee257bebfb8f5167b0dcea879fcf5c6c8",
+    "why": "accepted lease cost correction"
+   },
+   "test/metal-control-overlay.test.py": {
+    "item": "B1",
+    "source": "work/resume-after-checkpoint-20261022/measured-composition/src/b1/test/metal-control-overlay.test.py",
+    "before": "3eefe9411fcb90b26a2687d4820f403f0bb8aaaece5683ad8a61efbfa2030b9d",
+    "after": "96352fe4017d9e50bbfc944e7bf009e1ca58dd0eb6aa31c0cfebe1f1c20b5d0c",
+    "why": "tests for --control direct"
+   }
+  },
+  "c2 (tree-b only)": {
+   "Dockerfile": {
+    "after": "ad7f788ffcd70687d73e665610fa59ceeff2013823089e06ee51c4b7fb321482",
+    "before": "d4602d765cd3f1f73ac1e6434aaeb21aca042758878293d763b8cca83c83d73d"
+   },
+   "relay/api-relay.js": {
+    "after": "b3b6541123e5c010973aaac7d30e693b74d350199a81b4d31ec9ebaa1fd9d532",
+    "before": "1f30ccc16697952d3b655f21a274ea7dac7d0a0c29c1343a21a92a5720b1716d"
+   },
+   "relay/attestation-paths.mjs": {
+    "after": "d9d68bd9f4d8d276e15ac49fdcfba156746239fb2838c0c6f987912b07c89b1d",
+    "before": null
+   },
+   "relay/boxhost.js": {
+    "after": "2273ab01fcd089b467f2099264880eeb3143a41e2beedca996086216a647c803",
+    "before": "017a2878300e3ba7cf41915b6a1e3c4a36191d851a093dd4cdf2ebabdd7093cc"
+   },
+   "supervisor.js": {
+    "after": "2c87a36fbffe9ff151f32e38c212ffd03a6d69ec85ec646eca79421c2cc6de65",
+    "before": "fad47c9d1467668fa6cc85bf6662160adda014db5b9f66e88b5bb44a9db89c06"
+   },
+   "test/attestation-route.test.mjs": {
+    "after": "8dba219cea63e9e23a17736bf25010dcd2779acf1c04fbd318e55c8b3bef993a",
+    "before": null
+   },
+   "test/cli-attest-verifier.test.mjs": {
+    "after": "b89bb40d44aeb7dfe5d3ff229e3d377ef48508343f35fedde83618b4058f419e",
+    "before": "70f61d88973c4fd07f7d1c6b0e3042490ff074c4329214eee3389683bb862368"
+   },
+   "test/relay-u7-eligible-routing.test.mjs": {
+    "after": "2743dd3d4533a1541c8a0b200ef44d582b74364ac020764ba4ac83b1b6fdf7c3",
+    "before": "97007070af8b0218a6b12748cb4908993a8f6f07d08bb495c487bacf678fc035"
+   }
+  },
+  "nodeModules": {
+   "e2e/node_modules": "work/enclave/e2e/node_modules (real copy)",
+   "network/node_modules": "work/enclave/network/node_modules (real copy)",
+   "node_modules": "work/enclave/node_modules (real copy)",
+   "relay/node_modules": "work/enclave/relay/node_modules (real copy)",
+   "sdk/sessions/node_modules": "work/enclave/sdk/sessions/node_modules (real copy)"
+  },
+  "generatedRebuilt": {
+   "tree-a": {
+    "relay/network-runtime.bundle.mjs": "8399d1434e0587c246c77bfbea5d8afac65ada130cc96abffe291afde588af1e",
+    "relay/network-runtime.bundle.mjs.manifest.json": "16a1cebb8c2baedbb1a90eb3139972a3c739857508cd53a85f6daf2f74489b89",
+    "windows/node/host-admission.bundle.mjs": "40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25",
+    "metal/guest/host-policy.bundle.mjs": "acfa1b0099530d4c27fe451d7d3f1d124b3f7a213171557c1c2d926976e0dc3c",
+    "windows/node/lease-gas-runtime.bundle.mjs": "008cdca1240372d3dccedc2f58fecfcdca6377245ad67d4970a2efe79757f4e7",
+    "windows/node/lease-gas-runtime.bundle.mjs.manifest.json": "a7fde25eae445eebc483d4a2ff57b569746eb60ddd64bbf33aca4f3831fb3ad1",
+    "metal/guest/lease-gas-conduit.bundle.mjs": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6",
+    "metal/guest/lease-gas-conduit.bundle.mjs.manifest.json": "c12ae3efcae557f9bb462eb55fa9eed444426ebab608b8bc4d49992ebbf96f2d",
+    "metal/guest/platform-api.bundle.mjs": "cab06bae7a0038f7f9b722af48ac8a9076252981404a8293b55a89d557e3503f",
+    "metal/guest/platform-api.bundle.mjs.manifest.json": "75098d793ee87fa5bf6a6a2fc721a2e3a68ce0d5ab938e63f3ec383b8c59f9e6",
+    "metal/guest/mcp-server.bundle.mjs": "12d60756c85236767894715d2938b296438c1c3b90d0f4142b15b1b979e85b21",
+    "metal/guest/mcp-server.bundle.mjs.manifest.json": "84cfd5ea3438719b87cd6c2e616a1cf199cd56c64befad84b0a29602134bde6a"
+   },
+   "tree-b": {
+    "relay/network-runtime.bundle.mjs": "8399d1434e0587c246c77bfbea5d8afac65ada130cc96abffe291afde588af1e",
+    "relay/network-runtime.bundle.mjs.manifest.json": "16a1cebb8c2baedbb1a90eb3139972a3c739857508cd53a85f6daf2f74489b89",
+    "windows/node/host-admission.bundle.mjs": "40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25",
+    "metal/guest/host-policy.bundle.mjs": "acfa1b0099530d4c27fe451d7d3f1d124b3f7a213171557c1c2d926976e0dc3c",
+    "windows/node/lease-gas-runtime.bundle.mjs": "008cdca1240372d3dccedc2f58fecfcdca6377245ad67d4970a2efe79757f4e7",
+    "windows/node/lease-gas-runtime.bundle.mjs.manifest.json": "a7fde25eae445eebc483d4a2ff57b569746eb60ddd64bbf33aca4f3831fb3ad1",
+    "metal/guest/lease-gas-conduit.bundle.mjs": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6",
+    "metal/guest/lease-gas-conduit.bundle.mjs.manifest.json": "c12ae3efcae557f9bb462eb55fa9eed444426ebab608b8bc4d49992ebbf96f2d",
+    "metal/guest/platform-api.bundle.mjs": "ede48c36cb30b36dc7f2b5d308660a195d2dd257aeb73f18d6468c0d5f9d0c8c",
+    "metal/guest/platform-api.bundle.mjs.manifest.json": "a9b91407d9cb5b275998276eab9c7871efa7a2cbaeba0fcda90c147cce3dcce4",
+    "metal/guest/mcp-server.bundle.mjs": "12d60756c85236767894715d2938b296438c1c3b90d0f4142b15b1b979e85b21",
+    "metal/guest/mcp-server.bundle.mjs.manifest.json": "84cfd5ea3438719b87cd6c2e616a1cf199cd56c64befad84b0a29602134bde6a"
+   },
+   "note": "relay/network-runtime.bundle.mjs(+manifest) is gitignored (not in the commit): build it from the commit FIRST, after host-admission; all other entries are committed in the capture"
+  },
+  "hostServicePackagesRegenerated": {
+   "why": "the candidate's committed network/host-services/packages/* were already stale vs its own sources (lease-reader 907ba85d, route-record 9ba9f6d3, public-directory 95edf767, boxhost, network runtime) and policy-mirror also embeds the config; control: build-host-service-packages --check FAILS on the untouched candidate (rawlogs/job-2.out)",
+   "changed": [
+    "network/host-services/packages/credit-vault-submitter.package.json",
+    "network/host-services/packages/directory-replica.mjs",
+    "network/host-services/packages/directory-replica.package.json",
+    "network/host-services/packages/policy-mirror.mjs",
+    "network/host-services/packages/policy-mirror.package.json",
+    "network/host-services/packages/route-dns.mjs",
+    "network/host-services/packages/route-dns.package.json"
+   ]
+  },
+  "capture": {
+   "tree-a": {
+    "gitDir": "tree-a/.git",
+    "tree": "618b0e330de907ee6543cd7088992f51bfc3fff0",
+    "commit": "412b2a26c9405d130242be54c625ae8599b63bdf",
+    "paths": 8337,
+    "identity": {
+     "GIT_AUTHOR_NAME": "SteveDeFacto",
+     "GIT_AUTHOR_EMAIL": "5148995+SteveDeFacto@users.noreply.github.com",
+     "GIT_COMMITTER_NAME": "SteveDeFacto",
+     "GIT_COMMITTER_EMAIL": "5148995+SteveDeFacto@users.noreply.github.com",
+     "GIT_AUTHOR_DATE": "2026-10-22T00:00:00Z",
+     "GIT_COMMITTER_DATE": "2026-10-22T00:00:00Z"
+    }
+   },
+   "tree-b": {
+    "gitDir": "tree-b/.git",
+    "tree": "34b8e595c9b75645b2d0163e49df5efa06eb831c",
+    "commit": "182cff58ff547e77f9fc6027cad1edfa0b6cf075",
+    "paths": 8339,
+    "identity": {
+     "GIT_AUTHOR_NAME": "SteveDeFacto",
+     "GIT_AUTHOR_EMAIL": "5148995+SteveDeFacto@users.noreply.github.com",
+     "GIT_COMMITTER_NAME": "SteveDeFacto",
+     "GIT_COMMITTER_EMAIL": "5148995+SteveDeFacto@users.noreply.github.com",
+     "GIT_AUTHOR_DATE": "2026-10-22T00:00:00Z",
+     "GIT_COMMITTER_DATE": "2026-10-22T00:00:00Z"
+    }
+   },
+   "deterministic": "fixed author/committer SteveDeFacto and date 2026-10-22T00:00:00Z, no parent: the same tree always gives the same commit id"
+  },
+  "vsCandidate56ea9f45": {
+   "tree-a": {
+    "changedPaths": 45,
+    "undeclared": []
+   },
+   "tree-b": {
+    "changedPaths": 52,
+    "undeclared": []
+   },
+   "lists": "out/a/RESULT.json, out/b/RESULT.json"
+  },
+  "patches": {
+   "c2-attestation-route.diff": "7b926e2c063054fce6bf93b3f9a9b0ca56a92c8d0b7bcab15e81ae710006bd92",
+   "composition-b1-overlay.diff": "82a9657fd3a81c07ee39288e7d0f3760d076b0f6a7232c5a06cf1378b86c4b75",
+   "composition-carriers-c3-c4.diff": "cc5b5192796d8e52c9552571a30c7e853eb9fc825b67d96b3eff62031cc0cdf5",
+   "composition-cost.diff": "6be4545d67b4bb83f6f9869110fa6e70b2a925736d3efa935d6aa1beba13ab9a"
+  },
+  "patchApplyCheck": "candidate copies + composition-carriers-c3-c4 + composition-cost + composition-b1-overlay == tree-a sources (17 paths); + c2-attestation-route == tree-b sources (24 paths): verified",
+  "tools": {
+   "compose.py": "8b9a8754a63a72081f09b7d699d75c033f296c03afc287ac3902406bd132ee04",
+   "control-candidate.sh": "1e87ddfcc6f53753627e4280de4111fdd4180730bea99242e1fa74ef7e5c8355",
+   "dockerfile-closure.mjs": "d4966a592f37bfabd85a1b1f60d7986888f6103795d52a6d49c3faeacf945135",
+   "input-manifest.py": "d7b481e9d4370c3a5cd7bea18be83ea2f3870a901a6845352ce1231884a6980d",
+   "job-1.sh": "3d1242b9ee0de12ea23325651996cc4bc1653e9607bc223d03648372cff0eb8d",
+   "job-2.sh": "14d846de5b66cdc6c39e80e4ea7d49920459e41ee1b69e269420e29118fdd8db",
+   "job-3.sh": "0bb16567ed2ed9bfd4ea1cc89aaa31206d40dd59ecaa76389ab62782c8da2f60",
+   "q.sh": "91de07048551deb30575e01ef6251a28fa4a75d1ebda6d984fac2677058672ec",
+   "run-tree.py": "5ddab95561d4c9ebe90daad075867c2a121e7c9bc7c2708f27914ee617ffeca4"
+  }
+ },
+ "C1": {
+  "status": "RESOLVED in the composition (observed)",
+  "platformApi": {
+   "tree-a": {
+    "sha256": "cab06bae7a0038f7f9b722af48ac8a9076252981404a8293b55a89d557e3503f",
+    "bytes": 8520301,
+    "inputs": 2195
+   },
+   "tree-b": {
+    "sha256": "ede48c36cb30b36dc7f2b5d308660a195d2dd257aeb73f18d6468c0d5f9d0c8c",
+    "bytes": 8520656,
+    "inputs": 2196
+   }
+  },
+  "manifestDeltaVsP1_c0a68797": {
+   "tree-a": {
+    "metal/guest/lease-gas-conduit.bundle.mjs": [
+     "c46c65d7",
+     "421d6584"
+    ],
+    "relay/certs.js": [
+     "e15802cf",
+     "237834d8"
+    ],
+    "relay/network-runtime.bundle.mjs": [
+     "1357ec00",
+     "8399d143"
+    ]
+   },
+   "tree-b": {
+    "metal/guest/lease-gas-conduit.bundle.mjs": [
+     "c46c65d7",
+     "421d6584"
+    ],
+    "relay/api-relay.js": [
+     "1f30ccc1",
+     "b3b65411"
+    ],
+    "relay/attestation-paths.mjs": [
+     "-",
+     "d9d68bd9"
+    ],
+    "relay/boxhost.js": [
+     "017a2878",
+     "2273ab01"
+    ],
+    "relay/certs.js": [
+     "e15802cf",
+     "237834d8"
+    ],
+    "relay/network-runtime.bundle.mjs": [
+     "1357ec00",
+     "8399d143"
+    ]
+   }
+  },
+  "networkRuntime": {
+   "sha256": "8399d1434e0587c246c77bfbea5d8afac65ada130cc96abffe291afde588af1e",
+   "inputs": 1679,
+   "composedSourcesInside": [
+    "network/platform-host-policy-config.mjs",
+    "network/route-record.mjs",
+    "windows/node/host-admission.bundle.mjs"
+   ]
+  },
+  "evidence": [
+   "platform-api manifest input relay/certs.js = 237834d8eed6e0f38caca1007170233690167e42c4f606adfaa11693bb6da8a4 (ACME retention); marker \"is not for the requested key and name\" 1x in the bundle",
+   "network runtime inputs include network/lease-reader.mjs 907ba85d; \"invalid rate-limit retry budget\" 2x in network runtime and platform-api (0x in 1357ec00/2a903c36/c0a68797 per P1)",
+   "measured-control f2648d65 and lease conduit 421d6584 are the bundle inputs; platformPolicyCarriers member present (13x)"
+  ],
+  "defectFoundAndFixed": "the network runtime INLINES windows/node/host-admission.bundle.mjs: built before host-admission (job-1) it carried the candidate's 7aeb5de9 with the 4 DigitalOcean /platform-policy mirrors into platform-api. Required order: host-admission -> lease bundles -> network runtime -> platform-api / mcp-server / host-service packages. job-2 asserts the fixpoint and no DO mirror in any generated bundle."
+ },
+ "C3": {
+  "status": "RESOLVED in the composition (observed)",
+  "config": "network/platform-host-policy-config.mjs 6422d065 -> 8ec507e0: ONLY PRODUCTION_MIRRORS [4 DO] -> []; PRODUCTION_BOOK 0xab21...0907, PRODUCTION_HOST_OWNERSHIP 0xbbd8...fee7, PRODUCTION_RPCS and minAgree unchanged (admin policy preserved)",
+  "bundles": "host-admission 40e8ba71 + metal host-policy acfa1b00 reproduced; no \"<DO ip>/platform-policy\" in host-admission, host-policy, network runtime, platform-api, mcp-server or any host-service package",
+  "notChanged": [
+   "the three comment lines above PRODUCTION_MIRRORS still describe \"four regional endpoints\" (8ec507e0 bytes kept exactly for provenance; comments do not reach the minified bundles)",
+   "PRODUCTION_RPCS still lists BlockPI (503 natively); activation uses the proved RPC4 override (platform-activation package)"
+  ]
+ },
+ "C4": {
+  "status": "RESOLVED for every image input and every bundle the composition touches (observed); one pre-existing unrelated stale vendor artifact remains",
+  "how": "one source inventory (tree = candidate + declared overlays) -> the tree's own unchanged builders -> committed bytes; the capture commit holds sources AND generated bytes; vs 56ea9f45 every changed path is declared (0 undeclared)",
+  "hostAdmissionSource": "network/host-admission-runtime.mjs cb42269d (superset of the candidate's f9e009da: adds decision()/validUntil, keeps refusal() and the cron fix) + host-service-gate-carriers 9766bf87 + host-admission-node 3ec697f4 + scripts/build-host-admission.mjs aafa8d54 + config 8ec507e0 => exactly 40e8ba71/acfa1b00",
+  "preExisting": {
+   "site/vendor/custody.js": "build-custody-vendor --check FAILS on the untouched candidate too (control in rawlogs/job-2.out); no custody/ source is in the composition; not in the image; root decides whether to regenerate",
+   "control (untouched candidate)": "--check fails for custody vendor, host-service packages, mcp-server and platform-api; passes for host-admission (7aeb5de9) and both lease bundles (pre-cost bytes)"
+  }
+ },
+ "B1": {
+  "status": "PATCH + TESTS + TESTABLE INPUT MANIFEST prepared; image NOT built",
+  "design": "metal/overlay-control-image.py [--control direct] BASE OUT COMMIT: over a verified snp-guest-per-app base (production dist-sdshield-2857356cd), installs the commit's supervisor closure + guest helpers as before, PLUS opt/metal/platform-api.bundle.mjs and its manifest sidecars (fixtures/tpm-roots.pem) after checking bundle sha/bytes and every sidecar against the COMMITTED bundle manifest; records control, platformApiBundle and cmdlineTemplate exactly as build-image.mjs --control direct; appends metal.control=direct to cmdline. Kernel/modules/vmlinuz/unchanged base entries stay the base's (production kernel 7.2.3-arch1-2, 1a3a02d5). No new kernel, no ghcr pulls. Without --control the output is unchanged; a plain overlay of a control image is refused (its bundle would go stale).",
+  "tool": {
+   "before": "7a120502",
+   "after": "e0db43724ba9cf62a98c144215ce1f15e7d93f5e2dac0fcb32be1ef45829ede6"
+  },
+  "tests": "test/metal-control-overlay.test.py 15/15 (10 existing + 5 new: trio install over the base kernel, plain overlay unchanged, base refusals, committed-manifest checks incl. tampered sha/bytes/sidecar/path/no measured control/no manifest)",
+  "inputManifest": {
+   "tree-b": "out/b/INPUT-MANIFEST.json",
+   "tree-a": "out/a/INPUT-MANIFEST.json",
+   "tree-b count": 57,
+   "tree-b vsP1": {
+    "changed": {
+     "app/network/lease-gas-owner.mjs": [
+      "ddd3ba9b",
+      "92cc322a"
+     ],
+     "app/supervisor.js": [
+      "8a37ab6a",
+      "2c87a36f"
+     ],
+     "opt/metal/lease-gas-conduit.bundle.mjs": [
+      "c46c65d7",
+      "421d6584"
+     ],
+     "opt/metal/platform-api.bundle.mjs": [
+      "c0a68797",
+      "ede48c36"
+     ]
+    },
+    "added": {
+     "app/relay/attestation-paths.mjs": "d9d68bd9"
+    },
+    "same": 52,
+    "p1Only": []
+   },
+   "tree-a vsP1": {
+    "changed": {
+     "app/network/lease-gas-owner.mjs": [
+      "ddd3ba9b",
+      "92cc322a"
+     ],
+     "app/supervisor.js": [
+      "8a37ab6a",
+      "fad47c9d"
+     ],
+     "opt/metal/lease-gas-conduit.bundle.mjs": [
+      "c46c65d7",
+      "421d6584"
+     ],
+     "opt/metal/platform-api.bundle.mjs": [
+      "c0a68797",
+      "cab06bae"
+     ]
+    },
+    "same": 52
+   },
+   "packagesFromBase": [
+    {
+     "name": "cors",
+     "version": "2.8.6"
+    },
+    {
+     "name": "express",
+     "version": "4.22.2"
+    },
+    {
+     "name": "jose",
+     "version": "5.10.0"
+    },
+    {
+     "name": "viem",
+     "version": "2.53.1"
+    },
+    {
+     "name": "ws",
+     "version": "8.21.1"
+    }
+   ],
+   "measuredCmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct",
+   "baseChecks": {
+    "cmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app metal.control=direct",
+    "initramfs": true,
+    "kernel": true,
+    "measurementFile": "b8376e15f7f94f9b40e9891a19be4779b1635b1c6e269e820ee09cf9313c9dfcc810072bd4ab3d1f4b19e1b6794ac35d"
+   }
+  },
+  "notIncluded": "mcp-server.bundle.mjs: build-image.mjs installs it, the overlay (P1 scope: the platform-api trio) does not; a bound config with an mcp member needs build-image or a later overlay extension (decision D5)"
+ },
+ "C2": {
+  "status": "PROPOSAL implemented in tree-b and tested; NOT approved; tree-a is the same composition without it",
+  "problem": "the authorized rewrite turned the deployed wire path into \"/.well-known/Cloud Provider-attestation\": served/advertised by supervisor.js, allowlisted in relay/api-relay.js, never reachable (relay lower-cases; space) -> existing verifiers 404 and ineligible boxes 503 (candidate relay-u7 test 9 failed: resume-20261021/route-compat/control.out). tree-a still has it (1x in platform-api cab06bae).",
+  "proposal": {
+   "module": "relay/attestation-paths.mjs (d9d68bd9): CANONICAL_RAD_PATH \"/.well-known/enclave-attestation\" (the name the guest agent, isolation fronts and app origins already use), LEGACY_RAD_PATH = the exact deployed wire bytes, RAD_PATHS = both, ADVERTISED_RAD_PATH = legacy",
+   "supervisor": "serves the document under RAD_PATHS (app.get(RAD_PATHS)), advertises ADVERTISED_RAD_PATH; no other path literal",
+   "relay": "BOX_OWN_SURFACES includes ...RAD_PATHS (both exact, lower-case); comments in api-relay.js/boxhost.js point at the module",
+   "Dockerfile": "ships relay/attestation-paths.mjs beside relay/net-guard.mjs",
+   "tests": "relay-u7 (both paths reachable by path and box host, credentials stripped, prefix/encoding variants refused), cli-attest-verifier (ADVERTISED path), new attestation-route test (exact values, the alias spelled ONLY in the module and its test, supervisor serves both paths with identical bodies, advertises the alias, near-miss paths 404)",
+   "literal": "the legacy name appears in exactly 2 files: relay/attestation-paths.mjs (one constant, documented as a wire-compatibility alias) and test/attestation-route.test.mjs (protocol-compat assertion); asserted by the test over the whole tree (generated bundles excluded; the platform-api bundle inlines the module)"
+  },
+  "decisionForRoot": [
+   "D-C2a: approve the single legacy wire constant in relay/attestation-paths.mjs (recommended: strict compatibility with deployed relays/supervisors/older verifiers) -> build from tree-b; or reject -> tree-a keeps the broken path (feature regression; not recommended for activation) or a different alias policy",
+   "D-C2b: ADVERTISED_RAD_PATH stays legacy until every relay fronting boxes carries RAD_PATHS (old relays refuse the canonical path for ineligible boxes); flipping it later and retiring the alias are one-line changes in that module"
+  ]
+ },
+ "tests": {
+  "a:t-overlay-b1": {
+   "counts": {
+    "tests": 15,
+    "result": "OK"
+   },
+   "log": "out/a/t-overlay-b1.log"
+  },
+  "a:t-metal-lease-gas-conduit": {
+   "counts": {
+    "tests": 12,
+    "pass": 12,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/a/t-metal-lease-gas-conduit.log"
+  },
+  "a:t-lease-gas-cost-model-unit": {
+   "counts": {
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/a/t-lease-gas-cost-model-unit.log"
+  },
+  "a:t-artifact-smoke": {
+   "counts": {
+    "tests": 6,
+    "pass": 6,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/a/t-artifact-smoke.log"
+  },
+  "a:t-bundle-verifier": {
+   "counts": {
+    "tests": 1,
+    "pass": 1,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/a/t-bundle-verifier.log"
+  },
+  "b:t-overlay-b1": {
+   "counts": {
+    "tests": 15,
+    "result": "OK"
+   },
+   "log": "out/b/t-overlay-b1.log"
+  },
+  "b:t-metal-lease-gas-conduit": {
+   "counts": {
+    "tests": 12,
+    "pass": 12,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/b/t-metal-lease-gas-conduit.log"
+  },
+  "b:t-lease-gas-cost-model-unit": {
+   "counts": {
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/b/t-lease-gas-cost-model-unit.log"
+  },
+  "b:t-artifact-smoke": {
+   "counts": {
+    "tests": 6,
+    "pass": 6,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/b/t-artifact-smoke.log"
+  },
+  "b:t-bundle-verifier": {
+   "counts": {
+    "tests": 1,
+    "pass": 1,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/b/t-bundle-verifier.log"
+  },
+  "b:t-c2-attestation-route": {
+   "counts": {
+    "tests": 3,
+    "pass": 3,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/b/t-c2-attestation-route.log"
+  },
+  "b:t-c2-relay-u7-eligible-routing": {
+   "counts": {
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/b/t-c2-relay-u7-eligible-routing.log",
+   "ranFrom": "tools/job-2.sh (bash only)"
+  },
+  "b:t-c2-cli-attest-verifier": {
+   "counts": {
+    "tests": 3,
+    "pass": 3,
+    "fail": 0,
+    "skipped": 0
+   },
+   "log": "out/b/t-c2-cli-attest-verifier.log",
+   "ranFrom": "tools/job-2.sh (bash only)"
+  },
+  "b:t-c2-supervisor-image-closure": {
+   "counts": {
+    "tests": 2,
+    "pass": 1,
+    "fail": 1,
+    "skipped": 0
+   },
+   "log": "out/b/t-c2-supervisor-image-closure.log",
+   "ranFrom": "tools/job-2.sh (bash only)"
+  },
+  "a:t-control-supervisor-image-closure": {
+   "counts": {
+    "tests": 2,
+    "pass": 1,
+    "fail": 1,
+    "skipped": 0
+   },
+   "log": "out/a/t-control-supervisor-image-closure.log",
+   "ranFrom": "tools/job-3.sh"
+  }
+ },
+ "testsNotCounted": {
+  "job-1": "superseded: wrong build order (network runtime before host-admission) and the guard stopped relay-u7 at 519 MiB > 512 with the Python orchestrator resident (rawlogs/job-1.out, out/job1-a, out/job1-b); job-2 re-ran everything with the fix"
+ },
+ "testsNotRun (unchanged)": [
+  "test/metal-measured-control.test.mjs (13/13 in r2 t3 on the same measured-control f2648d65 + gsup 10127e11)",
+  "node-policy-carriers 14/14 + regression 28/28 (platform-carrier; the composed host-admission bytes are identical 40e8ba71)",
+  "lease cost CLI/ledger anvil suites (cost-result.json; identical cost files; 768 multiprocess)",
+  "cost-bundle consumer tests 23/23 (identical lease bundle bytes)"
+ ],
+ "failuresClassified": {
+  "site/vendor/custody.js --check": "pre-existing (fails on the untouched candidate); unrelated to the composition",
+  "test/supervisor-image-closure.test.mjs test 1": "pre-existing: the candidate Dockerfile omits metal/guest/owner-nomination.mjs and network/host-owner-nomination.mjs (same failure on tree-a: out/a/t-control-supervisor-image-closure.log; full list out/{a,b}/dockerfile-closure.json). C2-neutral: relay/attestation-paths.mjs is shipped. Affects the published supervisor container (Dockerfile), NOT the measured overlay (the overlay installs the computed closure). Proposed fix, NOT applied: add both files to the Dockerfile COPY lines."
+ },
+ "imageBuild": {
+  "status": "NOT RUN (awaits root review of B1 + the C2 decision)",
+  "verifiedBaseInputs": {
+   "dir": "/home/steven/enclave-prod/dist-sdshield-2857356cd",
+   "manifest.json": "cc2571bb5b0c85b53b6bcf232331562578335bfd315bd0173c52ad6f80f776e0",
+   "initramfs": {
+    "bytes": 279165154,
+    "sha256": "516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc"
+   },
+   "kernel": {
+    "kver": "7.2.3-arch1-2",
+    "path": "/boot/vmlinuz-linux",
+    "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+   },
+   "MEASUREMENT": "b8376e15f7f94f9b40e9891a19be4779b1635b1c6e269e820ee09cf9313c9dfcc810072bd4ab3d1f4b19e1b6794ac35d",
+   "checks": "initramfs + kernel sha == manifest (job-3); cmdline == manifest cmdlineTemplate",
+   "ovmf": "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd sha256 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+   "sev-snp-measure": "/home/steven/.local/bin/sev-snp-measure"
+  },
+  "command": "cd /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-composition && B=/home/steven/enclave-prod/dist-sdshield-2857356cd && O=$PWD/image-out/dist-direct-182cff58 && MEASURE=\"$HOME/.local/bin/sev-snp-measure --mode snp --vcpus 4 --vcpu-family 26 --vcpu-model 2 --vcpu-stepping 1 --vmm-type QEMU --ovmf $HOME/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd\" && [ \"$($MEASURE --append \"console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app\" --kernel $B/vmlinuz --initrd $B/initramfs.cpio.gz --output-format hex)\" = \"$(cat $B/MEASUREMENT)\" ] && mkdir -p image-out && python3 tree-b/metal/overlay-control-image.py --control direct $B $O 182cff58ff547e77f9fc6027cad1edfa0b6cf075 && $MEASURE --append \"console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct\" --kernel $O/vmlinuz --initrd $O/initramfs.cpio.gz --output-format hex | tee $O/MEASUREMENT",
+  "runAs": "one shared-queue job; overlay staging precedent 768 MiB (stage3), root sets the cap",
+  "then": [
+   "extract + import check of the output (stage3 extract.py/import-check.mjs) and compare every installed entry with out/b/INPUT-MANIFEST.json",
+   "independent re-measure on a second run/machine",
+   "commit id is part of the image manifest (and so the measurement): if root re-commits the tree on a published lineage, use that commit instead and re-run the input manifest"
+  ],
+  "ifC2Rejected": "same command with tree-a and commit 412b2a26c9405d130242be54c625ae8599b63bdf (carries the unreachable attestation path; not recommended)"
+ },
+ "remainingDecisions": [
+  "D1 (C2): approve the one-place legacy wire constant + ADVERTISED path (tree-b) or not (tree-a)",
+  "D2: commit lineage for the image: the deterministic scratch capture 182cff58 (no parent) or a root commit of the same tree on main 7752a423 / the checkpoint branch (different commit id -> different measurement)",
+  "D3: queue cap/approval for the image job (768 overlay precedent) and when to run it",
+  "D4: deploy/keep the regenerated host-service packages (policy-mirror, directory-replica, route-dns bytes changed; the candidate's were stale) - separate from the image",
+  "D5: mcp-server in the direct image (not installed by the overlay; build-image installs it)",
+  "D6: pre-existing items outside the image: site/vendor/custody.js staleness; Dockerfile omits the two owner-nomination modules (published supervisor container)",
+  "activation (unchanged from P1/r2): new measurement into relay allowlist / METAL_ALLOWED_MEASUREMENTS and every Platform-API group measurements[] (all members on the new bundle before any config carries platformPolicyCarriers); owner configs + REAL non-DO carriers; admin-signed document before any anchor; Windows host-admission swap 6bef372d->40e8ba71 is a separate root step; no anchor before every runtime can load it"
+ ],
+ "rollback": [
+  "nothing deployed: delete measured-composition/ to discard",
+  "after an image: boot the previous image (KEPT ed918e4b / production b8376e15)",
+  "configs without platformPolicyCarriers are byte-compatible"
+ ],
+ "otherWorkers": "no overlap: the cost files and lease bundles are taken verbatim from the cost/cost-bundle results; storage-controller scope untouched; existing P1 package unchanged (read only)"
+}

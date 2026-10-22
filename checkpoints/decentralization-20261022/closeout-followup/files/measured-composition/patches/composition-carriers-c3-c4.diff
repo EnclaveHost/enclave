@@ -1,0 +1,279 @@
+--- a/metal/guest/measured-control.mjs
++++ b/metal/guest/measured-control.mjs
+@@ -37,6 +37,17 @@
+ //     seals the group's state key only to this attested boot. The front routes Host = platformApi.hostname to the role's
+ //     API port and /platform-api/* to its peer port. Absent: the config, its digest, the statement and the services are
+ //     exactly what they were.
++//   * platformPolicyCarriers (optional): how THIS guest's platform host policy gate (supervisor.js, the shared
++//     windows/node/host-admission.bundle.mjs createHostServiceGate) obtains the administrator's ANCHORED policy document
++//     without a fleet mirror: { peers?: [http(s) base URLs of policy-mirror roles on other hosts], serviceIndex?: the
++//     EnclaveServiceIndex pin {chainId 8453, address, codeHash} whose kind "policy" entries name more of them }. A host
++//     filesystem directory (importDir, policyMirrorStateDir) is refused: it is not visible inside the measured guest. Bound by
++//     HOST_DATA like every field; it becomes exactly ONE supervisor name, ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS (canonical
++//     JSON), and nothing else may supply that name. The carriers are untrusted transport: the gate admits only the digest the
++//     admin's book anchors, signed by the book's CURRENT owner at a fresh agreed block of this guest's own RPC quorum, with the
++//     unchanged sequence, expiry, ban and persisted-refusal rules. planDirectBoot refuses a config that names carriers when the
++//     image's host-admission bundle cannot honour them (an older bundle would ignore the name). Absent: the config, its
++//     digest and the supervisor's environment are exactly what they were.
+ // Node builtins only, plus viem resolved from the supervisor image (/app) for keccak where an address must be derived, and
+ // the dependency-free lease-gas conduit bundle shipped beside this file.
+ import fs from 'node:fs';
+@@ -98,7 +109,7 @@
+ /** The owner's config, strictly validated and canonical. Nothing is defaulted except controlPort. -> frozen object */
+ export function canonicalDirectConfig(raw) {
+   // every field is required except the optional leaseGas (checked below when present)
+-  const OPTIONAL_MEMBERS = ['leaseGas', 'mcp', 'platformApi', 'ownerNomination'];
++  const OPTIONAL_MEMBERS = ['leaseGas', 'mcp', 'platformApi', 'ownerNomination', 'platformPolicyCarriers'];
+   const fields = raw && typeof raw === 'object' && !Array.isArray(raw) && OPTIONAL_MEMBERS.some((k) => Object.hasOwn(raw, k))
+     ? Object.fromEntries(Object.entries(raw).filter(([k]) => !OPTIONAL_MEMBERS.includes(k))) : raw;
+   only(fields, ['format', 'chainId', 'contracts', 'profileDigest', 'rpcs', 'quorum', 'releaseId', 'replicas', 'identity', 'selling', 'isolation',
+@@ -161,6 +172,7 @@
+   const ownerNomination = raw.ownerNomination !== undefined ? directOwnerNomination(raw.ownerNomination, {
+     operator: raw.identity.operator.toLowerCase(), publicUrl: raw.identity.publicUrl, registry: contracts.registry }) : null;
+   if (mcp && platformApi && [platformApi.apiPort, platformApi.peerPort].includes(mcp.port)) bad('mcp.port must differ from both platformApi ports');
++  const platformPolicyCarriers = raw.platformPolicyCarriers !== undefined ? directPolicyCarriers(raw.platformPolicyCarriers) : null;
+   return deepFreeze({
+     format: CONFIG_FORMAT, chainId: CHAIN_ID, contracts, profileDigest: raw.profileDigest, rpcs, quorum, releaseId: raw.releaseId,
+     replicas: { gateways, storagePlan: storagePlan === null ? null : JSON.parse(canonicalJson(storagePlan)) },
+@@ -173,8 +185,44 @@
+     ...(mcp ? { mcp } : {}),
+     ...(platformApi ? { platformApi } : {}),
+     ...(ownerNomination ? { ownerNomination } : {}),
++    ...(platformPolicyCarriers ? { platformPolicyCarriers } : {}),
+   });
+ }
++// The bound policy-carrier member (see the header). The shape is the runner's / the host bundle's carrier setting
++// (network/policy-carriers.mjs validateCarrierBases, network/service-index.mjs validateIndexPin), restricted to what a measured
++// guest can reach: network carriers only. Strict, nothing defaulted, written in its canonical form.
++export const CARRIERS_ENV = 'ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS';
++const CARRIER_BASE = /^https?:\/\/[A-Za-z0-9.-]{1,200}(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~-]{1,64}){0,8}$/;   // policy-carriers.mjs BASE
++const MAX_CARRIERS = 16;                                                                                     // policy-carriers.mjs MAX_CARRIERS
++function directPolicyCarriers(raw) {
++  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) bad('platformPolicyCarriers must be an object');
++  for (const k of ['importDir', 'policyMirrorStateDir'])
++    if (Object.hasOwn(raw, k)) bad(`platformPolicyCarriers.${k}: a host directory is not visible inside the measured guest (use peers or serviceIndex)`);
++  const extra = Object.keys(raw).filter((k) => !['peers', 'serviceIndex'].includes(k));
++  if (extra.length) bad(`platformPolicyCarriers has unknown field(s): ${extra.join(', ')}`);
++  const out = {};
++  if (raw.peers !== undefined) {
++    if (!Array.isArray(raw.peers) || raw.peers.length < 1 || raw.peers.length > MAX_CARRIERS) bad(`platformPolicyCarriers.peers: 1 to ${MAX_CARRIERS} base URLs`);
++    const seen = new Set();
++    out.peers = raw.peers.map((p, i) => {
++      const what = `platformPolicyCarriers.peers[${i}]`;
++      if (typeof p !== 'string' || !CARRIER_BASE.test(p)) bad(`${what} must be an http(s) base URL without credentials, query, fragment or trailing slash`);
++      if (/(^|\.)enclave\.host$/i.test(hostOf(url(p, what)))) bad(`${what} names an Enclave origin: a policy carrier is another host's policy-mirror role`);
++      if (seen.has(p.toLowerCase())) bad(`${what} repeats a carrier`); seen.add(p.toLowerCase());
++      return p;
++    });
++  }
++  if (raw.serviceIndex !== undefined) {
++    only(raw.serviceIndex, ['chainId', 'address', 'codeHash'], 'platformPolicyCarriers.serviceIndex');
++    const { chainId, address, codeHash } = raw.serviceIndex;
++    if (chainId !== CHAIN_ID) bad(`platformPolicyCarriers.serviceIndex.chainId must be ${CHAIN_ID}`);
++    if (typeof address !== 'string' || !ADDR.test(address) || ZERO_ADDR.test(address)) bad('platformPolicyCarriers.serviceIndex.address must be a nonzero address');
++    if (typeof codeHash !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(codeHash)) bad('platformPolicyCarriers.serviceIndex.codeHash must be the 0x + 64 hex keccak256 of the runtime code');
++    out.serviceIndex = { chainId: CHAIN_ID, address: address.toLowerCase(), codeHash: codeHash.toLowerCase() };
++  }
++  if (!out.peers && !out.serviceIndex) bad('platformPolicyCarriers names no carrier (peers or serviceIndex)');
++  return out;
++}
+ // The bound owner nomination (metal/guest/owner-nomination.mjs): the operator's explicit, public intent to propose ONE
+ // owner wallet on the original EnclaveHostOwnership. Bound by HOST_DATA like everything here, written in its checked
+ // form, and only for THIS config's own chain, operator, endpoint and registry - never another host's or recipient.
+@@ -354,6 +402,8 @@
+   mcpStoragePlan: '/run/measured-control/mcp-storage-plan.json', mcpState: '/run/measured-control/mcp-state',
+   platformApiConfig: '/run/measured-control/platform-api.json', platformApiHandoffKey: '/run/measured-control/platform-api-handoff.key',
+   platformApiDir: '/run/measured-control/platform-api',
++  // the supervisor image's shared host-admission bundle (supervisor.js imports it): checked only when the config names carriers
++  hostAdmissionBundle: '/app/windows/node/host-admission.bundle.mjs',
+ });
+ // The baked flavor env (enclaves/cpu/config.yml) is the HOSTED fleet's: it names the Enclave address book, Enclave's own
+ // payout wallet, SIWE/CORS origins at enclave.host. A direct guest inherits only these authority-free tunables from it.
+@@ -392,6 +442,9 @@
+     // supervisor.js), over the owner's measured RPC quorum - the activation is part of the measured image, not an opt-in.
+     ENCLAVE_PLATFORM_HOST_POLICY: 'production', ENCLAVE_PLATFORM_HOST_POLICY_RPCS: cfg.rpcs.join(','),
+   };
++  // the policy carriers: ONLY from the bound config (never flavor or host policy input), absent = no such name at all
++  delete env[CARRIERS_ENV];
++  if (cfg.platformPolicyCarriers) env[CARRIERS_ENV] = canonicalJson(cfg.platformPolicyCarriers);
+   // app-funded lease gas: only from the bound config (never flavor or host policy), absent = none of these names at all
+   return { ...withLeaseGasEnv(env, cfg.leaseGas ? leaseGasGuest(cfg.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null),
+     // the owner nomination: only from the bound config, absent = no such name
+@@ -411,8 +464,29 @@
+   if (/^(1|true|on)$/i.test(v('ISOLATION_RELEASE'))) out.push('ISOLATION_RELEASE must be off');
+   if (!/^[0-9a-f]{64}$/.test(v('SECRET'))) out.push('SECRET must be a per-boot 64-hex value minted in the guest');
+   for (const [k, val] of Object.entries(env)) if (/enclave\.host/i.test(String(val))) out.push(`${k} names an Enclave origin`);
++  if (CARRIERS_ENV in env) {
++    let c = null; try { c = JSON.parse(String(env[CARRIERS_ENV])); } catch {}
++    try { if (canonicalJson(directPolicyCarriers(c)) !== String(env[CARRIERS_ENV])) out.push(`${CARRIERS_ENV} must be the canonical bound carrier setting`); }
++    catch (e) { out.push(`${CARRIERS_ENV}: ${e.message}`); }
++    if (v('ENCLAVE_PLATFORM_HOST_POLICY') !== 'production') out.push(`${CARRIERS_ENV} needs the platform host policy on (production)`);
++  }
+   return out;
+ }
++/**
++ * The image's own host-admission bundle must HONOUR a bound carrier setting: its hostPolicyCarriersFromEnv (the exact parser
++ * createHostServiceGate uses) must accept the derived environment and see the same carriers. An older bundle has no such
++ * export and would silently run without them, so that is a refusal. -> null (ok) or the reason.
++ */
++export async function supervisorCarrierProblem(env, bundleFile) {
++  if (!(CARRIERS_ENV in env)) return null;
++  let mod; try { mod = await import(pathToFileURL(bundleFile).href); } catch (e) { return `the supervisor's host-admission bundle ${bundleFile} cannot be loaded (${e.message})`; }
++  if (typeof mod.hostPolicyCarriersFromEnv !== 'function') return `the supervisor's host-admission bundle ${bundleFile} does not support policy carriers: platformPolicyCarriers would be ignored`;
++  let got; try { got = mod.hostPolicyCarriersFromEnv(env); } catch (e) { return `the supervisor's own carrier parser refuses the bound setting: ${e.message}`; }
++  const want = JSON.parse(String(env[CARRIERS_ENV]));
++  if (!got || got.importDir || got.policyMirrorStateDir || JSON.stringify(got.peers) !== JSON.stringify(want.peers || [])
++      || JSON.stringify(got.serviceIndex) !== JSON.stringify(want.serviceIndex || null)) return 'the supervisor would read a different carrier setting than the bound one';
++  return null;
++}
+ 
+ // ---- viem from the supervisor image (keccak for an address) ----------------------------------------------------------------
+ let _viem = null;
+@@ -484,6 +558,8 @@
+   const env = directSupervisorEnv(config, { paths, capacity, hostPolicyEnv, flavorEnv, secrets: { operatorKey: fw.registryKey || null, secret: s, adminToken: a } });
+   const problems = directEnvProblems(env);
+   if (problems.length) return { ok: false, reasons: problems.map((p) => `derived environment: ${p}`), mode, digest, hostData };
++  const carrierProblem = await supervisorCarrierProblem(env, paths.hostAdmissionBundle || GUEST_PATHS.hostAdmissionBundle);
++  if (carrierProblem) return { ok: false, reasons: [`platformPolicyCarriers: ${carrierProblem}`], mode, digest, hostData };
+   const leaseGas = config.leaseGas ? leaseGasGuest(config.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null;
+   if (leaseGas && !leaseGas.ok) return { ok: false, reasons: [`leaseGas: ${leaseGas.reason}`], mode, digest, hostData };
+   const files = { [paths.pins]: JSON.stringify(contractPinsDoc(config)), [paths.pairKey]: fw.isolation.pairingKey + '\n',
+--- /dev/null
++++ b/network/host-admission-node.mjs
+@@ -0,0 +1,6 @@
++// The HOST runtimes' admission bundle entry (windows/node/host-admission.bundle.mjs, imported by windows/node/host.mjs and by
++// supervisor.js): everything network/host-admission-runtime.mjs exports, with createHostServiceGate taken from
++// host-service-gate-carriers.mjs (the base gate unchanged unless ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS is set). The metal
++// guest's host-policy bundle keeps its own entry (network/metal-host-policy.mjs), so its bytes do not change.
++export * from './host-admission-runtime.mjs';
++export { createHostServiceGate, hostPolicyCarriersFromEnv } from './host-service-gate-carriers.mjs';
+--- a/network/host-admission-runtime.mjs
++++ b/network/host-admission-runtime.mjs
+@@ -102,7 +102,10 @@
+     return pending;
+   };
+   return {hostId,ownershipContract,registry,catalog,
+-    async refusal({deploymentId,appRef,forPrivate=false}) {
++    // The network allow file must carry the original chain deadline, not a new lifetime starting at write time.
++    // Existing callers keep refusal(); cooperating runtimes use decision() for the same policy plus its deadline.
++    async refusal(request) {return (await this.decision(request)).refusal;},
++    async decision({deploymentId,appRef,forPrivate=false}) {
+       const a=await policy();
+       let version;
+       // Always enforce platform moderation using fresh agreeing chain reads.
+@@ -121,7 +124,9 @@
+         },failures).catch(e=>{throw withReasons(e,failures);});
+       }
+       if(a.validUntil<=now())throw Error('host policy expired during admission');
+-      return hostAdmissionRefusal(a.policy,{hostId,deploymentId,appRef,version,forPrivate});
++      if(!Number.isSafeInteger(version.timestamp)||version.timestamp>now()+5000||version.timestamp+90000<=now())throw Error('catalog snapshot expired during admission');
++      return {refusal:hostAdmissionRefusal(a.policy,{hostId,deploymentId,appRef,version,forPrivate}),
++        validUntil:Math.min(a.validUntil,version.timestamp+90000,now()+90000)};
+     },
+   };
+ }
+--- /dev/null
++++ b/network/host-service-gate-carriers.mjs
+@@ -0,0 +1,75 @@
++// POLICY CARRIERS for the HOST runtimes' platform host policy gate (Linux supervisor.js and the Windows node host.mjs both
++// call createHostServiceGate({ env: process.env, ... }) from windows/node/host-admission.bundle.mjs and pass no fetch).
++// Without a carrier their gate can load an ANCHORED policy only from a mirror, and the production bundle carries none (the
++// fleet's DigitalOcean mirrors are not used): once the administrator anchors, such a host stays "behind" and refuses itself
++// after the grace. This wrapper gives those runtimes the SAME carriers the hosted runner (network/host-services/runner.mjs
++// policyCarrierFetch) and the challenge replica already use (network/policy-carriers.mjs), configured by ONE JSON value:
++//   ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS = { "importDir"?: <abs dir of <digest>.json documents the operator imported>,
++//     "policyMirrorStateDir"?: <abs state dir of a policy-mirror role>, "peers"?: ["http(s)://<host>/platform-policy"],
++//     "serviceIndex"?: { chainId, address, codeHash } }   (the runner's platformHostPolicyCarriers / replica carriers shape)
++// Carriers are untrusted transport and admit nothing. A candidate is served only when its OWN digest is the one asked for
++// and the book's CURRENT owner signs it at a fresh agreed block of THIS gate's own RPC quorum (freshVerifier, the same
++// snapshot object the gate reads through: no second client set, no lowered quorum); the unchanged gate then verifies it
++// again (anchored digest, owner signature, persisted sequence high-water, expiry/staleness, bans, persisted refusals).
++// They reach the gate as ONE reserved mirror origin (CARRIER_MIRROR), exactly as the runner's policyEnv shows them.
++//
++// UNSET: createHostServiceGate here IS network/host-service-gate.mjs's, called with the same arguments (byte-identical
++// behaviour). A caller with its own fetch keeps it; combining one with this setting is refused, never silently merged.
++// A malformed value throws, as a malformed ENCLAVE_PLATFORM_HOST_POLICY does (supervisor.js turns that into refusing work;
++// the Windows node does not start) - never a silently ignored transport.
++import path from "node:path";
++import { createHostServiceGate as baseGate, hostIdOfEndpoint } from "./host-service-gate.mjs";
++import { createHostPolicyRuntime, resolveHostPolicyConfig, fileStore, quorumSnapshot } from "./host-policy-runtime.mjs";
++import { CARRIER_MIRROR, validateCarrierBases, fileCarrier, httpCarriers, indexCarriers, freshVerifier, carrierFetch } from "./policy-carriers.mjs";
++import { validateIndexPin } from "./service-index.mjs";
++export { hostIdOfEndpoint };
++
++const KEYS = ["importDir", "policyMirrorStateDir", "peers", "serviceIndex"];
++/** ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS -> null (unset) or the validated carrier settings; a malformed value throws. */
++export function hostPolicyCarriersFromEnv(env = process.env) {
++  const raw = String(env?.ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS ?? "").trim();
++  if (!raw) return null;
++  const shape = "ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS: JSON { importDir?, policyMirrorStateDir?, peers?, serviceIndex? }";
++  let c; try { c = JSON.parse(raw); } catch { throw Error(shape); }
++  if (!c || typeof c !== "object" || Array.isArray(c) || Object.keys(c).some((k) => !KEYS.includes(k))) throw Error(shape);
++  for (const k of ["importDir", "policyMirrorStateDir"])
++    if (c[k] !== undefined && (typeof c[k] !== "string" || !path.isAbsolute(c[k]))) throw Error(`ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS.${k} must be an absolute path`);
++  const out = { importDir: c.importDir ?? null, policyMirrorStateDir: c.policyMirrorStateDir ?? null,
++    peers: validateCarrierBases(c.peers ?? [], "ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS.peers"),
++    serviceIndex: c.serviceIndex === undefined ? null : validateIndexPin(c.serviceIndex) };
++  if (!out.importDir && !out.policyMirrorStateDir && !out.peers.length && !out.serviceIndex) throw Error("ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS names no carrier");
++  return Object.freeze(out);
++}
++
++/** network/host-service-gate.mjs createHostServiceGate, plus ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS (see the header). */
++export function createHostServiceGate(opts = {}) {
++  const env = opts.env ?? process.env;
++  if (opts.runtime) return baseGate(opts);                              // an injected runtime: nothing here applies
++  const carriers = hostPolicyCarriersFromEnv(env);
++  if (!carriers) return baseGate(opts);                                // unset: the base gate, unchanged
++  if (opts.fetch !== undefined) throw Error("platform host policy: ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS together with a caller's own fetch (one transport only)");
++  const log = opts.log ?? console.log;
++  // the carrier set is ONE more mirror origin (as the runner's policyEnv); any operator mirrors stay as they are
++  const gateEnv = { ...env, ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS: [...String(env.ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS || "").split(",").map((s) => s.trim()).filter(Boolean), CARRIER_MIRROR].join(",") };
++  const resolved = resolveHostPolicyConfig({ env: gateEnv, chainId: opts.chainId ?? null, book: opts.book ?? null });
++  if (!resolved.on) throw Error("ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS is set but the platform host policy is off: nothing would use them");
++  const c = resolved.config;
++  if (!Array.isArray(c.rpcs) || !c.rpcs.length) throw Error("platform host policy carriers need the policy's own RPC quorum");
++  // ONE agreed-block reader for the gate AND the carriers' fresh verification
++  const snapshot = quorumSnapshot({ rpcs: c.rpcs, minAgree: c.minAgree ?? null });
++  const net = globalThis.fetch;
++  const sources = [
++    ...(carriers.importDir ? [fileCarrier(carriers.importDir)] : []),
++    ...(carriers.policyMirrorStateDir ? [fileCarrier(path.join(carriers.policyMirrorStateDir, "documents"))] : []),
++    ...httpCarriers(carriers.peers, { fetch: net }),
++    ...(carriers.serviceIndex ? [indexCarriers({ pin: carriers.serviceIndex, peers: c.rpcs, fetch: net, log })] : []),
++  ];
++  const verify = freshVerifier({ snapshot, book: c.book, hostOwnership: c.hostOwnership });
++  const runtime = createHostPolicyRuntime(resolved, { snapshot, store: opts.stateDir ? fileStore(`${opts.stateDir}/platform-host-policy.json`) : null,
++    fetch: carrierFetch({ carriers: sources, verify, fetch: net, log }), log });
++  const summary = { importDir: !!carriers.importDir, policyMirrorStateDir: !!carriers.policyMirrorStateDir, peers: carriers.peers.length, serviceIndex: !!carriers.serviceIndex };
++  // the base gate with this runtime: the same host id rule, measured gate, persisted refusal file, interval and grace
++  const g = baseGate({ ...opts, env: gateEnv, runtime });
++  log(`[host-policy] policy carriers: ${Object.entries(summary).filter(([, v]) => v).map(([k, v]) => (v === true ? k : `${k} ${v}`)).join(", ")} (each candidate verified at the gate's own quorum)`);
++  return { ...g, status: () => ({ ...g.status(), carriers: summary }) };
++}
+--- a/network/platform-host-policy-config.mjs
++++ b/network/platform-host-policy-config.mjs
+@@ -18,12 +18,7 @@
+ // Public HTTPS transports verified on 2026-10-20; clients still verify the administrator signature and chain anchor.
+ // Publish a reviewed signed document to these routes BEFORE anchoring it. Extra operator-chosen mirrors are supported.
+ // These four regional endpoints share an infrastructure operator; they do not establish independent operation.
+-export const PRODUCTION_MIRRORS = Object.freeze([
+-  "https://134.199.235.187/platform-policy",
+-  "https://134.209.248.172/platform-policy",
+-  "https://165.245.191.129/platform-policy",
+-  "https://146.190.246.39/platform-policy",
+-]);
++export const PRODUCTION_MIRRORS = Object.freeze([]);
+ // The policy's own read quorum (distinct public Base RPCs; majority 3 of 4), independent of a component's single RPC.
+ export const PRODUCTION_RPCS = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"]);
+ export const PRODUCTION_HOST_POLICY = Object.freeze({ chainId: 8453, book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP,
+--- a/scripts/build-host-admission.mjs
++++ b/scripts/build-host-admission.mjs
+@@ -2,7 +2,7 @@
+ // network code there so its sibling modules never resolve absent root packages.
+ import {build} from 'esbuild';
+ import fs from 'node:fs/promises';
+-for(const [entry,file] of [['network/host-admission-runtime.mjs','windows/node/host-admission.bundle.mjs'],['network/metal-host-policy.mjs','metal/guest/host-policy.bundle.mjs']]){
++for(const [entry,file] of [['network/host-admission-node.mjs','windows/node/host-admission.bundle.mjs'],['network/metal-host-policy.mjs','metal/guest/host-policy.bundle.mjs']]){
+ const result=await build({entryPoints:[entry],outfile:file,write:false,
+   bundle:true,platform:'node',format:'esm',target:'node20',minify:true,
+   banner:{js:'// Generated by scripts/build-host-admission.mjs; edit '+entry+'.'}});
