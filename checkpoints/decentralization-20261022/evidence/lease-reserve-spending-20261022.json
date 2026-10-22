@@ -1,0 +1,514 @@
+{
+  "at": "2026-10-22T14:27:49.080Z",
+  "start": "52869000",
+  "end": "52944484",
+  "blockHash": "0x5d87cbddfcd4d4f0d1bb1ce04fc94970f5a167542f33582f80083082eddbaed0",
+  "fullHistoryProviders": [
+    "https://base-rpc.polkachu.com"
+  ],
+  "fullHistoryQuorum": false,
+  "events": 857,
+  "allBalancesReconcile": true,
+  "rows": [
+    {
+      "slug": "jot",
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "balance": "1171161869710",
+      "renewWindow": 300,
+      "minExtension": 600,
+      "depositedWei": "100000000000000",
+      "depositedETH": "0.0001",
+      "withdrawnWei": "0",
+      "chargedWei": "98828838130290",
+      "chargedETH": "0.00009882883813029",
+      "remainingETH": "0.00000117116186971",
+      "reconciles": true,
+      "byKind": {
+        "claim": {
+          "count": 1,
+          "totalWei": "1939848231784",
+          "totalETH": "0.000001939848231784",
+          "meanWei": "1939848231784"
+        },
+        "renew": {
+          "count": 69,
+          "totalWei": "96888989898506",
+          "totalETH": "0.000096888989898506",
+          "meanWei": "1404188259398"
+        },
+        "release": {
+          "count": 0,
+          "totalWei": "0",
+          "totalETH": "0",
+          "meanWei": "0"
+        }
+      },
+      "renewIntervalSecondsApprox": {
+        "method": "Base block difference times2; receipt timestamps not individually fetched",
+        "min": 1520,
+        "median": 1538,
+        "max": 1652
+      },
+      "firstDepositBlock": "52875312",
+      "lastPaidBlock": "52929357"
+    },
+    {
+      "slug": "ipns-publisher",
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "balance": "1016277190539",
+      "renewWindow": 300,
+      "minExtension": 600,
+      "depositedWei": "100000000000000",
+      "depositedETH": "0.0001",
+      "withdrawnWei": "0",
+      "chargedWei": "98983722809461",
+      "chargedETH": "0.000098983722809461",
+      "remainingETH": "0.000001016277190539",
+      "reconciles": true,
+      "byKind": {
+        "claim": {
+          "count": 3,
+          "totalWei": "5590469306846",
+          "totalETH": "0.000005590469306846",
+          "meanWei": "1863489768948"
+        },
+        "renew": {
+          "count": 68,
+          "totalWei": "93393253502615",
+          "totalETH": "0.000093393253502615",
+          "meanWei": "1373430198567"
+        },
+        "release": {
+          "count": 0,
+          "totalWei": "0",
+          "totalETH": "0",
+          "meanWei": "0"
+        }
+      },
+      "renewIntervalSecondsApprox": {
+        "method": "Base block difference times2; receipt timestamps not individually fetched",
+        "min": 1522,
+        "median": 1542,
+        "max": 8630
+      },
+      "firstDepositBlock": "52875263",
+      "lastPaidBlock": "52933038"
+    },
+    {
+      "slug": "risc-box",
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "balance": "1017666736286",
+      "renewWindow": 300,
+      "minExtension": 600,
+      "depositedWei": "100000000000000",
+      "depositedETH": "0.0001",
+      "withdrawnWei": "0",
+      "chargedWei": "98982333263714",
+      "chargedETH": "0.000098982333263714",
+      "remainingETH": "0.000001017666736286",
+      "reconciles": true,
+      "byKind": {
+        "claim": {
+          "count": 1,
+          "totalWei": "2077671251257",
+          "totalETH": "0.000002077671251257",
+          "meanWei": "2077671251257"
+        },
+        "renew": {
+          "count": 76,
+          "totalWei": "96904662012457",
+          "totalETH": "0.000096904662012457",
+          "meanWei": "1275061342269"
+        },
+        "release": {
+          "count": 0,
+          "totalWei": "0",
+          "totalETH": "0",
+          "meanWei": "0"
+        }
+      },
+      "renewIntervalSecondsApprox": {
+        "method": "Base block difference times2; receipt timestamps not individually fetched",
+        "min": 1522,
+        "median": 1544,
+        "max": 1702
+      },
+      "firstDepositBlock": "52875162",
+      "lastPaidBlock": "52934781"
+    },
+    {
+      "slug": "api-mcp-adapter",
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "balance": "812572514527",
+      "renewWindow": 300,
+      "minExtension": 600,
+      "depositedWei": "100000000000000",
+      "depositedETH": "0.0001",
+      "withdrawnWei": "0",
+      "chargedWei": "99187427485473",
+      "chargedETH": "0.000099187427485473",
+      "remainingETH": "0.000000812572514527",
+      "reconciles": true,
+      "byKind": {
+        "claim": {
+          "count": 1,
+          "totalWei": "1780248231784",
+          "totalETH": "0.000001780248231784",
+          "meanWei": "1780248231784"
+        },
+        "renew": {
+          "count": 78,
+          "totalWei": "97407179253689",
+          "totalETH": "0.000097407179253689",
+          "meanWei": "1248809990431"
+        },
+        "release": {
+          "count": 0,
+          "totalWei": "0",
+          "totalETH": "0",
+          "meanWei": "0"
+        }
+      },
+      "renewIntervalSecondsApprox": {
+        "method": "Base block difference times2; receipt timestamps not individually fetched",
+        "min": 1524,
+        "median": 1542,
+        "max": 1618
+      },
+      "firstDepositBlock": "52875360",
+      "lastPaidBlock": "52936291"
+    },
+    {
+      "slug": "sia-s3",
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "balance": "359879005798",
+      "renewWindow": 300,
+      "minExtension": 600,
+      "depositedWei": "100000000000000",
+      "depositedETH": "0.0001",
+      "withdrawnWei": "0",
+      "chargedWei": "99640120994202",
+      "chargedETH": "0.000099640120994202",
+      "remainingETH": "0.000000359879005798",
+      "reconciles": true,
+      "byKind": {
+        "claim": {
+          "count": 1,
+          "totalWei": "1752472078742",
+          "totalETH": "0.000001752472078742",
+          "meanWei": "1752472078742"
+        },
+        "renew": {
+          "count": 83,
+          "totalWei": "97887648915460",
+          "totalETH": "0.00009788764891546",
+          "meanWei": "1179369264041"
+        },
+        "release": {
+          "count": 0,
+          "totalWei": "0",
+          "totalETH": "0",
+          "meanWei": "0"
+        }
+      },
+      "renewIntervalSecondsApprox": {
+        "method": "Base block difference times2; receipt timestamps not individually fetched",
+        "min": 1520,
+        "median": 1540,
+        "max": 1602
+      },
+      "firstDepositBlock": "52875509",
+      "lastPaidBlock": "52940048"
+    },
+    {
+      "slug": "cron",
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "balance": "216033940371",
+      "renewWindow": 300,
+      "minExtension": 600,
+      "depositedWei": "100000000000000",
+      "depositedETH": "0.0001",
+      "withdrawnWei": "0",
+      "chargedWei": "99783966059629",
+      "chargedETH": "0.000099783966059629",
+      "remainingETH": "0.000000216033940371",
+      "reconciles": true,
+      "byKind": {
+        "claim": {
+          "count": 2,
+          "totalWei": "3429976375079",
+          "totalETH": "0.000003429976375079",
+          "meanWei": "1714988187539"
+        },
+        "renew": {
+          "count": 80,
+          "totalWei": "96353989684550",
+          "totalETH": "0.00009635398968455",
+          "meanWei": "1204424871056"
+        },
+        "release": {
+          "count": 0,
+          "totalWei": "0",
+          "totalETH": "0",
+          "meanWei": "0"
+        }
+      },
+      "renewIntervalSecondsApprox": {
+        "method": "Base block difference times2; receipt timestamps not individually fetched",
+        "min": 1522,
+        "median": 1550,
+        "max": 9932
+      },
+      "firstDepositBlock": "52875408",
+      "lastPaidBlock": "52942134"
+    },
+    {
+      "slug": "depot",
+      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "balance": "1242671026630",
+      "renewWindow": 300,
+      "minExtension": 600,
+      "depositedWei": "100000000000000",
+      "depositedETH": "0.0001",
+      "withdrawnWei": "0",
+      "chargedWei": "98757328973370",
+      "chargedETH": "0.00009875732897337",
+      "remainingETH": "0.00000124267102663",
+      "reconciles": true,
+      "byKind": {
+        "claim": {
+          "count": 2,
+          "totalWei": "3353404832633",
+          "totalETH": "0.000003353404832633",
+          "meanWei": "1676702416316"
+        },
+        "renew": {
+          "count": 83,
+          "totalWei": "95403924140737",
+          "totalETH": "0.000095403924140737",
+          "meanWei": "1149444869165"
+        },
+        "release": {
+          "count": 0,
+          "totalWei": "0",
+          "totalETH": "0",
+          "meanWei": "0"
+        }
+      },
+      "renewIntervalSecondsApprox": {
+        "method": "Base block difference times2; receipt timestamps not individually fetched",
+        "min": 1522,
+        "median": 1552,
+        "max": 6926
+      },
+      "firstDepositBlock": "52875457",
+      "lastPaidBlock": "52943106"
+    },
+    {
+      "slug": "enclavedns",
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "owner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+      "balance": "11513049988340",
+      "renewWindow": 300,
+      "minExtension": 600,
+      "depositedWei": "100000000000000",
+      "depositedETH": "0.0001",
+      "withdrawnWei": "0",
+      "chargedWei": "88486950011660",
+      "chargedETH": "0.00008848695001166",
+      "remainingETH": "0.00001151304998834",
+      "reconciles": true,
+      "byKind": {
+        "claim": {
+          "count": 3,
+          "totalWei": "5560892513606",
+          "totalETH": "0.000005560892513606",
+          "meanWei": "1853630837868"
+        },
+        "renew": {
+          "count": 68,
+          "totalWei": "81860161383822",
+          "totalETH": "0.000081860161383822",
+          "meanWei": "1203825902703"
+        },
+        "release": {
+          "count": 1,
+          "totalWei": "1065896114232",
+          "totalETH": "0.000001065896114232",
+          "meanWei": "1065896114232"
+        }
+      },
+      "renewIntervalSecondsApprox": {
+        "method": "Base block difference times2; receipt timestamps not individually fetched",
+        "min": 1594,
+        "median": 1804,
+        "max": 13170
+      },
+      "firstDepositBlock": "52875557",
+      "lastPaidBlock": "52944150"
+    },
+    {
+      "slug": "image-generator",
+      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "balance": "11727951887674",
+      "renewWindow": 300,
+      "minExtension": 600,
+      "depositedWei": "100000000000000",
+      "depositedETH": "0.0001",
+      "withdrawnWei": "0",
+      "chargedWei": "88272048112326",
+      "chargedETH": "0.000088272048112326",
+      "remainingETH": "0.000011727951887674",
+      "reconciles": true,
+      "byKind": {
+        "claim": {
+          "count": 0,
+          "totalWei": "0",
+          "totalETH": "0",
+          "meanWei": "0"
+        },
+        "renew": {
+          "count": 69,
+          "totalWei": "88272048112326",
+          "totalETH": "0.000088272048112326",
+          "meanWei": "1279305045106"
+        },
+        "release": {
+          "count": 0,
+          "totalWei": "0",
+          "totalETH": "0",
+          "meanWei": "0"
+        }
+      },
+      "renewIntervalSecondsApprox": {
+        "method": "Base block difference times2; receipt timestamps not individually fetched",
+        "min": 1552,
+        "median": 1560,
+        "max": 1800
+      },
+      "firstDepositBlock": "52875040",
+      "lastPaidBlock": "52943965"
+    },
+    {
+      "slug": "eyesoff-ai",
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "balance": "14368068658025",
+      "renewWindow": 300,
+      "minExtension": 600,
+      "depositedWei": "100000000000000",
+      "depositedETH": "0.0001",
+      "withdrawnWei": "0",
+      "chargedWei": "85631931341975",
+      "chargedETH": "0.000085631931341975",
+      "remainingETH": "0.000014368068658025",
+      "reconciles": true,
+      "byKind": {
+        "claim": {
+          "count": 0,
+          "totalWei": "0",
+          "totalETH": "0",
+          "meanWei": "0"
+        },
+        "renew": {
+          "count": 69,
+          "totalWei": "85631931341975",
+          "totalETH": "0.000085631931341975",
+          "meanWei": "1241042483217"
+        },
+        "release": {
+          "count": 0,
+          "totalWei": "0",
+          "totalETH": "0",
+          "meanWei": "0"
+        }
+      },
+      "renewIntervalSecondsApprox": {
+        "method": "Base block difference times2; receipt timestamps not individually fetched",
+        "min": 1524,
+        "median": 1560,
+        "max": 1694
+      },
+      "firstDepositBlock": "52875108",
+      "lastPaidBlock": "52944027"
+    },
+    {
+      "slug": "s3-ipfs-adapter",
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "balance": "970177385836415",
+      "renewWindow": 300,
+      "minExtension": 600,
+      "depositedWei": "1100000000000000",
+      "depositedETH": "0.0011",
+      "withdrawnWei": "0",
+      "chargedWei": "129822614163585",
+      "chargedETH": "0.000129822614163585",
+      "remainingETH": "0.000970177385836415",
+      "reconciles": true,
+      "byKind": {
+        "claim": {
+          "count": 2,
+          "totalWei": "4010901614527",
+          "totalETH": "0.000004010901614527",
+          "meanWei": "2005450807263"
+        },
+        "renew": {
+          "count": 85,
+          "totalWei": "125811712549058",
+          "totalETH": "0.000125811712549058",
+          "meanWei": "1480137794694"
+        },
+        "release": {
+          "count": 0,
+          "totalWei": "0",
+          "totalETH": "0",
+          "meanWei": "0"
+        }
+      },
+      "renewIntervalSecondsApprox": {
+        "method": "Base block difference times2; receipt timestamps not individually fetched",
+        "min": 1520,
+        "median": 1546,
+        "max": 5392
+      },
+      "firstDepositBlock": "52875214",
+      "lastPaidBlock": "52943768"
+    }
+  ],
+  "scope": "All reserve deposits, withdrawals and successful paid lease operations since before reserve deployment. Does not by itself audit failed transactions paid by relays or unrelated registry/status transactions.",
+  "recentEventCorroboration": {
+    "at": "2026-10-22T14:19:27.708Z",
+    "fromBlock": "52935484",
+    "toBlock": "52944484",
+    "historicalProvider": "https://base-rpc.polkachu.com",
+    "expectedEvents": 70,
+    "reads": [
+      {
+        "url": "https://base.drpc.org",
+        "error": "RPC Request failed. You reached Public endpoint rate limit, please upgrade to paid plan"
+      },
+      {
+        "url": "https://base-rpc.publicnode.com",
+        "events": 70,
+        "match": true,
+        "blockHashMatches": true
+      }
+    ]
+  },
+  "findings": [
+    "All 11 reserve balances exactly reconcile deposits minus successful charges; no withdrawals found.",
+    "Whole event history came from one RPC; latest 70 events and end-block hash independently matched a second RPC.",
+    "Recurring free/self-hosted lease renewals extend from current block timestamp, not previous expiration. Owner cost model incorrectly groups these with paid leases.",
+    "No rapid duplicate paid renewals observed; minimum approximate interval about 25 minutes.",
+    "This audit does not establish total host-wallet gas, failed relay transactions, or off-chain heartbeat correctness in every deployed runtime."
+  ]
+}

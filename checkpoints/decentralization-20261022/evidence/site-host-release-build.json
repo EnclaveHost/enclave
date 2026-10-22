@@ -1,0 +1,47 @@
+{
+  "at": "2026-10-22T07:39:04.042269+00:00",
+  "status": "BUILT AND LOCALLY VERIFIED; NOT UPLOADED/PUBLISHED/DEPLOYED",
+  "release": {
+    "schema": "site-host-release/1",
+    "status": "BUILT LOCALLY - NOT UPLOADED, NOT PUBLISHED, NOT SIGNED",
+    "wasm": {
+      "sha256": "e9751b25f0b7790498afeff63c571e1f2bd7a96b39c26aaa246996b18d7948a0",
+      "bytes": 46312706,
+      "uploadCid": "bafybeicy7vgjjh7cxcazbzr3xng6byht6jivy3mcsov2ln33gghyzqot5q"
+    },
+    "release": {
+      "cid": "bafybeifkfgxsjz6gnj234fvdkxa37pc4fcevydu6tb55wtidjejfsuxake",
+      "car": {
+        "sha256": "1cb0fb90b85095220eb88d673f474b476e14bbb6317da7adbd672d0134d8e69b",
+        "bytes": 46082472
+      },
+      "createdAt": "2026-10-22T07:09:39.950Z",
+      "source": {
+        "commit": "7752a423",
+        "dirty": true
+      },
+      "base": "bafybeig3rai3tyoimbhb32vo6hkkw3o336wluht7owbs7mefhtiridwp6y"
+    },
+    "config": "{\"release\":\"bafybeifkfgxsjz6gnj234fvdkxa37pc4fcevydu6tb55wtidjejfsuxake\",\"wasi\":\"0.2\"}"
+  },
+  "originalRun": {
+    "handle": 13913,
+    "exit": 1,
+    "reason": "Final manifest glob included tools/__pycache__ directory after build and all tests passed. Original failure retained."
+  },
+  "repair": "Manifest now includes only regular files in package/inventory/tools/inputs; no build or test rerun. Rehashed both builds and delivery and confirmed input fingerprints unchanged.",
+  "tests": {
+    "fleet49": {
+      "pass": 6,
+      "fail": 0
+    },
+    "guest48_0_1": {
+      "pass": 6,
+      "fail": 0
+    },
+    "namedRoutes": "ROUTE-CHECK-OK; no failures"
+  },
+  "memoryPeakMiB": 651,
+  "finalManifestSha256": "0f8a9643ef5f703e579bf89c5665cbfdadac1716be732498076483d64a7a9557",
+  "remaining": "Complete non-DO DAG holding; wallet publication/deployment; live host verification; external provider failure validation."
+}

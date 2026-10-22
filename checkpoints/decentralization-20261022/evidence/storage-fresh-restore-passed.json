@@ -1,0 +1,139 @@
+{
+  "at": "2026-10-22T14:12:18.295763+00:00",
+  "runId": "38b5f533b12f93b0",
+  "passed": true,
+  "phaseCount": 20,
+  "phases": [
+    {
+      "phase": "0-setup-isolated",
+      "ok": true,
+      "seconds": 2.9
+    },
+    {
+      "phase": "S0-snapshot-restore-baseline-v26",
+      "ok": true,
+      "seconds": 1.5
+    },
+    {
+      "phase": "S0b-fixture-seed-replacement",
+      "ok": true,
+      "seconds": 1.3
+    },
+    {
+      "phase": "S1-original-binary-runtime-v26",
+      "ok": true,
+      "seconds": 63.2
+    },
+    {
+      "phase": "S2-controller-backup-verify-v26",
+      "ok": true,
+      "seconds": 2.8
+    },
+    {
+      "phase": "S3-controller-upgrade-26-27-fence-release",
+      "ok": true,
+      "seconds": 64.8
+    },
+    {
+      "phase": "S4-controller-upgrade-c2-27-28",
+      "ok": true,
+      "seconds": 65.7
+    },
+    {
+      "phase": "S5-fixture-app-operations-real-api-v28",
+      "ok": true,
+      "seconds": 0.6
+    },
+    {
+      "phase": "S6-admin-block-unblock-v28",
+      "ok": true,
+      "seconds": 0.2
+    },
+    {
+      "phase": "S7-indexd-sigkill-restart-persistence-v28",
+      "ok": true,
+      "seconds": 1.6
+    },
+    {
+      "phase": "S8-rollback-c2-refused-while-enrolled",
+      "ok": true,
+      "seconds": 2.9
+    },
+    {
+      "phase": "S9-rollback-c2-acknowledged-28-27",
+      "ok": true,
+      "seconds": 64.5
+    },
+    {
+      "phase": "S10-controller-rollback-27-26-original-binary",
+      "ok": true,
+      "seconds": 65.9
+    },
+    {
+      "phase": "L0-live-restore-baseline-v26",
+      "ok": true,
+      "seconds": 1.0
+    },
+    {
+      "phase": "L1-live-migrate-26-27-release-source",
+      "ok": true,
+      "seconds": 0.9
+    },
+    {
+      "phase": "L2-live-migrate-27-28-c2-source",
+      "ok": true,
+      "seconds": 0.7
+    },
+    {
+      "phase": "L3-live-c2-exercise-real-account",
+      "ok": true,
+      "seconds": 0.5
+    },
+    {
+      "phase": "L4-live-down-28-27-refused-while-enrolled",
+      "ok": true,
+      "seconds": 0.2
+    },
+    {
+      "phase": "L5-live-down-28-27-acknowledged",
+      "ok": true,
+      "seconds": 0.5
+    },
+    {
+      "phase": "L6-live-down-27-26",
+      "ok": true,
+      "seconds": 0.5
+    }
+  ],
+  "resultSha256": "9d57559cd51acecddf24109255991acf29aeb680e9b5ac1b91987af7b70e0cd0",
+  "cleanup": {
+    "runId": "38b5f533b12f93b0",
+    "children": [],
+    "indexdPidFiles": [],
+    "scope": {
+      "scope": "drained",
+      "rounds": []
+    },
+    "container": "removed",
+    "volume": "removed",
+    "stage": "removed",
+    "certain": true,
+    "toolContainers": {
+      "containers": {
+        "enclave-c2fx-38b5f533b12f93b0-pg-tool-1": "absent",
+        "enclave-c2fx-38b5f533b12f93b0-pg-tool-2": "absent",
+        "enclave-c2fx-38b5f533b12f93b0-pg-tool-3": "absent"
+      },
+      "certain": true
+    }
+  },
+  "backupRunId": "20261022T075011Z-bee519f1",
+  "productionMigrationApplied": false,
+  "scope": "Fresh coupled production metadata restored in isolated namespace. Original/v27/v28 runtime, metadata preservation, CAS/replay, admin block/unblock, crash restart and rollback exercised with fixture seed.",
+  "limitations": [
+    "Production controller r5 changes require separate integration validation",
+    "No live independent replicas",
+    "Production wallet seed not used",
+    "No actual Sia contract operation on external hosts"
+  ]
+}

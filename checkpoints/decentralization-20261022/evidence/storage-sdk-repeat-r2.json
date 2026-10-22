@@ -1,0 +1,39 @@
+{
+  "reviewedAt": "2026-10-22T14:02:41.202664+00:00",
+  "runId": "20261022T135345-5c496a9a8589",
+  "resultSha256": "86f97ba6a5730f70b6e119ab73dcd39029c6f0e429479984b408bc5e1fe6b710",
+  "passed": true,
+  "groups": {
+    "c2eidxu1": {
+      "mode": "u1",
+      "harness": "c2e",
+      "checks": 7,
+      "seconds": 163
+    },
+    "c2eidxfeed": {
+      "mode": "v060",
+      "harness": "c2e",
+      "checks": 6,
+      "seconds": 159
+    },
+    "feidxu1": {
+      "mode": "u1",
+      "harness": "fe",
+      "checks": 7,
+      "seconds": 163
+    }
+  },
+  "totalChecks": 20,
+  "cleanup": {
+    "confirmed": true,
+    "containerRemoved": true,
+    "labelQueryEmpty": true,
+    "volumesGone": true,
+    "scratchRemoved": true,
+    "volumesLeft": [],
+    "scratchDetail": "removed"
+  },
+  "rootReview": "Actual terminal summary and guard/exit record inspected; exact three approved groups; strict parser reports no missing/unexpected tests. Prior supported C2 passes retained; no failed original records erased.",
+  "scope": "Real SDK against isolated three-indexer synthetic Sia harness; not live production replication or real operator authority",
+  "productionChanges": false
+}

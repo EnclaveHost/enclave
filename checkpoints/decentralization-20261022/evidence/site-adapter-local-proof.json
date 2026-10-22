@@ -1,0 +1,14 @@
+{
+  "reviewedAt": "2026-10-22T13:53:05.248725+00:00",
+  "rootReviewed": true,
+  "status": "LOCAL REAL-ADAPTER PROOF PASSED; NOT LIVE DEPLOYMENT",
+  "cid": "bafybeifkfgxsjz6gnj234fvdkxa37pc4fcevydu6tb55wtidjejfsuxake",
+  "files": 884,
+  "allRecordedHashesMatch": true,
+  "realRun": "queue 1024 EXIT 0 peak 899 MiB: REAL-ADAPTER-PROOF-OK (884 held/0 missing/0 extra/0 wrong, root+child blocks, complete CAR, derived release byte-identical; probe 400 expected for legacy wasm 132ba32f)",
+  "limitations": [
+    "Legacy adapter wasm; live version equivalence unproven",
+    "Public gateway probe returns400; not gateway ready",
+    "No live upload or announcement; non-DO ingress unproven"
+  ]
+}

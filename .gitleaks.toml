@@ -136,3 +136,29 @@ paths = ['''^windows/vbslike/evidence/''']
 [[allowlists]]
 description = "Ed25519 public keys in SPKI form (public by construction)"
 regexes = ['''302a300506032b6570032100[0-9a-f]{64}''']
+
+# Checkpoint scan: exact public source identifiers, scoped to both rule and file.
+
+[[allowlists]]
+description = "Bundle input SHA256 digests, not Coinbase access tokens"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ["^metal/guest/lease-gas-conduit\\.bundle\\.mjs\\.manifest\\.json$", "^windows/node/lease-gas-runtime\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^\\s*\"[^\"\\n]+\": \"[0-9a-f]{64}\",?\\s*$"]
+
+[[allowlists]]
+description = "Solidity contract name in compiler fixture"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^test/helpers/original-vault-rig\\.mjs$"]
+regexTarget = "line"
+regexes = ["vault: pick\\(v, \"EnclaveSecretVaultV2\\.sol\", \"EnclaveSecretVaultV2\"\\)"]
+
+[[allowlists]]
+description = "Prose describing a test operator, not an API key"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^test/lease-gas/forge/test/LeaseExecutor\\.t\\.sol$"]
+regexTarget = "line"
+regexes = ["/// \\(factory 0x1F5c\\.\\.\\. build, sha256 a447add6\\.\\.\\.\\)\\. Operators are fresh keys holding no ETH, EIP-7702-delegated to the"]
