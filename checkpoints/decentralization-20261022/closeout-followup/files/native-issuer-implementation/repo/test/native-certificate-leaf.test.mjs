@@ -22,8 +22,12 @@ import { signNativeLeaf, nativeCaFacts, caIssuerFacts, checkNativeRequest, pinne
 import { issueNativeCertificate } from '../scripts/native-control-certificate.mjs';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'native-leaf-'));
-const closers = [];
-after(() => { for (const c of closers) { try { c(); } catch {} } fs.rmSync(tmp, { recursive: true, force: true }); });
+const closers = [], sockets = new Set();
+// every socket (server and client side) is destroyed at the end, whatever an assertion did: a failed test never holds the loop
+const track = (s) => { sockets.add(s); s.on('close', () => sockets.delete(s)); return s; };
+const serve = async (server) => { server.on('connection', track); await new Promise((r) => server.listen(0, '127.0.0.1', r)); closers.push(() => server.close()); return server; };
+after(() => { for (const s of sockets) s.destroy(); for (const c of closers) { try { c(); } catch {} } fs.rmSync(tmp, { recursive: true, force: true }); });
+const T = { timeout: 60000 };
 const API = 'api.enclavehost.eth', MCP = 'mcp.enclavehost.eth';
 const o = (args, opts = {}) => execFileSync('openssl', args, { cwd: tmp, stdio: ['ignore', 'pipe', 'pipe'], ...opts }).toString();
 const read = (f) => fs.readFileSync(path.join(tmp, f), 'utf8');
@@ -56,14 +60,22 @@ function osslVerify(chain, ca, name) {
   const n = Math.random().toString(16).slice(2); fs.writeFileSync(path.join(tmp, `leaf-${n}.pem`), blocks(chain)[0]);
   try { return o(['verify', '-CAfile', ca.certFile, '-verify_hostname', name, `leaf-${n}.pem`]).trim(); } catch (e) { return String(e.stderr || e.message); }
 }
+/** an independent minimal DER walk (not the module under test): the TBS fields of a certificate */
+function tbsFields(der) {
+  const at = (off) => { let len = der[off + 1], p = off + 2; if (len & 0x80) { const n = len & 0x7f; len = 0; for (let i = 0; i < n; i++) len = len * 256 + der[p + i]; p += n; } return { off, start: p, end: p + len }; };
+  const tbs = at(at(0).start), out = []; for (let p = tbs.start; p < tbs.end;) { const f = at(p); out.push(der.subarray(f.off, f.end)); p = f.end; }
+  return out[0][0] === 0xa0 ? out.slice(1) : out;   // [serial, signature, issuer, validity, subject, spki, extensions]
+}
+const issuerField = (der) => Buffer.from(tbsFields(der)[2]), subjectField = (der) => Buffer.from(tbsFields(der)[4]);
+const text = (pem) => { const n = Math.random().toString(16).slice(2); fs.writeFileSync(path.join(tmp, `t-${n}.pem`), pem); return o(['x509', '-in', `t-${n}.pem`, '-noout', '-text']); };
 /** extension names + criticality, in order, as openssl prints them */
 function extensionsOf(leafPem) {
   const n = Math.random().toString(16).slice(2); fs.writeFileSync(path.join(tmp, `x-${n}.pem`), leafPem);
   const text = o(['x509', '-in', `x-${n}.pem`, '-noout', '-text']);
-  return [...text.matchAll(/^\s+(X509v3 [A-Za-z ]+):( critical)?$/gm)].map((m) => m[1] + (m[2] ? ' (critical)' : ''));
+  return [...text.matchAll(/^\s+(X509v3 (?!extensions)[A-Za-z ]+?):( critical)?\s*$/gm)].map((m) => m[1] + (m[2] ? ' (critical)' : ''));
 }
 
-test('the in-process leaf: OpenSSL and Node verify it under the name-constrained CA; it matches the existing openssl issuance profile', () => {
+test('the in-process leaf: OpenSSL and Node verify it under the name-constrained CA; it matches the existing openssl issuance profile', T, () => {
   const t = target(), request = requestFor(t.publicKey);
   const now = Date.now(), chain = signNativeLeaf({ request, caCertPem: CA.pem, caKeyPem: CA.keyPem, now });
   const [leafPem, caPem] = blocks(chain);
@@ -77,36 +89,37 @@ test('the in-process leaf: OpenSSL and Node verify it under the name-constrained
   assert.deepEqual(leaf.keyUsage, ['1.3.6.1.5.5.7.3.1'], 'extendedKeyUsage serverAuth only');
   assert.equal(Date.parse(leaf.validTo) - Date.parse(leaf.validFrom), 7 * 86400e3, 'exactly the original 7 days');
   assert.ok(Date.parse(leaf.validFrom) <= now && Date.parse(leaf.validFrom) >= now - 11 * 60e3, 'notBefore allows bounded clock skew only');
-  // issuer = the CA's subject DER exactly (not a CN string): compare the raw Name bytes
-  const issuedBy = caIssuerFacts(leaf.raw), caFacts = caIssuerFacts(ca.raw);
-  assert.ok(leaf.raw.includes(caFacts.subjectDer), 'the leaf carries the CA subject DER verbatim as its issuer');
-  assert.equal(leaf.issuer, ca.subject);
-  assert.equal(issuedBy.ski.equals(createHash('sha1').update(t.publicKey.export({ type: 'spki', format: 'der' }).subarray(-65)).digest()), true, 'SKI = SHA-1 of the leaf key');
+  // issuer = the CA's subject DER exactly (not a CN string): the leaf's issuer FIELD bytes, read by an independent DER walk
+  assert.ok(issuerField(leaf.raw).equals(subjectField(ca.raw)), 'the leaf issuer is the CA subject, byte for byte');
+  const caSki = /Subject Key Identifier:\s*\n\s*([0-9A-F:]+)/.exec(text(CA.pem))[1];
+  const leafSki = /Subject Key Identifier:\s*\n\s*([0-9A-F:]+)/.exec(text(leafPem))[1].replace(/:/g, '').toLowerCase();
+  assert.equal(leafSki, createHash('sha1').update(t.publicKey.export({ type: 'spki', format: 'der' }).subarray(-65)).digest('hex'), 'SKI = SHA-1 of the leaf public key bits');
+  assert.equal(/Authority Key Identifier:\s*\n\s*([0-9A-F:]+)/.exec(text(leafPem))[1], caSki, 'AKI = the CA subjectKeyIdentifier');
   // the existing openssl issuance for the SAME request: the same extensions, criticality and order; the same issuer and subject
   const ref = issueNativeCertificate({ request, caCertFile: CA.certFile, caKeyFile: CA.keyFile, days: 7, tmpRoot: tmp });
   const refLeaf = new X509Certificate(blocks(ref)[0]);
   assert.deepEqual(extensionsOf(leafPem), extensionsOf(blocks(ref)[0]));
   assert.deepEqual(extensionsOf(leafPem), ['X509v3 Basic Constraints (critical)', 'X509v3 Key Usage (critical)', 'X509v3 Extended Key Usage', 'X509v3 Subject Alternative Name',
     'X509v3 Subject Key Identifier', 'X509v3 Authority Key Identifier']);
-  assert.equal(leaf.issuer, refLeaf.issuer); assert.equal(leaf.subject, refLeaf.subject); assert.equal(leaf.subjectAltName, refLeaf.subjectAltName);
-  assert.equal(leaf.fingerprint256 !== refLeaf.fingerprint256, true);
-  const akiOf = (pem) => /Authority Key Identifier:\s*\n\s*([0-9A-F:]+)/.exec(o(['x509', '-noout', '-text'], { input: pem }))[1];
-  assert.equal(akiOf(leafPem), akiOf(blocks(ref)[0]), 'AKI = the CA subjectKeyIdentifier, as openssl writes it');
+  assert.ok(issuerField(leaf.raw).equals(issuerField(refLeaf.raw)), 'the same issuer bytes as the openssl-issued leaf');
+  assert.equal(leaf.subject, refLeaf.subject); assert.equal(leaf.subjectAltName, refLeaf.subjectAltName);
+  assert.deepEqual(leaf.keyUsage, refLeaf.keyUsage);
+  assert.equal(Date.parse(leaf.validTo) - Date.parse(leaf.validFrom), Date.parse(refLeaf.validTo) - Date.parse(refLeaf.validFrom), 'the same 7-day lifetime');
+  assert.equal(/Authority Key Identifier:\s*\n\s*([0-9A-F:]+)/.exec(text(leafPem))[1], /Authority Key Identifier:\s*\n\s*([0-9A-F:]+)/.exec(text(blocks(ref)[0]))[1]);
 });
 
-test('a real TLS handshake under the leaf (TEST-ONLY target key) and the guest install check accept it', async () => {
+test('a real TLS handshake under the leaf (TEST-ONLY target key) and the guest install check accept it', T, async () => {
   const t = target(), chain = signNativeLeaf({ request: requestFor(t.publicKey), caCertPem: CA.pem, caKeyPem: CA.keyPem });
   const keyPem = t.privateKey.export({ type: 'pkcs8', format: 'pem' });
   const c = await MC.checkNativeCertificate(chain, { keyPem, caSha256: CA.sha256, names: [API, MCP] });
   assert.equal(c.caPem.trim(), new X509Certificate(CA.pem).toString().trim());
-  const server = tls.createServer({ key: keyPem, cert: blocks(chain)[0] }, (s) => s.end('ok'));
-  await new Promise((r) => server.listen(0, '127.0.0.1', r)); closers.push(() => server.close());
-  const got = await new Promise((resolve, reject) => { const s = tls.connect({ host: '127.0.0.1', port: server.address().port, servername: MCP, ca: CA.pem }, () => resolve(s.authorized));
+  const server = await serve(tls.createServer({ key: keyPem, cert: blocks(chain)[0] }, (s) => s.end('ok')));
+  const got = await new Promise((resolve, reject) => { const s = track(tls.connect({ host: '127.0.0.1', port: server.address().port, servername: MCP, ca: CA.pem }, () => { resolve(s.authorized); s.destroy(); }));
     s.on('error', reject); });
   assert.equal(got, true);
 });
 
-test('the CA bounds: never past the CA notAfter; a CA without SKI gets no AKI; refusals never echo key text', () => {
+test('the CA bounds: never past the CA notAfter; a CA without SKI gets no AKI; refusals never echo key text', T, () => {
   const t = target();
   const soon = mintCa({ minutes: 3 * 24 * 60 });
   const chain = signNativeLeaf({ request: requestFor(t.publicKey, soon), caCertPem: soon.pem, caKeyPem: soon.keyPem });
@@ -146,18 +159,19 @@ test('the CA bounds: never past the CA notAfter; a CA without SKI gets no AKI; r
 async function countingEndpoint({ hang = false } = {}) {
   const k = generateKeyPairSync('ec', { namedCurve: 'P-256' });
   const cert = MC.selfSignedCert(k.privateKey, k.publicKey, { cn: 'counting' });
-  const st = { connections: 0, bytes: 0, data: '', closed: 0 };
+  const st = { connections: 0, handshakes: 0, bytes: 0, data: '', closed: 0 };
   const server = tls.createServer({ key: k.privateKey.export({ type: 'pkcs8', format: 'pem' }), cert }, (s) => {
-    st.connections++;
+    st.handshakes++;
     s.on('data', (d) => { st.bytes += d.length; st.data += d.toString('latin1'); if (!hang && /\r\n\r\n/.test(st.data)) s.end('HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok'); });
-    s.on('close', () => { st.closed++; }); s.on('error', () => {});
+    s.on('error', () => {});
   });
-  await new Promise((r) => server.listen(0, '127.0.0.1', r)); closers.push(() => server.close());
+  server.on('connection', (c) => { st.connections++; c.on('close', () => { st.closed++; }); });
+  await serve(server);
   return { st, url: `https://127.0.0.1:${server.address().port}`, spki: MC.sha256Hex(k.publicKey.export({ type: 'spki', format: 'der' })) };
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-test('pins: a missing, null, malformed or wrong SPKI never lets an install (or any pinned request) send one application byte', async () => {
+test('pins: a missing, null, malformed or wrong SPKI never lets an install (or any pinned request) send one application byte', T, async () => {
   const ep = await countingEndpoint();
   const body = '-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n';
   for (const spki of [undefined, null, '', 'zz', 'AB'.repeat(32), ep.spki.slice(0, 63)]) {
@@ -177,7 +191,7 @@ test('pins: a missing, null, malformed or wrong SPKI never lets an install (or a
   assert.equal(r.status, 200); assert.match(ep.st.data, /^PUT \/\.well-known\/enclave-native-certificate HTTP\/1\.1/); assert.ok(ep.st.data.endsWith(body));
 });
 
-test('untrustedRead: a body-less GET only, reporting the peer key; aborting releases the socket at once', async () => {
+test('untrustedRead: a body-less GET only, reporting the peer key; aborting releases the socket at once', T, async () => {
   const ep = await countingEndpoint();
   const r = await untrustedRead(ep.url, '/platform-api/config');
   assert.equal(r.status, 200); assert.equal(r.peerSpkiSha256, ep.spki);

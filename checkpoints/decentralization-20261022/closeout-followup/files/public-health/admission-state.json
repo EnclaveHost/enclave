@@ -1,0 +1,61 @@
+{
+  "at": "2026-10-22T21:26:49.6349856Z",
+  "wallet": {
+    "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+    "generation": "5058e0c42e9631f4fd4400980ab557f2",
+    "revision": 16933,
+    "expiresAt": 1792704430137,
+    "fresh": true,
+    "error": null,
+    "allows": [],
+    "applied": true
+  },
+  "app": [
+    {
+      "deploymentId": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "transport": "enclave-network",
+      "policyNonce": 2,
+      "policyHash": "28bac4ff4cee5eac903d7845243fcaa07400c22d7a9810e58d0c97b45051de70",
+      "modes": [
+        "enclave-network",
+        "byo-wireguard"
+      ],
+      "ready": false,
+      "error": "waiting for lease and guest proof",
+      "degraded": null,
+      "fallbackActive": false,
+      "ingress": true,
+      "egress": "enclave-network",
+      "circuits": [],
+      "leaseUntil": 1792704483000,
+      "proofUntil": 1792704445208,
+      "walletUntil": 0
+    }
+  ],
+  "log": "21:17:44 [privacy] app 0x7ae476a3 egress back\n21:18:41 [privacy] app 0x7ae476a3 egress OFF: authorization lapsed (lease or guest proof)\n21:25:02 [privacy] app 0x7ae476a3 egress back\n21:26:15 [privacy] app 0x7ae476a3 egress OFF: authorization lapsed (lease or guest proof)",
+  "networkFiles": [
+    "asn.json",
+    "control-0.seed",
+    "control-1.seed",
+    "control-wallets.json",
+    "privacy-config.json",
+    "privacy-config.json.20261012T121114Z",
+    "privacy-config.json.20261012T142419Z",
+    "privacy-config.json.before-rpcs5-20261018T104836Z",
+    "privacy-config.json.empty-20261012",
+    "provider-health.json",
+    "provider-health.json.5b301a9c7a82c77a",
+    "provider-health.json.795fd8b229735624",
+    "wallet-admission.json"
+  ],
+  "logFiles": [
+    "bridge-487b430f-hotfix.log",
+    "card.log",
+    "lease-relay.log",
+    "model-disk.log",
+    "network.log",
+    "node.log",
+    "shield.log",
+    "update.log"
+  ]
+}

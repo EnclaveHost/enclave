@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-22T21:45:37.8145290Z",
+  "target": [
+    {
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "status": "claiming",
+      "leaseUntil": 1792707319,
+      "walletHeld": null,
+      "error": "",
+      "lastError": ""
+    }
+  ],
+  "statusAgeMs": 684,
+  "walletFresh": true,
+  "walletError": "",
+  "targetGranted": true,
+  "targetNetwork": [
+    {
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "leaseUntil": 1792705609000,
+      "proofUntil": 0,
+      "error": "starting"
+    }
+  ],
+  "nodeLog": "21:01:50 [node] [host] 0x7ae476a3 isolation adopted: hv6b489d76e7c64a07c137123d83e11a7a status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\n21:09:44 [node] [host] renewed 0x7ae476a3\n21:09:46 [node] [host] 0x7ae476a3 isolation adopted: hv6b489d76e7c64a07c137123d83e11a7a status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\n21:17:28 [node] [host] 0x7ae476a3 isolation adopted: hv6b489d76e7c64a07c137123d83e11a7a status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\n21:24:54 [node] [host] 0x7ae476a3 isolation adopted: hv6b489d76e7c64a07c137123d83e11a7a status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\n21:30:48 [node] [host] 0x7ae476a3 isolation adopted: hv6b489d76e7c64a07c137123d83e11a7a status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\n21:37:50 [node] [host] 0x7ae476a3 renew failed: app-funded renew not sent: lease-gas RPC quorum cannot read the configured chain; this host's ETH is never used instead\n21:38:52 [node] [host] 0x7ae476a3 isolation adopted: hv6b489d76e7c64a07c137123d83e11a7a status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\n21:44:42 [node] [host] 0x7ae476a3 isolated domain retired (the lease expired; a new claim must pass the current funding and hosting policy)\n21:44:42 [node] [host] stopped 0x7ae476a3: the lease expired; a new claim must pass the current funding and hosting policy\n21:45:09 [node] [host] ledger: considering 0x7ae476a3 (catalog://0x4306e588755347dbb30b5e2090cacbc7e20b00afedff750fe352fe99d6d77a7c/17, owner 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61, 2% of this box)\n21:45:19 [node] [host] claimed 0x7ae476a3 (tx 0xf3a2cd04c1000ffc7b88cee82e02f7908ba073b7e5e69be0dd9cdaf83834326b)"
+}

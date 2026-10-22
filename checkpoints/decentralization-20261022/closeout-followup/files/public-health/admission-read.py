@@ -1,0 +1,8 @@
+from pathlib import Path
+import hashlib,importlib.util,json,base64
+r=Path(__file__).resolve().parent;t=Path('/home/steven/Documents/Codex/2026-10-18/wo/work/nucbox-tls-20261021/root-activate-reviewed.py');assert hashlib.sha256(t.read_bytes()).hexdigest()=='c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f'
+s=importlib.util.spec_from_file_location('transport',t);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+ps=r'''$id='0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33';$s=[IO.File]::ReadAllText('C:\ProgramData\Enclave\network\state\status.json')|ConvertFrom-Json;$lines=@(Get-Content -LiteralPath 'C:\ProgramData\Enclave\logs\network.log' -Tail 1000 -ErrorAction SilentlyContinue|Where-Object{$_ -match '7ae476a3|wallet|admission|proof' -and $_ -notmatch '(?i)secret|password|token|key='}|Select-Object -Last 16|ForEach-Object{[string]$_});$o=[ordered]@{at=[DateTime]::UtcNow.ToString('o');wallet=$s.walletAdmission;app=@($s.apps|Where-Object{$_.deploymentId -eq $id});log=[string]::Join("`n",$lines);networkFiles=@(Get-ChildItem -LiteralPath 'C:\ProgramData\Enclave\network' -File|Select-Object -ExpandProperty Name);logFiles=@(Get-ChildItem -LiteralPath 'C:\ProgramData\Enclave\logs' -File|Select-Object -ExpandProperty Name)};$j=$o|ConvertTo-Json -Depth 8 -Compress;[Console]::WriteLine('{"payload":"'+[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($j))+'"}')'''
+x=m.ps(ps,60)
+if 'payload' in x:x=json.loads(base64.b64decode(x['payload']).decode('utf-8'))
+(r/'admission-state.json').write_text(json.dumps(x,indent=2)+'\n');print(json.dumps(x,indent=2))

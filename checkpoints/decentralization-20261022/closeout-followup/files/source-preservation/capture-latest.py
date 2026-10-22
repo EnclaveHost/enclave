@@ -122,11 +122,50 @@ for p in (base / 'public-health').iterdir():
     if p.is_file() and not p.is_symlink() and p.suffix in ('.py', '.mjs', '.json'):
         paths.add(p)
 
+# Further source-only workstreams; private fixtures and raw logs remain excluded.
+for directory, subdir, baseline in (('adapter-admission-review', 'candidate', '32fecf5'), ('native-front-abort', 'repo', 'ca3118202359da8ce84f5b917fcc5ed85b2c6730')):
+    top = base / directory
+    if not top.exists():
+        continue
+    for p in top.iterdir():
+        if p.is_file() and not p.is_symlink() and p.suffix in ('.md', '.txt', '.py', '.sh', '.patch'):
+            paths.add(p)
+    tree = top / subdir
+    if (tree / '.git').exists():
+        changed = subprocess.check_output(['git', '-C', str(tree), 'diff', '--name-only', baseline], text=True).splitlines()
+        changed += subprocess.check_output(['git', '-C', str(tree), 'ls-files', '--others', '--exclude-standard'], text=True).splitlines()
+        for name in changed:
+            rel = Path(name)
+            p = tree / rel
+            if rel.parts[0] in ('metal', 'network', 'relay', 'scripts', 'test', 'docs', 'windows') and p.is_file() and not p.is_symlink() and p.suffix in ('.mjs', '.js', '.json', '.md', '.py', '.sh', '.txt'):
+                paths.add(p)
+for name in ('adapter-admission-task.txt', 'adapter-admission-review-task.txt', 'native-front-abort-task.txt', 'native-issuer-second-review-task.txt', 'adapter-renewal-task.txt', 'adapter-activation-review-task.txt'):
+    paths.add(base / name)
+for p in (base / 'public-health').glob('ROOT-*.txt'):
+    paths.add(p)
+
+for p in (base / 'adapter-activation-review').glob('*.md'):
+    paths.add(p)
 paths.add(Path(__file__).resolve())
+# Mutation tests temporarily edit the issuer's working tree. Preserve their saved
+# unmutated inputs, never an intentionally disabled security check.
+issuer_mutation_active = False
+for proc in Path('/proc').iterdir():
+    if not proc.name.isdigit():
+        continue
+    try:
+        cmd = (proc / 'cmdline').read_bytes()
+        cwd = (proc / 'cwd').resolve()
+        if cwd == base / 'native-issuer-implementation' and b'python3' in cmd and b'jobs/mutants-' in cmd:
+            issuer_mutation_active = True
+    except (OSError, PermissionError):
+        continue
 entries = []
 unchanged = []
 for p in sorted(paths):
-    data = p.read_bytes()
+    saved = p.with_name(p.name + '.mutant-orig')
+    actual = saved if issuer_mutation_active and p.is_relative_to(issuer) and saved.is_file() else p
+    data = actual.read_bytes()
     limit = 32_000_000 if p.name.endswith('.bundle.mjs') else 5_000_000
     assert len(data) < limit, p
     data.decode('utf-8')
@@ -142,7 +181,8 @@ for p in sorted(paths):
     out.write_bytes(data)
     out.chmod(0o644 | (p.stat().st_mode & 0o111))
     entries.append({'source': str(p.relative_to(root)), 'stored': str(out.relative_to(dest)),
-                    'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)})
+                    'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data),
+                    **({'capturedFromUnmutatedBackup': str(actual.relative_to(root))} if actual != p else {})})
 manifest = {'capturedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
             'status': 'Recovery checkpoint; drafts and ongoing validation, not a release or activation',
             'entries': entries, 'unchangedAlreadyPreserved': unchanged,

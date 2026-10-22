@@ -128,6 +128,8 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
     const creds = readCredentials(path.join(dataDir, CREDENTIALS_FILE)).credentials;
     // a credential the relay reads from a FILE (NAME_FILE: e.g. the release signing seed) is written to the RAM fs, 0600
     const credEnv = {};
+    // the credential files are exactly the CURRENT set: a replaced or removed credential leaves no file behind
+    fs.rmSync(path.join(dirs.root, "creds"), { recursive: true, force: true });
     for (const [k, v] of Object.entries(creds)) {
       if (isNativeCaCredential(k)) continue;             // the native CA is the issuer's alone: never in the relay's environment or files
       if (!k.endsWith("_FILE")) { credEnv[k] = v; continue; }
@@ -136,6 +138,8 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
     }
     const env = { PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin", ...(cfg.relayEnvBase || {}), ...pa.relayEnv, ...credEnv, AUTH_DATA_DIR: dataDir,
                   API_RELAY_BIND: "127.0.0.1", API_RELAY_PORT: "0", PLATFORM_API_ROLE: "relay-child", NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS || "" };
+    // the final boundary: whatever source a NATIVE_CA_* name came from (base, bound relayEnv, credentials), the relay never has it
+    for (const k of Object.keys(env)) if (isNativeCaCredential(k)) delete env[k];
     const argv = relayArgv || [process.execPath, fileURLToPath(import.meta.url), "--relay-child"];
     const c = spawn(argv[0], argv.slice(1), { env, cwd: dataDir, stdio: ["ignore", "inherit", "inherit", "ipc"] });
     child = c; childPort = 0;

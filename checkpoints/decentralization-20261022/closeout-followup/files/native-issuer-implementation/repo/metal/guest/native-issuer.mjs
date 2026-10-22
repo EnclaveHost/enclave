@@ -27,7 +27,7 @@
 //                        native CA credentials unchanged, and a majority-acknowledged commit as primary (state-replica) - the
 //                        same barrier the relay's outbound requests wait for. Otherwise nothing is installed.
 import { randomBytes, X509Certificate } from 'node:crypto';
-import { canonicalJson, sha256Hex, EVIDENCE_PATH, NATIVE_CERT_PATH } from './measured-control.mjs';
+import { canonicalJson, sha256Hex, EVIDENCE_PATH, NATIVE_CERT_PATH, NATIVE_NAMES } from './measured-control.mjs';
 import { nativeCertificateRequest, nativeCaFacts, signNativeLeaf, pinnedRequest, untrustedRead, installNativeCertificate, MAX_DAYS } from './native-certificate.mjs';
 
 export const NATIVE_CA_KEY = 'NATIVE_CA_KEY', NATIVE_CA_CERT = 'NATIVE_CA_CERT', NATIVE_CA_PREFIX = 'NATIVE_CA_';
@@ -48,17 +48,27 @@ export function nativeCaCredentials(creds) {
   return { caKeyPem: k, caCertPem: c, digest: sha256Hex('enclave native CA credentials v1\n', k, '\0', c) };
 }
 
-/** what a front serves for the native names now: { peerSpkiSha256, validTo (ms) | null }; nothing here is trusted beyond "is renewal due" */
-async function servedLeaf(url, caSha256, timeoutMs, signal) {
+/**
+ * Is the leaf a front serves now one THIS CA issued over the key that front presents, in the native profile, valid now and
+ * far enough from expiry? -> { peerSpkiSha256, validTo (ms) | null }. The GET is untrusted discovery: only a leaf that passes
+ * every check here (signature by the held CA, issued-by, the presented key, not a CA, serverAuth, names within the native
+ * names, validity started, not past the CA) can make the issuer skip a renewal; anything else leads to full verification.
+ */
+export async function servedLeaf(url, ca, { timeoutMs, signal, now = Date.now() } = {}) {
   let r;
   try { r = await untrustedRead(url, NATIVE_CERT_PATH, { timeoutMs, maxBytes: 64 * 1024, signal }); } catch (e) { if (signal?.aborted) throw e; return { peerSpkiSha256: null, validTo: null }; }
   const out = { peerSpkiSha256: r.peerSpkiSha256 ?? null, validTo: null };
   if (r.status !== 200) return out;
   const blocks = r.body.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) || [];
   try {
-    const leaf = new X509Certificate(blocks[0]), ca = new X509Certificate(blocks[1]);
-    if (blocks.length === 2 && sha256Hex(ca.raw) === caSha256 && sha256Hex(leaf.publicKey.export({ type: 'spki', format: 'der' })) === out.peerSpkiSha256)
-      out.validTo = Date.parse(leaf.validTo);
+    if (blocks.length !== 2) return out;
+    const leaf = new X509Certificate(blocks[0]), servedCa = new X509Certificate(blocks[1]);
+    const from = Date.parse(leaf.validFrom), to = Date.parse(leaf.validTo), san = String(leaf.subjectAltName || '').split(', ');
+    if (servedCa.raw.equals(ca.raw) && leaf.checkIssued(ca) && leaf.verify(ca.publicKey) && !leaf.ca
+        && sha256Hex(leaf.publicKey.export({ type: 'spki', format: 'der' })) === out.peerSpkiSha256
+        && (leaf.keyUsage || []).includes('1.3.6.1.5.5.7.3.1') && san.length >= 1 && san.every((x) => NATIVE_NAMES.includes(x.replace(/^DNS:/, '')) && x.startsWith('DNS:'))
+        && from <= now && now < to && to <= Date.parse(ca.validTo))
+      out.validTo = to;
   } catch {}
   return out;
 }
@@ -95,7 +105,7 @@ export function createNativeIssuer({ members, self, platformApi, ownConfig, self
       if (creds.error) throw new Error(creds.error);
       facts = nativeCaFacts({ caCertPem: creds.caCertPem, caKeyPem: creds.caKeyPem, now: now() });
     } catch (e) { refused = short(e); log(`native CA issuer refused: ${refused}`); return; }
-    const run = { digest: creds.digest, caKeyPem: creds.caKeyPem, caCertPem: creds.caCertPem, caSha256: facts.caSha256, timer: null, abort: new AbortController() };
+    const run = { digest: creds.digest, caKeyPem: creds.caKeyPem, caCertPem: creds.caCertPem, caSha256: facts.caSha256, ca: facts.ca, timer: null, abort: new AbortController() };
     active = run;
     for (const s of states) Object.assign(s, { failures: 0, retryAt: 0, failedSpki: null });
     log(`native CA issuer active (${why}): CA sha256:${facts.caSha256.slice(0, 16)}…, ${members.length} member(s), round every ${Math.round(roundMs / 1000)} s`);
@@ -109,14 +119,24 @@ export function createNativeIssuer({ members, self, platformApi, ownConfig, self
     if (changed) log(`native leaf, member ${i}: ${state}${extra.reason ? ` (${extra.reason})` : ''}${extra.validTo ? ` until ${new Date(extra.validTo).toISOString()}` : ''}`);
   };
 
+  // Outstanding work is bounded: one attempt per member at a time. A timed-out attempt is aborted (its connections end at
+  // once); a step that takes no signal (the verifier, whose every request has its own timeout) may still finish, but its
+  // result is discarded, and that member is not attempted again until it has.
+  const outstanding = new Map();
   async function round(run) {
     for (let i = 0; i < members.length && active === run; i++) {
-      const job = { abandoned: false };
+      if (outstanding.has(i)) { set(i, states[i].state, { reason: 'an earlier attempt is still finishing' }); continue; }
+      const job = { abandoned: false, abort: new AbortController() };
+      const stopJob = () => job.abort.abort();
+      run.abort.signal.addEventListener('abort', stopJob, { once: true });
+      const attempt = member(run, i, job);
+      outstanding.set(i, attempt);
+      attempt.catch(() => {}).finally(() => { outstanding.delete(i); run.abort.signal.removeEventListener('abort', stopJob); });
       let t;
       try {
-        await Promise.race([member(run, i, job), new Promise((_, no) => { t = setTimeout(() => no(new Error(`no result within ${memberTimeoutMs} ms`)), memberTimeoutMs); t.unref?.(); })]);
+        await Promise.race([attempt, new Promise((_, no) => { t = setTimeout(() => no(new Error(`no result within ${memberTimeoutMs} ms`)), memberTimeoutMs); t.unref?.(); })]);
       } catch (e) {
-        job.abandoned = true;                               // a late answer of an abandoned attempt never installs
+        job.abandoned = true; job.abort.abort();             // a late answer of an abandoned attempt never installs
         if (e?.ended || active !== run) { set(i, 'aborted', { reason: 'the issuance run ended (stopped, credentials changed or no longer primary): nothing installed' }); return; }
         const s = states[i];
         s.failures++; s.retryAt = now() + Math.min(roundMs * 2 ** (s.failures - 1), maxBackoffMs); s.failedSpki = job.peerSpkiSha256 ?? null;
@@ -127,10 +147,10 @@ export function createNativeIssuer({ members, self, platformApi, ownConfig, self
 
   async function member(run, i, job) {
     const m = members[i], url = i === self ? selfUrl : m.controlUrl, s = states[i];
-    const live = () => active === run && !job.abandoned, signal = run.abort.signal;
+    const live = () => active === run && !job.abandoned, signal = job.abort.signal;
     const step = () => { if (!live()) throw Object.assign(new Error('the issuance run ended'), { ended: true }); };
     // 1. is renewal due? (what the front serves now; a wrong answer can only make this round skip or retry)
-    const served = await servedLeaf(url, run.caSha256, requestTimeoutMs, signal);
+    const served = await servedLeaf(url, run.ca, { timeoutMs: requestTimeoutMs, signal, now: now() });
     step();
     job.peerSpkiSha256 = served.peerSpkiSha256;
     if (served.validTo && served.validTo - now() > renewBeforeMs) { s.failures = 0; s.retryAt = 0; return set(i, 'current', { validTo: served.validTo }); }
@@ -173,8 +193,14 @@ export function createNativeIssuer({ members, self, platformApi, ownConfig, self
     const chainPem = signNativeLeaf({ request, caCertPem: run.caCertPem, caKeyPem: run.caKeyPem, days, now: now() });
     // 6. the barrier: still this run, the same native CA credentials, and a majority-acknowledged primary
     if (hooks.beforeBarrier) await hooks.beforeBarrier({ member: i });
-    const holds = async () => live() && credentialsDigest() === run.digest;
-    if (!(await holds()) || !(await barrier()) || !(await holds())) { job.abandoned = true; return set(i, 'aborted', { reason: 'no longer the primary holding these native CA credentials: nothing installed' }); }
+    const holds = () => live() && credentialsDigest() === run.digest;
+    if (!holds()) { job.abandoned = true; return set(i, 'aborted', { reason: 'no longer the run holding these native CA credentials: nothing installed' }); }
+    // the admission is decided AGAIN right before the install (a ban since step 4 stops it), then the primary is confirmed
+    let again;
+    try { again = await d.decideHost(v.identity.registryId, { chipId: v.identity.chipId ?? null }); } catch (e) { throw new Error(`platform host policy unreadable at install: ${short(e)}`); }
+    step();
+    if (!again || again.admit !== true || !again.host || lc(again.host.operator) !== v.identity.operator) throw new Error(`refused by the platform host policy at install: ${again?.reason || again?.status || 'no decision'}`);
+    if (!holds() || !(await barrier()) || !holds()) { job.abandoned = true; return set(i, 'aborted', { reason: 'no longer the primary holding these native CA credentials: nothing installed' }); }
     const r = await installNativeCertificate({ controlUrl: url, chainPem, spkiSha256: v.identity.controlTlsSpkiSha256, timeoutMs: requestTimeoutMs, signal });
     if (r.status !== 200) throw new Error(`the member refused the leaf: HTTP ${r.status} ${String(r.body).slice(0, 160)}`);
     let validTo = null; try { validTo = Date.parse(JSON.parse(r.body).validTo); } catch {}
@@ -198,7 +224,7 @@ export function createNativeIssuer({ members, self, platformApi, ownConfig, self
  *   policyEnv  the relay's own non-credential environment (relayEnvBase + platformApi.relayEnv)
  *   collateral the AMD collateral source; registry/roots/fetch: test fixtures only (offline)
  */
-export async function issuerDeps({ platformApi: pa, ownConfig, policyEnv = {}, collateral, registry = null, roots = null, fetch = globalThis.fetch, log = () => {} }) {
+export async function issuerDeps({ platformApi: pa, ownConfig, policyEnv = {}, collateral, registry = null, roots = null, fetch = globalThis.fetch, log = () => {}, timeoutMs = 15000 }) {
   const { verifyMeasuredControl } = await import('../measured-control-verify.mjs');
   const { quorumRegistry } = await import('./platform-api-verify.mjs');
   const { createHostPolicyRuntime, resolveHostPolicyConfig } = await import('../../network/host-policy-runtime.mjs');
@@ -209,7 +235,7 @@ export async function issuerDeps({ platformApi: pa, ownConfig, policyEnv = {}, c
   const runtime = createHostPolicyRuntime(resolveHostPolicyConfig({ env: policyEnv, chainId: 8453, book: PRODUCTION_BOOK }), { fetch, log });
   const decide = runtime ? freshAdmissions(runtime.gate) : null;
   return {
-    verify: ({ url, config }) => verifyMeasuredControl({ url, collateral, registry: reg,
+    verify: ({ url, config }) => verifyMeasuredControl({ url, collateral, registry: reg, timeoutMs,
       expect: { config, measurements: pa.measurements, ...(pa.minTcb ? { minTcb: pa.minTcb } : {}), ...(roots ? { roots } : {}) } }),
     decideHost: async (registryId, { chipId = null } = {}) => {
       if (!runtime) return { admit: false, status: 'off', reason: 'the platform host policy is explicitly off: a native leaf is issued only to a host the policy judged' };

@@ -46,3 +46,13 @@ The forwarding fix is preserved as candidate commit ca3118202359da8ce84f5b917fcc
 The native-issuer-implementation package is an active, uncommitted worker snapshot based on 8e77ff1e. It preserves certificate issuance and replicated recovery work, review notes, and test drafts. The source may be incomplete and must be composed with the separate forwarding fix before validation or deployment. The native-storage-names report describes remaining name authority and bootstrap requirements.
 
 Public diagnostics at 21:13–21:19 UTC show the native site returning 502, ten leases expired with insufficient claim reserves (three RPC providers agreeing), and a separate adapter TLS/admission failure despite its funded lease and renewed certificate. These are observations, not fixes. No funding request was signed or broadcast by this checkpoint.
+
+## Admission and connection lifecycle follow-up at 21:51 UTC
+
+The installed wallet-admission writer expires decisions within 90 seconds, while the serial host pass takes several minutes. Live observations show fresh lease/proof/channel but no wallet grant between passes. Candidate ad4a72a adds bounded per-app refresh using fresh deployment identity and wallet decisions; eleven targeted cases and nine mutation checks pass. Existing regressions passed, including the readiness fixture completed separately by root at 512 MiB. It is not deployed.
+
+A second live failure is distinct: three RPCs confirmed the funded adapter lease expired, and node logs report a failed RPC quorum at renewal. The next pass retired it and made a fresh claim. Renewal scheduling/RPC work is active; the adapter has enough reserve and needs no repeated top-up. The other ten apps remain underfunded.
+
+Control-front candidate d9459aae propagates HTTP disconnects in both directions. Seventeen real TLS cases pass; ten fail on the base. Native/config/forwarding regressions pass. Full hosted regression remains pending its 512 MiB rerun. This source is not composed into the measured image or regenerated role bundle yet.
+
+Native issuer work remains a draft with incomplete mutation validation. When its test runner temporarily disables security checks, the checkpoint captures the runner's saved unmutated source, identified explicitly in MANIFEST.json. Raw mutation output, generated private test keys and production secrets are excluded.

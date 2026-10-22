@@ -1,0 +1,218 @@
+// The control front (metal/guest/measured-control.mjs createControlFront) under client and upstream disconnects, observed at
+// the TCP level: every assertion is about an ACTUAL connection closing (the upstream server's accepted socket, or the client's
+// TLS socket), never about status text.
+//   * a client that leaves (silent upstream, aborted upload, aborted streamed download) closes the front's upstream connection
+//     on the supervisor route, a host route (the platform API) and a native control name;
+//   * an upstream that dies mid-answer closes the client's connection instead of leaving it waiting;
+//   * an upgraded connection closes its other side when either side closes;
+//   * positive controls: a streamed download and a streamed upload complete byte-exact, and nothing is cancelled early.
+// Real TLS front, real Node http upstreams, loopback only. The native leaf is issued here by a throwaway test CA with openssl,
+// over the front's own control key (checkNativeCertificate's own rules).
+import { test, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import http from 'node:http';
+import tls from 'node:tls';
+import { execFileSync } from 'node:child_process';
+import { createHash, X509Certificate } from 'node:crypto';
+import * as MC from '../metal/guest/measured-control.mjs';
+
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'front-abort-'));
+const servers = [], clients = [], upstreams = [];
+after(() => {
+  for (const c of clients) c.destroy();
+  // teardown only: a LEAKED leg (the bug under test) would otherwise keep the process alive; upgraded sockets belong to no server
+  for (const u of upstreams) for (const c of u.conns) c.socket.destroy();
+  for (const s of servers) { try { s.closeAllConnections?.(); s.close(); } catch {} }
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+const sha = (b) => createHash('sha256').update(b).digest('hex');
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const a = (n) => '0x' + n.toString(16).padStart(40, '0');
+const NAMES = ['api.enclavehost.eth', 'mcp.enclavehost.eth'];
+const PA_HOST = 'api.enclave.host';
+const CLOSE_MS = 2000;           // a cancelled leg must close within this (the leak lasts until the upstream answers: forever here)
+
+// ---- a throwaway native CA (test only) and the front's guest config ------------------------------------------------------
+const P = { ...MC.GUEST_PATHS, sessionDir: path.join(tmp, 's'), tlsKey: path.join(tmp, 'tls-key.pem'), tlsCert: path.join(tmp, 'tls-cert.pem'),
+  platformApiHandoffKey: path.join(tmp, 'handoff.key'), nativeCertificate: path.join(tmp, 'native.pem') };
+const keys = MC.mintControlKeys({ paths: P }); keys.platformApi = { publicKey: MC.mintPlatformApiKey({ paths: P }) };
+const ossl = (args) => execFileSync('openssl', args, { cwd: tmp, stdio: ['ignore', 'pipe', 'pipe'] });
+ossl(['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', 'ca.key', '-out', 'ca.pem', '-days', '2',
+  '-subj', '/CN=front-abort test native CA', '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign,cRLSign']);
+const caPem = fs.readFileSync(path.join(tmp, 'ca.pem'), 'utf8');
+const caSha256 = sha(new X509Certificate(caPem).raw);
+fs.writeFileSync(path.join(tmp, 'ext'), `basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=serverAuth\nsubjectAltName=${NAMES.map((n) => 'DNS:' + n).join(',')}\n`);
+ossl(['req', '-new', '-key', P.tlsKey, '-subj', '/CN=api.enclavehost.eth', '-out', 'leaf.csr']);
+ossl(['x509', '-req', '-in', 'leaf.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key', '-set_serial', '0x01', '-days', '1', '-sha256', '-extfile', 'ext', '-out', 'leaf.pem']);
+const chainPem = fs.readFileSync(path.join(tmp, 'leaf.pem'), 'utf8') + caPem;
+
+const RAW = () => ({ format: MC.CONFIG_FORMAT, chainId: 8453,
+  contracts: { registry: a(0x11), deployments: a(0x12), appCatalog: a(0x13), proofOfTime: a(0x14), enclavePay: a(0), verificationFees: a(0), sessionVaultFactory: a(0), secretVaultV2: a(0) },
+  profileDigest: null, rpcs: ['https://rpc-a.example/v1', 'https://rpc-b.example'], quorum: 2, releaseId: 'ab'.repeat(32),
+  replicas: { gateways: ['http://192.0.2.10:8189'], storagePlan: null },
+  identity: { publicUrl: 'https://host-1.example.org', repo: 'owner/enclave', operator: a(0xb1) },
+  selling: { cpuPrice6: null, payout: null }, isolation: { managerUrl: 'http://10.0.2.2:8095', dataAddr: '10.0.2.2:8096' }, hostAdmissionSha256: null, controlPort: 8444,
+  platformApi: { apiPort: 8098, peerPort: 8099, hostname: PA_HOST,
+    members: [0, 1, 2].map((i) => ({ operator: a(0xb0 + i), publicUrl: `https://host-${i}.example.org`, controlUrl: `https://198.51.100.${10 + i}:8444` })),
+    measurements: ['77'.repeat(48)], minTcb: null, admins: [a(0xad)], recovery: ['11'.repeat(32)], archives: ['https://archive.example'], archiveMs: 30000,
+    relayEnv: { ADDRESS_BOOK_ADDRESS: '0xab214342d5a490150a4a977063a2f88e21f80907', SIWE_DOMAIN: 'enclave.host', SIWE_URI: 'https://enclave.host' }, leaseMs: 10000 },
+  nativeControl: { names: NAMES, caSha256 } });
+
+// ---- upstreams that record each accepted TCP connection and when it actually closed ----------------------------------------
+function upstream(name) {
+  const conns = [];
+  const s = http.createServer((req, res) => {
+    const c = conns.find((x) => x.socket === req.socket); if (c) { c.path = req.url; c.host = req.headers.host; }
+    const u = new URL(req.url, 'http://x');
+    let got = 0; const h = createHash('sha256');
+    req.on('data', (d) => { got += d.length; h.update(d); if (c) c.bodyBytes = got; });
+    if (u.pathname === '/silent') return;                                         // reads the request, never answers
+    if (u.pathname === '/stream') {                                               // 24 x 64 KiB over ~1 s, then the end
+      res.writeHead(200, { 'content-type': 'application/octet-stream' });
+      let i = 0; const t = setInterval(() => { if (i < 24) { res.write(Buffer.alloc(65536, i)); i++; } else { clearInterval(t); res.end(); } }, 40);
+      res.on('finish', () => { if (c) c.finished = true; }); res.on('close', () => clearInterval(t));
+      return;
+    }
+    if (u.pathname === '/stream-forever') {                                       // keeps writing until its connection closes
+      res.writeHead(200, { 'content-type': 'application/octet-stream' });
+      const t = setInterval(() => res.write(Buffer.alloc(16384, 7)), 25); res.on('close', () => clearInterval(t));
+      return;
+    }
+    if (u.pathname === '/die') {                                                  // promises 1 MiB, sends 10 KiB, then dies
+      res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': String(1 << 20) });
+      res.write(Buffer.alloc(10240, 1)); setTimeout(() => req.socket.destroy(), 100);
+      return;
+    }
+    if (u.pathname === '/echo-upload') { req.on('end', () => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ got, sha: h.digest('hex'), name })); }); return; }
+    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ name, path: req.url }));
+  });
+  s.on('connection', (socket) => { const c = { socket, openedAt: Date.now(), closedAt: null, finAt: null }; conns.push(c);
+    socket.on('end', () => { c.finAt = Date.now(); }); socket.on('close', () => { c.closedAt = Date.now(); }); });
+  // an upgrade is accepted and then held idle (a websocket the client walks away from)
+  s.on('upgrade', (req, socket) => { const c = conns.find((x) => x.socket === socket); if (c) c.upgraded = true; socket.write('HTTP/1.1 101 Switching Protocols\r\nupgrade: test\r\nconnection: upgrade\r\n\r\n'); });
+  servers.push(s);
+  return new Promise((r) => s.listen(0, '127.0.0.1', () => { const u = { port: s.address().port, conns, server: s }; upstreams.push(u); r(u); }));
+}
+
+const sup = await upstream('supervisor'), api = await upstream('platform-api'), role = await upstream('native-role');
+const config = MC.canonicalDirectConfig(RAW()), digest = MC.configDigest(config);
+const st = MC.controlStatement({ config, digest, hostData: MC.hostDataHex(digest), mode: 'dev', keys });
+const launched = MC.directNativeLaunch(config, { paths: P });
+const front = MC.createControlFront({ statementText: st.text, keyPem: fs.readFileSync(P.tlsKey, 'utf8'), certPem: keys.controlTls.certPem, reporter: null, mode: 'dev',
+  upstream: { host: '127.0.0.1', port: sup.port }, hostRoutes: [{ host: PA_HOST, upstream: { host: '127.0.0.1', port: api.port } }],
+  native: { ...launched, upstream: { host: '127.0.0.1', port: role.port } } });
+servers.push(front);
+await front.installNativeCertificate(chainPem);
+const frontPort = await new Promise((r) => front.listen(0, '127.0.0.1', () => r(front.address().port)));
+
+/** A raw TLS client: exactly the bytes given, so a test controls when it leaves. Native names verify under the test CA. */
+function connect({ servername = null } = {}) {
+  return new Promise((resolve, reject) => {
+    const opts = { host: '127.0.0.1', port: frontPort, ...(servername ? { servername, ca: caPem, checkServerIdentity: () => undefined } : { rejectUnauthorized: false }) };
+    const s = tls.connect(opts, () => { s.closedAt = null; s.on('close', () => { s.closedAt = Date.now(); }); resolve(s); });
+    s.received = []; s.on('data', (d) => s.received.push(d)); s.on('error', () => {}); s.once('error', reject); clients.push(s);
+  });
+}
+const head = (method, p, host, extra = {}) => `${method} ${p} HTTP/1.1\r\nhost: ${host}\r\n` + Object.entries(extra).map(([k, v]) => `${k}: ${v}\r\n`).join('') + '\r\n';
+async function until(pred, ms, what) { const end = Date.now() + ms; while (Date.now() < end) { if (pred()) return true; await wait(20); } throw new Error(`timed out: ${what}`); }
+/** The upstream connection that carried `p` (the newest one). */
+const connFor = (u, p) => [...u.conns].reverse().find((c) => c.path === p || (p === 'upgrade' && c.upgraded));
+// fin: an upgraded socket of an http.Server allows half-open, so the front closing its leg shows as the FIN (end) it sends
+async function assertUpstreamClosed(u, p, t0, label, { fin = false } = {}) {
+  const c = connFor(u, p);
+  assert.ok(c, `${label}: the upstream saw the request`);
+  await until(() => c.closedAt !== null || (fin && c.finAt !== null), CLOSE_MS, `${label}: the upstream connection to ${fin ? 'receive the front\'s FIN' : 'close'} within ${CLOSE_MS} ms after the client left`)
+    .catch((e) => { throw new Error(`${e.message} (still open ${Date.now() - t0} ms after the client left)`); });
+  return (c.closedAt ?? c.finAt) - t0;
+}
+
+// ---- the three HTTP branches of the front, each under the three ways a client leaves ------------------------------------------
+const BRANCHES = [
+  { label: 'supervisor route', u: sup, host: 'control.example', servername: null },
+  { label: 'host route (platform API)', u: api, host: PA_HOST, servername: null },
+  { label: 'native control name', u: role, host: 'api.enclavehost.eth', servername: 'api.enclavehost.eth' },
+];
+for (const b of BRANCHES) {
+  test(`${b.label}: a client that leaves while the upstream is silent closes the upstream connection`, { timeout: 20000 }, async () => {
+    const c = await connect({ servername: b.servername });
+    c.write(head('GET', '/silent', b.host));
+    await until(() => connFor(b.u, '/silent'), 3000, 'the upstream to receive the request');
+    const t0 = Date.now(); c.destroy();
+    const ms = await assertUpstreamClosed(b.u, '/silent', t0, b.label);
+    test.diagnostic?.(`${b.label} silent: upstream closed ${ms} ms after the client`);
+  });
+  test(`${b.label}: an aborted upload (1 MiB declared, 64 KiB sent) closes the upstream connection`, { timeout: 20000 }, async () => {
+    const c = await connect({ servername: b.servername });
+    c.write(head('POST', '/silent', b.host, { 'content-length': String(1 << 20), 'content-type': 'application/octet-stream' }));
+    c.write(Buffer.alloc(65536, 3));
+    await until(() => (connFor(b.u, '/silent')?.bodyBytes || 0) >= 65536, 3000, 'the upstream to receive the first 64 KiB');
+    const t0 = Date.now(); c.destroy();
+    await assertUpstreamClosed(b.u, '/silent', t0, b.label);
+  });
+  test(`${b.label}: a client that leaves a streamed download closes the upstream connection`, { timeout: 20000 }, async () => {
+    const c = await connect({ servername: b.servername });
+    c.write(head('GET', '/stream-forever', b.host));
+    await until(() => c.received.reduce((n, d) => n + d.length, 0) > 65536, 3000, 'the client to receive streamed bytes');
+    const t0 = Date.now(); c.destroy();
+    await assertUpstreamClosed(b.u, '/stream-forever', t0, b.label);
+  });
+}
+
+test('an upstream that dies mid-answer closes the client connection (it is not left waiting for the promised bytes)', { timeout: 20000 }, async () => {
+  for (const b of BRANCHES) {
+    const c = await connect({ servername: b.servername });
+    c.write(head('GET', '/die', b.host));
+    await until(() => connFor(b.u, '/die')?.closedAt !== null && connFor(b.u, '/die'), 3000, `${b.label}: the upstream to die`);
+    const t0 = connFor(b.u, '/die').closedAt;
+    await until(() => c.closedAt !== null, CLOSE_MS, `${b.label}: the client connection to close after the upstream died`);
+    assert.ok(c.received.reduce((n, d) => n + d.length, 0) < (1 << 20), `${b.label}: the client never got the promised length`);
+    test.diagnostic?.(`${b.label} die: client closed ${c.closedAt - t0} ms after the upstream`);
+  }
+});
+
+test('upgrade: the client leaving closes the upstream; the upstream leaving closes the client', { timeout: 20000 }, async () => {
+  const c = await connect();
+  c.write(head('GET', '/ws', PA_HOST, { connection: 'upgrade', upgrade: 'test' }));
+  await until(() => Buffer.concat(c.received).toString().includes('101'), 3000, 'the 101 through the front');
+  const t0 = Date.now(); c.destroy();
+  await assertUpstreamClosed(api, 'upgrade', t0, 'upgrade (client leaves)', { fin: true });
+  const c2 = await connect();
+  const before = api.conns.length;
+  c2.write(head('GET', '/ws', PA_HOST, { connection: 'upgrade', upgrade: 'test' }));
+  await until(() => Buffer.concat(c2.received).toString().includes('101') && api.conns.length > before, 3000, 'the second 101');
+  api.conns[api.conns.length - 1].socket.destroy();
+  await until(() => c2.closedAt !== null, CLOSE_MS, 'the client connection to close after the upstream left the upgrade');
+});
+
+// ---- positive controls: complete streams are not cancelled ----------------------------------------------------------------
+for (const b of BRANCHES) {
+  test(`${b.label}: a streamed download completes byte-exact and the upstream finishes its answer`, { timeout: 20000 }, async () => {
+    const c = await connect({ servername: b.servername });
+    c.write(head('GET', '/stream', b.host, { connection: 'close' }));
+    await until(() => c.closedAt !== null, 8000, 'the response to complete');
+    const raw = Buffer.concat(c.received), sep = raw.indexOf('\r\n\r\n');
+    const headText = raw.subarray(0, sep).toString(), bodyRaw = raw.subarray(sep + 4);
+    assert.match(headText, /^HTTP\/1\.1 200/);
+    // the front's framing: chunked, or delimited by the close (Connection: close and no length)
+    let body = [], i = 0;
+    if (/\r\ntransfer-encoding: *chunked/i.test(headText)) {
+      for (;;) { const e = bodyRaw.indexOf('\r\n', i); const n = parseInt(bodyRaw.subarray(i, e).toString(), 16); if (!n) break; body.push(bodyRaw.subarray(e + 2, e + 2 + n)); i = e + 2 + n + 2; }
+    } else body = [bodyRaw];
+    const want = Buffer.concat(Array.from({ length: 24 }, (_, k) => Buffer.alloc(65536, k)));
+    assert.equal(sha(Buffer.concat(body)), sha(want), `${b.label}: the whole stream arrived`);
+    assert.equal(connFor(b.u, '/stream').finished, true, `${b.label}: the upstream wrote its whole answer (never cancelled early)`);
+  });
+  test(`${b.label}: a streamed upload (2 MiB in 32 KiB pieces) arrives byte-exact`, { timeout: 20000 }, async () => {
+    const c = await connect({ servername: b.servername });
+    const parts = Array.from({ length: 64 }, (_, k) => Buffer.alloc(32768, k + 1));
+    c.write(head('POST', '/echo-upload', b.host, { 'content-length': String(64 * 32768), connection: 'close' }));
+    for (const p of parts) { c.write(p); await wait(5); }
+    await until(() => c.closedAt !== null, 8000, 'the upload answer');
+    const raw = Buffer.concat(c.received).toString();
+    const j = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
+    assert.equal(j.got, 64 * 32768); assert.equal(j.sha, sha(Buffer.concat(parts)));
+  });
+}

@@ -1,0 +1,42 @@
+{
+  "recordedAt": "2026-10-22T21:51:44.471206+00:00",
+  "scope": "Source fixes and live read-only diagnosis; no production activation this turn",
+  "walletRefresh": {
+    "commit": "ad4a72a83de85db72a5c5ddce45a5c8d8599140e",
+    "installedHostSha256": "9634cb40c60b74f92eff8497f687dcaa1ec04a33c21cbd22dc745d773b1da396",
+    "candidateHostSha256": "637fbdf6af2eedc868444c471d1d9cb7d767d8fb70ab52a2cc05b20e3c49dca3",
+    "targetedTests": "11/11 passed, frozen installed version fails outage cases, 9/9 source mutants killed",
+    "regressions": "34/35 original; remaining readiness fixture case and all eight other readiness cases passed in root 512MiB rerun, peak271MiB",
+    "authority": "Fresh row and fresh wallet/catalog decision; unchanged expiry bound; no new gas transactions; revocation/hold/ownership fences preserved",
+    "deployment": "Not activated; further renewal reliability work is separate"
+  },
+  "controlFront": {
+    "commit": "d9459aae997198342b0bf6fe9993461cd72118f0",
+    "tests": "17/17 pass; frozen base7/17, ten HTTP cancellation failures reproduced",
+    "regressions": "platform API config5/5, native control9/9, standby forwarding6/6 pass",
+    "remaining": "Hosted API regression needs512MiB rerun after missing fixture and256MiB guard stop; root queued attempt not started. Bundle/image composition not yet performed."
+  },
+  "liveFinding": {
+    "block": "52958078",
+    "rpcAgreement": 3,
+    "adapterReserveWei": "945912014032722",
+    "adapterLeaseExpired": true,
+    "renewFailure": "21:37:50 lease-gas RPC quorum unavailable",
+    "retiredAt": "21:44:42",
+    "reclaimedAt": "21:45:19",
+    "claimTransaction": "0xf3a2cd04c1000ffc7b88cee82e02f7908ba073b7e5e69be0dd9cdaf83834326b",
+    "newLeaseUntil": 1792707319,
+    "interpretation": "Renewal retry timing and RPC load need correction; reserve is sufficient. Ten other apps lack enough reserve for claims."
+  },
+  "activeWork": [
+    "renewal scheduling/RPC investigation",
+    "native CA issuer real role/recovery validation",
+    "bounded existing node-update procedure review"
+  ],
+  "notComplete": [
+    "live rollout of new fixes",
+    "distributed control and storage activation",
+    "independent ingress/minimal WireGuard provider cutover",
+    "cold new-user/provider-loss feature parity"
+  ]
+}

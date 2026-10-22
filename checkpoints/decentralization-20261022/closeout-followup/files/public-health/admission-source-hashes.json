@@ -1,0 +1,21 @@
+{
+  "at": "2026-10-22T21:27:34.8527372Z",
+  "files": [
+    {
+      "sha256": "0fa7678f7586388b4725f1432683fa4ab172fd1d57c163d9a63195fbb2f445ee",
+      "path": "network\\wallet-admission.mjs"
+    },
+    {
+      "sha256": "9634cb40c60b74f92eff8497f687dcaa1ec04a33c21cbd22dc745d773b1da396",
+      "path": "windows\\node\\host.mjs"
+    },
+    {
+      "sha256": "76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1",
+      "path": "windows\\node\\agent.mjs"
+    },
+    {
+      "sha256": "6bef372d00a27567e94a11d00f165312f9d715a795519e7a7ad77b4718623b18",
+      "path": "windows\\node\\host-admission.bundle.mjs"
+    }
+  ]
+}
