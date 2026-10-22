@@ -3,7 +3,7 @@
 An independent host (see [independent-host-onboarding.md](independent-host-onboarding.md)) can run its supervisor in one
 of two places:
 
-- **On the host.** This is the default, `cli/host-independent-lifecycle.mjs` with no `control` section. The supervisor
+- **On the host.** This is the path implemented by `cli/host-independent-lifecycle.mjs`. The supervisor
   is an ordinary process the host operator controls. Its proof-of-time key, its session key and its `/v1/attestation`
   answers are only the operator's word. `check` never reports this as attested.
 - **In the measured control guest.** The supervisor runs inside an SEV-SNP control CVM booted from a reviewed image with
@@ -89,8 +89,9 @@ order:
 | `unknown` | Unreachable, the quorum did not agree, or collateral was unavailable. |
 | `rejected` | Any definite mismatch. |
 
-With the integration patch, `host-independent-lifecycle check` reports the `control attestation` row as READY only for
-`verified`.
+`host-independent-lifecycle check` does not yet perform this verification: its `control attestation` row is
+`unknown` when an attestation URL is configured, or `missing` otherwise. Use `verifyMeasuredControl` directly;
+configuring a URL alone is not proof that the measured guest owns the running supervisor keys.
 
 ## What this does not change, and what it cannot do
 
@@ -152,15 +153,31 @@ Legacy metal boots (no `metal.control` token) take exactly the previous path.
      --ovmf <OVMF> --kernel vmlinuz --initrd initramfs.cpio.gz \
      --append "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct"
    ```
-   It must equal `manifest.expectedMeasurement` for that vCPU count.
-4. **Initialise the host plan:**
+   Record the independently reproduced digest with the exact artifact hashes and CPU/firmware parameters. An
+   overlay build removes `manifest.expectedMeasurement`; use the verified build receipt as the reference. A real
+   hardware report must subsequently match it.
+4. **Prepare the launch files.** The implemented launcher is `metal/enclave-metal.mjs`; the lifecycle CLI does not
+   implement `--control-image`, `--control-measurements`, `--control-min-tcb` or `--control-ovmf` flags.
+   Prepare a host config with `control: "direct"`, `mode: "snp"`, `direct` pointing to the canonical owner config,
+   `dist` pointing to the verified image, the pinned `ovmf`, and the measured `cpus`. Configure the
+   `snp-guest-per-app` isolation backend with release tickets off. The two configs must agree on guestd endpoints,
+   and `hostAdmissionSha256` must bind the actual host wallet policy. Only the bound control port may be forwarded.
+   For a selling host, provide its operator key through a private `registryKeyFile` (0600 or 0400).
+5. **Prepare verifier trust.** Supply current AMD collateral, including the CRL, the minimum TCB, the owner config
+   digest and the reproduced measurement to `verifyMeasuredControl`. Platform API group members and hosted MCP
+   clients must also pin the corresponding direct-control expectations. A direct guest does not attach to the
+   legacy fleet tunnel, so adding its measurement to `METAL_ALLOWED_MEASUREMENTS` is not a prerequisite.
+6. **Launch under the host's service manager**, with access to `/dev/kvm` and `/dev/sev`:
    ```
-   node cli/host-independent-lifecycle.mjs init … --control-image <dist> --control-measurements <digest> \
-     --control-min-tcb <floor.json> --control-ovmf <OVMF> [--control-port 18444 --control-cpus 4 --control-mem-mib 8192]
+   node metal/enclave-metal.mjs --config /path/to/host-config.json
    ```
-5. Run `build`. Collateral needs `--fetch-crl`, so that `crl.der` exists.
-6. Run `install --apply --enable`. The unit user needs access to `/dev/kvm` and `/dev/sev`.
-7. **Fund the operator.** Wait for registration and `setProofKey`.
-8. **Run `check`.** The `control attestation` row must be READY.
-9. **Accept a new deployment.** Commit a new owner startup deployment and confirm the guest claims and launches it.
-   Only this step shows the onboarding works on real hardware.
+   This launches the guest; it is not an attestation check. Do not replace an existing control guest until its
+   application adoption, ingress, owner configuration and rollback have been reviewed.
+7. **Verify registry readiness.** A selling host needs an authorized operator gas budget for registration and
+   `setProofKey`. Wait until the original registry names the bound operator and newly minted proof key.
+8. **Verify hardware evidence.** Call `verifyMeasuredControl` with the pinned expectations and collateral above;
+   require `verified`. The lifecycle CLI's generic `check` is not a substitute. Direct guests retain Enclave's
+   platform-admin policy enforcement. Publish the admin-signed policy document to the configured carriers before
+   anchoring it, so hosts can retrieve and enforce it.
+9. **Accept a new deployment.** Submit an owner-authorized deployment and confirm that the guest claims and launches
+   it. Verify application behavior and recovery separately; a successful image build alone does not prove onboarding.
