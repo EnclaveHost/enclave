@@ -71,6 +71,20 @@ const RENEW_LEAD_MS = 15 * 60_000;
 // The channel document is re-issued every WALLET_CHANNEL_HEARTBEAT_MS (it lives 30 s); that never extends a decision,
 // whose deadline is the chain snapshot's own (host-admission decision().validUntil).
 const WALLET_HOLD_ACK_MS = 15_000, WALLET_HOLD_POLL_MS = 250, WALLET_CHANNEL_HEARTBEAT_MS = 10_000;
+// GRANT REFRESH. A published allow lives only as long as its decision (at most 90 s past its chain snapshot), but the pass
+// that publishes it walks every tracked deployment serially and, under public-RPC rate limits, takes minutes (2026-10-22,
+// minipc adapter: admitted ~73 s of every ~7 min). So, independently of the pass, each allow THIS process published is
+// re-decided once fewer than WALLET_REFRESH_LEAD_MS remain:
+//   - per deployment: at most one refresh in flight for it, each bounded by WALLET_REFRESH_DEADLINE_MS, at most
+//     WALLET_REFRESH_PARALLEL at once, earliest deadline first - one slow decision never starves another deployment;
+//   - from a FRESH ledger row: refreshed only while it is still active, ours, leased, and has the SAME owner, visibility,
+//     app version and config the pass granted (any change is the pass's to decide: the allow just lapses); then the host
+//     wallet decision is asked anew for exactly that row (forPrivate from the row), and only ITS deadline is published;
+//   - reads only: no transaction, renewal, release or retirement here. A refusal withdraws the allow at once; an unknown
+//     or a timeout publishes nothing (the allow lapses at its own deadline - never lengthened);
+//   - fenced: a result is dropped if, meanwhile, the pass re-granted, revoked or held it, or the channel changed.
+// Only deployments the network agent routes are re-decided (its status narrows the work; it is never an authority).
+const WALLET_REFRESH_MS = 10_000, WALLET_REFRESH_LEAD_MS = 40_000, WALLET_REFRESH_DEADLINE_MS = 25_000, WALLET_REFRESH_PARALLEL = 4;
 /** The wallet hold channel, opted into per host (ENCLAVE_NETWORK_WALLET_HOLD=1) beside the network agent it enrolls. */
 export function walletAdmissionFromEnv(env = process.env) {
   if (env.ENCLAVE_NETWORK_WALLET_HOLD !== "1") return null;
@@ -2987,14 +3001,77 @@ export class Host {
       this.walletChannel = new mod.WalletAllowWriter({ file: wa.file, runner: this.enclaveId.toLowerCase() });
       this.walletChannelOff = null;
       this.log(`wallet hold channel: ${wa.file}, generation ${this.walletChannel.generation.slice(0, 8)}, written EMPTY (nothing is admitted on the network until a fresh allow)`);
-      if (heartbeat) this.#walletBeat = setInterval(() => this.walletHeartbeat(), WALLET_CHANNEL_HEARTBEAT_MS).unref?.();
+      if (heartbeat) {
+        this.#walletBeat = setInterval(() => this.walletHeartbeat(), WALLET_CHANNEL_HEARTBEAT_MS).unref?.();
+        this.#walletRefreshTimer = setInterval(() => { this.walletRefresh().catch((e) => this.log(`wallet grant refresh: ${e.message}`)); }, WALLET_REFRESH_MS).unref?.();
+      }
     } catch (e) {
       this.walletChannel = null; this.walletChannelOff = e.message;
       this.log(`wallet hold channel OFF (an UNKNOWN wallet policy retires the domain, as before): ${e.message}`);
     }
     return this.walletChannel;
   }
-  #walletAck = null; #walletBeat = null; #walletBeatError = null;
+  #walletAck = null; #walletBeat = null; #walletBeatError = null; #walletRefreshTimer = null;
+  /** id -> the allow this process last published for it: { appRef, configCid, forPrivate, validUntil }. Removed by every
+   *  revoke and hold BEFORE the channel is written, so a refresh in flight can never re-grant what the pass withdrew. */
+  #walletGrants = new Map();
+  /** The deployments the network agent routes (its status.json apps), or null when its status cannot be read. */
+  #walletRouted() {
+    try {
+      const s = JSON.parse(fs.readFileSync(this.walletAdmission.statusFile, "utf8"));
+      return Array.isArray(s?.apps) ? new Set(s.apps.map((a) => String(a?.deploymentId || "").toLowerCase())) : null;
+    } catch { return null; }
+  }
+  #walletInflight = new Map();   // id -> its one refresh in flight
+  /**
+   * One scheduling round (the 10-s timer; tests call it directly): start the due per-deployment refreshes (see
+   * WALLET_REFRESH_MS) and resolve with their outcomes once they settle -> { refreshed, refused, unknown, lapsing, superseded }.
+   * Deployments already in flight are not started twice; a round never waits for an unrelated deployment's refresh.
+   */
+  walletRefresh() {
+    const out = { refreshed: [], refused: [], unknown: [], lapsing: [], superseded: [] };
+    if (!this.walletChannel || !this.hostAdmission || !this.#walletGrants.size) return Promise.resolve(out);
+    const routed = this.#walletRouted(), now = Date.now();
+    const free = WALLET_REFRESH_PARALLEL - this.#walletInflight.size;
+    const due = [...this.#walletGrants].filter(([id, g]) => !this.#walletInflight.has(id) && this.tracked.has(id) && (!routed || routed.has(id))
+        && g.validUntil - now <= WALLET_REFRESH_LEAD_MS)
+      .sort((a, b) => a[1].validUntil - b[1].validUntil).slice(0, Math.max(0, free));
+    const runs = due.map(([id, g]) => {
+      const p = this.#walletRefreshOne(id, g).catch((e) => ({ id, outcome: "unknown", why: e.message }))
+        .finally(() => { if (this.#walletInflight.get(id) === p) this.#walletInflight.delete(id); });
+      this.#walletInflight.set(id, p);
+      return p;
+    });
+    return Promise.all(runs).then((rs) => { for (const r of rs) (out[r.outcome] || out.unknown).push(r.id); return out; });
+  }
+  /** One deployment's refresh, bounded and fenced. Reads only. -> { id, outcome: refreshed|refused|unknown|lapsing|superseded } */
+  async #walletRefreshOne(id, g) {
+    const channel = this.walletChannel, started = Date.now();
+    const deadlineMs = Number(this.cfg.walletRefreshDeadlineMs) > 0 ? Number(this.cfg.walletRefreshDeadlineMs) : WALLET_REFRESH_DEADLINE_MS;
+    const left = () => Math.max(1, deadlineMs - (Date.now() - started));
+    const bounded = (p) => { let t; return Promise.race([p, new Promise((_, no) => { t = setTimeout(() => no(new Error(`no answer within ${deadlineMs} ms`)), left()); t.unref?.(); })]).finally(() => clearTimeout(t)); };
+    const fenced = () => this.#walletGrants.get(id) !== g || this.walletChannel !== channel || !this.tracked.has(id);
+    try {
+      const d = await bounded(chain.readDeployment(id));
+      if (fenced()) return { id, outcome: "superseded" };
+      const rec = this.records.get(id) || {};
+      const lc = (v) => String(v ?? "").toLowerCase();
+      // the pass's own grant, unchanged on the ledger and still served here; anything else is the pass's to decide
+      const same = d.active === true && lc(d.runner) === lc(this.enclaveId) && Number(d.leaseUntil) * 1000 > Date.now()
+        && lc(d.owner) === g.owner && (d.isPublic === false) === g.forPrivate && String(d.appRef) === g.appRef && String(d.configCid ?? "") === g.configCid
+        && !chain.placementRefusal(d.configCid, this.enclaveId) && rec.status === "running" && !rec.walletHeld;
+      if (!same) return { id, outcome: "lapsing" };
+      const r = await bounded(this.hostAdmission.decision({ deploymentId: id, appRef: d.appRef, forPrivate: d.isPublic === false }));
+      if (fenced()) return { id, outcome: "superseded" };
+      if (r?.refusal) {
+        this.#walletRevoke(id);
+        this.log(`${id.slice(0, 10)} wallet policy refusal at grant refresh (${String(r.refusal).slice(0, 200)}): withdrawn from the network now; the next pass gives it up`);
+        return { id, outcome: "refused" };
+      }
+      if (!(Number(r?.validUntil) > Date.now())) return { id, outcome: "unknown" };
+      return this.#walletGrant(id, d, r) === null ? { id, outcome: "refreshed" } : { id, outcome: "unknown" };
+    } catch (e) { return { id, outcome: "unknown", why: String(e.message).slice(0, 200) }; }
+  }
   /** Re-issue the channel document (its 30-s life). Decisions keep their own deadlines; a failure lets it lapse (closed). */
   walletHeartbeat() {
     if (!this.walletChannel) return;
@@ -3004,14 +3081,18 @@ export class Host {
   /** A DEFINITE allow, published to the network with its own chain deadline -> null, or why it could not be (an UNKNOWN). */
   #walletGrant(id, d, w) {
     if (!this.walletChannel) return null;
+    const key = String(id).toLowerCase();
     try {
-      this.walletChannel.allow(String(id).toLowerCase(), { appRef: d.appRef, configCid: String(d.configCid ?? ""), validUntil: w.validUntil });
+      this.walletChannel.allow(key, { appRef: d.appRef, configCid: String(d.configCid ?? ""), validUntil: w.validUntil });
+      this.#walletGrants.set(key, { appRef: String(d.appRef), configCid: String(d.configCid ?? ""), forPrivate: d.isPublic === false,
+        owner: String(d.owner ?? "").toLowerCase(), validUntil: w.validUntil });
       return null;
-    } catch (e) { return `the allow could not be published to the network agent (${e.message})`; }
+    } catch (e) { this.#walletGrants.delete(key); return `the allow could not be published to the network agent (${e.message})`; }
   }
   /** Withdraw this box's published allow (a refusal, a stop, a lease no longer ours). Unconfirmed: the caller retires. */
   #walletRevoke(id) {
     if (!this.walletChannel) return;
+    this.#walletGrants.delete(String(id).toLowerCase());
     try { this.walletChannel.hold(String(id).toLowerCase()); }
     catch (e) { this.log(`${String(id).slice(0, 10)} wallet hold channel: the allow could not be withdrawn (${e.message}); it lapses with its deadline`); }
   }
@@ -3020,6 +3101,7 @@ export class Host {
     // ONE write: the writer already retried a Windows sharing violation within its own bounded budget
     // (wallet-admission.mjs COMMIT_RETRY, <= 375 ms). Any error left - a persistent refusal included - is the old retire.
     let hold;
+    this.#walletGrants.delete(String(id).toLowerCase());   // a refresh in flight must not re-grant a held deployment
     try { hold = this.walletChannel.hold(String(id).toLowerCase()); }
     catch (e) { return { ok: false, why: `the hold could not be written (${e.message})` }; }
     // (cfg.walletHoldAckMs: a shorter bound for tests only; production uses WALLET_HOLD_ACK_MS)
