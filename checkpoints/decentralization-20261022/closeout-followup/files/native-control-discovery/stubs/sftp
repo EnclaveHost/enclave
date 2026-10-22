@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "DENIED: sftp is stubbed out for native-control-discovery tests (no remote access)" >&2
+exit 97

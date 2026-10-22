@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-22T20:01:30.814295+00:00",
+  "capturedAt": "2026-10-22T20:18:36.988715+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -507,6 +507,114 @@
       "bytes": 1790
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/RESULT.txt",
+      "stored": "files/native-control-discovery/RESULT.txt",
+      "sha256": "64c343652a6180ab98b68a6d4a3af35ff9cde944f81e605f51f6f1c53caa8370",
+      "bytes": 13864
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/draft-6e46c06d/test/native-control-substitution.test.mjs",
+      "stored": "files/native-control-discovery/draft-6e46c06d/test/native-control-substitution.test.mjs",
+      "sha256": "072cf370952e6712d0884670e9acea75babcf84a2a9c7a257fecd0847a1f0fc3",
+      "bytes": 5070
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/job-bundle-r1.sh",
+      "stored": "files/native-control-discovery/job-bundle-r1.sh",
+      "sha256": "54a8b986310e14dd3a4522944a92515129fe6d65f812fa71f5fb92eca71bf214",
+      "bytes": 3734
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/job-native-control-r1.sh",
+      "stored": "files/native-control-discovery/job-native-control-r1.sh",
+      "sha256": "59ca61d9e4651d5498bc543a61702061abfbbc78e4725ed7b2b2e4b34db5ebd4",
+      "bytes": 1625
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/job-native-control-r3.sh",
+      "stored": "files/native-control-discovery/job-native-control-r3.sh",
+      "sha256": "072f064b437e652e440479bdae61d5f6386edfe3c68a3454ae3c852ff7c2df10",
+      "bytes": 1718
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/job-native-final-r4.sh",
+      "stored": "files/native-control-discovery/job-native-final-r4.sh",
+      "sha256": "11f1cec2bf7c28a6e43735e7717164491d4c9c83ecd6f9d18c3669288aa88ce8",
+      "bytes": 1568
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/job-substitution-draft.sh",
+      "stored": "files/native-control-discovery/job-substitution-draft.sh",
+      "sha256": "6766b3d6084dd0dfa9452721caac8afebea4595a8f6f5b09287525d8955d8c73",
+      "bytes": 1111
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/mutants-final.py",
+      "stored": "files/native-control-discovery/mutants-final.py",
+      "sha256": "df56bcfd66bdbcedc8c41d8a45f8f4acdce2a5c2256278ebced75a2644edc4da",
+      "bytes": 2668
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/mutants-r1.py",
+      "stored": "files/native-control-discovery/mutants-r1.py",
+      "sha256": "86658b69b45c063d32197d0cfd02224c4335b14d261420272aebe31b555d6606",
+      "bytes": 3041
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/native-control-draft-6e46c06d-WITHDRAWN.patch",
+      "stored": "files/native-control-discovery/native-control-draft-6e46c06d-WITHDRAWN.patch",
+      "sha256": "64bfdede4c177a4c29bca42607f8b36e176f8db34dd9836f883168d863a70e52",
+      "bytes": 50271
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/native-control-final.patch",
+      "stored": "files/native-control-discovery/native-control-final.patch",
+      "sha256": "253fd450537712efc0d53fe4dca19f740a77aa8e465376ac5a5c61b599fd59fc",
+      "bytes": 17831
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/repo/docs/design/nan-retirement.md",
+      "stored": "files/native-control-discovery/repo/docs/design/nan-retirement.md",
+      "sha256": "2b07e7f5fcaefe7003125dc55d4a24ce327bb98fd0f0e6339c26f3df93f45bdb",
+      "bytes": 29537
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/repo/relay/native-discovery.mjs",
+      "stored": "files/native-control-discovery/repo/relay/native-discovery.mjs",
+      "sha256": "adc5c9978c0293c4c1f927b1f0580ff910b1273c63f7cee926d177987d93eabc",
+      "bytes": 4562
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/repo/test/native-discovery.test.mjs",
+      "stored": "files/native-control-discovery/repo/test/native-discovery.test.mjs",
+      "sha256": "9816d359ed6326895ff7a2000d5979931b33a40901720471d2ce7ab52885cd9c",
+      "bytes": 8714
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/stubs/scp",
+      "stored": "files/native-control-discovery/stubs/scp",
+      "sha256": "e758024112d99464a18ab94b923ca97f3bbe3e13db7dc44911a3c7c19dd85d16",
+      "bytes": 110
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/stubs/sftp",
+      "stored": "files/native-control-discovery/stubs/sftp",
+      "sha256": "69ffa488fc413d8acb280d4a9f84ac8621b35c859bf507fe4b398a193f6074ad",
+      "bytes": 111
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery/stubs/ssh",
+      "stored": "files/native-control-discovery/stubs/ssh",
+      "sha256": "795c33a31bb69c1d75006383f8cebd2091af76ebe279d0293c79e588e9c7aca4",
+      "bytes": 110
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery-root-review.txt",
+      "stored": "files/native-control-discovery-root-review.txt",
+      "sha256": "a4828cb2179630e68a4ef7a7a11e08c7caf810b9d6abc1507cc22e971a8c68b3",
+      "bytes": 1643
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/postgres-init-stage/RECIPE.md",
       "stored": "files/postgres-init-stage/RECIPE.md",
       "sha256": "a986abf5e06bddb07b82be2f0702960ba72bb99645b232cc581b5527473c1b51",
@@ -761,8 +869,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "9d9fbddd08b29547ab7690f6bdae6964fd617e203b5cdbee93eaa744157f16ca",
-      "bytes": 3335
+      "sha256": "670f3fcd7f0f42f1d4a5fbfb0f1ae0ee45b4715e3488f233deb54db97e3b254a",
+      "bytes": 4070
     },
     {
       "source": "work/resume-after-checkpoint-20261022/storage-activation-next/ACTIONS.json",

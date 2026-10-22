@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-22T20:19:02.903920+00:00",
+  "status": "Preserved for review; NOT deployed or integrated into release candidate",
+  "finalSourceCommit": "04ee1ae8c",
+  "withdrawnDraftCommit": "6e46c06da6b42efab725eb7f0d450c1fb2ebeb68",
+  "finalPatchSha256": "253fd450537712efc0d53fe4dca19f740a77aa8e465376ac5a5c61b599fd59fc",
+  "tests": {
+    "focused": {
+      "passed": 7,
+      "failed": 0
+    },
+    "mutationControlsKilled": 7,
+    "adversarialDraftSubstitutionReproduced": true,
+    "execution": "Offline network namespace, denied SSH tools, bounded queue; final exit 0, peak 163 MiB"
+  },
+  "limitation": "No authenticated serving-host identity binding exists for current native endpoint. Final patch refuses native control routing; do not deploy as a working replacement."
+}

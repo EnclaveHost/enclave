@@ -1,0 +1,611 @@
+diff --git a/docs/design/nan-retirement.md b/docs/design/nan-retirement.md
+index 122918e67..4c96c2563 100644
+--- a/docs/design/nan-retirement.md
++++ b/docs/design/nan-retirement.md
+@@ -147,7 +147,7 @@ A deployment label without a current verified route now returns SERVFAIL rather
+ 
+ ### Direct-IP recovery ingress
+ 
+-Providers can opt into a loopback-only `noSniRoute` for a valid ClientHello without SNI. Unknown SNI and malformed TLS remain closed. The recovery Caddy front has a public IP certificate and serves only the configured recovery/control paths; arbitrary destinations are not accepted. Provider-local routes carry `api.enclavehost.eth` and `mcp.enclavehost.eth` to the migrated control TLS service. Public native metadata is implemented in `relay/native-discovery.mjs`; no application signing key or credential is exposed there.
++Providers can opt into a loopback-only `noSniRoute` for a valid ClientHello without SNI. Unknown SNI and malformed TLS remain closed. The recovery Caddy front has a public IP certificate and serves only the configured recovery/control paths; arbitrary destinations are not accepted. Provider-local routes carry `api.enclavehost.eth` and `mcp.enclavehost.eth` to the migrated control TLS service. Public native metadata is implemented in `relay/native-discovery.mjs`; no application signing key or credential is exposed there. Its control names no longer carry fixed provider addresses: `network/native-control-routes.mjs` serves an address for `api.enclavehost.eth` or `mcp.enclavehost.eth` only when a `native-control` advertisement in the pinned service index names it, the platform host policy admits its operator, it lies outside the configured failure domain (the DigitalOcean fleet), and a TLS handshake there proves that exact name under the native CA. Each route lives at most 60 seconds. Without such a route the name answers 503 `control_route_unavailable`; there is no fallback.
+ 
+ ### Attested release credentials after recovery
+ 
+diff --git a/network/native-control-routes.mjs b/network/native-control-routes.mjs
+new file mode 100644
+index 000000000..2e2097c46
+--- /dev/null
++++ b/network/native-control-routes.mjs
+@@ -0,0 +1,181 @@
++// Native CONTROL routes (relay/native-discovery.mjs): where api.enclavehost.eth and mcp.enclavehost.eth are served, found the
++// way designated lease relays are found (network/lease-relay-discovery.mjs), with no fixed fleet address and no fallback.
++//
++// What an endpoint must prove before its address is served for a control name (each step refuses that endpoint only):
++//   1. it is ADVERTISED: a `native-control` ad in the pinned EnclaveServiceIndex, read at ONE block on which two of the
++//      operator's RPCs agree (readServiceIndex) - an untrusted candidate, nothing more. Operators the configuration names
++//      (`operators`) are read directly in the same snapshot, so listing spam cannot hide them, and are probed first;
++//   2. when the platform host policy is on, its operator is EXPLICITLY ADMITTED by it now (judgeRelayOperators: admit ===
++//      true, which includes the deliberate "not-activated" admit before the administrator anchors a policy; a ban, an
++//      allowlist miss, "behind", an unreadable authority, a missing decision or a throwing decider all refuse). An admin
++//      ban withdraws the operator's routes at the next refresh (routes live at most `routeTtlMs`);
++//   3. its endpoint is exactly `https://<public IPv4>/` (port 443, the port the native route names) and OUTSIDE every
++//      failure domain the configuration names (the DigitalOcean transport fleet): excluded, and named in the evidence;
++//   4. it AUTHENTICATES AS THE NAME: a TLS handshake to <address>:443 with SNI <name>, verified by Node/OpenSSL's own
++//      verifier against the native CA only (the CA whose fingerprint native discovery already publishes) with the
++//      default hostname check. The certificate is the CA holder's authorization of that key for that name; the handshake
++//      proves the endpoint holds the key. No HTTP request is sent and nothing the endpoint says is trusted.
++// A route lives no longer than the ad, the endpoint's certificate and `routeTtlMs` (default 60 s, as an app route record).
++// A name with no endpoint passing every step has NO route: native discovery answers "unavailable", never another address.
++import tls from "node:tls";
++import { X509Certificate } from "node:crypto";
++import { readServiceIndex, publicIPv4, validateIndexPin } from "./service-index.mjs";
++import { classifyEndpoint, judgeRelayOperators, relayPolicyDecider } from "./lease-relay-discovery.mjs";
++import { rpcPeers } from "./policy-carriers.mjs";
++import { createHostPolicyRuntime, resolveHostPolicyConfig } from "./host-policy-runtime.mjs";
++import { PRODUCTION_BOOK } from "./platform-host-policy-config.mjs";
++
++export const NATIVE_ROOT = "enclavehost.eth";
++export const CONTROL_NAMES = Object.freeze(["api", "mcp"].map((s) => `${s}.${NATIVE_ROOT}`));
++export const CONTROL_KIND = "native-control";
++const lc = (s) => String(s || "").toLowerCase();
++
++/** An advertised control endpoint -> its IPv4 address: exactly https://<public IPv4>/ (port 443, no path). Throws otherwise. */
++export function controlEndpointAddress(endpoint) {
++  let u; try { u = new URL(endpoint); } catch { throw new Error("not a URL"); }
++  if (u.protocol !== "https:") throw new Error("a native control endpoint must be https");
++  if (u.port !== "" && u.port !== "443") throw new Error("a native control endpoint must be port 443");
++  if (u.username || u.password || u.search || u.hash || u.pathname !== "/") throw new Error("a native control endpoint is a bare https origin");
++  if (!publicIPv4(u.hostname)) throw new Error("a native control endpoint must be a public IPv4 literal");
++  return u.hostname;
++}
++
++/**
++ * TLS proof that `address`:443 holds a certificate for `name` issued under `caPem` (and only it). -> { validTo } (ms).
++ * connect: tls.connect's signature (tests route the socket to a loopback server; the verifier is unchanged).
++ */
++export function proveControlEndpoint({ address, name, caPem, timeoutMs = 4000, connect = tls.connect }) {
++  return new Promise((resolve, reject) => {
++    let done = false, socket = null;
++    const finish = (err, v) => { if (done) return; done = true; clearTimeout(timer); socket?.destroy(); if (err) reject(err); else resolve(v); };
++    const timer = setTimeout(() => finish(new Error(`TLS proof timed out after ${timeoutMs} ms`)), timeoutMs);
++    timer.unref?.();
++    try {
++      socket = connect({ host: address, port: 443, servername: name, ca: caPem, rejectUnauthorized: true, ALPNProtocols: ["http/1.1"] });
++    } catch (e) { return finish(e); }
++    socket.once("secureConnect", () => {
++      if (!socket.authorized) return finish(new Error(`certificate not authorized: ${socket.authorizationError || "unknown"}`));
++      const raw = socket.getPeerCertificate()?.raw;
++      if (!raw) return finish(new Error("no peer certificate"));
++      const validTo = Date.parse(new X509Certificate(raw).validTo);
++      if (!Number.isFinite(validTo)) return finish(new Error("peer certificate has no valid expiry"));
++      finish(null, { validTo });
++    });
++    socket.once("error", (e) => finish(new Error(String(e?.message || e).slice(0, 200))));
++    socket.once("close", () => finish(new Error("connection closed before the TLS handshake finished")));
++  });
++}
++
++/**
++ * -> { routes: { [name]: { addresses, expiresAt } }, verified: [{ name, address, operator, expiresAt }], excluded, rejected,
++ *      refusedByPolicy, policy, index: { status, blockNumber, blockHash } }.
++ * decide: an operator decider (lease-relay-discovery.mjs relayPolicyDecider), judged STRICTLY; null only when the platform host
++ * policy is explicitly off. Throws when the index cannot be read by an agreeing quorum (no route is then served at all).
++ */
++export async function discoverControlRoutes({ peers, clients, indexPin, caPem, decide, operators = [], failureDomains = [], names = CONTROL_NAMES,
++  resolve = async () => { throw new Error("native control endpoints are IPv4 literals"); }, prove = proveControlEndpoint, connect, probeTimeoutMs = 4000,
++  maxProbes = 32, maxAddresses = 8, routeTtlMs = 60_000, now = Date.now, readOptions = {}, readIndex = readServiceIndex }) {
++  if (decide === undefined) throw new Error("native control routes: a platform host policy decider is required (null only when the policy is explicitly off)");
++  if (typeof caPem !== "string" || !caPem.includes("BEGIN CERTIFICATE")) throw new Error("native control routes: the native CA certificate is required");
++  const read = await readIndex({ peers, clients, pin: indexPin, kinds: [CONTROL_KIND], lookups: operators.map((operator) => ({ operator })), ...readOptions });
++  // named operators first (read directly, so spam cannot push them out of the probe budget), then the listing; an incomplete
++  // listing still yields valid candidates: each is proven on its own, and nothing here concludes anything from an absence
++  const seen = new Set(), candidates = [];
++  for (const c of [...(read.lookups || []).filter((l) => l.state === "listed").map((l) => l.candidate), ...(read.candidates || [])]) {
++    const key = `${lc(c.operator)}/${c.slot}`;
++    if (c.kindName === CONTROL_KIND && !seen.has(key)) { seen.add(key); candidates.push(c); }
++  }
++  const judged = decide ? await judgeRelayOperators(candidates.map((c) => c.operator), decide) : null;
++  const refusedByPolicy = [], excluded = [], rejected = [], probes = [];
++  for (const c of candidates) {
++    if (judged && !judged.admitted.has(lc(c.operator))) {
++      const r = judged.refused.find((x) => x.operator === lc(c.operator));
++      refusedByPolicy.push({ operator: lc(c.operator), slot: c.slot, status: r?.status || "undecided", reason: r?.reason || "no decision" }); continue;
++    }
++    for (const endpoint of c.endpoints) {
++      let address;
++      try { address = controlEndpointAddress(endpoint); } catch (e) { rejected.push({ endpoint, operator: lc(c.operator), reason: e.message }); continue; }
++      const k = await classifyEndpoint(endpoint, failureDomains, resolve);
++      if (k.excluded) { excluded.push({ endpoint, operator: lc(c.operator), domain: k.domain, reason: k.reason }); continue; }
++      for (const name of names) probes.push({ name, address, operator: lc(c.operator), adExpiresAt: c.expiresAt * 1000 });
++    }
++  }
++  const budget = probes.slice(0, maxProbes);
++  for (const p of probes.slice(maxProbes)) rejected.push({ endpoint: `https://${p.address}/`, operator: p.operator, name: p.name, reason: `probe budget (${maxProbes}) exhausted` });
++  const verified = [];
++  await Promise.all(budget.map(async (p) => {
++    try {
++      const { validTo } = await prove({ address: p.address, name: p.name, caPem, timeoutMs: probeTimeoutMs, ...(connect ? { connect } : {}) });
++      verified.push({ name: p.name, address: p.address, operator: p.operator, expiresAt: Math.min(p.adExpiresAt, validTo) });
++    } catch (e) { rejected.push({ endpoint: `https://${p.address}/`, operator: p.operator, name: p.name, reason: String(e.message).slice(0, 200) }); }
++  }));
++  const at = now(), routes = {};
++  for (const name of names) {
++    const ok = budget.map((p) => verified.find((v) => v.name === name && v.address === p.address && v.operator === p.operator))
++      .filter((v) => v && v.expiresAt > at);
++    const addresses = [...new Set(ok.map((v) => v.address))].slice(0, maxAddresses);
++    if (addresses.length) routes[name] = { addresses, expiresAt: Math.min(at + routeTtlMs, ...ok.filter((v) => addresses.includes(v.address)).map((v) => v.expiresAt)) };
++  }
++  return { routes, verified, excluded, rejected, refusedByPolicy, policy: !judged ? "not applied" : judged.unreadable ? "unreadable" : "applied",
++    index: { status: read.status, blockNumber: read.blockNumber, blockHash: read.blockHash } };
++}
++
++/**
++ * A single-flight cache of the control route map for native discovery: the map is reused until its earliest route expires
++ * (at most routeTtlMs), refreshed in the background after half of that, and a failed refresh is remembered for `retryMs` so
++ * a burst of requests cannot turn into a burst of chain reads and probes. No authority outlives a route's own expiry.
++ */
++export function cachedControlRoutes(discover, { retryMs = 10_000, log = () => {}, now = Date.now } = {}) {
++  let last = null, failed = null, inflight = null;
++  const refresh = () => {
++    if (!inflight) inflight = Promise.resolve().then(discover).then((r) => {
++      const at = now(), exp = Object.values(r.routes).map((x) => x.expiresAt);
++      last = { at, until: exp.length ? Math.min(...exp) : at + retryMs, map: { routes: r.routes } }; failed = null;
++      log(`[native-discovery] control routes at block ${r.index.blockNumber}: ${Object.entries(r.routes).map(([n, x]) => `${n}=${x.addresses.length}`).join(" ") || "none"} (policy ${r.policy}, ${r.excluded.length} excluded, ${r.rejected.length} rejected, ${r.refusedByPolicy.length} refused)`);
++      return last.map;
++    }, (e) => { failed = { at: now(), error: e }; log(`[native-discovery] control route discovery failed: ${String(e?.message || e).slice(0, 300)}`); throw e; })
++      .finally(() => { inflight = null; });
++    return inflight;
++  };
++  return async () => {
++    const t = now();
++    if (last && last.until > t) { if (t - last.at > (last.until - last.at) / 2) refresh().catch(() => {}); return last.map; }
++    if (failed && t - failed.at < retryMs && !inflight) throw failed.error;
++    return refresh();
++  };
++}
++
++const list = (v) => String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
++/**
++ * The deployed discovery's control-route source, from its environment -> getControlRoutes() | null (not configured: every
++ * control name answers unavailable; there is no fleet default).
++ *   NATIVE_CONTROL_SERVICE_INDEX  <index address>@<runtime code hash> (the pinned EnclaveServiceIndex on Base 8453)
++ *   NATIVE_CONTROL_RPCS           two or more Base RPC URLs of distinct providers (the index read's agreeing quorum)
++ *   NATIVE_CONTROL_EXCLUDE        REQUIRED failure domain: IPv4 addresses and DNS names never served (the DigitalOcean fleet)
++ *   NATIVE_CONTROL_OPERATORS      optional operator addresses read directly (probed first; listing spam cannot hide them)
++ *   ENCLAVE_PLATFORM_HOST_POLICY* the unchanged platform host policy resolution (production by default; "off" only explicitly)
++ */
++export function controlRoutesFromEnv(env, { caPem, log = () => {}, fetch = globalThis.fetch, now = Date.now } = {}) {
++  const raw = String(env.NATIVE_CONTROL_SERVICE_INDEX || "").trim();
++  if (!raw) { log("[native-discovery] NATIVE_CONTROL_SERVICE_INDEX is not set: control names answer unavailable (no fleet default)"); return null; }
++  const m = /^(0x[0-9a-fA-F]{40})@(0x[0-9a-fA-F]{64})$/.exec(raw);
++  if (!m) throw new Error("NATIVE_CONTROL_SERVICE_INDEX must be <index address>@<runtime code hash> (the pinned EnclaveServiceIndex)");
++  const indexPin = validateIndexPin({ chainId: 8453, address: m[1], codeHash: m[2].toLowerCase() });
++  const rpcs = list(env.NATIVE_CONTROL_RPCS);
++  if (rpcs.length < 2 || rpcs.length > 16) throw new Error("NATIVE_CONTROL_RPCS: two to sixteen Base RPC URLs of distinct providers");
++  const peers = rpcPeers(rpcs);
++  const exclude = list(env.NATIVE_CONTROL_EXCLUDE), addresses = [], names = [];
++  if (!exclude.length) throw new Error("NATIVE_CONTROL_EXCLUDE is required: the failure domain (the DigitalOcean fleet's addresses) control routes must never use");
++  for (const x of exclude) {
++    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(x)) addresses.push(x);
++    else if (/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,62}$/i.test(x)) names.push(x.toLowerCase());
++    else throw new Error(`NATIVE_CONTROL_EXCLUDE: ${x.slice(0, 80)} is neither an IPv4 address nor a DNS name`);
++  }
++  const operators = list(env.NATIVE_CONTROL_OPERATORS);
++  if (operators.length > 32 || operators.some((o) => !/^0x[0-9a-fA-F]{40}$/.test(o))) throw new Error("NATIVE_CONTROL_OPERATORS: up to 32 operator addresses");
++  const runtime = createHostPolicyRuntime(resolveHostPolicyConfig({ env, chainId: 8453, book: PRODUCTION_BOOK }), { fetch, log });
++  if (!runtime) log("[native-discovery] platform host policy is EXPLICITLY OFF: control operators are not judged (not a production configuration)");
++  const decide = runtime ? relayPolicyDecider(runtime.gate) : null;
++  const failureDomains = [{ name: "excluded", addresses, names }];
++  return cachedControlRoutes(() => discoverControlRoutes({ peers, indexPin, caPem, decide, operators, failureDomains, now }), { log, now });
++}
+diff --git a/network/service-index.mjs b/network/service-index.mjs
+index 4475fbd63..645c847f1 100644
+--- a/network/service-index.mjs
++++ b/network/service-index.mjs
+@@ -25,8 +25,11 @@ import { rpcEndpoint, rpcLabel as safeRpcLabel, redactUrls } from './rpc-identit
+ // network/policy-carriers.mjs); read only when a caller asks for it, so default listings are unchanged
+ // credit-vault-submitter (8): an untrusted relay a host operator runs for passkey-signed credit-vault requests (host role
+ // credit-vault-submitter, network/host-services/credit-vault-submitter.mjs); like policy, read only when a caller asks for it
+-export const SERVICE_KINDS = Object.freeze({ directory: 1, checker: 2, storage: 3, dns: 4, replica: 5, policy: 6, relay: 7, 'credit-vault-submitter': 8 });
+-const DEFAULT_KINDS = Object.freeze(Object.keys(SERVICE_KINDS).filter((k) => k !== 'policy' && k !== 'credit-vault-submitter'));
++// native-control (9): an https://<public IPv4>/ endpoint that terminates the native control names (api/mcp.enclavehost.eth)
++// with a native-CA certificate; native discovery serves it only after a TLS proof (network/native-control-routes.mjs).
++// Like policy, read only when a caller asks for it
++export const SERVICE_KINDS = Object.freeze({ directory: 1, checker: 2, storage: 3, dns: 4, replica: 5, policy: 6, relay: 7, 'credit-vault-submitter': 8, 'native-control': 9 });
++const DEFAULT_KINDS = Object.freeze(Object.keys(SERVICE_KINDS).filter((k) => k !== 'policy' && k !== 'credit-vault-submitter' && k !== 'native-control'));
+ export const KIND_NAMES = Object.freeze(Object.fromEntries(Object.entries(SERVICE_KINDS).map(([k, v]) => [v, k])));
+ export const AD_VERSION = 1;
+ export const LIMITS = Object.freeze({ slots: 8, endpoints: 4, endpointBytes: 256, ttlSec: 90 * 86400, page: 64, perKind: 1024, descriptor: 4096 });
+diff --git a/relay/native-discovery.mjs b/relay/native-discovery.mjs
+index bbd521cd8..5654d7b53 100644
+--- a/relay/native-discovery.mjs
++++ b/relay/native-discovery.mjs
+@@ -3,22 +3,31 @@ import http from 'node:http';
+ import {readFile} from 'node:fs/promises';
+ import {fileURLToPath} from 'node:url';
+ import {X509Certificate,createHash} from 'node:crypto';
+-export const ROOT='enclavehost.eth';
+-const SERVICES=new Set(['api','mcp']);
++import {NATIVE_ROOT,CONTROL_NAMES,controlRoutesFromEnv} from '../network/native-control-routes.mjs';
++import {publicIPv4} from '../network/service-index.mjs';
++export const ROOT=NATIVE_ROOT;
++// Control names route only to endpoints that proved the name under the native CA (network/native-control-routes.mjs); a
++// name without a current verified route has none. There is no fixed fleet address.
+ export function routeFor(name, map, now=Date.now()) {
+  if(typeof name!=='string'||name!==name.toLowerCase()||name.length>253)return null;
+- if(name.endsWith('.'+ROOT) && SERVICES.has(name.slice(0,-ROOT.length-1)))
+-  return {name, addresses:['134.199.235.187','134.209.248.172','165.245.191.129','146.190.246.39'],port:443,kind:'control'};
++ if(CONTROL_NAMES.includes(name)){
++  const row=map?.routes?.[name];
++  if(!row||!(row.expiresAt>now)||!Array.isArray(row.addresses)||!row.addresses.length||row.addresses.some(a=>typeof a!=='string'||!publicIPv4(a)))return null;
++  return {name,addresses:[...row.addresses],port:443,kind:'control',expiresAt:row.expiresAt};
++ }
+  const m=name.match(/^([0-9a-f]{8})\.app\.enclavehost\.eth$/);
+  if(!m)return null;
+  const row=map?.labels?.[m[1]];
+  if(!row||!(row.expiresAt>now)||!row.addresses?.length)return null;
+  return {name,addresses:row.addresses,port:443,kind:'application',expiresAt:row.expiresAt};
+ }
+-export function createDiscovery({getRoutes,caPem}){
++const bounded=(p,ms)=>{let t;return Promise.race([p,new Promise((_,reject)=>{t=setTimeout(()=>reject(Error('route source timed out')),ms);t.unref?.();})]).finally(()=>clearTimeout(t));};
++// getControlRoutes: () -> { routes: { [name]: { addresses, expiresAt } } }, or null when not configured (control names then
++// answer unavailable). Every route source is bounded by timeoutMs.
++export function createDiscovery({getRoutes,getControlRoutes=null,caPem,timeoutMs=15000}){
+  const fingerprint=createHash('sha256').update(new X509Certificate(caPem).raw).digest('hex');
+  return http.createServer(async(req,res)=>{
+-  const json=(status,obj)=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(obj));};
++  const json=(status,obj,extra={})=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store',...extra});res.end(JSON.stringify(obj));};
+   let u; try { u=new URL(req.url,'http://localhost'); } catch { return json(400,{error:'invalid_url'}); }
+   if(req.method!=='GET')return json(405,{error:'method_not_allowed'});
+   if(u.pathname==='/native/ca.pem') {res.writeHead(200,{'content-type':'application/x-pem-file','cache-control':'public,max-age=3600'});return res.end(caPem);}
+@@ -26,7 +35,11 @@ export function createDiscovery({getRoutes,caPem}){
+   if(u.pathname!=='/native/resolve')return json(404,{error:'not_found'});
+   try {
+    const name=u.searchParams.get('name');
+-   const route=routeFor(name,name?.endsWith('.app.'+ROOT)?await getRoutes():null);
++   const control=CONTROL_NAMES.includes(name);
++   if(control&&!getControlRoutes)return json(503,{error:'control_route_unavailable'},{'retry-after':'60'});
++   const map=control?await bounded(getControlRoutes(),timeoutMs):name?.endsWith('.app.'+ROOT)?await bounded(getRoutes(),timeoutMs):null;
++   const route=routeFor(name,map);
++   if(!route&&control)return json(503,{error:'control_route_unavailable'},{'retry-after':'30'});
+    if(!route)return json(404,{error:'no_current_route'});
+    return json(200,{...route,caSha256:fingerprint});
+   }catch{return json(503,{error:'route_discovery_unavailable'});}
+@@ -34,7 +47,7 @@ export function createDiscovery({getRoutes,caPem}){
+ }
+ if(process.argv[1]===fileURLToPath(import.meta.url)){
+  const caPem=await readFile(process.env.NATIVE_CA_CERT||'/var/lib/enclave-native-ca/ca.pem','utf8');
+- const server=createDiscovery({caPem,getRoutes:async()=>{
++ const server=createDiscovery({caPem,getControlRoutes:controlRoutesFromEnv(process.env,{caPem,log:(m)=>console.log(m)}),getRoutes:async()=>{
+   const r=await fetch('http://127.0.0.1:8100/v1/network/routes',{signal:AbortSignal.timeout(5000)});
+   if(!r.ok)throw new Error('route map unavailable');return r.json();
+  }});
+diff --git a/test/native-control-routes.test.mjs b/test/native-control-routes.test.mjs
+new file mode 100644
+index 000000000..f4d25f419
+--- /dev/null
++++ b/test/native-control-routes.test.mjs
+@@ -0,0 +1,224 @@
++// Native control routes (network/native-control-routes.mjs): the real service-index reader over two in-process RPC stand-ins
++// that agree (or do not), the strict platform host policy rule, the failure-domain exclusion, and real TLS handshakes under a
++// throwaway native CA (openssl, minted per run). The probe's socket is routed to loopback servers by address; the verifier,
++// SNI and hostname check are Node's own.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import net from 'node:net';
++import tls from 'node:tls';
++import { execFileSync } from 'node:child_process';
++import { keccak256 } from 'viem';
++import { SERVICE_KINDS, KIND_NAMES, AD_VERSION, readServiceIndex } from '../network/service-index.mjs';
++import { discoverControlRoutes, cachedControlRoutes, controlEndpointAddress, controlRoutesFromEnv, proveControlEndpoint, CONTROL_NAMES } from '../network/native-control-routes.mjs';
++
++const API = 'api.enclavehost.eth', MCP = 'mcp.enclavehost.eth';
++const DO = ['134.199.235.187', '134.209.248.172', '165.245.191.129', '146.190.246.39'];
++const ZERO32 = '0x' + '0'.repeat(64), ZERO_ADDR = '0x' + '0'.repeat(40);
++const op = (n) => '0x' + n.toString(16).padStart(40, '0');
++const stamp = (ms) => new Date(ms).toISOString().replace(/[-:T]/g, '').slice(0, 14) + 'Z';
++
++// ---- a throwaway native CA, a rogue CA and their leaves ----------------------------------------------------------------
++const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'native-control-'));
++process.on('exit', () => fs.rmSync(dir, { recursive: true, force: true }));
++const o = (args) => execFileSync('openssl', args, { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'] });
++const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
++function ca(name) {
++  o(['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', `${name}.key`, '-out', `${name}.pem`, '-subj', `/CN=${name}`, '-days', '2',
++    '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign,cRLSign']);
++  return read(`${name}.pem`);
++}
++function leaf(name, issuer, names, { notBefore = Date.now() - 3600_000, notAfter = Date.now() + 86400_000 } = {}) {
++  o(['req', '-new', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', `${name}.key`, '-out', `${name}.csr`, '-subj', '/',
++    '-addext', `subjectAltName=${names.map((n) => 'DNS:' + n).join(',')}`, '-addext', 'keyUsage=critical,digitalSignature', '-addext', 'extendedKeyUsage=serverAuth']);
++  o(['x509', '-req', '-in', `${name}.csr`, '-CA', `${issuer}.pem`, '-CAkey', `${issuer}.key`, '-set_serial', '0x' + Buffer.from(name).toString('hex'),
++    '-not_before', stamp(notBefore), '-not_after', stamp(notAfter), '-copy_extensions', 'copy', '-out', `${name}.pem`]);
++  return { key: read(`${name}.key`), cert: read(`${name}.pem`) };
++}
++const nativeCa = ca('native'); ca('rogue');
++const SHORT_UNTIL = Math.floor((Date.now() + 120_000) / 1000) * 1000;
++const LEAVES = {
++  both: leaf('both', 'native', [API, MCP]), apiOnly: leaf('apionly', 'native', [API]), rogue: leaf('rogue-leaf', 'rogue', [API, MCP]),
++  expired: leaf('expired', 'native', [API, MCP], { notBefore: Date.now() - 7200_000, notAfter: Date.now() - 3600_000 }),
++  short: leaf('short', 'native', [API, MCP], { notAfter: SHORT_UNTIL }),
++};
++
++// ---- loopback endpoints by public address --------------------------------------------------------------------------------
++const servers = [], sockets = new Set(), ports = {}, dials = [];
++async function listen(server) {
++  server.on('connection', (s) => { sockets.add(s); s.on('close', () => sockets.delete(s)); s.on('error', () => {}); });
++  server.on('tlsClientError', () => {});
++  await new Promise((r) => server.listen(0, '127.0.0.1', r)); servers.push(server); return server.address().port;
++}
++const tlsEndpoint = (address, l) => listen(tls.createServer({ key: l.key, cert: l.cert }, (s) => s.on('error', () => {}))).then((p) => { ports[address] = p; });
++const hangingEndpoint = (address) => listen(net.createServer(() => {})).then((p) => { ports[address] = p; });
++let closedPort;
++const connect = (opts) => { dials.push(`${opts.host}/${opts.servername}`); return tls.connect({ ...opts, host: '127.0.0.1', port: ports[opts.host] ?? closedPort }); };
++test.before(async () => {
++  const c = net.createServer(); await new Promise((r) => c.listen(0, '127.0.0.1', r)); closedPort = c.address().port; await new Promise((r) => c.close(r));
++  await tlsEndpoint('44.0.0.1', LEAVES.both); await tlsEndpoint('44.0.0.2', LEAVES.apiOnly); await tlsEndpoint('44.0.0.3', LEAVES.rogue);
++  await tlsEndpoint(DO[0], LEAVES.both); await tlsEndpoint('44.0.0.7', LEAVES.expired); await hangingEndpoint('44.0.0.8');
++  await tlsEndpoint('44.0.0.9', LEAVES.short); await tlsEndpoint('44.0.0.6', LEAVES.both); await tlsEndpoint('44.0.0.10', LEAVES.both);
++});
++test.after(() => { for (const s of sockets) s.destroy(); for (const s of servers) s.close(); });
++
++// ---- two in-process RPCs serving the real reader's calls -----------------------------------------------------------------
++const CODE = '0x6080604052', PIN = { chainId: 8453, address: '0x' + '5a'.repeat(20), codeHash: keccak256(CODE) };
++const ad = (operator, endpoints, { slot = 0, ttlSec = 3600, kind = SERVICE_KINDS['native-control'] } = {}) => ({ operator, slot, kind, endpoints, ttlSec });
++function rpc(ads, { lie = false, code = CODE } = {}) {
++  const ts = BigInt(Math.floor(Date.now() / 1000));
++  const row = (a) => ({ operator: a.operator, slot: a.slot, kind: a.kind, version: AD_VERSION, sequence: 1n, expiresAt: ts + BigInt(a.ttlSec), updatedAt: ts - 10n,
++    descriptor: ZERO32, endpoints: lie ? a.endpoints.map(() => 'https://44.0.0.66/') : a.endpoints });
++  return {
++    getChainId: async () => 8453, getBlockNumber: async () => 100n,
++    getBlock: async ({ blockNumber }) => ({ number: blockNumber, hash: '0x' + blockNumber.toString(16).padStart(64, '0'), timestamp: ts, parentHash: '0x' + (blockNumber - 1n).toString(16).padStart(64, '0') }),
++    getCode: async () => code,
++    readContract: async ({ functionName, args }) => {
++      if (functionName === 'page') { const all = ads.filter((a) => a.kind === Number(args[0])); return [all.slice(Number(args[1]), Number(args[1] + args[2])).map(row), BigInt(all.length)]; }
++      if (functionName === 'get') { const a = ads.find((x) => x.operator.toLowerCase() === args[0] && x.slot === args[1]); return a ? row(a) : { ...row({ operator: ZERO_ADDR, slot: 0, kind: 0, endpoints: [], ttlSec: 0 }), sequence: 0n, expiresAt: 0n }; }
++      throw new Error(`unexpected ${functionName}`);
++    },
++  };
++}
++const quorum = (ads, opts = [{}, {}]) => opts.map((x) => rpc(ads, x));
++const admitAll = async (ops) => Object.fromEntries(ops.map((o) => [o, { admit: true, status: 'not-activated' }]));
++const domains = [{ name: 'digitalocean', addresses: DO, names: [] }];
++const run = (ads, extra = {}) => discoverControlRoutes({ clients: quorum(ads), indexPin: PIN, caPem: nativeCa, decide: admitAll, failureDomains: domains, connect, probeTimeoutMs: 1500, ...extra });
++
++test('valid control routes: only endpoints that prove the exact name under the native CA, never the excluded fleet', async () => {
++  const BANNED = op(6);
++  const ads = [
++    ad(op(1), ['https://44.0.0.1/']),                          // api + mcp
++    ad(op(2), ['https://44.0.0.2:443/']),                      // api only
++    ad(op(3), ['https://44.0.0.3/']),                          // a certificate from another CA
++    ad(op(4), [`https://${DO[0]}/`]),                          // valid native leaf, but inside the failure domain
++    ad(BANNED, ['https://44.0.0.6/']),                         // valid leaf, operator banned by the platform host policy
++    ad(op(7), ['https://44.0.0.7/']),                          // expired certificate
++    ad(op(9), ['https://44.0.0.1/'], { kind: SERVICE_KINDS.directory }),   // another kind is never read
++  ];
++  const decide = async (ops) => Object.fromEntries(ops.map((o) => [o, o === BANNED ? { admit: false, status: 'current', reason: 'banned by platform policy #1 (operator): abuse' } : { admit: true, status: 'admitted' }]));
++  const before = Date.now();
++  const r = await run(ads, { decide });
++  assert.deepEqual(r.routes[API].addresses, ['44.0.0.1', '44.0.0.2']);
++  assert.deepEqual(r.routes[MCP].addresses, ['44.0.0.1']);
++  for (const n of CONTROL_NAMES) assert.ok(r.routes[n].expiresAt > before && r.routes[n].expiresAt <= Date.now() + 60_000);
++  assert.equal(r.policy, 'applied');
++  assert.deepEqual(r.refusedByPolicy.map((x) => [x.operator, x.status]), [[BANNED, 'current']]);
++  assert.deepEqual(r.excluded.map((x) => [x.operator, x.domain]), [[op(4), 'digitalocean']]);
++  assert.ok(!dials.some((d) => d.startsWith(DO[0]) || d.startsWith('44.0.0.6/')), 'neither the fleet nor a banned operator is contacted');
++  const why = (addr, name) => r.rejected.find((x) => x.endpoint === `https://${addr}/` && x.name === name)?.reason || '';
++  assert.match(why('44.0.0.2', MCP), /altnames|Hostname/i);
++  assert.match(why('44.0.0.3', API), /issuer|self.signed|verify/i);
++  assert.match(why('44.0.0.7', API), /expired/i);
++  assert.ok(!JSON.stringify(r.routes).includes(DO[0]));
++});
++
++test('malformed endpoints are refused before any connection; a non-public one voids its ad in the reader', async () => {
++  for (const bad of ['http://44.0.0.5/', 'https://44.0.0.5:8443/', 'https://44.0.0.5/v1', 'https://ctl.example.org/', 'https://10.0.0.1/', 'https://[2001:db8::1]/', 'https://44.0.0.5/?x=1', 'nonsense'])
++    assert.throws(() => controlEndpointAddress(bad), undefined, bad);
++  assert.equal(controlEndpointAddress('https://44.0.0.5'), '44.0.0.5');
++  dials.length = 0;
++  const r = await run([ad(op(1), ['http://44.0.0.5/', 'https://44.0.0.5:8443/', 'https://ctl.example.org/']), ad(op(2), ['https://10.0.0.1/']), ad(op(3), ['https://44.0.0.1/'])]);
++  assert.deepEqual(r.routes[API].addresses, ['44.0.0.1']);
++  assert.equal(r.rejected.filter((x) => x.operator === op(1)).length, 3);
++  assert.deepEqual(dials.sort(), [`44.0.0.1/${API}`, `44.0.0.1/${MCP}`]);
++});
++
++test('expiry: an expired ad gives no route; a route lives no longer than its ad or its certificate', async () => {
++  const gone = await run([ad(op(1), ['https://44.0.0.1/'], { ttlSec: 0 })]);
++  assert.deepEqual(gone.routes, {});
++  const t0 = Date.now();
++  const soon = await run([ad(op(1), ['https://44.0.0.1/'], { ttlSec: 20 })]);
++  assert.ok(soon.routes[API].expiresAt <= t0 + 21_000 && soon.routes[API].expiresAt > t0, 'bounded by the ad');
++  const cert = await run([ad(op(1), ['https://44.0.0.9/'])], { routeTtlMs: 10 * 60_000 });
++  assert.equal(cert.routes[API].expiresAt, SHORT_UNTIL, 'bounded by the certificate');
++  const later = await run([ad(op(1), ['https://44.0.0.1/'])], { now: () => Date.now() + 2 * 3600_000 });
++  assert.deepEqual(later.routes, {}, 'an ad that has expired by the time routes are assembled serves nothing');
++});
++
++test('authority: no decider is refused, an unreadable policy refuses every operator, explicit off is reported', async () => {
++  await assert.rejects(discoverControlRoutes({ clients: quorum([]), indexPin: PIN, caPem: nativeCa, failureDomains: domains }), /decider is required/);
++  dials.length = 0;
++  const unreadable = await run([ad(op(1), ['https://44.0.0.1/'])], { decide: async () => { throw new Error('mirror down'); } });
++  assert.deepEqual(unreadable.routes, {}); assert.equal(unreadable.policy, 'unreadable'); assert.equal(dials.length, 0);
++  const undecided = await run([ad(op(1), ['https://44.0.0.1/'])], { decide: async () => ({}) });
++  assert.deepEqual(undecided.routes, {}); assert.equal(undecided.refusedByPolicy[0].status, 'undecided');
++  const off = await run([ad(op(1), ['https://44.0.0.1/'])], { decide: null });
++  assert.equal(off.policy, 'not applied'); assert.deepEqual(off.routes[API].addresses, ['44.0.0.1']);
++});
++
++test('bounded failures: no agreeing quorum or a wrong contract serves nothing; a hanging endpoint costs one probe timeout', async () => {
++  const ads = [ad(op(1), ['https://44.0.0.1/'])];
++  await assert.rejects(discoverControlRoutes({ clients: quorum(ads, [{}, { lie: true }]), indexPin: PIN, caPem: nativeCa, decide: admitAll, failureDomains: domains, connect, readOptions: { requestTimeoutMs: 2000, deadlineMs: 5000 } }), /agreed|same snapshot/);
++  await assert.rejects(discoverControlRoutes({ clients: quorum(ads, [{ code: '0x00' }, { code: '0x00' }]), indexPin: PIN, caPem: nativeCa, decide: admitAll, failureDomains: domains, connect }), /not the pinned/);
++  const t0 = Date.now();
++  const r = await run([ad(op(8), ['https://44.0.0.8/']), ad(op(1), ['https://44.0.0.1/'])], { probeTimeoutMs: 700 });
++  assert.ok(Date.now() - t0 < 5000, 'probes run in parallel and each is bounded');
++  assert.deepEqual(r.routes[API].addresses, ['44.0.0.1']);
++  assert.match(r.rejected.find((x) => x.endpoint === 'https://44.0.0.8/').reason, /timed out/);
++  await assert.rejects(proveControlEndpoint({ address: '44.0.0.99', name: API, caPem: nativeCa, connect, timeoutMs: 1000 }), /ECONNREFUSED|closed/);
++});
++
++test('named operators are read directly and probed first: listing spam cannot use up the probe budget', async () => {
++  const spam = Array.from({ length: 12 }, (_, i) => ad(op(100 + i), [`https://44.1.0.${i + 1}/`]));
++  const named = ad(op(50), ['https://44.0.0.10/'], { slot: 3 });
++  const crowded = await run([...spam, named], { maxProbes: 4 });
++  assert.deepEqual(crowded.routes, {}, 'without the lookup the honest endpoint is past the budget');
++  const r = await run([...spam, named], { maxProbes: 4, operators: [op(50)] });
++  assert.deepEqual(r.routes[API].addresses, ['44.0.0.10']);
++  assert.ok(r.rejected.some((x) => /probe budget/.test(x.reason)));
++});
++
++test('the cache is single-flight, bounded by route expiry, and remembers a failure briefly', async () => {
++  let t = 1_000_000, calls = 0, fail = false;
++  const routes = () => ({ routes: { [API]: { addresses: ['44.0.0.1'], expiresAt: t + 60_000 } }, index: { blockNumber: '1' }, policy: 'applied', excluded: [], rejected: [], refusedByPolicy: [] });
++  const get = cachedControlRoutes(async () => { calls++; if (fail) throw new Error('quorum down'); await new Promise((r) => setImmediate(r)); return routes(); }, { now: () => t, retryMs: 10_000 });
++  const [a, b] = await Promise.all([get(), get()]);
++  assert.equal(calls, 1); assert.equal(a, b);
++  t += 20_000; assert.equal(await get(), a); assert.equal(calls, 1);
++  t += 50_000; fail = true;                                       // the map has expired
++  await assert.rejects(get(), /quorum down/); assert.equal(calls, 2);
++  await assert.rejects(get(), /quorum down/); assert.equal(calls, 2, 'a failure is remembered for retryMs');
++  t += 10_001; fail = false;
++  assert.deepEqual((await get()).routes[API].addresses, ['44.0.0.1']); assert.equal(calls, 3);
++});
++
++test('environment: control routes need an explicit index, a quorum and the failure domain; unset means unavailable', () => {
++  const ok = { NATIVE_CONTROL_SERVICE_INDEX: `${PIN.address}@${PIN.codeHash}`, NATIVE_CONTROL_RPCS: 'https://a.example.net,https://b.example.net', NATIVE_CONTROL_EXCLUDE: DO.join(',') };
++  assert.equal(controlRoutesFromEnv({}, { caPem: nativeCa }), null);
++  assert.equal(typeof controlRoutesFromEnv(ok, { caPem: nativeCa }), 'function');
++  assert.throws(() => controlRoutesFromEnv({ ...ok, NATIVE_CONTROL_EXCLUDE: '' }, { caPem: nativeCa }), /EXCLUDE is required/);
++  assert.throws(() => controlRoutesFromEnv({ ...ok, NATIVE_CONTROL_RPCS: 'https://a.example.net' }, { caPem: nativeCa }), /two to sixteen/);
++  assert.throws(() => controlRoutesFromEnv({ ...ok, NATIVE_CONTROL_RPCS: 'https://a.example.net,https://A.example.net/x' }, { caPem: nativeCa }), /distinct/);
++  assert.throws(() => controlRoutesFromEnv({ ...ok, NATIVE_CONTROL_SERVICE_INDEX: PIN.address }, { caPem: nativeCa }), /address>@<runtime code hash/);
++  assert.throws(() => controlRoutesFromEnv({ ...ok, NATIVE_CONTROL_OPERATORS: 'nobody' }, { caPem: nativeCa }), /operator addresses/);
++  assert.throws(() => controlRoutesFromEnv({ ...ok, ENCLAVE_PLATFORM_HOST_POLICY: 'maybe' }, { caPem: nativeCa }), /ENCLAVE_PLATFORM_HOST_POLICY/);
++});
++
++test('end to end: native discovery resolves a proven control route, and an admin ban withdraws it within the route lifetime', async (t) => {
++  const { createDiscovery } = await import('../relay/native-discovery.mjs');
++  let banned = false;
++  const decide = async (ops) => Object.fromEntries(ops.map((o) => [o, banned ? { admit: false, status: 'current', reason: 'banned by platform policy #2 (operator): abuse' } : { admit: true, status: 'admitted' }]));
++  const getControlRoutes = cachedControlRoutes(() => run([ad(op(1), ['https://44.0.0.1/'])], { decide, routeTtlMs: 800 }), { retryMs: 100 });
++  const server = createDiscovery({ caPem: nativeCa, getRoutes: async () => ({}), getControlRoutes, timeoutMs: 10_000 });
++  await new Promise((r) => server.listen(0, '127.0.0.1', r)); t.after(() => { server.closeAllConnections(); server.close(); });
++  const resolve = async (name) => { const r = await fetch(`http://127.0.0.1:${server.address().port}/native/resolve?name=${name}`); return { status: r.status, body: await r.json() }; };
++  const ok = await resolve(API);
++  assert.equal(ok.status, 200); assert.deepEqual(ok.body.addresses, ['44.0.0.1']); assert.equal(ok.body.port, 443); assert.ok(ok.body.expiresAt <= Date.now() + 800);
++  assert.equal(ok.body.caSha256, new (await import('node:crypto')).X509Certificate(nativeCa).fingerprint256.replace(/:/g, '').toLowerCase());
++  banned = true;
++  await new Promise((r) => setTimeout(r, 900));
++  const gone = await resolve(API);
++  assert.equal(gone.status, 503); assert.equal(gone.body.error, 'control_route_unavailable');
++});
++
++test('the native-control kind is opt-in: default index listings read exactly the kinds they read before', async () => {
++  assert.equal(SERVICE_KINDS['native-control'], 9); assert.equal(KIND_NAMES[9], 'native-control');
++  const kinds = new Set(), clients = quorum([ad(op(1), ['https://44.0.0.1/'])]);
++  for (const c of clients) { const rc = c.readContract; c.readContract = (q) => { if (q.functionName === 'page') kinds.add(Number(q.args[0])); return rc(q); }; }
++  const r = await readServiceIndex({ clients, pin: PIN });
++  assert.deepEqual([...kinds].sort((x, y) => x - y), [1, 2, 3, 4, 5, 7]);
++  assert.ok(!('native-control' in r.windows)); assert.equal(r.candidates.length, 0);
++});
+diff --git a/test/native-discovery.test.mjs b/test/native-discovery.test.mjs
+index e5e6d88d0..c8becff0f 100644
+--- a/test/native-discovery.test.mjs
++++ b/test/native-discovery.test.mjs
+@@ -4,31 +4,82 @@ import {readFile} from 'node:fs/promises';
+ import {createHash,X509Certificate} from 'node:crypto';
+ import {createDiscovery,routeFor} from '../relay/native-discovery.mjs';
+ 
+-test('native control recovery names use the four provider addresses',()=>{
++const DO=['134.199.235.187','134.209.248.172','165.245.191.129','146.190.246.39'];
++
++test('native control names route only to a current verified control route, never to a fixed fleet',async()=>{
++ const now=Date.now(),map={routes:{'api.enclavehost.eth':{addresses:['44.0.0.1','44.0.0.2'],expiresAt:now+1000},'mcp.enclavehost.eth':{addresses:['44.0.0.1'],expiresAt:now+1000}}};
+  for(const service of ['api','mcp']){
+-  const r=routeFor(service+'.enclavehost.eth',null);
+-  assert.equal(r.kind,'control');assert.equal(r.port,443);
+-  assert.deepEqual(r.addresses,['134.199.235.187','134.209.248.172','165.245.191.129','146.190.246.39']);
++  const name=service+'.enclavehost.eth',r=routeFor(name,map,now);
++  assert.equal(r.kind,'control');assert.equal(r.port,443);assert.equal(r.expiresAt,now+1000);
++  assert.deepEqual(r.addresses,map.routes[name].addresses);
++  assert.equal(routeFor(name,null,now),null);assert.equal(routeFor(name,{},now),null);
++  assert.equal(routeFor(name,map,now+1000),null,'expired');
+  }
+- for(const name of ['api.enclavehost.eth.attacker.test','API.enclavehost.eth','other.enclavehost.eth','api.enclave.host',null])assert.equal(routeFor(name,null),null);
++ assert.equal(routeFor('api.enclavehost.eth',{routes:{'mcp.enclavehost.eth':map.routes['mcp.enclavehost.eth']}},now),null,'one name never borrows another');
++ const src=await readFile(new URL('../relay/native-discovery.mjs',import.meta.url),'utf8');
++ for(const ip of DO)assert.ok(!src.includes(ip),`no fixed fleet address ${ip}`);
++});
++
++test('malformed control addresses are never served',()=>{
++ const now=Date.now(),at=(addresses)=>routeFor('api.enclavehost.eth',{routes:{'api.enclavehost.eth':{addresses,expiresAt:now+1000}}},now);
++ for(const addresses of [[],['10.0.0.1'],['127.0.0.1'],['2001:db8::1'],['44.0.0.1','192.168.1.1'],['44.0.0.1:443'],['api.example.org'],[44],[null],'44.0.0.1',null])
++  assert.equal(at(addresses),null,JSON.stringify(addresses));
++ assert.equal(routeFor('api.enclavehost.eth',{routes:{'api.enclavehost.eth':{addresses:['44.0.0.1'],expiresAt:'never'}}},now),null);
++});
++
++test('unknown native names have no route',()=>{
++ const now=Date.now(),map={routes:{'api.enclavehost.eth':{addresses:['44.0.0.1'],expiresAt:now+1000}},labels:{'1234abcd':{addresses:['8.8.4.4'],expiresAt:now+1000}}};
++ for(const name of ['api.enclavehost.eth.attacker.test','API.enclavehost.eth','other.enclavehost.eth','api.enclave.host','x.api.enclavehost.eth','enclavehost.eth','app.enclavehost.eth',
++  '1234abcd.app.enclavehost.eth.evil','1234ABCD.app.enclavehost.eth','a'.repeat(254),null,undefined,42])assert.equal(routeFor(name,map,now),null,String(name));
+ });
+ 
+ test('native application discovery never returns an expired or absent route',()=>{
+  const now=Date.now(),name='1234abcd.app.enclavehost.eth';
+  const map={labels:{'1234abcd':{addresses:['8.8.4.4'],expiresAt:now+1000}}};
+- assert.deepEqual(routeFor(name,map,now).addresses,['8.8.4.4']);
++ assert.deepEqual(routeFor(name,map,now),{name,addresses:['8.8.4.4'],port:443,kind:'application',expiresAt:now+1000});
+  assert.equal(routeFor(name,map,now+1000),null);assert.equal(routeFor(name,{},now),null);
+  assert.equal(routeFor('nested.'+name,map,now),null);
++ assert.equal(routeFor(name,{routes:{[name]:{addresses:['8.8.4.4'],expiresAt:now+1000}}},now),null,'an application name never reads the control map');
+ });
+ 
+-test('native discovery publishes only public CA and routing metadata and refuses missing authority',async t=>{
++async function serve(t,opts){
+  const caPem=await readFile(new URL('./fixtures/amd/Genoa-cert_chain.pem',import.meta.url),'utf8');
+- let reads=0;const server=createDiscovery({caPem,getRoutes:async()=>{reads++;throw Error('offline');}});
++ const server=createDiscovery({caPem,...opts});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>{server.closeAllConnections();server.close();});
+  const origin='http://127.0.0.1:'+server.address().port;
+- const status=await(await fetch(origin+'/native/status')).json();assert.equal(status.caSha256,createHash('sha256').update(new X509Certificate(caPem).raw).digest('hex'));
+- assert.equal((await fetch(origin+'/native/resolve?name=api.enclavehost.eth')).status,200);assert.equal(reads,0);
+- assert.equal((await fetch(origin+'/native/resolve?name=1234abcd.app.enclavehost.eth')).status,503);assert.equal(reads,1);
+- assert.equal((await fetch(origin+'/native/private.key')).status,404);
++ return {caPem,origin,get:async(p)=>{const r=await fetch(origin+p);return {status:r.status,headers:r.headers,body:await r.json().catch(()=>null)};}};
++}
++
++test('native discovery publishes only public CA and routing metadata and refuses missing authority',async t=>{
++ let reads=0;const {caPem,origin,get}=await serve(t,{getRoutes:async()=>{reads++;throw Error('offline');}});
++ const status=(await get('/native/status')).body;assert.equal(status.caSha256,createHash('sha256').update(new X509Certificate(caPem).raw).digest('hex'));
++ const control=await get('/native/resolve?name=api.enclavehost.eth');
++ assert.equal(control.status,503);assert.equal(control.body.error,'control_route_unavailable');assert.ok(control.headers.get('retry-after'));assert.equal(reads,0);
++ assert.equal((await get('/native/resolve?name=1234abcd.app.enclavehost.eth')).status,503);assert.equal(reads,1);
++ assert.equal((await get('/native/resolve?name=other.enclavehost.eth')).status,404);assert.equal(reads,1);
++ assert.equal((await get('/native/private.key')).status,404);
+  assert.equal((await fetch(origin+'/native/status',{method:'POST'})).status,405);
+ });
++
++test('native discovery serves verified control routes and answers unavailable, never another address, otherwise',async t=>{
++ let now=Date.now(),controlReads=0,appReads=0,mode='ok';
++ const getControlRoutes=async()=>{controlReads++;
++  if(mode==='throw')throw Error('quorum down');
++  if(mode==='hang')return new Promise(()=>{});
++  return {routes:mode==='empty'?{}:{'api.enclavehost.eth':{addresses:['44.0.0.1'],expiresAt:mode==='expired'?now-1:Date.now()+60_000}}};};
++ const getRoutes=async()=>{appReads++;return {labels:{'1234abcd':{addresses:['8.8.4.4'],expiresAt:Date.now()+60_000}}};};
++ const {get}=await serve(t,{getRoutes,getControlRoutes,timeoutMs:300});
++ const ok=await get('/native/resolve?name=api.enclavehost.eth');
++ assert.equal(ok.status,200);assert.deepEqual(ok.body.addresses,['44.0.0.1']);assert.equal(ok.body.kind,'control');assert.match(ok.body.caSha256,/^[0-9a-f]{64}$/);
++ for(const [m,code,error] of [['empty',503,'control_route_unavailable'],['expired',503,'control_route_unavailable'],['throw',503,'route_discovery_unavailable'],['hang',503,'route_discovery_unavailable']]){
++  mode=m;const t0=Date.now(),r=await get('/native/resolve?name=api.enclavehost.eth');
++  assert.equal(r.status,code,m);assert.equal(r.body.error,error,m);assert.ok(!JSON.stringify(r.body).match(/\d+\.\d+\.\d+\.\d+/),m);
++  assert.ok(Date.now()-t0<3000,`${m} is bounded`);
++ }
++ assert.equal(appReads,0,'control names never read the application route map');
++ mode='ok';const app=await get('/native/resolve?name=1234abcd.app.enclavehost.eth');
++ assert.equal(app.status,200);assert.deepEqual(app.body.addresses,['8.8.4.4']);assert.equal(app.body.kind,'application');
++ const reads=controlReads;assert.equal((await get('/native/resolve?name=1234abcd.app.enclavehost.eth')).status,200);assert.equal(controlReads,reads,'application names never read control routes');
++ assert.equal((await get('/native/resolve?name=other.enclavehost.eth')).status,404);
++ mode='ok';assert.equal((await get('/native/resolve?name=mcp.enclavehost.eth')).status,503,'a verified api route is not an mcp route');
++});

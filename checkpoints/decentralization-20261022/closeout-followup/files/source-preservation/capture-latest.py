@@ -33,6 +33,22 @@ for directory in ('measured-image-build/tools', 'measured-image-build/public', '
         if p.is_file() and not p.is_symlink() and p.name != 'published-ls-tree.txt' and '__pycache__' not in p.parts:
             paths.add(p)
 paths.add(base / 'measured-composition/out/c/INPUT-MANIFEST.json')
+# Preserve reviewed native-discovery work without copying generated TLS keys,
+# raw logs, dependency trees, or the withdrawn deployment bundle.
+native = base / 'native-control-discovery'
+for pattern in ('*.patch', '*.txt', '*.sh', '*.py'):
+    paths.update(p for p in native.glob(pattern) if p.is_file() and not p.is_symlink())
+for relative in (
+    'repo/relay/native-discovery.mjs',
+    'repo/test/native-discovery.test.mjs',
+    'repo/docs/design/nan-retirement.md',
+    'draft-6e46c06d/test/native-control-substitution.test.mjs',
+):
+    paths.add(native / relative)
+for p in (native / 'stubs').rglob('*'):
+    if p.is_file() and not p.is_symlink():
+        paths.add(p)
+paths.add(base / 'native-control-discovery-root-review.txt')
 paths.add(Path(__file__).resolve())
 entries = []
 unchanged = []

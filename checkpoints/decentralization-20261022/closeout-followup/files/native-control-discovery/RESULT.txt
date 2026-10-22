@@ -1,0 +1,168 @@
+NATIVE CONTROL DISCOVERY — RESULT (2026-10-22). STATUS: NOT DEPLOYED. Source and offline tests only.
+Nothing was sent to any live RPC, SSH host, wallet, DNS server or production machine. Nothing was pushed.
+
+Base: published candidate 6f2c7da466dc26e5f7aac88c574a6b807e1a03df (from work/source-checkpoint-20261022/main-repo).
+Isolated checkout: work/resume-after-checkpoint-20261022/native-control-discovery/repo
+  branch work/native-control-discovery, origin removed. Authorship of both commits: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>.
+  6e46c06da  DRAFT, WITHDRAWN (root review found a trust-boundary defect; reproduced below)
+  04ee1ae8c  FINAL: keep native control names fail-closed until endpoint identity is bound
+Final patch vs 6f2c7da4: native-control-final.patch  sha256 253fd450537712efc0d53fe4dca19f740a77aa8e465376ac5a5c61b599fd59fc
+  docs/design/nan-retirement.md   2b07e7f5fcaefe7003125dc55d4a24ce327bb98fd0f0e6339c26f3df93f45bdb
+  relay/native-discovery.mjs      adc5c9978c0293c4c1f927b1f0580ff910b1273c63f7cee926d177987d93eabc
+  test/native-discovery.test.mjs  9816d359ed6326895ff7a2000d5979931b33a40901720471d2ce7ab52885cd9c
+  network/ is byte-identical to 6f2c7da4. network/service-index.mjs = 8420b37f… (unchanged).
+Withdrawn draft for reference: native-control-draft-6e46c06d-WITHDRAWN.patch  sha256 64bfdede4c177a4c29bca42607f8b36e176f8db34dd9836f883168d863a70e52
+
+1. ROOT REVIEW FINDING: CONFIRMED. The draft lets a banned operator's endpoint be served through another advertiser.
+Draft design: a `native-control` (kind 9) service-index ad; strict admit===true for the ADVERTISING operator; a TLS
+handshake to the advertised IP:443 that verifies the leaf under the native CA for the name.
+Defect: the policy decision and the TLS proof are not bound to each other. The certificate binds a key only to DNS names.
+Any unbanned operator can advertise a banned operator's IP. The advertiser passes the policy check, and the banned
+operator's own valid leaf passes the TLS check.
+Reproduction: draft-6e46c06d/test/native-control-substitution.test.mjs (worktree of my clone at 6e46c06da). It runs the
+real readServiceIndex over two agreeing in-process RPCs and a real TLS endpoint with a production-profile leaf (DNS SANs only).
+  Scenario: banned operator Y (0x66…) and unbanned advertiser X (0x11…) both advertise https://44.0.0.6/.
+  Result (logs/subst-draft.out, queue 256 MiB, exit 0, 1/1 pass, so the defect was reproduced):
+    - Y's own ad was refused;
+    - api and mcp routes were both [44.0.0.6], attributed to X;
+    - the leaf's subjectAltName was exactly "DNS:api.enclavehost.eth, DNS:mcp.enclavehost.eth".
+  The draft's earlier tests banned only the advertiser, so they did not cover this case.
+
+2. DOES EXISTING SOURCE OFFER AN AUTHENTICATED ENDPOINT -> HOST/OPERATOR BINDING? No. Checked in 6f2c7da4:
+- Native CA leaves (work/control-vm/renew-native-cert.py) are issued from ONE shared services.key on the minipc control VM.
+  They carry DNS SANs only: api, mcp, get, ipfs and sia .enclavehost.eth. No operator, registry id or endpoint is named.
+- The measured control statement (metal/guest/measured-control.mjs) binds only keys.controlTls (spkiSha256) to the
+  operator and publicUrl. verifyMeasuredControl checks that the TLS peer at the control front is that attested key.
+  - The SNI certificate for platformApi.hostname is a separate key file (/run/measured-control/platform-api/webpki/key.pem).
+    No statement field names it.
+  - With no SNI file present, the front serves the attested control certificate, which does not chain to the native CA.
+  So no measured guest can present a native-CA leaf that is attestation-bound.
+- EnclaveRegistry endpoints are operator self-claims (host id = keccak256 of the exact bytes). Any operator can register
+  any IP in another string form. An IP match is therefore not a proof of who serves it.
+- Platform policy semantics (network/platform-host-policy.mjs judgeHost): deny entries may name registryId, chipId,
+  operator, owner or endpoint. decideOperators judges only {operator}, so an operator ban does not follow that operator's
+  endpoints. An admin endpoint ban ("https://<ip>", exact string) blocks one address string. It is an IP denylist, not
+  serving-host admission.
+- Service-index descriptors are the advertiser's own statement. They cannot name a key the advertiser does not control in
+  any binding way, because the SPKI is public.
+Conclusion: under the current protocol, a native control endpoint cannot be tied to an admitted host. As root directed, the
+final source refuses control routing. It does not introduce a bypass.
+
+3. FINAL SOURCE BEHAVIOR (04ee1ae8c)
+- relay/native-discovery.mjs no longer contains the four DigitalOcean addresses.
+  - api.enclavehost.eth and mcp.enclavehost.eth answer 503 {"error":"control_route_unavailable"} with retry-after,
+    unless createDiscovery is given an AUTHENTICATED getControlRoutes source.
+  - The deployed configuration (deployedOptions, used by the main block) supplies none. No env, advertisement or
+    route-map field can supply one.
+- When a source is given:
+  - it is consulted only for control names, and the app route map is never read for them;
+  - a route must be unexpired and contain only public IPv4 literals (net.isIPv4 plus a BlockList of non-public ranges);
+  - a timeout or error in the source answers 503 route_discovery_unavailable, bounded by timeoutMs (default 15 s).
+- Unknown names answer 404. Application routing (<8 hex>.app.enclavehost.eth from the local relay's verified route map)
+  is byte-for-byte the same logic.
+- The file imports only node: built-ins again (asserted by a test), so it still deploys as the single file it is today.
+
+4. TEST EVIDENCE (all through work/claude-test-queue.py)
+Every job ran offline in `unshare -r -n` with loopback only, and checked that DNS fails. ssh, scp and sftp denial stubs were
+first in PATH. Each job proved, through `timeout`/`env`, that every stub is what the name resolves to and that it exits 97.
+- logs/final-r4.out: FINAL source, 256 MiB, exit 0, peak 163 MiB.
+  - test/native-discovery.test.mjs: 7/7 pass.
+  - Covers: routes only from a source with no fleet address; expiry; one name never borrows another; malformed addresses
+    (empty, private/CGNAT/link-local/documentation/multicast/broadcast/0/8, IPv6, host:port, names, leading-zero octets,
+    non-strings); unknown names; unchanged app routing; unconfigured control returns 503; a throwing source and a hanging
+    source each return 503 within the bound; the deployed configuration ignores a "routes" field injected into the route
+    map and never reads it for control names; built-in imports only.
+  - Mutation control mutants-final.py: 7 of 7 mutants killed.
+    - F1: DO fallback restored.
+    - F2: expiry ignored.
+    - F3: malformed addresses served.
+    - F4: private ranges allowed.
+    - F5: deployed source wired to route-map metadata.
+    - F6: control names read the app map.
+    - F7: unconfigured control answers 404.
+    The source was restored and checked by sha256.
+- logs/subst-draft.out: adversarial reproduction against the draft (section 1).
+- Earlier runs against the WITHDRAWN draft, kept as raw evidence and not re-run:
+  - logs/r1.out: 13/15, two real failures:
+    - a test passed a deadline below the per-request timeout;
+    - routeFor threw on non-string addresses.
+  - logs/r2.out 15/15, logs/r3.out 26/26 (including test/service-index-quorum.test.mjs), logs/mut1.out 7/7 killed.
+  - logs/bundle1.out: draft bundle build and offline smoke. Bundle deploy-WITHDRAWN-draft-6e46c06d/native-discovery.bundle.mjs, sha256 fa3f9a6f…,
+    is the withdrawn draft and must not be deployed.
+- Not run: the anvil suites (service-index.test.mjs, lease-designated-relays), broad suites, image builds. None is affected:
+  network/ and every bundle input are unchanged.
+
+5. SHARED-MODULE / BUNDLE DRIFT: AVOIDED
+The draft's kind-9 addition to network/service-index.mjs would have staled
+windows/node/lease-gas-runtime.bundle.mjs (+ .manifest.json, which pins network/service-index.mjs).
+scripts/build-windows-lease-runtime.mjs --check rebuilds and byte-compares that bundle, so the check would fail, and a new
+Windows release would be needed. No metal/guest manifest lists it, and none of the 6f image's bundle manifests change.
+The final patch reverts the change, so no generated bundle, manifest or image input differs from 6f2c7da4. The built 6f
+direct image stays correctly pinned to 6f and does not contain this patch.
+relay/native-discovery.mjs is not an input of any image or bundle in the tree. Only its test imports it.
+
+6. MISSING PROOF: what production needs before control routing can be turned on (no new contract)
+Required property: the key that terminates TLS for api/mcp.enclavehost.eth at an address must be bound, by an existing
+authority, to a registry host. Discovery then judges THAT host fresh (gate.decide({registryIds}), admit === true, strict as
+in judgeRelayOperators/hostAdmissions), never the advertiser. The address must lie outside the DO failure domain, and the
+route must live 60 s or less.
+Two options, smallest first. Neither is implemented here; both need root and admin decisions.
+ A. Native-CA certificate profile (no image change, existing admin trust root).
+    - The CA holder issues a native leaf only to a host it admits, and names that host's registry id in the leaf.
+      Example: a URI SAN "enclave-registry-id:0x<64 hex>" alongside the DNS SANs.
+    - Discovery verifies the leaf under the native CA, as the draft already did, then reads the id from the VERIFIED leaf.
+    - It judges that id under the platform host policy and requires the ad's operator to equal the registry operator at
+      the same agreed block.
+    - Missing today:
+      - the profile itself;
+      - per-host leaf keys, replacing the one shared services.key;
+      - an issuance step in the CA tooling;
+      - a fail-closed reader for that SAN.
+    - Ban latency is the policy refresh, at most 60 s. Leaf validity (7 days today) bounds the CA side only.
+ B. Attested key (stronger, needs a measured image change).
+    - The measured control front presents, for SNI api/mcp.enclavehost.eth, a native-CA leaf issued over the ATTESTED
+      keys.controlTls public key. The CA can certify the statement's SPKI without the private key leaving the guest.
+    - It does so on the native port (443), routing Host api.enclavehost.eth to the platform API and mcp to the MCP route.
+    - Discovery then pins the leaf SPKI, runs the unchanged verifyMeasuredControl at that endpoint (operator, publicUrl,
+      registryId), and judges the registryId as in option A.
+    - Missing today:
+      - measured-control.mjs/gsup support for serving a native leaf over the control key, plus a second hostname route;
+      - an image rebuild (root review);
+      - the CA issuance step over a statement SPKI.
+Until one of these exists, deploying the final file turns native api/mcp resolution OFF. It does not move it.
+
+7. ROOT DEPLOYMENT STEPS (NOT DEPLOYED; root only; do not run from this workspace)
+Today the native discovery runs on the minipc control VM as enclave-native-discovery.service:
+/usr/bin/node /opt/enclave-recovery/discovery.mjs, DynamicUser, NATIVE_CA_CERT=%d/ca.pem, 127.0.0.1:8187.
+The four DO fronts proxy /native/* to it (work/control-vm/install-native-control.py).
+Deploying 04ee1ae8c's relay/native-discovery.mjs has one effect: api and mcp .enclavehost.eth stop resolving to the DO
+fronts and answer 503. App names are unchanged.
+Deploy it only when root has decided that native control resolution should be unavailable. For example: at the DO
+control-path retirement, or after option A or B exists and a verified source is added in a reviewed follow-up.
+ 1. Verify the file: sha256sum relay/native-discovery.mjs must be adc5c9978c0293c4c1f927b1f0580ff910b1273c63f7cee926d177987d93eabc.
+    It needs no bundle and no node_modules.
+ 2. On the control VM:
+    - back up /opt/enclave-recovery/discovery.mjs to discovery.mjs.before-fail-closed, keeping its sha256;
+    - install the new file 0644 root:root;
+    - run `systemctl restart enclave-native-discovery`.
+    The unit, credential and environment are unchanged. No new env variable exists.
+ 3. Verify locally on the VM:
+    - curl -s 127.0.0.1:8187/native/status returns 200 with the same caSha256 (86bf2c48…a62c);
+    - /native/resolve?name=api.enclavehost.eth returns 503 control_route_unavailable, and so does mcp;
+    - /native/resolve?name=<a live 8-hex label>.app.enclavehost.eth returns 200 with the relay's addresses;
+    - other.enclavehost.eth returns 404.
+ 4. Rollback: restore discovery.mjs.before-fail-closed and restart the unit. The old file returns the four DO addresses.
+work/control-vm/verify-native-fronts.py asserts that /native/resolve?name=api.enclavehost.eth lists the four DO IPs. It
+will FAIL after step 2 by design. Update or retire that check with the deployment.
+
+8. LIMITATIONS
+- The requested capability, public native API/MCP routes to admitted Enclave-host endpoints, is NOT delivered. It is
+  blocked on the missing endpoint-identity proof in section 6. The final patch only removes the hard-coded DO control
+  route and keeps the name fail-closed.
+- The discovery service itself is still reached through the DO fronts' /native/* proxy, and the native CA key and services
+  key still live only on minipc. Both are separate cutover items.
+- The deployed native-CA trust and hostname semantics are unchanged, untested against production, and not re-verified here.
+- Draft artifacts kept for review only (not for deployment):
+  - draft-6e46c06d/ (worktree);
+  - deploy-WITHDRAWN-draft-6e46c06d/native-discovery.bundle.mjs and meta.json;
+  - job-native-control-r1.sh, job-native-control-r3.sh, mutants-r1.py, job-bundle-r1.sh.
