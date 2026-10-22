@@ -2142,8 +2142,10 @@ export class Host {
     if (!this.chainReady || this.platformPolicy.serviceRefusal()) return Promise.resolve(out);
     const now = Date.now();
     const due = [...this.tracked].filter((id) => {
-      const seen = this.#leaseSeen.get(id), until = Number(seen?.leaseUntil) * 1000;
-      return seen && until > now && until - now < RENEW_LEAD_MS && !this.#renewing.has(id) && !this.#givingUp.has(id)
+      const seen = this.#leaseSeen.get(id), until = Number(seen?.leaseUntil) * 1000, lead = this.#renewLead.get(id);
+      // not yet inside a window whose lead this process read for exactly this lease (fresh): no read at all this round
+      const early = lead && lead.leaseUntil === seen?.leaseUntil && now - lead.at < RENEW_LEAD_CACHE_MS && until - now >= lead.ms;
+      return seen && !early && until > now && until - now < RENEW_LEAD_MS && !this.#renewing.has(id) && !this.#givingUp.has(id)
         && (this.#renewRetryAt.get(id) || 0) <= now && this.#renewedFrom.get(id) !== seen.leaseUntil && this.#renewServing(id);
     });
     return Promise.all(due.map((id) => this.#renewTurn(id, () => this.#renewKeep(id)).then(
@@ -2179,6 +2181,13 @@ export class Host {
     if (lc(d.owner) !== seen.owner || (d.isPublic !== false) !== seen.isPublic || String(d.appRef ?? "") !== seen.appRef
         || String(d.configCid ?? "") !== seen.configCid) return { skipped: "the row changed since the pass served it" };
     if (chain.placementRefusal(d.configCid, this.enclaveId) || this.heldReason(d)) return { skipped: "held" };
+    if (this.#renewedFrom.get(id) === untilS) return { extended: true };
+    // due first (the cached lead; one verified-authority read per lease), so a lease outside its window costs no decision
+    let lead;
+    try { lead = await this.#renewLeadMs(id, untilS); }
+    catch (e) { this.#renewFailed.set(id, untilS); this.#renewRetryAt.set(id, Date.now() + RENEW_RETRY_MS); this.#renewFailedNote(id, untilS * 1000, e); return { failed: e }; }
+    if (untilS * 1000 - Date.now() >= lead) return { due: false };
+    if (fenced()) return { skipped: "superseded" };
     const epoch = this.#renewEpoch.get(id) || 0;
     const wallet = await this.#walletPolicyState({ ...d, id });
     if (wallet.refusal || wallet.unknown) return { skipped: `host wallet policy ${wallet.refusal ? "refusal" : "unknown"}: the pass decides` };

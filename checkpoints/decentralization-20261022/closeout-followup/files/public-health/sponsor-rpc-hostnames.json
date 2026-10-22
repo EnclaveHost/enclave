@@ -1,0 +1,29 @@
+{
+  "at": "2026-10-22T22:16:10.0986206Z",
+  "rows": [
+    {
+      "setting": "BASE_RPCS",
+      "file": "run-node.cmd",
+      "publicHostnamesOrQuorum": [
+        "base-rpc.publicnode.com",
+        "base.gateway.tenderly.co",
+        "base-public.nodies.app",
+        "base.drpc.org",
+        "mainnet.base.org"
+      ],
+      "writtenAt": "2026-10-22T03:37:03.3203156Z"
+    },
+    {
+      "setting": "BASE_RPCS",
+      "file": "node-config.local.cmd",
+      "publicHostnamesOrQuorum": [
+        "base-rpc.publicnode.com",
+        "base.gateway.tenderly.co",
+        "base-public.nodies.app",
+        "base.drpc.org",
+        "mainnet.base.org"
+      ],
+      "writtenAt": "2026-10-22T03:37:03.2900044Z"
+    }
+  ]
+}

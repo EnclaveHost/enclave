@@ -1,0 +1,154 @@
+{
+  "scope": "staged closeout checkpoint after 54f9f1a",
+  "findings": 21,
+  "unclassified": 0,
+  "review": [
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 193,
+      "rule": "coinbase-access-token",
+      "classification": "Recomputed public dependency SHA256: node_modules/viem/_esm/actions/test/setCoinbase.js",
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1150,
+      "rule": "coinbase-access-token",
+      "classification": "Recomputed public dependency SHA256: relay/node_modules/viem/_esm/actions/test/setCoinbase.js",
+      "lineSha256": "e864c8c1176798a8664a7fd576f385419829d358dc6d45578037bf53d6241b0d"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 545,
+      "rule": "ethereum-private-key-labelled",
+      "classification": "Recomputed public dependency SHA256: relay/node_modules/@peculiar/asn1-ecc/build/cjs/ec_private_key.js",
+      "lineSha256": "a7979575624143928c77a6ddb0cd80db30a9022ec6ae0ca41bcf01150d8a8397"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 552,
+      "rule": "ethereum-private-key-labelled",
+      "classification": "Recomputed public dependency SHA256: relay/node_modules/@peculiar/asn1-ecc/build/es2015/ec_private_key.js",
+      "lineSha256": "3fb2cfe0fbc63370a41230d5eb9b158a3fe0cd87dbae22fc8cef631ad79acd42"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 573,
+      "rule": "ethereum-private-key-labelled",
+      "classification": "Recomputed public dependency SHA256: relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/private_key_info.js",
+      "lineSha256": "9e6c1693986edcfbcf33cedc1e1b265d829668673c6918ef5419503f78f7005d"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 583,
+      "rule": "ethereum-private-key-labelled",
+      "classification": "Recomputed public dependency SHA256: relay/node_modules/@peculiar/asn1-rsa/build/cjs/rsa_private_key.js",
+      "lineSha256": "d605f8da3d8d6107ecebe6d8500f7109cc39b4d7768a0c85e3ca82955e65ff0d"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 593,
+      "rule": "ethereum-private-key-labelled",
+      "classification": "Recomputed public dependency SHA256: relay/node_modules/@peculiar/asn1-rsa/build/es2015/rsa_private_key.js",
+      "lineSha256": "1fa21cea0c7de52b6c71b8f2ee71c20d838eaf45d0bdc4c8d1f1e36c252f0f87"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 674,
+      "rule": "ethereum-private-key-labelled",
+      "classification": "Recomputed public dependency SHA256: relay/node_modules/@peculiar/asn1-x509/build/cjs/extensions/private_key_usage_period.js",
+      "lineSha256": "24b207d065d95dcdd5b2d00dd0a1367dc5512746ae857bd5964804399fdafe29"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 717,
+      "rule": "ethereum-private-key-labelled",
+      "classification": "Recomputed public dependency SHA256: relay/node_modules/@peculiar/asn1-x509/build/es2015/extensions/private_key_usage_period.js",
+      "lineSha256": "91633d43bad526a0d658b63c00a50c103c4b257f1f9fdaa41caecbcf6e538605"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1061,
+      "rule": "ethereum-private-key-labelled",
+      "classification": "Recomputed public dependency SHA256: relay/node_modules/viem/_esm/accounts/generatePrivateKey.js",
+      "lineSha256": "acdcbda851b474e3bc2fa3baad4e70e2b90b558c646fdf90d3dfebb432679b9a"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1065,
+      "rule": "ethereum-private-key-labelled",
+      "classification": "Recomputed public dependency SHA256: relay/node_modules/viem/_esm/accounts/privateKeyToAccount.js",
+      "lineSha256": "4d8e877144342168c63eae44afb0671fcd3fc235acd24d2edad836a5f8420a72"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1068,
+      "rule": "ethereum-private-key-labelled",
+      "classification": "Recomputed public dependency SHA256: relay/node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js",
+      "lineSha256": "5c2f84f9b91f7df912d54ed0383099a56a322a666ccac469b585a3cc72abe644"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 68833,
+      "rule": "generic-api-key",
+      "classification": "Generated declaration of constant identifiers only: no assignment or value exists on the flagged line",
+      "lineSha256": "fde21f1f98b993cda7782e8a2f3b85213507bfae65b9482c814ff0b56d7ef009"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 144738,
+      "rule": "generic-api-key",
+      "classification": "Public code expression or AddressBook label; exact line exists in published eaea7e46 bundle",
+      "lineSha256": "1debff58111fae812884240bf0151ac752d88cf01c111dcffd1a4c450a049194"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 145579,
+      "rule": "generic-api-key",
+      "classification": "Public code expression or AddressBook label; exact line exists in published eaea7e46 bundle",
+      "lineSha256": "02f580d4f4a0956a22c2eb997a71af4bdf295e275ff425e6ac2492514eca77bd"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 145974,
+      "rule": "generic-api-key",
+      "classification": "Public code expression or AddressBook label; exact line exists in published eaea7e46 bundle",
+      "lineSha256": "245a434069c39d5b1cc8b99f831d6429e7914e83981b44a9110a2cde49cb9c46"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 147748,
+      "rule": "generic-api-key",
+      "classification": "Public code expression or AddressBook label; exact line exists in published eaea7e46 bundle",
+      "lineSha256": "fb7ec8474de680b0f9293958fa75ce37d9fbac79f9944de5d4d9d6bff9b0f423"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 147749,
+      "rule": "generic-api-key",
+      "classification": "Public code expression or AddressBook label; exact line exists in published eaea7e46 bundle",
+      "lineSha256": "d1b122c16a3ee46aed2ebb03f196b9128592da1803b3912654ace8b5fbf35bb7"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 164423,
+      "rule": "generic-api-key",
+      "classification": "Public lease/admission predicate identical to published code after normalizing bundler-renamed app/fingerprint identifiers",
+      "lineSha256": "14ca55e8ed83ab4023a91af34fae92522f583d113739afb280b717450a135ef4"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 165098,
+      "rule": "generic-api-key",
+      "classification": "Public code expression or AddressBook label; exact line exists in published eaea7e46 bundle",
+      "lineSha256": "3ce3eab5829091ed37649d194b1d07e4e61cda10a604c1f6266301250ae5ff18"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 246938,
+      "rule": "ethereum-private-key-env",
+      "classification": "Public code expression or AddressBook label; exact line exists in published eaea7e46 bundle",
+      "lineSha256": "dccb1de32b39a8612e859a988007d17fa01ce1f01a7e177f5843959933c57f8c"
+    }
+  ]
+}

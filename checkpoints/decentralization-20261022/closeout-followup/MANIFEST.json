@@ -1,7 +1,13 @@
 {
-  "capturedAt": "2026-10-22T22:04:13.305761+00:00",
+  "capturedAt": "2026-10-22T22:25:11.004523+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
+    {
+      "source": "work/resume-after-checkpoint-20261022/adapter-activation-review-task.txt",
+      "stored": "files/adapter-activation-review-task.txt",
+      "sha256": "b1d25062e08a818cc843e8f41a8f9ee944ac69d8b607e1641c0dce9e6f0c409b",
+      "bytes": 2064
+    },
     {
       "source": "work/resume-after-checkpoint-20261022/adapter-activation-review/RESULT.md",
       "stored": "files/adapter-activation-review/RESULT.md",
@@ -15,10 +21,10 @@
       "bytes": 12604
     },
     {
-      "source": "work/resume-after-checkpoint-20261022/adapter-activation-review-task.txt",
-      "stored": "files/adapter-activation-review-task.txt",
-      "sha256": "b1d25062e08a818cc843e8f41a8f9ee944ac69d8b607e1641c0dce9e6f0c409b",
-      "bytes": 2064
+      "source": "work/resume-after-checkpoint-20261022/adapter-admission-review-task.txt",
+      "stored": "files/adapter-admission-review-task.txt",
+      "sha256": "578ee49843eef634bf86d36f50eb918a65948e3fe0accbd630b2bf855d30ed14",
+      "bytes": 633
     },
     {
       "source": "work/resume-after-checkpoint-20261022/adapter-admission-review/RESULT.md",
@@ -51,10 +57,22 @@
       "bytes": 30813
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/adapter-admission-review/base-run.py",
+      "stored": "files/adapter-admission-review/base-run.py",
+      "sha256": "47201ec31a689f5782e07d1dbb94b7605e5ca77d71df36b98d096d9e1d827560",
+      "bytes": 1703
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/adapter-admission-review/candidate/test/helpers/windows-lease-scripted-fixture.mjs",
       "stored": "files/adapter-admission-review/candidate/test/helpers/windows-lease-scripted-fixture.mjs",
       "sha256": "7f41a0147f62e7fa94e6f1c0045cbc29ff7dcf6e3a8a0f7e6d1f8d0c5ee9936b",
       "bytes": 789
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/adapter-admission-review/candidate/test/windows-node-lease-renewal-keeper.test.mjs",
+      "stored": "files/adapter-admission-review/candidate/test/windows-node-lease-renewal-keeper.test.mjs",
+      "sha256": "fae0732402e4ed8ea360ba6eb47ece70cff8e4b5882497efc218e9bb18f028e2",
+      "bytes": 25030
     },
     {
       "source": "work/resume-after-checkpoint-20261022/adapter-admission-review/candidate/test/windows-node-wallet-grant-refresh.test.mjs",
@@ -71,8 +89,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/adapter-admission-review/candidate/windows/node/host.mjs",
       "stored": "files/adapter-admission-review/candidate/windows/node/host.mjs",
-      "sha256": "4bc575c56c384a0a2f38db2b9e20ac407432c6c2ddf2a12d3832ce88273ce001",
-      "bytes": 301897
+      "sha256": "3881bd289cfd1f491aa85ac5f681aa93f479f8ae6688982f4dfeebb629948cb0",
+      "bytes": 302752
     },
     {
       "source": "work/resume-after-checkpoint-20261022/adapter-admission-review/job-tests.sh",
@@ -87,16 +105,28 @@
       "bytes": 4298
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/adapter-admission-review/mutants-renew.py",
+      "stored": "files/adapter-admission-review/mutants-renew.py",
+      "sha256": "f412c19d8072d010b1d62134ccaf9134da5b41b9780ec25d4c86fb8755656b37",
+      "bytes": 7264
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/adapter-admission-review/mutants.py",
       "stored": "files/adapter-admission-review/mutants.py",
       "sha256": "6d2cc5296c5dc9918d6a625ff8fb6416d494393d77135cfa0e9ed1cfcfd788ec",
       "bytes": 4115
     },
     {
-      "source": "work/resume-after-checkpoint-20261022/adapter-admission-review-task.txt",
-      "stored": "files/adapter-admission-review-task.txt",
-      "sha256": "578ee49843eef634bf86d36f50eb918a65948e3fe0accbd630b2bf855d30ed14",
-      "bytes": 633
+      "source": "work/resume-after-checkpoint-20261022/adapter-admission-review/reg-list.txt",
+      "stored": "files/adapter-admission-review/reg-list.txt",
+      "sha256": "12f90f856e4380815a3353ab6efbdbe04693aef48b10d649c6629bf546cdae90",
+      "bytes": 2286
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/adapter-admission-review/reg-rest.txt",
+      "stored": "files/adapter-admission-review/reg-rest.txt",
+      "sha256": "3477167a84b1674983703a53c3b2d0d5d35c57faa275202d1bfc705145445155",
+      "bytes": 2069
     },
     {
       "source": "work/resume-after-checkpoint-20261022/adapter-admission-task.txt",
@@ -225,6 +255,12 @@
       "bytes": 46699
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/integration-r4.run-integration.r3-to-r4.patch",
+      "stored": "files/controller-bounds-validation/integration-r4.run-integration.r3-to-r4.patch",
+      "sha256": "b50f5e032e0ffc1a4b3c640c14edca253d2cd1e8c3e5d0e3af65c95584004acb",
+      "bytes": 1704
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/integration-r4/integration_checks.py",
       "stored": "files/controller-bounds-validation/integration-r4/integration_checks.py",
       "sha256": "538c28d43f1bab992c4dc87f3d3f25524bc86bd91e6a8ac492d7ab1b58415cbf",
@@ -241,12 +277,6 @@
       "stored": "files/controller-bounds-validation/integration-r4/run-integration.py",
       "sha256": "ec6864328094ba20b9d5bd007e8063856f549f6972e762dd30bb9122b57e772e",
       "bytes": 16070
-    },
-    {
-      "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/integration-r4.run-integration.r3-to-r4.patch",
-      "stored": "files/controller-bounds-validation/integration-r4.run-integration.r3-to-r4.patch",
-      "sha256": "b50f5e032e0ffc1a4b3c640c14edca253d2cd1e8c3e5d0e3af65c95584004acb",
-      "bytes": 1704
     },
     {
       "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/test_units.py",
@@ -813,6 +843,18 @@
       "bytes": 1703
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/native-control-attested-review-task.txt",
+      "stored": "files/native-control-attested-review-task.txt",
+      "sha256": "87d17cf403bc963f7fa6e214b38e42e717e5d39b50ecaf663fee8b20432ee18c",
+      "bytes": 1183
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-attested-task.txt",
+      "stored": "files/native-control-attested-task.txt",
+      "sha256": "01196e030d515d035651d87b655bc8c04bd93eee05b557bb16393d96a2e6fe22",
+      "bytes": 3944
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/native-control-attested/RESULT-forwarding.md",
       "stored": "files/native-control-attested/RESULT-forwarding.md",
       "sha256": "56d661d76e607d9aa5130b2865086858b315568c66a2442cbb854f4a202cdfb8",
@@ -1053,22 +1095,16 @@
       "bytes": 18996
     },
     {
-      "source": "work/resume-after-checkpoint-20261022/native-control-attested-review-task.txt",
-      "stored": "files/native-control-attested-review-task.txt",
-      "sha256": "87d17cf403bc963f7fa6e214b38e42e717e5d39b50ecaf663fee8b20432ee18c",
-      "bytes": 1183
-    },
-    {
-      "source": "work/resume-after-checkpoint-20261022/native-control-attested-task.txt",
-      "stored": "files/native-control-attested-task.txt",
-      "sha256": "01196e030d515d035651d87b655bc8c04bd93eee05b557bb16393d96a2e6fe22",
-      "bytes": 3944
-    },
-    {
       "source": "work/resume-after-checkpoint-20261022/native-control-chip-integration-task.txt",
       "stored": "files/native-control-chip-integration-task.txt",
       "sha256": "1de5c4ef99568f1c3398d54320f7fc525e3a9ec7ff645702b8de78f6f5493032",
       "bytes": 1910
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-discovery-root-review.txt",
+      "stored": "files/native-control-discovery-root-review.txt",
+      "sha256": "a4828cb2179630e68a4ef7a7a11e08c7caf810b9d6abc1507cc22e971a8c68b3",
+      "bytes": 1643
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-control-discovery/RESULT.txt",
@@ -1173,10 +1209,16 @@
       "bytes": 110
     },
     {
-      "source": "work/resume-after-checkpoint-20261022/native-control-discovery-root-review.txt",
-      "stored": "files/native-control-discovery-root-review.txt",
-      "sha256": "a4828cb2179630e68a4ef7a7a11e08c7caf810b9d6abc1507cc22e971a8c68b3",
-      "bytes": 1643
+      "source": "work/resume-after-checkpoint-20261022/native-final-build/build.sh",
+      "stored": "files/native-final-build/build.sh",
+      "sha256": "e6576a5a93a4a02b7ef9df2780c2749d40b0605c813ed3ce83e42377c4823399",
+      "bytes": 1601
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-front-abort-task.txt",
+      "stored": "files/native-front-abort-task.txt",
+      "sha256": "5705fee4932f162dd71eb9cbffa77ad0f256e812d28c66dafb881623d3f9852c",
+      "bytes": 1318
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-front-abort/RESULT.md",
@@ -1229,8 +1271,26 @@
     {
       "source": "work/resume-after-checkpoint-20261022/native-front-abort/repo/metal/guest/platform-api-role.mjs",
       "stored": "files/native-front-abort/repo/metal/guest/platform-api-role.mjs",
-      "sha256": "6476aecf401f4128ba7b20c53a4c1ee1dea6aa89251ab12a281202fd05ea92c0",
-      "bytes": 38011
+      "sha256": "06adf4bab382725411876a1277160acb7f52b3042907bcfe9ed303040c9bcee3",
+      "bytes": 38929
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-front-abort/repo/metal/guest/platform-api-verify.mjs",
+      "stored": "files/native-front-abort/repo/metal/guest/platform-api-verify.mjs",
+      "sha256": "4cadc6103590f02614c6ec1f300d416ab99e44aa73309c6b0bfd61eb25bf8fbb",
+      "bytes": 6047
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-front-abort/repo/metal/guest/platform-api.bundle.mjs",
+      "stored": "files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs",
+      "sha256": "0a1d88de230842442c41cc9f399d3a7dda5394fb523812b2503bc2358b09b4ef",
+      "bytes": 8705824
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "stored": "files/native-front-abort/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "sha256": "751e889b2ca9a2a7d72ddd332add42b002f4150b002b1c5c5b6204fc7a55d673",
+      "bytes": 295111
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-front-abort/repo/scripts/build-platform-api-guest-bundle.mjs",
@@ -1243,6 +1303,12 @@
       "stored": "files/native-front-abort/repo/scripts/native-control-certificate.mjs",
       "sha256": "4eabe79ef22edd17a646de907c59f5604b07d3b97eb6668927e9a9e3600d6f1f",
       "bytes": 8414
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-front-abort/repo/scripts/platform-api-admin.mjs",
+      "stored": "files/native-front-abort/repo/scripts/platform-api-admin.mjs",
+      "sha256": "204a3bf3f074f42a06c04168083da52546259bcb3f5cfac3ecc5cba5325286da",
+      "bytes": 15377
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-front-abort/repo/test/control-front-abort.test.mjs",
@@ -1263,6 +1329,18 @@
       "bytes": 10350
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/native-front-abort/repo/test/platform-api-admin-cli.test.mjs",
+      "stored": "files/native-front-abort/repo/test/platform-api-admin-cli.test.mjs",
+      "sha256": "42af77aa973e63c1d9b475aab15f0780c7f93dc9ab5fd53b40cdb018a443179a",
+      "bytes": 25090
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-front-abort/repo/test/platform-api-handoff-production.test.mjs",
+      "stored": "files/native-front-abort/repo/test/platform-api-handoff-production.test.mjs",
+      "sha256": "87eabeaff37a3a7210d0f5534eca1bef798d3dcd7f511bcb7c1a92ee74225739",
+      "bytes": 22318
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/native-front-abort/repo/test/platform-api-native-issuer.test.mjs",
       "stored": "files/native-front-abort/repo/test/platform-api-native-issuer.test.mjs",
       "sha256": "17eda186fa01a8701bd613d06f6f1c4ea5555a7fc64253202fc11cd1219a1c28",
@@ -1275,16 +1353,34 @@
       "bytes": 266
     },
     {
-      "source": "work/resume-after-checkpoint-20261022/native-front-abort-task.txt",
-      "stored": "files/native-front-abort-task.txt",
-      "sha256": "5705fee4932f162dd71eb9cbffa77ad0f256e812d28c66dafb881623d3f9852c",
-      "bytes": 1318
-    },
-    {
       "source": "work/resume-after-checkpoint-20261022/native-handoff-final-task.txt",
       "stored": "files/native-handoff-final-task.txt",
       "sha256": "f4bcc78de21389bdc392b9907d2b799d36b83eaa2b3b670d78549436031c52cc",
       "bytes": 2350
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-handoff-final/RESULT.md",
+      "stored": "files/native-handoff-final/RESULT.md",
+      "sha256": "fbf4841298fa8ece18305ae28d61095668e522c14967e7454f4885b8199f06c8",
+      "bytes": 12145
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-handoff-final/native-handoff-final.patch",
+      "stored": "files/native-handoff-final/native-handoff-final.patch",
+      "sha256": "5e459d58cd548454784b9ff0f38240c56268cb98428f169c1fff6f0966a8d80d",
+      "bytes": 30605
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-handoff-final/run-test.sh",
+      "stored": "files/native-handoff-final/run-test.sh",
+      "sha256": "c1746d6c9ee63e137f582ba46904299e1e1e30e64d2418f4636dd3f08e231bcd",
+      "bytes": 349
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-issuer-implementation-task.txt",
+      "stored": "files/native-issuer-implementation-task.txt",
+      "sha256": "9b069239afb725bdd20d2dcb67fabce1aed00ec79f1ed2fb49ee375f86eb8eb4",
+      "bytes": 3137
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-issuer-implementation/MANIFEST.json",
@@ -1449,22 +1545,16 @@
       "bytes": 44191
     },
     {
-      "source": "work/resume-after-checkpoint-20261022/native-issuer-implementation-task.txt",
-      "stored": "files/native-issuer-implementation-task.txt",
-      "sha256": "9b069239afb725bdd20d2dcb67fabce1aed00ec79f1ed2fb49ee375f86eb8eb4",
-      "bytes": 3137
+      "source": "work/resume-after-checkpoint-20261022/native-issuer-recovery-task.txt",
+      "stored": "files/native-issuer-recovery-task.txt",
+      "sha256": "44ec3ac63317511460aaa633b21aef13bebbcf70a18be31c0636b4be774f6fa6",
+      "bytes": 1773
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-issuer-recovery/RESULT.md",
       "stored": "files/native-issuer-recovery/RESULT.md",
       "sha256": "ad8ffccb9f0176a1462ecea676ec13a56d1c3f519b496d9e601cfb9800401e1d",
       "bytes": 19849
-    },
-    {
-      "source": "work/resume-after-checkpoint-20261022/native-issuer-recovery-task.txt",
-      "stored": "files/native-issuer-recovery-task.txt",
-      "sha256": "44ec3ac63317511460aaa633b21aef13bebbcf70a18be31c0636b4be774f6fa6",
-      "bytes": 1773
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-issuer-review-task.txt",
@@ -1477,6 +1567,12 @@
       "stored": "files/native-issuer-second-review-task.txt",
       "sha256": "d5d51dbbcdcdc156f29b0bd93d6686eb7c3bf1ce9c8f9c0e96df629e2feb109b",
       "bytes": 1152
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-request-abort-review-task.txt",
+      "stored": "files/native-request-abort-review-task.txt",
+      "sha256": "56ef5bd7d26f031df6020074674d4e315710d20ed1c3467e94ce723c072392d2",
+      "bytes": 1770
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-request-abort-review/EVIDENCE.sha256",
@@ -1527,10 +1623,10 @@
       "bytes": 10350
     },
     {
-      "source": "work/resume-after-checkpoint-20261022/native-request-abort-review-task.txt",
-      "stored": "files/native-request-abort-review-task.txt",
-      "sha256": "56ef5bd7d26f031df6020074674d4e315710d20ed1c3467e94ce723c072392d2",
-      "bytes": 1770
+      "source": "work/resume-after-checkpoint-20261022/native-storage-names-task.txt",
+      "stored": "files/native-storage-names-task.txt",
+      "sha256": "f422f07f04a1135cdc197abb2c3bfb7566939ca7a3084ecbad93aee31a48e80e",
+      "bytes": 2020
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-storage-names/RESULT.md",
@@ -1539,16 +1635,148 @@
       "bytes": 9987
     },
     {
-      "source": "work/resume-after-checkpoint-20261022/native-storage-names-task.txt",
-      "stored": "files/native-storage-names-task.txt",
-      "sha256": "f422f07f04a1135cdc197abb2c3bfb7566939ca7a3084ecbad93aee31a48e80e",
-      "bytes": 2020
+      "source": "work/resume-after-checkpoint-20261022/node-restart-budget-review-task.txt",
+      "stored": "files/node-restart-budget-review-task.txt",
+      "sha256": "e48e04ce7465306b40c72fff6eb800e8ded10311efca857e4698950977a85899",
+      "bytes": 837
     },
     {
       "source": "work/resume-after-checkpoint-20261022/node-restart-final-task.txt",
       "stored": "files/node-restart-final-task.txt",
       "sha256": "d9eda4552bc77fb147bd15613febaf90a2e40b7313d02962f6ac37f35e3a5e39",
       "bytes": 2741
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/ROOT-LEASE-BUDGET-NOTE.txt",
+      "stored": "files/node-restart-final/ROOT-LEASE-BUDGET-NOTE.txt",
+      "sha256": "35562c559d39c6d454fddfa5b5656d4a788c4258df6d7a568e3215105fbeff83",
+      "bytes": 1414
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/ROOT-TWO-FILE-NOTE.txt",
+      "stored": "files/node-restart-final/ROOT-TWO-FILE-NOTE.txt",
+      "sha256": "deff89493d7e122446a2384e3017338cbaa647dc1ab19145c19758c1adecc70d",
+      "bytes": 1638
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/helper/node-pair-restart.ps1",
+      "stored": "files/node-restart-final/helper/node-pair-restart.ps1",
+      "sha256": "063a29304ad449f48e72a4ba4615337faf0934ee0385ee6ef809113b7f15d88a",
+      "bytes": 60651
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/jobs/suite-r1.sh",
+      "stored": "files/node-restart-final/jobs/suite-r1.sh",
+      "sha256": "db501e79a82b11f2d1533a866789f49ca45cb8dcab47ff6f854c4c7d2e2e8d21",
+      "bytes": 1200
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/offline.sh",
+      "stored": "files/node-restart-final/offline.sh",
+      "sha256": "06867971564b76c0326f90a9897b33c2daa1b1e8636816ba733b2e6b8319ad3d",
+      "bytes": 781
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/q.sh",
+      "stored": "files/node-restart-final/q.sh",
+      "sha256": "67ea1f6e3a7b66ce7aee4dd767ae9181cafd79f4ce566976735d266e0c68614b",
+      "bytes": 914
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/source/cutover-mock.rpc-integrated.ps1",
+      "stored": "files/node-restart-final/source/cutover-mock.rpc-integrated.ps1",
+      "sha256": "db913924cadb1ffa5bbc38c0b25c6514ebaaaf87addf31396e17aeedcbaabe1f",
+      "bytes": 19543
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/source/node-hold-cutover.df2e58f2.ps1",
+      "stored": "files/node-restart-final/source/node-hold-cutover.df2e58f2.ps1",
+      "sha256": "df2e58f2569d04b2021a570d8525769ef84976335d2c2657e7e2a3a92604a5d8",
+      "bytes": 69674
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/source/node-restart.beac40d9.ps1",
+      "stored": "files/node-restart-final/source/node-restart.beac40d9.ps1",
+      "sha256": "beac40d93de8378d2b1c36129dd9e74cde0a16a9837b9cfc68a0a55777c517d3",
+      "bytes": 9710
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/tools/child-test.ps1",
+      "stored": "files/node-restart-final/tools/child-test.ps1",
+      "sha256": "d416fb41905add8701b632acdfc96906e17e7828a30c7737e8f6ecde6f49ecaf",
+      "bytes": 5010
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/tools/compose.py",
+      "stored": "files/node-restart-final/tools/compose.py",
+      "sha256": "e28542f094f198904c6f6773fcf7ea964471016243940bedc17861fb13a36506",
+      "bytes": 2834
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/tools/helper-template.ps1",
+      "stored": "files/node-restart-final/tools/helper-template.ps1",
+      "sha256": "56f6bc5df137c1c8f825f30b41e02869c60e083eda2511e8d0c499263519da5c",
+      "bytes": 41237
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/tools/pair-mock.ps1",
+      "stored": "files/node-restart-final/tools/pair-mock.ps1",
+      "sha256": "e72451266d6dc7d23081db471b706bbd8c3c5c6708ea833124846076889122c2",
+      "bytes": 10927
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/tools/pair-test.py",
+      "stored": "files/node-restart-final/tools/pair-test.py",
+      "sha256": "0e0891e62cd065ed4f0bfeb6ac4215c664b72845eeeaec050eb346d6772c2073",
+      "bytes": 20771
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/tools/provenance-test.ps1",
+      "stored": "files/node-restart-final/tools/provenance-test.ps1",
+      "sha256": "f107b73bbf3e2f5fab2f0fc8c500cbcf5064bfc405102b127a3d8ab4612545f5",
+      "bytes": 1655
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/tools/query-failure-test.ps1",
+      "stored": "files/node-restart-final/tools/query-failure-test.ps1",
+      "sha256": "d37ab6f61bac821261c3db91b60064480ab4bce8ea1d876b6bf770b8d62d3171",
+      "bytes": 2108
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/tools/stop-proof-test.ps1",
+      "stored": "files/node-restart-final/tools/stop-proof-test.ps1",
+      "sha256": "14127d9425e3cbd38c8cda872ea2277a223f9b87f48edf717ac170a76480089d",
+      "bytes": 2719
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/tools/swap-prelude.ps1",
+      "stored": "files/node-restart-final/tools/swap-prelude.ps1",
+      "sha256": "507c36b911bbfe863f0e335e88507b3ab23e6866623632281dcb36cb89276590",
+      "bytes": 2928
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-final/tools/task-budget-test.ps1",
+      "stored": "files/node-restart-final/tools/task-budget-test.ps1",
+      "sha256": "50e206bb683f855e49fa7b372b23c217dcebe227fd9c67cd95e53863704a526e",
+      "bytes": 2629
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/node-restart-two-file-task.txt",
+      "stored": "files/node-restart-two-file-task.txt",
+      "sha256": "0bcd7c5b1beb2b3227bba8b107c5ca588411f5340f3ebd3e9803c900a17b102f",
+      "bytes": 682
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/platform-api-admin-final-task.txt",
+      "stored": "files/platform-api-admin-final-task.txt",
+      "sha256": "680039fd77963a33b8eb38fae81e56f07f51c4a52e2c7c258b7075766c6bb36b",
+      "bytes": 2079
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/platform-api-admin-final/run-test.sh",
+      "stored": "files/platform-api-admin-final/run-test.sh",
+      "sha256": "c1746d6c9ee63e137f582ba46904299e1e1e30e64d2418f4636dd3f08e231bcd",
+      "bytes": 349
     },
     {
       "source": "work/resume-after-checkpoint-20261022/platform-forwarding-pin-task.txt",
@@ -1947,16 +2175,52 @@
       "bytes": 1800
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/public-health/sponsor-rpc-hostnames-full.json",
+      "stored": "files/public-health/sponsor-rpc-hostnames-full.json",
+      "sha256": "2b306271410aaf042b8aa8e91ac5ea97b0b5b4caae499e2eab51dc29da19a6d7",
+      "bytes": 716
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-health/sponsor-rpc-hostnames.json",
+      "stored": "files/public-health/sponsor-rpc-hostnames.json",
+      "sha256": "76297df71fd82e7d96cc3735cf3a7e6f397c05677e2e572b14bd1a3e99aef68c",
+      "bytes": 716
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-health/sponsor-rpc-read-full.py",
+      "stored": "files/public-health/sponsor-rpc-read-full.py",
+      "sha256": "2f5dce17caca1c43d36a9b6add6478f12fa2be0843f7ce2836599d54264595cc",
+      "bytes": 1684
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-health/sponsor-rpc-read.py",
+      "stored": "files/public-health/sponsor-rpc-read.py",
+      "sha256": "4ef038d70db441f5bff16a65ba1e82ce2542b96abdae18264b0b6cce9cfebcab",
+      "bytes": 1631
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/public-validation/admission-and-control-front-progress.json",
       "stored": "files/public-validation/admission-and-control-front-progress.json",
       "sha256": "4d128da8ee0cdaeca05413654cad69bb94540245aae0db0c606f991cd31d20eb",
       "bytes": 2293
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/gitleaks-issuer-review.json",
+      "stored": "files/public-validation/gitleaks-issuer-review.json",
+      "sha256": "dfa1d78f40d62a73b4b4b748757f0acce98246c61ffb19ce80df14e39a14d30c",
+      "bytes": 9462
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/public-validation/gitleaks-review.json",
       "stored": "files/public-validation/gitleaks-review.json",
       "sha256": "350c6933ad8d9a225857de2c1b716a7e07d4b56c9e4d573879f4d05da54b7937",
       "bytes": 8899
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/gitleaks-save-latest-review.json",
+      "stored": "files/public-validation/gitleaks-save-latest-review.json",
+      "sha256": "f8bf8fde82986a5c6744be3bb2ee660551cbcfc171fa0d1d2fa078abc501656b",
+      "bytes": 9282
     },
     {
       "source": "work/resume-after-checkpoint-20261022/public-validation/hardware-canary-20261022/RECEIPT.json",
@@ -2023,6 +2287,12 @@
       "stored": "files/public-validation/native-issuer-integration-progress.json",
       "sha256": "90ac8756dd2a2161293d6c2796e79e1b99148dbeecc49122c4f3a573765691f7",
       "bytes": 1853
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/source-scan-issuer-review.json",
+      "stored": "files/public-validation/source-scan-issuer-review.json",
+      "sha256": "59c4a1665c05c45259e552b7320bcaf5311fd1c1ca733580146879f4260d575a",
+      "bytes": 35885
     },
     {
       "source": "work/resume-after-checkpoint-20261022/public-validation/source-scan-review.json",
@@ -2111,8 +2381,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "f4dd7c1cbe160ab408280b437b3e37eda1679a7957344d0652333f9c2d14888e",
-      "bytes": 12416
+      "sha256": "0db7f92a1976159f56a22ff65c119fad2fe60514fe99ac053c874bc0bb691f47",
+      "bytes": 13533
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",
@@ -2131,6 +2401,24 @@
       "stored": "files/source-preservation/review-gitleaks.py",
       "sha256": "a6714d516344807a11cb1d94a8609f6f0817596cf4f00431a5600238ae8e7160",
       "bytes": 1503
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/review-issuer-gitleaks.py",
+      "stored": "files/source-preservation/review-issuer-gitleaks.py",
+      "sha256": "2171941ca944e27eee09b837f56f8080ad98677887b8d42d966fc03759586e10",
+      "bytes": 2020
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/review-issuer-staged-findings.py",
+      "stored": "files/source-preservation/review-issuer-staged-findings.py",
+      "sha256": "771a7fc0c22f89be0886931c846ec1e77a40f94cb384542dc72c34d942bf1c39",
+      "bytes": 2498
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/review-save-latest-gitleaks.py",
+      "stored": "files/source-preservation/review-save-latest-gitleaks.py",
+      "sha256": "413f8c0c4ec17ed352900aee3eb49e0d561c5810af80a27d81ce15e199fc7df3",
+      "bytes": 2049
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-staged-findings.py",
@@ -2155,6 +2443,12 @@
       "stored": "files/storage-activation-next/SHA256SUMS",
       "sha256": "943d53f32760e263eea1933af7529fe43773e6ef268c314f2e727f04c36c8844",
       "bytes": 155
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-client-interop-task.txt",
+      "stored": "files/storage-client-interop-task.txt",
+      "sha256": "4051c688d08b4a794f3eac0f92003bb4560a204fbba66f4d636dac59ac96088a",
+      "bytes": 2664
     },
     {
       "source": "work/resume-after-checkpoint-20261022/storage-client-interop/MANIFEST.sha256",
@@ -2253,12 +2547,6 @@
       "bytes": 1963
     },
     {
-      "source": "work/resume-after-checkpoint-20261022/storage-client-interop-task.txt",
-      "stored": "files/storage-client-interop-task.txt",
-      "sha256": "4051c688d08b4a794f3eac0f92003bb4560a204fbba66f4d636dac59ac96088a",
-      "bytes": 2664
-    },
-    {
       "source": "work/resume-after-checkpoint-20261022/storage-lease16-format-review-task.txt",
       "stored": "files/storage-lease16-format-review-task.txt",
       "sha256": "e29987436990a3608eef72b622882e922947bc6bf4f8e8b5fc6b4bfaf78cae79",
@@ -2317,30 +2605,6 @@
       "stored": "files/storage-public-read/rpc-capabilities.mjs",
       "sha256": "0e2ed0f62047d3235522b4e77c147613293422102b2a6eb1201c7073099bc41e",
       "bytes": 1604
-    },
-    {
-      "source": "work/resume-after-checkpoint-20261022/public-validation/source-scan-issuer-review.json",
-      "stored": "files/public-validation/source-scan-issuer-review.json",
-      "sha256": "c4ec2691f11264098ff8578ef83aa2711f1781bfb212d55de49903b787a5bffd",
-      "bytes": 36815
-    },
-    {
-      "source": "work/resume-after-checkpoint-20261022/source-preservation/review-issuer-staged-findings.py",
-      "stored": "files/source-preservation/review-issuer-staged-findings.py",
-      "sha256": "771a7fc0c22f89be0886931c846ec1e77a40f94cb384542dc72c34d942bf1c39",
-      "bytes": 2498
-    },
-    {
-      "source": "work/resume-after-checkpoint-20261022/public-validation/gitleaks-issuer-review.json",
-      "stored": "files/public-validation/gitleaks-issuer-review.json",
-      "sha256": "dfa1d78f40d62a73b4b4b748757f0acce98246c61ffb19ce80df14e39a14d30c",
-      "bytes": 9462
-    },
-    {
-      "source": "work/resume-after-checkpoint-20261022/source-preservation/review-issuer-gitleaks.py",
-      "stored": "files/source-preservation/review-issuer-gitleaks.py",
-      "sha256": "2171941ca944e27eee09b837f56f8080ad98677887b8d42d966fc03759586e10",
-      "bytes": 2020
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -2369,5 +2633,6 @@
     "live run directories and raw transcripts",
     "generated images/binaries and dependency caches",
     "copied base trees preserved earlier"
-  ]
+  ],
+  "validation": "93 crypto scan findings and 21 gitleaks findings independently verified as public BIP39 dictionary, registry label, dependency source SHA256s, or code expressions. Review scripts and records included. Generated bundle and patch whitespace preserved byte-for-byte."
 }

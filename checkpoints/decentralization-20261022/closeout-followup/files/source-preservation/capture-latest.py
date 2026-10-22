@@ -10,6 +10,17 @@ base = root / 'work/resume-after-checkpoint-20261022'
 repo = root / 'work/source-checkpoint-20261022/main-repo'
 dest = repo / 'checkpoints/decentralization-20261022/closeout-followup'
 prior = repo / 'checkpoints/decentralization-20261022/closeout-drafts/files'
+# The renewal mutation harness keeps its originals only in memory. Do not copy
+# temporarily weakened runtime files into a recovery checkpoint while it runs.
+for proc in Path('/proc').iterdir():
+    if not proc.name.isdigit():
+        continue
+    try:
+        argv = (proc / 'cmdline').read_bytes().split(b'\0')
+        if argv and Path(argv[0].decode()).name.startswith('python') and any(b'mutants-renew.py' in arg for arg in argv[1:]):
+            raise SystemExit('NOT CAPTURED: renewal mutation harness is active; wait for its restore and verified completion')
+    except (OSError, UnicodeError):
+        continue
 paths = set()
 for directory in ('controller-bounds-validation', 'postgres-init-stage', 'production-final'):
     for p in (base / directory).rglob('*'):
@@ -156,14 +167,19 @@ if request_review.exists():
         p = request_review / relative
         if p.is_file() and not p.is_symlink():
             paths.add(p)
-for name in ('node-restart-final-task.txt', 'native-handoff-final-task.txt'):
+for name in ('node-restart-final-task.txt', 'native-handoff-final-task.txt',
+             'node-restart-two-file-task.txt', 'node-restart-budget-review-task.txt',
+             'platform-api-admin-final-task.txt'):
     paths.add(base / name)
+paths.add(base / 'native-final-build/build.sh')
 paths.add(base / 'native-issuer-implementation/MANIFEST.json')
-for directory in ('native-issuer-implementation/jobs', 'node-restart-final', 'native-handoff-final'):
+for directory in ('native-issuer-implementation/jobs', 'node-restart-final', 'native-handoff-final', 'platform-api-admin-final'):
     for p in (base / directory).rglob('*'):
         rel = p.relative_to(base / directory)
         if any(part in ('logs', 'runs', 'tmp', 'secrets', 'node_modules', '.git', '__pycache__') for part in rel.parts):
             continue
+        if directory in ('native-handoff-final', 'platform-api-admin-final') and rel.parts and (rel.parts[0].startswith('base-') or rel.parts[0] in ('repo', 'fixtures')):
+            continue  # existing Git base trees are already preserved; collect only authored review/job files here
         if p.is_file() and not p.is_symlink() and p.suffix in ('.md', '.txt', '.py', '.sh', '.ps1', '.mjs', '.patch'):
             paths.add(p)
 paths.add(Path(__file__).resolve())

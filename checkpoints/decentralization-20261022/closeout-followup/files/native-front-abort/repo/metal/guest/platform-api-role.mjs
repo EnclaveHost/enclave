@@ -484,6 +484,30 @@ export function installResponseBarrier(proc = process) {
 }
 
 // ---- entry points ------------------------------------------------------------------------------------------------------------
+/**
+ * main()'s production dependencies for startRole -> { verifyPeer, nativeIssuer }. ONE AMD collateral source (KDS, cached on
+ * this boot's RAM fs, authenticated against the pinned AMD roots) and ONE set of issuer dependencies (the unchanged verifier,
+ * the original registry through this guest's bound RPC quorum, and the platform host policy resolved from the relay's own
+ * NON-credential environment: relayEnvBase + platformApi.relayEnv; the sealed credentials are never part of it), built when
+ * first needed and shared by the native CA issuer and the state-key handoff: a newcomer receives K only after it verifies
+ * against that collateral and the policy admits its registry row and chip, decided fresh right before the seal.
+ *   upstream, roots, registry, fetch: test fixtures only (offline); production passes none
+ */
+export async function productionWiring(cfg, { upstream = null, roots = null, registry = null, fetch = undefined, log = (m) => console.log(`[platform-api] ${m}`) } = {}) {
+  const { productionVerifier } = await import("./platform-api-verify.mjs");
+  const { cachedCollateral } = await import("../../verifier/collateral-cache.mjs");
+  const { httpCollateral } = await import("../../verifier/collateral.mjs");
+  const collateral = cachedCollateral({ dir: path.join(cfg.dirs.root, "collateral"), upstream: upstream || httpCollateral(), ...(roots ? { roots } : {}) });
+  let deps = null;
+  const issuer = () => (deps ||= import("./native-issuer.mjs").then(({ issuerDeps }) => issuerDeps({ platformApi: cfg.platformApi, ownConfig: cfg.config,
+    policyEnv: { ...(cfg.relayEnvBase || {}), ...cfg.platformApi.relayEnv }, collateral, registry, roots, log, ...(fetch ? { fetch } : {}) }))
+    .catch((e) => { deps = null; throw e; }));
+  return {
+    verifyPeer: productionVerifier(cfg, { collateral, registry, roots, decideHost: async (registryId, o) => (await issuer()).decideHost(registryId, o) }),
+    nativeIssuer: { deps: issuer },
+  };
+}
+
 export async function main(argv) {
   if (argv.includes("--relay-child")) {
     installResponseBarrier();
@@ -494,18 +518,7 @@ export async function main(argv) {
   const cfg = JSON.parse(fs.readFileSync(i > 0 ? argv[i + 1] : "/run/measured-control/platform-api.json", "utf8"));
   if (cfg.format !== ROLE_FORMAT) throw new Error(`role config format must be ${ROLE_FORMAT}`);
   const viem = await import("viem");
-  const { productionVerifier } = await import("./platform-api-verify.mjs");
-  // the native CA issuer's dependencies, built only when this member first issues: the unchanged verifier and original
-  // registry reader, AMD collateral (KDS, cached on this boot's RAM fs), and the platform host policy resolved from the relay's
-  // own NON-credential environment (relayEnvBase + platformApi.relayEnv; the sealed credentials are never part of it)
-  const nativeIssuer = { deps: async () => {
-    const { issuerDeps } = await import("./native-issuer.mjs");
-    const { cachedCollateral } = await import("../../verifier/collateral-cache.mjs");
-    const { httpCollateral } = await import("../../verifier/collateral.mjs");
-    return issuerDeps({ platformApi: cfg.platformApi, ownConfig: cfg.config, policyEnv: { ...(cfg.relayEnvBase || {}), ...cfg.platformApi.relayEnv },
-      collateral: cachedCollateral({ dir: path.join(cfg.dirs.root, "collateral"), upstream: httpCollateral() }), log: (m) => console.log(`[platform-api] ${m}`) });
-  } };
-  const role = await startRole({ cfg, recoverMessageAddress: viem.recoverMessageAddress, verifyPeer: productionVerifier(cfg), nativeIssuer });
+  const role = await startRole({ cfg, recoverMessageAddress: viem.recoverMessageAddress, ...(await productionWiring(cfg)) });
   for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => role.stop().finally(() => process.exit(0)));
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url))
