@@ -28,10 +28,11 @@ for directory in ('src', 'tools', 'base', 'patches'):
             paths.add(p)
 for p in (base / 'measured-composition').glob('*.json'):
     paths.add(p)
-for directory in ('measured-image-build/tools', 'measured-image-build/public', 'storage-activation-next'):
+for directory in ('measured-image-build/tools', 'measured-image-build/public', 'measured-image-build/stub/bin', 'storage-activation-next'):
     for p in (base / directory).rglob('*'):
         if p.is_file() and not p.is_symlink() and p.name != 'published-ls-tree.txt' and '__pycache__' not in p.parts:
             paths.add(p)
+paths.add(base / 'measured-composition/out/c/INPUT-MANIFEST.json')
 paths.add(Path(__file__).resolve())
 entries = []
 unchanged = []

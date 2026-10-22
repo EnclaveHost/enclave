@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-22T20:00:05.227755+00:00",
+  "capturedAt": "2026-10-22T20:01:30.814295+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -163,6 +163,12 @@
       "stored": "files/measured-composition/ROOT-READY-IMAGE.json",
       "sha256": "5c437d80a9599a8a861970517c354d6ba9cb7c8967cbe55038d4f3022ca30e2a",
       "bytes": 11827
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-composition/out/c/INPUT-MANIFEST.json",
+      "stored": "files/measured-composition/out/c/INPUT-MANIFEST.json",
+      "sha256": "4513131150f981e49af5d31be7d6de2c019fe920d638aee3335d0d06d107ef96",
+      "bytes": 18260
     },
     {
       "source": "work/resume-after-checkpoint-20261022/measured-composition/patches/c2-attestation-route.diff",
@@ -427,6 +433,24 @@
       "stored": "files/measured-image-build/public/source-delta.json",
       "sha256": "6de4b15c302d516d2c4d87588fdc88213d0350d37f1e4cd60b6e7f2c3204b275",
       "bytes": 939
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/stub/bin/scp",
+      "stored": "files/measured-image-build/stub/bin/scp",
+      "sha256": "fba2e2f1a39d7457eea9686921d333e88dcb067ef76c716bf5ebd059382a72e3",
+      "bytes": 370
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/stub/bin/sftp",
+      "stored": "files/measured-image-build/stub/bin/sftp",
+      "sha256": "390b787b6222ea42419b5fbbb8ac1d2541ace38e6b161a811beb3b4c4d063516",
+      "bytes": 372
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/stub/bin/ssh",
+      "stored": "files/measured-image-build/stub/bin/ssh",
+      "sha256": "48a98e74ec9adfab0530d44ff1340422a5077879d443ee9d19833a6987e6d46f",
+      "bytes": 370
     },
     {
       "source": "work/resume-after-checkpoint-20261022/measured-image-build/tools/build.sh",
@@ -737,8 +761,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "d88efa6b64273bd92ddb2d7f5ab210fa2b28b2d4d93e181dc53065c0de66fde9",
-      "bytes": 3235
+      "sha256": "9d9fbddd08b29547ab7690f6bdae6964fd617e203b5cdbee93eaa744157f16ca",
+      "bytes": 3335
     },
     {
       "source": "work/resume-after-checkpoint-20261022/storage-activation-next/ACTIONS.json",

@@ -1,0 +1,5 @@
+#!/bin/sh
+# measured-image-build stub: remote shells are DENIED for every command of this build (root rule). Never execs the real one.
+echo "$(date -u +%FT%TZ) scp $*" >> "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-image-build/stub/invocations.log"
+echo "scp: denied by the measured-image-build stub (no SSH)" >&2
+exit 255
