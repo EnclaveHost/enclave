@@ -1,0 +1,60 @@
+{
+  "at": "2026-10-22T21:13:09.839555+00:00",
+  "scope": "Read-only GET, this workstation system resolver and curl trust store; .eth failure here alone does not prove native-client outage; HTTP200 does not establish full app readiness",
+  "results": [
+    {
+      "url": "https://enclave.host/",
+      "exit": 0,
+      "httpStatus": "200",
+      "remoteIp": "146.190.246.39",
+      "tlsVerifyResult": "0",
+      "seconds": "0.472987",
+      "error": ""
+    },
+    {
+      "url": "https://enclavehost.eth/",
+      "exit": 0,
+      "httpStatus": "502",
+      "remoteIp": "127.0.0.3",
+      "tlsVerifyResult": "0",
+      "seconds": "0.356279",
+      "error": ""
+    },
+    {
+      "url": "https://59f1273d.app.enclave.host/healthz",
+      "exit": 6,
+      "httpStatus": "000",
+      "remoteIp": "",
+      "tlsVerifyResult": "0",
+      "seconds": "3.885888",
+      "error": "curl: (6) Could not resolve host: 59f1273d.app.enclave.host"
+    },
+    {
+      "url": "https://7ae476a3.app.enclave.host/healthz",
+      "exit": 35,
+      "httpStatus": "000",
+      "remoteIp": "134.199.235.187",
+      "tlsVerifyResult": "1",
+      "seconds": "1.530972",
+      "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading"
+    },
+    {
+      "url": "https://ef514ed3.app.enclave.host/healthz",
+      "exit": 6,
+      "httpStatus": "000",
+      "remoteIp": "",
+      "tlsVerifyResult": "0",
+      "seconds": "3.053934",
+      "error": "curl: (6) Could not resolve host: ef514ed3.app.enclave.host"
+    },
+    {
+      "url": "https://9eb4e600.app.enclave.host/",
+      "exit": 6,
+      "httpStatus": "000",
+      "remoteIp": "",
+      "tlsVerifyResult": "0",
+      "seconds": "3.861286",
+      "error": "curl: (6) Could not resolve host: 9eb4e600.app.enclave.host"
+    }
+  ]
+}

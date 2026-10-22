@@ -38,3 +38,11 @@ Native endpoint binding and per-chip policy enforcement are committed as 8e77ff1
 The existing-ledger16 real-WASM integration l1 completed with 32 passing checks and one failed string-format assertion: differently padded hex values represented the same integer. Retained runtime evidence passed numeric re-evaluation; the corrected bounded assertion and malformed/wrong-generation negatives were tested separately. Original exit 1 remains recorded. This demonstrates the existing lease16 protocol in the isolated runtime; it is not a live claim or first production CAS enrollment.
 
 Issuer placement/recovery now has a source-grounded plan using the existing measured platform API group's replicated admin credentials. Implementation is active in an isolated checkout. A separately identified standby forwarding TLS-pin defect is being fixed before composition. Neither workstream is deployed.
+
+## Recovery snapshot at 21:24 UTC
+
+The forwarding fix is preserved as candidate commit ca3118202359da8ce84f5b917fcc5ed85b2c6730 and in the native-control-attested package. Its report records six forwarding tests, five killed security/lifecycle mutants, and six hosted-platform tests passing. It is not deployed or included in the earlier hardware canary.
+
+The native-issuer-implementation package is an active, uncommitted worker snapshot based on 8e77ff1e. It preserves certificate issuance and replicated recovery work, review notes, and test drafts. The source may be incomplete and must be composed with the separate forwarding fix before validation or deployment. The native-storage-names report describes remaining name authority and bootstrap requirements.
+
+Public diagnostics at 21:13–21:19 UTC show the native site returning 502, ten leases expired with insufficient claim reserves (three RPC providers agreeing), and a separate adapter TLS/admission failure despite its funded lease and renewed certificate. These are observations, not fixes. No funding request was signed or broadcast by this checkpoint.

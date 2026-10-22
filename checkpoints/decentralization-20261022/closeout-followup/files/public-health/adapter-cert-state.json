@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-22T21:17:39.529145+00:00",
+  "exit": 0,
+  "state": {
+    "orders": [],
+    "certificates": [
+      {
+        "name": "7ae476a3.app.enclave.host",
+        "ca": "zerossl",
+        "issuedAt": "2026-10-22T20:44:18.056Z",
+        "notAfter": "2027-01-20T23:59:59.000Z",
+        "spkiHash": "7faf8d5ef36e4d6a57ac0d4a262ebab2fb0716dbb2d6c8167dc83d04326f55f8"
+      }
+    ],
+    "failure": null
+  },
+  "error": ""
+}

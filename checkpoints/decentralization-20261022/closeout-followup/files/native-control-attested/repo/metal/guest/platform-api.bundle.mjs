@@ -21363,7 +21363,7 @@ var require_websocket = __commonJS({
     var https8 = __require("https");
     var http9 = __require("http");
     var net8 = __require("net");
-    var tls3 = __require("tls");
+    var tls4 = __require("tls");
     var { randomBytes: randomBytes28, createHash: createHash38 } = __require("crypto");
     var { Duplex, Readable } = __require("stream");
     var { URL: URL2 } = __require("url");
@@ -22113,7 +22113,7 @@ var require_websocket = __commonJS({
       if (!options.servername && options.servername !== "") {
         options.servername = net8.isIP(options.host) ? "" : options.host;
       }
-      return tls3.connect(options);
+      return tls4.connect(options);
     }
     function abortHandshake(websocket, stream, message3) {
       websocket._readyState = WebSocket6.CLOSING;
@@ -232570,7 +232570,7 @@ var require_websocket3 = __commonJS({
     var https8 = __require("https");
     var http9 = __require("http");
     var net8 = __require("net");
-    var tls3 = __require("tls");
+    var tls4 = __require("tls");
     var { randomBytes: randomBytes28, createHash: createHash38 } = __require("crypto");
     var { Duplex, Readable } = __require("stream");
     var { URL: URL2 } = __require("url");
@@ -233320,7 +233320,7 @@ var require_websocket3 = __commonJS({
       if (!options.servername && options.servername !== "") {
         options.servername = net8.isIP(options.host) ? "" : options.host;
       }
-      return tls3.connect(options);
+      return tls4.connect(options);
     }
     function abortHandshake(websocket, stream, message3) {
       websocket._readyState = WebSocket6.CLOSING;
@@ -244249,6 +244249,7 @@ import path10 from "node:path";
 import http8 from "node:http";
 import https7 from "node:https";
 import net7 from "node:net";
+import tls3 from "node:tls";
 import { spawn as spawn2 } from "node:child_process";
 import { createHash as createHash37, createHmac as createHmac10, timingSafeEqual as timingSafeEqual16, X509Certificate as X509Certificate14 } from "node:crypto";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
@@ -245641,7 +245642,8 @@ async function startRole({
   log: log2 = (m4) => console.log(`[platform-api] ${m4}`),
   now = Date.now,
   postImpl = null,
-  archivePut = null
+  archivePut = null,
+  forwardConnectMs = 1e4
 }) {
   const pa2 = cfg3.platformApi, groupId = groupIdOf(pa2), self3 = cfg3.self, members = pa2.members;
   const dirs = cfg3.dirs, dataDir2 = dirs.data;
@@ -245927,23 +245929,35 @@ ${target}`).digest("hex");
     delete hopped["x-forwarded-for"];
     delete hopped["x-forwarded-host"];
     delete hopped["x-forwarded-proto"];
-    const up2 = https7.request(
-      {
-        host: to3.hostname,
-        port: to3.port || 443,
-        method: req.method,
-        path: target,
-        headers: hopped,
-        rejectUnauthorized: false,
-        checkServerIdentity: (_h2, cert) => sha256Hex5(spkiOf(cert)) === li2.spki ? void 0 : new Error("the primary is not the attested key")
-      },
-      (r) => {
-        res.writeHead(r.statusCode || 502, r.headers);
-        r.pipe(res);
+    const pin = connectPinned({ host: to3.hostname, port: Number(to3.port || 443), spki: li2.spki, timeoutMs: forwardConnectMs });
+    let up2 = null, gone = false;
+    res.on("close", () => {
+      if (!res.writableFinished) {
+        gone = true;
+        pin.cancel();
+        if (up2) up2.destroy();
       }
-    );
-    up2.on("error", () => fail6(503, "platform_api_unreachable", "The platform API primary could not be reached; retry shortly."));
-    req.pipe(up2);
+    });
+    pin.promise.then((sock) => {
+      if (gone) {
+        sock.destroy();
+        return;
+      }
+      up2 = http8.request(
+        { createConnection: () => sock, method: req.method, path: target, headers: hopped },
+        (r) => {
+          res.writeHead(r.statusCode || 502, r.headers);
+          r.pipe(res);
+          r.on("error", () => res.destroy());
+        }
+      );
+      up2.on("error", () => {
+        sock.destroy();
+        if (res.headersSent) res.destroy();
+        else fail6(503, "platform_api_unreachable", "The platform API primary could not be reached; retry shortly.");
+      });
+      req.pipe(up2);
+    }, () => fail6(503, "platform_api_unreachable", "The platform API primary could not be reached; retry shortly."));
   });
   apiServer.on("upgrade", (req, socket, head) => {
     if (!(node && node.role === "leader" && childPort)) {
@@ -246008,6 +246022,30 @@ ${target}`).digest("hex");
       }
     }
   };
+}
+function connectPinned({ host, port: port2, spki, timeoutMs = 1e4 }) {
+  let cancel = () => {
+  };
+  const promise = new Promise((resolve3, reject) => {
+    let settled = false, s = null;
+    const done = (err7, v) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(t);
+      if (err7) {
+        if (s) s.destroy();
+        reject(err7);
+      } else resolve3(v);
+    };
+    cancel = () => done(new Error("cancelled"));
+    const t = setTimeout(() => done(new Error(`no TLS handshake with the primary within ${timeoutMs} ms`)), timeoutMs);
+    if (!/^[0-9a-f]{64}$/.test(String(spki))) return done(new Error("no attested key to pin"));
+    s = tls3.connect({ host: String(host).replace(/^\[|\]$/g, ""), port: port2, rejectUnauthorized: false, minVersion: "TLSv1.2" });
+    s.once("secureConnect", () => sha256Hex5(spkiOf(s.getPeerCertificate())) === spki ? done(null, s) : done(new Error("the primary is not the attested key")));
+    s.once("error", (e) => done(e));
+    s.once("close", () => done(new Error("the connection closed before the TLS handshake")));
+  });
+  return { promise, cancel: () => cancel() };
 }
 var spkiOf = (cert) => {
   try {

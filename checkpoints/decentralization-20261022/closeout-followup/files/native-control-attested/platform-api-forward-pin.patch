@@ -1,0 +1,497 @@
+diff --git a/docs/network/hosted-platform-api.md b/docs/network/hosted-platform-api.md
+index ac648d7bd..10c2abc54 100644
+--- a/docs/network/hosted-platform-api.md
++++ b/docs/network/hosted-platform-api.md
+@@ -122,7 +122,7 @@ A response or request whose state could not be committed is never sent.
+   nothing.
+ - **Crash-safe.** A change is journaled before it is applied, so a crash between two files re-applies it whole.
+ 
+-**Standbys** forward API requests to the primary's control front, pinned to the TLS key it announces in AEAD-sealed
++**Standbys** forward API requests to the primary's control front, pinned to the TLS key it announces in AEAD-sealed The standby completes the TLS handshake (without SNI, so the front presents its attested control certificate, not the WebPKI one) and compares the key on that socket before it writes any request byte. A wrong key, a silent peer (10 s handshake bound) or a client that leaves ends the forward.
+ heartbeats. With no primary reachable they answer 503 with `retry-after`.
+ 
+ ### What this guarantees, and what it does not
+diff --git a/metal/guest/platform-api-role.mjs b/metal/guest/platform-api-role.mjs
+index d70d7a11e..96269d042 100644
+--- a/metal/guest/platform-api-role.mjs
++++ b/metal/guest/platform-api-role.mjs
+@@ -14,13 +14,15 @@
+ //   - on the PRIMARY only, runs the unchanged relay (this file with --relay-child: api-relay.js on the guest RAM fs, the
+ //     platform credentials in its environment) behind a response barrier: no HTTP response leaves the relay before what
+ //     it wrote is on a majority of members. The relay is killed the moment the lease cannot be renewed.
+-//   - on a standby, forwards API requests to the primary's control front, pinned to its attested TLS key.
++//   - on a standby, forwards API requests to the primary's control front, pinned to its attested TLS key: the TLS handshake
++//     completes and the key is compared on that socket BEFORE any request byte (connectPinned).
+ // Nothing here reads or prints state, credentials or K.
+ import fs from "node:fs";
+ import path from "node:path";
+ import http from "node:http";
+ import https from "node:https";
+ import net from "node:net";
++import tls from "node:tls";
+ import { spawn } from "node:child_process";
+ import { createHash, createHmac, timingSafeEqual, X509Certificate } from "node:crypto";
+ import { fileURLToPath } from "node:url";
+@@ -96,7 +98,7 @@ export function openRecovery(env, { groupId, privateKey }) {
+  *   transport    { post(url, Buffer|object, {pin}) -> Buffer|object } overridable for tests; default https/http
+  */
+ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayArgv = null, log = (m) => console.log(`[platform-api] ${m}`),
+-                                  now = Date.now, postImpl = null, archivePut = null }) {
++                                  now = Date.now, postImpl = null, archivePut = null, forwardConnectMs = 10000 }) {
+   const pa = cfg.platformApi, groupId = groupIdOf(pa), self = cfg.self, members = pa.members;
+   const dirs = cfg.dirs, dataDir = dirs.data;
+   for (const d of [dirs.root, dataDir]) fs.mkdirSync(d, { recursive: true, mode: 0o700 });
+@@ -292,11 +294,17 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+     const to = new URL(li.controlUrl), ts = String(now());
+     const hopped = { ...forwardHeaders(req, client.ip), host: pa.hostname, [HOP_HEADER]: `${ts}.${hopTag(ts, client.ip, req.method, target)}`, [HOP_CLIENT_HEADER]: client.ip };
+     delete hopped["x-forwarded-for"]; delete hopped["x-forwarded-host"]; delete hopped["x-forwarded-proto"];
+-    const up = https.request({ host: to.hostname, port: to.port || 443, method: req.method, path: target, headers: hopped,
+-      rejectUnauthorized: false, checkServerIdentity: (_h, cert) => (sha256Hex(spkiOf(cert)) === li.spki ? undefined : new Error("the primary is not the attested key")) },
+-      (r) => { res.writeHead(r.statusCode || 502, r.headers); r.pipe(res); });
+-    up.on("error", () => fail(503, "platform_api_unreachable", "The platform API primary could not be reached; retry shortly."));
+-    req.pipe(up);
++    // the primary's attested key first, on the secure socket; only then the request (headers, credentials, body) over it
++    const pin = connectPinned({ host: to.hostname, port: Number(to.port || 443), spki: li.spki, timeoutMs: forwardConnectMs });
++    let up = null, gone = false;
++    res.on("close", () => { if (!res.writableFinished) { gone = true; pin.cancel(); if (up) up.destroy(); } });   // the client went away
++    pin.promise.then((sock) => {
++      if (gone) { sock.destroy(); return; }
++      up = http.request({ createConnection: () => sock, method: req.method, path: target, headers: hopped },
++        (r) => { res.writeHead(r.statusCode || 502, r.headers); r.pipe(res); r.on("error", () => res.destroy()); });
++      up.on("error", () => { sock.destroy(); if (res.headersSent) res.destroy(); else fail(503, "platform_api_unreachable", "The platform API primary could not be reached; retry shortly."); });
++      req.pipe(up);
++    }, () => fail(503, "platform_api_unreachable", "The platform API primary could not be reached; retry shortly."));
+   });
+   // websocket and other upgrades (the fleet tunnel): to the local relay on the primary only
+   apiServer.on("upgrade", (req, socket, head) => {
+@@ -342,6 +350,28 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+     },
+   };
+ }
++/**
++ * A TLS connection to a member's control front that is used ONLY if the peer holds the attested control key `spki`
++ * (sha256 of its SPKI): the handshake completes and the key is compared on that very socket before the caller writes a
++ * byte. rejectUnauthorized:false with a checkServerIdentity-only pin is not a pin (Node skips checkServerIdentity when chain
++ * validation already failed). No SNI is sent, so the front presents its attested control certificate, never the group's
++ * WebPKI key for the API hostname. -> { promise: Promise<TLSSocket>, cancel() }
++ */
++export function connectPinned({ host, port, spki, timeoutMs = 10000 }) {
++  let cancel = () => {};
++  const promise = new Promise((resolve, reject) => {
++    let settled = false, s = null;
++    const done = (err, v) => { if (settled) return; settled = true; clearTimeout(t); if (err) { if (s) s.destroy(); reject(err); } else resolve(v); };
++    cancel = () => done(new Error("cancelled"));
++    const t = setTimeout(() => done(new Error(`no TLS handshake with the primary within ${timeoutMs} ms`)), timeoutMs);
++    if (!/^[0-9a-f]{64}$/.test(String(spki))) return done(new Error("no attested key to pin"));
++    s = tls.connect({ host: String(host).replace(/^\[|\]$/g, ""), port, rejectUnauthorized: false, minVersion: "TLSv1.2" });
++    s.once("secureConnect", () => (sha256Hex(spkiOf(s.getPeerCertificate())) === spki ? done(null, s) : done(new Error("the primary is not the attested key"))));
++    s.once("error", (e) => done(e));
++    s.once("close", () => done(new Error("the connection closed before the TLS handshake")));
++  });
++  return { promise, cancel: () => cancel() };
++}
+ /** the SPKI (DER) of a peer certificate, as the attested statement's controlTls.spkiSha256 hashes it */
+ const spkiOf = (cert) => { try { return new X509Certificate(cert.raw).publicKey.export({ type: "spki", format: "der" }); } catch { return Buffer.alloc(0); } };
+ 
+diff --git a/metal/guest/platform-api.bundle.mjs b/metal/guest/platform-api.bundle.mjs
+index 5c5007439..f3ff4e9ca 100644
+--- a/metal/guest/platform-api.bundle.mjs
++++ b/metal/guest/platform-api.bundle.mjs
+@@ -21363,7 +21363,7 @@ var require_websocket = __commonJS({
+     var https8 = __require("https");
+     var http9 = __require("http");
+     var net8 = __require("net");
+-    var tls3 = __require("tls");
++    var tls4 = __require("tls");
+     var { randomBytes: randomBytes28, createHash: createHash38 } = __require("crypto");
+     var { Duplex, Readable } = __require("stream");
+     var { URL: URL2 } = __require("url");
+@@ -22113,7 +22113,7 @@ var require_websocket = __commonJS({
+       if (!options.servername && options.servername !== "") {
+         options.servername = net8.isIP(options.host) ? "" : options.host;
+       }
+-      return tls3.connect(options);
++      return tls4.connect(options);
+     }
+     function abortHandshake(websocket, stream, message3) {
+       websocket._readyState = WebSocket6.CLOSING;
+@@ -232570,7 +232570,7 @@ var require_websocket3 = __commonJS({
+     var https8 = __require("https");
+     var http9 = __require("http");
+     var net8 = __require("net");
+-    var tls3 = __require("tls");
++    var tls4 = __require("tls");
+     var { randomBytes: randomBytes28, createHash: createHash38 } = __require("crypto");
+     var { Duplex, Readable } = __require("stream");
+     var { URL: URL2 } = __require("url");
+@@ -233320,7 +233320,7 @@ var require_websocket3 = __commonJS({
+       if (!options.servername && options.servername !== "") {
+         options.servername = net8.isIP(options.host) ? "" : options.host;
+       }
+-      return tls3.connect(options);
++      return tls4.connect(options);
+     }
+     function abortHandshake(websocket, stream, message3) {
+       websocket._readyState = WebSocket6.CLOSING;
+@@ -244249,6 +244249,7 @@ import path10 from "node:path";
+ import http8 from "node:http";
+ import https7 from "node:https";
+ import net7 from "node:net";
++import tls3 from "node:tls";
+ import { spawn as spawn2 } from "node:child_process";
+ import { createHash as createHash37, createHmac as createHmac10, timingSafeEqual as timingSafeEqual16, X509Certificate as X509Certificate14 } from "node:crypto";
+ import { fileURLToPath as fileURLToPath4 } from "node:url";
+@@ -245641,7 +245642,8 @@ async function startRole({
+   log: log2 = (m4) => console.log(`[platform-api] ${m4}`),
+   now = Date.now,
+   postImpl = null,
+-  archivePut = null
++  archivePut = null,
++  forwardConnectMs = 1e4
+ }) {
+   const pa2 = cfg3.platformApi, groupId = groupIdOf(pa2), self3 = cfg3.self, members = pa2.members;
+   const dirs = cfg3.dirs, dataDir2 = dirs.data;
+@@ -245927,23 +245929,35 @@ ${target}`).digest("hex");
+     delete hopped["x-forwarded-for"];
+     delete hopped["x-forwarded-host"];
+     delete hopped["x-forwarded-proto"];
+-    const up2 = https7.request(
+-      {
+-        host: to3.hostname,
+-        port: to3.port || 443,
+-        method: req.method,
+-        path: target,
+-        headers: hopped,
+-        rejectUnauthorized: false,
+-        checkServerIdentity: (_h2, cert) => sha256Hex5(spkiOf(cert)) === li2.spki ? void 0 : new Error("the primary is not the attested key")
+-      },
+-      (r) => {
+-        res.writeHead(r.statusCode || 502, r.headers);
+-        r.pipe(res);
++    const pin = connectPinned({ host: to3.hostname, port: Number(to3.port || 443), spki: li2.spki, timeoutMs: forwardConnectMs });
++    let up2 = null, gone = false;
++    res.on("close", () => {
++      if (!res.writableFinished) {
++        gone = true;
++        pin.cancel();
++        if (up2) up2.destroy();
++      }
++    });
++    pin.promise.then((sock) => {
++      if (gone) {
++        sock.destroy();
++        return;
+       }
+-    );
+-    up2.on("error", () => fail6(503, "platform_api_unreachable", "The platform API primary could not be reached; retry shortly."));
+-    req.pipe(up2);
++      up2 = http8.request(
++        { createConnection: () => sock, method: req.method, path: target, headers: hopped },
++        (r) => {
++          res.writeHead(r.statusCode || 502, r.headers);
++          r.pipe(res);
++          r.on("error", () => res.destroy());
++        }
++      );
++      up2.on("error", () => {
++        sock.destroy();
++        if (res.headersSent) res.destroy();
++        else fail6(503, "platform_api_unreachable", "The platform API primary could not be reached; retry shortly.");
++      });
++      req.pipe(up2);
++    }, () => fail6(503, "platform_api_unreachable", "The platform API primary could not be reached; retry shortly."));
+   });
+   apiServer.on("upgrade", (req, socket, head) => {
+     if (!(node && node.role === "leader" && childPort)) {
+@@ -246009,6 +246023,30 @@ ${target}`).digest("hex");
+     }
+   };
+ }
++function connectPinned({ host, port: port2, spki, timeoutMs = 1e4 }) {
++  let cancel = () => {
++  };
++  const promise = new Promise((resolve3, reject) => {
++    let settled = false, s = null;
++    const done = (err7, v) => {
++      if (settled) return;
++      settled = true;
++      clearTimeout(t);
++      if (err7) {
++        if (s) s.destroy();
++        reject(err7);
++      } else resolve3(v);
++    };
++    cancel = () => done(new Error("cancelled"));
++    const t = setTimeout(() => done(new Error(`no TLS handshake with the primary within ${timeoutMs} ms`)), timeoutMs);
++    if (!/^[0-9a-f]{64}$/.test(String(spki))) return done(new Error("no attested key to pin"));
++    s = tls3.connect({ host: String(host).replace(/^\[|\]$/g, ""), port: port2, rejectUnauthorized: false, minVersion: "TLSv1.2" });
++    s.once("secureConnect", () => sha256Hex5(spkiOf(s.getPeerCertificate())) === spki ? done(null, s) : done(new Error("the primary is not the attested key")));
++    s.once("error", (e) => done(e));
++    s.once("close", () => done(new Error("the connection closed before the TLS handshake")));
++  });
++  return { promise, cancel: () => cancel() };
++}
+ var spkiOf = (cert) => {
+   try {
+     return new X509Certificate14(cert.raw).publicKey.export({ type: "spki", format: "der" });
+diff --git a/metal/guest/platform-api.bundle.mjs.manifest.json b/metal/guest/platform-api.bundle.mjs.manifest.json
+index c64984d99..b46e488d9 100644
+--- a/metal/guest/platform-api.bundle.mjs.manifest.json
++++ b/metal/guest/platform-api.bundle.mjs.manifest.json
+@@ -1,15 +1,15 @@
+ {
+   "bundle": "metal/guest/platform-api.bundle.mjs",
+   "entry": "metal/guest/platform-api-entry.mjs",
+-  "sha256": "3078345b9e27594d9964998a3f638ff4a9727abef0bcd8cf02abacd993162e4c",
+-  "bytes": 8531780,
++  "sha256": "d2d89f0145da7c184c1e92b7d5c6314894a686dbfa81701801363125746fb06d",
++  "bytes": 8533421,
+   "inputs": {
+     "custody/hpke.mjs": "1806a74c947db89db0e410c370ad7963eac9fa30d1807d8f55846690fafc0c03",
+     "metal/guest/lease-gas-conduit.bundle.mjs": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6",
+     "metal/guest/measured-control.mjs": "318a84ceefecbcf3bc434cfcc2705193cbb8721cbff13cedc7fe6c197011c105",
+     "metal/guest/owner-nomination.mjs": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
+     "metal/guest/platform-api-entry.mjs": "b704d6ced7b8922179366cf76733e67899937696170b964018655824b2257638",
+-    "metal/guest/platform-api-role.mjs": "3bcee3dfe3da8bcb4cdbdc98412f1aca426a8c1a020ab99f4bea7991e3f64812",
++    "metal/guest/platform-api-role.mjs": "835ddc67ecbc489dfdaab5296ffd168a22e345f7c142c90bbc866c9ec9fabe76",
+     "metal/guest/platform-api-verify.mjs": "167548660773db10639efa9f3b3a7a10dc352b63c6aa068b6e61c6e172342342",
+     "metal/measured-control-verify.mjs": "2137d39e9dfb17d79ae8540c54ff28531bdd1b503ce8af4189f170a8a8f6b341",
+     "network/host-services/argv-guard.mjs": "35238208b03e4377f7dfc8c82a5b42f2b55211a935928a7d31148ed8d52b35cb",
+diff --git a/test/platform-api-forward.test.mjs b/test/platform-api-forward.test.mjs
+new file mode 100644
+index 000000000..1836d0e97
+--- /dev/null
++++ b/test/platform-api-forward.test.mjs
+@@ -0,0 +1,232 @@
++// A standby's forwarding to the primary (metal/guest/platform-api-role.mjs): the primary's attested control key is checked on
++// the secure socket BEFORE any request byte is written, then the original method, path, headers, body and streamed response
++// pass through. What runs here:
++//   * three REAL roles (startRole) of one group, each behind a REAL control front (createControlFront with the platform API
++//     host and prefix routes) whose SNI map also holds the group's WebPKI key for the API hostname - so a forward that sent
++//     that hostname as SNI would meet the WebPKI key, not the attested one;
++//   * the members replicate and elect over the REAL peer protocol through the fronts; the primary's relay child is a small
++//     recording stand-in (relayArgv), because what is tested is the role's forwarding, not the relay;
++//   * the state key K is written to each member's RAM-fs key file before start (the role's own restart path), instead of
++//     the admin genesis and verified handoff, which test/platform-api-hosted.test.mjs covers;
++//   * real TLS throughout: an impostor with a self-signed WRONG key on the primary's control address, and a silent peer.
++// Nothing leaves 127.0.0.1; every key is disposable.
++import test, { after } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import net from 'node:net';
++import tls from 'node:tls';
++import http from 'node:http';
++import https from 'node:https';
++import path from 'node:path';
++import { randomBytes, generateKeyPairSync } from 'node:crypto';
++import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
++import * as MC from '../metal/guest/measured-control.mjs';
++import { startRole } from '../metal/guest/platform-api-role.mjs';
++
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'platform-api-forward-'));
++const servers = new Set(), sockets = new Set();
++let roles = [];
++const track = (s) => { servers.add(s); s.on('connection', (c) => { sockets.add(c); c.on('close', () => sockets.delete(c)); }); return s; };
++after(async () => { for (const r of roles) { try { await r.stop(); } catch {} } for (const c of sockets) c.destroy(); for (const s of servers) { try { s.close(); } catch {} } fs.rmSync(tmp, { recursive: true, force: true }); });
++const freePort = () => new Promise((ok) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); });
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const waitFor = async (what, fn, ms = 30000) => { const until = Date.now() + ms; let last; while (Date.now() < until) { try { last = await fn(); if (last) return last; } catch (e) { last = e.message; } await sleep(100); } throw new Error(`timed out waiting for ${what} (${String(last).slice(0, 200)})`); };
++const a = (n) => '0x' + n.toString(16).padStart(40, '0');
++const HOSTNAME = 'api.forward.test', N = 3, K = randomBytes(32).toString('hex');
++const STUB_LOG = path.join(tmp, 'stub.log');
++const AUTH = 'Bearer canary-auth-' + randomBytes(6).toString('hex'), BODY = 'canary-body-' + randomBytes(6).toString('hex');
++// the primary's relay child stand-in: records each request it receives (one JSON line), answers, streams, or holds
++const STUB = path.join(tmp, 'stub-relay.mjs');
++fs.writeFileSync(STUB, `import http from 'node:http'; import fs from 'node:fs';
++const log = (o) => fs.appendFileSync(process.env.STUB_LOG, JSON.stringify({ pid: process.pid, ...o }) + '\\n');
++const s = http.createServer((req, res) => {
++  const c = []; req.on('data', (d) => c.push(d));
++  if (req.url.startsWith('/hang')) { log({ t: 'request', url: req.url }); req.on('close', () => log({ t: 'closed', url: req.url })); return; }
++  req.on('end', () => {
++    log({ t: 'request', method: req.method, url: req.url, headers: req.headers, body: Buffer.concat(c).toString() });
++    if (req.url.startsWith('/stream')) { res.writeHead(207, { 'content-type': 'text/plain', 'x-stub': 'stream' }); let i = 0;
++      const tick = () => { res.write('chunk' + i + '\\n'); if (++i < 3) setTimeout(tick, 300); else res.end('end\\n'); }; tick(); return; }
++    res.writeHead(201, { 'content-type': 'application/json', 'x-stub': 'echo' }); res.end(JSON.stringify({ pid: process.pid }));
++  });
++});
++s.listen(0, '127.0.0.1', () => process.send({ t: 'listening', port: s.address().port }));
++`);
++const stubLines = () => { try { return fs.readFileSync(STUB_LOG, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch { return []; } };
++
++const OPS = [...Array(N)].map(() => privateKeyToAccount(generatePrivateKey()).address.toLowerCase());
++const FRONT_PORTS = [], ROLE_PORTS = [];
++const PA = () => ({ apiPort: 8098, peerPort: 8099, hostname: HOSTNAME,
++  members: OPS.map((op, i) => ({ operator: op, publicUrl: `https://host-${i}.example.org`, controlUrl: `https://127.0.0.1:${FRONT_PORTS[i]}` })),
++  measurements: ['77'.repeat(48)], minTcb: null, admins: [a(0xad)], recovery: ['11'.repeat(32)], archives: [], archiveMs: 30000,
++  relayEnv: { STUB_LOG }, leaseMs: 2000 });
++const rawFor = (i) => ({ format: MC.CONFIG_FORMAT, chainId: 8453,
++  contracts: { registry: a(0x11), deployments: a(0x12), appCatalog: a(0x13), proofOfTime: a(0x14), enclavePay: a(0), verificationFees: a(0), sessionVaultFactory: a(0), secretVaultV2: a(0) },
++  profileDigest: null, rpcs: ['https://rpc-a.example/v1', 'https://rpc-b.example'], quorum: 2, releaseId: 'ab'.repeat(32), replicas: { gateways: ['https://replica.example'], storagePlan: null },
++  identity: { publicUrl: `https://host-${i}.example.org`, repo: 'owner/enclave', operator: OPS[i] }, selling: { cpuPrice6: null, payout: null },
++  isolation: { managerUrl: 'http://10.0.2.2:8095', dataAddr: '10.0.2.2:8096' }, hostAdmissionSha256: null, controlPort: 8444, platformApi: PA() });
++const webKey = generateKeyPairSync('ec', { namedCurve: 'P-256' });   // the group's shared WebPKI key for HOSTNAME (not attested)
++fs.writeFileSync(path.join(tmp, 'web-key.pem'), webKey.privateKey.export({ type: 'pkcs8', format: 'pem' }));
++fs.writeFileSync(path.join(tmp, 'web-cert.pem'), MC.selfSignedCert(webKey.privateKey, webKey.publicKey, { cn: HOSTNAME }));
++
++const M = [];
++async function frontFor(m) {
++  const f = track(MC.createControlFront({ statementText: m.st.text, keyPem: fs.readFileSync(m.P.tlsKey, 'utf8'), certPem: m.keys.controlTls.certPem, mode: 'dev', reporter: null,
++    upstream: { host: '127.0.0.1', port: 1 }, hostRoutes: [{ host: HOSTNAME, upstream: { host: '127.0.0.1', port: ROLE_PORTS[m.i].api } }],
++    prefixRoutes: [{ prefix: MC.PLATFORM_API_PREFIX, upstream: { host: '127.0.0.1', port: ROLE_PORTS[m.i].peer } }],
++    sni: { [HOSTNAME]: { certFile: path.join(tmp, 'web-cert.pem'), keyFile: path.join(tmp, 'web-key.pem') } } }));
++  await new Promise((r) => f.listen(FRONT_PORTS[m.i], '127.0.0.1', r));
++  return f;
++}
++async function bootMember(i) {
++  const d = fs.mkdtempSync(path.join(tmp, `m${i}-`));
++  const P = { ...MC.GUEST_PATHS, runDir: d, sessionDir: path.join(d, 'session'), statement: path.join(d, 'statement.json'), tlsKey: path.join(d, 'tls-key.pem'),
++              tlsCert: path.join(d, 'tls-cert.pem'), platformApiConfig: path.join(d, 'platform-api.json'), platformApiHandoffKey: path.join(d, 'handoff.key'), platformApiDir: path.join(d, 'pa') };
++  const config = MC.canonicalDirectConfig(rawFor(i)), digest = MC.configDigest(config), hostData = MC.hostDataHex(digest);
++  const keys = MC.mintControlKeys({ paths: P }); keys.platformApi = { publicKey: MC.mintPlatformApiKey({ paths: P }) };
++  const st = MC.controlStatement({ config, digest, hostData, mode: 'dev', keys });
++  fs.writeFileSync(P.statement, st.text);
++  const launch = MC.directPlatformApiLaunch(config, { paths: P });
++  const roleCfg = { ...JSON.parse(launch.files[P.platformApiConfig]), listen: ROLE_PORTS[i], askMs: 300 };
++  fs.mkdirSync(roleCfg.dirs.root, { recursive: true, mode: 0o700 }); fs.writeFileSync(path.join(roleCfg.dirs.root, 'k'), K, { mode: 0o600 });
++  const m = { i, P, st, keys, roleCfg };
++  m.front = await frontFor(m);
++  m.role = await startRole({ cfg: roleCfg, recoverMessageAddress: async () => '0x', verifyPeer: async () => ({ ok: false, reason: 'not in this test' }), log: () => {},
++    relayArgv: [process.execPath, STUB], forwardConnectMs: 1500 });
++  roles.push(m.role);
++  return m;
++}
++/** a client request through member m's front with the platform API host (as a browser would send it) */
++function call(m, method, p, { body = null, headers = {}, onChunk = null, signal = null } = {}) {
++  return new Promise((ok, no) => {
++    const r = https.request({ host: '127.0.0.1', port: FRONT_PORTS[m.i], method, path: p, rejectUnauthorized: false, servername: HOSTNAME, agent: false, signal,
++      headers: { host: HOSTNAME, ...headers, ...(body ? { 'content-length': Buffer.byteLength(body) } : {}) } }, (res) => {
++      const c = []; res.on('data', (x) => { c.push(x); onChunk?.(x, Date.now()); }); res.on('end', () => ok({ status: res.statusCode, headers: res.headers, text: Buffer.concat(c).toString() }));
++      res.on('error', no);
++    });
++    r.on('error', no); r.end(body || undefined);
++  });
++}
++/** what the front does for the platform API host: an HTTP request to the role's API port with the client address it saw */
++function callRole(m, method, p, { signal = null } = {}) {
++  return new Promise((ok, no) => {
++    const r = http.request({ host: '127.0.0.1', port: ROLE_PORTS[m.i].api, method, path: p, agent: false, signal, headers: { host: HOSTNAME, 'x-enclave-client-ip': '127.0.0.1' } }, (res) => {
++      const c = []; res.on('data', (x) => c.push(x)); res.on('end', () => ok({ status: res.statusCode, text: Buffer.concat(c).toString() })); res.on('error', no);
++    });
++    r.on('error', no); r.end();
++  });
++}
++const leader = () => M.find((m) => m.role && m.role.status().role === 'leader' && m.role.status().relay);
++const standbyOf = (l) => M.find((m) => m !== l && m.role && m.role.node()?.leaderInfo?.spki === l.keys.controlTls.spkiSha256);
++async function closeFront(m) {                  // whatever listens on m's control address goes away (open connections too)
++  for (const c of sockets) if (c.localPort === FRONT_PORTS[m.i]) c.destroy();
++  await new Promise((r) => m.front.close(() => r())); servers.delete(m.front);
++}
++async function swapFront(m, server) { await closeFront(m); track(server); await new Promise((r) => server.listen(FRONT_PORTS[m.i], '127.0.0.1', r)); m.front = server; }
++async function restoreFront(m) { await closeFront(m); m.front = await frontFor(m); }
++
++test('setup: three members replicate and elect a primary through their real fronts; the primary runs its relay child', { timeout: 60000 }, async () => {
++  for (let i = 0; i < N; i++) { FRONT_PORTS.push(await freePort()); ROLE_PORTS.push({ api: await freePort(), peer: await freePort() }); }
++  for (let i = 0; i < N; i++) M.push(await bootMember(i));
++  const l = await waitFor('a primary with its relay', () => leader());
++  await waitFor('standbys that know the primary', () => M.filter((m) => m !== l && standbyOf(l) && m.role.node()?.leaderInfo).length === 2);
++});
++
++test('a standby forwards the original method, path, headers, credentials and body, and streams the response, to the ATTESTED primary only', { timeout: 30000 }, async () => {
++  const l = leader(), s = standbyOf(l);
++  const r = await call(s, 'POST', '/echo?x=1', { body: BODY, headers: { authorization: AUTH, 'content-type': 'text/plain', 'x-enclave-client-ip': '6.6.6.6' } });
++  assert.equal(r.status, 201, r.text); assert.equal(r.headers['x-stub'], 'echo');
++  const seen = stubLines().filter((x) => x.url === '/echo?x=1').at(-1);
++  assert.equal(seen.method, 'POST'); assert.equal(seen.body, BODY); assert.equal(seen.headers.authorization, AUTH);
++  assert.equal(seen.headers['x-forwarded-for'], '127.0.0.1', 'the client address the standby saw, carried by the hop proof (a client-written header is dropped)');
++  assert.equal(seen.headers['x-forwarded-host'], HOSTNAME);
++  // a streamed answer arrives as it is produced, not after the end
++  const times = [];
++  const st = await call(s, 'GET', '/stream', { onChunk: (_c, t) => times.push(t) });
++  assert.equal(st.status, 207); assert.equal(st.headers['x-stub'], 'stream'); assert.equal(st.text, 'chunk0\nchunk1\nchunk2\nend\n');
++  assert.ok(times.length >= 2 && times.at(-1) - times[0] >= 400, `chunks streamed (${times.map((t) => t - times[0]).join(',')} ms)`);
++});
++
++test('a WRONG-KEY self-signed peer on the primary\'s address receives the TLS handshake and ZERO request bytes: no credential, no body', { timeout: 30000 }, async () => {
++  const l = leader(), s = standbyOf(l), saved = l.front;
++  const k = generateKeyPairSync('ec', { namedCurve: 'P-256' });
++  const conns = [], sni = []; let tcp = 0;
++  const impostor = tls.createServer({ key: k.privateKey.export({ type: 'pkcs8', format: 'pem' }), cert: MC.selfSignedCert(k.privateKey, k.publicKey, { cn: HOSTNAME }),
++    SNICallback: (name, cb) => { sni.push(name); cb(null, null); } }, (sock) => {
++    const rec = { bytes: Buffer.alloc(0) }; conns.push(rec);
++    sock.on('data', (d) => { rec.bytes = Buffer.concat([rec.bytes, d]); }); sock.on('error', () => {});
++  });
++  impostor.on('connection', () => { tcp++; }); impostor.on('tlsClientError', () => {});
++  await swapFront(l, impostor);
++  try {
++    const before = stubLines().length;
++    // the impostor never answers: wait at most 5 s for the standby's own answer, then judge what the impostor received
++    const r = await Promise.race([call(s, 'POST', '/v1/account/secret', { body: BODY, headers: { authorization: AUTH, 'content-type': 'text/plain' } }).catch((e) => e), sleep(5000).then(() => null)]);
++    await sleep(200);
++    const all = Buffer.concat(conns.map((c) => c.bytes)).toString('latin1');
++    assert.ok(tcp >= 1, 'the standby did reach the impostor');
++    assert.ok(!all.includes(AUTH) && !all.includes(BODY) && !all.includes('/v1/account/secret') && !/x-enclave-platform-api-hop/i.test(all), 'no request byte reached the impostor');
++    // every connection that carried bytes at all is the replica's AEAD-sealed peer protocol (not a TLS-trusted channel)
++    for (const c of conns.filter((x) => x.bytes.length)) assert.match(c.bytes.toString('latin1'), /^POST \/platform-api\/peer /);
++    assert.deepEqual(sni, [], 'no SNI: the forward asks for the attested control certificate, not the WebPKI name');
++    assert.equal(stubLines().length, before, 'nothing reached the primary either');
++    assert.equal(r?.status, 503, 'the client is told the primary is unreachable'); assert.equal(JSON.parse(r.text).error, 'platform_api_unreachable');
++  } finally { await restoreFront(l); }
++});
++
++// (the control front does not propagate a client's disconnect to its upstream - a pre-existing front behaviour reported
++// separately - so these cases address the standby role's API port directly, exactly as the front does)
++test('the client goes away: the standby role drops its pinned connection to the primary (mid-request, and mid-handshake with a silent peer)', { timeout: 30000 }, async () => {
++  const l = leader(), s = standbyOf(l);
++  const fromStandby = () => [...sockets].filter((c) => c.localPort === FRONT_PORTS[l.i] && !c.destroyed).length;
++  // mid-request: the primary holds the answer; the client aborts; the standby's upstream connection to the primary closes
++  const ac = new AbortController();
++  const p = callRole(s, 'GET', '/hang/1', { signal: ac.signal }).catch((e) => e);
++  await waitFor('the held request at the primary', () => stubLines().some((x) => x.url === '/hang/1'));
++  assert.ok(fromStandby() >= 1);
++  ac.abort(); await p;
++  await waitFor('the standby closing its connection to the primary', () => fromStandby() === 0, 3000);
++  // a silent peer (accepts TCP, never answers the TLS handshake): bounded by the handshake timeout, then 503
++  // the silent peer also holds the replica's own peer posts (they wait for their 15 s timeout); a connection that closes
++  // well before the 1.5 s handshake timeout can only be a forward the standby cancelled
++  const life = [];
++  // (it reads and discards - an unread socket stays paused and would never notice the peer's close - but never answers)
++  const silent = net.createServer((c) => { const e = { opened: Date.now(), closed: null }; life.push(e); c.resume(); c.on('close', () => { e.closed = Date.now(); }); c.on('error', () => {}); });
++  await swapFront(l, silent);
++  try {
++    const t0 = Date.now();
++    const r = await callRole(s, 'GET', '/v1/health');
++    assert.equal(r.status, 503); assert.ok(Date.now() - t0 < 5000, 'bounded by the handshake timeout');
++    // and a client that leaves during the handshake: the pending connection is cancelled at once
++    const t2 = Date.now(), ac2 = new AbortController();
++    const p2 = callRole(s, 'GET', '/v1/health', { signal: ac2.signal }).catch((e) => e);
++    await sleep(300);                         // the forward is now waiting on the silent handshake (timeout 1500 ms)
++    ac2.abort(); await p2;
++    await sleep(700);
++    const mine = life.filter((e) => e.opened >= t2 && e.opened < t2 + 300);
++    assert.ok(mine.length >= 1, 'the forward opened its connection');
++    assert.ok(mine.some((e) => e.closed !== null && e.closed - t2 < 1100), `cancelled at the client's abort, not at the 1500 ms timeout (${JSON.stringify(mine.map((e) => [e.opened - t2, e.closed && e.closed - t2]))})`);
++  } finally { await restoreFront(l); }
++});
++
++test('upgrades on a standby keep their scope: refused (503), never forwarded', { timeout: 15000 }, async () => {
++  const l = leader(), s = standbyOf(l);
++  const status = await new Promise((ok, no) => {
++    const r = https.request({ host: '127.0.0.1', port: FRONT_PORTS[s.i], path: '/ws', rejectUnauthorized: false, servername: HOSTNAME, agent: false,
++      headers: { host: HOSTNAME, connection: 'Upgrade', upgrade: 'websocket', 'sec-websocket-version': '13', 'sec-websocket-key': randomBytes(16).toString('base64') } });
++    r.on('response', (res) => { res.resume(); ok(res.statusCode); }); r.on('upgrade', () => ok(101)); r.on('error', no); r.end();
++  });
++  assert.equal(status, 503);
++});
++
++test('the primary changes: standbys pin the NEW primary\'s attested key from its sealed heartbeat and forward there', { timeout: 60000 }, async () => {
++  const old = leader(), oldPid = stubLines().filter((x) => x.url === '/echo?x=1').at(-1).pid;
++  await old.role.stop(); roles = roles.filter((r) => r !== old.role); old.role = null; await closeFront(old);
++  const l = await waitFor('a successor with its relay', () => leader(), 45000);
++  assert.notEqual(l, old);
++  const s = await waitFor('a standby that knows the successor', () => standbyOf(l));
++  const r = await call(s, 'POST', '/echo?x=2', { body: BODY, headers: { authorization: AUTH } });
++  assert.equal(r.status, 201, r.text);
++  const seen = stubLines().filter((x) => x.url === '/echo?x=2').at(-1);
++  assert.notEqual(seen.pid, oldPid, 'served by the successor\'s relay'); assert.equal(seen.headers.authorization, AUTH); assert.equal(seen.body, BODY);
++});

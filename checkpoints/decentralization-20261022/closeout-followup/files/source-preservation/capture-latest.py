@@ -102,6 +102,26 @@ for name in ('RESULT.json', 'RESULT-lease16.json', 'RESULT-lease16.v1.json'):
     paths.add(base / 'storage-client-interop' / name)
 for p in (base / 'source-preservation').glob('review-*.py'):
     paths.add(p)
+# Keep active issuer changes recoverable without copying its private fixtures or dependencies.
+issuer = base / 'native-issuer-implementation/repo'
+issuer_names = subprocess.check_output(['git', '-C', str(issuer), 'diff', '--name-only', '8e77ff1eca24be3c02e281dc9f431af597165adf'], text=True).splitlines()
+issuer_names += subprocess.check_output(['git', '-C', str(issuer), 'ls-files', '--others', '--exclude-standard'], text=True).splitlines()
+for name in issuer_names:
+    rel = Path(name)
+    p = issuer / rel
+    if rel.parts[0] in ('metal', 'network', 'relay', 'scripts', 'test', 'docs') and p.is_file() and not p.is_symlink() and p.suffix in ('.mjs', '.js', '.json', '.md', '.py', '.sh', '.txt'):
+        paths.add(p)
+for directory in ('native-issuer-implementation', 'native-storage-names'):
+    for p in (base / directory).iterdir():
+        if p.is_file() and not p.is_symlink() and p.suffix in ('.md', '.txt', '.py', '.sh', '.patch'):
+            paths.add(p)
+for name in ('native-issuer-review-task.txt', 'native-storage-names-task.txt'):
+    paths.add(base / name)
+# Only bounded public diagnostics, never raw SSH output or private live configuration.
+for p in (base / 'public-health').iterdir():
+    if p.is_file() and not p.is_symlink() and p.suffix in ('.py', '.mjs', '.json'):
+        paths.add(p)
+
 paths.add(Path(__file__).resolve())
 entries = []
 unchanged = []
