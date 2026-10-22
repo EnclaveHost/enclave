@@ -254,11 +254,16 @@ test("plan for many apps: no default amount; --per-app-eth / --per-app-wei / --d
   const pw = (await cli(lg("plan", "--ids", ids[0], "--max-gas-price-gwei", "0.05", "--per-app-wei", "12345"))).json;
   assert.equal(pw.apps[0].amount.wei, "12345");
   const pd = (await cli(lg("plan", "--ids", ids[0], "--max-gas-price-gwei", "0.05", "--days", "7"))).json;
-  // the deployed ledger extends a renew FROM leaseUntil: covering 7 days takes ceil(604800 / leaseSec) - 1 renewals
-  const m = /one claim \+ (\d+) renewals \(7 days of a rate-0 \/ fully funded lease, leaseSec (\d+)\)/.exec(pd.apps[0].amount.basis);
+  // an unclaimed app's rate is unknown (the next claim sets it), so it is counted as the more frequent, rate 0: the deployed
+  // ledger restarts a rate-0 renew from its own block, and a sponsored one lands at most renewWindow (300) early, so
+  // covering 7 days takes ceil((604800 - leaseSec) / (leaseSec - 300)) renewals (a paid lease: ceil(604800 / leaseSec) - 1)
+  const m = /one claim \+ (\d+) renewals \(7 days, leaseSec (\d+); rate unknown /.exec(pd.apps[0].amount.basis);
   assert.ok(m, pd.apps[0].amount.basis);
   const leaseSec = BigInt(m[2]), n = BigInt(m[1]);
-  assert.equal(n, (604800n + leaseSec - 1n) / leaseSec - 1n);
+  assert.equal(n, (604800n - leaseSec + (leaseSec - 300n) - 1n) / (leaseSec - 300n));
+  assert.ok(n > (604800n + leaseSec - 1n) / leaseSec - 1n, "more than the paid count");
+  assert.equal(pd.costModel.renewal.model, "rate-unknown"); assert.equal(pd.costModel.renewal.cycleSec, Number(leaseSec) - 300);
+  assert.equal(pd.costModel.renewsPerDay, Number((86400 / (Number(leaseSec) - 300)).toFixed(2)));
   const per = pd.costModel.perOp;
   assert.equal(BigInt(pd.apps[0].amount.wei), BigInt(per.claim) + n * BigInt(per.renew) + BigInt(per.release), "integer wei: claim + n renewals + release");
   assert.ok(BigInt(pd.apps[0].amount.wei) > 0n);
@@ -268,6 +273,31 @@ test("plan for many apps: no default amount; --per-app-eth / --per-app-wei / --d
   // the record is checked: a wrong digest is refused before any read
   const wrong = await cli(["lease-gas", "status", ids[0], "--lease-gas", recFile, "--lease-gas-digest", "sha256:" + "0".repeat(64)], { expectFail: true });
   assert.match(wrong.err, /not the reviewed/);
+});
+
+test("status: a live rate-0 lease renews from its own block, a paid one from leaseUntil, an unclaimed one is counted conservatively", T, async () => {
+  const o = await W.owner();
+  const self = await W.operator("cadence-self.example:443"), paid = await W.operator("cadence-paid.example:443");
+  await W.write(o.key, W.addr.registry, W.A.registry.abi, "setPayoutWallet", [self.enclaveId]);   // the owner's own box: rate 0
+  const ids = [await W.create(o, { fund6: 0n }), await W.create(o, { fund6: 100_000_000n }), await W.create(o)];
+  for (const id of ids) await W.enable(o, id, { p: { renewWindow: 300 } });
+  // local chain only: the operators claim with their own ETH here (the claim path is not what this checks)
+  for (const [op, id] of [[self, ids[0]], [paid, ids[1]]]) { await W.fund(op.address); await W.write(op.key, W.addr.ledger, W.A.ledger.abi, "claim", [id, op.enclaveId]); }
+  const rows = (await cli(lg("status", "--ids", ids.join(",")))).json.apps;
+  const L = rows[0].ledger.leaseSec;
+  assert.deepEqual(rows.map((r) => r.cost.renewal.model), ["rate-0", "paid", "rate-unknown"]);
+  assert.deepEqual(rows.map((r) => r.cost.renewal.cycleSec), [L - 300, L, L - 300]);
+  assert.deepEqual(rows.map((r) => r.cost.renewsPerDay), [Number((86400 / (L - 300)).toFixed(2)), 86400 / L, Number((86400 / (L - 300)).toFixed(2))]);
+  assert.equal(BigInt(rows[1].cost.renewPerDayWei), BigInt(rows[1].cost.perOp.renew) * 86400n / BigInt(L));
+  assert.equal(rows[0].cost.renewal.renewLeadSec, 300); assert.match(rows[0].cost.renewal.renewLeadFrom, /renew window/);
+  // a measured lead is an explicit input: it moves the rate-0 cycle, never the paid one; a lead the reserve would refuse fails
+  const measured = (await cli(lg("status", "--ids", ids.join(","), "--renew-lead-sec", "260"))).json.apps;
+  assert.deepEqual(measured.map((r) => r.cost.renewal.cycleSec), [L - 260, L, L - 260]);
+  assert.equal(measured[0].cost.renewal.renewLeadFrom, "given");
+  const bad = await cli(lg("status", ids[0], "--renew-lead-sec", "301"), { expectFail: true });
+  assert.match(bad.err, /cannot land 301 s before leaseUntil/);
+  const text = (await cli(lg("status", ids[0]), { json: false })).out;
+  assert.match(text, /renewals\/day = .* rate 0 \(self-hosted\): each renew restarts the lease from its own block, one every 1800 - 300 = 1500 s/);
 });
 
 // A CREDIT VAULT owner of record (root review 2026-10-20, work/credit-vault-independence-interface.txt section 1). The

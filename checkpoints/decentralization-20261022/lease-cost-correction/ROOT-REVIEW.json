@@ -1,0 +1,17 @@
+{
+  "reviewedAt": "2026-10-22T18:41:22.484572+00:00",
+  "source": "six cost-model/CLI/test/docs files exactly match worker tested hashes; repository inputs of both regenerated bundle manifests verified against this checkout",
+  "tests": {
+    "unit": 11,
+    "deployedLedgerOnLocalAnvil": 3,
+    "cli": 12,
+    "bundleConsumers": 23,
+    "failures": 0,
+    "skipped": 0
+  },
+  "rootChange": "Supervisor comment rewritten to avoid suggesting that paid renewals incur no gas. Code unchanged. This supersedes the supervisor hash/comment in cost-bundle-result.json.",
+  "supervisorSha256": "89ebb50affbec97e9ffdf6524c0e284ba226e3404be7558f2779c1bb64381b4f",
+  "productionActivated": false,
+  "fundingSent": false,
+  "constraints": "No contract/policy/lease quantum/heartbeat behavior changes; no wallet operations. New measured image must record the changed metal bundle when deployed."
+}

@@ -1,0 +1,103 @@
+{
+  "task": "lease-gas cost model: rate-0 vs paid renewal cadence (work/resume-after-checkpoint-20261022/cost-task.txt)",
+  "status": "source + focused tests VERIFIED locally; nothing deployed; no Git mutation; root reviews/transfers/pushes",
+  "defect": {
+    "statement": "network/lease-gas-owner.mjs renewalsFor/renewsPerDay/costModel/budgetAmount counted every lease as 'one renew per leaseSec' (48/day at 1800 s). The deployed ledger rev 16d _burnLease sets until = (rate == 0 ? block.timestamp : from) + secs and renew() passes from = d.leaseUntil, so a rate-0 (self-hosted) renew restarts from its own block and gives up the lead it landed with; only a paid renew extends from leaseUntil. The reserve sponsors a renew only when block.timestamp + renewWindow >= leaseUntil, so a sponsored rate-0 renew cycles at >= leaseSec - renewWindow (1500 s, 57.6/day at window 300); the old model under-budgeted rate-0 apps by ~17%.",
+    "sources": [
+      "test/fixtures/ledger-rev16d-source/EnclaveDeployments.sol:1137-1146 renew -> _burnLease(d, d.leaseUntil); :1194-1210 _burnLease (sha256 2771a524... = live 0xb1783b61, PROVENANCE.txt)",
+      "contracts/EnclaveLeaseGasReserve.sol:250-259 statusOf/_check renew: NotInRenewWindow if now + renewWindow < leaseUntil; ExtensionTooShort if min(leaseSec, balance6/rate) < minExtension (rate 0: secs = leaseSec)",
+      "client/lease-executor-client.mjs:610-615 renewLeadMs = min(fallback, max(5, renewWindow - 15) s) = 285 s; windows/node/host.mjs:65 RENEW_LEAD_MS 15 min, :2179; supervisor.js:9967-9975 leaseGasRenewDue (same renewLeadMs, fallback RENEW_MARGIN_SEC 600)"
+    ],
+    "chainEvidence": {
+      "prior_24h": "work/node-lease-window-review-20261021/analysis-24h-polkachu.json (read-only, 2026-10-21 00:05-23:16Z, 458 renewals): free leases newRemaining exactly 1800; paid 0x59f1273d newRemaining 1800..2076 (= remaining + 1800); landing lead max 280 s (222..280 normal); free cycle median 1538 s (1520..1628) => ~56/day",
+      "fresh_probe": {
+        "file": "work/resume-after-checkpoint-20261022/cost/cadence-probe-2026-10-22T1820Z.json",
+        "script": "work/resume-after-checkpoint-20261022/cost/cadence-probe.mjs (READ-ONLY: eth_call/getLogs only, no keys, no sends)",
+        "rpc": "https://base-rpc.polkachu.com, head 52951954 (ts 1792693255 = 2026-10-22T18:20:55Z), lookback 5400 blocks",
+        "leaseSec": 1800,
+        "reserveOf_all_9": "enabled, renewWindow 300, minExtension 600",
+        "0x7ae476a3 (rate 0)": "3 renewals: newRemaining exactly 1800; leaseUntil advance = cycle (1744..1792; landing lead 8..56 s in this window)",
+        "0x59f1273d (rate 2 uUSDC/s)": "2 renewals: leaseUntil advance exactly 1800 regardless of landing lead (182..204 s); cycle 1618..1626",
+        "observation_not_investigated": "7 of the 9 apps had leaseUntil 14054..43394 s in the past at the probe (no renewals in 3 h); outside this task's scope, reported for root"
+      }
+    }
+  },
+  "fix": {
+    "model": {
+      "renewalCadence({ leaseSec, rate6, renewWindow, renewLeadSec, extensionSec, minExtension })": "NEW export. rate6 0 -> model 'rate-0', cycle = leaseSec - lead; rate6 > 0 -> 'paid', cycle = extensionSec (default leaseSec); rate6 null/undefined -> 'rate-unknown', the more frequent of both. Lead = explicit renewLeadSec (must be <= renewWindow when both given) else renewWindow (the earliest a sponsored renew may land = conservative); neither -> OwnerRefusal (no silent default). lead >= leaseSec -> OwnerRefusal{unbounded:true}. extension 1..leaseSec; explicit extension < minExtension refused; leaseSec < minExtension -> refused='ExtensionTooShort ...'.",
+      "renewalsFor(seconds, opts)": "paid n = ceil(T/ext) - 1 (unchanged formula); rate-0 n = ceil((T - leaseSec)/(leaseSec - lead)) for T > leaseSec; unknown = max. opts = renewalCadence inputs or its result. BREAKING-LOUDLY: the old shape renewalsFor(T, { leaseSec }) now throws OwnerRefusal (no rate-0 lead) instead of returning the 48/day count; a paid count renewalsFor(T, { leaseSec, rate6: >0 }) needs no lead.",
+      "renewsPerDay(opts)": "86400 / cadence.cycleSec. BREAKING-LOUDLY: the old renewsPerDay(leaseSec) number argument throws OwnerRefusal ('different rates'). In-repo callers: costModel only.",
+      "knownRate6(st)": "NEW export: st.ledger.rate6 when the lease is live AND held by a runner (renewals use the claimed rate), else null (the next claim snapshots a new rate).",
+      "costModel(...)": "new optional inputs rate6 (default null = unknown, conservative), renewLeadSec, extensionSec; window from policy.renewWindow (< 30 = unconfigured reserve -> POLICY_DEFAULTS 300 and the basis says so); minExtension from policy. Output keeps every prior key (renewsPerDay, renewPerDayWei, renewalModel now = the cadence basis text) and adds `renewal` (the cadence). Window >= leaseSec: renewal.model 'unbounded', renewsPerDay/renewPerDayWei null (not a crash); an explicit invalid lead still throws.",
+      "advise(...)": "adds warns for cost.renewal.refused (ExtensionTooShort) and cost.renewal.unbounded; the runway warning now uses the corrected per-day wei.",
+      "budgetAmount(...)": "--days uses renewalsFor(N days, cost.renewal); refuses a cost without `renewal` (old shape), an unbounded cadence, or an ExtensionTooShort policy. Result adds `renewal` (model); basis text: 'one claim + N renewals (D days, leaseSec L; <cadence basis>) + one release at P wei/gas ...'."
+    },
+    "callsites": {
+      "cli/lease-gas.mjs": "costFor passes rate6: O.knownRate6(st) and optional --renew-lead-sec S (new VAL flag + USAGE line); status text prints the cadence basis (or 'renewals/day not bounded'); costView JSON adds `renewal` {model, rate6, cycleSec, renewLeadSec, renewLeadFrom, extensionSec, renewWindow, refused, unbounded, basis} and renewsPerDay may be null; plan lastsDaysAtTodaysFee null when per-day is null.",
+      "UI": "site/credit/credit.js and site/js/core/credit-vault-reserve.js only edit policy fields; neither computes renewals or cost: no change needed",
+      "other importers": "network/lease-gas-conduit.mjs, lease-relay-service.mjs, host-services/lease-relay-host.mjs, lease-relay-migration-check.mjs, lease-gas-runtime.mjs, test/make-deployment-record.test.mjs import parseDeploymentRecord only (unchanged)"
+    },
+    "figures_at_leaseSec_1800_window_300": { "rate0_conservative_per_day": 57.6, "rate0_measured_lead_262_per_day": 56.18, "paid_per_day": 48, "rate_unknown_per_day": 57.6,
+      "renewals_30_days": { "rate0": 1727, "paid": 1439, "unknown": 1727 }, "renewals_7_days_unknown": 402 }
+  },
+  "filesChanged": {
+    "root": "work/enclave (untracked in that tree's git status before and after; not committed, not staged)",
+    "modified": [
+      { "path": "network/lease-gas-owner.mjs", "before_sha256": "ddd3ba9bb016562c9387bd7418f016c03fbcc5b9db9706bad5905da81762afe5", "after_sha256": "92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988" },
+      { "path": "cli/lease-gas.mjs", "before_sha256": "27d49989da78bcf35ebc3c6db11e05dccfd8c78a9c4a0fae6ae203c3b44fc2e9", "after_sha256": "9f34e04ec59614f5be4bdefdc3f991833d8903051ef5bdedaa14f2877391bbdd" },
+      { "path": "test/lease-gas-cost-model.test.mjs", "before_sha256": "48ce8ffe23b76ecadfeb14cac91875f1158ecf2f04a7555eb41208c78eb0d9b7", "after_sha256": "8a39e218297262f611a2d873578f9b0085abcd339c547bb177a7a8ac93b7785d" },
+      { "path": "test/lease-gas-owner-cli.test.mjs", "before_sha256": "ffc100c4636a89377fb144ab273e49b6b5b53eb1e04bc69d665468d7a150076b", "after_sha256": "79fb06e94175822ab3f5b772a1ddd4bee257bebfb8f5167b0dcea879fcf5c6c8" },
+      { "path": "docs/network/app-funded-leases.md", "before_sha256": "81a851805a607075f5648d67aefe886fa5d445fcd9dc1bd5764b3046fe91333e", "after_sha256": "76e74d074d6c87fe5b6ba59b5ed339239a347f9ece6f961596abc51f487b81b1" }
+    ],
+    "added": [ { "path": "test/lease-gas-cost-model-ledger.test.mjs", "sha256": "22084761d9ff4a6513172ba4de8cf8d5c14130d42adbfdb0b338777ae1a473f1" } ],
+    "preChangeCopies": "work/resume-after-checkpoint-20261022/cost/orig/ (+ SHA256SUMS)"
+  },
+  "patches": {
+    "file": "work/resume-after-checkpoint-20261022/cost/patches/cost-model.diff",
+    "sha256": "ad066676d5960c984563277fba1ecd5483d51bdb8f5f06cf31af296ce7ce58d2",
+    "applyCheck": "patch -p1 onto copies of orig/ reproduces all 6 final files byte-for-byte (verified)",
+    "apply": "cd <checkpoint clone> && patch -p1 < cost-model.diff (paths a/ b/ relative to the enclave repo root)"
+  },
+  "tests": {
+    "queue": "every run via python3 -u work/claude-test-queue.py (wrapper cost/q.sh: retry on 98, rc file); no 98/99 occurred",
+    "final": {
+      "command": "q.sh 768 tests-final ./run-tests.sh  (A: node --test test/lease-gas-cost-model.test.mjs; B: node --test test/lease-gas-cost-model-ledger.test.mjs; C: node --test test/lease-gas-owner-cli.test.mjs (whole file))",
+      "result": "A 11/11 pass, B 3/3 pass, C 12/12 pass (0 skipped, Safe fixture present); queue EXIT 0; peakTreeRssMiB 338 at cap 768",
+      "rawlog": "work/resume-after-checkpoint-20261022/cost/rawlogs/tests-final.out (+ .guard.log, .rc = 0)"
+    },
+    "coverage": {
+      "ledger_on_anvil (B)": "the real rev16d ledger + reserve built from source (cached forge out /tmp/enclave-lease-gas-forge-1b317e80fb207064b1f8, inputs unchanged): a self-hosted (payoutWallet = owner, rate 0) and a paid lease claimed and renewed 260 s before every leaseUntil for 3 h: rate 0 leaseUntil = landing + 1800 every step, 6 renewals; paid leaseUntil = previous + 1800, 5 renewals; both equal renewalsFor; cycles equal renewalCadence.cycleSec. Reserve statusOf: NotInRenewWindow at 301 s remaining, Ready at 300 (window = conservative lead). Paid balance for 599 s after the claim -> ExtensionTooShort, 600 -> Ready (model agrees); rate-0 with minExtension 1801 -> ExtensionTooShort (model refused).",
+      "unit (A)": "fixture-source premise (both _burnLease branches, renew from leaseUntil, reserve window/minExtension gates); 31-day counts at leads 0..300 vs an independent transcription (paid 1487 at every lead, rate 0 more for lead > 0, equal at 0); per-day 57.6/56.18/48; boundaries T = 0, L, L+1, L+cycle, L+cycle+1, 2L, 2L+1; explicit-input refusals (old call shapes, lead > window, lead >= leaseSec unbounded, bad numbers, extension vs minExtension); unknown = max at 35 (T, extension) pairs; knownRate6; costModel per-day wei, unconfigured default window, unbounded window; advise warnings and corrected runway; budgetAmount 1727/1439/1727 exact wei + refusals.",
+      "CLI callsites (C)": "plan --days 7 on unclaimed apps: rate-unknown, 402 renewals = ceil((604800-1800)/1500) > paid 335, costModel.renewal fields; NEW status test: live rate-0 / live paid / unclaimed -> models [rate-0, paid, rate-unknown], cycles [1500, 1800, 1500], renewsPerDay [57.6, 48, 57.6], paid per-day wei = renew x 48; --renew-lead-sec 260 moves only the rate-0/unknown cycles; --renew-lead-sec 301 fails 'cannot land 301 s'; text output prints the rate-0 basis."
+    },
+    "mutationControls": {
+      "command": "q.sh 512 mutants-1 ./mutants.sh (mirror cost/negctl/: mutated copy of the module, other imports symlinked to work/enclave; work/enclave not written)",
+      "result": "5/5 killed: M1 free-uses-paid-rule (8 failing), M2 unknown-counted-as-paid (2), M3 default-lead-zero (8), M4 unknown-max-dropped (3), M5 window-boundary-off-by-one (2); unmutated mirror 14/14 pass; peak 212 MiB",
+      "rawlogs": "cost/rawlogs/mutants-1.out, cost/rawlogs/mutant-*.tap"
+    },
+    "earlier_runs_kept": [
+      "unit-1 (256): 11/11 pass",
+      "tests-1 (768): unit 11/11, CLI 2 filtered tests pass, ledger 1/3 (FAILED: statusOf read with an explicit blockNumber); diagnosed by debug-1/debug-2/debug-warp-*/debug-t2 (cost/debug-status.mjs): on this anvil an eth_call at an explicit block number answers as of one second earlier (300 s remaining: 'latest' Ready, same block by number NotInRenewWindow); test now reads at blockTag latest",
+      "ledger-2 (768): 3/3 pass after that test-only fix, peak 185 MiB"
+    ]
+  },
+  "compositionConflicts": {
+    "generatedBundles": {
+      "affected": ["windows/node/lease-gas-runtime.bundle.mjs (+ .manifest.json)", "metal/guest/lease-gas-conduit.bundle.mjs (+ .manifest.json)"],
+      "finding": "both bundle network/lease-gas-owner.mjs; their manifests pin its old sha256 ddd3ba9b. node scripts/build-windows-lease-runtime.mjs --check and node scripts/build-metal-lease-gas.mjs --check now report STALE (rawlogs/bundle-check-1.out; inner rc 1 each). In-memory rebuild (cost/bundle-compare.mjs, write:false): with the ORIGINAL module both equal the shipped bytes (windows 159108d1..., metal c46c65d7...); with the new module windows 008cdca1... and metal 421d6584..., SAME byte length (342304 / 41371): the cost model is tree-shaken out and the differences are minifier identifier renaming only (189 chars in metal).",
+      "notDone": "I did not regenerate them (outside my file scope). Root chooses: (a) regenerate both with `node scripts/build-windows-lease-runtime.mjs && node scripts/build-metal-lease-gas.mjs` (behaviour-identical, but new bundle bytes: the metal one is in the measured guest closure, so a new measurement whenever an image is rebuilt with it, and the Windows release payload changes), or (b) leave the shipped bundles and accept the stale --check until the next planned rebuild. No test in test/ runs either --check (only the docs and scripts mention it); test/metal-lease-gas-conduit.test.mjs checks the bundle's own sha and input KEYS, which still hold."
+    },
+    "staleComment": "supervisor.js:9503 says early renewal is FREE because 'the contract extends FROM leaseUntil'. That holds only for paid leases; a rate-0 early renew forfeits the lead. Not edited (outside scope); behaviour is unaffected because the sponsored path uses renewLeadMs (285 s).",
+    "otherWorkers": "no overlap with controller (controller-integration/) or role (rc3 package) scopes"
+  },
+  "limits": [
+    "No production, policy, live config, heartbeat, contract, leaseSec, top-up or spending changes. Chain access was read-only eth_call/getLogs against polkachu (one probe, 103 MiB).",
+    "No Git mutation (the files were untracked in work/enclave before and after). No commit or co-author trailer.",
+    "Paid model assumes a compute balance that funds full quanta. Drip top-ups buy shorter extensions (bounded via extensionSec >= minExtension). The CLI does not expose extensionSec.",
+    "'Known' rate means the current live lease's. A re-claim by a different host can change the rate, so a paid budget does not cover a later switch to rate 0. An unknown rate is counted as rate 0.",
+    "The conservative rate-0 lead is the reserve window (300). The measured landing lead was <= 280 s, so the model over-counts by ~2.5% vs the median measured cycle. Hosts landing earlier than the window are impossible on the sponsored path but not on an operator-paid path, which this reserve never pays.",
+    "renewalsFor counts renewals needed to COVER the period from the claim. A continuously running host may send one more renew inside the last cycle; that is less than one renewal per budget.",
+    "Bundles not rebuilt (see compositionConflicts)."
+  ],
+  "workArtifacts": "work/resume-after-checkpoint-20261022/cost/: orig/, patches/, rawlogs/, cadence-probe.mjs + json, bundle-compare.mjs, debug-status.mjs, mutants.sh + negctl/ (symlink mirror), run-tests.sh, q.sh"
+}

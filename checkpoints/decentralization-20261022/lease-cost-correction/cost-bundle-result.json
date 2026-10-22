@@ -1,0 +1,48 @@
+{
+  "task": "compose the accepted lease-gas cost-model correction: regenerate the two lease bundles with the existing builders + correct the supervisor.js:9503 comment (no behaviour change)",
+  "status": "DONE in work/enclave; builders + --check + targeted bundle-consumer tests pass; nothing committed, no Git/checkpoint-clone/production touch; bundles not activated",
+  "changed": {
+    "windows/node/lease-gas-runtime.bundle.mjs": { "before": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d", "after": "008cdca1240372d3dccedc2f58fecfcdca6377245ad67d4970a2efe79757f4e7", "bytes": 342304 },
+    "windows/node/lease-gas-runtime.bundle.mjs.manifest.json": { "before": "2eb2b0d411ca894aceb0d509169a3293a07e12256a619280302ff72c540fa0e0", "after": "a7fde25eae445eebc483d4a2ff57b569746eb60ddd64bbf33aca4f3831fb3ad1" },
+    "metal/guest/lease-gas-conduit.bundle.mjs": { "before": "c46c65d75abcac0f0c1ce478a31dc8bbc147d165cab302e3703635b669b72a5f", "after": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6", "bytes": 41371 },
+    "metal/guest/lease-gas-conduit.bundle.mjs.manifest.json": { "before": "828f0caf00932e1eb36c9ed1cf35a6ba7c0a1e3bb65b3e89d81f7ed3d9bdb351", "after": "c12ae3efcae557f9bb462eb55fa9eed444426ebab608b8bc4d49992ebbf96f2d" },
+    "supervisor.js": { "before": "4ad9a3ef2a1d24472ea8b11fed490b28aab3c5a25afdc0baf06c6b7bf66b3862", "after": "6f17cb062fc4fa11ff626884aacbcd49d976a638b8a7b883baa086c9eb03cb0c",
+      "change": "line 9503 trailing comment only (verified: every other line identical; node --check ok). New comment: '(a PAID renew extends FROM leaseUntil, so early costs nothing; a rate-0 renew restarts at block.timestamp + leaseSec, so the margin is lost and renews come every leaseSec - margin; a sponsored renew waits for the reserve window, leaseGasRenewDue)'" }
+  },
+  "bundleBytesEqualPrediction": "the new bundle sha256s are exactly the in-memory predictions in cost-result.json (008cdca1 / 421d6584); differences vs the shipped bundles are minifier identifier renaming only, same lengths",
+  "manifestDeltas": {
+    "metal": "sha256 + inputs['network/lease-gas-owner.mjs'] ddd3ba9b -> 92cc322a; nothing else",
+    "windows": "sha256 + inputs['network/lease-gas-owner.mjs'] ddd3ba9b -> 92cc322a AND inputs['network/route-record.mjs'] be3bfab7 -> 9ba9f6d3",
+    "route-record_note": "NOT my change. work/enclave network/route-record.mjs is a pre-existing working-tree modification (mtime 2026-10-21 09:16, git status M; HEAD blob sha256 8f5f5367; current 9ba9f6d3; the shipped manifest's be3bfab7 matches neither). It does not affect the Windows bundle bytes: the earlier in-memory build with the ORIGINAL owner module and this same current route-record.mjs reproduced the shipped bytes 159108d1 exactly (cost/bundle-compare.mjs, rawlogs/bundle-compare-1.out). The builder records the current input hash. Root: confirm the checkpoint clone's network/route-record.mjs sha256 is 9ba9f6d3...; if it differs, this manifest line will not match the clone (bundle bytes are unaffected either way)."
+  },
+  "costFilesUnchanged": {
+    "network/lease-gas-owner.mjs": "92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988",
+    "cli/lease-gas.mjs": "9f34e04ec59614f5be4bdefdc3f991833d8903051ef5bdedaa14f2877391bbdd",
+    "test/lease-gas-cost-model.test.mjs": "8a39e218297262f611a2d873578f9b0085abcd339c547bb177a7a8ac93b7785d",
+    "test/lease-gas-owner-cli.test.mjs": "79fb06e94175822ab3f5b772a1ddd4bee257bebfb8f5167b0dcea879fcf5c6c8",
+    "docs/network/app-funded-leases.md": "76e74d074d6c87fe5b6ba59b5ed339239a347f9ece6f961596abc51f487b81b1",
+    "test/lease-gas-cost-model-ledger.test.mjs": "22084761d9ff4a6513172ba4de8cf8d5c14130d42adbfdb0b338777ae1a473f1",
+    "verified": "re-hashed before and after this step: all equal cost-result.json"
+  },
+  "run": {
+    "command": "work/resume-after-checkpoint-20261022/cost-bundle/q.sh 512 bundles-1 ./run.sh (claude-test-queue.py --mib 512; started first try, no 98/99)",
+    "steps": [
+      "node scripts/build-windows-lease-runtime.mjs -> rc 0, 342304 bytes sha256:008cdca1...",
+      "node scripts/build-metal-lease-gas.mjs -> rc 0, 41371 bytes sha256:421d6584...",
+      "node scripts/build-windows-lease-runtime.mjs --check -> rc 0 (verified)",
+      "node scripts/build-metal-lease-gas.mjs --check -> rc 0 (verified; bytes AND manifest)",
+      "node --test test/lease-pinned-relay-config.test.mjs test/metal-lease-gas-conduit.test.mjs test/windows-lease-closure.test.mjs -> 23 tests, 23 pass, 0 fail, 0 skipped (9 + 12 + 2)"
+    ],
+    "queue": "EXIT 0, peakTreeRssMiB 363 at cap 512",
+    "rawlog": "work/resume-after-checkpoint-20261022/cost-bundle/rawlogs/bundles-1.out (+ .guard.log, .rc 0)",
+    "testChoice": "the bundle consumers that load the REAL regenerated bundles without anvil: config-check against the real Windows bundle (lease-pinned-relay-config), module/bundle parity + manifest + supervisor closure (metal-lease-gas-conduit), the Windows closure + copied runtime (windows-lease-closure). Not run: anvil/relay suites that load the Windows bundle via test/helpers/windows-lease-runtime-fixture.mjs (lease-relay-migration, windows-current-runtime, lease-host-relay, windows-release-journal, windows-host-app-funded, lease-designated-relays, lease-pinned-relay): multiprocess (>512) and unchanged in behaviour; no unchanged cost tests re-run."
+  },
+  "patches": {
+    "supervisor": "work/resume-after-checkpoint-20261022/cost-bundle/patches/supervisor-comment.diff (sha256 2c9048c6cbb707086e094f7c6d89e4e5bd4758ad686c049a3e29ea6d8ff5197f)",
+    "manifests": "work/resume-after-checkpoint-20261022/cost-bundle/patches/manifests.diff (sha256 276549d3f6796ef6221e549215c199abc2f87ff6e32937c69f5820f50b8cf4b1)",
+    "bundles": "minified one-line generated files: copy from work/enclave by the hashes above (or regenerate with the two builders from the reviewed source; the outputs are deterministic, as the in-memory prediction shows)",
+    "costSource": "unchanged: work/resume-after-checkpoint-20261022/cost/patches/cost-model.diff (ad066676...)"
+  },
+  "originals": "work/resume-after-checkpoint-20261022/cost-bundle/orig/ (both bundles, both manifests, supervisor.js, SHA256SUMS) - private reference",
+  "activation": "none. The Windows bundle reaches hosts only via a new Windows release. The metal bundle changes the measured guest closure when the next control image is built (new measurement then). supervisor.js changed by a comment only, so its file hash changes for any image/overlay that pins it; no manifest in work/enclave pins its sha256 (searched *.json)."
+}

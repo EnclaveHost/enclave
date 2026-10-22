@@ -24,12 +24,14 @@ const USAGE = `usage: enclave --independent … lease-gas <command> --lease-gas 
   claimant <id> <operator> (--allow | --deny)           allowlist (claim policy "allowlist")
 policy flags: --max-gas-price-gwei G  --max-per-op-eth X  --epoch-cap-eth X  --epoch-sec S  --renew-window S  --min-extension S
               --claim-cooldown S  --max-claims-per-epoch N  --claim-policy any|self-hosted|allowlist  --no-sponsor-release
+cost model: --renew-lead-sec S   a rate-0 lease's measured renew lead (default: the renew window, the earliest a sponsored
+              renew may land: a rate-0 renew restarts the lease from its own block, so it renews every leaseSec - lead)
 output: --format tx (default) | metamask | safe;  --json for machine output
 signing: --signer URL --from 0x… | --signer-mode handoff --from 0x… (journaled, existing signer); else unsigned`;
 
 const VAL = ["--lease-gas", "--lease-gas-digest", "--inventory", "--ids", "--per-app-eth", "--per-app-wei", "--days", "--payer", "--eth", "--wei", "--compute-eth",
   "--as", "--to", "--format", "--max-gas-price-gwei", "--max-per-op-eth", "--epoch-cap-eth", "--epoch-sec", "--renew-window", "--min-extension", "--claim-cooldown",
-  "--max-claims-per-epoch", "--claim-policy", "--candidate-operator", "--candidate-enclave", "--vault-factory", "--min-days"];
+  "--max-claims-per-epoch", "--claim-policy", "--candidate-operator", "--candidate-enclave", "--vault-factory", "--min-days", "--renew-lead-sec"];
 const BOOL = ["--all", "--allow", "--deny", "--disable", "--no-sponsor-release", "--reconfigure", "--owner-can-act"];
 const ID = /^0x[0-9a-fA-F]{64}$/;
 const big = (_k, v) => (typeof v === "bigint" ? v.toString() : v);
@@ -90,9 +92,12 @@ function idsOf(H) {
   return ids.map((id) => ({ id }));
 }
 
+// the renewal cadence differs by rate (the ledger restarts a rate-0 renew from its own block, extends a paid one from
+// leaseUntil): the rate of the live lease when there is one, otherwise unknown and counted conservatively
 async function costFor(H, st, policy) {
+  const lead = H.f["renew-lead-sec"] !== undefined ? intFlag(H.f["renew-lead-sec"], "--renew-lead-sec") : null;
   return O.costModel({ limits: H.live.limits, policy: policy || st.reserve, effectiveFee: H.fee.effective, l1UpperWei: st.l1.upperBoundWei,
-    l1UpperAuthWei: st.l1.upperBoundAuthWei, leaseSec: st.ledger.leaseSec });
+    l1UpperAuthWei: st.l1.upperBoundAuthWei, leaseSec: st.ledger.leaseSec, rate6: O.knownRate6(st), renewLeadSec: lead });
 }
 
 // ---- status ----------------------------------------------------------------------------------------------------------
@@ -122,7 +127,7 @@ async function status(H) {
     ctx.say(`  owner of record ${a.ledger.owner} (${a.ownerKind.kind}${a.ownerKind.detail ? ": " + a.ownerKind.detail : ""}); rate ${a.ledger.rate6} µUSDC/s; lease ${a.ledger.leaseLive ? "LIVE" : "expired"} until ${new Date(a.ledger.leaseUntil * 1000).toISOString()}`);
     ctx.say(`  reserve ${eth(r.balanceWei)}; ${r.configured ? (r.enabled ? "ENABLED" : "configured, DISABLED") : "NOT CONFIGURED"}; claims: ${r.claimPolicy}; release ${r.sponsorRelease ? "sponsored" : "not sponsored"}`);
     if (r.configured) ctx.say(`  caps: ${eth(r.maxPerOpWei)} per op, ${eth(r.epochCapWei)} per ${r.epochSec}s epoch (${eth(r.epochLeftWei)} left, ${r.epochClaims}/${r.maxClaimsPerEpoch} claims); gas price cap ${formatGwei(r.maxGasPrice)} gwei; renew window ${r.renewWindow}s`);
-    ctx.say(`  charge now (upper, at ${formatGwei(c.price)} gwei): claim ${eth(c.perOp.claim)}, renew ${eth(c.perOp.renew)}, release ${eth(c.perOp.release)}; ~${c.renewsPerDay.toFixed(1)} renewals/day = ${eth(c.renewPerDayWei)}/day (steady state of a rate-0 / fully funded lease, at the fee read now: not a forecast)`);
+    ctx.say(`  charge now (upper, at ${formatGwei(c.price)} gwei): claim ${eth(c.perOp.claim)}, renew ${eth(c.perOp.renew)}, release ${eth(c.perOp.release)}; ${c.renewsPerDay === null ? `renewals/day not bounded (${c.renewal.basis})` : `~${c.renewsPerDay.toFixed(1)} renewals/day = ${eth(c.renewPerDayWei)}/day (steady state at the fee read now, not a forecast; ${c.renewal.basis})`}`);
     ctx.say(`  L1: upper bound ${eth(a.l1.upperBoundWei)}, charged share ${eth(a.l1.chargedShareWei)}; proof cutover ${a.gates.proofRequiredFrom ? new Date(a.gates.proofRequiredFrom * 1000).toISOString() + (a.gates.proofCutoverPassed ? " (passed)" : "") : "not set"}; ${a.gates.claimBondNote}`);
     if (a.runner) ctx.say(`  runner ${a.runner.operator}: renew ${a.runner.renew.status}, release ${a.runner.release.status}; ${a.runner.delegatedToExecutor ? "delegated to the executor" : "not yet delegated"}; operator ETH ${eth(a.runner.operatorEthWei)}; payout${a.runner.registry?.payoutIsOwner ? " = owner" : " ≠ owner"}`);
     if (a.candidate) ctx.say(`  candidate ${a.candidate.operator}: claim ${a.candidate.claim.status}`);
@@ -134,7 +139,10 @@ const kindView = (k) => ({ kind: k.kind, address: k.address,
   detail: k.kind === "credit-vault" ? `UNSUPPORTED: ${k.label} ${k.factory}${k.bindingVerified ? "" : " (binding not verified)"}` : k.kind === "session-vault" ? `vault of ${k.factoryName}, owner ${k.vaultOwner}` : k.kind === "safe" ? `${k.threshold} of ${k.owners.length}` : k.kind === "eoa-7702" ? `delegated to ${k.delegate}` : k.kind === "contract" ? `unidentified contract, code ${k.codeHash}` : "" });
 const costView = (c) => ({ price: c.price, effectiveFee: c.effectiveFee, ownerCap: c.ownerCap, ceiling: c.ceiling, priceLimitedBy: c.priceLimitedBy,
   perOp: Object.fromEntries(Object.entries(c.perOp).map(([k, v]) => [k, v.wei])), atOwnerCap: Object.fromEntries(Object.entries(c.atOwnerCap).map(([k, v]) => [k, v.wei])),
-  renewsPerDay: Number(c.renewsPerDay.toFixed(2)), renewPerDayWei: c.renewPerDayWei, formula: c.formula });
+  renewsPerDay: c.renewsPerDay === null ? null : Number(c.renewsPerDay.toFixed(2)), renewPerDayWei: c.renewPerDayWei, formula: c.formula,
+  renewal: { model: c.renewal.model, rate6: c.renewal.rate6, cycleSec: c.renewal.cycleSec, renewLeadSec: c.renewal.renewLeadSec ?? null,
+    renewLeadFrom: c.renewal.renewLeadFrom ?? null, extensionSec: c.renewal.extensionSec ?? null, renewWindow: c.renewal.renewWindow,
+    refused: c.renewal.refused ?? null, unbounded: c.renewal.unbounded ?? null, basis: c.renewal.basis } });
 
 // ---- policy from flags -------------------------------------------------------------------------------------------------
 function policyFrom(H, current, l1UpperAuthWei) {   // per-op caps are sized for the worst operation: a first claim with its authorization
@@ -305,7 +313,7 @@ async function plan(H) {
     apps.push({ id, appRef: st.ledger.appRef, owner: st.ledger.owner, ownerKind: kindView(kind), rate6: st.ledger.rate6, leaseLive: st.ledger.leaseLive,
       leaseUntil: st.ledger.leaseUntil, runnerOperator: st.ledger.runnerOperator, inventoryOperator: inventory?.operator, reserveNow: st.reserve.balanceWei,
       configuredNow: st.reserve.configured, amount: { wei: amount.wei, eth: formatEther(amount.wei), basis: amount.basis },
-      lastsDaysAtTodaysFee: cost.renewPerDayWei > 0n ? Number((st.reserve.balanceWei + amount.wei) * 10n / cost.renewPerDayWei) / 10 : null, policy: p, steps });
+      lastsDaysAtTodaysFee: cost.renewPerDayWei ? Number((st.reserve.balanceWei + amount.wei) * 10n / cost.renewPerDayWei) / 10 : null, policy: p, steps });
   }
   // what each sender needs, and has (agreed)
   const bySender = {};

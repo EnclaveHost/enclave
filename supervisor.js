@@ -9500,7 +9500,7 @@ const CLAIM_ENABLED    = /^(1|true|on)$/i.test(process.env.CLAIM_ENABLED || "");
 // with unresolved placeholders and nothing anywhere saying why.
 const SECRETS_CAPABLE  = !/^(0|false|off)$/i.test(process.env.SECRETS_CAPABLE || "1") && !!SECRETS_API;
 const CLAIM_POLL_SEC   = parseInt(process.env.CLAIM_POLL_SEC || "60", 10);    // sweep + audit + renew cadence
-const RENEW_MARGIN_SEC = parseInt(process.env.RENEW_MARGIN_SEC || "600", 10); // renew when less lease than this remains (early renewal is FREE: the contract extends FROM leaseUntil, so a wide margin only buys more attempts)
+const RENEW_MARGIN_SEC = parseInt(process.env.RENEW_MARGIN_SEC || "600", 10); // renew when less lease than this remains; paid leases extend prior expiry, rate-0 leases restart from the current block and forfeit the remaining margin. Sponsored renewals also respect the reserve window (leaseGasRenewDue).
 const CLAIM_MAX_PER_SWEEP = parseInt(process.env.CLAIM_MAX_PER_SWEEP || "3", 10); // new adoptions kicked off per pass (resumes uncapped)
 // CPU-only work prefers CPU-only enclaves: a GPU enclave waits this long after
 // a CPU-only deployment becomes claimable (created, or its last lease expired)

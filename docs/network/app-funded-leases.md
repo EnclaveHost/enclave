@@ -33,6 +33,30 @@ A record from a fork or a predicted deployment address is never a production fun
 destination. Deposits are contract calls identifying the application, not plain ETH
 transfers.
 
+## Budgeting renewals
+
+`lease-gas status` and `lease-gas plan --days N` count renewals according to the
+deployed ledger (rev 16d `_burnLease`). Rate-0 and paid leases renew at different rates:
+
+- **Rate 0 (self-hosted).** A renewal restarts the lease from its own block
+  (`leaseUntil = block.timestamp + leaseSec`), so the time left when it lands is lost.
+  The lease renews once every `leaseSec - lead` seconds. A sponsored renewal cannot land
+  more than `renewWindow` before `leaseUntil`, so the model uses the window as its
+  conservative lead. At leaseSec 1800 and window 300 that is one renewal every 1500 s,
+  or 57.6 a day. On Base on 2026-10-21, renewals landed 222–280 s early, a 1520–1628 s
+  cycle (about 56 a day). `--renew-lead-sec S` substitutes a measured lead.
+- **Paid.** A renewal extends from the previous `leaseUntil`, so the lease renews once
+  per `leaseSec` (48 a day at 1800) wherever the renewal lands. A compute balance topped
+  up in small amounts buys shorter extensions. The reserve refuses any extension below
+  the owner's `minExtension`.
+- **Rate unknown.** With no live lease, the next claim sets the rate, so the model counts
+  the more frequent case.
+
+A renew window of `leaseSec` or more leaves the free renewal rate unbounded. A minimum
+extension above `leaseSec` blocks every sponsored operation (`ExtensionTooShort`).
+`status` warns about both cases and `--days` refuses to count them. All figures use the
+fee read at that moment and are not a forecast.
+
 ## Windows runtime
 
 The Windows host imports `windows/node/lease-gas-runtime.bundle.mjs`, built from the
