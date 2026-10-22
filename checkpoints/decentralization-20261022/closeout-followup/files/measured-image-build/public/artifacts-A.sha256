@@ -1,0 +1,5 @@
+cd13ed09f067dd9c0cbc5648cadab00c12324e1d2678a2fb6f070f615b50bc3a  <build>/image/dist-direct-6f2c7da46/MEASUREMENT
+fd236eb2762c457bbe20376216e078f3aab3f2f40a3646f9509137b8f67fabb6  <build>/image/dist-direct-6f2c7da46/cmdline
+f778b9d8d843d2245876ff20da0f453ab5a8b0e0eda5bf9aa0a8d2d7d6e7fa60  <build>/image/dist-direct-6f2c7da46/initramfs.cpio.gz
+d187f8fd85c6dc9cad7845da8df62dfb46b175e3f359488621105110c4cec9de  <build>/image/dist-direct-6f2c7da46/manifest.json
+1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  <build>/image/dist-direct-6f2c7da46/vmlinuz

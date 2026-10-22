@@ -1,0 +1,92 @@
+{
+  "verifiedAt": "2026-10-22T20:00:04.912630+00:00",
+  "goal": "Provider-independent infrastructure with Enclave admin controls retained",
+  "integration": {
+    "run": "2303c2fd33d86cc0",
+    "manifest": "b7d2aae03a74cd4276bd2adbce124d330cc7481d5acc546dbc77e518b15627f3",
+    "stagesPassed": 8,
+    "recoveryChecksPassed": 9,
+    "cleanupCertain": true,
+    "productionControllerSha256": "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83"
+  },
+  "backup": {
+    "allMemberHashesMatch": true,
+    "archive": "indexd-minipc-fresh-20261022T191749Z-603f3b39.tar.gpg",
+    "archiveSha256": "97ecb817bf410b4dcb448bd8e3c9b75551e25725a723e43731456f5375ed096e",
+    "archiveSha256MatchesReceipt": true,
+    "authenticatedDecryptionPassed": true,
+    "counts": {
+      "accounts": 1,
+      "contracts": 78,
+      "objects": 1491,
+      "slabs": 562
+    },
+    "coupledAndResumed": true,
+    "dbVersion": 26,
+    "manifestEqualsPullTimeManifest": true,
+    "membersExactlyExpected": true,
+    "pass": true,
+    "plaintextPersistedLocally": false,
+    "problems": [],
+    "runId": "20261022T191749Z-603f3b39",
+    "verifiedAt": "2026-10-22T19:19:16Z"
+  },
+  "livePostgres": {
+    "unitChange": "Added --init; all other service unit bytes unchanged",
+    "unitSha256": "59b60ddd739d3ff5e27317faf794f4c25ce150acff38d2ec1a3de0322afdd183",
+    "comparison": "PASS (init)",
+    "sameDatabaseIdentityAndMetadata": true,
+    "indexdResumed": true,
+    "schema": 26,
+    "runningBinarySha256": "2d7a637e843500f7bd1864d76e1fa310e3163e57adc5d8c19e43598e827de5dc",
+    "restartCount": 0
+  },
+  "evidence": {
+    "work/resume-after-checkpoint-20261022/production-run/pg-init-before.out": "5000eda8a30029b61c54ae3c7de0d69ed56eae1d953ebab22aedb1fbe9a8c47c",
+    "work/resume-after-checkpoint-20261022/production-run/pg-init-after.out": "4278a0ed826abd627ba176a833510c54ad08e8ba8797ebee40cea21442f064ab",
+    "work/resume-after-checkpoint-20261022/production-run/pg-init-resumed-state.out": "0c94c497e73981299ed73fbd361fa3149490ae6721b5e662958fa80fea7e7ee7",
+    "work/resume-after-checkpoint-20261022/production-run/fresh-status.out": "70ae44b4cf7e9e57ecd0d05d95749ad67172614dad37f179f63454f0cd5761b3",
+    "work/resume-after-checkpoint-20261022/production-run/fresh-remove.out": "53f7f0f4ef05546b098d8068a4199db2a420b012ce5c5d09bab50ca8685865af",
+    "work/resume-after-checkpoint-20261022/production-run/v27-upgrade.out": "a90f14d46fbde9d148dc0abbb4bf98745d930ab68799154b6a7869b461a57cfc",
+    "work/resume-after-checkpoint-20261022/production-run/v27-postcheck1.out": "ea1950c43bade041535cb1ed50652c68f000027a5e9701b6728a81c31465bb40",
+    "work/resume-after-checkpoint-20261022/production-run/worker-staging-inspect.out": "41a0ff1c381d1dfeade3b23675ab9e970c9cf6c38f8a86a2702fb91c3b941267",
+    "work/resume-after-checkpoint-20261022/production-run/worker-staging-remove.out": "842e2ed7520cde58f61241cce403182480ecfb670d7872bdbf010406024c2a0b",
+    "work/resume-after-checkpoint-20261022/production-run/v27-postcheck2.out": "523709c5671e966040f943120570599b9dcc03ee95b44349b8d99a844cd377cb",
+    "work/resume-after-checkpoint-20261022/production-run/v28-upgrade.out": "5dc01af1d5239044028705757055ebb046394e4d0ceb207c9ea0e6c030b92990",
+    "work/resume-after-checkpoint-20261022/production-run/v28-postcheck1.out": "0bd7a22915f3439f77f2caf89dac9211e28b196dedba2162b0132dc16ee04096",
+    "work/resume-after-checkpoint-20261022/production-run/v28-postcheck2.out": "d5b321b33a1c64359425d12b34f5be08b00913fe64cda6824d0f5cb157ae6096"
+  },
+  "remaining": "Distributed storage roles, client publication, control-image deployment, provider cutover and outage/feature parity proof remain unfinished.",
+  "liveMigration": {
+    "schema": 28,
+    "binarySha256": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
+    "runId": "20261022T192622Z-7c184876",
+    "backupVerified": true,
+    "digestPreserved": true,
+    "unauthenticatedFenceStatus": 401,
+    "firstPostcheckPassed": true,
+    "restartCount": 0,
+    "soak": "v28 ten-minute postchecks passed",
+    "v27SoakPassed": true,
+    "casEnrolledAccounts": 0,
+    "postcheckPasses": [
+      {
+        "epoch": "1792698370",
+        "NRestarts": "0"
+      },
+      {
+        "epoch": "1792698981",
+        "NRestarts": "0"
+      }
+    ],
+    "soakElapsedSeconds": 611
+  },
+  "workerIncident": {
+    "effect": "four duplicate staging files only",
+    "rootStoppedWorker": true,
+    "noServiceOrMigrationActionsReached": true,
+    "exactHashesAndOwnershipVerified": true,
+    "onlyVerifiedStagingRemoved": true,
+    "rootControlledV27Healthy": true
+  }
+}

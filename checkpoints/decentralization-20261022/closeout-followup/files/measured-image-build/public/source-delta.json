@@ -1,0 +1,29 @@
+{
+ "deltaVsTreeC3031c20c": {
+  ".gitleaks.toml": {
+   "treeC": "100644 blob f0967dc3054a69853677f28e023845d804b84f18",
+   "published": "100644 blob 6bd33650de383ce5e31f2649b5233666c6cb9377"
+  },
+  "isolation/m2/encvol/roots/cacert-2026-09-25.pem": {
+   "treeC": null,
+   "published": "100644 blob 4b694a502b526edd85a9c888b3ec72e6287437b4"
+  },
+  "test/helpers/platform-policy-world.mjs": {
+   "treeC": "100644 blob f539fa1a8ac313437b87dde6693b6dfae101f9d6",
+   "published": "100644 blob b1d2ea68f2d43fb112a94fdc5ca054e51775d15b"
+  },
+  "test/platform-policy-world-blocks.test.mjs": {
+   "treeC": null,
+   "published": "100644 blob 66a8796ae4d0135e8041ddd4c1806c585c0fb179"
+  }
+ },
+ "expectedFour": [
+  ".gitleaks.toml",
+  "isolation/m2/encvol/roots/cacert-2026-09-25.pem",
+  "test/helpers/platform-policy-world.mjs",
+  "test/platform-policy-world-blocks.test.mjs"
+ ],
+ "exactlyTheFour": true,
+ "treeCPaths": 8341,
+ "publishedPaths": 8343
+}

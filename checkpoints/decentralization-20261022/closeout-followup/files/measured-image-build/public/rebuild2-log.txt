@@ -1,0 +1,34 @@
+[queue] START available=88271MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+[env] ssh/scp/sftp -> <build>/stub/bin (shell + node child proved)
+[ok] output A unchanged before
+[ok] base initramfs pin
+[ok] base kernel pin
+[ok] base manifest pin
+[ok] OVMF pin
+[ok] src HEAD 6f2c7da466dc26e5f7aac88c574a6b807e1a03df
+[ok] src tree 0021f3ab
+[ok] src clean
+[ok] overlay tool == commit (1067a535)
+{"sha256": "f778b9d8d843d2245876ff20da0f453ab5a8b0e0eda5bf9aa0a8d2d7d6e7fa60", "bytes": 282153822}
+[ok] src still clean
+[measure rebuild2] bdadc7bb667eac1ff783b4538991cc6dafcda9c89b80a5d4b60a0f280e32e2ee0c45dd0b4f3f3415c347c30651b597e6
+cd13ed09f067dd9c0cbc5648cadab00c12324e1d2678a2fb6f070f615b50bc3a  <build>/image/dist-direct-6f2c7da46-rebuild2/MEASUREMENT
+fd236eb2762c457bbe20376216e078f3aab3f2f40a3646f9509137b8f67fabb6  <build>/image/dist-direct-6f2c7da46-rebuild2/cmdline
+f778b9d8d843d2245876ff20da0f453ab5a8b0e0eda5bf9aa0a8d2d7d6e7fa60  <build>/image/dist-direct-6f2c7da46-rebuild2/initramfs.cpio.gz
+d187f8fd85c6dc9cad7845da8df62dfb46b175e3f359488621105110c4cec9de  <build>/image/dist-direct-6f2c7da46-rebuild2/manifest.json
+1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  <build>/image/dist-direct-6f2c7da46-rebuild2/vmlinuz
+97 <build>/image/dist-direct-6f2c7da46-rebuild2/MEASUREMENT
+126 <build>/image/dist-direct-6f2c7da46-rebuild2/cmdline
+282153822 <build>/image/dist-direct-6f2c7da46-rebuild2/initramfs.cpio.gz
+31031 <build>/image/dist-direct-6f2c7da46-rebuild2/manifest.json
+17232384 <build>/image/dist-direct-6f2c7da46-rebuild2/vmlinuz
+[same] vmlinuz
+[same] initramfs.cpio.gz
+[same] cmdline
+[same] manifest.json
+[same] MEASUREMENT
+[ok] output A unchanged after
+[ok] no ssh/scp/sftp invocation (0)
+REBUILD2-REPRODUCIBLE
+[memory-guard] exit=0 peakTreeRssMiB=119 minHostAvailableMiB=88200
+[queue] EXIT 0

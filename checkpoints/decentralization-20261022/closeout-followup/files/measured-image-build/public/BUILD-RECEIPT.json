@@ -1,0 +1,350 @@
+{
+ "format": "measured-control-image-build/1",
+ "written": "2026-10-22T19:51:32Z",
+ "status": "LOCAL IMAGE BUILT, REBUILT INDEPENDENTLY (byte-identical) AND RE-MEASURED; every check passed. NOT deployed, NOT activated; no host has booted it.",
+ "source": {
+  "repository": "github.com/EnclaveHost/enclave (root-published; remote equality verified by root)",
+  "branch": "candidate/decentralized-control-20261022",
+  "commit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+  "tree": "0021f3abbe1e3dfc121032189c6434c1d093d3f0",
+  "parent": "7752a4239b3bec2cf452491cd1b95164a8c2bdb8",
+  "checkout": "<build>/src: NEW shallow local clone of the commit from work/source-checkpoint-20261022/main-repo (read only), origin removed, detached at the commit, clean before/after",
+  "vsReviewedTreeC": {
+   "reviewedTree": "3031c20c7d0083f05b36160c851e5872a72725c3",
+   "deltaPaths": [
+    ".gitleaks.toml",
+    "isolation/m2/encvol/roots/cacert-2026-09-25.pem",
+    "test/helpers/platform-policy-world.mjs",
+    "test/platform-policy-world-blocks.test.mjs"
+   ],
+   "exactlyTheFourRootReviewed": true,
+   "kinds": {
+    ".gitleaks.toml": "changed",
+    "isolation/m2/encvol/roots/cacert-2026-09-25.pem": "added",
+    "test/helpers/platform-policy-world.mjs": "changed",
+    "test/platform-policy-world-blocks.test.mjs": "added"
+   },
+   "noneIsAnImageInput": true
+  },
+  "overlayTool": {
+   "path": "metal/overlay-control-image.py",
+   "sha256": "1067a535413f88e0c66b80441a734d5dc7771ac79e24129df25df8a1d4aeea56",
+   "workingCopyEqualsCommit": true
+  }
+ },
+ "pinnedInputs": {
+  "base": {
+   "dir": "<prod-artifacts>/dist-sdshield-2857356cd",
+   "manifest.json": "cc2571bb5b0c85b53b6bcf232331562578335bfd315bd0173c52ad6f80f776e0",
+   "initramfs.cpio.gz": "516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc",
+   "vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7 (7.2.3-arch1-2)",
+   "MEASUREMENT": "b8376e15f7f94f9b40e9891a19be4779b1635b1c6e269e820ee09cf9313c9dfcc810072bd4ab3d1f4b19e1b6794ac35d"
+  },
+  "ovmf": {
+   "file": "~/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd",
+   "sha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9"
+  },
+  "tool": "sev-snp-measure 0.0.13",
+  "allVerified": "sha256 of each == pin before the build (rawlogs/build.out section 1); base cmdline == its manifest template"
+ },
+ "calibration": {
+  "productionBase": {
+   "expected": "b8376e15f7f94f9b40e9891a19be4779b1635b1c6e269e820ee09cf9313c9dfcc810072bd4ab3d1f4b19e1b6794ac35d",
+   "reproduced": true
+  },
+  "KEPT dist-leasegas-deabf8f90": {
+   "expected": "ed918e4b393699b3f6251853d2d34317869d7d9e3150b41ffa917df3d392012c682f376a799494d01e6a6dd5bedd2ac2",
+   "reproduced": true
+  },
+  "appendForBoth": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app"
+ },
+ "inputs": {
+  "count": 59,
+  "equalToReviewedManifest": true,
+  "reviewedManifest": {
+   "file": "measured-composition/out/c/INPUT-MANIFEST.json",
+   "sha256": "4513131150f981e49af5d31be7d6de2c019fe920d638aee3335d0d06d107ef96"
+  },
+  "platformApiBundle": {
+   "bytes": 8520656,
+   "inputs": 2196,
+   "path": "/opt/metal/platform-api.bundle.mjs",
+   "sha256": "ede48c36cb30b36dc7f2b5d308660a195d2dd257aeb73f18d6468c0d5f9d0c8c",
+   "sidecars": {
+    "/opt/metal/fixtures/tpm-roots.pem": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+   }
+  },
+  "mcpBundle": {
+   "bytes": 4979943,
+   "inputs": 2972,
+   "manifestSha256": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f",
+   "path": "/opt/metal/mcp-server.bundle.mjs",
+   "runtimeFiles": {
+    "/opt/contracts/deployments/contract-pins-base.json": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d",
+    "/opt/metal/fixtures/tpm-roots.pem": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+   },
+   "sha256": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f"
+  },
+  "packagesFromBase": "cors 2.8.6, express 4.22.2, jose 5.10.0, viem 2.53.1, ws 8.21.1",
+  "checkedBefore": "computed by the PUBLISHED overlay tool for the published commit before the build (public/inputs-precheck.json)",
+  "checkedAfter": "read back from the built initramfs (public/image-verify.json)"
+ },
+ "commands": {
+  "build": "python3 <build>/src/metal/overlay-control-image.py --control direct <prod-artifacts>/dist-sdshield-2857356cd <build>/image/dist-direct-6f2c7da46 6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+  "measure": "~/.local/bin/sev-snp-measure --mode snp --vcpus 4 --vcpu-family 26 --vcpu-model 2 --vcpu-stepping 1 --vmm-type QEMU --ovmf ~/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd --append \"console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct\" --kernel <out>/vmlinuz --initrd <out>/initramfs.cpio.gz --output-format hex",
+  "scripts": {
+   "tools/build.sh": "bbdbf195aa74eff63408d9a473118488d1c2824c1628f0d047af7974e55b6195",
+   "tools/env.sh": "e9ef7a4d2b4597a37c65ada01da9ddb3e136bb2049c614d082c3bc1ae9c59ef3",
+   "tools/import-check.mjs": "da5ffb1193a36ce283ad87e86faf95709db91670ff1ff15d6463111ecd8ada66",
+   "tools/q.sh": "91de07048551deb30575e01ef6251a28fa4a75d1ebda6d984fac2677058672ec",
+   "tools/rebuild2.sh": "a6b8b92fdf1b5ddebebf952e76c2c7cec161cb653028274c6f77a2295acad41f",
+   "tools/s1-source.sh": "4d4c4e8c54d957c4e540e88abb85602b9f2b3b4649ce1472d60a9b44da38b9b2",
+   "tools/verify-image.py": "051c18bc07071b7ee4977e0d42d7b2971b2076856124d6c0c8ef6320a171fed3",
+   "tools/verify-inputs.py": "0063a92a379729c84fd2230267e61953f27dfc8b8d07afddc2e276f2f4cdea48",
+   "tools/verify.sh": "740f89c1baead58fd82af386dbe89d5fc32b3453c504e7851ad93e7e7c87404a"
+  },
+  "queue": {
+   "s1-source (256)": "[memory-guard] exit=0 peakTreeRssMiB=163 minHostAvailableMiB=89029",
+   "build (1536)": "[memory-guard] exit=0 peakTreeRssMiB=83 minHostAvailableMiB=87505",
+   "verify (1536)": "[memory-guard] exit=0 peakTreeRssMiB=315 minHostAvailableMiB=88539",
+   "rebuild2 (1536)": "[memory-guard] exit=0 peakTreeRssMiB=119 minHostAvailableMiB=88200"
+  },
+  "stubs": {
+   "stub/bin/ssh": "48a98e74ec9adfab0530d44ff1340422a5077879d443ee9d19833a6987e6d46f",
+   "stub/bin/scp": "fba2e2f1a39d7457eea9686921d333e88dcb067ef76c716bf5ebd059382a72e3",
+   "stub/bin/sftp": "390b787b6222ea42419b5fbbb8ac1d2541ace38e6b161a811beb3b4c4d063516"
+  },
+  "stubProof": "tools/env.sh, sourced by every step: command -v ssh/scp/sftp == the stubs and a node child's spawnSync(\"ssh\") exits 255; stub/invocations.log holds only the 4 proof lines (0 invocations by the build, measurement, verifiers or import check)",
+  "rebuild2": "python3 <build>/src/metal/overlay-control-image.py --control direct <prod-artifacts>/dist-sdshield-2857356cd <build>/image/dist-direct-6f2c7da46-rebuild2 6f2c7da466dc26e5f7aac88c574a6b807e1a03df"
+ },
+ "output": {
+  "dir": "<build>/image/dist-direct-6f2c7da46",
+  "artifacts": {
+   "MEASUREMENT": {
+    "bytes": 97,
+    "sha256": "cd13ed09f067dd9c0cbc5648cadab00c12324e1d2678a2fb6f070f615b50bc3a"
+   },
+   "cmdline": {
+    "bytes": 126,
+    "sha256": "fd236eb2762c457bbe20376216e078f3aab3f2f40a3646f9509137b8f67fabb6"
+   },
+   "initramfs.cpio.gz": {
+    "bytes": 282153822,
+    "sha256": "f778b9d8d843d2245876ff20da0f453ab5a8b0e0eda5bf9aa0a8d2d7d6e7fa60"
+   },
+   "manifest.json": {
+    "bytes": 31031,
+    "sha256": "d187f8fd85c6dc9cad7845da8df62dfb46b175e3f359488621105110c4cec9de"
+   },
+   "vmlinuz": {
+    "bytes": 17232384,
+    "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+   }
+  },
+  "cmdlineTemplate": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app metal.control=direct"
+ },
+ "measurement": {
+  "value": "bdadc7bb667eac1ff783b4538991cc6dafcda9c89b80a5d4b60a0f280e32e2ee0c45dd0b4f3f3415c347c30651b597e6",
+  "forCmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct",
+  "parameters": "SNP, 4 vCPUs, family 26 model 2 stepping 1, QEMU, the pinned OVMF; another vCPU count or CPU signature has a different launch digest",
+  "A": "build job, right after the overlay",
+  "B": "separate verify job: fresh process, artifacts re-hashed against the build receipt, cmdline read from the artifact's own cmdline file: identical",
+  "independenceLimit": "A and B use the same tool (sev-snp-measure 0.0.13); no second launch-digest implementation exists here. The same tool+recipe reproduced the two known production measurements. The hardware attestation report of a real launch is the final independent check (activation, root).",
+  "rebuild2": "second independent overlay build, measured separately: identical"
+ },
+ "checks": {
+  "imageVerify": [
+   {
+    "check": "vmlinuz == production base",
+    "ok": true
+   },
+   {
+    "check": "manifest kernel record unchanged (7.2.3-arch1-2)",
+    "ok": true
+   },
+   {
+    "check": "manifest modules list unchanged",
+    "ok": true
+   },
+   {
+    "check": "cmdline file = base template + metal.control=direct",
+    "ok": true
+   },
+   {
+    "check": "manifest control/cmdlineTemplate direct over snp-guest-per-app",
+    "ok": true
+   },
+   {
+    "check": "controlOverlay.commit = published commit",
+    "ok": true
+   },
+   {
+    "check": "controlOverlay.builderSha256 = published overlay tool",
+    "ok": true
+   },
+   {
+    "check": "controlOverlay.control = direct",
+    "ok": true
+   },
+   {
+    "check": "controlOverlay.baseInitramfsSha256 = production base",
+    "ok": true
+   },
+   {
+    "check": "manifest initramfs record = file",
+    "ok": true
+   },
+   {
+    "check": "expectedMeasurement removed (recomputed separately)",
+    "ok": true
+   },
+   {
+    "check": "platformApiBundle record = reviewed",
+    "ok": true
+   },
+   {
+    "check": "mcpBundle record = reviewed",
+    "ok": true
+   },
+   {
+    "check": "controlOverlay.files = the 59 reviewed inputs",
+    "ok": true
+   },
+   {
+    "check": "all 59 installed inputs present, regular, with the reviewed sha256",
+    "ok": true
+   },
+   {
+    "check": "no production base entry missing",
+    "ok": true
+   },
+   {
+    "check": "added entries = new inputs + their parent directories only",
+    "ok": true
+   },
+   {
+    "check": "every other entry identical to the base (bytes + metadata, kernel modules included)",
+    "ok": true
+   },
+   {
+    "check": "supervisor import closure present in the image",
+    "ok": true
+   },
+   {
+    "check": "closure npm packages + subpath exports in the image",
+    "ok": true
+   },
+   {
+    "check": "guest helpers' relative imports and every bundle's beside-itself reads resolve in the image",
+    "ok": true
+   },
+   {
+    "check": "gsup.mjs runs the direct branch for metal.control=direct",
+    "ok": true
+   },
+   {
+    "check": "measured-control.mjs MCP_BUNDLE = /opt/metal/mcp-server.bundle.mjs, installed",
+    "ok": true
+   },
+   {
+    "check": "measured-control.mjs PLATFORM_API_BUNDLE = /opt/metal/platform-api.bundle.mjs, installed",
+    "ok": true
+   }
+  ],
+  "imageVerifyAllOk": true,
+  "entries": {
+   "image": 29087,
+   "base": 29029,
+   "added": 58,
+   "addedDirectories": [
+    "app/client",
+    "app/metal",
+    "app/metal/guest",
+    "app/network",
+    "app/sdk",
+    "app/sdk/bootstrap",
+    "app/sdk/storage",
+    "app/site",
+    "app/site/js",
+    "app/site/js/core",
+    "app/windows",
+    "app/windows/node",
+    "opt/contracts",
+    "opt/contracts/deployments",
+    "opt/metal/fixtures"
+   ]
+  },
+  "importCheck": {
+   "ok": true,
+   "closureFiles": 45,
+   "modulesImportedFromImage": 48,
+   "opt/metal syntax-checked": 11,
+   "packages": [
+    "cors",
+    "express",
+    "jose",
+    "viem",
+    "ws"
+   ],
+   "roleBundleProbes": {
+    "mcp": {
+     "exit": 1,
+     "ownMainError": true,
+     "argvGuarded": true
+    },
+    "platform-api": {
+     "exit": 1,
+     "ownMainError": true,
+     "argvGuarded": true
+    }
+   },
+   "note": "host node with the loopback-only fetch guard; checks the module/file closure in the image, not the image's node binary"
+  },
+  "directMode": "cmdline + manifest control=direct over snp-guest-per-app; gsup.mjs direct branch present; measured-control.mjs bundle paths installed; kernel, modules and every non-input entry byte- and metadata-identical to the production base"
+ },
+ "testsNotRepeated": "all focused suites passed earlier on the same input bytes (measured-composition RESULT-closeout.json): no suite re-run",
+ "notDeployed": "source support and a locally built image only. No host runs it; no allowlist, group list or config names it.",
+ "publicReceipts": {
+  "public/ACTIVATION-REQUIREMENTS.json": "b39035d4f6f0d50154ec3ab8c0dced2b0c38ccd713d8bab6357e9d780f8b2edd",
+  "public/artifacts-A.sha256": "0353b89aa3a437a0f2a9bfcffa37cce4de3dcba661c19752182e13cb8d6a1a36",
+  "public/artifacts-rebuild2.sha256": "8fc00eac01dff1101a84fd326cf328f47b62d37b3839d00a549a9e3115f61d64",
+  "public/build-finished.utc": "b4bd94a87c564eb95b39e022fc7e0ced4e5f9a76397dca708e796b7cd4a393dc",
+  "public/build-started.utc": "f7d6098bb79e76a70abd37f64386fcc621f84c8c7b1775cd5172781029ff3e67",
+  "public/image-verify.json": "822afb44dddf990aa2b4c419ac9f1e12a4202ae93b251aa2c7808c8169a3547f",
+  "public/import-check.json": "36a797376068ccfcfb314ed351aa145fce0d401877451813968779e28554f6d0",
+  "public/inputs-precheck.json": "cf079da724d640d3cbc1d985d8c443180dafc87faa09c9c5532cf33a684c0c63",
+  "public/published-ls-tree.txt": "5010bb216efc5b726f8fdae8b5eeaf78e26c8ab09cbac605f21cce19a5d046e5",
+  "public/rebuild2-finished.utc": "b416e7169c18beca87477f695dff03a816e5d2473d5a92219fe603041b6b1958",
+  "public/rebuild2-log.txt": "66d6cfc88732b67194fe958aa9c273613421712918426b785fa732b63e4b2263",
+  "public/rebuild2-started.utc": "da75c93a000ffff6ca3f478610d7c78f982a6c2eb1d846028c2c66fc9f18b70a",
+  "public/source-commit.txt": "8cd9514ebb585d218061786e97e8fa0aaaef5b9c4e0d2e31042d8dcbe813183e",
+  "public/source-delta.json": "6de4b15c302d516d2c4d87588fdc88213d0350d37f1e4cd60b6e7f2c3204b275"
+ },
+ "notForCommit": "rawlogs/ (local paths), image/ (280 MB artifacts: distribute by hash), src/ (the published checkout itself)",
+ "revision": {
+  "r2": "2026-10-22T19:56:11Z",
+  "previousSha256": "1df01be2638bfa318ea2d8f41563b673375b855cc1e9d1494ddfb3c342c9a58a",
+  "change": "adds secondRebuild (reproducible); activation requirements corrected (no relay allowlist for direct control) and moved to public/ACTIVATION-REQUIREMENTS.json"
+ },
+ "secondRebuild": {
+  "why": "docs/network/measured-control-guest.md step 3 requires a digest from a second machine or a second rebuild; measurements A/B were of one build",
+  "what": "a second overlay run (separate queue job, cap 1536) from the same published commit 6f2c7da4, same pinned base/OVMF/tool, into a NEW dir <build>/image/dist-direct-6f2c7da46-rebuild2; measured on its own from its own cmdline file",
+  "result": "REPRODUCIBLE: vmlinuz, initramfs.cpio.gz, cmdline, manifest.json and MEASUREMENT byte-identical to output A; measurement bdadc7bb667eac1ff783b4538991cc6dafcda9c89b80a5d4b60a0f280e32e2ee0c45dd0b4f3f3415c347c30651b597e6",
+  "outputAUntouched": "artifacts-A.sha256 verified before and after the rebuild",
+  "peakTreeRssMiB": 119,
+  "stubInvocations": 0,
+  "receipts": {
+   "public/artifacts-rebuild2.sha256": "8fc00eac01dff1101a84fd326cf328f47b62d37b3839d00a549a9e3115f61d64",
+   "public/rebuild2-log.txt": "66d6cfc88732b67194fe958aa9c273613421712918426b785fa732b63e4b2263"
+  },
+  "script": {
+   "tools/rebuild2.sh": "a6b8b92fdf1b5ddebebf952e76c2c7cec161cb653028274c6f77a2295acad41f"
+  },
+  "sameMachineLimit": "same host and same tool versions; a second MACHINE would also cover host toolchain variance (the overlay copies bytes and writes gzip with mtime 0, so no compiler is involved)"
+ },
+ "deploymentRequirements": {
+  "file": "public/ACTIVATION-REQUIREMENTS.json",
+  "sha256": "b39035d4f6f0d50154ec3ab8c0dced2b0c38ccd713d8bab6357e9d780f8b2edd",
+  "summary": "no relay allowlist for direct control; owner HOST_DATA-bound config + direct launcher; measurement in owner/client expectations, the Platform API group measurements[] and hosted-MCP client expectations; original registry identity and the admin platform host policy retained; hardware verification; Platform API cutover; Windows swap; DO route/DNS repointing"
+ }
+}

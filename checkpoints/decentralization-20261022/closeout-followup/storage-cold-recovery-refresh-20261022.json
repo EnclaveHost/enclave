@@ -1,0 +1,22 @@
+{
+  "verifiedAt": "2026-10-22T19:56:45.499657+00:00",
+  "runId": "20261022T195643Z-c16c22ef",
+  "export": {
+    "keys": 1488,
+    "objects": 1489,
+    "readOnlyExport": true,
+    "snapshotBytes": 11446130,
+    "snapshotSha256": "0e5b28c9dc53a5ac65e1bace6cf7409c8f6369599c114fb1878503acec210da1"
+  },
+  "encryptedArchive": "sia-direct-recovery-20261022T195643Z-c16c22ef.tar.gpg",
+  "archiveSha256": "3cfb4f12991b3588d6c9b1317e08ef9613bac349f1a60073a2d835cad326c335",
+  "archiveBytes": 6861390,
+  "authenticatedDecryptionAndAllMembersVerified": true,
+  "storedOffDigitalOcean": "local workstation",
+  "providerCopiesCreated": 0,
+  "liveWrites": false,
+  "funding": false,
+  "ownedTunnelStopped": true,
+  "limitations": "Point-in-time observed keys, not a transactional mutable-bucket backup. Recovery reads only; funding and contract expiry still matter.",
+  "privateSnapshotRetained": true
+}

@@ -4,7 +4,7 @@
   "candidateCommit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
   "production": {
     "postgresInit": "Applied; database identity and contents preserved",
-    "indexd": "v27 migration and first postcheck passed; v28 not started"
+    "indexd": "v28 upgrade and 611-second stability checks passed; zero restarts, data digests preserved"
   },
   "validation": {
     "controller": "8 stages and 9 recovery checks passed",
@@ -12,10 +12,11 @@
     "custodyChrome": "1 browser encryption check passed after correcting temporary socket path"
   },
   "remaining": [
-    "v27 soak and v28 migration",
-    "measured image build and activation",
-    "non-provider control-service cutover",
+    "distributed storage roles and ingress",
+    "C2 client publication and bounded enrollment",
+    "hardware launch/attestation and control service cutover",
     "public app lease/routing recovery",
     "outage and feature parity verification"
-  ]
+  ],
+  "controlImage": "Published6f2c7da46 built twice with identical kernel/initramfs/cmdline/manifest and measurement; not booted on hardware or deployed"
 }

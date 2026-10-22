@@ -1,0 +1,91 @@
+{
+ "format": "measured-control-activation-requirements/1",
+ "written": "2026-10-22T19:56:11Z",
+ "scope": "NO-ACTION deployment requirements for the locally built direct-control image (measurement bdadc7bb667eac1ff783b4538991cc6dafcda9c89b80a5d4b60a0f280e32e2ee0c45dd0b4f3f3415c347c30651b597e6). Nothing here was executed. Source references are to the published commit 6f2c7da466dc26e5f7aac88c574a6b807e1a03df.",
+ "correction": "The earlier list said \"add the measurement to the relay allowlist / METAL_ALLOWED_MEASUREMENTS\". That is NOT a requirement for direct control: it was stale legacy-recipe advice and is withdrawn.",
+ "relayAllowlistFindings": {
+  "whatItIs": [
+   "relay/api-relay.js:143-149 - METAL_ALLOWED_MEASUREMENTS feeds the TUNNEL hub: permissionless attach of a box that dials the relay over the fleet tunnel (relay/api-relay.js:288-291, relay/tunnel.js:72)",
+   "relay/api-relay.js:2896-2907 - the relay's fresh-attestation answer for a TUNNEL box carries operatorAllowlist = that list",
+   "verifier/metal-box.mjs:60-62 - a client that did not pin measurements falls back to that relay list (\"operator allowlist\")"
+  ],
+  "whyDirectControlDoesNotUseIt": [
+   "metal/guest/measured-control.mjs:528-529 - planDirectBoot refuses relayUrl, relayHost, tunnelToken, fleetSecret, certsApi and ACME inputs: a direct guest never attaches to a relay tunnel",
+   "metal/enclave-metal.mjs:176-191 - the launcher refuses relayUrl, tunnelToken, fleetSecret, certsApi, ACME, publicUrl and inline registryKey for control \"direct\"; only the control front port may be forwarded (:199-201)",
+   "metal/guest/gsup.mjs:443 (direct branch) starts the agent with METAL_RELAY_URL/METAL_RELAY_HOST/METAL_TUNNEL_TOKEN empty (no tunnel)",
+   "metal/measured-control-verify.mjs:66-133 - a direct guest is verified by the CALLER's own expectation (expect.measurements, config digest -> HOST_DATA, attested TLS key, AMD chain/TCB/CRL), not by any relay list; step 3 refuses a relay terminating TLS in the path"
+  ],
+  "transitionalOnly": "METAL_ALLOWED_MEASUREMENTS stays relevant only to LEGACY tunnel boxes (e.g. metal0 on the KEPT/production images) and to clients that verify them without pinning. If the hosted Platform API (which is relay/api-relay.js) keeps serving legacy tunnel boxes, its platformApi.relayEnv may carry that list for THOSE images; the direct measurement does not belong there and nothing in direct control reads it."
+ },
+ "requiredForDirectControl": [
+  {
+   "item": "Owner direct config, bound by HOST_DATA",
+   "refs": [
+    "metal/guest/measured-control.mjs:116 (fields; canonicalDirectConfig)",
+    "metal/enclave-metal.mjs:203-212 (configDigest -> hostDataHex -> QEMU host-data, :699)",
+    "metal/guest/measured-control.mjs:536 (fw_cfg hostAdmission digest must equal the bound hostAdmissionSha256)"
+   ],
+   "what": "identity (operator, publicUrl, repo), contracts/rpcs/quorum, isolation endpoints, replicas, controlPort, hostAdmissionSha256 (binds the host wallet/admission policy), optional platformApi / mcp / platformPolicyCarriers / leaseGas / ownerNomination members. Any change = new HOST_DATA = relaunch."
+  },
+  {
+   "item": "Launch with the owner launcher in direct mode",
+   "refs": [
+    "metal/enclave-metal.mjs:176-212, 245-248 (cmdline adds metal.isolation=snp-guest-per-app metal.control=direct)"
+   ],
+   "what": "host config control:\"direct\", direct:<config file>, isolation backend snp-guest-per-app (release off), mode snp, registryKeyFile 0600 when selling, hostfwd only the control port; the pinned OVMF; the vCPU count/CPU signature used for the measurement (this value is for 4 vCPUs, family 26 model 2 stepping 1 - recompute for any other)"
+  },
+  {
+   "item": "Trust lists that actually verify a direct guest carry this measurement",
+   "refs": [
+    "metal/measured-control-verify.mjs:69, 88-89 (expect.measurements, required)",
+    "metal/guest/measured-control.mjs:328-329 (platformApi.measurements: 1-8 digests, identical in every member config)",
+    "metal/guest/platform-api-role.mjs:217 + metal/guest/platform-api-verify.mjs:40-48 (handoff: verifyPeer with pa.measurements)",
+    "scripts/platform-api-admin.mjs:100 (genesis/handoff admin checks the same list)",
+    "mcp/hosted-client.mjs:57-69 (hosted MCP clients pass expect.measurements)"
+   ],
+   "what": "owners' and clients' own pinned expectations; the Platform API group's measurements[] (all members on the new bundle before any config carries platformPolicyCarriers); hosted-MCP client expectations. NOT the relay allowlist."
+  },
+  {
+   "item": "Original EnclaveRegistry identity (retained)",
+   "refs": [
+    "metal/measured-control-verify.mjs:143-157 (registry entry active, bound operator, minted proof key, via the owner's RPC quorum)",
+    "metal/guest/measured-control.mjs:431-432 (REGISTRY_ENABLED/CLAIM_ENABLED only with the operator key)",
+    "metal/guest/platform-api-verify.mjs:7,17-25 (group members read the original registry through their bound quorum)"
+   ],
+   "what": "operator funds registration and setProofKey; verification stays \"pending\" until the registry names the minted proof key"
+  },
+  {
+   "item": "Enclave admin governance (retained, not optional in direct mode)",
+   "refs": [
+    "metal/guest/measured-control.mjs:441-443 (ENCLAVE_PLATFORM_HOST_POLICY=production always set in a measured guest)",
+    "supervisor.js:586-597 (host policy gate; a broken config refuses work, never fails open)",
+    "supervisor.js:5527 (service refusal on an admin ban)",
+    "metal/guest/measured-control.mjs:446-448 (carriers only from the bound config)"
+   ],
+   "what": "admin AddressBook-anchored platform host policy (bans/moderation) enforced in every direct guest over the owner's RPC quorum; registry/catalog/contract admin rights unchanged; an admin-signed policy document must be published to REAL non-DigitalOcean carriers before any anchor"
+  },
+  {
+   "item": "Hardware launch and verification",
+   "refs": [
+    "metal/measured-control-verify.mjs:66-158"
+   ],
+   "what": "verifyMeasuredControl(...) must return \"verified\" for each member; the hardware report is the final independent measurement check"
+  },
+  {
+   "item": "Platform API cutover (separate root step)",
+   "refs": [
+    "docs/network/hosted-platform-api.md:152-166"
+   ],
+   "what": "genesis with import of the old AUTH_DATA_DIR, then point api.enclave.host DNS and its WebPKI certificate at the members; rollback point = the old data directory"
+  }
+ ],
+ "alsoOutstanding": [
+  "Windows host-admission swap 6bef372d -> 40e8ba71",
+  "repoint relay/native-discovery.mjs control routes (api/mcp.enclavehost.eth -> DO), the on-chain service-index directory advertisement and public DNS for the enclave.host service names, once these hosts serve Platform API/MCP"
+ ],
+ "docGapsInPublishedSource (report only, not changed)": [
+  "docs/network/measured-control-guest.md:158-159 names cli/host-independent-lifecycle.mjs flags --control-image/--control-measurements/--control-min-tcb/--control-ovmf that the published CLI does not implement (its check says a measured control guest is \"still required\", cli/host-independent-lifecycle.mjs:467-468); the source launch path is metal/enclave-metal.mjs control \"direct\"",
+  "docs/network/measured-control-guest.md step 3 says the recomputed digest \"must equal manifest.expectedMeasurement\": an overlay-built image removes expectedMeasurement (metal/overlay-control-image.py), so the reference is the independently recomputed value recorded in this build receipt"
+ ],
+ "rollback": "boot the previous image (KEPT ed918e4b / production b8376e15); configs without the new members are byte-compatible"
+}

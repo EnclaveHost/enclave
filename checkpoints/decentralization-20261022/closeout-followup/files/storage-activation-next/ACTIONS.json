@@ -1,0 +1,293 @@
+{
+ "schema": "storage-activation-next/1",
+ "at": "2026-10-22",
+ "by": "Claude (source/evidence review only; no SSH, live RPC, production, wallet or funds)",
+ "liveBaseline": {
+  "primary": "minipc VM 'enclave-storage': indexd now v28 (c2-enclave 2c0e5b06) via controller 1543577f; 0 CAS accounts enrolled; second postcheck pending (root)",
+  "backup": "RID 20261022T191749Z-603f3b39 (encrypted, verified, held privately by root)",
+  "writer": "sia-s3 0.1.8 (unfenced, single replica https://sia.enclave.host); on an unenrolled account it behaves as before (REPLICATION.md:318-319)",
+  "rc3": "enclave-storage-indexer-1.0.0-rc3 tarball dc2d018f7415cb2fc32a0f0bd937472a825ab1bfe191bee94f41533c4515de4a, manifest pin sha256:e903e94c876af0f0ea6fd243b72d5c2c35d5e6af79ad033a2e6afbfe097f33fc; package 22/22, real lifecycle exact db_version 28, activation 1/1 (storage-rollout-inventory/RC3-EVIDENCE.json b0bff571)"
+ },
+ "hosts": [
+  {
+   "host": "metal0 (local warden-host, Linux host OS, SEV-SNP)",
+   "registry": "https://api.enclave.host/t/metal0 id 0x4dde6d1b...68be",
+   "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB (operator-paid, no 7702 code)",
+   "operatorSource": "outputs/decentralization-audit/host-relay-s4-feasibility.json configuredTransport.registeredHostEndpoints",
+   "storageRole": "SUPPORTED natively (storage-host-role/PLACEMENT.md table)",
+   "localFactsReadOnly": {
+    "hostCheckout": "/home/steven/Projects/enclave 04a27e8da: no network/host-services/storage-indexer-host.mjs -> use host-software closure 83c95b4b/658e5a44",
+    "opt": "/opt/enclave-host-software and /opt/enclave-storage-indexer absent",
+    "systemd-creds": "/usr/sbin/systemd-creds present (host key/TPM2 not checked)",
+    "postgresql18": "no postgres/initdb on PATH, no /usr/lib/postgresql: root installs the distro package (Arch 'postgresql' 18.x)"
+   },
+   "prerequisites": [
+    "gate-preflight ADMISSIBLE (unknown until A3)",
+    "PostgreSQL 18 host package",
+    "systemd-creds host key or TPM2",
+    "MemAvailable >= 2304 MiB, /var/lib free >= 3584 MiB",
+    "advertiseURL with non-DO-only ingress (MISSING)",
+    "descriptor signature by operator 0xC9D0...E6aB",
+    "Sia funding of its NEW wallet before it holds data"
+   ]
+  },
+  {
+   "host": "minipc (NucBox_k11), registry nucbox-k11-4",
+   "registry": "https://api.enclave.host/t/nucbox-k11-4 id 0x2fcef48d...447a",
+   "operator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0 (EIP-7702 delegated to executor 0x8900BACA..., app-funded leases)",
+   "storageRole": "NOT native (Windows Shield host). Only inside a Linux VM registered under its OWN endpoint, same failure domain as the machine (PLACEMENT.md). The existing 'enclave-storage' VM is the live primary: unregistered, unadmitted, not a role instance",
+   "use": "keep as the single authoritative primary during migration; never a second role replica on the same machine counted as an independent domain"
+  },
+  {
+   "host": "Pixel (pixel10-pvm-cpu)",
+   "storageRole": "NOT supported (no durable native host services; PLACEMENT.md)"
+  }
+ ],
+ "failureDomains": "metal0 and minipc share one site/uplink (egress 4.15.13.178, same GL.iNet/TP-Link; memory authorized-hardware-one-site, outputs/decentralization-audit/host-relay-s4-feasibility.json). No third Linux-capable Enclave host is known. N>=3 distinct domains is NOT reachable with authorized hardware; nothing here claims distributed storage or minipc-independent completion.",
+ "signaturesAndFunding": [
+  {
+   "what": "replica descriptor (enclave-service-descriptor/v1) for metal0 replica",
+   "who": "metal0 registry operator 0xC9D0...E6aB, EIP-191 personal_sign of exact bytes from descriptor.mjs request",
+   "why": "the role admits a replica only if its descriptor is signed by the host's REGISTRY operator read from the gate's agreed snapshot (storage-indexer-host.mjs admission/verifyDescriptor)",
+   "funds": false,
+   "blockedBy": "advertiseURL (descriptor binds applicationAPI; descriptor.mjs:27 refuses a missing --advertise)"
+  },
+  {
+   "what": "platform host policy admission",
+   "who": "admin (book owner 0x0b2d...) ONLY if gate-preflight says NOT_ADMISSIBLE",
+   "why": "existing admin governance; deny-list policy admits an active unbanned host without action",
+   "funds": false
+  },
+  {
+   "what": "Sia funding (SC) per new replica wallet",
+   "who": "owner/operator spend (NOT authorized)",
+   "why": "each indexer forms/renews its own contracts and funds app host accounts; ~14 GB contracted per replica for ~4.7 GB (REPLICATION.md:16-22,392)",
+   "funds": true,
+   "blocks": "any data on new replicas, app-key registration being useful, T2"
+  },
+  {
+   "what": "sia-s3 C2 catalog version (00e9cde0 + corrected config 6e31a0bc)",
+   "who": "sia-s3 slug owner (publishVersion tx); catalog owner approval if different",
+   "why": "catalog versions are owner-published and immutable",
+   "funds": "gas only"
+  },
+  {
+   "what": "redeploy/version switch + secrets puts ($SIAS3_REPLICAS, S3 credentials)",
+   "who": "deployment owner message signatures",
+   "why": "secrets and deployment changes are owner-authorized",
+   "funds": false
+  },
+  {
+   "what": "app-key registration on each new indexer",
+   "who": "replica host operator via indexd admin API (admin-password credential)",
+   "why": "an indexer admits an app key by its operator's action (REPLICATION.md:57-58)",
+   "funds": false,
+   "wallet": false
+  },
+  {
+   "what": "front/relay writer-authority binding deployment",
+   "who": "root release process (measured Shield/SNP front builds; relay lease-generation)",
+   "why": "writerFence required: sia-s3 never becomes ready without the lease16 fact",
+   "funds": false
+  }
+ ],
+ "actions": [
+  {
+   "id": "A1",
+   "class": "read-only (root, live)",
+   "now": true,
+   "step": "finish the pending second v28 postcheck with the existing production-final/50-postcheck.sh",
+   "gate": "all later steps",
+   "rollback": "n/a"
+  },
+  {
+   "id": "A2",
+   "class": "read-only (root, live)",
+   "now": true,
+   "step": "read live sia-s3 catalog record and deployment state",
+   "commands": [
+    "node <checkpoint-tree>/cli/enclave.mjs apps sia-s3 --json",
+    "node <checkpoint-tree>/cli/enclave.mjs status <sia-s3 deployment id> --json"
+   ],
+   "record": [
+    "exact version config JSON of the live version -> diff against storage-rollout-inventory/sia-s3-app/config.template.json (6e31a0bc: buckets ipfs/git/jot/machines + egress public-web)",
+    "slug owner address",
+    "memMb/cpu/ports",
+    "deployment id and state"
+   ],
+   "why": "INVENTORY.json missingInputs 1-2; needed for the C2 version"
+  },
+  {
+   "id": "A3",
+   "class": "read-only (root, metal0 host OS; public RPC reads by the gate)",
+   "now": true,
+   "step": "storage-closeout RECIPE section 1 preflights from a closure copy outside /home",
+   "commands": [
+    "sha256sum enclave-storage-indexer-host-software.tar  # 83c95b4b1886cee1e8664f4fc7201c5713726e4084c4961e30cf708c2f81b3b7",
+    "install -d -m 0755 /opt/enclave-host-software/658e5a443480 && tar -C /opt/enclave-host-software/658e5a443480 -xf enclave-storage-indexer-host-software.tar",
+    "(cd /opt/enclave-host-software/658e5a443480/tree && sha256sum -c --quiet ../MANIFEST.sha256)",
+    "chmod -R a-w /opt/enclave-host-software/658e5a443480",
+    "bash activation/host-preflight.sh /usr/bin /opt/enclave-host-software/658e5a443480/tree",
+    "node activation/gate-preflight.mjs --host-software /opt/enclave-host-software/658e5a443480/tree --endpoint https://api.enclave.host/t/metal0"
+   ],
+   "expect": "verdict ADMISSIBLE and registry.operator == 0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab; host-preflight reports PG18 (absent today), systemd-creds key/TPM2, memory, disk",
+   "helpers": "control-package/storage-closeout/activation/{host-preflight.sh 16e9e707, gate-preflight.mjs 6792c5a5}"
+  },
+  {
+   "id": "A4",
+   "class": "normal host-role install (inert; no state transition)",
+   "now": true,
+   "step": "metal0: install PostgreSQL 18 distro package (root host change); create systemd-creds host key if A3 shows none; unpack rc3 tarball dc2d018f to /opt/enclave-storage-indexer/e903e94c876a/ and point current -> e903e94c876a; verify MANIFEST; do NOT enable the unit",
+   "commands": [
+    "sha256sum enclave-storage-indexer-1.0.0-rc3.tar.zst  # dc2d018f7415cb2fc32a0f0bd937472a825ab1bfe191bee94f41533c4515de4a",
+    "install -d -m 0755 /opt/enclave-storage-indexer/e903e94c876a && zstd -q -d -c enclave-storage-indexer-1.0.0-rc3.tar.zst | tar -C /opt/enclave-storage-indexer/e903e94c876a --strip-components=1 -xf -",
+    "(cd /opt/enclave-storage-indexer/e903e94c876a && sha256sum -c --quiet MANIFEST.sha256 && sha256sum MANIFEST.sha256)  # e903e94c...",
+    "ln -sfn e903e94c876a /opt/enclave-storage-indexer/current && chmod -R a-w /opt/enclave-storage-indexer/e903e94c876a"
+   ],
+   "note": "storage-closeout RECIPE section 2 names rc2 3b78d4f1: substitute rc3 dc2d018f / pin e903e94c (activation tools are version-agnostic; activation-rc3 test passed)",
+   "rollback": "rm -rf the two /opt directories; remove the PostgreSQL package if desired; nothing references them"
+  },
+  {
+   "id": "A5",
+   "class": "operator signature (no funds)",
+   "now": false,
+   "step": "descriptor request -> operator signs -> assemble (storage-closeout RECIPE section 2, descriptor.mjs cb3611a5)",
+   "blockedBy": [
+    "advertiseURL: no non-DO-only ingress name exists for a storage replica (render-config.mjs refuses DO-only names; hosted-service-placement-interface.txt:79-85 INGRESS REQUEST open; HS2/G3/G4 host services cover directory/bootstrap/DNS/policy only)",
+    "A3 ADMISSIBLE"
+   ]
+  },
+  {
+   "id": "A6",
+   "class": "normal host-role install, service start (no deployment state transition)",
+   "now": false,
+   "after": "A5",
+   "step": "render-config (render-config.mjs a6b62d50) -> new phrase via /opt/enclave-storage-indexer/current/bin/indexd seed + systemd-creds encrypt (recovery-phrase, admin-password) -> role check (admit:true) -> init -> enable enclave-storage-indexer-host@m0a",
+   "effect": "an admitted, admin-bannable, UNFUNDED indexer syncs the chain; holds no production metadata; in no sia-s3 membership",
+   "rollback": "systemctl disable --now enclave-storage-indexer-host@m0a (data kept); a fresh replica can be deleted outright: nothing depends on it"
+  },
+  {
+   "id": "A7",
+   "class": "funding (NOT authorized)",
+   "now": false,
+   "step": "fund replica wallet(s); register the sia-s3 app key on each funded replica (indexd admin API)"
+  },
+  {
+   "id": "A8",
+   "class": "publish to controlled artifacts (no admin signing)",
+   "now": true,
+   "step": "retain exact bytes by sha256 in root's offline cold material: rc3 tarball dc2d018f, host-software tar 83c95b4b, sia-s3 00e9cde0929dc7b8, config template 6e31a0bc; optionally upload to the adapter via the proven POST /api/upload holding path (storage-site-holding/RECIPE.txt 83e086bc; owner API key secret, no admin signature)",
+   "limits": [
+    "the adapter path is NOT a cold path: adapter storage is sia-s3 -> indexd (cycle C1)",
+    "GitHub: sources only (user rule: no generated binaries); the reproducible recipes are the source of truth",
+    "the catalog version (sia-s3 C2) is NOT publishable without the slug owner's tx"
+   ]
+  },
+  {
+   "id": "A9",
+   "class": "optional resilience, read-only vs live indexer (root, owner app seed)",
+   "now": true,
+   "step": "refresh the indexer-free cold-path snapshot with the existing sia-direct-recovery tooling (last 2026-10-19: 1487 objects, snapshot 7cc3e31a; live now 1491 objects) and keep a copy off the DO fleet (prior copies are on the four DO backup servers only: outputs/sia-indexer-free-recovery/backup.json)",
+   "why": "breaks C1-C5 for reading data; independent of every Enclave service"
+  }
+ ],
+ "stateTransitions": [
+  {
+   "id": "T1",
+   "what": "ENROLLMENT: first fenced boot of sia-s3 C2 00e9cde0 on the live account (replicas=[primary], N=1 W=1)",
+   "gates": [
+    "front/relay writer-authority binding deployed",
+    "C2 catalog version published (A2 diff applied, memMb decided)",
+    "copy-mode guard decision (default: not applied)",
+    "U1 below accepted or rehearsed by root"
+   ],
+   "sequence": [
+    "stop the 0.1.8 deployment first (one writer: REPLICATION.md:425)",
+    "deploy the C2 version with the single existing indexer",
+    "first maintenance pass writes the epoch-1 record (REPLICATION.md:407-409)"
+   ],
+   "rollback": [
+    "before the first fenced boot: redeploy 0.1.8 (account still unenrolled)",
+    "after: NO online downgrade (REPLICATION.md:318-319); indexd rollback-c2 refuses while enrolled (c2 rehearsal S8); remaining options: keep the C2 single-replica deployment, or root's restore of the pre-enrollment backup (writes after it are lost)"
+   ]
+  },
+  {
+   "id": "T2",
+   "what": "membership 1 -> 3 (N=3, W=2)",
+   "gates": [
+    "two more ADMITTED, FUNDED replicas with the app key registered and reachable advertise URLs (A5-A7)"
+   ],
+   "sequence": [
+    "list all three in $SIAS3_REPLICAS, restart the single writer",
+    "migrating: the old indexer serves while repair backfills",
+    "maintenance commits epoch 2 -> stable"
+   ],
+   "rollback": "before commit: re-list the old single indexer; after commit: never edit the list back (REPLICATION.md:423-424); replace members one at a time with retiring"
+  },
+  {
+   "id": "T3",
+   "what": "adapter backend",
+   "step": "unchanged if the sia-s3 deployment endpoint is unchanged; otherwise an owner secret update of the adapter's S3_ENDPOINT"
+  },
+  {
+   "id": "T4",
+   "what": "retire the minipc VM primary",
+   "gates": [
+    "stable at epoch 2 without it AND two repair passes showing convergence (claude-storage-hosted-placement-result.txt section 8 step 5)"
+   ]
+  }
+ ],
+ "noTwoPrimaries": [
+  "never restore 603f3b39 (or any copy of the minipc DB + phrase) onto another host while the minipc VM runs: same wallet and contracts acted on by two indexers (indexd refuses a CHANGED seed, not a same-seed duplicate; role README: never reuse another replica's phrase)",
+  "never run 0.1.8 and the C2 sia-s3 concurrently; `sia-s3 import` is an unfenced writer and is refused on a fenced account (REPLICATION.md:283-285)",
+  "a new replica gets a NEW phrase generated on its host (RECIPE section 3)"
+ ],
+ "uncoveredRequirement": {
+  "id": "U1",
+  "what": "00e9cde0's first fenced boot on an account populated by 0.1.8 (legacy entries, no membership records) against real indexd v28",
+  "evidence": [
+   "mock-only: replica.rs:3579 (0.1.x without records), replica.rs:5612 (legacy account unchanged), config.rs:338 (0.1 config is one replica)",
+   "real tests start from C2-written data: real_indexd.rs:268 real_migration_from_one_indexer_to_three; component full4 'candidate boots on the frozen artifact's account' = C2-written",
+   "the c2 production rehearsal used c2tool/c2rclient, not the sia-s3 wasm (outputs/storage-indexd-review/c2-production-rehearsal-root-verification.json)"
+  ],
+  "decision": "root: accept on mock evidence, or rehearse on an isolated restored copy; that needs the production app key (root-held), so it is not a worker test"
+ },
+ "cycles": {
+  "source": "work/storage-hosted-placement/inventory/dependency-cycles.md (5dd8a00e) + current-storage-chain.json (9dc54379)",
+  "C1 artifact": [
+   "windows/node/apprun.mjs:159 fetchArtifact default gateway https://ipfs.enclave.host",
+   "windows/node/host-identity.mjs:34 LEGACY_GATEWAY",
+   "supervisor.js:10133 IPFS_GATEWAY default",
+   "ipfs.enclave.host = s3-ipfs-adapter (current-storage-chain.json) whose backend $S3_ENDPOINT (work/adapter-current-catalog.json config) is sia-s3 (work/enclavedns-upload-502-20261021/claude/BACKEND-FOLLOWUP.txt:12-18)"
+  ],
+  "C2 secrets": [
+   "relay/secrets-release.mjs, relay/shield-secrets.mjs; custody v2 custodians on the DO machines"
+  ],
+  "C3 lease": [
+   "relay/lease-generation.mjs (writer-authority facts); interim lease relays on DO"
+  ],
+  "C4 transport": [
+   "sia.enclave.host and ipfs.enclave.host resolve only to the 4 DO addresses (current-storage-chain.json dns); work/storage-vm/install-ingress.sh reverse tunnels VM->DO; guest egress exits on DO providers"
+  ],
+  "C5 single indexer": "addressed by the role (T2), not deployed",
+  "replicaItself": "no cycle: host, PostgreSQL, Sia peers and the policy RPC quorum only (work/hosted-service-placement-interface.txt:86)",
+  "breaker": "owner-held cold path: wasm by sha256 + app key + sealed snapshot + wasmtime (dependency-cycles.md 'The cold path'); A9 keeps it current"
+ },
+ "nextSafeStepForRoot": [
+  "A1",
+  "A2",
+  "A3",
+  "A4",
+  "A8",
+  "A9 (optional)"
+ ],
+ "notNow": {
+  "A5": "advertiseURL + operator signature",
+  "A6": "after A5",
+  "A7": "funding not authorized",
+  "T1": "front binding, catalog publish, U1",
+  "T2-T4": "after A5-A7 and T1"
+ },
+ "governance": "admin ban/allowlist/delisting unchanged: every replica admission runs through the platform host policy gate; descriptors are operator-signed; no contract, registry or ownership change",
+ "privacy": "indexers never see plaintext (keys sealed in the sia-s3 guest); the app key stays with the owner/guest; no secret read by this review"
+}

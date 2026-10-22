@@ -1,0 +1,6 @@
+commit 6f2c7da466dc26e5f7aac88c574a6b807e1a03df
+tree 0021f3abbe1e3dfc121032189c6434c1d093d3f0
+parent 
+author SteveDeFacto 2026-10-22T12:35:25-07:00
+committer SteveDeFacto 2026-10-22T12:35:25-07:00
+subject Compose distributed control image with Platform API and MCP

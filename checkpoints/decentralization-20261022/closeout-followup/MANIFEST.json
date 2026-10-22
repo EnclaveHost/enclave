@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-22T19:43:34.076149+00:00",
+  "capturedAt": "2026-10-22T20:00:05.227755+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -345,6 +345,144 @@
       "bytes": 1027784
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/ACTIVATION-REQUIREMENTS.json",
+      "stored": "files/measured-image-build/public/ACTIVATION-REQUIREMENTS.json",
+      "sha256": "b39035d4f6f0d50154ec3ab8c0dced2b0c38ccd713d8bab6357e9d780f8b2edd",
+      "bytes": 7665
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/BUILD-RECEIPT.json",
+      "stored": "files/measured-image-build/public/BUILD-RECEIPT.json",
+      "sha256": "950a06b424c19648c077f9e339e346730b2c846baa4d52c299baa74096354a5a",
+      "bytes": 16283
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/artifacts-A.sha256",
+      "stored": "files/measured-image-build/public/artifacts-A.sha256",
+      "sha256": "0353b89aa3a437a0f2a9bfcffa37cce4de3dcba661c19752182e13cb8d6a1a36",
+      "bytes": 570
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/artifacts-rebuild2.sha256",
+      "stored": "files/measured-image-build/public/artifacts-rebuild2.sha256",
+      "sha256": "8fc00eac01dff1101a84fd326cf328f47b62d37b3839d00a549a9e3115f61d64",
+      "bytes": 615
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/build-finished.utc",
+      "stored": "files/measured-image-build/public/build-finished.utc",
+      "sha256": "b4bd94a87c564eb95b39e022fc7e0ced4e5f9a76397dca708e796b7cd4a393dc",
+      "bytes": 21
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/build-started.utc",
+      "stored": "files/measured-image-build/public/build-started.utc",
+      "sha256": "f7d6098bb79e76a70abd37f64386fcc621f84c8c7b1775cd5172781029ff3e67",
+      "bytes": 21
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/image-verify.json",
+      "stored": "files/measured-image-build/public/image-verify.json",
+      "sha256": "822afb44dddf990aa2b4c419ac9f1e12a4202ae93b251aa2c7808c8169a3547f",
+      "bytes": 5606
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/import-check.json",
+      "stored": "files/measured-image-build/public/import-check.json",
+      "sha256": "36a797376068ccfcfb314ed351aa145fce0d401877451813968779e28554f6d0",
+      "bytes": 718
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/inputs-precheck.json",
+      "stored": "files/measured-image-build/public/inputs-precheck.json",
+      "sha256": "cf079da724d640d3cbc1d985d8c443180dafc87faa09c9c5532cf33a684c0c63",
+      "bytes": 11671
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/rebuild2-finished.utc",
+      "stored": "files/measured-image-build/public/rebuild2-finished.utc",
+      "sha256": "b416e7169c18beca87477f695dff03a816e5d2473d5a92219fe603041b6b1958",
+      "bytes": 21
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/rebuild2-log.txt",
+      "stored": "files/measured-image-build/public/rebuild2-log.txt",
+      "sha256": "66d6cfc88732b67194fe958aa9c273613421712918426b785fa732b63e4b2263",
+      "bytes": 1844
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/rebuild2-started.utc",
+      "stored": "files/measured-image-build/public/rebuild2-started.utc",
+      "sha256": "da75c93a000ffff6ca3f478610d7c78f982a6c2eb1d846028c2c66fc9f18b70a",
+      "bytes": 21
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/source-commit.txt",
+      "stored": "files/measured-image-build/public/source-commit.txt",
+      "sha256": "8cd9514ebb585d218061786e97e8fa0aaaef5b9c4e0d2e31042d8dcbe813183e",
+      "bytes": 265
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/public/source-delta.json",
+      "stored": "files/measured-image-build/public/source-delta.json",
+      "sha256": "6de4b15c302d516d2c4d87588fdc88213d0350d37f1e4cd60b6e7f2c3204b275",
+      "bytes": 939
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/tools/build.sh",
+      "stored": "files/measured-image-build/tools/build.sh",
+      "sha256": "bbdbf195aa74eff63408d9a473118488d1c2824c1628f0d047af7974e55b6195",
+      "bytes": 3603
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/tools/env.sh",
+      "stored": "files/measured-image-build/tools/env.sh",
+      "sha256": "e9ef7a4d2b4597a37c65ada01da9ddb3e136bb2049c614d082c3bc1ae9c59ef3",
+      "bytes": 777
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/tools/import-check.mjs",
+      "stored": "files/measured-image-build/tools/import-check.mjs",
+      "sha256": "da5ffb1193a36ce283ad87e86faf95709db91670ff1ff15d6463111ecd8ada66",
+      "bytes": 3729
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/tools/q.sh",
+      "stored": "files/measured-image-build/tools/q.sh",
+      "sha256": "91de07048551deb30575e01ef6251a28fa4a75d1ebda6d984fac2677058672ec",
+      "bytes": 640
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/tools/rebuild2.sh",
+      "stored": "files/measured-image-build/tools/rebuild2.sh",
+      "sha256": "a6b8b92fdf1b5ddebebf952e76c2c7cec161cb653028274c6f77a2295acad41f",
+      "bytes": 3251
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/tools/s1-source.sh",
+      "stored": "files/measured-image-build/tools/s1-source.sh",
+      "sha256": "4d4c4e8c54d957c4e540e88abb85602b9f2b3b4649ce1472d60a9b44da38b9b2",
+      "bytes": 2369
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/tools/verify-image.py",
+      "stored": "files/measured-image-build/tools/verify-image.py",
+      "sha256": "051c18bc07071b7ee4977e0d42d7b2971b2076856124d6c0c8ef6320a171fed3",
+      "bytes": 10501
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/tools/verify-inputs.py",
+      "stored": "files/measured-image-build/tools/verify-inputs.py",
+      "sha256": "0063a92a379729c84fd2230267e61953f27dfc8b8d07afddc2e276f2f4cdea48",
+      "bytes": 3957
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/measured-image-build/tools/verify.sh",
+      "stored": "files/measured-image-build/tools/verify.sh",
+      "sha256": "740f89c1baead58fd82af386dbe89d5fc32b3453c504e7851ad93e7e7c87404a",
+      "bytes": 1790
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/postgres-init-stage/RECIPE.md",
       "stored": "files/postgres-init-stage/RECIPE.md",
       "sha256": "a986abf5e06bddb07b82be2f0702960ba72bb99645b232cc581b5527473c1b51",
@@ -531,6 +669,12 @@
       "bytes": 2418
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/production-run/refresh-cold-snapshot.py",
+      "stored": "files/production-run/refresh-cold-snapshot.py",
+      "sha256": "4ce55e2177a5e99f179ee4df5a5f8048a16df6efeb2bfd08b604cb7c90009beb",
+      "bytes": 7245
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/production-run/remove-fresh-plaintext.py",
       "stored": "files/production-run/remove-fresh-plaintext.py",
       "sha256": "9529a5ebcc07ef3964d74e8efcfa7bdde00ca8a2dee81d28646f740c62cc27fb",
@@ -593,8 +737,26 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "218a9f232a31569f7c4d675bc419cd3a8b4eafa15ec45053e0fb02489da26efd",
-      "bytes": 2941
+      "sha256": "d88efa6b64273bd92ddb2d7f5ab210fa2b28b2d4d93e181dc53065c0de66fde9",
+      "bytes": 3235
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-activation-next/ACTIONS.json",
+      "stored": "files/storage-activation-next/ACTIONS.json",
+      "sha256": "285ecb45adfee3ea513bc47e31b4083f46033a2ed148da79225929788e753526",
+      "bytes": 17177
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-activation-next/RECIPE.md",
+      "stored": "files/storage-activation-next/RECIPE.md",
+      "sha256": "56a748b197294d490214924dad4f087c89b0f3ff3f9d0fe61e5521f91cfc44e3",
+      "bytes": 3207
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-activation-next/SHA256SUMS",
+      "stored": "files/storage-activation-next/SHA256SUMS",
+      "sha256": "943d53f32760e263eea1933af7529fe43773e6ef268c314f2e727f04c36c8844",
+      "bytes": 155
     }
   ],
   "unchangedAlreadyPreserved": [
