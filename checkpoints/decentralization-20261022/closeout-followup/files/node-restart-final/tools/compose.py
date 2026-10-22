@@ -27,6 +27,6 @@ dst = H / 'helper/node-pair-restart.ps1'; dst.write_text(out)
 (H / 'helper/provenance.json').write_text(json.dumps({'source': 'work/root-control-rpc-final-20261022/control-package/helper/node-hold-cutover.ps1',
   'sourceSha256': 'df2e58f2569d04b2021a570d8525769ef84976335d2c2657e7e2a3a92604a5d8', 'verbatim': {n: f'L{a}-{b}' for n, (a, b) in RANGES.items()},
   'modified': ['ForwardLeft', 'BeforeStop', 'StartNode', 'Others', 'HyperV', 'Recovery'],
-  'new': ['TaskAction', 'UpdateHorizon', 'UnchangedFiles', 'PairNow', 'NewIdentity', 'Invoke-SwapChild', 'SwapJournal', 'SwapStep', 'SwapPair'],
+  'new': ['TaskAction', 'UpdateHorizon', 'RunningSetDiff', 'UnchangedFiles', 'PairNow', 'NewIdentity', 'Invoke-SwapChild', 'SwapJournal', 'SwapStep', 'SwapPair'],
   'helperSha256': hashlib.sha256(dst.read_bytes()).hexdigest()}, indent=1) + '\n')
 print(dst, hashlib.sha256(dst.read_bytes()).hexdigest(), len(out.split('\n')), 'lines')

@@ -169,19 +169,31 @@ if request_review.exists():
             paths.add(p)
 for name in ('node-restart-final-task.txt', 'native-handoff-final-task.txt',
              'node-restart-two-file-task.txt', 'node-restart-budget-review-task.txt',
-             'platform-api-admin-final-task.txt'):
+             'platform-api-admin-final-task.txt', 'platform-api-admin-status-task.txt',
+             'node-readiness-review-task.txt', 'node-return-window-task.txt', 'native-final-image-task.txt',
+             'adapter-renewal-finalize-task.txt', 'node-pair-runner-task.txt', 'native-final-canary-task.txt'):
     paths.add(base / name)
 paths.add(base / 'native-final-build/build.sh')
 paths.add(base / 'native-issuer-implementation/MANIFEST.json')
-for directory in ('native-issuer-implementation/jobs', 'node-restart-final', 'native-handoff-final', 'platform-api-admin-final'):
+for directory in ('native-issuer-implementation/jobs', 'node-restart-final', 'native-handoff-final', 'platform-api-admin-final', 'node-pair-runner'):
     for p in (base / directory).rglob('*'):
         rel = p.relative_to(base / directory)
         if any(part in ('logs', 'runs', 'tmp', 'secrets', 'node_modules', '.git', '__pycache__') for part in rel.parts):
             continue
-        if directory in ('native-handoff-final', 'platform-api-admin-final') and rel.parts and (rel.parts[0].startswith('base-') or rel.parts[0] in ('repo', 'fixtures')):
+        if directory in ('native-handoff-final', 'platform-api-admin-final') and rel.parts and (rel.parts[0].startswith(('base-', 'mutant-')) or rel.parts[0] in ('repo', 'fixtures')):
             continue  # existing Git base trees are already preserved; collect only authored review/job files here
-        if p.is_file() and not p.is_symlink() and p.suffix in ('.md', '.txt', '.py', '.sh', '.ps1', '.mjs', '.patch'):
+        if p.is_file() and not p.is_symlink() and p.suffix in ('.md', '.txt', '.py', '.sh', '.ps1', '.mjs', '.patch', '.sha256'):
             paths.add(p)
+for directory in ('native-final-image/tools', 'native-final-image/public', 'native-final-image/stub/bin'):
+    for p in (base / directory).rglob('*'):
+        if p.is_file() and not p.is_symlink() and '__pycache__' not in p.parts and p.name != 'published-ls-tree.txt':
+            paths.add(p)
+for name in ('RESULT.md', 'PINS.sha256'):
+    p = base / 'native-final-image' / name
+    if p.is_file():
+        paths.add(p)
+paths.add(base / 'node-restart-final/helper/provenance.json')
+paths.add(base / 'adapter-admission-review/ROOT-FAILED-REGRESSION-STOP.json')
 paths.add(Path(__file__).resolve())
 # Mutation tests temporarily edit the issuer's working tree. Preserve their saved
 # unmutated inputs, never an intentionally disabled security check.

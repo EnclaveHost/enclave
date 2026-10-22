@@ -1,0 +1,2 @@
+dfe020abf1794bedc42943e43fe85eb02593dd8d Let the admin tool's status command send its body-less GET
+0eac0d60bc489d3b9567e1c35d90ac5efa788a6e Verify admin targets with AMD collateral and send packages only to the attested key

@@ -1,0 +1,39 @@
+{
+  "rows": [
+    {
+      "host": "base-rpc.publicnode.com",
+      "eth_chainId": {
+        "errorType": "WebException",
+        "ms": 185
+      },
+      "eth_blockNumber": {
+        "errorType": "WebException",
+        "ms": 34
+      }
+    },
+    {
+      "host": "mainnet.base.org",
+      "eth_chainId": {
+        "ms": 207,
+        "result": "0x2105"
+      },
+      "eth_blockNumber": {
+        "ms": 98,
+        "result": "0x3281967"
+      }
+    },
+    {
+      "host": "base-mainnet.public.blastapi.io",
+      "eth_chainId": {
+        "ms": 192,
+        "result": "0x2105"
+      },
+      "eth_blockNumber": {
+        "ms": 106,
+        "result": "0x3281967"
+      }
+    }
+  ],
+  "configSha": "2324904b7b7b55e52108734447468849da25a4b857111b5cbc10525a701f603a",
+  "at": "2026-10-22T22:35:31.0473373Z"
+}

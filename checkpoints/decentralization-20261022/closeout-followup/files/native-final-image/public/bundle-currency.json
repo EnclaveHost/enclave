@@ -1,0 +1,128 @@
+{
+ "bundles": {
+  "metal/guest/host-policy.bundle.mjs": {
+   "bytes": 35205,
+   "changedPathsBundledButNotCurrentInManifest": [],
+   "moduleComments": 0,
+   "noManifest": {
+    "pinMatches": true,
+    "reviewedPin": "acfa1b00",
+    "unchangedSince6f2c7da4": true
+   },
+   "ok": true,
+   "sha256": "acfa1b0099530d4c27fe451d7d3f1d124b3f7a213171557c1c2d926976e0dc3c"
+  },
+  "metal/guest/lease-gas-conduit.bundle.mjs": {
+   "bytes": 41371,
+   "changedPathsBundledButNotCurrentInManifest": [],
+   "manifest": {
+    "bytesMatch": true,
+    "gitignoredPrerequisites": {},
+    "inputs": 418,
+    "inputsChangedSince6f2c7da4": [],
+    "nodeModulesInputs": 411,
+    "repositoryInputs": 7,
+    "sha256Matches": true,
+    "staleRepositoryInputs": {}
+   },
+   "moduleComments": 0,
+   "ok": true,
+   "sha256": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6"
+  },
+  "metal/guest/mcp-server.bundle.mjs": {
+   "bytes": 4979943,
+   "changedPathsBundledButNotCurrentInManifest": [],
+   "manifest": {
+    "bytesMatch": true,
+    "gitignoredPrerequisites": {},
+    "inputs": 2972,
+    "inputsChangedSince6f2c7da4": [],
+    "nodeModulesInputs": 2878,
+    "repositoryInputs": 94,
+    "sha256Matches": true,
+    "staleRepositoryInputs": {}
+   },
+   "moduleComments": 1886,
+   "ok": true,
+   "sha256": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f"
+  },
+  "metal/guest/platform-api.bundle.mjs": {
+   "bytes": 8705824,
+   "changedPathsBundledButNotCurrentInManifest": [],
+   "manifest": {
+    "bytesMatch": true,
+    "gitignoredPrerequisites": {
+     "relay/network-runtime.bundle.mjs": {
+      "reviewedPin": true,
+      "sha256": "8399d1434e0587c246c77bfbea5d8afac65ada130cc96abffe291afde588af1e"
+     }
+    },
+    "inputs": 2219,
+    "inputsChangedSince6f2c7da4": [
+     "metal/guest/measured-control.mjs",
+     "metal/guest/native-certificate.mjs",
+     "metal/guest/native-issuer.mjs",
+     "metal/guest/platform-api-role.mjs",
+     "metal/guest/platform-api-verify.mjs",
+     "metal/measured-control-verify.mjs",
+     "network/native-control-routes.mjs"
+    ],
+    "nodeModulesInputs": 2105,
+    "repositoryInputs": 114,
+    "sha256Matches": true,
+    "staleRepositoryInputs": {}
+   },
+   "moduleComments": 2202,
+   "ok": true,
+   "sha256": "0a1d88de230842442c41cc9f399d3a7dda5394fb523812b2503bc2358b09b4ef"
+  },
+  "windows/node/host-admission.bundle.mjs": {
+   "bytes": 383429,
+   "changedPathsBundledButNotCurrentInManifest": [],
+   "moduleComments": 0,
+   "noManifest": {
+    "pinMatches": true,
+    "reviewedPin": "40e8ba71",
+    "unchangedSince6f2c7da4": true
+   },
+   "ok": true,
+   "sha256": "40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25"
+  }
+ },
+ "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+ "diffPaths": [
+  "docs/design/nan-retirement.md",
+  "docs/network/hosted-platform-api.md",
+  "docs/network/measured-control-guest.md",
+  "docs/network/platform-host-policy.md",
+  "metal/guest/gsup.mjs",
+  "metal/guest/measured-control.mjs",
+  "metal/guest/native-certificate.mjs",
+  "metal/guest/native-issuer.mjs",
+  "metal/guest/platform-api-role.mjs",
+  "metal/guest/platform-api-verify.mjs",
+  "metal/guest/platform-api.bundle.mjs",
+  "metal/guest/platform-api.bundle.mjs.manifest.json",
+  "metal/measured-control-verify.mjs",
+  "network/native-control-routes.mjs",
+  "relay/native-discovery.mjs",
+  "scripts/build-platform-api-guest-bundle.mjs",
+  "scripts/native-control-certificate.mjs",
+  "test/control-front-abort.test.mjs",
+  "test/native-certificate-leaf.test.mjs",
+  "test/native-certificate-request-abort.test.mjs",
+  "test/native-control-attested.test.mjs",
+  "test/native-discovery.test.mjs",
+  "test/platform-api-forward.test.mjs",
+  "test/platform-api-handoff-production.test.mjs",
+  "test/platform-api-native-issuer.test.mjs"
+ ],
+ "networkRuntime": {
+  "changedPathsBundled": [],
+  "moduleComments": 1279,
+  "path": "<source repo working copy>/relay/network-runtime.bundle.mjs (gitignored; read only)",
+  "pin": "8399d1434e0587c246c77bfbea5d8afac65ada130cc96abffe291afde588af1e",
+  "scanned": true
+ },
+ "ok": true
+}

@@ -1,0 +1,8 @@
+493ee9ee07497c94159ec4f6916e9ea920d31959 Rebuild the combined native platform API guest bundle
+95defc2cd3a1686cb5ae568474d8445608b4ce14 Hand the platform API state key over with AMD collateral and a fresh host policy decision
+2a2dd38cc73051ad0211a56ac8bc2656126ee737 Settle every pinned native-certificate request exactly once
+f59d67af2c14b9fec9b07f5ab4c6e301114d9e22 Issue native control leaves from the platform API primary
+d9459aae997198342b0bf6fe9993461cd72118f0 Cancel a control front's upstream leg when its client leaves
+ca3118202359da8ce84f5b917fcc5ed85b2c6730 Pin a standby's forward to the primary on the secure socket
+8e77ff1eca24be3c02e281dc9f431af597165adf Serve native control names only from attested, admitted control guests
+eaea7e4630ee1d82b3599b872a24075691510211 Correct measured-control activation and verification instructions

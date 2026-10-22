@@ -1,0 +1,11 @@
+from pathlib import Path
+import hashlib,importlib.util,json,base64
+r=Path(__file__).resolve().parent
+t=Path('/home/steven/Documents/Codex/2026-10-18/wo/work/nucbox-tls-20261021/root-activate-reviewed.py')
+assert hashlib.sha256(t.read_bytes()).hexdigest()=='c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f'
+s=importlib.util.spec_from_file_location('transport',t);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+ps=r'''$all=@(Get-CimInstance Win32_Process -OperationTimeoutSec 20);function Pin($p){[ordered]@{pid=[int]$p.ProcessId;parent=[int]$p.ParentProcessId;start=$p.CreationDate.ToUniversalTime().ToString('o')}};$h=Invoke-RestMethod -UseBasicParsing -TimeoutSec 8 -Uri 'http://127.0.0.1:9600/v1/host/state';$o=[ordered]@{at=[DateTime]::UtcNow.ToString('o');hostSha=FileSha 'C:\Program Files\Enclave\control\windows\node\host.mjs';node=@($all|Where-Object{$_.Name -eq 'node.exe' -and [string]$_.CommandLine -like '*\control\windows\node\agent.mjs*'}|ForEach-Object{Pin $_});launcher=@($all|Where-Object{$_.Name -eq 'cmd.exe' -and [string]$_.CommandLine -like '*\Enclave\run-node.cmd*'}|ForEach-Object{Pin $_});manager=@($all|Where-Object{$_.Name -eq 'node.exe' -and [string]$_.CommandLine -like '*\control\windows\vbslike\manager\main.mjs*'}|ForEach-Object{Pin $_});privacy=@($all|Where-Object{$_.Name -eq 'node.exe' -and [string]$_.CommandLine -match 'privacy-agent\.mjs'}|ForEach-Object{Pin $_});apps=@($h.deployments|ForEach-Object{[ordered]@{id=[string]$_.id;status=[string]$_.status;leaseUntil=$_.leaseUntil;instance=[string]$_.isolation.instance}});leaseReadiness=$h.leaseReadiness;vms=@(Get-VM|ForEach-Object{[ordered]@{id=[string]$_.Id;state=[string]$_.State}});nodeTask=[string](Get-ScheduledTask -TaskPath '\Enclave\' -TaskName Node).State;nextUpdate=(Get-ScheduledTaskInfo -TaskPath '\Enclave\' -TaskName Update).NextRunTime.ToUniversalTime().ToString('o')};$j=$o|ConvertTo-Json -Depth 7 -Compress;[Console]::WriteLine('{"payload":"'+[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($j))+'"}')'''
+x=m.ps(ps,55)
+if 'payload' in x:x=json.loads(base64.b64decode(x['payload']).decode('utf-8'))
+(r/'adapter-preflight-2240.json').write_text(json.dumps(x,indent=2)+'\n')
+print(json.dumps(x,indent=2))

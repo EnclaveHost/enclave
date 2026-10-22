@@ -2,6 +2,7 @@
 # Renewal keeper: negative control + mutation control (immutable). (BASE) the committed ad4a72a host.mjs AND chain.mjs (the
 # admission fix, no keeper) in place of the candidate's; (H*/C*) one-change mutants of the candidate's host.mjs / chain.mjs.
 # Each must FAIL test/windows-node-lease-renewal-keeper.test.mjs unless marked EXPECTED-SURVIVOR (a layer another one covers).
+# r3 (final bytes): H14 readiness; per-run bound via --test-timeout + PID namespace --kill-child + timeout -k.
 # r2 (after rmut2): H9 split (whole identity check / config only), H12 removes both expiry checks, H12a the local one only.
 # Both files are restored after each run and checked by sha256.
 import hashlib, os, subprocess, sys, re
@@ -37,11 +38,12 @@ M = [
   "    if (!(d.active === true && lc(d.runner) === lc(this.enclaveId) && untilS * 1000 > Date.now()))", "    if (!(d.active === true && lc(d.runner) === lc(this.enclaveId)))"),
  ('H12a only the local expiry pre-filter removed (EXPECTED-SURVIVOR: the fresh-row check covers it)', FH, "      return seen && !early && until > now && until - now", "      return seen && !early && until - now", 1),
  ('H13 no retry pause after a failure', FH, "Date.now() + RENEW_RETRY_MS", "Date.now()", 2),
+ ('H14 a ready row ignores reconciliation and keeper eligibility', FH, "      const leaseServing = keeperEligible && leaseRenewalOk && !notServing", "      const leaseServing = leaseRenewalOk && !notServing", 1),
  ('C1 an app-funded renew falls back to the operator\'s ETH', FC, "    try { result = await leaseSender()[fn](...args); }",
   "    try { try { result = await leaseSender()[fn](...args); } catch (x) { if (fn === \"renew\") return send(addresses.deployments, DEP_ABI, fn, args); throw x; } }", 1),
 ]
 env = dict(os.environ, PATH=HERE + '/stubs:/usr/local/bin:/usr/bin:/bin', TMPDIR=HERE + '/tmp')
-cmd = ['unshare', '-r', '-n', 'bash', '-c', 'set -euo pipefail; ip link set lo up; exec node --test --test-concurrency=1 --test-reporter=spec test/windows-node-lease-renewal-keeper.test.mjs']
+cmd = ['timeout', '-k', '10', '200', 'unshare', '-rn', '--pid', '--fork', '--kill-child', '--mount-proc', 'sh', '-c', 'ip link set lo up && exec node --test --test-timeout=60000 --test-concurrency=1 --test-reporter=spec test/windows-node-lease-renewal-keeper.test.mjs']
 def restore():
   for f, b in orig.items(): open(f, 'wb').write(b)
 def run(name, files):

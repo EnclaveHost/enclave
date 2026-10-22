@@ -168,14 +168,16 @@ class Pair(unittest.TestCase):
             r = world(off); lines, c = run(r, params(r, 'u-' + sc, **over), scenario=sc)
             self.assertTrue(final(lines).startswith('REFUSED'), (sc, final(lines))); self.assertEqual((stops(r), pair(r)), (0, OLDP), sc); shutil.rmtree(r, ignore_errors=True)
     def test_zero_rate_full_return_with_margin_180_can_never_fit_a_1800_s_lease(self):
-        # forward 835 + full return 835 + margin 180 = 1850 > 1800: a zero-rate renew is exactly now + 1800, so no instant fits
-        r = world(1800); lines, c = run(r, params(r, 'z1', lease={'reserve': 'full-return', 'revertSec': 835, 'marginSec': 180}))
+        # forward 835 + full return (fresh pins 60 + 835) + margin 180 = 1910 > 1800: a zero-rate renew is exactly now + 1800
+        r = world(1800); lines, c = run(r, params(r, 'z1', lease={'reserve': 'full-return', 'revertSec': 895, 'returnPinsSec': 60, 'marginSec': 180}))
         self.assertIn('lease deadline', final(lines)); self.assertEqual(stops(r), 0); shutil.rmtree(r, ignore_errors=True)
-    def test_full_return_with_margin_120_needs_1790_s_left_at_the_stop(self):
-        # 835 + 835 + 120 = 1790: on a zero-rate lease only the first 10 s after a renewal lands (minus preflight) qualify
-        for off, ok in ((1790, True), (1789, False)):
-            r = world(off); lines, c = run(r, params(r, f'z2-{off}', lease={'reserve': 'full-return', 'revertSec': 835, 'marginSec': 120}))
+    def test_full_return_needs_forward_plus_return_pins_plus_forward_plus_margin(self):
+        # 835 + (60 + 835) + 120 = 1850 (the mechanism; on a zero-rate lease it never fits)
+        for off, ok in ((1850, True), (1849, False)):
+            r = world(off); lines, c = run(r, params(r, f'z2-{off}', lease={'reserve': 'full-return', 'revertSec': 895, 'returnPinsSec': 60, 'marginSec': 120}))
             self.assertEqual(final(lines).startswith('DONE:'), ok, (off, final(lines))); shutil.rmtree(r, ignore_errors=True)
+        r = world(1850); lines, c = run(r, params(r, 'z2-nopins', lease={'reserve': 'full-return', 'revertSec': 835, 'marginSec': 120}))
+        self.assertIn('fresh pins', final(lines)); shutil.rmtree(r, ignore_errors=True)
     def test_recovery_start_reserve_needs_1655_s_left_at_the_stop(self):
         # 835 + (100 + 600) + 120 = 1655: on a zero-rate lease the stop must come within 145 s of a renewal landing
         for off, ok in ((1655, True), (1654, False)):
@@ -211,6 +213,59 @@ class Pair(unittest.TestCase):
     def test_post_checks_report_check_not_done(self):
         for sc in ('vm-replaced', 'other-task-changed'):
             r = world(); lines, c = run(r, params(r, 'v-' + sc), scenario=sc); self.ok(lines, c, 'DONE_CHECK'); shutil.rmtree(r, ignore_errors=True)
+
+    # ---- the terminal return (rollback ONLY) and the exact running set
+    def applied(self):
+        lines, c = run(self.r, params(self.r, 'ta')); self.ok(lines, c, 'DONE:')
+        a = next(l for l in lines if l.get('step') == 'start-node')
+        return {'cmdPid': a['cmd']['pid'], 'cmdStart': a['cmd']['start'], 'agentPid': a['agent']['pid'], 'agentStart': a['agent']['start']}
+    def test_apply_never_takes_a_zero_reserve(self):
+        for lease, word in (({'reserve': 'terminal-return', 'revertSec': 0}, 'only for -Mode rollback'), ({'reserve': 'full-return', 'revertSec': 0}, 'lease budget'),
+                            ({'reserve': 'recovery-start', 'revertSec': 0}, 'lease budget')):
+            r = world(); lines, c = run(r, params(r, 'ap0', lease=lease)); self.assertIn(word, final(lines)); self.assertEqual(stops(r), 0); shutil.rmtree(r, ignore_errors=True)
+    def test_rollback_with_zero_reserve_needs_the_explicit_terminal_return(self):
+        node = self.applied()
+        for i, lease in enumerate(({'reserve': 'full-return', 'revertSec': 0}, {'reserve': 'recovery-start', 'revertSec': 0}, {'revertSec': 0})):
+            lines, c = run(self.r, params(self.r, f'rz{i}', node=node, lease=lease), mode='rollback'); self.assertIn('lease budget', final(lines))
+        lines, c = run(self.r, params(self.r, 'rz9', node=node, lease={'reserve': 'terminal-return', 'revertSec': 10}), mode='rollback'); self.assertIn('must be 0', final(lines))
+        self.assertEqual((stops(self.r), pair(self.r)), (1, NEWP), 'nothing stopped by any refused rollback')
+    def test_terminal_return_needs_its_own_full_forward_window_and_margin_and_says_no_reserve_remains(self):
+        node = self.applied()
+        # 835 (stop after the lease read 135 + swaps 100 + startNodeSec 600) + margin 120 = 955, revertSec 0
+        leases(self.r, 954)
+        lines, c = run(self.r, params(self.r, 'tr954', node=node, lease={'reserve': 'terminal-return', 'revertSec': 0}), mode='rollback')
+        self.assertIn('lease deadline', final(lines)); self.assertEqual(stops(self.r), 1)
+        leases(self.r, 955)
+        # the full gates still apply to the terminal return (on the NEW pair, before it returns): the measured readiness floor
+        # and a forwardMinSec that covers the stop, swaps and startNodeSec
+        for i, (lease, word) in enumerate((({'reserve': 'terminal-return', 'revertSec': 0, 'startNodeSec': 300, 'forwardMinSec': 535}, 'measured first-pass'),
+                                           ({'reserve': 'terminal-return', 'revertSec': 0, 'forwardMinSec': 700}, 'forwardMinSec must cover'))):
+            lines, c = run(self.r, params(self.r, f'trg{i}', node=node, lease=lease), mode='rollback'); self.assertIn(word, final(lines))
+        lines, c = run(self.r, params(self.r, 'tr955', node=node, lease={'reserve': 'terminal-return', 'revertSec': 0}), mode='rollback'); self.ok(lines, c, 'ROLLED_BACK:')
+        self.assertEqual((pair(self.r), stops(self.r)), (OLDP, 2))
+        pins = next(l for l in lines if l.get('step') == 'pins'); self.assertIn('NO return window after itself', pins['terminalReturn'])
+        self.assertIn('no return reserve remained', next(l for l in lines if l.get('step') == 'post')['terminalReturn'])
+    def test_a_terminal_return_that_fails_says_no_reserve_remains(self):
+        node = self.applied()
+        lines, c = run(self.r, params(self.r, 'trf', node=node, lease={'reserve': 'terminal-return', 'revertSec': 0}), mode='rollback', scenario='never-ready')
+        self.ok(lines, c, 'NOT_READY'); self.assertIn('NO return reserve remains', next(l for l in lines if 'recovery' in l)['terminalReturn'])
+    def test_the_running_set_must_be_exactly_expectedIds_at_the_pins(self):
+        recs = [{'id': i, 'status': 'running', 'leaseUntil': CLOCK0 + 1790} for i in IDS]
+        (self.r / 'leases.json').write_text(json.dumps(recs + [{'id': '0x' + 'c' * 64, 'status': 'running', 'leaseUntil': CLOCK0 + 1790}]))
+        at_pins = lambda lines: not any(l.get('step') == 'stop-node' for l in lines)   # refused by the pins, not by the later check
+        lines, c = run(self.r, params(self.r, 'rs1')); self.assertIn('running but not expected: 0x' + 'c' * 64, final(lines)); self.assertTrue(at_pins(lines))
+        (self.r / 'leases.json').write_text(json.dumps([recs[0], dict(recs[1], status='stopped')]))
+        lines, c = run(self.r, params(self.r, 'rs2')); self.assertIn('expected but not running: ' + IDS[1], final(lines)); self.assertTrue(at_pins(lines))
+        # the subset (adapter-only) mistake: both are running, only one is expected
+        (self.r / 'leases.json').write_text(json.dumps(recs)); lines, c = run(self.r, params(self.r, 'rs4', expectedIds=[IDS[0]]))
+        self.assertIn('running but not expected: ' + IDS[1], final(lines)); self.assertTrue(at_pins(lines))
+        lines, c = run(self.r, params(self.r, 'rs5', expectedIds=[IDS[0], IDS[1], IDS[0]])); self.assertIn('repeats', final(lines)); self.assertTrue(at_pins(lines))
+        self.assertEqual(stops(self.r), 0)
+    def test_the_running_set_is_checked_again_immediately_before_the_stop(self):
+        for sc, word in (('running-added-before-stop', 'running but not expected'), ('running-removed-before-stop', 'expected but not running')):
+            r = world(); lines, c = run(r, params(r, sc), scenario=sc)
+            self.assertTrue(final(lines).startswith('REFUSED') and word in final(lines) and 'nothing stopped' in final(lines), (sc, final(lines)))
+            self.assertEqual((stops(r), pair(r)), (0, OLDP)); shutil.rmtree(r, ignore_errors=True)
 
 if __name__ == '__main__':
     unittest.main()

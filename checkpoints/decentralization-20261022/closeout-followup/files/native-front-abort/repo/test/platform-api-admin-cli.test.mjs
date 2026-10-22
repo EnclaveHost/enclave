@@ -91,8 +91,8 @@ const N = 3, OPS = [...Array(N + 1)].map(() => privateKeyToAccount(generatePriva
 const FRONT_PORTS = [], ROLE_PORTS = [], SINKS = [];
 let PA = null, PA_OTHER = null;
 const archive = new Map();                              // `${sink}|${path}` -> bytes
-const paMember = ({ measurements = [MEAS] } = {}) => ({ apiPort: 8098, peerPort: 8099, hostname: HOSTNAME,
-  members: OPS.slice(0, N).map((op, i) => ({ operator: op, publicUrl: `https://host-${i}.example.org`, controlUrl: `https://127.0.0.1:${FRONT_PORTS[i]}` })),
+const paMember = ({ measurements = [MEAS], slots = [0, 1, 2] } = {}) => ({ apiPort: 8098, peerPort: 8099, hostname: HOSTNAME,
+  members: slots.map((i) => ({ operator: OPS[i], publicUrl: `https://host-${i}.example.org`, controlUrl: `https://127.0.0.1:${FRONT_PORTS[i]}` })),
   measurements, minTcb: TCB_FLOORS, admins: [ADMIN.address], recovery: [Buffer.from(REC.publicKey).toString('hex')],
   archives: SINKS, archiveMs: 5000,
   relayEnv: { ENCLAVES: 'http://127.0.0.1:1', OFAC_SDN_URLS: 'http://127.0.0.1:1/x', RPC_FALLBACKS: '0', SIWE_DOMAIN: 'enclave.host', SIWE_URI: 'https://enclave.host', BASE_RPC: 'http://127.0.0.1:1/rpc' },
@@ -172,14 +172,22 @@ test('setup: three member guests of one group, and one guest of a group pinning 
       s.listen(0, '127.0.0.1', () => r(s.address().port)); })}`);
   }
   REG = quorumRegistry({ rpcs, quorum: 3, registry: REGISTRY });
-  for (let i = 0; i < N; i++) { FRONT_PORTS.push(await freePort()); ROLE_PORTS.push({ api: await freePort(), peer: await freePort() }); }
+  for (let i = 0; i <= N; i++) { FRONT_PORTS.push(await freePort()); ROLE_PORTS.push({ api: await freePort(), peer: await freePort() }); }
   SINKS.push(`http://127.0.0.1:${await freePort()}`, `http://127.0.0.1:${await freePort()}`);
   PA = MC.canonicalDirectConfig(rawFor(0, paMember())).platformApi;
-  PA_OTHER = MC.canonicalDirectConfig(rawFor(0, paMember({ measurements: ['88'.repeat(48)] }))).platformApi;
+  PA_OTHER = MC.canonicalDirectConfig(rawFor(0, paMember({ measurements: ['88'.repeat(48)], slots: [3, 1, 2] }))).platformApi;
   for (let i = 0; i < N; i++) G.push(await bootGuest(i, PA));
-  X = await bootGuest(N, PA_OTHER);                       // its config pins 88…, its report measures 77…
+  X = await bootGuest(N, PA_OTHER);                       // member 0 of a group pinning 88…; its report measures 77…
   ROLE[0] = await startRoleFor(G[0]);
   assert.equal(ROLE[0].status().haveKey, false);
+});
+
+test('root cause: the verifier call the CLI made (productionVerifier({ config }), no collateral) refuses the right boot; the same call with collateral verifies it', T(), async () => {
+  const args = { url: G[0].url, config: G[0].config, measurements: PA.measurements, minTcb: PA.minTcb };
+  const pre = await productionVerifier({ config: G[0].config })(args);
+  assert.equal(pre.ok, false); assert.match(pre.reason, /AMD collateral could not be obtained/);
+  const v = await productionVerifier({ config: G[0].config }, { collateral: cachedCollateral({ dir: cdir(), upstream: UPSTREAM, roots: ROOTS }), registry: REG, roots: ROOTS })(args);
+  assert.equal(v.ok, true, v.reason); assert.equal(v.identity.controlTlsSpkiSha256, G[0].spki);
 });
 
 test('baseline shape: the REAL CLI entry (nothing injected) pins the AMD roots: a cache seeded with the synthetic chain verifies nothing, and nothing is sent', T(), async () => {
@@ -263,8 +271,9 @@ test('an endpoint that swapped to ANOTHER key after the verification gets no byt
   const L = await waitFor('a primary', () => (leader() >= 0 ? G[leader()] : null), 60000);
   // an impostor TLS server with its own key, counting every byte it decrypts
   execFileSync('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', 'imp.key', '-out', 'imp.pem', '-days', '1', '-subj', '/CN=impostor'], { cwd: tmp, stdio: 'ignore' });
-  const seen = { tls: 0, bytes: 0 };
+  const seen = { tcp: 0, tls: 0, bytes: 0 };
   const imp = keep(tls.createServer({ key: fs.readFileSync(path.join(tmp, 'imp.key')), cert: fs.readFileSync(path.join(tmp, 'imp.pem')) }, (s) => { seen.tls++; s.on('data', (d) => { seen.bytes += d.length; }); s.on('error', () => {}); }));
+  imp.on('connection', () => { seen.tcp++; });            // every TCP connection (a client that drops right after the handshake never reaches secureConnection)
   await new Promise((r) => imp.listen(0, '127.0.0.1', r));
   // the target address the admin uses: a TCP switch in front of the primary's front, flipped right after the verification
   const sw = { to: L.port };
@@ -273,10 +282,11 @@ test('an endpoint that swapped to ANOTHER key after the verification gets no byt
   const creds = file('creds2.json', JSON.stringify({ STRIPE_WEBHOOK_SECRET: 'whsec_swap' }));
   const r = await admin(['credentials', '--target', `https://127.0.0.1:${proxy.address().port}`, '--target-config', L.configFile, '--credentials', creds, '--admin-key', ADMIN_KEY_FILE(), '--collateral-dir', cdir()],
     { afterVerify: async () => { sw.to = imp.address().port; } });
-  assert.ok(r.error, 'refused'); assert.match(r.error.message, /not the attested key/);
+  assert.ok(seen.tcp >= 1, 'the submission was routed to the impostor');
+  await sleep(300);
+  assert.equal(seen.bytes, 0, `not one byte (no request line, no package) reached the impostor (${seen.tls} established TLS session(s))`);
   assert.equal(r.out, '', 'no success, no answer printed');
-  assert.ok(seen.tls >= 1, 'the impostor completed a handshake');
-  assert.equal(seen.bytes, 0, 'not one byte (no request line, no package) reached the impostor');
+  assert.ok(r.error, 'refused'); assert.match(r.error.message, /not the attested key/);
 });
 
 test('total loss: recover through the CLI seals K and the latest archive to a fresh verified boot', T(150000), async () => {

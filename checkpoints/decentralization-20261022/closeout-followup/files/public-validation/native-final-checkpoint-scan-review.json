@@ -1,0 +1,30 @@
+{
+  "scope": "Staged closeout checkpoint after ad5107deb",
+  "cryptoFindings": 0,
+  "gitleaksFindings": 2,
+  "unclassified": 0,
+  "review": [
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json",
+      "start": 14,
+      "end": 15,
+      "rule": "generic-api-key",
+      "classification": "Public Git commit hashes and subjects, independently matched to committed Git objects",
+      "commits": [
+        "493ee9ee07497c94159ec4f6916e9ea920d31959",
+        "95defc2cd3a1686cb5ae568474d8445608b4ce14"
+      ]
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json",
+      "start": 17,
+      "end": 18,
+      "rule": "generic-api-key",
+      "classification": "Public Git commit hashes and subjects, independently matched to committed Git objects",
+      "commits": [
+        "f59d67af2c14b9fec9b07f5ab4c6e301114d9e22",
+        "d9459aae997198342b0bf6fe9993461cd72118f0"
+      ]
+    }
+  ]
+}

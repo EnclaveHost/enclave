@@ -1,0 +1,121 @@
+[queue] START available=88678MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+[env] ssh/scp/sftp -> <build>/stub/bin (shell + node child proved)
+[env] private network namespace: interfaces = lo only, no IPv4 route (net:[4026533429])
+== 1 pins
+[pin] OK <prod-artifacts>/dist-sdshield-2857356cd/manifest.json cc2571bb5b0c85b53b6bcf232331562578335bfd315bd0173c52ad6f80f776e0
+[pin] OK <prod-artifacts>/dist-sdshield-2857356cd/initramfs.cpio.gz 516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc
+[pin] OK <prod-artifacts>/dist-sdshield-2857356cd/vmlinuz 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
+[pin] OK ~/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
+[ok] base cmdline = the template
+[tool] sev-snp-measure 0.0.13
+== 2 calibration
+[cal] production base reproduced b8376e15f7f94f9b40e9891a19be4779b1635b1c6e269e820ee09cf9313c9dfcc810072bd4ab3d1f4b19e1b6794ac35d
+[cal] KEPT reproduced ed918e4b393699b3f6251853d2d34317869d7d9e3150b41ffa917df3d392012c682f376a799494d01e6a6dd5bedd2ac2
+== 3 source + inputs
+[ok] src HEAD 493ee9ee07497c94159ec4f6916e9ea920d31959
+[ok] src tree b21163723ea789db13ff84d148e309e2709a89f4
+[ok] src clean
+[ok] overlay tool working copy == commit (1067a535413f88e0c66b80441a734d5dc7771ac79e24129df25df8a1d4aeea56)
+{
+ "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+ "tool": "1067a535413f88e0c66b80441a734d5dc7771ac79e24129df25df8a1d4aeea56",
+ "count": 59,
+ "platformApiBundle": {
+  "path": "/opt/metal/platform-api.bundle.mjs",
+  "sha256": "0a1d88de230842442c41cc9f399d3a7dda5394fb523812b2503bc2358b09b4ef",
+  "bytes": 8705824,
+  "inputs": 2219,
+  "sidecars": {
+   "/opt/metal/fixtures/tpm-roots.pem": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+  }
+ },
+ "equalPlatformApiBundleToCombined": true,
+ "mcpBundle": {
+  "path": "/opt/metal/mcp-server.bundle.mjs",
+  "sha256": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f",
+  "bytes": 4979943,
+  "inputs": 2972,
+  "manifestSha256": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f",
+  "runtimeFiles": {
+   "/opt/contracts/deployments/contract-pins-base.json": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d",
+   "/opt/metal/fixtures/tpm-roots.pem": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+  }
+ },
+ "equalMcpBundleTo6f2c7da4": true,
+ "packagesFromBase": [
+  {
+   "name": "cors",
+   "version": "2.8.6"
+  },
+  {
+   "name": "express",
+   "version": "4.22.2"
+  },
+  {
+   "name": "jose",
+   "version": "5.10.0"
+  },
+  {
+   "name": "viem",
+   "version": "2.53.1"
+  },
+  {
+   "name": "ws",
+   "version": "8.21.1"
+  }
+ ],
+ "cmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct",
+ "equalCmdline": true,
+ "nonRegularTargets": [],
+ "vs6f2c7da4": {
+  "reference": {
+   "file": "<work>/resume-after-checkpoint-20261022/measured-image-build/public/inputs-precheck.json",
+   "sha256": "cf079da724d640d3cbc1d985d8c443180dafc87faa09c9c5532cf33a684c0c63",
+   "count": 59
+  },
+  "changed": {
+   "opt/metal/gsup.mjs": {
+    "old": "10127e1170d71d6f23d26e01ebf5a0bfee19c51f1121148c13ab43f9d49e4d24",
+    "new": "07e0583974818a5b4be5fe3051844db99794594fb4d8d2dce9217c1706c09ae0",
+    "source": "metal/guest/gsup.mjs"
+   },
+   "opt/metal/measured-control.mjs": {
+    "old": "f2648d65a16654d35f396bbc10e73e6c2e4a10624093275c66013f546aa9f3e6",
+    "new": "26a8982c52497d88d7d0885f63a4b4b8056da3ac1192ab03fdac94426a6185fc",
+    "source": "metal/guest/measured-control.mjs"
+   },
+   "opt/metal/platform-api.bundle.mjs": {
+    "old": "ede48c36cb30b36dc7f2b5d308660a195d2dd257aeb73f18d6468c0d5f9d0c8c",
+    "new": "0a1d88de230842442c41cc9f399d3a7dda5394fb523812b2503bc2358b09b4ef",
+    "source": "metal/guest/platform-api.bundle.mjs"
+   }
+  },
+  "added": [],
+  "removed": [],
+  "diffPaths": 25,
+  "unexplainedChanges": [],
+  "unchangedButSourceInDiff": []
+ },
+ "equalToPrecheck": true,
+ "ok": true
+}
+== 4 overlay
+{"sha256": "a8a2a40cdcf3d43e1a6dca13a1ab34675fad43cfa27c0daaf05995235c464c53", "bytes": 282205620}
+[ok] src still clean
+== 5 measurement A
+[measure A] fe897820f632bae497511a229f0c74465dade8841d5807f8287a3a2caa928d22c8d79c24ffa9b1f9554434b483fae38f
+15a1f962b8cbb3eebd4eb2a6b6aeb82f5ec60a918417bddf0fbec2080391a274  <build>/image/dist-direct-493ee9ee0/MEASUREMENT
+fd236eb2762c457bbe20376216e078f3aab3f2f40a3646f9509137b8f67fabb6  <build>/image/dist-direct-493ee9ee0/cmdline
+a8a2a40cdcf3d43e1a6dca13a1ab34675fad43cfa27c0daaf05995235c464c53  <build>/image/dist-direct-493ee9ee0/initramfs.cpio.gz
+d34294b2b5899025bd0de2f09ed2757e7436ff24255d04bdbe690629f838f894  <build>/image/dist-direct-493ee9ee0/manifest.json
+1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  <build>/image/dist-direct-493ee9ee0/vmlinuz
+97 <build>/image/dist-direct-493ee9ee0/MEASUREMENT
+126 <build>/image/dist-direct-493ee9ee0/cmdline
+282205620 <build>/image/dist-direct-493ee9ee0/initramfs.cpio.gz
+31031 <build>/image/dist-direct-493ee9ee0/manifest.json
+17232384 <build>/image/dist-direct-493ee9ee0/vmlinuz
+[ok] no ssh/scp/sftp invocation (0)
+BUILD-OK
+[memory-guard] exit=0 peakTreeRssMiB=304 minHostAvailableMiB=88230
+[memory-guard] at peak: sev-snp-measure:298 bash:6
+[queue] EXIT 0

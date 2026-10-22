@@ -222,6 +222,40 @@ test("REVIEW 1: an owner's version edit not yet served is never renewed by the k
   assert.equal(renews().length, 0, "renewed after a caught edit failure");
 });
 
+test("READINESS: a ready row also means reconciled and keeper-eligible for exactly this served lease and identity", { timeout: 30_000 }, async () => {
+  // control: an ordinary pass is ready, and the keeper renews it between passes
+  let b = await box({ left: 400 });
+  await b.pass();
+  assert.equal(b.ready(), "ready");
+  // a caught envelope-edit failure: not ready (nor keeper-eligible); once the edit applies, ready again
+  b = await box({ left: 400 });
+  const verdict = b.h.envelopeVerdict.bind(b.h);
+  b.h.envelopeVerdict = () => { throw new Error("edit failed"); };
+  await b.pass();
+  assert.equal(b.ready(), "not-ready", "ready after a caught edit failure");
+  b.h.envelopeVerdict = verdict;
+  await b.pass();
+  assert.equal(b.ready(), "ready");
+  // a caught resize failure: not ready
+  b = await box({ left: 400 });
+  b.h.records.set(A, { ...b.h.records.get(A), servedCpuShare: 0.05, servedGpuShare: 0 });   // the owner resized it
+  b.h.capacity = () => { throw new Error("capacity unreadable"); };
+  await b.pass();
+  assert.ok(b.logs.some((l) => /resize .*capacity unreadable/.test(l)), b.logs.join("\n"));
+  assert.equal(b.ready(), "not-ready", "ready after a caught resize failure");
+  // an identity this box does not serve (the ledger names v2, the running domain is v1): not ready; once served, ready
+  b = await box({ left: 400 });
+  await b.pass();
+  setRow(A, { appRef: ref2 }); S.adopt = false;
+  await b.pass();
+  assert.equal(b.ready(), "not-ready", "ready while serving another version than the ledger names");
+  S.adopt = true;
+  await b.pass();
+  assert.equal(b.h.records.get(A).appRef, ref2);
+  assert.equal(b.ready(), "ready");
+  assert.equal(renews().length, 0, "none of this was due");
+});
+
 test("REVIEW 2: a hold, stop, ban or suspension arriving during the deferred lead read or while queued voids the renewal", { timeout: 30_000 }, async () => {
   const lateLead = async (arrive) => {
     const b = await box({ left: 700 });

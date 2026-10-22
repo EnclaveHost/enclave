@@ -90,6 +90,18 @@ K never leaves a member guest except sealed to an attested boot:
 Every package is signed (EIP-191) by an `admins` wallet and names its target boot by statement hash.
 `--print-message` / `--signature` let a hardware wallet sign.
 
+The admin's tool verifies with AMD collateral fetched from KDS into a local cache: `--collateral-dir`, by default
+`$XDG_CACHE_HOME/enclave/amd-collateral`. The data is public, and every entry is authenticated against the pinned AMD
+roots when it is read. The tool has no option for other roots or for skipping the verification.
+
+The tool sends a package only:
+- to the boot it has just verified, over a connection pinned to that boot's attested control key, so nothing is sent
+  to another key;
+- if the package names that boot's statement, this group and the command. A package prepared for an earlier boot is
+  refused locally.
+
+`status` is an unauthenticated read.
+
 ## Durable state, the single writer, and failover (`relay/state-replica.mjs`)
 
 **One primary per epoch, elected by a majority of `members`.**

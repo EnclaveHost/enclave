@@ -1,0 +1,118 @@
+{
+ "format": "measured-control-activation-requirements/1",
+ "written": "2026-10-22",
+ "scope": "NO-ACTION activation prerequisites for the locally built direct-control image with native control support (measurement fe897820f632bae497511a229f0c74465dade8841d5807f8287a3a2caa928d22c8d79c24ffa9b1f9554434b483fae38f; 4 vCPUs, family 26 model 2 stepping 1, pinned OVMF 142589cc). Nothing here was executed. Source references are to commit 493ee9ee07497c94159ec4f6916e9ea920d31959. Adapted from measured-image-build/public/ACTIVATION-REQUIREMENTS.json (6f2c7da4); its relay-allowlist correction still holds.",
+ "relayAllowlist": "NOT a prerequisite: a direct guest never attaches to the legacy fleet tunnel (metal/guest/measured-control.mjs:564 planDirectBoot refuses relayUrl/relayHost/tunnelToken/fleetSecret/certsApi/ACME inputs; metal/enclave-metal.mjs:176-191 refuses them for control \"direct\"). METAL_ALLOWED_MEASUREMENTS stays for legacy tunnel boxes only.",
+ "requiredForDirectControl": [
+  {
+   "item": "Owner direct config, bound by HOST_DATA",
+   "refs": [
+    "metal/guest/measured-control.mjs:120-200 (canonicalDirectConfig; optional members :122)",
+    "metal/enclave-metal.mjs:203-212, 699 (configDigest -> host-data)",
+    "metal/guest/measured-control.mjs:573 (fw_cfg hostAdmission digest == bound hostAdmissionSha256)"
+   ],
+   "what": "identity, contracts/rpcs/quorum, isolation endpoints, replicas, controlPort, hostAdmissionSha256 bound to the actual host wallet policy, plus the optional members platformApi / mcp / platformPolicyCarriers / leaseGas / ownerNomination / nativeControl. Any change = new HOST_DATA = relaunch."
+  },
+  {
+   "item": "Launch with the implemented launcher in direct mode",
+   "refs": [
+    "metal/enclave-metal.mjs:176-212, 245-248",
+    "docs/network/measured-control-guest.md:226-242 (steps 4 and 6)"
+   ],
+   "what": "host config control:\"direct\", mode:\"snp\", direct:<canonical owner config>, dist:<this verified image>, the pinned OVMF, cpus 4 (the measured count; recompute for any other count or CPU signature), snp-guest-per-app isolation backend with release tickets off, only the control port forwarded, registryKeyFile 0600/0400 when selling. The lifecycle CLI --control-* flags are NOT implemented."
+  },
+  {
+   "item": "Trust lists that verify a direct guest carry THIS measurement (replacing bdadc7bb for the native-control image)",
+   "refs": [
+    "metal/measured-control-verify.mjs:85-98 (expect.measurements required)",
+    "metal/guest/measured-control.mjs:354-355 (platformApi.measurements: 1-8 digests, identical in every member config)",
+    "metal/guest/platform-api-role.mjs:249 + metal/guest/platform-api-verify.mjs:49-54 (handoff verifyPeer with pa.measurements)",
+    "scripts/platform-api-admin.mjs (genesis/handoff admin check)",
+    "mcp/hosted-client.mjs:57-69 (hosted MCP client expectations)",
+    "network/native-control-routes.mjs:266-267 (NATIVE_CONTROL_MEASUREMENTS)"
+   ],
+   "what": "owner/client expectations, the Platform API group's measurements[] (all members on this image before any config carries the new members), hosted-MCP client expectations, and the native discovery service's NATIVE_CONTROL_MEASUREMENTS."
+  },
+  {
+   "item": "Admin CLI with AMD collateral (NOT the 493ee9ee copy)",
+   "refs": [
+    "scripts/platform-api-admin.mjs:100 at 493ee9ee: productionVerifier({ config }) gets no collateral",
+    "source repo commits after 493ee9ee: 0eac0d60b 'Verify admin targets with AMD collateral and send packages only to the attested key', dfe020abf 'Let the admin tool's status command send its body-less GET'"
+   ],
+   "what": "genesis/handoff/credential packages must be produced with the admin CLI from root's reviewed later commit. Those commits touch no image input (post-check), so this image does not change; I did NOT review or test them."
+  },
+  {
+   "item": "Original EnclaveRegistry identity (retained)",
+   "refs": [
+    "metal/measured-control-verify.mjs:154-167",
+    "metal/guest/measured-control.mjs:467 (REGISTRY_ENABLED/CLAIM_ENABLED only with the operator key)"
+   ],
+   "what": "the operator funds registration and setProofKey (root, wallet action); verification stays 'pending' until the registry names the minted proof key"
+  },
+  {
+   "item": "Enclave admin governance (retained, not optional)",
+   "refs": [
+    "metal/guest/measured-control.mjs:479 (ENCLAVE_PLATFORM_HOST_POLICY=production in every measured guest)",
+    "supervisor.js:586-597, 5527 (policy gate; refusal on an admin ban)",
+    "network/native-control-routes.mjs:185 (chipId deny refuses an unproven chip)",
+    "docs/network/platform-host-policy.md (chipId entries)"
+   ],
+   "what": "admin AddressBook-anchored platform host policy enforced in every direct guest and at every native control route and native-issuer install barrier; registry/catalog/contract admin rights unchanged; the admin-signed policy document must be on real non-DigitalOcean carriers before any anchor."
+  },
+  {
+   "item": "Hardware launch and verification (root; not done)",
+   "refs": [
+    "metal/measured-control-verify.mjs:85-167",
+    "docs/network/measured-control-guest.md:245-252 (steps 8-9)"
+   ],
+   "what": "verifyMeasuredControl with current AMD collateral (CRL), minimum TCB, config digest and this measurement must return 'verified' for each member; the hardware report is the final independent measurement check; then an owner-authorized deployment must be claimed and launched."
+  },
+  {
+   "item": "Platform API cutover (separate root step)",
+   "refs": [
+    "docs/network/hosted-platform-api.md (genesis/import/handoff)"
+   ],
+   "what": "genesis with import of the old AUTH_DATA_DIR, then point api.enclave.host DNS and its WebPKI certificate at the members; rollback point = the old data directory"
+  }
+ ],
+ "requiredForNativeControlNames (optional; only if api/mcp.enclavehost.eth are served natively)": [
+  {
+   "item": "nativeControl member in each serving member's bound config",
+   "refs": [
+    "metal/guest/measured-control.mjs:203-214",
+    "docs/network/measured-control-guest.md:118-140"
+   ],
+   "what": "{ names: sorted subset of [api.enclavehost.eth, mcp.enclavehost.eth], caSha256: sha256 of the existing native CA DER }; needs platformApi; names != platformApi.hostname. Changes HOST_DATA (relaunch)."
+  },
+  {
+   "item": "Native CA custody: either the platform API group issuer or the offline admin",
+   "refs": [
+    "metal/guest/native-issuer.mjs:36-49 (exactly NATIVE_CA_KEY + NATIVE_CA_CERT)",
+    "metal/guest/platform-api-role.mjs:143-144 (never in the relay child), :168-174 (primary only)",
+    "scripts/native-control-certificate.mjs (offline request/issue/install fallback)"
+   ],
+   "what": "group issuance is inactive until root adds NATIVE_CA_KEY/NATIVE_CA_CERT to an admin-signed credentials package sealed to the verified primary (credential handling = root). Without them, the offline admin fallback must issue each 7-day leaf over the attested key and install it; a native name with no current leaf fails its handshake."
+  },
+  {
+   "item": "Native discovery deployment (NOT in this image)",
+   "refs": [
+    "relay/native-discovery.mjs:45-48, 64 (503 control_route_unavailable without routes)",
+    "network/native-control-routes.mjs:258-269 (NATIVE_CONTROL_SERVICE_INDEX, _RPCS 2-8, _QUORUM, _REGISTRY, _MEASUREMENTS, _EXCLUDE required = the DigitalOcean IPv4 failure domain)",
+    "network/native-control-routes.mjs:35-58 (kind-9 'native-control' ads; unsigned publication shape)"
+   ],
+   "what": "deploy the 493ee9ee relay/native-discovery.mjs + network/native-control-routes.mjs where native discovery runs, with NATIVE_CONTROL_* configured (this measurement included); each serving operator publishes a kind-9 native-control ad in the pinned service index (operator signing/gas = root). Until then the control names answer 503 (fail-closed), not the old fixed DO addresses."
+  }
+ ],
+ "alsoOutstanding": [
+  "Windows host-admission swap 6bef372d -> 40e8ba71 (from the 6f2c7da4 package; unchanged)",
+  "public DNS / WebPKI repointing of the enclave.host service names once these hosts serve Platform API/MCP",
+  "the source branch/candidate pointer: 493ee9ee is a local checkpoint commit; root decides publication/merge (this build does not claim the candidate branch points at it)"
+ ],
+ "rollback": "boot the previous image (KEPT ed918e4b / production b8376e15); the 6f2c7da4 image bdadc7bb remains built and verified; configs without the new members are byte-compatible",
+ "limits": [
+  "local build only: no hardware launch, no attestation report, no deployment",
+  "measurement computed with one tool (sev-snp-measure 0.0.13) on one host; reproducibility = second build on the same host",
+  "node_modules inputs of the prebuilt bundles are not committed; the image installs the committed bundle bytes, whose --check was root's native-final-build job",
+  "does not by itself remove DigitalOcean dependencies: that depends on where Platform API members, native discovery, DNS and carriers are deployed (not done)"
+ ]
+}

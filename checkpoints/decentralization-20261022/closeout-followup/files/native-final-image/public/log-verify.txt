@@ -1,0 +1,67 @@
+[queue] START available=88361MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+[env] ssh/scp/sftp -> <build>/stub/bin (shell + node child proved)
+[env] private network namespace: interfaces = lo only, no IPv4 route (net:[4026533650])
+[ok] OVMF pin
+[ok] artifacts == build receipt
+[measure B] fe897820f632bae497511a229f0c74465dade8841d5807f8287a3a2caa928d22c8d79c24ffa9b1f9554434b483fae38f (cmdline taken from the artifact's own cmdline file)
+[ok] measurement B == measurement A
+OK   vmlinuz == production base  1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
+OK   manifest kernel record unchanged (7.2.3-arch1-2)  7.2.3-arch1-2
+OK   manifest modules list unchanged  15 modules
+OK   cmdline file = base template + metal.control=direct  console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app metal.control=direct
+OK   manifest control/cmdlineTemplate direct over snp-guest-per-app
+OK   controlOverlay.commit = published commit  493ee9ee07497c94159ec4f6916e9ea920d31959
+OK   controlOverlay.builderSha256 = published overlay tool  1067a535413f88e0c66b80441a734d5dc7771ac79e24129df25df8a1d4aeea56
+OK   controlOverlay.control = direct
+OK   controlOverlay.baseInitramfsSha256 = production base
+OK   manifest initramfs record = file
+OK   expectedMeasurement removed (recomputed separately)
+OK   platformApiBundle record = precheck
+OK   platformApiBundle = the combined bundle (0a1d88de, 8705824 bytes, 2219 inputs)
+OK   mcpBundle record = precheck
+OK   controlOverlay.files = the 59 precheck inputs  59 files
+OK   all 59 installed inputs present, regular, with the precheck sha256  59 inputs
+OK   installed /opt/metal/platform-api.bundle.mjs bytes = 0a1d88de
+OK   no production base entry missing
+OK   added entries = new inputs + their parent directories only
+OK   every other entry identical to the base (bytes + metadata, kernel modules included)  29012 entries, 33 module-tree entries
+OK   supervisor import closure present in the image  46 files
+OK   closure npm packages + subpath exports in the image  cors@2.8.6, express@4.22.2, jose@5.10.0, viem@2.53.1, ws@8.21.1
+OK   guest helpers' relative imports and every bundle's beside-itself reads resolve in the image  11 opt/metal modules
+OK   gsup.mjs runs the direct branch for metal.control=direct
+OK   measured-control.mjs MCP_BUNDLE = /opt/metal/mcp-server.bundle.mjs, installed
+OK   measured-control.mjs PLATFORM_API_BUNDLE = /opt/metal/platform-api.bundle.mjs, installed
+extracted 18754 app/ + opt/ files (node_modules included) to <build>/tmp/extract
+{
+ "ok": true,
+ "closureFiles": 45,
+ "imported": 48,
+ "syntaxChecked": 11,
+ "packages": [
+  "cors",
+  "express",
+  "jose",
+  "viem",
+  "ws"
+ ],
+ "probes": {
+  "mcp": {
+   "exit": 1,
+   "ownMainError": true,
+   "argvGuarded": true,
+   "stderr": "mcp/server: cannot read <image>/absent-role-config.json: ENOENT: no such file or directory, stat '<image>/absent-role-config.json'\nARGV1=<image>/opt/metal/mcp-server.bundle.mjs (enclave host role)\n"
+  },
+  "platform-api": {
+   "exit": 1,
+   "ownMainError": true,
+   "argvGuarded": true,
+   "stderr": "[platform-api] ENOENT: no such file or directory, open '<image>/absent-role-config.json'\nARGV1=<image>/opt/metal/platform-api.bundle.mjs (enclave host role)\n"
+  }
+ }
+}
+[ok] src still clean
+[ok] no ssh/scp/sftp invocation (0)
+VERIFY-OK
+[memory-guard] exit=0 peakTreeRssMiB=205 minHostAvailableMiB=88040
+[memory-guard] at peak: node:110 node:85 bash:6 tee:4
+[queue] EXIT 0

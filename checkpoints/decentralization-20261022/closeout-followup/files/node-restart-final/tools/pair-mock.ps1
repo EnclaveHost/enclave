@@ -97,6 +97,9 @@ function global:Invoke-RestMethod { param($Uri, [switch]$UseBasicParsing, $Timeo
     if ($s.scenario -eq 'lease-shrinks-before-stop' -and $s.leaseReads -gt 1) {
       return [pscustomobject]@{ deployments = @($s.ids | ForEach-Object { [pscustomobject]@{ id = $_; status = 'running'; leaseUntil = [DateTimeOffset]::new($s.clock).ToUnixTimeSeconds() + 30 } }) } }
     $records = @(Get-Content -Raw (Join-Path $s.root 'leases.json') | ConvertFrom-Json)
+    # the running set changes between the pins (read 1) and the read immediately before the stop (read 2)
+    if ($s.leaseReads -gt 1 -and $s.scenario -eq 'running-added-before-stop') { $records += [pscustomobject]@{ id = '0x' + ('c' * 64); status = 'running'; leaseUntil = $records[0].leaseUntil } }
+    if ($s.leaseReads -gt 1 -and $s.scenario -eq 'running-removed-before-stop') { $records[1].status = 'stopped' }
     $ready = $null
     if ($s.nodeStartedAt) {
       $age = ($s.clock - $s.nodeStartedAt).TotalSeconds; $ms = SimMs

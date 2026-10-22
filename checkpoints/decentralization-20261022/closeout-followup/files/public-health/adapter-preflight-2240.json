@@ -1,0 +1,213 @@
+{
+  "at": "2026-10-22T22:40:47.8318508Z",
+  "hostSha": "9634cb40c60b74f92eff8497f687dcaa1ec04a33c21cbd22dc745d773b1da396",
+  "node": [
+    {
+      "pid": 33032,
+      "parent": 32204,
+      "start": "2026-10-22T03:37:27.6506510Z"
+    }
+  ],
+  "launcher": [
+    {
+      "pid": 32204,
+      "parent": 3292,
+      "start": "2026-10-22T03:37:27.5955170Z"
+    }
+  ],
+  "manager": [
+    {
+      "pid": 35464,
+      "parent": 28848,
+      "start": "2026-10-21T12:13:07.5552110Z"
+    }
+  ],
+  "privacy": [
+    {
+      "pid": 13932,
+      "parent": 14720,
+      "start": "2026-10-22T03:37:14.0971470Z"
+    }
+  ],
+  "apps": [
+    {
+      "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+      "status": "queued",
+      "leaseUntil": null,
+      "instance": ""
+    },
+    {
+      "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+      "status": "refused",
+      "leaseUntil": null,
+      "instance": ""
+    },
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "failed",
+      "leaseUntil": 1792663729,
+      "instance": ""
+    },
+    {
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "status": "failed",
+      "leaseUntil": 1792660709,
+      "instance": ""
+    },
+    {
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "status": "failed",
+      "leaseUntil": 1792649861,
+      "instance": ""
+    },
+    {
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "status": "failed",
+      "leaseUntil": 1792671243,
+      "instance": ""
+    },
+    {
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "status": "running",
+      "leaseUntil": 1792709515,
+      "instance": "hv6bcbf9138425f5129cac2aba7dcc4cb6"
+    },
+    {
+      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "status": "failed",
+      "leaseUntil": 1792677359,
+      "instance": ""
+    },
+    {
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "failed",
+      "leaseUntil": 1792692447,
+      "instance": ""
+    },
+    {
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "status": "failed",
+      "leaseUntil": 1792657223,
+      "instance": ""
+    },
+    {
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "status": "failed",
+      "leaseUntil": 1792675415,
+      "instance": ""
+    },
+    {
+      "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
+      "status": "stopped",
+      "leaseUntil": null,
+      "instance": ""
+    },
+    {
+      "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
+      "status": "stopped",
+      "leaseUntil": null,
+      "instance": ""
+    },
+    {
+      "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
+      "status": "refused",
+      "leaseUntil": null,
+      "instance": ""
+    },
+    {
+      "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
+      "status": "refused",
+      "leaseUntil": null,
+      "instance": ""
+    },
+    {
+      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+      "status": "refused",
+      "leaseUntil": null,
+      "instance": ""
+    },
+    {
+      "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
+      "status": "refused",
+      "leaseUntil": null,
+      "instance": ""
+    },
+    {
+      "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
+      "status": "refused",
+      "leaseUntil": null,
+      "instance": ""
+    },
+    {
+      "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
+      "status": "refused",
+      "leaseUntil": null,
+      "instance": ""
+    },
+    {
+      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "status": "refused",
+      "leaseUntil": null,
+      "instance": ""
+    },
+    {
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "status": "refused",
+      "leaseUntil": null,
+      "instance": ""
+    }
+  ],
+  "leaseReadiness": {
+    "sequence": 597,
+    "startedAt": 1792708551478,
+    "completedAt": 0,
+    "inFlight": true,
+    "deployments": [
+      {
+        "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+        "sequence": 597,
+        "status": "pending"
+      },
+      {
+        "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+        "sequence": 597,
+        "status": "pending"
+      },
+      {
+        "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+        "sequence": 597,
+        "status": "pending"
+      },
+      {
+        "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+        "sequence": 597,
+        "status": "pending"
+      },
+      {
+        "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+        "sequence": 597,
+        "status": "pending"
+      }
+    ]
+  },
+  "vms": [
+    {
+      "id": "f701477f-560e-46d7-b16c-6502a752d4dd",
+      "state": "Running"
+    },
+    {
+      "id": "55987653-f678-40a8-93f0-2f58c189c99e",
+      "state": "Running"
+    },
+    {
+      "id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+      "state": "Running"
+    },
+    {
+      "id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+      "state": "Running"
+    }
+  ],
+  "nodeTask": "Running",
+  "nextUpdate": "2026-10-22T23:13:36.0000000Z"
+}

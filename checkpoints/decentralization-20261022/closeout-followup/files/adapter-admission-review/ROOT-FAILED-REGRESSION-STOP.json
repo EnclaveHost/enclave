@@ -1,0 +1,8 @@
+{
+  "at": "2026-10-22T22:44:49.129780+00:00",
+  "status": "Interrupted failed regression batch; not a pass",
+  "reason": "Four relay-attachment tests failed immediately, then the same test file remained alive over 10 minutes with no timeout in job-tests.sh. Prevented further batches and stopped the guarded allocation through its cleanup handler. Original logs preserved.",
+  "queuePid": 1941993,
+  "queueGone": true,
+  "agentInterruptedForReview": 1897384
+}

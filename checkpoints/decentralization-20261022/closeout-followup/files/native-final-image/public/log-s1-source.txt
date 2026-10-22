@@ -1,0 +1,9 @@
+[queue] START available=88083MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+[env] ssh/scp/sftp -> <build>/stub/bin (shell + node child proved)
+[env] private network namespace: interfaces = lo only, no IPv4 route (net:[4026533429])
+
+[memory-guard] STOPPING own job: process tree RSS 543 MiB > 512 MiB
+fetch-pack: unexpected disconnect while reading sideband packet
+[memory-guard] exit=SIGTERM peakTreeRssMiB=543 minHostAvailableMiB=87724 STOPPED: process tree RSS 543 MiB > 512 MiB
+[memory-guard] at peak: git:513 git-upload-pack:10 git:8 git:6 bash:6
+[queue] EXIT 99

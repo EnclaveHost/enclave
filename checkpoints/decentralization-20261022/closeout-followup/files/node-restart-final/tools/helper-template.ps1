@@ -139,6 +139,15 @@ function UpdateHorizon($v) {
   $t = $null; try { $t = [DateTimeOffset]::Parse((Iso $v.next)).UtcDateTime } catch {}
   if ($null -eq $t -or $t -lt (Get-Date).ToUniversalTime().AddSeconds($BoundSec + [int]$PRM.lease.revertSec + 60)) { return 'the \Enclave\Update task is due before this run and the reserved rollback could finish' }
   return $null }
+# NEW: the node-wide restart stops EVERY running deployment, so expectedIds must be EXACTLY the set the node runs: an
+# expected id that is not running, or a running one that is not expected, refuses (at the pins and again before the stop)
+function RunningSetDiff($h) {
+  $exp = @(@($PRM.expectedIds) | ForEach-Object { ([string]$_).ToLower() } | Sort-Object -Unique)
+  $run = @(@($h.deployments) | Where-Object { $_ -and [string]$_.status -eq 'running' } | ForEach-Object { ([string]$_.id).ToLower() } | Sort-Object -Unique)
+  $extra = @($run | Where-Object { $exp -notcontains $_ }); $missing = @($exp | Where-Object { $run -notcontains $_ })
+  if (@($PRM.expectedIds).Count -ne $exp.Count) { return 'expectedIds repeats an id' }
+  if ($extra.Count -or $missing.Count) { return "the running deployments are not exactly expectedIds (running but not expected: $($extra -join ','); expected but not running: $($missing -join ','))" }
+  return $null }
 # NEW: the files this run must NOT change (configs, launcher, other node modules), each == its pinned sha
 function UnchangedFiles { $bad = @(foreach ($f in @($PRM.unchangedFiles)) { if ((Sha ([string]$f.path)) -ne [string]$f.sha) { [string]$f.path } })
   if ($bad.Count) { return 'not as pinned: ' + ($bad -join ', ') }; return $null }
@@ -157,6 +166,7 @@ function BeforeStop {
     $uh = UpdateHorizon $uv; if ($uh) { return $uh + '; nothing stopped' }
     $h = HostState 10
     $ids = @($PRM.expectedIds); if (-not $ids.Count) { return 'no expected deployments' }
+    $rs = RunningSetDiff $h; if ($rs) { return "$rs; nothing stopped" }
     $ends = @()
     foreach ($id in $ids) {
       $rows = @($h.deployments | Where-Object { [string]$_.id -eq [string]$id })
@@ -280,6 +290,7 @@ function SwapPair([ValidateSet('apply','rollback')][string]$op) {
 # NEW: the outcome record of any run that cannot be completed: the actual state, read with what time is left
 function Recovery($what, $x, $label = 'RECOVERY_REQUIRED') {
   $x.taskCommand = $script:LastTaskCommand; $x.recovery = $what
+  if ($terminal) { $x.terminalReturn = 'TERMINAL RETURN: NO return reserve remains after this rollback run; root decides manually' }
   $x.nodeNow = $(try { NodeProcs 10 } catch { 'unknown: ' + $_.Exception.Message })
   $x.listener9600 = $(try { @(Listeners 9600 10 | ForEach-Object { [int]$_.OwningProcess }) } catch { 'unknown: ' + $_.Exception.Message })
   $x.pairNow = $(try { PairNow } catch { 'unknown' }); $x.shas = $(try { @(foreach ($f in $Files) { [ordered]@{ file = $f.name; sha = (Sha $f.target); journal = (SwapJournal $f) } }) } catch { 'unknown' })
@@ -351,7 +362,8 @@ foreach ($f in $Files) {
 $uf = UnchangedFiles; if ($uf) { $why += "unchanged files $uf" }
 if (-not @($PRM.unchangedFiles).Count) { $why += 'no unchanged files pinned (at least run-node.cmd and the node config)' }
 $lp = $PRM.lease
-if (-not $lp -or [int]$lp.marginSec -le 0 -or [int]$lp.revertSec -le 0 -or [int]$lp.forwardMinSec -le 0 -or [int]$lp.startNodeSec -le 0) { $why += 'the lease budget (marginSec/revertSec/forwardMinSec/startNodeSec) is missing' }
+$terminal = ($lp -and [string]$lp.reserve -eq 'terminal-return')
+if (-not $lp -or [int]$lp.marginSec -le 0 -or [int]$lp.forwardMinSec -le 0 -or [int]$lp.startNodeSec -le 0 -or [int]$lp.revertSec -lt 0 -or ([int]$lp.revertSec -eq 0 -and -not $terminal)) { $why += 'the lease budget (marginSec/revertSec/forwardMinSec/startNodeSec) is missing' }
 else {
   if ([int]$lp.startNodeSec -lt $MIN_START_NODE) { $why += "lease.startNodeSec is below the measured first-pass time ($MIN_START_NODE s)" }
   if ([int]$lp.forwardMinSec -lt $STOP_AFTER_LEASE + $SWAP_WORST + [int]$lp.startNodeSec) { $why += "lease.forwardMinSec must cover the stop after the lease read ($STOP_AFTER_LEASE s), the swaps ($SWAP_WORST s) and lease.startNodeSec" }
@@ -359,9 +371,15 @@ else {
   # node stopped. 'full-return' (default): a complete second window (>= lease.forwardMinSec). 'recovery-start': only resolving
   # the two files and starting the node through ONE completed pass (SWAP_WORST + lease.startNodeSec) - the started node's pass
   # is what renews a due lease. Process availability alone is never accepted as a reserve (renewal happens inside the pass).
+  # 'full-return' also covers the RETURN run's own fresh pins (before its lease read: lease.returnPinsSec, root's measured
+  # allowance; the bounded pins alone can take minutes in the worst case) - a return must stop a node that may be RUNNING.
+  # 'terminal-return' (explicit, Mode rollback ONLY): this run IS the return. It needs its own full forward window + margin,
+  # and reserves NOTHING after itself (revertSec 0): if it fails, no further return fits this lease cycle. Never for apply.
   $rk = $(if ($lp.reserve) { [string]$lp.reserve } else { 'full-return' }); $o.reserve = $rk
-  if ($rk -notin 'full-return', 'recovery-start') { $why += "lease.reserve must be full-return or recovery-start, not $rk" }
-  elseif ($rk -eq 'full-return' -and [int]$lp.revertSec -lt [int]$lp.forwardMinSec) { $why += 'lease.revertSec must cover a complete return window (>= lease.forwardMinSec) under reserve full-return' }
+  if ($rk -notin 'full-return', 'recovery-start', 'terminal-return') { $why += "lease.reserve must be full-return, recovery-start or terminal-return, not $rk" }
+  elseif ($rk -eq 'terminal-return' -and $Mode -ne 'rollback') { $why += 'lease.reserve terminal-return is only for -Mode rollback (an apply always keeps a return reserve)' }
+  elseif ($rk -eq 'terminal-return' -and [int]$lp.revertSec -ne 0) { $why += 'lease.reserve terminal-return reserves nothing after itself: lease.revertSec must be 0' }
+  elseif ($rk -eq 'full-return' -and ([int]$lp.returnPinsSec -le 0 -or [int]$lp.revertSec -lt [int]$lp.forwardMinSec + [int]$lp.returnPinsSec)) { $why += 'lease.revertSec must cover a complete return window: the return run''s fresh pins (lease.returnPinsSec > 0) + lease.forwardMinSec, under reserve full-return' }
   elseif ($rk -eq 'recovery-start' -and [int]$lp.revertSec -lt $SWAP_WORST + [int]$lp.startNodeSec) { $why += "lease.revertSec must cover resolving the files and one completed pass (>= $SWAP_WORST + lease.startNodeSec) under reserve recovery-start" }
 }
 if ($BoundSec -gt $MAX_BOUND) { $why += "boundSec above $MAX_BOUND s (the task's 20-min ExecutionTimeLimit would kill this run unbounded)" }
@@ -399,6 +417,7 @@ $ends = @(); $bad = @()
 foreach ($i in @($PRM.expectedIds)) { $d = $by[([string]$i).ToLower()]; $v = $d.leaseUntil
   if ($d -and [string]$d.status -eq 'running' -and ($v -is [int] -or $v -is [long] -or $v -is [double] -or $v -is [decimal])) { $ends += [pscustomobject]@{ id = [string]$i; end = [int64]$v } } else { $bad += [string]$i } }
 if (-not @($PRM.expectedIds).Count) { $why += 'no expected deployments pinned' }
+if ($hs) { $rs = RunningSetDiff $hs; $o.running = @(@($hs.deployments) | Where-Object { $_ -and [string]$_.status -eq 'running' } | ForEach-Object { [string]$_.id }); if ($rs) { $why += $rs } }
 if (-not $hs) { $o.lease = 'unreadable'; $why += 'the node lease state (127.0.0.1:9600/v1/host/state) is unreadable' }
 elseif ($bad.Count) { $o.lease = [ordered]@{ notRunningOrNoLease = $bad }; $why += "expected ids without a running record and a numeric leaseUntil: $($bad -join ',')" }
 elseif ($ends.Count) { $first = @($ends | Sort-Object end)[0]; $LeaseEnd = $first.end
@@ -406,6 +425,7 @@ elseif ($ends.Count) { $first = @($ends | Sort-Object end)[0]; $LeaseEnd = $firs
   if ((LeaseLeft) -lt [int]$lp.forwardMinSec) { $why += "lease deadline: the first lease ends in $($LeaseEnd - (NowS)) s; this window needs >= $([int]$lp.forwardMinSec + [int]$lp.revertSec + [int]$lp.marginSec) s (forward + reserved return + margin)" } }
 if (((Left) - $POST_WORST) -lt [int]$lp.forwardMinSec) { $why += 'the global bound left after the pins cannot hold the forward path and the post checks' }
 if ($why.Count) { Final ('REFUSED: ' + ($why -join '; ')) $o }
+if ($terminal) { $o.terminalReturn = 'TERMINAL RETURN: this rollback run reserves NO return window after itself; if it fails, no further return fits this lease cycle (root decides manually)' }
 Log $o
 
 # ---------------------------------------------------------------- stop (verbatim StopNode: identity, BeforeStop, bounded task request)
@@ -455,5 +475,6 @@ $post.pairUnchanged = ((PairNow) -eq $pairNow); $post.unchangedFiles = $(if (Unc
 $post.log = LogFrom $logOffset @('isolated domain retired', 'isolation spawned', 'is KEPT', 'not kept:')
 $clean = $post.identityUnchanged -and $post.privacyUnchanged -and $post.schedulerUnchanged -and $post.pairUnchanged -and $post.unchangedFiles -and -not $post.log.error -and $post.log['isolated domain retired'] -eq 0
 $name = $(if ($sp.pair -eq 'to') { $(if ($Mode -eq 'apply') { 'DONE' } else { 'ROLLED_BACK' }) } else { $(if ($Mode -eq 'apply') { 'SWAP_REFUSED_OLD_PAIR_RESTARTED' } else { 'RETURN_REFUSED_NEW_PAIR_RESTARTED' }) })
+if ($terminal) { $post.terminalReturn = 'no return reserve remained after this terminal rollback' }
 Final $(if ($clean) { "${name}: the node runs $outcome with a new agent proven ready; manager, privacy agent, scheduler, Hyper-V and manager VM sets, other tasks and pinned files unchanged" }
         else { "${name}_CHECK: the node runs $outcome with a new agent proven ready, but a post-check failed (see fields); root decides, nothing automatic" }) $post

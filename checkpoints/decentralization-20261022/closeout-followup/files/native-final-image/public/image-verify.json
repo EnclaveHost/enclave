@@ -1,0 +1,218 @@
+{
+ "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+ "checks": [
+  {
+   "check": "vmlinuz == production base",
+   "ok": true,
+   "detail": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  {
+   "check": "manifest kernel record unchanged (7.2.3-arch1-2)",
+   "ok": true,
+   "detail": "7.2.3-arch1-2"
+  },
+  {
+   "check": "manifest modules list unchanged",
+   "ok": true,
+   "detail": "15 modules"
+  },
+  {
+   "check": "cmdline file = base template + metal.control=direct",
+   "ok": true,
+   "detail": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app metal.control=direct"
+  },
+  {
+   "check": "manifest control/cmdlineTemplate direct over snp-guest-per-app",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "controlOverlay.commit = published commit",
+   "ok": true,
+   "detail": "493ee9ee07497c94159ec4f6916e9ea920d31959"
+  },
+  {
+   "check": "controlOverlay.builderSha256 = published overlay tool",
+   "ok": true,
+   "detail": "1067a535413f88e0c66b80441a734d5dc7771ac79e24129df25df8a1d4aeea56"
+  },
+  {
+   "check": "controlOverlay.control = direct",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "controlOverlay.baseInitramfsSha256 = production base",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "manifest initramfs record = file",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "expectedMeasurement removed (recomputed separately)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "platformApiBundle record = precheck",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "platformApiBundle = the combined bundle (0a1d88de, 8705824 bytes, 2219 inputs)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "mcpBundle record = precheck",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "controlOverlay.files = the 59 precheck inputs",
+   "ok": true,
+   "detail": "59 files"
+  },
+  {
+   "check": "all 59 installed inputs present, regular, with the precheck sha256",
+   "ok": true,
+   "detail": "59 inputs"
+  },
+  {
+   "check": "installed /opt/metal/platform-api.bundle.mjs bytes = 0a1d88de",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "no production base entry missing",
+   "ok": true,
+   "detail": []
+  },
+  {
+   "check": "added entries = new inputs + their parent directories only",
+   "ok": true,
+   "detail": []
+  },
+  {
+   "check": "every other entry identical to the base (bytes + metadata, kernel modules included)",
+   "ok": true,
+   "detail": "29012 entries, 33 module-tree entries"
+  },
+  {
+   "check": "supervisor import closure present in the image",
+   "ok": true,
+   "detail": "46 files"
+  },
+  {
+   "check": "closure npm packages + subpath exports in the image",
+   "ok": true,
+   "detail": "cors@2.8.6, express@4.22.2, jose@5.10.0, viem@2.53.1, ws@8.21.1"
+  },
+  {
+   "check": "guest helpers' relative imports and every bundle's beside-itself reads resolve in the image",
+   "ok": true,
+   "detail": "11 opt/metal modules"
+  },
+  {
+   "check": "gsup.mjs runs the direct branch for metal.control=direct",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "measured-control.mjs MCP_BUNDLE = /opt/metal/mcp-server.bundle.mjs, installed",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "measured-control.mjs PLATFORM_API_BUNDLE = /opt/metal/platform-api.bundle.mjs, installed",
+   "ok": true,
+   "detail": ""
+  }
+ ],
+ "ok": true,
+ "entries": {
+  "image": 29087,
+  "base": 29029,
+  "added": [
+   "app/client",
+   "app/client/lease-executor-authority.mjs",
+   "app/client/lease-executor-client.mjs",
+   "app/metal",
+   "app/metal/guest",
+   "app/metal/guest/owner-nomination.mjs",
+   "app/network",
+   "app/network/canonical.mjs",
+   "app/network/directory-client.mjs",
+   "app/network/host-capacity-producer.mjs",
+   "app/network/host-capacity-record.mjs",
+   "app/network/host-owner-nomination.mjs",
+   "app/network/host-policy-adapters.mjs",
+   "app/network/lease-executor-authority.mjs",
+   "app/network/lease-executor-client.mjs",
+   "app/network/lease-gas-owner.mjs",
+   "app/network/lease-gas-runtime.mjs",
+   "app/network/lease-relay-discovery.mjs",
+   "app/network/lease-release-journal.mjs",
+   "app/network/network-authorities.mjs",
+   "app/network/network-policy-core.mjs",
+   "app/network/network-policy.mjs",
+   "app/network/provider-directory.mjs",
+   "app/network/provider-qualification.mjs",
+   "app/network/registry-reconcile.mjs",
+   "app/network/route-record.mjs",
+   "app/network/rpc-identity.mjs",
+   "app/network/service-index.mjs",
+   "app/relay/attestation-paths.mjs",
+   "app/relay/net-guard.mjs",
+   "app/sdk",
+   "app/sdk/bootstrap",
+   "app/sdk/bootstrap/package.mjs",
+   "app/sdk/bootstrap/storage.mjs",
+   "app/sdk/storage",
+   "app/sdk/storage/gateways.mjs",
+   "app/sdk/storage/replicas.mjs",
+   "app/sdk/storage/upload-auth.mjs",
+   "app/site",
+   "app/site/js",
+   "app/site/js/core",
+   "app/site/js/core/upload-auth.js",
+   "app/windows",
+   "app/windows/node",
+   "app/windows/node/host-admission.bundle.mjs",
+   "app/windows/node/session-api-auth.mjs",
+   "app/windows/node/verification-checkpoints.mjs",
+   "opt/contracts",
+   "opt/contracts/deployments",
+   "opt/contracts/deployments/contract-pins-base.json",
+   "opt/metal/fixtures",
+   "opt/metal/fixtures/tpm-roots.pem",
+   "opt/metal/host-policy.bundle.mjs",
+   "opt/metal/lease-gas-conduit.bundle.mjs",
+   "opt/metal/mcp-server.bundle.mjs",
+   "opt/metal/measured-control.mjs",
+   "opt/metal/owner-nomination.mjs",
+   "opt/metal/platform-api.bundle.mjs"
+  ],
+  "addedDirectories": [
+   "app/client",
+   "app/metal",
+   "app/metal/guest",
+   "app/network",
+   "app/sdk",
+   "app/sdk/bootstrap",
+   "app/sdk/storage",
+   "app/site",
+   "app/site/js",
+   "app/site/js/core",
+   "app/windows",
+   "app/windows/node",
+   "opt/contracts",
+   "opt/contracts/deployments",
+   "opt/metal/fixtures"
+  ]
+ },
+ "extracted": 18754
+}

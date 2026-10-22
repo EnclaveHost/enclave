@@ -2434,15 +2434,18 @@ export class Host {
       // app version and applied envelope - and only when that is exactly this row. A changed version or config that is not
       // (yet) served, a caught edit or resize failure, or a record not running publishes nothing (the pass renews it).
       const served = this.records.get(id);
-      if (reconciled && served?.status === "running" && this.tracked.has(id)
+      const keeperEligible = reconciled && served?.status === "running" && this.tracked.has(id)
           && String(served.appRef ?? "") === String(d.appRef ?? "") && served.envelope != null && String(served.envelope) === String(d.configCid ?? "")
-          && served.owner === String(d.owner ?? "").toLowerCase() && served.isPublic === (d.isPublic !== false))
+          && served.owner === String(d.owner ?? "").toLowerCase() && served.isPublic === (d.isPublic !== false);
+      if (keeperEligible)
         this.#leaseSeen.set(id, { leaseUntil: Number(d.leaseUntil), owner: served.owner, isPublic: served.isPublic,
           appRef: String(served.appRef), configCid: String(served.envelope) });
       // Publish evidence only after the ordinary policy/renewal/adoption path. Any earlier continue leaves pending.
       // A failed renewal must never become healthy just because an existing app still answers HTTP.
       const observed = this.records.get(id);
-      const leaseServing = leaseRenewalOk && !notServing && !oneQuantum && observed?.status === "running"
+      // READY also means reconciled and renewable between passes: this pass's edit and resize did not fail, and the keeper
+      // is eligible for exactly this served lease and identity (a caught failure or a version/config not yet served is not ready)
+      const leaseServing = keeperEligible && leaseRenewalOk && !notServing && !oneQuantum && observed?.status === "running"
         && observed.boundaryHeld !== true && observed.capHeld !== true && !this.platformPolicy.serviceRefusal()
         && !chain.releaseHold(id) && d.active === true && String(d.runner).toLowerCase() === this.enclaveId.toLowerCase()
         && Number(d.leaseUntil) * 1000 > Date.now();

@@ -1,0 +1,27 @@
+{
+ "ok": true,
+ "closureFiles": 45,
+ "imported": 48,
+ "syntaxChecked": 11,
+ "packages": [
+  "cors",
+  "express",
+  "jose",
+  "viem",
+  "ws"
+ ],
+ "probes": {
+  "mcp": {
+   "exit": 1,
+   "ownMainError": true,
+   "argvGuarded": true,
+   "stderr": "mcp/server: cannot read <image>/absent-role-config.json: ENOENT: no such file or directory, stat '<image>/absent-role-config.json'\nARGV1=<image>/opt/metal/mcp-server.bundle.mjs (enclave host role)\n"
+  },
+  "platform-api": {
+   "exit": 1,
+   "ownMainError": true,
+   "argvGuarded": true,
+   "stderr": "[platform-api] ENOENT: no such file or directory, open '<image>/absent-role-config.json'\nARGV1=<image>/opt/metal/platform-api.bundle.mjs (enclave host role)\n"
+  }
+ }
+}

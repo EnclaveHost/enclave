@@ -1,0 +1,658 @@
+{
+  "range": "ca3118202359da8ce84f5b917fcc5ed85b2c6730..dfe020abf1794bedc42943e43fe85eb02593dd8d",
+  "diffSha256": "98b2ad043bddd6774e745f8a5d90b137448463dfa2c077c4d46988a953f9c780",
+  "cryptoFindings": 82,
+  "gitleaksFindings": 9,
+  "unclassified": 0,
+  "crypto": [
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 246938,
+      "rule": "eth-key",
+      "classification": "Public AddressBook registry bytes32 label"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 105979,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106248,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106482,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107796,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107854,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106363,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106587,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106754,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107003,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107055,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107145,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107224,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107398,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107722,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107974,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106036,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106227,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106428,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106548,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106612,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106635,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106658,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106843,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106924,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107101,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107304,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107337,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107491,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107516,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107663,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107690,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107763,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107832,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107924,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106010,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106083,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106205,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106286,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106343,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106396,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106459,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106529,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106784,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106874,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107078,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107267,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107470,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107540,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107594,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107879,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106062,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106099,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106113,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106148,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106321,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106507,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106575,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106680,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106696,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106741,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106819,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106890,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106905,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106960,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 106981,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107039,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107122,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107169,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107183,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107202,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107284,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107357,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107371,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107436,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107561,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107581,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107650,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107748,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107901,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 107950,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 108000,
+      "rule": "mnemonic",
+      "classification": "Inside complete public BIP39 English dictionary"
+    }
+  ],
+  "gitleaks": [
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 68833,
+      "rule": "generic-api-key",
+      "classification": "Bare generated identifier declaration, no assignment or value",
+      "lineSha256": "fde21f1f98b993cda7782e8a2f3b85213507bfae65b9482c814ff0b56d7ef009"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 144738,
+      "rule": "generic-api-key",
+      "classification": "Public code or registry label already in published candidate",
+      "lineSha256": "1debff58111fae812884240bf0151ac752d88cf01c111dcffd1a4c450a049194"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 145579,
+      "rule": "generic-api-key",
+      "classification": "Public code or registry label already in published candidate",
+      "lineSha256": "02f580d4f4a0956a22c2eb997a71af4bdf295e275ff425e6ac2492514eca77bd"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 145974,
+      "rule": "generic-api-key",
+      "classification": "Public code or registry label already in published candidate",
+      "lineSha256": "245a434069c39d5b1cc8b99f831d6429e7914e83981b44a9110a2cde49cb9c46"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 147748,
+      "rule": "generic-api-key",
+      "classification": "Public code or registry label already in published candidate",
+      "lineSha256": "fb7ec8474de680b0f9293958fa75ce37d9fbac79f9944de5d4d9d6bff9b0f423"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 147749,
+      "rule": "generic-api-key",
+      "classification": "Public code or registry label already in published candidate",
+      "lineSha256": "d1b122c16a3ee46aed2ebb03f196b9128592da1803b3912654ace8b5fbf35bb7"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 164423,
+      "rule": "generic-api-key",
+      "classification": "Published public code after normalizing bundler identifier suffixes",
+      "lineSha256": "14ca55e8ed83ab4023a91af34fae92522f583d113739afb280b717450a135ef4"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 165098,
+      "rule": "generic-api-key",
+      "classification": "Public code or registry label already in published candidate",
+      "lineSha256": "3ce3eab5829091ed37649d194b1d07e4e61cda10a604c1f6266301250ae5ff18"
+    },
+    {
+      "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+      "path": "metal/guest/platform-api.bundle.mjs",
+      "line": 246938,
+      "rule": "ethereum-private-key-env",
+      "classification": "Public code or registry label already in published candidate",
+      "lineSha256": "dccb1de32b39a8612e859a988007d17fa01ce1f01a7e177f5843959933c57f8c"
+    }
+  ],
+  "override": "Repository-documented confirmed-false-positive override; hooks unchanged"
+}

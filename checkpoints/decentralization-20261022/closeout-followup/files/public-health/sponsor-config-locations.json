@@ -1,0 +1,18 @@
+{
+  "calls": [
+    {
+      "called": "C:\\ProgramData\\Enclave\\node-config.cmd",
+      "file": "run-node.cmd"
+    },
+    {
+      "called": "C:\\ProgramData\\Enclave\\lease-gas\\lease-gas-config.cmd",
+      "file": "node-config.local.cmd"
+    },
+    {
+      "called": "C:\\ProgramData\\Enclave\\node-config.local.cmd",
+      "file": "node-config.cmd"
+    }
+  ],
+  "publicEnvironment": [],
+  "at": "2026-10-22T22:32:42.4436191Z"
+}

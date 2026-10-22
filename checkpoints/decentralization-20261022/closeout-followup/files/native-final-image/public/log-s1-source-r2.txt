@@ -1,0 +1,170 @@
+[queue] START available=88120MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+[env] ssh/scp/sftp -> <build>/stub/bin (shell + node child proved)
+[env] private network namespace: interfaces = lo only, no IPv4 route (net:[4026533429])
+== install-set precheck
+{
+ "commit": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+ "tool": "1067a535413f88e0c66b80441a734d5dc7771ac79e24129df25df8a1d4aeea56",
+ "count": 59,
+ "platformApiBundle": {
+  "path": "/opt/metal/platform-api.bundle.mjs",
+  "sha256": "0a1d88de230842442c41cc9f399d3a7dda5394fb523812b2503bc2358b09b4ef",
+  "bytes": 8705824,
+  "inputs": 2219,
+  "sidecars": {
+   "/opt/metal/fixtures/tpm-roots.pem": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+  }
+ },
+ "equalPlatformApiBundleToCombined": true,
+ "mcpBundle": {
+  "path": "/opt/metal/mcp-server.bundle.mjs",
+  "sha256": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f",
+  "bytes": 4979943,
+  "inputs": 2972,
+  "manifestSha256": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f",
+  "runtimeFiles": {
+   "/opt/contracts/deployments/contract-pins-base.json": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d",
+   "/opt/metal/fixtures/tpm-roots.pem": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+  }
+ },
+ "equalMcpBundleTo6f2c7da4": true,
+ "packagesFromBase": [
+  {
+   "name": "cors",
+   "version": "2.8.6"
+  },
+  {
+   "name": "express",
+   "version": "4.22.2"
+  },
+  {
+   "name": "jose",
+   "version": "5.10.0"
+  },
+  {
+   "name": "viem",
+   "version": "2.53.1"
+  },
+  {
+   "name": "ws",
+   "version": "8.21.1"
+  }
+ ],
+ "cmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct",
+ "equalCmdline": true,
+ "nonRegularTargets": [],
+ "vs6f2c7da4": {
+  "reference": {
+   "file": "<work>/resume-after-checkpoint-20261022/measured-image-build/public/inputs-precheck.json",
+   "sha256": "cf079da724d640d3cbc1d985d8c443180dafc87faa09c9c5532cf33a684c0c63",
+   "count": 59
+  },
+  "changed": {
+   "opt/metal/gsup.mjs": {
+    "old": "10127e1170d71d6f23d26e01ebf5a0bfee19c51f1121148c13ab43f9d49e4d24",
+    "new": "07e0583974818a5b4be5fe3051844db99794594fb4d8d2dce9217c1706c09ae0",
+    "source": "metal/guest/gsup.mjs"
+   },
+   "opt/metal/measured-control.mjs": {
+    "old": "f2648d65a16654d35f396bbc10e73e6c2e4a10624093275c66013f546aa9f3e6",
+    "new": "26a8982c52497d88d7d0885f63a4b4b8056da3ac1192ab03fdac94426a6185fc",
+    "source": "metal/guest/measured-control.mjs"
+   },
+   "opt/metal/platform-api.bundle.mjs": {
+    "old": "ede48c36cb30b36dc7f2b5d308660a195d2dd257aeb73f18d6468c0d5f9d0c8c",
+    "new": "0a1d88de230842442c41cc9f399d3a7dda5394fb523812b2503bc2358b09b4ef",
+    "source": "metal/guest/platform-api.bundle.mjs"
+   }
+  },
+  "added": [],
+  "removed": [],
+  "diffPaths": 25,
+  "unexplainedChanges": [],
+  "unchangedButSourceInDiff": []
+ },
+ "ok": true
+}
+== bundle currency
+{
+ "ok": true,
+ "bundles": {
+  "metal/guest/host-policy.bundle.mjs": {
+   "ok": true,
+   "sha256": "acfa1b0099530d4c",
+   "moduleComments": 0,
+   "unchangedSince6f2c7da4": true,
+   "reviewedPin": "acfa1b00",
+   "pinMatches": true
+  },
+  "metal/guest/lease-gas-conduit.bundle.mjs": {
+   "ok": true,
+   "sha256": "421d6584daa3acdf",
+   "moduleComments": 0,
+   "stale": {},
+   "changedInputs": [],
+   "prereq": {}
+  },
+  "metal/guest/mcp-server.bundle.mjs": {
+   "ok": true,
+   "sha256": "eccb333401b43f97",
+   "moduleComments": 1886,
+   "stale": {},
+   "changedInputs": [],
+   "prereq": {}
+  },
+  "metal/guest/platform-api.bundle.mjs": {
+   "ok": true,
+   "sha256": "0a1d88de23084244",
+   "moduleComments": 2202,
+   "stale": {},
+   "changedInputs": [
+    "metal/guest/measured-control.mjs",
+    "metal/guest/native-certificate.mjs",
+    "metal/guest/native-issuer.mjs",
+    "metal/guest/platform-api-role.mjs",
+    "metal/guest/platform-api-verify.mjs",
+    "metal/measured-control-verify.mjs",
+    "network/native-control-routes.mjs"
+   ],
+   "prereq": {
+    "relay/network-runtime.bundle.mjs": {
+     "sha256": "8399d1434e0587c246c77bfbea5d8afac65ada130cc96abffe291afde588af1e",
+     "reviewedPin": true
+    }
+   }
+  },
+  "windows/node/host-admission.bundle.mjs": {
+   "ok": true,
+   "sha256": "40e8ba71d83c627e",
+   "moduleComments": 0,
+   "unchangedSince6f2c7da4": true,
+   "reviewedPin": "40e8ba71",
+   "pinMatches": true
+  }
+ },
+ "networkRuntime": {
+  "path": "<source repo working copy>/relay/network-runtime.bundle.mjs (gitignored; read only)",
+  "pin": "8399d1434e0587c246c77bfbea5d8afac65ada130cc96abffe291afde588af1e",
+  "scanned": true,
+  "moduleComments": 1279,
+  "changedPathsBundled": []
+ }
+}
+commit 493ee9ee07497c94159ec4f6916e9ea920d31959
+tree b21163723ea789db13ff84d148e309e2709a89f4
+parent 95defc2cd3a1686cb5ae568474d8445608b4ce14
+author SteveDeFacto 2026-10-22T15:20:18-07:00
+committer SteveDeFacto 2026-10-22T15:20:18-07:00
+subject Rebuild the combined native platform API guest bundle
+493ee9ee07497c94159ec4f6916e9ea920d31959 Rebuild the combined native platform API guest bundle
+95defc2cd3a1686cb5ae568474d8445608b4ce14 Hand the platform API state key over with AMD collateral and a fresh host policy decision
+2a2dd38cc73051ad0211a56ac8bc2656126ee737 Settle every pinned native-certificate request exactly once
+f59d67af2c14b9fec9b07f5ab4c6e301114d9e22 Issue native control leaves from the platform API primary
+d9459aae997198342b0bf6fe9993461cd72118f0 Cancel a control front's upstream leg when its client leaves
+ca3118202359da8ce84f5b917fcc5ed85b2c6730 Pin a standby's forward to the primary on the secure socket
+8e77ff1eca24be3c02e281dc9f431af597165adf Serve native control names only from attested, admitted control guests
+eaea7e4630ee1d82b3599b872a24075691510211 Correct measured-control activation and verification instructions
+S1-OK; stub invocations: 0
+[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=88286
+[memory-guard] at peak: git:60 bash:6
+[queue] EXIT 0

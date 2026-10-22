@@ -1,0 +1,17 @@
+[queue] START available=87151MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+[env] ssh/scp/sftp -> <build>/stub/bin (shell + node child proved)
+[env] private network namespace: interfaces = lo only, no IPv4 route (net:[4026533423])
+[ok] old image + old public receipts == old PINS.sha256
+[ok] old tools == old BUILD-RECEIPT script hashes (9 scripts) 
+[ok] build A artifacts == receipt
+[ok] rebuild2 artifacts == receipt
+[ok] source repo still has 493ee9ee07497c94159ec4f6916e9ea920d31959
+[info] source repo HEAD now dfe020abf1794bedc42943e43fe85eb02593dd8d
+dfe020abf1794bedc42943e43fe85eb02593dd8d Let the admin tool's status command send its body-less GET
+0eac0d60bc489d3b9567e1c35d90ac5efa788a6e Verify admin targets with AMD collateral and send packages only to the attested key
+[ok] paths changed after 493ee9ee (4) that are install-set sources: []
+[ok] no ssh/scp/sftp invocation (0)
+POST-CHECK-OK
+[memory-guard] exit=0 peakTreeRssMiB=14 minHostAvailableMiB=87119
+[memory-guard] at peak: sha256sum:8 bash:6
+[queue] EXIT 0
