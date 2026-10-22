@@ -20,7 +20,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import https from 'node:https';
+import http from 'node:http';
+import net from 'node:net';
+import tls from 'node:tls';
 import { execFileSync } from 'node:child_process';
 import { X509Certificate, createPublicKey, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -78,20 +80,41 @@ export function issueNativeCertificate({ request, caCertFile, caKeyFile, days = 
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-/** One request to the control front over a connection pinned to the attested key (no CA: the attestation is the trust). */
-export function pinnedRequest(controlUrl, { method = 'GET', path: p, body = null, spkiSha256, timeoutMs = 15000 }) {
+/**
+ * The attested control key's TLS connection: the handshake completes, and the peer's SPKI is compared on THAT secure socket
+ * before any request byte exists. (rejectUnauthorized:false with a checkServerIdentity-only pin is not a pin: Node skips
+ * checkServerIdentity when chain validation already failed, so a self-signed impostor would be accepted.)
+ */
+export function pinnedSocket(controlUrl, spkiSha256, { timeoutMs = 15000 } = {}) {
   const u = new URL(controlUrl);
-  if (u.protocol !== 'https:' || !/^[0-9a-f]{64}$/.test(String(spkiSha256))) throw new Error('an https control URL and the attested key digest are required');
+  if (u.protocol !== 'https:' || !/^[0-9a-f]{64}$/.test(String(spkiSha256))) return Promise.reject(new Error('an https control URL and the attested key digest are required'));
+  const host = u.hostname.replace(/^\[|\]$/g, '');
   return new Promise((resolve, reject) => {
-    const req = https.request({ host: u.hostname, port: u.port || 443, method, path: p, agent: false, timeout: timeoutMs, rejectUnauthorized: false,
-      checkServerIdentity: (_h, cert) => (sha256Hex(spkiOf(cert.raw)) === spkiSha256 ? undefined : new Error('the endpoint is not the attested key')),
-      headers: body ? { 'content-type': 'application/x-pem-file', 'content-length': Buffer.byteLength(body) } : {} }, (res) => {
+    const s = tls.connect({ host, port: Number(u.port || 443), rejectUnauthorized: false, minVersion: 'TLSv1.2', ...(net.isIP(host) ? {} : { servername: host }) });
+    const t = setTimeout(() => { s.destroy(); reject(new Error(`no TLS handshake within ${timeoutMs} ms`)); }, timeoutMs);
+    s.once('error', (e) => { clearTimeout(t); reject(e); });
+    s.once('secureConnect', () => {
+      clearTimeout(t);
+      let got = null;
+      try { got = sha256Hex(new X509Certificate(s.getPeerCertificate().raw).publicKey.export({ type: 'spki', format: 'der' })); } catch {}
+      if (got !== spkiSha256) { s.destroy(); return reject(new Error('the endpoint is not the attested key')); }
+      resolve(s);
+    });
+  });
+}
+/** One HTTP request over pinnedSocket (nothing is sent before the key matched). */
+export async function pinnedRequest(controlUrl, { method = 'GET', path: p, body = null, spkiSha256, timeoutMs = 15000 }) {
+  const sock = await pinnedSocket(controlUrl, spkiSha256, { timeoutMs });
+  const u = new URL(controlUrl);
+  return new Promise((resolve, reject) => {
+    const req = http.request({ createConnection: () => sock, host: u.hostname, port: u.port || 443, method, path: p, timeout: timeoutMs,
+      headers: { host: u.host, ...(body ? { 'content-type': 'application/x-pem-file', 'content-length': Buffer.byteLength(body) } : {}) } }, (res) => {
       const chunks = []; let n = 0;
       res.on('data', (c) => { n += c.length; if (n > 512 * 1024) req.destroy(new Error('answer too large')); else chunks.push(c); });
-      res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf8') }));
+      res.on('end', () => { sock.destroy(); resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf8') }); });
     });
     req.on('timeout', () => req.destroy(new Error(`no answer within ${timeoutMs} ms`)));
-    req.on('error', reject);
+    req.on('error', (e) => { sock.destroy(); reject(e); });
     req.end(body || undefined);
   });
 }

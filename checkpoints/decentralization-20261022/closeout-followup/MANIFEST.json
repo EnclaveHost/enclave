@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-22T20:35:11.402195+00:00",
+  "capturedAt": "2026-10-22T20:37:08.108130+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -185,8 +185,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/direct-hardware-canary/canary/run-canary.py",
       "stored": "files/direct-hardware-canary/canary/run-canary.py",
-      "sha256": "3fd76a44d8a24f79e42a256e017fc73a896a417aba32c59472eb930afc34ff01",
-      "bytes": 27398
+      "sha256": "e424ae7eaa704ff820870d1879169852288cac323f1513cd9c595feb57b37996",
+      "bytes": 35424
     },
     {
       "source": "work/resume-after-checkpoint-20261022/direct-hardware-canary/canary/verify-canary.mjs",
@@ -605,8 +605,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/metal/guest/measured-control.mjs",
       "stored": "files/native-control-attested/repo/metal/guest/measured-control.mjs",
-      "sha256": "3a9956ca7305a48e21ff3d2f6f905a9240b70be98607a64d7472d11d93720ed4",
-      "bytes": 83139
+      "sha256": "318a84ceefecbcf3bc434cfcc2705193cbb8721cbff13cedc7fe6c197011c105",
+      "bytes": 84591
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/network/native-control-routes.mjs",
@@ -623,8 +623,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/scripts/native-control-certificate.mjs",
       "stored": "files/native-control-attested/repo/scripts/native-control-certificate.mjs",
-      "sha256": "a776af3a0b466dd19a108f2c7e4efdff37b6955474b8594076f425de54ea2fab",
-      "bytes": 11858
+      "sha256": "ac7f5f80235e0dcf6182558d85f19f0328475586d8f626a3c7c4c924c9d038ea",
+      "bytes": 13170
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/test/native-discovery.test.mjs",
@@ -1035,6 +1035,12 @@
       "bytes": 4211
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/storage-client-interop/ROOT-ALLOCATION.txt",
+      "stored": "files/storage-client-interop/ROOT-ALLOCATION.txt",
+      "sha256": "27f2b06576b3274a40918a2bc6caffa694b400337d9e7f86ad222e4bfb1a65d6",
+      "bytes": 1034
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/storage-client-interop/egress_socks5.py",
       "stored": "files/storage-client-interop/egress_socks5.py",
       "sha256": "77fad264406da15a85830ce1559fbd04feb2f9464b01576512a525112da09086",
@@ -1043,14 +1049,20 @@
     {
       "source": "work/resume-after-checkpoint-20261022/storage-client-interop/interop.py",
       "stored": "files/storage-client-interop/interop.py",
-      "sha256": "538d82f2743f84442798752607c8b3359d09b65fa0446ac5ce64541d87f68335",
-      "bytes": 31566
+      "sha256": "fc1d4614d03c37f5756c9b9aff508c359d9c84abd98628780b260ce40327a93b",
+      "bytes": 33219
     },
     {
       "source": "work/resume-after-checkpoint-20261022/storage-client-interop/run-ns.sh",
       "stored": "files/storage-client-interop/run-ns.sh",
       "sha256": "777db307708b630c3ff16b6f31823fe973247125a92b1ebfbba1e93dacf18f49",
       "bytes": 695
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-client-interop/selfcheck_helpers.py",
+      "stored": "files/storage-client-interop/selfcheck_helpers.py",
+      "sha256": "e240969890ac09c6baa029df01bcb657a2686c3f00ce99f45726caece6bc49df",
+      "bytes": 1963
     },
     {
       "source": "work/resume-after-checkpoint-20261022/storage-client-interop-task.txt",

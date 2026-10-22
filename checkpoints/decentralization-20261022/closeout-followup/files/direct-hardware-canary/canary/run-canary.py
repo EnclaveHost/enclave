@@ -3,41 +3,42 @@
 
 One disposable SNP guest, booted by the PUBLISHED launcher (tree/metal/enclave-metal.mjs, git archive of 6f2c7da4) from the
 exact built image measured-image-build/image/dist-direct-6f2c7da46, with a BARE owner config (canary/owner-config.mjs):
-no registry key (not selling), no fleet secret, no relay/tunnel/certificate/ACME input, no apps, no MCP/Platform API
-member, guestd endpoints on two loopback ports proven to have NO listener (never production guestd 8095/8096), slirp with
-restrict=on (canary/qemu-restrict.sh: the guest reaches no host or outside address), and ONE loopback port forward to the
-guest's attested control front (8444) - never the plain supervisor port. The host-side verifier (canary/verify-canary.mjs)
-uses the published verifyMeasuredControl with real AMD collateral (a copy of the existing public cache) and, optionally, a
-read-only registry read.
+no registry key, no fleet secret, no relay/tunnel/certificate/ACME input, no apps, no MCP/Platform API member, guestd
+endpoints on loopback ports proven to have NO listener (never production guestd 8095/8096), slirp with restrict=on
+(canary/qemu-restrict.sh), and ONE loopback port forward to the guest's attested control front (8444), never the plain
+supervisor port. The host-side verifier (canary/verify-canary.mjs) uses the published verifyMeasuredControl with real AMD
+collateral (a COPY of the existing public cache) and, optionally, a read-only registry read. Scope: BARE direct control.
 
-  python3 canary/run-canary.py --preflight            read-only gates only (no run directory, no locks, no launch)
+  python3 canary/run-canary.py --preflight     read-only gates (no run directory, no lock, no launch)
   python3 canary/run-canary.py --run [--kds on|off] [--registry on|off]
-      root only, in a quiet window: takes BOTH shared queue lanes (non-blocking; 98 if busy), needs MemAvailable >=
-      16384 + CAP + 1024 MiB, creates runs/<UTC stamp> (0700, never reused), then
-      systemd-run --user --scope (MemoryMax=CAP, MemorySwapMax=0) memory-guard (CAP, floor 16384) timeout 330s -> --child.
-Owned processes are identified by (pid, /proc starttime) and killed only by the launcher's own process group and this run's
-transient scope; the protected QEMUs and running user services are snapshotted before and after; nothing is killed by name.
+      ROOT ONLY, after root accepted this exact source (FROZEN-PINS.json), in a quiet window. Takes BOTH shared queue lanes
+      (non-blocking: exit 98 if busy), needs MemAvailable >= 16384 + CAP + 1024 MiB, re-verifies every frozen pin, creates
+      runs/<UTC stamp> (0700, never reused), then supervise(): systemd-run --user --scope (MemoryMax=CAP, MemorySwapMax=0)
+      memory-guard (CAP, floor 16384) timeout -> --child. The child re-verifies the pins right before the launcher starts.
+
+Ownership rules (root review 2026-10-22 20:31-20:32Z):
+  - a process is OURS only by (pid, /proc starttime) recorded when we started or observed it as the launcher's child;
+  - a process GROUP is signalled only while at least one owned identity is alive AND still in that group (a group id
+    cannot be reused while any member lives), so a reused pgid is never signalled; nothing is ever killed by name;
+  - the transient scope this run created is the ultimate boundary: the parent stops ONLY that unit on every exit path
+    (normal, exception, SIGTERM/SIGINT/SIGHUP), proves its cgroup empty and no process naming this run survives, and only
+    then scrubs this run's private/ directory (fw_cfg, test pairing key); logs and results are kept.
+Acceptance (accept()) requires every promised check; the registry stays a separate diagnostic (expected "pending").
 """
 import datetime, fcntl, hashlib, json, os, pathlib, re, secrets, shutil, signal, socket, subprocess, sys, threading, time
 
 D = pathlib.Path(__file__).resolve().parents[1]
 WORK = D.parents[1]                                   # .../wo/work
 TREE = D / 'tree'
+FROZEN = D / 'FROZEN-PINS.json'
 BUILD = D.parent / 'measured-image-build'
 IMAGE = BUILD / 'image/dist-direct-6f2c7da46'
 RECEIPT = BUILD / 'public/BUILD-RECEIPT.json'
 INPUTS = BUILD / 'public/inputs-precheck.json'
 OVMF = pathlib.Path('/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd')
-OVMF_SHA = '142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9'
 QEMU = pathlib.Path('/usr/bin/qemu-system-x86_64')
-QEMU_SHA = 'a2250f5e2b3b07c754473c0817df1cccf6c3c2443fc616dc474c4c311fa6ef1c'
 NODE = pathlib.Path('/usr/bin/node')
-COLLATERAL_SRC = pathlib.Path('/home/steven/enclave-prod/capacity-audit/state/amd')   # public AMD collateral; COPIED, never written
-IMAGE_SHA = {'vmlinuz': '1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7',
-             'initramfs.cpio.gz': 'f778b9d8d843d2245876ff20da0f453ab5a8b0e0eda5bf9aa0a8d2d7d6e7fa60',
-             'cmdline': 'fd236eb2762c457bbe20376216e078f3aab3f2f40a3646f9509137b8f67fabb6',
-             'manifest.json': 'd187f8fd85c6dc9cad7845da8df62dfb46b175e3f359488621105110c4cec9de',
-             'MEASUREMENT': 'cd13ed09f067dd9c0cbc5648cadab00c12324e1d2678a2fb6f070f615b50bc3a'}
+COLLATERAL_SRC = pathlib.Path('/home/steven/enclave-prod/capacity-audit/state/amd')   # public AMD collateral: COPIED, never written
 MEASURED_CMDLINE = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct'
 PROTECTED = {3483499: 87503396, 3817658: 32598976}    # pid -> /proc starttime (enclave-metal.service, enclave-custodian-v2.service)
 PRODUCTION_GUESTD = (8095, 8096)
@@ -45,6 +46,8 @@ CPUS, MEM_MIB, CONTROL_PORT = 4, 4096, 8444
 CAP_MIB, FLOOR_MIB, MARGIN_MIB = 6144, 16384, 1024    # scope MemoryMax = guest 4096 + 2048 QEMU/launcher/verifier overhead
 CHILD_TIMEOUT_S, KILL_AFTER_S, VERIFY_DEADLINE_S = 330, 40, 210   # cleanup_group is bounded at ~22 s < KILL_AFTER_S
 STUB_BIN = D / 'bin'
+FORBIDDEN_HOST_KEYS = ('registryKey', 'registryKeyFile', 'fleetSecret', 'relayUrl', 'tunnelToken', 'certsApi', 'acmeEabKid', 'acmeEabHmac',
+                       'acmeBringYourOwn', 'egressHelper', 'publicUrl', 'referral', 'volumes', 'leaseGas', 'ownerNomination', 'hostAdmission', 'vcekFile')
 
 def now(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
 def sha256_file(p):
@@ -53,23 +56,24 @@ def sha256_file(p):
         for c in iter(lambda: f.read(1 << 20), b''): h.update(c)
     return h.hexdigest()
 def save(run, name, value):
-    with (run / name).open('x') as f: json.dump(value, f, indent=2)
+    with (pathlib.Path(run) / name).open('x') as f: json.dump(value, f, indent=2)
 def available_mib():
     return next(int(l.split()[1]) // 1024 for l in pathlib.Path('/proc/meminfo').read_text().splitlines() if l.startswith('MemAvailable:'))
+def _stat(pid):
+    try: st = pathlib.Path(f'/proc/{pid}/stat').read_text(); return st[st.rfind(')') + 2:].split()
+    except OSError: return None
 def starttime(pid):
-    try:
-        st = pathlib.Path(f'/proc/{pid}/stat').read_text(); return int(st[st.rfind(')') + 2:].split()[19])
-    except (OSError, IndexError, ValueError): return None
+    f = _stat(pid); return int(f[19]) if f and len(f) > 19 else None
+def ppid(pid):
+    f = _stat(pid); return int(f[1]) if f else None
+def pgid_of(pid):
+    f = _stat(pid); return int(f[2]) if f else None
 def comm(pid):
     try: return pathlib.Path(f'/proc/{pid}/comm').read_text().strip()
     except OSError: return None
-def ppid(pid):
-    try:
-        st = pathlib.Path(f'/proc/{pid}/stat').read_text(); return int(st[st.rfind(')') + 2:].split()[1])
-    except (OSError, IndexError, ValueError): return None
 def alive(identity):
-    """identity = (pid, starttime): alive only if the SAME process (pid reuse never counts)."""
-    return starttime(identity[0]) == identity[1]
+    """identity = (pid, starttime): alive only if it is the SAME process (a reused pid never counts)."""
+    return identity[1] is not None and starttime(identity[0]) == identity[1]
 def qemus():
     out = {}
     for p in pathlib.Path('/proc').iterdir():
@@ -89,34 +93,62 @@ def user_services():
         ident[n] = [int(r or 0), starttime(r) if r and r != '0' else None]
     return {'running': names, 'enclaveMainPids': ident}
 def listening(port):
-    r = subprocess.run(['ss', '-ltnH', f'sport = :{port}'], capture_output=True, text=True, timeout=10)
-    return bool(r.stdout.strip())
-def free_loopback_port():
-    with socket.socket() as s:
-        s.bind(('127.0.0.1', 0)); return s.getsockname()[1]
+    return bool(subprocess.run(['ss', '-ltnH', f'sport = :{port}'], capture_output=True, text=True, timeout=10).stdout.strip())
 def pick_ports(n):
     out = []
     while len(out) < n:
-        p = free_loopback_port()
+        with socket.socket() as s:
+            s.bind(('127.0.0.1', 0)); p = s.getsockname()[1]
         if p in PRODUCTION_GUESTD or p in out or listening(p): continue
         out.append(p)
     return out
 def expected_measurement():
     m = json.loads(RECEIPT.read_text())['measurement']['value']
-    if not re.fullmatch(r'[0-9a-f]{96}', m): raise SystemExit('receipt measurement is not 96 hex')
-    if (IMAGE / 'MEASUREMENT').read_text().strip() != m: raise SystemExit('image MEASUREMENT differs from the receipt')
+    if not re.fullmatch(r'[0-9a-f]{96}', m): raise RuntimeError('receipt measurement is not 96 hex')
+    if (IMAGE / 'MEASUREMENT').read_text().strip() != m: raise RuntimeError('image MEASUREMENT differs from the receipt')
     return m
 def expected_runtime():
     i = json.loads(INPUTS.read_text())['inputs']
     return {'gsupSha256': i['opt/metal/gsup.mjs']['sha256'], 'helperSha256': i['opt/metal/measured-control.mjs']['sha256'],
             'supervisorSha256': i['app/supervisor.js']['sha256']}
 SECRETISH = re.compile(r'(SECRET|PRIVATE_KEY|ADMIN_TOKEN|MNEMONIC|PASSWORD|pairingKey)\s*["=:]', re.I)
+def sanitize(text, secrets_):
+    for s in secrets_:
+        if s: text = text.replace(s, '<redacted>')
+    return '\n'.join('<line redacted: secret-shaped>' if SECRETISH.search(l) else l for l in text.splitlines()) + '\n'
 def tree_fingerprint(root):
     """sha256 over (relative path, size, mtime_ns, sha256) of every file: proves a read-only source was not written."""
     h = hashlib.sha256()
     for p in sorted(pathlib.Path(root).rglob('*')):
         if p.is_file(): st = p.stat(); h.update(f'{p.relative_to(root)}\0{st.st_size}\0{st.st_mtime_ns}\0{sha256_file(p)}\n'.encode())
     return h.hexdigest()
+def file_list_sha(root, prune_node_modules):
+    expr = '-path ./node_modules -prune -o -type f -print0' if prune_node_modules else '-type f -print0'
+    out = subprocess.run(['bash', '-c', f'cd "{root}" && find . {expr} | sort -z | xargs -0 sha256sum'], capture_output=True, text=True, check=True).stdout
+    return hashlib.sha256(out.encode()).hexdigest()
+
+# ---- frozen pins: the exact source/inputs root accepts; re-verified at the launch boundary ---------------------------------
+def pin_targets():
+    """name -> callable computing the CURRENT value. Files by sha256; the source tree and its node_modules by file-list sha."""
+    files = {f'canary/{f}': D / 'canary' / f for f in ('run-canary.py', 'verify-canary.mjs', 'owner-config.mjs', 'qemu-restrict.sh')}
+    files.update({f'bin/{c}': D / 'bin' / c for c in ('ssh', 'scp', 'sftp')})
+    files.update({f'image/{f}': IMAGE / f for f in ('vmlinuz', 'initramfs.cpio.gz', 'cmdline', 'manifest.json', 'MEASUREMENT')})
+    files.update({'ovmf': OVMF, 'qemu': QEMU, 'node': NODE, 'receipt': RECEIPT, 'inputs': INPUTS, 'tree.sha256': D / 'tree.sha256'})
+    t = {k: (lambda p=p: sha256_file(p)) for k, p in files.items()}
+    t['tree/source-files'] = lambda: file_list_sha(TREE, True)
+    t['tree/node_modules'] = lambda: file_list_sha(TREE / 'node_modules', False)
+    return t
+def verify_pins(frozen=None, targets=None):
+    """-> list of mismatching names ([] = every frozen pin holds now)."""
+    frozen = frozen if frozen is not None else json.loads(FROZEN.read_text())['pins']
+    targets = targets or pin_targets()
+    bad = [k for k in targets if k not in frozen]
+    for k, want in frozen.items():
+        try: got = targets[k]() if k in targets else None
+        except Exception: got = None
+        if got != want: bad.append(k)
+    return sorted(set(bad))
+
 def argv_checks(records, host_data_hex, ctl_port):
     """the QEMU argv the launcher actually built (through qemu-restrict.sh), checked against the measured launch."""
     import base64
@@ -131,14 +163,81 @@ def argv_checks(records, host_data_hex, ctl_port):
                     'netdevRestrictedOneLoopbackForwardToControlFront': val('-netdev') == [f'user,id=net0,restrict=on,hostfwd=tcp:127.0.0.1:{ctl_port}-:{CONTROL_PORT}'],
                     'noDrives': '-drive' not in a, 'realQemu': argv[0] == str(QEMU)})
     return out
-def sanitize(text, secrets_):
-    for s in secrets_:
-        if s: text = text.replace(s, '<redacted>')
-    return '\n'.join('<line redacted: secret-shaped>' if SECRETISH.search(l) else l for l in text.splitlines()) + '\n'
 
-# ---------------------------------------------------------------------------------------------------------------------------
+def no_key_evidence(host_cfg, fw, owner_cfg, ports):
+    """no signer, no claim, no relay: judged from the launcher's OWN inputs (host config) and OUTPUT (the fw_cfg it wrote)."""
+    iso = (fw or {}).get('isolation') or {}
+    return {
+        'hostConfigHasNoKeyOrRelayInput': not any(k in host_cfg for k in FORBIDDEN_HOST_KEYS),
+        'fwRegistryKeyEmpty': (fw or {}).get('registryKey') == '', 'fwFleetSecretEmpty': (fw or {}).get('fleetSecret') == '',
+        'fwRelayAndTunnelEmpty': (fw or {}).get('relayUrl') == '' and (fw or {}).get('tunnelToken') == '' and 'relayHost' not in (fw or {}),
+        'fwNoCertificateOrAcmeInput': not (fw or {}).get('certsApi') and not (fw or {}).get('acmeEabKid') and not (fw or {}).get('acmeEabHmac'),
+        'fwNoVolumes': (fw or {}).get('volumes') == [], 'fwNoLeaseGasOrNomination': 'leaseGas' not in (fw or {}) and 'ownerNomination' not in (fw or {}),
+        'fwDirectIsTheOwnerConfig': fw is not None and fw.get('direct') == owner_cfg,
+        'fwIsolationIsTheRefusedStandIns': iso.get('managerUrl') == f"http://10.0.2.2:{ports['guestdStandInManager']}" and iso.get('dataAddr') == f"10.0.2.2:{ports['guestdStandInData']}"
+            and 'release' not in iso and not any(f':{p}' in str(iso.get('managerUrl', '')) + str(iso.get('dataAddr', '')) for p in PRODUCTION_GUESTD),
+        'ownerConfigNotSelling': (owner_cfg or {}).get('selling') == {'cpuPrice6': None, 'payout': None},
+    }
+
+def accept(result):
+    """-> (ok, failed): EVERY promised check gates acceptance (root review). The registry stays diagnostic."""
+    req = {
+        'no error': not result.get('error'),
+        'frozen pins hold at the launch boundary': result.get('pinsAtLaunch') == [],
+        'verifier exit 0': result.get('verifierExit') == 0,
+        'verifier acceptance (hardware + exact runtime + bare roles)': (result.get('acceptance') or {}).get('pass') is True,
+        'exactly one QEMU started (no relaunch)': result.get('qemuStarts') == 1,
+        'QEMU argv = the measured, restricted launch': bool(result.get('qemuArgvChecks')) and all(all(c.values()) for c in result['qemuArgvChecks']),
+        'no key / no relay evidence from the launcher\'s own inputs and fw_cfg': bool(result.get('noKeyEvidence')) and all(result['noKeyEvidence'].values()),
+        'fw_cfg file mode 0600 in a 0700 directory': result.get('fwCfgModes') == ['0o600', '0o700'],
+        'every owned process absent, no foreign group signalled': (result.get('cleanup') or {}).get('allOwnedAbsent') is True and not (result.get('cleanup') or {}).get('refused'),
+        'protected QEMU identities unchanged': result.get('protectedQemuIdentitiesUnchanged') is True,
+        'running user services unchanged': result.get('userServicesUnchanged') is True,
+        'collateral source unchanged': result.get('collateralSourceUnchanged') is True,
+        'private directory removed': result.get('privateRemoved') is True,
+    }
+    failed = [k for k, ok in req.items() if not ok]
+    return not failed, failed
+
+# ---- process ownership ---------------------------------------------------------------------------------------------------
+def owned_group_alive(pgid, ids):
+    """True only while an owned identity is alive AND still a member of pgid (then the group cannot have been reused)."""
+    return any(alive(i) and pgid_of(i[0]) == pgid for i in ids)
+def signal_owned_group(pgid, ids, sig, out):
+    if not owned_group_alive(pgid, ids):
+        out['steps'].append(f'{sig.name}: no owned member alive in group {pgid}: nothing signalled'); return False
+    try: os.killpg(pgid, sig); out['steps'].append(f'killpg {pgid} {sig.name}'); return True
+    except ProcessLookupError: out['steps'].append(f'killpg {pgid} {sig.name}: group gone'); return False
+def cleanup_group(launcher, owned, waits=(8, 4, 3, 6)):
+    """Stop the launcher's group (SIGTERM, bounded waits, SIGKILL) ONLY while owned, then prove every owned identity gone."""
+    out = {'steps': [], 'refused': False}
+    if launcher is None: out['allOwnedAbsent'] = True; return out
+    lid = tuple(owned.get('launcher') or (launcher.pid, None))
+    pgid = owned.get('pgid', launcher.pid)
+    ids = [lid] + [tuple(v) for v in (owned.get('children') or {}).values()]
+    if lid[1] is None or pgid != launcher.pid:
+        out['refused'] = True; out['steps'].append('launcher identity/group not bound at start: no group signal')
+    else:
+        signal_owned_group(pgid, ids, signal.SIGTERM, out)
+        try: launcher.wait(timeout=waits[0])
+        except subprocess.TimeoutExpired: out['steps'].append(f'launcher alive {waits[0]} s after SIGTERM')
+        end = time.monotonic() + waits[1]
+        while time.monotonic() < end and any(alive(i) for i in ids): time.sleep(0.2)
+        if any(alive(i) for i in ids):
+            signal_owned_group(pgid, ids, signal.SIGKILL, out)
+            try: launcher.wait(timeout=waits[2])
+            except subprocess.TimeoutExpired: out['steps'].append(f'launcher alive {waits[2]} s after SIGKILL')
+            end = time.monotonic() + waits[3]
+            while time.monotonic() < end and any(alive(i) for i in ids): time.sleep(0.2)
+    if launcher.poll() is None:
+        try: launcher.wait(timeout=1)
+        except subprocess.TimeoutExpired: pass
+    out['identities'] = [{'pid': i[0], 'starttime': i[1], 'alive': alive(i)} for i in ids]
+    out['allOwnedAbsent'] = not any(alive(i) for i in ids)
+    return out
+
+# ---- read-only preflight ------------------------------------------------------------------------------------------------
 def gates():
-    """Read-only preflight. -> list of (name, ok, detail)"""
     g = []
     def gate(name, ok, detail=''): g.append((name, bool(ok), detail))
     gate('SEV-SNP enabled (kvm_amd sev_snp=Y)', pathlib.Path('/sys/module/kvm_amd/parameters/sev_snp').read_text().strip() == 'Y')
@@ -147,20 +246,16 @@ def gates():
     sig = tuple(int(re.search(rf'^{k}\s*:\s*(\d+)', cpu, re.M).group(1)) for k in ('cpu family', 'model', 'stepping'))
     gate('CPU signature = the measurement recipe (family 26 model 2 stepping 1)', sig == (26, 2, 1), str(sig))
     gate(f'>= {CPUS} host CPUs', os.cpu_count() >= CPUS, str(os.cpu_count()))
-    for f, want in IMAGE_SHA.items():
-        p = IMAGE / f; gate(f'image {f} == build receipt', p.is_file() and sha256_file(p) == want, want[:16])
-    try: m = expected_measurement(); gate('expected measurement (full 96 hex) from the receipt == image MEASUREMENT', True, m)
-    except SystemExit as e: gate('expected measurement from the receipt', False, str(e))
+    gate('FROZEN-PINS.json present', FROZEN.is_file(), sha256_file(FROZEN) if FROZEN.is_file() else 'missing')
+    if FROZEN.is_file():
+        bad = verify_pins(); gate('every frozen pin holds (canary helpers, stubs, image, OVMF, QEMU, node, receipt, source tree, node_modules)', not bad, ','.join(bad))
+    try: m = expected_measurement(); gate('expected measurement: full 96 hex from the receipt == image MEASUREMENT', True, m)
+    except Exception as e: gate('expected measurement from the receipt', False, str(e))
     gate('image cmdline template + metal.mode=snp == the measured cmdline the launcher builds',
          (IMAGE / 'cmdline').read_text().strip().replace('${MODE}', 'snp') == MEASURED_CMDLINE)
-    gate('OVMF == pinned (the measured firmware)', OVMF.is_file() and sha256_file(OVMF) == OVMF_SHA, OVMF_SHA[:16])
-    gate('QEMU binary == pinned', QEMU.is_file() and sha256_file(QEMU) == QEMU_SHA, QEMU_SHA[:16])
-    lines = (D / 'tree.sha256').read_text()
-    r = subprocess.run(['bash', '-c', f'cd {TREE} && find . -path ./node_modules -prune -o -type f -print0 | sort -z | xargs -0 sha256sum'], capture_output=True, text=True)
-    gate('tree == the staged git archive of 6f2c7da4 (tree.sha256)', r.stdout == lines, hashlib.sha256(lines.encode()).hexdigest()[:16])
     for p, st in PROTECTED.items():
         gate(f'protected QEMU {p} present with its recorded identity', starttime(p) == st and (comm(p) or '').startswith('qemu'), f'starttime {starttime(p)}')
-    gate('production guestd ports are NOT the canary\'s (8095/8096 listening is expected, informational)', True,
+    gate('production guestd 8095/8096 are never the canary\'s endpoints (listening there is expected)', True,
          f'8095 listening={listening(8095)} 8096 listening={listening(8096)}')
     need = FLOOR_MIB + CAP_MIB + MARGIN_MIB; a = available_mib()
     gate(f'MemAvailable >= {FLOOR_MIB} floor + {CAP_MIB} cap + {MARGIN_MIB} margin = {need} MiB', a >= need, f'{a} MiB')
@@ -169,31 +264,30 @@ def gates():
     gate('ssh/scp/sftp stubs first in PATH', all(shutil.which(c) == str(STUB_BIN / c) for c in ('ssh', 'scp', 'sftp')))
     return g
 
-# ---------------------------------------------------------------------------------------------------------------------------
+# ---- child (inside the transient scope) ----------------------------------------------------------------------------------
+ARGS = {}
 def child(run):
+    run = pathlib.Path(run)
     def interrupted(signum, frame): raise KeyboardInterrupt(f'canary interrupted by signal {signum}')
-    signal.signal(signal.SIGTERM, interrupted); signal.signal(signal.SIGINT, interrupted)
+    for s_ in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP): signal.signal(s_, interrupted)
     before_q, before_s = qemus(), user_services()
     save(run, 'protected-before.json', {'qemus': before_q, 'services': before_s})
     private = run / 'private'; private.mkdir(mode=0o700); (private / 'tmp').mkdir(mode=0o700)
-    result = dict(startedAt=now(), scope='BARE direct control: hardware quote + bound config + attested TLS key + running supervisor keys. '
-                  'No MCP, no Platform API, no apps, no registration: NOT service readiness.',
-                  noRegistryKey=True, notSelling=True, noFleetSecret=True, noRelayOrTunnel=True, netRestricted=True,
-                  productionActivated=False)
-    M = expected_measurement()
-    launcher, owned, stop_poll = None, {}, threading.Event()
+    result = dict(startedAt=now(), scope='BARE direct control: hardware quote + bound config + attested TLS key + running supervisor keys + exact runtime. '
+                  'No MCP, no Platform API, no apps, no registration (registry expected pending): NOT service readiness.', productionActivated=False)
+    launcher, owned, stop_poll, pairing = None, {}, threading.Event(), secrets.token_hex(32)
     collateral_before = tree_fingerprint(COLLATERAL_SRC)
-    pairing = secrets.token_hex(32)
+    host, owner_cfg = None, None
     try:
+        M = expected_measurement()
         ctl, mgr, data = pick_ports(3)
         result['ports'] = {'controlHostLoopback': ctl, 'guestdStandInManager': mgr, 'guestdStandInData': data, 'productionGuestdAvoided': list(PRODUCTION_GUESTD)}
-        for p in (ctl, mgr, data):
-            if listening(p): raise RuntimeError(f'port {p} has a listener')
         (private / 'pairing.key').write_text(pairing + '\n'); os.chmod(private / 'pairing.key', 0o600)
         env = dict(PATH=f'{STUB_BIN}:/usr/bin:/usr/sbin:/bin', HOME=os.environ['HOME'], LANG='C.UTF-8', TMPDIR=str(private / 'tmp'))
         oc = subprocess.run([str(NODE), str(D / 'canary/owner-config.mjs'), '--manager-port', str(mgr), '--data-port', str(data),
                              '--out', str(private / 'owner-config.json')], env=env, capture_output=True, text=True, timeout=30, check=True)
         result['ownerConfig'] = json.loads(oc.stdout)
+        owner_cfg = json.loads((private / 'owner-config.json').read_text())
         shutil.copyfile(private / 'owner-config.json', run / 'owner-config.json')          # public: the bound config
         host = dict(mode='snp', name='direct-control-canary', cpus=CPUS, memMiB=MEM_MIB, dist=str(IMAGE), ovmf=str(OVMF),
                     qemu=str(D / 'canary/qemu-restrict.sh'), sevDevice='/dev/sev', control='direct', direct=str(private / 'owner-config.json'),
@@ -201,27 +295,33 @@ def child(run):
                                    managerUrl=f'http://10.0.2.2:{mgr}', dataAddr=f'10.0.2.2:{data}'),
                     hostfwd=[dict(host=ctl, guest=CONTROL_PORT)], measureGflops=False)
         (private / 'host-config.json').write_text(json.dumps(host, indent=1)); os.chmod(private / 'host-config.json', 0o600)
-        save(run, 'host-config.public.json', {**host, 'isolation': {**host['isolation'], 'pairingKeyFile': '<private, 0600, deleted at the end>'}})
-        shutil.copytree(COLLATERAL_SRC, private / 'collateral')                             # verifier writes only to this COPY
+        save(run, 'host-config.public.json', {**host, 'isolation': {**host['isolation'], 'pairingKeyFile': '<private, 0600, removed at the end>'}})
+        shutil.copytree(COLLATERAL_SRC, private / 'collateral')                             # the verifier writes only to this COPY
         (private / 'runtime.json').write_text(json.dumps(expected_runtime()))
-        lenv = dict(env, CANARY_REAL_QEMU=str(QEMU), CANARY_REAL_QEMU_SHA256=QEMU_SHA, CANARY_QEMU_ARGV_LOG=str(private / 'qemu-argv.log'))
+        for p in (ctl, mgr, data):
+            if listening(p): raise RuntimeError(f'port {p} has a listener')
+        result['pinsAtLaunch'] = verify_pins()                                              # the launch boundary
+        if result['pinsAtLaunch']: raise RuntimeError(f"frozen pins changed: {result['pinsAtLaunch']}")
+        lenv = dict(env, CANARY_REAL_QEMU=str(QEMU), CANARY_REAL_QEMU_SHA256=json.loads(FROZEN.read_text())['pins']['qemu'],
+                    CANARY_QEMU_ARGV_LOG=str(private / 'qemu-argv.log'))
         with (private / 'serial.log').open('x') as log:
             launcher = subprocess.Popen([str(NODE), str(TREE / 'metal/enclave-metal.mjs'), '--config', str(private / 'host-config.json')],
                                         env=lenv, cwd=str(private), stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        # bind ownership at once: our child (not reaped, so its pid cannot be reused), its starttime, and its own group
         lid = (launcher.pid, None)
-        for _ in range(50):
+        for _ in range(100):
             lid = (launcher.pid, starttime(launcher.pid))
-            if lid[1] is not None: break
-            time.sleep(0.05)
-        owned['launcher'] = list(lid)
-        save(run, 'launcher.json', dict(pid=lid[0], starttime=lid[1], pgid=launcher.pid, startedAt=now()))
-        def poll():                                   # every QEMU the launcher spawns (it relaunches an exited guest)
+            if lid[1] is not None and pgid_of(launcher.pid) == launcher.pid: break
+            time.sleep(0.02)
+        owned.update(launcher=list(lid), pgid=launcher.pid, children={})
+        save(run, 'launcher.json', dict(pid=lid[0], starttime=lid[1], pgid=pgid_of(launcher.pid), startedAt=now()))
+        def poll():                                   # every process the launcher spawns (QEMU via the wrapper; a relaunch too)
             while not stop_poll.is_set():
                 for p in pathlib.Path('/proc').iterdir():
-                    if p.name.isdigit() and ppid(p.name) == launcher.pid and (comm(p.name) or '').startswith('qemu'):
+                    if p.name.isdigit() and ppid(p.name) == launcher.pid:
                         s = starttime(p.name)
-                        if s is not None: owned.setdefault('qemus', {}).setdefault(p.name, s)
-                time.sleep(0.5)
+                        if s is not None and p.name not in owned['children']: owned['children'][p.name] = (int(p.name), s)
+                time.sleep(0.2)
         threading.Thread(target=poll, daemon=True).start()
         with (run / 'verify.log').open('x') as vlog:
             v = subprocess.run([str(NODE), str(D / 'canary/verify-canary.mjs'), '--url', f'https://127.0.0.1:{ctl}', '--config', str(private / 'owner-config.json'),
@@ -230,77 +330,116 @@ def child(run):
                                 '--out', str(run / 'verify-result.json')], env=env, stdout=vlog, stderr=subprocess.STDOUT, timeout=VERIFY_DEADLINE_S + 20)
         result['verifierExit'] = v.returncode
         if (run / 'verify-result.json').exists():
-            vr = json.loads((run / 'verify-result.json').read_text()); result['verdict'] = vr.get('verdict'); result['statementChecks'] = vr.get('statementChecks')
+            vr = json.loads((run / 'verify-result.json').read_text())
+            result.update(acceptance=vr.get('acceptance'), verdict=vr.get('verdict'), statementChecks=vr.get('statementChecks'))
         result['launcherAliveAtVerifyEnd'] = alive(tuple(owned['launcher']))
-        result['qemuRelaunches'] = max(0, len(owned.get('qemus', {})) - 1)
-        result['ok'] = v.returncode == 0 and (result.get('verdict') or {}).get('hardwarePass') is True and result['qemuRelaunches'] == 0
     except BaseException as e:                          # KeyboardInterrupt (timeout/TERM) included: cleanup below always runs
-        result.update(ok=False, error=f'{type(e).__name__}: {e}'[:500])
+        result['error'] = f'{type(e).__name__}: {e}'[:500]
     finally:
         stop_poll.set()
-        cleanup = cleanup_group(launcher, owned)
-        result['cleanup'] = cleanup
+        result['cleanup'] = cleanup_group(launcher, owned)
         after_q, after_s = qemus(), user_services()
         save(run, 'protected-after.json', {'qemus': after_q, 'services': after_s})
-        result['protectedQemuIdentitiesUnchanged'] = all(after_q.get(str(p)) == before_q.get(str(p)) for p in PROTECTED) and \
-            {k: v for k, v in after_q.items() if k not in map(str, (owned.get('qemus') or {}))} == before_q
+        mine = {str(i[0]) for i in (owned.get('children') or {}).values()}
+        result['protectedQemuIdentitiesUnchanged'] = all(after_q.get(str(p)) == before_q.get(str(p)) == st for p, st in PROTECTED.items()) and \
+            {k: v for k, v in after_q.items() if k not in mine} == before_q
         result['userServicesUnchanged'] = after_s == before_s
-        # sanitized copies, then the private directory (fw_cfg, pairing key, host config, collateral copy) is removed
-        try:
-            fw = next((private / 'tmp').glob('metal-fwcfg-*.json'), None)
-            if fw:
-                c = json.loads(fw.read_text())
-                result['fwCfgSummary'] = {'keys': sorted(c), 'registryKeyEmpty': c.get('registryKey') == '', 'fleetSecretEmpty': c.get('fleetSecret') == '',
-                    'relayUrlEmpty': c.get('relayUrl') == '', 'tunnelTokenEmpty': c.get('tunnelToken') == '', 'noAcme': not c.get('acmeEabKid'),
-                    'certsApiEmpty': not c.get('certsApi'), 'isolation': {k: (v if k != 'pairingKey' else '<64 hex, redacted>') for k, v in (c.get('isolation') or {}).items()},
-                    'directIsOwnerConfig': c.get('direct') == json.loads((private / 'owner-config.json').read_text()), 'volumes': c.get('volumes'), 'fileMode': oct(fw.stat().st_mode & 0o777)}
+        if not result['userServicesUnchanged']: result['userServicesDrift'] = {'before': before_s, 'after': after_s}
+        try:                                            # evidence from the launcher's own output, then sanitized copies
+            fws = sorted((private / 'tmp').glob('metal-fwcfg-*.json'))
+            fw = json.loads(fws[0].read_text()) if len(fws) == 1 else None
+            result['fwCfgModes'] = [oct(fws[0].stat().st_mode & 0o777), oct((private / 'tmp').stat().st_mode & 0o777)] if len(fws) == 1 else None
+            if host is not None and result.get('ports'):
+                result['noKeyEvidence'] = no_key_evidence(host, fw, owner_cfg, result['ports'])
+            if fw: result['fwCfgKeys'] = sorted(fw)
             if (private / 'serial.log').exists():
                 (run / 'serial.sanitized.log').write_text(sanitize((private / 'serial.log').read_text(errors='replace'), [pairing]))
-            if (private / 'qemu-argv.log').exists():
-                recs = [r.split('\0') for r in (private / 'qemu-argv.log').read_text().split('\0\n') if r]   # one record per QEMU start
-                (run / 'qemu-argv.json').write_text(json.dumps([[a.replace(str(private), '<private>') for a in r] for r in recs], indent=1))
-                if result.get('ownerConfig'):
-                    result['qemuArgvChecks'] = argv_checks(recs, result['ownerConfig']['hostData'], result['ports']['controlHostLoopback'])
+            recs = [r.split('\0') for r in (private / 'qemu-argv.log').read_text().split('\0\n') if r] if (private / 'qemu-argv.log').exists() else []
+            result['qemuStarts'] = len(recs)
+            (run / 'qemu-argv.json').write_text(json.dumps([[a.replace(str(private), '<private>') for a in r] for r in recs], indent=1))
+            if recs and result.get('ownerConfig'):
+                result['qemuArgvChecks'] = argv_checks(recs, result['ownerConfig']['hostData'], result['ports']['controlHostLoopback'])
             result['collateralSourceUnchanged'] = tree_fingerprint(COLLATERAL_SRC) == collateral_before
         except Exception as e:
-            result['sanitizeError'] = str(e)[:300]
+            result['evidenceError'] = str(e)[:300]
         shutil.rmtree(private, ignore_errors=True)
         result['privateRemoved'] = not private.exists()
         result['finishedAt'] = now()
-        argv_ok = bool(result.get('qemuArgvChecks')) and all(all(c.values()) for c in result['qemuArgvChecks'])
-        result['ok'] = bool(result.get('ok')) and argv_ok and cleanup['allOwnedAbsent'] and result['protectedQemuIdentitiesUnchanged'] and result['privateRemoved'] \
-            and result.get('collateralSourceUnchanged') is True
+        result['ok'], result['failed'] = accept(result)
         save(run, 'result.json', result)
-    print(json.dumps({k: v for k, v in result.items() if k not in ('statementChecks',)}, indent=2), flush=True)
+    print(json.dumps({'ok': result['ok'], 'failed': result['failed'], 'acceptance': (result.get('acceptance') or {}).get('failed'),
+                      'registry': ((result.get('acceptance') or {}).get('diagnostic') or {}).get('registry'), 'error': result.get('error')}, indent=2), flush=True)
     return 0 if result['ok'] else 1
 
-def cleanup_group(launcher, owned):
-    """SIGTERM the launcher's process group (the launcher then stops its QEMU), bounded waits, SIGKILL the group, then PROVE
-    that every owned identity (launcher + every QEMU it spawned) is gone. Only this group; never by name."""
-    out = {'steps': []}
-    if launcher is None: out['allOwnedAbsent'] = True; return out
-    owned.setdefault('launcher', [launcher.pid, starttime(launcher.pid)])
-    def group(sig):
-        try: os.killpg(launcher.pid, sig); out['steps'].append(f'killpg {sig.name}')
-        except ProcessLookupError: out['steps'].append(f'killpg {sig.name}: group already gone')
-    group(signal.SIGTERM)
-    try: launcher.wait(timeout=8)
-    except subprocess.TimeoutExpired: out['steps'].append('launcher alive 8 s after SIGTERM')
-    ids = [tuple(owned['launcher'])] + [(int(p), s) for p, s in (owned.get('qemus') or {}).items()]
-    deadline = time.monotonic() + 4
-    while time.monotonic() < deadline and any(alive(i) for i in ids): time.sleep(0.25)
-    if any(alive(i) for i in ids) or launcher.poll() is None:
-        group(signal.SIGKILL)
-        try: launcher.wait(timeout=3)
-        except subprocess.TimeoutExpired: out['steps'].append('launcher alive 3 s after SIGKILL')
-        deadline = time.monotonic() + 6
-        while time.monotonic() < deadline and any(alive(i) for i in ids): time.sleep(0.25)
-    out['identities'] = [{'pid': i[0], 'starttime': i[1], 'alive': alive(i)} for i in ids]
-    out['allOwnedAbsent'] = not any(alive(i) for i in ids)
+# ---- parent: one transient scope, stopped on EVERY exit path -------------------------------------------------------------
+def scope_cgroup(pid, unit, timeout=5.0):
+    """the cgroup path of `pid` once systemd-run has moved it into <unit>.scope (None if never seen)."""
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        try:
+            cg = pathlib.Path(f'/proc/{pid}/cgroup').read_text().strip().split('::', 1)[-1]
+            if cg.endswith(f'/{unit}.scope'): return cg
+        except OSError: return None
+        time.sleep(0.05)
+    return None
+def survivors_naming(path):
+    out = []
+    for p in pathlib.Path('/proc').iterdir():
+        if not p.name.isdigit() or p.name == str(os.getpid()): continue
+        try: cl = (p / 'cmdline').read_bytes().replace(b'\0', b' ').decode('utf8', 'replace')
+        except OSError: continue
+        if str(path) in cl: out.append(p.name)
     return out
+def supervise(cmd, unit, run, env, log_name='execution.log'):
+    """Run `cmd` (systemd-run --user --scope --unit=<unit> ...). On every exit path - normal end, exception, SIGTERM/SIGINT/
+    SIGHUP to this parent - stop ONLY <unit>.scope, prove its cgroup empty and that no process names this run, and only then
+    scrub run/private (the ephemeral fw_cfg and test key). Logs and results are kept. -> terminal record (also saved)."""
+    run = pathlib.Path(run)
+    rec = {'unit': f'{unit}.scope', 'startedAt': now(), 'interrupted': None, 'exitCode': None}
+    def handler(signum, frame): raise KeyboardInterrupt(f'parent signal {signum}')
+    old = {s_: signal.signal(s_, handler) for s_ in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+    p, cg = None, None
+    try:
+        with (run / log_name).open('x') as out:
+            p = subprocess.Popen(cmd, stdout=out, stderr=subprocess.STDOUT, env=env)
+            cg = scope_cgroup(p.pid, unit)
+            rec['cgroup'] = cg
+            rec['exitCode'] = p.wait()
+    except BaseException as e:
+        rec['interrupted'] = f'{type(e).__name__}: {e}'[:300]
+    finally:
+        for s_ in old: signal.signal(s_, signal.SIG_IGN)          # cleanup itself is not interruptible
+        try:
+            st = subprocess.run(['systemctl', '--user', 'stop', f'{unit}.scope'], capture_output=True, text=True, timeout=30, env=env)
+            rec['scopeStop'] = st.returncode
+        except Exception as e:
+            rec['scopeStop'] = f'error: {e}'[:200]
+        if p is not None and p.poll() is None:
+            try: p.wait(timeout=10)
+            except subprocess.TimeoutExpired: rec['systemdRunStillAlive'] = True
+        state = subprocess.run(['systemctl', '--user', 'show', f'{unit}.scope', '-p', 'ActiveState', '--value'], capture_output=True, text=True, timeout=10, env=env).stdout.strip()
+        rec['scopeActiveState'] = state or 'unknown'
+        procs = pathlib.Path(f'/sys/fs/cgroup{cg}/cgroup.procs') if cg else None
+        rec['cgroupEmpty'] = (not procs.exists() or not procs.read_text().strip()) if procs else None
+        rec['survivors'] = survivors_naming(run)
+        absent = rec['scopeActiveState'] in ('inactive', 'failed', 'unknown', '') and rec['cgroupEmpty'] is not False and not rec['survivors'] \
+            and (p is None or p.poll() is not None)
+        rec['ownedAbsenceProven'] = absent
+        priv = run / 'private'
+        rec['privatePresentAfterChild'] = priv.exists()
+        if priv.exists() and absent:
+            shutil.rmtree(priv, ignore_errors=True)
+        rec['privateAbsent'] = not priv.exists()
+        rec['protectedNow'] = {str(pid): starttime(pid) for pid in PROTECTED}
+        rec['finishedAt'] = now()
+        code = rec['exitCode'] if isinstance(rec['exitCode'], int) else 1
+        if rec['interrupted'] or not absent or not rec['privateAbsent'] or rec.get('scopeStop') not in (0, 5):
+            code = code or 1
+        rec['code'] = code
+        save(run, 'terminal.json', rec)
+        for s_, h in old.items(): signal.signal(s_, h)
+    return rec
 
-# ---------------------------------------------------------------------------------------------------------------------------
-ARGS = {}
 def main():
     a = sys.argv[1:]
     for k in ('kds', 'registry'):
@@ -309,7 +448,7 @@ def main():
             if v not in ('on', 'off'): raise SystemExit(f'--{k} on|off')
             ARGS[k] = v
     if a[:1] == ['--child']:
-        return child(pathlib.Path(a[1]))
+        return child(a[1])
     if a[:1] == ['--preflight']:
         g = gates()
         for name, ok, detail in g: print(f"{'PASS' if ok else 'FAIL'}  {name}" + (f'  [{detail}]' if detail else ''))
@@ -325,47 +464,27 @@ def main():
     g = gates()
     if not all(x[1] for x in g):
         for name, ok, detail in g: print(f"{'PASS' if ok else 'FAIL'}  {name}  [{detail}]")
-        print('NOT STARTED: preflight failed', flush=True); return 98
+        print('NOT STARTED: preflight failed (frozen pins included)', flush=True); return 98
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     (D / 'runs').mkdir(mode=0o700, exist_ok=True)
     run = D / 'runs' / stamp; run.mkdir(mode=0o700)                       # never reused
     (run / 'preflight.txt').write_text('\n'.join(f"{'PASS' if ok else 'FAIL'}  {n}  [{d}]" for n, ok, d in g) + '\n')
-    pinned = [IMAGE / f for f in IMAGE_SHA] + [OVMF, QEMU, NODE, RECEIPT, INPUTS, D / 'tree.sha256'] + \
-             [D / 'canary' / f for f in ('run-canary.py', 'verify-canary.mjs', 'owner-config.mjs', 'qemu-restrict.sh')] + \
-             [TREE / f for f in ('metal/enclave-metal.mjs', 'metal/measured-control-verify.mjs', 'metal/guest/measured-control.mjs', 'test/helpers/memory-guard.mjs')]
-    save(run, 'attempt.json', dict(at=now(), measurement=expected_measurement(), capMiB=CAP_MIB, floorMiB=FLOOR_MIB, guestMemMiB=MEM_MIB, cpus=CPUS,
-         childTimeoutS=CHILD_TIMEOUT_S, killAfterS=KILL_AFTER_S, kds=ARGS.get('kds', 'on'), registry=ARGS.get('registry', 'on'),
-         exclusiveBothQueueLanes=True, hashes={str(p): sha256_file(p) for p in pinned}))
-    unit = f'enclave-direct-control-canary-{stamp.lower()}'
+    save(run, 'attempt.json', dict(at=now(), measurement=expected_measurement(), frozenPinsSha256=sha256_file(FROZEN), capMiB=CAP_MIB, floorMiB=FLOOR_MIB,
+         guestMemMiB=MEM_MIB, cpus=CPUS, childTimeoutS=CHILD_TIMEOUT_S, killAfterS=KILL_AFTER_S, kds=ARGS.get('kds', 'on'), registry=ARGS.get('registry', 'on'),
+         exclusiveBothQueueLanes=True))
+    unit = f'enclave-direct-control-canary-{stamp.lower()}-{secrets.token_hex(4)}'
     env = dict(PATH=f'{STUB_BIN}:/usr/bin:/usr/sbin:/bin', HOME=os.environ['HOME'], LANG='C.UTF-8',
                XDG_RUNTIME_DIR=os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}'),
                DBUS_SESSION_BUS_ADDRESS=os.environ.get('DBUS_SESSION_BUS_ADDRESS', f'unix:path=/run/user/{os.getuid()}/bus'))
     cmd = ['systemd-run', '--user', '--scope', '--quiet', f'--unit={unit}', '-p', f'MemoryMax={CAP_MIB}M', '-p', 'MemorySwapMax=0',
            str(NODE), str(TREE / 'test/helpers/memory-guard.mjs'), '--max-rss-mib', str(CAP_MIB), '--floor-available-mib', str(FLOOR_MIB),
            '--log', str(run / 'memory.log'), '--', 'timeout', '--signal=TERM', f'--kill-after={KILL_AFTER_S}s', f'{CHILD_TIMEOUT_S}s',
-           sys.executable, str(pathlib.Path(__file__).resolve()), '--child', str(run)] + \
-          sum(([f'--{k}', v] for k, v in ARGS.items()), [])
+           sys.executable, str(pathlib.Path(__file__).resolve()), '--child', str(run)] + sum(([f'--{k}', v] for k, v in ARGS.items()), [])
     (run / 'command.json').write_text(json.dumps(cmd, indent=1))
-    with (run / 'execution.log').open('x') as out:
-        code = subprocess.Popen(cmd, stdout=out, stderr=subprocess.STDOUT, env=env).wait()
-    # the scope's cgroup holds every process of this run whatever its session: stop it (a no-op when empty), then prove
-    # that no process naming this run's directory survives
-    stop = subprocess.run(['systemctl', '--user', 'stop', f'{unit}.scope'], capture_output=True, text=True, timeout=30, env=env)
-    survivors = []
-    for p in pathlib.Path('/proc').iterdir():
-        if not p.name.isdigit() or p.name == str(os.getpid()): continue
-        try: cl = (p / 'cmdline').read_bytes().replace(b'\0', b' ').decode('utf8', 'replace')
-        except OSError: continue
-        if str(run) in cl: survivors.append(p.name)
-    if survivors and code == 0: code = 1
-    # if memory-guard SIGKILLed the child before its finally ran, the private directory (fw_cfg, test pairing key) is removed here
-    leftover = (run / 'private').exists()
-    if leftover: shutil.rmtree(run / 'private', ignore_errors=True)
-    if leftover and code == 0: code = 1
-    save(run, 'terminal.json', dict(at=now(), exitCode=code, scopeStop=stop.returncode, survivors=survivors,
-                                    privateLeftoverRemovedByOuter=leftover, privateAbsent=not (run / 'private').exists(),
-                                    protectedNow={str(p): starttime(p) for p in PROTECTED}))
-    print('CANARY TERMINAL', code, str(run), flush=True)
+    rec = supervise(cmd, unit, run, env)
+    res = json.loads((run / 'result.json').read_text()) if (run / 'result.json').exists() else None
+    code = rec['code'] if res and res.get('ok') else (rec['code'] or 1)
+    print('CANARY TERMINAL', code, str(run), 'result.ok=' + str(bool(res and res.get('ok'))), flush=True)
     return code
 
 if __name__ == '__main__': sys.exit(main())

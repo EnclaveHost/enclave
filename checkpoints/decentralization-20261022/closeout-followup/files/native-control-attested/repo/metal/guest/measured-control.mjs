@@ -745,6 +745,7 @@ export const hostDataOfReport = (report) => (Buffer.isBuffer(report) && report.l
 // ---- the native control certificate --------------------------------------------------------------------------------------
 export const NATIVE_CERT_PATH = '/.well-known/enclave-native-certificate';
 export const MAX_NATIVE_CHAIN_BYTES = 16384;
+const NATIVE_BODY_MS = 10000;
 const PEM_CERT = /-----BEGIN CERTIFICATE-----\r?\n[A-Za-z0-9+/=\r\n]+?-----END CERTIFICATE-----\r?\n?/g;
 /** One TLS handshake over an in-memory pair: this guest's key and `leafPem` serve; Node/OpenSSL's verifier checks it for `name`. */
 function handshake({ keyPem, leafPem, caPem, name, timeoutMs = 5000 }) {
@@ -814,19 +815,23 @@ export function createControlFront({ statementText, keyPem, certPem, reporter, u
   const hostOfReq = (req) => String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '').replace(/\.+$/, '');
   const routeOf = (req, pathname) => hostRoutes.find((r) => r.host === hostOfReq(req)) || prefixRoutes.find((r) => pathname.startsWith(r.prefix)) || routes.find((r) => pathname === r.path) || null;
   // the native leaf over THIS guest's control key (checkNativeCertificate), held in memory; a native name is served only with it
-  let nativeCert = null, installs = Promise.resolve();
+  // ONE install at a time, no queue: a second one is refused before its body is read (the PUT path), so an unauthenticated
+  // installer holds at most one MAX_NATIVE_CHAIN_BYTES body and one verification. The installed leaf changes only when a
+  // new one passed every check AND expires strictly later (a replayed or reissued shorter leaf never rolls expiry back);
+  // a refused, interrupted or failed install leaves the current one serving.
+  let nativeCert = null, installing = false, bodyHeld = false;
   const nativeCtx = () => (nativeCert && Date.now() >= nativeCert.validFrom && Date.now() < nativeCert.validTo ? nativeCert.ctx : null);
-  const installNativeCertificate = (chainPem) => {
-    const job = installs.then(async () => {
+  const installNativeCertificate = async (chainPem) => {
+    if (installing) throw new ControlError('another native certificate install is in progress');
+    installing = true;
+    try {
       const c = await checkNativeCertificate(chainPem, { keyPem, caSha256: native.caSha256, names: native.names });
-      // never back to an older leaf (a replayed one that is still valid would only shorten this boot's service)
-      if (nativeCert && Date.now() < nativeCert.validTo && c.validFrom < nativeCert.validFrom) bad('an older native certificate than the installed one');
-      nativeCert = { ...c, ctx: tls.createSecureContext({ key: keyPem, cert: c.leafPem, minVersion: 'TLSv1.2' }) };
+      if (nativeCert && Date.now() < nativeCert.validTo && c.validTo <= nativeCert.validTo) bad('the installed native certificate expires no earlier than this one');
+      const ctx = tls.createSecureContext({ key: keyPem, cert: c.leafPem, minVersion: 'TLSv1.2' });
       if (native.certificateFile) { const tmp = native.certificateFile + '.tmp'; fs.writeFileSync(tmp, c.leafPem + c.caPem, { mode: 0o644 }); fs.renameSync(tmp, native.certificateFile); }
+      nativeCert = { ...c, ctx };
       return { names: native.names, validFrom: new Date(c.validFrom).toISOString(), validTo: new Date(c.validTo).toISOString() };
-    });
-    installs = job.catch(() => {});
-    return job;
+    } finally { installing = false; }
   };
   // a WebPKI certificate for a routed hostname, provisioned inside the guest (certificate role) at sni[name]; read per handshake
   const sniCache = new Map();
@@ -871,11 +876,24 @@ export function createControlFront({ statementText, keyPem, certPem, reporter, u
         res.writeHead(200, { 'content-type': 'application/x-pem-file', 'cache-control': 'no-store' }); return res.end(nativeCert.leafPem + nativeCert.caPem);
       }
       if (req.method !== 'PUT') return json(res, 405, { error: 'method' });
-      const chunks = []; let size = 0;
-      req.on('data', (c) => { size += c.length; if (size > MAX_NATIVE_CHAIN_BYTES) { json(res, 413, { error: 'too_large' }); req.destroy(); } else chunks.push(c); });
-      req.on('end', () => { if (size > MAX_NATIVE_CHAIN_BYTES) return;
+      // refused BEFORE any body byte is kept: a declared length within the bound, and no install already holding the slot
+      const len = Number(req.headers['content-length']);
+      if (req.headers['transfer-encoding'] || !Number.isSafeInteger(len) || len < 1) return json(res, 411, { error: 'length_required' });
+      if (len > MAX_NATIVE_CHAIN_BYTES) return json(res, 413, { error: 'too_large' });
+      if (installing || bodyHeld) return json(res, 429, { error: 'busy' });
+      bodyHeld = true;
+      const chunks = []; let size = 0, released = false;
+      const release = () => { if (!released) { released = true; bodyHeld = false; clearTimeout(timer); } };
+      const timer = setTimeout(() => { release(); json(res, 408, { error: 'body_timeout' }); req.destroy(); }, NATIVE_BODY_MS);
+      req.on('data', (c) => { size += c.length; if (size > len) { release(); json(res, 413, { error: 'too_large' }); req.destroy(); } else chunks.push(c); });
+      req.on('close', release);
+      req.on('error', release);
+      req.on('end', () => {
+        if (released) return;
+        release();
         installNativeCertificate(Buffer.concat(chunks).toString('utf8')).then((r) => json(res, 200, r),
-          (e) => json(res, 400, { error: 'native_certificate_refused', message: String(e?.message || e).slice(0, 300) })); });
+          (e) => json(res, /in progress/.test(String(e?.message)) ? 429 : 400, { error: 'native_certificate_refused', message: String(e?.message || e).slice(0, 300) }));
+      });
       return;
     }
     const headers = {}; for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k.toLowerCase())) headers[k] = v;
@@ -928,7 +946,7 @@ export function createControlFront({ statementText, keyPem, certPem, reporter, u
     });
     up.on('error', () => socket.destroy()); socket.on('error', () => up.destroy());
   });
-  if (native) server.installNativeCertificate = installNativeCertificate;
+  if (native) { server.installNativeCertificate = installNativeCertificate; server.nativeState = () => ({ installing, bodyHeld, validTo: nativeCert ? nativeCert.validTo : null }); }
   return server;
 }
 

@@ -56,8 +56,43 @@ def check(name, ok, detail=""):
     return bool(ok)
 
 
+CHUNK = 1 << 20
+
+
+def data_iter(tag, n):
+    """deterministic fixture bytes in 1 MiB chunks (each chunk its own seed), so large bodies are never held whole"""
+    for i in range(0, n, CHUNK):
+        yield random.Random(f"{run_id}/{tag}/{i // CHUNK}").randbytes(min(CHUNK, n - i))
+
+
 def data(tag, n):
-    return random.Random(f"{run_id}/{tag}").randbytes(n)
+    return b"".join(data_iter(tag, n))
+
+
+class Body:
+    """a streamed request body with its precomputed sha256 and length (SigV4 x-amz-content-sha256, Content-Length)"""
+    def __init__(self, tag, n):
+        self.tag, self.n = tag, n
+        h = hashlib.sha256()
+        for c in data_iter(tag, n):
+            h.update(c)
+        self.sha = h.hexdigest()
+
+    def __iter__(self):
+        return data_iter(self.tag, self.n)
+
+
+def data_slice(tag, n, a, b):
+    """bytes [a, b) of the fixture body, from the chunk stream"""
+    out, pos = [], 0
+    for c in data_iter(tag, n):
+        lo, hi = max(a - pos, 0), min(b - pos, len(c))
+        if lo < hi:
+            out.append(c[lo:hi])
+        pos += len(c)
+        if pos >= b:
+            break
+    return b"".join(out)
 
 
 def free_port():
@@ -334,7 +369,7 @@ def s3(inst, method, bucket=None, key="", query=None, body=b"", headers=None, ra
     if sign:
         now = datetime.datetime.now(datetime.timezone.utc)
         amz, day = now.strftime("%Y%m%dT%H%M%SZ"), now.strftime("%Y%m%d")
-        ph = hashlib.sha256(body).hexdigest()
+        ph = body.sha if isinstance(body, Body) else hashlib.sha256(body).hexdigest()
         headers.update({"host": host, "x-amz-date": amz, "x-amz-content-sha256": ph})
         signed = sorted(k.lower() for k in headers)
         hmap = {k.lower(): str(v).strip() for k, v in headers.items()}
@@ -347,7 +382,11 @@ def s3(inst, method, bucket=None, key="", query=None, body=b"", headers=None, ra
         sig = hmac.new(k, sts.encode(), hashlib.sha256).hexdigest()
         headers["Authorization"] = f"AWS4-HMAC-SHA256 Credential={AK}/{scope}, SignedHeaders={';'.join(signed)}, Signature={sig}"
     c = http.client.HTTPConnection(*inst.ep, timeout=timeout)
-    c.request(method, path + ("?" + qs if qs else ""), body=body, headers=headers)
+    if isinstance(body, Body):
+        headers["Content-Length"] = str(body.n)          # explicit length: a plain (non-chunked) PUT, as before
+        c.request(method, path + ("?" + qs if qs else ""), body=iter(body), headers=headers)
+    else:
+        c.request(method, path + ("?" + qs if qs else ""), body=body, headers=headers)
     r = c.getresponse()
     if sink is not None:            # stream the body into a hash (as e2e.py), never held in driver memory
         out, n = b"", 0
@@ -369,7 +408,7 @@ EXP = {}
 
 
 def put(inst, b, k, tag, n, **kw):
-    body = data(tag, n)
+    body = Body(tag, n)
     t = time.time()
     st, h, out = s3(inst, "PUT", b, k, body=body, **kw)
     R["measure"].append({"op": f"{inst.name} PUT {b}/{k} {n}", "wallS": round(time.time() - t, 2), "status": st})
@@ -386,7 +425,7 @@ def multipart(inst, b, k, parts, complete=True):
         return st, None, []
     uid, done = m.group(1).decode(), []
     for i, (tag, n) in enumerate(parts, 1):
-        st, h, _ = s3(inst, "PUT", b, k, query={"partNumber": str(i), "uploadId": uid}, body=data(tag, n))
+        st, h, _ = s3(inst, "PUT", b, k, query={"partNumber": str(i), "uploadId": uid}, body=Body(tag, n))
         if st != 200:
             return st, uid, done
         done.append((i, h.get("etag", "")))
@@ -417,16 +456,27 @@ class Sink:
 DIGESTS = {}
 
 
+def expected_parts(tag, n):
+    return [(t, int(x)) for t, x in (p.rsplit(":", 1) for p in tag[3:].split("+"))] if tag.startswith("mp:") else [(tag, n)]
+
+
 def expected_digest(tag, n):
     if (tag, n) not in DIGESTS:
-        DIGESTS[(tag, n)] = sha(expected_bytes(tag, n))
+        h = hashlib.sha256()
+        for t, x in expected_parts(tag, n):
+            for c in data_iter(t, x):
+                h.update(c)
+        DIGESTS[(tag, n)] = h.hexdigest()
     return DIGESTS[(tag, n)]
 
 
-def expected_bytes(tag, n):
-    if tag.startswith("mp:"):
-        return b"".join(data(t, int(x)) for t, x in (p.rsplit(":", 1) for p in tag[3:].split("+")))
-    return data(tag, n)
+def expected_slice(tag, n, a, b):
+    out, pos = [], 0
+    for t, x in expected_parts(tag, n):
+        if pos + x > a and pos < b:
+            out.append(data_slice(t, x, max(a - pos, 0), min(b - pos, x)))
+        pos += x
+    return b"".join(out)
 
 
 def verify_all(inst, label, ranges=True):
@@ -443,9 +493,9 @@ def verify_all(inst, label, ranges=True):
         for (b, k), (tag, n) in sorted(EXP.items()):
             if n < 8 * MIB:
                 continue
-            full = expected_bytes(tag, n)
-            for rng, want in ((f"bytes=0-99", full[:100]), (f"bytes={n - 5000}-{n - 4001}", full[n - 5000:n - 4000]),
-                              ("bytes=-1000", full[-1000:]), (f"bytes={40 * MIB - 10}-{40 * MIB + 9}", full[40 * MIB - 10:40 * MIB + 10] if n > 40 * MIB + 10 else None)):
+            sl = lambda a, z: expected_slice(tag, n, a, z)
+            for rng, want in ((f"bytes=0-99", sl(0, 100)), (f"bytes={n - 5000}-{n - 4001}", sl(n - 5000, n - 4000)),
+                              ("bytes=-1000", sl(n - 1000, n)), (f"bytes={40 * MIB - 10}-{40 * MIB + 9}", sl(40 * MIB - 10, 40 * MIB + 10) if n > 40 * MIB + 10 else None)):
                 if want is None:
                     continue
                 st, _, out = s3(inst, "GET", b, k, headers={"range": rng})
@@ -568,7 +618,7 @@ def main():
         st, _, out = s3(cand, "GET", "jot", query={"uploads": ""})
         ids = re.findall(rb"<UploadId>([^<]+)</UploadId>", out)
         check("C: the open 0.1.8 multipart upload is listed by the final wasm", st == 200 and open_uid.encode() in ids, f"{st} {out[:300]!r}")
-        st, h2, _ = s3(cand, "PUT", "jot", "open", query={"partNumber": "2", "uploadId": open_uid}, body=data("op2", MIB))
+        st, h2, _ = s3(cand, "PUT", "jot", "open", query={"partNumber": "2", "uploadId": open_uid}, body=Body("op2", MIB))
         st2, _, out2 = complete_mp(cand, "jot", "open", open_uid, open_parts + [(2, h2.get("etag", ""))], [("op1", 5 * MIB), ("op2", MIB)])
         check("C: the final wasm completes the 0.1.8 upload (0.1.8 part 1 + its own part 2) and it reads back", st == 200 and st2 == 200 and ("jot", "open") in EXP,
               f"part {st} complete {st2} {out2[:200]!r}")
