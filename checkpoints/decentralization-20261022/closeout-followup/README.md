@@ -12,3 +12,9 @@ Current evidence as of 2026-10-22:
 Distributed service activation, independent ingress, provider-loss testing, storage replication and full feature parity remain incomplete. Enclave administrative governance remains required. Historical status statements in earlier receipts describe their capture times; they do not override the newer evidence.
 
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
+
+## Work in progress captured at 20:35 UTC
+
+`native-control-attested`, `direct-hardware-canary`, and `storage-client-interop` contain active implementation drafts. Their root review notes identify unresolved security, acceptance and cleanup issues. These files are recovery snapshots only; no completed test or production readiness claim applies to them. The hardware canary has not run. The older measured image remains pinned to its original source and does not contain the new native TLS changes.
+
+`storage-public-read` records a public Base snapshot (block 52955698), preserved catalog metadata for a future version, and host admission preflight observations. The first preflight was unreadable; the second admitted the host under the existing unanchored-policy compatibility rule. This does not establish an activated moderation policy or readiness to deploy storage replicas.

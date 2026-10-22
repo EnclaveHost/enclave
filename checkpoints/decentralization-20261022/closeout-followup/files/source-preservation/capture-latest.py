@@ -53,6 +53,22 @@ paths.add(base / 'native-control-discovery-root-review.txt')
 for p in (base / 'storage-public-read').iterdir():
     if p.is_file() and not p.is_symlink() and p.suffix in ('.mjs', '.json'):
         paths.add(p)
+# These are unfinished source drafts, not deployment artifacts or private test output.
+for name in ('native-control-attested-task.txt', 'native-control-attested-review-task.txt',
+             'direct-hardware-task.txt', 'direct-hardware-review-task.txt', 'storage-client-interop-task.txt'):
+    paths.add(base / name)
+for directory in ('direct-hardware-canary/canary', 'direct-hardware-canary/test',
+                  'direct-hardware-canary/tools', 'direct-hardware-canary/bin'):
+    for p in (base / directory).rglob('*'):
+        if p.is_file() and not p.is_symlink() and '__pycache__' not in p.parts:
+            paths.add(p)
+for directory in ('direct-hardware-canary', 'native-control-attested', 'storage-client-interop'):
+    for p in (base / directory).iterdir():
+        if p.is_file() and not p.is_symlink() and p.suffix in ('.txt', '.md', '.py', '.sh', '.mjs'):
+            paths.add(p)
+for relative in ('metal/guest/gsup.mjs', 'metal/guest/measured-control.mjs', 'relay/native-discovery.mjs',
+                 'test/native-discovery.test.mjs', 'network/native-control-routes.mjs', 'scripts/native-control-certificate.mjs'):
+    paths.add(base / 'native-control-attested/repo' / relative)
 paths.add(Path(__file__).resolve())
 entries = []
 unchanged = []

@@ -1,0 +1,11 @@
+Root interim review of canary source at20:31UTC, before worker completion:
+verify-canary.mjs computes statementChecks.runtime/noMcpOrPlatformApi/config/peerIsControlTls but currently exit code only consults hardwareVerdict. Final acceptance must explicitly require every promised exact-runtime and bare-role assertion too, or report them as non-required diagnostic checks. Do not allow receipt/runtime mismatch while claiming exactimage passed.
+notSelling compares only operator identity; no-key/no-claim authority should come from inspected fresh launcher config, restricted net, and no signer, not this misleading label alone.
+Final wrapper pending (no registration) is intended and must remain separate from real hardware/report/config/TLS/supervisor check results. Never supply fake registry to manufacture verified.
+Keep canary source frozen during root launch and pin all helper files incl qemu wrapper; cgroup cleanup with PID/start identity and protected VM/service checks. Do not execute until root review.
+Additional concrete review of run-canary.py at20:32UTC:
+- child result.ok omits userServicesUnchanged and statementChecks assertions; these must gate acceptance.
+- cleanup_group sends initial killpg without validating a still-owned pid/starttime/process-group identity. Snapshot checks at the end don't justify signaling a reused process group. Bind group ownership before signals; cgroup is the ultimate owned cleanup boundary.
+- parent waits without try/finally; interrupted parent or exception before scopeStop may skip cleanup/terminal recording. Ensure parent interruption still stops ONLY its uniquely-created transient scope, proves owned absence and records partial failures. A live launch must never outlive its root harness unintentionally.
+- after forced cgroup/timeout cleanup, private ephemeral pairing/fw_cfg may remain because child finally wasn't reached. Parent should scrub ONLY this run's owned private directory after verified process absence; do not discard logs/results.
+- frozen helper/source pins must be rechecked at launch boundary, not just listed after execution. No QEMU/production execution until root accepts final source.
