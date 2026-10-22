@@ -1,0 +1,13 @@
+The live EnclaveDeployments rev 16d (Base 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b) and its linked EnclaveLedgerBandwidth
+(0x3dfee18b44b7ecd389eca78da10b6ad032802215), compiled by work/storage-front-binding/fixture-build.mjs exactly as
+contracts/deployments/source-verification-base.json pins the live build: soljson 0.8.35+commit.47b9dedd (sha256 fa4345d6...,
+checked by scripts/network/verify-deployed-sources.mjs loadCompiler), unit "EnclaveDeployments.sol", optimizer runs 1, viaIR,
+from the authoritative source (git blob 3f3d2c3a, sha256 2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1,
+commit 4b7419bb). CBOR metadata included, so the runtime is byte-for-byte the live one once linked and filled.
+Reduced to abi + bytecode (+ link and immutable references). "immutableNames" records which immutable reference id is usdc
+and which is registry: the build tried both assignments and kept the only one whose keccak equals the live code hash.
+The build refuses to write unless the ledger runtime, linked to the live library and filled with the live immutables, hashes
+to the live code hash 0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682, and the library to its live code hash
+0x28a6f46100f911eee9e151b7813cc7362f425bf607877766b20386a7d7373cc7. test/storage-front-binding.test.mjs re-checks the ledger hash.
+(An earlier copy reduced from a forge build had the same executable code but a different CBOR metadata hash, so it could not
+hash to the live code; it was replaced.)

@@ -7,8 +7,11 @@ package main
 //
 // Why it matters: the release binding is its own domain, and a report over it is worth a deployment's secrets. Every
 // way this binary can ask the hardware (or a monitor, or the SVSM) for a report must be one of the known callers,
-// each writing a report_data it composed itself: attest (Bind/Bind2 over a verifier's nonce, never the release
-// domain), hostData (all-zero report_data, never served) and the provisioner (the release binding, never served).
+// each writing a report_data it composed itself: attestDoc (Bind/Bind2 over a verifier's nonce, or the hash of an
+// owner-name challenge push in acme.go - the same public binding any caller can already ask for - never the release
+// domain), hostData (all-zero report_data, never served) and the provisioner (the release binding, never served); and
+// the attested history checkpoint (bootstrap/checkpoint_producer.go: sha256 of its own domain and a statement of the
+// guest's verified lease logs || 32 zero bytes, served; work/history-checkpoint-transport-interface.txt).
 // And every socket this binary listens on must be one of: the front's own endpoint (vsock, or the M3 unix socket)
 // and the egress forwarders - the tenant reaches the guest's loopback, so a listener there is the tenant's to call.
 
@@ -87,7 +90,7 @@ func render(ss []site) string {
 }
 
 // the packages this binary links from this module that could touch a report or a socket
-var linked = []string{".", "../egress", "../release", "../appconfig", "../vsock", "../domtls", "../custody"}
+var linked = []string{".", "../egress", "../release", "../appconfig", "../vsock", "../domtls", "../custody", "../bootstrap"}
 
 func TestEveryReportPathIsAKnownOne(t *testing.T) {
 	got := sites(t, linked, func(n ast.Node) string {
@@ -111,18 +114,28 @@ func TestEveryReportPathIsAKnownOne(t *testing.T) {
 		return ""
 	})
 	want := strings.Join([]string{
+		// the attested history checkpoint: report_data = sha256("enclave-history-checkpoint-v1\0" || the canonical statement
+		// of this guest's verified lease logs) || 32 ZERO bytes, served publicly. Not the release or custody domain: both
+		// carry the loaded AppID (never zero) in [32:64], as does every attestDoc report, and the first half is a hash
+		// under its own domain prefix; the statement is the guest's own (verified chain data), never a caller's bytes.
+		"bootstrap/checkpoint_producer.go CheckpointProducer.Refresh: p.report",
 		// custody: report_data = the CUSTODY binding (domain "enclave-custody-release-v1\n", or "enclave-custody-release-v2\n"
 		// for a v2 pointer; distinct from Bind/Bind2 and from the relay release's) || the AppID from the loaded code; sent
 		// to custodians only, never served
+		"front/bootstrap.go provisioner.loadCheckpoints: p.report", // the nil check
+		"front/bootstrap.go provisioner.loadCheckpoints: p.report", // all-zero report_data (as hostData), never served: this guest's own identity for judging checkpoints
 		"front/custody.go provisioner.custodySecrets: p.report",
-		"front/main.go front.attest: f.askMonitor",   // M3: the monitor writes the app half; the front sends Bind/Bind2
-		"front/main.go front.attest: f.plane.report", // M4b: the SVSM computes the binding; the front sends a nonce
-		"front/main.go front.attest: f.report",       // M2: Bind/Bind2 over the verifier's nonce, served
-		"front/main.go front.hostData: f.askMonitor", // all-zero report_data, never served
-		"front/main.go front.hostData: f.report",     // all-zero report_data, never served
+		"front/main.go front.attestDoc: f.askMonitor",   // M3: the monitor writes the app half; the front sends Bind/Bind2
+		"front/main.go front.attestDoc: f.plane.report", // M4b: the SVSM computes the binding; the front sends a nonce
+		"front/main.go front.attestDoc: f.report",       // M2: Bind/Bind2 over the verifier's (or acme.go's push) nonce, served
+		"front/main.go front.hostData: f.askMonitor",    // all-zero report_data, never served
+		"front/main.go front.hostData: f.report",        // all-zero report_data, never served
 		"front/main.go front.report: configfs-tsm path",
-		"front/main.go main: f.report",                 // wired as the provisioner's report function
-		"front/provision.go provisioner.run: p.report", // the release binding || AppID, never served
+		"front/main.go main: f.report",                                             // wired as the provisioner's report function
+		"front/main.go main: f.report",                                             // wired as the checkpoint producer's report function (bootstrap above)
+		"front/provision.go provisioner.run: p.report",                             // the release binding || AppID, never served
+		"front/shield_direct_custody.go front.shieldCustodyEvidence: f.askMonitor", // Shield custody domain + owner + v2 release binding; monitor supplies AppID
+		"front/shield_secrets.go front.serveShieldSecrets: f.askMonitor",           // Shield secret purpose + seal key binding; monitor supplies AppID
 	}, "\n")
 	if g := render(got); g != want {
 		t.Fatalf("the paths to a report changed; review each against the release binding's domain, then update this list.\ngot:\n%s\nwant:\n%s", g, want)
@@ -153,6 +166,9 @@ func TestEveryListenerIsAKnownOne(t *testing.T) {
 	want := strings.Join([]string{
 		"egress/forward.go Forwarder.Start: net.Listen",      // one loopback listener per allowed origin: the tenant's egress
 		"egress/public.go Forwarder.startPublic: net.Listen", // owner-opted public HTTPS; SOCKS CONNECT only, host IP checks unchanged
+		"egress/web.go Forwarder.startPublicWeb: net.Listen", // measured Shield public-web SOCKS; public-address guards before forwarding
+		"egress/web.go Forwarder.startPublicWeb: net.Listen", // bounded TCP DNS stub; only public answers
+		"front/encvol.go encStart: net.Listen",               // encrypted volumes' plane: loopback 127.0.0.1:50080 (outside the app's 1-49999), token-gated, in the listener audit
 		"front/main.go main: net.Listen",                     // M3: the unix socket the monitor relays (-listen-unix)
 		"front/main.go main: vsock.Listen",                   // M2: the front's one port
 		"vsock/vsock.go Listen: syscall.Listen",              // the vsock binding itself

@@ -1,0 +1,16 @@
+{
+  "node": "C:\\Program Files\\nodejs\\node.exe",
+  "nodeArgs": ["--max-old-space-size=128"],
+  "runner": "C:\\Program Files\\Enclave\\host-services\\hs2\\bin\\host-services-runner.mjs",
+  "config": "C:\\ProgramData\\Enclave\\host-services\\hs2\\config\\host-services.json",
+  "workDir": "C:\\ProgramData\\Enclave\\host-services\\hs2\\state",
+  "jobMemoryMiB": 1024,
+  "cpuPercent": 150,
+  "activeProcesses": 16,
+  "restartSec": 10,
+  "startLimitBurst": 5,
+  "startLimitIntervalSec": 600,
+  "stopTimeoutSec": 30,
+  "stopEvent": "Global\\Enclave-host-services-hs2-stop",
+  "log": "C:\\ProgramData\\Enclave\\host-services\\hs2\\state\\supervisor.log"
+}

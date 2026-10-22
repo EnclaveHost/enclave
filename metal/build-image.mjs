@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { supervisorClosure, checkPackages, SUPERVISOR_ROOTS } from './supervisor-closure.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BUILD = path.join(HERE, 'build');
@@ -181,30 +182,45 @@ const supDigest = pull(SUPERVISOR_REF, ROOT);
 // git checkout and recorded by commit and hash (the per-app isolation tier's first builds: supervisor.js plus the
 // guestd client modules it imports). Reproducible only from a CLEAN tree at the recorded commit, and the manifest
 // says which it was rather than letting a dirty tree pass as a release.
+// The files copied are the supervisor's whole local import closure at that checkout (metal/supervisor-closure.mjs), with
+// the list below as a floor; every npm package the closure names must be in the pulled image (checked below, recorded).
 const OVERLAY_SRC = arg('supervisor-overlay', '');
 let supervisorOverlay = null;
 if (OVERLAY_SRC) {
   const src = path.resolve(OVERLAY_SRC);
-  const files = ['supervisor.js', 'isolation/m4/guestd/supervisor-transport.mjs',
+  const files = ['supervisor.js', 'addressbook.js', 'windows/node/session-api-auth.mjs', 'sdk/bootstrap/package.mjs', 'sdk/bootstrap/storage.mjs',
+                 'sdk/storage/gateways.mjs', 'sdk/storage/upload-auth.mjs', 'sdk/storage/replicas.mjs',
+                 'site/js/core/upload-auth.js',
+                 'windows/node/verification-checkpoints.mjs', 'windows/node/host-admission.bundle.mjs', 'isolation/m4/guestd/supervisor-transport.mjs',
                  'isolation/m4/guestd/control-client.mjs', 'isolation/m4/guestd/supervisor-splice.mjs',
                  // the guest-certificate relay and the judge it verifies each guest with (and the judge's imports)
                  'isolation/m4/guestd/supervisor-guestcert.mjs', 'isolation/m2/judge.mjs',
                  'isolation/contract/runtime.mjs', 'relay/snp-verify.mjs'];
+  const closure = supervisorClosure(src, [...SUPERVISOR_ROOTS, ...files]);
+  const overlayFiles = [...new Set([...files, ...closure.files])];
   const git = (...a) => spawnSync('git', ['-C', src, ...a], { encoding: 'utf8' }).stdout.trim();
-  const dirty = git('status', '--porcelain', '--', ...files) !== '';
-  supervisorOverlay = { commit: git('rev-parse', 'HEAD'), dirty, files: [] };
-  for (const f of files) {
+  const dirty = git('status', '--porcelain', '--', ...overlayFiles) !== '';
+  const packages = checkPackages(closure.packages, (name) => { try { return fs.readFileSync(path.join(ROOT, 'app/node_modules', name, 'package.json'), 'utf8'); } catch { return null; } });
+  supervisorOverlay = { commit: git('rev-parse', 'HEAD'), dirty, closure: 'metal/supervisor-closure.mjs', packages, files: [] };
+  for (const f of overlayFiles) {
     const to = path.join(ROOT, 'app', f);
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.copyFileSync(path.join(src, f), to);
     supervisorOverlay.files.push({ path: '/app/' + f, sha256: sha256File(to) });
   }
-  console.log(`[build] supervisor overlay from ${supervisorOverlay.commit.slice(0, 12)}${dirty ? ' (DIRTY tree: not reproducible)' : ''}: ${files.join(', ')}`);
+  console.log(`[build] supervisor overlay from ${supervisorOverlay.commit.slice(0, 12)}${dirty ? ' (DIRTY tree: not reproducible)' : ''}: ${overlayFiles.length} files `
+    + `(its import closure), packages from the image ${packages.map((p) => `${p.name}@${p.version}`).join(', ')}`);
 }
 // --isolation <backend>: this image is for a per-app isolation tier node, whose launcher adds
 // metal.isolation=<backend> to the measured cmdline; the expected measurement below uses the same cmdline.
 const ISOLATION = arg('isolation', '');
 if (ISOLATION && ISOLATION !== 'snp-guest-per-app') throw new Error('--isolation must be snp-guest-per-app');
+// --control direct: the MEASURED independent control guest (docs/network/measured-control-guest.md). The launcher adds
+// metal.control=direct to the measured cmdline, so a direct control image has its own launch measurement; gsup then runs
+// the direct-only supervisor from the owner's HOST_DATA-bound config. It is a per-app tier node by construction.
+const CONTROL = arg('control', '');
+if (CONTROL && CONTROL !== 'direct') throw new Error('--control must be direct');
+if (CONTROL && ISOLATION !== 'snp-guest-per-app') throw new Error('--control direct needs --isolation snp-guest-per-app (the control guest runs no apps itself)');
 // --isolation-min-tcb <json file>: the firmware floor a per-app guest's report must meet before this node asks a CA
 // to certify the guest's key. INSIDE the measured image, so the host cannot lower it without changing the node's
 // measurement (the relay's allowlist pins that).
@@ -266,8 +282,43 @@ const md = path.join(ROOT, 'opt/metal'); fs.mkdirSync(md, { recursive: true });
 // the guest half of the shielded tier is trusted code and must be attested. The
 // worker it talks to is not, and is not shipped here: it runs on the host, is
 // assumed hostile, and its address arrives unmeasured over fw_cfg.
-for (const f of ['gsup.mjs', 'agent.mjs', 'shielded.mjs', 'shielded-probe.mjs', 'shielded-shm.mjs'])
+for (const f of ['gsup.mjs', 'host-policy.bundle.mjs', 'lease-gas-conduit.bundle.mjs', 'agent.mjs', 'shielded.mjs', 'shielded-probe.mjs', 'shielded-shm.mjs', 'measured-control.mjs', 'owner-nomination.mjs'])
   fs.copyFileSync(path.join(HERE, 'guest', f), path.join(md, f));
+// the hosted independent MCP adapter (docs/network/hosted-mcp.md): a reproducible bundle of mcp/server.mjs and its closure
+// (scripts/build-mcp-guest-bundle.mjs --check), started by gsup only for a bound config with an mcp member
+fs.copyFileSync(path.join(HERE, 'guest', 'mcp-server.bundle.mjs'), path.join(md, 'mcp-server.bundle.mjs'));
+const mcpBundle = (() => { const f = path.join(md, 'mcp-server.bundle.mjs');
+  let manifest = null; try { manifest = JSON.parse(fs.readFileSync(path.join(HERE, 'guest', 'mcp-server.bundle.mjs.manifest.json'), 'utf8')); } catch {}
+  // the files its code reads beside itself at run time (manifest runtimeFiles: image path -> source + sha256), inside the
+  // measurement like the bundle: a normal relative path under opt/ only, never over a file this build already placed
+  const runtimeFiles = {};
+  for (const [at, s] of Object.entries(manifest?.runtimeFiles || {})) {
+    if (typeof at !== 'string' || !at.startsWith('opt/') || at.split('/').some((p) => p === '' || p === '.' || p === '..') || at.includes('\\'))
+      throw new Error(`MCP runtime file ${JSON.stringify(at)} is not a normal path under opt/`);
+    const to = path.join(ROOT, at);
+    if (fs.existsSync(to) && sha256File(to) !== s.sha256) throw new Error(`MCP runtime file ${at} would replace different bytes`);
+    fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(path.join(HERE, '..', s.source), to);
+    if (sha256File(to) !== s.sha256) throw new Error(`MCP runtime file ${at} does not match its manifest`);
+    runtimeFiles['/' + at] = s.sha256;
+  }
+  return { path: '/opt/metal/mcp-server.bundle.mjs', sha256: sha256File(f), bytes: fs.statSync(f).size, inputs: manifest ? Object.keys(manifest.inputs || {}).length : null,
+           manifestSha256: manifest ? manifest.sha256 ?? null : null, runtimeFiles }; })();
+// the platform API role (docs/network/hosted-platform-api.md): a reproducible bundle of metal/guest/platform-api-role.mjs with
+// the unchanged relay closure (scripts/build-platform-api-guest-bundle.mjs --check), plus the one file the relay reads beside
+// its module at run time; started by gsup only for a bound config with a platformApi member
+fs.copyFileSync(path.join(HERE, 'guest', 'platform-api.bundle.mjs'), path.join(md, 'platform-api.bundle.mjs'));
+const platformApiBundle = (() => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(HERE, 'guest', 'platform-api.bundle.mjs.manifest.json'), 'utf8'));
+  for (const [beside, s] of Object.entries(manifest.sidecars || {})) {
+    const to = path.join(md, beside); fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.copyFileSync(path.join(HERE, '..', s.source), to);
+    if (sha256File(to) !== s.sha256) throw new Error(`platform API sidecar ${beside} does not match its manifest`);
+  }
+  const f = path.join(md, 'platform-api.bundle.mjs');
+  if (sha256File(f) !== manifest.sha256) throw new Error('the platform API guest bundle does not match its manifest (scripts/build-platform-api-guest-bundle.mjs)');
+  return { path: '/opt/metal/platform-api.bundle.mjs', sha256: manifest.sha256, bytes: fs.statSync(f).size, inputs: Object.keys(manifest.inputs).length,
+           sidecars: Object.fromEntries(Object.entries(manifest.sidecars || {}).map(([k, v]) => ['/opt/metal/' + k, v.sha256])) };
+})();
 // init (PID1), with the kernel version substituted in
 let init = fs.readFileSync(path.join(HERE, 'guest', 'init'), 'utf8').replaceAll('__KVER__', KVER);
 fs.writeFileSync(path.join(ROOT, 'init'), init, { mode: 0o755 });
@@ -600,7 +651,8 @@ const kernelSha = sha256File(path.join(DIST, 'vmlinuz'));
 // the agent report exactly what it was built from) ---------------------------
 // The MEASURED cmdline carries only the mode; everything else is fw_cfg (unmeasured).
 const cmdlineTemplate = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE}'
-  + (ISOLATION ? ` metal.isolation=${ISOLATION}` : '');
+  + (ISOLATION ? ` metal.isolation=${ISOLATION}` : '')
+  + (CONTROL ? ` metal.control=${CONTROL}` : '');
 const manifest = {
   builtWith: 'metal/build-image.mjs',
   flavor: 'cpu',
@@ -624,6 +676,11 @@ const manifest = {
                 && !(supervisorOverlay && supervisorOverlay.dirty),
   ...(supervisorOverlay ? { supervisorOverlay } : {}),
   ...(ISOLATION ? { isolation: ISOLATION } : {}),
+  ...(CONTROL ? { control: CONTROL } : {}),
+  // inside the measurement like the rest of /opt/metal; its manifest names every bundled input (scripts/build-mcp-guest-bundle.mjs)
+  mcpBundle,
+  // inside the measurement like the rest of /opt/metal; its manifest names every bundled input and sidecar
+  platformApiBundle,
   ...(isolationMinTcb ? { isolationMinTcb: { path: '/opt/metal/isolation-min-tcb.json', sha256: createHash('sha256').update(isolationMinTcb).digest('hex'),
                                              policy: JSON.parse(isolationMinTcb.toString()) } } : {}),
   kernel: { path: KERNEL, kver: KVER, sha256: kernelSha },

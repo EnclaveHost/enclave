@@ -88,7 +88,11 @@ test("an unconfirmable custody state fails closed: 503 on every path, never a pl
     assert.equal(f.code, 503);
     assert.ok(!JSON.stringify(f.body).includes("still-here"));
     assert.equal((await put(JSON.stringify({ set: { X: "1" } }))).code, 503);
-    assert.equal((await call("/v1/secrets/exists", { id: ID })).code, 503);
+    // the existence probe needs no custody answer when the relay holds a record: yes either way, just without the flag
+    // (an id with no record still answers 503 here: test/relay-exists-fastpath.test.mjs)
+    const e = await call("/v1/secrets/exists", { id: ID });
+    assert.equal(e.code, 200);
+    assert.deepEqual(e.body, { id: ID, exists: true });
     assert.equal((await call("/v1/secrets/shield-release", { id: ID })).code, 503);
   } finally { heldThrows = false; }
   // without custody the legacy paths are exactly as before

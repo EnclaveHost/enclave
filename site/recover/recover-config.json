@@ -1,0 +1,7 @@
+{
+  "_note": "Production values, from passkey/production-factory.json (read-only check: the live factory and implementation are byte-identical to contracts/EnclaveCreditVault.sol at d36100ae). The page is served as recover-config.json beside index.html, at exactly this origin.",
+  "origin": "https://enclave.host",
+  "rpId": "enclave.host",
+  "factory": "0xa891e4396e3eb11f364554043bc18e86da834e91",
+  "implementation": "0xeca6644333d3a069001203ce5416914a4d830beb"
+}

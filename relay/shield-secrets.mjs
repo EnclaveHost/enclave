@@ -4,11 +4,12 @@ import {randomBytes} from 'node:crypto';
 import {endpointOperator,recoverOp,makeReplayCache,holdsLease} from './fleet-auth.js';
 import {expectedShieldApp} from './shield-app-verifier.mjs';
 import {shieldHostAdmitted} from './shield-app-policy.mjs';
-import {releaseConfig,sealRelease,signResponse,keyIdOf,ed25519RawPublic} from './secrets-release.mjs';
+import {releaseConfig,sealRelease,signResponse,keyIdOf,ed25519RawPublic,withAbortDeadline,writerAuthorityBudgetMs} from './secrets-release.mjs';
+import {needsWriterAuthority} from './lease-generation.mjs';
 export const secretRequestMessage=(id,endpoint,ts)=>`enclave-shield-secrets:${id}:${endpoint}:${ts}`;
 const fingerprint=d=>JSON.stringify([d.id,d.owner,d.runner,d.appRef,d.configCid,d.active,d.isPublic,Number(d.cpuMilli),Number(d.gpuMilli)]);
 const err=(message,status=403)=>Object.assign(new Error(message),{status});
-export function createShieldSecretRelease({hub,policyFile='',policy:supplied,confirmRow,readCatalog,readConfig,fetchVerified,hostForEndpoint,isOwnerDeployment=()=>false,custodyRefusal=async()=>null,signingKey=()=>releaseConfig().signingKey,sleep=ms=>new Promise(r=>setTimeout(r,ms))}) {
+export function createShieldSecretRelease({hub,policyFile='',policy:supplied,confirmRow,readCatalog,readConfig,fetchVerified,hostForEndpoint,isOwnerDeployment=()=>false,custodyRefusal=async()=>null,leaseGeneration=null,signingKey=()=>releaseConfig().signingKey,sleep=ms=>new Promise(r=>setTimeout(r,ms))}) {
  const policy=supplied||(policyFile?JSON.parse(fs.readFileSync(policyFile,'utf8')):null),fresh=makeReplayCache();
  let active=0;const inflight=new Set();
  return async function deliver(b,ctx,read){
@@ -50,8 +51,22 @@ export function createShieldSecretRelease({hub,policyFile='',policy:supplied,con
    if(!verified?.ok)throw err(`guest release proof refused: ${verified?.reason||'no verdict'}`);
    const current=await confirmRow(id);
    if(fingerprint(current)!==fingerprint(row)||!holdsLease(current,epId)||hub.shieldSessionId(host.name)!==sid)throw err('deployment or host session changed during release');
+   // storage writer fencing (work/storage-front-binding-interface.txt): the lease's writer authority, required only when the
+   // MEASURED config (the one the AppID binds) refers to ENCLAVE_WRITER_AUTHORITY; established before any secret byte is read
+   // Never blocks the delivery: without it (a claim not yet final, no quorum, no reader) the Shield front establishes it
+   // from its own measured RPC quorum while the runtime waits (isolation/m2/front/shield_secrets.go).
+   // `runner` (always, when referred to): the lease holder this delivery was authorized for, so the guest's own read binds
+   // to it and never adopts a later holder's lease.
+   let facts=null;
+   if(needsWriterAuthority(expected.configText)){
+    facts={runner:String(epId).toLowerCase()};
+    if(typeof leaseGeneration==='function'){
+     try{facts.writerAuthority=(await withAbortDeadline(signal=>leaseGeneration(id,{runner:epId,signal}),writerAuthorityBudgetMs())).fact;}
+     catch(e){console.warn(`[shield-secrets] ${id}: delivered without the writer authority; the guest reads it itself (${e?.code||'error'})`);}
+    }
+   }
    const {env,rev}=read(id); // No secret bytes are read until every authorization and attestation check passes.
-   const plaintext=Buffer.from(JSON.stringify({id,config:null,secrets:env,issuedAt:new Date().toISOString()}));
+   const plaintext=Buffer.from(JSON.stringify({id,config:null,secrets:env,...(facts?{facts}:{}),issuedAt:new Date().toISOString()}));
    if(plaintext.length>40000)throw err('secret payload exceeds release bound',422);
    let sealed;try{sealed=sealRelease({id,ticket:nonce,sealKey,plaintext});}finally{plaintext.fill(0);}
    const sig=signResponse(key,{id,ticket:nonce,sealKey,sealed}),keyId=keyIdOf(ed25519RawPublic(key));

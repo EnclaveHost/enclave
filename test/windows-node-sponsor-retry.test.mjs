@@ -37,7 +37,7 @@ test("not attached yet: asked again within the minute; anything else: in 10 minu
   assert.ok(wait(h) > 590_000 && wait(h) <= 600_000, String(wait(h)));
 });
 
-test("a box reached through a relay tunnel sends no on-chain heartbeat; a dialed box still does", async () => {
+test("no box sends an on-chain heartbeat, tunnelled or dialed (liveness is off-chain)", async () => {
   assert.equal(Host.isTunnelEndpoint("https://api.enclave.host/t/nucbox-k11-2"), true);
   for (const e of ["https://box.example.com", "https://api.enclave.host/t/", "https://api.enclave.host/t/a/b", "", null])
     assert.equal(Host.isTunnelEndpoint(e), false, String(e));
@@ -47,6 +47,6 @@ test("a box reached through a relay tunnel sends no on-chain heartbeat; a dialed
     h.chainReady = true; h.registered = { active: true };
     await h.heartbeat();
   }
-  assert.ok(!sent.some(([e, m]) => e.includes("/t/") && /heartbeat failed/.test(m)), "the tunnel box never tried");
-  assert.ok(sent.some(([e, m]) => !e.includes("/t/") && /heartbeat failed/.test(m)), "the dialed box tried (and, with no gas here, failed)");
+  assert.ok(!sent.some(([, m]) => /heartbeat/i.test(m)), "neither box tried: " + JSON.stringify(sent));
+  // (test/offchain-heartbeat-writers.test.mjs counts the transactions themselves on a real chain)
 });

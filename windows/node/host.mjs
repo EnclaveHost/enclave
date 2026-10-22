@@ -22,6 +22,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import http from "node:http";
 import * as chain from "./chain.mjs";
+import {hostAdmissionFromEnv,createHostServiceGate} from './host-admission.bundle.mjs';
 import { App, EnclaveApp, fetchArtifact, wasmLayer, appEnv, missingHostInterfaces, precompile } from "./apprun.mjs";
 import { worldOf } from "./appframe.mjs";
 import { fetchSecrets, secretsExist } from "./secrets.mjs";
@@ -42,17 +43,19 @@ function readDelegationFiles(dir) {
   });
 }
 import { ensureCert, appHostFor, selfSigned } from "./apptls.mjs";
-import { fetchDomains } from "./domains.mjs";
+import { fetchDomains, ownerCommittedDomains } from "./domains.mjs";
+import { shieldStartupEnvelope, createShieldStartup, startupGateways, startupAdoptionRefusal, startupImages } from "./shield-startup.mjs";
 import tls from "node:tls";
 import * as waf from "./waf.mjs";
 import { CAP_STEP, loadCaps, saveCaps } from "./hosting.mjs";
 import { priceGuide, defaultPrice, rowTiers, perSec6Of, perHourOf } from "./price-guide.mjs";
 import { gasRunway } from "./gas-runway.mjs";
+import { registrationAction, mayReconcile } from "../../network/registry-reconcile.mjs";
 import { recentHyperVEvents } from "./hyperv-events.mjs";
 import { createAuditJobs, auditAppRefsOf } from "./audit-jobs.mjs";
 import { PARTITION_OFFERS } from "../vbslike/datapath/partition-offers.mjs";
 
-const HEARTBEAT_MS = 10 * 60_000;
+const GAS_CHECK_MS = 10 * 60_000;       // the operator's gas runway is re-read (no transaction) this often
 const TICK_MS = 30_000;
 const PROOF_MS = 5 * 60_000;         // the contract's window is 15 min; the platform proves every 5
 // Renew this long before the lease ends. It was 5 minutes, which with a 5-minute tick left exactly
@@ -94,6 +97,16 @@ export function isolationBoundaryRefusal(inst) {
 
 // gasRunway: how long the operator key's gas lasts (gas-runway.mjs, shared with the phone's host agent)
 export { gasRunway };
+/**
+ * What a ZERO-ETH operator key can still do. With app-funded leases configured, claim, renew and release go through
+ * chain.mjs leaseSend to the apps' reserves, and a refused one is never re-sent from this key; the registry writes
+ * (registration status, price, proof key) and paid apps' proof checkpoints are this key's own transactions either way.
+ */
+export function noGasMessage(appFundedLeases) {
+  return appFundedLeases
+    ? "operator has no gas: lease claims, renewals and releases are paid by each app's own reserve (app-funded leases are configured; this key's ETH is never used for them), but registry status, price and proof-key writes and paid apps' proof checkpoints need this key's ETH"
+    : "operator has no gas: it can read the ledger but cannot register, claim, renew or prove";
+}
 
 export class Host {
   constructor(cfg) {
@@ -106,6 +119,22 @@ export class Host {
     this.apps = new Map();                           // id -> App
     this.records = new Map();                        // id -> { id, status, reason, appRef, cid, version, leaseUntil, claimedAt, provenAt }
     this.enclaveId = chain.enclaveIdOf(cfg.endpoint);
+    // app-funded leases: the durable journal of sponsored releases (a release lease may land after this process dies)
+    if (cfg.dir) chain.setLeaseJournal(path.join(cfg.dir, "lease-release-journal.json"));
+    this.hostAdmission = cfg.hostAdmission ?? hostAdmissionFromEnv({hostId:this.enclaveId, rpc:chain.rpcUrls(), addressBook:chain.addressBook()});
+    if(this.hostAdmission && (this.hostAdmission.hostId!==this.enclaveId || typeof this.hostAdmission.refusal!=='function'))
+      throw new Error('wallet admission must bind this host');
+    // PLATFORM HOST POLICY for THIS box - the same gate as supervisor.js (network/host-service-gate.mjs): an explicit refusal
+    // stops new claims, app traffic and renewals (sticky until the admin's unban); a transient outage keeps serving within
+    // the grace. Activated by the shipped node configuration (node-config.cmd: ENCLAVE_PLATFORM_HOST_POLICY=production). An
+    // unmeasured box runs its operator's code, so this is the box's cooperative half; the platform-side gates (relay
+    // discovery/attach, routes, custody, management and CLI clients) refuse a banned host regardless of what it runs.
+    this.platformPolicy = cfg.platformPolicy ?? createHostServiceGate({ env: process.env, chainId: 8453, book: null,
+      hostId: this.enclaveId, stateDir: cfg.dir || null, log: (m) => this.log(m) });
+    // designated lease relays (service index): this host's platform host policy gate judges each relay's operator before
+    // every signature (explicit admit only); on-but-unusable refuses them; null only when the policy is explicitly off
+    chain.setLeaseRelayPolicy?.(this.platformPolicy?.runtime?.gate?.decideOperators ? this.platformPolicy.runtime.gate
+      : this.platformPolicy?.enabled === false ? null : async () => { throw new Error("the platform host policy is on but unusable: no discovered relay is admitted"); });
     this.registered = null;                          // the registry entry as last read
     this.chainReady = false; this.lastError = "";
     this.statePath = path.join(cfg.dir, "host-state.json");
@@ -182,6 +211,60 @@ export class Host {
     this.pricingFile = path.join(cfg.dir, "pricing.json");
     this.pricing = Host.loadPricing(this.pricingFile);
     this.priceGuide = null; this.pricedBy = { cpu: "config", gpu: "config" };
+    // OWNER-COMMITTED STARTUP (shield-startup.mjs): an envelope carrying guestBootstrap is started only from its exact
+    // package, verified against the operator's pinned contracts through a fresh agreeing quorum. cfg.ownerStartup is the
+    // authority (a test or the agent passes one); otherwise it is built once from the environment (#startupAuthority).
+    // Without either, such a deployment is refused by name, as it always was: nothing falls back to a relay.
+    this.startupAuthority = Object.hasOwn(cfg, "ownerStartup") ? cfg.ownerStartup : undefined;
+    this.startupConfigError = "";
+    // THE MARKET WINDOW FROM OPERATOR-SELECTED VERIFIERS (shield-verdict.mjs): { until, tier, keyIds } from a threshold
+    // of verdicts that each bind this host, its transport key and this host's own current challenge. Never self-set.
+    this.verifierMarket = null;
+  }
+  /**
+   * The startup authority, built lazily from the environment when the agent did not pass one:
+   *   ENCLAVE_STARTUP_STORAGE_PLAN_FILE | ENCLAVE_STARTUP_GATEWAYS   where package bytes may come from (one, not both)
+   *   ENCLAVE_STARTUP_RPCS (comma; default the node's own BASE_RPCS)  two or more RPCs on distinct hosts
+   *   ENCLAVE_CONTRACT_PINS_FILE                                       the pinned ledger and catalog (chain.mjs CONTRACT_PINS)
+   * -> the authority, or null with this.startupConfigError saying what is missing.
+   */
+  async #startupAuthority() {
+    if (this.startupAuthority !== undefined) return this.startupAuthority;
+    try {
+      const gateways = startupGateways(process.env);
+      if (!gateways.length) throw new Error("no startup package replicas (ENCLAVE_STARTUP_STORAGE_PLAN_FILE or ENCLAVE_STARTUP_GATEWAYS)");
+      if (!chain.CONTRACT_PINS) throw new Error("no pinned contracts (ENCLAVE_CONTRACT_PINS_FILE): the mutable address book is not a startup authority");
+      const { quorumReader, rpcClients } = await import("./host-identity.mjs");
+      const { cidFetcher } = await import("../vbslike/manager/fetchcid.mjs");
+      const rpcs = String(process.env.ENCLAVE_STARTUP_RPCS || "").split(",").map((x) => x.trim()).filter(Boolean);
+      const reader = quorumReader({ clients: await rpcClients(rpcs.length ? rpcs : chain.rpcUrls()) });
+      const { fileURLToPath } = await import("node:url");
+      const script = fileURLToPath(new URL("./fetch-cid.py", import.meta.url));
+      const sources = String(this.cfg.gateway || "").split(",").map((x) => x.trim()).filter(Boolean);
+      if (!sources.length) throw new Error("no artifact gateways (IPFS_GATEWAYS) to fetch the catalog component from");
+      const fetchers = sources.map((gateway) => cidFetcher({ script, python: this.cfg.python || "python", gateway }));
+      const fetchComponent = async (cid) => { let last; for (const f of fetchers) { try { return await f(cid); } catch (e) { last = e; } } throw last; };
+      this.startupAuthority = createShieldStartup({ reader, pins: chain.CONTRACT_PINS, gateways, fetchComponent,
+        abis: { DEP_ABI: chain.DEP_ABI, CATALOG_ABI: chain.CATALOG_ABI }, log: (m) => this.log(m), ...startupImages(process.env) });
+    } catch (e) { this.startupAuthority = null; this.startupConfigError = e.message; }
+    return this.startupAuthority;
+  }
+  /**
+   * envelopeOf(raw, gpuMilli) -> chain.parseEnvelope's options for this deployment's envelope, plus `startup` (the owner's
+   * guestBootstrap intent) when it carries one. An owner-committed envelope is judged by the SAME parser on its
+   * projection without the commitment, so placement, isolation, protection rules and GPU options keep their meaning.
+   * Throws as parseEnvelope does.
+   */
+  envelopeOf(raw, gpuMilli) {
+    const s = shieldStartupEnvelope(raw);
+    if (!s) return chain.parseEnvelope(raw, gpuMilli);
+    return { ...chain.parseEnvelope(s.projected, gpuMilli), startup: s.intent };
+  }
+  /** The ledger row as the node's generic policy reads it: an owner-committed envelope projected without its commitment. */
+  #policyView(d) {
+    let s = null;
+    try { s = shieldStartupEnvelope(d?.configCid); } catch { return d; }   // malformed: claimPolicy's parser refuses it by name
+    return s ? { ...d, configCid: s.projected } : d;
   }
   static loadPricing(file) {
     try {
@@ -213,20 +296,26 @@ export class Host {
       if (op) {
         const wei = await chain.operatorBalance();
         this.log(`operator ${op} holds ${(Number(wei) / 1e18).toFixed(6)} ETH; enclave id ${this.enclaveId}`);
-        if (wei === 0n) this.log("operator has no gas: it can read the ledger but cannot register, claim, renew or prove");
+        if (wei === 0n) this.log(noGasMessage(chain.leaseGasActive()));
       } else this.log("no operator key on this box: it can run an app it is told about, but cannot hold a lease");
       await this.refreshRegistration();
-      await this.ensureRegistered();
+      await this.ensureRegistered({ phase: "boot" });
     } catch (e) { this.lastError = e.message; this.log(`chain unavailable: ${e.message}`); }
+    this.platformPolicy.start();
     setInterval(() => this.tick().catch((e) => this.log(`tick: ${e.message}`)), TICK_MS);
-    setInterval(() => this.heartbeat().catch(() => {}), HEARTBEAT_MS);
+    setInterval(() => this.heartbeat().catch(() => {}), GAS_CHECK_MS);
     setInterval(() => this.proveAll().catch((e) => this.log(`proof: ${e.message}`)), PROOF_MS);
     this.tick().catch(() => {});
   }
-  async refreshRegistration() {
+  async refreshRegistration({ quiet = false } = {}) {
     try {
-      const e = await chain.readEnclave(this.enclaveId);
+      const e = await chain.readEnclave(this.enclaveId), was = this.registered;
       this.registered = e && e.endpoint ? e : null;
+      if (quiet) {   // the routine read: say only what changed
+        if (was && this.registered && (was.active === true) !== (this.registered.active === true))
+          this.log(`registry: ${this.registered.endpoint} is now ${this.registered.active ? "active" : "INACTIVE (deregistered by the operator key; a routine pass does not re-activate it)"}`);
+        return;
+      }
       // The card half says what this box ASKS (cardPrice) and, when the registry still lists something else, both.
       const listed = Number(e?.gpuPricePerSec6 || 0), ask = this.cardPrice();
       if (this.registered) this.log(`registry: listed as ${e.endpoint} price ${e.cpuPricePerSec6}/sec cpu`
@@ -307,19 +396,22 @@ export class Host {
    * no proof key. The measurement published here is the VBS enclave's own identity key, so anyone
    * can compare the row against what the relay verified at attach.
    */
-  async ensureRegistered() {
+  // phase (network/registry-reconcile.mjs, the rule the Linux supervisor follows too): "boot" at start-up, "explicit" for
+  // a deliberate act (the address book moved the registry), "timer" for the routine tick. A tick never re-activates a row
+  // its operator deregistered; the initial registration and a corrected proof key or price still go out.
+  async ensureRegistered({ phase = "timer" } = {}) {
     if (!this.chainReady || !this.cfg.appsEnabled || !chain.operatorAddress()) return;
     const proofKey = chain.proofAddress() || "0x0000000000000000000000000000000000000000";
-    const priced = this.registered && Number(this.registered.cpuPricePerSec6) > 0;
-    const current = priced && this.registered.active
-      && String(this.registered.proofKey).toLowerCase() === proofKey.toLowerCase()
-      && String(this.registered.operator).toLowerCase() === String(chain.operatorAddress()).toLowerCase();
-    if (current) return;
-    if (this.registered && String(this.registered.operator).toLowerCase() !== String(chain.operatorAddress()).toLowerCase()
-        && String(this.registered.operator) !== "0x0000000000000000000000000000000000000000") {
-      this.log(`registry: ${this.cfg.endpoint} belongs to operator ${this.registered.operator}, not this box's key; refusing to re-register`);
+    const act = registrationAction(this.registered, { operator: chain.operatorAddress(), proofKey }, phase);
+    if (!act.register) {
+      if (act.reason !== "current" && this._registrationSaid !== act.reason) {
+        this._registrationSaid = act.reason;
+        this.log(/another operator/.test(act.reason) ? `registry: ${this.cfg.endpoint} belongs to operator ${this.registered.operator}, not this box's key; refusing to re-register`
+                                                     : `registry: ${this.cfg.endpoint}: ${act.reason}`);
+      }
       return;
     }
+    this._registrationSaid = null;
     const args = { endpoint: this.cfg.endpoint, repo: this.cfg.repo || "EnclaveHost/enclave",
       measurement: this.cfg.measurement || "0x0000000000000000000000000000000000000000000000000000000000000000",
       cpuPricePerSec6: this.cfg.cpuPricePerSec6, gpuPricePerSec6: this.cardPrice(), proofKey };
@@ -378,6 +470,7 @@ export class Host {
    */
   async ensurePriced({ setPrices = (...a) => chain.setPrices(...a), now = Date.now() } = {}) {
     if (!this.chainReady || !this.registered || !chain.operatorAddress()) return;
+    if (!mayReconcile(this.registered, chain.operatorAddress())) return;   // a deregistered (or another's) row is not re-priced
     // both asks: the CPU's (the owner's override, or the default from the network's prices) and the card's
     // The CPU price: not the configured fallback before the network's prices are known (setPriceRows). Right after a
     // start cfg holds that fallback, and posting it overwrote the market price on the registry only for the default
@@ -476,20 +569,22 @@ export class Host {
     this.applyPrices();
     return this.pricingView();
   }
+  /**
+   * The periodic local check. It sends NO transaction, for any endpoint: liveness is off-chain. A tunnelled box's comes
+   * from its authenticated tunnel (the relay's row), a dialed box's from the operator-signed capacity record it serves at
+   * <endpoint>/v1/host/capacity (network/host-liveness.mjs). No contract reads lastSeen; the registry is written only
+   * when this box's registration, price or proof key actually changes (ensureRegistered, ensurePriced, the proof key).
+   * The old on-chain heartbeat was gas burnt every 10 minutes by an idle box, 144 a day (nucbox-k11-2, 2026-10-12).
+   */
   async heartbeat() {
     if (!this.chainReady || !chain.operatorAddress() || !this.registered) return;
-    // A box reached through a relay tunnel (its endpoint is <relay>/t/<name>) is NOT heartbeated on chain: the relay holds
-    // its liveness (the tunnel row's lastSeen), the dialed-discovery staleness filter never applies to a tunnel row, and no
-    // contract reads lastSeen. The transaction was gas burnt every 10 minutes by an idle box, 144 a day, and the one gas
-    // cost a new host had before earning anything (nucbox-k11-2, 2026-10-12).
-    if (!Host.isTunnelEndpoint(this.cfg.endpoint))
-      try { await chain.heartbeatBox(this.enclaveId); } catch (e) { this.log(`heartbeat failed: ${e.shortMessage || e.message}`); }
+    await this.refreshRegistration({ quiet: true });   // READ the row (the Linux reconcile pass reads it too): a deregistration is seen, not undone
     await this.warnLowGas();
   }
   static isTunnelEndpoint(endpoint) { return /^https:\/\/[a-z0-9.-]+\/t\/[a-z0-9][a-z0-9-]*$/i.test(String(endpoint || "")); }
   /**
    * Gas runs the lease. A renewal costs about 60k gas (measured: 0.00000036 ETH on Base), a
-   * heartbeat and a claim more, so an empty tank does not fail loudly, it just stops renewing and
+   * claim more, so an empty tank does not fail loudly, it just stops renewing and
    * the app quietly goes away at the end of the quantum. Warn while there is still time to top up.
    */
   async warnLowGas() {
@@ -500,7 +595,9 @@ export class Host {
       this._gasWarnedAt = now;
       this.log(`operator gas is low: ${(Number(wei) / 1e18).toFixed(6)} ETH`
         + (hoursLeft !== null ? `, about ${Math.round(hoursLeft)} hours at the measured ${(burnPerHour / 1e18).toFixed(6)} ETH/h` : `, about ${renews} renewals left`)
-        + `. Top up ${chain.operatorAddress()} or apps stop renewing and go away`);
+        + (chain.leaseGasActive()
+          ? `. Lease claims, renewals and releases are paid by each app's own reserve (app-funded leases), so apps keep renewing; this ETH is only for this box's registry status, price and proof-key writes (and paid apps' proof checkpoints)`
+          : `. Top up ${chain.operatorAddress()} or apps stop renewing and go away`));
     }
     this.gasRenewals = Number(renews);
     this.gasHoursLeft = hoursLeft === null ? null : Math.round(hoursLeft);
@@ -526,6 +623,10 @@ export class Host {
   async consider(id, { force = false, invited = false } = {}) {
     id = String(id).toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(id)) return { accepted: false, reason: "id must be the bytes32 deployment id" };
+    // a sponsored release of it may still land (or the release journal failed to load): no claim or re-adoption here
+    const releaseHeld = chain.releaseHold(id);
+    if (releaseHeld) { this.#record(id, { status: "held", reason: releaseHeld }); return { accepted: false, reason: releaseHeld, standing: "held" }; }
+    { const pr = this.platformPolicy.newWorkRefusal(); if (pr) return { accepted: false, reason: pr }; }
     if (!this.chainReady) return { accepted: false, reason: `chain unavailable: ${this.lastError}` };
     await this.refreshOwners();
     if (this.blocked.has(id)) {
@@ -549,7 +650,7 @@ export class Host {
     // hosting cap: a hint for a deployment this box runs is not a new claim, and lowering a cap never takes a running
     // app away (hosting.mjs). Measured against itself, or against a cap below what runs, it would be marked refused.
     const here = Host.occupies(this.records.get(id) || {});
-    const refuse = this.claimRefusal(d, { version: v, capacity: this.capacity({ exclude: id, capped: !here }),
+    const refuse = await this.walletPolicyRefusal({...d,id}) || this.claimRefusal(d, { version: v, capacity: this.capacity({ exclude: id, capped: !here }),
                                           appsEnabled: this.cfg.appsEnabled, invited: invited || force });
     if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse, standing: "refused" }; }
     // A deployment for the ISOLATED backend that this box would still have to CLAIM is judged by the partition verdict
@@ -557,7 +658,7 @@ export class Host {
     const heldHere = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase() && Number(d.leaseUntil) * 1000 > Date.now();
     if (!heldHere && this.isolation) {
       let envOpts = {}, envRead = false;
-      try { envOpts = chain.parseEnvelope(d.configCid, d.gpuMilli) || {}; envRead = true; } catch { envRead = false; }
+      try { envOpts = this.envelopeOf(d.configCid, d.gpuMilli) || {}; envRead = true; } catch { envRead = false; }
       if (envRead && chain.isolationForBackend(envOpts, this.isolationBackend)) {
         const pre = await this.#preclaimVerdict(id, d, v, { envOpts, envRead, force });
         if (pre) return pre;
@@ -765,7 +866,7 @@ export class Host {
     if (verdict === "stamp") { this.#record(id, { envelope: cur }); return; }
     if (verdict === "error") {
       let why = "it does not parse";
-      try { chain.parseEnvelope(cur, d.gpuMilli); } catch (e) { why = e.message; }
+      try { this.envelopeOf(cur, d.gpuMilli); } catch (e) { why = e.message; }
       // Recorded once, not every 30 seconds: a bad edit is a standing fact about the row.
       if (rec.reason !== `the owner's last options edit was not applied: ${why}`)
         this.log(`config edit ${id.slice(0, 10)} NOT applied (the running app keeps its old configuration): ${why}`);
@@ -773,7 +874,7 @@ export class Host {
       return;
     }
     let opts = {};
-    try { opts = chain.parseEnvelope(cur, d.gpuMilli); } catch { return; }
+    try { opts = this.envelopeOf(cur, d.gpuMilli); } catch { return; }
     if (verdict === "waf") {
       // {} not null: the envelope parsed, so "no rules" is KNOWN. null means "could not read",
       // which isolationPlan holds on - so recording null after a live edit that REMOVED the rules
@@ -814,13 +915,15 @@ export class Host {
     if (rec.envelope == null) return "stamp";
     if (rec.envelope === cur) return "skip";
     let oldO = {}, newO;
-    try { oldO = chain.parseEnvelope(rec.envelope); } catch { /* a stale unparsable stamp reads as no options */ }
-    try { newO = chain.parseEnvelope(cur); } catch { return "error"; }
+    try { oldO = this.envelopeOf(rec.envelope); } catch { /* a stale unparsable stamp reads as no options */ }
+    try { newO = this.envelopeOf(cur); } catch { return "error"; }
     // "config absent" (use the version's) and "config: {}" (explicitly empty) are different owner
     // intents, so null and "{}" stay distinct. The CID rides the same key: repointing it at a
     // different pinned document is a config change even when the inline part is byte-identical.
-    const cfg = (o) => (o.config !== undefined || o.configCid)
-      ? JSON.stringify([o.configCid || "", o.config !== undefined ? o.config : null]) : null;
+    // An owner-committed package is the whole startup (config, app, names): a new commitment is a restart, and so is
+    // moving between a package and the legacy config fields.
+    const cfg = (o) => o.startup ? JSON.stringify(["guestBootstrap", o.startup.sha256])
+      : (o.config !== undefined || o.configCid) ? JSON.stringify([o.configCid || "", o.config !== undefined ? o.config : null]) : null;
     return cfg(newO) === cfg(oldO) ? "waf" : "restart";
   }
 
@@ -873,7 +976,7 @@ export class Host {
    * envelope could not be read), the model volumes the version needs, the manager's /health, and its pinned runtime.
    * Its rules and its refusals are node-bridge's (UNKNOWN is not NO: an input that cannot be established is unknown).
    */
-  async isolationVerdict(id, d, v, { envOpts = {}, envRead = false } = {}) {
+  async isolationVerdict(id, d, v, { envOpts = {}, envRead = false, launch = false } = {}) {
     const { IsolationManagerClient } = await import("./isolation-client.mjs");
     const { isolationPlan } = await import("../vbslike/datapath/node-bridge.mjs");
     const client = new IsolationManagerClient({ base: this.cfg.isolationManager });
@@ -884,6 +987,18 @@ export class Host {
     if (!managerHealth) this.managerSupports = null;
     // what the manager says it can give a partition (/health supports), for features(): kept when it answered
     if (managerHealth && managerHealth.supports && typeof managerHealth.supports === "object") this.managerSupports = { ...managerHealth.supports };
+    // the model volumes it holds (/health volumes, kind "model"), for features(): only with supports.modelVolumes
+    if (managerHealth) this.managerModelVolumes = (Array.isArray(managerHealth.volumes) ? managerHealth.volumes : [])
+      .filter((v) => v && v.kind === "model" && typeof v.name === "string").map((v) => v.name);
+    // AN OWNER-COMMITTED PACKAGE: the same plan, built from the package's config and secrets mode on the pinned ledger's
+    // agreed state, and only once its AppID is the package's (shield-startup.mjs). Relay secrets are never asked about.
+    if (envRead && envOpts.startup) {
+      const authority = await this.#startupAuthority();
+      if (!authority) return { ok: false, input: "guestBootstrap", why: `this host cannot verify owner-committed startup: ${this.startupConfigError}`, unknown: false };
+      if (!managerHealth) return { ok: false, input: "manager", why: "the partition manager's /health is not known here", unknown: true };
+      return authority.materialize(id, { observed: d, manager: managerHealth, runtimeId: this.cfg.isolationRuntimeId, waf: envOpts.waf || {},
+        enclaveId: this.enclaveId, needLease: launch, walletRefusal: (row) => this.walletPolicyRefusal(row) });
+    }
     // Which model volumes this version needs, from its own config; null (unknown) when the config cannot be read.
     let volumes = null;
     try {
@@ -993,10 +1108,18 @@ export class Host {
     const rebootHeld = this.records.get(id)?.rebootHeld;
     if (rebootHeld) return this.#record(id, { status: "held", reason: rebootHeld });
 
-    // THE SAME VERDICT consider() asked before the claim (isolationVerdict): one set of inputs, one answer.
-    const plan = await this.isolationVerdict(id, d, v, { envOpts, envRead });
+    // THE SAME VERDICT consider() asked before the claim (isolationVerdict): one set of inputs, one answer. An
+    // owner-committed package is verified again here, at launch, and must find this host's live lease at the quorum block.
+    const plan = await this.isolationVerdict(id, d, v, { envOpts, envRead, launch: true });
     if (!plan.ok) {
       const why = `isolation: ${plan.input}: ${plan.why}`;
+      // A RUNNING owner-committed partition is not taken down by one unanswered re-verification (an RPC or replica blip):
+      // it keeps serving on its last verification for STARTUP_GRACE_MS, never longer. A definite answer ends it at once.
+      const cur = this.records.get(id) || {};
+      if (plan.unknown && cur.startup && cur.status === "running" && cur.isolation && Date.now() - Number(cur.startupVerifiedAt || 0) < Host.STARTUP_GRACE_MS) {
+        if (cur.reason !== why) this.log(`${id.slice(0, 10)} still serving its verified startup package: ${why}`);
+        return this.#record(id, { reason: why });
+      }
       if (plan.unknown) {
         this.log(`${id.slice(0, 10)} ${why}`);
         // planHeld: this box will not provision it until the input is established, so the tick does not RENEW it (87)
@@ -1005,6 +1128,10 @@ export class Host {
       return await this.#giveUp(id, why);
     }
     if (this.records.get(id)?.planHeld) this.#record(id, { planHeld: null, noRenewSaid: null });
+    // What this partition must run, when an owner committed it: recorded before the spawn so the adoption checks below
+    // and a restart judge the manager's view against it, and so the names come only from this package.
+    const startup = plan.startup || null;
+    this.#record(id, { startup, startupVerifiedAt: startup ? Date.now() : null });
 
     // A lapsed hosting lease or readiness timeout may already have retired the
     // ended VM. Keep its service cooldown before reconcile can spawn an absent
@@ -1026,7 +1153,15 @@ export class Host {
     // requested app" (2026-10-13 22:16Z: cron stayed on /1 after its switch to /2, down until retired by hand). It is
     // retired, confirmed gone, and the current version is spawned below. A manager that does not say which version it
     // runs is not second-guessed.
-    const stale = await IsolationManagerClient.staleVersion(client, id, body.derive).catch(() => null);
+    let stale = await IsolationManagerClient.staleVersion(client, id, body.derive).catch(() => null);
+    // ...and for an owner-committed startup, a domain running ANOTHER AppID (the same catalog version with an older
+    // package's config, say) is not adopted either: the version check above cannot see a config change.
+    if (!stale && startup) {
+      const held = await client.findByName(id).catch(() => undefined);
+      if (held === undefined) return this.#record(id, { status: "provisioning", reason: "isolation: the manager could not be asked which app it holds" });
+      const wrong = held ? startupAdoptionRefusal(held, startup) : null;
+      if (wrong) stale = `${held.id}: ${wrong}`;
+    }
     if (stale) {
       this.log(`${id.slice(0, 10)} isolation: version change: ${stale}; replacing the domain`);
       const gone = await this.#retireIsolated(id, `version change: ${stale}`);
@@ -1168,6 +1303,15 @@ export class Host {
       return this.#record(id, { status: "held", boundaryHeld: true, isolation: null, reason: boundaryWrong,
                                 ...(inst.id ? { isolationHeld: inst.id } : {}) });
     }
+    // THE OWNER'S COMMITMENT, on the manager's own view of what it started or adopted: anything else is retired, never
+    // routed, and the deployment waits (provisioning) for the next pass to start the committed app.
+    const notCommitted = startupAdoptionRefusal(inst, startup);
+    if (notCommitted) {
+      this.log(`${id.slice(0, 10)} isolation: ${notCommitted}; retiring it`);
+      const gone = await this.#retireIsolated(id, `owner-committed startup: ${notCommitted}`);
+      return this.#record(id, { status: "provisioning", isolation: null, reason: `isolation: ${notCommitted}`
+        + (gone ? "" : "; it could not be confirmed removed, so nothing new is started"), ...(gone || !inst.id ? {} : { isolationHeld: inst.id }) });
+    }
     // A domain this node saw serving that the manager no longer has (it stopped by itself, crashed, or was removed by
     // its own sweep) is replaced here silently otherwise: say so, with what was last known (2026-10-13 14:13Z: RISC Box's
     // partition turned itself off and a new one appeared with no line saying why). Read from #lastServing, NOT from
@@ -1226,6 +1370,10 @@ export class Host {
 
   /** Fetch + verify + run the deployment's app, and keep the record honest about which stage failed. */
   async ensureApp(id, d, { force = false, version = null } = {}) {
+    const wallet = await this.#walletPolicyState({ ...d, id });
+    if (wallet.refusal) return await this.#giveUp(id, wallet.refusal, { retry: true });
+    if (wallet.unknown) return await this.#walletHold(id, wallet.unknown);
+    if (this.records.get(id)?.walletHeld) this.#record(id, { walletHeld: null });
     if (force) this.#respawnAfter.delete(id);
     // A FORCED ensure is what a reboot-recovery hold waits for (#rebootHold): it is tried again from here. That is the
     // operator's forced relaunch AND an owner's own action that re-ensures with force - a resize (#applyShareResize) or a
@@ -1249,7 +1397,7 @@ export class Host {
     // wrote it at all, which is the defect enclave-99 found: the gate could never be satisfied. Through the same parser
     // claimPolicy used, so "accepted at claim" and "applied here" cannot drift.
     let envOpts = {}, envRead = false;
-    try { envOpts = chain.parseEnvelope(d.configCid, d.gpuMilli) || {}; envRead = true; }
+    try { envOpts = this.envelopeOf(d.configCid, d.gpuMilli) || {}; envRead = true; }
     catch { envOpts = {}; envRead = false; }
     this.#record(id, {
       // {} = the envelope was read and carries no rules; null = it could not be read at all.
@@ -1819,7 +1967,7 @@ export class Host {
       const held = this.scanHold.get(id);
       if (held && held.key === holdKey && Date.now() - held.at < held.ms) continue;   // declined, and nothing it was judged on changed
       let v = null; try { v = await chain.resolveAppRef(d.appRef); } catch {}
-      const refuse = this.claimRefusal(d, { version: v, capacity: this.capacity(), appsEnabled: true, ownerAllow: owners });
+      const refuse = await this.walletPolicyRefusal({...d,id}) || this.claimRefusal(d, { version: v, capacity: this.capacity(), appsEnabled: true, ownerAllow: owners });
       if (refuse) {
         // Recorded, not logged every 30 seconds: a refusal is a standing fact about a row, and
         // the console reads it off /v1/deployments. Only a CHANGE is worth a line.
@@ -1877,11 +2025,33 @@ export class Host {
     for (const k of moved) this.log(`address book: ${k} moved ${before[k]} -> ${chain.addresses[k]}`
       + (k === "deployments" ? ": this box's leases are claimed again on the new ledger; running partitions keep running" : ""));
     if (moved.includes("deployments")) { this.scanHold?.clear?.(); this.priceSent = null; this.#saveTracked(); }
-    if (moved.includes("registry")) await this.refreshRegistration().catch(() => {});
+    if (moved.includes("registry")) {
+      await this.refreshRegistration().catch(() => {});
+      // a registry migration is a deliberate act (the book's owner moved it): register there as at boot
+      await this.ensureRegistered({ phase: "explicit" }).catch((e) => this.log(`register: ${e.message}`));
+    }
     return moved;
   }
-  async tick() {
+  /**
+   * ONE pass at a time. The 30 s interval (start()) fires whether or not the previous pass has finished, and a pass can
+   * take longer than that: every tracked deployment's wallet policy and lease reads are chain quorum reads, each up to its
+   * 30 s deadline when public RPCs rate-limit (2026-10-21, nucbox). Two overlapping passes asked the same policy twice,
+   * retired the same VM twice and raced the same renewal ("nonce consumed", then "not yet in the renew window"). A call
+   * while a pass runs therefore JOINS that pass (same promise, same outcome); the guard clears when it settles, success or
+   * error, so the next interval starts a fresh pass. Nothing is skipped or cached: every pass still makes every check.
+   */
+  tick() {
+    if (this.#tickInFlight) return this.#tickInFlight;
+    const pass = this.#tickOnce().finally(() => { if (this.#tickInFlight === pass) this.#tickInFlight = null; });
+    this.#tickInFlight = pass;
+    return pass;
+  }
+  #tickInFlight = null;
+  async #tickOnce() {
     if (!this.chainReady) return;
+    // journaled sponsored releases: settled ONLY from the chain (verified receipt = released; consumed/expired = fence)
+    try { for (const r of await chain.resolvePendingReleases()) this.log(`release ${r.id.slice(0, 10)}: ${r.outcome}${r.hash ? ` (${r.hash})` : ""}`); }
+    catch (e) { this.log(`release journal: not settled yet (${e.shortMessage || e.message})`); }
     await this.followBook();
     await this.enforceOff();
     // whose deployments this box serves, re-read before the scan and the sweep ask (a deleted delegation ends here)
@@ -1917,6 +2087,14 @@ export class Host {
       }
       const pinRefusal = chain.placementRefusal(d.configCid, this.enclaveId);
       if (pinRefusal) { await this.#giveUp(id, pinRefusal, { retry: true }); continue; }
+      const wallet = await this.#walletPolicyState({ ...d, id });
+      if (wallet.refusal) { await this.#giveUp(id, wallet.refusal, { retry: true }); continue; }
+      if (wallet.unknown) {
+        if (untilMs < Date.now()) { await this.#stopApp(id, `its lease lapsed while the host wallet policy was unavailable (not renewed): ${wallet.unknown}`); continue; }
+        await this.#walletHold(id, wallet.unknown);
+        continue;   // nothing renewed, launched or released on an unknown policy
+      }
+      if (rec.walletHeld) this.#record(id, { walletHeld: null });
       // HELD (a retired-engine node, a deployment it cannot run): before the renewal, the envelope edit and
       // the resize, each of which can spend or give back the lease on chain. Recorded, and left alone.
       const held = this.heldReason(d);
@@ -1996,8 +2174,15 @@ export class Host {
         this.#record(id, { noRenewSaid: untilMs });
         this.log(`${id.slice(0, 10)} NOT renewed: a capacity-audit job is one quantum; the lease ends ${new Date(untilMs).toISOString()}`);
       }
-      if (rec.boundaryHeld !== true && rec.capHeld !== true && !notServing && !oneQuantum && untilMs - Date.now() < RENEW_LEAD_MS) {
-        try { await chain.renewDeployment(id); this.log(`renewed ${id.slice(0, 10)}`); d = await chain.readDeployment(id); }
+      if (rec.boundaryHeld !== true && rec.capHeld !== true && !notServing && !oneQuantum && !this.platformPolicy.serviceRefusal() && untilMs - Date.now() < RENEW_LEAD_MS && !chain.releaseHold(id)) {
+        try {
+          const lead = await chain.renewLeadMs(id, RENEW_LEAD_MS);
+          if (untilMs - Date.now() < lead) {
+            await chain.renewDeployment(id);
+            this.log(`renewed ${id.slice(0, 10)}`);
+            d = await chain.readDeployment(id);
+          }
+        }
         catch (e) {
           // rateCap doctrine (the platform runner's, mirrored): a renew the LEDGER refuses is not
           // an error to retry, it is the deployment's own rate cap or its balance saying "this is
@@ -2031,6 +2216,9 @@ export class Host {
     // An owner attaches a domain while the app is already RUNNING - that is the whole point - so
     // the list is re-read on the tick rather than only at claim time.
     for (const id of this.apps.keys())
+      await this.refreshDomains(id).catch((e) => this.log(`domains ${id.slice(0, 10)}: ${e.message}`));
+    // ...and an owner-committed partition's names, which live in its package and its proofs, not in this.apps
+    for (const [id, r] of [...this.records]) if (r?.startup && r.status === "running")
       await this.refreshDomains(id).catch((e) => this.log(`domains ${id.slice(0, 10)}: ${e.message}`));
     for (const [id, app] of this.apps) {
       const cur = this.appCerts.get(id);
@@ -2099,7 +2287,11 @@ export class Host {
         this.log(`released ${id.slice(0, 10)} back to the fleet (tx ${hash})`);
         this.#record(id, { status: "released", reason: why });
       }
-    } catch (e) { this.log(`release ${id.slice(0, 10)} failed: ${e.shortMessage || e.message}`); }
+    } catch (e) {
+      // app-funded: a signed release whose relay answer was lost may still land; it is journaled and held, never reported
+      this.log(e.pending ? `release ${id.slice(0, 10)} unresolved: ${e.shortMessage || e.message}` : `release ${id.slice(0, 10)} failed: ${e.shortMessage || e.message}`);
+      if (e.pending) this.#record(id, { status: "held", reason: e.message });
+    }
     return this.records.get(id);
   }
   /**
@@ -2505,8 +2697,11 @@ export class Host {
       appsEnabled: !!this.cfg.appsEnabled,
       market: this.marketStatus(),
       // the operator key's gas, so the TRAY says it before the apps go (a log line alone let the NucBox run dry, 10-13)
-      gas: { operator: chain.operatorAddress() || null, low: this.gasLow === true,
-             hoursLeft: this.gasHoursLeft ?? null, renewalsLeft: this.gasRenewals ?? null },
+      // app-funded leases: the apps' reserves pay claim/renew/release, so "low" no longer means apps stop renewing; the
+      // operator's own ETH still pays registry status/price/proof-key writes (registryEthLow)
+      gas: { operator: chain.operatorAddress() || null, leases: chain.leaseGasActive() ? "app-funded" : "operator-paid",
+             low: this.gasLow === true && !chain.leaseGasActive(), registryEthLow: this.gasLow === true,
+             hoursLeft: this.gasHoursLeft ?? null, renewalsLeft: chain.leaseGasActive() ? null : this.gasRenewals ?? null },
       logsDir: this.cfg.dir,
       // for the hosting panel (host-ui, shared with the phone's Enclave app): what it calls this machine, and the apps here
       // (what occupies it, newest first, as dropPlan orders them)
@@ -2526,12 +2721,15 @@ export class Host {
     if (this.caps.paused === true) return no("hosting is off");
     if (!this.cfg.appsEnabled) return no("hosting is disabled on this node (APPS)");
     if (this.cfg.claimScope !== "market") return no("this node serves only its owner's apps (CLAIM_SCOPE)");
-    if (this.relayAttached !== true) return no("not connected to the network yet");
+    const verifiers = this.cfg.shieldVerifiers === true;     // the operator pinned a verifier set (agent.mjs)
+    if (this.relayAttached !== true && !verifiers) return no("not connected to the network yet");
     if (!this.registered) return no("not registered on the network yet");
-    if ((this.gasRenewals ?? 1) <= 0) return no("the operator key has no gas left for claims");
+    if (!chain.leaseGasActive() && (this.gasRenewals ?? 1) <= 0) return no("the operator key has no gas left for claims");   // app-funded: the app pays
     if (this.scope() !== "market")
-      return no("the network is verifying this PC (a few minutes after every start or update)");
-    return { taking: true, why: "listed on enclave.host" };
+      return no(verifiers && this.relayAttached !== true ? "this PC's selected verifiers have not admitted it to the market yet"
+        : "the network is verifying this PC (a few minutes after every start or update)");
+    return { taking: true, why: this.verifierMarketOpen(now) && !(this.relayTier === "hv-node" && Number(this.shieldMarketUntil || 0) > now)
+      ? "admitted by this PC's selected verifiers" : "listed on enclave.host" };
   }
 
   /**
@@ -2630,7 +2828,7 @@ export class Host {
    */
   isolatedForThisBox(d) {
     if (!this.isolationBackend) return false;
-    try { return chain.isolationForBackend(chain.parseEnvelope(d?.configCid, d?.gpuMilli), this.isolationBackend); }
+    try { return chain.isolationForBackend(this.envelopeOf(d?.configCid, d?.gpuMilli), this.isolationBackend); }
     catch { return false; }
   }
   /**
@@ -2663,18 +2861,62 @@ export class Host {
    * one claim, was refused by consider() on the retired-engine rule, and again every 30 s, so the owner's newer
    * hyperv row was never reached).
    */
+  // The host owner's wallet policy for a deployment: a DEFINITE refusal (the policy says no), or UNKNOWN (it could not be
+  // established: no RPC quorum, an expired snapshot, an unloadable policy). Unknown is never "allowed" - a claim is
+  // refused and nothing is served on it - and never "refused": the lease is not given back on chain for it.
+  async #walletPolicyState(d) {
+    if (!this.hostAdmission) return { refusal: null, unknown: null };
+    try { return { refusal: (await this.hostAdmission.refusal({ deploymentId: d.id, appRef: d.appRef, forPrivate: d.isPublic === false })) || null, unknown: null }; }
+    catch (e) {
+      const m = String(e.message).slice(0, 240);
+      // a deployment the policy cannot judge by its form is refused by the policy itself, not unknown
+      if (/^catalog app reference required/.test(m)) return { refusal: `host wallet policy: ${m}`, unknown: null };
+      return { refusal: null, unknown: m };
+    }
+  }
+  async walletPolicyRefusal(d) {
+    const w = await this.#walletPolicyState(d);
+    return w.refusal || (w.unknown ? 'host wallet policy unavailable: ' + w.unknown : null);
+  }
+  /**
+   * A deployment this box holds the lease of while the host wallet policy is UNKNOWN: nothing is served on it (its domain
+   * is retired, its app stopped - the policy gate holds), and nothing is given back either: no on-chain release, no
+   * renewal, still tracked, so the next tick asks again and serves it once the policy allows it. A lapse is the tick's
+   * ordinary local stop. (2026-10-21, nucbox: "host wallet policy unavailable: chain quorum unavailable" gave up a running
+   * deployment, retired it AND sent its release.)
+   */
+  async #walletHold(id, unknown) {
+    const why = `host wallet policy unavailable (${unknown}): not served, renewed or released until it is established; asked again each pass`;
+    const gone = await this.#retireIsolated(id, why);
+    const app = this.apps.get(id);
+    if (app) { await app.stop(); this.apps.delete(id); }
+    const rec = this.records.get(id) || {};
+    if (rec.reason !== why) this.log(`${String(id).slice(0, 10)} ${why}`);
+    return this.#record(id, { status: "held", walletHeld: true, port: null,
+      reason: gone ? why : `${why}; the isolated domain could not be confirmed gone yet (retried)` });
+  }
   claimRefusal(d, { version = null, capacity, appsEnabled, invited = false, ownerAllow = this.ownerSet() }) {
     // an admitted audit job (servesAuditJob) is claimed as its fee wallet's own: owner-only scope still holds, because only
     // a payer this box serves can have created it here
     if (this.#auditAdmitted.has(String(d?.id || "").toLowerCase())) ownerAllow = new Set([...ownerAllow, String(d.owner || "").toLowerCase()]);
-    return chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow, enclaveId: this.enclaveId,
+    // An owner-committed envelope: its commitment is judged here (its form, and that this host can start packages at
+    // all), and the rest of the envelope by claimPolicy, unchanged. The package itself is verified before any claim
+    // (#preclaimVerdict -> isolationVerdict -> shield-startup.mjs materialize).
+    let startup = null;
+    try { startup = shieldStartupEnvelope(d?.configCid); } catch (e) { return e.message; }
+    if (startup && !this.isolation) return "it carries an owner-committed startup package, which this host starts only in its Shield partitions, and it runs no isolation manager";
+    if (startup && this.startupAuthority === null)
+      return `it carries an owner-committed startup package, and this host cannot verify one: ${this.startupConfigError || "no startup authority"}`;
+    return chain.claimPolicy(this.#policyView(d), { isolationBackend: this.isolationBackend, ownerAllow, enclaveId: this.enclaveId,
                                   appsEnabled, scope: this.scope(), version, capacity, listedAt: this.listedAt(), invited,
+                                  hostWalletPolicy: !!this.hostAdmission,
                                   legacy: this.cfg.claimLegacy === true, fetchesConfigCid: this.features().configCidOverride,
                                   privateOk: !!this.cfg.sessionKid && (!this.partitionsOnly() || this.features().devDeploy),
                                   features: this.features() })
       || this.retiredEngineClaimRefusal(d);
   }
   static MARKET_GRACE_MS = 15 * 60_000;    // servingScope(): the relay's owner-read grace is the same 15 min
+  static STARTUP_GRACE_MS = 10 * 60_000;   // a running owner-committed partition outlasts an unanswered re-verification this long
   static SCAN_HOLD_MS = 10 * 60_000;       // a refused row
   static SCAN_QUEUED_HOLD_MS = 2 * 60_000; // a queued one: its input may come back soon (the preclaim's unknown, the ledger's cap)
   static SCAN_CLAIMFAIL_HOLD_MS = 2 * 60_000; // a row whose claim tx failed twice running under the same inputs
@@ -2712,7 +2954,24 @@ export class Host {
   appTrafficInsideEnclave() { return false; }
   meetsIsolationContract() {
     return this.cfg.engineRetired === true && this.isolationBackend === "hyperv-partition-per-app"
-      && this.relayTier === "hv-node" && Number(this.shieldMarketUntil || 0) > Date.now();
+      && this.relayTier === "hv-node" && Number(this.shieldMarketUntil || 0) > Date.now()
+      || this.verifierMarketOpen();
+  }
+  /**
+   * The same contract on verdicts from the verifiers this host's OPERATOR selected (shield-verdict.mjs): a threshold of
+   * them verified this host's attach, identity and pinned readiness witness for its own current challenge. Only
+   * openVerifierMarket sets the window, and only from verifyVerdicts' answer; nothing local raises it.
+   */
+  verifierMarketOpen(now = Date.now()) {
+    const m = this.verifierMarket;
+    return this.cfg.engineRetired === true && this.isolationBackend === "hyperv-partition-per-app"
+      && m?.tier === "hv-node" && Number(m.until || 0) > now;
+  }
+  /** shield-verdict.mjs createVerifierMarketClient's `open`: at most five minutes, remembered past it for the grace. */
+  openVerifierMarket(until, keyIds = []) {
+    const u = Math.min(Number(until) || 0, Date.now() + 300_000);
+    const seen = Math.max(Number(this.verifierMarket?.seenUntil || 0), u);
+    this.verifierMarket = { tier: "hv-node", until: u, seenUntil: seen, keyIds: [...keyIds].slice(0, 8), at: Date.now() };
   }
   /**
    * Which scope this box claims in. The market is only open when an app runs inside the enclave
@@ -2735,7 +2994,9 @@ export class Host {
    */
   servingScope() {
     if (this.scope() === "market") return "market";
-    return this.cfg.claimScope === "market" && this.cfg.engineRetired === true && this.isolationBackend === "hyperv-partition-per-app"
+    const base = this.cfg.claimScope === "market" && this.cfg.engineRetired === true && this.isolationBackend === "hyperv-partition-per-app";
+    if (base && this.verifierMarket?.tier === "hv-node" && Number(this.verifierMarket.seenUntil || 0) + Host.MARKET_GRACE_MS > Date.now()) return "market";
+    return base
       && this.relayTier === "hv-node" && Number(this.shieldMarketSeenUntil || 0) + Host.MARKET_GRACE_MS > Date.now() ? "market" : "owner-only";
   }
   /**
@@ -2752,7 +3013,7 @@ export class Host {
     const partitions = [...this.records.values()].filter((r) => r && r.isolation && r.status === "running").length;
     const cap = this.capacity();
     const ready = !!(this.cfg.appsEnabled && this.registered && Number(this.registered.cpuPricePerSec6) > 0
-                     && chain.operatorAddress() && (this.gasRenewals ?? 1) > 0);
+                     && chain.operatorAddress() && (chain.leaseGasActive() || (this.gasRenewals ?? 1) > 0));
     return {
       // Does this box take work from the market at all? That is a question about CAPABILITY, not
       // about whether it is busy: an app runtime in the enclave, apps enabled, an operator key
@@ -2775,7 +3036,9 @@ export class Host {
       isolation: this.isolationBackend,
       ...(this.isolationBackend ? { isolationBoundary: { tier: "T0-hv", hostExcluded: false } } : {}),
       // The relay's verdict on this node's attach, as it gave it (null until attached): tier "hv-node", hostExcluded false.
-      attach: { tier: this.relayTier || null, hostExcluded: this.relayHostExcluded ?? null },
+      attach: { tier: this.relayTier || null, hostExcluded: this.relayHostExcluded ?? null,
+                // the market window from operator-selected verifiers (shield-verdict.mjs), when one is open: who vouched, until when
+                ...(this.verifierMarketOpen() ? { verifiers: { tier: "hv-node", hostExcluded: false, until: this.verifierMarket.until, keyIds: this.verifierMarket.keyIds } } : {}) },
       apps: this.appsInTee() ? {
         // Where a leased app runs, in the one word that matters: INSIDE the enclave. The bytecode
         // is interpreted in VTL1 by the runtime linked into the measured image, so the app's code
@@ -2801,7 +3064,7 @@ export class Host {
         // branch below and say isolation "none", capacity 0 and "sells no app hosting" while partitions served.
         isolation: this.isolationBackend, tier: this.meetsIsolationContract() ? "enclave-shield" : "T0-hv", hostExcluded: false, hostOsExcluded: this.meetsIsolationContract(), operatorExcluded: false, inTee: false,
         running: partitions, capacity: cap.slots, scope: this.scope(),
-        note: this.meetsIsolationContract() ? "each app has a measured Shield partition and guest-held TLS key; the relay verifies app evidence; physical operator and hypervisor remain trusted" : "each deployment runs in its own Hyper-V partition; marketplace admission awaits the relay’s app-evidence check",
+        note: this.meetsIsolationContract() ? `each app has a measured Shield partition and guest-held TLS key; ${this.verifierMarketOpen() ? "this host's selected verifiers" : "the relay"} verified its boot and readiness evidence; physical operator and hypervisor remain trusted` : "each deployment runs in its own Hyper-V partition; marketplace admission awaits the relay’s app-evidence check",
       } : {
         // No app runtime in this enclave image: the box hosts nothing for a tenant. The VTL0
         // wasmtime path still exists for the box owner's own bring-up, and is not an offer.
@@ -2859,7 +3122,8 @@ export class Host {
       enclaveId: this.enclaveId,
       registered: !!this.registered,
       operator: chain.operatorAddress() || null,
-      gasRenewalsLeft: this.gasRenewals ?? null,   // an operator key out of gas stops renewing, and the app goes at the end of its quantum
+      gasRenewalsLeft: chain.leaseGasActive() ? null : this.gasRenewals ?? null,   // operator-paid only: out of gas stops renewing
+      leaseGas: chain.leaseGasActive() ? "app-funded" : "operator-paid",
       gasHoursLeft: this.gasHoursLeft ?? null,     // the key's MEASURED runway (warnLowGas); null until half an hour of samples
 
       proofKey: chain.proofAddress() || null,
@@ -2898,7 +3162,8 @@ export class Host {
         customDomains: this.partitionOffers("customDomains"),
         devDeploy: this.partitionOffers("privateDeployments") && !!this.cfg.sessionKid,
         mem64: this.managerSupports?.mem64 === true, set: this.managerSupports?.set === true, p3: false, coopThreads: false,
-        volumes: this.managerInference?.ready ? [this.managerInference.model] : [],
+        volumes: [...(this.managerInference?.ready ? [this.managerInference.model] : []),
+                  ...(this.partitionOffers("volumes", "modelVolumes") ? this.managerModelVolumes || [] : [])],
       };
     }
     return {
@@ -3024,6 +3289,9 @@ export class Host {
    * because forgetting a hostname is an outage on a name the customer owns.
    */
   async refreshDomains(id, { forLaunch = false } = {}) {
+    // An owner-committed deployment's names come from its package and proofs, never from the relay's map (domains.mjs).
+    const committed = this.records.get(id);
+    if (committed?.startup) return this.#refreshOwnerNames(id, committed);
     if (!this.cfg.secretsSign || !this.cfg.customDomains) return;
     const rec = this.records.get(id);
     // `forLaunch` is the cold-start call, made while the record is still "provisioning": the names
@@ -3091,6 +3359,58 @@ export class Host {
     for (const h of r.hosts) if (this.domainOwner.get(h) === key) await this.#certifyHost(id, h);
   }
 
+  /**
+   * THE OWNER-COMMITTED NAMES of a running partition (domains.mjs ownerCommittedDomains): the package's names, each served
+   * only while a fresh proof stands (a WebPKI certificate for it on the partition's judged TLS key). Two deployments that
+   * both prove a name: network/owner-names.mjs OwnerNameTable's rule (the later issuance wins; a tie selects neither).
+   * Only names that no legacy (relay-mapped) deployment owns are moved here. This host certifies nothing for a partition:
+   * the guest holds its key and certificate, and the proof reads what it presents.
+   */
+  async #refreshOwnerNames(id, rec) {
+    const key = String(id).toLowerCase();
+    if (!this.cfg.customDomains || rec.status !== "running" || !rec.isolation) return;
+    const { OwnerNameTable } = await import("../../network/owner-names.mjs");
+    this.ownerNames ||= new OwnerNameTable();
+    this.ownerNameProofs ||= new Map();
+    const was = this.ownerNameProofs.get(key);
+    const proofs = was && was.sha256 === rec.startup.sha256 ? was.proofs : new Map();
+    const prove = (name) => (this.cfg.proveOwnerName || ((i, n, r) => this.#proveOwnerName(i, n, r)))(key, name, rec);
+    let r;
+    try { r = await ownerCommittedDomains({ startup: rec.startup, prove, proofs, log: (m) => this.log(`${key.slice(0, 10)} ${m}`) }); }
+    catch (e) { this.log(`domains ${key.slice(0, 10)}: ${e.message}`); return; }
+    if (this.records.get(key)?.startup?.sha256 !== rec.startup.sha256) return;     // the package moved while proving
+    this.ownerNameProofs.set(key, { sha256: rec.startup.sha256, proofs: r.proofs });
+    this.ownerNames.set(key, [...r.proofs.values()]);
+    const previous = this.domains.get(key) || [];
+    const live = (dep) => { const x = this.records.get(dep); return !!x?.startup && x.status === "running" && !!x.isolation; };
+    const mine = [];
+    for (const h of new Set([...previous, ...r.hosts])) {
+      const cur = this.domainOwner.get(h);
+      if (cur && cur !== key && !this.records.get(cur)?.startup) continue;            // a legacy owner's name is not ours to move
+      const winner = this.ownerNames.select(h, live);
+      if (winner !== (cur || null)) this.#setOwner(h, winner);
+      if (winner === key) mine.push(h);
+    }
+    this.domains.set(key, mine);
+    const why = r.refused.length ? `owner-committed name(s) not proven: ${r.refused.map((x) => x.hostname).join(", ")}` : null;
+    if (previous.join(",") !== mine.join(",") || rec.domainWhy !== why) {
+      this.log(`domains ${key.slice(0, 10)}: ${mine.length ? mine.join(", ") : "no proven owner-committed names"}${why ? ` (${why})` : ""}`);
+      this.#record(key, { domains: mine, domainWhy: why });
+    }
+  }
+  /** One proof (network/owner-names.mjs proveNameControl): a TLS handshake for `name` through this partition's own splice. */
+  async #proveOwnerName(id, name, rec) {
+    const spki = String(rec.isolation?.transportKeySha256 || "");
+    if (!/^[0-9a-f]{64}$/.test(spki)) throw new Error("the partition's TLS key is not known");
+    const { proveNameControl, forwardDuplex } = await import("../../network/owner-names.mjs");
+    const { createIsolationSplicer, isolatedTarget } = await import("../vbslike/datapath/node-bridge.mjs");
+    const { IsolationManagerClient } = await import("./isolation-client.mjs");
+    const t = isolatedTarget(id, rec, this.cfg.appZone);
+    if (!t || !this.cfg.isolationDataAddr) throw new Error("the partition has no route here");
+    const splicer = createIsolationSplicer({ client: new IsolationManagerClient({ base: this.cfg.isolationManager }), dataAddr: this.cfg.isolationDataAddr });
+    const target = { ...t, isolation: { ...t.isolation, allowedNames: [name] } };
+    return proveNameControl({ name, spkiSha256: spki, open: () => forwardDuplex((s) => splicer.serve(s, target), id, (m) => this.log(m)) });
+  }
   /**
    * Record who owns a hostname, and bump its GENERATION.
    *
@@ -3188,6 +3508,7 @@ export class Host {
       this.domainFails.delete(h);
     }
     this.domains.delete(key);
+    this.ownerNames?.drop(key); this.ownerNameProofs?.delete(key);
   }
 
   /**
@@ -3278,7 +3599,10 @@ export class Host {
     // guest holds the key and does the handshake, which is the entire point of the tier.
     if (rec && rec.isolation) {
       const { isolatedTarget } = await import("../vbslike/datapath/node-bridge.mjs");
-      return isolatedTarget(id, rec, this.cfg.appZone);
+      const t = isolatedTarget(id, rec, this.cfg.appZone);
+      // an owner-committed deployment's PROVEN names (refreshDomains): its ClientHello may name them as well as its zone label
+      const names = rec.startup ? (this.domains.get(id) || []).filter((h) => this.domainOwner.get(h) === id) : [];
+      return t && names.length ? { ...t, isolation: { ...t.isolation, allowedNames: names } } : t;
     }
     const app = this.apps.get(id);
     if (!rec || rec.status !== "running" || !app) return null;
@@ -3332,6 +3656,8 @@ export class Host {
    */
   async proxy(id, { method, pathRest, headers, body, ip = null, target = null }) {
     const key = String(id).toLowerCase();
+    { const pr = this.platformPolicy.serviceRefusal();
+      if (pr) return { status: 403, headers: { "content-type": "application/json" }, body: Buffer.from(JSON.stringify({ error: "host_policy_refused", message: pr })) }; }
     // THE DEPLOYMENT'S OWN PROTECTION RULES, before the app is consulted. Both of this box's doors
     // funnel through here - the relay's /x/<id> path and the app's own hostname - so the rules
     // hold on either, which is the property the envelope promises.

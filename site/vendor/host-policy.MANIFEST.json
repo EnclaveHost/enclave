@@ -1,0 +1,22 @@
+{
+  "file": "site/vendor/host-policy.js",
+  "sha256": "a22eef814e308aac74691ef706c5f6e8bee5ad5111c0dc9ba367ff70fe526370",
+  "bytes": 89691,
+  "entry": "export { createPlatformHostGate, readPolicyFacts, decodeAnchor, judgeHost, policyDigest, policyTypedData, validatePolicy, POLICY_FORMAT, ANCHOR_KEYS } from \"./network/platform-host-policy.mjs\";\nexport { httpPolicyMirrors, validateMirrors, MAX_POLICY_RESPONSE } from \"./network/host-policy-mirrors.mjs\";\nexport { encodeFunctionData, decodeFunctionResult } from \"viem\";\n",
+  "esbuild": "0.28.1",
+  "deps": {
+    "viem": "2.53.1"
+  },
+  "sources": {
+    "network/host-policy-mirrors.mjs": {
+      "sha256": "d7295d3806f00304d1ebb596fd380857a0f6b4a2702cb5f8e04427cfb4207660",
+      "commit": null,
+      "committedClean": false
+    },
+    "network/platform-host-policy.mjs": {
+      "sha256": "8198228d436f144a8d62126adc479df21649e098e076153939937e6eaf70dde2",
+      "commit": null,
+      "committedClean": false
+    }
+  }
+}

@@ -1,0 +1,221 @@
+// App-zone DNS-01 authorization for Enclave Shield guests (network/app-zone-shield.mjs inside network/app-zone-challenge.mjs):
+// a route replica accepts a Shield-direct front's push for its OWN app-zone name only with that guest's VBS report under a
+// TPM session the LEASE'S RUNNER made at this replica, signed by the LEASE'S OPERATOR, then the same agreed chain checks as
+// SEV-SNP (lease, ownership, registry ban, catalog). SYNTHETIC TPM/VBS world (test/app-zone-shield-fixture.mjs) - this is
+// not Windows hardware and not a public CA. Needs openssl (synthetic EK chain).   run: node --test test/app-zone-shield.test.mjs
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {randomBytes} from 'node:crypto';
+import {recoverMessageAddress} from 'viem';
+import {createAppZoneAuthority, createLedgerIndex, appChallengeName} from '../network/app-zone-challenge.mjs';
+import {createAppZoneShield, appZoneShieldParty, APP_ZONE_SHIELD_SESSION_PATH} from '../network/app-zone-shield.mjs';
+import {shieldResponderId, createShieldChallengeAuth} from '../relay/dns-challenge-shield.mjs';
+import {judge} from '../isolation/m2/judge.mjs';
+import * as F from './app-zone-fixture.mjs';
+import * as S from './app-zone-shield-fixture.mjs';
+
+const options = {skip: !S.haveOpenssl && 'openssl absent'};
+const {world, other} = S.worlds();
+const recoverSigner = (message, signature) => recoverMessageAddress({message, signature});
+
+function rig({state = S.shieldChainState(), snp = false, shield = true, clock = null} = {}) {
+  const reader = F.fakeReader(state);
+  const ledger = createLedgerIndex({reader, deployments: F.PINS.deployments, cooldownMs: 0});
+  const sh = shield ? createAppZoneShield({policy: S.policy(world, other), zone: F.ZONE, registryEntry: S.registryEntryOf(state), recoverSigner,
+    registryRecheckMs: 5000, ...(clock ? {now: () => clock.t} : {})}) : null;
+  const auth = createAppZoneAuthority({zone: F.ZONE, measurements: snp ? new Set([F.MEAS]) : new Set(), judge, mode: 'lab-unsigned', kds: false,
+    reader, pins: F.PINS, ledger, shield: sh});
+  const go = (p, method = 'POST') => auth.authorize({raw: p.body, sig: p.sig, method});
+  return {state, reader, ledger, shield: sh, auth, go};
+}
+const push = (key, o = {}) => S.shieldPush(key, {signer: world.idks.privateKey, ...o});
+const refused = (v, status, re, what) => { assert.equal(v.ok, false, `${what}: accepted`); assert.equal(v.status, status, `${what}: ${v.status} ${v.why}`); assert.match(v.why, re, what); };
+
+if (process.env.INJECT_FAILURE) test('INJECTED FAILURE (negative control: the suite must exit nonzero)', () => assert.fail('injected'));
+
+test('a Shield guest push is accepted only after the lease runner attested its TPM boot at THIS replica, as shield-attested, hostExcluded:false', options, async () => {
+  const r = rig(), key = F.guestKey();
+  assert.equal(r.shield.party, appZoneShieldParty(F.ZONE));
+  assert.notEqual(r.shield.party, shieldResponderId(F.ZONE), 'the replica party is domain-separated from an owner-name responder for the same zone');
+  assert.equal(APP_ZONE_SHIELD_SESSION_PATH, '/v1/app-zone/shield-session');
+  refused(await r.go(push(key)), 403, /no live Shield host session for this lease's runner and operator/, 'before any host session');
+  const a = await (await S.hostSession(r.shield, world)).attest();
+  assert.equal(a.tier, 'hv-node'); assert.equal(a.hostExcluded, false); assert.equal(a.party, r.shield.party);
+  const p = push(key), v = await r.go(p);
+  assert.equal(v.ok, true, JSON.stringify(v));
+  assert.equal(v.verdict, 'shield-attested'); assert.equal(v.tier, 'hv-node'); assert.equal(v.hostExcluded, false);
+  assert.equal(v.name, `_acme-challenge.7ae476a3.${F.ZONE}`); assert.equal(v.value, p.value);
+  assert.ok(v.ttlSec > 0 && v.ttlSec <= 120);
+  // delete takes the same proof; the accepted set is one-shot
+  assert.equal((await r.go(push(key, {op: 'delete', value: p.value}), 'DELETE')).ok, true);
+  refused(await r.go(p), 409, /one-shot/, 'replayed set');
+});
+
+test('the session must be the LEASE RUNNER\'s, by the LEASE OPERATOR, for THIS replica party; another host or TPM never stands in', options, async () => {
+  const key = F.guestKey();
+  // a TPM whose EK does not chain to a root the operator pinned never gets a session
+  const pinnedOne = createAppZoneShield({policy: S.policy(world), zone: F.ZONE, registryEntry: S.registryEntryOf(S.shieldChainState()), recoverSigner});
+  await assert.rejects(async () => (await S.hostSession(pinnedOne, other, {endpoint: S.OTHER_ENDPOINT})).attest(), /does not chain to a pinned TPM root/);
+  // another registered Shield host (another TPM) attests here: DEP's lease names HOST_ID, so its session does not apply
+  let r = rig();
+  await (await S.hostSession(r.shield, other, {endpoint: S.OTHER_ENDPOINT})).attest();
+  refused(await r.go(push(key)), 403, /no live Shield host session for this lease's runner/, "another host's session");
+  // that host's own genuine guest claiming DEP: lease runner OTHER_HOST_ID (its session matches) but the chain lease is HOST_ID
+  refused(await r.go(push(key, {signer: other.idks.privateKey, lease: S.shieldLease({runner: S.OTHER_HOST_ID})})), 403, /stale/, 'another host claims the lease');
+  // the runner's session exists, but the push names another operator
+  await (await S.hostSession(r.shield, world)).attest();
+  refused(await r.go(push(key, {lease: S.shieldLease({operator: S.stranger.address.toLowerCase()})})), 403, /no live Shield host session/, 'operator mismatch');
+  // a report the runner's TPM boot (IDKS) did not sign: another TPM's guest naming this runner
+  refused(await r.go(push(key, {signer: other.idks.privateKey})), 403, /Shield attestation refused/, "another TPM's report");
+  // a session signed by another key than the registered operator, and one signed for the owner-name responder's party
+  r = rig();
+  await assert.rejects((await S.hostSession(r.shield, world, {signer: S.stranger})).attest(), (e) => e.status === 403, 'stranger-signed attach');
+  await assert.rejects((await S.hostSession(r.shield, world, {party: shieldResponderId(F.ZONE)})).attest(), (e) => e.status === 403, 'owner-name party');
+  refused(await r.go(push(key)), 403, /no live Shield host session/, 'no session was admitted');
+  // a session made at an OWNER-NAME responder is not a session at this replica
+  const ownerResponder = createShieldChallengeAuth({policy: S.policy(world), zone: F.ZONE, registryEntry: S.registryEntryOf(r.state), recoverSigner});
+  await (await S.hostSession(ownerResponder, world)).attest();
+  refused(await r.go(push(key)), 403, /no live Shield host session/, 'owner-name responder session');
+  // a TPM whose boot log names another IDKS (the IDKS is read from the TPM-authenticated log, never from the guest)
+  r = rig();
+  await (await S.hostSession(r.shield, world, {idksOf: other})).attest().catch(() => null);
+  refused(await r.go(push(key)), 403, /no live Shield host session|Shield attestation refused/, 'boot log names another IDKS');
+});
+
+test('invalid Shield evidence is refused: binding, image, runtime, launcher-only, relabelled tier', options, async () => {
+  const r = rig(), key = F.guestKey();
+  await (await S.hostSession(r.shield, world)).attest();
+  const cases = {
+    'report binds another nonce': [push(key, {doc: {bindNonce: randomBytes(32)}}), /guest binding differs/],
+    'report binds another key': [push(key, {doc: {bindKey: F.guestKey().spki}}), /guest binding differs/],
+    'image (VBS launch digest) not admitted': [push(key, {doc: {image: 'ef'.repeat(32)}}), /Shield attestation refused/],
+    'runtime with no admitted image': [push(key, {doc: {runtime: {...S.RUNTIME, version: '49.0.0'}}}), /runtime has no admitted image/],
+    'launcher-only document (the host\'s word, no VBS report)': [push(key, {doc: {launcherOnly: true}}), /guest VBS report missing/],
+    'Hyper-V format relabelled as another tier': [push(key, {doc: {tier: 'T1'}}), /not an Enclave Shield \(T0-hv\) document/],
+    'attestation for another push': [push(key, {nonceOverride: randomBytes(32)}), /does not bind this push/],
+  };
+  for (const [what, [p, re]] of Object.entries(cases)) refused(await r.go(p), 403, re, what);
+});
+
+test('tiers never stand in for each other: SNP on a Shield-only replica, Shield on an SNP-only replica; a combined replica judges each by its own rule', options, async () => {
+  const key = F.guestKey();
+  // Shield-only replica: a synthetic SNP document (lab-unsigned would accept it on an SNP replica) is refused outright
+  refused(await rig({state: F.chainState()}).go(F.appPush(key)), 403, /accepts no SEV-SNP evidence/, 'SNP on Shield-only');
+  // SNP-only replica: a Shield document is never judged as SNP
+  refused(await rig({shield: false, snp: true}).go(push(key)), 403, /accepts no Enclave Shield evidence/, 'Shield on SNP-only');
+  // combined: SNP still accepted for an SNP-leased deployment; Shield for a Shield-leased one; neither crosses over
+  const snpRig = rig({state: F.chainState(), snp: true});
+  assert.equal((await snpRig.go(F.appPush(key))).ok, true, 'SNP accepted on a combined replica');
+  const shieldRig = rig({snp: true});
+  await (await S.hostSession(shieldRig.shield, world)).attest();
+  const v = await shieldRig.go(push(key));
+  assert.equal(v.ok, true, JSON.stringify(v)); assert.equal(v.verdict, 'shield-attested'); assert.equal(v.hostExcluded, false);
+  // an SNP document for the Shield-leased deployment: the judge passes (lab mode) but the chain lease names the Shield runner
+  refused(await shieldRig.go(F.appPush(key)), 403, /stale/, 'SNP evidence with the SNP lease against a Shield-leased deployment');
+  // no shield and no SNP pins: no replica
+  assert.throws(() => createAppZoneAuthority({zone: F.ZONE, measurements: new Set(), judge, reader: F.fakeReader(F.chainState()), pins: F.PINS,
+    ledger: createLedgerIndex({reader: F.fakeReader(F.chainState()), deployments: F.PINS.deployments})}), /pinned measurements required/);
+});
+
+test('names and chain: cross-deployment, namespace, ownership, lease, platform ban and catalog moderation stop a Shield push', options, async () => {
+  const key = F.guestKey();
+  const names = {
+    "another deployment's label": [push(key, {name: appChallengeName(F.OTHER_DEP, F.ZONE)}), /not this deployment/],
+    'zone apex (wildcard)': [push(key, {name: `_acme-challenge.${F.ZONE}`}), /not this deployment/],
+    'deeper name': [push(key, {name: `_acme-challenge.x.7ae476a3.${F.ZONE}`}), /not this deployment/],
+    'another zone (namespace)': [push(key, {name: '_acme-challenge.7ae476a3.example.org'}), /not this deployment/],
+  };
+  for (const [what, [p, re]] of Object.entries(names)) {
+    const r = rig(); await (await S.hostSession(r.shield, world)).attest();
+    refused(await r.go(p), 403, re, what);
+  }
+  const chainCases = {
+    'cross-deployment: another owner\'s deployment on the same host': [(s) => s, {deploymentId: F.OTHER_DEP}, /owner/],
+    'ownership transferred': [(s) => { s.deployments[F.DEP].owner = '0x' + '99'.repeat(20); }, {}, /owner/],
+    'lease released': [(s) => { s.deployments[F.DEP].runner = '0x' + '0'.repeat(64); s.deployments[F.DEP].runnerOperator = '0x' + '0'.repeat(40); }, {}, /no current lease/],
+    'lease expired': [(s) => { s.deployments[F.DEP].leaseUntil = Math.floor(Date.now() / 1000) - 5; }, {}, /no current lease/],
+    're-leased to another Shield host': [(s) => { s.deployments[F.DEP].runner = S.OTHER_HOST_ID; }, {}, /stale/],
+    'host banned by the platform (registry inactive)': [(s) => { s.hosts[S.HOST_ID].active = false; }, {}, /not an active registry host/],
+    'deployment suspended': [(s) => { s.deployments[F.DEP].active = false; }, {}, /not active/],
+    'catalog app delisted': [(s) => { s.apps['0x' + '66'.repeat(32)].active = false; }, {}, /catalog policy/],
+    'catalog version yanked': [(s) => { s.versions['0x' + '66'.repeat(32) + '/1'].yanked = true; }, {}, /catalog policy/],
+    'pending version on a public deployment': [(s) => { s.versions['0x' + '66'.repeat(32) + '/1'].approval = 0; }, {}, /catalog policy/],
+  };
+  for (const [what, [mutate, o, re]] of Object.entries(chainCases)) {
+    const state = S.shieldChainState(), r = rig({state});
+    await (await S.hostSession(r.shield, world)).attest();
+    mutate(state);
+    refused(await r.go(push(key, o)), 403, re, what);
+  }
+  // a PRIVATE deployment may use a pending version (catalog forPrivate), exactly as for SNP and at admission
+  const priv = S.shieldChainState(); priv.deployments[F.DEP].isPublic = false; priv.versions['0x' + '66'.repeat(32) + '/1'].approval = 0;
+  const r = rig({state: priv}); await (await S.hostSession(r.shield, world)).attest();
+  assert.equal((await r.go(push(key))).ok, true, 'private + pending allowed');
+});
+
+test('a host whose registry entry stops naming it loses its session at the next recheck; no chain quorum refuses', options, async () => {
+  const key = F.guestKey(), clock = {t: Date.now()};
+  const r = rig({clock});
+  await (await S.hostSession(r.shield, world)).attest();
+  assert.equal((await r.go(push(key))).ok, true);
+  r.state.hosts[S.HOST_ID].operator = '0x' + 'ef'.repeat(20);          // the operator rotated (or the host re-registered)
+  clock.t += 6000;
+  refused(await r.go(push(key)), 403, /registry entry no longer names this endpoint/, 'revoked at recheck');
+  refused(await r.go(push(key)), 403, /no live Shield host session/, 'the session is gone');
+  // no agreeing chain: the authority refuses after the attestation (503), never assumes
+  const state = S.shieldChainState(), reader = F.fakeReader(state, {fail: true});
+  const sh = createAppZoneShield({policy: S.policy(world), zone: F.ZONE, registryEntry: S.registryEntryOf(state), recoverSigner});
+  const auth = createAppZoneAuthority({zone: F.ZONE, measurements: new Set(), reader, pins: F.PINS, ledger: createLedgerIndex({reader, deployments: F.PINS.deployments, cooldownMs: 0}), shield: sh});
+  await (await S.hostSession(sh, world)).attest();
+  const p = push(key), v = await auth.authorize({raw: p.body, sig: p.sig, method: 'POST'});
+  assert.equal(v.ok, false); assert.equal(v.status, 503);
+});
+
+test('the replica routes: only /v1/app-zone/shield-session/{challenge,attest}; a Shield verifier is required to have verify()', options, async () => {
+  const r = rig();
+  const res = () => { const o = {code: 0, body: null}; return [o, (code, body) => { o.code = code; o.body = body; }]; };
+  for (const url of ['/v1/shield-session/challenge', '/v1/app-zone/shield-session/other', '/v1/app-zone/shield-session']) {
+    const [, json] = res();
+    assert.equal(await r.shield.handle({url, method: 'POST'}, {}, json), false, url);
+  }
+  assert.throws(() => createAppZoneAuthority({zone: F.ZONE, measurements: new Set(), reader: F.fakeReader(F.chainState()), pins: F.PINS,
+    ledger: createLedgerIndex({reader: F.fakeReader(F.chainState()), deployments: F.PINS.deployments}), shield: {}}), /createAppZoneShield/);
+  // verify() refuses a lease without an exact runner/operator before looking at evidence
+  const v = await r.shield.verify({doc: {}, spki: Buffer.alloc(0), nonce: Buffer.alloc(32), lease: {runner: 'x', operator: S.OPERATOR}});
+  assert.equal(v.ok, false); assert.equal(v.status, 400);
+});
+
+test('the Windows host keeps app-zone sessions only for its running Shield-direct packages\' replicas, bound to its app zone', options, async () => {
+  const {appZoneTargets, sessionTargets, createResponderSessions} = await import('../windows/node/shield-sessions.mjs');
+  const rec = (status, direct, challenges) => ({status, startup: {direct, appZone: {challenges}}});
+  const recs = [rec('running', true, ['https://rep-a.example/', 'https://rep-b.example', 'http://plain.example', 'not a url']),
+    rec('provisioning', true, ['https://rep-a.example']), rec('running', false, ['https://legacy.example']), rec('stopped', true, ['https://gone.example'])];
+  const t = appZoneTargets(recs, F.ZONE);
+  assert.deepEqual(t.map((x) => x.url), ['https://rep-a.example', 'https://rep-b.example'], 'https only, direct and live only, each once');
+  assert.ok(t.every((x) => x.party === appZoneShieldParty(F.ZONE) && x.path === APP_ZONE_SHIELD_SESSION_PATH));
+  assert.deepEqual(appZoneTargets(recs, ''), [], 'no app zone configured: no app-zone session');
+  assert.deepEqual(sessionTargets(recs).filter((x) => x.path === APP_ZONE_SHIELD_SESSION_PATH), [], 'sessionTargets without appZone keeps the previous set');
+  assert.equal(sessionTargets(recs, {appZone: F.ZONE}).filter((x) => x.path === APP_ZONE_SHIELD_SESSION_PATH).length, 2);
+  // the keeper against an in-process replica, then against a "replica" answering as an owner-name responder (another party)
+  const r = rig();
+  const viaHandle = (auth) => async (url, init) => {
+    const u = new URL(url), body = Buffer.from(init.body);
+    let code = 0, out = null;
+    const req = Object.assign((await import('node:stream')).Readable.from([body]), {url: u.pathname, method: 'POST', headers: {'content-type': 'application/json', 'content-length': String(body.length)}, socket: {remoteAddress: '127.0.0.1'}});
+    const handled = await auth.handle(req, {setHeader() {}}, (c, j) => { code = c; out = j; });
+    if (handled === false) { code = 404; out = {error: 'not_found'}; }
+    return new Response(JSON.stringify(out), {status: code});
+  };
+  const {generateKeyPairSync} = await import('node:crypto');
+  const {privateKey, publicKey} = generateKeyPairSync('ed25519');
+  const {keccak256, toBytes} = await import('viem');
+  const keeper = (fetchImpl) => createResponderSessions({hostId: keccak256(toBytes(S.ENDPOINT)), endpoint: S.ENDPOINT, nodeKey: {spki: publicKey.export({type: 'spki', format: 'der'}), privateKey},
+    tpm: S.fakeTpm(world), keysFrame: async () => S.keysOf(world), sign: (message) => S.operator.signMessage({message}), fetchImpl});
+  const ok = await keeper(viaHandle(r.shield)).refresh(appZoneTargets([rec('running', true, ['https://rep-a.example'])], F.ZONE));
+  assert.deepEqual(ok.failed, []); assert.deepEqual(ok.done, ['https://rep-a.example']);
+  assert.equal((await r.go(push(F.guestKey()))).ok, true, 'a push verifies under the session the real keeper made');
+  const owner = createShieldChallengeAuth({policy: S.policy(world), zone: F.ZONE, registryEntry: S.registryEntryOf(r.state), recoverSigner});
+  const ownerAsReplica = {handle: (req, res, json) => { req.url = req.url.replace('/v1/app-zone/shield-session', '/v1/shield-session'); return owner.handle(req, res, json); }};
+  const bad = await keeper(viaHandle(ownerAsReplica)).refresh(appZoneTargets([rec('running', true, ['https://rep-x.example'])], F.ZONE));
+  assert.equal(bad.done.length, 0); assert.match(bad.failed[0], /answers as another party than this node's app zone/);
+});

@@ -31,6 +31,7 @@
 //       ENCLAVE_VISIBLE_WAIT  seconds deploy waits for a new record to reach every reader (default 60)
 //       ENCLAVE_SESSION   an exported session (enclave session new --env): the session-aware commands act through it
 //       ENCLAVE_SESSION_DIR  where session keys live (default ~/.config/enclave/sessions)
+import {catalogAdmissionNotice,catalogAdmissionRefusal} from "../site/js/core/catalog-policy.js";
 import fs from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
@@ -43,6 +44,16 @@ import { createPublicClient, createWalletClient, http as viemHttp, fallback,
          keccak256, toHex } from "viem";
 import { base } from "viem/chains";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
+
+import {publishArtifactReplicas,verifyArtifactReplicas} from "../sdk/storage/artifacts.mjs";
+import {publishPackageReplicas,verifyPackageReplicas,validateStoragePlan} from "../sdk/bootstrap/storage.mjs";
+import {directUploadHeaders} from "../sdk/storage/upload-auth.mjs";
+import {loadContractPins} from "../network/contract-pins.mjs";
+import {readSessionAuthority} from "../network/session-authority.mjs";
+import {bootstrapIntent,preparePackage,verifyPackage,fetchPackage,readBoundedResponse,parseUniqueJSON,challengeAlias,MAX_PACKAGE_BYTES,
+  historyFromList,historyWarnings,HISTORY_PUBLIC_OPTIONS,HISTORY_KEYLESS_LIMIT,CHECKPOINT_SCOPE,historyHost} from "../sdk/bootstrap/package.mjs";
+import {CHECKPOINT_PATH,MAX_CHECKPOINT_BYTES,parseCheckpoint,completeCollateral,verifyCheckpoint} from "../verifier/history-checkpoint.mjs";
+import {httpCollateral,AMD_KDS} from "../verifier/collateral.mjs";
 
 const VERSION = "1.6.0";
 
@@ -332,13 +343,28 @@ const APPROVAL_WORD = ["pending", "approved", "rejected"];
 // ---- global flags + config ---------------------------------------------------
 // Parsed once, up front; command args are whatever remains.
 const opt = { json: false, trace: false, base: null, rpc: null, yes: false,
-              unsigned: false, signer: null, from: null,
+              unsigned: false, signer: null, signerMode: null, from: null, contractPins: null,
               // --wallet: act with the wallet key even when a session is active (see "sessions" below)
               wallet: false,
               // `enclave attest` (verifier/metal-box.mjs, this repository's own verifier): --expect pins the launch measurement(s)
               // that must run (without it the relay operator's allowlist is used and the verdict is at best "limited");
               // --min-tcb overrides the published TCB floor; --collateral-dir reads AMD collateral from disk instead of AMD KDS.
-              expect: null, minTcb: null, collateralDir: null };
+              expect: null, minTcb: null, collateralDir: null,
+              // ---- independent mode (docs/network/independent-cli.md): explicit authorities and an agreeing RPC quorum,
+              // never the Enclave API, the mutable address book or a first-answer RPC ----
+              independent: false, profile: null, profileDigest: null, quorum: null, confirmations: null, maxBlockAge: null,
+              usdcToken: null, directories: null, stateDir: null, nativeProfile: null, maxFeeGwei: null };
+const IND_VALUE_FLAGS = { "--profile": "profile", "--profile-digest": "profileDigest", "--quorum": "quorum",
+  "--confirmations": "confirmations", "--max-block-age": "maxBlockAge", "--usdc-token": "usdcToken", "--directories": "directories",
+  "--state-dir": "stateDir", "--native-profile": "nativeProfile", "--max-fee-gwei": "maxFeeGwei" };
+// The value of `flag` as written AFTER the command word `cmd` in the raw argv, or null. The global parser takes its flags
+// out wherever they appear; a command whose own flag shares a global name (custody migrate --from FILE) gets it back.
+function commandFlag(cmd, flag) {
+  const a = process.argv.slice(2), at = a.indexOf(cmd);
+  if (at < 0) return null;
+  const i = a.indexOf(flag, at + 1);
+  return i < 0 || i + 1 >= a.length ? null : a[i + 1];
+}
 const args = [];
 {
   const a = argv.slice(2);
@@ -348,6 +374,10 @@ const args = [];
     else if (a[i] === "--yes" || a[i] === "-y") opt.yes = true;
     else if (a[i] === "--base") opt.base = a[++i];
     else if (a[i] === "--rpc") opt.rpc = a[++i];
+    else if (a[i] === "--contract-pins") {
+      if (!a[i + 1] || a[i + 1].startsWith("--")) throw new Error("--contract-pins needs a JSON file");
+      opt.contractPins = a[++i];
+    }
     // ---- signing somewhere other than this machine ----------------------
     // The CLI's own key is a hot key in a file. These two let it drive a
     // wallet that is not: --unsigned prints the transaction for you to sign
@@ -358,8 +388,15 @@ const args = [];
     // node-hid is a native module with per-platform binaries.
     else if (a[i] === "--unsigned") opt.unsigned = true;
     else if (a[i] === "--signer") opt.signer = a[++i];
+    // independent mode: auto | sign | wallet-send | handoff (cli/independent-signer.mjs)
+    else if (a[i] === "--signer-mode") opt.signerMode = a[++i];
     else if (a[i] === "--from") opt.from = a[++i];
     else if (a[i] === "--wallet") opt.wallet = true;
+    else if (a[i] === "--independent") opt.independent = true;
+    else if (IND_VALUE_FLAGS[a[i]]) {
+      if (a[i + 1] === undefined || a[i + 1].startsWith("--")) throw new Error(`${a[i]} needs a value`);
+      opt[IND_VALUE_FLAGS[a[i]]] = a[++i];
+    }
     else if (a[i] === "--expect") opt.expect = a[++i];                  // the launch measurement(s) you expect, 96 hex each, comma-separated
     else if (a[i] === "--min-tcb") opt.minTcb = a[++i];                 // JSON TCB floor per product line (default: the verifier's published floors)
     else if (a[i] === "--collateral-dir") opt.collateralDir = a[++i];   // AMD collateral from a directory (amd/<product>-cert_chain.pem, amd/<product>-crl.der, vcek/<product>-<chip>-<tcb>.der) instead of KDS
@@ -382,6 +419,73 @@ const die = (msg, code = 1) => { stderr.write("error: " + msg + "\n"); exit(code
 const trace = (...s) => { if (opt.trace) stderr.write("x " + s.join(" ") + "\n"); };
 const jout = (o) => say(JSON.stringify(o, (_k, v) => typeof v === "bigint" ? v.toString() : v, 2));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Explicit operator/user trust pins take precedence over mutable discovery. A
+// missing, malformed or disabled binding never falls back to the address book.
+let CONTRACT_PINS = null;
+let CHAIN_ONLY = false;
+// Set once, before dispatch, by configureIndependent(): {trust, chain, send, I (cli/independent.mjs)}.
+let INDEPENDENT = null;
+// PLATFORM HOST POLICY for host choice and host operations (network/platform-host-policy-config.mjs): on for the
+// production chain + book (activated by the admin's anchor), read on THIS CLI's own agreed quorum; ENCLAVE_PLATFORM_HOST_POLICY
+// overrides. A host it refuses is not listed live, not priced and not contacted for management.
+let _hostPolicy;
+async function independentHostPolicy() {
+  if (_hostPolicy !== undefined) return _hostPolicy;
+  const { createHostPolicyRuntime, resolveHostPolicyConfig, clientSnapshot } = await import("../network/host-policy-runtime.mjs");
+  const r = resolveHostPolicyConfig({ env, chainId: INDEPENDENT.chain.chainId, book: env.ENCLAVE_ADDRESS_BOOK !== undefined ? env.ENCLAVE_ADDRESS_BOOK : DEFAULTS.ADDRESS_BOOK_ADDRESS });
+  _hostPolicy = r.on ? createHostPolicyRuntime(r, { snapshot: clientSnapshot((fn) => INDEPENDENT.chain.snapshot(fn).then((x) => x.value)), log: (m) => trace(m) }) : null;
+  return _hostPolicy;
+}
+// -> null (off) | { [registry id]: decision }; an unreadable policy refuses every host (never lists a banned one as live)
+async function hostPolicyDecisions(ids) {
+  const rt = await independentHostPolicy();
+  if (!rt) return null;
+  try { return await rt.admissions(ids.map((i) => String(i).toLowerCase())); }
+  catch (e) { return Object.fromEntries(ids.map((i) => [String(i).toLowerCase(), { admit: false, status: "unreadable", reason: `platform host policy unreadable: ${e.message}` }])); }
+}
+async function policyAdmitted(hosts) {
+  const d = await hostPolicyDecisions(hosts.map((h) => h.id));
+  return d ? hosts.filter((h) => d[String(h.id).toLowerCase()]?.admit === true) : hosts;
+}
+async function hostPolicyAdmission() {
+  const rt = await independentHostPolicy();
+  if (!rt) return null;
+  const { leaseHostAdmission } = await import("../network/host-policy-adapters.mjs");
+  return leaseHostAdmission(rt.gate);
+}
+function configureContractPins() {
+  CONTRACT_PINS = loadContractPins({ ...env,
+    ENCLAVE_CONTRACT_PINS_FILE: opt.contractPins || env.ENCLAVE_CONTRACT_PINS_FILE });
+  if (!CONTRACT_PINS) return;
+  for (const [key, name] of Object.entries({ deployments: "DEPLOYMENTS_ADDRESS",
+    registry: "REGISTRY_ADDRESS", appCatalog: "APP_CATALOG_ADDRESS",
+    sessionVaultFactory: "SESSION_VAULT_FACTORY_ADDRESS" })) DEFAULTS[name] = CONTRACT_PINS[key];
+  trace("using explicit contract pins; address-book discovery disabled");
+}
+function pinnedContract(name, override) {
+  const a = CONTRACT_PINS[name];
+  if (!a || /^0x0{40}$/i.test(a)) throw new Error(`contract pins disable ${name}`);
+  if (override && getAddress(override) !== getAddress(a))
+    throw new Error(`${name} override conflicts with the explicit contract pin`);
+  return getAddress(a);
+}
+async function assertPinnedSessionFactory() {
+  if (!CONTRACT_PINS) return;
+  const factory = pinnedContract("sessionVaultFactory");
+  const expected = {factory, deployments: pinnedContract("deployments"),
+    appCatalog: pinnedContract("appCatalog"), usdc: DEFAULTS.USDC_ADDRESS};
+  // The existing admin-controlled book is on chain, not a Nan service. Read all
+  // bindings at one block; do not cache them across operations or silently accept
+  // a changed platform version under stale transaction-review pins.
+  if (INDEPENDENT) {
+    await INDEPENDENT.chain.snapshot((client, block) => readSessionAuthority(client, block, expected));
+  } else {
+    const client = pub();
+    await readSessionAuthority(client, await client.getBlockNumber(), expected);
+  }
+  return factory;
+}
 
 // flag parser for the per-command remainder
 function flags(rest, { bool = [], val = [] } = {}) {
@@ -428,6 +532,9 @@ const EXTERNAL_SIGN_HINT =
   "this command needs a SIGNED MESSAGE, not a transaction, so --unsigned cannot express it. "
   + "Use --signer <url> (Frame/Clef sign messages too), or run it with a local key";
 function loadKey({ required = true } = {}) {
+  // independent mode with --signer (or --signer-mode handoff): the external signer, whose transactions, messages and
+  // typed data are each checked against what was asked (cli/independent-signer.mjs)
+  if (INDEPENDENT?.signer) return INDEPENDENT.signer;
   // an address is enough when something else holds the key
   if (opt.unsigned || opt.signer) {
     if (opt.from) {
@@ -493,6 +600,8 @@ async function confirm(what) {
 // ---- chain clients -------------------------------------------------------------
 let _pub = null, _wallet = null;
 function pub() {
+  // Independent mode has no first-answer client: every read and receipt goes through the agreeing quorum.
+  if (INDEPENDENT) throw new Error("internal: a first-answer RPC read was attempted in independent mode; refusing");
   if (!_pub) _pub = createPublicClient({ chain: base, transport: fallback(RPCS.map((u) => viemHttp(u))) });
   return _pub;
 }
@@ -512,13 +621,22 @@ function wallet(account) {
 // reports whichever one responds first.
 let _pubEach = null;
 function pubEach() {
+  if (INDEPENDENT) throw new Error("internal: a per-RPC read outside the quorum was attempted in independent mode; refusing");
   if (!_pubEach) _pubEach = RPCS.map((u) =>
     ({ host: (() => { try { return new URL(u).host; } catch { return "rpc"; } })(),   // host only: a url can carry an API key
        c: createPublicClient({ chain: base, transport: viemHttp(u, { retryCount: 0, timeout: 5_000 }) }) }));
   return _pubEach;
 }
-const read = (address, abi, functionName, a = []) =>
-  pub().readContract({ address, abi, functionName, args: a });
+const read = (address, abi, functionName, a = []) => INDEPENDENT
+  ? INDEPENDENT.chain.read(address, abi, functionName, a)
+  : pub().readContract({ address, abi, functionName, args: a });
+// A read's fallback for an absent getter or record. In independent mode only an AGREED revert (a fact about the
+// contract) may fall back; a failed or disagreeing quorum is an outage and must never read as "absent" or "zero".
+const revertOr = (fallback) => (e) => { if (INDEPENDENT && !e?.agreedRevert) throw e; return fallback; };
+// the public client the sessions SDK reads through: the agreeing quorum in independent mode
+const sessionPc = () => INDEPENDENT ? INDEPENDENT.pc : pub();
+// a wallet's ETH balance: agreed by the quorum in independent mode
+const ethBalance = (address) => INDEPENDENT ? INDEPENDENT.chain.balance(address) : pub().getBalance({ address });
 /* Print the transaction and STOP. Stopping is the honest part: a flow like
    deploy is create-then-fund, and the second call needs the first one's logs,
    so pretending to continue would emit a transaction built on state that does
@@ -543,6 +661,8 @@ async function sendTx(account, { address, abi, functionName, args: a, value }) {
   if (opt.unsigned) return emitUnsigned({ account, to: address,
     data: encodeFunctionData({ abi, functionName, args: a }), value,
     label: `${name}.${functionName}` });
+  // independent: simulate at an agreed block, sign once locally, broadcast the same bytes, confirm by quorum; never resent
+  if (INDEPENDENT) return INDEPENDENT.send(account, { address, abi, functionName, args: a, value });
   const hash = await wallet(account).writeContract({ address, abi, functionName, args: a, ...(value ? { value } : {}) });
   trace(`tx sent ${hash}, waiting for receipt`);
   const rcpt = await pub().waitForTransactionReceipt({ hash });
@@ -660,6 +780,8 @@ async function bearer(account) {
 // error. auth: a wallet account object (SIWE session, auto-minted) or the
 // string "account" (the stored `enclave login` session token).
 async function api(method, p, { body, auth, ok404, text } = {}) {
+  if (INDEPENDENT) throw new Error(`independent mode never contacts the Enclave API (${method} ${p.split("?")[0]} refused)`);
+  if (CHAIN_ONLY) throw new Error("--chain-only does not contact an Enclave control API");
   const url = API_BASE + p;
   const headers = {};
   if (body !== undefined) headers["content-type"] = "application/json";
@@ -748,15 +870,13 @@ async function chainDeployments(owner) { // owner=null -> all
 }
 
 // [publisher/]slug[:version] -> { ref: catalog://<appId>/<idx>, ver, app } with
-// the same resolution + approval gate the console applies (runners re-check on
-// their side; this just fails fast with a readable reason). The ref names the
+// an exact immutable version. Default selection prefers approved releases;
+// explicit versions still obey platform moderation. The ref names the
 // on-chain VERSION RECORD — the authority for the wasm, config, and ports the
-// catalog owner approved. CIDs are refused: a CID names bytes, not a version
+// publisher recorded. CIDs are refused: a CID names bytes, not a version
 // (several versions can share bytes and differ entirely in approved config).
-// opts.allowPending: admit a version still AWAITING approval (the publisher
-// dev-mode path: --private deployments on a fleet advertising devDeploy).
-// Only an EXPLICIT :version label can name one; rejected/yanked stay refused.
-async function resolveAppRef(input, opts = {}) {
+// Hosts enforce platform moderation plus their owning wallets' additional restrictions.
+async function resolveAppRef(input, {forPrivate=false}={}) {
   if (/^ipfs:\/\//i.test(input) || /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z0-9]{20,})$/.test(input))
     throw new Error(`CIDs can't deploy: a CID names bytes, not a version. Deploy a [publisher/]slug:version from the catalog (enclave apps)`);
   const m = input.match(/^(?:([0-9a-zA-Z.]+|0x[0-9a-fA-F]{40})\/)?([a-z0-9][a-z0-9-]*)(?::(.+))?$/);
@@ -771,19 +891,16 @@ async function resolveAppRef(input, opts = {}) {
   const versions = await readVersions(app.appId, app.versionCount);
   let vi;
   if (verLabel !== undefined) {
-    vi = versions.findIndex((v) => v.version === verLabel && !v.yanked);
-    if (vi < 0) throw new Error(`app "${slug}" has no (un-yanked) version labeled "${verLabel}"`);
+    vi = versions.findIndex((v) => v.version === verLabel);
+    if (vi < 0) throw new Error(`app "${slug}" has no version labeled "${verLabel}"`);
   } else {
     vi = versions.findLastIndex((v) => !v.yanked && Number(v.approval) === 1);
     if (vi < 0) throw new Error(`app "${slug}" has no approved version yet`);
   }
   const ver = versions[vi];
-  if (Number(ver.approval) === 2)
-    throw new Error(`${slug}:${ver.version} was rejected by the catalog owner; runners never serve it`);
-  if (Number(ver.approval) !== 1 && !opts.allowPending)
-    throw new Error(`${slug}:${ver.version} is ${APPROVAL_WORD[Number(ver.approval)]}; runners only claim approved versions`
-      + ` (deploy it --private to test it before approval, on a fleet advertising devDeploy)`);
-  return { ref: `catalog://${app.appId}/${vi}`, ver, app, pending: Number(ver.approval) !== 1 };
+  const refusal = catalogAdmissionRefusal(app, ver, {forPrivate});
+  if (refusal) throw new Error(refusal);
+  return { ref: `catalog://${app.appId}/${vi}`, ver, app, notice: catalogAdmissionNotice(app, ver) };
 }
 let _appsCache = null;
 async function catalogApps() {
@@ -844,6 +961,17 @@ async function hostPricing(d, pricing) {
   const none = { pricing, host: null, hostAsk: null, hostFree: false };
   if (!/^0x[0-9a-f]{64}$/.test(runner) || /^0x0+$/.test(runner)) return none;
   if (!(Number(d.leaseUntil) * 1000 > Date.now())) return none;
+  if (INDEPENDENT) {
+    // the lease holder's own registry entry: its posted prices and declared payout wallet (no hardware sizes on chain)
+    const { I, chain } = INDEPENDENT;
+    const s = await chain.snapshot((c, b) => I.readHost(c, DEFAULTS.REGISTRY_ADDRESS, runner, b));
+    I.requireSchema4(s.value.schema);
+    const h = s.value.host;
+    if (!h) return none;
+    const owner = String(d?.owner || "").toLowerCase();
+    return { pricing, host: `registry host ${short(runner)} (${h.endpoint})`, hostFree: h.payoutWallet === owner && !/^0x0+$/.test(owner),
+             hostAsk: { name: `registry host ${short(runner)}`, cpu6: Number(h.cpuPricePerSec6), gpu6: Number(h.gpuPricePerSec6) } };
+  }
   const rows = await api("GET", "/enclaves").then((j) => j?.enclaves || []).catch(() => []);
   const row = rows.find((e) => String(e?.id || "").toLowerCase() === runner);
   const a = row?.availability;
@@ -890,6 +1018,15 @@ async function livePrices6(at) {
   if (at && at.cpu6 > 0)
     return { gpu6: BigInt(at.gpu6), cpu6: BigInt(at.cpu6),
              who: at.name ? `${at.name}'s posted price` : "the serving enclave's posted price" };
+  if (INDEPENDENT) {
+    // the cheapest host that is registered, active and priced (admission) AND live on authenticated evidence (a signed
+    // capacity record, or its operator's registry write in the last hour), at one agreed registry snapshot
+    const { I } = INDEPENDENT, reg = await independentRegistry(), ev = await independentLiveEvidence(reg);
+    const c = I.cheapestPrices(await policyAdmitted(I.liveHosts(reg.hosts, reg.timestamp, { signedUntil: ev.signedUntil })));
+    if (!c) throw new Error(`no registered host is active, priced and live on authenticated evidence (registry at block ${reg.blockNumber}${ev.note ? "; " + ev.note : ""}); this can't be priced`);
+    return { gpu6: c.gpu6 ?? 0n, cpu6: c.cpu6, gpuAvailable: c.gpu6 !== null,
+             who: `the cheapest of ${c.hosts} live registered host(s) at block ${reg.blockNumber}${ev.unchecked.size ? ` (${ev.note})` : ""}` };
+  }
   const av = await api("GET", "/availability").catch(() => null);
   const cpu = Number(av?.cheapestCpuPricePerSec6) || 0, gpu = Number(av?.cheapestGpuPricePerSec6) || 0;
   if (!cpu) throw new Error("no live enclave is posting a price right now, so this can't be priced - try again shortly");
@@ -1128,17 +1265,17 @@ async function cmdKey(rest) {
 
 async function cmdWhoami() {
   const account = loadKey({ required: false });
-  const acctTok = accountToken({ required: false });
+  const acctTok = INDEPENDENT ? null : accountToken({ required: false });   // account sessions are a hosted service
   if (!account && !acctTok)
     throw new Error("no wallet key and no account session. Run `enclave key new` (wallet) or `enclave login` (Enclave account/passkey)");
   const out = {}, rows = [];
   if (account) {
     const [eth, usdc] = await Promise.all([
-      pub().getBalance({ address: account.address }),
+      ethBalance(account.address),
       read(DEFAULTS.USDC_ADDRESS, ERC20_ABI, "balanceOf", [account.address]),
     ]);
     let running = null;
-    try {
+    if (!INDEPENDENT) try {
       const ls = await api("GET", "/v1/deployments", { auth: account });
       running = (ls.data || []).filter((d) => d.status === "running").length;
     } catch {} // API being down shouldn't hide your own balances
@@ -1146,7 +1283,7 @@ async function cmdWhoami() {
     rows.push(["address", account.address],
       ["usdc", usd6(usdc) + " (Base)"],
       ["eth", formatUnits(eth, 18).replace(/(\.\d{6})\d+$/, "$1") + " (gas)"],
-      ["running", running === null ? "(api unreachable)" : String(running)],
+      ["running", INDEPENDENT ? "(independent: see enclave ls)" : running === null ? "(api unreachable)" : String(running)],
       ["key", env.ENCLAVE_KEY ? "ENCLAVE_KEY env" : KEY_FILE]);
   }
   if (acctTok) {
@@ -1166,7 +1303,8 @@ async function cmdWhoami() {
   kv(rows);
 }
 
-async function cmdLs() {
+async function cmdLs(rest = []) {
+  if (INDEPENDENT) return cmdLsIndependent(rest);
   const account = loadKey({ required: false });
   const acctTok = accountToken({ required: false });
   if (!account && !acctTok)
@@ -1212,6 +1350,7 @@ async function cmdLs() {
 }
 
 async function cmdStatus(rest) {
+  if (INDEPENDENT) return cmdStatusIndependent(rest);
   // keyless works: the ledger row is public, and public deployments answer the
   // API read unauthenticated (account-session users get their status this way
   // too — enclave-private reads stay wallet-gated by trust-domain design)
@@ -1280,6 +1419,7 @@ async function cmdStatus(rest) {
 }
 
 async function cmdLogs(rest) {
+  if (INDEPENDENT) return cmdLogsIndependent(rest);
   const account = loadKey();
   const f = flags(rest, { bool: ["-f", "--follow"], val: ["--tail"] });
   if (!f._[0]) throw new Error("usage: enclave logs <id> [-f] [--tail N]");
@@ -1337,6 +1477,7 @@ async function cmdFund(rest) {
 }
 
 async function cmdAttest(rest) {
+  if (INDEPENDENT) return cmdAttestIndependent(rest);
   if (!rest[0]) {
     // no id: every attested SEV-SNP box the relay holds (the boxes tenant apps run on)
     const rows = ((await api("GET", "/enclaves").catch(() => null))?.enclaves || []).filter((e) => e.mode === "snp" && e.name);
@@ -1387,17 +1528,22 @@ async function cmdStop(rest) {
   let sent = null;   // the setActive(false) THIS run confirmed: { tx, block }
   if (isB32(id)) {
     // take the work item off the queue first so no enclave re-claims it…
-    const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]).catch(() => null);
+    const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]).catch(revertOr(null));
     if (d && d.active && d.owner.toLowerCase() === account.address.toLowerCase()) {
       const rcpt = await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi: (await depAbi()).abi,
         functionName: "setActive", args: [id, false] });
       sent = { tx: rcpt.transactionHash, block: rcpt.blockNumber };
+      if (INDEPENDENT) {
+        if (opt.json) return jout({ id, status: "stopped", setActive: sent, note: "ledger item deactivated; its runner ends the app on its next ledger pass" });
+        return say(`stopped on-chain: setActive(false) tx ${sent.tx} confirmed in block ${sent.block}; its runner ends the app on its next ledger pass`);
+      }
       // The stop is DONE here: the record is off the queue, and its runner ends the app on its next ledger pass. Said
       // now, before the teardown below, so a failure there can never read as the stop having failed (enclave-87: a
       // login refusal printed as the only line after setActive 0xded9430d had landed).
       if (!opt.json) say(`stopped on-chain: setActive(false) tx ${sent.tx} confirmed in block ${sent.block} - the deployment is off the queue`);
-    }
-  }
+    } else if (INDEPENDENT) throw new Error(!d || /^0x0{40}$/i.test(d.owner) ? `no deployment ${short(id)} on the ledger at the agreed, confirmed block`
+      : !d.active ? `${short(id)} is already inactive` : `${short(id)} is owned by ${d.owner}, not this key; nothing was sent`);
+  } else if (INDEPENDENT) throw new Error("independent mode stops on-chain deployments (bytes32 ids) only");
   // …then tear down the running instance (the runner also notices ActiveSet on
   // its next sweep; DELETE just makes it immediate). Once this run's on-chain stop
   // has landed, a teardown failure (a refused login, the API down) is a WARNING:
@@ -1422,6 +1568,7 @@ async function cmdStop(rest) {
 // the process answers, it just can't do its job (e.g. it booted before its
 // model volume finished mounting and can never load the model).
 async function cmdRestart(rest) {
+  if (INDEPENDENT) return cmdRestartIndependent(rest);
   const account = loadKey();
   if (!rest[0]) throw new Error("usage: enclave restart <id>");
   const id = await resolveId(rest[0], account);
@@ -1443,6 +1590,7 @@ async function cmdRestart(rest) {
 // ledger and report where it ACTUALLY went, because losing the race is a
 // normal outcome and silently implying success would be a lie.
 async function cmdMove(rest) {
+  if (INDEPENDENT) return cmdMoveIndependent(rest);
   const account = loadKey();
   if (!rest[0] || !rest[1]) throw new Error("usage: enclave move <id> <enclave>   (enclave = a name from `enclave availability`)");
   const id = await resolveId(rest[0], account);
@@ -1475,8 +1623,9 @@ async function cmdMove(rest) {
     // window. Without it the box that just released still has the app staged
     // and its own sweep re-takes the work within seconds - the move looks like
     // it worked and nothing moved (observed 2026-07-27).
+    // the host answers DELETE before its release transaction is sent: report the release once the CHAIN shows it
     const rel = await api("DELETE", `/v1/deployments/${id}?evacuate=1`, { auth: account });
-    say(`lease released - unused time refunded to the balance`
+    say(`release requested`
         + (rel && rel.standDownSec ? `; ${from ? from.name : "the source"} stands down for ${rel.standDownSec}s` : ""));
     // the release is a TRANSACTION: hinting before it is mined makes the
     // destination attempt a claim that reverts "leased", which then puts THAT
@@ -1484,6 +1633,7 @@ async function cmdMove(rest) {
     let cleared = false;
     for (let i = 0; i < 30 && !cleared; i++) { await new Promise((r) => setTimeout(r, 2000)); cleared = await leaseGone(); }
     if (!cleared) throw new Error("the lease is still live on-chain 60s after the release - nothing moved and nothing was lost; try again shortly");
+    say("lease released on chain - unused time refunded to the balance");
   }
   let landed = null, lastReason = "";
   for (let i = 0; i < 45 && !landed; i++) {
@@ -1725,7 +1875,7 @@ async function cmdResume(rest) {
     say(`re-queued with ${dur(fundable)} of runtime - an enclave claims it shortly (watch: enclave status ${short(id)})`);
 }
 
-// Switch a deployment to another approved version of ITS app (setAppRef) —
+// Switch a deployment to an explicit version of ITS app (setAppRef) —
 // the upgrade path: paid time and any live lease stay on the record, so a new
 // release never costs a second buy-in; the current runner restarts the app in
 // place on the new version. On a rev-6 ledger --gpu/--cpu additionally RE-BUY
@@ -1735,8 +1885,8 @@ async function cmdResume(rest) {
 // create — and a live lease's unserved tail settles at the old rate before
 // re-burning at the new one, so nothing is ever re-priced retroactively.
 // `enclave resize` is the version-less spelling of the same flow. The same
-// pre-flight gates as deploy run BEFORE the wallet signature: catalog
-// approval, and the new version's minimum shares against the shares the
+// pre-flight resource and fee gates run BEFORE the wallet signature, including
+// the new version's minimum shares against the shares the
 // record will carry (a record no runner accepts would leave the app dark on
 // a still-billing lease).
 async function cmdUpgrade(rest, { resize = false } = {}) {
@@ -1775,8 +1925,8 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
   const versions = await readVersions(app.appId, app.versionCount);
   let vi;
   if (rest[1] !== undefined) {
-    vi = versions.findIndex((v) => v.version === rest[1] && !v.yanked);
-    if (vi < 0) throw new Error(`app "${app.slug}" has no (un-yanked) version labeled "${rest[1]}"`);
+    vi = versions.findIndex((v) => v.version === rest[1]);
+    if (vi < 0) throw new Error(`app "${app.slug}" has no version labeled "${rest[1]}"`);
   } else if (resize) {
     vi = curIdx;   // a pure resize stays on the version the record already runs
     if (!versions[vi]) throw new Error(`${short(id)} references version index ${vi}, which the catalog doesn't list`);
@@ -1786,20 +1936,10 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
   }
   const ver = versions[vi];
   if (vi === curIdx && !wantShares) return say(`${short(id)} already runs ${app.slug}:${ver.version} (version index ${vi}); nothing to do`);
-  if (Number(ver.approval) === 2)
-    throw new Error(`${app.slug}:${ver.version} was rejected by the catalog owner; runners never serve it`);
-  if (Number(ver.approval) !== 1) {
-    // pending target: only a PRIVATE deployment may switch to it (dev mode),
-    // and only an explicit version label may name it - same rules as deploy
-    if (d.isPublic)
-      throw new Error(`${app.slug}:${ver.version} is awaiting approval; a PUBLIC deployment can't switch to it (dev-mode testing is private-only)`);
-    if (rest[1] === undefined && vi !== curIdx)
-      throw new Error(`refusing to pick the pending ${app.slug}:${ver.version} implicitly; name it: enclave upgrade ${rest[0]} ${ver.version}`);
-    let av = null; try { av = await api("GET", "/availability"); } catch {}
-    if (!(av && av.aggregate && av.devDeploy === true))
-      throw new Error(`${app.slug}:${ver.version} is awaiting approval, and the live fleet doesn't advertise devDeploy (pending-version private deploys) yet - retry after the fleet updates, or wait for approval`);
-    say(`! ${app.slug}:${ver.version} is awaiting catalog approval - switching this PRIVATE deployment to it (dev mode)`);
-  }
+  const refusal = catalogAdmissionRefusal(app, ver, {forPrivate: d.isPublic === false});
+  if (refusal) throw new Error(refusal);
+  const notice = catalogAdmissionNotice(app, ver);
+  if (notice) say(`! ${notice}`);
   // the record's shares (bought at create, or re-bought here) must cover the
   // version's minimums ON THE BOX THAT WILL APPLY THE CHANGE — its lease holder
   // while it has one, the fleet's otherwise; a record that box won't accept
@@ -1810,6 +1950,7 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
   ({ pricing, host, hostAsk, hostFree } = await hostPricing(d, pricing));
   const where = host ? `on ${host}` : "on the fleet's hardware";
   const mins = minShares(ver, pricing);
+  if (INDEPENDENT) say("! independent mode: hardware sizes are not on chain, so the version's share floors are not checked here; the serving host refuses a version that does not fit");
   let gpuMilli = f.gpu !== undefined ? Math.round(numFlag(f.gpu, "--gpu") * 1000) : Number(d.gpuMilli);
   let cpuMilli = f.cpu !== undefined ? Math.round(numFlag(f.cpu, "--cpu") * 1000) : Number(d.cpuMilli);
   if (gpuMilli > 1000 || cpuMilli > 1000) throw new Error("--gpu/--cpu are fractions of one card/node (0..1)");
@@ -1854,7 +1995,7 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
       livePrices6(hostAsk),
       read(DEFAULTS.DEPLOYMENTS_ADDRESS,
            [{ type: "function", name: "maxGpuMilli", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] }],
-           "maxGpuMilli").then(Number).catch(() => 1000),
+           "maxGpuMilli").then(Number).catch(revertOr(1000)),
     ]);
     if (gpuMilli > maxGpu)
       throw new Error(`--gpu ${gpuMilli / 10}% is over the platform's per-deployment GPU cap of ${maxGpu / 10}% of a card - lower --gpu`);
@@ -1867,7 +2008,7 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
     if (rev >= 8) {
       // a resize BUYS time, so the ceiling applies: the contract reverts
       // "over rate cap" above it
-      const cap6 = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "capOf", [id]).catch(() => 0n);
+      const cap6 = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, abi, "capOf", [id]).catch(revertOr(0n));
       if (cap6 > 0n && newRate > cap6)
         throw new Error(`those dials cost ${usd6(newRate * 3600n)}/h at ${prices.who}, above this deployment's rate cap of `
                       + `${usd6(cap6 * 3600n)}/h - raise it first: enclave rate-cap ${id.slice(0, 10)} ${(Number(newRate) * 3600 / 1e6).toFixed(2)}`);
@@ -1877,7 +2018,8 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
     // bills the NEW rate — refuse unless every live runner re-slices. Only an
     // unreachable aggregate falls through, with a loud warning (the --config
     // rule).
-    try {
+    if (INDEPENDENT) say("! independent mode: the serving host's resize support is not queried; if it predates share resizes, the new rate applies and the slice changes at the next claim");
+    else try {
       const av = await api("GET", "/availability");
       if (av && av.aggregate && av.shareResize !== true)
         throw new Error("the live fleet doesn't apply share resizes to running deployments yet (availability.shareResize is not true) - the billing would change while the served slice didn't. Retry after the fleet updates.");
@@ -1938,25 +2080,40 @@ const isoHostNames = (hosts) => hosts.map((h) => h.name || h.id).join(", ");
 
 async function cmdDeploy(rest) {
   // with a session: deploy.create through the vault, which holds the record (--env staging|prod)
-  const sess = await sessionForCommand();
+  CHAIN_ONLY = INDEPENDENT ? true : rest.includes("--chain-only");
+  if (CHAIN_ONLY && !INDEPENDENT && sessionConfigured() && !walletChosen())
+    throw new Error("--chain-only uses direct wallet transactions; pass --wallet explicitly when a session is active");
+  const sess = CHAIN_ONLY && !INDEPENDENT ? null : await sessionForCommand();
   const account = sess ? null : loadKey();
   const f = flags(rest, {
     val: ["--gpu", "--cpu", "--fund", "--fund-eth", "--port", "--ports", "--config-cid", "--waf", "--config",
-          "--secrets", "--secrets-file", "--max-rate", "--isolation", ...(sess ? ["--env"] : [])],
-    bool: ["--private", "--public", "--no-wait", "--gpu-optional"],
+          "--secrets", "--secrets-file", "--max-rate", "--isolation", "--startup-target", ...(sess ? ["--env"] : [])],
+    bool: ["--private", "--public", "--no-wait", "--gpu-optional", "--chain-only", "--prepare-only"],
   });
   if (!f._[0]) throw new Error("usage: enclave deploy <app> [--gpu 0..1] [--cpu 0..1] --fund <usd> [flags]");
-  if (sess) await sessionDeployPreflight(sess, f);
-  const { ref, ver, app, pending } = await resolveAppRef(sess ? sessionAppInput(sess, f._[0]) : f._[0], { allowPending: !!f.private });
-  if (sess) sessionRequireApp(sess, app.appId, "deploy.create", app.slug);
-  if (pending) {
-    // dev-mode deploy (pending version, --private): fail closed unless EVERY
-    // live runner admits it - otherwise the create sits Queued forever
-    let av = null; try { av = await api("GET", "/availability"); } catch {}
-    if (!(av && av.aggregate && av.devDeploy === true))
-      throw new Error(`${app.slug}:${ver.version} is awaiting approval, and the live fleet doesn't advertise devDeploy (pending-version private deploys) yet - retry after the fleet updates, or wait for approval`);
-    say(`! ${app.slug}:${ver.version} is awaiting catalog approval - deploying PRIVATE (dev mode): owner-only data path, unlisted`);
+  if (f["prepare-only"]) {
+    if (!CHAIN_ONLY || f.fund || f["fund-eth"] || f.config || f.waf || f["config-cid"])
+      throw new Error("--prepare-only requires --chain-only and no funding/config; prepare the owner package next");
+    // the backend the owner package will be prepared for: SEV-SNP by default, a Shield partition only when named
+    f.isolation = startupBackend(f["startup-target"]);
   }
+
+  if (CHAIN_ONLY) {
+    if (!CONTRACT_PINS) throw new Error("--chain-only requires --contract-pins (or ENCLAVE_CONTRACT_PINS_FILE)");
+    if (f.cpu === undefined || f.gpu === undefined || (f["max-rate"] === undefined && !INDEPENDENT))
+      throw new Error(INDEPENDENT ? "independent mode requires explicit --cpu and --gpu: hardware sizes are not on chain (the spend ceiling defaults to the cheapest live registry price)"
+        : "--chain-only requires explicit --cpu, --gpu and --max-rate; no API supplies hardware or price estimates");
+    if (!(numFlag(f.cpu, "--cpu") > 0)) throw new Error("--chain-only requires --cpu greater than zero");
+    if (f.secrets !== undefined || f["secrets-file"] !== undefined)
+      throw new Error("--chain-only cannot stage relay-held secrets; configure owner-authorized custody separately before funding a secret-dependent deployment");
+    f["no-wait"] = true;
+    say("chain-only: hosts decide admission; this submits your resource request and spend ceiling without API discovery or a readiness claim");
+  }
+  if (f["startup-target"] !== undefined && !f["prepare-only"]) throw new Error("--startup-target applies to --prepare-only (an owner-committed startup record)");
+  if (sess) await sessionDeployPreflight(sess, f);
+  const { ref, ver, app, notice } = await resolveAppRef(sess ? sessionAppInput(sess, f._[0]) : f._[0], {forPrivate: !!f.private});
+  if (sess) sessionRequireApp(sess, app.appId, "deploy.create", app.slug);
+  if (notice) say(`! ${notice}`);
 
   // WASIp3 apps (the version config's `wasi: "0.3"`, stamped from the binary
   // at publish): only p3-capable runners claim them. Fleet-AND true = every
@@ -1967,7 +2124,7 @@ async function cmdDeploy(rest) {
   // funding unrecoverable - fail with words before any wallet step.
   let verWasi3 = false;
   try { verWasi3 = JSON.parse(ver?.config || "{}").wasi === "0.3"; } catch {}
-  if (verWasi3) {
+  if (verWasi3 && !CHAIN_ONLY) {
     let av = null; try { av = await api("GET", "/availability"); } catch {}
     if (!(av && av.aggregate && av.p3 === true)) {
       const rows = await api("GET", "/enclaves").then((j) => j?.enclaves || []).catch(() => []);
@@ -2030,13 +2187,13 @@ async function cmdDeploy(rest) {
   if (f.isolation !== undefined) {
     isoBackend = String(f.isolation).trim();
     if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(isoBackend)) throw new Error("--isolation takes a backend name, e.g. --isolation snp-guest-per-app");
-    let hosts;
-    try { hosts = ((await api("GET", "/enclaves")).enclaves || []).filter((e) => e && e.availability && e.availability.isolation === isoBackend); }
+    let hosts = [];
+    if (!CHAIN_ONLY) try { hosts = ((await api("GET", "/enclaves")).enclaves || []).filter((e) => e && e.availability && e.availability.isolation === isoBackend); }
     catch (e) { throw new Error(`couldn't read the fleet to confirm a ${isoBackend} host: ${e.message}`); }
-    if (!hosts.length) throw new Error(`no live host advertises the ${isoBackend} tier; a deployment requiring it would never be claimed`);
+    if (!CHAIN_ONLY && !hosts.length) throw new Error(`no live host advertises the ${isoBackend} tier; a deployment requiring it would never be claimed`);
     isoHosts = hosts;
     envParts.isolation = { require: isoBackend };
-    say(`isolation: REQUIRES ${isoBackend} (hosts: ${hosts.map((h) => h.name || h.id).join(", ")}); every other runner refuses it`);
+    say(`isolation: REQUIRES ${isoBackend} (${CHAIN_ONLY ? "host availability not queried" : "hosts: " + hosts.map((h) => h.name || h.id).join(", ")}); every other runner refuses it`);
   }
   if (f.config !== undefined) {
     let c; try { c = JSON.parse(f.config); } catch (e) { throw new Error("--config must be a JSON object, e.g. --config '{\"api_key\":\"…\"}': " + e.message); }
@@ -2051,7 +2208,8 @@ async function cmdDeploy(rest) {
     // loud warning.
     // An isolation tier is not in the fleet-wide AND (its host advertises configOverride:false on purpose: it takes
     // config only through the attested release), so the gate that matters there is the release, stated instead.
-    if (isoBackend) say(isoTakesConfig(isoHosts, "configOverride")
+    if (CHAIN_ONLY) say("config: the owner-authored override is on chain; a host must support and enforce it to claim");
+    else if (isoBackend) say(isoTakesConfig(isoHosts, "configOverride")
       ? `config: the ${isoBackend} host(s) take a per-deployment config themselves (availability.configOverride: ${isoHostNames(isoHosts)})`
       : `config: delivered only INTO the ${isoBackend} guest, through the attested release; the deployment stays Queued until the relay lists it for the release and its host has opted in`);
     else try {
@@ -2092,8 +2250,10 @@ async function cmdDeploy(rest) {
     if (mins.cpuMilliNoGpu > cpuMilli)
       say(`! --gpu-optional will not fire at --cpu ${cpuMilli / 1000}: without a card this app's weights live in node RAM, so a CPU-only enclave needs --cpu ${mins.cpuMilliNoGpu / 1000} (${mins.cpuMilliNoGpu / 10}% of a node) and will refuse the claim below that. Raise --cpu to buy the fallback, or leave it and this stays GPU-only.`);
   }
+  if (f["prepare-only"]) envParts.guestBootstrap = {version:1,sha256:"f".repeat(64)}; // unavailable commitment prevents any guest starting before activation
   let envelope = Object.keys(envParts).length ? JSON.stringify(envParts) : "";
   if (Buffer.byteLength(envelope) > 4096 && envParts.config) {
+    if (CHAIN_ONLY) throw new Error("--chain-only currently requires an inline config envelope of at most 4096 bytes; no implicit upload service is used");
     const body = JSON.stringify(envParts.config);
     if (Buffer.byteLength(body) > CONFIG_MAX_BYTES)
       throw new Error(`the config is ${Buffer.byteLength(body)} bytes; enclaves refuse anything over ${CONFIG_MAX_BYTES} at launch`);
@@ -2146,12 +2306,12 @@ async function cmdDeploy(rest) {
 
   // price it before asking for money (the same formula the claim will apply)
   const [prices, maxGpuMilli] = await Promise.all([
-    livePrices6(),
+    CHAIN_ONLY && !(INDEPENDENT && f["max-rate"] === undefined) ? null : livePrices6(),
     // operator-set per-deployment GPU-share cap; contracts predating it have
     // no getter (the read reverts) -> 1000 = a whole card, i.e. uncapped
     read(DEFAULTS.DEPLOYMENTS_ADDRESS,
          [{ type: "function", name: "maxGpuMilli", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] }],
-         "maxGpuMilli").then(Number).catch(() => 1000),
+         "maxGpuMilli").then(Number).catch(revertOr(1000)),
   ]);
   // create() refuses gpuMilli over the cap - fail with words, not a revert.
   // Deployer-facing copy: most users deploying an app didn't publish it, so
@@ -2177,7 +2337,11 @@ async function cmdDeploy(rest) {
   const envCap = depRev >= 5 ? 4096 : 100;
   if (Buffer.byteLength(envelope) > envCap)
     throw new Error(`the options envelope is ${Buffer.byteLength(envelope)} bytes but this ledger caps the field at ${envCap} bytes (create() reverts "configCid length") - trim the ${envParts.config ? "config override" : "protection rules"}`);
-  const rate = rate6Of(prices, gpuMilli, cpuMilli) + fee6;
+  if (CHAIN_ONLY && depRev < 8) throw new Error("--chain-only requires a ledger with owner spend ceilings (schema 8 or newer)");
+  if (prices && gpuMilli > 0 && prices.gpuAvailable === false)
+    throw new Error("no live registered host sells a GPU share right now (agreed registry read); deploy with --gpu 0 or pass --max-rate explicitly");
+  const rate = CHAIN_ONLY && !prices ? perSec6FromHour(numFlag(f["max-rate"], "--max-rate"))
+    : rate6Of(prices, gpuMilli, cpuMilli) + fee6;
   if (fee6 > 0n)
     say(`publisher fee: ${usd6(fee6 * 3600n)}/h, paid straight to ${app.publisher} out of each funding (included in the rate below)`);
   // The spend ceiling (rev-8 ledgers). Default: exactly what we just quoted —
@@ -2199,13 +2363,13 @@ async function cmdDeploy(rest) {
   }
   const fundUsd = f.fund !== undefined ? numFlag(f.fund, "--fund") : 0;
   const fundEth = f["fund-eth"] !== undefined ? numFlag(f["fund-eth"], "--fund-eth") : 0;
-  if (!fundUsd && !fundEth)
+  if (!fundUsd && !fundEth && !f["prepare-only"])
     throw new Error(`nothing to fund it with: add --fund <usd> (rate is ${usd6(rate * 3600n)}/h; runners skip unfunded work)`);
   if (sess) return deployViaSession(sess, { f, ref, gpuMilli, cpuMilli, appPort, portsCsv, isPublic, envelope, maxRate6, fundUsd, rate });
-  const eth = await pub().getBalance({ address: account.address });
+  const eth = await ethBalance(account.address);
   if (eth === 0n) throw new Error(`${account.address} has no Base ETH for transaction gas; bridge a little first`);
   const buys = fundUsd ? dur(fundUsd * 1e6 / Number(rate)) : `(ETH at the live rate)`;
-  if (!(await confirm(`deploy ${f._[0]}: gpu ${gpuMilli / 10}% cpu ${cpuMilli / 10}% at ${usd6(rate * 3600n)}/h, `
+  if (!(await confirm(f["prepare-only"] ? `create an unfunded deployment for ${f._[0]} with startup disabled until its owner package is committed?` : `deploy ${f._[0]}: gpu ${gpuMilli / 10}% cpu ${cpuMilli / 10}% ${CHAIN_ONLY ? "capped at" : "at"} ${usd6(rate * 3600n)}/h, `
                     + `fund ${fundUsd ? "$" + fundUsd.toFixed(2) : fundEth + " ETH"} ≈ ${buys}?`))) return say("aborted");
 
   // 1. create — the id is minted on-chain, read back from the Created event
@@ -2221,11 +2385,22 @@ async function cmdDeploy(rest) {
   if (!log) throw new Error("create succeeded but no Created event in the receipt; inspect tx " + rcpt.transactionHash);
   const id = log.topics[1];
   say(`created ${id}`);
+  if (f["prepare-only"]) {
+    const out={id,status:"awaiting-startup-package",funded:false,ledger:DEFAULTS.DEPLOYMENTS_ADDRESS};
+    if(opt.json)return jout(out);
+    return say(`created unfunded record with unavailable startup commitment; run enclave bootstrap prepare ${id}, publish, activate, then fund`);
+  }
+
   // Echo back the asset the user actually chose (don't flip ETH -> USDC).
   const fundHint = `enclave fund ${id} ${fundUsd ? `--usdc ${fundUsd}` : `--eth ${fundEth}`}`;
 
-  // 1a. read-after-write: nothing below runs until every reader sees the record
-  const seen = await waitVisible(id, account.address, { relay: !!secretsSet });
+  // 1a. read-after-write: nothing below runs until every reader sees the record. Independent mode already has it: the
+  // receipt was confirmed by the quorum at an agreed block, and the record is re-read the same way.
+  const seen = INDEPENDENT ? await (async () => {
+    const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, depsAbi, "get", [id]);
+    if (d.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error(`created ${id}, but the agreed ledger read names owner ${d.owner}; nothing was funded`);
+    return { views: [d] };
+  })() : await waitVisible(id, account.address, { relay: !!secretsSet });
   if (!seen.views)
     throw new Error(`created ${id}, but after ${VISIBLE_WAIT_MS / 1000}s ${seen.lagging}, so nothing was staged or funded. `
       + `The deployment exists on-chain, NOT funded (runners skip it). Once it shows up, `
@@ -2263,14 +2438,20 @@ async function cmdDeploy(rest) {
     return send();
   });
   try {
-    if (fundUsd) await fundUsdc(account, id, fundUsd, { retry });
+    // independent: one send, no retry - the quorum simulated it at an agreed block that already holds the record
+    const once = INDEPENDENT ? (send) => send() : retry;
+    if (fundUsd) await fundUsdc(account, id, fundUsd, { retry: once });
     else { const { abi } = await depAbi();
-      await retry(() => sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi,
+      await once(() => sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi,
         functionName: "fundEth", args: [id], value: parseEther(String(fundEth)) })); }
   } catch (e) {
     throw new Error(`created but NOT funded (${e.message}); top up later: ${fundHint}`);
   }
   say(`funded ${fundUsd ? "$" + fundUsd.toFixed(2) : fundEth + " ETH"}`);
+  if (CHAIN_ONLY) {
+    if (opt.json) return jout({ id, status: "funded", ledger: DEFAULTS.DEPLOYMENTS_ADDRESS, readinessVerified: false });
+    return say(`submitted to ledger ${DEFAULTS.DEPLOYMENTS_ADDRESS}; verify the serving host and its signed route before sending application data`);
+  }
 
   // 3. nudge the fleet (advisory; the ~60s sweep would find it anyway)
   try {
@@ -2441,12 +2622,18 @@ function componentContract(bytes) {
 async function pinBytes(account, bytes, url, contentType, label) {
   const hash = crypto.createHash("sha256").update(bytes).digest("hex");
   const expiry = Math.floor(Date.now() / 1000) + 300;
-  const tok = account?.kind === "session" ? await sessionUploadToken(account, hash, expiry)
-                                          : await walletUploadToken(account, hash, expiry);
-  if (!tok || !tok.token) throw new Error("upload authorization failed");
-  trace(`curl -sX POST ${url} -H 'content-type: ${contentType}' -H 'x-upload-token: …' --data-binary @${label}`);
-  const up = await fetch(url, { method: "POST", body: bytes, headers: { "content-type": contentType,
-    "x-upload-address": tok.address, "x-upload-expiry": String(expiry), "x-upload-token": tok.token } });
+  let headers;
+  if (env.ENCLAVE_IPFS_WALLET_AUDIENCE) {
+    if (account?.kind === "session") throw new Error("Direct uploads currently require an EOA wallet; platform sessions still need the legacy issuer");
+    headers = await directUploadHeaders({audience:env.ENCLAVE_IPFS_WALLET_AUDIENCE,url,address:account.address,bytes,signMessage:args=>account.signMessage(args)});
+  } else {
+    const tok = account?.kind === "session" ? await sessionUploadToken(account, hash, expiry)
+                                            : await walletUploadToken(account, hash, expiry);
+    if (!tok || !tok.token) throw new Error("upload authorization failed");
+    headers = {"x-upload-address":tok.address,"x-upload-expiry":String(expiry),"x-upload-token":tok.token};
+  }
+  trace(`POST ${url} (${label}, wallet authorization)`);
+  const up = await fetch(url, { method: "POST", body: bytes, headers: { "content-type": contentType, ...headers } });
   const body = await up.text();
   if (!up.ok) throw new Error(`IPFS upload failed (${up.status}): ${body.slice(0, 200)}`);
   const cid = JSON.parse(body).cid;
@@ -2466,21 +2653,35 @@ const pinJson = (account, buf) =>
   pinBytes(account, buf, DEFAULTS.ipfsJsonUpload, "application/json", "config.json");
 
 async function cmdPublish(rest) {
+  const say=(...parts)=>opt.json?console.error(...parts):console.log(...parts);
   catalogWriteAllowed();   // before anything is pinned: the version would go to a catalog this CLI cannot vouch for
   // with a session: the publisher is the session's VAULT (app.publish, named apps only)
   const sess = await sessionForCommand();
   const account = sess ? null : loadKey();
   const f = flags(rest, { val: ["--slug", "--name", "--desc", "--version", "--mem", "--cpu-gflops",
-                                "--vram", "--gpu-gflops", "--ports", "--config", "--fee",
-                                "--nogpu-mem", "--nogpu-cpu-gflops"],
+                                "--vram", "--gpu-gflops", "--ports", "--config", "--config-file", "--fee",
+                                "--nogpu-mem", "--nogpu-cpu-gflops", "--storage-plan"],
                        bool: ["--gpu-optional"] });
+  let storagePlan=null;
+  if(f["storage-plan"]){
+    CHAIN_ONLY=true;
+    if(!CONTRACT_PINS)throw new Error("replicated publication requires --contract-pins");
+    if(sess)throw new Error("replicated publication requires a direct wallet; pass --wallet");
+    if(fs.statSync(f["storage-plan"]).size>16384)throw new Error("storage plan too large");
+    storagePlan=validateStoragePlan(parseUniqueJSON(fs.readFileSync(f["storage-plan"],"utf8")));
+  }
   const file = f._[0];
-  if (!file || !f.slug) throw new Error("usage: enclave publish <app.wasm> --slug <slug> [--name --desc --version --mem MB --cpu-gflops N --vram MB --gpu-gflops N --nogpu-mem MB --nogpu-cpu-gflops N --ports CSV --config JSON --fee $/hr]");
+  if (!file || !f.slug) throw new Error("usage: enclave publish <app.wasm> --slug <slug> [--name --desc --version --mem MB --cpu-gflops N --vram MB --gpu-gflops N --nogpu-mem MB --nogpu-cpu-gflops N --ports CSV --config JSON|--config-file FILE --storage-plan FILE --fee $/hr]");
   if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(f.slug)) throw new Error("slug: lowercase letters, digits, hyphens (max 40)");
   if (sess) {
     await sessionRequire(sess, "app.publish", "api.upload");
     sessionRequireApp(sess, await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "appIdOf", [sess.vault, f.slug]),
                       "app.publish", f.slug);
+  }
+  if(f["config-file"]){
+    if(f.config!==undefined)throw new Error("choose --config or --config-file, not both");
+    if(fs.statSync(f["config-file"]).size>CONFIG_MAX_BYTES)throw new Error("config file exceeds 1 MiB");
+    f.config=new TextDecoder('utf-8',{fatal:true}).decode(fs.readFileSync(f["config-file"]));
   }
   const publisher = sess ? sess.vault : account.address;
   // --config = the app's default/template ENCLAVE_CONFIG (deploy consoles pre-fill from it)
@@ -2529,6 +2730,7 @@ async function cmdPublish(rest) {
         + ` instead of --mem/--cpu-gflops. A deployment dialled for the card case is refused by CPU-only boxes rather than served too small - it keeps running wherever a card is.`);
     }
   }
+  if(storagePlan&&fs.statSync(file).size>2*1024*1024*1024)throw new Error("artifact exceeds the adapter 2 GiB limit");
   const bytes = fs.readFileSync(file);
   // same gate the IPFS gateway and runners apply: a wasi:http *component* —
   // with the one core-module carve-out: wasm64 (a 64-bit linear memory, the
@@ -2566,7 +2768,7 @@ async function cmdPublish(rest) {
   // version defaults to the next integer for your app (labels are free-form, matched exactly on deploy)
   let version = f.version;
   const appId = await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "appIdOf", [publisher, f.slug]);
-  const existing = Number(await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "numVersions", [appId]).catch(() => 0n));
+  const existing = Number(await read(DEFAULTS.APP_CATALOG_ADDRESS, CATALOG_ABI, "numVersions", [appId]).catch(revertOr(0n)));
   if (!version) version = String(existing + 1);
 
   const res = [Math.round(numFlag(f.vram, "--vram") ?? 0), Math.round(numFlag(f["gpu-gflops"], "--gpu-gflops") ?? 0),
@@ -2594,7 +2796,8 @@ async function cmdPublish(rest) {
   // 1. pin to IPFS. The gateway requires a WALLET-AUTHORIZED token (closes the
   //    open-pin storage DoS): sign enclave-upload:<sha256>:<expiry>, trade it at
   //    the API for a one-time token, then upload the bytes carrying it.
-  const cid = await pinBytes(sess ?? account, bytes, DEFAULTS.ipfsUpload, "application/wasm", file);
+  const storage=storagePlan?{wasm:await publishArtifactReplicas(bytes,"wasm",storagePlan,account)}:null;
+  const cid = storage?storage.wasm.cid:await pinBytes(sess ?? account, bytes, DEFAULTS.ipfsUpload, "application/wasm", file);
   say(`pinned ipfs://${cid}`);
 
   // 2. cut the catalog version (publisher = your address; appId = keccak(publisher, slug))
@@ -2660,7 +2863,8 @@ async function cmdPublish(rest) {
     if (Buffer.byteLength(onchain) > CONFIG_INLINE_MAX) throw new Error(
       `the on-chain routing manifest (${ROUTING_KEYS.join(", ")}) is ${Buffer.byteLength(onchain)} bytes, `
       + `over the ${CONFIG_INLINE_MAX}-byte record limit - shorten \`volumes\` or \`_media\``);
-    configCid = await pinJson(sess ?? account, cfgBuf);
+    if(storagePlan){storage.config=await publishArtifactReplicas(cfgBuf,"json",storagePlan,account);configCid=storage.config.cid;}
+    else configCid = await pinJson(sess ?? account, cfgBuf);
     say(`pinned config ipfs://${configCid} (${cfgBytes} bytes)`);
     f.config = onchain;
   }
@@ -2681,17 +2885,16 @@ async function cmdPublish(rest) {
   const approvedNow = (rcpt.logs || []).some((l) =>
     l.topics?.[0] === APPROVAL_SET_TOPIC && BigInt(l.data) === 1n);
   if (opt.json) return jout({ slug: f.slug, version, cid, appId, tx: rcpt.transactionHash,
-                              approval: approvedNow ? "approved" : "pending" });
+                              approval: approvedNow ? "approved" : "pending",...(storage?{storage}:{}) });
   say(`published ${f.slug}:${version} (tx ${rcpt.transactionHash})`);
   if (approvedNow) {
     say(`approved on publish (catalog-owner releases skip review). Deploy it:`);
     say(`  enclave deploy ${f.slug}:${version} --fund 2`);
     return;
   }
-  say(`approval is pending. Test it NOW as a private deployment (owner-only data path,`);
-  say(`no approval needed - approval only gates public visibility):`);
+  say(`approval is pending. Only PRIVATE deployments are allowed for testing. For owner-only access:`);
   say(`  enclave deploy ${f.slug}:${version} --private --fund 2`);
-  say(`once the catalog owner approves, deploy public:`);
+  say(`for public access on a host that accepts this release:`);
   say(`  enclave deploy ${f.slug}:${version} --fund 2`);
 }
 
@@ -2717,6 +2920,7 @@ async function cmdApps(rest) {
 }
 
 async function cmdPricing() {
+  if (INDEPENDENT) return cmdPricingIndependent();
   const p = await api("GET", "/v1/pricing");
   if (opt.json) return jout(p);
   kv([
@@ -2736,7 +2940,8 @@ async function cmdPricing() {
   }
 }
 
-async function cmdAvailability() {
+async function cmdAvailability(rest = []) {
+  if (INDEPENDENT) return cmdAvailabilityIndependent(rest);
   const a = await api("GET", "/availability");
   if (opt.json) return jout(a);
   if (a.aggregate) {
@@ -2752,7 +2957,26 @@ async function cmdAvailability() {
   }
 }
 
-async function cmdGpu() {
+// Independent mode: free capacity is each host's own signed /availability record (cli/independent-capacity.mjs), read
+// from capacity directories the user names, from named registered hosts, or from every live registered host (--cold),
+// and verified against the reviewed profile's registry at one agreed block of this quorum. Self-reported by each host's
+// registry operator, never proof of free hardware, and never a registered price.
+async function cmdAvailabilityIndependent(rest) {
+  const f = flags(rest, { bool: ["--cold"], val: ["--capacity-directories", "--hosts", "--max-hosts", "--capacity-state"] });
+  const { chain, trust } = INDEPENDENT;
+  if (!trust.profile) throw new Error("independent availability binds host records to the reviewed registry code: run it with --profile FILE --profile-digest sha256:… (explicit --contract-pins carry no code hash)");
+  const list = (v) => String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const directories = list(f["capacity-directories"]), hosts = list(f.hosts);
+  if (!directories.length && !hosts.length && !f.cold)
+    throw new Error("usage: enclave availability --independent … --capacity-directories URL,… | --hosts ENDPOINT|ID,… | --cold [--max-hosts N] [--capacity-state FILE]   (name a source: there is no default directory)");
+  const C = await import("./independent-capacity.mjs");
+  const r = await C.readCapacity({ reader: chain, profile: trust.profile, directories, hosts, cold: !!f.cold, maxHosts: f["max-hosts"], state: f["capacity-state"] });
+  if (opt.json) return jout({ ...r, profileDigest: trust.digest });
+  C.renderCapacity(r, trust.digest, say);
+}
+
+async function cmdGpu(rest = []) {
+  if (INDEPENDENT) return cmdGpuIndependent(rest);
   const g = await api("GET", "/v1/gpu").catch((e) => {
     if (/404/.test(e.message)) return null;
     throw e;
@@ -2916,8 +3140,39 @@ async function cmdSecrets(rest) {
   }
 }
 
+// Public artifact storage has no contract discovery or catalog write. Runtime
+// admission still checks its measured image; storing bytes does not admit it.
+async function cmdArtifact(rest) {
+  const sub=rest.shift(),f=flags(rest,{val:["--storage-plan","--kind"],bool:[]});
+  if(!["publish","verify"].includes(sub)||f._.length!==1||!f["storage-plan"])throw new Error("usage: enclave artifact publish|verify FILE --storage-plan FILE [--kind file|wasm|json|image]");
+  if(fs.statSync(f["storage-plan"]).size>16384)throw new Error("storage plan too large");
+  const plan=validateStoragePlan(parseUniqueJSON(fs.readFileSync(f["storage-plan"],"utf8")));
+  if(fs.statSync(f._[0]).size>2*1024*1024*1024)throw new Error("artifact exceeds the adapter 2 GiB limit");
+  const bytes=fs.readFileSync(f._[0]);
+  let storage;
+  if(sub==="verify")storage=await verifyArtifactReplicas(bytes,plan);
+  else {
+    if(sessionConfigured()&&!walletChosen())throw new Error("artifact publication requires a direct wallet; pass --wallet");
+    storage=await publishArtifactReplicas(bytes,f.kind||"file",plan,loadKey());
+  }
+  const out={file:path.resolve(f._[0]),published:sub==="publish",storage,admissionChanged:false};
+  return opt.json?jout(out):say(JSON.stringify(out,null,2));
+}
+
 // ---- secret custody (cli/custody.mjs; docs/security/secret-custody.md): the CLI's own helpers, handed in ----------
 async function cmdCustodyHere(rest) {
+  // independent: custody v2 only, every read a quorum of the operator's RPCs, every write the independent writer, the vault
+  // the reviewed pin; no Enclave API, relay or first-answer RPC (cli/custody-independent.mjs; work/custody-cli-interface.txt)
+  if (INDEPENDENT) {
+    const { cmdCustodyIndependent } = await import("./custody-independent.mjs");
+    // --from and --yes are also global flags (the signer's wallet; approve prompts), taken out of argv before the
+    // command runs. Written after `custody`, --from is custody's own (migrate's export file); either --yes confirms.
+    const from = commandFlag("custody", "--from");
+    if (from !== null && opt.from === from) opt.from = null;
+    rest = [...rest, ...(from !== null ? ["--from", from] : []), ...(opt.yes ? ["--yes"] : [])];
+    return cmdCustodyIndependent(rest, { flags, loadKey, say, jout, short, secretsKv, env, json: !!opt.json, warn: (m) => console.error(m),
+      readFile: (p) => fs.readFileSync(p, "utf8"), chain: INDEPENDENT.chain, trust: INDEPENDENT.trust, send: INDEPENDENT.send });
+  }
   // loaded on use: the custody code imports ../custody (and viem from the repo root), which a bare `cli/` install lacks
   const { cmdCustody } = await import("./custody.mjs");
   return cmdCustody(rest, {
@@ -2926,6 +3181,7 @@ async function cmdCustodyHere(rest) {
     readFile: (p) => fs.readFileSync(p, "utf8"),
     pubEachClients: () => pubEach().map((x) => x.c),
     vaultAddress: async () => {
+      if (CONTRACT_PINS) throw new Error("pinned contract mode supports custody v2; use --v2 with an explicitly pinned vault");
       if (env.ENCLAVE_SECRET_VAULT) return getAddress(env.ENCLAVE_SECRET_VAULT);
       const book = env.ENCLAVE_ADDRESS_BOOK !== undefined ? env.ENCLAVE_ADDRESS_BOOK : DEFAULTS.ADDRESS_BOOK_ADDRESS;
       const a = book ? await bookEntry(book, "secretVault") : null;
@@ -2933,6 +3189,7 @@ async function cmdCustodyHere(rest) {
       return a;
     },
     vaultV2Address: async () => {
+      if (CONTRACT_PINS) return pinnedContract("secretVaultV2", env.ENCLAVE_SECRET_VAULT_V2);
       if (env.ENCLAVE_SECRET_VAULT_V2) return getAddress(env.ENCLAVE_SECRET_VAULT_V2);
       const book = env.ENCLAVE_ADDRESS_BOOK !== undefined ? env.ENCLAVE_ADDRESS_BOOK : DEFAULTS.ADDRESS_BOOK_ADDRESS;
       const a = book ? await bookEntry(book, "secretVaultV2") : null;
@@ -2952,14 +3209,257 @@ async function cmdCustodyHere(rest) {
 // namespace you didn't pass, so editing the config never silently wipes the
 // waf and vice versa; `clear config` falls the app back to the version's
 // approval-covered config.
+// Owner package workflow: explicit pins and direct wallet signatures only.
+// No session issuer, upload-token issuer, release API or address book is used.
+// Owner-committed startup targets. SEV-SNP (the default) is unchanged. "shield" is the Windows Hyper-V partition tier
+// (windows/node/shield-startup.mjs): its host re-derives the partition AppID from the catalog component and refuses a
+// package whose appId differs, so the CLI derives it with the same rule rather than taking one on trust.
+const STARTUP_BACKENDS = { snp: "snp-guest-per-app", shield: "hyperv-partition-per-app" };
+function startupBackend(target) {
+  const t = target === undefined ? "snp" : String(target);
+  if (!Object.hasOwn(STARTUP_BACKENDS, t)) throw new Error(`--target/--startup-target takes ${Object.keys(STARTUP_BACKENDS).join(" or ")}, got "${t}"`);
+  return STARTUP_BACKENDS[t];
+}
+// The partition AppID exactly as the Shield host derives it: isolationPlan's spawn record (the host manager's declared
+// derivations and capabilities, this deployment, its catalog version, the package's config, no secrets, no protection
+// rules) and derive() over the CID-verified catalog component.
+async function shieldAppId({ id, d, configText, runtimeId, managerFile, componentFile, hasSecrets = false }) {
+  const [{ isolationPlan, BACKEND }, { derive }, { artifactIdentity }] = await Promise.all([
+    import("../windows/vbslike/datapath/node-bridge.mjs"), import("../windows/vbslike/manager/derive.mjs"), import("../sdk/storage/unixfs.mjs")]);
+  if (!managerFile || !componentFile) throw new Error("a Shield package needs --shield-manager FILE (the host manager's /health capabilities, from its operator) and --component-file FILE (the catalog component bytes)");
+  let manager;
+  try { manager = parseUniqueJSON(fs.readFileSync(managerFile, "utf8")); } catch (e) { throw new Error(`--shield-manager: ${e.message}`); }
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(d.appRef || "");
+  if (!m) throw new Error("a Shield package needs a catalog-versioned deployment");
+  const index = Number(m[2]), v = (await readVersions(m[1], index + 1))[index];
+  if (!v) throw new Error(`the catalog lists no version ${index} of ${m[1]}`);
+  const component = fs.readFileSync(componentFile);
+  if (artifactIdentity(new Uint8Array(component)).cid !== String(v.cid)) throw new Error(`--component-file is not the catalog version's component (CID ${v.cid})`);
+  let env = {};
+  try { env = d.configCid ? parseUniqueJSON(d.configCid) : {}; } catch { throw new Error("the deployment's envelope is not valid JSON"); }
+  if (env?.isolation?.require !== BACKEND) throw new Error(`this deployment does not require ${BACKEND} (create it with deploy --prepare-only --startup-target shield)`);
+  let volumes = [];
+  try { const c = JSON.parse(v.config || "{}"); volumes = Array.isArray(c?.volumes) ? c.volumes.slice() : []; } catch { volumes = null; }
+  const row = { id, owner: String(d.owner).toLowerCase(), appRef: String(d.appRef), configCid: String(d.configCid), gpuMilli: Number(d.gpuMilli),
+    cpuMilli: Number(d.cpuMilli), appPort: Number(d.appPort), isPublic: d.isPublic === true, active: d.active === true,
+    runner: String(d.runner).toLowerCase(), leaseUntil: Number(d.leaseUntil) };
+  const version = { appId: m[1].toLowerCase(), index, cid: String(v.cid), version: String(v.version), memMb: Number(v.memMb), ports: String(v.ports),
+    config: String(v.config || ""), yanked: v.yanked === true, approval: Number(v.approval), configCid: "" };
+  const waf = env.waf && typeof env.waf === "object" ? env.waf : {};
+  // windows/node/shield-startup.mjs starts a custody-v2 package only as a direct custody domain: a Shield-direct manager
+  // stating custody-v2 and secret delivery, deriving enclave-catalog-bundle/6 or /7. Anywhere else the host refuses it.
+  if (hasSecrets && !(manager?.supports?.custodyV2 === true && manager?.supports?.secrets === true && manager?.supports?.directBootstrap === true))
+    throw new Error("this Shield manager states no direct custody-v2 delivery (supports.directBootstrap, custodyV2 and secrets): its host would refuse a custody package; prepare it --public");
+  const plan = isolationPlan({ deploymentId: id, deployment: row, version, appConfig: configText, hasSecrets, waf, volumes, runtimeId,
+    require: BACKEND, manager, appConfigCid: "", configSourceCid: "" });
+  if (!plan.ok) throw new Error(`the Shield host would refuse this deployment (${plan.input}): ${plan.why}`);
+  // The exact bytes the partition measures as /app.config (windows/node/shield-startup.mjs): the manager's canonical
+  // rendering, or "" when there is no effective config. A Shield-direct front starts only when the package's configText
+  // IS these bytes, so the package commits them, never the owner's spelling.
+  if (hasSecrets && (plan.spawn.derive.inference || !["enclave-catalog-bundle/6", "enclave-catalog-bundle/7"].includes(plan.spawn.derive.derivation)))
+    throw new Error(`a Shield custody package needs a direct custody domain (enclave-catalog-bundle/6 or /7); this deployment derives ${plan.derivation}`);
+  const measured = typeof plan.spawn.derive.config === "string" ? plan.spawn.derive.config : "";
+  return { appId: derive({ record: plan.spawn.derive, component }).appId, runtimeId: plan.spawn.derive.runtimeId, derivation: plan.derivation,
+    configText: measured, direct: manager?.supports?.directBootstrap === true };
+}
+async function cmdBootstrap(rest) {
+  CHAIN_ONLY=true;
+  if(!CONTRACT_PINS)throw new Error("bootstrap requires --contract-pins");
+  const sub=rest.shift(), f=flags(rest,{val:["--file","--config-file","--custody-file","--app-id","--runtime-id","--out","--upload","--audience","--gateways","--storage-plan",
+    "--names","--acme-directory","--acme-challenge","--acme-zone","--acme-eab-kid-secret","--acme-eab-hmac-secret",
+    "--target","--shield-manager","--component-file","--history-rpcs","--history-checkpoints"],bool:["--public","--history-path-is-public"]});
+  const backend=startupBackend(f.target), shield=backend===STARTUP_BACKENDS.shield;
+  if(!["prepare","publish","activate"].includes(sub)||!f._[0])throw new Error("usage: enclave bootstrap prepare <id> --config-file FILE --app-id HEX --runtime-id HEX --public|--custody-file FILE --out FILE [--names HOST,… [--acme-directory HTTPS --acme-challenge HTTPS --acme-zone ZONE [--acme-eab-kid-secret NAME --acme-eab-hmac-secret NAME]]] [--history-rpcs HTTPS,… [--history-checkpoints HTTPS,…] [--history-path-is-public]] | publish <id> --file FILE --storage-plan FILE (or --upload HTTPS/add-json --audience ID) | activate <id> --file FILE --storage-plan FILE (or --gateways HTTPS/ipfs,…)");
+  const id=f._[0].toLowerCase();if(!isB32(id))throw new Error("bootstrap requires a full deployment id");
+  const {rev,abi}=await depAbi();if(rev!==16)throw new Error("bootstrap requires the measured schema-16 ledger");
+  const d=await read(DEFAULTS.DEPLOYMENTS_ADDRESS,abi,"get",[id]);
+  if(!d?.owner||/^0x0{40}$/i.test(d.owner))throw new Error("deployment not found");
+  const scope={chainId:DEFAULTS.chainId,ledger:DEFAULTS.DEPLOYMENTS_ADDRESS,deployment:id,owner:d.owner,appRef:d.appRef};
+  // The record's own isolation tier decides the target: a package is never prepared or activated for the other tier
+  // (activation would otherwise silently rewrite isolation.require), and the default stays SEV-SNP.
+  let recordBackend=null;
+  if(String(d.configCid||"").trim().startsWith("{")){
+    let e;try{e=parseUniqueJSON(d.configCid);}catch{throw new Error("the deployment's options envelope is not valid JSON");}
+    recordBackend=e?.isolation?.require??null;
+  }
+  if(recordBackend&&recordBackend!==backend){
+    const name=Object.entries(STARTUP_BACKENDS).find(([,v])=>v===recordBackend)?.[0];
+    throw new Error(`this deployment requires ${recordBackend}; ${name?`use --target ${name}`:"no startup target serves it"} (refusing to ${sub} it for ${backend})`);
+  }
+  const limited=(file)=>{if(!file||fs.statSync(file).size>MAX_PACKAGE_BYTES)throw new Error("startup input missing or oversized");return fs.readFileSync(file);};
+  let pkg;
+  if(sub==="prepare") {
+    if(!f.out||!f["config-file"]||(!f["app-id"]&&!shield)||!f["runtime-id"]||Boolean(f.public)===Boolean(f["custody-file"]))throw new Error("prepare needs config-file, app-id, runtime-id, out and exactly one of public/custody-file");
+    let configText=new TextDecoder('utf-8',{fatal:true}).decode(limited(f["config-file"]));
+    if(!shield&&(f["shield-manager"]||f["component-file"]))throw new Error("--shield-manager and --component-file apply to --target shield");
+    if(shield){
+      // the package commits the partition's measured config bytes; custody-v2 only where the manager states direct custody
+      if(f.names)throw new Error("owner-committed names are a SEV-SNP direct-guest feature; a Shield package carries none");
+      const derived=await shieldAppId({id,d,configText,runtimeId:String(f["runtime-id"]).toLowerCase(),managerFile:f["shield-manager"],
+        componentFile:f["component-file"],hasSecrets:!f.public});
+      if(f["app-id"]&&String(f["app-id"]).toLowerCase()!==derived.appId)throw new Error(`--app-id ${f["app-id"]} is not the AppID the Shield host derives (${derived.appId}, ${derived.derivation})`);
+      f["app-id"]=derived.appId;f["runtime-id"]=derived.runtimeId;
+      if(derived.configText!==configText)say(`shield: committing the measured configText ${derived.configText?JSON.stringify(derived.configText).slice(0,120):'"" (no effective config)'} instead of the file's spelling (the partition requires these exact bytes)`);
+      configText=derived.configText;
+      say(`shield: AppID ${derived.appId} (${derived.derivation}), RuntimeID ${derived.runtimeId}${derived.direct?", Shield-direct manager":""}`);
+    }
+    // Owner-committed names (optional): the guest certifies only these, for its own key; a CA proves control through
+    // each host's _acme-challenge CNAME to the alias printed below. EAB flags name custody secrets, never values.
+    const acmeFlags=["acme-directory","acme-challenge","acme-zone","acme-eab-kid-secret","acme-eab-hmac-secret"].filter(k=>f[k]!=null);
+    if(acmeFlags.length&&!f.names)throw new Error("ACME flags need --names");
+    if(acmeFlags.length&&!(f["acme-directory"]&&f["acme-challenge"]&&f["acme-zone"]))throw new Error("ACME needs explicit --acme-directory, --acme-challenge and --acme-zone; there is no default CA or responder");
+    if(Boolean(f["acme-eab-kid-secret"])!==Boolean(f["acme-eab-hmac-secret"]))throw new Error("EAB needs both --acme-eab-kid-secret and --acme-eab-hmac-secret");
+    // Owner-named log history sources (optional): what a cold-starting guest reads its lease's history from, verified
+    // by two independent operators and the measured quorum (work/history-owner-tools-interface.txt). The package is
+    // published: no credential may be in a URL, and a key-like path needs --history-path-is-public.
+    // Checkpoint mirrors (optional): owner-committed URLs a cold-starting SEV-SNP guest loads attested history checkpoints
+    // from (work/history-checkpoint-transport-interface.txt; `enclave history checkpoint export|mirror` fills them).
+    if(f["history-path-is-public"]&&!f["history-rpcs"]&&!f["history-checkpoints"])throw new Error("--history-path-is-public applies to --history-rpcs or --history-checkpoints");
+    const history=f["history-rpcs"]||f["history-checkpoints"]?historyFromList(String(f["history-rpcs"]||""),{pathIsPublic:Boolean(f["history-path-is-public"]),checkpoints:String(f["history-checkpoints"]||"")}):null;
+    if(history?.rpcs&&shield)say("history: only a Shield-direct partition reads history sources; a legacy-public Shield host ignores them");
+    if(history?.checkpoints&&shield)say("history: a Shield partition reads no checkpoints (they are SEV-SNP evidence); it uses the history sources alone");
+    const hosts=f.names?[...new Set(String(f.names).split(",").map(s=>s.trim()).filter(Boolean))].sort():null;
+    const names=hosts?{hosts,...(f["acme-directory"]?{acme:{directory:f["acme-directory"],challenge:f["acme-challenge"],zone:f["acme-zone"],
+      ...(f["acme-eab-kid-secret"]?{eab:{kid:f["acme-eab-kid-secret"],hmac:f["acme-eab-hmac-secret"]}}:{})}}:{})}:null;
+    pkg=preparePackage({version:1,...scope,appId:f["app-id"],runtimeId:f["runtime-id"],configText,
+      secretsMode:f.public?"public":"custody-v2",...(f["custody-file"]?{custody:parseUniqueJSON(limited(f["custody-file"]).toString('utf8'))}:{}),
+      ...(names?{names}:{}),...(history?{history}:{})});
+    fs.writeFileSync(f.out,pkg.bytes,{flag:"wx",mode:0o600});
+    // a custody bundle must be sealed over EXACTLY this configText (custody configSha256 = sha256(utf8(configText)))
+    const configSha256=crypto.createHash("sha256").update(configText,"utf8").digest("hex");
+    if(!f.public)say(`custody: seal the custody-v2 bundle with configSha256 ${configSha256} (sha256 of the exact committed configText)`);
+    const out={id,file:path.resolve(f.out),cid:pkg.cid,sha256:pkg.sha256,bytes:pkg.bytes.length,committed:false,configSha256,
+      ...(names?{names:names.hosts,...(names.acme?{dns:names.hosts.map(h=>`_acme-challenge.${h}. CNAME ${challengeAlias(id,d.owner,names.acme.zone)}.`)}:{})}:{}),
+      history:history?.rpcs||[],checkpointMirrors:history?.checkpoints||[],historyWarnings:historyWarnings(history)};
+    return opt.json?jout(out):say(JSON.stringify(out,null,2));
+  }
+  const bytes=limited(f.file),intent={version:1,sha256:crypto.createHash('sha256').update(bytes).digest('hex')};
+  pkg=verifyPackage(bytes,intent,scope);
+  if(sub==="activate"&&shield&&pkg.manifest.secretsMode!=="public"){
+    // only a Shield-direct manager stating custody-v2 delivery starts such a package: refused locally, before any read or send
+    let mgr=null;try{mgr=f["shield-manager"]?parseUniqueJSON(fs.readFileSync(f["shield-manager"],"utf8")):null;}catch(e){throw new Error(`--shield-manager: ${e.message}`);}
+    if(!(mgr?.supports?.custodyV2===true&&mgr?.supports?.secrets===true&&mgr?.supports?.directBootstrap===true))
+      throw new Error("a Shield custody package activates only for a Shield-direct manager stating custody-v2 delivery: pass its /health as --shield-manager FILE (supports.directBootstrap, custodyV2 and secrets)");
+  }
+  if(sessionConfigured()&&!walletChosen())throw new Error("bootstrap publication/activation uses a direct wallet; pass --wallet or --unsigned --from");
+  const storagePlan=f["storage-plan"]?validateStoragePlan(parseUniqueJSON(limited(f["storage-plan"]).toString('utf8'))):null;
+  if(storagePlan&&(f.upload||f.audience||f.gateways))throw new Error("storage-plan cannot be combined with upload, audience or gateways overrides");
+  const account=loadKey();
+  if(sub==="publish"&&storagePlan) {
+    const storage=await publishPackageReplicas(bytes,scope,storagePlan,account);
+    const out={id,cid:pkg.cid,sha256:pkg.sha256,published:true,committed:false,storage};
+    return opt.json?jout(out):say(JSON.stringify(out,null,2));
+  }
+  if(sub==="publish") {
+    if(!f.upload||!f.audience)throw new Error("publish requires explicit --upload and --audience");
+    const headers=await directUploadHeaders({audience:f.audience,url:f.upload,address:account.address,bytes,signMessage:a=>account.signMessage(a)});
+    const res=await fetch(f.upload,{method:"POST",redirect:"error",signal:AbortSignal.timeout(60000),headers:{'content-type':'application/json',...headers},body:bytes});
+    if(!res.ok)throw new Error(`startup upload failed (HTTP ${res.status})`);
+    const response=parseUniqueJSON(new TextDecoder('utf-8',{fatal:true}).decode(await readBoundedResponse(res,4096)));
+    if(response?.cid!==pkg.cid)throw new Error("upload did not return the exact raw package CID");
+    const out={id,cid:pkg.cid,sha256:pkg.sha256,published:true,committed:false};return opt.json?jout(out):say(JSON.stringify(out,null,2));
+  }
+  if(account.address.toLowerCase()!==d.owner.toLowerCase())throw new Error("activation must be signed by the ledger owner");
+  const gateways=String(f.gateways||env.GUEST_BOOTSTRAP_GATEWAYS||"https://ipfs.io/ipfs,https://dweb.link/ipfs").split(',').map(x=>x.trim()).filter(Boolean);
+  const storage=storagePlan?await verifyPackageReplicas(bytes,scope,storagePlan):null;
+  if(!storagePlan)await fetchPackage(intent,scope,{gateways}); // read back verified bytes before committing
+  const cur=d.configCid?parseUniqueJSON(d.configCid):{};
+  if(!cur||typeof cur!=="object"||Array.isArray(cur))throw new Error("invalid existing envelope");
+  delete cur.config;delete cur.configCid;
+  cur.guestBootstrap=intent;cur.isolation={...(cur.isolation||{}),require:backend};
+  const envelope=JSON.stringify(cur);if(Buffer.byteLength(envelope)>4096)throw new Error("startup envelope exceeds ledger limit");
+  if(!(await confirm(`commit startup package ${pkg.sha256} for ${id}, replacing its config and requiring ${shield?"a Shield partition (hyperv-partition-per-app)":"the direct SNP runtime"}?`)))return say("aborted");
+  await sendTx(account,{address:DEFAULTS.DEPLOYMENTS_ADDRESS,abi,functionName:"setConfig",args:[id,envelope]});
+  const out={id,cid:pkg.cid,sha256:pkg.sha256,committed:true,fundingChanged:false,readinessVerified:false,...(storage?{storage}:{})};return opt.json?jout(out):say(JSON.stringify(out,null,2));
+}
+
+// ---- attested history checkpoints (work/history-checkpoint-transport-interface.txt) ----------------------------------
+// A measured SEV-SNP guest that verified its lease's history serves a checkpoint of it (CHECKPOINT_PATH). These commands
+// carry it to the mirrors the owner commits in the startup package (bootstrap prepare --history-checkpoints), completing
+// its AMD collateral and refreshing its CRL from AMD's KDS (or --kds: any source; AMD's chain authenticates it). The guest
+// that adopts it verifies it again against its OWN measurement and TCB: nothing here is trusted by a guest.
+const CP_USAGE="usage: enclave history checkpoint export <id> --front HTTPS [--out FILE] [--expect MEASUREMENT]\n"
+  +"     | enclave history checkpoint import <id> HTTPS|FILE [--out FILE] [--expect MEASUREMENT]\n"
+  +"     | enclave history checkpoint verify <id> FILE --expect MEASUREMENT\n"
+  +"     | enclave history checkpoint refresh-crl <id> FILE [--out FILE] [--expect MEASUREMENT]\n"
+  +"     | enclave history checkpoint mirror <id> FILE --put URL [--check HTTPS] [--expect MEASUREMENT]\n"
+  +"   (each also takes --kds HTTPS and --ledger ADDRESS; --expect and --min-tcb as for enclave attest)";
+const loopbackHttp=(u)=>u.protocol==="http:"&&["127.0.0.1","localhost","[::1]"].includes(u.hostname);
+function checkpointUrl(raw,what,{endpoint=false}={}){
+  let u;try{u=new URL(String(raw));}catch{throw new Error(`${what}: not a URL`);}
+  if(u.protocol!=="https:"&&!loopbackHttp(u))throw new Error(`${what}: https only`);
+  if(u.username||u.password)throw new Error(`${what}: no credentials in the URL`);
+  if(endpoint&&(u.pathname===""||u.pathname==="/"))u.pathname=CHECKPOINT_PATH;
+  return u;
+}
+async function getCheckpoint(u){
+  const res=await fetch(u,{redirect:"error",signal:AbortSignal.timeout(60000)});
+  if(!res.ok)throw new Error(`${u.origin}${u.pathname}: HTTP ${res.status}`);
+  return readBoundedResponse(res,MAX_CHECKPOINT_BYTES);
+}
+async function cmdHistory(rest){
+  if(rest.shift()!=="checkpoint")throw new Error(CP_USAGE);
+  const sub=rest.shift(),f=flags(rest,{val:["--front","--out","--kds","--ledger","--put","--check"]});
+  if(!["export","import","verify","refresh-crl","mirror"].includes(sub)||!f._[0])throw new Error(CP_USAGE);
+  const id=f._[0].toLowerCase();if(!isB32(id))throw new Error("history checkpoint needs a full deployment id (0x + 64 hex)");
+  const ledger=String(f.ledger||DEFAULTS.DEPLOYMENTS_ADDRESS).toLowerCase();if(!/^0x[0-9a-f]{40}$/.test(ledger))throw new Error("--ledger must be an address");
+  const scope={chainId:DEFAULTS.chainId,ledger,deployment:id};
+  // --expect and --min-tcb are the global flags enclave attest uses: the launch measurement this build has, and a TCB floor
+  const measurement=opt.expect?String(opt.expect).toLowerCase().replace(/^0x/,""):null;
+  if(measurement&&!/^[0-9a-f]{96}$/.test(measurement))throw new Error("--expect must be ONE 48-byte launch measurement in hex (the build that produced the checkpoint)");
+  let minTcb;if(opt.minTcb){try{minTcb=parseUniqueJSON(opt.minTcb);}catch{throw new Error("--min-tcb must be JSON: {\"<Product>\":{\"<field>\":n,…}}");}}
+  const kds=httpCollateral({base:checkpointUrl(f.kds||AMD_KDS,"--kds").origin});
+  const readFile=(file)=>{if(!file||!fs.existsSync(file)||fs.statSync(file).size>MAX_CHECKPOINT_BYTES)throw new Error("checkpoint file missing or oversized");return fs.readFileSync(file);};
+  const judge=(bytes)=>verifyCheckpoint(bytes,{...scope,measurement,...(minTcb?{minTcb}:{})});
+  const sha=(b)=>crypto.createHash("sha256").update(b).digest("hex");
+  const done=(o)=>opt.json?jout(o):say(JSON.stringify(o,null,2));
+  const accept=(v)=>{if(v.status==="rejected")throw new Error(`checkpoint refused: ${v.reasons.at(-1).replace(/^REJECT: /,"")}`);return v;};
+  if(sub==="export"||sub==="import"){
+    let bytes,from;
+    if(sub==="export"){if(!f.front)throw new Error("export needs --front HTTPS (the running deployment; its checkpoint path is added)");const u=checkpointUrl(f.front,"--front",{endpoint:true});from=u.origin+u.pathname;bytes=await getCheckpoint(u);}
+    else if(!f._[1])throw new Error(CP_USAGE);
+    else if(/^[a-z]+:\/\//i.test(f._[1])){const u=checkpointUrl(f._[1],"source");from=u.origin+u.pathname;bytes=await getCheckpoint(u);}
+    else{from=path.resolve(f._[1]);bytes=readFile(f._[1]);}
+    parseCheckpoint(bytes,scope);   // the guest's own refusals first: nothing else is fetched for a wrong or malformed one
+    const c=await completeCollateral(bytes,scope,kds),v=accept(await judge(c.bytes));
+    if(f.out)fs.writeFileSync(f.out,c.bytes);
+    return done({id,from,out:f.out?path.resolve(f.out):null,sha256:sha(c.bytes),status:v.status,claims:v.claims,collateral:c.sources,reasons:v.reasons});
+  }
+  const file=f._[1];if(!file)throw new Error(CP_USAGE);
+  const bytes=readFile(file);
+  if(sub==="verify"){
+    if(!measurement)throw new Error("verify needs --expect MEASUREMENT: without the expected launch measurement the AMD evidence is not judged");
+    const v=accept(await judge(bytes));return done({id,file:path.resolve(file),sha256:sha(bytes),status:v.status,claims:v.claims,reasons:v.reasons});
+  }
+  if(sub==="refresh-crl"){
+    const c=await completeCollateral(bytes,scope,kds,{refreshCrl:true}),v=accept(await judge(c.bytes));
+    const out=f.out||file;fs.writeFileSync(out,c.bytes);
+    return done({id,out:path.resolve(out),sha256:sha(c.bytes),status:v.status,crlNextUpdate:v.claims.crlNextUpdate??null,collateral:c.sources,reasons:v.reasons});
+  }
+  // mirror: one PUT of the exact bytes (the URL may hold a presigned credential: used for this request only, never printed
+  // or stored), then a public read-back of the URL the owner commits
+  const v=accept(await judge(bytes));
+  if(!f.put)throw new Error("mirror needs --put URL (where to upload; the committed mirror URL is --check, default the same URL without its query)");
+  const put=checkpointUrl(f.put,"--put"),check=checkpointUrl(f.check||put.origin+put.pathname,"--check");
+  const res=await fetch(put,{method:"PUT",redirect:"error",signal:AbortSignal.timeout(60000),headers:{"content-type":"application/json"},body:bytes});
+  if(!res.ok)throw new Error(`upload to ${put.origin}${put.pathname} failed (HTTP ${res.status})`);
+  await res.body?.cancel();
+  const back=await getCheckpoint(check);
+  if(!back.equals(bytes))throw new Error(`${check.origin}${check.pathname} does not serve the uploaded bytes`);
+  const committable=!!historyHost(check.origin+check.pathname)&&!check.search;
+  return done({id,uploaded:put.origin+put.pathname,mirror:check.origin+check.pathname,readBack:true,committable,sha256:sha(bytes),status:v.status,claims:v.claims,
+    ...(committable?{}:{note:"this URL cannot be committed as a mirror (https://<lowercase DNS name>[/path], no port or query): the guest refuses it"})});
+}
+
 async function cmdConfig(rest) {
   const sub = rest.shift();
   const usage = "usage: enclave config show <id>\n"
               + "     | enclave config set <id> '<json>' | --file app-config.json  [--waf '<json>']\n"
               + "     | enclave config clear <id> [config|waf|all]      (default config: the app falls back to the version's config)";
   if (!["show", "get", "set", "clear"].includes(sub || "")) throw new Error(usage);
-  const f = flags(rest, { val: ["--file", "--waf"] });
+  const f = flags(rest, { val: ["--file", "--waf", "--storage-plan"] });
   if (!f._[0]) throw new Error(usage);
+  if (f["storage-plan"] !== undefined && !INDEPENDENT) throw new Error("--storage-plan applies to independent mode (it replaces the hosted pin service)");
   // with a session: set/clear are deploy.setConfig on a STAGING deployment the vault holds (show needs no key);
   // one the owner's WALLET holds is production to a session, so it is refused before anything else
   const sess = await sessionForCommand();
@@ -2975,8 +3475,16 @@ async function cmdConfig(rest) {
   let cur = {};
   if (raw.startsWith("{")) { try { cur = JSON.parse(raw); } catch {} }
   if (!cur || Array.isArray(cur) || typeof cur !== "object") cur = {};
+  const startup = Object.hasOwn(cur,"guestBootstrap") ? bootstrapIntent(raw) : null;
+  // the record's isolation tier is kept verbatim (next starts as a copy of cur); a Shield partition cannot enforce
+  // protection rules (windows isolationPlan refuses any waf), so a waf there would make the record unrunnable
+  const shieldRecord = cur?.isolation?.require === STARTUP_BACKENDS.shield;
 
   if (sub === "show" || sub === "get") {
+    if (startup) {
+      if (opt.json) return jout({id,envelope:raw,waf:cur.waf??null,guestBootstrap:startup,config:null,configSource:"owner-startup-package"});
+      return say(`deployment ${short(id)} config is committed in startup package ${startup.sha256}; use bootstrap prepare, publish and activate to replace it`);
+    }
     // the effective ENCLAVE_CONFIG: the deployment's override, else the
     // version's approved config (read from its catalog record)
     let verCfg = null;
@@ -3004,6 +3512,8 @@ async function cmdConfig(rest) {
   } else if (d.owner.toLowerCase() !== account.address.toLowerCase())
     throw new Error(`${short(id)} is owned by ${d.owner}, not this key`);
   const next = { ...cur };
+  if (startup && (sub === "set" ? f._[1] !== undefined || f.file !== undefined : (f._[1] || "config").toLowerCase() !== "waf"))
+    throw new Error("owner-committed config requires bootstrap prepare, publish and activate; only waf edits use config set/clear");
   if (sub === "set") {
     const cfgArg = f._[1] !== undefined ? f._[1] : (f.file !== undefined ? fs.readFileSync(f.file, "utf8") : undefined);
     if (cfgArg === undefined && f.waf === undefined)
@@ -3029,6 +3539,8 @@ async function cmdConfig(rest) {
     if (what !== "waf") { delete next.config; delete next.configCid; }
     if (what !== "config") delete next.waf;
   }
+  if (shieldRecord && next.waf && Object.keys(next.waf).length)
+    throw new Error("this deployment requires a Shield partition (hyperv-partition-per-app), which cannot enforce protection rules: a waf would make it unrunnable");
   let envelope = Object.keys(next).length ? JSON.stringify(next) : "";
   const cap = rev >= 5 ? 4096 : 100;
   if (envelope === raw) return say("nothing to change - the envelope already reads exactly that");
@@ -3043,15 +3555,25 @@ async function cmdConfig(rest) {
     const body = JSON.stringify(next.config);
     if (Buffer.byteLength(body) > CONFIG_MAX_BYTES)
       throw new Error(`the config is ${Buffer.byteLength(body)} bytes; enclaves refuse anything over ${CONFIG_MAX_BYTES} at launch`);
-    let av = null; try { av = await api("GET", "/availability"); } catch {}
+    let av = null; if (!INDEPENDENT) try { av = await api("GET", "/availability"); } catch {}
+    if (INDEPENDENT) say("independent: a host must support pinned config overrides to claim this deployment; the CLI cannot ask the fleet");
     if (av && av.aggregate && av.configCidOverride !== true)
       throw new Error("this config needs to be pinned off-chain to fit the ledger's options field, but the live fleet doesn't support pinned overrides yet "
                     + "(availability.configCidOverride is not true) - the deployment would be unclaimable at its next claim. Trim the config, or wait for the fleet to update");
     const manifest = {};
     if (next.config.volumes !== undefined) manifest.volumes = next.config.volumes;
     say(`config is ${Buffer.byteLength(body)} bytes - too big for the envelope; pinning it and keeping the reference on-chain`);
-    const cid = await pinJson(sess ?? account, Buffer.from(body, "utf8"));
-    say(`  pinned ${cid}`);
+    let cid;
+    if (INDEPENDENT) {
+      // no hosted pin service: the owner's own storage plan, one wallet signature per adapter, read back before use
+      if (!f["storage-plan"]) throw new Error("this config is too big for the envelope; pass --storage-plan FILE to replicate it to your storage adapters (or trim it)");
+      if (sess) throw new Error("replicating a config is a wallet-signed upload: pass --wallet (the session cannot sign storage uploads)");
+      const plan = validateStoragePlan(parseUniqueJSON(fs.readFileSync(f["storage-plan"], "utf8")));
+      const rep = await publishArtifactReplicas(Buffer.from(body, "utf8"), "json", plan, account);
+      cid = rep.cid;
+      say(`  replicated ${cid} (${rep.verifiedCopies} verified copies); a host fetches it through its own gateways`);
+    } else cid = await pinJson(sess ?? account, Buffer.from(body, "utf8"));
+    if (!INDEPENDENT) say(`  pinned ${cid}`);
     next.configCid = cid;
     if (Object.keys(manifest).length) next.config = manifest; else delete next.config;
     envelope = JSON.stringify(next);
@@ -3067,22 +3589,27 @@ async function cmdConfig(rest) {
   // the deploy --config fail-closed rule: a `config` namespace no runner
   // accepts makes the deployment unclaimable at its NEXT claim; configEdit
   // only decides whether a LIVE app applies the edit in place or later
-  let av = null; try { av = await api("GET", "/availability"); } catch {}
-  if ("config" in next && !("config" in cur)) {
+  let av = null; if (!startup && !INDEPENDENT) { try { av = await api("GET", "/availability"); } catch {} }
+  if ("config" in next && !("config" in cur) && INDEPENDENT)
+    say("independent: the owner-authored override is on chain; a host must support and enforce the config namespace to claim this deployment");
+  else if ("config" in next && !("config" in cur)) {
     if (av && av.aggregate && av.configOverride !== true)
       throw new Error("the live fleet doesn't support per-deployment config overrides yet (availability.configOverride is not true) - the deployment would be unclaimable at its next relaunch");
     if (!av || !av.aggregate) say("! couldn't read fleet availability to confirm config-override support; if a runner predates it, the next claim would refuse this deployment");
   }
   const leased = Number(d.leaseUntil) * 1000 > Date.now();
   const liveEdit = !!(av && av.aggregate && av.configEdit === true);
-  const when = leased
+  const when = INDEPENDENT
+    ? (leased ? "a runner that supports in-place edits re-applies it within ~a minute; otherwise at the app's next relaunch or claim"
+              : "it applies when the deployment is next claimed")
+    : leased
     ? (liveEdit ? "the runner re-applies it in place within ~a minute; a config change restarts the app, waf changes apply live"
                 : "the live fleet predates in-place envelope edits - it applies at the app's next relaunch or claim")
     : "it applies when the deployment is next claimed";
   if (!(await confirm(`rewrite the options envelope of ${short(id)}? (${envelope ? Buffer.byteLength(envelope) + " bytes" : "empty"}; ${when})`))) return say("aborted");
   if (sess) await sessionCall(sess, "deploy.setConfig", { id, configCid: envelope });
   else await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "setConfig", args: [id, envelope] });
-  if (opt.json) return jout({ id, envelope, applies: leased ? (liveEdit ? "in_place" : "next_relaunch") : "next_claim" });
+  if (opt.json) return jout({ id, envelope, applies: INDEPENDENT ? (leased ? "host_dependent" : "next_claim") : leased ? (liveEdit ? "in_place" : "next_relaunch") : "next_claim" });
   say(`envelope updated - ${when}; watch: enclave status ${short(id)}`);
 }
 
@@ -3117,7 +3644,9 @@ function sessionConfigured() {
   if (sessionEnvString()) return true;
   try { return fs.readFileSync(path.join(SESSION_DIR, "active"), "utf8").trim() !== ""; } catch { return false; }
 }
-const walletChosen = () => opt.wallet || opt.unsigned || !!opt.signer;
+// Independent mode: `--unsigned` WITHOUT --from, while a session is active, prints the session-signed call for any gas
+// payer (the session still authorizes it); `--unsigned --from ADDR` stays the wallet path, signed elsewhere, as hosted.
+const walletChosen = () => opt.wallet || (opt.unsigned && (!INDEPENDENT || !!opt.from)) || !!opt.signer || opt.signerMode === "handoff";
 async function sessionStore() { return new (await sessionsSdk()).FileStore(SESSION_DIR); }
 const explicitRpc = () => !!(opt.rpc || env.ENCLAVE_RPC);
 const sessionAccount = (s) => ({ address: s.vault });
@@ -3150,7 +3679,7 @@ async function sessionHolder(s, d, id, action) {
   if ((Number(st.envs) & s.S.ENVIRONMENTS.prod) === 0)
     throw sessionRefusal(s, action, "env", `${short(id)} is held by the owner's wallet ${owner}, which makes it production, and this session acts only in staging`);
   let dg = null;
-  try { dg = await s.S.delegationStatus(pub(), DEFAULTS.DEPLOYMENTS_ADDRESS, owner, s.vault); }
+  try { dg = await s.S.delegationStatus(sessionPc(), DEFAULTS.DEPLOYMENTS_ADDRESS, owner, s.vault); }
   catch (e) { trace(`delegation read: ${String(e?.shortMessage || e?.message || e).split("\n")[0]} (the vault decides)`); }
   if (dg && !dg.supported)
     throw new Error(`${short(id)} is held by the owner's wallet ${owner}, and the ledger ${DEFAULTS.DEPLOYMENTS_ADDRESS}`
@@ -3223,7 +3752,8 @@ async function loadSession(idArg) {
   if (!rec.handle) throw new Error(`session ${rec.id} is still waiting for the owner's signature: enclave session resume-wait ${rec.id}`);
   // the chain is read where the user points the CLI (--rpc/ENCLAVE_RPC), else where the session was opened
   const rpc = explicitRpc() ? RPCS[0] : rec.handle.rpc;
-  const session = await S.sessionFromRecord({ ...rec, handle: { ...rec.handle, rpc } });
+  const session = await S.sessionFromRecord({ ...rec, handle: { ...rec.handle, rpc } }, INDEPENDENT
+    ? { publicClient: INDEPENDENT.pc, fetch: async () => { throw new Error("independent mode never contacts a sessions relay"); } } : undefined);
   return { kind: "session", S, rec, from, store, session, sid: rec.handle.sid, vault: rec.handle.vault,
            owner: rec.handle.owner, label: rec.label, chainId: rec.chainId };
 }
@@ -3232,6 +3762,13 @@ async function loadSession(idArg) {
 async function sessionForCommand() {
   if (walletChosen() || !sessionConfigured()) return null;
   const s = await loadSession();
+  if (CONTRACT_PINS) {
+    const factory = await assertPinnedSessionFactory();
+    const actual = await read(s.vault, [{ type: "function", name: "factory", stateMutability: "view",
+      inputs: [], outputs: [{ type: "address" }] }], "factory");
+    if (s.chainId !== DEFAULTS.chainId || getAddress(actual) !== factory)
+      throw new Error("active session is not on the pinned chain and session factory; explicitly migrate or use --wallet");
+  }
   // the ledger and catalog reads go through this CLI's RPCs: they must be on the session's chain
   if (s.chainId !== DEFAULTS.chainId && !explicitRpc())
     throw new Error(`the active session lives on chain ${s.chainId}, but this CLI reads Base (${DEFAULTS.chainId}); point it at that chain `
@@ -3316,6 +3853,7 @@ function sessionAppInput(s, input) {
 }
 
 async function sessionCall(s, action, args) {
+  if (INDEPENDENT) return independentSessionSubmit(s, action, args);
   trace(`session ${short(s.sid)} ${action} ${fmtArg(args)}`);
   let out;
   try { out = await s.session.call(action, args); }
@@ -3326,8 +3864,26 @@ async function sessionCall(s, action, args) {
 // the receipt of a session operation, for callers that read its logs/block like a sendTx receipt
 async function sessionTx(s, action, args) {
   const out = await sessionCall(s, action, args);
+  if (INDEPENDENT) return Object.assign(out.receipt, { sessionResult: null, sessionFee: 0n });
   const rcpt = await pub().getTransactionReceipt({ hash: out.txHash });
   return Object.assign(rcpt, { sessionResult: out.result, sessionFee: out.fee });
+}
+// Independent mode: the SDK's prepareCall signs a zero-relay-fee SessionCall with the SESSION key, after reading the
+// session's state, lane nonce and chain time through the quorum. The vault alone authorizes it (scope, budget, period,
+// expiry, revocation, replay); whoever submits it only pays gas, so the wallet key is never used to authorize the action.
+async function independentSessionSubmit(s, action, args) {
+  let tx;
+  try { tx = await s.session.prepareCall(action, args); }
+  catch (e) { if (e instanceof s.S.SessionError) throw new Error(sessionHint(s, action, e)); throw e; }
+  if (opt.unsigned) return emitUnsigned({ account: null, to: tx.to, data: tx.data, value: 0n,
+    label: `SessionVault.execute(${action}) signed by session ${short(s.sid)} (any gas payer may submit it once)` });
+  const payer = loadKey({ required: false });
+  if (!payer) throw new Error(`session ${short(s.sid)} signed ${action}; a gas payer must submit it: configure a wallet key (it only pays `
+    + `gas - the session's own scope and budget authorize the action), or pass --unsigned to submit the call elsewhere`);
+  stderr.write(`session ${short(s.sid)} signed ${action}; ${payer.address} submits it and pays gas only\n`);
+  const rcpt = await INDEPENDENT.I.sendQuorumTx(INDEPENDENT.chain, { account: payer, to: tx.to, data: tx.data,
+    maxFeeGwei: INDEPENDENT.maxFeeGwei, log: (m) => trace(m) });
+  return { txHash: rcpt.transactionHash, result: null, fee: 0n, receipt: rcpt };
 }
 // USD -> USDC 6dp, in whole cents like fundUsdc (sub-cent amounts are refused, not rounded away)
 function sessionUsd6(usd, flag) {
@@ -3376,8 +3932,12 @@ async function deployViaSession(s, { f, ref, gpuMilli, cpuMilli, appPort, portsC
     return say("aborted");
   const out = await sessionCall(s, "deploy.create", { appRef: ref, gpuMilli, cpuMilli, appPort, ports: portsCsv, isPublic,
     configCid: envelope, maxRate6, env: f.env, fund6 });
-  const id = "0x" + out.result.slice(2, 66);
+  const id = INDEPENDENT ? createdIdOf(out.receipt) : "0x" + out.result.slice(2, 66);
   say(`created ${id} (${f.env}, held by vault ${s.vault}; tx ${out.txHash})`);
+  if (INDEPENDENT) {
+    if (opt.json) return jout({ id, env: f.env, vault: s.vault, funded6: String(fund6), tx: out.txHash, readinessVerified: false });
+    return say(`funded ${usd6(fund6)} out of the session budget; hosts claim it from the ledger (verify the serving host before sending data)`);
+  }
   say(`funded ${usd6(fund6)} out of the session budget (relay fee ${s.S.fmtUsd(out.fee)})`);
   try {
     const h = await api("POST", "/v1/claim-hint", { body: { id } });
@@ -3407,6 +3967,11 @@ async function deployViaSession(s, { f, ref, gpuMilli, cpuMilli, appPort, portsC
   say(`verify before sending data: enclave attest ${id}`);
 }
 
+const createdIdOf = (rcpt) => {
+  const log = (rcpt.logs || []).find((l) => l.topics?.[0] === DEP_CREATED_TOPIC && l.address.toLowerCase() === DEFAULTS.DEPLOYMENTS_ADDRESS.toLowerCase());
+  if (!log) throw new Error("the transaction succeeded but carries no Created event; inspect tx " + rcpt.transactionHash);
+  return log.topics[1];
+};
 async function stopViaSession(s, id) {
   if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) can be stopped through a session");
   const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]);
@@ -3434,6 +3999,21 @@ const SESSION_USAGE = `usage: enclave session new --preset <preset> [--app <slug
 
 async function cmdSession(rest) {
   const sub = rest.shift();
+  if (sub === "inspect") return sessionInspect(rest);
+  if (INDEPENDENT) {
+    // the chain's own record of a session, through the quorum; the local store needs no network at all
+    if (sub === "status") return sessionInspect(rest);
+    if (sub === "new") return sessionNewIndependent(rest);
+    if (sub === "open") return sessionOpenIndependent(rest);
+    if (sub === "terminate" || sub === "end") return sessionTerminateIndependent(rest);
+    if (sub === "top-up") return sessionTopUpIndependent(rest);
+    if (sub === "revoke-all") return sessionRevokeAllIndependent(rest);
+    // watched on chain (cli/independent-login-cli.mjs): no relay polling, and the owner's own top-up link
+    if (sub === "resume-wait" || sub === "top-up-link") return independentLogin(`session ${sub}`, rest);
+    if (!["list", "ls", "use", "delegate"].includes(sub))
+      throw new Error(`session ${sub || ""} uses the hosted sessions relayer; independent mode offers session new | open | inspect | status | `
+        + `list | use | terminate | top-up | top-up-link | resume-wait | revoke-all | delegate`);
+  }
   if (sub === "new") return sessionNew(rest);
   if (sub === "resume-wait") return sessionResumeWait(rest);
   if (sub === "status") return sessionStatus(rest);
@@ -3725,15 +4305,17 @@ async function bookEntry(book, name) {
   return /^0x0{40}$/i.test(a) ? null : getAddress(a);
 }
 async function delegationTarget(S, owner) {
-  const book = env.ENCLAVE_ADDRESS_BOOK !== undefined ? env.ENCLAVE_ADDRESS_BOOK : DEFAULTS.ADDRESS_BOOK_ADDRESS;
-  if (!book) throw new Error(`the delegation lives on the ledger the on-chain address book names, and ENCLAVE_ADDRESS_BOOK="" switches the book off`);
-  const ledger = await bookEntry(book, "deployments");
+  const book = CONTRACT_PINS ? null : env.ENCLAVE_ADDRESS_BOOK !== undefined ? env.ENCLAVE_ADDRESS_BOOK : DEFAULTS.ADDRESS_BOOK_ADDRESS;
+  if (!book && !CONTRACT_PINS) throw new Error(`the delegation lives on the ledger the on-chain address book names, and ENCLAVE_ADDRESS_BOOK="" switches the book off`);
+  const ledger = CONTRACT_PINS ? pinnedContract("deployments") : await bookEntry(book, "deployments");
   if (!ledger) throw new Error(`the address book ${book} names no "deployments" ledger`);
-  const factory = (await bookEntry(book, S.BOOK_KEY_FACTORY)) ?? DEFAULTS.SESSION_VAULT_FACTORY_ADDRESS;
+  const factory = CONTRACT_PINS ? pinnedContract("sessionVaultFactory")
+    : (await bookEntry(book, S.BOOK_KEY_FACTORY)) ?? DEFAULTS.SESSION_VAULT_FACTORY_ADDRESS;
+  if (CONTRACT_PINS) await assertPinnedSessionFactory();
   let vault;
-  try { vault = getAddress(await S.vaultAddress(pub(), factory, owner)); }
+  try { vault = getAddress(await S.vaultAddress(sessionPc(), factory, owner)); }
   catch (e) { throw new Error(`can't read the session vault factory ${factory} (${String(e?.shortMessage || e?.message || e).split("\n")[0]})`); }
-  const code = await pub().getCode({ address: vault });
+  const code = await sessionPc().getCode({ address: vault });
   const deployed = !!code && code !== "0x";
   // a deployed vault answers for its owner itself: anything else is not this wallet's vault
   if (deployed && getAddress(await read(vault, S.sessionVaultAbi, "owner")) !== owner)
@@ -3755,7 +4337,7 @@ async function sessionDelegate(rest) {
   const allowed = !f.revoke;
   const t = await delegationTarget(S, owner);
   DEFAULTS.DEPLOYMENTS_ADDRESS = t.ledger;   // `session` skips the start-up book read; this names the ledger in -x and --unsigned
-  const st = await S.delegationStatus(pub(), t.ledger, owner, t.vault);
+  const st = await S.delegationStatus(sessionPc(), t.ledger, owner, t.vault);
   if (!st.supported)
     throw new Error(`the ledger ${t.ledger} (the address book's "deployments") predates delegation: it has no setDelegate, `
       + `so no session reaches the deployments a wallet holds there`);
@@ -3782,7 +4364,7 @@ async function sessionDelegate(rest) {
   // the sessions relay (and its RPC) must see it before a session relies on it: wait until the chain reads it back
   let seen = false;
   for (let i = 0; i < 20 && !seen; i++) {
-    const now = await S.delegationStatus(pub(), t.ledger, owner, t.vault).catch(() => null);
+    const now = await S.delegationStatus(sessionPc(), t.ledger, owner, t.vault).catch(() => null);
     seen = !!now && now.granted === allowed;
     if (!seen) await sleep(1500);
   }
@@ -3803,7 +4385,7 @@ async function sessionDelegateStatus(S, f) {
   let r, why = null;
   try {
     const t = await delegationTarget(S, owner);
-    r = { owner, vault: t.vault, deployed: t.deployed, ledger: t.ledger, ...(await S.delegationStatus(pub(), t.ledger, owner, t.vault)), source: "chain" };
+    r = { owner, vault: t.vault, deployed: t.deployed, ledger: t.ledger, ...(await S.delegationStatus(sessionPc(), t.ledger, owner, t.vault)), source: "chain" };
   } catch (e) {
     // the chain read failed: the sessions relay answers the same question (GET /v1/sessions/owner/<addr>)
     why = String(e?.shortMessage || e?.message || e).split("\n")[0];
@@ -3932,6 +4514,12 @@ identity
 
 deployments
   deploy <app> --fund <usd>  create + fund + wait until live; prints the URL
+    --prepare-only           with --chain-only, create unfunded with startup disabled;
+                             prepare, publish and activate an owner package next.
+    --chain-only             submit directly to pinned contracts without an API;
+                             requires --contract-pins, --cpu, --gpu, --max-rate.
+                             Wallet-only, inline config, no relay-held secrets;
+                             returns after funding without claiming readiness.
          [--gpu 0..1] [--cpu 0..1]      shares of one card / one node (default: app minimums)
          [--fund-eth <eth>] [--private] [--port N] [--ports CSV] [--no-wait]
          [--max-rate <usd/hour>]        hourly spend ceiling (default: what the cheapest live
@@ -3964,6 +4552,49 @@ deployments
                              place: waf live, config via an in-place app restart
   config clear <id> [config|waf|all]   drop the override (default config: the app
                              falls back to the version's approved config)
+  bootstrap prepare <id> --config-file FILE --app-id HEX --runtime-id HEX
+         --public|--custody-file FILE --out FILE
+                             create an exact public startup package from the pinned
+                             ledger; never put plaintext secrets in this file
+         [--names HOST,… [--acme-directory HTTPS --acme-challenge HTTPS --acme-zone ZONE
+          [--acme-eab-kid-secret NAME --acme-eab-hmac-secret NAME]]]
+                             owner-committed custom names the direct guest certifies
+                             for its own key (docs/network/independent-names.md);
+                             prints the _acme-challenge CNAMEs to publish
+         [--history-rpcs HTTPS,… [--history-path-is-public]]
+                             owner-named log history sources a cold-starting guest
+                             reads its lease's history from (two independent operators
+                             needed for a claim older than ~3 h); the package is PUBLIC:
+                             no credentials or query in a URL. Public options, probed
+                             2026-10-20, offered as-is (choose and check them yourself):
+${HISTORY_PUBLIC_OPTIONS.map(o=>`                               ${o.url} (${o.operator}): ${o.limits}`).join("\n")}
+                             ${HISTORY_KEYLESS_LIMIT}
+         [--history-checkpoints HTTPS,…]
+                             owner-committed mirrors of the guest's attested history
+                             checkpoint (fill them with history checkpoint export|mirror);
+                             ${CHECKPOINT_SCOPE}
+  history checkpoint export <id> --front HTTPS [--out FILE] [--expect MEASUREMENT]
+                             fetch a running SEV-SNP guest's attested history checkpoint
+                             (/.well-known/enclave-history-checkpoint), complete its AMD
+                             collateral and CRL from AMD's KDS (--kds: any mirror), and
+                             verify it (with --expect: the AMD evidence too)
+  history checkpoint import <id> HTTPS|FILE [--out FILE] [--expect MEASUREMENT]
+                             the same from a mirror or a file (moving between mirrors)
+  history checkpoint verify <id> FILE --expect MEASUREMENT
+  history checkpoint refresh-crl <id> FILE [--out FILE]
+                             replace its CRL with AMD's current one (a stale CRL is refused)
+  history checkpoint mirror <id> FILE --put URL [--check HTTPS]
+                             upload it (PUT; a presigned URL is used once, never printed)
+                             and read it back from the URL you commit as a mirror
+  bootstrap publish <id> --file FILE --storage-plan FILE
+                             upload and verify the required number of adapter copies
+  bootstrap publish <id> --file FILE --upload HTTPS/add-json --audience ID
+                             publish those bytes with a direct wallet signature
+  bootstrap activate <id> --file FILE --storage-plan FILE
+                             recheck replicated availability before commitment
+  bootstrap activate <id> --file FILE --gateways HTTPS/ipfs,…
+                             verify readback, then commit its hash as ledger owner;
+                             requires --contract-pins and a direct SNP runtime
   ls                         your deployments: live, queued and unfunded
   status <id>                one deployment: state, lease, balance, URL
   logs <id> [-f] [--tail N]  the app's stdout/stderr (-f polls)
@@ -4021,7 +4652,9 @@ deployments
                              with the record (rev-11 ledgers)
 
 catalog
-  publish <app.wasm> --slug S [--version V --name N --desc D --config JSON]
+  publish <app.wasm> --slug S [--version V --name N --desc D --config JSON|--config-file FILE]
+          [--storage-plan FILE] verify copies on independent adapters before publishing;
+                                requires --wallet and --contract-pins
           [--mem MB --cpu-gflops N --vram MB --gpu-gflops N --ports CSV]
           [--fee $/hr]        your hourly fee, paid straight to your wallet out
                              of deployers' fundings (capped on-chain; immutable
@@ -4109,6 +4742,12 @@ sell hosting (run an enclave on your own TEE hardware — metal/PROTOCOL.md)
                              from that wallet — the box cannot declare it
   host clear-payout          withdraw the declaration again
 
+artifacts
+  artifact publish FILE --storage-plan FILE [--kind file|wasm|json|image]
+                             sign and verify replicated storage; no admission or catalog change
+  artifact verify FILE --storage-plan FILE
+                             verify current copies without a wallet or API
+
 platform
   pricing | availability | gpu | account
 
@@ -4127,6 +4766,17 @@ Signing without a key on this machine (hardware wallets, Safes, air-gapped):
                              holds the key - Frame (http://127.0.0.1:1248) or
                              Clef - which drives the Ledger/Trezor itself and
                              pops the approval. Reads still use --rpc.
+                             With --independent the signer only SIGNS: the
+                             quorum prepares nonce/gas/fees, every field of the
+                             signed bytes is checked, and the quorum broadcasts
+                             them (Clef's account_* API is spoken natively).
+  --signer-mode M            independent only: auto (sign; a wallet that can
+                             only send gets the prepared transaction, checked
+                             on chain afterwards), sign, wallet-send, or
+                             handoff (no endpoint, e.g. MetaMask: print the
+                             exact transaction; then enclave signer attach).
+  enclave --independent … signer probe|list|show|resolve|attach|rebroadcast|abandon
+                             inspect and settle the signer's journaled intents.
   Both need --from: a signer may hold several accounts, and every ownership
   gate here keys on the address, so guessing would act as the wrong wallet.
   Message-signing commands (login, upload, encvol) need --signer; --unsigned
@@ -4134,6 +4784,37 @@ Signing without a key on this machine (hardware wallets, Safes, air-gapped):
 
 Global: --json machine output · -x print every REST call + transaction ·
 --base/--rpc (ENCLAVE_API_BASE/ENCLAVE_RPC) target an enclave or your own RPC ·
+--contract-pins FILE (ENCLAVE_CONTRACT_PINS_FILE) fixes contract addresses from
+the host pin-document format and disables mutable address-book discovery.
+Invalid pins refuse; zero optional bindings disable that feature. Pins select
+contracts, not their internal governance or an independent API operator.
+--independent (docs/network/independent-cli.md): no Enclave API, address book or
+first-answer RPC. Authorities come from --profile FILE --profile-digest sha256:…
+(a reviewed authority profile) or --contract-pins FILE [--usdc-token ADDR]; every
+read needs --quorum N (default 2) of --rpc A,B[,C…] to agree at one block
+--confirmations deep (default 2) and at most --max-block-age seconds old (120).
+Transactions are signed once, broadcast unchanged and confirmed by the quorum;
+an unconfirmed outcome is reported, never resent (--max-fee-gwei, default 5).
+  ls [--owner ADDR] · status <id> · hosts [--all] · pricing · apps · whoami
+  availability --capacity-directories URL,… | --hosts ENDPOINT,… | --cold [--max-hosts N] [--capacity-state FILE]
+      (hosts' own signed /availability, checked against the profile's registry; self-reported, not a price)
+  deploy <app> --cpu --gpu [--max-rate] (chain-only) · fund · stop · resume
+  rate-cap · refund · transfer · upgrade · resize · bootstrap · publish --storage-plan
+  session inspect [<sid> | --vault ADDR --sid SID] · session list | use
+  logs <id> [--tail N] · restart <id> · status <id> --host   (signed management:
+      --directories IP,… [--state-dir DIR] [--session SID]; a live session scope)
+  attest <id> --native-profile FILE   (the native client's SNP verification)
+  attest <id> --host-report           (host-reported document; exit 3, never a pass)
+  config show|set|clear <id> [--waf …] [--storage-plan FILE] · encvol … · host declare-payout|clear-payout|fund|status
+  host init|build|install|run|check|referral   (plan-driven onboarding, docs/network/independent-host-onboarding.md;
+      check reports the control guest's attestation as UNKNOWN: it is not host readiness)
+  login --frontend ORIGIN [--owner ADDR] [--no-wait | --resume] · logout · account · session resume-wait | top-up-link
+      (the owner's own account approves a session grant; the CLI adopts it from the agreed chain)
+  custody status|set|migrate|pause|resume|clear|claim <id>   (custody v2: whole-map secrets; secrets ls/rm need the owner read, not yet)
+  move <id> <host-id> --directories IP,…   (refused when the target has the same operator as the current host)
+  app-token <id> --out NEW_FILE · cpu-profile start <id> --seconds N | stop <id> | get <id> --out F
+      (management mutations are sent once; a lost answer exits 4: check status first)
+The deployed registry is schema 4: capability bits and relay registration are refused.
 ENCLAVE_KEY overrides the key file · --wallet acts with the wallet key even when a
 session is active (ENCLAVE_SESSION / ENCLAVE_SESSION_DIR). Auth is SIWE (wallet) or an Enclave account
 session (enclave login); keys never leave this machine. Account sessions read
@@ -4150,6 +4831,20 @@ transactions - deploying and funding by credit stays on enclave.host for now.`;
 // not a payment; earnings sweep to payoutAddress (default: this CLI wallet).
 async function cmdHost(rest) {
   const sub = rest.shift();
+  // Independent onboarding (docs/network/independent-host-onboarding.md): the plan-driven lifecycle with no relay,
+  // tunnel, Enclave control or artifact defaults. init records the authorities THIS invocation was given (the same
+  // --profile/--profile-digest or --contract-pins and --rpc quorum); every later command reads them from the plan.
+  if (INDEPENDENT && ["init", "build", "install", "run", "check", "referral"].includes(sub)) {
+    const { hostLifecycle } = await import("./host-independent-lifecycle.mjs");
+    const t = INDEPENDENT.trust, pinsFile = opt.contractPins || env.ENCLAVE_CONTRACT_PINS_FILE;
+    const auth = sub !== "init" ? [] : [
+      ...(opt.profile ? ["--profile", opt.profile, "--profile-digest", opt.profileDigest] : ["--contract-pins", pinsFile]),
+      "--rpc", t.rpcs.join(","), "--quorum", String(t.quorum), "--confirmations", String(t.confirmations), "--max-block-age", String(t.maxBlockAgeMs / 1000)];
+    // --json is also a global flag (taken out of argv); `check` is the one lifecycle command that prints JSON
+    const code = await hostLifecycle([sub, ...rest, ...(sub === "check" && opt.json ? ["--json"] : []), ...auth]);
+    if (code) exit(code);
+    return;
+  }
   const f = flags(rest, { val: ["--config", "--name", "--payout", "--eth", "--address", "--mode", "--cpus", "--mem", "--eab-kid", "--eab-hmac", "--price-cpu", "--price-gpu", "--gpu", "--repo", "--supervisor", "--wasm", "--kernel", "--url", "--referral"] });
   const cfgPath = f.config || path.join("metal", "config.json");
   const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgPath, "utf8")); } catch { return null; } };
@@ -4158,6 +4853,9 @@ async function cmdHost(rest) {
     const pk = cfg.registryKey.startsWith("0x") ? cfg.registryKey : "0x" + cfg.registryKey;
     return privateKeyToAccount(pk).address;
   };
+  if (INDEPENDENT && !["declare-payout", "clear-payout", "fund", "status"].includes(sub))
+    throw new Error(`host ${sub || ""}: independent mode offers host init | build | install | run | check | referral `
+      + `(docs/network/independent-host-onboarding.md) and host declare-payout | clear-payout | fund | status`);
 
   if (sub === "init") {
     let cfg = readCfg();
@@ -4258,11 +4956,18 @@ the box hides itself until its registration confirms, then appears as serving.`)
     const value = BigInt(Math.round(Number(ethAmt) * 1e18));
     if (!(value > 0n)) throw new Error("--eth must be a positive ETH amount");
     const account = loadKey();
-    const bal = await pub().getBalance({ address: account.address });
+    const bal = await ethBalance(account.address);
     if (bal < value) throw new Error(`your CLI wallet ${account.address} holds ${formatUnits(bal, 18)} ETH on Base — less than ${ethAmt}. Bridge/buy Base ETH first.`);
     say(`gassing operator ${to} with ${ethAmt} ETH from ${account.address}`);
     say(`(a gas tank for its register/heartbeat/claim transactions — not a payment; earnings never touch this key)`);
     if (opt.unsigned) emitUnsigned({ account, to, data: "0x", value, label: "ETH transfer" });
+    if (INDEPENDENT) {
+      const rcpt = await INDEPENDENT.I.sendQuorumTx(INDEPENDENT.chain, { account, to, data: "0x", value, maxFeeGwei: INDEPENDENT.maxFeeGwei, log: (m) => trace(m) });
+      if (opt.json) return jout({ to, value: String(value), tx: rcpt.transactionHash });
+      say(`✓ funded (tx ${rcpt.transactionHash}, confirmed by ${rcpt.agreeing} RPCs)`);
+      kv([["operator balance", `${formatUnits(await ethBalance(to), 18)} ETH`]]);
+      return;
+    }
     const hash = await wallet(account).sendTransaction({ to, value });
     trace(`tx sent ${hash}, waiting for receipt`);
     const rcpt = await pub().waitForTransactionReceipt({ hash });
@@ -4312,6 +5017,31 @@ the box hides itself until its registration confirms, then appears as serving.`)
     return;
   }
 
+  if (sub === "status" && INDEPENDENT) {
+    // the chain's view only: the agreed schema-4 registry entry for this endpoint and the operator's gas
+    const cfg = readCfg();
+    const url = f.url || (cfg && cfg.publicUrl);
+    if (!url) throw new Error("independent host status needs the endpoint: --url https://… (or a host config with publicUrl)");
+    const hid = keccak256(toHex(String(url).replace(/\/+$/, "")));
+    const { I, chain, trust } = INDEPENDENT;
+    await I.assertReviewedCode(chain, trust.profile, ["registry"]);
+    const snap = await chain.snapshot((c, b) => I.readHost(c, DEFAULTS.REGISTRY_ADDRESS, hid, b));
+    I.requireSchema4(snap.value.schema);
+    const h = snap.value.host, nowSec = Math.floor(snap.timestamp / 1000);
+    const op = f.address || operatorOf(cfg) || h?.operator || null;
+    const gas = op ? await ethBalance(op) : null;
+    if (opt.json) return jout({ id: hid, endpoint: url, registered: !!h, host: h, operator: op, gasWei: gas, ...quorumJson(snap) });
+    kv([["endpoint", url], ["id", hid],
+        ["registered", h ? (h.active ? "yes, active" : "yes, INACTIVE") : "no (not in the pinned registry)"],
+        h ? ["operator", h.operator + (op && op.toLowerCase() !== h.operator ? ` (DIFFERS from the configured ${op})` : "")] : null,
+        h ? ["registry write", `${dur(Math.max(0, nowSec - h.lastSeen))} ago (the last on-chain update by its operator; not liveness: hosts send no periodic transaction)`] : null,
+        h ? ["prices", `${usd6(h.cpuPricePerSec6 * 3600n)}/h node, ${h.gpuPricePerSec6 > 0n ? usd6(h.gpuPricePerSec6 * 3600n) + "/h card" : "no card"}`] : null,
+        h ? ["proof key", /^0x0{40}$/.test(h.proofKey) ? "(none: cannot claim once proofs are required)" : h.proofKey] : null,
+        h ? ["payout wallet", /^0x0{40}$/.test(h.payoutWallet) ? "(undeclared - enclave host declare-payout)" : `${h.payoutWallet} (its own deployments run here free)`] : null,
+        op ? ["gas", `${formatUnits(gas, 18)} ETH`] : null,
+        ["chain", `registry ${DEFAULTS.REGISTRY_ADDRESS}, ${quorumLine(snap)}; relay listing is not a chain fact and is not shown`]]);
+    return;
+  }
   if (sub === "status") {
     const cfg = readCfg();
     const name = f.name || (cfg && cfg.name) || "metal0";
@@ -4455,6 +5185,693 @@ stop:   systemctl --user disable --now enclave-metal`);
   throw new Error("usage: enclave host init | build | run | install | check | fund | status | declare-payout | clear-payout");
 }
 
+
+// ---- independent mode (docs/network/independent-cli.md) -------------------------------------------------------------
+// Commands that work from explicit authorities and an agreeing RPC quorum alone. Everything else is refused up front
+// in independent mode rather than half-run against a hosted service.
+const INDEPENDENT_COMMANDS = new Set(["key", "whoami", "ls", "list", "status", "hosts", "pricing", "availability", "apps",
+  "deploy", "fund", "stop", "suspend", "resume", "rate-cap", "cap", "refund", "cancel", "transfer", "upgrade", "set-version",
+  "resize", "bootstrap", "artifact", "session", "logs", "restart", "attest", "publish", "app-token", "cpu-profile",
+  "config", "encvol", "host", "gpu", "move", "login", "logout", "account", "signer", "custody", "lease-gas", "history"]);
+// Why each remaining command has no independent path (work/cli-remaining-interface.txt has the exact missing pieces).
+const INDEPENDENT_REFUSALS = {
+  secrets: "relay-held secrets are a hosted service. Independently, `custody status|set|migrate|pause|resume|clear|claim` "
+    + "stores the WHOLE map in custody v2; listing, showing, removing one KEY or merging need the owner read "
+    + "(work/owner-secrets-interface.txt), which is not integrated yet: it needs its final source and a new measured custodian image",
+};
+async function configureIndependent() {
+  const asked = opt.independent || opt.profile || opt.profileDigest;
+  const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei", "signerMode"].filter((k) => opt[k] !== null);
+  if (!asked) {
+    if (strays.length) throw new Error("--quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei and --signer-mode apply to independent mode: add --independent");
+    return;
+  }
+  const external = !!opt.signer || opt.signerMode === "handoff";
+  if (external && opt.unsigned) throw new Error("--signer / --signer-mode handoff and --unsigned are different ways to sign elsewhere; use one");
+  if (opt.signerMode && !external) throw new Error("--signer-mode needs --signer URL (handoff alone needs no endpoint: --signer-mode handoff)");
+  if (external && !opt.from) throw new Error(`${opt.signer ? "--signer" : "--signer-mode handoff"} needs --from 0x… — the wallet this is for`);
+  if (!(opt.rpc || env.ENCLAVE_RPC)) throw new Error("independent mode needs explicit RPCs: --rpc https://a,https://b[,…] (at least two; there is no default set)");
+  const I = await import("./independent.mjs");
+  const trust = I.loadIndependentTrust({ profileFile: opt.profile, profileDigest: opt.profileDigest, contractPins: CONTRACT_PINS,
+    usdc: opt.usdcToken, defaultUsdc: DEFAULTS.USDC_ADDRESS, rpcs: RPCS, quorum: opt.quorum, confirmations: opt.confirmations, maxBlockAgeSec: opt.maxBlockAge });
+  CONTRACT_PINS = trust.pins;
+  for (const [key, name] of Object.entries({ deployments: "DEPLOYMENTS_ADDRESS", registry: "REGISTRY_ADDRESS", appCatalog: "APP_CATALOG_ADDRESS",
+    sessionVaultFactory: "SESSION_VAULT_FACTORY_ADDRESS" })) DEFAULTS[name] = /^0x0{40}$/i.test(trust.pins[key]) ? trust.pins[key] : getAddress(trust.pins[key]);
+  DEFAULTS.USDC_ADDRESS = trust.usdc;
+  CHAIN_ONLY = true;
+  const chain = new I.QuorumChain({ rpcs: trust.rpcs, quorum: trust.quorum, confirmations: trust.confirmations, maxBlockAgeMs: trust.maxBlockAgeMs });
+  const maxFeeGwei = opt.maxFeeGwei !== null ? numFlag(opt.maxFeeGwei, "--max-fee-gwei") : 5;
+  INDEPENDENT = { trust, chain, I, maxFeeGwei, pc: I.quorumPublicClient(chain), send: I.quorumWriter(chain, { maxFeeGwei, log: (m) => trace(m) }) };
+  if (external) {
+    // the user's wallet is the signing authority, never a chain-state oracle: sendQuorumTx hands it the prepared
+    // transaction through account.sendQuorumTx (cli/independent.mjs), and every outcome is a journaled intent
+    const X = await import("./independent-signer.mjs");
+    INDEPENDENT.signer = X.createExternalSigner({ url: opt.signer, from: opt.from, chainId: chain.chainId, mode: opt.signerMode || "auto",
+      journalDir: signerJournalDir(), log: (m) => stderr.write(`signer: ${m}\n`), onHandoff: signerHandoff });
+  }
+  stderr.write(`independent: ${trust.profile ? `reviewed profile ${trust.digest}` : "explicit contract pins"}; ${trust.quorum} of ${trust.rpcs.length} RPCs must agree `
+    + `at one block ${trust.confirmations} deep; no Enclave API, address book or first-answer read\n`);
+}
+const signerJournalDir = () => path.resolve(opt.stateDir ? path.join(opt.stateDir, "signer") : path.join(CONF_DIR, "independent-signer"));
+// --signer-mode handoff: the exact transaction for the user's own wallet (MetaMask, a hardware wallet app), then stop
+function signerHandoff(rec, params) {
+  if (opt.json) { jout({ handoff: rec.id, transaction: params }); exit(0); }
+  say(`\nNOT SENT by this CLI. Send exactly this transaction from ${rec.from} with your own wallet (its nonce, gas and fees are part of it),`);
+  say(`then: enclave --independent … signer attach ${rec.id} <0xhash>   (the quorum checks the mined transaction against it)\n`);
+  say(JSON.stringify(params, null, 2));
+  exit(0);
+}
+async function cmdSigner(rest) {
+  requireIndependent("signer");
+  const X = await import("./independent-signer.mjs");
+  const [sub, ...r] = rest;
+  return X.signerCommand(sub, r, { chain: INDEPENDENT.chain, signer: INDEPENDENT.signer || null, journal: X.intentJournal(signerJournalDir()),
+    say, jout, json: opt.json, waitOpts: { timeoutMs: 180000, pollMs: 1000 } });
+}
+const quorumLine = (s) => `block ${s.blockNumber} (${s.blockHash.slice(0, 10)}…): ${s.agreeing} of ${s.peers} RPCs agreed`;
+const quorumJson = (s) => ({ blockNumber: String(s.blockNumber), blockHash: s.blockHash, agreeing: s.agreeing, peers: s.peers, quorum: INDEPENDENT.trust.quorum });
+let _indRegistry = null;
+async function independentRegistry() {
+  if (!_indRegistry) _indRegistry = (async () => {
+    const { I, chain, trust } = INDEPENDENT;
+    await I.assertReviewedCode(chain, trust.profile, ["registry"]);
+    return I.registryHosts(chain, DEFAULTS.REGISTRY_ADDRESS);
+  })();
+  return _indRegistry;
+}
+// Liveness evidence beyond the registry (network/host-liveness.mjs): each admitted host's own operator-signed capacity
+// record, fetched from its registered endpoint and verified against its row in the SAME agreed snapshot of the registry
+// this command was told to use (--contract-pins or the reviewed profile), so explicit pins alone are enough.
+// -> { signedUntil: Map(hostId -> expiresAt ms) | null, unchecked: Set(hostId), note }
+let _indLiveness = null;
+async function independentLiveEvidence(reg) {
+  if (!_indLiveness) _indLiveness = (async () => {
+    const { I } = INDEPENDENT;
+    try {
+      const { signedUntil, unchecked, admitted } = await I.signedLiveness(reg, { registry: DEFAULTS.REGISTRY_ADDRESS });
+      return { signedUntil, unchecked: new Set(unchecked), note: unchecked.length
+        ? `INCOMPLETE: signed records were checked for ${admitted - unchecked.length} of ${admitted} admitted hosts (the per-command limit); the other ${unchecked.length} were not checked, which is not evidence that they are down`
+        : null };
+    } catch (e) { return { signedUntil: null, unchecked: new Set(), note: `signed capacity records unavailable (${String(e.message).slice(0, 160)}): only registry writes counted` }; }
+  })();
+  return _indLiveness;
+}
+const livenessLabel = (l) => !l ? "-" : l.live ? (l.evidence === "signed-record" ? `live (signed record until ${new Date(l.untilMs).toISOString().slice(11, 19)}Z)` : l.evidence === "registry-update" ? "live (recent registry write)" : `live (${l.evidence})`)
+  : /inactive/.test(l.reason) ? "inactive" : "no fresh evidence";
+// app-funded lease gas: an app owner's reserve, policy and caps (cli/lease-gas.mjs, network/lease-gas-owner.mjs). Every read
+// is the quorum; a request goes through the same independent writer and external signer as every other command, or is
+// printed unsigned. The local wallet key is never used for it.
+async function cmdLeaseGas(rest) {
+  requireIndependent("lease-gas");
+  const { cmdLeaseGas: run } = await import("./lease-gas.mjs");
+  return run(rest, { flags, say, jout, env, json: !!opt.json, chain: INDEPENDENT.chain, trust: INDEPENDENT.trust, I: INDEPENDENT.I,
+    signer: INDEPENDENT.signer || null, from: opt.from, maxFeeGwei: INDEPENDENT.maxFeeGwei, readFileBytes: (p) => fs.readFileSync(p), log: (m) => trace(m) });
+}
+// an EXISTING credit vault without the billing API (cli/credit-vault.mjs): its own pins, the owner's 2-8 agreeing RPCs and
+// payer; passkey signatures come from the /credit/ page. It never calls the Enclave API, in either mode (dispatched early,
+// below, before the address book and independent setup).
+async function cmdCreditVault() {
+  const a = process.argv.slice(2), at = a.indexOf("credit-vault");
+  const { main } = await import("./credit-vault.mjs");
+  return main(a.slice(at + 1));
+}
+function requireIndependent(what) {
+  if (!INDEPENDENT) throw new Error(`${what} reads the chain through an agreeing RPC quorum: run it with --independent --contract-pins FILE (or --profile FILE --profile-digest sha256:…) --rpc A,B[,C]`);
+}
+const ledgerStatus = (d, nowSec) => !d.active ? "stopped" : Number(d.leaseUntil) > nowSec ? "claimed"
+  : d.balance6 >= d.rate && d.rate > 0n ? "queued" : "unfunded";
+
+async function cmdLsIndependent(rest) {
+  const f = flags(rest, { val: ["--owner"] });
+  const account = loadKey({ required: false });
+  const owner = f.owner ? getAddress(f.owner) : account?.address;
+  if (!owner) throw new Error("independent ls needs a wallet key or --owner ADDRESS");
+  const { I, chain, trust } = INDEPENDENT;
+  const factory = DEFAULTS.SESSION_VAULT_FACTORY_ADDRESS;
+  await I.assertReviewedCode(chain, trust.profile, ["deployments", ...(/^0x0{40}$/i.test(factory) ? [] : ["sessionVaultFactory"])]);
+  const vault = /^0x0{40}$/i.test(factory) ? null : await I.vaultOf(chain, factory, owner);
+  const { abi } = await depAbi();
+  const L = await I.ledgerRecords(chain, { deployments: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, owners: [owner, ...(vault?.deployed ? [vault.vault] : [])] });
+  const nowSec = Math.floor(L.timestamp / 1000);
+  const rows = L.rows.map((d) => ({ id: d.id, app: d.appRef, status: ledgerStatus(d, nowSec),
+    holder: d.owner.toLowerCase() === owner.toLowerCase() ? "wallet" : "vault",
+    shares: `${d.gpuMilli ? (Number(d.gpuMilli) / 10) + "% gpu " : ""}${Number(d.cpuMilli) / 10}% cpu`,
+    left: dur(d.rate > 0n ? Number(d.balance6 / d.rate) : 0), balance6: d.balance6, rate6: d.rate,
+    runner: /^0x0{64}$/i.test(d.runner) ? null : d.runner, leaseUntil: Number(d.leaseUntil) }));
+  if (opt.json) return jout({ deployments: rows, owner, vault: vault?.deployed ? vault.vault : null, ledger: DEFAULTS.DEPLOYMENTS_ADDRESS,
+    ledgerRecords: String(L.total), ...quorumJson(L) });
+  table(rows, [{ h: "id", f: (r) => short(r.id) }, { h: "app", f: (r) => r.app.length > 40 ? r.app.slice(0, 37) + "…" : r.app },
+               { h: "status", k: "status" }, { h: "held by", k: "holder" }, { h: "shares", k: "shares" }, { h: "funded", k: "left" }]);
+  say(`ledger ${DEFAULTS.DEPLOYMENTS_ADDRESS}, ${quorumLine(L)}; "claimed" is a ledger fact, not proof the app answers`);
+}
+
+async function cmdStatusIndependent(rest) {
+  const f = flags(rest, { bool: ["--host"], val: ["--session", "--directories"] });
+  if (!f._[0]) throw new Error("usage: enclave status <id> [--host --directories IP,… --session SID]");
+  const account = loadKey({ required: false });
+  const id = await resolveId(f._[0], account);
+  if (!isB32(id)) throw new Error("independent status needs an on-chain deployment id");
+  const { I, chain, trust } = INDEPENDENT;
+  await I.assertReviewedCode(chain, trust.profile, ["deployments", "registry"]);
+  const { rev, abi } = await depAbi();
+  const s = await I.deploymentSnapshot(chain, { deployments: DEFAULTS.DEPLOYMENTS_ADDRESS, registry: DEFAULTS.REGISTRY_ADDRESS, abi, rev, id });
+  if (!s.value.exists) throw new Error(`no deployment ${short(id)} on the pinned ledger (${quorumLine(s)})`);
+  const { d, cap6, fee, proven, proofRequired, runner } = s.value, nowSec = Math.floor(s.timestamp / 1000);
+  const host = runner?.host || null, leased = Number(d.leaseUntil) > nowSec;
+  const out = { id, owner: d.owner, appRef: d.appRef, status: ledgerStatus(d, nowSec), active: d.active, isPublic: d.isPublic,
+    gpuMilli: Number(d.gpuMilli), cpuMilli: Number(d.cpuMilli), rate6: d.rate, balance6: d.balance6, maxRate6: cap6,
+    fee: fee ? { recipient: fee[0], perSec6: fee[1] } : null, lease: leased ? { runner: d.runner, operator: d.runnerOperator, until: Number(d.leaseUntil) } : null,
+    runnerHost: host ? { ...host, operatorMatches: host.operator === d.runnerOperator.toLowerCase() } : (leased ? { registered: false } : null),
+    proofOfTime: proven !== null ? { provenUntil: Number(proven), required: proofRequired } : null, ...quorumJson(s) };
+  let hostStatus = null;
+  if (f.host) hostStatus = await independentManagementCall(id, "status", f).then((r) => r.json);
+  if (opt.json) return jout({ ...out, ...(hostStatus ? { hostReported: hostStatus } : {}) });
+  kv([["id", id], ["app", d.appRef], ["owner", d.owner], ["status", out.status + (out.status === "claimed" ? " (a ledger fact; whether the app answers is a host fact)" : "")],
+    ["visibility", d.isPublic ? "public" : "private"], ["shares", `gpu ${Number(d.gpuMilli) / 10}% · cpu ${Number(d.cpuMilli) / 10}%`],
+    ["rate", `${usd6(d.rate)}/s (${usd6(d.rate * 3600n)}/h)`], cap6 ? ["rate cap", `${usd6(cap6 * 3600n)}/h`] : null,
+    ["balance", `${usd6(d.balance6)} on-chain (${dur(d.rate > 0n ? Number(d.balance6 / d.rate) : 0)})`],
+    leased ? ["lease", `until ${new Date(Number(d.leaseUntil) * 1000).toISOString()} (runner ${short(d.runner)}, operator ${d.runnerOperator})`] : null,
+    leased ? ["runner host", host ? `${host.endpoint} · operator ${host.operator}${out.runnerHost.operatorMatches ? "" : " (DIFFERS from the lease's operator)"} · `
+      + `${host.active ? "active" : "INACTIVE"} · registry write ${dur(Math.max(0, nowSec - host.lastSeen))} ago · ${usd6(host.cpuPricePerSec6 * 3600n)}/h node`
+      : "not in the pinned registry"] : null,
+    proven !== null && leased ? ["proven", Number(proven) ? `service proven through ${new Date(Number(proven) * 1000).toISOString()}` : "nothing proven on this lease yet"] : null,
+    ["chain", `ledger ${DEFAULTS.DEPLOYMENTS_ADDRESS}, ${quorumLine(s)}`]]);
+  if (hostStatus) { say("host-reported status (from the runner's signed management endpoint; not an attestation):"); say(JSON.stringify(hostStatus, null, 2)); }
+}
+
+async function cmdHosts(rest) {
+  requireIndependent("enclave hosts");
+  const f = flags(rest, { bool: ["--all", "--relays", "--caps"], val: ["--region", "--cap"] });
+  if (f.relays || f.caps || f.region !== undefined || f.cap !== undefined) throw new Error(INDEPENDENT.I.REGISTRY_UNSUPPORTED);
+  const { I } = INDEPENDENT, reg = await independentRegistry(), nowSec = Math.floor(reg.timestamp / 1000), ev = await independentLiveEvidence(reg);
+  const judged = I.withLiveness(reg.hosts, reg.timestamp, { signedUntil: ev.signedUntil });
+  const live = new Set(I.liveHosts(reg.hosts, reg.timestamp, { signedUntil: ev.signedUntil }).map((h) => h.id));
+  const policy = await hostPolicyDecisions(reg.hosts.map((h) => h.id));
+  const refusedBy = (h) => (policy && policy[String(h.id).toLowerCase()]?.admit !== true ? (policy[String(h.id).toLowerCase()] || { admit: false, reason: "no decision" }) : null);
+  if (policy) for (const h of reg.hosts) if (refusedBy(h)) live.delete(h.id);
+  const rows = (f.all ? judged : judged.filter((h) => live.has(h.id))).map((h) => ({ ...h, live: live.has(h.id), ...(policy ? { platformPolicy: refusedBy(h) || policy[String(h.id).toLowerCase()] } : {}) }));
+  if (opt.json) return jout({ registry: DEFAULTS.REGISTRY_ADDRESS, registrySchema: 4, registered: reg.hosts.length, hosts: rows, livenessNote: ev.note,
+    livenessUnchecked: [...ev.unchecked], livenessComplete: ev.unchecked.size === 0, ...quorumJson(reg) });
+  table(rows, [{ h: "id", f: (r) => short(r.id) }, { h: "endpoint", f: (r) => r.endpoint.length > 44 ? r.endpoint.slice(0, 41) + "…" : r.endpoint },
+    { h: "operator", f: (r) => r.operator.slice(0, 10) + "…" }, { h: "node $/h", f: (r) => usd6(r.cpuPricePerSec6 * 3600n) },
+    { h: "card $/h", f: (r) => r.gpuPricePerSec6 > 0n ? usd6(r.gpuPricePerSec6 * 3600n) : "-" },
+    { h: "registry write", f: (r) => dur(Math.max(0, nowSec - r.lastSeen)) + " ago" },
+    { h: "state", f: (r) => r.platformPolicy && r.platformPolicy.admit !== true ? "refused (platform policy)" : r.live ? livenessLabel(r.liveness) : !r.active ? "inactive" : !(r.cpuPricePerSec6 > 0n) ? "unpriced"
+      : ev.unchecked.has(r.id) ? "not checked (limit)" : livenessLabel(r.liveness) },
+    { h: "proofs", f: (r) => /^0x0{40}$/.test(r.proofKey) ? "no key" : "key set" }]);
+  say(`registry ${DEFAULTS.REGISTRY_ADDRESS} (deployed schema 4), ${reg.hosts.length} registered, ${live.size} live (active, priced, and a signed capacity record or a registry write < 1h); ${quorumLine(reg)}`);
+  if (ev.note) say(ev.note);
+  say("registration and prices are self-declared by each operator; attestation, not this list, decides whom to trust");
+}
+async function cmdPricingIndependent() {
+  const { I } = INDEPENDENT, reg = await independentRegistry(), ev = await independentLiveEvidence(reg);
+  const c = I.cheapestPrices(await policyAdmitted(I.liveHosts(reg.hosts, reg.timestamp, { signedUntil: ev.signedUntil })));
+  if (opt.json) return jout({ registry: DEFAULTS.REGISTRY_ADDRESS, liveHosts: c ? c.hosts : 0, livenessNote: ev.note, livenessComplete: ev.unchecked.size === 0,
+    cheapestNodePerSec6: c ? c.cpu6 : null, cheapestCardPerSec6: c ? c.gpu6 : null, ...quorumJson(reg) });
+  if (!c) return say(`no registered host is live (active, priced, and a signed capacity record or a registry write < 1h) at ${quorumLine(reg)}${ev.note ? "; " + ev.note : ""}`);
+  kv([["cpu node", `${usd6(c.cpu6 * 3600n)}/h whole node (cheapest of ${c.hosts} live host(s))`],
+      ["gpu card", c.gpu6 !== null ? `${usd6(c.gpu6 * 3600n)}/h whole card` : "no live host sells a card"],
+      ["source", `registry ${DEFAULTS.REGISTRY_ADDRESS}, ${quorumLine(reg)}`],
+      ["note", "posted prices only: node and card sizes are not on chain (enclave hosts lists every entry)"]]);
+  if (ev.note) say(ev.note);
+}
+
+// The session a management request is signed with, from the local store or ENCLAVE_SESSION, checked on chain.
+async function independentSessionRecord(sidArg) {
+  const S = await sessionsSdk();
+  const fromEnv = sessionEnvString();
+  if (fromEnv) {
+    const r = S.importSessionString(fromEnv);
+    if (!sidArg || r.id.toLowerCase().startsWith(String(sidArg).toLowerCase())) return { S, rec: r };
+  }
+  const store = await sessionStore();
+  const id = sidArg ?? store.activeId();
+  if (!id) throw new Error("no session: management requests are signed by a SessionVault session (enclave session list / use, or ENCLAVE_SESSION)");
+  return { S, rec: await findSessionRecord(store, id) };
+}
+const MANAGEMENT_SCOPE = { status: "api.status", attestation: "api.status", logs: "api.logs", restart: "api.restart",
+  appToken: "api.appAccess", cpuProfile: "api.logs", cpuProfileStart: "api.logs", cpuProfileStop: "api.logs", gpu: "api.status",
+  release: "api.restart", claimHint: "api.placement" };
+async function independentManagementCall(id, op, f, opts = {}) {
+  const { client } = await independentManagementClient(id, [MANAGEMENT_SCOPE[op]], f);
+  if (op === "logs") return client.logs(opts);
+  if (op === "restart") return client.restart();
+  if (op === "attestation") return client.attestation(opts);
+  if (op === "appToken") return client.appToken();
+  if (op === "gpu") return client.gpu();
+  if (op === "cpuProfile") return client.cpuProfile();
+  if (op === "cpuProfileStart") return client.startCpuProfile(opts);
+  if (op === "cpuProfileStop") return client.stopCpuProfile();
+  return client.status();
+}
+async function independentManagementClient(id, scopes, f) {
+  const { I, chain, trust } = INDEPENDENT;
+  if (/^0x0{40}$/i.test(DEFAULTS.SESSION_VAULT_FACTORY_ADDRESS)) throw new Error("management needs a pinned sessionVaultFactory (the pins disable it)");
+  const directories = String(f.directories || opt.directories || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const { S, rec } = await independentSessionRecord(f.session);
+  if (!rec.handle) throw new Error(`session ${rec.id} is still waiting for the owner's signature`);
+  await I.assertReviewedCode(chain, trust.profile, ["deployments", "registry", "sessionVaultFactory"]);
+  // Before any host is contacted: the session is live on the PINNED factory, holds this operation's scope, and its
+  // vault (or the vault's owner) holds the deployment now. A transferred deployment or an ended session stops here.
+  const ss = await I.sessionSnapshot(chain, { factory: DEFAULTS.SESSION_VAULT_FACTORY_ADDRESS, vault: rec.handle.vault, sid: rec.handle.sid });
+  if (!ss.exists) throw new Error(`session ${short(rec.handle.sid)} does not exist in vault ${rec.handle.vault} (${quorumLine(ss)})`);
+  if (!ss.live) throw new Error(`session ${short(rec.handle.sid)} is not live (revoked, terminated or expired at ${quorumLine(ss)}); nothing was sent`);
+  for (const scope of scopes)
+    if (!I.hasAction(ss.session.actions, S.ACTIONS[scope])) throw new Error(`session ${short(rec.handle.sid)} lacks the ${scope} scope; nothing was sent`);
+  const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]);
+  const holder = d.owner.toLowerCase();
+  if (holder !== ss.owner && holder !== rec.handle.vault.toLowerCase())
+    throw new Error(`${short(id)} is held by ${d.owner}, not by this session's vault or its owner ${ss.owner}; nothing was sent`);
+  if (holder === ss.owner) trace("wallet-held deployment: the host also requires the owner's ledger setDelegate grant to this vault");
+  const { managementClient } = await import("./independent-host.mjs");
+  const client = await managementClient({ trust, chain, deploymentId: id, directories, rec, hostAdmission: await hostPolicyAdmission(),
+    stateDir: path.resolve(opt.stateDir || path.join(CONF_DIR, "independent-management")) });
+  return { client, d, ss };
+}
+// The independent MOVE (work/independent-move-interface.txt): the current host stops the app and hands the lease back
+// (management `release`), the release is confirmed on THIS CLI's quorum, and only then is the owner-chosen target asked to
+// claim (management `claimHint`, signed, to the target's own operator-signed endpoint). No relay, fleet list or
+// unauthenticated hint. The ledger lets only the lease holder end a lease, so a move needs a reachable source; and any
+// eligible host may claim an open record, so placement is a steer: the result is whatever the quorum shows.
+const MOVE_ABI = [
+  { type: "function", name: "rateFor", stateMutability: "view", inputs: [{ type: "bytes32" }, { type: "bytes32" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "capOf", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "uint256" }] },
+];
+async function moveSnapshot(id, target) {
+  const { I, chain } = INDEPENDENT, { abi } = await depAbi();
+  const s = await chain.snapshot(async (c, blockNumber) => {
+    const r = (a, fn, args) => c.readContract({ address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi: a, functionName: fn, args, blockNumber });
+    const [d, rate, cap] = await Promise.all([r(abi, "get", [id]), target ? r(MOVE_ABI, "rateFor", [id, target]) : null, r(MOVE_ABI, "capOf", [id])]);
+    const reg = target ? await I.readHost(c, DEFAULTS.REGISTRY_ADDRESS, target, blockNumber) : null;
+    return { d, rate, cap, host: reg ? reg.host : null, schema: reg ? reg.schema : null };
+  });
+  if (target && s.value.schema !== undefined) I.requireSchema4(s.value.schema);
+  const { d } = s.value, t = Math.floor(s.timestamp / 1000);
+  const runner = String(d.runner).toLowerCase();
+  return { ...s.value, block: s.blockNumber, blockTime: t, runner, held: !/^0x0{64}$/.test(runner) && Number(d.leaseUntil) > t };
+}
+// the source host's definite answers that are not a release (supervisor.js POST /v1/deployments/:id/release)
+const RELEASE_STATES = {
+  stop_unconfirmed: "the host could not confirm the app stopped, so it released nothing (HTTP 502 stop_unconfirmed)",
+  release_unconfirmed: "the app is stopped there but its release transaction is not confirmed yet; the host resolves it before "
+    + "any retry and does not resume or re-claim the deployment meanwhile (HTTP 503 release_unconfirmed)",
+  release_blocked: "a restart, launch or renewal of the app is in flight there, so it stopped nothing (HTTP 409 release_blocked); run the move again shortly",
+  release_in_progress: "an earlier release of this deployment is still unresolved there, so nothing new was sent (HTTP 409 release_in_progress)",
+};
+async function cmdMoveIndependent(rest) {
+  const f = flags(rest, { val: ["--session", "--directories", "--wait"] });
+  if (!f._[0] || !f._[1]) throw new Error("usage: enclave move <deployment-id> <host-id> --directories IP,… [--session SID] [--wait SEC]   "
+    + "(host-id: the target's registry id, from `enclave hosts --all`; independent mode has no host names)");
+  const target = String(f._[1]).toLowerCase();
+  if (!isB32(target)) throw new Error("the target is a registry host id (0x + 64 hex, from `enclave hosts --all`); independent mode has no host names");
+  const id = await resolveId(f._[0], loadKey({ required: false }));
+  if (!isB32(id)) throw new Error("only an on-chain deployment (bytes32 id) holds a lease that can be moved");
+  const waitMs = Math.max(10, Math.min(Number(f.wait ?? 90), 900)) * 1000;
+  const { client } = await independentManagementClient(id, ["api.restart", "api.placement"], f);
+  const m = await moveSnapshot(id, target);
+  const at = `block ${m.block}`;
+  if (m.runner === target && m.held) return say(`${short(id)} already runs on ${short(target)} (${at})`);
+  if (!m.d.active) throw new Error(`${short(id)} is stopped (setActive(false)); resume it first: a stopped deployment cannot be claimed (${at}); nothing was sent`);
+  const h = m.host;
+  if (!h || !h.active || !(h.cpuPricePerSec6 > 0n)) throw new Error(`${short(target)} is not an active, priced host on the pinned registry (${at}); nothing was sent`);
+  // The deployed ledger's release(id) names no lease: it ends whatever lease the SIGNING operator holds when it is mined.
+  // With the target run by the same operator key as the source, a release of the source that lands late could end the
+  // target's new lease while its app runs, and the source cannot tell the two apart on chain. Refused until the ledger
+  // can condition a release on the lease it means (work/lease-epoch-proposal.txt); a queued record sends no release.
+  if (m.held && h.operator === String(m.d.runnerOperator).toLowerCase())
+    throw new Error(`${short(target)} is run by the same operator (${h.operator}) as the current host ${short(m.runner)}. On this ledger a release `
+      + `names no lease, only the operator, so a move between two hosts of one operator cannot be made safe (a late release from the `
+      + `source could end the target's lease while its app runs). Choose a host of another operator, or stop the deployment and let it `
+      + `re-queue; nothing was sent`);
+  if (m.cap > 0n && m.rate > m.cap)
+    throw new Error(`${short(target)} charges ${usd6(m.rate * 3600n)}/h for this deployment, over its rate cap ${usd6(m.cap * 3600n)}/h: raise it with \`enclave rate-cap\` first; nothing was sent`);
+  const tail = m.held ? (BigInt(m.d.leaseUntil) - BigInt(m.blockTime)) * BigInt(m.d.rate) : 0n;
+  if (BigInt(m.d.balance6) + tail < m.rate)
+    throw new Error(`after the release the balance (${usd6(BigInt(m.d.balance6) + tail)}) would not buy one second at ${short(target)}'s price; fund it first; nothing was sent`);
+  // the target must be reachable (its own operator-signed endpoint) BEFORE anything is released toward it
+  await client.resolveHost(target).catch((e) => { throw new Error(`the target publishes no usable management endpoint (${e.message}); nothing was sent`); });
+  // the target's management endpoint just answered (resolveHost above); its last registry write is configuration
+  // history, not liveness, and an old one is normal now that hosts send no periodic transaction
+  let clearedBlock = 0;   // no snapshot older than the one that showed the source's lease gone is read as a new lease
+  if (m.held) {
+    if (!(await confirm(`move ${short(id)} off ${short(m.runner)} to ${short(target)}? The app stops there and relaunches on the target; `
+        + `about ${usd6(tail)} of unused lease returns to the balance; the target charges ${usd6(m.rate * 3600n)}/h (now ${usd6(BigInt(m.d.rate) * 3600n)}/h)`)))
+      return say("aborted");
+    // ONE release. Whatever the answer, the quorum decides whether the lease was handed back; it is never resent here.
+    let rel = null, relErr = null;
+    try { rel = await client.release(); } catch (e) { relErr = e; }
+    if (rel) say(`the source reports the lease released${rel.json.txHash ? ` (${rel.json.txHash})` : ""}; confirming on the quorum…`);
+    else say(`the source's release answer: ${RELEASE_STATES[relErr.code] || relErr.message}${relErr.outcomeUnknown ? " (outcome unknown)" : ""}; reading the quorum…`);
+    // 90 s for a release the host reported (or whose answer was lost); 15 s when the host answered a definite state
+    // (stop_unconfirmed; release_unconfirmed: the host resolves its transaction in the background, so it may still land)
+    let cleared = null;
+    for (const until = Date.now() + (rel || !relErr.code ? 90_000 : 15_000); Date.now() < until;) {
+      const n = await moveSnapshot(id, null).catch(() => null);
+      if (n && !(n.runner === m.runner && n.held)) { cleared = n; break; }
+      if (!rel && relErr && !relErr.outcomeUnknown) break;                 // a definite refusal: the lease stays where it was
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    if (!cleared) {
+      if (relErr && !relErr.outcomeUnknown)
+        throw new Error(`the source refused the release (${relErr.message}); the lease is still held by ${short(m.runner)}; nothing changed`);
+      stderr.write(`error: the lease is still held by ${short(m.runner)} on the quorum: the app may be stopped there and the release is not confirmed. `
+        + `Check \`enclave status ${short(id)} --host\`, then run the move again (a release that already landed cannot refund twice).\n`);
+      exit(4);
+    }
+    clearedBlock = cleared.block;
+    // the runner field says which: cleared = a release landed; still the source's id = its lease simply ran out
+    if (/^0x0{64}$/.test(cleared.runner)) say(`lease released (quorum, block ${cleared.block}): balance ${usd6(BigInt(cleared.d.balance6))}`);
+    else if (cleared.runner === m.runner) say(`no live lease (quorum, block ${cleared.block}): the source's lease ran out rather than being released; balance ${usd6(BigInt(cleared.d.balance6))}`);
+    else say(`no lease of the source any more (quorum, block ${cleared.block}): ${short(cleared.runner)} holds it`);
+  } else say(`${short(id)} holds no live lease (${at}): asking ${short(target)} to claim it`);
+  // the signed hint, repeated (idempotent) while the quorum is polled; only the ledger says where it landed
+  let landed = null, last = "";
+  for (let i = 0, until = Date.now() + waitMs; Date.now() < until && !landed; i++) {
+    if (i % 2 === 0) {
+      const ans = await client.claimHint({ runner: target }).then((r) => r.json, (e) => ({ accepted: false, reason: e.message }));
+      const why = ans.accepted === false ? String(ans.reason || "declined") : "";
+      if (why && why !== last) say(`${short(target)} declines: ${why}`);
+      last = why;
+    }
+    await new Promise((r) => setTimeout(r, 3000));
+    const n = await moveSnapshot(id, null).catch(() => null);
+    // any live lease now is a new one: the source's was confirmed gone above (or there was none), so the source holding
+    // it again means it claimed it back after its stand-down
+    if (n && n.held && n.block >= clearedBlock) landed = n;
+  }
+  const out = { id, target, moved: !!landed && landed.runner === target, runner: landed ? landed.runner : null, block: landed ? landed.block : null };
+  if (opt.json) return jout(out);
+  if (!landed) say(`released and queued: no host has claimed it within ${Math.round(waitMs / 1000)}s. The balance stays on the record; `
+    + `any eligible host may claim it (the source only after its stand-down). Run the move again to re-hint ${short(target)}.`);
+  else if (landed.runner === target) say(`running on ${short(target)} now (quorum, block ${landed.block})`);
+  else if (m.held && landed.runner === m.runner) say(`claimed back by the source ${short(landed.runner)} (block ${landed.block}): ${short(target)} did not take it within its stand-down`);
+  else say(`claimed by ${short(landed.runner)}, not ${short(target)} (block ${landed.block}): placement is a steer, not a lock`);
+}
+
+// A management mutation whose answer was lost: report it and exit 4, never resend.
+async function managementMutation(id, op, f, opts) {
+  try { return await independentManagementCall(id, op, f, opts); }
+  catch (e) { if (e?.outcomeUnknown) { stderr.write(`error: ${e.message}\n`); exit(4); } throw e; }
+}
+// The GPU state of ONE deployment's current host: the provider is the runner the pinned ledger's current lease names,
+// reached through the record its operator signed. There is no arbitrary host lookup. The answer is host-reported
+// capacity: not attestation, and not a reservation.
+async function cmdGpuIndependent(rest) {
+  const f = flags(rest, { val: ["--session", "--directories"] });
+  if (!f._[0]) throw new Error("usage: enclave gpu <deployment-id> --directories IP,… [--session SID]   (independent mode reads the GPU of a "
+    + "deployment's CURRENT host, found from its lease; there is no host lookup by name)");
+  const id = await resolveId(f._[0], loadKey({ required: false }));
+  if (!isB32(id)) throw new Error("independent gpu needs an on-chain deployment id");
+  let r;
+  try { r = await independentManagementCall(id, "gpu", f); }
+  catch (e) {
+    if (e?.status === 404 && e?.code === "no_gpu") {
+      if (opt.json) return jout({ id, gpu: null, hostReported: true, note: "the host reports no GPU" });
+      return say(`${short(id)}'s current host reports no GPU (CPU-only)`);
+    }
+    throw e;
+  }
+  if (opt.json) return jout({ id, hostReported: true, authenticated: r.authenticated, runner: r.runner, gpu: r.json });
+  const g = r.json || {}, c = g.capacity || {};
+  kv([["deployment", id], ["host", `runner ${short(r.runner)} (signed management endpoint)`], ["role", g.role], ["mps", g.mpsActive ? "active" : "off"],
+      c.gpuShareFree != null ? ["gpu free", `${Math.round(c.gpuShareFree * 100)}%${c.vramFreeGb != null ? ` (${c.vramFreeGb} GB vram, ${c.smFree ?? "?"} SMs)` : ""}`] : null,
+      ["sm total", g.smTotal != null ? String(g.smTotal) : undefined], ["tenants", String((g.tenants || []).length)]]);
+  say("host-reported capacity: not an attestation and not a reservation");
+}
+async function cmdAppToken(rest) {
+  requireIndependent("enclave app-token");
+  const f = flags(rest, { val: ["--out", "--session", "--directories"] });
+  if (!f._[0] || !f.out) throw new Error("usage: enclave app-token <id> --out NEW_FILE --directories IP,… [--session SID]   (the token opens the private app as its owner; it is written only to NEW_FILE, mode 0600)");
+  const id = await resolveId(f._[0], loadKey({ required: false }));
+  const out = path.resolve(f.out);
+  if (fs.existsSync(out)) throw new Error(`${out} exists; the app token is written only to a new file`);
+  const t = await independentManagementCall(id, "appToken", f);
+  fs.writeFileSync(out, t.token + "\n", { flag: "wx", mode: 0o600 });
+  if (opt.json) return jout({ id, tokenType: t.tokenType, expiresAt: t.expiresAt, file: out });
+  say(`app token for ${short(id)} (${t.tokenType}, until ${t.expiresAt}) written to ${out}; send it only to that app`);
+}
+async function cmdCpuProfile(rest) {
+  requireIndependent("enclave cpu-profile");
+  const sub = rest.shift();
+  const f = flags(rest, { val: ["--seconds", "--out", "--session", "--directories"] });
+  if (!["start", "stop", "get"].includes(sub) || !f._[0]) throw new Error("usage: enclave cpu-profile start <id> --seconds 1..60 | stop <id> | get <id> [--out NEW_FILE]   (--directories IP,… [--session SID])");
+  const id = await resolveId(f._[0], loadKey({ required: false }));
+  if (sub === "get") {
+    const r = await independentManagementCall(id, "cpuProfile", f);
+    let file = null;
+    if (r.data) {
+      if (!f.out) throw new Error("the capture is complete: pass --out NEW_FILE to save its gperftools bytes");
+      file = path.resolve(f.out); fs.writeFileSync(file, r.data, { flag: "wx", mode: 0o600 });
+    }
+    if (opt.json) return jout({ id, profile: r.profile, bytes: r.data ? r.data.length : 0, file });
+    return say(`cpu profile: ${r.profile.state}${r.data ? `, ${r.data.length} bytes written to ${file}` : ""}`);
+  }
+  const seconds = sub === "start" ? Number(f.seconds) : undefined;
+  if (sub === "start" && !(Number.isSafeInteger(seconds) && seconds >= 1 && seconds <= 60)) throw new Error("--seconds must be an integer from 1 to 60");
+  const r = await managementMutation(id, sub === "start" ? "cpuProfileStart" : "cpuProfileStop", f, sub === "start" ? { seconds } : undefined);
+  if (opt.json) return jout({ id, outcome: r.outcome, hostReported: r.json });
+  say(`cpu profile ${sub}: ${r.outcome} (${r.json.state ?? "ok"}); read it with: enclave cpu-profile get ${short(id)} --out FILE`);
+}
+async function cmdLogsIndependent(rest) {
+  const f = flags(rest, { bool: ["-f", "--follow"], val: ["--tail", "--session", "--directories"] });
+  if (!f._[0]) throw new Error("usage: enclave logs <id> [--tail N] --directories IP,… [--session SID]");
+  if (f.f || f.follow) throw new Error("the host management endpoint serves a log tail only; there is no follow mode (re-run with --tail)");
+  const id = await resolveId(f._[0], loadKey({ required: false }));
+  const tail = f.tail !== undefined ? Math.max(1, Math.min(2000, parseInt(f.tail, 10) || 200)) : 200;
+  const r = await independentManagementCall(id, "logs", f, { tail });
+  for await (const chunk of r.body) stdout.write(chunk);
+  const end = await r.closed;
+  if (end.error) throw new Error(`log stream ended early: ${end.error}`);
+}
+async function cmdRestartIndependent(rest) {
+  const f = flags(rest, { val: ["--session", "--directories"] });
+  if (!f._[0]) throw new Error("usage: enclave restart <id> --directories IP,… [--session SID]");
+  const id = await resolveId(f._[0], loadKey({ required: false }));
+  if (!(await confirm(`restart ${short(id)} once through its host's management endpoint? (never retried)`))) return say("aborted");
+  const r = await managementMutation(id, "restart", f);
+  if (opt.json) return jout({ id, outcome: r.outcome, hostReported: r.json, authenticated: r.authenticated });
+  say(`restart ${r.outcome}: ${r.json.status} (host-reported through the runner's signed management endpoint)`);
+}
+async function cmdAttestIndependent(rest) {
+  const f = flags(rest, { bool: ["--host-report"], val: ["--path", "--session", "--directories"] });
+  if (!f._[0]) throw new Error("usage: enclave attest <id> --native-profile FILE [--path /] | --host-report --directories IP,…");
+  const id = await resolveId(f._[0], loadKey({ required: false }));
+  if (!isB32(id)) throw new Error("independent attest needs an on-chain deployment id");
+  if (opt.nativeProfile) {
+    const { nativeAttest } = await import("./independent-host.mjs");
+    let r;
+    try { r = await nativeAttest({ profileFile: path.resolve(opt.nativeProfile), deploymentId: id, trust: INDEPENDENT.trust, requestPath: f.path || "/", hostAdmission: await hostPolicyAdmission() }); }
+    catch (e) { if (opt.json) jout({ id, status: "failed", reason: String(e.message) }); else say(`verdict     FAILED: ${e.message}; do not send data`); exit(1); return; }
+    if (opt.json) { jout({ id, status: "verified", verifier: "network/native-client.mjs", ...r }); exit(0); return; }
+    kv([["deployment", id], ["verifier", "network/native-client.mjs (SNP report, VCEK chain, TCB floor, TLS key binding)"],
+        ["route", JSON.stringify(r.route)], ["lease block", String(r.leaseBlock)], ["http", String(r.status)]]);
+    say("verdict     PASS: a fresh SEV-SNP proof bound to the TLS key that answered, against your native trust profile");
+    exit(0); return;
+  }
+  if (f["host-report"]) {
+    const nonce = crypto.randomBytes(32).toString("hex");
+    const r = await independentManagementCall(id, "attestation", f, { nonce });
+    if (opt.json) jout({ id, status: "host-reported-unverified", nonce, document: r.json });
+    else { say(JSON.stringify(r.json, null, 2)); say("verdict     NOT VERIFIED: this is host-reported data from the management endpoint; verify the app with --native-profile"); }
+    exit(3); return;
+  }
+  throw new Error("independent attest verifies the app guest itself: pass --native-profile FILE (docs/network/native-client.md). "
+    + "--host-report fetches the host's document, which is never treated as verification");
+}
+
+// ---- independent sessions: grants signed by the owner wallet itself, on the PINNED factory, with no relay -------------
+function independentFactory() {
+  const f = DEFAULTS.SESSION_VAULT_FACTORY_ADDRESS;
+  if (/^0x0{40}$/i.test(f)) throw new Error("the pins disable sessions (sessionVaultFactory is zero)");
+  return getAddress(f);
+}
+// A session key is created here; the OWNER authorizes it with one EIP-712 SessionGrant signature for the pinned factory's
+// vault. With the owner's key configured, it signs and submits openFor here. Otherwise (--owner ADDR, or --unsigned) the
+// exact typed data is printed for the owner's own wallet, and `session open` submits it once the signature is supplied.
+async function sessionNewIndependent(rest) {
+  const f = flags(rest, { val: ["--preset", "--app", "--budget", "--days", "--label", "--owner"] });
+  if (f._.length) throw new Error(`unexpected argument "${f._[0]}"`);
+  const S = await sessionsSdk(), { I, chain, trust } = INDEPENDENT, factory = independentFactory();
+  if (!f.preset || !S.PRESETS[f.preset]) throw new Error(`name a preset: --preset ${Object.keys(S.PRESETS).join(" | ")}`);
+  const policy = {};
+  if (f.app !== undefined) policy.apps = String(f.app).split(",").map((a) => a.trim()).filter(Boolean);
+  if (f.budget !== undefined) policy.budget = BigInt(Math.round(numFlag(f.budget, "--budget") * 1e6));
+  if (f.days !== undefined) { const d = numFlag(f.days, "--days"); if (!(d > 0)) throw new Error("--days must be above 0"); policy.expiresIn = Math.round(d * 86400); }
+  const label = f.label ?? "enclave CLI (independent)";
+  S.buildGrant({ preset: f.preset, label, sessionKey: S.ZERO_HASH, policy });       // a bad flag leaves no key behind
+  await I.assertReviewedCode(chain, trust.profile, ["sessionVaultFactory"]);
+  await assertPinnedSessionFactory();
+  const account = opt.unsigned ? null : loadKey({ required: false });
+  const owner = f.owner ? getAddress(f.owner) : account?.address;
+  if (!owner) throw new Error("name the owner wallet: --owner ADDRESS (or configure its key to sign here)");
+  if (account && account.address !== owner) throw new Error(`--owner ${owner} is not this wallet key (${account.address}); drop the key (or pass --unsigned) to sign elsewhere`);
+  const store = await sessionStore();
+  const { signer, record } = await S.newSessionKey(store, { relay: "", chainId: DEFAULTS.chainId, label, extractable: true });
+  const grant = S.buildGrant({ preset: f.preset, label, sessionKey: signer.keyHash, policy });
+  const { lines, warnings } = S.describeGrant(grant);
+  const info = opt.json ? (t) => stderr.write(t + "\n") : say;
+  info(`session grant "${label}" (preset ${f.preset}) on the pinned factory ${factory}, chain ${DEFAULTS.chainId}:`);
+  for (const l of lines) info(`  ${l}`);
+  for (const w of warnings) info(`  ! ${w}`);
+  if (!account) {
+    if (grant.budget > 0n) throw new Error("a budget needs a second owner signature (the USDC deposit): open it with --budget 0 here, then add budget "
+      + "with `enclave session top-up` from the owner's key");
+    const vault = getAddress(await S.vaultAddress(INDEPENDENT.pc, factory, owner));
+    await store.save({ ...record, grant, wantOwner: owner });
+    const typedData = S.grantTypedData(DEFAULTS.chainId, vault, grant);
+    const out = { pending: record.id, owner, vault, factory, checkCode: S.checkCode(signer.keyHash), typedData,
+      next: `enclave session open ${record.id} --owner-signature 0x… (with the same --independent flags)` };
+    if (opt.json) return jout(out);
+    info(`\nThe OWNER ${owner} signs this EIP-712 SessionGrant with their own wallet (the CLI holds no owner key):`);
+    say(JSON.stringify(typedData, (_k, v) => typeof v === "bigint" ? v.toString() : v, 2));
+    info(`\ncheck code ${out.checkCode}; then: ${out.next}`);
+    return;
+  }
+  if (!(await confirm(`sign this grant with ${owner} and open the session (one transaction)?`))) { await store.remove(record.id); return say("aborted"); }
+  const usdc = grant.budget > 0n ? await S.usdcDomain(INDEPENDENT.pc, DEFAULTS.USDC_ADDRESS, DEFAULTS.chainId) : undefined;
+  const tx = await S.prepareSessionOpen({ publicClient: INDEPENDENT.pc, factory, owner: account, chainId: DEFAULTS.chainId, grant, usdc });
+  return sessionFinishOpen(S, store, { ...record, grant }, tx, owner, account);
+}
+// Submit a prepared openFor (or print it), then record the session only once the chain shows it live.
+async function sessionFinishOpen(S, store, pending, tx, owner, payer) {
+  const { I, chain } = INDEPENDENT;
+  if (opt.unsigned) return emitUnsigned({ account: null, to: tx.to, data: tx.data, value: 0n,
+    label: `PinnedSessionVaultFactory.openFor(${owner}) (owner-signed grant; any gas payer submits it once; then run session open ${pending.id} again)` });
+  if (!payer) throw new Error("a gas payer must submit the signed grant: configure a wallet key, or pass --unsigned to submit it elsewhere");
+  const rcpt = await I.sendQuorumTx(chain, { account: payer, to: tx.to, data: tx.data, maxFeeGwei: INDEPENDENT.maxFeeGwei, log: (m) => trace(m) });
+  const ss = await I.sessionSnapshot(chain, { factory: independentFactory(), vault: tx.vault, sid: tx.sid });
+  if (!ss.live || ss.owner !== owner.toLowerCase()) throw new Error(`openFor mined (${rcpt.transactionHash}) but the agreed chain does not show session ${short(tx.sid)} live for ${owner}`);
+  const open = await S.completeSession(store, pending, { vault: tx.vault, owner, grant: pending.grant });
+  store.setActive(open.id);
+  if (opt.json) return jout({ sid: open.id, vault: tx.vault, owner, factory: independentFactory(), tx: rcpt.transactionHash, live: true });
+  say(`session ${open.id} is live in vault ${tx.vault} (tx ${rcpt.transactionHash}); it is now the active session`);
+}
+// The second half of an externally signed grant: verify the owner's signature over exactly this grant, then submit.
+async function sessionOpenIndependent(rest) {
+  const f = flags(rest, { val: ["--owner-signature"] });
+  if (!f._[0]) throw new Error("usage: enclave session open <pending-id> --owner-signature 0x…   (from enclave session new --owner ADDR)");
+  const S = await sessionsSdk(), { I, chain } = INDEPENDENT, factory = independentFactory();
+  const store = await sessionStore();
+  const pending = await findSessionRecord(store, f._[0], { pending: true });
+  if (!pending.grant || !pending.wantOwner) throw new Error(`session ${pending.id} was not prepared by an independent session new --owner`);
+  const owner = getAddress(pending.wantOwner);
+  const vault = getAddress(await S.vaultAddress(INDEPENDENT.pc, factory, owner));
+  const sid = S.sessionIdOf(vault, pending.grant.sessionKey, pending.grant.grantNonce);
+  const seen = await I.sessionSnapshot(chain, { factory, vault, sid }).catch(() => null);
+  if (seen?.exists) {   // already submitted elsewhere (the --unsigned route): record it, nothing to send
+    if (!seen.live) throw new Error(`session ${short(sid)} exists but is not live (${quorumLine(seen)})`);
+    const open = await S.completeSession(store, pending, { vault, owner, grant: pending.grant });
+    store.setActive(open.id);
+    return opt.json ? jout({ sid, vault, owner, live: true, submitted: false }) : say(`session ${sid} is live in vault ${vault}; recorded locally`);
+  }
+  const sig = String(f["owner-signature"] || "");
+  if (!/^0x[0-9a-fA-F]{130}$/.test(sig)) throw new Error("--owner-signature takes the owner's 65-byte EIP-712 signature (0x + 130 hex)");
+  const { verifyTypedData } = await import("viem");
+  const ownerSigner = { address: owner, signTypedData: async (td) => {
+    if (!(await verifyTypedData({ address: owner, ...td, signature: sig })))
+      throw new Error(`the signature is not ${owner}'s over this exact SessionGrant (vault ${vault}, chain ${DEFAULTS.chainId}); nothing was sent`);
+    return sig;
+  } };
+  const tx = await S.prepareSessionOpen({ publicClient: INDEPENDENT.pc, factory, owner: ownerSigner, chainId: DEFAULTS.chainId, grant: pending.grant });
+  return sessionFinishOpen(S, store, pending, tx, owner, opt.unsigned ? null : loadKey({ required: false }));
+}
+// Sign-in with no Enclave account service: a session key and grant made here, approved by the owner's own account (a
+// wallet or a passkey Safe) on a frontend the owner chose, opened on the pinned factory, and adopted once the agreed chain
+// shows exactly that session (cli/independent-login.mjs; work/independent-login-interface.txt).
+async function independentLogin(cmd, rest) {
+  const L = await import("./independent-login-cli.mjs");
+  const S = await sessionsSdk(), { I, chain, trust } = INDEPENDENT, factory = independentFactory();
+  await I.assertReviewedCode(chain, trust.profile, ["sessionVaultFactory"]);
+  await assertPinnedSessionFactory();
+  return L.independentLoginCommand(cmd, rest, { S, chain, pc: INDEPENDENT.pc, sessionSnapshot: I.sessionSnapshot, store: await sessionStore(),
+    stateDir: path.join(SESSION_DIR, "login"), factory, chainId: DEFAULTS.chainId, profileDigest: trust.digest || null, env,
+    flags, numFlag, say, info: opt.json ? (t) => stderr.write(t + "\n") : say, jout, json: !!opt.json, confirm,
+    interactive: !!(stdin.isTTY && stdout.isTTY), gasKey: () => (opt.unsigned ? null : loadKey({ required: false })),
+    sendTx: (account, { to, data }) => I.sendQuorumTx(chain, { account, to, data, maxFeeGwei: INDEPENDENT.maxFeeGwei, log: (m) => trace(m) }) });
+}
+async function sessionTerminateIndependent(rest) {
+  const f = flags(rest, {});
+  const s = await loadSession(f._[0]);
+  const st = await s.session.status();
+  if (!st.live) throw new Error(`session ${short(s.sid)} is not live; nothing to end (enclave session inspect)`);
+  if (!(await confirm(`end session ${short(s.sid)}? its remaining ${s.S.fmtUsd(st.balance6)} returns to the owner's vault`))) return say("aborted");
+  // the SESSION key signs its own end; any gas payer submits it
+  const tx = await s.session.prepareTermination();
+  if (opt.unsigned) return emitUnsigned({ account: null, to: tx.to, data: tx.data, value: 0n, label: `SessionVault.terminateBySession (signed by session ${short(s.sid)})` });
+  const payer = loadKey({ required: false });
+  if (!payer) throw new Error("a gas payer must submit the session's signed termination: configure a wallet key, or pass --unsigned");
+  const rcpt = await INDEPENDENT.I.sendQuorumTx(INDEPENDENT.chain, { account: payer, to: tx.to, data: tx.data, maxFeeGwei: INDEPENDENT.maxFeeGwei, log: (m) => trace(m) });
+  if (s.from === "file") { await s.store.remove(s.rec.id); if (s.store.activeId() === s.rec.id) s.store.setActive(null); }
+  if (opt.json) return jout({ sid: s.sid, ended: true, tx: rcpt.transactionHash });
+  say(`session ${short(s.sid)} ended (tx ${rcpt.transactionHash}); its key is deleted`);
+}
+// Budget straight from the owner's wallet: one USDC EIP-3009 authorization the OWNER signs, bound to this session.
+async function sessionTopUpIndependent(rest) {
+  const f = flags(rest, { val: ["--usdc"] });
+  const s = await loadSession(f._[0]);
+  if (!f.usdc) throw new Error("usage: enclave session top-up [<sid>] --usdc <usd>");
+  const owner = loadKey({ required: false });
+  if (!owner || opt.unsigned) throw new Error("a top-up is a USDC authorization the OWNER signs: configure the owner's wallet key (a session key can never add budget)");
+  const vaultOwner = getAddress(await read(s.vault, s.S.sessionVaultAbi, "owner"));
+  if (vaultOwner !== owner.address) throw new Error(`vault ${s.vault} belongs to ${vaultOwner}, not this wallet ${owner.address}; nothing was signed`);
+  const amount = sessionUsd6(numFlag(f.usdc, "--usdc"), "--usdc");
+  if (!(await confirm(`move ${usd6(amount)} USDC from ${owner.address} into session ${short(s.sid)}'s budget?`))) return say("aborted");
+  const usdc = await s.S.usdcDomain(INDEPENDENT.pc, DEFAULTS.USDC_ADDRESS, DEFAULTS.chainId);
+  const tx = await s.S.prepareTopUpFromWallet({ publicClient: INDEPENDENT.pc, chainId: DEFAULTS.chainId, vault: s.vault, sessionId: s.sid, amount, usdc, owner });
+  const rcpt = await INDEPENDENT.I.sendQuorumTx(INDEPENDENT.chain, { account: owner, to: tx.to, data: tx.data, maxFeeGwei: INDEPENDENT.maxFeeGwei, log: (m) => trace(m) });
+  if (opt.json) return jout({ sid: s.sid, added6: String(amount), tx: rcpt.transactionHash });
+  say(`added ${usd6(amount)} to session ${short(s.sid)} (tx ${rcpt.transactionHash})`);
+}
+// The owner ends EVERY session of the vault at once (direct mode: only the owner's own transaction is accepted).
+async function sessionRevokeAllIndependent(rest) {
+  const f = flags(rest, { val: ["--vault"], bool: ["--withdraw"] });
+  const S = await sessionsSdk(), factory = independentFactory();
+  const owner = opt.unsigned ? null : loadKey({ required: false });
+  const vault = f.vault ? getAddress(f.vault) : owner ? getAddress(await S.vaultAddress(INDEPENDENT.pc, factory, owner.address)) : null;
+  if (!vault) throw new Error("name the vault (--vault ADDR) or configure the owner's key");
+  const vaultOwner = getAddress(await read(vault, S.sessionVaultAbi, "owner"));
+  if (owner && vaultOwner !== owner.address) throw new Error(`vault ${vault} belongs to ${vaultOwner}, not this wallet; nothing was sent`);
+  if (!(await confirm(`revoke every session of vault ${vault}${f.withdraw ? " and withdraw its free balance to the owner" : ""}?`))) return say("aborted");
+  const tx = await S.prepareOwnerOperation({ publicClient: INDEPENDENT.pc, chainId: DEFAULTS.chainId, vault, op: { op: "revokeAll", withdraw: !!f.withdraw },
+    mode: "direct", expectOwner: vaultOwner });
+  if (!owner) return emitUnsigned({ account: { address: vaultOwner }, to: tx.to, data: tx.data, value: 0n,
+    label: `SessionVault.revokeAll (DIRECT: only a transaction from the owner ${vaultOwner} itself is accepted)` });
+  const rcpt = await INDEPENDENT.I.sendQuorumTx(INDEPENDENT.chain, { account: owner, to: tx.to, data: tx.data, maxFeeGwei: INDEPENDENT.maxFeeGwei, log: (m) => trace(m) });
+  if (opt.json) return jout({ vault, revoked: true, tx: rcpt.transactionHash });
+  say(`every session of ${vault} is revoked (tx ${rcpt.transactionHash})`);
+}
+
+async function sessionInspect(rest) {
+  requireIndependent("enclave session inspect");
+  const f = flags(rest, { val: ["--vault", "--sid"] });
+  const { I, chain, trust } = INDEPENDENT;
+  if (/^0x0{40}$/i.test(DEFAULTS.SESSION_VAULT_FACTORY_ADDRESS)) throw new Error("the pins disable sessions (sessionVaultFactory is zero)");
+  let vault = f.vault, sid = f.sid, label = null;
+  if (!vault || !sid) {
+    if (vault || sid) throw new Error("pass both --vault and --sid, or neither (a stored session)");
+    const { rec } = await independentSessionRecord(f._[0]);
+    if (!rec.handle) throw new Error(`session ${rec.id} is still waiting for the owner's signature`);
+    ({ vault, sid } = rec.handle); label = rec.label || null;
+  }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(vault) || !/^0x[0-9a-fA-F]{64}$/.test(sid)) throw new Error("--vault takes an address and --sid a bytes32");
+  await I.assertReviewedCode(chain, trust.profile, ["sessionVaultFactory"]);
+  const S = await sessionsSdk();
+  const r = await I.sessionSnapshot(chain, { factory: DEFAULTS.SESSION_VAULT_FACTORY_ADDRESS, vault, sid });
+  const st = r.session, nowSec = Math.floor(r.timestamp / 1000);
+  const state = !r.exists ? "unknown" : r.live ? "live" : st.epoch !== r.epoch ? "revoked (owner revokeAll)" : Number(st.state) === 1 && Number(st.expiresAt) < nowSec ? "expired" : "ended";
+  const actions = Object.entries(S.ACTIONS).filter(([, b]) => I.hasAction(st.actions, b)).map(([n]) => n);
+  const envs = Object.entries(S.ENVIRONMENTS).filter(([, b]) => (Number(st.envs) & b) !== 0).map(([n]) => n);
+  const out = { sid, vault: vault.toLowerCase(), owner: r.owner, factory: DEFAULTS.SESSION_VAULT_FACTORY_ADDRESS, state, live: r.live,
+    expiresAt: Number(st.expiresAt), balance6: st.balance6, spent6: st.spent6, perPeriod6: st.perPeriod6, actions, environments: envs,
+    anyApp: st.anyApp, apps: r.apps, ...quorumJson(r) };
+  if (opt.json) return jout(out);
+  kv([["session", sid], ["label", label], ["state", state], ["vault", vault], ["owner", r.owner],
+      ["balance", `${S.fmtUsd(st.balance6)} left, ${S.fmtUsd(st.spent6)} spent`],
+      ["expires", new Date(Number(st.expiresAt) * 1000).toISOString()], ["actions", actions.join(", ") || "(none)"],
+      ["environments", envs.join(", ") || "(none)"], ["apps", st.anyApp ? "*" : r.apps.map(short).join(", ") || "(none)"],
+      ["chain", `pinned factory ${DEFAULTS.SESSION_VAULT_FACTORY_ADDRESS}, ${quorumLine(r)}`]]);
+}
+
 const COMMANDS = {
   key: cmdKey, login: cmdLogin, logout: cmdLogout,
   whoami: cmdWhoami, deploy: cmdDeploy, ls: cmdLs, list: cmdLs,
@@ -4464,10 +5881,11 @@ const COMMANDS = {
   resize: (rest) => cmdUpgrade(rest, { resize: true }),
   "rate-cap": cmdRateCap, cap: cmdRateCap,
   refund: cmdRefund, cancel: cmdRefund, transfer: cmdTransfer,
-  secrets: cmdSecrets, config: cmdConfig, custody: cmdCustodyHere,
-  publish: cmdPublish, apps: cmdApps,
+  secrets: cmdSecrets, config: cmdConfig, custody: cmdCustodyHere, bootstrap: cmdBootstrap,
+  publish: cmdPublish, apps: cmdApps, artifact: cmdArtifact,
   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,
-  encvol: cmdEncvol, host: cmdHost, session: cmdSession,
+  encvol: cmdEncvol, host: cmdHost, session: cmdSession, hosts: cmdHosts,
+  "app-token": cmdAppToken, "cpu-profile": cmdCpuProfile, signer: cmdSigner, "lease-gas": cmdLeaseGas, history: cmdHistory,
 };
 
 // Resolve the platform's contract addresses from the on-chain address book
@@ -4486,6 +5904,7 @@ function catalogWriteAllowed() {
     + `to use the baked addresses on purpose.`);
 }
 async function resolveAddressBook() {
+  if (CONTRACT_PINS) return;
   const book = env.ENCLAVE_ADDRESS_BOOK !== undefined ? env.ENCLAVE_ADDRESS_BOOK : DEFAULTS.ADDRESS_BOOK_ADDRESS;
   if (!book) return;
   BOOK.wanted = true;
@@ -4514,6 +5933,11 @@ async function resolveAddressBook() {
       + `baked addresses on purpose.\n`);
 }
 
+// `enclave credit-vault …` brings its own pins, RPC quorum and payer and reads nothing else (no Enclave API, no address
+// book, in either mode), so it is dispatched before the hosted/independent setup.
+if (args[0] === "credit-vault") {
+  try { await cmdCreditVault(); exit(0); } catch (e) { die(e?.message || String(e)); }
+}
 const cmd = args.shift();
 if (!cmd || cmd === "help" || cmd === "--help" || cmd === "-h") { say(HELP); exit(0); }
 if (cmd === "version" || cmd === "--version") { say(VERSION); exit(0); }
@@ -4521,10 +5945,19 @@ if (!COMMANDS[cmd]) die(`unknown command "${cmd}"; run: enclave help`);
 // `key new`/`key import` are purely local and `login`/`logout` touch only the
 // API, so skip the address-book resolve — no reason to make them wait on an RPC.
 // `session …` reads only the sessions relay and the session's own vault (`session delegate` reads the book itself).
-const OFFLINE = cmd === "key" || cmd === "login" || cmd === "logout" || cmd === "session";
+const OFFLINE = cmd === "artifact" || cmd === "key" || cmd === "login" || cmd === "logout" || cmd === "session";
 try {
+  configureContractPins();
+  await configureIndependent();
+  if (INDEPENDENT && !INDEPENDENT_COMMANDS.has(cmd))
+    throw new Error(`"${cmd}" is not available in independent mode: ${INDEPENDENT_REFUSALS[cmd] || "it depends on hosted Enclave services"}`
+      + `; available: ${[...INDEPENDENT_COMMANDS].join(", ")}`);
+  if (cmd === "bootstrap" && !CONTRACT_PINS) throw new Error("bootstrap requires --contract-pins");
+  if (cmd === "deploy" && args.includes("--chain-only") && !CONTRACT_PINS)
+    throw new Error("--chain-only requires --contract-pins (or ENCLAVE_CONTRACT_PINS_FILE)");
   if (!OFFLINE) await resolveAddressBook();
-  await COMMANDS[cmd](args);
+  if (INDEPENDENT && (cmd === "login" || cmd === "logout" || cmd === "account")) await independentLogin(cmd, args);
+  else await COMMANDS[cmd](args);
 } catch (e) {
   die(e?.message || String(e));
 }

@@ -15,6 +15,7 @@ import os from "node:os";
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { synthChain, synthReport } from "./helpers/snp-synth.mjs";
+import { ADVERTISED_RAD_PATH } from "../relay/attestation-paths.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname, CLI = path.join(REPO, "cli", "enclave.mjs");
 const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
@@ -40,8 +41,8 @@ test.before(async () => {
       return send(200, { name: "box1", nonce: nonce.toString("hex"), document: { format: "sev-snp-guest-metal-v1", body, transportKey: SP.toString("base64"), name: "box1" }, operatorAllowlist: { source: "test", admittedAtAttach: MEAS, measurements: [MEAS] } });
     }
     if (m) return send(404, { error: "no_box", message: `no attested SEV-SNP box named ${m[1]}` });
-    if (u.pathname === "/v1/deployments/dep_metal/attestation") return send(200, { verification: { attestationEndpoint: `${base}/t/box1/.well-known/Cloud Provider-attestation` } });
-    if (u.pathname === "/v1/deployments/dep_gone/attestation") return send(200, { verification: { attestationEndpoint: `${base}/t/nobox/.well-known/Cloud Provider-attestation` } });
+    if (u.pathname === "/v1/deployments/dep_metal/attestation") return send(200, { verification: { attestationEndpoint: `${base}/t/box1${ADVERTISED_RAD_PATH}` } });
+    if (u.pathname === "/v1/deployments/dep_gone/attestation") return send(200, { verification: { attestationEndpoint: `${base}/t/nobox${ADVERTISED_RAD_PATH}` } });
     if (u.pathname === "/v1/deployments/dep_shield/attestation") return send(409, { error: "shield_tls_only" });
     send(404, { error: "not_found" });
   });

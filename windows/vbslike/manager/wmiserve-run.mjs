@@ -84,6 +84,11 @@ export function runWmiserve({ exe, vmId, bundleFile, appId, tcpPort, igvmSha256 
 
   return new Promise((resolve, reject) => {
     const child = spawn(exe, args, { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    // A write to a pipe the child has closed, or one this side already ended, does not throw: Node emits it later as an
+    // 'error' EVENT on child.stdin, and an unhandled one kills the whole manager (nucbox, 2026-10-21 11:27-11:46Z: four
+    // "ERR_STREAM_WRITE_AFTER_END" crashes from stopRun, each one respawning every partition on the host). The pipe's
+    // errors say nothing the child's exit does not: they are absorbed here.
+    child.stdin?.on?.("error", () => {});
     let buf = "", stderr = "", next = 0, settled = false, closedSeen = false;
     const got = {};
     let exitResolve; const exited = new Promise((r) => { exitResolve = r; });
@@ -137,11 +142,16 @@ export function runWmiserve({ exe, vmId, bundleFile, appId, tcpPort, igvmSha256 
           return;
       }
     };
-    const stopRun = async () => {
+    // stop() is called from several places (a failed domain's relay stop, then the node's DELETE): ONE stop per run, every
+    // caller waits for the same one, and stdin is written and ended at most once.
+    let stopping = null;
+    const stopRun = () => (stopping ??= stopOnce());
+    const stopOnce = async () => {
       if (child.exitCode !== null || child.signalCode !== null) return { closed: closedSeen, how: "already exited" };
       // A NON-BLANK line: wmiserve ignores a blank one and keeps reading (d1), so "\n" alone only ever stopped it through
       // the EOF that followed. Both are sent, and the line path is the one that should close it.
-      try { child.stdin.write("stop\n"); child.stdin.end(); } catch { /* the pipe is gone: the exit below says what happened */ }
+      try { if (!child.stdin.writableEnded && !child.stdin.destroyed) { child.stdin.write("stop\n"); child.stdin.end(); } }
+      catch { /* the pipe is gone: the exit below says what happened */ }
       const deadline = new Promise((r) => setTimeout(() => r("deadline"), closeTimeoutMs));
       const how = await Promise.race([exited.then(() => "exited"), deadline]);
       if (how === "deadline") { kill(); await exited; return { closed: closedSeen, how: "killed after the close deadline" }; }

@@ -49,6 +49,7 @@ export const DOMAIN = {
   CHALLENGES: "enclave-custody-v2 challenges\n",
   RELEASE: "enclave-custody-release-v2\n",
   DEAL: "enclave-custody-v2 deal\n",
+  OWNER_READ: "enclave-custody-v2 owner-read\n",
 };
 export const KEY_INFO = utf8ToBytes("enclave-custody-v2 key");
 export const PARTIAL_INFO = utf8ToBytes("enclave-custody-v2 partial-release");
@@ -173,6 +174,25 @@ export function releaseBinding({ chainId, vault, id, policyRev, secretRev, commi
   if (!(transportSpki instanceof Uint8Array) || transportSpki.length < 32) throw new Error("transportSpki must be a DER SPKI");
   return sha256(concatBytes(d(DOMAIN.RELEASE), context({ chainId, vault }), id32(id), u64(policyRev), u64(secretRev), fixed(committeeId, 32, "committeeId"),
                             u32(epoch), challengeRoot(challenges), fixed(runtimeId, 32, "runtimeId"), sha256(transportSpki), fixed(recipientKey, 32, "recipientKey")));
+}
+// ---- owner read (custody/v2/custodian.mjs ownerRead; docs/security/custody-owner-read.md) ----
+// The policy owner, not a guest, receives the partials: authorized by its EIP-712 signature over exactly these fields, for
+// an EPHEMERAL recipient key. A distinct domain, so an owner-read binding is never a release binding (and the partials'
+// DLEQ proofs and HPKE AAD, which hash the binding, never verify or open as the other's).
+export const OWNER_READ_PURPOSE = "enclave-custody-owner-read/1";
+export function ownerReadBinding({ chainId, vault, id, policyRev, secretRev, committeeId, epoch, challenges, recipientKey, expiry }) {
+  return sha256(concatBytes(d(DOMAIN.OWNER_READ), context({ chainId, vault }), id32(id), u64(policyRev), u64(secretRev), fixed(committeeId, 32, "committeeId"),
+                            u32(epoch), challengeRoot(challenges), fixed(recipientKey, 32, "recipientKey"), u64(expiry)));
+}
+/** the EIP-712 typed data the owner signs (verified by ecrecover, or ERC-1271 for a contract owner, at the agreed block) */
+export const OWNER_READ_TYPES = Object.freeze({ OwnerRead: [
+  { name: "id", type: "bytes32" }, { name: "policyRev", type: "uint64" }, { name: "secretRev", type: "uint64" }, { name: "committeeId", type: "bytes32" },
+  { name: "epoch", type: "uint32" }, { name: "challengeRoot", type: "bytes32" }, { name: "recipientKey", type: "bytes32" }, { name: "expiry", type: "uint64" }] });
+export function ownerReadTypedData({ chainId, vault, id, policyRev, secretRev, committeeId, epoch, challenges, recipientKey, expiry }) {
+  return { domain: { name: "EnclaveSecretVaultV2", version: "1", chainId: Number(chainId), verifyingContract: String(vault).toLowerCase() },
+           types: OWNER_READ_TYPES, primaryType: "OwnerRead",
+           message: { id, policyRev: BigInt(policyRev), secretRev: BigInt(secretRev), committeeId: String(committeeId).toLowerCase(), epoch: Number(epoch),
+                      challengeRoot: "0x" + hex(challengeRoot(challenges)), recipientKey: "0x" + hex(fixed(recipientKey, 32, "recipientKey")), expiry: BigInt(expiry) } };
 }
 export const operatorMessage = ({ chainId, vault, id, endpoint, binding, expiry }) =>
   `enclave-custody-release-v2:${chainId}:${String(vault).toLowerCase()}:${id}:${endpoint}:${hex(fixed(binding, 32, "binding"))}:${expiry}`;

@@ -21,15 +21,18 @@
 // owner paid for, so claimPolicy below refuses it BY NAME, and the same parser that refused it is
 // the one that later feeds the guest its config.
 //
-// What it still does, in full: register (EnclaveRegistry.register), heartbeat, claim / renew /
+// What it still does, in full: register (EnclaveRegistry.register), claim / renew /
 // release (EnclaveDeployments), and resolve a deployment's catalog version to the artifact CID.
 import { createPublicClient, createWalletClient, http, fallback, keccak256, toBytes, getAddress, formatEther, stringToHex, pad } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
+import {loadContractPins} from './host-admission.bundle.mjs';
+export const CONTRACT_PINS=loadContractPins();
 import fs from "node:fs";
 import path from "node:path";
 import { parseWaf } from "./waf.mjs";
 import { planCheckpoints } from "./verification-checkpoints.mjs";
+import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender, openReleaseJournal } from "./lease-gas-runtime.bundle.mjs";
 
 // five public RPCs: the privacy agent wants 2 agreeing (network/lease-reader.mjs) and drpc / mainnet.base.org rate-limit often
 const RPCS = (process.env.BASE_RPCS || "https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org,https://mainnet.base.org")
@@ -48,7 +51,6 @@ const REGISTRY_ABI = [
     inputs: [{ name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" },
              { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }, { name: "proofKey", type: "address" }],
     outputs: [{ type: "bytes32" }] },
-  { type: "function", name: "heartbeat", stateMutability: "nonpayable", inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
   { type: "function", name: "setPrices", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }, { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }], outputs: [] },
   // The LIVE registry is the 11-field schema: `caps` and `region` exist in contracts/ (schema 5)
@@ -111,16 +113,17 @@ const CATALOG_ABI = [
  */
 let _catRev = { addr: null, rev: null };
 export async function catalogSchemaRev() {
-  if (!addresses.appCatalog) return null;
-  if (_catRev.addr === addresses.appCatalog && _catRev.rev != null) return _catRev.rev;
+  const catalogAddress=process.env.ENCLAVE_HOST_CATALOG_PIN || addresses.appCatalog;
+  if (!catalogAddress) return null;
+  if (_catRev.addr === catalogAddress && _catRev.rev != null) return _catRev.rev;
   try {
-    const rev = Number(await publicClient().readContract({ address: addresses.appCatalog, abi: CATALOG_ABI, functionName: "catalogSchema" }));
-    _catRev = { addr: addresses.appCatalog, rev };
+    const rev = Number(await publicClient().readContract({ address: catalogAddress, abi: CATALOG_ABI, functionName: "catalogSchema" }));
+    _catRev = { addr: catalogAddress, rev };
     return rev;
   } catch (e) {
     // A contract without the function reverts; anything else is the network having a bad moment.
     const definitive = /revert|not a function|returned no data|execution reverted/i.test(e.shortMessage || e.message || "");
-    if (definitive) { _catRev = { addr: addresses.appCatalog, rev: 0 }; return 0; }
+    if (definitive) { _catRev = { addr: catalogAddress, rev: 0 }; return 0; }
     return null;
   }
 }
@@ -161,6 +164,10 @@ export async function operatorBalance() { return acct ? publicClient().getBalanc
 
 /** Resolve the live contract addresses from the on-chain address book (never hardcoded). */
 export async function resolveAddresses() {
+  if(CONTRACT_PINS){
+    for(const name of ['registry','deployments','appCatalog','proofOfTime','verificationFees'])addresses[name]=CONTRACT_PINS[name];
+    return {...addresses};
+  }
   const [keys, vals] = await publicClient().readContract({ address: getAddress(BOOK), abi: BOOK_ABI, functionName: "all" });
   const want = { registry: keyOf("registry"), deployments: keyOf("deployments"), appCatalog: keyOf("appCatalog"), proofOfTime: keyOf("proofOfTime"), verificationFees: keyOf("verificationFees") };
   for (const [name, k] of Object.entries(want)) {
@@ -242,16 +249,99 @@ export async function registerBox({ endpoint, repo, measurement, cpuPricePerSec6
   const hash = await send(addresses.registry, REGISTRY_ABI, "register", args);
   return { id: enclaveIdOf(endpoint), hash };
 }
-export const heartbeatBox = (id) => send(addresses.registry, REGISTRY_ABI, "heartbeat", [id]);
 /** Re-post this box's asks. The registry entry is what the ledger CHARGES, so a price that only
  *  lives in a config file is not a price: it is a hope. */
 export const setPrices = (id, cpuPricePerSec6, gpuPricePerSec6) =>
   send(addresses.registry, REGISTRY_ABI, "setPrices", [id, BigInt(cpuPricePerSec6), BigInt(gpuPricePerSec6)]);
-export const claimDeployment = (id, enclaveId) => send(addresses.deployments, DEP_ABI, "claim", [id, enclaveId]);
-export const renewDeployment = (id) => send(addresses.deployments, DEP_ABI, "renew", [id]);
+// Shared Linux/Windows sponsorship configuration. A partial/invalid configuration throws;
+// once configured, no refusal can route a lease operation to the operator-paid sender.
+const leaseGasEnv = Object.freeze(Object.fromEntries(Object.entries(process.env)
+  .filter(([key]) => /^(ENCLAVE_)?LEASE_GAS_/.test(key))));
+let leaseGas = null, leaseJournal = null, onLeaseSigned = null, leaseRelayPolicy;   // undefined: not set by the host yet
+// until the host sets its platform host policy, a discovered relay is refused (null is set only when it is explicitly off)
+const RELAY_POLICY_UNSET = async () => { throw new Error("this host has not set its platform host policy: no discovered relay is admitted"); };
+/** The host's platform host policy for designated relays (host.mjs passes its policy gate, a refusing decider when on but
+ *  unusable, or null when explicitly off); the sender is rebuilt. */
+export function setLeaseRelayPolicy(policy) { leaseRelayPolicy = policy; leaseGas = null; }
+const leaseBindings = () => ({ chain: base, ledger: addresses.deployments, registry: addresses.registry });
+export const leaseGasActive = () => leaseGasConfigured(leaseGasEnv);
+function leaseSender() {
+  if (!leaseGasActive()) return null;
+  if (!acct) throw new Error("no operator key on this box");
+  if (!leaseGas) {
+    const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
+    leaseGas = configuredLeaseSender({ config, account: acct, getBindings: leaseBindings, relayPolicy: leaseRelayPolicy === undefined ? RELAY_POLICY_UNSET : leaseRelayPolicy,
+      onSigned: (s) => (onLeaseSigned ? onLeaseSigned(s) : undefined) });
+  }
+  return leaseGas;
+}
+/** The host's durable sponsored-release journal (host.mjs passes <dir>/lease-release-journal.json at construction). */
+export function setLeaseJournal(file) { leaseJournal = openReleaseJournal(file, { log: (m) => console.error(m) }); }
+/** Why `id` must not be claimed, re-adopted or renewed here: a sponsored release of it may still land (or the journal
+ *  failed to load). null = clear. */
+export const releaseHold = (id) => (leaseJournal ? leaseJournal.hold(id) : null);
+function leaseSend(fn, args) {
+  if (!leaseGasActive()) return send(addresses.deployments, DEP_ABI, fn, args);
+  const id = String(args[0]).toLowerCase();
+  const job = async () => {
+    const refuse = (why, extra = {}) => Object.assign(new Error(`app-funded ${fn} not sent: ${why}; this host's ETH is never used instead`), { leaseGas: true, ...extra });
+    if (fn === "release" && !leaseJournal) throw refuse("no durable release journal on this box");
+    const held = leaseJournal && (leaseJournal.corrupt() || fn !== "release") ? leaseJournal.hold(id) : null;
+    if (held) throw refuse(held, { code: "ReleasePending", pending: true });
+    if (fn === "release") {
+      try { leaseJournal.begin(id); }                     // durable before anything is signed
+      catch (e) { throw refuse(e.message, { code: e.code || "NotPersisted", pending: !!e.pending }); }
+      onLeaseSigned = (s) => leaseJournal.signed(id, s); // each signed lease durable before its relay sees it
+    }
+    let result;
+    try { result = await leaseSender()[fn](...args); }
+    catch (e) {
+      // a sponsored refusal is reported as such (the app's reserve / relays), never as an operator-gas problem
+      let pending = false;
+      if (fn === "release") {
+        const signed = leaseJournal.pending().find((x) => x.id === id)?.intents.length > 0;
+        if (!signed) leaseJournal.settle(id, "unsent");                  // nothing signed reached a relay: nothing can land
+        else if (e.code === "NonceConsumed") leaseJournal.settle(id, "consumed");   // a fence, never this release's success
+        else pending = true;                                             // may still land: settled from the chain
+      }
+      throw Object.assign(new Error(`app-funded ${fn} not sent: ${e.message}${pending ? " (a signed release may still land: journaled, settled from the chain)" : ""}; this host's ETH is never used instead`),
+        { code: e.code, leaseGas: true, pending, cause: e });
+    } finally { onLeaseSigned = null; }
+    if (result.receipt.status !== "success") throw new Error(`${fn} reverted (${result.hash})`);
+    if (fn === "release") leaseJournal.settle(id, "released");          // a quorum-verified receipt of exactly this lease
+    return result.hash;
+  };
+  // 7702 authorization consumes an operator account nonce. Serialize it with ordinary sends.
+  return (chainTx = chainTx.then(job, job));
+}
+/** Settle journaled sponsored releases from the chain: RELEASED only on a verified receipt of that exact lease; a
+ *  consumed nonce or a passed deadline is a fence (the hold lifts, nothing is reported released). -> [{id, outcome}] */
+export async function resolvePendingReleases() {
+  if (!leaseJournal || leaseJournal.corrupt()) return [];
+  const out = [];
+  for (const e of leaseJournal.pending()) {
+    if (!e.intents.length) { leaseJournal.settle(e.id, "unsent"); out.push({ id: e.id, outcome: "unsent" }); continue; }
+    if (!leaseGasActive()) { out.push({ id: e.id, outcome: "held: app-funded leases are not configured, so it cannot be verified" }); continue; }
+    const x = e.intents[0];
+    const want = { id: e.id, kind: 3, enclaveId: x.enclaveId, nonce: BigInt(x.nonce), deadline: BigInt(x.deadline), maxChargeWei: BigInt(x.maxChargeWei) };
+    // settled by the identity RECORDED with the signed lease, never by this process's current key or configuration
+    const recorded = { operator: x.operator, chainId: x.chainId, reserve: x.reserve, executor: x.executor, ledger: x.ledger };
+    const r = await leaseSender().resolveSigned(want, BigInt(x.fromBlock), e.intents.map((i) => i.payee), recorded);
+    if (r.state === "landed") { leaseJournal.settle(e.id, "released"); out.push({ id: e.id, outcome: "released", hash: r.verified.hash }); }
+    else if (r.state === "consumed" || r.state === "expired") { leaseJournal.settle(e.id, r.state); out.push({ id: e.id, outcome: r.state }); }
+    else out.push({ id: e.id, outcome: r.why ? `held: ${r.why}` : "pending" });
+  }
+  return out;
+}
+export async function renewLeadMs(id, fallbackMs) {
+  const sender = leaseSender();
+  return sender ? sender.renewLeadMs(id, fallbackMs) : fallbackMs;
+}
+export const claimDeployment = (id, enclaveId) => leaseSend("claim", [id, enclaveId]);
+export const renewDeployment = (id) => leaseSend("renew", [id]);
 /** Any operator transaction through the same serialized sender (audit-jobs.mjs: offerJobRate). */
 export const sendOperatorTx = (address, abi, functionName, args) => send(address, abi, functionName, args);
-export const releaseDeployment = (id) => send(addresses.deployments, DEP_ABI, "release", [id]);
+export const releaseDeployment = (id) => leaseSend("release", [id]);
 // The runner's earnings: what this OPERATOR may withdraw from the live ledger (USDC, 6 dp), and the withdrawal, which
 // pays them to whatever address the caller names (payout.mjs decides which, and when).
 const EARN_ABI = [
@@ -280,17 +370,18 @@ export const claimCost = (id, enclaveId) => estimate(addresses.deployments, DEP_
 
 /** catalog://<appId>/<versionIndex> -> the version record (artifact CID, sizing, config, approval). */
 export async function resolveAppRef(appRef) {
+  const catalogAddress=process.env.ENCLAVE_HOST_CATALOG_PIN || addresses.appCatalog;
   const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d+)$/.exec(String(appRef || "").trim());
   if (!m) throw new Error(`appRef is not catalog://<appId>/<versionIndex>: ${appRef}`);
-  if (!addresses.appCatalog) throw new Error("the address book publishes no appCatalog");
-  const v = await publicClient().readContract({ address: addresses.appCatalog, abi: CATALOG_ABI, functionName: "getVersion", args: [m[1], BigInt(m[2])] });
+  if (!catalogAddress) throw new Error("the address book publishes no appCatalog");
+  const v = await publicClient().readContract({ address: catalogAddress, abi: CATALOG_ABI, functionName: "getVersion", args: [m[1], BigInt(m[2])] });
   // ...and, on a rev-7 catalog, where the real config lives. Absent or empty means the inline
   // field IS the config, exactly as on every earlier rev.
   let configCid = "";
   const rev = await catalogSchemaRev();
   if (rev != null && rev >= 7) {
     try {
-      configCid = String(await publicClient().readContract({ address: addresses.appCatalog, abi: CATALOG_ABI,
+      configCid = String(await publicClient().readContract({ address: catalogAddress, abi: CATALOG_ABI,
         functionName: "versionConfigCid", args: [m[1], BigInt(m[2])] }) || "");
     } catch { configCid = ""; }
   }
@@ -505,7 +596,7 @@ export function parseEnvelope(raw, gpuMilli) {
 export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scope = "market",
                                  version = null, capacity = null, listedAt = 0, invited = false,
                                  legacy = false, fetchesConfigCid = false, features = null,
-                                 privateOk = false, isolationBackend = null } = {}) {
+                                 privateOk = false, isolationBackend = null, hostWalletPolicy = false } = {}) {
   if (!appsEnabled) return "this node is not hosting apps (set APPS=1)";
   if (!d || !Number(d.createdAt)) return "no such deployment on the ledger";
   if (!d.active) return "the deployment is not active";

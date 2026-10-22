@@ -9,8 +9,10 @@
 //       { "platform": "sev-snp", "measurement": "<96 hex>", "runtimeId": "<64 hex>" }
 //     ],
 //     "minTcb": { "Genoa": { "bootloader": 10, "tee": 0, "snp": 23, "microcode": 84 } },   REQUIRED: no default floor
-//     "vmpl": 0                             the VMPL the release report must come from
-//   }
+//     "vmpl": 0,                            the VMPL the release report must come from
+//     "ownerRead": true                     OPTIONAL, custody v2 only: the policy owner may read the values back
+//   }                                       (custody/v2/custodian.mjs ownerRead). Missing means false: rules written
+//                                           before this key existed never allow it, and encode to the same bytes.
 //
 // ONLY "sev-snp" is admitted: it is the one platform whose evidence this repository verifies end to end (VCEK -> ASK ->
 // pinned ARK, ARK-signed CRL, TCB floor, DEBUG off). TDX has no verifier here; the Android pVM path pins Google's root but
@@ -33,14 +35,15 @@ const sortKeys = (x) => Array.isArray(x) ? x.map(sortKeys)
   : x && typeof x === "object" ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, sortKeys(x[k])])) : x;
 export const canonicalRules = (rules) => new TextEncoder().encode(JSON.stringify(sortKeys(validateRules(rules))));
 
-function exactKeys(o, keys, what) {
+function exactKeys(o, keys, what, optional = []) {
   if (!o || typeof o !== "object" || Array.isArray(o)) throw new Error(`${what} must be an object`);
-  for (const k of Object.keys(o)) if (!keys.includes(k)) throw new Error(`${what}: unknown key "${k}"`);
+  for (const k of Object.keys(o)) if (!keys.includes(k) && !optional.includes(k)) throw new Error(`${what}: unknown key "${k}"`);
   for (const k of keys) if (!(k in o)) throw new Error(`${what}: "${k}" is required`);
 }
 
 export function validateRules(r) {
-  exactKeys(r, ["v", "appId", "images", "minTcb", "vmpl"], "rules");
+  exactKeys(r, ["v", "appId", "images", "minTcb", "vmpl"], "rules", ["ownerRead"]);
+  if (r.ownerRead !== undefined && typeof r.ownerRead !== "boolean") throw new Error("rules.ownerRead must be true or false");
   if (r.v !== 1) throw new Error("rules: only version 1 exists");
   if (typeof r.appId !== "string" || !HEX(64).test(r.appId)) throw new Error("rules.appId must be 64 lowercase hex");
   if (!Number.isInteger(r.vmpl) || r.vmpl < 0 || r.vmpl > 3) throw new Error("rules.vmpl must be 0..3");
@@ -93,3 +96,5 @@ export function rulesFromPrediction(pred, minTcb = DEFAULT_MIN_TCB) {
   if (!images.length) throw new Error("the relay's prediction admits no image for this deployment");
   return validateRules({ v: 1, appId: pred.appId, images, minTcb: JSON.parse(JSON.stringify(minTcb)), vmpl: 0 });
 }
+// the owner-read opt-in (SNP or Shield rules alike): only an explicit true
+export const ownerReadAllowed = (rules) => !!rules && rules.ownerRead === true;

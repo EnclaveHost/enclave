@@ -22,11 +22,20 @@ gcc -static -O2 -o "$d/plat/domprobe" "$here/domprobe.c"
 # static and byte-reproducible for a given Go toolchain; the front is the same binary M2 uses
 (cd "$here" && CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o "$d/monitor" ./monitor)
 (cd "$here/../m2" && CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o "$d/plat/front" ./front)
+if [ -n "${RUNTIME_NN_DIR:-}" ]; then
+  # THE RUNTIME with wasi-nn and the ggml CPU backend (model-volume preloads): a set composed by m4/runtime-set.sh with
+  # NN_RUNTIME_DIR, taken whole, and only if its probe passed there (nn-ggml.enabled: a graph really preloaded and
+  # loaded by name); its runtime.json is that composition's
+  [ -r "$RUNTIME_NN_DIR/nn-ggml.enabled" ] && [ -r "$RUNTIME_NN_DIR/backends/libggml-cpu.so" ] && [ -r "$RUNTIME_NN_DIR/runtime.json" ] \
+    || { echo "RUNTIME_NN_DIR is not a probed nn-ggml runtime set (m4/runtime-set.sh compose with NN_RUNTIME_DIR)"; exit 1; }
+  cp -R -L "$RUNTIME_NN_DIR"/. "$d/plat/rt/"
+else
 W=$(command -v wasmtime)
 cp -L "$W" "$d/plat/rt/wasmtime"
 ldd "$W" | awk '/=>/ {print $3}' | while read -r lib; do cp -L "$lib" "$d/plat/rt/"; done
 # the runtime identity ABI/2 binds into report_data (isolation/contract/RUNTIME.md), beside the runtime
 "$here/../contract/runtime-identity.sh" "$W" > "$d/plat/rt/runtime.json"
+fi
 # The guest kernel's module tree is named after the GUEST kernel, so domain.env has to be read
 # before M= below, not only before the measurement prediction further down.
 . "$here/../m1/domain.env"
@@ -34,6 +43,16 @@ M=/lib/modules/$GUEST_KREL/kernel   # the GUEST kernel, not the host's: see doma
 cp "$M/net/vmw_vsock/vsock.ko.zst" "$M/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko.zst" \
    "$M/net/vmw_vsock/vmw_vsock_virtio_transport.ko.zst" \
    "$M/drivers/virt/coco/guest/tsm_report.ko.zst" "$M/drivers/virt/coco/sev-guest/sev-guest.ko.zst" "$d/"
+# MODEL VOLUMES (monitor/modelvol.go), only when the release pins a table (sdk/storage/model-volumes.mjs tableText):
+# the table in the platform tree, the dm-verity helper beside the monitor, and the disk and device-mapper modules
+if [ -n "${MODEL_VOLUME_TABLE:-}" ]; then
+  awk 'NF != 11 || length($2) != 64 || length($11) != 64 || $4 != 4096 || $5 != 4096 { exit 1 }' "$MODEL_VOLUME_TABLE" \
+    || { echo "MODEL_VOLUME_TABLE is not a model-volume table"; exit 1; }
+  cp "$MODEL_VOLUME_TABLE" "$d/plat/rt/model-volumes.table"; chmod 0444 "$d/plat/rt/model-volumes.table"
+  gcc -static -O2 -o "$d/mverity" "$here/../../metal/guest/mverity.c"
+  cp "$M/drivers/scsi/scsi_transport_fc.ko.zst" "$M/drivers/scsi/hv_storvsc.ko.zst" "$M/drivers/md/dm-mod.ko.zst" \
+     "$M/drivers/md/dm-bufio.ko.zst" "$M/drivers/md/dm-verity.ko.zst" "$M/lib/reed_solomon/reed_solomon.ko.zst" "$d/"
+fi
 find "$d" -exec touch -h -d @0 {} +
 (cd "$d" && find . -mindepth 1 | LC_ALL=C sort | cpio -o -H newc --reproducible 2>/dev/null | gzip -n -9) > "$out"
 echo "monitor image $out: $(stat -c %s "$out") bytes, no app inside"
