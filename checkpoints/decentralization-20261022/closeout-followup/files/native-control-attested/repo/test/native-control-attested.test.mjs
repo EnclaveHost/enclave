@@ -424,6 +424,12 @@ test('discovery serves only attested, registered, admitted serving hosts; an unb
   r = await routes();
   assert.deepEqual(r.routes, {});
   W.setDown(false);
+  // the policy's own registry row (the book's registry, read at the policy's agreed block) must name the ATTESTED operator:
+  // a row that disagrees with the attestation's registry read refuses that host
+  W.state.hosts = { ...HOSTS, [A.registryId]: { ...HOSTS[A.registryId], operator: a(0x7777) } };
+  r = await routes();
+  assert.deepEqual(r.routes[API].addresses, ['44.0.0.2']);
+  W.state.hosts = HOSTS;
   // a measurement the reviewer did not approve: nothing is served
   r = await routes({ NATIVE_CONTROL_MEASUREMENTS: '66'.repeat(48) });
   assert.deepEqual(r.routes, {});

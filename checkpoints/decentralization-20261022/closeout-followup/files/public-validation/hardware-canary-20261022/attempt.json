@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-22T20:55:36.349263+00:00",
+  "measurement": "bdadc7bb667eac1ff783b4538991cc6dafcda9c89b80a5d4b60a0f280e32e2ee0c45dd0b4f3f3415c347c30651b597e6",
+  "frozenPinsSha256": "6025fff2c77f368f797c93c0ea0676eaaded7dac9902db07012507946f877cf5",
+  "capMiB": 6144,
+  "floorMiB": 16384,
+  "guestMemMiB": 4096,
+  "cpus": 4,
+  "childTimeoutS": 330,
+  "killAfterS": 40,
+  "kds": "off",
+  "registry": "off",
+  "exclusiveBothQueueLanes": true
+}

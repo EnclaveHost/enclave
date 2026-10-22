@@ -1,0 +1,25 @@
+{
+ "pass": true,
+ "required": {
+  "verifier: statement": true,
+  "verifier: config + HOST_DATA": true,
+  "verifier: TLS peer = attested control key": true,
+  "verifier: AMD report verified with the expected measurement": true,
+  "verifier: running supervisor holds the minted keys": true,
+  "evidence: HTTP 200": true,
+  "evidence: statement config digest = owner config": true,
+  "evidence: statement HOST_DATA = owner config": true,
+  "evidence: TLS peer = statement control key": true,
+  "evidence: same boot as the verifier (control key)": true,
+  "evidence: mode snp": true,
+  "evidence: runtime gsup/helper/supervisor = the built image inputs": true,
+  "evidence: bare roles (no mcpSha256, no platformApiSha256)": true
+ },
+ "failed": [],
+ "diagnostic": {
+  "registry": "pending",
+  "wrapperStatus": "pending",
+  "operatorIsTheConfiguredCanaryAddress": true,
+  "note": "no-key/no-claim authority is proven by the harness from the launcher's own fw_cfg and host config (registryKey empty, no registryKeyFile) and the restricted QEMU network, not by this label"
+ }
+}

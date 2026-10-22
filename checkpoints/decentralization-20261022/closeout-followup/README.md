@@ -22,3 +22,11 @@ Excluded: credentials, private runtime configuration, production backups, raw ag
 ## Additional recovery snapshot at 20:48 UTC
 
 The canary recipe, frozen input pins, unit-test source and result report are now preserved. Its reported launcher and cleanup unit checks pass (4 Node checks and 18 Python checks); the actual hardware canary has not run. Native attested-control code and real-TLS tests remain active drafts. The storage compatibility integration is still in progress; its packed-object fixture has not demonstrated compaction, so full backward compatibility is not established. These distinctions are part of the checkpoint, not deferred deployment approval.
+
+## Verified progress at 20:59 UTC
+
+The bare direct-control hardware canary ran once on real SNP hardware and passed the exact image measurement, HOST_DATA/config, TLS-key, supervisor-key and runtime checks. Its unique cgroup was observed and proved empty; private test files were removed; protected production guest and user-service identities were unchanged. Public attestation and terminal evidence are preserved in files/public-validation/hardware-canary-20261022. It was deliberately unregistered, and does not prove API/MCP or new native TLS readiness.
+
+Storage integration i6 passed all 42 checks, including actual legacy packed objects, ranged reads, multipart continuation, restart durability and old-client write refusal after CAS enrollment. It used real client binaries and indexd/RHP4/PostgreSQL with a synthetic Sia chain and a lease17 fixture. A focused existing-lease16 check is underway; a new contract version is not a migration prerequisite. See files/public-validation/storage-interop-i6.json.
+
+The chip-admission review found the existing custody mapping, sha256 of the raw 64-byte SNP chip identifier. Native-control source is being updated to enforce bans per authenticated chip instead of blanket refusal. Native CA issuance/recovery placement remains under investigation. Ongoing implementation drafts are not deployed or complete.

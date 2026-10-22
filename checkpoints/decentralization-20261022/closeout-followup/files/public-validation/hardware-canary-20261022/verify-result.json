@@ -1,0 +1,176 @@
+{
+ "url": "https://127.0.0.1:52299",
+ "expected": {
+  "measurement": "bdadc7bb667eac1ff783b4538991cc6dafcda9c89b80a5d4b60a0f280e32e2ee0c45dd0b4f3f3415c347c30651b597e6",
+  "configDigest": "cfebc4fc41bd17d1b327afb70227e666ab8eeaf35b7bf7d800997f835d0a77bf",
+  "hostData": "5f7863ca45393f5b6365726f575fa081ac669fb29bd6d181fbf357a7bbdfa4a8",
+  "runtime": {
+   "gsupSha256": "10127e1170d71d6f23d26e01ebf5a0bfee19c51f1121148c13ab43f9d49e4d24",
+   "helperSha256": "f2648d65a16654d35f396bbc10e73e6c2e4a10624093275c66013f546aa9f3e6",
+   "supervisorSha256": "2c87a36fbffe9ff151f32e38c212ffd03a6d69ec85ec646eca79421c2cc6de65"
+  }
+ },
+ "collateral": {
+  "kds": false,
+  "stats": {
+   "hits": 4,
+   "misses": 0,
+   "fetches": 0,
+   "quarantined": 0,
+   "writeFailures": 0,
+   "staleServed": 0
+  },
+  "events": []
+ },
+ "registryRead": false,
+ "attempts": [
+  {
+   "at": "2026-10-22T20:55:47.280Z",
+   "ms": 39,
+   "status": "pending",
+   "checks": {
+    "statement": true,
+    "config": true,
+    "endpoint key": true,
+    "hardware": {
+     "report shape": true,
+     "report version": true,
+     "product line": true,
+     "guest policy": true,
+     "vmpl": true,
+     "chain": true,
+     "crl": true,
+     "signature": true,
+     "vcek identity": true,
+     "tcb policy": true,
+     "measurement": true,
+     "binding": true,
+     "app id": true,
+     "host data": true
+    },
+    "report": true,
+    "supervisor": true,
+    "registry": null
+   },
+   "reasons": [
+    "the statement is canonical and well-formed",
+    "config cfebc4fc41bd17d1… (HOST_DATA 5f7863ca45393f5b…)",
+    "the TLS peer holds the attested control key sha256:764a7ddc2ab5fe2c…",
+    "SEV-SNP report verified: measurement bdadc7bb667eac1f… is allowed, it binds this statement and our nonce, its role is the control guest, HOST_DATA binds the config",
+    "the supervisor behind the attested endpoint uses the minted proof key 0x6da831689f0cd9b07c474d2e991962d667001a63 and session key eaQkEmTK1zy-…",
+    "PENDING (registry): no quorum reader supplied, so the on-chain identity is not checked"
+   ]
+  }
+ ],
+ "readiness": {
+  "up": true,
+  "tries": 3
+ },
+ "evidence": {
+  "nonce": "78b96e5fce4852b818c7f77b874c709325e1c10a1f6c006c3bd76e8e86164041",
+  "status": 200,
+  "peerSpkiSha256": "764a7ddc2ab5fe2cf150b364f04f85b69c183685056121df2ef3e88ba321f3fd",
+  "document": {
+   "format": "enclave-measured-control-evidence/v1",
+   "statement": "{\"bootId\":\"4a6ada6ddce2072965fe1ae47a8c9067\",\"chainId\":8453,\"configDigest\":\"cfebc4fc41bd17d1b327afb70227e666ab8eeaf35b7bf7d800997f835d0a77bf\",\"format\":\"enclave-measured-control-statement/v1\",\"hostData\":\"5f7863ca45393f5b6365726f575fa081ac669fb29bd6d181fbf357a7bbdfa4a8\",\"identity\":{\"operator\":\"0xdaaf87d56dcaf3da3092c3d9fc22f11956274238\",\"publicUrl\":\"https://direct-control-canary.invalid\"},\"keys\":{\"controlTls\":{\"spkiSha256\":\"764a7ddc2ab5fe2cf150b364f04f85b69c183685056121df2ef3e88ba321f3fd\"},\"proof\":{\"curve\":\"secp256k1\",\"publicKey\":\"04e35535dafcbce4a9ce17426423e0df4b514f3589c01cde7d860696d05832391728698592d476acebd33165a8e4ff06f9fd700a159a7b2df33fd77f20f4cbec81\"},\"session\":{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"gXTOoKQNDcwK8N1vTx04pXxT0pcIL59yk-ABctrJzwc\",\"y\":\"cp-4-ZLIEKUelWfU-oaICast19EskYgBUiOjkcAQ_ts\"}},\"mode\":\"snp\",\"role\":\"direct-control\",\"runtime\":{\"gsupSha256\":\"10127e1170d71d6f23d26e01ebf5a0bfee19c51f1121148c13ab43f9d49e4d24\",\"helperSha256\":\"f2648d65a16654d35f396bbc10e73e6c2e4a10624093275c66013f546aa9f3e6\",\"supervisorSha256\":\"2c87a36fbffe9ff151f32e38c212ffd03a6d69ec85ec646eca79421c2cc6de65\"}}",
+   "report": "BQAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAABAwIFAAAAdWUAAAAAAAAAAAAAAAAAAADBlN4nXTOo7PETunvIuGpuURo4t4e21uXS26gwzYQ8O5kT5kTCp14RZCGy+o/htT9OV/JEzfjEFG5D7P3re/C0va3Hu2Z+rB/3g7RTiZHMba/NqcibgKXUtgoPKA4y4u4MRd0LTz80FcNHwwZRtZfmX3hjykU5P1tjZXJvV1+ggaxmn7Kb1tGB+/NXp7vfpKgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeVaopzb7BbkkLRNvFTPUg46uQl/40EVZR5QEQSb1K////////////////////////////////////////////AQMCBQAAAHUaAgEAAAAAAAAAAAAAAAAAAAAAAAAAAAD6Ea/PVK6cUwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQMCBQAAAHUDOgEAAzoBAAEDAgUAAAB1PwAAAAAAAAA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAun2eeYzvOPhu976sv3PjYPofIoo7ExTs9Pk5aq8gZ9TXqZRPlUPC8aPaomGKcJ7sAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAuAXDkvD9J0wKhYwmtqf0g7x0nkj1i0T8NFrL1p9OsI7feesw1JIXND7t/PGCyHTqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+   "certificate": "-----BEGIN CERTIFICATE-----\nMIIBQDCB6KADAgECAhAly6PqGRfXxpJERbs3tXwhMAoGCCqGSM49BAMCMCMxITAf\nBgNVBAMMGGVuY2xhdmUtbWVhc3VyZWQtY29udHJvbDAeFw0yNjEwMjIxOTU1NDRa\nFw0zNjEwMTkyMDU1NDRaMCMxITAfBgNVBAMMGGVuY2xhdmUtbWVhc3VyZWQtY29u\ndHJvbDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABFzdGFHeED3M4kgqg2NJJx+2\nDD53R+jzn+gaswi3UjZyTMlxJTAtzZA4ET28rViRmDSFiWpyKbkG9i1h6LtCtOow\nCgYIKoZIzj0EAwIDRwAwRAIgYIpBOQX6h1h3KtGs28PAwMVPZtBLY02HJynpYy+X\nzjsCIHwIIDaW/t6gy1FOKVqpVtBrr3onOIMO87RkKDmCAxIT\n-----END CERTIFICATE-----\n"
+  }
+ },
+ "statementChecks": {
+  "configDigest": true,
+  "hostData": true,
+  "peerIsControlTls": true,
+  "runtime": {
+   "gsupSha256": true,
+   "helperSha256": true,
+   "supervisorSha256": true
+  },
+  "noMcpOrPlatformApi": true,
+  "controlTlsSpkiSha256": "764a7ddc2ab5fe2cf150b364f04f85b69c183685056121df2ef3e88ba321f3fd",
+  "operatorMatchesConfig": true,
+  "mode": "snp"
+ },
+ "final": {
+  "status": "pending",
+  "checks": {
+   "statement": true,
+   "config": true,
+   "endpoint key": true,
+   "hardware": {
+    "report shape": true,
+    "report version": true,
+    "product line": true,
+    "guest policy": true,
+    "vmpl": true,
+    "chain": true,
+    "crl": true,
+    "signature": true,
+    "vcek identity": true,
+    "tcb policy": true,
+    "measurement": true,
+    "binding": true,
+    "app id": true,
+    "host data": true
+   },
+   "report": true,
+   "supervisor": true,
+   "registry": null
+  },
+  "reasons": [
+   "the statement is canonical and well-formed",
+   "config cfebc4fc41bd17d1… (HOST_DATA 5f7863ca45393f5b…)",
+   "the TLS peer holds the attested control key sha256:764a7ddc2ab5fe2c…",
+   "SEV-SNP report verified: measurement bdadc7bb667eac1f… is allowed, it binds this statement and our nonce, its role is the control guest, HOST_DATA binds the config",
+   "the supervisor behind the attested endpoint uses the minted proof key 0x6da831689f0cd9b07c474d2e991962d667001a63 and session key eaQkEmTK1zy-…",
+   "PENDING (registry): no quorum reader supplied, so the on-chain identity is not checked"
+  ],
+  "identity": {
+   "bootId": "4a6ada6ddce2072965fe1ae47a8c9067",
+   "operator": "0xdaaf87d56dcaf3da3092c3d9fc22f11956274238",
+   "publicUrl": "https://direct-control-canary.invalid",
+   "controlTlsSpkiSha256": "764a7ddc2ab5fe2cf150b364f04f85b69c183685056121df2ef3e88ba321f3fd",
+   "proofKey": "0x6da831689f0cd9b07c474d2e991962d667001a63",
+   "sessionKid": "eaQkEmTK1zy-RYy9EVnRQUhO4D5aIh-VGXG6vSl0dnQ",
+   "registryId": "0xf0d6d565df99b3d3fac7d1852f057f7ef0188a427f53800cb4f596c03feee4de",
+   "measurement": "bdadc7bb667eac1ff783b4538991cc6dafcda9c89b80a5d4b60a0f280e32e2ee0c45dd0b4f3f3415c347c30651b597e6"
+  }
+ },
+ "verdict": {
+  "hardwarePass": true,
+  "parts": {
+   "statement": true,
+   "config": true,
+   "endpointKey": true,
+   "report": true,
+   "supervisor": true
+  },
+  "registry": "pending",
+  "wrapperStatus": "pending"
+ },
+ "acceptance": {
+  "pass": true,
+  "required": {
+   "verifier: statement": true,
+   "verifier: config + HOST_DATA": true,
+   "verifier: TLS peer = attested control key": true,
+   "verifier: AMD report verified with the expected measurement": true,
+   "verifier: running supervisor holds the minted keys": true,
+   "evidence: HTTP 200": true,
+   "evidence: statement config digest = owner config": true,
+   "evidence: statement HOST_DATA = owner config": true,
+   "evidence: TLS peer = statement control key": true,
+   "evidence: same boot as the verifier (control key)": true,
+   "evidence: mode snp": true,
+   "evidence: runtime gsup/helper/supervisor = the built image inputs": true,
+   "evidence: bare roles (no mcpSha256, no platformApiSha256)": true
+  },
+  "failed": [],
+  "diagnostic": {
+   "registry": "pending",
+   "wrapperStatus": "pending",
+   "operatorIsTheConfiguredCanaryAddress": true,
+   "note": "no-key/no-claim authority is proven by the harness from the launcher's own fw_cfg and host config (registryKey empty, no registryKeyFile) and the restricted QEMU network, not by this label"
+  }
+ }
+}

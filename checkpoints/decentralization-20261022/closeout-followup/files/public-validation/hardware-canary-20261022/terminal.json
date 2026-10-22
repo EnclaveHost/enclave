@@ -1,0 +1,20 @@
+{
+  "unit": "enclave-direct-control-canary-20261022t205536z-7d20ee21.scope",
+  "startedAt": "2026-10-22T20:55:36.349677+00:00",
+  "interrupted": null,
+  "exitCode": 0,
+  "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-direct-control-canary-20261022t205536z-7d20ee21.scope",
+  "scopeStop": 5,
+  "scopeActiveState": "inactive",
+  "cgroupEmpty": true,
+  "survivors": [],
+  "ownedAbsenceProven": true,
+  "privatePresentAfterChild": false,
+  "privateAbsent": true,
+  "protectedNow": {
+    "3483499": 87503396,
+    "3817658": 32598976
+  },
+  "finishedAt": "2026-10-22T20:55:49.413448+00:00",
+  "code": 0
+}

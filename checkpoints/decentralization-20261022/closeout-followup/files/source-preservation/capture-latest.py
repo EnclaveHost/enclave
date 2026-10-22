@@ -3,6 +3,7 @@ from pathlib import Path
 import datetime
 import hashlib
 import json
+import subprocess
 
 root = Path(__file__).resolve().parents[3]
 base = root / 'work/resume-after-checkpoint-20261022'
@@ -71,12 +72,37 @@ for relative in ('metal/guest/gsup.mjs', 'metal/guest/measured-control.mjs', 're
     paths.add(base / 'native-control-attested/repo' / relative)
 for name in ('FROZEN-PINS.json', 'PLANNED-EFFECTS.json', 'RESULT.json', 'SOURCES-tree.json', 'SOURCES.json'):
     paths.add(base / 'direct-hardware-canary' / name)
+# Capture all implementation changes against the published candidate, including
+# newly committed worker files and regenerated checked-in runtime bundles.
+active = base / 'native-control-attested/repo'
+changed = subprocess.check_output(['git', '-C', str(active), 'diff', '--name-only',
+    'eaea7e4630ee1d82b3599b872a24075691510211'], text=True).splitlines()
+changed += subprocess.check_output(['git', '-C', str(active), 'ls-files', '--others', '--exclude-standard'], text=True).splitlines()
+for name in changed:
+    rel = Path(name)
+    p = active / rel
+    if rel.parts[0] not in ('metal', 'network', 'relay', 'scripts', 'test', 'docs'):
+        continue
+    if p.is_file() and not p.is_symlink() and p.suffix in ('.mjs', '.js', '.json', '.md', '.py', '.sh', '.txt'):
+        paths.add(p)
+for p in (base / 'native-chip-review').glob('*.md'):
+    paths.add(p)
+paths.add(base / 'native-chip-semantics-review-task.txt')
+for name in ('native-control-chip-integration-task.txt', 'storage-lease16-interop-task.txt', 'native-issuer-recovery-task.txt'):
+    paths.add(base / name)
+paths.add(base / 'direct-hardware-canary/ROOT-LAUNCH-REVIEW.json')
+for p in (base / 'public-validation').rglob('*'):
+    if p.is_file() and not p.is_symlink():
+        paths.add(p)
+for p in (base / 'native-issuer-recovery').glob('*.md'):
+    paths.add(p)
 paths.add(Path(__file__).resolve())
 entries = []
 unchanged = []
 for p in sorted(paths):
     data = p.read_bytes()
-    assert len(data) < 5_000_000, p
+    limit = 32_000_000 if p.name.endswith('.bundle.mjs') else 5_000_000
+    assert len(data) < limit, p
     data.decode('utf-8')
     rel = p.relative_to(base)
     old = prior / rel

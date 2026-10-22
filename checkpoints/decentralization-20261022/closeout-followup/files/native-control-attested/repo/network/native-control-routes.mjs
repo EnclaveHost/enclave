@@ -13,8 +13,9 @@
 //      key as step 1, or nothing;
 //   3. ADMISSION, fresh: the platform host policy decision for THAT registry id (the serving host, never the advertiser),
 //      admit === true, with the decision's registry row naming the same operator. A ban on the host's registry id, operator,
-//      accepted owner or registered endpoint withdraws the route at the next refresh. A chipId entry cannot be matched here
-//      (nativeHostDecision): while the accepted policy denies any chipId, every native control route is refused.
+//      accepted owner or registered endpoint withdraws the route at the next refresh. A chipId entry is matched against
+//      the chip the verifier proved for that boot (nativeHostDecision: "0x" + sha256 of the 64-byte CHIP_ID, the custody
+//      vault's Machine.chipId); if no chip is proven, any chipId denial refuses the route instead of admitting it.
 // A route is the exact address verified, lives at most routeTtlMs (60 s, as an app route record) and never past the leaf, and
 // the configured failure domain (the DigitalOcean fleet) is never probed. No route: native discovery answers unavailable.
 //
@@ -29,6 +30,7 @@ import { keccak256, encodeFunctionData } from 'viem';
 import { agreedRead, peerList, validateIndexPin, publishTypedData, SERVICE_INDEX_ABI, AD_VERSION, LIMITS, publicIPv4, QuorumError } from './service-index.mjs';
 import { verifyMeasuredControl } from '../metal/measured-control-verify.mjs';
 import { parseStatement, sha256Hex, EVIDENCE_PATH, EVIDENCE_FORMAT, NATIVE_NAMES } from '../metal/guest/measured-control.mjs';
+import { judgeHost } from './platform-host-policy.mjs';
 
 export const CONTROL_KIND = 9;
 export const CONTROL_KIND_NAME = 'native-control';
@@ -132,7 +134,8 @@ export function nativeEvidence({ dial, name, caPem, timeoutMs = 8000, maxBytes =
 
 /**
  * Steps 1-3 for one address. -> { address, names: [served], registryId, operator, bootId, expiresAt, refused: [{ name, reason }] }
- * Throws when the address serves no name. decideHost(registryId) -> the platform host policy decision (fresh).
+ * Throws when the address serves no name. decideHost(registryId, { chipId }) -> the platform host policy decision (fresh);
+ * chipId is the verifier's (identity.chipId), never an advertisement's, statement's or certificate's.
  */
 export async function verifyNativeControlEndpoint({ address, names = NATIVE_NAMES, caPem, expect, collateral, registry, decideHost, dial = (a) => ({ host: a, port: 443 }),
   timeoutMs = 8000, routeTtlMs = 60_000, now = Date.now, verify = verifyMeasuredControl }) {
@@ -154,7 +157,7 @@ export async function verifyNativeControlEndpoint({ address, names = NATIVE_NAME
   if (v.status !== 'verified') throw new Error(`attestation ${v.status}: ${v.reasons.filter((r) => /^(REJECT|UNKNOWN|PENDING)|report:/.test(r)).slice(-2).join('; ').slice(0, 300)}`);
   if (v.identity.controlTlsSpkiSha256 !== ok[0].spkiSha256 || v.identity.bootId !== st.bootId) throw new Error('the attested boot is not the one that answered the native connection');
   let dec;
-  try { dec = await decideHost(v.identity.registryId); } catch (e) { throw new Error(`platform host policy unreadable: ${String(e.message).slice(0, 160)}`); }
+  try { dec = await decideHost(v.identity.registryId, { chipId: v.identity.chipId ?? null }); } catch (e) { throw new Error(`platform host policy unreadable: ${String(e.message).slice(0, 160)}`); }
   if (!dec || dec.admit !== true) throw new Error(`refused by the platform host policy: ${dec?.reason || dec?.status || 'no decision'}`);
   if (!dec.host || lc(dec.host.operator) !== v.identity.operator || dec.host.active === false) throw new Error('the policy decision names another registry row than the attested host');
   const expiresAt = Math.min(now() + routeTtlMs, ...ok.map((n) => n.validTo));
@@ -162,16 +165,26 @@ export async function verifyNativeControlEndpoint({ address, names = NATIVE_NAME
 }
 
 /**
- * The platform host policy decision for the ATTESTED host, as native routes use it. The policy's chipId kind is a 32-byte
- * value; no source derives it from the verified 64-byte SNP CHIP_ID and no enforcement point supplies one, so a chipId deny
- * entry cannot be evaluated for this host. Rather than serve a host an administrator may have banned by chip, every native
- * route is refused while the accepted policy carries a chipId denial. -> { admit, status, reason, host }
+ * The platform host policy decision for the ATTESTED host, with its VERIFIED chip. `decision` is the policy runtime's fresh
+ * decision for the registry id (chain facts at an agreed block, the anchored policy, the book owner's authority); the
+ * runtime reads no chip, so a decision the accepted policy itself made (an admit, or a refusal by its entries) is judged
+ * again by the gate's own judgeHost with exactly those chain facts PLUS chipId - nothing else is added and no chain fact is
+ * replaced. Any other outcome (not activated, behind, authority, inactive, unreadable) stands. With no proven chip, an
+ * admit under a policy that denies any chipId is refused ("chip-unproven"); an allowlist chip entry simply does not match.
+ * -> { admit, status, reason, host }
  */
-export function nativeHostDecision(decision, acceptedPolicy = null) {
-  if (!decision || decision.admit !== true) return decision || { admit: false, reason: 'no decision' };
-  if (acceptedPolicy && Array.isArray(acceptedPolicy.deny) && acceptedPolicy.deny.some((e) => e && e.kind === 'chipId'))
-    return { ...decision, admit: false, status: 'chip-unverifiable', reason: `platform policy #${acceptedPolicy.sequence} denies by chipId, which native control routes cannot match to a verified chip: refused` };
-  return decision;
+const POLICY_JUDGED = ['current', 'stale-grace', 'stale'];
+export function nativeHostDecision(decision, acceptedPolicy = null, chipId = null, { now = Date.now } = {}) {
+  if (!decision) return { admit: false, status: 'undecided', reason: 'no decision' };
+  const chip = typeof chipId === 'string' && /^0x[0-9a-f]{64}$/.test(chipId) ? chipId : null;
+  const judged = acceptedPolicy && (decision.admit === true ? decision.status !== 'not-activated' && decision.status !== 'off' : POLICY_JUDGED.includes(decision.status));
+  if (!judged) return decision;
+  if (!decision.host || typeof decision.host !== 'object') return { ...decision, admit: false, status: 'undecided', reason: 'the decision carries no registry facts' };
+  const host = { ...decision.host, chipId: chip };
+  const j = judgeHost(acceptedPolicy, host, Math.floor(now() / 1000), { previouslyAdmitted: false });
+  if (j.admit && !chip && Array.isArray(acceptedPolicy.deny) && acceptedPolicy.deny.some((e) => e && e.kind === 'chipId'))
+    return { admit: false, status: 'chip-unproven', reason: `platform policy #${acceptedPolicy.sequence} denies by chipId and this host's chip is not proven: refused`, host };
+  return { ...j, host };
 }
 
 const bounded = (p, ms, what) => { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(`${what} timed out after ${ms} ms`)), ms); t.unref?.(); })]).finally(() => clearTimeout(t)); };
@@ -267,7 +280,7 @@ export async function controlRoutesFromEnv(env, { caPem, log = () => {}, fetch =
   // explicit "off" serves NOTHING here: an endpoint routed for the platform's own control names is always judged
   if (!runtime) throw new Error('native control routes need the platform host policy: it is explicitly off');
   const decide = freshAdmissions(runtime.gate);
-  const decideHost = async (id) => nativeHostDecision((await decide([id]))[lc(id)], runtime.gate.accepted()?.policy || null);
+  const decideHost = async (id, { chipId = null } = {}) => nativeHostDecision((await decide([id]))[lc(id)], runtime.gate.accepted()?.policy || null, chipId, { now });
   const registry = quorumRegistry({ rpcs, quorum, registry: env.NATIVE_CONTROL_REGISTRY.toLowerCase() });
   const collateral = testCollateral || httpCollateral({ fetchImpl: fetch });
   const expect = { measurements, minTcb: TCB_FLOORS, crl: 'required', ...(roots ? { roots } : {}) };

@@ -1,0 +1,24 @@
+{
+  "reviewedAt": "2026-10-22T20:55:07.980279+00:00",
+  "reviewer": "root",
+  "frozenPinsSha256": "6025fff2c77f368f797c93c0ea0676eaaded7dac9902db07012507946f877cf5",
+  "decision": "Run one bounded bare hardware canary after both shared queue lanes are free. Use --kds off --registry off.",
+  "basis": [
+    "Read run-canary.py, verify-canary.mjs, owner-config.mjs and qemu-restrict.sh; reviewed recipe and frozen inputs",
+    "4096 MiB SNP guest; 6144 MiB isolated scope; no app, funding, registry, guestd, relay, platform API or MCP action",
+    "Slirp restrict=on and exactly one ephemeral loopback 8444 forward; no registry private key provided",
+    "Real verifier requires hardware, expected measurement, config, attested TLS key, supervisor key and exact runtime checks",
+    "Signals scoped to owned pid/starttime identities and unique transient unit; production QEMU identities checked before/after"
+  ],
+  "requiredActualRunEvidence": [
+    "terminal cgroup must be observed and empty, not merely unknown",
+    "every protected QEMU identity and enclave service identity unchanged",
+    "child result ok and all required acceptance checks true",
+    "private directory absent and no run-owned survivor"
+  ],
+  "limitations": [
+    "The canary is intentionally unregistered; registry remains pending, not fake verified",
+    "No claim of native TLS additions, platform API or MCP readiness; this image is the earlier 6f candidate",
+    "Root will inspect actual terminal evidence before accepting hardware result"
+  ]
+}

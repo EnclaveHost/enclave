@@ -1,0 +1,156 @@
+{
+  "startedAt": "2026-10-22T20:55:36.493585+00:00",
+  "scope": "BARE direct control: hardware quote + bound config + attested TLS key + running supervisor keys + exact runtime. No MCP, no Platform API, no apps, no registration (registry expected pending): NOT service readiness.",
+  "productionActivated": false,
+  "ports": {
+    "controlHostLoopback": 52299,
+    "guestdStandInManager": 39951,
+    "guestdStandInData": 56217,
+    "productionGuestdAvoided": [
+      8095,
+      8096
+    ]
+  },
+  "ownerConfig": {
+    "digest": "cfebc4fc41bd17d1b327afb70227e666ab8eeaf35b7bf7d800997f835d0a77bf",
+    "hostData": "5f7863ca45393f5b6365726f575fa081ac669fb29bd6d181fbf357a7bbdfa4a8",
+    "controlPort": 8444,
+    "isolation": {
+      "managerUrl": "http://10.0.2.2:39951",
+      "dataAddr": "10.0.2.2:56217"
+    },
+    "operator": "0xdaaf87d56dcaf3da3092c3d9fc22f11956274238",
+    "publicUrl": "https://direct-control-canary.invalid"
+  },
+  "pinsAtLaunch": [],
+  "verifierExit": 0,
+  "acceptance": {
+    "pass": true,
+    "required": {
+      "verifier: statement": true,
+      "verifier: config + HOST_DATA": true,
+      "verifier: TLS peer = attested control key": true,
+      "verifier: AMD report verified with the expected measurement": true,
+      "verifier: running supervisor holds the minted keys": true,
+      "evidence: HTTP 200": true,
+      "evidence: statement config digest = owner config": true,
+      "evidence: statement HOST_DATA = owner config": true,
+      "evidence: TLS peer = statement control key": true,
+      "evidence: same boot as the verifier (control key)": true,
+      "evidence: mode snp": true,
+      "evidence: runtime gsup/helper/supervisor = the built image inputs": true,
+      "evidence: bare roles (no mcpSha256, no platformApiSha256)": true
+    },
+    "failed": [],
+    "diagnostic": {
+      "registry": "pending",
+      "wrapperStatus": "pending",
+      "operatorIsTheConfiguredCanaryAddress": true,
+      "note": "no-key/no-claim authority is proven by the harness from the launcher's own fw_cfg and host config (registryKey empty, no registryKeyFile) and the restricted QEMU network, not by this label"
+    }
+  },
+  "verdict": {
+    "hardwarePass": true,
+    "parts": {
+      "statement": true,
+      "config": true,
+      "endpointKey": true,
+      "report": true,
+      "supervisor": true
+    },
+    "registry": "pending",
+    "wrapperStatus": "pending"
+  },
+  "statementChecks": {
+    "configDigest": true,
+    "hostData": true,
+    "peerIsControlTls": true,
+    "runtime": {
+      "gsupSha256": true,
+      "helperSha256": true,
+      "supervisorSha256": true
+    },
+    "noMcpOrPlatformApi": true,
+    "controlTlsSpkiSha256": "764a7ddc2ab5fe2cf150b364f04f85b69c183685056121df2ef3e88ba321f3fd",
+    "operatorMatchesConfig": true,
+    "mode": "snp"
+  },
+  "launcherAliveAtVerifyEnd": true,
+  "cleanup": {
+    "steps": [
+      "killpg 1843917 SIGTERM"
+    ],
+    "refused": false,
+    "identities": [
+      {
+        "pid": 1843917,
+        "starttime": 100765079,
+        "alive": false
+      },
+      {
+        "pid": 1843934,
+        "starttime": 100765084,
+        "alive": false
+      }
+    ],
+    "allOwnedAbsent": true
+  },
+  "protectedQemuIdentitiesUnchanged": true,
+  "userServicesUnchanged": true,
+  "fwCfgModes": [
+    "0o600",
+    "0o700"
+  ],
+  "noKeyEvidence": {
+    "hostConfigHasNoKeyOrRelayInput": true,
+    "fwRegistryKeyEmpty": true,
+    "fwFleetSecretEmpty": true,
+    "fwRelayAndTunnelEmpty": true,
+    "fwNoCertificateOrAcmeInput": true,
+    "fwNoVolumes": true,
+    "fwNoLeaseGasOrNomination": true,
+    "fwDirectIsTheOwnerConfig": true,
+    "fwIsolationIsTheRefusedStandIns": true,
+    "ownerConfigNotSelling": true
+  },
+  "fwCfgKeys": [
+    "certsApi",
+    "direct",
+    "fleetSecret",
+    "ggml",
+    "isolation",
+    "mode",
+    "name",
+    "nodeRamGb",
+    "payoutAddress",
+    "priceCpuUsdHr",
+    "priceGpuUsdHr",
+    "publicUrl",
+    "referral",
+    "registryKey",
+    "relayUrl",
+    "shieldedWorkers",
+    "tunnelToken",
+    "volumes"
+  ],
+  "qemuStarts": 1,
+  "qemuArgvChecks": [
+    {
+      "measuredCmdline": true,
+      "smp": true,
+      "mem": true,
+      "ovmf": true,
+      "kernel": true,
+      "initrd": true,
+      "snpKernelHashesAndHostData": true,
+      "netdevRestrictedOneLoopbackForwardToControlFront": true,
+      "noDrives": true,
+      "realQemu": true
+    }
+  ],
+  "collateralSourceUnchanged": true,
+  "privateRemoved": true,
+  "finishedAt": "2026-10-22T20:55:49.386767+00:00",
+  "ok": true,
+  "failed": []
+}

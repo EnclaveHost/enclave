@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-22T20:48:53.471565+00:00",
+  "capturedAt": "2026-10-22T20:59:20.741881+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -169,6 +169,12 @@
       "stored": "files/direct-hardware-canary/RESULT.json",
       "sha256": "ebecc5365497360c424de04c045155a41cbc433da03230838b3e720cbecc6569",
       "bytes": 7049
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/direct-hardware-canary/ROOT-LAUNCH-REVIEW.json",
+      "stored": "files/direct-hardware-canary/ROOT-LAUNCH-REVIEW.json",
+      "sha256": "d9c7fe014b3435ef4e30d56faa620ca3b29db4e86f2e4a9aed73220c459cc2ef",
+      "bytes": 1528
     },
     {
       "source": "work/resume-after-checkpoint-20261022/direct-hardware-canary/ROOT-REVIEW-IN-PROGRESS.txt",
@@ -669,6 +675,18 @@
       "bytes": 1790
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/native-chip-review/RESULT.md",
+      "stored": "files/native-chip-review/RESULT.md",
+      "sha256": "21336e981bbda4ba885465484eb90b14d2f02c8254398fbf818fe309750a3262",
+      "bytes": 14179
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-chip-semantics-review-task.txt",
+      "stored": "files/native-chip-semantics-review-task.txt",
+      "sha256": "cc80159bd4b39e8fe9721668935ad0a721308c34a2bbded7e2b3eb207ddd8b15",
+      "bytes": 1703
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/native-control-attested/ROOT-REVIEW-IN-PROGRESS.txt",
       "stored": "files/native-control-attested/ROOT-REVIEW-IN-PROGRESS.txt",
       "sha256": "2413dc8c0a5fcf06589839773d99aa4371eb913667f492e67df44c827c32a65b",
@@ -679,6 +697,18 @@
       "stored": "files/native-control-attested/job-gsup-base-vs-work.sh",
       "sha256": "dbe61917c169bb07c0046d13ee6161a06d346eec2b8b8e440e16c7f5e0be98c7",
       "bytes": 994
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-attested/job-pa-bundle.sh",
+      "stored": "files/native-control-attested/job-pa-bundle.sh",
+      "sha256": "d0036930bd2eb810ec2c6b130191ff1aeeed5fe753c5d13c97d2203776e89db7",
+      "bytes": 1406
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-attested/job-pa-check.sh",
+      "stored": "files/native-control-attested/job-pa-check.sh",
+      "sha256": "ceb61be593942772fe0ad0b23988de5879303abee91c231cc66917a3c862ce20",
+      "bytes": 663
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-control-attested/job-reg-subset.sh",
@@ -693,10 +723,28 @@
       "bytes": 1444
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/native-control-attested/mutants-r2.py",
+      "stored": "files/native-control-attested/mutants-r2.py",
+      "sha256": "7e217be30807e780042772facf968d9edae3fca2b815cafcfec15d537e20e5b6",
+      "bytes": 4179
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/native-control-attested/mutants.py",
       "stored": "files/native-control-attested/mutants.py",
       "sha256": "ebf199d29484a0b5af31046f059e8ab6b2a4816b7c0c85576fa6cb92bfc4c73e",
       "bytes": 4037
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/docs/design/nan-retirement.md",
+      "stored": "files/native-control-attested/repo/docs/design/nan-retirement.md",
+      "sha256": "6f2038f8621f1a580563f6c0fb772904eda543f285fce8385ae1f747d8e392f8",
+      "bytes": 29669
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/docs/network/measured-control-guest.md",
+      "stored": "files/native-control-attested/repo/docs/network/measured-control-guest.md",
+      "sha256": "8671a95b8f4e7f0b77beef7649384895c57b846bde0f973d7b60512e3ebdc0f8",
+      "bytes": 15328
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/metal/guest/gsup.mjs",
@@ -711,10 +759,28 @@
       "bytes": 84591
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/metal/guest/platform-api.bundle.mjs",
+      "stored": "files/native-control-attested/repo/metal/guest/platform-api.bundle.mjs",
+      "sha256": "a08aff39b86401b0d2f5a33193b1de7d7ddf9d2f1eb61af74d9ea09c9f9abc5b",
+      "bytes": 8531503
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "stored": "files/native-control-attested/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "sha256": "9f801dd4a0274e4762a5649cdfdfe1a11acf78e34dc50b84708e0dc76663b0bf",
+      "bytes": 292706
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/metal/measured-control-verify.mjs",
+      "stored": "files/native-control-attested/repo/metal/measured-control-verify.mjs",
+      "sha256": "2137d39e9dfb17d79ae8540c54ff28531bdd1b503ce8af4189f170a8a8f6b341",
+      "bytes": 14030
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/network/native-control-routes.mjs",
       "stored": "files/native-control-attested/repo/network/native-control-routes.mjs",
-      "sha256": "819b7e1cec523fcf01e6e69c01ce87acf4821c0ff82f0703a69a39652af4b2bc",
-      "bytes": 22633
+      "sha256": "37c75086467ee7a41cf5f2335e99ee97f2ff14a325b68e828fff43ed480317fc",
+      "bytes": 23969
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/relay/native-discovery.mjs",
@@ -731,8 +797,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/test/native-control-attested.test.mjs",
       "stored": "files/native-control-attested/repo/test/native-control-attested.test.mjs",
-      "sha256": "4dacd692bd8c770d0c6da89da34a6fca90d430bf028a7c60da526555f4fe519d",
-      "bytes": 41472
+      "sha256": "c7d9fab2ff0d49ee0196747efea6cb33ac36a6663d74adc171fcd965e2bb7408",
+      "bytes": 41881
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-control-attested/repo/test/native-discovery.test.mjs",
@@ -751,6 +817,12 @@
       "stored": "files/native-control-attested-task.txt",
       "sha256": "01196e030d515d035651d87b655bc8c04bd93eee05b557bb16393d96a2e6fe22",
       "bytes": 3944
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-control-chip-integration-task.txt",
+      "stored": "files/native-control-chip-integration-task.txt",
+      "sha256": "1de5c4ef99568f1c3398d54320f7fc525e3a9ec7ff645702b8de78f6f5493032",
+      "bytes": 1910
     },
     {
       "source": "work/resume-after-checkpoint-20261022/native-control-discovery/RESULT.txt",
@@ -859,6 +931,12 @@
       "stored": "files/native-control-discovery-root-review.txt",
       "sha256": "a4828cb2179630e68a4ef7a7a11e08c7caf810b9d6abc1507cc22e971a8c68b3",
       "bytes": 1643
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/native-issuer-recovery-task.txt",
+      "stored": "files/native-issuer-recovery-task.txt",
+      "sha256": "44ec3ac63317511460aaa633b21aef13bebbcf70a18be31c0636b4be774f6fa6",
+      "bytes": 1773
     },
     {
       "source": "work/resume-after-checkpoint-20261022/postgres-init-stage/RECIPE.md",
@@ -1113,10 +1191,76 @@
       "bytes": 2957
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/hardware-canary-20261022/RECEIPT.json",
+      "stored": "files/public-validation/hardware-canary-20261022/RECEIPT.json",
+      "sha256": "d4e51ef59ebc3b81fdc5b5195bfabf0f41f4b8bb9de43735f527e3dd1c761feb",
+      "bytes": 2503
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/hardware-canary-20261022/attempt.json",
+      "stored": "files/public-validation/hardware-canary-20261022/attempt.json",
+      "sha256": "0e711a2dfa4cb1529d2e9c3d671b3893cc6e1c859f343b789baca5caa75583ca",
+      "bytes": 444
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/hardware-canary-20261022/memory.log",
+      "stored": "files/public-validation/hardware-canary-20261022/memory.log",
+      "sha256": "b5d474d49d3bbe0291f5ac32cbb0b777072a9c576bc9ec9cf3bc35a587a8179e",
+      "bytes": 67
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/hardware-canary-20261022/owner-config.json",
+      "stored": "files/public-validation/hardware-canary-20261022/owner-config.json",
+      "sha256": "26a538f6fe4a182e2beae59d3c4b2f9dcae875196f4bf027352f56607e5def09",
+      "bytes": 1122
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/hardware-canary-20261022/preflight.txt",
+      "stored": "files/public-validation/hardware-canary-20261022/preflight.txt",
+      "sha256": "9f7e2a90eb8de82ba72a8b80b8b62915dbd07ac1942559ba4ed7934c92772837",
+      "bytes": 1372
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/hardware-canary-20261022/qemu-argv.json",
+      "stored": "files/public-validation/hardware-canary-20261022/qemu-argv.json",
+      "sha256": "99279e9dbd192efb43d5faf84b90ee72f549f39681d5355fa0b62a730851e108",
+      "bytes": 1569
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/hardware-canary-20261022/result.json",
+      "stored": "files/public-validation/hardware-canary-20261022/result.json",
+      "sha256": "141cf39d3ca003e687282a2b5eec11349ba656611248fd200141407657b3d442",
+      "bytes": 4503
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/hardware-canary-20261022/terminal.json",
+      "stored": "files/public-validation/hardware-canary-20261022/terminal.json",
+      "sha256": "443948a42d4bc318fad0e445719595fa2b985ffa981bfc67d82c00b45b5e5826",
+      "bytes": 626
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/hardware-canary-20261022/verify-result.json",
+      "stored": "files/public-validation/hardware-canary-20261022/verify-result.json",
+      "sha256": "498e7faf35a9509ff3ebd508a986836cfaa1fc2e486d270cd9ba4adef2dc8937",
+      "bytes": 9194
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/hardware-canary-20261022/verify-result.json.acceptance.json",
+      "stored": "files/public-validation/hardware-canary-20261022/verify-result.json.acceptance.json",
+      "sha256": "1f904ab95413bc3c2b81f04f88ad5e76d6ca7b0e203b9b3ba594de64567478bd",
+      "bytes": 1069
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/storage-interop-i6.json",
+      "stored": "files/public-validation/storage-interop-i6.json",
+      "sha256": "152b04731982a53b3b832234a168e859df54e61ba8b28813ce00b04c815e1641",
+      "bytes": 9017
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "2d56ed6cd17ce5645a47e12766bd15a7cda906e1a8c8bd632aeeb636e7eccf53",
-      "bytes": 5701
+      "sha256": "b10846581cfd73e66862e6fcfe7d4ddd5933dd8fdd35581cbdcaa5599ed97433",
+      "bytes": 7117
     },
     {
       "source": "work/resume-after-checkpoint-20261022/storage-activation-next/ACTIONS.json",
@@ -1177,6 +1321,12 @@
       "stored": "files/storage-client-interop-task.txt",
       "sha256": "4051c688d08b4a794f3eac0f92003bb4560a204fbba66f4d636dac59ac96088a",
       "bytes": 2664
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-lease16-interop-task.txt",
+      "stored": "files/storage-lease16-interop-task.txt",
+      "sha256": "39b68cd6bc718dff6f0deb4dd34429cab669e45d8ece42407e3d638d845112c9",
+      "bytes": 1576
     },
     {
       "source": "work/resume-after-checkpoint-20261022/storage-public-read/candidate-catalog-config.json",

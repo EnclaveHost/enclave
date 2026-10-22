@@ -1,0 +1,49 @@
+{
+  "verifiedAt": "2026-10-22T20:58:32.193186+00:00",
+  "run": "20261022T205536Z",
+  "status": "PASS: bare direct-control hardware canary",
+  "sourceCommit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+  "measurement": "bdadc7bb667eac1ff783b4538991cc6dafcda9c89b80a5d4b60a0f280e32e2ee0c45dd0b4f3f3415c347c30651b597e6",
+  "productionActivated": false,
+  "registry": "pending (intentionally unregistered)",
+  "network": "Guest restricted; host verifier used cached authenticated AMD collateral with KDS and registry reads off",
+  "checks": {
+    "verifier: statement": true,
+    "verifier: config + HOST_DATA": true,
+    "verifier: TLS peer = attested control key": true,
+    "verifier: AMD report verified with the expected measurement": true,
+    "verifier: running supervisor holds the minted keys": true,
+    "evidence: HTTP 200": true,
+    "evidence: statement config digest = owner config": true,
+    "evidence: statement HOST_DATA = owner config": true,
+    "evidence: TLS peer = statement control key": true,
+    "evidence: same boot as the verifier (control key)": true,
+    "evidence: mode snp": true,
+    "evidence: runtime gsup/helper/supervisor = the built image inputs": true,
+    "evidence: bare roles (no mcpSha256, no platformApiSha256)": true
+  },
+  "cleanup": {
+    "cgroupObserved": true,
+    "cgroupEmpty": true,
+    "ownedAbsenceProven": true,
+    "privateAbsent": true,
+    "productionQemusAndUserServicesUnchanged": true
+  },
+  "limits": [
+    "One bare guest on one physical host",
+    "No API/MCP deployment readiness",
+    "No native TLS additions in this earlier image",
+    "No provider-outage or full feature-parity claim"
+  ],
+  "evidence": {
+    "owner-config.json": "26a538f6fe4a182e2beae59d3c4b2f9dcae875196f4bf027352f56607e5def09",
+    "qemu-argv.json": "99279e9dbd192efb43d5faf84b90ee72f549f39681d5355fa0b62a730851e108",
+    "result.json": "141cf39d3ca003e687282a2b5eec11349ba656611248fd200141407657b3d442",
+    "preflight.txt": "9f7e2a90eb8de82ba72a8b80b8b62915dbd07ac1942559ba4ed7934c92772837",
+    "terminal.json": "443948a42d4bc318fad0e445719595fa2b985ffa981bfc67d82c00b45b5e5826",
+    "verify-result.json.acceptance.json": "1f904ab95413bc3c2b81f04f88ad5e76d6ca7b0e203b9b3ba594de64567478bd",
+    "verify-result.json": "498e7faf35a9509ff3ebd508a986836cfaa1fc2e486d270cd9ba4adef2dc8937",
+    "attempt.json": "0e711a2dfa4cb1529d2e9c3d671b3893cc6e1c859f343b789baca5caa75583ca",
+    "memory.log": "b5d474d49d3bbe0291f5ac32cbb0b777072a9c576bc9ec9cf3bc35a587a8179e"
+  }
+}
