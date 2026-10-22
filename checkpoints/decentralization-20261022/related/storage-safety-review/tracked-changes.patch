@@ -1,0 +1,1013 @@
+diff --git a/sia-s3/src/main.rs b/sia-s3/src/main.rs
+index 8435ce3172a34a71170d7aff639f955677b111ea..c145665cec31e5fa729f496226807b93d67731dd 100644
+--- a/sia-s3/src/main.rs
++++ b/sia-s3/src/main.rs
+@@ -90,6 +90,8 @@ async fn load_replica(app: Rc<App>, cfg: Rc<Config>, i: usize) {
+         match async { Store::load_with(connect(r).await?, cfg.compact_max_object, cfg.opts.clone()).await }.await {
+             Ok(s) => break Rc::new(s),
+             Err(e) => {
++                // shown on the status page and /healthz: never a signed indexer URL (connect() errors carry them)
++                let e = crate::store::redact(&e);
+                 eprintln!("[sia-s3] replica {}: boot: {e}; retrying in {wait}s", r.name);
+                 *app.cluster.replicas[i].error.borrow_mut() = Some(format!("boot: {e}"));
+                 *app.boot_error.borrow_mut() = Some(format!(
+@@ -150,10 +152,10 @@ async fn repair_loop(cluster: Rc<Cluster>, every: u64, max_bytes: u64) {
+     loop {
+         tokio::time::sleep(Duration::from_secs(every)).await;
+         let r = cluster.repair(max_bytes).await;
+-        if r.reconciled + r.purged + r.copies + r.deletes + r.floors + r.reclaimed + r.merged + r.pending > 0 {
++        if r.reconciled + r.purged + r.copies + r.deletes + r.floors + r.reclaimed + r.merged + r.ceilings + r.pending > 0 {
+             eprintln!(
+-                "[sia-s3] repair: {} re-read, {} dead versions purged, {} copies, {} deletes, {} floors written, {} tombstones reclaimed, {} ledgers merged, {} pending",
+-                r.reconciled, r.purged, r.copies, r.deletes, r.floors, r.reclaimed, r.merged, r.pending
++                "[sia-s3] repair: {} re-read, {} dead versions purged, {} copies, {} deletes, {} floors written, {} tombstones reclaimed, {} ledgers merged, {} version ceilings copied, {} pending",
++                r.reconciled, r.purged, r.copies, r.deletes, r.floors, r.reclaimed, r.merged, r.ceilings, r.pending
+             );
+         }
+     }
+diff --git a/sia-s3/src/replica.rs b/sia-s3/src/replica.rs
+index 0bee0f1dd2b5be40a3a2a1c9d9f34f44763a7079..2d38cc312b5c4d64f5b727eff06e7e69acb41848 100644
+--- a/sia-s3/src/replica.rs
++++ b/sia-s3/src/replica.rs
+@@ -75,6 +75,12 @@ use tokio::sync::Mutex;
+ 
+ use crate::store::{Completion, Cond, Entry, KK, Opts, Placement, Res, Store, Tomb, Ver, md5_hex, new_id, new_wid, now_ms, qkey};
+ 
++/// How far one version-range reservation reaches past the clock: 6 h. Maintenance renews at half of it, so a
++/// stamping write reserves inline only after an outage or a restart.
++pub const VERSION_RANGE_MS: u64 = 6 * 3600 * 1000;
++/// A stamping write reserves first unless at least this much of its range is left (covers the time to the stamp).
++const STAMP_LOW_MS: u64 = 10_000;
++
+ pub struct Replica {
+     pub name: String,
+     pub indexer: String,
+@@ -110,6 +116,12 @@ pub struct ClusterStats {
+     pub abandoned_calls: u64,
+     pub last_repair: Option<String>,
+     pub last_repair_error: Option<String>,
++    /// the version-range ceiling this process has acknowledged on a write quorum (0: none reserved yet)
++    pub version_ceiling: u64,
++    /// the highest ceiling any loaded replica holds: every version this process stamps is above it
++    pub observed_ceiling: u64,
++    /// "legacy" until the first acknowledged reservation, then "ceiling" (see "Versions" below)
++    pub version_fence: String,
+ }
+ 
+ #[derive(Default, Debug, PartialEq)]
+@@ -124,6 +136,8 @@ pub struct RepairReport {
+     pub reclaimed: usize,
+     /// ledgers merged away
+     pub merged: usize,
++    /// replicas given this process's acknowledged version-range ceiling
++    pub ceilings: usize,
+     /// work left for the next pass (byte budget spent, or a replica failed)
+     pub pending: usize,
+ }
+@@ -160,6 +174,14 @@ pub struct Cluster {
+     /// serializes the commit phase of every mutation (uploads run outside it)
+     write: Mutex<()>,
+     clock: Cell<u64>,
++    /// versions this process may stamp: up to this ceiling, acknowledged on a write quorum (0: none yet)
++    ceiling: Cell<u64>,
++    /// the highest ceiling found on any loaded replica (never lowered): the clock never starts at or below it
++    observed: Cell<u64>,
++    /// one reservation at a time
++    reserving: Mutex<()>,
++    /// how far one reservation reaches past the clock (ms)
++    pub range_ms: Cell<u64>,
+     pub view: RefCell<View>,
+     pub stats: RefCell<ClusterStats>,
+ }
+@@ -295,6 +317,10 @@ impl Cluster {
+             timing,
+             write: Mutex::new(()),
+             clock: Cell::new(0),
++            ceiling: Cell::new(0),
++            observed: Cell::new(0),
++            reserving: Mutex::new(()),
++            range_ms: Cell::new(VERSION_RANGE_MS),
+             view: Default::default(),
+             stats: Default::default(),
+         }
+@@ -329,14 +355,66 @@ impl Cluster {
+     /// Record a replica's last error. It is shown on the unauthenticated status page and /healthz, so callers never
+     /// put key names in it (they log those separately).
+     fn note(&self, i: usize, e: &str) {
++        // never a signed indexer URL (store::redact): this text is public
++        let e = crate::store::redact(e);
+         eprintln!("[sia-s3] replica {}: {e}", self.replicas[i].name);
+-        *self.replicas[i].error.borrow_mut() = Some(e.to_string());
++        *self.replicas[i].error.borrow_mut() = Some(e);
+     }
+ 
+-    fn tick(&self) -> u64 {
++    /// The next version, which must lie within the range this process has reserved (I1 in "Versions"). Without one,
++    /// nothing is stamped and the write answers 503.
++    fn stamp(&self) -> Res<u64> {
+         let t = now_ms().max(self.clock.get() + 1);
++        if t > self.ceiling.get() {
++            self.stats.borrow_mut().refused_writes += 1;
++            return Err(format!(
++                "ServiceUnavailable: no version range is reserved for this write (ceiling {}, next version {t}); retry",
++                self.ceiling.get()
++            ));
++        }
+         self.clock.set(t);
+-        t
++        Ok(t)
++    }
++
++    /// The highest version-range ceiling found on any loaded replica.
++    pub fn observed_ceiling(&self) -> u64 {
++        self.observed.get()
++    }
++
++    /// The ceiling this process has acknowledged on a write quorum (0: none).
++    pub fn version_ceiling(&self) -> u64 {
++        self.ceiling.get()
++    }
++
++    /// Make sure versions up to `low` ms past the next one may be stamped: otherwise reserve a new range, as a new
++    /// ceiling object on every loaded replica, acknowledged by a write quorum before any version in it is used.
++    /// Called outside the write lock (it uploads), before every stamping write, and by maintenance to renew early.
++    pub async fn ensure_range(&self, low: u64) -> Res<()> {
++        let enough = || self.ceiling.get() >= now_ms().max(self.clock.get() + 1).saturating_add(low);
++        if enough() {
++            return Ok(());
++        }
++        let _r = self.reserving.lock().await;
++        if enough() {
++            return Ok(());
++        }
++        let stores = self.loaded();
++        if stores.len() < self.write_quorum {
++            return Err(self.refuse("version range", stores.len(), &[]));
++        }
++        // strictly above every ceiling a previous writer may have stamped under (the clock is already above it)
++        let c = now_ms().max(self.clock.get()).max(self.observed.get()).saturating_add(self.range_ms.get().max(low + 1));
++        let jobs = stores.into_iter().map(|(i, s)| (i, async move { s.write_ceiling(c).await })).collect();
++        let (results, errs) = self.fan("version range", jobs, false, Result::is_ok).await;
++        let ok = results.iter().filter(|(_, r)| r.is_ok()).count();
++        if ok < self.write_quorum {
++            return Err(self.refuse("version range", ok, &errs));
++        }
++        self.ceiling.set(self.ceiling.get().max(c));
++        let mut st = self.stats.borrow_mut();
++        st.version_ceiling = self.ceiling.get();
++        st.version_fence = "ceiling".into();
++        Ok(())
+     }
+ 
+     fn refuse(&self, what: &str, ok: usize, errs: &[String]) -> String {
+@@ -399,21 +477,39 @@ impl Cluster {
+ 
+     /// Re-read a replica's index from its indexer and swap it in, unless the replica changed meanwhile. The
+     /// replica's ambiguity time carries over: a listing that began before the last unknown outcome leaves it dirty.
++    ///
++    /// Not every change to a replica runs under the write lock: the compactor, UploadPart, AbortMultipartUpload, the
++    /// orphan sweep and a DELETE's floor write go through the store directly, and may hold the old `Rc` across the
++    /// swap. So the swap happens only when the old store is provably quiet, and the old store is retired in the same
++    /// step (no await in between):
++    ///   - its index is not held by anyone (`try_lock`; never a wait while holding the write lock, so a long
++    ///     compaction neither stalls writes nor can deadlock against the write -> index lock order);
++    ///   - no remote change succeeded since the re-read began (`changes`), and none is in flight (`in_flight`);
++    ///   - then `retire`: any later pin or delete through the old `Rc` is refused before it is sent.
++    /// Otherwise the re-read is discarded and maintenance tries again next pass (the replica stays dirty).
+     pub async fn reconcile(&self, i: usize) -> Res<()> {
+         let old = self.store(i).ok_or("not loaded")?;
+         let before = old.changes.get();
+-        let fresh = Store::load_with(old.sdk.clone(), old.compact_max_object, old.opts.clone()).await?;
++        let mut fresh = Store::load_with(old.sdk.clone(), old.compact_max_object, old.opts.clone()).await?;
+         let _w = self.write.lock().await;
+         let same = self.store(i).is_some_and(|s| Rc::ptr_eq(&s, &old));
+-        if !same || old.changes.get() != before {
++        if !same {
+             return Err("the replica changed while it was being re-read".into());
+         }
++        let Ok(old_idx) = old.idx.try_lock() else {
++            return Err("the replica is busy (compaction, an upload or a sweep holds its index); re-read next pass".into());
++        };
++        if old.changes.get() != before || old.in_flight() > 0 {
++            return Err("the replica changed, or has a change in flight, while it was being re-read".into());
++        }
++        // from here to the swap nothing awaits: the old store is quiet, and stays so
++        old.retire();
+         fresh.ambiguous_ms.set(old.ambiguous_ms.get());
+         *fresh.stats.borrow_mut() = old.stats.borrow().clone();
+         {
+-            // uploads begun here but with no part yet exist only in memory
+-            let mut fi = fresh.idx.lock().await;
+-            for (id, u) in old.idx.lock().await.uploads.iter() {
++            // uploads begun here but with no part yet exist only in memory (fresh is not shared yet: no lock to wait on)
++            let fi = fresh.idx.get_mut();
++            for (id, u) in old_idx.uploads.iter() {
+                 fi.uploads.entry(id.clone()).or_insert_with(|| crate::store::Upload {
+                     b: u.b.clone(),
+                     k: u.k.clone(),
+@@ -422,6 +518,7 @@ impl Cluster {
+                 });
+             }
+         }
++        drop(old_idx);
+         *self.replicas[i].store.borrow_mut() = Some(Rc::new(fresh));
+         self.rebuild().await;
+         self.stats.borrow_mut().reconciled += 1;
+@@ -432,8 +529,11 @@ impl Cluster {
+     pub async fn rebuild(&self) {
+         let mut v = View::default();
+         let mut clock = self.clock.get();
++        let mut observed = self.observed.get();
+         for (_, s) in self.loaded() {
+             let idx = s.idx.lock().await;
++            // I2: never stamp at or below a ceiling a previous writer may have stamped under
++            observed = observed.max(idx.ceiling);
+             for (kk, k) in &idx.keys {
+                 clock = clock.max(k.entry.ver().h);
+                 if v.keys.get(kk).is_none_or(|e| k.entry.ver() > e.ver()) {
+@@ -455,7 +555,21 @@ impl Cluster {
+         }
+         let tombs = &v.tombs;
+         v.keys.retain(|kk, e| tombs.get(&qkey(&kk.0, &kk.1)).is_none_or(|t| t.ver() < e.ver()));
++        self.observed.set(observed);
++        // I2. A ceiling at or below this writer's own acknowledged one is its own reservation, or an earlier
++        // writer's that it already started above (its clock only moves forward): jumping to it would only burn the
++        // range. Any higher ceiling (always at boot, when it has none) moves the clock past it.
++        if observed > self.ceiling.get() {
++            clock = clock.max(observed);
++        }
+         self.clock.set(clock);
++        {
++            let mut st = self.stats.borrow_mut();
++            st.observed_ceiling = observed;
++            if st.version_fence.is_empty() {
++                st.version_fence = "legacy".into();
++            }
++        }
+         *self.view.borrow_mut() = v;
+     }
+ 
+@@ -680,10 +794,11 @@ impl Cluster {
+             return Err(self.refuse("PUT", placed.len(), &errs));
+         }
+ 
++        self.ensure_range(STAMP_LOW_MS).await?;
+         let _w = self.write.lock().await;
+         let kk = (b.to_string(), k.to_string());
+         self.check(b, k, cond)?;
+-        let entry = Entry { m: now(), h: self.tick(), i: new_wid(), ..proto };
++        let entry = Entry { m: now(), h: self.stamp()?, i: new_wid(), ..proto };
+         let jobs = placed
+             .into_iter()
+             .filter_map(|(i, (o, p))| {
+@@ -721,11 +836,12 @@ impl Cluster {
+             return Err(self.refuse("copy", placed.len(), &errs));
+         }
+ 
++        self.ensure_range(STAMP_LOW_MS).await?;
+         let _w = self.write.lock().await;
+         if self.view.borrow().keys.get(&skk).map(|e| e.ver()) != Some(sv.clone()) {
+             return Err("ServiceUnavailable: the copy source changed while the copy was prepared; retry".into());
+         }
+-        let d = Entry { m: now(), h: self.tick(), i: new_wid(), ..proto };
++        let d = Entry { m: now(), h: self.stamp()?, i: new_wid(), ..proto };
+         let jobs = placed
+             .into_iter()
+             .filter_map(|(i, p)| {
+@@ -742,6 +858,10 @@ impl Cluster {
+     pub async fn delete(&self, b: &str, k: &str) -> Res<()> {
+         let kk = (b.to_string(), k.to_string());
+         let q = qkey(b, k);
++        // a live key gets a new deletion version: reserve its range first (outside the lock: it may upload)
++        if self.view.borrow().keys.contains_key(&kk) {
++            self.ensure_range(STAMP_LOW_MS).await?;
++        }
+         let (t, errs) = {
+             let _w = self.write.lock().await;
+             let (live, tomb) = {
+@@ -749,7 +869,7 @@ impl Cluster {
+                 (v.keys.contains_key(&kk), v.tombs.get(&q).cloned())
+             };
+             let t = match (live, tomb) {
+-                (true, _) => Tomb { q: q.clone(), h: self.tick(), i: new_wid() },
++                (true, _) => Tomb { q: q.clone(), h: self.stamp()?, i: new_wid() },
+                 // deleted already, perhaps not yet durably (a retried 503): record it wherever it is still missing
+                 (false, Some(t)) => t,
+                 (false, None) => return Ok(()),
+@@ -890,8 +1010,9 @@ impl Cluster {
+             });
+         }
+ 
++        self.ensure_range(STAMP_LOW_MS).await?;
+         let _w = self.write.lock().await;
+-        let (m, h, wid) = (now(), self.tick(), new_wid());
++        let (m, h, wid) = (now(), self.stamp()?, new_wid());
+         let jobs = staged
+             .into_iter()
+             .filter_map(|(i, c)| {
+@@ -1006,6 +1127,7 @@ impl Cluster {
+             self.repair_replicas(max_bytes, &mut rep).await;
+         }
+         self.floors(&mut rep).await;
++        self.ceilings(&mut rep).await;
+         let mut st = self.stats.borrow_mut();
+         st.repair_passes += 1;
+         st.repaired_copies += rep.copies as u64;
+@@ -1159,6 +1281,37 @@ impl Cluster {
+         self.rebuild().await;
+     }
+ 
++    /// Once this process writes: renew its version range before half of it is used, and give its acknowledged ceiling
++    /// to every loaded replica holding a lower one (a replica that was down, or a new one), so any later boot set
++    /// that includes it finds the ceiling there too.
++    async fn ceilings(&self, rep: &mut RepairReport) {
++        if self.ceiling.get() == 0 {
++            return; // nothing stamped yet: the first write reserves
++        }
++        if let Err(e) = self.ensure_range(self.range_ms.get() / 2).await {
++            eprintln!("[sia-s3] version range renewal: {e}");
++            rep.pending += 1;
++        }
++        let c = self.ceiling.get();
++        for (i, s) in self.loaded() {
++            if s.ceiling().await >= c {
++                continue;
++            }
++            match tokio::time::timeout(self.opts.upload_timeout + self.meta_deadline(), s.write_ceiling(c)).await {
++                Ok(Ok(())) => rep.ceilings += 1,
++                Ok(Err(e)) => {
++                    self.note(i, &format!("version ceiling: {e}"));
++                    rep.pending += 1;
++                }
++                Err(_) => {
++                    s.mark_ambiguous();
++                    self.note(i, "version ceiling: no completion in time");
++                    rep.pending += 1;
++                }
++            }
++        }
++    }
++
+     /// Per-replica state for /healthz and the status page (no keys or object names).
+     pub async fn replica_status(&self) -> Vec<serde_json::Value> {
+         let view_keys: Vec<(KK, Ver)> = self.view.borrow().keys.iter().map(|(kk, e)| (kk.clone(), e.ver())).collect();
+@@ -1178,6 +1331,7 @@ impl Cluster {
+                 v["floors"] = idx.floors.len().into();
+                 v["ledgers"] = idx.ledgers.len().into();
+                 v["unreadLedgers"] = idx.unread_ledgers.len().into();
++                v["versionCeiling"] = idx.ceiling.into();
+                 v["openUploads"] = idx.uploads.len().into();
+                 v["dirty"] = s.dirty().into();
+                 v["compactor"] = serde_json::json!(*s.stats.borrow());
+@@ -1288,7 +1442,7 @@ mod tests {
+         let mut total = RepairReport::default();
+         for _ in 0..6 {
+             let r = c.repair(1 << 30).await;
+-            let idle = r.reconciled + r.purged + r.copies + r.deletes + r.floors + r.reclaimed + r.merged + r.pending == 0;
++            let idle = r.reconciled + r.purged + r.copies + r.deletes + r.floors + r.reclaimed + r.merged + r.ceilings + r.pending == 0;
+             total.reconciled += r.reconciled;
+             total.purged += r.purged;
+             total.copies += r.copies;
+@@ -1296,6 +1450,7 @@ mod tests {
+             total.floors += r.floors;
+             total.reclaimed += r.reclaimed;
+             total.merged += r.merged;
++            total.ceilings += r.ceilings;
+             total.pending = r.pending;
+             if idle {
+                 break;
+@@ -1431,6 +1586,10 @@ mod tests {
+ 
+         // with W = 2 the same hang fails the write at the deadline instead of holding it forever
+         let c2 = cluster_with(&nets, 2, short()).await;
++        // a writer's first write reserves its version range (a pin on every replica): done first, so the hang below
++        // hits the commit's pin as this test intends (a hang during the reservation also fails the write with 503,
++        // earlier and with nothing committed)
++        c2.put("b", "warm", b"w".to_vec(), None, &Cond::None).await.unwrap();
+         nets[1].net.push_fault("pin_object", Fault::Hang);
+         let t0 = std::time::Instant::now();
+         let e = c2.put("b", "d", b"w".to_vec(), None, &Cond::None).await.unwrap_err();
+@@ -1719,7 +1878,8 @@ mod tests {
+             let idx = s.idx.lock().await;
+             assert!(idx.keys.is_empty() && idx.tombs.is_empty() && idx.manifests.is_empty() && idx.oldest.is_empty());
+             assert_eq!(idx.floors.len(), 4);
+-            assert_eq!(idx.objs.len(), idx.ledgers.len(), "only ledgers remain");
++            assert_eq!(idx.ceilings.len(), 1, "one version-range ceiling object per replica");
++            assert_eq!(idx.objs.len(), idx.ledgers.len() + 1, "only ledgers and the version ceiling remain");
+         }
+     }
+ 
+@@ -1735,14 +1895,16 @@ mod tests {
+             let idx = s.idx.lock().await;
+             let q = qkey("b", "k");
+             assert!(idx.keys.is_empty() && idx.tombs.contains_key(&q) && idx.floors.is_empty());
+-            assert_eq!(idx.objs.len(), 1);
++            assert_eq!(idx.ceilings.len(), 1, "the writer's version-range ceiling");
++            assert_eq!(idx.objs.len(), 2, "the payload's object (holding the tombstone) and the ceiling");
+         }
+         maintain(&c).await;
+         {
+             let s = one[0].load().await.unwrap();
+             let idx = s.idx.lock().await;
+             assert!(idx.keys.is_empty() && idx.tombs.is_empty() && idx.floors.contains_key(&qkey("b", "k")));
+-            assert_eq!(idx.objs.len(), idx.ledgers.len(), "the payload is gone; the floor stays");
++            assert_eq!(idx.ceilings.len(), 1);
++            assert_eq!(idx.objs.len(), idx.ledgers.len() + 1, "the payload is gone; the floor (and the version ceiling) stays");
+         }
+         c.put("b", "k", b"y".to_vec(), None, &Cond::None).await.unwrap();
+         assert_eq!(get(&cluster(&one, 1).await, "k").await.unwrap(), b"y");
+@@ -1772,4 +1934,269 @@ mod tests {
+         let out = fan_out(jobs, 1, Duration::ZERO, Duration::from_millis(100), Result::is_ok).await;
+         assert!(t0.elapsed() < Duration::from_secs(1) && out[0].1.is_none());
+     }
++
++    // ---- B2: a manifest body that cannot be read (its hosts are gone, slow, or it is corrupt) ----
++
++    /// Re-pin key `k`'s manifest object with a body hash that no longer matches its body: what a load sees when the
++    /// manifest's sectors cannot be read back intact (`read_body` refuses the body either way).
++    async fn corrupt_manifest(s: &Store, k: &str) {
++        let (obj, meta) = {
++            let idx = s.idx.lock().await;
++            let key = &idx.keys[&("b".to_string(), k.to_string())];
++            assert!(key.manifest, "{k} is stored behind a manifest");
++            idx.objs[&key.host].clone()
++        };
++        let mut meta: crate::store::Meta = meta;
++        meta.mf.as_mut().unwrap().z = "0".repeat(64);
++        let mut obj = obj;
++        obj.metadata = serde_json::to_vec(&meta).unwrap();
++        s.sdk.pin_object(&obj).await.unwrap();
++    }
++
++    /// A content type long enough that an entry for a 700-character key no longer fits inline (manifest), while the
++    /// same key without it does.
++    fn wide_type() -> Option<String> {
++        Some(format!("x/{}", "y".repeat(200)))
++    }
++
++    #[tokio::test]
++    async fn an_unreadable_manifest_of_a_live_version_keeps_the_replica_unloaded() {
++        // disk-backed: every version pins one or two full slabs
++        let n = Net::on_disk(61);
++        let c = cluster(std::slice::from_ref(&n), 1).await;
++        let key = "k".repeat(700);
++        c.put("b", &key, b"old bytes".to_vec(), None, &Cond::None).await.unwrap();
++        assert!(!c.store(0).unwrap().idx.lock().await.keys[&("b".to_string(), key.clone())].manifest, "v1 is inline");
++        // v2 needs a manifest; the old entry's removal hangs, so v1 stays on the indexer (as after any failed cleanup)
++        n.net.push_fault("delete_object", Fault::Hang);
++        c.put("b", &key, b"new bytes".to_vec(), wide_type(), &Cond::None).await.unwrap();
++        assert_eq!(get(&c, &key).await.unwrap(), b"new bytes");
++        {
++            // the stale v1 entry really is still listed beside v2
++            let s = n.load().await.unwrap();
++            let idx = s.idx.lock().await;
++            let named = idx.objs.values().filter(|(_, m)| m.e.iter().any(|e| e.k == key)).count();
++            assert_eq!(named, 1, "the old inline entry is left behind");
++            assert!(idx.keys[&("b".to_string(), key.clone())].manifest);
++        }
++        corrupt_manifest(&c.store(0).unwrap(), &key).await;
++
++        // Before the fix the replica loaded without v2 and served the stale "old bytes" for an acknowledged overwrite
++        // (and counted toward the boot quorum). Now it stays unloaded, and a cluster of it is not ready.
++        let err = n.load().await.err().expect("a replica must not load without the manifest of a live version");
++        assert!(err.contains("manifest"), "{err}");
++        let boot = cluster(std::slice::from_ref(&n), 1).await;
++        assert!(!boot.ready());
++        assert!(boot.lookup("b", &key).is_none());
++    }
++
++    #[tokio::test]
++    async fn an_unreadable_manifest_of_a_dead_version_does_not_block_and_is_purged() {
++        let n = Net::on_disk(62);
++        let c = cluster(std::slice::from_ref(&n), 1).await;
++        let key = "d".repeat(700);
++        c.put("b", &key, b"first".to_vec(), wide_type(), &Cond::None).await.unwrap();
++        corrupt_manifest(&c.store(0).unwrap(), &key).await;
++        // v2 supersedes v1; v1's manifest object stays behind (its deletion hangs), unreadable
++        n.net.push_fault("delete_object", Fault::Hang);
++        c.put("b", &key, b"second".to_vec(), wide_type(), &Cond::None).await.unwrap();
++
++        let s = n.load().await.expect("a superseded unreadable manifest does not keep the replica unloaded");
++        {
++            let idx = s.idx.lock().await;
++            assert_eq!(idx.unresolved.len(), 1);
++            assert!(idx.blocking_unresolved().is_empty());
++        }
++        let boot = cluster(std::slice::from_ref(&n), 1).await;
++        assert!(boot.ready());
++        assert_eq!(get(&boot, &key).await.unwrap(), b"second");
++        maintain(&boot).await;
++        assert!(boot.store(0).unwrap().idx.lock().await.unresolved.is_empty(), "purge removed the dead manifest");
++        assert!(n.load().await.unwrap().idx.lock().await.unresolved.is_empty());
++        assert_eq!(get(&boot, &key).await.unwrap(), b"second");
++    }
++
++    // ---- B3: re-reading a replica while other tasks change it through the old store ----
++
++    #[tokio::test]
++    async fn a_re_read_never_swaps_out_a_pin_still_in_flight() {
++        let n = Net::on_disk(63);
++        let c = cluster(std::slice::from_ref(&n), 1).await;
++        let uid = c.create_upload("b", "mp").await.unwrap();
++        let s = c.store(0).unwrap();
++        // the part's pin is held open by the indexer, which applies it while the re-read is deciding
++        n.net.push_fault("pin_object", Fault::Defer);
++        let part = c.upload_part(&uid, 1, b"part one".to_vec());
++        let racer = async {
++            for _ in 0..4000 {
++                if s.in_flight() > 0 {
++                    break;
++                }
++                tokio::time::sleep(Duration::from_millis(5)).await;
++            }
++            assert_eq!(s.in_flight(), 1, "the part's pin is in flight");
++            let r = c.reconcile(0).await;
++            assert_eq!(n.net.apply_deferred(), 1);
++            r
++        };
++        let (part, swap) = tokio::join!(part, racer);
++        // Before the fix the swap went ahead: the fresh index (listed before the pin landed) lacked the part, was not
++        // dirty, and CompleteMultipartUpload failed with InvalidPart for a part the indexer holds.
++        assert!(swap.is_err(), "no swap while a pin is in flight");
++        assert!(Rc::ptr_eq(&c.store(0).unwrap(), &s) && !s.is_retired());
++        assert!(part.is_err() && s.dirty(), "the pin's outcome is unknown to the caller: the replica will be re-read");
++        maintain(&c).await;
++        assert!(s.is_retired(), "the quiet replica was re-read and swapped");
++        c.complete_upload(&uid, &[(1, md5_hex(b"part one"))]).await.expect("the applied part is known after the re-read");
++        assert_eq!(get(&c, "mp").await.unwrap(), b"part one");
++    }
++
++    #[tokio::test]
++    async fn a_re_read_never_waits_on_a_busy_index_while_holding_the_write_lock() {
++        let n = Net::on_disk(64);
++        let c = cluster(std::slice::from_ref(&n), 1).await;
++        c.put("b", "k", b"v".to_vec(), None, &Cond::None).await.unwrap();
++        let s = c.store(0).unwrap();
++        // what the compactor holds while it pins repacked objects and deletes the originals
++        let held = s.idx.lock().await;
++        // Before the fix reconcile waited for this lock while holding the write lock (every write stalled), and then
++        // swapped in a listing that predated whatever the holder changed.
++        let r = tokio::time::timeout(Duration::from_secs(20), c.reconcile(0)).await.expect("reconcile returns instead of waiting");
++        let e = r.unwrap_err();
++        assert!(e.contains("busy"), "{e}");
++        assert!(!s.is_retired() && Rc::ptr_eq(&c.store(0).unwrap(), &s));
++        drop(held);
++        c.put("b", "k2", b"w".to_vec(), None, &Cond::None).await.unwrap();
++        c.reconcile(0).await.unwrap();
++        assert!(s.is_retired());
++        assert_eq!(get(&c, "k").await.unwrap(), b"v");
++        assert_eq!(get(&c, "k2").await.unwrap(), b"w");
++    }
++
++    #[tokio::test]
++    async fn a_replaced_store_sends_nothing_more() {
++        let n = Net::on_disk(65);
++        let c = cluster(std::slice::from_ref(&n), 1).await;
++        let uid = c.create_upload("b", "mp").await.unwrap();
++        let old = c.store(0).unwrap();
++        c.reconcile(0).await.unwrap();
++        assert!(old.is_retired() && !Rc::ptr_eq(&old, &c.store(0).unwrap()));
++
++        // callers still holding the old Rc (a DELETE's floor write, an UploadPart, the compactor) get a refusal that
++        // changed nothing; before the fix these reached the indexer behind the fresh index's back
++        let floor = Tomb { q: qkey("b", "gone"), h: 1, i: "w".into() };
++        let e = old.write_ledger(vec![floor]).await.unwrap_err();
++        assert!(e.contains("replaced"), "{e}");
++        let e = old.upload_part(&uid, 1, Rc::from(&b"late part"[..])).await.unwrap_err();
++        assert!(e.contains("replaced"), "{e}");
++        assert_eq!(old.in_flight(), 0);
++        assert!(!old.dirty(), "nothing was sent, so nothing is ambiguous");
++        {
++            let after = n.load().await.unwrap();
++            let idx = after.idx.lock().await;
++            assert!(idx.ledgers.is_empty() && idx.floors.is_empty(), "no ledger reached the indexer");
++            assert!(idx.uploads.get(&uid).is_none_or(|u| u.parts.is_empty()), "no part reached the indexer");
++        }
++        // the current store serves and takes writes as before
++        c.upload_part(&uid, 1, b"part".to_vec()).await.unwrap();
++        c.complete_upload(&uid, &[(1, md5_hex(b"part"))]).await.unwrap();
++        assert_eq!(get(&c, "mp").await.unwrap(), b"part");
++    }
++    // ---- B4: cross-writer ordering by durable version-range ceilings ----
++
++    #[tokio::test]
++    async fn an_old_writers_abandoned_write_stays_below_a_new_writers_delete_whatever_the_clocks_say() {
++        let n = Net::on_disk(81);
++        // writer P1: its clock runs an hour ahead of the next writer's
++        let p1 = cluster(std::slice::from_ref(&n), 1).await;
++        p1.clock.set(now_ms() + 3_600_000);
++        p1.put("b", "k", b"v1".to_vec(), None, &Cond::None).await.unwrap();
++        // P1's next PUT of k is stamped (a second later on P1's clock) and sent; its answer never comes, and the indexer
++        // applies it only later (Fault::Defer)
++        p1.clock.set(p1.clock.get() + 1000);
++        n.net.push_fault("pin_object", Fault::Defer);
++        assert!(p1.put("b", "k", b"stale".to_vec(), None, &Cond::None).await.is_err());
++        let p1_ceiling = p1.version_ceiling();
++        assert!(p1_ceiling > now_ms() + 3_600_000);
++        drop(p1); // P1 stops (one writer at a time)
++
++        // writer P2 boots with an honest clock, an hour behind P1's, and deletes k
++        let p2 = cluster(std::slice::from_ref(&n), 1).await;
++        assert_eq!(p2.observed_ceiling(), p1_ceiling, "P2's boot set holds P1's acknowledged ceiling");
++        assert_eq!(get(&p2, "k").await.unwrap(), b"v1");
++        p2.delete("b", "k").await.unwrap();
++        let t = p2.view.borrow().tombs[&qkey("b", "k")].clone();
++        assert!(t.h > p1_ceiling, "the deletion is stamped above everything P1 could have stamped");
++
++        // now the indexer applies P1's abandoned PUT
++        assert_eq!(n.net.apply_deferred(), 1);
++        // Before B4 the deletion was stamped just past the versions P2 loaded (v1 + 1 ms), below the stale PUT's
++        // version (v1 + 1000 ms on P1's clock), so a reload served "stale": a deleted key came back.
++        let p3 = cluster(std::slice::from_ref(&n), 1).await;
++        assert!(p3.lookup("b", "k").is_none(), "an abandoned write of an earlier writer does not resurrect a delete");
++        maintain(&p3).await;
++        let p4 = cluster(std::slice::from_ref(&n), 1).await;
++        assert!(p4.lookup("b", "k").is_none());
++        assert_eq!(on_disk(&n, "k").await, (None, true, false), "the stale version was purged; only the floor remains");
++    }
++
++    #[tokio::test]
++    async fn versions_are_stamped_only_inside_a_reserved_range() {
++        let n = Net::on_disk(82);
++        let c = cluster(std::slice::from_ref(&n), 1).await;
++        assert_eq!(c.stats.borrow().version_fence, "legacy", "no ceiling yet: a legacy deployment");
++        assert!(c.stamp().is_err(), "nothing is stamped before a range is reserved");
++        c.range_ms.set(60_000);
++        c.put("b", "a", b"1".to_vec(), None, &Cond::None).await.unwrap();
++        let first = c.version_ceiling();
++        assert!(first > 0 && c.lookup("b", "a").unwrap().h <= first);
++        assert_eq!(c.stats.borrow().version_fence, "ceiling");
++        // this writer's own ceiling, found again by a rebuild (every attach, re-read and maintenance pass), does not
++        // move its clock: the range is not burnt, and the next write needs no new reservation
++        c.rebuild().await;
++        assert_eq!(c.observed_ceiling(), first);
++        c.put("b", "b", b"x".to_vec(), None, &Cond::None).await.unwrap();
++        assert_eq!(c.version_ceiling(), first, "no reservation for a write inside the range");
++        // the range is used up: the clock has reached the ceiling
++        c.clock.set(first);
++        assert!(c.stamp().is_err(), "never a version above the acknowledged ceiling");
++        c.put("b", "a", b"2".to_vec(), None, &Cond::None).await.unwrap();
++        let second = c.version_ceiling();
++        let h = c.lookup("b", "a").unwrap().h;
++        assert!(second > first && h > first && h <= second, "a new range is reserved strictly above the old one");
++        // one ceiling object per replica at steady state, and a fresh load sees the newest
++        let s = n.load().await.unwrap();
++        let idx = s.idx.lock().await;
++        assert_eq!((idx.ceiling, idx.ceilings.len()), (second, 1));
++        assert!(idx.orphans.is_empty(), "a ceiling object is never an orphan");
++    }
++
++    #[tokio::test]
++    async fn a_lagging_replica_gets_the_ceiling_and_a_late_reservation_only_raises_it() {
++        let nets = [Net::on_disk(83), Net::on_disk(84)];
++        let c = cluster(&nets, 1).await;
++        nets[1].offline(true);
++        c.put("b", "k", b"v".to_vec(), None, &Cond::None).await.unwrap(); // the range is acknowledged by r0 alone
++        let ceiling = c.version_ceiling();
++        nets[1].offline(false);
++        assert_eq!(c.store(1).unwrap().ceiling().await, 0);
++        let rep = maintain(&c).await;
++        assert!(rep.ceilings >= 1, "{rep:?}");
++        assert_eq!(nets[1].load().await.unwrap().idx.lock().await.ceiling, ceiling, "r1 now holds it too");
++
++        // a reservation whose pin is answered nowhere in time fails (no versions are stamped in it) ...
++        let solo = Net::on_disk(85);
++        let w = cluster(std::slice::from_ref(&solo), 1).await;
++        solo.net.push_fault("pin_object", Fault::Defer);
++        assert!(w.put("b", "x", b"x".to_vec(), None, &Cond::None).await.is_err());
++        assert_eq!(w.version_ceiling(), 0);
++        // ... and when the indexer applies it later it only raises what the next writer starts above
++        assert_eq!(solo.net.apply_deferred(), 1);
++        let next = cluster(std::slice::from_ref(&solo), 1).await;
++        let late = next.observed_ceiling();
++        assert!(late > 0, "the late reservation is found at boot");
++        next.put("b", "x", b"y".to_vec(), None, &Cond::None).await.unwrap();
++        assert!(next.lookup("b", "x").unwrap().h > late, "the next writer stamps strictly above it");
++        assert!(next.version_ceiling() > late, "and reserves strictly above it");
++    }
+ }
+diff --git a/sia-s3/src/store.rs b/sia-s3/src/store.rs
+index 49945055d3064e1a2b03e101ebd35641106cf6fe..ebd4af2d0bd6ac370a2692487ffcdabbc335626a 100644
+--- a/sia-s3/src/store.rs
++++ b/sia-s3/src/store.rs
+@@ -210,12 +210,16 @@ pub struct Meta {
+     /// this object is a ledger of deletion floors
+     #[serde(default, skip_serializing_if = "Option::is_none")]
+     pub lg: Option<LgRef>,
++    /// this object is a version-range ceiling: the writer that pinned it stamps no version above this (ms clock), and
++    /// a later writer starts strictly above the highest ceiling its boot set holds (replica.rs, "Versions")
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub ck: Option<u64>,
+ }
+ 
+ impl Meta {
+     /// Does the object mean something by its metadata alone (not counting being some key's data)?
+     fn purposeful(&self) -> bool {
+-        !self.e.is_empty() || self.mp.is_some() || !self.d.is_empty() || self.mf.is_some() || self.lg.is_some()
++        !self.e.is_empty() || self.mp.is_some() || !self.d.is_empty() || self.mf.is_some() || self.lg.is_some() || self.ck.is_some()
+     }
+ 
+     fn normalized(mut self) -> Meta {
+@@ -273,6 +277,10 @@ pub struct Index {
+     pub ledgers: Vec<String>,
+     /// ledger objects whose body could not be read: their floors are unknown, so nothing is swept or merged
+     pub unread_ledgers: Vec<String>,
++    /// version-range ceiling objects: (object id, ceiling)
++    pub ceilings: Vec<(String, u64)>,
++    /// the highest version-range ceiling this replica holds (0: none, a legacy replica)
++    pub ceiling: u64,
+ }
+ 
+ #[derive(Default, Clone, Serialize)]
+@@ -311,8 +319,40 @@ pub struct Store {
+     pub ambiguous_ms: Cell<u64>,
+     /// bumped by every remote change that succeeded
+     pub changes: Cell<u64>,
++    /// set once, when `Cluster::reconcile` replaces this store with a fresh listing: from then on no call through this
++    /// store reaches the indexer (`remote` refuses before sending), so a caller still holding the old `Rc` (the
++    /// compactor, an UploadPart, a DELETE's floor) cannot change durable state the fresh index does not know about
++    retired: Cell<bool>,
++    /// remote calls sent and not yet answered (or abandoned): `reconcile` swaps only when this is 0
++    inflight: Cell<u32>,
++}
++
++/// Counts one remote call in flight. Dropped before the answer (the caller's future was abandoned, e.g. by `fan_out`):
++/// the call may still be applied, so the store is marked ambiguous.
++struct InFlight<'a> {
++    store: &'a Store,
++    answered: bool,
+ }
+ 
++impl<'a> InFlight<'a> {
++    fn new(store: &'a Store) -> Self {
++        store.inflight.set(store.inflight.get() + 1);
++        InFlight { store, answered: false }
++    }
++}
++
++impl Drop for InFlight<'_> {
++    fn drop(&mut self) {
++        self.store.inflight.set(self.store.inflight.get().saturating_sub(1));
++        if !self.answered {
++            self.store.mark_ambiguous();
++        }
++    }
++}
++
++/// What a call on a replaced store answers: nothing was sent.
++pub const RETIRED: &str = "this replica's index was replaced while the call was prepared; nothing was sent; retry";
++
+ /// How a new version's entry is stored on one replica.
+ pub enum Placement {
+     /// in the metadata of its host object
+@@ -363,7 +403,37 @@ fn fits(meta: &Meta) -> bool {
+ }
+ 
+ fn e2s<E: std::fmt::Display>(e: E) -> String {
+-    e.to_string()
++    redact(&e.to_string())
++}
++
++/// `s` with the query and fragment cut from every http(s) URL in it. The SDK authenticates each indexer request
++/// with a signature in its URL's query (`sv`, `sc`, `ss`), and an HTTP client error names the URL it failed on;
++/// error text reaches the unauthenticated status page and /healthz, so it never carries a query.
++pub fn redact(s: &str) -> String {
++    let mut out = String::with_capacity(s.len());
++    let mut rest = s;
++    loop {
++        let at = match (rest.find("http://"), rest.find("https://")) {
++            (Some(a), Some(b)) => a.min(b),
++            (Some(a), None) | (None, Some(a)) => a,
++            (None, None) => break,
++        };
++        out.push_str(&rest[..at]);
++        let url = &rest[at..];
++        // the URL runs to whitespace or a character that ends it in prose and error text
++        let end = url.find(|c: char| c.is_whitespace() || matches!(c, ')' | '(' | '"' | '\'' | '<' | '>' | ',' | ';' | '`')).unwrap_or(url.len());
++        let token = &url[..end];
++        match token.find(['?', '#']) {
++            Some(q) => {
++                out.push_str(&token[..q]);
++                out.push_str("?[redacted]");
++            }
++            None => out.push_str(token),
++        }
++        rest = &url[end..];
++    }
++    out.push_str(rest);
++    out
+ }
+ 
+ pub fn md5_hex(b: &[u8]) -> String {
+@@ -438,6 +508,10 @@ fn deletion<'a>(tombs: &'a BTreeMap<String, Vec<(String, Tomb)>>, floors: &'a Ha
+ pub fn build_index(objs: HashMap<String, (Object, Meta)>, manifests: HashMap<String, Manifest>, ledgers: HashMap<String, Ledger>) -> Index {
+     let mut idx = Index { objs, manifests, ..Default::default() };
+     for (id, (_, m)) in &idx.objs {
++        if let Some(c) = m.ck {
++            idx.ceilings.push((id.clone(), c));
++            idx.ceiling = idx.ceiling.max(c);
++        }
+         if m.lg.is_some() {
+             match ledgers.get(id) {
+                 Some(l) => {
+@@ -493,7 +567,7 @@ pub fn build_index(objs: HashMap<String, (Object, Meta)>, manifests: HashMap<Str
+     let referenced: HashSet<String> = idx.keys.values().flat_map(|k| k.objects()).collect();
+     for (id, (obj, m)) in &idx.objs {
+         // objects holding tombstones stay until the tombstones are collected; unread manifests are unknown
+-        if referenced.contains(id) || !m.d.is_empty() || m.lg.is_some() || (m.mf.is_some() && !idx.manifests.contains_key(id)) {
++        if referenced.contains(id) || !m.d.is_empty() || m.lg.is_some() || m.ck.is_some() || (m.mf.is_some() && !idx.manifests.contains_key(id)) {
+             continue;
+         }
+         if let Some(t) = &m.mp {
+@@ -573,6 +647,27 @@ impl Index {
+         self.unread_ledgers.is_empty()
+     }
+ 
++    /// Unresolved manifests (body unreadable) that may hold a key's newest version here: their signed metadata names a
++    /// version that no resolved entry of the same key, and no tombstone or floor, matches or supersedes. Without
++    /// their bodies this index would serve an older version (or none) of those keys, and could delete or move data
++    /// objects only those manifests name. A superseded one is harmless: its version is dead whatever it holds.
++    pub fn blocking_unresolved(&self) -> Vec<String> {
++        if self.unresolved.is_empty() {
++            return Vec::new();
++        }
++        let live: HashMap<String, Ver> = self.keys.iter().map(|(kk, k)| (qkey(&kk.0, &kk.1), k.entry.ver())).collect();
++        self.unresolved
++            .iter()
++            .filter(|id| {
++                let Some(mf) = self.objs.get(*id).and_then(|(_, m)| m.mf.as_ref()) else { return false };
++                let v = mf.ver();
++                let superseded = live.get(&mf.q).is_some_and(|lv| *lv >= v) || self.tomb(&mf.q).is_some_and(|t| t.ver() >= v);
++                !superseded
++            })
++            .cloned()
++            .collect()
++    }
++
+     fn superseded(&self, kk: &KK, v: &Ver) -> bool {
+         self.keys.get(kk).is_some_and(|k| k.entry.ver() >= *v) || self.tomb(&qkey(&kk.0, &kk.1)).is_some_and(|t| t.ver() >= *v)
+     }
+@@ -646,6 +741,14 @@ pub async fn fetch_index(sdk: &Sdk, opts: &Opts) -> Res<Index> {
+         // they hide. It stays unloaded (and is retried) rather than risk that.
+         return Err(format!("{} ledger(s) could not be read", idx.unread_ledgers.len()));
+     }
++    let blocking = idx.blocking_unresolved();
++    if !blocking.is_empty() {
++        // a manifest body is read from Sia hosts, not the indexer: a host outage at load is no indexer fault. Loaded
++        // without it, this replica would count toward the boot quorum while missing (possibly acknowledged) newest
++        // versions, serve older ones, and let maintenance delete data objects only that manifest names. Like an
++        // unread ledger, it stays unloaded and is retried; the replicas that can read theirs serve.
++        return Err(format!("{} manifest(s) of live key versions could not be read", blocking.len()));
++    }
+     Ok(idx)
+ }
+ 
+@@ -698,9 +801,25 @@ impl Store {
+             listed_ms,
+             ambiguous_ms: Cell::new(0),
+             changes: Cell::new(0),
++            retired: Cell::new(false),
++            inflight: Cell::new(0),
+         })
+     }
+ 
++    /// This store has been replaced (see `retired`). Irreversible.
++    pub fn retire(&self) {
++        self.retired.set(true);
++    }
++
++    pub fn is_retired(&self) -> bool {
++        self.retired.get()
++    }
++
++    /// Remote calls sent through this store and not yet answered.
++    pub fn in_flight(&self) -> u32 {
++        self.inflight.get()
++    }
++
+     /// Has a remote change had an unknown outcome since the listing behind the index began?
+     pub fn dirty(&self) -> bool {
+         self.ambiguous_ms.get() >= self.listed_ms
+@@ -715,16 +834,26 @@ impl Store {
+     }
+ 
+     /// One indexer call that changes durable state. Its outcome is unknown when it errs or does not answer in time:
+-    /// the indexer may have applied it, or may still.
++    /// the indexer may have applied it, or may still. Every pin and delete goes through here.
++    ///
++    /// On a retired store the call is refused before `fut` is polled: the SDK's calls are `async fn`s, so nothing has
++    /// been sent, and the outcome is known (nothing happened). Error text never carries the SDK's signed request URLs.
+     async fn remote<T, E: std::fmt::Display>(&self, what: &str, fut: impl Future<Output = Result<T, E>>) -> Res<T> {
+-        match tokio::time::timeout(self.opts.meta_timeout, fut).await {
++        if self.retired.get() {
++            return Err(format!("{what}: {RETIRED}"));
++        }
++        let mut flight = InFlight::new(self);
++        let r = tokio::time::timeout(self.opts.meta_timeout, fut).await;
++        flight.answered = true;
++        drop(flight);
++        match r {
+             Ok(Ok(v)) => {
+                 self.changes.set(self.changes.get() + 1);
+                 Ok(v)
+             }
+             Ok(Err(e)) => {
+                 self.mark_ambiguous();
+-                Err(format!("{what}: {e}"))
++                Err(format!("{what}: {}", redact(&e.to_string())))
+             }
+             Err(_) => {
+                 self.mark_ambiguous();
+@@ -1059,6 +1188,7 @@ impl Store {
+         let mut done = 0;
+         for (id, nm, parts) in todo {
+             let Some((obj, _)) = idx.objs.get(&id).cloned() else { continue };
++            let manifest_gone = nm.mf.is_none();
+             if nm.purposeful() || idx.referenced_elsewhere(&id, &none) {
+                 let mut o = obj.clone();
+                 let nm = self.pin_with(&mut o, nm).await?;
+@@ -1067,6 +1197,10 @@ impl Store {
+                 self.delete(&obj).await?;
+                 idx.objs.remove(&id);
+             }
++            if manifest_gone {
++                // a dead manifest whose body was unreadable no longer holds the orphan sweep back
++                idx.unresolved.retain(|u| *u != id);
++            }
+             self.drop_parts(&mut idx, &parts, &none).await;
+             done += 1;
+         }
+@@ -1097,6 +1231,41 @@ impl Store {
+         Ok(())
+     }
+ 
++    /// The highest version-range ceiling this replica holds (0: none).
++    pub async fn ceiling(&self) -> u64 {
++        self.idx.lock().await.ceiling
++    }
++
++    /// Record version-range ceiling `c` durably here: a NEW object (a 1-byte body, the ceiling in its signed metadata),
++    /// never an in-place update, because a late pin of an older reservation must not be able to lower what this
++    /// replica holds. Once it is pinned, this replica's lower ceiling objects are redundant and are deleted (best
++    /// effort: a leftover only costs an object). Ok when `c` is pinned here.
++    pub async fn write_ceiling(&self, c: u64) -> Res<()> {
++        let mut obj = self.upload(Rc::from(&[0u8][..])).await?;
++        let meta = self.pin_with(&mut obj, Meta { p: true, ck: Some(c), ..Default::default() }).await?;
++        let id = obj.id().to_string();
++        let mut idx = self.idx.lock().await;
++        idx.objs.insert(id.clone(), (obj, meta));
++        idx.ceilings.push((id, c));
++        idx.ceiling = idx.ceiling.max(c);
++        let top = idx.ceiling;
++        let lower: Vec<String> = idx.ceilings.iter().filter(|(_, v)| *v < top).map(|(i, _)| i.clone()).collect();
++        for old in lower {
++            let Some((o, _)) = idx.objs.get(&old).cloned() else { continue };
++            match self.delete(&o).await {
++                Ok(()) => {
++                    idx.objs.remove(&old);
++                    idx.ceilings.retain(|(i, _)| *i != old);
++                }
++                Err(e) => {
++                    eprintln!("[sia-s3] ceiling object {old} left behind: {e}");
++                    break;
++                }
++            }
++        }
++        Ok(())
++    }
++
+     /// With more than a few ledgers (and every one read), write one listing every floor, then delete the others.
+     /// Returns how many were merged away. A floor is never dropped: the new ledger is pinned first, and holds all.
+     pub async fn merge_ledgers(&self) -> Res<usize> {
+@@ -1370,6 +1539,9 @@ impl Store {
+             done += 1;
+         }
+         drop(idx);
++        if self.is_retired() {
++            return Ok(done); // replaced meanwhile: this store sends nothing more (the fresh one's next pass prunes)
++        }
+         if let Ok(Err(e)) = tokio::time::timeout(self.opts.meta_timeout, self.sdk.prune_slabs(None)).await {
+             eprintln!("[sia-s3] compact: prune_slabs: {e}");
+         }
+@@ -1410,6 +1582,21 @@ impl Store {
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn signed_indexer_urls_never_reach_error_text() {
++        // reqwest names the URL it failed on, and the SDK signs every indexer request in that URL's query
++        let e = "http error: error sending request for url (https://sia.example.org/api/objects/abc?sv=1790000000&sc=AAAA&ss=SIGNATURE): connection refused";
++        let r = redact(e);
++        assert_eq!(r, "http error: error sending request for url (https://sia.example.org/api/objects/abc?[redacted]): connection refused");
++        assert!(!r.contains("ss=") && !r.contains("SIGNATURE") && !r.contains("sv="));
++        assert_eq!(redact("no url here"), "no url here");
++        assert_eq!(redact("a http://h:9980/p b https://x/y#frag?z c"), "a http://h:9980/p b https://x/y?[redacted] c");
++        assert_eq!(redact("https://[::1]:8080/a?ss=1&x"), "https://[::1]:8080/a?[redacted]");
++        assert_eq!(redact("'https://a/b?ss=1', \"http://c/d?sv=2\""), "'https://a/b?[redacted]', \"http://c/d?[redacted]\"");
++        // the error helper used for every SDK error redacts too
++        assert_eq!(e2s("for url (https://i.example/x?ss=s)"), "for url (https://i.example/x?[redacted])");
++    }
++
+     fn entry(key: &str, parts: usize) -> Entry {
+         Entry {
+             b: "ipfs".into(),

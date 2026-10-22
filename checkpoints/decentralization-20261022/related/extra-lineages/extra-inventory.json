@@ -1,0 +1,263 @@
+[
+ {
+  "name": "custody-release-c635fd68",
+  "orig": "work/custody-release/repo (also repo-b, same HEAD)",
+  "head": "c635fd68515b46c53935ef344e3b4c4779d8067c",
+  "orig_base": "e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+  "public_base": "b97ffbc585d62f0206ee3a820cb75ae294a4a896",
+  "patch": "extra-lineages/custody-release-c635fd68.patch",
+  "patch_sha256": "14a4577358f5d0be1ee46a0b78d0d30d6957d2735d760efdf70a8b1d09e10ad4",
+  "snapshot_commit": "64dce1af41cad5011a450831911b8ba5fa63b08d",
+  "applies_to_public_base": true,
+  "apply_err": "",
+  "result_tree_on_public_base": "e69f683add563032ff73f9ede9f418317ef3f279",
+  "files_exact": [
+   "release/RELEASE.md",
+   "release/host-policy-production.json"
+  ],
+  "files_rewrite_normalized": [],
+  "files_mismatch": [],
+  "removed_term_count_in_patch": 0,
+  "files": [
+   {
+    "path": "release/RELEASE.md",
+    "orig_blob": "9a12123d07a444c940e8ea2cfeced6971e143ffd",
+    "orig_sha256": "21eb58d04706df14a90337922188acfeb524fa09724aa4d7a5ce19d45fe1a505",
+    "blob": "9a12123d07a444c940e8ea2cfeced6971e143ffd",
+    "sha256": "21eb58d04706df14a90337922188acfeb524fa09724aa4d7a5ce19d45fe1a505",
+    "size": 1532,
+    "transformed": false,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "release/host-policy-production.json",
+    "orig_blob": "7166d655e2d8e5dd957dfa1962174a969c7e3661",
+    "orig_sha256": "b22ed164444b5c4918ebd972a88a82f570906da571c1ea8c987058fe03be48a1",
+    "blob": "7166d655e2d8e5dd957dfa1962174a969c7e3661",
+    "sha256": "b22ed164444b5c4918ebd972a88a82f570906da571c1ea8c987058fe03be48a1",
+    "size": 318,
+    "transformed": false,
+    "base_transform_consistent": true
+   }
+  ],
+  "excluded": []
+ },
+ {
+  "name": "shield-lineage-7f019ce2",
+  "orig": "work/shield-lineage-integration",
+  "head": "7f019ce2d63dc6230cbe7818fe65bba5d45c9b0e",
+  "orig_base": "50a37f6df4d7b0e73697235a95ffbd1814f4cfd1",
+  "public_base": "7b9376f9daad4b8b27e235d32cce0d297eeb6728",
+  "patch": "extra-lineages/shield-lineage-7f019ce2.patch",
+  "patch_sha256": "593d5e5363b3d40e114d0fdabe8734bb8810d17ed4e0431990714e14c9942804",
+  "snapshot_commit": "cb7034b5f0fb6e841f751ee4881c5b12cf9ab3f5",
+  "applies_to_public_base": true,
+  "apply_err": "",
+  "result_tree_on_public_base": "e0dac10b8606f22953736d7e476fa756c9056144",
+  "files_exact": [
+   "isolation/m2/front/main.go",
+   "isolation/m2/front/oracle_test.go",
+   "isolation/m2/front/shield_direct.go"
+  ],
+  "files_rewrite_normalized": [],
+  "files_mismatch": [],
+  "removed_term_count_in_patch": 0,
+  "files": [
+   {
+    "path": "isolation/m2/front/main.go",
+    "orig_blob": "fbc3661b29c1b765c187fe40e4bca7e5032ca2dc",
+    "orig_sha256": "b95a1c81fd8834ef48d2070ed350c8572efbf796d9821084f80adb52baf6f04f",
+    "blob": "fbc3661b29c1b765c187fe40e4bca7e5032ca2dc",
+    "sha256": "b95a1c81fd8834ef48d2070ed350c8572efbf796d9821084f80adb52baf6f04f",
+    "size": 32198,
+    "transformed": false,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "isolation/m2/front/oracle_test.go",
+    "orig_blob": "849b84ea40928f4a171487826a142043c0121f7d",
+    "orig_sha256": "00afb99481635b6799f143ef93962f2dbfb8c09da092bb63a90b2245950789f1",
+    "blob": "849b84ea40928f4a171487826a142043c0121f7d",
+    "sha256": "00afb99481635b6799f143ef93962f2dbfb8c09da092bb63a90b2245950789f1",
+    "size": 7261,
+    "transformed": false,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "isolation/m2/front/shield_direct.go",
+    "orig_blob": "fab2308ac8c86105edfd8a0806b844a40f7b9596",
+    "orig_sha256": "c8be68049bd1a8450dfdee4831b7031a6bac91bee621e1ce51af481278278c5b",
+    "blob": "fab2308ac8c86105edfd8a0806b844a40f7b9596",
+    "sha256": "c8be68049bd1a8450dfdee4831b7031a6bac91bee621e1ce51af481278278c5b",
+    "size": 9322,
+    "transformed": false,
+    "base_transform_consistent": true
+   }
+  ],
+  "excluded": []
+ },
+ {
+  "name": "overlay-fix-32ec4980",
+  "orig": "work/linux-combined-release/overlay-fix/testrepo",
+  "head": "32ec498042379f8fd07a97b225861b365f9db7a6",
+  "orig_base": "e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+  "public_base": "b97ffbc585d62f0206ee3a820cb75ae294a4a896",
+  "patch": "extra-lineages/overlay-fix-32ec4980.patch",
+  "patch_sha256": "1b6fedc4af7e5ac962e891ad9b3dba00d466ebb2e40d1c56ad9235f9b2930004",
+  "snapshot_commit": "e528d4ade2c03c5331aafc23e5e9884da6f87a6a",
+  "applies_to_public_base": true,
+  "apply_err": "",
+  "result_tree_on_public_base": "0009235ba480c2de2cfc351104dfb7ddc8fdb7da",
+  "files_exact": [
+   "metal/guest/platform-api-role.mjs",
+   "metal/overlay-control-image.py",
+   "network/host-admission-runtime.mjs",
+   "network/public-directory.mjs",
+   "network/route-record.mjs",
+   "relay/api-relay.js",
+   "scripts/build-platform-api-guest-bundle.mjs",
+   "site/components/deployments/deployments.js",
+   "test/helpers/platform-policy-world.mjs",
+   "test/metal-control-overlay.test.py",
+   "windows/node/host.mjs",
+   "windows/vbslike/manager/server.mjs"
+  ],
+  "files_rewrite_normalized": [],
+  "files_mismatch": [],
+  "removed_term_count_in_patch": 0,
+  "files": [
+   {
+    "path": "metal/guest/platform-api-role.mjs",
+    "orig_blob": "1bbd02899e68cfbd07fe8b81e24c79027671ad8f",
+    "orig_sha256": "9fd9c3cb41d4ccd53340406e0f9d89c191d7820fe74a50469909b0254d0f0f8b",
+    "blob": "1bbd02899e68cfbd07fe8b81e24c79027671ad8f",
+    "sha256": "9fd9c3cb41d4ccd53340406e0f9d89c191d7820fe74a50469909b0254d0f0f8b",
+    "size": 31670,
+    "transformed": false,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "metal/overlay-control-image.py",
+    "orig_blob": "ae81f58ee4b2d83c9fa5f63ee46811288c901fcb",
+    "orig_sha256": "7a120502034f2c7f70930355dab1357ac9e4816188993a5601a69abd36a7159c",
+    "blob": "ae81f58ee4b2d83c9fa5f63ee46811288c901fcb",
+    "sha256": "7a120502034f2c7f70930355dab1357ac9e4816188993a5601a69abd36a7159c",
+    "size": 15978,
+    "transformed": false,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "network/host-admission-runtime.mjs",
+    "orig_blob": "a845a387f6cfea10495aa59351795f643c69b62a",
+    "orig_sha256": "b0d4d2ab26afc91a995e5d7edd95d333851571b3ea0d1da2fa69a4f82f289aef",
+    "blob": "a845a387f6cfea10495aa59351795f643c69b62a",
+    "sha256": "b0d4d2ab26afc91a995e5d7edd95d333851571b3ea0d1da2fa69a4f82f289aef",
+    "size": 8700,
+    "transformed": false,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "network/public-directory.mjs",
+    "orig_blob": "1446f03b8db2137b1a9ab087a95a4a920753444d",
+    "orig_sha256": "a480b6743d38bab5aaec887224a116928a6bc26c5ac015c927dd7493fc34c1fb",
+    "blob": "1446f03b8db2137b1a9ab087a95a4a920753444d",
+    "sha256": "a480b6743d38bab5aaec887224a116928a6bc26c5ac015c927dd7493fc34c1fb",
+    "size": 15342,
+    "transformed": false,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "network/route-record.mjs",
+    "orig_blob": "bbf8e60ef5b4311aa44645048eb7014c7fea5be0",
+    "orig_sha256": "be3bfab79561740b7b76aa6d34efa85f5b825a5b8ccbaca49f81a74f4c226e85",
+    "blob": "bbf8e60ef5b4311aa44645048eb7014c7fea5be0",
+    "sha256": "be3bfab79561740b7b76aa6d34efa85f5b825a5b8ccbaca49f81a74f4c226e85",
+    "size": 7021,
+    "transformed": false,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "relay/api-relay.js",
+    "orig_blob": "b93cae94fae4785f97b661de60b4c52666f9de24",
+    "orig_sha256": "3cc03d1d0ab3489cbf9327ef9b8df1f64c561acdf2cf5137265be69f3929a881",
+    "blob": "227382182200c120fa176733e5fbedabe432924b",
+    "sha256": "15288ead9d0a0f492087a81d3a2a80df8a25d5460ccef7fd0a65ea9864ba6745",
+    "size": 224049,
+    "transformed": true,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "scripts/build-platform-api-guest-bundle.mjs",
+    "orig_blob": "0e2edd08264e9c160d2d80a0b4b20fdfd19554ff",
+    "orig_sha256": "8fab5821db38346dd4245f9e1ed5ed2f10e0094e98b29f22fe41a806948387d6",
+    "blob": "0e2edd08264e9c160d2d80a0b4b20fdfd19554ff",
+    "sha256": "8fab5821db38346dd4245f9e1ed5ed2f10e0094e98b29f22fe41a806948387d6",
+    "size": 3983,
+    "transformed": false,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "site/components/deployments/deployments.js",
+    "orig_blob": "9e417d5f47bb08689891be8066d088b441b20205",
+    "orig_sha256": "e958246843a9bbe57a88135776323ba05bf9cc32b5706b80815b1656798ab34f",
+    "blob": "9e417d5f47bb08689891be8066d088b441b20205",
+    "sha256": "e958246843a9bbe57a88135776323ba05bf9cc32b5706b80815b1656798ab34f",
+    "size": 307592,
+    "transformed": false,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "test/helpers/platform-policy-world.mjs",
+    "orig_blob": "f539fa1a8ac313437b87dde6693b6dfae101f9d6",
+    "orig_sha256": "df7bde80b17d19a683b2fcf5bc8d52afaa737260b9bba1d2fd3e9a0e4e65030a",
+    "blob": "f539fa1a8ac313437b87dde6693b6dfae101f9d6",
+    "sha256": "df7bde80b17d19a683b2fcf5bc8d52afaa737260b9bba1d2fd3e9a0e4e65030a",
+    "size": 8432,
+    "transformed": false,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "test/metal-control-overlay.test.py",
+    "orig_blob": "e9aca709c2aa4583ead1b21741706b7a20be39a0",
+    "orig_sha256": "3eefe9411fcb90b26a2687d4820f403f0bb8aaaece5683ad8a61efbfa2030b9d",
+    "blob": "e9aca709c2aa4583ead1b21741706b7a20be39a0",
+    "sha256": "3eefe9411fcb90b26a2687d4820f403f0bb8aaaece5683ad8a61efbfa2030b9d",
+    "size": 10835,
+    "transformed": false,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "windows/node/host.mjs",
+    "orig_blob": "3e426699e23e4e274d58b6c35079a23a4501df2d",
+    "orig_sha256": "d4b5d41768e36a6274ade9a731e32b0089f81419a36dc9a93615bc860717323d",
+    "blob": "3e426699e23e4e274d58b6c35079a23a4501df2d",
+    "sha256": "d4b5d41768e36a6274ade9a731e32b0089f81419a36dc9a93615bc860717323d",
+    "size": 268926,
+    "transformed": false,
+    "base_transform_consistent": true
+   },
+   {
+    "path": "windows/vbslike/manager/server.mjs",
+    "orig_blob": "261e153dd9c76fb6df3a40310213b677b8fc8f2d",
+    "orig_sha256": "b2e7c346120a86ea7b9e62b8fb2afb96f8a8b6730de5462c8949b03f96e0044a",
+    "blob": "261e153dd9c76fb6df3a40310213b677b8fc8f2d",
+    "sha256": "b2e7c346120a86ea7b9e62b8fb2afb96f8a8b6730de5462c8949b03f96e0044a",
+    "size": 71226,
+    "transformed": false,
+    "base_transform_consistent": true
+   }
+  ],
+  "excluded": [
+   {
+    "path": "metal/guest/host-policy.bundle.mjs",
+    "reason": "generated bundle (rebuild from sources)",
+    "sha256": "be01edb3838ca87503752bd08a4b7c72c1905c2c1822430113433cd6ce713654"
+   },
+   {
+    "path": "windows/node/host-admission.bundle.mjs",
+    "reason": "generated bundle (rebuild from sources)",
+    "sha256": "7ce23a55c9ffccf1c30c818ef3d7a6774cf3c8743fcac62a1421d11456794fc6"
+   }
+  ]
+ }
+]

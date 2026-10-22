@@ -1,0 +1,10 @@
+# The same pin as eyesoff-ai/rust-toolchain.toml, and for the same reason. After the 2026-08-07 fleet outage, floating
+# nightlies 2026-07-28..08-06 were found to build components the fleet engine (wasmtime 49-dev ac0772970) mishandles,
+# while nightly-2026-07-25 is verified against that engine. A build of this app must never depend on whichever
+# toolchain rustup happens to float to.
+#
+# Do not bump this channel without re-running scripts/test.sh under the pinned fleet engine (WASMTIME=<the wasmtime of
+# ghcr.io/enclavehost/enclave-wasmtime@sha256:13bce266…>; see README "Build").
+[toolchain]
+channel = "nightly-2026-07-25"
+targets = ["wasm32-wasip2"]

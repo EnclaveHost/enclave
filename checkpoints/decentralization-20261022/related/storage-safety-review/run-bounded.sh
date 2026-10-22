@@ -1,0 +1,35 @@
+#!/bin/bash
+# run-bounded.sh <label> <command...>
+# One cargo job in its own systemd scope: MemoryMax=1024M, no swap, CARGO_BUILD_JOBS=1. A watchdog stops ONLY this
+# scope if the host's MemAvailable drops below 16 GiB, and records the scope's memory.peak every second.
+set -u
+label=$1; shift
+unit="sia-safety-$label-$$"
+log="$(dirname "$0")/$label.log"
+floor_kb=$((16 * 1024 * 1024))
+: > "$log"
+echo "# $(date -Is) label=$label unit=$unit MemAvailable_kB=$(awk '/MemAvailable/{print $2}' /proc/meminfo) cap=1024M swap=0 jobs=1" >> "$log"
+echo "# cmd: $*" >> "$log"
+systemd-run --user --scope --unit="$unit" -p MemoryMax=1024M -p MemorySwapMax=0 \
+  env CARGO_BUILD_JOBS=1 "$@" >> "$log" 2>&1 &
+pid=$!
+peak=0; stopped=""
+cg=""
+while kill -0 $pid 2>/dev/null; do
+  [ -z "$cg" ] && cg=$(systemctl --user show -p ControlGroup --value "$unit.scope" 2>/dev/null)
+  if [ -n "$cg" ] && [ -r "/sys/fs/cgroup$cg/memory.peak" ]; then
+    p=$(cat "/sys/fs/cgroup$cg/memory.peak" 2>/dev/null || echo 0); [ "$p" -gt "$peak" ] 2>/dev/null && peak=$p
+    oom=$(awk '/^oom_kill /{print $2}' "/sys/fs/cgroup$cg/memory.events" 2>/dev/null)
+  fi
+  avail=$(awk '/MemAvailable/{print $2}' /proc/meminfo)
+  if [ "$avail" -lt "$floor_kb" ]; then
+    stopped="host MemAvailable ${avail} kB below 16 GiB floor"
+    systemctl --user stop "$unit.scope"
+    break
+  fi
+  sleep 1
+done
+wait $pid; rc=$?
+echo "# exit=$rc peak_MiB=$((peak / 1048576)) oom_kills=${oom:-0} ${stopped:+STOPPED: $stopped}" >> "$log"
+tail -1 "$log"
+exit $rc

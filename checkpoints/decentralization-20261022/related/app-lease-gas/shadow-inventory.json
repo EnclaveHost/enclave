@@ -1,0 +1,248 @@
+[
+ {
+  "tree": "shadow-cli",
+  "base": "e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+  "snapshot_commit": "a4cc3f064ba3d86fa6fec8ae23c4c1580a5e2888",
+  "snapshot_tree": "a7d0c5c61810ce7b640b42539559306cb5888b47",
+  "patch": "app-lease-gas/shadow-cli.patch",
+  "patch_sha256": "56a8774f02be791573ab815abec5c30ef693303d5a09fa2b049b7e001478e8ff",
+  "files": [
+   {
+    "tree": "shadow-cli",
+    "path": "cli/enclave.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-cli/cli/enclave.mjs",
+    "sha256": "9a61d44004328cfae84f92d36800c935d42026ce5eb9bc02923e4d08fa783904",
+    "size": 411960,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-cli",
+    "path": "cli/lease-gas.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/cli/lease-gas.mjs",
+    "sha256": "e7fd4d9c61120d48036ec56a854b5b293fa70a1ace6096e6d1e2e17342ae388f",
+    "size": 27103,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-cli",
+    "path": "network/lease-executor-client.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/client/lease-executor-client.mjs",
+    "sha256": "4890b0543a0206f7069518595dc58b3daa7d9f7141469e9bbec1ef30896e310f",
+    "size": 54490,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-cli",
+    "path": "network/lease-gas-owner.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/network/lease-gas-owner.mjs",
+    "sha256": "a3163e386c2718dd31cdbf91ecc0eab3865c2c34d46b33809bbede6ab340cde9",
+    "size": 45664,
+    "status": "included"
+   }
+  ],
+  "public_base": "b97ffbc585d62f0206ee3a820cb75ae294a4a896",
+  "public_base_note": "main checkpoint replay head = e762a9c5 transformed (removed term, both casings -> Cloud Provider); patch applies unchanged (no removed term in hunks)",
+  "result_tree_on_public_base": "0d3c0d3f0efef4163f0bc1ca3626758e90e08801",
+  "result_vs_e762_snapshot": "differs only by the 36 rewrite-replaced lines in 21 untouched files; 0 removed-term occurrences in result tree"
+ },
+ {
+  "tree": "shadow-win",
+  "base": "e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+  "snapshot_commit": "0007e0dae5d13ce81909c3ca24416e03b44d677c",
+  "snapshot_tree": "4c955ed67c8f80df39ffe76bf8e7db41c8aa54dc",
+  "patch": "app-lease-gas/shadow-win.patch",
+  "patch_sha256": "a3cfd9016553d6c87b1b3da53aec8cd0baeb49fb768f569750eb0b834211882f",
+  "files": [
+   {
+    "tree": "shadow-win",
+    "path": "network/lease-executor-client.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-win/network/lease-executor-client.mjs",
+    "sha256": "4890b0543a0206f7069518595dc58b3daa7d9f7141469e9bbec1ef30896e310f",
+    "size": 54490,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-win",
+    "path": "network/lease-gas-owner.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-win/network/lease-gas-owner.mjs",
+    "sha256": "a3163e386c2718dd31cdbf91ecc0eab3865c2c34d46b33809bbede6ab340cde9",
+    "size": 45664,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-win",
+    "path": "network/lease-gas-runtime.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-win/network/lease-gas-runtime.mjs",
+    "sha256": "6a72857a37d5ea9d1ac10a9cb70f7bc3cf6b7c987ebe17c43ff97e2c1ef47b75",
+    "size": 5497,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-win",
+    "path": "network/lease-release-journal.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-win/network/lease-release-journal.mjs",
+    "sha256": "7afa83410df9107df7569b089feaf17bfc93866ac514d7ab202a79d546daf946",
+    "size": 5663,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-win",
+    "path": "windows/node/chain.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-win/windows/node/chain.mjs",
+    "sha256": "753818e234916190d75ddfca1f0129ecb95f456a258326598c71f8eaceb0ba00",
+    "size": 57371,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-win",
+    "path": "windows/node/host.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-win/windows/node/host.mjs",
+    "sha256": "b2fa0c6b8d8edb2223b2a020bddb5a21bd6d2949998a21667d572a4cd417778a",
+    "size": 265353,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-win",
+    "path": "windows/node/lease-gas-runtime.bundle.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-win/windows/node/lease-gas-runtime.bundle.mjs",
+    "sha256": "2ea4f89e38a560815068ef4014612cd355b84181af3bbcf60ebf6d7a3ff2448a",
+    "size": 312341,
+    "status": "excluded-generated-bundle"
+   }
+  ],
+  "public_base": "b97ffbc585d62f0206ee3a820cb75ae294a4a896",
+  "public_base_note": "main checkpoint replay head = e762a9c5 transformed (removed term, both casings -> Cloud Provider); patch applies unchanged (no removed term in hunks)",
+  "result_tree_on_public_base": "f910344ca27aa3a93c6bcaf0722e7a3b5b208e45",
+  "result_vs_e762_snapshot": "differs only by the 36 rewrite-replaced lines in 21 untouched files; 0 removed-term occurrences in result tree"
+ },
+ {
+  "tree": "shadow-b",
+  "base": "e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+  "snapshot_commit": "46ce91350209d2d812faacaeb3e82ce41abcb393",
+  "snapshot_tree": "e68b75c5f777a942a73dba1394c4e2d295402023",
+  "patch": "app-lease-gas/shadow-b.patch",
+  "patch_sha256": "33e11e9e2b9d8d551a70b6579a2e145f8196452618e27da19725a5128f9de50e",
+  "files": [
+   {
+    "tree": "shadow-b",
+    "path": "Dockerfile",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-b/Dockerfile",
+    "sha256": "0c85f54d1149b2af85fed0786524aea3fec9dd324854694865a31b631f42994c",
+    "size": 2659,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-b",
+    "path": "network/lease-executor-client.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-b/network/lease-executor-client.mjs",
+    "sha256": "4890b0543a0206f7069518595dc58b3daa7d9f7141469e9bbec1ef30896e310f",
+    "size": 54490,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-b",
+    "path": "network/lease-gas-owner.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-b/network/lease-gas-owner.mjs",
+    "sha256": "a3163e386c2718dd31cdbf91ecc0eab3865c2c34d46b33809bbede6ab340cde9",
+    "size": 45664,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-b",
+    "path": "network/lease-gas-runtime.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-b/network/lease-gas-runtime.mjs",
+    "sha256": "6a72857a37d5ea9d1ac10a9cb70f7bc3cf6b7c987ebe17c43ff97e2c1ef47b75",
+    "size": 5497,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-b",
+    "path": "network/lease-release-journal.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-b/network/lease-release-journal.mjs",
+    "sha256": "7afa83410df9107df7569b089feaf17bfc93866ac514d7ab202a79d546daf946",
+    "size": 5663,
+    "status": "included"
+   },
+   {
+    "tree": "shadow-b",
+    "path": "supervisor.js",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/shadow-b/supervisor.js",
+    "sha256": "a9e38b891a0323523b700bce2bb8c92335c4c9502e25ded6dd0812f57adb0e81",
+    "size": 797944,
+    "status": "included"
+   }
+  ],
+  "public_base": "b97ffbc585d62f0206ee3a820cb75ae294a4a896",
+  "public_base_note": "main checkpoint replay head = e762a9c5 transformed (removed term, both casings -> Cloud Provider); patch applies unchanged (no removed term in hunks)",
+  "result_tree_on_public_base": "3ebba9f46e1334529e2baf9949175442d7056a5c",
+  "result_vs_e762_snapshot": "differs only by the 36 rewrite-replaced lines in 21 untouched files; 0 removed-term occurrences in result tree"
+ },
+ {
+  "tree": "control-win",
+  "base": "e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+  "snapshot_commit": "0b45b8484e69a5e8237c71ce3f617305741a5268",
+  "snapshot_tree": "4cafdaaebef12e77f2cb7f7cc578e494bf8656d2",
+  "patch": "app-lease-gas/control-win.patch",
+  "patch_sha256": "2f720c7ef3c86e9c0df88cc79af1e1ffe6fb19278e9fcce35417603b7dcf6b3d",
+  "files": [
+   {
+    "tree": "control-win",
+    "path": "README.txt",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/control-win/README.txt",
+    "sha256": "d0c5797af59c6c056503b17063584520922cb2075a95cb69dc4941ffb5a6f451",
+    "size": 261,
+    "status": "included"
+   },
+   {
+    "tree": "control-win",
+    "path": "windows/node/chain.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/control-win/windows/node/chain.mjs",
+    "sha256": "1cd6ec5df44b64fb7dd7f8c18312fda7bbd7b3d04595704ff679926f9d1ad70e",
+    "size": 51711,
+    "status": "included"
+   },
+   {
+    "tree": "control-win",
+    "path": "windows/node/host.mjs",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/control-win/windows/node/host.mjs",
+    "sha256": "7d7874bb8a0b882ca21a160f25683cb096d9cabbf01e646f5974628dca911bc4",
+    "size": 262390,
+    "status": "included"
+   }
+  ],
+  "public_base": "b97ffbc585d62f0206ee3a820cb75ae294a4a896",
+  "public_base_note": "main checkpoint replay head = e762a9c5 transformed (removed term, both casings -> Cloud Provider); patch applies unchanged (no removed term in hunks)",
+  "result_tree_on_public_base": "4f072d49a156ecde6648c12d518cf64203275898",
+  "result_vs_e762_snapshot": "differs only by the 36 rewrite-replaced lines in 21 untouched files; 0 removed-term occurrences in result tree"
+ },
+ {
+  "tree": "control-linux",
+  "base": "e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+  "snapshot_commit": "ae3c7bb95f1b44c788e6f470f355708cf2c9f6c8",
+  "snapshot_tree": "bfc4a0eec45176d3a1d7734df9a744512247a0e6",
+  "patch": "app-lease-gas/control-linux.patch",
+  "patch_sha256": "9565e5faf4e3fe71142bc19536ab18dcbba3fe11a4e03f3c32c58b28bdb8fda9",
+  "files": [
+   {
+    "tree": "control-linux",
+    "path": "README.txt",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/control-linux/README.txt",
+    "sha256": "033e975bd68786e48f26eb160fd114abfdbc1629cf7e0a1bcbbb36a6a0c3cfcc",
+    "size": 232,
+    "status": "included"
+   },
+   {
+    "tree": "control-linux",
+    "path": "supervisor.js",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/app-lease-gas/control-linux/supervisor.js",
+    "sha256": "b0ef78f6a65aecfd748f24b93aef4868c3a718127aea6e95c332c733e94c6373",
+    "size": 781571,
+    "status": "included"
+   }
+  ],
+  "public_base": "b97ffbc585d62f0206ee3a820cb75ae294a4a896",
+  "public_base_note": "main checkpoint replay head = e762a9c5 transformed (removed term, both casings -> Cloud Provider); patch applies unchanged (no removed term in hunks)",
+  "result_tree_on_public_base": "3261d52030dd9444cdd590b6bc5deafb177c62e5",
+  "result_vs_e762_snapshot": "differs only by the 36 rewrite-replaced lines in 21 untouched files; 0 removed-term occurrences in result tree"
+ }
+]

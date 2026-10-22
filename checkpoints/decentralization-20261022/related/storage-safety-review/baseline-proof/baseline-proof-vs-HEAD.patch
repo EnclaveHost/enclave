@@ -1,0 +1,269 @@
+diff --git a/sia-s3/src/replica.rs b/sia-s3/src/replica.rs
+index 0bee0f1dd2b5be40a3a2a1c9d9f34f44763a7079..13340f9b7a815d85361d729a4a34ba8e44244c5c 100644
+--- a/sia-s3/src/replica.rs
++++ b/sia-s3/src/replica.rs
+@@ -1772,4 +1772,220 @@ mod tests {
+         let out = fan_out(jobs, 1, Duration::ZERO, Duration::from_millis(100), Result::is_ok).await;
+         assert!(t0.elapsed() < Duration::from_secs(1) && out[0].1.is_none());
+     }
++
++    // ---- B2: a manifest body that cannot be read (its hosts are gone, slow, or it is corrupt) ----
++
++    /// Re-pin key `k`'s manifest object with a body hash that no longer matches its body: what a load sees when the
++    /// manifest's sectors cannot be read back intact (`read_body` refuses the body either way).
++    async fn corrupt_manifest(s: &Store, k: &str) {
++        let (obj, meta) = {
++            let idx = s.idx.lock().await;
++            let key = &idx.keys[&("b".to_string(), k.to_string())];
++            assert!(key.manifest, "{k} is stored behind a manifest");
++            idx.objs[&key.host].clone()
++        };
++        let mut meta: crate::store::Meta = meta;
++        meta.mf.as_mut().unwrap().z = "0".repeat(64);
++        let mut obj = obj;
++        obj.metadata = serde_json::to_vec(&meta).unwrap();
++        s.sdk.pin_object(&obj).await.unwrap();
++    }
++
++    /// A content type long enough that an entry for a 700-character key no longer fits inline (manifest), while the
++    /// same key without it does.
++    fn wide_type() -> Option<String> {
++        Some(format!("x/{}", "y".repeat(200)))
++    }
++
++    #[tokio::test]
++    async fn an_unreadable_manifest_of_a_live_version_keeps_the_replica_unloaded() {
++        // disk-backed: every version pins one or two full slabs
++        let n = Net::on_disk(61);
++        let c = cluster(std::slice::from_ref(&n), 1).await;
++        let key = "k".repeat(700);
++        c.put("b", &key, b"old bytes".to_vec(), None, &Cond::None).await.unwrap();
++        assert!(!c.store(0).unwrap().idx.lock().await.keys[&("b".to_string(), key.clone())].manifest, "v1 is inline");
++        // v2 needs a manifest; the old entry's removal hangs, so v1 stays on the indexer (as after any failed cleanup)
++        n.net.push_fault("delete_object", Fault::Hang);
++        c.put("b", &key, b"new bytes".to_vec(), wide_type(), &Cond::None).await.unwrap();
++        assert_eq!(get(&c, &key).await.unwrap(), b"new bytes");
++        {
++            // the stale v1 entry really is still listed beside v2
++            let s = n.load().await.unwrap();
++            let idx = s.idx.lock().await;
++            let named = idx.objs.values().filter(|(_, m)| m.e.iter().any(|e| e.k == key)).count();
++            assert_eq!(named, 1, "the old inline entry is left behind");
++            assert!(idx.keys[&("b".to_string(), key.clone())].manifest);
++        }
++        corrupt_manifest(&c.store(0).unwrap(), &key).await;
++
++        // Before the fix the replica loaded without v2 and served the stale "old bytes" for an acknowledged overwrite
++        // (and counted toward the boot quorum). Now it stays unloaded, and a cluster of it is not ready.
++        let err = n.load().await.err().expect("a replica must not load without the manifest of a live version");
++        assert!(err.contains("manifest"), "{err}");
++        let boot = cluster(std::slice::from_ref(&n), 1).await;
++        assert!(!boot.ready());
++        assert!(boot.lookup("b", &key).is_none());
++    }
++
++    // ---- B3: re-reading a replica while other tasks change it through the old store ----
++
++    #[tokio::test]
++    async fn a_re_read_never_swaps_out_a_pin_still_in_flight() {
++        let n = Net::on_disk(63);
++        let c = cluster(std::slice::from_ref(&n), 1).await;
++        let uid = c.create_upload("b", "mp").await.unwrap();
++        let s = c.store(0).unwrap();
++        // the part's pin is held open by the indexer, which applies it while the re-read is deciding
++        n.net.push_fault("pin_object", Fault::Defer);
++        let part = c.upload_part(&uid, 1, b"part one".to_vec());
++        let racer = async {
++            for _ in 0..4000 {
++                if s.in_flight() > 0 {
++                    break;
++                }
++                tokio::time::sleep(Duration::from_millis(5)).await;
++            }
++            assert_eq!(s.in_flight(), 1, "the part's pin is in flight");
++            let r = c.reconcile(0).await;
++            assert_eq!(n.net.apply_deferred(), 1);
++            r
++        };
++        let (part, swap) = tokio::join!(part, racer);
++        // Before the fix the swap went ahead: the fresh index (listed before the pin landed) lacked the part, was not
++        // dirty, and CompleteMultipartUpload failed with InvalidPart for a part the indexer holds.
++        assert!(swap.is_err(), "no swap while a pin is in flight");
++        assert!(Rc::ptr_eq(&c.store(0).unwrap(), &s) && !s.is_retired());
++        assert!(part.is_err() && s.dirty(), "the pin's outcome is unknown to the caller: the replica will be re-read");
++        maintain(&c).await;
++        assert!(s.is_retired(), "the quiet replica was re-read and swapped");
++        c.complete_upload(&uid, &[(1, md5_hex(b"part one"))]).await.expect("the applied part is known after the re-read");
++        assert_eq!(get(&c, "mp").await.unwrap(), b"part one");
++    }
++
++    #[tokio::test]
++    async fn a_re_read_never_waits_on_a_busy_index_while_holding_the_write_lock() {
++        let n = Net::on_disk(64);
++        let c = cluster(std::slice::from_ref(&n), 1).await;
++        c.put("b", "k", b"v".to_vec(), None, &Cond::None).await.unwrap();
++        let s = c.store(0).unwrap();
++        // what the compactor holds while it pins repacked objects and deletes the originals
++        let held = s.idx.lock().await;
++        // Before the fix reconcile waited for this lock while holding the write lock (every write stalled), and then
++        // swapped in a listing that predated whatever the holder changed.
++        let r = tokio::time::timeout(Duration::from_secs(20), c.reconcile(0)).await.expect("reconcile returns instead of waiting");
++        let e = r.unwrap_err();
++        assert!(e.contains("busy"), "{e}");
++        assert!(!s.is_retired() && Rc::ptr_eq(&c.store(0).unwrap(), &s));
++        drop(held);
++        c.put("b", "k2", b"w".to_vec(), None, &Cond::None).await.unwrap();
++        c.reconcile(0).await.unwrap();
++        assert!(s.is_retired());
++        assert_eq!(get(&c, "k").await.unwrap(), b"v");
++        assert_eq!(get(&c, "k2").await.unwrap(), b"w");
++    }
++
++    #[tokio::test]
++    async fn a_replaced_store_sends_nothing_more() {
++        let n = Net::on_disk(65);
++        let c = cluster(std::slice::from_ref(&n), 1).await;
++        let uid = c.create_upload("b", "mp").await.unwrap();
++        let old = c.store(0).unwrap();
++        c.reconcile(0).await.unwrap();
++        assert!(!Rc::ptr_eq(&old, &c.store(0).unwrap()));
++
++        // callers still holding the old Rc (a DELETE's floor write, an UploadPart, the compactor) get a refusal that
++        // changed nothing; before the fix these reached the indexer behind the fresh index's back
++        let floor = Tomb { q: qkey("b", "gone"), h: 1, i: "w".into() };
++        let e = old.write_ledger(vec![floor]).await.unwrap_err();
++        assert!(e.contains("replaced"), "{e}");
++        let e = old.upload_part(&uid, 1, Rc::from(&b"late part"[..])).await.unwrap_err();
++        assert!(e.contains("replaced"), "{e}");
++        assert_eq!(old.in_flight(), 0);
++        assert!(!old.dirty(), "nothing was sent, so nothing is ambiguous");
++        {
++            let after = n.load().await.unwrap();
++            let idx = after.idx.lock().await;
++            assert!(idx.ledgers.is_empty() && idx.floors.is_empty(), "no ledger reached the indexer");
++            assert!(idx.uploads.get(&uid).is_none_or(|u| u.parts.is_empty()), "no part reached the indexer");
++        }
++        // the current store serves and takes writes as before
++        c.upload_part(&uid, 1, b"part".to_vec()).await.unwrap();
++        c.complete_upload(&uid, &[(1, md5_hex(b"part"))]).await.unwrap();
++        assert_eq!(get(&c, "mp").await.unwrap(), b"part");
++    }
++
++    // ---- BASELINE PROBES: these PASS on 54818ba, demonstrating each bug concretely ----
++
++    #[tokio::test]
++    async fn baseline_probe_live_manifest_unreadable_serves_stale_bytes() {
++        let n = Net::on_disk(71);
++        let c = cluster(std::slice::from_ref(&n), 1).await;
++        let key = "k".repeat(700);
++        c.put("b", &key, b"old bytes".to_vec(), None, &Cond::None).await.unwrap();
++        n.net.push_fault("delete_object", Fault::Hang);
++        c.put("b", &key, b"new bytes".to_vec(), wide_type(), &Cond::None).await.unwrap();
++        corrupt_manifest(&c.store(0).unwrap(), &key).await;
++        let boot = cluster(std::slice::from_ref(&n), 1).await;
++        assert!(boot.ready(), "the replica loaded without its live manifest");
++        assert_eq!(get(&boot, &key).await.unwrap(), b"old bytes", "an acknowledged overwrite is served stale");
++    }
++
++    #[tokio::test]
++    async fn baseline_probe_in_flight_swap_loses_the_part() {
++        let n = Net::on_disk(73);
++        let c = cluster(std::slice::from_ref(&n), 1).await;
++        let uid = c.create_upload("b", "mp").await.unwrap();
++        let s = c.store(0).unwrap();
++        n.net.push_fault("pin_object", Fault::Defer);
++        let part = c.upload_part(&uid, 1, b"part one".to_vec());
++        let racer = async {
++            for _ in 0..4000 {
++                if s.in_flight() > 0 {
++                    break;
++                }
++                tokio::time::sleep(Duration::from_millis(5)).await;
++            }
++            assert_eq!(s.in_flight(), 1);
++            let r = c.reconcile(0).await;
++            assert_eq!(n.net.apply_deferred(), 1);
++            r
++        };
++        let (_part, swap) = tokio::join!(part, racer);
++        assert!(swap.is_ok(), "the baseline swaps with a pin in flight");
++        assert!(!c.store(0).unwrap().dirty(), "and the fresh index is not even dirty");
++        maintain(&c).await;
++        let e = c.complete_upload(&uid, &[(1, md5_hex(b"part one"))]).await.unwrap_err();
++        assert!(e.contains("InvalidPart"), "a part the indexer holds is unknown: {e}");
++    }
++
++    #[tokio::test]
++    async fn baseline_probe_replaced_store_reaches_the_indexer() {
++        let n = Net::on_disk(75);
++        let c = cluster(std::slice::from_ref(&n), 1).await;
++        let old = c.store(0).unwrap();
++        c.reconcile(0).await.unwrap();
++        assert!(!Rc::ptr_eq(&old, &c.store(0).unwrap()));
++        old.write_ledger(vec![Tomb { q: qkey("b", "gone"), h: 1, i: "w".into() }]).await.unwrap();
++        let after = n.load().await.unwrap();
++        assert!(!after.idx.lock().await.floors.is_empty(), "the old Rc changed the indexer behind the fresh index");
++        assert!(c.store(0).unwrap().idx.lock().await.floors.is_empty(), "and the current index does not know it");
++    }
++    #[tokio::test]
++    async fn baseline_probe_skewed_old_writer_resurrects_a_delete() {
++        let n = Net::on_disk(91);
++        let p1 = cluster(std::slice::from_ref(&n), 1).await;
++        p1.clock.set(now_ms() + 3_600_000); // P1's clock runs an hour ahead
++        p1.put("b", "k", b"v1".to_vec(), None, &Cond::None).await.unwrap();
++        p1.clock.set(p1.clock.get() + 1000);
++        n.net.push_fault("pin_object", Fault::Defer);
++        assert!(p1.put("b", "k", b"stale".to_vec(), None, &Cond::None).await.is_err());
++        drop(p1);
++        let p2 = cluster(std::slice::from_ref(&n), 1).await;
++        assert_eq!(get(&p2, "k").await.unwrap(), b"v1");
++        p2.delete("b", "k").await.unwrap(); // acknowledged
++        assert_eq!(n.net.apply_deferred(), 1);
++        let p3 = cluster(std::slice::from_ref(&n), 1).await;
++        assert_eq!(get(&p3, "k").await.unwrap(), b"stale", "the acknowledged DELETE was undone by the old writer's late PUT");
++    }
+ }
+diff --git a/sia-s3/src/store.rs b/sia-s3/src/store.rs
+index 49945055d3064e1a2b03e101ebd35641106cf6fe..a49e3564f4d3f376c41af10e85d6c47b136b9f66 100644
+--- a/sia-s3/src/store.rs
++++ b/sia-s3/src/store.rs
+@@ -311,6 +311,8 @@ pub struct Store {
+     pub ambiguous_ms: Cell<u64>,
+     /// bumped by every remote change that succeeded
+     pub changes: Cell<u64>,
++    /// BASELINE-PROOF SHIM (observation only): remote calls awaiting an answer
++    pub inflight_obs: Cell<u32>,
+ }
+ 
+ /// How a new version's entry is stored on one replica.
+@@ -698,9 +700,18 @@ impl Store {
+             listed_ms,
+             ambiguous_ms: Cell::new(0),
+             changes: Cell::new(0),
++            inflight_obs: Cell::new(0),
+         })
+     }
+ 
++    /// BASELINE-PROOF SHIMS: observation only; the baseline never retires a store.
++    pub fn in_flight(&self) -> u32 {
++        self.inflight_obs.get()
++    }
++    pub fn is_retired(&self) -> bool {
++        false
++    }
++
+     /// Has a remote change had an unknown outcome since the listing behind the index began?
+     pub fn dirty(&self) -> bool {
+         self.ambiguous_ms.get() >= self.listed_ms
+@@ -717,7 +728,10 @@ impl Store {
+     /// One indexer call that changes durable state. Its outcome is unknown when it errs or does not answer in time:
+     /// the indexer may have applied it, or may still.
+     async fn remote<T, E: std::fmt::Display>(&self, what: &str, fut: impl Future<Output = Result<T, E>>) -> Res<T> {
+-        match tokio::time::timeout(self.opts.meta_timeout, fut).await {
++        self.inflight_obs.set(self.inflight_obs.get() + 1);
++        let r = tokio::time::timeout(self.opts.meta_timeout, fut).await;
++        self.inflight_obs.set(self.inflight_obs.get() - 1);
++        match r {
+             Ok(Ok(v)) => {
+                 self.changes.set(self.changes.get() + 1);
+                 Ok(v)

@@ -1,0 +1,3 @@
+M	sia-s3/src/main.rs
+M	sia-s3/src/replica.rs
+M	sia-s3/src/store.rs

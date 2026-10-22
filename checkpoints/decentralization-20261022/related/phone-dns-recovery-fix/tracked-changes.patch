@@ -1,0 +1,150 @@
+diff --git a/android/app/src/main/java/host/enclave/dns/EnclaveVpnService.kt b/android/app/src/main/java/host/enclave/dns/EnclaveVpnService.kt
+index afdebb5405de1aceaa7725d27512b5f0d6780285..ef043417d2d27c3dbc9a621b7bd4b268cffb1ca3 100644
+--- a/android/app/src/main/java/host/enclave/dns/EnclaveVpnService.kt
++++ b/android/app/src/main/java/host/enclave/dns/EnclaveVpnService.kt
+@@ -4,6 +4,8 @@ import android.content.Intent
+ import android.net.ConnectivityManager
+ import android.net.LinkProperties
+ import android.net.Network
++import android.net.NetworkCapabilities
++import android.net.NetworkRequest
+ import android.net.VpnService
+ import android.os.Build
+ import java.io.File
+@@ -69,23 +71,64 @@ class EnclaveVpnService : VpnService() {
+     private var netCallback: ConnectivityManager.NetworkCallback? = null
+ 
+     /**
+-     * The fallback is the underlying network's own DNS. This app is left out
+-     * of its own VPN, so its default network IS the underlying one: follow
+-     * its DNS servers as the phone moves between networks.
++     * The fallback is the underlying network's own DNS: follow it as the
++     * phone moves between networks. Not this app's DEFAULT network: Android
++     * can hand the VPN's own app the VPN there even though the app is left
++     * out of it (a Pixel on Android 17 did, 2026-10-20), and the VPN's DNS
++     * servers are this app's own. Asked from outside the VPN they answer
++     * nothing, so the fallback never worked while EnclaveDNS was down. Only
++     * networks that are not VPNs count.
+      */
+     private fun watchNetworkDns() {
+         val cm = getSystemService(ConnectivityManager::class.java) ?: return
++        val request = NetworkRequest.Builder()
++            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
++            .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
++            .build()
+         val cb = object : ConnectivityManager.NetworkCallback() {
+-            override fun onLinkPropertiesChanged(network: Network, lp: LinkProperties) {
+-                val servers = lp.dnsServers.mapNotNull { it.hostAddress }.joinToString(",")
+-                if (servers.isNotEmpty() && running) Native.setSystemDns(servers)
+-            }
++            override fun onAvailable(network: Network) = report(cm)
++            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = report(cm)
++            override fun onLinkPropertiesChanged(network: Network, lp: LinkProperties) = report(cm)
++            override fun onLost(network: Network) = report(cm)
+         }
+         try {
+-            cm.registerDefaultNetworkCallback(cb)
++            cm.registerNetworkCallback(request, cb)
+             netCallback = cb
+         } catch (_: Exception) {
+         }
++        report(cm)
++    }
++
++    /** The DNS servers of the network Android itself uses for apps outside the VPN. */
++    private fun report(cm: ConnectivityManager) {
++        val servers = underlyingDns(cm)
++        if (servers.isNotEmpty() && running) Native.setSystemDns(servers)
++    }
++
++    /**
++     * Of the networks that are not VPNs and reach the internet: validated
++     * first, then unmetered (Wi-Fi or Ethernet before cellular), as Android
++     * ranks them. Its DNS servers, "ip,ip", or "" when none.
++     */
++    @Suppress("DEPRECATION")
++    private fun underlyingDns(cm: ConnectivityManager): String {
++        val nets = cm.allNetworks.mapNotNull { n ->
++            val c = cm.getNetworkCapabilities(n) ?: return@mapNotNull null
++            if (c.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ||
++                !c.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) ||
++                !c.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
++            ) return@mapNotNull null
++            val lp = cm.getLinkProperties(n) ?: return@mapNotNull null
++            Pair(c, lp)
++        }
++        val best = nets.sortedWith(
++            compareByDescending<Pair<NetworkCapabilities, LinkProperties>> {
++                it.first.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
++            }.thenByDescending {
++                it.first.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
++            }
++        ).firstOrNull() ?: return ""
++        return best.second.dnsServers.mapNotNull { it.hostAddress }.joinToString(",")
+     }
+ 
+     private fun shutdown() {
+diff --git a/android/rust/src/lib.rs b/android/rust/src/lib.rs
+index 0da71643d5d79643502ccccf81a08c944f27c87b..93a1c691429a96c6ab5b976bfb6773845efcc4a7 100644
+--- a/android/rust/src/lib.rs
++++ b/android/rust/src/lib.rs
+@@ -20,6 +20,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
+ pub const DNS_V4: Ipv4Addr = Ipv4Addr::new(10, 53, 0, 1);
+ pub const DNS_V6: Ipv6Addr = Ipv6Addr::new(0xfd53, 0, 0, 0, 0, 0, 0, 1);
+ pub const GATEWAY: Ipv4Addr = Ipv4Addr::new(10, 53, 0, 3);
++/// The VPN interface's own addresses (EnclaveVpnService.addAddress).
++pub const VPN_V4: Ipv4Addr = Ipv4Addr::new(10, 53, 0, 2);
++pub const VPN_V6: Ipv6Addr = Ipv6Addr::new(0xfd53, 0, 0, 0, 0, 0, 0, 2);
+ const MTU: u16 = 1500;
+ 
+ struct Running {
+@@ -203,17 +206,43 @@ pub extern "system" fn Java_host_enclave_dns_Native_setSystemDns<'l>(
+     servers: JString<'l>,
+ ) {
+     let list = jstr(&mut env, &servers);
+-    let v: Vec<SocketAddr> = list
+-        .split(',')
+-        .filter_map(|s| s.trim().split('%').next()?.parse::<IpAddr>().ok())
+-        .filter(|ip| !ip.is_loopback())
+-        .map(|ip| SocketAddr::new(ip, 53))
+-        .collect();
++    let v = system_dns_from(&list);
+     if let Some(r) = RUNNING.lock().unwrap().as_ref() {
+         r.engine.up.set_system_dns(v);
+     }
+ }
+ 
++/// The fallback servers in what the app reports ("ip,ip,..."), minus every
++/// address that cannot be the underlying network's DNS: this VPN's own
++/// addresses (the engine's sockets bypass the VPN, so asking 10.53.0.1 from
++/// here goes out on the real network and is never answered), loopback,
++/// unspecified, and link-local IPv6 (its interface scope does not survive
++/// the report). Empty = keep the servers known so far.
++pub fn system_dns_from(list: &str) -> Vec<SocketAddr> {
++    let own: [IpAddr; 5] = [
++        IpAddr::V4(DNS_V4),
++        IpAddr::V4(GATEWAY),
++        IpAddr::V4(VPN_V4),
++        IpAddr::V6(DNS_V6),
++        IpAddr::V6(VPN_V6),
++    ];
++    let mut out: Vec<SocketAddr> = Vec::new();
++    for s in list.split(',') {
++        let Some(ip) = s.trim().split('%').next().and_then(|a| a.parse::<IpAddr>().ok()) else {
++            continue;
++        };
++        let link_local_v6 = matches!(ip, IpAddr::V6(v6) if (v6.segments()[0] & 0xffc0) == 0xfe80);
++        if own.contains(&ip) || ip.is_loopback() || ip.is_unspecified() || link_local_v6 {
++            continue;
++        }
++        let a = SocketAddr::new(ip, 53);
++        if !out.contains(&a) {
++            out.push(a);
++        }
++    }
++    out
++}
++
+ /// `Native.check(configToml)`: null when the settings are valid, else why not.
+ #[no_mangle]
+ pub extern "system" fn Java_host_enclave_dns_Native_check<'l>(

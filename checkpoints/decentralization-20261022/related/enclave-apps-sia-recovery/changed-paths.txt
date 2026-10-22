@@ -1,0 +1,6 @@
+M	sia-s3/README.md
+M	sia-s3/REPLICATION.md
+M	sia-s3/src/config.rs
+M	sia-s3/src/main.rs
+M	sia-s3/src/replica.rs
+M	sia-s3/src/store.rs

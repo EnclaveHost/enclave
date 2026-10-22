@@ -1,0 +1,41 @@
+diff --git a/release/RELEASE.md b/release/RELEASE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..9a12123d07a444c940e8ea2cfeced6971e143ffd
+--- /dev/null
++++ b/release/RELEASE.md
+@@ -0,0 +1,19 @@
++# Custody release closure (local, unpublished)
++
++This commit = parent e762a9c5 plus the integrated working-tree versions (work/enclave, root-reviewed and integrated
++2026-10-20, outputs/decentralization-audit/custody-rewrap-main-integration.json) of EXACTLY the files the two measured
++images and their builders read (derived from the builders' own esbuild metafiles; see work/custody-release/closure-main.json).
++
++Measured images built from this commit (no --allow-dirty):
++
++    node scripts/build-custodian-v2.mjs --base <dist-custody-9e5fb2028> --out <dir> \
++      --vault 0xe48699b8401564aace7a814ae4569b67a3f7eef5 --host-ownership 0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7 \
++      --book 0xab214342d5a490150a4a977063a2f88e21f80907 --host-policy release/host-policy-production.json
++    node scripts/build-custody-rewrap.mjs --base <dist-custody-9e5fb2028> --out <dir> \
++      --vault 0xe48699b8401564aace7a814ae4569b67a3f7eef5 --book 0xab214342d5a490150a4a977063a2f88e21f80907 \
++      --host-policy release/host-policy-production.json
++
++release/host-policy-production.json = network/platform-host-policy-config.mjs PRODUCTION_BOOK, PRODUCTION_HOST_OWNERSHIP and
++PRODUCTION_MIRRORS (four public HTTPS transports of ONE infrastructure operator). No policy document is signed, published or
++anchored. node_modules and relay/node_modules are installed from package-lock.json and relay/package-lock.json (not committed).
++External pinned inputs (hashes in the image manifests): the metal base dist (kernel + initramfs), the verifying OVMF.
+diff --git a/release/host-policy-production.json b/release/host-policy-production.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..7166d655e2d8e5dd957dfa1962174a969c7e3661
+--- /dev/null
++++ b/release/host-policy-production.json
+@@ -0,0 +1,10 @@
++{
++ "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
++ "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++ "mirrors": [
++  "https://134.199.235.187/platform-policy",
++  "https://134.209.248.172/platform-policy",
++  "https://165.245.191.129/platform-policy",
++  "https://146.190.246.39/platform-policy"
++ ]
++}

@@ -1,0 +1,38 @@
+[package]
+name = "site-host"
+version = "0.1.0"
+edition = "2021"
+description = "Serve one embedded, CID-pinned website release (UnixFS CAR) at the origin root with the release's own security headers; every served block is hash-verified, nothing is fetched at serve time."
+license-file = "../LICENSE"
+publish = false
+
+# rlib as well, so `cargo test` runs the same verification and routing code natively (src/site.rs, src/car.rs).
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wit-bindgen-rt = { version = "0.39.0", features = ["bitflags"] }
+serde_json = "1"
+sha2 = { version = "0.10", default-features = false }
+
+# the native tests hash the whole real release; unoptimized sha2 would dominate their runtime
+[profile.dev.package.sha2]
+opt-level = 3
+
+[profile.release]
+codegen-units = 1
+opt-level = "s"
+strip = true
+lto = true
+
+[package.metadata.component]
+package = "enclave:site-host"
+
+[package.metadata.component.target]
+path = "wit"
+world = "site-host"
+
+[package.metadata.component.target.dependencies]
+"wasi:http" = { path = "wit/deps/http" }
+"wasi:io" = { path = "wit/deps/io" }
+"wasi:clocks" = { path = "wit/deps/clocks" }

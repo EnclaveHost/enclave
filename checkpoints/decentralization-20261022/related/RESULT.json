@@ -1,0 +1,325 @@
+{
+ "kind": "preservation checkpoint (not release, not proof of completion)",
+ "owner_dirs": [
+  "work/source-checkpoint-20261022/related-source",
+  "work/source-checkpoint-20261022/related-review"
+ ],
+ "pushes": "none",
+ "original_repos_modified": false,
+ "author_identity_for_scratch_commits": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> (repo config says Steven Batchelor; global preference applied); no co-author trailers",
+ "tests": "not rerun; coverage unchanged",
+ "repos": [
+  {
+   "orig": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave-apps",
+   "base": "50f93d74c5a41acb8df73c8ae094d8c9fb05e666",
+   "snapshot_commit": "2e962db3762c4ea69f90e31925f5c9970565d91f",
+   "snapshot_tree": "9e09e372c3d3b4737a1be03b25c611d220d6609b",
+   "committed_patch_tree": "b2267c6cc4286f570f09fdbc5b15eeb7f1bb1e7d",
+   "remote": "https://github.com/EnclaveHost/enclave-apps.git",
+   "base_on_remote": "refs/heads/decentralize/wallet-uploads",
+   "changed_paths": 79,
+   "modified": 34,
+   "new": 45,
+   "sanitized": "1 comment line removed-term->cloud provider (eyesoff-ai/src/chat.html)"
+  },
+  {
+   "orig": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave-apps-sia-recovery",
+   "base": "54818ba68ea0feddec1cae5650230ddf2fec3d30",
+   "snapshot_commit": "8257396de4c6cdfd3500be44f800e8ccbf592802",
+   "snapshot_tree": "07480da8ee0f913d833ff66ddf95595578fec143",
+   "remote": "https://github.com/EnclaveHost/enclave-apps.git",
+   "base_on_remote": "refs/heads/decentralize/sia-recovery",
+   "changed_paths": 6
+  },
+  {
+   "orig": "/home/steven/Documents/Codex/2026-10-18/wo/work/storage-safety-review",
+   "base": "54818ba68ea0feddec1cae5650230ddf2fec3d30",
+   "snapshot_commit": "823913820d5b00dd6574b9c775e89a84d94cefd7",
+   "snapshot_tree": "40aa94084bc6da58ce7c3d8e57b18f581156a7cc",
+   "remote": "https://github.com/EnclaveHost/enclave-apps.git",
+   "base_on_remote": "refs/heads/decentralize/sia-recovery",
+   "changed_paths": 3,
+   "extra": [
+    "baseline-proof/baseline-proof-vs-HEAD.patch (src/replica.rs, src/store.rs; all other baseline-proof/sia-s3 files == HEAD sia-s3)",
+    "run-bounded.sh (from logs/)"
+   ]
+  },
+  {
+   "orig": "/home/steven/Documents/Codex/2026-10-18/wo/work/phone-dns-recovery/fix",
+   "base": "da813d8a035ee35f5d8521f4edf4bd57e168fa18",
+   "snapshot_commit": "21b31ef7409186f2f0eb2b46c22f2e6531fba89c",
+   "snapshot_tree": "7959b94e5e61d5e93ae1614c0f8027c9c32a2dbf",
+   "remote": "https://github.com/EnclaveHost/enclavedns-client.git",
+   "base_on_remote": "refs/heads/main = tag v0.1.4",
+   "changed_paths": 3
+  },
+  {
+   "orig": "work/windows-final-review-source",
+   "base": "local 45801c22be3a317d687f30efe92b6f0b47124a86",
+   "public_equivalent": "8082af35fa976624a4c56e471170de178582a3a1 (ancestor of public decentralize/nan-retirement d09f377d)",
+   "result": "no authored delta: tree == 45801c22 except node_modules symlink; 45801c22 vs 8082af35 differs only by name-cleanup rewrite (36 lines/21 files)",
+   "patch": null
+  }
+ ],
+ "app_lease_gas": {
+  "base": "e762a9c5f523cf7fcb6d68118ca459290926f8fa (local; = public d09f377d [rewritten fd1cc627] + local bf467cca,17b8c34e,e762a9c5 preserved by main checkpoint as b97ffbc5)",
+  "trees": [
+   {
+    "tree": "shadow-cli",
+    "snapshot_commit": "a4cc3f064ba3d86fa6fec8ae23c4c1580a5e2888",
+    "patch": "related-source/app-lease-gas/shadow-cli.patch",
+    "included": [
+     "cli/enclave.mjs",
+     "cli/lease-gas.mjs",
+     "network/lease-executor-client.mjs",
+     "network/lease-gas-owner.mjs"
+    ],
+    "excluded": [],
+    "result_tree_on_b97ffbc5": "0d3c0d3f0efef4163f0bc1ca3626758e90e08801"
+   },
+   {
+    "tree": "shadow-win",
+    "snapshot_commit": "0007e0dae5d13ce81909c3ca24416e03b44d677c",
+    "patch": "related-source/app-lease-gas/shadow-win.patch",
+    "included": [
+     "network/lease-executor-client.mjs",
+     "network/lease-gas-owner.mjs",
+     "network/lease-gas-runtime.mjs",
+     "network/lease-release-journal.mjs",
+     "windows/node/chain.mjs",
+     "windows/node/host.mjs"
+    ],
+    "excluded": [
+     "windows/node/lease-gas-runtime.bundle.mjs (excluded-generated-bundle, sha256 2ea4f89e38a56081)"
+    ],
+    "result_tree_on_b97ffbc5": "f910344ca27aa3a93c6bcaf0722e7a3b5b208e45"
+   },
+   {
+    "tree": "shadow-b",
+    "snapshot_commit": "46ce91350209d2d812faacaeb3e82ce41abcb393",
+    "patch": "related-source/app-lease-gas/shadow-b.patch",
+    "included": [
+     "Dockerfile",
+     "network/lease-executor-client.mjs",
+     "network/lease-gas-owner.mjs",
+     "network/lease-gas-runtime.mjs",
+     "network/lease-release-journal.mjs",
+     "supervisor.js"
+    ],
+    "excluded": [],
+    "result_tree_on_b97ffbc5": "3ebba9f46e1334529e2baf9949175442d7056a5c"
+   },
+   {
+    "tree": "control-win",
+    "snapshot_commit": "0b45b8484e69a5e8237c71ce3f617305741a5268",
+    "patch": "related-source/app-lease-gas/control-win.patch",
+    "included": [
+     "README.txt",
+     "windows/node/chain.mjs",
+     "windows/node/host.mjs"
+    ],
+    "excluded": [],
+    "result_tree_on_b97ffbc5": "4f072d49a156ecde6648c12d518cf64203275898"
+   },
+   {
+    "tree": "control-linux",
+    "snapshot_commit": "ae3c7bb95f1b44c788e6f470f355708cf2c9f6c8",
+    "patch": "related-source/app-lease-gas/control-linux.patch",
+    "included": [
+     "README.txt",
+     "supervisor.js"
+    ],
+    "excluded": [],
+    "result_tree_on_b97ffbc5": "3261d52030dd9444cdd590b6bc5deafb177c62e5"
+   }
+  ],
+  "not_copied": "symlinks into work/enclave (primary content) and ~7.6k status D/T entries caused by symlinked dirs; shadow-cli symlinks into app-lease-gas/{network,client,cli} were resolved and included",
+  "same_as_primary_skipped": [
+   "shadow-win,shadow-b: network/lease-executor-authority.mjs",
+   "shadow-win: network/registry-reconcile.mjs"
+  ],
+  "public_base": "b97ffbc585d62f0206ee3a820cb75ae294a4a896",
+  "public_base_recipe": "checkout main checkpoint replay head b97ffbc5 (transformed e762a9c5); git apply --binary related-source/app-lease-gas/<tree>.patch; verified for all 5, result trees recorded in shadow-inventory.json",
+  "gaps_fixed": "b97ffbc5 recipe verified (no regeneration needed)"
+ },
+ "verification": {
+  "enclave-apps": {
+   "apply_ok": true,
+   "tree": "b2267c6cc4286f570f09fdbc5b15eeb7f1bb1e7d",
+   "matches": true
+  },
+  "enclave-apps-sia-recovery": {
+   "apply_ok": true,
+   "tree": "07480da8ee0f913d833ff66ddf95595578fec143",
+   "matches": true
+  },
+  "phone-dns-recovery-fix": {
+   "apply_ok": true,
+   "tree": "7959b94e5e61d5e93ae1614c0f8027c9c32a2dbf",
+   "matches": true
+  },
+  "storage-safety-review": {
+   "apply_ok": true,
+   "tree": "40aa94084bc6da58ce7c3d8e57b18f581156a7cc",
+   "matches": true
+  },
+  "app-lease-gas/shadow-cli": {
+   "apply_ok": true,
+   "tree": "a7d0c5c61810ce7b640b42539559306cb5888b47",
+   "matches": true
+  },
+  "app-lease-gas/shadow-win": {
+   "apply_ok": true,
+   "tree": "4c955ed67c8f80df39ffe76bf8e7db41c8aa54dc",
+   "matches": true
+  },
+  "app-lease-gas/shadow-b": {
+   "apply_ok": true,
+   "tree": "e68b75c5f777a942a73dba1394c4e2d295402023",
+   "matches": true
+  },
+  "app-lease-gas/control-win": {
+   "apply_ok": true,
+   "tree": "4cafdaaebef12e77f2cb7f7cc578e494bf8656d2",
+   "matches": true
+  },
+  "app-lease-gas/control-linux": {
+   "apply_ok": true,
+   "tree": "bfc4a0eec45176d3a1d7734df9a744512247a0e6",
+   "matches": true
+  }
+ },
+ "verification_note": "git apply --cached into temp index of base, write-tree compared to snapshot tree; enclave-apps reproduces committed_patch_tree (sanitized). baseline-proof patch reproduces both proof files byte-exact.",
+ "secret_scan": {
+  "findings": 39,
+  "classes": "all test placeholders: $T_DEP/$JOT_* env templates, fake seeds (s33d-0\u2026, s3cr3t\u2026), single-digit-repeat 0x2222\u2026 audience, API scope names; .der files are public AMD VCEK certs, capture.json public attestation (documented in SOURCE.md)",
+  "production_secrets_found": 0,
+  "detail": "related-review/secret-scan.json (no values)"
+ },
+ "exclusions": [
+  "all target/ build dirs",
+  "enclave-apps jot/model/ (38 MB ignored model weights)",
+  "enclave-apps depot/scripts/__pycache__",
+  "storage-safety-review logs/*.log (25 test/build logs)",
+  "storage-safety-review baseline-proof/ full copy (6.3 GB incl target; only 2-file delta kept)",
+  "windows/node/lease-gas-runtime.bundle.mjs in shadow-win (generated bundle)",
+  "windows-final-review-source/windows/enclave-app-socket/target (464K build output)",
+  "node_modules symlinks"
+ ],
+ "gaps": [
+  "app-lease-gas top-level non-git dirs (cli/, client/, network/, contracts/, test/, forge/, patches/, plans/ ...) are outside this scope (external checkpoint owns non-git source); only the 3 files shadow-cli links to are included here",
+  "enclave-apps base itself contains many occurrences of the removed term (repo not rewritten); only the added line was sanitized",
+  "secondary repos (enclave-apps, enclavedns-client) not pushed; preservation relies on root committing related-source/ to EnclaveHost/enclave",
+  "overlay-fix 0080dc02 intermediate generated bundles (host-policy.bundle.mjs, host-admission.bundle.mjs) not preserved; sha256 recorded",
+  "shield-lineage intermediate per-commit states superseded within the lineage not stored separately",
+  "indexd repos (SiaFoundation upstream, 0 changes) and phone-dns src/v012 (public enclavedns-client commits) not further audited"
+ ],
+ "commands": [
+  "python3 related-review/classify.py <tree> e762a9c5 <out>",
+  "related-review/snapshot.sh <name> <orig> [excludes]",
+  "python3 related-review/shadow-snap.py",
+  "python3 related-review/verify.py",
+  "python3 related-review/secret-scan.py",
+  "python3 related-review/extra-classify.py",
+  "python3 related-review/extra-snap.py"
+ ],
+ "inventory": "related-source/INVENTORY.json (71 files, sha256)",
+ "extra_lineages": {
+  "method": "commit (subject, raw author date) matched against public rewritten refs + main checkpoint refs; unmatched commits classified per file vs checkpoint 9a25bfbe tree, public blobs (exact) and primary worktree (rewrite-normalized); detail related-review/extra-classify.json",
+  "transform_rule": "capitalised then lowercase form of the removed term -> \"Cloud Provider\" (byte replace) (from <removed-term>-*-cleanup-20261021/run-rewrite.py); verified transform(orig base blob)==public base blob for every patched path",
+  "patched": [
+   {
+    "name": "custody-release-c635fd68",
+    "orig": "work/custody-release/repo (also repo-b, same HEAD)",
+    "head": "c635fd68515b46c53935ef344e3b4c4779d8067c",
+    "orig_base": "e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+    "public_base": "b97ffbc585d62f0206ee3a820cb75ae294a4a896",
+    "patch": "extra-lineages/custody-release-c635fd68.patch",
+    "patch_sha256": "14a4577358f5d0be1ee46a0b78d0d30d6957d2735d760efdf70a8b1d09e10ad4",
+    "snapshot_commit": "64dce1af41cad5011a450831911b8ba5fa63b08d",
+    "applies_to_public_base": true,
+    "result_tree_on_public_base": "e69f683add563032ff73f9ede9f418317ef3f279",
+    "files": [
+     "release/RELEASE.md",
+     "release/host-policy-production.json"
+    ],
+    "transformed_files": [],
+    "excluded": []
+   },
+   {
+    "name": "shield-lineage-7f019ce2",
+    "orig": "work/shield-lineage-integration",
+    "head": "7f019ce2d63dc6230cbe7818fe65bba5d45c9b0e",
+    "orig_base": "50a37f6df4d7b0e73697235a95ffbd1814f4cfd1",
+    "public_base": "7b9376f9daad4b8b27e235d32cce0d297eeb6728",
+    "patch": "extra-lineages/shield-lineage-7f019ce2.patch",
+    "patch_sha256": "593d5e5363b3d40e114d0fdabe8734bb8810d17ed4e0431990714e14c9942804",
+    "snapshot_commit": "cb7034b5f0fb6e841f751ee4881c5b12cf9ab3f5",
+    "applies_to_public_base": true,
+    "result_tree_on_public_base": "e0dac10b8606f22953736d7e476fa756c9056144",
+    "files": [
+     "isolation/m2/front/main.go",
+     "isolation/m2/front/oracle_test.go",
+     "isolation/m2/front/shield_direct.go"
+    ],
+    "transformed_files": [],
+    "excluded": []
+   },
+   {
+    "name": "overlay-fix-32ec4980",
+    "orig": "work/linux-combined-release/overlay-fix/testrepo",
+    "head": "32ec498042379f8fd07a97b225861b365f9db7a6",
+    "orig_base": "e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+    "public_base": "b97ffbc585d62f0206ee3a820cb75ae294a4a896",
+    "patch": "extra-lineages/overlay-fix-32ec4980.patch",
+    "patch_sha256": "1b6fedc4af7e5ac962e891ad9b3dba00d466ebb2e40d1c56ad9235f9b2930004",
+    "snapshot_commit": "e528d4ade2c03c5331aafc23e5e9884da6f87a6a",
+    "applies_to_public_base": true,
+    "result_tree_on_public_base": "0009235ba480c2de2cfc351104dfb7ddc8fdb7da",
+    "files": [
+     "metal/guest/platform-api-role.mjs",
+     "metal/overlay-control-image.py",
+     "network/host-admission-runtime.mjs",
+     "network/public-directory.mjs",
+     "network/route-record.mjs",
+     "relay/api-relay.js",
+     "scripts/build-platform-api-guest-bundle.mjs",
+     "site/components/deployments/deployments.js",
+     "test/helpers/platform-policy-world.mjs",
+     "test/metal-control-overlay.test.py",
+     "windows/node/host.mjs",
+     "windows/vbslike/manager/server.mjs"
+    ],
+    "transformed_files": [
+     "relay/api-relay.js"
+    ],
+    "excluded": [
+     {
+      "path": "metal/guest/host-policy.bundle.mjs",
+      "reason": "generated bundle (rebuild from sources)",
+      "sha256": "be01edb3838ca87503752bd08a4b7c72c1905c2c1822430113433cd6ce713654"
+     },
+     {
+      "path": "windows/node/host-admission.bundle.mjs",
+      "reason": "generated bundle (rebuild from sources)",
+      "sha256": "7ce23a55c9ffccf1c30c818ef3d7a6774cf3c8743fcac62a1421d11456794fc6"
+     }
+    ]
+   }
+  ],
+  "already_preserved": {
+   "custody-candidate-source-20261020 ee8beb38": "public 85cb6e7d (decentralize/nan-retirement); tree == transform",
+   "custody-release-source-78acfcc6 78acfcc6": "public dbbe9765; dirty node_modules link excluded",
+   "custody-release/repo-b c635fd68": "same HEAD as custody-release/repo, clean",
+   "custody-release c635fd68 other 18 files": "== checkpoint 9a25bfbe",
+   "shield-lineage 90c432d8/48ba612c/7f019ce2 other paths": "== checkpoint or exact blob in public history; intermediate superseded states of main.go/oracle_test.go/policy.go (90c432d8, 48ba612c) not separately saved except as final 7f019ce2 state; policy.go final == checkpoint",
+   "overlay-fix 0080dc02 683+6 files": "== checkpoint (6 after rewrite normalization); 32ec4980 two files == checkpoint",
+   "overlay-fix 0080dc02 work/host-capacity-integration/*": "== primary worktree; salvaged by main appendix checkpoints/decentralization-20261022/main/appendix/enclave-root-work/host-capacity-integration/",
+   "overlay-fix 0080dc02 generated bundles + cache/test-failures": "== primary worktree generated outputs (metal/guest/*.bundle.mjs, network/host-services/packages/*); excluded as build output, reproducible from sources"
+  },
+  "excluded_scope": [
+   "work/repository-migration-20261021 dummy repos",
+   "work/product-claims-20261021/repo (public main 7752a423)"
+  ]
+ }
+}

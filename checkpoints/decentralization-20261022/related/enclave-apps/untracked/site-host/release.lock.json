@@ -1,0 +1,9 @@
+{
+  "schema": "site-host-release-lock/1",
+  "cid": "bafybeibs6ouoiqwsr632yvb4ffvmpee4bvxhiaqdg64khrijnt6lgbt3na",
+  "car": {
+    "sha256": "60f038842aa718b23efd5f1412119f854d0d8faef27c330a41b1de7a54da47a2",
+    "bytes": 45774054
+  },
+  "provenance": "enclave site release prepared by `site/deploy.sh prepare` from enclave main e762a9c5 + its uncommitted integrations (private-browser, credit-vault final, recovery; work/site-host-final-release/MAIN-SNAPSHOT.txt); base bafybeig3rai3tyoimbhb32vo6hkkw3o336wluht7owbs7mefhtiridwp6y"
+}

@@ -1,0 +1,9 @@
+// site-host: serves ONE embedded, content-addressed website release (the Enclave site) at the origin root.
+// Pure wasi:http - it exports the incoming handler and imports no outgoing-handler and no sockets, so it cannot fetch
+// anything at serve time (scripts/check-imports.mjs asserts that on the built component).
+// WIT deps are vendored verbatim from enclave-apps/vault (wasmtime v45, wasi@0.2.6) so guest and host always agree.
+package enclave:site-host;
+
+world site-host {
+  export wasi:http/incoming-handler@0.2.6;
+}
