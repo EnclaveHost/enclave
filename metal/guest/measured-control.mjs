@@ -787,6 +787,16 @@ export async function checkNativeCertificate(chainPem, { keyPem, caSha256, names
 
 // ---- the control front ----------------------------------------------------------------------------------------------------
 const HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'host']);
+// One proxied HTTP exchange's lifecycle. A client that leaves before its answer is complete (a closed connection, an aborted
+// upload, an abandoned stream) cancels the upstream request, so no front->upstream leg outlives its client; an upstream answer
+// that ends before it is complete closes the client's connection instead of leaving it waiting for the promised bytes.
+function proxyLifecycle(req, res, up, onUnreachable) {
+  const cancel = () => { if (!up.destroyed) up.destroy(); };
+  res.on('close', () => { if (!res.writableFinished) cancel(); });
+  req.on('error', cancel);
+  up.on('response', (r) => r.on('close', () => { if (!r.complete) res.destroy(); }));
+  up.on('error', () => { if (res.destroyed) return; if (!res.headersSent) onUnreachable(); else res.destroy(); });
+}
 /**
  * The TLS front of the control guest. evidence: GET EVIDENCE_PATH?nonce=<64 hex>. Anything else: proxied to the
  * in-guest supervisor, path and query only (never an absolute URL: no SSRF through the front).
@@ -909,7 +919,7 @@ export function createControlFront({ statementText, keyPem, certPem, reporter, u
           const hh = {}; for (const [k, v] of Object.entries(r.headers)) if (!HOP.has(k.toLowerCase())) hh[k] = v;
           res.writeHead(r.statusCode || 502, hh); r.pipe(res);
         });
-        up.on('error', () => { if (!res.headersSent) json(res, 502, { error: 'service_unreachable' }); else res.destroy(); });
+        proxyLifecycle(req, res, up, () => json(res, 502, { error: 'service_unreachable' }));
         return req.pipe(up);
       }
     }
@@ -923,7 +933,7 @@ export function createControlFront({ statementText, keyPem, certPem, reporter, u
       const h = {}; for (const [k, v] of Object.entries(r.headers)) if (!HOP.has(k.toLowerCase())) h[k] = v;
       res.writeHead(r.statusCode || 502, h); r.pipe(res);
     });
-    up.on('error', () => { if (!res.headersSent) json(res, 502, { error: route ? 'service_unreachable' : 'supervisor_unreachable' }); else res.destroy(); });
+    proxyLifecycle(req, res, up, () => json(res, 502, { error: route ? 'service_unreachable' : 'supervisor_unreachable' }));
     req.pipe(up);
   });
   // upgrades (the platform API's websocket routes) only on a host route; the supervisor's own surface takes none here
