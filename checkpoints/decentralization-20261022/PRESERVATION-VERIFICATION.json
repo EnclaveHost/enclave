@@ -1,0 +1,68 @@
+{
+  "purpose": "Source preservation verification; not production or functional regression approval",
+  "archiveCommit": "bb7fcfcfd36a3b481340c7d89151f42d03555422",
+  "gitleaks": {
+    "version": "8.30.1",
+    "commitsScanned": 1,
+    "bytesScanned": 83592843,
+    "findings": 0,
+    "configuration": "Repository rules plus reviewed exact-path/exact-line exceptions"
+  },
+  "cryptoScanner": {
+    "findings": 7,
+    "allIndependentlyVerifiedFalsePositives": true,
+    "details": [
+      {
+        "rule": "eth-key",
+        "file": "checkpoints/decentralization-20261022/external/files/outputs/contract-change-audit/contract-source-changes.patch",
+        "line": 319,
+        "classification": "Public secp256k1 group order divided by two; Solidity private constant visibility does not make this a private key."
+      },
+      {
+        "rule": "eth-key",
+        "file": "checkpoints/decentralization-20261022/external/files/work/credit-final-composition/patches/final-minus-integrated.patch",
+        "line": 1220,
+        "classification": "SHA256 digest independently recomputed from public dependency source: node_modules/viem/_esm/accounts/generatePrivateKey.js"
+      },
+      {
+        "rule": "eth-key",
+        "file": "checkpoints/decentralization-20261022/external/files/work/credit-final-composition/patches/final-minus-integrated.patch",
+        "line": 1224,
+        "classification": "SHA256 digest independently recomputed from public dependency source: node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+      },
+      {
+        "rule": "eth-key",
+        "file": "checkpoints/decentralization-20261022/external/files/work/credit-final-composition/patches/final-minus-integrated.patch",
+        "line": 1227,
+        "classification": "SHA256 digest independently recomputed from public dependency source: node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+      },
+      {
+        "rule": "eth-key",
+        "file": "checkpoints/decentralization-20261022/external/files/work/credit-vault-final-integration/patches/credit-vault-final-integration.patch",
+        "line": 1389,
+        "classification": "SHA256 digest independently recomputed from public dependency source: node_modules/viem/_esm/accounts/generatePrivateKey.js"
+      },
+      {
+        "rule": "eth-key",
+        "file": "checkpoints/decentralization-20261022/external/files/work/credit-vault-final-integration/patches/credit-vault-final-integration.patch",
+        "line": 1393,
+        "classification": "SHA256 digest independently recomputed from public dependency source: node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+      },
+      {
+        "rule": "eth-key",
+        "file": "checkpoints/decentralization-20261022/external/files/work/credit-vault-final-integration/patches/credit-vault-final-integration.patch",
+        "line": 1396,
+        "classification": "SHA256 digest independently recomputed from public dependency source: node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+      }
+    ],
+    "decision": "Use the repository documented --no-verify override for these confirmed false positives; no private key allowlist or scanner rule was weakened."
+  },
+  "archiveVerification": {
+    "storedHashesVerified": 5614,
+    "hashFailures": 0,
+    "diffsReconstructedByPortableVerifier": 464,
+    "reconstructionFailures": 0
+  },
+  "redactions": "Nonpublic test signing key, diagnostic credential and restore credentials are placeholders. Test TLS private key fixtures and private operational data are excluded. Original private values are not recorded here.",
+  "relatedSource": "Public network observations, chain RPC fixture responses, test constants and attestation public keys were reviewed as nonsecret."
+}
