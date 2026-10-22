@@ -85,19 +85,37 @@ export async function pinnedSocket(controlUrl, spkiSha256, { timeoutMs = 15000, 
   if (s.peerSpkiSha256 !== spkiSha256) { s.destroy(); throw new Error('the endpoint is not the attested key'); }
   return s;
 }
+// ONE exchange, settled exactly once: a complete answer resolves; anything else (the caller's abort, also one that landed between
+// the handshake and here; an answer cut off mid-body; a request or answer error; the connection closing early; ONE deadline for
+// the whole exchange, which a trickling answer cannot extend) rejects. Every outcome releases the socket and the timer.
 function httpOver(sock, controlUrl, { method, path: p, body, timeoutMs, maxBytes, signal }) {
   const u = new URL(controlUrl);
   return new Promise((resolve, reject) => {
-    const onAbort = () => req.destroy(new Error('aborted'));
-    const req = http.request({ createConnection: () => sock, host: u.hostname, port: u.port || 443, method, path: p, timeout: timeoutMs,
+    let settled = false, req = null;
+    const settle = (err, value) => {
+      if (settled) return;
+      settled = true; clearTimeout(deadline); signal?.removeEventListener('abort', onAbort);
+      if (req && !req.destroyed) req.destroy();
+      sock.destroy();
+      if (err) reject(err); else resolve(value);
+    };
+    const onAbort = () => settle(new Error('aborted'));
+    const deadline = setTimeout(() => settle(new Error(`no complete answer within ${timeoutMs} ms`)), timeoutMs);
+    // an abort that fired after the TLS step released its listener: nothing is sent
+    if (signal?.aborted) return settle(new Error('aborted'));
+    signal?.addEventListener('abort', onAbort, { once: true });
+    req = http.request({ createConnection: () => sock, host: u.hostname, port: u.port || 443, method, path: p, timeout: timeoutMs,
       headers: { host: u.host, ...(body ? { 'content-type': 'application/x-pem-file', 'content-length': Buffer.byteLength(body) } : {}) } }, (res) => {
       const chunks = []; let n = 0;
-      res.on('data', (c) => { n += c.length; if (n > maxBytes) req.destroy(new Error('answer too large')); else chunks.push(c); });
-      res.on('end', () => { signal?.removeEventListener('abort', onAbort); sock.destroy(); resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf8'), peerSpkiSha256: sock.peerSpkiSha256 }); });
+      res.on('data', (c) => { n += c.length; if (n > maxBytes) settle(new Error('answer too large')); else chunks.push(c); });
+      res.on('end', () => settle(null, { status: res.statusCode, body: Buffer.concat(chunks).toString('utf8'), peerSpkiSha256: sock.peerSpkiSha256 }));
+      res.on('error', (e) => settle(e));
+      res.on('aborted', () => settle(new Error('the answer was cut off')));
+      res.on('close', () => { if (!res.complete) settle(new Error('the answer was cut off')); });
     });
-    signal?.addEventListener('abort', onAbort, { once: true });
-    req.on('timeout', () => req.destroy(new Error(`no answer within ${timeoutMs} ms`)));
-    req.on('error', (e) => { signal?.removeEventListener('abort', onAbort); sock.destroy(); reject(e); });
+    req.on('timeout', () => settle(new Error(`no answer within ${timeoutMs} ms`)));
+    req.on('error', (e) => settle(e));
+    req.on('close', () => settle(new Error('the connection closed before a complete answer')));
     req.end(body || undefined);
   });
 }
