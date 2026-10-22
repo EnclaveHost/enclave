@@ -63,6 +63,30 @@ const PROOF_MS = 5 * 60_000;         // the contract's window is 15 min; the pla
 // reverts "lease expired" and the app is stopped - for risc-box, a cold boot of the whole machine.
 // 15 minutes gives three attempts inside a ~30-minute lease, for twice the renewals' gas (cents).
 const RENEW_LEAD_MS = 15 * 60_000;
+// RENEWALS ALSO RIDE THEIR OWN CLOCK (the Linux supervisor's design: supervisor.js renewLeases / leaseGasRenewDue). An
+// app-funded renew is valid only inside the owner's renewWindow before leaseUntil (the reserve enforces it; chain.renewLeadMs
+// = min(15 min, renewWindow - 15 s): 285 s on minipc), while the pass that renews walks every tracked deployment serially and
+// takes ~7 min under public-RPC rate limits. 2026-10-22 minipc adapter: its ONE attempt in the window met a transient
+// lease-gas quorum failure, and the next pass found the lease expired (retired, re-claimed). So every RENEW_KEEPER_MS a due
+// lease of a deployment this box serves is renewed outside the pass too:
+//   - the pass's own gates, on a FRESH ledger row and a FRESH host wallet decision for exactly that row; a row whose owner,
+//     visibility, version or config moved since the pass served it is the pass's to decide (not renewed here); refusals,
+//     unknowns, holds, a pending sponsored release and the platform's service refusal are never renewed;
+//   - ONE renewal per deployment at a time, shared with the pass (which joins one in flight); every send stays serialized
+//     on the operator in chain.mjs, and a release waits for a renewal in flight;
+//   - a lease a verified renew already extended is never renewed again on a lagging read of its old row;
+//   - its LOCAL permission (#renewPermit: the wallet decision's deadline, no hold/stop/give-up/withdrawal since, still kept
+//     and served, the platform not refusing this host) is re-checked after the lead read and again when chain.mjs's
+//     operator queue reaches the send; the chain's own rules are re-read by the sender itself;
+//   - no outer timeout: a deployment stays "renewing" until its send settles, bounded by the sender's own limits (app-funded:
+//     each RPC call <= 10 s as configured (lease-gas-runtime rpcTimeoutMs), the nonce settle <= 60 s, relays <= 180 s plus
+//     the last one's checks;
+//     operator-paid: viem's 180-s receipt wait), so a late landing can never overlap a retry;
+//   - a failure is retried after RENEW_RETRY_MS (about four tries in a 285 s window). Never a claim of an expired lease (the
+//     pass retires it; a new claim must pass funding and policy), and never the operator's ETH for an app-funded lease.
+// The window's lead is cached per lease for RENEW_LEAD_CACHE_MS (one verified-authority read, not one per pass); the send
+// re-reads the owner's policy itself, so a stale lead can only make a renew wait or be refused unsigned.
+const RENEW_KEEPER_MS = 30_000, RENEW_RETRY_MS = 60_000, RENEW_LEAD_CACHE_MS = 5 * 60_000;
 // NON-DESTRUCTIVE WALLET HOLD (network/wallet-admission.mjs). An UNKNOWN host-wallet answer keeps a running domain (its
 // key and certificate) ONLY once the network agent confirms it withdrew that deployment's ingress and egress
 // (walletHoldAcknowledged); otherwise the domain is retired exactly as before. The wait is bounded: WALLET_HOLD_ACK_MS
@@ -338,6 +362,7 @@ export class Host {
     } catch (e) { this.lastError = e.message; this.log(`chain unavailable: ${e.message}`); }
     this.platformPolicy.start();
     setInterval(() => this.tick().catch((e) => this.log(`tick: ${e.message}`)), TICK_MS);
+    setInterval(() => this.renewDue().catch((e) => this.log(`renewals: ${e.message}`)), RENEW_KEEPER_MS);
     setInterval(() => this.heartbeat().catch(() => {}), GAS_CHECK_MS);
     setInterval(() => this.proveAll().catch((e) => this.log(`proof: ${e.message}`)), PROOF_MS);
     this.tick().catch(() => {});
@@ -2099,6 +2124,151 @@ export class Host {
     return { sequence: this.#leaseSequence, startedAt: this.#leaseStartedAt, completedAt: this.#leaseCompletedAt,
       inFlight: !!this.#tickInFlight, deployments: [...this.#leaseChecks.values()].map(row => ({ ...row })) };
   }
+  // RENEWAL KEEPER (RENEW_KEEPER_MS above): per-deployment state, in memory only (a new process renews nothing until its own
+  // pass has served the row again).
+  #renewing = new Map();      // id -> the ONE renewal in flight for it, the keeper's or the pass's
+  #renewRetryAt = new Map();  // id -> no keeper retry before this (after a failure)
+  #renewFailed = new Map();   // id -> the leaseUntil (s) whose renewal last failed
+  #renewedFrom = new Map();   // id -> the leaseUntil (s) a verified renew already extended (a lagging read of it is not due)
+  #renewLead = new Map();     // id -> { at, leaseUntil, ms }: the window's lead, read once per lease per RENEW_LEAD_CACHE_MS
+  #leaseSeen = new Map();     // id -> { leaseUntil, owner, isPublic, appRef, configCid } as the pass last served it
+  #renewEpoch = new Map();    // id -> bumped by every hold, stop, give-up and wallet withdrawal: a permit taken before is void
+  /**
+   * Renew, outside the pass, every due lease of a deployment this box serves. Each runs on its own (one per deployment;
+   * the sends themselves queue on the operator in chain.mjs). -> { renewed: [ids], failed: [ids], skipped: [ids] }
+   */
+  renewDue() {
+    const out = { renewed: [], failed: [], skipped: [] };
+    if (!this.chainReady || this.platformPolicy.serviceRefusal()) return Promise.resolve(out);
+    const now = Date.now();
+    const due = [...this.tracked].filter((id) => {
+      const seen = this.#leaseSeen.get(id), until = Number(seen?.leaseUntil) * 1000, lead = this.#renewLead.get(id);
+      // not yet inside a window whose lead this process read for exactly this lease (fresh): no read at all this round
+      const early = lead && lead.leaseUntil === seen?.leaseUntil && now - lead.at < RENEW_LEAD_CACHE_MS && until - now >= lead.ms;
+      return seen && !early && until > now && until - now < RENEW_LEAD_MS && !this.#renewing.has(id) && !this.#givingUp.has(id)
+        && (this.#renewRetryAt.get(id) || 0) <= now && this.#renewedFrom.get(id) !== seen.leaseUntil && this.#renewServing(id);
+    });
+    return Promise.all(due.map((id) => this.#renewTurn(id, () => this.#renewKeep(id)).then(
+      (r) => (r.renewed ? out.renewed : r.failed ? out.failed : out.skipped).push(id),
+      () => out.failed.push(id)))).then(() => out);
+  }
+  /** Served here and held by nothing that stops a renewal (the pass's notServing, boundary, cap, wallet and audit holds). */
+  #renewServing(id) {
+    const rec = this.records.get(id);
+    return !!rec && rec.status === "running" && !rec.walletHeld && rec.boundaryHeld !== true && rec.capHeld !== true
+      && rec.planHeld !== true && !rec.rebootHeld && !this.#auditFee.has(id);
+  }
+  /** ONE renewal per deployment: join the one in flight; a joined attempt that renewed or failed is this caller's outcome. */
+  async #renewTurn(id, run) {
+    for (let busy; (busy = this.#renewing.get(id));) {
+      const r = await busy.then((x) => x, (e) => ({ failed: e }));
+      if (r.renewed || r.failed) return { ...r, joined: true };
+    }
+    const p = run().finally(() => { if (this.#renewing.get(id) === p) this.#renewing.delete(id); });
+    this.#renewing.set(id, p);
+    return p;
+  }
+  /** The keeper's attempt: the pass's gates on a FRESH row and a FRESH wallet decision, then the shared send. */
+  async #renewKeep(id) {
+    const seen = this.#leaseSeen.get(id), lc = (v) => String(v ?? "").toLowerCase();
+    const fenced = () => this.#leaseSeen.get(id) !== seen || !this.tracked.has(id) || this.#givingUp.has(id) || !this.#renewServing(id)
+      || !!this.platformPolicy.serviceRefusal() || !!chain.releaseHold(id);
+    const d = await chain.readDeployment(id).catch(() => null);   // the authority: the ledger now, never the record
+    if (!d) return { skipped: "the ledger row could not be read" };
+    if (fenced()) return { skipped: "superseded" };
+    const untilS = Number(d.leaseUntil);
+    if (!(d.active === true && lc(d.runner) === lc(this.enclaveId) && untilS * 1000 > Date.now())) return { skipped: "not a live lease of this box" };
+    if (lc(d.owner) !== seen.owner || (d.isPublic !== false) !== seen.isPublic || String(d.appRef ?? "") !== seen.appRef
+        || String(d.configCid ?? "") !== seen.configCid) return { skipped: "the row changed since the pass served it" };
+    if (chain.placementRefusal(d.configCid, this.enclaveId) || this.heldReason(d)) return { skipped: "held" };
+    if (this.#renewedFrom.get(id) === untilS) return { extended: true };
+    // due first (the cached lead; one verified-authority read per lease), so a lease outside its window costs no decision
+    let lead;
+    try { lead = await this.#renewLeadMs(id, untilS); }
+    catch (e) { this.#renewFailed.set(id, untilS); this.#renewRetryAt.set(id, Date.now() + RENEW_RETRY_MS); this.#renewFailedNote(id, untilS * 1000, e); return { failed: e }; }
+    if (untilS * 1000 - Date.now() >= lead) return { due: false };
+    if (fenced()) return { skipped: "superseded" };
+    const epoch = this.#renewEpoch.get(id) || 0;
+    const wallet = await this.#walletPolicyState({ ...d, id });
+    if (wallet.refusal || wallet.unknown) return { skipped: `host wallet policy ${wallet.refusal ? "refusal" : "unknown"}: the pass decides` };
+    if (fenced()) return { skipped: "superseded" };
+    // re-checked after the lead read AND when chain.mjs's operator queue reaches the send: still served as decided
+    const permit = this.#renewPermit(id, epoch, wallet, () => {
+      const now = this.#leaseSeen.get(id);
+      if (!now || now.owner !== seen.owner || now.isPublic !== seen.isPublic || now.appRef !== seen.appRef || now.configCid !== seen.configCid)
+        return "the pass is re-deciding it, or serves another identity now";
+      return this.#renewServing(id) ? null : "it is no longer served here";
+    });
+    let r;
+    try { r = await this.#renewSend(id, d, permit); }
+    catch (e) { this.#renewFailedNote(id, untilS * 1000, e); return { failed: e }; }
+    if (r.renewed) {
+      const after = await chain.readDeployment(id).catch(() => null);
+      if (after && Number(after.leaseUntil) > untilS && this.#leaseSeen.get(id) === seen) {
+        this.#leaseSeen.set(id, { ...seen, leaseUntil: Number(after.leaseUntil) });
+        this.#record(id, { leaseUntil: Number(after.leaseUntil) });
+      }
+    }
+    return r;
+  }
+  /**
+   * The LOCAL permission behind one renewal, re-checked at the send (permit() -> null, or why not): taken after the host
+   * wallet decision, void once a hold, stop, give-up or withdrawal of this deployment arrived (#renewEpoch), it is no longer
+   * tracked, the platform refuses this host's service, or that decision's own deadline passed (validUntil; without one, the
+   * policy's 90-s bound). The chain's rules are not repeated here: the app-funded sender re-reads them at its verified block
+   * (the reserve's Paused/Blocked/Inactive/expired/runner/window/rate-cap status, the lease nonce, which a relay checks again
+   * at the head) and an operator-paid send simulates first.
+   */
+  #renewPermit(id, epoch, wallet, extra = () => null) {
+    const until = !this.hostAdmission ? Infinity : Number(wallet?.validUntil) > 0 ? Number(wallet.validUntil) : Date.now() + 90_000;
+    return () => (this.#renewEpoch.get(id) || 0) !== epoch ? "a hold, stop or wallet withdrawal of it arrived after the decision"
+      : !this.tracked.has(id) || this.#givingUp.has(id) ? "it is no longer kept here"
+      : this.platformPolicy.serviceRefusal() ? "the platform refuses this host's service"
+      : !(until > Date.now()) ? "the host wallet decision behind it expired before the send"
+      : extra();
+  }
+  #renewVoid(id) { this.#renewEpoch.set(id, (this.#renewEpoch.get(id) || 0) + 1); }
+  /** The send, shared by the pass and the keeper: due by the owner's window, never twice for one lease, and only while its
+   *  permit holds (after the lead read, and again in chain.mjs when the operator's queue reaches it). */
+  async #renewSend(id, d, permit) {
+    const untilS = Number(d.leaseUntil);
+    if (this.#renewedFrom.get(id) === untilS) return { extended: true };   // renewed already; this row is a lagging read
+    try {
+      if (untilS * 1000 - Date.now() >= await this.#renewLeadMs(id, untilS)) return { due: false };
+      const stale = permit();
+      if (stale) return { superseded: stale };
+      await chain.renewDeployment(id, { gate: permit });
+    } catch (e) {
+      if (e.superseded) return { superseded: e.message };                // withdrawn while queued: nothing was signed or sent
+      this.#renewFailed.set(id, untilS); this.#renewRetryAt.set(id, Date.now() + RENEW_RETRY_MS); throw e;
+    }
+    this.#renewedFrom.set(id, untilS); this.#renewFailed.delete(id); this.#renewRetryAt.delete(id);
+    this.log(`renewed ${id.slice(0, 10)}`);
+    return { renewed: true };
+  }
+  async #renewLeadMs(id, untilS) {
+    const c = this.#renewLead.get(id);
+    if (c && c.leaseUntil === untilS && Date.now() - c.at < RENEW_LEAD_CACHE_MS) return c.ms;
+    const ms = await chain.renewLeadMs(id, RENEW_LEAD_MS);
+    this.#renewLead.set(id, { at: Date.now(), leaseUntil: untilS, ms });
+    return ms;
+  }
+  /** Record and say a failed renewal (the pass and the keeper alike) -> its message. */
+  #renewFailedNote(id, untilMs, e) {
+    // rateCap doctrine (the platform runner's, mirrored): a renew the LEDGER refuses is not
+    // an error to retry, it is the deployment's own rate cap or its balance saying "this is
+    // the last quantum". Say when the app goes rather than retrying until it vanishes.
+    const msg = e.shortMessage || e.message;
+    const ends = new Date(untilMs).toISOString().replace("T", " ").slice(0, 19);
+    const capped = /cap|balance|fund|rate/i.test(msg);
+    this.#record(id, { reason: capped ? `the lease ends at ${ends} UTC and will not renew: ${msg}` : `renew failed: ${msg}` });
+    this.log(`${id.slice(0, 10)} renew failed: ${msg}`);     // said, not only recorded: a later pass rewrites the reason
+    return msg;
+  }
+  /** Forget the keeper's state of a deployment that left this box. */
+  #renewForget(id) {
+    for (const m of [this.#renewRetryAt, this.#renewFailed, this.#renewedFrom, this.#renewLead, this.#leaseSeen]) m.delete(id);
+  }
   async #tickOnce() {
     if (!this.chainReady) return;
     // journaled sponsored releases: settled ONLY from the chain (verified receipt = released; consumed/expired = fence)
@@ -2118,6 +2288,7 @@ export class Host {
     await this.retireForeignRecovered().catch((e) => this.log(`isolation: recovered-VM sweep: ${e.message}`));
     for (const id of [...this.tracked]) {
       let d; try { d = await chain.readDeployment(id); } catch { continue; }
+      this.#leaseSeen.delete(id);   // the keeper renews only what this pass serves through to its record below
       let leaseObservedAt = Date.now(), leaseRenewalOk = true;
       const rec = this.records.get(id) || this.#record(id, {});
       const runner = String(d.runner || "").toLowerCase();
@@ -2141,6 +2312,7 @@ export class Host {
       }
       const pinRefusal = chain.placementRefusal(d.configCid, this.enclaveId);
       if (pinRefusal) { await this.#giveUp(id, pinRefusal, { retry: true }); continue; }
+      const renewEpoch = this.#renewEpoch.get(id) || 0;   // this pass's renewal permit is taken with its wallet decision
       const wallet = await this.#walletPolicyState({ ...d, id });
       if (wallet.refusal) { await this.#giveUp(id, wallet.refusal, { retry: true }); continue; }
       if (!wallet.unknown) wallet.unknown = this.#walletGrant(id, d, wallet);
@@ -2231,24 +2403,16 @@ export class Host {
       }
       if (rec.boundaryHeld !== true && rec.capHeld !== true && !notServing && !oneQuantum && !this.platformPolicy.serviceRefusal() && untilMs - Date.now() < RENEW_LEAD_MS && !chain.releaseHold(id)) {
         try {
-          const lead = await chain.renewLeadMs(id, RENEW_LEAD_MS);
-          if (untilMs - Date.now() < lead) {
-            await chain.renewDeployment(id);
-            this.log(`renewed ${id.slice(0, 10)}`);
-            d = await chain.readDeployment(id);
-            leaseObservedAt = Date.now();
-          }
+          // the keeper's renewal of it, when one is in flight, is joined (one renewal per deployment at a time)
+          const permit = this.#renewPermit(id, renewEpoch, wallet);
+          const r = await this.#renewTurn(id, () => this.#renewSend(id, d, permit));
+          if (r.failed) leaseRenewalOk = false;            // the keeper's attempt failed: it recorded and said why
+          if (r.superseded) { leaseRenewalOk = false; this.log(`${id.slice(0, 10)} renewal withdrawn before its send: ${r.superseded}`); }
+          if (r.renewed || r.extended) { d = await chain.readDeployment(id); leaseObservedAt = Date.now(); }
         }
         catch (e) {
           leaseRenewalOk = false;
-          // rateCap doctrine (the platform runner's, mirrored): a renew the LEDGER refuses is not
-          // an error to retry, it is the deployment's own rate cap or its balance saying "this is
-          // the last quantum". Say when the app goes rather than retrying until it vanishes.
-          const msg = e.shortMessage || e.message;
-          const ends = new Date(untilMs).toISOString().replace("T", " ").slice(0, 19);
-          const capped = /cap|balance|fund|rate/i.test(msg);
-          this.#record(id, { reason: capped ? `the lease ends at ${ends} UTC and will not renew: ${msg}` : `renew failed: ${msg}` });
-          this.log(`${id.slice(0, 10)} renew failed: ${msg}`);     // said, not only recorded: a later pass rewrites the reason
+          const msg = this.#renewFailedNote(id, untilMs, e);
           if (untilMs < Date.now()) { await this.#stopApp(id, `the lease expired and renew failed: ${msg}`); continue; }
         }
       }
@@ -2258,17 +2422,30 @@ export class Host {
       // THE OWNER'S EDIT, reaching an app that is already running. The envelope is mutable on the
       // ledger (setConfig) and used to be read only at claim time, so an owner who changed their
       // app's configuration or its protection rules saw nothing happen until the lease turned over.
-      await this.#applyEnvelopeEdit(id, d).catch((e) => this.log(`config edit ${id.slice(0, 10)}: ${e.message}`));
+      let reconciled = true;   // the keeper's eligibility (below) waits for this pass's own serving reconciliation
+      await this.#applyEnvelopeEdit(id, d).catch((e) => { reconciled = false; this.log(`config edit ${id.slice(0, 10)}: ${e.message}`); });
       // ...and the owner's RESIZE (setShares), which the ledger bills from immediately. A box that
       // billed the new share while serving the old one would be charging for something it is not
       // doing, which is why the fleet AND-folds this before a client will even send the tx.
-      await this.#applyShareResize(id, d, rec).catch((e) => this.log(`resize ${id.slice(0, 10)}: ${e.message}`));
+      await this.#applyShareResize(id, d, rec).catch((e) => { reconciled = false; this.log(`resize ${id.slice(0, 10)}: ${e.message}`); });
       const app = this.apps.get(id);
       if (!app || app.state !== "running") await this.ensureApp(id, d);
+      // WHAT THE KEEPER MAY RENEW between passes (renewDue): the identity this box SERVES once reconciled - its record's
+      // app version and applied envelope - and only when that is exactly this row. A changed version or config that is not
+      // (yet) served, a caught edit or resize failure, or a record not running publishes nothing (the pass renews it).
+      const served = this.records.get(id);
+      const keeperEligible = reconciled && served?.status === "running" && this.tracked.has(id)
+          && String(served.appRef ?? "") === String(d.appRef ?? "") && served.envelope != null && String(served.envelope) === String(d.configCid ?? "")
+          && served.owner === String(d.owner ?? "").toLowerCase() && served.isPublic === (d.isPublic !== false);
+      if (keeperEligible)
+        this.#leaseSeen.set(id, { leaseUntil: Number(d.leaseUntil), owner: served.owner, isPublic: served.isPublic,
+          appRef: String(served.appRef), configCid: String(served.envelope) });
       // Publish evidence only after the ordinary policy/renewal/adoption path. Any earlier continue leaves pending.
       // A failed renewal must never become healthy just because an existing app still answers HTTP.
       const observed = this.records.get(id);
-      const leaseServing = leaseRenewalOk && !notServing && !oneQuantum && observed?.status === "running"
+      // READY also means reconciled and renewable between passes: this pass's edit and resize did not fail, and the keeper
+      // is eligible for exactly this served lease and identity (a caught failure or a version/config not yet served is not ready)
+      const leaseServing = keeperEligible && leaseRenewalOk && !notServing && !oneQuantum && observed?.status === "running"
         && observed.boundaryHeld !== true && observed.capHeld !== true && !this.platformPolicy.serviceRefusal()
         && !chain.releaseHold(id) && d.active === true && String(d.runner).toLowerCase() === this.enclaveId.toLowerCase()
         && Number(d.leaseUntil) * 1000 > Date.now();
@@ -2321,6 +2498,7 @@ export class Host {
     return p;
   }
   async #giveUpOnce(id, why, { retry = false } = {}) {
+    this.#renewVoid(id);
     this.#walletRevoke(id);
     this.#respawnAfter.delete(id);
     // An isolated domain first: handing the lease back while its partition still serves would
@@ -2348,6 +2526,10 @@ export class Host {
     this.tracked.delete(id); this.#saveTracked();
     this.log(`giving up on ${id.slice(0, 10)}: ${why}`);
     try {
+      // a renewal in flight lands (or fails) first: its send and this release never race for the lease (the id is no
+      // longer tracked, so the keeper starts none after it)
+      await this.#renewing.get(id)?.catch(() => {});
+      this.#renewForget(id);
       const held = await chain.readDeployment(id).catch(() => null);
       if (held && String(held.runner || "").toLowerCase() === this.enclaveId.toLowerCase()) {
         const hash = await chain.releaseDeployment(id);
@@ -2504,6 +2686,7 @@ export class Host {
   }
 
   async #stopApp(id, why) {
+    this.#renewVoid(id);
     this.#walletRevoke(id);
     // BEFORE forgetting anything: a partition is not in this.apps, so without this the domain
     // simply keeps running under a lease that has ended. An unconfirmed retire keeps the deployment TRACKED, so the
@@ -2523,6 +2706,7 @@ export class Host {
     }
     this.#record(id, { status: "stopped", reason: why });
     this.tracked.delete(id); this.#saveTracked();
+    this.#renewForget(id);
     this.log(`stopped ${id.slice(0, 10)}: ${why}`);
   }
   /**
@@ -2959,6 +3143,7 @@ export class Host {
    * deployment, retired it AND sent its release.)
    */
   async #walletHold(id, unknown) {
+    this.#renewVoid(id);
     const why = `host wallet policy unavailable (${unknown}): not served, renewed or released until it is established; asked again each pass`;
     const prev = this.records.get(id) || {};
     if (this.walletChannel) {
@@ -3091,6 +3276,7 @@ export class Host {
   }
   /** Withdraw this box's published allow (a refusal, a stop, a lease no longer ours). Unconfirmed: the caller retires. */
   #walletRevoke(id) {
+    this.#renewVoid(id);
     if (!this.walletChannel) return;
     this.#walletGrants.delete(String(id).toLowerCase());
     try { this.walletChannel.hold(String(id).toLowerCase()); }

@@ -213,9 +213,11 @@ async function nonceFor() {
 // Answers a public RPC gives for reasons of its own rather than the transaction's. Worth one retry
 // with a fresh nonce read; a real revert comes back from simulateContract and is never retried.
 const TRANSIENT = /nonce.*(lower|too low)|replacement transaction underpriced|already known|missing or invalid parameters/i;
-async function send(address, abi, functionName, args) {
+async function send(address, abi, functionName, args, { gate = null } = {}) {
   const job = async () => {
     if (!wal) throw new Error("no operator key on this box");
+    const stale = gate?.();   // the caller's local permission, re-checked when this queue reaches it (host.mjs renewals)
+    if (stale) throw Object.assign(new Error(`${functionName} not sent: ${stale}`), { superseded: true });
     for (let attempt = 0; ; attempt++) {
       try {
         await publicClient().simulateContract({ address, abi, functionName, args, account: acct });   // fail with the revert reason, not a receipt
@@ -280,11 +282,13 @@ export function setLeaseJournal(file) { leaseJournal = openReleaseJournal(file, 
 /** Why `id` must not be claimed, re-adopted or renewed here: a sponsored release of it may still land (or the journal
  *  failed to load). null = clear. */
 export const releaseHold = (id) => (leaseJournal ? leaseJournal.hold(id) : null);
-function leaseSend(fn, args) {
-  if (!leaseGasActive()) return send(addresses.deployments, DEP_ABI, fn, args);
+function leaseSend(fn, args, { gate = null } = {}) {
+  if (!leaseGasActive()) return send(addresses.deployments, DEP_ABI, fn, args, { gate });
   const id = String(args[0]).toLowerCase();
   const job = async () => {
     const refuse = (why, extra = {}) => Object.assign(new Error(`app-funded ${fn} not sent: ${why}; this host's ETH is never used instead`), { leaseGas: true, ...extra });
+    const stale = gate?.();   // the caller's local permission, re-checked when the operator's queue reaches this send
+    if (stale) throw refuse(stale, { superseded: true });
     if (fn === "release" && !leaseJournal) throw refuse("no durable release journal on this box");
     const held = leaseJournal && (leaseJournal.corrupt() || fn !== "release") ? leaseJournal.hold(id) : null;
     if (held) throw refuse(held, { code: "ReleasePending", pending: true });
@@ -338,7 +342,8 @@ export async function renewLeadMs(id, fallbackMs) {
   return sender ? sender.renewLeadMs(id, fallbackMs) : fallbackMs;
 }
 export const claimDeployment = (id, enclaveId) => leaseSend("claim", [id, enclaveId]);
-export const renewDeployment = (id) => leaseSend("renew", [id]);
+/** opts.gate: () => null, or why the caller no longer permits it; asked when the operator's queue reaches this send. */
+export const renewDeployment = (id, opts) => leaseSend("renew", [id], opts);
 /** Any operator transaction through the same serialized sender (audit-jobs.mjs: offerJobRate). */
 export const sendOperatorTx = (address, abi, functionName, args) => send(address, abi, functionName, args);
 export const releaseDeployment = (id) => leaseSend("release", [id]);
