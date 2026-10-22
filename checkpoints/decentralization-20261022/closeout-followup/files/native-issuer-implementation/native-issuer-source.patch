@@ -1,0 +1,1599 @@
+From 2abf2bfde6c89963f3b590b08406c35a5b75387a Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 14:59:23 -0700
+Subject: [PATCH] Issue native control leaves from the platform API primary
+
+The existing native CA can be held as admin-signed platform credentials
+(NATIVE_CA_KEY, NATIVE_CA_CERT): sealed to the primary, replicated only as
+AEAD under the group key, archived with the key escrowed to the admin
+recovery keys. The primary verifies each member's actual serving boot
+(bound config through HOST_DATA, the unchanged measured-control verifier,
+the original registry, a fresh platform host policy decision with the
+verified chip), signs the existing 7-day leaf profile in-process from the
+member's public key only, and installs it through the member's pinned
+install endpoint. Admission is decided again and a majority commit is
+required right before every install; leadership loss, credential
+replacement or removal, and stop end the run and its connections.
+
+The role drops every NATIVE_CA_* name at the relay child's final
+environment boundary, rewrites credential files to exactly the current set,
+serves its public bound config read-only, and counts an archive only when a
+sink holds both the snapshot and the recovery envelope. The CLI keeps its
+openssl issue as the offline admin fallback; its request, pin and install
+functions move to a library with no main check, and every body-bearing
+request now requires a valid pin.
+---
+ docs/network/hosted-platform-api.md         |   1 +
+ docs/network/measured-control-guest.md      |  32 +-
+ metal/guest/native-certificate.mjs          | 232 +++++++++
+ metal/guest/native-issuer.mjs               | 248 ++++++++++
+ metal/guest/platform-api-role.mjs           |  63 ++-
+ scripts/build-platform-api-guest-bundle.mjs |   4 +-
+ scripts/native-control-certificate.mjs      |  81 +---
+ test/native-certificate-leaf.test.mjs       | 212 ++++++++
+ test/platform-api-native-issuer.test.mjs    | 512 ++++++++++++++++++++
+ 9 files changed, 1296 insertions(+), 89 deletions(-)
+ create mode 100644 metal/guest/native-certificate.mjs
+ create mode 100644 metal/guest/native-issuer.mjs
+ create mode 100644 test/native-certificate-leaf.test.mjs
+ create mode 100644 test/platform-api-native-issuer.test.mjs
+
+diff --git a/docs/network/hosted-platform-api.md b/docs/network/hosted-platform-api.md
+index ac648d7bd..9c98def48 100644
+--- a/docs/network/hosted-platform-api.md
++++ b/docs/network/hosted-platform-api.md
+@@ -65,6 +65,7 @@ required, and nothing is defaulted.
+ | kind | examples | where it exists |
+ | --- | --- | --- |
+ | platform credentials | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SSO_SIGNER_KEY`, `SESSIONS_RELAYER_KEY`, `PROVISIONER_PRIVATE_KEY`, `HOST_SPONSOR_*_KEY`, `SECRETS_KEY`, `UPLOAD_KEY`, `DNS_TXT_KEY`, `ACME_EAB_*`, `BILLING_ADMIN_TOKEN`, `SECRETS_RELEASE_SIGNING_KEY_FILE`, `SECRETS_RELEASE_PREDICT_SEED` | as plaintext, only inside member guests and in the admin's offline tool. They arrive as an admin-signed package sealed to the primary's boot (`platform-credentials.json` in the replicated state). They reach the relay's environment, and a `*_FILE` credential reaches a 0600 file on the RAM fs. An older package replayed later is refused, so a rotation cannot be rolled back. |
++| the native CA (optional) | `NATIVE_CA_KEY`, `NATIVE_CA_CERT` (metal/guest/native-issuer.mjs) | the same sealed credentials, but used ONLY by the primary's native issuer: never in the relay child's environment or files (the role drops every `NATIVE_CA_*` name at the final environment boundary, whatever its source) |
+ | platform private state | accounts, passkey credentials, the account-session signing key, orders, Stripe events, the relayer journal, referrals, pads, placement, domains, ACME account keys | as plaintext, only in member guests; elsewhere only as AEAD ciphertext under the group key K |
+ | customer secrets | relay-held deployment secrets | under `SECRETS_KEY`, exactly as today. Custody v2 (independent) is unaffected. |
+ | public data | ledger, registry and catalog reads, `/enclaves`, `/availability` | not state |
+diff --git a/docs/network/measured-control-guest.md b/docs/network/measured-control-guest.md
+index 1cb214865..ff32f93a4 100644
+--- a/docs/network/measured-control-guest.md
++++ b/docs/network/measured-control-guest.md
+@@ -125,8 +125,9 @@ group's shared WebPKI key is refused, and so is a leaf for any other key.
+ - **Config.** `"nativeControl": { "names": [<sorted subset of the two names>], "caSha256": "<sha256 of the native CA DER>" }`.
+   It needs `platformApi`, and the names must differ from `platformApi.hostname`. HOST_DATA binds it like every member. The
+   statement then states `native: { names, caSha256 }`; other statements keep their exact bytes.
+-- **Certificate.** The leaf is public, and the CA holder issues it OUTSIDE the guest, over the attested public key.
+-  The guest's private key never leaves the guest. Run `scripts/native-control-certificate.mjs`:
++- **Certificate.** The leaf is public. The CA holder issues it over the attested PUBLIC key, never in the serving guest:
++  either the platform API primary (below), or the offline admin. The guest's private key never leaves the guest. The
++  offline admin runs `scripts/native-control-certificate.mjs`:
+   - `request` verifies the boot against its trusted config, measurements and the original registry;
+   - `issue` runs where the CA key is kept, reading the key only through openssl;
+   - `install` sends the leaf over a connection pinned to the attested key on the secure socket.
+@@ -155,8 +156,31 @@ group's shared WebPKI key is refused, and so is a leaf for any other key.
+   masked or zero). It is added to that host's chain facts, never replacing them, so a `chipId` deny or allowlist entry
+   matches per host. A host whose chip is not proven is refused while the policy denies any `chipId`.
+ 
+-Issuance remains a deployment prerequisite: the native CA key is held in one place today (the minipc control VM).
+-Distributed issuance or custody is not provided here.
++**Issuance by the platform API group (`metal/guest/native-issuer.mjs`).** The existing native CA can be held by the platform
++API group instead of one machine. It is NOT active until root provisions it:
++
++- **Where the CA key lives.** It is held only as the admin-signed platform credentials `NATIVE_CA_KEY` and `NATIVE_CA_CERT`.
++  - They are sealed to the primary's boot, replicated only as AEAD under the group key, and archived as ciphertext, with
++    the group key escrowed to the admin recovery keys.
++  - They never appear in a config, the relay child's environment or files, a log or an archive in plaintext.
++  - A newer admin package without them stops issuance.
++- **Who issues.** Only the current primary, in single-flight rounds. For each member of `platformApi.members` it:
++  - reads the member's bound config from its control URL (`GET /platform-api/config`; public, and trusted only after the
++    next step);
++  - verifies the serving boot against exactly that config, the group's measurements and the original registry, with
++    `verifyMeasuredControl`, unchanged;
++  - requires the identical `platformApi` member and a `nativeControl` bound to THIS CA;
++  - takes a fresh platform host policy decision with the verified chip;
++  - builds the request from evidence pinned to the attested key (its PUBLIC key only);
++  - signs a leaf with the existing profile (7 days, never past the CA; no openssl in the guest);
++  - installs it through the guest's own pinned install endpoint.
++- **When.** A member is re-verified only when the leaf it serves is not one this CA signed over its presented key, or is
++  within 2 days of expiry.
++- **The barrier before every install.** The policy decision is made again, the run must still be the current one (no stop,
++  credential change or leadership change), and the primary must be confirmed by a majority commit.
++- **The primary's own leaf** is installed over loopback to its own front, never through a public hairpin or a native name.
++- **Fallback.** `scripts/native-control-certificate.mjs` (`request` / `issue` / `install`) remains the offline admin
++  fallback, with the CA key held by the admin.
+ 
+ ## Platform limits
+ 
+diff --git a/metal/guest/native-certificate.mjs b/metal/guest/native-certificate.mjs
+new file mode 100644
+index 000000000..7a0c5c605
+--- /dev/null
++++ b/metal/guest/native-certificate.mjs
+@@ -0,0 +1,232 @@
++// metal/guest/native-certificate.mjs -- the native CA leaf for ONE verified measured control boot, as a library: the request
++// (public data of a VERIFIED boot: its attested control TLS public key and bound names), the pinned connection to that boot's
++// control front, and a signer that needs no openssl (the measured control guest has none).
++//
++// Used by scripts/native-control-certificate.mjs (the offline/admin CLI, which keeps its openssl `issue`) and by
++// metal/guest/native-issuer.mjs (the platform API primary). This module has NO command line of its own: inside a bundle every
++// module's import.meta.url is the bundle's, so a "main" check here would run in the role (host-role-bundling lesson).
++//
++// signNativeLeaf: a narrow DER encoder for exactly ONE certificate shape, the profile the existing native CA issues today
++// (openssl x509 -new -force_pubkey ... -extfile, see scripts/native-control-certificate.mjs issueNativeCertificate):
++//   v3, a positive 16-byte random serial, ecdsa-with-SHA256, issuer = the CA certificate's subject EXACTLY as encoded in it,
++//   subject CN = the first bound name, validity at most 7 days and never past the CA's notAfter, and the extensions in the
++//   order openssl writes them: basicConstraints critical CA:FALSE, keyUsage critical digitalSignature, extendedKeyUsage
++//   serverAuth, subjectAltName = the bound names, subjectKeyIdentifier (SHA-1 of the leaf key), authorityKeyIdentifier (the
++//   CA's own subjectKeyIdentifier; omitted when the CA has none). Only a P-256 CA key is accepted (the native CA's), and only
++//   when it is the key of that CA certificate. The CA certificate itself is never changed or re-encoded.
++import http from 'node:http';
++import net from 'node:net';
++import tls from 'node:tls';
++import { X509Certificate, createHash, createPrivateKey, createPublicKey, randomBytes, sign as cryptoSign } from 'node:crypto';
++import { parseStatement, sha256Hex, NATIVE_NAMES, EVIDENCE_FORMAT, NATIVE_CERT_PATH } from './measured-control.mjs';
++
++export const REQUEST_FORMAT = 'enclave-native-certificate-request/v1';
++export const MAX_DAYS = 7;   // the existing native service certificate lifetime (renewed, never long-lived)
++const DAY_MS = 86400e3;
++const spkiOf = (pem) => new X509Certificate(pem).publicKey.export({ type: 'spki', format: 'der' });
++
++/**
++ * The request for one VERIFIED boot. evidence: the evidence JSON re-read over a connection pinned to identity's key;
++ * identity: verifyMeasuredControl(...).identity of a "verified" result. -> request object (public data only).
++ */
++export function nativeCertificateRequest({ evidence, identity }) {
++  if (!evidence || evidence.format !== EVIDENCE_FORMAT || typeof evidence.certificate !== 'string') throw new Error('evidence: the control front\'s evidence document is required');
++  const st = parseStatement(evidence.statement);
++  if (!identity || st.bootId !== identity.bootId || st.keys.controlTls.spkiSha256 !== identity.controlTlsSpkiSha256) throw new Error('the evidence is not from the verified boot');
++  if (!st.native) throw new Error('this boot is not bound to serve native control names (no nativeControl in its config)');
++  const spki = spkiOf(evidence.certificate);
++  if (sha256Hex(spki) !== st.keys.controlTls.spkiSha256) throw new Error('the evidence certificate does not carry the attested control key');
++  return { format: REQUEST_FORMAT, names: [...st.native.names], caSha256: st.native.caSha256, spkiSha256: st.keys.controlTls.spkiSha256,
++    spkiPem: createPublicKey({ key: spki, format: 'der', type: 'spki' }).export({ type: 'spki', format: 'pem' }),
++    bootId: st.bootId, configDigest: st.configDigest, operator: st.identity.operator, publicUrl: st.identity.publicUrl, registryId: identity.registryId ?? null };
++}
++
++/** A request's shape, names and key -> the request's public key (KeyObject), or throws. */
++export function checkNativeRequest(r) {
++  if (!r || r.format !== REQUEST_FORMAT) throw new Error(`request format must be ${REQUEST_FORMAT}`);
++  if (!Array.isArray(r.names) || !r.names.length || r.names.some((n) => !NATIVE_NAMES.includes(n)) || new Set(r.names).size !== r.names.length) throw new Error('request names must be native control names');
++  if (!/^[0-9a-f]{64}$/.test(String(r.caSha256)) || !/^[0-9a-f]{64}$/.test(String(r.spkiSha256))) throw new Error('request caSha256/spkiSha256 malformed');
++  const k = createPublicKey(r.spkiPem);
++  if (sha256Hex(k.export({ type: 'spki', format: 'der' })) !== r.spkiSha256) throw new Error('request public key is not the attested key it names');
++  return k;
++}
++
++// ---- the attested control key's TLS connection ------------------------------------------------------------------------------
++const SPKI_HEX = /^[0-9a-f]{64}$/;
++/** an abort signal ends the attempt and RELEASES its socket (a stopped issuer leaves no connection or timer behind) */
++function tlsTo(controlUrl, { timeoutMs, signal }) {
++  const u = new URL(controlUrl);
++  if (u.protocol !== 'https:') return Promise.reject(new Error('an https control URL is required'));
++  if (signal?.aborted) return Promise.reject(new Error('aborted'));
++  const host = u.hostname.replace(/^\[|\]$/g, '');
++  return new Promise((resolve, reject) => {
++    const s = tls.connect({ host, port: Number(u.port || 443), rejectUnauthorized: false, minVersion: 'TLSv1.2', ...(net.isIP(host) ? {} : { servername: host }) });
++    const onAbort = () => { s.destroy(); finish(new Error('aborted')); };
++    const t = setTimeout(() => { s.destroy(); finish(new Error(`no TLS handshake within ${timeoutMs} ms`)); }, timeoutMs);
++    let done = false;
++    const finish = (e) => { if (done) return; done = true; clearTimeout(t); signal?.removeEventListener('abort', onAbort); if (e) reject(e); else {
++      let got = null;
++      try { got = sha256Hex(new X509Certificate(s.getPeerCertificate().raw).publicKey.export({ type: 'spki', format: 'der' })); } catch {}
++      s.peerSpkiSha256 = got; resolve(s); } };
++    signal?.addEventListener('abort', onAbort, { once: true });
++    s.once('error', (e) => finish(e));
++    s.once('secureConnect', () => finish(null));
++  });
++}
++/**
++ * The handshake completes, and the peer's SPKI is compared on THAT secure socket before any request byte exists.
++ * (rejectUnauthorized:false with a checkServerIdentity-only pin is not a pin: Node skips checkServerIdentity when chain
++ * validation already failed, so a self-signed impostor would be accepted.) A pin is REQUIRED: a missing, null or malformed
++ * digest is refused before any connection is made.
++ */
++export async function pinnedSocket(controlUrl, spkiSha256, { timeoutMs = 15000, signal } = {}) {
++  if (typeof spkiSha256 !== 'string' || !SPKI_HEX.test(spkiSha256)) throw new Error('the attested key digest (64 lowercase hex) is required: nothing is sent unpinned');
++  const s = await tlsTo(controlUrl, { timeoutMs, signal });
++  if (s.peerSpkiSha256 !== spkiSha256) { s.destroy(); throw new Error('the endpoint is not the attested key'); }
++  return s;
++}
++function httpOver(sock, controlUrl, { method, path: p, body, timeoutMs, maxBytes, signal }) {
++  const u = new URL(controlUrl);
++  return new Promise((resolve, reject) => {
++    const onAbort = () => req.destroy(new Error('aborted'));
++    const req = http.request({ createConnection: () => sock, host: u.hostname, port: u.port || 443, method, path: p, timeout: timeoutMs,
++      headers: { host: u.host, ...(body ? { 'content-type': 'application/x-pem-file', 'content-length': Buffer.byteLength(body) } : {}) } }, (res) => {
++      const chunks = []; let n = 0;
++      res.on('data', (c) => { n += c.length; if (n > maxBytes) req.destroy(new Error('answer too large')); else chunks.push(c); });
++      res.on('end', () => { signal?.removeEventListener('abort', onAbort); sock.destroy(); resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf8'), peerSpkiSha256: sock.peerSpkiSha256 }); });
++    });
++    signal?.addEventListener('abort', onAbort, { once: true });
++    req.on('timeout', () => req.destroy(new Error(`no answer within ${timeoutMs} ms`)));
++    req.on('error', (e) => { signal?.removeEventListener('abort', onAbort); sock.destroy(); reject(e); });
++    req.end(body || undefined);
++  });
++}
++/** One HTTP request over pinnedSocket (nothing is sent before the key matched). -> { status, body, peerSpkiSha256 } */
++export async function pinnedRequest(controlUrl, { method = 'GET', path: p, body = null, spkiSha256, timeoutMs = 15000, maxBytes = 512 * 1024, signal } = {}) {
++  const sock = await pinnedSocket(controlUrl, spkiSha256, { timeoutMs, signal });
++  return httpOver(sock, controlUrl, { method, path: p, body, timeoutMs, maxBytes, signal });
++}
++/**
++ * A bounded, body-less GET from a control front WITHOUT a pin, for public data a caller trusts only after its own checks (the
++ * leaf a front serves now, a member's bound config). It can never carry a request body or another method, and it reports the
++ * key the peer presented. -> { status, body, peerSpkiSha256 }
++ */
++export async function untrustedRead(controlUrl, path, { timeoutMs = 15000, maxBytes = 256 * 1024, signal } = {}) {
++  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) throw new Error('an absolute path is required');
++  const sock = await tlsTo(controlUrl, { timeoutMs, signal });
++  return httpOver(sock, controlUrl, { method: 'GET', path, body: null, timeoutMs, maxBytes, signal });
++}
++/** The install: a PUT of the chain to the boot's front, ONLY over a connection pinned to its attested key. */
++export function installNativeCertificate({ controlUrl, chainPem, spkiSha256, timeoutMs, signal }) {
++  if (typeof spkiSha256 !== 'string' || !SPKI_HEX.test(spkiSha256)) return Promise.reject(new Error('install refused: the attested key digest (64 lowercase hex) is required'));
++  if (typeof chainPem !== 'string' || !chainPem) return Promise.reject(new Error('install refused: no chain'));
++  return pinnedRequest(controlUrl, { method: 'PUT', path: NATIVE_CERT_PATH, body: chainPem, spkiSha256, timeoutMs, signal });
++}
++
++// ---- DER: a reader for the CA certificate, a writer for exactly the leaf shape above ------------------------------------------
++/** one TLV at off -> { tag, start (of the value), end, raw (the whole TLV) }; definite lengths only (DER) */
++function tlvAt(buf, off) {
++  if (off + 2 > buf.length) throw new Error('DER: truncated');
++  const tag = buf[off]; let len = buf[off + 1], p = off + 2;
++  if (len & 0x80) {
++    const n = len & 0x7f;
++    if (n < 1 || n > 4 || p + n > buf.length) throw new Error('DER: bad length');
++    len = 0; for (let i = 0; i < n; i++) len = len * 256 + buf[p + i];
++    p += n;
++  }
++  if (p + len > buf.length) throw new Error('DER: truncated value');
++  return { tag, start: p, end: p + len, raw: buf.subarray(off, p + len) };
++}
++const children = (buf, t) => { const out = []; for (let p = t.start; p < t.end;) { const c = tlvAt(buf, p); out.push(c); p = c.end; } return out; };
++const OID = { SKI: '551d0e', BC: '551d13', KU: '551d0f', EKU: '551d25', SAN: '551d11', AKI: '551d23', CN: '550403', SERVER_AUTH: '2b06010505070301', ECDSA_SHA256: '2a8648ce3d040302' };
++/** The CA certificate's subject (exact DER) and its subjectKeyIdentifier (null when it has none). */
++export function caIssuerFacts(caDer) {
++  const cert = tlvAt(caDer, 0), [tbsT] = children(caDer, cert), tbs = children(caDer, tbsT);
++  let i = tbs[0].tag === 0xa0 ? 1 : 0;   // [0] version
++  const subject = tbs[i + 4];                                    // serial, signature, issuer, validity, SUBJECT
++  if (!subject || subject.tag !== 0x30) throw new Error('the CA certificate has no subject');
++  let ski = null;
++  const ext = tbs.find((t) => t.tag === 0xa3);
++  if (ext) for (const e of children(caDer, children(caDer, ext)[0])) {
++    const f = children(caDer, e);
++    if (f[0].tag === 0x06 && caDer.subarray(f[0].start, f[0].end).toString('hex') === OID.SKI) {
++      const octets = f[f.length - 1], inner = tlvAt(caDer, octets.start);
++      if (inner.tag !== 0x04) throw new Error('the CA subjectKeyIdentifier is not an OCTET STRING');
++      ski = Buffer.from(caDer.subarray(inner.start, inner.end));
++    }
++  }
++  return { subjectDer: Buffer.from(subject.raw), ski };
++}
++const tlv = (tag, ...parts) => {
++  const body = Buffer.concat(parts), n = body.length;
++  const len = n < 0x80 ? [n] : n < 0x100 ? [0x81, n] : n < 0x10000 ? [0x82, n >> 8, n & 255] : [0x83, n >> 16, (n >> 8) & 255, n & 255];
++  return Buffer.concat([Buffer.from([tag, ...len]), body]);
++};
++const seq = (...p) => tlv(0x30, ...p), set = (...p) => tlv(0x31, ...p), octets = (b) => tlv(0x04, b), oidHex = (h) => tlv(0x06, Buffer.from(h, 'hex'));
++const pad2 = (n) => String(n).padStart(2, '0');
++/** RFC 5280 4.1.2.5: UTCTime through 2049, GeneralizedTime from 2050, both to the second in UTC */
++function timeDer(ms) {
++  const d = new Date(Math.floor(ms / 1000) * 1000), y = d.getUTCFullYear();
++  const rest = `${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}${pad2(d.getUTCHours())}${pad2(d.getUTCMinutes())}${pad2(d.getUTCSeconds())}Z`;
++  return y < 2050 ? tlv(0x17, Buffer.from(pad2(y % 100) + rest)) : tlv(0x18, Buffer.from(String(y) + rest));
++}
++/** the subjectPublicKey BIT STRING's key bytes of a DER SPKI (what RFC 5280 key identifiers hash) */
++function spkiKeyBits(spkiDer) {
++  const [, bits] = children(spkiDer, tlvAt(spkiDer, 0));
++  if (!bits || bits.tag !== 0x03 || spkiDer[bits.start] !== 0) throw new Error('SPKI: no public key bit string');
++  return spkiDer.subarray(bits.start + 1, bits.end);
++}
++const pem = (der) => `-----BEGIN CERTIFICATE-----\n${der.toString('base64').match(/.{1,64}/g).join('\n')}\n-----END CERTIFICATE-----\n`;
++
++/**
++ * The native CA credentials, checked: a CA certificate, a P-256 private key that IS that certificate's key, valid now.
++ * -> { ca (X509Certificate), caKey (KeyObject), caFrom, caTo (ms), caSha256 (of the CA DER) }, or throws (never with key text).
++ */
++export function nativeCaFacts({ caCertPem, caKeyPem, now = Date.now() }) {
++  let ca; try { ca = new X509Certificate(caCertPem); } catch (e) { throw new Error(`the native CA certificate is unreadable: ${e.message}`); }
++  if (!ca.ca) throw new Error('the native CA certificate is not a CA certificate');
++  let caKey; try { caKey = createPrivateKey(caKeyPem); } catch { throw new Error('the native CA key is unreadable'); }   // never the key's text in a message
++  if (caKey.asymmetricKeyType !== 'ec' || caKey.asymmetricKeyDetails?.namedCurve !== 'prime256v1') throw new Error('the native CA key must be an EC P-256 key (ecdsa-with-SHA256)');
++  if (!createPublicKey(caKey).export({ type: 'spki', format: 'der' }).equals(ca.publicKey.export({ type: 'spki', format: 'der' }))) throw new Error('the native CA key is not the key of the native CA certificate');
++  const caFrom = Date.parse(ca.validFrom), caTo = Date.parse(ca.validTo);
++  if (!(caFrom <= now && now < caTo)) throw new Error('the native CA certificate is not valid now');
++  return { ca, caKey, caFrom, caTo, caSha256: sha256Hex(ca.raw) };
++}
++
++/**
++ * The CA holder's signature, in-process -> the chain PEM (the leaf, then the CA certificate: its own DER bytes, unchanged).
++ *   request    a nativeCertificateRequest (public data of a verified boot); its caSha256 must be THIS CA certificate's
++ *   caCertPem  the native CA certificate (PEM); caKeyPem its private key (PEM, PKCS#8 or SEC1), P-256 only
++ *   days       1..7; the leaf never outlives the CA (notAfter = min(notBefore + days, CA notAfter))
++ *   skewMs     notBefore is this much before now (a member's clock may lag the issuer's), and never before the CA's notBefore
++ */
++export function signNativeLeaf({ request, caCertPem, caKeyPem, days = MAX_DAYS, now = Date.now(), skewMs = 10 * 60e3, minRemainingMs = DAY_MS }) {
++  const leafKey = checkNativeRequest(request);
++  if (!Number.isSafeInteger(days) || days < 1 || days > MAX_DAYS) throw new Error(`days: 1 to ${MAX_DAYS}`);
++  const { ca, caKey, caFrom, caTo, caSha256 } = nativeCaFacts({ caCertPem, caKeyPem, now });
++  if (caSha256 !== request.caSha256) throw new Error('this CA is not the native CA the boot is bound to');
++  const notBefore = Math.max(Math.floor((now - skewMs) / 1000) * 1000, Math.ceil(caFrom / 1000) * 1000);
++  const notAfter = Math.min(notBefore + days * DAY_MS, Math.floor(caTo / 1000) * 1000);
++  if (notAfter - now < minRemainingMs) throw new Error('the native CA certificate expires too soon to issue a useful leaf');
++  const { subjectDer: issuer, ski: caSki } = caIssuerFacts(ca.raw);
++  const spkiDer = leafKey.export({ type: 'spki', format: 'der' });
++  const serial = randomBytes(16); serial[0] = (serial[0] & 0x7f) | 0x01;
++  const alg = seq(oidHex(OID.ECDSA_SHA256));
++  const ext = (o, critical, value) => seq(oidHex(o), ...(critical ? [tlv(0x01, Buffer.from([0xff]))] : []), octets(value));
++  const extensions = seq(
++    ext(OID.BC, true, seq()),                                                          // CA:FALSE
++    ext(OID.KU, true, tlv(0x03, Buffer.from([0x07, 0x80]))),                           // digitalSignature
++    ext(OID.EKU, false, seq(oidHex(OID.SERVER_AUTH))),
++    ext(OID.SAN, false, seq(...request.names.map((n) => tlv(0x82, Buffer.from(n, 'ascii'))))),
++    ext(OID.SKI, false, octets(createHash('sha1').update(spkiKeyBits(spkiDer)).digest())),
++    ...(caSki ? [ext(OID.AKI, false, seq(tlv(0x80, caSki)))] : []));
++  const tbs = seq(tlv(0xa0, tlv(0x02, Buffer.from([2]))), tlv(0x02, serial), alg, issuer, seq(timeDer(notBefore), timeDer(notAfter)),
++    seq(set(seq(oidHex(OID.CN), tlv(0x0c, Buffer.from(request.names[0], 'utf8'))))), spkiDer, tlv(0xa3, extensions));
++  const leafPem = pem(seq(tbs, alg, tlv(0x03, Buffer.concat([Buffer.from([0]), cryptoSign('sha256', tbs, caKey)]))));
++  // what was signed is what was meant: issued by this CA, under its key, over the request's key, for exactly these names
++  const leaf = new X509Certificate(leafPem);
++  if (!leaf.checkIssued(ca) || !leaf.verify(ca.publicKey) || leaf.ca || !leaf.publicKey.export({ type: 'spki', format: 'der' }).equals(spkiDer)
++      || request.names.some((n) => leaf.checkHost(n, { subject: 'never' }) !== n) || Date.parse(leaf.validTo) !== notAfter)
++    throw new Error('the encoded leaf does not verify as intended');
++  return leafPem + pem(ca.raw);   // the CA certificate's own DER bytes, as the one PEM block the guest's install check expects
++}
+diff --git a/metal/guest/native-issuer.mjs b/metal/guest/native-issuer.mjs
+new file mode 100644
+index 000000000..3298af856
+--- /dev/null
++++ b/metal/guest/native-issuer.mjs
+@@ -0,0 +1,248 @@
++// metal/guest/native-issuer.mjs -- the existing native CA, held by the platform API group and used by its PRIMARY only, to
++// issue and renew the native control leaf of each group member bound to serve the native control names
++// (metal/guest/measured-control.mjs nativeControl). It replaces the CA holder's manual request/issue/install
++// (scripts/native-control-certificate.mjs, which stays the offline fallback) with the same steps, in the group:
++//
++//   where the CA lives   the admin-signed platform credentials NATIVE_CA_KEY (PEM) and NATIVE_CA_CERT (PEM): sealed to the
++//                        primary's boot, replicated only as AEAD under the group key K, archived as ciphertext with K escrowed
++//                        to the admin recovery keys (metal/guest/platform-api-role.mjs). Never in a config, an environment, the
++//                        relay child or a log. A newer admin package without them revokes issuance.
++//   who is issued        only a member of THIS group's platformApi.members, judged on its ACTUAL serving boot:
++//     1. its bound config, fetched from its control URL (GET /platform-api/config: public data, trusted only through step 2),
++//        must carry this group's platformApi member exactly, name that member's identity, and bind nativeControl to THIS CA;
++//     2. verifyMeasuredControl (unchanged) at that control URL: AMD chain, the group's measurements and TCB floor, HOST_DATA =
++//        exactly that config, TLS peer = the attested key, the supervisor's minted keys, and the ORIGINAL registry row;
++//     3. a fresh platform host policy decision for that registry id with the verifier's chip (network/native-control-routes.mjs
++//        nativeHostDecision, the same decision native discovery makes); explicitly "off" refuses;
++//     4. the request (nativeCertificateRequest) from the evidence re-read over a connection pinned to the attested key: only
++//        the boot's PUBLIC key and its bound names;
++//   what is issued       signNativeLeaf: the existing profile, 7 days, never past the CA, for exactly the bound names;
++//   how it is delivered  the guest's own install endpoint (PUT /.well-known/enclave-native-certificate), pinned to the
++//                        attested key, whose checks (bound CA, its own key, a real TLS handshake per name, later expiry) stand.
++//                        The primary's own front is another process of its guest: reached at https://127.0.0.1:<controlPort>,
++//                        never through a public hairpin and never through a native name (no bootstrap loop).
++//   when                 one round at a time (single-flight), every roundMs; a member is only verified when its served leaf
++//                        is missing, foreign, or within renewBeforeMs of expiry; a refused member backs off (reset by a new boot).
++//   barrier              right before an install: still this run (no stop, credential change or leadership change since), the
++//                        native CA credentials unchanged, the platform host policy decided AGAIN (a ban since step 3 stops
++//                        it), and a majority-acknowledged commit as primary (state-replica) - the same barrier the relay's
++//                        outbound requests wait for. Otherwise nothing is installed. A stop also aborts the run's connections.
++//   bounds               one attempt per member at a time; a timed-out attempt is aborted (its connections end) and its late
++//                        result discarded; the verifier's own requests carry their own timeouts.
++import { randomBytes, X509Certificate } from 'node:crypto';
++import { canonicalJson, sha256Hex, EVIDENCE_PATH, NATIVE_CERT_PATH, NATIVE_NAMES } from './measured-control.mjs';
++import { nativeCertificateRequest, nativeCaFacts, signNativeLeaf, pinnedRequest, untrustedRead, installNativeCertificate, MAX_DAYS } from './native-certificate.mjs';
++
++export const NATIVE_CA_KEY = 'NATIVE_CA_KEY', NATIVE_CA_CERT = 'NATIVE_CA_CERT', NATIVE_CA_PREFIX = 'NATIVE_CA_';
++/** the role's read-only peer path for its bound (public) config; verified by the reader through HOST_DATA, never trusted */
++export const CONFIG_PATH = '/platform-api/config';
++/** a credential the relay child never receives (environment or file) */
++export const isNativeCaCredential = (name) => String(name).startsWith(NATIVE_CA_PREFIX);
++const lc = (s) => String(s || '').toLowerCase();
++const short = (e) => String(e?.message ?? e).split('\n')[0].slice(0, 240);
++
++/** The native CA credentials of a credentials document -> null (none held), { error } (malformed set), or { caKeyPem, caCertPem, digest } */
++export function nativeCaCredentials(creds) {
++  const names = Object.keys(creds || {}).filter(isNativeCaCredential);
++  if (!names.length) return null;
++  const k = creds[NATIVE_CA_KEY], c = creds[NATIVE_CA_CERT];
++  if (typeof k !== 'string' || typeof c !== 'string' || names.length !== 2) return { error: `the native CA credentials are exactly ${NATIVE_CA_KEY} and ${NATIVE_CA_CERT}` };
++  // the digest only detects a change; it is compared in memory and never shown
++  return { caKeyPem: k, caCertPem: c, digest: sha256Hex('enclave native CA credentials v1\n', k, '\0', c) };
++}
++
++/**
++ * Is the leaf a front serves now one THIS CA issued over the key that front presents, in the native profile, valid now and
++ * far enough from expiry? -> { peerSpkiSha256, validTo (ms) | null }. The GET is untrusted discovery: only a leaf that passes
++ * every check here (signature by the held CA, issued-by, the presented key, not a CA, serverAuth, names within the native
++ * names, validity started, not past the CA) can make the issuer skip a renewal; anything else leads to full verification.
++ */
++export async function servedLeaf(url, ca, { timeoutMs, signal, now = Date.now() } = {}) {
++  let r;
++  try { r = await untrustedRead(url, NATIVE_CERT_PATH, { timeoutMs, maxBytes: 64 * 1024, signal }); } catch (e) { if (signal?.aborted) throw e; return { peerSpkiSha256: null, validTo: null }; }
++  const out = { peerSpkiSha256: r.peerSpkiSha256 ?? null, validTo: null };
++  if (r.status !== 200) return out;
++  const blocks = r.body.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) || [];
++  try {
++    if (blocks.length !== 2) return out;
++    const leaf = new X509Certificate(blocks[0]), servedCa = new X509Certificate(blocks[1]);
++    const from = Date.parse(leaf.validFrom), to = Date.parse(leaf.validTo), san = String(leaf.subjectAltName || '').split(', ');
++    if (servedCa.raw.equals(ca.raw) && leaf.checkIssued(ca) && leaf.verify(ca.publicKey) && !leaf.ca
++        && sha256Hex(leaf.publicKey.export({ type: 'spki', format: 'der' })) === out.peerSpkiSha256
++        && (leaf.keyUsage || []).includes('1.3.6.1.5.5.7.3.1') && san.length >= 1 && san.every((x) => NATIVE_NAMES.includes(x.replace(/^DNS:/, '')) && x.startsWith('DNS:'))
++        && from <= now && now < to && to <= Date.parse(ca.validTo))
++      out.validTo = to;
++  } catch {}
++  return out;
++}
++
++/**
++ * createNativeIssuer(opts) -> { start(credentials, why), stop(why), status(), round() }
++ *   members, self, platformApi, ownConfig   the group (platformApi.members), this member's index, the group member, this boot's config
++ *   selfUrl            this guest's own control front on loopback (https://127.0.0.1:<controlPort>)
++ *   deps               { verify({url, config}), decideHost(registryId, {chipId}) } or an async factory of it
++ *                      (issuerDeps below: the production verifier, registry, collateral and platform host policy)
++ *   barrier            async () -> true only while a majority acknowledges this member as primary (the role: node.commit())
++ *   credentialsDigest  () -> the digest of the native CA credentials the group holds NOW (nativeCaCredentials(...).digest)
++ *   hooks              TESTS ONLY: { beforeBarrier({member}) } awaited right before the barrier
++ */
++export function createNativeIssuer({ members, self, platformApi, ownConfig, selfUrl, deps, barrier, credentialsDigest, log = () => {}, now = Date.now,
++  roundMs = 5 * 60e3, memberTimeoutMs = 120e3, renewBeforeMs = 2 * 86400e3, maxBackoffMs = 3600e3, days = MAX_DAYS, requestTimeoutMs = 15000, hooks = {} }) {
++  let active = null, refused = null, running = null, depsP = null;
++  const states = members.map(() => ({ state: 'pending', reason: null, validTo: null, failures: 0, retryAt: 0, failedSpki: null, at: null }));
++  const resolveDeps = () => (depsP ||= Promise.resolve(typeof deps === 'function' ? deps() : deps).catch((e) => { depsP = null; throw e; }));
++
++  function stop(why) {
++    if (!active) return;
++    // the run ends NOW: its timer, and every connection it holds (the abort destroys them); a later step sees it is not live
++    clearInterval(active.timer); active.abort.abort(); active = null;
++    log(`native CA issuer stopped (${why})`);
++  }
++  function start(creds, why = 'primary') {
++    if (creds && !creds.error && active && active.digest === creds.digest) return;
++    stop('native CA credentials changed');
++    refused = null;
++    let facts;
++    try {
++      if (!creds) throw new Error('no native CA credentials');
++      if (creds.error) throw new Error(creds.error);
++      facts = nativeCaFacts({ caCertPem: creds.caCertPem, caKeyPem: creds.caKeyPem, now: now() });
++    } catch (e) { refused = short(e); log(`native CA issuer refused: ${refused}`); return; }
++    const run = { digest: creds.digest, caKeyPem: creds.caKeyPem, caCertPem: creds.caCertPem, caSha256: facts.caSha256, ca: facts.ca, timer: null, abort: new AbortController() };
++    active = run;
++    for (const s of states) Object.assign(s, { failures: 0, retryAt: 0, failedSpki: null });
++    log(`native CA issuer active (${why}): CA sha256:${facts.caSha256.slice(0, 16)}…, ${members.length} member(s), round every ${Math.round(roundMs / 1000)} s`);
++    const tick = () => { if (active === run && !running) running = round(run).catch((e) => log(`native issuance round failed: ${short(e)}`)).finally(() => { running = null; }); };
++    run.timer = setInterval(tick, roundMs); run.timer.unref?.();
++    setTimeout(tick, 0).unref?.();
++  }
++  const set = (i, state, extra = {}) => {
++    const s = states[i], changed = s.state !== state || s.reason !== (extra.reason ?? null);
++    Object.assign(s, { state, reason: extra.reason ?? null, at: new Date(now()).toISOString() }, 'validTo' in extra ? { validTo: extra.validTo } : {});
++    if (changed) log(`native leaf, member ${i}: ${state}${extra.reason ? ` (${extra.reason})` : ''}${extra.validTo ? ` until ${new Date(extra.validTo).toISOString()}` : ''}`);
++  };
++
++  // Outstanding work is bounded: one attempt per member at a time. A timed-out attempt is aborted (its connections end at
++  // once); a step that takes no signal (the verifier, whose every request has its own timeout) may still finish, but its
++  // result is discarded, and that member is not attempted again until it has.
++  const outstanding = new Map();
++  async function round(run) {
++    for (let i = 0; i < members.length && active === run; i++) {
++      if (outstanding.has(i)) { set(i, states[i].state, { reason: 'an earlier attempt is still finishing' }); continue; }
++      const job = { abandoned: false, abort: new AbortController() };
++      const stopJob = () => job.abort.abort();
++      run.abort.signal.addEventListener('abort', stopJob, { once: true });
++      const attempt = member(run, i, job);
++      outstanding.set(i, attempt);
++      attempt.catch(() => {}).finally(() => { outstanding.delete(i); run.abort.signal.removeEventListener('abort', stopJob); });
++      let t;
++      try {
++        await Promise.race([attempt, new Promise((_, no) => { t = setTimeout(() => no(new Error(`no result within ${memberTimeoutMs} ms`)), memberTimeoutMs); t.unref?.(); })]);
++      } catch (e) {
++        job.abandoned = true; job.abort.abort();             // a late answer of an abandoned attempt never installs
++        if (e?.ended || active !== run) { set(i, 'aborted', { reason: 'the issuance run ended (stopped, credentials changed or no longer primary): nothing installed' }); return; }
++        const s = states[i];
++        s.failures++; s.retryAt = now() + Math.min(roundMs * 2 ** (s.failures - 1), maxBackoffMs); s.failedSpki = job.peerSpkiSha256 ?? null;
++        set(i, 'refused', { reason: short(e) });
++      } finally { clearTimeout(t); }
++    }
++  }
++
++  async function member(run, i, job) {
++    const m = members[i], url = i === self ? selfUrl : m.controlUrl, s = states[i];
++    const live = () => active === run && !job.abandoned, signal = job.abort.signal;
++    const step = () => { if (!live()) throw Object.assign(new Error('the issuance run ended'), { ended: true }); };
++    // 1. is renewal due? (what the front serves now; a wrong answer can only make this round skip or retry)
++    const served = await servedLeaf(url, run.ca, { timeoutMs: requestTimeoutMs, signal, now: now() });
++    step();
++    job.peerSpkiSha256 = served.peerSpkiSha256;
++    if (served.validTo && served.validTo - now() > renewBeforeMs) { s.failures = 0; s.retryAt = 0; return set(i, 'current', { validTo: served.validTo }); }
++    // a refused member waits out its backoff, unless it is a new boot (another control key) since it was refused
++    if (s.retryAt > now() && served.peerSpkiSha256 === s.failedSpki) return;
++    const d = await resolveDeps();
++    step();
++    // 2. its bound config: the identical group member, this member's identity, bound to serve native names under THIS CA
++    let config = ownConfig, configPeer = null;
++    if (i !== self) {
++      const r = await untrustedRead(url, CONFIG_PATH, { timeoutMs: requestTimeoutMs, maxBytes: 256 * 1024, signal });
++      step();
++      if (r.status !== 200) throw new Error(`its bound config is unavailable (HTTP ${r.status})`);
++      let o; try { o = JSON.parse(r.body); } catch { throw new Error('its bound config is not JSON'); }
++      config = o && o.config; configPeer = r.peerSpkiSha256;
++    }
++    if (!config || typeof config !== 'object' || canonicalJson(config.platformApi ?? null) !== canonicalJson(platformApi)) throw new Error('its bound config does not carry this group\'s platformApi member');
++    if (lc(config.identity?.operator) !== lc(m.operator) || config.identity?.publicUrl !== m.publicUrl) throw new Error('its bound config names another identity than the member');
++    if (!config.nativeControl) return set(i, 'not-bound', { reason: 'its config serves no native control names' });
++    if (config.nativeControl.caSha256 !== run.caSha256) throw new Error('it is bound to another native CA than the one this group holds');
++    // 3. the serving boot itself, against exactly that config, the group's measurements and the original registry
++    const v = await d.verify({ url, config });
++    step();
++    if (!v || v.status !== 'verified') throw new Error(`attestation ${v?.status ?? 'missing'}: ${(v?.reasons || []).filter((x) => /^(REJECT|UNKNOWN|PENDING)|report:/.test(x)).slice(-2).join('; ').slice(0, 200)}`);
++    if (v.identity.operator !== lc(m.operator) || v.identity.publicUrl !== m.publicUrl) throw new Error('the attested boot is not this member');
++    if (configPeer !== null && configPeer !== v.identity.controlTlsSpkiSha256) throw new Error('its config was answered by another key than the attested boot');
++    // 4. the admin's platform host policy, fresh, for THAT registry id and the chip the verifier proved
++    let dec;
++    try { dec = await d.decideHost(v.identity.registryId, { chipId: v.identity.chipId ?? null }); } catch (e) { throw new Error(`platform host policy unreadable: ${short(e)}`); }
++    step();
++    if (!dec || dec.admit !== true) throw new Error(`refused by the platform host policy: ${dec?.reason || dec?.status || 'no decision'}`);
++    if (!dec.host || lc(dec.host.operator) !== v.identity.operator || dec.host.active === false) throw new Error('the policy decision names another registry row than the attested host');
++    // 5. the request: the boot's PUBLIC key and bound names, from evidence re-read over a connection pinned to that key
++    const ev = await pinnedRequest(url, { path: `${EVIDENCE_PATH}?nonce=${randomBytes(32).toString('hex')}`, spkiSha256: v.identity.controlTlsSpkiSha256, timeoutMs: requestTimeoutMs, signal });
++    step();
++    if (ev.status !== 200) throw new Error(`evidence re-read: HTTP ${ev.status}`);
++    const request = nativeCertificateRequest({ evidence: JSON.parse(ev.body), identity: v.identity });
++    if (request.caSha256 !== run.caSha256 || request.names.join() !== config.nativeControl.names.join() || request.registryId !== v.identity.registryId)
++      throw new Error('the request does not match the verified boot');
++    const chainPem = signNativeLeaf({ request, caCertPem: run.caCertPem, caKeyPem: run.caKeyPem, days, now: now() });
++    // 6. the barrier: still this run, the same native CA credentials, and a majority-acknowledged primary
++    if (hooks.beforeBarrier) await hooks.beforeBarrier({ member: i });
++    const holds = () => live() && credentialsDigest() === run.digest;
++    if (!holds()) { job.abandoned = true; return set(i, 'aborted', { reason: 'no longer the run holding these native CA credentials: nothing installed' }); }
++    // the admission is decided AGAIN right before the install (a ban since step 4 stops it), then the primary is confirmed
++    let again;
++    try { again = await d.decideHost(v.identity.registryId, { chipId: v.identity.chipId ?? null }); } catch (e) { throw new Error(`platform host policy unreadable at install: ${short(e)}`); }
++    step();
++    if (!again || again.admit !== true || !again.host || lc(again.host.operator) !== v.identity.operator) throw new Error(`refused by the platform host policy at install: ${again?.reason || again?.status || 'no decision'}`);
++    if (!holds() || !(await barrier()) || !holds()) { job.abandoned = true; return set(i, 'aborted', { reason: 'no longer the primary holding these native CA credentials: nothing installed' }); }
++    const r = await installNativeCertificate({ controlUrl: url, chainPem, spkiSha256: v.identity.controlTlsSpkiSha256, timeoutMs: requestTimeoutMs, signal });
++    if (r.status !== 200) throw new Error(`the member refused the leaf: HTTP ${r.status} ${String(r.body).slice(0, 160)}`);
++    let validTo = null; try { validTo = Date.parse(JSON.parse(r.body).validTo); } catch {}
++    s.failures = 0; s.retryAt = 0; s.failedSpki = null;
++    set(i, 'issued', { validTo, reason: null });
++    log(`native leaf issued to member ${i} (boot ${request.bootId}, ${request.names.join(', ')})`);
++  }
++
++  return {
++    start, stop,
++    round: () => (active && !running ? (running = round(active).finally(() => { running = null; })) : running || Promise.resolve()),
++    status: () => ({ state: active ? 'active' : refused ? 'refused' : 'inactive', reason: refused, caSha256: active ? active.caSha256 : null,
++      members: states.map((s, i) => ({ member: i, state: s.state, reason: s.reason, validTo: s.validTo ? new Date(s.validTo).toISOString() : null, at: s.at })) }),
++  };
++}
++
++/**
++ * The issuer's production dependencies: the UNCHANGED verifier (metal/measured-control-verify.mjs), the original registry
++ * through this guest's bound RPC quorum (the handoff's reader), AMD collateral, and the platform host policy resolved
++ * exactly as native discovery resolves it (production unless configured; explicitly "off" refuses every issuance).
++ *   policyEnv  the relay's own non-credential environment (relayEnvBase + platformApi.relayEnv)
++ *   collateral the AMD collateral source; registry/roots/fetch: test fixtures only (offline)
++ */
++export async function issuerDeps({ platformApi: pa, ownConfig, policyEnv = {}, collateral, registry = null, roots = null, fetch = globalThis.fetch, log = () => {}, timeoutMs = 15000 }) {
++  const { verifyMeasuredControl } = await import('../measured-control-verify.mjs');
++  const { quorumRegistry } = await import('./platform-api-verify.mjs');
++  const { createHostPolicyRuntime, resolveHostPolicyConfig } = await import('../../network/host-policy-runtime.mjs');
++  const { PRODUCTION_BOOK } = await import('../../network/platform-host-policy-config.mjs');
++  const { freshAdmissions } = await import('../../network/host-policy-adapters.mjs');
++  const { nativeHostDecision } = await import('../../network/native-control-routes.mjs');
++  const reg = registry || quorumRegistry({ rpcs: ownConfig.rpcs, quorum: ownConfig.quorum, registry: ownConfig.contracts.registry });
++  const runtime = createHostPolicyRuntime(resolveHostPolicyConfig({ env: policyEnv, chainId: 8453, book: PRODUCTION_BOOK }), { fetch, log });
++  const decide = runtime ? freshAdmissions(runtime.gate) : null;
++  return {
++    verify: ({ url, config }) => verifyMeasuredControl({ url, collateral, registry: reg, timeoutMs,
++      expect: { config, measurements: pa.measurements, ...(pa.minTcb ? { minTcb: pa.minTcb } : {}), ...(roots ? { roots } : {}) } }),
++    decideHost: async (registryId, { chipId = null } = {}) => {
++      if (!runtime) return { admit: false, status: 'off', reason: 'the platform host policy is explicitly off: a native leaf is issued only to a host the policy judged' };
++      return nativeHostDecision((await decide([registryId]))[lc(registryId)], runtime.gate.accepted()?.policy || null, chipId, { now: Date.now });
++    },
++  };
++}
+diff --git a/metal/guest/platform-api-role.mjs b/metal/guest/platform-api-role.mjs
+index d70d7a11e..6c0442b65 100644
+--- a/metal/guest/platform-api-role.mjs
++++ b/metal/guest/platform-api-role.mjs
+@@ -26,6 +26,7 @@ import { createHash, createHmac, timingSafeEqual, X509Certificate } from "node:c
+ import { fileURLToPath } from "node:url";
+ import * as hpke from "../../custody/hpke.mjs";
+ import { ReplicaNode, sealMessage, openArchive, replaceAll, REPLICA_FORMAT } from "../../relay/state-replica.mjs";
++import { createNativeIssuer, nativeCaCredentials, isNativeCaCredential, CONFIG_PATH } from "./native-issuer.mjs";
+ 
+ export const ROLE_FORMAT = "enclave-platform-api-role/v1";
+ export const PACKAGE_FORMAT = "enclave-platform-api-package/v1";
+@@ -96,7 +97,7 @@ export function openRecovery(env, { groupId, privateKey }) {
+  *   transport    { post(url, Buffer|object, {pin}) -> Buffer|object } overridable for tests; default https/http
+  */
+ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayArgv = null, log = (m) => console.log(`[platform-api] ${m}`),
+-                                  now = Date.now, postImpl = null, archivePut = null }) {
++                                  now = Date.now, postImpl = null, archivePut = null, nativeIssuer = null }) {
+   const pa = cfg.platformApi, groupId = groupIdOf(pa), self = cfg.self, members = pa.members;
+   const dirs = cfg.dirs, dataDir = dirs.data;
+   for (const d of [dirs.root, dataDir]) fs.mkdirSync(d, { recursive: true, mode: 0o700 });
+@@ -127,13 +128,18 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+     const creds = readCredentials(path.join(dataDir, CREDENTIALS_FILE)).credentials;
+     // a credential the relay reads from a FILE (NAME_FILE: e.g. the release signing seed) is written to the RAM fs, 0600
+     const credEnv = {};
++    // the credential files are exactly the CURRENT set: a replaced or removed credential leaves no file behind
++    fs.rmSync(path.join(dirs.root, "creds"), { recursive: true, force: true });
+     for (const [k, v] of Object.entries(creds)) {
++      if (isNativeCaCredential(k)) continue;             // the native CA is the issuer's alone: never in the relay's environment or files
+       if (!k.endsWith("_FILE")) { credEnv[k] = v; continue; }
+       const f = path.join(dirs.root, "creds", k);
+       fs.mkdirSync(path.dirname(f), { recursive: true, mode: 0o700 }); fs.writeFileSync(f, v, { mode: 0o600 }); credEnv[k] = f;
+     }
+     const env = { PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin", ...(cfg.relayEnvBase || {}), ...pa.relayEnv, ...credEnv, AUTH_DATA_DIR: dataDir,
+                   API_RELAY_BIND: "127.0.0.1", API_RELAY_PORT: "0", PLATFORM_API_ROLE: "relay-child", NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS || "" };
++    // the final boundary: whatever source a NATIVE_CA_* name came from (base, bound relayEnv, credentials), the relay never has it
++    for (const k of Object.keys(env)) if (isNativeCaCredential(k)) delete env[k];
+     const argv = relayArgv || [process.execPath, fileURLToPath(import.meta.url), "--relay-child"];
+     const c = spawn(argv[0], argv.slice(1), { env, cwd: dataDir, stdio: ["ignore", "inherit", "inherit", "ipc"] });
+     child = c; childPort = 0;
+@@ -158,24 +164,45 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+     child = null; childPort = 0;
+   }
+ 
++  // ---- the native CA issuer (primary only; metal/guest/native-issuer.mjs) ----
++  // It runs while this member is the primary AND the group holds the admin's NATIVE_CA_* credentials. Leadership loss,
++  // stop, or a credentials package that removes or replaces them stops the current run (its timer and connections) at once.
++  const credentialsFile = path.join(dataDir, CREDENTIALS_FILE);
++  const issuer = nativeIssuer ? createNativeIssuer({ ...nativeIssuer, members, self, platformApi: pa, ownConfig: cfg.config,
++    selfUrl: `https://127.0.0.1:${cfg.listen?.control ?? cfg.config.controlPort}`,       // this guest's own front: no public hairpin
++    barrier: async () => !!node && node.role === "leader" && (await node.commit()) === true && node.role === "leader" && node.leaseValid(),
++    credentialsDigest: () => nativeCaCredentials(readCredentials(credentialsFile).credentials)?.digest ?? null,
++    log: (m) => log(m), now }) : null;
++  function syncIssuer(why) {
++    if (!issuer) return;
++    if (stopped || !node || node.role !== "leader") return issuer.stop(why);
++    const c = nativeCaCredentials(readCredentials(credentialsFile).credentials);
++    if (!c) return issuer.stop("the group holds no native CA credentials");
++    issuer.start(c, why);
++  }
++
+   // ---- the replica member ----
+   function startNode() {
+     if (node) return;
+     node = new ReplicaNode({ self, n: members.length, key, group: groupId, dir: dataDir, metaFile: path.join(dirs.root, "meta.json"), leaseMs: pa.leaseMs, now, info,
+       log: (m) => log(m),
+       send: async (i, buf) => Buffer.from(await post(members[i].controlUrl + PEER_PATH, buf, { binary: true })),
+-      onLeader: () => startRelay(), onFollower: (why) => stopRelay(why),
++      onLeader: () => { startRelay(); syncIssuer("primary"); }, onFollower: (why) => { issuer?.stop(why); stopRelay(why); },
+       archive: pa.archives.length ? archive : null, archiveMs: pa.archiveMs ?? 30000 });
+     node.start();
+   }
+   const recovery = () => recoveryEnvelope({ key, groupId, recovery: pa.recovery });
++  // a sink holds a RECOVERABLE archive only with both halves of this write: the snapshot sealed under K and K escrowed to the
++  // admin recovery keys. Half of one sink and the other half of another recover nothing, so only complete pairs count.
++  let lastArchive = null;
+   async function archive(blob, head) {
+-    const put = archivePut || defaultPut;
+-    const results = await Promise.allSettled(pa.archives.flatMap((sink) => [
+-      put(`${sink}/platform-api/${groupId}/latest`, blob), put(`${sink}/platform-api/${groupId}/recovery.json`, Buffer.from(JSON.stringify(recovery())))]));
+-    const okSinks = results.filter((r) => r.status === "fulfilled").length / 2;
+-    if (!okSinks) throw new Error("no archive sink took the snapshot");
+-    log(`archived snapshot ${head.epoch}.${head.seq} to ${Math.floor(okSinks)} of ${pa.archives.length} sink(s)`);
++    const put = archivePut || defaultPut, envelope = Buffer.from(JSON.stringify(recovery()));
++    const paired = await Promise.all(pa.archives.map((sink) => Promise.allSettled([put(`${sink}/platform-api/${groupId}/latest`, blob),
++      put(`${sink}/platform-api/${groupId}/recovery.json`, envelope)]).then((r) => r.every((x) => x.status === "fulfilled"))));
++    const okSinks = paired.filter(Boolean).length;
++    if (!okSinks) throw new Error(`no archive sink took both the snapshot and the recovery envelope (${pa.archives.length} tried)`);
++    lastArchive = { head: { ...head }, at: new Date(now()).toISOString(), sinks: okSinks, of: pa.archives.length };
++    log(`archived snapshot ${head.epoch}.${head.seq} to ${okSinks} of ${pa.archives.length} sink(s), each with its recovery envelope`);
+   }
+ 
+   // ---- the peer/control listener (the front routes /platform-api/* here) ----
+@@ -191,6 +218,9 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+     try {
+       if (u.pathname === STATUS_PATH && req.method === "GET")
+         return send(res, 200, { format: ROLE_FORMAT, groupId, self, haveKey: !!key, ...(node ? node.status() : { role: "waiting-for-key" }), relay: !!childPort });
++      // this boot's bound config: public by construction (relayEnv refuses secret names); a reader trusts it only after
++      // verifyMeasuredControl binds it through HOST_DATA (the primary's native issuer)
++      if (u.pathname === CONFIG_PATH && req.method === "GET") return send(res, 200, { format: ROLE_FORMAT, groupId, config: cfg.config });
+       if (req.method !== "POST") return send(res, 405, { error: "method" });
+       if (u.pathname === PEER_PATH) {
+         if (!node) return send(res, 503, { error: "no_key" });
+@@ -258,6 +288,7 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+     if (!(await node.commit())) return [503, { error: "not_committed" }];
+     log(`platform credentials updated by admin ${who} (${Object.keys(creds).length} names); restarting the relay`);
+     stopRelay("credentials updated"); startRelay();
++    syncIssuer("credentials updated");
+     return [200, { ok: true, names: Object.keys(creds).sort() }];
+   }
+ 
+@@ -332,11 +363,13 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+   log(`member ${self} of group ${groupId}: peer :${peerServer.address().port}, api :${apiServer.address().port}${key ? "" : "; waiting for the state key"}`);
+   return {
+     groupId, statementSha, handoffPublicKey: myPub,
+-    status: () => ({ haveKey: !!key, relay: !!childPort, childPid: child ? child.pid : null, ...(node ? node.status() : { role: "waiting-for-key" }) }),
++    status: () => ({ haveKey: !!key, relay: !!childPort, childPid: child ? child.pid : null, ...(node ? node.status() : { role: "waiting-for-key" }),
++      archive: lastArchive, nativeIssuer: issuer ? issuer.status() : null }),
+     node: () => node, recovery: () => (key ? recovery() : null),
+     ports: { peer: peerServer.address().port, api: apiServer.address().port },
+     async stop() {
+       stopped = true; if (askTimer) clearInterval(askTimer);
++      issuer?.stop("stopped");
+       if (node) node.stop(); stopRelay("stopped");
+       for (const s of [peerServer, apiServer]) { s.closeAllConnections?.(); await new Promise((ok) => s.close(() => ok())); }
+     },
+@@ -432,7 +465,17 @@ export async function main(argv) {
+   if (cfg.format !== ROLE_FORMAT) throw new Error(`role config format must be ${ROLE_FORMAT}`);
+   const viem = await import("viem");
+   const { productionVerifier } = await import("./platform-api-verify.mjs");
+-  const role = await startRole({ cfg, recoverMessageAddress: viem.recoverMessageAddress, verifyPeer: productionVerifier(cfg) });
++  // the native CA issuer's dependencies, built only when this member first issues: the unchanged verifier and original
++  // registry reader, AMD collateral (KDS, cached on this boot's RAM fs), and the platform host policy resolved from the relay's
++  // own NON-credential environment (relayEnvBase + platformApi.relayEnv; the sealed credentials are never part of it)
++  const nativeIssuer = { deps: async () => {
++    const { issuerDeps } = await import("./native-issuer.mjs");
++    const { cachedCollateral } = await import("../../verifier/collateral-cache.mjs");
++    const { httpCollateral } = await import("../../verifier/collateral.mjs");
++    return issuerDeps({ platformApi: cfg.platformApi, ownConfig: cfg.config, policyEnv: { ...(cfg.relayEnvBase || {}), ...cfg.platformApi.relayEnv },
++      collateral: cachedCollateral({ dir: path.join(cfg.dirs.root, "collateral"), upstream: httpCollateral() }), log: (m) => console.log(`[platform-api] ${m}`) });
++  } };
++  const role = await startRole({ cfg, recoverMessageAddress: viem.recoverMessageAddress, verifyPeer: productionVerifier(cfg), nativeIssuer });
+   for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => role.stop().finally(() => process.exit(0)));
+ }
+ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+diff --git a/scripts/build-platform-api-guest-bundle.mjs b/scripts/build-platform-api-guest-bundle.mjs
+index 58d22585d..9a9e95a42 100644
+--- a/scripts/build-platform-api-guest-bundle.mjs
++++ b/scripts/build-platform-api-guest-bundle.mjs
+@@ -31,8 +31,10 @@ for (const rel of Object.keys(result.metafile.inputs).sort()) {
+   if (rel.startsWith("..") || path.isAbsolute(rel)) throw new Error(`bundle input outside the tree: ${rel}`);
+   inputs[rel] = sha(await fs.readFile(path.resolve(root, rel)));
+ }
+-for (const must of ["metal/guest/platform-api-role.mjs", "network/host-services/argv-guard.mjs", "relay/api-relay.js", "relay/state-replica.mjs", "metal/guest/platform-api-verify.mjs", "metal/measured-control-verify.mjs"])
++for (const must of ["metal/guest/platform-api-role.mjs", "network/host-services/argv-guard.mjs", "relay/api-relay.js", "relay/state-replica.mjs", "metal/guest/platform-api-verify.mjs", "metal/measured-control-verify.mjs",
++                   "metal/guest/native-issuer.mjs", "metal/guest/native-certificate.mjs", "network/native-control-routes.mjs", "verifier/collateral-cache.mjs"])
+   if (!inputs[must]) throw new Error(`the bundle does not carry ${must}`);
++for (const never of ["scripts/native-control-certificate.mjs"]) if (inputs[never]) throw new Error(`the bundle must not carry ${never} (a command line with its own main check)`);
+ const sidecars = {};
+ for (const [beside, src] of Object.entries(SIDECARS)) sidecars[beside] = { source: src, sha256: sha(await fs.readFile(path.join(root, src))) };
+ const manifest = JSON.stringify({ bundle: "metal/guest/platform-api.bundle.mjs", entry, sha256: sha(bytes), bytes: bytes.length, inputs, sidecars }, null, 2) + "\n";
+diff --git a/scripts/native-control-certificate.mjs b/scripts/native-control-certificate.mjs
+index 9ac6f956e..05b834878 100644
+--- a/scripts/native-control-certificate.mjs
++++ b/scripts/native-control-certificate.mjs
+@@ -20,46 +20,19 @@
+ import fs from 'node:fs';
+ import os from 'node:os';
+ import path from 'node:path';
+-import http from 'node:http';
+-import net from 'node:net';
+-import tls from 'node:tls';
+ import { execFileSync } from 'node:child_process';
+-import { X509Certificate, createPublicKey, randomBytes } from 'node:crypto';
++import { X509Certificate, randomBytes } from 'node:crypto';
+ import { fileURLToPath } from 'node:url';
+-import { parseStatement, sha256Hex, NATIVE_NAMES, EVIDENCE_FORMAT, EVIDENCE_PATH, NATIVE_CERT_PATH } from '../metal/guest/measured-control.mjs';
+-
+-export const REQUEST_FORMAT = 'enclave-native-certificate-request/v1';
+-export const MAX_DAYS = 7;   // the existing native service certificate lifetime (renewed, never long-lived)
++import { sha256Hex, EVIDENCE_PATH } from '../metal/guest/measured-control.mjs';
++// the request, the pinned connection and the install live in the library the platform API primary's issuer shares
++// (metal/guest/native-issuer.mjs); this CLI keeps only its command line and the openssl `issue` of the offline CA holder
++import { REQUEST_FORMAT, MAX_DAYS, nativeCertificateRequest, checkNativeRequest, pinnedSocket, pinnedRequest, installNativeCertificate } from '../metal/guest/native-certificate.mjs';
++export { REQUEST_FORMAT, MAX_DAYS, nativeCertificateRequest, pinnedSocket, pinnedRequest, installNativeCertificate };
+ const spkiOf = (pem) => new X509Certificate(pem).publicKey.export({ type: 'spki', format: 'der' });
+ 
+-/**
+- * The request for one VERIFIED boot. evidence: the evidence JSON re-read over a connection pinned to identity's key;
+- * identity: verifyMeasuredControl(...).identity of a "verified" result. -> request object (public data only).
+- */
+-export function nativeCertificateRequest({ evidence, identity }) {
+-  if (!evidence || evidence.format !== EVIDENCE_FORMAT || typeof evidence.certificate !== 'string') throw new Error('evidence: the control front\'s evidence document is required');
+-  const st = parseStatement(evidence.statement);
+-  if (!identity || st.bootId !== identity.bootId || st.keys.controlTls.spkiSha256 !== identity.controlTlsSpkiSha256) throw new Error('the evidence is not from the verified boot');
+-  if (!st.native) throw new Error('this boot is not bound to serve native control names (no nativeControl in its config)');
+-  const spki = spkiOf(evidence.certificate);
+-  if (sha256Hex(spki) !== st.keys.controlTls.spkiSha256) throw new Error('the evidence certificate does not carry the attested control key');
+-  return { format: REQUEST_FORMAT, names: [...st.native.names], caSha256: st.native.caSha256, spkiSha256: st.keys.controlTls.spkiSha256,
+-    spkiPem: createPublicKey({ key: spki, format: 'der', type: 'spki' }).export({ type: 'spki', format: 'pem' }),
+-    bootId: st.bootId, configDigest: st.configDigest, operator: st.identity.operator, publicUrl: st.identity.publicUrl, registryId: identity.registryId ?? null };
+-}
+-
+-function checkRequest(r) {
+-  if (!r || r.format !== REQUEST_FORMAT) throw new Error(`request format must be ${REQUEST_FORMAT}`);
+-  if (!Array.isArray(r.names) || !r.names.length || r.names.some((n) => !NATIVE_NAMES.includes(n)) || new Set(r.names).size !== r.names.length) throw new Error('request names must be native control names');
+-  if (!/^[0-9a-f]{64}$/.test(String(r.caSha256)) || !/^[0-9a-f]{64}$/.test(String(r.spkiSha256))) throw new Error('request caSha256/spkiSha256 malformed');
+-  const k = createPublicKey(r.spkiPem);
+-  if (sha256Hex(k.export({ type: 'spki', format: 'der' })) !== r.spkiSha256) throw new Error('request public key is not the attested key it names');
+-  return k;
+-}
+-
+ /** The CA holder's issuance -> the chain PEM (leaf, then the CA certificate). The CA key is read by openssl only. */
+ export function issueNativeCertificate({ request, caCertFile, caKeyFile, days = MAX_DAYS, openssl = 'openssl', tmpRoot = os.tmpdir() }) {
+-  const key = checkRequest(request);
++  const key = checkNativeRequest(request);
+   if (!Number.isSafeInteger(days) || days < 1 || days > MAX_DAYS) throw new Error(`days: 1 to ${MAX_DAYS}`);
+   const caPem = fs.readFileSync(caCertFile, 'utf8'), ca = new X509Certificate(caPem);
+   if (sha256Hex(ca.raw) !== request.caSha256) throw new Error('this CA is not the native CA the boot is bound to');
+@@ -80,46 +53,6 @@ export function issueNativeCertificate({ request, caCertFile, caKeyFile, days =
+   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+ }
+ 
+-/**
+- * The attested control key's TLS connection: the handshake completes, and the peer's SPKI is compared on THAT secure socket
+- * before any request byte exists. (rejectUnauthorized:false with a checkServerIdentity-only pin is not a pin: Node skips
+- * checkServerIdentity when chain validation already failed, so a self-signed impostor would be accepted.)
+- */
+-export function pinnedSocket(controlUrl, spkiSha256, { timeoutMs = 15000 } = {}) {
+-  const u = new URL(controlUrl);
+-  if (u.protocol !== 'https:' || !/^[0-9a-f]{64}$/.test(String(spkiSha256))) return Promise.reject(new Error('an https control URL and the attested key digest are required'));
+-  const host = u.hostname.replace(/^\[|\]$/g, '');
+-  return new Promise((resolve, reject) => {
+-    const s = tls.connect({ host, port: Number(u.port || 443), rejectUnauthorized: false, minVersion: 'TLSv1.2', ...(net.isIP(host) ? {} : { servername: host }) });
+-    const t = setTimeout(() => { s.destroy(); reject(new Error(`no TLS handshake within ${timeoutMs} ms`)); }, timeoutMs);
+-    s.once('error', (e) => { clearTimeout(t); reject(e); });
+-    s.once('secureConnect', () => {
+-      clearTimeout(t);
+-      let got = null;
+-      try { got = sha256Hex(new X509Certificate(s.getPeerCertificate().raw).publicKey.export({ type: 'spki', format: 'der' })); } catch {}
+-      if (got !== spkiSha256) { s.destroy(); return reject(new Error('the endpoint is not the attested key')); }
+-      resolve(s);
+-    });
+-  });
+-}
+-/** One HTTP request over pinnedSocket (nothing is sent before the key matched). */
+-export async function pinnedRequest(controlUrl, { method = 'GET', path: p, body = null, spkiSha256, timeoutMs = 15000 }) {
+-  const sock = await pinnedSocket(controlUrl, spkiSha256, { timeoutMs });
+-  const u = new URL(controlUrl);
+-  return new Promise((resolve, reject) => {
+-    const req = http.request({ createConnection: () => sock, host: u.hostname, port: u.port || 443, method, path: p, timeout: timeoutMs,
+-      headers: { host: u.host, ...(body ? { 'content-type': 'application/x-pem-file', 'content-length': Buffer.byteLength(body) } : {}) } }, (res) => {
+-      const chunks = []; let n = 0;
+-      res.on('data', (c) => { n += c.length; if (n > 512 * 1024) req.destroy(new Error('answer too large')); else chunks.push(c); });
+-      res.on('end', () => { sock.destroy(); resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf8') }); });
+-    });
+-    req.on('timeout', () => req.destroy(new Error(`no answer within ${timeoutMs} ms`)));
+-    req.on('error', (e) => { sock.destroy(); reject(e); });
+-    req.end(body || undefined);
+-  });
+-}
+-export const installNativeCertificate = ({ controlUrl, chainPem, spkiSha256, timeoutMs }) => pinnedRequest(controlUrl, { method: 'PUT', path: NATIVE_CERT_PATH, body: chainPem, spkiSha256, timeoutMs });
+-
+ // ---- command line -----------------------------------------------------------------------------------------------------------
+ function args(argv) {
+   const o = { _: [] }, multi = new Set(['measurement', 'rpc']);
+diff --git a/test/native-certificate-leaf.test.mjs b/test/native-certificate-leaf.test.mjs
+new file mode 100644
+index 000000000..ccb75663f
+--- /dev/null
++++ b/test/native-certificate-leaf.test.mjs
+@@ -0,0 +1,212 @@
++// The native CA leaf signed IN-PROCESS by the platform API primary (metal/guest/native-certificate.mjs signNativeLeaf) and the
++// connection boundaries it is delivered over. What runs here:
++//   * throwaway CAs minted with openssl per run, shaped like the live native CA (P-256, CA:TRUE pathlen:0, a CRITICAL name
++//     constraint permitting DNS:enclavehost.eth, a multi-RDN subject), plus a CA without a subjectKeyIdentifier;
++//   * the leaf checked by OpenSSL (`openssl verify` with the name constraint and the hostname), by Node's X509Certificate,
++//     and compared with the leaf the EXISTING openssl issuance (scripts/native-control-certificate.mjs) makes for the same
++//     request: same issuer bytes, subject, extensions and criticality, same lifetime;
++//   * the issuer only ever holds the CA key and the TARGET's PUBLIC key. Where a test also proves a real TLS handshake under the
++//     leaf, the TARGET key is a separate test-only fixture (the guest holds it in reality; the issuer never does);
++//   * pins: real TLS endpoints that count every application byte they receive.
++import test, { after } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import tls from 'node:tls';
++import net from 'node:net';
++import path from 'node:path';
++import { execFileSync } from 'node:child_process';
++import { X509Certificate, generateKeyPairSync, createHash } from 'node:crypto';
++import * as MC from '../metal/guest/measured-control.mjs';
++import { signNativeLeaf, nativeCaFacts, caIssuerFacts, checkNativeRequest, pinnedRequest, pinnedSocket, untrustedRead, installNativeCertificate, REQUEST_FORMAT } from '../metal/guest/native-certificate.mjs';
++import { issueNativeCertificate } from '../scripts/native-control-certificate.mjs';
++
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'native-leaf-'));
++const closers = [], sockets = new Set();
++// every socket (server and client side) is destroyed at the end, whatever an assertion did: a failed test never holds the loop
++const track = (s) => { sockets.add(s); s.on('close', () => sockets.delete(s)); return s; };
++const serve = async (server) => { server.on('connection', track); await new Promise((r) => server.listen(0, '127.0.0.1', r)); closers.push(() => server.close()); return server; };
++after(() => { for (const s of sockets) s.destroy(); for (const c of closers) { try { c(); } catch {} } fs.rmSync(tmp, { recursive: true, force: true }); });
++const T = { timeout: 60000 };
++const API = 'api.enclavehost.eth', MCP = 'mcp.enclavehost.eth';
++const o = (args, opts = {}) => execFileSync('openssl', args, { cwd: tmp, stdio: ['ignore', 'pipe', 'pipe'], ...opts }).toString();
++const read = (f) => fs.readFileSync(path.join(tmp, f), 'utf8');
++let caN = 0;
++/** a CA like the live native CA (optionally: expiring in `minutes`, without SKI, another key type) */
++function mintCa({ subj = '/O=Enclave Test Org/OU=Native/CN=Enclave ENS Service CA', days = 30, minutes = null, ski = true, key = ['-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256'], ca = true } = {}) {
++  const n = `ca${++caN}`;
++  const ext = ca ? ['-addext', 'basicConstraints=critical,CA:TRUE,pathlen:0', '-addext', 'keyUsage=critical,keyCertSign,cRLSign', '-addext', 'nameConstraints=critical,permitted;DNS:enclavehost.eth']
++    : ['-addext', 'basicConstraints=critical,CA:FALSE'];
++  const skiArgs = ski ? [] : ['-addext', 'subjectKeyIdentifier=none', '-addext', 'authorityKeyIdentifier=none'];
++  if (minutes !== null) {
++    o(['req', '-new', ...key, '-nodes', '-keyout', `${n}.key`, '-out', `${n}.csr`, '-subj', subj]);
++    const end = new Date(Date.now() + minutes * 60e3).toISOString().replace(/[-:T]/g, '').slice(0, 14) + 'Z', start = new Date(Date.now() - 3600e3).toISOString().replace(/[-:T]/g, '').slice(0, 14) + 'Z';
++    fs.writeFileSync(path.join(tmp, `${n}.ext`), 'basicConstraints=critical,CA:TRUE,pathlen:0\nkeyUsage=critical,keyCertSign,cRLSign\nnameConstraints=critical,permitted;DNS:enclavehost.eth\nsubjectKeyIdentifier=hash\n');
++    o(['x509', '-req', '-in', `${n}.csr`, '-key', `${n}.key`, '-not_before', start, '-not_after', end, '-extfile', `${n}.ext`, '-out', `${n}.pem`]);
++  } else o(['req', '-x509', ...key, '-nodes', '-keyout', `${n}.key`, '-out', `${n}.pem`, '-subj', subj, '-days', String(days), ...ext, ...skiArgs]);
++  const pem = read(`${n}.pem`);
++  return { pem, keyPem: read(`${n}.key`), certFile: path.join(tmp, `${n}.pem`), keyFile: path.join(tmp, `${n}.key`), sha256: MC.sha256Hex(new X509Certificate(pem).raw) };
++}
++const CA = mintCa();
++/** the request for a target key (what nativeCertificateRequest returns for a verified boot: PUBLIC data only) */
++function requestFor(publicKey, ca = CA, names = [API, MCP]) {
++  const spki = publicKey.export({ type: 'spki', format: 'der' });
++  return { format: REQUEST_FORMAT, names, caSha256: ca.sha256, spkiSha256: MC.sha256Hex(spki), spkiPem: publicKey.export({ type: 'spki', format: 'pem' }),
++    bootId: '0'.repeat(32), configDigest: '0'.repeat(64), operator: '0x' + '1'.repeat(40), publicUrl: 'https://host.example', registryId: null };
++}
++const target = () => generateKeyPairSync('ec', { namedCurve: 'P-256' });   // TEST-ONLY: in reality this private key never leaves the guest
++const blocks = (chain) => chain.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----\n/g);
++function osslVerify(chain, ca, name) {
++  const n = Math.random().toString(16).slice(2); fs.writeFileSync(path.join(tmp, `leaf-${n}.pem`), blocks(chain)[0]);
++  try { return o(['verify', '-CAfile', ca.certFile, '-verify_hostname', name, `leaf-${n}.pem`]).trim(); } catch (e) { return String(e.stderr || e.message); }
++}
++/** an independent minimal DER walk (not the module under test): the TBS fields of a certificate */
++function tbsFields(der) {
++  const at = (off) => { let len = der[off + 1], p = off + 2; if (len & 0x80) { const n = len & 0x7f; len = 0; for (let i = 0; i < n; i++) len = len * 256 + der[p + i]; p += n; } return { off, start: p, end: p + len }; };
++  const tbs = at(at(0).start), out = []; for (let p = tbs.start; p < tbs.end;) { const f = at(p); out.push(der.subarray(f.off, f.end)); p = f.end; }
++  return out[0][0] === 0xa0 ? out.slice(1) : out;   // [serial, signature, issuer, validity, subject, spki, extensions]
++}
++const issuerField = (der) => Buffer.from(tbsFields(der)[2]), subjectField = (der) => Buffer.from(tbsFields(der)[4]);
++const text = (pem) => { const n = Math.random().toString(16).slice(2); fs.writeFileSync(path.join(tmp, `t-${n}.pem`), pem); return o(['x509', '-in', `t-${n}.pem`, '-noout', '-text']); };
++/** extension names + criticality, in order, as openssl prints them */
++function extensionsOf(leafPem) {
++  const n = Math.random().toString(16).slice(2); fs.writeFileSync(path.join(tmp, `x-${n}.pem`), leafPem);
++  const text = o(['x509', '-in', `x-${n}.pem`, '-noout', '-text']);
++  return [...text.matchAll(/^\s+(X509v3 (?!extensions)[A-Za-z ]+?):( critical)?\s*$/gm)].map((m) => m[1] + (m[2] ? ' (critical)' : ''));
++}
++
++test('the in-process leaf: OpenSSL and Node verify it under the name-constrained CA; it matches the existing openssl issuance profile', T, () => {
++  const t = target(), request = requestFor(t.publicKey);
++  const now = Date.now(), chain = signNativeLeaf({ request, caCertPem: CA.pem, caKeyPem: CA.keyPem, now });
++  const [leafPem, caPem] = blocks(chain);
++  assert.equal(new X509Certificate(caPem).raw.equals(new X509Certificate(CA.pem).raw), true, 'the CA certificate is passed through byte for byte');
++  for (const name of [API, MCP]) assert.match(osslVerify(chain, CA, name), /: OK$/, `openssl verify -verify_hostname ${name}`);
++  assert.match(osslVerify(chain, CA, 'get.enclavehost.eth'), /hostname mismatch/, 'only the bound names');
++  const leaf = new X509Certificate(leafPem), ca = new X509Certificate(CA.pem);
++  assert.ok(leaf.checkIssued(ca) && leaf.verify(ca.publicKey));
++  assert.equal(leaf.ca, false);
++  assert.equal(leaf.subjectAltName, `DNS:${API}, DNS:${MCP}`);
++  assert.deepEqual(leaf.keyUsage, ['1.3.6.1.5.5.7.3.1'], 'extendedKeyUsage serverAuth only');
++  assert.equal(Date.parse(leaf.validTo) - Date.parse(leaf.validFrom), 7 * 86400e3, 'exactly the original 7 days');
++  assert.ok(Date.parse(leaf.validFrom) <= now && Date.parse(leaf.validFrom) >= now - 11 * 60e3, 'notBefore allows bounded clock skew only');
++  // issuer = the CA's subject DER exactly (not a CN string): the leaf's issuer FIELD bytes, read by an independent DER walk
++  assert.ok(issuerField(leaf.raw).equals(subjectField(ca.raw)), 'the leaf issuer is the CA subject, byte for byte');
++  const caSki = /Subject Key Identifier:\s*\n\s*([0-9A-F:]+)/.exec(text(CA.pem))[1];
++  const leafSki = /Subject Key Identifier:\s*\n\s*([0-9A-F:]+)/.exec(text(leafPem))[1].replace(/:/g, '').toLowerCase();
++  assert.equal(leafSki, createHash('sha1').update(t.publicKey.export({ type: 'spki', format: 'der' }).subarray(-65)).digest('hex'), 'SKI = SHA-1 of the leaf public key bits');
++  assert.equal(/Authority Key Identifier:\s*\n\s*([0-9A-F:]+)/.exec(text(leafPem))[1], caSki, 'AKI = the CA subjectKeyIdentifier');
++  // the existing openssl issuance for the SAME request: the same extensions, criticality and order; the same issuer and subject
++  const ref = issueNativeCertificate({ request, caCertFile: CA.certFile, caKeyFile: CA.keyFile, days: 7, tmpRoot: tmp });
++  const refLeaf = new X509Certificate(blocks(ref)[0]);
++  assert.deepEqual(extensionsOf(leafPem), extensionsOf(blocks(ref)[0]));
++  assert.deepEqual(extensionsOf(leafPem), ['X509v3 Basic Constraints (critical)', 'X509v3 Key Usage (critical)', 'X509v3 Extended Key Usage', 'X509v3 Subject Alternative Name',
++    'X509v3 Subject Key Identifier', 'X509v3 Authority Key Identifier']);
++  assert.ok(issuerField(leaf.raw).equals(issuerField(refLeaf.raw)), 'the same issuer bytes as the openssl-issued leaf');
++  assert.equal(leaf.subject, refLeaf.subject); assert.equal(leaf.subjectAltName, refLeaf.subjectAltName);
++  assert.deepEqual(leaf.keyUsage, refLeaf.keyUsage);
++  assert.equal(Date.parse(leaf.validTo) - Date.parse(leaf.validFrom), Date.parse(refLeaf.validTo) - Date.parse(refLeaf.validFrom), 'the same 7-day lifetime');
++  assert.equal(/Authority Key Identifier:\s*\n\s*([0-9A-F:]+)/.exec(text(leafPem))[1], /Authority Key Identifier:\s*\n\s*([0-9A-F:]+)/.exec(text(blocks(ref)[0]))[1]);
++});
++
++test('a real TLS handshake under the leaf (TEST-ONLY target key) and the guest install check accept it', T, async () => {
++  const t = target(), chain = signNativeLeaf({ request: requestFor(t.publicKey), caCertPem: CA.pem, caKeyPem: CA.keyPem });
++  const keyPem = t.privateKey.export({ type: 'pkcs8', format: 'pem' });
++  const c = await MC.checkNativeCertificate(chain, { keyPem, caSha256: CA.sha256, names: [API, MCP] });
++  assert.equal(c.caPem.trim(), new X509Certificate(CA.pem).toString().trim());
++  const server = await serve(tls.createServer({ key: keyPem, cert: blocks(chain)[0] }, (s) => s.end('ok')));
++  const got = await new Promise((resolve, reject) => { const s = track(tls.connect({ host: '127.0.0.1', port: server.address().port, servername: MCP, ca: CA.pem }, () => { resolve(s.authorized); s.destroy(); }));
++    s.on('error', reject); });
++  assert.equal(got, true);
++});
++
++test('the CA bounds: never past the CA notAfter; a CA without SKI gets no AKI; refusals never echo key text', T, () => {
++  const t = target();
++  const soon = mintCa({ minutes: 3 * 24 * 60 });
++  const chain = signNativeLeaf({ request: requestFor(t.publicKey, soon), caCertPem: soon.pem, caKeyPem: soon.keyPem });
++  assert.equal(new X509Certificate(blocks(chain)[0]).validTo, new X509Certificate(soon.pem).validTo, 'capped at the CA notAfter');
++  assert.match(osslVerify(chain, soon, API), /: OK$/);
++  const dying = mintCa({ minutes: 120 });
++  assert.throws(() => signNativeLeaf({ request: requestFor(t.publicKey, dying), caCertPem: dying.pem, caKeyPem: dying.keyPem }), /expires too soon/);
++  const noSki = mintCa({ ski: false });
++  assert.equal(caIssuerFacts(new X509Certificate(noSki.pem).raw).ski, null);
++  const c2 = signNativeLeaf({ request: requestFor(t.publicKey, noSki), caCertPem: noSki.pem, caKeyPem: noSki.keyPem });
++  assert.ok(!extensionsOf(blocks(c2)[0]).includes('X509v3 Authority Key Identifier'));
++  assert.match(osslVerify(c2, noSki, API), /: OK$/);
++  // refusals
++  const other = mintCa(), rsa = mintCa({ key: ['-newkey', 'rsa:2048'] }), p384 = mintCa({ key: ['-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-384'] }), notCa = mintCa({ ca: false });
++  const cases = [
++    [{ request: requestFor(t.publicKey), caCertPem: CA.pem, caKeyPem: other.keyPem }, /not the key of the native CA certificate/],
++    [{ request: requestFor(t.publicKey, rsa), caCertPem: rsa.pem, caKeyPem: rsa.keyPem }, /EC P-256/],
++    [{ request: requestFor(t.publicKey, p384), caCertPem: p384.pem, caKeyPem: p384.keyPem }, /EC P-256/],
++    [{ request: requestFor(t.publicKey, notCa), caCertPem: notCa.pem, caKeyPem: notCa.keyPem }, /not a CA certificate/],
++    [{ request: requestFor(t.publicKey, other), caCertPem: CA.pem, caKeyPem: CA.keyPem }, /not the native CA the boot is bound to/],
++    [{ request: { ...requestFor(t.publicKey), names: [API, 'get.enclavehost.eth'] }, caCertPem: CA.pem, caKeyPem: CA.keyPem }, /native control names/],
++    [{ request: { ...requestFor(t.publicKey), spkiPem: target().publicKey.export({ type: 'spki', format: 'pem' }) }, caCertPem: CA.pem, caKeyPem: CA.keyPem }, /not the attested key/],
++    [{ request: requestFor(t.publicKey), caCertPem: CA.pem, caKeyPem: 'not a key' }, /unreadable/],
++    [{ request: requestFor(t.publicKey), caCertPem: CA.pem, caKeyPem: CA.keyPem, days: 8 }, /days: 1 to 7/],
++  ];
++  for (const [opts, re] of cases) {
++    let err; try { signNativeLeaf(opts); } catch (e) { err = e; }
++    assert.ok(err, `refused: ${re}`); assert.match(err.message, re);
++    for (const k of [CA.keyPem, other.keyPem, rsa.keyPem]) assert.ok(!err.message.includes(k.split('\n')[1]), 'no key text in the refusal');
++  }
++  assert.throws(() => nativeCaFacts({ caCertPem: CA.pem, caKeyPem: CA.keyPem, now: Date.now() + 60 * 86400e3 }), /not valid now/);
++  assert.throws(() => checkNativeRequest({ ...requestFor(t.publicKey), format: 'x' }), /request format/);
++});
++
++// ---- the pin at every body-bearing boundary --------------------------------------------------------------------------------------
++/** a real TLS endpoint that counts the application bytes it receives (and connections) */
++async function countingEndpoint({ hang = false } = {}) {
++  const k = generateKeyPairSync('ec', { namedCurve: 'P-256' });
++  const cert = MC.selfSignedCert(k.privateKey, k.publicKey, { cn: 'counting' });
++  const st = { connections: 0, handshakes: 0, bytes: 0, data: '', closed: 0 };
++  const server = tls.createServer({ key: k.privateKey.export({ type: 'pkcs8', format: 'pem' }), cert }, (s) => {
++    st.handshakes++;
++    s.on('data', (d) => { st.bytes += d.length; st.data += d.toString('latin1'); if (!hang && /\r\n\r\n/.test(st.data)) s.end('HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok'); });
++    s.on('error', () => {});
++  });
++  server.on('connection', (c) => { st.connections++; c.on('close', () => { st.closed++; }); });
++  await serve(server);
++  return { st, url: `https://127.0.0.1:${server.address().port}`, spki: MC.sha256Hex(k.publicKey.export({ type: 'spki', format: 'der' })) };
++}
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++
++test('pins: a missing, null, malformed or wrong SPKI never lets an install (or any pinned request) send one application byte', T, async () => {
++  const ep = await countingEndpoint();
++  const body = '-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n';
++  for (const spki of [undefined, null, '', 'zz', 'AB'.repeat(32), ep.spki.slice(0, 63)]) {
++    await assert.rejects(installNativeCertificate({ controlUrl: ep.url, chainPem: body, spkiSha256: spki }), /attested key digest/);
++    await assert.rejects(pinnedRequest(ep.url, { method: 'PUT', path: '/x', body, spkiSha256: spki }), /attested key digest/);
++    await assert.rejects(pinnedSocket(ep.url, spki), /attested key digest/);
++  }
++  await sleep(100);
++  assert.deepEqual([ep.st.connections, ep.st.bytes], [0, 0], 'refused before any connection');
++  // a well-formed digest of ANOTHER key: the handshake happens, the key mismatches, and no application byte follows
++  await assert.rejects(installNativeCertificate({ controlUrl: ep.url, chainPem: body, spkiSha256: 'ab'.repeat(32) }), /not the attested key/);
++  await assert.rejects(pinnedRequest(ep.url, { method: 'PUT', path: '/x', body, spkiSha256: 'cd'.repeat(32) }), /not the attested key/);
++  await sleep(100);
++  assert.equal(ep.st.connections, 2); assert.equal(ep.st.bytes, 0, 'zero application bytes to a wrong key');
++  // the right key: the PUT and its body go through
++  const r = await installNativeCertificate({ controlUrl: ep.url, chainPem: body, spkiSha256: ep.spki });
++  assert.equal(r.status, 200); assert.match(ep.st.data, /^PUT \/\.well-known\/enclave-native-certificate HTTP\/1\.1/); assert.ok(ep.st.data.endsWith(body));
++});
++
++test('untrustedRead: a body-less GET only, reporting the peer key; aborting releases the socket at once', T, async () => {
++  const ep = await countingEndpoint();
++  const r = await untrustedRead(ep.url, '/platform-api/config');
++  assert.equal(r.status, 200); assert.equal(r.peerSpkiSha256, ep.spki);
++  assert.match(ep.st.data, /^GET \/platform-api\/config HTTP\/1\.1\r\n/);
++  assert.ok(!/content-length|transfer-encoding/i.test(ep.st.data), 'no request body is possible');
++  await assert.rejects(untrustedRead(ep.url, 'http://evil/'), /absolute path/);
++  // a hanging endpoint: the abort ends the attempt and the endpoint sees the socket close
++  const hang = await countingEndpoint({ hang: true });
++  const ac = new AbortController();
++  const p = untrustedRead(hang.url, '/x', { timeoutMs: 30000, signal: ac.signal });
++  await sleep(300); assert.equal(hang.st.connections, 1); assert.equal(hang.st.closed, 0);
++  const t0 = Date.now(); ac.abort();
++  await assert.rejects(p, /aborted/);
++  await sleep(200);
++  assert.equal(hang.st.closed, 1, 'the connection is released on abort'); assert.ok(Date.now() - t0 < 2000);
++  const ac2 = new AbortController(); ac2.abort();
++  await assert.rejects(pinnedRequest(hang.url, { path: '/', spkiSha256: hang.spki, signal: ac2.signal }), /aborted/);
++});
+diff --git a/test/platform-api-native-issuer.test.mjs b/test/platform-api-native-issuer.test.mjs
+new file mode 100644
+index 000000000..c1ecde278
+--- /dev/null
++++ b/test/platform-api-native-issuer.test.mjs
+@@ -0,0 +1,512 @@
++// The native CA issuer on the platform API primary (metal/guest/native-issuer.mjs) in the REAL role wiring
++// (metal/guest/platform-api-role.mjs): admin-signed credentials sealed to the primary, replicated state, leadership, archive
++// pairs and total-loss recovery. What runs here, and what it cannot show:
++//   * three member "guests", each with the REAL control front (createControlFront: native names, platform API host and
++//     prefix routes), a statement from the REAL mintControlKeys / controlStatement, and the REAL role (with its relay child,
++//     the unchanged relay/api-relay.js);
++//   * issuance through the REAL issuerDeps: verifyMeasuredControl (unchanged) fed a SYNTHETIC AMD-shaped chain whose ARK this
++//     test pins (two chips), the ORIGINAL-registry quorum reader over in-process JSON-RPC, and the REAL platform host policy
++//     gate over test/helpers/platform-policy-world.mjs (admin-signed, anchored policies). Nothing proves AMD hardware;
++//   * a throwaway native CA shaped like the live one (openssl per run); the live CA is never used;
++//   * transitions are real: credential packages through the role's endpoint, a leadership loss through the role's own
++//     replica transport (its peers become unreachable), member reboots, a total loss and the admin's recovery.
++// The issuer only ever holds the CA key and the members' PUBLIC keys: the members' fronts hold their own keys.
++// Every key is disposable; nothing leaves 127.0.0.1.
++import test, { after } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import net from 'node:net';
++import tls from 'node:tls';
++import http from 'node:http';
++import https from 'node:https';
++import path from 'node:path';
++import { execFileSync } from 'node:child_process';
++import { X509Certificate, createHash, generateKeyPairSync, randomBytes } from 'node:crypto';
++import * as viem from 'viem';
++import { decodeFunctionData, encodeFunctionResult, keccak256, toHex } from 'viem';
++import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
++import { synthChain, synthReport } from './helpers/snp-synth.mjs';
++import { platformPolicyWorld, REGISTRY } from './helpers/platform-policy-world.mjs';
++import { memoryCollateral } from '../verifier/collateral.mjs';
++import { TCB_FLOORS } from '../verifier/metal-box.mjs';
++import { hostABI } from '../network/registry-abi.mjs';
++import * as MC from '../metal/guest/measured-control.mjs';
++import { registryIdOf } from '../metal/measured-control-verify.mjs';
++import * as hpke from '../custody/hpke.mjs';
++import { startRole, groupIdOf, CREDENTIALS_FILE, BOOTSTRAP_PATH, CREDENTIALS_PATH } from '../metal/guest/platform-api-role.mjs';
++import { productionVerifier, quorumRegistry } from '../metal/guest/platform-api-verify.mjs';
++import { issuerDeps, servedLeaf, CONFIG_PATH } from '../metal/guest/native-issuer.mjs';
++import { genesis, recover, buildPackage, signPackage } from '../scripts/platform-api-admin.mjs';
++
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pa-native-issuer-'));
++const servers = [], sockets = new Set(), deferred = [];
++let roles = [];
++const track = (s) => { sockets.add(s); s.on('close', () => sockets.delete(s)); return s; };
++const keep = (srv) => { servers.push(srv); srv.on('connection', track); return srv; };
++after(async () => {
++  for (const r of roles) { try { await r.stop(); } catch {} }
++  for (const s of sockets) s.destroy();
++  for (const s of servers) { try { s.closeAllConnections?.(); s.close(); } catch {} }
++  for (const f of deferred) { try { await f(); } catch {} }
++  fs.rmSync(tmp, { recursive: true, force: true });
++});
++const T = (ms = 120000) => ({ timeout: ms });
++const freePort = () => new Promise((ok) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); });
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const waitFor = async (what, fn, ms = 45000) => { const until = Date.now() + ms; let last; while (Date.now() < until) { try { last = await fn(); if (last) return last; } catch (e) { last = e.message; } await sleep(150); } throw new Error(`timed out waiting for ${what} (${JSON.stringify(last)?.slice(0, 400)})`); };
++const API = 'api.enclavehost.eth', MCP = 'mcp.enclavehost.eth', HOSTNAME = 'api.platform.test';
++const ZA = '0x' + '00'.repeat(20), Z32 = '0x' + '00'.repeat(32);
++const a = (n) => '0x' + n.toString(16).padStart(40, '0');
++
++// ---- throwaway native CAs, shaped like the live one --------------------------------------------------------------------------
++const o = (args) => execFileSync('openssl', args, { cwd: tmp, stdio: ['ignore', 'pipe', 'pipe'] });
++function mintCa(name, subj) {
++  o(['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', `${name}.key`, '-out', `${name}.pem`, '-subj', subj, '-days', '30',
++    '-addext', 'basicConstraints=critical,CA:TRUE,pathlen:0', '-addext', 'keyUsage=critical,keyCertSign,cRLSign', '-addext', 'nameConstraints=critical,permitted;DNS:enclavehost.eth']);
++  const pem = fs.readFileSync(path.join(tmp, `${name}.pem`), 'utf8'), keyPem = fs.readFileSync(path.join(tmp, `${name}.key`), 'utf8');
++  return { pem, keyPem, x: new X509Certificate(pem), sha256: MC.sha256Hex(new X509Certificate(pem).raw), keyLine: keyPem.split('\n')[1] };
++}
++const NCA = mintCa('native-ca', '/O=Enclave Test/OU=Native/CN=Enclave ENS Service CA'), ROGUE = mintCa('rogue-ca', '/CN=Rogue CA');
++
++// ---- synthetic AMD (two chips), the original registry over JSON-RPC, the admin's policy world ---------------------------------
++const S = synthChain({ extraVceks: 1 });
++const CHIPS = { a: S, b: { ...S, chip: S.otherVceks[0].chip, vcekKey: S.otherVceks[0].key, vcekDer: S.otherVceks[0].der } };
++const VCEK_BY_CHIP = Object.fromEntries(Object.values(CHIPS).map((c) => [c.chip.toString('hex'), c.vcekDer]));
++const BASE_COL = memoryCollateral({ chains: { Genoa: S.chainPem }, crls: { Genoa: S.crlDer } });
++const COL = { ...BASE_COL, vcek: (product, chipHex) => (VCEK_BY_CHIP[chipHex] ? { der: VCEK_BY_CHIP[chipHex], source: 'memory' } : null) };
++const ROOTS = new Map([['Genoa', S.arkFp]]);
++const H = (chip) => '0x' + createHash('sha256').update(chip).digest('hex');
++const MEAS = '77'.repeat(48);
++const HOSTS = {};                                       // registryId -> { operator, active, endpoint, owner, proofKey } (registry + policy facts)
++const t0 = Date.now(), head = () => 1000 + Math.floor((Date.now() - t0) / 1000);
++const blockAt = (n) => ({ number: toHex(n), hash: keccak256(toHex(n, { size: 32 })), parentHash: keccak256(toHex(n - 1, { size: 32 })), timestamp: toHex(Math.floor(t0 / 1000) + (n - 1000)),
++  transactions: [], gasLimit: '0x1c9c380', gasUsed: '0x0', baseFeePerGas: '0x1', difficulty: '0x0', logsBloom: '0x' + '00'.repeat(256), miner: ZA, nonce: '0x0000000000000000',
++  sha3Uncles: Z32, stateRoot: Z32, receiptsRoot: Z32, transactionsRoot: Z32, extraData: '0x', size: '0x1', uncles: [], mixHash: Z32, totalDifficulty: '0x0' });
++function rpcAnswer({ method, params }) {
++  if (method === 'eth_chainId') return '0x2105';
++  if (method === 'eth_blockNumber') return toHex(head());
++  if (method === 'eth_getBlockByNumber') return blockAt(params[0] === 'latest' ? head() : Number(params[0]));
++  if (method === 'eth_call' && String(params[0].to).toLowerCase() === REGISTRY) {
++    const { args } = decodeFunctionData({ abi: hostABI, data: params[0].data }), h = HOSTS[String(args[0]).toLowerCase()];
++    return encodeFunctionResult({ abi: hostABI, functionName: 'get', result: { endpoint: h?.endpoint || '', repo: '', measurement: Z32, operator: h?.operator || ZA, registeredAt: 1n, lastSeen: 1n,
++      active: !!h?.active, cpuPricePerSec6: 0n, gpuPricePerSec6: 0n, proofKey: h?.proofKey || ZA, payoutWallet: ZA } });
++  }
++  throw new Error(`unsupported ${method}`);
++}
++const RPCS = [];
++let REG = null, W = null, caFetch = null;
++
++// ---- the group ---------------------------------------------------------------------------------------------------------------
++const ADMIN = privateKeyToAccount(generatePrivateKey());
++const REC = hpke.generateKeyPair();
++const N = 3, OPS = [...Array(N)].map(() => privateKeyToAccount(generatePrivateKey()).address.toLowerCase());
++const FRONT_PORTS = [], ROLE_PORTS = [], SINKS = [];
++let PA = null;
++const archive = new Map();                              // `${sink}|${path}` -> bytes
++const archiveFault = { mode: 'ok' };                    // ok | crossed | half
++async function archivePut(url, blob) {
++  const u = new URL(url), sink = u.origin, which = u.pathname.endsWith('/latest') ? 'snapshot' : 'recovery';
++  const m = archiveFault.mode;
++  if (m === 'crossed' && ((sink === SINKS[0] && which === 'snapshot') || (sink === SINKS[1] && which === 'recovery'))) throw new Error(`sink ${sink} ${which} refused (test fault)`);
++  if (m === 'half' && sink === SINKS[0] && which === 'recovery') throw new Error('sink recovery refused (test fault)');
++  archive.set(`${sink}|${u.pathname}`, Buffer.from(blob));
++}
++const platformApiMember = () => ({ apiPort: 8098, peerPort: 8099, hostname: HOSTNAME,
++  members: OPS.map((op, i) => ({ operator: op, publicUrl: `https://host-${i}.example.org`, controlUrl: `https://127.0.0.1:${FRONT_PORTS[i]}` })),
++  measurements: [MEAS], minTcb: TCB_FLOORS, admins: [ADMIN.address], recovery: [Buffer.from(REC.publicKey).toString('hex')],
++  archives: SINKS, archiveMs: 5000,
++  relayEnv: { ENCLAVES: 'http://127.0.0.1:1', OFAC_SDN_URLS: 'http://127.0.0.1:1/x', RPC_FALLBACKS: '0', SIWE_DOMAIN: 'enclave.host', SIWE_URI: 'https://enclave.host',
++              BASE_RPC: 'http://127.0.0.1:1/rpc', NATIVE_CA_CERT: 'bound-relayenv-canary' },   // a bound relayEnv name the final filter must drop
++  leaseMs: 2000 });
++const rawFor = (i, { pa = PA, native = [API, MCP], caSha256 = NCA.sha256 } = {}) => ({ format: MC.CONFIG_FORMAT, chainId: 8453,
++  contracts: { registry: REGISTRY, deployments: a(0x12), appCatalog: a(0x13), proofOfTime: a(0x14), enclavePay: a(0), verificationFees: a(0), sessionVaultFactory: a(0), secretVaultV2: a(0) },
++  profileDigest: null, rpcs: ['https://rpc-a.example/v1', 'https://rpc-b.example'], quorum: 2, releaseId: 'ab'.repeat(32),
++  replicas: { gateways: ['http://192.0.2.10:8189'], storagePlan: null },
++  identity: { publicUrl: `https://host-${i}.example.org`, repo: 'owner/enclave', operator: OPS[i] },
++  selling: { cpuPrice6: null, payout: null }, isolation: { managerUrl: 'http://10.0.2.2:8095', dataAddr: '10.0.2.2:8096' },
++  hostAdmissionSha256: null, controlPort: 8444, platformApi: pa, ...(native ? { nativeControl: { names: native, caSha256 } } : {}) });
++
++const logs = [];                                         // every role log line (leak checks)
++const partitioned = new Set();                           // member indexes whose replica transport is down (a real leadership loss)
++const issuerGate = { member: null, reached: null, hit: null, release: null };
++function armGate(member) { let hit, release; const reached = new Promise((r) => { hit = r; }), wait = new Promise((r) => { release = r; });
++  Object.assign(issuerGate, { member, reached, hit, wait, release: () => { issuerGate.member = null; release(); } }); return issuerGate; }
++const hooks = { beforeBarrier: async ({ member }) => { if (issuerGate.member === member) { issuerGate.hit(); await issuerGate.wait; } } };
++const verifyMode = { dropChip: false };                  // TEST-ONLY: the verifier's chip withheld (the "unproven chip" case)
++
++async function bootMember(i, { native = [API, MCP], caSha256 = NCA.sha256, chip = 'a', register = true } = {}) {
++  const d = fs.mkdtempSync(path.join(tmp, `m${i}-`));
++  const P = { ...MC.GUEST_PATHS, runDir: d, sessionDir: path.join(d, 'session'), statement: path.join(d, 'statement.json'), tlsKey: path.join(d, 'tls-key.pem'), tlsCert: path.join(d, 'tls-cert.pem'),
++              platformApiConfig: path.join(d, 'platform-api.json'), platformApiHandoffKey: path.join(d, 'handoff.key'), platformApiDir: path.join(d, 'pa'), nativeCertificate: path.join(d, 'native.pem') };
++  const config = MC.canonicalDirectConfig(rawFor(i, { native, caSha256 })), digest = MC.configDigest(config), hostData = MC.hostDataHex(digest);
++  const keys = MC.mintControlKeys({ paths: P }); keys.platformApi = { publicKey: MC.mintPlatformApiKey({ paths: P }) };
++  const st = MC.controlStatement({ config, digest, hostData, mode: 'snp', keys, runtime: { platformApiSha256: '00'.repeat(32) } });
++  fs.writeFileSync(P.statement, st.text);
++  const proofKey = MC.addressOfPublicKey(keys.proof.publicKey, viem.keccak256), registryId = registryIdOf(config.identity.publicUrl).toLowerCase();
++  if (register) HOSTS[registryId] = { operator: OPS[i], active: true, endpoint: config.identity.publicUrl, owner: ZA, proofKey };
++  const sup = keep(http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'application/json' });
++    res.end(JSON.stringify({ proofKey: { address: proofKey }, sessionKey: { kid: MC.jwkThumbprint(keys.session.jwk) } })); }));
++  await new Promise((r) => sup.listen(0, '127.0.0.1', r));
++  const launch = MC.directPlatformApiLaunch(config, { paths: P });
++  const roleCfg = { ...JSON.parse(launch.files[P.platformApiConfig]), listen: { ...ROLE_PORTS[i], control: FRONT_PORTS[i] }, askMs: 300,
++    relayEnvBase: { ...JSON.parse(launch.files[P.platformApiConfig]).relayEnvBase, NATIVE_CA_KEY: 'base-env-canary' } };   // an injected base name the final filter must drop
++  const nat = MC.directNativeLaunch(config, { paths: P });
++  const front = keep(MC.createControlFront({ statementText: st.text, keyPem: fs.readFileSync(P.tlsKey, 'utf8'), certPem: keys.controlTls.certPem, mode: 'snp',
++    reporter: async (rd) => ({ report: synthReport(CHIPS[chip], { reportData: rd, hostData: Buffer.from(hostData, 'hex') }), certs: null }),
++    upstream: { host: '127.0.0.1', port: sup.address().port },
++    hostRoutes: [{ host: HOSTNAME, upstream: { host: '127.0.0.1', port: ROLE_PORTS[i].api } }],
++    prefixRoutes: [{ prefix: MC.PLATFORM_API_PREFIX, upstream: { host: '127.0.0.1', port: ROLE_PORTS[i].peer } }],
++    ...(nat ? { native: { ...nat, upstream: { host: '127.0.0.1', port: ROLE_PORTS[i].api } } } : {}) }));
++  await new Promise((r) => front.listen(FRONT_PORTS[i], '127.0.0.1', r));
++  const realPost = (url, body, opts) => defaultPostLike(url, body, opts);
++  const role = await startRole({ cfg: roleCfg, recoverMessageAddress: viem.recoverMessageAddress, log: (m) => logs.push(`[m${i}] ${m}`),
++    verifyPeer: productionVerifier(roleCfg, { registry: REG, collateral: COL, roots: ROOTS }), archivePut,
++    postImpl: async (url, body, opts) => { if (partitioned.has(i)) throw new Error('partitioned (test)'); return realPost(url, body, opts); },
++    nativeIssuer: { roundMs: 1000, memberTimeoutMs: 20000, requestTimeoutMs: 8000, maxBackoffMs: 3000, hooks,
++      deps: async () => {
++        const real = await issuerDeps({ platformApi: PA, ownConfig: config, policyEnv: W.env(), collateral: COL, registry: REG, roots: ROOTS, fetch: caFetch, timeoutMs: 8000 });
++        return { ...real, verify: async (x) => { const v = await real.verify(x); if (verifyMode.dropChip && v.identity) v.identity.chipId = null; return v; } };
++      } } });
++  return { i, P, config, st, keys, front, sup, role, chip, registryId, url: `https://127.0.0.1:${FRONT_PORTS[i]}`, dataDir: roleCfg.dirs.data, rootDir: roleCfg.dirs.root,
++    spki: keys.controlTls.spkiSha256,
++    async kill() { await role.stop(); for (const s of [front, sup]) { s.closeAllConnections?.(); await new Promise((r) => s.close(() => r())); } } };
++}
++/** the role's own transport, as defaultPost does it (POST JSON or bytes; the peer TLS key is not WebPKI) */
++function defaultPostLike(url, body, { binary = false } = {}) {
++  const u = new URL(url), data = binary ? body : Buffer.from(JSON.stringify(body));
++  return new Promise((ok, no) => {
++    const r = https.request({ host: u.hostname, port: u.port, method: 'POST', path: u.pathname, rejectUnauthorized: false, agent: false, timeout: 15000,
++      headers: { 'content-type': binary ? 'application/octet-stream' : 'application/json', 'content-length': data.length } }, (res) => {
++      const c = []; res.on('data', (x) => c.push(x)); res.on('end', () => { const b = Buffer.concat(c);
++        if (res.statusCode !== 200) return no(Object.assign(new Error(`HTTP ${res.statusCode}`), { status: res.statusCode }));
++        if (binary) return ok(b); try { ok(JSON.parse(b.toString('utf8'))); } catch { no(new Error('not JSON')); } });
++    });
++    r.on('timeout', () => r.destroy(new Error('timeout'))); r.on('error', no); r.end(data);
++  });
++}
++const peerPost = (m, p, body) => new Promise((ok, no) => {
++  const data = Buffer.from(JSON.stringify(body));
++  const r = https.request({ host: '127.0.0.1', port: FRONT_PORTS[m.i], method: 'POST', path: p, rejectUnauthorized: false, agent: false, headers: { 'content-type': 'application/json', 'content-length': data.length } }, (res) => {
++    const c = []; res.on('data', (x) => c.push(x)); res.on('end', () => { let j = null; try { j = JSON.parse(Buffer.concat(c).toString('utf8')); } catch {} ok({ status: res.statusCode, body: j }); });
++  });
++  r.on('error', no); r.end(data);
++});
++/** what a member's front serves at the install path (404 = no leaf) */
++const servedChain = (m) => new Promise((ok, no) => {
++  const r = https.request({ host: '127.0.0.1', port: FRONT_PORTS[m.i], method: 'GET', path: MC.NATIVE_CERT_PATH, rejectUnauthorized: false, agent: false }, (res) => {
++    const c = []; res.on('data', (x) => c.push(x)); res.on('end', () => ok({ status: res.statusCode, body: Buffer.concat(c).toString('utf8') }));
++  });
++  r.on('error', no); r.end();
++});
++/** a native client: SNI `name`, the native CA only, the hostname check -> { authorized, spki } */
++const nativeHandshake = (m, name, ca = NCA.pem) => new Promise((resolve) => {
++  const s = track(tls.connect({ host: '127.0.0.1', port: FRONT_PORTS[m.i], servername: name, ca, rejectUnauthorized: false }, () => {
++    const spki = MC.sha256Hex(new X509Certificate(s.getPeerCertificate().raw).publicKey.export({ type: 'spki', format: 'der' }));
++    const ok = s.authorized && !tls.checkServerIdentity(name, s.getPeerCertificate());
++    s.destroy(); resolve({ authorized: ok, spki });
++  }));
++  s.on('error', (e) => resolve({ authorized: false, error: e.message }));
++});
++const leaderOf = (ms) => ms.find((m) => m.role.status().role === 'leader' && m.role.status().relay);
++const credentialsPkg = async (lead, credentials) => { await sleep(5); return signPackage(buildPackage({ kind: 'credentials', platformApi: PA, targetStatementText: lead.st.text, credentials }), ADMIN); };
++const STRIPE = 'whsec_canary_' + randomBytes(8).toString('hex');
++const withCa = (ca = NCA, extra = {}) => ({ STRIPE_WEBHOOK_SECRET: STRIPE, NATIVE_CA_KEY: ca.keyPem, NATIVE_CA_CERT: ca.pem, ...extra });
++const issuerOf = (m) => m.role.status().nativeIssuer;
++const memberState = (lead, i) => issuerOf(lead).members[i];
++const bothNames = async (m, names) => { for (const n of names) { const h = await nativeHandshake(m, n); if (!h.authorized || h.spki !== m.spki) return false; } return true; };
++
++let M = [];
++test('setup: three members, an anchored admin policy, genesis by the admin; one primary', T(150000), async (t) => {
++  for (let i = 0; i < 3; i++) {
++    RPCS.push(`http://127.0.0.1:${await new Promise((r) => { const s = keep(http.createServer((req, res) => { const c = []; req.on('data', (d) => c.push(d)); req.on('end', () => {
++      const one = (q) => { try { return { jsonrpc: '2.0', id: q.id, result: rpcAnswer(q) }; } catch (e) { return { jsonrpc: '2.0', id: q.id, error: { code: -32000, message: e.message } }; } };
++      const b = JSON.parse(Buffer.concat(c)); res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(Array.isArray(b) ? b.map(one) : one(b))); }); }));
++      s.listen(0, '127.0.0.1', () => r(s.address().port)); })}`);
++  }
++  REG = quorumRegistry({ rpcs: RPCS, quorum: 3, registry: REGISTRY });
++  W = await platformPolicyWorld({ after: (fn) => deferred.push(fn) }, { hosts: HOSTS });
++  caFetch = (url, init = {}) => new Promise((resolve, reject) => {
++    const q = https.request(url, { method: init.method || 'GET', ca: fs.readFileSync(W.ca), headers: init.headers, agent: false }, (res) => { const c = []; res.on('data', (d) => c.push(d));
++      res.on('end', () => resolve(new Response(Buffer.concat(c), { status: res.statusCode }))); }); q.on('error', reject); q.end(); });
++  await W.publish({ deny: [] });                         // the admin's policy is anchored (no "not activated" admit)
++  for (let i = 0; i < N; i++) { FRONT_PORTS.push(await freePort()); ROLE_PORTS.push({ api: await freePort(), peer: await freePort() }); }
++  SINKS.push(`http://127.0.0.1:${await freePort()}`, `http://127.0.0.1:${await freePort()}`);
++  PA = MC.canonicalDirectConfig(rawFor(0, { pa: platformApiMember() })).platformApi;
++  M.push(await bootMember(0, { chip: 'a' }), await bootMember(1, { chip: 'b' }), await bootMember(2, { chip: 'a', native: [API] }));
++  roles = M.map((m) => m.role);
++  const g = await genesis({ platformApi: PA, targetStatementText: M[0].st.text, account: ADMIN });
++  assert.equal((await peerPost(M[0], BOOTSTRAP_PATH, g.package)).status, 200);
++  await waitFor('every member holds the key', () => M.every((m) => m.role.status().haveKey));
++  assert.ok(await waitFor('a primary running the relay', () => leaderOf(M), 60000));
++  for (const m of M) assert.equal(issuerOf(m).state, 'inactive', 'no native CA credentials yet: the issuer is inert everywhere');
++  for (const m of M) assert.equal((await servedChain(m)).status, 404);
++});
++
++test('admin credentials with the native CA: the primary issues every bound member (itself over loopback); nothing leaks to the relay, files, logs or archives', T(150000), async () => {
++  const lead = await waitFor('a primary', () => leaderOf(M), 60000);
++  const r = await peerPost(lead, CREDENTIALS_PATH, await credentialsPkg(lead, withCa(NCA, { RELEASE_SEED_FILE: 'seed-file-canary' })));
++  assert.equal(r.status, 200, JSON.stringify(r.body));
++  assert.deepEqual(r.body.names, ['NATIVE_CA_CERT', 'NATIVE_CA_KEY', 'RELEASE_SEED_FILE', 'STRIPE_WEBHOOK_SECRET']);
++  await waitFor('every member serves a native leaf over its OWN attested key', async () => (await Promise.all(M.map((m) => bothNames(m, m.config.nativeControl.names)))).every(Boolean), 60000);
++  for (const m of M) {
++    const chain = (await servedChain(m)).body.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g);
++    const leaf = new X509Certificate(chain[0]);
++    assert.ok(leaf.checkIssued(NCA.x) && leaf.verify(NCA.x.publicKey), 'issued by the native CA');
++    assert.equal(leaf.subjectAltName, m.config.nativeControl.names.map((n) => `DNS:${n}`).join(', '), 'exactly the bound names');
++    assert.equal(Date.parse(leaf.validTo) - Date.parse(leaf.validFrom), 7 * 86400e3);
++  }
++  assert.equal((await nativeHandshake(M[2], MCP)).authorized, false, 'member 2 is bound to api only');
++  assert.ok(M.every((m, i) => ['issued', 'current'].includes(memberState(lead, i).state)), JSON.stringify(issuerOf(lead)));
++  assert.ok(logs.some((l) => l.startsWith(`[m${lead.i}]`) && /native leaf issued to member \d/.test(l)));
++  // the next round finds each served leaf AUTHENTIC (signed by the held CA over the presented key) and issues nothing new
++  await waitFor('every member current', () => issuerOf(lead).members.every((s) => s.state === 'current'), 20000);
++  // the relay child: the other credentials, but no NATIVE_CA_* (sealed, base-injected or bound relayEnv) and no key text
++  const pid = await waitFor('the relay restarted with the credentials', () => lead.role.status().relay && lead.role.status().childPid);
++  const environ = fs.readFileSync(`/proc/${pid}/environ`, 'utf8');
++  assert.ok(environ.split('\0').includes(`STRIPE_WEBHOOK_SECRET=${STRIPE}`), 'the relay still gets its credentials');
++  for (const bad of ['NATIVE_CA_', NCA.keyLine, 'base-env-canary', 'bound-relayenv-canary']) assert.ok(!environ.includes(bad), `the relay environment has no ${bad.slice(0, 20)}`);
++  const credsDir = path.join(lead.rootDir, 'creds');
++  assert.deepEqual(fs.readdirSync(credsDir), ['RELEASE_SEED_FILE']);
++  // logs, status, archives: no key text anywhere
++  assert.ok(!logs.join('\n').includes(NCA.keyLine) && !logs.join('\n').includes('PRIVATE KEY'));
++  assert.ok(!JSON.stringify(M.map((m) => m.role.status())).includes(NCA.keyLine));
++  const blob = await waitFor('an archive written after the credentials', () => archive.get(`${SINKS[0]}|/platform-api/${groupIdOf(PA)}/latest`));
++  for (const [k, v] of archive) for (const plain of [NCA.keyLine, STRIPE, 'NATIVE_CA_KEY']) assert.ok(!v.includes(plain), `no plaintext ${plain.slice(0, 12)} in ${k}`);
++  assert.ok(blob.length > 0);
++  // a replacement without the _FILE credential leaves no stale file behind
++  const r2 = await peerPost(lead, CREDENTIALS_PATH, await credentialsPkg(lead, withCa(NCA)));
++  assert.equal(r2.status, 200);
++  await waitFor('the relay restarted again', () => lead.role.status().childPid && lead.role.status().childPid !== pid);
++  assert.deepEqual(fs.existsSync(credsDir) ? fs.readdirSync(credsDir) : [], [], 'the replaced _FILE credential is gone from the RAM fs');
++  assert.equal(issuerOf(lead).state, 'active', 'the same native CA credentials: the issuer keeps running');
++});
++
++test('servedLeaf: only a leaf the held CA signed over the presented key makes renewal unnecessary (forged, copied-CA, expired, wrong-key and CA leaves do not)', T(), async () => {
++  const k = generateKeyPairSync('ec', { namedCurve: 'P-256' }), keyPem = k.privateKey.export({ type: 'pkcs8', format: 'pem' });
++  const spkiPem = k.publicKey.export({ type: 'spki', format: 'pem' });
++  const leafBy = (ca, { names = [API, MCP], days = 7, isCa = false, pub = spkiPem, before = null, extra = '' } = {}) => {
++    const n = randomBytes(4).toString('hex'); fs.writeFileSync(path.join(tmp, `p${n}.pem`), pub);
++    fs.writeFileSync(path.join(tmp, `e${n}`), `basicConstraints=critical,CA:${isCa ? 'TRUE' : 'FALSE'}\nkeyUsage=critical,digitalSignature${isCa ? ',keyCertSign' : ''}\nextendedKeyUsage=serverAuth\nsubjectAltName=${names.map((x) => 'DNS:' + x).join(',')}${extra}\n`);
++    const time = before ? ['-not_before', before[0], '-not_after', before[1]] : ['-days', String(days)];
++    o(['x509', '-new', '-force_pubkey', `p${n}.pem`, '-subj', `/CN=${names[0]}`, '-CA', path.join(tmp, `${ca}.pem`), '-CAkey', path.join(tmp, `${ca}.key`), '-set_serial', '0x1' + n, ...time, '-sha256', '-extfile', `e${n}`, '-out', `l${n}.pem`]);
++    return fs.readFileSync(path.join(tmp, `l${n}.pem`), 'utf8');
++  };
++  const selfSigned = MC.selfSignedCert(k.privateKey, k.publicKey, { cn: API, days: 7 });
++  const other = generateKeyPairSync('ec', { namedCurve: 'P-256' });
++  const stamp = (ms) => new Date(ms).toISOString().replace(/[-:T]/g, '').slice(0, 14) + 'Z';
++  const cases = {
++    genuine: leafBy('native-ca') + NCA.pem,
++    'self-signed leaf next to the copied CA certificate': selfSigned + NCA.pem,
++    'another CA': leafBy('rogue-ca') + NCA.pem,
++    'another key than the one presented': leafBy('native-ca', { pub: other.publicKey.export({ type: 'spki', format: 'pem' }) }) + NCA.pem,
++    'a CA certificate as the leaf': leafBy('native-ca', { isCa: true }) + NCA.pem,
++    'a name outside the native names': leafBy('native-ca', { names: [API, 'get.enclavehost.eth'] }) + NCA.pem,
++    'not valid yet': leafBy('native-ca', { before: [stamp(Date.now() + 3600e3), stamp(Date.now() + 5 * 86400e3)] }) + NCA.pem,
++    'three certificates': leafBy('native-ca') + NCA.pem + NCA.pem,
++  };
++  const results = {};
++  for (const [name, chain] of Object.entries(cases)) {
++    const leafPem = chain.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----\n?/)[0];
++    const srv = keep(https.createServer({ key: name === 'another key than the one presented' ? keyPem : keyPem, cert: name === 'another key than the one presented' ? selfSigned : leafPem },
++      (req, res) => { res.writeHead(200); res.end(chain); }));
++    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
++    results[name] = await servedLeaf(`https://127.0.0.1:${srv.address().port}`, NCA.x, { timeoutMs: 5000 });
++    srv.closeAllConnections(); srv.close();
++  }
++  assert.ok(results.genuine.validTo > Date.now() + 6 * 86400e3, 'the genuine leaf is current');
++  for (const [name, r] of Object.entries(results)) if (name !== 'genuine') assert.equal(r.validTo, null, `${name}: not current, so the issuer verifies and issues`);
++});
++
++test('the admin\'s policy at issuance: operator ban, chip ban, unproven chip and an unregistered boot get no leaf; lifting them issues', T(180000), async () => {
++  const lead = await waitFor('a primary', () => leaderOf(M), 60000), target = M.find((m) => m !== lead && m.config.nativeControl.names.length === 2) || M.find((m) => m !== lead);
++  const idx = target.i;
++  await W.publish({ deny: [{ kind: 'operator', value: OPS[idx], reason: 'abuse' }] });
++  await target.kill();
++  const b = await bootMember(idx, { chip: target.chip, native: target.config.nativeControl.names });
++  M = M.map((m) => (m === target ? b : m)); roles = M.map((m) => m.role);
++  await waitFor('the reboot holds the key', () => b.role.status().haveKey, 60000);
++  const st = () => memberState(leaderOf(M), idx);
++  await waitFor('refused by the operator ban', () => st().state === 'refused' && /banned by platform policy #\d+ \(operator\)/.test(st().reason), 30000);
++  assert.equal((await servedChain(b)).status, 404, 'no leaf for a banned host');
++  // a chip ban on THIS boot's chip (the verifier's sha256 CHIP_ID), operator unbanned
++  await W.publish({ deny: [{ kind: 'chipId', value: H(CHIPS[b.chip].chip), reason: 'chip ban' }] });
++  await waitFor('refused by the chip ban', () => st().state === 'refused' && /\(chipId\)/.test(st().reason), 30000);
++  // a chip ban on ANOTHER chip, while this boot's chip is not proven (test-only: the verifier's chip withheld)
++  await W.publish({ deny: [{ kind: 'chipId', value: H(randomBytes(64)), reason: 'other chip' }] });
++  verifyMode.dropChip = true;
++  await waitFor('refused: chip unproven under a chip denial', () => st().state === 'refused' && /chip is not proven/.test(st().reason), 30000);
++  verifyMode.dropChip = false;
++  // the original registry no longer names this host: the verifier stays pending, nothing is issued
++  const row = HOSTS[b.registryId]; delete HOSTS[b.registryId];
++  await waitFor('refused while unregistered', () => st().state === 'refused' && /attestation pending/.test(st().reason), 30000);
++  assert.equal((await servedChain(b)).status, 404);
++  HOSTS[b.registryId] = row;
++  await W.publish({ deny: [] });
++  await waitFor('issued once admitted', async () => bothNames(b, b.config.nativeControl.names), 40000);
++});
++
++test('a ban published AFTER the leaf was signed and BEFORE its install stops the install (the admission is decided again at the barrier)', T(150000), async () => {
++  const lead = await waitFor('a primary', () => leaderOf(M), 60000), target = M.find((m) => m !== lead), idx = target.i, st = () => memberState(leaderOf(M), idx);
++  await target.kill();
++  const b = await bootMember(idx, { chip: target.chip, native: target.config.nativeControl.names });
++  M = M.map((m) => (m === target ? b : m)); roles = M.map((m) => m.role);
++  const gate = armGate(idx);
++  await gate.reached;                                    // verified, admitted, signed: waiting right before the barrier
++  await W.publish({ deny: [{ kind: 'operator', value: OPS[idx], reason: 'late ban' }] });
++  gate.release();
++  await waitFor('refused at install', () => st().state === 'refused' && /at install: .*late ban/.test(st().reason), 20000);
++  assert.equal((await servedChain(b)).status, 404, 'the leaf signed before the ban was never installed');
++  await W.publish({ deny: [] });
++  await waitFor('issued once the ban is lifted', async () => bothNames(b, b.config.nativeControl.names), 40000);
++});
++
++test('bound to another CA, another group, or lying about its config: no leaf', T(180000), async () => {
++  const lead = await waitFor('a primary', () => leaderOf(M), 60000), target = M.find((m) => m !== lead);
++  const idx = target.i, st = () => memberState(leaderOf(M), idx);
++  await target.kill();
++  const rogueCa = await bootMember(idx, { chip: target.chip, caSha256: ROGUE.sha256, native: target.config.nativeControl.names });
++  M = M.map((m) => (m === target ? rogueCa : m)); roles = M.map((m) => m.role);
++  await waitFor('refused: another native CA', () => st().state === 'refused' && /another native CA/.test(st().reason), 40000);
++  assert.equal((await servedChain(rogueCa)).status, 404);
++  await rogueCa.kill();
++  M = M.filter((m) => m !== rogueCa); roles = M.map((m) => m.role);
++  // a front at that control URL that is NOT a member of this group: truthful (another platformApi) or lying (serves ours)
++  async function impostor({ servedConfig, boundConfig }) {
++    const d = fs.mkdtempSync(path.join(tmp, 'imp-'));
++    const P = { ...MC.GUEST_PATHS, runDir: d, sessionDir: path.join(d, 'session'), tlsKey: path.join(d, 'k.pem'), tlsCert: path.join(d, 'c.pem'), platformApiHandoffKey: path.join(d, 'h.key'), nativeCertificate: path.join(d, 'n.pem') };
++    const cfg = MC.canonicalDirectConfig(boundConfig), digest = MC.configDigest(cfg), hostData = MC.hostDataHex(digest);
++    const keys = MC.mintControlKeys({ paths: P }); keys.platformApi = { publicKey: MC.mintPlatformApiKey({ paths: P }) };
++    const stt = MC.controlStatement({ config: cfg, digest, hostData, mode: 'snp', keys });
++    const peer = keep(http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ config: servedConfig })); }));
++    await new Promise((r) => peer.listen(0, '127.0.0.1', r));
++    const front = keep(MC.createControlFront({ statementText: stt.text, keyPem: fs.readFileSync(P.tlsKey, 'utf8'), certPem: keys.controlTls.certPem, mode: 'snp',
++      reporter: async (rd) => ({ report: synthReport(S, { reportData: rd, hostData: Buffer.from(hostData, 'hex') }), certs: null }), upstream: { host: '127.0.0.1', port: peer.address().port },
++      prefixRoutes: [{ prefix: MC.PLATFORM_API_PREFIX, upstream: { host: '127.0.0.1', port: peer.address().port } }],
++      native: { ...MC.directNativeLaunch(cfg, { paths: P }), upstream: { host: '127.0.0.1', port: peer.address().port } } }));
++    await new Promise((r) => front.listen(FRONT_PORTS[idx], '127.0.0.1', r));
++    return { close: async () => { if (!front.listening) return; front.closeAllConnections?.(); await new Promise((r) => front.close(() => r())); } };
++  }
++  const otherGroup = { ...rawFor(idx), platformApi: { ...PA, hostname: 'api.other-group.test', admins: [a(0xee)] } };
++  let imp = null;
++  try {
++    imp = await impostor({ servedConfig: MC.canonicalDirectConfig(otherGroup), boundConfig: otherGroup });
++    await waitFor('refused: another group', () => st().state === 'refused' && /does not carry this group/.test(st().reason), 40000);
++    await imp.close();
++    imp = await impostor({ servedConfig: MC.canonicalDirectConfig(rawFor(idx, { native: target.config.nativeControl.names })), boundConfig: otherGroup });
++    await waitFor('refused: the hardware binds another config than the one it serves', () => st().state === 'refused' && /attestation rejected/.test(st().reason), 40000);
++  } finally { await imp?.close(); }
++  const honest = await bootMember(idx, { chip: target.chip, native: target.config.nativeControl.names });
++  M = [...M, honest].sort((x, y) => x.i - y.i); roles = M.map((m) => m.role);
++  await waitFor('the honest reboot is issued', async () => honest.role.status().haveKey && bothNames(honest, honest.config.nativeControl.names), 60000);
++});
++
++test('credential REPLACEMENT and REMOVAL stop the old run before its install; the new run uses only the new credentials', T(180000), async () => {
++  let lead = await waitFor('a primary', () => leaderOf(M), 60000);
++  const target = M.find((m) => m !== lead), idx = target.i, st = () => memberState(leaderOf(M), idx);
++  await target.kill();
++  const b = await bootMember(idx, { chip: target.chip, native: target.config.nativeControl.names });
++  M = M.map((m) => (m === target ? b : m)); roles = M.map((m) => m.role);
++  const gate = armGate(idx);
++  await gate.reached;                                    // the old run signed a leaf for b and waits right before its barrier
++  lead = await waitFor('a primary', () => leaderOf(M), 60000);
++  const r = await peerPost(lead, CREDENTIALS_PATH, await credentialsPkg(lead, withCa(ROGUE)));   // the admin REPLACES the CA
++  assert.equal(r.status, 200);
++  gate.release();
++  await waitFor('the old run is aborted', () => st().state === 'aborted' || /another native CA/.test(String(st().reason)), 20000);
++  assert.ok(logs.some((l) => /native CA issuer stopped \(native CA credentials changed\)/.test(l)));
++  await sleep(1500);
++  assert.equal((await servedChain(b)).status, 404, 'the old run installed nothing after the replacement');
++  await waitFor('the new run refuses members bound to the old CA', () => st().state === 'refused' && /another native CA/.test(st().reason), 30000);
++  // REMOVAL: a newer package without the native CA (the other credentials kept) stops issuance entirely
++  const r2 = await peerPost(lead, CREDENTIALS_PATH, await credentialsPkg(lead, { STRIPE_WEBHOOK_SECRET: STRIPE }));
++  assert.equal(r2.status, 200);
++  await waitFor('the issuer is inactive', () => issuerOf(leaderOf(M)).state === 'inactive', 10000);
++  assert.equal((await servedChain(b)).status, 404);
++  // the original CA back: b is issued
++  const r3 = await peerPost(lead, CREDENTIALS_PATH, await credentialsPkg(lead, withCa(NCA)));
++  assert.equal(r3.status, 200);
++  await waitFor('b issued under the restored credentials', async () => bothNames(b, b.config.nativeControl.names), 40000);
++});
++
++test('a stopped run releases its connections at once (a member front that never answers)', T(120000), async () => {
++  const lead = await waitFor('a primary', () => leaderOf(M), 60000), target = M.find((m) => m !== lead), idx = target.i;
++  await target.kill();
++  const k = generateKeyPairSync('ec', { namedCurve: 'P-256' });
++  const st = { open: 0, closed: 0 };
++  // a front that never answers the native certificate read (the issuer's); any other request (replica traffic) is refused at once
++  const hang = keep(https.createServer({ key: k.privateKey.export({ type: 'pkcs8', format: 'pem' }), cert: MC.selfSignedCert(k.privateKey, k.publicKey) }, (req, res) => {
++    if (req.method === 'GET' && req.url === MC.NATIVE_CERT_PATH) { st.open++; req.socket.on('close', () => { st.closed++; }); return; }
++    res.writeHead(503, { connection: 'close' }); res.end();
++  }));
++  await new Promise((r) => hang.listen(FRONT_PORTS[idx], '127.0.0.1', r));
++  try {
++  await waitFor('the issuer holds a connection to the silent front', () => st.open > st.closed, 20000);
++  const t0 = Date.now();
++  const r = await peerPost(lead, CREDENTIALS_PATH, await credentialsPkg(lead, { STRIPE_WEBHOOK_SECRET: STRIPE }));
++  assert.equal(r.status, 200);
++  await waitFor('the held connection is closed by the stop', () => st.open === st.closed, 3000);
++  assert.ok(Date.now() - t0 < 3000, 'released at once, not at the 8 s request timeout');
++  await sleep(1500); const opened = st.open;
++  await sleep(2500);
++  assert.equal(st.open, opened, 'an inactive issuer opens no new connection');
++  } finally { hang.closeAllConnections(); await new Promise((r) => hang.close(() => r())); }
++  await new Promise((r) => setTimeout(r, 200));
++  const back = await bootMember(idx, { chip: target.chip, native: target.config.nativeControl.names });
++  M = M.map((m) => (m.i === idx ? back : m)); roles = M.map((m) => m.role);
++  assert.equal((await peerPost(lead, CREDENTIALS_PATH, await credentialsPkg(lead, withCa(NCA)))).status, 200);
++  await waitFor('the returning member is issued', async () => back.role.status().haveKey && bothNames(back, back.config.nativeControl.names), 60000);
++});
++
++test('LEADERSHIP LOSS between signing and install: the primary loses its majority (its replica transport fails), steps down, installs nothing; the next primary issues', T(180000), async () => {
++  const lead = await waitFor('a primary', () => leaderOf(M), 60000), target = M.find((m) => m !== lead), idx = target.i;
++  await target.kill();
++  const b = await bootMember(idx, { chip: target.chip, native: target.config.nativeControl.names });
++  M = M.map((m) => (m === target ? b : m)); roles = M.map((m) => m.role);
++  const gate = armGate(idx);
++  await gate.reached;
++  for (const m of M) partitioned.add(m.i);               // no member reaches another: no majority anywhere, so no successor issues meanwhile
++  await waitFor('the primary steps down', () => lead.role.status().role !== 'leader', 20000);
++  assert.equal(issuerOf(lead).state, 'inactive', 'its issuer stopped with the leadership');
++  gate.release();
++  await sleep(1000);
++  assert.equal((await servedChain(b)).status, 404, 'the deposed primary installed nothing');
++  assert.ok(['aborted'].includes(memberState(lead, idx).state), JSON.stringify(memberState(lead, idx)));
++  assert.ok(M.every((m) => m.role.status().role !== 'leader'), 'no primary while partitioned');
++  partitioned.clear();
++  const next = await waitFor('a primary again', () => leaderOf(M), 60000);
++  await waitFor('the target issued by the current primary', async () => bothNames(b, b.config.nativeControl.names), 60000);
++  assert.ok(next);
++});
++
++test('archives: only a sink holding BOTH the snapshot and the recovery envelope counts; crossed half-writes are not an archive', T(120000), async () => {
++  const lead = await waitFor('a primary', () => leaderOf(M), 60000);
++  archiveFault.mode = 'crossed';
++  const before = lead.role.status().archive;
++  logs.length = 0;
++  assert.equal((await peerPost(lead, CREDENTIALS_PATH, await credentialsPkg(lead, withCa(NCA, { MARK: 'crossed' })))).status, 200);
++  await waitFor('the crossed archive attempt fails', () => logs.some((l) => /archive failed: no archive sink took both the snapshot and the recovery envelope/.test(l)), 20000);
++  assert.deepEqual(lead.role.status().archive?.head, before?.head, 'no archive is recorded from crossed half-writes');
++  archiveFault.mode = 'half';
++  assert.equal((await peerPost(lead, CREDENTIALS_PATH, await credentialsPkg(lead, withCa(NCA, { MARK: 'half' })))).status, 200);
++  await waitFor('one complete pair', () => lead.role.status().archive?.sinks === 1 && lead.role.status().archive?.of === 2, 20000);
++  archiveFault.mode = 'ok';
++  assert.equal((await peerPost(lead, CREDENTIALS_PATH, await credentialsPkg(lead, withCa(NCA, { MARK: 'ok' })))).status, 200);
++  await waitFor('both pairs', () => lead.role.status().archive?.sinks === 2, 20000);
++});
++
++test('total loss: the admin recovers the group from one sink\'s pair; the restored native CA credentials issue leaves to the fresh boots', T(200000), async () => {
++  const sink = SINKS[1], blob = archive.get(`${sink}|/platform-api/${groupIdOf(PA)}/latest`), envelope = JSON.parse(archive.get(`${sink}|/platform-api/${groupIdOf(PA)}/recovery.json`).toString('utf8'));
++  for (const m of M) await m.kill();
++  const fresh = [];
++  for (let i = 0; i < N; i++) fresh.push(await bootMember(i, { chip: M[i].chip, native: M[i].config.nativeControl.names }));
++  M = fresh; roles = M.map((m) => m.role);
++  for (const m of M) assert.equal((await servedChain(m)).status, 404, 'fresh boots: no leaf');
++  const { package: pkg } = await recover({ platformApi: PA, targetStatementText: M[0].st.text, account: ADMIN, envelope, recoveryPrivateKey: Buffer.from(REC.privateKey), archive: blob });
++  assert.equal((await peerPost(M[0], BOOTSTRAP_PATH, pkg)).status, 200);
++  await waitFor('every fresh member holds the key', () => M.every((m) => m.role.status().haveKey), 60000);
++  const lead = await waitFor('a primary', () => leaderOf(M), 60000);
++  assert.equal(issuerOf(lead).state, 'active', 'the restored credentials started the issuer');
++  await waitFor('every fresh boot issued from the recovered CA credentials', async () => (await Promise.all(M.map((m) => bothNames(m, m.config.nativeControl.names)))).every(Boolean), 90000);
++  assert.ok(!logs.join('\n').includes(NCA.keyLine));
++});
+-- 
+2.56.0
+

@@ -56,3 +56,7 @@ A second live failure is distinct: three RPCs confirmed the funded adapter lease
 Control-front candidate d9459aae propagates HTTP disconnects in both directions. Seventeen real TLS cases pass; ten fail on the base. Native/config/forwarding regressions pass. Full hosted regression remains pending its 512 MiB rerun. This source is not composed into the measured image or regenerated role bundle yet.
 
 Native issuer work remains a draft with incomplete mutation validation. When its test runner temporarily disables security checks, the checkpoint captures the runner's saved unmutated source, identified explicitly in MANIFEST.json. Raw mutation output, generated private test keys and production secrets are excluded.
+
+## 2026-10-22 22:04 UTC checkpoint
+
+Preserves completed native issuer source2ab and its worker-only bundle9b, composed source2a2 (forwarding ca311 + front d945 + issuer + TLS request lifecycle correction), six passing hosted regression checks, eight passing TLS interruption checks, and unfinished renewal/restart/handoff work. The combined production bundle has NOT been rebuilt or activated. Production handoff collateral wiring and policy checks are under repair. Snapshot copies are recovery material, not a release. See public-validation/native-issuer-integration-progress.json and worker RESULT reports. No production mutation was performed in this continuation.

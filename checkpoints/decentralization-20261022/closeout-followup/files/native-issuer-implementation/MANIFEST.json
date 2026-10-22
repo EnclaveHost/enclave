@@ -1,0 +1,57 @@
+{
+ "base": {
+  "commit": "8e77ff1eca24be3c02e281dc9f431af597165adf",
+  "tree": "69e8338002adca1f9273a48de769a5c5d2efdb1e"
+ },
+ "commits": [
+  {
+   "commit": "2abf2bfde6c89963f3b590b08406c35a5b75387a",
+   "tree": "b467c7b79e12563dd9d3b2becf04d7964b0e9c70",
+   "subject": "Issue native control leaves from the platform API primary"
+  },
+  {
+   "commit": "9b164d3ac3d8846db2b24a157fd61c907cbdaa8f",
+   "tree": "ee1f8268b585ac3b1508cf8da8fae494daefd42a",
+   "subject": "Rebuild the platform API guest bundle with the native issuer"
+  }
+ ],
+ "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+ "origin": "removed (isolated clone of native-control-attested/repo)",
+ "files": {
+  "metal/guest/native-certificate.mjs": "fa0e6e577db01838f9a7ba19ac0d783364a8a08d85b4f87f5f395c49f3b4d3d9",
+  "metal/guest/native-issuer.mjs": "7770028fdee8f04a76ff6b856793bad7d3016d182c2f1ac5991f6c8091e62de1",
+  "metal/guest/platform-api-role.mjs": "fa6548e17025207851f0767710ac6834ab6d9e789cc43b1621219e53c967d890",
+  "scripts/native-control-certificate.mjs": "4eabe79ef22edd17a646de907c59f5604b07d3b97eb6668927e9a9e3600d6f1f",
+  "scripts/build-platform-api-guest-bundle.mjs": "2dca4dc4b7ffac485f88e42125132b8b68677039e0fd51a91f2e3f0dacf00216",
+  "test/native-certificate-leaf.test.mjs": "67d3245127792155cd5d68a06ce0df20359daf07f3715b6d941912c6464d2f97",
+  "test/platform-api-native-issuer.test.mjs": "17eda186fa01a8701bd613d06f6f1c4ea5555a7fc64253202fc11cd1219a1c28",
+  "docs/network/hosted-platform-api.md": "a847ef06b58d79c9fd728e58d7faf980c882c9b5e9a89f51d22feb208eac0c0e",
+  "docs/network/measured-control-guest.md": "a2adf7f6fe912377fc3555e7cf2e12062f02271c4e35403bed97565fa6f02806",
+  "metal/guest/platform-api.bundle.mjs": "a0c8527a8bfba273825f47e889ed1cc6ee446fcbc181e05afab842a7ca959953",
+  "metal/guest/platform-api.bundle.mjs.manifest.json": "a19d7ec8da8368116164802f9b43ab02e8dd9a52f9106e72abf77edf7e98554c"
+ },
+ "platformApiBundle": {
+  "sha256": "a0c8527a8bfba273825f47e889ed1cc6ee446fcbc181e05afab842a7ca959953",
+  "bytes": 8702016,
+  "inputs": 2219,
+  "previous_sha256_at_base": "3078345b9e27594d9964998a3f638ff4a9727abef0bcd8cf02abacd993162e4c",
+  "prerequisite": {
+   "relay/network-runtime.bundle.mjs": "8399d1434e0587c246c77bfbea5d8afac65ada130cc96abffe291afde588af1e (gitignored; copied from native-control-attested/repo)"
+  }
+ },
+ "patches": {
+  "native-issuer-source.patch": "c920fc5a4a0e9824f86949763b6252dc5bce297a4006109255a1da9316ee3197",
+  "native-issuer-bundle.patch.gz": "e6605de482b893b379c74140ac840310c960a02d8ea6da5a5b80a1b13156b01c"
+ },
+ "tests_final_job": "logs/final-r1.log (rc 0): leaf 5/5, role wiring 11/11, native-control-attested 9/9, platform-api-hosted 6/6; peak 429 MiB (esbuild) at cap 512",
+ "mutants": "logs/mutants-r1.log (M1,M2,M4,M5,M6 killed; M3 survived), logs/mutants-r2.log (M3b survived), logs/mutants-r3.log (M3c killed)",
+ "failed_logs_preserved": [
+  "logs/leaf-r1.log (no .rc: outer timeout around q.sh)",
+  "logs/issuer-r1.log (rc 1)",
+  "logs/issuer-r2.log (rc 1)"
+ ],
+ "not_done": [
+  "image build / measurement",
+  "any live action, SSH, wallet, live CA"
+ ]
+}

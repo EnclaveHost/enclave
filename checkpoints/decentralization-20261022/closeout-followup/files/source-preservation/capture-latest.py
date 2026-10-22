@@ -146,6 +146,26 @@ for p in (base / 'public-health').glob('ROOT-*.txt'):
 
 for p in (base / 'adapter-activation-review').glob('*.md'):
     paths.add(p)
+for name in ('adapter-renewal-review-task.txt', 'native-request-abort-review-task.txt'):
+    paths.add(base / name)
+request_review = base / 'native-request-abort-review'
+if request_review.exists():
+    for pattern in ('*.md', '*.txt', '*.sha256', '*.sh', '*.patch'):
+        paths.update(p for p in request_review.glob(pattern) if p.is_file() and not p.is_symlink())
+    for relative in ('snapshot/metal/guest/native-certificate.mjs', 'snapshot/test/native-certificate-request-abort.test.mjs'):
+        p = request_review / relative
+        if p.is_file() and not p.is_symlink():
+            paths.add(p)
+for name in ('node-restart-final-task.txt', 'native-handoff-final-task.txt'):
+    paths.add(base / name)
+paths.add(base / 'native-issuer-implementation/MANIFEST.json')
+for directory in ('native-issuer-implementation/jobs', 'node-restart-final', 'native-handoff-final'):
+    for p in (base / directory).rglob('*'):
+        rel = p.relative_to(base / directory)
+        if any(part in ('logs', 'runs', 'tmp', 'secrets', 'node_modules', '.git', '__pycache__') for part in rel.parts):
+            continue
+        if p.is_file() and not p.is_symlink() and p.suffix in ('.md', '.txt', '.py', '.sh', '.ps1', '.mjs', '.patch'):
+            paths.add(p)
 paths.add(Path(__file__).resolve())
 # Mutation tests temporarily edit the issuer's working tree. Preserve their saved
 # unmutated inputs, never an intentionally disabled security check.

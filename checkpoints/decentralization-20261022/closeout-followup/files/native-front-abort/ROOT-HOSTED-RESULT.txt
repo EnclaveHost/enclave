@@ -1,0 +1,3 @@
+Root independently completed the previously guard-stopped hosted regression on the d9459aae front tree.
+Command: shared queue512MiB, timeout180, run-test.sh private network namespace, test/platform-api-hosted.test.mjs.
+Result: terminal exit0; see logs/root-hosted-512-2.out and .guard.log. This is source regression evidence only, not native issuer integration or production activation.

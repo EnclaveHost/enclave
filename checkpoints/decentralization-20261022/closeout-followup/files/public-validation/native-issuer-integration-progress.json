@@ -1,0 +1,42 @@
+{
+  "at": "2026-10-22T22:04:13.118350+00:00",
+  "status": "Source integration and validation; not deployed",
+  "previousGoalTurn": "progress: source committed and remotely verified",
+  "thisGoalTurn": "progress: hosted regression completed; native issuer and TLS lifecycle fixes integrated; actual production handoff defect identified for repair",
+  "hostedRegression": {
+    "tests": 6,
+    "passed": 6,
+    "exit": 0,
+    "peakRssMiB": 281,
+    "evidence": "native-front-abort/logs/root-hosted-512-2.out"
+  },
+  "issuer": {
+    "sourceCommit": "2abf2bfde6c89963f3b590b08406c35a5b75387a",
+    "workerBundleCommit": "9b164d3ac3d8846db2b24a157fd61c907cbdaa8f",
+    "sourceOnly": true,
+    "report": "native-issuer-implementation/RESULT.md"
+  },
+  "tlsLifecycle": {
+    "sourceCommit": "4e079db191ea6f059252a01c30e60cd1e66d6aaf",
+    "baselinePassed": 4,
+    "baselineFailed": 4,
+    "fixedPassed": 8,
+    "fixedFailed": 0,
+    "report": "native-request-abort-review/RESULT.md"
+  },
+  "composedSourceHead": "2a2dd38cc",
+  "composedBundle": "Not yet regenerated; wait for production handoff correction before one final build",
+  "latestLiveRead": {
+    "at": "2026-10-22T21:57:38Z",
+    "adapter": "running record and new certificate; wallet grant absent, network still waiting for lease/proof",
+    "evidence": "public-health/host-renewal-followup.json"
+  },
+  "ongoing": [
+    "renewal retry timing and local permission fences",
+    "bounded node-only restart helper",
+    "AMD collateral and platform-policy enforcement for production state-key handoff"
+  ],
+  "productionChangedThisTurn": false,
+  "scope": "Preserve platform administrators; remove centralized server dependencies and resist external provider loss",
+  "completion": "Not achieved: source integration, activation, distributed hardware and end-to-end failure/recovery evidence remain"
+}

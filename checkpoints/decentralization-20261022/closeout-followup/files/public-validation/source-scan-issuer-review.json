@@ -1,0 +1,659 @@
+{
+  "reviewedAt": "2026-10-22T22:04:51.745800+00:00",
+  "stagedDiffSha256": "fc5b1df8e441565b510aefb6812e47044f4a91ae03901ad48c1b934b41b2ff6d",
+  "count": 93,
+  "unclassified": 0,
+  "entries": [
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 246692,
+      "rule": "eth-key",
+      "classification": "Public AddressBook bytes32 registry label",
+      "valueSha256": "a9e2872e8973527653dfb22168a3940f79bda1a0383655c0e50cb0db5a96d99c"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 105733,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "e35dda4f8aef2452288e5c8638145a25a5c3a14025fe09fc0fa4ab1ad9072e0c"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106002,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "34da25f1338926a9cb37f914551d2563c3f3bbdc06ea8230e477d9a3791b785f"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106236,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "5eb2cc93c5b13e90552ed54681c63e839e96e1953dfe679d256e60500bd843cf"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107550,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "656ca24d1b47817a2dc93d07f6bccdcf8addfb14fdb9e604bc9e86a50cc5b896"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107608,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "eb77206529afa9f837005499f1af4234b01ae7394fffea2927915186fc706cd0"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106117,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "db07d7d6051ffca72ddffb94c8c3f12410ff20a63f024d8612a0a19a1831e403"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106341,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "e43eec8d0a62ffc238871f5c3bdbfa55ec0b9cba898f50e7d04c65bec2a99cb9"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106508,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "d9fbe22ea21c8b6953a7db88f81a69139f64426c87720646895a4dd5c81d7316"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106757,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "004921ddba48c040661240c0f3b6e2e61fff457f5e5633e5ee34675ba31e4909"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106809,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "44b339937c6a496391db3a1cb94f1b0b1500b04c9d1d8d9ee5775b5b34037939"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106899,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "2c7a97669238bd63576504360399c93739614b352f57ff1a3d622ed8a4bf6bc9"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106978,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "c1c66f6234e6564a66ff66a6d209e6da2340c9036ea66bb92a6cd5b51ff7326b"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107152,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "bf2bf7f9176a6c77633c06b6386f3c6a38dcd069c7f41301da8e9c8040027525"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107476,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "7ff80ed5bb0da3d21d992db0d5cf0d7955094bf570b70ca0a6fffa8b846b27a6"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107728,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "0185eebacab4852d0825f6294524321ad00c2ca7e13f3a2e6e009224bb139d71"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 105790,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "c63349d4cf2c32bf16826ba7a0ec39a841c7e7c38042915166ee1869c7b66331"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 105981,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "0493d4aca84fde9fc68eb03ce29329138e81cdec0e617f8b6f202ef7109182ab"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106182,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "5a407e82daa9bd8427dfccc549acade9cdffdca0258f4f57bd0986d84f75c660"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106302,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "8b9524c7ee28099fef6a592bda29d59e595686099b2a09debb3cafd1441619e7"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106366,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "a60204656ecfc599bc8af69765539b7d61709e53d56e23c83664872920c09c20"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106389,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "72128f4d7c39841d6fa8ccedcb29a1c3df967b8654da9412bc5c648040180d79"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106412,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "63f3662fdd01a35c4775f89a2692e7818225711594fe889bde716b68ec2d3382"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106597,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "750ba264e382d6ad10fbe75b6037a37ee4cb5f4c4b00a819dafb294a4b15db52"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106678,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "c06146b5d80b89244c22047674cde43622cb9d50d58be0f7fb6cb68ffef05b34"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106855,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "a090d98d9c7d3ab2a24bf4bfd360bc5491056c1c758161e6d791f7dbb49d04a9"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107058,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "3cd17098ebf247276d3f9abb865d2ab82c6d0edcc42a79ca6b9df23f3da1d6e1"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107091,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "0640e649c3402e9364405d8331c1bb657f691f5d68a122f3aa59ac1b752dcb0f"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107245,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "6e076b43657961bb5627ac4b20d007ee95124da2911ea75cb516b5ea4ff44ed5"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107270,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "a5e2b6d3452c5329dd566281214a3300653319dc27bc90dc45c331d392f32dff"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107417,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "07a95316477463693f784411a717a8d0cf4a69950d6af909988d0fcb45640580"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107444,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "5d73e89abd22d84a3efb1cdc8dae706914161dd0e6d83d48d756cc105842c9ef"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107517,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "463fa80eff9d15ebedadc1dee15f84b7049993867af2669f8ea290d5026a5623"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107586,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "99a83d4dcee35062a67e1e4a7a257d3f4df7f26199773cc0c919ea97748ab9bd"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107678,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "25a54c750c014dbf98aa99a6e56344e08015da03b01bafae4e15b841c7f5071a"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 105764,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "cfd4089622ab8c5e42f724a07174780464b096d115bff387fcff90ba4ec5bef8"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 105837,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "e19d4ebe0f56db18a4fe1ce576e69fe2ab038de0639bb4ec1017cbaa9f73f430"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 105959,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "488f7121d2a6b0a4b65b3fdacaabee96dda49655e08219abc628f78f7369ce5e"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106040,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "2f5f4372999ed9151c367c448aaf75fd38a4d39010be9d65b9e4fffe8c853a8e"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106097,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "dc08d67ab4bf13b41fc209ed6ff31b5e340ece576b9770d0331bb823c1ba913a"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106150,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "d7e1f3e434c1f1b21f2a059cb725ec252cffa9ea6501e44b3883ae7efad14c9f"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106213,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "544747a412c3fffc5c2ef25e553187922eccf3d6fb8c241603ed8acf865685d4"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106283,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "31f7dc11188d388117f3d2224b8af5239cd91a56cb19bb3ad16a43a6f2415cec"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106538,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "f9fb52b21d4d0efd7af3da81d49ea459df080ce089d4cd24804c8b5416c5df7a"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106628,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "8346534924cd6662e2ad565f596c44f5991a01d2353579bf57e555de5b36df15"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106832,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "efb58f320f4597f946164554f3a31ef738b68dc87d679cb24f8ad2d6c061655b"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107021,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "e02d98cecf2c47ec9ac6f0907d546a2277fc2131631b3d1409f585ee4f0ccc24"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107224,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "c490be18824e9b3c5f4f1e3a3b09d380fc97026c0eef298dc79dc4f7a398cbfb"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107294,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "97d9e083fb7c385a44ca606d8e1cb673ee7a94bf84b7294885f12d701f2edb2b"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107348,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "e872c33a2408abfe734c9351049a2ff61d6c1558610632e8ccd2f51b626705f5"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107633,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "cc578e12a772efa819ece3130e1c04e4cb22fe7f100a848043f95b0ea1e32c1b"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 105816,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "bab41455dea933921179cdcd8715dcd733a79a84cf82fe1d76153d928ce94b20"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 105853,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "f15d4575049a1d8c9e852fa23d5fbc3d6f60cf5d1453297e535425ba19d21b1b"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 105867,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "b61a90697608717c22f2040d3ea45253206065fcfa6cde6f7e00dc4b3fc983b8"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 105902,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "868639696e33c0f38faf2d104b515e0bbdfaacd8dc9bdeedae06681cd83e73fd"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106075,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "07550b830655a8d37e1ddf8132a23cc34f423035665962bea6f715604e848fa2"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106261,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "cd4f7bd2fb41839444c7e1fde013c21ae4a0707a62030096939b7df305ac7664"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106329,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "f71f74b14a52cae9468e9db65e143f599b70c4e97a29810fe5e254aa4ea9f5cd"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106434,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "20424cfe42cdfb9513d9addd75e2dcf23fa88d2a4b677bf10e8324006a4dae42"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106450,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "3596b227efaf281fc9043f8ea157a52a99b456bd4f73a1f978cc76a1b4879457"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106495,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "ff37eefd06d589a544a3c9fe968bbae7dd935a2b58c35eb7621c24d11e98f9f6"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106573,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "b297a04356a0b964077ada4c11c48dbc8d565ae7b5bb0a9adeca2fdfe243c5a2"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106644,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "ae5841fe231ebb62690039794ca9cff9043760e89f8284ef0c9926c806ed43f3"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106659,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "21d99ce75a673076a0237d557ca6db1bfeea770e6802d843a4e79950c4df8bdc"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106714,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "5f33f21ef35819a8584ab0f3e3fc51e3939cd7a73dc0789ef8be06fdf99e3e51"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106735,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "1fceada547c649baea4a2cf4c5b61c44fcbe3d997efe78f170650fadecb26ae4"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106793,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "605a4620c9b273c080445e25d8e8ef310af7082285310ff73d34f9a1b852f6af"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106876,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "ed19bfbb1cec56692f21a3ea02c138d1b8dce0718dd5850a5a3820a6a250cd32"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106923,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "6a40aae4027280b36e9fca3a4c91096dfa6695fc194eb6bbec6e5df500fe1868"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106937,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "fc3d3c4750a42c5ca80ce1c4239dc5ab77c280ca50614e51f6d84096849da028"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 106956,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "67c7b47b8a326ec3515137d569b4c6f779a04ea5be6c66a778b8fbf73eea8a49"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107038,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "ed522cfce8c86417ea1bb71ed5ed8f59f1573027186cb3da506e2910835b98cb"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107111,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "ca1b464a3182b161e9da614bec1d6940da78b558cae9adc08e00a8d5aca8c047"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107125,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "3adbf31f70af91ab97c362da9963a972048fdd9df4fbb427a7517f3723f7376d"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107190,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "d5d5bab0baa7a3bc9893621ddce315c593e5c9d5ff6a28439cb30faa5d02da90"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107315,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "bf07eb0cde708399da7431897a8f8def84a168a51bca644ad29bff9ec17ba42f"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107335,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "3f931f9734516c14bd6252508819ca3d2a9bda0de19ec5f49d7ce7174a1fe6c0"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107404,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "d085dd76e2467328bd5b817efe0b39478a4fe23e91b5a7c70e39517748f06f23"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107502,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "bec87d058d297de2195ad5e76358537601be0752a8aff4a278ef4194528c6ccc"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107655,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "2b502fc9752d94c5e225dbb5e7df6010b8f26f3bd4f0584577b4b8c467102ae0"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107704,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "392b0934aa5da76d23e7245279ff275af7b01c5edd8261dd2f5b88ca9f3e37f3"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs",
+      "line": 107754,
+      "rule": "mnemonic",
+      "classification": "Contiguous slice of complete public BIP39 English dictionary",
+      "valueSha256": "4057298376116bfd36caedfa5edef224014d7879315023976ee01121a52e7ddf"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 545,
+      "rule": "eth-key",
+      "classification": "Recomputed SHA256 of public dependency source relay/node_modules/@peculiar/asn1-ecc/build/cjs/ec_private_key.js",
+      "valueSha256": "721df002aa3dc04ee141fa24420cb6bf1ce15a37adfb52026a4f4d1509a11d60"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 552,
+      "rule": "eth-key",
+      "classification": "Recomputed SHA256 of public dependency source relay/node_modules/@peculiar/asn1-ecc/build/es2015/ec_private_key.js",
+      "valueSha256": "6c8172a2c8a7f287a208668d861a61aabc2afaa8c18be2f98fdca60de0d420aa"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 571,
+      "rule": "eth-key",
+      "classification": "Recomputed SHA256 of public dependency source relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/encrypted_private_key_info.js",
+      "valueSha256": "1e0d36822f48770154055b75016e7c58fb8cae53e30d306e9de06fe3e779c493"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 573,
+      "rule": "eth-key",
+      "classification": "Recomputed SHA256 of public dependency source relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/private_key_info.js",
+      "valueSha256": "e0689e7981593c2d442c2fbbada8efee6d213269dee0eb910945021eaed0a283"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 583,
+      "rule": "eth-key",
+      "classification": "Recomputed SHA256 of public dependency source relay/node_modules/@peculiar/asn1-rsa/build/cjs/rsa_private_key.js",
+      "valueSha256": "9ccec2f31c070d716629145708a8c3a9acb229cfa646b73abe43a844ea58c59b"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 593,
+      "rule": "eth-key",
+      "classification": "Recomputed SHA256 of public dependency source relay/node_modules/@peculiar/asn1-rsa/build/es2015/rsa_private_key.js",
+      "valueSha256": "3d8f476480ed118fabdcbf2aaccafdeaf63635b96ed30088b0e41a53a7c5a23f"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 674,
+      "rule": "eth-key",
+      "classification": "Recomputed SHA256 of public dependency source relay/node_modules/@peculiar/asn1-x509/build/cjs/extensions/private_key_usage_period.js",
+      "valueSha256": "03f9e50e094290272d45f40ae085fa145c16a760816025782ec78af2e0bc42a9"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 717,
+      "rule": "eth-key",
+      "classification": "Recomputed SHA256 of public dependency source relay/node_modules/@peculiar/asn1-x509/build/es2015/extensions/private_key_usage_period.js",
+      "valueSha256": "fdd98aea22d7f169dfbe3c53fafd2b88f05e41db48ca07a9bf132d3556ac0986"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1061,
+      "rule": "eth-key",
+      "classification": "Recomputed SHA256 of public dependency source relay/node_modules/viem/_esm/accounts/generatePrivateKey.js",
+      "valueSha256": "ccf167a7efabde6f766cece424a2e403a50a2c99bf60158f176fb3a2ca535a78"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1065,
+      "rule": "eth-key",
+      "classification": "Recomputed SHA256 of public dependency source relay/node_modules/viem/_esm/accounts/privateKeyToAccount.js",
+      "valueSha256": "cd19780b4ba6a91ac53c84df8e7ab4827d7c8e2f5e2e63a87a48de54b249d6ce"
+    },
+    {
+      "file": "checkpoints/decentralization-20261022/closeout-followup/files/native-issuer-implementation/repo/metal/guest/platform-api.bundle.mjs.manifest.json",
+      "line": 1068,
+      "rule": "eth-key",
+      "classification": "Recomputed SHA256 of public dependency source relay/node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js",
+      "valueSha256": "028d7250d32b2032eecddb2f9ec82fd4a74c3a9338d75294e8af6d531e38259c"
+    }
+  ]
+}

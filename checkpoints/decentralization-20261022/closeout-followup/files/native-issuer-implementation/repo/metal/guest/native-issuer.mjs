@@ -24,8 +24,11 @@
 //   when                 one round at a time (single-flight), every roundMs; a member is only verified when its served leaf
 //                        is missing, foreign, or within renewBeforeMs of expiry; a refused member backs off (reset by a new boot).
 //   barrier              right before an install: still this run (no stop, credential change or leadership change since), the
-//                        native CA credentials unchanged, and a majority-acknowledged commit as primary (state-replica) - the
-//                        same barrier the relay's outbound requests wait for. Otherwise nothing is installed.
+//                        native CA credentials unchanged, the platform host policy decided AGAIN (a ban since step 3 stops
+//                        it), and a majority-acknowledged commit as primary (state-replica) - the same barrier the relay's
+//                        outbound requests wait for. Otherwise nothing is installed. A stop also aborts the run's connections.
+//   bounds               one attempt per member at a time; a timed-out attempt is aborted (its connections end) and its late
+//                        result discarded; the verifier's own requests carry their own timeouts.
 import { randomBytes, X509Certificate } from 'node:crypto';
 import { canonicalJson, sha256Hex, EVIDENCE_PATH, NATIVE_CERT_PATH, NATIVE_NAMES } from './measured-control.mjs';
 import { nativeCertificateRequest, nativeCaFacts, signNativeLeaf, pinnedRequest, untrustedRead, installNativeCertificate, MAX_DAYS } from './native-certificate.mjs';
