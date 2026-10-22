@@ -1,0 +1,25 @@
+import fs from 'node:fs';
+import {createPublicClient,http,keccak256} from '/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem/_esm/index.js';
+import {base} from '/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem/_esm/chains/index.js';
+import {OWNER_ABI,LEDGER_ABI} from '/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/network/lease-gas-owner.mjs';
+import {quote} from '/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/client/lease-executor-client.mjs';
+const dep=JSON.parse(fs.readFileSync('outputs/app-lease-gas-review/lease-gas-deployment.json'));
+const owner='0x0b2d009c0c9Af05b12100D77F3c815fea822eE61';
+const ids=[...fs.readFileSync('work/ens-outage-20261022/source-review/reserve-runway.mjs','utf8').matchAll(/"(0x[a-f0-9]{64})": "([^"]+)"/g)].map(m=>({id:m[1],label:m[2]}));if(ids.length!==11)throw Error('Expected 11 exact deployments');
+const urls=['https://mainnet.base.org','https://base-rpc.polkachu.com','https://base-rpc.publicnode.com'];
+const clients=urls.map(u=>createPublicClient({chain:base,transport:http(u,{retryCount:0,timeout:10000})}));
+const heads=await Promise.allSettled(clients.map(async c=>{if(await c.getChainId()!==8453)throw Error('chain mismatch');return c.getBlockNumber()}));
+const live=heads.flatMap((h,i)=>h.status==='fulfilled'?[{i,head:h.value}]:[]);if(live.length<2)throw Error('Need two RPCs');
+const blockNumber=live.reduce((n,x)=>x.head<n?x.head:n,live[0].head)-2n;
+const results=await Promise.allSettled(live.map(async({i})=>{
+ const c=clients[i],b=await c.getBlock({blockNumber});
+ if(keccak256(await c.getCode({address:dep.reserve,blockNumber}))!==dep.reserveCodeHash)throw Error('Code differs');
+ const fixed={readContract:x=>c.readContract({...x,blockNumber})};
+ const effective=(b.baseFeePerGas??0n)+1000000n;
+ const [rq,cq,ds]=await Promise.all([quote({client:fixed,reserve:dep.reserve,kind:'renew',gasPrice:effective}),quote({client:fixed,reserve:dep.reserve,kind:'claim',gasPrice:effective}),c.multicall({blockNumber,allowFailure:false,contracts:ids.map(({id})=>({address:dep.ledger,abi:LEDGER_ABI,functionName:'get',args:[id]}))})]);
+ const rs=await c.multicall({blockNumber,allowFailure:false,contracts:ids.map(({id},j)=>({address:dep.reserve,abi:OWNER_ABI,functionName:'reserveOf',args:[id,ds[j].owner]}))});
+ const rows=ids.map((x,j)=>{const r=rs[j],d=ds[j];const spent=BigInt(r.epochSec)>0n && b.timestamp/BigInt(r.epochSec)===BigInt(r.epochIndex)?BigInt(r.epochSpentWei):0n;return {...x,idMatches:d.id.toLowerCase()===x.id,owner:d.owner,ownerMatches:d.owner.toLowerCase()===owner.toLowerCase(),active:d.active,leaseUntil:d.leaseUntil,leaseExpired:d.leaseUntil<=b.timestamp,reserveWei:r.balanceWei,enabled:r.enabled,renewAffordable:r.balanceWei>=rq,claimAffordable:r.balanceWei>=cq,perOp:r.maxPerOpWei,epochLeft:BigInt(r.epochCapWei)-spent,renewQuoteUnits:r.balanceWei/rq}});
+ return {url:urls[i],blockHash:b.hash,timestamp:b.timestamp,effectiveGasPrice:effective,renewQuoteWei:rq,claimQuoteWei:cq,rows};
+}));
+const str=x=>JSON.stringify(x,(_,v)=>typeof v==='bigint'?String(v):v);
+const out={at:new Date().toISOString(),block:String(blockNumber),results:results.map((r,i)=>r.status==='fulfilled'?r.value:{url:urls[live[i].i],error:String(r.reason.message).slice(0,160)})};const groups=new Map();for(const r of out.results){if(r.error)continue;const{url,...v}=r,k=str(v);groups.set(k,[...(groups.get(k)||[]),url]);}out.agreeing=Math.max(0,...[...groups.values()].map(x=>x.length));fs.writeFileSync('work/resume-after-checkpoint-20261022/public-health/reserves-preflight-2252.json',str(out)+'\n');console.log(str({block:out.block,agreeing:out.agreeing,snapshot:(()=>{const x=out.results.find(r=>!r.error);return x?{timestamp:x.timestamp,renewQuoteWei:x.renewQuoteWei,claimQuoteWei:x.claimQuoteWei,adapter:x.rows.find(r=>r.id.startsWith('0x7ae476a3')),underfunded:x.rows.filter(r=>!r.claimAffordable).length}:null})(),errors:out.results.filter(r=>r.error)}));if(out.agreeing<2)process.exitCode=2;
