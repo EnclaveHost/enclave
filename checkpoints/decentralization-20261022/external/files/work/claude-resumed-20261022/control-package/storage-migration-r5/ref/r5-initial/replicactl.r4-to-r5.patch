@@ -1,0 +1,262 @@
+--- replicactl.py (storage-migration-r4 1b189bab)
++++ replicactl.py (storage-migration-r5)
+@@ -33,6 +33,22 @@
+       sticky directory is allowed.
+   The r4 preflight reads the same two facts: config.acl and config.path_components.
+ 
++storage-migration-r5 = r4 (1b189bab) plus root's two review blockers, nothing else:
++  1. Backup verification no longer drops a fixed "<database>_verify" (r4 ran DROP DATABASE IF EXISTS on that name, which
++     could destroy an unrelated database). verify_backup() restores into a NEW scratch database:
++     - the name is unique, random, valid and bounded: <prefix>_verify_<16 hex>, at most 63 bytes, [a-z0-9_] only;
++     - it is recorded in <backup>/verify-<scratch>.json BEFORE the CREATE;
++     - CREATE and DROP are separate psql calls, so neither runs inside a transaction block;
++     - the scratch database is dropped only if OUR CREATE answered success, and only after no backend is still
++       connected to it (no detached restore writer);
++     - an existing name ("already exists") is never touched;
++     - an ambiguous CREATE (lost answer, and the database now exists) is PRESERVED and reported, never dropped;
++     - the restore is bounded both inside the container (`timeout -s KILL`) and on the host.
++  2. upgrade and upgrade-c2 call that verifier BEFORE the switch, as their docstrings promised. On a failed verification
++     nothing is switched. The UNCHANGED source release is restarted if that is safe (the current release and db_version
++     are still those before the upgrade), and the command exits non-zero. The verification record stays in the backup
++     directory, and any resume failure is reported.
++
+ Nothing here activates anything by itself: every mutating command needs an explicit --confirm flag naming the
+ action, and production profiles additionally refuse to run unless the node's ALLOW file exists (the same pattern as
+ work/storage-vm/enclave-indexd.service ConditionPathExists=/etc/enclave-indexd/ALLOW_LIVE_START).
+@@ -66,6 +82,8 @@
+ import json
+ import os
+ import pwd
++import re
++import secrets
+ import stat
+ import shutil
+ import signal
+@@ -81,6 +99,8 @@
+ PG_USER = '"${POSTGRES_USER:-postgres}"'
+ FENCE_DB_VERSION = 27
+ C2_DB_VERSION = 28
++VERIFY_TIMEOUT_DEFAULT = 3600       # seconds one scratch restore may take (profile key verify_timeout_seconds)
++SCRATCH_RX = re.compile(r"^[a-z0-9_]{1,63}$")
+ 
+ 
+ def sha256(path):
+@@ -115,6 +135,16 @@
+             raise RuntimeError("psql failed: " + r.stderr.decode()[-400:])
+         return r.stdout.decode().strip()
+ 
++    def psql_rc(self, sql, db="postgres", timeout=120):
++        """one psql call that never raises for SQL errors -> (rc, stdout, stderr); rc None = the answer was lost (timeout)"""
++        args = ["docker", "exec", "-i", self["pg_container"], "sh", "-c",
++                'psql -U ' + PG_USER + ' -d "$1" -X -A -t -q -v ON_ERROR_STOP=1 -f -', "psql", db]
++        try:
++            r = subprocess.run(args, input=sql.encode(), capture_output=True, timeout=timeout)
++        except subprocess.TimeoutExpired:
++            return None, "", "timeout"
++        return r.returncode, r.stdout.decode().strip(), r.stderr.decode()
++
+     def db_version(self, db=None):
+         return int(self.psql("SELECT db_version FROM global_settings;", db=db))
+ 
+@@ -344,27 +374,150 @@
+     return out
+ 
+ 
+-def cmd_verify_backup(node, args):
+-    """Restore a backup into a SCRATCH database in the same server and compare its digest with the manifest."""
+-    b = Path(args.backup)
++def scratch_name(database):
++    """a fresh scratch database name for ONE verification: valid, bounded to PostgreSQL's 63 bytes, unguessable"""
++    base = re.sub(r"[^a-z0-9_]", "_", database.lower())[:30] or "db"
++    name = f"{base}_verify_{secrets.token_hex(8)}"
++    if not SCRATCH_RX.match(name):
++        raise RuntimeError("scratch name invalid")
++    return name
++
++
++def _scratch_count(node, name, table, column):
++    rc, out, _ = node.psql_rc(f"SELECT count(*) FROM {table} WHERE {column} = '{name}';")
++    return int(out) if rc == 0 and out.isdigit() else None       # None: the server could not tell
++
++
++def _record(b, rep):
++    p = Path(b) / f"verify-{rep['scratch']}.json"
++    tmp = p.with_suffix(".tmp")
++    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
++    with os.fdopen(fd, "w") as f:
++        f.write(json.dumps(rep, indent=1) + "\n")
++    os.replace(tmp, p)
++
++
++def verify_backup(node, backup, sessions_wait=120):
++    """Restore a backup into a NEW scratch database of the same server and compare its digest and db_version with the
++    manifest. Never raises for database failures and never exits: -> report.
++    - report["ok"] is True only if the backup was verified;
++    - report["cleanupOk"] is True only if no scratch database of ours is left;
++    - report["scratchState"] says what happened to the scratch database.
++    The production database is only read: by pg_restore's source, which is the dump file, and by nothing else."""
++    b = Path(backup)
++    rep = {"backup": str(b), "ok": False, "cleanupOk": True, "restoredDbVersion": None, "digestMatches": False, "problems": []}
+     m = json.loads((b / "manifest.json").read_text())
+     for name, meta in m["files"].items():
+         if sha256(b / name) != meta["sha256"]:
+-            die(f"{name} hash mismatch")
+-    scratch = node["database"] + "_verify"
+-    node.psql(f'DROP DATABASE IF EXISTS "{scratch}"; CREATE DATABASE "{scratch}";', db="postgres")
+-    with open(b / "indexd.pgdump", "rb") as f:
+-        r = subprocess.run(["docker", "exec", "-i", node["pg_container"], "sh", "-c",
+-                            'pg_restore -U ' + PG_USER + ' --no-owner --no-acl --exit-on-error -d "$1"', "pg_restore", scratch],
+-                           stdin=f, capture_output=True)
++            rep["problems"].append(f"{name} hash mismatch: nothing created")
++            return rep
++    tmo = int(node.p.get("verify_timeout_seconds", VERIFY_TIMEOUT_DEFAULT))
++    r = subprocess.run(["docker", "exec", node["pg_container"], "sh", "-c", "command -v timeout"], capture_output=True, timeout=60)
+     if r.returncode != 0:
+-        die("pg_restore failed: " + r.stderr.decode()[-300:])
+-    d = node.digest(db=scratch)
+-    v = node.db_version(db=scratch)
+-    node.psql(f'DROP DATABASE "{scratch}";', db="postgres")
+-    ok = d == m["digest"] and v == m["dbVersion"]
+-    print(json.dumps({"ok": ok, "backup": str(b), "restoredDbVersion": v, "digestMatches": d == m["digest"]}))
+-    sys.exit(0 if ok else 1)
++        rep["problems"].append("no `timeout` in the database container: the restore cannot be bounded; nothing created")
++        return rep
++    rep["scratch"] = scratch = scratch_name(node["database"])
++    rep["scratchState"] = "intent (CREATE not yet sent)"
++    _record(b, rep)
++    # 1. CREATE, alone (CREATE DATABASE cannot run in a transaction block). Ownership = OUR CREATE answered success.
++    rc, _, err = node.psql_rc(f'CREATE DATABASE "{scratch}";')
++    if rc != 0:
++        n = _scratch_count(node, scratch, "pg_database", "datname")
++        if rc is not None and "already exists" in err:
++            rep["scratchState"] = "already existed: not ours, untouched"
++            rep["problems"].append("scratch name already existed (not created by this verification)")
++        elif n == 0:
++            rep["scratchState"] = "not created"
++            rep["problems"].append(f"CREATE DATABASE failed: {err.strip()[-200:]}")
++        else:
++            rep["scratchState"] = "AMBIGUOUS: the CREATE answer was lost or unclear and the database may exist; preserved, never dropped"
++            rep["problems"].append("scratch creation ambiguous")
++            rep["cleanupOk"] = False
++        _record(b, rep)
++        return rep
++    rep["scratchState"] = "created (ours)"
++    _record(b, rep)
++    # 2. restore, bounded inside the container (pg_restore is KILLed at tmo) and on the host (tmo + 60)
++    try:
++        with open(b / "indexd.pgdump", "rb") as f:
++            r = subprocess.run(["docker", "exec", "-i", node["pg_container"], "sh", "-c",
++                                'timeout -s KILL "$2" pg_restore -U ' + PG_USER + ' --no-owner --no-acl --exit-on-error -d "$1"', "pg_restore", scratch, str(tmo)],
++                               stdin=f, capture_output=True, timeout=tmo + 60)
++        restored = r.returncode == 0
++        if not restored:
++            rep["problems"].append("pg_restore failed: " + r.stderr.decode()[-300:])
++    except subprocess.TimeoutExpired:
++        restored = False
++        rep["problems"].append(f"pg_restore did not answer within {tmo + 60} s")
++    if restored:
++        try:
++            d, v = node.digest(db=scratch), node.db_version(db=scratch)
++            rep["restoredDbVersion"], rep["digestMatches"] = v, d == m["digest"]
++            rep["ok"] = rep["digestMatches"] and v == m["dbVersion"]
++        except Exception as e:
++            rep["problems"].append(f"scratch digest unreadable: {str(e)[-200:]}")
++    # 3. no detached writer: no backend may still be connected to the scratch database (bounded wait), then DROP alone
++    n = None
++    for _ in range(sessions_wait):
++        n = _scratch_count(node, scratch, "pg_stat_activity", "datname")
++        if n == 0:
++            break
++        time.sleep(1)
++    if n != 0:
++        rep["scratchState"] = f"KEPT: {n if n is not None else 'unknown'} backend(s) still connected after {sessions_wait} s (a restore writer may still run)"
++        rep["cleanupOk"] = False
++        _record(b, rep)
++        return rep
++    rc, _, err = node.psql_rc(f'DROP DATABASE "{scratch}";')
++    left = _scratch_count(node, scratch, "pg_database", "datname")
++    if rc == 0 and left == 0:
++        rep["scratchState"] = "dropped"
++    else:
++        rep["scratchState"] = f"DROP not confirmed (rc {rc}, still present: {left}): kept, named here"
++        rep["cleanupOk"] = False
++        rep["problems"].append("scratch drop not confirmed: " + err.strip()[-200:])
++    _record(b, rep)
++    return rep
++
++
++def cmd_verify_backup(node, args):
++    """Restore a backup into a NEW scratch database in the same server and compare its digest with the manifest
++    (verify_backup). Exit 0 only if verified AND no scratch database of ours is left."""
++    rep = verify_backup(node, args.backup)
++    print(json.dumps(rep))
++    sys.exit(0 if rep["ok"] and rep["cleanupOk"] else 1)
++
++
++def resume_unchanged(node, before, version):
++    """after a failed pre-switch verification: restart the UNCHANGED source release if that is safe -> report"""
++    cur = Path(node["release_dir"]) / "current"
++    now = os.readlink(cur) if cur.is_symlink() else None
++    if before is None or now != before:
++        return {"resumed": False, "reason": f"current release {now} is not the pre-upgrade release {before}: not restarted"}
++    try:
++        v = node.db_version()
++    except Exception as e:
++        return {"resumed": False, "reason": f"db_version unreadable ({str(e)[-160:]}): not restarted"}
++    if v != version:
++        return {"resumed": False, "reason": f"db_version {v} != {version}: not restarted"}
++    try:
++        node.start()
++        node.wait_ready(version)
++    except Exception as e:
++        return {"resumed": False, "resumeFailed": str(e)[-300:], "release": before}
++    return {"resumed": True, "release": before, "dbVersion": version}
++
++
++def verify_before_switch(node, b, before, version):
++    """the upgrade's VERIFY step, BEFORE anything is switched. On failure: no switch, the unchanged source release is
++    resumed if safe, evidence stays in the backup directory, and the command exits 1."""
++    v = verify_backup(node, b)
++    if v["ok"] and v["cleanupOk"]:
++        return v
++    res = resume_unchanged(node, before, version)
++    print(json.dumps({"ok": False, "error": "backup verification failed before the switch: nothing switched",
++                      "verify": v, "resume": res, "backup": str(b), "previousRelease": before}))
++    sys.exit(1)
+ 
+ 
+ def cmd_install(node, args):
+@@ -402,6 +555,7 @@
+     m = json.loads((b / "manifest.json").read_text())
+     if m["dbVersion"] != STOCK_DB_VERSION:
+         die(f"expected db_version {STOCK_DB_VERSION} before upgrade, found {m['dbVersion']}")
++    verify_before_switch(node, b, before, STOCK_DB_VERSION)
+     switch_current(node, args.sha256)
+     node.start()
+     try:
+@@ -411,7 +565,7 @@
+     after = node.digest()
+     fence_route = node.app_status("/fence")
+     ok = after == m["digest"] and fence_route == 401
+-    print(json.dumps({"ok": ok, "backup": str(b), "previousRelease": before, "dbVersion": node.db_version(),
++    print(json.dumps({"ok": ok, "backup": str(b), "previousRelease": before, "dbVersion": node.db_version(), "backupVerified": True,
+                       "digestPreserved": after == m["digest"], "fenceRouteStatusUnauthenticated": fence_route}))
+     sys.exit(0 if ok else 1)
+ 
+@@ -477,6 +631,7 @@
+     dur = node.psql("SHOW fsync; SHOW synchronous_commit;").split()
+     if dur[:1] != ["on"] or (dur[1:2] or [""])[0] not in ("on", "local", "remote_apply"):
+         die(f"refusing: PostgreSQL durability settings fsync/synchronous_commit = {dur}; C2 needs fsync=on and synchronous_commit on|local|remote_apply")
++    verify_before_switch(node, b, before, FENCE_DB_VERSION)
+     switch_current(node, args.sha256)
+     node.start()
+     try:
+@@ -485,7 +640,7 @@
+         die(f"G-C2 upgrade not ready: {e}; previous release {before}; backup {b}")
+     after = node.digest()
+     ok = after == m["digest"] and node.app_status("/fence") == 401
+-    print(json.dumps({"ok": ok, "backup": str(b), "previousRelease": before, "dbVersion": node.db_version(),
++    print(json.dumps({"ok": ok, "backup": str(b), "previousRelease": before, "dbVersion": node.db_version(), "backupVerified": True,
+                       "digestPreserved": after == m["digest"], "fenceRouteStatusUnauthenticated": node.app_status("/fence")}))
+     sys.exit(0 if ok else 1)
+ 

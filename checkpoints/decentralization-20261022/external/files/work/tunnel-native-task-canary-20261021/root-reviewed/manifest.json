@@ -1,0 +1,14 @@
+{
+  "controller": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/host-service-transport-20261021/public-canary-resume/a5-authority/final/tunnel-install/tunnel_install.py",
+    "sha256": "3aaa0d0b9c75c7a5019cd631d17088481cbf5835ae524e6731e49f445a3a2f28"
+  },
+  "receiver": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/host-service-transport-20261021/public-canary-resume/a5-authority/final/tunnel-install/minipc/tunnel-receiver.ps1",
+    "sha256": "ec077c1103bc86a0b263e40776b06913e5f6c566cd94ecedb4b39aff6e0d2873"
+  },
+  "transport": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/nucbox-tls-20261021/root-activate-reviewed.py",
+    "sha256": "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f"
+  }
+}

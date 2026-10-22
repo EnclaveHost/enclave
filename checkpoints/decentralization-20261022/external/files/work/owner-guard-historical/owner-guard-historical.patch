@@ -1,0 +1,62 @@
+--- a/network/lease-gas-owner.mjs
++++ b/network/lease-gas-owner.mjs
+@@ -93,8 +93,14 @@
+ // root's read-only check, block 52856571, two RPCs). No caller can add to this list: an owner counts as a credit vault only
+ // when its code IS the EIP-1167 clone of a listed implementation and, at the same agreed block, the clone's factory() and
+ // the factory's implementation() are that binding.
+-export const CREDIT_VAULT_FACTORIES = Object.freeze([Object.freeze({ chainId: 8453, factory: "0xa891e4396e3eb11f364554043bc18e86da834e91",
+-  implementation: "0xeca6644333d3a069001203ce5416914a4d830beb", label: "EnclaveCreditVault (production factory, source d36100ae)" })]);
++// Every factory the platform book has named (read-only on Base by the credit-vault worker, 2026-10-20,
++// work/claude-credit-vault-independence-result.txt, site/credit/credit-config.json): 0x848a… from block 48,910,315, 0xa891…
++// from block 49,500,388. Vaults of the superseded factory still exist and can own records: they are refused the same way.
++export const CREDIT_VAULT_FACTORIES = Object.freeze([
++  Object.freeze({ chainId: 8453, factory: "0x848a8a89c3452ce7dc14764114a8c5886b6f0c08", implementation: "0xaf81a59492409ab717afce6e72a425bdb2fac507",
++    label: "EnclaveCreditVault (factory 2026-07-21, superseded 2026-08-03)" }),
++  Object.freeze({ chainId: 8453, factory: "0xa891e4396e3eb11f364554043bc18e86da834e91",
++    implementation: "0xeca6644333d3a069001203ce5416914a4d830beb", label: "EnclaveCreditVault (production factory, source d36100ae)" })]);
+ /** the exact runtime of an EIP-1167 minimal proxy (what the credit-vault factory's CREATE2 deploys) for `implementation` */
+ export const eip1167Runtime = (implementation) => `0x363d3d373d3d3d363d73${getAddress(implementation).slice(2).toLowerCase()}5af43d82803e903d91602b57fd5bf3`;
+ /** why a credit-vault-owned deployment cannot use the current reserve (EnclaveLeaseGasReserve 1d173473) */
+--- a/test/lease-gas-owner-cli.test.mjs
++++ b/test/lease-gas-owner-cli.test.mjs
+@@ -278,6 +278,8 @@
+ const CREDIT_VAULT_FIXTURE = path.join(ROOT, "test/fixtures/credit-vault-d36100ae.json");
+ // the reviewed production binding, stated here independently of the module under test (it is compared at the end)
+ const CREDIT_VAULT = { factory: "0xa891e4396e3eb11f364554043bc18e86da834e91", implementation: "0xeca6644333d3a069001203ce5416914a4d830beb" };
++// the superseded factory the platform book named before (read-only on Base by the credit-vault worker, 2026-10-20)
++const CREDIT_VAULT_HISTORICAL = { factory: "0x848a8a89c3452ce7dc14764114a8c5886b6f0c08", implementation: "0xaf81a59492409ab717afce6e72a425bdb2fac507" };
+ const clone1167 = (impl) => `0x363d3d373d3d3d363d73${impl.slice(2).toLowerCase()}5af43d82803e903d91602b57fd5bf3`;
+ async function productionCreditVault() {
+   const B = CREDIT_VAULT, cv = JSON.parse(fs.readFileSync(CREDIT_VAULT_FIXTURE, "utf8"));
+@@ -346,7 +348,8 @@
+   const t = await cli(lg("plan", "--ids", idV, "--max-gas-price-gwei", "0.05", "--per-app-eth", "0.002"), { json: false });
+   assert.match(t.out, /\(credit-vault\): REFUSED - refusing to prepare a deposit or configuration/);
+   // the module recognizes exactly the reviewed binding (no caller-supplied factory or implementation)
+-  assert.deepEqual(O.CREDIT_VAULT_FACTORIES?.map((b) => [b.chainId, b.factory, b.implementation]), [[8453, CREDIT_VAULT.factory, CREDIT_VAULT.implementation]]);
++  assert.deepEqual(O.CREDIT_VAULT_FACTORIES?.map((b) => [b.chainId, b.factory, b.implementation]),
++    [[8453, CREDIT_VAULT_HISTORICAL.factory, CREDIT_VAULT_HISTORICAL.implementation], [8453, CREDIT_VAULT.factory, CREDIT_VAULT.implementation]]);
+   assert.equal(O.eip1167Runtime?.(CREDIT_VAULT.implementation), clone1167(CREDIT_VAULT.implementation));
+ });
+ 
+@@ -370,3 +373,21 @@
+     assert.equal(k.kind, "eoa-7702");
+   } finally { await W.rpc("anvil_setCode", [e.address, "0x"]); }
+ });
++
++test("a vault of the SUPERSEDED factory (2026-07-21) owning a record is recognized and refused the same way; its binding is reported unverified here", T, async () => {
++  const o = await W.owner(); const id = await W.create(o, { fund6: 0n });
++  const vault = privateKeyToAccount(generatePrivateKey()).address;
++  await W.rpc("anvil_setCode", [vault, clone1167(CREDIT_VAULT_HISTORICAL.implementation)]);   // exactly what that factory's CREATE2 deploys
++  await W.write(o.key, W.addr.ledger, W.A.ledger.abi, "transferDeployment", [id, vault]);
++  const s = (await cli(lg("status", id))).json.apps[0];
++  assert.equal(s.ownerKind.kind, "credit-vault");
++  assert.match(s.ownerKind.detail, /^UNSUPPORTED: EnclaveCreditVault \(factory 2026-07-21, superseded 2026-08-03\) 0x848[aA]8[aA]89.* \(binding not verified\)$/,
++    "no implementation code exists at that address on this local chain, so factory()/implementation() cannot be read: still refused, and said so");
++  for (const args of [[...lg("deposit", id, "--eth", "0.01"), "--from", o.address], lg("configure", id, "--max-gas-price-gwei", "0.05")]) {
++    const r = await cli(args, { expectFail: true });
++    assert.match(r.err, /credit vault of EnclaveCreditVault \(factory 2026-07-21, superseded 2026-08-03\) 0x[0-9a-fA-F]{40} \(its factory binding did not verify at this block\); a credit vault is controlled by passkey signatures/);
++  }
++  assert.equal((await R(id, vault)).balanceWei, 0n);
++  const p = (await cli(lg("plan", "--ids", id, "--max-gas-price-gwei", "0.05", "--per-app-eth", "0.002"))).json;
++  assert.equal(p.apps[0].ownerKind.kind, "credit-vault"); assert.deepEqual(p.apps[0].steps, []); assert.equal(BigInt(p.totalWei), 0n);
++});

@@ -1,0 +1,8 @@
+--- a/testutils/syncer.go
++++ b/testutils/syncer.go
+@@ -1,4 +1,4 @@
+-package testutils
++package rtu
+ 
+ import (
+ 	"context"

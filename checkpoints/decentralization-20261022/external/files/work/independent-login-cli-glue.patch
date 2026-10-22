@@ -1,0 +1,65 @@
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -3846,9 +3846,11 @@
+     if (sub === "terminate" || sub === "end") return sessionTerminateIndependent(rest);
+     if (sub === "top-up") return sessionTopUpIndependent(rest);
+     if (sub === "revoke-all") return sessionRevokeAllIndependent(rest);
++    // watched on chain (cli/independent-login-cli.mjs): no relay polling, and the owner's own top-up link
++    if (sub === "resume-wait" || sub === "top-up-link") return independentLogin(`session ${sub}`, rest);
+     if (!["list", "ls", "use", "delegate"].includes(sub))
+       throw new Error(`session ${sub || ""} uses the hosted sessions relayer; independent mode offers session new | open | inspect | status | `
+-        + `list | use | terminate | top-up | revoke-all | delegate`);
++        + `list | use | terminate | top-up | top-up-link | resume-wait | revoke-all | delegate`);
+   }
+   if (sub === "new") return sessionNew(rest);
+   if (sub === "resume-wait") return sessionResumeWait(rest);
+@@ -4971,17 +4973,13 @@
+ const INDEPENDENT_COMMANDS = new Set(["key", "whoami", "ls", "list", "status", "hosts", "pricing", "availability", "apps",
+   "deploy", "fund", "stop", "suspend", "resume", "rate-cap", "cap", "refund", "cancel", "transfer", "upgrade", "set-version",
+   "resize", "bootstrap", "artifact", "session", "logs", "restart", "attest", "publish", "app-token", "cpu-profile",
+-  "config", "encvol", "host", "gpu", "move"]);
++  "config", "encvol", "host", "gpu", "move", "login", "logout", "account"]);
+ // Why each remaining command has no independent path (work/cli-remaining-interface.txt has the exact missing pieces).
+ const INDEPENDENT_REFUSALS = {
+   secrets: "relay-held secrets are a hosted service; the independent path is custody v2 inside an owner-committed startup "
+     + "package (bootstrap prepare --custody-file, SEV-SNP), owned by the custody workstream",
+   custody: "the custody CLI (cli/custody.mjs) still reads through first-answer RPC clients and relay hooks; it is refused "
+     + "here until the custody workstream accepts quorum clients",
+-  account: "Enclave accounts (passkey sign-in, orders, credit) are the hosted account service; independently, your wallet "
+-    + "is the account (ls, whoami, fund)",
+-  login: "account sign-in is the hosted account service; independent mode acts with your wallet key",
+-  logout: "account sessions are the hosted account service; independent mode keeps no account token",
+ };
+ async function configureIndependent() {
+   const asked = opt.independent || opt.profile || opt.profileDigest;
+@@ -5487,6 +5485,20 @@
+   const tx = await S.prepareSessionOpen({ publicClient: INDEPENDENT.pc, factory, owner: ownerSigner, chainId: DEFAULTS.chainId, grant: pending.grant });
+   return sessionFinishOpen(S, store, pending, tx, owner, opt.unsigned ? null : loadKey({ required: false }));
+ }
++// Sign-in with no Enclave account service: a session key and grant made here, approved by the owner's own account (a
++// wallet or a passkey Safe) on a frontend the owner chose, opened on the pinned factory, and adopted once the agreed chain
++// shows exactly that session (cli/independent-login.mjs; work/independent-login-interface.txt).
++async function independentLogin(cmd, rest) {
++  const L = await import("./independent-login-cli.mjs");
++  const S = await sessionsSdk(), { I, chain, trust } = INDEPENDENT, factory = independentFactory();
++  await I.assertReviewedCode(chain, trust.profile, ["sessionVaultFactory"]);
++  await assertPinnedSessionFactory();
++  return L.independentLoginCommand(cmd, rest, { S, chain, pc: INDEPENDENT.pc, sessionSnapshot: I.sessionSnapshot, store: await sessionStore(),
++    stateDir: path.join(SESSION_DIR, "login"), factory, chainId: DEFAULTS.chainId, profileDigest: trust.digest || null, env,
++    flags, numFlag, say, info: opt.json ? (t) => stderr.write(t + "\n") : say, jout, json: !!opt.json, confirm,
++    interactive: !!(stdin.isTTY && stdout.isTTY), gasKey: () => (opt.unsigned ? null : loadKey({ required: false })),
++    sendTx: (account, { to, data }) => I.sendQuorumTx(chain, { account, to, data, maxFeeGwei: INDEPENDENT.maxFeeGwei, log: (m) => trace(m) }) });
++}
+ async function sessionTerminateIndependent(rest) {
+   const f = flags(rest, {});
+   const s = await loadSession(f._[0]);
+@@ -5649,7 +5661,8 @@
+   if (cmd === "deploy" && args.includes("--chain-only") && !CONTRACT_PINS)
+     throw new Error("--chain-only requires --contract-pins (or ENCLAVE_CONTRACT_PINS_FILE)");
+   if (!OFFLINE) await resolveAddressBook();
+-  await COMMANDS[cmd](args);
++  if (INDEPENDENT && (cmd === "login" || cmd === "logout" || cmd === "account")) await independentLogin(cmd, args);
++  else await COMMANDS[cmd](args);
+ } catch (e) {
+   die(e?.message || String(e));
+ }

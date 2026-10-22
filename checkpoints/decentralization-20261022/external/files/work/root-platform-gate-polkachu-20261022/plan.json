@@ -1,0 +1,6 @@
+{
+  "stage": "C:\\ProgramData\\Enclave\\staging\\policygate-ab4cdc0dc872",
+  "gateSha": "72346b95702ed7ea6d14ae0a69d0c813844d925bb8c0d48216b79a1c7e9f9437",
+  "psSha": "681ea47993eb035f165e59676891551d7a2be22f72515fab515f2442d3d93a98",
+  "scope": "Read-only exact installed bundle, prospective independent RPC4 with quorum3. No policy activation, config change or restart. Validates current chain state only; carrier transport still missing."
+}

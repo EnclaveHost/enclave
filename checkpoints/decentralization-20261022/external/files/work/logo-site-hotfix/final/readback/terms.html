@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>(function(){
+var heal=function(){try{
+  var k="enclave_skew_reload",last=+sessionStorage.getItem(k)||0;
+  if(Date.now()-last<240000)return;
+  sessionStorage.setItem(k,String(Date.now()));
+  setTimeout(function(){location.reload();},8000);
+}catch(e){}};
+addEventListener("error",function(e){
+  var t=e.target;
+  if(t&&(t.tagName==="SCRIPT"||(t.tagName==="LINK"&&t.rel==="modulepreload")))heal();
+},true);
+addEventListener("unhandledrejection",function(e){
+  if(/dynamically imported module|Failed to fetch|error loading/i.test(String(e.reason)))heal();
+});
+})();</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070A0F" />
+<title>Terms of Service · Enclave</title>
+<meta name="description" content="The Enclave terms of service: crypto-only, non-custodial, final payments; no uptime guarantee; the service is provided as-is." />
+<link rel="canonical" href="https://enclave.host/terms" />
+<meta name="robots" content="index,follow,max-image-preview:large" />
+<meta property="og:site_name" content="Enclave" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://enclave.host/terms" />
+<meta property="og:title" content="Terms of Service · Enclave" />
+<meta property="og:description" content="The Enclave terms of service: crypto-only, non-custodial, final payments; no uptime guarantee; the service is provided as-is." />
+<meta property="og:image" content="https://enclave.host/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Enclave: compute that cannot see your data. WebAssembly on attested GPU enclaves, paid per second." />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://enclave.host/assets/og.png" />
+<script type="application/ld+json" data-breadcrumb>
+{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+{"@type":"ListItem","position":1,"name":"Enclave","item":"https://enclave.host/"},
+{"@type":"ListItem","position":2,"name":"Terms of Service","item":"https://enclave.host/terms"}]}
+</script>
+<link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<script>
+/* Cross-document view transitions are skipped by Chromium when extensions
+   inject content scripts (MetaMask et al): the old page sees pageswap with
+   no viewTransition. Flag it, and the NEXT page (this script runs pre-paint)
+   plays the same settle-in itself (html.soft-enter, see base.css) - content
+   only, the static header stays put. */
+(function(){
+  try { if (sessionStorage.getItem("enclave_novt")) { sessionStorage.removeItem("enclave_novt"); document.documentElement.classList.add("soft-enter"); } } catch(e){}
+  addEventListener("pageswap", function(e){
+    try { if (!e.viewTransition && e.activation) sessionStorage.setItem("enclave_novt", "1"); } catch(e){}
+  });
+})();
+</script>
+<link rel="stylesheet" href="css/site.css" />
+<link rel="modulepreload" href="js/chunks/chunk-LLYUEQ45.js" />
+<link rel="modulepreload" href="js/chunks/chunk-TXG5D22N.js" />
+<link rel="modulepreload" href="js/chunks/chunk-IBXEASKH.js" />
+<link rel="modulepreload" href="js/chunks/terms-BDWV5DMD.js" />
+<link rel="modulepreload" href="js/chunks/chunk-D7VGFCH5.js" />
+<link rel="modulepreload" href="js/chunks/chunk-Z5J4PI3T.js" />
+<link rel="modulepreload" href="js/chunks/chunk-3LBUJ242.js" />
+<link rel="modulepreload" href="js/chunks/chunk-277DVH75.js" />
+<link rel="modulepreload" href="js/chunks/chunk-SHT3C7TR.js" />
+<link rel="modulepreload" href="js/chunks/chunk-S2A6SCSN.js" />
+<script type="module" src="js/boot.js?media=2"></script>
+</head>
+<body>
+<c-header current="terms" data-ssr><header class="nav">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="wrap nav-inner">
+    <a href="./" class="brand" aria-label="Enclave home">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+        <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkH"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkH)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="./" data-view="overview">Overview</a>
+      <a href="apps" data-view="apps">Apps</a>
+      <a href="develop" data-view="develop">Develop</a>
+      <a href="host" data-view="host">Host</a>
+      <a href="dashboard" data-view="dashboard" hidden>Dashboard</a>
+    </nav>
+    <c-wallet-button data-ssr><div class="wallet-mount" id="walletMount">
+  <button class="btn btn-primary btn-sm" id="walletBtn" type="button" aria-controls="walletPop">Sign in <span class="arr" aria-hidden="true">→</span></button>
+  <div class="wallet-pop" id="walletPop" hidden></div>
+</div></c-wallet-button>
+  </div>
+</header></c-header>
+<script>(function(){try{
+var s=JSON.parse(localStorage.getItem("enclave_session")||"null");
+var a=JSON.parse(localStorage.getItem("enclave_account")||"null");
+var wallet=s&&s.address,acct=a&&a.token;
+if(!wallet&&!acct)return;
+var dt=document.querySelector('.nav-links a[data-view="dashboard"]');if(dt)dt.hidden=false;
+var b=document.getElementById("walletBtn");if(!b)return;
+b.classList.add("connected");b.textContent="";
+var d=document.createElement("span");d.className="wdot";b.appendChild(d);
+b.appendChild(document.createTextNode(wallet?s.address.slice(0,6)+"…"+s.address.slice(-4):"Signed in"));
+b.dataset.painted="1";
+}catch(e){}})();</script>
+<main id="main" tabindex="-1">
+<h1 class="sr-only">Enclave Terms of Service</h1>
+<section id="terms" data-view="terms" aria-label="Terms of Service" style="padding:84px 0 0;">
+  <div class="wrap">
+    <c-section-head eyebrow="Legal" heading="Terms of Service." data-ssr><div class="sec-head">
+  <span class="eyebrow">Legal</span>
+  <h2>Terms of Service.</h2>
+  <p>These are the terms you agree to when you deploy an app on Enclave. They are written to be read: short, plain, and honest about what this platform is - and what it is not. If you do not agree with them, do not deploy.</p>
+</div></c-section-head>
+
+    <div class="terms-doc">
+      <p class="terms-updated">Last updated: July 14, 2026 · applies to <code>enclave.host</code> and the Enclave public API</p>
+
+      <h3>1 · The service</h3>
+      <p>Enclave (operated by Enclave Host, Inc., &ldquo;we&rdquo;) lets you deploy WebAssembly apps to confidential-computing hardware, paid for per unit of runtime. Deployments are records on public smart contracts on the Base network; independent enclave machines claim and run them. By creating, funding, or operating a deployment - from this site, the CLI, or the API - you agree to these terms.</p>
+
+      <h3>2 · Eligibility and sanctions</h3>
+      <p>To use Enclave you must be old enough to form a binding contract where you live - at least the age of majority in your jurisdiction. Each time you deploy, you represent that you are <b>not</b> on any sanctions or denied-party list; that you are not located in, ordinarily resident in, or acting on behalf of anyone in a country or region subject to comprehensive sanctions or embargo; and that you will not use the platform in violation of applicable export-control or sanctions law. We may refuse, suspend, or stop serving deployments to comply with those laws.</p>
+
+      <h3>3 · Payments are crypto-only</h3>
+      <p>Runtime is paid for up front: <b>USDC on the Base network</b>, sent from a wallet you control straight to our treasury, or <b>by card</b> on a Stripe-hosted checkout page. There are no subscriptions and no stored payment methods on our side. Card payments never buy, hold, or convert cryptocurrency for you, and we never send cryptocurrency to customers.</p>
+      <p>Card payments add <b>account credit</b>: prepaid service credit, denominated in dollars, spendable only on Enclave runtime. Credit is <b>not transferable, not redeemable for cash or cryptocurrency, and capped at $2,000 per account</b>. It is recorded in a closed-loop on-chain account that only your passkey can spend from and that can only pay Enclave; we cannot move your credit without your signature, and neither of us can withdraw it. Losing every passkey on your account permanently strands its remaining credit; add a second passkey or link a wallet so that cannot happen. Refunds of unused credit are handled manually by a person (<a href="mailto:support@enclave.host">support@enclave.host</a>), returned to the original card only.</p>
+
+      <h3>4 · Payments are non-custodial</h3>
+      <p>You pay directly from your own wallet by signing on-chain transactions. <b>We never hold your funds and never have access to your keys.</b> Funding a deployment forwards your payment in the same transaction; nothing is escrowed or held on your behalf. The &ldquo;balance&rdquo; a deployment shows is prepaid runtime - an accounting number on a public smart contract - not money in an account.</p>
+      <p>Some catalog apps charge a <b>publisher fee</b>, set by the app's publisher and shown in the hourly rate before you sign. When you fund a deployment of such an app, the publisher's share of that payment forwards directly to the publisher's wallet in the same transaction. That share is a payment from you to that publisher - an independent third party - not to us; we never hold it either, and it is as final as every other payment here.</p>
+
+      <h3>5 · Payments are final</h3>
+      <p>Blockchain transactions are irreversible, and so are payments here: <b>all payments are final</b>. There are no refunds, chargebacks, or reversals, and prepaid runtime cannot be converted back into funds. Runtime you have paid for is consumed as your deployment runs; if a runner fails mid-lease, up to one lease interval of prepaid time can be lost. Double-check the app, the shares, and the amount before you sign - the chain will not give it back.</p>
+
+      <h3>6 · No guarantee of uptime or availability</h3>
+      <p>The service is provided <b>&ldquo;as is&rdquo; and &ldquo;as available&rdquo;, with no guarantee of uptime, availability, or performance and no service-level agreement</b>. Enclave hardware can fail, restart, or be withdrawn; the platform, its APIs, and this site can be interrupted, degraded, or discontinued at any time. The failover design lets another enclave take over a funded deployment, but we do not promise that one will be available, that takeover will be timely, or that your app will run continuously. Do not run anything here whose downtime you cannot tolerate, and keep your own copies of anything you cannot afford to lose.</p>
+
+      <h3>7 · Your apps and your use</h3>
+      <p>You are responsible for what you deploy and for the traffic it serves. Do not use the platform for anything unlawful, for attacking others, or for content or workloads you do not have the rights to run. Apps in the catalog are published by third parties: a catalog listing (or approval) means the record is well-formed, not that we endorse the app or vouch for what it does - attestation lets you verify <em>what code runs</em>, and that is the guarantee on offer. If you publish an app that charges a publisher fee, the price you set is yours, and so are any obligations that come with receiving it (including taxes); we route your share of each funding to your wallet, we never hold it, and payments to you are as final as every other payment here. We may refuse, suspend, or stop serving deployments that break these terms or threaten the platform.</p>
+
+      <h3>8 · Privacy and data</h3>
+      <p>Enclave is crypto-native and non-custodial, so there is very little personal data for us to hold. What the service does touch - wallet addresses and public on-chain records, passkey or wallet sign-in, card payments handled entirely by Stripe, and browser-side session state - is set out in our <a href="privacy">Privacy Policy</a>. Because your app runs on confidential-computing hardware, the <em>contents</em> of what it processes are not visible to us as the operator; see the <a href="privacy">Privacy Policy</a> for the details.</p>
+
+      <h3>9 · Disclaimers and liability</h3>
+      <p>To the maximum extent permitted by law, we disclaim all warranties, express or implied, including merchantability, fitness for a particular purpose, and non-infringement; and our total liability to you for any claim arising out of the service is limited to the amount you paid for the deployment giving rise to the claim in the thirty days before it arose. Nothing here limits liability that cannot lawfully be limited. You use public blockchains, cryptocurrency, and confidential-computing hardware at your own risk.</p>
+
+      <h3>10 · Governing law and disputes</h3>
+      <p>These terms are governed by the laws of <b>the State of Delaware</b>, without regard to its conflict-of-laws rules. Before starting any formal proceeding, you agree to <b>first try to resolve the dispute informally</b>: email <a href="mailto:support@enclave.host">support@enclave.host</a> with a short description of the issue and give us at least 30 days to work it out. If it cannot be resolved that way, the dispute will be settled by <b>binding arbitration on an individual basis</b>, administered by the American Arbitration Association (AAA) under its Commercial Arbitration Rules, seated in <b>Wilmington, Delaware</b>, rather than in court - except that either party may still bring an individual claim in small-claims court, or seek injunctive relief to stop misuse of the platform.</p>
+
+      <h3>11 · Changes and contact</h3>
+      <p>We may update these terms; the date above changes when we do, and deploy surfaces will ask for your agreement again. Continuing to deploy after a change means you accept it. Questions: <a href="mailto:support@enclave.host">support@enclave.host</a>.</p>
+    </div>
+  </div>
+</section>
+</main>
+<c-footer data-ssr><footer aria-label="Footer">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="./" class="brand" aria-label="Enclave home">
+          <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+            <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkF"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkF)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+        </a>
+        <p>Compute that cannot see your data. Paid per second, for anything that holds a key.</p>
+        <div class="foot-meta">
+          <span>built + operated by Enclave Host, Inc.</span>
+          <span>front-end: static, pinned to IPFS · <code>enclave.host</code></span>
+        </div>
+      </div>
+      <nav aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          <li><a href="./#why">What you get</a></li>
+          <li><a href="./#how">How it works</a></li>
+          <li><a href="apps">App store</a></li>
+          <li><a href="./#pricing">Pricing</a></li>
+          <li><a href="develop#architecture">Architecture</a></li>
+          <li><a href="develop#progress">Engineering evidence</a></li>
+          <li><a href="./#about">About the company</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Developers">
+        <h2>Developers</h2>
+        <ul>
+          <li><a href="develop#docs">App development guide</a></li>
+          <li><a href="develop#api">API reference</a></li>
+          <li><a href="openapi.json" id="dlSpec2">OpenAPI spec</a></li>
+          <li><a href="./#attest">Attestation guide</a></li>
+          <li><a href="develop#api">Error codes</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Trust">
+        <h2>Trust</h2>
+        <ul>
+          <li><a href="develop#contract">The isolation contract</a></li>
+          <li><a href="develop#shield">Enclave Shield</a></li>
+          <li><a href="./#attest">Verify an enclave</a></li>
+          <li><a href="develop#verify">What is measured</a></li>
+          <li><a href="develop#independent">What runs on our servers</a></li>
+          <li><a href="https://github.com/EnclaveHost/enclave" target="_blank" rel="noopener">Source on GitHub</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Contact and legal">
+        <h2>Contact</h2>
+        <ul>
+          <li><a class="foot-mail" href="mailto:support@enclave.host">Support<code>support@enclave.host</code></a></li>
+          <li><a class="foot-mail" href="mailto:security@enclave.host">Security disclosures<code>security@enclave.host</code></a></li>
+          <li><a href=".well-known/security.txt">security.txt</a></li>
+          <li><a href="terms">Terms of Service</a></li>
+          <li><a href="privacy">Privacy Policy</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Enclave Host, Inc. · content-addressed on IPFS · build <span data-build>166bf9d3 · 2026-10-19</span></span>
+      <span>designed to outlive any one operator</span>
+    </div>
+  </div>
+</footer></c-footer>
+<c-toast data-ssr><div id="toast" role="status" aria-live="polite" aria-atomic="true"></div></c-toast>
+</body>
+</html>

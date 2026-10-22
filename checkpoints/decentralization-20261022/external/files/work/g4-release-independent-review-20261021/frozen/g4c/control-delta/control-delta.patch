@@ -1,0 +1,109 @@
+--- a/control/windows-or-network/network-enroll.mjs
++++ b/network-enroll.mjs
+@@ -115,12 +115,18 @@
+     // worker named (no other box's section changes, so nothing restarts for this release alone)
+     const { block: hostServices, error: hostServicesError } = hostServicesBlock(cfg?.enclaveNetwork?.hostServices);
+     if (hostServicesError) log(`HOST SERVICES CONFIG INVALID (kept unchanged; the privacy agent refuses host services until it is fixed): ${hostServicesError}`);
++    // CHALLENGE REPLICA (network/challenge-replica-host.mjs; work/challenge-host-tls-20261021): the operator's opt-in, kept
++    // byte-for-byte like hostServices - never computed or validated here (the privacy agent judges it at start). Without
++    // this every pass replaced the section, dropped it and restarted the agent. Placed before walletAdmission, which stays last.
++    const challengeReplica = cfg?.enclaveNetwork?.challengeReplica;
++    const keepChallenge = !!challengeReplica && typeof challengeReplica === "object" && !Array.isArray(challengeReplica);
+     // Directory choice belongs to the host operator; enrollment must not silently
+     // restore the default relay each time a new app appears.
+     const directories = cfg?.enclaveNetwork?.directories || config.enclaveNetwork.directories;
+     const walletAdmission = config.walletAdmission?.file && path.isAbsolute(config.walletAdmission.file) ? { file: config.walletAdmission.file } : null;
+     const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork, directories }), ...(hostEgress ? { hostEgress } : {}), ...(paceMbps ? { paceMbps } : {}),
+       ...(hostServices ? { hostServices, serviceWorkerModule: path.join(binDir, "host-service-ingress.mjs") } : {}),
++      ...(keepChallenge ? { challengeReplica } : {}),
+       // the node's wallet hold channel (host.mjs walletChannelStart), only while the node runs one: the agent then admits an
+       // app only on a fresh allow there; dropped (one restart) when the node stops writing it, so nothing waits on a dead file
+       ...(walletAdmission ? { walletAdmission } : {}) };
+--- a/control/windows-or-network/host-service-names.mjs
++++ b/host-service-names.mjs
+@@ -31,9 +31,22 @@
+   const h = hostLabel(hostId); validServiceZone(zone);
+   return Object.fromEntries(Object.entries(HOST_SERVICE_LABELS).map(([label, role]) => [role, `${label}-${h}.${zone}`]));
+ }
+-/** a name of the host-service SHAPE (any host) in `zone`, or of that shape anywhere when zone is null */
++// The host's attested challenge PUSH origin (the app-zone-replica's managed front, challenge-replica-host.mjs; TLS by the
++// host's service-tls role): chal-<base32(registry id)>.<zone>, a 57-character label (<= 63). Deliberately NOT one of
++// hostServiceNames(): a provider grants it only when its operator opts in (hostServices.challenge), so the exact three-name
++// grant of every existing provider and host is unchanged. It has the service SHAPE, so no app or customer name can hold it.
++export const HOST_CHALLENGE_LABEL = 'chal';
++export const HOST_CHALLENGE_ROLE = 'app-zone-replica';
++/** -> 'chal-<b32>.<zone>' for one host */
++export function hostChallengeName(hostId, zone) {
++  const h = hostLabel(hostId); validServiceZone(zone);
++  return `${HOST_CHALLENGE_LABEL}-${h}.${zone}`;
++}
++/** -> 'https://chal-<b32>.<zone>' (the only origin a managed challenge front may declare) */
++export const hostChallengeOrigin = (hostId, zone) => `https://${hostChallengeName(hostId, zone)}`;
++/** a name of the host-service SHAPE (any host; the three roles and the challenge origin) in `zone`, or anywhere when zone is null */
+ export function isHostServiceName(name, zone = null) {
+   const n = String(name || '').toLowerCase();
+-  const m = /^(dir|boot|policy)-([a-z2-7]{52})\.(.+)$/.exec(n);
++  const m = /^(dir|boot|policy|chal)-([a-z2-7]{52})\.(.+)$/.exec(n);
+   return !!m && (zone === null || m[3] === zone);
+ }
+--- a/control/windows-or-network/host-service-transport.mjs
++++ b/host-service-transport.mjs
+@@ -7,13 +7,17 @@
+ //
+ // config (cfg.enclaveNetwork.hostServices): { zone, exits: [providerId, ...] (1-8),
+ //   ports: { "directory-replica": 18188, "bootstrap-replica": 18189, "policy-mirror": 18190 } (any subset, loopback),
+-//   tls?: { httpPort, tlsPorts: { <role>: port } }     (G3, the host's service-tls role, work/host-service-tls-20261021:
++//   tls?: { httpPort, tlsPorts: { <role>: port },      (G3, the host's service-tls role, work/host-service-tls-20261021:
++//           challengePort? }                           (challengePort: the host's attested challenge origin
++//                                                        chal-<b32>.<zone> - its 443 goes there and its 80 to httpPort for
++//                                                        http-01 only; the exits must grant it, i.e. their operator opted in
++//                                                        with hostServices.challenge, work/challenge-host-tls-20261021)
+ //                                                        port 80 of every derived name goes to its front httpPort -
+ //                                                        ACME http-01 plus raw passthrough - and 443 to tlsPorts[role];
+ //                                                        a role without a TLS port is closed on 443),
+ //   dns?: { tcp: 18153, udp: 18153 } }                 (route-dns; the exit forwards 53 only if its operator pins this host)
+ import tls from 'node:tls';
+-import { hostServiceNames, HOST_SERVICE_ROLES, validServiceZone } from './host-service-names.mjs';
++import { hostServiceNames, hostChallengeName, HOST_SERVICE_ROLES, validServiceZone } from './host-service-names.mjs';
+ const ZERO = '0x' + '0'.repeat(64), COOLDOWN_MAX_MS = 30 * 60000;
+ const port = (v) => Number.isInteger(v) && v >= 1 && v <= 65535;
+ 
+@@ -25,10 +29,11 @@
+   const roles = Object.keys(HOST_SERVICE_ROLES);
+   if (!c.ports || typeof c.ports !== 'object' || !Object.keys(c.ports).length || Object.entries(c.ports).some(([r, p]) => !roles.includes(r) || !port(p))) throw new Error(`hostServices.ports: loopback ports of ${roles.join(', ')}`);
+   if (c.tls !== undefined) {
+-    const t = c.tls, ok = t && typeof t === 'object' && !Object.keys(t).some((k) => !['httpPort', 'tlsPorts'].includes(k)) && port(t.httpPort) &&
+-      t.tlsPorts && typeof t.tlsPorts === 'object' && Object.keys(t.tlsPorts).length && Object.entries(t.tlsPorts).every(([r, p]) => c.ports[r] && port(p));
+-    if (!ok) throw new Error('hostServices.tls: { httpPort, tlsPorts: { <served role>: port } }');
+-    const all = [...Object.values(c.ports), t.httpPort, ...Object.values(t.tlsPorts)];
++    const t = c.tls, ok = t && typeof t === 'object' && !Object.keys(t).some((k) => !['httpPort', 'tlsPorts', 'challengePort'].includes(k)) && port(t.httpPort) &&
++      t.tlsPorts && typeof t.tlsPorts === 'object' && Object.keys(t.tlsPorts).length && Object.entries(t.tlsPorts).every(([r, p]) => c.ports[r] && port(p)) &&
++      (t.challengePort === undefined || port(t.challengePort));
++    if (!ok) throw new Error('hostServices.tls: { httpPort, tlsPorts: { <served role>: port }, challengePort? }');
++    const all = [...Object.values(c.ports), t.httpPort, ...Object.values(t.tlsPorts), ...(t.challengePort !== undefined ? [t.challengePort] : [])];
+     if (new Set(all).size !== all.length) throw new Error('hostServices.tls: the front and TLS ports must differ from each other and from the role ports');
+   }
+   // route-dns answers UDP and TCP on ONE port; the host relays both over its TCP listener (a Windows circuit sandbox grants
+@@ -36,7 +41,8 @@
+   if (c.dns !== undefined && (!c.dns || typeof c.dns !== 'object' || Object.keys(c.dns).some((k) => !['tcp', 'udp'].includes(k)) || !port(c.dns.tcp) || c.dns.udp !== c.dns.tcp)) throw new Error('hostServices.dns: {tcp, udp}: route-dns\'s one loopback port (both the same)');
+   // absent blocks stay ABSENT (not null), so the normalized form validates again unchanged (privacy-agent validates, then
+   // HostServiceTransport validates what it is given)
+-  return { zone: c.zone, exits: [...new Set(c.exits)], ports: { ...c.ports }, ...(c.tls ? { tls: { httpPort: c.tls.httpPort, tlsPorts: { ...c.tls.tlsPorts } } } : {}),
++  return { zone: c.zone, exits: [...new Set(c.exits)], ports: { ...c.ports },
++    ...(c.tls ? { tls: { httpPort: c.tls.httpPort, tlsPorts: { ...c.tls.tlsPorts }, ...(c.tls.challengePort !== undefined ? { challengePort: c.tls.challengePort } : {}) } } : {}),
+     ...(c.dns ? { dns: { tcp: c.dns.tcp, udp: c.dns.udp } } : {}) };
+ }
+ 
+@@ -57,8 +63,11 @@
+     const c = validateHostServicesTransport(config);
+     Object.assign(this, { runtime, providers, grants, hostId: String(hostId).toLowerCase(), config: c, now, log });
+     const all = hostServiceNames(this.hostId, c.zone);
+-    this.granted = Object.values(all);   // the exit grants every derived name; only the configured roles answer
++    // the exit grants every derived name (plus the challenge origin when its operator opted in); only the configured roles answer
++    const chal = c.tls?.challengePort !== undefined ? hostChallengeName(this.hostId, c.zone) : null;
++    this.granted = [...Object.values(all), ...(chal ? [chal] : [])];
+     this.names = Object.fromEntries(Object.entries(c.ports).map(([role, p]) => [all[role], { http: c.tls ? c.tls.httpPort : p, tls: c.tls?.tlsPorts[role] || null }]));
++    if (chal) this.names[chal] = { http: c.tls.httpPort, tls: c.tls.challengePort };   // 80: http-01 only (service-tls); 443: the challenge front
+     this.circuits = new Map(); this.cooldown = new Map(); this.strikes = new Map(); this.closed = false; this.busy = false;
+   }
+   /**

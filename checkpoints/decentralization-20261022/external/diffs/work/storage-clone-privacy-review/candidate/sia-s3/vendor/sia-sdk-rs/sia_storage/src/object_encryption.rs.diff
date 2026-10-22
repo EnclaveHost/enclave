@@ -1,0 +1,119 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/object_encryption.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/object_encryption.rs
+@@ -1,6 +1,6 @@
+ use crate::encryption::EncryptionKey;
+ use blake2b_simd::Params;
+-use chacha20poly1305::aead::{Aead, Generate};
++use chacha20poly1305::aead::Aead;
+ use chacha20poly1305::{KeyInit, XChaCha20Poly1305, XNonce};
+ use sia_core::signing::PrivateKey;
+ use sia_core::types::Hash256;
+@@ -77,6 +77,69 @@
+     }
+ }
+ 
++/// PATCH (clone privacy): 32 bytes derived from fresh randomness AND the
++/// input they protect (a hedged derivation, in the spirit of RFC 8937 and of
++/// hedged nonces): HMAC-BLAKE2b-256 keyed by 32 secret bytes of the process
++/// RNG, over the length-prefixed `domain`, 32 bytes of OS randomness and
++/// `parts`.
++///
++/// - Fresh RNG: the output is pseudorandom, as a plain random draw was.
++/// - A copy of a running process repeats the process RNG (and a VM snapshot
++///   or WASI host may repeat the OS RNG too): the output then still differs
++///   for any different (domain, parts), and is equal only for equal input.
++/// - The HMAC key never leaves the process, so an output is not a public
++///   function of the input: it cannot be used to test guesses of it.
++///
++/// Callers encode `parts` unambiguously (fixed widths or length prefixes);
++/// each use has its own `domain`.
++/// PATCH (clone privacy review), TEST ONLY (mock feature): OS randomness every
++/// hedged derivation uses instead of getrandom's, see
++/// `mock::repeat_os_randomness`. Not compiled into non-mock builds.
++#[cfg(feature = "mock")]
++pub(crate) static REPEAT_OS_RANDOMNESS: std::sync::Mutex<Option<[u8; 32]>> = std::sync::Mutex::new(None);
++
++fn hedged(domain: &[u8], parts: &[&[u8]]) -> [u8; HASH_SIZE] {
++    let seed = zeroize::Zeroizing::new(rand::random::<[u8; 32]>());
++    let mut os = zeroize::Zeroizing::new([0u8; 32]);
++    getrandom::fill(&mut os[..]).expect("OS randomness");
++    #[cfg(feature = "mock")]
++    if let Some(r) = *REPEAT_OS_RANDOMNESS.lock().unwrap() {
++        os.copy_from_slice(&r);
++    }
++    let domain_len = (domain.len() as u64).to_le_bytes();
++    let mut input: Vec<&[u8]> = Vec::with_capacity(parts.len() + 3);
++    input.extend([domain_len.as_slice(), domain, os.as_slice()]);
++    input.extend_from_slice(parts);
++    hmac(seed.as_slice(), &input)
++}
++
++/// PATCH (clone privacy): a new key bound to its input, see [hedged].
++pub(crate) fn hedged_key(domain: &[u8], parts: &[&[u8]]) -> EncryptionKey {
++    let mut key = hedged(domain, parts);
++    let out = EncryptionKey::from(key);
++    zeroize::Zeroize::zeroize(&mut key);
++    out
++}
++
++/// PATCH (clone privacy): a sealing nonce bound to what it seals, see
++/// [hedged]: unique per (domain, input) even when copies repeat every RNG;
++/// equal only when the sealed input is equal (then so is the ciphertext).
++fn hedged_nonce(domain: &[u8], parts: &[&[u8]]) -> XNonce {
++    let h = hedged(domain, parts);
++    let nonce: [u8; NONCE_SIZE] = h[..NONCE_SIZE].try_into().unwrap();
++    XNonce::from(nonce)
++}
++
++/// PATCH (clone privacy): a new metadata key for sealing `metadata` of object
++/// `object_id`, hedged: copies of a running process seal different metadata
++/// under different keys.
++pub(crate) fn new_metadata_key(object_id: &Hash256, metadata: &[u8]) -> EncryptionKey {
++    hedged_key(
++        b"sia_storage/metadata-key/v1",
++        &[object_id.as_ref(), &(metadata.len() as u64).to_le_bytes(), metadata],
++    )
++}
++
+ pub(crate) fn derive_encryption_key(key: &[u8], salt: &[u8], domain: &[u8]) -> EncryptionKey {
+     let mut okm = [0u8; 32];
+     hkdf(key, salt, domain, &mut okm);
+@@ -91,7 +154,11 @@
+     let data_encryption_key =
+         derive_encryption_key(app_key.as_ref(), object_id.as_ref(), b"dataKey");
+     let encryption_key_cipher = XChaCha20Poly1305::new(data_encryption_key.as_ref().into());
+-    let nonce = XNonce::generate();
++    // PATCH (clone privacy): hedged nonce, see `hedged_nonce`
++    let nonce = hedged_nonce(
++        b"sia_storage/seal-nonce/data-key/v1",
++        &[object_id.as_ref(), encryption_key.as_ref()],
++    );
+     let encrypted_data_key = encryption_key_cipher
+         .encrypt(&nonce, encryption_key.as_ref().as_ref())
+         .expect("encryption failed");
+@@ -106,7 +173,11 @@
+     let meta_encryption_key =
+         derive_encryption_key(app_key.as_ref(), object_id.as_ref(), b"metadataKey");
+     let encryption_key_cipher = XChaCha20Poly1305::new(meta_encryption_key.as_ref().into());
+-    let nonce = XNonce::generate();
++    // PATCH (clone privacy): hedged nonce, see `hedged_nonce`
++    let nonce = hedged_nonce(
++        b"sia_storage/seal-nonce/metadata-key/v1",
++        &[object_id.as_ref(), encryption_key.as_ref()],
++    );
+     let encrypted_meta_key = encryption_key_cipher
+         .encrypt(&nonce, encryption_key.as_ref().as_ref())
+         .expect("encryption failed");
+@@ -155,7 +226,11 @@
+ 
+ pub(crate) fn seal_metadata(meta_key: &EncryptionKey, metadata: &[u8]) -> Vec<u8> {
+     let metadata_cipher = XChaCha20Poly1305::new(meta_key.as_ref().into());
+-    let nonce = XNonce::generate();
++    // PATCH (clone privacy): hedged nonce, see `hedged_nonce`
++    let nonce = hedged_nonce(
++        b"sia_storage/seal-nonce/metadata/v1",
++        &[&(metadata.len() as u64).to_le_bytes(), metadata],
++    );
+     let encrypted_metadata = metadata_cipher
+         .encrypt(&nonce, metadata)
+         .expect("encryption failed");

@@ -1,0 +1,379 @@
+{
+ "schema": "enclave-site-host-operations-plan/1",
+ "generatedAt": "2026-10-21T08:05:31.550Z",
+ "STATUS": "NOT READY TO SEND. A static plan: every signing step requires the fresh recheck listed with it, performed at signing time, and nothing here is signed, uploaded, published, funded or broadcast.",
+ "basis": {
+  "chainId": 8453,
+  "blocks": [
+   "52890214",
+   "52890292"
+  ],
+  "rpcQuorum": "2 of https://base-rpc.publicnode.com, https://base.drpc.org, https://1rpc.io/base, https://mainnet.base.org",
+  "probes": {
+   "logs/probe.json": "823b1ec3a6830dfda3589a54128e943bedc08464eb45f2280c3801f6febe09eb",
+   "logs/probe2.json": "231e3d8ff457bd9b935e973fd8a8d35a897ef3a3784cf128f26369ba40adf2ee"
+  },
+  "addressBook": "0xab214342d5A490150A4A977063A2f88E21F80907"
+ },
+ "artifact": {
+  "file": "work/site-host-final-release/deliver/package/site_host.wasm",
+  "sha256": "bc88d945fb1f569e842b8bb8edaf0528ff6eef642390e8976e5a9dd9487db93e",
+  "bytes": 46004290,
+  "expectedUploadCid": "bafybeihfcjkkynfm6fumslxrziib2yinq52krrnjzgpqkf6fhwnh7wrad4",
+  "cidMethod": "scripts/site-release/unixfs.mjs importFile (kubo `ipfs add --cid-version 1` layout: raw leaves, size-262144, balanced 174)",
+  "world": {
+   "wasi": "0.2",
+   "world": "wasi:http/incoming-handler@0.2.6"
+  },
+  "embeddedRelease": {
+   "cid": "bafybeibs6ouoiqwsr632yvb4ffvmpee4bvxhiaqdg64khrijnt6lgbt3na",
+   "car": {
+    "sha256": "60f038842aa718b23efd5f1412119f854d0d8faef27c330a41b1de7a54da47a2",
+    "bytes": 45774054,
+    "blocks": 770
+   }
+  },
+  "doNotRebuild": true
+ },
+ "authorization": {
+  "cliSession": {
+   "found": "0x95bf\u2026cb5d (label 'Claude Code: EnclaveDNS deploy', vault 0xB794C4DD0e1C5E6B72281799F282BfdE7654345D, owner 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61)",
+   "state": "ended (live=false, balance 0)",
+   "actions": "no app.publish (has api.upload, deploy.*)",
+   "apps": "limited to one app id 0x85f2\u2026ab06",
+   "verdict": "does NOT authorize this upload or catalog publication. A new session would make its VAULT the publisher (version starts Pending, a different appId) and itself needs the owner's grant signature, so it does not avoid the wallet."
+  },
+  "accountJwt": "never accepted as an upload or publish signer (upload-token route takes EnclaveSession or personal_sign only)",
+  "cliWalletKey": "absent (`enclave whoami`: no wallet key and no account session)",
+  "conclusion": "The catalog owner's wallet (0x0b2d009c0c9Af05b12100D77F3c815fea822eE61) must sign. Owner-published versions are approved on publish; any other publisher lands Pending and needs the owner's setApproval anyway."
+ },
+ "wallet": {
+  "address": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+  "roles": [
+   "EnclaveAppCatalog owner",
+   "EnclaveDeployments owner",
+   "metal0 payout wallet"
+  ],
+  "balancesAtProbe": {
+   "address": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+   "eth": "0.002859307327465036",
+   "usdc": "65.713827"
+  }
+ },
+ "contracts": {
+  "catalog": "0x18419CA2b502D423A8de6269AEeE171a378626e3",
+  "catalogSchema": "9",
+  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+  "ledgerSchema": 16,
+  "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "registry": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC"
+ },
+ "steps": [
+  {
+   "id": "U1",
+   "what": "upload authorization message",
+   "actor": "owner wallet (personal_sign; MetaMask or another live signer: the CLI handoff carries transactions only)",
+   "message": "enclave-upload:bc88d945fb1f569e842b8bb8edaf0528ff6eef642390e8976e5a9dd9487db93e:<EXPIRY>",
+   "request": {
+    "method": "personal_sign",
+    "params": [
+     "<utf8-hex of the message>",
+     "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61"
+    ]
+   },
+   "freshness": "EXPIRY = unix now + 300 at signing (relay accepts now <= expiry <= now+600; gateway refuses past expiries and > now+900). Sign immediately before U2/U3.",
+   "recheck": [
+    "artifact sha256 equals bc88d945fb1f569e842b8bb8edaf0528ff6eef642390e8976e5a9dd9487db93e"
+   ]
+  },
+  {
+   "id": "U2",
+   "what": "upload token (ROOT network write)",
+   "request": {
+    "method": "POST",
+    "url": "https://api.enclave.host/v1/apps/upload-token",
+    "json": {
+     "hash": "bc88d945fb1f569e842b8bb8edaf0528ff6eef642390e8976e5a9dd9487db93e",
+     "expiry": "<EXPIRY>",
+     "signature": "<U1 signature>"
+    }
+   },
+   "response": "{token, address (lowercase owner), expiry}"
+  },
+  {
+   "id": "U3",
+   "what": "upload the wasm (ROOT network write; 46 MB)",
+   "request": {
+    "method": "POST",
+    "url": "https://ipfs.enclave.host/add-wasm",
+    "headers": {
+     "content-type": "application/wasm",
+     "x-upload-address": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+     "x-upload-expiry": "<EXPIRY>",
+     "x-upload-token": "<U2 token>"
+    },
+    "body": "the exact bytes of site_host.wasm"
+   },
+   "expect": {
+    "cid": "bafybeihfcjkkynfm6fumslxrziib2yinq52krrnjzgpqkf6fhwnh7wrad4",
+    "wasi": "0.2",
+    "world": "wasi:http/incoming-handler@0.2.6"
+   },
+   "stopIf": "the returned cid differs from expectedUploadCid (do NOT publish a different CID)",
+   "notes": "ipfs.enclave.host resolves to the DO fleet today; the fleet tenant s3-ipfs-adapter serves it. Off-DO alternative: `enclave artifact publish \u2026 --storage-plan` to 2-8 adapter replicas (each also needs a signed upload message)."
+  },
+  {
+   "id": "U4",
+   "what": "verify retrievability (read-only)",
+   "check": "fetch https://ipfs.enclave.host/ipfs/bafybeihfcjkkynfm6fumslxrziib2yinq52krrnjzgpqkf6fhwnh7wrad4?format=car&dag-scope=all and verify every block (wasm/ipfs_fetch.py semantics); the runner on minipc uses that single gateway (660 s budget)"
+  },
+  {
+   "id": "P1",
+   "what": "publish catalog version enclave-site:1 (auto-approved because the owner sends it)",
+   "request": {
+    "method": "eth_sendTransaction",
+    "params": [
+     {
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x18419CA2b502D423A8de6269AEeE171a378626e3",
+      "value": "0x0",
+      "data": "0x47910c23000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000001c00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000028000000000000000000000000000000000000000000000000000000000000002c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000032000000000000000000000000000000000000000000000000000000000000003400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c656e636c6176652d736974650000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c456e636c61766520736974650000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004854686520656e636c6176652e686f737420776562736974652c207365727665642066726f6d206f6e6520656d6265646465642c204349442d76657269666965642072656c6561736500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000013100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003b626166796265696866636a6b6b796e666d3666756d736c78727a6969623279696e7135326b72726e6a7a6770716b66366668776e683777726164340000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000567b2272656c65617365223a22626166796265696273366f756f6971777372363332797662346666766d7065653462767868696171646736346b6872696a6e74366c676274336e61222c2277617369223a22302e32227d00000000000000000000",
+      "chainId": "0x2105"
+     }
+    ]
+   },
+   "decoded": {
+    "function": "publishVersion(string,string,string,string,string,uint32[4],string,string,uint256)",
+    "args": {
+     "slug": "enclave-site",
+     "name": "Enclave site",
+     "description": "The enclave.host website, served from one embedded, CID-verified release",
+     "version": "1",
+     "cid": "bafybeihfcjkkynfm6fumslxrziib2yinq52krrnjzgpqkf6fhwnh7wrad4",
+     "res": [
+      0,
+      0,
+      256,
+      10
+     ],
+     "ports": "",
+     "config": "{\"release\":\"bafybeibs6ouoiqwsr632yvb4ffvmpee4bvxhiaqdg64khrijnt6lgbt3na\",\"wasi\":\"0.2\"}",
+     "feePerSec6": "0"
+    }
+   },
+   "calldataSha256": "130719209c6be178a4b27df96f9caf7523a584be11fbac3209c6f31a42a6a032",
+   "simulation": {
+    "eth_estimateGas_from_owner": "619977",
+    "atBlock": "52890214",
+    "result": "succeeds"
+   },
+   "cliEquivalent": "enclave publish site_host.wasm --slug enclave-site --name \"Enclave site\" --desc \"The enclave.host website, served from one embedded, CID-verified release\" --mem 256 --cpu-gflops 10 --config '{\"release\":\"bafybeibs6ouoiqwsr632yvb4ffvmpee4bvxhiaqdg64khrijnt6lgbt3na\"}' --wallet   (needs the owner key in the CLI: absent; the CLI also does U1-U3 itself)",
+   "recheck": [
+    "U3 returned exactly bafybeihfcjkkynfm6fumslxrziib2yinq52krrnjzgpqkf6fhwnh7wrad4",
+    "numVersions(appId 0x34454e4c308659e9fe94b5988a4e93ec44c712cb4a7203363e49960285bc8655) is still 0 (else re-encode with the next version string)",
+    "catalog owner and address-book appCatalog unchanged",
+    "re-run eth_estimateGas from the owner at the send block",
+    "nonce/fees filled by the wallet at send time"
+   ]
+  },
+  {
+   "id": "P2",
+   "what": "verify the version (read-only)",
+   "check": "getVersion(appId,0): cid bafybeihfcjkkynfm6fumslxrziib2yinq52krrnjzgpqkf6fhwnh7wrad4, memMb 256, ports '', config {\"release\":\"bafybeibs6ouoiqwsr632yvb4ffvmpee4bvxhiaqdg64khrijnt6lgbt3na\",\"wasi\":\"0.2\"}, approval approved; receipt carries VersionApprovalSet"
+  },
+  {
+   "id": "D1",
+   "option": "A (recommended, ready)",
+   "what": "create the public deployment on the minipc tier",
+   "request": {
+    "method": "eth_sendTransaction",
+    "params": [
+     {
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+      "value": "0x0",
+      "data": "0x36aaac4b0000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000320000000000000000000000000000000000000000000000000000000000001f9000000000000000000000000000000000000000000000000000000000000001c0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000004e636174616c6f673a2f2f3078333434353465346333303836353965396665393462353938386134653933656334346337313263623461373230333336336534393936303238356263383635352f30000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000347b2269736f6c6174696f6e223a7b2272657175697265223a226879706572762d706172746974696f6e2d7065722d617070227d7d000000000000000000000000",
+      "chainId": "0x2105"
+     }
+    ]
+   },
+   "decoded": {
+    "function": "create(string,uint16,uint16,uint32,string,bool,string,address,uint256,uint256)",
+    "args": {
+     "appRef": "catalog://0x34454e4c308659e9fe94b5988a4e93ec44c712cb4a7203363e49960285bc8655/0",
+     "gpuMilli": 0,
+     "cpuMilli": 50,
+     "appPort": 8080,
+     "ports": "",
+     "isPublic": true,
+     "configCid": "{\"isolation\":{\"require\":\"hyperv-partition-per-app\"}}",
+     "feeRecipient": "0x0000000000000000000000000000000000000000",
+     "feePerSec6": "0",
+     "maxRate6": "3"
+    }
+   },
+   "simulation": {
+    "eth_estimateGas_from_owner": "417498",
+    "atBlock": "52890292",
+    "result": "succeeds (the ledger does not check the catalog at create; a host checks it at claim)"
+   },
+   "cliEquivalent": "enclave deploy enclave-site:1 --isolation hyperv-partition-per-app --cpu 0.05 --max-rate 0.0108 --fund 8 --wallet",
+   "recheck": [
+    "P2 confirmed (version approved)",
+    "nucbox-k11-4: claimEnabled, isolation hyperv-partition-per-app, configOverride true, cpuShareFree >= 0.05, askCpuPricePerSec6 <= 47 (rate at 50 milli = 3 \u00b5USDC/s = maxRate6)",
+    "re-simulate at the send block"
+   ],
+   "result": "the deployment id = topics[1] of the Created event"
+  },
+  {
+   "id": "D2",
+   "option": "A",
+   "what": "fund 8.00 USDC (choose ONE form)",
+   "formEip3009": {
+    "typedData": {
+     "domain": {
+      "name": "USD Coin",
+      "version": "2",
+      "chainId": 8453,
+      "verifyingContract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+     },
+     "primaryType": "ReceiveWithAuthorization",
+     "types": {
+      "ReceiveWithAuthorization": [
+       {
+        "name": "from",
+        "type": "address"
+       },
+       {
+        "name": "to",
+        "type": "address"
+       },
+       {
+        "name": "value",
+        "type": "uint256"
+       },
+       {
+        "name": "validAfter",
+        "type": "uint256"
+       },
+       {
+        "name": "validBefore",
+        "type": "uint256"
+       },
+       {
+        "name": "nonce",
+        "type": "bytes32"
+       }
+      ]
+     },
+     "message": {
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+      "value": "8000000",
+      "validAfter": "0",
+      "validBefore": "<unix now + 3600 at signing>",
+      "nonce": "<first 16 bytes of the D1 deployment id + 16 fresh random bytes>"
+     }
+    },
+    "then": "eth_sendTransaction to 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B: fundWithAuthorization(id, 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61, 8000000, 0, validBefore, nonce, signature)",
+    "freshness": "validBefore bounds the authorization; the nonce is single-use and bound to the deployment id"
+   },
+   "formTransactionsOnly": {
+    "note": "handoff-compatible (transactions only)",
+    "txs": [
+     "USDC.approve(0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B, 8000000)",
+     "EnclaveDeployments.fund(id, 8000000)"
+    ]
+   },
+   "buys": "2666666 s = 30.9 days at 3 \u00b5USDC/s ($0.0108/h); claimable needs balance >= rate; each lease burns <= leaseSec 1800 s x rate = $0.0054"
+  },
+  {
+   "id": "D3",
+   "what": "verify the claim and serving (read-only)",
+   "check": [
+    "enclave status <id>: claimed by nucbox-k11-4 (0x2fcef48d\u202647a), Running",
+    "https://<first 8 hex of id>.app.enclave.host/.well-known/site-host names bafybeibs6ouoiqwsr632yvb4ffvmpee4bvxhiaqdg64khrijnt6lgbt3na",
+    "probe /, /dashboard, /credit/, /recover/, /authorize, /js/boot.js, /install.sh, a 404 against the DO Caddy bytes and headers"
+   ]
+  }
+ ],
+ "deploymentOptions": [
+  {
+   "id": "A",
+   "host": "nucbox-k11-4 (minipc, Windows Hyper-V partition per app, enclave-shield tier)",
+   "hostId": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+   "state": "READY at probe: claimEnabled, configOverride true, cpuShareFree 0.21, apps 8/16, nodeRamGb 64, measured 397.7 GFLOPS, ask 47 \u00b5USDC/s per node",
+   "resources": {
+    "cpu": 0.05,
+    "why": "minimum shares: catalog gflops 10/397.7 => 3%; memory 256 MiB/64 GiB => 1%; 5% leaves headroom (version memMb 256 = guest memory; deployed 48.0.1 runtime e2e 6/6)",
+    "gpu": 0,
+    "memMbFromVersion": 256
+   },
+   "rate": "3 \u00b5USDC/s = $0.0108/h",
+   "maxRate6": 3,
+   "funding": "$8.00 USDC = about 30.9 days",
+   "trust": "apps run in a measured Shield partition with a guest-held TLS key; physical operator and hypervisor remain trusted (not in a TEE); host omission platform-firmware-unpinned"
+  },
+  {
+   "id": "B",
+   "host": "metal0 (warden-host, SEV-SNP guest per app)",
+   "hostId": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+   "state": "BLOCKED at probe: cpuShareFree 0 (usedCpuShare 1); configOverride false, so the release pin needs the owner-committed startup package (direct bootstrap)",
+   "flow": [
+    "enclave deploy enclave-site:1 --chain-only --prepare-only --startup-target snp",
+    "enclave bootstrap prepare <id> --config-file cfg.json --app-id <HEX> --runtime-id <HEX> --public --out pkg.json",
+    "enclave bootstrap publish <id> --file pkg.json --storage-plan plan.json",
+    "enclave bootstrap activate <id> --file pkg.json --storage-plan plan.json",
+    "enclave fund <id> --usdc <n>"
+   ],
+   "rate": "$0 compute: metal0's payout wallet is the deployment owner (selfHostFree); still needs >0 funding and free CPU share",
+   "pending": [
+    "free CPU share on metal0",
+    "the guest runtime/app ids for bootstrap prepare",
+    "a storage plan for the package"
+   ]
+  },
+  {
+   "id": "C",
+   "host": "pixel10-pvm-cpu",
+   "state": "NOT AVAILABLE: claimEnabled false, registered false (market-only pVM), 0.99 GFLOPS; site-host runtime there unverified"
+  }
+ ],
+ "costs": {
+  "usdcFunding": "8.00 (option A, about 30.9 days); minimum to be claimable about 0.01",
+  "gas": {
+   "publishVersion": "619977",
+   "create": "417498",
+   "fundWithAuthorization": "~150000 (not simulable before the id exists)",
+   "gasPriceWeiAtProbe": 6000000,
+   "totalEth": "0.00000712",
+   "totalUsdAtProbe": "0.0175"
+  },
+  "upload": "no fee; counts against the signer's daily byte budget (4 GB/wallet)",
+  "publisherFee": "0",
+  "total": "about $8.00 USDC + 0.00000712 ETH gas at probe prices; the owner held 65.713827 USDC and 0.002859307327465036 ETH"
+ },
+ "pendingDependencies": [
+  "the owner wallet must sign: U1 (message), P1 and D1 (transactions), D2 (typed data + transaction, or two transactions)",
+  "ROOT performs the network writes U2/U3 and the broadcasts; nothing has been uploaded: the CID is precomputed, not claimed uploaded",
+  "lease gas: if nucbox-k11-4 runs with ENCLAVE_LEASE_GAS_* configured it refuses to claim until the deployment has a configured, funded EnclaveLeaseGasReserve (`enclave --independent \u2026 lease-gas plan|deposit|configure`). Not visible in public availability; root confirms on the host",
+  "public reach is <label>.app.enclave.host through the relay/DNS edge; enclave.host itself, its certificate (BYO-domain flow) and non-DO ingress are separate root/certificate-worker steps",
+  "the site's default UI still calls api.enclave.host (control VM on minipc; owned by Claude 7cfd0800)"
+ ],
+ "rollback": {
+  "P1": "leave the version unused or have the owner delist it; it can only ever serve bafybeibs6ouoiqwsr632yvb4ffvmpee4bvxhiaqdg64khrijnt6lgbt3na",
+  "D1/D2": "enclave refund <id> (remaining funds return) or setActive false",
+  "pin": "enclave config set <id> '{\"release\":\"<other>\"}' => 503, never other content",
+  "production": "the original site stays bafybeig3rai3tyoimbhb32vo6hkkw3o336wluht7owbs7mefhtiridwp6y on the DO Caddy roots; nothing in this plan changes DNS, IPNS or Caddy"
+ },
+ "notClaimed": [
+  "provider independence (minipc, metal0 and the Pixel share one site and uplink; 5.78.85.108 not assumed)",
+  "end-to-end activation"
+ ],
+ "preserved": [
+  "passkey origin https://enclave.host / rpId enclave.host",
+  "Enclave admin powers (catalog owner approval/delisting, host bans, upgrades)",
+  "no optional or pinned authority migration",
+  "credit leaseGasReserve null (parallel reserve OFF)"
+ ]
+}

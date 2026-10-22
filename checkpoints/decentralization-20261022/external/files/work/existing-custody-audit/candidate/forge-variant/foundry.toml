@@ -1,0 +1,12 @@
+# Isolated copy of the repository Foundry profile (foundry.toml): native solc 0.8.35, via_ir, optimizer runs 200. Full unmodified suite.
+[profile.default]
+src = "contracts"
+test = "contracts/foundry/test"
+out = "out"
+cache_path = "cache"
+libs = ["contracts/foundry/lib"]
+solc = "/home/steven/.local/share/svm/0.8.35/solc-0.8.35"
+offline = true
+optimizer = true
+optimizer_runs = 200
+via_ir = true

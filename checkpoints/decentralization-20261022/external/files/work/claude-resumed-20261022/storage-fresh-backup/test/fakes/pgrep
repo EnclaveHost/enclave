@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from _fake import *
+log("pgrep", *sys.argv[1:])
+sys.exit(0 if os.path.exists(os.path.join(D, "proc")) else 1)

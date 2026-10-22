@@ -1,0 +1,7 @@
+--- eme.go	2026-10-20 16:06:39.053559536 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/volume-parity/tree/isolation/m2/encvol/rclonecrypt/eme/eme.go	2026-10-20 16:07:06.764041147 -0700
+@@ -1,3 +1,4 @@
++// Verbatim from github.com/rfjakob/eme v1.1.2 eme.go (MIT, Jakob Unterwurzacher); see ../NOTICE.
+ // EME (ECB-Mix-ECB or, clearer, Encrypt-Mix-Encrypt) is a wide-block
+ // encryption mode developed by Halevi and Rogaway.
+ //

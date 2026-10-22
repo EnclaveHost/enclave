@@ -1,0 +1,99 @@
+--- a/network/host-service-names.mjs
++++ b/network/host-service-names.mjs
+@@ -31,9 +31,22 @@
+   const h = hostLabel(hostId); validServiceZone(zone);
+   return Object.fromEntries(Object.entries(HOST_SERVICE_LABELS).map(([label, role]) => [role, `${label}-${h}.${zone}`]));
+ }
+-/** a name of the host-service SHAPE (any host) in `zone`, or of that shape anywhere when zone is null */
++// The host's attested challenge PUSH origin (the app-zone-replica's managed front, challenge-replica-host.mjs; TLS by the
++// host's service-tls role): chal-<base32(registry id)>.<zone>, a 57-character label (<= 63). Deliberately NOT one of
++// hostServiceNames(): a provider grants it only when its operator opts in (hostServices.challenge), so the exact three-name
++// grant of every existing provider and host is unchanged. It has the service SHAPE, so no app or customer name can hold it.
++export const HOST_CHALLENGE_LABEL = 'chal';
++export const HOST_CHALLENGE_ROLE = 'app-zone-replica';
++/** -> 'chal-<b32>.<zone>' for one host */
++export function hostChallengeName(hostId, zone) {
++  const h = hostLabel(hostId); validServiceZone(zone);
++  return `${HOST_CHALLENGE_LABEL}-${h}.${zone}`;
++}
++/** -> 'https://chal-<b32>.<zone>' (the only origin a managed challenge front may declare) */
++export const hostChallengeOrigin = (hostId, zone) => `https://${hostChallengeName(hostId, zone)}`;
++/** a name of the host-service SHAPE (any host; the three roles and the challenge origin) in `zone`, or anywhere when zone is null */
+ export function isHostServiceName(name, zone = null) {
+   const n = String(name || '').toLowerCase();
+-  const m = /^(dir|boot|policy)-([a-z2-7]{52})\.(.+)$/.exec(n);
++  const m = /^(dir|boot|policy|chal)-([a-z2-7]{52})\.(.+)$/.exec(n);
+   return !!m && (zone === null || m[3] === zone);
+ }
+--- a/network/wg-provider/provider.mjs
++++ b/network/wg-provider/provider.mjs
+@@ -6,7 +6,10 @@
+ import {canonical} from '../route-record.mjs';
+ import {defaultNetworkPolicy,admitNetworkPolicy,networkUse} from '../network-policy.mjs';
+ import {paidGate} from './paid.mjs';
+-import {hostServiceNames,isHostServiceName} from '../host-service-names.mjs';
++import {hostServiceNames,hostChallengeName,isHostServiceName} from '../host-service-names.mjs';
++// a host's granted service names: its three role names, plus its challenge origin where this provider's operator opted in
++// (hostServices.challenge, work/challenge-host-tls-20261021); derived from the runner, never requested
++const serviceNamesOf=(runner,hs)=>[...Object.values(hostServiceNames(runner,hs.zone)),...(hs.challenge===true?[hostChallengeName(runner,hs.zone)]:[])];
+ 
+ export const REQUEST_MAX_AGE_MS=60000,PEER_TTL_MS=10*60000,MAX_PEERS=2048,MAX_SERVICE_HOSTS=64,DNS_STALE_MS=180000;
+ const app=/^0x[0-9a-f]{64}$/,hex32=/^[0-9a-f]{32}$/,wgKey=/^[A-Za-z0-9+/]{43}=$/,address=/^0x[0-9a-fA-F]{40}$/;
+@@ -85,7 +88,7 @@
+   for(const p of saved?.peers||[]){
+    if(!p||p.expiresAt<=now||!/^10\.7[78]\./.test(p.address||''))continue;
+    // a service peer's names follow THIS run's configuration, never the saved ones (a changed zone; host services withdrawn)
+-   if(p.role==='service'){if(!this.config.hostServices)continue;try{p.names=Object.values(hostServiceNames(p.runner,this.config.hostServices.zone));}catch{continue;}p.dnsOk=false;}
++   if(p.role==='service'){if(!this.config.hostServices)continue;try{p.names=serviceNamesOf(p.runner,this.config.hostServices);}catch{continue;}p.dnsOk=false;}
+    this.peers.set(p.key,p);this.used.add(p.address);
+    try{await this.kernel.setPeer({...p,role:p.role==='guard'||p.onGuard?'guard':'exit'});}catch(e){this.log('restore peer: '+e.message);}
+   }
+@@ -227,7 +230,7 @@
+    while(same.length>=2)await this.remove(same.shift(),'replaced');
+    peer={key:r.wgPublicKey,role:'service',deploymentId:r.deploymentId,runner:r.runner,address:this.allocate('exit'),createdAt:now,service:true};
+   }
+-  const names=Object.values(hostServiceNames(r.runner,hs.zone));
++  const names=serviceNamesOf(r.runner,hs);
+   Object.assign(peer,{egress:false,ingress:true,names,grantedAt:now,expiresAt:Math.min(r.expiresAt,now+PEER_TTL_MS)});
+   this.peers.set(peer.key,peer);await this.kernel.setPeer(peer);await this.sync();await this.persist();
+   if(this.config.hostServices?.dns?.hosts?.includes(peer.runner)&&peer.dnsOk!==true)void this.probeDnsPeers([peer]).then(()=>this.sync()).catch(e=>this.log('dns probe: '+e.message));
+--- a/network/wg-provider/host-services-config.mjs
++++ b/network/wg-provider/host-services-config.mjs
+@@ -2,7 +2,10 @@
+ // roles this transport carries, as raw packets (provider.mjs service, dnsTarget; kernel.mjs dns).
+ //   hostServices: { zone, platformHostPolicy: "production" | {book, hostOwnership, mirrors[], ...} | "off",
+ //                   platformHostPolicyMirrors?: [https], platformHostPolicyRpcs?: [url], maxHosts?,
+-//                   dns?: { hosts: [registry ids], staleMs?, perSourcePps?, perSourceBurst?, globalPps?, globalBurst?, tcpPerSource? } }
++//                   dns?: { hosts: [registry ids], staleMs?, perSourcePps?, perSourceBurst?, globalPps?, globalBurst?, tcpPerSource? },
++//                   challenge?: true }   (also grant each carried host its attested challenge origin chal-<b32>.<zone>
++//                                         (host-service-names.mjs hostChallengeName; work/challenge-host-tls-20261021);
++//                                         absent/false = exactly the three role names, as before)
+ // "off" is a development option, written explicitly: the transport profile (scripts/check-transport-profile.mjs) refuses it.
+ // zone: the APP zone itself (the hosted route-dns answers the derived labels from its appStatic, network/host-services/
+ // stage-tool.mjs hostServicePublication) or a zone apart from both the app and the probe zone - never nested in either.
+@@ -18,7 +21,7 @@
+ export function providerHostServices(hs, { zone = 'app.enclave.host', probeZone = 'probe.enclave.host', roles = [] } = {}) {
+   if (hs === undefined || hs === null) return null;
+   if (!plain(hs)) fail('must be an object');
+-  const allowed = ['zone', 'platformHostPolicy', 'platformHostPolicyMirrors', 'platformHostPolicyRpcs', 'maxHosts', 'dns'];
++  const allowed = ['zone', 'platformHostPolicy', 'platformHostPolicyMirrors', 'platformHostPolicyRpcs', 'maxHosts', 'dns', 'challenge'];
+   for (const k of Object.keys(hs)) if (!allowed.includes(k)) fail(`unknown field ${JSON.stringify(k)}`);
+   try { validServiceZone(hs.zone); } catch (e) { fail(e.message.replace(/^hostServices\.?/, '')); }
+   // the app zone itself is allowed (only the service SHAPE is reserved there); a zone nested in or above it, or touching the
+@@ -37,6 +40,7 @@
+   const mirrors = https(hs.platformHostPolicyMirrors, 'platformHostPolicyMirrors'), rpcs = https(hs.platformHostPolicyRpcs, 'platformHostPolicyRpcs');
+   if (p === 'off' && (mirrors.length || rpcs.length)) fail('platformHostPolicy "off" with mirrors or RPCs: nothing would use them');
+   if (hs.maxHosts !== undefined && (!Number.isInteger(hs.maxHosts) || hs.maxHosts < 1 || hs.maxHosts > 256)) fail('maxHosts: 1 to 256');
++  if (hs.challenge !== undefined && typeof hs.challenge !== 'boolean') fail('challenge: true or false');
+   let dns = null;
+   if (hs.dns !== undefined) {
+     const d = hs.dns;
+@@ -49,7 +53,7 @@
+     let l; try { l = dnsLimits(limits); } catch (e) { fail(e.message); }
+     dns = { hosts: [...new Set(hosts.map((h) => h.toLowerCase()))], staleMs: staleMs ?? 180000, limits: l };
+   }
+-  return { zone: hs.zone, platformHostPolicy: p, mirrors, rpcs, maxHosts: hs.maxHosts ?? 64, dns };
++  return { zone: hs.zone, platformHostPolicy: p, mirrors, rpcs, maxHosts: hs.maxHosts ?? 64, dns, ...(hs.challenge === true ? { challenge: true } : {}) };
+ }
+ 
+ /** DNS 53 forwarding FAILS CLOSED without conntrack-tools (final review N2): -> { on, limits|null, pins|null, reason|null }.

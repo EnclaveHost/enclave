@@ -1,0 +1,45 @@
+--- server.mjs.before	2026-10-21 02:45:06.632938576 -0700
++++ tree/windows/vbslike/manager/server.mjs	2026-10-21 02:45:20.636089469 -0700
+@@ -748,25 +748,36 @@
+    * absent from a SUCCESSFUL survey. It stops that domain's relay, reclaims its sessions, and leaves the VM for the node
+    * to retire (only a stop removes a VM). Unknown is not gone: a survey that fails changes nothing. A record mid-start
+    * (no handle yet) or being stopped is left alone.
++   *
++   * A SURVEY IS A SNAPSHOT from its own PowerShell process, and starts run beside it. So only records that ALREADY held
++   * their handle when the survey began are judged, and only if that handle is unchanged when it answers. A start that
++   * completes while a survey runs is judged by the next one. Without this, a snapshot taken mid-start ("Starting") was
++   * applied to the handle the start set afterwards (minipc, 2026-10-21 06:49:05-06:49:13Z, EnclaveDNS 0x59f1273d: the VM
++   * was created, started (18500 at 06:49:10.04), failed as "Starting", and turned off (18502 at 06:49:11.77) within 1.7 s,
++   * and the node gave the lease up).
+    */
+   async sweepLiveness() {
+     if (!this.inventoryReady || !this.backend.canSurvey) return { checked: 0, failed: 0, skipped: "no inventory or no survey" };
++    const judged = new Map();
++    for (const rec of this.domains.values())
++      if ((rec.status === "running" || rec.status === "starting") && rec.handle && rec.handle.vmId && !this.#stopping.has(rec)) judged.set(rec, rec.handle);
+     let s;
+     try { s = await this.backend.survey(); } catch (e) { return { checked: 0, failed: 0, error: e.message }; }
+     if (!s || !Array.isArray(s.vms)) return { checked: 0, failed: 0, error: "the survey returned no list" };
+     const byId = new Map(s.vms.map((v) => [String(v.vmId || "").toLowerCase(), v]));
+     let checked = 0, failed = 0;
+-    for (const rec of this.domains.values()) {
++    for (const [rec, handle] of judged) {
++      // changed while surveyed: removed, replaced, stopped, failed, or given another handle
++      if (this.domains.get(rec.id) !== rec || rec.handle !== handle || this.#stopping.has(rec)) continue;
+       if (rec.status !== "running" && rec.status !== "starting") continue;
+-      const vmId = rec.handle && rec.handle.vmId;
+-      if (!vmId || this.#stopping.has(rec)) continue;
++      const vmId = handle.vmId;
+       checked++;
+       const v = byId.get(String(vmId).toLowerCase());
+       if (v && v.state === "Running") continue;
+       rec.status = "failed"; rec.appReady = false;
+-      rec.reason = v
+-        ? `the partition is ${v.state}: it stopped by itself (on type 1 a guest reset turns the VM Off, measured in G4 run 082856); its VM is left for the node to retire`
+-        : "the partition is no longer on this host (absent from a successful survey)";
++      rec.reason = !v ? "the partition is no longer on this host (absent from a successful survey)"
++        : v.state === "Off" ? "the partition is Off: it stopped by itself (on type 1 a guest reset turns the VM Off, measured in G4 run 082856); its VM is left for the node to retire"
++        : `the partition is ${v.state}, not Running, after it had started (seen by a survey that began after its start completed); its VM is left for the node to retire`;
+       const run = rec.handle && rec.handle.wmiserve;
+       if (run && typeof run.stop === "function") run.stop().catch(() => {});      // its relay has nothing to carry
+       this.#reclaim(rec.id, "the partition stopped");

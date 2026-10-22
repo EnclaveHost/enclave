@@ -1,0 +1,25 @@
+# Isolated test project for the rev-17 lease-generation candidate. Mirrors foundry.toml at the authoritative commit
+# 4b7419bb (solc 0.8.35, viaIR, the ledger at runs 1) and adds the live rev 16d source under contracts/rev16d for the
+# wallet-session delegate suite (4b7419bb SessionVaultDelegate16d) against the candidate.
+# within the 768 MiB test allocation; the registry/prover/fees/connectivity behave identically at any runs. `forge test` does NOT enforce EIP-170 here (measured: a 24,577-byte runtime deploys), so suites assert the ledger size and scripts/anvil-smoke.mjs deploys it under the real limit.
+[profile.default]
+src = "contracts/foundry/test/mocks"   # only what each test imports is compiled (memory: see ../out-guard.log)
+test = "contracts/foundry/test"
+out = "out"
+cache_path = "cache"
+libs = ["contracts/foundry/lib"]
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 1
+via_ir = true
+offline = true
+fs_permissions = [{ access = "read", path = "contracts/foundry/test/fixtures" }]
+
+[fuzz]
+runs = 256
+
+[invariant]
+runs = 32
+depth = 32
+fail_on_revert = false
+

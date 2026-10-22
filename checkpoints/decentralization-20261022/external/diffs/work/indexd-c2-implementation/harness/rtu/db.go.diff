@@ -1,0 +1,53 @@
+--- a/testutils/db.go
++++ b/testutils/db.go
+@@ -1,4 +1,4 @@
+-package testutils
++package rtu
+ 
+ import (
+ 	"context"
+@@ -85,6 +85,44 @@
+ 	}
+ }
+ 
++// NewPersistentDB opens (creating it once if missing) the named database on the given server, and never drops
++// it: an indexer restarted on it continues from its durable state. HARNESS ADDITION.
++func NewPersistentDB(t testing.TB, spec StoreSpec, maintenanceSettings contracts.MaintenanceSettings, log *zap.Logger) TestStore {
++	admin := spec.CI
++	admin.Database = "postgres"
++	pool, err := pgxpool.New(t.Context(), admin.String())
++	if err != nil {
++		t.Fatal(err)
++	}
++	var exists bool
++	if err := pool.QueryRow(t.Context(), "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)", spec.Database).Scan(&exists); err != nil {
++		pool.Close()
++		t.Fatal(err)
++	}
++	if !exists {
++		if _, err := pool.Exec(t.Context(), fmt.Sprintf("CREATE DATABASE %q", spec.Database)); err != nil {
++			pool.Close()
++			t.Fatal(err)
++		}
++	}
++	pool.Close()
++
++	ci := spec.CI
++	ci.Database = spec.Database
++	store, err := postgres.NewStore(t.Context(), ci, maintenanceSettings, hosts.DefaultUsabilitySettings, log)
++	if err != nil {
++		t.Fatalf("failed to create store: %v", err)
++	}
++	pool, err = pgxpool.New(t.Context(), ci.String())
++	if err != nil {
++		t.Fatal(err)
++	}
++	t.Cleanup(func() {
++		pool.Close()
++	})
++	return TestStore{Store: store, pool: pool}
++}
++
+ // Query executes a query that returns rows, typically a SELECT. The
+ // args are for any placeholder parameters in the query.
+ func (ts TestStore) Query(ctx context.Context, query string, args ...any) (pgx.Rows, error) {

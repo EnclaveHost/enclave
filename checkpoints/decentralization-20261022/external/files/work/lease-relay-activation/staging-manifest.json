@@ -1,0 +1,12 @@
+{
+  "format": "enclave-lease-relay-staging/v1",
+  "files": {
+    "lease-relay.mjs": "d5ca051672b11cb8d42f01096b3b29e6b880963c6fe41c7a21f4d444990af829",
+    "lease-relay-check.mjs": "b12bbddc7dc5a7c75f4fe0975d3a4f7a0db720c73841f1cd4e9edc46bfbb2bdd",
+    "build-manifest.json": "a6a106cf46e4238da1d8f4977acdcc3533aafef7cc58c0d09e7f38498ee77152",
+    "deployment.json": "1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089",
+    "relay.env": "e175fe4531a9cf60d773db29aea5ab6c9c1dfa68e0c71e34b4db7fba8edf974f",
+    "enclave-lease-relay.service": "67ed398f1a5a2bd6850120e03dc8a30ec71f3e54b8296653efdf6e060128e1f4"
+  },
+  "state": "staging only; do not start or enable; owner funding pending"
+}

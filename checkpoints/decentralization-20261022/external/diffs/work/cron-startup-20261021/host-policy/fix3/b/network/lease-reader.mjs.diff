@@ -1,0 +1,97 @@
+--- a/network/lease-reader.mjs
++++ b/network/lease-reader.mjs
+@@ -6,7 +6,7 @@
+ import {readConnectivity} from './connectivity-chain.mjs';
+ import {guardedFetch} from './guarded-fetch.mjs';
+ import {validateNetworkAuthorities} from './network-authorities.mjs';
+-import {rpcEndpoint,redactUrls} from './rpc-identity.mjs';
++import {rpcEndpoint,redactUrls,rpcLabel} from './rpc-identity.mjs';
+ const fields=[['id','bytes32'],['owner','address'],['appRef','string'],['ports','string'],['configCid','string'],['gpuMilli','uint16'],['cpuMilli','uint16'],['appPort','uint32'],['isPublic','bool'],['active','bool'],['createdAt','uint64'],['rate','uint256'],['balance6','uint256'],['spent6','uint256'],['runner','bytes32'],['runnerOperator','address'],['leaseUntil','uint64']];
+ const bookABI=[{type:'function',name:'addr',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'address'}]}];
+ const deploymentABI=[{type:'function',name:'get',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'tuple',components:fields.map(([name,type])=>({name,type}))}]}];
+@@ -23,6 +23,9 @@
+ }
+ // an RPC library's error can name the URL it called, API key and all: only a safe label of it is kept
+ const errText=e=>redactUrls(String(e?.shortMessage||e?.message||e)).slice(0,400);
++// One per-RPC failure line for agreed()'s `failures`: WHICH RPC (its safe label, never the URL), which step, the HTTP
++// status when there is one (viem's shortMessage drops it: a 429 rate limit read only "HTTP request failed."). Text only.
++const failureText=(label,step,e)=>`${label}: ${step} ${Number.isInteger(e?.status)?'HTTP '+e.status+' ':''}${Number.isInteger(e?.code)?'code '+e.code+' ':''}${errText(e)}${e?.details?' ('+redactUrls(String(e.details)).slice(0,80)+')':''}`.slice(0,220);
+ // The vote identity of an RPC URL: network/rpc-identity.mjs, the rule every quorum reader shares (one public host is
+ // one vote however its URL is spelled; loopback by port; IPv4 written as IPv6 folded; https, plain http only on
+ // loopback; no credentials or fragment; no DNS, and distinct hosts are not proof of independent operators). Throws an
+@@ -89,6 +92,7 @@
+     this.clients=clients||rpc.map(url=>createPublicClient({chain:base,batch:{multicall:{wait:0}},
+       transport:http(url,{timeout:14000,retryCount:0,...(proxy?{fetchFn:guardedFetch(proxy,{timeoutMs:6000})}:{})})}));
+     this.lastBlock=0n;this.cache=new Map();
++    this.labels=clients?this.clients.map((_,i)=>`rpc${i+1}`):rpc.map(u=>rpcLabel(u));
+   }
+   // Requests that arrive while a snapshot is queued join it: a burst of
+   // publications costs one chain read, not one per app.
+@@ -102,13 +106,21 @@
+     for(const id of ids)this.queued.ids.add(id);
+     return this.queued.run.then(rows=>{const byId=new Map(rows.map(row=>[row.id,row]));return ids.map(id=>byId.get(id)).filter(Boolean);});
+   }
+-  // Only a rate-limit refusal is retried, briefly; a timeout or a wrong answer is not.
+-  async limited(read) {
++  // Only a rate-limit refusal is retried; a timeout or a wrong answer is not. Inside agreed() (endAt = its ONE deadline) a
++  // 429 is retried with backoff for as long as that deadline leaves room: public RPCs answer this host's bursts with short
++  // 429 windows, and giving up after ~2 s while ~28 s remained made the quorum "unavailable" and held running deployments
++  // (2026-10-21, nucbox). Each retry still passes agreed()'s gate, which refuses any request once the call is decided,
++  // superseded or past its deadline, so a retry never outlives the decision and a permanently limited RPC never delays two
++  // agreeing answers. Without a deadline (endAt null): the original three attempts.
++  async limited(read,endAt=null) {
+     for(let attempt=0;;attempt++){
+       try{return await read();}
+       catch(e){
+-        if(attempt>=2||!/rate limit|over rate|too many requests|compute units per second|\b429\b/i.test(String(e?.message)))throw e;
+-        await new Promise(r=>setTimeout(r,this.retryDelayMs*(attempt+1)*(1+Math.random())));
++        if(!/rate limit|over rate|too many requests|compute units per second|\b429\b/i.test(String(e?.message)+' '+String(e?.details||'')))throw e;
++        const delay=endAt===null?this.retryDelayMs*(attempt+1)*(1+Math.random()):Math.min(4000,this.retryDelayMs*2**attempt)*(1+Math.random()/2);
++        // a retry is never scheduled within 1 s of the deadline (a batched call may flush a macrotask later)
++        if(endAt===null?attempt>=2:performance.now()+delay>=endAt-1000)throw e;
++        await new Promise(r=>setTimeout(r,delay));
+       }
+     }
+   }
+@@ -166,7 +178,7 @@
+         if(b<this.lastBlock)b=this.lastBlock;
+         return b;
+       };
+-      const readAt=(c,b,r)=>this.limited(async()=>{
++      const readAt=(c,b,r)=>this.limited(async()=>{   // endAt: retried within the deadline
+         const g=guarded(c,r);
+         const {hash,timestamp}=header(await g.getBlock({blockNumber:b}),b);
+         if(timestamp>this.now()+5000||!fresh(timestamp))throw new Error('stale chain block');
+@@ -179,7 +191,7 @@
+         if(again.hash!==hash||again.timestamp!==timestamp)throw new Error('chain reorganized during read');
+         if(!fresh(timestamp))throw new Error('chain block became stale during the read');
+         return {...value,hash,blockNumber:String(b),timestamp};
+-      });
++      },endAt);
+       const addReader=c=>{
+         if(closed||readers.has(c))return;
+         const r=round,b=block;readers.add(c);pending++;
+@@ -200,7 +212,7 @@
+           finish(null,snap);
+         },e=>{
+           if(e?.readerBug)return finish(e);               // the caller's read is wrong: say so, do not dress it as a quorum failure
+-          if(!closed&&r===round)failures.push(errText(e));
++          if(!closed&&r===round)failures.push(failureText(this.labels[this.clients.indexOf(c)]||'rpc','read',e));
+         }).finally(()=>{if(r===round){pending--;settle();}});
+       };
+       const startRound=b=>{
+@@ -230,12 +242,12 @@
+         const [chainId,number]=await Promise.all([g.getChainId(),g.getBlockNumber({cacheTime:0})]);
+         if(chainId!==this.chainId)throw new Error('wrong chain');
+         return BigInt(number);
+-      }).then(number=>{
++      },endAt).then(number=>{
+         if(closed)return;
+         heads.set(c,number);
+         if(block!==null)addReader(c);                  // a late head still reads at the chosen block
+         else if(heads.size>=2&&grace===null)grace=setTimeout(()=>{grace='fired';headsSettled();},this.headGraceMs);
+-      },()=>{}).finally(()=>{headsOutstanding--;headsSettled();});
++      },e=>{if(!closed)failures.push(failureText(this.labels[this.clients.indexOf(c)]||'rpc','head',e));}).finally(()=>{headsOutstanding--;headsSettled();});
+     });
+   }
+   async readSnapshot(ids) {

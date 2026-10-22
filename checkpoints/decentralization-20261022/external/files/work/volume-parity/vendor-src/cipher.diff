@@ -1,0 +1,131 @@
+--- cipher.go	2026-10-20 16:06:39.053365438 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/volume-parity/tree/isolation/m2/encvol/rclonecrypt/cipher.go	2026-10-20 16:08:06.272502069 -0700
+@@ -1,4 +1,7 @@
+-package crypt
++// Adapted from rclone v1.67.0 backend/crypt/cipher.go (MIT, Copyright (C) 2012 by Nick Craig-Wood http://www.craig-wood.com/nick/;
++// see NOTICE). Changes are mechanical and listed in NOTICE: the package name, import paths, local shims for rclone's
++// fs/accounting/readers helpers, and the base32768 name encoding (an external dependency encVolumes never selects).
++package rclonecrypt
+ 
+ import (
+ 	"bytes"
+@@ -17,13 +20,9 @@
+ 	"time"
+ 	"unicode/utf8"
+ 
+-	"github.com/Max-Sum/base32768"
+-	"github.com/rclone/rclone/backend/crypt/pkcs7"
+-	"github.com/rclone/rclone/fs"
+-	"github.com/rclone/rclone/fs/accounting"
+-	"github.com/rclone/rclone/lib/readers"
+-	"github.com/rclone/rclone/lib/version"
+-	"github.com/rfjakob/eme"
++	"enclave.host/isolation/m2/encvol/rclonecrypt/eme"
++	"enclave.host/isolation/m2/encvol/rclonecrypt/pkcs7"
++	"enclave.host/isolation/m2/encvol/rclonecrypt/version"
+ 	"golang.org/x/crypto/nacl/secretbox"
+ 	"golang.org/x/crypto/scrypt"
+ )
+@@ -70,7 +69,7 @@
+ 	io.Reader
+ 	io.Seeker
+ 	io.Closer
+-	fs.RangeSeeker
++	rangeSeeker
+ }
+ 
+ // OpenRangeSeek opens the file handle at the offset with the limit given
+@@ -160,8 +159,6 @@
+ 		enc = caseInsensitiveBase32Encoding{}
+ 	case "base64":
+ 		enc = base64.RawURLEncoding
+-	case "base32768":
+-		enc = base32768.SafeEncoding
+ 	default:
+ 		err = fmt.Errorf("unknown file name encoding mode %q", s)
+ 	}
+@@ -209,7 +206,7 @@
+ 		return
+ 	}
+ 	if !strings.HasPrefix(suffix, ".") {
+-		fs.Errorf(nil, "crypt: bad suffix: %v", ErrorSuffixMissingDot)
++		logf("crypt: bad suffix: %v", ErrorSuffixMissingDot)
+ 		suffix = "." + suffix
+ 	}
+ 	c.encryptedSuffix = suffix
+@@ -628,7 +625,7 @@
+ // fromReader fills the nonce from an io.Reader - normally the OSes
+ // crypto random number generator
+ func (n *nonce) fromReader(in io.Reader) error {
+-	read, err := readers.ReadFill(in, (*n)[:])
++	read, err := readFill(in, (*n)[:])
+ 	if read != fileNonceSize {
+ 		return fmt.Errorf("short read of nonce: %w", err)
+ 	}
+@@ -727,7 +724,7 @@
+ 		// Read data
+ 		// FIXME should overlap the reads with a go-routine and 2 buffers?
+ 		readBuf := (*fh.readBuf)[:blockDataSize]
+-		n, err = readers.ReadFill(fh.in, readBuf)
++		n, err = readFill(fh.in, readBuf)
+ 		if n == 0 {
+ 			return fh.finish(err)
+ 		}
+@@ -759,7 +756,7 @@
+ 
+ // Encrypt data encrypts the data stream
+ func (c *Cipher) encryptData(in io.Reader) (io.Reader, *encrypter, error) {
+-	in, wrap := accounting.UnWrap(in) // unwrap the accounting off the Reader
++	in, wrap := unWrap(in) // unwrap the accounting off the Reader
+ 	out, err := c.newEncrypter(in, nil)
+ 	if err != nil {
+ 		return nil, nil, err
+@@ -800,7 +797,7 @@
+ 	}
+ 	// Read file header (magic + nonce)
+ 	readBuf := (*fh.readBuf)[:fileHeaderSize]
+-	n, err := readers.ReadFill(fh.rc, readBuf)
++	n, err := readFill(fh.rc, readBuf)
+ 	if n < fileHeaderSize && err == io.EOF {
+ 		// This read from 0..fileHeaderSize-1 bytes
+ 		return nil, fh.finishAndClose(ErrorEncryptedFileTooShort)
+@@ -862,7 +859,7 @@
+ func (fh *decrypter) fillBuffer() (err error) {
+ 	// FIXME should overlap the reads with a go-routine and 2 buffers?
+ 	readBuf := fh.readBuf
+-	n, err := readers.ReadFill(fh.rc, (*readBuf)[:])
++	n, err := readFill(fh.rc, (*readBuf)[:])
+ 	if n == 0 {
+ 		return err
+ 	}
+@@ -885,7 +882,7 @@
+ 		if !fh.c.passBadBlocks {
+ 			return ErrorEncryptedBadBlock
+ 		}
+-		fs.Errorf(nil, "crypt: ignoring: %v", ErrorEncryptedBadBlock)
++		logf("crypt: ignoring: %v", ErrorEncryptedBadBlock)
+ 		// Zero out the bad block and continue
+ 		for i := range (*fh.buf)[:n] {
+ 			(*fh.buf)[i] = 0
+@@ -994,7 +991,7 @@
+ 	fh.nonce.add(uint64(blocks))
+ 
+ 	// Can we seek underlying stream directly?
+-	if do, ok := fh.rc.(fs.RangeSeeker); ok {
++	if do, ok := fh.rc.(rangeSeeker); ok {
+ 		// Seek underlying stream directly
+ 		_, err := do.RangeSeek(ctx, underlyingOffset, 0, underlyingLimit)
+ 		if err != nil {
+@@ -1147,8 +1144,8 @@
+ 
+ // check interfaces
+ var (
+-	_ io.ReadCloser  = (*decrypter)(nil)
+-	_ io.Seeker      = (*decrypter)(nil)
+-	_ fs.RangeSeeker = (*decrypter)(nil)
+-	_ io.Reader      = (*encrypter)(nil)
++	_ io.ReadCloser = (*decrypter)(nil)
++	_ io.Seeker     = (*decrypter)(nil)
++	_ rangeSeeker   = (*decrypter)(nil)
++	_ io.Reader     = (*encrypter)(nil)
+ )

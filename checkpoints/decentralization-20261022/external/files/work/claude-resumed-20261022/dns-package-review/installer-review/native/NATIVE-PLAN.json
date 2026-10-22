@@ -1,0 +1,160 @@
+{
+ "status": {
+  "deployed": false,
+  "staged": false,
+  "nativeVerified": false,
+  "published": false,
+  "signedRelease": false,
+  "goalComplete": false,
+  "adminGovernancePreserved": true
+ },
+ "subject": {
+  "installHostR5": "1d1580c8f9ac22f6ec96a34cea8455853b21a21cff5214187710f3483953b721",
+  "updateHostR5": "36f9e0d61afe58b77e566033ad1155d5c771252874f622592837c33e0a990112",
+  "frozenControls": {
+   "installHostR4": "f19dbc19ae19a698c7ded64b1023a502af3e627694728f4bb741407a091b5620",
+   "updateHostR4": "a2ba7b3bb4256d8a049fec84086da45517bfe0c42e2b623aabd18aeb7070a79c"
+  },
+  "review": "../REVIEW.txt 42e58825cb7b7124faa5bb7bd46a326d0cea24a5db3b9e7d01f5a982981e6248, ../RESULT.json 23f40df4796502ab35eba5505f5b5d3417c768595103a5e2621a63ca62afa96b"
+ },
+ "rootReview": {
+  "reviewBeforeExecute": [
+   "run-native.py",
+   "native-test.ps1",
+   "fakebundle/install-host.ps1"
+  ],
+  "driverSha256": "498acca90bfecb018bb5a3b4db7f10a1f4b80060f22be89bbcaada9dcaea5d8a",
+  "manifestSha": "b8115834e8c91d218825e637b1327235a8b044bd6fd278aac415d569864bd2d9",
+  "planOnly": "python3 run-native.py",
+  "execute": "python3 run-native.py --execute --root-reviewed b8115834e8c91d218825e637b1327235a8b044bd6fd278aac415d569864bd2d9",
+  "executeGates": [
+   "--execute AND --root-reviewed <manifestSha>",
+   "6 local pins + transport c50aac8e",
+   "no native-attempt.json (O_EXCL before the first remote call)",
+   "encoded commands < 7900"
+  ]
+ },
+ "transport": {
+  "path": "work/nucbox-tls-20261021/root-activate-reviewed.py",
+  "sha256": "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f",
+  "pattern": "cutover-review/native/run-native.py (root-reviewed)"
+ },
+ "uploadedExactBytes": {
+  "install-host.r5.ps1": "1d1580c8f9ac22f6ec96a34cea8455853b21a21cff5214187710f3483953b721",
+  "update-host.r5.ps1": "36f9e0d61afe58b77e566033ad1155d5c771252874f622592837c33e0a990112",
+  "install-host.r4.ps1": "f19dbc19ae19a698c7ded64b1023a502af3e627694728f4bb741407a091b5620",
+  "update-host.r4.ps1": "a2ba7b3bb4256d8a049fec84086da45517bfe0c42e2b623aabd18aeb7070a79c",
+  "fakebundle/install-host.ps1": "7ccda0fb9eccbf317f1497a73de94adb65ae549aa61672c4c9c0c6633e9333d2",
+  "native-test.ps1": "023f59f9a1e8cb4f9b4ccdf51b0288285935471d266223595a3e7fcee1f31936"
+ },
+ "uploadedRoles": {
+  "install-host.r5.ps1": "proposed installer: parsed; Test-ReleaseOwned/Test-ReleaseRef/Get-ReleaseDependency/Test-PrivateDir/Save-InstallStatus/Stop-ForInstall/Restore-OtherTasks/Get-EarlierPending extracted",
+  "update-host.r5.ps1": "proposed updater: parsed; Install extracted",
+  "install-host.r4.ps1": "frozen control (same extraction; no Get-EarlierPending)",
+  "update-host.r4.ps1": "frozen control: Install extracted",
+  "fakebundle/install-host.ps1": "harmless stand-in child: stdout + one stderr line, 3 s, marker inside own stage, exit 7",
+  "native-test.ps1": "fixture"
+ },
+ "remoteEffects": {
+  "writes": "ONLY C:\\ProgramData\\Enclave\\staging\\installer-r5-native-<uuid4 hex 12> (+ fakebundle\\, fx-* fixture dirs): created, 6 files, removed + verified gone (cleanup always after a create attempt)",
+  "liveEntities": "none read or changed (no task, process, service, VM, network or config)",
+  "realInstallerInvoked": false,
+  "taskCreation": false,
+  "tripwired": [
+   "Get-CimInstance",
+   "Get-WmiObject",
+   "Get-NetTCPConnection",
+   "Invoke-RestMethod",
+   "Invoke-WebRequest",
+   "Get-ScheduledTask(Info)",
+   "Start/Stop/Enable/Disable/Set/Register/Unregister-ScheduledTask",
+   "Stop/Start-Process",
+   "Get/Start/Stop-VM",
+   "Restart/Stop/Start-Service",
+   "Restart-Computer",
+   "Set-Acl",
+   "Set-Content (fixture-path guard only)",
+   "Add-Content",
+   "Out-File",
+   "New/Remove/Move/Copy/Rename-Item",
+   "Set/New-ItemProperty"
+  ]
+ },
+ "checks": {
+  "native-interpreter": [
+   "5.1 parse of 6 files",
+   "children exit 0 within bound",
+   "install.r5 returns 7 (no throw)",
+   "install.r5 logs stdout+stderr",
+   "install.r5 stand-in completes",
+   "install.r4 CONTROL throws (IR-3)",
+   "pending.r5 Test-PrivateDir native ACL",
+   "wrapper.r5 quoted -Command detected",
+   "wrapper.r5 %ProgramFiles% detected",
+   "wrapper.r5 own-source/hs2 independent",
+   "wrapper.r4 CONTROL misses both (IR-2)"
+  ],
+  "mocked-task-semantics": [
+   "pending.r5 earlier PENDING read",
+   "pending.r5 Relay started once, OpDisabled never, hs2 untouched",
+   "pending.r5 status rewritten",
+   "pending.r4 CONTROL Relay not restarted (IR-1)"
+  ],
+  "informational": [
+   "r4ChildCompletedAfterThrow",
+   "r4ErrorType",
+   "statusBomR5"
+  ]
+ },
+ "bounds": {
+  "fixtureSec": 600,
+  "childSec": 90,
+  "validateSecs": 660,
+  "createCleanupSecs": 40,
+  "encodedSizes": {
+   "create": 2032,
+   "validate": 4704,
+   "cleanup": 2208
+  },
+  "encodedLimit": 7900
+ },
+ "localEvidence": {
+  "fixture": {
+   "log": "fixture3.out",
+   "sha256": "6fd300b1a9bfe2457ec49833416260478f61a4cca0650519c7bdbd95c01cd346",
+   "guard": "fixture3.guard.log",
+   "queueExit": 0,
+   "summary": "6/6: positive 11 PASS + 4 Windows-only SKIPPED; tamper exit 3; wrong expectation exit 1; tripwire mutator; tripwire outside write; child timeout killed; no leftover process, stage removed"
+  },
+  "driver": {
+   "log": "driver.out",
+   "sha256": "badba8f28feb3b303b68f2a6ee53ec1112e5e27f6fa53480cdb793058a952a01",
+   "queueExit": 0,
+   "summary": "10/10"
+  },
+  "plan": {
+   "file": "plan.json",
+   "sha256": "6d965e4e5544ead03fba29d89a9153b80c8b23ac0bb97b6c1356ed9bc5912b4d",
+   "queueExit": 0
+  },
+  "tests": {
+   "tools/fixture-test.py": "eb58fa99c397993ce96fe8b4468a10614c5e12a16abd3a2be416f22ca37679ca",
+   "tools/driver-test.py": "babf331781753a2e9f8021b7afe328130ed5e91d68060b9f9d66254d9bbc4b3e"
+  },
+  "superseded": [
+   "history/fixture1 (R alias + Join-Path C: on Linux; fixed)",
+   "history/fixture2 (pre owner-SDDL edit)"
+  ],
+  "notWindowsEvidence": true
+ },
+ "limitations": [
+  "PS 5.1 runtime never run locally: surprises show as FAIL or exit 4, never pass",
+  "non-elevated ssh token: O:BA fixture dir creation fails -> pending.r5 fails (conservative)",
+  "mocked task semantics prove control flow only, not Task Scheduler/WMI behaviour",
+  "if r4 CONTROL does not throw natively, IR-3 is refuted for this host (r5 checks still decide r5)"
+ ],
+ "readme": {
+  "file": "NATIVE-README.txt",
+  "sha256": "2cdf679753610ec4034021fc3177ba32e865d95c2ad2a6252b8c60d685bc2e6d"
+ }
+}

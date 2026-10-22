@@ -1,0 +1,49 @@
+{
+  "mode": "PLAN ONLY (no network call made)",
+  "manifestSha": "825e6a1a60e6c2a2d07ad2a728e08c9304932b7aeea4845baaf8ff5ea6a702ed",
+  "manifest": {
+    "transportSha": "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f",
+    "files": {
+      "BootstrapCheck.cs": "327adb168958d9159768390a6a95a7c9a118faa34036670b52165989da3b81fa",
+      "native-bootstrap.ps1": "41c637ba2ecbdc1dd7c4e5f0f0c4db9e73158c98b6a7bf822626c52260bd8274",
+      "repo/cli/host.ps1": "9c396209801be2edeae0d8e55d76d268b495e4755a3a464925843ed21b696488",
+      "repo/test/windows-native/Harness.cs": "5ec0768735a8bba108062e804ec348ca2d2397028abe92ac839bce2387ec3547",
+      "repo/test/windows-native/fixtures.json": "4e27f00729086ebbf0a550dcffa8cf8ecf0f34d377abd400acab18bc89127721",
+      "repo/test/windows-native/make-fixtures.mjs": "94608d043f00739e34913c47c678853cd40d5bcd00b5eb9e865185a36008983e",
+      "repo/test/windows-native/node-verdicts.json": "bbd28794165202f292dec38d9540defeb5971f7af8ebb45efc207839bdec1a9d",
+      "repo/test/windows-native/run.ps1": "bc337ae54703a9560bc1cbace2dd503fc7bfea58bf8ddf00f3187602e8d86d1b",
+      "repo/windows/installer/EnclaveSetup.cs": "6d707db7c6ef95a4e3f127dd1220b8856186203bf37b3eff69a999ab2d0fb60a",
+      "repo/windows/installer/EnclaveSetup.manifest": "e2b9315ca02b67d5b9de90a9b246d32d5e6e134aaf041e0b12bc674a2de468cc",
+      "repo/windows/installer/install-host.ps1": "1d1580c8f9ac22f6ec96a34cea8455853b21a21cff5214187710f3483953b721",
+      "repo/windows/installer/update-host.ps1": "36f9e0d61afe58b77e566033ad1155d5c771252874f622592837c33e0a990112",
+      "repo/windows/node/release-channel.mjs": "f690c29b606879468db94b7b78f283e7de09f94a262803e13ee4dc61b447f942",
+      "repo/windows/node/update-watch.mjs": "9104b137b884ae5d46dfa94f2ec8529d36ee2cd51c89f204eec9335cd1af46a7",
+      "repo/windows/tray/TrayTheme.cs": "6de0a61684121d635772735772908521a3eb0179a5583abf1fc1ab13469d9284"
+    },
+    "stagePrefix": "C:\\ProgramData\\Enclave\\staging\\distribution-bootstrap-native-",
+    "fixtureSec": 900,
+    "validateSecs": 960
+  },
+  "localMismatches": {},
+  "stagePattern": "C:\\ProgramData\\Enclave\\staging\\distribution-bootstrap-native-<uuid4 hex 12>",
+  "steps": [
+    "O_EXCL native-attempt.json",
+    "create stage (refuse existing)",
+    "scp 15 pinned files",
+    "validate: exact recursive file count + 15 FileSha pins, then native-bootstrap.ps1 (bound 900 s)",
+    "cleanup own stage (always after a create attempt) + verify gone",
+    "write native-result.json"
+  ],
+  "texts": {
+    "create": "$s='C:\\ProgramData\\Enclave\\staging\\distribution-bootstrap-native-000000000000';if(Test-Path -LiteralPath $s){throw 'stage exists'};$null=New-Item -ItemType Directory -Path $s;$null=New-Item -ItemType Directory -Path ($s+'\\repo');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\cli');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\test');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\windows');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\test\\windows-native');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\windows\\installer');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\windows\\node');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\windows\\tray');@{created=$s}|ConvertTo-Json -Compress",
+    "validate": "$s='C:\\ProgramData\\Enclave\\staging\\distribution-bootstrap-native-000000000000';if(@(Get-ChildItem -LiteralPath $s -Recurse -Force -File).Count -ne 15){throw 'stage file count differs'};if((FileSha ($s+'\\native-bootstrap.ps1')) -ne '41c637ba2ecbdc1dd7c4e5f0f0c4db9e73158c98b6a7bf822626c52260bd8274'){throw 'pin mismatch: native-bootstrap.ps1'};& powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ($s+'\\native-bootstrap.ps1') -Stage $s;if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}",
+    "cleanup": "$s='C:\\ProgramData\\Enclave\\staging\\distribution-bootstrap-native-000000000000';if(-not $s.StartsWith('C:\\ProgramData\\Enclave\\staging\\distribution-bootstrap-native-')){throw 'not an updater-first-hop-r4-native stage'};if(Test-Path -LiteralPath $s){Remove-Item -LiteralPath $s -Recurse -Force};@{gone=(-not(Test-Path -LiteralPath $s))}|ConvertTo-Json -Compress"
+  },
+  "encodedSizes": {
+    "create": 3264,
+    "validate": 2660,
+    "cleanup": 2284
+  },
+  "encodedLimit": 7900,
+  "execute": "python3 run-native.py --execute --root-reviewed 825e6a1a60e6c2a2d07ad2a728e08c9304932b7aeea4845baaf8ff5ea6a702ed"
+}

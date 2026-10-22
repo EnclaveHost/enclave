@@ -1,0 +1,68 @@
+--- a/network/enclave-network-host.mjs
++++ b/network/enclave-network-host.mjs
+@@ -1,6 +1,7 @@
+ // A host's connection to the Enclave network (docs/design/enclave-network.md): which apps use it, each app's owner-
+ // signed policy, the verified provider directory, BYO WireGuard configs, and the runtime that builds circuits.
+ // host config (cfg.enclaveNetwork): {relay, checkers:[...], apps:'all'|[ids], wgBinary, nodeBinary, workerModule,
++//   serviceWorkerModule (optional: the host-service ingress worker, for hostServices; privacy-agent.mjs),
+ //   firewallBinary (Windows), registry (registry address, for community providers),
+ //   hostEgress {apps:'all'|[ids], own:[this host's public addresses]} (optional: the operator lets apps whose owners chose
+ //   'host' send their outbound traffic through this host's own connection)}
+@@ -27,6 +28,7 @@
+ import {DirectoryClient} from './directory-client.mjs';
+ import {validateNetworkAuthorities} from './network-authorities.mjs';
+ import {egressProbeUrls,probeEgressUrls} from './egress-probes.mjs';
++import {challengeReplicaConfig,superviseChallengeReplica} from './challenge-replica-host.mjs';
+ 
+ 
+ // cfg.enclaveNetwork.direct.probe -> the provider canary's configuration (provider-canary.mjs), checked before anything is
+@@ -56,7 +58,7 @@
+ // attestedKey(id) -> sha256 hex of the TLS key the host's CURRENT attested guest proof bound (or null): required for
+ // owner-committed custom names on direct hosting (c.direct.ownerNames), never consulted otherwise. ownerNameRoots is a
+ // code-level override of the public root store for embedders and tests; no configuration file can set it.
+-export async function createNetworkHost({config:c,account,runner,rpc,addressBook,authorityPins,leaseReader,providerReader=leaseReader,directory,authorize,forward,attestedKey=null,ownerNameRoots,fetch=globalThis.fetch,now=Date.now,log=()=>{}}){
++export async function createNetworkHost({config:c,account,runner,rpc,addressBook,authorityPins,leaseReader,providerReader=leaseReader,directory,authorize,forward,attestedKey=null,ownerNameRoots,fetch=globalThis.fetch,now=Date.now,log=()=>{},challengeOptions={}}){
+  if(!c||typeof c!=='object')throw new Error('Enclave network configuration required');
+  if(c.relay!==undefined){
+   const u=new URL(c.relay);
+@@ -69,6 +71,10 @@
+  if(pins&&c.registry&&c.registry.toLowerCase()!==pins.registry)throw Error('Enclave network: registry conflicts with authority pin');
+  if(pins&&typeof leaseReader?.agreed!=='function')throw Error('Enclave network: pinned authority requires a quorum reader');
+  const probeUrls=egressProbeUrls(c.egressProbeUrls,rpc);
++ // the host's DNS/challenge service (challenge-replica-host.mjs), judged now - before anything binds - and started last
++ const challengeCfg=c.challengeReplica===undefined?null:challengeReplicaConfig(c.challengeReplica);
++ // a managed challenge front serves this host's own derived origin: its registry id must be this runner (challenge-host-tls)
++ if(challengeCfg?.front.mode==='managed'&&challengeCfg.front.hostId!==String(runner||'').toLowerCase())throw new Error('Enclave network: challengeReplica.front.managed: hostPolicy.endpoint is not this host\'s registry endpoint (keccak256 differs from the runner)');
+  const onNetwork=id=>c.apps==='all'||c.apps.includes(id);
+  const relay=async(p,init)=>{if(!c.relay)throw new Error('BYO requires an operator-local config directory or an explicit relay');const r=await fetch(new URL(p,c.relay),{...init,signal:AbortSignal.timeout(10000)});if(r.status===404)return null;const b=await r.json().catch(()=>null);if(!r.ok)throw new Error(`relay ${p.split('/').slice(0,4).join('/')}: ${b?.error||r.status}`);return b;};
+  const directories=new DirectoryClient({origins:c.directories||(c.relay?[c.relay]:[]),fetch});
+@@ -137,7 +143,7 @@
+  const grants=new WgGrants({account,runner,policy:async id=>{const v=policyCache.get(id)?.value;return v||null;}});
+  // paceMbps (optional): the host's uplink in Mbps; circuits pace their UDP to it so a small home-router buffer never drops
+  // their bursts (docs/design/enclave-network.md, "Circuit TCP")
+- const runtime=new WgCircuitRuntime({directory:path.join(directory,'network-circuits'),wgBinary:c.wgBinary,nodeBinary:c.nodeBinary,workerModule:c.workerModule,firewallBinary:c.firewallBinary,grants,authorize,forward,paceMbps:c.paceMbps||0,log});
++ const runtime=new WgCircuitRuntime({directory:path.join(directory,'network-circuits'),wgBinary:c.wgBinary,nodeBinary:c.nodeBinary,workerModule:c.workerModule,serviceWorkerModule:c.serviceWorkerModule||null,firewallBinary:c.firewallBinary,grants,authorize,forward,paceMbps:c.paceMbps||0,log});
+  // An egress-only circuit's health: one HTTPS request through it.
+  async function probeEgress(app,circuit){
+   const f=guardedFetch(circuit.egress,{timeoutMs:15000,maxBytes:65536});
+@@ -200,10 +206,18 @@
+   }
+   direct={runtime:runtimeD,qualification:direct.qualification,envelope:direct.envelope};
+  }
++ // The OPTIONAL challenge service starts after everything else, under its own supervisor, and never decides whether this
++ // host's network starts: its static configuration was judged above (before anything binds); a refused or failed start
++ // (release directory, the platform host policy's first answer, readiness) is retried with capped backoff, in the
++ // background, until it starts or this host closes (work/g4-config-independent-review-20261021 revision2 B1).
++ // challengeOptions: CODE-LEVEL (tests and embedders), like ownerNameRoots; no configuration file can set it.
++ const challenge=challengeCfg?superviseChallengeReplica(challengeCfg,{log,...challengeOptions}):null;
+  // localRoutes: apps on this host reach each other's websites here (local-app-router.mjs); false turns it off
+  return {onNetwork,policyFor,providers,byoConfig,runtime,probeEgress,grants,direct,hostEgress,localRoutes:c.localRoutes!==false,
+-  // releases what this host bound itself: the direct runtime's listeners and its canary (the circuit runtime and host
++  // releases what this host bound itself: the direct runtime's listeners, its canary and the challenge service (the circuit runtime and host
+   // egress keep their own lifecycles)
+   // (idempotent: the agent's shutdown and a failed start may both ask)
+-  close(){return closing||=Promise.resolve(direct?.runtime?.close());}};
++  get challengeReplica(){return challenge?.handle??null;},
++  challengeService:challenge?{status:()=>challenge.status()}:null,
++  close(){return closing||=Promise.all([direct?.runtime?.close(),challenge?.close()]);}};
+ }

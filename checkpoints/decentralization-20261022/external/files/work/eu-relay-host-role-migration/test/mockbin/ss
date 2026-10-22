@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# TEST-ONLY: a listener on :8549 while the mock unit is active (or $FSROOT/mock/port-taken)
+{ [ -e "$FSROOT/mock/active" ] || [ -e "$FSROOT/mock/port-taken" ]; } && echo "LISTEN 0 511 127.0.0.1:8549 0.0.0.0:*"; exit 0

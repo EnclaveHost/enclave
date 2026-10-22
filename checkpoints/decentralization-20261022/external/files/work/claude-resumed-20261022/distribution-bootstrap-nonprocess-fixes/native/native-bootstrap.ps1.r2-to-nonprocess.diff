@@ -1,0 +1,27 @@
+--- r2-ref/native-bootstrap.r2.ps1	2026-10-21 22:05:39.685458080 -0700
++++ native/native-bootstrap.ps1	2026-10-21 22:05:54.941556037 -0700
+@@ -1,4 +1,4 @@
+-# distribution-bootstrap r2 NATIVE fixture (ROOT-ONLY; Windows PowerShell 5.1). Proves on minipc, with Windows' own in-box
++# NOT NATIVE-READY (B1 BLOCKED; r2 + non-process corrections L2/L3 only). distribution-bootstrap r2 NATIVE fixture (ROOT-ONLY; Windows PowerShell 5.1). Proves on minipc, with Windows' own in-box
+ # .NET Framework 4 csc (no install, no download, no Wine, no new dependency), that the staged EnclaveSetup.cs
+ # (policy pinning + relaunch quoting) compiles exactly as build-setup.cmd compiles it, that its PinPolicy/QuoteArgs behave
+ # (BootstrapCheck.cs), and that the repo's own native harness (test\windows-native\run.ps1: EnclaveSetup.cs ReleaseChannel,
+@@ -51,7 +51,8 @@
+ 
+ function HardLeftMs { [int][math]::Max(0, $BOUND_SEC * 1000 - $sw.ElapsedMilliseconds) }
+ function StepLeftMs([int]$CapMs) { [int][math]::Max(0, [math]::Min($CapMs, ($BOUND_SEC - $RESERVE_SEC) * 1000 - $sw.ElapsedMilliseconds)) }
+-function Quote([string[]]$A) { ($A | ForEach-Object { if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ } }) -join ' ' }
++# L2: an argument with a quote, or ending in a backslash, cannot be quoted unambiguously here: refused, never re-split
++function Quote([string[]]$A) { ($A | ForEach-Object { if ($_ -match '"' -or $_.EndsWith('\')) { throw "an argument cannot be quoted safely: $_" }; if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' ' }
+ # one own child, as bounded-query.ps1 does it: monotonic budget, async output, kill its own handle, confirm exit; output is
+ # taken only after a confirmed exit and only within a bound (a descendant may hold the pipe open: outComplete = $false)
+ function Invoke-Step([string]$Exe, [string[]]$A, [int]$CapMs, [hashtable]$ChildEnv = @{}) {
+@@ -191,7 +192,7 @@
+ 
+ # ---- the harness's verdict (its output, if it was held open by a descendant, is complete now that none remains)
+ if ($h -and $h.proc) {
+-  if (-not $h.outComplete -and $h.o -and $h.o.Wait(2000) -and $h.e.Wait(1000)) { $h.outComplete = $true; $h.out = [string]$h.o.Result; $h.err = [string]$h.e.Result }
++  if (-not $h.outComplete -and $h.o -and $h.o.Wait([int][math]::Min(2000, (HardLeftMs))) -and $h.e.Wait([int][math]::Min(1000, (HardLeftMs)))) { $h.outComplete = $true; $h.out = [string]$h.o.Result; $h.err = [string]$h.e.Result }
+   $out.harness = Read-Harness $h
+   $out.harnessPolicyRefused = $out.harness.policyRefused
+   $checks.harness = ($h.code -eq 0 -and -not $h.timedOut -and $h.outComplete -and $out.harness.fail -eq 0 -and $out.harness.pass -gt 0)

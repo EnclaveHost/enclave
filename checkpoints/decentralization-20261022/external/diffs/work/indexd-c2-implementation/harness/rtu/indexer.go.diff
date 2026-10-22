@@ -1,0 +1,135 @@
+--- a/testutils/indexer.go
++++ b/testutils/indexer.go
+@@ -1,4 +1,4 @@
+-package testutils
++package rtu
+ 
+ import (
+ 	"context"
+@@ -24,6 +24,7 @@
+ 	"go.sia.tech/indexd/contracts"
+ 	"go.sia.tech/indexd/geoip"
+ 	"go.sia.tech/indexd/hosts"
++	"go.sia.tech/indexd/persist/postgres"
+ 	"go.sia.tech/indexd/pins"
+ 	"go.sia.tech/indexd/sharing"
+ 	"go.sia.tech/indexd/slabs"
+@@ -80,6 +81,14 @@
+ 	IndexerOpt func(*indexerCfg)
+ 
+ 	indexerCfg struct {
++		// HARNESS ADDITIONS: a persistent named database, a fixed wallet key and fixed listen addresses, so an
++		// indexer can be stopped and started again on the same durable state and the same URLs
++		store       *StoreSpec
++		walletKey   *types.PrivateKey
++		appListen   string
++		adminListen string
++		geoipDir    string
++
+ 		advertiseURL        string
+ 		maintenanceSettings contracts.MaintenanceSettings
+ 		slabOpts            []slabs.Option
+@@ -107,6 +116,32 @@
+ 	}
+ }
+ 
++// StoreSpec names a persistent database on a PostgreSQL server (HARNESS ADDITION).
++type StoreSpec struct {
++	CI       postgres.ConnectionInfo
++	Database string
++}
++
++// WithStore makes the indexer use (and keep) the named database (HARNESS ADDITION).
++func WithStore(spec StoreSpec) IndexerOpt {
++	return func(cfg *indexerCfg) { cfg.store = &spec }
++}
++
++// WithWalletKey fixes the indexer's wallet key (HARNESS ADDITION).
++func WithWalletKey(k types.PrivateKey) IndexerOpt {
++	return func(cfg *indexerCfg) { cfg.walletKey = &k }
++}
++
++// WithListen fixes the application and admin API listen addresses (HARNESS ADDITION; loopback).
++func WithListen(appAddr, adminAddr string) IndexerOpt {
++	return func(cfg *indexerCfg) { cfg.appListen, cfg.adminListen = appAddr, adminAddr }
++}
++
++// WithGeoIPDir sets the directory holding indexd's geoip database (HARNESS ADDITION).
++func WithGeoIPDir(dir string) IndexerOpt {
++	return func(cfg *indexerCfg) { cfg.geoipDir = dir }
++}
++
+ // WithAdvertiseURL sets the advertise URL for the indexer.
+ func WithAdvertiseURL(url string) IndexerOpt {
+ 	return func(cfg *indexerCfg) {
+@@ -159,14 +194,26 @@
+ 	}
+ 
+ 	// prepare store
+-	store := NewDB(t, cfg.maintenanceSettings, log)
++	var store TestStore
++	if cfg.store != nil {
++		store = NewPersistentDB(t, *cfg.store, cfg.maintenanceSettings, log)
++	} else {
++		store = NewDB(t, cfg.maintenanceSettings, log)
++	}
+ 
+ 	s := NewSyncer(t, c.genesis.ID(), c.cm)
+ 
+ 	walletKey := types.GeneratePrivateKey()
++	if cfg.walletKey != nil {
++		walletKey = *cfg.walletKey
++	}
+ 	wm := NewWallet(t, c, walletKey)
+ 
+-	locator, err := geoip.NewMaxMindLocator(moduleRootDir(), log.Named("geoip"))
++	geoipDir := moduleRootDir()
++	if cfg.geoipDir != "" {
++		geoipDir = cfg.geoipDir
++	}
++	locator, err := geoip.NewMaxMindLocator(geoipDir, log.Named("geoip"))
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+@@ -230,7 +277,7 @@
+ 			t.Fatal(err)
+ 		}
+ 	}
+-	c.addSyncFn(syncFn)
++	c.addSyncFn(t, syncFn)
+ 
+ 	adminAPIOpts := []admin.Option{
+ 		admin.WithDebug(),
+@@ -243,7 +290,11 @@
+ 		Handler: jape.BasicAuth(password)(admin.NewAPI(c.cm, am, contracts, hm, pm, slabs, subscriber, syncer, wm, alerter, adminAPIOpts...)),
+ 	}
+ 
+-	adminListener, err := net.Listen("tcp4", "127.0.0.1:0")
++	adminAddr := "127.0.0.1:0"
++	if cfg.adminListen != "" {
++		adminAddr = cfg.adminListen
++	}
++	adminListener, err := net.Listen("tcp4", adminAddr)
+ 	if err != nil {
+ 		t.Fatalf("failed to start admin API listener: %v", err)
+ 	}
+@@ -259,7 +310,11 @@
+ 		app.WithLogger(log.Named("api.application")),
+ 	}
+ 
+-	appListener, err := net.Listen("tcp4", "127.0.0.1:0")
++	appAddr := "127.0.0.1:0"
++	if cfg.appListen != "" {
++		appAddr = cfg.appListen
++	}
++	appListener, err := net.Listen("tcp4", appAddr)
+ 	if err != nil {
+ 		t.Fatalf("failed to listen on application address: %v", err)
+ 	}
+@@ -450,3 +505,6 @@
+ 		return shutdownFn(context.Background())
+ 	})
+ }
++
++// SyncerAddr returns the address of the indexer's syncer (HARNESS ADDITION).
++func (idx *Indexer) SyncerAddr() string { return idx.syncer.Addr() }

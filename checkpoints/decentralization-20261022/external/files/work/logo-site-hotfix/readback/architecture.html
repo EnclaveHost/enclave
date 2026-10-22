@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>(function(){
+var heal=function(){try{
+  var k="enclave_skew_reload",last=+sessionStorage.getItem(k)||0;
+  if(Date.now()-last<240000)return;
+  sessionStorage.setItem(k,String(Date.now()));
+  setTimeout(function(){location.reload();},8000);
+}catch(e){}};
+addEventListener("error",function(e){
+  var t=e.target;
+  if(t&&(t.tagName==="SCRIPT"||(t.tagName==="LINK"&&t.rel==="modulepreload")))heal();
+},true);
+addEventListener("unhandledrejection",function(e){
+  if(/dynamically imported module|Failed to fetch|error loading/i.test(String(e.reason)))heal();
+});
+})();</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,follow" />
+<link rel="canonical" href="https://enclave.host/develop#architecture" />
+<meta http-equiv="refresh" content="0;url=develop.html#architecture" />
+<title>Architecture moved to Develop · Enclave</title>
+<script>
+location.replace("develop.html" + (location.hash || "#architecture"));
+</script>
+</head>
+<body>
+<p>The architecture guide has moved under <a href="develop.html#architecture">Develop → Architecture</a>.</p>
+</body>
+</html>

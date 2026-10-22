@@ -1,0 +1,1139 @@
+--- a/test/site-default-authority.test.mjs
++++ b/test/site-default-authority.test.mjs
+@@ -0,0 +1,236 @@
++// The packaged default independent profile, without a browser or a chain:
++//   - js/core/sha256.js against node:crypto;
++//   - js/core/authority-profile.js against the reference network/authority-profile.mjs (layout, canonical bytes, and the
++//     verdict on the reviewed Base profile and on every single-value corruption of it);
++//   - js/core/independent.js: the packaged default's load-time checks (digests, pins, provisional), precedence, the explicit
++//     hosted choice, and one vote per RPC host;
++//   - js/core/default-authority.js: code/binding mismatches refuse, reviewed governance drift is reported, not obeyed;
++//   - scripts/network/default-profile.mjs: deterministic generation and the activation gate.
++//   node --test test/site-default-authority.test.mjs
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import { createHash, randomBytes } from "node:crypto";
++import { fileURLToPath } from "node:url";
++import * as REF from "../network/authority-profile.mjs";
++import { sha256Hex } from "../site/js/core/sha256.js";
++import * as AP from "../site/js/core/authority-profile.js";
++import * as IND from "../site/js/core/independent.js";
++import { generate, evaluateGate, moduleText, canonicalText } from "../scripts/network/default-profile.mjs";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const AUTH_FILE = path.join(ROOT, "contracts/deployments/network-profile-base.json");
++const AUTH_BYTES = fs.readFileSync(AUTH_FILE);
++const AUTH_DIGEST = "sha256:" + createHash("sha256").update(AUTH_BYTES).digest("hex");
++const PINS = JSON.parse(fs.readFileSync(path.join(ROOT, "contracts/deployments/contract-pins-base.json"), "utf8"));
++const INDEX_PIN = JSON.parse(fs.readFileSync(path.join(ROOT, "contracts/deployments/service-index-pin-base.json"), "utf8"));
++const RPCS = ["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"];
++const sha = (t) => "sha256:" + createHash("sha256").update(t).digest("hex");
++const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
++
++test("sha256.js equals node:crypto, empty to multi-block", () => {
++  for (const n of [0, 1, 55, 56, 63, 64, 65, 119, 120, 1000, 17404]){
++    const b = randomBytes(n);
++    assert.equal(sha256Hex(new Uint8Array(b)), createHash("sha256").update(b).digest("hex"), "length " + n);
++  }
++  assert.equal(sha256Hex("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
++});
++
++test("authority-profile.js: same layout, same canonical bytes, same verdict as network/authority-profile.mjs", () => {
++  assert.deepEqual(JSON.parse(JSON.stringify(AP.AUTHORITY_LAYOUT)), JSON.parse(JSON.stringify(REF.PROFILE_LAYOUT)));
++  const value = JSON.parse(AUTH_BYTES.toString("utf8"));
++  assert.equal(AP.encodeAuthority(value), REF.encodeProfile(value).toString("utf8"));
++  assert.equal(AP.parseAuthority(AUTH_BYTES.toString("utf8"), { expectedDigest: AUTH_DIGEST }).digest, REF.parseProfile(AUTH_BYTES, { expectedDigest: AUTH_DIGEST }).digest);
++  // every single-value corruption: both refuse, or (a value outside the pinned facts) both accept
++  const verdict = (f, v) => { try { f(structuredClone(v)); return "ok"; } catch (e){ return "refused"; } };
++  let n = 0;
++  for (const [name, c] of Object.entries(value.contracts)){
++    for (const field of ["address", "codeHash", "role", "codeProvenance"]){
++      const v = structuredClone(value); v.contracts[name][field] = field === "address" ? "0x" + "ab".repeat(20) : field === "codeHash" ? "0xzz" : "wrong";
++      assert.equal(verdict(AP.validateAuthority, v), verdict(REF.validateProfile, v), name + "." + field); n++;
++    }
++    for (const section of ["immutable", "reviewedState"]) for (const getter of Object.keys(c[section])){
++      const v = structuredClone(value); const x = v.contracts[name][section][getter];
++      v.contracts[name][section][getter] = typeof x === "boolean" ? "yes" : Array.isArray(x) ? [x[0]] : /^0x/.test(x) ? "0x" + "cd".repeat(20) : "12x";
++      assert.equal(verdict(AP.validateAuthority, v), verdict(REF.validateProfile, v), name + "." + section + "." + getter); n++;
++    }
++  }
++  for (const k of ["scope", "kind", "version", "chainId"]){ const v = structuredClone(value); v[k] = k === "chainId" ? 1 : k === "version" ? 2 : ""; assert.equal(verdict(AP.validateAuthority, v), "refused"); assert.equal(verdict(REF.validateProfile, v), "refused"); n++; }
++  assert.ok(n > 80, "corruptions tried: " + n);
++  assert.throws(() => AP.parseAuthority(AUTH_BYTES.toString("utf8").replace(/\n$/, ""), { expectedDigest: AUTH_DIGEST }), /digest mismatch/);
++  const pretty = JSON.stringify(value) + "\n";
++  assert.throws(() => AP.parseAuthority(pretty, { expectedDigest: sha(pretty) }), /not canonically encoded/);
++});
++
++function packaged({ provisional = false, mutate = null, rpcs = RPCS } = {}){
++  const g = generate({ authorityBytes: AUTH_BYTES, expectDigest: AUTH_DIGEST, expectPins: PINS, serviceIndexPin: INDEX_PIN, rpcs, quorum: 3, provisional });
++  let mod = { format: IND.DEFAULT_PROFILE_FORMAT, provisional, profileText: g.text, profileDigest: g.profileDigest, authorityText: g.authorityText, authorityDigest: g.authorityDigest, gateDigest: null };
++  if (mutate) mod = mutate(mod, g);
++  return { mod, g };
++}
++
++test("the packaged default: digests, pins and provisional rules are checked before anything binds", () => {
++  const { mod, g } = packaged();
++  const ok = IND.checkPackagedDefault(mod, { loopback: false });
++  assert.equal(ok.profile.contracts.deployments, PINS.contracts.deployments);
++  assert.equal(ok.profile.serviceIndex.address, INDEX_PIN.address.toLowerCase());
++  // a substituted profile text (another ledger) under the original digest
++  const evil = g.text.replace(PINS.contracts.deployments, "0x" + "66".repeat(20));
++  assert.throws(() => IND.checkPackagedDefault({ ...mod, profileText: evil }, { loopback: false }), /does not match its digest/);
++  // ...or with a recomputed digest: the pins no longer equal the reviewed authority
++  assert.throws(() => IND.checkPackagedDefault({ ...mod, profileText: evil, profileDigest: sha(evil) }, { loopback: false }), /pins deployments .* not the reviewed/);
++  // a substituted authority
++  assert.throws(() => IND.checkPackagedDefault({ ...mod, authorityText: g.authorityText.replace("observed", "observes") }, { loopback: false }), /digest mismatch/);
++  // a profile naming another authority digest
++  const other = g.text.replace(g.authorityDigest, "sha256:" + "0".repeat(64));
++  assert.throws(() => IND.checkPackagedDefault({ ...mod, profileText: other, profileDigest: sha(other) }, { loopback: false }), /does not name the packaged authority/);
++  // provisional: only on loopback; loopback RPCs only when provisional
++  const prov = packaged({ provisional: true, rpcs: ["http://127.0.0.1:8545", "http://127.0.0.1:8546", "http://127.0.0.1:8547"] }).mod;
++  assert.throws(() => IND.checkPackagedDefault(prov, { loopback: false }), /PROVISIONAL test profile/);
++  assert.ok(IND.checkPackagedDefault(prov, { loopback: true }).provisional);
++  assert.throws(() => IND.checkPackagedDefault({ ...prov, provisional: false }, { loopback: true }), /cannot name loopback RPCs/);
++});
++
++test("precedence: an owner-chosen profile over the default; the hosted service only by an explicit, per-tab choice; an invalid default never falls back", () => {
++  const { mod } = packaged();
++  let ls = mem(), tab = mem();
++  const s1 = IND.loadProfileState(ls, null, tab, mod, { loopback: false });
++  assert.equal(s1.state, "on"); assert.equal(s1.source, "default"); assert.ok(s1.authority);
++  // a hosted choice planted in localStorage is NOT honoured in a tab that did not confirm it
++  ls.setItem(IND.HOSTED_OPTIN_KEY, "1");
++  const s2 = IND.loadProfileState(ls, null, tab, mod, { loopback: false });
++  assert.equal(s2.state, "on"); assert.equal(s2.hosted.chosen, true); assert.equal(s2.hosted.confirmed, false);
++  IND.confirmHostedService(tab);
++  assert.equal(IND.loadProfileState(ls, null, tab, mod, { loopback: false }).state, "off");
++  IND.returnToDefault(ls, tab);
++  assert.equal(IND.loadProfileState(ls, null, tab, mod, { loopback: false }).source, "default");
++  // an owner-chosen saved profile wins once confirmed
++  const own = JSON.stringify({ format: "enclave-browser-profile", version: 1, chainId: 8453, rpcs: ["https://rpc-a.example", "https://rpc-b.example"],
++    contractPins: { version: 1, chainId: 8453, contracts: PINS.contracts }, usdc: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913" });
++  IND.saveProfile(own, ls, tab);
++  const s3 = IND.loadProfileState(ls, null, tab, mod, { loopback: false });
++  assert.equal(s3.source, "saved"); assert.equal(s3.state, "on"); assert.ok(s3.packaged, "the default is still offered");
++  // a substituted default: invalid, never "off"
++  ls = mem(); tab = mem();
++  const bad = { ...mod, profileText: mod.profileText.replace("Base", "Bass") };
++  const s4 = IND.loadProfileState(ls, null, tab, bad, { loopback: false });
++  assert.equal(s4.state, "invalid"); assert.equal(s4.source, "default"); assert.match(s4.error, /does not match its digest/);
++  // no packaged default at all: today's hosted default, unchanged
++  assert.equal(IND.loadProfileState(mem(), null, mem(), null).state, "off");
++});
++
++test("one public host is one vote; loopback aliases are allowed only as marked test fixtures", () => {
++  const base = { format: "enclave-browser-profile", version: 1, chainId: 8453, contractPins: { version: 1, chainId: 8453, contracts: PINS.contracts }, usdc: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913" };
++  // same origin, two paths: the existing distinct-origin rule refuses first; another port: the one-vote rule
++  assert.throws(() => IND.validateProfile({ ...base, rpcs: ["https://rpc.example/a", "https://rpc.example/b"] }), /must be distinct|one host is one vote/);
++  assert.throws(() => IND.validateProfile({ ...base, rpcs: ["https://RPC.example.", "https://rpc.example:8443"] }), /one host is one vote/);
++  const lo = IND.validateProfile({ ...base, rpcs: ["http://127.0.0.1:8545", "http://localhost:8545"] });
++  assert.equal(lo.loopbackAliases, true);
++  assert.equal(IND.validateProfile({ ...base, rpcs: ["https://a.example", "https://b.example"] }).loopbackAliases, false);
++  assert.throws(() => IND.validateProfile({ ...base, rpcs: RPCS.slice(0, 2), serviceIndex: { address: "0x" + "0".repeat(40), codeHash: "0x" + "1".repeat(64) } }), /index contract/);
++  assert.throws(() => IND.validateProfile({ ...base, rpcs: RPCS.slice(0, 2), hostPolicyOrigins: ["http://mirror.example"] }), /HTTPS/);
++});
++
++test("authority on chain: code or bindings that differ refuse; reviewed governance drift is reported but does not stop the page", async () => {
++  const profile = JSON.parse(AUTH_BYTES.toString("utf8"));
++  // a stub agreed reader that serves exactly the reviewed facts (code is synthesized to the reviewed hash below)
++  const { keccak256Hex } = await import("../site/js/core/keccak.js");
++  // the stub serves marker code per contract; the "reviewed" copy pins exactly those markers' hashes
++  const codeFor = new Map();
++  const fake = (name) => "0x" + Buffer.from(name.padEnd(4, "_")).toString("hex");
++  const reviewed = structuredClone(profile);
++  for (const [name, c] of Object.entries(reviewed.contracts)){ const code = fake(name); codeFor.set(c.address, code); c.codeHash = keccak256Hex(code); c.runtimeBytes = (code.length - 2) / 2; }
++  const words = (type, v) => type === "bool" ? (v ? "1" : "0").padStart(64, "0") : type === "uint256" ? BigInt(v).toString(16).padStart(64, "0")
++    : type === "address,address,address" ? v.map((a) => a.slice(2).padStart(64, "0")).join("") : v.slice(2).padStart(64, "0");
++  const { keccak256Utf8 } = await import("../site/js/core/keccak.js");
++  const answers = new Map();
++  for (const [name, layout] of Object.entries(AP.AUTHORITY_LAYOUT)) for (const section of ["immutable", "reviewedState"]) for (const [getter, type] of Object.entries(layout[section]))
++    answers.set(reviewed.contracts[name].address + ":" + keccak256Utf8(getter + "()").slice(0, 10), "0x" + words(type, reviewed.contracts[name][section][getter]));
++  const reader = (over = {}) => ({ snapshot: async () => ({ number: 100, hash: "0x" + "a".repeat(64), timestamp: 1, rpcs: ["a", "b", "c"] }),
++    code: async (_s, a) => (over.code && over.code[a]) || codeFor.get(a), call: async (_s, a, d) => { const k = a + ":" + d; if (over.calls && k in over.calls) return over.calls[k]; return answers.get(k); } });
++  const okObs = await AP.observeAuthority(reviewed, reader());
++  assert.deepEqual(AP.authorityProblems(reviewed, okObs), []);
++  // a different deployments code: hard refusal
++  const dep = reviewed.contracts.deployments.address;
++  const badCode = AP.authorityProblems(reviewed, await AP.observeAuthority(reviewed, reader({ code: { [dep]: "0x6000" } })));
++  const DA = await import("../site/js/core/default-authority.js");
++  assert.ok(DA.classifyProblems(badCode).hard.some((p) => /deployments: code hash mismatch/.test(p)));
++  // the ledger owner moved pendingOwner: drift, not a refusal
++  const pend = dep + ":" + keccak256Utf8("pendingOwner()").slice(0, 10);
++  const drifted = AP.authorityProblems(reviewed, await AP.observeAuthority(reviewed, reader({ calls: { [pend]: "0x" + "ee".repeat(20).padStart(64, "0") } })));
++  const c = DA.classifyProblems(drifted);
++  assert.equal(c.hard.length, 0); assert.ok(c.drift.some((p) => /deployments.pendingOwner/.test(p)));
++  // an immutable binding that differs (a factory pointing elsewhere): hard
++  const impl = reviewed.contracts.sessionVaultFactory.address + ":" + keccak256Utf8("implementation()").slice(0, 10);
++  const swapped = AP.authorityProblems(reviewed, await AP.observeAuthority(reviewed, reader({ calls: { [impl]: "0x" + "ee".repeat(20).padStart(64, "0") } })));
++  assert.ok(DA.classifyProblems(swapped).hard.some((p) => /sessionVaultFactory.implementation: binding mismatch/.test(p)));
++  // a reverting getter is a fact, never a pass
++  const rv = reviewed.contracts.registry.address + ":" + keccak256Utf8("registrySchema()").slice(0, 10);
++  const rdr = reader(); const call0 = rdr.call; rdr.call = async (s, a, d) => { if (a + ":" + d === rv){ const e = new Error("reverted"); e.revert = true; throw e; } return call0(s, a, d); };
++  assert.ok(AP.authorityProblems(reviewed, await AP.observeAuthority(reviewed, rdr)).some((p) => /registry.registrySchema: binding mismatch \("!reverted"\)/.test(p)));
++});
++
++test("generation is deterministic and refuses what a published default cannot carry", () => {
++  const a = generate({ authorityBytes: AUTH_BYTES, expectDigest: AUTH_DIGEST, expectPins: PINS, serviceIndexPin: INDEX_PIN, rpcs: RPCS, quorum: 3 });
++  const b = generate({ authorityBytes: AUTH_BYTES, expectDigest: AUTH_DIGEST, expectPins: PINS, serviceIndexPin: INDEX_PIN, rpcs: RPCS, quorum: 3 });
++  assert.equal(a.text, b.text); assert.equal(a.profileDigest, b.profileDigest);
++  assert.equal(a.text, canonicalText(JSON.parse(a.text)), "canonical text");
++  assert.throws(() => generate({ authorityBytes: AUTH_BYTES, expectDigest: AUTH_DIGEST, expectPins: PINS, rpcs: ["http://127.0.0.1:1", "http://127.0.0.1:2"] }), /HTTPS RPCs only/);
++  assert.throws(() => generate({ authorityBytes: AUTH_BYTES, expectDigest: AUTH_DIGEST, expectPins: PINS, rpcs: ["https://a.example/x", "https://a.example/y"] }), /one host is one vote/);
++  assert.throws(() => generate({ authorityBytes: AUTH_BYTES, expectDigest: "sha256:" + "1".repeat(64), expectPins: PINS, rpcs: RPCS }), /digest mismatch/);
++  const wrongPins = structuredClone(PINS); wrongPins.contracts.deployments = "0x" + "77".repeat(20);
++  assert.throws(() => generate({ authorityBytes: AUTH_BYTES, expectDigest: AUTH_DIGEST, expectPins: wrongPins, rpcs: RPCS }), /differs from the expected pins/);
++  // the module round-trips through the browser's own check
++  const src = moduleText({ profileText: a.text, profileDigest: a.profileDigest, authorityText: a.authorityText, authorityDigest: a.authorityDigest, gateDigest: "sha256:" + "2".repeat(64), provisional: false });
++  assert.match(src, /^\/\/ Generated by/);
++});
++
++test("the activation gate: live rev 16 today is NOT publishable, and says exactly why; complete evidence passes", () => {
++  const g = generate({ authorityBytes: AUTH_BYTES, expectDigest: AUTH_DIGEST, expectPins: PINS, serviceIndexPin: INDEX_PIN, rpcs: RPCS, quorum: 3 });
++  const now = Date.parse("2026-10-20T06:00:00Z");
++  const verification = { at: "2026-10-20T05:50:00Z", authorityDigest: AUTH_DIGEST, authority: { ok: true, blockNumber: "52843000" } };
++  const today = evaluateGate({ profile: g.profile, authority: g.authority, authorityDigest: AUTH_DIGEST, verification, now,
++    evidence: { management: { browserHostRollout: false }, directories: { httpsReachable: [] }, custody: { independentCommittee: false, detail: "epoch 1, one Enclave machine" } },
++    siteClosure: { recorded: "sha256:x", current: "sha256:x" } });
++  assert.equal(today.publishable, false);
++  const failing = today.gates.filter((x) => !x.pass).map((x) => x.id);
++  assert.deepEqual(failing, ["G2", "G3", "G4", "G5"]);
++  assert.match(today.gates.find((x) => x.id === "G4").detail, /not rolled out/);
++  // a ledger migration result naming another ledger fails G2 precisely; a stale verification fails G1
++  const mig = evaluateGate({ profile: g.profile, authority: g.authority, authorityDigest: AUTH_DIGEST, verification: { ...verification, at: "2026-10-18T00:00:00Z" }, now, evidence: {},
++    ledgerMigration: { kind: "enclave.ledger17.result", result: "complete", addresses: { ledger17: "0x72cbbbdcc19bb459dae088535cf4c8538e279ec8" } } });
++  assert.match(mig.gates.find((x) => x.id === "G2").detail, /NOT the pinned ledger/);
++  assert.equal(mig.gates.find((x) => x.id === "G1").pass, false);
++  // complete evidence (as it would read after activation; fixture values, not today's facts)
++  const storage = { version: 1, minimumCopies: 2, replicas: [
++    { upload: "https://s1.storage-a.net/add-json", audience: "0x" + "a1".repeat(32), gateway: "https://s1.storage-a.net/ipfs" },
++    { upload: "https://s2.storage-b.net/add-json", audience: "0x" + "b2".repeat(32), gateway: "https://s2.storage-b.net/ipfs" }] };
++  const g2 = generate({ authorityBytes: AUTH_BYTES, expectDigest: AUTH_DIGEST, expectPins: PINS, serviceIndexPin: INDEX_PIN, rpcs: RPCS, quorum: 3, storage });
++  const full = evaluateGate({ profile: g2.profile, authority: g2.authority, authorityDigest: AUTH_DIGEST, verification, now, acceptLedger: PINS.contracts.deployments + "@16",
++    evidence: { storage: { adapters: storage.replicas.map((r) => ({ origin: new URL(r.upload).origin, erc1271v2: true, gatewayCors: true, evidence: "fixture" })) },
++      management: { browserHostRollout: true }, directories: { httpsReachable: ["https://dir.operator-a.net"] }, custody: { independentCommittee: true } },
++    siteClosure: { recorded: "sha256:y", current: "sha256:y" } });
++  assert.equal(full.publishable, true, JSON.stringify(full.gates.filter((x) => !x.pass)));
++  // a changed site source after the gate fails G7
++  assert.equal(evaluateGate({ profile: g2.profile, authority: g2.authority, authorityDigest: AUTH_DIGEST, verification, now, acceptLedger: PINS.contracts.deployments + "@16",
++    evidence: {}, siteClosure: { recorded: "sha256:y", current: "sha256:z" } }).gates.find((x) => x.id === "G7").pass, false);
++});
++
++test("WalletConnect is the owner's choice of project id and relay, never a default in independent mode", async () => {
++  const C = await import("../site/js/core/config.js");
++  const saved = globalThis.localStorage;
++  try {
++    globalThis.localStorage = mem();
++    assert.equal(C.ownerWalletConnect(), null, "nothing chosen: off");
++    globalThis.localStorage.setItem(C.WC_TRANSPORT_KEY, JSON.stringify({ projectId: "ab".repeat(16), relayUrl: "wss://relay.example.org" }));
++    assert.deepEqual(C.ownerWalletConnect(), { projectId: "ab".repeat(16), relayUrl: "wss://relay.example.org" });
++    for (const bad of [{ projectId: "xyz", relayUrl: "wss://r.example" }, { projectId: "ab".repeat(16), relayUrl: "https://r.example" },
++      { projectId: "ab".repeat(16), relayUrl: "wss://u:p@r.example" }, { projectId: "ab".repeat(16), relayUrl: "wss://r.example/#x" }]){
++      globalThis.localStorage.setItem(C.WC_TRANSPORT_KEY, JSON.stringify(bad));
++      assert.equal(C.ownerWalletConnect(), null, JSON.stringify(bad));
++    }
++    // config.js evaluated with no profile (hosted default): the hosted project id is unchanged
++    assert.equal(C.WALLETCONNECT_PROJECT_ID, "e935970def12ab5d05b6b8ff7abd8d75");
++  } finally { globalThis.localStorage = saved; }
++});
+--- a/test/site-default-discovery.test.mjs
++++ b/test/site-default-discovery.test.mjs
+@@ -0,0 +1,197 @@
++// Discovery, capacity and host-owner policy in the default independent dashboard, without a browser or a chain:
++//   - js/core/service-discovery.js: the Ad ABI decoder against viem's encoder, endpoint rules against the reference
++//     network/service-index.mjs, ad judging, one operator = one participant, mixed-content reachability, provider choices,
++//     a pinned code hash that is never weakened;
++//   - js/core/host-capacity.js against network/host-capacity.mjs verifyHostCapacity on real signatures;
++//   - js/core/host-policy.js against network/host-admission-policy.mjs (hash and refusal), and a veto that removes only
++//     the owner's own hosts;
++//   - site/vendor/discovery.js equals a fresh build of its recorded entry.
++//   node --test test/site-default-discovery.test.mjs
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { encodeAbiParameters, keccak256, toBytes } from "viem";
++import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
++import * as REFSI from "../network/service-index.mjs";
++import * as REFCAP from "../network/host-capacity.mjs";
++import * as REFPOL from "../network/host-admission-policy.mjs";
++import * as SD from "../site/js/core/service-discovery.js";
++import * as HC from "../site/js/core/host-capacity.js";
++import * as HP from "../site/js/core/host-policy.js";
++import { keccak256Hex } from "../site/js/core/keccak.js";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const AD = { type: "tuple", components: [{ name: "operator", type: "address" }, { name: "slot", type: "uint8" }, { name: "kind", type: "uint16" }, { name: "version", type: "uint16" },
++  { name: "sequence", type: "uint64" }, { name: "expiresAt", type: "uint64" }, { name: "updatedAt", type: "uint64" }, { name: "descriptor", type: "bytes32" }, { name: "endpoints", type: "string[]" }] };
++const ad = (o) => ({ operator: o.operator, slot: o.slot ?? 0, kind: o.kind ?? 1, version: o.version ?? 1, sequence: BigInt(o.sequence ?? 1), expiresAt: BigInt(o.expiresAt ?? 2e9),
++  updatedAt: BigInt(o.updatedAt ?? 1e9), descriptor: o.descriptor ?? "0x" + "0".repeat(64), endpoints: o.endpoints });
++const encPage = (ads, total) => encodeAbiParameters([{ type: "tuple[]", components: AD.components }, { type: "uint256" }], [ads.map(ad), BigInt(total ?? ads.length)]);
++const encGet = (a) => encodeAbiParameters([AD], [ad(a)]);
++const OP_A = "0x" + "a1".repeat(20), OP_B = "0x" + "b2".repeat(20);
++
++test("the Ad decoder equals viem's ABI encoding, including empty, long and unicode-free endpoint lists", () => {
++  const ads = [{ operator: OP_A, endpoints: ["https://dir-1.operator-a.net/", "https://dir-2.operator-a.net/", "http://134.199.235.187:8188/", "https://203.0.114.9/"] },
++    { operator: OP_B, slot: 3, kind: 3, sequence: 77, endpoints: ["https://storage.operator-b.org/"] }];
++  const p = SD.decodePage(encPage(ads, 9));
++  assert.equal(p.total, 9n); assert.equal(p.ads.length, 2);
++  assert.equal(p.ads[0].operator, OP_A); assert.deepEqual(p.ads[0].endpoints, ads[0].endpoints);
++  assert.equal(p.ads[1].slot, 3); assert.equal(p.ads[1].kind, 3); assert.equal(p.ads[1].sequence, "77");
++  assert.deepEqual(SD.decodeGet(encGet(ads[1])).endpoints, ["https://storage.operator-b.org/"]);
++  assert.deepEqual(SD.decodePage(encPage([], 0)).ads, []);
++  // a truncated or out-of-bounds answer is refused, never half-read
++  const enc = encPage(ads, 2);
++  assert.throws(() => SD.decodePage(enc.slice(0, enc.length - 64)), /out of bounds/);
++  assert.throws(() => SD.decodePage("0x" + "ff".repeat(64)), /out of range|out of bounds/);
++});
++
++test("endpoint rules equal network/service-index.mjs validateEndpoint", () => {
++  const cases = ["https://dir.operator-a.net/", "http://134.199.235.187:8188/", "https://10.0.0.1/", "https://127.0.0.1/", "https://[::1]/", "https://localhost/",
++    "https://dir.example/", "https://a.test/", "https://x/", "ftp://dir.operator-a.net/", "https://u:p@dir.operator-a.net/", "https://dir.operator-a.net/?k=1",
++    "https://100.64.1.1/", "https://192.168.1.1/", "https://8.8.8.8/x", "https://dir.operator-a.net:8443/v1", "https://" + "a".repeat(250) + ".net/", "https://dir.local/"];
++  for (const c of cases){
++    let a, b; try { a = SD.validateEndpoint(c); } catch (e){ a = "refused"; } try { b = REFSI.validateEndpoint(c); } catch (e){ b = "refused"; }
++    assert.equal(a, b, c);
++  }
++});
++
++test("judging and grouping: expired/unknown ads drop with reasons; one operator is one participant however many endpoints", () => {
++  const ts = 1_800_000_000;
++  assert.equal(SD.judge(ad({ operator: OP_A, endpoints: ["https://d.operator-a.net/"], expiresAt: ts }), ts).state, "expired");
++  assert.equal(SD.judge(ad({ operator: OP_A, endpoints: ["https://d.operator-a.net/"], version: 2 }), ts).state, "rejected");
++  assert.equal(SD.judge(ad({ operator: OP_A, endpoints: ["https://d.operator-a.net/"], kind: 9 }), ts).state, "rejected");
++  assert.equal(SD.judge(ad({ operator: OP_A, endpoints: ["https://127.0.0.1/"] }), ts).state, "rejected");
++  const cA = SD.judge(ad({ operator: OP_A, endpoints: ["https://d1.operator-a.net/", "https://d2.operator-a.net/", "https://d3.operator-a.net/", "http://134.199.235.187:8188/"] }), ts).candidate;
++  const cB = SD.judge(ad({ operator: OP_B, kind: 3, endpoints: ["https://s.operator-b.org/"] }), ts).candidate;
++  // same parity with the reference judge for the listed ad
++  const ops = SD.operatorsOf([cA, cB], "https:");
++  assert.equal(ops.length, 2, "two operators, not five endpoints");
++  const a = ops.find((o) => o.operator === OP_A);
++  assert.equal(a.endpoints.length, 4);
++  assert.equal(a.endpoints.find((e) => e.url.startsWith("http:")).reachable, false, "plain HTTP from an HTTPS page");
++  assert.equal(SD.reachability("http://134.199.235.187:8188/", "http:").reachable, true);
++  // page directories: only CHOSEN operators, one participant each
++  const profile = { directories: ["https://own-dir.example.org"], serviceIndex: { address: "0x" + "54".repeat(20), codeHash: "0x" + "69".repeat(32) }, contracts: {}, rpcs: [] };
++  const disc = { candidates: [cA, cB], lookups: [] };
++  const none = SD.pageDirectories(profile, disc, { pageProtocol: "https:", choices: { directoryOperators: [] } });
++  assert.deepEqual(none.map((d) => d.origin), ["https://own-dir.example.org"], "unchosen candidates are never used");
++  const chosen = SD.pageDirectories(profile, disc, { pageProtocol: "https:", choices: { directoryOperators: [OP_A] } });
++  assert.equal(chosen.length, 5);
++  assert.equal(SD.participantsOf(chosen), 2, "a profile directory + ONE operator, though it lists four endpoints");
++  assert.equal(chosen.filter((d) => !d.reachable).length, 1);
++});
++
++test("readServiceIndex: the pinned code hash is never weakened; windows, lookups and freshness at the agreed block", async () => {
++  const code = "0x6080604052";
++  const pin = { chainId: 8453, address: "0x" + "54".repeat(20), codeHash: keccak256Hex(code) };
++  const now = 1_800_000_000;
++  const dirAds = [{ operator: OP_A, endpoints: ["https://d.operator-a.net/"] }, { operator: OP_B, endpoints: ["https://d.operator-b.org/"], expiresAt: now - 1 }];
++  const reader = (codeAt = code) => ({ snapshot: async () => ({ number: 7, hash: "0x" + "b".repeat(64), timestamp: now, rpcs: ["x", "y"] }),
++    code: async () => codeAt,
++    call: async (_s, _to, data) => {
++      const selPage = "0x" + keccak256(toBytes("page(uint16,uint256,uint256)")).slice(2, 10), selGet = "0x" + keccak256(toBytes("get(address,uint8)")).slice(2, 10);
++      if (data.startsWith(selPage)){ const kind = Number(BigInt("0x" + data.slice(10, 74))); return encPage(kind === 1 ? dirAds : [], kind === 1 ? 2 : 0); }
++      if (data.startsWith(selGet)){ const op = "0x" + data.slice(10 + 24, 74); const slot = Number(BigInt("0x" + data.slice(74, 138)));
++        return encGet(op === OP_A && slot === 0 ? dirAds[0] : { operator: "0x" + "0".repeat(40), endpoints: [] }); }
++      throw new Error("unexpected call");
++    } });
++  const r = await SD.readServiceIndex({ reader: reader(), pin, kinds: ["directory", "storage"], lookups: [{ operator: OP_A, slot: 0 }, { operator: OP_B, slot: 0 }] });
++  assert.equal(r.status, "complete"); assert.equal(r.block, 7);
++  assert.equal(r.candidates.length, 1); assert.equal(r.expired, 1);
++  assert.equal(r.lookups.find((l) => l.operator === OP_A).state, "listed");
++  assert.equal(r.lookups.find((l) => l.operator === OP_B).state, "absent");
++  await assert.rejects(SD.readServiceIndex({ reader: reader("0x6001"), pin }), /not the pinned/);
++  await assert.rejects(SD.readServiceIndex({ reader: reader("0x"), pin }), /absent, not the pinned/);
++});
++
++test("provider choices persist per profile and never leak across profiles", () => {
++  const m = new Map(), ls = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v) };
++  const p1 = { serviceIndex: { address: "0x1" }, contracts: { deployments: "0xa" }, rpcs: ["https://a"] }, p2 = { ...p1, rpcs: ["https://b"] };
++  SD.saveChoices(p1, { directoryOperators: [OP_A, "not-an-address"] }, ls);
++  assert.deepEqual(SD.loadChoices(p1, ls).directoryOperators, [OP_A]);
++  assert.deepEqual(SD.loadChoices(p2, ls).directoryOperators, []);
++});
++
++test("host capacity: the page's verifier agrees with network/host-capacity.mjs on real signatures", async () => {
++  HC._setRecoverForTests((await import("viem")).recoverMessageAddress);
++  const op = privateKeyToAccount(generatePrivateKey()), other = privateKeyToAccount(generatePrivateKey());
++  const endpoint = "https://host-a.operator-a.net", registry = "0x" + "86".repeat(20);
++  const now = Date.now();
++  const rec = REFCAP.buildHostCapacityRecord({ availability: { gpu: false, cpuShareFree: 0.4, claimEnabled: true }, chainId: 8453, registry, endpoint, operator: op.address, now });
++  const env = await REFCAP.signHostCapacity(op, rec);
++  const entry = { endpoint, operator: op.address.toLowerCase(), active: true };
++  const pins = { chainId: 8453, registry };
++  const both = async (e, en = entry, at = now) => {
++    let a, b; try { await HC.verifyHostCapacity(e, { pins, entry: en, now: at }); a = "ok"; } catch (x){ a = "refused"; }
++    try { await REFCAP.verifyHostCapacity(e, { pins, entry: en, now: at }); b = "ok"; } catch (x){ b = "refused"; }
++    return [a, b];
++  };
++  assert.deepEqual(await both(env), ["ok", "ok"]);
++  assert.deepEqual(await both(env, { ...entry, operator: other.address.toLowerCase() }), ["refused", "refused"], "not the current registry operator");
++  assert.deepEqual(await both(env, { ...entry, active: false }), ["refused", "refused"]);
++  assert.deepEqual(await both(env, entry, now + 16 * 60_000), ["refused", "refused"], "expired");
++  assert.deepEqual(await both({ ...env, signature: (await other.signMessage({ message: REFCAP.hostCapacityMessage(rec) })) }), ["refused", "refused"], "signed by someone else");
++  assert.deepEqual(await both({ record: { ...rec, hostId: "0x" + "1".repeat(64) }, signature: env.signature }), ["refused", "refused"], "hostId is not keccak(endpoint)");
++  assert.equal(HC.hostIdOf(endpoint), REFCAP.hostIdOf(endpoint));
++  assert.equal(HC.hostCapacityHash(rec), REFCAP.hostCapacityHash(rec));
++  // readHostCapacity: host endpoint + a directory; an equivocating host shows nothing
++  const rec2 = { ...rec, availabilityJson: JSON.stringify({ gpu: false, cpuShareFree: 0.1 }) };
++  const env2 = await REFCAP.signHostCapacity(op, rec2);
++  const fetchImpl = async (url) => {
++    const body = url.startsWith(endpoint) ? JSON.stringify(env) : url.startsWith("https://dir.operator-b.org") ? JSON.stringify({ records: [env2] }) : null;
++    if (!body) return new Response("no", { status: 404 });
++    return new Response(body, { status: 200, headers: { "content-type": "application/json" } });
++  };
++  const res = await HC.readHostCapacity({ hosts: [entry], directories: [{ origin: "https://dir.operator-b.org", operator: OP_B, reachable: true }], pins, fetchImpl, now: () => now });
++  assert.equal(res.capacity.get(HC.hostIdOf(endpoint)).equivocation, true);
++  const res1 = await HC.readHostCapacity({ hosts: [entry], directories: [], pins, fetchImpl, now: () => now });
++  assert.match(HC.capacityLine(res1.capacity.get(HC.hostIdOf(endpoint))), /host-reported, signed by its operator, expires in \d+ min: CPU share free 40%/);
++  const res2 = await HC.readHostCapacity({ hosts: [{ ...entry, endpoint: "https://quiet-host.operator-c.net" }], directories: [], pins, fetchImpl, now: () => now });
++  assert.match(HC.capacityLine(res2.capacity.values().next().value), /^no capacity report/);
++});
++
++test("host-owner policy: same hash and refusal as the host; a veto removes only that owner's host; an unreadable policy blocks only its host", async () => {
++  const own = "0x" + "f5".repeat(20), h1 = keccak256(toBytes("https://h1.enclave-operated.net")), h2 = keccak256(toBytes("https://h2.independent.net")), h3 = keccak256(toBytes("https://h3.other.net"));
++  const app = "catalog://0x" + "11".repeat(32) + "/0";
++  const deny = { version: 1, chainId: 8453, ownershipContract: own, hostId: h1, requireCatalogApproval: false, denyDeployments: [], denyAppRefs: [app] };
++  assert.equal(HP.hostAdmissionPolicyHash(deny), REFPOL.hostAdmissionPolicyHash(deny));
++  for (const args of [{ hostId: h1, deploymentId: "0x" + "22".repeat(32), appRef: app }, { hostId: h1, deploymentId: "0x" + "22".repeat(32), appRef: "catalog://0x" + "33".repeat(32) + "/1" }])
++    assert.equal(HP.hostAdmissionRefusal(deny, args), REFPOL.hostAdmissionRefusal(deny, { ...args, version: null }));
++  const approval = { ...deny, hostId: h3, requireCatalogApproval: true, denyAppRefs: [] };
++  for (const version of [null, { active: true, yanked: false, approval: 1 }, { active: true, yanked: true, approval: 1 }, { active: true, yanked: false, approval: 0 }])
++    assert.equal(HP.hostAdmissionRefusal(approval, { hostId: h3, deploymentId: "0x" + "22".repeat(32), appRef: app, version }),
++      REFPOL.hostAdmissionRefusal(approval, { hostId: h3, deploymentId: "0x" + "22".repeat(32), appRef: app, version }));
++  // authority(hostId): h1 owned with the deny policy, h2 owned with no policy, h3 owned with an unfetchable policy
++  const word = (h) => h.replace(/^0x/, "").padStart(64, "0");
++  const hash1 = HP.hostAdmissionPolicyHash(deny), hash3 = "0x" + "99".repeat(32);
++  const reader = { call: async (_s, to, data) => {
++    assert.equal(to, own);
++    const id = "0x" + data.slice(10);
++    const owner = "0x" + "0b".repeat(20), z = "0x" + "0".repeat(64);
++    const ph = id === h1 ? hash1 : id === h3 ? hash3 : z;
++    return "0x" + word(owner) + word("0x0") + word("0x1") + word(ph);
++  } };
++  const fetchImpl = async (url) => url.endsWith(hash1.slice(0) + ".json") ? new Response(JSON.stringify(deny), { status: 200 }) : new Response("gone", { status: 404 });
++  const pol = await HP.readHostPolicies({ reader, snap: {}, ownership: own, hostIds: [h1, h2, h3], mirrors: ["https://mirror.operator-a.net"], fetchImpl });
++  assert.equal(pol.get(h1).state, "policy"); assert.equal(pol.get(h2).state, "open"); assert.equal(pol.get(h3).state, "unavailable");
++  const v1 = HP.ownerVerdict(pol.get(h1), { hostId: h1, appRef: app }), v2 = HP.ownerVerdict(pol.get(h2), { hostId: h2, appRef: app }), v3 = HP.ownerVerdict(pol.get(h3), { hostId: h3, appRef: app });
++  assert.equal(v1.eligible, false); assert.match(v1.reason, /declines this deployment/);
++  assert.equal(v2.eligible, true, "another owner's host is unaffected");
++  assert.equal(v3.eligible, false); assert.match(v3.reason, /policy is unavailable/);
++  // the quote list: only h1 and h3 leave it; the ceiling suggestion is recomputed from what is left
++  const IC = await import("../site/js/core/independent-chain.js");
++  const q = { hosts: [h1, h2, h3].map((hostId, i) => ({ hostId, endpoint: "e" + i, eligible: true, free: false, rate6: BigInt(10 - i) })), defaultCap6: 8n, eligibleCount: 3 };
++  IC.applyOwnerVerdicts(q, { byHost: new Map([[h1, v1], [h2, v2], [h3, v3]]), note: "" });
++  assert.deepEqual(q.hosts.filter((h) => h.eligible).map((h) => h.hostId), [h2]);
++  assert.equal(q.defaultCap6, 9n); assert.equal(q.eligibleCount, 1);
++  assert.ok(q.hosts.find((h) => h.hostId === h1).ownerDeclines);
++});
++
++test("site/vendor/discovery.js is a fresh build of its recorded entry", async () => {
++  const { buildDiscoveryVendor, OUT, MANIFEST } = await import("../scripts/build-discovery-vendor.mjs");
++  const { js, manifest } = await buildDiscoveryVendor();
++  assert.ok(Buffer.compare(fs.readFileSync(OUT), js) === 0, "site/vendor/discovery.js differs from a fresh build");
++  assert.deepEqual(JSON.parse(fs.readFileSync(MANIFEST, "utf8")), manifest);
++  assert.ok(fs.existsSync(path.join(ROOT, manifest.entry)));
++});
+--- a/test/site-default-independence.test.mjs
++++ b/test/site-default-independence.test.mjs
+@@ -0,0 +1,359 @@
++// The DEFAULT independent dashboard, end to end, in fresh Chromium profiles against the BUILT site.
++//   - The site: scripts/build-site.mjs with a provisional default profile module (test/helpers/default-site-fixture.mjs, run
++//     first as its own job), served over HTTPS on localhost. The profile packages the REAL reviewed Base authority profile
++//     and the REAL service-index pin; its RPCs are three loopback proxies.
++//   - The chain: an anvil fork of Base (read-only upstream) holding the real pinned contracts, the real service index and
++//     its real Enclave ad, real ledger records and a real relay-era vault (test/helpers/default-independence-rig.mjs).
++//   - FIXTURES (named so): dev-key actors (a service operator, a host operator with a registered fixture host, a host owner
++//     that accepts the Enclave-operated metal0 host's ownership ON THE FORK), real operators impersonated on the fork only,
++//     the real directory server, storage adapters and a policy mirror reached at public-looking names through routing.
++//   - Every request that leaves this machine and is not a fixture is refused and recorded; Enclave's API, identity and
++//     metadata origins are never contacted.
++// Needs: anvil, Playwright's Chromium, network access to the Base fork upstream (read-only), and the fixture build:
++//   node test/helpers/default-site-fixture.mjs --out-dir <dir>
++//   DEFAULT_SITE_SUMMARY=<dir>/summary.json node test/helpers/memory-guard.mjs --max-rss-mib 1408 --floor-available-mib 16384 -- \
++//     node --max-old-space-size=256 test/site-default-independence.test.mjs
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import { execFileSync } from "node:child_process";
++import { createRequire } from "node:module";
++import { fileURLToPath } from "node:url";
++import * as viem from "viem";
++import { startForkRig, walletScript, DEV, LIVE, FIXTURE_HOST, FIXTURE_DIRECTORY, CHAIN } from "./helpers/default-independence-rig.mjs";
++import { mintLocalCa, serveTls } from "./helpers/local-tls.mjs";
++import { startLocalBundler } from "./helpers/local-bundler.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const require = createRequire(new URL("../e2e/package.json", import.meta.url));
++let chromium = null; try { ({ chromium } = require("playwright")); } catch {}
++const haveAnvil = (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); return true; } catch { return false; } })();
++const SUMMARY = process.env.DEFAULT_SITE_SUMMARY;
++const skip = (!haveAnvil && "needs anvil") || (!chromium && "needs Playwright's Chromium") || ((!SUMMARY || !fs.existsSync(SUMMARY)) && "needs DEFAULT_SITE_SUMMARY from test/helpers/default-site-fixture.mjs");
++const EP = "0x0000000071727de22e5e9d8baf0edac6f37da032";
++
++let rig, browser, site, siteUrl, ca, summary, bundler, setupError = null;
++const cleanups = [], pageErrors = [];
++const cleanup = async () => { while (cleanups.length){ try { await cleanups.pop()(); } catch {} } };
++const ready = () => { if (setupError) throw new Error("setup failed: " + setupError.message); };
++
++const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".map": "application/json", ".ico": "image/x-icon", ".png": "image/png", ".webp": "image/webp", ".woff2": "font/woff2" };
++const PRETTY = { "/": "/index.html", "/apps": "/apps.html", "/dashboard": "/dashboard.html", "/sessions": "/sessions.html", "/host": "/host.html", "/grant": "/grant.html" };
++
++test.before(async () => {
++  if (skip) return;
++  const watchdog = setTimeout(() => { console.error("default-independence: watchdog"); cleanup().finally(() => process.exit(1)); }, 25 * 60 * 1000); watchdog.unref();
++  try {
++    summary = JSON.parse(fs.readFileSync(SUMMARY, "utf8"));
++    const dist = summary.dist;
++    // the BUILT site, over HTTPS on a loopback name (a provisional profile only starts on loopback)
++    ca = mintLocalCa({ host: "localhost" }); cleanups.push(() => ca.cleanup());
++    site = await serveTls(ca, (req, res) => {
++      let p = decodeURIComponent(new URL(req.url, "https://x").pathname); p = PRETTY[p] || p;
++      const file = path.join(dist, p);
++      if (!file.startsWith(dist) || !fs.existsSync(file) || !fs.statSync(file).isFile()){ res.writeHead(404); return res.end("not found"); }
++      res.writeHead(200, { "content-type": TYPES[path.extname(file)] || "application/octet-stream", "cache-control": "no-store" }); fs.createReadStream(file).pipe(res);
++    });
++    cleanups.push(() => site.close());
++    siteUrl = "https://localhost:" + site.port;
++    rig = await startForkRig(); cleanups.push(() => rig.stop());
++    bundler = await startLocalBundler({ rpcUrl: rig.rpcUrl, entryPoint: EP, chain: CHAIN, setBalance: (a, v) => rig.rpc("anvil_setBalance", [a, v]) });
++    cleanups.push(() => bundler.stop());
++    browser = await chromium.launch({ args: ["--disable-gpu", "--disable-dev-shm-usage", "--renderer-process-limit=1", "--disable-extensions",
++      "--disable-features=site-per-process,IsolateOrigins,Translate,OptimizationHints,MediaRouter,AudioServiceOutOfProcess",
++      "--enable-features=NetworkServiceInProcess,NetworkServiceInProcess2", "--js-flags=--max-old-space-size=192"] });
++    cleanups.push(() => browser.close());
++  } catch (e){ setupError = e; await cleanup(); throw e; }
++});
++test.after(cleanup);
++
++/* A FRESH browser profile: new context, routing that refuses everything off this machine but the fixtures. */
++async function fresh({ wallet = null, authenticator = false, init = null, routeExtra = null } = {}){
++  const context = await browser.newContext({ ignoreHTTPSErrors: true, reducedMotion: "reduce" });
++  await rig.routeContext(context);
++  if (routeExtra) await routeExtra(context);
++  if (wallet){
++    await context.addInitScript({ content: walletScript({ rpc: rig.rpcUrl, address: wallet }) });
++    await context.addInitScript((address) => { if (!localStorage.getItem("enclave_session")) localStorage.setItem("enclave_session", JSON.stringify({ address, rdns: "test.local.wallet" })); }, wallet);
++  }
++  if (init) await context.addInitScript(init);
++  const page = await context.newPage(); page.setDefaultTimeout(60000);
++  page.on("pageerror", (e) => pageErrors.push(String(e && e.message || e)));
++  if (authenticator){
++    const cdp = await context.newCDPSession(page);
++    await cdp.send("WebAuthn.enable");
++    await cdp.send("WebAuthn.addVirtualAuthenticator", { options: { protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true } });
++  }
++  return { context, page, close: () => context.close() };
++}
++const barText = (page) => page.locator(".ind-default-bar").textContent().catch(() => "");
++const waitBar = async (page, re, timeout = 180000) => {
++  try { await page.waitForFunction((src) => new RegExp(src).test(document.querySelector(".ind-default-bar")?.textContent || ""), re.source, { timeout }); }
++  catch (e){ throw new Error(e.message + "\nbar: " + await barText(page) + "\nrefused: " + JSON.stringify(rig.refused.slice(-8))); }
++};
++const waitIn = async (page, sel, re, timeout = 120000) => {
++  try { await page.waitForFunction(({ sel, src }) => [...document.querySelectorAll(sel)].some((e) => new RegExp(src).test(e.textContent || "")), { sel, src: re.source }, { timeout }); }
++  catch (e){ throw new Error(e.message + "\nin " + sel + ": " + (await page.locator(sel).allTextContents().catch(() => [])).join(" | ").slice(-800)); }
++};
++// Enclave's API / identity / metadata: never asked. (A registered host's own capacity endpoint is a HOST, listed apart.)
++const enclaveService = (u) => /\/\/(api|ipfs|get|relay|sso)\.enclave\.host\//.test(u) && !/\/t\/[a-z0-9-]+\/v1\/host\/capacity$/.test(u);
++
++test("cold start: the built site's packaged default verifies against the chain, discovers the index, and renders the catalog without Enclave", { skip, timeout: 420000 }, async () => {
++  ready();
++  const { page, close } = await fresh();
++  try {
++    await page.goto(siteUrl + "/");
++    await waitBar(page, /Reviewed contracts verified at block \d+ \(\d chain endpoints agree\)/);
++    await waitBar(page, /service index: \d+ candidate ad\(s\) at block \d+/);
++    assert.equal(await page.evaluate(async () => (await import("/js/core/config.js").catch(() => null)) === null), true, "built site: no source modules served");
++    // the catalog renders from the pinned contract through the profile's RPCs
++    await page.goto(siteUrl + "/apps");
++    await page.waitForFunction(() => document.querySelectorAll("c-app-card").length > 0, null, { timeout: 120000 });
++    const cards = await page.locator("c-app-card").count();
++    assert.ok(cards > 0, "catalog cards");
++    await waitBar(page, /Reviewed contracts verified/);
++    // default navigation: "Sign in" with no wallet goes to the dashboard's own passkey account panel, never the relay
++    await page.locator("#walletBtn").click();
++    await page.waitForURL(/\/dashboard/, { timeout: 60000 });
++    await page.waitForSelector(".acct-panel", { timeout: 60000 });
++    // a hosted-only page says what it is and offers only the explicit hosted choice
++    await page.goto(siteUrl + "/checkout.html");
++    await page.waitForSelector(".ind-hosted-only", { timeout: 60000 });
++    assert.match(await page.locator(".ind-hosted-only").textContent(), /part of Enclave’s hosted service/);
++    assert.deepEqual(rig.refused.filter(enclaveService), [], "no Enclave API, identity or metadata request");
++  } finally { await close(); }
++});
++
++test("discovery: candidates are untrusted, one operator is one participant, plain HTTP is unreachable from this HTTPS page, the user chooses; stale and lying answers", { skip, timeout: 420000 }, async () => {
++  ready();
++  const { page, close } = await fresh();
++  try {
++    await page.goto(siteUrl + "/dashboard");
++    await page.waitForSelector(".ind-discovery .ind-op", { timeout: 180000 });
++    const disc = page.locator(".ind-discovery");
++    // the real Enclave ad: ONE operator with four plain-HTTP endpoints, none reachable from an HTTPS page
++    const enclaveOp = disc.locator('.ind-op[data-op="' + LIVE.metal0.operator + '"]');
++    assert.equal(await enclaveOp.locator("li").count(), 4);
++    assert.equal(await enclaveOp.locator("li .warn").count(), 4, "all four marked not reachable from this page");
++    const fixtureOp = disc.locator('.ind-op[data-op="' + DEV.serviceOperator.address.toLowerCase() + '"]');
++    await fixtureOp.waitFor();
++    await waitIn(page, ".ind-disc-out", /This page uses no directory/);
++    // nothing is used until the user chooses an operator
++    await fixtureOp.locator(".ind-op-use").check();
++    await waitIn(page, ".ind-disc-out", /This page uses 1 directory from 1 participant\(s\): https:\/\/dir\.operator-b\.net/);
++    // a stale ad: published with a 2-minute life, then the chain moves past it -> listed as expired, never used
++    await rig.publishAd({ slot: 1, endpoints: ["https://dir2.operator-b.net/"], ttlSec: 120 });
++    await rig.rpc("evm_increaseTime", [300]); await rig.rpc("evm_mine", []);
++    await disc.locator(".ind-disc-again").click();
++    await waitIn(page, ".ind-disc-out", /expired ad\(s\) ignored/);
++    assert.equal(await page.locator('.ind-disc-out li:has-text("dir2.operator-b.net")').count(), 0, "the expired endpoint is not offered");
++    // the directory interface in review (directory47485): Enclave's operator republishes slot 0 with HTTPS endpoints
++    // (its prepared, UNSIGNED sequence-2 ad). On this fork only: the same operator stays one participant, and its
++    // endpoints become reachable from this HTTPS page. The live ad is still plain HTTP.
++    await rig.publishAsOperator(LIVE.metal0.operator, { slot: 0, endpoints: ["https://134.199.235.187/", "https://134.209.248.172/", "https://165.245.191.129/", "https://146.190.246.39/"] });
++    await disc.locator(".ind-disc-again").click();
++    await page.waitForFunction((op) => { const el = document.querySelector('.ind-op[data-op="' + op + '"]'); return el && /https:\/\/134\.199\.235\.187\//.test(el.textContent); }, LIVE.metal0.operator, { timeout: 120000 });
++    assert.equal(await enclaveOp.locator("li").count(), 4, "still one operator with four endpoints");
++    assert.equal(await enclaveOp.locator("li .warn").count(), 0, "HTTPS endpoints are reachable from this page");
++    // one lying RPC (fabricated index answers) is outvoted; a liar plus a dead endpoint leaves no agreement: a refusal, not a list
++    rig.proxies[0].lieCall.set(LIVE.serviceIndex, () => "0x" + "00".repeat(31) + "40" + "00".repeat(31) + "09" + "00".repeat(32));
++    await disc.locator(".ind-disc-again").click();
++    await waitIn(page, ".ind-disc-out", /This page uses 1 directory from 1 participant/);
++    rig.proxies[1].mode = "down";
++    await page.locator(".ind-disc-again").click();
++    await waitIn(page, ".ind-disc-out", /could not be read: .*(disagree|answered)/);
++  } finally { rig.proxies.forEach((p) => p.reset()); await close(); }
++});
++
++test("new user, no wallet: a passkey account is created through the owner's bundler and becomes the identity on the default profile", { skip, timeout: 420000 }, async () => {
++  ready();
++  const { page, close } = await fresh({ authenticator: true });
++  try {
++    await page.goto(siteUrl + "/dashboard");
++    assert.equal(await page.evaluate(() => typeof window.ethereum), "undefined");
++    await waitBar(page, /Reviewed contracts verified/);
++    await page.waitForSelector(".acct-panel", { timeout: 60000 });
++    await page.locator(".acct-panel > summary").click();
++    await page.locator(".acct-label").fill("laptop");
++    await page.locator(".acct-shared").check();
++    await page.locator(".acct-create").click();
++    await waitIn(page, ".acct-status", /passkey created under localhost/);
++    await page.locator(".acct-compute").click();
++    await waitIn(page, ".acct-status", /your account address: 0x[0-9a-f]{40} \(not deployed yet\)/);
++    const safe = /your account address: (0x[0-9a-f]{40})/.exec(await page.locator(".acct-status").textContent())[1];
++    await page.locator(".acct-save").click();
++    await page.waitForSelector(".acct-summary");
++    await page.locator(".acct-transport").click();
++    await page.locator(".acct-tr-b").fill(bundler.url);
++    await page.locator(".acct-tr-save").click();
++    await page.waitForSelector(".acct-gas-account:not([disabled])");
++    await page.locator(".acct-gas-account").check();
++    await rig.rpc("anvil_setBalance", [safe, viem.toHex(10n ** 17n)]);
++    await page.locator(".acct-deploy").click();
++    await waitIn(page, ".acct-status", /creating your account confirmed by the EntryPoint in 0x[0-9a-f]{64}/, 120000);
++    assert.notEqual(await rig.rpc("eth_getCode", [safe, "latest"]), "0x");
++    await page.locator(".acct-use").click();
++    await waitIn(page, ".acct-status", /the dashboard now acts as your passkey account/);
++    assert.deepEqual(rig.refused.filter(enclaveService), []);
++  } finally { await close(); }
++});
++
++test("existing owner: the real Base records are listed from the chain, including those its relay-era vault holds, and one is released to the wallet", { skip, timeout: 600000 }, async () => {
++  ready();
++  await rig.rpc("anvil_impersonateAccount", [LIVE.existingOwner]);
++  await rig.rpc("anvil_setBalance", [LIVE.existingOwner, "0x56bc75e2d63100000"]);
++  const { page, close } = await fresh({ wallet: LIVE.existingOwner });
++  try {
++    await page.goto(siteUrl + "/dashboard");
++    await waitBar(page, /Reviewed contracts verified/);
++    await waitIn(page, ".enc-scannote", /Read from the ledger at block \d+ \(\d+ records checked\)/, 240000);
++    await waitIn(page, ".enc-scannote", new RegExp("Includes your relay-era session vault " + LIVE.existingLegacyVault.slice(0, 10)));
++    // every record of the wallet and of its relay-era vault, from the chain
++    const LEDGER = viem.parseAbi(["function count() view returns (uint256)", "function getPage(uint256,uint256) view returns ((bytes32 id,address owner,string appRef,string ports,string configCid,uint16 gpuMilli,uint16 cpuMilli,uint32 appPort,bool isPublic,bool active,uint64 createdAt,uint256 rate,uint256 balance6,uint256 spent6,bytes32 runner,address runnerOperator,uint64 leaseUntil)[])"]);
++    const n = await rig.pc.readContract({ address: LIVE.ledger, abi: LEDGER, functionName: "count" });
++    const all = await rig.pc.readContract({ address: LIVE.ledger, abi: LEDGER, functionName: "getPage", args: [0n, n] });
++    const mine = all.filter((d) => [LIVE.existingOwner, LIVE.existingLegacyVault].includes(d.owner.toLowerCase()));
++    const legacy = mine.filter((d) => d.owner.toLowerCase() === LIVE.existingLegacyVault);
++    assert.ok(legacy.length >= 1, "the fork holds relay-era vault records");
++    const shown = await page.evaluate(() => [...document.querySelector("c-deployments")._list].map((d) => ({ id: d.id.toLowerCase(), legacy: !!d.legacyVault })));
++    assert.deepEqual(shown.map((x) => x.id).sort(), mine.map((d) => d.id.toLowerCase()).sort(), "exactly the wallet's and its relay-era vault's records");
++    assert.deepEqual(shown.filter((x) => x.legacy).map((x) => x.id).sort(), legacy.map((d) => d.id.toLowerCase()).sort());
++    // a relay-era row: read-only, holder named, released by the vault's own owner operation
++    const target = legacy[0].id.toLowerCase();
++    await page.locator(".enc-search").fill(target.slice(2, 14));
++    await page.waitForFunction(() => document.querySelectorAll(".enc-row").length === 1, null, { timeout: 90000 });
++    const row = page.locator(".enc-row").first();
++    assert.match(await row.locator(".enc-legacy").textContent(), /Held by your relay-era session vault/);
++    assert.equal(await row.locator(".enc-fundbtn").count(), 0, "no Top up while the relay-era vault holds it");
++    await row.locator(".enc-lrelease").click();
++    await waitIn(page, ".enc-lrel-out", /released to your wallet|✗/, 180000);
++    const out = await row.locator(".enc-lrel-out").textContent();
++    assert.match(out, /released to your wallet/, out);
++    const after = await rig.pc.readContract({ address: LIVE.ledger, abi: viem.parseAbi(["function get(bytes32) view returns ((bytes32 id,address owner,string appRef,string ports,string configCid,uint16 gpuMilli,uint16 cpuMilli,uint32 appPort,bool isPublic,bool active,uint64 createdAt,uint256 rate,uint256 balance6,uint256 spent6,bytes32 runner,address runnerOperator,uint64 leaseUntil))"]), functionName: "get", args: [target] });
++    assert.equal(after.owner.toLowerCase(), LIVE.existingOwner, "the record is now the wallet's own");
++  } finally { await close(); await rig.rpc("anvil_stopImpersonatingAccount", [LIVE.existingOwner]).catch(() => {}); }
++});
++
++test("a wallet user's deploy: the host owner's veto removes only its host, signed capacity is shown, and a failed storage adapter is a precise refusal", { skip, timeout: 600000 }, async () => {
++  ready();
++  const wallet = DEV.wallet.address.toLowerCase();
++  // the fixture host signs a real capacity record; a forged one (wrong signer) rides the directory too and must be ignored
++  rig.capacity.hostRecord = await rig.signCapacity({ gpu: false, cpuShareFree: 0.5, claimEnabled: true });
++  rig.capacity.records = [await rig.signCapacity({ gpu: false, cpuShareFree: 0.9, claimEnabled: true }, { operator: DEV.serviceOperator })];
++  const { page, close } = await fresh({ wallet });
++  try {
++    await page.goto(siteUrl + "/apps");
++    await waitBar(page, /Reviewed contracts verified/);
++    await page.waitForFunction(() => document.querySelectorAll("c-app-card [data-appid]").length > 0, null, { timeout: 120000 });
++    const appId = (await page.locator("c-app-card [data-appid]").first().getAttribute("data-appid")).toLowerCase();
++    // the Enclave-operated metal0 host's owner (a fixture owner on the fork) declines every version of this app
++    const CAT = viem.parseAbi(["function getApp(bytes32) view returns ((bytes32 appId,address publisher,string slug,string name,string description,uint32 versionCount,uint64 createdAt,uint64 updatedAt,bool active))"]);
++    const app = await rig.pc.readContract({ address: LIVE.catalog, abi: CAT, functionName: "getApp", args: [appId] });
++    const refs = [...Array(Number(app.versionCount)).keys()].map((i) => "catalog://" + appId + "/" + i);
++    await rig.vetoHost(LIVE.metal0.endpoint, LIVE.metal0.operator, refs);
++    // the quick-deploy dialog: metal0 is not offered (and says why), every other host is
++    await page.goto(siteUrl + "/apps?app=" + appId);
++    await page.locator('#appDetailView [data-act="deploy"]').first().click({ timeout: 60000 });
++    await page.waitForSelector(".qd-indhost", { timeout: 120000 });
++    await waitIn(page, ".qd-target", /Not offered: https:\/\/api\.enclave\.host\/t\/metal0 \(its owner 0x[0-9a-f]{6}… declines this deployment\)\. Every other host is unaffected/);
++    const opts = await page.locator(".qd-indhost option").allTextContents();
++    assert.ok(!opts.some((o) => /metal0/.test(o)), "the vetoed host is not offered: " + opts.join(" | "));
++    assert.ok(opts.some((o) => /kryptos/.test(o)), "another operator's host stays: " + opts.join(" | "));
++    await waitIn(page, ".qd-indhost option", /host-b\.operator-b\.net .*host-reported, signed by its operator, expires in \d+ min: CPU share free 50%/);
++    // a record awaiting the owner's startup settings, explicit ceiling, no funding
++    await page.locator(".qd-cap").fill("0.36");
++    await page.locator("#qdAmt").fill("0");
++    const tos = page.locator(".qd-tosck"); if (!(await tos.isChecked())) await tos.check();
++    await page.locator(".qd-startupck").check();
++    await page.locator(".qd-go").click();
++    await waitIn(page, ".term", /\[✓\] created 0x[0-9a-f]{64} with startup disabled/, 180000);
++    const id = /\[✓\] created (0x[0-9a-f]{64}) with startup disabled/.exec((await page.locator(".term").allTextContents()).join(" "))[1].toLowerCase();
++    assert.match((await page.locator(".term").allTextContents()).join(" "), /not offered: https:\/\/api\.enclave\.host\/t\/metal0 - its owner/);
++    // Host & price on the record: the same verdicts, read again at an agreed block
++    await page.goto(siteUrl + "/dashboard");
++    await page.locator(".enc-search").fill(id.slice(2, 14));
++    await page.waitForFunction(() => document.querySelectorAll(".enc-row").length === 1, null, { timeout: 120000 });
++    const row = page.locator(".enc-row").first();
++    await row.locator(".enc-hostbtn").click();
++    await row.locator(".enc-host-list").waitFor({ timeout: 120000 });
++    const list = await row.locator(".enc-host-list").textContent();
++    assert.match(list, /api\.enclave\.host\/t\/metal0 · its owner 0x[0-9a-f]{6}… declines this deployment/, list);
++    assert.match(list, /kryptos\.enclave\.containers\.Cloud Provider\.dev · (\$[0-9.]+\/hr for this size|free for this owner)/, list);
++    assert.match(list, /host-b\.operator-b\.net · .*host-reported, signed by its operator, expires in \d+ min: CPU share free 50%/, "the signed capacity, not the forged 90%: " + list);
++    assert.ok(!(await row.locator(".eh-host option").allTextContents()).some((o) => /metal0/.test(o)), "the vetoed host cannot be pinned");
++    // Startup: one storage adapter is down -> nothing is committed, and the page says exactly why
++    await row.locator(".enc-hostbtn").click();
++    await row.locator(".enc-startbtn").click();
++    await row.locator(".es-app").waitFor({ timeout: 60000 });
++    await row.locator(".es-cfg").fill('{"greeting":"default independence"}');
++    await row.locator(".es-app").fill("a1".repeat(32)); await row.locator(".es-rt").fill("b2".repeat(32));
++    rig.storage.modes[1] = "down";
++    await row.locator(".es-go").click();
++    await page.waitForFunction(() => /\[✓\] committed:|\[x\]/.test(document.querySelector(".enc-start-status")?.textContent || ""), null, { timeout: 180000 });
++    const failed = await row.locator(".enc-start-status").textContent();
++    assert.match(failed, /\[x\] storage requirement not met: 1 of 2 required copies verified \(s2\.storage-b\.net: /, failed);
++    assert.doesNotMatch(failed, /committed:/);
++    // the adapter comes back: the same publish commits
++    rig.storage.modes[1] = undefined;
++    await row.locator(".es-go").click();
++    await page.waitForFunction(() => /\[✓\] committed:/.test(document.querySelector(".enc-start-status")?.textContent || ""), null, { timeout: 180000 });
++    assert.ok(rig.storage.uploads.filter((u) => u.signer === wallet).length >= 2, "both adapters hold the package");
++    assert.deepEqual(rig.refused.filter(enclaveService), []);
++  } finally { rig.storage.modes = {}; await close(); }
++});
++
++test("unknown chain and lying code: the default refuses with the reason and never falls back to the hosted service", { skip, timeout: 420000 }, async () => {
++  ready();
++  const before = rig.refused.length;
++  // every endpoint serves another chain
++  rig.proxies.forEach((p) => { p.mode = "wrong-chain"; });
++  let ctx = await fresh({ wallet: DEV.wallet.address.toLowerCase() });
++  try {
++    await ctx.page.goto(siteUrl + "/dashboard");
++    await waitBar(ctx.page, /Not verified yet: .*(chain 31337|answered)/, 120000);
++    await ctx.page.waitForSelector(".ind-auth-line", { timeout: 60000 });
++    assert.match(await ctx.page.locator(".ind-auth-line").textContent(), /Not verified yet/);
++    // the owner's list is a failed read with the reason, never an empty account
++    await waitIn(ctx.page, "c-deployments", /could not be checked|serves chain 31337|answered/, 120000);
++    assert.equal(await ctx.page.locator(".enc-empty:has-text('No apps yet')").count(), 0, "never 'No apps yet' on a failed read");
++  } finally { await ctx.close(); rig.proxies.forEach((p) => p.reset()); }
++  // two of three endpoints agree on DIFFERENT ledger code: the reviewed code hash refuses, decisions stop
++  for (const p of rig.proxies.slice(0, 2)) p.lieCode.set(LIVE.ledger, "0x6000");
++  ctx = await fresh({ wallet: DEV.wallet.address.toLowerCase() });
++  try {
++    await ctx.page.goto(siteUrl + "/dashboard");
++    await waitBar(ctx.page, /Refused: the contracts do not match their reviewed code \(deployments: code hash mismatch/, 180000);
++    await waitIn(ctx.page, "c-deployments", /do not match their reviewed code/, 120000);
++  } finally { await ctx.close(); rig.proxies.forEach((p) => p.reset()); }
++  assert.deepEqual(rig.refused.slice(before).filter(enclaveService), [], "no hosted request under failure");
++});
++
++test("a substituted packaged profile is refused at load, with no hosted fallback and nothing signed", { skip, timeout: 300000 }, async () => {
++  ready();
++  const before = rig.refused.length;
++  const { page, close } = await fresh({ routeExtra: async (context) => {
++    // a mirror or CDN that rewrites the pinned ledger inside the bundled default profile
++    await context.route((u) => u.hostname === "localhost" && /\/js\/.*\.js$/.test(u.pathname), async (route) => {
++      const r = await route.fetch(); let body = await r.text();
++      if (body.includes("enclave-default-profile/v1")) body = body.split(LIVE.ledger).join("0x" + "66".repeat(20));
++      await route.fulfill({ response: r, body });
++    });
++  } });
++  try {
++    await page.goto(siteUrl + "/dashboard");
++    await waitBar(page, /The default network profile built into this site cannot be used: .*(does not match its digest|digest mismatch)/, 60000);
++    await page.waitForSelector(".ind-bad", { timeout: 60000 });
++    assert.match(await page.locator(".ind-bad").textContent(), /does not fall back to Enclave’s hosted service/);
++    assert.ok(await page.locator(".ind-import").count() >= 1, "the owner can choose a profile");
++    assert.ok(await page.locator(".ind-hosted").count() >= 1, "the hosted service is an explicit choice, not a fallback");
++    assert.deepEqual(rig.refused.slice(before).filter(enclaveService), []);
++  } finally { await close(); }
++});
++
++test("no Enclave API, identity or metadata origin was contacted in any scenario; off-machine attempts are listed", { skip }, () => {
++  ready();
++  assert.deepEqual(rig.refused.filter(enclaveService), []);
++  console.log(JSON.stringify({ contactedFixtures: [...new Set(rig.contacted.map((u) => new URL(u).origin))], refusedOffMachine: [...new Set(rig.refused)] }, null, 1));
++  assert.deepEqual(pageErrors.filter((e) => !/ResizeObserver/.test(e)), []);
++});
+--- a/test/helpers/default-site-fixture.mjs
++++ b/test/helpers/default-site-fixture.mjs
+@@ -0,0 +1,62 @@
++#!/usr/bin/env node
++// Builds the site exactly as a release would, but with a PROVISIONAL (loopback-only) default profile for the browser
++// tests (test/site-default-independence.test.mjs). The profile is generated by scripts/network/default-profile.mjs from:
++//   - the REAL reviewed authority profile (contracts/deployments/network-profile-base.json, digest checked) and the real
++//     host contract pins: the tests run on an anvil fork of Base, which holds exactly those contracts;
++//   - the REAL service index pin (contracts/deployments/service-index-pin-base.json);
++//   - three loopback RPC proxies on FIXED ports (the profile is baked into the bundle);
++//   - a fixture storage plan and host-policy mirror at public-looking names the test routes to local handlers.
++// Then scripts/build-site.mjs --default-profile <module> --provisional-ok writes site/dist. Prints a JSON summary.
++//   node test/helpers/default-site-fixture.mjs [--out-dir DIR]
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { execFileSync } from "node:child_process";
++import { createHash } from "node:crypto";
++import { fileURLToPath } from "node:url";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
++export const PROXY_PORTS = [39651, 39652, 39653];
++export const FIXTURE_STORAGE = { version: 1, minimumCopies: 2, replicas: [
++  { upload: "https://s1.storage-a.net/add-json", audience: "0x" + "a1".repeat(32), gateway: "https://s1.storage-a.net/ipfs" },
++  { upload: "https://s2.storage-b.net/add-json", audience: "0x" + "b2".repeat(32), gateway: "https://s2.storage-b.net/ipfs" }] };
++export const POLICY_MIRROR = "https://policies.operator-c.net";
++export const AUTHORITY = path.join(ROOT, "contracts/deployments/network-profile-base.json");
++export const AUTHORITY_DIGEST = "sha256:" + createHash("sha256").update(fs.readFileSync(AUTHORITY)).digest("hex");
++
++export function buildFixtureSite({ outDir = fs.mkdtempSync(path.join(os.tmpdir(), "default-site-")) } = {}){
++  const storage = path.join(outDir, "storage-plan.json");
++  fs.writeFileSync(storage, JSON.stringify(FIXTURE_STORAGE));
++  const prof = path.join(outDir, "profile");
++  const run = (args) => execFileSync("node", args, { cwd: ROOT, stdio: ["ignore", "pipe", "inherit"] }).toString().trim().split("\n").pop();
++  const gen = JSON.parse(run([path.join(ROOT, "scripts/network/default-profile.mjs"), "generate", "--provisional", "--authority", AUTHORITY,
++    "--expect-digest", AUTHORITY_DIGEST, "--expect-pins", path.join(ROOT, "contracts/deployments/contract-pins-base.json"),
++    "--service-index-pin", path.join(ROOT, "contracts/deployments/service-index-pin-base.json"),
++    ...PROXY_PORTS.flatMap((p) => ["--rpc", "http://127.0.0.1:" + p]), "--quorum", "2", "--confirmations", "0", "--max-block-age", "3600",
++    "--storage-plan", storage, "--host-policy-origin", POLICY_MIRROR, "--name", "Base fork · provisional test default", "--out-dir", prof]));
++  const mod = path.join(outDir, "default-profile.module.js");
++  run([path.join(ROOT, "scripts/network/default-profile.mjs"), "module", "--dir", prof, "--provisional", "--out", mod]);
++  // the build regenerates two tracked files in place (Tailwind's site/css/site.css, the contract artifacts module); they are
++  // restored afterwards so building never changes the candidate's sources, and whether they differed is reported
++  const regenerated = ["site/css/site.css", "site/js/gen/contract-artifacts.js"].map((f) => ({ f, before: fs.readFileSync(path.join(ROOT, f)) }));
++  try { execFileSync("node", [path.join(ROOT, "scripts/build-site.mjs"), "--default-profile", mod, "--provisional-ok"], { cwd: ROOT, stdio: ["ignore", "ignore", "inherit"] }); }
++  finally { for (const r of regenerated){ r.differed = Buffer.compare(fs.readFileSync(path.join(ROOT, r.f)), r.before) !== 0; fs.writeFileSync(path.join(ROOT, r.f), r.before); } }
++  const dist = path.join(ROOT, "site/dist");
++  const meta = JSON.parse(fs.readFileSync(path.join(dist, "default-profile.json"), "utf8"));
++  if (meta.profileDigest !== gen.profileDigest) throw new Error("the built site carries another profile");
++  const files = []; const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })){ const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else files.push(p); } };
++  walk(dist); files.sort();
++  const h = createHash("sha256"); for (const f of files){ h.update(path.relative(dist, f) + "\0"); h.update(fs.readFileSync(f)); }
++  const summary = { outDir, dist, regeneratedDiffered: regenerated.filter((r) => r.differed).map((r) => r.f), profileDigest: gen.profileDigest, authorityDigest: gen.authorityDigest, distDigest: "sha256:" + h.digest("hex"), distFiles: files.length,
++    profileText: fs.readFileSync(path.join(prof, "profile.json"), "utf8") };
++  fs.writeFileSync(path.join(outDir, "summary.json"), JSON.stringify(summary, null, 2));
++  return summary;
++}
++
++if (import.meta.url === `file://${process.argv[1]}`){
++  const i = process.argv.indexOf("--out-dir");
++  const outDir = i > 0 ? process.argv[i + 1] : undefined;
++  if (outDir) fs.mkdirSync(outDir, { recursive: true });
++  const s = buildFixtureSite(outDir ? { outDir } : {});
++  console.log(JSON.stringify({ ...s, profileText: undefined }));
++}
+--- a/test/helpers/default-independence-rig.mjs
++++ b/test/helpers/default-independence-rig.mjs
+@@ -0,0 +1,270 @@
++// The fixtures behind test/site-default-independence.test.mjs. Everything here is LOCAL and labelled:
++//   - an anvil fork of Base (read-only upstream): the REAL pinned contracts, the REAL service index and its real ad, the
++//     real ledger records and relay-era vaults; block time moved to now once so freshness rules apply;
++//   - three loopback JSON-RPC proxies on the fixed ports the provisional profile names, each switchable to: honest, down,
++//     wrong-chain, or lying (corrupting eth_getCode / eth_call answers for chosen addresses);
++//   - FIXTURE actors with anvil's public dev keys: a service operator that publishes a directory ad, a host operator that
++//     registers a fixture host and signs real capacity records, and a host owner that accepts a real (Enclave-operated)
++//     host's ownership on the fork and commits a deny policy. Real operators are only IMPERSONATED on this fork to
++//     heartbeat and nominate; no real key is used anywhere;
++//   - the real public directory server (network/directory-server.mjs) and a host-capacity directory on loopback, plus
++//     storage adapters and a host-policy mirror as handlers; the browser reaches them at public-looking names through
++//     Playwright routing, and every other off-machine request is refused and recorded.
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import net from "node:net";
++import { spawn, execFileSync } from "node:child_process";
++import { createHash } from "node:crypto";
++import { fileURLToPath } from "node:url";
++import * as viem from "viem";
++import { privateKeyToAccount } from "viem/accounts";
++import { PROXY_PORTS, FIXTURE_STORAGE, POLICY_MIRROR } from "./default-site-fixture.mjs";
++import { SERVICE_INDEX_ABI } from "../../network/service-index.mjs";
++import { buildHostCapacityRecord, signHostCapacity, hostIdOf } from "../../network/host-capacity.mjs";
++import { hostAdmissionPolicyHash } from "../../network/host-admission-policy.mjs";
++import { artifactIdentity } from "../../sdk/storage/unixfs.mjs";
++import { uploadMessage } from "../../site/js/core/upload-auth.js";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
++export const FORK_BLOCK = 52836800n;
++export const CHAIN = { id: 8453, name: "base-fork", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [] } } };
++export const LIVE = {
++  ledger: "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b", registry: "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac", catalog: "0x18419ca2b502d423a8de6269aeee171a378626e3",
++  serviceIndex: "0x54decb43de6f9cc953ba582b190b56c5a60b5941", hostOwnership: "0xf5e9e6c02449001f6e8e95e5d87413f2cb6790ea",
++  legacyFactory: "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
++  // a real existing owner on Base: 15 records held by the wallet, 4 by its relay-era vault (read 2026-10-19)
++  existingOwner: "0x0b2d009c0c9af05b12100d77f3c815fea822ee61", existingLegacyVault: "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
++  // real registry hosts: metal0 is Enclave-operated (its operator also signed the live directory ad); kryptos has another operator
++  metal0: { endpoint: "https://api.enclave.host/t/metal0", operator: "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab" },
++  kryptos: { endpoint: "https://kryptos.enclave.containers.Cloud Provider.dev", operator: "0x390e2e0e0bc34b7f428f1e31c9b6770d5028ecc1" },
++};
++// anvil's PUBLIC dev keys (never funds or authority anywhere but a local chain)
++export const DEV = {
++  serviceOperator: privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"),
++  hostOperator: privateKeyToAccount("0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"),
++  hostOwner: privateKeyToAccount("0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"),
++  wallet: privateKeyToAccount("0x<REDACTED:unverified-test-key>"),
++};
++export const FIXTURE_HOST = "https://host-b.operator-b.net";
++export const FIXTURE_DIRECTORY = "https://dir.operator-b.net";
++
++export const freePort = () => new Promise((ok) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
++const portFree = (port) => new Promise((ok) => { const s = net.createServer(); s.once("error", () => ok(false)); s.listen(port, "127.0.0.1", () => s.close(() => ok(true))); });
++
++/* A JSON-RPC proxy in front of anvil whose answers the test can corrupt. */
++async function rpcProxy(port, upstream){
++  const p = { mode: "honest", lieCode: new Map(), lieCall: new Map(), hits: 0 };
++  p.server = http.createServer(async (req, res) => {
++    if (req.method === "OPTIONS"){ res.writeHead(204, { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type", "access-control-allow-methods": "POST" }); return res.end(); }
++    let body = ""; for await (const c of req) body += c;
++    p.hits++;
++    if (p.mode === "down"){ req.socket.destroy(); return; }
++    const q = JSON.parse(body), items = Array.isArray(q) ? q : [q], out = [];
++    for (const it of items){
++      if (p.mode === "wrong-chain" && it.method === "eth_chainId"){ out.push({ jsonrpc: "2.0", id: it.id, result: "0x7a69" }); continue; }
++      const r = await (await fetch(upstream, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(it) })).json();
++      if (it.method === "eth_getCode" && p.lieCode.has(String(it.params[0]).toLowerCase())) r.result = p.lieCode.get(String(it.params[0]).toLowerCase());
++      if (it.method === "eth_call" && p.lieCall.has(String(it.params[0].to).toLowerCase())) r.result = p.lieCall.get(String(it.params[0].to).toLowerCase())(r.result, it.params[0].data);
++      out.push(r);
++    }
++    res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*" });
++    res.end(JSON.stringify(Array.isArray(q) ? out : out[0]));
++  });
++  await new Promise((ok, bad) => { p.server.once("error", bad); p.server.listen(port, "127.0.0.1", ok); });
++  p.url = "http://127.0.0.1:" + port;
++  p.reset = () => { p.mode = "honest"; p.lieCode.clear(); p.lieCall.clear(); };
++  return p;
++}
++
++export async function startForkRig({ log = () => {} } = {}){
++  const cleanups = [], tmp = fs.mkdtempSync(path.join(os.tmpdir(), "default-rig-"));
++  const stop = async () => { while (cleanups.length){ try { await cleanups.pop()(); } catch {} } fs.rmSync(tmp, { recursive: true, force: true }); };
++  try {
++    for (const p of PROXY_PORTS) if (!(await portFree(p))) throw new Error("fixed proxy port " + p + " is in use (the provisional profile names it)");
++    const port = await freePort(), rpcUrl = "http://127.0.0.1:" + port;
++    const anvil = spawn("anvil", ["--port", String(port), "--fork-url", process.env.BASE_FORK_RPC || "https://mainnet.base.org", "--fork-block-number", String(FORK_BLOCK),
++      // the upstream (Base's public archive endpoint) rate-limits bursts: anvil paces and retries its own lazy state fetches;
++      // 128 blocks of state so an agreed block is not pruned while a check reads at it
++      "--optimism", "--silent", "--base-fee", "0", "--prune-history", "128", "--transaction-block-keeper", "128",
++      "--compute-units-per-second", "120", "--retries", "12", "--fork-retry-backoff", "1500", "--timeout", "60000"], { stdio: "ignore" });
++    // a clean exit lets anvil keep its fork cache (~/.foundry/cache/rpc/base/<block>) for the next run
++    cleanups.push(() => new Promise((ok) => { const t = setTimeout(() => { anvil.kill("SIGKILL"); ok(); }, 8000); anvil.once("exit", () => { clearTimeout(t); ok(); }); anvil.kill("SIGTERM"); }));
++    const rpc = async (method, params) => { const r = await (await fetch(rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) })).json(); if (r.error) throw new Error(method + ": " + r.error.message); return r.result; };
++    for (let i = 0; i < 160; i++){ try { await rpc("eth_chainId", []); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
++    // the fork's blocks carry historical time: move the chain to now once (agreed blocks must be fresh)
++    await rpc("evm_setNextBlockTimestamp", [Math.floor(Date.now() / 1000)]); await rpc("evm_mine", []);
++    const pc = viem.createPublicClient({ chain: CHAIN, transport: viem.http(rpcUrl) });
++    // pre-warm, serially through ONE client, every fact the page's reviewed-authority check reads (network/authority-profile.mjs
++    // profileRead), so the page's three proxied copies of each read hit anvil's cache instead of bursting the upstream
++    {
++      const { profileRead } = await import("../../network/authority-profile.mjs");
++      const authority = JSON.parse(fs.readFileSync(path.join(ROOT, "contracts/deployments/network-profile-base.json"), "utf8"));
++      await profileRead(authority, { concurrency: 1, minIntervalMs: 0 })(pc, await pc.getBlockNumber());
++    }
++    const wcOf = (account) => viem.createWalletClient({ chain: CHAIN, account, transport: viem.http(rpcUrl) });
++    for (const a of Object.values(DEV)) await rpc("anvil_setBalance", [a.address, "0x56bc75e2d63100000"]);
++    const send = async (account, to, abi, functionName, args) => {
++      const hash = await wcOf(account).writeContract({ address: to, abi, functionName, args, gas: 3_000_000n });
++      const r = await pc.waitForTransactionReceipt({ hash }); if (r.status !== "success") throw new Error(functionName + " reverted"); return r;
++    };
++    const asImpersonated = async (addr, to, abi, functionName, args) => {
++      await rpc("anvil_impersonateAccount", [addr]); await rpc("anvil_setBalance", [addr, "0x56bc75e2d63100000"]);
++      const hash = await wcOf(addr).writeContract({ address: to, abi, functionName, args, gas: 3_000_000n, account: addr });
++      const r = await pc.waitForTransactionReceipt({ hash }); if (r.status !== "success") throw new Error(functionName + " reverted");
++      await rpc("anvil_stopImpersonatingAccount", [addr]); return r;
++    };
++    const proxies = [];
++    for (const p of PROXY_PORTS){ const x = await rpcProxy(p, rpcUrl); proxies.push(x); cleanups.push(() => new Promise((ok) => { x.server.closeAllConnections?.(); x.server.close(() => ok()); })); }
++
++    // ---- registry: the fixture host (permissionless register), live hosts made live on the fork ----
++    const REG = viem.parseAbi(["function register(string,string,bytes32,uint64,uint64,address) returns (bytes32)", "function heartbeat(bytes32)"]);
++    await send(DEV.hostOperator, LIVE.registry, REG, "register", [FIXTURE_HOST, "fixture/host-b", "0x" + "00".repeat(32), 900n, 0n, "0x0000000000000000000000000000000000000000"]);
++    await asImpersonated(LIVE.metal0.operator, LIVE.registry, REG, "heartbeat", [hostIdOf(LIVE.metal0.endpoint)]);
++    await asImpersonated(LIVE.kryptos.operator, LIVE.registry, REG, "heartbeat", [hostIdOf(LIVE.kryptos.endpoint)]);
++
++    // ---- the service index: a fixture operator's directory ad (the real Enclave ad is already on the fork) ----
++    const publishAd = async ({ slot = 0, endpoints, ttlSec = 86400 * 30 } = {}) => {
++      const seq = await pc.readContract({ address: LIVE.serviceIndex, abi: SERVICE_INDEX_ABI, functionName: "sequenceOf", args: [DEV.serviceOperator.address, slot] });
++      const now = (await pc.getBlock()).timestamp;
++      return send(DEV.serviceOperator, LIVE.serviceIndex, SERVICE_INDEX_ABI, "publish", [slot, 1, 1, seq + 1n, now + BigInt(ttlSec), "0x" + "00".repeat(32), endpoints]);
++    };
++    await publishAd({ slot: 0, endpoints: [FIXTURE_DIRECTORY + "/"] });
++    // a real operator's NEXT ad, published on this fork only by impersonation (e.g. the prepared, unsigned sequence-2 ad of
++    // directory47485: the same operator and slot with HTTPS endpoints). Never sent to Base.
++    const publishAsOperator = async (operator, { slot = 0, endpoints, ttlSec = 2592000 }) => {
++      const seq = await pc.readContract({ address: LIVE.serviceIndex, abi: SERVICE_INDEX_ABI, functionName: "sequenceOf", args: [operator, slot] });
++      const now = (await pc.getBlock()).timestamp;
++      return asImpersonated(operator, LIVE.serviceIndex, SERVICE_INDEX_ABI, "publish", [slot, 1, 1, seq + 1n, now + BigInt(ttlSec), "0x" + "00".repeat(32), endpoints]);
++    };
++
++    // ---- the public directory (real server) and a capacity directory, on loopback ----
++    const { PublicDirectory } = await import("../../network/public-directory.mjs");
++    const { createDirectoryServer } = await import("../../network/directory-server.mjs");
++    const ledgerAbi = viem.parseAbi(["function get(bytes32) view returns ((bytes32 id,address owner,string appRef,string ports,string configCid,uint16 gpuMilli,uint16 cpuMilli,uint32 appPort,bool isPublic,bool active,uint64 createdAt,uint256 rate,uint256 balance6,uint256 spent6,bytes32 runner,address runnerOperator,uint64 leaseUntil))"]);
++    const directory = new PublicDirectory({ directory: path.join(tmp, "directory"), checkers: ["0x" + "03".repeat(20)], now: () => Date.now(),
++      hostOperator: async () => DEV.hostOperator.address,
++      leaseOf: async (id) => { const d = await pc.readContract({ address: LIVE.ledger, abi: ledgerAbi, functionName: "get", args: [id] });
++        return { id, owner: d.owner, runner: d.runner, chainId: 8453, deployments: LIVE.ledger, runnerOperator: d.runnerOperator, active: d.active, isPublic: d.isPublic,
++          leaseUntil: Number(d.leaseUntil) * 1000, validUntil: Date.now() + 90000 }; } });
++    const dsrv = createDirectoryServer(directory), dport = await freePort();
++    await new Promise((ok) => dsrv.listen(dport, "127.0.0.1", ok)); cleanups.push(() => new Promise((ok) => { dsrv.closeAllConnections?.(); dsrv.close(() => ok()); }));
++    const capacity = { records: [] };   // what the fixture directory serves at /v1/host-capacity
++    const signCapacity = async (availability, { endpoint = FIXTURE_HOST, operator = DEV.hostOperator, now = Date.now() } = {}) =>
++      signHostCapacity(operator, buildHostCapacityRecord({ availability, chainId: 8453, registry: LIVE.registry, endpoint, operator: operator.address, now }));
++
++    // ---- host-owner veto: the Enclave-operated metal0 host gets a fixture owner whose policy declines one app ----
++    const OWN = viem.parseAbi(["function proposeOwner(bytes32,address)", "function acceptOwner(bytes32)", "function setPolicy(bytes32,bytes32)"]);
++    const policies = new Map();   // hash -> document, served by the policy mirror handler
++    const vetoHost = async (hostEndpoint, operator, denyAppRefs) => {
++      const hostId = hostIdOf(hostEndpoint);
++      await asImpersonated(operator, LIVE.hostOwnership, OWN, "proposeOwner", [hostId, DEV.hostOwner.address]);
++      await send(DEV.hostOwner, LIVE.hostOwnership, OWN, "acceptOwner", [hostId]);
++      const policy = { version: 1, chainId: 8453, ownershipContract: LIVE.hostOwnership, hostId, requireCatalogApproval: false, denyDeployments: [], denyAppRefs };
++      const hash = hostAdmissionPolicyHash(policy); policies.set(hash, policy);
++      await send(DEV.hostOwner, LIVE.hostOwnership, OWN, "setPolicy", [hostId, hash]);
++      return { hostId, hash, policy };
++    };
++
++    // ---- storage stand-ins (they verify the wallet's EIP-191 signature exactly as the real adapter's v1 check) ----
++    const storage = { held: FIXTURE_STORAGE.replicas.map(() => new Map()), modes: {}, uploads: [] };
++    const cors = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, POST, OPTIONS",
++      "access-control-allow-headers": "content-type, range, cache-control, x-upload-address, x-upload-expiry, x-upload-sha256, x-upload-signature, x-upload-scheme, x-upload-nonce",
++      "access-control-expose-headers": "content-range, content-length" };
++    async function storageHandler(i, route){
++      const req = route.request(), u = new URL(req.url());
++      const fulfill = (status, body, headers = {}) => route.fulfill({ status, headers: { ...cors, ...headers }, body });
++      if (req.method() === "OPTIONS") return fulfill(204, "");
++      if (storage.modes[i] === "down") return route.abort("connectionrefused");
++      if (req.method() === "POST" && u.pathname === "/add-json"){
++        const bytes = req.postDataBuffer() || Buffer.alloc(0), h = req.headers();
++        const sha = createHash("sha256").update(bytes).digest("hex");
++        try {
++          if (h["x-upload-sha256"] !== sha || Number(h["x-upload-expiry"]) < Date.now() / 1000) throw new Error("scope");
++          const msg = uploadMessage({ audience: FIXTURE_STORAGE.replicas[i].audience, path: u.pathname, address: h["x-upload-address"], hash: sha, size: bytes.length, expiry: Number(h["x-upload-expiry"]) });
++          if ((await viem.recoverMessageAddress({ message: msg, signature: h["x-upload-signature"] })).toLowerCase() !== h["x-upload-address"]) throw new Error("signer");
++        } catch (e){ return fulfill(401, JSON.stringify({ error: "upload authorization refused: " + e.message }), { "content-type": "application/json" }); }
++        const { cid } = artifactIdentity(new Uint8Array(bytes));
++        storage.held[i].set(cid, bytes); storage.uploads.push({ adapter: i, cid, signer: h["x-upload-address"] });
++        return fulfill(200, JSON.stringify({ cid }), { "content-type": "application/json" });
++      }
++      const m = /^\/ipfs\/([a-z0-9]+)$/.exec(u.pathname);
++      if (req.method() === "GET" && m){
++        const b = storage.held[i].get(m[1]); if (!b) return fulfill(404, "not held");
++        const r = /^bytes=(\d+)-(\d+)$/.exec(req.headers().range || "");
++        if (!r) return fulfill(200, b, { "content-type": "application/octet-stream", "content-length": String(b.length) });
++        const s = Number(r[1]), e = Math.min(Number(r[2]), b.length - 1);
++        return fulfill(206, b.subarray(s, e + 1), { "content-range": `bytes ${s}-${e}/${b.length}`, "content-length": String(e - s + 1) });
++      }
++      return fulfill(404, "no");
++    }
++
++    /* Routing for a Playwright context: fixture names go to their handlers or loopback servers; every other request that
++       leaves this machine is refused and recorded. Loopback (the site, the RPC proxies, the bundler) passes. */
++    const contacted = [], refused = [];
++    const forward = async (route, base) => {
++      const req = route.request(), u = new URL(req.url());
++      const r = await fetch(base + u.pathname + u.search, { method: req.method(), headers: { "content-type": req.headers()["content-type"] || "application/json" },
++        body: ["GET", "HEAD"].includes(req.method()) ? undefined : req.postDataBuffer() });
++      const body = Buffer.from(await r.arrayBuffer());
++      return route.fulfill({ status: r.status, headers: { "content-type": r.headers.get("content-type") || "application/json", "access-control-allow-origin": "*" }, body });
++    };
++    const fixtureHosts = {
++      "dir.operator-b.net": async (route) => {
++        const u = new URL(route.request().url());
++        if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, POST, OPTIONS", "access-control-allow-headers": "content-type" } });
++        if (u.pathname === "/v1/host-capacity") return route.fulfill({ status: 200, headers: { "content-type": "application/json", "access-control-allow-origin": "*" }, body: JSON.stringify({ records: capacity.records }) });
++        return forward(route, "http://127.0.0.1:" + dport);
++      },
++      "host-b.operator-b.net": async (route) => {
++        const u = new URL(route.request().url());
++        if (u.pathname === "/v1/host/capacity" && capacity.hostRecord) return route.fulfill({ status: 200, headers: { "content-type": "application/json", "access-control-allow-origin": "*" }, body: JSON.stringify(capacity.hostRecord) });
++        return route.fulfill({ status: 404, headers: { "access-control-allow-origin": "*" }, body: "no" });
++      },
++      "policies.operator-c.net": async (route) => {
++        const m = /^\/(0x[0-9a-f]{64})\.json$/.exec(new URL(route.request().url()).pathname);
++        const doc = m && policies.get(m[1]);
++        return route.fulfill({ status: doc ? 200 : 404, headers: { "content-type": "application/json", "access-control-allow-origin": "*" }, body: doc ? JSON.stringify(doc) : "{}" });
++      },
++      "s1.storage-a.net": (route) => storageHandler(0, route),
++      "s2.storage-b.net": (route) => storageHandler(1, route),
++    };
++    const routeContext = async (context) => {
++      await context.route((u) => !["localhost", "127.0.0.1", "[::1]"].includes(u.hostname), async (route) => {
++        const u = new URL(route.request().url());
++        const h = fixtureHosts[u.hostname];
++        if (h){ contacted.push(u.origin + u.pathname); return h(route); }
++        refused.push(route.request().method() + " " + u.origin + u.pathname);
++        return route.abort("blockedbyclient");
++      });
++    };
++    return { stop, rpc, rpcUrl, pc, send, asImpersonated, proxies, publishAd, publishAsOperator, capacity, signCapacity, vetoHost, policies, storage, routeContext, contacted, refused,
++      directory, directoryUrl: "http://127.0.0.1:" + dport, tmp };
++  } catch (e){ await stop(); throw e; }
++}
++
++/* An EIP-6963 wallet in the page that proxies to anvil: dev accounts sign; an impersonated real owner can only send
++   transactions (anvil never signs messages for it). */
++export function walletScript({ rpc, address }){
++  return `(() => {
++    let id = 0;
++    const call = async (method, params) => {
++      const r = await fetch(${JSON.stringify(rpc)}, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }) });
++      const j = await r.json(); if (j.error) { const e = new Error(j.error.message); e.code = j.error.code; throw e; } return j.result;
++    };
++    const address = ${JSON.stringify(address)};
++    const provider = { request: async ({ method, params }) => {
++      switch (method) {
++        case "eth_requestAccounts": case "eth_accounts": return [address];
++        case "eth_chainId": return "0x2105";
++        case "wallet_switchEthereumChain": return null;
++        case "eth_signTypedData_v4": { const [from, typed] = params; return call("eth_signTypedData_v4", [from, typeof typed === "string" ? JSON.parse(typed) : typed]); }
++        default: return call(method, params);
++      } }, on: () => {}, removeListener: () => {} };
++    const detail = Object.freeze({ info: { uuid: "local-wallet", name: "Local Wallet", rdns: "test.local.wallet", icon: null }, provider });
++    const announce = () => window.dispatchEvent(new CustomEvent("eip6963:announceProvider", { detail }));
++    window.addEventListener("eip6963:requestProvider", announce);
++    announce();
++  })();`;
++}

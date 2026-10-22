@@ -1,0 +1,35 @@
+# indexd configuration for replica @REPLICA@ WITHOUT secrets. render-config prepends recoveryPhrase and fills the admin
+# password from systemd credentials into a tmpfs copy at each start. Derived from
+# work/indexd-replica-rollout/config/indexd.replica.yml.template (same settings; PostgreSQL over a Unix socket with peer
+# auth instead of a TCP password).
+autoOpenWebUI: false
+directory: @STATE@
+adminAPI:
+  address: 127.0.0.1:9980                 # loopback only
+  password: "@ADMIN_PASSWORD@"
+applicationAPI:
+  address: 127.0.0.1:9982                 # loopback; reached through the host's Enclave network/app ingress
+  advertiseURL: @ADVERTISE_URL@           # app signatures bind to this URL
+syncer:
+  address: :9981                          # Sia P2P (outbound is sufficient)
+  bootstrap: true
+  enableUPnP: false
+consensus:
+  network: mainnet
+explorer:
+  enabled: false                          # no external explorer dependency
+  url: ""
+database:
+  host: @SOCKET@                          # Unix socket directory: no TCP listener, peer authentication
+  port: 5432
+  user: enclave-storage-indexer
+  password: ""
+  database: indexd
+  sslmode: disable
+log:
+  stdout:
+    enabled: true
+    level: info
+    format: json
+  file:
+    enabled: false

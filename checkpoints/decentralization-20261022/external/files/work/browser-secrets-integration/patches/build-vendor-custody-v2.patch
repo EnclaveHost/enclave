@@ -1,0 +1,29 @@
+--- a/scripts/build-vendor.mjs
++++ b/scripts/build-vendor.mjs
+@@ -140,6 +140,18 @@
+   console.log(`[vendor] aa.js <- viem ${manifest.deps.viem} / ox ${manifest.deps.ox} (${js.length} bytes, sha256 ${manifest.sha256.slice(0, 16)}…)`);
+ }
+ 
++// site/vendor/custody-v2.js <- custody/v2/browser.mjs: the independent dashboard's Secrets tab (site/js/core/
++// independent-secrets.js) - the custody v2 owner-read client, agreed chain reader, rules parsers and bundle code the
++// custodians and the CLI run - built by scripts/build-custody-v2-vendor.mjs with its manifest (sources hashed). Loaded
++// only when an owner opens a deployment's Secrets tab in independent mode.
++{
++  const { buildCustodyV2Vendor, OUT: COUT, MANIFEST: CMAN } = await import("./build-custody-v2-vendor.mjs");
++  const { js, manifest } = await buildCustodyV2Vendor();
++  fs.writeFileSync(COUT, js);
++  fs.writeFileSync(CMAN, JSON.stringify(manifest, null, 2) + "\n");
++  console.log(`[vendor] custody-v2.js <- custody/v2/browser.mjs (${js.length} bytes, sha256 ${manifest.sha256.slice(0, 16)}…)`);
++}
++
+ // Fail loud if an upgrade ever drops an export the callers destructure, so a
+ // broken bundle can never ship silently to the verify/auth paths.
+ const must = [
+@@ -150,6 +162,7 @@
+     "decodeGrantRequest", "describeGrant", "ownerOperation", "topUpFromWallet", "usdcDomain", "chainClient", "readSession",
+     "delegationStatus", "setDelegateCall"]],
+   ["aa.js", ["encodeFunctionData", "hashTypedData", "encodeAbiParameters", "WebAuthnP256"]],
++  ["custody-v2.js", ["readOwnerSecrets", "planSecretsEdit", "ownerEditUpdate", "policyRulesOf", "createChainReaderV2", "UPDATE_V2_ABI"]],
+   ["management.js", ["browserManagementEndpoint", "browserManagementRequest", "managementFloorKey", "checkAuthorizationWeb",
+     "ManagementBrowserError", "MANAGEMENT_OPERATIONS"]],
+ ];

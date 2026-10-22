@@ -1,0 +1,108 @@
+--- a/api/app/client.go
++++ b/api/app/client.go
+@@ -17,6 +17,7 @@
+ 
+ 	"github.com/fxamacker/cbor/v2"
+ 	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
+ 	"go.sia.tech/indexd/api"
+ 	"go.sia.tech/indexd/hosts"
+ 	"go.sia.tech/indexd/sharing"
+@@ -33,6 +34,16 @@
+ 
+ 	validity   time.Duration
+ 	enableCBOR bool
++	// fence, when set, is sent as the signed sf parameter of every request (FENCING PATCH)
++	fence *accounts.Credential
++}
++
++// WithFence returns a copy of the client whose requests carry the writer fence f as the signed sf parameter (nil:
++// none). Fenced mutations need it once a fence is installed on the account (FENCING PATCH).
++func (c *Client) WithFence(f *accounts.Credential) *Client {
++	c2 := *c
++	c2.fence = f
++	return &c2
+ }
+ 
+ type requestAppConnectionOptions struct {
+@@ -84,8 +95,14 @@
+ 		return nil, nil, fmt.Errorf("failed to parse URL: %w", err)
+ 	}
+ 
+-	// prepare request hash
++	// prepare request hash: a request carrying sf is signed over the fenced hash (FENCING PATCH). An sf that is not
++	// exactly one canonical value is left for the server to refuse.
+ 	sigHash := requestHash(method, u.Host, u.Path, validUntil, requestBuf)
++	if vals := u.Query()[queryParamFence]; len(vals) == 1 {
++		if cred, err := accounts.ParseCredential(vals[0]); err == nil {
++			sigHash = fencedRequestHash(method, u.Host, u.Path, validUntil, requestBuf, cred)
++		}
++	}
+ 
+ 	// prepare query parameters
+ 	val := url.Values{}
+@@ -171,7 +188,15 @@
+ 			return fmt.Errorf("failed to marshal request data: %w", err)
+ 		}
+ 	}
+-	u, body, err := sign(appKey, time.Now().Add(c.validity), method, fmt.Sprintf("%s%s", c.baseURL, route), requestBuf)
++	endpoint := fmt.Sprintf("%s%s", c.baseURL, route)
++	if c.fence != nil {
++		sep := "?"
++		if strings.Contains(route, "?") {
++			sep = "&"
++		}
++		endpoint += sep + queryParamFence + "=" + c.fence.String()
++	}
++	u, body, err := sign(appKey, time.Now().Add(c.validity), method, endpoint, requestBuf)
+ 	if err != nil {
+ 		return fmt.Errorf("failed to sign request: %w", err)
+ 	}
+@@ -605,3 +630,47 @@
+ 	}
+ 	return c
+ }
++
++// FenceResponse is the body of GET /fence (FENCING PATCH).
++type FenceResponse = accounts.FenceState
++
++// RaiseFenceResponse is the body of a successful POST /fence: the installed fence, the receipt to present with it
++// (sf = fence || receipt), and the event sequence head (FENCING PATCH).
++type RaiseFenceResponse struct {
++	Fence   accounts.Fence   `json:"fence"`
++	Receipt accounts.Receipt `json:"receipt"`
++	Seq     uint64           `json:"seq"`
++}
++
++// Credential returns the credential the raise issued.
++func (r RaiseFenceResponse) Credential() accounts.Credential {
++	return accounts.Credential{Fence: r.Fence, Receipt: r.Receipt}
++}
++
++// RaiseFenceRequest is the body of POST /fence (FENCING PATCH).
++type RaiseFenceRequest struct {
++	Fence accounts.Fence `json:"fence"`
++}
++
++// FencedResponse is the body of a 409 fence refusal (FENCING PATCH).
++type FencedResponse struct {
++	Fence *accounts.Fence `json:"fence"`
++}
++
++// Fence returns the account's installed writer fence and its event sequence head (FENCING PATCH).
++func (c *Client) Fence(ctx context.Context, appKey types.PrivateKey) (resp FenceResponse, err error) {
++	err = c.signedRequest(ctx, appKey, http.MethodGet, "/fence", nil, &resp)
++	return
++}
++
++// RaiseFence installs the writer fence f (FENCING PATCH).
++func (c *Client) RaiseFence(ctx context.Context, appKey types.PrivateKey, f accounts.Fence) (resp RaiseFenceResponse, err error) {
++	err = c.signedRequest(ctx, appKey, http.MethodPost, "/fence", RaiseFenceRequest{Fence: f}, &resp)
++	return
++}
++
++// ListObjectsSeq returns one page of the account's commit-ordered object sequence (FENCING PATCH).
++func (c *Client) ListObjectsSeq(ctx context.Context, appKey types.PrivateKey, after uint64, limit int) (resp slabs.SeqListing, err error) {
++	err = c.signedRequest(ctx, appKey, http.MethodGet, fmt.Sprintf("/seq/objects?after=%d&limit=%d", after, limit), nil, &resp)
++	return
++}

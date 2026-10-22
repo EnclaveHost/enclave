@@ -1,0 +1,148 @@
+{
+  "host": "eu-central",
+  "ip": "134.209.248.172",
+  "caddySha256": "b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9",
+  "checks": [
+    {
+      "name": "fixture-fidelity",
+      "fragmentLines": 59,
+      "substitutions": {
+        "admin": 1,
+        "http_port": 1,
+        "https_port": 1,
+        "tls_acme": 4,
+        "site_root": 504,
+        "control_tunnel": 1,
+        "ipfs_gateway": 2,
+        "directory": 1,
+        "external_app": 2,
+        "peer_acme": 3
+      }
+    },
+    {
+      "name": "arbitrary-origin-get",
+      "paths": 6
+    },
+    {
+      "name": "preflight",
+      "answeredOnHost": 6,
+      "credentialedToLegacy": true
+    },
+    {
+      "name": "offline-signed-crud",
+      "providerUpdate": true,
+      "policyNonce": 2,
+      "route": true,
+      "management": true,
+      "refusals": 9,
+      "oversizeReachedDirectory": true
+    },
+    {
+      "name": "legacy-preserved",
+      "legacyCases": 11,
+      "unknownHost404": 18,
+      "oddPaths": [
+        {
+          "path": "/v2/network/providers",
+          "status": 404,
+          "to": "caddy"
+        },
+        {
+          "path": "/",
+          "status": 404,
+          "to": "caddy"
+        },
+        {
+          "path": "/v1network/providers",
+          "status": 404,
+          "to": "caddy"
+        },
+        {
+          "path": "/v1/network/policy/0xabababababababababababababababababababababababababababababababab/../../providers",
+          "status": 200,
+          "to": "directory"
+        },
+        {
+          "path": "/v1/network/%70roviders",
+          "status": 404,
+          "to": "directory"
+        },
+        {
+          "path": "/v1/network/policy/0xabababababababababababababababababababababababababababababababab%2f..",
+          "status": 404,
+          "to": "caddy"
+        },
+        {
+          "path": "/v1/network/./providers",
+          "status": 200,
+          "to": "directory"
+        },
+        {
+          "path": "//v1/network/providers",
+          "status": 404,
+          "to": "directory"
+        }
+      ]
+    },
+    {
+      "name": "legacy-corpus-identical",
+      "cases": 29,
+      "statuses": [
+        "https://134.209.248.172/native/status 200",
+        "https://134.209.248.172/native/resolve?name=api.enclavehost.eth 200",
+        "https://134.209.248.172/recovery-health 200",
+        "https://134.209.248.172/health 200",
+        "https://134.209.248.172/enclaves 200",
+        "https://134.209.248.172/availability 200",
+        "https://134.209.248.172/route 200",
+        "https://134.209.248.172/t/abcd/x 200",
+        "https://134.209.248.172/mcp 200",
+        "https://134.209.248.172/v1/deployments 200",
+        "https://134.209.248.172/v1/network/status/0xabababababababababababababababababababababababababababababababab 200",
+        "https://134.209.248.172/v1/deployments 204",
+        "https://134.209.248.172/ 404",
+        "https://134.209.248.172/nope 404",
+        "https://enclave.host/ 200",
+        "https://enclave.host/apps 200",
+        "https://enclave.host/dashboard 200",
+        "https://enclave.host/js/boot.js 200",
+        "https://enclave.host/install.sh 200",
+        "https://enclave.host/missing-page 404",
+        "https://enclave.host/ipfs/bafybeig3rai3tyoimbhb32vo6hkkw3o336wluht7owbs7mefhtiridwp6y?format=raw 404",
+        "https://enclave.host/v1/network/providers 404",
+        "https://enclave.host/add-json 404",
+        "https://www.enclave.host/x?y=1 301",
+        "https://ipfs.enclave.host/ipfs/bafkreifixture 200",
+        "https://ipfs.enclave.host/ipfs/bafybeig3rai3tyoimbhb32vo6hkkw3o336wluht7owbs7mefhtiridwp6y?format=raw 200",
+        "https://bootstrap-eu-central.enclave.host/ipfs/x 200",
+        "http://enclave.host/.well-known/acme-challenge/token 404",
+        "http://ipfs.enclave.host/x 301"
+      ]
+    },
+    {
+      "name": "no-fallback"
+    },
+    {
+      "name": "invariants",
+      "directoryRequests": 37,
+      "legacyRequestsFromR": 25
+    }
+  ],
+  "nonGrammarAtDirectory": [
+    {
+      "url": "/v1/network/%70roviders",
+      "status": 404
+    },
+    {
+      "url": "//v1/network/providers",
+      "status": 404
+    }
+  ],
+  "hits": {
+    "legacyB": 29,
+    "legacyR": 25,
+    "ipfs": 4,
+    "sink": 6,
+    "directory": 37
+  }
+}

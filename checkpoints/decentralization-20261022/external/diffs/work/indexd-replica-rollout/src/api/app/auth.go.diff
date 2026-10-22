@@ -1,0 +1,102 @@
+--- a/api/app/auth.go
++++ b/api/app/auth.go
+@@ -12,6 +12,7 @@
+ 	"time"
+ 
+ 	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
+ 	"go.sia.tech/indexd/sharing"
+ 	"go.sia.tech/jape"
+ )
+@@ -38,8 +39,13 @@
+ 	queryParamCredential = "sc"
+ 	queryParamSignature  = "ss"
+ 	queryParamValidUntil = "sv"
++	// queryParamFence is the writer fence a mutation runs under (FENCING PATCH)
++	queryParamFence = "sf"
+ )
+ 
++// fenceHashDomain separates fenced request hashes from 0.6.0 request hashes (FENCING PATCH).
++const fenceHashDomain = "indexd/fence/v3"
++
+ func maxBytesMiddleware(next http.Handler) http.Handler {
+ 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+ 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
+@@ -90,9 +96,18 @@
+ 		http.Error(w, fmt.Sprintf("invalid %q parameter: %v", queryParamSignature, err), http.StatusUnauthorized)
+ 		return types.PublicKey{}, false
+ 	}
++	sf, err := parseFenceParam(r)
++	if err != nil {
++		http.Error(w, fmt.Sprintf("invalid %q parameter: %v", queryParamFence, err), http.StatusBadRequest)
++		return types.PublicKey{}, false
++	}
++	hash := requestHash(r.Method, hostname, r.URL.Path, ts, buf)
++	if sf != nil {
++		hash = fencedRequestHash(r.Method, hostname, r.URL.Path, ts, buf, *sf)
++	}
+ 
+ 	// check for expiration and verify the signature
+-	if ts.Before(time.Now().UTC()) || !pk.VerifyHash(requestHash(r.Method, hostname, r.URL.Path, ts, buf), sig) {
++	if ts.Before(time.Now().UTC()) || !pk.VerifyHash(hash, sig) {
+ 		http.Error(w, fmt.Sprintf("invalid signature for %q host %q", r.Method, filepath.Join(hostname, r.URL.Path)), http.StatusUnauthorized)
+ 		return types.PublicKey{}, false
+ 	}
+@@ -191,6 +206,57 @@
+ 	return h.Sum()
+ }
+ 
++// parseFenceParam returns the request's fence credential: nil when the sf parameter is absent; an error when it
++// occurs more than once (even with equal values) or is not exactly 96 lowercase hex characters with a canonical
++// fence (FENCING PATCH).
++func parseFenceParam(req *http.Request) (*accounts.Credential, error) {
++	vals, ok := req.URL.Query()[queryParamFence]
++	if !ok {
++		return nil, nil
++	} else if len(vals) != 1 {
++		return nil, fmt.Errorf("must appear exactly once, got %d", len(vals))
++	}
++	c, err := accounts.ParseCredential(vals[0])
++	if err != nil {
++		return nil, err
++	}
++	return &c, nil
++}
++
++// requestFence returns the (already validated) fence credential of an authenticated request.
++func requestFence(req *http.Request) *accounts.Credential {
++	c, err := parseFenceParam(req)
++	if err != nil {
++		return nil // unreachable: the signature check refused it
++	}
++	return c
++}
++
++// fencedRequestHash is the hash a request carrying the credential sf is signed over (FENCING PATCH, interface
++// REVISION R5): the sia types.Encoder stream
++//
++//	WriteString("indexd/fence/v3") WriteString(method) WriteString(hostname) WriteString(path) WriteUint64(sv)
++//	Write(credential, 48 bytes) WriteBytes(body)
++//
++// Every variable-length field is length-prefixed, and the stream starts with u64le(15), which no 0.6.0 request hash
++// input can start with (it starts with the raw method). So a fenced request's signature never verifies for an
++// unfenced request, nor for another fenced request. The earlier raw form ("indexd/fence/v2" || credential appended
++// after the raw body) let a captured fenced request be replayed as an unfenced one; that replay succeeds wherever
++// the account has no fence: after an account delete, prune and re-registration, or a restore from a backup taken
++// before the first raise (TestFenceHashV2ReplayAfterFenceLoss).
++func fencedRequestHash(method, hostname, path string, validUntil time.Time, body []byte, sf accounts.Credential) types.Hash256 {
++	h := types.NewHasher()
++	h.E.WriteString(fenceHashDomain)
++	h.E.WriteString(method)
++	h.E.WriteString(hostname)
++	h.E.WriteString(path)
++	h.E.WriteUint64(uint64(validUntil.Unix()))
++	cred := sf.Bytes()
++	h.E.Write(cred[:])
++	h.E.WriteBytes(body)
++	return h.Sum()
++}
++
+ func preAuthorizationHash(ephemeralKey types.PublicKey, request RegisterAppRequest) types.Hash256 {
+ 	h := types.NewHasher()
+ 	h.E.WriteString("indexd/preauthorize-app/v1")

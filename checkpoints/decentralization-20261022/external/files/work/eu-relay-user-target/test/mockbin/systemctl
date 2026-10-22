@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# TEST-ONLY systemctl, per host: state in $MOCK_DIR (default $FSROOT/mock): active-<unit>, enabled-<unit>, ever-<unit>.
+# --user units live in $TEST_UNIT_DIR, system units in $FSROOT/etc/systemd/system. `mask` FAILS while a regular unit file
+# is in place (real systemd); `start` fails for a masked or missing unit. Failure injection: $M/fail-<verb>, $M/stuck-stop.
+# start-writes-state / stop-writes-state: a file whose bytes the started/stopping relay writes into $M/state-path's path.
+set -u
+M=${MOCK_DIR:-$FSROOT/mock}; echo "$*" >> "$M/calls"
+user=0; args=(); for a in "$@"; do case "$a" in --user) user=1 ;; --quiet|--value|--no-pager) ;; *) args+=("$a") ;; esac; done
+verb=${args[0]:-}; name=""; for a in "${args[@]}"; do [[ "$a" == *.service ]] && name=$a; done
+[ -e "$M/fail-$verb" ] && { echo "mock: $verb failed" >&2; exit 1; }
+if [ $user = 1 ]; then U=$TEST_UNIT_DIR/$name; else U=$FSROOT/etc/systemd/system/$name; fi
+masked() { [ -L "$U" ] && [ "$(readlink "$U")" = /dev/null ]; }
+case "$verb" in
+  show) p=${args[2]}
+    case "$p" in
+      ActiveState) [ -e "$M/active-$name" ] && echo active || echo inactive ;;
+      UnitFileState) if masked; then echo masked; elif [ -f "$U" ]; then [ -e "$M/enabled-$name" ] && echo enabled || echo disabled; else echo ""; fi ;;
+      FragmentPath) [ -f "$U" ] && [ ! -L "$U" ] && echo "$U" || echo "" ;;
+      LoadState) if masked; then echo masked; elif [ -f "$U" ]; then echo loaded; else echo not-found; fi ;;
+    esac ;;
+  is-active) [ -e "$M/active-$name" ] ;;
+  stop) [ -e "$M/stuck-stop" ] && exit 0; [ -e "$M/active-$name" ] && [ -e "$M/stop-writes-state" ] && cp "$M/stop-writes-state" "$(cat "$M/state-path")"; rm -f "$M/active-$name" ;;
+  start) if masked || [ ! -f "$U" ]; then echo "mock: unit masked or not found" >&2; exit 1; fi; touch "$M/active-$name" "$M/ever-$name"
+         [ -e "$M/start-writes-state" ] && cp "$M/start-writes-state" "$(cat "$M/state-path")"; exit 0 ;;
+  disable) rm -f "$M/enabled-$name" ;;
+  enable) [ -f "$U" ] && ! masked || exit 1; touch "$M/enabled-$name" ;;
+  mask) if [ -e "$U" ] && ! [ -L "$U" ]; then echo "Failed to mask unit: File exists" >&2; exit 1; fi; ln -sfn /dev/null "$U" ;;
+  unmask) masked && rm -f "$U"; exit 0 ;;
+  daemon-reload) exit 0 ;;
+  *) echo "mock: unsupported $*" >&2; exit 1 ;;
+esac

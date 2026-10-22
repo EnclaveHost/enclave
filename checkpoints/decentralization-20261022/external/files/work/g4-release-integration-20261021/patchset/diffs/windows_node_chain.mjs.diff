@@ -1,0 +1,27 @@
+diff --git a/../resume-20261021/reconciled-candidate/windows/node/chain.mjs b/tree/windows/node/chain.mjs
+index 45f789d..7caf9e6 100644
+--- a/../resume-20261021/reconciled-candidate/windows/node/chain.mjs
++++ b/tree/windows/node/chain.mjs
+@@ -257,12 +257,7 @@ export const setPrices = (id, cpuPricePerSec6, gpuPricePerSec6) =>
+ // once configured, no refusal can route a lease operation to the operator-paid sender.
+ const leaseGasEnv = Object.freeze(Object.fromEntries(Object.entries(process.env)
+   .filter(([key]) => /^(ENCLAVE_)?LEASE_GAS_/.test(key))));
+-let leaseGas = null, leaseJournal = null, onLeaseSigned = null, leaseRelayPolicy;   // undefined: not set by the host yet
+-// until the host sets its platform host policy, a discovered relay is refused (null is set only when it is explicitly off)
+-const RELAY_POLICY_UNSET = async () => { throw new Error("this host has not set its platform host policy: no discovered relay is admitted"); };
+-/** The host's platform host policy for designated relays (host.mjs passes its policy gate, a refusing decider when on but
+- *  unusable, or null when explicitly off); the sender is rebuilt. */
+-export function setLeaseRelayPolicy(policy) { leaseRelayPolicy = policy; leaseGas = null; }
++let leaseGas = null, leaseJournal = null, onLeaseSigned = null;
+ const leaseBindings = () => ({ chain: base, ledger: addresses.deployments, registry: addresses.registry });
+ export const leaseGasActive = () => leaseGasConfigured(leaseGasEnv);
+ function leaseSender() {
+@@ -270,7 +265,7 @@ function leaseSender() {
+   if (!acct) throw new Error("no operator key on this box");
+   if (!leaseGas) {
+     const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
+-    leaseGas = configuredLeaseSender({ config, account: acct, getBindings: leaseBindings, relayPolicy: leaseRelayPolicy === undefined ? RELAY_POLICY_UNSET : leaseRelayPolicy,
++    leaseGas = configuredLeaseSender({ config, account: acct, getBindings: leaseBindings,
+       onSigned: (s) => (onLeaseSigned ? onLeaseSigned(s) : undefined) });
+   }
+   return leaseGas;

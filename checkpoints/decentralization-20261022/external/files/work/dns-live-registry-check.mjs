@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+import {createHash} from 'node:crypto';
+import {parseProfile} from './enclave/network/authority-profile.mjs';
+import {rpcClients,quorumReader} from './enclave/windows/node/host-identity.mjs';
+import {shieldRegistryBinding,shieldRegistryEntry} from './enclave/relay/dns-challenge-shield.mjs';
+const digest='sha256:ee957827032cf7208434e4c73f9e859a27e4fc5c6cab5f4a2153308c09eb4cb8';
+const {profile}=parseProfile(fs.readFileSync('work/enclave/contracts/deployments/network-profile-base.json'),{expectedDigest:digest});
+const rpcs=['https://mainnet.base.org','https://base-rpc.publicnode.com','https://base.drpc.org','https://base.public.blockpi.network/v1/rpc/public'];
+const inner=quorumReader({clients:await rpcClients(rpcs)});
+let observation;
+const reader={agreed:async fn=>{observation=await inner.agreed(async(c,n)=>({blockNumber:String(n),facts:await fn(c,n)}));return observation.facts;}};
+const binding=shieldRegistryBinding(profile);
+const hostId='0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be';
+const entry=await shieldRegistryEntry({reader,binding})(hostId);
+if(entry.refused||!entry.active) throw new Error('live host registry binding refused or inactive');
+const evidence={at:new Date().toISOString(),scope:'Read-only live Base registry binding through the exact DNS responder reader. Not hardware admission or production activation.',profileDigest:digest,binding,rpcs,hostId,entry,observation,sourceSHA256:Object.fromEntries(['relay/dns-challenge-shield.mjs','windows/node/host-identity.mjs','network/authority-profile.mjs'].map(f=>[f,createHash('sha256').update(fs.readFileSync('work/enclave/'+f)).digest('hex')]))};
+fs.writeFileSync('outputs/dns-responder-live-registry.json',JSON.stringify(evidence,null,2)+'\n');
+console.log(JSON.stringify({at:evidence.at,block:observation.blockNumber,binding,entry}));

@@ -1,0 +1,102 @@
+--- a/isolation/m2/bootstrap/chain.go
++++ b/isolation/m2/bootstrap/chain.go
+@@ -38,11 +38,13 @@
+ 	maxAge        time.Duration
+ 	now           func() time.Time
+ 	highWater     atomic.Uint64
+-	cov           map[[32]byte]coverage // verified FINALIZED lease-log coverage (leasegen.go), this process only
+-	client        http.Client           // the measured client, for owner-authorized history sources (history.go)
+-	allow         func(hostport string) // adds an authorized history origin to the guest's dial allowlist (nil: none)
+-	win           map[string]uint64     // per source: the eth_getLogs range its own refusals shrank it to (leasegen.go)
+-	cool          map[string]*cooldown  // per source: its cooldown after explicit rate refusals (leasegen.go)
++	cov           map[[32]byte]coverage            // verified FINALIZED lease-log coverage (leasegen.go), this process only
++	client        http.Client                      // the measured client, for owner-authorized history sources (history.go)
++	allow         func(hostport string)            // adds an authorized history origin to the guest's dial allowlist (nil: none)
++	win           map[string]uint64                // per source: the eth_getLogs range its own refusals shrank it to (leasegen.go)
++	cool          map[string]*cooldown             // per source: its cooldown after explicit rate refusals (leasegen.go)
++	cpTrust       *checkpointTrust                 // this guest's own identity for attested checkpoints (checkpoint.go)
++	cps           map[[32]byte]*verifiedCheckpoint // verified checkpoints by deployment (checkpoint.go)
+ }
+ 
+ type Config struct {
+--- a/isolation/m2/bootstrap/leasegen.go
++++ b/isolation/m2/bootstrap/leasegen.go
+@@ -412,6 +412,8 @@
+ 	for _, p := range sources {
+ 		budgets[p.name] = &budget{max: leaseMaxRequests}
+ 	}
++	// an adopted attested checkpoint (checkpoint.go) becomes coverage once its hi is finalized in this view
++	r.seedFromCheckpoint(id, finalized, s.number)
+ 	cov, have := r.coverage(id)
+ 	if have && !(cov.lo >= leaseFromBlock && cov.hi <= s.number && cov.lo <= cov.hi+1) {
+ 		have = false
+@@ -546,7 +548,9 @@
+ 		}
+ 		canonical[operatorOf(p.name)] = true
+ 	}
+-	if len(canonical) < 2 {
++	// a claim an adopted checkpoint attests (the producing guest checked it; it is final) needs no two confirmations
++	// again: an answering source that names another hash still refuses above
++	if len(canonical) < 2 && !r.checkpointAttests(id, c) {
+ 		return none, authErr("quorum_unavailable", true, "fewer than two independent RPCs confirmed the claim's block")
+ 	}
+ 	w := appconfig.WriterAuthority{Source: "lease16", ChainID: r.chainID, Ledger: r.ledger, Deployment: idHex, ClaimBlock: c.block, ClaimLogIndex: c.index}
+--- a/isolation/m2/bootstrap/history.go
++++ b/isolation/m2/bootstrap/history.go
+@@ -15,7 +15,7 @@
+ 	"fmt"
+ 	"net"
+ 	"net/netip"
+-	"net/url"
++	"regexp"
+ 	"strings"
+ 	"time"
+ )
+@@ -51,10 +51,13 @@
+ 		return fmt.Errorf("owner history needs 1 to %d RPCs", MaxHistoryRPCs)
+ 	}
+ 	seen := map[string]bool{}
+-	for _, raw := range h.RPCs {
++	for i, raw := range h.RPCs {
+ 		host, ok := historyURL(raw)
+ 		if !ok {
+-			return errors.New("owner history RPC must be an https URL on port 443 with a host and no credentials or fragment")
++			return errors.New("owner history RPC must be https://<lowercase DNS name>[/path] with no port, query, fragment or credentials")
++		}
++		if i > 0 && !(h.RPCs[i-1] < raw) {
++			return errors.New("owner history RPCs must be strictly ascending and unique")
+ 		}
+ 		if seen[host] {
+ 			return errors.New("owner history RPC hosts must be distinct")
+@@ -64,22 +67,21 @@
+ 	return nil
+ }
+ 
+-// historyURL: an https origin (port 443) with a well-formed host and an optional path and query, printable ASCII,
+-// <= 512 bytes. -> the canonical host (rpcHost).
++// historyURL: exactly "https://" + a lowercase DNS name (the owner-names rule) + an optional path of [A-Za-z0-9._~/-],
++// at most 512 bytes: no port, no IP literal, no query, no fragment, no userinfo, no escapes (sdk/bootstrap/package.mjs
++// historyHost is the identical check; testdata/history-vectors.json). The package is published: a query or userinfo
++// would publish a credential. -> the host.
++var historyURLRE = regexp.MustCompile(`^https://([a-z0-9.-]+)(/[A-Za-z0-9._~/-]*)?$`)
++
+ func historyURL(raw string) (string, bool) {
+ 	if len(raw) == 0 || len(raw) > 512 {
+ 		return "", false
+ 	}
+-	for i := 0; i < len(raw); i++ {
+-		if raw[i] <= 0x20 || raw[i] >= 0x7f {
+-			return "", false
+-		}
+-	}
+-	u, e := url.Parse(raw)
+-	if e != nil || u.Scheme != "https" || u.Opaque != "" || u.User != nil || u.Fragment != "" || u.Hostname() == "" || (u.Port() != "" && u.Port() != "443") {
++	m := historyURLRE.FindStringSubmatch(raw)
++	if m == nil || !DNSName(m[1]) {
+ 		return "", false
+ 	}
+-	return rpcHost(u.Hostname())
++	return m[1], true
+ }
+ 
+ // operatorOf: who runs a source, for counting independent answers. The last two DNS labels (gateway.tenderly.co and

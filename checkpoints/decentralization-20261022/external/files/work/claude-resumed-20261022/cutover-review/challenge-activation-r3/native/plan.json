@@ -1,0 +1,39 @@
+{
+  "mode": "PLAN ONLY (no network call made)",
+  "manifestSha": "09d4c07dc04301d38c5389e2c8fbe1a94170bb8aac86aa2abbd6d0361347684c",
+  "manifest": {
+    "transportSha": "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f",
+    "files": {
+      "chact.ps1": "850c1825e606359462b6119625b29f454dd4b0a78dfa4bd2fc27ada8c0aeb7a3",
+      "node-hold-cutover.ps1": "df2e58f2569d04b2021a570d8525769ef84976335d2c2657e7e2a3a92604a5d8",
+      "edit-privacy-config.mjs": "4d9c231e624e9c51bc83e1e86b06816aa53a38a168752881a0ec71a879a8d511",
+      "challengeReplica.json": "2b644d22c3fe1517fcca13fd01c07363cd0f5f5a65ea7f16fb466d958d0b62ad",
+      "native-challenge-test.ps1": "c36879bd8360ac0b6fb19335368d23c4735d8355f4960e3f46d68b4e61b6de27"
+    },
+    "stagePrefix": "C:\\ProgramData\\Enclave\\staging\\chact-native-",
+    "fixtureSec": 150,
+    "validateSecs": 210
+  },
+  "localMismatches": {},
+  "stagePattern": "C:\\ProgramData\\Enclave\\staging\\chact-native-<uuid4 hex 12>",
+  "steps": [
+    "O_EXCL native-attempt.json",
+    "create stage (refuse existing)",
+    "scp 5 pinned files",
+    "validate: exact file count + 5 FileSha pins, then native-challenge-test.ps1 (bound 150 s)",
+    "cleanup own stage (always after a create attempt) + verify gone",
+    "write native-result.json"
+  ],
+  "texts": {
+    "create": "$s='C:\\ProgramData\\Enclave\\staging\\chact-native-000000000000';if(Test-Path -LiteralPath $s){throw 'stage exists'};$null=New-Item -ItemType Directory -Path $s;@{created=$s}|ConvertTo-Json -Compress",
+    "validate": "$s='C:\\ProgramData\\Enclave\\staging\\chact-native-000000000000';if(@(Get-ChildItem -LiteralPath $s -Force).Count -ne 5){throw 'stage file count differs'};if((FileSha ($s+'\\chact.ps1')) -ne '850c1825e606359462b6119625b29f454dd4b0a78dfa4bd2fc27ada8c0aeb7a3'){throw 'pin mismatch: chact.ps1'};if((FileSha ($s+'\\node-hold-cutover.ps1')) -ne 'df2e58f2569d04b2021a570d8525769ef84976335d2c2657e7e2a3a92604a5d8'){throw 'pin mismatch: node-hold-cutover.ps1'};if((FileSha ($s+'\\edit-privacy-config.mjs')) -ne '4d9c231e624e9c51bc83e1e86b06816aa53a38a168752881a0ec71a879a8d511'){throw 'pin mismatch: edit-privacy-config.mjs'};if((FileSha ($s+'\\challengeReplica.json')) -ne '2b644d22c3fe1517fcca13fd01c07363cd0f5f5a65ea7f16fb466d958d0b62ad'){throw 'pin mismatch: challengeReplica.json'};if((FileSha ($s+'\\native-challenge-test.ps1')) -ne 'c36879bd8360ac0b6fb19335368d23c4735d8355f4960e3f46d68b4e61b6de27'){throw 'pin mismatch: native-challenge-test.ps1'};& powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ($s+'\\native-challenge-test.ps1') -Stage $s;if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}",
+    "cleanup": "$s='C:\\ProgramData\\Enclave\\staging\\chact-native-000000000000';if(-not $s.StartsWith('C:\\ProgramData\\Enclave\\staging\\chact-native-')){throw 'not a chact-native stage'};if(Test-Path -LiteralPath $s){Remove-Item -LiteralPath $s -Recurse -Force};@{gone=(-not(Test-Path -LiteralPath $s))}|ConvertTo-Json -Compress"
+  },
+  "encodedSizes": {
+    "create": 1852,
+    "validate": 4264,
+    "cleanup": 2152
+  },
+  "encodedLimit": 7900,
+  "execute": "python3 run-native.py --execute --root-reviewed 09d4c07dc04301d38c5389e2c8fbe1a94170bb8aac86aa2abbd6d0361347684c"
+}

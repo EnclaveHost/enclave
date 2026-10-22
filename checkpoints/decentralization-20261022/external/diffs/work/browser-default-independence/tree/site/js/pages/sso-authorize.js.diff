@@ -1,0 +1,20 @@
+--- a/site/js/pages/sso-authorize.js
++++ b/site/js/pages/sso-authorize.js
+@@ -52,7 +52,7 @@
+ import "../../components/toast/toast.js";
+ import "../../components/section-head/section-head.js";
+ import { Enclave } from "../core/api.js";
+-import { APP_DOMAIN } from "../core/config.js";
++import { APP_DOMAIN, INDEPENDENT } from "../core/config.js";
+ import { $, esc, showToast } from "../core/util.js";
+ import { openSignIn, restoreAccountSession, signOutAccount } from "../core/account.js";
+ 
+@@ -107,6 +107,8 @@
+ }
+ 
+ async function mount(){
++  // an independent dashboard never asks the relay: this page says so and offers only the explicit hosted choice
++  if (INDEPENDENT.state !== "off"){ import("../core/independent-ui.js").then((m) => m.mountHostedOnly(document.getElementById("ssoBody"), "Sign in with Enclave")); return; }
+   const body = $("#ssoBody"); if (!body) return;
+   const q = new URL(location.href).searchParams;
+   const aud = String(q.get("aud") || "").trim();

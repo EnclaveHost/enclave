@@ -1,0 +1,17 @@
+--- proposed/wallet-admission.mjs.orig	2026-10-21 14:12:56.235730134 -0700
++++ tree/network/wallet-admission.mjs	2026-10-21 14:12:56.244864093 -0700
+@@ -41,7 +41,13 @@
+     const tmp=this.file+'.'+this.generation+'.'+next+'.tmp';let fd;
+     try{
+       fd=fs.openSync(tmp,'wx',0o600);fs.writeFileSync(fd,raw);fs.fsyncSync(fd);fs.closeSync(fd);fd=undefined;
+-      fs.renameSync(tmp,this.file); // Windows sharing errors refuse; never fall back to a torn in-place write.
++      // Windows refuses the replace while the network agent has the file open for its 1-s read (EPERM/EACCES/EBUSY): the
++      // SAME complete temp file is renamed again, a bounded few times (<= ~1.4 s); never a torn in-place write. Every
++      // commit (allow, hold, heartbeat) gets it, so a sharing collision is not mistaken for an unpublishable decision.
++      for(let attempt=0;;attempt++){
++        try{fs.renameSync(tmp,this.file);break;}
++        catch(e){if(!['EPERM','EACCES','EBUSY'].includes(e.code)||attempt>=9)throw e;Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,25*(attempt+1));}
++      }
+       if(process.platform!=='win32'){const dir=fs.openSync(path.dirname(this.file),'r');try{fs.fsyncSync(dir);}finally{fs.closeSync(dir);}}
+       this.revision=next;return {generation:this.generation,revision:next};
+     }finally{if(fd!==undefined)fs.closeSync(fd);try{fs.unlinkSync(tmp);}catch(e){if(e.code!=='ENOENT')throw e;}}

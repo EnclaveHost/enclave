@@ -1,0 +1,21 @@
+{
+  "pass": true,
+  "localService": true,
+  "good": {
+    "platform": "win32",
+    "dirOwner": "S-1-5-32-544",
+    "file": {
+      "owner": "S-1-5-32-544"
+    }
+  },
+  "absent": {
+    "platform": "win32",
+    "dirOwner": "S-1-5-32-544",
+    "file": null
+  },
+  "unsafeRefusal": "service-tls: the declaration file lets S-1-5-32-545 read its proof key: only SYSTEM, Administrators and LOCAL SERVICE may",
+  "cleanup": {
+    "gone": true
+  },
+  "productionAclChanges": false
+}

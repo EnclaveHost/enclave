@@ -1,0 +1,475 @@
+{
+ "A-success-delta": {
+  "exit": 0,
+  "events": [
+   "stop Card",
+   "stop enclave-host-services-hs2",
+   "stop Network",
+   "stop NetworkChecker",
+   "stop Node",
+   "stop Relay",
+   "stop Shield",
+   "kill 100",
+   "kill 200",
+   "kill 301",
+   "kill 401",
+   "kill 501",
+   "kill 601",
+   "register Shield",
+   "register Node",
+   "register Network",
+   "start Card",
+   "start Shield",
+   "start Node",
+   "start Network"
+  ],
+  "emits": [
+   {
+    "step": "files",
+    "state": "run",
+    "message": "Installing Enclave"
+   },
+   {
+    "step": "services",
+    "state": "ok",
+    "message": "Enclave Shield, the node and the private-route agent are running, and start with Windows"
+   },
+   {
+    "step": "join",
+    "state": "run",
+    "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+   },
+   {
+    "step": "join",
+    "state": "ok",
+    "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+   }
+  ],
+  "kept": {
+   "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+   "challenge-replica/release-3e1560f94542/dns.mjs": true,
+   "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+  },
+  "stderr": ""
+ },
+ "B-manifest-verify-failure": {
+  "exit": 1,
+  "events": [
+   "stop Card",
+   "stop enclave-host-services-hs2",
+   "stop Network",
+   "stop NetworkChecker",
+   "stop Node",
+   "stop Relay",
+   "stop Shield",
+   "kill 100",
+   "kill 200",
+   "kill 301",
+   "kill 401",
+   "kill 501",
+   "kill 601"
+  ],
+  "emits": [
+   {
+    "step": "files",
+    "state": "run",
+    "message": "Installing Enclave"
+   },
+   {
+    "step": "files",
+    "state": "fail",
+    "message": "1 installed file(s) do not match the bundle's manifest (first: control/windows/node/host.mjs)."
+   }
+  ],
+  "kept": {
+   "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+   "challenge-replica/release-3e1560f94542/dns.mjs": true,
+   "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+  },
+  "stderr": ""
+ },
+ "C-shield-timeout-paused-node": {
+  "exit": 1,
+  "events": [
+   "stop Card",
+   "stop enclave-host-services-hs2",
+   "stop Network",
+   "stop NetworkChecker",
+   "stop Node",
+   "stop Relay",
+   "stop Shield",
+   "kill 100",
+   "kill 200",
+   "kill 301",
+   "kill 401",
+   "kill 501",
+   "kill 601",
+   "register Shield",
+   "register Node",
+   "register Network",
+   "start Card",
+   "start Shield"
+  ],
+  "emits": [
+   {
+    "step": "files",
+    "state": "run",
+    "message": "Installing Enclave"
+   },
+   {
+    "step": "services",
+    "state": "fail",
+    "message": "Enclave Shield did not come up (see /tmp/ih-r2-vkwug1kj/PD\\logs\\shield.log)."
+   }
+  ],
+  "kept": {
+   "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+   "challenge-replica/release-3e1560f94542/dns.mjs": true,
+   "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+  },
+  "stderr": ""
+ },
+ "D-nostart": {
+  "exit": 0,
+  "events": [
+   "stop Card",
+   "stop enclave-host-services-hs2",
+   "stop Network",
+   "stop NetworkChecker",
+   "stop Node",
+   "stop Relay",
+   "stop Shield",
+   "kill 100",
+   "kill 200",
+   "kill 301",
+   "kill 401",
+   "kill 501",
+   "kill 601",
+   "register Shield",
+   "register Node",
+   "register Network",
+   "start Card",
+   "start Shield",
+   "disable Node",
+   "disable Network"
+  ],
+  "emits": [
+   {
+    "step": "files",
+    "state": "run",
+    "message": "Installing Enclave"
+   },
+   {
+    "step": "services",
+    "state": "ok",
+    "message": "Enclave Shield is running; the node is installed but NOT started (-NoStart): nothing registers"
+   },
+   {
+    "step": "done",
+    "state": "ok",
+    "message": "Installed without joining the network"
+   }
+  ],
+  "kept": {
+   "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+   "challenge-replica/release-3e1560f94542/dns.mjs": true,
+   "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+  },
+  "stderr": ""
+ },
+ "E-exception-before-verify": {
+  "exit": 1,
+  "events": [
+   "stop Card",
+   "stop enclave-host-services-hs2",
+   "stop Network",
+   "stop NetworkChecker",
+   "stop Node",
+   "stop Relay",
+   "stop Shield",
+   "kill 100",
+   "kill 200",
+   "kill 301",
+   "kill 401",
+   "kill 501",
+   "kill 601",
+   "inject pre-copy throw"
+  ],
+  "emits": [
+   {
+    "step": "files",
+    "state": "run",
+    "message": "Installing Enclave"
+   }
+  ],
+  "kept": {
+   "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+   "challenge-replica/release-3e1560f94542/dns.mjs": true,
+   "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+  },
+  "stderr": "\u001b[31;1mException: \u001b[0m/tmp/ih-r2-yefy7s98/assembled.ps1:11\u001b[0m\n\u001b[31;1m\u001b[0m\u001b[36;1mLine |\u001b[0m\n\u001b[31;1m\u001b[0m\u001b[36;1m\u001b[36;1m  11 | \u001b[0m \u2026 ailure at $point\" } else { \u001b[36;1mthrow \"injected exception at $point\"\u001b[0m } } }\u001b[0m\n\u001b[31;1m\u001b[0m\u001b[36;1m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[0m\u001b[36;1m     | \u001b[31;1m                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\u001b[0m\n\u001b[31;1m\u001b[0m\u001b[36;1m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[31;1m\u001b[31;1m\u001b[36;1m     | \u001b[31;1minjected exception at pre-copy\u001b[0m\n"
+ },
+ "F-fail-before-state": {
+  "exit": 1,
+  "events": [
+   "inject pre fail"
+  ],
+  "emits": [
+   {
+    "step": "injected",
+    "state": "fail",
+    "message": "injected failure at pre"
+   }
+  ],
+  "kept": {
+   "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+   "challenge-replica/release-3e1560f94542/dns.mjs": true,
+   "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+  },
+  "stderr": ""
+ },
+ "G-com-unavailable": {
+  "exit": 0,
+  "events": [
+   "stop Card",
+   "stop enclave-host-services-hs2",
+   "stop Network",
+   "stop NetworkChecker",
+   "stop Node",
+   "stop Relay",
+   "stop Shield",
+   "kill 100",
+   "kill 200",
+   "kill 301",
+   "kill 401",
+   "kill 501",
+   "kill 601",
+   "register Shield",
+   "register Node",
+   "register Network",
+   "start Card",
+   "start Shield",
+   "start Node",
+   "start Network"
+  ],
+  "emits": [
+   {
+    "step": "files",
+    "state": "run",
+    "message": "Installing Enclave"
+   },
+   {
+    "step": "services",
+    "state": "ok",
+    "message": "Enclave Shield, the node and the private-route agent are running, and start with Windows"
+   },
+   {
+    "step": "join",
+    "state": "run",
+    "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+   },
+   {
+    "step": "join",
+    "state": "ok",
+    "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+   }
+  ],
+  "kept": {
+   "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+   "challenge-replica/release-3e1560f94542/dns.mjs": true,
+   "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+  },
+  "stderr": ""
+ },
+ "H-paused-shield": {
+  "exit": 0,
+  "events": [
+   "stop Card",
+   "stop enclave-host-services-hs2",
+   "stop Network",
+   "stop NetworkChecker",
+   "stop Node",
+   "stop Relay",
+   "stop Shield",
+   "kill 100",
+   "kill 200",
+   "kill 301",
+   "kill 401",
+   "kill 501",
+   "kill 601",
+   "register Shield",
+   "register Node",
+   "register Network",
+   "start Card",
+   "start Shield",
+   "start Node",
+   "start Network"
+  ],
+  "emits": [
+   {
+    "step": "files",
+    "state": "run",
+    "message": "Installing Enclave"
+   },
+   {
+    "step": "services",
+    "state": "ok",
+    "message": "Enclave Shield, the node and the private-route agent are running, and start with Windows"
+   },
+   {
+    "step": "join",
+    "state": "run",
+    "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+   },
+   {
+    "step": "join",
+    "state": "ok",
+    "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+   }
+  ],
+  "kept": {
+   "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+   "challenge-replica/release-3e1560f94542/dns.mjs": true,
+   "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+  },
+  "stderr": ""
+ },
+ "I-full-install": {
+  "exit": 0,
+  "events": [
+   "stop Card",
+   "stop enclave-host-services-hs2",
+   "stop Network",
+   "stop NetworkChecker",
+   "stop Node",
+   "stop Relay",
+   "stop Shield",
+   "kill 100",
+   "kill 200",
+   "kill 301",
+   "kill 401",
+   "kill 501",
+   "kill 601",
+   "register Shield",
+   "register Node",
+   "register Network",
+   "start Card",
+   "start Shield",
+   "start Node",
+   "start Network"
+  ],
+  "emits": [
+   {
+    "step": "files",
+    "state": "run",
+    "message": "Installing Enclave"
+   },
+   {
+    "step": "services",
+    "state": "ok",
+    "message": "Enclave Shield, the node and the private-route agent are running, and start with Windows"
+   },
+   {
+    "step": "join",
+    "state": "run",
+    "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+   },
+   {
+    "step": "join",
+    "state": "ok",
+    "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+   }
+  ],
+  "kept": {
+   "host-services/hs2/bin/hostsvc-supervisor.exe": false,
+   "challenge-replica/release-3e1560f94542/dns.mjs": false,
+   "network/challenge-replica/release-3e1560f94542/dns.mjs": false
+  },
+  "stderr": ""
+ },
+ "J-stopped-and-disabled-roles": {
+  "exit": 0,
+  "events": [
+   "stop Card",
+   "stop enclave-host-services-hs2",
+   "stop Network",
+   "stop NetworkChecker",
+   "stop Node",
+   "stop Relay",
+   "stop Shield",
+   "kill 100",
+   "kill 200",
+   "kill 301",
+   "kill 401",
+   "kill 501",
+   "kill 601",
+   "register Shield",
+   "register Node",
+   "register Network",
+   "start Card",
+   "start Shield",
+   "start Node",
+   "start Network"
+  ],
+  "emits": [
+   {
+    "step": "files",
+    "state": "run",
+    "message": "Installing Enclave"
+   },
+   {
+    "step": "services",
+    "state": "ok",
+    "message": "Enclave Shield, the node and the private-route agent are running, and start with Windows"
+   },
+   {
+    "step": "join",
+    "state": "run",
+    "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+   },
+   {
+    "step": "join",
+    "state": "ok",
+    "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+   }
+  ],
+  "kept": {
+   "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+   "challenge-replica/release-3e1560f94542/dns.mjs": true,
+   "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+  },
+  "stderr": ""
+ },
+ "K-exception-after-files": {
+  "exit": 1,
+  "events": [
+   "stop Card",
+   "stop enclave-host-services-hs2",
+   "stop Network",
+   "stop NetworkChecker",
+   "stop Node",
+   "stop Relay",
+   "stop Shield",
+   "kill 100",
+   "kill 200",
+   "kill 301",
+   "kill 401",
+   "kill 501",
+   "kill 601",
+   "inject after-files throw"
+  ],
+  "emits": [
+   {
+    "step": "files",
+    "state": "run",
+    "message": "Installing Enclave"
+   }
+  ],
+  "kept": {
+   "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+   "challenge-replica/release-3e1560f94542/dns.mjs": true,
+   "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+  },
+  "stderr": "\u001b[31;1mException: \u001b[0m/tmp/ih-r2-uxkq00yt/assembled.ps1:11\u001b[0m\n\u001b[31;1m\u001b[0m\u001b[36;1mLine |\u001b[0m\n\u001b[31;1m\u001b[0m\u001b[36;1m\u001b[36;1m  11 | \u001b[0m \u2026 ailure at $point\" } else { \u001b[36;1mthrow \"injected exception at $point\"\u001b[0m } } }\u001b[0m\n\u001b[31;1m\u001b[0m\u001b[36;1m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[0m\u001b[36;1m     | \u001b[31;1m                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\u001b[0m\n\u001b[31;1m\u001b[0m\u001b[36;1m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[31;1m\u001b[31;1m\u001b[36;1m     | \u001b[31;1minjected exception at after-files\u001b[0m\n"
+ }
+}

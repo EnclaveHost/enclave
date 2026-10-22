@@ -1,0 +1,88 @@
+diff -ru storage-host-role/package/enclave-storage-indexer/README.md claude-resumed-20261022/storage-rollout-inventory/rc3/enclave-storage-indexer/README.md
+--- storage-host-role/package/enclave-storage-indexer/README.md	2026-10-20 21:20:32.393339922 -0700
++++ claude-resumed-20261022/storage-rollout-inventory/rc3/enclave-storage-indexer/README.md	2026-10-22 07:14:36.313825655 -0700
+@@ -1,7 +1,8 @@
+-# enclave-storage-indexer 1.0.0-rc2: the Sia indexer HOST ROLE package for Enclave hosts
++# enclave-storage-indexer 1.0.0-rc3: the Sia indexer HOST ROLE package for Enclave hosts
+ 
+ The pinned bytes for ONE independent Sia indexer replica on an Enclave Linux host:
+-- `bin/indexd`: indexd v0.6.0-fence.2-c2, sha256 e6e812fd...;
++- `bin/indexd`: indexd v0.6.0-fence.2-c2-enclave, sha256 2c0e5b06... (G-C2 plus enclave-small: 8 GiB contract growth,
++  1 GiB account fund target, 5-minute application API timeouts; the same build the live indexer migrates to);
+ - `share/GeoLite2-City.mmdb`;
+ - `libexec/preflight`;
+ - one systemd unit.
+diff -ru storage-host-role/package/enclave-storage-indexer/build.sh claude-resumed-20261022/storage-rollout-inventory/rc3/enclave-storage-indexer/build.sh
+--- storage-host-role/package/enclave-storage-indexer/build.sh	2026-10-20 21:20:15.255554199 -0700
++++ claude-resumed-20261022/storage-rollout-inventory/rc3/enclave-storage-indexer/build.sh	2026-10-22 07:14:14.705845714 -0700
+@@ -1,16 +1,19 @@
+ #!/bin/bash
+-# build.sh <outdir>: assemble the package tarball reproducibly (fixed order, mtime, owners; zstd -19).
+-# Inputs are pinned by sha256: the G-C2 indexd release (reproducible itself: work/indexd-c2-implementation/tools/
+-# build-all.sh, two empty-cache builds byte-identical) and the GeoLite2 database it bundles.
++# build.sh <outdir>: assemble the package tarball reproducibly (fixed order, mtime, owners; zstd -12 -T1).
++# Inputs are pinned by sha256: the c2-enclave indexd (G-C2 + enclave-small, reproducible itself: work/claude-resumed-20261022/
++# storage-enclave-build, two empty-cache builds a == b) and the GeoLite2 database it bundles.
+ set -euo pipefail
+ here=$(cd "$(dirname "$0")" && pwd)
+ out=${1:?outdir}
+-W=$(cd "$here/../../.." && pwd)                       # work/
+-REL=$W/indexd-c2-implementation/package/release/indexd-v0.6.0-fence.2-c2-linux-amd64
++W=$(cd "$here/../../../.." && pwd)                    # work/
++REL=$W/claude-resumed-20261022/storage-enclave-build/out/c2-enclave-a/indexd
++REL_B=$W/claude-resumed-20261022/storage-enclave-build/out/c2-enclave-b/indexd
+ GEO=$W/indexd-c2-implementation/src/GeoLite2-City.mmdb
+-INDEXD_SHA=e6e812fd625de0cd7c5956c5c5bffc5f3d1822784d65125cdc704ba793ec2955
++INDEXD_SHA=2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7
++GEO_SHA=18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933
+ echo "$INDEXD_SHA  $REL" | sha256sum -c --quiet
+-GEO_SHA=$(sha256sum "$GEO" | cut -d' ' -f1)
++cmp "$REL" "$REL_B"                                   # the second independent build is the same bytes
++echo "$GEO_SHA  $GEO" | sha256sum -c --quiet
+ stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
+ p=$stage/enclave-storage-indexer
+ mkdir -p "$p/bin" "$p/share"
+@@ -22,9 +25,9 @@
+ python3 - "$p" "$INDEXD_SHA" "$GEO_SHA" <<'PY'
+ import json, sys
+ p, ish, gsh = sys.argv[1:]
+-json.dump({"format": "enclave-storage-indexer-package/1", "name": "enclave-storage-indexer", "version": "1.0.0-rc2",
+-           "indexd": {"file": "bin/indexd", "version": "v0.6.0-fence.2-c2", "sha256": ish,
+-                      "source": "work/indexd-c2-implementation (G-C2 v4.0: cas-v4, op-nonce, fence)"},
++json.dump({"format": "enclave-storage-indexer-package/1", "name": "enclave-storage-indexer", "version": "1.0.0-rc3",
++           "indexd": {"file": "bin/indexd", "version": "v0.6.0-fence.2-c2-enclave", "sha256": ish,
++                      "source": "work/claude-resumed-20261022/storage-enclave-build c2-enclave (G-C2 v4.0: cas-v4, op-nonce, fence; enclave-small 503e6fc9)"},
+            "geoip": {"file": "share/GeoLite2-City.mmdb", "sha256": gsh},
+            "requires": {"postgresqlMajor": 18, "systemd": ">= 250 (LoadCredentialEncrypted)", "memAvailableMiB": 2304, "diskMiB": 3584},
+            "forbiddenHosts": ["DigitalOcean (transport-only machines)"],
+@@ -35,7 +38,7 @@
+ PY
+ (cd "$p" && find . -type f ! -name MANIFEST.sha256 | LC_ALL=C sort | xargs sha256sum > MANIFEST.sha256)
+ mkdir -p "$out"
+-tarball=$out/enclave-storage-indexer-1.0.0-rc2.tar.zst
++tarball=$out/enclave-storage-indexer-1.0.0-rc3.tar.zst
+ tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime \
+     -C "$stage" -cf - enclave-storage-indexer | zstd -q -12 -T1 > "$tarball"
+ sha256sum "$tarball"
+diff -ru storage-host-role/package/enclave-storage-indexer/tests/run-tests.sh claude-resumed-20261022/storage-rollout-inventory/rc3/enclave-storage-indexer/tests/run-tests.sh
+--- storage-host-role/package/enclave-storage-indexer/tests/run-tests.sh	2026-10-20 22:58:36.372224863 -0700
++++ claude-resumed-20261022/storage-rollout-inventory/rc3/enclave-storage-indexer/tests/run-tests.sh	2026-10-22 07:14:36.313727515 -0700
+@@ -15,13 +15,13 @@
+ # 2. reproducible build
+ t "build A" "'$here/build.sh' '$T/a'"
+ t "build B" "'$here/build.sh' '$T/b'"
+-t "two builds are byte-identical" "cmp '$T/a/enclave-storage-indexer-1.0.0-rc2.tar.zst' '$T/b/enclave-storage-indexer-1.0.0-rc2.tar.zst'"
+-sha256sum "$T/a/enclave-storage-indexer-1.0.0-rc2.tar.zst" | tee "$T/pkg.sha"
+-mkdir -p "$T/x" && zstd -q -d -c "$T/a/enclave-storage-indexer-1.0.0-rc2.tar.zst" | tar -C "$T/x" -xf -
++t "two builds are byte-identical" "cmp '$T/a/enclave-storage-indexer-1.0.0-rc3.tar.zst' '$T/b/enclave-storage-indexer-1.0.0-rc3.tar.zst'"
++sha256sum "$T/a/enclave-storage-indexer-1.0.0-rc3.tar.zst" | tee "$T/pkg.sha"
++mkdir -p "$T/x" && zstd -q -d -c "$T/a/enclave-storage-indexer-1.0.0-rc3.tar.zst" | tar -C "$T/x" -xf -
+ P=$T/x/enclave-storage-indexer
+ t "manifest verifies after unpack" "cd '$P' && sha256sum -c --quiet MANIFEST.sha256"
+-t "bundled indexd is the pinned G-C2 release" "echo 'e6e812fd625de0cd7c5956c5c5bffc5f3d1822784d65125cdc704ba793ec2955  $P/bin/indexd' | sha256sum -c --quiet"
+-t "bundled indexd reports its version" "'$P/bin/indexd' version | grep -q 'v0.6.0-fence.2'"
++t "bundled indexd is the pinned c2-enclave build" "echo '2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7  $P/bin/indexd' | sha256sum -c --quiet"
++t "bundled indexd reports its version" "'$P/bin/indexd' version | grep -q 'v0.6.0-fence.2-c2-enclave'"
+ # 3. the ONE unit runs the host software's gated supervisor; nothing in the package starts PostgreSQL or indexd itself
+ U=$P/units/enclave-storage-indexer-host@.service
+ t "exactly one unit: enclave-storage-indexer-host@.service" "[ \$(ls '$P'/units | wc -l) = 1 ] && [ -f '$U' ]"

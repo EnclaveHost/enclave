@@ -1,0 +1,70 @@
+--- a/scripts/build-site.mjs
++++ b/scripts/build-site.mjs
+@@ -31,11 +31,38 @@
+ /* build stamp baked into the footer (<span data-build> - "dev" when site/ is
+    served raw): deployed commit + build date, starred if the tree had
+    uncommitted changes, so the page itself says which deploy it came from */
+-const gitOut = (args) => execFileSync("git", args, { cwd: ROOT }).toString().trim();
+-const BUILD_STAMP = gitOut(["rev-parse", "--short=8", "HEAD"])   // fixed width: bare --short wobbles 7/8 as the repo grows
+-  + (gitOut(["status", "--porcelain"]) ? "*" : "")
++const gitOut = (args) => execFileSync("git", args, { cwd: ROOT, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
++// a source tree without git (an isolated candidate, an unpacked release) stamps "nogit" instead of failing the build
++const gitOr = (args, fallback) => { try { return gitOut(args); } catch { return fallback; } };
++const BUILD_STAMP = gitOr(["rev-parse", "--short=8", "HEAD"], "nogit")   // fixed width: bare --short wobbles 7/8 as the repo grows
++  + (gitOr(["status", "--porcelain"], "") ? "*" : "")
+   + " · " + new Date().toISOString().slice(0, 10);
+ 
++/* --default-profile <module>: ship the reviewed independent default (js/gen/default-profile.js is null in source, so a
++   build without it keeps the hosted default byte for byte). The module comes from scripts/network/default-profile.mjs
++   module; a non-provisional one must carry a publishable gate report, and every digest in it is re-checked here exactly
++   as the page checks it at load. --provisional-ok is required to bake a provisional (loopback-only test) profile. */
++const argv = process.argv.slice(2);
++const argOf = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : null; };
++const DEFAULT_PROFILE_MODULE = argOf("--default-profile");
++let defaultProfileSource = null;
++if (DEFAULT_PROFILE_MODULE){
++  defaultProfileSource = fs.readFileSync(path.resolve(DEFAULT_PROFILE_MODULE), "utf8");
++  const { DEFAULT_PROFILE } = await import("data:text/javascript;base64," + Buffer.from(defaultProfileSource).toString("base64"));
++  const { checkPackagedDefault } = await import(new URL("../site/js/core/independent.js", import.meta.url));
++  const checked = checkPackagedDefault(DEFAULT_PROFILE, { loopback: true });
++  if (checked.provisional && !argv.includes("--provisional-ok")) throw new Error("the default profile module is PROVISIONAL (a loopback-only test profile): pass --provisional-ok to build it, never for a release");
++  if (!checked.provisional && !DEFAULT_PROFILE.gateDigest) throw new Error("a non-provisional default profile module must carry its gate report digest");
++  console.log("[build] default profile " + checked.profileDigest + " (authority " + checked.authorityDigest + (checked.provisional ? ", PROVISIONAL" : "") + ")");
++}
++const defaultProfilePlugin = {
++  name: "default-profile",
++  setup(b) {
++    if (!defaultProfileSource) return;
++    b.onLoad({ filter: /[\\/]js[\\/]gen[\\/]default-profile\.js$/ }, () => ({ contents: defaultProfileSource, loader: "js" }));
++  },
++};
++
+ /* inline each component's .html template into its js: the source keeps the
+    LWC-style `static templateUrl = new URL("./x.html", import.meta.url)`
+    pairing (fetched at runtime in dev); the bundle replaces it with the
+@@ -85,7 +112,7 @@
+   outbase: SITE,                              // js/boot.js keeps its path: HTML needs no rewrite
+   chunkNames: "js/chunks/[name]-[hash]",
+   external: ["https://*", "/vendor/*"],       // same-origin vendor bundles (verifier, webauthn) are loaded at runtime, not inlined into the page graph
+-  plugins: [inlineTemplates],
++  plugins: [inlineTemplates, defaultProfilePlugin],
+   metafile: true,
+ });
+ 
+@@ -220,6 +247,16 @@
+ // pretty URLs: the gateway's rewrite rules ride the pin itself
+ fs.copyFileSync(path.join(SITE, "_redirects"), path.join(DIST, "_redirects"));
+ fs.copyFileSync(path.join(SITE, "robots.txt"), path.join(DIST, "robots.txt"));
++// the packaged default profile, published beside the build so anyone can compare its digests with the announced ones
++// (the page carries the same bytes in its bundle and checks them at load)
++if (defaultProfileSource){
++  const { DEFAULT_PROFILE: D } = await import("data:text/javascript;base64," + Buffer.from(defaultProfileSource).toString("base64"));
++  fs.mkdirSync(path.join(DIST, "profiles"), { recursive: true });
++  fs.writeFileSync(path.join(DIST, "profiles", D.profileDigest.slice(7) + ".json"), D.profileText);
++  fs.writeFileSync(path.join(DIST, "profiles", D.authorityDigest.slice(7) + ".json"), D.authorityText);
++  fs.writeFileSync(path.join(DIST, "default-profile.json"), JSON.stringify({ format: D.format, provisional: D.provisional, profileDigest: D.profileDigest,
++    authorityDigest: D.authorityDigest, gateDigest: D.gateDigest }, null, 2) + "\n");
++}
+ // third-party attribution travels with the distributed bundles it covers
+ // (LGPL/Reown-community licenses require notices to accompany the product)
+ fs.copyFileSync(path.join(ROOT, "THIRD-PARTY-NOTICES.md"), path.join(DIST, "THIRD-PARTY-NOTICES.md"));

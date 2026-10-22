@@ -1,0 +1,27 @@
+--- a/enclavedns/README.md
++++ b/enclavedns/README.md
+@@ -233,9 +233,12 @@
+     them, and identical upstream questions in flight are asked only once;
+   - a slow upstream is hedged: the next one is asked too after twice its
+     smoothed round trip;
+-  - a name asked in the last tenth of its TTL is refreshed in the background,
+-    and for an hour past its TTL an expired answer is served at once (TTL 30,
+-    RFC 8767) while it refreshes. A failed refresh keeps the old answer.
++  - a name asked in the last tenth of its TTL is refreshed in the background;
++    a name asked after its TTL is asked again first, and only if no answer
++    comes within 1.8 s (or the upstreams fail) is the expired answer served,
++    for up to an hour past its TTL (TTL 30, RFC 8767). A fresh answer always
++    wins, NXDOMAIN and bogus included; a failed refresh keeps the old answer,
++    and for 30 s after one, expired answers for that name are served at once.
+ 
+   `GET /api/status` shows each upstream's smoothed round trip, the HTTP/2 and
+   HTTP/1.1 connection counts and the time of the last new connection.
+@@ -268,7 +271,7 @@
+ cargo build --release --target wasm32-wasip2
+ # -> target/wasm32-wasip2/release/enclavedns.wasm (~2.5 MB)
+ 
+-cargo test --target wasm32-wasip2      # 35 unit tests, run under wasmtime
++cargo test --target wasm32-wasip2      # 43 unit tests, run under wasmtime
+ ```
+ 
+ The unit tests include the RFC 4034 key-tag and DS examples, the RFC 5155

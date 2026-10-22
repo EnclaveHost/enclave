@@ -1,0 +1,47 @@
+--- a/relay/api-relay.js
++++ b/relay/api-relay.js
+@@ -106,6 +106,7 @@
+ import { createPlacement, pinnedHost } from "./placement.mjs";
+ import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson, agreeingRead } from "./measurement-predict.mjs";
+ import { createTunnelHub } from "./tunnel.js";
++import { createLeaseGenerationReader, memoryStore, fileStore } from "./lease-generation.mjs";
+ import { createRegistryLiveness } from "./registry-liveness.mjs";
+ import { createReferrals } from "./referrals.mjs";
+ import { withDetachGrace } from "./route-grace.mjs";
+@@ -2447,7 +2448,27 @@
+ // a pVM host's secrets: sealed to its VM, signed by the release key, never plaintext to the operator (relay/pvm-secrets.mjs)
+ const pvmSecretRelease = createPvmSecretRelease({ hub: tunnelHub, market: pvmMarket, pins: PVM_CPU_POLICY, confirmRow,
+   hostForEndpoint: (id) => live.find((e) => String(e.id).toLowerCase() === String(id).toLowerCase()) });
+-const shieldSecretRelease=createShieldSecretRelease({hub:tunnelHub,policyFile:process.env.RELAY_SHIELD_MARKET_POLICY||"",confirmRow,
++// Storage writer fencing (relay/lease-generation.mjs; work/storage-front-binding-interface.txt): the writer authority of a
++// deployment's CURRENT lease, from one fresh snapshot the SAME independent RPCs agree on (SECRETS_RELEASE_CATALOG_RPCS, two or
++// more distinct hosts) and its finalized Claimed log, on the ledger this relay confirms (pinned DEPLOYMENTS_ADDRESS or the
++// book's entry through those RPCs). It never blocks a release: fewer than two RPCs (no reader), a quorum or a claim not final
++// yet, and the release goes out with facts.runner only, the guest reading the fact itself (isolation/m2/front).
++// LEASE_GENERATION_STATE: a file for the verified FINALIZED log coverage per lease (so a long-running lease's proof is
++// extended, never re-read from an old block public RPCs no longer serve); unset: memory only (lost on restart).
++const leaseGenerationStore = (() => {
++  const file = (process.env.LEASE_GENERATION_STATE || "").trim();
++  if (!file) return memoryStore();
++  try { return fileStore(file, { fs }); } catch (e) { console.error(`[lease-generation] LEASE_GENERATION_STATE unusable (${e.message}): memory only`); return memoryStore(); }
++})();
++const leaseGenerationReader = CATALOG_RPCS.length >= 2 && catalogRpcHosts.size >= 2
++  ? createLeaseGenerationReader({ rpcs: CATALOG_RPCS, ledger: () => confirmedLedger(), store: leaseGenerationStore }) : null;
++const leaseGeneration = leaseGenerationReader ? (id, opts) => leaseGenerationReader.writerAuthority(id, opts) : undefined;
++// the tracker: every lease asked about (from its first release, final or not) is re-proved every 15 min (read-only), so its
++// coverage keeps up with what public RPCs serve; leases no longer current are dropped
++if (leaseGenerationReader) setInterval(async () => {
++  for (const k of leaseGenerationReader.tracked().slice(0, 500)) await leaseGenerationReader.track(k.split("|")[2]).catch(() => {});
++}, 15 * 60_000).unref();
++const shieldSecretRelease=createShieldSecretRelease({hub:tunnelHub,policyFile:process.env.RELAY_SHIELD_MARKET_POLICY||"",confirmRow,leaseGeneration,
+   readCatalog:catalogReader(catalogClients,catalogAddress),readConfig:versionConfigReader(catalogClients,catalogAddress),
+   fetchVerified:(cid,max)=>predictor().fetchVerified(cid,max),
+   hostForEndpoint:id=>live.find(e=>String(e.id).toLowerCase()===String(id).toLowerCase()),
+@@ -2542,6 +2563,7 @@
+                    // (B) does this endpoint id's live row serve this ledger deployment NOW (hv-node owner-only: served owner,
+                    // this row's live lease, isolation.require = hyperv-partition-per-app)? certs.js 6b and secrets.js has-secrets
+                    ownerServesDeployment: (epId, d) => servesDeploymentUntil(live.find((x) => x.id && String(x.id).toLowerCase() === String(epId || "").toLowerCase()), d) > 0,
++                   leaseGeneration,
+                    expectedGuestFor, prepareGuestFor, noteGuestRelease, predictorProblems, predictorSets, runtimeIdOf, confirmRow, verifyGuestEvidence, prewarmCollateral, versionConfigFor, resolveConfigCid,
+                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
+                    // billing.js quotes at the fleet's cheapest posted price

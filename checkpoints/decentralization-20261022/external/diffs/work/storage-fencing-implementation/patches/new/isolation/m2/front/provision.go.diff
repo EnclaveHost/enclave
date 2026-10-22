@@ -1,0 +1,48 @@
+--- a/isolation/m2/front/provision.go
++++ b/isolation/m2/front/provision.go
+@@ -159,7 +159,10 @@
+ 			return nil, err
+ 		}
+ 	}
+-	secrets := rel.Secrets
++	secrets, err := withReleaseFacts(rel.Secrets, rel.Facts)
++	if err != nil {
++		return nil, err
++	}
+ 	pol, err := egress.FromRelease(rel, relay)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("the allowlist: %w", err)
+@@ -378,3 +381,33 @@
+ 	}
+ 	return func(format string, a ...any) { logf("DOM "+format, a...) }
+ }
++
++// Reserved config substitution names (storage writer fencing, interface v3 s5-s6). The owner's config refers to them
++// ("writerAuthority": "$ENCLAVE_WRITER_AUTHORITY", "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION"); their values come
++// from the RELAY's facts and from THIS front's own build, never from the owner's secrets, which may not use the names.
++const (
++	reservedWriterAuthority   = "ENCLAVE_WRITER_AUTHORITY"
++	reservedInstanceIsolation = "ENCLAVE_INSTANCE_ISOLATION"
++	// this front is the SEV-SNP attested-release front; a Shield/VBS front sets "vbs" in its own build
++	thisBuildIsolation = "snp"
++)
++
++func withReleaseFacts(secrets map[string]string, facts *release.ReleaseFacts) (map[string]string, error) {
++	out := make(map[string]string, len(secrets)+2)
++	for k, v := range secrets {
++		if k == reservedWriterAuthority || k == reservedInstanceIsolation {
++			return nil, fmt.Errorf("the release's secrets use the reserved name %s: refused", k)
++		}
++		out[k] = v
++	}
++	out[reservedInstanceIsolation] = thisBuildIsolation
++	if facts != nil && len(facts.WriterAuthority) > 0 {
++		var probe map[string]any
++		if err := json.Unmarshal(facts.WriterAuthority, &probe); err != nil || probe["source"] == nil {
++			return nil, errors.New("the release's writerAuthority fact is not a JSON object with a source: refused")
++		}
++		out[reservedWriterAuthority] = string(facts.WriterAuthority)
++	}
++	// absent: the name stays unresolved, and an app that requires it fails closed on its own
++	return out, nil
++}

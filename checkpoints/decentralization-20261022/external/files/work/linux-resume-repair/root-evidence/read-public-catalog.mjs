@@ -1,0 +1,17 @@
+import fs from 'node:fs';
+import {createPublicClient,http,keccak256} from '../../enclave/node_modules/viem/_esm/index.js';
+import {verifiedLeaseAuthority} from '../../enclave/client/lease-executor-authority.mjs';
+import {parseDeploymentRecord,LEDGER_ABI} from '../../enclave/network/lease-gas-owner.mjs';
+const root='/home/steven/Documents/Codex/2026-10-18/wo/';
+const dep=parseDeploymentRecord(fs.readFileSync(root+'outputs/app-lease-gas-review/lease-gas-deployment.json'),{expectedDigest:'sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089'});
+const clients=['https://base-rpc.publicnode.com','https://mainnet.base.org','https://base-mainnet.public.blastapi.io'].map(url=>createPublicClient({transport:http(url,{retryCount:0,timeout:12000})}));
+const a=await verifiedLeaseAuthority({clients,deployment:dep,quorum:2});
+const catalog=JSON.parse(fs.readFileSync(root+'work/enclave/contracts/deployments/network-profile-base.json')).contracts.appCatalog;
+if(keccak256(await a.client.getCode({address:catalog.address}))!==catalog.codeHash)throw Error('catalog runtime differs from reviewed profile');
+const abi=JSON.parse(fs.readFileSync(root+'work/enclave/contracts/EnclaveAppCatalog.abi.json'));
+const id='0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9';
+const d=await a.client.readContract({address:a.pins.ledger,abi:LEDGER_ABI,functionName:'get',args:[id]});
+const m=/^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d+)$/.exec(d.appRef);if(!m)throw Error('unexpected app reference');
+const v=await a.client.readContract({address:catalog.address,abi:abi.abi??abi,functionName:'getVersion',args:[m[1],BigInt(m[2])]});
+const c=JSON.parse(v.config);const result={at:new Date().toISOString(),block:String(a.block.number),blockHash:a.block.hash,agreeing:a.agreeing,id,appRef:d.appRef,gpuMilli:d.gpuMilli,cpuMilli:d.cpuMilli,active:d.active,catalog:catalog.address,version:v.version,memMb:v.memMb,publicCatalogVolumes:c.volumes??null,publicDeploymentVolumes:JSON.parse(d.configCid||'{}').config?.volumes??null};
+fs.writeFileSync(root+'work/linux-resume-repair/root-evidence/public-catalog.json',JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));

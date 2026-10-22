@@ -1,0 +1,190 @@
+{
+ "title": "Design B on a Base FORK: the REAL ledger rev 16d and registry schema 4 bytecode/state, Base's GasPriceOracle at the fork block",
+ "fork": {
+  "block": 52865317,
+  "hash": "0xc88c3bf73dc801e8203f1da1cfd8fbdeb254204d6e82f5f1bd7214d78e526af1",
+  "timestamp": 1792519981,
+  "baseFeePerGas": "5000000",
+  "liveMaxPriorityFeePerGasByRpc": {
+   "https://base-rpc.publicnode.com": "1000000",
+   "https://mainnet.base.org": "1000000"
+  },
+  "stateFetchedFrom": "https://mainnet.base.org",
+  "clockAlignedToWallTimeAtStart": true,
+  "ledger": {
+   "address": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+   "codeHash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
+   "matchesReviewedProfile": true
+  },
+  "registry": {
+   "address": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC",
+   "codeHash": "0x39911d6f53959c610b9108bb906fc36ea8f57016c4b2571b5cd52c9c32a6f518",
+   "matchesReviewedProfile": true
+  },
+  "gasPriceOracle": {
+   "address": "0x420000000000000000000000000000000000000F",
+   "codeHash": "0x1f958654ab06a152993e7a0ae7b6dbb0d4b19265cc9337b8789fe1353bd9dc35",
+   "note": "the forked proxy's code; its L1 parameters are the fork block's L1Block state"
+  }
+ },
+ "deployment": {
+  "chainId": 8453,
+  "reserve": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+  "executor": "0xDC4fF920a346bfdC925A928612278d2Fbfe1D5A2",
+  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+  "registry": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC",
+  "reserveCodeHash": "0xcc00efe9c79c17b34ef9edc2720939030834bf168abc52cea14dcb224304a979",
+  "executorCodeHash": "0xc05422d51f03a059d1e324362fad9dccce58225b791235412f97f066c97c3971",
+  "limits": {
+   "maxGasPriceCeiling": "1000000000",
+   "overheadClaimGas": 65000,
+   "overheadRenewGas": 55000,
+   "overheadReleaseGas": 36000,
+   "minClaimInterval": 60,
+   "l1Bps": 10000
+  },
+  "note": "deployed on the FORK only by anvil key #0; on Base nothing exists yet"
+ },
+ "records": [
+  "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+  "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33"
+ ],
+ "fixtureHost": {
+  "operator": "0x0A9e0d2921C96161827B44AF61165d19b3E6EeCE",
+  "enclaveId": "0x8ae381417517e4612ca924ae2630d9bceef847f1e3ec7fecd41a59a2b3399508",
+  "operatorEthWei": "0"
+ },
+ "receipts": [
+  {
+   "kind": "claim, first lease of the key (carries its EIP-7702 authorization)",
+   "hash": "0xd8314522e41c0f327bfa42cfdac325a81121e73ff368c6899199b1addae73db6",
+   "block": 52865469,
+   "blockBaseFee": "5000000",
+   "type": "eip7702",
+   "authorizations": 1,
+   "receiptGasUsed": "331536",
+   "effectiveGasPrice": "6000000",
+   "chargedGas": "348660",
+   "chargedGasPrice": "6000000",
+   "gasMargin": "17124",
+   "signedBytes": 597,
+   "unsignedBytes": 530,
+   "reserveSizedUnsignedBytes": 565,
+   "l1ChargedWei": "13337625249",
+   "oracleL1EstimateWei": "8381224065",
+   "chargedWei": "2105297625249",
+   "relayL2CostWei": "1989216000000",
+   "relayCostWithL1EstimateWei": "1997597224065",
+   "marginWei": "107700401184"
+  },
+  {
+   "kind": "claim, key already delegated (no authorization)",
+   "hash": "0x20e8e66c5a792a4f7b32e5d6dfddf834d7c40ab8f66be7af8b13b7ff31c93229",
+   "block": 52865471,
+   "blockBaseFee": "5000000",
+   "type": "eip1559",
+   "authorizations": 0,
+   "receiptGasUsed": "332258",
+   "effectiveGasPrice": "6000000",
+   "chargedGas": "336869",
+   "chargedGasPrice": "6000000",
+   "gasMargin": "4611",
+   "signedBytes": 501,
+   "unsignedBytes": 434,
+   "reserveSizedUnsignedBytes": 460,
+   "l1ChargedWei": "11003893750",
+   "oracleL1EstimateWei": "6291978723",
+   "chargedWei": "2032217893750",
+   "relayL2CostWei": "1993548000000",
+   "relayCostWithL1EstimateWei": "1999839978723",
+   "marginWei": "32377915027"
+  },
+  {
+   "kind": "renew",
+   "hash": "0x6fb57856933a9bee18f23b5b30967c3f10a49f520390a0119c34dfd9b08189e4",
+   "block": 52865473,
+   "blockBaseFee": "5000000",
+   "type": "eip1559",
+   "authorizations": 0,
+   "receiptGasUsed": "207287",
+   "effectiveGasPrice": "6000000",
+   "chargedGas": "210198",
+   "chargedGasPrice": "6000000",
+   "gasMargin": "2911",
+   "signedBytes": 501,
+   "unsignedBytes": 434,
+   "reserveSizedUnsignedBytes": 460,
+   "l1ChargedWei": "11003893750",
+   "oracleL1EstimateWei": "5580746266",
+   "chargedWei": "1272191893750",
+   "relayL2CostWei": "1243722000000",
+   "relayCostWithL1EstimateWei": "1249302746266",
+   "marginWei": "22889147484"
+  },
+  {
+   "kind": "release",
+   "hash": "0x9332854f8fa7bc0a44a880980ff9a6c5b82e52c717713c6a8ef943dd7b95a83c",
+   "block": 52865474,
+   "blockBaseFee": "5000000",
+   "type": "eip1559",
+   "authorizations": 0,
+   "receiptGasUsed": "184299",
+   "effectiveGasPrice": "6000000",
+   "chargedGas": "187409",
+   "chargedGasPrice": "6000000",
+   "gasMargin": "3110",
+   "signedBytes": 501,
+   "unsignedBytes": 434,
+   "reserveSizedUnsignedBytes": 460,
+   "l1ChargedWei": "11003893750",
+   "oracleL1EstimateWei": "5669650323",
+   "chargedWei": "1135457893750",
+   "relayL2CostWei": "1105794000000",
+   "relayCostWithL1EstimateWei": "1111463650323",
+   "marginWei": "23994243427"
+  },
+  {
+   "kind": "release (second record)",
+   "hash": "0x953f60a13cfa2e989ad722035a69eb5b350e84dbe9bd7bdfa24183f4c7c928a3",
+   "block": 52865475,
+   "blockBaseFee": "5000000",
+   "type": "eip1559",
+   "authorizations": 0,
+   "receiptGasUsed": "217522",
+   "effectiveGasPrice": "6000000",
+   "chargedGas": "220632",
+   "chargedGasPrice": "6000000",
+   "gasMargin": "3110",
+   "signedBytes": 501,
+   "unsignedBytes": 434,
+   "reserveSizedUnsignedBytes": 460,
+   "l1ChargedWei": "11003893750",
+   "oracleL1EstimateWei": "5580746266",
+   "chargedWei": "1334795893750",
+   "relayL2CostWei": "1305132000000",
+   "relayCostWithL1EstimateWei": "1310712746266",
+   "marginWei": "24083147484"
+  }
+ ],
+ "minMarginWei": "22889147484",
+ "reserveSpentOnFirstRecordWei": "4512947412749",
+ "l1Bps": 10000,
+ "oracleVersionAtFork": "1.6.0",
+ "l1Sizing": "the reserve asks getL1FeeUpperBound for the UNSIGNED size: 388 calldata + 72 envelope (+105 for an authorization); the oracle adds 68 for the signature",
+ "real": [
+  "ledger/registry runtime bytecode and storage at the fork block (code hashes = the reviewed profile)",
+  "the ten inventory rows (ids, owner, rate 0, leases) at the fork block",
+  "the GasPriceOracle code and its L1 parameters (L1Block state) at the fork block: getL1Fee/getL1FeeUpperBound values",
+  "every calibration block mined at the fork block's REAL base fee (asserted per receipt)",
+  "the live Base eth_maxPriorityFeePerGas read at fork time (served to the CLI)",
+  "EVM gas of every lease operation, including the EIP-7702 authorization (Prague rules in anvil)"
+ ],
+ "notReproducedOnAnvil": [
+  "the L1 fee is NOT debited by anvil: oracleL1EstimateWei is the forked GasPriceOracle's getL1Fee of the exact UNSIGNED bytes - an ESTIMATE, not a fee actually paid on Base",
+  "Base's own execution rules beyond the EVM (anvil is not Base's node: no OP/Jovian fee rules, no operator fee) - root's live read: oracle 1.6.0, isJovian, getOperatorFee(300000) = 0 at block 52,863,833 (work/app-lease-gas-root-oracle-live.json)",
+  "base-fee evolution after the fork block, priority-fee competition, sequencer ordering and mempool behaviour",
+  "public-relay operations (availability, rate limits, a relay's own key management)",
+  "time: the renew used a moved fork clock (evm_setNextBlockTimestamp); oracle state does not advance with it"
+ ],
+ "notFabricated": "no fee value in this file is invented: each is a receipt field, an event field, or an eth_call on the forked oracle"
+}

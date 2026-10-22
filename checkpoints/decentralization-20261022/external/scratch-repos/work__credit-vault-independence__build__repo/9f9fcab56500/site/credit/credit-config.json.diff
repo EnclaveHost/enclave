@@ -1,0 +1,32 @@
+--- a/site/credit/credit-config.json
++++ b/site/credit/credit-config.json
+@@ -0,0 +1,29 @@
++{
++  "_note": "Every credit-vault factory the platform book has named (oldest first; read from book history 2026-10-20) and DEFAULT chain endpoints the owner can replace on the page. The current factory and implementation are byte-identical to contracts/EnclaveCreditVault.sol at d36100ae (site/recover/recover-config.json). Served beside index.html at exactly this origin.",
++  "origin": "https://enclave.host",
++  "rpId": "enclave.host",
++  "chainId": 8453,
++  "usdc": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
++  "factories": [
++    {
++      "address": "0x848a8a89c3452ce7dc14764114a8c5886b6f0c08",
++      "implementation": "0xaf81a59492409ab717afce6e72a425bdb2fac507",
++      "label": "credit-vault factory 2026-07-21 (superseded 2026-08-03)",
++      "originBound": false
++    },
++    {
++      "address": "0xa891e4396e3eb11f364554043bc18e86da834e91",
++      "implementation": "0xeca6644333d3a069001203ce5416914a4d830beb",
++      "label": "credit-vault factory (source d36100ae)"
++    }
++  ],
++  "rpcs": [
++    "https://base-rpc.publicnode.com",
++    "https://base.drpc.org",
++    "https://1rpc.io/base",
++    "https://mainnet.base.org"
++  ],
++  "quorum": 2,
++  "confirmations": 2,
++  "maxBlockAgeSeconds": 600
++}

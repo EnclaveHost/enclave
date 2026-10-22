@@ -1,0 +1,33 @@
+--- ../node-hold-package-20261021/tools/cutover-mock.ps1	2026-10-21 15:06:32.642329184 -0700
++++ tools/cutover-mock.ps1	2026-10-21 15:30:46.658140682 -0700
+@@ -34,7 +34,12 @@
+   return $v }
+ function global:Get-ScheduledTask { param($TaskPath, $TaskName, $ErrorAction)
+   $t = foreach ($n in 'Card', 'Network', 'Node', 'Relay', 'Shield') { [pscustomobject]@{ TaskName = $n; State = 'Running'; Actions = @([pscustomobject]@{ Execute = 'cmd.exe'; Arguments = "/c `"C:\ProgramData\Enclave\run-$($n.ToLower()).cmd`"" }) } }
++  # G4 final: the live \Enclave\Update (update-host.ps1, SYSTEM, hourly; root review G-UPD)
++  $t = @($t) + [pscustomobject]@{ TaskName = 'Update'; State = $(if ($global:S.scenario -eq 'update-running') { 'Running' } else { 'Ready' })
++    Actions = @([pscustomobject]@{ Execute = 'powershell.exe'; Arguments = '-NoProfile -ExecutionPolicy Bypass -File "C:\Program Files\Enclave\update-host.ps1"' }) }
+   if ($TaskName) { $t | Where-Object { $_.TaskName -eq $TaskName } } else { $t } }
++function global:Get-ScheduledTaskInfo { param($InputObject)   # update-due: the next hourly run falls inside the bound
++  [pscustomobject]@{ NextRunTime = $global:S.clock.AddMinutes($(if ($global:S.scenario -eq 'update-due') { 5 } else { 50 })) } }
+ function global:Stop-ScheduledTask { param($TaskPath, $TaskName)
+   if ($TaskName -ne 'Node') { throw "mock: only Node may be stopped, not $TaskName" }
+   $s = $global:S; $survive = ($s.scenario -eq 'agent-unkillable') -or ($s.scenario -eq 'node-no-channel-unkillable' -and $s.starts -ge 1)
+@@ -66,10 +71,14 @@
+   if (@($global:S.procs | Where-Object { $_.CommandLine -like '*node\agent.mjs*' }).Count -and $Uri -like '*9600*') { return [pscustomobject]@{ StatusCode = 200 } }; throw 'mock: refused' }
+ function global:Get-Acl { param($LiteralPath)
+   $extra = ($global:S.scenario -eq 'wallet-acl-bad' -and $LiteralPath -like '*wallet-admission.json') -or ($global:S.scenario -eq 'netdir-acl-bad' -and $LiteralPath -eq (Join-Path $global:S.root 'network'))
+-  $a = [pscustomobject]@{ Sddl = 'O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)'; AreAccessRulesProtected = $true; Extra = $extra }
++  # N3 (G4 final): the live data dir carries a NON-inheritable BU read (root's evidence); the scenarios add an inheritable one
++  $isRoot = $LiteralPath.TrimEnd('\', '/') -eq $global:S.root.TrimEnd('\', '/'); $isNet = $LiteralPath -eq (Join-Path $global:S.root 'network')
++  $bu = $(if ($isRoot -and $global:S.scenario -eq 'pd-inherit-read-bad') { 'ContainerInherit, ObjectInherit' } elseif ($isRoot) { 'None' } elseif ($isNet -and $global:S.scenario -eq 'netdir-read-bad') { 'ContainerInherit, ObjectInherit' } else { $null })
++  $a = [pscustomobject]@{ Sddl = 'O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)'; AreAccessRulesProtected = $true; Extra = $extra; Bu = $bu }
+   $a | Add-Member ScriptMethod GetAccessRules { param($x, $y, $z)
+-    $r = @([pscustomobject]@{ AccessControlType = 'Allow'; FileSystemRights = 2032127; IdentityReference = [pscustomobject]@{ Value = 'S-1-5-18' } },
+-           [pscustomobject]@{ AccessControlType = 'Allow'; FileSystemRights = 2032127; IdentityReference = [pscustomobject]@{ Value = 'S-1-5-32-544' } })
++    $r = @([pscustomobject]@{ AccessControlType = 'Allow'; FileSystemRights = 2032127; IdentityReference = [pscustomobject]@{ Value = 'S-1-5-18' }; InheritanceFlags = 'ContainerInherit, ObjectInherit'; PropagationFlags = 'None' },
++           [pscustomobject]@{ AccessControlType = 'Allow'; FileSystemRights = 2032127; IdentityReference = [pscustomobject]@{ Value = 'S-1-5-32-544' }; InheritanceFlags = 'ContainerInherit, ObjectInherit'; PropagationFlags = 'None' })
++    if ($this.Bu) { $r += [pscustomobject]@{ AccessControlType = 'Allow'; FileSystemRights = 1179817; IdentityReference = [pscustomobject]@{ Value = 'S-1-5-32-545' }; InheritanceFlags = $this.Bu; PropagationFlags = 'None' } }
+     if ($this.Extra) { $r += [pscustomobject]@{ AccessControlType = 'Allow'; FileSystemRights = 278; IdentityReference = [pscustomobject]@{ Value = 'S-1-5-11' } } }
+     return $r }
+   $a | Add-Member ScriptMethod GetOwner { param($t) [pscustomobject]@{ Value = 'S-1-5-18' } }

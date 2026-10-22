@@ -1,0 +1,13 @@
+--- base/install-host.ps1
++++ patched/install-host.ps1
+@@ -411,6 +411,10 @@
+ set ENCLAVE_EGRESS_EXE_SHA256=$(& $pin 'bin/shield-egress.exe')
+ set ENCLAVE_EGRESS_BRIDGE_EXE=$PF\bin\shielded-bridge.exe
+ set ENCLAVE_EGRESS_BRIDGE_EXE_SHA256=$(& $pin 'bin/shielded-bridge.exe')
++rem every shielded-bridge the manager starts (egress 9443, GPU 19595, package 9446, custody 9445) gets 96 slots, the
++rem same as shield-egress's per-guest MaxConcurrent: streams a guest already closed but the bridge still holds (up to
++rem 120 s, HALF_CLOSED_IDLE) no longer refuse its live ones below the guest's own 64-connection front (2026-10-21)
++set SHIELDED_BRIDGE_MAX_CONNS=96
+ set ENCLAVE_EGRESS_APP_ROUTES=$PD\network\state\egress-routes.json
+ rem public, pinned content an app asks blobs.enclave.internal for comes from the node's host-side cache, not its paid route
+ rem (docs/design/shield-blob-cache.md); the bundle's shield-egress must be the -blob-service build (build-bundle.ps1 pins it)

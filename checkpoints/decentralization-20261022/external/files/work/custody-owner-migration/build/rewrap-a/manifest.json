@@ -1,0 +1,101 @@
+{
+  "role": "enclave-custody-rewrap",
+  "commit": null,
+  "sourcesCommitted": false,
+  "sourceCheck": {
+    "untracked": [],
+    "dirty": "no git repository: Command failed: git ls-files -- custody/hpke.mjs custody/protocol.mjs custody/rules.mjs custody/threshold.mjs custody/v2/chain.mjs custody/v2/measured.mjs custody/v2/owner.mjs custody/v2/protocol.mjs custody/v2/quorum.mjs custody/v2/rewrap-gsup.mjs custody/v2/rewrap-guest.mjs custody/v2/rewrap.mjs custody/verifiers.mjs isolation/contract/runtime.mjs network/platform-host-policy.mjs network/rpc-identity.mjs relay/snp-verify.mjs verifier/collateral-cache.mjs verifier/collateral.mjs verifier/consumer.mjs verifier/der.mjs verifier/envelope.mjs verifier/metal-box.mjs verifier/snp.mjs verifier/tls-binding.mjs scripts/build-custody-rewrap.mjs package.json package-lock.json"
+  },
+  "measured": {
+    "role": "enclave-custody-rewrap",
+    "chainId": 8453,
+    "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+    "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+    "rpcs": [
+      "https://mainnet.base.org",
+      "https://base-rpc.publicnode.com",
+      "https://base.drpc.org",
+      "https://base.public.blockpi.network/v1/rpc/public"
+    ],
+    "minAgree": 3,
+    "confirmations": 2,
+    "maxAgeSec": 120
+  },
+  "runtime": {
+    "name": "enclave-custody-rewrap",
+    "version": "1.0.0",
+    "execution": "jit",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+  },
+  "runtimeId": "203807f9ba70e096950bd79a55884ee9f8f7eab7a479705d9647cea94b0a70ab",
+  "base": {
+    "dir": "dist-custody-9e5fb2028",
+    "initramfsSha256": "7169150f50ae69b8cb85d433f5a2b44ea7553968408d9dfd373caa03a8c146e5",
+    "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "bundleInputs": {
+    "repo": [
+      "custody/hpke.mjs",
+      "custody/protocol.mjs",
+      "custody/rules.mjs",
+      "custody/threshold.mjs",
+      "custody/v2/chain.mjs",
+      "custody/v2/measured.mjs",
+      "custody/v2/owner.mjs",
+      "custody/v2/protocol.mjs",
+      "custody/v2/quorum.mjs",
+      "custody/v2/rewrap-gsup.mjs",
+      "custody/v2/rewrap-guest.mjs",
+      "custody/v2/rewrap.mjs",
+      "custody/verifiers.mjs",
+      "isolation/contract/runtime.mjs",
+      "network/platform-host-policy.mjs",
+      "network/rpc-identity.mjs",
+      "relay/snp-verify.mjs",
+      "verifier/collateral-cache.mjs",
+      "verifier/collateral.mjs",
+      "verifier/consumer.mjs",
+      "verifier/der.mjs",
+      "verifier/envelope.mjs",
+      "verifier/metal-box.mjs",
+      "verifier/snp.mjs",
+      "verifier/tls-binding.mjs"
+    ],
+    "packages": [
+      "@noble/ciphers@1.3.0",
+      "@noble/curves@1.9.1",
+      "@noble/hashes@1.8.0",
+      "abitype@1.2.3",
+      "isows@1.0.7",
+      "ox@0.14.29",
+      "viem@2.53.1",
+      "ws@8.21.1"
+    ]
+  },
+  "bundler": "esbuild@0.28.1",
+  "files": {
+    "/opt/metal/gsup.mjs": "11a4b97dc77dc75087db1b9659ffba629daa601e6ae116c662fde2e513b22e94",
+    "/opt/rewrap/rewrap.mjs": "2472e89c3dc8b3de14892e59a07f84a94042e9ae972bcbf70d0eb5d80e3d759e"
+  },
+  "kernel": {
+    "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "initramfs": {
+    "sha256": "1f5d537f94ed1da4be61d99240626f7b6c2daff21a2e2e257790d82d10f52185",
+    "bytes": 279322771
+  },
+  "cmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app",
+  "vcpus": 2,
+  "measurement": "e9cb7671f2fce6dbd9fdbd4a613f377c019a371b113dff4103eb993db203adb5edbe2276084ed152acc48cf114f97cbf",
+  "measurementSha256": "0x9f293e5d928f526be21fb7c18472ea9cd8990a4d02d3f62cb2b36ae780fa8d73",
+  "ovmfSha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+  "rulesImage": {
+    "platform": "sev-snp",
+    "measurement": "e9cb7671f2fce6dbd9fdbd4a613f377c019a371b113dff4103eb993db203adb5edbe2276084ed152acc48cf114f97cbf",
+    "runtimeId": "203807f9ba70e096950bd79a55884ee9f8f7eab7a479705d9647cea94b0a70ab"
+  }
+}

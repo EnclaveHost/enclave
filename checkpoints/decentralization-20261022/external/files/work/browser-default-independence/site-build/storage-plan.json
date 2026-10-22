@@ -1,0 +1,1 @@
+{"version":1,"minimumCopies":2,"replicas":[{"upload":"https://s1.storage-a.net/add-json","audience":"0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1","gateway":"https://s1.storage-a.net/ipfs"},{"upload":"https://s2.storage-b.net/add-json","audience":"0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2","gateway":"https://s2.storage-b.net/ipfs"}]}

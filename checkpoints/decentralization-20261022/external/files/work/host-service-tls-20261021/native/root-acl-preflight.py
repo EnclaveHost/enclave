@@ -1,0 +1,4 @@
+import importlib.util,json,pathlib
+p=pathlib.Path('work/nucbox-tls-20261021/root-activate-reviewed.py').resolve();s=importlib.util.spec_from_file_location('transport',p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+r=m.ps(r"""$ErrorActionPreference='Stop';$c=Get-Content -Raw -LiteralPath 'C:\ProgramData\Enclave\host-services\hs2\config\host-services.json'|ConvertFrom-Json;$a=Get-Acl -LiteralPath $c.stateRoot;$rules=@($a.Access|ForEach-Object {@{sid=$_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value;allow=($_.AccessControlType -eq 'Allow');rights=[string]$_.FileSystemRights;inheritance=[string]$_.InheritanceFlags}});@{at=[DateTime]::UtcNow.ToString('o');stateRoot=$c.stateRoot;owner=$a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value;rules=$rules}|ConvertTo-Json -Depth 5 -Compress""",secs=40)
+pathlib.Path(__file__).with_suffix('.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))

@@ -1,0 +1,7 @@
+--- pkcs7.go	2026-10-20 16:06:39.053455117 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/volume-parity/tree/isolation/m2/encvol/rclonecrypt/pkcs7/pkcs7.go	2026-10-20 16:07:06.763980448 -0700
+@@ -1,3 +1,4 @@
++// Verbatim from rclone v1.67.0 backend/crypt/pkcs7/pkcs7.go (MIT); see ../NOTICE.
+ // Package pkcs7 implements PKCS#7 padding
+ //
+ // This is a standard way of encoding variable length buffers into

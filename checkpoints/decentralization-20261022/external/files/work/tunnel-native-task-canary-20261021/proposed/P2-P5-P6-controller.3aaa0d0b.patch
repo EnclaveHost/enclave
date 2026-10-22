@@ -1,0 +1,110 @@
+--- inputs-seen/tunnel_install.3aaa0d0b.py	2026-10-21 15:06:22.076595501 -0700
++++ proposed/tunnel_install.3aaa0d0b+7d.py	2026-10-21 15:08:26.374815486 -0700
+@@ -14,6 +14,7 @@
+ Root gate:            minipc-system-canary RUN one real SYSTEM task (launcher -> read-only sandbox preflight) + a
+                                                tampered-params refusal; both tasks and the dir removed
+ Changes (root):       minipc-stage RUN -> minipc-apply RUN -> vm-apply -> vm-enable -> verify RUN -> minipc-confirm RUN
++After the guard time:  minipc-guard-collect RUN  (unconfirmed run: read the guard's receipt, then remove the guard task)
+ Rollback:             vm-rollback | minipc-rollback RUN   (each reverts ONLY its own recorded mutations; conflicts are
+                                                            reported, never called success)
+ """
+@@ -131,14 +132,34 @@
+            "$pr=New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest;"
+            "$st=New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -StartWhenAvailable;"
+            "Register-ScheduledTask -TaskName '" + name + "' -Action $a" + (" -Trigger $tr" if at_expr else "") + " -Principal $pr -Settings $st|Out-Null;"
+-           "$k=Get-ScheduledTask -TaskName '" + name + "';$o=[ordered]@{state=[string]$k.State;user=[string]$k.Principal.UserId;triggers=@($k.Triggers).Count;"
++           "$k=Get-ScheduledTask -TaskName '" + name + "';$o=[ordered]@{state=[string]$k.State;user=[string]$k.Principal.UserId;triggers=@($k.Triggers|?{$_}).Count;"
+            "argSha=-join([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes([string]$k.Actions[0].Arguments))|%{$_.ToString('x2')})}")
+     r["argsMatch"] = (r.get("argSha") == sha(task_args(d, mode, hashes)) and r.get("state") == "Ready" and r.get("user") == "SYSTEM"
+                       and r.get("triggers") == (1 if at_expr else 0))
++    r["definition"] = task_definition(name, bool(at_expr)); r["argsMatch"] = r["argsMatch"] and r["definition"].get("ok") is True
++    return r
++
++
++PS_EXE = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
++def task_definition(name, triggered):
++    """read-only, its own step (register_task is near the transport limit): what the argument hash does not cover - ONE
++    action, exactly powershell.exe, SYSTEM as a service account at the highest run level, and the trigger count with a
++    null Triggers property counted as 0 (PowerShell: @($null).Count is 1, which would fail every trigger-less task)"""
++    r = ps(rf"$k=Get-ScheduledTask -TaskName '{name}';$o=[ordered]@{{actions=@($k.Actions|?{{$_}}).Count;exe=[string]$k.Actions[0].Execute;logon=[string]$k.Principal.LogonType;level=[string]$k.Principal.RunLevel;triggers=@($k.Triggers|?{{$_}}).Count}}", secs=40)
++    r["ok"] = (r.get("actions") == 1 and r.get("exe") == PS_EXE and r.get("logon") == "ServiceAccount" and r.get("level") == "Highest"
++               and r.get("triggers") == (1 if triggered else 0))
+     return r
+ 
+ 
+ def start_task(name): return ps(rf"Start-ScheduledTask -TaskName '{name}';$o=[ordered]@{{started=$true;state=[string](Get-ScheduledTask -TaskName '{name}').State}}", secs=40)
++def drop_when_done(name, secs=60):
++    """controller-side removal after a terminal receipt (no task unregisters itself): wait, bounded, until the instance is
++    no longer Running, then drop it; a task still Running is left for root, never stopped or killed here"""
++    r = ps(rf"$n='{name}';$e=(Get-Date).AddSeconds({secs});while((Get-Date) -lt $e -and [string](Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue).State -eq 'Running'){{Start-Sleep -Seconds 2}};$o=[ordered]@{{state=[string](Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue).State}}", secs=secs + 30)
++    if r.get("state") == "Running" or r.get("error"): return {"gone": False, "why": "still Running or unknown: left for root", **r}
++    return drop_task(name)
++
++
+ def drop_task(name): return ps(rf"Unregister-ScheduledTask -TaskName '{name}' -Confirm:$false -ErrorAction SilentlyContinue;$o=[ordered]@{{gone=-not (Get-ScheduledTask -TaskName '{name}' -ErrorAction SilentlyContinue)}}", secs=40)
+ 
+ 
+@@ -306,6 +327,7 @@
+         mkdir_protected(d); seal_and_prove(d, ["params.json", "tunnel-receiver.ps1"]); remove_dir(d); minipc_listener()
+         register_task(f"EnclaveTunnelGuard-{run}", "guard", d, f"(Get-Date).AddMinutes({GUARD_MIN})", h)
+         register_task(f"EnclaveTunnelApply-{run}", "apply", d, None, h); start_task(f"EnclaveTunnelApply-{run}"); drop_task(f"EnclaveTunnelApply-{run}")
++        drop_when_done(f"EnclaveTunnelApply-{run}")
+         fresh_proof(d); write_confirm(d)
+         register_task(f"EnclaveTunnelC-{run}", "preflight", d + "\\s", "(Get-Date).AddSeconds(20)", h)
+         sl, time.sleep = time.sleep, (lambda x: None)
+@@ -428,7 +450,7 @@
+     if not r.get("argsMatch"): sys.exit("the apply task is not exactly the pinned launcher: NOT started (it has no trigger); root unregisters it")
+     print("start:", start_task(f"EnclaveTunnelApply-{run}"))
+     res = poll_decision(d, "apply")
+-    if ((res or {}).get("receipt") or {}).get("decision") or (res or {}).get("launcher"): drop_task(f"EnclaveTunnelApply-{run}")
++    if ((res or {}).get("receipt") or {}).get("decision") or (res or {}).get("launcher"): res["applyDropped"] = drop_when_done(f"EnclaveTunnelApply-{run}")
+     out = {"at": now(), "run": run, "result": res}
+     print(json.dumps(out, indent=1)[:4000]); print("receipt", rec(f"minipc-apply-{run}", out))
+     dec = ((res or {}).get("receipt") or {}).get("decision")
+@@ -499,7 +521,7 @@
+     if not v or not v.get("PASS"): sys.exit("refused: verify did not PASS for this run")
+     d = STAGE_WIN.format(run=run); attempt(f"minipc-confirm-{run}", d)
+     r = write_confirm(d)
+-    if r.get("confirm") and not r.get("trust"): r["guardDropped"] = drop_task(f"EnclaveTunnelGuard-{run}")   # (if this fails, the guard fires and does nothing)
++    if r.get("confirm") and not r.get("trust"): r["guardDropped"] = drop_when_done(f"EnclaveTunnelGuard-{run}")   # (if this fails, the guard fires and does nothing)
+     print(r); rec(f"minipc-confirm-{run}", r)
+ 
+ 
+@@ -512,6 +534,18 @@
+     if v["rc"] != 0: sys.exit("vm-rollback did not complete cleanly: read the conflicts; nothing else was touched")
+ 
+ 
++def cmd_minipc_guard_collect(run):
++    """an UNCONFIRMED run after its guard time: read receipt-guard.json; once the guard has a decision (or its launcher
++    refused), the controller removes the guard task. Before that: reports pending, removes nothing."""
++    st = latest(f"minipc-stage-{run}")
++    if not st: sys.exit("no stage receipt for this run")
++    d = st["dir"]; attempt(f"minipc-guard-collect-{run}", d)
++    res = poll_decision(d, "guard", tries=1) or {}
++    if (res.get("receipt") or {}).get("decision") or res.get("launcher"): res["guardDropped"] = drop_when_done(f"EnclaveTunnelGuard-{run}")
++    else: res["pending"] = "the guard has not decided yet: nothing removed"
++    print(json.dumps(res, indent=1)[:3000]); rec(f"minipc-guard-collect-{run}", res)
++
++
+ def cmd_minipc_rollback(run):
+     st = latest(f"minipc-stage-{run}")
+     if not st: sys.exit("no stage receipt for this run")
+@@ -521,7 +555,7 @@
+     if not r.get("argsMatch"): sys.exit("the rollback task is not exactly the pinned launcher: NOT started; root inspects")
+     print("start:", start_task(f"EnclaveTunnelRollback-{run}"))
+     res = poll_decision(d, "rollback")
+-    if ((res or {}).get("receipt") or {}).get("decision") or (res or {}).get("launcher"): drop_task(f"EnclaveTunnelRollback-{run}")
++    if ((res or {}).get("receipt") or {}).get("decision") or (res or {}).get("launcher"): res["rollbackDropped"] = drop_when_done(f"EnclaveTunnelRollback-{run}")
+     print(json.dumps(res, indent=1)[:3000]); rec(f"minipc-rollback-{run}", res or {})
+     dec = ((res or {}).get("receipt") or {}).get("decision") or ""
+     if dec not in ("rolled-back", "nothing-to-roll-back"):
+@@ -536,7 +570,8 @@
+           "minipc-candidate-check": cmd_minipc_candidate_check, "minipc-sandbox-test": cmd_minipc_sandbox_test,
+           "minipc-parse-check": cmd_minipc_parse_check, "minipc-system-canary": cmd_minipc_system_canary,
+           "minipc-stage": cmd_minipc_stage, "minipc-apply": cmd_minipc_apply, "vm-apply": cmd_vm_apply, "vm-enable": cmd_vm_enable,
+-          "verify": cmd_verify, "minipc-confirm": cmd_minipc_confirm, "vm-rollback": cmd_vm_rollback, "minipc-rollback": cmd_minipc_rollback}.get(c)
++          "verify": cmd_verify, "minipc-confirm": cmd_minipc_confirm, "vm-rollback": cmd_vm_rollback, "minipc-rollback": cmd_minipc_rollback,
++          "minipc-guard-collect": cmd_minipc_guard_collect}.get(c)
+     if not fn: sys.exit(__doc__)
+     if rest and not re.fullmatch(r"[a-z0-9]{6,16}", rest[0]): sys.exit("RUN must be 6-16 lowercase letters/digits (transport limit)")
+     fn(*rest)

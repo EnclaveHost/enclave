@@ -1,0 +1,33 @@
+{
+ "against": "work/enclave now",
+ "files": [
+  {
+   "path": "network/challenge-replica-host.mjs",
+   "base": "9d12785205b75f9a1f5e6158e1796abb81459693f244228b3b7d5463098db7b6",
+   "mainNow": "9d12785205b75f9a1f5e6158e1796abb81459693f244228b3b7d5463098db7b6",
+   "result": "33433eb3477585903e03bd459b67bb6cb9e24150111b1937f3aac3af2448efe6",
+   "mainDriftedSinceCopy": false
+  },
+  {
+   "path": "network/challenge-replica-cli.mjs",
+   "base": null,
+   "mainNow": null,
+   "result": "68e85b6abbffc4c7a80e20eeaf72af9200f3df05acc0896f93e1741e2ec668fa",
+   "mainDriftedSinceCopy": false
+  },
+  {
+   "path": "scripts/build-challenge-replica-release.mjs",
+   "base": "17d5e35434d3dbe30c43f663f8040f5f5bcc514967dcc6e7f75592e045fd316b",
+   "mainNow": "17d5e35434d3dbe30c43f663f8040f5f5bcc514967dcc6e7f75592e045fd316b",
+   "result": "ec921ab337684c894947ca2a28d0cd6f7a37bafbba4a5771cbb6506720b85c36",
+   "mainDriftedSinceCopy": false
+  },
+  {
+   "path": "test/challenge-replica-host.test.mjs",
+   "base": "7aba6c3958ba1fce5ca7b8be8fee5e5eee1c7703a869ff3f41763bb9dee95c6d",
+   "mainNow": "7aba6c3958ba1fce5ca7b8be8fee5e5eee1c7703a869ff3f41763bb9dee95c6d",
+   "result": "5ef2b89cf3d7825c215d522fdca9003ac4e1aec85abfbe3d3ca5453c47f1080b",
+   "mainDriftedSinceCopy": false
+  }
+ ]
+}

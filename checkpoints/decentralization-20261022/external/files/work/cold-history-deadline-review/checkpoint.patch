@@ -1,0 +1,12 @@
+--- a/isolation/m2/bootstrap/leasegen.go
++++ b/isolation/m2/bootstrap/leasegen.go
+@@ -481,6 +481,9 @@
+ 			return none, err
+ 		}
+ 		logs, lo = append(older, logs...), a
++		// Save each COMPLETE finalized range before the next RPC can exhaust the attempt.
++		// keepFinal still refuses cancelled work; no partial range becomes cached history.
++		keepFinal(lo, logs)
+ 	}
+ 	sortLogs(logs)
+ 	ci := -1

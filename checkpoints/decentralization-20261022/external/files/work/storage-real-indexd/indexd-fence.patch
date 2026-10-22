@@ -1,0 +1,3705 @@
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/accounts/fence.go ./accounts/fence.go
+--- ../../indexd/accounts/fence.go	1969-12-31 17:00:00.000000000 -0700
++++ ./accounts/fence.go	2026-10-19 22:28:07.974621556 -0700
+@@ -0,0 +1,168 @@
++package accounts
++
++// FENCING PATCH (work/indexd-fencing-implementation-interface.txt): writer fences (ballots) per account.
++
++import (
++	"bytes"
++	"encoding/hex"
++	"errors"
++	"fmt"
++)
++
++// A Fence is a writer's ballot: gen u64 big-endian || counter u64 big-endian || iid 16 bytes. Fences are ordered
++// bytewise, which is lexicographic (gen, counter, iid) and PostgreSQL's bytea order.
++type Fence [32]byte
++
++var (
++	// ErrSeqNotEnabled is returned by the sequence listing of an account that never installed a fence.
++	ErrSeqNotEnabled = errors.New("the account's object sequence is not enabled: install a fence first")
++	// ErrNonCanonicalFence is returned for a fence that is not exactly 64 lowercase hex characters, or whose gen or
++	// counter has its top bit set.
++	ErrNonCanonicalFence = errors.New("non-canonical fence")
++)
++
++// A FencedError refuses a mutation or a raise. Current is the account's installed fence (nil: none installed).
++type FencedError struct {
++	Current *Fence
++}
++
++func (e *FencedError) Error() string {
++	if e.Current == nil {
++		return "account has no fence installed"
++	}
++	return fmt.Sprintf("account is fenced by %x", e.Current[:])
++}
++
++// ParseFence parses the canonical text form: exactly 64 lowercase hex characters, top bits of gen and counter clear.
++func ParseFence(s string) (Fence, error) {
++	var f Fence
++	if len(s) != 64 || !isLowerHex(s) {
++		return f, ErrNonCanonicalFence
++	}
++	if _, err := hex.Decode(f[:], []byte(s)); err != nil {
++		return f, ErrNonCanonicalFence
++	}
++	return f, f.Validate()
++}
++
++// Validate checks the bounds of a decoded fence: gen < 2^63 and counter < 2^63.
++func (f Fence) Validate() error {
++	if f[0]&0x80 != 0 || f[8]&0x80 != 0 {
++		return ErrNonCanonicalFence
++	}
++	return nil
++}
++
++// String returns the canonical text form.
++func (f Fence) String() string {
++	return hex.EncodeToString(f[:])
++}
++
++// Compare orders fences bytewise.
++func (f Fence) Compare(g Fence) int {
++	return bytes.Compare(f[:], g[:])
++}
++
++// MarshalText implements encoding.TextMarshaler (canonical form).
++func (f Fence) MarshalText() ([]byte, error) {
++	return []byte(f.String()), nil
++}
++
++// UnmarshalText implements encoding.TextUnmarshaler (canonical form only).
++func (f *Fence) UnmarshalText(b []byte) error {
++	p, err := ParseFence(string(b))
++	if err != nil {
++		return err
++	}
++	*f = p
++	return nil
++}
++
++// A Receipt is issued by indexd (crypto/rand) each time it installs a fence; the client never chooses it.
++type Receipt [16]byte
++
++// A Credential is what a fenced mutation presents in sf: the installed fence and the receipt issued for it. Holding
++// only the (predictable, possibly cloned) fence is not enough to write.
++type Credential struct {
++	Fence   Fence
++	Receipt Receipt
++}
++
++// Bytes returns fence || receipt (48 bytes), as covered by the request signature.
++func (c Credential) Bytes() (b [48]byte) {
++	copy(b[:32], c.Fence[:])
++	copy(b[32:], c.Receipt[:])
++	return
++}
++
++// String returns the canonical text form: 96 lowercase hex characters.
++func (c Credential) String() string {
++	b := c.Bytes()
++	return hex.EncodeToString(b[:])
++}
++
++// ParseCredential parses the canonical text form of a credential: exactly 96 lowercase hex characters whose fence
++// is canonical.
++func ParseCredential(s string) (Credential, error) {
++	var c Credential
++	if len(s) != 96 || !isLowerHex(s) {
++		return c, ErrNonCanonicalFence
++	}
++	f, err := ParseFence(s[:64])
++	if err != nil {
++		return c, err
++	}
++	c.Fence = f
++	if _, err := hex.Decode(c.Receipt[:], []byte(s[64:])); err != nil {
++		return c, ErrNonCanonicalFence
++	}
++	return c, nil
++}
++
++func isLowerHex(s string) bool {
++	for i := 0; i < len(s); i++ {
++		if c := s[i]; !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
++			return false
++		}
++	}
++	return true
++}
++
++// A ReceiptDigest is the SHA-256 of an installed receipt: what GET /fence reveals, so a writer can confirm its
++// fence is still installed without the receipt itself ever being returned after the raise.
++type ReceiptDigest [32]byte
++
++// MarshalText implements encoding.TextMarshaler (64 lowercase hex characters).
++func (d ReceiptDigest) MarshalText() ([]byte, error) {
++	return []byte(hex.EncodeToString(d[:])), nil
++}
++
++// UnmarshalText implements encoding.TextUnmarshaler (64 lowercase hex characters).
++func (d *ReceiptDigest) UnmarshalText(b []byte) error {
++	if len(b) != 64 || !isLowerHex(string(b)) {
++		return ErrNonCanonicalFence
++	}
++	_, err := hex.Decode(d[:], b)
++	return err
++}
++
++// MarshalText implements encoding.TextMarshaler (32 lowercase hex characters).
++func (r Receipt) MarshalText() ([]byte, error) {
++	return []byte(hex.EncodeToString(r[:])), nil
++}
++
++// UnmarshalText implements encoding.TextUnmarshaler (32 lowercase hex characters).
++func (r *Receipt) UnmarshalText(b []byte) error {
++	if len(b) != 32 || !isLowerHex(string(b)) {
++		return ErrNonCanonicalFence
++	}
++	_, err := hex.Decode(r[:], b)
++	return err
++}
++
++// FenceState is an account's installed fence (nil: none), the digest of its receipt and its event sequence head.
++type FenceState struct {
++	Fence         *Fence         `json:"fence"`
++	ReceiptSHA256 *ReceiptDigest `json:"receiptSha256"`
++	Seq           uint64         `json:"seq"`
++}
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/api/app/app.go ./api/app/app.go
+--- ../../indexd/api/app/app.go	2026-10-18 11:00:02.778461136 -0700
++++ ./api/app/app.go	2026-10-19 22:38:08.769820433 -0700
+@@ -49,6 +49,17 @@
+ 		ListObjectsWithoutSlabs(ctx context.Context, account proto.Account, cursor slabs.Cursor, limit int) ([]slabs.ObjectEventWithoutSlabs, error)
+ 		ObjectSlabs(ctx context.Context, account proto.Account, key types.Hash256, cursor int64, limit int) ([]slabs.SlabSlice, error)
+ 		SharedObject(ctx context.Context, key types.Hash256) (slabs.SharedObject, error)
++
++		// FENCING PATCH
++		PinObjectFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, obj slabs.PinObjectRequest) error
++		DeleteObjectFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, objectKey types.Hash256) error
++		PinSlabsFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, nextIntegrityCheck time.Time, toPin ...slabs.SlabPinParams) ([]slabs.SlabID, error)
++		PruneSlabsFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, cutoff time.Time) error
++		UnpinSlabFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, slabID slabs.SlabID) error
++		AccountFence(ctx context.Context, account proto.Account) (accounts.FenceState, error)
++		ListCurrentObjects(ctx context.Context, account proto.Account, after types.Hash256, limit int, includeBlocked bool) ([]slabs.CurrentObjectEvent, error)
++		RaiseFence(ctx context.Context, account proto.Account, fence accounts.Fence) (accounts.Receipt, uint64, error)
++		ListObjectsSeq(ctx context.Context, account proto.Account, after uint64, limit int) (slabs.SeqListing, error)
+ 	}
+ 
+ 	// Sharing defines the sharing key management interface for the application
+@@ -65,6 +76,12 @@
+ 		SharedObjects(sharingKey types.PublicKey, offset, limit int) ([]slabs.SealedObject, error)
+ 		SharedObject(sharingKey types.PublicKey, objectKey types.Hash256) (slabs.SealedObject, error)
+ 		AccountTokens(sharingKey types.PublicKey, hostKeys []types.PublicKey) ([]proto.AccountToken, error)
++
++		// FENCING PATCH
++		AddSharingKeyFenced(account proto.Account, sf *accounts.Credential, req sharing.KeyRequest) (sharing.Key, error)
++		DeleteSharingKeyFenced(account proto.Account, sf *accounts.Credential, publicKey types.PublicKey) error
++		AddSharedObjectFenced(account proto.Account, sf *accounts.Credential, sharingKey types.PublicKey, req sharing.SharedObjectRequest) error
++		DeleteSharedObjectFenced(account proto.Account, sf *accounts.Credential, sharingKey types.PublicKey, objectKey types.Hash256) error
+ 	}
+ 
+ 	// Hosts defines the hosts interface for the application API.
+@@ -416,7 +433,10 @@
+ 		return
+ 	}
+ 
+-	err := a.slabs.PinObject(jc.Request.Context(), proto.Account(pk), obj)
++	err := a.slabs.PinObjectFenced(jc.Request.Context(), proto.Account(pk), requestFence(jc.Request), obj)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, slabs.ErrObjectMetadataLimitExceeded) || errors.Is(err, slabs.ErrObjectMinimumSlabs) || errors.Is(err, slabs.ErrObjectUnpinnedSlab) || errors.Is(err, slabs.ErrInvalidObjectSignature) {
+ 		jc.Error(err, http.StatusBadRequest)
+ 		return
+@@ -436,7 +456,10 @@
+ 		return
+ 	}
+ 
+-	err := a.slabs.DeleteObject(jc.Request.Context(), proto.Account(pk), key)
++	err := a.slabs.DeleteObjectFenced(jc.Request.Context(), proto.Account(pk), requestFence(jc.Request), key)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, slabs.ErrObjectNotFound) {
+ 		jc.Error(err, http.StatusNotFound)
+ 		return
+@@ -453,7 +476,10 @@
+ 		return
+ 	}
+ 
+-	key, err := a.sharing.AddSharingKey(proto.Account(pk), req)
++	key, err := a.sharing.AddSharingKeyFenced(proto.Account(pk), requestFence(jc.Request), req)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, sharing.ErrInvalidRequest) {
+ 		jc.Error(err, http.StatusBadRequest)
+ 		return
+@@ -503,7 +529,10 @@
+ 		return
+ 	}
+ 
+-	err := a.sharing.DeleteSharingKey(proto.Account(pk), key)
++	err := a.sharing.DeleteSharingKeyFenced(proto.Account(pk), requestFence(jc.Request), key)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, sharing.ErrSharingKeyNotFound) {
+ 		jc.Error(err, http.StatusNotFound)
+ 		return
+@@ -525,7 +554,10 @@
+ 		return
+ 	}
+ 
+-	err := a.sharing.AddSharedObject(proto.Account(pk), key, req)
++	err := a.sharing.AddSharedObjectFenced(proto.Account(pk), requestFence(jc.Request), key, req)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, sharing.ErrInvalidRequest) {
+ 		jc.Error(err, http.StatusBadRequest)
+ 		return
+@@ -577,7 +609,10 @@
+ 		return
+ 	}
+ 
+-	err := a.sharing.DeleteSharedObject(proto.Account(pk), key, objectKey)
++	err := a.sharing.DeleteSharedObjectFenced(proto.Account(pk), requestFence(jc.Request), key, objectKey)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, sharing.ErrSharedObjectNotFound) {
+ 		jc.Error(err, http.StatusNotFound)
+ 		return
+@@ -593,7 +628,10 @@
+ 	if !ok {
+ 		return
+ 	}
+-	slabIDs, err := a.slabs.PinSlabs(jc.Request.Context(), proto.Account(pk), time.Now().Add(6*time.Hour), params...)
++	slabIDs, err := a.slabs.PinSlabsFenced(jc.Request.Context(), proto.Account(pk), requestFence(jc.Request), time.Now().Add(6*time.Hour), params...)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, slabs.ErrInvalidPinParams) || errors.Is(err, slabs.ErrBadHosts) || errors.Is(err, slabs.ErrMinShards) {
+ 		jc.Error(err, http.StatusBadRequest)
+ 		return
+@@ -614,7 +652,10 @@
+ 			return
+ 		}
+ 	}
+-	err := a.slabs.PruneSlabs(jc.Request.Context(), proto.Account(pk), cutoff)
++	err := a.slabs.PruneSlabsFenced(jc.Request.Context(), proto.Account(pk), requestFence(jc.Request), cutoff)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if jc.Check("failed to prune slabs", err) != nil {
+ 		return
+ 	}
+@@ -711,7 +752,10 @@
+ 		return
+ 	}
+ 
+-	err := a.slabs.UnpinSlab(jc.Request.Context(), proto.Account(pk), slabID)
++	err := a.slabs.UnpinSlabFenced(jc.Request.Context(), proto.Account(pk), requestFence(jc.Request), slabID)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, slabs.ErrSlabNotFound) {
+ 		jc.Error(fmt.Errorf("slab %s not found", slabID), http.StatusNotFound)
+ 		return
+@@ -1166,6 +1210,13 @@
+ 		"POST /slabs/prune":     wrapSignedAuth(a.handlePOSTSlabsPrune),
+ 		"GET /slabs/:slabid":    wrapSignedAuth(a.handleGETSlab),
+ 		"DELETE /slabs/:slabid": wrapSignedAuth(a.handleDELETESlab),
++
++		// FENCING PATCH: writer fence and commit-ordered sequence listing. The listing is not under /objects/: the
++		// router refuses a static segment beside the existing /objects/:key wildcard.
++		"GET /fence":           wrapSignedAuth(a.handleGETFence),
++		"POST /fence":          wrapSignedAuth(a.handlePOSTFence),
++		"GET /current/objects": wrapSignedAuth(a.handleGETCurrentObjects), // PATCH U1
++		"GET /seq/objects":     wrapSignedAuth(a.handleGETSeqObjects),
+ 	}, map[string]jape.Handler{
+ 		// CORS is disabled on these routes because we don't want to encourage programmatic access. It can't be
+ 		// blocked entirely, but it's less convenient without CORS support.
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/api/app/auth.go ./api/app/auth.go
+--- ../../indexd/api/app/auth.go	2026-10-18 11:00:02.778736973 -0700
++++ ./api/app/auth.go	2026-10-19 22:56:30.696476222 -0700
+@@ -12,6 +12,7 @@
+ 	"time"
+ 
+ 	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
+ 	"go.sia.tech/indexd/sharing"
+ 	"go.sia.tech/jape"
+ )
+@@ -38,8 +39,13 @@
+ 	queryParamCredential = "sc"
+ 	queryParamSignature  = "ss"
+ 	queryParamValidUntil = "sv"
++	// queryParamFence is the writer fence a mutation runs under (FENCING PATCH)
++	queryParamFence = "sf"
+ )
+ 
++// fenceHashDomain separates fenced request hashes from 0.6.0 request hashes (FENCING PATCH).
++const fenceHashDomain = "indexd/fence/v3"
++
+ func maxBytesMiddleware(next http.Handler) http.Handler {
+ 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+ 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
+@@ -90,9 +96,18 @@
+ 		http.Error(w, fmt.Sprintf("invalid %q parameter: %v", queryParamSignature, err), http.StatusUnauthorized)
+ 		return types.PublicKey{}, false
+ 	}
++	sf, err := parseFenceParam(r)
++	if err != nil {
++		http.Error(w, fmt.Sprintf("invalid %q parameter: %v", queryParamFence, err), http.StatusBadRequest)
++		return types.PublicKey{}, false
++	}
++	hash := requestHash(r.Method, hostname, r.URL.Path, ts, buf)
++	if sf != nil {
++		hash = fencedRequestHash(r.Method, hostname, r.URL.Path, ts, buf, *sf)
++	}
+ 
+ 	// check for expiration and verify the signature
+-	if ts.Before(time.Now().UTC()) || !pk.VerifyHash(requestHash(r.Method, hostname, r.URL.Path, ts, buf), sig) {
++	if ts.Before(time.Now().UTC()) || !pk.VerifyHash(hash, sig) {
+ 		http.Error(w, fmt.Sprintf("invalid signature for %q host %q", r.Method, filepath.Join(hostname, r.URL.Path)), http.StatusUnauthorized)
+ 		return types.PublicKey{}, false
+ 	}
+@@ -191,6 +206,57 @@
+ 	return h.Sum()
+ }
+ 
++// parseFenceParam returns the request's fence credential: nil when the sf parameter is absent; an error when it
++// occurs more than once (even with equal values) or is not exactly 96 lowercase hex characters with a canonical
++// fence (FENCING PATCH).
++func parseFenceParam(req *http.Request) (*accounts.Credential, error) {
++	vals, ok := req.URL.Query()[queryParamFence]
++	if !ok {
++		return nil, nil
++	} else if len(vals) != 1 {
++		return nil, fmt.Errorf("must appear exactly once, got %d", len(vals))
++	}
++	c, err := accounts.ParseCredential(vals[0])
++	if err != nil {
++		return nil, err
++	}
++	return &c, nil
++}
++
++// requestFence returns the (already validated) fence credential of an authenticated request.
++func requestFence(req *http.Request) *accounts.Credential {
++	c, err := parseFenceParam(req)
++	if err != nil {
++		return nil // unreachable: the signature check refused it
++	}
++	return c
++}
++
++// fencedRequestHash is the hash a request carrying the credential sf is signed over (FENCING PATCH, interface
++// REVISION R5): the sia types.Encoder stream
++//
++//	WriteString("indexd/fence/v3") WriteString(method) WriteString(hostname) WriteString(path) WriteUint64(sv)
++//	Write(credential, 48 bytes) WriteBytes(body)
++//
++// Every variable-length field is length-prefixed, and the stream starts with u64le(15), which no 0.6.0 request hash
++// input can start with (it starts with the raw method). So a fenced request's signature never verifies for an
++// unfenced request, nor for another fenced request. The earlier raw form ("indexd/fence/v2" || credential appended
++// after the raw body) let a captured fenced request be replayed as an unfenced one; that replay succeeds wherever
++// the account has no fence: after an account delete, prune and re-registration, or a restore from a backup taken
++// before the first raise (TestFenceHashV2ReplayAfterFenceLoss).
++func fencedRequestHash(method, hostname, path string, validUntil time.Time, body []byte, sf accounts.Credential) types.Hash256 {
++	h := types.NewHasher()
++	h.E.WriteString(fenceHashDomain)
++	h.E.WriteString(method)
++	h.E.WriteString(hostname)
++	h.E.WriteString(path)
++	h.E.WriteUint64(uint64(validUntil.Unix()))
++	cred := sf.Bytes()
++	h.E.Write(cred[:])
++	h.E.WriteBytes(body)
++	return h.Sum()
++}
++
+ func preAuthorizationHash(ephemeralKey types.PublicKey, request RegisterAppRequest) types.Hash256 {
+ 	h := types.NewHasher()
+ 	h.E.WriteString("indexd/preauthorize-app/v1")
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/api/app/client.go ./api/app/client.go
+--- ../../indexd/api/app/client.go	2026-10-18 11:00:02.778736973 -0700
++++ ./api/app/client.go	2026-10-19 22:28:38.786901199 -0700
+@@ -17,6 +17,7 @@
+ 
+ 	"github.com/fxamacker/cbor/v2"
+ 	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
+ 	"go.sia.tech/indexd/api"
+ 	"go.sia.tech/indexd/hosts"
+ 	"go.sia.tech/indexd/sharing"
+@@ -33,6 +34,16 @@
+ 
+ 	validity   time.Duration
+ 	enableCBOR bool
++	// fence, when set, is sent as the signed sf parameter of every request (FENCING PATCH)
++	fence *accounts.Credential
++}
++
++// WithFence returns a copy of the client whose requests carry the writer fence f as the signed sf parameter (nil:
++// none). Fenced mutations need it once a fence is installed on the account (FENCING PATCH).
++func (c *Client) WithFence(f *accounts.Credential) *Client {
++	c2 := *c
++	c2.fence = f
++	return &c2
+ }
+ 
+ type requestAppConnectionOptions struct {
+@@ -84,8 +95,14 @@
+ 		return nil, nil, fmt.Errorf("failed to parse URL: %w", err)
+ 	}
+ 
+-	// prepare request hash
++	// prepare request hash: a request carrying sf is signed over the fenced hash (FENCING PATCH). An sf that is not
++	// exactly one canonical value is left for the server to refuse.
+ 	sigHash := requestHash(method, u.Host, u.Path, validUntil, requestBuf)
++	if vals := u.Query()[queryParamFence]; len(vals) == 1 {
++		if cred, err := accounts.ParseCredential(vals[0]); err == nil {
++			sigHash = fencedRequestHash(method, u.Host, u.Path, validUntil, requestBuf, cred)
++		}
++	}
+ 
+ 	// prepare query parameters
+ 	val := url.Values{}
+@@ -171,7 +188,15 @@
+ 			return fmt.Errorf("failed to marshal request data: %w", err)
+ 		}
+ 	}
+-	u, body, err := sign(appKey, time.Now().Add(c.validity), method, fmt.Sprintf("%s%s", c.baseURL, route), requestBuf)
++	endpoint := fmt.Sprintf("%s%s", c.baseURL, route)
++	if c.fence != nil {
++		sep := "?"
++		if strings.Contains(route, "?") {
++			sep = "&"
++		}
++		endpoint += sep + queryParamFence + "=" + c.fence.String()
++	}
++	u, body, err := sign(appKey, time.Now().Add(c.validity), method, endpoint, requestBuf)
+ 	if err != nil {
+ 		return fmt.Errorf("failed to sign request: %w", err)
+ 	}
+@@ -605,3 +630,47 @@
+ 	}
+ 	return c
+ }
++
++// FenceResponse is the body of GET /fence (FENCING PATCH).
++type FenceResponse = accounts.FenceState
++
++// RaiseFenceResponse is the body of a successful POST /fence: the installed fence, the receipt to present with it
++// (sf = fence || receipt), and the event sequence head (FENCING PATCH).
++type RaiseFenceResponse struct {
++	Fence   accounts.Fence   `json:"fence"`
++	Receipt accounts.Receipt `json:"receipt"`
++	Seq     uint64           `json:"seq"`
++}
++
++// Credential returns the credential the raise issued.
++func (r RaiseFenceResponse) Credential() accounts.Credential {
++	return accounts.Credential{Fence: r.Fence, Receipt: r.Receipt}
++}
++
++// RaiseFenceRequest is the body of POST /fence (FENCING PATCH).
++type RaiseFenceRequest struct {
++	Fence accounts.Fence `json:"fence"`
++}
++
++// FencedResponse is the body of a 409 fence refusal (FENCING PATCH).
++type FencedResponse struct {
++	Fence *accounts.Fence `json:"fence"`
++}
++
++// Fence returns the account's installed writer fence and its event sequence head (FENCING PATCH).
++func (c *Client) Fence(ctx context.Context, appKey types.PrivateKey) (resp FenceResponse, err error) {
++	err = c.signedRequest(ctx, appKey, http.MethodGet, "/fence", nil, &resp)
++	return
++}
++
++// RaiseFence installs the writer fence f (FENCING PATCH).
++func (c *Client) RaiseFence(ctx context.Context, appKey types.PrivateKey, f accounts.Fence) (resp RaiseFenceResponse, err error) {
++	err = c.signedRequest(ctx, appKey, http.MethodPost, "/fence", RaiseFenceRequest{Fence: f}, &resp)
++	return
++}
++
++// ListObjectsSeq returns one page of the account's commit-ordered object sequence (FENCING PATCH).
++func (c *Client) ListObjectsSeq(ctx context.Context, appKey types.PrivateKey, after uint64, limit int) (resp slabs.SeqListing, err error) {
++	err = c.signedRequest(ctx, appKey, http.MethodGet, fmt.Sprintf("/seq/objects?after=%d&limit=%d", after, limit), nil, &resp)
++	return
++}
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/api/app/export_test.go ./api/app/export_test.go
+--- ../../indexd/api/app/export_test.go	1969-12-31 17:00:00.000000000 -0700
++++ ./api/app/export_test.go	2026-10-19 22:36:07.562752803 -0700
+@@ -0,0 +1,12 @@
++package app
++
++// FENCING PATCH (test only): internals the black-box fence tests need to build raw signed requests.
++
++var (
++	// Sign is sign.
++	Sign = sign
++	// RequestHash is the 0.6.0 request hash.
++	RequestHash = requestHash
++	// FencedRequestHash is the fenced request hash.
++	FencedRequestHash = fencedRequestHash
++)
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/api/app/fence.go ./api/app/fence.go
+--- ../../indexd/api/app/fence.go	1969-12-31 17:00:00.000000000 -0700
++++ ./api/app/fence.go	2026-10-19 22:29:25.875329394 -0700
+@@ -0,0 +1,149 @@
++package app
++
++// FENCING PATCH (work/indexd-fencing-implementation-interface.txt): writer fence endpoints and the commit-ordered
++// sequence listing.
++
++import (
++	"encoding/json"
++	"errors"
++	"io"
++	"net/http"
++	"strconv"
++
++	proto "go.sia.tech/core/rhp/v4"
++	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
++	"go.sia.tech/indexd/api"
++	"go.sia.tech/indexd/slabs"
++	"go.sia.tech/jape"
++)
++
++// writeFenced answers a fence refusal: 409 with the installed fence (null: none), as JSON. It reports whether err
++// was one.
++func writeFenced(jc jape.Context, err error) bool {
++	var fe *accounts.FencedError
++	if !errors.As(err, &fe) {
++		return false
++	}
++	writeJSONStatus(jc, http.StatusConflict, FencedResponse{Fence: fe.Current})
++	return true
++}
++
++func writeJSONStatus(jc jape.Context, status int, v any) {
++	buf, err := json.Marshal(v)
++	if err != nil {
++		http.Error(jc.ResponseWriter, "failed to encode response", http.StatusInternalServerError)
++		return
++	}
++	jc.ResponseWriter.Header().Set(contentTypeHeader, applicationJSON)
++	jc.ResponseWriter.WriteHeader(status)
++	jc.ResponseWriter.Write(buf)
++}
++
++func (a *app) handleGETFence(jc jape.Context, pk types.PublicKey) {
++	st, err := a.slabs.AccountFence(jc.Request.Context(), proto.Account(pk))
++	if errors.Is(err, accounts.ErrNotFound) {
++		jc.Error(err, http.StatusNotFound)
++		return
++	} else if err != nil {
++		jc.Error(err, http.StatusInternalServerError)
++		return
++	}
++	jc.Encode(st)
++}
++
++func (a *app) handlePOSTFence(jc jape.Context, pk types.PublicKey) {
++	buf, err := io.ReadAll(jc.Request.Body)
++	if err != nil {
++		http.Error(jc.ResponseWriter, "failed to read request body", http.StatusBadRequest)
++		return
++	}
++	var req struct {
++		Fence *string `json:"fence"`
++	}
++	if err := json.Unmarshal(buf, &req); err != nil || req.Fence == nil {
++		http.Error(jc.ResponseWriter, "body must be {\"fence\": \"<64 lowercase hex>\"}", http.StatusBadRequest)
++		return
++	}
++	f, err := accounts.ParseFence(*req.Fence)
++	if err != nil {
++		jc.Error(err, http.StatusBadRequest)
++		return
++	}
++	receipt, head, err := a.slabs.RaiseFence(jc.Request.Context(), proto.Account(pk), f)
++	if writeFenced(jc, err) {
++		return
++	} else if errors.Is(err, accounts.ErrNotFound) {
++		jc.Error(err, http.StatusNotFound)
++		return
++	} else if errors.Is(err, accounts.ErrNonCanonicalFence) {
++		jc.Error(err, http.StatusBadRequest)
++		return
++	} else if err != nil {
++		jc.Error(err, http.StatusInternalServerError)
++		return
++	}
++	jc.Encode(RaiseFenceResponse{Fence: f, Receipt: receipt, Seq: head})
++}
++
++func (a *app) handleGETSeqObjects(jc jape.Context, pk types.PublicKey) {
++	q := jc.Request.URL.Query()
++	after, limit := uint64(0), slabsMaxSeqLimit
++	if v, ok := q["after"]; ok {
++		n, err := strconv.ParseUint(v[0], 10, 63)
++		if err != nil || len(v) != 1 {
++			http.Error(jc.ResponseWriter, "after must be one unsigned integer below 2^63", http.StatusBadRequest)
++			return
++		}
++		after = n
++	}
++	if v, ok := q["limit"]; ok {
++		n, err := strconv.Atoi(v[0])
++		if err != nil || len(v) != 1 || n < 1 || n > slabsMaxSeqLimit {
++			http.Error(jc.ResponseWriter, "limit must be one integer in 1-1000", http.StatusBadRequest)
++			return
++		}
++		limit = n
++	}
++	listing, err := a.slabs.ListObjectsSeq(jc.Request.Context(), proto.Account(pk), after, limit)
++	if errors.Is(err, accounts.ErrSeqNotEnabled) {
++		writeJSONStatus(jc, http.StatusConflict, FenceResponse{})
++		return
++	} else if errors.Is(err, slabs.ErrInvalidSeqListing) {
++		jc.Error(err, http.StatusBadRequest)
++		return
++	} else if errors.Is(err, accounts.ErrNotFound) {
++		jc.Error(err, http.StatusNotFound)
++		return
++	} else if err != nil {
++		jc.Error(err, http.StatusInternalServerError)
++		return
++	}
++	encodeResponse(jc, listing)
++}
++
++// handleGETCurrentObjects lists the account's current objects in key order (PATCH U1): unlike the object feed, an
++// acknowledged pin is listed at once. With blocked=true, blocked objects are listed flagged instead of left out.
++func (a *app) handleGETCurrentObjects(jc jape.Context, pk types.PublicKey) {
++	_, limit, ok := api.ParseOffsetLimit(jc)
++	if !ok {
++		return
++	}
++	var after types.Hash256
++	if jc.DecodeForm("after", &after) != nil {
++		return
++	}
++	var includeBlocked bool
++	if jc.DecodeForm("blocked", &includeBlocked) != nil {
++		return
++	}
++	objs, err := a.slabs.ListCurrentObjects(jc.Request.Context(), proto.Account(pk), after, limit, includeBlocked)
++	if err != nil {
++		jc.Error(err, http.StatusInternalServerError)
++		return
++	}
++	encodeResponse(jc, objs)
++}
++
++// slabsMaxSeqLimit is the largest page of the sequence listing (persist/postgres.MaxSeqListLimit).
++const slabsMaxSeqLimit = 1000
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/api/app/fence_test.go ./api/app/fence_test.go
+--- ../../indexd/api/app/fence_test.go	1969-12-31 17:00:00.000000000 -0700
++++ ./api/app/fence_test.go	2026-10-19 22:57:31.941376873 -0700
+@@ -0,0 +1,635 @@
++package app_test
++
++// FENCING PATCH tests (work/indexd-fencing-implementation-interface.txt): the fence endpoints, the signed sf
++// credential and the sequence/current listings over real HTTP against a real store (PostgreSQL).
++
++import (
++	"bytes"
++	"crypto/sha256"
++	"encoding/base64"
++	"encoding/binary"
++	"encoding/hex"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"net/http"
++	"net/url"
++	"strings"
++	"testing"
++	"time"
++
++	proto "go.sia.tech/core/rhp/v4"
++	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
++	"go.sia.tech/indexd/api/app"
++	"go.sia.tech/indexd/hosts"
++	"go.sia.tech/indexd/sharing"
++	"go.sia.tech/indexd/slabs"
++	"go.sia.tech/indexd/testutils"
++	"go.sia.tech/jape"
++	"go.uber.org/zap"
++	"lukechampine.com/frand"
++)
++
++func apiFence(gen, counter uint64, iid byte) accounts.Fence {
++	var f accounts.Fence
++	binary.BigEndian.PutUint64(f[:8], gen)
++	binary.BigEndian.PutUint64(f[8:16], counter)
++	for i := 16; i < 32; i++ {
++		f[i] = iid
++	}
++	return f
++}
++
++type fenceAPI struct {
++	t       *testing.T
++	cluster *testutils.Cluster
++	sk      types.PrivateKey
++	client  *app.Client
++	hk      types.PublicKey
++	slab    slabs.SlabPinParams
++}
++
++// newFenceAPI starts an indexer without hosts and an account with one slab pinned directly in the store.
++func newFenceAPI(t *testing.T) *fenceAPI {
++	cluster := testutils.NewCluster(t, testutils.WithHosts(0), testutils.WithLogger(zap.NewNop()))
++	f := &fenceAPI{t: t, cluster: cluster, client: cluster.Indexer.App}
++	f.sk = cluster.AddAccount(t)
++	f.hk = types.GeneratePrivateKey().PublicKey()
++	cluster.Indexer.Store().AddTestHost(t, hosts.Host{PublicKey: f.hk})
++	// a formed contract makes the host good for pinning (no real host: the slab is only ever listed)
++	rev := types.V2FileContract{HostPublicKey: f.hk, Capacity: 200, Filesize: 100, FileMerkleRoot: types.Hash256{1}, ProofHeight: 600,
++		ExpirationHeight: 800, RevisionNumber: 1, TotalCollateral: types.Siacoins(100)}
++	if err := cluster.Indexer.Store().AddFormedContract(f.hk, types.FileContractID(f.hk), rev, types.ZeroCurrency, types.ZeroCurrency, types.ZeroCurrency, proto.Usage{}); err != nil {
++		t.Fatal(err)
++	}
++	f.slab = slabs.SlabPinParams{EncryptionKey: frand.Entropy256(), MinShards: 1, Sectors: []slabs.PinnedSector{{Root: frand.Entropy256(), HostKey: f.hk}}}
++	if _, err := cluster.Indexer.Store().PinSlabs(proto.Account(f.sk.PublicKey()), time.Time{}, f.slab); err != nil {
++		t.Fatal(err)
++	}
++	return f
++}
++
++func (f *fenceAPI) object(i int) slabs.SealedObject {
++	o := slabs.SealedObject{
++		EncryptedDataKey:     frand.Bytes(72),
++		EncryptedMetadataKey: frand.Bytes(72),
++		EncryptedMetadata:    frand.Bytes(20),
++		DataSignature:        types.Signature(frand.Bytes(64)),
++		MetadataSignature:    types.Signature(frand.Bytes(64)),
++		Slabs:                []slabs.SlabSlice{f.slab.Slice(uint32(i), 1)},
++	}
++	o.Sign(f.sk)
++	return o
++}
++
++// rawResp is a raw HTTP response.
++type rawResp struct {
++	status int
++	ctype  string
++	body   string
++}
++
++func (f *fenceAPI) do(method, route string, body []byte, rawQuery string) rawResp {
++	f.t.Helper()
++	u, r, err := app.Sign(f.sk, time.Now().Add(time.Minute), method, f.cluster.Indexer.AppURL+route+rawQuery, body)
++	if err != nil {
++		f.t.Fatal(err)
++	}
++	return f.send(method, u, r)
++}
++
++func (f *fenceAPI) send(method string, u *url.URL, body io.Reader) rawResp {
++	f.t.Helper()
++	req, err := http.NewRequestWithContext(f.t.Context(), method, u.String(), body)
++	if err != nil {
++		f.t.Fatal(err)
++	}
++	resp, err := http.DefaultClient.Do(req)
++	if err != nil {
++		f.t.Fatal(err)
++	}
++	defer resp.Body.Close()
++	b, _ := io.ReadAll(resp.Body)
++	return rawResp{resp.StatusCode, resp.Header.Get("Content-Type"), strings.TrimSpace(string(b))}
++}
++
++// signRaw builds a signed URL over an explicit hash, so tampering can be shown.
++func (f *fenceAPI) signRaw(method, route string, validUntil time.Time, hash types.Hash256, query url.Values) *url.URL {
++	u, err := url.Parse(f.cluster.Indexer.AppURL + route)
++	if err != nil {
++		f.t.Fatal(err)
++	}
++	pk := f.sk.PublicKey()
++	sig := f.sk.SignHash(hash)
++	q := u.Query()
++	for k, v := range query {
++		q[k] = v
++	}
++	q.Set("sv", fmt.Sprint(validUntil.Unix()))
++	q.Set("sc", base64URL(pk[:]))
++	q.Set("ss", base64URL(sig[:]))
++	u.RawQuery = q.Encode()
++	return u
++}
++
++func base64URL(b []byte) string { return base64.URLEncoding.EncodeToString(b) }
++
++func (f *fenceAPI) raise(fence accounts.Fence) accounts.Credential {
++	f.t.Helper()
++	resp, err := f.client.RaiseFence(f.t.Context(), f.sk, fence)
++	if err != nil {
++		f.t.Fatal(err)
++	} else if resp.Fence != fence {
++		f.t.Fatalf("raised %v, installed %v", fence, resp.Fence)
++	}
++	return resp.Credential()
++}
++
++func assertRefusal(t *testing.T, r rawResp, want *accounts.Fence) {
++	t.Helper()
++	if r.status != http.StatusConflict || !strings.HasPrefix(r.ctype, "application/json") {
++		t.Fatalf("expected a 409 JSON refusal, got %d %q %q", r.status, r.ctype, r.body)
++	}
++	var body map[string]*string
++	if err := json.Unmarshal([]byte(r.body), &body); err != nil {
++		t.Fatalf("refusal body %q: %v", r.body, err)
++	}
++	got, ok := body["fence"]
++	switch {
++	case !ok:
++		t.Fatalf("refusal body has no fence member: %q", r.body)
++	case want == nil && got != nil:
++		t.Fatalf("expected fence null, got %q", *got)
++	case want != nil && (got == nil || *got != want.String()):
++		t.Fatalf("expected fence %v, got %q", want, r.body)
++	}
++}
++
++func clientRefusal(t *testing.T, err error, want *accounts.Fence) {
++	t.Helper()
++	var he *app.HTTPError
++	if !errors.As(err, &he) {
++		t.Fatalf("expected an HTTP error, got %v", err)
++	}
++	assertRefusal(t, rawResp{status: he.StatusCode, ctype: "application/json", body: he.Body}, want)
++}
++
++func TestFenceAPIRaiseAndState(t *testing.T) {
++	f := newFenceAPI(t)
++	ctx := t.Context()
++
++	st, err := f.client.Fence(ctx, f.sk)
++	if err != nil || st.Fence != nil || st.ReceiptSHA256 != nil || st.Seq != 0 {
++		t.Fatalf("fresh: %+v %v", st, err)
++	}
++	if r := f.do(http.MethodGet, "/fence", nil, ""); r.body != `{"fence":null,"receiptSha256":null,"seq":0}` {
++		t.Fatalf("fresh GET /fence body %q", r.body)
++	}
++
++	f1 := apiFence(17<<48, 1, 0xa1)
++	resp := f.do(http.MethodPost, "/fence", []byte(`{"fence":"`+f1.String()+`"}`), "")
++	if resp.status != http.StatusOK {
++		t.Fatalf("raise: %d %q", resp.status, resp.body)
++	}
++	var installed struct {
++		Fence   string `json:"fence"`
++		Receipt string `json:"receipt"`
++		Seq     uint64 `json:"seq"`
++	}
++	if err := json.Unmarshal([]byte(resp.body), &installed); err != nil || installed.Fence != f1.String() || len(installed.Receipt) != 32 {
++		t.Fatalf("raise body %q", resp.body)
++	}
++	receipt, _ := hex.DecodeString(installed.Receipt)
++	digest := sha256.Sum256(receipt)
++	if r := f.do(http.MethodGet, "/fence", nil, ""); !strings.Contains(r.body, `"receiptSha256":"`+hex.EncodeToString(digest[:])+`"`) || strings.Contains(r.body, installed.Receipt) {
++		t.Fatalf("GET /fence after raise %q", r.body)
++	}
++
++	// equal and lower raises: 409 naming the installed fence
++	assertRefusal(t, f.do(http.MethodPost, "/fence", []byte(`{"fence":"`+f1.String()+`"}`), ""), &f1)
++	assertRefusal(t, f.do(http.MethodPost, "/fence", []byte(`{"fence":"`+apiFence(17<<48, 0, 0xff).String()+`"}`), ""), &f1)
++
++	// malformed bodies: 400, nothing installed
++	hexF := f1.String()
++	for _, body := range []string{
++		`{}`, `{"fence":null}`, `not json`, `{"fence":"` + strings.ToUpper(hexF) + `"}`, `{"fence":"0x` + hexF[2:] + `"}`,
++		`{"fence":"` + hexF[:63] + `"}`, `{"fence":"` + hexF + `0"}`, `{"fence":"` + apiFence(1<<63, 0, 0).String() + `"}`,
++		`{"fence":"` + apiFence(18<<48, 1<<63, 0).String() + `"}`,
++	} {
++		if r := f.do(http.MethodPost, "/fence", []byte(body), ""); r.status != http.StatusBadRequest {
++			t.Fatalf("body %q: expected 400, got %d %q", body, r.status, r.body)
++		}
++	}
++	if st, _ := f.client.Fence(ctx, f.sk); *st.Fence != f1 || *st.ReceiptSHA256 != accounts.ReceiptDigest(digest) {
++		t.Fatal("a refused raise changed the fence")
++	}
++}
++
++func TestFenceAPICredentialChecks(t *testing.T) {
++	f := newFenceAPI(t)
++	ctx := t.Context()
++	f1 := apiFence(16<<48, 1, 1)
++	c1 := f.raise(f1)
++	f2 := apiFence(16<<48, 2, 1)
++	c2 := f.raise(f2)
++
++	fenced := f.client.WithFence(&c2)
++	obj := f.object(1)
++	if err := fenced.PinObject(ctx, f.sk, obj); err != nil {
++		t.Fatalf("pin with the exact credential: %v", err)
++	}
++	// every mutation route: stock client, stale, higher, wrong receipt -> 409 {fence: f2}
++	higher := accounts.Credential{Fence: apiFence(16<<48, 3, 1), Receipt: c2.Receipt}
++	wrong := accounts.Credential{Fence: f2, Receipt: c1.Receipt}
++	nonce := sharing.Nonce(frand.Bytes(32))
++	sharePriv := sharing.DeriveSharingKey(f.sk, nonce)
++	sk := sharing.KeyRequest{PublicKey: sharePriv.PublicKey(), Nonce: nonce}
++	sk.Sign(sharePriv)
++	sharedReq := sharing.SharedObjectRequest{ObjectID: obj.ID(), EncryptedDataKey: frand.Bytes(sharing.EncryptionKeySize)}
++	sharedReq.Sign(sharePriv)
++	for _, c := range []*app.Client{f.client, f.client.WithFence(&c1), f.client.WithFence(&higher), f.client.WithFence(&wrong)} {
++		clientRefusal(t, c.PinObject(ctx, f.sk, f.object(2)), &f2)
++		clientRefusal(t, c.DeleteObject(ctx, f.sk, obj.ID()), &f2)
++		// valid params (validation precedes the fence check; 400 for invalid params is unchanged)
++		valid := slabs.SlabPinParams{EncryptionKey: frand.Entropy256(), MinShards: 10}
++		for range 30 {
++			valid.Sectors = append(valid.Sectors, slabs.PinnedSector{Root: frand.Entropy256(), HostKey: types.GeneratePrivateKey().PublicKey()})
++		}
++		_, err := c.PinSlabs(ctx, f.sk, valid)
++		clientRefusal(t, err, &f2)
++		clientRefusal(t, c.UnpinSlab(ctx, f.sk, f.slab.Digest()), &f2)
++		clientRefusal(t, c.PruneSlabs(ctx, f.sk), &f2)
++		_, err = c.AddSharingKey(ctx, f.sk, sk)
++		clientRefusal(t, err, &f2)
++		clientRefusal(t, c.DeleteSharingKey(ctx, f.sk, sk.PublicKey), &f2)
++		clientRefusal(t, c.AddSharedObject(ctx, f.sk, sk.PublicKey, sharedReq), &f2)
++		clientRefusal(t, c.DeleteSharedObject(ctx, f.sk, sk.PublicKey, obj.ID()), &f2)
++	}
++	if _, err := f.client.Object(ctx, f.sk, ptr(f.object(2)).ID()); err == nil {
++		t.Fatal("a refused pin was applied")
++	}
++	if _, err := f.client.Object(ctx, f.sk, obj.ID()); err != nil {
++		t.Fatal("a refused delete was applied")
++	}
++	// reads are not fenced
++	if _, err := f.client.Object(ctx, f.sk, obj.ID()); err != nil {
++		t.Fatal(err)
++	}
++	// the exact credential passes the check on every route
++	if _, err := fenced.AddSharingKey(ctx, f.sk, sk); err != nil {
++		t.Fatal(err)
++	} else if err := fenced.AddSharedObject(ctx, f.sk, sk.PublicKey, sharedReq); err != nil {
++		t.Fatal(err)
++	} else if err := fenced.DeleteSharedObject(ctx, f.sk, sk.PublicKey, obj.ID()); err != nil {
++		t.Fatal(err)
++	} else if err := fenced.DeleteSharingKey(ctx, f.sk, sk.PublicKey); err != nil {
++		t.Fatal(err)
++	}
++	if err := fenced.PruneSlabs(ctx, f.sk); err != nil {
++		t.Fatal(err)
++	}
++	if err := fenced.DeleteObject(ctx, f.sk, obj.ID()); err != nil {
++		t.Fatal(err)
++	}
++
++	// account isolation: the credential means nothing on another (unfenced) account
++	other := f.cluster.AddAccount(t)
++	err := f.client.WithFence(&c2).DeleteObject(ctx, other, obj.ID())
++	clientRefusal(t, err, nil)
++}
++
++func TestFenceAPIQueryCanonical(t *testing.T) {
++	f := newFenceAPI(t)
++	c := f.raise(apiFence(1, 1, 1))
++	cred := c.String()
++	route := "/objects/" + types.Hash256(frand.Entropy256()).String()
++
++	// exact credential: the check passes (404: no such object)
++	if r := f.do(http.MethodDelete, route, nil, "?sf="+cred); r.status != http.StatusNotFound {
++		t.Fatalf("exact credential: %d %q", r.status, r.body)
++	}
++	for name, q := range map[string]string{
++		"duplicate":     "?sf=" + cred + "&sf=" + cred,
++		"duplicate-mix": "?sf=" + cred + "&sf=" + strings.Repeat("0", 96),
++		"uppercase":     "?sf=" + strings.ToUpper(cred),
++		"token-only":    "?sf=" + cred[:64],
++		"too-long":      "?sf=" + cred + "00",
++		"empty":         "?sf=",
++		"non-hex":       "?sf=" + strings.Repeat("g", 96),
++		"top-bit":       "?sf=" + "80" + cred[2:],
++		"counter-top":   "?sf=" + cred[:16] + "80" + cred[18:],
++	} {
++		if r := f.do(http.MethodDelete, route, nil, q); r.status != http.StatusBadRequest {
++			t.Fatalf("%s: expected 400, got %d %q", name, r.status, r.body)
++		}
++	}
++}
++
++func TestFenceAPISignatureTampering(t *testing.T) {
++	f := newFenceAPI(t)
++	c := f.raise(apiFence(1, 1, 1))
++	host := strings.TrimPrefix(f.cluster.Indexer.AppURL, "http://")
++	sv := time.Now().Add(time.Minute)
++	key := frand.Entropy256()
++	route := "/objects/" + types.Hash256(key).String()
++	body := []byte{}
++
++	good := app.FencedRequestHash(http.MethodDelete, host, route, sv, body, c)
++	q := url.Values{"sf": {c.String()}}
++	if r := f.send(http.MethodDelete, f.signRaw(http.MethodDelete, route, sv, good, q), nil); r.status != http.StatusNotFound {
++		t.Fatalf("well-signed: %d %q", r.status, r.body)
++	}
++	// a different credential under the same signature
++	other := c
++	other.Receipt[0] ^= 1
++	if r := f.send(http.MethodDelete, f.signRaw(http.MethodDelete, route, sv, good, url.Values{"sf": {other.String()}}), nil); r.status != http.StatusUnauthorized {
++		t.Fatalf("swapped sf: %d %q", r.status, r.body)
++	}
++	// sf added to an unfenced signature
++	unfenced := app.RequestHash(http.MethodDelete, host, route, sv, body)
++	if r := f.send(http.MethodDelete, f.signRaw(http.MethodDelete, route, sv, unfenced, q), nil); r.status != http.StatusUnauthorized {
++		t.Fatalf("sf added: %d %q", r.status, r.body)
++	}
++	// sf stripped from a fenced signature
++	if r := f.send(http.MethodDelete, f.signRaw(http.MethodDelete, route, sv, good, nil), nil); r.status != http.StatusUnauthorized {
++		t.Fatalf("sf stripped: %d %q", r.status, r.body)
++	}
++	// another route or method under the same signature
++	if r := f.send(http.MethodDelete, f.signRaw(http.MethodDelete, "/objects/"+types.Hash256(frand.Entropy256()).String(), sv, good, q), nil); r.status != http.StatusUnauthorized {
++		t.Fatalf("other route: %d %q", r.status, r.body)
++	}
++	// body tampering on a fenced POST
++	obj := f.object(1)
++	pin, _ := json.Marshal(obj.PinRequest())
++	h := app.FencedRequestHash(http.MethodPost, host, "/objects", sv, pin, c)
++	tampered := bytes.Replace(pin, []byte(`"encryptedMetadata":"`), []byte(`"encryptedMetadata":"A`), 1)
++	if r := f.send(http.MethodPost, f.signRaw(http.MethodPost, "/objects", sv, h, q), bytes.NewReader(tampered)); r.status != http.StatusUnauthorized {
++		t.Fatalf("tampered body: %d %q", r.status, r.body)
++	}
++	if r := f.send(http.MethodPost, f.signRaw(http.MethodPost, "/objects", sv, h, q), bytes.NewReader(pin)); r.status != http.StatusOK && r.status != http.StatusNoContent {
++		t.Fatalf("untampered body: %d %q", r.status, r.body)
++	}
++	// expired
++	past := time.Now().Add(-time.Second)
++	if r := f.send(http.MethodDelete, f.signRaw(http.MethodDelete, route, past, app.FencedRequestHash(http.MethodDelete, host, route, past, body, c), q), nil); r.status != http.StatusUnauthorized {
++		t.Fatalf("expired: %d %q", r.status, r.body)
++	}
++}
++
++// v2FencedHash is the WITHDRAWN raw fenced hash (SDK interface v3 section 3): 0.6.0 input || "indexd/fence/v2" ||
++// credential. Kept only to show why it was withdrawn (REVISION R5).
++func v2FencedHash(method, host, path string, sv time.Time, body []byte, c accounts.Credential) types.Hash256 {
++	b := c.Bytes()
++	return app.RequestHash(method, host, path, sv, append(append(append([]byte(nil), body...), "indexd/fence/v2"...), b[:]...))
++}
++
++// TestFenceHashV2ReplayAfterFenceLoss is the adversarial test behind REVISION R5. Under the raw v2 fenced hash, a
++// captured fenced DELETE also verifies as an UNFENCED DELETE whose (ignored) body is "indexd/fence/v2"||credential.
++// That replay is refused only while the account holds a fence, and an account can lose its fence: a restore from a
++// backup taken before the first raise, or an admin delete + prune + re-registration of the same app key. Against the
++// real server, the v2-signed replay then deletes a later writer's object; the v3 (length-bound) signature cannot be
++// replayed that way.
++func TestFenceHashV2ReplayAfterFenceLoss(t *testing.T) {
++	f := newFenceAPI(t)
++	ctx := t.Context()
++	store := f.cluster.Indexer.Store()
++	acc := proto.Account(f.sk.PublicKey())
++	host := strings.TrimPrefix(f.cluster.Indexer.AppURL, "http://")
++	c := f.raise(apiFence(1, 1, 1))
++	x := f.object(1)
++	if err := f.client.WithFence(&c).PinObject(ctx, f.sk, x); err != nil {
++		t.Fatal(err)
++	}
++	route := "/objects/" + x.ID().String()
++	sv := time.Now().Add(10 * time.Minute) // a long-lived signature: any client-chosen validity works the same
++	credBytes := c.Bytes()
++	ext := append([]byte("indexd/fence/v2"), credBytes[:]...)
++
++	// the injectivity facts: v2 collides with an unfenced request, v3 collides with neither form
++	v2 := v2FencedHash(http.MethodDelete, host, route, sv, []byte{}, c)
++	v3 := app.FencedRequestHash(http.MethodDelete, host, route, sv, []byte{}, c)
++	if app.RequestHash(http.MethodDelete, host, route, sv, ext) != v2 {
++		t.Fatal("expected the v2 collision")
++	} else if v3 == v2 || v3 == app.RequestHash(http.MethodDelete, host, route, sv, ext) || v3 == app.RequestHash(http.MethodDelete, host, route, sv, []byte{}) {
++		t.Fatal("v3 must differ from every unfenced hash")
++	}
++	// v3 binds lengths: moving bytes between body and other fields changes the hash
++	if app.FencedRequestHash(http.MethodPost, host, "/objects", sv, []byte("ab"), c) == app.FencedRequestHash(http.MethodPost, host, "/objectsa", sv, []byte("b"), c) {
++		t.Fatal("v3 is not length-bound")
++	}
++
++	replay := func(hash types.Hash256) rawResp {
++		return f.send(http.MethodDelete, f.signRaw(http.MethodDelete, route, sv, hash, nil), bytes.NewReader(ext))
++	}
++	// while the fence is installed both replays are refused (v2: verified but fenced; v3: bad signature)
++	assertRefusal(t, replay(v2), &c.Fence)
++	if r := replay(v3); r.status != http.StatusUnauthorized {
++		t.Fatalf("v3 replay with fence: %d %q", r.status, r.body)
++	}
++
++	// (1) restore from a backup taken before the first raise: the account row has no fence again
++	if _, err := store.Exec(ctx, `UPDATE accounts SET fence = NULL, fence_receipt = NULL, seq_enabled = FALSE WHERE public_key = $1`, acc[:]); err != nil {
++		t.Fatal(err)
++	}
++	if r := replay(v3); r.status != http.StatusUnauthorized {
++		t.Fatalf("v3 replay after restore: %d %q", r.status, r.body)
++	} else if _, err := f.client.Object(ctx, f.sk, x.ID()); err != nil {
++		t.Fatal("v3 replay deleted the object")
++	}
++	if r := replay(v2); r.status != http.StatusNoContent && r.status != http.StatusOK {
++		t.Fatalf("expected the v2 replay to succeed after the restore (the flaw), got %d %q", r.status, r.body)
++	} else if _, err := f.client.Object(ctx, f.sk, x.ID()); err == nil {
++		t.Fatal("v2 replay reported success but the object is still there")
++	}
++
++	// (2) admin delete + prune + re-registration of the same key: a new, unfenced owner pins x again
++	if err := store.DeleteAccount(acc); err != nil {
++		t.Fatal(err)
++	}
++	for {
++		if err := store.PruneAccounts(1000); errors.Is(err, accounts.ErrNotFound) {
++			break
++		} else if err != nil {
++			t.Fatal(err)
++		}
++	}
++	store.AddTestAccount(t, types.PublicKey(acc))
++	if _, err := store.PinSlabs(acc, time.Time{}, f.slab); err != nil {
++		t.Fatal(err)
++	}
++	if err := f.client.PinObject(ctx, f.sk, x); err != nil {
++		t.Fatal(err)
++	}
++	if r := replay(v3); r.status != http.StatusUnauthorized {
++		t.Fatalf("v3 replay after re-registration: %d %q", r.status, r.body)
++	} else if _, err := f.client.Object(ctx, f.sk, x.ID()); err != nil {
++		t.Fatal("v3 replay deleted the new owner's object")
++	}
++	if r := replay(v2); r.status != http.StatusNoContent && r.status != http.StatusOK {
++		t.Fatalf("expected the v2 replay to delete the new owner's object (the flaw), got %d %q", r.status, r.body)
++	} else if _, err := f.client.Object(ctx, f.sk, x.ID()); err == nil {
++		t.Fatal("v2 replay reported success but the object is still there")
++	}
++}
++
++func TestFenceAPISeqAndCurrentListing(t *testing.T) {
++	f := newFenceAPI(t)
++	ctx := t.Context()
++	store := f.cluster.Indexer.Store()
++
++	// stock objects, then the first raise backfills them
++	a, b := f.object(1), f.object(2)
++	for _, o := range []slabs.SealedObject{a, b} {
++		if err := f.client.PinObject(ctx, f.sk, o); err != nil {
++			t.Fatal(err)
++		}
++	}
++	if r := f.do(http.MethodGet, "/seq/objects", nil, "?after=0&limit=10"); r.status != http.StatusConflict || !strings.Contains(r.body, `"fence":null`) {
++		t.Fatalf("seq listing before the raise: %d %q", r.status, r.body)
++	}
++	fence := apiFence(1, 1, 1)
++	resp, err := f.client.RaiseFence(ctx, f.sk, fence)
++	if err != nil || resp.Seq != 2 {
++		t.Fatalf("raise: %+v %v", resp, err)
++	}
++	c := resp.Credential()
++	fenced := f.client.WithFence(&c)
++	if err := fenced.DeleteObject(ctx, f.sk, a.ID()); err != nil {
++		t.Fatal(err)
++	}
++	cObj := f.object(3)
++	if err := fenced.PinObject(ctx, f.sk, cObj); err != nil {
++		t.Fatal(err)
++	}
++	if err := store.BlockObject(b.ID(), "test"); err != nil {
++		t.Fatal(err)
++	}
++
++	listing, err := f.client.ListObjectsSeq(ctx, f.sk, 0, 1000)
++	if err != nil {
++		t.Fatal(err)
++	} else if listing.Head != 4 || len(listing.Events) != 3 {
++		t.Fatalf("listing %+v", listing)
++	}
++	ev := map[types.Hash256]slabs.SeqObjectEvent{}
++	for _, e := range listing.Events {
++		ev[e.Key] = e
++	}
++	if e := ev[a.ID()]; !e.Deleted || e.Seq != 3 || e.Object != nil {
++		t.Fatalf("tombstone %+v", e)
++	}
++	if e := ev[b.ID()]; !e.Blocked || e.Object != nil {
++		t.Fatalf("blocked %+v", e)
++	}
++	if e := ev[cObj.ID()]; e.Seq != 4 || e.Object == nil || e.Object.ID() != cObj.ID() || len(e.Object.Slabs) != 1 {
++		t.Fatalf("live %+v", e)
++	}
++	// paging
++	page, err := f.client.ListObjectsSeq(ctx, f.sk, 3, 1)
++	if err != nil || page.Head != 4 || len(page.Events) != 1 || page.Events[0].Seq != 4 {
++		t.Fatalf("page after 3: %+v %v", page, err)
++	}
++	if page, err := f.client.ListObjectsSeq(ctx, f.sk, 4, 10); err != nil || page.Head != 4 || page.Events == nil || len(page.Events) != 0 {
++		t.Fatalf("page after head: %+v %v", page, err)
++	}
++	if r := f.do(http.MethodGet, "/seq/objects", nil, "?after=4&limit=10"); r.body != `{"head":4,"events":[]}` {
++		t.Fatalf("empty page body %q", r.body)
++	}
++	for _, q := range []string{"?limit=0", "?limit=1001", "?limit=x", "?after=-1", "?after=9223372036854775808", "?after=1&after=2", "?limit=1&limit=2"} {
++		if r := f.do(http.MethodGet, "/seq/objects", nil, q); r.status != http.StatusBadRequest {
++			t.Fatalf("%s: expected 400, got %d %q", q, r.status, r.body)
++		}
++	}
++	// CBOR negotiation works as for GET /objects (the default client asks for CBOR; this one says so explicitly)
++	cbor := app.NewClient(f.cluster.Indexer.AppURL, app.WithEnableCBOR(true))
++	if l, err := cbor.ListObjectsSeq(ctx, f.sk, 0, 10); err != nil || l.Head != 4 || len(l.Events) != 3 {
++		t.Fatalf("CBOR listing %+v %v", l, err)
++	}
++
++	// current listing: default omits the blocked object (as U1); blocked=true flags it without metadata
++	r := f.do(http.MethodGet, "/current/objects", nil, "?limit=100")
++	var cur []map[string]any
++	if err := json.Unmarshal([]byte(r.body), &cur); err != nil || len(cur) != 1 || cur[0]["key"] != cObj.ID().String() {
++		t.Fatalf("current (default) %d %q", r.status, r.body)
++	}
++	if _, ok := cur[0]["blocked"]; ok {
++		t.Fatal("default current listing carries a blocked member (wire change vs U1)")
++	}
++	r = f.do(http.MethodGet, "/current/objects", nil, "?limit=100&blocked=true")
++	cur = nil // json.Unmarshal would merge into the previous maps
++	if err := json.Unmarshal([]byte(r.body), &cur); err != nil || len(cur) != 2 {
++		t.Fatalf("current (blocked=true) %d %q", r.status, r.body)
++	}
++	for _, e := range cur {
++		_, hasObj := e["object"]
++		if (e["key"] == b.ID().String()) != (e["blocked"] == true) || hasObj == (e["blocked"] == true) {
++			t.Fatalf("current entry %v", e)
++		}
++	}
++}
++
++// TestFenceAPIRouteConflict documents REVISION R2: GET /objects/seq cannot be registered next to GET /objects/:key.
++func TestFenceAPIRouteConflict(t *testing.T) {
++	defer func() {
++		if recover() == nil {
++			t.Fatal("expected the router to refuse /objects/seq next to /objects/:key")
++		}
++	}()
++	jape.Mux(map[string]jape.Handler{
++		"GET /objects/:key": func(jape.Context) {},
++		"GET /objects/seq":  func(jape.Context) {},
++	})
++}
++
++func TestFenceAPILegacyClient(t *testing.T) {
++	f := newFenceAPI(t)
++	ctx := t.Context()
++	o := f.object(1)
++	if err := f.client.PinObject(ctx, f.sk, o); err != nil {
++		t.Fatal(err)
++	}
++	publishEvents(t, f.cluster.Indexer)
++	events, err := f.client.ListObjects(ctx, f.sk, slabs.Cursor{}, 10)
++	if err != nil || len(events) != 1 || events[0].Key != o.ID() {
++		t.Fatalf("feed %+v %v", events, err)
++	}
++	if err := f.client.DeleteObject(ctx, f.sk, o.ID()); err != nil {
++		t.Fatal(err)
++	}
++	if err := f.client.PruneSlabs(ctx, f.sk); err != nil {
++		t.Fatal(err)
++	}
++	// sf on an account without a fence is refused naming no fence
++	cred := accounts.Credential{Fence: apiFence(1, 1, 1)}
++	clientRefusal(t, f.client.WithFence(&cred).PinObject(ctx, f.sk, f.object(2)), nil)
++}
++
++func ptr[T any](v T) *T { return &v }
++
++// TestFenceHashVector pins the R5 fenced hash to fixed vectors, computed independently with Python's hashlib.blake2b
++// over the documented byte layout (work/indexd-fencing-implementation-interface.txt R5), for the SDK to reproduce.
++func TestFenceHashVector(t *testing.T) {
++	cred, err := accounts.ParseCredential("00110000000000010000000000000002abababababababababababababababab000102030405060708090a0b0c0d0e0f")
++	if err != nil {
++		t.Fatal(err)
++	}
++	sv := time.Unix(1800000000, 0)
++	host := "127.0.0.1:9980"
++	for _, v := range []struct {
++		method, path string
++		body         []byte
++		want         string
++	}{
++		{http.MethodDelete, "/objects/" + strings.Repeat("00", 32), nil, "b5c8721ea350ef87236c6d59480911958af7a04ad178b08ca5a7e528ae2465f6"},
++		{http.MethodDelete, "/objects/" + strings.Repeat("00", 32), []byte{}, "b5c8721ea350ef87236c6d59480911958af7a04ad178b08ca5a7e528ae2465f6"},
++		{http.MethodPost, "/objects", []byte(`{"fence":"x"}`), "82f6b75413afadd113a9bbec03a55df1079cc46708367d922bd1b5edc7cfc360"},
++	} {
++		got := app.FencedRequestHash(v.method, host, v.path, sv, v.body, cred)
++		if hex.EncodeToString(got[:]) != v.want {
++			t.Fatalf("%s %s: got %x, want %s", v.method, v.path, got, v.want)
++		}
++		t.Logf("vector %s %s %s body %q -> %x", v.method, host, v.path, v.body, got)
++	}
++}
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/persist/postgres/current.go ./persist/postgres/current.go
+--- ../../indexd/persist/postgres/current.go	1969-12-31 17:00:00.000000000 -0700
++++ ./persist/postgres/current.go	2026-10-19 22:29:25.874880538 -0700
+@@ -0,0 +1,81 @@
++package postgres
++
++// PATCH U1 (ported from work/storage-real-indexd/indexd-u1.patch) with the FENCING PATCH changes: the listing runs in
++// one REPEATABLE READ snapshot, and blocked objects can be listed flagged instead of silently left out.
++
++import (
++	"context"
++	"database/sql"
++	"fmt"
++
++	"github.com/jackc/pgx/v5"
++	proto "go.sia.tech/core/rhp/v4"
++	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/slabs"
++)
++
++// ListCurrentObjects lists the account's current objects in object key order, starting after the given key: a
++// listing of the objects table itself, independent of when object events are published.
++//
++// Every page is read from one snapshot. Pages read with consecutive `after` cursors return every object whose pin
++// committed before the first page was read and that was not deleted before the page covering its key, exactly once.
++// Blocked objects are left out (as in the object feed and the U1 patch) unless includeBlocked is set; then they are
++// listed with Blocked set and without their metadata.
++func (s *Store) ListCurrentObjects(account proto.Account, after types.Hash256, limit int, includeBlocked bool) (events []slabs.CurrentObjectEvent, err error) {
++	err = s.snapshot(func(ctx context.Context, tx *txn) error {
++		accountID, _, err := accountID(ctx, tx, account)
++		if err != nil {
++			return err
++		}
++		rows, err := tx.Query(ctx, `
++			SELECT o.id, o.object_key, o.encrypted_data_key, o.encrypted_meta_key, o.encrypted_metadata, o.data_signature, o.meta_signature, o.created_at, o.updated_at,
++			       EXISTS (SELECT 1 FROM blocked_objects b WHERE b.object_key = o.object_key)
++			FROM objects o
++			WHERE o.account_id = $1 AND o.object_key > $2
++			  AND ($4 OR NOT EXISTS (SELECT 1 FROM blocked_objects b WHERE b.object_key = o.object_key))
++			ORDER BY o.object_key ASC
++			LIMIT $3`, accountID, sqlHash256(after), limit, includeBlocked)
++		if err != nil {
++			return fmt.Errorf("failed to query current objects: %w", err)
++		}
++		objectsByID := make(map[int64]*slabs.SealedObject)
++		events = make([]slabs.CurrentObjectEvent, 0, limit)
++		var objs []*slabs.SealedObject
++		err = forEachRow(rows, func(row pgx.CollectableRow) error {
++			var id int64
++			var key types.Hash256
++			var obj slabs.SealedObject
++			var blocked bool
++			var metaKey sql.Null[[]byte]
++			if err := row.Scan(&id, (*sqlHash256)(&key), &obj.EncryptedDataKey, &metaKey, &obj.EncryptedMetadata,
++				(*sqlSignature)(&obj.DataSignature), (*sqlSignature)(&obj.MetadataSignature), &obj.CreatedAt, &obj.UpdatedAt, &blocked); err != nil {
++				return err
++			}
++			if metaKey.Valid {
++				obj.EncryptedMetadataKey = metaKey.V
++			}
++			ev := slabs.CurrentObjectEvent{ObjectEvent: slabs.ObjectEvent{Key: key, UpdatedAt: obj.UpdatedAt}, Blocked: blocked}
++			if !blocked {
++				o := obj
++				objectsByID[id] = &o
++				ev.Object = &o
++			}
++			events = append(events, ev)
++			objs = append(objs, ev.Object)
++			return nil
++		})
++		if err != nil {
++			return fmt.Errorf("failed to scan current objects: %w", err)
++		} else if err := loadObjectSlabs(ctx, tx, objectsByID); err != nil {
++			return err
++		}
++		for _, o := range objs {
++			// impossible in one snapshot (a pin writes the object and its slab rows together)
++			if o != nil && len(o.Slabs) == 0 {
++				return fmt.Errorf("object without slabs in the same snapshot")
++			}
++		}
++		return nil
++	})
++	return
++}
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/persist/postgres/fence.go ./persist/postgres/fence.go
+--- ../../indexd/persist/postgres/fence.go	1969-12-31 17:00:00.000000000 -0700
++++ ./persist/postgres/fence.go	2026-10-19 23:34:04.122142142 -0700
+@@ -0,0 +1,324 @@
++package postgres
++
++// FENCING PATCH (work/indexd-fencing-implementation-interface.txt): the per-account writer fence and the
++// commit-ordered object event sequence.
++
++import (
++	"context"
++	"crypto/rand"
++	"crypto/sha256"
++	"crypto/subtle"
++	"database/sql"
++	"errors"
++	"fmt"
++	"time"
++
++	"github.com/jackc/pgx/v5"
++	"github.com/jackc/pgx/v5/pgconn"
++	proto "go.sia.tech/core/rhp/v4"
++	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
++	"go.sia.tech/indexd/slabs"
++	"go.uber.org/zap"
++)
++
++// lockedAccount is an account row locked FOR UPDATE by the current transaction.
++type lockedAccount struct {
++	id         int64
++	deleted    bool
++	seqEnabled bool
++}
++
++// lockAccount is the FIRST statement of every account mutation: it locks the account row (held to commit) and checks
++// the writer's credential `sf` against the installed fence.
++//
++//	installed NULL,    sf nil              -> allowed (0.6.0 behaviour)
++//	installed NULL,    sf set              -> FencedError{nil}
++//	installed (F, R),  sf == (F, R) exactly -> allowed
++//	installed (F, R),  anything else       -> FencedError{F}
++//
++// Lock mode (REVISION R6): a fenced account's row is locked FOR UPDATE, so its mutations are serialized and get seqs
++// in commit order. An unfenced account's row is locked FOR KEY SHARE: its mutations still run concurrently, as in
++// 0.6.0 (KEY SHARE is compatible with other KEY SHARE holders and with the plain UPDATEs of accounts that mutations
++// make), but a raise's FOR UPDATE waits for every one of them, so the first raise's backfill sees all of their events
++// and no unfenced mutation can commit after it. If a raise commits between the unlocked peek and the lock, the
++// transaction is restarted (serialization failure) and takes FOR UPDATE.
++//
++// PostgreSQL grants a new KEY SHARE on a row held only in KEY SHARE without queuing it behind a waiting FOR UPDATE,
++// so continuous unfenced writes could starve a raise. A raise therefore first commits fence_pending (a plain UPDATE,
++// compatible with KEY SHARE holders); from then on mutations lock FOR UPDATE and queue behind the raise, which only
++// waits for the mutations already in flight.
++func lockAccount(ctx context.Context, tx *txn, account proto.Account, sf *accounts.Credential) (lockedAccount, error) {
++	var fenced bool
++	err := tx.QueryRow(ctx, `SELECT fence IS NOT NULL OR fence_pending FROM accounts WHERE public_key = $1`, sqlPublicKey(account)).Scan(&fenced)
++	if errors.Is(err, sql.ErrNoRows) {
++		return lockedAccount{}, accounts.ErrNotFound
++	} else if err != nil {
++		return lockedAccount{}, fmt.Errorf("failed to get account: %w", err)
++	}
++	query := `SELECT id, deleted_at IS NOT NULL, fence, fence_receipt, seq_enabled FROM accounts WHERE public_key = $1 FOR KEY SHARE`
++	if fenced {
++		query = `SELECT id, deleted_at IS NOT NULL, fence, fence_receipt, seq_enabled FROM accounts WHERE public_key = $1 FOR UPDATE`
++	}
++	var la lockedAccount
++	var fence, receipt []byte
++	err = tx.QueryRow(ctx, query, sqlPublicKey(account)).Scan(&la.id, &la.deleted, &fence, &receipt, &la.seqEnabled)
++	if errors.Is(err, sql.ErrNoRows) {
++		return lockedAccount{}, accounts.ErrNotFound
++	} else if err != nil {
++		return lockedAccount{}, fmt.Errorf("failed to lock account: %w", err)
++	} else if !fenced && (fence != nil || la.seqEnabled) {
++		// a raise committed after the peek: restart, the retry locks FOR UPDATE
++		return lockedAccount{}, &pgconn.PgError{Code: "40001", Message: "account fence installed concurrently"}
++	}
++	if err := checkFence(fence, receipt, sf); err != nil {
++		return lockedAccount{}, err
++	}
++	return la, nil
++}
++
++// checkFence compares the installed fence and receipt (nil: none) with the request's credential (nil: absent):
++// exact equality of both only.
++func checkFence(installed, receipt []byte, sf *accounts.Credential) error {
++	switch {
++	case installed == nil && sf == nil:
++		return nil
++	case installed == nil:
++		return &accounts.FencedError{}
++	case len(installed) != len(accounts.Fence{}) || len(receipt) != len(accounts.Receipt{}):
++		return fmt.Errorf("stored fence has %d+%d bytes", len(installed), len(receipt)) // impossible: CHECK constraints
++	}
++	var cur accounts.Fence
++	copy(cur[:], installed)
++	if sf != nil && sf.Fence == cur && subtle.ConstantTimeCompare(sf.Receipt[:], receipt) == 1 {
++		return nil
++	}
++	return &accounts.FencedError{Current: &cur}
++}
++
++// nextSeq hands out the account's next sequence number (the account row is already locked by lockAccount). It
++// returns nil when the sequence is not enabled, so callers store NULL as 0.6.0 does.
++func nextSeq(ctx context.Context, tx *txn, la lockedAccount) (*int64, error) {
++	if !la.seqEnabled {
++		return nil, nil
++	}
++	var n int64
++	if err := tx.QueryRow(ctx, `UPDATE accounts SET event_seq = event_seq + 1 WHERE id = $1 RETURNING event_seq`, la.id).Scan(&n); err != nil {
++		return nil, fmt.Errorf("failed to advance event sequence: %w", err)
++	}
++	return &n, nil
++}
++
++// AccountFence returns the account's installed fence (nil: none), the SHA-256 of its receipt and the event
++// sequence head.
++func (s *Store) AccountFence(account proto.Account) (st accounts.FenceState, err error) {
++	err = s.transaction(func(ctx context.Context, tx *txn) error {
++		var raw, receipt []byte
++		var seq int64
++		err := tx.QueryRow(ctx, `SELECT fence, fence_receipt, event_seq FROM accounts WHERE public_key = $1 AND deleted_at IS NULL`, sqlPublicKey(account)).Scan(&raw, &receipt, &seq)
++		if errors.Is(err, sql.ErrNoRows) {
++			return accounts.ErrNotFound
++		} else if err != nil {
++			return fmt.Errorf("failed to get fence: %w", err)
++		}
++		st = accounts.FenceState{Seq: uint64(seq)}
++		if raw != nil {
++			var f accounts.Fence
++			copy(f[:], raw)
++			h := accounts.ReceiptDigest(sha256.Sum256(receipt))
++			st.Fence, st.ReceiptSHA256 = &f, &h
++		}
++		return nil
++	})
++	return
++}
++
++// RaiseFence installs `fence` on the account if none is installed or it is strictly greater than the installed one,
++// with a fresh random receipt. An equal or lower fence is refused with a FencedError naming the installed one: an
++// equal raise may come from a second process holding the same ballot, so it must not obtain a receipt (a raise whose
++// response was lost is retried with a higher counter). On the first install the account's existing object events
++// are numbered (backfill) and the sequence is enabled. It returns the receipt and the event sequence head.
++func (s *Store) RaiseFence(account proto.Account, fence accounts.Fence) (receipt accounts.Receipt, head uint64, err error) {
++	if err := fence.Validate(); err != nil {
++		return accounts.Receipt{}, 0, err
++	}
++	// announce the raise first, in its own transaction (see lockAccount): new mutations queue behind it
++	err = s.transaction(func(ctx context.Context, tx *txn) error {
++		_, err := tx.Exec(ctx, `UPDATE accounts SET fence_pending = TRUE WHERE public_key = $1 AND fence IS NULL AND NOT fence_pending`, sqlPublicKey(account))
++		return err
++	})
++	if err != nil {
++		return accounts.Receipt{}, 0, fmt.Errorf("failed to announce raise: %w", err)
++	}
++	err = s.transaction(func(ctx context.Context, tx *txn) error {
++		var id int64
++		var deleted, seqEnabled bool
++		var raw []byte
++		var seq int64
++		err := tx.QueryRow(ctx, `SELECT id, deleted_at IS NOT NULL, fence, event_seq, seq_enabled FROM accounts WHERE public_key = $1 FOR UPDATE`,
++			sqlPublicKey(account)).Scan(&id, &deleted, &raw, &seq, &seqEnabled)
++		if errors.Is(err, sql.ErrNoRows) {
++			return accounts.ErrNotFound
++		} else if err != nil {
++			return fmt.Errorf("failed to lock account: %w", err)
++		} else if deleted {
++			return accounts.ErrNotFound
++		}
++		if raw != nil {
++			var cur accounts.Fence
++			copy(cur[:], raw)
++			if fence.Compare(cur) <= 0 {
++				return &accounts.FencedError{Current: &cur}
++			}
++		}
++		if !seqEnabled {
++			// number every existing event of the account (no mutation can run concurrently: they all wait for the
++			// account row this transaction holds)
++			var n int64
++			err := tx.QueryRow(ctx, `
++				WITH numbered AS (
++					SELECT object_key, row_number() OVER (ORDER BY updated_at ASC NULLS LAST, object_key ASC) AS n
++					FROM object_events WHERE account_id = $1
++				), done AS (
++					UPDATE object_events oe SET seq = numbered.n
++					FROM numbered WHERE oe.account_id = $1 AND oe.object_key = numbered.object_key
++					RETURNING 1
++				)
++				SELECT COUNT(*) FROM done`, id).Scan(&n)
++			if err != nil {
++				return fmt.Errorf("failed to number object events: %w", err)
++			}
++			seq = n
++		}
++		// a fresh receipt on every attempt (a retried transaction never reuses one)
++		if _, err := rand.Read(receipt[:]); err != nil {
++			return fmt.Errorf("failed to generate receipt: %w", err)
++		}
++		if _, err := tx.Exec(ctx, `UPDATE accounts SET fence = $1, fence_receipt = $2, event_seq = $3, seq_enabled = TRUE, fence_pending = FALSE WHERE id = $4`, fence[:], receipt[:], seq, id); err != nil {
++			return fmt.Errorf("failed to install fence: %w", err)
++		}
++		head = uint64(seq)
++		return nil
++	})
++	if err != nil {
++		return accounts.Receipt{}, 0, err
++	}
++	return
++}
++
++// MaxSeqListLimit bounds one page of the sequence listing.
++const MaxSeqListLimit = 1000
++
++// ListObjectsSeq returns the account's object events with seq > after in seq order, at most limit, and the event
++// sequence head, all from ONE repeatable-read snapshot. Deleted keys are included; blocked objects are flagged and
++// their metadata withheld.
++func (s *Store) ListObjectsSeq(account proto.Account, after uint64, limit int) (head uint64, events []slabs.SeqObjectEvent, err error) {
++	if limit < 1 || limit > MaxSeqListLimit {
++		return 0, nil, fmt.Errorf("%w: limit must be 1-%d", slabs.ErrInvalidSeqListing, MaxSeqListLimit)
++	} else if after > 1<<63-1 {
++		return 0, nil, fmt.Errorf("%w: after out of range", slabs.ErrInvalidSeqListing)
++	}
++	err = s.snapshot(func(ctx context.Context, tx *txn) error {
++		var id, seq int64
++		var enabled bool
++		err := tx.QueryRow(ctx, `SELECT id, event_seq, seq_enabled FROM accounts WHERE public_key = $1 AND deleted_at IS NULL`, sqlPublicKey(account)).Scan(&id, &seq, &enabled)
++		if errors.Is(err, sql.ErrNoRows) {
++			return accounts.ErrNotFound
++		} else if err != nil {
++			return fmt.Errorf("failed to get account: %w", err)
++		} else if !enabled {
++			return accounts.ErrSeqNotEnabled
++		}
++		head = uint64(seq)
++		rows, err := tx.Query(ctx, `
++			SELECT oe.object_key, oe.was_deleted, oe.seq,
++			       EXISTS (SELECT 1 FROM blocked_objects b WHERE b.object_key = oe.object_key)
++			FROM object_events oe
++			WHERE oe.account_id = $1 AND oe.seq > $2
++			ORDER BY oe.seq ASC
++			LIMIT $3`, id, int64(after), limit)
++		if err != nil {
++			return fmt.Errorf("failed to query object sequence: %w", err)
++		}
++		events = events[:0]
++		err = forEachRow(rows, func(row pgx.CollectableRow) error {
++			var e slabs.SeqObjectEvent
++			var n int64
++			if err := row.Scan((*sqlHash256)(&e.Key), &e.Deleted, &n, &e.Blocked); err != nil {
++				return err
++			}
++			e.Seq = uint64(n)
++			events = append(events, e)
++			return nil
++		})
++		if err != nil {
++			return fmt.Errorf("failed to scan object sequence: %w", err)
++		}
++		// the live, unblocked objects with their slabs, from the same snapshot
++		var keys []sqlHash256
++		at := make(map[types.Hash256]int)
++		for i, e := range events {
++			if !e.Deleted && !e.Blocked {
++				keys = append(keys, sqlHash256(e.Key))
++				at[e.Key] = i
++			}
++		}
++		if len(keys) == 0 {
++			return nil
++		}
++		rows, err = tx.Query(ctx, sqlObjectsByKey, id, keys)
++		if err != nil {
++			return fmt.Errorf("failed to query objects: %w", err)
++		}
++		byID := make(map[int64]*slabs.SealedObject, len(keys))
++		err = forEachRow(rows, func(row pgx.CollectableRow) error {
++			oid, key, obj, err := scanObject(row)
++			if err != nil {
++				return err
++			}
++			i, ok := at[key]
++			if !ok {
++				return fmt.Errorf("object %v not in the page (developer error)", key)
++			}
++			o := obj
++			events[i].Object = &o
++			byID[oid] = &o
++			return nil
++		})
++		if err != nil {
++			return fmt.Errorf("failed to scan objects: %w", err)
++		} else if err := loadObjectSlabs(ctx, tx, byID); err != nil {
++			return err
++		}
++		for _, i := range at {
++			if events[i].Object == nil {
++				// impossible in one snapshot (a pin writes the object and its event together)
++				return fmt.Errorf("live event %v without an object in the same snapshot", events[i].Key)
++			}
++		}
++		return nil
++	})
++	return
++}
++
++// snapshot runs fn in a REPEATABLE READ, READ ONLY transaction: every statement sees the same snapshot.
++func (s *Store) snapshot(fn func(context.Context, *txn) error) error {
++	ctx := context.Background()
++	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
++	if err != nil {
++		return fmt.Errorf("failed to begin snapshot transaction: %w", err)
++	}
++	start := time.Now()
++	defer func() {
++		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
++			s.log.Error("failed to roll back snapshot transaction", zap.Error(err))
++		}
++		if time.Since(start) > longTxnDuration {
++			s.log.Debug("long snapshot transaction", zap.Duration("elapsed", time.Since(start)))
++		}
++	}()
++	if err := fn(ctx, &txn{tx, s.log}); err != nil {
++		return err
++	}
++	return tx.Commit(ctx)
++}
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/persist/postgres/fence_test.go ./persist/postgres/fence_test.go
+--- ../../indexd/persist/postgres/fence_test.go	1969-12-31 17:00:00.000000000 -0700
++++ ./persist/postgres/fence_test.go	2026-10-19 23:43:53.062062992 -0700
+@@ -0,0 +1,1289 @@
++package postgres
++
++// FENCING PATCH tests (work/indexd-fencing-implementation-interface.txt): the writer fence, the receipt, the exact
++// credential check on every account mutation, and the commit-ordered object sequence, against real PostgreSQL.
++
++import (
++	"crypto/sha256"
++	"encoding/binary"
++	"errors"
++	"fmt"
++	"slices"
++	"sync"
++	"sync/atomic"
++	"testing"
++	"time"
++
++	proto "go.sia.tech/core/rhp/v4"
++	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
++	"go.sia.tech/indexd/sharing"
++	"go.sia.tech/indexd/slabs"
++	"go.uber.org/zap"
++	"lukechampine.com/frand"
++)
++
++func testFence(gen, counter uint64, iid byte) accounts.Fence {
++	var f accounts.Fence
++	binary.BigEndian.PutUint64(f[:8], gen)
++	binary.BigEndian.PutUint64(f[8:16], counter)
++	for i := 16; i < 32; i++ {
++		f[i] = iid
++	}
++	return f
++}
++
++// fenceEnv is an account with one host, one contract and one pinned slab whose slices make distinct objects.
++type fenceEnv struct {
++	store *Store
++	acc   proto.Account
++	hk    types.PublicKey
++	slab  slabs.SlabPinParams
++}
++
++func newFenceEnv(t *testing.T, store *Store) *fenceEnv {
++	t.Helper()
++	e := &fenceEnv{store: store, acc: proto.Account(types.GeneratePrivateKey().PublicKey())}
++	store.addTestAccount(t, types.PublicKey(e.acc))
++	if store.hostCount(t) == 0 {
++		e.hk = store.addTestHost(t)
++		store.addTestContract(t, e.hk)
++	} else {
++		e.hk = store.firstHost(t)
++	}
++	e.slab = e.newSlabParams()
++	if _, err := store.PinSlabs(e.acc, time.Time{}, e.slab); err != nil {
++		t.Fatal(err)
++	}
++	return e
++}
++
++func (s *Store) hostCount(t *testing.T) (n int) {
++	t.Helper()
++	if err := s.pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM hosts`).Scan(&n); err != nil {
++		t.Fatal(err)
++	}
++	return
++}
++
++func (s *Store) firstHost(t *testing.T) (hk types.PublicKey) {
++	t.Helper()
++	if err := s.pool.QueryRow(t.Context(), `SELECT public_key FROM hosts ORDER BY id LIMIT 1`).Scan((*sqlPublicKey)(&hk)); err != nil {
++		t.Fatal(err)
++	}
++	return
++}
++
++func (e *fenceEnv) newSlabParams() slabs.SlabPinParams {
++	return slabs.SlabPinParams{
++		EncryptionKey: frand.Entropy256(),
++		MinShards:     1,
++		Sectors:       []slabs.PinnedSector{{Root: frand.Entropy256(), HostKey: e.hk}},
++	}
++}
++
++// object returns the i-th distinct object of the env's slab (the object key is a hash of its slab slices).
++func (e *fenceEnv) object(i int) slabs.SealedObject {
++	return slabs.SealedObject{
++		EncryptedDataKey:     frand.Bytes(72),
++		EncryptedMetadataKey: frand.Bytes(72),
++		EncryptedMetadata:    frand.Bytes(20),
++		DataSignature:        types.Signature(frand.Bytes(64)),
++		MetadataSignature:    types.Signature(frand.Bytes(64)),
++		Slabs:                []slabs.SlabSlice{e.slab.Slice(uint32(i), 1)},
++	}
++}
++
++func (e *fenceEnv) raise(t *testing.T, f accounts.Fence) accounts.Credential {
++	t.Helper()
++	r, _, err := e.store.RaiseFence(e.acc, f)
++	if err != nil {
++		t.Fatalf("raise %v: %v", f, err)
++	}
++	return accounts.Credential{Fence: f, Receipt: r}
++}
++
++func (e *fenceEnv) eventSeq(t *testing.T) (n int64) {
++	t.Helper()
++	if err := e.store.pool.QueryRow(t.Context(), `SELECT event_seq FROM accounts WHERE public_key = $1`, sqlPublicKey(e.acc)).Scan(&n); err != nil {
++		t.Fatal(err)
++	}
++	return
++}
++
++// listAll pages through the whole sequence listing with the given page size and returns the head of the FIRST page.
++func (e *fenceEnv) listAll(t *testing.T, limit int) (uint64, []slabs.SeqObjectEvent) {
++	t.Helper()
++	var all []slabs.SeqObjectEvent
++	var first uint64
++	var after uint64
++	for i := 0; ; i++ {
++		head, page, err := e.store.ListObjectsSeq(e.acc, after, limit)
++		if err != nil {
++			t.Fatal(err)
++		}
++		if i == 0 {
++			first = head
++		}
++		if len(page) == 0 {
++			return first, all
++		}
++		all = append(all, page...)
++		after = page[len(page)-1].Seq
++	}
++}
++
++// accountState is everything an app mutation can change for the account, so a refused mutation can be shown to
++// have had no effect.
++func (e *fenceEnv) accountState(t *testing.T) string {
++	t.Helper()
++	var objs, events, pins, keys, shared, seq int64
++	var pinned int64
++	err := e.store.pool.QueryRow(t.Context(), `SELECT
++		(SELECT COUNT(*) FROM objects o JOIN accounts a ON a.id = o.account_id WHERE a.public_key = $1),
++		(SELECT COUNT(*) FROM object_events oe JOIN accounts a ON a.id = oe.account_id WHERE a.public_key = $1 AND NOT oe.was_deleted),
++		(SELECT COUNT(*) FROM account_slabs s JOIN accounts a ON a.id = s.account_id WHERE a.public_key = $1),
++		(SELECT COUNT(*) FROM sharing_keys k JOIN accounts a ON a.id = k.account_id WHERE a.public_key = $1),
++		(SELECT COUNT(*) FROM shared_objects so JOIN sharing_keys k ON k.id = so.sharing_key_id JOIN accounts a ON a.id = k.account_id WHERE a.public_key = $1),
++		(SELECT event_seq FROM accounts WHERE public_key = $1),
++		(SELECT pinned_data FROM accounts WHERE public_key = $1)`, sqlPublicKey(e.acc)).Scan(&objs, &events, &pins, &keys, &shared, &seq, &pinned)
++	if err != nil {
++		t.Fatal(err)
++	}
++	return fmt.Sprintf("objects=%d live-events=%d pins=%d keys=%d shared=%d seq=%d pinned=%d", objs, events, pins, keys, shared, seq, pinned)
++}
++
++func assertFenced(t *testing.T, err error, want *accounts.Fence) {
++	t.Helper()
++	var fe *accounts.FencedError
++	if !errors.As(err, &fe) {
++		t.Fatalf("expected a FencedError naming %v, got %v", want, err)
++	}
++	switch {
++	case want == nil && fe.Current != nil:
++		t.Fatalf("expected a refusal naming no fence, got %v", *fe.Current)
++	case want != nil && (fe.Current == nil || *fe.Current != *want):
++		t.Fatalf("expected a refusal naming %v, got %v", *want, fe.Current)
++	}
++}
++
++func TestFenceRaiseRules(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	other := newFenceEnv(t, store)
++
++	if st, err := store.AccountFence(e.acc); err != nil || st.Fence != nil || st.ReceiptSHA256 != nil || st.Seq != 0 {
++		t.Fatalf("fresh account: %+v %v", st, err)
++	}
++	// non-canonical: top bit of gen, top bit of counter
++	for _, f := range []accounts.Fence{testFence(1<<63, 0, 1), testFence(1, 1<<63, 1)} {
++		if _, _, err := store.RaiseFence(e.acc, f); !errors.Is(err, accounts.ErrNonCanonicalFence) {
++			t.Fatalf("expected ErrNonCanonicalFence, got %v", err)
++		}
++	}
++	// unknown account
++	if _, _, err := store.RaiseFence(proto.Account{9, 9}, testFence(1, 1, 1)); !errors.Is(err, accounts.ErrNotFound) {
++		t.Fatalf("expected ErrNotFound, got %v", err)
++	}
++
++	f1 := testFence(16<<48, 5, 0x10)
++	c1 := e.raise(t, f1)
++	st, err := store.AccountFence(e.acc)
++	if err != nil || st.Fence == nil || *st.Fence != f1 || st.ReceiptSHA256 == nil || *st.ReceiptSHA256 != sha256.Sum256(c1.Receipt[:]) {
++		t.Fatalf("after raise: %+v %v", st, err)
++	}
++	// equal raise is refused and issues no receipt (the lost-response / clone case)
++	if r, _, err := store.RaiseFence(e.acc, f1); err == nil {
++		t.Fatalf("equal raise accepted, receipt %x", r)
++	} else {
++		assertFenced(t, err, &f1)
++	}
++	// every lower token is refused: lower gen, lower counter, lower iid
++	for _, f := range []accounts.Fence{testFence(15<<48, 99, 0xff), testFence(16<<48, 4, 0xff), testFence(16<<48, 5, 0x0f)} {
++		_, _, err := store.RaiseFence(e.acc, f)
++		assertFenced(t, err, &f1)
++	}
++	if st2, _ := store.AccountFence(e.acc); *st2.ReceiptSHA256 != *st.ReceiptSHA256 {
++		t.Fatal("a refused raise changed the receipt")
++	}
++	// a higher iid alone is a higher ballot (bytewise order)
++	f2 := testFence(16<<48, 5, 0x11)
++	c2 := e.raise(t, f2)
++	if c2.Receipt == c1.Receipt {
++		t.Fatal("receipt reused")
++	}
++	// account isolation: the other account has no fence and is unaffected
++	if st, err := store.AccountFence(other.acc); err != nil || st.Fence != nil {
++		t.Fatalf("other account: %+v %v", st, err)
++	}
++	if err := store.PinObject(other.acc, ptr(other.object(1)).PinRequest()); err != nil {
++		t.Fatalf("unfenced account pin failed: %v", err)
++	}
++	// e's credential means nothing on the other account
++	err = store.PinObjectFenced(other.acc, &c2, ptr(other.object(2)).PinRequest())
++	assertFenced(t, err, nil)
++	// the other account can install the very same token independently
++	other.raise(t, f2)
++	// a deleted account cannot be raised
++	if err := store.DeleteAccount(other.acc); err != nil {
++		t.Fatal(err)
++	}
++	if _, _, err := store.RaiseFence(other.acc, testFence(17<<48, 0, 0)); !errors.Is(err, accounts.ErrNotFound) {
++		t.Fatalf("expected ErrNotFound for a deleted account, got %v", err)
++	}
++}
++
++func ptr[T any](v T) *T { return &v }
++
++// TestFenceEqualRaiseClone: two processes holding the same ballot raise it concurrently. Exactly one obtains a
++// receipt; the other is refused and cannot write. (An idempotent equal raise would give both a working credential.)
++func TestFenceEqualRaiseClone(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	f := testFence(17<<48, 1, 0x42)
++
++	for round := 0; round < 10; round++ {
++		f = testFence(17<<48, uint64(round+1), 0x42)
++		var wg sync.WaitGroup
++		var creds [2]*accounts.Credential
++		var errs [2]error
++		for i := range 2 {
++			wg.Add(1)
++			go func() {
++				defer wg.Done()
++				r, _, err := store.RaiseFence(e.acc, f)
++				if err == nil {
++					creds[i] = &accounts.Credential{Fence: f, Receipt: r}
++				}
++				errs[i] = err
++			}()
++		}
++		wg.Wait()
++		if (creds[0] == nil) == (creds[1] == nil) {
++			t.Fatalf("round %d: expected exactly one install, got errors %v / %v", round, errs[0], errs[1])
++		}
++		winner, loser := 0, 1
++		if creds[0] == nil {
++			winner, loser = 1, 0
++		}
++		assertFenced(t, errs[loser], &f)
++		// the loser, holding the same token, cannot write without the receipt
++		err := store.PinObjectFenced(e.acc, &accounts.Credential{Fence: f}, ptr(e.object(round)).PinRequest())
++		assertFenced(t, err, &f)
++		if err := store.PinObjectFenced(e.acc, creds[winner], ptr(e.object(round)).PinRequest()); err != nil {
++			t.Fatalf("winner could not write: %v", err)
++		}
++	}
++}
++
++// TestFenceMutationChecks runs every fenced store mutation with an absent, stale, higher, wrong-receipt and exact
++// credential: only the exact one has any effect.
++func TestFenceMutationChecks(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++
++	f1 := testFence(16<<48, 1, 1)
++	c1 := e.raise(t, f1)
++	f2 := testFence(16<<48, 2, 1)
++	c2 := e.raise(t, f2)
++
++	higher := accounts.Credential{Fence: testFence(16<<48, 3, 1), Receipt: c2.Receipt}
++	wrongReceipt := accounts.Credential{Fence: f2, Receipt: c1.Receipt}
++	zeroReceipt := accounts.Credential{Fence: f2}
++	bad := []*accounts.Credential{nil, &c1, &higher, &wrongReceipt, &zeroReceipt}
++
++	// fixtures for the mutations
++	slab2 := e.newSlabParams()
++	if _, err := store.PinSlabsFenced(e.acc, &c2, time.Time{}, slab2); err != nil {
++		t.Fatal(err)
++	}
++	live := e.object(100)
++	if err := store.PinObjectFenced(e.acc, &c2, live.PinRequest()); err != nil {
++		t.Fatal(err)
++	}
++	sk, err := store.AddSharingKeyFenced(e.acc, &c2, sharing.KeyRequest{PublicKey: types.GeneratePrivateKey().PublicKey(), Nonce: sharing.Nonce(frand.Bytes(32)), Description: "k"})
++	if err != nil {
++		t.Fatal(err)
++	}
++	sharedReq := sharing.SharedObjectRequest{
++		ObjectID:          live.ID(),
++		EncryptedDataKey:  frand.Bytes(sharing.EncryptionKeySize),
++		DataSignature:     types.Signature(frand.Bytes(64)),
++		MetadataSignature: types.Signature(frand.Bytes(64)),
++	}
++
++	type mutation struct {
++		name string
++		do   func(sf *accounts.Credential) error
++	}
++	newKey := sharing.KeyRequest{PublicKey: types.GeneratePrivateKey().PublicKey(), Nonce: sharing.Nonce(frand.Bytes(32)), Description: "n"}
++	slab3 := e.newSlabParams()
++	pinned := e.object(101)
++	mutations := []mutation{
++		{"PinSlabs", func(sf *accounts.Credential) error {
++			_, err := store.PinSlabsFenced(e.acc, sf, time.Time{}, slab3)
++			return err
++		}},
++		{"PinObject", func(sf *accounts.Credential) error { return store.PinObjectFenced(e.acc, sf, pinned.PinRequest()) }},
++		{"AddSharingKey", func(sf *accounts.Credential) error {
++			_, err := store.AddSharingKeyFenced(e.acc, sf, newKey)
++			return err
++		}},
++		{"AddSharedObject", func(sf *accounts.Credential) error {
++			return store.AddSharedObjectFenced(e.acc, sf, sk.PublicKey, sharedReq)
++		}},
++		{"DeleteSharedObject", func(sf *accounts.Credential) error {
++			return store.DeleteSharedObjectFenced(e.acc, sf, sk.PublicKey, live.ID())
++		}},
++		{"DeleteSharingKey", func(sf *accounts.Credential) error {
++			return store.DeleteSharingKeyFenced(e.acc, sf, newKey.PublicKey)
++		}},
++		{"DeleteObject", func(sf *accounts.Credential) error { return store.DeleteObjectFenced(e.acc, sf, pinned.ID()) }},
++		{"UnpinSlab", func(sf *accounts.Credential) error { return store.UnpinSlabFenced(e.acc, sf, slab3.Digest()) }},
++		{"PruneSlabs", func(sf *accounts.Credential) error {
++			return store.PruneSlabsFenced(e.acc, sf, time.Now().Add(time.Hour))
++		}},
++	}
++	for _, m := range mutations {
++		before := e.accountState(t)
++		for i, sf := range bad {
++			assertFenced(t, m.do(sf), &f2)
++			if after := e.accountState(t); after != before {
++				t.Fatalf("%s with bad credential %d changed state: %s -> %s", m.name, i, before, after)
++			}
++		}
++		if err := m.do(&c2); err != nil {
++			t.Fatalf("%s with the exact credential: %v", m.name, err)
++		}
++		if after := e.accountState(t); after == before && m.name != "PruneSlabs" {
++			t.Fatalf("%s with the exact credential had no effect: %s", m.name, after)
++		}
++	}
++	// prune removed slab2 (pinned, unreferenced); the env slab is still referenced by `live`
++	var n int
++	if err := store.pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM account_slabs s JOIN slabs sl ON sl.id = s.slab_id WHERE sl.digest = $1`, sqlHash256(slab2.Digest())).Scan(&n); err != nil {
++		t.Fatal(err)
++	} else if n != 0 {
++		t.Fatal("prune with the exact credential did not unpin the unreferenced slab")
++	}
++
++	// sf on an account without a fence: refused, naming no fence
++	o := newFenceEnv(t, store)
++	assertFenced(t, store.PinObjectFenced(o.acc, &c2, ptr(o.object(1)).PinRequest()), nil)
++	assertFenced(t, store.DeleteObjectFenced(o.acc, &c2, types.Hash256{1}), nil)
++}
++
++// TestFenceLegacyUnfenced: an account that never raises behaves as 0.6.0: no seq, the feed works, the seq listing
++// is refused.
++func TestFenceLegacyUnfenced(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	objs := []slabs.SealedObject{e.object(1), e.object(2), e.object(3)}
++	for _, o := range objs {
++		if err := store.PinObject(e.acc, o.PinRequest()); err != nil {
++			t.Fatal(err)
++		}
++	}
++	if err := store.DeleteObject(e.acc, objs[1].ID()); err != nil {
++		t.Fatal(err)
++	}
++	var nonNull int
++	if err := store.pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM object_events WHERE seq IS NOT NULL`).Scan(&nonNull); err != nil || nonNull != 0 {
++		t.Fatalf("unfenced account assigned seqs: %d %v", nonNull, err)
++	}
++	if e.eventSeq(t) != 0 {
++		t.Fatal("event_seq advanced")
++	}
++	events := store.listEvents(t, e.acc, slabs.Cursor{})
++	if len(events) != 3 {
++		t.Fatalf("feed: expected 3 events, got %d", len(events))
++	}
++	if _, _, err := store.ListObjectsSeq(e.acc, 0, 10); !errors.Is(err, accounts.ErrSeqNotEnabled) {
++		t.Fatalf("expected ErrSeqNotEnabled, got %v", err)
++	}
++	// a fenced account's stock (unfenced) writer is refused: never weakened
++	f := testFence(1, 1, 1)
++	e.raise(t, f)
++	assertFenced(t, store.PinObject(e.acc, ptr(e.object(9)).PinRequest()), &f)
++	assertFenced(t, store.DeleteObject(e.acc, objs[0].ID()), &f)
++	_, err := store.PinSlabs(e.acc, time.Time{}, e.newSlabParams())
++	assertFenced(t, err, &f)
++	_, err = store.AddSharingKey(e.acc, sharing.KeyRequest{PublicKey: types.GeneratePrivateKey().PublicKey(), Nonce: sharing.Nonce(frand.Bytes(32))})
++	assertFenced(t, err, &f)
++	assertFenced(t, store.PruneSlabs(e.acc, time.Now()), &f)
++}
++
++// TestFenceBackfill: the first raise numbers every existing event (published by publish time, unpublished after),
++// including tombstones and blocked objects; later events continue the sequence.
++func TestFenceBackfill(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	var objs []slabs.SealedObject
++	for i := range 6 {
++		o := e.object(i)
++		objs = append(objs, o)
++		if err := store.PinObject(e.acc, o.PinRequest()); err != nil {
++			t.Fatal(err)
++		}
++		if i == 2 {
++			store.publishEvents(t) // 0,1,2 published; 3,4,5 not
++		}
++	}
++	if err := store.DeleteObject(e.acc, objs[1].ID()); err != nil { // tombstone (unpublished again)
++		t.Fatal(err)
++	}
++	if err := store.BlockObject(objs[4].ID(), "test"); err != nil {
++		t.Fatal(err)
++	}
++
++	f := testFence(16<<48, 1, 7)
++	_, head, err := store.RaiseFence(e.acc, f)
++	if err != nil {
++		t.Fatal(err)
++	} else if head != 6 {
++		t.Fatalf("expected backfill head 6, got %d", head)
++	}
++	gotHead, all := e.listAll(t, 2)
++	if gotHead != 6 || len(all) != 6 {
++		t.Fatalf("expected 6 events at head 6, got %d at %d", len(all), gotHead)
++	}
++	for i, ev := range all {
++		if ev.Seq != uint64(i+1) {
++			t.Fatalf("seq gap: %v", all)
++		}
++	}
++	// published first (0, 2 in publish order: objects 0 and 2 kept their position), then unpublished by key
++	byKey := map[types.Hash256]slabs.SeqObjectEvent{}
++	for _, ev := range all {
++		byKey[ev.Key] = ev
++	}
++	for _, i := range []int{0, 2} {
++		if byKey[objs[i].ID()].Seq > 2 {
++			t.Fatalf("published object %d numbered after unpublished events: %v", i, byKey[objs[i].ID()])
++		}
++	}
++	if ev := byKey[objs[1].ID()]; !ev.Deleted || ev.Object != nil {
++		t.Fatalf("tombstone: %+v", ev)
++	}
++	if ev := byKey[objs[4].ID()]; !ev.Blocked || ev.Object != nil || ev.Deleted {
++		t.Fatalf("blocked: %+v", ev)
++	}
++	for _, i := range []int{0, 2, 3, 5} {
++		ev := byKey[objs[i].ID()]
++		if ev.Deleted || ev.Blocked || ev.Object == nil || ev.Object.ID() != objs[i].ID() {
++			t.Fatalf("live object %d: %+v", i, ev)
++		}
++		want, err := store.Object(e.acc, objs[i].ID())
++		if err != nil {
++			t.Fatal(err)
++		}
++		if !slices.Equal(ev.Object.EncryptedMetadata, want.EncryptedMetadata) || len(ev.Object.Slabs) != len(want.Slabs) {
++			t.Fatalf("listing object differs from Object()")
++		}
++	}
++	// a raise to a higher fence does not renumber
++	c2 := e.raise(t, testFence(16<<48, 2, 7))
++	if _, again := e.listAll(t, 100); !slices.EqualFunc(again, all, func(a, b slabs.SeqObjectEvent) bool { return a.Key == b.Key && a.Seq == b.Seq }) {
++		t.Fatal("second raise renumbered the sequence")
++	}
++	// later events continue
++	if err := store.PinObjectFenced(e.acc, &c2, ptr(e.object(50)).PinRequest()); err != nil {
++		t.Fatal(err)
++	}
++	if head, page, err := store.ListObjectsSeq(e.acc, 6, 10); err != nil || head != 7 || len(page) != 1 || page[0].Seq != 7 {
++		t.Fatalf("after backfill: head %d page %v err %v", head, page, err)
++	}
++}
++
++// TestFenceBlockedUnblockRepair: blocking flags an object without changing seq or head, unblocking restores it, a
++// slab repair (RecordSlabMigrated) changes neither, and a pin of a blocked key consumes no seq.
++func TestFenceBlockedUnblockRepair(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	c := e.raise(t, testFence(1, 1, 1))
++	a, b := e.object(1), e.object(2)
++	for _, o := range []slabs.SealedObject{a, b} {
++		if err := store.PinObjectFenced(e.acc, &c, o.PinRequest()); err != nil {
++			t.Fatal(err)
++		}
++	}
++	head0, before := e.listAll(t, 10)
++	if head0 != 2 {
++		t.Fatalf("head %d", head0)
++	}
++
++	if err := store.BlockObject(a.ID(), "test"); err != nil {
++		t.Fatal(err)
++	}
++	head, all := e.listAll(t, 10)
++	if head != head0 || len(all) != 2 || all[0].Key != a.ID() || !all[0].Blocked || all[0].Object != nil || all[0].Seq != before[0].Seq {
++		t.Fatalf("blocked listing: head %d %+v", head, all)
++	}
++	// the current listing omits it by default and flags it on request
++	cur, err := store.ListCurrentObjects(e.acc, types.Hash256{}, 10, false)
++	if err != nil || len(cur) != 1 || cur[0].Key != b.ID() {
++		t.Fatalf("current listing (default) %+v %v", cur, err)
++	}
++	cur, err = store.ListCurrentObjects(e.acc, types.Hash256{}, 10, true)
++	if err != nil || len(cur) != 2 {
++		t.Fatalf("current listing (blocked=true) %+v %v", cur, err)
++	}
++	for _, ev := range cur {
++		if (ev.Key == a.ID()) != ev.Blocked || (ev.Object == nil) != ev.Blocked {
++			t.Fatalf("current listing entry %+v", ev)
++		}
++	}
++	// a pin of the blocked key is refused and consumes no seq
++	if err := store.PinObjectFenced(e.acc, &c, ptr(a).PinRequest()); !errors.Is(err, slabs.ErrObjectBlocked) {
++		t.Fatalf("expected ErrObjectBlocked, got %v", err)
++	} else if e.eventSeq(t) != 2 {
++		t.Fatal("a refused pin consumed a seq")
++	}
++
++	if err := store.UnblockObject(a.ID()); err != nil {
++		t.Fatal(err)
++	}
++	head, all = e.listAll(t, 10)
++	if head != head0 || all[0].Blocked || all[0].Object == nil || all[0].Seq != before[0].Seq {
++		t.Fatalf("after unblock: head %d %+v", head, all)
++	}
++
++	// slab repair: the stock feed unpublishes both objects, the sequence does not change
++	if err := store.RecordSlabMigrated(e.slab.Digest()); err != nil {
++		t.Fatal(err)
++	}
++	var unpublished int
++	store.pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM object_events WHERE updated_at IS NULL`).Scan(&unpublished)
++	if unpublished != 2 {
++		t.Fatalf("expected the stock feed to unpublish 2 events, got %d", unpublished)
++	}
++	head, all = e.listAll(t, 10)
++	if head != head0 || len(all) != 2 || all[0].Seq != before[0].Seq || all[1].Seq != before[1].Seq || all[0].Object == nil || all[1].Object == nil {
++		t.Fatalf("after repair: head %d %+v", head, all)
++	}
++}
++
++// TestFenceRollbackNoGaps: a mutation that fails after taking a seq rolls the counter back; acknowledged mutations
++// get exactly consecutive seqs and every listed seq belongs to an acknowledged mutation.
++func TestFenceRollbackNoGaps(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	c := e.raise(t, testFence(1, 1, 1))
++
++	unpinned := e.newSlabParams() // never pinned to the account
++	failing := slabs.SealedObject{EncryptedDataKey: frand.Bytes(72), DataSignature: types.Signature(frand.Bytes(64)), MetadataSignature: types.Signature(frand.Bytes(64)),
++		Slabs: []slabs.SlabSlice{unpinned.Slice(0, 1)}}
++	var acked []types.Hash256
++	for i := range 20 {
++		switch i % 4 {
++		case 0: // fails after nextSeq (slab check)
++			if err := store.PinObjectFenced(e.acc, &c, failing.PinRequest()); !errors.Is(err, slabs.ErrObjectUnpinnedSlab) {
++				t.Fatalf("expected ErrObjectUnpinnedSlab, got %v", err)
++			}
++		case 1: // delete of an absent key
++			if err := store.DeleteObjectFenced(e.acc, &c, frand.Entropy256()); !errors.Is(err, slabs.ErrObjectNotFound) {
++				t.Fatalf("expected ErrObjectNotFound, got %v", err)
++			}
++		default:
++			o := e.object(i)
++			if err := store.PinObjectFenced(e.acc, &c, o.PinRequest()); err != nil {
++				t.Fatal(err)
++			}
++			acked = append(acked, o.ID())
++		}
++	}
++	head, all := e.listAll(t, 3)
++	if head != uint64(len(acked)) || len(all) != len(acked) {
++		t.Fatalf("head %d, %d events, %d acknowledged", head, len(all), len(acked))
++	}
++	for i, ev := range all {
++		if ev.Seq != uint64(i+1) || ev.Key != acked[i] {
++			t.Fatalf("event %d: %+v, want key %v seq %d", i, ev, acked[i], i+1)
++		}
++	}
++}
++
++// TestFenceListingBounds: limit and after are validated; an unknown account is not found.
++func TestFenceListingBounds(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	e.raise(t, testFence(1, 1, 1))
++	for _, l := range []int{0, -1, MaxSeqListLimit + 1} {
++		if _, _, err := store.ListObjectsSeq(e.acc, 0, l); !errors.Is(err, slabs.ErrInvalidSeqListing) {
++			t.Fatalf("limit %d: %v", l, err)
++		}
++	}
++	if _, _, err := store.ListObjectsSeq(e.acc, 1<<63, 10); !errors.Is(err, slabs.ErrInvalidSeqListing) {
++		t.Fatalf("after 2^63: %v", err)
++	}
++	if _, _, err := store.ListObjectsSeq(e.acc, 1<<63-1, MaxSeqListLimit); err != nil {
++		t.Fatalf("max after: %v", err)
++	}
++	if _, _, err := store.ListObjectsSeq(proto.Account{7}, 0, 10); !errors.Is(err, accounts.ErrNotFound) {
++		t.Fatalf("unknown account: %v", err)
++	}
++}
++
++// TestFenceConcurrentRaiseVsWrites: a writer pins and deletes continuously while a contender raises a higher fence.
++// Every acknowledged mutation has seq <= the contender's head; every mutation after the raise is refused naming
++// the contender's fence; the listing at the contender's head contains exactly the acknowledged state.
++func TestFenceConcurrentRaiseVsWrites(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	for round := range 5 {
++		e := newFenceEnv(t, store)
++		old := e.raise(t, testFence(16<<48, 1, 0xaa))
++		// some objects to delete
++		for i := range 20 {
++			if err := store.PinObjectFenced(e.acc, &old, ptr(e.object(1000+i)).PinRequest()); err != nil {
++				t.Fatal(err)
++			}
++		}
++
++		var mu sync.Mutex
++		ackPinned := map[types.Hash256]bool{}  // acknowledged pins
++		ackDeleted := map[types.Hash256]bool{} // acknowledged deletions
++		var refused atomic.Int64
++		var wg sync.WaitGroup
++		stop := make(chan struct{})
++		newF := testFence(16<<48, 2, 0xbb)
++		for w := range 4 {
++			wg.Add(1)
++			go func() {
++				defer wg.Done()
++				for i := 0; ; i++ {
++					select {
++					case <-stop:
++						return
++					default:
++					}
++					var err error
++					var key types.Hash256
++					del := w%2 == 1 && i < 10
++					if del {
++						key = ptr(e.object(1000 + (w/2)*10 + i)).ID()
++						err = store.DeleteObjectFenced(e.acc, &old, key)
++					} else {
++						o := e.object(w<<24 + i)
++						key = o.ID()
++						err = store.PinObjectFenced(e.acc, &old, o.PinRequest())
++					}
++					if err != nil {
++						var fe *accounts.FencedError
++						if !errors.As(err, &fe) || fe.Current == nil || *fe.Current != newF {
++							t.Errorf("unexpected error: %v", err)
++						}
++						refused.Add(1)
++						return
++					}
++					mu.Lock()
++					if del {
++						ackDeleted[key] = true
++					} else {
++						ackPinned[key] = true
++					}
++					mu.Unlock()
++				}
++			}()
++		}
++		time.Sleep(time.Duration(20+round*15) * time.Millisecond)
++		_, head, err := store.RaiseFence(e.acc, newF)
++		if err != nil {
++			t.Fatal(err)
++		}
++		wg.Wait()
++		close(stop)
++		if refused.Load() != 4 {
++			t.Fatalf("round %d: expected all 4 writers refused after the raise, got %d", round, refused.Load())
++		}
++		final, all := e.listAll(t, 7)
++		if final != head {
++			t.Fatalf("round %d: a mutation committed after the raise (head %d -> %d)", round, head, final)
++		}
++		state := map[types.Hash256]bool{} // key -> live
++		for _, ev := range all {
++			if ev.Seq > head {
++				t.Fatalf("event beyond the raise head: %+v", ev)
++			}
++			state[ev.Key] = !ev.Deleted
++		}
++		for k := range ackPinned {
++			if !state[k] {
++				t.Fatalf("round %d: acknowledged pin %v missing", round, k)
++			}
++		}
++		for k := range ackDeleted {
++			if live, ok := state[k]; !ok || live {
++				t.Fatalf("round %d: acknowledged delete %v not a tombstone", round, k)
++			}
++		}
++		if len(ackPinned)+20 != len(state) {
++			t.Fatalf("round %d: listing has %d keys, acknowledged %d pins + 20", round, len(state), len(ackPinned))
++		}
++		t.Logf("round %d: %d pins + %d deletes acknowledged before the raise at head %d", round, len(ackPinned), len(ackDeleted), head)
++	}
++}
++
++// TestFenceConcurrentBackfill: stock (unfenced) writers pin while the first raise backfills. Every acknowledged pin
++// gets a seq <= the raise head (none is left with seq NULL), the seqs are exactly 1..head, and every later unfenced
++// pin is refused.
++func TestFenceConcurrentBackfill(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	for round := range 5 {
++		e := newFenceEnv(t, store)
++		for i := range 30 {
++			if err := store.PinObject(e.acc, ptr(e.object(1<<30+i)).PinRequest()); err != nil {
++				t.Fatal(err)
++			}
++		}
++		f := testFence(1, uint64(round+1), 1)
++		var mu sync.Mutex
++		acked := map[types.Hash256]bool{}
++		var wg sync.WaitGroup
++		for w := range 4 {
++			wg.Add(1)
++			go func() {
++				defer wg.Done()
++				for i := 0; ; i++ {
++					o := e.object(w<<24 + i) // disjoint from the other writers and the initial objects
++					if err := store.PinObject(e.acc, o.PinRequest()); err != nil {
++						assertFencedNoFatal(t, err, &f)
++						return
++					}
++					mu.Lock()
++					acked[o.ID()] = true
++					mu.Unlock()
++				}
++			}()
++		}
++		time.Sleep(time.Duration(10+round*10) * time.Millisecond)
++		start := time.Now()
++		_, head, err := store.RaiseFence(e.acc, f)
++		if err != nil {
++			t.Fatal(err)
++		} else if took := time.Since(start); took > 2*time.Second {
++			t.Fatalf("round %d: the raise was starved by unfenced writers for %v", round, took)
++		} else {
++			t.Logf("round %d: raise took %v under 4 unfenced writers", round, took)
++		}
++		wg.Wait()
++		var nulls int
++		store.pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM object_events oe JOIN accounts a ON a.id = oe.account_id WHERE a.public_key = $1 AND oe.seq IS NULL`, sqlPublicKey(e.acc)).Scan(&nulls)
++		if nulls != 0 {
++			t.Fatalf("round %d: %d events left without seq", round, nulls)
++		}
++		final, all := e.listAll(t, 1000)
++		if final != head || uint64(len(all)) != head || int(head) != 30+len(acked) {
++			t.Fatalf("round %d: head %d final %d events %d acked %d+30", round, head, final, len(all), len(acked))
++		}
++		for i, ev := range all {
++			if ev.Seq != uint64(i+1) {
++				t.Fatalf("round %d: seq gap at %d", round, i)
++			}
++			delete(acked, ev.Key)
++		}
++		if len(acked) != 0 {
++			t.Fatalf("round %d: %d acknowledged pins missing from the listing", round, len(acked))
++		}
++	}
++}
++
++func assertFencedNoFatal(t *testing.T, err error, want *accounts.Fence) {
++	var fe *accounts.FencedError
++	if !errors.As(err, &fe) || fe.Current == nil || *fe.Current != *want {
++		t.Errorf("expected a FencedError naming %v, got %v", *want, err)
++	}
++}
++
++// TestFenceSeqCommitOrder: concurrent committers get seqs in commit order. A reader that saw head H never later
++// sees a new event with seq <= H (so "page from my last seq" never misses a commit), and within each writer the
++// seqs increase.
++func TestFenceSeqCommitOrder(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	c := e.raise(t, testFence(1, 1, 1))
++
++	const writers, per = 6, 25
++	var wg sync.WaitGroup
++	seqOf := make([][]types.Hash256, writers)
++	done := make(chan struct{})
++	readerErr := make(chan error, 1)
++	go func() {
++		// the reader: every snapshot's events with seq <= a previously seen head must already have been seen
++		seen := map[uint64]types.Hash256{}
++		var lastHead uint64
++		for {
++			select {
++			case <-done:
++				readerErr <- nil
++				return
++			default:
++			}
++			head, page, err := store.ListObjectsSeq(e.acc, 0, MaxSeqListLimit)
++			if err != nil {
++				readerErr <- err
++				return
++			}
++			if head < lastHead {
++				readerErr <- fmt.Errorf("head went backwards %d -> %d", lastHead, head)
++				return
++			}
++			for _, ev := range page {
++				if ev.Seq > head {
++					readerErr <- fmt.Errorf("event %d beyond head %d in one snapshot", ev.Seq, head)
++					return
++				}
++				if k, ok := seen[ev.Seq]; ok && k != ev.Key {
++					readerErr <- fmt.Errorf("seq %d reassigned", ev.Seq)
++					return
++				} else if !ok && ev.Seq <= lastHead {
++					readerErr <- fmt.Errorf("seq %d appeared after head %d was observed", ev.Seq, lastHead)
++					return
++				}
++				seen[ev.Seq] = ev.Key
++			}
++			if uint64(len(page)) != head {
++				readerErr <- fmt.Errorf("snapshot has %d events at head %d (gap)", len(page), head)
++				return
++			}
++			lastHead = head
++		}
++	}()
++	for w := range writers {
++		wg.Add(1)
++		go func() {
++			defer wg.Done()
++			for i := range per {
++				o := e.object(w*1000 + i)
++				if err := store.PinObjectFenced(e.acc, &c, o.PinRequest()); err != nil {
++					t.Error(err)
++					return
++				}
++				seqOf[w] = append(seqOf[w], o.ID())
++			}
++		}()
++	}
++	wg.Wait()
++	close(done)
++	if err := <-readerErr; err != nil {
++		t.Fatal(err)
++	}
++	head, all := e.listAll(t, 1000)
++	if head != writers*per || len(all) != writers*per {
++		t.Fatalf("head %d, %d events", head, len(all))
++	}
++	pos := map[types.Hash256]uint64{}
++	for _, ev := range all {
++		pos[ev.Key] = ev.Seq
++	}
++	for w := range writers {
++		for i := 1; i < len(seqOf[w]); i++ {
++			if pos[seqOf[w][i]] <= pos[seqOf[w][i-1]] {
++				t.Fatalf("writer %d: sequential pins out of seq order", w)
++			}
++		}
++	}
++}
++
++// TestFencePagedSnapshot: under a stable fence, paging with any page size reproduces the account; a writer's own
++// later mutations (an overwrite and a delete of keys on already-read pages) appear beyond the first page's head,
++// so replaying events in seq order reconstructs exactly the objects table.
++func TestFencePagedSnapshot(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	c := e.raise(t, testFence(1, 1, 1))
++	var objs []slabs.SealedObject
++	for i := range 25 {
++		o := e.object(i)
++		objs = append(objs, o)
++		if err := store.PinObjectFenced(e.acc, &c, o.PinRequest()); err != nil {
++			t.Fatal(err)
++		}
++	}
++	for _, limit := range []int{1, 7, 25, 1000} {
++		head, all := e.listAll(t, limit)
++		if head != 25 || len(all) != 25 {
++			t.Fatalf("limit %d: head %d, %d events", limit, head, len(all))
++		}
++	}
++
++	// page 1, then mutations behind the cursor, then continue
++	head1, page1, err := store.ListObjectsSeq(e.acc, 0, 10)
++	if err != nil {
++		t.Fatal(err)
++	}
++	over := objs[2]
++	over.EncryptedMetadata = []byte("v2")
++	if err := store.PinObjectFenced(e.acc, &c, over.PinRequest()); err != nil {
++		t.Fatal(err)
++	}
++	if err := store.DeleteObjectFenced(e.acc, &c, objs[3].ID()); err != nil {
++		t.Fatal(err)
++	}
++	state := map[types.Hash256]*slabs.SealedObject{}
++	apply := func(evs []slabs.SeqObjectEvent) {
++		for _, ev := range evs {
++			if ev.Deleted {
++				delete(state, ev.Key)
++			} else {
++				state[ev.Key] = ev.Object
++			}
++		}
++	}
++	apply(page1)
++	after := page1[len(page1)-1].Seq
++	var lastHead uint64
++	for {
++		h, page, err := store.ListObjectsSeq(e.acc, after, 10)
++		if err != nil {
++			t.Fatal(err)
++		}
++		lastHead = h
++		if len(page) == 0 {
++			break
++		}
++		apply(page)
++		after = page[len(page)-1].Seq
++	}
++	if head1 != 25 || lastHead != 27 {
++		t.Fatalf("heads %d -> %d", head1, lastHead)
++	}
++	cur, err := store.ListCurrentObjects(e.acc, types.Hash256{}, 100, true)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if len(cur) != len(state) {
++		t.Fatalf("replayed %d objects, table has %d", len(state), len(cur))
++	}
++	for _, o := range cur {
++		got, ok := state[o.Key]
++		if !ok || !slices.Equal(got.EncryptedMetadata, o.Object.EncryptedMetadata) {
++			t.Fatalf("object %v differs after replay", o.Key)
++		}
++	}
++	if string(state[objs[2].ID()].EncryptedMetadata) != "v2" {
++		t.Fatal("overwrite not replayed")
++	}
++}
++
++// TestFencePruneBatchesRaise: POST /slabs/prune runs in batches; a raise between batches stops the remaining ones.
++func TestFencePruneBatchesRaise(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	c := e.raise(t, testFence(1, 1, 1))
++	// 450 unreferenced slabs = 5 batches
++	var params []slabs.SlabPinParams
++	for range 450 {
++		params = append(params, e.newSlabParams())
++	}
++	for i := 0; i < len(params); i += 50 {
++		if _, err := store.PinSlabsFenced(e.acc, &c, time.Time{}, params[i:i+50]...); err != nil {
++			t.Fatal(err)
++		}
++	}
++	countPins := func() (n int) {
++		store.pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM account_slabs s JOIN accounts a ON a.id = s.account_id WHERE a.public_key = $1`, sqlPublicKey(e.acc)).Scan(&n)
++		return
++	}
++	newF := testFence(1, 2, 1)
++	errc := make(chan error, 1)
++	// slow every unpin statement down (test database only) so the raise lands while batches remain
++	if _, err := store.pool.Exec(t.Context(), `
++		CREATE FUNCTION fence_test_slow() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(0.1); RETURN NULL; END $$;
++		CREATE TRIGGER fence_test_slow AFTER DELETE ON account_slabs FOR EACH STATEMENT EXECUTE FUNCTION fence_test_slow();`); err != nil {
++		t.Fatal(err)
++	}
++	// start the prune, raise as soon as the first batch has committed
++	go func() { errc <- store.PruneSlabsFenced(e.acc, &c, time.Now().Add(time.Hour)) }()
++	start := countPins()
++	deadline := time.Now().Add(10 * time.Second)
++	for countPins() == start && time.Now().Before(deadline) {
++		time.Sleep(time.Millisecond)
++	}
++	if _, _, err := store.RaiseFence(e.acc, newF); err != nil {
++		t.Fatal(err)
++	}
++	atRaise := countPins()
++	err := <-errc
++	final := countPins()
++	assertFenced(t, err, &newF)
++	if final != atRaise || final == start || final == 0 {
++		t.Fatalf("pins changed after the raise: %d at raise, %d final", atRaise, final)
++	}
++	t.Logf("prune stopped by the raise: pins %d -> %d at raise, %d final", start, atRaise, final)
++}
++
++// TestFenceMixedConcurrencyNoDeadlockFailure: two fenced accounts sharing slabs run every mutation kind
++// concurrently with background paths (repair, block/unblock, deleted-slab pruning). Deadlocks are retried by the
++// store; no operation may fail with anything but its documented errors.
++func TestFenceMixedConcurrencyNoDeadlockFailure(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e1 := newFenceEnv(t, store)
++	e2 := newFenceEnv(t, store)
++	e2.slab = e1.slab // share the slab (pin it on account 2 too)
++	c1 := e1.raise(t, testFence(1, 1, 1))
++	c2 := e2.raise(t, testFence(1, 1, 2))
++	if _, err := store.PinSlabsFenced(e2.acc, &c2, time.Time{}, e1.slab); err != nil {
++		t.Fatal(err)
++	}
++	var wg sync.WaitGroup
++	deadline := time.Now().Add(3 * time.Second)
++	var ops atomic.Int64
++	expected := func(err error) bool {
++		return err == nil || errors.Is(err, slabs.ErrObjectNotFound) || errors.Is(err, slabs.ErrObjectBlocked) ||
++			errors.Is(err, slabs.ErrSlabNotFound) || errors.Is(err, slabs.ErrSlabInUse) || errors.Is(err, sharing.ErrSharingKeyNotFound) ||
++			errors.Is(err, slabs.ErrObjectUnpinnedSlab)
++	}
++	run := func(name string, fn func(i int) error) {
++		wg.Add(1)
++		go func() {
++			defer wg.Done()
++			for i := 0; time.Now().Before(deadline); i++ {
++				if err := fn(i); !expected(err) {
++					t.Errorf("%s: %v", name, err)
++					return
++				}
++				ops.Add(1)
++			}
++		}()
++	}
++	for _, x := range []struct {
++		e *fenceEnv
++		c *accounts.Credential
++	}{{e1, &c1}, {e2, &c2}} {
++		e, c := x.e, x.c
++		run("pin", func(i int) error { return store.PinObjectFenced(e.acc, c, ptr(e.object(i%40)).PinRequest()) })
++		run("delete", func(i int) error { return store.DeleteObjectFenced(e.acc, c, ptr(e.object((i*7)%40)).ID()) })
++		run("slabs", func(i int) error {
++			p := e.newSlabParams()
++			if _, err := store.PinSlabsFenced(e.acc, c, time.Time{}, p); err != nil {
++				return err
++			}
++			if i%2 == 0 {
++				return store.UnpinSlabFenced(e.acc, c, p.Digest())
++			}
++			return store.PruneSlabsFenced(e.acc, c, time.Now().Add(time.Hour))
++		})
++		run("sharing", func(i int) error {
++			req := sharing.KeyRequest{PublicKey: types.GeneratePrivateKey().PublicKey(), Nonce: sharing.Nonce(frand.Bytes(32))}
++			if _, err := store.AddSharingKeyFenced(e.acc, c, req); err != nil {
++				return err
++			}
++			o := e.object(i % 40)
++			_ = store.AddSharedObjectFenced(e.acc, c, req.PublicKey, sharing.SharedObjectRequest{ObjectID: o.ID(), EncryptedDataKey: frand.Bytes(sharing.EncryptionKeySize),
++				DataSignature: types.Signature(frand.Bytes(64)), MetadataSignature: types.Signature(frand.Bytes(64))})
++			return store.DeleteSharingKeyFenced(e.acc, c, req.PublicKey)
++		})
++	}
++	run("repair", func(int) error { return store.RecordSlabMigrated(e1.slab.Digest()) })
++	run("block", func(i int) error {
++		k := ptr(e1.object(i % 40)).ID()
++		if err := store.BlockObject(k, "t"); err != nil {
++			return err
++		}
++		return store.UnblockObject(k)
++	})
++	run("prune-deleted", func(int) error {
++		_, err := store.PruneDeletedSlabs(100)
++		return err
++	})
++	wg.Wait()
++	t.Logf("%d operations", ops.Load())
++	for _, e := range []*fenceEnv{e1, e2} {
++		head, all := e.listAll(t, 1000)
++		for _, ev := range all {
++			if ev.Seq > head {
++				t.Fatal("event beyond head")
++			}
++		}
++		var nulls int
++		store.pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM object_events oe JOIN accounts a ON a.id = oe.account_id WHERE a.public_key = $1 AND oe.seq IS NULL`, sqlPublicKey(e.acc)).Scan(&nulls)
++		if nulls != 0 {
++			t.Fatalf("%d events without seq", nulls)
++		}
++	}
++}
++
++// TestFenceLostRaiseResponse: the raise committed but its answer (the receipt) was lost. Retrying the same token is
++// refused and yields no receipt; nothing can be written under the lost install; the writer recovers by raising
++// counter+1, and the sequence head is continuous across the lost install.
++func TestFenceLostRaiseResponse(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	c0 := e.raise(t, testFence(17<<48, 1, 9))
++	if err := store.PinObjectFenced(e.acc, &c0, ptr(e.object(1)).PinRequest()); err != nil {
++		t.Fatal(err)
++	}
++
++	lost := testFence(17<<48, 2, 9)
++	if _, head, err := store.RaiseFence(e.acc, lost); err != nil || head != 1 {
++		t.Fatalf("raise: head %d err %v", head, err)
++	} // the answer is dropped here: the writer never learns the receipt
++	_, _, err := store.RaiseFence(e.acc, lost)
++	assertFenced(t, err, &lost)
++	for _, guess := range []accounts.Credential{{Fence: lost}, {Fence: lost, Receipt: c0.Receipt}} {
++		assertFenced(t, store.PinObjectFenced(e.acc, &guess, ptr(e.object(2)).PinRequest()), &lost)
++	}
++	assertFenced(t, store.PinObjectFenced(e.acc, &c0, ptr(e.object(2)).PinRequest()), &lost)
++
++	next := testFence(17<<48, 3, 9)
++	r, head, err := store.RaiseFence(e.acc, next)
++	if err != nil || head != 1 {
++		t.Fatalf("recovery raise: head %d err %v", head, err)
++	}
++	c := accounts.Credential{Fence: next, Receipt: r}
++	if err := store.PinObjectFenced(e.acc, &c, ptr(e.object(2)).PinRequest()); err != nil {
++		t.Fatal(err)
++	}
++	if head, all := e.listAll(t, 10); head != 2 || len(all) != 2 || all[1].Seq != 2 {
++		t.Fatalf("head %d events %+v", head, all)
++	}
++}
++
++// TestFenceRaiseWaitsForInflightUnfencedPin: an unfenced pin that has written its event but not committed (it is
++// blocked on a slab lock) must not be missed by the first raise's backfill. The raise waits for it (the pin holds the
++// account row in KEY SHARE), and once both commit the pin's event has a seq <= the raise head. Deterministic
++// counterpart of TestFenceConcurrentBackfill (mutant M13).
++func TestFenceRaiseWaitsForInflightUnfencedPin(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	if err := store.PinObject(e.acc, ptr(e.object(1)).PinRequest()); err != nil {
++		t.Fatal(err)
++	}
++
++	lockTx, err := store.pool.Begin(t.Context())
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer func() { _ = lockTx.Rollback(t.Context()) }()
++	if _, err := lockTx.Exec(t.Context(), `SELECT digest FROM slabs WHERE digest = $1 FOR UPDATE`, sqlHash256(e.slab.Digest())); err != nil {
++		t.Fatal(err)
++	}
++	slow := e.object(2)
++	pinErr := make(chan error, 1)
++	go func() { pinErr <- store.PinObject(e.acc, slow.PinRequest()) }()
++	waitBlocked := func(n int) {
++		t.Helper()
++		for range 100 {
++			var waiting int
++			if err := store.pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid
++				WHERE NOT l.granted AND a.datname = current_database()`).Scan(&waiting); err != nil {
++				t.Fatal(err)
++			} else if waiting >= n {
++				return
++			}
++			time.Sleep(50 * time.Millisecond)
++		}
++		t.Fatalf("expected %d blocked lock requests", n)
++	}
++	waitBlocked(1) // the pin wrote its event and waits on the slab
++
++	type raised struct {
++		head uint64
++		err  error
++	}
++	raiseDone := make(chan raised, 1)
++	f := testFence(1, 1, 1)
++	go func() {
++		_, head, err := store.RaiseFence(e.acc, f)
++		raiseDone <- raised{head, err}
++	}()
++	select {
++	case r := <-raiseDone:
++		t.Fatalf("the raise completed (head %d, err %v) while an unfenced pin was in flight", r.head, r.err)
++	case <-time.After(time.Second):
++	}
++	if err := lockTx.Rollback(t.Context()); err != nil {
++		t.Fatal(err)
++	} else if err := <-pinErr; err != nil {
++		t.Fatal(err)
++	}
++	r := <-raiseDone
++	if r.err != nil {
++		t.Fatal(r.err)
++	} else if r.head != 2 {
++		t.Fatalf("raise head %d, want 2 (both pins)", r.head)
++	}
++	var nulls int
++	if err := store.pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM object_events WHERE seq IS NULL`).Scan(&nulls); err != nil || nulls != 0 {
++		t.Fatalf("%d events without seq (%v)", nulls, err)
++	}
++	if head, all := e.listAll(t, 10); head != 2 || len(all) != 2 {
++		t.Fatalf("listing head %d, %d events", head, len(all))
++	}
++}
++
++// TestFenceRaiseWaitsForInflightUnfencedDelete: as TestFenceRaiseWaitsForInflightUnfencedPin, for a delete. A pin
++// already holds the account row in KEY SHARE through its foreign-key checks; a delete inserts nothing, so only
++// lockAccount's KEY SHARE makes the raise wait for it. Without it the backfill numbers the event first and the late
++// delete then rewrites it with seq NULL: an acknowledged delete invisible to the sequence listing (mutant M13).
++func TestFenceRaiseWaitsForInflightUnfencedDelete(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	a, b := e.object(1), e.object(2)
++	for _, o := range []slabs.SealedObject{a, b} {
++		if err := store.PinObject(e.acc, o.PinRequest()); err != nil {
++			t.Fatal(err)
++		}
++	}
++
++	// hold the object row the delete locks right after lockAccount
++	lockTx, err := store.pool.Begin(t.Context())
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer func() { _ = lockTx.Rollback(t.Context()) }()
++	if _, err := lockTx.Exec(t.Context(), `SELECT id FROM objects WHERE object_key = $1 FOR UPDATE`, sqlHash256(b.ID())); err != nil {
++		t.Fatal(err)
++	}
++	delErr := make(chan error, 1)
++	go func() { delErr <- store.DeleteObject(e.acc, b.ID()) }()
++	for i := 0; ; i++ {
++		var waiting int
++		if err := store.pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid
++			WHERE NOT l.granted AND a.datname = current_database()`).Scan(&waiting); err != nil {
++			t.Fatal(err)
++		} else if waiting > 0 {
++			break
++		} else if i == 100 {
++			t.Fatal("expected the delete to block on the object row")
++		}
++		time.Sleep(50 * time.Millisecond)
++	}
++
++	type raised struct {
++		head uint64
++		err  error
++	}
++	raiseDone := make(chan raised, 1)
++	go func() {
++		_, head, err := store.RaiseFence(e.acc, testFence(1, 1, 1))
++		raiseDone <- raised{head, err}
++	}()
++	select {
++	case r := <-raiseDone:
++		t.Fatalf("the raise completed (head %d, err %v) while an unfenced delete was in flight", r.head, r.err)
++	case <-time.After(time.Second):
++	}
++	if err := lockTx.Rollback(t.Context()); err != nil {
++		t.Fatal(err)
++	} else if err := <-delErr; err != nil {
++		t.Fatal(err)
++	}
++	r := <-raiseDone
++	if r.err != nil {
++		t.Fatal(r.err)
++	}
++	var nulls int
++	if err := store.pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM object_events WHERE seq IS NULL`).Scan(&nulls); err != nil || nulls != 0 {
++		t.Fatalf("%d events without seq (%v)", nulls, err)
++	}
++	head, all := e.listAll(t, 10)
++	if head != 2 || len(all) != 2 {
++		t.Fatalf("listing head %d, %d events", head, len(all))
++	}
++	for _, ev := range all {
++		if ev.Key == b.ID() && !ev.Deleted {
++			t.Fatal("the acknowledged delete is not in the listing")
++		}
++	}
++}
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/persist/postgres/init.sql ./persist/postgres/init.sql
+--- ../../indexd/persist/postgres/init.sql	2026-10-18 11:00:02.781557217 -0700
++++ ./persist/postgres/init.sql	2026-10-19 23:34:04.121863133 -0700
+@@ -672,3 +672,17 @@
+ 
+ -- speeds up finding sectors for deletion when unpinning slabs
+ CREATE UNIQUE INDEX slab_sectors_sector_id_slab_id_idx ON slab_sectors(sector_id, slab_id);
++
++-- FENCING PATCH: a per-account writer fence (ballot) and a commit-ordered object event sequence. Accounts that never
++-- install a fence keep fence NULL, event_seq 0 and seq_enabled FALSE, and behave exactly as before.
++ALTER TABLE accounts ADD COLUMN fence BYTEA CHECK (fence IS NULL OR LENGTH(fence) = 32);
++ALTER TABLE accounts ADD COLUMN fence_receipt BYTEA CHECK (fence_receipt IS NULL OR LENGTH(fence_receipt) = 16);
++ALTER TABLE accounts ADD CONSTRAINT accounts_fence_receipt_pair CHECK ((fence IS NULL) = (fence_receipt IS NULL));
++ALTER TABLE accounts ADD COLUMN event_seq BIGINT NOT NULL DEFAULT 0 CHECK (event_seq >= 0);
++ALTER TABLE accounts ADD COLUMN seq_enabled BOOLEAN NOT NULL DEFAULT FALSE;
++-- set (and committed) before a raise waits for the row: from then on every mutation queues behind the raise
++ALTER TABLE accounts ADD COLUMN fence_pending BOOLEAN NOT NULL DEFAULT FALSE;
++ALTER TABLE accounts ADD CONSTRAINT accounts_seq_enabled_needs_fence CHECK (fence IS NOT NULL OR NOT seq_enabled);
++ALTER TABLE object_events ADD COLUMN seq BIGINT CHECK (seq IS NULL OR seq > 0);
++-- one position per account and seq: a seq can never be handed out twice
++CREATE UNIQUE INDEX object_events_account_id_seq_idx ON object_events(account_id, seq) WHERE seq IS NOT NULL;
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/persist/postgres/migrations.go ./persist/postgres/migrations.go
+--- ../../indexd/persist/postgres/migrations.go	2026-10-18 11:00:02.781557217 -0700
++++ ./persist/postgres/migrations.go	2026-10-19 23:34:04.122032473 -0700
+@@ -513,4 +513,21 @@
+ EXECUTE FUNCTION slabs_maintain_repair_stats();`)
+ 		return err
+ 	},
++	// FENCING PATCH: writer fence and commit-ordered object event sequence (see init.sql)
++	func(ctx context.Context, tx *txn, log *zap.Logger) error {
++		_, err := tx.Exec(ctx, `-- FENCING PATCH: a per-account writer fence (ballot) and a commit-ordered object event sequence. Accounts that never
++-- install a fence keep fence NULL, event_seq 0 and seq_enabled FALSE, and behave exactly as before.
++ALTER TABLE accounts ADD COLUMN fence BYTEA CHECK (fence IS NULL OR LENGTH(fence) = 32);
++ALTER TABLE accounts ADD COLUMN fence_receipt BYTEA CHECK (fence_receipt IS NULL OR LENGTH(fence_receipt) = 16);
++ALTER TABLE accounts ADD CONSTRAINT accounts_fence_receipt_pair CHECK ((fence IS NULL) = (fence_receipt IS NULL));
++ALTER TABLE accounts ADD COLUMN event_seq BIGINT NOT NULL DEFAULT 0 CHECK (event_seq >= 0);
++ALTER TABLE accounts ADD COLUMN seq_enabled BOOLEAN NOT NULL DEFAULT FALSE;
++-- set (and committed) before a raise waits for the row: from then on every mutation queues behind the raise
++ALTER TABLE accounts ADD COLUMN fence_pending BOOLEAN NOT NULL DEFAULT FALSE;
++ALTER TABLE accounts ADD CONSTRAINT accounts_seq_enabled_needs_fence CHECK (fence IS NOT NULL OR NOT seq_enabled);
++ALTER TABLE object_events ADD COLUMN seq BIGINT CHECK (seq IS NULL OR seq > 0);
++-- one position per account and seq: a seq can never be handed out twice
++CREATE UNIQUE INDEX object_events_account_id_seq_idx ON object_events(account_id, seq) WHERE seq IS NOT NULL;`)
++		return err
++	},
+ }
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/persist/postgres/migrations_test.go ./persist/postgres/migrations_test.go
+--- ../../indexd/persist/postgres/migrations_test.go	2026-10-18 11:00:02.781557217 -0700
++++ ./persist/postgres/migrations_test.go	2026-10-19 22:16:04.352570002 -0700
+@@ -600,7 +600,7 @@
+ 	// prepare 2 databases
+ 	ci := connectionInfoFromEnv()
+ 	ci2 := ci
+-	ci2.Database = "indexd2"
++	ci2.Database = ci.Database + "_2" // FENCING PATCH (test only): was "indexd2"; keeps test databases in one namespace
+ 
+ 	// cleanup
+ 	ctx := context.Background()
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/persist/postgres/objects.go ./persist/postgres/objects.go
+--- ../../indexd/persist/postgres/objects.go	2026-10-18 11:00:02.781557217 -0700
++++ ./persist/postgres/objects.go	2026-10-19 22:27:59.240639118 -0700
+@@ -317,11 +317,18 @@
+ // of the account's objects are unpinned and queued for deletion by
+ // PruneDeletedSlabs.
+ func (s *Store) DeleteObject(account proto.Account, objectKey types.Hash256) error {
++	return s.DeleteObjectFenced(account, nil, objectKey)
++}
++
++// DeleteObjectFenced is DeleteObject under the writer fence sf (FENCING PATCH): the account row is locked and the
++// fence checked first; with the sequence enabled the deletion gets the next seq.
++func (s *Store) DeleteObjectFenced(account proto.Account, sf *accounts.Credential, objectKey types.Hash256) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		accountID, _, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
+ 		if err != nil {
+ 			return err
+ 		}
++		accountID := la.id
+ 
+ 		var objectID int64
+ 		err = tx.QueryRow(ctx, `SELECT id FROM objects WHERE object_key = $1 AND account_id = $2 FOR UPDATE`, sqlHash256(objectKey), accountID).Scan(&objectID)
+@@ -350,12 +357,19 @@
+ 		if err != nil {
+ 			return fmt.Errorf("failed to delete object: %w", err)
+ 		}
+-		_, err = tx.Exec(ctx, `
+-                       UPDATE object_events SET was_deleted = TRUE, updated_at = NULL
++		seq, err := nextSeq(ctx, tx, la)
++		if err != nil {
++			return err
++		}
++		res, err := tx.Exec(ctx, `
++                       UPDATE object_events SET was_deleted = TRUE, updated_at = NULL, seq = $3
+                        WHERE account_id = $1 AND object_key = $2`,
+-			accountID, sqlHash256(objectKey))
++			accountID, sqlHash256(objectKey), seq)
+ 		if err != nil {
+ 			return fmt.Errorf("failed to update object events: %w", err)
++		} else if la.seqEnabled && res.RowsAffected() != 1 {
++			// a consumed seq must belong to exactly one row: never commit a gap behind a deletion
++			return fmt.Errorf("object %v has %d event rows", objectKey, res.RowsAffected())
+ 		}
+ 
+ 		// unpin the object's slabs that are no longer referenced by any of
+@@ -399,8 +413,15 @@
+ // PinObject saves the given object for the given account. If an object with
+ // the given key exists for an account, it is overwritten.
+ func (s *Store) PinObject(account proto.Account, obj slabs.PinObjectRequest) error {
++	return s.PinObjectFenced(account, nil, obj)
++}
++
++// PinObjectFenced is PinObject under the writer fence sf (FENCING PATCH): the account row is locked and the fence
++// checked first; with the sequence enabled the object's event gets the next seq.
++func (s *Store) PinObjectFenced(account proto.Account, sf *accounts.Credential, obj slabs.PinObjectRequest) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		accountID, deleted, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		accountID, deleted := la.id, la.deleted
+ 		if err != nil {
+ 			return err
+ 		} else if deleted {
+@@ -431,10 +452,14 @@
+ 			return fmt.Errorf("failed to insert object: %w", err)
+ 		}
+ 
++		seq, err := nextSeq(ctx, tx, la)
++		if err != nil {
++			return err
++		}
+ 		_, err = tx.Exec(ctx, `
+-			INSERT INTO object_events (object_key, account_id, was_deleted) VALUES ($1, $2, FALSE)
+-			ON CONFLICT (account_id, object_key) DO UPDATE SET (was_deleted, updated_at) = (FALSE, NULL)`,
+-			sqlHash256(obj.ID), accountID)
++			INSERT INTO object_events (object_key, account_id, was_deleted, seq) VALUES ($1, $2, FALSE, $3)
++			ON CONFLICT (account_id, object_key) DO UPDATE SET (was_deleted, updated_at, seq) = (FALSE, NULL, EXCLUDED.seq)`,
++			sqlHash256(obj.ID), accountID, seq)
+ 		if err != nil {
+ 			return fmt.Errorf("failed to insert object event: %w", err)
+ 		}
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/persist/postgres/sectors.go ./persist/postgres/sectors.go
+--- ../../indexd/persist/postgres/sectors.go	2026-10-18 11:00:02.781557217 -0700
++++ ./persist/postgres/sectors.go	2026-10-19 22:27:59.240764017 -0700
+@@ -271,10 +271,20 @@
+ // with the provided account. A sector's reported upload time, capped at now,
+ // becomes its uploaded_at.
+ func (s *Store) PinSlabs(account proto.Account, nextIntegrityCheck time.Time, toPin ...slabs.SlabPinParams) ([]slabs.SlabID, error) {
++	return s.PinSlabsFenced(account, nil, nextIntegrityCheck, toPin...)
++}
++
++// PinSlabsFenced is PinSlabs under the writer fence sf (FENCING PATCH): the account row is locked and the fence
++// checked first.
++func (s *Store) PinSlabsFenced(account proto.Account, sf *accounts.Credential, nextIntegrityCheck time.Time, toPin ...slabs.SlabPinParams) ([]slabs.SlabID, error) {
+ 	var digests []slabs.SlabID
+ 	err := s.transaction(func(ctx context.Context, tx *txn) error {
+ 		digests = digests[:0] // reuse same slice if transaction retries
+ 
++		if _, err := lockAccount(ctx, tx, account, sf); err != nil {
++			return err
++		}
++
+ 		var accountID int64
+ 		var connectKeyID int64
+ 		err := tx.QueryRow(ctx, "SELECT id, connect_key_id FROM accounts WHERE public_key = $1", sqlPublicKey(account)).Scan(&accountID, &connectKeyID)
+@@ -728,8 +738,14 @@
+ // account, it and its sectors are queued for deletion by PruneDeletedSlabs in
+ // a background loop.
+ func (s *Store) UnpinSlab(account proto.Account, slabID slabs.SlabID) error {
++	return s.UnpinSlabFenced(account, nil, slabID)
++}
++
++// UnpinSlabFenced is UnpinSlab under the writer fence sf (FENCING PATCH).
++func (s *Store) UnpinSlabFenced(account proto.Account, sf *accounts.Credential, slabID slabs.SlabID) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		id, _, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		id := la.id
+ 		if err != nil {
+ 			return fmt.Errorf("failed to get account ID: %w", err)
+ 		}
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/persist/postgres/sharing.go ./persist/postgres/sharing.go
+--- ../../indexd/persist/postgres/sharing.go	2026-10-18 11:00:02.781557217 -0700
++++ ./persist/postgres/sharing.go	2026-10-19 22:27:59.240531778 -0700
+@@ -49,8 +49,14 @@
+ 
+ // AddSharingKey creates a sharing key owned by the given account.
+ func (s *Store) AddSharingKey(account proto.Account, req sharing.KeyRequest) (key sharing.Key, err error) {
++	return s.AddSharingKeyFenced(account, nil, req)
++}
++
++// AddSharingKeyFenced is AddSharingKey under the writer fence sf (FENCING PATCH).
++func (s *Store) AddSharingKeyFenced(account proto.Account, sf *accounts.Credential, req sharing.KeyRequest) (key sharing.Key, err error) {
+ 	err = s.transaction(func(ctx context.Context, tx *txn) error {
+-		accountID, deleted, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		accountID, deleted := la.id, la.deleted
+ 		if err != nil {
+ 			return err
+ 		} else if deleted {
+@@ -138,8 +144,14 @@
+ // DeleteSharingKey deletes the given account's sharing key along with its
+ // attached objects.
+ func (s *Store) DeleteSharingKey(account proto.Account, publicKey types.PublicKey) error {
++	return s.DeleteSharingKeyFenced(account, nil, publicKey)
++}
++
++// DeleteSharingKeyFenced is DeleteSharingKey under the writer fence sf (FENCING PATCH).
++func (s *Store) DeleteSharingKeyFenced(account proto.Account, sf *accounts.Credential, publicKey types.PublicKey) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		accountID, _, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		accountID := la.id
+ 		if err != nil {
+ 			return err
+ 		}
+@@ -158,8 +170,14 @@
+ // keys. If the object is already attached, its re-sealed keys and signatures
+ // are overwritten.
+ func (s *Store) AddSharedObject(account proto.Account, sharingKey types.PublicKey, req sharing.SharedObjectRequest) error {
++	return s.AddSharedObjectFenced(account, nil, sharingKey, req)
++}
++
++// AddSharedObjectFenced is AddSharedObject under the writer fence sf (FENCING PATCH).
++func (s *Store) AddSharedObjectFenced(account proto.Account, sf *accounts.Credential, sharingKey types.PublicKey, req sharing.SharedObjectRequest) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		accountID, deleted, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		accountID, deleted := la.id, la.deleted
+ 		if err != nil {
+ 			return err
+ 		} else if deleted {
+@@ -372,8 +390,14 @@
+ 
+ // DeleteSharedObject detaches an object from one of the account's sharing keys.
+ func (s *Store) DeleteSharedObject(account proto.Account, sharingKey types.PublicKey, objectKey types.Hash256) error {
++	return s.DeleteSharedObjectFenced(account, nil, sharingKey, objectKey)
++}
++
++// DeleteSharedObjectFenced is DeleteSharedObject under the writer fence sf (FENCING PATCH).
++func (s *Store) DeleteSharedObjectFenced(account proto.Account, sf *accounts.Credential, sharingKey types.PublicKey, objectKey types.Hash256) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		accountID, _, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		accountID := la.id
+ 		if err != nil {
+ 			return err
+ 		}
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/persist/postgres/slabs.go ./persist/postgres/slabs.go
+--- ../../indexd/persist/postgres/slabs.go	2026-10-18 11:00:02.781557217 -0700
++++ ./persist/postgres/slabs.go	2026-10-19 22:27:59.240957015 -0700
+@@ -11,6 +11,7 @@
+ 	"github.com/jackc/pgx/v5"
+ 	proto "go.sia.tech/core/rhp/v4"
+ 	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
+ 	"go.sia.tech/indexd/slabs"
+ )
+ 
+@@ -235,10 +236,16 @@
+ // and their sectors are queued for deletion by PruneDeletedSlabs rather than
+ // removed inline.
+ func (s *Store) PruneSlabs(account proto.Account, cutoff time.Time) error {
++	return s.PruneSlabsFenced(account, nil, cutoff)
++}
++
++// PruneSlabsFenced is PruneSlabs under the writer fence sf (FENCING PATCH). PruneSlabs runs as several
++// transactions; EVERY one locks the account row and checks the fence, so no batch commits after a raise.
++func (s *Store) PruneSlabsFenced(account proto.Account, sf *accounts.Credential, cutoff time.Time) error {
+ 	var id int64
+ 	err := s.transaction(func(ctx context.Context, tx *txn) error {
+-		var err error
+-		id, _, err = accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		id = la.id
+ 		if err != nil {
+ 			return fmt.Errorf("failed to get account ID: %w", err)
+ 		}
+@@ -280,6 +287,10 @@
+ 			nextCursor = cursor
+ 			exhausted = false
+ 
++			if _, err := lockAccount(ctx, tx, account, sf); err != nil {
++				return err
++			}
++
+ 			candidates, err := getSlabs(ctx, tx, cursor, batchSize)
+ 			if err != nil {
+ 				return fmt.Errorf("failed to get slabs to unpin: %w", err)
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/persist/postgres/store_test.go ./persist/postgres/store_test.go
+--- ../../indexd/persist/postgres/store_test.go	2026-10-18 11:00:02.782557207 -0700
++++ ./persist/postgres/store_test.go	2026-10-19 22:34:41.187507682 -0700
+@@ -4,6 +4,7 @@
+ 	"context"
+ 	"encoding/hex"
+ 	"os"
++	"strconv"
+ 	"testing"
+ 	"time"
+ 
+@@ -37,10 +38,18 @@
+ 	}
+ }
+ 
++// testPostgresPort is POSTGRES_PORT, or 5432 (FENCING PATCH, test only: the harness's fixture is on another port).
++func testPostgresPort() int {
++	if p, err := strconv.Atoi(os.Getenv("POSTGRES_PORT")); err == nil && p > 0 {
++		return p
++	}
++	return 5432
++}
++
+ func connectionInfoFromEnv() ConnectionInfo {
+ 	return ConnectionInfo{
+ 		Host:     "localhost",
+-		Port:     5432,
++		Port:     testPostgresPort(), // FENCING PATCH (test only): POSTGRES_PORT, default 5432
+ 		User:     os.Getenv("POSTGRES_USER"),
+ 		Password: os.Getenv("POSTGRES_PASSWORD"),
+ 		Database: os.Getenv("POSTGRES_DB"),
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/sharing/manager.go ./sharing/manager.go
+--- ../../indexd/sharing/manager.go	2026-10-18 11:00:02.783215561 -0700
++++ ./sharing/manager.go	2026-10-19 22:27:59.239675615 -0700
+@@ -8,6 +8,7 @@
+ 	proto "go.sia.tech/core/rhp/v4"
+ 	"go.sia.tech/core/types"
+ 	"go.sia.tech/coreutils/threadgroup"
++	"go.sia.tech/indexd/accounts"
+ 	"go.sia.tech/indexd/slabs"
+ 	"go.uber.org/zap"
+ )
+@@ -23,6 +24,12 @@
+ 		DeleteSharedObject(account proto.Account, sharingKey types.PublicKey, objectKey types.Hash256) error
+ 		PruneExpiredSharingKeys(cutoff time.Time) error
+ 
++		// FENCING PATCH: the same mutations under a writer fence
++		AddSharingKeyFenced(account proto.Account, sf *accounts.Credential, req KeyRequest) (Key, error)
++		DeleteSharingKeyFenced(account proto.Account, sf *accounts.Credential, publicKey types.PublicKey) error
++		AddSharedObjectFenced(account proto.Account, sf *accounts.Credential, sharingKey types.PublicKey, req SharedObjectRequest) error
++		DeleteSharedObjectFenced(account proto.Account, sf *accounts.Credential, sharingKey types.PublicKey, objectKey types.Hash256) error
++
+ 		SharedObjects(sharingKey types.PublicKey, offset, limit int) ([]slabs.SealedObject, error)
+ 		SharingKeyObject(sharingKey types.PublicKey, objectKey types.Hash256) (slabs.SealedObject, error)
+ 		SharingAccountKey(sharingKey types.PublicKey) (types.PrivateKey, error)
+@@ -74,12 +81,17 @@
+ 
+ // AddSharingKey creates a sharing key owned by the given account.
+ func (m *Manager) AddSharingKey(account proto.Account, req KeyRequest) (Key, error) {
++	return m.AddSharingKeyFenced(account, nil, req)
++}
++
++// AddSharingKeyFenced is AddSharingKey under the writer fence sf (FENCING PATCH).
++func (m *Manager) AddSharingKeyFenced(account proto.Account, sf *accounts.Credential, req KeyRequest) (Key, error) {
+ 	if err := req.validate(); err != nil {
+ 		return Key{}, err
+ 	} else if err := req.VerifySignature(); err != nil {
+ 		return Key{}, err
+ 	}
+-	return m.store.AddSharingKey(account, req)
++	return m.store.AddSharingKeyFenced(account, sf, req)
+ }
+ 
+ // SharingKey returns the sharing key with the given public key.
+@@ -107,23 +119,38 @@
+ // DeleteSharingKey deletes the given account's sharing key along with its
+ // attached objects.
+ func (m *Manager) DeleteSharingKey(account proto.Account, publicKey types.PublicKey) error {
+-	return m.store.DeleteSharingKey(account, publicKey)
++	return m.DeleteSharingKeyFenced(account, nil, publicKey)
++}
++
++// DeleteSharingKeyFenced is DeleteSharingKey under the writer fence sf (FENCING PATCH).
++func (m *Manager) DeleteSharingKeyFenced(account proto.Account, sf *accounts.Credential, publicKey types.PublicKey) error {
++	return m.store.DeleteSharingKeyFenced(account, sf, publicKey)
+ }
+ 
+ // AddSharedObject attaches an object the account owns to one of its sharing
+ // keys.
+ func (m *Manager) AddSharedObject(account proto.Account, sharingKey types.PublicKey, req SharedObjectRequest) error {
++	return m.AddSharedObjectFenced(account, nil, sharingKey, req)
++}
++
++// AddSharedObjectFenced is AddSharedObject under the writer fence sf (FENCING PATCH).
++func (m *Manager) AddSharedObjectFenced(account proto.Account, sf *accounts.Credential, sharingKey types.PublicKey, req SharedObjectRequest) error {
+ 	if err := req.validate(); err != nil {
+ 		return err
+ 	} else if err := req.VerifySignatures(sharingKey); err != nil {
+ 		return err
+ 	}
+-	return m.store.AddSharedObject(account, sharingKey, req)
++	return m.store.AddSharedObjectFenced(account, sf, sharingKey, req)
+ }
+ 
+ // DeleteSharedObject detaches an object from one of the account's sharing keys.
+ func (m *Manager) DeleteSharedObject(account proto.Account, sharingKey types.PublicKey, objectKey types.Hash256) error {
+-	return m.store.DeleteSharedObject(account, sharingKey, objectKey)
++	return m.DeleteSharedObjectFenced(account, nil, sharingKey, objectKey)
++}
++
++// DeleteSharedObjectFenced is DeleteSharedObject under the writer fence sf (FENCING PATCH).
++func (m *Manager) DeleteSharedObjectFenced(account proto.Account, sf *accounts.Credential, sharingKey types.PublicKey, objectKey types.Hash256) error {
++	return m.store.DeleteSharedObjectFenced(account, sf, sharingKey, objectKey)
+ }
+ 
+ // OwnedSharedObjects returns a paginated list of sealed objects attached to a
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/slabs/manager.go ./slabs/manager.go
+--- ../../indexd/slabs/manager.go	2026-10-18 11:00:02.783374409 -0700
++++ ./slabs/manager.go	2026-10-20 00:09:42.876125389 -0700
+@@ -13,6 +13,7 @@
+ 	"go.sia.tech/core/types"
+ 	"go.sia.tech/coreutils/rhp/v4"
+ 	"go.sia.tech/coreutils/threadgroup"
++	"go.sia.tech/indexd/accounts"
+ 	"go.sia.tech/indexd/alerts"
+ 	"go.sia.tech/indexd/contracts"
+ 	"go.sia.tech/indexd/hosts"
+@@ -137,6 +138,18 @@
+ 		PruneSlabs(account proto.Account, cutoff time.Time) error
+ 		PruneDeletedSlabs(limit int) (int, error)
+ 
++		// FENCING PATCH: fenced mutations, the fence itself, and the commit-ordered sequence listing. The unfenced
++		// mutations above are the same functions with no fence: they too are refused on a fenced account.
++		PinSlabsFenced(account proto.Account, sf *accounts.Credential, nextIntegrityCheck time.Time, toPin ...SlabPinParams) ([]SlabID, error)
++		UnpinSlabFenced(account proto.Account, sf *accounts.Credential, slabID SlabID) error
++		PruneSlabsFenced(account proto.Account, sf *accounts.Credential, cutoff time.Time) error
++		PinObjectFenced(account proto.Account, sf *accounts.Credential, obj PinObjectRequest) error
++		DeleteObjectFenced(account proto.Account, sf *accounts.Credential, objectKey types.Hash256) error
++		AccountFence(account proto.Account) (accounts.FenceState, error)
++		ListCurrentObjects(account proto.Account, after types.Hash256, limit int, includeBlocked bool) ([]CurrentObjectEvent, error)
++		RaiseFence(account proto.Account, fence accounts.Fence) (accounts.Receipt, uint64, error)
++		ListObjectsSeq(account proto.Account, after uint64, limit int) (uint64, []SeqObjectEvent, error)
++
+ 		// Object methods
+ 		Object(account proto.Account, key types.Hash256) (SealedObject, error)
+ 		DeleteObject(account proto.Account, objectKey types.Hash256) error
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/slabs/objects.go ./slabs/objects.go
+--- ../../indexd/slabs/objects.go	2026-10-18 11:00:02.783374409 -0700
++++ ./slabs/objects.go	2026-10-19 22:27:59.240278230 -0700
+@@ -12,6 +12,7 @@
+ 
+ 	proto "go.sia.tech/core/rhp/v4"
+ 	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
+ )
+ 
+ type (
+@@ -342,12 +343,22 @@
+ // Slabs that were referenced by the object and are no longer referenced by any
+ // of the account's objects are unpinned and queued for deletion.
+ func (m *SlabManager) DeleteObject(ctx context.Context, account proto.Account, objectKey types.Hash256) error {
+-	return m.store.DeleteObject(account, objectKey)
++	return m.DeleteObjectFenced(ctx, account, nil, objectKey)
++}
++
++// DeleteObjectFenced is DeleteObject under the writer fence sf (FENCING PATCH).
++func (m *SlabManager) DeleteObjectFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, objectKey types.Hash256) error {
++	return m.store.DeleteObjectFenced(account, sf, objectKey)
+ }
+ 
+ // PinObject pin the given object for the given account. If an object with
+ // the same ID already exists for the account, it is overwritten.
+ func (m *SlabManager) PinObject(ctx context.Context, account proto.Account, obj PinObjectRequest) error {
++	return m.PinObjectFenced(ctx, account, nil, obj)
++}
++
++// PinObjectFenced is PinObject under the writer fence sf (FENCING PATCH).
++func (m *SlabManager) PinObjectFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, obj PinObjectRequest) error {
+ 	if len(obj.Slabs) == 0 {
+ 		return ErrObjectMinimumSlabs
+ 	} else if len(obj.EncryptedMetadata) > MaxMetadataSize {
+@@ -357,7 +368,7 @@
+ 	} else if err := obj.VerifySignatures(types.PublicKey(account)); err != nil {
+ 		return err
+ 	}
+-	return m.store.PinObject(account, obj)
++	return m.store.PinObjectFenced(account, sf, obj)
+ }
+ 
+ // ListObjects lists objects for the given account that were updated after the
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/slabs/seq.go ./slabs/seq.go
+--- ../../indexd/slabs/seq.go	1969-12-31 17:00:00.000000000 -0700
++++ ./slabs/seq.go	2026-10-19 22:29:25.875078256 -0700
+@@ -0,0 +1,70 @@
++package slabs
++
++// FENCING PATCH (work/indexd-fencing-implementation-interface.txt): the commit-ordered object sequence listing.
++
++import (
++	"context"
++	"errors"
++
++	proto "go.sia.tech/core/rhp/v4"
++	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
++)
++
++// ErrInvalidSeqListing is returned for a sequence listing request outside its bounds.
++var ErrInvalidSeqListing = errors.New("invalid sequence listing request")
++
++type (
++	// A SeqObjectEvent is one key's latest event in the account's commit-ordered sequence. Deleted keys are kept.
++	// Blocked objects are flagged and their metadata is withheld (Object nil).
++	SeqObjectEvent struct {
++		Key     types.Hash256 `json:"key"`
++		Seq     uint64        `json:"seq"`
++		Deleted bool          `json:"deleted"`
++		Blocked bool          `json:"blocked"`
++		Object  *SealedObject `json:"object,omitempty"`
++	}
++
++	// A CurrentObjectEvent is one entry of the current-objects listing (PATCH U1). Blocked is only ever set when
++	// blocked objects were requested; such an entry has no object.
++	CurrentObjectEvent struct {
++		ObjectEvent
++		Blocked bool `json:"blocked,omitempty"`
++	}
++
++	// A SeqListing is one page of the sequence listing and the account's event sequence head, from one snapshot.
++	SeqListing struct {
++		Head   uint64           `json:"head"`
++		Events []SeqObjectEvent `json:"events"`
++	}
++)
++
++// AccountFence returns the account's installed writer fence (nil: none), its receipt digest and its event sequence
++// head.
++func (m *SlabManager) AccountFence(ctx context.Context, account proto.Account) (accounts.FenceState, error) {
++	return m.store.AccountFence(account)
++}
++
++// RaiseFence installs a writer fence that is strictly greater than the installed one (equal or lower: FencedError)
++// and returns its fresh receipt and the event sequence head.
++func (m *SlabManager) RaiseFence(ctx context.Context, account proto.Account, fence accounts.Fence) (accounts.Receipt, uint64, error) {
++	return m.store.RaiseFence(account, fence)
++}
++
++// ListObjectsSeq returns one page of the account's commit-ordered object sequence after `after`, with the head.
++func (m *SlabManager) ListObjectsSeq(ctx context.Context, account proto.Account, after uint64, limit int) (SeqListing, error) {
++	head, events, err := m.store.ListObjectsSeq(account, after, limit)
++	if err != nil {
++		return SeqListing{}, err
++	}
++	if events == nil {
++		events = []SeqObjectEvent{}
++	}
++	return SeqListing{Head: head, Events: events}, nil
++}
++
++// ListCurrentObjects lists the account's current objects in key order after the given key (PATCH U1); blocked
++// objects are listed flagged only if includeBlocked is set.
++func (m *SlabManager) ListCurrentObjects(ctx context.Context, account proto.Account, after types.Hash256, limit int, includeBlocked bool) ([]CurrentObjectEvent, error) {
++	return m.store.ListCurrentObjects(account, after, limit, includeBlocked)
++}
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/slabs/slabs.go ./slabs/slabs.go
+--- ../../indexd/slabs/slabs.go	2026-10-18 11:00:02.783557197 -0700
++++ ./slabs/slabs.go	2026-10-19 22:27:59.240373900 -0700
+@@ -9,6 +9,7 @@
+ 
+ 	proto "go.sia.tech/core/rhp/v4"
+ 	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
+ 	"go.sia.tech/indexd/contracts"
+ )
+ 
+@@ -233,13 +234,18 @@
+ // PinSlabs adds slabs to the database for pinning. The slabs are associated
+ // with the provided account.
+ func (m *SlabManager) PinSlabs(ctx context.Context, account proto.Account, nextIntegrityCheck time.Time, toPin ...SlabPinParams) ([]SlabID, error) {
++	return m.PinSlabsFenced(ctx, account, nil, nextIntegrityCheck, toPin...)
++}
++
++// PinSlabsFenced is PinSlabs under the writer fence sf (FENCING PATCH).
++func (m *SlabManager) PinSlabsFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, nextIntegrityCheck time.Time, toPin ...SlabPinParams) ([]SlabID, error) {
+ 	now := time.Now()
+ 	for i := range toPin {
+ 		if err := toPin[i].Validate(now); err != nil {
+ 			return nil, fmt.Errorf("%w: slab %d: %w", ErrInvalidPinParams, i, err)
+ 		}
+ 	}
+-	return m.store.PinSlabs(account, nextIntegrityCheck, toPin...)
++	return m.store.PinSlabsFenced(account, sf, nextIntegrityCheck, toPin...)
+ }
+ 
+ // UnpinSlab removes the association between the account and the given slab. A
+@@ -248,7 +254,12 @@
+ // any account, it and its potentially orphaned sectors are queued for deletion
+ // and removed by a background process.
+ func (m *SlabManager) UnpinSlab(ctx context.Context, account proto.Account, slabID SlabID) error {
+-	return m.store.UnpinSlab(account, slabID)
++	return m.UnpinSlabFenced(ctx, account, nil, slabID)
++}
++
++// UnpinSlabFenced is UnpinSlab under the writer fence sf (FENCING PATCH).
++func (m *SlabManager) UnpinSlabFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, slabID SlabID) error {
++	return m.store.UnpinSlabFenced(account, sf, slabID)
+ }
+ 
+ // Slabs returns the slabs with the given IDs from the database.
+@@ -272,7 +283,12 @@
+ // PruneSlabs prunes all pinned slabs of a user not currently connected to an
+ // object. Only slabs pinned before cutoff are eligible for pruning.
+ func (m *SlabManager) PruneSlabs(ctx context.Context, account proto.Account, cutoff time.Time) error {
+-	return m.store.PruneSlabs(account, cutoff)
++	return m.PruneSlabsFenced(ctx, account, nil, cutoff)
++}
++
++// PruneSlabsFenced is PruneSlabs under the writer fence sf (FENCING PATCH).
++func (m *SlabManager) PruneSlabsFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, cutoff time.Time) error {
++	return m.store.PruneSlabsFenced(account, sf, cutoff)
+ }
+ 
+ // ValidateECParams checks the erasure coding parameters are
+diff -ruN -x .git -x BASE_COMMIT ../../indexd/testutils/db.go ./testutils/db.go
+--- ../../indexd/testutils/db.go	2026-10-18 11:00:02.784148942 -0700
++++ ./testutils/db.go	2026-10-19 22:36:07.559808637 -0700
+@@ -5,6 +5,7 @@
+ 	"errors"
+ 	"fmt"
+ 	"os"
++	"strconv"
+ 	"testing"
+ 	"time"
+ 
+@@ -42,7 +43,7 @@
+ 	// parse connection info from env vars
+ 	ci := postgres.ConnectionInfo{
+ 		Host:     "127.0.0.1",
+-		Port:     5432,
++		Port:     testPostgresPort(), // FENCING PATCH (test only): POSTGRES_PORT, default 5432
+ 		User:     os.Getenv("POSTGRES_USER"),
+ 		Password: os.Getenv("POSTGRES_PASSWORD"),
+ 		Database: os.Getenv("POSTGRES_DB"),
+@@ -50,7 +51,7 @@
+ 	}
+ 
+ 	// create test-specific database
+-	dbName := t.Name()
++	dbName := os.Getenv("POSTGRES_DB_PREFIX") + t.Name() // FENCING PATCH (test only): optional prefix
+ 	pool, err := pgxpool.New(t.Context(), ci.String())
+ 	if err != nil {
+ 		t.Fatal(err)
+@@ -164,3 +165,11 @@
+ 		t.Fatal(err)
+ 	}
+ }
++
++// testPostgresPort is POSTGRES_PORT, or 5432 (FENCING PATCH, test only: the harness's fixture is on another port).
++func testPostgresPort() int {
++	if p, err := strconv.Atoi(os.Getenv("POSTGRES_PORT")); err == nil && p > 0 {
++		return p
++	}
++	return 5432
++}

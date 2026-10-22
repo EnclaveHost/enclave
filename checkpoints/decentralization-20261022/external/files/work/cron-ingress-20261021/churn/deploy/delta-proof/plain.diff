@@ -1,0 +1,7 @@
+17826c17826,17829
+< var routeContext = (state, id) => ({ publication: state.publications[id] ?? null, policy: state.policies[id] ?? null, providers: state.providers });
+---
+> var routeContext = (state, id) => {
+>   const publication = state.publications[id] ?? null, at = new Set((publication?.bundle?.record?.routes || []).map((r) => r?.address));
+>   return { publication, policy: state.policies[id] ?? null, providers: Object.entries(state.providers).filter(([, e]) => at.has(e?.record?.record?.address)).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0) };
+> };

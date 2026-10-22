@@ -1,0 +1,53 @@
+--- a/isolation/m2/front/shield_direct.go
++++ b/isolation/m2/front/shield_direct.go
+@@ -30,20 +30,16 @@
+ import (
+ 	"bytes"
+ 	"context"
+-	"crypto/tls"
+ 	"crypto/x509"
+ 	"encoding/hex"
+ 	"errors"
+ 	"fmt"
+ 	"io"
+ 	"net"
+-	"net/http"
+-	"net/url"
+ 	"strings"
+ 	"time"
+ 
+ 	"enclave.host/isolation/m2/bootstrap"
+-	"enclave.host/isolation/m2/egress"
+ 	"enclave.host/isolation/m2/vsock"
+ )
+ 
+@@ -182,28 +178,5 @@
+ // shieldReader is runStartup's measured chain client (bootstrap.go), unchanged: only the measured RPC origins, reached
+ // through the host's egress, with TLS verified against the measured roots.
+ func shieldReader(roots *x509.CertPool, eg func() (net.Conn, error)) (*bootstrap.Reader, error) {
+-	conf := bootstrap.MeasuredConfig(nil)
+-	allowed := make(map[string]bool)
+-	for _, raw := range conf.RPCs {
+-		u, e := url.Parse(raw)
+-		if e != nil {
+-			return nil, e
+-		}
+-		allowed[net.JoinHostPort(u.Hostname(), "443")] = true
+-	}
+-	tr := &http.Transport{Proxy: nil, DisableCompression: true,
+-		TLSClientConfig:     &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12},
+-		TLSHandshakeTimeout: 10 * time.Second,
+-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+-			if !allowed[addr] || ctx.Err() != nil {
+-				return nil, errors.New("unmeasured bootstrap RPC origin")
+-			}
+-			host, _, err := net.SplitHostPort(addr)
+-			if err != nil {
+-				return nil, err
+-			}
+-			return egress.DialOrigin(eg, egress.Origin{Host: host})
+-		}}
+-	conf.Client = &http.Client{Transport: tr}
+-	return bootstrap.NewReader(conf)
++	return measuredReader(roots, eg)
+ }

@@ -1,0 +1,95 @@
+--- a/network/lease-release-journal.mjs
++++ b/network/lease-release-journal.mjs
+@@ -0,0 +1,92 @@
++// network/lease-release-journal.mjs - a STRICT durable journal of SPONSORED release leases, for a host whose own state
++// has no release journal (the Windows node; the Linux supervisor keeps these in its state file with the same writer).
++// A release lease is sent by a relay, so no operator nonce fences it: until it is settled from the chain - a
++// quorum-verified receipt of exactly that lease (released), or its executor nonce consumed / its deadline passed (a FENCE,
++// never success) - the deployment is HELD: no claim, re-adoption or renewal of it here.
++//   - begin(id) is durable BEFORE anything is signed; signed(id, lease) is durable BEFORE that lease reaches a relay;
++//     any write failure throws and the caller sends nothing (the shared client stops with NotPersisted).
++//   - a journal that cannot be read or is malformed fails CLOSED (every id held) and is never overwritten.
++// Writes: temp file written completely (byte loop; zero/invalid progress throws), fsync, rename, directory fsync.
++import fs from "node:fs";
++import path from "node:path";
++
++export function strictWriteFile(file, text, { fsImpl = fs } = {}) {
++  const tmp = file + ".strict.tmp";
++  const fd = fsImpl.openSync(tmp, "w", 0o600);
++  try {
++    const bytes = Buffer.from(text, "utf8");
++    let offset = 0;
++    while (offset < bytes.length) {
++      const wrote = fsImpl.writeSync(fd, bytes, offset, bytes.length - offset);
++      if (!Number.isInteger(wrote) || wrote <= 0 || wrote > bytes.length - offset) throw new Error(`journal write made invalid progress (${wrote})`);
++      offset += wrote;
++    }
++    fsImpl.fsyncSync(fd);
++  } finally { fsImpl.closeSync(fd); }
++  fsImpl.renameSync(tmp, file);
++  const dir = fsImpl.openSync(path.dirname(file), "r");
++  try { fsImpl.fsyncSync(dir); } finally { fsImpl.closeSync(dir); }
++}
++
++const ID = /^0x[0-9a-f]{64}$/;
++const num = (v) => typeof v === "string" && /^[0-9]{1,78}$/.test(v);
++function problem(j) {
++  if (!j || typeof j !== "object" || j.version !== 1 || !Array.isArray(j.releases)) return "not a version-1 release journal";
++  for (const e of j.releases) {
++    if (!e || !ID.test(String(e.id || "")) || !Array.isArray(e.intents)) return "an entry without an id or its signed leases";
++    for (const x of e.intents)
++      if (!x || !num(x.nonce) || !num(x.deadline) || !num(x.maxChargeWei) || !num(x.fromBlock) || !/^0x[0-9a-fA-F]{40}$/.test(String(x.payee || ""))
++          || !/^0x[0-9a-fA-F]{64}$/.test(String(x.enclaveId || ""))) return `${e.id}: a signed lease without its exact intent`;
++  }
++  return null;
++}
++
++export function openReleaseJournal(file, { fsImpl = fs, log = () => {} } = {}) {
++  const entries = new Map();
++  let corrupt = null;
++  if (fsImpl.existsSync(file)) {
++    try {
++      const j = JSON.parse(fsImpl.readFileSync(file, "utf8"));
++      corrupt = problem(j);
++      if (!corrupt) for (const e of j.releases) entries.set(e.id, e);
++    } catch (e) { corrupt = `unreadable (${String(e.message).slice(0, 120)})`; }
++    if (corrupt) log(`[lease-gas] release journal ${file}: ${corrupt}. It may hold an unresolved sponsored release: NO lease is claimed, renewed or released here and the file is not overwritten until an operator resolves it`);
++  }
++  const save = () => {
++    if (corrupt) throw new Error(`the release journal failed to load (${corrupt})`);
++    strictWriteFile(file, JSON.stringify({ version: 1, releases: [...entries.values()] }), { fsImpl });
++  };
++  return {
++    corrupt: () => corrupt,
++    hold(id) {
++      if (corrupt) return `the release journal failed to load (${corrupt}); nothing is claimed, renewed or released until an operator resolves it`;
++      const e = entries.get(String(id).toLowerCase());
++      return e ? `a sponsored release of this deployment is unresolved (${e.intents.length ? `lease nonce ${e.intents[0].nonce}, deadline ${e.intents[0].deadline}` : "nothing signed yet"}); not claimed, re-adopted or renewed until it is` : null;
++    },
++    begin(id) {
++      id = String(id).toLowerCase();
++      if (corrupt) throw new Error(`the release journal failed to load (${corrupt})`);
++      if (entries.has(id)) throw Object.assign(new Error("a release of this deployment is still unresolved"), { code: "ReleasePending", pending: true });
++      entries.set(id, { id, openedAt: Date.now(), intents: [] });
++      try { save(); } catch (e) { entries.delete(id); throw e; }
++    },
++    signed(id, s) {
++      const e = entries.get(String(id).toLowerCase());
++      if (!e) throw new Error("no open release entry");
++      e.intents.push({ payee: s.payee, nonce: String(s.nonce), deadline: String(s.deadline), kind: s.kind, enclaveId: s.lease.enclaveId,
++        maxChargeWei: String(s.lease.maxChargeWei), fromBlock: String(s.fromBlock), operator: String(s.operator).toLowerCase(),
++        // the identity the lease was signed under: recovery is bound to it (an old entry without it is held, never guessed)
++        chainId: Number(s.chainId), reserve: String(s.reserve).toLowerCase(), executor: String(s.executor).toLowerCase(), ledger: String(s.ledger).toLowerCase() });
++      try { save(); } catch (err) { e.intents.pop(); throw err; }
++    },
++    /** Remove a settled entry. A failed write leaves it on disk: after a restart it is settled from the chain again. */
++    settle(id, outcome) {
++      id = String(id).toLowerCase();
++      const e = entries.get(id);
++      if (!e) return;
++      entries.delete(id);
++      try { save(); } catch (err) { log(`[lease-gas] release ${id} ${outcome}, but the journal write failed (${err.message}); it is settled from the chain again after a restart`); }
++    },
++    pending: () => [...entries.values()].map((e) => ({ ...e, intents: [...e.intents] })),
++  };
++}

@@ -1,0 +1,25 @@
+# Isolated forge project for work/credit-vault-independence (claude). Sources are verbatim copies (BASE.txt hashes):
+#   src/live/{EnclaveDeployments (rev 16d, 2771a524), EnclaveRegistry (schema 4, e81f5d51)} - from work/app-lease-gas/forge;
+#   src/main/{EnclaveLeaseGasReserve 1d173473, EnclaveLeaseExecutor dc605ffa, EnclaveAddressBook b735186e} - main tree;
+#   fixtures/credit-vault-d36100ae.json - the PRODUCTION credit-vault factory build (bytecode deployed as-is, not recompiled);
+#   proposal/ - the OPTIONAL, UNAPPROVED candidate reserve (never a production source).
+# Settings mirror the ledger's deploy settings (solc 0.8.35, viaIR, runs 1); prague for transient storage + EIP-7702.
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = ["lib"]
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 1
+via_ir = true
+evm_version = "prague"
+offline = true
+fs_permissions = [{ access = "read", path = "fixtures" }, { access = "read", path = "out" }]
+
+[fuzz]
+runs = 256
+
+[lint]
+lint_on_build = false

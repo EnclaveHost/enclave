@@ -1,0 +1,333 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/http.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/http.rs
+@@ -13,8 +13,9 @@
+     AppConnectRequest, AuthApproval, AuthConnectStatusResponse, Error, IntoUrl, KeyResponse,
+     PinObjectRequest, RegisterAppRequest, RegisterAppResponse, SHARE_URL_FETCH_SCHEME,
+     SHARE_URL_SCHEME, SealedObjectEvent, SharedHost, SharedObjectResponse, SlabPinParams, Url,
+-    pre_authorization_sig_hash, register_app_sig_hash, sign,
++    pre_authorization_sig_hash, register_app_sig_hash, sign, sign_fenced,
+ };
++use crate::fence::{FenceCredential, FenceRaise, FenceReceipt, FenceSlot, FenceState, FenceToken, parse_refusal, strict_hex};
+ use crate::app_client::{ERROR_OBJECT_UNPINNED_SLAB, PinObjectError};
+ use crate::encryption::EncryptionKey;
+ use crate::hosts::Host;
+@@ -30,6 +31,8 @@
+ pub(crate) struct Client {
+     client: reqwest::Client,
+     url: Url,
++    /// PATCH (writer fencing): this client's fence credential and the first refusal it saw (one per SDK instance)
++    fence: FenceSlot,
+ }
+ 
+ /// A placeholder type that implements serde::Deserialize for endpoints that
+@@ -50,9 +53,94 @@
+         Ok(Self {
+             client: http_client(),
+             url: base_url.into_url()?,
++            fence: FenceSlot::default(),
+         })
+     }
+ 
++    pub(crate) fn fence_slot(&self) -> &FenceSlot {
++        &self.fence
++    }
++
++    /// PATCH (writer fencing): a 409 whose JSON body names a fence is a fenced refusal: recorded (the first one) and
++    /// returned as `Error::Fenced`.
++    fn note_refusal(&self, e: Error) -> Error {
++        if let Error::Api(status, body) = &e {
++            if *status == StatusCode::CONFLICT {
++                if let Some(current) = parse_refusal(body) {
++                    let mut st = self.fence.lock().unwrap();
++                    if st.conflict.is_none() {
++                        st.conflict = Some(current);
++                    }
++                    return Error::Fenced(current);
++                }
++            }
++        }
++        e
++    }
++
++    /// PATCH (writer fencing): a signed POST of a fenced mutation (carries `sf` when this client holds a credential).
++    async fn post_fenced<S: Serialize, D: DeserializeOwned>(&self, url: Url, signing_key: &PrivateKey, body: Option<&S>) -> Result<D, Error> {
++        let cred: Option<FenceCredential> = self.fence.lock().unwrap().cred;
++        let body = body.and_then(|body| to_vec(body).ok());
++        let params = sign_fenced(signing_key, &url, Method::POST, body.as_deref(), Utc::now() + Duration::from_secs(60), cred.as_ref());
++        let mut builder = self.client.post(url).timeout(DEFAULT_API_TIMEOUT).query(&params);
++        if let Some(body) = body {
++            builder = builder.body(body);
++        }
++        Client::handle_response(builder.send().await?).await.map_err(|e| self.note_refusal(e))
++    }
++
++    /// PATCH (writer fencing): a signed DELETE of a fenced mutation.
++    async fn delete_fenced(&self, path: &str, app_key: &PrivateKey) -> Result<(), Error> {
++        let url = self.url.join(path)?;
++        let cred: Option<FenceCredential> = self.fence.lock().unwrap().cred;
++        let params = sign_fenced(app_key, &url, Method::DELETE, None, Utc::now() + Duration::from_secs(60), cred.as_ref());
++        Client::handle_response::<EmptyResponse>(self.client.delete(url).timeout(DEFAULT_API_TIMEOUT).query(&params).send().await?)
++            .await
++            .map(|_| ())
++            .map_err(|e| self.note_refusal(e))
++    }
++
++    /// PATCH (writer fencing): `GET /fence` -> {"fence": hex64|null, "receiptSha256": hex64|null}.
++    pub(crate) async fn fence_get(&self, app_key: &PrivateKey) -> Result<FenceState, Error> {
++        #[derive(serde::Deserialize)]
++        struct Wire {
++            fence: Option<String>,
++            #[serde(rename = "receiptSha256")]
++            receipt_sha256: Option<String>,
++        }
++        let w: Wire = self.get_json::<_, ()>("fence", app_key, None).await?;
++        let fence = w.fence.map(|f| FenceToken::parse_hex(&f)).transpose().map_err(Error::Format)?;
++        let receipt_sha256 = w.receipt_sha256.map(|h| strict_hex::<32>(&h)).transpose().map_err(Error::Format)?;
++        Ok(FenceState { fence, receipt_sha256 })
++    }
++
++    /// PATCH (writer fencing): `POST /fence {"fence": hex64}` -> 200 {"fence","receipt"} | 409 {"fence"}.
++    pub(crate) async fn fence_raise(&self, app_key: &PrivateKey, token: FenceToken) -> Result<FenceRaise, Error> {
++        #[derive(serde::Deserialize)]
++        struct Installed {
++            fence: String,
++            receipt: String,
++        }
++        let url = self.url.join("fence")?;
++        let body = serde_json::json!({ "fence": token.to_hex() });
++        match post_json::<_, Installed>(&self.client, url, app_key, Some(&body)).await {
++            Ok(w) => {
++                let installed = FenceToken::parse_hex(&w.fence).map_err(Error::Format)?;
++                if installed != token {
++                    return Err(Error::Format("the indexer installed a different fence than requested".into()));
++                }
++                let receipt = FenceReceipt(strict_hex::<16>(&w.receipt).map_err(Error::Format)?);
++                Ok(FenceRaise::Installed(FenceCredential { token, receipt }))
++            }
++            Err(Error::Api(status, body)) if status == StatusCode::CONFLICT => match parse_refusal(&body) {
++                Some(current) => Ok(FenceRaise::Refused(current)),
++                None => Err(Error::Api(status, body)),
++            },
++            Err(e) => Err(e),
++        }
++    }
++
+     /// Checks if the application is authenticated with the indexer. It returns
+     /// true if authenticated, false if not, and an error if the request fails.
+     pub(crate) async fn check_app_authenticated(
+@@ -216,6 +304,29 @@
+         self.get_list("objects", app_key, Some(&query_params)).await
+     }
+ 
++    /// PATCH U1 (sia-s3 harness; needs the U1 indexd endpoint): lists the account's current objects in ID order
++    /// after `after`, read from the indexer's object table rather than its event feed, so an acknowledged pin is
++    /// listed at once.
++    ///
++    /// PATCH U1-B (blocked listing): always asks for `blocked=true`. indexd-fence leaves blocked objects out of this
++    /// listing by default, which would make an object its operator blocked look deleted or never written; with the
++    /// flag it is listed with `blocked` set and without its metadata.
++    pub(crate) async fn current_objects(
++        &self,
++        app_key: &PrivateKey,
++        after: Option<Hash256>,
++        limit: Option<usize>,
++    ) -> Result<Vec<SealedObjectEvent>, Error> {
++        let mut query_params = vec![("blocked", "true".to_string())];
++        if let Some(limit) = limit {
++            query_params.push(("limit", limit.to_string()));
++        }
++        if let Some(after) = after {
++            query_params.push(("after", after.to_string()));
++        }
++        self.get_list("current/objects", app_key, Some(&query_params)).await
++    }
++
+     /// Pins an object to the indexer. If an object with the same ID already
+     /// exists for the account, it is overwritten.
+     pub(crate) async fn pin_object(
+@@ -224,7 +335,7 @@
+         object: &SealedObject,
+     ) -> Result<(), PinObjectError> {
+         let req = PinObjectRequest::from(object);
+-        self.post_json::<_, EmptyResponse>("objects", app_key, Some(&req))
++        self.post_fenced::<_, EmptyResponse>(self.url.join("objects").map_err(|e| PinObjectError::Client(e.into()))?, app_key, Some(&req))
+             .await
+             .map(|_| ())
+             .map_err(|e| match &e {
+@@ -241,7 +352,7 @@
+         app_key: &PrivateKey,
+         key: &Hash256,
+     ) -> Result<(), Error> {
+-        self.delete(&format!("objects/{key}"), app_key).await
++        self.delete_fenced(&format!("objects/{key}"), app_key).await
+     }
+ 
+     /// Pins slabs to the indexer.
+@@ -251,7 +362,7 @@
+         slabs: &[SlabPinParams],
+     ) -> Result<Vec<Hash256>, Error> {
+         // indexd encodes an empty list as null
+-        self.post_json("slabs", app_key, Some(&slabs))
++        self.post_fenced(self.url.join("slabs")?, app_key, Some(&slabs))
+             .await
+             .map(Option::unwrap_or_default)
+     }
+@@ -270,7 +381,7 @@
+             url.query_pairs_mut()
+                 .append_pair("before", &before.to_rfc3339()); // indexd expects RFC3339
+         }
+-        post_json::<(), EmptyResponse>(&self.client, url, app_key, None)
++        self.post_fenced::<(), EmptyResponse>(url, app_key, None)
+             .await
+             .map(|_| ())
+     }
+@@ -511,7 +622,7 @@
+         app_key: &PrivateKey,
+         req: &KeyRequest,
+     ) -> Result<KeyResponse, Error> {
+-        self.post_json("sharing", app_key, Some(req)).await
++        self.post_fenced(self.url.join("sharing")?, app_key, Some(req)).await
+     }
+ 
+     /// Lists the account's sharing keys.
+@@ -541,7 +652,7 @@
+         app_key: &PrivateKey,
+         public_key: &PublicKey,
+     ) -> Result<(), Error> {
+-        self.delete(&format!("sharing/{public_key}"), app_key).await
++        self.delete_fenced(&format!("sharing/{public_key}"), app_key).await
+     }
+ 
+     /// Attaches an object the account owns to one of its sharing keys.
+@@ -551,8 +662,8 @@
+         sharing_key: &PublicKey,
+         req: &SharedObjectRequest,
+     ) -> Result<(), Error> {
+-        self.post_json::<_, EmptyResponse>(
+-            &format!("sharing/{sharing_key}/objects"),
++        self.post_fenced::<_, EmptyResponse>(
++            self.url.join(&format!("sharing/{sharing_key}/objects"))?,
+             app_key,
+             Some(req),
+         )
+@@ -584,7 +695,7 @@
+         sharing_key: &PublicKey,
+         object_key: &Hash256,
+     ) -> Result<(), Error> {
+-        self.delete(
++        self.delete_fenced(
+             &format!("sharing/{sharing_key}/objects/{object_key}"),
+             app_key,
+         )
+@@ -1983,23 +2094,111 @@
+                     deleted: false,
+                     updated_at: object.updated_at,
+                     object: Some(object),
++                    blocked: false,
+                 },
+                 SealedObjectEvent {
+                     id: object_no_meta.id(),
+                     deleted: false,
+                     updated_at: object_no_meta.updated_at,
+                     object: Some(object_no_meta.clone()),
++                    blocked: false,
+                 },
+                 SealedObjectEvent {
+                     id: object_no_meta.id(),
+                     deleted: false,
+                     updated_at: object_no_meta.updated_at,
+                     object: Some(object_no_meta),
++                    blocked: false,
+                 },
+             ]
+         );
+     }
+ 
++    /// PATCH U1-B (blocked listing): the request always asks for blocked objects; indexd-fence's JSON and CBOR shapes
++    /// of a blocked entry (`blocked: true`, no `object` member) and of an ordinary one are read as such; a page whose
++    /// shape or order is wrong is refused, never read as an empty, deleted or older listing.
++    #[tokio::test]
++    async fn current_objects_ask_for_blocked_entries_and_check_their_shape() {
++        let object = SealedObject {
++            encrypted_data_key: vec![1u8; 72],
++            encrypted_metadata_key: vec![1u8; 72],
++            slabs: vec![Slab {
++                version: V0,
++                encryption_key: [1u8; 32].into(),
++                min_shards: 1,
++                sectors: vec![Sector {
++                    root: hash_256!("0202020202020202020202020202020202020202020202020202020202020202"),
++                    host_key: public_key!("ed25519:0303030303030303030303030303030303030303030303030303030303030303"),
++                }],
++                offset: 0,
++                length: 256,
++            }],
++            encrypted_metadata: b"m".to_vec(),
++            data_signature: Signature::from([2u8; 64]),
++            metadata_signature: Signature::from([2u8; 64]),
++            created_at: DateTime::<FixedOffset>::parse_from_rfc3339("2026-10-20T10:00:00Z").unwrap().to_utc(),
++            updated_at: DateTime::<FixedOffset>::parse_from_rfc3339("2026-10-20T10:00:00Z").unwrap().to_utc(),
++        };
++        let after = hash_256!("0000000000000000000000000000000000000000000000000000000000000001");
++        let blocked_key = hash_256!("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00");
++        // the shapes indexd-fence's handleGETCurrentObjects encodes (slabs.CurrentObjectEvent): an ordinary entry
++        // has no "blocked" member (omitempty), a blocked one has no "object" member
++        let body = format!(
++            r#"[{{"key":"{}","deleted":false,"updatedAt":"2026-10-20T10:00:00Z","object":{}}},{{"key":"{blocked_key}","deleted":false,"updatedAt":"2026-10-20T10:00:01Z","blocked":true}}]"#,
++            object.id(),
++            serde_json::to_string(&object).unwrap()
++        );
++        let server = Server::run();
++        server.expect(
++            Expectation::matching(all_of![
++                request::method_path("GET", "/current/objects"),
++                request::query(url_decoded(all_of![
++                    contains(("blocked", "true")),
++                    contains(("limit", "2")),
++                    contains(("after", after.to_string())),
++                ]))
++            ])
++            .respond_with(Response::builder().status(StatusCode::OK).body(body).unwrap()),
++        );
++        let app_key = PrivateKey::from_seed(&rand::random());
++        let client = Client::new(server.url("/").to_string()).unwrap();
++        let page = client.current_objects(&app_key, Some(after), Some(2)).await.unwrap();
++        assert_eq!(page.len(), 2);
++        assert!(!page[0].blocked && page[0].object.as_ref() == Some(&object) && page[0].id == object.id());
++        assert!(page[1].blocked && page[1].object.is_none() && !page[1].deleted && page[1].id == blocked_key);
++        crate::app_client::check_current_page(Some(after), &page).unwrap();
++
++        // CBOR, as indexd-fence encodes it (field names from the json tags, fixed-size arrays as byte strings)
++        use ciborium::value::Value;
++        let entry = Value::Map(vec![
++            (Value::Text("key".into()), Value::Bytes(AsRef::<[u8; 32]>::as_ref(&blocked_key).to_vec())),
++            (Value::Text("deleted".into()), Value::Bool(false)),
++            (Value::Text("updatedAt".into()), Value::Text("2026-10-20T10:00:01Z".into())),
++            (Value::Text("blocked".into()), Value::Bool(true)),
++        ]);
++        let mut raw = Vec::new();
++        ciborium::into_writer(&Value::Array(vec![entry]), &mut raw).unwrap();
++        let cbor: Vec<SealedObjectEvent> = ciborium::from_reader(raw.as_slice()).unwrap();
++        assert!(cbor[0].blocked && cbor[0].object.is_none() && cbor[0].id == blocked_key);
++
++        // refused shapes and orders
++        let mut bad = page.clone();
++        bad[1].object = Some(object.clone());
++        assert!(crate::app_client::check_current_page(Some(after), &bad).is_err(), "a blocked entry carrying an object");
++        let mut bad = page.clone();
++        bad[0].object = None;
++        assert!(crate::app_client::check_current_page(Some(after), &bad).is_err(), "an unblocked entry without its object");
++        let mut bad = page.clone();
++        bad[1].deleted = true;
++        assert!(crate::app_client::check_current_page(Some(after), &bad).is_err(), "a deletion in the current listing");
++        let bad = vec![page[1].clone(), page[0].clone()];
++        assert!(crate::app_client::check_current_page(Some(after), &bad).is_err(), "keys out of order");
++        assert!(crate::app_client::check_current_page(Some(blocked_key), &page[1..]).is_err(), "a key not after the cursor");
++        let mut bad = page.clone();
++        bad[0].id = after;
++        assert!(crate::app_client::check_current_page(None, &bad).is_err(), "an entry whose object has another ID");
++    }
++
+     #[tokio::test]
+     async fn delete_object() {
+         let object_key =

@@ -1,0 +1,651 @@
+--- a/network/policy-carriers.mjs
++++ b/network/policy-carriers.mjs
+@@ -0,0 +1,197 @@
++// Public signed-policy CARRIERS for the platform host policy (work/hosted-service-placement): how a host or a client obtains
++// the administrator's signed policy document WITHOUT any fleet (DigitalOcean) mirror - including a fresh cold start with no
++// admission cache while the address book anchors a policy.
++//
++// A carrier is untrusted transport, never an authority. Nothing here admits anything: the UNCHANGED gate
++// (network/platform-host-policy.mjs through host-policy-runtime.mjs) still requires the exact digest the book anchors at a
++// fresh majority-agreed block, the book's CURRENT owner's signature at that block (EIP-712, or ERC-1271), the persisted
++// high-water sequence (rollback and equivocation refusal), and applies bans and allowlists. Carriers only choose which
++// candidate bytes the gate is shown.
++//
++// Sources (a carrier is async (digest) -> [{ document, signature }]):
++//   fileCarrier    a directory of <digest>.json: a copy the operator imported (from any channel - the admin's publication,
++//                  another host, removable media) and this host's own policy-mirror store. It needs no network, so a host
++//                  whose network carriers are all down, or that is the FIRST carrier, still loads the anchored policy: this
++//                  is what breaks "the mirror cannot start until it fetches its own policy".
++//   httpCarriers   policy-mirror roles on other Enclave hosts, <base>/<digest>.json (http or https: the bytes self-verify).
++//   indexCarriers  policy-mirror roles advertised in the pinned EnclaveServiceIndex (kind "policy"), read at one agreed block.
++// Before the gate sees a candidate, carrierFetch checks it against FRESH authoritative state (freshVerifier: its digest is
++// the one asked for, and the book's current owner signs it at a fresh agreed block), so a lying carrier cannot shadow an
++// honest one; the gate then verifies it again, independently.
++//
++// The gate's mirror list takes HTTPS origins (host-policy-mirrors.mjs, shared with the measured guest, the relay bundle and
++// the site build). Rather than change that code, the carrier set is shown to it as ONE reserved origin, CARRIER_MIRROR
++// (`.invalid` never resolves, so without carrierFetch it reaches nothing), which carrierFetch answers locally; every other
++// request goes to the real fetch unchanged.
++import fs from 'node:fs';
++import path from 'node:path';
++import { readPolicyFacts, verifySignedPolicy, policyDigest, decodeAnchor } from './platform-host-policy.mjs';
++import { MAX_POLICY_RESPONSE } from './host-policy-mirrors.mjs';
++import { createPublicClient, http } from 'viem';
++import { rpcEndpoint, rpcLabel } from './rpc-identity.mjs';
++
++export const CARRIER_MIRROR = 'https://policy-carriers.invalid/platform-policy';
++export const MAX_CARRIERS = 16;
++const H32 = /^0x[0-9a-f]{64}$/;
++const BASE = /^https?:\/\/[A-Za-z0-9.-]{1,200}(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~-]{1,64}){0,8}$/;
++
++/** -> the normalized carrier base URLs (http(s), no credentials, query or fragment). */
++export function validateCarrierBases(list, what = 'policy carriers') {
++  if (!Array.isArray(list) || list.length > MAX_CARRIERS) throw Error(`${what}: at most ${MAX_CARRIERS} base URLs`);
++  const out = list.map((u) => String(u).replace(/\/+$/, ''));
++  if (out.some((u) => !BASE.test(u)) || new Set(out).size !== out.length) throw Error(`${what}: distinct http(s) base URLs without credentials, query or fragment`);
++  return out;
++}
++/**
++ * RPC URLs -> the {label, client} peers service-index.mjs readServiceIndex takes (entries pass through). https only (http
++ * on loopback); one vote per provider or loopback port.
++ */
++export function rpcPeers(list) {
++  if (!Array.isArray(list)) throw Error('RPC peers: a list');
++  const seen = new Set();
++  return list.map((u) => {
++    if (u && typeof u === 'object') return u;
++    const { identity } = rpcEndpoint(u);
++    if (seen.has(identity)) throw Error('RPC peers must use distinct providers (or distinct loopback test ports)');
++    seen.add(identity);
++    return { label: rpcLabel(u), client: createPublicClient({ transport: http(u, { timeout: 8000, retryCount: 0 }) }) };
++  });
++}
++/** A candidate's own digest, or null (malformed): computed from the document, never taken from the carrier. */
++export function candidateDigest(c) {
++  try { return policyDigest(typeof c.document === 'string' ? JSON.parse(c.document) : c.document); } catch { return null; }
++}
++const shaped = (j) => j && typeof j === 'object' && typeof j.signature === 'string' && /^0x[0-9a-fA-F]{2,2048}$/.test(j.signature)
++  && (typeof j.document === 'string' || (j.document && typeof j.document === 'object'));
++
++/** <dir>/<digest>.json files (at most MAX_POLICY_RESPONSE bytes each). A missing directory or file is no candidate. */
++export function fileCarrier(dir) {
++  return async (digest) => {
++    if (!H32.test(String(digest))) return [];
++    const file = path.join(dir, `${digest}.json`);
++    try {
++      const st = fs.statSync(file);
++      if (!st.isFile() || st.size > MAX_POLICY_RESPONSE) return [];
++      const j = JSON.parse(fs.readFileSync(file, 'utf8'));
++      return shaped(j) ? [{ document: j.document, signature: j.signature }] : [];
++    } catch { return []; }
++  };
++}
++
++async function boundedJson(r) {
++  const declared = r.headers?.get?.('content-length');
++  if (!r.ok || (declared && (!/^\d+$/.test(declared) || Number(declared) > MAX_POLICY_RESPONSE)) || !r.body?.getReader) { try { await r.body?.cancel(); } catch {} return null; }
++  const reader = r.body.getReader(), chunks = [];
++  let n = 0;
++  try {
++    for (;;) {
++      const { done, value } = await reader.read();
++      if (done) break;
++      n += value.byteLength;
++      if (n > MAX_POLICY_RESPONSE) { await reader.cancel(); return null; }
++      chunks.push(value);
++    }
++  } finally { try { reader.releaseLock(); } catch {} }
++  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)));
++}
++/** One carrier per base URL: GET <base>/<digest>.json, bounded, no redirects or credentials. */
++export function httpCarriers(bases, { fetch = globalThis.fetch, timeoutMs = 8000 } = {}) {
++  return validateCarrierBases(bases).map((base) => async (digest) => {
++    if (!H32.test(String(digest))) return [];
++    try {
++      const r = await fetch(`${base}/${digest}.json`, { redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(timeoutMs), headers: { accept: 'application/json' } });
++      const j = await boundedJson(r);
++      return shaped(j) ? [{ document: j.document, signature: j.signature }] : [];
++    } catch { return []; }
++  });
++}
++/**
++ * Policy-mirror roles advertised in the pinned service index (kind "policy"): the listing is read at one agreed block and
++ * cached for refreshMs (a failed read keeps the previous listing). Advertisements are untrusted candidates like any carrier;
++ * a banned operator's carrier can only withhold, never admit. accept(endpoint) -> bool filters (e.g. failure domains).
++ */
++export function indexCarriers({ pin, peers, clients, fetch = globalThis.fetch, timeoutMs = 8000, refreshMs = 5 * 60_000, accept = async () => true, log = () => {} }) {
++  let listing = [], at = 0, reading = null;
++  if (peers) peers = rpcPeers(peers);
++  const list = async () => {
++    if (Date.now() - at < refreshMs && at) return listing;
++    reading ||= (async () => {
++      try {
++        const si = await import('./service-index.mjs');
++        const r = await si.readServiceIndex({ peers, clients, pin, kinds: ['policy'] });
++        const bases = [];
++        for (const c of r.candidates) for (const e of c.endpoints) {
++          const b = String(e).replace(/\/+$/, '');
++          if (BASE.test(b) && !bases.includes(b) && bases.length < MAX_CARRIERS && await accept(b)) bases.push(b);
++        }
++        listing = bases; at = Date.now();
++      } catch (e) { log(`[policy-carriers] service index listing unavailable: ${e.message}`); }
++      finally { reading = null; }
++      return listing;
++    })();
++    return reading;
++  };
++  const carrier = async (digest) => {
++    const bases = await list();
++    for (const one of bases.length ? httpCarriers(bases, { fetch, timeoutMs }) : []) { const c = await one(digest); if (c.length) return c; }
++    return [];
++  };
++  carrier.listing = () => [...listing];
++  return carrier;
++}
++
++/**
++ * snapshot(fn): one majority-agreed fresh block (host-policy-runtime.mjs quorumSnapshot / clientSnapshot). ->
++ * async (candidates) -> { block, anchor: {state, digest?}, verified: [{ document, signature, digest, sequence, anchored }] }:
++ * the candidates the book's CURRENT owner signs at that block, bound to this book, its registry and hostOwnership.
++ */
++export function freshVerifier({ snapshot, book, hostOwnership }) {
++  const lc = (s) => String(s).toLowerCase();
++  return async (cands = []) => {
++    const pairs = cands.slice(0, 40).map((c) => ({ digest: candidateDigest(c), signature: c.signature })).filter((p) => p.digest);
++    const facts = await snapshot(async (at) => ({ ...(await readPolicyFacts(at, { book: lc(book), hostOwnership: lc(hostOwnership), check1271: pairs })), block: at.block ?? null }));
++    let anchor; try { anchor = decodeAnchor(facts.anchorHi, facts.anchorLo); } catch (e) { anchor = { state: 'torn', reason: e.message }; }
++    const authority = { book: lc(book), registry: facts.registry, hostOwnership: lc(hostOwnership), owner: facts.owner, ownerIsContract: facts.ownerIsContract,
++      isValid1271: async (d, s) => facts.valid1271?.[d + ':' + s] === true };
++    const verified = [];
++    for (const c of cands.slice(0, 40)) {
++      try {
++        const v = await verifySignedPolicy(c, authority);
++        verified.push({ document: typeof c.document === 'string' ? c.document : JSON.stringify(c.document), signature: c.signature, digest: v.digest,
++          sequence: v.policy.sequence, anchored: anchor.state === 'anchored' && anchor.digest === v.digest });
++      } catch { /* not the current owner's, or bound elsewhere: never shown */ }
++    }
++    return { block: facts.block === null || facts.block === undefined ? null : String(facts.block), anchor, verified };
++  };
++}
++
++/**
++ * A fetch that answers CARRIER_MIRROR/<digest>.json from the carriers (in order; the first candidate that verifies at a
++ * fresh block wins) and passes every other request to `fetch`. latest.json (unanchored operation) is never answered: a
++ * carrier serves only digest-named documents.
++ */
++export function carrierFetch({ carriers, verify, fetch = globalThis.fetch, log = () => {} }) {
++  const prefix = CARRIER_MIRROR + '/';
++  return async (url, opts = {}) => {
++    const u = String(url);
++    if (!u.startsWith(prefix)) return fetch(url, opts);
++    // the gate's own deadline (its AbortSignal) bounds the whole carrier walk
++    if (!opts.signal) return answer(u);
++    if (opts.signal.aborted) throw opts.signal.reason;
++    return Promise.race([answer(u), new Promise((_, no) => opts.signal.addEventListener('abort', () => no(opts.signal.reason), { once: true }))]);
++  };
++  async function answer(u) {
++    const m = /^(0x[0-9a-f]{64})\.json$/.exec(u.slice(prefix.length));
++    if (!m) return new Response('not served', { status: 404 });
++    for (const carrier of carriers) {
++      let cands = [];
++      try { cands = (await carrier(m[1])).filter((c) => candidateDigest(c) === m[1]); } catch { cands = []; }
++      if (!cands.length) continue;
++      let v;
++      try { v = await verify(cands); } catch (e) { log(`[policy-carriers] fresh verification unavailable: ${e.message}`); return new Response('chain unavailable', { status: 503 }); }
++      const ok = v.verified.find((x) => x.digest === m[1]);
++      if (ok) return new Response(JSON.stringify({ document: ok.document, signature: ok.signature }), { status: 200, headers: { 'content-type': 'application/json' } });
++    }
++    return new Response('no carrier has it', { status: 404 });
++  }
++}
+--- a/network/host-services/policy-mirror.mjs
++++ b/network/host-services/policy-mirror.mjs
+@@ -0,0 +1,120 @@
++// Host role "policy-mirror" (network/host-services/roles.mjs; work/hosted-service-placement): a public, UNTRUSTED carrier of
++// the administrator's signed platform host policy documents, run by an Enclave host instead of the fleet's /platform-policy
++// routes. It serves what the platform host policy gate fetches (network/host-policy-mirrors.mjs):
++//   GET  /platform-policy/<digest>.json   { document, signature }  (latest.json is never served: anchored documents only)
++//   POST /platform-policy                 { document, signature }  publication by anyone holding an admin-signed document
++//   GET  /health
++// It stores a document only after checking it against FRESH authoritative state: the EnclaveAddressBook's CURRENT owner signs
++// it (EIP-712, or ERC-1271 at that block) at a majority-agreed fresh block of the operator's RPC quorum, and it names this
++// book, the book's registry and the configured hostOwnership. That keeps junk out of the store; it confers nothing - every
++// gate verifies the anchor, signature, sequence and bans itself. It fills itself by digest from the anchored policy: from
++// `importDir` (an operator-imported copy) and from `peers` (other carriers), and accepts publications, so a new policy
++// reaches it without any fleet machine. It holds no key; its store is public data, refillable from any carrier.
++//   node policy-mirror.mjs <config.json>
++//   config: { port, bind, stateDir, rpc[2..8], minAgree?, book, hostOwnership, peers?[], importDir?, syncSec?, maxDocuments? }
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import { pathToFileURL } from 'node:url';
++import { quorumSnapshot } from '../host-policy-runtime.mjs';
++import { MAX_POLICY_RESPONSE } from '../host-policy-mirrors.mjs';
++import { fileCarrier, httpCarriers, freshVerifier, candidateDigest } from '../policy-carriers.mjs';
++
++export function startPolicyMirror(cfg, { snapshot = null, fetch = globalThis.fetch, log = (m) => console.log(new Date().toISOString(), m) } = {}) {
++  const docsDir = path.join(cfg.stateDir, 'documents');
++  fs.mkdirSync(docsDir, { recursive: true, mode: 0o755 });
++  const verify = freshVerifier({ snapshot: snapshot || quorumSnapshot({ rpcs: cfg.rpc, minAgree: cfg.minAgree ?? null }), book: cfg.book, hostOwnership: cfg.hostOwnership });
++  const max = cfg.maxDocuments || 32, syncMs = (cfg.syncSec || 30) * 1000;
++  const store = new Map();             // digest -> { document, signature, sequence }
++  const carriers = [...(cfg.importDir ? [fileCarrier(cfg.importDir)] : []), ...httpCarriers(cfg.peers || [], { fetch })];
++  let last = { at: null, block: null, anchor: null, anchoredAvailable: false, error: null };
++
++  // documents kept by an earlier run were verified when stored; each is re-verified on the next sync (and dropped if the
++  // current owner no longer signs it)
++  for (const f of fs.readdirSync(docsDir).filter((n) => /^0x[0-9a-f]{64}\.json$/.test(n)).slice(0, max)) {
++    try { const j = JSON.parse(fs.readFileSync(path.join(docsDir, f), 'utf8')); if (candidateDigest(j) === f.slice(0, 66)) store.set(f.slice(0, 66), { ...j, sequence: j.sequence ?? 0 }); } catch {}
++  }
++  const keep = (v) => {
++    const file = path.join(docsDir, `${v.digest}.json`), tmp = file + '.tmp';
++    fs.writeFileSync(tmp, JSON.stringify({ document: v.document, signature: v.signature, sequence: v.sequence }), { mode: 0o644 });
++    fs.renameSync(tmp, file);
++    store.set(v.digest, { document: v.document, signature: v.signature, sequence: v.sequence });
++  };
++  const drop = (d) => { store.delete(d); try { fs.unlinkSync(path.join(docsDir, `${d}.json`)); } catch {} };
++  const prune = (anchored) => {
++    const order = [...store.entries()].filter(([d]) => d !== anchored).sort((a, b) => b[1].sequence - a[1].sequence);
++    for (const [d] of order.slice(Math.max(0, max - (anchored && store.has(anchored) ? 1 : 0)))) drop(d);
++  };
++
++  let syncing = null;
++  async function sync() {
++    try {
++      const stored = [...store.entries()].map(([, v]) => ({ document: v.document, signature: v.signature }));
++      const first = await verify(stored);
++      const ok = new Set(first.verified.map((v) => v.digest));
++      for (const d of [...store.keys()]) if (!ok.has(d)) { drop(d); log(`[policy-mirror] dropped ${d.slice(0, 18)}…: not signed by the address book's current owner at block ${first.block}`); }
++      let anchored = first.anchor.state === 'anchored' ? first.anchor.digest : null;
++      if (anchored && !store.has(anchored)) {
++        for (const c of carriers) {
++          const cands = (await c(anchored).catch(() => [])).filter((x) => candidateDigest(x) === anchored);
++          if (!cands.length) continue;
++          const v = (await verify(cands)).verified.find((x) => x.digest === anchored);
++          if (v) { keep(v); log(`[policy-mirror] stored the anchored policy #${v.sequence} ${anchored.slice(0, 18)}…`); break; }
++        }
++      }
++      prune(anchored);
++      last = { at: new Date().toISOString(), block: first.block, anchor: first.anchor.state === 'anchored' ? anchored : first.anchor.state, anchoredAvailable: !!anchored && store.has(anchored), error: null };
++    } catch (e) { last = { ...last, error: e.message }; log(`[policy-mirror] sync failed (serving what is stored): ${e.message}`); }
++  }
++  const syncOnce = () => (syncing ||= sync().finally(() => { syncing = null; }));
++
++  let busy = false;
++  const send = (res, status, body, type = 'application/json') => { res.writeHead(status, { 'content-type': type, 'cache-control': status === 200 ? 'max-age=30' : 'no-store' }); res.end(typeof body === 'string' ? body : JSON.stringify(body)); };
++  const server = http.createServer((req, res) => {
++    const url = (req.url || '/').split('?')[0];
++    if (req.method === 'GET' && url === '/health') return send(res, 200, { ok: true, role: 'policy-mirror', documents: store.size, ...last });
++    const m = /^\/platform-policy\/(0x[0-9a-f]{64})\.json$/.exec(url);
++    if ((req.method === 'GET' || req.method === 'HEAD') && m) {
++      const v = store.get(m[1]);
++      return v ? send(res, 200, { document: v.document, signature: v.signature }) : send(res, 404, { error: 'not stored' });
++    }
++    if (req.method === 'GET' && url === '/platform-policy/latest.json') return send(res, 404, { error: 'this carrier serves anchored documents by digest only' });
++    if (req.method === 'POST' && url === '/platform-policy') {
++      if (busy) { req.resume(); return send(res, 429, { error: 'one publication at a time' }); }
++      busy = true;
++      const chunks = []; let n = 0, ended = false;
++      req.on('data', (d) => { n += d.length; if (n > MAX_POLICY_RESPONSE) req.destroy(); else chunks.push(d); });
++      req.on('close', () => { if (!ended) busy = false; });          // aborted or oversized: nothing was verified
++      req.on('end', async () => {
++        ended = true;
++        try {
++          let c; try { c = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return send(res, 400, { error: 'body must be JSON { document, signature }' }); }
++          const digest = c && typeof c.signature === 'string' ? candidateDigest(c) : null;
++          if (!digest) return send(res, 400, { error: 'not a well-formed platform host policy document with a signature' });
++          let r; try { r = await verify([c]); } catch (e) { return send(res, 503, { error: `chain unavailable: ${e.message}` }); }
++          const v = r.verified.find((x) => x.digest === digest);
++          if (!v) return send(res, 422, { error: 'refused: not signed by the address book\'s current owner at a fresh block, or bound to another book, registry or ownership extension' });
++          keep(v); prune(r.anchor.state === 'anchored' ? r.anchor.digest : null);
++          log(`[policy-mirror] stored published policy #${v.sequence} ${digest.slice(0, 18)}…${v.anchored ? ' (the anchored one)' : ' (not anchored yet)'}`);
++          return send(res, 201, { digest, sequence: v.sequence, anchored: v.anchored, block: r.block });
++        } finally { busy = false; }
++      });
++      return;
++    }
++    send(res, 404, { error: 'not found' });
++  });
++  const timer = setInterval(() => void syncOnce(), syncMs); timer.unref?.();
++  void syncOnce();
++  return new Promise((ok, no) => {
++    server.once('error', no);
++    server.listen(cfg.port, cfg.bind, () => { log(`[policy-mirror] serving /platform-policy on ${cfg.bind}:${cfg.port} (${store.size} stored)`);
++      ok({ server, sync: syncOnce, status: () => ({ documents: store.size, ...last }), close: () => { clearInterval(timer); server.closeAllConnections?.(); return new Promise((r) => server.close(() => r())); } }); });
++  });
++}
++
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
++  if (!process.argv[2]) { console.error('usage: policy-mirror.mjs <config.json>'); process.exit(2); }
++  const cfg = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
++  startPolicyMirror(cfg).then((m) => { for (const s of ['SIGTERM', 'SIGINT']) process.on(s, () => m.close().then(() => process.exit(0))); })
++    .catch((e) => { console.error(`[policy-mirror] ${e.message}`); process.exit(1); });
++}
+--- a/network/service-index.mjs
++++ b/network/service-index.mjs
+@@ -21,8 +21,10 @@
+ 
+ // relay (7): an app-funded LEASE relay a designated host operator runs (network/host-services/lease-relay-host.mjs); its
+ // descriptor names the relay's payee key, which signs the relay's /v1/info statement (lease-relay-discovery.mjs).
+-// 6 is reserved for `policy` (the platform host policy mirror, work/hosted-service-placement/policy-tree).
+-export const SERVICE_KINDS = Object.freeze({ directory: 1, checker: 2, storage: 3, dns: 4, replica: 5, relay: 7 });
++// policy (6): an untrusted carrier of the administrator's signed platform host policy documents (host role policy-mirror,
++// network/policy-carriers.mjs); read only when a caller asks for it, so default listings are unchanged
++export const SERVICE_KINDS = Object.freeze({ directory: 1, checker: 2, storage: 3, dns: 4, replica: 5, policy: 6, relay: 7 });
++const DEFAULT_KINDS = Object.freeze(Object.keys(SERVICE_KINDS).filter((k) => k !== 'policy'));
+ export const KIND_NAMES = Object.freeze(Object.fromEntries(Object.entries(SERVICE_KINDS).map(([k, v]) => [v, k])));
+ export const AD_VERSION = 1;
+ export const LIMITS = Object.freeze({ slots: 8, endpoints: 4, endpointBytes: 256, ttlSec: 90 * 86400, page: 64, perKind: 1024, descriptor: 4096 });
+@@ -385,7 +387,7 @@
+  * distinct organizations. Without an agreeing quorum this throws QuorumError (with evidence); it never returns an empty
+  * list for a disagreement.
+  */
+-export async function readServiceIndex({ peers, clients, pin, kinds = Object.keys(SERVICE_KINDS), window = 256, cursor = null, lookups = [],
++export async function readServiceIndex({ peers, clients, pin, kinds = DEFAULT_KINDS, window = 256, cursor = null, lookups = [],
+                                         maxBlockAgeMs = 90_000, requestTimeoutMs = 8_000, deadlineMs = 30_000, now = Date.now, ...policy }) {
+   pin = validateIndexPin(pin);
+   const list = peerList({ peers, clients, methods: ['getCode', 'readContract'] });
+--- a/test/hosted-policy-cold-start.test.mjs
++++ b/test/hosted-policy-cold-start.test.mjs
+@@ -0,0 +1,286 @@
++// The platform host policy WITHOUT the fleet's policy mirrors (work/hosted-service-placement): Enclave hosts cold-start, are
++// banned and unbanned by the administrator, with every DigitalOcean endpoint denied. On a REAL local chain (anvil: the
++// independent rig's registry and three JSON-RPC origins, plus a deployed EnclaveAddressBook whose owner is the admin, an
++// EnclaveHostOwnership and the ownerless EnclaveServiceIndex):
++//   - the admin signs a platform host policy and ANCHORS it in the book (setMany of the two anchor keys): activated;
++//   - each host runs the PACKAGED roles under network/host-services/runner.mjs with the REAL gate (network/host-service-gate.mjs
++//     -> host-policy-runtime.mjs -> platform-host-policy.mjs, nothing stubbed), the production-shaped mirror list (the four
++//     fleet addresses, all refused at the transport) and EMPTY state;
++//   - host A is the first carrier: its operator imported the signed document (any channel); host B has nothing but the
++//     pinned service index, where host A advertises its policy-mirror role; host C has only the fleet mirrors and must
++//     never start;
++//   - the admin bans host B's operator (a new document, published to host A's policy mirror, then anchored): B stops every
++//     role; the admin's next anchored document unbans it: B starts again;
++//   - stale (an older, still validly signed document), substituted (edited content under a real signature) and wrongly
++//     signed documents are refused by the carrier AND, independently, by the gate; an anchored rollback is refused;
++//   - a cold client with empty caches loads the anchored policy from the index's carriers and drops the banned operator's
++//     advertisements.
++import { test, before, after } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { EventEmitter } from 'node:events';
++import { createHash } from 'node:crypto';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++import { keccak256, toBytes, stringToHex } from 'viem';
++import { privateKeyToAccount } from 'viem/accounts';
++import { startRig, haveTools, KEYS, freePort } from './helpers/cli-independent-rig.mjs';
++import { execFileSync } from 'node:child_process';
++import * as si from '../network/service-index.mjs';
++import { runHostServices, loadPackage, validateHostServicesConfig, advertisements } from '../network/host-services/runner.mjs';
++import { coldDiscover } from '../network/cold-bootstrap.mjs';
++import { POLICY_FORMAT, policyTypedData, policyDigest, encodeAnchor, ANCHOR_KEYS } from '../network/platform-host-policy.mjs';
++import { PRODUCTION_MIRRORS } from '../network/platform-host-policy-config.mjs';
++import { createHostPolicyRuntime, quorumSnapshot, fileStore } from '../network/host-policy-runtime.mjs';
++import { CARRIER_MIRROR, carrierFetch, freshVerifier, candidateDigest } from '../network/policy-carriers.mjs';
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const PKG = path.join(REPO, 'network/host-services/packages');
++// solc-js (viaIR) in a short-lived child, as the rig compiles the registry: the compiler's WebAssembly memory never shrinks,
++// and it must not count against this test's process-tree budget while the hosts' roles run
++const compileIndexInChild = () => JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e',
++  `import { compileServiceIndex } from ${JSON.stringify(pathToFileURL(path.join(REPO, 'scripts/network/service-index.mjs')).href)}; process.stdout.write(JSON.stringify(compileServiceIndex()));`],
++  { maxBuffer: 16 << 20, timeout: 180000 }).toString());
++const OUT = path.join(REPO, 'contracts/foundry/out');
++const skip = haveTools() || (!fs.existsSync(path.join(PKG, 'policy-mirror.package.json')) ? 'needs the built packages (scripts/build-host-service-packages.mjs)' : false);
++const DO = { name: 'digitalocean', addresses: ['134.199.235.187', '134.209.248.172', '165.245.191.129', '146.190.246.39'] };
++const pin = (role) => 'sha256:' + createHash('sha256').update(fs.readFileSync(path.join(PKG, `${role}.package.json`))).digest('hex');
++const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, name + '.json'), 'utf8')); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-policy-'));
++const Z32 = '0x' + '00'.repeat(32);
++const KEY4 = '0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a';   // anvil #4 (gas price 0 on the rig)
++const admin = privateKeyToAccount(KEYS.deployer);                                     // the book's deployer is its owner: the admin
++const OPS = { a: privateKeyToAccount(KEYS.other), b: privateKeyToAccount(KEYS.owner), c: privateKeyToAccount(KEY4) };
++const OP_KEYS = { a: KEYS.other, b: KEYS.owner, c: KEY4 };
++const HOST_ADDR = { a: '9.9.9.9', b: '149.112.112.112' };   // stand-in public addresses, mapped to the hosts' loopback listeners
++
++// the transport: every fleet address is refused (a whole-provider outage); the hosts' public addresses reach their listeners
++const denied = [];
++const netFetch = (url, opts) => {
++  const u = new URL(url);
++  if (DO.addresses.includes(u.hostname)) { denied.push(u.href); return Promise.reject(new TypeError('connect ECONNREFUSED (DigitalOcean down)')); }
++  if (Object.values(HOST_ADDR).includes(u.hostname)) { u.hostname = '127.0.0.1'; return fetch(u, opts); }
++  if (u.hostname === '127.0.0.1') return fetch(u, opts);
++  return Promise.reject(new TypeError(`no route to ${u.hostname}`));
++};
++// on a timeout, every host's status and last log lines are part of the error (the only evidence a queued run leaves)
++const diag = () => Object.values(hosts).map((h) => `--- host ${h.name}: ${JSON.stringify(h.running?.status?.() ?? null).slice(0, 1500)}\n${h.logs.slice(-25).join('\n').slice(-4000)}`).join('\n');
++const wait = async (f, ms = 30000, what = 'condition') => { const end = Date.now() + ms; for (;;) { try { const v = await f(); if (v) return v; } catch {} if (Date.now() > end) throw new Error(`timed out: ${what}\n${diag()}`); await new Promise((r) => setTimeout(r, 250)); } };
++const up = (port) => fetch(`http://127.0.0.1:${port}/health`).then((r) => r.ok, () => false);
++
++let rig, index, indexPin, book, ownership, bookAbi, registryAddr, hosts = {}, docs = [];
++const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...PRODUCTION_MIRRORS], activation: 'required' });
++
++async function sign(deny, signer = admin) {
++  const prev = docs.length ? docs[docs.length - 1].digest : Z32;
++  const p = { format: POLICY_FORMAT, chainId: 8453, book: book.toLowerCase(), registry: registryAddr.toLowerCase(), hostOwnership: ownership.toLowerCase(),
++    sequence: docs.length + 1, issuedAt: Math.floor(Date.now() / 1000) - 5, expiresAt: 0, maxStaleSec: 0, previousDigest: prev, mode: 'denylist', deny, admit: [] };
++  const d = { policy: p, digest: policyDigest(p), document: JSON.stringify(p), signature: await signer.signTypedData(policyTypedData(p)) };
++  if (signer === admin) docs.push(d);
++  return d;
++}
++const anchor = async (digest) => { const a = encodeAnchor(digest); await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'setMany', [[ANCHOR_KEYS.hi, ANCHOR_KEYS.lo], [a.hi, a.lo]]); await rig.mine(); };
++async function publishAd(key, slot, kind, endpoints) {
++  const blk = await rig.pc.getBlock();
++  await rig.write(rig.wc(key), index, si.SERVICE_INDEX_ABI, 'publish', [slot, si.SERVICE_KINDS[kind], si.AD_VERSION, 1n, blk.timestamp + 30n * 86400n, Z32, endpoints]);
++}
++
++async function startHost(name, { importDoc = null, carriers = undefined, policyMirror = false, mirrorPeers = [] } = {}) {
++  const dir = path.join(tmp, 'host-' + name);
++  const ports = { dir: await freePort(), pm: await freePort() };
++  assert.equal(fs.existsSync(path.join(dir, 'state')), false, 'empty caches: no admission or policy state');
++  if (importDoc) { fs.mkdirSync(path.join(dir, 'import'), { recursive: true }); fs.writeFileSync(path.join(dir, 'import', `${importDoc.digest}.json`), JSON.stringify({ document: importDoc.document, signature: importDoc.signature })); }
++  const services = [
++    { role: 'directory-replica', package: pin('directory-replica'), heapMiB: 192, config: { port: ports.dir, bind: '127.0.0.1', stateDir: path.join(dir, 'directory-state'),
++      rpc: rig.rpcs, addressBook: '0x' + '0b'.repeat(20), authorityPins: { deployments: rig.addresses.ledger, registry: rig.addresses.registry, connectivity: '0x' + '00'.repeat(20), sessionVaultFactory: '0x' + '00'.repeat(20) }, checkers: ['0x' + '3c'.repeat(20)] } },
++    ...(policyMirror ? [{ role: 'policy-mirror', package: pin('policy-mirror'), heapMiB: 128, config: { port: ports.pm, bind: '127.0.0.1', stateDir: path.join(dir, 'policy-mirror-state'),
++      rpc: rig.rpcs, book, hostOwnership: ownership, peers: mirrorPeers, syncSec: 5, ...(importDoc ? { importDir: path.join(dir, 'import') } : {}) } }] : []),
++  ];
++  const publicEndpoints = HOST_ADDR[name] ? { 'directory-replica': [`http://${HOST_ADDR[name]}:${ports.dir}/`], ...(policyMirror ? { 'policy-mirror': [`http://${HOST_ADDR[name]}:${ports.pm}/platform-policy`] } : {}) } : {};
++  const cfg = { format: 'enclave-host-services/v1', host: { endpoint: `https://host-${name}.policy-placement.net`, publicEndpoints },
++    platformHostPolicy: POLICY(), platformHostPolicyRpcs: rig.rpcs, ...(carriers ? { platformHostPolicyCarriers: carriers } : {}),
++    serviceIndex: indexPin, packagesDir: PKG, stateRoot: path.join(dir, 'state'), services };
++  const logs = [];
++  const running = await runHostServices(cfg, { fetch: netFetch, log: (m) => logs.push(m), intervalMs: 500, gateIntervalMs: 500 });
++  return { name, cfg, ports, running, logs, dir };
++}
++
++before(async () => {
++  if (skip) return;
++  rig = await startRig();
++  registryAddr = rig.addresses.registry;
++  const built = compileIndexInChild();
++  index = (await rig.pc.waitForTransactionReceipt({ hash: await rig.wc(KEYS.deployer).deployContract({ abi: built.abi, bytecode: built.bytecode }) })).contractAddress;
++  indexPin = si.validateIndexPin({ chainId: 8453, address: index, codeHash: built.codeHash });
++  const B = art('EnclaveAddressBook.sol', 'EnclaveAddressBook'); bookAbi = B.abi;
++  book = await rig.deploy(B);
++  await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), registryAddr]);
++  ownership = await rig.deploy(art('EnclaveHostOwnership.sol', 'EnclaveHostOwnership'), [registryAddr]);
++  for (const n of ['a', 'b', 'c'])
++    await rig.write(rig.wc(OP_KEYS[n]), registryAddr, rig.A.registry4.abi, 'register', [`https://host-${n}.policy-placement.net`, 'independent/host', Z32, 1000n, 0n, '0x' + '00'.repeat(20)]);
++  // ACTIVATED: the admin's first policy (it bans an unrelated operator) is signed and anchored before any host exists
++  await sign([{ kind: 'operator', value: '0x' + '5a'.repeat(20), reason: 'unrelated abuse' }]);
++  await anchor(docs[0].digest);
++  for (let i = 0; i < 3; i++) await rig.mine();
++});
++after(async () => {
++  for (const h of Object.values(hosts)) await h.running?.stop().catch(() => {});
++  await rig?.stop();
++  fs.rmSync(tmp, { recursive: true, force: true });
++});
++
++test('fresh hosts with empty caches start under an ACTIVATED anchor with every fleet policy mirror refused; a fleet-only host never does', { skip }, async () => {
++  // host A: the first carrier, from an operator-imported copy of the signed document (untrusted bytes; verified on chain)
++  hosts.a = await startHost('a', { importDoc: docs[0], carriers: { importDir: path.join(tmp, 'host-a', 'import') }, policyMirror: true });
++  await wait(() => up(hosts.a.ports.dir), 30000, 'host A directory (admitted by the real gate)');
++  const sa = hosts.a.running.status();
++  assert.equal(sa.refusal, null); assert.equal(sa.platformHostPolicy.serving, true, JSON.stringify(sa.platformHostPolicy));
++  assert.equal(sa.platformHostPolicy.runtime.accepted.digest, docs[0].digest); assert.equal(sa.platformHostPolicy.runtime.anchor, 'anchored');
++  assert.ok(denied.some((u) => u.startsWith(PRODUCTION_MIRRORS[0])), 'the gate did try the fleet mirrors, and they were refused');
++  const served = await wait(() => netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy/${docs[0].digest}.json`).then((r) => r.ok && r.json()), 20000, 'host A policy mirror serves the anchored document');
++  assert.equal(served.signature, docs[0].signature);
++  assert.equal((await netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy/latest.json`)).status, 404, 'no unanchored latest');
++
++  // host A advertises its roles (operator-signed in production: runner.mjs advertise prepares exactly these); the index also
++  // holds the fleet's production-shaped advertisements, every one of which is refused at the transport
++  const ads = await advertisements(hosts.a.cfg, { operator: OPS.a.address, slot: 0, sequence: 1 });
++  assert.deepEqual(ads.map((x) => x.kind).sort(), ['directory', 'policy']);
++  for (const x of ads) await publishAd(OP_KEYS.a, ads.indexOf(x), x.kind, x.endpoints);
++  await publishAd(KEYS.operator, 0, 'directory', DO.addresses.map((ip) => `http://${ip}:8188/`));
++  await publishAd(KEYS.operator, 1, 'policy', DO.addresses.map((ip) => `https://${ip}/platform-policy`));
++  for (let i = 0; i < 3; i++) await rig.mine();
++
++  // host B: nothing but the pinned index. Its gate finds host A's policy mirror there and verifies the anchored document
++  hosts.b = await startHost('b', { carriers: { serviceIndex: true }, policyMirror: true, mirrorPeers: [`http://127.0.0.1:${hosts.a.ports.pm}/platform-policy`] });
++  await wait(() => up(hosts.b.ports.dir), 40000, 'host B directory (admitted via the index carrier)');
++  assert.equal(hosts.b.running.status().platformHostPolicy.runtime.accepted.digest, docs[0].digest);
++  await wait(() => fetch(`http://127.0.0.1:${hosts.b.ports.pm}/platform-policy/${docs[0].digest}.json`).then((r) => r.ok), 20000, 'host B mirror filled from its peer');
++  await publishAd(OP_KEYS.b, 0, 'directory', hosts.b.cfg.host.publicEndpoints['directory-replica']);
++  for (let i = 0; i < 3; i++) await rig.mine();
++
++  // host C: the production default alone (fleet mirrors only), empty caches: fail-closed, never a first admit
++  hosts.c = await startHost('c');
++  await new Promise((r) => setTimeout(r, 4000));
++  assert.equal(await up(hosts.c.ports.dir), false, 'host C must not serve');
++  const sc = hosts.c.running.status();
++  assert.match(String(sc.refusal), /has not loaded the policy the book anchors|anchored policy is not available/, JSON.stringify(sc));
++  assert.equal(sc.services.every((s) => !s.running), true);
++  await hosts.c.running.stop();
++});
++
++test('the admin bans host B (new anchored document, published only to an Enclave host carrier): B stops every role; the next authenticated policy unbans it', { skip }, async () => {
++  const bOp = OPS.b.address.toLowerCase();
++  const ban = await sign([...docs[0].policy.deny, { kind: 'operator', value: bOp, reason: 'abuse report 7' }]);
++  const pub = await netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ document: ban.document, signature: ban.signature }) });
++  assert.equal(pub.status, 201, await pub.clone().text()); assert.equal((await pub.json()).anchored, false, 'published before anchoring');
++  await anchor(ban.digest);
++  await wait(async () => !(await up(hosts.b.ports.dir)) && !(await up(hosts.b.ports.pm)), 40000, 'host B stops every role');
++  const sb = hosts.b.running.status();
++  assert.match(String(sb.refusal), /banned by platform policy #2 \(operator\): abuse report 7/);
++  assert.equal(sb.platformHostPolicy.banned, true); assert.ok(hosts.b.logs.some((l) => /STOPPING every role/.test(l)));
++  await wait(() => hosts.a.running.status().platformHostPolicy.runtime.accepted?.digest === ban.digest, 20000, 'host A follows the new anchor');
++  assert.equal(await up(hosts.a.ports.dir), true, 'host A is not banned and keeps serving');
++
++  // an independent cold client, empty caches, fleet down: loads the anchored ban from the index's carriers itself
++  const clientHosts = [];
++  const r = await coldDiscover({ peers: rig.rpcs, indexPin, policy: { book, hostOwnership: ownership, activation: 'required' }, failureDomains: [DO],
++    resolve: async () => [], fetch: (u, o) => { clientHosts.push(new URL(u).hostname); return netFetch(u, o); }, directoryPath: '/v1/network/providers' });
++  assert.equal(r.policy.accepted.digest, ban.digest);
++  assert.ok(r.refusedByPolicy.some((x) => x.candidate.operator.toLowerCase() === bOp), 'the banned operator\'s advertisement is dropped');
++  assert.deepEqual(r.usable.directory, [`http://${HOST_ADDR.a}:${hosts.a.ports.dir}`]);
++  assert.deepEqual(r.usable.policy, [`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy`]);
++  assert.equal(r.excluded.filter((e) => e.domain === 'digitalocean').length, 8, JSON.stringify(r.excluded));
++  assert.deepEqual(clientHosts.filter((h) => DO.addresses.includes(h)), [], 'the client contacted no fleet endpoint');
++  assert.ok(clientHosts.includes(HOST_ADDR.a), 'it read the policy and the directory from host A');
++
++  // stays refused while the ban is anchored (sticky), however often it checks
++  await new Promise((x) => setTimeout(x, 2000));
++  assert.equal(await up(hosts.b.ports.dir), false);
++
++  // the unban: a new admin-signed document, anchored. Host B's own mirror is stopped; it loads it from host A's carrier
++  const unban = await sign(docs[0].policy.deny);
++  assert.equal((await netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ document: unban.document, signature: unban.signature }) })).status, 201);
++  await anchor(unban.digest);
++  await wait(async () => (await up(hosts.b.ports.dir)) && (await up(hosts.b.ports.pm)), 40000, 'host B serves again after the authenticated unban');
++  const s2 = hosts.b.running.status();
++  assert.equal(s2.refusal, null); assert.equal(s2.platformHostPolicy.runtime.accepted.sequence, 3);
++  assert.ok(hosts.b.logs.some((l) => /admitted again/.test(l)));
++});
++
++test('stale, substituted and wrongly signed documents are refused by the carrier and, independently, by the gate; an anchored rollback is refused', { skip }, async () => {
++  const cur = docs[2], old = docs[0];
++  const edited = JSON.stringify({ ...cur.policy, deny: [] });   // content changed under the real signature
++  const post = (b) => netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
++  assert.equal((await post({ document: edited, signature: cur.signature })).status, 422, 'substituted content');
++  const forged = await sign(cur.policy.deny, privateKeyToAccount(KEYS.operator));
++  assert.equal((await post({ document: forged.document, signature: forged.signature })).status, 422, 'signed by someone other than the book owner');
++  assert.equal((await post({ document: 'nope', signature: '0x00' })).status, 400);
++  assert.equal((await fetch(`http://127.0.0.1:${hosts.a.ports.pm}/platform-policy/${candidateDigest({ document: edited })}.json`)).status, 404, 'nothing refused was stored');
++
++  const snapshot = quorumSnapshot({ rpcs: rig.rpcs });
++  const verify = freshVerifier({ snapshot, book, hostOwnership: ownership });
++  const hostA = keccak256(toBytes(hosts.a.cfg.host.endpoint)).toLowerCase();
++  const lying = (cands) => async () => cands;   // a carrier that serves whatever it likes for any digest
++  // rawDocument: the carrier origin answers with exactly this, skipping every carrier-side check (a hostile mirror)
++  const runtimeWith = (carriers, { rawDocument = null, store = null } = {}) => createHostPolicyRuntime({ ...POLICY(), mirrors: [CARRIER_MIRROR] }, { snapshot, store,
++    fetch: rawDocument ? async (url, o) => (String(url).startsWith(CARRIER_MIRROR + '/') ? new Response(JSON.stringify(rawDocument), { status: 200 }) : netFetch(url, o))
++      : carrierFetch({ carriers, fetch: netFetch, verify }) });
++  // the stale document (validly signed, no longer anchored) and an edited one: the carrier never shows them ...
++  for (const bad of [{ document: old.document, signature: old.signature }, { document: edited, signature: cur.signature }]) {
++    const rt = runtimeWith([lying([bad])]);
++    await assert.rejects(rt.gate.refresh(), (e) => e.code === 'anchor_unavailable');
++    assert.equal((await rt.measured(hostA).check()).serving, false, 'never a first admit');
++    // ... and the gate refuses them by itself even when a carrier's own check is skipped
++    const raw = runtimeWith([], { rawDocument: bad });
++    await assert.rejects(raw.gate.refresh(), (e) => e.code === 'anchor_unavailable');
++    assert.equal((await raw.measured(hostA).check()).serving, false);
++  }
++  // the honest anchored document from the same path is accepted (the refusals above were the documents, not the path)
++  const good = runtimeWith([lying([{ document: cur.document, signature: cur.signature }])], { store: fileStore(path.join(tmp, 'rollback', 'policy.json')) });
++  assert.equal((await good.gate.refresh()).digest, cur.digest);
++  assert.equal((await good.measured(hostA).check()).serving, true);
++  // rollback: the book re-anchors the older #1; a gate that accepted #3 (persisted high-water) refuses it, from a restart too
++  await anchor(old.digest);
++  try {
++    const restarted = runtimeWith([lying([{ document: old.document, signature: old.signature }])], { store: fileStore(path.join(tmp, 'rollback', 'policy.json')) });
++    await assert.rejects(restarted.gate.refresh(), (e) => e.code === 'rollback');
++    assert.equal((await restarted.measured(hostA).check()).serving, false);
++  } finally { await anchor(cur.digest); }
++});
++
++test('runner: a failed spawn is an exit with backoff, never an unhandled error event; heapMiB is a V8 heap cap and the old name is refused', { skip }, async () => {
++  const cfg = structuredClone(hosts.a.cfg);
++  cfg.stateRoot = path.join(tmp, 'spawn-state'); cfg.platformHostPolicy = 'off'; delete cfg.platformHostPolicyCarriers;
++  cfg.services = [cfg.services.find((s) => s.role === 'directory-replica')]; cfg.host.publicEndpoints = {};
++  assert.throws(() => validateHostServicesConfig({ ...cfg, services: [{ ...cfg.services[0], heapMiB: undefined, memoryMiB: 192 }] }), /memoryMiB is now heapMiB: it caps the V8 heap/);
++  const spawned = [], logs = [];
++  const spawn = (exe, argv) => {
++    const c = new EventEmitter(); c.stdout = new EventEmitter(); c.stderr = new EventEmitter(); c.exitCode = null; c.signalCode = null; c.kill = () => true;
++    spawned.push(argv);
++    if (spawned.length <= 2) { c.pid = undefined; setImmediate(() => c.emit('error', Object.assign(new Error('spawn EAGAIN'), { code: 'EAGAIN' }))); }
++    else { c.pid = 4242; c.kill = () => { setImmediate(() => c.emit('exit', null, 'SIGTERM')); return true; }; }
++    return c;
++  };
++  const gate = { check: async () => {}, serviceRefusal: () => null, status: () => ({ platformHostPolicy: 'off' }) };
++  const r = await runHostServices(cfg, { gate, spawn, log: (m) => logs.push(m), intervalMs: 100, backoffMs: 50 });
++  try {
++    await wait(() => spawned.length >= 3 && r.status().services[0].running, 5000, 'restarted after two failed spawns');
++    assert.equal(logs.filter((l) => /could not start \(EAGAIN\); restarting in/.test(l)).length, 2);
++    assert.equal(r.status().services[0].restarts, 2);
++    assert.match(spawned[0][0], /^--max-old-space-size=192$/);
++    assert.ok(logs.some((l) => /V8 heap cap 192 MiB/.test(l)));
++  } finally { await r.stop(); }
++});
++
++test('the policy-mirror package: reviewed bytes, no secret, and its only custody/ input is the RPC quorum reader', { skip }, () => {
++  const p = loadPackage(PKG, 'policy-mirror', pin('policy-mirror'));
++  assert.equal(p.manifest.kind, 'policy'); assert.equal(p.manifest.secrets, 'none');
++  assert.deepEqual(Object.keys(p.manifest.inputs).filter((f) => /(^|\/)custody\//.test(f)), ['custody/v2/quorum.mjs']);
++  for (const f of Object.keys(p.manifest.inputs)) assert.doesNotMatch(f, /(lease-relay-service|lease-gas-runtime|sdk\/storage|secrets?-release|shield-secrets)/);
++  const svc = hosts.a.cfg.services.find((s) => s.role === 'policy-mirror');
++  assert.throws(() => validateHostServicesConfig({ ...hosts.a.cfg, services: [{ ...svc, config: { ...svc.config, book: '0x' + '77'.repeat(20) } }], host: { endpoint: hosts.a.cfg.host.endpoint } }),
++    /book and hostOwnership must be the platformHostPolicy's/);
++  assert.throws(() => validateHostServicesConfig({ ...hosts.a.cfg, services: [{ ...svc, config: { ...svc.config, signingKey: '0x01' } }], host: { endpoint: hosts.a.cfg.host.endpoint } }),
++    /unknown config field "signingKey" \(a host service holds no secret\)/);
++});
+--- a/network/host-services/argv-guard.mjs
++++ b/network/host-services/argv-guard.mjs
+@@ -0,0 +1,6 @@
++// Imported FIRST by a host role's bundle entry (network/host-services/entries/*) whose program is a plain script.
++// A role runs as `node <role>.mjs`, and inside ONE bundle every module's import.meta.url is the bundle's own. A bundled
++// library's "am I the main script?" check (process.argv[1] against its own import.meta.url - e.g. the Windows host-identity
++// CLI inside relay/network-runtime.bundle.mjs) would therefore fire and run that library's command line instead of the
++// role (and exit). Renaming argv[1] here makes every such check false; the role's program reads only its environment.
++process.argv[1] = `${process.argv[1]} (enclave host role)`;
+--- a/network/host-services/entries/route-dns.mjs
++++ b/network/host-services/entries/route-dns.mjs
+@@ -0,0 +1,3 @@
++// Bundle entry of the route-dns host role (scripts/build-host-service-packages.mjs): the argv guard, then the relay.
++import '../argv-guard.mjs';
++import '../../../relay/dns-relay.js';

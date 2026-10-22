@@ -1,0 +1,351 @@
+--- a/site/js/core/catalog.js
++++ b/site/js/core/catalog.js
+@@ -16,6 +16,7 @@
+ import { catConfigured, appCount, catGetAppsPage, catGetVersions, catOwner, APPROVAL, CAT_MAX } from "./chain.js";
+ import { lsGet, lsSet, emit, on, esc } from "./util.js";
+ import { minPctsOf } from "./pricing.js";
++import { parseCid, artifactIdentity, hex } from "./unixfs.js";
+ import { Enclave, EnclaveError } from "./api.js";
+ import { connectWallet, personalSign } from "./wallet.js";
+ 
+@@ -253,11 +254,12 @@
+ const _media = new Map();   // "s:"/"r:" + cid -> { url: string|null, at } last answer, + { pending: Promise } while (re)checking
+ const mediaKey = (cid, svg) => (svg ? "s:" : "r:") + cid;
+ const mediaFresh = (e) => !!e && "url" in e && Date.now() - e.at < (e.url ? MEDIA_HIT_TTL_MS : MEDIA_MISS_TTL_MS);
++// The public read gateways, preferred first: config.js IPFS_IMG_GATEWAY + IPFS_IMG_FALLBACKS (media and pinned configs share them)
++const ipfsReadGateways = () => [...new Set([IPFS_IMG_GATEWAY, ...(IPFS_IMG_FALLBACKS || [])].filter((g) => /^https?:\/\/[^\s'"()]+\/$/.test(g)))];
+ export function mediaUrls(cid, svg){
+   const c = cleanCid(cid); if (!c) return [];
+   const q = svg ? "?filename=enclave-logo.svg" : "";
+-  return [...new Set([IPFS_IMG_GATEWAY, ...(IPFS_IMG_FALLBACKS || [])].filter((g) => /^https?:\/\/[^\s'"()]+\/$/.test(g)))]
+-    .slice(0, MEDIA_MAX_TRIES).map((g) => g + encodeURIComponent(c) + q);
++  return ipfsReadGateways().slice(0, MEDIA_MAX_TRIES).map((g) => g + encodeURIComponent(c) + q);
+ }
+ function mediaLoads(url, ms){
+   return new Promise((done) => {
+@@ -421,32 +423,88 @@
+    lands, which would silently turn a hard placement refusal into a pass. */
+ export const MANIFEST_CACHE = {};
+ 
+-/* A rev-7 version keeps its config at an IPFS CID; this reads it for DISPLAY
+-   (the dashboard's Config tab prefill and its override diff). Display only — nothing
+-   here is a trust boundary: the enclave re-fetches the same CID and verifies
+-   the content hashes back to it before any of it reaches a guest, so the worst
+-   a lying gateway does to this path is show the operator the wrong text.
+-   Returns null when unreadable, which callers render as empty rather than
+-   wrong. Cached by CID: it is content-addressed, so it can never go stale. */
+-const _cfgCidCache = {};
+-export async function fetchConfigCid(cid){
+-  if (cid in _cfgCidCache) return _cfgCidCache[cid];
+-  let out = null;
++/* A rev-7 version (and a SPLIT per-deployment override) keeps its config at an IPFS CID; this reads it for the dashboard's
++   Config/Models panels (prefill + override diff) and the publish form's "add version" prefill. That text is EDITABLE and
++   can be submitted again (a setConfig, a new version), so it is offered ONLY when its bytes are proven to be the CID's -
++   from every gateway, the preferred one included; the enclave re-verifying at launch does not cover what an operator
++   republishes. The CIDs come from public ledger records (the version's configCid, the deployment envelope's configCid)
++   and name configs pinned on the public, unauthenticated read gateways; requests carry no credentials or tokens and no
++   header but Accept. Secrets never travel here.
++   The CID string is decoded (js/core/unixfs.js parseCid: CIDv0, CIDv1 base32/base58btc, sha2-256, raw or dag-pb) and the
++   proof is the runtime's own (wasm/ipfs_fetch.py fetch_verified):
++     raw     the response bytes hash to the digest;
++     dag-pb  a CAR (?format=car&dag-scope=all) whose every block hashes to its CID, that holds the requested CID, and
++             whose walk from it rebuilds the file - js/core/ipfs-car.js, any UnixFS layout the runtime runs. When a
++             gateway answers but cannot serve that CAR, its plain file bytes are accepted only if they re-import to the
++             same root under the pin paths' profile (artifactIdentity: 256 KiB raw leaves, balanced, 174 links).
++   Bare bytes are never trusted because a CAR is unavailable. Verified text is cached for the page under the canonical
++   CIDv1 (equivalent spellings share it). Gateways: ipfsReadGateways(), preferred first, each tried once per round (a dag-pb
++   CID: CAR, then the profile re-import if the gateway was reachable), at most CONFIG_MAX_ATTEMPTS requests per round,
++   each bounded by CONFIG_TRY_MS and its byte cap (raw/file CAT_MAX.configMax, CAR carCap(configMax) like the runtime),
++   the round by CONFIG_ROUND_MS - transfer by the fetch signal, proof work by cooperative deadline checks (after each
++   await, per CAR block hash, every 1024 walk visits, before accepting): a result finishing late is neither returned nor
++   cached (a best-effort bound, not hard real time: one in-flight digest may complete); a failed round answers null for
++   CONFIG_MISS_TTL_MS, then the next use retries. A malformed / unsupported CID is not requested at all.
++   Returns the verified JSON text, or null (callers render null as "could not load", never as the inline manifest). */
++export const CONFIG_TRY_MS = 10000, CONFIG_ROUND_MS = 30000, CONFIG_MAX_TRIES = 4, CONFIG_MAX_ATTEMPTS = 8, CONFIG_MISS_TTL_MS = 30 * 1000;
++const _cfgCidCache = new Map();                       // canonical CIDv1 -> its verified JSON text
++const _cfgPending = new Map(), _cfgMiss = new Map();  // canonical CIDv1 -> the round in flight; -> when its last round failed
++// "raw" | "dag-pb" for a CID string this page can verify content against, else null
++export function configCidForm(cid){ const p = parseCid(cid); return p ? (p.codec === 0x55 ? "raw" : "dag-pb") : null; }
++// one request: { text } when proven, { reached } = the gateway answered HTTP at all
++async function configFrom(url, mode, want, until){
++  const ms = Math.min(CONFIG_TRY_MS, until - Date.now()); if (ms <= 0) return { reached: false };
++  // the round's deadline, checked cooperatively after every await and inside the CAR hash/walk loops: past it the work
++  // stops at the next check and nothing is accepted (an in-flight fetch is aborted by its signal; one block digest may finish)
++  const late = () => { if (Date.now() >= until) throw new Error("config read deadline passed"); };
++  let r;
+   try {
+-    // A cached immutable gateway response may predate its CORS repair. Fetch
+-    // fresh headers once per page; successful content remains memoized by CID.
+-    const r = await fetch(IPFS_IMG_GATEWAY + encodeURIComponent(cid), { cache: "reload", signal: AbortSignal.timeout(15000) });
+-    if (r.ok) {
+-      const text = await r.text();
+-      JSON.parse(text);                     // must parse, or it is not a config
+-      out = text;
++    // A cached immutable gateway response may predate its CORS repair: fresh headers per read; verified text is memoized.
++    r = await fetch(url, { cache: "reload", credentials: "omit", signal: AbortSignal.timeout(ms),
++      ...(mode === "car" ? { headers: { accept: "application/vnd.ipld.car" } } : {}) });
++  } catch(e){ return { reached: false }; }
++  try {
++    if (!r.ok){ await r.body?.cancel(); return { reached: true }; }
++    late();
++    const [{ boundedBytes }, car] = await Promise.all([import("./storage-plan.js"), import("./ipfs-car.js")]);
++    late();
++    const max = CAT_MAX.configMax, cap = mode === "car" ? car.carCap(max) : max;
++    const body = await boundedBytes(r, cap);
++    late();
++    if (body.length > cap) return { reached: true };
++    let bytes = null;
++    if (mode === "raw"){ const d = new Uint8Array(await crypto.subtle.digest("SHA-256", body)); late(); if (hex(d) === hex(want.digest)) bytes = body; }
++    else if (mode === "car") bytes = await car.verifyCar(want.bytes, body, max, { check: late });
++    else { const id = await artifactIdentity(body); late(); if (id.cid === want.cid) bytes = body; }   // <= 1 MiB: <= 5 digests
++    if (!bytes) return { reached: true };
++    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
++    JSON.parse(text);                       // must parse, or it is not a config
++    late();                                 // last check: a proof that finished after the deadline is not accepted
++    return { reached: true, text };
++  } catch(e){ return { reached: true }; }
++}
++export function fetchConfigCid(cid){
++  const want = parseCid(cid); if (!want) return Promise.resolve(null);
++  const k = want.cid;
++  if (_cfgCidCache.has(k)) return Promise.resolve(_cfgCidCache.get(k));
++  if (_cfgPending.has(k)) return _cfgPending.get(k);
++  if (Date.now() - (_cfgMiss.get(k) ?? -Infinity) < CONFIG_MISS_TTL_MS) return Promise.resolve(null);
++  const round = (async () => {
++    const until = Date.now() + CONFIG_ROUND_MS, path = encodeURIComponent(cid);
++    let attempts = 0;
++    for (const g of ipfsReadGateways().slice(0, CONFIG_MAX_TRIES)){
++      const modes = want.codec === 0x55 ? [["raw", g + path]] : [["car", g + path + "?format=car&dag-scope=all"], ["file", g + path]];
++      for (const [mode, url] of modes){
++        if (++attempts > CONFIG_MAX_ATTEMPTS) break;
++        const res = await configFrom(url, mode, want, until);
++        if (res.text !== undefined && Date.now() < until){ _cfgCidCache.set(k, res.text); _cfgMiss.delete(k); return res.text; }
++        if (!res.reached) break;            // unreachable / out of time: this gateway's other mode would fail the same way
++      }
+     }
+-  } catch(e){ out = null; }
+-  // only a SUCCESS is memoized: content addressing makes a hit permanently
+-  // valid, but a gateway hiccup is transient and caching it would kill the
+-  // prefill for the rest of the page session
+-  if (out !== null) _cfgCidCache[cid] = out;
+-  return out;
++    _cfgMiss.set(k, Date.now()); return null;
++  })().finally(() => _cfgPending.delete(k));
++  _cfgPending.set(k, round);
++  return round;
+ }
+ /* Wallet-authorize a pin: sign enclave-upload:<sha256(bytes)>:<expiry>, trade it
+    at the API for a one-time HMAC token bound to exactly these bytes. Shared by
+--- a/site/js/core/storage-plan.js
++++ b/site/js/core/storage-plan.js
+@@ -29,7 +29,7 @@
+   image: { path: "/add-image", type: "application/octet-stream", max: 4 * 1024 * 1024 },
+ };
+ 
+-async function boundedBytes(res, limit){
++export async function boundedBytes(res, limit){
+   if (Number(res.headers.get("content-length")) > limit){ await res.body?.cancel(); throw new Error("response too large"); }
+   if (!res.body) return new Uint8Array(await res.arrayBuffer()).slice(0, limit + 1);
+   const reader = res.body.getReader(); const parts = []; let size = 0;
+--- a/site/js/core/unixfs.js
++++ b/site/js/core/unixfs.js
+@@ -29,6 +29,48 @@
+ }
+ export const hex = (u8) => [...u8].map((b) => b.toString(16).padStart(2, "0")).join("");
+ 
++/* The inverse for a CID STRING naming sha2-256 content: { codec: 0x55 raw | 0x70 dag-pb, digest, cid, bytes } where `cid` is
++   the canonical CIDv1 base32 of the same multihash and `bytes` the binary CID exactly as spelled (34-byte CIDv0 or 36-byte
++   CIDv1 - the form CAR blocks and dag-pb links carry), or null. Accepts exactly the spellings the enclave's verifier parses
++   (wasm/ipfs_fetch.py): CIDv0 "Qm..." (dag-pb implied), and CIDv1 in base32 ("b", or "B" upper) or base58btc ("z"),
++   each only in its canonical encoding. Other codecs, hashes, versions or trailing bytes -> null. */
++const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
++function b58(s){
++  let n = 0n; for (const ch of s){ const d = B58.indexOf(ch); if (d < 0) return null; n = n * 58n + BigInt(d); }
++  const out = []; while (n > 0n){ out.unshift(Number(n % 256n)); n /= 256n; }
++  for (let i = 0; i < s.length && s[i] === "1"; i++) out.unshift(0);
++  return Uint8Array.from(out);
++}
++function b32(s){
++  const out = []; let acc = 0, bits = 0;
++  for (const ch of s){ const d = "abcdefghijklmnopqrstuvwxyz234567".indexOf(ch); if (d < 0) return null;
++    acc = ((acc << 5) | d) & 0xffff; bits += 5; if (bits >= 8){ bits -= 8; out.push((acc >>> bits) & 255); } }
++  return Uint8Array.from(out);
++}
++export function parseCid(str){
++  if (typeof str !== "string" || str.length < 46 || str.length > 100) return null;
++  let bytes, v0 = false;
++  if (/^Qm/.test(str)){ bytes = b58(str); v0 = true; }
++  else if (str[0] === "z") bytes = b58(str.slice(1));
++  else if (str[0] === "b" || str[0] === "B") bytes = b32(str.slice(1).toLowerCase());
++  else return null;
++  if (!bytes) return null;
++  const digest = v0 ? (bytes.length === 34 && bytes[0] === 0x12 && bytes[1] === 0x20 ? bytes.subarray(2) : null)
++                    : (bytes.length === 36 && bytes[0] === 1 && (bytes[1] === 0x55 || bytes[1] === 0x70) && bytes[2] === 0x12 && bytes[3] === 0x20 ? bytes.subarray(4) : null);
++  if (!digest) return null;
++  const codec = v0 ? 0x70 : bytes[1], cid = base32Cid(cidBytes(codec, digest));
++  // canonical spelling only: the string must be exactly what its own bytes re-encode to
++  const ok = str[0] === "b" ? str === cid : str[0] === "B" ? str === "B" + cid.slice(1).toUpperCase() : b58canonical(str, bytes, v0);
++  if (!ok) return null;
++  return { codec, digest: Uint8Array.from(digest), cid, bytes: Uint8Array.from(bytes) };
++}
++function b58canonical(str, bytes, v0){
++  let n = 0n; for (const b of bytes) n = n * 256n + BigInt(b);
++  let out = ""; while (n > 0n){ out = B58[Number(n % 58n)] + out; n /= 58n; }
++  for (let i = 0; i < bytes.length && bytes[i] === 0; i++) out = "1" + out;
++  return (v0 ? out : "z" + out) === str;
++}
++
+ /* { cid, sha256 (hex of the whole file), bytes } for a Uint8Array. */
+ export async function artifactIdentity(bytes){
+   if (!(bytes instanceof Uint8Array) || bytes.byteLength > MAX_ARTIFACT_BYTES) throw new Error("artifact must be bytes, at most 2 GiB");
+--- /dev/null
++++ b/site/js/core/ipfs-car.js
+@@ -0,0 +1,148 @@
++/* ============================================================
++   Verified CAR read of a UnixFS file - the browser port of the
++   runtime's verifier (wasm/ipfs_fetch.py parse_car / reconstruct /
++   verify_car), so a page accepts a dag-pb CID's bytes on exactly the
++   proof the enclave accepts them on, whatever the DAG layout (CIDv0
++   dag-pb leaves, raw leaves, mixed, any chunk boundaries):
++     * every block in the CAR must hash (sha2-256) to the CID it is
++       framed with; any other hash refuses the whole CAR;
++     * the REQUESTED CID's exact bytes must be one of those blocks;
++     * the file is the depth-first walk from it, links in order,
++       repeated links emitted every time; raw blocks are bytes, a
++       dag-pb node with links is its children, one without is its
++       UnixFS Data field 2;
++     * work is bounded like the runtime: node visits <= 16 x blocks
++       + maxBytes/4096 + 4096 (a diamond of empty nodes cannot spin),
++       output <= maxBytes.
++   Stricter than the runtime only where the runtime would read past a
++   buffer: framing lengths, varints, protobuf fields and CIDs must fit
++   exactly, field numbers must be >= 1, sections must be non-empty.
++   Nesting deeper than MAX_DEPTH is refused: below the depth where the
++   runtime's recursive walk hits Python's 1000-frame limit, so a page
++   never offers a config the runtime cannot rebuild (Kubo DAGs for a
++   1 MiB config are 1-2 levels deep).
++   Optional `check()` (default: none, the runtime's behaviour): called
++   before and after every block hash and every 1024 node visits, and
++   before returning; a caller's deadline throws from it, so work stops
++   cooperatively at the next check (an in-flight WebCrypto digest of
++   one block still completes) and nothing late is returned.
++   Runtime semantics kept as they are: the CAR header is skipped (the
++   caller's CID, not the header roots, is the root); UnixFS types,
++   filesize/blocksizes and link Tsize are not checked; a node that has
++   links contributes only its children, never its own Data bytes.
++   ============================================================ */
++export const MAX_DEPTH = 900;
++const RAW = 0x55, DAGPB = 0x70, SHA2_256 = 0x12;
++
++function uvarint(buf, pos, end = buf.length){
++  let n = 0, mul = 1;
++  for (let i = 0; i < 9; i++){
++    if (pos >= end) throw new Error("truncated varint");
++    const b = buf[pos++]; n += (b & 0x7f) * mul;
++    if (!(b & 0x80)){ if (!Number.isSafeInteger(n)) throw new Error("varint too large"); return [n, pos]; }
++    mul *= 128;
++  }
++  throw new Error("varint too long");
++}
++// a binary CID at buf[pos..end) -> [key (its exact bytes, as a string), codec, digest, next]
++function cidAt(buf, pos, end){
++  const start = pos;
++  if (end - pos >= 2 && buf[pos] === 0x12 && buf[pos + 1] === 0x20){             // CIDv0: a bare sha2-256 multihash
++    if (end - pos < 34) throw new Error("truncated CID");
++    return [key(buf, start, pos + 34), DAGPB, SHA2_256, buf.subarray(pos + 2, pos + 34), pos + 34];
++  }
++  let ver, codec, mh, len;
++  [ver, pos] = uvarint(buf, pos, end); if (ver !== 1) throw new Error("unsupported CID version " + ver);
++  [codec, pos] = uvarint(buf, pos, end); [mh, pos] = uvarint(buf, pos, end); [len, pos] = uvarint(buf, pos, end);
++  if (len > end - pos) throw new Error("truncated CID");
++  return [key(buf, start, pos + len), codec, mh, buf.subarray(pos, pos + len), pos + len];
++}
++const key = (buf, a, b) => { let s = ""; for (let i = a; i < b; i++) s += String.fromCharCode(buf[i]); return s; };
++// minimal protobuf reader -> [[field, wireType, value]]; every length must fit
++function fields(msg){
++  const out = []; let pos = 0;
++  while (pos < msg.length){
++    let tag, val; [tag, pos] = uvarint(msg, pos);
++    const field = Math.floor(tag / 8), wt = tag % 8;
++    if (field < 1) throw new Error("bad protobuf field");
++    if (wt === 0) [val, pos] = uvarint(msg, pos);
++    else if (wt === 2){ let ln; [ln, pos] = uvarint(msg, pos); if (ln > msg.length - pos) throw new Error("truncated protobuf field"); val = msg.subarray(pos, pos + ln); pos += ln; }
++    else if (wt === 1 || wt === 5){ const ln = wt === 1 ? 8 : 4; if (ln > msg.length - pos) throw new Error("truncated protobuf field"); val = msg.subarray(pos, pos + ln); pos += ln; }
++    else throw new Error("bad protobuf wire type " + wt);
++    out.push([field, wt, val]);
++  }
++  return out;
++}
++// dag-pb PBNode (1 = Data, 2 = Links; PBLink 1 = Hash) -> [link CID keys in order, Data]
++function dagpb(block){
++  const links = []; let data = new Uint8Array(0);
++  for (const [f, wt, val] of fields(block)){
++    if (f === 1 && wt === 2) data = val;
++    else if (f === 2 && wt === 2){
++      for (const [lf, lwt, lval] of fields(val)) if (lf === 1 && lwt === 2){ links.push(key(lval, 0, lval.length)); break; }
++    }
++  }
++  return [links, data];
++}
++function unixfsData(data){
++  for (const [f, wt, val] of fields(data)) if (f === 2 && wt === 2) return val;
++  return new Uint8Array(0);
++}
++
++/* CARv1 bytes -> Map(CID key -> { codec, block }), every block hash-verified. */
++const CHECK_EVERY = 1024;
++export async function parseCar(car, { check = null } = {}){
++  if (!(car instanceof Uint8Array)) throw new Error("CAR must be bytes");
++  const blocks = new Map();
++  let [hlen, pos] = uvarint(car, 0);
++  if (hlen > car.length - pos) throw new Error("truncated CAR header");
++  pos += hlen;
++  while (pos < car.length){
++    let blen; [blen, pos] = uvarint(car, pos);
++    if (blen < 1 || blen > car.length - pos) throw new Error("truncated CAR section");
++    const end = pos + blen;
++    const [k, codec, mh, digest, at] = cidAt(car, pos, end);
++    if (mh !== SHA2_256 || digest.length !== 32) throw new Error("unsupported hash in block (sha2-256 only)");
++    const block = car.subarray(at, end);
++    if (check) check();
++    const got = new Uint8Array(await crypto.subtle.digest("SHA-256", block));
++    if (check) check();
++    for (let i = 0; i < 32; i++) if (got[i] !== digest[i]) throw new Error("block hash mismatch");
++    blocks.set(k, { codec, block });
++    pos = end;
++  }
++  return blocks;
++}
++
++/* The file rooted at the CID whose exact binary form is `rootBytes`, from a verified block map. */
++export function reconstruct(rootBytes, blocks, maxBytes, { check = null } = {}){
++  const budget = 16 * blocks.size + Math.floor(maxBytes / 4096) + 4096;
++  const parts = []; let size = 0, visits = 0;
++  const stack = [[key(rootBytes, 0, rootBytes.length), 0]];
++  while (stack.length){
++    const [k, depth] = stack.pop();
++    if (++visits > budget) throw new Error("DAG walk exceeded node-visit budget (" + budget + ")");
++    if (check && visits % CHECK_EVERY === 1) check();
++    if (depth > MAX_DEPTH) throw new Error("DAG deeper than " + MAX_DEPTH);
++    const b = blocks.get(k); if (!b) throw new Error("CAR is missing a block");
++    if (b.codec === RAW){ parts.push(b.block); size += b.block.length; }
++    else if (b.codec === DAGPB){
++      const [links, data] = dagpb(b.block);
++      if (links.length) for (let i = links.length - 1; i >= 0; i--) stack.push([links[i], depth + 1]);
++      else { const d = unixfsData(data); parts.push(d); size += d.length; }
++    } else throw new Error("unsupported CID codec 0x" + b.codec.toString(16));
++    if (size > maxBytes) throw new Error("reconstructed file exceeds " + maxBytes + " bytes");
++  }
++  const out = new Uint8Array(size); let o = 0; for (const p of parts){ out.set(p, o); o += p.length; }
++  if (check) check();
++  return out;
++}
++
++/* verify_car: the requested root must be in the CAR; returns its verified file bytes (throws on anything else). */
++export async function verifyCar(rootBytes, car, maxBytes, { check = null } = {}){
++  const blocks = await parseCar(car, { check });
++  if (!blocks.has(key(rootBytes, 0, rootBytes.length))) throw new Error("CAR does not contain the requested CID");
++  return reconstruct(rootBytes, blocks, maxBytes, { check });
++}
++// the runtime's CAR transfer cap for a file of at most maxBytes
++export const carCap = (maxBytes) => maxBytes + Math.floor(maxBytes / 2) + (1 << 20);

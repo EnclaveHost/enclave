@@ -1,0 +1,21 @@
+14046c14046,14048
+<   let seen = /* @__PURE__ */ new Set();
+---
+>   let sig = Buffer.from(bundle.signature || "", "base64");
+>   if (sig.length !== 64 || !verify(null, Buffer.from(message("route", r)), key, sig)) throw new Error("invalid route signature");
+>   let seen = /* @__PURE__ */ new Set(), served = [];
+14051a14054
+>       served.push(route);
+14054c14057
+<     if (!(networkProviders || []).find((x) => x.address === route.address && x.eligibleRoles.includes("ingress") && x.qualifiedUntil >= Math.min(r.expiresAt, now + 6e4) && x.pricePerGiB6 <= (p.enclaveNetwork?.maxPricePerGiB6 ?? 0))) throw new Error("route address is not a qualified Enclave-network ingress provider");
+---
+>     (networkProviders || []).find((x) => x.address === route.address && x.eligibleRoles.includes("ingress") && x.qualifiedUntil >= Math.min(r.expiresAt, now + 6e4) && x.pricePerGiB6 <= (p.enclaveNetwork?.maxPricePerGiB6 ?? 0)) && served.push(route);
+14056,14057c14059
+<   let sig = Buffer.from(bundle.signature || "", "base64");
+<   if (sig.length !== 64 || !verify(null, Buffer.from(message("route", r)), key, sig)) throw new Error("invalid route signature");
+---
+>   if (r.routes.length && !served.length) throw new Error("route address is not a qualified Enclave-network ingress provider");
+14062c14064
+<   }), { ...r, expiresAt: Math.min(r.expiresAt, lease.validUntil), ipns: d.ipns };
+---
+>   }), { ...r, routes: served, expiresAt: Math.min(r.expiresAt, lease.validUntil), ipns: d.ipns };

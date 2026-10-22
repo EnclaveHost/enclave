@@ -1,0 +1,40 @@
+{
+  "mode": "PLAN ONLY (no network call made)",
+  "manifestSha": "d3aae7359c4a141d740d462e25da45bcc94588b339da15087f7720ad233b122b",
+  "manifest": {
+    "transportSha": "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f",
+    "files": {
+      "first-hop.ps1": "d57c5ef60bad7e9575bc9b2215f9b5b2eccd4e0a7689fb56fa041e3d828771b0",
+      "update-host.first-hop.ps1": "36f9e0d61afe58b77e566033ad1155d5c771252874f622592837c33e0a990112"
+    },
+    "live": "e0d9df1c271bf09cc21e8f00452fd0415087fb33b8030a7d16bbd717b7058531",
+    "stagePrefix": "C:\\ProgramData\\Enclave\\staging\\updater-first-hop-",
+    "windowSec": 600,
+    "secs": {
+      "check": 150,
+      "apply": 210,
+      "rollback": 210
+    }
+  },
+  "localMismatches": {},
+  "texts": {
+    "check-create": "$s='C:\\ProgramData\\Enclave\\staging\\updater-first-hop-000000000000';if(Test-Path -LiteralPath $s){throw 'stage exists'};$null=New-Item -ItemType Directory -Path $s;@{created=$s}|ConvertTo-Json -Compress",
+    "check-run": "$s='C:\\ProgramData\\Enclave\\staging\\updater-first-hop-000000000000';if(@(Get-ChildItem -LiteralPath $s -Recurse -Force -File).Count -ne 2){throw 'stage file count differs'};if((FileSha ($s+'\\first-hop.ps1')) -ne 'd57c5ef60bad7e9575bc9b2215f9b5b2eccd4e0a7689fb56fa041e3d828771b0'){throw 'pin mismatch: first-hop.ps1'};if((FileSha ($s+'\\update-host.first-hop.ps1')) -ne '36f9e0d61afe58b77e566033ad1155d5c771252874f622592837c33e0a990112'){throw 'pin mismatch: update-host.first-hop.ps1'};& (Join-Path $env:SystemRoot 'System32\\WindowsPowerShell\\v1.0\\powershell.exe') -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ($s+'\\first-hop.ps1') -Mode Check -Stage $s -WindowSec 600;if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}",
+    "check-cleanup": "$s='C:\\ProgramData\\Enclave\\staging\\updater-first-hop-000000000000';if(-not $s.StartsWith('C:\\ProgramData\\Enclave\\staging\\updater-first-hop-')){throw 'not an updater-first-hop stage'};if(Test-Path -LiteralPath $s){Remove-Item -LiteralPath $s -Recurse -Force};@{gone=(-not(Test-Path -LiteralPath $s))}|ConvertTo-Json -Compress",
+    "apply-run": "$s='C:\\ProgramData\\Enclave\\staging\\updater-first-hop-000000000000';if(@(Get-ChildItem -LiteralPath $s -Recurse -Force -File).Count -ne 2){throw 'stage file count differs'};if((FileSha ($s+'\\first-hop.ps1')) -ne 'd57c5ef60bad7e9575bc9b2215f9b5b2eccd4e0a7689fb56fa041e3d828771b0'){throw 'pin mismatch: first-hop.ps1'};if((FileSha ($s+'\\update-host.first-hop.ps1')) -ne '36f9e0d61afe58b77e566033ad1155d5c771252874f622592837c33e0a990112'){throw 'pin mismatch: update-host.first-hop.ps1'};& (Join-Path $env:SystemRoot 'System32\\WindowsPowerShell\\v1.0\\powershell.exe') -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ($s+'\\first-hop.ps1') -Mode Apply -Stage $s -WindowSec 600 -RunId '20261022000000-00000000';if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}",
+    "rollback-run": "$s='C:\\ProgramData\\Enclave\\staging\\updater-first-hop-000000000000';if(@(Get-ChildItem -LiteralPath $s -Recurse -Force -File).Count -ne 2){throw 'stage file count differs'};if((FileSha ($s+'\\first-hop.ps1')) -ne 'd57c5ef60bad7e9575bc9b2215f9b5b2eccd4e0a7689fb56fa041e3d828771b0'){throw 'pin mismatch: first-hop.ps1'};if((FileSha ($s+'\\update-host.first-hop.ps1')) -ne '36f9e0d61afe58b77e566033ad1155d5c771252874f622592837c33e0a990112'){throw 'pin mismatch: update-host.first-hop.ps1'};& (Join-Path $env:SystemRoot 'System32\\WindowsPowerShell\\v1.0\\powershell.exe') -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ($s+'\\first-hop.ps1') -Mode Rollback -Stage $s -WindowSec 600 -RunId '20261022000000-00000000';if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}"
+  },
+  "encodedSizes": {
+    "check-create": 1864,
+    "check-run": 3256,
+    "check-cleanup": 2192,
+    "apply-run": 3344,
+    "rollback-run": 3352
+  },
+  "encodedLimit": 7900,
+  "commands": {
+    "check": "python3 run-first-hop.py --mode check --root-reviewed d3aae7359c4a141d740d462e25da45bcc94588b339da15087f7720ad233b122b",
+    "apply": "python3 run-first-hop.py --mode apply --root-reviewed d3aae7359c4a141d740d462e25da45bcc94588b339da15087f7720ad233b122b",
+    "rollback": "python3 run-first-hop.py --mode rollback --root-reviewed d3aae7359c4a141d740d462e25da45bcc94588b339da15087f7720ad233b122b --run-id <apply runId>"
+  }
+}

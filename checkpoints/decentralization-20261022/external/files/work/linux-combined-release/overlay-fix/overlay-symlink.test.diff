@@ -1,0 +1,39 @@
+--- base/metal-control-overlay.test.py	2026-10-21 02:36:48.424548958 -0700
++++ new/test/metal-control-overlay.test.py	2026-10-21 02:37:18.774439664 -0700
+@@ -49,10 +49,10 @@
+         installed,packages=mod.app_files(COMMIT,REPO)
+         self.assertTrue(set(mod.APP_FILES)<=set(installed))
+         for src in installed:
+-            self.assertEqual(after['app/'+src][1],subprocess.check_output(['git','show',COMMIT+':'+src],cwd=REPO))
++            self.assertEqual(after['app/'+src][1],mod.committed(COMMIT,REPO,src))   # a git symlink: its target's bytes
+         self.assertEqual([p['name'] for p in m['controlOverlay']['supervisorClosure']['packages']],sorted(packages))
+         for src in mod.GUEST_FILES:
+-            self.assertEqual(after['opt/metal/'+src][1],subprocess.check_output(['git','show',COMMIT+':metal/guest/'+src],cwd=REPO))
++            self.assertEqual(after['opt/metal/'+src][1],mod.committed(COMMIT,REPO,'metal/guest/'+src))
+         self.assertTrue(stat.S_ISDIR(after['app/windows/node'][0][1]))
+         self.assertNotIn('expectedMeasurement',m)
+         self.assertEqual(m['initramfs']['sha256'],mod.file_sha(out/'initramfs.cpio.gz'))
+@@ -108,6 +108,23 @@
+         with self.assertRaisesRegex(ValueError,'exports no ./chains'):mod.check_packages({'viem':['./chains']},pj(ok))
+         with self.assertRaisesRegex(ValueError,'no jose package'):mod.check_packages({'jose':['.']},pj(ok))
+         self.assertTrue(mod.check_packages({'p':['./deep/x']},pj({'p':{'version':'1','exports':{'./*':'./*'}}})))
++    def test_git_symlinks_install_their_target_bytes_like_build_image(self):
++        # relay/net-guard.mjs -> ../net-guard.mjs entered the supervisor closure; the link text is not a module
++        repo=self.root/'repo';repo.mkdir();git=lambda *a:subprocess.check_output(['git','-c','user.name=t','-c','user.email=t@t',*a],cwd=repo)
++        git('init','-q');(repo/'relay').mkdir();(repo/'guard.mjs').write_text('export const ok = 1;\n')
++        (repo/'relay/guard.mjs').symlink_to('../guard.mjs');(repo/'relay/chain.mjs').symlink_to('guard.mjs')
++        (repo/'relay/out.mjs').symlink_to('../../outside.mjs');(repo/'relay/abs.mjs').symlink_to('/etc/hostname')
++        (repo/'relay/loop.mjs').symlink_to('loop.mjs')
++        (repo/'supervisor.js').write_text("import { ok } from './relay/chain.mjs';\n");(repo/'addressbook.js').write_text('')
++        git('add','-A');git('commit','-qm','t');c=git('rev-parse','HEAD').decode().strip()
++        self.assertEqual(git('show',c+':relay/guard.mjs'),b'../guard.mjs')
++        for rel in ['relay/guard.mjs','relay/chain.mjs','guard.mjs']:
++            self.assertEqual(mod.committed(c,repo,rel),b'export const ok = 1;\n')
++        self.assertIsNone(mod.committed(c,repo,'relay/absent.mjs'))
++        for rel,msg in [('relay/out.mjs','leaves the repository'),('relay/abs.mjs','leaves the repository'),('relay/loop.mjs','does not end')]:
++            with self.assertRaisesRegex(ValueError,msg):mod.committed(c,repo,rel)
++        files,_=mod.supervisor_closure(lambda r:(lambda d:d.decode() if d is not None else None)(mod.committed(c,repo,r)),mod.SUPERVISOR_ROOTS)
++        self.assertEqual(files,['addressbook.js','relay/chain.mjs','supervisor.js'])
+     def test_optional_guest_helpers_follow_the_commit(self):
+         gsup=subprocess.check_output(['git','show',COMMIT+':metal/guest/gsup.mjs'],cwd=REPO).decode()
+         files=mod.guest_files(COMMIT,REPO)

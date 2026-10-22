@@ -1,0 +1,68 @@
+--- a/etc/enclave-bootstrap-tls/Caddyfile
++++ b/etc/enclave-bootstrap-tls/Caddyfile
+@@ -4866,6 +4866,65 @@
+         }
+     }
+     header X-Content-Type-Options nosniff
++    # BEGIN public signed-record directory (work/directory-https-activation)
++    # Credential-free GET and POST of the public signed-record grammar are answered by THIS host's
++    # local directory (127.0.0.1:8188, network/directory-server.mjs), never by the control tunnel below.
++    # The directory checks every signature/owner/lease itself. Legacy compatibility only (@recovery):
++    # /v1/network/{byo,status}/*, other policy-id spellings, other methods, Authorization/Cookie requests.
++    # Dialed from 127.0.0.2: public traffic must not use the directory's loopback-reserved DNS budget.
++    @publicDirectory {
++        method GET POST
++        path_regexp ^/v1/network/(providers|qualifications|routes|records|management|policy/0x[0-9a-f]{64})$
++        not header Authorization *
++        not header Cookie *
++    }
++    handle @publicDirectory {
++        # Set once here (also on Caddy's own 413/502); the directory's copy is dropped below.
++        header Access-Control-Allow-Origin "*"
++        request_body {
++            max_size 65536
++        }
++        reverse_proxy 127.0.0.1:8188 {
++            header_up -Authorization
++            header_up -Cookie
++            header_down -Access-Control-Allow-Origin
++            header_down -Access-Control-Allow-Credentials
++            header_down -Set-Cookie
++            header_down -X-Content-Type-Options
++            transport http {
++                local_address 127.0.0.2
++                dial_timeout 3s
++                response_header_timeout 15s
++            }
++        }
++    }
++    @publicDirectoryPreflight {
++        method OPTIONS
++        path_regexp ^/v1/network/(providers|qualifications|routes|records|management|policy/0x[0-9a-f]{64})$
++        header_regexp Access-Control-Request-Method ^(GET|POST)$
++        not header Access-Control-Request-Headers *authorization*
++        not header Cookie *
++    }
++    handle @publicDirectoryPreflight {
++        header Access-Control-Allow-Origin "*"
++        header Access-Control-Allow-Methods "GET, POST"
++        header Access-Control-Allow-Headers "content-type"
++        header Access-Control-Max-Age "600"
++        respond 204
++    }
++    # Any other /v1/network/* path is not a public record: answered 404 here, never by the control tunnel, so an
++    # origin advertised as a directory cannot pass off a legacy answer. Legacy-only API paths stay below.
++    @publicDirectoryUnknown {
++        path_regexp (?i)^/v1/network/
++        not path /v1/network/byo/* /v1/network/status/* /v1/network/policy/*
++        not path_regexp ^/v1/network/(providers|qualifications|routes|records|management|policy/0x[0-9a-f]{64})$
++    }
++    handle @publicDirectoryUnknown {
++        header Access-Control-Allow-Origin "*"
++        header Content-Type application/json
++        respond `{"error":"not a public-record path"}` 404
++    }
++    # END public signed-record directory
+     @recovery path /native/* /recovery-health /v1/* /health /enclaves /availability /route /t/* /mcp
+     handle @recovery {
+         reverse_proxy https://127.0.0.1:30443 {

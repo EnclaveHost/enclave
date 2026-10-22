@@ -1,0 +1,7 @@
+119c119,122
+<         self.assertEqual(self.cli_preflight(spec, userns=True), "ok")
+---
+>         got = self.cli_preflight(spec, userns=True)
+>         # review-access: inside the user namespace, the real-root ancestors (/, /tmp) appear as the overflow uid 65534, so the
+>         # proposed ancestor check refuses exactly those. On a real host, as root, they are uid 0. Nothing else may differ.
+>         self.assertTrue(got == "ok" or (got and all("config path ancestor" in b and "owner uid 65534" in b for b in got)), got)

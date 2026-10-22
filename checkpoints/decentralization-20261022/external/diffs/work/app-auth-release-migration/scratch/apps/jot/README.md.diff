@@ -1,0 +1,108 @@
+--- a/jot/README.md
++++ b/jot/README.md
+@@ -58,6 +58,7 @@
+   "credentials": { "accessKeyId": "$JOT_ACCESS_KEY_ID", "secretAccessKey": "$JOT_SECRET_ACCESS_KEY" },
+   "api_key": "$JOT_API_KEY",
+   "master_key": "$JOT_MASTER_KEY",
++  "link_key": "$JOT_LINK_KEY",
+   "sso": {
+     "signer": "0x3394b4d24250F1657cB547975e77117454b3Cc6D",
+     "audience": "0x<this jot deployment's id>",
+@@ -128,6 +129,69 @@
+   on-chain config). Only a holder of the API key can assert a name; a
+   deployment with no `api_key` never trusts `X-User` at all.
+ 
++- **A direct wallet sign-in** (`wallet` block: `{"audience": "0x<this jot's
++  id>", "domains": ["notes.example.org"], "accept": ["0x<eyesoff-ai id>"]}`).
++  The visitor's own wallet signs an EIP-4361 message for this host and
++  deployment, and jot verifies it; no enclave.host account and no issuer are
++  involved (eyesoff-ai's `PLATFORM-sso.md` has the format). It names
++  `wallet_0x<address>`, a notebook of its own: the same wallet signed in
++  through `sso` is a different notebook, never silently the same one.
++  eyesoff-ai's `$user` carries that name through `X-User` too.
++  - **Contract wallets.** With `contract_wallets` (pinned JSON-RPC readers on
++    distinct hosts) in the block, smart-contract wallets sign in too, by the
++    agreeing-snapshot quorum: deployed ones through EIP-1271, and ones not
++    deployed yet through EIP-6492 (each reader simulates the wallet's factory
++    call in one deployless call). One lying reader can neither approve nor
++    veto.
++  - **Signers outside the browser.** The UI's *Another signer…* covers a
++    passkey account, a Safe, a hardware or command-line wallet: the page shows
++    the exact message and takes back the signature, which jot verifies like
++    any other.
++
++**Keeping an existing notebook with a wallet.** With both blocks set, a
++signed-in person can link a wallet to their account (the UI's *Link a wallet*,
++or `POST /api/link/challenge` then `POST /api/link`).
++
++What it takes:
++- an Enclave sign-in for this notebook from the last ten minutes;
++- a wallet signature naming that account, that sign-in and this notebook.
++
++What is written:
++- two create-only records under `<prefix>.jot/links/`.
++
++What follows:
++- That wallet then opens the account's existing notebook. Nothing is moved or
++  re-sealed.
++
++What is refused:
++- relinking either side;
++- a wallet that already has notes of its own (linking would hide them);
++- an old session token;
++- a routine wallet sign-in.
++
++How links are stored:
++- **Authenticated, not trusted.** Each record carries this app's HMAC under the
++  link key: `link_key` (a `$SECRET`), or one derived from `master_key` when no
++  `link_key` is configured.
++- **What a record is bound to:** this deployment, the bucket, the prefix, its
++  direction and both identities.
++- **What links nothing:** forged or copied records, and every record when no key
++  is configured.
++- **Store requirements:** the bucket must honour `If-None-Match: *` and
++  `If-Match` on PUT, as AWS S3, R2 and minio do.
++- **Failure behaviour:** nothing is ever deleted. A half-made link is inert and
++  is completed or replaced, by compare-and-swap, on the next proven attempt.
++- **Unlinking:** there is none. The operator can delete the two objects.
++
++**When to link.** A link needs a fresh Enclave sign-in for the account, and jot
++issues no account credential of its own. An existing account must therefore
++link once while the Enclave issuer still signs it in. After that, the stored
++link serves with no issuer at all, including for a contract wallet not yet
++deployed. An account that never links before the issuer stops cannot reach its
++notes again.
++
++eyesoff-ai's `PLATFORM-sso.md` has the full contract.
++
+ The notebook UI signs in with the same popup flow as the eyesoff-ai
+ playground and keeps the token for up to 7 days. **Switch account** drops
+ it and reopens the flow with `prompt=select_account`, which makes
+@@ -371,3 +435,27 @@
+ (MIT License, copyright The Minish Lab), a Model2Vec distillation of
+ BAAI/bge-base-en-v1.5 (MIT). `scripts/fetch-model.sh` records the exact
+ revision and digests.
++
++## Restoring an account after the issuer's retirement (EAB1, candidate)
++
++**Why.** An account that never linked a wallet while Enclave's issuer existed would otherwise lose its notebook. The
++design is `work/app-auth-release-migration/PROTOCOL-EAB1.md`, with `src/eab1.rs` as the verifier.
++
++**What the owner pins.** The issuer's cutover snapshot (`migration`), with `sso.until` set to the cutover.
++
++**What the user does.** A holder of the account's migration file uses *Restore an account…*. A wallet the account had at
++cutover signs the link (EOA, deployed or counterfactual contract wallet; in the browser or by hand). The wallet then
++opens the account's existing sealed notebook. Nothing is moved or re-sealed, and no issuer is involved.
++
++**Passkey-only accounts.** With `migration.vault_factory` pinned too (the address book's passkey-vault factory and its
++implementation), a passkey the file commits signs as its original credit vault's address, on Enclave's static signer
++page (`https://enclave.host/recover/`, the vault's pinned origin). The page shows the address to enter here and signs
++the message this page shows, by hand. The vault's ERC-1271 / ERC-6492 answer is checked through the pinned chain
++readers, so keys later added to or removed from the vault on chain count from then on.
++
++**What is refused.**
++- A wallet the file does not commit, including a link message such a wallet built and signed itself.
++- A corrupted or forged file.
++- A snapshot this notebook does not pin.
++- Any EST1 after `sso.until`.
++- The usual link refusals (a linked account, a wallet with notes of its own).

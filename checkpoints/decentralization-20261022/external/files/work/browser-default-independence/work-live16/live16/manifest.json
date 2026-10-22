@@ -1,0 +1,12 @@
+{
+  "authorityDigest": "sha256:ee957827032cf7208434e4c73f9e859a27e4fc5c6cab5f4a2153308c09eb4cb8",
+  "inputs": {
+    "authority": "sha256:ee957827032cf7208434e4c73f9e859a27e4fc5c6cab5f4a2153308c09eb4cb8",
+    "expectPins": "sha256:b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d",
+    "serviceIndexPin": "sha256:be81d57f5c4a557e6ca3d780c91bce2379c87560e1c958ab3d0f6c91fa89bbd9"
+  },
+  "kind": "enclave.default-profile.manifest",
+  "profileDigest": "sha256:34b5c98d724fa27195b54d98fc63bb39334354d14c8bdc866820e60df59fb39c",
+  "provisional": false,
+  "version": 1
+}

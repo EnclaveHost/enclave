@@ -1,0 +1,7 @@
+{
+  "stage": "C:\\ProgramData\\Enclave\\staging\\carrier-gate-a549bd5c9e1c",
+  "gateSha": "c749630e59f8a28cd3ac00bb59bdfc64875f644715bf38b48ca2e56f5ddc3bc4",
+  "bundleSha": "40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25",
+  "psSha": "230b30b26f1d6f3423d34d635b543a8fed7a3bb28499925bd86f0f1f7f9696a7",
+  "scope": "Staged candidate only. Native Node on Windows, carrier config and fresh public chain 3-of-4 reads. No installed bundle/config/policy/anchor change, no production restart. Unanchored state cannot prove live anchored document retrieval."
+}

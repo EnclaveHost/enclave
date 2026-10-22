@@ -1,0 +1,18 @@
+--- frozen/tools/cutover-mock-test.py
++++ ai-final/tools/cutover-mock-test.py
+@@ -232,4 +232,15 @@
+         lines2, c2 = run(r, rb, mode="rollback"); self.ok(lines2, c2, "REFUSED")
+         self.assertTrue(flag(r)); self.assertTrue(block(r)); self.assertEqual(starts(r), 1, "the running node was not touched")
+ 
++class AclPrecondition(unittest.TestCase):
++    """AI precondition (node-hold-acl-normalization apply-ai-precondition.py): a config DACL without AI refuses at the pins"""
++    def test_config_without_auto_inherited_dacl_refuses_before_anything(self):
++        for scen, leaf in (("cfg-acl-no-ai", "privacy-config.json"), ("local-acl-no-ai", "node-config.local.cmd")):
++            r = world(); before = (r / "network/privacy-config.json").read_bytes(); lines, c = run(r, params(r, scen), scenario=scen)
++            try:
++                self.assertTrue(final(lines).startswith("REFUSED"), (final(lines), c.stderr[-500:])); self.assertIn(leaf + " has a DACL that is not auto-inherited", final(lines))
++                self.assertEqual((starts(r), flag(r), block(r), temps(r), (r / "network/privacy-config.json").read_bytes()), (0, False, False, [], before)); self.assertTrue(node_running(r))
++                self.assertEqual([l.get("step") for l in lines if l.get("step")], ["pins"], "refused at the pins: the node was never stopped")
++            finally: shutil.rmtree(r, ignore_errors=True)
++
+ if __name__ == "__main__": unittest.main()

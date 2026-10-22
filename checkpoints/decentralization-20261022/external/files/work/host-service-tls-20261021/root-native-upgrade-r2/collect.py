@@ -1,0 +1,11 @@
+import importlib.util,pathlib,json,datetime
+p=pathlib.Path(__file__).resolve().parent
+s=importlib.util.spec_from_file_location('u',p/'run-reviewed.py')
+# Import the transport directly, not the staging driver.
+s=importlib.util.spec_from_file_location('t',pathlib.Path('work/nucbox-tls-20261021/root-activate-reviewed.py').resolve());m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+o=json.loads((p/'stage.json').read_text());d=o['stage'];tag=o['runTag']
+code=r'''$d='STAGEDIR';$tag='TAG';$w=Join-Path $d ('fixture-watchdog-'+$tag+'.json');$tasks=@(Get-ScheduledTask -ErrorAction SilentlyContinue|Where-Object{$_.TaskName -like ('hs2upfx-'+$tag+'-*')});$t=Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'enclave-host-services-hs2';$xml=Export-ScheduledTask -TaskPath '\Enclave\' -TaskName 'enclave-host-services-hs2';$h=[Security.Cryptography.SHA256]::Create();$x=-join($h.ComputeHash([Text.Encoding]::UTF8.GetBytes([string]$xml))|ForEach-Object{$_.ToString('x2')});$out=@{tasksLeft=$tasks.Count;baseExists=(Test-Path -LiteralPath ('C:\ProgramData\enclave hs2 upgrade fixture-'+$tag));watchdogExists=(Test-Path -LiteralPath $w);taskState=[string]$t.State;taskXmlSha=$x;configSha=FileSha 'C:\ProgramData\Enclave\host-services\hs2\config\host-services.json'};if(Test-Path -LiteralPath $w){$out.watchdog=Get-Content -Raw -LiteralPath $w|ConvertFrom-Json};$ep=Join-Path $d 'empty-probe.txt';if(Test-Path -LiteralPath $ep){throw 'probe collision'};try{[IO.File]::WriteAllText($ep,'');try{$q=([string](Get-Content -Raw -LiteralPath $ep -ErrorAction SilentlyContinue)).Trim();$out.emptyTrim=@{ok=$true;value=$q}}catch{$out.emptyTrim=@{ok=$false;error=$_.Exception.Message}}}finally{Remove-Item -LiteralPath $ep -Force};$out|ConvertTo-Json -Depth 6 -Compress'''.replace('STAGEDIR',d).replace('TAG',tag)
+code=code[:code.index("$ep=")]+"$out|ConvertTo-Json -Depth 6 -Compress"
+r=m.ps(code,secs=60);(p/'collection.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))
+assert r['tasksLeft']==0 and r['baseExists']==False
+assert r['taskState']=='Running' and r['taskXmlSha']==o['preflight']['taskXmlSha'] and r['configSha']==o['preflight']['configSha']

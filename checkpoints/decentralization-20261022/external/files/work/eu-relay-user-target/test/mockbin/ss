@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# TEST-ONLY listeners on :8549: the relay's loopback one while it is active, the forwarder's LAN one while it is active
+M=${MOCK_DIR:-$FSROOT/mock}
+{ [ -e "$M/active-enclave-host-relay-eu.service" ] || [ -e "$M/active-enclave-lease-relay.service" ] || [ -e "$M/port-taken" ]; } && echo "LISTEN 0 511 127.0.0.1:8549 0.0.0.0:*"
+[ -e "$M/active-enclave-host-relay-eu-lan.service" ] && echo "LISTEN 0 511 ${MOCK_LAN_LISTEN:-192.168.8.249}:8549 0.0.0.0:*"
+[ -e "$M/wildcard-listener" ] && echo "LISTEN 0 511 0.0.0.0:8549 0.0.0.0:*"
+exit 0

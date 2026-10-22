@@ -1,0 +1,24 @@
+--- a/metal/overlay-control-image.py
++++ b/metal/overlay-control-image.py
+@@ -19,6 +19,12 @@
+ ]
+ GUEST_FILES = ['gsup.mjs', 'agent.mjs', 'host-policy.bundle.mjs', 'shielded.mjs',
+                'shielded-probe.mjs', 'shielded-shm.mjs']
++# Guest modules a committed gsup.mjs may import: installed exactly when that commit's gsup imports them (its closure),
++# so an overlay of an older commit is unchanged and a newer one never ships a gsup without its helper.
++OPTIONAL_GUEST_FILES = ['measured-control.mjs']
++def guest_files(commit, repo):
++    gsup = subprocess.check_output(['git', 'show', commit+':metal/guest/gsup.mjs'], cwd=repo).decode()
++    return GUEST_FILES + [f for f in OPTIONAL_GUEST_FILES if ("'./"+f+"'") in gsup or ('"./'+f+'"') in gsup]
+ REQUIRED = {'app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/agent.mjs', 'opt/metal/manifest.json'}
+ sha = lambda b: hashlib.sha256(b).hexdigest()
+ def file_sha(file):
+@@ -82,7 +88,7 @@
+     if file_sha(base/'vmlinuz') != m['kernel']['sha256']:
+         raise ValueError('base kernel hash mismatch')
+     commit = subprocess.check_output(['git', 'rev-parse', commit+'^{commit}'], cwd=repo, text=True).strip()
+-    paths = {**{'app/'+p: p for p in APP_FILES}, **{'opt/metal/'+p: 'metal/guest/'+p for p in GUEST_FILES}}
++    paths = {**{'app/'+p: p for p in APP_FILES}, **{'opt/metal/'+p: 'metal/guest/'+p for p in guest_files(commit, repo)}}
+     replacements = {k: subprocess.check_output(['git', 'show', commit+':'+v], cwd=repo) for k,v in paths.items()}
+     m.pop('expectedMeasurement', None)
+     m.pop('initramfs', None)

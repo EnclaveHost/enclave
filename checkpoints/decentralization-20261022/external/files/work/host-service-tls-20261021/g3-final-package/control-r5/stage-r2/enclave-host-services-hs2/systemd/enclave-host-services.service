@@ -1,0 +1,65 @@
+# Enclave host-service roles on an existing Enclave host: directory replica, bootstrap replica, read-only route DNS and
+# the platform policy mirror (work/hosted-services-activation, stage hs2). STAGE 1: loopback only, NOT advertised,
+# not delegated; runs alongside every existing service and changes none of them.
+#
+# Limits are the PROCESS limits of the whole cgroup (the runner and the four role processes it starts):
+#   MemoryMax / MemoryHigh / MemorySwapMax  - the kernel cgroup memory limit (RSS + page cache charged to the service);
+#   CPUQuota / CPUWeight / TasksMax         - CPU time and task limits.
+# The per-role heapMiB in host-services.json is only each role's V8 old-space heap cap (--max-old-space-size); it is not
+# a memory limit and does not replace these.
+# Restart: the runner restarts a crashed role itself (exponential backoff 1 s .. 60 s); systemd restarts the runner on
+# failure (10 s, at most 5 starts in 10 min). A platform-policy refusal (ban, allowlist miss, deregistration) is NOT a
+# failure: the runner keeps running with every role stopped until a new authenticated admit.
+[Unit]
+Description=Enclave host-service roles (stage hs2: loopback, not advertised)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+DynamicUser=yes
+StateDirectory=enclave-host-services
+StateDirectoryMode=0750
+WorkingDirectory=/var/lib/enclave-host-services
+ExecStart=/usr/bin/node --max-old-space-size=128 /opt/enclave-host-services/hs2/bin/host-services-runner.mjs run /etc/enclave-host-services/hs2/host-services.json
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=30s
+KillMode=mixed
+KillSignal=SIGTERM
+
+MemoryAccounting=yes
+MemoryHigh=768M
+MemoryMax=1024M
+MemorySwapMax=0
+CPUAccounting=yes
+CPUQuota=150%
+CPUWeight=50
+TasksMax=256
+LimitNOFILE=8192
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

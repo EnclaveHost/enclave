@@ -1,0 +1,335 @@
+--- a/relay/dns-relay.js
++++ b/relay/dns-relay.js
+@@ -124,22 +124,33 @@
+     setInterval(() => ledger.sync().catch((e) => console.error(`[dns-relay] app-zone ledger index: ${e.message}`)), 60_000).unref();
+   } catch (e) { console.error(`fatal: APP_CHALLENGE_AUTH: ${e.message}`); process.exit(1); }
+ }
+-// CHALLENGE_TXT_UPSTREAM (ip:port, TCP DNS): a READ-ONLY route replica that a provider's whole DNS port is pinned to (G2)
+-// keeps answering the platform's relay-issued dns-01 challenges. Those TXT values live in the writable challenge daemon
+-// (the fronts' dnsdist sends _acme-challenge TXT/ANY to it), so this replica merges that source's TXT for
+-// _acme-challenge.*.APP_ZONE queries - the same merge an attested-lease replica does with APP_CHALLENGE_UPSTREAM. It writes
+-// nothing and holds no key; one upstream at a time (not both variables).
+-let CH_TXT_UPSTREAM = APPCH?.upstream || null;
++// A read-only route replica can merge up to four explicitly pinned challenge sources. During migration this
++// includes both the old source and the host's attested challenge replica. All are queried in parallel within one
++// 1.5-second budget; an unavailable source contributes nothing. The singular setting remains compatible.
++let CH_TXT_UPSTREAMS = APPCH?.upstream ? [APPCH.upstream] : [];
+ {
+-  const up = (process.env.CHALLENGE_TXT_UPSTREAM || "").trim();
+-  if (up) {
+-    const m = /^(\[[0-9a-f:]+\]|[0-9.]+):([0-9]{1,5})$/i.exec(up);
+-    const host = m ? m[1].replace(/^\[|\]$/g, "") : "", port = m ? Number(m[2]) : 0;
+-    if (!READ_ONLY || ATTESTED || APPCH) { console.error("fatal: CHALLENGE_TXT_UPSTREAM is for a DNS_READ_ONLY route replica without APP_CHALLENGE_AUTH (whose own APP_CHALLENGE_UPSTREAM is the merge)"); process.exit(1); }
+-    if (!m || !net.isIP(host) || port < 1 || port > 65535) { console.error("fatal: CHALLENGE_TXT_UPSTREAM must be ip:port"); process.exit(1); }
+-    CH_TXT_UPSTREAM = { host, port };
+-  }
+-}
++  const single = (process.env.CHALLENGE_TXT_UPSTREAM || "").trim();
++  const plural = process.env.CHALLENGE_TXT_UPSTREAMS;
++  if (single || plural !== undefined) {
++    try {
++      if (!READ_ONLY || ATTESTED || APPCH) throw Error("CHALLENGE_TXT_UPSTREAM(S) requires a DNS_READ_ONLY route replica without APP_CHALLENGE_AUTH");
++      if (single && plural !== undefined) throw Error("give CHALLENGE_TXT_UPSTREAM or CHALLENGE_TXT_UPSTREAMS, not both");
++      const values = plural === undefined ? [single] : JSON.parse(plural);
++      if (!Array.isArray(values) || values.length < 1 || values.length > 4) throw Error("CHALLENGE_TXT_UPSTREAMS must be a JSON array of 1 to 4 distinct ip:port endpoints");
++      const seen = new Set();
++      CH_TXT_UPSTREAMS = values.map((value) => {
++        const m = typeof value === "string" && /^(\[[0-9a-f:]+\]|[0-9.]+):([0-9]{1,5})$/i.exec(value);
++        const host = m ? m[1].replace(/^\[|\]$/g, "") : "", port = m ? Number(m[2]) : 0;
++        if (!m || !net.isIP(host) || port < 1 || port > 65535) throw Error("CHALLENGE_TXT_UPSTREAM must be ip:port (every CHALLENGE_TXT_UPSTREAMS entry uses the same format)");
++        const canonical = new URL(`http://${value}`).host;
++        if (seen.has(canonical)) throw Error("CHALLENGE_TXT_UPSTREAMS must contain distinct endpoints");
++        seen.add(canonical);
++        return {host, port};
++      });
++    } catch (e) { console.error(`fatal: ${e.message}`); process.exit(1); }
++  }
++}
++
+ let ATTEST = null;
+ if (ATTESTED) {
+   const mode = process.env.ATTESTED_JUDGE_MODE || "trusted";
+@@ -228,6 +239,14 @@
+ if (!DNS_BINDS.length || DNS_BINDS.some((address) => !net.isIP(address))) {
+   console.error("fatal: DNS_BIND must contain IP addresses");
+   process.exit(1);
++}
++// Refuse a direct loop after the actual listener configuration has been parsed (including multi-bind).
++const canonicalIp = (ip) => new URL(`http://${net.isIP(ip) === 6 ? `[${ip}]` : ip}`).hostname;
++for (const upstream of CH_TXT_UPSTREAMS) {
++  if (upstream.port === DNS_PORT && (DNS_BINDS.map(canonicalIp).includes(canonicalIp(upstream.host)) ||
++      ["127.0.0.1", "[::1]", "0.0.0.0", "[::]"].includes(canonicalIp(upstream.host)))) {
++    console.error("fatal: CHALLENGE_TXT_UPSTREAM must not be this replica itself"); process.exit(1);
++  }
+ }
+ const API_PORT  = parseInt(process.env.DNS_API_PORT || "8153", 10);
+ const API_BIND  = process.env.DNS_API_BIND || undefined;
+@@ -813,7 +832,7 @@
+       judgeMode: ATTEST.mode, minTcb: ATTEST.minTcb !== undefined, kds: ATTEST.kds, measurements: ATTEST.measurements.size, txtRecords,
+       shield: ATTEST.shield ? { tier: "hv-node", hostExcluded: false, liveHostSessions: ATTEST.shield.sessions(), registry: ATTEST.shieldRegistry } : null });
+     return json(200, { ok: true, readOnly: READ_ONLY, zones: { ip: IP_ZONE, app: APP_ZONE, tcp: TCP_ZONE, box: BOX_ZONE },
+-                       deployments: deployments.length, txtRecords, ...(CH_TXT_UPSTREAM && !APPCH ? { challengeTxtUpstream: true } : {}),
++                       deployments: deployments.length, txtRecords, ...(CH_TXT_UPSTREAMS.length && !APPCH ? { challengeTxtUpstream: true, challengeTxtUpstreamCount: CH_TXT_UPSTREAMS.length } : {}),
+                        routeLabels: appRoutes.size, routeMap: ROUTE_MAP_URL || null,
+                        ...(APPCH ? { appChallenge: { mode: "attested-lease", judgeMode: APPCH.mode, measurements: APPCH.measurements.size,
+                          ledgerIndex: { complete: APPCH.ledger.complete(), size: APPCH.ledger.size() }, upstream: !!APPCH.upstream, peers: APPCH.peers.length,
+@@ -1062,11 +1081,18 @@
+   const hit = upstreamCache.get(name);
+   if (hit && hit.at + 3000 > Date.now()) return hit.p;
+   if (upstreamCache.size >= 1024) for (const [k, v] of upstreamCache) if (v.at + 3000 <= Date.now()) upstreamCache.delete(k);
+-  const p = new Promise((resolve) => {
++  // Fan-out is bounded by the validated list, and every lookup starts now, never after a prior timeout.
++  const p = Promise.all(CH_TXT_UPSTREAMS.map((upstream) => queryUpstreamTxt(name, upstream)))
++    .then((results) => [...new Set(results.flat())].slice(0, MAX_TXT_VALUES));
++  if (upstreamCache.size < 1024) upstreamCache.set(name, { at: Date.now(), p });
++  return p;
++}
++function queryUpstreamTxt(name, upstream) {
++  return new Promise((resolve) => {
+     const id = Math.floor(Math.random() * 65536), labels = name.split(".");
+     const qd = Buffer.concat([...labels.map((l) => Buffer.concat([Buffer.from([l.length]), Buffer.from(l)])), Buffer.from([0]), u16(T.TXT), u16(1)]);
+     const msg = Buffer.concat([u16(id), u16(0), u16(1), u16(0), u16(0), u16(0), qd]);
+-    const sock = net.connect(CH_TXT_UPSTREAM.port, CH_TXT_UPSTREAM.host);
++    const sock = net.connect(upstream.port, upstream.host);
+     let buf = Buffer.alloc(0), over = false;
+     const end = (vals) => { if (over) return; over = true; clearTimeout(t); sock.destroy(); resolve(vals); };
+     const t = setTimeout(() => end([]), 1500);
+@@ -1079,9 +1105,8 @@
+       try { end(parseTxtAnswers(buf.subarray(2, 2 + buf.readUInt16BE(0)), id)); } catch { end([]); }
+     });
+   });
+-  if (upstreamCache.size < 1024) upstreamCache.set(name, { at: Date.now(), p });
+-  return p;
+-}
++}
++
+ function parseTxtAnswers(m, id) {
+   if (m.length < 12 || m.readUInt16BE(0) !== id || !(m[2] & 0x80)) return [];
+   const qd = m.readUInt16BE(4), an = Math.min(m.readUInt16BE(6), 16);
+@@ -1101,7 +1126,7 @@
+   return out;
+ }
+ function appChallengeQuery(msg) {
+-  if (!CH_TXT_UPSTREAM) return null;
++  if (!CH_TXT_UPSTREAMS.length) return null;
+   let q;
+   try { q = parseQuery(msg); } catch { return null; }
+   if (!q || q.opcode !== 0 || (q.qclass !== 1 && q.qclass !== T.ANY) || (q.qtype !== T.TXT && q.qtype !== T.ANY)) return null;
+@@ -1126,7 +1151,7 @@
+ if (!READ_ONLY && !ATTESTED) { await fleet.start(); await fleet.startEligibility(); }
+ if (APPCH) console.log(`[dns-relay] app-zone DNS-01 authority for ${APP_ZONE}: attested-lease, judge ${APPCH.mode}, ${APPCH.measurements.size} pinned measurement(s)`
+   + `${APPCH.upstream ? ", merging upstream " + APPCH.upstream.host + ":" + APPCH.upstream.port : ""}${APPCH.peers.length ? ", " + APPCH.peers.length + " peer(s)" : ""}`);
+-if (CH_TXT_UPSTREAM && !APPCH) console.log(`[dns-relay] read-only replica merging app-zone dns-01 TXT from ${CH_TXT_UPSTREAM.host}:${CH_TXT_UPSTREAM.port}`);
++if (CH_TXT_UPSTREAMS.length && !APPCH) console.log(`[dns-relay] read-only replica merging app-zone dns-01 TXT from ${CH_TXT_UPSTREAMS.length} explicit source(s)`);
+ if (ATTESTED) console.log(`[dns-relay] attested DNS-01 responder for ${CHALLENGE_ZONE} (ns ${NS_NAME}); judge ${ATTEST.mode}, ${ATTEST.measurements.size} pinned measurement(s)`
+   + (ATTEST.shield ? "; Enclave Shield (T0-hv, hostExcluded=false) guests accepted under ATTESTED_SHIELD_POLICY" : ""));
+ else {
+--- a/network/host-services/roles.mjs
++++ b/network/host-services/roles.mjs
+@@ -131,7 +131,7 @@
+     cold: ['a route source: this host\'s own directory replica (loopback) or another directory origin the operator names'],
+     notCold: ['the fleet relay', 'api.enclave.host', 'storage adapters', 'lease relays', 'any app'],
+     validate(c) {
+-      only('route-dns', c, ['dnsPort', 'bind', 'apiPort', 'apiBind', 'zone', 'ipZone', 'nsName', 'nsNames', 'routeMapUrl', 'rateLimitPerSec', 'rateLimitCap', 'transportRateLimitPerSec', 'transportRateLimitCap', 'appStatic', 'challengeTxtUpstream'],
++      only('route-dns', c, ['dnsPort', 'bind', 'apiPort', 'apiBind', 'zone', 'ipZone', 'nsName', 'nsNames', 'routeMapUrl', 'rateLimitPerSec', 'rateLimitCap', 'transportRateLimitPerSec', 'transportRateLimitCap', 'appStatic', 'challengeTxtUpstream', 'challengeTxtUpstreams'],
+         ['dnsPort', 'bind', 'apiPort', 'zone', 'ipZone', 'nsName', 'nsNames', 'routeMapUrl']);
+       port('route-dns', c.dnsPort, 'dnsPort'); bind('route-dns', c.bind); port('route-dns', c.apiPort, 'apiPort');
+       if (c.apiBind !== undefined) bind('route-dns', c.apiBind);
+@@ -148,12 +148,25 @@
+         fail('route-dns', 'transportRateLimitPerSec and transportRateLimitCap: both or neither, cap >= rate');
+       // the platform's dns-01 challenge source this replica merges TXT from (relay/dns-relay.js CHALLENGE_TXT_UPSTREAM): an
+       // explicit IP literal and port, never a name (no resolver is consulted for it), and never this replica's own DNS port
+-      if (c.challengeTxtUpstream !== undefined) {
+-        const m = typeof c.challengeTxtUpstream === 'string' && /^(\[[0-9a-f:]+\]|[0-9.]+):([0-9]{1,5})$/i.exec(c.challengeTxtUpstream);
+-        const host = m ? m[1].replace(/^\[|\]$/g, '') : '', p = m ? Number(m[2]) : 0;
+-        if (!m || !net.isIP(host) || p < 1 || p > 65535) fail('route-dns', 'challengeTxtUpstream must be an IP literal and port (ip:port or [ipv6]:port)');
+-        if (p === c.dnsPort && (host === c.bind || ['127.0.0.1', '::1', '0.0.0.0', '::'].includes(host))) fail('route-dns', 'challengeTxtUpstream must not be this replica itself');
++      if (c.challengeTxtUpstream !== undefined && c.challengeTxtUpstreams !== undefined)
++        fail('route-dns', 'give challengeTxtUpstream or challengeTxtUpstreams, not both');
++      const ups = c.challengeTxtUpstreams !== undefined ? c.challengeTxtUpstreams : (c.challengeTxtUpstream !== undefined ? [c.challengeTxtUpstream] : null);
++      if (c.challengeTxtUpstreams !== undefined || c.challengeTxtUpstream !== undefined) {
++        if (!Array.isArray(ups) || ups.length < 1 || ups.length > 4) fail('route-dns', 'challengeTxtUpstreams must contain 1 to 4 distinct IP literal and port endpoints');
++        const seen = new Set();
++        for (const up of ups) {
++          const m = typeof up === 'string' && /^(\[[0-9a-f:]+\]|[0-9.]+):([0-9]{1,5})$/i.exec(up);
++          const host = m ? m[1].replace(/^\[|\]$/g, '') : '', p = m ? Number(m[2]) : 0;
++          if (!m || !net.isIP(host) || p < 1 || p > 65535) fail('route-dns', 'challengeTxtUpstream(s) must be an IP literal and port (ip:port or [ipv6]:port)');
++          const key = new URL(`http://${up}`).host, canonicalHost = new URL(`http://${up}`).hostname;
++          if (seen.has(key)) fail('route-dns', 'challengeTxtUpstreams must contain distinct endpoints');
++          seen.add(key);
++          const bindHost = net.isIP(c.bind) === 6 ? `[${c.bind}]` : c.bind;
++          if (p === c.dnsPort && (canonicalHost === new URL(`http://${bindHost}`).hostname || ['127.0.0.1', '[::1]', '0.0.0.0', '[::]'].includes(canonicalHost)))
++            fail('route-dns', 'challengeTxtUpstream(s) must not be this replica itself');
++        }
+       }
++
+       return { ...c, ...(c.appStatic !== undefined ? { appStatic: appStatic(c.appStatic) } : {}) };
+     },
+     // dns-relay reads its configuration from the environment: exactly these names, every one explicit (NO_FALLBACK there
+@@ -165,6 +178,7 @@
+         ...(c.rateLimitPerSec ? { DNS_RL_PER_SEC: String(c.rateLimitPerSec) } : {}), ...(c.rateLimitCap ? { DNS_RL_CAP: String(c.rateLimitCap) } : {}),
+         ...(c.transportRateLimitPerSec ? { DNS_RL_TRANSPORT_PER_SEC: String(c.transportRateLimitPerSec), DNS_RL_TRANSPORT_CAP: String(c.transportRateLimitCap) } : {}),
+         ...(c.challengeTxtUpstream ? { CHALLENGE_TXT_UPSTREAM: c.challengeTxtUpstream } : {}),
++        ...(c.challengeTxtUpstreams ? { CHALLENGE_TXT_UPSTREAMS: JSON.stringify(c.challengeTxtUpstreams) } : {}),
+         ...(c.appStatic && Object.keys(c.appStatic).length ? { APP_STATIC: Object.entries(c.appStatic).map(([l, a]) => `${l}=${Array.isArray(a) ? a.join('+') : a}`).join(',') } : {}) } };
+     },
+   }),
+--- a/test/challenge-txt-upstream.test.mjs
++++ b/test/challenge-txt-upstream.test.mjs
+@@ -12,13 +12,23 @@
+ import { once } from 'node:events';
+ 
+ const TREE = process.env.A5_TREE;
+-const BIN = path.join(TREE, 'relay/dns-relay.js');
++const BIN = process.env.A5_DNS_BIN || path.join(TREE, 'relay/dns-relay.js'); // old-code negative control only
+ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+ const freePort = () => new Promise((resolve) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });
+ const VALUE = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ';   // dns-01 shape: 43 base64url chars
+ const T = { A: 1, NS: 2, SOA: 6, TXT: 16, AAAA: 28, SRV: 33, ANY: 255 };
+ const kids = [], servers = [];
+-test.after(() => { for (const k of kids) k.kill(); for (const s of servers) s.close(); });
++test.afterEach(async () => {
++  for (const child of kids.splice(0)) {
++    if (child.exitCode !== null || child.signalCode !== null) continue;
++    const exited = once(child, 'exit'); child.kill(); await exited;
++  }
++  for (const server of servers.splice(0)) {
++    for (const socket of server.testSockets || []) socket.destroy();
++    server.closeAllConnections?.();
++    if (server.listening) await new Promise(resolve => server.close(resolve));
++  }
++});
+ 
+ function query(name, type, id = 0x4242) {
+   const h = Buffer.alloc(12); h.writeUInt16BE(id, 0); h.writeUInt16BE(0x0100, 2); h.writeUInt16BE(1, 4);
+@@ -52,23 +62,25 @@
+   });
+ }
+ // the writable challenge source as dns-relay sees it: TCP DNS; TXT for exactly one name
+-async function upstream() {
+-  const st = { queries: [] };
++async function upstream({values = [VALUE], blackhole = false} = {}) {
++  const st = { queries: [], acceptedAt: [], sockets: new Set() };
+   const srv = net.createServer((s) => {
++    st.sockets.add(s); s.on('close', () => st.sockets.delete(s)); s.on('error', () => {});
+     let b = Buffer.alloc(0);
+     s.on('data', (d) => {
+       b = Buffer.concat([b, d]); if (b.length < 2 || b.length < 2 + b.readUInt16BE(0)) return;
+       const q = b.subarray(2, 2 + b.readUInt16BE(0)); let o = 12; const labels = [];
+       for (;;) { const l = q[o]; if (!l) break; labels.push(q.subarray(o + 1, o + 1 + l).toString()); o += 1 + l; }
+-      const name = labels.join('.'); st.queries.push(name);
++      const name = labels.join('.'); st.queries.push(name); st.acceptedAt.push(Date.now());
++      if (blackhole) return;
+       const hit = name === '_acme-challenge.abcd.app.test';
+-      const head = Buffer.from(q.subarray(0, 12)); head.writeUInt16BE(0x8400, 2); head.writeUInt16BE(hit ? 1 : 0, 6);
++      const head = Buffer.from(q.subarray(0, 12)); head.writeUInt16BE(0x8400, 2); head.writeUInt16BE(hit ? values.length : 0, 6);
+       const qsec = q.subarray(12, o + 5);
+-      const rr = hit ? Buffer.concat([Buffer.from([0xc0, 12, 0, 16, 0, 1, 0, 0, 0, 60, 0, VALUE.length + 1, VALUE.length]), Buffer.from(VALUE)]) : Buffer.alloc(0);
++      const rr = hit ? Buffer.concat(values.map(value => Buffer.concat([Buffer.from([0xc0, 12, 0, 16, 0, 1, 0, 0, 0, 60, 0, value.length + 1, value.length]), Buffer.from(value)]))) : Buffer.alloc(0);
+       const out = Buffer.concat([head, qsec, rr]); const n = Buffer.alloc(2); n.writeUInt16BE(out.length); s.end(Buffer.concat([n, out]));
+     });
+   });
+-  srv.listen(0, '127.0.0.1'); await once(srv, 'listening'); servers.push(srv); st.srv = srv; st.port = srv.address().port; return st;
++  srv.listen(0, '127.0.0.1'); await once(srv, 'listening'); servers.push(srv); srv.testSockets = st.sockets; st.srv = srv; st.port = srv.address().port; return st;
+ }
+ async function replica(extra) {
+   const origin = http.createServer((_q, r) => { r.setHeader('content-type', 'application/json');
+@@ -143,3 +155,98 @@
+   for (const bad of ['ns-us-west.enclave.host:53', '134.199.235.187', '134.199.235.187:0', 53, '127.0.0.1:18153'])
+     assert.throws(() => rd.validate({ ...base, challengeTxtUpstream: bad }), /challengeTxtUpstream/, String(bad));
+ });
++
++test('multiple pinned sources: serve both old and hosted challenge TXT, deduplicate, and retain the eight-value cap', async () => {
++  const hostedValue = 'h'.repeat(43);
++  const old = await upstream({values: [VALUE]}), hosted = await upstream({values: [VALUE, hostedValue]});
++  const r = await replica({CHALLENGE_TXT_UPSTREAMS: JSON.stringify([`127.0.0.1:${old.port}`, `127.0.0.1:${hosted.port}`])});
++  assert.equal(r.health?.readOnly, true, r.log());
++  for (const tcp of [false, true]) for (const type of [T.TXT, T.ANY]) {
++    const answer = await ask(r.dnsPort, '_acme-challenge.abcd.app.test', type, tcp);
++    assert.equal(answer.rcode, 0); assert.equal(answer.aa, true);
++    assert.deepEqual(answer.answers.map(a => a.data), [VALUE, hostedValue]);
++  }
++  assert.equal(r.health?.challengeTxtUpstreamCount, 2, r.log());
++  assert.equal(old.queries.length, 1, 'same query shares the short cache across UDP/TCP and TXT/ANY');
++  assert.equal(hosted.queries.length, 1);
++  const manyA = await upstream({values: Array.from({length: 8}, (_, i) => String(i).repeat(43))});
++  const manyB = await upstream({values: ['z'.repeat(43)]});
++  const capped = await replica({CHALLENGE_TXT_UPSTREAMS: JSON.stringify([`127.0.0.1:${manyA.port}`, `127.0.0.1:${manyB.port}`])});
++  const answer = await ask(capped.dnsPort, '_acme-challenge.abcd.app.test', T.TXT, true);
++  assert.equal(answer.answers.length, 8);
++  assert.equal(new Set(answer.answers.map(a => a.data)).size, 8);
++});
++
++test('three unavailable sources cannot multiply the lookup timeout or hide the hosted source', async () => {
++  const stalled = await Promise.all([upstream({blackhole: true}), upstream({blackhole: true}), upstream({blackhole: true})]);
++  const hosted = await upstream({values: ['h'.repeat(43)]});
++  const sources = [...stalled, hosted];
++  const r = await replica({CHALLENGE_TXT_UPSTREAMS: JSON.stringify(sources.map(s => `127.0.0.1:${s.port}`))});
++  assert.equal(r.health?.challengeTxtUpstreamCount, 4, r.log());
++  const start = Date.now();
++  const answer = await ask(r.dnsPort, '_acme-challenge.abcd.app.test', T.TXT, true);
++  const elapsed = Date.now() - start;
++  assert.deepEqual(answer.answers.map(a => a.data), ['h'.repeat(43)]);
++  assert.ok(elapsed < 2500, `one 1.5s timeout budget, not three sequential ones: ${elapsed}ms`);
++  const arrivals = sources.map(s => s.acceptedAt[0]);
++  assert.ok(arrivals.every(Number.isFinite));
++  assert.ok(Math.max(...arrivals) - Math.min(...arrivals) < 500, 'all sources queried concurrently');
++  assert.equal(r.child.exitCode, null);
++});
++
++test('all sources down: bounded NODATA; unrelated names, question classes, and types never query them', async () => {
++  const sources = await Promise.all([upstream({blackhole: true}), upstream({blackhole: true})]);
++  const r = await replica({CHALLENGE_TXT_UPSTREAMS: JSON.stringify(sources.map(s => `127.0.0.1:${s.port}`))});
++  assert.equal(r.health?.readOnly, true, r.log());
++  for (const [name, type] of [['_acme-challenge.abcd.other.test', T.TXT], ['abcd.app.test', T.A],
++    ['_acme-challenge.abcd.app.test', T.A], ['_acme-challenge.abcd.app.test', T.SOA]]) {
++    await ask(r.dnsPort, name, type, true);
++  }
++  // CHAOS class must not trigger a challenge lookup either.
++  const q = query('_acme-challenge.abcd.app.test', T.TXT); q.writeUInt16BE(3, q.length - 2);
++  const socket = dgram.createSocket('udp4');
++  try { const reply = once(socket, 'message'); socket.send(q, r.dnsPort, '127.0.0.1'); await reply; }
++  finally { socket.close(); }
++  assert.ok(sources.every(s => s.queries.length === 0));
++  const start = Date.now();
++  const response = await ask(r.dnsPort, '_acme-challenge.abcd.app.test', T.TXT, false);
++  assert.equal(response.rcode, 0); assert.equal(response.answers.length, 0);
++  assert.ok(Date.now() - start < 2500, 'two failures share one timeout budget');
++  assert.ok(sources.every(s => s.queries.length === 1));
++  assert.equal(r.child.exitCode, null);
++});
++
++test('plural route-dns configuration validates every source, rejects ambiguity and encodes an explicit JSON list', async () => {
++  const {ROLES} = await import(path.join(TREE, 'network/host-services/roles.mjs'));
++  const rd = ROLES['route-dns'];
++  const base = {dnsPort: 18153, bind: '127.0.0.1', apiPort: 18154, zone: 'app.enclave.host', ipZone: 'ip.enclave.host',
++    nsName: 'ns-a.enclave.host', nsNames: ['ns-a.enclave.host'], routeMapUrl: 'http://127.0.0.1:18188/v1/network/routes'};
++  const sources = ['127.0.0.1:18353', '127.0.0.1:31053'];
++  const launched = rd.launch(rd.validate({...base, challengeTxtUpstreams: sources})).env;
++  assert.deepEqual(JSON.parse(launched.CHALLENGE_TXT_UPSTREAMS), sources);
++  assert.ok(!('CHALLENGE_TXT_UPSTREAM' in launched));
++  for (const invalid of [null, [], '127.0.0.1:53', ['host.test:53'], ['127.0.0.1:0'], ['127.0.0.1:99999'],
++    ['127.0.0.1:53', '127.0.0.1:053'], ['[::1]:53', '[0:0:0:0:0:0:0:1]:53'], ['127.0.0.1:18153'],
++    Array.from({length: 5}, (_, i) => `127.0.0.1:${10000+i}`)]) {
++    assert.throws(() => rd.validate({...base, challengeTxtUpstreams: invalid}), /challengeTxtUpstream/);
++  }
++  assert.throws(() => rd.validate({...base, challengeTxtUpstream: sources[0], challengeTxtUpstreams: sources}), /not both/);
++});
++
++test('runtime refuses invalid plural sources and simultaneous singular/plural settings before serving', async () => {
++  for (const extra of [
++    {CHALLENGE_TXT_UPSTREAMS: 'not JSON'},
++    {CHALLENGE_TXT_UPSTREAMS: 'null'},
++    {CHALLENGE_TXT_UPSTREAMS: '[]'},
++    {CHALLENGE_TXT_UPSTREAMS: JSON.stringify(['host.test:53'])},
++    {CHALLENGE_TXT_UPSTREAMS: JSON.stringify(['[::1]:53', '[0:0:0:0:0:0:0:1]:53'])},
++    {CHALLENGE_TXT_UPSTREAMS: JSON.stringify(Array.from({length: 5}, (_, i) => `127.0.0.1:${10000+i}`))},
++    {CHALLENGE_TXT_UPSTREAM: '127.0.0.1:53', CHALLENGE_TXT_UPSTREAMS: '["127.0.0.1:54"]'},
++  ]) {
++    const r = await replica(extra);
++    if (r.child.exitCode === null) await Promise.race([once(r.child, 'exit'), delay(2000)]);
++    assert.equal(r.child.exitCode, 1, r.log());
++    assert.equal(r.health, null, 'invalid configuration never served health');
++    assert.match(r.log(), /fatal:/);
++  }
++});

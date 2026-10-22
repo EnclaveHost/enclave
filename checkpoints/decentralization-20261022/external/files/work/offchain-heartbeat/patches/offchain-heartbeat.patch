@@ -1,0 +1,2230 @@
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -53,6 +53,7 @@
+          FORWARDER_ADDRESS, PROOF_OF_TIME_ADDRESS } from "./addressbook.js";
+ // This host's own signed capacity record for independent readers (docs/network/independent-capacity.md).
+ import { createHostCapacityProducer, capacityDirectoryOrigins, HOST_CAPACITY_PATH } from "./network/host-capacity-producer.mjs";
++import { mayReconcile } from "./network/registry-reconcile.mjs";   // the registration rule the Windows node follows too
+ // Wallet sessions (SessionVault) as owner credentials, verified on chain: shared with the Windows node.
+ import { createSessionApiAuth, isSessionHeader, hasScope, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES }
+   from "./windows/node/session-api-auth.mjs";
+@@ -472,7 +473,10 @@
+ 
+ // ---- on-chain discovery: self-register in EnclaveRegistry (no trusted gateway) --
+ // On boot the enclave publishes itself (endpoint + attestation repo) to the
+-// registry contract on Base, then heartbeats. Callers read the registry from
++// registry contract on Base. It sends NO periodic liveness transaction: the
++// registry holds identity, admission and configuration, written when they
++// change; liveness is off-chain (the signed capacity record at
++// /v1/host/capacity, network/host-liveness.mjs). Callers read the registry from
+ // any RPC and connect DIRECTLY, verifying attestation themselves. Entirely
+ // opt-in: if REGISTRY_ENABLED isn't set, the enclave just doesn't advertise.
+ const REGISTRY_ENABLED  = /^(1|true|on)$/i.test(process.env.REGISTRY_ENABLED || "");
+@@ -492,7 +496,9 @@
+ const REGISTRY_PK       = process.env.REGISTRY_PRIVATE_KEY || (process.env.REGISTRY_PRIVATE_KEY_FILE ? registryKeyFile(process.env.REGISTRY_PRIVATE_KEY_FILE) : "");
+ const ENCLAVE_REPO      = process.env.ENCLAVE_REPO || "";                // e.g. "EnclaveHost/enclave" - what callers attest against; MUST match GitHub's canonical casing (Sigstore compares it verbatim)
+ const ENCLAVE_MEASUREMENT = process.env.ENCLAVE_MEASUREMENT || ("0x" + "0".repeat(64)); // optional cross-check
+-const HEARTBEAT_SEC     = parseInt(process.env.REGISTRY_HEARTBEAT_SEC || "900", 10);
++// How often the registration is READ and reconciled (repoint, price, proof key, payout, active): a transaction only on an
++// actual mismatch. REGISTRY_HEARTBEAT_SEC is the old name, still honoured for the cadence; no heartbeat is sent.
++const RECONCILE_SEC     = parseInt(process.env.REGISTRY_RECONCILE_SEC || process.env.REGISTRY_HEARTBEAT_SEC || "900", 10);
+ // The endpoint we advertise is NOT configured — it is derived from the request
+ // (originOf: the exact hostname the caller reached us at, which is the attested
+ // one and the only thing a verifier can use). Static config is validated once;
+@@ -518,8 +524,6 @@
+   { type: "function", name: "setPrices", stateMutability: "nonpayable",
+     inputs: [{ name: "id", type: "bytes32" }, { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }],
+     outputs: [] },
+-  { type: "function", name: "heartbeat", stateMutability: "nonpayable",
+-    inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
+ ];
+ const REGISTRY_ABI_V1 = [
+   { type: "function", name: "register", stateMutability: "nonpayable",
+@@ -565,12 +569,13 @@
+ }
+ 
+ // Register THIS enclave under `endpoint` (the hostname a caller reached us at),
+-// then heartbeat. Fires at most once (guarded); a transient failure resets the
++// then reconcile on a timer (reads; a transaction only on a mismatch). Fires at most once (guarded); a transient failure resets the
+ // guard so a later request retries. Never fatal — a failed advertisement must
+ // not take down the enclave.
+ let _registered = false;
+ let _registeredOn = null;         // WHICH registry _registered refers to (see below)
+ let _enclaveId = null;            // our EnclaveRegistry id (keccak256 of the advertised endpoint); claim gating needs it
++let _activeSeen = null;           // the row's active flag as the last reconcile pass read it (null: not read since register)
+ const HOST_WALLET_POLICY = hostAdmissionConfigured();
+ let _hostWalletAdmission = null;
+ async function hostWalletRefusal(deploymentId,appRef,forPrivate=false) {
+@@ -610,7 +615,7 @@
+   _registered = true;                                       // claim before await so a request burst registers once
+   _registeredOn = (REGISTRY_ADDRESS || "").toLowerCase();
+   try {
+-    // register/heartbeat go through the shared operator-tx queue (sendOperatorTx,
++    // register and every reconciling update go through the shared operator-tx queue (sendOperatorTx,
+     // defined with the claim loop): the SAME EOA signs registry and ledger txs,
+     // and public RPCs cap EIP-7702-delegated accounts at one in-flight tx — so
+     // every tx from this key is serialized through confirmation, never raced.
+@@ -629,26 +634,26 @@
+       : await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI_V1, "register",
+           [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT]);
+     _enclaveId = id; _advertisedEndpoint = endpoint;        // unlocks the claim loop (portable deployments)
++    _activeSeen = null;                                     // register() just set the row active; the next pass re-reads it
+     console.log(`[registry] registered ${endpoint} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`
+       + (rev >= 2 ? ` price=${SELL_CPU_PRICE6}/sec node${IS_GPU ? ` + ${SELL_GPU_PRICE6}/sec card` : ""}` : " (schema 1: unpriced)")
+       + (rev >= 3 ? ` proofKey=${proofKey}` : " (pre-schema-3 registry: no proof key published)"));
+-    // heartbeat loop - refresh liveness so readers don't treat us as down,
+-    // and keep the published price in step with our configuration (an operator
+-    // re-pricing by env restart must not have to re-register; a mismatch would
+-    // also mean we quote one price and charge another)
++    // reconcile loop: NO liveness transaction (readers take liveness from the
++    // signed capacity record, network/host-liveness.mjs). It keeps the published
++    // price, proof key and payout view in step with our configuration (an
++    // operator re-pricing by env restart must not have to re-register; a
++    // mismatch would also mean we quote one price and charge another), each a
++    // transaction only on an actual mismatch, and reports a deactivated row.
+     setInterval(async () => {
+-      try {
+-        const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "heartbeat", [id]);
+-        console.log(`[registry] heartbeat tx=${h}`);
+-      } catch (e) { console.warn(`[registry] heartbeat failed: ${e.shortMessage || e.message}`); }
+-      // an IDLE box gets no requests, so the heartbeat is its only chance to
+-      // notice the book repointed the registry - without this it heartbeats
+-      // forever into a contract the ledger no longer reads
++      // an IDLE box gets no requests, so this is its only chance to notice the
++      // book repointed the registry - without it the box stays registered on a
++      // contract the ledger no longer reads
+       if (registryRepointed()) return void advertise();
++      await syncRegisteredActive(id).catch(() => {});
+       await syncRegisteredPrice(id).catch(() => {});
+       await syncRegisteredProofKey(id).catch(() => {});
+       await syncDeclaredPayoutWallet(id).catch(() => {});
+-    }, Math.max(60, HEARTBEAT_SEC) * 1000).unref();
++    }, Math.max(60, RECONCILE_SEC) * 1000).unref();
+     syncRegisteredPrice(id).catch(() => {});
+     syncRegisteredProofKey(id).catch(() => {});
+     syncDeclaredPayoutWallet(id).catch(() => {});
+@@ -659,7 +664,7 @@
+ }
+ 
+ // Publish this box's configured price if the chain doesn't already carry it.
+-// One eth_call per heartbeat, a tx only on an actual mismatch — which is the
++// One eth_call per reconcile pass, a tx only on an actual mismatch — which is the
+ // operator changing SELL_*_PRICE6, or a registry that predates our entry. On a
+ // schema-1 registry there is nowhere to put it, so this is a no-op.
+ const REGISTRY_GET_ABI = [{ type: "function", name: "get", stateMutability: "view",
+@@ -697,8 +702,9 @@
+   if (await registryRev() < 2) return;
+   let e;
+   try { e = await registryEntry(id); }
+-  catch { return; }                                         // transient read: try again next heartbeat
++  catch { return; }                                         // transient read: try again next pass
+   if (Number(e.cpuPricePerSec6) === SELL_CPU_PRICE6 && Number(e.gpuPricePerSec6) === SELL_GPU_PRICE6) return;
++  if (!mayReconcile(e, claimSigner().account.address)) return;  // a deregistered (or another's) row is not re-priced
+   const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "setPrices",
+     [id, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6)]);
+   console.log(`[registry] price published: ${SELL_CPU_PRICE6}/sec node, ${SELL_GPU_PRICE6}/sec card `
+@@ -709,7 +715,7 @@
+ // key is memory-only, so a CVM relaunch mints a new one and the entry MUST
+ // follow it: a stale entry means every checkpoint we sign is rejected, the
+ // ledger's meter stops at our last proof, and we serve for free. One eth_call
+-// per heartbeat, a tx only on an actual mismatch (a relaunch, or a first boot
++// per reconcile pass, a tx only on an actual mismatch (a relaunch, or a first boot
+ // against a freshly migrated registry).
+ //
+ // It also keeps us HONEST in the direction that matters: whatever we publish
+@@ -720,13 +726,31 @@
+   if (await registryRev() < 3) return;                      // nowhere to put it yet
+   let e;
+   try { e = await registryEntry(id); }
+-  catch { return; }                                         // transient read: try again next heartbeat
++  catch { return; }                                         // transient read: try again next pass
+   const want = getAddress(PROOF_ACCOUNT.address);
+   if (e.proofKey && getAddress(e.proofKey) === want) return;
++  if (!mayReconcile(e, claimSigner().account.address)) return;  // a deregistered (or another's) row is left as it is
+   const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "setProofKey", [id, want]);
+   console.log(`[proof] proof key published: ${want} (was ${e.proofKey || "unset"}) tx=${h}`);
+ }
+ 
++// The row's ACTIVE flag is a status the operator key sets: register() turns it
++// on (every boot), deregister() turns it off. The old heartbeat also turned it
++// on every 15 minutes, silently undoing an operator's deregister; this pass only
++// REPORTS the state, on change. Claims need an active row (the ledger refuses
++// "enclave inactive") and readers drop an inactive host, so a deregistered box
++// stops taking work until it is restarted or registered again on purpose.
++async function syncRegisteredActive(id) {
++  let e;
++  try { e = await registryEntry(id); }
++  catch { return; }                                         // transient read: try again next pass
++  const active = e.active === true;
++  if (active === _activeSeen) return;
++  _activeSeen = active;
++  if (!active) console.warn(`[registry] ${id} is INACTIVE on chain (deregistered by the operator key): no claims, and no reader lists it; restart or register again to return`);
++  else console.log(`[registry] ${id} is active on chain`);
++}
++
+ // ---- the seller's declared payout wallet (registry schema 4) ---------------
+ // A rev-12 ledger charges NOTHING for a deployment whose owner is this box's
+ // declared payout wallet: a seller's own app on a seller's own box is free.
+@@ -742,7 +766,7 @@
+   if (await registryRev() < 4) return;                      // nowhere to declare one yet
+   let e;
+   try { e = await registryEntry(id); }
+-  catch { return; }                                         // transient read: try again next heartbeat
++  catch { return; }                                         // transient read: try again next pass
+   const ZERO = "0x0000000000000000000000000000000000000000";
+   const declared = e.payoutWallet && e.payoutWallet !== ZERO ? getAddress(e.payoutWallet) : null;
+   if (declared !== _declaredPayout) {
+@@ -5631,7 +5655,7 @@
+   // Discovery can finish after registration. Publish the new ask immediately,
+   // rather than quoting it while the ledger retains a zero GPU price for 15 minutes.
+   if (_enclaveId && SELL_GPU_PRICE6 !== previousGpuPrice)
+-    syncRegisteredPrice(_enclaveId).catch(e => console.warn(`[registry] GPU price update will retry on heartbeat: ${e.shortMessage || e.message}`));
++    syncRegisteredPrice(_enclaveId).catch(e => console.warn(`[registry] GPU price update will retry on the next reconcile pass: ${e.shortMessage || e.message}`));
+   // Reconstruct every sibling's holds after discovery (restored arrays may
+   // predate the probe that creates card 1..N in this process).
+   if (_shieldedPool) reconcilePools();
+@@ -6046,6 +6070,7 @@
+ function capacityIdentity() {
+   const registry = (REGISTRY_ADDRESS || "").toLowerCase();
+   if (!_registered || !registry || _registeredOn !== registry) return null;
++  if (_activeSeen === false) return null;   // deregistered on chain (seen by the reconcile pass): no liveness evidence, as on Windows
+   // the landed id names the endpoint: no endpoint, or another one, matches it (registerOnChain never registers "")
+   if (_enclaveId !== keccak256(stringToBytes(String(_advertisedEndpoint)))) return null;
+   return { endpoint: _advertisedEndpoint, registry };
+@@ -9298,7 +9323,7 @@
+ }
+ 
+ // One shared signer (the registry operator EOA) and ONE queue for every tx it
+-// signs — registry register/heartbeat and ledger claim/renew/release alike.
++// signs — registry register/updates and ledger claim/renew/release alike.
+ // The queue serializes through CONFIRMATION, not just send order: public RPCs
+ // cap EIP-7702-delegated EOAs at a single in-flight tx ("in-flight transaction
+ // limit reached for delegated accounts"), and even a plain EOA avoids account-
+--- a/windows/node/host.mjs
++++ b/windows/node/host.mjs
+@@ -50,11 +50,12 @@
+ import { CAP_STEP, loadCaps, saveCaps } from "./hosting.mjs";
+ import { priceGuide, defaultPrice, rowTiers, perSec6Of, perHourOf } from "./price-guide.mjs";
+ import { gasRunway } from "./gas-runway.mjs";
++import { registrationAction, mayReconcile } from "../../network/registry-reconcile.mjs";
+ import { recentHyperVEvents } from "./hyperv-events.mjs";
+ import { createAuditJobs, auditAppRefsOf } from "./audit-jobs.mjs";
+ import { PARTITION_OFFERS } from "../vbslike/datapath/partition-offers.mjs";
+ 
+-const HEARTBEAT_MS = 10 * 60_000;
++const GAS_CHECK_MS = 10 * 60_000;       // the operator's gas runway is re-read (no transaction) this often
+ const TICK_MS = 30_000;
+ const PROOF_MS = 5 * 60_000;         // the contract's window is 15 min; the platform proves every 5
+ // Renew this long before the lease ends. It was 5 minutes, which with a 5-minute tick left exactly
+@@ -275,17 +276,22 @@
+         if (wei === 0n) this.log("operator has no gas: it can read the ledger but cannot register, claim, renew or prove");
+       } else this.log("no operator key on this box: it can run an app it is told about, but cannot hold a lease");
+       await this.refreshRegistration();
+-      await this.ensureRegistered();
++      await this.ensureRegistered({ phase: "boot" });
+     } catch (e) { this.lastError = e.message; this.log(`chain unavailable: ${e.message}`); }
+     setInterval(() => this.tick().catch((e) => this.log(`tick: ${e.message}`)), TICK_MS);
+-    setInterval(() => this.heartbeat().catch(() => {}), HEARTBEAT_MS);
++    setInterval(() => this.heartbeat().catch(() => {}), GAS_CHECK_MS);
+     setInterval(() => this.proveAll().catch((e) => this.log(`proof: ${e.message}`)), PROOF_MS);
+     this.tick().catch(() => {});
+   }
+-  async refreshRegistration() {
++  async refreshRegistration({ quiet = false } = {}) {
+     try {
+-      const e = await chain.readEnclave(this.enclaveId);
++      const e = await chain.readEnclave(this.enclaveId), was = this.registered;
+       this.registered = e && e.endpoint ? e : null;
++      if (quiet) {   // the routine read: say only what changed
++        if (was && this.registered && (was.active === true) !== (this.registered.active === true))
++          this.log(`registry: ${this.registered.endpoint} is now ${this.registered.active ? "active" : "INACTIVE (deregistered by the operator key; a routine pass does not re-activate it)"}`);
++        return;
++      }
+       // The card half says what this box ASKS (cardPrice) and, when the registry still lists something else, both.
+       const listed = Number(e?.gpuPricePerSec6 || 0), ask = this.cardPrice();
+       if (this.registered) this.log(`registry: listed as ${e.endpoint} price ${e.cpuPricePerSec6}/sec cpu`
+@@ -366,19 +372,22 @@
+    * no proof key. The measurement published here is the VBS enclave's own identity key, so anyone
+    * can compare the row against what the relay verified at attach.
+    */
+-  async ensureRegistered() {
++  // phase (network/registry-reconcile.mjs, the rule the Linux supervisor follows too): "boot" at start-up, "explicit" for
++  // a deliberate act (the address book moved the registry), "timer" for the routine tick. A tick never re-activates a row
++  // its operator deregistered; the initial registration and a corrected proof key or price still go out.
++  async ensureRegistered({ phase = "timer" } = {}) {
+     if (!this.chainReady || !this.cfg.appsEnabled || !chain.operatorAddress()) return;
+     const proofKey = chain.proofAddress() || "0x0000000000000000000000000000000000000000";
+-    const priced = this.registered && Number(this.registered.cpuPricePerSec6) > 0;
+-    const current = priced && this.registered.active
+-      && String(this.registered.proofKey).toLowerCase() === proofKey.toLowerCase()
+-      && String(this.registered.operator).toLowerCase() === String(chain.operatorAddress()).toLowerCase();
+-    if (current) return;
+-    if (this.registered && String(this.registered.operator).toLowerCase() !== String(chain.operatorAddress()).toLowerCase()
+-        && String(this.registered.operator) !== "0x0000000000000000000000000000000000000000") {
+-      this.log(`registry: ${this.cfg.endpoint} belongs to operator ${this.registered.operator}, not this box's key; refusing to re-register`);
++    const act = registrationAction(this.registered, { operator: chain.operatorAddress(), proofKey }, phase);
++    if (!act.register) {
++      if (act.reason !== "current" && this._registrationSaid !== act.reason) {
++        this._registrationSaid = act.reason;
++        this.log(/another operator/.test(act.reason) ? `registry: ${this.cfg.endpoint} belongs to operator ${this.registered.operator}, not this box's key; refusing to re-register`
++                                                     : `registry: ${this.cfg.endpoint}: ${act.reason}`);
++      }
+       return;
+     }
++    this._registrationSaid = null;
+     const args = { endpoint: this.cfg.endpoint, repo: this.cfg.repo || "EnclaveHost/enclave",
+       measurement: this.cfg.measurement || "0x0000000000000000000000000000000000000000000000000000000000000000",
+       cpuPricePerSec6: this.cfg.cpuPricePerSec6, gpuPricePerSec6: this.cardPrice(), proofKey };
+@@ -437,6 +446,7 @@
+    */
+   async ensurePriced({ setPrices = (...a) => chain.setPrices(...a), now = Date.now() } = {}) {
+     if (!this.chainReady || !this.registered || !chain.operatorAddress()) return;
++    if (!mayReconcile(this.registered, chain.operatorAddress())) return;   // a deregistered (or another's) row is not re-priced
+     // both asks: the CPU's (the owner's override, or the default from the network's prices) and the card's
+     // The CPU price: not the configured fallback before the network's prices are known (setPriceRows). Right after a
+     // start cfg holds that fallback, and posting it overwrote the market price on the registry only for the default
+@@ -535,20 +545,22 @@
+     this.applyPrices();
+     return this.pricingView();
+   }
++  /**
++   * The periodic local check. It sends NO transaction, for any endpoint: liveness is off-chain. A tunnelled box's comes
++   * from its authenticated tunnel (the relay's row), a dialed box's from the operator-signed capacity record it serves at
++   * <endpoint>/v1/host/capacity (network/host-liveness.mjs). No contract reads lastSeen; the registry is written only
++   * when this box's registration, price or proof key actually changes (ensureRegistered, ensurePriced, the proof key).
++   * The old on-chain heartbeat was gas burnt every 10 minutes by an idle box, 144 a day (nucbox-k11-2, 2026-10-12).
++   */
+   async heartbeat() {
+     if (!this.chainReady || !chain.operatorAddress() || !this.registered) return;
+-    // A box reached through a relay tunnel (its endpoint is <relay>/t/<name>) is NOT heartbeated on chain: the relay holds
+-    // its liveness (the tunnel row's lastSeen), the dialed-discovery staleness filter never applies to a tunnel row, and no
+-    // contract reads lastSeen. The transaction was gas burnt every 10 minutes by an idle box, 144 a day, and the one gas
+-    // cost a new host had before earning anything (nucbox-k11-2, 2026-10-12).
+-    if (!Host.isTunnelEndpoint(this.cfg.endpoint))
+-      try { await chain.heartbeatBox(this.enclaveId); } catch (e) { this.log(`heartbeat failed: ${e.shortMessage || e.message}`); }
++    await this.refreshRegistration({ quiet: true });   // READ the row (the Linux reconcile pass reads it too): a deregistration is seen, not undone
+     await this.warnLowGas();
+   }
+   static isTunnelEndpoint(endpoint) { return /^https:\/\/[a-z0-9.-]+\/t\/[a-z0-9][a-z0-9-]*$/i.test(String(endpoint || "")); }
+   /**
+    * Gas runs the lease. A renewal costs about 60k gas (measured: 0.00000036 ETH on Base), a
+-   * heartbeat and a claim more, so an empty tank does not fail loudly, it just stops renewing and
++   * claim more, so an empty tank does not fail loudly, it just stops renewing and
+    * the app quietly goes away at the end of the quantum. Warn while there is still time to top up.
+    */
+   async warnLowGas() {
+@@ -1978,7 +1990,11 @@
+     for (const k of moved) this.log(`address book: ${k} moved ${before[k]} -> ${chain.addresses[k]}`
+       + (k === "deployments" ? ": this box's leases are claimed again on the new ledger; running partitions keep running" : ""));
+     if (moved.includes("deployments")) { this.scanHold?.clear?.(); this.priceSent = null; this.#saveTracked(); }
+-    if (moved.includes("registry")) await this.refreshRegistration().catch(() => {});
++    if (moved.includes("registry")) {
++      await this.refreshRegistration().catch(() => {});
++      // a registry migration is a deliberate act (the book's owner moved it): register there as at boot
++      await this.ensureRegistered({ phase: "explicit" }).catch((e) => this.log(`register: ${e.message}`));
++    }
+     return moved;
+   }
+   async tick() {
+--- a/windows/node/chain.mjs
++++ b/windows/node/chain.mjs
+@@ -21,7 +21,7 @@
+ // owner paid for, so claimPolicy below refuses it BY NAME, and the same parser that refused it is
+ // the one that later feeds the guest its config.
+ //
+-// What it still does, in full: register (EnclaveRegistry.register), heartbeat, claim / renew /
++// What it still does, in full: register (EnclaveRegistry.register), claim / renew /
+ // release (EnclaveDeployments), and resolve a deployment's catalog version to the artifact CID.
+ import { createPublicClient, createWalletClient, http, fallback, keccak256, toBytes, getAddress, formatEther, stringToHex, pad } from "viem";
+ import { privateKeyToAccount } from "viem/accounts";
+@@ -50,7 +50,6 @@
+     inputs: [{ name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" },
+              { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }, { name: "proofKey", type: "address" }],
+     outputs: [{ type: "bytes32" }] },
+-  { type: "function", name: "heartbeat", stateMutability: "nonpayable", inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
+   { type: "function", name: "setPrices", stateMutability: "nonpayable",
+     inputs: [{ name: "id", type: "bytes32" }, { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }], outputs: [] },
+   // The LIVE registry is the 11-field schema: `caps` and `region` exist in contracts/ (schema 5)
+@@ -249,7 +248,6 @@
+   const hash = await send(addresses.registry, REGISTRY_ABI, "register", args);
+   return { id: enclaveIdOf(endpoint), hash };
+ }
+-export const heartbeatBox = (id) => send(addresses.registry, REGISTRY_ABI, "heartbeat", [id]);
+ /** Re-post this box's asks. The registry entry is what the ledger CHARGES, so a price that only
+  *  lives in a config file is not a price: it is a hope. */
+ export const setPrices = (id, cpuPricePerSec6, gpuPricePerSec6) =>
+--- a/windows/node/keys.mjs
++++ b/windows/node/keys.mjs
+@@ -1,6 +1,6 @@
+ // windows/node/keys.mjs -- the two chain keys a hosting node needs, generated ON the box.
+ //   node keys.mjs [dir] [--offline]    print the addresses, creating either key if it is missing
+-// operator.key signs register / heartbeat / claim / renew / release and the tunnel attach; it needs
++// operator.key signs register / claim / renew / release and the tunnel attach; it needs
+ // a few dollars of Base ETH for gas and controls nothing else (earnings go to the payout wallet).
+ // proof.key signs EnclaveProofOfTime checkpoints. On a fleet enclave that key is minted inside the
+ // CVM so the operator cannot forge "it was running"; here it sits beside the operator key on a
+--- a/windows/node/gas-runway.mjs
++++ b/windows/node/gas-runway.mjs
+@@ -3,7 +3,7 @@
+ 
+ /**
+  * gasRunway(samples, wei, now) -> { renews, burnPerHour, hoursLeft, low }: how long the operator key's gas lasts.
+- * Renewals are not the whole bill: proof-of-time checkpoints (every app, every few minutes), heartbeats and claims spend
++ * Renewals are not the whole bill: proof-of-time checkpoints (every app, every few minutes), registry updates and claims spend
+  * from the same key, so the runway is MEASURED - the balance's fall over the last ~6 hours, restarted by a top-up - and
+  * the renewal count is only the fallback before half an hour of samples exists (2026-10-13: "about 200 renewals" was
+  * ~7 hours with 7 apps proving, and the NucBox ran dry behind nothing but a log line). `samples` is the caller's array,
+--- a/network/host-capacity-http.mjs
++++ b/network/host-capacity-http.mjs
+@@ -4,9 +4,10 @@
+ //     re-exported here) and may POST it to directories its operator chooses;
+ //   - a DIRECTORY is anyone's storage (createHostCapacityDirectory): POST/GET /v1/host-capacity; it verifies before it
+ //     stores, but readers verify again and never trust it;
+-//   - a READER (discoverHostCapacity) takes explicit directories, explicit hosts, or a cold read of every live
++//   - a READER (discoverHostCapacity) takes explicit directories, explicit hosts, or a cold read of every ACTIVE
+ //     registered host, verifies each record against ONE agreed registry block of an explicitly pinned, reviewed
+-//     registry, and keeps one record per host.
++//     registry, and keeps one record per host. Each host carries its liveness (network/host-liveness.mjs): registry
++//     admission (active) is never liveness, and the on-chain lastSeen is only one, time-bounded, kind of evidence.
+ import dns from "node:dns";
+ import https from "node:https";
+ import net from "node:net";
+@@ -15,6 +16,7 @@
+ import { directoryOrigins } from "./directory-client.mjs";
+ import { verifyHostCapacity, validateHostCapacityRecord, CapacityFloors, chooseRecord, aggregateCapacity, hostIdOf, hostCapacityHash } from "./host-capacity.mjs";
+ import { HOST_CAPACITY_PATH, DIRECTORY_CAPACITY_PATH, directoryJsonFetch } from "./host-capacity-producer.mjs";
++import { hostLiveness, REGISTRY_UPDATE_WINDOW_SEC } from "./host-liveness.mjs";
+ 
+ // the host side (network/host-capacity-producer.mjs), re-exported for readers that want one import
+ export { HOST_CAPACITY_PATH, DIRECTORY_CAPACITY_PATH, directoryJsonFetch, createHostCapacityProducer } from "./host-capacity-producer.mjs";
+@@ -182,18 +184,21 @@
+ }
+ 
+ // ---- discovery ---------------------------------------------------------------------------------------------------------
+-/** Live registered hosts at the agreed block: active and heartbeating within liveWithinSec (cli/independent.mjs liveHosts). */
+-export const liveRegistered = (entries, blockTime, liveWithinSec = 3600) =>
+-  [...entries.values()].filter((h) => h.active && h.lastSeen + liveWithinSec >= Math.floor(blockTime / 1000));
++/** Registered hosts the registry ADMITS at the agreed block: active. Admission only, not liveness: a cold read asks every
++ *  one of them for its signed record, and hostLiveness decides who is up. */
++export const activeRegistered = (entries) => [...entries.values()].filter((h) => h.active === true);
+ 
+ /**
+  * discoverHostCapacity({ reader, binding, directories, hosts, cold, ... }) -> { quorum, sources, hosts, aggregate }
+  *   directories: explicit origins (GET /v1/host-capacity); hosts: explicit registered endpoints or host ids
+- *   (GET <endpoint>/v1/host/capacity); cold: every live registered host's endpoint (at most maxHosts).
+- * Outages are reported, never turned into zero capacity: an unreachable host is "unreachable", a registry without a
+- * quorum throws (nothing can be verified).
++ *   (GET <endpoint>/v1/host/capacity); cold: every ACTIVE registered host's endpoint (at most maxHosts).
++ *   registryUpdateWindowSec: how long an operator's own registry write counts as liveness (network/host-liveness.mjs;
++ *   0: only signed records count).
++ * Each host carries `liveness` ({ live, evidence, untilMs, reason }). Outages are reported, never turned into zero
++ * capacity: an unreachable host is "unreachable", a registry without a quorum throws (nothing can be verified).
+  */
+-export async function discoverHostCapacity({ reader, binding, directories = [], hosts = [], cold = false, maxHosts = 256, concurrency = 8, liveWithinSec = 3600,
++export async function discoverHostCapacity({ reader, binding, directories = [], hosts = [], cold = false, maxHosts = 256, concurrency = 8,
++                                             registryUpdateWindowSec = REGISTRY_UPDATE_WINDOW_SEC,
+                                              fetchHost = publicJsonFetch(), fetchDirectory = directoryJsonFetch(), floors = new CapacityFloors(), now = Date.now }) {
+   if (!directories.length && !hosts.length && !cold) throw new Error("name at least one source: a directory, a host, or a cold read of the registry");
+   const origins = directories.length ? directoryOrigins(directories) : [];
+@@ -222,7 +227,11 @@
+   // 3. host endpoints
+   const targets = new Map();
+   for (const id of named) { const e = snapshot.entries.get(id); if (e) targets.set(id, e); else fetchErrors.set(id, "not a registered host"); }
+-  if (cold) for (const e of liveRegistered(snapshot.entries, snapshot.blockTime, liveWithinSec).slice(0, maxHosts)) targets.set(e.hostId, e);
++  if (cold) {
++    const active = activeRegistered(snapshot.entries);
++    for (const e of active.slice(0, maxHosts)) targets.set(e.hostId, e);
++    if (active.length > maxHosts) sources.push({ source: "registry", kind: "limit", ok: false, error: `${active.length - maxHosts} active registered host(s) beyond --max-hosts ${maxHosts} were not read` });
++  }
+   const queue = [...targets.values()];
+   await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+     for (let e; (e = queue.shift());) {
+@@ -249,7 +258,8 @@
+     else status = fetchErrors.has(id) ? "unreachable" : "none";
+     if (fetchErrors.has(id)) reasons.push(`fetch: ${fetchErrors.get(id)}`);
+     if (chosen) { floors.record(chosen.verified.record); verifiedHosts.push({ hostId: id, availability: chosen.verified.availability }); }
+-    out.push({ hostId: id, endpoint: entry?.endpoint ?? chosen?.verified.record.endpoint ?? null,
++    const liveness = hostLiveness(entry, { nowMs: t, chainNowSec: Math.floor(snapshot.blockTime / 1000), signedUntilMs: chosen ? chosen.verified.record.expiresAt : null, registryUpdateWindowSec });
++    out.push({ hostId: id, endpoint: entry?.endpoint ?? chosen?.verified.record.endpoint ?? null, liveness,
+       registry: entry ? { active: entry.active, operator: entry.operator, cpuPricePerSec6: entry.cpuPricePerSec6, gpuPricePerSec6: entry.gpuPricePerSec6,
+                           lastSeen: entry.lastSeen, postedPricesAreNotCapacity: true } : null,
+       capacity: { status, ...(chosen ? { availability: chosen.verified.availability, issuedAt: chosen.verified.record.issuedAt, expiresAt: chosen.verified.record.expiresAt,
+@@ -257,7 +267,7 @@
+                   sources: good.filter((g) => hostCapacityHash(g.verified.record) === hostCapacityHash(chosen.verified.record)).map((g) => g.source) } : {}),
+                   reasons, selfReported: true } });
+   }
+-  const liveIds = new Set((cold ? liveRegistered(snapshot.entries, snapshot.blockTime, liveWithinSec) : [...targets.values()]).map((e) => e.hostId));
++  const liveIds = new Set((cold ? activeRegistered(snapshot.entries).slice(0, maxHosts) : [...targets.values()]).map((e) => e.hostId));
+   const unknown = [...liveIds].filter((id) => !verifiedHosts.some((h) => h.hostId === id)).length;
+   return { quorum: { blockNumber: snapshot.blockNumber, blockHash: snapshot.blockHash, blockTime: snapshot.blockTime, registry: binding.address },
+            sources, hosts: out.sort((a, b) => a.hostId.localeCompare(b.hostId)), aggregate: aggregateCapacity(verifiedHosts, { unknown }) };
+--- a/cli/independent.mjs
++++ b/cli/independent.mjs
+@@ -10,6 +10,7 @@
+ import { base } from "viem/chains";
+ import { boundedFetch, parseProfile, contractPinsFromProfile, MAX_PROFILE_BYTES } from "../network/authority-profile.mjs";
+ import { rpcEndpoint, rpcLabel, redactUrls } from "../network/rpc-identity.mjs";
++import { hostLiveness, REGISTRY_UPDATE_WINDOW_SEC } from "../network/host-liveness.mjs";
+ 
+ export const BASE_CHAIN_ID = 8453;
+ const ZERO = "0x" + "0".repeat(40);
+@@ -245,10 +246,53 @@
+ }
+ export { requireSchema4 };
+ 
+-/** Live hosts: active, posting a CPU price, heartbeat within maxAgeSec of the agreed block time. */
+-export function liveHosts(hosts, blockTimeMs, maxAgeSec = 3600) {
+-  const t = Math.floor(blockTimeMs / 1000);
+-  return hosts.filter((h) => h.active && h.cpuPricePerSec6 > 0n && h.lastSeen + maxAgeSec >= t);
++/** Hosts the registry ADMITS for new work at the agreed block: active and posting a CPU price. Admission, not liveness. */
++export function admittedHosts(hosts) { return hosts.filter((h) => h.active === true && h.cpuPricePerSec6 > 0n); }
++/**
++ * Live hosts: admitted (above) AND live by network/host-liveness.mjs at the agreed block time. A host is live on an
++ * unexpired operator-signed capacity record the caller VERIFIED (signedUntil: Map(hostId -> expiresAt ms), from
++ * cli/independent-capacity.mjs readCapacity), or on its operator's own registry write within the window. Nothing
++ * sends that write periodically any more: a host that serves no record and changed nothing for an hour is not live.
++ * Each host gets its `liveness`. -> the live ones
++ */
++export function liveHosts(hosts, blockTimeMs, { signedUntil = null, nowMs = Date.now(), registryUpdateWindowSec = REGISTRY_UPDATE_WINDOW_SEC } = {}) {
++  return withLiveness(admittedHosts(hosts), blockTimeMs, { signedUntil, nowMs, registryUpdateWindowSec }).filter((h) => h.liveness.live);
++}
++/**
++ * Signed liveness evidence for the admitted hosts of ONE agreed registry snapshot `reg` (registryHosts): each host's own
++ * operator-signed capacity record, fetched from its registered endpoint (https, public addresses only, no redirects:
++ * network/host-capacity-http.mjs publicJsonFetch) and verified against THAT host's row in `reg` and the explicitly
++ * selected registry (network/host-capacity.mjs verifyHostCapacity: signer = the row's operator, its exact endpoint and
++ * hostId, this chain and registry, the row active, unexpired by the reader's clock). The binding is the authority the
++ * snapshot came from, so it works with --contract-pins alone; it claims no reviewed code hash (a profile's code pin is
++ * checked separately, by assertReviewedCode). Bounded: at most maxHosts fetches, `concurrency` at a time, each timed out.
++ * Hosts beyond maxHosts are NOT checked and are listed as such (`unchecked`), never as failures: a caller must say the
++ * evidence is incomplete rather than treat them as down.
++ * -> { signedUntil: Map(hostId -> expiresAt ms), failures: Map(hostId -> reason), unchecked: [hostId], admitted: n }
++ */
++export async function signedLiveness(reg, { registry, chainId = BASE_CHAIN_ID, fetchHost = null, concurrency = 8, maxHosts = 256, now = Date.now } = {}) {
++  if (!/^0x[0-9a-fA-F]{40}$/.test(String(registry || ""))) throw new Error("signedLiveness needs the selected registry address");
++  const { verifyHostCapacity } = await import("../network/host-capacity.mjs");
++  const H = await import("../network/host-capacity-http.mjs");
++  const get = fetchHost || H.publicJsonFetch();
++  const admitted = admittedHosts(reg.hosts), queue = admitted.slice(0, maxHosts), signedUntil = new Map(), failures = new Map();
++  const unchecked = admitted.slice(maxHosts).map((h) => h.id);
++  await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
++    for (let h; (h = queue.shift());) {
++      try {
++        const r = await get(h.endpoint.replace(/\/+$/, "") + H.HOST_CAPACITY_PATH);
++        if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
++        const v = await verifyHostCapacity(r.json, { pins: { chainId, registry }, entry: { endpoint: h.endpoint, operator: h.operator, active: h.active }, now: now() });
++        signedUntil.set(h.id, v.record.expiresAt);
++      } catch (e) { failures.set(h.id, String(e.message).slice(0, 160)); }
++    }
++  }));
++  return { signedUntil, failures, unchecked, admitted: admitted.length };
++}
++/** Every host with its `liveness` (inactive and unpriced rows included, judged by the same rule). */
++export function withLiveness(hosts, blockTimeMs, { signedUntil = null, nowMs = Date.now(), registryUpdateWindowSec = REGISTRY_UPDATE_WINDOW_SEC } = {}) {
++  const chainNowSec = Math.floor(blockTimeMs / 1000);
++  return hosts.map((h) => ({ ...h, liveness: hostLiveness(h, { nowMs, chainNowSec, signedUntilMs: signedUntil?.get(h.id) ?? null, registryUpdateWindowSec }) }));
+ }
+ /** The cheapest posted prices among live hosts (the box a new deployment would land on). gpu6 is null when no live
+  *  host sells a card. null = no live host at all. */
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -988,12 +988,13 @@
+     return { gpu6: BigInt(at.gpu6), cpu6: BigInt(at.cpu6),
+              who: at.name ? `${at.name}'s posted price` : "the serving enclave's posted price" };
+   if (INDEPENDENT) {
+-    // the cheapest host that is registered, active, priced and heartbeating, at one agreed registry snapshot
+-    const { I } = INDEPENDENT, reg = await independentRegistry();
+-    const c = I.cheapestPrices(I.liveHosts(reg.hosts, reg.timestamp));
+-    if (!c) throw new Error(`no registered host is active with a posted price and a heartbeat in the last hour (registry at block ${reg.blockNumber}); this can't be priced`);
++    // the cheapest host that is registered, active and priced (admission) AND live on authenticated evidence (a signed
++    // capacity record, or its operator's registry write in the last hour), at one agreed registry snapshot
++    const { I } = INDEPENDENT, reg = await independentRegistry(), ev = await independentLiveEvidence(reg);
++    const c = I.cheapestPrices(I.liveHosts(reg.hosts, reg.timestamp, { signedUntil: ev.signedUntil }));
++    if (!c) throw new Error(`no registered host is active, priced and live on authenticated evidence (registry at block ${reg.blockNumber}${ev.note ? "; " + ev.note : ""}); this can't be priced`);
+     return { gpu6: c.gpu6 ?? 0n, cpu6: c.cpu6, gpuAvailable: c.gpu6 !== null,
+-             who: `the cheapest of ${c.hosts} live registered host(s) at block ${reg.blockNumber}` };
++             who: `the cheapest of ${c.hosts} live registered host(s) at block ${reg.blockNumber}${ev.unchecked.size ? ` (${ev.note})` : ""}` };
+   }
+   const av = await api("GET", "/availability").catch(() => null);
+   const cpu = Number(av?.cheapestCpuPricePerSec6) || 0, gpu = Number(av?.cheapestGpuPricePerSec6) || 0;
+@@ -4889,7 +4890,7 @@
+     kv([["endpoint", url], ["id", hid],
+         ["registered", h ? (h.active ? "yes, active" : "yes, INACTIVE") : "no (not in the pinned registry)"],
+         h ? ["operator", h.operator + (op && op.toLowerCase() !== h.operator ? ` (DIFFERS from the configured ${op})` : "")] : null,
+-        h ? ["heartbeat", `${dur(Math.max(0, nowSec - h.lastSeen))} ago`] : null,
++        h ? ["registry write", `${dur(Math.max(0, nowSec - h.lastSeen))} ago (the last on-chain update by its operator; not liveness: hosts send no periodic transaction)`] : null,
+         h ? ["prices", `${usd6(h.cpuPricePerSec6 * 3600n)}/h node, ${h.gpuPricePerSec6 > 0n ? usd6(h.gpuPricePerSec6 * 3600n) + "/h card" : "no card"}`] : null,
+         h ? ["proof key", /^0x0{40}$/.test(h.proofKey) ? "(none: cannot claim once proofs are required)" : h.proofKey] : null,
+         h ? ["payout wallet", /^0x0{40}$/.test(h.payoutWallet) ? "(undeclared - enclave host declare-payout)" : `${h.payoutWallet} (its own deployments run here free)`] : null,
+@@ -5114,6 +5115,25 @@
+   })();
+   return _indRegistry;
+ }
++// Liveness evidence beyond the registry (network/host-liveness.mjs): each admitted host's own operator-signed capacity
++// record, fetched from its registered endpoint and verified against its row in the SAME agreed snapshot of the registry
++// this command was told to use (--contract-pins or the reviewed profile), so explicit pins alone are enough.
++// -> { signedUntil: Map(hostId -> expiresAt ms) | null, unchecked: Set(hostId), note }
++let _indLiveness = null;
++async function independentLiveEvidence(reg) {
++  if (!_indLiveness) _indLiveness = (async () => {
++    const { I } = INDEPENDENT;
++    try {
++      const { signedUntil, unchecked, admitted } = await I.signedLiveness(reg, { registry: DEFAULTS.REGISTRY_ADDRESS });
++      return { signedUntil, unchecked: new Set(unchecked), note: unchecked.length
++        ? `INCOMPLETE: signed records were checked for ${admitted - unchecked.length} of ${admitted} admitted hosts (the per-command limit); the other ${unchecked.length} were not checked, which is not evidence that they are down`
++        : null };
++    } catch (e) { return { signedUntil: null, unchecked: new Set(), note: `signed capacity records unavailable (${String(e.message).slice(0, 160)}): only registry writes counted` }; }
++  })();
++  return _indLiveness;
++}
++const livenessLabel = (l) => !l ? "-" : l.live ? (l.evidence === "signed-record" ? `live (signed record until ${new Date(l.untilMs).toISOString().slice(11, 19)}Z)` : l.evidence === "registry-update" ? "live (recent registry write)" : `live (${l.evidence})`)
++  : /inactive/.test(l.reason) ? "inactive" : "no fresh evidence";
+ function requireIndependent(what) {
+   if (!INDEPENDENT) throw new Error(`${what} reads the chain through an agreeing RPC quorum: run it with --independent --contract-pins FILE (or --profile FILE --profile-digest sha256:…) --rpc A,B[,C]`);
+ }
+@@ -5171,7 +5191,7 @@
+     ["balance", `${usd6(d.balance6)} on-chain (${dur(d.rate > 0n ? Number(d.balance6 / d.rate) : 0)})`],
+     leased ? ["lease", `until ${new Date(Number(d.leaseUntil) * 1000).toISOString()} (runner ${short(d.runner)}, operator ${d.runnerOperator})`] : null,
+     leased ? ["runner host", host ? `${host.endpoint} · operator ${host.operator}${out.runnerHost.operatorMatches ? "" : " (DIFFERS from the lease's operator)"} · `
+-      + `${host.active ? "active" : "INACTIVE"} · heartbeat ${dur(Math.max(0, nowSec - host.lastSeen))} ago · ${usd6(host.cpuPricePerSec6 * 3600n)}/h node`
++      + `${host.active ? "active" : "INACTIVE"} · registry write ${dur(Math.max(0, nowSec - host.lastSeen))} ago · ${usd6(host.cpuPricePerSec6 * 3600n)}/h node`
+       : "not in the pinned registry"] : null,
+     proven !== null && leased ? ["proven", Number(proven) ? `service proven through ${new Date(Number(proven) * 1000).toISOString()}` : "nothing proven on this lease yet"] : null,
+     ["chain", `ledger ${DEFAULTS.DEPLOYMENTS_ADDRESS}, ${quorumLine(s)}`]]);
+@@ -5182,28 +5202,34 @@
+   requireIndependent("enclave hosts");
+   const f = flags(rest, { bool: ["--all", "--relays", "--caps"], val: ["--region", "--cap"] });
+   if (f.relays || f.caps || f.region !== undefined || f.cap !== undefined) throw new Error(INDEPENDENT.I.REGISTRY_UNSUPPORTED);
+-  const { I } = INDEPENDENT, reg = await independentRegistry(), nowSec = Math.floor(reg.timestamp / 1000);
+-  const live = new Set(I.liveHosts(reg.hosts, reg.timestamp).map((h) => h.id));
+-  const rows = (f.all ? reg.hosts : reg.hosts.filter((h) => live.has(h.id))).map((h) => ({ ...h, live: live.has(h.id) }));
+-  if (opt.json) return jout({ registry: DEFAULTS.REGISTRY_ADDRESS, registrySchema: 4, registered: reg.hosts.length, hosts: rows, ...quorumJson(reg) });
++  const { I } = INDEPENDENT, reg = await independentRegistry(), nowSec = Math.floor(reg.timestamp / 1000), ev = await independentLiveEvidence(reg);
++  const judged = I.withLiveness(reg.hosts, reg.timestamp, { signedUntil: ev.signedUntil });
++  const live = new Set(I.liveHosts(reg.hosts, reg.timestamp, { signedUntil: ev.signedUntil }).map((h) => h.id));
++  const rows = (f.all ? judged : judged.filter((h) => live.has(h.id))).map((h) => ({ ...h, live: live.has(h.id) }));
++  if (opt.json) return jout({ registry: DEFAULTS.REGISTRY_ADDRESS, registrySchema: 4, registered: reg.hosts.length, hosts: rows, livenessNote: ev.note,
++    livenessUnchecked: [...ev.unchecked], livenessComplete: ev.unchecked.size === 0, ...quorumJson(reg) });
+   table(rows, [{ h: "id", f: (r) => short(r.id) }, { h: "endpoint", f: (r) => r.endpoint.length > 44 ? r.endpoint.slice(0, 41) + "…" : r.endpoint },
+     { h: "operator", f: (r) => r.operator.slice(0, 10) + "…" }, { h: "node $/h", f: (r) => usd6(r.cpuPricePerSec6 * 3600n) },
+     { h: "card $/h", f: (r) => r.gpuPricePerSec6 > 0n ? usd6(r.gpuPricePerSec6 * 3600n) : "-" },
+-    { h: "heartbeat", f: (r) => dur(Math.max(0, nowSec - r.lastSeen)) + " ago" }, { h: "state", f: (r) => r.live ? "live" : r.active ? "stale" : "inactive" },
++    { h: "registry write", f: (r) => dur(Math.max(0, nowSec - r.lastSeen)) + " ago" },
++    { h: "state", f: (r) => r.live ? livenessLabel(r.liveness) : !r.active ? "inactive" : !(r.cpuPricePerSec6 > 0n) ? "unpriced"
++      : ev.unchecked.has(r.id) ? "not checked (limit)" : livenessLabel(r.liveness) },
+     { h: "proofs", f: (r) => /^0x0{40}$/.test(r.proofKey) ? "no key" : "key set" }]);
+-  say(`registry ${DEFAULTS.REGISTRY_ADDRESS} (deployed schema 4), ${reg.hosts.length} registered, ${live.size} live (active, priced, heartbeat < 1h); ${quorumLine(reg)}`);
++  say(`registry ${DEFAULTS.REGISTRY_ADDRESS} (deployed schema 4), ${reg.hosts.length} registered, ${live.size} live (active, priced, and a signed capacity record or a registry write < 1h); ${quorumLine(reg)}`);
++  if (ev.note) say(ev.note);
+   say("registration and prices are self-declared by each operator; attestation, not this list, decides whom to trust");
+ }
+ async function cmdPricingIndependent() {
+-  const { I } = INDEPENDENT, reg = await independentRegistry();
+-  const c = I.cheapestPrices(I.liveHosts(reg.hosts, reg.timestamp));
+-  if (opt.json) return jout({ registry: DEFAULTS.REGISTRY_ADDRESS, liveHosts: c ? c.hosts : 0,
++  const { I } = INDEPENDENT, reg = await independentRegistry(), ev = await independentLiveEvidence(reg);
++  const c = I.cheapestPrices(I.liveHosts(reg.hosts, reg.timestamp, { signedUntil: ev.signedUntil }));
++  if (opt.json) return jout({ registry: DEFAULTS.REGISTRY_ADDRESS, liveHosts: c ? c.hosts : 0, livenessNote: ev.note, livenessComplete: ev.unchecked.size === 0,
+     cheapestNodePerSec6: c ? c.cpu6 : null, cheapestCardPerSec6: c ? c.gpu6 : null, ...quorumJson(reg) });
+-  if (!c) return say(`no registered host is live (active, priced, heartbeat < 1h) at ${quorumLine(reg)}`);
++  if (!c) return say(`no registered host is live (active, priced, and a signed capacity record or a registry write < 1h) at ${quorumLine(reg)}${ev.note ? "; " + ev.note : ""}`);
+   kv([["cpu node", `${usd6(c.cpu6 * 3600n)}/h whole node (cheapest of ${c.hosts} live host(s))`],
+       ["gpu card", c.gpu6 !== null ? `${usd6(c.gpu6 * 3600n)}/h whole card` : "no live host sells a card"],
+       ["source", `registry ${DEFAULTS.REGISTRY_ADDRESS}, ${quorumLine(reg)}`],
+       ["note", "posted prices only: node and card sizes are not on chain (enclave hosts lists every entry)"]]);
++  if (ev.note) say(ev.note);
+ }
+ 
+ // The session a management request is signed with, from the local store or ENCLAVE_SESSION, checked on chain.
+@@ -5320,7 +5346,8 @@
+     throw new Error(`after the release the balance (${usd6(BigInt(m.d.balance6) + tail)}) would not buy one second at ${short(target)}'s price; fund it first; nothing was sent`);
+   // the target must be reachable (its own operator-signed endpoint) BEFORE anything is released toward it
+   await client.resolveHost(target).catch((e) => { throw new Error(`the target publishes no usable management endpoint (${e.message}); nothing was sent`); });
+-  if (h.lastSeen + 3600 < m.blockTime) say(`! ${short(target)}'s last registry heartbeat is ${Math.round((m.blockTime - h.lastSeen) / 60)} min old`);
++  // the target's management endpoint just answered (resolveHost above); its last registry write is configuration
++  // history, not liveness, and an old one is normal now that hosts send no periodic transaction
+   let clearedBlock = 0;   // no snapshot older than the one that showed the source's lease gone is read as a new lease
+   if (m.held) {
+     if (!(await confirm(`move ${short(id)} off ${short(m.runner)} to ${short(target)}? The app stops there and relaunches on the target; `
+--- a/cli/host-independent-lifecycle.mjs
++++ b/cli/host-independent-lifecycle.mjs
+@@ -425,7 +425,7 @@
+ // ---- check -------------------------------------------------------------------------------------------------------------
+ const OWNERSHIP_ABI = parseAbi(["function authority(bytes32) view returns (address owner,address pendingOwner,uint64 revision,bytes32 policyHash)",
+   "function registry() view returns (address)"]);
+-const MIN_GAS_WEI = 20_000_000_000_000n;   // 0.00002 ETH: a few register/heartbeat/claim transactions on Base
++const MIN_GAS_WEI = 20_000_000_000_000n;   // 0.00002 ETH: a few register/claim/renew transactions on Base
+ export async function readinessRows(dir, o, { fetchImpl = globalThis.fetch, now = Date.now, chainFactory, env = process.env } = {}) {
+   const rows = [], add = (item, status, detail, required = true) => rows.push({ item, status, detail, required });
+   let plan, ctx, L;
+@@ -480,7 +480,7 @@
+     else if (operator && h.operator !== operator.toLowerCase()) add("registration", "failed", `registered to ${h.operator}, not this host's operator ${operator}`);
+     else if (!h.active) add("registration", "failed", "registered but INACTIVE");
+     else {
+-      add("registration", "ready", `active, heartbeat ${Math.max(0, Math.round(snap.timestamp / 1000) - h.lastSeen)} s before the agreed block`);
++      add("registration", "ready", `active, last registry write ${Math.max(0, Math.round(snap.timestamp / 1000) - h.lastSeen)} s before the agreed block (no periodic transaction: liveness is the signed record at /v1/host/capacity)`);
+       add("proof key", /^0x0{40}$/.test(h.proofKey) ? "missing" : "ready", /^0x0{40}$/.test(h.proofKey) ? "none on the entry: claims fail once proofs are required" : h.proofKey);
+       add("payout wallet", /^0x0{40}$/.test(h.payoutWallet) ? "missing" : "ready", /^0x0{40}$/.test(h.payoutWallet) ? "undeclared: enclave --independent host declare-payout (from your wallet)" : h.payoutWallet, false);
+     }
+--- a/relay/api-relay.js
++++ b/relay/api-relay.js
+@@ -73,7 +73,10 @@
+ //   FANOUT_MAX_INFLIGHT optional   global cap on concurrent upstream fan-out (256)
+ //   AVAIL_POLL_SEC     optional    availability poll cadence (default 10)
+ //   REGISTRY_POLL_SEC  optional    registry re-read cadence (default 300)
+-//   STALE_AFTER_SEC    optional    drop enclaves silent on-chain > this (3600)
++//   STALE_AFTER_SEC    optional    how long an operator's own registry write counts as liveness evidence (3600);
++//                                  a direct row is listed only while it answers /availability AND has fresh evidence:
++//                                  that, or its unexpired operator-signed record at /v1/host/capacity
++//                                  (relay/registry-liveness.mjs). Hosts send no periodic heartbeat transaction.
+ //   MCP_DOMAIN         optional    Host(s) served as the MCP endpoint (default
+ //                                  mcp.enclave.host); /mcp on the API host
+ //                                  serves it too. See mcp.js.
+@@ -103,6 +106,7 @@
+ import { createPlacement, pinnedHost } from "./placement.mjs";
+ import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson, agreeingRead } from "./measurement-predict.mjs";
+ import { createTunnelHub } from "./tunnel.js";
++import { createRegistryLiveness } from "./registry-liveness.mjs";
+ import { createReferrals } from "./referrals.mjs";
+ import { withDetachGrace } from "./route-grace.mjs";
+ import {LeaseReader,createNetworkRoutes,DurableState,createLeaseSource,createRegistryOperator,createNetworkApi} from "./network-runtime.bundle.mjs";
+@@ -699,16 +703,19 @@
+   for (let start = 0; start < total; start += 50)
+     out.push(...await c.readContract({ address: REGISTRY_ADDRESS, abi,
+       functionName: "getPage", args: [BigInt(start), 50n] }));
+-  const now = Math.floor(Date.now() / 1000);
+   warnIfUnauthenticated();
+-  const fresh = out.filter((e) => e.active && now - Number(e.lastSeen) <= STALE_AFTER_SEC);
+-  // Snapshot every live entry's declarations before the dial-safety filters —
+-  // see declaredById above. Deregistered and stale rows are excluded with the
+-  // rest: a box that stopped saying it is here declares nothing.
+-  declaredById = new Map(await Promise.all(fresh.map(async (e) =>
++  // ADMISSION is the registry's active flag (plus the operator allowlist and the dial-safety filters below). Whether
++  // an admitted row is UP is decided per poll from authenticated evidence (pollAvailability, registry-liveness.mjs),
++  // never from a periodic on-chain write: hosts no longer send one, and a healthy host's lastSeen grows old.
++  const admitted = out.filter((e) => e.active === true);
++  // Snapshot every admitted entry's declarations before the dial-safety filters —
++  // see declaredById above. Deregistered rows are excluded with the rest: a box
++  // that left declares nothing. (A tunnel row's twin is no longer dropped here an
++  // hour after its last registry write: a tunnel box never heartbeated.)
++  declaredById = new Map(await Promise.all(admitted.map(async (e) =>
+     [String(await endpointId(String(e.endpoint || "").replace(/\/+$/, ""))).toLowerCase(),
+      { payoutWallet: e.payoutWallet || null, caps: Number(capsOf(e)), region: e.region || null }])));
+-  return Promise.all(fresh
++  return Promise.all(admitted
+     // B2: only vetted operators (baked default, or the env allowlist). Pass-all
+     // ONLY under the explicit TRUSTED_OPERATORS=* opt-in — never by omission.
+     .filter((e) => OPERATORS_UNRESTRICTED || TRUSTED_OPERATORS.includes(String(e.operator || "").toLowerCase()))
+@@ -730,7 +737,9 @@
+     .map(async ({ e, endpoint }) =>
+       ({ endpoint, id: await endpointId(endpoint), name: endpointName(endpoint), repo: e.repo,
+          lastSeen: Number(e.lastSeen), payoutWallet: e.payoutWallet || null,
+-         caps: Number(capsOf(e)), region: e.region || null })));
++         caps: Number(capsOf(e)), region: e.region || null,
++         // what liveness is judged against: the row exactly as registered (registry-liveness.mjs)
++         registryRow: { endpoint: String(e.endpoint), operator: String(e.operator).toLowerCase(), active: e.active === true, lastSeen: Number(e.lastSeen) } })));
+ }
+ 
+ // --- EnclaveDeployments ledger (the source of truth for a wallet's work) --------
+@@ -941,8 +950,13 @@
+   catch { return null; } finally { clearTimeout(t); }
+ }
+ 
+-let registry = [];                 // [{endpoint, id, repo, lastSeen}] (id = the registry's keccak256(endpoint))
+-let live = [];                     // registry ∩ answering, each + {availability, checkedAt}
++let registry = [];                 // [{endpoint, id, repo, lastSeen, registryRow}] (id = the registry's keccak256(endpoint))
++let live = [];                     // registry ∩ answering ∩ live evidence, each + {availability, checkedAt, liveness}
++// Liveness of a DIRECT registry row: its signed capacity record or its operator's recent registry write. A tunnel row's
++// liveness is its authenticated attach (tunnel.js); a static dev list has no chain and is not judged.
++const registryLiveness = createRegistryLiveness({ chainId: 8453, registry: () => REGISTRY_ADDRESS, fetchJson: (u) => fetchJson(u),
++  registryUpdateWindowSec: STALE_AFTER_SEC, log: (m) => console.warn(`[api-relay] ${m}`) });
++const _livenessSaid = new Map();   // endpoint -> last verdict logged (logs on change only)
+ let updatedAt = null;
+ 
+ async function pollRegistry() {
+@@ -986,7 +1000,20 @@
+                        : await fetchJson(`${e.endpoint}/availability`);
+       // a pVM CPU row's pool is the relay-verified VM size (pvmCpuAvailability), never the phone host's own word
+       if (a && e.tunnel) a = pvmCpuAvailability(e, a);
+-      rows[idx] = a ? { ...e, availability: a, relay: hasNoResources(a), checkedAt: new Date().toISOString() } : null;
++      // a direct registry row is listed only on authenticated, bounded-fresh evidence: an answer on its URL is not
++      // proof that its operator is the one running it, and its on-chain lastSeen no longer moves on a timer
++      let liveness = null;
++      if (a && e.registryRow) {
++        liveness = await registryLiveness.judge(e.registryRow);
++        const said = liveness.live ? liveness.evidence : "not live";      // the verdict's class: the reason's age moves every poll
++        if (_livenessSaid.get(e.endpoint) !== said) { _livenessSaid.set(e.endpoint, said); if (!liveness.live) console.warn(`[api-relay] ${e.endpoint} not listed: ${liveness.reason}`); }
++        if (!liveness.live) a = null;
++      }
++      // lastSeen stays what clients have always filtered on (site pricing.js, older CLIs): for a direct row it is now the
++      // newest AUTHENTICATED time (record issue or registry write); the raw registry value rides as registryLastSeen
++      const { registryRow, ...pub } = e;
++      rows[idx] = a ? { ...pub, ...(liveness ? { lastSeen: liveness.seenSec, registryLastSeen: registryRow.lastSeen, liveness: { evidence: liveness.evidence, until: Math.floor(liveness.untilMs / 1000) } } : {}),
++                        availability: a, relay: hasNoResources(a), checkedAt: new Date().toISOString() } : null;
+     }
+   };
+   await Promise.all(Array.from({ length: Math.min(AVAIL_POLL_CONCURRENCY, src.length || 1) }, worker));
+@@ -1428,8 +1455,10 @@
+ // needs percent-encoding, backslashes, repeated slashes or dot segments, so any of those refuses. A trailing slash is
+ // tolerated. Canonical = percent-decoded (up to three levels), backslashes as slashes, repeated slashes collapsed, dot
+ // segments resolved, lower-cased; a path that will not decode is refused. null = allowed.
++// /v1/host/capacity: the box's operator-signed capacity record, its off-chain liveness evidence for readers that hold no
++// relay trust (docs/network/host-liveness.md); public, read-only, and verified by every reader against the registry row
+ const BOX_OWN_SURFACES = new Set(["/availability", "/health", "/v1/health", "/v1/version", "/v1/pricing", "/v1/session-jwks",
+-                                  "/v1/net-map", "/v1/udp-map", "/v1/attestation", "/.well-known/Cloud Provider-attestation"]);
++                                  "/v1/net-map", "/v1/udp-map", "/v1/attestation", "/.well-known/Cloud Provider-attestation", "/v1/host/capacity"]);
+ const CUSTODY_SURFACES = new Map([["/v2/custody/info", "GET"], ["/v2/custody/challenge", "POST"], ["/v2/custody/release", "POST"],
+                                    ["/v2/custody/evidence", "POST"], ["/v2/custody/join", "POST"], ["/v2/custody/approve", "POST"],
+                                    ["/v2/custody/code-approve", "POST"]]);
+--- a/relay/fleet.mjs
++++ b/relay/fleet.mjs
+@@ -63,6 +63,9 @@
+     eligibilityPollSec: parseInt(env.ELIGIBILITY_POLL_SEC || "", 10) || 15,
+     eligibilityMaxAgeSec: parseInt(env.ELIGIBILITY_MAX_AGE_SEC || "", 10) || 60,
+     registryPollSec: parseInt(env.REGISTRY_POLL_SEC || "", 10) || DEFAULTS.registryPollSec,
++    // Parsed for compatibility only: registry rows are ADMITTED by their active flag. Liveness for routing is the
++    // api-relay's evidence-based /enclaves verdict (eligibility above), never the row's lastSeen, which hosts no longer
++    // refresh on a timer (network/host-liveness.mjs).
+     staleAfterSec: parseInt(env.STALE_AFTER_SEC || "", 10) || DEFAULTS.staleAfterSec,
+     // Operator allowlist. Comma-separated, lowercased EnclaveRegistry operator
+     // addresses. On-chain discovery is filtered to endpoints whose registry
+@@ -210,7 +213,7 @@
+   // the caller safely falls back to probing — a valid deployment never 404s from
+   // this alone.
+   let _runnerClient = null, _deploymentsAddress = cfg.deploymentsAddress;
+-  let _anyEndpoints = [];        // fresh registry endpoints, operator-allowlist aside (leaseEndpointFor)
++  let _anyEndpoints = [];        // admitted (active) registry endpoints, operator-allowlist aside (leaseEndpointFor)
+   let _endpointOperators = new Map();   // endpoint -> the operator that registered it
+   let _hashEndpoint = null;
+   const _endpointIdCache = new Map();
+@@ -541,25 +544,29 @@
+     for (let start = 0; start < total; start += 50)
+       rows.push(...await client.readContract({ address: registryAddress, abi,
+         functionName: "getPage", args: [BigInt(start), 50n] }));
+-    const now = Math.floor(Date.now() / 1000);
+     warnIfUnauthenticated(cfg, log);
+     const ops = cfg.trustedOperators;
+-    const fresh = rows.filter((e) => e.active && now - Number(e.lastSeen) <= cfg.staleAfterSec);
+-    // Endpoint set for LEASE-authorized routing (leaseEndpointFor): every fresh
++    // ADMITTED rows: active in the registry. These maps are AUTHORITY (who
++    // registered a name, which endpoints may be lease-routed), never liveness:
++    // a healthy host sends no periodic transaction, so its lastSeen grows old,
++    // and dropping it here would cost it dns-01 for its own name an hour after
++    // its last registry write. Liveness for routing is eligibility (/enclaves).
++    const admitted = rows.filter((e) => e.active === true);
++    // Endpoint set for LEASE-authorized routing (leaseEndpointFor): every admitted
+     // registry row, WITHOUT the operator allowlist but WITH the https + SSRF
+     // filters. Not a fleet-membership grant — the caller must independently
+     // prove this endpoint holds the deployment's on-chain lease.
+     // WHO REGISTERED an endpoint. Self-scoped authority: it lets a box prove it
+     // may answer dns-01 for its OWN name and nothing else, so it deliberately
+     // skips the trusted-operator allowlist (a permissionless seller still owns
+-    // its own hostname) while keeping the active + not-stale filter.
+-    _endpointOperators = new Map(fresh
++    // its own hostname) while keeping the active filter.
++    _endpointOperators = new Map(admitted
+       .map((e) => [String(e.endpoint || "").replace(/\/+$/, "").toLowerCase(), String(e.operator || "").toLowerCase()])
+       .filter(([ep, op]) => ep && /^0x[0-9a-f]{40}$/.test(op)));
+-    _anyEndpoints = fresh.map((e) => String(e.endpoint || "").replace(/\/+$/, ""))
++    _anyEndpoints = admitted.map((e) => String(e.endpoint || "").replace(/\/+$/, ""))
+       .filter((ep) => isHttpsEndpoint(ep))
+       .filter((ep) => { let h; try { h = new URL(ep).hostname; } catch { return false; } return !isBlockedHost(h); });
+-    return fresh
++    return admitted
+       // This list is the DATA-PLANE fleet: the origins a relay polls /v1/net-map
+       // on and splices tenant traffic to. A relay row is not one of those — it
+       // runs no tenants, answers no net-map, and holds no lease. Following one
+--- a/relay/deploy.sh
++++ b/relay/deploy.sh
+@@ -88,7 +88,7 @@
+ node build-network.mjs
+ scp network-runtime.bundle.mjs network-runtime.bundle.mjs.manifest.json nan:/opt/nan-relay/
+ ssh nan 'node /opt/nan-relay/network-runtime.bundle.mjs'
+-scp api-relay.js guest-prediction-row.mjs mcp.js auth.js sso.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js secrets-release.mjs custody-state.mjs measurement-predict.mjs host-delegation.mjs fleet-auth.js certs.js domains.js store.js fleet.mjs net-guard.mjs tunnel.js pvm-cpu-tier.mjs pvm-market.mjs pvm-secrets.mjs pvm-app-attest.mjs pvm-evidence-core.mjs snp-verify.mjs avf-verify.mjs avf-policy.mjs avf-binding.mjs vbs-verify.mjs vbs-policy.mjs vbs-credential.mjs vbs-tcglog.mjs vbs-tcglog-core.mjs vbs-tpm.mjs hvnode-verify.mjs hvnode-core.mjs vbs-app-verify.mjs vbs-vm-report.mjs vbs-runtime.mjs shield-app-policy.mjs shield-app-verifier.mjs shield-marketplace.mjs shield-app-fresh.mjs snp-app-fresh.mjs pvm-app-fresh.mjs shield-derive.mjs pads.mjs host-sponsor.mjs host-names.mjs referrals.mjs route-grace.mjs pad-grant.mjs pad-state.mjs pad-shipment-store.mjs pad-ack.mjs boxhost.js package.json package-lock.json shield-secrets.mjs placement.mjs cheapest-claim.mjs contract-owner-signature.mjs sessions.mjs sessions-abi.mjs vbs-app-core.mjs vbs-vm-report-core.mjs nan:/opt/nan-relay/
++scp api-relay.js registry-liveness.mjs host-liveness.mjs host-capacity-record.mjs canonical.mjs guest-prediction-row.mjs mcp.js auth.js sso.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js secrets-release.mjs custody-state.mjs measurement-predict.mjs host-delegation.mjs fleet-auth.js certs.js domains.js store.js fleet.mjs net-guard.mjs tunnel.js pvm-cpu-tier.mjs pvm-market.mjs pvm-secrets.mjs pvm-app-attest.mjs pvm-evidence-core.mjs snp-verify.mjs avf-verify.mjs avf-policy.mjs avf-binding.mjs vbs-verify.mjs vbs-policy.mjs vbs-credential.mjs vbs-tcglog.mjs vbs-tcglog-core.mjs vbs-tpm.mjs hvnode-verify.mjs hvnode-core.mjs vbs-app-verify.mjs vbs-vm-report.mjs vbs-runtime.mjs shield-app-policy.mjs shield-app-verifier.mjs shield-marketplace.mjs shield-app-fresh.mjs snp-app-fresh.mjs pvm-app-fresh.mjs shield-derive.mjs pads.mjs host-sponsor.mjs host-names.mjs referrals.mjs route-grace.mjs pad-grant.mjs pad-state.mjs pad-shipment-store.mjs pad-ack.mjs boxhost.js package.json package-lock.json shield-secrets.mjs placement.mjs cheapest-claim.mjs contract-owner-signature.mjs sessions.mjs sessions-abi.mjs vbs-app-core.mjs vbs-vm-report-core.mjs nan:/opt/nan-relay/
+ # hvnode-verify.mjs is the NucBox node's attach (tunnel mode hv-node), built on the vbs-*.mjs TPM
+ # and measured-boot primitives (the VBS-enclave attach itself is retired). api-relay.js reads the
+ # pinned AMD fTPM roots from ./fixtures/tpm-roots.pem (vbs-policy.mjs VBS_DEFAULT_EK_ROOTS) at
+--- a/relay/mcp.js
++++ b/relay/mcp.js
+@@ -1197,7 +1197,7 @@
+   },
+   {
+     name: "build_host_fund",
+-    description: "Unsigned plain ETH transfer that GASES a self-hosted (metal) enclave's operator EOA — the in-config key that signs the box's register/heartbeat/claim transactions (metal/PROTOCOL.md; `enclave host init` prints the address). Not a payment to anyone: the ETH is consumed as Base network fees over months, and earnings never touch this key (they sweep to the box's payoutAddress). Once funded, the box registers itself and appears as serving.",
++    description: "Unsigned plain ETH transfer that GASES a self-hosted (metal) enclave's operator EOA — the in-config key that signs the box's register/claim/renew transactions (metal/PROTOCOL.md; `enclave host init` prints the address). Not a payment to anyone: the ETH is consumed as Base network fees over months, and earnings never touch this key (they sweep to the box's payoutAddress). Once funded, the box registers itself and appears as serving.",
+     inputSchema: S({ address: { type: "string", description: "the operator EOA (0x + 40 hex; from `enclave host init` / metal/config.json)" },
+                      eth: { type: "number", description: "ETH amount (default 0.002 — covers a long time at Base fees)" } }, ["address"]),
+     handler: async ({ address, eth }) => {
+--- a/scripts/enclave-discover.mjs
++++ b/scripts/enclave-discover.mjs
+@@ -14,10 +14,14 @@
+ 
+ import { createPublicClient, http } from "viem";
+ import { base } from "viem/chains";
++import { hostLiveness } from "../network/host-liveness.mjs";
+ 
+ const REGISTRY_ADDRESS = process.env?.REGISTRY_ADDRESS || "0xCB65f487eba6564D57FfB860cF9aE701584cB4a2";
+ const RPC_URL          = process.env?.BASE_RPC || "https://mainnet.base.org";
+-const STALE_AFTER_SEC  = 3600;  // treat enclaves silent longer than this as down
++// Liveness (network/host-liveness.mjs) is NOT the registry's lastSeen: hosts send no periodic transaction. An active
++// row is up only on authenticated, bounded-fresh evidence: its operator-signed capacity record (verified here against
++// the row; Node only, the verifier needs node:crypto) or its operator's own registry write within this window.
++const REGISTRY_UPDATE_WINDOW_SEC = 3600;
+ 
+ const ENCLAVE_TUPLE_V1 = [
+   { name: "endpoint", type: "string" }, { name: "repo", type: "string" },
+@@ -116,9 +120,29 @@
+       args: [BigInt(start), 50n] });
+     out.push(...page);
+   }
+-  const now = Math.floor(Date.now() / 1000);
+-  return out.filter(e => e.active && now - Number(e.lastSeen) <= STALE_AFTER_SEC
+-    && isPublicHttpsEndpoint(e.endpoint));
++  // admission only: active, and an endpoint this caller may dial; liveness is per host (hostLivenessOf)
++  return out.filter(e => e.active === true && isPublicHttpsEndpoint(e.endpoint));
++}
++
++// The host's own signed capacity record, verified against the row just read (operator, endpoint, chain, registry,
++// active, unexpired) -> its expiry in ms, or null. Without the Node verifier (a browser) it is null: fewer hosts, never more.
++let _verifier;
++async function signedUntil(e, address, timeoutMs = 4000) {
++  _verifier ??= import("../network/host-capacity.mjs").catch(() => null);
++  const V = await _verifier;
++  if (!V) return null;
++  const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), timeoutMs);
++  try {
++    const r = await fetch(`${e.endpoint.replace(/\/+$/, "")}/v1/host/capacity`, { signal: ctrl.signal, redirect: "error" });
++    if (!r.ok) return null;
++    const v = await V.verifyHostCapacity(await r.json(), { pins: { chainId: base.id, registry: address },
++      entry: { endpoint: e.endpoint, operator: e.operator, active: e.active } });
++    return v.record.expiresAt;
++  } catch { return null; } finally { clearTimeout(t); }
++}
++/** -> network/host-liveness.mjs's verdict for an admitted row */
++export async function hostLivenessOf(e, address = REGISTRY_ADDRESS) {
++  return hostLiveness(e, { signedUntilMs: await signedUntil(e, address), registryUpdateWindowSec: REGISTRY_UPDATE_WINDOW_SEC });
+ }
+ 
+ // 2) fan out to each enclave's /availability (fast-moving truth: free capacity)
+@@ -147,8 +171,8 @@
+   const { gpuShare = 0, cpuShare = 0 } = want;
+   const enclaves = await readRegistry(address);
+   const rows = await Promise.all(enclaves.map(async (e) => {
+-    const a = await fetchAvailability(e.endpoint);
+-    return a ? { endpoint: e.endpoint, repo: e.repo, gpu: !!a.gpu,
++    const [a, liveness] = await Promise.all([fetchAvailability(e.endpoint), hostLivenessOf(e, address)]);
++    return a && liveness.live ? { endpoint: e.endpoint, repo: e.repo, gpu: !!a.gpu, liveness,
+                  gpuShareFree: gpuFreeOf(a), cpuShareFree: cpuFreeOf(a),
+                  smFree: a.smFree ?? 0, vramFreeGb: a.vramFreeGb ?? 0, avail: a } : null;
+   }));
+--- a/contracts/README.md
++++ b/contracts/README.md
+@@ -54,23 +54,25 @@
+   REGISTRY_ADDRESS: ""       # written by scripts/deploy-registry.mjs
+   ENCLAVE_ENDPOINT: ""       # per enclave, e.g. "https://enclave1.enclave.host"; empty = don't advertise
+   ENCLAVE_REPO: "EnclaveHost/enclave"          # the source repository the enclave says it runs (its release tags); exact GitHub casing
+-  # REGISTRY_HEARTBEAT_SEC: "900"           # optional, default 15 min
++  # REGISTRY_RECONCILE_SEC: "900"           # optional, default 15 min: how often the entry is READ and reconciled (no heartbeat)
+ ```
+ 
+ And the operator key as an **enclave secret** (not plaintext env — already listed
+-under `secrets:`), one EOA **per enclave** so concurrent heartbeats never fight
++under `secrets:`), one EOA **per enclave** so concurrent registry updates never fight
+ over an account nonce:
+ ```
+ REGISTRY_PRIVATE_KEY = 0x...   # an EOA that owns this enclave's registry entry
+ ```
+ 
+ > The key needs a little ETH on **Base** for gas: register is one tx at boot,
+-> then one cheap heartbeat every 15 min (~a few cents/month on Base). Fund the
++> and after that a transaction only when the entry actually changes (price,
++> proof key after a relaunch). There is **no periodic heartbeat transaction**:
++> liveness is off-chain (docs/network/host-liveness.md). Fund the
+ > address before first boot or registration silently fails (non-fatal — the
+ > enclave still serves, it just won't advertise until it can pay gas).
+ 
+ On boot you'll see: `[registry] registered https://... repo=... id=0x... tx=0x...`
+-then periodic `[registry] heartbeat tx=0x...`.
++then, only on a change, `[registry] price published …` or `[proof] proof key published …`.
+ 
+ `ENCLAVE_MEASUREMENT` is optional (a cross-check digest); leave unset (0x0) and
+ let the live attestation be authoritative, which it is regardless.
+@@ -103,8 +105,11 @@
+ - **Trust is gated by attestation at connect**, done by the caller's verifier
+   — not by registration. A malicious operator can register an enclave, but its
+   live quote won't carry a measurement the caller expects, so callers reject it.
+-- **Liveness is advisory**: heartbeats set `lastSeen`; readers drop entries
+-  staler than their window (the helper uses 1h).
++- **Liveness is off-chain** (docs/network/host-liveness.md): `active` is
++  admission; whether an active host is up is its operator-signed capacity
++  record at `/v1/host/capacity` (at most 15 minutes old), or an operator
++  registry write within the reader's window. `lastSeen` only moves when the
++  operator changes the entry; the contract's `heartbeat()` is no longer sent.
+ - **Open registration for now.** Sybil resistance via stake-to-register +
+   slashing is a future add (see the note at the bottom of the .sol); it isn't
+   needed for correctness because attestation, not registration, gates trust.
+--- a/docs/network/independent-capacity.md
++++ b/docs/network/independent-capacity.md
+@@ -70,7 +70,7 @@
+ |---|---|
+ | `--directory ORIGIN` (`--capacity-directories` in `enclave`) | `GET ORIGIN/v1/host-capacity` → `{ records: [envelope…] }`, 1–8 explicit origins |
+ | `--host ENDPOINT\|HOSTID` (`--hosts`) | `GET <registered endpoint>/v1/host/capacity` → envelope; the host must be registered |
+-| `--cold` | the same GET for every live registered host (active, heartbeat within 1 h), at most `--max-hosts` |
++| `--cold` | the same GET for every ACTIVE registered host, at most `--max-hosts` (more are reported, not read); each host gets its `liveness` (docs/network/host-liveness.md) |
+ 
+ - **Host fetches are SSRF-guarded** (`publicJsonFetch`).
+   - Only https is accepted, with no credentials, query, fragment or redirects.
+@@ -87,7 +87,8 @@
+ 
+ `hosts[]` gives, per host:
+ 
+-- `registry`: active, operator, posted prices, lastSeen;
++- `registry`: active, operator, posted prices, lastSeen (the last on-chain write by the operator; not liveness);
++- `liveness`: `{ live, evidence, untilMs, reason }`: live on a verified unexpired record, or on a registry write within the window;
+ - `capacity`: `status`, one of `verified | expired | stale | refused | unreachable | equivocation | none`, plus the
+   document, `issuedAt`/`expiresAt`/`sequence`, `sources` and `reasons`.
+ 
+--- a/docs/network/independent-cli.md
++++ b/docs/network/independent-cli.md
+@@ -56,7 +56,7 @@
+ | `ls [--owner ADDR]` | The wallet's records, plus its pinned-factory session vault's, from `count()`/`getPage()` at one agreed block. `claimed` is a ledger fact, not proof the app answers. |
+ | `status <id>` | The record, cap, fee and proof state at one block. When leased, also the runner's registry entry, including whether its operator matches the lease's. |
+ | `status <id> --host` | Adds the host-reported status from the runner's signed management endpoint (see below). |
+-| `hosts [--all]` | Every registered host from the **deployed schema-4 registry**: endpoint, operator, posted prices, heartbeat age and proof key. "Live" means active, priced, and a heartbeat within one hour. |
++| `hosts [--all]` | Every registered host from the **deployed schema-4 registry**: endpoint, operator, posted prices, last registry write and proof key. "Live" means active, priced, and fresh authenticated evidence: its operator-signed capacity record, verified against its row in the same agreed snapshot of the pinned registry (with `--contract-pins` or `--profile`), or its operator's registry write within one hour (docs/network/host-liveness.md). Hosts send no periodic transaction. |
+ | `pricing` | The cheapest posted node and card prices among live hosts. Hardware sizes are not on chain. |
+ | `apps`, `whoami` | Catalog and balances through the quorum. Account sessions (passkey) are a hosted service and are not used. |
+ | `deploy <app> --cpu --gpu [--max-rate] [--fund …] [--prepare-only]` | Always chain-only. Without `--max-rate`, the ceiling is the cheapest live registry price for the chosen shares. |
+--- a/docs/network/independent-host-onboarding.md
++++ b/docs/network/independent-host-onboarding.md
+@@ -209,8 +209,9 @@
+ The tool reports missing or unverified requirements explicitly:
+ 
+ - **SEV-SNP hardware**: collateral, guestd starting, guests running.
+-- **A funded operator key**: the supervisor registers the endpoint and sends
+-  heartbeats.
++- **A funded operator key**: the supervisor registers the endpoint and writes
++  the entry again only when it changes (no periodic heartbeat; readers take
++  liveness from the signed record at `/v1/host/capacity`).
+ - **The host-owner wallet**: it accepts ownership and commits a policy. The
+   operator nominates the owner; `scripts/network/prepare-host-policy.mjs`
+   prepares that nomination unsigned. Until then, a host with `--policy-dir`
+--- a/metal/PROTOCOL.md
++++ b/metal/PROTOCOL.md
+@@ -75,8 +75,8 @@
+ their deployment's `maxRate6` ceiling, and a deployment whose ceiling is under
+ your price is simply not yours to take (`claim` reverts `"over rate cap"`).
+ Set it with `priceCpuUsdHr` / `priceGpuUsdHr` in `config.json`; the guest
+-publishes it at registration and re-publishes on the next heartbeat whenever
+-you change it. Price yourself out of the market and your box idles; price
++publishes it at registration and re-publishes on the next reconcile pass (a
++read every 15 minutes; a transaction only on a mismatch) whenever you change it. Price yourself out of the market and your box idles; price
+ under the fleet and queued work lands on you first.
+ 
+ **You get paid for time you PROVE you served (schema rev 9 of the ledger).**
+@@ -88,7 +88,7 @@
+ *It is automatic, and there is no key to provision.* The signing key is
+ secp256k1 and **minted inside your CVM at boot**, alongside the TLS-bridge and
+ session keys; the guest publishes its address to your registry entry
+-(`EnclaveRegistry.setProofKey`, schema 3) on the next heartbeat and re-publishes
++(`EnclaveRegistry.setProofKey`, schema 3) on the next reconcile pass and re-publishes
+ after every relaunch, because the key is memory-only. You never see it, and
+ neither does the platform — which is the point: your operator EOA came from
+ outside the CVM (it is in your `config.json`), so a signature from *that* proves
+--- a/metal/config.example.json
++++ b/metal/config.example.json
+@@ -58,7 +58,7 @@
+ 
+   "_comment": "mode: snp | tdx | dev. dev = plain KVM (no attestation) for bring-up. hostfwd exposes guest ports on host loopback for local testing; production reachability is the fleet tunnel (relayUrl), so hostfwd can be empty. AUTH: set tunnelToken to attach via the relay's committed token allowlist (first-party boxes); OR leave tunnelToken empty to attach PERMISSIONLESSLY by proving your SEV-SNP measurement is on the relay's METAL_ALLOWED_MEASUREMENTS allowlist (metal/PROTOCOL.md). egressHelper (rename to \"egressHelper\") is only needed on sandboxed hosts whose user-net can't NAT externally; a normal seller box dials the relay directly.",
+ 
+-  "_comment_pricing": "WHAT YOU CHARGE (rename to priceCpuUsdHr / priceGpuUsdHr): USD per hour for a FULL node and a FULL card. This is THE price on a rev-8 ledger, not a floor: it is published in your EnclaveRegistry entry, and when you claim a deployment the chain charges its owner exactly your price times the shares they bought - a 17% CPU share of a $3.00/hr node pays $0.51/hr, of which you keep runnerBps (80% today). Every deployment carries its own hourly ceiling (maxRate6), so work whose owner capped below your price is not offered to you (claim reverts 'over rate cap') - it waits for someone cheaper. Change the price any time: the guest republishes it on its next heartbeat, and live leases keep the price they were claimed at. Unset = the fleet defaults ($3.00/node-hr, $6.00/card-hr). priceGpuUsdHr only applies when this really is a GPU enclave (gpuCount > 0 with a card passed through); on a CPU-only box it is ignored, because advertising a price for hardware you cannot serve sells work you can never run.",
++  "_comment_pricing": "WHAT YOU CHARGE (rename to priceCpuUsdHr / priceGpuUsdHr): USD per hour for a FULL node and a FULL card. This is THE price on a rev-8 ledger, not a floor: it is published in your EnclaveRegistry entry, and when you claim a deployment the chain charges its owner exactly your price times the shares they bought - a 17% CPU share of a $3.00/hr node pays $0.51/hr, of which you keep runnerBps (80% today). Every deployment carries its own hourly ceiling (maxRate6), so work whose owner capped below your price is not offered to you (claim reverts 'over rate cap') - it waits for someone cheaper. Change the price any time: the guest republishes it on its next reconcile pass, and live leases keep the price they were claimed at. Unset = the fleet defaults ($3.00/node-hr, $6.00/card-hr). priceGpuUsdHr only applies when this really is a GPU enclave (gpuCount > 0 with a card passed through); on a CPU-only box it is ignored, because advertising a price for hardware you cannot serve sells work you can never run.",
+ 
+   "_comment_volumes": "ATTESTED MODEL VOLUMES (rename to volumes / volumeStore): big read-only weights as dm-verity images, built by you. Each volume is one file (ext4 + an appended dm-verity hash tree) made with `node metal/volumes.mjs build <name> --src <model tree>`; the launcher attaches it read-only and the GUEST sets dm-verity up itself, so every block a tenant reads is hash-checked in the CVM. Use \"*\" to attach every volume in the store. The set's digest is launched into the CPU's HOST_DATA field, so every attestation report this enclave produces names exactly which models it carries (metal/verify.mjs checks it) - while the launch measurement, which allowlists pin, stays the release's. Deployments then attach them by name via the console volume picker or their config CID.",
+ 
+--- a/docs/billing-runbook.md
++++ b/docs/billing-runbook.md
+@@ -201,7 +201,7 @@
+ - **never declared.** `metal/config.json`'s `payoutAddress` is where the box
+   sweeps earnings; the chain has never seen it. `enclave host status` shows the
+   on-chain answer, and the supervisor logs `no payout wallet declared on-chain`
+-  at every heartbeat. Fix: `enclave host declare-payout`.
++  when the state changes (each reconcile pass reads it). Fix: `enclave host declare-payout`.
+ - **declared, but the deployment is owned by a different wallet.** The
+   exemption follows the OWNER, so a deployment created from another address —
+   or one that has since been transferred — is charged normally. Fix: deploy
+--- a/isolation/DEPLOYMENT-PATH.md
++++ b/isolation/DEPLOYMENT-PATH.md
+@@ -72,8 +72,9 @@
+    since F7 the guests OUTLIVE guestd (a restart adopts them), so they are ended explicitly.
+ 2. On nan, restore the newest `/etc/nan-relay/api-relay.env.bak-iso-*` taken before the first change (or delete
+    the two `metal-iso0` lines), then `systemctl restart enclave-api-relay.service`.
+-3. The on-chain registration goes stale on its own when heartbeats stop. The owner can `setActive(false)` the
+-   deployment.
++3. The on-chain registration stays active (hosts send no heartbeat), but readers stop listing the box once it no
++   longer serves a fresh signed capacity record (docs/network/host-liveness.md); its operator can `deregister`. The
++   owner can `setActive(false)` the deployment.
+ 
+ **One step back** (the 2026-09-24 21:17-21:33Z round, F10 + TCB floor + certificate reuse), keeping the guests:
+ - node: point `metal/config.iso.json` `dist` at `metal/dist-iso-99b0e3c0` (backup `config.iso.json.bak-99b0e3c0`),
+--- a/test/registry-advertise-retry.test.mjs
++++ b/test/registry-advertise-retry.test.mjs
+@@ -25,19 +25,19 @@
+   const make = new Function("env", "sleeps", "txs", "logs", `
+     let REGISTRY_ADDRESS = "0xAAAA";
+     const REGISTRY_READY = true, PUBLIC_URL = env.PUBLIC_URL || "";
+-    let _registered = false, _registeredOn = null, _enclaveId = null, _advertisedEndpoint = null;
++    let _registered = false, _registeredOn = null, _enclaveId = null, _advertisedEndpoint = null, _activeSeen = null;
+     const keccak256 = (b) => "id(" + b + ")", stringToBytes = (s) => s;
+     const registryRev = async () => 3;
+     const PROOF_ACCOUNT = null, REGISTRY_ABI = [], REGISTRY_ABI_V2 = [], REGISTRY_ABI_V1 = [];
+     const ENCLAVE_REPO = "EnclaveHost/enclave", ENCLAVE_MEASUREMENT = "0x00", SELL_CPU_PRICE6 = 1, SELL_GPU_PRICE6 = 2;
+-    const IS_GPU = false, HEARTBEAT_SEC = 60;
++    const IS_GPU = false, RECONCILE_SEC = 60;
+     const sendOperatorTx = async (address, _abi, fn, args) => { txs.push({ address, fn, endpoint: args[0] }); return env.send(fn, args); };
+     const setInterval = () => ({ unref() {} });
+     const setTimeout = (fn, ms) => {
+       if (sleeps.length >= 50) throw new Error("still not registered after 50 retries");   // fail, don't spin forever
+       sleeps.push(ms / 1000); setImmediate(fn); return { unref() {} };
+     };
+-    const syncRegisteredPrice = async () => {}, syncRegisteredProofKey = async () => {}, syncDeclaredPayoutWallet = async () => {};
++    const syncRegisteredPrice = async () => {}, syncRegisteredProofKey = async () => {}, syncDeclaredPayoutWallet = async () => {}, syncRegisteredActive = async () => {};
+     const console = { log: (m) => logs.push(m), warn: (m) => logs.push(m) };
+     ${FNS}
+     return { advertise, registerSelf,
+@@ -97,7 +97,7 @@
+ });
+ 
+ test("a PUBLIC_URL box re-registers its pinned origin when the address book repoints the registry", async () => {
+-  // the heartbeat calls advertise() on a repoint; before, it called registerFromShimCert, which a box without a shim
++  // the reconcile pass calls advertise() on a repoint; before, it called registerFromShimCert, which a box without a shim
+   // (metal0) can never satisfy, so it stayed registered on a registry nobody reads
+   const b = box({ PUBLIC_URL: "https://api.enclave.host/t/metal0", send: () => "0xhash" });
+   await b.advertise();
+@@ -117,10 +117,10 @@
+   assert.ok(b.logs.some((l) => /no PUBLIC_URL/.test(l)), "it says why");
+ });
+ 
+-test("boot, the heartbeat's repoint path and the request middleware all go through the retrying entry points", () => {
++test("boot, the reconcile pass's repoint path and the request middleware all go through the retrying entry points", () => {
+   assert.match(src, /\nif \(REGISTRY_READY\) advertise\(\);\n/, "boot starts the retry loop");
+   assert.doesNotMatch(src, /\nif \(PUBLIC_URL\) registerOnChain\(PUBLIC_URL\);/, "the one-shot boot registration is gone");
+-  const heartbeat = slice(/setInterval\(async \(\) => \{[\s\S]*?HEARTBEAT_SEC\) \* 1000\)/, "the registry heartbeat");
+-  assert.match(heartbeat, /registryRepointed\(\)\) return void advertise\(\)/);
++  const reconcile = slice(/setInterval\(async \(\) => \{[\s\S]*?RECONCILE_SEC\) \* 1000\)/, "the registry reconcile pass");
++  assert.match(reconcile, /registryRepointed\(\)\) return void advertise\(\)/);
+   assert.match(src, /if \(REGISTRY_READY && !_registered\) registerSelf\(\)\.catch\(/, "the middleware kicks registerSelf");
+ });
+--- a/test/registry-schema.test.mjs
++++ b/test/registry-schema.test.mjs
+@@ -226,11 +226,12 @@
+   assert.match(onChain[0], /registryRepointed\(\)[\s\S]*?_enclaveId = null/,
+     "a repoint must clear the cached enclave id - it does not exist on the new registry");
+ 
+-  // an idle box gets no requests, so the heartbeat is its only chance to notice
+-  const heartbeat = /setInterval\(async \(\) => \{[\s\S]*?HEARTBEAT_SEC\) \* 1000\)/.exec(sup);
+-  assert.ok(heartbeat, "registry heartbeat loop not found");
+-  assert.match(heartbeat[0], /registryRepointed\(\)/,
+-    "an idle enclave must notice a repoint from its heartbeat, not only from traffic");
++  // an idle box gets no requests, so the reconcile pass is its only chance to notice (it sends no heartbeat)
++  const reconcile = /setInterval\(async \(\) => \{[\s\S]*?RECONCILE_SEC\) \* 1000\)/.exec(sup);
++  assert.ok(reconcile, "registry reconcile loop not found");
++  assert.match(reconcile[0], /registryRepointed\(\)/,
++    "an idle enclave must notice a repoint from its reconcile pass, not only from traffic");
++  assert.doesNotMatch(reconcile[0], /"heartbeat"/, "the reconcile pass sends no heartbeat transaction");
+ });
+ 
+ /* A failed schema sniff must not be cached as "rev 1".
+--- a/test/windows-node-sponsor-retry.test.mjs
++++ b/test/windows-node-sponsor-retry.test.mjs
+@@ -37,7 +37,7 @@
+   assert.ok(wait(h) > 590_000 && wait(h) <= 600_000, String(wait(h)));
+ });
+ 
+-test("a box reached through a relay tunnel sends no on-chain heartbeat; a dialed box still does", async () => {
++test("no box sends an on-chain heartbeat, tunnelled or dialed (liveness is off-chain)", async () => {
+   assert.equal(Host.isTunnelEndpoint("https://api.enclave.host/t/nucbox-k11-2"), true);
+   for (const e of ["https://box.example.com", "https://api.enclave.host/t/", "https://api.enclave.host/t/a/b", "", null])
+     assert.equal(Host.isTunnelEndpoint(e), false, String(e));
+@@ -47,6 +47,6 @@
+     h.chainReady = true; h.registered = { active: true };
+     await h.heartbeat();
+   }
+-  assert.ok(!sent.some(([e, m]) => e.includes("/t/") && /heartbeat failed/.test(m)), "the tunnel box never tried");
+-  assert.ok(sent.some(([e, m]) => !e.includes("/t/") && /heartbeat failed/.test(m)), "the dialed box tried (and, with no gas here, failed)");
++  assert.ok(!sent.some(([, m]) => /heartbeat/i.test(m)), "neither box tried: " + JSON.stringify(sent));
++  // (test/offchain-heartbeat-writers.test.mjs counts the transactions themselves on a real chain)
+ });
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -25,7 +25,7 @@
+ COPY addressbook.js ./
+ COPY net-guard.mjs ./
+ # the host's own signed capacity record (GET /v1/host/capacity): the producer and the record core, no packages
+-COPY network/canonical.mjs network/host-capacity-record.mjs network/host-capacity-producer.mjs ./network/
++COPY network/canonical.mjs network/host-capacity-record.mjs network/host-capacity-producer.mjs network/registry-reconcile.mjs ./network/
+ # If you add the spawn implementation in its own files, COPY them here too.
+ ENV PORT=8080
+ EXPOSE 8080
+--- a/network/host-capacity-producer.mjs
++++ b/network/host-capacity-producer.mjs
+@@ -77,9 +77,12 @@
+     inflight ||= make().finally(() => { inflight = null; });
+     return inflight;
+   }
++  // Any origin may read it: the record is public and signed, every reader verifies it against the registry, and nothing
++  // here takes credentials. A browser reader (the independent dashboard on any origin) needs this to fetch it directly.
++  const HEADERS = { "content-type": "application/json", "cache-control": "no-store", "access-control-allow-origin": "*" };
+   async function frame() {
+-    try { return { status: 200, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(await current()) }; }
+-    catch (e) { return { status: Number.isInteger(e?.status) ? e.status : 503, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify({ error: String(e?.message || e).slice(0, 300) }) }; }
++    try { return { status: 200, headers: HEADERS, body: JSON.stringify(await current()) }; }
++    catch (e) { return { status: Number.isInteger(e?.status) ? e.status : 503, headers: HEADERS, body: JSON.stringify({ error: String(e?.message || e).slice(0, 300) }) }; }
+   }
+   async function handle(req, res) {
+     if (req.method !== "GET") { res.writeHead(405, { "content-type": "application/json" }); return res.end(JSON.stringify({ error: "GET only" })); }
+--- a/test/relay-hvnode-owner-only.test.mjs
++++ b/test/relay-hvnode-owner-only.test.mjs
+@@ -109,9 +109,10 @@
+ // /availability, and records every splice the hub opens to it (the replayed request line)
+ async function attachHv(origin, w, { sig = "v2", signer = OPERATOR, delegations = [], keepOpen = false } = {}) {
+   const ws = new WebSocket(origin.replace(/^http/, "ws") + "/v1/fleet-tunnel", { headers: { "x-metal-name": NAME, "x-metal-attest": "1" } });
+-  const frames = [], splices = [];
++  const frames = [], splices = [], reqs = [];
+   ws.on("message", (d) => {
+     let f; try { f = JSON.parse(d); } catch { return; } frames.push(f);
++    if (f.t === "req") reqs.push(f);
+     if (f.t === "req") ws.send(JSON.stringify({ t: "res", id: f.id, status: f.path.startsWith("/availability") ? 200 : 404, headers: { "content-type": "application/json" },
+                                                 body: Buffer.from(JSON.stringify(f.path.startsWith("/availability") ? AVAILABILITY : {})).toString("base64") }));
+     if (f.t === "s+") ws.send(JSON.stringify({ t: "s=", sid: f.sid, ok: true }));
+@@ -137,7 +138,7 @@
+                            rad: { format: HVNODE_FORMAT, transportKey: w.transport.spki.toString("base64"), body: Buffer.from(JSON.stringify(body)).toString("base64"), delegations } }));
+   const res = await waitFor(() => frames.find((f) => f.t === "attest-result"));
+   if (res?.ok) ws.send(JSON.stringify({ t: "hello", mode: "snp", publicUrl: ENDPOINT }));
+-  return { ok: !!res?.ok, reason: res?.reason, ws, splices, chal };
++  return { ok: !!res?.ok, reason: res?.reason, ws, splices, chal, reqs };
+ }
+ const delegation = async (o = {}) => {
+   const message = delegationText({ owner: OWNER.address, operator: OPERATOR.address, box: NAME, chain: 8453, registry: REG, expires: Math.floor(Date.now() / 1000) + 90 * 86400, ...o });
+@@ -248,6 +249,23 @@
+   assert.equal(a.splices.length, 0, "the control tunnel never carries application streams");
+ });
+ 
++test("an hv-node's signed capacity record (its off-chain liveness) is reachable at /t/<name>/v1/host/capacity: GET only, without the caller's credentials",
++     { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
++  const { w, roots } = hvWorld(t);
++  const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR), TUNNEL_OPERATOR_ATTACH: "1" });
++  const a = await attachHv(origin, w, { delegations: [await delegation()] });
++  t.after(() => { try { a.ws.close(); } catch {} });
++  assert.equal(a.ok, true, a.reason);
++  assert.ok(await waitFor(async () => { const x = await rowOf(origin); return x && x.mode === "hv-node" && x.eligible === false ? x : null; }), "an ineligible (owner-only) hv-node row");
++  const r = await fetch(`${origin}/t/${NAME}/v1/host/capacity`, { headers: { authorization: "Bearer secret-token" } });
++  assert.equal(r.status, 404, "the box answered (this stand-in serves no record): the relay forwarded the request instead of refusing it");
++  const got = a.reqs.find((f) => String(f.path).startsWith("/v1/host/capacity"));
++  assert.ok(got, "the request reached the box over its tunnel");
++  assert.ok(!Object.keys(got.headers || {}).some((k) => /^authorization$/i.test(k)), "the caller's credentials are stripped (publicOnly)");
++  assert.equal((await fetch(`${origin}/t/${NAME}/v1/host/capacity`, { method: "POST" })).status, 503, "only a read: POST stays refused");
++  assert.equal((await fetch(`${origin}/t/${NAME}/v1/deployments`)).status, 503, "the other control paths stay refused");
++});
++
+ test("owner-only needs a v2 signature by an operator in RELAY_HVNODE_OPERATORS (or \"*\" there: the open market); TRUSTED_OPERATORS (\"*\" included) never implies it: HOST-ONLY",
+      { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+   for (const [label, env, opts] of [["v1 signature", { RELAY_HVNODE_OPERATORS: lc(OPERATOR) }, { sig: "v1" }],
+--- /dev/null
++++ b/relay/host-liveness.mjs
+@@ -0,0 +1,44 @@
++// Host liveness, kept apart from registry authority (docs/network/host-liveness.md). No imports: the relay ships a
++// byte-identical copy (relay/host-liveness.mjs, pinned by test/host-liveness.test.mjs).
++//
++// ADMISSION (may this host be listed at all) is the registry and the reader's own platform filters: a registered row,
++// ACTIVE, and wherever a reader has one, its operator allowlist. A reader applies those first; nothing here relaxes them.
++//
++// LIVENESS (is it up now) is bounded-fresh, authenticated evidence, one of:
++//   signed-record    an operator-signed host capacity record (network/host-capacity.mjs) that the CALLER verified against
++//                    THIS row (signer = the row's operator, its endpoint and hostId, the chain and registry, the row
++//                    active) and that has not expired; a record lives at most 15 minutes, and a copy held by a directory
++//                    or a cache dies with it, so an old record is never current evidence;
++//   registry-update  an on-chain write by the row's operator key within the window (register, setPrices, setProofKey,
++//                    setMeasurement, setCaps, or a legacy heartbeat): lastSeen moves only through the operator's own
++//                    transaction. Hosts that predate signed records stay listed through it during the transition, and a
++//                    host that just registered is listed before its first record is read. No host sends a PERIODIC
++//                    write for it any more; a reader may set the window to 0 once every host it relies on serves records;
++//   observed         the reader's own authenticated observation, passed in by that reader (the relay's attached tunnel).
++// No evidence, expired evidence, or an inactive or unregistered row: not live, with the reason.
++
++export const REGISTRY_UPDATE_WINDOW_SEC = 3600;
++const ZERO = /^0x0{40}$/i;
++
++/**
++ * hostLiveness(row, opts) -> { live, evidence: "signed-record"|"observed"|"registry-update"|null, untilMs, reason }
++ *   row: a registry row { operator, active, lastSeen } (null: not registered)
++ *   nowMs: the reader's clock (signed records and observations); chainNowSec: the agreed block's time. lastSeen is judged
++ *   against the LATER of the two, so a stale RPC snapshot cannot extend a registry write's window
++ *   signedUntilMs: expiresAt of a capacity record the caller VERIFIED for this row, or null
++ *   observedAtMs / observedWindowMs: the reader's own authenticated observation and how long it counts
++ *   registryUpdateWindowSec: how long an operator registry write counts (0: never)
++ */
++export function hostLiveness(row, { nowMs = Date.now(), chainNowSec, signedUntilMs = null, observedAtMs = null, observedWindowMs = 0,
++                                    registryUpdateWindowSec = REGISTRY_UPDATE_WINDOW_SEC } = {}) {
++  const no = (reason) => ({ live: false, evidence: null, untilMs: null, reason });
++  if (!row || !row.operator || ZERO.test(String(row.operator))) return no("not registered");
++  if (row.active !== true) return no("inactive in the registry");
++  if (Number.isFinite(signedUntilMs) && signedUntilMs > nowMs) return { live: true, evidence: "signed-record", untilMs: signedUntilMs, reason: null };
++  if (Number.isFinite(observedAtMs) && observedWindowMs > 0 && observedAtMs <= nowMs && nowMs - observedAtMs <= observedWindowMs)
++    return { live: true, evidence: "observed", untilMs: observedAtMs + observedWindowMs, reason: null };
++  const t = Math.max(Number.isFinite(chainNowSec) ? chainNowSec : 0, Math.floor(nowMs / 1000)), seen = Number(row.lastSeen);
++  if (registryUpdateWindowSec > 0 && Number.isFinite(seen) && seen > 0 && seen <= t + 60 && t - seen <= registryUpdateWindowSec)
++    return { live: true, evidence: "registry-update", untilMs: (seen + registryUpdateWindowSec) * 1000, reason: null };
++  return no(`no fresh authenticated liveness: no unexpired signed capacity record${Number.isFinite(seen) && seen > 0 ? `, and the last registry write was ${Math.max(0, t - seen)} s ago` : ""}`);
++}
+--- /dev/null
++++ b/relay/canonical.mjs
+@@ -0,0 +1,9 @@
++// Canonical JSON for signed records: sorted keys, safe integers only, no other number formats. No dependencies (the
++// browser shares it).
++export function canonical(value) {
++  if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
++  if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
++  if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
++  if (value && Object.getPrototypeOf(value) === Object.prototype) return '{' + Object.keys(value).sort().map(k => JSON.stringify(k) + ':' + canonical(value[k])).join(',') + '}';
++  throw new Error('record must contain only bounded JSON values');
++}
+--- /dev/null
++++ b/relay/host-capacity-record.mjs
+@@ -0,0 +1,110 @@
++// The host capacity record itself, with no package imports (docs/network/independent-capacity.md): its fields, its
++// bounds, its signed message and building and signing one. Shipped to hosts by the producer
++// (network/host-capacity-producer.mjs); readers use network/host-capacity.mjs, which adds the keccak hostId check,
++// signature recovery, registry binding, floors and the aggregate.
++//
++// The document travels as its exact JSON text (availabilityJson): it is full of fractional numbers (shares, GB) that
++// the canonical record encoding does not admit, and readers must see byte for byte what the operator signed.
++import { createHash } from "node:crypto";
++import { canonical } from "./canonical.mjs";
++
++export const HOST_CAPACITY_KIND = "enclave-host-capacity";
++export const HOST_CAPACITY_MAX_MS = 15 * 60_000;
++export const HOST_CAPACITY_MAX_JSON = 32 * 1024;
++const CLOCK_SKEW_MS = 60_000;
++const ADDRESS = /^0x[0-9a-f]{40}$/, ID = /^0x[0-9a-f]{64}$/;
++const KEYS = ["version", "kind", "chainId", "registry", "hostId", "endpoint", "operator", "sequence", "issuedAt", "expiresAt", "availabilityJson"];
++
++export const hostCapacityMessage = (r) => `enclave-network:host-capacity:v${r.version}\n${canonical(r)}`;
++export const hostCapacityHash = (r) => createHash("sha256").update(canonical(r), "utf8").digest("hex");
++
++// ---- the availability document ---------------------------------------------------------------------------------------
++// Preserved as the host published it; bounded everywhere (32 KiB in all), typed where a reader decides on it: the
++// aggregate and the rendering read only these fields. Ledger and manager passthroughs (ramFreeMb, nn, volumes,
++// guestPool, ...) are carried, bounded, and never refused for their values: a host is not dropped over a field no
++// reader uses.
++const SHARES = ["gpuShareFree", "cpuShareFree", "usedGpuShare", "usedCpuShare", "maxShare", "sharePoolFree", "gpuEnclaveCpuShareFree"];
++const NONNEG = ["vcpusFree", "ramGbFree", "cpuGflopsFree", "nodeVcpus", "nodeRamGb", "nodeGflops", "machineRamGb", "smFree", "smTotal",
++  "vramFreeGb", "gpuTflopsFree", "cardVramGb", "cardTflops", "cards", "physicalGpuCount"];
++const PRICES = ["askCpuPricePerSec6", "askGpuPricePerSec6", "askShieldedPricePerSec6"];
++const BOOLS = ["gpu", "claimEnabled", "fullService", "networkOptions", "waf", "configOverride", "configCidOverride", "configEdit", "shareResize",
++  "cpuFallback", "gpuOptional", "secrets", "secretsInConfig", "customDomains", "devDeploy", "rateCap", "selfHostFree", "proofOfTime"];
++const MAX_DEPTH = 8, MAX_KEYS = 256, MAX_ITEMS = 256, MAX_STRING = 4096, BAD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
++
++function walk(v, depth, where) {
++  if (depth > MAX_DEPTH) throw new Error(`availability nests deeper than ${MAX_DEPTH} at ${where}`);
++  if (v === null || typeof v === "boolean") return;
++  if (typeof v === "number") { if (!Number.isFinite(v) || Math.abs(v) > Number.MAX_SAFE_INTEGER) throw new Error(`availability number out of range at ${where}`); return; }
++  if (typeof v === "string") { if (v.length > MAX_STRING) throw new Error(`availability string too long at ${where}`); return; }
++  if (Array.isArray(v)) { if (v.length > MAX_ITEMS) throw new Error(`availability array too long at ${where}`); v.forEach((x, i) => walk(x, depth + 1, `${where}[${i}]`)); return; }
++  if (typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype) {
++    const keys = Object.keys(v);
++    if (keys.length > MAX_KEYS) throw new Error(`availability object too wide at ${where}`);
++    for (const k of keys) { if (!/^[\x21-\x7e]{1,128}$/.test(k) || BAD_KEYS.has(k)) throw new Error(`availability key not allowed at ${where}`); walk(v[k], depth + 1, `${where}.${k}`); }
++    return;
++  }
++  throw new Error(`availability holds a non-JSON value at ${where}`);
++}
++
++/** -> the parsed document, or throws. `window` = { issuedAt, expiresAt } bounds updatedAt when it is present. */
++export function parseAvailability(text, window = null) {
++  if (typeof text !== "string" || !text.length || Buffer.byteLength(text) > HOST_CAPACITY_MAX_JSON) throw new Error(`availability must be JSON text of at most ${HOST_CAPACITY_MAX_JSON} bytes`);
++  let a;
++  try { a = JSON.parse(text); } catch { throw new Error("availability is not JSON"); }
++  if (!a || typeof a !== "object" || Array.isArray(a)) throw new Error("availability must be a JSON object");
++  walk(a, 0, "availability");
++  for (const k of SHARES) if (k in a && !(typeof a[k] === "number" && a[k] >= 0 && a[k] <= 1)) throw new Error(`availability.${k} must be a share in 0..1`);
++  for (const k of NONNEG) if (k in a && a[k] !== null && !(typeof a[k] === "number" && a[k] >= 0)) throw new Error(`availability.${k} must be a non-negative number`);
++  for (const k of PRICES) if (k in a && !(Number.isSafeInteger(a[k]) && a[k] >= 0)) throw new Error(`availability.${k} must be a non-negative integer`);
++  for (const k of BOOLS) if (k in a && typeof a[k] !== "boolean") throw new Error(`availability.${k} must be a boolean`);
++  if ("type" in a && !["gpu", "cpu"].includes(a.type)) throw new Error("availability.type must be gpu or cpu");
++  if ("updatedAt" in a) {
++    const t = typeof a.updatedAt === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,3})?Z$/.test(a.updatedAt) ? Date.parse(a.updatedAt) : NaN;
++    if (!Number.isFinite(t)) throw new Error("availability.updatedAt must be an ISO time");
++    if (window && (t > window.issuedAt + CLOCK_SKEW_MS || t < window.issuedAt - HOST_CAPACITY_MAX_MS))
++      throw new Error("availability.updatedAt is outside the record's lifetime: a stale document cannot be re-signed as fresh");
++  }
++  return a;
++}
++
++// ---- the record -------------------------------------------------------------------------------------------------------
++/**
++ * Structure, bounds and lifetime. -> { record, availability }. The hostId is checked to be well formed here and to be
++ * keccak256(endpoint) by network/host-capacity.mjs validateHostCapacityRecord, the readers' check (keccak needs a
++ * package this file does without).
++ */
++export function checkCapacityRecordShape(r, now = Date.now()) {
++  if (!r || typeof r !== "object" || Array.isArray(r) || Object.keys(r).length !== KEYS.length || KEYS.some((k) => !Object.hasOwn(r, k)))
++    throw new Error("a host capacity record has exactly its fields");
++  if (r.version !== 1 || r.kind !== HOST_CAPACITY_KIND) throw new Error("unsupported host capacity record");
++  if (!Number.isSafeInteger(r.chainId) || r.chainId <= 0 || !ADDRESS.test(r.registry || "") || !ADDRESS.test(r.operator || "") || /^0x0{40}$/.test(r.operator))
++    throw new Error("a host capacity record names its chain, registry and operator (lowercase)");
++  if (typeof r.endpoint !== "string" || !/^https:\/\/[^\s/?#@]+(\/[^\s?#]*)?$/.test(r.endpoint) || r.endpoint.length > 512 || !ID.test(r.hostId || ""))
++    throw new Error("a host capacity record names its registered https endpoint and hostId = keccak256(endpoint)");
++  if (![r.sequence, r.issuedAt, r.expiresAt].every(Number.isSafeInteger) || r.sequence < 1 || r.sequence > r.issuedAt ||
++      r.expiresAt <= r.issuedAt || r.expiresAt - r.issuedAt > HOST_CAPACITY_MAX_MS)
++    throw new Error(`a host capacity record lives at most ${HOST_CAPACITY_MAX_MS / 60000} minutes, and its sequence never runs ahead of its issue time`);
++  if (r.issuedAt > now + CLOCK_SKEW_MS) throw new Error("a host capacity record issued in the future");
++  if (r.expiresAt <= now) throw Object.assign(new Error("host capacity record expired"), { expired: true });
++  return { record: r, availability: parseAvailability(r.availabilityJson, r) };
++}
++
++
++/**
++ * A record for this host, now. hostId = keccak256(endpoint), computed by the caller (host-capacity.mjs hostIdOf, or
++ * the Windows node's chain.enclaveIdOf); readers recompute it and refuse a mismatch. `sequence` defaults to the issue
++ * time (monotonic for one signer's clock).
++ */
++export function buildCapacityRecord({ availability, chainId, registry, endpoint, hostId, operator, sequence, now = Date.now(), lifetimeMs = 5 * 60_000 }) {
++  const issuedAt = Math.floor(now), text = typeof availability === "string" ? availability : JSON.stringify(availability);
++  const r = { version: 1, kind: HOST_CAPACITY_KIND, chainId, registry: String(registry || "").toLowerCase(), hostId: String(hostId || "").toLowerCase(), endpoint,
++              operator: String(operator || "").toLowerCase(), sequence: sequence ?? issuedAt, issuedAt, expiresAt: issuedAt + lifetimeMs, availabilityJson: text };
++  checkCapacityRecordShape(r, now);
++  return r;
++}
++/** { record, signature } signed by the record's operator account (viem LocalAccount or any { address, signMessage }). */
++export async function signCapacityRecord(account, record) {
++  checkCapacityRecordShape(record, record?.issuedAt);   // well formed at its own time; freshness is the verifier's question
++  if (String(account?.address || "").toLowerCase() !== record.operator) throw new Error("only the record's operator signs it");
++  return { record, signature: await account.signMessage({ message: hostCapacityMessage(record) }) };
++}
+--- /dev/null
++++ b/relay/registry-liveness.mjs
+@@ -0,0 +1,78 @@
++// The relay's liveness for a DIRECT registry row (network/host-liveness.mjs; docs/network/host-liveness.md). Admission
++// stays where it was (active, the operator allowlist, https and a public address, all in api-relay.js discoverRegistry);
++// this decides only whether an admitted row is UP, from authenticated, bounded-fresh evidence:
++//   - the host's own operator-signed capacity record, fetched from <its registered endpoint>/v1/host/capacity and
++//     verified here against the row this relay read (signer = the row's operator, the exact registered endpoint and
++//     hostId, chain 8453 and this registry, the row active), unexpired, and never older than one already seen for that
++//     host and operator (no replay);
++//   - or its operator's own registry write within the window (the legacy evidence: lastSeen moves only by the
++//     operator's transaction, and hosts that predate signed records still send one).
++// A tunnel row is not judged here: its attach is the relay's own authenticated observation (tunnel.js).
++// An equivocating host (two different records with one sequence) loses its signed evidence until it signs a newer one; a
++// registry write within the window still counts for it (that is the operator's own transaction, not its record).
++// The record files are byte-identical copies of network/ (test/host-liveness.test.mjs pins them): the relay ships flat.
++import { keccak256, toBytes } from "viem";
++import { checkCapacityRecordShape, hostCapacityMessage, hostCapacityHash } from "./host-capacity-record.mjs";
++import { hostLiveness, REGISTRY_UPDATE_WINDOW_SEC } from "./host-liveness.mjs";
++import { recoverOp } from "./fleet-auth.js";
++
++export const HOST_CAPACITY_PATH = "/v1/host/capacity";
++
++/** Verify a capacity envelope against the registry row read for that host. -> record; throws with a reason. */
++export async function verifyRowRecord(envelope, row, { chainId, registry, now = Date.now() }) {
++  if (!envelope || typeof envelope !== "object" || Object.keys(envelope).sort().join(",") !== "record,signature") throw new Error("not a capacity envelope");
++  const { record } = checkCapacityRecordShape(envelope.record, now);
++  if (record.hostId !== keccak256(toBytes(record.endpoint))) throw new Error("hostId is not keccak256(endpoint)");
++  if (record.chainId !== chainId || record.registry !== String(registry || "").toLowerCase()) throw new Error("the record is for another chain or registry");
++  if (record.endpoint !== String(row.endpoint)) throw new Error("the record names another endpoint than the registry row");
++  const signer = await recoverOp(hostCapacityMessage(record), envelope.signature);
++  if (!signer || signer !== record.operator) throw new Error("the record is not signed by its operator");
++  if (signer !== String(row.operator).toLowerCase()) throw new Error("the signer is not the row's registry operator");
++  if (row.active !== true) throw new Error("the row is not active");
++  return record;
++}
++
++/**
++ * createRegistryLiveness({ chainId, registry: () -> address, fetchJson: (url) -> json | null, now, registryUpdateWindowSec, log })
++ * -> { judge(row) -> { live, evidence, untilMs, reason, seenSec }, forget(hostId) }
++ *   row: the registry entry as read ({ endpoint, operator, active, lastSeen }). seenSec: the newest authenticated time
++ *   (the record's issue time or the registry write), what the relay publishes as the row's lastSeen.
++ */
++export function createRegistryLiveness({ chainId = 8453, registry, fetchJson, now = Date.now, registryUpdateWindowSec = REGISTRY_UPDATE_WINDOW_SEC, log = () => {} }) {
++  // hostId -> { binding, record | null, floor: { sequence, hash, equivocatedAt } }. Evidence is held for ONE binding (chain,
++  // CURRENT registry, row operator): a moved registry (address-book repoint), chain or operator drops it, and a held
++  // record is counted only while it still names the current chain and registry.
++  const held = new Map();
++  async function judge(row) {
++    const t = now(), endpoint = String(row?.endpoint || ""), hostId = keccak256(toBytes(endpoint)), op = String(row?.operator || "").toLowerCase();
++    const reg = String(typeof registry === "function" ? registry() : registry || "").toLowerCase(), binding = `${chainId}|${reg}|${op}`;
++    let h = held.get(hostId);
++    if (h && h.binding !== binding) { held.delete(hostId); h = null; }       // evidence never carries over to another binding
++    // a record is re-read once less than half its life remains (the host re-signs at half life), or when none is held
++    if (row?.active === true && (!h?.record || h.record.expiresAt - t < (h.record.expiresAt - h.record.issuedAt) / 2)) {
++      const env = await fetchJson(endpoint.replace(/\/+$/, "") + HOST_CAPACITY_PATH).catch(() => null);
++      if (env) {
++        try {
++          const r = await verifyRowRecord(env, row, { chainId, registry: reg, now: t });
++          const f = h?.floor, hash = hostCapacityHash(r);
++          if (f && r.sequence < f.sequence) throw new Error("an older record than one already seen (replay)");
++          if (f && f.equivocatedAt !== null && r.sequence <= f.equivocatedAt) throw new Error("this host equivocated at this sequence: only a newer record restores its signed evidence");
++          if (f && r.sequence === f.sequence && hash !== f.hash) {
++            // two different records with one sequence: the host's signed evidence is void (the earlier one too) until a
++            // strictly newer record arrives. Its operator's own registry write is separate, chain-authenticated evidence.
++            h.record = null; f.equivocatedAt = r.sequence;
++            throw new Error("two records with one sequence (equivocation): signed evidence withdrawn");
++          }
++          h = { binding, record: r, floor: { sequence: r.sequence, hash, equivocatedAt: f?.equivocatedAt ?? null } };
++          held.set(hostId, h);
++        } catch (e) { log(`capacity record of ${endpoint} refused: ${String(e.message).slice(0, 160)}`); }
++      }
++    }
++    const rec = h?.record;
++    const signedUntilMs = rec && rec.expiresAt > t && rec.chainId === chainId && rec.registry === reg && rec.operator === op ? rec.expiresAt : null;
++    const v = hostLiveness(row, { nowMs: t, signedUntilMs, registryUpdateWindowSec });
++    const seen = Math.max(Number(row?.lastSeen) || 0, signedUntilMs ? Math.floor(rec.issuedAt / 1000) : 0);
++    return { ...v, seenSec: v.live ? seen : Number(row?.lastSeen) || 0 };
++  }
++  return { judge, forget: (hostId) => held.delete(hostId) };
++}
+--- /dev/null
++++ b/docs/network/host-liveness.md
+@@ -0,0 +1,114 @@
++# Host liveness is off-chain
++
++Hosts do **not** send a periodic on-chain heartbeat. The registry (`EnclaveRegistry`, deployed schema 4, unchanged)
++holds identity, admission and configuration, and it is written when they **change**:
++
++- `register` at boot. A CVM's proof key is new on every boot.
++- `setPrices`, `setProofKey` or `setMeasurement` on an actual mismatch.
++- `deregister` by the operator.
++
++Whether a host is **up** is decided off-chain, from authenticated, bounded-fresh evidence.
++
++The rule is `network/host-liveness.mjs` `hostLiveness`. The relay uses a byte-identical copy,
++`relay/host-liveness.mjs`.
++
++## Admission comes first; liveness never relaxes it
++
++1. **Admission** (may the host be listed at all):
++   - a registered row, `active`;
++   - wherever the reader has one, its platform filters: the relay's `TRUSTED_OPERATORS` allowlist, https and a public
++     address.
++   Moderation, operator binding and the registry's authority are unchanged.
++2. **Liveness** (is the admitted host up now). Exactly one of:
++
++| evidence | what it is | how fresh |
++|---|---|---|
++| `signed-record` | the host's operator-signed capacity record from `<registered endpoint>/v1/host/capacity` (`network/host-capacity*.mjs`), verified by the reader against the row it read: signer = the row's operator, exact endpoint and hostId, chain, registry, row active | unexpired: a record lives at most 15 minutes (default 5, re-signed at half life) |
++| `observed` | the reader's own authenticated observation: the relay's attached tunnel (`relay/tunnel.js`) | the observer's window |
++| `registry-update` | an on-chain write by the row's operator key (`register`, `setPrices`, `setProofKey`, `setMeasurement`, or a legacy `heartbeat`): `lastSeen` moves only through the operator's own transaction | within the reader's window (default 3600 s; `0` turns it off) |
++
++No evidence, expired evidence, a forged, foreign, moved-operator, replayed or equivocating record, or an inactive or
++unregistered row: **not live**, with the reason. A signed old record is never current evidence.
++
++- A copy of a record held by a directory or cache dies when the record expires.
++- The relay holds a record only for one binding (chain, the CURRENT registry, the row's operator). An address-book
++  repoint, a new operator or another chain drops it at once.
++- An equivocating host (two different records with one sequence) loses its signed evidence, the earlier record
++  included, until it signs a strictly newer one. Its operator's own registry write within the window is separate,
++  chain-authenticated evidence and still counts.
++- A reader that caps how many hosts it asks (the CLI's `signedLiveness`, 256 by default) reports the rest as
++  **not checked** (`unchecked`, `livenessComplete: false`, an INCOMPLETE note on `hosts` / `pricing` and the quote),
++  never as down.
++- Readers that keep floors (the relay, the capacity reader with `--capacity-state`) refuse an older sequence than one
++  they have seen.
++
++## What a host writes, and when (both platforms, one rule)
++
++`network/registry-reconcile.mjs` is imported by `supervisor.js` and `windows/node/host.mjs` alike (the measured image and
++the Windows deploy closure ship it):
++
++| phase | may register() | may correct price / proof key |
++|---|---|---|
++| `boot` (process start; a CVM proof key is new) | yes: initial registration, or re-registering its own row (even an inactive one) | active own row only |
++| `explicit` (an address-book registry migration, an owner's deliberate re-enable) | yes, as at boot | active own row only |
++| `timer` (every routine pass) | only an initial registration (no row yet), an unpriced own row, or a stale proof key on an ACTIVE own row | active own row only |
++
++- A routine pass never re-activates a row its operator deregistered. Both platforms read the row on their routine pass
++  (Linux 15 min, Windows 10 min) and report the change.
++- After observing a deregistration, both stop signing capacity records.
++- A row registered to another operator is never written.
++
++## Who does what
++
++| component | change |
++|---|---|
++| `supervisor.js` | The `heartbeat` transaction is gone. The timer (`REGISTRY_RECONCILE_SEC`; `REGISTRY_HEARTBEAT_SEC` still sets the cadence) only reads and reconciles: repoint, price, proof key, payout view, active state. Each is a transaction only on a mismatch. A deregistered row is reported, not re-activated. Liveness: the signed record at `/v1/host/capacity` (host-capacity integration). |
++| `windows/node/host.mjs`, `chain.mjs` | No `heartbeatBox` for any endpoint. The 10-minute timer re-reads the row (quietly; it logs an active/inactive change) and the gas runway: no transaction. `ensureRegistered` follows the shared rule: `boot` at start-up, `explicit` after an address-book registry move, `timer` on every tick. `ensurePriced` re-prices only an active own row. Liveness: a tunnelled box's tunnel attach, a dialed box's signed record. |
++| `relay/api-relay.js` | Admits `active` rows (no `lastSeen` filter). A direct row is listed only while it answers `/availability` AND `relay/registry-liveness.mjs` finds evidence. Its published `lastSeen` is the newest authenticated time; the raw value is `registryLastSeen`; `liveness` names the evidence. |
++| `relay/fleet.mjs` (dns-relay) | The operator-of-endpoint (dns-01 own name) and lease-endpoint maps are authority: built from `active` rows, never from `lastSeen`. Routing liveness stays the api-relay's `/enclaves` verdict (eligibility). |
++| `network/host-capacity-http.mjs` | `--cold` reads every active host (bounded by `--max-hosts`, overflow reported). Each host carries `liveness`. |
++| `cli/independent.mjs`, `cli/enclave.mjs` | `admittedHosts` = active and priced. `liveHosts` requires evidence. `signedLiveness` fetches each admitted host's record and verifies it against that host's row in the SAME agreed snapshot of the registry the command was told to use. With `--contract-pins` alone it claims no reviewed code hash; `--profile` adds its code pin through `assertReviewedCode`. Displays say "registry write", not "heartbeat". |
++| `network/host-capacity-producer.mjs` | The record (and its refusal) carries `access-control-allow-origin: *`: public, signed, credential-free, readable by a browser on any origin. |
++| `relay/api-relay.js` own surfaces | `/v1/host/capacity` is one of a tunnelled box's own public surfaces: GET, HEAD and OPTIONS reach even an ineligible (hv-node) box, with the caller's credentials stripped. A tunnelled host's record is therefore reachable at `<relay>/t/<name>/v1/host/capacity`. |
++| `scripts/enclave-discover.mjs` | Admits active rows. A host is picked only if its record verifies (Node) or its registry write is recent. |
++
++## Situations
++
++- **Restart or reboot.**
++  - A supervisor re-registers at boot: the CVM proof key is new, so that is a real change. That write keeps the host
++    live for the window until its first record is read.
++  - A Windows node writes only if its row differs.
++  - Records resume as soon as the host is registered again; the producer refuses to sign before that.
++- **Expired records.** The host drops out of every reader within at most 15 minutes of its last signature, unless its
++  operator wrote the registry within the window.
++- **Unavailable providers.**
++  - Directories are optional: a reader asks the host itself, and a dead directory is reported, not fatal.
++  - An RPC quorum that does not agree throws: nothing is verified, nothing is live.
++  - The relay being down does not affect decentralized readers.
++- **Inactive rows.** Never admitted, whatever they serve. The supervisor no longer re-activates its row on a timer:
++  the operator's deregistration stands until the host is registered again.
++- **Direct and tunnel hosts.** Neither sends a heartbeat. Tunnel liveness is the authenticated attach; direct liveness
++  is the signed record.
++
++## Compatibility boundary: an explicit version transition
++
++The deployed registry and its `lastSeen` field do not change; only who writes it does. A client that judges liveness
++**only** by `lastSeen` drops a healthy host one window after that host's last registry write.
++
++| reader | status |
++|---|---|
++| relay api-relay / dns-relay (production) | updated here; must be deployed **before** hosts stop heartbeating |
++| site pricing (`site/js/core/pricing.js`, `HOST_STALE_AFTER_SEC` on relay rows) | keeps working with no change, because the updated relay publishes an authenticated `lastSeen` |
++| site independent mode (`site/js/core/independent-chain.js`, `HOST_LIVE_SECONDS` on chain rows) | not in this patch. The browser liveness candidate (`work/browser-offchain-liveness`, another worker) applies this rule there; until it lands, the browser drops a non-heartbeating direct host after an hour |
++| released CLIs (`cli/dist/enclave.mjs` and installed copies), older `enclave-discover` copies | drop such hosts after an hour until upgraded |
++| third parties following the contract comment ("readers treat lastSeen older than a window as down") | same, by construction |
++
++Rollout order:
++
++1. Readers first: relay, CLI release, browser.
++2. Hosts serve signed records: the host-capacity producer integration, and a measured image rebuild for the
++   supervisor.
++3. Hosts stop heartbeating (this change).
++
++Hosts still on an older version keep heartbeating, and that write is still accepted as `registry-update` evidence, so
++mixed fleets work throughout.
+--- /dev/null
++++ b/test/host-liveness.test.mjs
+@@ -0,0 +1,274 @@
++// Off-chain host liveness (network/host-liveness.mjs; docs/network/host-liveness.md), on the READ side:
++//   - the shared rule: admission (registered, active) first; then a verified unexpired signed capacity record, a reader's
++//     own observation, or the operator's own registry write within the window; nothing else;
++//   - the relay's verifier (relay/registry-liveness.mjs, what api-relay.js lists by) against real signed records served
++//     over real HTTPS: forged, foreign, moved-operator, inactive, expired, replayed and equivocating records refused;
++//   - the decentralized reader (discoverHostCapacity --cold): a healthy host whose on-chain lastSeen is two hours old is
++//     read and live on its signed record; a dead directory is reported, not fatal; a registry without agreement throws;
++//   - the CLI's selection and scripts/enclave-discover.mjs use the same rule;
++//   - the REAL api-relay.js in registry mode: it lists the healthy old-lastSeen host (publishing an authenticated
++//     lastSeen for older clients), and drops forged, inactive and non-allowlisted hosts.
++// Fixtures: the host-capacity fixture's synthetic schema-4 registry behind two local JSON-RPC servers, and HTTPS hosts on
++// loopback under its test CA (names resolved to loopback by test/helpers/resolve-example-org.mjs for the relay process).
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import https from "node:https";
++import { spawn } from "node:child_process";
++import { fileURLToPath } from "node:url";
++import { privateKeyToAccount } from "viem/accounts";
++import { hostLiveness, REGISTRY_UPDATE_WINDOW_SEC } from "../network/host-liveness.mjs";
++import { chainFixture, hostServer, loopbackFetch, pki, gpuDoc } from "./helpers/host-capacity-fixture.mjs";
++import { buildHostCapacityRecord, signHostCapacity, hostIdOf } from "../network/host-capacity.mjs";
++import { createHostCapacityProducer, discoverHostCapacity, HOST_CAPACITY_PATH } from "../network/host-capacity-http.mjs";
++import { createRegistryLiveness } from "../relay/registry-liveness.mjs";
++import * as I from "../cli/independent.mjs";
++import { bootDaemon } from "./helpers/daemon.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++// the relay under test; a negative-control run points it at the patch's base copy (a file in relay/)
++const RELAY_SCRIPT = path.join(REPO, "relay", process.env.HOST_LIVENESS_RELAY_SCRIPT || "api-relay.js");
++const acct = (b) => privateKeyToAccount("0x" + b.repeat(32));
++const opA = acct("a1"), opB = acct("b2"), opNew = acct("c3"), stranger = acct("d4"), opU = acct("e5");
++const REG = "0x" + "ab".repeat(20);
++const sign = (signer, endpoint, over = {}) => signHostCapacity(signer, buildHostCapacityRecord({ availability: gpuDoc(over.now ?? Date.now()), chainId: 8453, registry: REG,
++  endpoint, operator: over.operator ?? signer.address, ...over }));
++const forge = async (claimed, endpoint) => {           // claims `claimed`'s operator, signed by a stranger
++  const real = buildHostCapacityRecord({ availability: gpuDoc(Date.now()), chainId: 8453, registry: REG, endpoint, operator: claimed.address });
++  return { record: real, signature: (await signHostCapacity(stranger, { ...real, operator: stranger.address.toLowerCase() })).signature };
++};
++const json = (res, status, body) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(body)); };
++
++test("the rule: admission first, then bounded-fresh authenticated evidence, nothing else", () => {
++  const now = 1_800_000_000_000, sec = now / 1000, row = { operator: opA.address, active: true, lastSeen: sec - 7200 };
++  let v = hostLiveness(row, { nowMs: now });
++  assert.equal(v.live, false); assert.match(v.reason, /no fresh authenticated liveness.*7200 s ago/);
++  v = hostLiveness(row, { nowMs: now, signedUntilMs: now + 60_000 });
++  assert.deepEqual([v.live, v.evidence, v.untilMs], [true, "signed-record", now + 60_000], "a verified record keeps a host with an old lastSeen live");
++  assert.equal(hostLiveness(row, { nowMs: now, signedUntilMs: now }).live, false, "an expired record is not current evidence");
++  assert.match(hostLiveness({ ...row, active: false }, { nowMs: now, signedUntilMs: now + 60_000 }).reason, /inactive/, "no evidence makes an inactive row live");
++  assert.match(hostLiveness({ ...row, operator: "0x" + "00".repeat(20) }, { nowMs: now, signedUntilMs: now + 60_000 }).reason, /not registered/);
++  assert.match(hostLiveness(null, { nowMs: now }).reason, /not registered/);
++  v = hostLiveness({ ...row, lastSeen: sec - 600 }, { nowMs: now });
++  assert.deepEqual([v.live, v.evidence], [true, "registry-update"], "the operator's own registry write within the window still counts (the transition)");
++  assert.equal(hostLiveness({ ...row, lastSeen: sec - REGISTRY_UPDATE_WINDOW_SEC - 1 }, { nowMs: now }).live, false);
++  assert.equal(hostLiveness({ ...row, lastSeen: sec - 600 }, { nowMs: now, registryUpdateWindowSec: 0 }).live, false, "a reader may count signed records only");
++  assert.equal(hostLiveness({ ...row, lastSeen: sec + 3600 }, { nowMs: now }).live, false, "a lastSeen ahead of the clock is not evidence");
++  assert.equal(hostLiveness({ ...row, lastSeen: sec - 3000 }, { nowMs: now, chainNowSec: sec - 7000 }).live, true, "a recent write counts");
++  assert.equal(hostLiveness(row, { nowMs: now, chainNowSec: sec - 7000 }).live, false, "a STALE snapshot (block 7000 s old) does not make a 7200 s old write fresh");
++  assert.equal(hostLiveness({ ...row, lastSeen: sec + 600 }, { nowMs: now, chainNowSec: sec + 900 }).evidence, "registry-update", "a chain ahead of the reader's clock is used (the later time)");
++  assert.equal(hostLiveness(row, { nowMs: now, observedAtMs: now - 1000, observedWindowMs: 5000 }).evidence, "observed");
++  assert.equal(hostLiveness(row, { nowMs: now, observedAtMs: now - 6000, observedWindowMs: 5000 }).live, false);
++});
++
++test("the shared producer serves its record to any origin, without credentials, on both host platforms", async () => {
++  const p = createHostCapacityProducer({ account: opA, hostIdOf, registry: REG, endpoint: "https://host-a.example.org", availability: async () => gpuDoc(Date.now()) });
++  for (const f of [await p.frame(), await createHostCapacityProducer({ account: opA, hostIdOf, identity: () => null, availability: async () => ({}) }).frame()]) {
++    assert.equal(f.headers["access-control-allow-origin"], "*", "a browser on any origin may read the public signed record (and the refusal)");
++    assert.ok(!Object.keys(f.headers).some((k) => /credentials/i.test(k)));
++  }
++});
++
++test("the relay ships byte-identical copies of the rule and the record code, and deploys them", () => {
++  for (const f of ["canonical.mjs", "host-capacity-record.mjs", "host-liveness.mjs"])
++    assert.equal(fs.readFileSync(path.join(REPO, "relay", f), "utf8"), fs.readFileSync(path.join(REPO, "network", f), "utf8"), `relay/${f} drifted from network/${f}`);
++  const deploy = fs.readFileSync(path.join(REPO, "relay/deploy.sh"), "utf8").split("\n").find((l) => l.startsWith("scp api-relay.js "));
++  for (const f of ["registry-liveness.mjs", "host-liveness.mjs", "host-capacity-record.mjs", "canonical.mjs", "fleet-auth.js"]) assert.ok(deploy.split(/\s+/).includes(f), f);
++});
++
++test("the relay's verifier: only an unexpired record signed by the row's own operator for exactly that row counts", { timeout: 60000 }, async (t) => {
++  let served = null, clock = Date.now();
++  const epA = await hostServer(t, "host-a.example.org", (req, res) => (served ? json(res, 200, served) : json(res, 503, { error: "no record" })));
++  const epB = await hostServer(t, "host-b.example.org", (req, res) => json(res, 503, {}));
++  const fetchJson = async (u) => { const r = await loopbackFetch()(u); return r.status === 200 ? r.json : null; };
++  const judge = (row) => createRegistryLiveness({ chainId: 8453, registry: REG, fetchJson, now: () => clock }).judge(row);
++  const old = Math.floor(clock / 1000) - 7200, row = { endpoint: epA, operator: opA.address.toLowerCase(), active: true, lastSeen: old };
++  assert.equal((await judge(row)).live, false, "no record and a two-hour-old lastSeen: not listed");
++  served = await sign(opA, epA);
++  let v = await judge(row);
++  assert.deepEqual([v.live, v.evidence], [true, "signed-record"]);
++  assert.ok(v.seenSec >= Math.floor(served.record.issuedAt / 1000) && v.seenSec > old, "the published lastSeen is the record's authenticated time");
++  for (const [why, env, r] of [
++    ["forged (a stranger's signature claiming the operator)", await forge(opA, epA), row],
++    ["a record for another endpoint", await sign(opA, epB), row],
++    ["a record for another registry", await sign(opA, epA, { registry: "0x" + "77".repeat(20) }), row],
++    ["another chain", await sign(opA, epA, { chainId: 1 }), row],
++    ["the row's operator moved", await sign(opA, epA), { ...row, operator: opNew.address.toLowerCase() }],
++    ["an inactive row", await sign(opA, epA), { ...row, active: false }]]) {
++    served = env;
++    assert.equal((await judge(r)).live, false, why);
++  }
++  // expiry: the same valid record, read after it died
++  served = await sign(opA, epA, { lifetimeMs: 60_000 });
++  const L = createRegistryLiveness({ chainId: 8453, registry: REG, fetchJson, now: () => clock });
++  assert.equal((await L.judge(row)).live, true);
++  clock += 61_000;
++  assert.equal((await L.judge(row)).live, false, "an expired record is never current evidence, cached or re-fetched");
++  // replay: once a newer record was seen, an older sequence (even unexpired) is refused
++  clock = Date.now();
++  const newer = await sign(opA, epA, { lifetimeMs: 60_000, now: clock }), older = await sign(opA, epA, { sequence: newer.record.sequence - 1, now: clock + 30_000, lifetimeMs: 15 * 60_000 });
++  const rsaid = [], R = createRegistryLiveness({ chainId: 8453, registry: REG, fetchJson, now: () => clock, log: (m) => rsaid.push(m) });
++  served = newer; assert.equal((await R.judge(row)).live, true);
++  clock += 61_000; served = older;
++  assert.equal((await R.judge(row)).live, false, "a replayed older record does not revive the host");
++  assert.match(rsaid.join("\n"), /replay/);
++  // equivocation: two different records with one sequence WITHDRAW the host's signed evidence (the earlier record too)
++  // until it signs a strictly newer one; its operator's own registry write is separate evidence and still counts
++  clock = Date.now();
++  const e1 = await sign(opA, epA, { lifetimeMs: 60_000, now: clock }), e2 = await signHostCapacity(opA, { ...e1.record, availabilityJson: JSON.stringify({ ...gpuDoc(clock), vcpusFree: 1 }) });
++  const said = [], E = createRegistryLiveness({ chainId: 8453, registry: REG, fetchJson, now: () => clock, log: (m) => said.push(m) });
++  served = e1; assert.equal((await E.judge(row)).live, true);
++  clock += 45_000; served = e2;
++  assert.equal((await E.judge(row)).live, false, "after the twin, the earlier record is no longer evidence either");
++  assert.match(said.join("\n"), /equivocation/, "the twin was read and refused");
++  served = e1;
++  assert.equal((await E.judge(row)).live, false, "re-serving the first record does not restore it");
++  const fresh = Math.floor(clock / 1000) - 120;
++  assert.deepEqual([(await E.judge({ ...row, lastSeen: fresh })).evidence], ["registry-update"], "the operator's own registry write still counts, not the record");
++  served = await sign(opA, epA, { sequence: e1.record.sequence + 1, now: clock, lifetimeMs: 60_000 });
++  assert.equal((await E.judge(row)).evidence, "signed-record", "a strictly newer record restores signed evidence");
++  // the address book repoints the registry (same endpoint, same operator): a record held for the OLD registry stops
++  // counting at once, cached or not, and a re-fetched one for the old registry is refused
++  let current = REG;
++  clock = Date.now(); served = await sign(opA, epA, { now: clock, lifetimeMs: 15 * 60_000 });
++  const B = createRegistryLiveness({ chainId: 8453, registry: () => current, fetchJson, now: () => clock });
++  assert.equal((await B.judge(row)).evidence, "signed-record");
++  current = "0x" + "99".repeat(20);
++  assert.equal((await B.judge(row)).live, false, "the old registry's record is not evidence for the new one");
++  served = await signHostCapacity(opA, buildHostCapacityRecord({ availability: gpuDoc(clock), chainId: 8453, registry: current, endpoint: epA, operator: opA.address, now: clock }));
++  assert.equal((await B.judge(row)).evidence, "signed-record", "a record for the current registry counts");
++  // the transition: no record, but the operator's own registry write 10 minutes ago
++  served = null; clock = Date.now();
++  v = await judge({ ...row, lastSeen: Math.floor(clock / 1000) - 600 });
++  assert.deepEqual([v.live, v.evidence], [true, "registry-update"]);
++});
++
++async function coldWorld(t) {
++  const c = await chainFixture(t), bt = Math.floor(c.blockTime / 1000), eps = {};
++  const producer = (op, name) => createHostCapacityProducer({ account: op, hostIdOf, registry: c.binding.address, endpoint: () => eps[name], availability: async () => gpuDoc(Date.now()) });
++  const pA = producer(opA, "a"), pC = producer(opNew, "c");
++  eps.a = await hostServer(t, "host-a.example.org", (req, res) => pA.handle(req, res));
++  eps.b = await hostServer(t, "host-b.example.org", (req, res) => json(res, 503, { error: "down" }));
++  eps.c = await hostServer(t, "host-c.example.org", (req, res) => pC.handle(req, res));
++  eps.d = await hostServer(t, "fake.example.org", (req, res) => json(res, 404, {}));
++  let forged = null;
++  eps.e = await hostServer(t, "host-a.example.org", (req, res) => json(res, 200, forged), "/t/forged");
++  forged = await (async () => { const r = buildHostCapacityRecord({ availability: gpuDoc(Date.now()), chainId: 8453, registry: c.binding.address, endpoint: eps.e, operator: opB.address });
++    return { record: r, signature: (await signHostCapacity(stranger, { ...r, operator: stranger.address.toLowerCase() })).signature }; })();
++  c.state.hosts.push(
++    { endpoint: eps.a, operator: opA.address, active: true, lastSeen: bt - 7200 },        // healthy, no heartbeat for two hours
++    { endpoint: eps.b, operator: opB.address, active: true, lastSeen: bt - 7200 },        // dead: no record, old write
++    { endpoint: eps.c, operator: opNew.address, active: false, lastSeen: bt - 60 },       // deregistered, still serving records
++    { endpoint: eps.d, operator: stranger.address, active: true, lastSeen: bt - 300 },    // a pre-record host that wrote recently
++    { endpoint: eps.e, operator: opB.address, active: true, lastSeen: bt - 7200 });       // forged record
++  return { ...c, eps };
++}
++
++test("cold discovery reads every ACTIVE host and judges each on evidence, not on lastSeen", { timeout: 60000 }, async (t) => {
++  const w = await coldWorld(t);
++  const r = await discoverHostCapacity({ reader: w.reader, binding: w.binding, cold: true, directories: ["http://127.0.0.1:1"], fetchHost: loopbackFetch() });
++  const by = (ep) => r.hosts.find((h) => h.endpoint === ep);
++  assert.deepEqual([by(w.eps.a).capacity.status, by(w.eps.a).liveness.live, by(w.eps.a).liveness.evidence], ["verified", true, "signed-record"],
++    "the healthy host with a two-hour-old lastSeen is read and live (it was never fetched before)");
++  assert.equal(by(w.eps.a).registry.lastSeen, Math.floor(w.blockTime / 1000) - 7200);
++  assert.deepEqual([by(w.eps.b).liveness.live, by(w.eps.b).capacity.status], [false, "unreachable"]);
++  assert.equal(by(w.eps.c), undefined, "an inactive host is not admitted, whatever it serves");
++  assert.deepEqual([by(w.eps.d).liveness.live, by(w.eps.d).liveness.evidence], [true, "registry-update"]);
++  assert.deepEqual([by(w.eps.e).capacity.status, by(w.eps.e).liveness.live], ["refused", false], "a forged record is refused and proves nothing");
++  assert.equal(r.aggregate.enclaves, 1, "capacity counts verified records only"); assert.equal(r.aggregate.unknown, 3);
++  assert.ok(r.sources.some((s) => s.kind === "directory" && s.ok === false), "the dead directory is reported, and nothing depended on it");
++  // registry-write evidence can be switched off: then only signed records keep a host live
++  const strict = await discoverHostCapacity({ reader: w.reader, binding: w.binding, cold: true, registryUpdateWindowSec: 0, fetchHost: loopbackFetch() });
++  assert.deepEqual(strict.hosts.filter((h) => h.liveness.live).map((h) => h.endpoint), [w.eps.a]);
++  // an RPC peer that disagrees about the registry: nothing is verified, nothing is live (it throws, never fails open)
++  w.state.lie[1] = w.state.hosts.map((h) => ({ ...h, active: true }));
++  await assert.rejects(discoverHostCapacity({ reader: w.reader, binding: w.binding, cold: true, fetchHost: loopbackFetch() }));
++});
++
++test("the CLI prices only against admitted hosts that are live on evidence", () => {
++  const now = Date.now(), bt = now, sec = Math.floor(now / 1000);
++  const h = (id, o) => ({ id: "0x" + id.repeat(64), operator: "0x" + "aa".repeat(20), active: true, cpuPricePerSec6: 1000n, gpuPricePerSec6: 0n, lastSeen: sec - 7200, ...o });
++  const hosts = [h("1", { cpuPricePerSec6: 500n }), h("2"), h("3", { active: false, cpuPricePerSec6: 100n }), h("4", { cpuPricePerSec6: 0n, lastSeen: sec }), h("5", { lastSeen: sec - 60, cpuPricePerSec6: 900n })];
++  const signedUntil = new Map([[hosts[0].id, now + 60_000], [hosts[2].id, now + 60_000]]);
++  assert.deepEqual(I.admittedHosts(hosts).map((x) => x.id[2]), ["1", "2", "5"]);
++  const live = I.liveHosts(hosts, bt, { signedUntil, nowMs: now });
++  assert.deepEqual(live.map((x) => [x.id[2], x.liveness.evidence]), [["1", "signed-record"], ["5", "registry-update"]]);
++  assert.equal(I.cheapestPrices(live).cpu6, 500n, "the cheapest LIVE host, not the cheapest registered one (host 3 is inactive)");
++  assert.deepEqual(I.liveHosts(hosts, bt, { nowMs: now }).map((x) => x.id[2]), ["5"], "without signed records, only a recent registry write counts");
++  assert.equal(I.withLiveness(hosts, bt, { signedUntil, nowMs: now })[2].liveness.reason, "inactive in the registry");
++});
++
++test("scripts/enclave-discover.mjs keeps a host on its verified record and drops a forged one", async (t) => {
++  const D = await import("../scripts/enclave-discover.mjs"), registry = "0xCB65f487eba6564D57FfB860cF9aE701584cB4a2";
++  const ep = "https://host-a.example.org", row = { endpoint: ep, operator: opA.address, active: true, lastSeen: BigInt(Math.floor(Date.now() / 1000) - 7200) };
++  let served = null; const real = globalThis.fetch;
++  globalThis.fetch = async (u) => { assert.equal(String(u), ep + HOST_CAPACITY_PATH); return new Response(JSON.stringify(served), { status: served ? 200 : 404 }); };
++  t.after(() => { globalThis.fetch = real; });
++  const mk = (signer, over = {}) => signHostCapacity(signer, buildHostCapacityRecord({ availability: gpuDoc(Date.now()), chainId: 8453, registry, endpoint: ep, operator: signer.address, ...over }));
++  assert.equal((await D.hostLivenessOf(row, registry)).live, false);
++  served = await mk(opA);
++  assert.equal((await D.hostLivenessOf(row, registry)).evidence, "signed-record");
++  served = await mk(stranger); assert.equal((await D.hostLivenessOf(row, registry)).live, false, "a stranger's record");
++  served = await mk(opA, { registry: REG }); assert.equal((await D.hostLivenessOf(row, registry)).live, false, "another registry's record");
++  served = await mk(opA); assert.equal((await D.hostLivenessOf({ ...row, active: false }, registry)).live, false, "an inactive row");
++});
++
++test("the REAL api-relay in registry mode lists a healthy host with an old lastSeen and drops forged, inactive and unvetted ones", { timeout: 120000 }, async (t) => {
++  const c = await chainFixture(t), bt = Math.floor(c.blockTime / 1000), P = pki(), served = {};
++  const box = async (name, prefix = "") => {
++    const s = https.createServer({ key: P.key, cert: P.cert }, (req, res) => {
++      const p = new URL(req.url, "http://x").pathname;
++      if (p === prefix + "/availability") return json(res, 200, gpuDoc(Date.now()));
++      if (p === prefix + HOST_CAPACITY_PATH) return served[`${name}${prefix}`] ? json(res, 200, served[`${name}${prefix}`]) : json(res, 404, {});
++      res.writeHead(404); res.end();
++    });
++    await new Promise((r) => s.listen(0, "127.0.0.1", r));
++    t.after(() => { s.closeAllConnections(); return new Promise((r) => s.close(r)); });
++    return `https://${name}:${s.address().port}${prefix}`;
++  };
++  const ep = { a: await box("host-a.example.org"), b: await box("host-b.example.org"), c: await box("host-c.example.org"), d: await box("fake.example.org"), u: await box("host-a.example.org", "/t/unvetted") };
++  const rec = (signer, endpoint) => signHostCapacity(signer, buildHostCapacityRecord({ availability: gpuDoc(Date.now()), chainId: 8453, registry: c.binding.address, endpoint, operator: signer.address }));
++  served["host-a.example.org"] = await rec(opA, ep.a);
++  served["host-b.example.org"] = await (async () => { const r = buildHostCapacityRecord({ availability: gpuDoc(Date.now()), chainId: 8453, registry: c.binding.address, endpoint: ep.b, operator: opB.address });
++    return { record: r, signature: (await signHostCapacity(stranger, { ...r, operator: stranger.address.toLowerCase() })).signature }; })();
++  served["host-c.example.org"] = await rec(opNew, ep.c);
++  served["host-a.example.org/t/unvetted"] = await rec(opU, ep.u);
++  c.state.hosts.push(
++    { endpoint: ep.a, operator: opA.address, active: true, lastSeen: bt - 7200 },
++    { endpoint: ep.b, operator: opB.address, active: true, lastSeen: bt - 7200 },
++    { endpoint: ep.c, operator: opNew.address, active: false, lastSeen: bt - 60 },
++    { endpoint: ep.d, operator: stranger.address, active: true, lastSeen: bt - 300 },
++    { endpoint: ep.u, operator: opU.address, active: true, lastSeen: bt - 60 });
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "host-liveness-relay-"));
++  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const trusted = [opA, opB, opNew, stranger].map((a) => a.address.toLowerCase()).join(",");
++  let out = "";
++  const { child, port } = await bootDaemon({
++    start: (port) => { const ch = spawn(process.execPath, ["--import", path.join(REPO, "test/helpers/resolve-example-org.mjs"), RELAY_SCRIPT], {
++      env: { PATH: process.env.PATH, HOME: dir, API_RELAY_PORT: String(port), API_RELAY_BIND: "127.0.0.1", BASE_RPC: c.rpcOrigins[0], RPC_FALLBACKS: "0",
++        REGISTRY_ADDRESS: c.binding.address, ADDRESS_BOOK_ADDRESS: "", TRUSTED_OPERATORS: trusted, DEPLOYMENTS_ADDRESS: "0x" + "12".repeat(20),
++        FEATURED_VIEWS_FILE: path.join(dir, "views.json"), AVAIL_POLL_SEC: "1", REGISTRY_POLL_SEC: "3", NODE_EXTRA_CA_CERTS: path.join(P.dir, "ca.pem") },
++      stdio: ["ignore", "pipe", "pipe"] });
++      ch.stdout.on("data", (d) => { out = (out + d).slice(-200000); }); ch.stderr.on("data", (d) => { out = (out + d).slice(-200000); }); return ch; },
++    claimed: (log, port) => log.includes(`[api-relay] :${port}`),
++    ready: async (port) => (await fetch(`http://127.0.0.1:${port}/health`)).ok,
++  });
++  t.after(() => child.kill("SIGKILL"));
++  let rows = [];
++  for (let i = 0; i < 60; i++) {
++    const r = await fetch(`http://127.0.0.1:${port}/enclaves`).then((x) => x.json()).catch(() => null);
++    rows = r?.enclaves || [];
++    if (rows.some((e) => e.endpoint === ep.a) && rows.some((e) => e.endpoint === ep.d)) break;
++    await new Promise((ok) => setTimeout(ok, 500));
++  }
++  const listed = rows.map((e) => e.endpoint).sort();
++  assert.deepEqual(listed, [ep.a, ep.d].sort(), "listed: " + JSON.stringify(listed) + "\n" + out.slice(-3000));
++  const a = rows.find((e) => e.endpoint === ep.a), d = rows.find((e) => e.endpoint === ep.d);
++  assert.equal(a.liveness.evidence, "signed-record"); assert.equal(a.registryLastSeen, bt - 7200);
++  assert.ok(Date.now() / 1000 - a.lastSeen < 120, "older clients filtering lastSeen < 1h see the authenticated time, not the two-hour-old write");
++  assert.equal(d.liveness.evidence, "registry-update");
++  assert.ok(!("registryRow" in a), "the internal row is not published");
++  assert.match(out, /not listed: no fresh authenticated liveness/, "the forged host's refusal is logged");
++});
+--- /dev/null
++++ b/test/offchain-heartbeat-writers.test.mjs
+@@ -0,0 +1,157 @@
++// No periodic liveness transaction from any host agent (docs/network/host-liveness.md), on a REAL chain (anvil, chain
++// 8453, the cli-independent rig's real schema-4 registry), counted from the chain itself (registry event logs):
++//   - the REAL supervisor.js, registered and running over three reconcile periods: zero registry writes and zero Heartbeat
++//     events; a real configuration drift (its price changed on chain) is corrected by exactly one setPrices; an operator
++//     deregistration is reported, NOT silently undone (the old heartbeat re-activated the row every 15 minutes);
++//   - negative control: the pre-change supervisor (the patch's base) on the same rig DOES send heartbeats, so the count
++//     above can see them;
++//   - the REAL Windows node (windows/node/host.mjs + chain.mjs) for a dialed AND a tunnelled endpoint over several
++//     timer periods: zero transactions reach the RPC; its real status write (re-registering a deactivated row) and a real
++//     price write still go out, through the same counting RPC (the positive control for the counter).
++// Only anvil's published dev keys are used.
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import { fileURLToPath } from "node:url";
++import { keccak256, toBytes, parseAbiItem } from "viem";
++import { privateKeyToAccount } from "viem/accounts";
++import { haveTools, startRig, startActualHost, KEYS } from "./helpers/cli-independent-rig.mjs";
++import { verifyHostCapacity } from "../network/host-capacity.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const BASE_SUPERVISOR = process.env.OFFCHAIN_HEARTBEAT_BASE_SUPERVISOR || "";   // the patch's base supervisor.js, for the negative control
++const skip = haveTools();
++const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
++const HEARTBEAT = parseAbiItem("event Heartbeat(bytes32 indexed id, uint64 at)");
++const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "offchain-heartbeat-"));
++
++/** every registry event since `from`, by name (each registry write emits one) */
++async function registryWrites(r, from) {
++  const logs = await r.pc.getLogs({ address: r.addresses.registry, fromBlock: from, toBlock: "latest" });
++  const names = { [keccak256(toBytes("Heartbeat(bytes32,uint64)"))]: "Heartbeat", [keccak256(toBytes("PricesSet(bytes32,uint64,uint64)"))]: "PricesSet",
++    [keccak256(toBytes("Deregistered(bytes32)"))]: "Deregistered", [keccak256(toBytes("Updated(bytes32,string,bytes32)"))]: "Updated",
++    [keccak256(toBytes("ProofKeySet(bytes32,address)"))]: "ProofKeySet", [keccak256(toBytes("Registered(bytes32,address,string,string)"))]: "Registered" };
++  return logs.map((l) => ({ name: names[l.topics[0]] || l.topics[0], block: l.blockNumber, tx: l.transactionHash }));
++}
++const heartbeats = async (r) => (await r.pc.getLogs({ address: r.addresses.registry, event: HEARTBEAT, fromBlock: 0n, toBlock: "latest" })).length;
++const entry = (r) => r.pc.readContract({ address: r.addresses.registry, abi: r.A.registry4.abi, functionName: "get", args: [r.runner] });
++
++test("the REAL supervisor sends no periodic registry transaction; real drift is corrected once; a deregistration is not undone",
++  skip ? { skip } : { timeout: 900000 }, async (t) => {
++  const r = await startRig(); t.after(() => r.stop());
++  const dir = tmp(); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const host = await startActualHost(r, { id: "0x" + "00".repeat(32), owner: r.owner, dir, token: "t".repeat(40), leaseUntil: 0, claim: true, seed: false,
++    env: { REGISTRY_RECONCILE_SEC: "60" } });
++  await host.waitLog(/\[registry\] registered https:\/\/host\.independent\.test/, 60000);
++  await sleep(10000);                                         // boot-time syncs (proof key) settle
++  const b0 = await r.pc.getBlockNumber();
++  await sleep(3 * 60_000 + 15_000);                           // three reconcile periods
++  assert.deepEqual(await registryWrites(r, b0 + 1n), [], "three reconcile periods, no registry write");
++  assert.equal(await heartbeats(r), 0, "no Heartbeat event over the whole run");
++  assert.equal((await entry(r)).active, true);
++  // its off-chain liveness: the signed record at /v1/host/capacity, readable from any origin, verified against the row
++  const capacity = () => fetch(host.upstream + "/v1/host/capacity", { headers: { origin: "https://dashboard.elsewhere.example" } });
++  let cr = await capacity();
++  assert.equal(cr.status, 200, await cr.clone().text());
++  assert.equal(cr.headers.get("access-control-allow-origin"), "*"); assert.equal(cr.headers.get("access-control-allow-credentials"), null);
++  const row = await entry(r), signed = await verifyHostCapacity(await cr.json(), { pins: { chainId: 8453, registry: r.addresses.registry },
++    entry: { endpoint: row.endpoint, operator: row.operator, active: row.active } });
++  assert.equal(signed.signer, row.operator.toLowerCase(), "signed by the row's operator for the registered endpoint");
++  // a real configuration drift: the price on chain no longer matches the host's -> exactly one corrective setPrices
++  const op = r.wc(KEYS.operator);
++  await r.write(op, r.addresses.registry, r.A.registry4.abi, "setPrices", [r.runner, 2000n, 0n]);
++  const b1 = await r.pc.getBlockNumber();
++  await host.waitLog(/\[registry\] price published: 1000\/sec node/, 90000);
++  await sleep(3000);
++  const fix = await registryWrites(r, b1 + 1n);
++  assert.deepEqual(fix.map((w) => w.name), ["PricesSet"], JSON.stringify(fix, (k, v) => (typeof v === "bigint" ? String(v) : v)));
++  assert.equal((await entry(r)).cpuPricePerSec6, 1000n);
++  // the operator deregisters: the host reports it and does not re-activate the row on a timer
++  await r.write(op, r.addresses.registry, r.A.registry4.abi, "deregister", [r.runner]);
++  const b2 = await r.pc.getBlockNumber();
++  await host.waitLog(/INACTIVE on chain \(deregistered by the operator key\)/, 90000);
++  await sleep(65000);
++  assert.deepEqual(await registryWrites(r, b2 + 1n), [], "no write after the deregistration");
++  assert.equal((await entry(r)).active, false, "the operator's deregistration stands");
++  cr = await capacity();
++  assert.equal(cr.status, 503, "no signed liveness for a row it saw deregistered (as on Windows): " + await cr.text());
++  assert.equal(await heartbeats(r), 0);
++  assert.doesNotMatch(host.stdout(), /\[registry\] heartbeat/);
++});
++
++test("negative control: the base supervisor DOES heartbeat on the same rig (the counter sees it)",
++  skip || !BASE_SUPERVISOR ? { skip: skip || "set OFFCHAIN_HEARTBEAT_BASE_SUPERVISOR to the base supervisor.js (a file in the repository root)" } : { timeout: 300000 }, async (t) => {
++  const r = await startRig(); t.after(() => r.stop());
++  const dir = tmp(); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const host = await startActualHost(r, { id: "0x" + "00".repeat(32), owner: r.owner, dir, token: "t".repeat(40), leaseUntil: 0, claim: true, seed: false,
++    script: BASE_SUPERVISOR, env: { REGISTRY_HEARTBEAT_SEC: "60" } });
++  await host.waitLog(/\[registry\] registered/, 60000);
++  await host.waitLog(/\[registry\] heartbeat tx=/, 90000);
++  await sleep(3000);
++  assert.ok(await heartbeats(r) >= 1, "the base supervisor's heartbeat is a Heartbeat event on the registry");
++});
++
++test("the REAL Windows node sends no transaction from its timers, dialed or tunnelled; its tick does not undo a deregistration; deliberate status and price writes still go out",
++  skip ? { skip } : { timeout: 300000 }, async (t) => {
++  const r = await startRig(); t.after(() => r.stop());
++  // a counting RPC in front of anvil: every method the node's chain module calls
++  const seen = [];
++  const proxy = http.createServer(async (req, res) => {
++    let b = ""; for await (const c of req) b += c;
++    for (const m of [JSON.parse(b)].flat()) seen.push(m.method);
++    const up = await fetch(r.rpc, { method: "POST", headers: { "content-type": "application/json" }, body: b });
++    res.writeHead(200, { "content-type": "application/json" }); res.end(await up.text());
++  });
++  await new Promise((ok) => proxy.listen(0, "127.0.0.1", ok));
++  t.after(() => new Promise((ok) => { proxy.closeAllConnections(); proxy.close(ok); }));
++  process.env.BASE_RPCS = `http://127.0.0.1:${proxy.address().port}`;
++  const chain = await import("../windows/node/chain.mjs");
++  assert.deepEqual(chain.rpcUrls(), [process.env.BASE_RPCS], "the node's chain module reads ONLY the counting local RPC (never a public one)");
++  const { Host } = await import("../windows/node/host.mjs");
++  const dir = tmp(); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  fs.writeFileSync(path.join(dir, "operator.key"), KEYS.operator + "\n", { mode: 0o600 });
++  chain.loadOperator(path.join(dir, "operator.key"));
++  chain.addresses.registry = r.addresses.registry;
++  const sends = () => seen.filter((m) => m === "eth_sendRawTransaction").length;
++  // OFFCHAIN_HEARTBEAT_SKIP_TIMER=1: a negative-control run against the base node skips to the tick section
++  for (const endpoint of process.env.OFFCHAIN_HEARTBEAT_SKIP_TIMER === "1" ? [] : [r.endpoint, "https://api.enclave.host/t/box-b"]) {
++    const logs = [];
++    const h = new Host({ dir, endpoint, name: "b", appsEnabled: true, cpuPricePerSec6: 1000, log: (m) => logs.push(m) });
++    h.chainReady = true; h.registered = { active: true, operator: privateKeyToAccount(KEYS.operator).address };
++    const before = seen.length;
++    for (let i = 0; i < 4; i++) await h.heartbeat();          // four timer periods
++    assert.equal(sends(), 0, `${endpoint}: no transaction from the timer`);
++    assert.ok(seen.slice(before).includes("eth_getBalance"), `${endpoint}: the timer still reads the gas runway`);
++    assert.ok(!logs.some((m) => /heartbeat/i.test(m)), logs.join("\n"));
++  }
++  assert.equal(await heartbeats(r), 0);
++  // a REAL status change, observed by the routine pass: the row is active when the node starts, then its operator
++  // deregisters it. The node READS that (its 10-minute pass) and its actual tick() neither re-registers nor re-prices the
++  // row (network/registry-reconcile.mjs, the rule the Linux supervisor follows); only a deliberate act (boot) re-registers.
++  chain.addresses.deployments = r.addresses.ledger; chain.addresses.appCatalog = r.addresses.catalog;
++  const logs = [];
++  const h = new Host({ dir, endpoint: r.endpoint, name: "b", appsEnabled: true, cpuPricePerSec6: 1000, repo: "independent/host", log: (m) => logs.push(m) });
++  h.chainReady = true; h.bookCheckedAt = Date.now();          // the address book is not re-read here (the rig pins the contracts)
++  await h.refreshRegistration();
++  assert.equal(h.registered.active, true);
++  await r.write(r.wc(KEYS.operator), r.addresses.registry, r.A.registry4.abi, "deregister", [r.runner]);
++  await h.heartbeat();                                         // the routine read
++  assert.equal(h.registered.active, false, "the routine pass saw the deregistration");
++  assert.ok(logs.some((m) => /is now INACTIVE/.test(m)), logs.join("\n"));
++  const sentBefore = sends();
++  for (let i = 0; i < 3; i++) await h.tick();                  // three actual ticks
++  assert.equal(sends(), sentBefore, "no tick re-registered or re-priced the deregistered row: " + logs.slice(-5).join(" | "));
++  assert.equal((await entry(r)).active, false, "the operator's deregistration stands");
++  assert.ok(logs.some((m) => /a routine pass does not re-activate it/.test(m)));
++  await h.ensureRegistered({ phase: "boot" });                 // a deliberate act: the box starting again
++  assert.equal(sends(), sentBefore + 1, logs.join("\n"));
++  assert.equal((await entry(r)).active, true, "re-registered by a deliberate (boot) registration");
++  // and a real price write goes out through the same counting RPC (the counter's positive control)
++  await chain.setPrices(r.runner, 1500, 0);
++  assert.equal(sends(), sentBefore + 2);
++  assert.equal((await entry(r)).cpuPricePerSec6, 1500n);
++  assert.equal(await heartbeats(r), 0, "no Heartbeat event at any point");
++});
+--- /dev/null
++++ b/test/helpers/resolve-example-org.mjs
+@@ -0,0 +1,11 @@
++// Test-only preload (node --import): names under .example.org resolve to 127.0.0.1, so a daemon under test can reach the
++// host-capacity fixture's HTTPS hosts (test/helpers/host-capacity-fixture.mjs pki(): host-a/b/c and fake.example.org,
++// trusted through NODE_EXTRA_CA_CERTS) by NAME, with its own SSRF guard untouched: the guard sees a public name, the
++// connection lands on loopback. Every other name resolves as usual.
++import dns from "node:dns";
++const lookup = dns.lookup;
++dns.lookup = function (host, opts, cb) {
++  if (typeof opts === "function") { cb = opts; opts = {}; }
++  if (/\.example\.org$/i.test(String(host))) return opts?.all ? cb(null, [{ address: "127.0.0.1", family: 4 }]) : cb(null, "127.0.0.1", 4);
++  return lookup.call(this, host, opts, cb);
++};
+--- /dev/null
++++ b/network/registry-reconcile.mjs
+@@ -0,0 +1,39 @@
++// What a host may write to its OWN registry entry, and when (docs/network/host-liveness.md). ONE rule for the Linux
++// supervisor (supervisor.js) and the Windows node (windows/node/host.mjs). No imports: the measured supervisor image and
++// the Windows deploy closure ship it as is.
++//
++// No phase ever sends a liveness write: liveness is off-chain (network/host-liveness.mjs).
++//   boot      the process starting (a CVM's proof key is new on every boot): it may (re-)register its own row
++//   explicit  a deliberate act: an owner re-enabling hosting, or the address book moving the registry
++//   timer     every routine pass: it may correct an ACTIVE row it operates (price, proof key), and nothing else.
++//             An inactive row is the operator's deregistration: a timer reports it and never undoes it.
++// A row registered to another operator is never written, in any phase.
++
++export const PHASES = Object.freeze(["boot", "explicit", "timer"]);
++const ZERO = /^0x0{40}$/i;
++const lc = (a) => String(a || "").toLowerCase();
++const absent = (row) => !row || !row.operator || ZERO.test(String(row.operator));
++
++/**
++ * registrationAction(row, { operator, proofKey }, phase) -> { register: boolean, reason }
++ *   row: this host's registry entry as read ({ operator, active, cpuPricePerSec6, proofKey }), or null when it has none
++ *   register: true when register() may be sent now (an initial registration, or a deliberate re-registration)
++ */
++export function registrationAction(row, { operator, proofKey } = {}, phase = "timer") {
++  if (!PHASES.includes(phase)) throw new Error(`unknown registration phase ${phase}`);
++  if (absent(row)) return { register: true, reason: "not registered yet: the initial registration" };
++  if (lc(row.operator) !== lc(operator)) return { register: false, reason: `registered to another operator (${row.operator})` };
++  if (row.active !== true)
++    return phase === "timer" ? { register: false, reason: "deregistered on chain by the operator key: a routine pass does not re-activate it" }
++                             : { register: true, reason: `re-registration on ${phase}` };
++  if (!(Number(row.cpuPricePerSec6) > 0)) return { register: true, reason: "registered without a price" };
++  if (proofKey !== undefined && lc(row.proofKey) !== lc(proofKey)) return { register: true, reason: "the published proof key is not this host's" };
++  return { register: false, reason: "current" };
++}
++
++/** May a routine pass correct this row's configuration (price, proof key)? Not an observed inactive row, and not one
++ *  that names another (or no) operator. A partial in-memory row (no `active` / `operator` read yet) is not refused. */
++export function mayReconcile(row, operator) {
++  if (!row || row.active === false) return false;
++  return row.operator === undefined || (!ZERO.test(String(row.operator)) && lc(row.operator) === lc(operator));
++}
+--- /dev/null
++++ b/test/registry-reconcile.test.mjs
+@@ -0,0 +1,53 @@
++// ONE registration rule for both host platforms (network/registry-reconcile.mjs; docs/network/host-liveness.md):
++//   - the decision table: initial registration in any phase; a deregistered row re-registered only by a deliberate act
++//     (boot, explicit), never by a routine timer; corrections only on an active row this operator holds; another
++//     operator's row never written;
++//   - the Linux supervisor and the Windows node load the SAME module (no copy to drift), the measured image ships it and
++//     the Windows deploy closure includes it.
++// The behaviour on a real chain is test/offchain-heartbeat-writers.test.mjs (both platforms).
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { registrationAction, mayReconcile, PHASES } from "../network/registry-reconcile.mjs";
++import { closure } from "../windows/node/deploy-files.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const OP = "0x" + "aa".repeat(20), OTHER = "0x" + "bb".repeat(20), KEY = "0x" + "cc".repeat(20), Z = "0x" + "00".repeat(20);
++const row = (o = {}) => ({ operator: OP, active: true, cpuPricePerSec6: 1000n, proofKey: KEY, ...o });
++
++test("the decision table: a timer never undoes a deregistration; deliberate acts may; corrections only on an active own row", () => {
++  const want = { operator: OP, proofKey: KEY };
++  for (const phase of PHASES) {
++    assert.equal(registrationAction(null, want, phase).register, true, `${phase}: the initial registration`);
++    assert.equal(registrationAction(row({ operator: Z, active: false }), want, phase).register, true, `${phase}: an unregistered id reads as the zero operator`);
++    assert.equal(registrationAction(row({ operator: OTHER }), want, phase).register, false, `${phase}: another operator's row is never written`);
++    assert.equal(registrationAction(row(), want, phase).register, false, `${phase}: a current row needs nothing`);
++    assert.equal(registrationAction(row({ cpuPricePerSec6: 0n }), want, phase).register, true, `${phase}: an unpriced own row is completed`);
++    assert.equal(registrationAction(row({ proofKey: Z }), want, phase).register, true, `${phase}: a stale proof key is corrected`);
++  }
++  assert.deepEqual(registrationAction(row({ active: false }), want, "timer"),
++    { register: false, reason: "deregistered on chain by the operator key: a routine pass does not re-activate it" });
++  assert.equal(registrationAction(row({ active: false }), want, "boot").register, true, "a box starting again re-registers (as the Linux boot does)");
++  assert.equal(registrationAction(row({ active: false }), want, "explicit").register, true, "a registry migration or an owner's re-enable");
++  assert.throws(() => registrationAction(row(), want, "heartbeat"), /unknown registration phase/);
++  assert.equal(mayReconcile(row(), OP), true);
++  assert.equal(mayReconcile(row({ active: false }), OP), false, "a deregistered row is not re-priced or re-keyed");
++  assert.equal(mayReconcile(row({ operator: OTHER }), OP), false);
++  assert.equal(mayReconcile(row({ operator: Z }), OP), false);
++  assert.equal(mayReconcile(null, OP), false);
++  assert.equal(mayReconcile({ cpuPricePerSec6: 12n }, OP), true, "a partial in-memory row is not mistaken for an inactive one");
++});
++
++test("both platforms load the same rule; the supervisor image and the Windows deploy closure ship it", () => {
++  const sup = fs.readFileSync(path.join(REPO, "supervisor.js"), "utf8"), win = fs.readFileSync(path.join(REPO, "windows/node/host.mjs"), "utf8");
++  assert.match(sup, /from "\.\/network\/registry-reconcile\.mjs"/);
++  assert.match(win, /from "\.\.\/\.\.\/network\/registry-reconcile\.mjs"/);
++  assert.doesNotMatch(sup, /sendOperatorTx\([^)]*"heartbeat"/, "the supervisor sends no heartbeat");
++  assert.doesNotMatch(fs.readFileSync(path.join(REPO, "windows/node/chain.mjs"), "utf8"), /"heartbeat"/, "the Windows chain module has no heartbeat call");
++  assert.match(fs.readFileSync(path.join(REPO, "Dockerfile"), "utf8"), /^COPY .*network\/registry-reconcile\.mjs .*\.\/network\/$/m);
++  const { files, problems } = closure();
++  assert.deepEqual(problems, []);
++  assert.ok(files.includes("network/registry-reconcile.mjs"), "the Windows deploy closure carries the rule");
++});
+--- /dev/null
++++ b/test/cli-signed-liveness.test.mjs
+@@ -0,0 +1,75 @@
++// The independent CLI's host liveness with EXPLICIT CONTRACT PINS only (no reviewed profile), on a real chain (anvil,
++// chain 8453, the cli-independent rig's real schema-4 registry) read through the CLI's own RPC quorum:
++//   - a healthy host whose last registry write is two hours old is live on its own operator-signed capacity record,
++//     verified against its row in the SAME agreed snapshot of the pinned registry (cli/independent.mjs signedLiveness);
++//   - with registry writes as the only evidence it is not, nor is the rig's other host (old write, no record);
++//   - a forged record, an expired record, a record for another registry and a deregistered row never count.
++// HTTPS hosts on loopback under the host-capacity fixture's test CA; the fetch is the CLI's own guarded publicJsonFetch with
++// the fixture's address/CA seams. Only anvil's published dev keys are used.
++import test from "node:test";
++import assert from "node:assert/strict";
++import { privateKeyToAccount } from "viem/accounts";
++import { haveTools, startRig, KEYS } from "./helpers/cli-independent-rig.mjs";
++import { hostServer, loopbackFetch, gpuDoc } from "./helpers/host-capacity-fixture.mjs";
++import { buildHostCapacityRecord, signHostCapacity, hostIdOf } from "../network/host-capacity.mjs";
++import { createHostCapacityProducer } from "../network/host-capacity-http.mjs";
++import * as I from "../cli/independent.mjs";
++
++const skip = haveTools();
++const Z32 = "0x" + "00".repeat(32), Z20 = "0x" + "00".repeat(20);
++
++test("explicit pins: a healthy host with a two-hour-old registry write is live on its verified signed record; forged, expired, foreign and deregistered are not",
++  skip ? { skip } : { timeout: 240000 }, async (t) => {
++  const r = await startRig(); t.after(() => r.stop());
++  const op = privateKeyToAccount(KEYS.other), stranger = privateKeyToAccount(KEYS.deployer);
++  let serve = () => null;
++  const ep = await hostServer(t, "host-a.example.org", (req, res) => { const env = serve();
++    res.writeHead(env ? 200 : 404, { "content-type": "application/json" }); res.end(JSON.stringify(env || { error: "none" })); });
++  await r.write(r.wc(KEYS.other), r.addresses.registry, r.A.registry4.abi, "register", [ep, "independent/host", Z32, 1500n, 0n, Z20]);
++  // two hours pass on chain with no registry write by either host
++  const offset = 7200_000;
++  await r.rpcCall("evm_increaseTime", [7200]); for (let i = 0; i < 4; i++) await r.mine();
++  const chain = new I.QuorumChain({ rpcs: r.rpcs, quorum: 2, confirmations: 1, maxBlockAgeMs: 120000, now: () => Date.now() + offset });
++  const snapshot = () => I.registryHosts(chain, r.addresses.registry);
++  let reg = await snapshot();
++  const id = hostIdOf(ep), mine = reg.hosts.find((h) => h.id === id);
++  assert.ok(mine && mine.active && Math.floor(reg.timestamp / 1000) - mine.lastSeen >= 7200, "the host's last registry write is two hours old");
++  const live = (signedUntil) => I.liveHosts(reg.hosts, reg.timestamp, { signedUntil }).map((h) => [h.id, h.liveness.evidence]);
++  assert.deepEqual(live(null), [], "registry writes alone: nobody is live after two quiet hours");
++  // the host serves its own signed record (the shared producer, as the supervisor and the Windows node run it)
++  const producer = createHostCapacityProducer({ account: op, hostIdOf, registry: r.addresses.registry, endpoint: ep, availability: async () => gpuDoc(Date.now()) });
++  serve = () => null; const env = await producer.current(); serve = () => env;
++  let ev = await I.signedLiveness(reg, { registry: r.addresses.registry, fetchHost: loopbackFetch() });
++  assert.deepEqual(live(ev.signedUntil), [[id, "signed-record"]], "live on its verified record, with only --contract-pins trust");
++  assert.match(ev.failures.get(r.runner), /fetch|resolve|ENOTFOUND|refused|EAI_AGAIN|getaddrinfo|non-public/i, "the rig's other host serves no record: a reported failure, not liveness");
++  assert.equal(I.cheapestPrices(I.liveHosts(reg.hosts, reg.timestamp, { signedUntil: ev.signedUntil })).cpu6, 1500n, "priced from the live host");
++  assert.deepEqual([ev.unchecked, ev.admitted], [[], 2], "both admitted hosts were checked");
++  // the per-command limit: a host beyond it is reported UNCHECKED, never as a failure (it is not evidence of an outage)
++  const capped = await I.signedLiveness(reg, { registry: r.addresses.registry, fetchHost: loopbackFetch(), maxHosts: 1 });
++  assert.equal(capped.unchecked.length, 1); assert.equal(capped.signedUntil.size + capped.failures.size, 1, "exactly one host was fetched");
++  assert.ok(!capped.failures.has(capped.unchecked[0]), "the unchecked host is not listed as failed");
++  // forged: a stranger's signature over a record claiming the operator
++  const rec = buildHostCapacityRecord({ availability: gpuDoc(Date.now()), chainId: 8453, registry: r.addresses.registry, endpoint: ep, operator: op.address });
++  const forged = { record: rec, signature: (await signHostCapacity(stranger, { ...rec, operator: stranger.address.toLowerCase() })).signature };
++  serve = () => forged;
++  ev = await I.signedLiveness(reg, { registry: r.addresses.registry, fetchHost: loopbackFetch() });
++  assert.deepEqual(live(ev.signedUntil), []); assert.match(ev.failures.get(id), /not signed by its operator/);
++  // expired: a genuine record whose lifetime is over
++  const old = await signHostCapacity(op, buildHostCapacityRecord({ availability: gpuDoc(Date.now() - 20 * 60_000), chainId: 8453, registry: r.addresses.registry,
++    endpoint: ep, operator: op.address, now: Date.now() - 20 * 60_000, lifetimeMs: 15 * 60_000 }));
++  serve = () => old;
++  ev = await I.signedLiveness(reg, { registry: r.addresses.registry, fetchHost: loopbackFetch() });
++  assert.deepEqual(live(ev.signedUntil), []); assert.match(ev.failures.get(id), /expired/);
++  // a genuine record for ANOTHER registry is not evidence for this one
++  serve = () => env;
++  ev = await I.signedLiveness(reg, { registry: "0x" + "77".repeat(20), fetchHost: loopbackFetch() });
++  assert.deepEqual(live(ev.signedUntil), []); assert.match(ev.failures.get(id), /another chain or registry/);
++  // the operator deregisters: the row is no longer admitted, whatever the host still serves
++  await r.write(r.wc(KEYS.other), r.addresses.registry, r.A.registry4.abi, "deregister", [id]);
++  for (let i = 0; i < 4; i++) await r.mine();
++  reg = await snapshot();
++  ev = await I.signedLiveness(reg, { registry: r.addresses.registry, fetchHost: loopbackFetch() });
++  assert.ok(!ev.signedUntil.has(id), "an inactive row is not even asked");
++  assert.deepEqual(live(ev.signedUntil), []);
++  assert.equal(I.withLiveness(reg.hosts, reg.timestamp, { signedUntil: new Map([[id, Date.now() + 60_000]]) }).find((h) => h.id === id).liveness.reason, "inactive in the registry");
++});

@@ -1,0 +1,187 @@
+{
+ "base": {
+  "head": "e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+  "copiedAt": "2026-10-20T19:54:03-07:00",
+  "manifestSha256": "303b64df293564663db343188778c893bc9ff6d871787c2fe7cacd803113e4b2"
+ },
+ "modified": [
+  {
+   "path": "isolation/m2/front/appzone.go",
+   "base": "40ccc865e48b79b1ccaa2ee34a5b03b5c60347b1ef508c930661b23dce014e9f",
+   "result": "d1f9ebde7c90978412731501ac1b5ed984a68c4256979051cc79c9b7b1a01f53",
+   "mainNow": "40ccc865e48b79b1ccaa2ee34a5b03b5c60347b1ef508c930661b23dce014e9f",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "isolation/m2/front/shield_direct.go",
+   "base": "4723c9dd10f110d0d8ae3f2d57644d1d9e9dd4ca44148955a57248988573137a",
+   "result": "fbae16709e2b328b90583bb99fe60e5a510471cc65514efda181af6d8c2922c6",
+   "mainNow": "4723c9dd10f110d0d8ae3f2d57644d1d9e9dd4ca44148955a57248988573137a",
+   "provenance": "composed"
+  },
+  {
+   "path": "isolation/m2/front/shield_direct_custody.go",
+   "base": "79d9aa18ed7726d682b05c9874d637ab2ee5dcb2705443d1095ed1e7152a52b0",
+   "result": "6e1dd4dd68f1fce0c51e5eb1d210698e4419b844e4c328d843d5acc49d31675d",
+   "mainNow": "8b6049261c0f97db4eedf607ab97e871ccbe57adc085bd261983f74775ead73d",
+   "provenance": "composed"
+  },
+  {
+   "path": "network/app-zone-challenge.mjs",
+   "base": "69c8dd140829b91dc42d7dd293fa33db514e95a112c78a841b1ba9c14af83b68",
+   "result": "1a75caaf69fa192514c45b33c878306265a87fe25d2bb28f8ace86e560498ad9",
+   "mainNow": "69c8dd140829b91dc42d7dd293fa33db514e95a112c78a841b1ba9c14af83b68",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "network/enclave-network-host.mjs",
+   "base": "40ae8e8c807fc07cfaa05f96567425b68663634f2e72c481375f8f8f000ba2a4",
+   "result": "7af9e9a5cd2b8768f3bb9d1d6b57287b6dc3026bbb58a5d6ffec61d3eda8b318",
+   "mainNow": "40ae8e8c807fc07cfaa05f96567425b68663634f2e72c481375f8f8f000ba2a4",
+   "provenance": "hosted-placement"
+  },
+  {
+   "path": "relay/dns-challenge-shield.mjs",
+   "base": "ef16dc7f8384f06a1f2c46cf0feb8c20a516614050c9035f1022797caa0edf89",
+   "result": "729b653bec91c8884b7a9c30ad8a86e811c89e9fb8a202ba92a85ca63427299d",
+   "mainNow": "ef16dc7f8384f06a1f2c46cf0feb8c20a516614050c9035f1022797caa0edf89",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "relay/dns-relay.js",
+   "base": "3264d32e281f3986098e1a21f9c1d4c666cc60e8f710f4e6e5214ff710654e99",
+   "result": "29d484c436979b3fcb5449190016949eac25c5e3de66e394130334a2a86fe51a",
+   "mainNow": "3264d32e281f3986098e1a21f9c1d4c666cc60e8f710f4e6e5214ff710654e99",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "relay/network-runtime.bundle.mjs",
+   "base": "8745998ac6ea3f049c977612c96be18efa9218732c31b71d817f437000402320",
+   "result": "3de76b54cf64fc06b5965bcc989290d6653de6e4f6e59f00b0da52e39218d76a",
+   "mainNow": "8745998ac6ea3f049c977612c96be18efa9218732c31b71d817f437000402320",
+   "provenance": "generated"
+  },
+  {
+   "path": "relay/network-runtime.bundle.mjs.manifest.json",
+   "base": "2e65fb0c95a98f2707df99e7aa81061cb8f66ed54a61a0c577a54c067220f069",
+   "result": "54fcff3d2cafacd6b2f62004354bb45586942ce43cda9339dac9a231e3a893af",
+   "mainNow": "2e65fb0c95a98f2707df99e7aa81061cb8f66ed54a61a0c577a54c067220f069",
+   "provenance": "generated"
+  },
+  {
+   "path": "relay/network-runtime.mjs",
+   "base": "a606c1a423ec0a2861e05a23e6fb51ed67a3c68e54c56de3aa09661083cd4b21",
+   "result": "cccf27c43009eadcc683cde8e586544d745fcd0cfb59c04c727f7fdc17dbe0e2",
+   "mainNow": "a606c1a423ec0a2861e05a23e6fb51ed67a3c68e54c56de3aa09661083cd4b21",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "windows/node/agent.mjs",
+   "base": "c223c0435d859f0bde0d496a2eb1e8a2db4af44a47e32bf653710244c5ccd2ba",
+   "result": "c2fe0fff853b563cf9c498aadc4178ae6171731dd58172264d6c3e8709895064",
+   "mainNow": "c223c0435d859f0bde0d496a2eb1e8a2db4af44a47e32bf653710244c5ccd2ba",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "windows/node/shield-sessions.mjs",
+   "base": "5706db7bac997906ae0f631d156c9fb801f1fb7e3fe1813b5697696bc760dd00",
+   "result": "dbd160f1da0ccfa0d33a20386611cddd70fc2645fe6e20f2daf7fc8792e81266",
+   "mainNow": "5706db7bac997906ae0f631d156c9fb801f1fb7e3fe1813b5697696bc760dd00",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "windows/node/shield-startup.mjs",
+   "base": "00ae53d8d640abf16d57101ca388cb0f71976e1855dc2e3edf22353b00623f3a",
+   "result": "8dea4d59f2ee296fc7908e25a013240034f0da48d67bf9524a29b191becda2ca",
+   "mainNow": "00ae53d8d640abf16d57101ca388cb0f71976e1855dc2e3edf22353b00623f3a",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "windows/node/shield-verdict.mjs",
+   "base": "6f134d8b27baea62044506c820df9fc36fbcaa68a64a5754f36bb18a7e5dbd95",
+   "result": "e8910fa0daee97e9da8aaceccbb11ea9b9aebf7e3e24738c69089cc3398de231",
+   "mainNow": "6f134d8b27baea62044506c820df9fc36fbcaa68a64a5754f36bb18a7e5dbd95",
+   "provenance": "shield-patch"
+  }
+ ],
+ "new": [
+  {
+   "path": "isolation/m2/front/appzone_shield_process_test.go",
+   "sha256": "5e977335507950ef8f8455765e3589e1b21c1735162dc07cfb1e5e4c14b5aef1",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "isolation/m2/front/shield_appzone_test.go",
+   "sha256": "128843826b03a310ef470f7d0191d172ec2e0ba31ef28d97882ef61957d80024",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "isolation/m2/front/shield_custody_appzone_test.go",
+   "sha256": "8e84b0e45b849f1cf9091c2faca48dc18d765122cb28b5e3036f4d9eadf75ffb",
+   "provenance": "hosted-placement"
+  },
+  {
+   "path": "network/app-zone-shield.mjs",
+   "sha256": "b9ae9365feb4e84deda8a69c62fffcd376933ff30c8c92efe3f5025eeeb6e88b",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "network/challenge-replica-host.mjs",
+   "sha256": "9d12785205b75f9a1f5e6158e1796abb81459693f244228b3b7d5463098db7b6",
+   "provenance": "hosted-placement"
+  },
+  {
+   "path": "scripts/build-challenge-replica-release.mjs",
+   "sha256": "17d5e35434d3dbe30c43f663f8040f5f5bcc514967dcc6e7f75592e045fd316b",
+   "provenance": "hosted-placement"
+  },
+  {
+   "path": "test/app-zone-shield-fixture.mjs",
+   "sha256": "d8823147963f07666d4a6db3aa9322d38ece1d1bf0f9f537abc0182b1ba765df",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "test/app-zone-shield-fleet.mjs",
+   "sha256": "ced9d8b4b3259f7f8baf6f9964ffb56dfc83e40c3124d6ef629ec4b58921b53c",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "test/app-zone-shield-replica.test.mjs",
+   "sha256": "0ee15c0f61e00fcd4c6c5e206f2a9149f91720f5c4ef7f30a4ecbc1343dca90d",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "test/app-zone-shield.test.mjs",
+   "sha256": "072232f6638622df5ee303a5c7ce14df42aeec88791842f42930ecea70001d87",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "test/challenge-replica-chain.mjs",
+   "sha256": "1c7be16a7eafc246e0168e611e3c55582b0066936ef623ad6e2781a6597a29dc",
+   "provenance": "hosted-placement"
+  },
+  {
+   "path": "test/challenge-replica-host.test.mjs",
+   "sha256": "7aba6c3958ba1fce5ca7b8be8fee5e5eee1c7703a869ff3f41763bb9dee95c6d",
+   "provenance": "hosted-placement"
+  },
+  {
+   "path": "test/run-certificate-hosted.sh",
+   "sha256": "3683a3339fe4419eb57e18e8afe955cccb02ec71a60b4fd6db1cd9004d8a13f1",
+   "provenance": "hosted-placement"
+  },
+  {
+   "path": "test/run-shield-certificates.sh",
+   "sha256": "be7b608f87cd1091325dbd65a978bca7d2ea19887981418bca195c6c1605da1d",
+   "provenance": "shield-patch"
+  },
+  {
+   "path": "test/run-shield-compat.sh",
+   "sha256": "921a9dc633f0aa57388db8d5cf27b965b22131c1e49c4d5d48a42c7f710f899c",
+   "provenance": "shield-patch"
+  }
+ ],
+ "mainDriftSinceCopy": [
+  "isolation/m2/front/shield_direct_custody.go"
+ ]
+}

@@ -1,0 +1,13 @@
+--- a/test/cli-independent.test.mjs
++++ b/test/cli-independent.test.mjs
+@@ -156,8 +156,9 @@
+   }
+   const five = await cli(["hosts"], { pins: pins5File });
+   assert.equal(five.code, 1); assert.match(five.err, /reports schema 5/);
++  // availability reads hosts' signed capacity records, bound to the reviewed registry CODE: explicit pins carry no code hash
+   const avail = await cli(["availability"]);
+-  assert.equal(avail.code, 1); assert.match(avail.err, /not on chain/);
++  assert.equal(avail.code, 1); assert.match(avail.err, /reviewed registry code: run it with --profile/);
+   noEnclave();
+ });
+ 

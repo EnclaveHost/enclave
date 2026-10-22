@@ -1,0 +1,72 @@
+--- ../tunnel-native-task-canary-20261021/test_g1_canary.py	2026-10-21 15:24:22.918991511 -0700
++++ test_g1_canary.py	2026-10-21 15:31:55.385019716 -0700
+@@ -15,6 +15,7 @@
+ WRITES = ("Set-Content", "Add-Content", "WriteAll", "Remove-Item", "New-Item", "Rename-Item", "Move-Item", "Copy-Item", "Set-Acl", "icacls")
+ FORBIDDEN = ("Stop-Process", "taskkill", "Restart-Service", "New-LocalUser", "Remove-LocalUser", "-Mode apply",
+              "-Mode rollback", "-Mode guard", "-Mode confirm", "systemctl", "Set-ExecutionPolicy")
++PIDS = {"n": 4001, "o": 4002, "s": 4003}
+ def sha(b): return hashlib.sha256(b if isinstance(b, bytes) else b.encode()).hexdigest()
+ 
+ 
+@@ -23,7 +24,7 @@
+     def __init__(self, t0, **opt):
+         self.t = t0; self.opt = opt; self.dirs = {"C:\\ProgramData", "C:\\ProgramData\\Enclave", "C:\\ProgramData\\Enclave\\staging"}
+         self.files = {}; self.tasks = {}; self.sent = []; self.lock = threading.RLock(); self.s_started = threading.Event(); self.HEAD = ""
+-        self.watch_from = None; self.watch_in = threading.Event()
++        self.watch_from = None; self.watch_in = threading.Event(); self.watch_done = threading.Event()
+ 
+     def iso(self, t=None): return datetime.datetime.fromtimestamp(self.t if t is None else t, datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+     def now(self): return self.t
+@@ -87,6 +88,13 @@
+             f = m(r"\$f='([^']*)'").group(1); b = base64.b64decode(m(r"FromBase64String\('([^']*)'\)").group(1))
+             before = sha(self.files[f]["b"]); self.files[f]["b"] = b
+             return {"before": before, "after": sha(b), "owner": "S-1-5-32-544", "at": self.iso()}
++        if "$G1='trace'" in x:                                    # waits for the watcher's window, then reports starts
++            self.lock.release()
++            try: self.watch_done.wait(3)
++            finally: self.lock.acquire()
++            starts = [{"pid": PIDS[n[-1]], "ppid": self.opt.get("tracePpid", 1234), "sid": self.opt.get("traceSid", "S-1-5-18")}
++                      for n, k in self.tasks.items() if k["lastRun"]]
++            return {"from": self.iso(), "sched": 1234, "on": True, "starts": starts, "to": self.iso()}
+         if "$G1='watch'" in x:
+             start = self.watch_from = self.t; self.watch_in.set(); self.lock.release()
+             try: self.s_started.wait(2)
+@@ -96,9 +104,10 @@
+             for h, role in want.items():
+                 for n, k in self.tasks.items():
+                     if sha(k["args"].split("-EncodedCommand ")[1]) == h and k["lastRun"] and k["lastRun"] >= start and not self.opt.get("noHits"):
+-                        hits.append({"role": role, "pid": 4000 + len(hits), "created": self.iso(k["lastRun"]), "session": 0, "exe": G.PS_EXE,
+-                                     "owner": "NT AUTHORITY\\SYSTEM", "parent": "svchost.exe", "parentSchedule": True})
+-            return {"from": self.iso(start), "polls": 10, "hits": hits, "to": self.iso()}
++                        hits.append({"role": role, "pid": PIDS[role], "created": self.iso(k["lastRun"]), "session": 0, "exe": G.PS_EXE,
++                                     "owner": self.opt.get("owner", "NT AUTHORITY\\SYSTEM"), "orc": self.opt.get("orc", 0), "oerr": None,
++                                     "alive": True, "ppid": 1234, "parent": "svchost.exe", "parentSchedule": True})
++            self.watch_done.set(); return {"from": self.iso(start), "polls": 10, "hits": hits, "to": self.iso()}
+         if "$G1='collect'" in x:
+             n = m(r"\$n='([^']*)'").group(1); d = m(r"\$d='([^']*)'").group(1); k = self.tasks.get(n); o = {"registered": bool(k), "now": self.iso()}
+             if k: o.update({"state": k["state"], "lastRun": self.iso(k["lastRun"]) if k["lastRun"] else None, "lastResult": k["lastResult"], "missed": 0})
+@@ -371,6 +380,24 @@
+         self.assertTrue(ps_case_lint.collisions("$H=1;$h=2"))           # the fixture itself detects the bug class
+ 
+ 
++    def test_19_start_trace_sid_is_direct_token_proof_when_getowner_races(self):
++        p = self.plan(); fake = self.wire(owner=None, orc=None); code, res, J = self.go(p, fake)
++        v = res["verdict"]; self.assertEqual(v["G1"], "PASS", v); self.assertTrue(all(i["via"] == ["startTraceSid"] for i in v["identity"].values()))
++
++    def test_20_null_owner_without_trace_is_incomplete_and_keeps_diagnostics(self):
++        p = self.plan(); fake = self.wire(owner=None, orc=8, traceSid=None); code, res, J = self.go(p, fake)
++        v = res["verdict"]; self.assertTrue(v["G1"].startswith("INCOMPLETE"), v); self.assertEqual(code, 2)
++        self.assertTrue(all(i["ownerRc"] == 8 and "ownerErr" in i for i in v["identity"].values()))
++
++    def test_21_no_weakening_admin_sid_is_not_system_proof(self):
++        p = self.plan(); fake = self.wire(owner=None, orc=None, traceSid="S-1-5-32-544"); code, res, J = self.go(p, fake)
++        self.assertTrue(res["verdict"]["G1"].startswith("INCOMPLETE"), res["verdict"])     # receipts are S-1-5-18 here too: not counted
++
++    def test_22_trace_start_from_another_parent_is_not_joined(self):
++        p = self.plan(); fake = self.wire(owner=None, orc=None, tracePpid=999); code, res, J = self.go(p, fake)
++        self.assertTrue(res["verdict"]["G1"].startswith("INCOMPLETE"), res["verdict"])
++
++
+ def main():
+     r = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(T))
+     return 0 if r.wasSuccessful() else 1

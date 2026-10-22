@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# TEST-ONLY: /v1/info answers as the payee while the mock unit is active (local listener and the https front), else fails;
+# $FSROOT/mock/front-still-serves keeps the FRONT answering after the unit stopped (an independent server behind it)
+url=${!#}
+if [ -e "$FSROOT/mock/active" ] || { [[ "$url" == https://* ]] && [ -e "$FSROOT/mock/front-still-serves" ]; }; then
+  echo '{"chainId":8453,"payee":"0x51ff183da8fF3b2dE08Da88331EED65e2F6A835c"}'; exit 0; fi
+exit 7

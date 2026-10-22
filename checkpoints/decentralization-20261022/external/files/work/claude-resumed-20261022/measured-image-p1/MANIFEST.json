@@ -1,0 +1,144 @@
+{
+ "format": "measured-image-p1-input-candidate/1",
+ "written": "2026-10-22T14:11Z",
+ "status": "INPUT CANDIDATE ONLY - NOT BUILDABLE AS SPECIFIED: 2 blocking composition conflicts (C1 platform-api stale, C2 attestation route) and 1 build-path blocker (B1); no image built, no measurement",
+ "baseline": {
+  "source": "work/resume-20261021/reconciled-candidate (0e229304 lineage; root's reviewed candidate)",
+  "agreement": "all 57 image inputs equal in candidate, g4-control-merged composed-tree, g4 root-validation-tree and lease-readiness tree EXCEPT app/windows/node/host-admission.bundle.mjs (candidate 7aeb5de9; the other three 6bef372d)",
+  "notUsedAsAuthority": "work/enclave (dirty)"
+ },
+ "inputSet": {
+  "rule": "metal/overlay-control-image.py 7a120502 APP_FILES floor + supervisor.js import closure (45 app files) + GUEST_FILES + optional guest helpers gsup 10127e11 imports (9) - the same set metal/build-image.mjs aa9d725a installs - plus the build-image-only platform-api trio",
+  "count": 57,
+  "packagesFromBaseImage": 5
+ },
+ "P1": {
+  "opt/metal/measured-control.mjs": "f2648d65 (patch 0ecce76f over 18f47214) - OK; tested against the candidate gsup 10127e11",
+  "app/windows/node/host-admission.bundle.mjs": "40e8ba71 - OK as the newer lineage (host-admission-runtime cb42269d decision()/validUntil, config 8ec507e0 = no DO mirrors, + carriers); candidate's own 7aeb5de9 is older (f9e009da) and carries 4 DO mirrors (6422d065)",
+  "opt/metal/platform-api.bundle.mjs": "c0a68797 + manifest 211f9db2 - BLOCKED (C1)"
+ },
+ "decisions": {
+  "C1-platform-api-stale": "c0a68797 (and the candidate's 2a903c36) embed relay/certs.js e15802cf, but the reviewed acme-retention fix 237834d8 (frozen 19:23Z, in candidate + both g4 trees) is newer; and their network-runtime prerequisite 1357ec00 (06:28 local 10-21) lacks the candidate's network/lease-reader.mjs 907ba85d ('invalid rate-limit retry budget' occurs 1x in source, 0x in 1357ec00/2a903c36/c0a68797). Using c0a68797 rolls those back. Needed: rebuild network-runtime (relay/build-network.mjs) and platform-api (scripts/build-platform-api-guest-bundle.mjs d9857128) from the composed tree with f2648d65 -> NEW hash, then re-run r2's bundle-verifier and the artifact smoke.",
+  "C2-attestation-route": "supervisor.js 8a37ab6a differs from stage3/production 4ad9a3ef by exactly one line: RAD_PATH '/.well-known/Cloud Provider-attestation' (unreachable through the relay, 404 for existing verifiers). relay/api-relay.js (inlined in platform-api) has the same entry. route-compat.patch a9f5a347 (resume-20261021/route-compat) restores the deployed bytes; pending explicit human/root approval since 10-21. With it supervisor.js == 4ad9a3ef.",
+  "C3-host-policy-pairing": "opt/metal/host-policy.bundle.mjs: staged acfa1b00 (same build and 8ec507e0 config as 40e8ba71, no DO mirrors, == node-cold-policy revision2 output); every reviewed tree carries a19af83c (6422d065, 4 DigitalOcean /platform-policy mirrors). Mixing 40e8ba71 with a19af83c would ship two different mirror policies. Root decides; acfa1b00 matches the no-DO-hosted-services requirement.",
+  "C4-reproducible-from-commit": "40e8ba71/acfa1b00 are built from lease-readiness closure + platform-carrier src (host-service-gate-carriers.mjs 9766bf87, host-admission-node.mjs 3ec697f4, scripts/build-host-admission.mjs aafa8d54) + config 8ec507e0. The candidate tree carries neither those sources nor cb42269d/8ec507e0, so the image's commit would not reproduce its own host-admission bundles. The composed commit must carry them (or root accepts out-of-tree provenance)."
+ },
+ "buildPath": {
+  "B1-no-existing-script-produces-P1": "metal/overlay-control-image.py (the reproducible pipeline stage3 used over base b8376e15) never installs platform-api.bundle.mjs or its sidecar, and makes the isolation-tier image (no metal.control=direct). metal/build-image.mjs does install the trio and supports --control direct, but: (a) pulls the supervisor/wasm images from ghcr.io (network; pinned digests in the base manifest); (b) packs a kernel+modules - production's kernel 1a3a02d5 is 7.2.3-arch1-2 whose modules are NOT on this host (only 7.2.0, 7.2.8, 7.2.11; /boot/vmlinuz-linux is 7ca8265d), so the TCB kernel would change; (c) needs a clean git checkout (the candidate has no .git: scoped scratch capture as stage3 did). No control-direct image has ever been built (no manifest with metal.control/platform-api exists).",
+  "command": "after C1-C4 and root's kernel/network decision: node metal/build-image.mjs --control direct --isolation snp-guest-per-app --supervisor <base manifest images.supervisor.ref> --wasm <images.wasmManager.ref> --supervisor-overlay <scratch checkout of the composed commit> --kernel <chosen> [--kver --modroot]; then sev-snp-measure --mode snp --vcpus 4 --vcpu-family 26 --vcpu-model 2 --vcpu-stepping 1 --vmm-type QEMU --ovmf ~/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd --append '<cmdline + metal.control=direct>' --kernel/--initrd (stage3 job-stage-combined-v3.sh recipe)",
+  "resources": "image build 1024 MiB queue job (shield-direct rebuild precedent: 614 MiB peak), ~0.3 GB initramfs output; bundle rebuilds 512 (r2 precedent); measurement CPU-only",
+  "dependencies": [
+   "ghcr.io pulls (or a verified ~/.cache/enclave-oci, 73 blobs present but manifests are fetched)",
+   "kernel+modules decision",
+   "OVMF.amdsev.fd",
+   "sev-snp-measure (~/.local/bin)",
+   "esbuild 0.28.1 + node_modules (relay/build-network.mjs first)",
+   "scoped GIT_DIR scratch capture"
+  ],
+  "sidecars": {
+   "opt/metal/fixtures/tpm-roots.pem": "f72ea29a (from relay/fixtures/tpm-roots.pem; build-image checks it against the manifest)"
+  }
+ },
+ "deltaVsDeployedKeptEd918e4b": {
+  "added": 16,
+  "changed": 10,
+  "same": 30
+ },
+ "deltaVsStage3A940e71e": {
+  "added": {
+   "opt/metal/fixtures/tpm-roots.pem": "f72ea29a",
+   "opt/metal/platform-api.bundle.mjs": "c0a68797"
+  },
+  "changed": {
+   "app/network/route-record.mjs": [
+    "be3bfab7",
+    "9ba9f6d3"
+   ],
+   "app/relay/snp-verify.mjs": [
+    "10520dd2",
+    "93f9e9d2"
+   ],
+   "app/supervisor.js": [
+    "4ad9a3ef",
+    "8a37ab6a"
+   ],
+   "app/windows/node/host-admission.bundle.mjs": [
+    "e83515fc",
+    "40e8ba71"
+   ],
+   "opt/metal/host-policy.bundle.mjs": [
+    "8b2dfbc6",
+    "acfa1b00"
+   ],
+   "opt/metal/measured-control.mjs": [
+    "18f47214",
+    "f2648d65"
+   ]
+  },
+  "same": [
+   "app/addressbook.js",
+   "app/client/lease-executor-authority.mjs",
+   "app/client/lease-executor-client.mjs",
+   "app/egress.js",
+   "app/isolation/contract/runtime.mjs",
+   "app/isolation/m2/judge.mjs",
+   "app/isolation/m4/guestd/control-client.mjs",
+   "app/isolation/m4/guestd/supervisor-guestcert.mjs",
+   "app/isolation/m4/guestd/supervisor-splice.mjs",
+   "app/isolation/m4/guestd/supervisor-transport.mjs",
+   "app/metal/guest/owner-nomination.mjs",
+   "app/net-guard.mjs",
+   "app/network/canonical.mjs",
+   "app/network/directory-client.mjs",
+   "app/network/host-capacity-producer.mjs",
+   "app/network/host-capacity-record.mjs",
+   "app/network/host-owner-nomination.mjs",
+   "app/network/host-policy-adapters.mjs",
+   "app/network/lease-executor-authority.mjs",
+   "app/network/lease-executor-client.mjs",
+   "app/network/lease-gas-owner.mjs",
+   "app/network/lease-gas-runtime.mjs",
+   "app/network/lease-relay-discovery.mjs",
+   "app/network/lease-release-journal.mjs",
+   "app/network/network-authorities.mjs",
+   "app/network/network-policy-core.mjs",
+   "app/network/network-policy.mjs",
+   "app/network/provider-directory.mjs",
+   "app/network/provider-qualification.mjs",
+   "app/network/registry-reconcile.mjs",
+   "app/network/rpc-identity.mjs",
+   "app/network/service-index.mjs",
+   "app/relay/net-guard.mjs",
+   "app/sdk/bootstrap/package.mjs",
+   "app/sdk/bootstrap/storage.mjs",
+   "app/sdk/storage/gateways.mjs",
+   "app/sdk/storage/replicas.mjs",
+   "app/sdk/storage/upload-auth.mjs",
+   "app/site/js/core/upload-auth.js",
+   "app/windows/node/session-api-auth.mjs",
+   "app/windows/node/verification-checkpoints.mjs",
+   "opt/metal/agent.mjs",
+   "opt/metal/gsup.mjs",
+   "opt/metal/lease-gas-conduit.bundle.mjs",
+   "opt/metal/owner-nomination.mjs",
+   "opt/metal/shielded-probe.mjs",
+   "opt/metal/shielded-shm.mjs",
+   "opt/metal/shielded.mjs"
+  ]
+ },
+ "activationDependencies": [
+  "C1-C4 resolved; rebuilt platform-api pinned; composed commit captured",
+  "image built + NEW launch measurement (statement helperSha256/platformApiSha256 change)",
+  "relay allowlist / METAL_ALLOWED_MEASUREMENTS and every Platform-API group's measurements[] list the new image (r2 P2: all members on the new bundle before any config carries platformPolicyCarriers)",
+  "owner configs add platformPolicyCarriers -> new HOST_DATA, relaunch (r2 P3) with REAL non-DO carriers; admin-signed policy document published before anchoring",
+  "Windows host-admission swap 6bef372d->40e8ba71 is a separate root step (platform-carrier D1)",
+  "no anchor before every runtime can load it (r2 P4)"
+ ],
+ "rollback": [
+  "boot the previous image (KEPT ed918e4b / measured-control 18f47214, platform-api absent there)",
+  "remove platformPolicyCarriers from owner configs (new HOST_DATA); configs without the member are byte-compatible",
+  "Windows: --swap-back to 6bef372d",
+  "a carrier-delivered ban persists until a newer anchored admin document (gate semantics unchanged)"
+ ],
+ "staged": "staged/ (57 real files, guest layout, no symlinks; STAGED-INVENTORY.json with sources/why + deltas); c0a68797 is staged ONLY to show the specified composition - it must be replaced (C1)"
+}

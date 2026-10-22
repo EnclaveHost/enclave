@@ -1,0 +1,11 @@
+--- a/relay/domains.js
++++ b/relay/domains.js
+@@ -114,7 +114,7 @@
+   .map((s) => s.trim().replace(/^\.+|\.+$/g, "")).filter(Boolean);
+ const APP_ZONE = APP_DOMAINS[0] || "app.enclave.host";
+ const RESERVED_ZONES = [...new Set([
+-  ...(process.env.RESERVED_ZONES || "enclave.host,nan.host").toLowerCase().split(",")
++  ...(process.env.RESERVED_ZONES || "enclave.host,enclavehost.eth").toLowerCase().split(",")
+     .map((s) => s.trim().replace(/^\.+|\.+$/g, "")).filter(Boolean),
+   ...APP_DOMAINS,
+ ])];

@@ -1,0 +1,21 @@
+{
+ "challengeReplica": {
+  "role": "app-zone-replica",
+  "release": {"dir": "/opt/enclave-challenge/releases/@DNS_SHA@", "dnsSha256": "@DNS_SHA@", "runtimeBundleSha256": "@RUNTIME_SHA@"},
+  "zones": {"app": "<CANARY app zone delegated to this replica at stage 3; app.enclave.host only at stage 4>", "ip": "<the matching ip zone>"},
+  "ns": {"name": "<this replica's NS name, e.g. ns-warden.<canary zone>>"},
+  "listen": {"dns": "127.0.0.1:18253", "api": "127.0.0.1:18254"},
+  "front": {"listen": "127.0.0.1:18443", "certFile": "/etc/enclave-challenge/@LABEL@/front.pem",
+            "keyFile": "/run/credentials/enclave-challenge-host.service/front.key", "origin": "https://<this front's public name>"},
+  "routeMap": "http://127.0.0.1:18188/v1/network/routes",
+  "chain": {"rpcs": ["<rpc 1>", "<rpc 2>", "<rpc 3>"],
+            "pins": {"addressBook": "0xab214342d5a490150a4a977063a2f88e21f80907", "deployments": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+                     "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac", "catalog": "0x18419ca2b502d423a8de6269aeee171a378626e3"}},
+  "snp": {"measurements": ["<the admitted SEV-SNP direct-front measurement(s), 96 hex, from the release records>"]},
+  "shield": {"policyFile": "/etc/enclave-challenge/@LABEL@/shield-app-policy.json", "profileFile": "/etc/enclave-challenge/@LABEL@/network-profile-base.json",
+             "profileDigest": "sha256:ee957827032cf7208434e4c73f9e859a27e4fc5c6cab5f4a2153308c09eb4cb8", "rpcs": ["<rpc 1>", "<rpc 2>", "<rpc 3>"]},
+  "hostPolicy": {"policy": "production", "endpoint": "https://api.enclave.host/t/metal0", "stateDir": "/var/lib/enclave-challenge-host/host-policy",
+                 "carriers": {"importDir": "/var/lib/enclave-host-services-data/<hosted-services LABEL>/policy-import",
+                              "peers": ["http://127.0.0.1:18190/platform-policy"]}}
+ }
+}

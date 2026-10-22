@@ -1,0 +1,30 @@
+--- a/persist/postgres/store_test.go
++++ b/persist/postgres/store_test.go
+@@ -4,6 +4,7 @@
+ 	"context"
+ 	"encoding/hex"
+ 	"os"
++	"strconv"
+ 	"testing"
+ 	"time"
+ 
+@@ -37,10 +38,18 @@
+ 	}
+ }
+ 
++// testPostgresPort is POSTGRES_PORT, or 5432 (FENCING PATCH, test only: the harness's fixture is on another port).
++func testPostgresPort() int {
++	if p, err := strconv.Atoi(os.Getenv("POSTGRES_PORT")); err == nil && p > 0 {
++		return p
++	}
++	return 5432
++}
++
+ func connectionInfoFromEnv() ConnectionInfo {
+ 	return ConnectionInfo{
+ 		Host:     "localhost",
+-		Port:     5432,
++		Port:     testPostgresPort(), // FENCING PATCH (test only): POSTGRES_PORT, default 5432
+ 		User:     os.Getenv("POSTGRES_USER"),
+ 		Password: os.Getenv("POSTGRES_PASSWORD"),
+ 		Database: os.Getenv("POSTGRES_DB"),

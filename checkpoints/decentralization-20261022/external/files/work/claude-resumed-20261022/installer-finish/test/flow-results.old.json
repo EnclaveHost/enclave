@@ -1,0 +1,1378 @@
+{
+ "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-resumed-20261022/installer-finish/ref/install-host.r3.ps1",
+ "results": {
+  "A-success-delta": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start Relay",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker, Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "B-manifest-verify-failure": {
+   "exit": 1,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start Relay"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "files",
+     "state": "fail",
+     "message": "1 installed file(s) do not match the bundle's manifest (first: control/windows/node/host.mjs)."
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running after the failed install: NetworkChecker, Relay"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "C-shield-timeout-paused-node": {
+   "exit": 1,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start Relay",
+    "register Shield",
+    "register Node",
+    "disable Node",
+    "register Network",
+    "start Card",
+    "start Shield"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker, Relay"
+    },
+    {
+     "step": "services",
+     "state": "fail",
+     "message": "Enclave Shield did not come up (see /tmp/ih-r2-w73qgjg2/PD\\logs\\shield.log)."
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "D-nostart": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start Relay",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "disable Node",
+    "disable Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker, Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "Enclave Shield is running; the node is installed but NOT started (-NoStart): nothing registers"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Installed without joining the network"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "E-exception-before-verify": {
+   "exit": 1,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "inject pre-copy throw",
+    "start NetworkChecker",
+    "start Relay"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running during final cleanup: NetworkChecker, Relay"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.12.47",
+   "stderr": "Exception: /tmp/ih-r2-v38h03m2/assembled.ps1:12\nLine |\n  12 |  \u2026 ailure at $point\" } else { throw \"injected exception at $point\" } } }\n     |                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n     | injected exception at pre-copy\n"
+  },
+  "F-fail-before-state": {
+   "exit": 1,
+   "events": [
+    "inject pre fail"
+   ],
+   "emits": [
+    {
+     "step": "injected",
+     "state": "fail",
+     "message": "injected failure at pre"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.12.47",
+   "stderr": ""
+  },
+  "G-com-unavailable": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop enclave-host-services-hs2",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start enclave-host-services-hs2",
+    "start NetworkChecker",
+    "start Relay",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: enclave-host-services-hs2, NetworkChecker, Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "H-paused-shield": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start Relay",
+    "register Shield",
+    "disable Shield",
+    "register Node",
+    "register Network",
+    "start Card"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker, Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card; paused by their operator (left disabled, not started): Shield; Node/Network not started because Enclave Shield is paused"
+    },
+    {
+     "step": "join",
+     "state": "warn",
+     "message": "the node was not started (paused by its operator, or Enclave Shield is paused): not joining now"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "I-full-install": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start Relay",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker, Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": false
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "J-stopped-and-disabled-roles": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop Node",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "K-exception-after-files": {
+   "exit": 1,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start Relay",
+    "inject after-files throw"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker, Relay"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": "Exception: /tmp/ih-r2-smqg4ccm/assembled.ps1:12\nLine |\n  12 |  \u2026 ailure at $point\" } else { throw \"injected exception at $point\" } } }\n     |                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n     | injected exception at after-files\n"
+  },
+  "L-persistent-start-failure": {
+   "exit": 1,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start-refused Relay",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network",
+    "start-refused Relay"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "warn",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker; restoration still pending (Task Scheduler refused or task unavailable): Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    },
+    {
+     "step": "roles",
+     "state": "warn",
+     "message": "other Enclave roles this install stopped, start requested or already running during final cleanup: none; restoration still pending (Task Scheduler refused or task unavailable): Relay"
+    },
+    {
+     "step": "roles",
+     "state": "fail",
+     "message": "One or more previously running roles could not be restarted; installation requires recovery."
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "M-nostart-persistent-start-failure": {
+   "exit": 1,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start-refused Relay",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "disable Node",
+    "disable Network",
+    "start-refused Relay"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "warn",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker; restoration still pending (Task Scheduler refused or task unavailable): Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "Enclave Shield is running; the node is installed but NOT started (-NoStart): nothing registers"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Installed without joining the network"
+    },
+    {
+     "step": "roles",
+     "state": "warn",
+     "message": "other Enclave roles this install stopped, start requested or already running during final cleanup: none; restoration still pending (Task Scheduler refused or task unavailable): Relay"
+    },
+    {
+     "step": "roles",
+     "state": "fail",
+     "message": "One or more previously running roles could not be restarted; installation requires recovery."
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "N-legacy-updater-unsafe-rollback-refused": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start Relay",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker, Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "O-legacy-updater-preserving-target-fails": {
+   "exit": 1,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start Relay",
+    "inject after-files throw"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker, Relay"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": "Exception: /tmp/ih-r2-2973_d_1/assembled.ps1:12\nLine |\n  12 |  \u2026 ailure at $point\" } else { throw \"injected exception at $point\" } } }\n     |                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n     | injected exception at after-files\n"
+  },
+  "P-guarded-updater-legacy-target-fails": {
+   "exit": 1,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start Relay",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network",
+    "inject tail fail"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker, Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "injected",
+     "state": "fail",
+     "message": "injected failure at tail"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "Q-legacy-updater-plain-host": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop Node",
+    "stop Shield",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": false,
+    "challenge-replica/release-3e1560f94542/dns.mjs": false,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "R-external-interpreter": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Shield",
+    "kill 200",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "S-wrapper-script-dependency": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "kill 301",
+    "start Relay",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "S2-wrapper-script-independent": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "kill 301",
+    "start Relay",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "S3-wrapper-script-unreadable": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "kill 301",
+    "start Relay",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "T-reused-pid-not-killed": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Shield",
+    "kill 200",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "U-start-accepted-never-running": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start-accepted-not-running Relay",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker, Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  },
+  "V-logs-not-private": {
+   "exit": 0,
+   "events": [
+    "stop Card",
+    "stop Network",
+    "stop NetworkChecker",
+    "stop Node",
+    "stop Relay",
+    "stop Shield",
+    "kill 200",
+    "kill 301",
+    "kill 401",
+    "kill 501",
+    "kill 601",
+    "start NetworkChecker",
+    "start Relay",
+    "register Shield",
+    "register Node",
+    "register Network",
+    "start Card",
+    "start Shield",
+    "start Node",
+    "start Network"
+   ],
+   "emits": [
+    {
+     "step": "files",
+     "state": "run",
+     "message": "Installing Enclave"
+    },
+    {
+     "step": "roles",
+     "state": "ok",
+     "message": "other Enclave roles this install stopped, start requested or already running as soon as the files were in place: NetworkChecker, Relay"
+    },
+    {
+     "step": "services",
+     "state": "ok",
+     "message": "started: Card, Shield, Node, Network"
+    },
+    {
+     "step": "join",
+     "state": "run",
+     "message": "Proving this PC's hardware to the network and registering 'nucbox-k11-4'"
+    },
+    {
+     "step": "join",
+     "state": "ok",
+     "message": "'nucbox-k11-4' is registered and attached: it takes work from the network"
+    },
+    {
+     "step": "done",
+     "state": "ok",
+     "message": "Enclave host 'nucbox-k11-4' is set up"
+    }
+   ],
+   "kept": {
+    "host-services/hs2/bin/hostsvc-supervisor.exe": true,
+    "challenge-replica/release-3e1560f94542/dns.mjs": true,
+    "network/challenge-replica/release-3e1560f94542/dns.mjs": true
+   },
+   "status": null,
+   "pfVersion": "2026.10.22",
+   "stderr": ""
+  }
+ },
+ "failures": [
+  "L-persistent-start-failure",
+  "M-nostart-persistent-start-failure",
+  "N-legacy-updater-unsafe-rollback-refused",
+  "R-external-interpreter",
+  "S-wrapper-script-dependency",
+  "S3-wrapper-script-unreadable",
+  "T-reused-pid-not-killed",
+  "U-start-accepted-never-running"
+ ]
+}

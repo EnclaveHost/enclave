@@ -1,0 +1,5 @@
+265a20496b5a95e71787997ec668e648f4da433730304a4ba551459c29f2fd83  network/host-services/runner.mjs
+029722a25730873de750eda395eb91e886dbab231d7acf7f689b384e18378545  network/host-services/stage-tool.mjs
+2483aa0e2e70c1efe0f9a334b7b439baa2e4d400bba94f10b032c124b1963f75  network/host-services/entries/stage-tool.mjs
+749b6bcfe4b4ed4ee1bf7dc51200b744a3f7efbfab6f5acbd2e4e8d21133de93  test/hosted-services-stage.test.mjs
+f00513e75870b42f27d11e92d6e25c8542b799962db3df27f206f96c8c972176  patches/01-runner-endpoint-and-stage-tool.patch

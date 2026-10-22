@@ -1,0 +1,14 @@
+#!/bin/bash
+# restore <r> <backup.cms> <owner-key.pem> <owner-cert.pem>: on the RESTORE host, decrypt (the owner's key is used
+# here and never stored), check the digest, and pg_restore into an EMPTY indexd database. The restored replica
+# keeps the backup's contracts only if it also gets that replica's own recovery phrase. Otherwise it is a NEW
+# replica, and must not reuse the old one's identity (two indexers must never revise the same contracts).
+source "$(dirname "$0")/common.sh"
+r=$(replica_name "${1:-}")
+f=${2:?backup file}; key=${3:?owner key}; cert=${4:?owner cert}
+[ -f "$f.sha256" ] && (cd "$(dirname "$f")" && sha256sum -c --quiet "$(basename "$f").sha256") || die "digest check failed or missing for $f"
+PG=${PG_BIN:-/usr/lib/postgresql/18/bin}
+RESTORE=${ESI_TEST_RESTORE_CMD:-"$PG/pg_restore --exit-on-error --single-transaction -h $RUN/$r/pg -d indexd"}
+# shellcheck disable=SC2086
+openssl cms -decrypt -binary -inform DER -in "$f" -inkey "$key" -recip "$cert" | zstd -q -d | $RESTORE
+echo "restored $f into replica $r"

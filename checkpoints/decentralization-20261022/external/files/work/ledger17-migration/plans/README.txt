@@ -1,0 +1,1 @@
+No approved executable plan. Ledger17 is not required for Nan retirement; existing-contracts-first scope review applies. Plan generation disabled in scope-review.json. Historical anti-admin plans remain archived and must not be executed.

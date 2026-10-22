@@ -1,0 +1,11 @@
+--- a/windows/node/chain.mjs
++++ b/windows/node/chain.mjs
+@@ -27,7 +27,7 @@
+ import { privateKeyToAccount } from "viem/accounts";
+ import { base } from "viem/chains";
+ import {loadContractPins} from './host-admission.bundle.mjs';
+-export const CONTRACT_PINS=loadContractPins();
++const CONTRACT_PINS=loadContractPins();
+ import fs from "node:fs";
+ import path from "node:path";
+ import { parseWaf } from "./waf.mjs";

@@ -1,0 +1,36 @@
+--- a/docs/network/open-participation.md
++++ b/docs/network/open-participation.md
+@@ -136,6 +136,33 @@
+ | App zone / probe zone | DNS zones you or your checkers control. | The zone's DNS operator. |
+ | Service index pin `{chainId, address, codeHash}` | `contracts/deployments/service-index-pin-base.json`. `service-index.mjs pin` re-derives `codeHash` by compiling `contracts/EnclaveServiceIndex.sol` here and refuses if the deployed code differs. | That you have the address of the index others use. Anyone can deploy another copy, and the code is the same, so the address is what you are agreeing on. The contract has no owner, so it cannot change after that. |
+ 
++### Serving a directory to browsers (HTTPS)
++
++A page served over https cannot read an `http://` directory, so a directory meant for dashboards is advertised with an
++`https://` origin. `DirectoryClient` takes origins only (no base path), so the front must serve the public-record paths at
++the origin root:
++
++- **Paths.** `GET` and `POST` of exactly
++  `^/v1/network/(providers|qualifications|routes|records|management|policy/0x[0-9a-f]{64})$`, proxied to the local
++  `network/directory-server.mjs`. Nothing else is proxied, and the upstream is fixed: no client-chosen destination.
++- **CORS.** `Access-Control-Allow-Origin: *` on every answer. The front answers the `GET`/`POST` preflight itself
++  (`Allow-Methods: GET, POST`, `Allow-Headers: content-type`). The records are public and signed, and clients send them
++  with `credentials: "omit"`.
++- **No credentials.** A request carrying `Authorization` or `Cookie` is not a public-record request. Strip those headers
++  toward the directory, or route such requests elsewhere. Secrets and authenticated management, such as BYO configs, never
++  go to a directory.
++- **Bounded bodies.** 64 KiB, the directory's own limit.
++- **Not from loopback.** Dial the directory from an address other than `127.0.0.1`/`::1`, for example `local_address
++  127.0.0.2` in Caddy. The directory reserves a small loopback-only budget for the host's own DNS route consumer, and public
++  traffic must not use it.
++- **No fallback.** If the directory is down, answer `502`. Never pass the request on to another service.
++- **No borrowed answers.** Answer any other `/v1/network/*` path with `404` at the front. An origin advertised as a
++  directory must not return another service's reply as if it were the directory's.
++
++Enclave's four literal-IP fronts use exactly this route. Its Caddy form and the per-host activation tooling are kept with
++the deployment records (`work/directory-https-activation`: `transform.py` and `activation/`). Signature, owner and lease
++checks stay in the directory, and in every client that reads from it.
++
+ ## 3. The service index
+ 
+ `contracts/EnclaveServiceIndex.sol` is ownerless:

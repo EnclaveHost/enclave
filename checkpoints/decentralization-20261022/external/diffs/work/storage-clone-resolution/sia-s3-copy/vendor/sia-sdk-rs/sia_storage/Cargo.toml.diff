@@ -1,0 +1,10 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/Cargo.toml
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/Cargo.toml
+@@ -27,6 +27,7 @@
+ bytes = "1.12.1"
+ serde_with = { version = "3.21.0", features = ["base64", "hex"] }
+ hex = "0.4.3"
++sha2 = "0.10" # PATCH (writer fencing): the mock indexer reports SHA-256(receipt)
+ chacha20poly1305 = "0.11.0"
+ chacha20 = { version = "0.10.1", features = ["xchacha"] }
+ chrono = { version = "0.4.45", features = ["serde"] }

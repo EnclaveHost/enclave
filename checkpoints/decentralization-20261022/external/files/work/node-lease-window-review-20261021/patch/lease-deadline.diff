@@ -1,0 +1,370 @@
+--- a/helper/node-hold-cutover.ps1
++++ b/helper/node-hold-cutover.ps1
+@@ -10,6 +10,9 @@
+ # only after the enforcement is VERIFIED. So the new node never meets an UNKNOWN wallet policy while the network could not
+ # acknowledge a hold, and a stopped node retires nothing. The cost is a bounded app-traffic outage: from the privacy-agent
+ # restart until the node's first tick re-grants (the channel starts EMPTY).
++# LEASE DEADLINE (PROPOSAL, node-lease-window-review-20261021; replaces the helper's static ">= 20 min at preflight"): the pins
++# read every expected id's leaseUntil from the running node; the cutover is refused unless forward + revert + margin fit before
++# the first one ends, and the forward waits are capped so a revert's node start still precedes it by lease.marginSec.
+ #
+ #  -Mode cutover   1 pins: control/network files == new; node cmd+agent, manager, privacy agent == pinned PID+start;
+ #                    Hyper-V VM set (Get-VM Id|Name|State) and the manager's instances (id|name|status) == the preflight's
+@@ -38,7 +41,7 @@
+ param([ValidateSet('cutover','rollback')][string]$Mode = 'cutover', [Parameter(Mandatory=$true)][string]$ParamsFile, [Parameter(Mandatory=$true)][string]$ParamsSha)
+ # N2: the trap below is scope-wide (it also catches errors raised BEFORE its line): it must already see phase 'pins' (nothing
+ # changed: no fallback) and no before-state
+-$phase = 'pins'; $before = $null
++$phase = 'pins'; $before = $null; $LeaseEnd = $null; $Fwd = $false
+ $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'; $T0 = Get-Date
+ $pb = [IO.File]::ReadAllBytes($ParamsFile)          # ONE read: hashed, then parsed from the same bytes
+ if ((-join ([Security.Cryptography.SHA256]::Create().ComputeHash($pb) | ForEach-Object { $_.ToString('x2') })) -ne $ParamsSha) { exit 4 }
+@@ -59,6 +62,15 @@
+ # strings into DateTime; both normalise to the same 'o' text
+ function Iso($v) { if ($v -is [datetime]) { $v.ToUniversalTime().ToString('o') } else { [string]$v } }
+ function Left { $BoundSec - ((Get-Date) - $T0).TotalSeconds }
++# LEASE DEADLINE (node-lease-window-review-20261021): $LeaseEnd = the earliest leaseUntil (chain epoch s) of the expected ids,
++# read from the running node at the pins. While the node is stopped nothing renews, and a lease that lapses meanwhile is a
++# retired VM on the next tick. LeaseLeft = the seconds the FORWARD path may still spend so that a revert started now (each
++# wait at its cap: lease.revertSec) still starts a node lease.marginSec (its first tick's renewal) before the first lease ends.
++# The forward FreshStatus and channel waits are capped by it ($Fwd); the new node is started only with lease.startNodeSec left.
++# RestartPrivacy is NOT capped: the revert itself needs exactly one privacy agent (lease.forwardMinSec covers it).
++function NowS { [DateTimeOffset]::new((Get-Date).ToUniversalTime()).ToUnixTimeSeconds() }
++function LeaseLeft { if ($null -eq $LeaseEnd) { return 0 }; $LeaseEnd - (NowS) - [int]$PRM.lease.marginSec - [int]$PRM.lease.revertSec }
++function Lim($limitSec) { $l = [math]::Min($limitSec, (Left)); if ($Fwd) { $l = [math]::Min($l, (LeaseLeft)) }; return $l }
+ function Now { (Get-Date).ToUniversalTime().ToString('o') }
+ function NowMs { [DateTimeOffset]::new((Get-Date).ToUniversalTime()).ToUnixTimeMilliseconds() }
+ function IsoMs($s) { [DateTimeOffset]::Parse((Iso $s)).ToUnixTimeMilliseconds() }
+@@ -156,7 +168,7 @@
+ # the NEW agent's own status (updatedAt >= its process start), fresh (< 5 s): enforcing THIS runner's channel (with or
+ # without a document of $wantGeneration), or (-plain) NOT enforcing
+ function FreshStatus($limitSec, $sinceMs, $mode, $wantGeneration) {
+-  $lim = (Get-Date).AddSeconds([math]::Min($limitSec, (Left)))
++  $lim = (Get-Date).AddSeconds((Lim $limitSec))
+   while ((Get-Date) -lt $lim) { $s = Status
+     if ($s -and [int64]$s.updatedAt -ge $sinceMs -and ((NowMs) - [int64]$s.updatedAt) -lt 5000) { $w = $s.walletAdmission
+       if ($mode -eq 'plain' -and -not $w) { return $true }
+@@ -174,11 +186,14 @@
+   if (-not $w.aclKept) { return 'REFUSED: restored bytes, but the ACL changed' }
+   return 'restored' }
+ function Recovery($what, $x) { $x.recovery = $what; $x.nodeStopped = (NodeStopped); $x.localSha = (Sha $LOCAL); $x.cfgSha = (Sha $CFG)
++  # root's manual deadline: with the node stopped, the first lease lapses (its VM is retired on the next tick) at leaseFirstEnd
++  $x.leaseFirstEnd = $LeaseEnd; $x.leaseSecLeft = $(if ($null -ne $LeaseEnd) { $LeaseEnd - (NowS) } else { $null })
+   Final ("RECOVERY_REQUIRED: $what") $x }
+ # THE coordinator (see the header): every fallback and the explicit rollback. Returns the evidence of a COMPLETE revert, or
+ # ends the run with RECOVERY_REQUIRED (never starts the node, never drops enforcement before the flag is gone).
+ function Revert($why) {
+-  $x = [ordered]@{ step = 'revert'; why = $why }
++  $script:Fwd = $false                                  # the revert's own waits are never cut by the lease deadline
++  $x = [ordered]@{ step = 'revert'; why = $why; leaseLeft = (LeaseLeft) }
+   $q = NodeProcs
+   if ($q.cmd.Count -or $q.agent.Count) {
+     $x.stop = $(if ($q.cmd.Count -eq 1 -and $q.agent.Count -eq 1 -and $q.agent[0].parent -eq $q.cmd[0].pid) { StopNode $q.cmd[0] $q.agent[0] } else { 'the node processes are not one identifiable cmd+agent' }) }
+@@ -208,6 +223,7 @@
+ # a terminating error still goes through the SAME coordinator (or, before any change / after verification, through nothing)
+ # ($phase = 'pins' and $before = $null are set right after param(): N2)
+ trap {
++  $script:Fwd = $false
+   $x = [ordered]@{ phase = $phase; error = $_.Exception.Message }
+   if ($phase -in 'pins', 'verified') { $x.final = "CRASHED in phase ${phase}: no fallback ($(if ($phase -eq 'pins') { 'nothing was changed' } else { 'the channel was already verified' })); root decides"; Log $x; exit 1 }
+   try {
+@@ -252,6 +268,23 @@
+ $nr = Readers $NET; $pr = Readers $PD; $o.networkDirReaders = $nr.readers; $o.networkDirFileInheritReaders = $nr.fileInheritReaders; $o.programDataFileInheritReaders = $pr.fileInheritReaders
+ if (@(@($nr.readers) + @($nr.fileInheritReaders) | Where-Object { $ADMIN_SIDS -notcontains $_ }).Count) { $why += 'the network directory is readable by more than SYSTEM/Administrators (N3)' }
+ if (@($pr.fileInheritReaders | Where-Object { $ADMIN_SIDS -notcontains $_ }).Count) { $why += 'new files in the Enclave data directory inherit READ for more than SYSTEM/Administrators (N3)' }
++# LEASE DEADLINE (see LeaseLeft): every expected id must be a RUNNING record of THIS node with a numeric leaseUntil, read now from
++# the node itself (127.0.0.1:9600/v1/host/state, the record the helper's coverage read uses). Cutover: refused unless the forward
++# path keeps lease.forwardMinSec. Rollback: recorded only (its deadline is journaled for root's recovery), never a new refusal.
++$lp = $PRM.lease; $o.lease = $null
++if (-not $lp -or [int]$lp.marginSec -le 0 -or [int]$lp.revertSec -le 0 -or [int]$lp.forwardMinSec -le 0 -or [int]$lp.startNodeSec -le 0) { $why += 'the lease budget (lease.marginSec/revertSec/forwardMinSec/startNodeSec) is missing from the pinned params' }
++else {
++  $hs = $null; try { $hs = Invoke-RestMethod -UseBasicParsing -TimeoutSec 20 -Uri 'http://127.0.0.1:9600/v1/host/state' } catch {}
++  $by = @{}; foreach ($d in @($hs.deployments)) { if ($d) { $by[([string]$d.id).ToLower()] = $d } }
++  $ends = @(); $bad = @()
++  foreach ($i in @($PRM.expectedIds)) { $d = $by[([string]$i).ToLower()]; $v = $d.leaseUntil
++    if ($d -and [string]$d.status -eq 'running' -and ($v -is [int] -or $v -is [long] -or $v -is [double] -or $v -is [decimal])) { $ends += [pscustomobject]@{ id = [string]$i; end = [int64]$v } } else { $bad += [string]$i } }
++  if (-not $hs) { $o.lease = 'unreadable'; if ($Mode -eq 'cutover') { $why += 'the node lease state (127.0.0.1:9600/v1/host/state) is unreadable: the lease deadline is unknown' } }
++  elseif ($bad.Count) { $o.lease = [ordered]@{ notRunningOrNoLease = $bad }; if ($Mode -eq 'cutover') { $why += "expected ids without a running record and a numeric leaseUntil: $($bad -join ',')" } }
++  else { $first = @($ends | Sort-Object end)[0]; $LeaseEnd = $first.end
++    $o.lease = [ordered]@{ firstId = $first.id; firstEnd = $LeaseEnd; secLeft = $LeaseEnd - (NowS); forwardSec = (LeaseLeft); marginSec = [int]$lp.marginSec; revertSec = [int]$lp.revertSec; forwardMinSec = [int]$lp.forwardMinSec; startNodeSec = [int]$lp.startNodeSec }
++    if ($Mode -eq 'cutover' -and (LeaseLeft) -lt [int]$lp.forwardMinSec) {
++      $why += "lease deadline: the first lease ($($first.id.Substring(0, 10))) ends in $($LeaseEnd - (NowS)) s, this cutover needs >= $([int]$lp.forwardMinSec + [int]$lp.revertSec + [int]$lp.marginSec) s (forward + revert + margin): run it right after the next renewals" } } }
+ if ($Mode -eq 'cutover') {
+   if ((Sha $LOCAL) -ne [string]$PRM.localSha) { $why += 'node-config.local.cmd is not the pinned sha' }
+   if ((Sha $CFG) -ne [string]$PRM.cfgSha) { $why += 'privacy-config.json is not the pinned sha' }
+@@ -324,29 +357,34 @@
+ } finally { if ($edit -and (Test-Path -LiteralPath $edit)) { Remove-Item -LiteralPath $edit -Force } }
+ 
+ # ---------------------------------------------------------------- the network enforces BEFORE the node runs
+-$phase = 'enforcing'
++$phase = 'enforcing'; $Fwd = $true
+ $n = RestartPrivacy ([ordered]@{ pid = [int]$PRM.privacy.pid; start = (Iso $PRM.privacy.start) }) 90
+ $enf = $n -and (FreshStatus 90 (IsoMs $n.start) 'enforcing' $null); $eg = EgressApps
+ $same = ((Sha $LOCAL) -eq $before.local.after -and (Sha $CFG) -eq $before.cfg.after)
+-Log ([ordered]@{ step = 'privacy-restart'; newPid = $n.pid; newStart = $n.start; enforcing = $enf; egressApps = $eg; configsAsWritten = $same; privacyScript = $(if ($TR) { 'test' } else { Sha 'C:\Program Files\Enclave\network\privacy-agent.mjs' }) })
++Log ([ordered]@{ step = 'privacy-restart'; newPid = $n.pid; newStart = $n.start; enforcing = $enf; egressApps = $eg; configsAsWritten = $same; leaseLeft = (LeaseLeft); privacyScript = $(if ($TR) { 'test' } else { Sha 'C:\Program Files\Enclave\network\privacy-agent.mjs' }) })
+ if (-not $enf -or $eg -ne 0 -or -not $same) {
+   $r = Revert "R1: enforcing=$enf egressApps=$eg configsAsWritten=$same"; $r.identityUnchanged = Identity $r
+   Final 'ROLLED_BACK_R1: the network did not verifiably enforce the channel (or a config changed); the revert restored the flag then the block exactly, verified the network not enforcing, and started the node (old behaviour)' $r }
+ 
+ # ---------------------------------------------------------------- start the node; verify ITS channel is what the network applies
++# the new node is started only while its answer wait (lease.startNodeSec) still fits before the revert's deadline; otherwise the
++# revert starts the OLD node now, while the margin still holds
++if ((LeaseLeft) -lt [int]$PRM.lease.startNodeSec) {
++  $r = Revert "LEASE: $([math]::Floor((LeaseLeft))) s of forward time left before the lease deadline (< lease.startNodeSec)"; $r.identityUnchanged = Identity $r
++  Final 'ROLLED_BACK_LEASE: the lease deadline left no time to start and verify the new node; the revert restored the flag then the block exactly, verified the network not enforcing, and started the node (old behaviour)' $r }
+ $phase = 'node-started'
+ $nn = StartNode 150
+ $gen = $null; $ok = $false
+-if ($nn) { $lim = (Get-Date).AddSeconds([math]::Min(120, (Left)))
++if ($nn) { $lim = (Get-Date).AddSeconds((Lim 120))
+   while (-not $ok -and (Get-Date) -lt $lim) { try { $gen = [string]([IO.File]::ReadAllText($WALLET) | ConvertFrom-Json).generation } catch { $gen = $null }
+     $ok = $gen -and (FreshStatus 3 (IsoMs $n.start) 'enforcing' $gen); if (-not $ok) { Start-Sleep 1 } } }
+-Log ([ordered]@{ step = 'start-node'; nodeUp = [bool]$nn; agent = $nn.agent; channelGeneration = $gen; applied = $ok })
++Log ([ordered]@{ step = 'start-node'; nodeUp = [bool]$nn; agent = $nn.agent; channelGeneration = $gen; applied = $ok; leaseLeft = (LeaseLeft) })
+ if (-not $ok) {
+   $r = Revert 'R2: the new node did not run a channel the network applies'; $r.identityUnchanged = Identity $r
+   Final 'ROLLED_BACK_R2: the new node did not run a channel the network applies; the revert stopped it, restored the flag then the block exactly, verified the network not enforcing, and started the node (old behaviour)' $r }
+ 
+ # ---------------------------------------------------------------- observe the re-grants (no rollback: an UNKNOWN is HELD on ACK)
+-$phase = 'verified'
++$phase = 'verified'; $Fwd = $false
+ $want = @($PRM.expectedIds); $lim = (Get-Date).AddSeconds([math]::Min(240, (Left))); $missing = $want
+ while ($missing.Count -and (Get-Date) -lt $lim) { $s = Status; $al = @($s.walletAdmission.allows); $missing = @($want | Where-Object { $al -notcontains $_ }); if ($missing.Count) { Start-Sleep 2 } }
+ $wr = Writers $WALLET
+--- a/helper/root-node-hold.py
++++ b/helper/root-node-hold.py
+@@ -27,7 +27,7 @@
+ HERE = pathlib.Path(__file__).resolve().parent; PKG = HERE.parent; W = PKG.parent; OUT = HERE / "runs"
+ T = (W / "nucbox-tls-20261021/root-activate-reviewed.py", "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f")
+ SCRIPTS = {"bundle-swap.ps1": (W / "cron-startup-20261021/respawn-activation/bundle-swap.ps1", "21d85c69b2b70564cc04f7ea7d72e9f763ef8ae65059fdb9972f0413f042b103"),
+-           "node-hold-cutover.ps1": (HERE / "node-hold-cutover.ps1", "255002c524255c6e8c0bc052150dd6579197da980e2b888b68b38e068763f548")}
++           "node-hold-cutover.ps1": (HERE / "node-hold-cutover.ps1", "ee9e7d5c87ce04e559493f232553a55d494b030d336dfcd3af5237bbf0a5c59f")}
+ RUN_NODE = "3366a005f8530903c83a334053280f41ed904df09133e92505c44f558acb6686"
+ LOCAL_CFG = "85698d20b4f8fb494c8620aeb80d5b4fbd2ec637ef40c7fa02693ba41ee2aa73"      # node-config.local.cmd (probe 21:20Z)
+ PF = r"C:\Program Files\Enclave"; CN = PF + r"\control\windows\node"; CNET = PF + r"\control\network"; BIN = PF + r"\network"
+@@ -56,6 +56,12 @@
+ CFG = r"C:\ProgramData\Enclave\network\privacy-config.json"; RUNNER = "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a"
+ APPREF = re.compile(r"^catalog://0x[0-9a-f]{64}/(?:0|[1-9][0-9]{0,8})$"); ID = re.compile(r"^0x[0-9a-f]{64}$")
+ FRESH_S, CUT_FRESH_S, BOUND_S = 1800, 600, 900
++# LEASE DEADLINE (PROPOSAL node-lease-window-review-20261021; replaces the static ">= 1200 s at preflight"): node-hold-cutover.ps1
++# enforces it at its own pins (params "lease"); the preflight counts leases that could not pass there. marginSec: a started node
++# -> its first renewal landed (<= 172 s at the 15:01:03Z restart); revertSec: the revert's caps until its node start (~252 s);
++# forwardMinSec: StopNode 70 + configs 5 + RestartPrivacy 90 (never capped); startNodeSec: StartNode's answer wait.
++LEASE = {"marginSec": 180, "revertSec": 300, "forwardMinSec": 180, "startNodeSec": 150}
++LEASE_NEED_S = LEASE["marginSec"] + LEASE["revertSec"] + LEASE["forwardMinSec"]
+ q = lambda v: "'" + str(v).replace("'", "''") + "'"
+ sha = lambda p: hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
+ now = lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+@@ -192,8 +198,10 @@
+                else "configCid not a string <= 8192" if not a["configCidString"] or a["configCidLen"] > 8192 else None)
+         (blockers.append({"id": name, "why": why}) if why else expected.append(name))
+     stale = [i for i in apps if i not in vmNames]
++    ends = [recs[i]["leaseUntil"] for i in expected if isinstance(recs[i].get("leaseUntil"), (int, float))]
+     gate = {"policyUnavailable30min": cov.get("policyUnavailable30min"),
+-            "shortLeases": sum(1 for i in expected if not isinstance(recs[i].get("leaseUntil"), (int, float)) or recs[i]["leaseUntil"] - time.time() < 1200)}
++            "shortLeases": sum(1 for i in expected if not isinstance(recs[i].get("leaseUntil"), (int, float)) or recs[i]["leaseUntil"] - time.time() < LEASE_NEED_S),
++            "leaseFirstEnd": min(ends) if len(ends) == len(expected) and ends else None}
+     return {"identities": idn, "files": fil, "state": state, "keepUnchanged": keep, "coverage": {"expectedIds": sorted(expected), "blockers": blockers,
+             "staleEnrolledWithoutVm": sorted(stale), "records": len(recs), "apps": len(apps)}, "gate": gate,
+             "errors": {k: v.get("error") for k, v in (("identities", idn), ("files", fil), ("coverage", cov)) if isinstance(v, dict) and v.get("error")}}
+@@ -296,9 +304,13 @@
+     params = {"stage": stage, "boundSec": BOUND_S, "runner": RUNNER, "runNodeSha": RUN_NODE, "nodeExe": NODE_EXE, "nodeSha": NODE_SHA, "localSha": i.get("local"), "cfgSha": i.get("cfg"),
+               "files": [{"path": v[1], "sha": v[3]} for v in FILES.values()] + [{"path": p, "sha": h} for p, h in KEEP.items()],
+               "node": {"cmdPid": i["cmd"][0]["pid"], "cmdStart": i["cmd"][0]["start"], "agentPid": i["agent"][0]["pid"], "agentStart": i["agent"][0]["start"]},
+-              "manager": i["manager"], "privacy": i["privacy"][0], "vms": i["vms"], "hyperv": i["hyperv"], "expectedIds": pre["coverage"]["expectedIds"]}
++              "manager": i["manager"], "privacy": i["privacy"][0], "vms": i["vms"], "hyperv": i["hyperv"], "expectedIds": pre["coverage"]["expectedIds"], "lease": LEASE}
+     if o.cutover:
+         refuse = cutover_refusals(pre)
++        # the lease deadline NOW (the preflight may be up to CUT_FRESH_S old); the script re-checks it exactly at its pins
++        fe = pre["gate"].get("leaseFirstEnd")
++        if not isinstance(fe, (int, float)) or fe - time.time() < LEASE_NEED_S:
++            refuse.append(f"lease deadline: the first lease ends in {int(fe - time.time()) if isinstance(fe, (int, float)) else '?'} s (< {LEASE_NEED_S}): preflight again right after the next renewals")
+         # the RUNNING privacy agent must be the one this helper restarted onto the new bundle (a file on disk proves nothing)
+         ra = [json.loads(p.read_text()).get("result", {}) for p in sorted(OUT.glob("restart-agent-result-*.json"))]
+         pa = (i.get("privacy") or [{}])[0]
+--- a/helper/test_root_node_hold.py
++++ b/helper/test_root_node_hold.py
+@@ -161,4 +161,25 @@
+         sp = self.tmp / "stage.json"; sp.write_text(json.dumps({"what": "stage", "at": R.now(), "stage": "C:\\s", "ok": True})); n0 = len(f.texts)
+         self.assertEqual(R.main(["--cutover", "--stage-receipt", str(sp), "--preflight", str(pp)]), 2)
+         self.assertEqual(len(f.texts), n0, "no remote text after a refusal"); self.assertEqual(list(self.tmp.glob("attempt-*")), [])
++    def test_lease_deadline_gate_replaces_the_static_20_min(self):
++        """LEASE DEADLINE proposal: shortLeases counts < LEASE_NEED_S (660), not < 1200; the cutover re-checks leaseFirstEnd NOW;
++        the budget travels in the hashed params"""
++        self.assertEqual((R.LEASE_NEED_S, R.LEASE), (660, {"marginSec": 180, "revertSec": 300, "forwardMinSec": 180, "startNodeSec": 150}))
++        idn, fil, cov = live_like(); now = int(time.time()); ids = [r["id"] for r in cov["records"] if r["status"] == "running"]
++        cov["records"] = [dict(r, leaseUntil=now + 900) for r in cov["records"]]; R.m.ps = Fake(idn, fil, cov).ps
++        pre = R.preflight(); self.assertEqual(pre["gate"]["shortLeases"], 0, "900 s left: passes (the static gate refused < 1200)")
++        self.assertEqual(pre["gate"]["leaseFirstEnd"], now + 900); self.assertFalse(any("P0 gate" in x for x in R.cutover_refusals(pre)))
++        cov["records"] = [dict(r, leaseUntil=now + (600 if r["id"] == ids[0] else 1700)) for r in cov["records"]]; R.m.ps = Fake(idn, fil, cov).ps
++        pre = R.preflight(); self.assertEqual(pre["gate"]["shortLeases"], 1); self.assertTrue(any("P0 gate" in x for x in R.cutover_refusals(pre)))
++        # a preflight that passed, but whose first lease is now < 660 s away: the cutover refuses before sending anything
++        cov["records"] = [dict(r, leaseUntil=now + 700) for r in cov["records"]]; f = Fake(idn, fil, cov); R.m.ps = f.ps
++        pre = R.preflight(); self.assertEqual(pre["gate"]["shortLeases"], 0); pre["gate"]["leaseFirstEnd"] = now + 650
++        pp = self.tmp / "pre.json"; pp.write_text(json.dumps({"what": "preflight", "at": R.now(), **pre}))
++        sp = self.tmp / "stage.json"; sp.write_text(json.dumps({"what": "stage", "at": R.now(), "stage": "C:\\s", "ok": True}))
++        (self.tmp / "restart-agent-result-x.json").write_text(json.dumps({"result": {"agentScript": R.FILES["privacy"][3], "newPid": idn["privacy"][0]["pid"], "newStart": idn["privacy"][0]["start"]}}))
++        n0 = len(f.texts); out = __import__("io").StringIO(); so = sys.stdout; sys.stdout = out
++        try: rc = R.main(["--cutover", "--stage-receipt", str(sp), "--preflight", str(pp)])
++        finally: sys.stdout = so
++        self.assertEqual(rc, 2); self.assertIn("lease deadline: the first lease ends in", out.getvalue()); self.assertEqual(len(f.texts), n0)
++        self.assertEqual(list(self.tmp.glob("attempt-*")), [], "nothing attempted")
+ if __name__ == "__main__": unittest.main()
+--- a/tools/cutover-mock.ps1
++++ b/tools/cutover-mock.ps1
+@@ -53,7 +53,7 @@
+   $global:S.nodeStartedAt = $global:S.clock; $global:S.nodeGen = $null; $global:S.starts++
+   # another \Enclave\ task's process is replaced while this run is going on
+   if ($global:S.scenario -eq 'other-task-changed') { $null = Proc 'cmd.exe' 'cmd.exe /c "C:\ProgramData\Enclave\run-relay.cmd"' 1 }
+-  SaveProcs; Add-Content (Join-Path $global:S.root 'node-starts.txt') 'start' }
++  SaveProcs; Add-Content (Join-Path $global:S.root 'node-starts.txt') ('start ' + $global:S.clock.ToString('o')) }
+ function global:SaveProcs { @($global:S.procs | ForEach-Object { @{ pid = $_.ProcessId; ppid = $_.ParentProcessId; name = $_.Name; cmd = $_.CommandLine; start = $_.CreationDate.ToUniversalTime().ToString('o') } }) |
+   ConvertTo-Json -Depth 3 | Set-Content (Join-Path $global:S.root 'procs-state.json') }
+ function global:Stop-Process { param($Id, [switch]$Force)
+@@ -62,12 +62,19 @@
+   if (-not $p) { return }
+   if ($p.CommandLine -like '*node\agent.mjs*' -and ($s.scenario -eq 'agent-unkillable' -or ($s.scenario -eq 'node-no-channel-unkillable' -and $s.starts -ge 1))) { return }
+   $s.procs.Remove($p)
+-  if ($p.CommandLine -match 'privacy-agent\.mjs' -and -not ($s.scenario -eq 'revert-no-privacy' -and (Reverted))) { $s.respawnAt = $s.clock.AddSeconds(10) }
++  # privacy-slow / slow-no-channel: the Network task takes 80 s to respawn it (inside RestartPrivacy's 90-s cap)
++  if ($p.CommandLine -match 'privacy-agent\.mjs' -and -not ($s.scenario -eq 'revert-no-privacy' -and (Reverted))) { $s.respawnAt = $s.clock.AddSeconds($(if ($s.scenario -in 'privacy-slow', 'slow-no-channel') { 80 } else { 10 })) }
+   SaveProcs }
+ function global:Invoke-RestMethod { param($Uri, [switch]$UseBasicParsing, $TimeoutSec)
+   if ($Uri -like '*8091/vms') { return [pscustomobject]@{ vms = @(Get-Content (Join-Path $global:S.root 'vms.json') | ConvertFrom-Json) } }
++  # LEASE DEADLINE proposal: the node's own records (leases.json: id, status, leaseUntil in chain epoch s), only while it runs
++  if ($Uri -like '*9600/v1/host/state') {
++    if ($global:S.scenario -eq 'lease-unreadable' -or -not @($global:S.procs | Where-Object { $_.CommandLine -like '*node\agent.mjs*' }).Count) { throw 'mock: refused' }
++    return [pscustomobject]@{ deployments = @(Get-Content -Raw (Join-Path $global:S.root 'leases.json') | ConvertFrom-Json) } }
+   throw "mock: no $Uri" }
+ function global:Invoke-WebRequest { param($Uri, [switch]$UseBasicParsing, $TimeoutSec)
++  # slow-no-channel: a started node answers on 9600 only 60 s after its start
++  if ($global:S.scenario -eq 'slow-no-channel' -and $global:S.nodeStartedAt -and ($global:S.clock - $global:S.nodeStartedAt).TotalSeconds -lt 60) { throw 'mock: refused' }
+   if (@($global:S.procs | Where-Object { $_.CommandLine -like '*node\agent.mjs*' }).Count -and $Uri -like '*9600*') { return [pscustomobject]@{ StatusCode = 200 } }; throw 'mock: refused' }
+ function global:Get-Acl { param($LiteralPath)
+   $extra = ($global:S.scenario -eq 'wallet-acl-bad' -and $LiteralPath -like '*wallet-admission.json') -or ($global:S.scenario -eq 'netdir-acl-bad' -and $LiteralPath -eq (Join-Path $global:S.root 'network'))
+@@ -102,7 +109,7 @@
+     $c = Get-Content -Raw $cf | ConvertFrom-Json; $c | Add-Member -NotePropertyName operatorEdit -NotePropertyValue $true; [IO.File]::WriteAllText($cf, ($c | ConvertTo-Json -Depth 8)); $s.conflictInjected = $true }
+   if ($s.respawnAt -and $s.clock -ge $s.respawnAt) { $s.respawnAt = $null; $null = Proc 'node.exe' '"node.exe" "C:\Program Files\Enclave\network\privacy-agent.mjs" --config x' 3001 }
+   $node = @($s.procs | Where-Object { $_.CommandLine -like '*node\agent.mjs*' }).Count
+-  if ($node -and $s.nodeStartedAt -and $s.scenario -notin 'node-no-channel', 'node-no-channel-unkillable' -and ([IO.File]::ReadAllText($lf)).Contains('ENCLAVE_NETWORK_WALLET_HOLD=1')) {
++  if ($node -and $s.nodeStartedAt -and $s.scenario -notin 'node-no-channel', 'node-no-channel-unkillable', 'slow-no-channel' -and ([IO.File]::ReadAllText($lf)).Contains('ENCLAVE_NETWORK_WALLET_HOLD=1')) {
+     if (-not $s.nodeGen) { $s.nodeGen = -join ((1..32) | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) }); $s.rev = 0 }
+     $ms = SimMs; $s.rev++
+     $allows = [ordered]@{}; if (($s.clock - $s.nodeStartedAt).TotalSeconds -ge 5) { foreach ($i in $s.ids) { $allows[$i] = @{ appRef = 'catalog://0x' + ('ab' * 32) + '/1'; configCid = ''; validUntil = $ms + 60000 } } }
+--- a/tools/cutover-mock-test.py
++++ b/tools/cutover-mock-test.py
+@@ -4,8 +4,8 @@
+ ordering, identity enforcement, refusals, lock, crash trap) - NOT native Windows behaviour.
+ G4 final package: + G-UPD (\\Enclave\\Update running / due inside the bound refuses), N3 (read principals), N2 (a throw before
+ the old '$phase = pins' line never reaches Revert; negative control: N2_BASELINE = the original e369c5e2 script)."""
+-import hashlib, json, os, pathlib, shutil, stat, subprocess, tempfile, unittest
+-T = pathlib.Path(__file__).resolve().parent; H = T.parent / "helper"; PWSH = str(T / "pwsh/pwsh")
++import datetime, hashlib, json, os, pathlib, shutil, stat, subprocess, tempfile, unittest
++T = pathlib.Path(__file__).resolve().parent; H = T.parent / "helper"; PWSH = os.environ.get("PWSH", str(T / "pwsh/pwsh"))
+ SCRIPT = pathlib.Path(os.environ.get("CUTOVER_SCRIPT", H / "node-hold-cutover.ps1"))
+ RUNNER = "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a"
+ IDS = ["0x" + c * 64 for c in "abc"]
+@@ -13,6 +13,11 @@
+ CFG = {"version": 2, "directory": "x", "apps": [], "enclaveNetwork": {k: k for k in ["relay", "checkers", "apps", "control", "wgBinary", "nodeBinary", "workerModule", "firewallBinary", "directories", "paid", "hostEgress", "paceMbps"]}}
+ LOCAL = b"@echo off\r\nrem caf\xc3\xa9 operator settings\r\nset SOMETHING=1"          # no final CRLF, one non-ASCII byte
+ START = "2026-10-21T15:01:03.6706520Z"
++# LEASE DEADLINE proposal: the mock clock starts at 22:00:00Z; leases.json holds each expected id's leaseUntil (epoch s)
++CLOCK0 = int(datetime.datetime(2026, 10, 21, 22, 0, 0, tzinfo=datetime.timezone.utc).timestamp())
++LEASE = {"marginSec": 180, "revertSec": 300, "forwardMinSec": 180, "startNodeSec": 150}
++def leases(r, offset, ids=None, status="running"):
++    (r / "leases.json").write_text(json.dumps([{"id": i, "status": status, "leaseUntil": CLOCK0 + offset} for i in (IDS if ids is None else ids)]))
+ HYPERV = [{"Id": f"0000000{i}-1111-2222-3333-444444444444", "Name": f"vm-{i}", "State": "Running"} for i in range(4)]
+ 
+ def world():
+@@ -27,7 +32,7 @@
+              {"pid": 8644, "ppid": 23976, "name": "node.exe", "cmd": '"node.exe" "C:\\Program Files\\Enclave\\control\\windows\\node\\agent.mjs"', "start": START},
+              {"pid": 38416, "ppid": 3001, "name": "node.exe", "cmd": '"node.exe" "C:\\Program Files\\Enclave\\network\\privacy-agent.mjs" --config x', "start": "2026-10-21T00:05:03.7361540Z"},
+              {"pid": 4001, "ppid": 1, "name": "node.exe", "cmd": "manager main.mjs", "start": "2026-10-21T12:13:07.5552110Z"}]
+-    (r / "procs.json").write_text(json.dumps(procs))
++    (r / "procs.json").write_text(json.dumps(procs)); leases(r, 1700)
+     return r
+ 
+ def vms_string(r): return ",".join(sorted(f"{v['id']}|{v['name']}|{v['status']}" for v in json.loads((r / "vms.json").read_text())))
+@@ -38,7 +43,7 @@
+          "localSha": sha(LOCAL), "cfgSha": sha((r / "network/privacy-config.json").read_bytes()), "files": [],
+          "node": {"cmdPid": 23976, "cmdStart": START, "agentPid": 8644, "agentStart": START}, "manager": "4001@2026-10-21T12:13:07.5552110Z",
+          "privacy": {"pid": 38416, "start": "2026-10-21T00:05:03.7361540Z"}, "vms": vms_string(r), "hyperv": hv_string(r), "expectedIds": IDS,
+-         "testRoot": str(r), "testNode": shutil.which("node")}
++         "testRoot": str(r), "testNode": shutil.which("node"), "lease": LEASE}
+     p.update(over); return p
+ 
+ def run(r, p, mode="cutover", scenario="ok"):
+@@ -243,4 +248,61 @@
+                 self.assertEqual([l.get("step") for l in lines if l.get("step")], ["pins"], "refused at the pins: the node was never stopped")
+             finally: shutil.rmtree(r, ignore_errors=True)
+ 
++def start_times(r): return [l.split(" ", 1)[1] for l in (r / "node-starts.txt").read_text().splitlines()] if (r / "node-starts.txt").exists() else []
++def epoch(iso): return datetime.datetime.fromisoformat(iso[:26].rstrip("Z") + "+00:00").timestamp()
++def step(lines, name): return next(l for l in lines if l.get("step") == name)
++
++class LeaseDeadline(unittest.TestCase):
++    """LEASE DEADLINE proposal (node-lease-window-review-20261021): the pins read the node's leaseUntil of every expected id;
++    refused unless forward + revert + margin fit; the forward waits yield so the revert's node start precedes the first lease
++    end by lease.marginSec. Negative control: UNPATCHED=<original script> runs the timing case against the original."""
++    def setUp(self): self.r = world()
++    def tearDown(self): shutil.rmtree(self.r, ignore_errors=True)
++    def unchanged(self, r, lines):
++        self.assertEqual([l.get("step") for l in lines if l.get("step")], ["pins"], "refused at the pins: the node was never stopped")
++        self.assertEqual((starts(r), flag(r), block(r), temps(r)), (0, False, False, [])); self.assertTrue(node_running(r))
++    def test_short_lease_refuses_at_the_pins(self):
++        r = self.r; leases(r, 659); lines, c = run(r, params(r, "short"))
++        self.assertTrue(final(lines).startswith("REFUSED"), (final(lines), c.stderr[-600:])); self.assertIn("lease deadline: the first lease", final(lines))
++        self.assertIn(">= 660 s", final(lines)); self.unchanged(r, lines)
++        self.assertEqual((lines[-1]["lease"]["secLeft"], lines[-1]["lease"]["forwardSec"]), (659, 179))
++    def test_exact_need_passes_and_is_journaled(self):
++        r = self.r; leases(r, 660); lines, c = run(r, params(r, "need")); self.assertTrue(final(lines).startswith("DONE:"), (final(lines), c.stderr[-600:]))
++        lz = step(lines, "pins")["lease"]; self.assertEqual((lz["secLeft"], lz["forwardSec"], lz["firstId"]), (660, 180, IDS[0]))
++    def test_unreadable_missing_or_not_running_refuses(self):
++        for name, prep, scen, why in (("unread", lambda r: None, "lease-unreadable", "lease state (127.0.0.1:9600/v1/host/state) is unreadable"),
++                                      ("missing", lambda r: leases(r, 1700, ids=IDS[:2]), "ok", "without a running record and a numeric leaseUntil: " + IDS[2]),
++                                      ("held", lambda r: leases(r, 1700, status="held"), "ok", "without a running record")):
++            r = world()
++            try:
++                prep(r); lines, c = run(r, params(r, name), scenario=scen)
++                self.assertTrue(final(lines).startswith("REFUSED"), (name, final(lines))); self.assertIn(why, final(lines)); self.unchanged(r, lines)
++            finally: shutil.rmtree(r, ignore_errors=True)
++    def test_params_without_the_lease_budget_refuse(self):
++        r = self.r; lines, c = run(r, params(r, "nobudget", lease=None)); self.assertIn("lease budget", final(lines)); self.unchanged(r, lines)
++    def test_slow_privacy_tight_lease_starts_the_old_node_not_the_new(self):
++        r = self.r; leases(r, 700); lines, c = run(r, params(r, "slowpriv"), scenario="privacy-slow")
++        self.assertTrue(final(lines).startswith("ROLLED_BACK_LEASE"), (final(lines), c.stderr[-600:]))
++        self.assertEqual(starts(r), 1, "only the revert started a node (the old behaviour)"); self.assertFalse(flag(r)); self.assertFalse(block(r))
++        self.assertLessEqual(epoch(start_times(r)[-1]), CLOCK0 + 700 - LEASE["marginSec"], "the old node started >= marginSec before the first lease end")
++        self.assertGreaterEqual(lines[-1]["leaseLeft"], 0, "the revert began before its own deadline")
++    def test_r2_channel_wait_yields_at_the_deadline(self):
++        r = self.r; leases(r, 720); lines, c = run(r, params(r, "slowr2"), scenario="slow-no-channel")
++        self.assertTrue(final(lines).startswith("ROLLED_BACK_R2"), (final(lines), c.stderr[-600:]))
++        sn = step(lines, "start-node"); self.assertTrue(sn["nodeUp"]); self.assertLessEqual(abs(sn["leaseLeft"]), 2, "the channel wait was cut at the deadline (not its 120-s cap)")
++        self.assertLessEqual(CLOCK0 + sn["sec"], CLOCK0 + 720 - LEASE["marginSec"] - LEASE["revertSec"] + 2)
++        self.assertEqual(starts(r), 2); self.assertLessEqual(epoch(start_times(r)[-1]), CLOCK0 + 720 - LEASE["marginSec"])
++        self.assertFalse(flag(r)); self.assertFalse(block(r))
++        orig = os.environ.get("UNPATCHED")
++        if orig:                                        # negative control: the original waits its full 120 s past the deadline
++            r2 = world(); leases(r2, 720)
++            try:
++                p = params(r2, "slowr2-orig"); pf = r2 / "stage" / "params-orig.json"; pf.write_text(json.dumps(p))
++                c2 = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-File", str(T / "cutover-mock.ps1"), "-Script", orig, "-Root", str(r2), "-ParamsFile", str(pf),
++                                     "-ParamsSha", sha(pf.read_bytes()), "-Mode", "cutover", "-Scenario", "slow-no-channel"], capture_output=True, text=True, timeout=240)
++                l2 = [json.loads(l) for l in (r2 / "stage" / "cutover-slowr2-orig.jsonl").read_text().splitlines()]
++                sn2 = step(l2, "start-node"); print("\nUNPATCHED", sha(pathlib.Path(orig).read_bytes())[:8], "start-node sec", sn2["sec"], "deadline sec", 720 - 480, "final", final(l2)[:40])
++                self.assertGreater(sn2["sec"], 720 - LEASE["marginSec"] - LEASE["revertSec"] + 2, "the original's revert begins AFTER the deadline")
++            finally: shutil.rmtree(r2, ignore_errors=True)
++
+ if __name__ == "__main__": unittest.main()
+--- a/tools/parse-all.py
++++ b/tools/parse-all.py
+@@ -17,7 +17,7 @@
+ d = pathlib.Path(tempfile.mkdtemp()); out = {}
+ for k, t in texts.items():
+     f = d / (k + ".ps1"); f.write_text(t)
+-    r = subprocess.run([str(pathlib.Path(__file__).parent / "pwsh/pwsh"), "-NoProfile", "-NonInteractive", "-Command",
++    r = subprocess.run([__import__("os").environ.get("PWSH", str(pathlib.Path(__file__).parent / "pwsh/pwsh")), "-NoProfile", "-NonInteractive", "-Command",
+         f"$e=$null;$null=[System.Management.Automation.Language.Parser]::ParseFile('{f}',[ref]$null,[ref]$e);@($e|ForEach-Object{{$_.Extent.StartLineNumber.ToString()+':'+$_.Message}})|ConvertTo-Json -Compress"],
+         capture_output=True, text=True, timeout=120)
+     out[k] = r.stdout.strip() or r.stderr.strip()[-300:]

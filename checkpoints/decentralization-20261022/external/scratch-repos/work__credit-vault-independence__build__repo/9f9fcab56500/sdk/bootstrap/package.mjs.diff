@@ -1,0 +1,87 @@
+--- a/sdk/bootstrap/package.mjs
++++ b/sdk/bootstrap/package.mjs
+@@ -71,6 +71,68 @@
+   }
+   return n;
+ }
++// Owner-named log history sources (optional; isolation/m2/bootstrap/history.go is the guest's identical check,
++// cross-tested by history-vectors.json; work/history-owner-tools-interface.txt). A cold-starting guest reads EVERY lease
++// log from its lease's claim to the finalized head (rev 16d keeps no claim marker in state); public measured RPCs serve
++// recent logs only, so an owner names log-capable sources here. The package is PUBLISHED: a URL may never carry a
++// credential (no userinfo, no query; a key-like path needs the owner's explicit confirmation in the tools).
++export const MAX_HISTORY_RPCS=6;
++const historyRe=/^https:\/\/([a-z0-9.-]+)(\/[A-Za-z0-9._~\/-]*)?$/;
++export function historyHost(url){
++  if(typeof url!=='string'||url.length<1||url.length>512)return null;
++  const m=historyRe.exec(url);
++  return m&&dnsName(m[1])?m[1]:null;
++}
++export function validateHistory(h){
++  if(!object(h)||!noNull(h))throw Error('owner history must be an object without nulls');
++  keys(h,['rpcs']);
++  if(!Array.isArray(h.rpcs)||h.rpcs.length<1||h.rpcs.length>MAX_HISTORY_RPCS)throw Error(`owner history needs 1 to ${MAX_HISTORY_RPCS} RPCs`);
++  const hosts=new Set();
++  h.rpcs.forEach((u,i)=>{
++    const host=historyHost(u);
++    if(!host)throw Error('owner history RPC must be https://<lowercase DNS name>[/path] with no port, query, fragment or credentials');
++    if(i>0&&!(h.rpcs[i-1]<u))throw Error('owner history RPCs must be strictly ascending and unique');
++    if(hosts.has(host))throw Error('owner history RPC hosts must be distinct');
++    hosts.add(host);
++  });
++  return h;
++}
++// who runs a source, for counting independent answers: the guest's operatorOf (last two DNS labels; errs strict)
++export const historyOperator=url=>{const h=historyHost(url);return h?h.split('.').slice(-2).join('.'):null;};
++// a path segment that looks like a provider key: refused by the tools unless the owner confirms it is public
++export const credentialLike=url=>{const m=historyRe.exec(String(url));return !!m&&String(m[2]||'').split('/').some(seg=>/^[A-Za-z0-9_-]+$/.test(seg)&&(seg.length>=24||seg.length>=16&&/[A-Za-z]/.test(seg)&&/[0-9]/.test(seg)));};
++/** Owner input -> the canonical member (sorted, deduplicated, checked) or null for none. */
++export function historyFromList(list,{pathIsPublic=false}={}){
++  const rpcs=[...new Set((Array.isArray(list)?list:String(list||'').split(/[\s,]+/)).map(x=>String(x).trim()).filter(Boolean))].sort();
++  if(!rpcs.length)return null;
++  for(const u of rpcs){
++    if(/^[a-z]+:\/\/[^/]*@/i.test(u))throw Error(`history RPC ${u}: credentials in a URL would be published with the package`);
++    if(/[?#]/.test(u))throw Error(`history RPC ${u}: a query or fragment would be published with the package (and the guest refuses it)`);
++    if(!historyHost(u))throw Error(`history RPC ${u}: must be https://<lowercase DNS name>[/path], no port`);
++    if(credentialLike(u)&&!pathIsPublic)throw Error(`history RPC ${u}: its path looks like a provider key, and the package is published for anyone to read; use a public endpoint or your own node, or confirm the path is public`);
++  }
++  return validateHistory({rpcs});
++}
++/** What the owner should know about a history member (never a refusal: those are thrown above). */
++export function historyWarnings(h){
++  if(!h)return ['no history sources: a fresh guest cannot prove a lease whose claim is older than its measured RPCs serve (about 5,000 blocks, under 3 hours)'];
++  const w=[],ops=new Set(h.rpcs.map(historyOperator));
++  if(ops.size<2)w.push(`only ${ops.size} independent operator: a claim older than the measured RPCs' horizon needs two operators that both serve its history`);
++  const enclave=h.rpcs.filter(u=>/(^|\.)enclave\.host$/.test(historyHost(u)));
++  if(enclave.length)w.push(`${enclave.join(', ')} is run by Enclave; it works only while Enclave runs it`);
++  return w;
++}
++// Bounded public options, offered for the owner to choose and edit, never pre-selected. Provenance: the read-only probes
++// in work/storage-front-cold-history/logs (probe-throughput.json, probe-operators.run2.log), 2026-10-20.
++export const HISTORY_PUBLIC_OPTIONS=Object.freeze([
++  Object.freeze({url:'https://base-rpc.polkachu.com',operator:'Polkachu',probed:'2026-10-20',
++    served:'Base logs ~28 days back in 1000-block ranges (~3,000 blocks/s, no refusals in 30 requests)',
++    limits:'prunes history: earliest block 51,500,000 at the probe (~31.7 days), a rolling window; no availability guarantee; not run by Enclave'}),
++  Object.freeze({url:'https://gateway.tenderly.co/public/base',operator:'Tenderly',probed:'2026-10-20',
++    served:'Base logs 35 and 120 days back in 1000-block ranges (~7,000 blocks/s)',
++    limits:'rate-limits bursts (HTTP 429); no availability guarantee; not run by Enclave; one operator even under two of its hostnames'}),
++]);
++export const HISTORY_KEYLESS_LIMIT='No keyless second operator was found for history older than about 31 days: for older leases name your own node or a provider you choose.';
+ // The DNS-01 alias label commits to the deployment AND its owner, so a
+ // delegation published for one owner stops working when the deployment moves.
+ export function challengeLabel(deployment,owner){
+@@ -86,13 +148,14 @@
+   const hash=createHash('sha256').update(bytes).digest('hex');
+   if(intent?.version!==1||intent.sha256!==hash)throw Error('startup package hash mismatch');
+   const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes),m=parseUniqueJSON(text);
+-  keys(m,['version','chainId','ledger','deployment','owner','appRef','appId','runtimeId','configText','secretsMode','custody','names']);
++  keys(m,['version','chainId','ledger','deployment','owner','appRef','appId','runtimeId','configText','secretsMode','custody','names','history']);
+   if(m.version!==1||!Number.isSafeInteger(m.chainId)||m.chainId<=0||!addr.test(m.ledger)||!nonzero(m.ledger)||!addr.test(m.owner)||!nonzero(m.owner)||!id32.test(m.deployment)||!nonzero(m.deployment)||!hex32.test(m.appId)||!nonzero(m.appId)||!hex32.test(m.runtimeId)||!nonzero(m.runtimeId)||typeof m.appRef!=='string'||!m.appRef||typeof m.configText!=='string'||Buffer.byteLength(m.configText)>32768)throw Error('invalid startup package');
+   if(m.configText){const c=parseUniqueJSON(m.configText);if(!c||typeof c!=='object')throw Error('startup config must be an object or array');}
+   if(m.secretsMode==='public'){if(m.custody!=null)throw Error('public package cannot carry custody');}
+   else if(m.secretsMode==='custody-v2'){if(!object(m.custody)||m.custody.v!==2||m.custody.chainId!==m.chainId)throw Error('custody-v2 pointer required');}
+   else throw Error('explicit startup secrets mode required');
+   if(Object.hasOwn(m,'names'))validateNames(m.names,m.secretsMode);
++  if(Object.hasOwn(m,'history'))validateHistory(m.history);
+   for(const [k,v]of Object.entries(scope)){if(v==null)continue;const fold=['ledger','owner'].includes(k);if((fold?m[k]?.toLowerCase():m[k])!==(fold?String(v).toLowerCase():v))throw Error(`startup ${k} mismatch`);}
+   return {manifest:m,bytes,sha256:hash,cid:packageCID(hash)};
+ }

@@ -1,0 +1,10 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/g4-release-integration-20261021/base-abe86262/control/windows/node/keys.mjs	1969-12-31 17:00:00.000000000 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/resume-20261021/reconciled-candidate/windows/node/keys.mjs	2026-10-21 04:12:50.477598258 -0700
+@@ -1,6 +1,6 @@
+ // windows/node/keys.mjs -- the two chain keys a hosting node needs, generated ON the box.
+ //   node keys.mjs [dir] [--offline]    print the addresses, creating either key if it is missing
+-// operator.key signs register / heartbeat / claim / renew / release and the tunnel attach; it needs
++// operator.key signs register / claim / renew / release and the tunnel attach; it needs
+ // a few dollars of Base ETH for gas and controls nothing else (earnings go to the payout wallet).
+ // proof.key signs EnclaveProofOfTime checkpoints. On a fleet enclave that key is minted inside the
+ // CVM so the operator cannot forge "it was running"; here it sits beside the operator key on a

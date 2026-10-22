@@ -1,0 +1,11 @@
+--- a/sia-s3/src/import.rs
++++ b/sia-s3/src/import.rs
+@@ -148,7 +148,7 @@
+             let entry = Entry { b: bucket.clone(), k: item.key.clone(), s: item.size, t: etag, m, c: None, x: vec![], h: version_ms, i };
+             // the same placement rules as the server: inline, or a manifest for a key too long for metadata
+             let placement = store.stage_put(&obj, &entry).await.map_err(|e| format!("{}: {e}", item.key))?;
+-            store.commit_put(obj, placement, entry, true).await.map_err(|e| format!("{}: pin: {e}", item.key))?;
++            store.commit_put(obj, placement, entry, true, None).await.map_err(|e| format!("{}: pin: {e}", item.key))?;
+             done += 1;
+             done_bytes += item.size;
+         }

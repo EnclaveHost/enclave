@@ -1,0 +1,30 @@
+{
+ "at": "2026-10-21T13:29:26.277515+00:00",
+ "mode": "--plan",
+ "oldTree": "f5dae7b1b0167101540bc82c68f3d0c1ba3dcdf2",
+ "sourceToBundle": {
+  "platform-api": {
+   "oldSha256": "e7a4fc1d72801810daa326756c768b2aa1055ca962bf569dfffc3c029a0a8dc3",
+   "newSha256": "2a903c362eecbde7e7bd75da75ed98c0eee93086b180cb8722aefb2b2588c578",
+   "bytes": 8461186,
+   "inputs": 2195,
+   "sourceInputs": 90,
+   "dependencyInputs": 2105,
+   "sourceInputsChangedVsOld": [
+    "metal/guest/platform-api-entry.mjs",
+    "metal/guest/platform-api-role.mjs",
+    "network/host-services/argv-guard.mjs"
+   ],
+   "allSourceInputsEqualCandidate": true,
+   "dependenciesEqualOldManifest": true,
+   "manifestSha256": "39fd6865cb4e1c48347ba3153d725a5a109a312f4337f1829a9283c73deb7c8c"
+  },
+  "network-runtime (generated prerequisite, gitignored, NOT in the candidate)": {
+   "sha256": "1357ec00de225222e335f8974ac5f09d9eac0bc094e167c1ab024cf736d87fd4",
+   "builtBy": "relay/build-network.mjs (in platform-bundle-smoke/tree)",
+   "mainPrebuilt": "3de76b54cf64fc06b5965bcc989290d6653de6e4f6e59f00b0da52e39218d76a",
+   "differsOnlyBy": "relay/snp-verify.mjs (candidate == T(main): one comment)"
+  }
+ },
+ "stop": []
+}

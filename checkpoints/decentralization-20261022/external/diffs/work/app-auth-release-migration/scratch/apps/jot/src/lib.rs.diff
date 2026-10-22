@@ -1,0 +1,641 @@
+--- a/jot/src/lib.rs
++++ b/jot/src/lib.rs
+@@ -57,11 +57,14 @@
+ #[allow(warnings)]
+ mod bindings;
+ mod crypt;
++mod eab1;
+ mod embed;
+ mod http;
+ mod index;
+ mod s3;
++mod link;
+ mod sso;
++mod wallet;
+ 
+ use bindings::exports::wasi::http::incoming_handler::Guest;
+ use bindings::wasi::http::types::{
+@@ -101,8 +104,21 @@
+     read_only: bool,
+     /// per-user mode: who may use the notebook and how they prove it
+     sso: Option<sso::SsoConfig>,
++    /// per-user mode by the visitor's own wallet (wallet.rs): an EIP-4361
++    /// message signed for this deployment, no issuer. Beside or instead of sso.
++    wallet: Option<wallet::WalletConfig>,
++    /// ACCOUNT MIGRATION (eab1.rs): the issuer's cutover snapshot as the owner pinned it. With it (and links on), an
++    /// account's migration file plus a fresh link signature from a wallet that account had at cutover links the wallet
++    /// to the account's notebook - no Enclave sign-in needed.
++    migration: Option<eab1::Pin>,
+     /// encryption at rest, when set
+     master_key: Option<String>,
++    /// the key account-link records are MAC'd under (link.rs): `link_key`, or
++    /// derived from `master_key`; None = account links are off and no link
++    /// record in the bucket is believed
++    link_key: Option<link::LinkKey>,
++    /// where link_key came from, or why there is none
++    link_key_source: String,
+     /// required fields still empty, typically `$VAR` secrets not set yet
+     missing: Vec<&'static str>,
+     /// a config block that parsed but is wrong (a malformed sso block):
+@@ -149,6 +165,11 @@
+             }
+         }
+     };
++    config_from(v)
++}
++
++/// The config, from its JSON (after `$VAR` references resolve).
++fn config_from(mut v: serde_json::Value) -> Config {
+     expand_env_refs(&mut v);
+     let s = |k: &str| v.get(k).and_then(|x| x.as_str()).map(str::trim).unwrap_or("").to_string();
+     let creds = v.get("credentials").and_then(|c| {
+@@ -182,11 +203,42 @@
+     if bucket.is_empty() {
+         missing.push("bucket");
+     }
+-    let (sso, error) = match sso::SsoConfig::from_config(&v) {
++    let (sso, mut error) = match sso::SsoConfig::from_config(&v) {
+         Ok(c) => (c, None),
+         Err(e) => (None, Some(format!("configuration error: {e}"))),
+     };
++    let wallet = match wallet::WalletConfig::from_config(&v) {
++        Ok(w) => w,
++        Err(e) => {
++            error.get_or_insert(format!("configuration error: {e}"));
++            None
++        }
++    };
++    let migration = match v.get("migration") {
++        None | Some(serde_json::Value::Null) => None,
++        Some(m) => match eab1::Pin::parse(m) {
++            Ok(p) => Some(p),
++            Err(e) => {
++                error.get_or_insert(format!("configuration error: {e}"));
++                None
++            }
++        },
++    };
+     let master_key = Some(s("master_key")).filter(|k| !k.is_empty());
++    // the link key: the owner's explicit `link_key` when the config names one
++    // (an unset or short one turns links OFF, it never falls back), else one
++    // derived from master_key; never anything the bucket or the public config holds
++    let (link_key, link_key_source) = if v.get("link_key").is_some() {
++        match link::LinkKey::from_secret(&s("link_key")) {
++            Some(k) => (Some(k), "link_key".to_string()),
++            None => (None, "off: link_key is unset or shorter than 16 characters".to_string()),
++        }
++    } else {
++        match master_key.as_deref().and_then(link::LinkKey::from_secret) {
++            Some(k) => (Some(k), "master_key".to_string()),
++            None => (None, "off: set link_key (or master_key) to enable account links".to_string()),
++        }
++    };
+     if let Some(k) = &master_key {
+         if k.len() < 16 {
+             eprintln!("[jot] config: master_key is short ({} chars); use 32+ random characters", k.len());
+@@ -202,12 +254,31 @@
+         api_key: Some(s("api_key")).filter(|k| !k.is_empty()),
+         read_only: v.get("readOnly").and_then(|x| x.as_bool()).unwrap_or(false),
+         sso,
++        wallet,
++        migration,
+         master_key,
++        link_key,
++        link_key_source,
+         missing,
+         error,
+     }
+ }
+ 
++impl Config {
++    /// Per-user mode: one notebook per signed-in identity, by either door.
++    fn per_user(&self) -> bool {
++        self.sso.is_some() || self.wallet.is_some()
++    }
++}
++
++/// The names a notebook may belong to: either EST1 shape (sso.rs) or a
++/// direct wallet sign-in's `wallet_0x…` (wallet.rs). Each is its own prefix:
++/// the same wallet signed in through enclave.host and directly is two
++/// notebooks, never one silently shared.
++fn canonical_identity(sub: &str) -> Option<String> {
++    sso::canonical_sub(sub).or_else(|| wallet::canonical_wallet_sub(sub))
++}
++
+ // ---- request plumbing ------------------------------------------------------
+ 
+ fn respond(out: ResponseOutparam, status: u16, ctype: &str, body_bytes: &[u8]) {
+@@ -369,6 +440,7 @@
+ }
+ 
+ /// Who a request acts as, once its credentials have been checked.
++#[derive(Debug, PartialEq)]
+ enum Caller {
+     /// the API key, in a shared (non per-user) notebook
+     Service,
+@@ -391,34 +463,266 @@
+     }
+     header(req, "authorization")
+         .and_then(|a| a.strip_prefix("Bearer ").or_else(|| a.strip_prefix("bearer ")).map(|t| t.trim().to_string()))
+-        .filter(|t| t.starts_with("EST1."))
++        .filter(|t| t.starts_with("EST1.") || t.starts_with("EWS1."))
+ }
+ 
+ /// Establish the caller. Per-user mode needs a NAME, from a verified sign-in
+ /// token or from the service (API key + X-User); a shared notebook needs the
+ /// key alone. Errors are (status, message).
+ fn identify(cfg: &Config, req: &IncomingRequest) -> Result<Caller, (u16, String)> {
+-    let has_key = authorized(cfg, req);
+-    let Some(sso_cfg) = &cfg.sso else {
++    let x_user = header(req, "x-user").map(|u| u.trim().to_string()).filter(|u| !u.is_empty());
++    let caller = identify_with(cfg, authorized(cfg, req), sso_token_of(req), x_user, now_secs())?;
++    // a wallet acts as an account only through a COMPLETE link the person
++    // made here (link.rs); a lookup that fails is an error, not a guess
++    match caller {
++        Caller::User { sub, via } if sub.starts_with(wallet::ID_PREFIX) => match linked_account(cfg, &sub)? {
++            Some(account) => Ok(Caller::User { sub: account, via: "wallet-link" }),
++            None => Ok(Caller::User { sub, via }),
++        },
++        other => Ok(other),
++    }
++}
++
++/// The bucket, as link.rs needs it.
++struct BucketLinks<'a> {
++    ep: s3::Endpoint,
++    cfg: &'a Config,
++}
++
++impl<'a> BucketLinks<'a> {
++    fn open(cfg: &'a Config) -> Result<BucketLinks<'a>, (u16, String)> {
++        if !cfg.missing.is_empty() || cfg.error.is_some() {
++            return Err((503, "this notebook is not configured".into()));
++        }
++        Ok(BucketLinks { ep: s3::Endpoint::parse(&cfg.endpoint, &cfg.region).map_err(|e| (503, e))?, cfg })
++    }
++    fn client(&self) -> s3::Client<'_> {
++        s3::Client { ep: &self.ep, bucket: &self.cfg.bucket, creds: self.cfg.creds.as_ref() }
++    }
++}
++
++impl link::LinkStore for BucketLinks<'_> {
++    fn get(&self, key: &str) -> Result<Option<(Vec<u8>, String)>, String> {
++        Ok(self.client().get(key).map_err(|e| e.message())?.map(|f| (f.body, f.etag)))
++    }
++    fn create(&self, key: &str, body: &[u8]) -> Result<Option<String>, String> {
++        self.client().create(key, body, "application/json").map_err(|e| e.message())
++    }
++    fn replace_if(&self, key: &str, body: &[u8], etag: &str) -> Result<bool, String> {
++        match self.client().put(key, body, "application/json", Some(etag)) {
++            Ok(_) => Ok(true),
++            Err(s3::S3Error::Http(412, _)) => Ok(false),
++            Err(e) => Err(e.message()),
++        }
++    }
++    fn any_under(&self, prefix: &str) -> Result<bool, String> {
++        Ok(!self.client().list(prefix, 1).map_err(|e| e.message())?.0.is_empty())
++    }
++}
++
++/// The context link records are bound to, when links are on at all.
++fn link_ctx(cfg: &Config) -> Option<link::Ctx<'_>> {
++    let (Some(key), Some(w)) = (&cfg.link_key, &cfg.wallet) else { return None };
++    Some(link::Ctx { key, aud: &w.audience, bucket: &cfg.bucket, prefix: &cfg.prefix })
++}
++
++fn linked_account(cfg: &Config, wallet_sub: &str) -> Result<Option<String>, (u16, String)> {
++    // no link key: no record is believed, so none is even read
++    let Some(ctx) = link_ctx(cfg) else { return Ok(None) };
++    let store = BucketLinks::open(cfg)?;
++    link::resolve(&store, Some(&ctx), wallet_sub).map_err(|e| (502, format!("account link lookup failed: {e}")))
++}
++
++/// One JSON-RPC POST to a chain reader the owner pinned in
++/// `wallet.contract_wallets` (EIP-1271 contract wallets, wallet.rs): bounded,
++/// no redirect followed, only the public signature data in the body.
++fn rpc_post(url: &str, body: &[u8], timeout_s: u64, max_bytes: usize) -> Result<Vec<u8>, String> {
++    let (https, rest) = match (url.strip_prefix("https://"), url.strip_prefix("http://")) {
++        (Some(r), _) => (true, r),
++        (None, Some(r)) => (false, r),
++        _ => return Err("reader URL is not http(s)".into()),
++    };
++    let (authority, path) = match rest.find('/') {
++        Some(i) => (&rest[..i], &rest[i..]),
++        None => (rest, "/"),
++    };
++    let headers = vec![("content-type".to_string(), "application/json".to_string())];
++    let r = http::request(&http::HttpReq {
++        method: bindings::wasi::http::types::Method::Post,
++        https,
++        authority,
++        path_with_query: path,
++        headers: &headers,
++        body,
++        timeout_s,
++        max_bytes,
++    })?;
++    if r.status != 200 {
++        return Err(format!("reader answered HTTP {}", r.status));
++    }
++    Ok(r.body)
++}
++
++/// wallet.rs's check for one act; the chain readers are attached only when
++/// the owner pinned them, so an EOA never touches the network.
++fn wallet_verify(w: &wallet::WalletConfig, tok: &str, now: u64, act: wallet::Act) -> Result<wallet::Claims, String> {
++    if w.contract.is_some() {
++        let mut readers = wallet::HttpReaders(rpc_post);
++        wallet::verify_act(w, tok, now, act, Some(&mut readers))
++    } else {
++        wallet::verify_act(w, tok, now, act, None)
++    }
++}
++
++/// How recent the Enclave sign-in proving an ACCOUNT for a link must be.
++const LINK_FRESH_SECS: u64 = 600;
++
++/// The ACCOUNT side of a link: a Sign in with Enclave token minted for THIS
++/// notebook's own deployment (not one it merely accepts) in the last ten
++/// minutes, naming an account. Returns (account, the token as presented).
++fn account_proof(cfg: &Config, req: &IncomingRequest, now: u64) -> Result<(String, String), (u16, String)> {
++    account_proof_of(cfg, header(req, "x-sso-token").map(|t| t.trim().to_string()), now)
++}
++
++fn account_proof_of(cfg: &Config, tok: Option<String>, now: u64) -> Result<(String, String), (u16, String)> {
++    let (Some(s), Some(w)) = (&cfg.sso, &cfg.wallet) else {
++        return Err((404, "this notebook does not offer account links: it needs both an sso and a wallet block".into()));
++    };
++    let tok = tok.filter(|t| t.starts_with("EST1."))
++        .ok_or((401, "[sso_required] sign in with Enclave (X-Sso-Token) to prove the account you are linking".to_string()))?;
++    let c = sso::verify(s, &tok, now).map_err(|e| (401, format!("[sso_required] {e}")))?;
++    if !c.aud.eq_ignore_ascii_case(&s.audience) || !c.aud.eq_ignore_ascii_case(&w.audience) {
++        return Err((401, "that Enclave sign-in was made for another deployment; sign in to this notebook itself".into()));
++    }
++    if c.iat.saturating_add(LINK_FRESH_SECS) < now {
++        return Err((401, "linking needs a fresh Enclave sign-in (the last 10 minutes): sign in again, then link".into()));
++    }
++    if !wallet::is_account_sub(&c.sub) {
++        return Err((401, "that sign-in names no Enclave account".into()));
++    }
++    Ok((c.sub, tok))
++}
++
++/// The ACCOUNT side of a link, from the request: an EAB1 migration file in the body's `account` (eab1.rs), checked
++/// against the snapshot this notebook's owner pinned - no issuer - and, with `wallet`, that this wallet is one the
++/// account committed at cutover; otherwise a fresh Enclave sign-in in X-Sso-Token. Returns (account, the proof as
++/// presented), the proof the wallet's link signature must name.
++fn link_account(cfg: &Config, req: &IncomingRequest, b: &serde_json::Value, now: u64, wallet: Option<&str>) -> Result<(String, String), (u16, String)> {
++    let cred = b.get("account").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
++    if !cred.starts_with(eab1::PREFIX) {
++        return account_proof(cfg, req, now);
++    }
++    let (Some(pin), Some(_)) = (&cfg.migration, &cfg.wallet) else {
++        return Err((404, "this notebook honours no account migration snapshot (its config pins no `migration`)".into()));
++    };
++    let account = match wallet {
++        Some(w) => eab1::account_for(pin, &cred, w),
++        None => eab1::open(pin, &cred).map(|x| x.account),
++    }
++    .map_err(|e| (401, e))?;
++    Ok((account, cred))
++}
++
++/// POST /api/link/challenge {address, nonce[, account: EAB1 migration file]} with X-Sso-Token (a fresh Enclave
++/// sign-in) or the migration file - the EIP-4361 message the wallet signs to link it.
++fn handle_link_challenge(out: ResponseOutparam, cfg: &Config, req: &IncomingRequest, body: &[u8]) {
++    let now = now_secs();
++    let b: serde_json::Value = serde_json::from_slice(body).unwrap_or(serde_json::Value::Null);
++    let f = |k: &str| b.get(k).and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
++    let (account, tok) = match link_account(cfg, req, &b, now, Some(&f("address"))) {
++        Ok(x) => x,
++        Err((st, e)) => return json_err(out, st, &e),
++    };
++    let w = cfg.wallet.as_ref().expect("link_account checked the wallet block");
++    // refuse before anyone signs anything a link could not be recorded for
++    if link_ctx(cfg).is_none() {
++        return json_err(out, 404, &format!("account links are {}", cfg.link_key_source));
++    }
++    match wallet::link_challenge(w, req.authority().as_deref(), &f("address"), &f("nonce"), now, &account, &tok) {
++        Ok(message) => json(out, 200, serde_json::json!({ "message": message, "account": account, "aud": w.audience })),
++        Err(e) => json_err(out, 400, &e),
++    }
++}
++
++/// POST /api/link {wallet: <EWS1 link signature>} with X-Sso-Token: the same
++/// fresh Enclave sign-in. Both verified, then the two create-only records.
++fn handle_link(out: ResponseOutparam, cfg: &Config, req: &IncomingRequest, body: &[u8]) {
++    let now = now_secs();
++    let b: serde_json::Value = serde_json::from_slice(body).unwrap_or(serde_json::Value::Null);
++    let (account, tok) = match link_account(cfg, req, &b, now, None) {
++        Ok(x) => x,
++        Err((st, e)) => return json_err(out, st, &e),
++    };
++    let w = cfg.wallet.as_ref().expect("link_account checked the wallet block");
++    let wtok = b.get("wallet").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
++    let act = wallet::Act::Link { account: &account, proof: wallet::proof_hash(&tok) };
++    let claims = match wallet_verify(w, &wtok, now, act) {
++        Ok(c) => c,
++        Err(e) => return json_err(out, 401, &e),
++    };
++    // a migration file links only a wallet it committed: the signature above proves this wallet, this proves the binding
++    if tok.starts_with(eab1::PREFIX) {
++        if let Err((st, e)) = link_account(cfg, req, &b, now, Some(&claims.address)) {
++            return json_err(out, st, &e);
++        }
++    }
++    if cfg.read_only {
++        return json_err(out, 403, "this notebook is read-only");
++    }
++    let Some(ctx) = link_ctx(cfg) else {
++        return json_err(out, 404, &format!("account links are {}", cfg.link_key_source));
++    };
++    let store = match BucketLinks::open(cfg) {
++        Ok(s) => s,
++        Err((st, e)) => return json_err(out, st, &e),
++    };
++    match link::create(&store, &ctx, &account, &claims.sub, now) {
++        Ok(()) => json(out, 200, serde_json::json!({ "ok": true, "account": account, "wallet": claims.sub })),
++        Err((st, e)) => json_err(out, st, &e),
++    }
++}
++
++/// identify(), on what it read from the request: whether the API key was
++/// presented, the sign-in token (X-Sso-Token or Bearer), X-User, the clock.
++fn identify_with(
++    cfg: &Config,
++    has_key: bool,
++    token: Option<String>,
++    x_user: Option<String>,
++    now: u64,
++) -> Result<Caller, (u16, String)> {
++    if !cfg.per_user() {
+         return if has_key {
+             Ok(Caller::Service)
+         } else {
+             Err((401, "unauthorized: send the API key as `X-Api-Key: <key>` (on enclave.host the gateway consumes `Authorization`, so a bearer never arrives here)".into()))
+         };
+     };
+-    if let Some(tok) = sso_token_of(req) {
+-        return match sso::verify(sso_cfg, &tok, now_secs()) {
+-            Ok(c) => Ok(Caller::User { sub: c.sub, via: "sso" }),
++    if let Some(tok) = token {
++        // each kind of token is checked only by the block that admits it
++        let verdict = if tok.starts_with("EWS1.") {
++            match &cfg.wallet {
++                Some(w) => wallet_verify(w, &tok, now, wallet::Act::Session).map(|c| (c.sub, "wallet")),
++                None => Err("this notebook does not accept wallet sign-ins".to_string()),
++            }
++        } else {
++            match &cfg.sso {
++                Some(s) => sso::verify(s, &tok, now).map(|c| (c.sub, "sso")),
++                None => Err("this notebook takes wallet sign-ins, not Enclave sign-in tokens".to_string()),
++            }
++        };
++        return match verdict {
++            Ok((sub, via)) => Ok(Caller::User { sub, via }),
+             Err(e) => Err((401, format!("[sso_required] {e}"))),
+         };
+     }
+     // the service path: only a real key counts (an open deployment has no
+     // service to trust), and the name must be one of the platform's shapes
+     if has_key && cfg.api_key.is_some() {
+-        return match header(req, "x-user").map(|u| u.trim().to_string()).filter(|u| !u.is_empty()) {
+-            Some(u) => match sso::canonical_sub(&u) {
++        return match x_user {
++            Some(u) => match canonical_identity(&u) {
+                 Some(sub) => Ok(Caller::User { sub, via: "key" }),
+-                None => Err((400, "X-User must be an Enclave identity: a 0x wallet address or an acct_ id".into())),
++                None => Err((400, "X-User must be an Enclave identity: a 0x wallet address, an acct_ id or a wallet_0x sign-in".into())),
+             },
+             None => Err((401, "[sso_required] this is a per-user notebook: name the user with `X-Sso-Token: <Enclave sign-in token>`, or `X-User: <sub>` beside the API key".into())),
+         };
+@@ -580,23 +884,32 @@
+         "missing": cfg.missing,
+         "auth": cfg.api_key.is_some(),
+         "readOnly": cfg.read_only,
+-        "users": cfg.sso.is_some(),
++        "users": cfg.per_user(),
+         "encrypted": cfg.master_key.is_some(),
+         "search": { "method": "hybrid: bm25 + vectors (rrf)", "model": embed::MODEL },
+     });
+     if let Some(e) = &cfg.error {
+         v["error"] = serde_json::json!(e);
+     }
+-    if let Some(sc) = &cfg.sso {
++    // after its cutover (`sso.until`) the issuer is not offered: its sign-in would open nothing here
++    let sso_live = cfg.sso.as_ref().filter(|s| s.until.map_or(true, |u| now_secs() < u));
++    if let Some(sc) = sso_live {
+         // public facts the UI needs before anyone is signed in
+         v["sso"] = serde_json::json!({ "authorize_url": sc.authorize_url, "aud": sc.audience, "accept": sc.accept.len() });
+     }
++    if let Some(w) = &cfg.wallet {
++        v["wallet"] = serde_json::json!({ "aud": w.audience, "chain_id": w.chain_id, "ttl_secs": w.ttl_secs,
++                                          "link": sso_live.is_some() && cfg.link_key.is_some(),
++                                          // an Enclave account can be restored from its migration file here, no issuer
++                                          "migration": cfg.migration.as_ref().filter(|_| cfg.link_key.is_some()).map(|p| p.cutover.clone()),
++                                          "link_key": cfg.link_key_source });
++    }
+     // who the request already is, when it says: the UI's "signed in as"
+     let with_key = authorized(cfg, req) && cfg.api_key.is_some();
+     if let Ok(Caller::User { sub, via }) = identify(cfg, req) {
+         v["you"] = serde_json::json!({ "sub": sub, "via": via });
+     }
+-    if with_key || (cfg.api_key.is_none() && cfg.sso.is_none()) {
++    if with_key || (cfg.api_key.is_none() && !cfg.per_user()) {
+         v["endpoint"] = serde_json::json!(cfg.endpoint);
+         v["region"] = serde_json::json!(cfg.region);
+         v["bucket"] = serde_json::json!(cfg.bucket);
+@@ -894,6 +1207,21 @@
+     }));
+ }
+ 
++/// GET /api/auth/wallet/challenge?address=0x…&nonce=… - the EIP-4361
++/// message the UI's wallet signs (wallet.rs): this request's own Host when the
++/// config lists it, the address, the chain, a window and this deployment.
++fn handle_wallet_challenge(out: ResponseOutparam, cfg: &Config, req: &IncomingRequest, pq: &str) {
++    let Some(w) = &cfg.wallet else {
++        return json_err(out, 404, "this notebook does not offer wallet sign-in; its config has no wallet block");
++    };
++    let q = query_pairs(pq);
++    let now = now_secs();
++    match wallet::challenge(w, req.authority().as_deref(), query_get(&q, "address").unwrap_or(""), query_get(&q, "nonce").unwrap_or(""), now) {
++        Ok(message) => json(out, 200, serde_json::json!({ "message": message, "chain_id": w.chain_id, "aud": w.audience, "expires": now + w.ttl_secs })),
++        Err(e) => json_err(out, 400, &e),
++    }
++}
++
+ struct Component;
+ 
+ impl Guest for Component {
+@@ -918,7 +1246,12 @@
+ 
+         let cfg = load_config();
+         match (&method, path.as_str()) {
+-            (Method::Get, "/api/tools") => return handle_tools(out, &origin_of(&req), cfg.sso.is_some()),
++            (Method::Get, "/api/tools") => return handle_tools(out, &origin_of(&req), cfg.per_user()),
++            (Method::Get, "/api/auth/wallet/challenge") => return handle_wallet_challenge(out, &cfg, &req, &pq),
++            (Method::Post, "/api/link/challenge") | (Method::Post, "/api/link") => {
++                let Ok(body) = read_body(&req, 16 * 1024) else { return json_err(out, 413, "link request too large") };
++                return if path == "/api/link" { handle_link(out, &cfg, &req, &body) } else { handle_link_challenge(out, &cfg, &req, &body) };
++            }
+             (Method::Get, "/api/status") => return handle_status(out, &cfg, &req),
+             _ => {}
+         }
+@@ -996,6 +1329,157 @@
+ mod tests {
+     use super::*;
+ 
++    // ---- identity: Sign in with Enclave unchanged, the wallet as its own door
++    mod sign_in {
++        use super::*;
++        use base64::engine::general_purpose::URL_SAFE_NO_PAD;
++        use base64::Engine;
++        use k256::ecdsa::SigningKey;
++        use sha3::{Digest, Keccak256};
++
++        const AUD: &str = "0xcc1f4f3f000000000000000000000000000000000000000000000000000000aa";
++        const EYESOFF: &str = "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c";
++        const SIGNER: &str = "0x17c5185167401ed00cf5f5b2fc97d9bbfdb7d025";
++        const NOW: u64 = 1_800_000_000;
++
++        fn key(b: u8) -> SigningKey { SigningKey::from_bytes(&[b; 32].into()).unwrap() }
++        fn hexs(b: &[u8]) -> String { b.iter().map(|x| format!("{x:02x}")).collect() }
++        fn psign(k: &SigningKey, msg: &[u8]) -> Vec<u8> {
++            let mut h = Keccak256::new();
++            h.update(format!("\u{19}Ethereum Signed Message:\n{}", msg.len()).as_bytes());
++            h.update(msg);
++            let (sig, rec) = k.sign_prehash_recoverable(&h.finalize()).unwrap();
++            let mut b = sig.to_bytes().to_vec();
++            b.push(rec.to_byte() + 27);
++            b
++        }
++        fn addr(k: &SigningKey) -> String {
++            format!("0x{}", hexs(&Keccak256::digest(&k.verifying_key().to_encoded_point(false).as_bytes()[1..])[12..]))
++        }
++        fn est1(sub: &str, aud: &str) -> String {
++            let c = serde_json::json!({ "aud": aud, "exp": NOW + 3600, "iat": NOW, "sub": sub, "v": 1 });
++            let p = URL_SAFE_NO_PAD.encode(c.to_string());
++            format!("EST1.{p}.{}", URL_SAFE_NO_PAD.encode(psign(&key(0x42), format!("EST1.{p}").as_bytes())))
++        }
++        fn ews1(w: &wallet::WalletConfig, host: &str, k: &SigningKey) -> String {
++            let m = wallet::challenge(w, Some(host), &addr(k), "0123456789abcdefXYZ", NOW).unwrap();
++            wallet::token(&m, &hexs(&psign(k, m.as_bytes()))).unwrap()
++        }
++        fn cfg(extra: serde_json::Value) -> Config {
++            let mut v = serde_json::json!({ "endpoint": "http://127.0.0.1:9000", "bucket": "notes", "api_key": "k3y" });
++            for (k, x) in extra.as_object().unwrap() { v[k] = x.clone(); }
++            config_from(v)
++        }
++        fn user(r: Result<Caller, (u16, String)>) -> (String, &'static str) {
++            match r { Ok(Caller::User { sub, via }) => (sub, via), other => panic!("{other:?}") }
++        }
++
++        #[test]
++        fn sso_notebooks_are_unchanged() {
++            let c = cfg(serde_json::json!({ "sso": { "signer": SIGNER, "audience": AUD, "accept": [EYESOFF] } }));
++            assert!(c.error.is_none() && c.per_user());
++            assert_eq!(user(identify_with(&c, false, Some(est1("acct_ab12", AUD)), None, NOW)), ("acct_ab12".into(), "sso"));
++            assert_eq!(user(identify_with(&c, false, Some(est1("acct_ab12", EYESOFF)), None, NOW)).0, "acct_ab12");
++            // a token minted for a deployment this notebook does not serve
++            let stranger = "0x3333333333333333333333333333333333333333333333333333333333333333";
++            assert_eq!(identify_with(&c, false, Some(est1("acct_ab12", stranger)), None, NOW).unwrap_err().0, 401);
++            // the service path, as eyesoff-ai uses it
++            assert_eq!(user(identify_with(&c, true, None, Some("acct_ab12".into()), NOW)), ("acct_ab12".into(), "key"));
++            // a wallet sign-in is refused where no wallet block admits it
++            let w = wallet::WalletConfig::parse(&serde_json::json!({ "audience": AUD, "domains": ["notes.example.org"] })).unwrap();
++            assert!(identify_with(&c, false, Some(ews1(&w, "notes.example.org", &key(0x42))), None, NOW).unwrap_err().1.contains("wallet"));
++        }
++
++        #[test]
++        fn a_wallet_has_its_own_notebook() {
++            let c = cfg(serde_json::json!({
++                "sso": { "signer": SIGNER, "audience": AUD },
++                "wallet": { "audience": AUD, "domains": ["notes.example.org"], "accept": [EYESOFF] } }));
++            assert!(c.error.is_none(), "{:?}", c.error);
++            let w = c.wallet.clone().unwrap();
++            let (sub, via) = user(identify_with(&c, false, Some(ews1(&w, "notes.example.org", &key(0x42))), None, NOW));
++            assert_eq!((sub.as_str(), via), (format!("wallet_{SIGNER}").as_str(), "wallet"));
++            // the same address through the platform is a different notebook
++            let (plat, _) = user(identify_with(&c, false, Some(est1(SIGNER, AUD)), None, NOW));
++            assert_eq!(plat, SIGNER);
++            assert_ne!(plat, sub);
++            // eyesoff-ai naming a wallet user beside the key lands in that same wallet notebook
++            assert_eq!(user(identify_with(&c, true, None, Some(format!("wallet_{}", SIGNER.to_uppercase().replace("0X", "0x"))), NOW)).0, sub);
++            // a wallet sign-in made for another site or another deployment opens nothing
++            let elsewhere = wallet::WalletConfig::parse(&serde_json::json!({ "audience": AUD, "domains": ["evil.example"] })).unwrap();
++            assert_eq!(identify_with(&c, false, Some(ews1(&elsewhere, "evil.example", &key(0x42))), None, NOW).unwrap_err().0, 401);
++            let other_dep = wallet::WalletConfig::parse(&serde_json::json!({ "audience": "0x2222222222222222222222222222222222222222222222222222222222222222", "domains": ["notes.example.org"] })).unwrap();
++            assert_eq!(identify_with(&c, false, Some(ews1(&other_dep, "notes.example.org", &key(0x42))), None, NOW).unwrap_err().0, 401);
++            // expired
++            let t = ews1(&w, "notes.example.org", &key(0x42));
++            assert_eq!(identify_with(&c, false, Some(t), None, NOW + 86_400).unwrap_err().0, 401);
++        }
++
++        /// The account side of a jot link: a sign-in for THIS notebook made in
++        /// the last ten minutes - not an old one, not one for the eyesoff-ai
++        /// deployment it accepts tokens from, not without both blocks.
++        #[test]
++        fn link_account_proofs() {
++            let c = cfg(serde_json::json!({
++                "sso": { "signer": SIGNER, "audience": AUD, "accept": [EYESOFF] },
++                "wallet": { "audience": AUD, "domains": ["notes.example.org"] } }));
++            assert_eq!(account_proof_of(&c, Some(est1("acct_ab12", AUD)), NOW + 30).unwrap().0, "acct_ab12");
++            assert!(account_proof_of(&c, Some(est1("acct_ab12", AUD)), NOW + 601).unwrap_err().1.contains("fresh"));
++            assert!(identify_with(&c, false, Some(est1("acct_ab12", EYESOFF)), None, NOW).is_ok(), "fine to sign in with");
++            assert!(account_proof_of(&c, Some(est1("acct_ab12", EYESOFF)), NOW).unwrap_err().1.contains("another deployment"));
++            let w = c.wallet.clone().unwrap();
++            assert_eq!(account_proof_of(&c, Some(ews1(&w, "notes.example.org", &key(0x42))), NOW).unwrap_err().0, 401);
++            assert_eq!(account_proof_of(&c, None, NOW).unwrap_err().0, 401);
++            let only_sso = cfg(serde_json::json!({ "sso": { "signer": SIGNER, "audience": AUD } }));
++            assert_eq!(account_proof_of(&only_sso, Some(est1("acct_ab12", AUD)), NOW).unwrap_err().0, 404);
++        }
++
++        /// Where the link key comes from: an explicit link_key, else
++        /// master_key; an unset or short link_key turns links off rather than
++        /// falling back; with neither, links are off and nothing is read.
++        #[test]
++        fn link_key_sources() {
++            let base = serde_json::json!({ "sso": { "signer": SIGNER, "audience": AUD }, "wallet": { "audience": AUD, "domains": ["n.example"] } });
++            let with = |extra: serde_json::Value| {
++                let mut v = base.clone();
++                for (k, x) in extra.as_object().unwrap() { v[k] = x.clone(); }
++                cfg(v)
++            };
++            let c = with(serde_json::json!({ "link_key": "an-explicit-link-key-0123456789" }));
++            assert_eq!(c.link_key_source, "link_key");
++            assert!(link_ctx(&c).is_some());
++            let c = with(serde_json::json!({ "master_key": "a-master-key-0123456789abcdef" }));
++            assert_eq!(c.link_key_source, "master_key");
++            // an unresolved $VAR reads as empty: off, and NOT the master key
++            std::env::remove_var("JOT_TEST_UNSET_LINK_KEY");
++            let c = with(serde_json::json!({ "link_key": "$JOT_TEST_UNSET_LINK_KEY", "master_key": "a-master-key-0123456789abcdef" }));
++            assert!(c.link_key.is_none() && link_ctx(&c).is_none(), "{}", c.link_key_source);
++            let c = with(serde_json::json!({ "link_key": "short" }));
++            assert!(link_ctx(&c).is_none());
++            let c = with(serde_json::json!({}));
++            assert!(link_ctx(&c).is_none());
++            assert!(c.link_key_source.starts_with("off"));
++            // the master-key-derived link key is not the notes' cipher key for any scope
++            let m = link::LinkKey::from_secret("a-master-key-0123456789abcdef").unwrap();
++            let lc = link::Ctx { key: &m, aud: AUD, bucket: "b", prefix: "p/" };
++            let rec = link::record(&lc, link::Dir::Wallet, "acct_ab12", "wallet_0x17c5185167401ed00cf5f5b2fc97d9bbfdb7d025", 1);
++            assert!(link::verify(&lc, link::Dir::Wallet, &rec).is_some());
++        }
++
++        #[test]
++        fn wallet_only_and_malformed_blocks() {
++            let c = cfg(serde_json::json!({ "wallet": { "audience": AUD, "domains": ["notes.example.org"] } }));
++            assert!(c.per_user() && c.sso.is_none());
++            assert!(identify_with(&c, false, Some(est1("acct_ab12", AUD)), None, NOW).unwrap_err().1.contains("wallet sign-ins"));
++            assert_eq!(identify_with(&c, false, None, None, NOW).unwrap_err().0, 401);
++            let bad = cfg(serde_json::json!({ "wallet": { "audience": "0x12" } }));
++            assert!(bad.error.as_deref().unwrap_or("").contains("wallet.audience"));
++            for name in ["wallet_0x12", "bob", "wallet_acct_1"] {
++                assert_eq!(identify_with(&c, true, None, Some(name.into()), NOW).unwrap_err().0, 400, "{name}");
++            }
++        }
++    }
++
+     #[test]
+     fn names_are_relative_plain_paths() {
+         for ok in ["a", "a.md", "projects/enclave.md", "meeting notes 2026-09-01.md", "x/y/z"] {

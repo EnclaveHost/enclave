@@ -1,0 +1,10 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/lib.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/lib.rs
+@@ -54,6 +54,7 @@
+ use sia_core::signing::PrivateKey;
+ 
+ mod app_client;
++pub mod fence; // PATCH (writer fencing)
+ mod builder;
+ mod congestion;
+ mod download;

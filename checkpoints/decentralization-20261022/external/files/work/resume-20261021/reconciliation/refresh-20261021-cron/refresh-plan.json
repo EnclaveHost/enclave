@@ -1,0 +1,168 @@
+{
+ "at": "2026-10-21T15:11:33.891960+00:00",
+ "mode": "--plan",
+ "oldTree": "0e2293045cdb407a0a2866a4e6b1ae893e39d0bf",
+ "upstream": "7752a4239b3bec2cf452491cd1b95164a8c2bdb8",
+ "authorized": [
+  {
+   "path": "network/host-admission-runtime.mjs",
+   "receipt": "cron-startup-20261021/canonical-integration/CANONICAL-INTEGRATION.json",
+   "localSha256": "f9e009dadf3bb3a7d6f6823153f06864a9a58c0b3f2e2df1f35c3a606b2d83ec",
+   "expected": "f9e009dadf3bb3a7d6f6823153f06864a9a58c0b3f2e2df1f35c3a606b2d83ec",
+   "mode": "100644",
+   "candidateNowSha256": "b0d4d2ab26afc91a995e5d7edd95d333851571b3ea0d1da2fa69a4f82f289aef",
+   "newSha256": "f9e009dadf3bb3a7d6f6823153f06864a9a58c0b3f2e2df1f35c3a606b2d83ec",
+   "tChanged": false,
+   "action": "update",
+   "candidateWasReceiptBefore": true
+  },
+  {
+   "path": "network/lease-reader.mjs",
+   "receipt": "cron-startup-20261021/canonical-integration/CANONICAL-INTEGRATION.json",
+   "localSha256": "907ba85d40e3938d6a2aa3e22904bb9449b3bce5426eaf27003892922b6efa5e",
+   "expected": "907ba85d40e3938d6a2aa3e22904bb9449b3bce5426eaf27003892922b6efa5e",
+   "mode": "100644",
+   "candidateNowSha256": "d885b303b8f860e5be1e498be0078f3cef16e4d77c84211769cc5c67839d9347",
+   "newSha256": "907ba85d40e3938d6a2aa3e22904bb9449b3bce5426eaf27003892922b6efa5e",
+   "tChanged": false,
+   "action": "update",
+   "candidateWasReceiptBefore": true
+  },
+  {
+   "path": "windows/node/host.mjs",
+   "receipt": "cron-startup-20261021/canonical-integration/CANONICAL-INTEGRATION.json",
+   "localSha256": "e41122d7a547635821d7d237e69460fcda33f7aa7f77e35afbde0754ae310a1a",
+   "expected": "e41122d7a547635821d7d237e69460fcda33f7aa7f77e35afbde0754ae310a1a",
+   "mode": "100644",
+   "candidateNowSha256": "d4b5d41768e36a6274ade9a731e32b0089f81419a36dc9a93615bc860717323d",
+   "newSha256": "e41122d7a547635821d7d237e69460fcda33f7aa7f77e35afbde0754ae310a1a",
+   "tChanged": false,
+   "action": "update",
+   "candidateWasReceiptBefore": true
+  },
+  {
+   "path": "windows/node/host-admission.bundle.mjs",
+   "receipt": "cron-startup-20261021/canonical-integration/CANONICAL-INTEGRATION.json",
+   "localSha256": "7aeb5de953f1faaef0bfaa0e5f0d8138c3726a04ca3614225aa1159694bbfcd4",
+   "expected": "7aeb5de953f1faaef0bfaa0e5f0d8138c3726a04ca3614225aa1159694bbfcd4",
+   "mode": "100644",
+   "candidateNowSha256": "e83515fca7468d5d6636631617d73d9ed9ef12b798439e7aaed347f2f524182c",
+   "newSha256": "7aeb5de953f1faaef0bfaa0e5f0d8138c3726a04ca3614225aa1159694bbfcd4",
+   "tChanged": false,
+   "action": "update",
+   "candidateWasReceiptBefore": true
+  },
+  {
+   "path": "metal/guest/host-policy.bundle.mjs",
+   "receipt": "cron-startup-20261021/canonical-integration/CANONICAL-INTEGRATION.json",
+   "localSha256": "a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21",
+   "expected": "a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21",
+   "mode": "100644",
+   "candidateNowSha256": "8b2dfbc6b5466d3c4f4559c15d874824f1ddddd3e530667a3848b3141b477af9",
+   "newSha256": "a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21",
+   "tChanged": false,
+   "action": "update",
+   "candidateWasReceiptBefore": true
+  },
+  {
+   "path": "test/host-admission-retry.test.mjs",
+   "receipt": "cron-startup-20261021/canonical-integration/CANONICAL-INTEGRATION.json",
+   "localSha256": "109e1f7b8c2c2523006c2493b84ead82366b22fe304bb2f8ab47679f2381a878",
+   "expected": "109e1f7b8c2c2523006c2493b84ead82366b22fe304bb2f8ab47679f2381a878",
+   "mode": "100644",
+   "candidateNowSha256": null,
+   "newSha256": "109e1f7b8c2c2523006c2493b84ead82366b22fe304bb2f8ab47679f2381a878",
+   "tChanged": false,
+   "action": "add",
+   "candidateWasReceiptBefore": null
+  },
+  {
+   "path": "test/windows-node-tick-single-flight.test.mjs",
+   "receipt": "cron-startup-20261021/canonical-integration/CANONICAL-INTEGRATION.json",
+   "localSha256": "d8ceb1af3c517d144c84a9d46e73c94956e5f0c0713b3c8f2a20d72744745f49",
+   "expected": "d8ceb1af3c517d144c84a9d46e73c94956e5f0c0713b3c8f2a20d72744745f49",
+   "mode": "100644",
+   "candidateNowSha256": null,
+   "newSha256": "d8ceb1af3c517d144c84a9d46e73c94956e5f0c0713b3c8f2a20d72744745f49",
+   "tChanged": false,
+   "action": "add",
+   "candidateWasReceiptBefore": null
+  }
+ ],
+ "driftSinceCandidate": {
+  "snapshot": "main-now.sha256 (2026-10-21T11:15Z)",
+  "paths": 19,
+  "authorized": [
+   "metal/guest/host-policy.bundle.mjs",
+   "network/host-admission-runtime.mjs",
+   "network/lease-reader.mjs",
+   "test/host-admission-retry.test.mjs",
+   "test/windows-node-tick-single-flight.test.mjs",
+   "windows/node/host-admission.bundle.mjs",
+   "windows/node/host.mjs"
+  ],
+  "notApplied": [
+   {
+    "path": "metal/guest/platform-api-entry.mjs",
+    "snapshot": null,
+    "now": "b704d6ced7b8922179366cf76733e67899937696170b964018655824b2257638"
+   },
+   {
+    "path": "metal/guest/platform-api-role.mjs",
+    "snapshot": "9fd9c3cb41d4ccd53340406e0f9d89c191d7820fe74a50469909b0254d0f0f8b",
+    "now": "3bcee3dfe3da8bcb4cdbdc98412f1aca426a8c1a020ab99f4bea7991e3f64812"
+   },
+   {
+    "path": "relay/api-relay.js",
+    "snapshot": "3cc03d1d0ab3489cbf9327ef9b8df1f64c561acdf2cf5137265be69f3929a881",
+    "now": "ece620bd5fa0e51d025761516fcb4e86b06406865915f92ce341c4fa6e2ec915"
+   },
+   {
+    "path": "relay/api-relay.js.orig",
+    "snapshot": null,
+    "now": "3cc03d1d0ab3489cbf9327ef9b8df1f64c561acdf2cf5137265be69f3929a881"
+   },
+   {
+    "path": "relay/secrets.js",
+    "snapshot": "6f3d8c7633510b5a0c6e4a230aa8b0dad78eff585ad59f8b1fc381f3ef138ea5",
+    "now": "4c49127164e716a7431b1e2d62cd703f82b7a849641205e5bdf28d3bd17a198b"
+   },
+   {
+    "path": "scripts/build-platform-api-guest-bundle.mjs",
+    "snapshot": "8fab5821db38346dd4245f9e1ed5ed2f10e0094e98b29f22fe41a806948387d6",
+    "now": "d985712862a666c7ddd8a835b262db7a7da16933d26797daf81f43e70529290e"
+   },
+   {
+    "path": "test/cors-ens-origins.test.mjs",
+    "snapshot": null,
+    "now": "f9fc9c037c6224ebd9bdb990ae6b26224adc6d4bdd180d2e1123927bf48ada8d"
+   },
+   {
+    "path": "test/custody-relay.test.mjs",
+    "snapshot": "abc30193724b83af88b9399e456ebf89a9d92cdb417ff5709b6987e3ac4f2b4b",
+    "now": "936b7a2bdbbdd9aefe1af96d985db0088a05e2bcd62a740f323fe734b80ae3cd"
+   },
+   {
+    "path": "test/relay-exists-fastpath.test.mjs",
+    "snapshot": null,
+    "now": "cc2157833a6ac43e4224b79fcebd7f5351edcef270965aa6213b39af6f7f3a99"
+   },
+   {
+    "path": "windows/vbslike/manager/testdata/fake-wmiserve.mjs",
+    "snapshot": "1a91f363ed76c168ea7d2a27463cb2c4ce0c6d0067485ad7d52bc1639dd07694",
+    "now": "5b7b9f9c7176ec002ddfb8d63897eb274d3fce8bf1e5ac1c2cac66a47874c210"
+   },
+   {
+    "path": "windows/vbslike/manager/wmiserve-run.mjs",
+    "snapshot": "c0154d17372a09fa08d9c4c8675496668fa927774da5245bb2d6892410feddde",
+    "now": "8107f272741c40a3d6ea51c0054d5fdc0904cd277346265cd01ca9de1c74ed17"
+   },
+   {
+    "path": "windows/vbslike/manager/wmiserve-run.test.mjs",
+    "snapshot": "def33c780fa16ee30890bde7c9059194888bf68bab30a67d5b9bec97d77702d6",
+    "now": "83b201f0d541586a161759f20ecb7ffffc776fd8d542af9c0598fe8d8974055c"
+   }
+  ]
+ },
+ "stop": []
+}

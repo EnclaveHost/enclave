@@ -1,0 +1,757 @@
+--- a/scripts/network/browser-profile.mjs
++++ b/scripts/network/browser-profile.mjs
+@@ -10,8 +10,11 @@
+ //     --expect-digest sha256:<64 hex> --expect-pins contracts/deployments/contract-pins-base.json \
+ //     --rpc https://base-rpc.publicnode.com --rpc https://mainnet.base.org --rpc https://base.drpc.org \
+ //     [--quorum 2] [--confirmations 2] [--max-block-age 600] [--storage-plan storage.json] \
+-//     [--directory https://dir-a.example ...] [--name "..."] [--verify-chain] --out browser-profile.json
++//     [--directory https://dir-a.example ...] [--name "..."] [--address-book 0x...] [--verify-chain] --out browser-profile.json
++// --address-book selects administrator-directed following and with it the ORIGINAL session factory (legacySessionVaultFactory);
++// with --verify-chain the binding (factory -> implementation -> book, USDC, core entries) is checked at the verified block.
+ import fs from 'node:fs/promises';
++import {parseAbi,stringToHex} from 'viem';
+ import {createHash} from 'node:crypto';
+ import {parseArgs} from 'node:util';
+ import {pathToFileURL} from 'node:url';
+@@ -40,10 +43,19 @@
+   const usdc=profile.contracts.usdc?.address;
+   if(!usdc)throw Error('the authority profile pins no usdc');
+   const feed=profile.contracts.deployments?.reviewedState?.ethUsdFeed;
++  const contracts=Object.fromEntries(Object.entries(pins.contracts).map(([k,v])=>[k,v.toLowerCase()]));
++  // Address-book mode follows the administrator's book, which only the ORIGINAL session factory's vaults consult: select
++  // that factory from the same digest-checked authority profile. The pinned alternate factory never reads the book, and
++  // the dashboard refuses to sign sessions through a factory bound to another book (independent-chain sessionAuthority).
++  if(addressBook!==null){
++    const original=profile.contracts.legacySessionVaultFactory?.address;
++    if(!original||/^0x0{40}$/i.test(original))throw Error('address-book mode needs the original session factory (legacySessionVaultFactory) in the authority profile');
++    contracts.sessionVaultFactory=original.toLowerCase();
++  }
+   for(const d of directories)if(!/^https:\/\//.test(d))throw Error('directories must be HTTPS origins: a dashboard served over HTTPS cannot reach '+d);
+   const out={format:PROFILE_FORMAT,version:1,name:name||'Base · authority profile '+digest.slice(7,19),chainId:profile.chainId,
+     rpcs,quorum,confirmations,maxBlockAgeSeconds,
+-    contractPins:{version:1,chainId:pins.chainId,contracts:Object.fromEntries(Object.entries(pins.contracts).map(([k,v])=>[k,v.toLowerCase()]))},
++    contractPins:{version:1,chainId:pins.chainId,contracts},
+     usdc:usdc.toLowerCase(),
+     ...(addressBook !== null ? {addressBook} : {}),
+     ...(feed&&!/^0x0{40}$/i.test(feed)?{ethUsdFeed:feed.toLowerCase()}:{}),
+@@ -54,7 +66,33 @@
+   for(const u of rpcs)if(!/^https:\/\//.test(u))throw Error('RPCs must be HTTPS for a published browser profile: '+u);
+   const text=JSON.stringify(out,null,2)+'\n';
+   if(Buffer.byteLength(text)>PROFILE_MAX_BYTES)throw Error('browser profile too large');
+-  return {text,fingerprint:createHash('sha256').update(text).digest('hex'),authorityDigest:digest,profile};
++  return {text,fingerprint:createHash('sha256').update(text).digest('hex'),authorityDigest:digest,profile,browser:out};
++}
++
++const BOOK_ABI=parseAbi(['function implementation() view returns (address)','function factory() view returns (address)',
++  'function book() view returns (address)','function usdc() view returns (address)','function owner() view returns (address)',
++  'function addr(bytes32) view returns (address)']);
++/* Address-book mode at the verified block: every RPC must report the original factory bound to this book and USDC, an
++   administrator, and the book's core entries equal to the profile's starting pins (otherwise review the pins first). */
++export async function verifyBookBinding({clients,browser,blockNumber}){
++  const {addressBook:book,usdc}=browser,{sessionVaultFactory:factory}=browser.contractPins.contracts;
++  const answers=await Promise.all(clients.map(async c=>{
++    const read=(address,functionName,args=[])=>c.readContract({address,abi:BOOK_ABI,functionName,args,blockNumber}).then(a=>a.toLowerCase());
++    const implementation=await read(factory,'implementation');
++    const out={implementation,factory:await read(implementation,'factory'),book:await read(implementation,'book'),
++      usdc:await read(implementation,'usdc'),owner:await read(book,'owner')};
++    for(const k of ['registry','deployments','appCatalog'])out[k]=await read(book,'addr',[stringToHex(k,{size:32})]);
++    return JSON.stringify(out);
++  }));
++  if(new Set(answers).size!==1)throw Error('RPCs disagree about the address-book binding at block '+blockNumber);
++  const a=JSON.parse(answers[0]);
++  if(a.factory!==factory)throw Error('the session implementation '+a.implementation+' belongs to another factory');
++  if(a.book!==book)throw Error('the original session factory follows book '+a.book+', not '+book);
++  if(a.usdc!==usdc)throw Error('the session implementation uses USDC '+a.usdc+', not '+usdc);
++  if(/^0x0{40}$/.test(a.owner))throw Error('the address book has no administrator');
++  for(const k of ['registry','deployments','appCatalog'])if(a[k]!==browser.contractPins.contracts[k])
++    throw Error('the address book now selects '+a[k]+' for '+k+' (profile pin '+browser.contractPins.contracts[k]+'); review the pins before publishing');
++  return a;
+ }
+ 
+ async function main(){
+@@ -69,8 +107,13 @@
+     confirmations:int(values.confirmations,'confirmations',2),maxBlockAgeSeconds:int(values['max-block-age'],'max-block-age',600),
+     storage,directories:values.directory||[],name:values.name||'',addressBook:values['address-book']??null});
+   if(values['verify-chain']){
+-    const v=await verifyProfileOnChain({profile:r.profile,clients:rpcClients(values.rpc)});
++    const clients=rpcClients(values.rpc);
++    const v=await verifyProfileOnChain({profile:r.profile,clients});
+     console.error('authority profile matches the chain at block '+v.blockNumber+' ('+v.blockHash+')');
++    if(r.browser.addressBook){
++      const b=await verifyBookBinding({clients,browser:r.browser,blockNumber:BigInt(v.blockNumber)});
++      console.error('address book '+r.browser.addressBook+' (administrator '+b.owner+') binds the original session factory at that block');
++    }
+   }
+   await fs.writeFile(values.out,r.text,{flag:'wx',mode:0o644});
+   console.log(JSON.stringify({out:values.out,fingerprint:'sha256:'+r.fingerprint,authorityProfileDigest:r.authorityDigest}));
+--- a/site/components/deployments/deployments.js
++++ b/site/components/deployments/deployments.js
+@@ -309,12 +309,26 @@
+ // (on-chain txs + enclave-session reads); "vault" rows are owned by the
+ // account's credit vault (money/control ops are passkey-signed through the
+ // relay); "order" rows are legacy provisioner-owned (read-only here).
+-function ctlOf(d){ return d && d.viaVault ? "vault" : (d && d.orderId ? "order" : "wallet"); }
++// A row on a ledger the platform administrator REPLACED (address-book profile, js/core/independent-chain.js
++// retiredLedgerRecords) is read-only too: only its recovery (refund to the owner) is offered, on that ledger.
++function ctlOf(d){ return d && d.viaVault ? "vault" : (d && (d.orderId || d.retiredLedger) ? "order" : "wallet"); }
+ // a wallet is needed only when someone must pay gas and the dashboard's passkey account does not pay its own (account-transport.js)
+ const needsWallet = async () => !Enclave.provider && !(INDEPENDENT_MODE && await import("../../js/core/account-transport.js").then((m) => m.accountPaysOwnGas()).catch(() => false));
+ const needPayer = async () => { if (await needsWallet()) await connectWallet(); };
+ // independent mode: a listed row not held by the acting owner itself is held by its session vault (the listing holds only those two)
+-function vaultHeld(d){ const o = actingOwner(Enclave.address); return !!o && !!d && !!d.owner && String(d.owner).toLowerCase() !== o; }
++// a record on a replaced ledger (read-only row), or a carried-over record whose earlier funding that ledger still holds
++function replacedOf(d){
++  if (d && d.retiredLedger) return { ledger: d.retiredLedger, ledgerRetired: d.ledgerRetired, refundable6: d.refundable6 };
++  return (d && d.replacedLedger) || null;
++}
++// who can push a replaced-ledger refund from here: anyone once that ledger is retired, else only the record's owner
++function retiredRecoverer(d){
++  const owner = String(d.owner || "").toLowerCase(), acting = actingOwner(Enclave.address);
++  if (currentIdentity().kind === "account" && acting && owner === acting) return "account";
++  if (replacedOf(d).ledgerRetired || (Enclave.address && owner === String(Enclave.address).toLowerCase())) return "wallet";
++  return "";
++}
++function vaultHeld(d){ const o = actingOwner(Enclave.address); return !!o && !!d && !d.retiredLedger && !!d.owner && String(d.owner).toLowerCase() !== o; }
+ /* ---- saved config VARIATIONS: named app-config documents, THIS BROWSER only ----
+    A variation is a config the owner wants to come back to (a tuning they A/B,
+    a seasonal setting) - it never rides the chain until Applied, so it lives in
+@@ -705,6 +719,8 @@
+           + (scan.reason ? ' <span class="dim">(' + esc(scan.reason) + ')</span>' : '')
+         : '<span class="dim">Read from the ledger at block ' + esc(String(scan.block)) + ' (' + scan.total + ' records checked).</span>')
+       + (scan.notMine && scan.notMine.length ? ' <span class="warn">Not owned by this wallet: ' + scan.notMine.map((x) => esc(x.slice(0, 10) + "…")).join(", ") + '</span>' : '')
++      + (scan.replaced ? ' <span class="dim enc-replaced-scan">Found ' + scan.replaced + ' of your record(s) on a ledger the platform replaced.</span>' : '')
++      + (scan.replacedError ? ' <span class="warn enc-replaced-scan">Couldn’t read the replaced ledger: ' + esc(scan.replacedError) + '</span>' : '')
+       + ' <label class="dim">Add by id <input class="enc-watch ac-in" spellcheck="false" placeholder="0x… full deployment id" size="30"></label>'
+       + ' <button type="button" class="btn btn-sm enc-watch-go">Add</button>';
+     el.querySelector(".enc-watch-go").addEventListener("click", async () => {
+@@ -1386,6 +1402,13 @@
+           '</span>' +
+         '</div>' +
+         ((st === "failed" || st === "expired") && d.error ? '<div class="enc-err" title="why this deployment ' + esc(st) + '">⚠ ' + esc(d.error) + '</div>' : '') +
++        (replacedOf(d) ? '<div class="enc-retired" role="note" data-rid="' + esc(d.id) + '">' + (d.retiredLedger ? 'On' : 'Carried over to the current ledger; its earlier funding is still held on')
++          + ' ledger <code>' + esc(replacedOf(d).ledger) + '</code>, which the platform replaced'
++          + (replacedOf(d).ledgerRetired ? ' and retired: anyone may push its refund, and it always pays the record’s owner. ' : ' (not retired yet: only the record’s owner can refund it). ')
++          + (replacedOf(d).refundable6 != null ? esc((Number(replacedOf(d).refundable6) / 1e6).toFixed(2)) + ' USDC is refundable there. ' : '')
++          + (replacedOf(d).refundable6 === "0" ? '' : retiredRecoverer(d) ? '<button class="btn btn-sm enc-rrefund" data-id="' + esc(d.id) + '" data-ledger="' + esc(replacedOf(d).ledger) + '" data-by="' + retiredRecoverer(d) + '">Recover funds</button> '
++            : '<span class="dim">Its owner <code>' + esc(d.owner) + '</code> holds it there; until the platform retires that ledger, only that owner can refund it. </span>')
++          + '<span class="enc-rref-out" role="status" aria-live="polite"></span></div>' : '') +
+         // a version change the runner could not apply yet (unapproved/oversized
+         // target, catalog unreachable): the OLD version keeps serving; say why
+         (d.versionChange && d.versionChange.error ? '<div class="enc-err" title="the requested version change has not applied - the previous version keeps serving; the runner retries automatically">⚠ version change pending: ' + esc(d.versionChange.error) + '</div>' : '') +
+@@ -1442,6 +1465,22 @@
+     }).join("");
+     $$(".enc-id", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
+     $$(".enc-ep", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.ep)));
++    // recovery on a replaced ledger: refund(id) sent to THAT ledger (js/core/platform-addresses.js allows exactly this
++    // and suspend there); the connected wallet pays the gas, and the ledger pays the record's owner
++    $$(".enc-rrefund", body).forEach(b => b.addEventListener("click", async () => {
++      const out = b.parentElement.querySelector(".enc-rref-out");
++      b.disabled = true; out.textContent = "checking the replaced ledger…";
++      try {
++        const call = { to: b.dataset.ledger, data: "0x" + DEP_SEL.refund + pad32(b.dataset.id) };
++        // a passkey account refunds its own record through its Safe; otherwise the wallet sends (on a retired ledger anyone
++        // may push the refund, and it always pays the record's owner)
++        if (!Enclave.provider) await connectWallet();
++        const h = b.dataset.by === "account" ? await (await import("../../js/core/sessions.js")).safeExecute(call) : await walletSendTx(call.to, call.data);
++        out.textContent = "sent " + h + " · waiting for confirmation…";
++        await waitReceipt(h);
++        out.textContent = "refunded to the record's owner"; this.refresh && this.refresh({ spinner: false });
++      } catch(e){ out.textContent = "✗ " + (e.message || String(e)); b.disabled = false; }
++    }));
+     // STRICT tabs: opening one panel first closes any open sibling - via the
+     // open tab's own click path (capture phase runs before the open handler),
+     // so each panel keeps its own close semantics. Re-entry is safe: the
+--- a/site/js/core/api.js
++++ b/site/js/core/api.js
+@@ -26,6 +26,24 @@
+ /* localStorage key holding the id of this browser's active WALLET SESSION (sessions.js owns its lifecycle) */
+ export const WALLET_SESSION_KEY = "enclave_wallet_session";
+ 
++/* An address-book profile after an administrator migration: the owner's records on a REPLACED ledger are appended as
++   read-only rows (recovery only), never dropped. A failed read of them is reported on the scan, not hidden. */
++async function withReplacedLedgers(m, rows, owners){
++  let extra = [];
++  try { extra = m.retiredLedgerRows(await m.retiredLedgerRecords(owners)); }
++  catch (e){ if (rows.independentScan) rows.independentScan.replacedError = String(e && e.message || e); }
++  // a migrated record (imported verbatim into the current ledger, same id) stays one row: the current ledger's, with
++  // what the replaced ledger still holds for it attached; records that were not carried over are listed read-only
++  const current = new Map(rows.map((r) => [String(r.id).toLowerCase(), r]));
++  for (const r of extra){
++    const same = current.get(String(r.id).toLowerCase());
++    if (!same) rows.push(r);
++    else if (r.refundable6 !== "0") same.replacedLedger = { ledger: r.retiredLedger, ledgerRetired: r.ledgerRetired, refundable6: r.refundable6 };
++  }
++  if (rows.independentScan) rows.independentScan.replaced = extra.length;
++  return rows;
++}
++
+ export const Enclave = {
+   /* The endpoint every call goes to. It persists in localStorage because the
+      Deploy page exposes the field (point the site at your own relay, or at
+@@ -315,13 +333,13 @@
+         if (idn.state !== "verified") throw new ID.IdentityError("your passkey account " + idn.safe + " is not verified: " + (idn.reason || "still checking") + ". Its rows are shown once it verifies; or switch to your wallet", { code: "identity" });
+         const m = await import("./independent-chain.js");
+         const vault = await (await import("./sessions.js")).independentVaultOf(idn.safe);
+-        return m.independentList([idn.safe, vault]);
++        return withReplacedLedgers(m, await m.independentList([idn.safe, vault]), [idn.safe, vault]);
+       }
+       if (!this.address) throw new EnclaveError("Connect your wallet first.", 401);
+       const m = await import("./independent-chain.js");
+       let vault = null;
+       try { vault = await (await import("./sessions.js")).independentVaultOf(this.address); } catch(e){ vault = null; }
+-      return m.independentList([this.address, vault]);
++      return withReplacedLedgers(m, await m.independentList([this.address, vault]), [this.address, vault]);
+     }
+     // the wallet session: the relay verifies it (api.status) for the ledger merge and the hosts it fans out to
+     // answer their live rows to it. ?owner= rides along (signed like the rest of the URL) so a relay that
+--- a/site/js/core/fund.js
++++ b/site/js/core/fund.js
+@@ -180,6 +180,8 @@
+     message: { from: Enclave.address, to: to, value: amt6.toString(),
+                validAfter: "0", validBefore: String(validBefore), nonce: nonce },
+   };
++  // the authorization names its receiving contract: under an address book, confirm that binding before the wallet signs
++  await (await import("./platform-addresses.js")).assertPlatformTransactionCurrent(to);
+   log("info", "[*] sign a " + usd + " USDC payment authorization (EIP-3009)… (wallet · gas-free signature)");
+   let sig = await Enclave.provider.request({ method: "eth_signTypedData_v4", params: [Enclave.address, JSON.stringify(typed)] });
+   // some wallets return v as 0/1; USDC's ecrecover wants 27/28 (65-byte ECDSA
+--- a/site/js/core/independent-chain.js
++++ b/site/js/core/independent-chain.js
+@@ -76,6 +76,51 @@
+   return { snap, rev, rows };
+ }
+ 
++/* Records `owners` hold on ledgers the platform administrator REPLACED (js/core/platform-addresses.js retiredLedgers: the
++   profile's initial ledger when the book now names another, and any replaced while this tab was open). They are listed,
++   never dropped: escrow stays there. -> [{ ledger, ledgerRetired, row, refundable6, rev }], read at ONE agreed block.
++   On a retired ledger refund(id) is open to anyone and always pays the record's owner; before retirement only the owner
++   may call it. */
++export async function retiredLedgerRecords(owners){
++  const want = new Set(owners.filter(Boolean).map((a) => String(a).toLowerCase()));
++  if (!want.size || !platformBookEnabled) return [];
++  const r = reader(), snap = await r.snapshot();          // resolves the book first, so the replaced set is current
++  const ledgers = (await import("./platform-addresses.js")).retiredLedgers();
++  const out = [];
++  for (const L of ledgers){
++    const code = await r.code(snap, L);
++    if (!code || code === "0x") continue;
++    await assertImplements(snap, L, "the replaced ledger " + L, ["count()", "getPage(uint256,uint256)", "refund(bytes32)"]);
++    let rev = 1;
++    try { rev = Number(word(await r.call(snap, L, "0x" + SEL.deploymentsSchema))) || 1; } catch (e){ if (!(e && e.revert)) throw e; }
++    const schema = rev >= 2 ? DEP_SCHEMA : DEP_SCHEMA_V1;
++    let ledgerRetired = false;
++    try { ledgerRetired = word(await r.call(snap, L, "0x" + sel("retired()"))) === 1n; } catch (e){ if (!(e && e.revert)) throw e; }
++    const n = Number(word(await r.call(snap, L, "0x" + SEL.count)));
++    if (!Number.isSafeInteger(n) || n < 0 || n > 1e6) throw new QuorumError("implausible deployment count on the replaced ledger " + L);
++    for (let start = 0; start < n; start += PAGE){
++      const page = decodeStructArray(await r.call(snap, L, "0x" + SEL.getPage + pad32(start.toString(16)) + pad32(PAGE.toString(16))), schema);
++      if (page.length !== Math.min(PAGE, n - start)) throw new QuorumError("deployment page did not match the count on " + L);
++      for (const d of page){
++        if (!want.has(String(d.owner).toLowerCase())) continue;
++        let refundable6 = null;
++        try { refundable6 = word(await r.call(snap, L, "0x" + sel("refundableOf(bytes32)") + pad32(String(d.id).replace(/^0x/, "")))); }
++        catch (e){ if (!(e && e.revert)) throw e; }
++        out.push({ ledger: L, ledgerRetired, row: d, refundable6, rev, snap });
++      }
++    }
++  }
++  return out;
++}
++
++/* The same records as dashboard rows: read-only (no ledger action may target a replaced ledger except recovery). */
++export function retiredLedgerRows(records){
++  return records.map(({ ledger, ledgerRetired, row, refundable6, rev, snap }) => ({
++    ...ledgerView(row, { chainNow: snap.timestamp, rev, hosts: [] }),
++    onchain: { contract: ledger, id: row.id, leaseUntil: null },
++    retiredLedger: ledger, ledgerRetired, refundable6: refundable6 == null ? null : refundable6.toString(), block: snap.number }));
++}
++
+ export async function deploymentAt(id){
+   if (!/^0x[0-9a-f]{64}$/i.test(id || "")) throw new Error("a full deployment id is required");
+   const r = reader(), snap = await r.snapshot();
+--- a/site/js/core/pay.js
++++ b/site/js/core/pay.js
+@@ -118,6 +118,8 @@
+     message: { owner: Enclave.address, spender: router,
+                value: amt6.toString(), nonce: nonce.toString(), deadline: deadline.toString() },
+   };
++  // the permit names its spender: under an address book, confirm that binding before the wallet signs
++  await (await import("./platform-addresses.js")).assertPlatformTransactionCurrent(router);
+   say("pend", "Sign the USDC permit in your wallet (free - it authorizes this one payment)…");
+   let sig;
+   try {
+--- a/site/js/core/platform-addresses.js
++++ b/site/js/core/platform-addresses.js
+@@ -9,6 +9,8 @@
+ export const platformBookEnabled = INDEPENDENT.state === "on" && !!INDEPENDENT.profile.addressBook;
+ let _reader, _last;
+ const retired = new Set();
++// ledgers among the retired targets: an admin migration leaves owners' records (and funds) on the old ledger
++const retiredLedgerSet = new Set();
+ const ZERO = /^0x0{40}$/i;
+ 
+ export function platformBookReader(){
+@@ -27,10 +29,13 @@
+   // Retain old targets to refuse calldata prepared before a background refresh.
+   const before = _last?.entries || INDEPENDENT.profile.contracts;
+   for (const key of ["deployments", "appCatalog", "registry", "paymentRouter", "featured", "reviews", "hostReviews", "secretVault"]){
+-    if (before[key] && result.entries[key] && before[key] !== result.entries[key]) retired.add(before[key].toLowerCase());
++    if (before[key] && result.entries[key] && before[key].toLowerCase() !== result.entries[key].toLowerCase()){
++      retired.add(before[key].toLowerCase());
++      if (key === "deployments") retiredLedgerSet.add(before[key].toLowerCase());
++    }
+   }
+-  const active = new Set(Object.values(result.entries).filter(a => !ZERO.test(a)));
+-  for (const address of active) retired.delete(address);
++  const active = new Set(Object.values(result.entries).filter(a => !ZERO.test(a)).map(a => a.toLowerCase()));
++  for (const address of active){ retired.delete(address); retiredLedgerSet.delete(address); }
+   // Optional zero entries disable a service. Missing entries leave explicitly
+   // selected services alone (the original book has no session factory entry).
+   const map = Object.fromEntries(Object.entries(result.entries).map(([k,v])=>[k,ZERO.test(v) ? "" : v]));
+@@ -41,8 +46,23 @@
+   return {...result, changed};
+ }
+ 
++/* Ledgers the administrator replaced, as this tab knows them: the profile's initial ledger when the book now names
++   another, and any replaced while this tab was open. Owners' records and escrow stay on them. */
++export const retiredLedgers = () => [...retiredLedgerSet];
++
++/* The two calls an owner (or, once the ledger itself is retired, anyone) still makes on a replaced ledger to get funds
++   home: refund(id), which always pays the record's OWNER, and suspend (setActive(id, false)). Nothing that creates,
++   funds, approves or reconfigures. */
++const SEL_REFUND = "0x7249fbb6", SEL_SET_ACTIVE = "0x6485d678";
++export function isLedgerRecoveryCall(data){
++  const d = String(data || "").toLowerCase();
++  if (d.startsWith(SEL_REFUND) && /^0x7249fbb6[0-9a-f]{64}$/.test(d)) return true;
++  return d.startsWith(SEL_SET_ACTIVE) && /^0x6485d678[0-9a-f]{64}0{64}$/.test(d);
++}
++
+ // A freshly prepared operation may proceed only while governance resolution is
+-// available. Do not silently retarget calldata prepared for a retired contract.
++// available. Do not silently retarget calldata prepared for a retired contract;
++// recovery calls to a replaced ledger stay possible (isLedgerRecoveryCall).
+ export async function assertPlatformTransactionCurrent(to, data = "0x"){
+   if (!platformBookEnabled) return;
+   const result = await resolvePlatformAddresses();
+@@ -52,6 +72,7 @@
+   // ERC-20 approve carries the actual spending contract in its first argument.
+   if (/^0x095ea7b30{24}[0-9a-f]{40}[0-9a-f]{64}$/i.test(data))
+     targets.push("0x" + data.slice(34,74).toLowerCase());
+-  if (targets.some(a => retired.has(a)))
++  const recovery = targets.length === 1 && retiredLedgerSet.has(targets[0]) && isLedgerRecoveryCall(data);
++  if (!recovery && targets.some(a => retired.has(a)))
+     throw new QuorumError("This operation targets a retired platform contract. Prepare it again.");
+ }
+--- a/site/js/core/sessions.js
++++ b/site/js/core/sessions.js
+@@ -912,6 +912,9 @@
+    simulated at an agreed block (the approvals, and that the target accepts the call), then the connected wallet only
+    submits it. `value` is the Safe's own ETH. */
+ export async function safeExecute({ to, data, value = 0n }){
++  // the passkeys approve the INNER call: refuse re-bound or retired platform targets before any approval (the wallet's own
++  // check later sees only the Safe as its target)
++  await (await import("./platform-addresses.js")).assertPlatformTransactionCurrent(to, data);
+   // the account paying its own gas makes the call itself in one user operation (one passkey approval of its hash)
+   if ((await accountGasMode()) === "account") return sendThroughAccount({ to, value, data, what: "a call from your account" });
+   const { profile, PA, opts } = await accountApprovals();
+@@ -1027,6 +1030,8 @@
+     primaryType: "ReceiveWithAuthorization",
+     message: { from: L.getAddress(profile.safe), to: L.getAddress(DEPLOYMENTS_ADDRESS), value: BigInt(amount6), validAfter: 0n, validBefore, nonce } };
+   log("info", "[*] approve with your passkey: a $" + (Number(amount6) / 1e6).toFixed(2) + " USDC authorization from your account (your wallet pays gas only)…");
++  // the authorization names the ledger as its receiver: confirm that binding is current before the passkeys sign it
++  await (await import("./platform-addresses.js")).assertPlatformTransactionCurrent(DEPLOYMENTS_ADDRESS);
+   const sig = await PA.passkeySafeOwnerSigner(opts).signTypedData(td);
+   const data = L.encodeFunctionData({ abi: [{ type: "function", name: "fundWithAuthorization", stateMutability: "nonpayable", inputs: ["bytes32", "address", "uint256", "uint256", "uint256", "bytes32", "bytes"].map((type) => ({ type })), outputs: [] }],
+     functionName: "fundWithAuthorization", args: [id, L.getAddress(profile.safe), BigInt(amount6), 0n, validBefore, nonce, sig] });
+--- a/test/browser-profile.test.mjs
++++ b/test/browser-profile.test.mjs
+@@ -12,7 +12,8 @@
+ import { execFileSync } from "node:child_process";
+ import { fileURLToPath, pathToFileURL } from "node:url";
+ import { keccak256, toBytes } from "viem";
+-import { convert } from "../scripts/network/browser-profile.mjs";
++import { convert, verifyBookBinding } from "../scripts/network/browser-profile.mjs";
++import { encodeProfile } from "../network/authority-profile.mjs";
+ import { parseProfile as parseBrowserProfile } from "../site/js/core/independent.js";
+ 
+ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+@@ -58,6 +59,40 @@
+   assert.throws(()=>convert({...args,addressBook:"0x"+"0".repeat(40)}),/addressBook/);
+ });
+ 
++test("address-book mode selects the ORIGINAL session factory from the reviewed profile; fixed mode keeps the pinned one", () => {
++  const args={authorityBytes,expectDigest:digest,expectPins:pins,rpcs},addressBook="0xab214342d5a490150a4a977063a2f88e21f80907";
++  const original=JSON.parse(authorityBytes).contracts.legacySessionVaultFactory.address.toLowerCase();
++  assert.equal(original,"0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c");
++  const book=parseBrowserProfile(convert({...args,addressBook}).text),fixed=parseBrowserProfile(convert(args).text);
++  assert.equal(book.contracts.sessionVaultFactory,original);
++  assert.equal(fixed.contracts.sessionVaultFactory,pins.contracts.sessionVaultFactory);
++  assert.notEqual(original,pins.contracts.sessionVaultFactory);
++  for (const k of Object.keys(pins.contracts)) if (k!=="sessionVaultFactory") assert.equal(book.contracts[k],pins.contracts[k],k);
++  const without=JSON.parse(authorityBytes);delete without.contracts.legacySessionVaultFactory;
++  // the reviewed layout itself requires the original factory's record: a profile without it is never converted
++  assert.throws(()=>{const bytes=encodeProfile(without);
++    convert({...args,addressBook,authorityBytes:bytes,expectDigest:"sha256:"+createHash("sha256").update(bytes).digest("hex")});},/legacySessionVaultFactory/);
++});
++
++test("--verify-chain in address-book mode: every RPC must bind the original factory to this book, USDC and the pinned entries", async () => {
++  const addressBook="0xab214342d5a490150a4a977063a2f88e21f80907";
++  const browser=convert({authorityBytes,expectDigest:digest,expectPins:pins,rpcs,addressBook}).browser,c=browser.contractPins.contracts;
++  const IMPL="0x"+"66".repeat(20),hex=(k)=>"0x"+Buffer.from(k).toString("hex").padEnd(64,"0");
++  const chain=(over={})=>({readContract:async({address,functionName,args,blockNumber})=>{
++    assert.equal(blockNumber,7n,"every read at the verified block");
++    const v={implementation:IMPL,factory:c.sessionVaultFactory,book:addressBook,usdc:browser.usdc,owner:"0x0b2d009c"+"00".repeat(16),
++      [hex("registry")]:c.registry,[hex("deployments")]:c.deployments,[hex("appCatalog")]:c.appCatalog,...over};
++    if(functionName==="implementation")assert.equal(address,c.sessionVaultFactory);
++    return functionName==="addr"?v[args[0]]:v[functionName];
++  }});
++  const ok=await verifyBookBinding({clients:[chain(),chain()],browser,blockNumber:7n});
++  assert.equal(ok.book,addressBook);
++  for (const [over,re] of [[{book:"0x"+"99".repeat(20)},/follows book/],[{factory:"0x"+"98".repeat(20)},/another factory/],
++    [{usdc:"0x"+"97".repeat(20)},/USDC/],[{owner:"0x"+"0".repeat(40)},/administrator/],[{[hex("deployments")]:"0x"+"96".repeat(20)},/review the pins/]])
++    await assert.rejects(verifyBookBinding({clients:[chain(over),chain(over)],browser,blockNumber:7n}),re);
++  await assert.rejects(verifyBookBinding({clients:[chain(),chain({book:"0x"+"99".repeat(20)})],browser,blockNumber:7n}),/disagree/);
++});
++
+ test("the command refuses to overwrite and prints the fingerprint", () => {
+   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bp-")), out = path.join(dir, "p.json");
+   try {
+--- a/test/helpers/fork-deploy.mjs
++++ b/test/helpers/fork-deploy.mjs
+@@ -15,10 +15,22 @@
+ const chain = { id: 8453, name: "base-fork", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } };
+ const pc = createPublicClient({ chain, transport: http(rpcUrl) }), wc = createWalletClient({ chain, account: getAddress(from), transport: http(rpcUrl) });
+ const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, name + ".json"), "utf8")); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
++// Poll the local receipt directly. viem's block-number watcher drops a block that arrives while it re-reads the pending
++// transaction, and under automine no later block follows, so it waited out its 180 s default on a mined transaction.
++const mined = async (hash, what) => {
++  for (const until = Date.now() + 120_000; Date.now() < until; await new Promise((r) => setTimeout(r, 250))){
++    const rc = await pc.getTransactionReceipt({ hash }).catch((e) => { if (e.name !== "TransactionReceiptNotFoundError") throw e; return null; });
++    if (rc){ if (rc.status !== "success") throw new Error(what + " failed"); return rc; }
++  }
++  const tx = await pc.request({ method: "eth_getTransactionByHash", params: [hash] }).catch((e) => e.message);
++  const pool = await pc.request({ method: "txpool_status", params: [] }).catch((e) => e.message);
++  throw new Error(what + ": no receipt for " + hash + " after 120 s; head " + await pc.getBlockNumber() + ", in pool " + JSON.stringify(pool)
++    + ", transaction block " + JSON.stringify(tx?.blockNumber ?? tx));
++};
+ const deploy = async (a, args = [], libs = {}) => {
+   const bytecode = Object.keys(a.linkReferences).length ? linkBytecode(a.bytecode, a.linkReferences, libs) : a.bytecode;
+   const h = await wc.sendTransaction({ data: encodeDeployData({ abi: a.abi, bytecode, args }), gas: 12_000_000n });
+-  const rc = await pc.waitForTransactionReceipt({ hash: h }); if (rc.status !== "success") throw new Error("deploy failed");
++  const rc = await mined(h, "deploy");
+   return rc.contractAddress.toLowerCase();
+ };
+ const treasury = "0x00000000000000000000000000000000000e2e01", zero = "0x0000000000000000000000000000000000000000";
+@@ -48,8 +60,7 @@
+   book = await deploy(artifact);
+   const hash = await wc.writeContract({address:book,abi:artifact.abi,functionName:"setMany",
+     args:[["registry","deployments","appCatalog"].map(s=>stringToHex(s,{size:32})),[registry,ledger,catalog]]});
+-  const receipt = await pc.waitForTransactionReceipt({hash});
+-  if (receipt.status !== "success") throw new Error("book initialization failed");
++  await mined(hash, "book initialization");
+ }
+ const factory = await deploy(legacy ? art("SessionVault.sol", "SessionVaultFactory")
+   : art("PinnedSessionVaultFactory.sol", "PinnedSessionVaultFactory"),
+--- a/test/helpers/independent-browser-rig.mjs
++++ b/test/helpers/independent-browser-rig.mjs
+@@ -250,7 +250,13 @@
+     const miner = setInterval(() => fetch(rpc, { method: "POST", headers: { "content-type": "application/json" },
+       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "evm_mine", params: [] }) }).catch(() => {}), 1000);
+     stops.push(() => clearInterval(miner));
+-    return { stop, rpc, pc, wc, write, deployCatalog: () => deploy(A.catalog),
++    // a replacement ledger the book can select (the original ledger stays deployed with its records)
++    const deployLedger = async () => {
++      const next = await deploy(A.ledger, [usdc, treasury, registry, feed], { "contracts/EnclaveDeployments.sol:EnclaveLedgerBandwidth": bw });
++      await write(dep, next, A.ledger.abi, "setProofRequiredFrom", [0n]);
++      return next;
++    };
++    return { stop, rpc, pc, wc, write, deployCatalog: () => deploy(A.catalog), deployLedger,
+       abi: { ledger: ledgerAbi, registry: A.registry.abi, catalog: A.catalog.abi, usdc: A.usdc.abi, factory: A.factory.abi, feed: A.feed.abi, book: A.book?.abi },
+       addresses: { usdc, registry, ledger, catalog, router, factory, feed, book }, owner, operator, endpoint, endpoint2,
+       site: `http://localhost:${sport}`, profile, rpcModes, adapterModes, held, uploads, directory, directoryUrl: `http://127.0.0.1:${dport}` };
+--- a/test/site-existing-contract-sessions.test.mjs
++++ b/test/site-existing-contract-sessions.test.mjs
+@@ -1,8 +1,8 @@
+ import test from "node:test";
+ import assert from "node:assert/strict";
+ import {createRequire} from "node:module";
+-import {stringToHex} from "viem";
+-import {startRig,haveTools,walletScript} from "./helpers/independent-browser-rig.mjs";
++import {stringToHex,encodeFunctionData} from "viem";
++import {startRig,haveTools,walletScript,KEYS} from "./helpers/independent-browser-rig.mjs";
+ const require=createRequire(new URL("../e2e/package.json",import.meta.url));
+ let chromium;try{({chromium}=require("playwright"));}catch{}
+ const skip=haveTools()||(!chromium&&"Playwright unavailable");
+@@ -60,6 +60,35 @@
+     await page.waitForFunction(async()=>!!(await import("/js/core/api.js")).Enclave.provider);
+     const mutations=()=>page.evaluate(()=>window.__walletMutations.length);
+     let opened,row;
++    // ledger replacement: the original ledger keeps its records; `own` is the wallet's own record there
++    const ZERO="0x"+"0".repeat(40),L=rig.abi.ledger,old=rig.addresses.ledger;let next,own;
++    const mine=async()=>{for(let i=0;i<3;i++)await rig.pc.request({method:"evm_mine",params:[]});};
++    const refundable=id=>rig.pc.readContract({address:old,abi:L,functionName:"refundableOf",args:[id]});
++    const usdcOf=a=>rig.pc.readContract({address:rig.addresses.usdc,abi:rig.abi.usdc,functionName:"balanceOf",args:[a]});
++    const until=async(fn,what)=>{
++      for(const end=Date.now()+60000;Date.now()<end;await new Promise(r=>setTimeout(r,500)))if(await fn())return;
++      throw new Error("timed out: "+what+"; "+await page.evaluate(()=>[...document.querySelectorAll(".enc-retired")].map(e=>e.textContent).join(" | ")));
++    };
++    const fresh=async()=>{
++      await page.goto(rig.site+"/dashboard");
++      await page.waitForFunction(async()=>!!(await import("/js/core/api.js")).Enclave.provider);
++    };
++    // every non-recovery call to the replaced ledger (and an allowance for it) stops before the wallet
++    const refusesOld=async()=>{
++      const before=await mutations(),refund=encodeFunctionData({abi:L,functionName:"refund",args:[own]});
++      const calls=[[old,encodeFunctionData({abi:L,functionName:"create",args:[`catalog://${appId}/0`,0,100,8080,"",true,"",ZERO,0n,100n]})],
++        [old,encodeFunctionData({abi:L,functionName:"fund",args:[own,1n]})],
++        [old,encodeFunctionData({abi:L,functionName:"setActive",args:[own,true]})],
++        [old,refund+"00".repeat(32)],
++        [rig.addresses.usdc,encodeFunctionData({abi:rig.abi.usdc,functionName:"approve",args:[old,1n]})]];
++      const errors=await page.evaluate(async calls=>{
++        const send=(await import("/js/core/wallet.js")).sendTx,out=[];
++        for(const [to,data] of calls){try{await send(to,data);out.push("unexpected success");}catch(e){out.push(e.message);}}
++        return out;
++      },calls);
++      errors.forEach(e=>assert.match(e,/retired platform contract/));
++      assert.equal(await mutations(),before,"no refused call reaches the wallet");
++    };
+     await t.test("original-style factory resolves through its book without a hosted API",async()=>{
+       const a=await page.evaluate(async()=>(await import("/js/core/independent-chain.js")).sessionAuthority());
+       assert.equal(a.factory,rig.addresses.factory.toLowerCase());assert.equal(a.book,rig.addresses.book.toLowerCase());
+@@ -148,6 +177,52 @@
+       await set("appCatalog",rig.addresses.catalog);
+       await page.evaluate(async()=>(await import("/js/core/independent-chain.js")).sessionAuthority());
+     });
++    if (platformBook) await t.test("administrator replaces the ledger: the existing grant creates on the new one; the old one is recovery-only",async()=>{
++      await rig.write(rig.wc(KEYS.owner),old,L,"create",[`catalog://${appId}/0`,0,100,8080,"",true,"",ZERO,0n,100n]);
++      const n=await rig.pc.readContract({address:old,abi:L,functionName:"count"});
++      own=(await rig.pc.readContract({address:old,abi:L,functionName:"getPage",args:[0n,n]}))
++        .find(x=>x.owner.toLowerCase()===rig.owner.toLowerCase()).id.toLowerCase();
++      // the platform's migration procedure (contracts/deployments/ledger-15d-base.json): the replacement imports every
++      // record verbatim, ids included, so create() there skips them and no vault custody record is ever overwritten
++      const records=await rig.pc.readContract({address:old,abi:L,functionName:"getPage",args:[0n,n]});
++      next=await rig.deployLedger();
++      await rig.write(admin,next,L,"importDeployments",[records]);
++      await set("deployments",next);
++      rig.rpcModes[0]="down";
++      try{
++        await page.evaluate(async ref=>(await import("/js/core/sessions.js")).sessionCall("deploy.create",
++          {appRef:ref,gpuMilli:0,cpuMilli:100,appPort:8080,ports:"",isPublic:true,configCid:"",
++            maxRate6:100n,env:"staging",fund6:0n}),`catalog://${appId}/0`);
++        const state=await page.evaluate(async()=>{
++          const C=await import("/js/core/config.js"),S=await import("/js/core/sessions.js");
++          return {ledger:C.DEPLOYMENTS_ADDRESS,initial:C.INDEPENDENT.profile.contracts.deployments,
++            sid:(await S.currentSession()).session.handle.sid};
++        });
++        assert.equal(state.ledger,next.toLowerCase());
++        assert.equal(state.initial,old.toLowerCase(),"no profile rewrite");
++        assert.equal(state.sid,opened.sid,"the existing grant acts on the admin-selected ledger");
++        const total=await rig.pc.readContract({address:next,abi:L,functionName:"count"});
++        assert.equal(total,BigInt(records.length)+1n);
++        const [made]=await rig.pc.readContract({address:next,abi:L,functionName:"getPage",args:[total-1n,1n]});
++        assert.equal(made.owner.toLowerCase(),opened.vault.toLowerCase());
++        assert.ok(!records.some(r=>r.id===made.id),"a fresh id, never an imported one");
++        // one row per record: the carried-over row, with what the replaced ledger still holds for it attached
++        const listed=await page.evaluate(async()=>{
++          const rows=await (await import("/js/core/api.js")).Enclave.listDeployments();
++          return {replaced:rows.independentScan?.replaced,rows:rows.map(r=>({id:String(r.id).toLowerCase(),ledger:r.retiredLedger||"",
++            held:r.replacedLedger?{ledger:r.replacedLedger.ledger,retired:r.replacedLedger.ledgerRetired,refundable6:r.replacedLedger.refundable6}:null}))};
++        });
++        const mine=records.filter(r=>[rig.owner,opened.vault].some(a=>a.toLowerCase()===r.owner.toLowerCase()));
++        assert.ok(mine.length>=2);
++        assert.equal(listed.replaced,mine.length,"every record of the wallet and its vault on the replaced ledger");
++        for (const r of mine) assert.equal(listed.rows.filter(x=>x.id===r.id.toLowerCase()).length,1,"one row per carried-over record");
++        assert.deepEqual(listed.rows.find(r=>r.id===own),{id:own,ledger:"",held:null},"nothing to recover yet");
++        const vaultRow=listed.rows.find(r=>r.id===row.id.toLowerCase());
++        assert.equal(vaultRow.ledger,"");
++        assert.deepEqual(vaultRow.held,{ledger:old.toLowerCase(),retired:false,refundable6:String(await refundable(row.id))});
++      }finally{delete rig.rpcModes[0];}
++      await refusesOld();
++    });
+     await t.test("lost quorum refuses before a wallet prompt",async()=>{
+       const before=await mutations();rig.rpcModes[0]="down";rig.rpcModes[1]="down";
+       try{
+@@ -163,6 +238,36 @@
+       const balance=await rig.pc.readContract({address:rig.addresses.usdc,abi:rig.abi.usdc,functionName:"balanceOf",args:[rig.owner]});
+       assert.equal(balance,99_500000n);
+     });
++    if (platformBook) await t.test("records on the replaced ledger: a fresh tab finds them; the owner recovers there, anyone once it is retired",async()=>{
++      // fixture: the wallet's record on the replaced ledger holds funds (the browser itself refuses to fund it)
++      await rig.write(rig.wc(KEYS.owner),rig.addresses.usdc,rig.abi.usdc,"approve",[old,400000n]);
++      await rig.write(rig.wc(KEYS.owner),old,L,"fund",[own,400000n]);
++      await mine();
++      const back=await refundable(own);assert.ok(back>0n);
++      // a fresh tab finds the replaced ledger from the profile's own pin: no server, no retained cache
++      await fresh();
++      await page.locator(`.enc-rrefund[data-id="${own}"]`).waitFor({timeout:60000});
++      const vaultNote=page.locator(`.enc-retired[data-rid="${row.id.toLowerCase()}"]`);
++      assert.match(await vaultNote.textContent(),/only that owner can refund it/);
++      assert.equal(await vaultNote.locator(".enc-rrefund").count(),0,"the wallet cannot refund the vault's record before retirement");
++      await refusesOld();
++      const before=await usdcOf(rig.owner),sent=await mutations();
++      await page.locator(`.enc-rrefund[data-id="${own}"]`).click();
++      await until(async()=>(await usdcOf(rig.owner))===before+back,"owner refund");
++      assert.equal(await mutations(),sent+1,"one wallet transaction");
++      const left=await rig.pc.readContract({address:old,abi:L,functionName:"get",args:[own]});
++      assert.equal(left.active,false);
++      // the administrator retires the replaced ledger: its refund is then anyone's to push, and pays the record's owner
++      await rig.write(admin,old,L,"retire",[]);
++      await mine();
++      const vaultBack=await refundable(row.id);assert.ok(vaultBack>0n);
++      await fresh();
++      const vault0=await usdcOf(opened.vault),owner0=await usdcOf(rig.owner);
++      await page.locator(`.enc-rrefund[data-id="${row.id.toLowerCase()}"]`).click({timeout:60000});
++      await until(async()=>(await usdcOf(opened.vault))===vault0+vaultBack,"vault refund");
++      assert.equal(await usdcOf(rig.owner),owner0,"the refund pays the record's owner, never the sender");
++      await refusesOld();
++    });
+     assert.deepEqual(forbidden,[],"unexpected external origin");
+   }finally{await browser?.close();await rig?.stop();}
+ });
+--- a/test/site-independent-passkey-ui.test.mjs
++++ b/test/site-independent-passkey-ui.test.mjs
+@@ -54,7 +54,8 @@
+     payer = privateKeyToAccount(generatePrivateKey());
+     await rpc("anvil_setBalance", [payer.address, "0x56bc75e2d63100000"]);
+     await rpc("anvil_impersonateAccount", [payer.address]);
+-    pc = viem.createPublicClient({ chain, transport: viem.http(rpcUrl) });
++    // no block-number cache: a "since block b" window must start after the previous step's last transaction
++    pc = viem.createPublicClient({ chain, transport: viem.http(rpcUrl), cacheTime: 0 });
+     wc = viem.createWalletClient({ chain, account: payer, transport: viem.http(rpcUrl) });
+     // the repository's ledger + pinned session factory, deployed by a short-lived helper process (artifacts never load here)
+     const { stdout } = await promisify(execFile)("node", [path.join(REPO, "test/helpers/fork-deploy.mjs"), rpcUrl, payer.address,
+@@ -172,10 +173,18 @@
+   "function setApproval(bytes32 appId,uint256 index,uint8 status)",
+   "event VersionPublished(bytes32 indexed appId, uint256 indexed index, string version, string cid)"]);
+ const CREATED = LEDGER.find((x) => x.name === "Created"), ACTIVE_SET = LEDGER.find((x) => x.name === "ActiveSet");
++// a mined local receipt, polled directly: viem's block watcher can drop the only automined block (test/helpers/fork-deploy.mjs)
++const receiptOf = async (hash) => {
++  for (const until = Date.now() + 120_000; Date.now() < until; await new Promise((r) => setTimeout(r, 250))){
++    const r = await pc.getTransactionReceipt({ hash }).catch((e) => { if (e.name !== "TransactionReceiptNotFoundError") throw e; return null; });
++    if (r) return r;
++  }
++  throw new Error("no receipt for " + hash + " after 120 s");
++};
+ // the driver's own setup transactions (the payer key is fresh and local to this fork)
+ const send = async (to, abi, functionName, args) => {
+   const h = await wc.writeContract({ address: to, abi, functionName, args, gas: 3_000_000n });
+-  const r = await pc.waitForTransactionReceipt({ hash: h }); assert.equal(r.status, "success", functionName); return r;
++  const r = await receiptOf(h); assert.equal(r.status, "success", functionName); return r;
+ };
+ const createdIn = (r) => viem.parseEventLogs({ abi: LEDGER, logs: r.logs, eventName: "Created" })[0].args.id.toLowerCase();
+ const listedIds = () => page.evaluate(() => [...new Set([...document.querySelectorAll("c-deployments .enc-row [data-id]")].map((e) => e.dataset.id.toLowerCase()))]);
+@@ -183,7 +192,8 @@
+ const waitBar = (re) => page.waitForFunction((src) => new RegExp(src).test(document.querySelector(".id-bar")?.textContent || ""), re.source);
+ async function waitSuspended(id, fromBlock){
+   for (let i = 0; i < 120; i++){
+-    const l = (await pc.getLogs({ address: ledger, event: ACTIVE_SET, args: { id }, fromBlock })).find((x) => x.args.active === false);
++    const l = fromBlock > await pc.getBlockNumber() ? null   // the click's transaction is not mined yet
++      : (await pc.getLogs({ address: ledger, event: ACTIVE_SET, args: { id }, fromBlock })).find((x) => x.args.active === false);
+     if (l) return pc.getTransaction({ hash: l.transactionHash });
+     await new Promise((r) => setTimeout(r, 500));
+   }
+@@ -369,7 +379,7 @@
+   await rpc("anvil_setBalance", [publisher.address, "0xde0b6b3a7640000"]);
+   const pubWc = viem.createWalletClient({ chain, account: publisher, transport: viem.http(rpcUrl) });
+   const paidHash = await pubWc.writeContract({ address: catalog, abi: CATALOG, functionName: "publishVersion", gas: 3_000_000n, args: ["pk-paid-app", "Paid app", "", "1.0.0", "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzd3", [0, 0, 64, 1], "", "", 10n] });
+-  const paid = await pc.waitForTransactionReceipt({ hash: paidHash }); assert.equal(paid.status, "success");
++  const paid = await receiptOf(paidHash); assert.equal(paid.status, "success");
+   const paidId = viem.parseEventLogs({ abi: CATALOG, logs: paid.logs, eventName: "VersionPublished" })[0].args.appId;
+   // A separate publisher's release is pending. Platform moderation remains
+   // mandatory for passkey accounts too; only the catalog admin may approve it.
+--- /dev/null
++++ b/test/site-platform-ledger-recovery.test.mjs
+@@ -0,0 +1,93 @@
++// site/js/core/platform-addresses.js when the administrator replaces the ledger through the address book: calldata for a
++// replaced contract is refused, except the owner's recovery on a replaced LEDGER (refund(id), setActive(id,false)) - in the
++// tab that saw the change and in a fresh tab that only has the profile's original pin. Scripted JSON-RPC, no browser.
++//   run: node --test test/site-platform-ledger-recovery.test.mjs
++import test from "node:test";
++import assert from "node:assert/strict";
++import { encodeAbiParameters, encodeFunctionData, parseAbi } from "viem";
++
++const addr = (n) => "0x" + n.toString(16).padStart(40, "0");
++const ROOT = addr(0xb00c), REGISTRY = addr(1), OLD = addr(2), CATALOG = addr(3), NEW = addr(4), CATALOG2 = addr(5), USDC = addr(6);
++const profile = { format: "enclave-browser-profile", version: 1, chainId: 8453, addressBook: ROOT,
++  rpcs: ["https://a.example", "https://b.example"], quorum: 2, confirmations: 0, maxBlockAgeSeconds: 600,
++  contractPins: { version: 1, chainId: 8453, contracts: { registry: REGISTRY, deployments: OLD, appCatalog: CATALOG,
++    proofOfTime: OLD, enclavePay: addr(0), verificationFees: addr(0), sessionVaultFactory: addr(7), secretVaultV2: addr(0) } }, usdc: USDC };
++const mem = (m = new Map()) => ({ getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) });
++const text = JSON.stringify(profile);
++globalThis.localStorage = mem(new Map([["enclave_independent_profile", text]]));
++globalThis.sessionStorage = mem(new Map([["enclave_independent_ack", text]]));
++globalThis.location = { hostname: "localhost", origin: "https://dash.example" };
++
++const NOW = Math.floor(Date.now() / 1000);
++const chain = { block: 100, book: { registry: REGISTRY, deployments: OLD, appCatalog: CATALOG } };
++const key = (s) => "0x" + Buffer.from(s).toString("hex").padEnd(64, "0");
++globalThis.fetch = async (url, init) => {
++  const { id, method, params } = JSON.parse(init.body);
++  const result = (() => {
++    if (method === "eth_chainId") return "0x2105";
++    if (method === "eth_blockNumber") return "0x" + chain.block.toString(16);
++    if (method === "eth_getBlockByNumber") return { number: params[0], hash: "0x" + Number(params[0]).toString(16).padStart(64, "0"), timestamp: "0x" + NOW.toString(16) };
++    if (method === "eth_getCode") return "0x6080";
++    if (method === "eth_call" && params[0].data === "0x8da5cb5b") return "0x" + "0".repeat(24) + "0b2d".padStart(40, "0");
++    if (method === "eth_call" && params[0].data === "0x10c4e8b0"){
++      const entries = Object.entries(chain.book);
++      return encodeAbiParameters([{ type: "bytes32[]" }, { type: "address[]" }], [entries.map(([k]) => key(k)), entries.map(([, v]) => v)]);
++    }
++    throw new Error("unexpected " + method);
++  })();
++  return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), { headers: { "content-type": "application/json" } });
++};
++
++const LEDGER = parseAbi(["function refund(bytes32)", "function setActive(bytes32,bool)", "function fund(bytes32,uint256)", "function withdrawEarned()"]);
++const ERC20 = parseAbi(["function approve(address,uint256)"]);
++const ID = "0x" + "ab".repeat(32);
++const refund = encodeFunctionData({ abi: LEDGER, functionName: "refund", args: [ID] });
++const suspend = encodeFunctionData({ abi: LEDGER, functionName: "setActive", args: [ID, false] });
++const resume = encodeFunctionData({ abi: LEDGER, functionName: "setActive", args: [ID, true] });
++const fund = encodeFunctionData({ abi: LEDGER, functionName: "fund", args: [ID, 1n] });
++const approveOld = encodeFunctionData({ abi: ERC20, functionName: "approve", args: [OLD, 1n] });
++const step = (book) => { Object.assign(chain.book, book); chain.block += 1; };
++const RETIRED = /retired platform contract/;
++
++test("recovery calldata is recognized exactly", async () => {
++  const { isLedgerRecoveryCall } = await import("../site/js/core/platform-addresses.js");
++  assert.equal(isLedgerRecoveryCall(refund), true);
++  assert.equal(isLedgerRecoveryCall(suspend), true);
++  for (const data of [resume, fund, refund + "00", refund + "00".repeat(32), refund.slice(0, -2), "0x", "", null,
++    encodeFunctionData({ abi: LEDGER, functionName: "withdrawEarned" })])
++    assert.equal(isLedgerRecoveryCall(data), false, String(data));
++});
++
++test("a replaced ledger is recovery-only in the tab that followed the change; other replaced targets stay refused", async () => {
++  const P = await import("../site/js/core/platform-addresses.js");
++  assert.equal(P.platformBookEnabled, true);
++  await P.assertPlatformTransactionCurrent(OLD, fund);                 // the book still selects the pinned ledger
++  step({ deployments: NEW, appCatalog: CATALOG2 });
++  await assert.rejects(P.assertPlatformTransactionCurrent(OLD, refund), /addresses changed/, "the change itself is reviewed first");
++  assert.deepEqual(P.retiredLedgers(), [OLD]);
++  await P.assertPlatformTransactionCurrent(OLD, refund);
++  await P.assertPlatformTransactionCurrent(OLD, suspend);
++  for (const [to, data] of [[OLD, fund], [OLD, resume], [OLD, refund + "00".repeat(32)], [USDC, approveOld], [CATALOG, refund]])
++    await assert.rejects(P.assertPlatformTransactionCurrent(to, data), RETIRED, to + " " + data.slice(0, 10));
++  await P.assertPlatformTransactionCurrent(NEW, fund);
++  // the administrator selects the original ledger again: it is an active binding, not a retired one
++  step({ deployments: OLD });
++  await assert.rejects(P.assertPlatformTransactionCurrent(OLD, fund), /addresses changed/);
++  await P.assertPlatformTransactionCurrent(OLD, fund);
++  assert.deepEqual(P.retiredLedgers(), [NEW], "the briefly selected ledger is the replaced one now");
++  await assert.rejects(P.assertPlatformTransactionCurrent(NEW, fund), RETIRED);
++  await P.assertPlatformTransactionCurrent(NEW, refund);
++  step({ deployments: NEW });
++  await assert.rejects(P.assertPlatformTransactionCurrent(NEW, fund), /addresses changed/);
++});
++
++test("a fresh tab derives the replaced ledger from the profile's original pin (no retained cache)", async () => {
++  // a new module instance: no state from the tab above; the bound addresses come from the book again
++  const P = await import("../site/js/core/platform-addresses.js?fresh-tab");
++  step({});
++  await P.resolvePlatformAddresses();
++  assert.deepEqual(P.retiredLedgers(), [OLD]);
++  await P.assertPlatformTransactionCurrent(OLD, refund);
++  await assert.rejects(P.assertPlatformTransactionCurrent(OLD, fund), RETIRED);
++  await assert.rejects(P.assertPlatformTransactionCurrent(USDC, approveOld), RETIRED);
++});

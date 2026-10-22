@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import { leaseGasConfigured, loadLeaseGasConfig } from "../enclave/network/lease-gas-runtime.mjs";
+import { cmdLeaseGas } from "../enclave/cli/lease-gas.mjs";
+import { startRelayService } from "../enclave/network/lease-relay-service.mjs";
+import * as direct from "../enclave/client/lease-executor-client.mjs";
+import * as portable from "../enclave/network/lease-executor-client.mjs";
+assert.deepEqual(Object.keys(portable).sort(), Object.keys(direct).sort());
+for (const k of Object.keys(direct)) assert.equal(portable[k], direct[k]);
+assert.equal(leaseGasConfigured({}), false);
+assert.equal(loadLeaseGasConfig({ env: {} }), null);
+assert.throws(() => loadLeaseGasConfig({ env: { LEASE_GAS_RELAYS: "https://relay.example" } }), /FILE/);
+let help = "";
+await cmdLeaseGas(["help"], { say: text => { help = text; } });
+assert.match(help, /--signer-mode handoff/);
+assert.match(help, /--per-app-eth/);
+await assert.rejects(startRelayService({}), /reviewed deployment record/);
+console.log("Portable client, runtime, CLI help and service imports passed; no key read, RPC request or service started.");

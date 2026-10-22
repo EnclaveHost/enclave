@@ -1,0 +1,52 @@
+--- a/network/service-index.mjs
++++ b/network/service-index.mjs
+@@ -19,7 +19,12 @@
+ import { validateNetworkAuthorities } from './network-authorities.mjs';
+ import { rpcEndpoint, rpcLabel as safeRpcLabel, redactUrls } from './rpc-identity.mjs';
+ 
+-export const SERVICE_KINDS = Object.freeze({ directory: 1, checker: 2, storage: 3, dns: 4, replica: 5 });
++// relay (7): an app-funded LEASE relay a designated host operator runs (network/host-services/lease-relay-host.mjs); its
++// descriptor names the relay's payee key, which signs the relay's /v1/info statement (lease-relay-discovery.mjs).
++// policy (6): an untrusted carrier of the administrator's signed platform host policy documents (host role policy-mirror,
++// network/policy-carriers.mjs); read only when a caller asks for it, so default listings are unchanged
++export const SERVICE_KINDS = Object.freeze({ directory: 1, checker: 2, storage: 3, dns: 4, replica: 5, policy: 6, relay: 7 });
++const DEFAULT_KINDS = Object.freeze(Object.keys(SERVICE_KINDS).filter((k) => k !== 'policy'));
+ export const KIND_NAMES = Object.freeze(Object.fromEntries(Object.entries(SERVICE_KINDS).map(([k, v]) => [v, k])));
+ export const AD_VERSION = 1;
+ export const LIMITS = Object.freeze({ slots: 8, endpoints: 4, endpointBytes: 256, ttlSec: 90 * 86400, page: 64, perKind: 1024, descriptor: 4096 });
+@@ -382,7 +387,7 @@
+  * distinct organizations. Without an agreeing quorum this throws QuorumError (with evidence); it never returns an empty
+  * list for a disagreement.
+  */
+-export async function readServiceIndex({ peers, clients, pin, kinds = Object.keys(SERVICE_KINDS), window = 256, cursor = null, lookups = [],
++export async function readServiceIndex({ peers, clients, pin, kinds = DEFAULT_KINDS, window = 256, cursor = null, lookups = [],
+                                         maxBlockAgeMs = 90_000, requestTimeoutMs = 8_000, deadlineMs = 30_000, now = Date.now, ...policy }) {
+   pin = validateIndexPin(pin);
+   const list = peerList({ peers, clients, methods: ['getCode', 'readContract'] });
+@@ -506,3 +511,26 @@
+   return { directories: dirs, pins: authority, rpc: [...rpc], chainId, outbound: o.href, dns: resolvers, smtp: smtp || null, smtpDomain: smtpDomain || null,
+            connectivity: authority.connectivity === ZERO ? null : authority.connectivity };
+ }
++
++/**
++ * Platform host policy over service-index discovery candidates. The index lists SERVICE operators (directory, checker,
++ * storage, dns, replica) - not compute hosts - so a compute-host ALLOWLIST never applies here: only the administrator's
++ * explicit BAN of an operator key removes its advertisements. decide(operators) -> { [operator]: decision } at one agreed
++ * block (network/host-policy-adapters.mjs operatorDecider). A banned operator's ads move to `refusedByPolicy`; every other
++ * ad stays a candidate, annotated with the policy's answer (an allowlist miss, not activated, or an unreadable policy is a
++ * note, not a removal). The hosts these services lead to are judged again where they are used (routes, custody, relay,
++ * management, measured host gates).
++ */
++export async function applyHostPolicy(result, decide) {
++  const ops = [...new Set((result?.candidates || []).map((c) => String(c.operator).toLowerCase()))];
++  let d = {}, note = null;
++  try { d = ops.length ? await decide(ops) : {}; } catch (e) { note = `platform host policy unreadable: ${e.message}`; }
++  const BAN = /^banned by platform policy #\d+ \(operator\): /;    // judgeHost's explicit-denial reason (network/platform-host-policy.mjs)
++  const candidates = [], refused = [];
++  for (const c of result?.candidates || []) {
++    const x = d[String(c.operator).toLowerCase()];
++    if (x && x.admit !== true && BAN.test(String(x.reason || ""))) refused.push({ candidate: c, reason: x.reason });
++    else candidates.push({ ...c, platformPolicy: x ? { admit: x.admit === true, status: x.status, reason: x.reason || null } : { admit: null, status: "unchecked", reason: note } });
++  }
++  return { ...result, candidates, refusedByPolicy: refused, ...(note ? { platformPolicyNote: note } : {}) };
++}

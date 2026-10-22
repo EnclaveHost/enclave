@@ -1,0 +1,20 @@
+--- a/site/js/pages/link.js
++++ b/site/js/pages/link.js
+@@ -15,7 +15,7 @@
+ import "../../components/footer/footer.js";
+ import "../../components/toast/toast.js";
+ import "../../components/section-head/section-head.js";
+-import { ACCOUNTS_ENABLED } from "../core/config.js";
++import { ACCOUNTS_ENABLED, INDEPENDENT } from "../core/config.js";
+ import { Enclave } from "../core/api.js";
+ import { $, esc, showToast } from "../core/util.js";
+ import { openSignIn, passkeySupported, registerPasskey, signInWithPasskey } from "../core/account.js";
+@@ -33,6 +33,8 @@
+ }
+ 
+ function mount(){
++  // an independent dashboard never asks the relay: this page says so and offers only the explicit hosted choice
++  if (INDEPENDENT.state !== "off"){ import("../core/independent-ui.js").then((m) => m.mountHostedOnly(document.getElementById("lkBody"), "Phone sign-in")); return; }
+   const body = $("#lkBody"); if (!body) return;
+   if (!ACCOUNTS_ENABLED){ const g = $("#lkGate"); if (g) g.hidden = false; return; }
+ 

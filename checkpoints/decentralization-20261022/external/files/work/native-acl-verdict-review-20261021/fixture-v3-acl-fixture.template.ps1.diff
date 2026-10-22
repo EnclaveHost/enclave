@@ -1,0 +1,12 @@
+--- v2-pathfix/acl-fixture.template.ps1
++++ fixture-v3/acl-fixture.template.ps1
+@@ -74,6 +74,8 @@
+ # v2 verdict: the three auto-inherited/protected forms must PASS every check; the non-AI 'inherited' form must be REFUSED by
+ # ProtectedTemp (fail closed), leave no temp/probe, and differ ONLY by the DACL's AI flag (the diagnosis, measured)
+ $ih = $o.cases['inherited']
+-$ih.expectedRefusal = ($ih.error -eq 'the temp file does not carry the config ACL') -and -not $ih.probe.exactEqual -and $ih.probe.equalExceptAiFlag -and $ih.probe.probeGone -and -not @($ih.leftovers).Count
++# Left's empty result is NO pipeline output, stored as $null; @($null).Count is 1, so count the NAMES only. The key must exist
++# (Left ran: under 'Stop' a failing Get-ChildItem would have thrown) and exactEqual must be a real $false, never a missing value.
++$ih.expectedRefusal = ($ih.error -eq 'the temp file does not carry the config ACL') -and ($false -eq $ih.probe.exactEqual) -and $ih.probe.equalExceptAiFlag -and $ih.probe.probeGone -and $ih.Contains('leftovers') -and -not @($ih.leftovers | Where-Object { $null -ne $_ }).Count
+ $o.pass = $o.cases['copied-config-acl'].pass -and $o.cases['protected-explicit'].pass -and $o.cases['ai-parent'].pass -and $ih.expectedRefusal
+ $o | ConvertTo-Json -Compress -Depth 6

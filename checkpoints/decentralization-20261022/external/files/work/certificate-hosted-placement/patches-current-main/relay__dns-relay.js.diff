@@ -1,0 +1,121 @@
+--- a/relay/dns-relay.js
++++ b/relay/dns-relay.js
+@@ -38,6 +38,11 @@
+ // DNS) merges the previous challenge source's TXT values during a transition; APP_CHALLENGE_PEERS (<= 8 origins)
+ // forwards each accepted push once to peer replicas, which verify it again. APP_CHALLENGE_JUDGE_MODE=lab-unsigned is
+ // an explicit lab diagnostic; APP_CHALLENGE_MIN_TCB / APP_CHALLENGE_KDS=0 as for the attested responder.
++// APP_CHALLENGE_SHIELD_POLICY (network/app-zone-shield.mjs) separately admits Enclave Shield (T0-hv, hostExcluded=false)
++// Shield-direct fronts: the operator's pinned enclave-shield-app-policy/1, with APP_CHALLENGE_SHIELD_PROFILE (+ _DIGEST,
++// the reviewed registry pin) and APP_CHALLENGE_SHIELD_RPCS (two or more distinct hosts) for host identity. A Shield push
++// verifies only under a TPM boot session the lease's runner made at THIS replica (POST /v1/app-zone/shield-session/
++// {challenge,attest}); the lease, ban and catalog checks are the SNP ones. Without it no Shield document is accepted.
+ // This is an authoritative server, not a recursive resolver.
+ 
+ import dgram from "node:dgram";
+@@ -48,7 +53,7 @@
+ import { createHostPolicyRuntime, resolveHostPolicyConfig, endpointAdmissions } from "./network-runtime.bundle.mjs";
+ import { isBoxHost } from "./boxhost.js";
+ import { authorizePush, parseMeasurements, createShieldChallengeAuth, isShieldPush, shieldRegistryBinding,
+-  shieldRegistryEntry, createAppZoneAuthority, createLedgerIndex, LeaseReader, judge as attestationJudge } from "./network-runtime.bundle.mjs";
++  shieldRegistryEntry, createAppZoneAuthority, createLedgerIndex, createAppZoneShield, LeaseReader, judge as attestationJudge } from "./network-runtime.bundle.mjs";
+ installProcessGuards("dns-relay");
+ 
+ const need = (k) => { const v = (process.env[k] || "").trim(); if (!v) { console.error(`fatal: ${k} is required`); process.exit(1); } return v; };
+@@ -89,7 +94,10 @@
+ let APPCH = null;   // { auth, ledger, upstream, peers, mode, measurements }
+ if (APP_CHALLENGE) {
+   try {
+-    const measurements = parseMeasurements(process.env.APP_CHALLENGE_MEASUREMENTS);
++    // SEV-SNP measurements stay required unless the operator pins a Shield policy instead (then SNP is off unless given)
++    const appShieldFile = (process.env.APP_CHALLENGE_SHIELD_POLICY || "").trim();
++    const measurements = process.env.APP_CHALLENGE_MEASUREMENTS || !appShieldFile ? parseMeasurements(process.env.APP_CHALLENGE_MEASUREMENTS) : new Set();
++    const appShield = appShieldFile ? await appZoneShieldFromEnv(appShieldFile) : null;
+     const mode = (process.env.APP_CHALLENGE_JUDGE_MODE || "trusted").trim();
+     if (!["trusted", "lab-unsigned"].includes(mode)) throw new Error("APP_CHALLENGE_JUDGE_MODE must be trusted or lab-unsigned");
+     const rpc = String(process.env.APP_CHALLENGE_RPCS || "").split(",").map((v) => v.trim()).filter(Boolean);
+@@ -103,7 +111,7 @@
+       authorityPins: { deployments: pins.deployments, registry: pins.registry, connectivity: ZERO, sessionVaultFactory: ZERO } });
+     const ledger = createLedgerIndex({ reader, deployments: pins?.deployments });
+     const minTcbRaw = (process.env.APP_CHALLENGE_MIN_TCB || "").trim();
+-    const auth = createAppZoneAuthority({ zone: APP_ZONE, measurements, judge: attestationJudge, mode, reader, pins, ledger,
++    const auth = createAppZoneAuthority({ zone: APP_ZONE, measurements, judge: attestationJudge, mode, reader, pins, ledger, shield: appShield?.shield || null,
+       ...(minTcbRaw ? { minTcb: BigInt(minTcbRaw) } : {}), kds: process.env.APP_CHALLENGE_KDS !== "0" });
+     const up = (process.env.APP_CHALLENGE_UPSTREAM || "").trim();
+     const m = up && /^(\[[0-9a-f:]+\]|[0-9.]+):([0-9]{1,5})$/i.exec(up);
+@@ -111,7 +119,7 @@
+     const peers = String(process.env.APP_CHALLENGE_PEERS || "").split(",").map((v) => v.trim()).filter(Boolean);
+     if (peers.length > 8 || peers.some((o) => { try { const u = new URL(o); return !["http:", "https:"].includes(u.protocol) || u.pathname !== "/" || u.search; } catch { return true; } }))
+       throw new Error("APP_CHALLENGE_PEERS must list at most 8 http(s) origins");
+-    APPCH = { auth, ledger, mode, measurements, upstream: m ? { host: m[1].replace(/^\[|\]$/g, ""), port: Number(m[2]) } : null, peers: peers.map((o) => new URL(o).origin) };
++    APPCH = { auth, ledger, mode, measurements, shield: appShield?.shield || null, shieldRegistry: appShield?.shieldRegistry || null, upstream: m ? { host: m[1].replace(/^\[|\]$/g, ""), port: Number(m[2]) } : null, peers: peers.map((o) => new URL(o).origin) };
+     ledger.sync({ force: true }).catch((e) => console.error(`[dns-relay] app-zone ledger index: ${e.message}`));
+     setInterval(() => ledger.sync().catch((e) => console.error(`[dns-relay] app-zone ledger index: ${e.message}`)), 60_000).unref();
+   } catch (e) { console.error(`fatal: APP_CHALLENGE_AUTH: ${e.message}`); process.exit(1); }
+@@ -144,23 +152,35 @@
+ // its own agreed block, and ATTESTED_SHIELD_RPCS (two or more RPCs on distinct hosts; windows/node/host-identity.mjs
+ // quorumReader). ATTESTED_SHIELD_PINS, the strict contract-pin document, is optional; given, it must name the same
+ // registry. No address book, fleet, relay or default RPC is consulted.
++// The app-zone replica's Shield opt-in (APP_CHALLENGE_SHIELD_*): the same inputs and checks as the owner-name responder's
++// (shieldRegistryInputs), its own party id and session path (network/app-zone-shield.mjs).
++async function appZoneShieldFromEnv(file) {
++  const { policy, registryEntry, recoverSigner, shieldRegistry } = await shieldRegistryInputs(file, "APP_CHALLENGE_SHIELD");
++  const shield = createAppZoneShield({ policy, zone: APP_ZONE, registryEntry, recoverSigner, log: (m) => console.log(m) });
++  return { shield, shieldRegistry };
++}
+ async function shieldAuthFromEnv(file) {
++  const { policy, registryEntry, recoverSigner, shieldRegistry } = await shieldRegistryInputs(file, "ATTESTED_SHIELD");
++  const shield = createShieldChallengeAuth({ policy, zone: CHALLENGE_ZONE, registryEntry, recoverSigner, log: (m) => console.log(m) });
++  return { shield, shieldRegistry };
++}
++// <prefix>_PROFILE + <prefix>_PROFILE_DIGEST (the reviewed registry pin), optional <prefix>_PINS, <prefix>_RPCS
++async function shieldRegistryInputs(file, prefix) {
+   const fs = await import("node:fs");
+   const { validateContractPins, parseProfile, quorumReader, rpcClients } = await import("./network-runtime.bundle.mjs");
+   const { recoverMessageAddress } = await import("viem");
+   const policy = JSON.parse(fs.readFileSync(file, "utf8"));
+-  const profileFile = (process.env.ATTESTED_SHIELD_PROFILE || "").trim(), digest = (process.env.ATTESTED_SHIELD_PROFILE_DIGEST || "").trim();
+-  if (!profileFile || !digest) throw new Error("ATTESTED_SHIELD_POLICY needs ATTESTED_SHIELD_PROFILE and ATTESTED_SHIELD_PROFILE_DIGEST (the reviewed registry pin)");
++  const profileFile = (process.env[`${prefix}_PROFILE`] || "").trim(), digest = (process.env[`${prefix}_PROFILE_DIGEST`] || "").trim();
++  if (!profileFile || !digest) throw new Error(`${prefix}_POLICY needs ${prefix}_PROFILE and ${prefix}_PROFILE_DIGEST (the reviewed registry pin)`);
+   const { profile, digest: profileDigest } = parseProfile(fs.readFileSync(profileFile), { expectedDigest: digest });
+   const binding = shieldRegistryBinding(profile);
+-  if ((process.env.ATTESTED_SHIELD_PINS || "").trim()) {
+-    const pins = validateContractPins(JSON.parse(fs.readFileSync(process.env.ATTESTED_SHIELD_PINS, "utf8").replace(/^\uFEFF/, "")));
+-    if (pins.registry !== binding.address) throw new Error("ATTESTED_SHIELD_PINS names another registry than the reviewed profile");
+-  }
+-  const reader = quorumReader({ clients: await rpcClients(String(process.env.ATTESTED_SHIELD_RPCS || "").split(",").map((x) => x.trim()).filter(Boolean)) });
+-  const shield = createShieldChallengeAuth({ policy, zone: CHALLENGE_ZONE, registryEntry: shieldRegistryEntry({ reader, binding }),
+-    recoverSigner: (message, signature) => recoverMessageAddress({ message, signature }), log: (m) => console.log(m) });
+-  return { shield, shieldRegistry: { address: binding.address, schema: binding.schema, codeHash: binding.codeHash, profileDigest } };
++  if ((process.env[`${prefix}_PINS`] || "").trim()) {
++    const pins = validateContractPins(JSON.parse(fs.readFileSync(process.env[`${prefix}_PINS`], "utf8").replace(/^\uFEFF/, "")));
++    if (pins.registry !== binding.address) throw new Error(`${prefix}_PINS names another registry than the reviewed profile`);
++  }
++  const reader = quorumReader({ clients: await rpcClients(String(process.env[`${prefix}_RPCS`] || "").split(",").map((x) => x.trim()).filter(Boolean)) });
++  return { policy, registryEntry: shieldRegistryEntry({ reader, binding }), recoverSigner: (message, signature) => recoverMessageAddress({ message, signature }),
++           shieldRegistry: { address: binding.address, schema: binding.schema, codeHash: binding.codeHash, profileDigest } };
+ }
+ // zone 3 (optional): the SNI relay's TLS namespace — same wildcard-to-one-box
+ // shape as the app zone, delegated here so in-enclave ACME can answer dns-01
+@@ -765,10 +785,19 @@
+                        routeLabels: appRoutes.size, routeMap: ROUTE_MAP_URL || null,
+                        ...(APPCH ? { appChallenge: { mode: "attested-lease", judgeMode: APPCH.mode, measurements: APPCH.measurements.size,
+                          ledgerIndex: { complete: APPCH.ledger.complete(), size: APPCH.ledger.size() }, upstream: !!APPCH.upstream, peers: APPCH.peers.length,
+-                         oneShotPushes: APPCH.auth.pushes.size() } } : {}) });
++                         oneShotPushes: APPCH.auth.pushes.size(),
++                         shield: APPCH.shield ? { tier: "hv-node", hostExcluded: false, party: APPCH.shield.party, liveHostSessions: APPCH.shield.sessions(),
++                                                  registry: APPCH.shieldRegistry } : null } } : {}) });
+   }
+   if (APPCH && u.pathname === "/v1/app-challenge") return appChallengePush(req, res, json);
+-  if (READ_ONLY) { req.resume(); return json(405, { error: "read_only", routes: ["GET /health", ...(APPCH ? ["POST /v1/app-challenge", "DELETE /v1/app-challenge"] : [])] }); }
++  if (APPCH?.shield && u.pathname.startsWith("/v1/app-zone/shield-session/")) {
++    APPCH.shield.handle(req, res, json).then((handled) => {
++      if (!handled) { req.resume(); json(404, { error: "not_found", routes: ["POST /v1/app-zone/shield-session/challenge", "POST /v1/app-zone/shield-session/attest"] }); }
++    }, () => json(500, { error: "verification error" }));
++    return;
++  }
++  if (READ_ONLY) { req.resume(); return json(405, { error: "read_only", routes: ["GET /health", ...(APPCH ? ["POST /v1/app-challenge", "DELETE /v1/app-challenge"] : []),
++    ...(APPCH?.shield ? ["POST /v1/app-zone/shield-session/challenge", "POST /v1/app-zone/shield-session/attest"] : [])] }); }
+   if (ATTESTED) return attestedPush(req, res, u, json);
+   if (u.pathname !== "/v1/txt" || (req.method !== "POST" && req.method !== "DELETE"))
+     return json(404, { error: "not_found", routes: ["GET /health", "POST /v1/txt", "DELETE /v1/txt"] });

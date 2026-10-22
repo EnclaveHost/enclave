@@ -1,0 +1,117 @@
+--- frozen/EnclaveSetup.cs	2026-10-21 21:02:35.927282431 -0700
++++ src/EnclaveSetup.cs	2026-10-21 21:05:29.417604576 -0700
+@@ -82,12 +82,33 @@
+                 File.Copy(Application.ExecutablePath, copy, true);
+                 string script = Path.Combine(pf, "uninstall-host.ps1");
+                 if (File.Exists(script)) File.Copy(script, Path.Combine(tmp, "uninstall-host.ps1"), true);
+-                Process.Start(new ProcessStartInfo(copy, string.Join(" ", args)) { UseShellExecute = true, WorkingDirectory = tmp });
++                Process.Start(new ProcessStartInfo(copy, QuoteArgs(args)) { UseShellExecute = true, WorkingDirectory = tmp });
+                 return 0;
+             }
+             Application.Run(new SetupForm(resumeName, uninstall, referral, enclaveDns, opt));
+             return 0;
+         }
++
++        /// <summary>One command line that CommandLineToArgvW / the CRT split back into exactly these arguments (a path with
++        /// spaces or quotes stays one argument across the relaunch).</summary>
++        internal static string QuoteArgs(string[] args)
++        {
++            var b = new StringBuilder();
++            foreach (var a in args)
++            {
++                if (b.Length > 0) b.Append(' ');
++                if (a.Length > 0 && a.IndexOfAny(new[] { ' ', '\t', '"' }) < 0) { b.Append(a); continue; }
++                b.Append('"');
++                for (int i = 0; i < a.Length; i++)
++                {
++                    int n = 0; while (i < a.Length && a[i] == '\\') { n++; i++; }
++                    if (i == a.Length) { b.Append('\\', n * 2); break; }
++                    if (a[i] == '"') b.Append('\\', n * 2 + 1).Append('"'); else b.Append('\\', n).Append(a[i]);
++                }
++                b.Append('"');
++            }
++            return b.ToString();
++        }
+     }
+ 
+     sealed class SetupForm : Form
+@@ -377,6 +398,7 @@
+                 try
+                 {
+                     SecureWorkDir();
++                    PinPolicy();
+                     var policy = ReleaseChannel.LoadPolicy(opt.ReleasePolicy);
+                     var notes = new List<string>();
+                     var rel = ReleaseChannel.Resolve(policy, delegate (string m) { lock (notes) notes.Add(m); });
+@@ -487,6 +509,11 @@
+         // ---- 5. install -------------------------------------------------------------------------------------------------
+         void Install()
+         {
++            if (opt.ReleasePolicy != null)
++            {
++                try { PinPolicy(); }
++                catch (Exception e) { Page("Setup stopped", "The release policy this download was checked under can no longer be verified: " + e.Message + " Nothing was installed.", "Close", delegate { Close(); }); return; }
++            }
+             Page("Installing '" + name + "'", "This takes a few minutes. Keep this PC on.", "Next", null);
+             phase = "install"; rail.Failed = false;
+             string owner = Environment.UserDomainName + "\\" + Environment.UserName;
+@@ -598,6 +625,33 @@
+         /// SYSTEM's and Administrators' alone (protected, every rule for them, owned by one of them, not a link); otherwise it
+         /// moves it aside, untouched, to Enclave-setup.untrusted-*, and makes a new one with exactly that access.
+         /// </summary>
++        /// <summary>
++        /// The operator's release policy, PINNED once: its exact bytes are copied into the private work folder (SecureWorkDir
++        /// made it SYSTEM's and Administrators' alone) and their sha256 recorded; from then on the download, the Hyper-V
++        /// restart (setup-options.json) and install-host.ps1 -ReleasePolicy use ONLY that copy, re-checked against the sha256
++        /// before each use. The path the operator gave (e.g. a Downloads folder another account can write) is read once, so the
++        /// policy a release was verified under is the policy the host pins for its future updates. A changed or missing copy
++        /// stops setup.
++        /// </summary>
++        void PinPolicy() { PinPolicy(WorkDir, opt); }
++        internal static void PinPolicy(string workDir, SetupOptions opt)
++        {
++            string pinned = Path.Combine(workDir, "release-policy.pinned.json");
++            if (opt.PolicySha256 == null)
++            {
++                var info = new FileInfo(opt.ReleasePolicy);
++                if (!info.Exists || info.Length > 4 * 16 * 1024) throw new Exception("the release policy " + opt.ReleasePolicy + " is missing or too large");
++                byte[] b = File.ReadAllBytes(opt.ReleasePolicy);
++                if (File.Exists(pinned)) File.Delete(pinned);
++                File.WriteAllBytes(pinned, b);
++                using (var h = SHA256.Create()) opt.PolicySha256 = BitConverter.ToString(h.ComputeHash(b)).Replace("-", "").ToLowerInvariant();
++                opt.ReleasePolicy = pinned;
++            }
++            if (!string.Equals(Path.GetFullPath(opt.ReleasePolicy), Path.GetFullPath(pinned), StringComparison.OrdinalIgnoreCase))
++                throw new Exception("the release policy is not the copy pinned in " + workDir);
++            if (!File.Exists(pinned) || Sha256(pinned) != opt.PolicySha256) throw new Exception("the pinned release policy changed or is missing");
++        }
++
+         static void SecureWorkDir()
+         {
+             var sy = new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.LocalSystemSid, null);
+@@ -631,6 +685,7 @@
+     sealed class SetupOptions
+     {
+         public string ReleasePolicy, PublicUrl, Gateways, ContractPins, Rpcs, Directories, NetworkCheckers, NameCheck, Error;
++        public string PolicySha256;   // set by SetupForm.PinPolicy: the sha256 of the policy copy in the private work folder
+         public bool NoRelay;
+         public bool Any { get { return NoRelay || ReleasePolicy != null; } }
+         public void Take(string k, string v)
+@@ -677,7 +732,7 @@
+         }
+         public void Save(string path)
+         {
+-            var d = new Dictionary<string, object> { { "releasePolicy", ReleasePolicy }, { "noRelay", NoRelay }, { "publicUrl", PublicUrl }, { "gateways", Gateways },
++            var d = new Dictionary<string, object> { { "releasePolicy", ReleasePolicy }, { "policySha256", PolicySha256 }, { "noRelay", NoRelay }, { "publicUrl", PublicUrl }, { "gateways", Gateways },
+                 { "contractPins", ContractPins }, { "rpcs", Rpcs }, { "directories", Directories }, { "networkCheckers", NetworkCheckers }, { "nameCheck", NameCheck } };
+             File.WriteAllText(path, new JavaScriptSerializer().Serialize(d));
+         }
+@@ -685,7 +740,7 @@
+         {
+             var d = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(File.ReadAllText(path));
+             Func<string, string> s = delegate (string k) { object v; return d.TryGetValue(k, out v) ? v as string : null; };
+-            object nr; return new SetupOptions { ReleasePolicy = s("releasePolicy"), NoRelay = d.TryGetValue("noRelay", out nr) && nr is bool && (bool)nr, PublicUrl = s("publicUrl"),
++            object nr; return new SetupOptions { ReleasePolicy = s("releasePolicy"), PolicySha256 = s("policySha256"), NoRelay = d.TryGetValue("noRelay", out nr) && nr is bool && (bool)nr, PublicUrl = s("publicUrl"),
+                 Gateways = s("gateways"), ContractPins = s("contractPins"), Rpcs = s("rpcs"), Directories = s("directories"), NetworkCheckers = s("networkCheckers"), NameCheck = s("nameCheck") };
+         }
+     }

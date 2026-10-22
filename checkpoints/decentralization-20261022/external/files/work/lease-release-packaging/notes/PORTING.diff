@@ -1,0 +1,491 @@
+--- app-lease-gas/scripts/snapshot-aa-code.mjs
++++ src/scripts/test-fixtures/snapshot-aa-code.mjs
+@@ -1,7 +1,7 @@
+ // READ-ONLY snapshot of the canonical ERC-4337 v0.8 EntryPoint, its SenderCreator and Simple7702Account runtime code
+ // on Base, for etching onto a LOCAL test chain. Only eth_blockNumber / eth_getCode / eth_call are sent, at ONE pinned
+ // block, to TWO public RPCs already referenced by the repo; both must return identical bytes or nothing is written.
+-// No transaction, no signature, no key.   usage: node scripts/snapshot-aa-code.mjs   (cwd: work/app-lease-gas)
++// No transaction, no signature, no key.   usage: node scripts/test-fixtures/snapshot-aa-code.mjs   (writes test/fixtures/base-code/aa-code-base.json)
+ import fs from "node:fs";
+ import crypto from "node:crypto";
+ 
+@@ -39,6 +39,6 @@
+ // keccak via viem (the codehash an EXTCODEHASH would return)
+ const { keccak256 } = await import("viem");
+ for (const c of Object.values(out.contracts)) c.keccak256 = keccak256(c.code);
+-fs.writeFileSync("fixtures/aa-code-base.json", JSON.stringify(out, null, 1) + "\n");
++fs.writeFileSync(new URL("../../test/fixtures/base-code/aa-code-base.json", import.meta.url), JSON.stringify(out, null, 1) + "\n");
+ for (const [n, c] of Object.entries(out.contracts)) console.log(n, c.address, c.runtimeBytes, "bytes", c.keccak256);
+ console.log("block", out.block);
+--- app-lease-gas/scripts/snapshot-safe-code.mjs
++++ src/scripts/test-fixtures/snapshot-safe-code.mjs
+@@ -2,7 +2,7 @@
+ // onto a LOCAL test chain (the owner CLI's Safe path is tested against the real Safe code, not a mock). Only
+ // eth_blockNumber / eth_chainId / eth_getCode / eth_call, at ONE pinned block, to TWO public RPCs; both must return
+ // identical bytes or nothing is written. Every request is bounded (10 s, 2 MiB). No transaction, no signature, no key.
+-//   usage: node scripts/snapshot-safe-code.mjs   (cwd: work/app-lease-gas)
++//   usage: node scripts/test-fixtures/snapshot-safe-code.mjs   (writes test/fixtures/base-code/safe-code-base.json)
+ import fs from "node:fs";
+ import crypto from "node:crypto";
+ import { keccak256 } from "viem";
+@@ -44,6 +44,6 @@
+ // VERSION() (0xffa1ad74) of the singleton, for the record
+ const v = await agree("eth_call", [{ to: ADDR.safeL2, data: "0xffa1ad74" }, block]);
+ out.version = Buffer.from(v.slice(130, 130 + Number(BigInt("0x" + v.slice(66, 130))) * 2), "hex").toString("utf8");
+-fs.writeFileSync("fixtures/safe-code-base.json", JSON.stringify(out, null, 1) + "\n");
++fs.writeFileSync(new URL("../../test/fixtures/base-code/safe-code-base.json", import.meta.url), JSON.stringify(out, null, 1) + "\n");
+ for (const [n, c] of Object.entries(out.contracts)) console.log(n, c.address, c.runtimeBytes, "bytes", c.keccak256);
+ console.log("version", out.version, "block", out.block, "proxy init", (out.proxyCreationCode.length - 2) / 2, "bytes");
+--- app-lease-gas/test/helpers/b-world.mjs
++++ src/test/helpers/lease-gas-world.mjs
+@@ -1,5 +1,6 @@
+ // A local design-B world for node tests: anvil (chain id 8453, base fee 0.01 gwei), the LIVE rev-16d ledger and schema-4
+-// registry sources, EnclaveLeaseGasReserve + EnclaveLeaseExecutor (forge/out), MockUSDC and a mock ETH/USD feed.
++// registry sources, EnclaveLeaseGasReserve + EnclaveLeaseExecutor (built from source by test/helpers/lease-gas-forge.mjs),
++// MockUSDC and a mock ETH/USD feed.
+ // Operators are fresh keys registered by a fixture shortcut (temporary ETH for register(), then set back to 0).
+ import fs from "node:fs";
+ import path from "node:path";
+@@ -8,15 +9,15 @@
+ import { fileURLToPath, pathToFileURL } from "node:url";
+ import * as viem from "viem";
+ import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
++import { REPO, haveForge, leaseGasForgeOut } from "./lease-gas-forge.mjs";
+ 
+-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+-const OUT = path.join(ROOT, "forge/out");
+-const { linkBytecode } = await import(pathToFileURL(path.resolve(ROOT, "../enclave/site/js/lib/contract-linker.js")).href);
+-export const haveAnvil = (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); return true; } catch { return false; } })();
++const { linkBytecode } = await import(pathToFileURL(path.join(REPO, "site/js/lib/contract-linker.js")).href);
++/** anvil AND forge (the contracts are built from source): the chain tests skip, saying why, without either */
++export const haveAnvil = haveForge && (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); return true; } catch { return false; } })();
+ export const DEPLOYER = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+ export const ZERO32 = `0x${"00".repeat(32)}`;
+ const freePort = () => new Promise((ok) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
+-export const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, name + ".json"), "utf8")); return { abi: j.abi, bytecode: j.bytecode.object, links: j.bytecode.linkReferences || {} }; };
++export const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(leaseGasForgeOut(), file, name + ".json"), "utf8")); return { abi: j.abi, bytecode: j.bytecode.object, links: j.bytecode.linkReferences || {} }; };
+ 
+ export const LIMITS = { maxGasPriceCeiling: 10n ** 9n, overheadClaimGas: 29_500, overheadRenewGas: 24_000, overheadReleaseGas: 7_000, minClaimInterval: 60, l1Bps: 0 };
+ export const policy = (p = {}) => ({ enabled: true, claimPolicy: 0, sponsorRelease: true, maxClaimsPerEpoch: 4, maxPerOpWei: 10n ** 15n,
+@@ -25,17 +26,21 @@
+ export async function startWorld({ anvilArgs = [] } = {}) {
+   const port = await freePort();
+   const rpcUrl = `http://127.0.0.1:${port}`;
+-  const chain = viem.defineChain({ id: 8453, name: "local-8453", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } });
+   const anvil = spawn("anvil", ["--port", String(port), "--chain-id", "8453", "--base-fee", "10000000", "--silent", ...anvilArgs], { stdio: "ignore" });
+   const rpc = async (m, p = []) => { const r = await fetch(rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: m, params: p }) }); const j = await r.json(); if (j.error) throw new Error(`${m}: ${JSON.stringify(j.error)}`); return j.result; };
++  try { return await setupWorld({ anvil, rpcUrl, rpc }); }
++  catch (e) { anvil.kill("SIGKILL"); throw e; }   // a failed setup must not leave anvil holding this test process
++}
++async function setupWorld({ anvil, rpcUrl, rpc }) {
+   for (let i = 0; i < 100; i++) { try { await rpc("eth_chainId"); break; } catch { await new Promise((r) => setTimeout(r, 200)); } }
++  const chain = viem.defineChain({ id: 8453, name: "local-8453", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } });
+   const pc = viem.createPublicClient({ chain, transport: viem.http(rpcUrl) });
+   const wc = (key) => viem.createWalletClient({ chain, account: typeof key === "string" ? privateKeyToAccount(key) : key, transport: viem.http(rpcUrl) });
+   const send = async (key, tx) => { const h = await wc(key).sendTransaction({ gas: 8_000_000n, ...tx }); const rc = await pc.waitForTransactionReceipt({ hash: h }); if (rc.status !== "success") throw new Error("reverted: " + (tx.label || "")); return rc; };
+   const deploy = async (a, args = [], libs = {}) => { const bytecode = Object.keys(a.links).length ? linkBytecode(a.bytecode, a.links, libs) : a.bytecode;
+     return viem.getAddress((await send(DEPLOYER, { data: viem.encodeDeployData({ abi: a.abi, bytecode, args }) })).contractAddress); };
+   const write = (key, to, abi, fn, args = [], value = 0n) => send(key, { to, data: viem.encodeFunctionData({ abi, functionName: fn, args }), value, label: fn });
+-  const A = { usdc: art("MockUSDC.sol", "MockUSDC"), feed: art("LeaseGas.t.sol", "MockFeed"), registry: art("EnclaveRegistry.sol", "EnclaveRegistry"),
++  const A = { usdc: art("MockUSDC.sol", "MockUSDC"), feed: art("MockFeed.sol", "MockFeed"), registry: art("EnclaveRegistry.sol", "EnclaveRegistry"),
+     lib: art("EnclaveDeployments.sol", "EnclaveLedgerBandwidth"), ledger: art("EnclaveDeployments.sol", "EnclaveDeployments"),
+     reserve: art("EnclaveLeaseGasReserve.sol", "EnclaveLeaseGasReserve"), executor: art("EnclaveLeaseExecutor.sol", "EnclaveLeaseExecutor"),
+     spoof: art("SpoofOperator.sol", "SpoofOperator"), reverts: art("SpoofOperator.sol", "AlwaysReverts") };
+@@ -44,7 +49,7 @@
+   await write(DEPLOYER, addr.feed, A.feed.abi, "set", [300000000000n, (await pc.getBlock()).timestamp]);
+   addr.registry = await deploy(A.registry); addr.lib = await deploy(A.lib);
+   addr.ledger = await deploy(A.ledger, [addr.usdc, privateKeyToAccount(generatePrivateKey()).address, addr.registry, addr.feed],
+-                             { "src/live/EnclaveDeployments.sol:EnclaveLedgerBandwidth": addr.lib });
++                             { [`${Object.keys(A.ledger.links)[0]}:EnclaveLedgerBandwidth`]: addr.lib });
+   const newReserve = async (limits = LIMITS) => {
+     const reserve = await deploy(A.reserve, [addr.ledger, addr.registry, "0x0000000000000000000000000000000000000000", limits]);
+     const executor = await deploy(A.executor, [reserve]);
+--- app-lease-gas/test/helpers/windows-runtime-fixture.mjs
++++ src/test/helpers/windows-lease-runtime-fixture.mjs
+@@ -1,6 +1,6 @@
+ // Test-only transport/clock adapter. The host source is unchanged; production has no loopback/clock environment flag.
+ // Everything else, including the reviewed-file parser, bindings, signing, relays and receipt verifier, runs for real.
+-import * as real from "../../shadow-win/windows/node/lease-gas-runtime.bundle.mjs";
++import * as real from "../../windows/node/lease-gas-runtime.bundle.mjs";
+ export const leaseGasConfigured = real.leaseGasConfigured;
+ export const openReleaseJournal = real.openReleaseJournal;
+ export const loadLeaseGasConfig = (options) => real.loadLeaseGasConfig({
+--- app-lease-gas/test/lease-authority.test.mjs
++++ src/test/lease-authority.test.mjs
+@@ -7,7 +7,7 @@
+ import * as viem from "viem";
+ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+ const B = await import(process.env.LEASE_AUTHORITY_CLIENT || new URL("../client/lease-executor-client.mjs", import.meta.url).href);
+-import { startWorld, haveAnvil } from "./helpers/b-world.mjs";
++import { startWorld, haveAnvil } from "./helpers/lease-gas-world.mjs";
+ import { loadLeaseGasConfig, configuredLeaseSender } from "../network/lease-gas-runtime.mjs";
+ 
+ const T = { skip: !haveAnvil && "needs anvil", timeout: 120_000 };
+--- app-lease-gas/test/lease-client-durability.test.mjs
++++ src/test/lease-client-durability.test.mjs
+@@ -1,13 +1,13 @@
+ // Shared client (client/lease-executor-client.mjs): the caller's durable journal (onSigned) gates EVERY relay attempt.
+ // If it refuses a signed lease, the operation stops with NotPersisted and that lease reaches NO relay - neither the
+ // current one nor any later one (root review 14:54Z: it used to be caught as a relay error and the next relay tried).
+-// Local anvil (test/helpers/b-world.mjs); fixture keys only.
++// Local anvil (test/helpers/lease-gas-world.mjs); fixture keys only.
+ import { test, before, after } from "node:test";
+ import assert from "node:assert/strict";
+ import http from "node:http";
+ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+ import * as B from "../client/lease-executor-client.mjs";
+-import { startWorld, haveAnvil } from "./helpers/b-world.mjs";
++import { startWorld, haveAnvil } from "./helpers/lease-gas-world.mjs";
+ 
+ const T = { skip: !haveAnvil && "needs anvil", timeout: 120_000 };
+ let W, relay; const closers = [];
+--- app-lease-gas/test/lease-executor-e2e.test.mjs
++++ src/test/lease-executor-e2e.test.mjs
+@@ -3,13 +3,13 @@
+ // startLeaseRelay, each with its own funded key), and the shared host adapter (createLeaseSender). Real type-4
+ // transactions; every number below comes from receipts.
+ //   - host A registers with ZERO ETH through the repo's existing host paymaster (EntryPoint v0.8 code from
+-//     fixtures/aa-code-base.json; relay/host-sponsor.mjs + windows/node/sponsor.mjs), which delegates its key to
++//     test/fixtures/base-code/aa-code-base.json; relay/host-sponsor.mjs + windows/node/sponsor.mjs), which delegates its key to
+ //     Simple7702Account; its FIRST lease re-delegates the key to the executor, inside the relay's transaction;
+ //   - claim, renew, STOP (owner deactivates) -> sponsored release (tail refunded), reactivate, MOVE to host B;
+ //   - a self-hosted rate-0 app (owner's own box policy) and a refused third-party claim;
+ //   - the same signed lease at two relays: one lands, the other is refused in simulation and costs nothing;
+ //   - relay economics: what the reserve paid vs what the relay's transaction cost (receipt gasUsed x price);
+-//   - the raw transactions are saved (fixtures/representative-txs.json) for a read-only Base L1-fee measurement.
++//   - the raw transactions can be saved (LEASE_GAS_RAW_TX_OUT=<file>) for a read-only Base L1-fee measurement.
+ // Anvil has no L1 data fee: the reserve's L1 component is OFF here (l1Bps 0) and measured separately.
+ import { test, before, after } from "node:test";
+ import assert from "node:assert/strict";
+@@ -23,10 +23,11 @@
+ import * as viem from "viem";
+ import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
+ import * as B from "../client/lease-executor-client.mjs";
++import { leaseGasForgeOut } from "./helpers/lease-gas-forge.mjs";
+ 
+ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+-const ENCLAVE = path.resolve(ROOT, "../enclave");
+-const OUT = path.join(ROOT, "forge/out");
++const ENCLAVE = ROOT;   // the repository: the tests run its own modules
++const OUT = leaseGasForgeOut();
+ const { hostSponsor, hostSponsorRouter } = await import(pathToFileURL(path.join(ENCLAVE, "relay/host-sponsor.mjs")).href);
+ const { sponsoredRegister } = await import(pathToFileURL(path.join(ENCLAVE, "windows/node/sponsor.mjs")).href);
+ const { linkBytecode } = await import(pathToFileURL(path.join(ENCLAVE, "site/js/lib/contract-linker.js")).href);
+@@ -93,9 +94,9 @@
+   anvil = spawn("anvil", ["--port", String(port), "--chain-id", "8453", "--base-fee", "10000000", "--silent"], { stdio: "ignore" });
+   for (let i = 0; i < 100; i++) { try { await rpc("eth_chainId", []); break; } catch { await new Promise((r) => setTimeout(r, 200)); } }
+   pc = viem.createPublicClient({ chain, transport: viem.http(rpcUrl) });
+-  const aa = JSON.parse(fs.readFileSync(path.join(ROOT, "fixtures/aa-code-base.json"), "utf8"));
++  const aa = JSON.parse(fs.readFileSync(path.join(ROOT, "test/fixtures/base-code/aa-code-base.json"), "utf8"));
+   for (const c of Object.values(aa.contracts)) await rpc("anvil_setCode", [c.address, c.code]);
+-  A = { usdc: art("MockUSDC.sol", "MockUSDC"), feed: art("LeaseGas.t.sol", "MockFeed"), registry: art("EnclaveRegistry.sol", "EnclaveRegistry"),
++  A = { usdc: art("MockUSDC.sol", "MockUSDC"), feed: art("MockFeed.sol", "MockFeed"), registry: art("EnclaveRegistry.sol", "EnclaveRegistry"),
+         lib: art("EnclaveDeployments.sol", "EnclaveLedgerBandwidth"), ledger: art("EnclaveDeployments.sol", "EnclaveDeployments"),
+         hostPm: art("EnclaveHostPaymaster.sol", "EnclaveHostPaymaster"), reserve: art("EnclaveLeaseGasReserve.sol", "EnclaveLeaseGasReserve"),
+         executor: art("EnclaveLeaseExecutor.sol", "EnclaveLeaseExecutor") };
+@@ -105,7 +106,7 @@
+   addr.registry = await deploy(KEY.deployer, A.registry);
+   addr.lib = await deploy(KEY.deployer, A.lib);
+   addr.ledger = await deploy(KEY.deployer, A.ledger, [addr.usdc, privateKeyToAccount(generatePrivateKey()).address, addr.registry, addr.feed],
+-                             { "src/live/EnclaveDeployments.sol:EnclaveLedgerBandwidth": addr.lib });
++                             { [`${Object.keys(A.ledger.links)[0]}:EnclaveLedgerBandwidth`]: addr.lib });
+   const verifierKey = generatePrivateKey();
+   addr.hostPm = await deploy(KEY.deployer, A.hostPm, [EP, addr.registry, privateKeyToAccount(verifierKey).address, 10n ** 15n]);
+   await write(KEY.deployer, addr.hostPm, A.hostPm.abi, "deposit", [], 10n ** 16n);
+@@ -134,7 +135,8 @@
+   for (const r of relays) await r.close();
+   regServer?.close();
+   if (anvil) anvil.kill("SIGKILL");
+-  if (Object.keys(raws).length) fs.writeFileSync(path.join(ROOT, "fixtures/representative-txs.json"), JSON.stringify({
++  // opt-in: the raw transactions for a read-only L1-fee measurement go where LEASE_GAS_RAW_TX_OUT says, never into the repository
++  if (Object.keys(raws).length && process.env.LEASE_GAS_RAW_TX_OUT) fs.writeFileSync(process.env.LEASE_GAS_RAW_TX_OUT, JSON.stringify({
+     note: "raw signed design-B relay transactions from test/lease-executor-e2e.test.mjs (local anvil, chain id 8453); for a read-only Base L1-fee measurement",
+     overheadGas: OVERHEAD, txs: raws, economics: econ.map((e) => Object.fromEntries(Object.entries(e).map(([k, v]) => [k, typeof v === "bigint" ? v.toString() : v]))) }, null, 1) + "\n");
+ });
+--- app-lease-gas/test/lease-gas-owner-cli.test.mjs
++++ src/test/lease-gas-owner-cli.test.mjs
+@@ -1,9 +1,8 @@
+-// Round 3: the app OWNER's CLI path, end to end through the REAL main CLI entry with the lease-gas dispatch hunk applied
+-// (shadow-cli/cli/enclave.mjs = main cli/enclave.mjs + patches/lease-gas-cli-dispatch.hunk.patch; every other module is
+-// main's own file). Independent mode: two RPC origins (anvil + a pass-through proxy on another port) must agree.
++// The app OWNER's CLI path, end to end through the repository's own CLI entry (cli/enclave.mjs and its lease-gas
++// dispatch; every module is the repository's own file). Independent mode: two RPC origins (anvil + a pass-through proxy on another port) must agree.
+ // The CLI never signs: the TEST plays the owner's wallet (MetaMask) with fixture keys and sends exactly what it printed.
+-// Owners: a plain EOA, an EIP-7702-delegated EOA, the ORIGINAL SessionVault (forge/src/legacy, verbatim source) through
+-// ownerCall, a Safe (the canonical Safe v1.4.1 runtime read from Base, fixtures/safe-code-base.json), a previous owner
++// Owners: a plain EOA, an EIP-7702-delegated EOA, the ORIGINAL SessionVault (contracts/SessionVault.sol, the pinned legacy-sessions-v2 build source) through
++// ownerCall, a Safe (the canonical Safe v1.4.1 runtime read from Base, test/fixtures/base-code/safe-code-base.json), a previous owner
+ // after a transfer, and an unknown contract (refused).
+ import { test, before, after } from "node:test";
+ import assert from "node:assert/strict";
+@@ -16,12 +15,12 @@
+ import { fileURLToPath } from "node:url";
+ import * as viem from "viem";
+ import { privateKeyToAccount, generatePrivateKey, sign } from "viem/accounts";
+-import { startWorld, haveAnvil, art, DEPLOYER, LIMITS } from "./helpers/b-world.mjs";
++import { startWorld, haveAnvil, art, DEPLOYER, LIMITS } from "./helpers/lease-gas-world.mjs";
+ import * as O from "../network/lease-gas-owner.mjs";
+ 
+ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+-const CLI = path.join(ROOT, "shadow-cli/cli/enclave.mjs");
+-const SAFE = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, "fixtures/safe-code-base.json"), "utf8")); } catch { return null; } })();
++const CLI = path.join(ROOT, "cli/enclave.mjs");
++const SAFE = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, "test/fixtures/base-code/safe-code-base.json"), "utf8")); } catch { return null; } })();
+ const T = { skip: !haveAnvil && "needs anvil", timeout: 300_000 };
+ let W, proxy, tmp, pinsFile, recFile, recDigest, base;
+ 
+@@ -42,7 +41,7 @@
+   await W.write(DEPLOYER, book, art("LeaseExecutor.t.sol", "MockBook").abi, "set", [viem.stringToHex("deployments", { size: 32 }), W.addr.ledger]);
+   const F = art("SessionVault.sol", "SessionVaultFactory");
+   W.addr.vaultFactory = await W.deploy(F, [W.addr.usdc, book, "0x000000000000000000000000000000000000bEEF", viem.zeroAddress, 250_000_000n],
+-    { "src/legacy/SessionVault.sol:SessionVaultLib": await W.deploy(art("SessionVault.sol", "SessionVaultLib")) });
++    { [`${Object.keys(art("SessionVault.sol", "SessionVaultFactory").links)[0]}:SessionVaultLib`]: await W.deploy(art("SessionVault.sol", "SessionVaultLib")) });
+   pinsFile = path.join(tmp, "pins.json");
+   fs.writeFileSync(pinsFile, JSON.stringify({ version: 1, chainId: 8453, contracts: { registry: W.addr.registry, deployments: W.addr.ledger,
+     appCatalog: "0x00000000000000000000000000000000000000c1", proofOfTime: "0x00000000000000000000000000000000000000c2",
+@@ -57,7 +56,7 @@
+ });
+ after(() => { proxy?.close(); W?.stop(); if (tmp) fs.rmSync(tmp, { recursive: true, force: true }); });
+ 
+-/** Run the main CLI entry (shadow tree) and parse its --json output. */
++/** Run the repository CLI entry and parse its --json output. */
+ function cli(args, { json = true, expectFail = false } = {}) {
+   return new Promise((ok, no) => {
+     const p = spawn(process.execPath, [CLI, ...base, ...(json ? ["--json"] : []), ...args], { env: { PATH: process.env.PATH, HOME: tmp, XDG_CONFIG_HOME: tmp, ENCLAVE_ADDRESS_BOOK: "" } });
+@@ -181,7 +180,7 @@
+   assert.equal((await R(id, vault)).balanceWei, 0n);
+ });
+ 
+-test("Safe owner (canonical Safe v1.4.1 code): a Safe transaction, executed by the Safe's own signer", { ...T, skip: T.skip || (!SAFE && "fixtures/safe-code-base.json missing (scripts/snapshot-safe-code.mjs)") }, async () => {
++test("Safe owner (canonical Safe v1.4.1 code): a Safe transaction, executed by the Safe's own signer", { ...T, skip: T.skip || (!SAFE && "test/fixtures/base-code/safe-code-base.json missing (scripts/snapshot-safe-code.mjs)") }, async () => {
+   for (const c of Object.values(SAFE.contracts)) await W.rpc("anvil_setCode", [c.address, c.code]);
+   const SAFE_ABI = viem.parseAbi(["function setup(address[] _owners,uint256 _threshold,address to,bytes data,address fallbackHandler,address paymentToken,uint256 payment,address paymentReceiver)",
+     "function getTransactionHash(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 _nonce) view returns (bytes32)",
+--- app-lease-gas/forge/test/LeaseExecutor.t.sol
++++ src/test/lease-gas/forge/test/LeaseExecutor.t.sol
+@@ -2,12 +2,12 @@
+ pragma solidity ^0.8.24;
+ 
+ import "forge-std/Test.sol";
+-import {EnclaveLeaseExecutor, IEnclaveLeaseGasReserve} from "../src/EnclaveLeaseExecutor.sol";
+-import {EnclaveLeaseGasReserve, IRegistryR, IL1FeeOracle} from "../src/EnclaveLeaseGasReserve.sol";
+-import {EnclaveDeployments} from "../src/live/EnclaveDeployments.sol";
+-import {EnclaveRegistry} from "../src/live/EnclaveRegistry.sol";
+-import {SessionVault, SessionVaultFactory, ISVToken, ISVBook, ISVRouter, ISVKeyAttestations} from "../src/legacy/SessionVault.sol";
+-import {MockUSDC} from "./mocks/MockUSDC.sol";
++import {EnclaveLeaseExecutor, IEnclaveLeaseGasReserve} from "../../../../contracts/EnclaveLeaseExecutor.sol";
++import {EnclaveLeaseGasReserve, IRegistryR, IL1FeeOracle} from "../../../../contracts/EnclaveLeaseGasReserve.sol";
++import {EnclaveDeployments} from "../../../fixtures/ledger-rev16d-source/EnclaveDeployments.sol";
++import {EnclaveRegistry} from "../../../fixtures/registry-schema4/EnclaveRegistry.sol";
++import {SessionVault, SessionVaultFactory, ISVToken, ISVBook, ISVRouter, ISVKeyAttestations} from "../../../../contracts/SessionVault.sol";
++import {MockUSDC} from "../sol/MockUSDC.sol";
+ 
+ contract ExecMockFeed {
+     int256 public answer = 3000e8;
+--- app-lease-gas/test/lease-relay-service.test.mjs
++++ src/test/lease-relay-service.test.mjs
+@@ -1,6 +1,6 @@
+ // The relay SERVICE entry (network/lease-relay-service.mjs) a relay operator would run: reviewed record by digest, a key
+ // file that only its owner can read, a small-float cap enforced at start; then it relays a zero-ETH host's claim and
+-// is reimbursed in the same transaction. Local anvil (test/helpers/b-world.mjs); fixture keys only.
++// is reimbursed in the same transaction. Local anvil (test/helpers/lease-gas-world.mjs); fixture keys only.
+ import { test, before, after } from "node:test";
+ import assert from "node:assert/strict";
+ import fs from "node:fs";
+@@ -10,7 +10,7 @@
+ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+ import * as B from "../client/lease-executor-client.mjs";
+ import { startRelayService } from "../network/lease-relay-service.mjs";
+-import { startWorld, haveAnvil } from "./helpers/b-world.mjs";
++import { startWorld, haveAnvil } from "./helpers/lease-gas-world.mjs";
+ 
+ const T = { skip: !haveAnvil && "needs anvil", timeout: 120_000 };
+ let W, dir, rec, digest;
+--- app-lease-gas/test/relay-security.test.mjs
++++ src/test/relay-security.test.mjs
+@@ -1,5 +1,5 @@
+ // Round 3, root review items 1-3: the RELAY never spends on anything but a verified lease for its pinned reserve and
+-// executor, and the HOST never takes a relay's word. Local anvil (test/helpers/b-world.mjs); relays are
++// executor, and the HOST never takes a relay's word. Local anvil (test/helpers/lease-gas-world.mjs); relays are
+ // client/lease-executor-client.mjs startLeaseRelay (honest, pinned by code hash) and a programmable LYING relay.
+ import { test, before, after } from "node:test";
+ import assert from "node:assert/strict";
+@@ -7,7 +7,7 @@
+ import * as viem from "viem";
+ import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
+ import * as B from "../client/lease-executor-client.mjs";
+-import { startWorld, haveAnvil, ZERO32, policy } from "./helpers/b-world.mjs";
++import { startWorld, haveAnvil, ZERO32, policy } from "./helpers/lease-gas-world.mjs";
+ 
+ const T = { skip: !haveAnvil && "needs anvil", timeout: 300_000 };
+ let W, honest, honestKey, closers = [];
+--- app-lease-gas/test/windows-current-runtime.test.mjs
++++ src/test/windows-current-runtime.test.mjs
+@@ -1,4 +1,4 @@
+-// Real Windows chain.mjs rebased from current main, preserving the shared off-chain heartbeat host source.
++// The real Windows chain.mjs (windows/node/chain.mjs), which keeps the shared off-chain heartbeat host source.
+ // Only test transports (loopback) and the EVM's warped clock are adapted; no simulated lease sender or receipt.
+ import { before, after, test } from "node:test";
+ import assert from "node:assert/strict";
+@@ -9,10 +9,10 @@
+ import { createHash } from "node:crypto";
+ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+ import * as B from "../client/lease-executor-client.mjs";
+-import { startWorld, haveAnvil } from "./helpers/b-world.mjs";
++import { startWorld, haveAnvil } from "./helpers/lease-gas-world.mjs";
+ 
+-const hostUrl = new URL("../shadow-win/windows/node/chain.mjs", import.meta.url).href;
+-const fixtureUrl = new URL("./helpers/windows-runtime-fixture.mjs", import.meta.url).href;
++const hostUrl = new URL("../windows/node/chain.mjs", import.meta.url).href;
++const fixtureUrl = new URL("./helpers/windows-lease-runtime-fixture.mjs", import.meta.url).href;
+ const hooks = registerHooks({
+   resolve(specifier, context, nextResolve) {
+     if (context.parentURL?.startsWith(hostUrl) && specifier === "./lease-gas-runtime.bundle.mjs")
+--- app-lease-gas/test/windows-host-app-funded.test.mjs
++++ src/test/windows-host-app-funded.test.mjs
+@@ -1,7 +1,8 @@
+-// The REAL Windows Host class (shadow-win/windows/node/host.mjs, rebased from current main) with app-funded leases and a
+-// ZERO-ETH operator key: its own gas runway must no longer take the box out of the market or availability, and its
+-// low-gas warning must not tell the operator that apps stop renewing (root review 14:45Z). Registry price writes still
+-// need the key's ETH and stay gated. CONTROL: main's unpatched Host with the same zero-ETH key does refuse claims.
++// The REAL Windows Host class (windows/node/host.mjs) with app-funded leases and a ZERO-ETH operator key: its own gas
++// runway must no longer take the box out of the market or availability, and its low-gas warning must not tell the
++// operator that apps stop renewing (root review 14:45Z). Registry price writes still need the key's ETH and stay gated.
++// CONTROL: the same modules with app-funded leases NOT configured (the operator-paid path every box without the setting
++// runs; imported separately, before any LEASE_GAS_* variable exists) and the same zero-ETH key do refuse claims.
+ import { before, after, test } from "node:test";
+ import assert from "node:assert/strict";
+ import fs from "node:fs";
+@@ -11,18 +12,23 @@
+ import { createHash } from "node:crypto";
+ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+ import * as B from "../client/lease-executor-client.mjs";
+-import { startWorld, haveAnvil } from "./helpers/b-world.mjs";
++import { startWorld, haveAnvil } from "./helpers/lease-gas-world.mjs";
+ 
+-const chainUrl = new URL("../shadow-win/windows/node/chain.mjs", import.meta.url).href;
+-const fixtureUrl = new URL("./helpers/windows-runtime-fixture.mjs", import.meta.url).href;
++const chainUrl = new URL("../windows/node/chain.mjs", import.meta.url).href;
++const fixtureUrl = new URL("./helpers/windows-lease-runtime-fixture.mjs", import.meta.url).href;
+ const hooks = registerHooks({
+   resolve(specifier, context, nextResolve) {
+     if (context.parentURL?.startsWith(chainUrl) && specifier === "./lease-gas-runtime.bundle.mjs") return { url: fixtureUrl, shortCircuit: true };
++    // the operator-paid control: its own instances of the repository modules (their configuration is read at import)
++    if (context.parentURL?.endsWith("?operator-paid") && /^\.\.?\//.test(specifier)) {
++      const r = nextResolve(specifier, context);
++      return { ...r, url: r.url.split("?")[0] + "?operator-paid", shortCircuit: true };
++    }
+     return nextResolve(specifier, context);
+   },
+ });
+ const T = { skip: !haveAnvil && "needs anvil", timeout: 120_000 };
+-let W, relay, op, dir, chain, Host, mainChain, MainHost;
++let W, relay, op, dir, chain, Host, mainChain, MainHost, hostModule, mainHostModule;
+ const saved = { ...process.env };
+ before(async () => {
+   if (!haveAnvil) return;
+@@ -34,16 +40,19 @@
+   const bytes = Buffer.from(JSON.stringify({ format: "enclave-lease-gas-deployment/v1", chainId: 8453,
+     ...Object.fromEntries(["reserve", "executor", "ledger", "registry", "reserveCodeHash", "executorCodeHash"].map((x) => [x, W.addr[x]])) }));
+   fs.writeFileSync(path.join(dir, "record.json"), bytes);
++  process.env.BASE_RPCS = W.rpcUrl;
++  // the control first: the repository's modules as a box WITHOUT app-funded leases configured imports them
++  mainChain = await import(new URL("../windows/node/chain.mjs?operator-paid", import.meta.url).href);
++  mainHostModule = await import(new URL("../windows/node/host.mjs?operator-paid", import.meta.url).href);
++  ({ Host: MainHost } = mainHostModule);
++  assert.equal(mainChain.leaseGasActive(), false, "the control is the operator-paid configuration");
+   Object.assign(process.env, { BASE_RPCS: W.rpcUrl, ENCLAVE_LEASE_GAS_FILE: path.join(dir, "record.json"),
+     ENCLAVE_LEASE_GAS_DIGEST: "sha256:" + createHash("sha256").update(bytes).digest("hex"), ENCLAVE_LEASE_GAS_RPCS: W.rpcUrl, ENCLAVE_LEASE_GAS_RELAYS: relay.url });
+   fs.writeFileSync(path.join(dir, "operator.key"), op.key + "\n", { mode: 0o600 });
+   chain = await import(chainUrl);
+-  ({ Host } = await import(new URL("../shadow-win/windows/node/host.mjs", import.meta.url).href));
++  hostModule = await import(new URL("../windows/node/host.mjs", import.meta.url).href);
++  ({ Host } = hostModule);
+   chain.loadOperator(path.join(dir, "operator.key"));
+-  // the control: main BEFORE root's lease-gas integration (control-win: those two files from
+-  // work/windows-lease-source-integration/main-before, everything else current main), which reads no LEASE_GAS_* setting
+-  mainChain = await import(new URL("../control-win/windows/node/chain.mjs", import.meta.url).href);
+-  ({ Host: MainHost } = await import(new URL("../control-win/windows/node/host.mjs", import.meta.url).href));
+   mainChain.loadOperator(path.join(dir, "operator.key"));
+ });
+ after(async () => {
+@@ -77,10 +86,20 @@
+   assert.equal(a.leaseGas, "app-funded"); assert.equal(a.gasRenewalsLeft, null);
+ });
+ 
+-test("CONTROL: main's pre-integration Host with the same zero-ETH key refuses claims and tells the operator to top up", T, async () => {
++test("CONTROL: the same Host with app-funded leases unconfigured and the same zero-ETH key refuses claims and tells the operator to top up", T, async () => {
+   const { h, logs } = newHost(MainHost, "main");
+   await h.warnLowGas();
+   assert.match(logs.find((m) => /operator gas is low/.test(m)) || "", /Top up .* or apps stop renewing/);
+   assert.equal(h.marketStatus().why, "the operator key has no gas left for claims");
+   assert.equal(h.availability().gasRenewalsLeft, 0);
+ });
++
++test("the startup line for a zero-ETH key says what THIS configuration pays from it", T, () => {
++  // configured: claims/renewals/releases go to the apps' reserves (chain.mjs leaseSend); registry and proof writes do not
++  const funded = hostModule.noGasMessage(chain.leaseGasActive());
++  assert.match(funded, /lease claims, renewals and releases are paid by each app's own reserve \(app-funded leases are configured; this key's ETH is never used for them\)/);
++  assert.match(funded, /registry status, price and proof-key writes and paid apps' proof checkpoints need this key's ETH/);
++  assert.doesNotMatch(funded, /cannot (register, )?claim, renew/);
++  // operator-paid: unchanged
++  assert.equal(mainHostModule.noGasMessage(mainChain.leaseGasActive()), "operator has no gas: it can read the ledger but cannot register, claim, renew or prove");
++});
+--- app-lease-gas/test/windows-lease-closure.test.mjs
++++ src/test/windows-lease-closure.test.mjs
+@@ -5,11 +5,10 @@
+ import os from "node:os";
+ import path from "node:path";
+ import { execFileSync } from "node:child_process";
+-import { closure } from "../../enclave/windows/node/deploy-files.mjs";
++import { closure } from "../windows/node/deploy-files.mjs";
+ 
+ test("Windows deploy closure ships the shared lease bundle without undeclared outside npm dependencies", () => {
+-  const root = fileURLToPath(new URL("../shadow-win", import.meta.url));
+-  const result = closure({ root });
++  const result = closure({ root: fileURLToPath(new URL("..", import.meta.url)) });   // this repository's own tree
+   assert.deepEqual(result.problems, []);
+   assert.ok(result.files.includes("windows/node/lease-gas-runtime.bundle.mjs"));
+   assert.ok(result.files.includes("network/registry-reconcile.mjs"), "the existing shared heartbeat policy still ships");
+@@ -19,7 +18,7 @@
+ test("the Windows runtime bundle loads without repository or npm files alongside it", (t) => {
+   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lease-bundle-cold-"));
+   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+-  fs.copyFileSync(new URL("../shadow-win/windows/node/lease-gas-runtime.bundle.mjs", import.meta.url), path.join(dir, "runtime.mjs"));
++  fs.copyFileSync(new URL("../windows/node/lease-gas-runtime.bundle.mjs", import.meta.url), path.join(dir, "runtime.mjs"));
+   fs.writeFileSync(path.join(dir, "probe.mjs"), `
+     import assert from "node:assert/strict";
+     import { loadLeaseGasConfig, leaseGasConfigured } from "./runtime.mjs";
+--- app-lease-gas/test/windows-release-journal.test.mjs
++++ src/test/windows-release-journal.test.mjs
+@@ -1,5 +1,5 @@
+-// Windows release durability (root review 15:04Z): the ACTUAL Windows chain module + Host class (shadow-win, rebased from
+-// current main) with app-funded leases and a ZERO-ETH operator. Every sponsored release is journaled strictly before a
++// Windows release durability (root review 15:04Z): the ACTUAL Windows chain module + Host class (windows/node/chain.mjs,
++// windows/node/host.mjs) with app-funded leases and a ZERO-ETH operator. Every sponsored release is journaled strictly before a
+ // signature and before any relay sees a signed lease (network/lease-release-journal.mjs, in the shipped bundle); until it
+ // is settled from the chain the deployment is HELD (no claim, re-adoption or renewal), across a process restart.
+ //   1. relay answer lost -> pending; "restart" (a fresh chain module on the same journal) still holds; the real Host
+@@ -19,10 +19,10 @@
+ import { createHash } from "node:crypto";
+ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+ import * as B from "../client/lease-executor-client.mjs";
+-import { startWorld, haveAnvil } from "./helpers/b-world.mjs";
++import { startWorld, haveAnvil } from "./helpers/lease-gas-world.mjs";
+ 
+-const chainUrl = new URL("../shadow-win/windows/node/chain.mjs", import.meta.url).href;
+-const fixtureUrl = new URL("./helpers/windows-runtime-fixture.mjs", import.meta.url).href;
++const chainUrl = new URL("../windows/node/chain.mjs", import.meta.url).href;
++const fixtureUrl = new URL("./helpers/windows-lease-runtime-fixture.mjs", import.meta.url).href;
+ const hooks = registerHooks({
+   resolve(specifier, context, nextResolve) {
+     if (context.parentURL?.startsWith(chainUrl) && specifier === "./lease-gas-runtime.bundle.mjs") return { url: fixtureUrl, shortCircuit: true };
+@@ -118,7 +118,7 @@
+   const plain = await import(chainUrl);   // the instance host.mjs imports
+   if (!plain.operatorAddress()) plain.loadOperator();
+   plain.addresses.deployments = W.addr.ledger; plain.addresses.registry = W.addr.registry;
+-  const { Host } = await import(new URL("../shadow-win/windows/node/host.mjs", import.meta.url).href);
++  const { Host } = await import(new URL("../windows/node/host.mjs", import.meta.url).href);
+   const h = new Host({ dir: hostDir, endpoint: "https://windows-release-journal.test", name: "j", appsEnabled: true, cpuPricePerSec6: 1000, log: () => {} });
+   h.chainReady = true;
+   const r = await h.consider(id);

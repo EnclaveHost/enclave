@@ -1,0 +1,311 @@
+"""Fixture tests of the hs2 activation helper: the pure guards (hs2lib) on a probe built from the REAL read-only probe of
+13:31Z, and the helper's orchestration (root-hs2-activate.py main) with its SSH/scp layer stubbed - never a real host.
+  run: python3 -m unittest -v test_hs2.py"""
+import copy, importlib.util, json, pathlib, shutil, sys, tempfile, unittest
+HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import hs2lib as L
+
+SUMS = dict(L.SCRIPT_PINS)
+LOCAL = {f"bafy{'a' * 30}{i:04d}.{ext}": 1000 + i for i in range(L.PINS["objects"]) for ext in ("bin", "car")}
+BASE = {  # the real probe (probe-minipc.json, 2026-10-21T13:31Z) + the helper's extra fields at their pre-activation values
+    "freeRamMiB": 37618, "freeDiskMiB": 910702, "tcpListenOnStagePorts": 0, "udpOnStagePorts": 0, "listeners": [], "taskState": "Ready", "taskRealTriggers": 0,
+    "taskPrincipal": "LOCAL SERVICE", "receiptLast": "complete", "receiptSha256": L.PINS["receiptSha256"], "receiptFilesMatch": 24, "receiptFilesBad": 0,
+    "hostServicesJson": L.PINS["hostServicesJson"], "supervisorJson": L.PINS["supervisorJson"], "manifestSha256": L.PINS["manifestSha256"],
+    "artifactsFiles": 0, "artifactsOther": 0, "artifactsBytes": 0, "hs2NodeProcesses": 0, "supervisorProcesses": 0, "node": "v24.16.0",
+    "scripts": dict(SUMS), "staging": None, "stagingMarker": None, "sessionElevated": True}
+def P(**kw): p = copy.deepcopy(BASE); p.update(kw); return p
+def ev(p, phase, **kw): return L.evaluate(p, phase, local_sizes=LOCAL, **kw)
+FULL = dict(LOCAL); FULL[L.MARKER] = 64
+FILLED = dict(artifactsFiles=1872, artifactsBytes=sum(LOCAL.values()), staging=FULL, stagingMarker=L.PINS["manifestSha256"])
+
+class Preflight(unittest.TestCase):
+    def test_real_state_admits_dry_run_and_transfer_only(self):
+        self.assertEqual(ev(BASE, "dry-run"), []); self.assertEqual(ev(BASE, "transfer"), [])
+        self.assertTrue(any("staging copy is not complete" in x for x in ev(BASE, "fill")))
+        r = ev(BASE, "start"); self.assertTrue(any("artifacts not filled" in x for x in r)); self.assertTrue(any("fill receipt" in x for x in r))
+    def test_pin_drift_refuses_every_changing_phase_but_never_stop_or_rollback(self):
+        drifts = {"receipt": dict(receiptSha256="0" * 64), "receipt file": dict(receiptFilesMatch=23, receiptFilesBad=1), "config": dict(hostServicesJson="1" * 64),
+                  "supervisor": dict(supervisorJson="2" * 64), "manifest": dict(manifestSha256="3" * 64), "trigger added": dict(taskRealTriggers=1),
+                  "principal": dict(taskPrincipal="SYSTEM"), "old node": dict(node="v20.11.0"), "script": dict(scripts={**SUMS, "windows/start.ps1": "f" * 64})}
+        for name, d in drifts.items():
+            for ph in ("dry-run", "transfer", "fill", "start", "cleanup"):
+                self.assertTrue(ev(P(**d), ph), f"{name} must refuse {ph}")
+            self.assertEqual(ev(P(**d), "stop"), [], f"{name} must not block stop"); self.assertEqual(ev(P(**d), "rollback"), [], f"{name} must not block rollback")
+        for ph in L.PHASES: self.assertTrue(ev(P(sessionElevated=False), ph), "not elevated refuses every phase")
+    def test_transfer_guards(self):
+        self.assertTrue(ev(P(taskState="Running"), "transfer")); self.assertEqual(ev(P(taskState="Running"), "dry-run"), [], "dry-run reports, never refuses on a running stage")
+        self.assertTrue(any("not this helper's" in x for x in ev(P(staging={"x.bin": 1}, stagingMarker=""), "transfer")))
+        self.assertTrue(any("not snapshot objects" in x for x in ev(P(staging={L.MARKER: 64, "evil.exe": 9}, stagingMarker=L.PINS["manifestSha256"]), "transfer")))
+        tight = (16 * 1024) + (sum(LOCAL.values()) >> 20)        # MiB: exactly the floor + the copy, rounded down -> refuse
+        self.assertTrue(any("free disk" in x for x in ev(P(freeDiskMiB=tight - 1), "transfer")))
+    def test_fill_guards(self):
+        ok = P(staging=FULL, stagingMarker=L.PINS["manifestSha256"])
+        self.assertEqual(ev(ok, "fill"), [])
+        part = dict(FULL); part.pop(next(iter(LOCAL)))
+        self.assertTrue(ev(P(staging=part, stagingMarker=L.PINS["manifestSha256"]), "fill"))
+        self.assertTrue(ev(P(staging=FULL, stagingMarker=L.PINS["manifestSha256"], taskState="Running"), "fill"))
+        self.assertTrue(any("free disk" in x for x in ev(P(staging=FULL, stagingMarker=L.PINS["manifestSha256"], freeDiskMiB=16 * 1024), "fill")))
+    def test_start_guards(self):
+        self.assertEqual(ev(P(**FILLED), "start", fill_done=True), [])
+        for name, d, fd in [("no fill receipt", {}, False), ("temporaries", dict(artifactsOther=1), True), ("port busy", dict(tcpListenOnStagePorts=1), True),
+                            ("udp busy", dict(udpOnStagePorts=1), True), ("low ram", dict(freeRamMiB=1000), True), ("running", dict(taskState="Running"), True),
+                            ("leftover process", dict(hs2NodeProcesses=1), True), ("partial", dict(artifactsFiles=1871), True)]:
+            self.assertTrue(ev(P(**{**FILLED, **d}), "start", fill_done=fd), name)
+    def test_cleanup_guards(self):
+        self.assertEqual(ev(P(**FILLED), "cleanup"), [])
+        self.assertTrue(ev(P(**{**FILLED, "artifactsFiles": 10}), "cleanup"), "the staging copy is still the only full source")
+        self.assertTrue(ev(P(**{**FILLED, "stagingMarker": "x"}), "cleanup"))
+
+class Transfer(unittest.TestCase):
+    def test_plan(self):
+        self.assertEqual(len(L.plan_transfer(LOCAL, None, None)[0]), 1872)
+        partial = {n: s for i, (n, s) in enumerate(LOCAL.items()) if i % 3}; partial[next(iter(LOCAL))] = 1   # missing third + one truncated
+        to_send, refs = L.plan_transfer(LOCAL, {**partial, L.MARKER: 64}, L.PINS["manifestSha256"])
+        self.assertEqual(refs, []); self.assertEqual(set(to_send), {n for n in LOCAL if partial.get(n) != LOCAL[n]})
+        self.assertEqual(L.plan_transfer(LOCAL, FULL, L.PINS["manifestSha256"]), ([], []))
+        self.assertTrue(L.staging_complete(LOCAL, FULL, L.PINS["manifestSha256"])); self.assertFalse(L.staging_complete(LOCAL, {**FULL, "x.tmp": 1}, L.PINS["manifestSha256"]))
+    def test_staging_path_guard(self):
+        self.assertTrue(L.staging_path_ok())
+        for bad in (r"C:\ProgramData\Enclave\host-services\hs2\data", r"C:\ProgramData\Enclave\staging", r"C:\ProgramData\Enclave\staging\hs2-artifacts-20261021\..\x",
+                    r"C:\Program Files\Enclave\x", r"D:\ProgramData\Enclave\staging\hs2-artifacts-20261021"):
+            self.assertFalse(L.staging_path_ok(bad), bad)
+
+ART = {"manifestSha256": L.PINS["manifestSha256"], "objects": 936, "kept": 0, "copied": 1872, "fetched": 0, "missing": []}
+class Fill(unittest.TestCase):
+    def test_ok(self):
+        self.assertEqual(L.validate_fill(0, ART, 0, {"state": "unanchored", "wrote": None}, 1872), [])
+        self.assertEqual(L.validate_fill(0, {**ART, "kept": 1000, "copied": 872}, 0, {"state": "anchored", "wrote": "C:\\ProgramData\\Enclave\\host-services\\hs2\\data\\policy-import\\ab.json"}, 1872), [])
+    def test_refusals(self):
+        for name, args in {"art rc": (3, ART, 0, {"state": "unanchored", "wrote": None}, 1872), "missing": (0, {**ART, "missing": ["x.bin"], "copied": 1871}, 0, {"state": "unanchored", "wrote": None}, 1871),
+                           "fetched": (0, {**ART, "fetched": 1, "copied": 1871}, 0, {"state": "unanchored", "wrote": None}, 1872), "manifest": (0, {**ART, "manifestSha256": "0"}, 0, {"state": "unanchored", "wrote": None}, 1872),
+                           "count": (0, ART, 0, {"state": "unanchored", "wrote": None}, 1871), "pol rc": (0, ART, 3, None, 1872), "unanchored wrote": (0, ART, 0, {"state": "unanchored", "wrote": "x"}, 1872),
+                           "anchored elsewhere": (0, ART, 0, {"state": "anchored", "wrote": "C:\\Windows\\x.json"}, 1872), "weird state": (0, ART, 0, {"state": "torn"}, 1872), "no json": (0, None, 0, None, 1872)}.items():
+            self.assertTrue(L.validate_fill(*args), name)
+        self.assertTrue(L.validate_fill(0, ART, 0, {"state": "unanchored", "wrote": None}, 1872, 2), "temporaries")
+
+H6 = [f"PASS  {n}  {{\"x\":1}}" for n in L.EXPECTED_HEALTH]
+LST = [("tcp", "127.0.0.1", 18188), ("tcp", "127.0.0.1", 18189), ("udp", "127.0.0.1", 18153), ("tcp", "127.0.0.1", 18153), ("tcp", "127.0.0.1", 18154), ("tcp", "127.0.0.1", 18190)]
+class Start(unittest.TestCase):
+    def test_ok(self): self.assertEqual(L.validate_start(0, 0, H6, LST, "Running"), [])
+    def test_refusals(self):
+        self.assertTrue(L.validate_start(2, 0, H6, LST, "Running")); self.assertTrue(L.validate_start(0, 0, H6[:5], LST, "Running"))
+        self.assertTrue(L.validate_start(0, 0, H6 + ["FAIL  gate: ..."], LST, "Running")); self.assertTrue(L.validate_start(0, 0, H6, LST, "Ready"))
+        self.assertTrue(L.validate_start(0, 0, H6, LST[:2] + LST[3:], "Running"), "udp dns missing")
+        for a in ("0.0.0.0", "::", "192.168.1.20"):
+            r = L.validate_start(0, 0, H6, LST + [("tcp", a, 18190)], "Running"); self.assertTrue(any("NOT LOOPBACK-ONLY" in x for x in r), a)
+    def test_health_rc_is_enforced(self):
+        for rc in (2, 1, None):
+            r = L.validate_start(0, rc, H6, LST, "Running"); self.assertTrue(any("health.ps1 exit" in x for x in r), rc)
+    def test_exact_six_checks(self):
+        self.assertEqual(L.check_health(H6), []); self.assertEqual(L.check_health(list(reversed(H6))), [], "order does not matter")
+        cases = {"duplicate replaces one": H6[:5] + [H6[0]], "duplicate extra": H6 + [H6[2]], "missing": H6[:5],
+                 "unexpected 7th": H6 + ["PASS  something else  {}"], "unexpected replaces one": H6[:5] + ["PASS  directory-replica /healthz  {}"],
+                 "one FAIL": H6[:5] + [H6[5].replace("PASS", "FAIL", 1)], "garbage": H6 + ["WARN  x"], "empty": [],
+                 "other zone": [h.replace("app.enclave.host", "evil.example") for h in H6], "fewer objects": [h.replace("936 by HEAD", "935 by HEAD") for h in H6]}
+        for name, lines in cases.items():
+            self.assertTrue(L.check_health(lines), name)
+            self.assertTrue(L.validate_start(0, 0, lines, LST, "Running"), name)
+    def test_quiet(self):
+        q = P(); self.assertTrue(L.quiet(q)); self.assertFalse(L.quiet(None))
+        for d in (dict(taskState="Running"), dict(listeners=[("tcp", "127.0.0.1", 18188)]), dict(tcpListenOnStagePorts=1), dict(hs2NodeProcesses=1),
+                  dict(supervisorProcesses=1), dict(stageToolProcesses=1)):
+            self.assertFalse(L.quiet(P(**d)), d)
+    def test_tool_json(self):
+        log = "ok a.bin\r\nok a.car\r\n{\r\n  \"objects\": 936,\r\n  \"missing\": [],\r\n  \"nested\": {\r\n    \"x\": 1\r\n  }\r\n}\r\n"
+        self.assertEqual(L.parse_tool_json(log), {"objects": 936, "missing": [], "nested": {"x": 1}}); self.assertIsNone(L.parse_tool_json("MISSING x\nboom"))
+
+# ---- orchestration: the real main() with the SSH/scp layer stubbed (results, or exceptions to raise) ----
+import subprocess
+def load_helper(tmp):
+    shutil.copy(HERE / "hs2lib.py", tmp / "hs2lib.py")
+    spec = importlib.util.spec_from_file_location("helper", HERE / "root-hs2-activate.py"); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+    m.HERE = tmp; m.stage_pins = lambda: None; m.snapshot = lambda: LOCAL; return m
+TIMEOUT = subprocess.TimeoutExpired(["ssh"], 1260)
+RUNNING = P(**{**FILLED, "taskState": "Running", "listeners": LST, "hs2NodeProcesses": 5, "supervisorProcesses": 1})
+QUIET = P(**FILLED)
+OKSTART = (0, {"startRc": 0, "healthRc": 0, "health": H6}, "")
+class Orchestration(unittest.TestCase):
+    def setUp(self):
+        (HERE / "tmp").mkdir(exist_ok=True); self.tmp = pathlib.Path(tempfile.mkdtemp(dir=str(HERE / "tmp"))); self.m = load_helper(self.tmp); self.calls = []
+    def tearDown(self): shutil.rmtree(self.tmp, ignore_errors=True)
+    def fill_receipt(self): (self.tmp / "receipts").mkdir(exist_ok=True); (self.tmp / "receipts" / "fill-x.json").write_text(json.dumps({"exit": 0}))
+    def run_main(self, argv, probes, ps_results):
+        probes = list(probes); ps_results = list(ps_results); self.probes_used = 0
+        def probe():
+            self.probes_used += 1
+            x = probes.pop(0) if len(probes) > 1 else probes[0]
+            if isinstance(x, BaseException): raise x
+            return copy.deepcopy(x)
+        def ps(script, seconds):
+            self.calls.append(script); x = ps_results.pop(0) if ps_results else (0, {}, "")
+            if isinstance(x, BaseException): raise x
+            return x
+        self.m.probe = probe; self.m.ps = ps
+        sys.argv = ["x"] + argv
+        with self.assertRaises(SystemExit) as c: self.m.main()
+        return c.exception.code, json.loads(sorted((self.tmp / "receipts").glob("*.json"))[-1].read_text())
+    def stopped(self): return any("fallback-Stop-ScheduledTask" in c for c in self.calls)
+    def started(self): return any("start.ps1 -WaitSeconds" in c for c in self.calls)
+
+    def test_drift_refuses_with_exit_2_and_no_remote_action(self):
+        code, _ = self.run_main(["--transfer"], [P(receiptSha256="0" * 64)], []); self.assertEqual(code, 2); self.assertEqual(self.calls, [])
+    def test_healthy_start(self):
+        self.fill_receipt()
+        code, rec = self.run_main(["--start"], [QUIET, RUNNING], [OKSTART]); self.assertEqual(code, 0, rec); self.assertFalse(self.stopped())
+    def test_every_start_failure_is_stopped_and_proven(self):
+        cases = {
+            "ssh timeout during start": ([QUIET, QUIET], [TIMEOUT, (0, {"mode": "stop.ps1", "stopRc": 0}, "")]),
+            "OSError during start": ([QUIET, QUIET], [OSError("ssh not found"), (0, {"mode": "stop.ps1", "stopRc": 0}, "")]),
+            "post-start probe raises": ([QUIET, self.m.ProbeError("probe failed"), QUIET], [OKSTART, (0, {"mode": "stop.ps1", "stopRc": 0}, "")]),
+            "post-start probe times out": ([QUIET, TIMEOUT, QUIET], [OKSTART, (0, {"mode": "stop.ps1", "stopRc": 0}, "")]),
+            "healthRc 2 with six PASS": ([QUIET, RUNNING, QUIET], [(0, {"startRc": 0, "healthRc": 2, "health": H6}, ""), (0, {"stopRc": 0}, "")]),
+            "healthRc missing": ([QUIET, RUNNING, QUIET], [(0, {"startRc": 0, "health": H6}, ""), (0, {"stopRc": 0}, "")]),
+            "duplicate health line": ([QUIET, RUNNING, QUIET], [(0, {"startRc": 0, "healthRc": 0, "health": H6[:5] + [H6[0]]}, ""), (0, {"stopRc": 0}, "")]),
+            "missing health check": ([QUIET, RUNNING, QUIET], [(0, {"startRc": 0, "healthRc": 0, "health": H6[:5]}, ""), (0, {"stopRc": 0}, "")]),
+            "unexpected health check": ([QUIET, RUNNING, QUIET], [(0, {"startRc": 0, "healthRc": 0, "health": H6[:5] + ["PASS  x  {}"]}, ""), (0, {"stopRc": 0}, "")]),
+            "malformed session reply": ([QUIET, RUNNING, QUIET], [(0, {}, ""), (0, {"stopRc": 0}, "")]),
+            "exposed listener": ([QUIET, P(**{**FILLED, "taskState": "Running", "listeners": LST + [("tcp", "0.0.0.0", 18188)]}), QUIET], [OKSTART, (0, {"stopRc": 0}, "")]),
+            "in-session pin refusal": ([QUIET, QUIET], [(0, {"refused": True, "pinBad": ["...\\start.ps1"]}, ""), (0, {"stopRc": 0}, "")]),
+            "operator Ctrl-C": ([QUIET, QUIET], [KeyboardInterrupt(), (0, {"stopRc": 0}, "")]),
+        }
+        for name, (probes, results) in cases.items():
+            self.calls = []; self.tmp = pathlib.Path(tempfile.mkdtemp(dir=str(HERE / "tmp"))); self.m = load_helper(self.tmp); self.fill_receipt()
+            code, rec = self.run_main(["--start"], probes, results)
+            self.assertEqual(code, 3, f"{name}: {rec}"); self.assertTrue(self.stopped(), f"{name}: no stop attempt")
+            self.assertTrue(rec["stop"]["quiet"], name); self.assertTrue(rec["refusals"], name)
+    def test_unprovable_stop_is_critical(self):
+        cases = {"stop leaves the stage running": ([QUIET, RUNNING, RUNNING], [(0, {"startRc": 2, "healthRc": 2, "health": []}, ""), (0, {"stopRc": 1}, "")]),
+                 "stop session times out and the verify probe fails": ([QUIET, TIMEOUT, self.m.ProbeError("x"), self.m.ProbeError("x")], [OKSTART, TIMEOUT]),
+                 "stop raises and the stage is still running": ([QUIET, RUNNING, RUNNING], [(0, {"startRc": 2, "healthRc": 2, "health": []}, ""), OSError("x")]),
+                 "a stage tool is left": ([QUIET, RUNNING, P(**{**FILLED, "stageToolProcesses": 1, "hs2NodeProcesses": 1})], [(0, {"startRc": 2, "healthRc": 2, "health": []}, ""), (0, {"stopRc": 0}, "")])}
+        for name, (probes, results) in cases.items():
+            self.calls = []; self.tmp = pathlib.Path(tempfile.mkdtemp(dir=str(HERE / "tmp"))); self.m = load_helper(self.tmp); self.fill_receipt()
+            code, rec = self.run_main(["--start"], probes, results)
+            self.assertEqual(code, 4, f"{name}: {rec}"); self.assertTrue(self.stopped(), name); self.assertFalse(rec["stop"]["quiet"], name)
+    def test_start_refused_without_fill_receipt(self):
+        code, _ = self.run_main(["--start"], [QUIET], []); self.assertEqual(code, 2); self.assertEqual(self.calls, [])
+
+    def test_emergency_stop_needs_no_local_inputs_and_survives_a_failed_preflight(self):
+        def boom(*a): raise AssertionError("an emergency stop must not read the local stage or snapshot")
+        self.m.stage_pins = boom; self.m.snapshot = boom; self.m.SNAP = pathlib.Path("/nonexistent"); self.m.ARCHIVE = pathlib.Path("/nonexistent")
+        code, rec = self.run_main(["--stop"], [self.m.ProbeError("preflight down"), QUIET], [(0, {"mode": "stop.ps1", "stopRc": 0}, "")])
+        self.assertEqual(code, 0, rec); self.assertTrue(self.stopped())
+        code, rec = self.run_main(["--stop"], [RUNNING, RUNNING], [(0, {"mode": "fallback-Stop-ScheduledTask", "stopRc": 0}, "")])
+        self.assertEqual(code, 4, "not proven quiet is CRITICAL")
+        n = len(self.calls)
+        code, rec = self.run_main(["--stop"], [P(sessionElevated=False)], []); self.assertEqual(code, 2); self.assertEqual(len(self.calls), n, "no stop session when not elevated")
+    def test_stop_with_drifted_config_still_stops(self):
+        code, rec = self.run_main(["--stop"], [P(receiptSha256="0" * 64, hostServicesJson="1" * 64), QUIET], [(0, {"mode": "stop.ps1", "stopRc": 0}, "")])
+        self.assertEqual(code, 0, rec)
+
+    def test_fill_exceptions_and_leftover_tools(self):
+        pre = P(staging=FULL, stagingMarker=L.PINS["manifestSha256"])
+        code, rec = self.run_main(["--fill"], [pre, P(**{**FILLED, "artifactsFiles": 900, "stageToolProcesses": 1, "hs2NodeProcesses": 1})], [TIMEOUT])
+        self.assertEqual(code, 4, "a stage tool left after the session = CRITICAL")
+        self.calls = []; self.tmp = pathlib.Path(tempfile.mkdtemp(dir=str(HERE / "tmp"))); self.m = load_helper(self.tmp)
+        code, rec = self.run_main(["--fill"], [pre, P(**{**FILLED, "artifactsFiles": 900})], [TIMEOUT]); self.assertEqual(code, 3, rec)
+        self.calls = []; self.tmp = pathlib.Path(tempfile.mkdtemp(dir=str(HERE / "tmp"))); self.m = load_helper(self.tmp)
+        code, rec = self.run_main(["--fill"], [pre, self.m.ProbeError("x")], [OSError("x")]); self.assertEqual(code, 4, "unverifiable = CRITICAL")
+        self.calls = []; self.tmp = pathlib.Path(tempfile.mkdtemp(dir=str(HERE / "tmp"))); self.m = load_helper(self.tmp)
+        code, rec = self.run_main(["--fill"], [pre], [(0, {"refused": True, "pinBad": ["x"]}, "")]); self.assertEqual(code, 2)
+    def test_incomplete_fill_exits_3_and_never_starts(self):
+        pre = P(staging=FULL, stagingMarker=L.PINS["manifestSha256"])
+        art = json.dumps({**ART, "missing": ["x.car"], "copied": 1871}, indent=2)
+        code, _ = self.run_main(["--fill"], [pre, P(**{**FILLED, "artifactsFiles": 1871})], [(0, {"artRc": 3, "art": art, "polRc": 0, "pol": json.dumps({"state": "unanchored", "wrote": None}, indent=2)}, "")])
+        self.assertEqual(code, 3); self.assertFalse(self.started())
+    def test_complete_fill(self):
+        pre = P(staging=FULL, stagingMarker=L.PINS["manifestSha256"])
+        code, _ = self.run_main(["--fill"], [pre, P(**FILLED)], [(0, {"artRc": 0, "art": json.dumps(ART, indent=2), "polRc": 0, "pol": json.dumps({"state": "unanchored", "wrote": None}, indent=2)}, "")])
+        self.assertEqual(code, 0); self.assertIn("--from-dir','" + L.STAGING, self.calls[0]); self.assertNotIn("from-origin", self.calls[0])
+    def test_transfer_failures_are_resumable_exit_3(self):
+        orig = subprocess.run
+        for fake in (lambda *a, **k: type("R", (), {"returncode": 1, "stderr": "lost connection", "stdout": ""})(), lambda *a, **k: (_ for _ in ()).throw(TIMEOUT)):
+            self.m.subprocess.run = fake
+            try: code, _ = self.run_main(["--transfer"], [P(staging={L.MARKER: 64}, stagingMarker=L.PINS["manifestSha256"])], [])
+            finally: self.m.subprocess.run = orig
+            self.assertEqual(code, 3)
+    def test_rollback_needs_no_local_stage_and_honours_in_session_refusal(self):
+        def boom(*a): raise AssertionError("rollback must not read the local stage or snapshot")
+        self.m.stage_pins = boom; self.m.snapshot = boom
+        code, rec = self.run_main(["--rollback"], [QUIET], [(0, {"refused": True, "pinBad": ["x"]}, "")]); self.assertEqual(code, 2)
+        code, rec = self.run_main(["--rollback"], [QUIET], [(0, {"rbRc": 0}, "")]); self.assertEqual(code, 0)
+
+class RemoteScripts(unittest.TestCase):
+    def setUp(self): (HERE / "tmp").mkdir(exist_ok=True); self.tmp = pathlib.Path(tempfile.mkdtemp(dir=str(HERE / "tmp"))); self.m = load_helper(self.tmp)
+    def tearDown(self): shutil.rmtree(self.tmp, ignore_errors=True)
+    def test_embedded_pins_equal_the_stage(self):
+        sums = dict(reversed(l.split("  ", 1)) for l in (pathlib.Path(self.m.STAGE) / "STAGE-SHA256SUMS").read_text().splitlines())
+        for k, v in {**L.SCRIPT_PINS, **L.BIN_PINS}.items(): self.assertEqual(sums[k], v, k)
+    def test_each_action_verifies_exactly_what_it_runs_in_session_before_running(self):
+        for name, script, action, run in (("fill", self.m.FILL, "fill", "fill-data.ps1 artifacts"), ("start", self.m.START, "start", "start.ps1 -WaitSeconds"),
+                                          ("rollback", self.m.ROLLBACK(""), "rollback", "& .\\windows\\rollback.ps1")):
+            for path, h in L.pins_for(action): self.assertIn(f"@('{path}','{h}')", script, name)
+            self.assertLess(script.index("$pinsOk=$true"), script.index("if(!$pinsOk)"), name); self.assertLess(script.index("if(!$pinsOk)"), script.index(run), name)
+    def test_stop_never_runs_a_drifted_script(self):
+        s = self.m.STOP
+        for path, h in L.pins_for("stop"): self.assertIn(f"@('{path}','{h}')", s)
+        self.assertNotIn("Set-Location", s, "a missing stage dir must not prevent the stop")
+        self.assertIn("if($pinsOk){", s); self.assertLess(s.index("if($pinsOk){"), s.index("stop.ps1' *>"))
+        self.assertIn(f"[string]$t.Actions[0].Execute -eq '{L.TASK_EXE}'", s, "the fallback ends only the exact pinned task")
+        self.assertIn("refused-task-action-changed", s)
+    def test_watchdog_kills_only_its_own_tree_then_the_session(self):
+        w = self.m.WATCHER
+        self.assertIn("$x.CreationDate -ge $t0", w, "PID reuse cannot pull in an older process"); self.assertIn("$id -ne $PID", w, "the watcher never kills itself")
+        self.assertIn("$set.ContainsKey($pp)", w, "descendants of the session only")
+        self.assertLess(w.index("Stop-Process"), w.index("$o.Kill()"), "children before the session")
+        self.assertNotIn("'", w, "the watcher is embedded in a single-quoted string")
+    def test_all_remote_commands_fit_the_route_and_round_trip(self):
+        import base64, gzip
+        for name, script, sec in (("probe", self.m.PROBE, 120), ("probe-staging", self.m.PROBE_STAGING, 120), ("fill", self.m.FILL, 3600), ("start", self.m.START, 1200),
+                                  ("stop", self.m.STOP, 240), ("rollback", self.m.ROLLBACK(" -KeepData"), 600)):
+            enc = self.m.encoded(script, sec)
+            self.assertLessEqual(len(enc), 7800, name)                          # this SSH route takes about 7900
+            boot = base64.b64decode(enc).decode("utf-16le")
+            self.assertIn("Invoke-Expression $t", boot, "the session runs in the bootstrap's own process ($PID = the watched session)")
+            self.assertEqual(gzip.decompress(base64.b64decode(boot.split("'")[1])).decode(), self.m.session(script, sec), name)
+            full = self.m.session(script, sec)
+            for tok in ("@STAGE@", "@STAGING@", "@SCRIPTS@", "@MS@", "@GZ@"): self.assertNotIn(tok, full, name)
+    def test_an_oversized_command_is_refused_not_sent(self):
+        sent = []
+        orig = self.m.subprocess.run
+        self.m.subprocess.run = lambda *a, **k: sent.append(a) or None
+        try:
+            import os
+            with self.assertRaises(RuntimeError): self.m.ps("'" + os.urandom(12000).hex() + "'", 60)   # incompressible
+        finally: self.m.subprocess.run = orig
+        self.assertEqual(sent, [], "nothing may be sent")
+    def test_transport_details(self):
+        self.assertIn("-n", self.m.SSH, "ssh must not forward stdin (raw stdin stalls PowerShell)")
+        self.assertNotIn("return", self.m.REFUSED, "no `return` inside the Invoke-Expression'd session")
+        for script in (self.m.FILL, self.m.START, self.m.ROLLBACK("")):
+            body = script.replace("'{'", "")      # TAIL's string literal '{' is not structure
+            self.assertEqual(body.count("{"), body.count("}"), "braces balanced (the refusal's else wraps the action)")
+        self.assertIn("$q.StartTime-$cr[$k]", self.m.WATCHER, "a reused PID is never killed: start time must match the snapshot")
+    def test_pin_pairs_are_never_unrolled_into_scalars(self):
+        # 2026-10-21 regression: "foreach($q in @(@('p','h');@('p2','h2')))" - PowerShell unrolls each statement's array into
+        # scalars, so $q[0] was a path's or hash's FIRST CHARACTER (fill refused, pinBad ['C','7','C','c','C','9'])
+        for action in L.RUNS:
+            pairs = L.pins_for(action); text = self.m.verify_ps(action)
+            self.assertNotIn("foreach($q in @(", text, action)
+            self.assertNotRegex(text, r"@\('[^']*','[0-9a-f]{64}'\);@\(", action)
+            for p, h in pairs: self.assertEqual(text.count(f"$pp+=,@('{p}','{h}');"), 1, f"{action}: {p} is not appended as ONE element (unary comma)")
+            self.assertIn("foreach($q in $pp){$pinChecked++;", text)
+            self.assertIn(f"if($pinChecked -ne {len(pairs)})" + "{$pinsOk=$false;", text, f"{action}: the checked-count guard fails closed")
+        for name, script, action in (("fill", self.m.FILL, "fill"), ("start", self.m.START, "start"), ("stop", self.m.STOP, "stop"), ("rollback", self.m.ROLLBACK(""), "rollback")):
+            self.assertTrue(script.startswith(self.m.verify_ps(action)), f"{name} must open with exactly its pin block")
+    def test_probe_merges_both_sessions_and_fails_closed(self):
+        calls = []
+        def ps(script, seconds):
+            calls.append(script)
+            if script is self.m.PROBE: return 0, {"taskState": "Ready", "listeners": []}, ""
+            return 0, {"staging": ["a.bin|5", L.MARKER + "|64"], "stagingMarker": L.PINS["manifestSha256"], "scripts": dict(SUMS)}, ""
+        self.m.ps = ps
+        out = self.m.probe()
+        self.assertEqual(out["staging"], {"a.bin": 5, L.MARKER: 64}); self.assertEqual(out["scripts"], SUMS); self.assertEqual(len(calls), 2)
+        self.m.ps = lambda script, seconds: (0, {"taskState": "Ready"}, "") if script is self.m.PROBE else (255, {}, "")
+        with self.assertRaises(self.m.ProbeError): self.m.probe()
+
+
+if __name__ == "__main__":
+    unittest.main()

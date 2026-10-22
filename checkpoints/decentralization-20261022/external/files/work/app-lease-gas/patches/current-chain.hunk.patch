@@ -1,0 +1,17 @@
+--- a/windows/node/chain.mjs
++++ b/windows/node/chain.mjs
+@@ -319,10 +319,12 @@
+     if (!leaseGasActive()) { out.push({ id: e.id, outcome: "held: app-funded leases are not configured, so it cannot be verified" }); continue; }
+     const x = e.intents[0];
+     const want = { id: e.id, kind: 3, enclaveId: x.enclaveId, nonce: BigInt(x.nonce), deadline: BigInt(x.deadline), maxChargeWei: BigInt(x.maxChargeWei) };
+-    const r = await leaseSender().resolveSigned(want, BigInt(x.fromBlock), e.intents.map((i) => i.payee));
++    // settled by the identity RECORDED with the signed lease, never by this process's current key or configuration
++    const recorded = { operator: x.operator, chainId: x.chainId, reserve: x.reserve, executor: x.executor, ledger: x.ledger };
++    const r = await leaseSender().resolveSigned(want, BigInt(x.fromBlock), e.intents.map((i) => i.payee), recorded);
+     if (r.state === "landed") { leaseJournal.settle(e.id, "released"); out.push({ id: e.id, outcome: "released", hash: r.verified.hash }); }
+     else if (r.state === "consumed" || r.state === "expired") { leaseJournal.settle(e.id, r.state); out.push({ id: e.id, outcome: r.state }); }
+-    else out.push({ id: e.id, outcome: "pending" });
++    else out.push({ id: e.id, outcome: r.why ? `held: ${r.why}` : "pending" });
+   }
+   return out;
+ }

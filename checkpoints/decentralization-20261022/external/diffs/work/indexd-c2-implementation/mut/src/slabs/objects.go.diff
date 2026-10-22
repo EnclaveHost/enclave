@@ -1,0 +1,43 @@
+--- a/slabs/objects.go
++++ b/slabs/objects.go
+@@ -12,6 +12,7 @@
+ 
+ 	proto "go.sia.tech/core/rhp/v4"
+ 	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
+ )
+ 
+ type (
+@@ -342,12 +343,22 @@
+ // Slabs that were referenced by the object and are no longer referenced by any
+ // of the account's objects are unpinned and queued for deletion.
+ func (m *SlabManager) DeleteObject(ctx context.Context, account proto.Account, objectKey types.Hash256) error {
+-	return m.store.DeleteObject(account, objectKey)
++	return m.DeleteObjectFenced(ctx, account, nil, objectKey)
++}
++
++// DeleteObjectFenced is DeleteObject under the writer fence sf (FENCING PATCH).
++func (m *SlabManager) DeleteObjectFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, objectKey types.Hash256) error {
++	return m.store.DeleteObjectFenced(account, sf, objectKey)
+ }
+ 
+ // PinObject pin the given object for the given account. If an object with
+ // the same ID already exists for the account, it is overwritten.
+ func (m *SlabManager) PinObject(ctx context.Context, account proto.Account, obj PinObjectRequest) error {
++	return m.PinObjectFenced(ctx, account, nil, obj)
++}
++
++// PinObjectFenced is PinObject under the writer fence sf (FENCING PATCH).
++func (m *SlabManager) PinObjectFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, obj PinObjectRequest) error {
+ 	if len(obj.Slabs) == 0 {
+ 		return ErrObjectMinimumSlabs
+ 	} else if len(obj.EncryptedMetadata) > MaxMetadataSize {
+@@ -357,7 +368,7 @@
+ 	} else if err := obj.VerifySignatures(types.PublicKey(account)); err != nil {
+ 		return err
+ 	}
+-	return m.store.PinObject(account, obj)
++	return m.store.PinObjectFenced(account, sf, obj)
+ }
+ 
+ // ListObjects lists objects for the given account that were updated after the

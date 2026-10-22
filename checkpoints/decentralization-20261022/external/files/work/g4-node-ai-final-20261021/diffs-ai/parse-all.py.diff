@@ -1,0 +1,11 @@
+--- frozen/tools/parse-all.py
++++ ai-final/tools/parse-all.py
+@@ -6,7 +6,7 @@
+ spec = importlib.util.spec_from_file_location("r", H / "root-node-hold.py"); R = importlib.util.module_from_spec(spec); spec.loader.exec_module(R); R.verify_local()
+ st = "C:\\ProgramData\\Enclave\\staging\\nodehold-0123456789ab"; run = "20261021t230000z-abcdef"
+ loader = R.LOADER.replace("PS1X", st + "\\node-hold-cutover.ps1").replace("PSHA", "a" * 64).replace("PFX", st + f"\\params-{run}.json").replace("PFSHA", "b" * 64).replace("MODEX", "cutover")
+-texts = {"cutover.ps1": (H / "node-hold-cutover.ps1").read_text(), "IDN": R.IDN, "CFGS": R.CFGS, "COV": R.COV,
++texts = {"cutover.ps1": (H / "node-hold-cutover.ps1").read_text(), "IDN": R.IDN, "CFGS": R.CFGS, "ACLS": R.ACLS, "COV": R.COV,
+          "FIL": R.FIL.replace("TARGETS", ",".join(R.q(v[1]) for v in R.FILES.values())),
+          "PUT": R.PUT.replace("TX", R.q("C:\\a")).replace("SX", R.q("C:\\b")).replace("OX", R.q("absent")).replace("NX", R.q("c" * 64)).replace("PX", R.q("C:\\p")),
+          "UNPUT": R.UNPUT.replace("TX", R.q("C:\\a")).replace("OX", R.q("c" * 64)).replace("NX", R.q("d" * 64)).replace("PX", R.q("C:\\p")),

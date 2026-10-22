@@ -1,0 +1,239 @@
+--- a/cli/host-independent-lifecycle.mjs
++++ b/cli/host-independent-lifecycle.mjs
+@@ -35,6 +35,9 @@
+ import { verifiedReleaseManifest } from "../sdk/storage/raw-artifacts.mjs";
+ import { publicHostPolicyLoader, hostPolicyOrigins } from "../network/host-admission-runtime.mjs";
+ import { readHostAdmissionPolicy } from "../network/host-admission-policy.mjs";
++import { memoryCollateral } from "../verifier/collateral.mjs";
++import { canonicalDirectConfig, configDigest, CONFIG_FORMAT, DEFAULT_CONTROL_PORT } from "../metal/guest/measured-control.mjs";
++import { verifyMeasuredControl } from "../metal/measured-control-verify.mjs";
+ 
+ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+ export const PLAN_FORMAT = "enclave-independent-host/v1";
+@@ -91,7 +94,7 @@
+ export function validatePlan(p) {
+   const keys = (o, allowed, what) => { if (!o || typeof o !== "object" || Array.isArray(o)) fail(`${what} must be an object`);
+     const extra = Object.keys(o).filter((k) => !allowed.includes(k)); if (extra.length) fail(`${what} has unknown field(s): ${extra.join(", ")}`); };
+-  keys(p, ["format", "authorities", "identity", "runtime", "guestd", "supervisor", "selling", "walletPolicy", "referral"], "plan");
++  keys(p, ["format", "authorities", "identity", "runtime", "guestd", "supervisor", "selling", "walletPolicy", "referral", "control"], "plan");
+   if (p.format !== PLAN_FORMAT) fail(`plan format must be ${PLAN_FORMAT}`);
+   const a = p.authorities; keys(a, ["profile", "contractPins", "rpcs", "quorum", "confirmations", "maxBlockAgeSec"], "authorities");
+   if (!!a.profile === !!a.contractPins) fail("authorities: exactly one of profile {file, digest} or contractPins FILE");
+@@ -128,6 +131,21 @@
+     p.walletPolicy.origins.forEach((o) => httpUrl(o, "walletPolicy.origins", { https: true }));
+     try { hostPolicyOrigins(p.walletPolicy.origins); } catch (e) { fail(`walletPolicy.origins: ${e.message}`); } }
+   if (p.referral !== null && !REFERRAL_RE.test(p.referral || "")) fail("referral: 1-64 letters, digits, '.', '_' or '-' (or null)");
++  // control: absent/null = the supervisor runs on this host (no measured control; `check` never reports it attested).
++  // measured-guest = the supervisor runs in the MEASURED control CVM (metal/enclave-metal.mjs control "direct"), verified by
++  // metal/measured-control-verify.mjs against the owner's measurements, TCB floor and this plan's direct config.
++  if (p.control !== undefined && p.control !== null) {
++    const c = p.control; keys(c, ["mode", "endpoint", "measurements", "minTcb", "image", "ovmf", "cpus", "memMiB", "hostPort"], "control");
++    if (c.mode !== "measured-guest") fail("control.mode must be measured-guest");
++    intIn(c.hostPort, 1, 65535, "control.hostPort");
++    if (c.endpoint !== `https://127.0.0.1:${c.hostPort}`) fail("control.endpoint is the forwarded control front: https://127.0.0.1:<control.hostPort>");
++    if (!Array.isArray(c.measurements) || c.measurements.length < 1 || c.measurements.length > 16 || !c.measurements.every((m) => /^[0-9a-f]{96}$/.test(m)))
++      fail("control.measurements: 1-16 launch digests (96 lowercase hex) you recomputed from the reviewed control image (sev-snp-measure)");
++    for (const k of ["minTcb", "image", "ovmf"]) if (!isAbs(c[k])) fail(`control.${k} must be an absolute path`);
++    intIn(c.cpus, 1, 256, "control.cpus"); intIn(c.memMiB, 1024, 1 << 20, "control.memMiB");
++    if (p.walletPolicy) fail("control measured-guest: the host-owner wallet policy reaches a measured guest through the launcher's hostAdmission (bound by HOST_DATA), not a host directory; this tool does not derive that yet");
++    if (s.attestationUrl !== null) fail("control measured-guest: supervisor.attestationUrl does not apply (the guest's own agent serves it)");
++  }
+   return p;
+ }
+ 
+@@ -152,7 +170,8 @@
+   return { plan: path.join(dir, "host-plan.json"), pins: path.join(dir, "contract-pins.json"), operator: path.join(dir, "operator.key"),
+     secret: path.join(dir, "supervisor.secret"), pair: path.join(dir, "pair.key"), env: path.join(dir, "supervisor.env"),
+     release: path.join(dir, `release-${plan.runtime.releaseId}`), guests: path.join(dir, "guests"), guestd: path.join(dir, "bin", "guestd"),
+-    vcek: path.join(c, "vcek.der"), chain: path.join(c, "cert_chain.pem"), minTcb: path.join(c, "min-tcb.json"), referral: path.join(dir, "referral.json") };
++    vcek: path.join(c, "vcek.der"), chain: path.join(c, "cert_chain.pem"), minTcb: path.join(c, "min-tcb.json"), crl: path.join(c, "crl.der"), referral: path.join(dir, "referral.json"),
++    direct: path.join(dir, "direct-control.json"), launcher: path.join(dir, "control-launcher.json") };
+ }
+ /** guestd's argv and environment (docs/network/cold-host.md, step 2). */
+ export function guestdCommand(dir, plan) {
+@@ -186,6 +205,27 @@
+     ENCLAVE_HOST_ID: hostIdOf(plan.identity.publicUrl), ...(plan.walletPolicy.origins.length ? { ENCLAVE_HOST_POLICY_ORIGINS: JSON.stringify(plan.walletPolicy.origins) } : {}) });
+   return env;
+ }
++const measured = (plan) => plan.control?.mode === "measured-guest";
++const portOf = (hp) => Number(String(hp).split(":")[1]);
++/** The owner's direct control config (metal/guest/measured-control.mjs) for a measured control guest: everything the guest's
++ *  supervisor will be configured with, bound by the launch's HOST_DATA. The guest reaches this host's guestd at 10.0.2.2. */
++export function directControlConfig(plan, ctx, operator) {
++  const sel = plan.selling;
++  return canonicalDirectConfig({ format: CONFIG_FORMAT, chainId: 8453, contracts: { ...ctx.pinsDoc.contracts }, profileDigest: plan.authorities.profile ? plan.authorities.profile.digest : null,
++    rpcs: plan.authorities.rpcs, quorum: plan.authorities.quorum, releaseId: plan.runtime.releaseId,
++    replicas: { gateways: plan.runtime.gateways, storagePlan: plan.runtime.storagePlan ? readJson(plan.runtime.storagePlan, "storage plan") : null },
++    identity: { publicUrl: plan.identity.publicUrl, repo: plan.identity.repo, operator: operator.toLowerCase() },
++    selling: { cpuPrice6: sel.cpuUsdHr !== null ? Math.max(1, Math.round(sel.cpuUsdHr * 1e6 / 3600)) : null, payout: sel.payout ? sel.payout.toLowerCase() : null },
++    isolation: { managerUrl: `http://10.0.2.2:${portOf(plan.guestd.listen)}`, dataAddr: `10.0.2.2:${portOf(plan.guestd.dataListen)}` },
++    hostAdmissionSha256: null, controlPort: DEFAULT_CONTROL_PORT });
++}
++/** metal/enclave-metal.mjs's config for the measured control guest (no secret in it: the operator key is named by path). */
++export function controlLauncherConfig(dir, plan) {
++  const L = layout(dir, plan), c = plan.control;
++  return { mode: "snp", name: plan.identity.name, cpus: c.cpus, memMiB: c.memMiB, dist: c.image, ovmf: c.ovmf, control: "direct", direct: L.direct,
++    registryKeyFile: L.operator, vcekFile: L.vcek, measureGflops: false, hostfwd: [{ host: c.hostPort, guest: DEFAULT_CONTROL_PORT }],
++    isolation: { backend: "snp-guest-per-app", managerUrl: `http://10.0.2.2:${portOf(plan.guestd.listen)}`, dataAddr: `10.0.2.2:${portOf(plan.guestd.dataListen)}`, pairingKeyFile: L.pair } };
++}
+ /** The rules supervisor.js directOnlyProblems applies at startup, against an environment this tool produced. [] = startable. */
+ export function directOnlyEnvProblems(env) {
+   const out = [], v = (k) => String(env[k] ?? "").trim();
+@@ -209,9 +249,18 @@
+ };
+ const shArg = (a) => /^[A-Za-z0-9_./:=,+@-]+$/.test(String(a)) ? String(a) : `'${String(a).replace(/'/g, `'\\''`)}'`;
+ const unitArg = (a) => { const s = String(a).replace(/%/g, "%%").replace(/\$/g, "$$$$"); return /^[A-Za-z0-9_./:=,+@-]+$/.test(s) ? s : `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`; };
+-const unitNames = (plan) => ({ guestd: `enclave-independent-${plan.identity.name}-guestd.service`, supervisor: `enclave-independent-${plan.identity.name}-supervisor.service` });
++const unitNames = (plan) => measured(plan)
++  ? { guestd: `enclave-independent-${plan.identity.name}-guestd.service`, control: `enclave-independent-${plan.identity.name}-control.service` }
++  : { guestd: `enclave-independent-${plan.identity.name}-guestd.service`, supervisor: `enclave-independent-${plan.identity.name}-supervisor.service` };
+ export function units(dir, plan) {
+   const g = guestdCommand(dir, plan), L = layout(dir, plan), n = unitNames(plan);
++  if (measured(plan)) return {
++    [n.guestd]: `[Unit]\nDescription=Enclave independent host "${plan.identity.name}": per-app SEV-SNP guest manager (guestd)\nAfter=network-online.target\n\n`
++      + `[Service]\nType=simple\nEnvironment=GUESTD_ENABLE=1\nExecStart=${g.argv.map(unitArg).join(" ")}\nRestart=always\nRestartSec=3\nLimitMEMLOCK=infinity\n\n[Install]\nWantedBy=default.target\n`,
++    // the VMM needs /dev/kvm and /dev/sev: this user must be in their groups (or run the unit as a system service)
++    [n.control]: `[Unit]\nDescription=Enclave independent host "${plan.identity.name}": MEASURED control guest (direct-only supervisor inside SEV-SNP)\nAfter=${n.guestd}\nRequires=${n.guestd}\n\n`
++      + `[Service]\nType=simple\nExecStart=${[plan.supervisor.node, path.join(REPO, "metal", "enclave-metal.mjs"), "--config", L.launcher].map(unitArg).join(" ")}\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n`,
++  };
+   return {
+     [n.guestd]: `[Unit]\nDescription=Enclave independent host "${plan.identity.name}": per-app SEV-SNP guest manager (guestd)\nAfter=network-online.target\n\n`
+       + `[Service]\nType=simple\nEnvironment=GUESTD_ENABLE=1\nExecStart=${g.argv.map(unitArg).join(" ")}\nRestart=always\nRestartSec=3\nLimitMEMLOCK=infinity\n\n[Install]\nWantedBy=default.target\n`,
+@@ -263,6 +312,10 @@
+       hostFloorMiB: Number(o["host-floor-mib"] ?? 16384), collateralDir: abs(o.collateral ?? path.join(dir, "collateral")), product: o.product ?? "Turin", instancePrefix: o["instance-prefix"] ?? "gi" },
+     supervisor: { port: Number(o["supervisor-port"] ?? 8080), path: abs(o.supervisor ?? path.join(REPO, "supervisor.js")), node: abs(o.node ?? process.execPath),
+       attestationUrl: o["attestation-url"] ?? null },
++    ...(o["control-image"] ? { control: { mode: "measured-guest", endpoint: `https://127.0.0.1:${Number(o["control-port"] ?? 18444)}`, hostPort: Number(o["control-port"] ?? 18444),
++      measurements: list(need("control-measurements", "the launch digest(s) you recomputed from the reviewed control image")).map((m) => m.toLowerCase()),
++      minTcb: abs(need("control-min-tcb", "your TCB floor for the control guest's report (JSON, per product line)")), image: abs(o["control-image"]),
++      ovmf: abs(need("control-ovmf", "the OVMF firmware you pinned (part of the measurement)")), cpus: Number(o["control-cpus"] ?? 4), memMiB: Number(o["control-mem-mib"] ?? 8192) } } : {}),
+     selling: { cpuUsdHr: o["price-cpu"] !== undefined ? Number(o["price-cpu"]) : null, payout: o.payout ?? null },
+     walletPolicy: o["policy-dir"] ? { policyDir: abs(o["policy-dir"]), origins: list(o["policy-origins"]) } : null,
+     referral: o.referral ?? null,
+@@ -368,6 +421,7 @@
+ function unitDir(o, env) { return path.resolve(o["unit-dir"] ?? path.join(env.XDG_CONFIG_HOME || path.join(env.HOME || os.homedir(), ".config"), "systemd", "user")); }
+ async function cmdInstall(dir, o, out, env) {
+   const plan = loadPlan(dir), ctx = planTrust(plan), L = layout(dir, plan), ud = unitDir(o, env);
++  if (measured(plan)) return cmdInstallMeasured(dir, o, out, plan, ctx, L, ud);
+   const problems = directOnlyEnvProblems(supervisorEnv(dir, plan, ctx));
+   if (problems.length) fail(`the derived supervisor environment would be refused: ${problems.join("; ")}`);
+   const files = { ...Object.fromEntries(Object.entries(units(dir, plan)).map(([n, t]) => [path.join(ud, n), t])) };
+@@ -396,9 +450,36 @@
+   return 0;
+ }
+ 
++async function cmdInstallMeasured(dir, o, out, plan, ctx, L, ud) {
++  const operator = privateKeyToAccount(readSecrets(L).operatorKey).address;
++  const files = { ...Object.fromEntries(Object.entries(units(dir, plan)).map(([n, t]) => [path.join(ud, n), t])),
++    [L.direct]: JSON.stringify(directControlConfig(plan, ctx, operator), null, 2) + "\n", [L.launcher]: JSON.stringify(controlLauncherConfig(dir, plan), null, 2) + "\n" };
++  if (!o.apply) {
++    out(`dry run (pass --apply to write; --enable to start): ${Object.keys(files).join(", ")}`);
++    for (const [f, t] of Object.entries(files)) out(`--- ${f}\n${t}`);
++    out(`the guest's config digest (bound by its HOST_DATA): ${configDigest(directControlConfig(plan, ctx, operator))}`);
++    return 0;
++  }
++  const differ = Object.entries(files).filter(([f, t]) => fs.existsSync(f) && fs.readFileSync(f, "utf8") !== t).map(([f]) => f);
++  if (differ.length) fail(`refusing to replace existing file(s) with different content: ${differ.join(", ")} (review and move them aside deliberately)`);
++  fs.mkdirSync(ud, { recursive: true });
++  for (const [f, t] of Object.entries(files)) if (!fs.existsSync(f)) writeNew(f, t, f === L.launcher ? 0o600 : 0o644);
++  out(`installed: ${Object.keys(files).join(", ")}`);
++  const n = unitNames(plan);
++  if (o.enable) {
++    for (const args of [["--user", "daemon-reload"], ["--user", "enable", "--now", n.guestd, n.control]]) {
++      const r = spawnSync("systemctl", args, { stdio: "inherit" });
++      if (r.status !== 0) fail(`systemctl ${args.join(" ")} failed (${r.status ?? r.signal})`);
++    }
++  } else out(`start with: systemctl --user daemon-reload && systemctl --user enable --now ${Object.values(n).join(" ")}`);
++  out(`then: node cli/host-independent-lifecycle.mjs check --dir ${dir}`);
++  return 0;
++}
++
+ async function cmdRun(dir, o, out) {
+   const plan = loadPlan(dir), ctx = planTrust(plan), L = layout(dir, plan), which = o.component;
+   if (!["guestd", "supervisor"].includes(which)) fail("--component guestd | supervisor");
++  if (which === "supervisor" && measured(plan)) fail("this plan runs the supervisor inside the measured control guest: start its control unit (install), not a host supervisor");
+   const cmd = which === "guestd" ? guestdCommand(dir, plan) : { argv: [plan.supervisor.node, plan.supervisor.path], env: supervisorEnv(dir, plan, ctx) };
+   if (which === "supervisor") { const p = directOnlyEnvProblems(cmd.env); if (p.length) fail(`the derived environment would be refused: ${p.join("; ")}`); }
+   if (o["dry-run"]) { out(`${Object.entries(cmd.env).map(([k, v]) => `${k}=${SECRET_ENV.has(k) ? "'<redacted>'" : shArg(v)}`).join(" \\\n  ")} \\\n  ${cmd.argv.map(shArg).join(" ")}`); return 0; }
+@@ -423,7 +504,7 @@
+ const OWNERSHIP_ABI = parseAbi(["function authority(bytes32) view returns (address owner,address pendingOwner,uint64 revision,bytes32 policyHash)",
+   "function registry() view returns (address)"]);
+ const MIN_GAS_WEI = 20_000_000_000_000n;   // 0.00002 ETH: a few register/heartbeat/claim transactions on Base
+-export async function readinessRows(dir, o, { fetchImpl = globalThis.fetch, now = Date.now, chainFactory, env = process.env } = {}) {
++export async function readinessRows(dir, o, { fetchImpl = globalThis.fetch, now = Date.now, chainFactory, env = process.env, verifyControl = verifyMeasuredControl } = {}) {
+   const rows = [], add = (item, status, detail, required = true) => rows.push({ item, status, detail, required });
+   let plan, ctx, L;
+   try { plan = loadPlan(dir); L = layout(dir, plan); add("plan", "ready", `${L.plan} (${PLAN_FORMAT})`); }
+@@ -448,24 +529,50 @@
+   add("guestd binary", fs.existsSync(L.guestd) ? "ready" : "missing", fs.existsSync(L.guestd) ? L.guestd : "build --only guestd");
+   const pp = privateFileProblem(L.pair);
+   add("pairing key", pp ? (pp === "absent" ? "missing" : "failed") : "ready", pp ? `${L.pair}: ${pp}` : L.pair);
++  let directCfg = null;
++  if (measured(plan)) {
++    try { if (!operator) throw new Error("no operator key"); directCfg = directControlConfig(plan, ctx, operator); add("direct control config", "ready", `${CONFIG_FORMAT} digest ${configDigest(directCfg)} (the guest's HOST_DATA binds it)`); }
++    catch (e) { add("direct control config", "failed", e.message); }
++  } else {
+   const envProblems = directOnlyEnvProblems(supervisorEnv(dir, plan, ctx));
+   add("direct-only environment", envProblems.length ? "failed" : "ready", envProblems.length ? envProblems.join("; ") : "relay, secrets, domain, certificate and DNS services off; pins and replicas named");
++  }
+   const ud = unitDir(o, env), want = units(dir, plan);
+   const unitState = Object.entries(want).map(([n, t]) => { const f = path.join(ud, n); return !fs.existsSync(f) ? "absent" : fs.readFileSync(f, "utf8") === t ? "match" : "DIFFERS"; });
+   // A private file can still hold an old plan, another operator's key or an enabled relay.
+   // Compare the complete expected environment without ever printing either secret-bearing value.
+-  const envState = !fs.existsSync(L.env) ? "absent" : privateFileProblem(L.env) ? "UNSAFE MODE"
++  const envState = measured(plan)
++    ? (!directCfg ? "UNVERIFIED" : !fs.existsSync(L.direct) || !fs.existsSync(L.launcher) ? "absent"
++      : fs.readFileSync(L.direct, "utf8") === JSON.stringify(directCfg, null, 2) + "\n" && fs.readFileSync(L.launcher, "utf8") === JSON.stringify(controlLauncherConfig(dir, plan), null, 2) + "\n" ? "match" : "DIFFERS")
++    : !fs.existsSync(L.env) ? "absent" : privateFileProblem(L.env) ? "UNSAFE MODE"
+     : !localSecrets ? "UNVERIFIED"
+     : fs.readFileSync(L.env, "utf8") === envFileText(supervisorEnv(dir, plan, ctx, localSecrets)) ? "match" : "DIFFERS";
+   add("installed units", unitState.every((s) => s === "match") && envState === "match" ? "ready"
+     : unitState.includes("DIFFERS") || ["UNSAFE MODE", "DIFFERS"].includes(envState) ? "failed" : "missing",
+-    `units ${unitState.join(", ")}; supervisor.env ${envState}`);
+-  add("control attestation", plan.supervisor.attestationUrl ? "unknown" : "missing", plan.supervisor.attestationUrl
++    `units ${unitState.join(", ")}; ${measured(plan) ? "direct-control.json + control-launcher.json" : "supervisor.env"} ${envState}`);
++  if (!measured(plan)) add("control attestation", plan.supervisor.attestationUrl ? "unknown" : "missing", plan.supervisor.attestationUrl
+     ? `configured ${plan.supervisor.attestationUrl}; this check has not verified that the running supervisor and its proof key belong to that measured control guest`
+-    : "no ATTESTATION_URL: a measured control guest and verification of its running supervisor are still required");
++    : "no measured control guest: the supervisor runs on this host, so its proof key and sessions are not bound to a measured guest (init --control-image … runs it in one)");
+   // chain: every read through the agreeing quorum; a read that fails is UNKNOWN, never ready
+   const chain = chainFactory ? chainFactory(ctx.trust) : new QuorumChain({ rpcs: ctx.trust.rpcs, quorum: ctx.trust.quorum, confirmations: ctx.trust.confirmations, maxBlockAgeMs: ctx.trust.maxBlockAgeMs, now });
+   const hid = hostIdOf(plan.identity.publicUrl), registry = ctx.pinsDoc.contracts.registry;
++  if (measured(plan)) {
++    // the measured control guest, verified end to end (metal/measured-control-verify.mjs): READY only when verified
++    const WORD = { verified: "ready", pending: "missing", unknown: "unknown", rejected: "failed" };
++    try {
++      if (!directCfg) throw new Error("no direct control config to compare the guest with");
++      const read = (f) => fs.readFileSync(f);
++      const product = plan.guestd.product;
++      const collateral = memoryCollateral({ chains: { [product]: read(L.chain).toString() }, vceks: { [product]: read(L.vcek) }, ...(fs.existsSync(L.crl) ? { crls: { [product]: read(L.crl) } } : {}) });
++      const registryReader = async (id) => { const snap = await chain.snapshot((c, b) => readHost(c, registry, id, b)); requireSchema4(snap.value.schema);
++        const h = snap.value.host; return h ? { operator: h.operator, proofKey: h.proofKey, active: h.active } : null; };
++      const v = await verifyControl({ url: plan.control.endpoint, expect: { config: directCfg, measurements: plan.control.measurements, minTcb: readJson(plan.control.minTcb, "control TCB floor"), crl: "required" },
++        collateral, registry: registryReader });
++      add("control attestation", WORD[v.status] ?? "failed", v.status === "verified"
++        ? `measured control guest ${v.identity.measurement.slice(0, 16)}… at ${plan.control.endpoint}: TLS key, config, report, running supervisor (proof key ${v.identity.proofKey}) and registry entry all verified`
++        : `${v.status}: ${v.reasons.filter((r) => /^(REJECT|UNKNOWN|PENDING)/.test(r)).slice(-1)[0] || v.reasons.slice(-1)[0] || "no reason"}`);
++    } catch (e) { add("control attestation", "failed", e.message); }
++  }
+   try {
+     if (ctx.trust.profile) { await assertReviewedCode(chain, ctx.trust.profile, ["registry", "deployments", "appCatalog", ...(plan.walletPolicy ? ["hostOwnership"] : [])]); add("reviewed code", "ready", "registry, deployments, appCatalog" + (plan.walletPolicy ? ", hostOwnership" : "") + " carry the reviewed code"); }
+     else add("reviewed code", "ready", "contract pins only (no profile to compare code hashes against)", false);
+@@ -514,7 +621,7 @@
+     const r = await t.request("GET", "/health", null, 4000);
+     add("guestd running", r.status === 200 ? "ready" : "failed", r.status === 200 ? `${plan.guestd.listen} answered over guestd-control/1` : `HTTP ${r.status}`);
+   } catch (e) { add("guestd running", "failed", `${plan.guestd.listen}: ${String(e.message).slice(0, 160)}`); }
+-  try {
++  if (!measured(plan)) try {
+     const r = await fetchImpl(`http://127.0.0.1:${plan.supervisor.port}/v1/health`, { signal: AbortSignal.timeout(4000) });
+     const body = r.ok ? await r.json().catch(() => null) : null;   // {status:"ok", deployments:N, ...}: no identity in it
+     const isSup = body?.status === "ok" && Number.isSafeInteger(body.deployments);
+@@ -589,6 +696,8 @@
+             [--name L] [--quorum N] [--storage-plan FILE] [--isolation DIR] [--collateral DIR] [--product Turin]
+             [--price-cpu USD_PER_HOUR] [--payout 0x…] [--policy-dir DIR [--policy-origins https://…]] [--referral CODE]
+             [--attestation-url http://127.0.0.1:…] [--dry-run] [--replace-plan]
++            [--control-image DIR --control-measurements HEX[,HEX] --control-min-tcb FILE --control-ovmf FILE [--control-port N] [--control-cpus N] [--control-mem-mib N]]
++                                                    run the supervisor inside the MEASURED control guest (docs/network/measured-control-guest.md)
+   build     [--only release,guestd,pair-key,collateral] [--dry-run]
+   install   [--apply [--enable]] [--unit-dir DIR]
+   run       --component guestd|supervisor [--dry-run]

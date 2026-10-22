@@ -1,0 +1,13 @@
+--- a/ipns-publisher/src/main.rs
++++ b/ipns-publisher/src/main.rs
+@@ -211,8 +211,8 @@
+     delegate_results: Vec<DelegateResult>,
+     last_error: Option<String>,
+     next_publish: Instant,
+-    /// this round got a DEFINITIVE answer about the name's sequence: a verified record, a delegate's 404 (no record:
+-    /// a fresh name) or a concluded DHT walk. A transport failure, a 5xx or an unverifiable record is NOT one.
++    /// this round got a DEFINITIVE answer about the name's sequence: a verified record (delegate or DHT) or a delegate's
++    /// 404 (a fresh name). A transport failure, a 5xx, an unverifiable record or an EMPTY DHT walk is NOT one.
+     round_seq_answered: bool,
+     /// the current retry delay after a failed round (0 = the last round succeeded); see next_backoff
+     retry_backoff_secs: u64,

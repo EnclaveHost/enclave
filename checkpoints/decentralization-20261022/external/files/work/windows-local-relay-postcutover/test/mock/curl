@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+url=${!#}
+if [[ "$url" == https://* ]] && [ -n "${MOCK_FRONT_ANSWERS:-}" ]; then echo '{"payee":"0x51ff183da8fF3b2dE08Da88331EED65e2F6A835c"}'; exit 0; fi
+if [[ "$url" == http://127.0.0.1* ]] && [ -n "${MOCK_LOCAL_ANSWERS:-}" ]; then echo '{"payee":"0x51ff183da8fF3b2dE08Da88331EED65e2F6A835c"}'; exit 0; fi
+exit 7

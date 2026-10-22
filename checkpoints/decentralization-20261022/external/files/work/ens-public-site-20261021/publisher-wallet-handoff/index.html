@@ -1,0 +1,22 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Enclave · IPNS Publisher release 1.0.6</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head><body><main>
+<p class="eyebrow">ENCLAVE · LOCAL WALLET HANDOFF · IPNS PUBLISHER RELEASE</p>
+<h1>Release IPNS Publisher 1.0.6 to the existing deployment</h1>
+<p>Four MetaMask confirmations from the owner account, in this order:</p>
+<ol>
+<li><b>Sign</b> the upload authorization for the frozen, tested <b>ipns-publisher-ensrepair.wasm</b> (sha256 eaa49323…, 1,428,694 bytes). A signature only: no fee, nothing on chain.</li>
+<li><b>Publish</b> catalog version <b>ipns-publisher:1.0.6</b> (CID bafybeia2ymbg45…). Its resources, ports and config are version 1.0.5's, unchanged.</li>
+<li><b>Upgrade</b> the existing deployment <b>0xd9798e4c…</b> from 1.0.5 to 1.0.6. The same deployment and the same IPNS name.</li>
+<li><b>Set</b> that deployment's public config with exactly one change: <code>ipni.announceAllBlocks</code> false → true. Secret references, placement and isolation are unchanged.</li>
+</ol>
+<p>Every transaction sends <b>0 ETH</b>; only the network fee is paid. No new deployment, deposit, transfer or USDC.</p>
+<dl><dt>Network</dt><dd>Base · chain 8453</dd><dt>Owner</dt><dd id="owner"></dd><dt>Approved plan</dt><dd id="plan"></dd><dt>Progress</dt><dd id="progress"></dd></dl>
+<p>Press <b>Start</b> once. Each step is rechecked and simulated on two RPC providers right before it opens in MetaMask, and each step waits until the previous one is confirmed. A rejection pauses. Anything unknown stops and offers only hash verification or a chain-checked release.</p>
+<p id="wallet">Detecting MetaMask…</p>
+<div class="actions"><button id="connect" disabled>Connect MetaMask</button><button id="start" disabled>Start</button></div>
+<section id="current" hidden><h2 id="current-title"></h2><p id="current-detail"></p></section>
+<p id="status" role="status">Loading…</p>
+<div id="recovery" hidden><p id="recovery-text"></p><div class="actions"><input id="hash" placeholder="0x… transaction hash from MetaMask activity" size="70" spellcheck="false"><button id="check">Verify this hash</button><button id="release" hidden>Release unanswered request</button></div></div>
+<table><thead><tr><th>#</th><th>Action</th><th>Destination</th><th>Amount</th><th>Status</th></tr></thead><tbody id="ops"></tbody></table>
+<details open><summary>The exact current request</summary><pre id="transaction"></pre></details>
+<p class="fine">Your private key stays in MetaMask. The short-lived upload signature is sent to api.enclave.host, and the temporary upload token to ipfs.enclave.host. This handoff stores neither on disk. Every transaction receipt is checked on two providers for the exact sender, recipient, calldata, value, nonce and events.</p>
+</main></body></html>

@@ -1,0 +1,282 @@
+--- a/site/js/core/api.js
++++ b/site/js/core/api.js
+@@ -284,7 +284,9 @@
+   // names one box - the quick-deploy modal's target, a deployment's lease holder -
+   // reads its hardware from here, never from the aggregate.
+   getEnclaves(){
+-    if (INDEPENDENT_MODE) return import("./independent-chain.js").then((m) => m.independentEnclaves());
++    // independent: the pinned registry at an agreed block, each row carrying the host's OWN signed capacity document as
++    // `availability` when it has a valid one (js/core/fleet-read.js); hosts without one keep availability null
++    if (INDEPENDENT_MODE) return import("./fleet-read.js").then((m) => m.independentFleetRows());
+     const url = (this.base || "").replace(/\/v1\/?$/, "") + "/enclaves";
+     return fetch(url, { headers: { "Accept": "application/json" } }).then(r => {
+       if (!r.ok) throw new EnclaveError("enclaves: HTTP " + r.status, r.status);
+@@ -319,9 +321,17 @@
+       }
+       if (!this.address) throw new EnclaveError("Connect your wallet first.", 401);
+       const m = await import("./independent-chain.js");
++      const S = await import("./sessions.js");
+       let vault = null;
+-      try { vault = await (await import("./sessions.js")).independentVaultOf(this.address); } catch(e){ vault = null; }
+-      return m.independentList([this.address, vault]);
++      try { vault = await S.independentVaultOf(this.address); } catch(e){ vault = null; }
++      // records an existing owner's RELAY-ERA session vault holds (the reviewed legacy factory of the default profile):
++      // listed and labelled, never dropped - an owner who used the hosted sessions does not see an empty account here
++      let legacy = null, legacyError = null;
++      try { legacy = await S.legacyVaultOf(this.address); } catch(e){ legacyError = String(e && e.message || e); }
++      const rows = await m.independentList([this.address, vault, legacy && legacy.vault]);
++      if (legacy) for (const r of rows) if (String(r.owner).toLowerCase() === legacy.vault){ r.legacyVault = legacy.vault; r.legacyFactory = legacy.factory; }
++      if (rows.independentScan) rows.independentScan.legacy = legacy ? { vault: legacy.vault, factory: legacy.factory } : legacyError ? { error: legacyError } : null;
++      return rows;
+     }
+     // the wallet session: the relay verifies it (api.status) for the ledger merge and the hosts it fans out to
+     // answer their live rows to it. ?owner= rides along (signed like the rest of the URL) so a relay that
+--- a/site/js/core/sessions.js
++++ b/site/js/core/sessions.js
+@@ -17,6 +17,7 @@
+ import { $, esc, lsGet, lsSet, lsDel, showToast, emit } from "./util.js";
+ import { decodeLedgerCall, walletRecordPlan, needsCap } from "./ledger-calls.js";
+ import * as ID from "./identity.js";
++import { keccak256Utf8 } from "./keccak.js";
+ 
+ /* id (sid) of this browser's active session: one pointer per identity - the wallet's (unchanged), or a passkey
+    account's (independent mode, js/core/identity.js), so a session never serves another owner after a switch */
+@@ -771,6 +772,51 @@
+    version/config change is the owner's Promote (wallet-submitted, checked against the catalog's label). The record's
+    owner and the vault's environment for it are read at a block the profile's RPCs agree on. Every other record keeps
+    the plain wallet transaction. The vault refuses what the grant or the owner did not allow. */
++/* The wallet's vault on the RELAY-ERA factory the reviewed authority profile names (legacySessionVaultFactory): the
++   vault only when it exists and its owner() is this wallet at one agreed block. null when the profile names no legacy
++   factory (an owner-chosen profile) or the wallet never had one. */
++export async function legacyVaultOf(owner){
++  const A = INDEPENDENT.authority;
++  const factory = A && A.contracts.legacySessionVaultFactory && A.contracts.legacySessionVaultFactory.address;
++  if (!factory || !/^0x[0-9a-f]{40}$/i.test(owner || "")) return null;
++  const IC = await import("./independent-chain.js");
++  const r = IC.reader(), snap = await r.snapshot();
++  const vault = ("0x" + String(await r.call(snap, factory, "0x" + keccak4("vaultFor(address)") + String(owner).toLowerCase().replace(/^0x/, "").padStart(64, "0"))).slice(-40)).toLowerCase();
++  if (/^0x0{40}$/.test(vault) || String(await r.code(snap, vault)) === "0x") return null;
++  let vaultOwner = null;
++  try { vaultOwner = ("0x" + String(await r.call(snap, vault, "0x" + keccak4("owner()"))).slice(-40)).toLowerCase(); } catch(e){ return null; }
++  return vaultOwner === String(owner).toLowerCase() ? { vault, factory: factory.toLowerCase(), block: snap.number } : null;
++}
++const keccak4 = (sig) => keccak256Utf8(sig).slice(2, 10);
++
++/* Release a record the wallet's relay-era vault holds back to the wallet: the vault's own owner operation (SessionVault
++   release, _ownerAuth msg.sender == owner), prepared by the SDK against THAT vault, its method checked in the agreed
++   runtime and the exact call simulated from the wallet at an agreed block before the wallet is asked. Afterwards the
++   record is the wallet's and every default-path control applies. */
++export async function releaseLegacyRecord(id){
++  if (ID.currentIdentity().kind === "account") throw new EnclaveError("Switch to the wallet that owns the relay-era vault to release its records.", 0);
++  if (!Enclave.provider || !Enclave.address) throw new EnclaveError("Connect the wallet that owns this vault.", 0);
++  const legacy = await legacyVaultOf(Enclave.address);
++  if (!legacy) throw new EnclaveError("This wallet has no relay-era session vault on the reviewed legacy factory.", 0);
++  const IC = await import("./independent-chain.js");
++  const { row, snap } = await IC.deploymentAt(id);
++  if (!row || String(row.owner).toLowerCase() !== legacy.vault) throw new EnclaveError("Your relay-era vault does not hold this deployment (block " + (snap && snap.number) + ").", 0);
++  await IC.assertImplements(snap, legacy.vault, "your relay-era session vault", ["release(bytes32,address,bytes32,uint64,bytes)"]);
++  const S = await sdk();
++  const cfg = { chainId: INDEPENDENT.profile.chainId, rpc: INDEPENDENT.profile.rpcs[0] };
++  let prep;
++  try {
++    prep = await S.prepareOwnerOperation({ publicClient: S.chainClient(cfg.chainId, cfg.rpc), chainId: cfg.chainId, vault: legacy.vault, mode: "direct",
++      expectOwner: Enclave.address, op: { op: "release", deployment: id, to: Enclave.address } });
++  } catch(e){ throw signError(e, "prepare the release"); }
++  if (String(prep.to).toLowerCase() !== legacy.vault) throw new EnclaveError("The prepared release is not addressed to your relay-era vault; nothing was sent.", 0);
++  const r = IC.reader(), at = await r.snapshot();
++  try { await r.call(at, prep.to, prep.data, { from: Enclave.address }); }
++  catch(e){ throw new EnclaveError("Your relay-era vault refuses this release at block " + at.number + (e.revert ? " (it reverts)" : ": " + e.message) + "; nothing was sent.", 0); }
++  try { return { txHash: await submitPrepared(prep) }; }
++  catch(e){ throw signError(e, "send the release"); }
++}
++
+ async function independentLedgerSend(call, walletSend, data){
+   const acct = ID.currentIdentity().kind === "account";
+   // a passkey account identity: the connected wallet only pays gas, so a ledger call is never sent AS the wallet
+@@ -787,6 +833,10 @@
+   const vault = c ? String(c.session.handle.vault).toLowerCase() : await independentVaultOf(owner).catch(() => null);
+   if (!row || !vault || String(row.owner).toLowerCase() !== vault){
+     if (acct) throw new EnclaveError("This deployment is held neither by your passkey account nor by its session vault; nothing was sent.", 0);
++    // held by the wallet's RELAY-ERA vault: neither the wallet nor the pinned session can act on it directly
++    const legacy = row && !acct ? await legacyVaultOf(Enclave.address).catch(() => null) : null;
++    if (legacy && String(row.owner).toLowerCase() === legacy.vault)
++      throw new EnclaveError("Your relay-era session vault " + legacy.vault + " holds this deployment. Release it to your wallet first (its row offers that); nothing was sent.", 0);
+     return walletSend();
+   }
+   const env = (await IC.agreedHeld(vault, call.id)).env;
+--- a/site/components/deployments/deployments.js
++++ b/site/components/deployments/deployments.js
+@@ -70,6 +70,9 @@
+ // right value for attestation/registry, not for how the user reaches the app.
+ export function appEndpoint(d){
+   if (!d || !d.id) return (d && d.network && d.network.endpoint) || "";
++  // independent mode has no API base: the app's name is its label in the app zone. That zone is Enclave's DNS (the names
++  // gap in docs/network/default-independence.md); the Connect tab gives the native client's path that needs no Enclave name.
++  if (INDEPENDENT_MODE) return "https://" + appLabel(d.id) + "." + APP_DOMAIN;
+   const root = Enclave.base.replace(/\/v1\/?$/, "");
+   if (/(^|\/\/)api\.(enclave|nan)\.host/i.test(root))
+     return "https://" + appLabel(d.id) + "." + APP_DOMAIN;
+@@ -308,13 +311,17 @@
+ // Who can act on a row: "wallet" rows are owned by the connected wallet
+ // (on-chain txs + enclave-session reads); "vault" rows are owned by the
+ // account's credit vault (money/control ops are passkey-signed through the
+-// relay); "order" rows are legacy provisioner-owned (read-only here).
+-function ctlOf(d){ return d && d.viaVault ? "vault" : (d && d.orderId ? "order" : "wallet"); }
++// relay); "order" rows are legacy provisioner-owned (read-only here). A row the wallet's RELAY-ERA session vault holds
++// (independent default profile, api.js listDeployments) is read-only too: neither the wallet nor the pinned session can
++// act on it until it is released to the wallet (its own row action).
++function ctlOf(d){ return d && d.viaVault ? "vault" : (d && (d.orderId || d.legacyVault) ? "order" : "wallet"); }
+ // a wallet is needed only when someone must pay gas and the dashboard's passkey account does not pay its own (account-transport.js)
+ const needsWallet = async () => !Enclave.provider && !(INDEPENDENT_MODE && await import("../../js/core/account-transport.js").then((m) => m.accountPaysOwnGas()).catch(() => false));
+ const needPayer = async () => { if (await needsWallet()) await connectWallet(); };
+ // independent mode: a listed row not held by the acting owner itself is held by its session vault (the listing holds only those two)
+-function vaultHeld(d){ const o = actingOwner(Enclave.address); return !!o && !!d && !!d.owner && String(d.owner).toLowerCase() !== o; }
++// a hosted (relay) account session stored in this browser while the dashboard runs independently: named, never dropped silently
++function hostedAccountInBrowser(){ try { return INDEPENDENT_MODE && /"token"/.test(lsGet("enclave_account") || ""); } catch(e){ return false; } }
++function vaultHeld(d){ const o = actingOwner(Enclave.address); return !!o && !!d && !d.legacyVault && !!d.owner && String(d.owner).toLowerCase() !== o; }
+ /* ---- saved config VARIATIONS: named app-config documents, THIS BROWSER only ----
+    A variation is a config the owner wants to come back to (a tuning they A/B,
+    a seasonal setting) - it never rides the chain until Applied, so it lives in
+@@ -705,6 +712,10 @@
+           + (scan.reason ? ' <span class="dim">(' + esc(scan.reason) + ')</span>' : '')
+         : '<span class="dim">Read from the ledger at block ' + esc(String(scan.block)) + ' (' + scan.total + ' records checked).</span>')
+       + (scan.notMine && scan.notMine.length ? ' <span class="warn">Not owned by this wallet: ' + scan.notMine.map((x) => esc(x.slice(0, 10) + "…")).join(", ") + '</span>' : '')
++      // existing owners (default profile): the relay-era vault is part of the scan, or its check failed visibly
++      + (scan.legacy && scan.legacy.vault ? ' <span class="dim enc-legacy-scan">Includes your relay-era session vault ' + esc(scan.legacy.vault.slice(0, 10) + "…") + '.</span>' : '')
++      + (scan.legacy && scan.legacy.error ? ' <span class="warn enc-legacy-scan">Couldn’t check your relay-era session vault: ' + esc(scan.legacy.error) + '</span>' : '')
++      + (hostedAccountInBrowser() ? ' <span class="warn enc-hosted-acct">This browser also holds an Enclave hosted account (passkey or card). Its apps are held by its credit vault and are managed through Enclave’s hosted service, which this page does not use: see the network profile panel.</span>' : '')
+       + ' <label class="dim">Add by id <input class="enc-watch ac-in" spellcheck="false" placeholder="0x… full deployment id" size="30"></label>'
+       + ' <button type="button" class="btn btn-sm enc-watch-go">Add</button>';
+     el.querySelector(".enc-watch-go").addEventListener("click", async () => {
+@@ -760,7 +771,7 @@
+         at = await IC.deploymentAt(id);
+         if (!at.row) throw new Error("this deployment is not on the pinned ledger");
+         cap = await IC.agreedCap(id);
+-        q = await IC.independentQuotes({ gpuMilli: at.row.gpuMilli, cpuMilli: at.row.cpuMilli, owner: at.row.owner });
++        q = await IC.independentQuotes({ gpuMilli: at.row.gpuMilli, cpuMilli: at.row.cpuMilli, owner: at.row.owner, appRef: at.row.appRef, deploymentId: id, capacity: true });
+         pin = pinnedHost(at.row.configCid || "");
+       } catch(e){ st.textContent = ""; paint("warn", "[x] " + (e.message || e)); return; }
+       const usdHr = (p6) => "$" + (Number(p6) * 3600 / 1e6).toFixed(4) + "/hr";
+@@ -773,8 +784,10 @@
+       table.className = "enc-host-list";
+       table.innerHTML = q.hosts.map((h) => '<div class="' + (h.eligible ? "" : "dim") + '">' + esc(h.endpoint) + ' · '
+         + (h.eligible ? (h.free ? "free for this owner" : esc(usdHr(h.rate6)) + " for this size" + (h.rate6 <= cap.cap6 ? " · within the ceiling" : " · above the ceiling"))
+-          : esc(h.reason)) + (h.hostId === runner ? " · holds the lease now" : "") + '</div>').join("")
+-        + '<p class="dim">Prices are what each host posts in the registry. A posted price is not reserved capacity: a host may be full or decline. Hosts claim funded work on their own; nothing here contacts them.</p>';
++          : esc(h.reason)) + (h.hostId === runner ? " · holds the lease now" : "")
++        + (h.capacityText ? ' <span class="dim enc-host-cap">· ' + esc(h.capacityText) + '</span>' : '') + '</div>').join("")
++        + (q.policyNote ? '<p class="dim">' + esc(q.policyNote) + '</p>' : '')
++        + '<p class="dim">Prices are what each host posts in the registry. A posted price is not reserved capacity: a host may be full or decline. Capacity figures are each host’s own signed report, not a reservation. A host whose owner declines this app is not offered; no other host is affected.</p>';
+       st.before(table);
+       if (String(at.row.owner).toLowerCase() !== String(Enclave.address || "").toLowerCase()){
+         const { sessionsConfig } = await import("../../js/core/sessions.js");
+@@ -1382,6 +1395,8 @@
+           '</span>' +
+         '</div>' +
+         ((st === "failed" || st === "expired") && d.error ? '<div class="enc-err" title="why this deployment ' + esc(st) + '">⚠ ' + esc(d.error) + '</div>' : '') +
++        (d.legacyVault ? '<div class="enc-legacy" role="note">Held by your relay-era session vault <code>' + esc(d.legacyVault) + '</code> (from Enclave’s hosted sessions). It is yours; to manage it here, release it to your wallet: one owner transaction your vault checks itself. '
++          + '<button class="btn btn-sm enc-lrelease" data-id="' + esc(d.id) + '">Release to my wallet</button> <span class="enc-lrel-out" role="status" aria-live="polite"></span></div>' : '') +
+         // a version change the runner could not apply yet (unapproved/oversized
+         // target, catalog unreachable): the OLD version keeps serving; say why
+         (d.versionChange && d.versionChange.error ? '<div class="enc-err" title="the requested version change has not applied - the previous version keeps serving; the runner retries automatically">⚠ version change pending: ' + esc(d.versionChange.error) + '</div>' : '') +
+@@ -1438,6 +1453,17 @@
+     }).join("");
+     $$(".enc-id", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
+     $$(".enc-ep", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.ep)));
++    $$(".enc-lrelease", body).forEach(b => b.addEventListener("click", async () => {
++      const out = b.parentElement.querySelector(".enc-lrel-out");
++      b.disabled = true; out.textContent = "checking your relay-era vault…";
++      try {
++        await needPayer();
++        const r = await (await import("../../js/core/sessions.js")).releaseLegacyRecord(b.dataset.id);
++        out.textContent = "sent " + r.txHash + " · waiting for confirmation…";
++        await waitReceipt(r.txHash);
++        out.textContent = "released to your wallet"; this.refresh && this.refresh({ spinner: false });
++      } catch(e){ out.textContent = "✗ " + (e.message || String(e)); b.disabled = false; }
++    }));
+     // STRICT tabs: opening one panel first closes any open sibling - via the
+     // open tab's own click path (capture phase runs before the open handler),
+     // so each panel keeps its own close semantics. Re-entry is safe: the
+--- a/site/js/pages/sessions.js
++++ b/site/js/pages/sessions.js
+@@ -236,4 +236,19 @@
+ on("enclave:wallet", () => { if ($("#ssBody")) mount(); });
+ on("enclave:session", () => { if ($("#ssBody")) mount(); });
+ 
+-export function boot(){ mount(); }
++/* Independent mode (a network profile, including the packaged default): this page's relay listing is not used. The
++   sessions that can act for the wallet or passkey account are the pinned factory's vault sessions, managed with the
++   same owner operations on the dashboard's session controls (js/core/independent-ui.js mountSessionControls), shown
++   here too. Sessions of the relay-era factory stay in their own vault and are listed with their records on the
++   dashboard; their per-device list is the hosted service's and is not read here. */
++async function mountIndependent(){
++  const body = $("#ssBody"); if (!body) return;
++  body.innerHTML = '<p class="dim ss-ind-note">This dashboard runs independently: sessions are read from your session vault on the pinned factory, '
++    + 'and every owner action is a transaction you send. Agents and other devices ask for a session through <a href="grant">/grant</a>. '
++    + 'The hosted service’s per-device list is not used here.</p><div class="ss-ind-controls"></div>';
++  const ui = await import("../core/independent-ui.js");
++  await ui.mountSessionControls(body.querySelector(".ss-ind-controls"));
++}
++export function boot(){
++  import("../core/config.js").then(({ INDEPENDENT }) => (INDEPENDENT.state !== "off" ? mountIndependent() : mount())).catch(() => mount());
++}
+--- a/site/js/pages/checkout.js
++++ b/site/js/pages/checkout.js
+@@ -18,7 +18,7 @@
+ import "../../components/toast/toast.js";
+ import "../../components/section-head/section-head.js";
+ import "../../components/order-status/order-status.js";
+-import { ACCOUNTS_ENABLED } from "../core/config.js";
++import { ACCOUNTS_ENABLED, INDEPENDENT } from "../core/config.js";
+ import { Enclave } from "../core/api.js";
+ import { $, esc, on, showToast } from "../core/util.js";
+ import { openSignIn } from "../core/account.js";
+@@ -28,6 +28,8 @@
+ 
+ export function boot(){
+   const body = $("#coBody"); if (!body) return;
++  // an independent dashboard never asks the relay: this page says so and offers only the explicit hosted choice
++  if (INDEPENDENT.state !== "off"){ import("../core/independent-ui.js").then((m) => m.mountHostedOnly(body, "Card and credit checkout")); return; }
+   const gate = $("#coGate");
+   if (!ACCOUNTS_ENABLED){
+     if (gate){ gate.hidden = false; gate.textContent = "Credit isn't available yet. Deploy and pay from your wallet on the Apps page instead."; }
+--- a/site/js/pages/link.js
++++ b/site/js/pages/link.js
+@@ -15,7 +15,7 @@
+ import "../../components/footer/footer.js";
+ import "../../components/toast/toast.js";
+ import "../../components/section-head/section-head.js";
+-import { ACCOUNTS_ENABLED } from "../core/config.js";
++import { ACCOUNTS_ENABLED, INDEPENDENT } from "../core/config.js";
+ import { Enclave } from "../core/api.js";
+ import { $, esc, showToast } from "../core/util.js";
+ import { openSignIn, passkeySupported, registerPasskey, signInWithPasskey } from "../core/account.js";
+@@ -33,6 +33,8 @@
+ }
+ 
+ function mount(){
++  // an independent dashboard never asks the relay: this page says so and offers only the explicit hosted choice
++  if (INDEPENDENT.state !== "off"){ import("../core/independent-ui.js").then((m) => m.mountHostedOnly(document.getElementById("lkBody"), "Phone sign-in")); return; }
+   const body = $("#lkBody"); if (!body) return;
+   if (!ACCOUNTS_ENABLED){ const g = $("#lkGate"); if (g) g.hidden = false; return; }
+ 
+--- a/site/js/pages/sso-authorize.js
++++ b/site/js/pages/sso-authorize.js
+@@ -52,7 +52,7 @@
+ import "../../components/toast/toast.js";
+ import "../../components/section-head/section-head.js";
+ import { Enclave } from "../core/api.js";
+-import { APP_DOMAIN } from "../core/config.js";
++import { APP_DOMAIN, INDEPENDENT } from "../core/config.js";
+ import { $, esc, showToast } from "../core/util.js";
+ import { openSignIn, restoreAccountSession, signOutAccount } from "../core/account.js";
+ 
+@@ -107,6 +107,8 @@
+ }
+ 
+ async function mount(){
++  // an independent dashboard never asks the relay: this page says so and offers only the explicit hosted choice
++  if (INDEPENDENT.state !== "off"){ import("../core/independent-ui.js").then((m) => m.mountHostedOnly(document.getElementById("ssoBody"), "Sign in with Enclave")); return; }
+   const body = $("#ssoBody"); if (!body) return;
+   const q = new URL(location.href).searchParams;
+   const aud = String(q.get("aud") || "").trim();

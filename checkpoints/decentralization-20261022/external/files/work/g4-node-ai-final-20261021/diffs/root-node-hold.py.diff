@@ -1,0 +1,101 @@
+--- ../node-hold-package-20261021/helper/root-node-hold.py	2026-10-21 15:09:18.094665367 -0700
++++ helper/root-node-hold.py	2026-10-21 15:29:59.014560493 -0700
+@@ -1,5 +1,9 @@
+ #!/usr/bin/env python3
+ """ROOT-ONLY: activate the non-destructive wallet hold on minipc. PREPARED by Claude 60543494; NEVER run by its author.
++G4 FINAL PACKAGE (work/g4-node-final-package-20261021, reviewer 9d; never run by it): the same controller with the G4 network
++(privacy-agent 7ef4e230 + NEW host-service-ingress c952dce4; worker 13ce44f1 unchanged), the control delta (network-enroll
++a9729786, host-service-names a46123cb, host-service-transport de5bb98a), root review G-UPD/N2/N3 in the cutover (re-pinned), the
++config-edit node.exe pinned to root's native writer proof, and the matching preflight gates. Everything else is 605's f80d5b57.
+ Transport: root's reviewed nucbox-tls-20261021/root-activate-reviewed.py (m.ps: in-session watchdog, encoded <= 7900), pinned.
+ JS swaps: root's reviewed cron-startup-20261021/respawn-activation/bundle-swap.ps1 (pinned; CAS, private backup, node --check,
+ rollback), executed only from hash-verified staged bytes. New files: the CAS PUT/UNPUT of root-a2-minipc.py (verbatim).
+@@ -7,7 +11,7 @@
+ 
+   root-node-hold.py                                         read-only preflight -> runs/preflight-*.json
+   root-node-hold.py --stage --preflight P                   NEW C:\\ProgramData\\Enclave\\staging\\nodehold-<uuid12>: files+scripts, sha-verified
+-  root-node-hold.py --apply network --stage-receipt S       privacy-agent 3883f67c->fd3ac8d1, worker c52025ba->13ce44f1 (no restart)
++  root-node-hold.py --apply network --stage-receipt S       ingress absent->c952dce4 (inert), privacy-agent 3883f67c->7ef4e230, worker c52025ba->13ce44f1 (no restart)
+   root-node-hold.py --restart-agent --preflight P           the privacy agent's own restart (pinned PID+start); NO walletAdmission yet
+   root-node-hold.py --apply control --stage-receipt S       3 new files + 6 CAS swaps (inert until the node restarts; flag unset)
+   root-node-hold.py --cutover --stage-receipt S --preflight P          THE switch-on (node-hold-cutover.ps1 -Mode cutover)
+@@ -22,28 +26,32 @@
+ HERE = pathlib.Path(__file__).resolve().parent; PKG = HERE.parent; W = PKG.parent; OUT = HERE / "runs"
+ T = (W / "nucbox-tls-20261021/root-activate-reviewed.py", "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f")
+ SCRIPTS = {"bundle-swap.ps1": (W / "cron-startup-20261021/respawn-activation/bundle-swap.ps1", "21d85c69b2b70564cc04f7ea7d72e9f763ef8ae65059fdb9972f0413f042b103"),
+-           "node-hold-cutover.ps1": (HERE / "node-hold-cutover.ps1", "e369c5e204f4d0fe9c6277a7237d7f0ddae6beea6a1bfe935825481b34c6ac45")}
++           "node-hold-cutover.ps1": (HERE / "node-hold-cutover.ps1", "2984c6f2d651d56c5a12ce022dddd4d84a3f3871389e7f170687643f3e8b9d06")}
+ RUN_NODE = "3366a005f8530903c83a334053280f41ed904df09133e92505c44f558acb6686"
+ LOCAL_CFG = "85698d20b4f8fb494c8620aeb80d5b4fbd2ec637ef40c7fa02693ba41ee2aa73"      # node-config.local.cmd (probe 21:20Z)
+ PF = r"C:\Program Files\Enclave"; CN = PF + r"\control\windows\node"; CNET = PF + r"\control\network"; BIN = PF + r"\network"
+-C, B = PKG / "control", PKG / "build/out/candidate"
++C, B = PKG / "control", PKG / "build/out/candidate-g4"      # G4 network bundles (g4-network-composition-20261021, control rebuilt 605's exactly)
++# the node.exe the cutover runs for the config edit: root's native writer proof (outputs/decentralization-audit/
++# native-wallet-writer-proof.json, 21:29Z) and 605's NTFS ACL fixture use exactly this binary
++NODE_EXE, NODE_SHA = r"C:\Program Files\nodejs\node.exe", "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3"
+ FILES = {  # key: local new file, target, old sha ('absent' = new file), new sha, how
+     "wallet":  (C / "new/wallet-admission.mjs", CNET + r"\wallet-admission.mjs", "absent", "0fa7678f7586388b4725f1432683fa4ab172fd1d57c163d9a63195fbb2f445ee", "put"),   # ROOT-accepted D1 writer
+-    "hsn":     (C / "new/host-service-names.mjs", CNET + r"\host-service-names.mjs", "absent", "08bda1e6dab058cbad50eed9c4f03997dd3ae9fdfd5c021ab6fdefe785f62b80", "put"),
+-    "hst":     (C / "new/host-service-transport.mjs", CNET + r"\host-service-transport.mjs", "absent", "e75f033152f4c26e08e7a965a961729acf303f36aa49ce75170a66a6beb26e5c", "put"),
+-    "enroll":  (C / "new/network-enroll.mjs", CN + r"\network-enroll.mjs", "2d97a0e10e40ceaa0be897708dc3cfa48742619450605efc107b22674caae2ac", "6bd0a858e8d323d8b227ed9539f8d9bf7f20feb4d6403846a168e45caaaa9261", "swap"),
++    "hsn":     (C / "new/host-service-names.mjs", CNET + r"\host-service-names.mjs", "absent", "a46123cbb70ab666f9dfb23b5b545fe76d87658c6bf82c7f7574579d0c65b32c", "put"),   # G4
++    "hst":     (C / "new/host-service-transport.mjs", CNET + r"\host-service-transport.mjs", "absent", "de5bb98a2e77ffd90ccf65211f564d9515f667b4cd6d17cbb3644fb2ca454e06", "put"),   # G4
++    "enroll":  (C / "new/network-enroll.mjs", CN + r"\network-enroll.mjs", "2d97a0e10e40ceaa0be897708dc3cfa48742619450605efc107b22674caae2ac", "a9729786598107e69d24d5163ea8592d114f93a9b6693106a7fa3414c95430d6", "swap"),   # G4: + challengeReplica kept
+     "bundle":  (C / "new/host-admission.bundle.mjs", CN + r"\host-admission.bundle.mjs", "66c6e15a793b8dc4cb80f209b6ffa405c40c7d235284727384e4833576610067", "6bef372d00a27567e94a11d00f165312f9d715a795519e7a7ad77b4718623b18", "swap"),
+     "hvcert":  (C / "new/hvcert.mjs", CN + r"\hvcert.mjs", "91b9f2db7eb3be98efec1594dfe95245475a0cf234d9ce6843657b37bc2b1557", "3a87d9b897765fc8bc42a2648f310f8ad504022798534603bce9b0fdafe0d9d5", "swap"),
+     "appzone": (C / "new/appzone.mjs", CN + r"\appzone.mjs", "ba9d9bb13f2ea19cdcbdcdbc021ddbabbd201618ff1e834b733cc220fc8c26c6", "65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68", "swap"),
+     "agent":   (C / "new/agent.mjs", CN + r"\agent.mjs", "c223c0435d859f0bde0d496a2eb1e8a2db4af44a47e32bf653710244c5ccd2ba", "ec5e75c72c7a43c0a8282df36a8233d68a8d3903c7e5d2ba4063c82161e2c004", "swap"),
+     "host":    (C / "new/host.mjs", CN + r"\host.mjs", "c4629529903ee87edd258fb5b1964525bcf29b3a1109d9f0c30e74b06d05cfd0", "0c82e9ba3fe9919435b9876168132db2fb63614920b9a90f0efbeb5f23ffc6e7", "swap"),   # ROOT-accepted D1 host (revision2/tree-live)
+-    "privacy": (B / "privacy-agent.mjs", BIN + r"\privacy-agent.mjs", "3883f67ce2414a1c328bd8ead7e46fea071e5e6e86c95a866070bb3241888cd6", "5c03987df990c9819947d10a3d4468cf227a91f36da11fdad6a8c8a91f3c9fe2", "swap"),
++    "ingress": (B / "host-service-ingress.mjs", BIN + r"\host-service-ingress.mjs", "absent", "c952dce4fe007c48c81e1726a743d850dc2f5231204d01466349bfa5ffcc62d3", "put"),   # G4 NEW (absent: root A2 preflight 20:13:42Z); inert without hostServices
++    "privacy": (B / "privacy-agent.mjs", BIN + r"\privacy-agent.mjs", "3883f67ce2414a1c328bd8ead7e46fea071e5e6e86c95a866070bb3241888cd6", "7ef4e2303d841e86269d3bbb7ce5f43a5ead5b0d2f2898f9b69774da1ac13147", "swap"),   # G4 (605: 5c03987d)
+     "worker":  (B / "windows-circuit-worker.mjs", BIN + r"\windows-circuit-worker.mjs", "c52025ba7f63d514023f29c8a0c54cec53725522fa270aaaaad308f84a07910d", "13ce44f1b39d4521e32266f2dad234958af70b1b05e2a3f6638535571e8cf320", "swap"),
+ }
+ # unchanged and REQUIRED unchanged (no native change): enclave-wg.exe, the circuit firewall
+ KEEP = {BIN + r"\enclave-wg.exe": "cbaf8313ce4e2cfce347abed99bdeaf5fc0631b8ab07bfbab20471f60920264c",
+         BIN + r"\enclave-circuit-firewall.exe": "78daec71f51f89a53600cb7d4bfb0492e2f0d642047422e4fbec30b2a5c238a6"}
+-GROUPS = {"network": ["privacy", "worker"], "control": ["wallet", "hsn", "hst", "enroll", "bundle", "hvcert", "appzone", "agent", "host"]}
++GROUPS = {"network": ["ingress", "privacy", "worker"], "control": ["wallet", "hsn", "hst", "enroll", "bundle", "hvcert", "appzone", "agent", "host"]}
+ CFG = r"C:\ProgramData\Enclave\network\privacy-config.json"; RUNNER = "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a"
+ APPREF = re.compile(r"^catalog://0x[0-9a-f]{64}/(?:0|[1-9][0-9]{0,8})$"); ID = re.compile(r"^0x[0-9a-f]{64}$")
+ FRESH_S, CUT_FRESH_S, BOUND_S = 1800, 600, 900
+@@ -63,7 +71,7 @@
+     # Hyper-V's own identity of every VM (GUID|name|state), the SAME expression as node-hold-cutover.ps1 HyperV()
+     r"$o.hyperv=$(try{@(Get-VM -ErrorAction Stop|ForEach-Object{'{0}|{1}|{2}' -f $_.Id,$_.Name,$_.State}|Sort-Object) -join ','}catch{'unavailable'});"
+     r"$o.wg=@($all|Where-Object{$_.Name -eq 'enclave-wg.exe'}).Count;$o.tasks=@(Get-ScheduledTask -TaskPath '\Enclave\'|ForEach-Object{$_.TaskName+'='+[string]$_.State});$o|ConvertTo-Json -Compress -Depth 5")
+-CFGS = U + (r"$o=[ordered]@{};$pd='C:\ProgramData\Enclave';$a=Get-Acl -LiteralPath ($pd+'\network');$o.netWriters=@($a.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])|Where-Object{$_.AccessControlType -eq 'Allow' -and ([int]$_.FileSystemRights -band 0x116)}|ForEach-Object{$_.IdentityReference.Value}|Sort-Object -Unique);$o.runNode=FileSha ($pd+'\run-node.cmd');$o.local=FileSha ($pd+'\node-config.local.cmd');$o.flag=([IO.File]::ReadAllText($pd+'\node-config.local.cmd') -match 'ENCLAVE_NETWORK_WALLET_HOLD');"
++CFGS = U + (r"$o=[ordered]@{at=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')};$pd='C:\ProgramData\Enclave';$a=Get-Acl -LiteralPath ($pd+'\network');$o.netWriters=@($a.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])|Where-Object{$_.AccessControlType -eq 'Allow' -and ([int]$_.FileSystemRights -band 0x116)}|ForEach-Object{$_.IdentityReference.Value}|Sort-Object -Unique);$o.netReaders=@($a.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])|Where-Object{$_.AccessControlType -eq 'Allow' -and ((([int]$_.FileSystemRights -band 0x10000001) -ne 0) -or ([int]$_.FileSystemRights -lt 0))}|ForEach-Object{$_.IdentityReference.Value}|Sort-Object -Unique);$o.pdInheritReaders=@((Get-Acl -LiteralPath $pd).GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])|Where-Object{$_.AccessControlType -eq 'Allow' -and ([string]$_.InheritanceFlags -match 'ObjectInherit') -and ((([int]$_.FileSystemRights -band 0x10000001) -ne 0) -or ([int]$_.FileSystemRights -lt 0))}|ForEach-Object{$_.IdentityReference.Value}|Sort-Object -Unique);$u=Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Update' -ErrorAction SilentlyContinue;$o.update=$(if($u){$ui=Get-ScheduledTaskInfo -InputObject $u;[ordered]@{state=[string]$u.State;next=$(if($ui.NextRunTime){$ui.NextRunTime.ToUniversalTime().ToString('o')}else{$null})}}else{'absent'});$o.nodeExe=FileSha 'C:\Program Files\nodejs\node.exe';$o.runtimeNodeExe=FileSha 'C:\Program Files\Enclave\runtime\node\node.exe';$o.runNode=FileSha ($pd+'\run-node.cmd');$o.local=FileSha ($pd+'\node-config.local.cmd');$o.flag=([IO.File]::ReadAllText($pd+'\node-config.local.cmd') -match 'ENCLAVE_NETWORK_WALLET_HOLD');"
+     r"$o.cfg=FileSha 'CFGX';$o.enKeys=@(([IO.File]::ReadAllText('CFGX')|ConvertFrom-Json).enclaveNetwork.PSObject.Properties.Name);$o.wallet=FileSha ($pd+'\network\wallet-admission.json');"
+     r"try{$s=[IO.File]::ReadAllText($pd+'\network\state\status.json')|ConvertFrom-Json;$o.statusAgeMs=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()-[int64]$s.updatedAt;$o.statusWallet=$s.walletAdmission}catch{$o.statusAgeMs=-1};"
+     r"try{$o.egressApps=@(([IO.File]::ReadAllText($pd+'\network\state\egress-routes.json')|ConvertFrom-Json).apps.PSObject.Properties).Count}catch{$o.egressApps=-1};$o|ConvertTo-Json -Compress -Depth 5").replace("CFGX", CFG)
+@@ -202,6 +210,21 @@
+     if [w for w in (i.get("netWriters") or ["unknown"]) if w not in ("S-1-5-18", "S-1-5-32-544")]: r.append(f"the network directory is writable by more than SYSTEM/Administrators: {i.get('netWriters')}")
+     if pre["coverage"]["blockers"]: r.append(f"coverage blockers {pre['coverage']['blockers']}")
+     if not pre["coverage"]["expectedIds"]: r.append("no VM-backed deployment found (refusing to infer coverage)")
++    # root review G-UPD: \Enclave\Update (hourly, SYSTEM) can start the node outside the coordinator; the cutover script re-checks
++    # at its own pins (authoritative); here: not running, and not due before this preflight's validity + the bound + 60 s
++    u = i.get("update")
++    if not isinstance(u, dict) and u != "absent": r.append(f"the \\Enclave\\Update task state is unreadable ({u!r})")
++    elif isinstance(u, dict):
++        nxt = u.get("next"); due = None
++        try: due = calendar.timegm(time.strptime(nxt[:19], "%Y-%m-%dT%H:%M:%S")) if nxt else None
++        except Exception: r.append(f"the \\Enclave\\Update next run time is unreadable ({nxt!r})")
++        at = calendar.timegm(time.strptime(str(i.get("at", ""))[:19], "%Y-%m-%dT%H:%M:%S")) if i.get("at") else time.time()   # the remote clock (CFGS), one clock with NextRunTime
++        if u.get("state") == "Running" or (due is not None and due < at + CUT_FRESH_S + BOUND_S + 60):
++            r.append(f"the \\Enclave\\Update task runs or is due inside the cutover window ({u}): wait until after its run (G-UPD)")
++    # root review N3: nobody but SYSTEM/Administrators may READ the network directory, nor inherit READ on new files in the data dir
++    if [x for x in (i.get("netReaders") or ["unknown"]) if x not in ("S-1-5-18", "S-1-5-32-544")]: r.append(f"the network directory is readable by more than SYSTEM/Administrators (N3): {i.get('netReaders')}")
++    if [x for x in (i.get("pdInheritReaders") if i.get("pdInheritReaders") is not None else ["unknown"]) if x not in ("S-1-5-18", "S-1-5-32-544")]: r.append(f"new files in C:\\ProgramData\\Enclave inherit READ for more than SYSTEM/Administrators (N3): {i.get('pdInheritReaders')}")
++    if i.get("nodeExe") != NODE_SHA: r.append(f"{NODE_EXE} is not the root-proven node.exe {NODE_SHA[:8]} ({i.get('nodeExe')})")
+     if pre["gate"]["policyUnavailable30min"] != 0 or pre["gate"]["shortLeases"] != 0: r.append(f"P0 gate {pre['gate']} (root waits; never a quiet-RPC 'proof')")
+     return r
+ 
+@@ -264,7 +287,7 @@
+     pre = fresh(o.preflight, "preflight", CUT_FRESH_S) if o.preflight else None
+     if not pre: raise SystemExit(f"--preflight: a preflight receipt at most {CUT_FRESH_S} s old")
+     i = pre["identities"]
+-    params = {"stage": stage, "boundSec": BOUND_S, "runner": RUNNER, "runNodeSha": RUN_NODE, "localSha": i.get("local"), "cfgSha": i.get("cfg"),
++    params = {"stage": stage, "boundSec": BOUND_S, "runner": RUNNER, "runNodeSha": RUN_NODE, "nodeExe": NODE_EXE, "nodeSha": NODE_SHA, "localSha": i.get("local"), "cfgSha": i.get("cfg"),
+               "files": [{"path": v[1], "sha": v[3]} for v in FILES.values()] + [{"path": p, "sha": h} for p, h in KEEP.items()],
+               "node": {"cmdPid": i["cmd"][0]["pid"], "cmdStart": i["cmd"][0]["start"], "agentPid": i["agent"][0]["pid"], "agentStart": i["agent"][0]["start"]},
+               "manager": i["manager"], "privacy": i["privacy"][0], "vms": i["vms"], "hyperv": i["hyperv"], "expectedIds": pre["coverage"]["expectedIds"]}

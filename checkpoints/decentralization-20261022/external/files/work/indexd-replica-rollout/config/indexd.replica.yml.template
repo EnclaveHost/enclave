@@ -1,0 +1,37 @@
+# indexd.yml for ONE replica. Install as /etc/enclave-indexd/indexd.yml, owner root:enclave-indexd, mode 0640.
+# Every <PLACEHOLDER_*> must be replaced by root at activation; replicactl preflight refuses a config that still
+# contains "<PLACEHOLDER". Secrets are generated ON the replica host and never copied off it or logged.
+autoOpenWebUI: false
+directory: /var/lib/enclave-indexd/state
+# a NEW, replica-specific wallet (indexd seed on the replica host). NEVER the primary's phrase: a shared phrase
+# would make two indexers revise the same contracts.
+recoveryPhrase: "<PLACEHOLDER_REPLICA_RECOVERY_PHRASE>"
+adminAPI:
+  address: 127.0.0.1:9980            # loopback only; reached by the platform admin over the existing SSH access
+  password: "<PLACEHOLDER_REPLICA_ADMIN_PASSWORD>"
+applicationAPI:
+  address: 127.0.0.1:9982            # loopback; Caddy terminates TLS in front of it
+  advertiseURL: https://<PLACEHOLDER_REPLICA_HOSTNAME>   # app signatures bind to this host
+syncer:
+  address: :9981                     # Sia P2P (outbound is sufficient; inbound optional)
+  bootstrap: true
+  enableUPnP: false
+consensus:
+  network: mainnet
+explorer:
+  enabled: false                     # no external explorer dependency
+  url: ""
+database:
+  host: 127.0.0.1
+  port: 5432
+  user: indexd
+  password: "<PLACEHOLDER_REPLICA_POSTGRES_PASSWORD>"
+  database: indexd
+  sslmode: disable
+log:
+  stdout:
+    enabled: true
+    level: info
+    format: json
+  file:
+    enabled: false

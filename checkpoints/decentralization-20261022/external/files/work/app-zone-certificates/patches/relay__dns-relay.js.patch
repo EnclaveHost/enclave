@@ -1,0 +1,256 @@
+--- a/relay/dns-relay.js
++++ b/relay/dns-relay.js
+@@ -29,6 +29,15 @@
+ // reviewed authority profile whose registry pin binds code and schema) and
+ // ATTESTED_SHIELD_RPCS (two or more distinct hosts, one agreed block).
+ // ATTESTED_PUSH_READ_MS bounds a push body's arrival (default 10 s).
++// APP_CHALLENGE_AUTH=attested-lease (only with DNS_READ_ONLY=1) lets a route replica answer the app zone's DNS-01
++// challenges itself, for measured direct guests' in-guest ACME (network/app-zone-challenge.mjs): POST/DELETE
++// /v1/app-challenge accepts a push only when the replica's OWN checks pass - the guest's attested key and pinned
++// measurement (APP_CHALLENGE_MEASUREMENTS), HOST_DATA = the deployment, the exact unique 8-hex label, and one agreeing
++// chain read (APP_CHALLENGE_RPCS, APP_CHALLENGE_PINS = {"addressBook","deployments","registry","catalog"}) showing the
++// push's current lease, an active registry host and catalog policy allowing it. APP_CHALLENGE_UPSTREAM=host:port (TCP
++// DNS) merges the previous challenge source's TXT values during a transition; APP_CHALLENGE_PEERS (<= 8 origins)
++// forwards each accepted push once to peer replicas, which verify it again. APP_CHALLENGE_JUDGE_MODE=lab-unsigned is
++// an explicit lab diagnostic; APP_CHALLENGE_MIN_TCB / APP_CHALLENGE_KDS=0 as for the attested responder.
+ // This is an authoritative server, not a recursive resolver.
+ 
+ import dgram from "node:dgram";
+@@ -39,7 +48,7 @@
+ import { createHostPolicyRuntime, resolveHostPolicyConfig, endpointAdmissions } from "./network-runtime.bundle.mjs";
+ import { isBoxHost } from "./boxhost.js";
+ import { authorizePush, parseMeasurements, createShieldChallengeAuth, isShieldPush, shieldRegistryBinding,
+-  shieldRegistryEntry } from "./network-runtime.bundle.mjs";
++  shieldRegistryEntry, createAppZoneAuthority, createLedgerIndex, LeaseReader, judge as attestationJudge } from "./network-runtime.bundle.mjs";
+ installProcessGuards("dns-relay");
+ 
+ const need = (k) => { const v = (process.env[k] || "").trim(); if (!v) { console.error(`fatal: ${k} is required`); process.exit(1); } return v; };
+@@ -57,6 +66,13 @@
+   process.exit(1);
+ }
+ 
++// APP_CHALLENGE_AUTH=attested-lease: the route replica's own app-zone challenge authority (configured after APP_ZONE below)
++const APP_CHALLENGE = process.env.APP_CHALLENGE_AUTH === "attested-lease";
++if ((process.env.APP_CHALLENGE_AUTH && !APP_CHALLENGE) || (APP_CHALLENGE && (!READ_ONLY || ATTESTED))) {
++  console.error("fatal: APP_CHALLENGE_AUTH=attested-lease runs only on a DNS_READ_ONLY route replica");
++  process.exit(1);
++}
++
+ const CFG = fleetConfig();
+ if (!READ_ONLY && !ATTESTED && !CFG.registryAddress && !CFG.staticList.length) {
+   console.error("fatal: set REGISTRY_ADDRESS (on-chain discovery) or ENCLAVES (static list)");
+@@ -70,6 +86,36 @@
+ const IP_ZONE   = ATTESTED ? null : fqdn(need("IP_ZONE"));
+ const APP_ZONE  = ATTESTED ? null : fqdn(need("APP_ZONE"));
+ const CHALLENGE_ZONE = ATTESTED ? fqdn(need("CHALLENGE_ZONE")) : null;
++let APPCH = null;   // { auth, ledger, upstream, peers, mode, measurements }
++if (APP_CHALLENGE) {
++  try {
++    const measurements = parseMeasurements(process.env.APP_CHALLENGE_MEASUREMENTS);
++    const mode = (process.env.APP_CHALLENGE_JUDGE_MODE || "trusted").trim();
++    if (!["trusted", "lab-unsigned"].includes(mode)) throw new Error("APP_CHALLENGE_JUDGE_MODE must be trusted or lab-unsigned");
++    const rpc = String(process.env.APP_CHALLENGE_RPCS || "").split(",").map((v) => v.trim()).filter(Boolean);
++    const pins = JSON.parse(process.env.APP_CHALLENGE_PINS || "null");
++    if (!pins || typeof pins !== "object" || Object.keys(pins).sort().join() !== "addressBook,catalog,deployments,registry")
++      throw new Error('APP_CHALLENGE_PINS must be {"addressBook","deployments","registry","catalog"}');
++    const ZERO = "0x" + "0".repeat(40);
++    // Explicit pins: the book is the platform's existing admin-owned book (the reader's policy anchor); deployments and
++    // registry are read at their pinned addresses, never looked up through the book.
++    const reader = new LeaseReader({ rpc, addressBook: pins.addressBook,
++      authorityPins: { deployments: pins.deployments, registry: pins.registry, connectivity: ZERO, sessionVaultFactory: ZERO } });
++    const ledger = createLedgerIndex({ reader, deployments: pins?.deployments });
++    const minTcbRaw = (process.env.APP_CHALLENGE_MIN_TCB || "").trim();
++    const auth = createAppZoneAuthority({ zone: APP_ZONE, measurements, judge: attestationJudge, mode, reader, pins, ledger,
++      ...(minTcbRaw ? { minTcb: BigInt(minTcbRaw) } : {}), kds: process.env.APP_CHALLENGE_KDS !== "0" });
++    const up = (process.env.APP_CHALLENGE_UPSTREAM || "").trim();
++    const m = up && /^(\[[0-9a-f:]+\]|[0-9.]+):([0-9]{1,5})$/i.exec(up);
++    if (up && (!m || !net.isIP(m[1].replace(/^\[|\]$/g, "")))) throw new Error("APP_CHALLENGE_UPSTREAM must be ip:port");
++    const peers = String(process.env.APP_CHALLENGE_PEERS || "").split(",").map((v) => v.trim()).filter(Boolean);
++    if (peers.length > 8 || peers.some((o) => { try { const u = new URL(o); return !["http:", "https:"].includes(u.protocol) || u.pathname !== "/" || u.search; } catch { return true; } }))
++      throw new Error("APP_CHALLENGE_PEERS must list at most 8 http(s) origins");
++    APPCH = { auth, ledger, mode, measurements, upstream: m ? { host: m[1].replace(/^\[|\]$/g, ""), port: Number(m[2]) } : null, peers: peers.map((o) => new URL(o).origin) };
++    ledger.sync({ force: true }).catch((e) => console.error(`[dns-relay] app-zone ledger index: ${e.message}`));
++    setInterval(() => ledger.sync().catch((e) => console.error(`[dns-relay] app-zone ledger index: ${e.message}`)), 60_000).unref();
++  } catch (e) { console.error(`fatal: APP_CHALLENGE_AUTH: ${e.message}`); process.exit(1); }
++}
+ let ATTEST = null;
+ if (ATTESTED) {
+   const mode = process.env.ATTESTED_JUDGE_MODE || "trusted";
+@@ -534,8 +580,7 @@
+ udp.on("error", (e) => { console.error("[dns-relay] udp:", e.message); if (!udpUp) process.exit(1); });
+ udp.on("message", (msg, rinfo) => {
+   if (!dnsRate(rinfo.address)) return;                 // per-source RL (fix 11): drop, don't reflect
+-  const out = handle(msg, UDP_MAX);
+-  if (out) udp.send(out, rinfo.port, rinfo.address, () => {});
++  respond(msg, UDP_MAX).then((out) => { if (out) udp.send(out, rinfo.port, rinfo.address, () => {}); }, () => {});
+ });
+ udp.bind(DNS_PORT, address, () => { udpUp = true; console.log(`[dns-relay] udp ${address}:${DNS_PORT}`); });
+ 
+@@ -553,8 +598,7 @@
+       const query = buf.subarray(2, 2 + len);
+       buf = buf.subarray(2 + len);
+       if (!dnsRate(peer)) continue;                   // per-source RL (fix 11)
+-      const out = handle(query, 0);
+-      if (out) sock.write(Buffer.concat([u16(out.length), out]));
++      respond(query, 0).then((out) => { if (out && !sock.destroyed) sock.write(Buffer.concat([u16(out.length), out])); }, () => {});
+     }
+   });
+ });
+@@ -718,9 +762,13 @@
+       shield: ATTEST.shield ? { tier: "hv-node", hostExcluded: false, liveHostSessions: ATTEST.shield.sessions(), registry: ATTEST.shieldRegistry } : null });
+     return json(200, { ok: true, readOnly: READ_ONLY, zones: { ip: IP_ZONE, app: APP_ZONE, tcp: TCP_ZONE, box: BOX_ZONE },
+                        deployments: deployments.length, txtRecords,
+-                       routeLabels: appRoutes.size, routeMap: ROUTE_MAP_URL || null });
++                       routeLabels: appRoutes.size, routeMap: ROUTE_MAP_URL || null,
++                       ...(APPCH ? { appChallenge: { mode: "attested-lease", judgeMode: APPCH.mode, measurements: APPCH.measurements.size,
++                         ledgerIndex: { complete: APPCH.ledger.complete(), size: APPCH.ledger.size() }, upstream: !!APPCH.upstream, peers: APPCH.peers.length,
++                         oneShotPushes: APPCH.auth.pushes.size() } } : {}) });
+   }
+-  if (READ_ONLY) { req.resume(); return json(405, { error: "read_only", routes: ["GET /health"] }); }
++  if (APPCH && u.pathname === "/v1/app-challenge") return appChallengePush(req, res, json);
++  if (READ_ONLY) { req.resume(); return json(405, { error: "read_only", routes: ["GET /health", ...(APPCH ? ["POST /v1/app-challenge", "DELETE /v1/app-challenge"] : [])] }); }
+   if (ATTESTED) return attestedPush(req, res, u, json);
+   if (u.pathname !== "/v1/txt" || (req.method !== "POST" && req.method !== "DELETE"))
+     return json(404, { error: "not_found", routes: ["GET /health", "POST /v1/txt", "DELETE /v1/txt"] });
+@@ -882,12 +930,141 @@
+   return send(200, { ok: true, name, values: vals.size, ttlSec: TXT_TTL_S });
+ }
+ 
++// APP_CHALLENGE_AUTH=attested-lease: the replica's own app-zone challenge write path (network/app-zone-challenge.mjs).
++// Bounds: per-peer rate, APP_PUSH_MAX bytes (declared or streamed: 413), a read deadline (408), at most 16 verifications
++// at once (503 + retry-after). A value lives min(120 s, the ACME authorization's expiry); the store keeps its caps.
++const rlApp = makeRateLimiter(30, 1);
++const APP_PUSH_MAX = 32768, APP_MAX_INFLIGHT = 16, APP_FORWARDED = new Map();   // digest -> until (forwarded once)
++let appInflight = 0;
++function appChallengePush(req, res, json) {
++  const send = (code, body, headers = {}) => { if (res.headersSent || res.destroyed) return; for (const [k, v] of Object.entries(headers)) res.setHeader(k, v); json(code, body); };
++  if (req.method !== "POST" && req.method !== "DELETE") { req.resume(); return send(405, { error: "method_not_allowed" }); }
++  if (!rlApp(req.socket?.remoteAddress || "unknown")) { req.resume(); return send(429, { error: "rate_limited" }); }
++  const declared = req.headers["content-length"];
++  if (declared !== undefined && !(Number(declared) <= APP_PUSH_MAX)) { req.resume(); return send(413, { error: "body_too_large" }, { connection: "close" }); }
++  if (appInflight >= APP_MAX_INFLIGHT) { req.resume(); return send(503, { error: "busy" }, { "retry-after": "1", connection: "close" }); }
++  appInflight++;
++  let done = false;
++  const finish = () => { if (!done) { done = true; clearTimeout(timer); appInflight--; } };
++  const chunks = []; let size = 0;
++  const timer = setTimeout(() => { if (done) return; finish(); send(408, { error: "the push body did not arrive in time" }, { connection: "close" }); }, 10_000);
++  req.on("data", (d) => { if (done) return; size += d.length; if (size > APP_PUSH_MAX) { finish(); chunks.length = 0; return send(413, { error: "body_too_large" }, { connection: "close" }); } chunks.push(d); });
++  req.on("error", finish);
++  req.on("close", () => { if (!done) finish(); });
++  req.on("end", () => {
++    if (done) return;
++    const raw = Buffer.concat(chunks), sig = req.headers["x-attested-sig"], forwarded = req.headers["x-app-challenge-forwarded"] === "1";
++    storeAppPush(raw, sig, req.method, forwarded, send)
++      .catch((e) => { console.error(`[dns-relay] app-zone push: ${e?.message || e}`); send(500, { error: "internal_error" }); })
++      .finally(finish);
++  });
++}
++async function storeAppPush(raw, sig, method, forwarded, send) {
++  const v = await APPCH.auth.authorize({ raw, sig: typeof sig === "string" ? sig : "", method });
++  if (!v.ok) { console.log(`[dns-relay] app-zone txt ${method} REFUSED: ${v.why}`); return send(v.status, { error: "app_challenge_refused", message: v.why }); }
++  const name = v.name;
++  if (v.op === "delete") {
++    const vals = txtStore.get(name);
++    if (vals) { vals.delete(v.value); if (!vals.size) txtStore.delete(name); }
++  } else {
++    if (!txtStore.has(name) && txtStore.size >= MAX_TXT_NAMES) {
++      for (const n of [...txtStore.keys()]) txtValues(n);
++      if (txtStore.size >= MAX_TXT_NAMES) return send(503, { error: "store_full", message: "Too many live challenges on this replica; retry shortly." });
++    }
++    const vals = txtStore.get(name) || new Map();
++    vals.set(v.value, Date.now() + v.ttlSec * 1000);
++    while (vals.size > MAX_TXT_VALUES) { let oldest = null, at = Infinity; for (const [x, exp] of vals) if (exp < at) { at = exp; oldest = x; } vals.delete(oldest); }
++    txtStore.set(name, vals);
++  }
++  console.log(`[dns-relay] app-zone txt ${v.op} ${name} for ${v.deploymentId.slice(0, 10)}… (${v.verdict}, block ${v.block})${forwarded ? " [forwarded]" : ""}`);
++  send(200, { ok: true, op: v.op, name, ttlSec: v.ttlSec, values: (txtStore.get(name) || new Map()).size });
++  if (!forwarded && APPCH.peers.length) forwardAppPush(raw, sig, method, v.digest + ":" + method);
++}
++// Each peer re-verifies the exact push (its own chain read and judge); a forwarded push is never forwarded again.
++function forwardAppPush(raw, sig, method, key) {
++  const now = Date.now();
++  for (const [k, until] of APP_FORWARDED) if (until <= now) APP_FORWARDED.delete(k);
++  if (APP_FORWARDED.has(key) || APP_FORWARDED.size >= 4096) return;
++  APP_FORWARDED.set(key, now + 300_000);
++  for (const origin of APPCH.peers) {
++    fetch(origin + "/v1/app-challenge", { method, body: raw, redirect: "error", headers: { "content-type": "application/json", "x-attested-sig": sig,
++      "x-app-challenge-forwarded": "1" }, signal: AbortSignal.timeout(5000) })
++      .then((r) => { r.body?.cancel?.(); if (!r.ok) console.log(`[dns-relay] app-zone forward to ${origin}: HTTP ${r.status}`); })
++      .catch((e) => console.log(`[dns-relay] app-zone forward to ${origin}: ${e.message}`));
++  }
++}
++// Transition: TXT values the previous challenge source (APP_CHALLENGE_UPSTREAM, TCP DNS) holds for the same name are
++// merged into the answer, so certificates issued the old way keep validating. Only dns-01-shaped values, at most 8,
++// cached 3 s per name (1024 names), 1.5 s per lookup; an unreachable upstream simply contributes nothing.
++const upstreamCache = new Map();
++function upstreamTxt(name) {
++  const hit = upstreamCache.get(name);
++  if (hit && hit.at + 3000 > Date.now()) return hit.p;
++  if (upstreamCache.size >= 1024) for (const [k, v] of upstreamCache) if (v.at + 3000 <= Date.now()) upstreamCache.delete(k);
++  const p = new Promise((resolve) => {
++    const id = Math.floor(Math.random() * 65536), labels = name.split(".");
++    const qd = Buffer.concat([...labels.map((l) => Buffer.concat([Buffer.from([l.length]), Buffer.from(l)])), Buffer.from([0]), u16(T.TXT), u16(1)]);
++    const msg = Buffer.concat([u16(id), u16(0), u16(1), u16(0), u16(0), u16(0), qd]);
++    const sock = net.connect(APPCH.upstream.port, APPCH.upstream.host);
++    let buf = Buffer.alloc(0), over = false;
++    const end = (vals) => { if (over) return; over = true; clearTimeout(t); sock.destroy(); resolve(vals); };
++    const t = setTimeout(() => end([]), 1500);
++    sock.on("error", () => end([]));
++    sock.on("connect", () => sock.write(Buffer.concat([u16(msg.length), msg])));
++    sock.on("data", (d) => {
++      buf = Buffer.concat([buf, d]);
++      if (buf.length > 65537) return end([]);
++      if (buf.length < 2 || buf.length < 2 + buf.readUInt16BE(0)) return;
++      try { end(parseTxtAnswers(buf.subarray(2, 2 + buf.readUInt16BE(0)), id)); } catch { end([]); }
++    });
++  });
++  if (upstreamCache.size < 1024) upstreamCache.set(name, { at: Date.now(), p });
++  return p;
++}
++function parseTxtAnswers(m, id) {
++  if (m.length < 12 || m.readUInt16BE(0) !== id || !(m[2] & 0x80)) return [];
++  const qd = m.readUInt16BE(4), an = Math.min(m.readUInt16BE(6), 16);
++  let o = 12;
++  const skipName = () => { for (let guard = 0; guard < 128; guard++) { const l = m[o]; if (l === undefined) throw Error("short"); if (l === 0) { o += 1; return; } if ((l & 0xc0) === 0xc0) { o += 2; return; } o += 1 + l; } throw Error("loop"); };
++  for (let i = 0; i < qd; i++) { skipName(); o += 4; }
++  const out = [];
++  for (let i = 0; i < an; i++) {
++    skipName();
++    const type = m.readUInt16BE(o), rdlen = m.readUInt16BE(o + 8); o += 10;
++    const rd = m.subarray(o, o + rdlen); o += rdlen;
++    if (type !== T.TXT) continue;
++    let v = "", p = 0;
++    while (p < rd.length) { const l = rd[p]; v += rd.subarray(p + 1, p + 1 + l).toString("utf8"); p += 1 + l; }
++    if (/^[A-Za-z0-9_-]{43}$/.test(v) && out.length < MAX_TXT_VALUES) out.push(v);
++  }
++  return out;
++}
++function appChallengeQuery(msg) {
++  if (!APPCH?.upstream) return null;
++  let q;
++  try { q = parseQuery(msg); } catch { return null; }
++  if (!q || q.opcode !== 0 || (q.qclass !== 1 && q.qclass !== T.ANY) || (q.qtype !== T.TXT && q.qtype !== T.ANY)) return null;
++  return q.qname.startsWith("_acme-challenge.") && q.qname.endsWith("." + APP_ZONE) ? q : null;
++}
++// -> a response (or null) for one query; app-zone challenge TXT queries merge the upstream during a transition.
++async function respond(msg, limit) {
++  const q = appChallengeQuery(msg);
++  if (!q) return handle(msg, limit);
++  const extra = await upstreamTxt(q.qname);
++  try {
++    const all = [...new Set([...txtValues(q.qname), ...extra])].slice(0, MAX_TXT_VALUES);
++    return buildResponse(q, all.length ? HIT(all.map((v) => txtRR(q.qname, v))) : NODATA(APP_ZONE), limit);
++  } catch { return null; }
++}
++
+ api.on("error", (e) => { console.error("[dns-relay] api:", e.message); process.exit(1); });
+ api.listen(API_PORT, API_BIND, () => console.log(`[dns-relay] challenge-push api :${API_PORT}`));
+ 
+ // ---- boot ---------------------------------------------------------------------
+ 
+ if (!READ_ONLY && !ATTESTED) { await fleet.start(); await fleet.startEligibility(); }
++if (APPCH) console.log(`[dns-relay] app-zone DNS-01 authority for ${APP_ZONE}: attested-lease, judge ${APPCH.mode}, ${APPCH.measurements.size} pinned measurement(s)`
++  + `${APPCH.upstream ? ", merging upstream " + APPCH.upstream.host + ":" + APPCH.upstream.port : ""}${APPCH.peers.length ? ", " + APPCH.peers.length + " peer(s)" : ""}`);
+ if (ATTESTED) console.log(`[dns-relay] attested DNS-01 responder for ${CHALLENGE_ZONE} (ns ${NS_NAME}); judge ${ATTEST.mode}, ${ATTEST.measurements.size} pinned measurement(s)`
+   + (ATTEST.shield ? "; Enclave Shield (T0-hv, hostExcluded=false) guests accepted under ATTESTED_SHIELD_POLICY" : ""));
+ else {

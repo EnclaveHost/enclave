@@ -1,0 +1,126 @@
+--- a/windows/node/host.mjs
++++ b/windows/node/host.mjs
+@@ -50,11 +50,12 @@
+ import { CAP_STEP, loadCaps, saveCaps } from "./hosting.mjs";
+ import { priceGuide, defaultPrice, rowTiers, perSec6Of, perHourOf } from "./price-guide.mjs";
+ import { gasRunway } from "./gas-runway.mjs";
++import { registrationAction, mayReconcile } from "../../network/registry-reconcile.mjs";
+ import { recentHyperVEvents } from "./hyperv-events.mjs";
+ import { createAuditJobs, auditAppRefsOf } from "./audit-jobs.mjs";
+ import { PARTITION_OFFERS } from "../vbslike/datapath/partition-offers.mjs";
+ 
+-const HEARTBEAT_MS = 10 * 60_000;
++const GAS_CHECK_MS = 10 * 60_000;       // the operator's gas runway is re-read (no transaction) this often
+ const TICK_MS = 30_000;
+ const PROOF_MS = 5 * 60_000;         // the contract's window is 15 min; the platform proves every 5
+ // Renew this long before the lease ends. It was 5 minutes, which with a 5-minute tick left exactly
+@@ -275,17 +276,22 @@
+         if (wei === 0n) this.log("operator has no gas: it can read the ledger but cannot register, claim, renew or prove");
+       } else this.log("no operator key on this box: it can run an app it is told about, but cannot hold a lease");
+       await this.refreshRegistration();
+-      await this.ensureRegistered();
++      await this.ensureRegistered({ phase: "boot" });
+     } catch (e) { this.lastError = e.message; this.log(`chain unavailable: ${e.message}`); }
+     setInterval(() => this.tick().catch((e) => this.log(`tick: ${e.message}`)), TICK_MS);
+-    setInterval(() => this.heartbeat().catch(() => {}), HEARTBEAT_MS);
++    setInterval(() => this.heartbeat().catch(() => {}), GAS_CHECK_MS);
+     setInterval(() => this.proveAll().catch((e) => this.log(`proof: ${e.message}`)), PROOF_MS);
+     this.tick().catch(() => {});
+   }
+-  async refreshRegistration() {
++  async refreshRegistration({ quiet = false } = {}) {
+     try {
+-      const e = await chain.readEnclave(this.enclaveId);
++      const e = await chain.readEnclave(this.enclaveId), was = this.registered;
+       this.registered = e && e.endpoint ? e : null;
++      if (quiet) {   // the routine read: say only what changed
++        if (was && this.registered && (was.active === true) !== (this.registered.active === true))
++          this.log(`registry: ${this.registered.endpoint} is now ${this.registered.active ? "active" : "INACTIVE (deregistered by the operator key; a routine pass does not re-activate it)"}`);
++        return;
++      }
+       // The card half says what this box ASKS (cardPrice) and, when the registry still lists something else, both.
+       const listed = Number(e?.gpuPricePerSec6 || 0), ask = this.cardPrice();
+       if (this.registered) this.log(`registry: listed as ${e.endpoint} price ${e.cpuPricePerSec6}/sec cpu`
+@@ -366,19 +372,22 @@
+    * no proof key. The measurement published here is the VBS enclave's own identity key, so anyone
+    * can compare the row against what the relay verified at attach.
+    */
+-  async ensureRegistered() {
++  // phase (network/registry-reconcile.mjs, the rule the Linux supervisor follows too): "boot" at start-up, "explicit" for
++  // a deliberate act (the address book moved the registry), "timer" for the routine tick. A tick never re-activates a row
++  // its operator deregistered; the initial registration and a corrected proof key or price still go out.
++  async ensureRegistered({ phase = "timer" } = {}) {
+     if (!this.chainReady || !this.cfg.appsEnabled || !chain.operatorAddress()) return;
+     const proofKey = chain.proofAddress() || "0x0000000000000000000000000000000000000000";
+-    const priced = this.registered && Number(this.registered.cpuPricePerSec6) > 0;
+-    const current = priced && this.registered.active
+-      && String(this.registered.proofKey).toLowerCase() === proofKey.toLowerCase()
+-      && String(this.registered.operator).toLowerCase() === String(chain.operatorAddress()).toLowerCase();
+-    if (current) return;
+-    if (this.registered && String(this.registered.operator).toLowerCase() !== String(chain.operatorAddress()).toLowerCase()
+-        && String(this.registered.operator) !== "0x0000000000000000000000000000000000000000") {
+-      this.log(`registry: ${this.cfg.endpoint} belongs to operator ${this.registered.operator}, not this box's key; refusing to re-register`);
++    const act = registrationAction(this.registered, { operator: chain.operatorAddress(), proofKey }, phase);
++    if (!act.register) {
++      if (act.reason !== "current" && this._registrationSaid !== act.reason) {
++        this._registrationSaid = act.reason;
++        this.log(/another operator/.test(act.reason) ? `registry: ${this.cfg.endpoint} belongs to operator ${this.registered.operator}, not this box's key; refusing to re-register`
++                                                     : `registry: ${this.cfg.endpoint}: ${act.reason}`);
++      }
+       return;
+     }
++    this._registrationSaid = null;
+     const args = { endpoint: this.cfg.endpoint, repo: this.cfg.repo || "EnclaveHost/enclave",
+       measurement: this.cfg.measurement || "0x0000000000000000000000000000000000000000000000000000000000000000",
+       cpuPricePerSec6: this.cfg.cpuPricePerSec6, gpuPricePerSec6: this.cardPrice(), proofKey };
+@@ -437,6 +446,7 @@
+    */
+   async ensurePriced({ setPrices = (...a) => chain.setPrices(...a), now = Date.now() } = {}) {
+     if (!this.chainReady || !this.registered || !chain.operatorAddress()) return;
++    if (!mayReconcile(this.registered, chain.operatorAddress())) return;   // a deregistered (or another's) row is not re-priced
+     // both asks: the CPU's (the owner's override, or the default from the network's prices) and the card's
+     // The CPU price: not the configured fallback before the network's prices are known (setPriceRows). Right after a
+     // start cfg holds that fallback, and posting it overwrote the market price on the registry only for the default
+@@ -535,20 +545,22 @@
+     this.applyPrices();
+     return this.pricingView();
+   }
++  /**
++   * The periodic local check. It sends NO transaction, for any endpoint: liveness is off-chain. A tunnelled box's comes
++   * from its authenticated tunnel (the relay's row), a dialed box's from the operator-signed capacity record it serves at
++   * <endpoint>/v1/host/capacity (network/host-liveness.mjs). No contract reads lastSeen; the registry is written only
++   * when this box's registration, price or proof key actually changes (ensureRegistered, ensurePriced, the proof key).
++   * The old on-chain heartbeat was gas burnt every 10 minutes by an idle box, 144 a day (nucbox-k11-2, 2026-10-12).
++   */
+   async heartbeat() {
+     if (!this.chainReady || !chain.operatorAddress() || !this.registered) return;
+-    // A box reached through a relay tunnel (its endpoint is <relay>/t/<name>) is NOT heartbeated on chain: the relay holds
+-    // its liveness (the tunnel row's lastSeen), the dialed-discovery staleness filter never applies to a tunnel row, and no
+-    // contract reads lastSeen. The transaction was gas burnt every 10 minutes by an idle box, 144 a day, and the one gas
+-    // cost a new host had before earning anything (nucbox-k11-2, 2026-10-12).
+-    if (!Host.isTunnelEndpoint(this.cfg.endpoint))
+-      try { await chain.heartbeatBox(this.enclaveId); } catch (e) { this.log(`heartbeat failed: ${e.shortMessage || e.message}`); }
++    await this.refreshRegistration({ quiet: true });   // READ the row (the Linux reconcile pass reads it too): a deregistration is seen, not undone
+     await this.warnLowGas();
+   }
+   static isTunnelEndpoint(endpoint) { return /^https:\/\/[a-z0-9.-]+\/t\/[a-z0-9][a-z0-9-]*$/i.test(String(endpoint || "")); }
+   /**
+    * Gas runs the lease. A renewal costs about 60k gas (measured: 0.00000036 ETH on Base), a
+-   * heartbeat and a claim more, so an empty tank does not fail loudly, it just stops renewing and
++   * claim more, so an empty tank does not fail loudly, it just stops renewing and
+    * the app quietly goes away at the end of the quantum. Warn while there is still time to top up.
+    */
+   async warnLowGas() {
+@@ -1978,7 +1990,11 @@
+     for (const k of moved) this.log(`address book: ${k} moved ${before[k]} -> ${chain.addresses[k]}`
+       + (k === "deployments" ? ": this box's leases are claimed again on the new ledger; running partitions keep running" : ""));
+     if (moved.includes("deployments")) { this.scanHold?.clear?.(); this.priceSent = null; this.#saveTracked(); }
+-    if (moved.includes("registry")) await this.refreshRegistration().catch(() => {});
++    if (moved.includes("registry")) {
++      await this.refreshRegistration().catch(() => {});
++      // a registry migration is a deliberate act (the book's owner moved it): register there as at boot
++      await this.ensureRegistered({ phase: "explicit" }).catch((e) => this.log(`register: ${e.message}`));
++    }
+     return moved;
+   }
+   async tick() {

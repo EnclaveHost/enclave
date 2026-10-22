@@ -1,0 +1,40 @@
+--- a/testutils/db.go
++++ b/testutils/db.go
+@@ -5,6 +5,7 @@
+ 	"errors"
+ 	"fmt"
+ 	"os"
++	"strconv"
+ 	"testing"
+ 	"time"
+ 
+@@ -42,7 +43,7 @@
+ 	// parse connection info from env vars
+ 	ci := postgres.ConnectionInfo{
+ 		Host:     "127.0.0.1",
+-		Port:     5432,
++		Port:     testPostgresPort(), // FENCING PATCH (test only): POSTGRES_PORT, default 5432
+ 		User:     os.Getenv("POSTGRES_USER"),
+ 		Password: os.Getenv("POSTGRES_PASSWORD"),
+ 		Database: os.Getenv("POSTGRES_DB"),
+@@ -50,7 +51,7 @@
+ 	}
+ 
+ 	// create test-specific database
+-	dbName := t.Name()
++	dbName := os.Getenv("POSTGRES_DB_PREFIX") + t.Name() // FENCING PATCH (test only): optional prefix
+ 	pool, err := pgxpool.New(t.Context(), ci.String())
+ 	if err != nil {
+ 		t.Fatal(err)
+@@ -164,3 +165,11 @@
+ 		t.Fatal(err)
+ 	}
+ }
++
++// testPostgresPort is POSTGRES_PORT, or 5432 (FENCING PATCH, test only: the harness's fixture is on another port).
++func testPostgresPort() int {
++	if p, err := strconv.Atoi(os.Getenv("POSTGRES_PORT")); err == nil && p > 0 {
++		return p
++	}
++	return 5432
++}

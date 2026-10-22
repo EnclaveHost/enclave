@@ -1,0 +1,6 @@
+import importlib.util,json,pathlib
+p=pathlib.Path('work/nucbox-tls-20261021/root-activate-reviewed.py').resolve();s=importlib.util.spec_from_file_location('transport',p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+r=m.ps(r"""$o=[ordered]@{at=[DateTime]::UtcNow.ToString('o')};
+$o.lines=@(Get-Content -LiteralPath 'C:\ProgramData\Enclave\logs\node.log' -Tail 12000|Where-Object {$_ -match '38f368d6' -and $_ -match 'failed|refused|stderr|did not start|stopped|spawn|retir'}|Select-Object -Last 12|ForEach-Object { $x=[string]$_;$x=[regex]::Replace($x,'(?i)((?:secret|token|password|authorization|api_key)\s*[:=]\s*)[^\s,;]+','$1[REDACTED]');$x.Substring(0,[Math]::Min(1800,$x.Length))});
+$o|ConvertTo-Json -Depth 4 -Compress""",secs=80)
+pathlib.Path(__file__).with_suffix('.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))

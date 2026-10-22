@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import {createHash} from 'node:crypto';
+import {DNS} from '../enclavedns-stale-20261021/wallet-handoff/trust.mjs';
+import {frozenWasm,readBounded,verifyCar} from '../site-host-live-publish/handoff/site-upload.mjs';
+const {dag}=frozenWasm(DNS);
+const url=DNS.upload.carUrl(DNS.expectedCid);
+const res=await fetch(url,{redirect:'error',signal:AbortSignal.timeout(90000)});
+if(res.status!==200)throw Error('Existing CAR status '+res.status);
+const car=await readBounded(res,DNS.upload.maxCarBytes,'existing CAR');
+const proof=verifyCar(DNS,car,dag);
+const out={cid:DNS.expectedCid,artifactSha256:DNS.wasm.sha256,artifactBytes:DNS.wasm.bytes,source:url,httpStatus:res.status,carBytes:car.length,...proof,verifiedAt:new Date().toISOString(),readOnly:true};
+fs.writeFileSync(new URL('./verified-existing.json',import.meta.url),JSON.stringify(out,null,2)+'\n',{flag:'wx'});
+console.log(JSON.stringify(out));

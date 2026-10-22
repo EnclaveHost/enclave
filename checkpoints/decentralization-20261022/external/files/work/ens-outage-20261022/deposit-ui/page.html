@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Enclave · wallet handoff</title>
+<link rel="stylesheet" href="/page.css">
+<script src="/page.js" defer></script>
+</head>
+<body>
+<main>
+  <p class="eyebrow">ENCLAVE · LOCAL WALLET HANDOFF</p>
+  <h1 id="title">Loading…</h1>
+  <p id="lede">This page is served by the Enclave CLI on this computer. It asks MetaMask for one exact, journaled transaction at a time. Your key stays in MetaMask; nothing is sent until you approve it there.</p>
+  <dl class="facts">
+    <dt>Network</dt><dd id="network">…</dd>
+    <dt>Signing account</dt><dd id="account" class="mono">…</dd>
+    <dt>MetaMask</dt><dd id="wallet">Looking for MetaMask…</dd>
+  </dl>
+  <div class="actions"><button id="connect" type="button" disabled>Connect MetaMask</button><button id="refresh" type="button">Recheck the chain</button></div>
+  <p id="alert" class="alert" role="alert" hidden></p>
+  <section id="steps" aria-live="polite"></section>
+  <p id="status" role="status"></p>
+  <p class="fine">Each request is offered to MetaMask once. If you close MetaMask's window or this page before deciding, nothing is offered again automatically: check its status here, or from the CLI with <code>run.mjs resolve</code> or <code>run.mjs attach</code>.</p>
+</main>
+</body>
+</html>

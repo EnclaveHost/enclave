@@ -1,0 +1,1983 @@
+diff --git a/docs/network/native-client.md b/docs/network/native-client.md
+index 3c37b6b229554dbae0219b32c85a33463c095b97..854053a0dbff6bb77bba71e9424b85d62bc37ed6 100644
+--- a/docs/network/native-client.md
++++ b/docs/network/native-client.md
+@@ -1,8 +1,10 @@
+ # Connect without Enclave discovery or a website CA
+ 
+-`network/native-client.mjs` is a native HTTP client library for application APIs:
+-ordinary methods, bounded request bodies, and buffered or streamed responses.
+-`scripts/network/native-get.mjs` is its GET command-line wrapper. The client
++`network/native-client.mjs` is a native HTTP and WebSocket client library for
++application APIs: ordinary methods, bounded or streamed request bodies, buffered or
++streamed responses, and WebSockets. `scripts/network/native-get.mjs` is its GET
++command-line wrapper, `scripts/network/native-request.mjs` its upload and streaming
++wrapper, and `scripts/network/native-ws.mjs` its WebSocket bridge. The client
+ resolves signed public records itself, checks an agreeing Base RPC quorum against
+ explicit contract addresses, and verifies a fresh hardware attestation before it
+ sends any application path, header, credential or body.
+@@ -14,8 +16,23 @@ node scripts/network/native-get.mjs /absolute/path/trust-profile.json /ping
+ Response bytes go to stdout. Status, selected route, verified identities, TLS key
+ digest, lease block and authorization deadline go to stderr. Non-2xx responses
+ produce a nonzero exit code. Redirects are returned, never followed. The wrapper
+-is GET only; writes and streams use the library API below. It is not a browser
+-proxy.
++is GET only; the other two wrappers are below. None of them is a browser proxy.
++
++```sh
++# A streamed upload (file length declared; stdin with --body-stdin is sent chunked),
++# with the response (for example server-sent events) streamed to stdout.
++NATIVE_AUTHORIZATION='Bearer …' node scripts/network/native-request.mjs profile.json /v1/files/a \
++  --method PUT --body-file ./a.bin --content-type application/octet-stream --stream
++
++# A WebSocket on stdin/stdout, or a websocat-style loopback bridge for a TCP app's
++# /x/<id>/tcp/<port> path (IRC, Minecraft): each local connection is one fresh,
++# separately attested WebSocket.
++node scripts/network/native-ws.mjs profile.json /x/<deployment-id>/tcp/6667 --listen 127.0.0.1:6667
++irssi -c 127.0.0.1 -p 6667
++```
++
++Credentials are read from `NATIVE_AUTHORIZATION`, never from the command line.
++`--listen` accepts only loopback addresses.
+ 
+ ## Library API: requests, writes and streams
+ 
+@@ -35,6 +52,17 @@ const s = await client.stream({method: 'POST', path: '/v1/chat/stream', headers,
+ for await (const chunk of s.body) render(chunk);   // a Node Readable: iterate or pipe it
+ s.cancel();                                        // or controller.abort(); both close the connection
+ const {bytes, error} = await s.closed;             // always resolves
++
++// Streamed upload: a Node Readable, a web ReadableStream or an async iterable of bytes.
++const up = await client.request({method: 'PUT', path: '/v1/files/a', headers,
++  body: fs.createReadStream(file), bodyLength: fs.statSync(file).size});
++
++// WebSocket: one attested upgrade; resolves after a valid 101.
++const ws = await client.websocket({path: '/x/' + id + '/tcp/6667', headers, protocols: ['irc']});
++await ws.send('NICK me\r\n');                     // resolves once written; a string is a text frame
++for await (const {data, binary} of ws.messages) handle(data);   // one reader; break closes normally
++await ws.ping();                                   // resolves on the pong
++const {code, reason, error, bytesIn, bytesOut} = await ws.close(1000, 'bye');
+ ```
+ 
+ | Option | Meaning | Default | Allowed |
+@@ -42,13 +70,14 @@ const {bytes, error} = await s.closed;             // always resolves
+ | `method` | `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS` | `GET` | `CONNECT`/`TRACE` refused |
+ | `path` | Origin-form path and query | `/` | starts with one `/`; no controls, spaces or `#`; up to 8192 characters |
+ | `headers` | Application headers, including credentials | `{}` | up to 100 names and 64 KiB; no CR/LF/NUL; one spelling per name |
+-| `body` | String, Buffer, typed array or ArrayBuffer, copied when called | none | not with GET/HEAD; up to `maxRequestBytes` |
+-| `maxRequestBytes` | Upload limit | 8 MiB | 0 to 64 MiB |
++| `body` | String, Buffer, typed array or ArrayBuffer, copied when called; or a Readable, web `ReadableStream` or async iterable of bytes, streamed | none | not with GET/HEAD; up to `maxRequestBytes` |
++| `bodyLength` | Streamed body only: exact length, sent as `Content-Length` (otherwise chunked) | none | 0 to `maxRequestBytes` |
++| `maxRequestBytes` | Upload limit | 8 MiB (bytes), 64 MiB (streamed) | 0 to 64 MiB / 1 GiB |
+ | `maxBytes` | Response limit | 8 MiB (`request`), 64 MiB (`stream`) | up to 64 MiB / 1 GiB |
+-| `timeoutMs` | `request`: the whole exchange. `stream`: until response headers | 30 s | 1 s to 120 s |
+-| `idleTimeoutMs` | `stream`: longest gap between delivered chunks | 60 s | 1 s to 10 min |
+-| `maxDurationMs` | `stream`: total lifetime | 10 min | 1 s to 1 h |
+-| `recheckMs` | `stream`: how often chain state is checked again | 30 s | 1 s to 5 min |
++| `timeoutMs` | `request`: the whole exchange. `stream`: until response headers. A streamed upload restarts it when the upload ends | 30 s | 1 s to 120 s |
++| `idleTimeoutMs` | `stream`: longest gap between delivered chunks. Streamed upload: longest gap in source progress or guest acceptance | 60 s | 1 s to 10 min |
++| `maxDurationMs` | `stream`: total lifetime. Streamed upload: upload lifetime | 10 min | 1 s to 1 h |
++| `recheckMs` | `stream` and streamed uploads: how often chain state and route records are checked again | 30 s | 1 s to 5 min |
+ | `signal` | `AbortSignal`, cancels at any stage | none | must be a real `AbortSignal` |
+ 
+ Unknown options are refused. So are the framing and hop-by-hop headers `Host`,
+@@ -70,10 +99,21 @@ Unknown options are refused. So are the framing and hop-by-hop headers `Host`,
+   Node writes the request only after that last check passes. A refusal at any
+   step sends nothing; the tests confirm the guest stand-in decrypts zero
+   application bytes.
+-- **Snapshot.** Options, headers and body are copied synchronously when
++- **Snapshot.** Options, headers and byte bodies are copied synchronously when
+   `request` or `stream` is called, so later caller mutation changes nothing.
+-  The signal is deliberately kept by reference. Streamed (unbounded) uploads are
+-  not supported.
++  The signal is deliberately kept by reference.
++- **Streamed uploads.** A streamed body cannot be copied; it belongs to the client
++  once passed. It is not read until the agent hands over the socket whose key
++  matched the attestation. It is then pulled one chunk at a time: the next chunk
++  is read only after the previous one drained into the connection, so memory
++  stays bounded however slowly the guest reads. Exceeding `maxRequestBytes` or
++  `bodyLength`, a short body, a non-byte chunk, a source error, an upload stall,
++  cancellation, lease or route loss, or a transport error ends the request and
++  destroys the source. So does any refusal before sending, including invalid
++  options and the concurrency limit. A failure before the first chunk was written
++  leaves the guest with nothing, not even headers. The guest may answer before
++  the upload ends: `stream()` then delivers the response while the upload
++  continues (full duplex), and `request()` gives the answer its own timeout.
+ - **One send.** Each call attests once and sends at most once. Route failover
+   happens only during attestation, before any application byte. After the
+   request is written, a reset, timeout or partial response is reported as an
+@@ -89,15 +129,17 @@ Unknown options are refused. So are the framing and hop-by-hop headers `Host`,
+     does not crash the process.
+ - **Concurrency.** Authorization and connection setup are serialized per client.
+   The queue is released when response headers arrive. At most `maxConcurrent`
+-  requests or streams (1–32, default 4) may be open per client; beyond that the
+-  call is refused at once.
++  requests, streams or WebSockets together (1–32, default 4) may be open per
++  client; beyond that the call is refused at once.
+ - **What authorization covers.** `validUntil` is the latest moment a new send
+   may start: the earliest of route expiry, lease snapshot expiry, and 60 s after
+   the proof began. An established stream is not proof of continuing ownership.
+   The client re-reads the lease every `recheckMs` and cuts the stream (`native
+   authorization ended`) if the owner, runner, app, configuration or lease
+-  changed, or if current state can no longer be confirmed. A route withdrawal
+-  alone does not cut an open stream; `maxDurationMs` bounds it.
++  changed, or if current state can no longer be confirmed. The same check also
++  re-imports the signed route records. A newer record that withdraws or replaces
++  the attested route ends the connection, and so does expiry of the stored
++  record when no directory answers. The check runs in the per-client queue.
+ - **Logging.** Errors carry fixed messages and never include request header
+   values or bodies.
+ 
+@@ -108,11 +150,115 @@ Unknown options are refused. So are the framing and hop-by-hop headers `Host`,
+ - **Authentication.** Credentials are whatever the application expects. The
+   client passes them through only after the checks above and adds no
+   Enclave-issued session.
+-- **Other transports.** Streamed request uploads, WebSocket/`Upgrade`,
+-  `100-continue` and HTTP/2 are not supported.
++- **Other transports.** `100-continue`, HTTP/2 and WebSocket compression
++  (`permessage-deflate`) are not supported. Arbitrary `Upgrade` protocols other
++  than WebSocket are not supported.
+ - **Proof scope.** The guest-side TLS key is attested once per request. Later
+   requests attest again; no proof is cached across requests.
+ 
++## WebSockets
++
++`websocket()` runs the same discovery, proof, revalidation and TLS-key check as
++`request()`. Only then does it send ONE upgrade request, with the caller's headers,
++over the verified connection. The upgrade is built with the repository's `ws`
++library, the same one the broker and local transports use. Until the handshake
++check passes, no request line, header, credential or frame is written.
++
++- **Handshake.**
++  - The upgrade goes to exactly the requested path. A path that URL
++    normalization would change is refused.
++  - `Host` and SNI name the profile's virtual app at the attested literal
++    address.
++  - The guest must answer `101` with `Upgrade: websocket` and the correct
++    `Sec-WebSocket-Accept`.
++  - When protocols are requested, the guest must choose one of them; when none
++    are requested, it must choose none.
++  - It must not send unrequested extensions.
++  - Any other answer, redirects included, rejects with `error.status` and is
++    never followed. Credentials therefore never reach a redirect target, and
++    discovery peers never see application headers.
++- **Headers.** The HTTP refusals above all apply. In addition, the
++  `Sec-WebSocket-*` fields belong to the library; requested subprotocols go in
++  `protocols`.
++- **One upgrade.**
++  - A socket is never reconnected.
++  - A reconnect is a new `websocket()` call, with fresh discovery, a new proof
++    and the credentials passed to that call.
++  - A send whose delivery is uncertain rejects (`delivery of this message is
++    unknown`) and is never repeated. No message is replayed on a new socket.
++- **Bounds.** All of these are per socket, beyond the shared `maxConcurrent`.
++
++| Option | Meaning | Default | Allowed |
++| --- | --- | --- | --- |
++| `path`, `headers`, `signal` | As for requests | `/`, `{}` | as for requests, plus the rules above |
++| `protocols` | Requested subprotocols | none | up to 16 distinct tokens |
++| `maxMessageBytes` | Largest frame/message, in and out (inbound: close 1009) | 1 MiB | 1 B to 64 MiB |
++| `maxBufferedBytes` | Unflushed outgoing bytes; a send beyond it rejects at once | 4 MiB | `maxMessageBytes` to 256 MiB |
++| `maxQueuedBytes` | Received but unread bytes; beyond it the socket pauses, and backpressure reaches the guest | 4 MiB | 1 B to 256 MiB |
++| `maxBytes`, `maxSentBytes` | Lifetime totals in and out | 256 MiB | up to 16 GiB |
++| `timeoutMs` | Handshake | 30 s | 1 s to 120 s |
++| `idleTimeoutMs` | No frame in either direction, including pings | 5 min | 1 s to 1 h |
++| `maxDurationMs` | Total lifetime | 1 h | 1 s to 24 h |
++| `recheckMs` | Lease and route re-check, as for streams | 30 s | 1 s to 5 min |
++
++- **Ending a socket.** Any of the following terminates the connection, frees the
++  slot, and rejects pending pings and sends:
++  - cancellation (`signal`, `cancel()`);
++  - a lost owner, runner, app, configuration or lease;
++  - lease or route expiry, or a route withdrawal;
++  - a limit or timer;
++  - a TLS or transport error.
++
++  `close()` performs the closing handshake. `closed` always resolves to
++  `{code, reason, error, bytesIn, bytesOut}`.
++- **Application authentication.** The client adds nothing. A private app's bridge
++  takes its credential per connection, as the app documents: a header, or the
++  `?token=` query that the TCP bridges accept.
++
++## Platform host policy (administrator bans)
++
++The native client enforces the Enclave administrator's platform host policy. This is the signed policy, anchored in
++the EnclaveAddressBook, that bans hosts platform-wide or admits only listed hosts. It uses exactly the decision the
++CLI uses (`network/native-host-policy.mjs`, which builds the shared pieces below). It contains no policy code of its
++own.
++
++- **Which policy applies.** This is decided by the network the profile is pinned to, never by a profile field.
++  - A profile pinned to the production ledger or registry on Base is judged by the production authority: the
++    EnclaveAddressBook owner, the production host-ownership extension, and the policy's own read quorum.
++  - The operator's existing `ENCLAVE_PLATFORM_HOST_POLICY` setting keeps its shared meaning (`production`, `off`, or
++    an explicit test or private platform), as `network/platform-host-policy-config.mjs` defines it.
++  - Leaving out `hostAdmission` (or passing `null`) never turns the policy off. A caller such as the CLI may instead
++    pass its own `leaseHostAdmission` decision.
++- **When it is checked.** Each discovery pass decides once for the lease host. The decision is checked explicitly
++  right after the lease read, before records, proofs, upgrades, credentials or bodies. The signed-route verification
++  (`verifyRoute` `hostAdmission`, owned by the policy runtime) reuses it.
++  - A request decides twice, before and after attestation.
++  - Open streams, streamed uploads and WebSockets decide again at every `recheckMs`. A newly anchored ban ends them
++    with `native authorization ended: platform host policy refused the host: …`, and nothing reconnects.
++- **What counts as an admit.** Anything but an explicit admit refuses (`error.code` `host_policy_refused`, with
++  `error.status` the shared status). Refusal cases include:
++  - a ban or an allowlist miss (`current`);
++  - a node behind the anchor, a forged or older mirror copy, or an unavailable mirror (`behind`);
++  - a torn anchor (`anchor`);
++  - an unreadable policy quorum (`unreadable`);
++  - an unanchored book under `activation=required` (`unanchored`).
++
++  While the administrator has anchored nothing and activation is the default `anchor`, the policy is not activated
++  and hosts are admitted as before (`not-activated`).
++- **Mirrors.** Mirrors are untrusted transport. A body is read with the shared 256 KiB bound before it is buffered,
++  and a declared oversize length is refused unread.
++- **Limits.** This is a service refusal, like every other enforcement point. The deployed ledger has no per-host
++  admin ban, so a banned host can still hold a lease on chain. It never receives this client's traffic.
++
++## Native client versus browsers
++
++Everything above is a Node client that verifies the guest itself. Ordinary
++browsers cannot pin an attested key, and they cannot open a WebSocket or `fetch`
++to a self-signed literal address. For browsers, the route is still an
++owner-controlled name with a WebPKI certificate. This library does not provide
++browser integration, and the local fixtures behind it are not public hardware
++proof.
++
+ ## The caller's trust profile
+ 
+ Supply a JSON object with these fields. No discovery service supplies missing
+diff --git a/network/host-policy-adapters.mjs b/network/host-policy-adapters.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..dd8af175b4fa3917eb422539fda89c5637bac843
+--- /dev/null
++++ b/network/host-policy-adapters.mjs
+@@ -0,0 +1,127 @@
++// Enforcement adapters for the platform host policy gate (network/platform-host-policy.mjs createPlatformHostGate).
++// Each enforcement point gets a narrow function with ONE failure rule: anything but an explicit admit refuses. A refresh
++// is attempted when this node is behind the book's anchor, then the decision is re-made once. Nothing here caches an
++// admit longer than `ttlMs` (default 30 s): a new ban reaches hot paths within that bound plus the admin's anchor write.
++// These are service refusals. The deployed ledger has no per-host admin ban: a banned host can still claim leases on
++// chain; it gets no relay route/attach, no custody secrets, no discovery listing, no management traffic, and a measured
++// guest on it stops serving.
++import { keccak256, toBytes } from "viem";
++const lc = (s) => String(s).toLowerCase();
++async function decided(gate, fn) {
++  let r = await fn();
++  // "behind": a newer anchor; "authority": the accepted policy's signer is no longer the current owner (a re-signed copy may exist)
++  const behind = Object.values(r.decisions || r).some((d) => d && (d.status === "behind" || d.status === "authority"));
++  if (behind && typeof gate.refresh === "function") { try { await gate.refresh(); } catch {} r = await fn(); }
++  return r;
++}
++function cache(ttlMs, now) {
++  const m = new Map();
++  return { get: (k) => { const v = m.get(k); return v && v.until > now() ? v.d : null; },
++           put: (k, d) => { if (d.admit === true) m.set(k, { d, until: now() + ttlMs }); else m.delete(k); if (m.size > 4096) m.delete(m.keys().next().value); } };
++}
++/** route-record.mjs verifyRoute hostAdmission: the lease runner (a registry id) */
++export const leaseHostAdmission = (gate) => async (lease) => {
++  const id = lc(lease?.runner || "");
++  if (!/^0x[0-9a-f]{64}$/.test(id)) return { admit: false, reason: "lease has no runner host" };
++  const r = await decided(gate, () => gate.decide({ registryIds: [id] }));
++  const d = r.decisions[id];
++  if (d?.admit && lease.runnerOperator && d.host?.operator !== lc(lease.runnerOperator)) return { admit: false, reason: "lease operator differs from the host's registry operator at the policy block" };
++  return d || { admit: false, reason: "no decision" };
++};
++/** service-index.mjs applyHostPolicy decide(operators) */
++export const operatorDecider = (gate) => async (operators) => (await decided(gate, () => gate.decideOperators(operators)));
++/**
++ * Host-id decisions for hot paths (relay listing/dial, tunnel attach, management client, CLI/browser host choice):
++ * admits(registryIds) -> { [id]: decision }, cached admits for ttlMs, refusals never cached.
++ */
++export function hostAdmissions(gate, { ttlMs = 30_000, now = () => Date.now() } = {}) {
++  const c = cache(ttlMs, now);
++  // a cached admit is bound to the policy digest it was judged under: once this node accepts a newer anchored policy
++  // (a refresh by any path - the hot-ban sweep, a periodic refresh, another caller), every earlier admit is void
++  const digest = () => (typeof gate.accepted === "function" && gate.accepted()?.digest) || "none";
++  return async (registryIds) => {
++    const ids = [...new Set(registryIds.map(lc))], out = {}, ask = [];
++    for (const id of ids) { const d = c.get(`${digest()}:${id}`); if (d) out[id] = d; else ask.push(id); }
++    if (ask.length) {
++      const r = await decided(gate, () => gate.decide({ registryIds: ask }));
++      for (const id of ask) { const d = r.decisions[id] || { admit: false, reason: "no decision" }; c.put(`${digest()}:${id}`, d); out[id] = d; }
++    }
++    return out;
++  };
++}
++/**
++ * The MEASURED host gate: a guest, supervisor or Windows host checks its OWN host id at agreed blocks.
++ *   serving:true   only after an authenticated admit IN THIS RUNTIME (the anchored policy, signed by the book's current
++ *                  owner, admits this host at a fresh agreed block), and then through TRANSIENT loss (RPC/mirror failure,
++ *                  node behind the anchor, authority not yet re-read) for at most graceMs after it;
++ *   serving:false  on any explicit refusal (ban, allowlist miss, inactive/deregistered host). An explicit refusal is STICKY:
++ *                  it erases the earlier admission, so later undecided/unreadable checks never resurrect service through
++ *                  the old grace. Only a NEW authenticated admit (the admin's unban) resumes.
++ * Checks are SERIALIZED, and a decision read at an OLDER block than one already applied is discarded: a slow admitting
++ * snapshot can never overwrite a newer explicit refusal (no out-of-order resurrection).
++ * persist { load, save } keeps ONLY a known refusal across restarts (restrictive). A positive admission is never restored
++ * from local state: the file is unauthenticated host data, so a restarted host serves only after a fresh authenticated
++ * admit (a cold start during an RPC outage does not serve). A failed save is logged; the in-memory refusal still holds.
++ * onChange(state, previous) fires on every serving/banned transition (hosts stop new work and service at once).
++ */
++export function measuredHostGate({ gate, hostId, graceMs = 15 * 60_000, now = () => Date.now(), log = () => {}, onChange = null, persist = null }) {
++  if (!/^0x[0-9a-f]{64}$/.test(lc(hostId))) throw Error("measured host gate: this host's registry id is required");
++  let lastAdmit = 0, knownRefusal = null, appliedBlock = null, state = { serving: false, reason: "not yet checked", status: "unchecked" };
++  if (persist) {
++    try {
++      const p = JSON.parse(persist.load() || "null");
++      if (p && p.hostId === lc(hostId) && p.knownRefusal && typeof p.knownRefusal.status === "string") knownRefusal = p.knownRefusal;
++    } catch { /* unreadable state: start unchecked (never admitted) */ }
++  }
++  const save = () => { if (persist) { try { persist.save(JSON.stringify({ hostId: lc(hostId), knownRefusal })); } catch (e) { log(`[host-policy] persisting the host's policy state failed: ${e.message} (in-memory state unchanged)`); } } };
++  // explicit refusals, judged at a fresh agreed block: a ban/allowlist miss (current/stale-*), deregistration (inactive), and a
++  // CONFIRMED loss of authority ("authority": the book's current owner no longer signs the anchored policy). Unread facts,
++  // RPC/mirror failures and "behind" stay undecided (bounded grace before any known refusal).
++  const EXPLICIT = ["current", "stale-grace", "stale", "inactive", "authority"];
++  const graceServing = () => knownRefusal === null && lastAdmit > 0 && now() - lastAdmit < graceMs;
++  const blockOf = (r) => { try { return r && r.block !== null && r.block !== undefined ? BigInt(r.block) : null; } catch { return null; } };
++  async function run() {
++    const previous = state;
++    try {
++      const r = await decided(gate, () => gate.decide({ registryIds: [lc(hostId)] }));
++      const b = blockOf(r);
++      if (b !== null && appliedBlock !== null && b < appliedBlock) return state;   // an older snapshot: never applied over a newer one
++      if (b !== null) appliedBlock = b;
++      const d = r.decisions[lc(hostId)];
++      if (d?.admit === true) { lastAdmit = now(); if (knownRefusal) { knownRefusal = null; save(); } state = { serving: true, reason: d.reason, status: d.status }; }
++      else if (EXPLICIT.includes(d?.status)) {
++        lastAdmit = 0; knownRefusal = { status: d.status, reason: d.reason, at: now() }; save();
++        state = { serving: false, banned: d.status !== "inactive", reason: d.reason, status: d.status };
++      } else state = knownRefusal ? { serving: false, banned: knownRefusal.status !== "inactive", reason: `${knownRefusal.reason} (still refused: ${d?.reason || "undecided"})`, status: "refused-undecided" }
++                                  : { serving: graceServing(), reason: d?.reason || "undecided", status: d?.status || "undecided" };
++    } catch (e) {
++      state = knownRefusal ? { serving: false, banned: knownRefusal.status !== "inactive", reason: `${knownRefusal.reason} (still refused: policy unreadable)`, status: "refused-unreadable" }
++                           : { serving: graceServing(), reason: `policy unreadable: ${e.message}`, status: "unreadable" };
++    }
++    if (!state.serving) log(`[host-policy] this host is not serving: ${state.reason}`);
++    if (onChange && (previous.serving !== state.serving || !!previous.banned !== !!state.banned)) { try { onChange(state, previous); } catch {} }
++    return state;
++  }
++  let chain = Promise.resolve();
++  const check = () => (chain = chain.then(run, run));          // serialized: one decision applied at a time, in order
++  return { check, state: () => state };
++}
++
++/**
++ * Endpoint-keyed admissions for code that knows hosts by their registered endpoint (relay/fleet.mjs, the DNS relay):
++ * admissions(registryIds) -> (endpoints) -> { [endpoint without trailing slash]: decision }. The registry id is
++ * keccak256(endpoint), the same id the registry and the policy use.
++ */
++export const endpointAdmissions = (admissions) => async (endpoints) => {
++  const eps = [...new Set(endpoints.map((e) => String(e || "").replace(/\/+$/, "")).filter(Boolean))];
++  const idOf = new Map(eps.map((e) => [e, keccak256(toBytes(e)).toLowerCase()]));
++  const d = eps.length ? await admissions([...idOf.values()]) : {};
++  return Object.fromEntries(eps.map((e) => [e, d[idOf.get(e)] || { admit: false, reason: "no decision" }]));
++};
++
++/** Uncached decisions (the hot-ban sweep of attached tunnels; any re-check that must see a new ban at once):
++ *  freshAdmissions(gate)(registryIds) -> { [id]: decision }, refreshing once when this node is behind the anchor. */
++export const freshAdmissions = (gate) => async (registryIds) => {
++  const ids = [...new Set(registryIds.map(lc))];
++  return (await decided(gate, () => gate.decide({ registryIds: ids }))).decisions;
++};
+diff --git a/network/host-policy-runtime.mjs b/network/host-policy-runtime.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..7eb8bdec66217dc54976b9c40575644f0d784e52
+--- /dev/null
++++ b/network/host-policy-runtime.mjs
+@@ -0,0 +1,97 @@
++// One runtime for every non-custody enforcement point (relay discovery/dial/tunnels, DNS fleet, supervisor, Windows host,
++// management client, CLI): a platform host policy gate (network/platform-host-policy.mjs) over a majority-agreement
++// snapshot, the published mirrors, an optional persisted state, and the ACTIVATION rule
++// (network/platform-host-policy-config.mjs):
++//   activation "anchor"   the book anchors nothing yet -> "not-activated": admit (today's behavior), reported as such
++//   activation "required" the book anchors nothing -> refuse
++// A torn/malformed anchor, a node behind the anchor, an unreadable chain: refuse (never an admit). Off (null) only when the
++// resolved configuration says so.
++import fs from "node:fs";
++import path from "node:path";
++import { createPublicClient, http, encodeFunctionData, decodeFunctionResult } from "viem";
++import { createQuorumReader, checkRpcUrls } from "../custody/v2/quorum.mjs";
++import { createPlatformHostGate, readPolicyFacts, decodeAnchor } from "./platform-host-policy.mjs";
++import { httpPolicyMirrors, validateMirrors } from "./host-policy-mirrors.mjs";
++import { hostAdmissions, measuredHostGate } from "./host-policy-adapters.mjs";
++import { resolveHostPolicyConfig } from "./platform-host-policy-config.mjs";
++export { resolveHostPolicyConfig } from "./platform-host-policy-config.mjs";
++
++const lc = (s) => String(s || "").toLowerCase();
++const NOT_ACTIVATED = Object.freeze({ admit: true, status: "not-activated", reason: "the platform host policy is not activated (the admin has anchored no policy)" });
++
++/** Back-compatible parse of a raw config value (JSON or object) without the production default. */
++export function parseHostPolicyConfig(raw) {
++  if (raw === undefined || raw === null || raw === "") return null;
++  const r = resolveHostPolicyConfig({ env: { ENCLAVE_PLATFORM_HOST_POLICY: typeof raw === "string" ? raw : JSON.stringify(raw) } });
++  if (!r.on) return null;
++  return Object.freeze({ ...r.config, mirrors: validateMirrors(r.config.mirrors) });
++}
++/** A JSON file store for the gate's accepted policy (and the measured gate's admission state). */
++export function fileStore(file) {
++  return { load: () => { try { return fs.readFileSync(file, "utf8"); } catch { return null; } },
++           save: (v) => { fs.mkdirSync(path.dirname(file), { recursive: true }); const tmp = file + ".tmp"; fs.writeFileSync(tmp, v, { mode: 0o600 }); fs.renameSync(tmp, file); } };
++}
++/** viem clients' quorum -> the gate's snapshot(fn) with call/code bound to one agreed block */
++export function quorumSnapshot({ rpcs, minAgree = null, clients = null, maxAgeSec = 120 }) {
++  if (!clients) checkRpcUrls(rpcs);
++  const cs = clients || rpcs.map((u) => createPublicClient({ transport: http(u, { timeout: 10_000, retryCount: 0 }) }));
++  const agreed = createQuorumReader({ clients: cs, minAgree: minAgree ?? Math.floor(cs.length / 2) + 1, maxAgeSec });
++  return (fn) => agreed((c, b) => fn({ block: b.blockNumber,
++    call: async (address, abi, functionName, args = []) => decodeFunctionResult({ abi, functionName,
++      data: await c.request({ method: "eth_call", params: [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }, { blockHash: b.blockHash, requireCanonical: true }] }) }),
++    code: (a) => c.request({ method: "eth_getCode", params: [a, { blockHash: b.blockHash, requireCanonical: true }] }) }));
++}
++/** A viem client snapshot (e.g. the CLI's INDEPENDENT.chain.snapshot((client, blockNumber) => ...)) -> the gate's snapshot */
++export const clientSnapshot = (snap) => (fn) => snap((client, blockNumber) => fn({ block: blockNumber,
++  call: (address, abi, functionName, args = []) => client.readContract({ address, abi, functionName, args, blockNumber }),
++  code: (address) => client.getCode({ address, blockNumber }).then((c) => c || "0x") }));
++
++/**
++ * resolved: resolveHostPolicyConfig(...) result, or a config object. Returns null when off, else
++ * { config, activation, gate, admissions(ids), decideOperators(ops), measured(hostId, opts), status() }.
++ * snapshot: an injected agreed-block snapshot; otherwise rpcs/clients (default: config.rpcs) build one.
++ */
++export function createHostPolicyRuntime(resolved, { rpcs = null, minAgree = null, clients = null, snapshot = null, store = null,
++  fetch = globalThis.fetch, log = () => {}, ttlMs = 30_000 } = {}) {
++  if (resolved === null || resolved === undefined || resolved === "") return null;
++  let cfg;
++  if (typeof resolved === "string") cfg = parseHostPolicyConfig(resolved);
++  else if (resolved.on === false) return null;
++  else cfg = resolved.on === true ? resolved.config : resolved;
++  if (!cfg) return null;
++  const activation = cfg.activation || "anchor";
++  const snap = snapshot || quorumSnapshot({ rpcs: rpcs || cfg.rpcs, minAgree: minAgree ?? cfg.minAgree ?? null, clients });
++  const mirrors = cfg.mirrors && cfg.mirrors.length ? httpPolicyMirrors(cfg.mirrors, { fetch }) : [];
++  if (!mirrors.length) log("[host-policy] WARNING: no policy mirror configured - an anchored policy cannot be loaded and will refuse every host");
++  const core = createPlatformHostGate({ book: cfg.book, hostOwnership: cfg.hostOwnership, snapshot: snap, mirrors, store, log });
++  let last = { state: "unchecked" };
++  const anchorState = (facts) => { try { return decodeAnchor(facts.anchorHi, facts.anchorLo).state; } catch { return "torn"; } };
++  // decide(): the core decision, except that an UNANCHORED book under activation "anchor" means not activated (every
++  // host, including unregistered/inactive ones, is treated as today); a torn anchor refuses everything.
++  async function decide({ registryIds = [] } = {}) {
++    // ONE snapshot: anchor, current book owner (+ its ERC-1271 answer for the accepted policy) and host rows
++    const facts = await snap(async (at) => ({ ...(await readPolicyFacts(at, { book: cfg.book, hostOwnership: cfg.hostOwnership, registryIds, check1271: core.currentAuthorityChecks() })), block: at.block ?? null }));
++    const a = anchorState(facts), decisions = {};
++    last = { state: a, block: facts.block, at: Date.now() };
++    for (const id of registryIds.map(lc)) {
++      const h = facts.hosts[id];
++      if (a === "unanchored" && activation === "anchor") { decisions[id] = { ...NOT_ACTIVATED, host: h }; continue; }
++      decisions[id] = { ...(h?.active ? core.decideHost(h, facts) : { admit: false, status: "inactive", reason: "host registry entry is not active" }), host: h };
++    }
++    return { block: facts.block, anchor: a, decisions };
++  }
++  async function decideOperators(operators = []) {
++    const facts = await snap(async (at) => readPolicyFacts(at, { book: cfg.book, hostOwnership: cfg.hostOwnership, check1271: core.currentAuthorityChecks() }));
++    const a = anchorState(facts);
++    return Object.fromEntries(operators.map((o) => [lc(o), a === "unanchored" && activation === "anchor" ? { ...NOT_ACTIVATED } : core.decideHost({ operator: lc(o) }, facts)]));
++  }
++  async function refresh() {
++    try { return await core.refresh(); }
++    catch (e) { if (e.code === "unanchored" && activation === "anchor") return null; throw e; }
++  }
++  const gate = { refresh, decide, decideOperators, decideHost: core.decideHost, currentAuthorityChecks: core.currentAuthorityChecks, accepted: core.accepted, problems: core.problems };
++  return { config: cfg, activation, gate, admissions: hostAdmissions(gate, { ttlMs }), decideOperators,
++           measured: (hostId, o = {}) => measuredHostGate({ gate, hostId, log, ...o }),
++           status: () => ({ activation, anchor: last.state, block: last.block ? String(last.block) : null,
++                            accepted: core.accepted() ? { sequence: core.accepted().policy.sequence, digest: core.accepted().digest } : null, problems: core.problems() }) };
++}
+diff --git a/network/native-client.mjs b/network/native-client.mjs
+index c9b210820f179c54b7a7f22b494bee9acc0fcec6..57632de047c9fc948d1c22aa7f90007f058d5585 100644
+--- a/network/native-client.mjs
++++ b/network/native-client.mjs
+@@ -5,7 +5,8 @@ import https from 'node:https';
+ import {isIP} from 'node:net';
+ import {createHash} from 'node:crypto';
+ import path from 'node:path';
+-import {PassThrough,Transform,pipeline} from 'node:stream';
++import {PassThrough,Readable,Transform,pipeline} from 'node:stream';
++import WebSocket from 'ws';
+ import {LeaseReader} from './lease-reader.mjs';
+ import {PublicDirectory} from './public-directory.mjs';
+ import {DirectoryClient} from './directory-client.mjs';
+@@ -17,12 +18,14 @@ import {DirectHttpsAgent} from './socks-connect.mjs';
+ import {seedCertChain} from '../relay/snp-verify.mjs';
+ import {startupExpectation,inlineStartupBytes} from './startup-expectation.mjs';
+ import {bootstrapIntent} from '../sdk/bootstrap/package.mjs';
++import {nativeHostPolicy} from './native-host-policy.mjs';
+ 
+ const ZERO='0x'+'0'.repeat(40);
+ const identity=l=>recordHash(Object.fromEntries(['id','chainId','deployments','owner','runner','runnerOperator','appRef','configCid'].map(k=>[k,l[k]])));
+ 
+ export class NativeClient {
+-  constructor(profile,{reader,fetch=globalThis.fetch,probe=probeGuest,now=Date.now,maxConcurrent=4}={}){
++  // hostAdmission: the platform host policy for the route's lease host (network/host-policy-adapters.mjs leaseHostAdmission)
++  constructor(profile,{reader,fetch=globalThis.fetch,probe=probeGuest,now=Date.now,maxConcurrent=4,hostAdmission=null,env=process.env,policyFetch=globalThis.fetch}={}){
+     if(!Number.isSafeInteger(maxConcurrent)||maxConcurrent<1||maxConcurrent>32)throw Error('native client concurrency must be 1..32');
+     // Snapshot all caller inputs: asynchronous proof work must not permit a
+     // caller's later mutation to change the expected app or verification policy.
+@@ -47,8 +50,16 @@ export class NativeClient {
+     this.transport=new DirectoryClient({origins:p.directories,fetch});
+     // Literal directory origins make the DNS-independent claim enforceable.
+     if(this.transport.origins.some(o=>!isIP(new URL(o).hostname.replace(/^\[|\]$/g,''))))throw Error('native discovery requires literal directory addresses');
++    // The platform host policy (network/native-host-policy.mjs) is resolved exactly as the CLI resolves it: from the
++    // network this profile is pinned to and the operator's existing ENCLAVE_PLATFORM_HOST_POLICY setting. A caller may
++    // pass the CLI's own decision function; omitting it (or null) never turns the policy off.
++    if(typeof hostAdmission!=='function'){this.hostPolicy=nativeHostPolicy(p,{env,fetch:policyFetch});hostAdmission=this.hostPolicy.off?null:this.hostPolicy.admission;}
++    else this.hostPolicy={off:false,source:'caller'};
++    this.hostAdmission=hostAdmission;this.pass=null;
++    // One decision per resolve pass, shared by the explicit check and the signed-route hook (same lease identity).
++    const passDecision=hostAdmission&&(lease=>this.pass&&this.pass.key===identity(lease)?this.pass.decision:this._decideHost(lease));
+     this.now=now;this.probe=probe;this.fetch=fetch;this.operators=new Map();this.tail=Promise.resolve();this.maxConcurrent=maxConcurrent;this.open=0;
+-    this.directory=new PublicDirectory({directory:path.join(p.stateDir,recordHash({chainId:p.chainId??8453,pins:this.pins,id:p.deploymentId,checkers:p.checkers})),checkers:p.checkers,now,
++    this.directory=new PublicDirectory({directory:path.join(p.stateDir,recordHash({chainId:p.chainId??8453,pins:this.pins,id:p.deploymentId,checkers:p.checkers})),checkers:p.checkers,now,hostAdmission:passDecision,
+       leaseOf:async id=>id===p.deploymentId?this.reader.get(id):null,
+       hostOperator:async id=>{
+         if(!this.operators.has(id))this.operators.set(id,this.reader.registryEntries(this.pins.registry,[id]).then(([h])=>h?.active?h.operator:null));
+@@ -66,6 +77,10 @@ export class NativeClient {
+   async resolve(){
+     const p=this.profile;
+     await this.reader.refresh([p.deploymentId]);const startLease=this.currentLease();this.operators.clear();
++    return this._withHostDecision(startLease,'platform host policy refused the route host: ',()=>this._resolveFrom(startLease));
++  }
++  async _resolveFrom(startLease){
++    const p=this.profile;
+     let expected=p.expected,provenance={source:'caller-pinned'};
+     if(p.startup){
+       const intent=bootstrapIntent(startLease.configCid);
+@@ -73,7 +88,14 @@ export class NativeClient {
+       const derived=await startupExpectation(startLease,{runtime:p.linux.runtime,gateways:p.startup.gateways,bytes:this.startupBytes??cached,fetchImpl:this.fetch});
+       expected=derived.expected;provenance=derived.provenance;this.startupCache={sha256:provenance.sha256,bytes:derived.bytes};
+     }
+-    const answers=await this.transport.read('/v1/network/records');
++    if(!await this._importRecords())throw Error('no public record snapshot available');
++    const routes=(await this.directory.routes()).deployments[p.deploymentId],lease=this.currentLease();
++    if(!routes?.httpsRoutes?.length||routes.expiresAt<=this.now())throw Error('no current verified route');
++    if(identity(startLease)!==identity(lease))throw Error('deployment changed during expectation verification');
++    return {routes,lease,expected,provenance};
++  }
++  async _importRecords(){
++    const p=this.profile,answers=await this.transport.read('/v1/network/records');
+     let validSnapshots=0;
+     for(const {value} of answers){
+       if(value?.version!==1||!['providers','policies','publications'].every(k=>Array.isArray(value[k])&&value[k].length<=4096))continue;
+@@ -85,16 +107,12 @@ export class NativeClient {
+         publications:value.publications.filter(e=>e?.bundle?.record?.deploymentId===p.deploymentId)});
+       validSnapshots++;
+     }
+-    if(!validSnapshots)throw Error('no public record snapshot available');
+-    const routes=(await this.directory.routes()).deployments[p.deploymentId],lease=this.currentLease();
+-    if(!routes?.httpsRoutes?.length||routes.expiresAt<=this.now())throw Error('no current verified route');
+-    if(identity(startLease)!==identity(lease))throw Error('deployment changed during expectation verification');
+-    return {routes,lease,expected,provenance};
++    return validSnapshots;
+   }
+   // One application request: discovery, fresh proof, revalidation, then ONE send.
+   // Buffered; resolves after the whole bounded response (the GET/HEAD result shape).
+   request(options={}){
+-    return this._enqueue(options,false).then(async handle=>{
++    return this._enqueue(()=>ownRequest(options,false),(input,release)=>this._open(input,release)).then(async handle=>{
+       if(!handle.body)return {...handle.result,body:Buffer.alloc(0)};
+       const chunks=[];
+       try{for await(const chunk of handle.body)chunks.push(chunk);}
+@@ -106,21 +124,30 @@ export class NativeClient {
+   // arrive. `body` is a Readable delivering bytes as they come (SSE, incremental
+   // chat): async-iterate or pipe it; it applies backpressure to the guest.
+   stream(options={}){
+-    return this._enqueue(options,true).then(handle=>({...handle.result,body:handle.body,cancel:handle.cancel,closed:handle.closed}));
++    return this._enqueue(()=>ownRequest(options,true),(input,release)=>this._open(input,release))
++      .then(handle=>({...handle.result,body:handle.body,cancel:handle.cancel,closed:handle.closed}));
++  }
++  // One WebSocket: the same discovery, proof, revalidation and handshake check, then
++  // ONE upgrade request on the verified connection. It never reconnects; a new
++  // connection is a new call, with fresh discovery, proof and credentials.
++  websocket(options={}){
++    return this._enqueue(()=>snapshotSocket(options),(input,release)=>this._openSocket(input,release));
+   }
+   // Discovery, proof and connection setup are serialized per client, so a second
+   // request cannot replace the lease context while the first attests. The queue is
+   // released once response headers arrive; open responses are bounded separately.
+-  _enqueue(options,streaming){
++  // A streamed upload body belongs to the client once passed: it is read only after
++  // the guest key is verified, and destroyed unless it was sent to its end.
++  _enqueue(snapshot,open){
+     let input;
+-    try{input=snapshotRequest(options,streaming);}catch(e){return Promise.reject(e);}
+-    if(this.open>=this.maxConcurrent)return Promise.reject(Error('too many open native requests'));
++    try{input=snapshot();}catch(e){return Promise.reject(e);}
++    if(this.open>=this.maxConcurrent){input.source?.destroy();return Promise.reject(Error('too many open native requests'));}
+     this.open++;let released=false;const release=()=>{if(!released){released=true;this.open--;}};
+-    const run=this.tail.then(()=>this._open(input,release));
++    const run=this.tail.then(()=>open(input,release));
+     this.tail=run.then(()=>{},()=>{});
+-    return run.catch(e=>{release();throw e;});
++    return run.catch(e=>{release();input.source?.destroy();throw e;});
+   }
+-  async _open({path:requestPath,method,headers,body,signal,maxBytes,timeoutMs,idleTimeoutMs,maxDurationMs,recheckMs,streaming},release){
++  async _authorize(signal){
+     const cancelled=()=>{if(signal?.aborted)throw Error('native request cancelled before sending');};
+     cancelled();
+     const p=this.profile,initial=await this.resolve(),fingerprint=identity(initial.lease);
+@@ -147,20 +174,71 @@ export class NativeClient {
+     const validUntil=Math.min(current.routes.expiresAt,current.lease.validUntil,proofStarted+60000);
+     // Checked on the handshake, before Node may write the request line, headers,
+     // credentials or body: the agent hands over the socket only after this returns.
++    const verified=new WeakSet();
+     const agent=new DirectHttpsAgent({tlsOptions:{rejectUnauthorized:false},verifyPeer:connection=>{
+       if(signal?.aborted)throw Error('native request cancelled before sending');
+       if(validUntil<=this.now()||identity(this.currentLease())!==fingerprint)throw Error('native authorization expired');
+       const key=connection.getPeerX509Certificate()?.publicKey.export({format:'der',type:'spki'});
+       if(!key||createHash('sha256').update(key).digest('hex')!==proof.spkiSha256)throw Error('guest TLS key changed');
++      verified.add(connection);
+     }});
+-    const result={route:chosen,proof,expectation:current.provenance,leaseBlock:current.lease.blockNumber,validUntil};
++    return {agent,verified,fingerprint,chosen,result:{route:chosen,proof,expectation:current.provenance,leaseBlock:current.lease.blockNumber,validUntil}};
++  }
++  // The shared decision never throws; a throwing caller function is a refusal too.
++  async _decideHost(lease){
++    try{return await this.hostAdmission(lease);}
++    catch(e){return {admit:false,status:'unreadable',reason:'platform host policy unreadable: '+String(e?.message).slice(0,200)};}
++  }
++  // Before records, proofs, upgrades, credentials or bodies: anything but an explicit admit refuses. Callers run in
++  // the per-client queue, so one pass decision cannot leak into another pass.
++  async _withHostDecision(lease,prefix,work){
++    if(!this.hostAdmission)return work();
++    const decision=this._decideHost(lease);this.pass={key:identity(lease),decision};
++    try{
++      const a=await decision;
++      if(!a||a.admit!==true)throw Object.assign(Error(prefix+String(a?.reason||'no decision').slice(0,300)),{code:'host_policy_refused',status:a?.status??null});
++      return await work();
++    }finally{this.pass=null;}
++  }
++  // Long-lived transfers (streamed responses and uploads, WebSockets) are cut once the
++  // chain no longer shows the same current deployment (owner, runner, app,
++  // configuration, lease), once the signed records no longer publish the attested
++  // route, or once either can no longer be confirmed. A check never extends the send
++  // authorization, and runs in the per-client queue so it cannot race a new proof.
++  _watch(fingerprint,route,recheckMs,cut){
++    let stopped=false,pending=false;
++    const timer=setInterval(()=>{
++      if(pending)return;pending=true;
++      const check=this.tail.then(()=>stopped||this._stillCurrent(fingerprint,route));
++      this.tail=check.then(()=>{},()=>{});
++      check.then(()=>{pending=false;},e=>{pending=false;if(!stopped)cut(e);});
++    },recheckMs);
++    return ()=>{stopped=true;clearInterval(timer);};
++  }
++  async _stillCurrent(fingerprint,route){
++    const id=this.profile.deploymentId;
++    await this.reader.refresh([id]).catch(()=>{});
++    try{if(identity(this.currentLease())!==fingerprint)throw Error();}
++    catch{throw Error('native authorization ended: deployment is not confirmed current');}
++    // A ban anchored after the proof ends open streams, uploads and sockets at the next check.
++    const routes=await this._withHostDecision(this.currentLease(),'native authorization ended: platform host policy refused the host: ',async()=>{
++      // An unreachable directory leaves the stored signed records, which expire on their own.
++      await this._importRecords().catch(()=>{});
++      return (await this.directory.routes()).deployments[id];
++    });
++    if(!routes||routes.expiresAt<=this.now()||!routes.httpsRoutes?.some(r=>recordHash(r)===recordHash(route)))
++      throw Error('native authorization ended: the attested route is no longer published');
++  }
++  async _open({path:requestPath,method,headers,body,source,bodyLength,maxRequestBytes,signal,maxBytes,timeoutMs,idleTimeoutMs,maxDurationMs,recheckMs,streaming},release){
++    const p=this.profile,{agent,verified,fingerprint,chosen,result}=await this._authorize(signal);
+     return new Promise((resolve,reject)=>{
+-      let settled=false,out=null,idle=null,recheck=null,finished=false,closedResolve;
++      let settled=false,out=null,idle=null,unwatch=null,finished=false,uploaded=!source,uploadIdle=null,headerTimer=null,closedResolve;
+       const closed=new Promise(r=>closedResolve=r),timers=[];
+       const finish=error=>{
+         if(finished)return;finished=true;
+-        for(const t of timers)clearTimeout(t);clearTimeout(idle);clearInterval(recheck);
++        for(const t of timers)clearTimeout(t);clearTimeout(idle);clearTimeout(uploadIdle);clearTimeout(headerTimer);unwatch?.();
+         signal?.removeEventListener('abort',onAbort);req.destroy();agent.destroy();release();
++        if(!uploaded)source.destroy();
+         closedResolve({bytes:size,error:error?error.message:null});
+       };
+       const fail=error=>{
+@@ -169,13 +247,17 @@ export class NativeClient {
+         else finish(error);
+       };
+       const onAbort=()=>fail(Error(settled?'native stream cancelled':'native request cancelled'));
+-      let size=0;
++      let size=0,deadline=Date.now()+timeoutMs;
++      const armHeaders=()=>{clearTimeout(headerTimer);deadline=Date.now()+timeoutMs;headerTimer=setTimeout(()=>fail(Error('native request timeout')),timeoutMs);};
+       // host is a literal address. servername/Host only select a virtual app;
+       // they are never resolved and are never accepted as proof of identity.
+       const req=https.request({host:chosen.address,port:chosen.port,servername:p.hostname,path:requestPath,method,
+-        headers:{...headers,host:p.hostname,...(body?{'content-length':String(body.length)}:{})},agent},res=>{
++        headers:{...headers,host:p.hostname,...(body?{'content-length':String(body.length)}:bodyLength!==undefined?{'content-length':String(bodyLength)}:{})},agent},res=>{
++        clearTimeout(headerTimer);
++        // A guest may answer before a streamed upload ends; a buffered answer then
++        // gets its own full timeout.
++        if(!uploaded)deadline=Date.now()+timeoutMs;
+         if(!streaming)timers.push(setTimeout(()=>fail(Error('native request timeout')),Math.max(0,deadline-Date.now())));
+-        clearTimeout(timers.shift());
+         const empty=method==='HEAD'||res.statusCode===204||res.statusCode===304;
+         const limiter=new Transform({transform(chunk,_encoding,callback){
+           size+=chunk.length;if(size>maxBytes)return callback(Error('native response too large'));
+@@ -188,14 +270,7 @@ export class NativeClient {
+         const armIdle=()=>{clearTimeout(idle);idle=setTimeout(()=>out.destroy(Error('native stream idle timeout')),idleTimeoutMs);};
+         if(streaming){
+           armIdle();timers.push(setTimeout(()=>out.destroy(Error('native stream duration limit')),maxDurationMs));
+-          // An open stream is cut once the chain no longer shows the same current
+-          // deployment (owner, runner, app, configuration, lease), or once that can
+-          // no longer be confirmed. It never extends the send authorization.
+-          recheck=setInterval(async()=>{
+-            await this.reader.refresh([p.deploymentId]).catch(()=>{});
+-            try{if(identity(this.currentLease())!==fingerprint)throw Error();}
+-            catch{out.destroy(Error('native authorization ended: deployment is not confirmed current'));}
+-          },recheckMs);
++          unwatch??=this._watch(fingerprint,chosen,recheckMs,fail);
+         }
+         pipeline(res,limiter,out,error=>finish(error));
+         if(empty&&!streaming)out.resume();
+@@ -203,61 +278,248 @@ export class NativeClient {
+         resolve({result:{...result,status:res.statusCode,headers:res.headers},body:empty&&!streaming?null:out,
+           cancel:reason=>{if(!out.destroyed)out.destroy(Error(typeof reason==='string'?reason.slice(0,200):'native stream cancelled'));},closed});
+       });
+-      const deadline=Date.now()+timeoutMs;
+-      timers.push(setTimeout(()=>fail(Error('native request timeout')),timeoutMs));
++      armHeaders();
+       req.once('error',error=>fail(error));
+       signal?.addEventListener('abort',onAbort,{once:true});
+       // One send. A transport failure after this point is reported, never retried:
+       // the guest may already have acted on the request.
+-      req.end(body||undefined);
++      if(!source)return req.end(body||undefined);
++      // A streamed body is pulled only once the agent hands over the verified
++      // socket, one chunk at a time: a chunk is read after the previous one drained.
++      req.once('socket',socket=>{
++        if(!verified.has(socket))return fail(Error('native transport not verified'));
++        clearTimeout(headerTimer);
++        timers.push(setTimeout(()=>fail(Error('native upload duration limit')),maxDurationMs));
++        unwatch=this._watch(fingerprint,chosen,recheckMs,fail);
++        pump().catch(e=>{if(!finished)fail(/^native /.test(e?.message)?e:Error('native upload source failed: '+String(e?.message).slice(0,200)));});
++      });
++      const armUpload=()=>{clearTimeout(uploadIdle);uploadIdle=setTimeout(()=>fail(Error('native upload idle timeout')),idleTimeoutMs);};
++      const drained=()=>new Promise(r=>{const done=()=>{req.off('drain',done);req.off('close',done);r();};req.on('drain',done);req.on('close',done);});
++      const pump=async()=>{
++        let sent=0;armUpload();
++        for await(const chunk of source){
++          if(finished)return;
++          const bytes=bytesOf(chunk,'native upload chunks must be bytes or strings');
++          sent+=bytes.length;
++          if(sent>maxRequestBytes||bodyLength!==undefined&&sent>bodyLength)throw Error('native request body too large');
++          armUpload();
++          if(!req.write(bytes))await drained();
++          if(finished)return;
++          armUpload();
++        }
++        if(finished)return;
++        if(bodyLength!==undefined&&sent!==bodyLength)throw Error('native upload ended before its declared length');
++        clearTimeout(uploadIdle);uploaded=true;
++        if(!settled)armHeaders();
++        req.end();
++      };
++    });
++  }
++  async _openSocket({path:socketPath,headers,protocols,signal,timeoutMs,idleTimeoutMs,maxDurationMs,recheckMs,maxMessageBytes,maxBufferedBytes,maxQueuedBytes,maxBytes,maxSentBytes},release){
++    const p=this.profile,{agent,verified,fingerprint,chosen,result}=await this._authorize(signal);
++    const host=isIP(chosen.address)===6?'['+chosen.address+']':chosen.address;
++    return new Promise((resolve,reject)=>{
++      let settled=false,finished=false,failure=null,idle=null,unwatch=null,wake=null,reading=false,bytesIn=0,bytesOut=0,queued=0,ws,closedResolve;
++      const queue=[],pongs=[],timers=[],closed=new Promise(r=>closedResolve=r);
++      const finish=(error,code=1006,reason='')=>{
++        if(finished)return;finished=true;failure??=error||null;
++        for(const t of timers)clearTimeout(t);clearTimeout(idle);unwatch?.();
++        signal?.removeEventListener('abort',onAbort);
++        try{ws?.terminate();}catch{}
++        agent.destroy();release();
++        for(const x of pongs.splice(0))x.reject(Error('native websocket closed'));
++        wake?.();
++        if(!settled){settled=true;reject(failure||Error('native websocket closed before opening'));}
++        closedResolve({code,reason,error:failure?failure.message:null,bytesIn,bytesOut});
++      };
++      const fail=error=>finish(error);
++      const onAbort=()=>fail(Error(settled?'native websocket cancelled':'native request cancelled'));
++      const armIdle=()=>{clearTimeout(idle);idle=setTimeout(()=>fail(Error('native websocket idle timeout')),idleTimeoutMs);};
++      const open=()=>!finished&&ws.readyState===WebSocket.OPEN;
++      const send=(data,{binary}={})=>{
++        try{
++          if(!open())throw Error('native websocket is not open');
++          const text=typeof data==='string',bytes=bytesOf(data,'native websocket messages must be bytes or strings'),asBinary=binary===undefined?!text:binary;
++          if(typeof asBinary!=='boolean')throw Error('native websocket binary flag must be boolean');
++          if(bytes.length>maxMessageBytes)throw Error('native websocket message too large');
++          if(bytesOut+bytes.length>maxSentBytes)throw Error('native websocket send limit reached');
++          if(ws.bufferedAmount+bytes.length>maxBufferedBytes)throw Error('native websocket send buffer full; await earlier sends');
++          bytesOut+=bytes.length;armIdle();
++          // Resolves once the frame is written to the verified connection; that is
++          // not an application acknowledgement. A failed send is never repeated.
++          return new Promise((ok,no)=>ws.send(bytes,{binary:asBinary},e=>e?no(Error('native websocket closed; delivery of this message is unknown')):ok()));
++        }catch(e){return Promise.reject(e);}
++      };
++      const ping=(data='')=>{
++        try{
++          if(!open())throw Error('native websocket is not open');
++          const bytes=bytesOf(data,'native websocket ping data must be bytes or a string');
++          if(bytes.length>125)throw Error('native websocket ping too large');
++          return new Promise((ok,no)=>{pongs.push({resolve:ok,reject:no});armIdle();ws.ping(bytes,undefined,()=>{});});
++        }catch(e){return Promise.reject(e);}
++      };
++      const close=(code=1000,reason='')=>{
++        if(open()){
++          if(!(code===1000||Number.isInteger(code)&&code>=3000&&code<=4999)||typeof reason!=='string'||Buffer.byteLength(reason)>123)return Promise.reject(Error('invalid native websocket close'));
++          ws.close(code,reason);   // ws terminates the connection if the guest never answers the close
++        }else if(!finished&&ws.readyState!==WebSocket.CLOSING)fail(Error('native websocket cancelled'));
++        return closed;
++      };
++      const next=async()=>{
++        if(reading)throw Error('native websocket messages have one reader');
++        reading=true;
++        try{
++          for(;;){
++            if(queue.length){
++              const m=queue.shift();queued-=m.data.length;
++              if(ws.isPaused&&queued<=maxQueuedBytes&&!finished)ws.resume();
++              return {value:m,done:false};
++            }
++            if(finished){if(failure)throw failure;return {value:undefined,done:true};}
++            await new Promise(r=>wake=r);wake=null;
++          }
++        }finally{reading=false;}
++      };
++      const iterator={next,return:async()=>{if(!finished)close();return {value:undefined,done:true};},[Symbol.asyncIterator](){return this;}};
++      const handle={...result,status:101,headers:null,protocol:'',send,ping,close,closed,
++        cancel:reason=>fail(Error(typeof reason==='string'?reason.slice(0,200):'native websocket cancelled')),
++        messages:{[Symbol.asyncIterator]:()=>iterator},
++        get queuedBytes(){return queued;},get bufferedAmount(){return finished?0:ws.bufferedAmount;}};
++      try{
++        // host is a literal address; servername/Host only select the virtual app. No
++        // compression (bounded memory per frame), no redirects (credentials stay here).
++        ws=new WebSocket('wss://'+host+':'+chosen.port+socketPath,protocols,{agent,servername:p.hostname,headers:{...headers,host:p.hostname},
++          perMessageDeflate:false,followRedirects:false,maxPayload:maxMessageBytes,handshakeTimeout:timeoutMs,autoPong:true,skipUTF8Validation:false});
++      }catch(e){return fail(Error('native websocket refused: '+String(e.message).slice(0,200)));}
++      timers.push(setTimeout(()=>fail(Error('native websocket handshake timeout')),timeoutMs));
++      signal?.addEventListener('abort',onAbort,{once:true});
++      ws.on('error',e=>fail(/^native /.test(e?.message)?e:Error('native websocket error: '+String(e?.message).slice(0,200))));
++      ws.on('unexpected-response',(_request,res)=>{
++        const e=Error('native websocket refused: HTTP '+res.statusCode);e.status=res.statusCode;
++        res.destroy();fail(e);   // redirects are not followed; the body is not read
++      });
++      // ws validates the 101 status, Upgrade, Sec-WebSocket-Accept, the chosen
++      // subprotocol and the absence of unrequested extensions before 'open'.
++      ws.once('upgrade',res=>{if(!verified.has(res.socket))fail(Error('native transport not verified'));else handle.headers=res.headers;});
++      ws.once('open',()=>{
++        if(finished)return;
++        clearTimeout(timers.shift());settled=true;handle.protocol=ws.protocol;
++        armIdle();timers.push(setTimeout(()=>fail(Error('native websocket duration limit')),maxDurationMs));
++        unwatch=this._watch(fingerprint,chosen,recheckMs,fail);
++        resolve(handle);
++      });
++      ws.on('message',(data,binary)=>{
++        if(finished)return;
++        bytesIn+=data.length;if(bytesIn>maxBytes)return fail(Error('native websocket received too much'));
++        armIdle();queue.push({data,binary});queued+=data.length;
++        // A reader that falls behind pauses the connection: backpressure reaches the guest.
++        if(queued>maxQueuedBytes&&!ws.isPaused)ws.pause();
++        wake?.();
++      });
++      ws.on('ping',armIdle);
++      ws.on('pong',()=>{armIdle();pongs.shift()?.resolve();});
++      ws.on('close',(code,reason)=>finish(null,code,reason.toString().slice(0,123)));
+     });
+   }
+ }
+ 
+ const METHODS=['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS'];
+ const FORBIDDEN=['host','connection','upgrade','content-length','transfer-encoding','proxy-authorization','proxy-connection','keep-alive','te','trailer','expect'];
++// The handshake fields are the WebSocket library's, after the same HTTP refusals.
++const SOCKET_FORBIDDEN=[...FORBIDDEN,'sec-websocket-key','sec-websocket-version','sec-websocket-extensions','sec-websocket-protocol','sec-websocket-accept'];
+ const TOKEN=/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+ const bounded=(v,fallback,min,max)=>{const x=v===undefined?fallback:v;if(!Number.isSafeInteger(x)||x<min||x>max)throw Error('native request limit out of range');return x;};
+-// Copy everything the caller supplied, synchronously: later mutation of their
+-// headers or body buffer cannot change what is sent. The signal is kept by
+-// reference on purpose; it is the caller's live cancellation channel.
+-function snapshotRequest(options,streaming){
+-  if(!options||typeof options!=='object'||Array.isArray(options))throw Error('native request options required');
+-  const {body:rawBody,signal,...plain}=options;
+-  if(signal!==undefined&&!(signal instanceof AbortSignal))throw Error('signal must be an AbortSignal');
+-  const o=structuredClone(plain);
+-  const known=['path','method','headers','maxBytes','maxRequestBytes','timeoutMs','idleTimeoutMs','maxDurationMs','recheckMs'];
+-  if(Object.keys(o).some(k=>!known.includes(k)))throw Error('unknown native request option');
+-  const method=o.method===undefined?'GET':o.method,requestPath=o.path===undefined?'/':o.path;
+-  if(!METHODS.includes(method))throw Error('unsupported native request method');
++function bytesOf(value,message){
++  if(typeof value==='string')return Buffer.from(value,'utf8');
++  if(value instanceof ArrayBuffer)return Buffer.from(new Uint8Array(value.slice(0)));
++  if(ArrayBuffer.isView(value))return Buffer.from(new Uint8Array(value.buffer,value.byteOffset,value.byteLength));
++  throw Error(message);
++}
++const isStreamBody=b=>b instanceof Readable||typeof ReadableStream!=='undefined'&&b instanceof ReadableStream||typeof b?.[Symbol.asyncIterator]==='function';
++function checkPath(value){
++  const requestPath=value===undefined?'/':value;
+   if(typeof requestPath!=='string'||requestPath.length>8192||!requestPath.startsWith('/')||requestPath.startsWith('//')||/[\x00-\x20\x7f#]/.test(requestPath))throw Error('invalid native request path');
+-  const headers=o.headers===undefined?{}:o.headers;
++  return requestPath;
++}
++function checkHeaders(value,forbidden){
++  const headers=value===undefined?{}:value;
+   if(!headers||Array.isArray(headers)||typeof headers!=='object'||Object.keys(headers).length>100)throw Error('invalid native request headers');
+   const seen=new Set();let headerBytes=0;
+-  for(const [name,value]of Object.entries(headers)){
++  for(const [name,v0]of Object.entries(headers)){
+     const lower=name.toLowerCase();
+-    if(!TOKEN.test(name)||FORBIDDEN.includes(lower)||seen.has(lower))throw Error('forbidden or duplicate native request header');
++    if(!TOKEN.test(name)||forbidden.includes(lower)||seen.has(lower))throw Error('forbidden or duplicate native request header');
+     seen.add(lower);
+-    for(const v of Array.isArray(value)?value:[value]){
++    for(const v of Array.isArray(v0)?v0:[v0]){
+       if(typeof v!=='string'||/[\x00\r\n]/.test(v))throw Error('invalid native request header value');
+       headerBytes+=name.length+v.length;
+     }
+   }
+   if(headerBytes>64*1024)throw Error('native request headers too large');
+-  const maxRequestBytes=bounded(o.maxRequestBytes,8*1024*1024,0,64*1024*1024);
+-  let body=null;
+-  if(rawBody!==undefined&&rawBody!==null){
++  return headers;
++}
++// Refused input still ends a streamed body the caller handed over.
++function ownRequest(options,streaming){
++  try{return snapshotRequest(options,streaming);}
++  catch(e){
++    const b=options?.body;
++    try{if(b instanceof Readable)b.destroy();else if(typeof ReadableStream!=='undefined'&&b instanceof ReadableStream)b.cancel().catch(()=>{});else if(typeof b?.return==='function')Promise.resolve(b.return()).catch(()=>{});}catch{}
++    throw e;
++  }
++}
++// Copy everything the caller supplied, synchronously: later mutation of their
++// headers or body buffer cannot change what is sent. The signal is kept by
++// reference on purpose; it is the caller's live cancellation channel. So is a
++// streamed body, which cannot be copied: it is read once, after verification.
++function snapshotRequest(options,streaming){
++  if(!options||typeof options!=='object'||Array.isArray(options))throw Error('native request options required');
++  const {body:rawBody,signal,...plain}=options;
++  if(signal!==undefined&&!(signal instanceof AbortSignal))throw Error('signal must be an AbortSignal');
++  const o=structuredClone(plain);
++  const known=['path','method','headers','maxBytes','maxRequestBytes','bodyLength','timeoutMs','idleTimeoutMs','maxDurationMs','recheckMs'];
++  if(Object.keys(o).some(k=>!known.includes(k)))throw Error('unknown native request option');
++  const method=o.method===undefined?'GET':o.method,requestPath=checkPath(o.path);
++  if(!METHODS.includes(method))throw Error('unsupported native request method');
++  const headers=checkHeaders(o.headers,FORBIDDEN);
++  const present=rawBody!==undefined&&rawBody!==null,streamed=present&&typeof rawBody!=='string'&&!ArrayBuffer.isView(rawBody)&&!(rawBody instanceof ArrayBuffer)&&isStreamBody(rawBody);
++  const maxRequestBytes=streamed?bounded(o.maxRequestBytes,64*1024*1024,0,1024*1024*1024):bounded(o.maxRequestBytes,8*1024*1024,0,64*1024*1024);
++  if(o.bodyLength!==undefined&&!streamed)throw Error('native bodyLength applies only to a streamed body');
++  const bodyLength=o.bodyLength===undefined?undefined:bounded(o.bodyLength,0,0,maxRequestBytes);
++  let body=null,source=null;
++  if(present){
+     if(method==='GET'||method==='HEAD')throw Error('GET and HEAD carry no native request body');
+-    if(typeof rawBody==='string')body=Buffer.from(rawBody,'utf8');
+-    else if(rawBody instanceof ArrayBuffer)body=Buffer.from(new Uint8Array(rawBody.slice(0)));
+-    else if(ArrayBuffer.isView(rawBody))body=Buffer.from(new Uint8Array(rawBody.buffer,rawBody.byteOffset,rawBody.byteLength));
+-    else throw Error('native request body must be bytes or a string (streamed uploads are not supported)');
+-    if(body.length>maxRequestBytes)throw Error('native request body too large');
++    if(streamed)source=rawBody instanceof Readable?rawBody:rawBody instanceof ReadableStream?Readable.fromWeb(rawBody):Readable.from(rawBody);
++    else{
++      body=bytesOf(rawBody,'native request body must be bytes, a string or a readable stream');
++      if(body.length>maxRequestBytes)throw Error('native request body too large');
++    }
+   }
+-  return {path:requestPath,method,headers,body,signal,streaming,
++  return {path:requestPath,method,headers,body,source,bodyLength,maxRequestBytes,signal,streaming,
+     maxBytes:bounded(o.maxBytes,streaming?64*1024*1024:8*1024*1024,1,streaming?1024*1024*1024:64*1024*1024),
+     timeoutMs:bounded(o.timeoutMs,30000,1000,120000),
+     idleTimeoutMs:bounded(o.idleTimeoutMs,60000,1000,600000),
+     maxDurationMs:bounded(o.maxDurationMs,600000,1000,3600000),
+     recheckMs:bounded(o.recheckMs,30000,1000,300000)};
+ }
++function snapshotSocket(options){
++  if(!options||typeof options!=='object'||Array.isArray(options))throw Error('native websocket options required');
++  const {signal,...plain}=options;
++  if(signal!==undefined&&!(signal instanceof AbortSignal))throw Error('signal must be an AbortSignal');
++  const o=structuredClone(plain);
++  const known=['path','headers','protocols','timeoutMs','idleTimeoutMs','maxDurationMs','recheckMs','maxMessageBytes','maxBufferedBytes','maxQueuedBytes','maxBytes','maxSentBytes'];
++  if(Object.keys(o).some(k=>!known.includes(k)))throw Error('unknown native websocket option');
++  const socketPath=checkPath(o.path),parsed=new URL(socketPath,'wss://native.invalid');
++  // The upgrade goes to exactly the path requested, not a URL-normalized variant.
++  if(parsed.pathname+parsed.search!==socketPath)throw Error('native websocket path must be in normalized form');
++  const headers=checkHeaders(o.headers,SOCKET_FORBIDDEN),protocols=o.protocols===undefined?[]:o.protocols;
++  if(!Array.isArray(protocols)||protocols.length>16||protocols.some(x=>typeof x!=='string'||x.length>256||!TOKEN.test(x))||new Set(protocols).size!==protocols.length)throw Error('invalid native websocket subprotocols');
++  const maxMessageBytes=bounded(o.maxMessageBytes,1024*1024,1,64*1024*1024);
++  return {path:socketPath,headers,protocols,signal,maxMessageBytes,
++    maxBufferedBytes:bounded(o.maxBufferedBytes,Math.max(4*1024*1024,maxMessageBytes),maxMessageBytes,256*1024*1024),
++    maxQueuedBytes:bounded(o.maxQueuedBytes,4*1024*1024,1,256*1024*1024),
++    maxBytes:bounded(o.maxBytes,256*1024*1024,1,16*1024*1024*1024),
++    maxSentBytes:bounded(o.maxSentBytes,256*1024*1024,1,16*1024*1024*1024),
++    timeoutMs:bounded(o.timeoutMs,30000,1000,120000),
++    idleTimeoutMs:bounded(o.idleTimeoutMs,300000,1000,3600000),
++    maxDurationMs:bounded(o.maxDurationMs,3600000,1000,86400000),
++    recheckMs:bounded(o.recheckMs,30000,1000,300000)};
++}
+diff --git a/network/native-host-policy.mjs b/network/native-host-policy.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6a70bce09bfe965286aaab0de55f7ced13c3ab80
+--- /dev/null
++++ b/network/native-host-policy.mjs
+@@ -0,0 +1,73 @@
++// The platform host policy for the native client (network/native-client.mjs): the administrator's anchored, signed
++// platform-wide host ban/admission, enforced with the SAME shared pieces the CLI uses - the activation rule
++// (platform-host-policy-config.mjs resolveHostPolicyConfig), the runtime over the frozen core
++// (host-policy-runtime.mjs createHostPolicyRuntime -> platform-host-policy.mjs) and the lease decision
++// (host-policy-adapters.mjs leaseHostAdmission). Nothing here parses, verifies or judges a policy itself.
++//
++// Which policy applies is decided by the network the profile is pinned to, never by a profile field: a profile pinned
++// to the production ledger or registry on Base is judged by the production authority (EnclaveAddressBook owner), as
++// the CLI is. The operator's existing ENCLAVE_PLATFORM_HOST_POLICY configuration keeps its shared meaning (production,
++// off, or an explicit test/private platform). Under enabled enforcement anything but an explicit admit refuses: an
++// unreadable chain, a missing/forged/older policy, a torn anchor. While the admin has anchored no policy, activation
++// "anchor" admits as today ("not-activated"); "required" refuses.
++import fs from 'node:fs';
++import path from 'node:path';
++import {resolveHostPolicyConfig,PRODUCTION_BOOK} from './platform-host-policy-config.mjs';
++import {createHostPolicyRuntime,fileStore} from './host-policy-runtime.mjs';
++import {leaseHostAdmission} from './host-policy-adapters.mjs';
++import {MAX_POLICY_RESPONSE} from './host-policy-mirrors.mjs';
++
++const lc=s=>String(s||'').toLowerCase();
++const PINS=JSON.parse(fs.readFileSync(new URL('../contracts/deployments/contract-pins-base.json',import.meta.url),'utf8')).contracts;
++
++/** The production AddressBook when the profile is pinned to the Enclave platform network on Base, else null. */
++export function platformBookFor(profile){
++  const pins=profile?.authorityPins||{};
++  return (profile?.chainId??8453)===8453&&(lc(pins.deployments)===lc(PINS.deployments)||lc(pins.registry)===lc(PINS.registry))?PRODUCTION_BOOK:null;
++}
++
++/**
++ * A fetch for the shared mirror transport (host-policy-mirrors.mjs httpPolicyMirrors) that never buffers more than
++ * maxBytes: a declared oversize length is refused unread, and a body is read incrementally and cancelled at the bound.
++ * No credentials, no redirects. Anything refused here reaches the mirror as a non-OK status (no candidate).
++ */
++export function boundedPolicyFetch(fetchImpl=globalThis.fetch,maxBytes=MAX_POLICY_RESPONSE){
++  return async(url,init={})=>{
++    const r=await fetchImpl(url,{...init,redirect:'error',credentials:'omit'});
++    const refuse=async status=>{try{await r.body?.cancel();}catch{}return new Response(null,{status});};
++    if(!r.ok)return refuse(r.status);
++    const declared=Number(r.headers.get('content-length'));
++    if(Number.isFinite(declared)&&declared>maxBytes)return refuse(413);
++    const chunks=[];let size=0;
++    if(r.body){
++      const reader=r.body.getReader();
++      for(;;){
++        const {done,value}=await reader.read();
++        if(done)break;
++        size+=value.byteLength;
++        if(size>maxBytes){try{await reader.cancel();}catch{}return new Response(null,{status:413});}
++        chunks.push(value);
++      }
++    }
++    return new Response(Buffer.concat(chunks),{status:200,headers:{'content-type':'application/json'}});
++  };
++}
++
++/**
++ * -> {off:true, reason} when the shared resolution says the policy is off for this profile, else
++ *    {off:false, source, activation, runtime, admission(lease) -> {admit, status, reason}}.
++ * admission never throws: an unreadable policy is a refusal (status "unreadable"), exactly as the CLI treats it.
++ */
++export function nativeHostPolicy(profile,{env=process.env,fetch=globalThis.fetch,log=()=>{}}={}){
++  const resolved=resolveHostPolicyConfig({env,chainId:profile?.chainId??8453,book:platformBookFor(profile)});
++  if(!resolved.on)return {off:true,reason:resolved.reason};
++  // The accepted policy is the loader's rollback floor across restarts; it is re-verified on load, never trusted.
++  const store=typeof profile?.stateDir==='string'&&path.isAbsolute(profile.stateDir)?fileStore(path.join(profile.stateDir,'platform-host-policy',lc(resolved.config.book)+'.json')):null;
++  const runtime=createHostPolicyRuntime(resolved,{fetch:boundedPolicyFetch(fetch),store,log});
++  const decide=leaseHostAdmission(runtime.gate);
++  return {off:false,source:resolved.source,activation:runtime.activation,runtime,
++    admission:async lease=>{
++      try{return await decide(lease);}
++      catch(e){return {admit:false,status:'unreadable',reason:'platform host policy unreadable: '+String(e?.message).slice(0,200)};}
++    }};
++}
+diff --git a/network/public-directory.mjs b/network/public-directory.mjs
+index 838ab2d9505358d2e167f47c59f632d8ae3dae95..1446f03b8db2137b1a9ab087a95a4a920753444d 100644
+--- a/network/public-directory.mjs
++++ b/network/public-directory.mjs
+@@ -15,9 +15,10 @@ const empty=()=>({version:1,providers:{},policies:{},publications:{},management:
+ export class PublicDirectory {
+   // importManagement: replicate host-management records from peer snapshots (directory replicas set it; an app client's
+   // private directory does not need every host's endpoint and leaves it off).
+-  constructor({directory,checkers,hostOperator,leaseOf,verifyOwner,now=Date.now,maxRecords=4096,importManagement=false}) {
++  // hostAdmission: the platform host policy for a route's lease host (network/host-policy-adapters.mjs leaseHostAdmission)
++  constructor({directory,checkers,hostOperator,leaseOf,verifyOwner,now=Date.now,maxRecords=4096,importManagement=false,hostAdmission=null}) {
+     if(!Array.isArray(checkers)||!checkers.length)throw Error('explicit checker trust required');
+-    Object.assign(this,{hostOperator,leaseOf,verifyOwner,now,maxRecords,importManagement});
++    Object.assign(this,{hostOperator,leaseOf,verifyOwner,now,maxRecords,importManagement,hostAdmission});
+     this.checkers=checkers.map(x=>x.toLowerCase());
+     this.state=new DurableState(directory);this.floors=new DurableState(directory+'/route-floors');
+     this.tail=Promise.resolve();this.routeRead=null;this.providerChecks=new WeakMap();
+@@ -126,7 +127,7 @@ export class PublicDirectory {
+     // objects never reuse a previous pass's authorization.
+     if(!this.providerChecks.has(s))this.providerChecks.set(s,eligibleProviders(Object.values(s.providers),{checkers:this.checkers,hostOperator:this.hostOperator,now:this.now()}));
+     const providers=(await this.providerChecks.get(s)).filter(p=>p.expiresAt>this.now()&&p.qualifiedUntil>this.now());
+-    return verifyRoute(publication.bundle,{deploymentId:id,policy,lease,memory:this.floors,networkProviders:providers,providerProbeSigners:this.checkers,now:this.now()});
++    return verifyRoute(publication.bundle,{deploymentId:id,policy,lease,memory:this.floors,networkProviders:providers,providerProbeSigners:this.checkers,hostAdmission:this.hostAdmission,now:this.now()});
+   }
+   async currentRoute(id,s){
+     // Acceptance advances the replay floor before persisting public records. A
+diff --git a/network/route-record.mjs b/network/route-record.mjs
+index 9196058a3b639b395134d1694ad42c1504445531..bbf8e60ef5b4311aa44645048eb7014c7fea5be0 100644
+--- a/network/route-record.mjs
++++ b/network/route-record.mjs
+@@ -37,7 +37,9 @@ export function validateRoutePolicy(p) {
+   if (p?.version !== 5) throw new Error(`route policy version ${p?.version} is retired: only Enclave-network (v5) policies carry routes`);
+   return validateNetworkPolicy(p);
+ }
+-export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, providerProbeSigners, networkProviders, now = Date.now()}) {
++// hostAdmission (optional): async (lease) -> { admit, reason } - the platform host policy decision for the lease's runner,
++// judged at the lease reader's agreed block (network/host-policy-adapters.mjs leaseHostAdmission). Absent = unchanged.
++export async function verifyRoute(bundle, {deploymentId, policy, lease, memory, providerProbeSigners, networkProviders, hostAdmission = null, now = Date.now()}) {
+   if (!bundle || Buffer.byteLength(JSON.stringify(bundle)) > 32768) throw new Error('route bundle too large');
+   const {delegation:d, signature:delegationSignature} = bundle.authorization || {};
+   const key = validateDelegation(d, now);
+@@ -46,6 +48,10 @@ export async function verifyRoute(bundle, {deploymentId, policy, lease, memory,
+   if (d.deploymentId !== deploymentId || p.deploymentId !== deploymentId || d.policyHash !== recordHash(p)) throw new Error('route policy or app mismatch');
+   if (!lease || lease.id !== deploymentId || lease.chainId !== d.chainId || lease.deployments.toLowerCase() !== d.deployments.toLowerCase() ||
+       lease.runner !== d.runner || lease.validUntil <= now || !lease.active || !lease.isPublic || lease.leaseUntil <= now) throw new Error('fresh matching lease required');
++  if (hostAdmission) {
++    const a = await hostAdmission(lease);
++    if (!a || a.admit !== true) throw new Error(`route host refused by platform host policy: ${a?.reason || 'no decision'}`);
++  }
+   const signer = await recoverMessageAddress({message:message('delegation',d), signature:delegationSignature});
+   if (signer.toLowerCase() !== lease.runnerOperator.toLowerCase()) throw new Error('route delegation is not signed by current runner');
+   if (!r || r.version !== 2 || r.deploymentId !== deploymentId || r.delegationHash !== recordHash(d) ||
+diff --git a/scripts/network/native-request.mjs b/scripts/network/native-request.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..8920bf138a2cb74ab104144cfc1ae886837d6250
+--- /dev/null
++++ b/scripts/network/native-request.mjs
+@@ -0,0 +1,45 @@
++#!/usr/bin/env node
++// One verified request with an optional streamed upload (a file or stdin) and an
++// optionally streamed response (SSE, chat) to stdout. Same checks as native-get.mjs;
++// a credential comes from NATIVE_AUTHORIZATION (sent as Authorization), never argv.
++import fs from 'node:fs';
++import {pipeline} from 'node:stream/promises';
++import {pathToFileURL} from 'node:url';
++import {NativeClient} from '../../network/native-client.mjs';
++
++const USAGE='Usage: node scripts/network/native-request.mjs TRUST-PROFILE.json /path [--method M] [--body-file FILE | --body-stdin] [--content-type T] [--stream]';
++export function parseArgs(argv){
++  const [profileFile,path,...rest]=argv,o={profileFile,path,method:'GET',stream:false,stdinBody:false,bodyFile:null,contentType:null};
++  if(!profileFile||!path?.startsWith('/'))throw Error(USAGE);
++  for(let i=0;i<rest.length;i++){
++    const flag=rest[i],value=rest[i+1];
++    if(flag==='--stream')o.stream=true;
++    else if(flag==='--body-stdin')o.stdinBody=true;
++    else if(flag==='--method'&&value){o.method=value.toUpperCase();i++;}
++    else if(flag==='--body-file'&&value){o.bodyFile=value;i++;}
++    else if(flag==='--content-type'&&value){o.contentType=value;i++;}
++    else throw Error(USAGE);
++  }
++  if(o.stdinBody&&o.bodyFile)throw Error(USAGE);
++  if((o.stdinBody||o.bodyFile)&&o.method==='GET')o.method='POST';
++  return o;
++}
++// A file is sent with its length; stdin is sent chunked. The body is read only after
++// the guest key is verified. Returns the result metadata; the body goes to stdout.
++export async function run(client,o,{stdin=process.stdin,stdout=process.stdout,env=process.env}={}){
++  const headers={...(env.NATIVE_AUTHORIZATION?{authorization:env.NATIVE_AUTHORIZATION}:{}),...(o.contentType?{'content-type':o.contentType}:{})};
++  const upload=o.bodyFile?{body:fs.createReadStream(o.bodyFile),bodyLength:fs.statSync(o.bodyFile).size}:o.stdinBody?{body:stdin}:{};
++  const request={method:o.method,path:o.path,headers,...upload,...(upload.body?{maxRequestBytes:1024*1024*1024}:{})};
++  if(!o.stream){const r=await client.request(request);stdout.write(r.body);return r;}
++  const r=await client.stream(request);
++  await pipeline(r.body,stdout,{end:false});
++  return {...r,closed:await r.closed};
++}
++async function main(){
++  const o=parseArgs(process.argv.slice(2));
++  const client=new NativeClient(JSON.parse(fs.readFileSync(o.profileFile,'utf8')));
++  const r=await run(client,o);
++  console.error(JSON.stringify({status:r.status,route:r.route,proof:r.proof,expectation:r.expectation,leaseBlock:r.leaseBlock,validUntil:r.validUntil,...(r.closed?{closed:r.closed}:{})}));
++  if(r.status<200||r.status>=300)process.exitCode=1;
++}
++if(import.meta.url===pathToFileURL(process.argv[1]||'').href)main().catch(e=>{console.error(e.message);process.exitCode=e.message===USAGE?2:1;});
+diff --git a/scripts/network/native-ws.mjs b/scripts/network/native-ws.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..dec030aaece6ec483ac9b89a8e71dbb862516c1f
+--- /dev/null
++++ b/scripts/network/native-ws.mjs
+@@ -0,0 +1,54 @@
++#!/usr/bin/env node
++// One verified WebSocket per connection, websocat-style: stdin to binary frames and
++// frames to stdout, or --listen on a loopback port, where every accepted local
++// connection gets its own discovery, hardware proof and upgrade (no reuse, no
++// reconnect). Reaches the TCP apps' /x/<id>/tcp/<port> bridges and any app WebSocket.
++// A credential comes from NATIVE_AUTHORIZATION (sent as Authorization), never argv.
++import fs from 'node:fs/promises';
++import net from 'node:net';
++import {once} from 'node:events';
++import {pathToFileURL} from 'node:url';
++import {NativeClient} from '../../network/native-client.mjs';
++
++const USAGE='Usage: node scripts/network/native-ws.mjs TRUST-PROFILE.json /path [--protocol NAME]... [--listen 127.0.0.1:PORT]';
++export function parseArgs(argv){
++  const [profileFile,path,...rest]=argv,protocols=[];let listen=null;
++  if(!profileFile||!path?.startsWith('/'))throw Error(USAGE);
++  for(let i=0;i<rest.length;i++){
++    if(rest[i]==='--protocol'&&rest[i+1])protocols.push(rest[++i]);
++    else if(rest[i]==='--listen'&&rest[i+1]){
++      const m=/^(127\.\d{1,3}\.\d{1,3}\.\d{1,3}|\[::1\]):(\d{1,5})$/.exec(rest[++i]);
++      // A bridge carries the caller's credential: never offer it beyond this machine.
++      if(!m||+m[2]>65535)throw Error('--listen takes a loopback address and port, e.g. 127.0.0.1:6667');
++      listen={host:m[1].replace(/^\[|\]$/g,''),port:+m[2]};
++    }else throw Error(USAGE);
++  }
++  return {profileFile,path,protocols,listen};
++}
++// Bytes in become binary messages (awaiting each send: bounded buffering); messages
++// out are written with backpressure. Input EOF closes the socket normally.
++export async function bridge(socket,input,output){
++  const upstream=(async()=>{
++    for await(const chunk of input)for(let i=0;i<chunk.length;i+=64*1024)await socket.send(chunk.subarray(i,i+64*1024),{binary:true});
++    await socket.close(1000);
++  })().catch(e=>socket.cancel(e.message));
++  try{for await(const m of socket.messages)if(!output.write(m.data))await once(output,'drain');}
++  finally{input.destroy?.();await upstream;}
++  return socket.closed;
++}
++async function main(){
++  const args=parseArgs(process.argv.slice(2));
++  const client=new NativeClient(JSON.parse(await fs.readFile(args.profileFile,'utf8')));
++  const headers=process.env.NATIVE_AUTHORIZATION?{authorization:process.env.NATIVE_AUTHORIZATION}:{};
++  const open=()=>client.websocket({path:args.path,headers,protocols:args.protocols});
++  const report=(s,closed)=>console.error(JSON.stringify({route:s.route,proof:s.proof,expectation:s.expectation,leaseBlock:s.leaseBlock,protocol:s.protocol,closed}));
++  if(!args.listen){const s=await open();const closed=await bridge(s,process.stdin,process.stdout);report(s,closed);if(closed.error)process.exitCode=1;return;}
++  const server=net.createServer(async local=>{
++    local.on('error',()=>{});
++    try{const s=await open();report(s,await bridge(s,local,local));}
++    catch(e){console.error(e.message);}
++    finally{local.destroy();}
++  });
++  server.listen(args.listen.port,args.listen.host,()=>console.error('listening on '+args.listen.host+':'+server.address().port));
++}
++if(import.meta.url===pathToFileURL(process.argv[1]||'').href)main().catch(e=>{console.error(e.message);process.exitCode=e.message===USAGE?2:1;});
+diff --git a/test/helpers/platform-policy-world.mjs b/test/helpers/platform-policy-world.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..f539fa1a8ac313437b87dde6693b6dfae101f9d6
+--- /dev/null
++++ b/test/helpers/platform-policy-world.mjs
+@@ -0,0 +1,102 @@
++// Test-only world for the platform host policy in REAL processes (supervisor.js, the packaged relay): three loopback
++// JSON-RPC servers that answer the policy facts (AddressBook owner/anchor/registry, registry rows, EnclaveHostOwnership
++// accepted owners) with fresh blocks and a switchable outage, and an HTTPS mirror (its own test CA, handed to children via
++// NODE_EXTRA_CA_CERTS) serving admin-signed policies. The admin "anchors" by setting the book's two anchor values - what
++// the unsigned setMany does on Base. Nothing here touches a real chain or key.
++import http from 'node:http';
++import https from 'node:https';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { execFileSync } from 'node:child_process';
++import { decodeFunctionData, encodeFunctionResult, keccak256, toHex } from 'viem';
++import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
++import { policyTypedData, policyDigest, encodeAnchor, ANCHOR_KEYS, POLICY_FORMAT } from '../../network/platform-host-policy.mjs';
++
++const ZA = '0x' + '00'.repeat(20), Z32 = '0x' + '00'.repeat(32);
++const ABI = [
++  { type: 'function', name: 'owner', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
++  { type: 'function', name: 'addr', stateMutability: 'view', inputs: [{ type: 'bytes32' }], outputs: [{ type: 'address' }] },
++  { type: 'function', name: 'authority', stateMutability: 'view', inputs: [{ type: 'bytes32' }], outputs: [{ type: 'address' }, { type: 'address' }, { type: 'uint64' }, { type: 'bytes32' }] },
++  { type: 'function', name: 'isValidSignature', stateMutability: 'view', inputs: [{ type: 'bytes32' }, { type: 'bytes' }], outputs: [{ type: 'bytes4' }] },
++  { type: 'function', name: 'get', stateMutability: 'view', inputs: [{ type: 'bytes32' }], outputs: [{ type: 'tuple', components: [{ name: 'endpoint', type: 'string' }, { name: 'repo', type: 'string' },
++    { name: 'measurement', type: 'bytes32' }, { name: 'operator', type: 'address' }, { name: 'registeredAt', type: 'uint64' }, { name: 'lastSeen', type: 'uint64' }, { name: 'active', type: 'bool' }] }] }];
++export const BOOK = '0x' + 'b0'.repeat(20), REGISTRY = '0x' + 'e0'.repeat(20), OWNERSHIP = '0x' + 'c0'.repeat(20);
++const REGISTRY_KEY = toHex('registry', { size: 32 });
++
++export async function platformPolicyWorld(t, { hosts = {} } = {}) {
++  const admin = privateKeyToAccount(generatePrivateKey());
++  const state = { hi: ZA, lo: ZA, down: false, hosts };
++  const t0 = Date.now();
++  const blockAt = (n) => ({ number: toHex(n), hash: keccak256(toHex(n, { size: 32 })), parentHash: keccak256(toHex(n - 1, { size: 32 })), timestamp: toHex(Math.floor(Date.now() / 1000)),
++    transactions: [], gasLimit: '0x1c9c380', gasUsed: '0x0', baseFeePerGas: '0x1', difficulty: '0x0', logsBloom: '0x' + '00'.repeat(256), miner: ZA, nonce: '0x0000000000000000',
++    sha3Uncles: Z32, stateRoot: Z32, receiptsRoot: Z32, transactionsRoot: Z32, extraData: '0x', size: '0x1', uncles: [], mixHash: Z32, totalDifficulty: '0x0' });
++  const head = () => 1000 + Math.floor((Date.now() - t0) / 1000);
++  const byHash = new Map();
++  const answer = ({ method, params }) => {
++    if (method === 'eth_chainId') return '0x2105';
++    if (method === 'eth_blockNumber') return toHex(head());
++    if (method === 'eth_getBlockByNumber') { const n = params[0] === 'latest' ? head() : Number(params[0]); const b = blockAt(n); byHash.set(b.hash, n); return b; }
++    if (method === 'eth_getBlockByHash') { const n = byHash.get(params[0]); return n === undefined ? null : blockAt(n); }
++    if (method === 'eth_getCode') return '0x';
++    if (method === 'eth_call') {
++      const { to, data } = params[0]; const T = String(to).toLowerCase();
++      const { functionName, args } = decodeFunctionData({ abi: ABI, data });
++      let r;
++      if (T === BOOK && functionName === 'owner') r = admin.address;
++      else if (T === BOOK && functionName === 'addr') r = args[0] === ANCHOR_KEYS.hi ? state.hi : args[0] === ANCHOR_KEYS.lo ? state.lo : args[0] === REGISTRY_KEY ? REGISTRY : ZA;
++      else if (T === REGISTRY && functionName === 'get') { const h = state.hosts[String(args[0]).toLowerCase()];
++        r = { endpoint: h?.endpoint || '', repo: '', measurement: Z32, operator: h?.operator || ZA, registeredAt: 1n, lastSeen: 1n, active: !!h?.active }; }
++      else if (T === OWNERSHIP && functionName === 'authority') { const h = state.hosts[String(args[0]).toLowerCase()]; r = [h?.owner || ZA, ZA, 1n, Z32]; }
++      else throw Error(`unscripted ${T} ${functionName}`);
++      return encodeFunctionResult({ abi: ABI, functionName, result: r });
++    }
++    throw Error('unsupported ' + method);
++  };
++  const rpcServer = () => http.createServer((req, res) => {
++    const c = []; req.on('data', (d) => c.push(d)); req.on('end', () => {
++      if (state.down) { res.writeHead(503); return res.end('down'); }
++      let body; try { body = JSON.parse(Buffer.concat(c)); } catch { res.writeHead(400); return res.end(); }
++      const one = (q) => { try { return { jsonrpc: '2.0', id: q.id, result: answer(q) }; } catch (e) { return { jsonrpc: '2.0', id: q.id, error: { code: -32000, message: String(e.message) } }; } };
++      res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(Array.isArray(body) ? body.map(one) : one(body)));
++    });
++  });
++  const rpcs = [rpcServer(), rpcServer(), rpcServer()];
++  await Promise.all(rpcs.map((s) => new Promise((r) => s.listen(0, '127.0.0.1', r))));
++  // the mirror: HTTPS with a throwaway CA (openssl), serving <digest>.json
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'policy-world-'));
++  const ossl = (...a) => execFileSync('openssl', a, { cwd: dir, stdio: 'pipe' });
++  ossl('req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-keyout', 'ca.key', '-out', 'ca.pem', '-days', '2', '-subj', '/CN=policy-world-ca');
++  ossl('req', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-keyout', 'leaf.key', '-out', 'leaf.csr', '-subj', '/CN=127.0.0.1');
++  fs.writeFileSync(path.join(dir, 'ext.cnf'), 'subjectAltName=IP:127.0.0.1\nbasicConstraints=CA:FALSE\n');
++  ossl('x509', '-req', '-in', 'leaf.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key', '-CAcreateserial', '-out', 'leaf.pem', '-days', '2', '-extfile', 'ext.cnf');
++  const docs = new Map(), served = [];
++  const mirror = https.createServer({ key: fs.readFileSync(path.join(dir, 'leaf.key')), cert: fs.readFileSync(path.join(dir, 'leaf.pem')) }, (req, res) => {
++    served.push(req.url); const m = /^\/policy\/(0x[0-9a-f]{64})\.json$/.exec(req.url || '');
++    if (!m || !docs.has(m[1]) || state.mirrorDown) { res.writeHead(404); return res.end(); }
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(docs.get(m[1])));
++  });
++  await new Promise((r) => mirror.listen(0, '127.0.0.1', r));
++  t.after(() => { for (const s of [...rpcs, mirror]) { s.closeAllConnections?.(); s.close(); } fs.rmSync(dir, { recursive: true, force: true }); });
++  const mirrorOrigin = `https://127.0.0.1:${mirror.address().port}/policy`;
++  let seq = 0;
++  // sign + publish + ANCHOR a non-expiring policy (what the admin does: sign, mirror, setMany)
++  async function publish({ mode = 'denylist', deny = [], admit = [] } = {}) {
++    seq++;
++    const p = { format: POLICY_FORMAT, chainId: 8453, book: BOOK, registry: REGISTRY, hostOwnership: OWNERSHIP, sequence: seq, issuedAt: Math.floor(Date.now() / 1000) - 5,
++                expiresAt: 0, maxStaleSec: 0, previousDigest: Z32, mode, deny, admit };
++    const digest = policyDigest(p);
++    docs.set(digest, { document: JSON.stringify(p), signature: await admin.signTypedData(policyTypedData(p)) });
++    const a = encodeAnchor(digest); state.hi = a.hi; state.lo = a.lo;
++    return digest;
++  }
++  return {
++    state, admin, served, publish,
++    rpcs: rpcs.map((s) => `http://127.0.0.1:${s.address().port}`), mirrorOrigin, ca: path.join(dir, 'ca.pem'),
++    config: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [mirrorOrigin] },
++    env: (extra = {}) => ({ ENCLAVE_PLATFORM_HOST_POLICY: JSON.stringify({ book: BOOK, hostOwnership: OWNERSHIP, mirrors: [mirrorOrigin] }),
++      ENCLAVE_PLATFORM_HOST_POLICY_RPCS: rpcs.map((s) => `http://127.0.0.1:${s.address().port}`).join(','), NODE_EXTRA_CA_CERTS: path.join(dir, 'ca.pem'), ...extra }),
++    setDown: (v) => { state.down = !!v; },
++    unanchor: () => { state.hi = ZA; state.lo = ZA; },
++  };
++}
+diff --git a/test/native-access.test.mjs b/test/native-access.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..8a602114122799b9a3cb3c34d665435dbe6a90bf
+--- /dev/null
++++ b/test/native-access.test.mjs
+@@ -0,0 +1,355 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import https from 'node:https';
++import tls from 'node:tls';
++import {Readable} from 'node:stream';
++import {execFileSync} from 'node:child_process';
++import {generateKeyPairSync,X509Certificate,createHash} from 'node:crypto';
++import {privateKeyToAccount} from 'viem/accounts';
++import {WebSocketServer} from 'ws';
++import {NativeClient} from '../network/native-client.mjs';
++import {signProviderRecord,signQualification,providerIdFor,CHECKS} from '../network/provider-directory.mjs';
++import {defaultNetworkPolicy} from '../network/network-policy.mjs';
++import {signDelegation,signRoute,recordHash} from '../network/route-record.mjs';
++import {runtimeId} from '../isolation/contract/runtime.mjs';
++import {bridge,parseArgs as wsArgs} from '../scripts/network/native-ws.mjs';
++import {run as runRequest} from '../scripts/network/native-request.mjs';
++
++// The current native transport path end to end: signed directory records, real TLS
++// with a self-signed (non-WebPKI) guest key, a real WebSocket server and real HTTP
++// streaming. The hardware verdict and chain reads are test doubles, as in
++// native-client.test.mjs; this proves the client's transport, not SNP hardware.
++const account=n=>privateKeyToAccount('0x'+n.repeat(64));
++const owner=account('1'),operator=account('2'),checker=account('3');
++const id='0x'+'ab'.repeat(32),runner='0x'+'cd'.repeat(32),address='8.8.4.4';
++const runtime={name:'wasmtime',version:'test',execution:'jit',hostIsa:'x86_64',targetIsa:'x86_64',cpuFeatures:'baseline',wx:'enforced',cache:'none'};
++const AUTH={Authorization:'Bearer private-test-only'};
++const sleep=ms=>new Promise(r=>setTimeout(r,ms));
++const until=async(f,ms=3000)=>{for(const end=Date.now()+ms;!f();){if(Date.now()>end)throw Error('condition not reached');await sleep(10);}};
++const keypair=dir=>{
++  execFileSync('openssl',['req','-x509','-newkey','ec','-pkeyopt','ec_paramgen_curve:P-256','-nodes','-subj','/CN=not-a-trusted-ca','-days','1','-keyout',dir+'/key','-out',dir+'/cert'],{stdio:'ignore'});
++  const cert=fs.readFileSync(dir+'/cert'),key=fs.readFileSync(dir+'/key');
++  return {cert,key,spki:createHash('sha256').update(new X509Certificate(cert).publicKey.export({format:'der',type:'spki'})).digest('hex')};
++};
++
++async function rig(t,{onSocket=null,onUpgrade=null,onRequest=null,clientOptions={}}={}){
++  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'native-access-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
++  fs.mkdirSync(dir+'/guest');fs.mkdirSync(dir+'/forged');
++  const guest=keypair(dir+'/guest'),forged=keypair(dir+'/forged');
++  // probe: 'ok' | 'refuse' | 'wrong app'; forged: the server presents a different key than the attested one.
++  const state={probe:'ok',forged:false,withdraw:false,onRefresh:null};
++  let now=Date.now(),reads=0,dirReads=0,probes=0,requests=0,upgrades=0,appBytes=0;const policy=defaultNetworkPolicy(id);
++  const expected={appRef:'test-app',configCid:'test-config',appSha256:'ef'.repeat(32),runtimeId:runtimeId(runtime).toString('hex')};
++  const pins={deployments:'0x'+'05'.repeat(20),registry:'0x'+'06'.repeat(20),connectivity:'0x'+'00'.repeat(20),sessionVaultFactory:'0x'+'00'.repeat(20)};
++  const lease={id,owner:owner.address,runner,chainId:8453,deployments:pins.deployments,runnerOperator:operator.address,active:true,isPublic:true,leaseUntil:now+600000,validUntil:now+90000,appRef:expected.appRef,configCid:expected.configCid,blockNumber:'1234'};
++  const record={version:1,providerId:providerIdFor(operator.address,address),operator:operator.address.toLowerCase(),address,
++    wgExitKey:Buffer.alloc(32,1).toString('base64'),wgGuardKey:Buffer.alloc(32,2).toString('base64'),ports:{exit:51820,guard:51821,control:51822},
++    roles:['guard','ingress','egress'],pricePerGiB6:0,region:'test',kind:'community',hostId:runner,issuedAt:now,expiresAt:now+1800000};
++  const pr=await signProviderRecord(operator,record),q={version:1,providerId:record.providerId,operator:record.operator,address,wgExitKey:record.wgExitKey,wgGuardKey:record.wgGuardKey,roles:record.roles,
++    checks:Object.fromEntries(CHECKS.map(k=>[k,true])),issuedAt:now,expiresAt:now+600000};
++  const qualification=await signQualification(checker,q),keys=generateKeyPairSync('ed25519');
++  const delegation={version:2,deploymentId:id,runner,chainId:8453,deployments:pins.deployments,policyHash:recordHash(policy),epoch:now,notBefore:now,expiresAt:now+3600000,
++    publicKey:keys.publicKey.export({format:'der',type:'spki'}).toString('base64'),ipns:'k51'+'a'.repeat(50)};
++  const authorization=await signDelegation(operator,delegation,now);
++  const publication=(sequence,withdraw=false)=>({version:2,policy,bundle:{authorization,...signRoute(keys.privateKey,{version:2,deploymentId:id,delegationHash:recordHash(delegation),sequence,issuedAt:now,expiresAt:now+60000,
++    routes:withdraw?[]:[{circuit:'f'.repeat(32),address,port:443,transport:'enclave-network'}]})}});
++  const live={version:1,providers:[{record:pr,qualifications:[qualification]}],policies:[],publications:[publication(1)]};
++  const withdrawn={...live,publications:[publication(2,true)]};
++  const profile={version:1,deploymentId:id,hostname:'never-resolve.invalid',stateDir:dir+'/state',chainId:8453,expected,linux:{},authorityPins:pins,checkers:[checker.address],directories:['http://192.0.2.2:8188']};
++  const reader={refresh:async()=>{reads++;state.onRefresh?.(reads,lease);},get:()=>structuredClone(lease),registryEntries:async()=>[{active:true,operator:operator.address}]};
++  const fetch=async url=>{dirReads++;assert.ok(url.startsWith('http://192.0.2.2:8188/v1/network/records'));return Response.json(state.withdraw?withdrawn:live);};
++  const probe=async options=>{
++    probes++;assert.equal(options.address,address);assert.equal(options.hostname,profile.hostname);assert.equal(options.attestationBootstrap,true);
++    if(state.probe==='refuse')throw Error('hardware refused');
++    return {verified:true,ready:true,deploymentId:id,appSha256:state.probe==='wrong app'?'00'.repeat(32):expected.appSha256,runtimeId:expected.runtimeId,spkiSha256:guest.spki};
++  };
++  const contexts={guest:tls.createSecureContext({key:guest.key,cert:guest.cert}),forged:tls.createSecureContext({key:forged.key,cert:forged.cert})};
++  const server=https.createServer({key:guest.key,cert:guest.cert,SNICallback:(_name,cb)=>cb(null,state.forged?contexts.forged:contexts.guest)},(req,res)=>{
++    requests++;assert.equal(req.socket.servername,profile.hostname);assert.equal(req.headers.host,profile.hostname);
++    if(onRequest)return onRequest(req,res);res.end('pong');
++  });
++  const wss=new WebSocketServer({noServer:true,perMessageDeflate:false,handleProtocols:set=>set.has('irc')?'irc':set.values().next().value??false});
++  const seen=[];
++  server.on('upgrade',(req,socket,head)=>{
++    upgrades++;seen.push({url:req.url,host:req.headers.host,servername:req.socket.servername,authorization:req.headers.authorization,headers:req.headers});
++    if(onUpgrade)return onUpgrade(req,socket,head);
++    wss.handleUpgrade(req,socket,head,ws=>onSocket?onSocket(ws,req):ws.close());
++  });
++  // Decrypted bytes the guest stand-in received on any connection: a refusal must leave this at zero.
++  server.on('secureConnection',socket=>socket.on('data',b=>{appBytes+=b.length;}));
++  await new Promise(r=>server.listen(0,'127.0.0.1',r));
++  t.after(()=>{for(const c of wss.clients)c.terminate();server.closeAllConnections();return new Promise(r=>server.close(r));});
++  const realRequest=https.request;
++  // ws and the HTTP path both go through https.request with the client's verifying agent.
++  t.mock.method(https,'request',(options,callback)=>{
++    assert.equal(options.host,address,'production transport must select a signed literal IP');assert.equal(options.port,443);
++    return realRequest({...options,host:'127.0.0.1',port:server.address().port},callback);
++  });
++  const client=new NativeClient(profile,{reader,fetch,probe,now:()=>now,...clientOptions});
++  return {client,state,lease,seen,wss,counts:()=>({requests,upgrades,probes,appBytes,reads,dirReads}),advance:n=>now+=n};
++}
++const echo=ws=>ws.on('message',(d,binary)=>ws.send(binary?Buffer.concat([Buffer.from('echo:'),d]):'echo:'+d,{binary}));
++const drain=async s=>{const got=[];for await(const m of s.messages)got.push(m);return got;};
++
++test('websocket: bidirectional text and binary frames, subprotocol, ping and close on the verified connection',async t=>{
++  const server={pong:false,close:null,messages:[]};
++  const r=await rig(t,{onSocket:ws=>{echo(ws);ws.on('message',d=>server.messages.push(Buffer.from(d)));ws.on('pong',d=>server.pong=d.toString());ws.ping('from-guest');
++    ws.on('close',(code,reason)=>server.close={code,reason:reason.toString()});}});
++  const s=await r.client.websocket({path:'/x/'+id+'/tcp/6667?mode=1',headers:AUTH,protocols:['irc','chat']});
++  assert.equal(s.status,101);assert.equal(s.protocol,'irc');assert.equal(s.headers['sec-websocket-protocol'],'irc');assert.equal(s.route.address,address);assert.equal(s.proof.spkiSha256.length,64);
++  assert.deepEqual(r.seen.map(x=>[x.url,x.host,x.servername,x.authorization]),[['/x/'+id+'/tcp/6667?mode=1','never-resolve.invalid','never-resolve.invalid',AUTH.Authorization]]);
++  assert.equal(r.seen[0].headers['sec-websocket-protocol'],'irc,chat');assert.equal(r.seen[0].headers['sec-websocket-extensions'],undefined,'no compression offered');
++  await s.send('NICK native');await s.send(new Uint8Array([0,1,2,255]));
++  const it=s.messages[Symbol.asyncIterator]();
++  const a=(await it.next()).value,b=(await it.next()).value;
++  assert.deepEqual([a.binary,a.data.toString()],[false,'echo:NICK native']);
++  assert.deepEqual([b.binary,[...b.data]],[true,[...Buffer.from('echo:'),0,1,2,255]]);
++  await s.ping('from-client');            // resolves on the guest's pong
++  await until(()=>server.pong==='from-guest');   // the guest's ping was answered
++  const closed=await s.close(1000,'bye');
++  assert.deepEqual({...closed,bytesIn:closed.bytesIn>0},{code:1000,reason:'bye',error:null,bytesIn:true,bytesOut:15});
++  await until(()=>server.close);assert.deepEqual(server.close,{code:1000,reason:'bye'});
++  assert.deepEqual(server.messages.map(x=>x.toString('hex')),[Buffer.from('NICK native').toString('hex'),'000102ff']);
++  assert.equal((await it.next()).done,true);assert.equal(r.client.open,0);assert.equal(r.counts().probes,1);
++});
++
++test('a forged key, wrong attestation, refused hardware or changed lease refuses before any upgrade, credential or upload byte',async t=>{
++  const cases={
++    'forged certificate':r=>{r.state.forged=true;},
++    'wrong attestation':r=>{r.state.probe='wrong app';},
++    'hardware refused':r=>{r.state.probe='refuse';},
++    'lease changed during attestation':r=>{r.state.onRefresh=(n,l)=>{if(n>1)l.configCid='other';};},
++    'owner changed during attestation':r=>{r.state.onRefresh=(n,l)=>{if(n>1)l.owner=account(n%2?'9':'8').address;};},
++    'route withdrawn':r=>{r.state.withdraw=true;},
++    'lease expired':r=>{r.lease.validUntil=0;}};
++  for(const [name,arrange] of Object.entries(cases))await t.test(name,async t=>{
++    const r=await rig(t,{onSocket:()=>assert.fail('upgraded'),onRequest:()=>assert.fail('request reached the guest')});arrange(r);
++    await assert.rejects(r.client.websocket({path:'/x/'+id+'/tcp/6667',headers:AUTH,protocols:['irc']}),/TLS key changed|fresh bound guest proof|hardware refused|changed during|verified route|current lease/);
++    let pulled=0;const source=new Readable({read(){pulled++;this.push(Buffer.alloc(1024,7));}});
++    await assert.rejects(r.client.stream({method:'POST',path:'/v1/upload',headers:AUTH,body:source}),/TLS key changed|fresh bound guest proof|hardware refused|changed during|verified route|current lease/);
++    assert.equal(pulled,0,'the upload source is not read before verification');assert.equal(source.destroyed,true,'and it is closed');
++    assert.deepEqual([r.counts().upgrades,r.counts().requests,r.counts().appBytes],[0,0,0],'the guest stand-in decrypted nothing');
++    assert.equal(r.client.open,0);
++  });
++});
++
++test('handshake validation: 101 status, Upgrade, Sec-WebSocket-Accept, subprotocol and extensions; no redirect, no retry',async t=>{
++  const accept=key=>createHash('sha1').update(key+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
++  const answers={
++    '/redirect':()=>'HTTP/1.1 302 Found\r\nLocation: https://must-not-follow.invalid/x\r\nContent-Length: 0\r\n\r\n',
++    '/plain':()=>'HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok',
++    '/bad-accept':()=>'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: AAAA\r\n\r\n',
++    '/not-websocket':k=>'HTTP/1.1 101 Switching Protocols\r\nUpgrade: h2c\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept(k)+'\r\n\r\n',
++    '/wrong-protocol':k=>'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept(k)+'\r\nSec-WebSocket-Protocol: other\r\n\r\n',
++    '/no-protocol':k=>'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept(k)+'\r\n\r\n',
++    '/extension':k=>'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept(k)+'\r\nSec-WebSocket-Protocol: irc\r\nSec-WebSocket-Extensions: permessage-deflate\r\n\r\n'};
++  const r=await rig(t,{onUpgrade:(req,socket)=>socket.end(answers[req.url](req.headers['sec-websocket-key']))});
++  const want={'/redirect':/HTTP 302/,'/plain':/HTTP 200/,'/bad-accept':/Sec-WebSocket-Accept/,'/not-websocket':/Invalid Upgrade/,'/wrong-protocol':/invalid subprotocol/,'/no-protocol':/no subprotocol/,'/extension':/Extensions/};
++  for(const [p,pattern] of Object.entries(want)){
++    const e=await r.client.websocket({path:p,headers:AUTH,protocols:['irc']}).then(()=>assert.fail('opened '+p),e=>e);
++    assert.match(e.message,pattern,p);if(p==='/redirect')assert.equal(e.status,302);
++  }
++  const n=Object.keys(want).length;
++  await sleep(100);
++  assert.deepEqual([r.counts().upgrades,r.counts().probes],[n,n],'each call attests once and sends one upgrade; nothing is retried or redirected');
++  assert.ok(r.seen.every(x=>x.authorization===AUTH.Authorization));assert.equal(r.client.open,0);
++});
++
++test('websocket limits: frame size, send buffer, totals, idle and absolute timers, validation and concurrency',async t=>{
++  const got=[];
++  const r=await rig(t,{clientOptions:{maxConcurrent:2},onSocket:(ws,req)=>{
++    ws.on('message',d=>got.push(req.url+':'+d.length));
++    if(req.url==='/big')ws.send(Buffer.alloc(2048));
++    if(req.url==='/flood')for(let i=0;i<3;i++)ws.send(Buffer.alloc(400));
++    if(req.url==='/keepalive'){const iv=setInterval(()=>ws.ping(),200);ws.on('close',()=>clearInterval(iv));}
++  }});
++  const big=await r.client.websocket({path:'/big',maxMessageBytes:1024});
++  await assert.rejects(drain(big),/Max payload/);assert.match((await big.closed).error,/Max payload/);
++  const small=await r.client.websocket({path:'/small',maxMessageBytes:1024,maxBufferedBytes:1500,maxSentBytes:3000});
++  await assert.rejects(small.send(Buffer.alloc(1025)),/message too large/);
++  const first=small.send(Buffer.alloc(1024));
++  await assert.rejects(small.send(Buffer.alloc(1024)),/send buffer full/);await first;
++  await small.send(Buffer.alloc(1024));await assert.rejects(small.send(Buffer.alloc(1000)),/send limit reached/);
++  await until(()=>got.filter(x=>x.startsWith('/small')).length===2);assert.deepEqual(got,['/small:1024','/small:1024'],'refused sends wrote nothing');
++  small.cancel();await small.closed;
++  const flood=await r.client.websocket({path:'/flood',maxBytes:1000});
++  await assert.rejects(drain(flood),/received too much/);
++  const idle=await r.client.websocket({path:'/idle',idleTimeoutMs:1000});
++  assert.match((await idle.closed).error,/idle timeout/);
++  const long=await r.client.websocket({path:'/keepalive',idleTimeoutMs:1000,maxDurationMs:1500});
++  assert.match((await long.closed).error,/duration limit/);
++  // concurrency: sockets and streams share the per-client bound
++  const a=await r.client.websocket({path:'/a'}),b=await r.client.websocket({path:'/b'});
++  await assert.rejects(r.client.websocket({path:'/c'}),/too many open/);await assert.rejects(r.client.stream({path:'/c'}),/too many open/);
++  a.cancel();b.cancel();await Promise.all([a.closed,b.closed]);assert.equal(r.client.open,0);
++  const probes=r.counts().probes;
++  for(const bad of [{headers:{Upgrade:'websocket'}},{headers:{Connection:'Upgrade'}},{headers:{'Sec-WebSocket-Key':'x'}},{headers:{'sec-websocket-protocol':'irc'}},
++    {headers:{'Sec-WebSocket-Extensions':'permessage-deflate'}},{headers:{'Sec-WebSocket-Version':'8'}},{headers:{Host:'elsewhere'}},{headers:{'Transfer-Encoding':'chunked'}},
++    {headers:{'X-A':'1\r\nX-B: 2'}},{protocols:['irc','irc']},{protocols:['a b']},{protocols:'irc'},{path:'/a/../b'},{path:'/café'},{path:'/a\\b'},{path:'//x'},{path:'/a#b'},
++    {maxMessageBytes:0},{maxMessageBytes:2048,maxBufferedBytes:1024},{timeoutMs:10},{unknown:1},{signal:{aborted:false}},{method:'POST'}])
++    await assert.rejects(r.client.websocket({path:'/x',...bad}),/native|signal/,JSON.stringify(bad));
++  assert.equal(r.counts().probes,probes,'invalid options fail before discovery or proof');
++});
++
++test('inbound backpressure: a slow reader pauses the guest connection and nothing is dropped',async t=>{
++  let guest;const N=512,SIZE=64*1024;
++  const r=await rig(t,{onSocket:ws=>{guest=ws;for(let i=0;i<N;i++){const m=Buffer.alloc(SIZE,i&255);m.writeUInt32BE(i);ws.send(m);}}});
++  const s=await r.client.websocket({path:'/firehose',maxQueuedBytes:256*1024,maxBytes:N*SIZE});
++  await sleep(500);
++  assert.ok(s.queuedBytes<=256*1024+4*SIZE,'client queue stays bounded: '+s.queuedBytes);
++  assert.ok(guest.bufferedAmount>8*1024*1024,'the guest is held back: '+guest.bufferedAmount);
++  let i=0;
++  for await(const m of s.messages){assert.equal(m.data.readUInt32BE(0),i);assert.equal(m.data.length,SIZE);if(++i===N)break;}
++  assert.equal(i,N);await s.closed;assert.equal(r.client.open,0);
++});
++
++test('an open websocket closes on cancellation, authority loss, route withdrawal or a transport reset; nothing reconnects',async t=>{
++  const serverClosed=[];
++  const r=await rig(t,{onSocket:(ws,req)=>{ws.on('close',()=>serverClosed.push(req.url));
++    const iv=setInterval(()=>ws.ping(),200);ws.on('close',()=>clearInterval(iv));
++    if(req.url==='/reset')setTimeout(()=>req.socket.destroy(),300);}});
++  const controller=new AbortController(),aborted=await r.client.websocket({path:'/abort',signal:controller.signal});
++  controller.abort();assert.match((await aborted.closed).error,/cancelled/);
++  const cancelled=await r.client.websocket({path:'/cancel'});cancelled.cancel('user stopped');assert.equal((await cancelled.closed).error,'user stopped');
++  const owner=await r.client.websocket({path:'/owner',recheckMs:1000});
++  r.lease.owner=account('9').address;   // ownership transferred while the socket is open
++  await assert.rejects(drain(owner),/not confirmed current/);await assert.rejects(owner.send('after'),/not open/);
++  r.lease.owner=account('1').address;
++  const reset=await r.client.websocket({path:'/reset'});
++  const done=await reset.closed;assert.equal(done.code,1006);
++  await assert.rejects(reset.send('x'),/not open/);
++  // last on this rig: the stored withdrawal outranks the older record from then on
++  const withdrawn=await r.client.websocket({path:'/withdrawn',recheckMs:1000});
++  r.state.withdraw=true;   // a newer signed route record withdraws the attested route
++  assert.match((await withdrawn.closed).error,/no longer published/);
++  await sleep(1200);
++  // each of the 5 sockets attested once
++  assert.deepEqual([r.counts().upgrades,r.counts().probes],[5,5],'no silent reconnect after any close');
++  await until(()=>serverClosed.length===5);assert.deepEqual(serverClosed.sort(),['/abort','/cancel','/owner','/reset','/withdrawn']);
++  assert.equal(r.client.open,0);
++});
++
++test('an open websocket closes when the lease snapshot expires',async t=>{
++  const r=await rig(t,{onSocket:ws=>{const iv=setInterval(()=>ws.ping(),200);ws.on('close',()=>clearInterval(iv));}});
++  const s=await r.client.websocket({path:'/expiring',recheckMs:1000});r.advance(100000);
++  assert.match((await s.closed).error,/not confirmed current/);assert.equal(r.counts().upgrades,1);
++});
++
++test('reconnecting needs a fresh authorization and fresh credentials; nothing is replayed',async t=>{
++  const log=[];
++  const r=await rig(t,{onSocket:(ws,req)=>ws.on('message',d=>log.push(req.headers.authorization+' '+d))});
++  const first=await r.client.websocket({path:'/chat',headers:{Authorization:'Bearer first'}});
++  await first.send('one');await until(()=>log.length===1);await first.close();
++  const before=r.counts();
++  r.state.probe='refuse';
++  await assert.rejects(r.client.websocket({path:'/chat',headers:{Authorization:'Bearer second'}}),/hardware refused/);
++  assert.equal(r.counts().upgrades,before.upgrades,'a refused reconnect sends no upgrade');
++  r.state.probe='ok';
++  const third=await r.client.websocket({path:'/chat',headers:{Authorization:'Bearer third'}});
++  const after=r.counts();
++  assert.equal(after.probes,before.probes+2,'each connection attempt runs its own proof');
++  assert.ok(after.dirReads>=before.dirReads+3&&after.reads>=before.reads+3,'and its own discovery and chain reads');
++  assert.deepEqual(r.seen.map(x=>x.authorization),['Bearer first','Bearer third'],'each upgrade carries only its own call\'s credential');
++  await sleep(100);assert.deepEqual(log,['Bearer first one'],'no earlier message is replayed on the new socket');
++  await third.close();
++});
++
++test('streamed upload: chunks reach the guest as they are produced while an SSE response streams back',async t=>{
++  let sawHeaders;
++  const r=await rig(t,{onRequest:(req,res)=>{
++    sawHeaders={te:req.headers['transfer-encoding'],length:req.headers['content-length'],auth:req.headers.authorization};
++    res.writeHead(200,{'content-type':'text/event-stream'});res.flushHeaders();let total=0;
++    req.on('data',d=>{total+=d.length;res.write('data: got '+total+'\n\n');});req.on('end',()=>res.end('data: done '+total+'\n\n'));
++  }});
++  const acks=[];
++  async function* produce(){for(let i=1;i<=4;i++){yield Buffer.alloc(1000*i,i);await until(()=>acks.length>=i);}}
++  const s=await r.client.stream({method:'POST',path:'/v1/chat/stream',headers:{...AUTH,'Content-Type':'application/octet-stream'},body:produce()});
++  assert.equal(s.status,200);
++  for await(const chunk of s.body){acks.push(...chunk.toString().split('\n\n').filter(Boolean));}
++  // each 'got' arrived before the next chunk existed: the upload and the response were both streaming
++  assert.deepEqual(acks,['data: got 1000','data: got 3000','data: got 6000','data: got 10000','data: done 10000']);
++  assert.deepEqual(sawHeaders,{te:'chunked',length:undefined,auth:AUTH.Authorization});
++  assert.deepEqual(await s.closed,{bytes:acks.join('\n\n').length+2,error:null});assert.equal(r.client.open,0);
++});
++
++test('streamed upload with a declared length, from a file and from a web stream, through request()',async t=>{
++  let seen=[];
++  const r=await rig(t,{onRequest:(req,res)=>{const h=createHash('sha256');let n=0;req.on('data',d=>{h.update(d);n+=d.length;});
++    req.on('end',()=>{seen.push({method:req.method,length:req.headers['content-length'],te:req.headers['transfer-encoding'],n,sha:h.digest('hex')});res.writeHead(201);res.end('stored');});}});
++  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'native-upload-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
++  const file=dir+'/blob',bytes=Buffer.alloc(3*1024*1024);for(let i=0;i<bytes.length;i+=4)bytes.writeUInt32LE(i,i);fs.writeFileSync(file,bytes);
++  const x=await r.client.request({method:'PUT',path:'/v1/files/blob',headers:AUTH,body:fs.createReadStream(file),bodyLength:bytes.length});
++  assert.equal(x.status,201);assert.equal(x.body.toString(),'stored');
++  assert.deepEqual(seen[0],{method:'PUT',length:String(bytes.length),te:undefined,n:bytes.length,sha:createHash('sha256').update(bytes).digest('hex')});
++  const web=new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('hello '));c.enqueue(new TextEncoder().encode('web'));c.close();}});
++  const y=await r.client.request({method:'POST',path:'/v1/notes',headers:AUTH,body:web});
++  assert.equal(y.status,201);assert.equal(seen[1].n,9);assert.equal(seen[1].te,'chunked');
++  assert.equal(r.counts().probes,2);
++});
++
++test('streamed upload limits, source errors, stalls, cancellation and authority loss close the source and the transport',async t=>{
++  const serverEnds=[];
++  const r=await rig(t,{onRequest:(req,res)=>{req.on('data',()=>{});req.on('close',()=>serverEnds.push(req.url));
++    if(req.url==='/early'){res.writeHead(200);res.write('ok');}}});
++  const endless=()=>{const s={returned:false};s.it=(async function*(){try{for(;;){yield Buffer.alloc(64*1024);await sleep(1);}}finally{s.returned=true;}})();return s;};
++  const tooMuch=endless();
++  await assert.rejects(r.client.request({method:'POST',path:'/too-much',headers:AUTH,body:tooMuch.it,maxRequestBytes:256*1024}),/body too large/);
++  await until(()=>tooMuch.returned);
++  await assert.rejects(r.client.request({method:'POST',path:'/short',headers:AUTH,body:Readable.from([Buffer.alloc(5)]),bodyLength:10}),/before its declared length/);
++  await assert.rejects(r.client.request({method:'POST',path:'/long',headers:AUTH,body:Readable.from([Buffer.alloc(5)]),bodyLength:3}),/body too large/);
++  // fails after its first chunk was written (an immediate error would discard that chunk and send nothing)
++  const failing=new Readable({read(){if(!this.sent){this.sent=true;this.push(Buffer.alloc(100));}else setTimeout(()=>this.destroy(Error('disk gone')),50);}});
++  await assert.rejects(r.client.request({method:'POST',path:'/source-error',headers:AUTH,body:failing}),/native upload source failed: disk gone/);
++  const stalled=new Readable({read(){if(!this.sent){this.sent=true;this.push(Buffer.alloc(100));}}});
++  await assert.rejects(r.client.request({method:'POST',path:'/stall',headers:AUTH,body:stalled,idleTimeoutMs:1000}),/upload idle timeout/);
++  assert.equal(stalled.destroyed,true);
++  await assert.rejects(r.client.request({method:'POST',path:'/bad-chunk',headers:AUTH,body:Readable.from([{not:'bytes'}])}),/must be bytes/);
++  const reached=r.counts().requests,controller=new AbortController(),cancelled=endless();
++  const pending=r.client.request({method:'POST',path:'/cancel',headers:AUTH,body:cancelled.it,signal:controller.signal,maxRequestBytes:1024*1024*1024});
++  await until(()=>r.counts().requests===reached+1);controller.abort();
++  await assert.rejects(pending,/cancel/);await until(()=>cancelled.returned);
++  // a response that started before the upload ended is cut as well when authority changes
++  const owned=endless();
++  const s=await r.client.stream({method:'POST',path:'/early',headers:AUTH,body:owned.it,recheckMs:1000,maxRequestBytes:1024*1024*1024});
++  r.lease.owner=account('9').address;
++  await assert.rejects((async()=>{for await(const _ of s.body);})(),/not confirmed current/);await until(()=>owned.returned);
++  r.lease.owner=account('1').address;
++  // refused input closes the source too, before any discovery
++  const probes=r.counts().probes,get=Readable.from([Buffer.alloc(1)]);
++  await assert.rejects(r.client.request({method:'GET',path:'/x',body:get}),/GET and HEAD/);assert.equal(get.destroyed,true);
++  await assert.rejects(r.client.request({method:'PUT',path:'/x',body:'x',bodyLength:1}),/bodyLength/);
++  assert.equal(r.counts().probes,probes);
++  // /long and /bad-chunk failed before their first write, so not even their headers left the client
++  await until(()=>serverEnds.length===6);
++  assert.deepEqual(serverEnds.sort(),['/cancel','/early','/short','/source-error','/stall','/too-much']);
++  assert.equal(r.counts().requests,6,'every failure is final: no request was sent twice');assert.equal(r.client.open,0);
++});
++
++test('upload backpressure: the source is read only as fast as the guest accepts it',async t=>{
++  let paused,received=0;const TOTAL=48*1024*1024;
++  const r=await rig(t,{onRequest:(req,res)=>{req.pause();paused=req;req.on('data',d=>received+=d.length);req.on('end',()=>res.end(String(received)));}});
++  let produced=0;
++  const source=new Readable({highWaterMark:64*1024,read(){if(produced>=TOTAL)return this.push(null);produced+=64*1024;this.push(Buffer.alloc(64*1024,1));}});
++  const pending=r.client.request({method:'POST',path:'/slow',headers:AUTH,body:source,bodyLength:TOTAL,timeoutMs:60000});
++  await until(()=>paused);await sleep(500);
++  assert.ok(produced<24*1024*1024,'the client stopped pulling while the guest was not reading: '+produced);
++  paused.resume();
++  const x=await pending;assert.equal(x.status,200);assert.equal(x.body.toString(),String(TOTAL));assert.equal(produced,TOTAL);
++});
++
++test('command-line wrappers: a websocat-style bridge and a streamed request, credentials from the environment',async t=>{
++  const r=await rig(t,{onSocket:echo,onRequest:(req,res)=>{let n=0;req.on('data',d=>n+=d.length);req.on('end',()=>{res.writeHead(200,{'content-type':'text/plain'});res.end(req.headers.authorization+' '+n);});}});
++  assert.deepEqual(wsArgs(['p.json','/x/a/tcp/6667','--protocol','irc','--listen','127.0.0.1:0']),{profileFile:'p.json',path:'/x/a/tcp/6667',protocols:['irc'],listen:{host:'127.0.0.1',port:0}});
++  assert.throws(()=>wsArgs(['p.json','/x','--listen','0.0.0.0:6667']),/loopback/);
++  const s=await r.client.websocket({path:'/x/'+id+'/tcp/6667',headers:AUTH});
++  const out=[];const stdout=new (await import('node:stream')).Writable({write(c,_e,cb){out.push(c);cb();}});
++  const ended=bridge(s,Readable.from([Buffer.from('PING :a\r\n')]),stdout);
++  await until(()=>Buffer.concat(out).toString().includes('echo:'));await ended;
++  assert.equal(Buffer.concat(out).toString(),'echo:PING :a\r\n');assert.equal(r.client.open,0);
++  const chunks=[];const sink=new (await import('node:stream')).Writable({write(c,_e,cb){chunks.push(c);cb();}});
++  const status=await runRequest(r.client,{path:'/v1/upload',method:'POST',stdinBody:true,stream:true},{stdin:Readable.from([Buffer.alloc(70000)]),stdout:sink,env:{NATIVE_AUTHORIZATION:'Bearer from-env'}});
++  assert.equal(status.status,200);assert.equal(Buffer.concat(chunks).toString(),'Bearer from-env 70000');
++});
+diff --git a/test/native-policy.test.mjs b/test/native-policy.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..d083c71f199b16701c79ee2c2a7ee6857d65e195
+--- /dev/null
++++ b/test/native-policy.test.mjs
+@@ -0,0 +1,261 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import http from 'node:http';
++import https from 'node:https';
++import {Readable} from 'node:stream';
++import {execFileSync} from 'node:child_process';
++import {generateKeyPairSync,X509Certificate,createHash} from 'node:crypto';
++import {privateKeyToAccount,generatePrivateKey} from 'viem/accounts';
++import {WebSocketServer} from 'ws';
++import {NativeClient} from '../network/native-client.mjs';
++import {nativeHostPolicy,boundedPolicyFetch,platformBookFor} from '../network/native-host-policy.mjs';
++import {createHostPolicyRuntime,resolveHostPolicyConfig} from '../network/host-policy-runtime.mjs';
++import {leaseHostAdmission} from '../network/host-policy-adapters.mjs';
++import {httpPolicyMirrors,MAX_POLICY_RESPONSE} from '../network/host-policy-mirrors.mjs';
++import {policyTypedData} from '../network/platform-host-policy.mjs';
++import {PRODUCTION_BOOK,PRODUCTION_RPCS} from '../network/platform-host-policy-config.mjs';
++import {platformPolicyWorld} from './helpers/platform-policy-world.mjs';
++import {signProviderRecord,signQualification,providerIdFor,CHECKS} from '../network/provider-directory.mjs';
++import {defaultNetworkPolicy} from '../network/network-policy.mjs';
++import {signDelegation,signRoute,recordHash} from '../network/route-record.mjs';
++import {runtimeId} from '../isolation/contract/runtime.mjs';
++
++// The native transport with the administrator's platform host policy. Policy side: the policy owner's test world
++// (loopback JSON-RPC quorum answering the AddressBook/registry/ownership facts, an HTTPS mirror with its own CA,
++// admin-signed and ANCHORED policies) through the shared runtime. App side: signed directory records, a real TLS
++// guest stand-in with a non-WebPKI key, real HTTP and WebSocket servers. Hardware verdict and lease reads are test
++// doubles, as in native-client.test.mjs.
++const account=n=>privateKeyToAccount('0x'+n.repeat(64));
++const operator=account('2'),checker=account('3'),owner=account('1');
++const id='0x'+'ab'.repeat(32),runner='0x'+'cd'.repeat(32),otherHost='0x'+'ee'.repeat(32),address='8.8.4.4';
++const runtime={name:'wasmtime',version:'test',execution:'jit',hostIsa:'x86_64',targetIsa:'x86_64',cpuFeatures:'baseline',wx:'enforced',cache:'none'};
++const AUTH={Authorization:'Bearer private-test-only'};
++const sleep=ms=>new Promise(r=>setTimeout(r,ms));
++const until=async(f,ms=8000)=>{for(const end=Date.now()+ms;!f();){if(Date.now()>end)throw Error('condition not reached');await sleep(20);}};
++const ban=(value,reason='malicious host')=>({kind:'registryId',value,reason});
++
++// A mirror fetch that trusts the world's test CA (a real TLS connection; the body is a stream, read by the bound).
++const caFetch=caFile=>async(url,init={})=>{
++  const u=new URL(url),ca=fs.readFileSync(caFile);
++  return new Promise((resolve,reject)=>{
++    const req=https.request({host:u.hostname,port:u.port,path:u.pathname+u.search,method:'GET',ca,headers:init.headers||{},signal:init.signal},res=>
++      resolve(new Response(Readable.toWeb(res),{status:res.statusCode,headers:Object.entries(res.headers).filter(([,v])=>typeof v==='string')})));
++    req.once('error',reject);req.end();
++  });
++};
++// A mirror that lies: mode 'forge' re-signs the served document with a key that is not the book owner;
++// 'older' answers any digest with an older (validly signed) document; 'down' fails.
++const lyingMirror=(inner,mirror)=>async(url,init)=>{
++  if(mirror.mode==='down')throw Error('mirror unreachable');
++  if(mirror.mode==='older'&&mirror.olderDigest)url=url.replace(/0x[0-9a-f]{64}\.json$/,mirror.olderDigest+'.json');
++  const r=await inner(url,init);
++  if(mirror.mode!=='forge'||!r.ok)return r;
++  const j=JSON.parse(await r.text()),mallory=privateKeyToAccount(generatePrivateKey());
++  return new Response(JSON.stringify({document:j.document,signature:await mallory.signTypedData(policyTypedData(JSON.parse(j.document)))}),{status:200});
++};
++
++// The world recomputes a block's timestamp on every call (its blocks are fabricated from the clock), which the shared
++// quorum reader rightly refuses once a read spans a second boundary ("block changed during RPC read" / rollback). A
++// real chain fixes a block's timestamp: this pass-through JSON-RPC proxy pins the first timestamp seen per block hash.
++async function stableChain(t,rpcs){
++  const seen=new Map();
++  const pin=b=>{if(b&&typeof b==='object'&&b.hash){if(!seen.has(b.hash))seen.set(b.hash,b.timestamp);b.timestamp=seen.get(b.hash);}return b;};
++  return Promise.all(rpcs.map(async upstream=>{
++    const server=http.createServer((req,res)=>{const c=[];req.on('data',d=>c.push(d));req.on('end',async()=>{
++      try{
++        const body=Buffer.concat(c),r=await globalThis.fetch(upstream,{method:'POST',headers:{'content-type':'application/json'},body});
++        const text=await r.text();if(!r.ok){res.writeHead(r.status);return res.end(text);}
++        const j=JSON.parse(text),q=JSON.parse(body),fix=(a,qq)=>{if(/^eth_getBlockBy/.test(qq?.method))pin(a.result);return a;};
++        res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify(Array.isArray(j)?j.map((a,i)=>fix(a,q[i])):fix(j,q)));
++      }catch{res.writeHead(502);res.end();}
++    });});
++    await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>{server.closeAllConnections();server.close();});
++    return 'http://127.0.0.1:'+server.address().port;
++  }));
++}
++async function rig(t,{onSocket=null,onRequest=null,env=null,activation=null}={}){
++  const world=await platformPolicyWorld(t,{hosts:{
++    [runner]:{active:true,operator:operator.address.toLowerCase(),owner:owner.address.toLowerCase(),endpoint:'https://host-a.example'},
++    [otherHost]:{active:true,operator:'0x'+'99'.repeat(20),owner:'0x'+'98'.repeat(20),endpoint:'https://host-b.example'}}});
++  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'native-policy-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
++  execFileSync('openssl',['req','-x509','-newkey','ec','-pkeyopt','ec_paramgen_curve:P-256','-nodes','-subj','/CN=not-a-trusted-ca','-days','1','-keyout',dir+'/key','-out',dir+'/cert'],{stdio:'ignore'});
++  const cert=fs.readFileSync(dir+'/cert'),key=fs.readFileSync(dir+'/key'),spki=createHash('sha256').update(new X509Certificate(cert).publicKey.export({format:'der',type:'spki'})).digest('hex');
++  let now=Date.now(),probes=0,requests=0,upgrades=0,appBytes=0;const policy=defaultNetworkPolicy(id);
++  const expected={appRef:'test-app',configCid:'test-config',appSha256:'ef'.repeat(32),runtimeId:runtimeId(runtime).toString('hex')};
++  const pins={deployments:'0x'+'05'.repeat(20),registry:'0x'+'06'.repeat(20),connectivity:'0x'+'00'.repeat(20),sessionVaultFactory:'0x'+'00'.repeat(20)};
++  const lease={id,owner:owner.address,runner,chainId:8453,deployments:pins.deployments,runnerOperator:operator.address,active:true,isPublic:true,leaseUntil:now+600000,validUntil:now+90000,appRef:expected.appRef,configCid:expected.configCid,blockNumber:'1234'};
++  const record={version:1,providerId:providerIdFor(operator.address,address),operator:operator.address.toLowerCase(),address,
++    wgExitKey:Buffer.alloc(32,1).toString('base64'),wgGuardKey:Buffer.alloc(32,2).toString('base64'),ports:{exit:51820,guard:51821,control:51822},
++    roles:['guard','ingress','egress'],pricePerGiB6:0,region:'test',kind:'community',hostId:runner,issuedAt:now,expiresAt:now+1800000};
++  const pr=await signProviderRecord(operator,record),q={version:1,providerId:record.providerId,operator:record.operator,address,wgExitKey:record.wgExitKey,wgGuardKey:record.wgGuardKey,roles:record.roles,
++    checks:Object.fromEntries(CHECKS.map(k=>[k,true])),issuedAt:now,expiresAt:now+600000};
++  const qualification=await signQualification(checker,q),keys=generateKeyPairSync('ed25519');
++  const delegation={version:2,deploymentId:id,runner,chainId:8453,deployments:pins.deployments,policyHash:recordHash(policy),epoch:now,notBefore:now,expiresAt:now+3600000,
++    publicKey:keys.publicKey.export({format:'der',type:'spki'}).toString('base64'),ipns:'k51'+'a'.repeat(50)};
++  const authorization=await signDelegation(operator,delegation,now);
++  const publication={version:2,policy,bundle:{authorization,...signRoute(keys.privateKey,{version:2,deploymentId:id,delegationHash:recordHash(delegation),sequence:1,issuedAt:now,expiresAt:now+60000,
++    routes:[{circuit:'f'.repeat(32),address,port:443,transport:'enclave-network'}]})}};
++  const snapshot={version:1,providers:[{record:pr,qualifications:[qualification]}],policies:[],publications:[publication]};
++  const profile={version:1,deploymentId:id,hostname:'never-resolve.invalid',stateDir:dir+'/state',chainId:8453,expected,linux:{},authorityPins:pins,checkers:[checker.address],directories:['http://192.0.2.2:8188']};
++  const reader={refresh:async()=>{},get:()=>structuredClone(lease),registryEntries:async()=>[{active:true,operator:operator.address}]};
++  const directoryFetch=async url=>{assert.ok(url.startsWith('http://192.0.2.2:8188/v1/network/records'));return Response.json(snapshot);};
++  const probe=async options=>{probes++;assert.equal(options.address,address);return {verified:true,ready:true,deploymentId:id,appSha256:expected.appSha256,runtimeId:expected.runtimeId,spkiSha256:spki};};
++  const server=https.createServer({key,cert},(req,res)=>{requests++;assert.equal(req.headers.host,profile.hostname);if(onRequest)return onRequest(req,res);res.end('pong');});
++  const wss=new WebSocketServer({noServer:true,perMessageDeflate:false});
++  const seen=[];
++  server.on('upgrade',(req,socket,head)=>{upgrades++;seen.push(req.headers.authorization);wss.handleUpgrade(req,socket,head,ws=>onSocket?onSocket(ws,req):ws.close());});
++  server.on('secureConnection',socket=>socket.on('data',b=>{appBytes+=b.length;}));
++  await new Promise(r=>server.listen(0,'127.0.0.1',r));
++  t.after(()=>{for(const c of wss.clients)c.terminate();server.closeAllConnections();return new Promise(r=>server.close(r));});
++  const realRequest=https.request;
++  // Only the app route is redirected (after asserting the signed literal address); the policy mirror passes through.
++  t.mock.method(https,'request',(options,callback)=>{
++    if(options.servername!==profile.hostname)return realRequest(options,callback);
++    assert.equal(options.host,address,'production transport must select a signed literal IP');assert.equal(options.port,443);
++    return realRequest({...options,host:'127.0.0.1',port:server.address().port},callback);
++  });
++  const mirror={mode:'pass',olderDigest:null};
++  const chain=await stableChain(t,world.rpcs);
++  const policyEnv={...world.env(),ENCLAVE_PLATFORM_HOST_POLICY_RPCS:chain.join(','),...(activation?{ENCLAVE_PLATFORM_HOST_POLICY_ACTIVATION:activation}:{}),...(env||{})};delete policyEnv.NODE_EXTRA_CA_CERTS;
++  const policyFetch=lyingMirror(caFetch(world.ca),mirror);
++  const client=new NativeClient(profile,{reader,fetch:directoryFetch,probe,now:()=>now,env:policyEnv,policyFetch});
++  // the CLI's construction of the same decision (independentHostPolicy + leaseHostAdmission), for "same semantics"
++  const cliDecision=async()=>{
++    const r=resolveHostPolicyConfig({env:policyEnv,chainId:8453,book:null});
++    const rt=createHostPolicyRuntime(r,{fetch:boundedPolicyFetch(policyFetch)});
++    try{return await leaseHostAdmission(rt.gate)(structuredClone(lease));}catch(e){return {admit:false,status:'unreadable',reason:e.message};}
++  };
++  return {client,world,lease,mirror,cliDecision,seen,counts:()=>({probes,requests,upgrades,appBytes}),advance:n=>now+=n};
++}
++const endless=()=>{const s={pulled:0,returned:false};s.it=(async function*(){try{for(;;){s.pulled++;yield Buffer.alloc(16*1024);await sleep(5);}}finally{s.returned=true;}})();return s;};
++
++test('an admin-banned host receives no proof request, credential, upgrade or upload byte',async t=>{
++  const r=await rig(t,{onSocket:()=>assert.fail('upgraded'),onRequest:()=>assert.fail('request reached a banned host')});
++  await r.world.publish({deny:[ban(runner,'operator served malware')]});
++  const want=/platform host policy refused the route host: banned by platform policy #1 \(registryId\): operator served malware/;
++  await assert.rejects(r.client.request({method:'POST',path:'/v1/upload',headers:AUTH,body:'secret'}),want);
++  await assert.rejects(r.client.websocket({path:'/x/'+id+'/tcp/6667',headers:AUTH}),want);
++  let pulled=0;const source=new Readable({read(){pulled++;this.push(Buffer.alloc(1024,7));}});
++  await assert.rejects(r.client.stream({method:'POST',path:'/v1/upload',headers:AUTH,body:source}),want);
++  assert.equal(pulled,0,'the upload source was never read');assert.equal(source.destroyed,true,'and it was closed');
++  assert.deepEqual(r.counts(),{probes:0,requests:0,upgrades:0,appBytes:0},'refused before the proof: the host saw nothing');
++  const e=await r.client.request({path:'/'}).catch(e=>e);assert.equal(e.code,'host_policy_refused');assert.equal(e.status,'current');
++  assert.deepEqual((({admit,status})=>({admit,status}))(await r.cliDecision()),{admit:false,status:'current'},'the CLI construction decides the same');
++  assert.ok(r.world.served.some(u=>u.endsWith('.json')),'the policy came from the mirror, verified against the anchor');
++  assert.equal(r.client.open,0);
++});
++
++test('an allowed host works normally (credentials, streamed upload, SSE, WebSocket) while another host is banned',async t=>{
++  const r=await rig(t,{onSocket:ws=>ws.on('message',d=>ws.send('echo:'+d)),onRequest:(req,res)=>{let n=0;req.on('data',d=>n+=d.length);req.on('end',()=>{res.writeHead(200,{'content-type':'text/event-stream'});res.end('data: '+req.headers.authorization+' '+n+'\n\n');});}});
++  await r.world.publish({deny:[ban(otherHost)]});
++  const x=await r.client.request({method:'POST',path:'/v1/upload',headers:AUTH,body:Readable.from([Buffer.alloc(70000)]),bodyLength:70000});
++  assert.equal(x.status,200);assert.equal(x.body.toString(),'data: '+AUTH.Authorization+' 70000\n\n');
++  const s=await r.client.websocket({path:'/chat',headers:AUTH,recheckMs:1000});
++  for(let i=0;i<3;i++){await s.send('m'+i);const m=(await s.messages[Symbol.asyncIterator]().next()).value;assert.equal(m.data.toString(),'echo:m'+i);await sleep(700);}
++  // ~2 s of rechecks under the policy: the socket stays open
++  assert.equal((await Promise.race([s.closed,sleep(10)]))?.error,undefined);
++  await s.close();assert.equal(r.client.hostPolicy.off,false);assert.equal(r.counts().probes,2);
++  assert.deepEqual((({admit,status})=>({admit,status}))(await r.cliDecision()),{admit:true,status:'current'});
++});
++
++test('a newly anchored ban closes an open stream, an upload in progress and a WebSocket; nothing reconnects',async t=>{
++  const closedAtServer=[];
++  const r=await rig(t,{onSocket:(ws,req)=>{ws.on('close',()=>closedAtServer.push('ws'));const iv=setInterval(()=>ws.ping(),200);ws.on('close',()=>clearInterval(iv));},
++    onRequest:(req,res)=>{req.on('data',()=>{});req.on('close',()=>closedAtServer.push(req.url));res.writeHead(200,{'content-type':'text/event-stream'});res.write('data: open\n\n');}});
++  await r.world.publish({deny:[ban(otherHost)]});
++  const sse=await r.client.stream({path:'/events',headers:AUTH,recheckMs:1000});
++  const up=endless();
++  const upload=await r.client.stream({method:'POST',path:'/upload',headers:AUTH,body:up.it,recheckMs:1000,maxRequestBytes:1024*1024*1024});
++  const ws=await r.client.websocket({path:'/socket',headers:AUTH,recheckMs:1000});
++  const it=sse.body[Symbol.asyncIterator]();assert.equal((await it.next()).value.toString(),'data: open\n\n');
++  const before=r.counts();
++  await r.world.publish({deny:[ban(otherHost),ban(runner,'newly banned')]});   // the admin signs and anchors a ban
++  const ended=/native authorization ended: platform host policy refused the host: banned by platform policy #2 \(registryId\): newly banned/;
++  await assert.rejects(it.next(),ended);
++  await assert.rejects((async()=>{for await(const _ of upload.body);})(),ended);
++  assert.match((await ws.closed).error,ended);
++  assert.match((await sse.closed).error,ended);
++  await until(()=>up.returned);
++  await until(()=>closedAtServer.length===3);assert.deepEqual(closedAtServer.sort(),['/events','/upload','ws']);
++  await sleep(1500);
++  const after=r.counts();assert.deepEqual([after.probes,after.requests,after.upgrades],[before.probes,before.requests,before.upgrades],'no silent reconnect');
++  assert.equal(r.client.open,0);
++  await assert.rejects(r.client.websocket({path:'/socket',headers:AUTH}),/refused the route host: banned/);
++  // the admin lifts the ban with a newer anchored policy: a NEW call (fresh decision, fresh proof) works again
++  await r.world.publish({deny:[ban(otherHost)]});
++  const again=await r.client.websocket({path:'/socket',headers:{Authorization:'Bearer later'}});assert.equal(again.status,101);await again.close();
++  assert.equal(r.seen.at(-1),'Bearer later');
++});
++
++test('forged, older, torn, unreachable and unactivated policy follow the shared semantics (same decision as the CLI)',async t=>{
++  const cases={
++    'forged signature on the anchored document':{arrange:async r=>{await r.world.publish({deny:[ban(otherHost)]});r.mirror.mode='forge';},status:'behind'},
++    'older validly signed policy for a newer anchor':{arrange:async r=>{r.mirror.olderDigest=await r.world.publish({deny:[]});await r.world.publish({deny:[ban(runner)]});r.mirror.mode='older';},status:'behind'},
++    'torn anchor':{arrange:async r=>{await r.world.publish({deny:[]});r.world.state.lo='0x'+'00'.repeat(20);},status:'anchor'},
++    'policy RPC quorum unreachable':{arrange:async r=>{await r.world.publish({deny:[]});r.world.setDown(true);},status:'unreadable'},
++    'mirror unreachable for the anchored policy':{arrange:async r=>{await r.world.publish({deny:[]});r.mirror.mode='down';},status:'behind'},
++    'unanchored under activation "required"':{activation:'required',arrange:async()=>{},status:'unanchored'}};
++  for(const [name,c] of Object.entries(cases))await t.test(name,async t=>{
++    const r=await rig(t,{activation:c.activation,onSocket:()=>assert.fail('upgraded'),onRequest:()=>assert.fail('request reached the host')});
++    await c.arrange(r);
++    const e=await r.client.websocket({path:'/x',headers:AUTH}).then(()=>assert.fail('opened'),e=>e);
++    assert.equal(e.code,'host_policy_refused',e.message);assert.equal(e.status,c.status,e.message);
++    const cli=await r.cliDecision();assert.equal(cli.admit,false);assert.equal(cli.status,c.status,'the CLI construction decides the same: '+cli.reason);
++    assert.deepEqual(r.counts(),{probes:0,requests:0,upgrades:0,appBytes:0});
++  });
++  // the admin has anchored nothing and activation is the production default "anchor": not activated, admitted as today
++  await t.test('unanchored under activation "anchor" (not activated)',async t=>{
++    const r=await rig(t,{onSocket:ws=>ws.close()});
++    const s=await r.client.websocket({path:'/x',headers:AUTH});assert.equal(s.status,101);await s.closed;
++    assert.deepEqual((({admit,status})=>({admit,status}))(await r.cliDecision()),{admit:true,status:'not-activated'});
++  });
++  // the operator's existing explicit configuration "off": the shared resolution turns the policy off (stated, not a fallback)
++  await t.test('explicit ENCLAVE_PLATFORM_HOST_POLICY=off',async t=>{
++    const r=await rig(t,{env:{ENCLAVE_PLATFORM_HOST_POLICY:'off'},onSocket:ws=>ws.close()});
++    assert.equal(r.client.hostPolicy.off,true);assert.match(r.client.hostPolicy.reason,/explicitly disabled/);
++    r.world.setDown(true);   // nothing is read from the policy chain when it is off
++    const s=await r.client.websocket({path:'/x',headers:AUTH});assert.equal(s.status,101);await s.closed;
++  });
++});
++
++test('a profile pinned to the Enclave platform network is enforced by default with the production authority; profiles cannot opt out',()=>{
++  const pins=JSON.parse(fs.readFileSync(new URL('../contracts/deployments/contract-pins-base.json',import.meta.url))).contracts;
++  const base={version:1,chainId:8453,stateDir:'/tmp/never-written',authorityPins:{deployments:pins.deployments,registry:'0x'+'06'.repeat(20)}};
++  for(const profile of [base,{...base,authorityPins:{deployments:'0x'+'05'.repeat(20),registry:pins.registry}},
++    {...base,hostPolicy:{book:'0x'+'11'.repeat(20)},platformHostPolicy:'off',policy:'off'}]){
++    assert.equal(platformBookFor(profile),PRODUCTION_BOOK);
++    const hp=nativeHostPolicy(profile,{env:{}});
++    assert.equal(hp.off,false);assert.equal(hp.runtime.config.book,PRODUCTION_BOOK);assert.deepEqual(hp.runtime.config.rpcs,[...PRODUCTION_RPCS]);assert.equal(hp.activation,'anchor');
++  }
++  const testNet=nativeHostPolicy({...base,authorityPins:{deployments:'0x'+'05'.repeat(20),registry:'0x'+'06'.repeat(20)}},{env:{}});
++  assert.equal(testNet.off,true);assert.match(testNet.reason,/not the production chain\/book/);
++  // the existing operator configuration values keep their shared meaning
++  assert.equal(nativeHostPolicy(base,{env:{ENCLAVE_PLATFORM_HOST_POLICY:'production'}}).runtime.config.book,PRODUCTION_BOOK);
++  assert.throws(()=>nativeHostPolicy(base,{env:{ENCLAVE_PLATFORM_HOST_POLICY:'{not json'}}),/ENCLAVE_PLATFORM_HOST_POLICY/);
++  assert.throws(()=>nativeHostPolicy(base,{env:{ENCLAVE_PLATFORM_HOST_POLICY_ACTIVATION:'never'}}),/ACTIVATION must be anchor or required/);
++});
++
++test('mirror bodies are bounded before buffering, through the shared mirror transport',async t=>{
++  let written=0,closedEarly=false;
++  const server=http.createServer((req,res)=>{
++    if(req.url.includes('declared')){res.writeHead(200,{'content-length':String(8*1024*1024)});res.write('{');return;}
++    res.writeHead(200,{'content-type':'application/json'});   // chunked, no declared length
++    const chunk=Buffer.alloc(64*1024,0x20);const pump=()=>{while(written<8*1024*1024&&res.write(chunk))written+=chunk.length;if(written<8*1024*1024)res.once('drain',()=>{written+=chunk.length;pump();});else res.end();};
++    res.on('close',()=>{if(written<8*1024*1024)closedEarly=true;});pump();
++  });
++  await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>{server.closeAllConnections();server.close();});
++  const local=(url,init)=>globalThis.fetch('http://127.0.0.1:'+server.address().port+new URL(url).pathname,init);
++  const [huge]=httpPolicyMirrors(['https://mirror.test/huge'],{fetch:boundedPolicyFetch(local)});
++  assert.deepEqual(await huge('0x'+'ab'.repeat(32)),[],'an oversize body yields no candidate');
++  await until(()=>closedEarly);assert.ok(written<4*1024*1024,'the reader stopped early: '+written);
++  const [declared]=httpPolicyMirrors(['https://mirror.test/declared'],{fetch:boundedPolicyFetch(local)});
++  assert.deepEqual(await declared('0x'+'ab'.repeat(32)),[]);
++  // a body exactly at the bound is still accepted (JSON padded with spaces)
++  const exact=async()=>new Response(JSON.stringify({document:'{}',signature:'0x'}).padEnd(MAX_POLICY_RESPONSE,' '),{status:200});
++  assert.equal((await boundedPolicyFetch(exact)('https://m/x.json')).status,200);
++  const over=async()=>new Response('x'.repeat(MAX_POLICY_RESPONSE+1),{status:200});
++  assert.equal((await boundedPolicyFetch(over)('https://m/x.json')).status,413);
++});

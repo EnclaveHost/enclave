@@ -1,0 +1,389 @@
+{
+  "generated": "2026-10-20",
+  "repository": "work/enclave",
+  "head": "abe862628e5d6cef1d64b08bd3d7ffdfd473eab3",
+  "snapshot": {
+    "time": "2026-10-19T21:50:45-07:00",
+    "base": "work/cli-combined-integration/base",
+    "manifest": "work/cli-combined-integration/base-manifest.sha256"
+  },
+  "patch": {
+    "file": "work/cli-combined-integration/cli-combined.patch",
+    "sha256": "50ee1468c3376195e853746ec68ececc662d8f3ae18574da82e8df69616f6e56",
+    "apply": "git apply work/cli-combined-integration/cli-combined.patch  (from work/enclave; --check passed on main at abe86262)"
+  },
+  "closure": {
+    "modify": [
+      {
+        "path": "cli/enclave.mjs",
+        "base_sha256": "5c21db40f393806f9da44392c35174d626e580356a7b206c0f30a361e599125d",
+        "main_sha256_now": "5c21db40f393806f9da44392c35174d626e580356a7b206c0f30a361e599125d",
+        "after_sha256": "8ebe34114983a001fac385eef3f665cae38ba0dabb9a013f94073957f767a781",
+        "main_git_state": "modified (unstaged)"
+      },
+      {
+        "path": "cli/independent.mjs",
+        "base_sha256": "36b3a364e3252cdcf795f12b2de0e28dccc2bba53e2185b6b6a912c86589561f",
+        "main_sha256_now": "36b3a364e3252cdcf795f12b2de0e28dccc2bba53e2185b6b6a912c86589561f",
+        "after_sha256": "82996c8c27e67217c21764ca8275643d5a2bef25678025d32d045e38386a72d1",
+        "main_git_state": "untracked"
+      },
+      {
+        "path": "cli/build.mjs",
+        "base_sha256": "48e929ddfcec1ad3afc060b9b3156b51f1520ff39b07adaf87e2c006a60f3f1a",
+        "main_sha256_now": "48e929ddfcec1ad3afc060b9b3156b51f1520ff39b07adaf87e2c006a60f3f1a",
+        "after_sha256": "55880f74cab9df8a2fc3c0e356422e1403bc19b4f7193f3e2f87b4a0d21df108",
+        "main_git_state": "tracked-clean"
+      },
+      {
+        "path": "supervisor.js",
+        "base_sha256": "8d1b9262c5af5f2f51d8fbc20b398e2c8f6a63a4cac10b75f0bac72ef66077be",
+        "main_sha256_now": "8d1b9262c5af5f2f51d8fbc20b398e2c8f6a63a4cac10b75f0bac72ef66077be",
+        "after_sha256": "b8149871f8e035bd5d61089825be5d82867e05cdd6c3aff6d9a9fc0dd4dea581",
+        "main_git_state": "modified (unstaged)"
+      },
+      {
+        "path": "cli/host-independent-lifecycle.mjs",
+        "base_sha256": "ad52747a0bddb529bb1caab872ffe0adf845b065d73660790f7b8f6fa09f7a20",
+        "main_sha256_now": "ad52747a0bddb529bb1caab872ffe0adf845b065d73660790f7b8f6fa09f7a20",
+        "after_sha256": "6ac708f61fd21ec9c7cfb9fc244820e3c627f213b69875ea1516dbaf8ed0aaa1",
+        "main_git_state": "untracked"
+      },
+      {
+        "path": "test/cli-host-independent-lifecycle.test.mjs",
+        "base_sha256": "e223b36e3d8d05c4c4a0781e066bfd4cbab96bba41246063c7275a4d7b23b7bb",
+        "main_sha256_now": "e223b36e3d8d05c4c4a0781e066bfd4cbab96bba41246063c7275a4d7b23b7bb",
+        "after_sha256": "c17daebe64f1cb125411ed68b17e098e9a3dd08ea7d551ba72d60de6853bb097",
+        "main_git_state": "untracked"
+      },
+      {
+        "path": "docs/network/independent-cli.md",
+        "base_sha256": "d3660d23c4eda701d19e9cbae883c811ff294a5bc7eec884bf699106baa6f918",
+        "main_sha256_now": "d3660d23c4eda701d19e9cbae883c811ff294a5bc7eec884bf699106baa6f918",
+        "after_sha256": "77ba9a802fe075ab882ff85badd8bdc76f76583cde6dcc5ba667b853abdac8e6",
+        "main_git_state": "untracked"
+      },
+      {
+        "path": "test/cli-independent.test.mjs",
+        "base_sha256": "a5c2fed2344945fda2e7e31c1da63db53f87f8dfdddb1c4b81c987c565835b5f",
+        "main_sha256_now": "a5c2fed2344945fda2e7e31c1da63db53f87f8dfdddb1c4b81c987c565835b5f",
+        "after_sha256": "726940e769c3fc8fc9041a8c99d1a8cba2d294f9283834166e1deac8df23e355",
+        "main_git_state": "untracked"
+      },
+      {
+        "path": "test/cli-independent-sessions.test.mjs",
+        "base_sha256": "1cc1d3e24e7d220f39420d392383984be1d70d80d02be785c9cd0830d1fdcc1f",
+        "main_sha256_now": "1cc1d3e24e7d220f39420d392383984be1d70d80d02be785c9cd0830d1fdcc1f",
+        "after_sha256": "69929861f6b96cb884a60d4f44c05da0530383c21485ce7abc0c7b70c5b77248",
+        "main_git_state": "untracked"
+      }
+    ],
+    "add": [
+      {
+        "path": "test/cli-independent-signer-cli.test.mjs",
+        "sha256": "01179081daf036b10d90d17be422e7b88122d4238436abe37213088f92ccc2af"
+      },
+      {
+        "path": "test/cli-capacity.test.mjs",
+        "sha256": "3cd21bb7a363a90ecde71036e408865fb77c60feb8a2eda82c4f7b404e0b71c9"
+      },
+      {
+        "path": "test/cli-combined-independent.test.mjs",
+        "sha256": "a38de9fbeb0a227e1195fc9a9059f6c963ba15dfbd4e1835d7c3dc219232d495"
+      },
+      {
+        "path": "test/cli-combined-custody.test.mjs",
+        "sha256": "795ea7ab2d987f5abc11a88a5f2a0f6c8f274bc64caa5b53ff89eb40d8730536"
+      }
+    ]
+  },
+  "dependencies_unmodified": [
+    {
+      "path": "cli/independent-login.mjs",
+      "tested_sha256": "05def615e7e7f8e8b05cc4717b8e4265ab4ae102242b332d502052078c277d45",
+      "main_sha256_now": "05def615e7e7f8e8b05cc4717b8e4265ab4ae102242b332d502052078c277d45",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "cli/independent-login-cli.mjs",
+      "tested_sha256": "6db3cc606f0a9fffc112df3aefb69903fea67f6772418bb764291451f6361b6e",
+      "main_sha256_now": "6db3cc606f0a9fffc112df3aefb69903fea67f6772418bb764291451f6361b6e",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "cli/independent-signer.mjs",
+      "tested_sha256": "d6eb8771f0153a33557935df39696a0d211995bde9a5b84b4a2f9c9d14559303",
+      "main_sha256_now": "d6eb8771f0153a33557935df39696a0d211995bde9a5b84b4a2f9c9d14559303",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "cli/custody-independent.mjs",
+      "tested_sha256": "1fac6dc4d8971fed78fa03b1314523b7d31fadd934382e47abc23bb42ed80cb2",
+      "main_sha256_now": "db712c1db5aac536914ecabfcb478256e2d7ad8522d1b9bae3ae2ebf642260f3",
+      "main_git_state": "untracked",
+      "same_as_tested": false
+    },
+    {
+      "path": "cli/independent-capacity.mjs",
+      "tested_sha256": "02d7b65fbaccd4927c6f3aa39d4bf53c21ac7011bd3b7db791e7eecc22d608a5",
+      "main_sha256_now": "02d7b65fbaccd4927c6f3aa39d4bf53c21ac7011bd3b7db791e7eecc22d608a5",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "cli/independent-host.mjs",
+      "tested_sha256": "38f40dbe476af94f34e699b94ca5c50bf92da972789c6aab6d047304a55c202b",
+      "main_sha256_now": "38f40dbe476af94f34e699b94ca5c50bf92da972789c6aab6d047304a55c202b",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "network/host-capacity.mjs",
+      "tested_sha256": "ef92bba48fe197b81e7d7aa59b0daf44dedde849c2a05a79121d1ae42ccc8e72",
+      "main_sha256_now": "ef92bba48fe197b81e7d7aa59b0daf44dedde849c2a05a79121d1ae42ccc8e72",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "network/host-capacity-http.mjs",
+      "tested_sha256": "94a36477ee163252ce43769ac31e10c4e67f0c344ec1dfd6e79b0b4b73cf03ff",
+      "main_sha256_now": "94a36477ee163252ce43769ac31e10c4e67f0c344ec1dfd6e79b0b4b73cf03ff",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "network/host-capacity-record.mjs",
+      "tested_sha256": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+      "main_sha256_now": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "network/host-capacity-producer.mjs",
+      "tested_sha256": "544cbaba4ffce838e330c5107d4e3e5871c3b5046f340f37ba4dab35d8c110a4",
+      "main_sha256_now": "544cbaba4ffce838e330c5107d4e3e5871c3b5046f340f37ba4dab35d8c110a4",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "network/rpc-identity.mjs",
+      "tested_sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+      "main_sha256_now": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+      "main_git_state": "tracked-clean",
+      "same_as_tested": true
+    },
+    {
+      "path": "network/management-outcome.mjs",
+      "tested_sha256": "fea5703454b1cc9323eacc931a42c0f99f1895526f4926e787155d57e44c0398",
+      "main_sha256_now": "fea5703454b1cc9323eacc931a42c0f99f1895526f4926e787155d57e44c0398",
+      "main_git_state": "modified (unstaged)",
+      "same_as_tested": true
+    },
+    {
+      "path": "network/management-routes.mjs",
+      "tested_sha256": "0a47239553d4c4389227b5b56241fce955af87892907e7b70016bc4a9882dd93",
+      "main_sha256_now": "0a47239553d4c4389227b5b56241fce955af87892907e7b70016bc4a9882dd93",
+      "main_git_state": "modified (unstaged)",
+      "same_as_tested": true
+    },
+    {
+      "path": "windows/node/host-identity.mjs",
+      "tested_sha256": "ff9e46d9bcec08ff50ab04f0f4581845050b70e5c68debb64ec3cdf255822668",
+      "main_sha256_now": "ff9e46d9bcec08ff50ab04f0f4581845050b70e5c68debb64ec3cdf255822668",
+      "main_git_state": "tracked-clean",
+      "same_as_tested": true
+    },
+    {
+      "path": "scripts/network/fetch-runtime.mjs",
+      "tested_sha256": "f804b7a23d8d8a6e6b807a0d3cf0229fcbf78396d813bf1e9198f2189479749e",
+      "main_sha256_now": "f804b7a23d8d8a6e6b807a0d3cf0229fcbf78396d813bf1e9198f2189479749e",
+      "main_git_state": "tracked-clean",
+      "same_as_tested": true
+    },
+    {
+      "path": "custody/rules.mjs",
+      "tested_sha256": "9c0f6cfa6f659bbc24dedee9d8f1b091f4a11b2d0e928287a7d6356e89c23470",
+      "main_sha256_now": "f35635aa4103f8075e3fcccc0be95b6c50f2d66240e95041509feeb17c7d694d",
+      "main_git_state": "modified (unstaged)",
+      "same_as_tested": false
+    },
+    {
+      "path": "custody/v2/chain.mjs",
+      "tested_sha256": "94bbc03e177a4a5da60b174d14164d6a45fb3b6e108780014aa1bf5d866a7dae",
+      "main_sha256_now": "9f2ed5caa4a79fc27e4ad4583abc7d5fd62cc60296bc89aa0560594cdf6d6b99",
+      "main_git_state": "modified (unstaged)",
+      "same_as_tested": false
+    },
+    {
+      "path": "custody/v2/protocol.mjs",
+      "tested_sha256": "3e3ad53e21cfa8d14e41d86f2a70527a735a012a0b3d9c096b0a8b6b888ab495",
+      "main_sha256_now": "d30852c2b227760f95a900b2240355c507173e81f221b38219e34a3f8def38e4",
+      "main_git_state": "modified (unstaged)",
+      "same_as_tested": false
+    },
+    {
+      "path": "custody/v2/shield-rules.mjs",
+      "tested_sha256": "a9b9e7bf21329c71250ab44e5ecdb3a356f61c0e644d113fa56f6a7a720b96cf",
+      "main_sha256_now": "d3f857d1a75243c1262cb62b3fc44325246a7bcc35ec44ba388599f0c4c14ef9",
+      "main_git_state": "modified (unstaged)",
+      "same_as_tested": false
+    },
+    {
+      "path": "custody/v2/owner.mjs",
+      "tested_sha256": "706fd42d5d23842c177ccae2267f1919814c788e3208a786b789f7d3649c148c",
+      "main_sha256_now": "706fd42d5d23842c177ccae2267f1919814c788e3208a786b789f7d3649c148c",
+      "main_git_state": "tracked-clean",
+      "same_as_tested": true
+    },
+    {
+      "path": "custody/v2/digests.mjs",
+      "tested_sha256": "76d8091d0995cccec4450c174408df2c0bf326b07e7b74ce05c2aa373993b23d",
+      "main_sha256_now": "76d8091d0995cccec4450c174408df2c0bf326b07e7b74ce05c2aa373993b23d",
+      "main_git_state": "tracked-clean",
+      "same_as_tested": true
+    },
+    {
+      "path": "docs/network/independent-signer.md",
+      "tested_sha256": "a6919e60a0ddfd21d9c83881f9c8a8e5559f121d7cb8289c3acdbff42ccc039b",
+      "main_sha256_now": "a6919e60a0ddfd21d9c83881f9c8a8e5559f121d7cb8289c3acdbff42ccc039b",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "docs/network/independent-host-onboarding.md",
+      "tested_sha256": "1d5df96681b9d022c3cdbb5b96315945b7cb7e89c1aa1318c7c91860494eadf0",
+      "main_sha256_now": "1d5df96681b9d022c3cdbb5b96315945b7cb7e89c1aa1318c7c91860494eadf0",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "docs/network/independent-capacity.md",
+      "tested_sha256": "4ad3df8a137e6cd7ba48f54140853b7ef9f62f5d65beb0449e3a397438a14b7a",
+      "main_sha256_now": "4ad3df8a137e6cd7ba48f54140853b7ef9f62f5d65beb0449e3a397438a14b7a",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "docs/security/custody-independent-cli.md",
+      "tested_sha256": "ba8b5519c6d1740221e82d5ba7742a9ce49558cf90aa0512e1f7f6bc0f5c9672",
+      "main_sha256_now": "ba8b5519c6d1740221e82d5ba7742a9ce49558cf90aa0512e1f7f6bc0f5c9672",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "test/cli-independent-login.test.mjs",
+      "tested_sha256": "f1695589dd35eb958db4e24726f7f944789502673b38e6aad3ec7ed8cf1dfd7f",
+      "main_sha256_now": "f1695589dd35eb958db4e24726f7f944789502673b38e6aad3ec7ed8cf1dfd7f",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "test/cli-independent-signer.test.mjs",
+      "tested_sha256": "5e7e27893a9619a463aef5b3f191e17785accb5511498477b88fe51e8925251f",
+      "main_sha256_now": "5e7e27893a9619a463aef5b3f191e17785accb5511498477b88fe51e8925251f",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "test/custody-cli-independent.test.mjs",
+      "tested_sha256": "28550e4292d76c719330f9a067a963d3d63d3933e8f94aa6c321ac719f9a38e5",
+      "main_sha256_now": "6f66e650470835cd4b58fba9c128f83f85a08d431af76fbb603b7fe6e241852b",
+      "main_git_state": "untracked",
+      "same_as_tested": false
+    },
+    {
+      "path": "test/host-capacity.test.mjs",
+      "tested_sha256": "1aae82bce48e9cc70551d646aafeba4f61a1a1fb0f7748358fc054ba16024058",
+      "main_sha256_now": "1aae82bce48e9cc70551d646aafeba4f61a1a1fb0f7748358fc054ba16024058",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "test/helpers/host-capacity-fixture.mjs",
+      "tested_sha256": "949b7a766bbed5d7ee60906068673281730a9ce6be2089c9baec9a93f44c3e15",
+      "main_sha256_now": "949b7a766bbed5d7ee60906068673281730a9ce6be2089c9baec9a93f44c3e15",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "test/helpers/cli-independent-rig.mjs",
+      "tested_sha256": "951bbf445961bfc73d06fc87caf98a3817198d6f08b241ee4c10a61b10463171",
+      "main_sha256_now": "951bbf445961bfc73d06fc87caf98a3817198d6f08b241ee4c10a61b10463171",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "test/helpers/cli-network-guard.mjs",
+      "tested_sha256": "efa8ea8126efe5d641f4ab381257f389d3031f3bd1ce388213e9446042df0c0c",
+      "main_sha256_now": "efa8ea8126efe5d641f4ab381257f389d3031f3bd1ce388213e9446042df0c0c",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "test/helpers/loopback-only-fetch.mjs",
+      "tested_sha256": "ffe039eb7fe47c3f17b06a98e2ddb926f82bb770b622088b7c3b38ef5cc0e385",
+      "main_sha256_now": "ffe039eb7fe47c3f17b06a98e2ddb926f82bb770b622088b7c3b38ef5cc0e385",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "test/helpers/independent-custody-rig.mjs",
+      "tested_sha256": "3305ca5684e25bf352506febd644389bf37db34b5ce7833cd181cce06e852cc9",
+      "main_sha256_now": "3305ca5684e25bf352506febd644389bf37db34b5ce7833cd181cce06e852cc9",
+      "main_git_state": "tracked-clean",
+      "same_as_tested": true
+    },
+    {
+      "path": "test/cli-independent-move.test.mjs",
+      "tested_sha256": "ebcc1e533f7a3f506d32c6e3c9faebdd95aa1a7e49569559f9556757147c1b6b",
+      "main_sha256_now": "ebcc1e533f7a3f506d32c6e3c9faebdd95aa1a7e49569559f9556757147c1b6b",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "test/cli-move-same-operator.test.mjs",
+      "tested_sha256": "fa8752be3c54e9884eb81e7fbd2a7a2d85a5fb051bb6b994b9a7ad88e457bbf7",
+      "main_sha256_now": "fa8752be3c54e9884eb81e7fbd2a7a2d85a5fb051bb6b994b9a7ad88e457bbf7",
+      "main_git_state": "untracked",
+      "same_as_tested": true
+    },
+    {
+      "path": "test/cli.test.mjs",
+      "tested_sha256": "efa4fa7d06139c81cf2bfa2989ef8888018d9e652a924067d37bb0ae293b1dc8",
+      "main_sha256_now": "efa4fa7d06139c81cf2bfa2989ef8888018d9e652a924067d37bb0ae293b1dc8",
+      "main_git_state": "modified (unstaged)",
+      "same_as_tested": true
+    },
+    {
+      "path": "test/direct-only-supervisor.test.mjs",
+      "tested_sha256": "f1f8bc39cf17ded324cc79b801461537cbc294f29eefcf8c15ae0c7e4a1480a8",
+      "main_sha256_now": "f1f8bc39cf17ded324cc79b801461537cbc294f29eefcf8c15ae0c7e4a1480a8",
+      "main_git_state": "tracked-clean",
+      "same_as_tested": true
+    }
+  ],
+  "test_environment_only_not_in_closure": {
+    "cli/custody-independent.mjs": "pinned to the custody CLI freeze 1fac6dc4 (restored byte-exact from its author transcript); main holds owner-secrets in-progress db712c1d",
+    "custody/{rules.mjs,v2/chain.mjs,v2/custodian.mjs,v2/http.mjs,v2/ingress.mjs,v2/protocol.mjs,v2/shield-rules.mjs}": "HEAD versions; main holds owner-secrets in-progress measured edits",
+    "removed in tree": [
+      "custody/v2/owner-secrets.mjs",
+      "docs/security/custody-owner-read.md",
+      "test/custody-owner-read.test.mjs",
+      "test/custody-secrets-cli-independent.test.mjs"
+    ]
+  },
+  "staging_bundle": {
+    "path": "work/cli-combined-integration/tree/cli/dist/enclave.mjs",
+    "sha256": "4d3019d34f41dafade33f47dd6b893e005d4400e3a0cb3ee4a0f8529e1b14838",
+    "bytes": 3853239,
+    "built_by": "node cli/build.mjs cli/dist/enclave.mjs (in the isolated tree)",
+    "main_cli_dist_untouched": "9db0f36a8c9de0cc128a36eac728c30484be21f2193328b3e18669e50dc34b10"
+  },
+  "notes": [
+    "test/custody-cli-independent.test.mjs in main changed at 2026-10-19 22:19 (after the snapshot) to 6f66e650...; the tree ran the custody freeze 28550e42",
+    "cli/custody-independent.mjs in main is db712c1d (owner-secrets in progress); the tree ran the custody freeze 1fac6dc4"
+  ]
+}

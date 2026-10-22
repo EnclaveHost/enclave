@@ -1,0 +1,11 @@
+[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);
+$n='C:\Program Files\nodejs\node.exe';$b='C:\ProgramData\Enclave\staging\carrier-gate-a549bd5c9e1c\candidate.mjs';$js='C:\ProgramData\Enclave\staging\carrier-gate-a549bd5c9e1c\gate-proof.mjs';
+$o=[ordered]@{at=[DateTime]::UtcNow.ToString('o');bundle=FileSha $b;node=FileSha $n;script=FileSha $js};
+if($o.bundle -ne '40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25' -or $o.node -ne 'b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3' -or $o.script -ne 'c749630e59f8a28cd3ac00bb59bdfc64875f644715bf38b48ca2e56f5ddc3bc4'){throw 'public proof input pin mismatch'};
+$si=New-Object Diagnostics.ProcessStartInfo;$si.FileName=$n;$si.Arguments='--input-type=module';$si.UseShellExecute=$false;$si.CreateNoWindow=$true;$si.RedirectStandardInput=$true;$si.RedirectStandardOutput=$true;$si.RedirectStandardError=$true;
+$si.EnvironmentVariables['GATE_BUNDLE']=$b;$si.EnvironmentVariables['GATE_HOST']='0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a';$si.EnvironmentVariables['GATE_ENDPOINT']='https://api.enclave.host/t/nucbox-k11-4';$si.EnvironmentVariables['GATE_POLICY']='production';$si.EnvironmentVariables['GATE_RPCS']='https://base-rpc.publicnode.com,https://mainnet.base.org,https://base-rpc.polkachu.com,https://base.drpc.org';$si.EnvironmentVariables['GATE_OPTION']='RC4-staged-candidate';$si.EnvironmentVariables['GATE_CARRIERS']='{"importDir":"C:/ProgramData/Enclave/staging/carrier-gate-a549bd5c9e1c/policy-import"}';
+$p=$null;$ex=$false;$timed=$false;
+try{$p=[Diagnostics.Process]::Start($si);$so=$p.StandardOutput.ReadToEndAsync();$se=$p.StandardError.ReadToEndAsync();$p.StandardInput.Write([IO.File]::ReadAllText($js));$p.StandardInput.Close();$ex=$p.WaitForExit(55000);if(-not $ex){$timed=$true;try{$p.Kill()}catch{};$ex=$p.WaitForExit(3000)};
+$o.exited=$ex;$o.timedOut=$timed;if($ex){$o.code=$p.ExitCode};if($ex -and -not $timed -and $so.Wait(2000)){$lines=@(([string]$so.Result -split "`n")|Where-Object{$_.Trim().StartsWith('{')});if($lines.Count -eq 1){$o.result=$lines[0]|ConvertFrom-Json}}}
+finally{if($p){if(-not $p.HasExited){try{$p.Kill()}catch{};$o.exitConfirmed=$p.WaitForExit(3000)}else{$o.exitConfirmed=$true};$p.Dispose()}};
+$o|ConvertTo-Json -Depth 10 -Compress

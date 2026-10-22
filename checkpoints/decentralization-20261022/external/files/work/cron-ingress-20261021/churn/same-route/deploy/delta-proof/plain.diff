@@ -1,0 +1,28 @@
+17829a17830,17834
+> var READ_SAME = /* @__PURE__ */ Symbol("verified publication, re-signs aside");
+> var sameContext = (state, id) => {
+>   const c = routeContext(state, id), p = c.publication;
+>   return p ? { ...c, publication: { ...p, bundle: { authorization: p.bundle?.authorization ?? null, record: { ...p.bundle?.record, sequence: null, issuedAt: null, expiresAt: null } } } } : c;
+> };
+17831a17837,17841
+> var resigned = (route, s, id) => Object.assign(route, {
+>   expiresAt: Math.min(route.expiresAt, s.publications[id].bundle.record.expiresAt),
+>   [READ_CONTEXT]: recordHash(routeContext(s, id)),
+>   [READ_SAME]: recordHash(sameContext(s, id))
+> });
+17982c17992
+<         return Object.assign(route, { [READ_CONTEXT]: recordHash(context(latest)) });
+---
+>         return resigned(route, latest, id);
+17983a17994
+>       if (!error && equal(sameContext(s, id), sameContext(latest, id))) return resigned(route, latest, id);
+18012c18023,18029
+<       const changed = Object.keys(s.publications).filter((id) => results.get(id) && results.get(id)[READ_CONTEXT] !== recordHash(routeContext(s, id)));
+---
+>       const changed = Object.keys(s.publications).filter((id) => {
+>         const r = results.get(id);
+>         if (!r || r[READ_CONTEXT] === recordHash(routeContext(s, id))) return false;
+>         if (r[READ_SAME] !== recordHash(sameContext(s, id))) return true;
+>         resigned(r, s, id);
+>         return false;
+>       });

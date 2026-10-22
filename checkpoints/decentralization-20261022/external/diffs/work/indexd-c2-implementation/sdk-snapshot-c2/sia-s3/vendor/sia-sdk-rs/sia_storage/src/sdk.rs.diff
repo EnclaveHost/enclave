@@ -1,0 +1,129 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/sdk.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/sdk.rs
+@@ -243,6 +243,29 @@
+         Ok(obj)
+     }
+ 
++    /// PATCH U1 (needs the U1 indexd endpoint): the account's current objects in ID order after `after`, read
++    /// from the indexer's object table: unlike [Sdk::object_events], an acknowledged pin is listed at once.
++    /// Consecutive pages (each `after` = the last ID of the page before) return every object committed before
++    /// the first page that is not deleted meanwhile, exactly once.
++    ///
++    /// PATCH U1-B (blocked listing): an object the indexer's operator blocked is listed with `blocked` set and no
++    /// object (its metadata is withheld). A page that is out of order, lists a deletion, or has an entry whose shape
++    /// does not match its flag is refused with an error.
++    pub async fn current_objects(&self, after: Option<Hash256>, limit: Option<usize>) -> Result<Vec<ObjectEvent>, Error> {
++        let events = self.api_client.current_objects(&self.app_key.0, after, limit).await.map_err(|e| Error::App(format!("{e:?}")))?;
++        crate::app_client::check_current_page(after, &events).map_err(Error::App)?;
++        events
++            .into_iter()
++            .map(|event| {
++                let object = match event.object {
++                    Some(sealed) => Some(sealed.open(self.app_key.as_ref())?),
++                    None => None,
++                };
++                Ok(ObjectEvent { id: event.id, deleted: event.deleted, updated_at: event.updated_at, object, blocked: event.blocked })
++            })
++            .collect()
++    }
++
+     /// Retrieves a list of object events from the indexer. This
+     /// can be used to synchronize local state with the indexer.
+     ///
+@@ -272,6 +295,7 @@
+                     deleted: event.deleted,
+                     updated_at: event.updated_at,
+                     object,
++                    blocked: event.blocked,
+                 })
+             })
+             .collect::<Result<_, Error>>()?;
+@@ -279,6 +303,88 @@
+         Ok(objs)
+     }
+ 
++    /// PATCH (writer fencing): the credential every fenced mutation of this SDK (and its clones) carries from now on.
++    /// Clears any recorded refusal.
++    pub fn set_fence_credential(&self, cred: Option<crate::fence::FenceCredential>) {
++        self.api_client.set_fence(cred);
++    }
++
++    /// PATCH (writer fencing): the credential this SDK presents (None: none).
++    pub fn fence_credential(&self) -> Option<crate::fence::FenceCredential> {
++        self.api_client.fence_credential()
++    }
++
++    /// PATCH (writer fencing): the first fenced refusal since the credential was set: the fence the indexer holds
++    /// instead (inner None: none installed there).
++    pub fn fence_conflict(&self) -> Option<Option<crate::fence::FenceToken>> {
++        self.api_client.fence_conflict()
++    }
++
++    /// PATCH (writer fencing): `GET /fence`.
++    pub async fn fence_state(&self) -> Result<crate::fence::FenceState, Error> {
++        self.api_client
++            .fence_get(&self.app_key.0)
++            .await
++            .map_err(Error::AppClient)
++    }
++
++    /// PATCH (writer fencing): `POST /fence`; a refusal is `Ok(FenceRaise::Refused(..))`.
++    pub async fn fence_raise(&self, token: crate::fence::FenceToken) -> Result<crate::fence::FenceRaise, Error> {
++        self.api_client
++            .fence_raise(&self.app_key.0, token)
++            .await
++            .map_err(Error::AppClient)
++    }
++
++    /// PATCH C2 (indexd G-C2 v4.0): `POST /fence {"fence", "mode": "cas"}`: install and enrol the account for
++    /// conditional heads (sticky; no downgrade), only on an indexer reporting "cas-v4". From an install on, every
++    /// mutation of this SDK (and its clones) is a v4 request; object pins and deletes carry the expected head and are
++    /// serialized.
++    pub async fn fence_raise_c2(&self, token: crate::fence::FenceToken) -> Result<crate::fence::FenceRaise, Error> {
++        self.api_client
++            .fence_raise_c2(&self.app_key.0, token)
++            .await
++            .map_err(Error::AppClient)
++    }
++
++    /// PATCH C2: is the indexer's head still exactly the one this SDK's own mutations produced? Settles an unknown
++    /// earlier outcome first (by replaying that mutation byte for byte). A different head latches a fork.
++    pub async fn c2_check(&self) -> Result<crate::fence::C2Check, Error> {
++        self.api_client
++            .c2_check(&self.app_key.0)
++            .await
++            .map_err(Error::AppClient)
++    }
++
++    /// PATCH C2: why this SDK stopped mutating its indexer, if it did (latched for its life).
++    pub fn c2_forked(&self) -> Option<String> {
++        self.api_client.c2_forked()
++    }
++
++    /// PATCH C2: the head this SDK holds (None: not enrolled, or forked).
++    pub fn c2_head(&self) -> Option<u64> {
++        self.api_client.c2_head()
++    }
++
++    /// PATCH C2, TEST ONLY: mark `object` (sealed with this SDK's key) as pinned with operation id `op` at the current
++    /// head with its answer lost; the next mutation or `c2_check` replays exactly that operation.
++    #[cfg(any(test, feature = "mock"))]
++    pub fn c2_test_pending_pin(&self, object: &Object, op: [u8; 16]) {
++        self.api_client.c2_test_pending_pin(object.seal(&self.app_key), op);
++    }
++
++    /// PATCH C2, TEST ONLY: as `c2_test_pending_pin`, for a DELETE of `key`.
++    #[cfg(any(test, feature = "mock"))]
++    pub fn c2_test_pending_delete(&self, key: Hash256, op: [u8; 16]) {
++        self.api_client.c2_test_pending_delete(key, op);
++    }
++
++    /// PATCH C2, TEST ONLY: take another SDK's conditional-head state, as a memory copy of a running process would.
++    #[cfg(any(test, feature = "mock"))]
++    pub fn c2_copy_state_from(&self, other: &Sdk) {
++        self.api_client.c2_copy_state_from(&other.api_client);
++    }
++
+     /// Prunes unused slabs from the indexer. This helps to free up
+     /// storage space by removing slabs that are no longer
+     /// referenced by objects.

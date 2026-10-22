@@ -1,0 +1,29 @@
+--- a/slabs/manager.go
++++ b/slabs/manager.go
+@@ -13,6 +13,7 @@
+ 	"go.sia.tech/core/types"
+ 	"go.sia.tech/coreutils/rhp/v4"
+ 	"go.sia.tech/coreutils/threadgroup"
++	"go.sia.tech/indexd/accounts"
+ 	"go.sia.tech/indexd/alerts"
+ 	"go.sia.tech/indexd/contracts"
+ 	"go.sia.tech/indexd/hosts"
+@@ -137,6 +138,18 @@
+ 		PruneSlabs(account proto.Account, cutoff time.Time) error
+ 		PruneDeletedSlabs(limit int) (int, error)
+ 
++		// FENCING PATCH: fenced mutations, the fence itself, and the commit-ordered sequence listing. The unfenced
++		// mutations above are the same functions with no fence: they too are refused on a fenced account.
++		PinSlabsFenced(account proto.Account, sf *accounts.Credential, nextIntegrityCheck time.Time, toPin ...SlabPinParams) ([]SlabID, error)
++		UnpinSlabFenced(account proto.Account, sf *accounts.Credential, slabID SlabID) error
++		PruneSlabsFenced(account proto.Account, sf *accounts.Credential, cutoff time.Time) error
++		PinObjectFenced(account proto.Account, sf *accounts.Credential, obj PinObjectRequest) error
++		DeleteObjectFenced(account proto.Account, sf *accounts.Credential, objectKey types.Hash256) error
++		AccountFence(account proto.Account) (accounts.FenceState, error)
++		ListCurrentObjects(account proto.Account, after types.Hash256, limit int, includeBlocked bool) ([]CurrentObjectEvent, error)
++		RaiseFence(account proto.Account, fence accounts.Fence) (accounts.Receipt, uint64, error)
++		ListObjectsSeq(account proto.Account, after uint64, limit int) (uint64, []SeqObjectEvent, error)
++
+ 		// Object methods
+ 		Object(account proto.Account, key types.Hash256) (SealedObject, error)
+ 		DeleteObject(account proto.Account, objectKey types.Hash256) error

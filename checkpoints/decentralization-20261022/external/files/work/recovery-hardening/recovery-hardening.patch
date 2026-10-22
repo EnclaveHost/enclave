@@ -1,0 +1,490 @@
+--- a/network/lease-release-journal.mjs
++++ b/network/lease-release-journal.mjs
+@@ -7,10 +7,14 @@
+ //     any write failure throws and the caller sends nothing (the shared client stops with NotPersisted).
+ //   - a journal that cannot be read or is malformed fails CLOSED (every id held) and is never overwritten.
+ // Writes: temp file written completely (byte loop; zero/invalid progress throws), fsync, rename, directory fsync.
++// The directory is flushed through a handle Windows can flush: a read-only directory handle is refused there (EPERM:
++// FlushFileBuffers needs write access - measured on the production Windows host's NTFS, 2026-10-21), while one opened
++// for writing is flushed; POSIX opens a directory read-only only. A failure AFTER the rename is tagged committed: the
++// new bytes are in place (they are what a restart reads), only their directory flush is unconfirmed.
+ import fs from "node:fs";
+ import path from "node:path";
+ 
+-export function strictWriteFile(file, text, { fsImpl = fs } = {}) {
++export function strictWriteFile(file, text, { fsImpl = fs, platform = process.platform } = {}) {
+   const tmp = file + ".strict.tmp";
+   const fd = fsImpl.openSync(tmp, "w", 0o600);
+   try {
+@@ -24,8 +28,10 @@
+     fsImpl.fsyncSync(fd);
+   } finally { fsImpl.closeSync(fd); }
+   fsImpl.renameSync(tmp, file);
+-  const dir = fsImpl.openSync(path.dirname(file), "r");
+-  try { fsImpl.fsyncSync(dir); } finally { fsImpl.closeSync(dir); }
++  try {
++    const dir = fsImpl.openSync(path.dirname(file), platform === "win32" ? "r+" : "r");
++    try { fsImpl.fsyncSync(dir); } finally { fsImpl.closeSync(dir); }
++  } catch (e) { throw Object.assign(e, { committed: true }); }
+ }
+ 
+ const ID = /^0x[0-9a-f]{64}$/;
+@@ -41,7 +47,7 @@
+   return null;
+ }
+ 
+-export function openReleaseJournal(file, { fsImpl = fs, log = () => {} } = {}) {
++export function openReleaseJournal(file, { fsImpl = fs, log = () => {}, platform = process.platform } = {}) {
+   const entries = new Map();
+   let corrupt = null;
+   if (fsImpl.existsSync(file)) {
+@@ -54,7 +60,7 @@
+   }
+   const save = () => {
+     if (corrupt) throw new Error(`the release journal failed to load (${corrupt})`);
+-    strictWriteFile(file, JSON.stringify({ version: 1, releases: [...entries.values()] }), { fsImpl });
++    strictWriteFile(file, JSON.stringify({ version: 1, releases: [...entries.values()] }), { fsImpl, platform });
+   };
+   return {
+     corrupt: () => corrupt,
+@@ -68,7 +74,9 @@
+       if (corrupt) throw new Error(`the release journal failed to load (${corrupt})`);
+       if (entries.has(id)) throw Object.assign(new Error("a release of this deployment is still unresolved"), { code: "ReleasePending", pending: true });
+       entries.set(id, { id, openedAt: Date.now(), intents: [] });
+-      try { save(); } catch (e) { entries.delete(id); throw e; }
++      // nothing is signed whatever happens here; a COMMITTED failure keeps the entry (memory = disk: held, then settled
++      // "unsent" from its empty intents by the next resolve), any earlier failure undoes it
++      try { save(); } catch (e) { if (!e.committed) entries.delete(id); throw e; }
+     },
+     signed(id, s) {
+       const e = entries.get(String(id).toLowerCase());
+@@ -77,7 +85,8 @@
+         maxChargeWei: String(s.lease.maxChargeWei), fromBlock: String(s.fromBlock), operator: String(s.operator).toLowerCase(),
+         // the identity the lease was signed under: recovery is bound to it (an old entry without it is held, never guessed)
+         chainId: Number(s.chainId), reserve: String(s.reserve).toLowerCase(), executor: String(s.executor).toLowerCase(), ledger: String(s.ledger).toLowerCase() });
+-      try { save(); } catch (err) { e.intents.pop(); throw err; }
++      // the lease is not sent either way; a COMMITTED failure keeps the intent (memory = disk: held until the chain fences it)
++      try { save(); } catch (err) { if (!err.committed) e.intents.pop(); throw err; }
+     },
+     /** Remove a settled entry. A failed write leaves it on disk: after a restart it is settled from the chain again. */
+     settle(id, outcome) {
+--- a/client/lease-executor-client.mjs
++++ b/client/lease-executor-client.mjs
+@@ -474,7 +474,8 @@
+  */
+ export function createLeaseClient({ client, clients = [client], account, reserve, deployment, relays, allowLoopbackHttp = false, fetchImpl = fetch,
+                                     quorum, confirmations, maxBlockAgeSecs, rpcTimeoutMs, now,
+-                                    requestTimeoutMs = 20_000, overallTimeoutMs = 180_000, ttlSec = 300, log = () => {}, onSigned = null }) {
++                                    requestTimeoutMs = 20_000, overallTimeoutMs = 180_000, ttlSec = 300, log = () => {}, onSigned = null,
++                                    consumedRecheckMs = [2_000, 4_000, 8_000, 16_000] }) {
+   if (!relays?.length) throw new Error("lease-gas: at least one relay URL is required");
+   const urls = relays.map((u) => validateRelayUrl(u, { allowLoopbackHttp }));
+   reserve = getAddress(reserve);
+@@ -537,7 +538,7 @@
+     verified.assertFresh();
+     const authorization = code === designator(ex) ? null
+       : await account.signAuthorization({ contractAddress: ex, chainId: pins.chainId, nonce: authorizationNonce });
+-    const payees = [], errors = [];
++    const payees = [], errors = [], answered = [];
+     const started = Date.now();
+     for (const url of urls) {
+       if (Date.now() - started > overallTimeoutMs) break;
+@@ -564,6 +565,7 @@
+         const body = JSON.stringify({ operator: account.address, lease, signature, authorization }, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
+         const ans = await boundedFetchJson(fetchImpl, `${url}/v1/lease`, { method: "POST", headers: { "content-type": "application/json" }, body }, requestTimeoutMs);
+         if (ans.status === 200 && HEX32.test(ans.body.hash || "")) {
++          answered.push(ans.body.hash);
+           // the relay's word is a hint: verify it on the host's own RPCs (bounded wait for inclusion)
+           const t0 = Date.now();
+           for (;;) {
+@@ -579,7 +581,24 @@
+       // before the next relay: did this lease land anyway (a lost answer)? And is the refusal real (the host's own view)?
+       const landed = await findLanded(want, fromBlock, payees).catch(() => null);
+       if (landed) { log(`[lease-gas] ${kindName} ${id} landed in ${landed.hash} (found on chain)`); return { hash: landed.hash, receipt: await landed.receiptP, verified: landed }; }
+-      if (await nonceOf(id) !== nonce) throw new LeaseRefusal("NonceConsumed", `${kindName} ${id}: the lease nonce ${nonce} was consumed by another operation; not this one's success`);
++      if (await nonceOf(id) !== nonce) {
++        // The nonce moved, so SOME lease with it landed - possibly THIS one, whose receipt a rate-limited or lagging RPC
++        // quorum could not confirm yet (2026-10-21: a claim reported NonceConsumed after its own transaction landed).
++        // Before calling it another operation, the hashes this host's relays reported and the reserve's log are checked
++        // again, a bounded few times. Only a quorum-verified receipt of exactly this signed intent is success; when none
++        // verifies, it stays NonceConsumed.
++        for (const wait of consumedRecheckMs) {
++          await sleep(wait);
++          for (const h of answered) {
++            try { const v = await verifyLanded(h, want, payees); log(`[lease-gas] ${kindName} ${id} landed in ${v.hash} (verified on re-check after its nonce moved)`);
++                  return { hash: v.hash, receipt: await v.receiptP, verified: v }; } catch {}
++          }
++          const late = await findLanded(want, fromBlock, payees).catch(() => null);
++          if (late) { log(`[lease-gas] ${kindName} ${id} landed in ${late.hash} (found on chain on re-check)`); return { hash: late.hash, receipt: await late.receiptP, verified: late }; }
++        }
++        throw new LeaseRefusal("NonceConsumed", `${kindName} ${id}: the lease nonce ${nonce} was consumed and no receipt of this signed lease verified `
++          + `(re-checked ${consumedRecheckMs.length} times); not this one's success`);
++      }
+       const again = await policy({ client: (await authority()).client, reserve, id, kind: kindName, enclaveId, operator: account.address });
+       if (again.status !== "Ready") throw new LeaseRefusal(again.status, `${kindName} ${id} refused: ${WHY[again.status] || again.status}`);
+     }
+--- a/windows/node/host.mjs
++++ b/windows/node/host.mjs
+@@ -1363,8 +1363,10 @@
+ 
+   /** Fetch + verify + run the deployment's app, and keep the record honest about which stage failed. */
+   async ensureApp(id, d, { force = false, version = null } = {}) {
+-    const walletRefusal = await this.walletPolicyRefusal({...d,id});
+-    if(walletRefusal) return await this.#giveUp(id,walletRefusal,{retry:true});
++    const wallet = await this.#walletPolicyState({ ...d, id });
++    if (wallet.refusal) return await this.#giveUp(id, wallet.refusal, { retry: true });
++    if (wallet.unknown) return await this.#walletHold(id, wallet.unknown);
++    if (this.records.get(id)?.walletHeld) this.#record(id, { walletHeld: null });
+     if (force) this.#respawnAfter.delete(id);
+     // A FORCED ensure is what a reboot-recovery hold waits for (#rebootHold): it is tried again from here. That is the
+     // operator's forced relaunch AND an owner's own action that re-ensures with force - a resize (#applyShareResize) or a
+@@ -2063,8 +2065,14 @@
+       }
+       const pinRefusal = chain.placementRefusal(d.configCid, this.enclaveId);
+       if (pinRefusal) { await this.#giveUp(id, pinRefusal, { retry: true }); continue; }
+-      const walletRefusal = await this.walletPolicyRefusal({...d,id});
+-      if(walletRefusal) { await this.#giveUp(id,walletRefusal,{retry:true}); continue; }
++      const wallet = await this.#walletPolicyState({ ...d, id });
++      if (wallet.refusal) { await this.#giveUp(id, wallet.refusal, { retry: true }); continue; }
++      if (wallet.unknown) {
++        if (untilMs < Date.now()) { await this.#stopApp(id, `its lease lapsed while the host wallet policy was unavailable (not renewed): ${wallet.unknown}`); continue; }
++        await this.#walletHold(id, wallet.unknown);
++        continue;   // nothing renewed, launched or released on an unknown policy
++      }
++      if (rec.walletHeld) this.#record(id, { walletHeld: null });
+       // HELD (a retired-engine node, a deployment it cannot run): before the renewal, the envelope edit and
+       // the resize, each of which can spend or give back the lease on chain. Recorded, and left alone.
+       const held = this.heldReason(d);
+@@ -2831,10 +2839,39 @@
+    * one claim, was refused by consider() on the retired-engine rule, and again every 30 s, so the owner's newer
+    * hyperv row was never reached).
+    */
++  // The host owner's wallet policy for a deployment: a DEFINITE refusal (the policy says no), or UNKNOWN (it could not be
++  // established: no RPC quorum, an expired snapshot, an unloadable policy). Unknown is never "allowed" - a claim is
++  // refused and nothing is served on it - and never "refused": the lease is not given back on chain for it.
++  async #walletPolicyState(d) {
++    if (!this.hostAdmission) return { refusal: null, unknown: null };
++    try { return { refusal: (await this.hostAdmission.refusal({ deploymentId: d.id, appRef: d.appRef, forPrivate: d.isPublic === false })) || null, unknown: null }; }
++    catch (e) {
++      const m = String(e.message).slice(0, 240);
++      // a deployment the policy cannot judge by its form is refused by the policy itself, not unknown
++      if (/^catalog app reference required/.test(m)) return { refusal: `host wallet policy: ${m}`, unknown: null };
++      return { refusal: null, unknown: m };
++    }
++  }
+   async walletPolicyRefusal(d) {
+-    if(!this.hostAdmission)return null;
+-    try{return await this.hostAdmission.refusal({deploymentId:d.id,appRef:d.appRef,forPrivate:d.isPublic===false});}
+-    catch(e){return 'host wallet policy unavailable: '+String(e.message).slice(0,240);}
++    const w = await this.#walletPolicyState(d);
++    return w.refusal || (w.unknown ? 'host wallet policy unavailable: ' + w.unknown : null);
++  }
++  /**
++   * A deployment this box holds the lease of while the host wallet policy is UNKNOWN: nothing is served on it (its domain
++   * is retired, its app stopped - the policy gate holds), and nothing is given back either: no on-chain release, no
++   * renewal, still tracked, so the next tick asks again and serves it once the policy allows it. A lapse is the tick's
++   * ordinary local stop. (2026-10-21, nucbox: "host wallet policy unavailable: chain quorum unavailable" gave up a running
++   * deployment, retired it AND sent its release.)
++   */
++  async #walletHold(id, unknown) {
++    const why = `host wallet policy unavailable (${unknown}): not served, renewed or released until it is established; asked again each pass`;
++    const gone = await this.#retireIsolated(id, why);
++    const app = this.apps.get(id);
++    if (app) { await app.stop(); this.apps.delete(id); }
++    const rec = this.records.get(id) || {};
++    if (rec.reason !== why) this.log(`${String(id).slice(0, 10)} ${why}`);
++    return this.#record(id, { status: "held", walletHeld: true, port: null,
++      reason: gone ? why : `${why}; the isolated domain could not be confirmed gone yet (retried)` });
+   }
+   claimRefusal(d, { version = null, capacity, appsEnabled, invited = false, ownerAllow = this.ownerSet() }) {
+     // an admitted audit job (servesAuditJob) is claimed as its fee wallet's own: owner-only scope still holds, because only
+--- a/relay/systemd/enclave-lease-relay.service
++++ b/relay/systemd/enclave-lease-relay.service
+@@ -4,7 +4,8 @@
+ #   /opt/enclave-lease-relay/releases/<artifact sha256>/   lease-relay.mjs, lease-relay-check.mjs, manifest.json
+ #   /opt/enclave-lease-relay/current -> releases/<sha256>   the release this unit runs (switch it to stage or roll back)
+ #   /etc/enclave-lease-relay/relay.env                      every setting, explicit (relay.env.example)
+-#   /etc/enclave-lease-relay/relay.key                      the hot key (0600 root): handed to the service as a credential
++#   /etc/enclave-lease-relay/relay.key                      the hot key (0600 root): handed to the service as a credential,
++#                                                           copied 0600 into the service's private runtime directory
+ #   /var/lib/enclave-lease-relay-state/relay-send.json      the key's unresolved signed send (StateDirectory; survives restarts)
+ [Unit]
+ Description=Enclave app-funded lease relay
+@@ -15,9 +16,14 @@
+ 
+ [Service]
+ EnvironmentFile=/etc/enclave-lease-relay/relay.env
+-# the key reaches the service only as a systemd credential (a private, read-only copy); the env names its path
++# the key reaches the service only as a systemd credential (a private, read-only copy). systemd may present it 0440, which
++# the strict owner-only check refuses (2026-10-21, both relays), so the FIRST ExecStartPre copies it 0600 into this
++# service's own runtime directory (0700, removed when it stops); the env names that copy. The original is never changed.
+ LoadCredential=relay-key:/etc/enclave-lease-relay/relay.key
+-Environment=LEASE_RELAY_KEY_FILE=%d/relay-key
++RuntimeDirectory=enclave-lease-relay-credentials
++RuntimeDirectoryMode=0700
++Environment=LEASE_RELAY_KEY_FILE=%t/enclave-lease-relay-credentials/relay.key
++ExecStartPre=/usr/bin/install -m 0600 %d/relay-key %t/enclave-lease-relay-credentials/relay.key
+ # a send whose outcome is unknown is re-broadcast from here as the SAME signed bytes after a restart, never re-signed
+ # its OWN directory, never one holding a key: with DynamicUser, systemd chowns a StateDirectory recursively at every start
+ StateDirectory=enclave-lease-relay-state
+--- a/test/windows-node-wallet-policy.test.mjs
++++ b/test/windows-node-wallet-policy.test.mjs
+@@ -48,3 +48,43 @@
+  let stopped=0;h.apps.set(id,{stop:async()=>{stopped++;}});h.records.set(id,{id,isolationRequired:false});
+  const rec=await h.ensureApp(id,row(h),{force:true,version});assert.equal(stopped,1);assert.match(rec.reason,/wallet policy unavailable.*quorum/);
+ });
++// 2026-10-21 (nucbox): an UNAVAILABLE policy ("chain quorum unavailable") made the live tick give a running deployment up -
++// retire it AND send its release. Unknown is neither allowed nor refused: nothing is served (the gate holds) and nothing is
++// given back (no release, no renewal), the deployment stays tracked, and it is served again once the policy allows it.
++const quiet=h=>{for(const name of ['followBook','enforceOff','ensureRegistered','ensurePriced','scanLedger','retireForeignRecovered'])h[name]=async()=>{};};
++test('an UNAVAILABLE policy in the live tick holds: stopped locally, NOT released, NOT renewed, still tracked; served again once allowed',async()=>{
++ let mode='unknown';
++ const h=await box(async()=>{if(mode==='unknown')throw Error('chain quorum unavailable');return null;});
++ rpc.row.current={...row(h),leaseUntil:BigInt(Math.floor(Date.now()/1000)+60)};   // inside the renewal lead: a served lease would renew
++ rpc.catalog.current={...version,yanked:false};rpc.chainTx.mine=true;quiet(h);
++ let stopped=0,launched=0;h.apps.set(id,{stop:async()=>{stopped++;}});h.tracked.add(id);h.records.set(id,{id,status:'running',appRef:ref,isolationRequired:false});
++ h.ensureApp=async()=>{launched++;return h.records.get(id);};
++ const before=rpc.chainTx.sent.length;
++ await h.tick();
++ assert.equal(rpc.chainTx.sent.length,before,'no release and no renewal on an unknown policy');
++ assert.equal(stopped,1);assert.equal(h.apps.has(id),false,'nothing is served on it');
++ assert.equal(h.tracked.has(id),true);assert.equal(h.blocked.has(id),false);
++ const r=h.records.get(id);assert.equal(r.status,'held');assert.equal(r.walletHeld,true);assert.match(r.reason,/wallet policy unavailable \(chain quorum unavailable\).*not served, renewed or released/);
++ assert.equal(launched,0);
++ await h.tick();                                                                     // still unknown: still nothing sent, still held
++ assert.equal(rpc.chainTx.sent.length,before);assert.equal(launched,0);assert.equal(h.tracked.has(id),true);
++ mode='allowed';
++ await h.tick();
++ assert.equal(h.records.get(id).walletHeld,null,'the hold clears once the policy answers');assert.equal(launched,1,'and the deployment is launched again');
++});
++test('an UNAVAILABLE policy at the lease end is a local stop: nothing released on chain',async()=>{
++ const h=await box(async()=>{throw Error('chain quorum unavailable');});
++ rpc.row.current={...row(h),leaseUntil:BigInt(Math.floor(Date.now()/1000)-5)};rpc.catalog.current={...version,yanked:false};rpc.chainTx.mine=true;quiet(h);
++ let stopped=0;h.apps.set(id,{stop:async()=>{stopped++;}});h.tracked.add(id);h.records.set(id,{id,status:'held',walletHeld:true,appRef:ref,isolationRequired:false});
++ const before=rpc.chainTx.sent.length;await h.tick();
++ assert.equal(rpc.chainTx.sent.length,before,'no release');assert.equal(stopped,1);
++ assert.equal(h.records.get(id).status,'stopped');assert.match(h.records.get(id).reason,/lapsed while the host wallet policy was unavailable/);
++});
++test('a DEFINITE refusal of a running deployment still gives it up (released), and a malformed app reference is a refusal',async()=>{
++ const h=await box(async()=>{throw Error('catalog app reference required');});
++ rpc.row.current=row(h);rpc.catalog.current=version;rpc.chainTx.mine=true;quiet(h);
++ let stopped=0;h.apps.set(id,{stop:async()=>{stopped++;}});h.tracked.add(id);h.records.set(id,{id,status:'running',appRef:ref,isolationRequired:false});
++ const before=rpc.chainTx.sent.length;await h.tick();
++ assert.equal(stopped,1);assert.equal(h.tracked.has(id),false);assert.equal(rpc.chainTx.sent.length,before+1,'released');
++ assert.match(h.records.get(id).reason,/host wallet policy: catalog app reference required/);
++});
+--- a/test/lease-relay-release.test.mjs
++++ b/test/lease-relay-release.test.mjs
+@@ -135,6 +135,38 @@
+   assert.match(unit, /^Environment=LEASE_RELAY_STATE=%S\/enclave-lease-relay-state\/relay-send\.json$/m);
+ });
+ 
++// The unit's credential handling (2026-10-21, both relays): systemd presented LoadCredential 0440 and the strict owner-only
++// check refused it. The unit's FIRST ExecStartPre copies it 0600 into the service's own runtime directory, and the env
++// names the copy. Executed here as the unit states it (%d, %t substituted), on a fixture key presented 0440.
++test("the unit copies a 0440 credential 0600 into its private runtime directory, before the check, and the check accepts only the copy", T, async () => {
++  const unit = fs.readFileSync(path.join(REPO, "relay/systemd/enclave-lease-relay.service"), "utf8");
++  const one = (re) => { const m = unit.match(re); assert.ok(m, String(re)); return m; };
++  one(/^LoadCredential=relay-key:\S+$/m);
++  one(/^RuntimeDirectory=enclave-lease-relay-credentials$/m); one(/^RuntimeDirectoryMode=0700$/m);
++  const keyEnv = one(/^Environment=LEASE_RELAY_KEY_FILE=(%t\/enclave-lease-relay-credentials\/relay\.key)$/m)[1];
++  const pre = [...unit.matchAll(/^ExecStartPre=(.+)$/gm)].map((m) => m[1]);
++  assert.equal(pre.length, 2);
++  assert.equal(pre[0], `/usr/bin/install -m 0600 %d/relay-key ${keyEnv}`, "the copy runs FIRST, to exactly the file the env names");
++  assert.match(pre[1], /lease-relay-check\.mjs$/, "then the configuration check");
++  assert.doesNotMatch(unit, /^Environment=LEASE_RELAY_KEY_FILE=%d\//m, "the service is never pointed at the 0440 credential itself");
++  // run the unit's own install line
++  const creds = path.join(dir, "credentials"), run = path.join(dir, "run");
++  fs.mkdirSync(creds, { recursive: true }); fs.mkdirSync(path.join(run, "enclave-lease-relay-credentials"), { recursive: true, mode: 0o700 });
++  const k = generatePrivateKey();
++  fs.writeFileSync(path.join(creds, "relay-key"), k + "\n"); fs.chmodSync(path.join(creds, "relay-key"), 0o440);
++  const sub = (x) => x.replaceAll("%d", creds).replaceAll("%t", run);
++  const [bin, ...argv] = sub(pre[0]).split(" ");
++  execFileSync(bin, argv);
++  const copy = sub(keyEnv);
++  assert.equal(fs.statSync(copy).mode & 0o777, 0o600);
++  assert.ok(fs.readFileSync(copy).equals(fs.readFileSync(path.join(creds, "relay-key"))), "an exact copy");
++  assert.equal(fs.statSync(path.join(creds, "relay-key")).mode & 0o777, 0o440, "the credential itself is unchanged");
++  const raw = check({ ...env, LEASE_RELAY_KEY_FILE: path.join(creds, "relay-key") });
++  assert.equal(raw.status, 1); assert.match(raw.stderr, /mode 440: it must be readable by its owner only/, "the 0440 credential itself is refused (the failure seen live)");
++  const ok = check({ ...env, LEASE_RELAY_KEY_FILE: copy });
++  assert.equal(ok.status, 0, ok.stderr); assert.match(ok.stdout, /lease relay configuration ok/);
++});
++
+ function serve(extraEnv = {}, args = ["--preserve-symlinks-main"]) {
+   const child = spawn(process.execPath, [...args, path.join(rel, "current/lease-relay.mjs")], { cwd: path.join(rel, "current"),
+     env: { PATH: process.env.PATH, NODE_EXTRA_CA_CERTS: ca, ...env, ...extraEnv }, stdio: ["ignore", "pipe", "pipe"] });
+--- /dev/null
++++ b/test/lease-release-journal-windows.test.mjs
+@@ -0,0 +1,101 @@
++// The strict release journal on Windows (2026-10-21, nucbox: "app-funded release not sent: EPERM: operation not
++// permitted, fsync"). Measured on that host's NTFS with its own node.exe in a scratch TEMP directory
++// (work/recovery-hardening/win-fsync-probe.mjs): fsync of a directory opened read-only -> EPERM; opened r+ -> ok. Here the
++// real filesystem is wrapped with exactly that rule, so the writer's choice of handle is what is tested.
++import { test, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { strictWriteFile, openReleaseJournal } from "../network/lease-release-journal.mjs";
++
++const dirs = [];
++after(() => { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); });
++const scratch = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), "journal-win-")); dirs.push(d); return d; };
++/** the real fs, with Windows' directory-flush rule: a directory fd opened read-only cannot be fsynced (EPERM) */
++function windowsLikeFs({ failBeforeRename = false } = {}) {
++  const ro = new Set(), opened = [];
++  return {
++    opened,
++    ...fs,
++    openSync(p, flags, mode) {
++      if (!(fs.existsSync(p) && fs.statSync(p).isDirectory())) return fs.openSync(p, flags, mode);
++      // the test host is POSIX, where a directory opens read-only only: the requested flag is recorded and the Windows
++      // rule (a read-only directory handle cannot be flushed) is applied by fsyncSync
++      opened.push(flags);
++      const fd = fs.openSync(p, "r");
++      if (flags === "r") ro.add(fd);
++      return fd;
++    },
++    fsyncSync(fd) {
++      if (ro.has(fd)) throw Object.assign(new Error("EPERM: operation not permitted, fsync"), { code: "EPERM" });
++      if (failBeforeRename) throw Object.assign(new Error("EIO: i/o error, fsync"), { code: "EIO" });
++      return fs.fsyncSync(fd);
++    },
++    closeSync(fd) { ro.delete(fd); return fs.closeSync(fd); },
++  };
++}
++const ID = "0x" + "c1".repeat(32);
++
++test("win32: the directory is flushed through a write handle - the write succeeds where a read-only handle gave EPERM", () => {
++  const d = scratch(), f = path.join(d, "j.json"), w = windowsLikeFs();
++  strictWriteFile(f, '{"v":1}', { fsImpl: w, platform: "win32" });
++  assert.equal(fs.readFileSync(f, "utf8"), '{"v":1}');
++  assert.deepEqual(w.opened, ["r+"]);
++  assert.equal(fs.existsSync(f + ".strict.tmp"), false);
++  // POSIX keeps the read-only directory handle (a directory cannot be opened for writing there)
++  const p = path.join(scratch(), "j.json"), w2 = windowsLikeFs();
++  strictWriteFile(p, '{"v":2}', { fsImpl: { ...w2, fsyncSync: fs.fsyncSync }, platform: "linux" });
++  assert.deepEqual(w2.opened, ["r"]);
++});
++
++test("the old handle on Windows (reproduced): the rename lands, the flush fails - tagged COMMITTED, and the journal keeps memory = disk", () => {
++  const d = scratch(), f = path.join(d, "j.json");
++  // platform "linux" on Windows semantics = the read-only directory handle the deployed code used
++  const j = openReleaseJournal(f, { fsImpl: windowsLikeFs(), platform: "linux" });
++  assert.throws(() => j.begin(ID), (e) => e.code === "EPERM" && e.committed === true);
++  const onDisk = JSON.parse(fs.readFileSync(f, "utf8")).releases.map((e) => e.id);
++  assert.deepEqual(onDisk, [ID], "the entry is on disk (the rename happened)");
++  assert.match(j.hold(ID), /nothing signed yet/, "and held in memory too: the same state a restart reads");
++  assert.deepEqual(j.pending().map((e) => [e.id, e.intents.length]), [[ID, 0]]);
++});
++
++test("a reloaded entry with NOTHING signed is settled 'unsent' durably once the flush works - never deleted by hand, never called released", () => {
++  const d = scratch(), f = path.join(d, "j.json");
++  const broken = openReleaseJournal(f, { fsImpl: windowsLikeFs(), platform: "linux" });
++  assert.throws(() => broken.begin(ID));
++  const j = openReleaseJournal(f, { fsImpl: windowsLikeFs(), platform: "win32" });   // the fixed writer, after a restart
++  assert.match(j.hold(ID), /nothing signed yet/);
++  const e = j.pending().find((x) => x.id === ID);
++  assert.equal(e.intents.length, 0, "only an entry with NO signed lease may be settled as unsent");
++  j.settle(ID, "unsent");
++  assert.equal(j.hold(ID), null);
++  assert.deepEqual(JSON.parse(fs.readFileSync(f, "utf8")).releases, [], "settled on disk");
++  // and a release can be journaled again, durably
++  j.begin(ID);
++  assert.deepEqual(JSON.parse(fs.readFileSync(f, "utf8")).releases.map((x) => x.id), [ID]);
++});
++
++test("a failure BEFORE the rename changes nothing: not on disk, not held, nothing to settle", () => {
++  const d = scratch(), f = path.join(d, "j.json");
++  const j = openReleaseJournal(f, { fsImpl: windowsLikeFs({ failBeforeRename: true }), platform: "win32" });
++  assert.throws(() => j.begin(ID), (e) => e.code === "EIO" && !e.committed);
++  assert.equal(fs.existsSync(f), false);
++  assert.equal(j.hold(ID), null);
++});
++
++test("a COMMITTED failure while recording a signed lease keeps that intent held (the lease is not sent; the chain fences it later)", () => {
++  const d = scratch(), f = path.join(d, "j.json");
++  let broken = false;
++  const w = windowsLikeFs();
++  const fsImpl = { ...w, openSync: (p, flags, mode) => w.openSync(p, broken && fs.existsSync(p) && fs.statSync(p).isDirectory() ? "r" : flags, mode) };
++  const j = openReleaseJournal(f, { fsImpl, platform: "win32" });
++  j.begin(ID);
++  broken = true;
++  const s = { payee: "0x" + "11".repeat(20), nonce: 7n, deadline: 99n, kind: 3, lease: { enclaveId: "0x" + "00".repeat(32), maxChargeWei: 5n }, fromBlock: 1n,
++    operator: "0x" + "22".repeat(20), chainId: 8453, reserve: "0x" + "33".repeat(20), executor: "0x" + "44".repeat(20), ledger: "0x" + "55".repeat(20) };
++  assert.throws(() => j.signed(ID, s), (e) => e.committed === true);
++  assert.equal(j.pending()[0].intents.length, 1, "memory keeps the intent the disk has");
++  assert.equal(JSON.parse(fs.readFileSync(f, "utf8")).releases[0].intents.length, 1);
++  assert.match(j.hold(ID), /lease nonce 7/);
++});
+--- /dev/null
++++ b/test/lease-consumed-own-receipt.test.mjs
+@@ -0,0 +1,67 @@
++// An app-funded claim whose OWN transaction landed must not be reported "consumed by another operation" because the host's
++// RPCs could not confirm its receipt in time (2026-10-21: rate-limited public providers; "quorum did not agree"). The host
++// re-checks its relays' reported hashes and the reserve's log a bounded few times; success is still ONLY a quorum-verified
++// receipt of exactly the signed intent - when none verifies, it stays NonceConsumed. Local anvil, fixture keys only.
++import { test, before, after } from "node:test";
++import assert from "node:assert/strict";
++import http from "node:http";
++import * as viem from "viem";
++import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
++import * as B from "../client/lease-executor-client.mjs";
++import { startWorld, haveAnvil } from "./helpers/lease-gas-world.mjs";
++
++const T = { skip: !haveAnvil && "needs anvil", timeout: 180_000 };
++let W, relay, dep; const closers = [];
++/** an RPC origin in front of anvil that answers 429 to receipt/transaction/log reads while `state.until` is in the future */
++async function flaky() {
++  const state = { until: 0, refused: 0 };
++  const s = http.createServer((req, res) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", async () => {
++    let j = null; try { j = JSON.parse(b); } catch {}
++    if (j && Date.now() < state.until && ["eth_getTransactionReceipt", "eth_getTransactionByHash", "eth_getLogs"].includes(j.method)) {
++      state.refused++;
++      res.writeHead(200, { "content-type": "application/json" });
++      return res.end(JSON.stringify({ jsonrpc: "2.0", id: j.id, error: { code: 429, message: "Too Many Requests" } }));
++    }
++    const r = await fetch(W.rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: b });
++    res.writeHead(r.status, { "content-type": "application/json" }); res.end(await r.text()); }); });
++  await new Promise((ok) => s.listen(0, "127.0.0.1", ok));
++  closers.push(() => { s.closeAllConnections(); s.close(); });
++  return { state, client: viem.createPublicClient({ chain: W.chain, transport: viem.http(`http://127.0.0.1:${s.address().port}`, { retryCount: 0, timeout: 3000 }) }) };
++}
++before(async () => {
++  if (!haveAnvil) return;
++  W = await startWorld();
++  dep = { chainId: 8453, ...W.addr };
++  const k = generatePrivateKey(); await W.fund(privateKeyToAccount(k).address);
++  relay = await B.startLeaseRelay({ client: W.pc, wallet: W.wc(k), deployment: dep, allowLoopbackHttp: true });   // the relay's own RPC is healthy
++  closers.push(() => relay.close());
++});
++after(async () => { for (const c of closers.reverse()) { try { await c(); } catch {} } W?.stop(); });
++
++async function enrolledOperator(tag) {
++  const owner = await W.owner(), id = await W.create(owner); await W.enable(owner, id);
++  return { id, op: await W.operator(`https://consumed-${tag}.test`) };
++}
++const hostClient = (op, ps, o = {}) => B.createLeaseClient({ clients: ps.map((p) => p.client), account: op.account, reserve: dep.reserve, deployment: dep,
++  relays: [relay.url], allowLoopbackHttp: true, confirmations: 0, requestTimeoutMs: 1500, consumedRecheckMs: [1000, 1000, 2000, 2000], ...o });
++
++test("the host's RPCs cannot confirm its OWN landed claim for a while: re-checked, verified by the quorum, NOT 'another operation'", T, async () => {
++  const { id, op } = await enrolledOperator("heals");
++  const ps = [await flaky(), await flaky()];
++  for (const p of ps) p.state.until = Date.now() + 4500;     // longer than the inner wait and the log search; shorter than the re-checks
++  const r = await hostClient(op, ps).claim(id, op.enclaveId);
++  assert.ok(ps.every((p) => p.state.refused > 0), "the receipt reads really were refused first");
++  assert.equal(r.receipt.status, "success");
++  assert.equal((await W.row(id)).runnerOperator, op.address);
++  const paid = await W.pc.getContractEvents({ address: dep.reserve, abi: W.A.reserve.abi, eventName: "LeaseGasPaid", args: { id }, fromBlock: 0n });
++  assert.equal(paid.length, 1); assert.equal(paid[0].transactionHash, r.hash, "the verified hash is the one transaction that landed");
++});
++
++test("when its receipt never verifies, a consumed nonce is still NonceConsumed - never a blind success", T, async () => {
++  const { id, op } = await enrolledOperator("never");
++  const ps = [await flaky(), await flaky()];
++  for (const p of ps) p.state.until = Date.now() + 10 * 60_000;
++  await assert.rejects(hostClient(op, ps).claim(id, op.enclaveId),
++    (e) => e.code === "NonceConsumed" && /no receipt of this signed lease verified \(re-checked 4 times\)/.test(e.message));
++  assert.equal((await W.row(id)).runnerOperator, op.address, "it did land: the host only declines to call it success without a verified receipt");
++});

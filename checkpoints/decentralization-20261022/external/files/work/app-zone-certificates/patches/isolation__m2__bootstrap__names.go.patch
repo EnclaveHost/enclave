@@ -1,0 +1,147 @@
+--- a/isolation/m2/bootstrap/names.go
++++ b/isolation/m2/bootstrap/names.go
+@@ -40,10 +40,27 @@
+ )
+ 
+ type Names struct {
+-	Hosts []string  `json:"hosts"`
+-	ACME  *NameACME `json:"acme,omitempty"`
++	Hosts   []string     `json:"hosts,omitempty"`
++	ACME    *NameACME    `json:"acme,omitempty"`
++	AppZone *AppZoneACME `json:"appZone,omitempty"`
++	// hostsKey: the exact package bytes carry a "hosts" member (set by namesField), so an empty list is refused in
++	// both languages exactly as sdk/bootstrap/package.mjs refuses it.
++	hostsKey bool
++}
++
++// AppZoneACME selects the CA and the challenge replicas for in-guest issuance of THIS deployment's app-zone name
++// (<first 4 bytes of its HOST_DATA, hex>.<the front's measured cert zone>). The name and the zone are not here: the
++// owner chooses only where the guest asks (a CA directory and 1..8 independently operated replicas, each of which
++// re-verifies every push against the chain), never which name it certifies.
++type AppZoneACME struct {
++	Directory  string   `json:"directory"`
++	Challenges []string `json:"challenges"`
++	EAB        *NameEAB `json:"eab,omitempty"`
+ }
+ 
++// MaxAppZoneChallenges bounds the replicas one push fans out to.
++const MaxAppZoneChallenges = 8
++
+ // NameACME selects the CA and the DNS-01 responder for in-guest issuance. All
+ // three are explicit: there is no default CA, responder or zone to fall back to.
+ type NameACME struct {
+@@ -128,6 +145,11 @@
+ 	if n == nil || noNull(member) != nil {
+ 		return errors.New("owner names must be an object without nulls")
+ 	}
++	var fields map[string]json.RawMessage
++	if e := json.Unmarshal(member, &fields); e != nil {
++		return errors.New("owner names must be an object without nulls")
++	}
++	_, n.hostsKey = fields["hosts"]
+ 	return n.Validate(secretsMode)
+ }
+ 
+@@ -135,8 +157,13 @@
+ 	if n == nil {
+ 		return errors.New("owner names missing")
+ 	}
+-	if len(n.Hosts) < 1 || len(n.Hosts) > MaxOwnerNames {
+-		return fmt.Errorf("owner names need 1 to %d hosts", MaxOwnerNames)
++	// hosts may be absent only when the member selects app-zone issuance alone (and then no owner ACME either)
++	if n.hostsKey || len(n.Hosts) > 0 || n.AppZone == nil {
++		if len(n.Hosts) < 1 || len(n.Hosts) > MaxOwnerNames {
++			return fmt.Errorf("owner names need 1 to %d hosts", MaxOwnerNames)
++		}
++	} else if n.ACME != nil {
++		return errors.New("owner ACME selection needs owner hosts")
+ 	}
+ 	for i, h := range n.Hosts {
+ 		if !OwnerHost(h) {
+@@ -162,6 +189,27 @@
+ 			}
+ 		}
+ 	}
++	if z := n.AppZone; z != nil {
++		if !nameURL(z.Directory) || len(z.Challenges) < 1 || len(z.Challenges) > MaxAppZoneChallenges {
++			return fmt.Errorf("app-zone ACME selection needs an HTTPS directory and 1 to %d challenge replica URLs", MaxAppZoneChallenges)
++		}
++		for i, c := range z.Challenges {
++			if !nameURL(c) {
++				return errors.New("app-zone challenge replicas must be HTTPS URLs")
++			}
++			if i > 0 && z.Challenges[i-1] >= c {
++				return errors.New("app-zone challenge replicas must be strictly ascending and unique")
++			}
++		}
++		if e := z.EAB; e != nil {
++			if !secretNameRE.MatchString(e.KID) || !secretNameRE.MatchString(e.HMAC) || e.KID == e.HMAC {
++				return errors.New("app-zone ACME EAB must name two distinct custody secrets")
++			}
++			if secretsMode != "custody-v2" {
++				return errors.New("app-zone ACME EAB needs custody-v2 secrets")
++			}
++		}
++	}
+ 	return nil
+ }
+ 
+@@ -195,7 +243,19 @@
+ 	Owner      string // lowercase 0x address, as the ledger quorum read it
+ 	Hosts      []string
+ 	ACME       *NameACME
+-	Until      time.Time
++	AppZone    *AppZoneACME
++	// Lease is the lease identity the agreeing quorum read (the same fields Refresh revokes on): an app-zone push binds it,
++	// so a replica refuses the push once the chain's current lease differs (re-lease, owner, app or envelope change).
++	Lease LeaseBinding
++	Until time.Time
++}
++
++// LeaseBinding: the current lease's runner (host id), runner operator, app reference and config envelope.
++type LeaseBinding struct {
++	Runner   [32]byte
++	Operator string // lowercase 0x address
++	AppRef   string
++	Envelope string
+ }
+ 
+ // ErrRevoked: a fresh agreeing quorum reported the lease cancelled, suspended,
+@@ -210,10 +270,25 @@
+ 	if !a.current() {
+ 		return NameGrant{}, errors.New("startup authorization expired or unverified")
+ 	}
+-	g := NameGrant{Deployment: a.snapshot.row.id, Owner: strings.ToLower(a.snapshot.row.owner)}
++	g := NameGrant{Deployment: a.snapshot.row.id, Owner: strings.ToLower(a.snapshot.row.owner),
++		Lease: LeaseBinding{Runner: a.snapshot.row.runner, Operator: strings.ToLower(a.snapshot.row.operator), AppRef: a.snapshot.row.appRef,
++			Envelope: a.snapshot.row.envelope}}
++	g.Until = time.Unix(int64(a.snapshot.timestamp), 0).Add(NameGrace)
++	if lease := time.Unix(int64(a.snapshot.row.leaseUntil), 0); lease.Before(g.Until) {
++		g.Until = lease
++	}
+ 	if a.manifest.Names == nil {
+ 		return g, nil
+ 	}
++	if src := a.manifest.Names.AppZone; src != nil {
++		cp := *src
++		cp.Challenges = append([]string(nil), src.Challenges...)
++		if src.EAB != nil {
++			eab := *src.EAB
++			cp.EAB = &eab
++		}
++		g.AppZone = &cp
++	}
+ 	g.Hosts = append([]string(nil), a.manifest.Names.Hosts...)
+ 	if src := a.manifest.Names.ACME; src != nil {
+ 		cp := *src
+@@ -223,10 +298,6 @@
+ 		}
+ 		g.ACME = &cp
+ 	}
+-	g.Until = time.Unix(int64(a.snapshot.timestamp), 0).Add(NameGrace)
+-	if lease := time.Unix(int64(a.snapshot.row.leaseUntil), 0); lease.Before(g.Until) {
+-		g.Until = lease
+-	}
+ 	return g, nil
+ }
+ 

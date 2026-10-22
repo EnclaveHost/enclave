@@ -1,0 +1,77 @@
+--- install-host.r5.ps1 (1d1580c8, current prototype)
++++ install-host.r6p.ps1 (merged)
+@@ -259,6 +259,45 @@
+   exit 0
+ }
+ 
++# THE OPERATOR'S OWN SETTINGS SURVIVE AN UPDATE (ENCLAVE-LOCAL-CONFIG-V1). Every launcher below is REWRITTEN by each install; only
++# the two local hooks are never written: node-config.local.cmd (called last by node-config.cmd, so it overrides the generated
++# node settings) and shield-config.local.cmd (called last by shield-config.cmd, the same for Enclave Shield). run-node.cmd and
++# run-shield.cmd are generated with NO set line at all, so any set line found in them was added by hand (e.g. the wallet
++# admission pins, contract pins or gateways) and is LOST by the rewrite unless the same line is in the matching local hook.
++# Such an install is refused BEFORE anything changes, naming the settings (never their values); the root-reviewed migration
++# (config-persistence/root/migrate-local-config.ps1) moves them. Under an updater it exits 0, the r4 rule (no rollback for a
++# refusal that changed nothing); by hand it fails.
++$script:SetLine = '(?i)^\s*(?:if [^\r\n]*?\s)?set\s+"?([A-Za-z_][A-Za-z0-9_]*)='          # finds EVERY set line, quoted or conditional
++function Get-SetLines($path) {
++  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return @() }
++  $i = 0
++  @(foreach ($l in [IO.File]::ReadAllLines($path)) { $i++; $m = [regex]::Match($l, $script:SetLine)
++    if ($m.Success) { [pscustomobject]@{ line = $i; name = $m.Groups[1].Value.ToUpperInvariant(); text = $l.TrimStart() } } })
++}
++# -> the hand-made set lines of a SET-free launcher that its hook does not reproduce verbatim as that name's LAST assignment
++function Get-UnpersistedSettings($dir) {
++  $out = @()
++  foreach ($pair in @(@("run-node.cmd", "node-config.local.cmd"), @("run-shield.cmd", "shield-config.local.cmd"))) {
++    $hook = @(Get-SetLines (Join-Path $dir $pair[1]))
++    foreach ($s in @(Get-SetLines (Join-Path $dir $pair[0]))) {
++      $last = @($hook | Where-Object { $_.name -eq $s.name } | Select-Object -Last 1)
++      $same = @($hook | Where-Object { $_.text -ceq $s.text })
++      if (-not $same.Count -or ($s.text -notmatch '(?i)^if\s' -and $last[0].text -cne $s.text)) { $out += "$($pair[0]):$($s.name)" }
++    }
++  }
++  return @($out | Select-Object -Unique)
++}
++$unpersisted = @(Get-UnpersistedSettings $PD)
++if ($unpersisted.Count) {
++  $why = "hand-made launcher settings that this install would overwrite and no local hook carries: " + ($unpersisted -join ", ")
++  Save-InstallStatus "refused-unpersisted-config" $why
++  if ($env:ENCLAVE_UPDATING -eq "1") {
++    Emit "config" "fail" "NOT INSTALLED, nothing on this PC changed: $why. Move them into the local hook first (root-reviewed migration)."
++    exit 0
++  }
++  Fail "config" "Nothing was changed: $why. Move them into node-config.local.cmd / shield-config.local.cmd first."
++}
++
+ # ---------------------------------------------------------------------------------------------------------------------
+ # 1. the machine
+ # ---------------------------------------------------------------------------------------------------------------------
+@@ -565,7 +604,8 @@
+ # here, or the manager refuses partitions the node admitted. It stays at least 16 GB short of the machine.
+ $localRam = Join-Path $PD "node-config.local.cmd"
+ if (Test-Path $localRam) {
+-  $m = Select-String -Path $localRam -Pattern '^set NODE_APP_RAM_GB=(\d+)\s*$' | Select-Object -Last 1
++  # quoted (set "NODE_APP_RAM_GB=48") or not: the same setting the node reads
++  $m = Select-String -Path $localRam -Pattern '^\s*set\s+"?NODE_APP_RAM_GB=(\d+)"?\s*$' | Select-Object -Last 1
+   if ($m) { $appRamGb = [math]::Max(4, [math]::Min($ramGb - 16, [int]$m.Matches[0].Groups[1].Value)) }
+ }
+ # one slot per 4 GB of the apps' half, up to 16: the count is only a ceiling (capacity() also holds every app to the RAM
+@@ -632,6 +672,8 @@
+ set ENCLAVE_WASM_SET=1
+ set ENCLAVE_WASM_MEMORY64=1
+ $(if (Test-Path $gpuProfile) { "set ENCLAVE_SHIELD_PROFILE=$gpuProfile" })
++rem this box's own Shield settings (shield-config.local.cmd: never written by an update), after and over everything above
++if exist "$PD\shield-config.local.cmd" call "$PD\shield-config.local.cmd"
+ "@ | Set-Content -Encoding ASCII (Join-Path $PD "shield-config.cmd")
+ 
+ # the card worker: the GPU half of a Shield GPU app, on 127.0.0.1:19595 only, holding at most the profile's 12 GiB; it sees
+@@ -700,6 +742,9 @@
+   elseif (@($want.checkers).Count) { "set ENCLAVE_NETWORK_CHECKERS=$(@($want.checkers) -join ',')" }
+   else { "rem no checkers chosen (-NetworkCheckers): network enrollment refuses until this host's operator picks the ones it trusts" })
+ $(if (@($want.directories).Count) { "set ENCLAVE_NETWORK_DIRECTORIES=$(@($want.directories) -join ',')" })
++rem the platform host policy (admin host bans; windows/node/host.mjs builds its gate from this): production = on, activated by the
++rem admin's anchor. Unset is OFF on this node (it passes book:null). Keep it.
++set ENCLAVE_PLATFORM_HOST_POLICY=production
+ rem this box's own settings (node-config.local.cmd: never written by an update), after and over everything above
+ if exist "$PD\node-config.local.cmd" call "$PD\node-config.local.cmd"
+ "@ | Set-Content -Encoding ASCII (Join-Path $PD "node-config.cmd")

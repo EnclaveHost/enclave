@@ -1,0 +1,32 @@
+--- a/sia-s3/src/real_indexd.rs
++++ b/sia-s3/src/real_indexd.rs
+@@ -372,10 +372,25 @@
+             let back = get(&a, "k").await;
+             evidence("acknowledged-delete-undone", serde_json::json!({ "deleteRecorded": recorded, "kAfterPublication": back.as_ref().map(|b| String::from_utf8_lossy(b).to_string()) }));
+             assert!(!recorded && back.as_deref() == Some(&b"v2"[..]), "DEFECT: an acknowledged DELETE was undone");
+-            // the fix's listing fails closed against this indexd instead of listing incompletely
+-            let e = load_listing(&urls[0], keys.0[0], Listing::Current).await.err().expect("no current listing on stock indexd");
+-            evidence("current-listing-on-stock-indexd", serde_json::json!({ "error": e }));
+-            assert!(e.contains("no consistent object listing"), "{e}");
++            // the fix's listing: stock v0.6.0 has no GET /current/objects, so it fails closed instead of listing
++            // incompletely; fence-enclave (v27) and c2-enclave (v28) serve it. Which one is expected is stated by the
++            // run (SIAS3_REAL_CURRENT_LISTING=absent|served, default absent = the original stock assertion), so neither
++            // indexer generation can satisfy the other's branch.
++            let current = load_listing(&urls[0], keys.0[0], Listing::Current).await;
++            match std::env::var("SIAS3_REAL_CURRENT_LISTING").unwrap_or_else(|_| "absent".into()).as_str() {
++                "absent" => {
++                    let e = current.err().expect("no current listing on stock indexd");
++                    evidence("current-listing-on-stock-indexd", serde_json::json!({ "error": e }));
++                    assert!(e.contains("no consistent object listing"), "{e}");
++                }
++                "served" => {
++                    let l = current.expect("this indexd serves GET /current/objects");
++                    let listed = l.idx.lock().await.keys.contains_key(&("b".to_string(), "k".to_string()));
++                    evidence("current-listing-served", serde_json::json!({ "kListed": listed }));
++                    assert!(listed, "the current listing includes the acknowledged state the feed listing missed");
++                }
++                other => panic!("SIAS3_REAL_CURRENT_LISTING must be absent or served, not {other}"),
++            }
+         }
+         Listing::Current => {
+             assert_eq!(get(&r, "k").await.unwrap(), b"v2", "the current listing includes the acknowledged PUT");

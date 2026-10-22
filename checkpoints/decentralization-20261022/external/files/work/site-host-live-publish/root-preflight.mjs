@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+import { createHash } from 'node:crypto';
+import { SITE, sitePlan } from './handoff/site-trust.mjs';
+import { startSiteCheck, prepareSiteTx, makeStageBPrecheck } from './handoff/site-chain.mjs';
+import { reserveAbi, reserveOperations } from './handoff/reserve-queue.mjs';
+import { clientsFor } from '../lease-gas-wallet-signing/rpc-clients.mjs';
+const paths=['site-trust.mjs','site-chain.mjs','reserve-queue.mjs'];
+const digest=()=>Object.fromEntries(paths.map(p=>[p,createHash('sha256').update(fs.readFileSync(new URL('./handoff/'+p,import.meta.url))).digest('hex')]));
+const before=digest(),clients=clientsFor(SITE.rpcs.slice(0,2)),plan=sitePlan(SITE);
+const checked=await startSiteCheck({t:SITE,plan,clients});
+const publish=await prepareSiteTx({t:SITE,plan,step:'publish',clients,laterValueWei:SITE.stageB.depositWei});
+const abi=await reserveAbi(), {operations}=reserveOperations({id:SITE.predictedId,depositWei:SITE.stageB.depositWei,abi});
+const precheck=makeStageBPrecheck({t:SITE,plan,operations,reserveAbi:abi});
+const claimability=await Promise.all(clients.map(c=>precheck(c,BigInt(publish.anchor.blockNumber))));
+const after=digest();if(JSON.stringify(before)!==JSON.stringify(after))throw Error('preflight source changed during run');
+const result={at:new Date().toISOString(),status:'READ_ONLY_SIMULATION_PASSED_NOT_SIGNED',source:after,checked,publish,claimability};
+fs.writeFileSync(new URL('./root-preflight.json',import.meta.url),JSON.stringify(result,null,2)+'\n');
+console.log(JSON.stringify({at:result.at,status:result.status,anchor:publish.anchor,adminBalanceWei:checked.adminBalanceWei,publishFeeLimitWei:publish.estimatedFeeLimitWei,claimability}));

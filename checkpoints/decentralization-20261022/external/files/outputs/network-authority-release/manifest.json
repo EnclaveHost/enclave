@@ -1,0 +1,29 @@
+{
+  "preparedAt": "2026-10-19T01:16:13.076271+00:00",
+  "sourceCommit": "8b37c3714d90fc1371800d475c72c7fc57432426",
+  "activated": true,
+  "files": {
+    "provider.mjs": {
+      "sha256": "8b776d76faf784cacafbe95c5ff2a8b501093f28b3e45049eeeeabc528937164",
+      "bytes": 377445
+    },
+    "authority-pins.json": {
+      "sha256": "360a57ce9be5a7cf1c48e376bfdfcf6b4311d16bf72bc2442a0931aa1ea56b88",
+      "bytes": 261
+    },
+    "privacy-agent.mjs": {
+      "sha256": "3883f67ce2414a1c328bd8ead7e46fea071e5e6e86c95a866070bb3241888cd6",
+      "bytes": 1302964
+    },
+    "README.txt": {
+      "bytes": 2212,
+      "sha256": "1011e04f188b961e935b858da9595e3226b3f29237779f7e673c4c78031026ce"
+    }
+  },
+  "providerActivated": true,
+  "providerSourceCommit": "8b37c3714d90fc1371800d475c72c7fc57432426",
+  "privacySourceCommit": "4d23aec3d494700556c0e88858b82b7904df0d2f",
+  "privacyActivated": true,
+  "privacyRollout": "Active on Windows nucbox-k11-4; other host agents pending",
+  "activationScope": "Four providers and one Windows host; not all hosts"
+}

@@ -1,0 +1,19 @@
+--- a/docs/network/independent-cli.md
++++ b/docs/network/independent-cli.md
+@@ -103,7 +103,15 @@
+   control services, see `docs/network/direct-host-control.md`.
+ - **`session resume-wait` and `session top-up-link`:** relay-only. Use `session open` and `session top-up` instead.
+ 
+-`--signer` is refused because an external node broadcasts on its own; use `--unsigned` to sign elsewhere.
++`--signer URL --from ADDR` uses an external wallet as the signing authority, never as a chain-state oracle
++(`docs/network/independent-signer.md`). The quorum prepares nonce, gas and fees. The wallet signs (Clef
++`account_signTransaction`, or `eth_signTransaction`). Every field of the signed bytes and the recovered sender are
++checked, and the quorum broadcasts those exact bytes.
++- A wallet that can only send is used in `--signer-mode auto|wallet-send`. It gets the prepared transaction once, and
++  the hash is accepted only as the quorum sees it mined. That is a weaker guarantee.
++- `--signer-mode handoff` prints the exact transaction for a wallet without an endpoint (MetaMask);
++  `signer attach` then confirms it.
++- An ambiguous outcome stays a journaled intent until `signer resolve` decides it.
+ 
+ ### Sessions
+ 

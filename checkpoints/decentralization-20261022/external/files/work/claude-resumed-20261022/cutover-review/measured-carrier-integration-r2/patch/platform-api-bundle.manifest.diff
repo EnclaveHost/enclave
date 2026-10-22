@@ -1,0 +1,18 @@
+--- /dev/fd/63	2026-10-21 23:00:53.528181668 -0700
++++ /dev/fd/62	2026-10-21 23:00:53.528181668 -0700
+@@ -1,12 +1,12 @@
+ {
+     "bundle": "metal/guest/platform-api.bundle.mjs",
+     "entry": "metal/guest/platform-api-entry.mjs",
+-    "sha256": "2a903c362eecbde7e7bd75da75ed98c0eee93086b180cb8722aefb2b2588c578",
+-    "bytes": 8461186,
++    "sha256": "c0a687973540a1c94c8204c6a7952a99a8cb080a2ab7e65da4f8346877d5d6a1",
++    "bytes": 8464040,
+     "inputs": {
+         "custody/hpke.mjs": "1806a74c947db89db0e410c370ad7963eac9fa30d1807d8f55846690fafc0c03",
+         "metal/guest/lease-gas-conduit.bundle.mjs": "c46c65d75abcac0f0c1ce478a31dc8bbc147d165cab302e3703635b669b72a5f",
+-        "metal/guest/measured-control.mjs": "18f472149238dd4409abd2c87dfe71a48dbb151c778e9a735bf40302cd8cd332",
++        "metal/guest/measured-control.mjs": "f2648d65a16654d35f396bbc10e73e6c2e4a10624093275c66013f546aa9f3e6",
+         "metal/guest/owner-nomination.mjs": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
+         "metal/guest/platform-api-entry.mjs": "b704d6ced7b8922179366cf76733e67899937696170b964018655824b2257638",
+         "metal/guest/platform-api-role.mjs": "3bcee3dfe3da8bcb4cdbdc98412f1aca426a8c1a020ab99f4bea7991e3f64812",

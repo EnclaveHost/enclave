@@ -1,0 +1,90 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/mock.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/mock.rs
+@@ -65,6 +65,10 @@
+     offline: bool,
+     /// Faults the next calls of an operation suffer, in order (see [`crate::mock::Fault`]).
+     faults: HashMap<&'static str, VecDeque<crate::mock::Fault>>,
++    /// PATCH U1: while set, pins and deletes stay unpublished, as indexd's object events do until its publisher
++    /// stamps them (1 s ticks, or a stall): the event feed (`objects`) leaves them out, `current_objects` does not.
++    hold_publication: bool,
++    unpublished: std::collections::HashSet<Hash256>,
+ }
+ 
+ /// An in-memory stand-in for the indexer API.
+@@ -134,6 +138,15 @@
+         self.state.write().unwrap().offline = offline;
+     }
+ 
++    /// PATCH U1: hold (or release, publishing everything held) object-event publication.
++    pub(crate) fn hold_publication(&self, hold: bool) {
++        let mut state = self.state.write().unwrap();
++        state.hold_publication = hold;
++        if !hold {
++            state.unpublished.clear();
++        }
++    }
++
+     /// Queues `fault` for the next call of `op` (`"pin_object"`, `"pin_slabs"` or `"delete_object"`).
+     pub(crate) fn push_fault(&self, op: &'static str, fault: crate::mock::Fault) {
+         self.state.write().unwrap().faults.entry(op).or_default().push_back(fault);
+@@ -296,6 +309,7 @@
+         let mut events: Vec<SealedObjectEvent> = state
+             .objects
+             .iter()
++            .filter(|(id, _)| !state.unpublished.contains(*id))
+             .map(|(id, stored)| SealedObjectEvent {
+                 id: *id,
+                 deleted: stored.sealed.is_none(),
+@@ -315,6 +329,32 @@
+         Ok(events)
+     }
+ 
++    /// PATCH U1: current (not deleted) objects in ID byte order after `after`, published or not.
++    pub(crate) async fn current_objects(
++        &self,
++        _: &PrivateKey,
++        after: Option<Hash256>,
++        limit: Option<usize>,
++    ) -> Result<Vec<SealedObjectEvent>, Error> {
++        self.reachable()?;
++        let state = self.state.read().unwrap();
++        let mut events: Vec<SealedObjectEvent> = state
++            .objects
++            .iter()
++            .filter_map(|(id, stored)| {
++                stored.sealed.clone().map(|o| SealedObjectEvent { id: *id, deleted: false, updated_at: stored.updated_at, object: Some(o) })
++            })
++            .collect();
++        let key = |e: &SealedObjectEvent| *AsRef::<[u8; 32]>::as_ref(&e.id);
++        events.sort_by_key(key);
++        if let Some(after) = after {
++            let after = *AsRef::<[u8; 32]>::as_ref(&after);
++            events.retain(|e| key(e) > after);
++        }
++        events.truncate(limit.unwrap_or(usize::MAX));
++        Ok(events)
++    }
++
+     pub(crate) async fn pin_object(
+         &self,
+         _: &PrivateKey,
+@@ -338,6 +378,9 @@
+                     updated_at: Utc::now(),
+                 },
+             );
++            if state.hold_publication {
++                state.unpublished.insert(object.id());
++            }
+             Ok(())
+         })
+         .await
+@@ -355,6 +398,9 @@
+             Some(stored) => {
+                 stored.sealed = None;
+                 stored.updated_at = Utc::now();
++                if state.hold_publication {
++                    state.unpublished.insert(*key);
++                }
+             }
+             None => {
+                 return Err(Error::Api(

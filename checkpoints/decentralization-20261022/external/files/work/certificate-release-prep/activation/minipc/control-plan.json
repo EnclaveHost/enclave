@@ -1,0 +1,328 @@
+{
+ "format": "enclave-windows-control-activation/v1",
+ "id": "certificate-shield-appzone-20261021",
+ "files": [
+  {
+   "path": "windows/node/agent.mjs",
+   "before": "c223c0435d859f0bde0d496a2eb1e8a2db4af44a47e32bf653710244c5ccd2ba",
+   "after": "c2fe0fff853b563cf9c498aadc4178ae6171731dd58172264d6c3e8709895064"
+  },
+  {
+   "path": "windows/node/shield-sessions.mjs",
+   "before": "5706db7bac997906ae0f631d156c9fb801f1fb7e3fe1813b5697696bc760dd00",
+   "after": "dbd160f1da0ccfa0d33a20386611cddd70fc2645fe6e20f2daf7fc8792e81266"
+  },
+  {
+   "path": "windows/node/shield-startup.mjs",
+   "before": "00ae53d8d640abf16d57101ca388cb0f71976e1855dc2e3edf22353b00623f3a",
+   "after": "8dea4d59f2ee296fc7908e25a013240034f0da48d67bf9524a29b191becda2ca"
+  },
+  {
+   "path": "windows/node/shield-verdict.mjs",
+   "before": "6f134d8b27baea62044506c820df9fc36fbcaa68a64a5754f36bb18a7e5dbd95",
+   "after": "e8910fa0daee97e9da8aaceccbb11ea9b9aebf7e3e24738c69089cc3398de231"
+  }
+ ],
+ "unchanged": [
+  {
+   "path": "availability/host-acceptor.mjs",
+   "sha256": "63436160d00ecae43d5eff7046b13e16e2fad04a423d32102afaa7645bbfb85d"
+  },
+  {
+   "path": "isolation/contract/runtime.mjs",
+   "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69"
+  },
+  {
+   "path": "isolation/m2/judge.mjs",
+   "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd"
+  },
+  {
+   "path": "isolation/m4/guestd/supervisor-guestcert.mjs",
+   "sha256": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597"
+  },
+  {
+   "path": "isolation/m4/guestd/supervisor-splice.mjs",
+   "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b"
+  },
+  {
+   "path": "network/canonical.mjs",
+   "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3"
+  },
+  {
+   "path": "network/host-capacity-producer.mjs",
+   "sha256": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0"
+  },
+  {
+   "path": "network/host-capacity-record.mjs",
+   "sha256": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551"
+  },
+  {
+   "path": "network/owner-names.mjs",
+   "sha256": "66dfc694094979bd69456992b0343dbd6a1879791a92e054bcf7e0883a8d78b3"
+  },
+  {
+   "path": "network/registry-reconcile.mjs",
+   "sha256": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e"
+  },
+  {
+   "path": "network/rpc-identity.mjs",
+   "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57"
+  },
+  {
+   "path": "network/shield-expectation.mjs",
+   "sha256": "1af59d09f6edbc42071f7ded3fb8d42c90232c57c12ae17cfec6724de66f1a4a"
+  },
+  {
+   "path": "relay/avf-verify.mjs",
+   "sha256": "081d826f674d8579f3636c28b4dbd6b62955bd0ff0b8f2710157980ecd9764fd"
+  },
+  {
+   "path": "relay/snp-verify.mjs",
+   "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91"
+  },
+  {
+   "path": "relay/vbs-policy.mjs",
+   "sha256": "0e915d95b6771db87e00cee5ef97b82459da0b43653629a2e03264c78a3901cc"
+  },
+  {
+   "path": "relay/vbs-tcglog-core.mjs",
+   "sha256": "936fc2ccc116154b6936d16a05fa89774a8f68a6dcb36b2733b064d4f2425912"
+  },
+  {
+   "path": "relay/vbs-tcglog.mjs",
+   "sha256": "b7c6b2e43c4fde1fbc6730b2ce53d257a83003673b3b56257b60983083a7036d"
+  },
+  {
+   "path": "relay/vbs-tpm.mjs",
+   "sha256": "993c69a8e9931d67fb741ff93c52dc10503f11b42aedb125a42cffb71922b4f6"
+  },
+  {
+   "path": "relay/vbs-verify.mjs",
+   "sha256": "1b26c6b328d463b6597bc26ea4f8220403638e84655da1ddddea5152cd57b868"
+  },
+  {
+   "path": "sdk/bootstrap/package.mjs",
+   "sha256": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a"
+  },
+  {
+   "path": "sdk/storage/replicas.mjs",
+   "sha256": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25"
+  },
+  {
+   "path": "windows/node/appframe.mjs",
+   "sha256": "fd02f5b9f221291357ca0491a81e3330013f6bcec8149b48d3a1463b4ce05681"
+  },
+  {
+   "path": "windows/node/apprun.mjs",
+   "sha256": "09c60eb7fbe7e6a63cd0696bac6c53b9dfa826e103cc1f0f64ce359abab361ce"
+  },
+  {
+   "path": "windows/node/apptls.mjs",
+   "sha256": "2fb25b001874488104175523dc8409b515b55c5d7922678737e463fe9ed44414"
+  },
+  {
+   "path": "windows/node/appzone.mjs",
+   "sha256": "ba9d9bb13f2ea19cdcbdcdbc021ddbabbd201618ff1e834b733cc220fc8c26c6"
+  },
+  {
+   "path": "windows/node/audit-jobs.mjs",
+   "sha256": "6a6fe3ae786a0a8ffdbf1cbf2dc1e2335035c6adb13058623932f209d97ec4c5"
+  },
+  {
+   "path": "windows/node/blob-cache.mjs",
+   "sha256": "6f34642f9d84706cc26f3f5dd69a70c88b24e73d3c3ab2c6c8b3cc9a82905c38"
+  },
+  {
+   "path": "windows/node/chain.mjs",
+   "sha256": "753818e234916190d75ddfca1f0129ecb95f456a258326598c71f8eaceb0ba00"
+  },
+  {
+   "path": "windows/node/compute-measure.mjs",
+   "sha256": "6e98c52b45ed9a1f4cbdfa91a8bdc2f43aca8102fdfb1cb22ab4e29b0462af3b"
+  },
+  {
+   "path": "windows/node/domains.mjs",
+   "sha256": "a10085de2437ca664f8e8c2d71e2560d095296f55d3ddd53f4b11c8b9634bf41"
+  },
+  {
+   "path": "windows/node/fetch-cid.py",
+   "sha256": "729e6a0c252d9f45823df1d065bcfedda22d9e9e75b36f2c580af1107c32a6f6"
+  },
+  {
+   "path": "windows/node/gas-runway.mjs",
+   "sha256": "1c89eb294039236c738384d9bcd5bf57a3b274d5bfef0ff3284dd956f5f5a537"
+  },
+  {
+   "path": "windows/node/host-admission.bundle.mjs",
+   "sha256": "7ce23a55c9ffccf1c30c818ef3d7a6774cf3c8743fcac62a1421d11456794fc6"
+  },
+  {
+   "path": "windows/node/host-delegation.mjs",
+   "sha256": "153f9aa731014a7aabdf9c221970b085577de80bdae738bc782d35deb777888c"
+  },
+  {
+   "path": "windows/node/host-identity.mjs",
+   "sha256": "ff9e46d9bcec08ff50ab04f0f4581845050b70e5c68debb64ec3cdf255822668"
+  },
+  {
+   "path": "windows/node/host.mjs",
+   "sha256": "2500c650d56c2cb526530c68b2469dde3eeb5044728a1e5f81888142e21f181c"
+  },
+  {
+   "path": "windows/node/hosting.mjs",
+   "sha256": "f2f3f46cd2fcc5433d988379546cd8c142ec878907457ffe1a01d4a1c89f17b7"
+  },
+  {
+   "path": "windows/node/hvcert.mjs",
+   "sha256": "91b9f2db7eb3be98efec1594dfe95245475a0cf234d9ce6843657b37bc2b1557"
+  },
+  {
+   "path": "windows/node/hvnode-attach.mjs",
+   "sha256": "bcd715675c2e0bea32c417a820ec4620e3bad9bad07d7d4c81ef2b47daaaa21d"
+  },
+  {
+   "path": "windows/node/hvnode-evidence.mjs",
+   "sha256": "5e0f11a03b07a585a79a0ec14b23f47ddc5f5af9ce8edc10dccea2400aba06c5"
+  },
+  {
+   "path": "windows/node/hyperv-events.mjs",
+   "sha256": "c91242a456a4c0944ba3bf12bb0db6aa4010db2f4b50960bf4127290fe9933b4"
+  },
+  {
+   "path": "windows/node/install-node.cmd",
+   "sha256": "28633765778ec4ccd308b0a9aa45ff5ffbb7a0b6c727e5787bf1c80dcc4c9508"
+  },
+  {
+   "path": "windows/node/isolation-client.mjs",
+   "sha256": "8d07cb4ea105819c8f769e942c58063d20cf1289544c2afac0b9aeda0d963b7b"
+  },
+  {
+   "path": "windows/node/isolation-lifecycle.mjs",
+   "sha256": "5ae5f457f35fd4debb0b77f8b16ec00325d003470551354377e51c791734b033"
+  },
+  {
+   "path": "windows/node/network-enroll.mjs",
+   "sha256": "2d97a0e10e40ceaa0be897708dc3cfa48742619450605efc107b22674caae2ac"
+  },
+  {
+   "path": "windows/node/package-lock.json",
+   "sha256": "f8964448da57ad5b3754806e7ab53d6c3fa062097b17dec65e71b811a7a5a818"
+  },
+  {
+   "path": "windows/node/package.json",
+   "sha256": "2192d65f7c08160a655aceb351812c6822737271890635fca1c845a940208dd1"
+  },
+  {
+   "path": "windows/node/payout.mjs",
+   "sha256": "c59f855efb487650acffb93fea6d22d44c2867a31e37eff39651008634db785d"
+  },
+  {
+   "path": "windows/node/price-guide.mjs",
+   "sha256": "e9869b25b28896cef1691a8a0c26b7ee9b57c117ff668ae264dee745b89cd3ee"
+  },
+  {
+   "path": "windows/node/release-channel.mjs",
+   "sha256": "f690c29b606879468db94b7b78f283e7de09f94a262803e13ee4dc61b447f942"
+  },
+  {
+   "path": "windows/node/secrets.mjs",
+   "sha256": "d034d871c98090c663cee59458063e85368d4eb83f1cdcf9fa816673ddfadc95"
+  },
+  {
+   "path": "windows/node/session-api-auth.mjs",
+   "sha256": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb"
+  },
+  {
+   "path": "windows/node/session.mjs",
+   "sha256": "cb14d370a09655bb05884a6a1f5bcd4dd0b28ebe0180ae881c9c00c6222be438"
+  },
+  {
+   "path": "windows/node/shield-custody.mjs",
+   "sha256": "5f70528f54cbd092b93f2b0dc7dcffcb2a91e5d1ff64c626f6297e890cf363a2"
+  },
+  {
+   "path": "windows/node/shield-secrets.mjs",
+   "sha256": "c5c4b9c2da1235fe35029ef2a1edce4db058b6b9c9289f0d3363fd59b857a30e"
+  },
+  {
+   "path": "windows/node/shield-witness.mjs",
+   "sha256": "a316361afb19f4bdd05f5e001b916b684669ce9ac03f9788830ed61f06c2b91e"
+  },
+  {
+   "path": "windows/node/shieldedcard.mjs",
+   "sha256": "287f86d53617455f390fb65e39d99cb4f996edc1f4050351bd7ee710bc69f047"
+  },
+  {
+   "path": "windows/node/siwe.mjs",
+   "sha256": "2446021db3b97dc06b0af964c44ccdb1890aa4004a41f5d0fb3db553668af82e"
+  },
+  {
+   "path": "windows/node/sponsor.mjs",
+   "sha256": "896fb8d99b498c2b7fa8f925fabc58835d049031bb7148b9b419158bb8cc4bb3"
+  },
+  {
+   "path": "windows/node/startup-egress.mjs",
+   "sha256": "957d6be65f411619cb557e71dc151a123ecba2c6a539018255f4cf47cd2ea5a2"
+  },
+  {
+   "path": "windows/node/tunnel-handover.mjs",
+   "sha256": "b551e68336ac68c7f26ce6965f5586f75f2bd6536890f9b6ac1fdef4e037f54f"
+  },
+  {
+   "path": "windows/node/update-watch.mjs",
+   "sha256": "9104b137b884ae5d46dfa94f2ec8529d36ee2cd51c89f204eec9335cd1af46a7"
+  },
+  {
+   "path": "windows/node/verification-checkpoints.mjs",
+   "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29"
+  },
+  {
+   "path": "windows/node/waf.mjs",
+   "sha256": "d44da8feb6b55073e1f18264d028e3f854c85215ae3a97208ef329638c1ee94a"
+  },
+  {
+   "path": "windows/vbslike/datapath/datapath.mjs",
+   "sha256": "1149dfb2099a8ea3963c570d61d40e7b304d060b73c62694a31e8346bd258771"
+  },
+  {
+   "path": "windows/vbslike/datapath/node-bridge.mjs",
+   "sha256": "24408ce67c4104ca4abf97290d3a8eb7a30f2aee7c4ce05b887d9259c09dafef"
+  },
+  {
+   "path": "windows/vbslike/datapath/partition-offers.mjs",
+   "sha256": "c13ddf69d2c669567cd868852817c62d473a3eaa031862caefbb67d84389c79e"
+  },
+  {
+   "path": "windows/vbslike/manager/bridge-auth.mjs",
+   "sha256": "259b4e879e91ab97b7776ee661a7aeda84c8a47c521a1e0d71e65df479693860"
+  },
+  {
+   "path": "windows/vbslike/manager/custody-key-file.mjs",
+   "sha256": "4eb7f3a73ee6857c8191a006e510b6072e431f9f9a42cd4fca9fa157797bd8cc"
+  },
+  {
+   "path": "windows/vbslike/manager/custody-transport.mjs",
+   "sha256": "a77a922ade374993540b8c0027234a5dd184c71fe3cbe4d44b04a506ed49652c"
+  },
+  {
+   "path": "windows/vbslike/manager/derive.mjs",
+   "sha256": "504342510c09dadeac0ec925bf071ff9378a56c5c9cc6990c29bbaf85635ad4e"
+  },
+  {
+   "path": "windows/vbslike/manager/egress.mjs",
+   "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05"
+  },
+  {
+   "path": "windows/vbslike/manager/fetchcid.mjs",
+   "sha256": "5f3443c431d36812554202303c4b5596a181727f88c74d95a52a6440cc46cafd"
+  },
+  {
+   "path": "windows/vbslike/verify/boot-statements.mjs",
+   "sha256": "f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3"
+  },
+  {
+   "path": "windows/vbslike/verify/judge-hv.mjs",
+   "sha256": "bae3916e4a9ee1c3f4d67503f76b52d93febfbf356375a3321c7fe1fb9781f7f"
+  }
+ ]
+}

@@ -1,0 +1,34 @@
+# PostgreSQL 18 (host distro binaries) for indexer replica %i. Unix socket only (no TCP), peer authentication.
+# Caps as the live primary's PostgreSQL (1 GiB, shared_buffers 128MB, max_connections 50), no swap.
+[Unit]
+Description=PostgreSQL for Enclave storage indexer replica %i
+ConditionPathExists=/etc/enclave-storage-indexer/%i/ALLOW_LIVE_START
+[Service]
+Type=notify
+User=enclave-storage-indexer
+Group=enclave-storage-indexer
+EnvironmentFile=/etc/enclave-storage-indexer/%i/replica.env
+RuntimeDirectory=enclave-storage-indexer/%i/pg
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=restart
+ExecStartPre=/opt/enclave-storage-indexer/current/libexec/preflight %i
+ExecStart=/bin/sh -c 'exec "${PG_BIN:-/usr/lib/postgresql/18/bin}/postgres" -D /var/lib/enclave-storage-indexer/%i/postgres -c listen_addresses= -c unix_socket_directories=/run/enclave-storage-indexer/%i/pg -c shared_buffers=128MB -c max_connections=50'
+KillMode=mixed
+KillSignal=SIGINT
+TimeoutStopSec=150
+Restart=on-failure
+RestartSec=5
+MemoryMax=1G
+MemorySwapMax=0
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/var/lib/enclave-storage-indexer/%i/postgres
+[Install]
+WantedBy=multi-user.target

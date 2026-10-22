@@ -1,0 +1,754 @@
+{
+  "builtWith": "metal/build-image.mjs",
+  "flavor": "cpu",
+  "images": {
+    "supervisor": {
+      "ref": "ghcr.io/enclavehost/enclave-supervisor@sha256:2f8e84f803eb058a9cff18aa4e44dcb236cf0d326cf1c95ab59f69816d8131f4",
+      "digest": "sha256:fa7aabd91d236e7d98608520f5cfd0e8198f9eec086e68d5244231a795e6e174",
+      "pinned": true
+    },
+    "wasmManager": {
+      "ref": "ghcr.io/enclavehost/enclave-wasm-manager@sha256:460240856a31722907514cbd6efe0c4ef2d1f58b23b0d9ac1cf721aa25d994e4",
+      "digest": "sha256:43fbb0e8c46acab6c6080c30775b5db636ca017562305bea0d57d63621afb9a2",
+      "pinned": true
+    }
+  },
+  "reproducible": true,
+  "supervisorOverlay": {
+    "commit": "5a4eb9a6c070083e72a7b90f42fc58f6819821c2",
+    "dirty": false,
+    "files": [
+      {
+        "path": "/app/supervisor.js",
+        "sha256": "8ab45ab266188bcdf0ff57ddb2004b724e6ed979c6e41605448c81c7e36f8931"
+      },
+      {
+        "path": "/app/isolation/m4/guestd/supervisor-transport.mjs",
+        "sha256": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75"
+      },
+      {
+        "path": "/app/isolation/m4/guestd/control-client.mjs",
+        "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6"
+      },
+      {
+        "path": "/app/isolation/m4/guestd/supervisor-splice.mjs",
+        "sha256": "c841ac7c0d1459c49630224e346890672358256b5616fe51c9d65795ff8072aa"
+      },
+      {
+        "path": "/app/isolation/m4/guestd/supervisor-guestcert.mjs",
+        "sha256": "1b91d46464d60ed46ff2fce43fbe53b95a5c276c7cffd0e6ff4517b4c20c83ca"
+      },
+      {
+        "path": "/app/isolation/m2/judge.mjs",
+        "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd"
+      },
+      {
+        "path": "/app/isolation/contract/runtime.mjs",
+        "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69"
+      },
+      {
+        "path": "/app/relay/snp-verify.mjs",
+        "sha256": "866a0946f5160049c8db29f0e63f107d532968c2428c55ffdccabead59b78206"
+      }
+    ]
+  },
+  "isolation": "snp-guest-per-app",
+  "isolationMinTcb": {
+    "path": "/opt/metal/isolation-min-tcb.json",
+    "sha256": "fe90824f469db17cad41a895f45803d66bef5058ff829e36302fe35328179d9c",
+    "policy": {
+      "Turin": {
+        "fmc": 1,
+        "bootloader": 3,
+        "tee": 2,
+        "snp": 5,
+        "microcode": 117
+      }
+    }
+  },
+  "kernel": {
+    "path": "/boot/vmlinuz-linux",
+    "kver": "7.2.3-arch1-2",
+    "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "modules": [
+    "kernel/drivers/firmware/qemu_fw_cfg.ko",
+    "kernel/net/core/failover.ko",
+    "kernel/drivers/net/net_failover.ko",
+    "kernel/drivers/net/virtio_net.ko",
+    "kernel/drivers/virt/coco/guest/tsm_report.ko",
+    "kernel/drivers/virt/coco/sev-guest/sev-guest.ko",
+    "kernel/drivers/virt/coco/tdx-guest/tdx-guest.ko",
+    "kernel/drivers/md/dm-mod.ko",
+    "kernel/drivers/md/dm-bufio.ko",
+    "kernel/lib/reed_solomon/reed_solomon.ko",
+    "kernel/drivers/md/dm-verity.ko",
+    "kernel/net/vmw_vsock/vsock.ko",
+    "kernel/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko",
+    "kernel/net/vmw_vsock/vmw_vsock_virtio_transport.ko",
+    "kernel/drivers/cpuidle/cpuidle-haltpoll.ko"
+  ],
+  "shielded": [
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/libggml-shielded.so",
+      "tenantPath": "/opt/enclave/shielded/libggml-shielded.so",
+      "bytes": 613832,
+      "sha256": "bbcb5dd1b8f0ef451a2bc862874fdb3c182b93e504053c832b40ed2de7dad4a7"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/libenclave-omp-profile.so",
+      "tenantPath": "/opt/enclave/shielded/libenclave-omp-profile.so",
+      "bytes": 16720,
+      "sha256": "5584a61e136983539ae2a88a3ba8dd61ff3aefe6af6823177ea8005c97a3f58e"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen2.5-0.5b-q8-gguf.calib",
+      "tenantPath": "/opt/enclave/shielded/calib/qwen2.5-0.5b-q8-gguf.calib",
+      "bytes": 4346,
+      "sha256": "25698f09603838fbb840dfbf1b0eeb87883326130e85156bfc142805fff26ce7"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3-4b-q8-gguf.calib",
+      "tenantPath": "/opt/enclave/shielded/calib/qwen3-4b-q8-gguf.calib",
+      "bytes": 6987,
+      "sha256": "e6af35a3e1632e9566c06afb397dc556805fff4e2fa30a463acbafdf765d7760"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3.5-0.8b-mtp-gguf.calib",
+      "tenantPath": "/opt/enclave/shielded/calib/qwen3.5-0.8b-mtp-gguf.calib",
+      "bytes": 4312,
+      "sha256": "dc4031281b7b7af07bece85651cd7591ed1c2834e045bcc70c8e93c184820c77"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3.8-27b-mtp-gguf.calib",
+      "tenantPath": "/opt/enclave/shielded/calib/qwen3.8-27b-mtp-gguf.calib",
+      "bytes": 10214,
+      "sha256": "6e1cb90e61c365d6632612755fdbb473265b0b8134622b972215945442d3ac22"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3.8-27b-mtp-q4-vl-gguf.calib",
+      "tenantPath": "/opt/enclave/shielded/calib/qwen3.8-27b-mtp-q4-vl-gguf.calib",
+      "bytes": 13597,
+      "sha256": "1220f83cb518e0354a6d554e517ceeeb83ee8bab44733fae1e4801ae1982ddbd"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3.8-27b-mtp-q8-vl-gguf.calib",
+      "tenantPath": "/opt/enclave/shielded/calib/qwen3.8-27b-mtp-q8-vl-gguf.calib",
+      "bytes": 13006,
+      "sha256": "ab32618ebb813d2579e107a6c75d1dace7d0c4e8c6e32f1b02e89a5670d4645d"
+    }
+  ],
+  "shieldedBuild": {
+    "ggml": "0.18.0",
+    "cc": "cc (GCC) 16.2.1 20260810",
+    "cxx": "c++ (GCC) 16.2.1 20260810",
+    "sources": [
+      {
+        "name": "shielded-field.c",
+        "sha256": "ffe2655492c20c7a38758bdaf5df190b0a90e4b1bf151a6d8bd0f21ec5ff68f4"
+      },
+      {
+        "name": "shielded-wire.c",
+        "sha256": "1a1630b05baf229bcfb0a4ede3c430a4126a2abe3a3da5c1ac36e554875df11e"
+      },
+      {
+        "name": "shielded-tee.c",
+        "sha256": "eb9105ce6a3139d0f2b21093edce9cff349ffba25a9b7be319138fbece6db4e8"
+      },
+      {
+        "name": "shielded-parwork.c",
+        "sha256": "ee8acafb08e373647191505d5df6e9b6274cae56d1ab5544eb9b5f4e9962038a"
+      },
+      {
+        "name": "shielded-pads.c",
+        "sha256": "a1ca4b8f8d3d1acf1cd0d7ad0d980170a07c8c4b7c1f1f1075291d0e4406bfec"
+      },
+      {
+        "name": "shielded-bank.c",
+        "sha256": "9375e1ae4db84ed9b103068a05cd3d2754f606cce8aa9fc1e742d9a633d1054b"
+      },
+      {
+        "name": "shielded-http.c",
+        "sha256": "102e3640e0c07919ffa84d037c9b73e7d9f418838819feb7ea675933eaaf650e"
+      },
+      {
+        "name": "prefix-kv.c",
+        "sha256": "21fd87ce01afbca69c96e2f2a6a157a23c58fada0268207c20acad154800955c"
+      },
+      {
+        "name": "tweetnacl.c",
+        "sha256": "fdde1227f686ab94794798be51036f515694b165444b00d09e84bf971d5f2749"
+      },
+      {
+        "name": "poly1305-donna.c",
+        "sha256": "5b73b696330f991a62f8e6971eaf32f134533f9a374d7420c1f5bceb74691999"
+      },
+      {
+        "name": "shielded-simd.c",
+        "sha256": "5810f7dacd32711e2c624f9ae8498df6c47cee2ec79d401821e1e1e922c51d2e"
+      },
+      {
+        "name": "ggml-shielded.cpp",
+        "sha256": "ea3f5edaee3262c75fb139e57abc7c686ba18ab846c4061ca4638d0d82df425f"
+      },
+      {
+        "name": "ggml-shielded.h",
+        "sha256": "fcb74fc15280198325fd1734348c5d540fa8c1acd74e0a58f0372822a3590c90"
+      },
+      {
+        "name": "poly1305-donna-32.h",
+        "sha256": "85bc63c1a468fe31a896c242be1cb7afe0cc9a262e5042911abc2cc5dbd1bcb6"
+      },
+      {
+        "name": "poly1305-donna-64.h",
+        "sha256": "9911f24eef3da8af2daf153bd99b8c275bec9567194110262e5c6ac7f33b47df"
+      },
+      {
+        "name": "poly1305-donna.h",
+        "sha256": "db2194945f4aeb914e13efee982d365cd32cc16009febb6f68b51b6aaf17514e"
+      },
+      {
+        "name": "prefix-kv-llama.h",
+        "sha256": "5d53046ae08ef57d69c2d1683253783d8bc7b523e706cd0a09c3d8e485fbcffc"
+      },
+      {
+        "name": "prefix-kv.h",
+        "sha256": "3151a67e5ac152d134e703b38359067013b65d7d838c51d57220ca6c81cdae29"
+      },
+      {
+        "name": "prefix-mtp.h",
+        "sha256": "2149d915128d24753244f33d8578c58c9ef4cf2e2044d1c5e28a39910456e156"
+      },
+      {
+        "name": "shielded-avf-binding.h",
+        "sha256": "5bc3960b60e6595dfa85d39b5c5cc58f9ce91dc9c7096c9b70a1e963ece6eb46"
+      },
+      {
+        "name": "shielded-bank.h",
+        "sha256": "4ce0d4280f8c691fb1af1a17583a0419beed8edcd17b18263a723bdb6ac7f821"
+      },
+      {
+        "name": "shielded-dealer-stream.h",
+        "sha256": "04ccea7f68e1aa8cf8e13d90f4da066a55ebdbb066f5b3713dd5490bafa36dc3"
+      },
+      {
+        "name": "shielded-encoded-source.h",
+        "sha256": "c5b5accc0baa91b02895b7a9ec075f462e68e8f646a0803796cf39ff27bfc083"
+      },
+      {
+        "name": "shielded-field.h",
+        "sha256": "1693cae50a6e31ad6395fc90982b9ec2a10052e6ca5fbddb6d50be3b0341ef31"
+      },
+      {
+        "name": "shielded-fusion.h",
+        "sha256": "95d4d90846854eff53fbc873eb6a160313f3a54051724fb7fa4a60c40e6a0637"
+      },
+      {
+        "name": "shielded-http.h",
+        "sha256": "267bcac022946511b64f799652d43ec620ac5db47433e56bb87b1bdfcb4e6052"
+      },
+      {
+        "name": "shielded-idle.h",
+        "sha256": "c0507b1adcf8fd83fcf24137ec971b06b01a3bcb62a9167b3a4ce44a64ab3945"
+      },
+      {
+        "name": "shielded-latency.h",
+        "sha256": "67ddab93589916ffb32a9951294aacd6169b5f8cc8827abb857ee8066eecac5d"
+      },
+      {
+        "name": "shielded-mint-balance.h",
+        "sha256": "6afd5ac1fb35c41cf2a170cd18a617e1e41b57b6d8c44356dd272b446a68fbfd"
+      },
+      {
+        "name": "shielded-overlap.h",
+        "sha256": "5c5b8e4e4d3f5f117f70e8ad524b7f42f2f02d0561c50732bfa71f5012b0e090"
+      },
+      {
+        "name": "shielded-pad-budget.h",
+        "sha256": "a5d1409e4e1deb49c4f00de894be83a210b76dc3227623a40020544d995df70a"
+      },
+      {
+        "name": "shielded-pad-check.h",
+        "sha256": "046b2b174e9d20a1638f2867a54226c41de1423b569312baea52fdcea9b63ebc"
+      },
+      {
+        "name": "shielded-pad-grant.h",
+        "sha256": "763c5d49a233bdbdbedc635d4f41406fb13cd6338a675e89f189b37389d818c5"
+      },
+      {
+        "name": "shielded-pad-layout.h",
+        "sha256": "436216922faecbe1144d23653902ced98dceca8b4318ff7009fcaed6e3cc34dd"
+      },
+      {
+        "name": "shielded-pad-manifest.h",
+        "sha256": "a4c720a22f59cb55d2fee367d3d06ea4e9f263ee1be2f1f2014b3d23e034d6f1"
+      },
+      {
+        "name": "shielded-pad-mint-v3.h",
+        "sha256": "63ee01a17758ae18839df3fd9941378c743594105bec1a856d5a35054bb7097d"
+      },
+      {
+        "name": "shielded-pad-parallel.h",
+        "sha256": "1ad2b30cead53062a4c98a8364f9332a74f6287e12a3daaefbc9331e6763cbd0"
+      },
+      {
+        "name": "shielded-pad-r4.h",
+        "sha256": "ac5d551f754f9f037b34a6d53b93057b916e95836f2cd995f35d235946f6b9f2"
+      },
+      {
+        "name": "shielded-pad-sparse-plan.h",
+        "sha256": "e62db38ace0277ad5ea6535fa513be4b19010cf9d233ea038f5c23cea796fbd2"
+      },
+      {
+        "name": "shielded-pad-sparse-table.h",
+        "sha256": "eca4fd703329a7cbe5afdffb9e52dc9b926d15733fe3a56e4311cb48634d1dfc"
+      },
+      {
+        "name": "shielded-pads-v3.h",
+        "sha256": "54382dca27cd07e52799a9ef4b4b194ee8f169df2b340c90a258747b6d5afb8d"
+      },
+      {
+        "name": "shielded-pads.h",
+        "sha256": "782c67a8fed4f31d020275a2b5326a8013d17e2f695605a86a39b5602920bb50"
+      },
+      {
+        "name": "shielded-parwork.h",
+        "sha256": "62eebcf421528169da9b201a8f451d8b802a29a3bb66e77a3372342c827c8ce2"
+      },
+      {
+        "name": "shielded-recv-profile.h",
+        "sha256": "d5949d0353bc08868bc54dcd1ee69f28d36917d6132d60208c35ff96929c7894"
+      },
+      {
+        "name": "shielded-sha256.h",
+        "sha256": "d14ff2af54899a9d14b47fa838ba1f8f5d2ac0a3d7098f9f6fa942cb3ec8e90c"
+      },
+      {
+        "name": "shielded-simd.h",
+        "sha256": "a440b5b45aaf3ec0fe5c558de9bc34eabcf427210d9c197206fe5eb53d88f010"
+      },
+      {
+        "name": "shielded-source-prefetch.h",
+        "sha256": "98b7da83f84d676ff48c4f360afb34ea724ad9e03ac5f2c3a688bc5d55558ee8"
+      },
+      {
+        "name": "shielded-source-profile.h",
+        "sha256": "df936df021db0106d8d2a44d373f82d0943246988625e2d9223c36de48e32641"
+      },
+      {
+        "name": "shielded-source-quant.h",
+        "sha256": "cc5a00dfdb46cb7ab763c13c5d4a26cc5561d1fe0f49c60f14c65013e60d0f34"
+      },
+      {
+        "name": "shielded-tee.h",
+        "sha256": "0b157f46616238912d5b6d57451e1cb03e11bdebdca3a634e1c7641c8c7f5221"
+      },
+      {
+        "name": "shielded-weight-cache.h",
+        "sha256": "4b9210ebe85c701d99f9f174fbe816f5b22e2bc434b9073727394210a5cbdb32"
+      },
+      {
+        "name": "shielded-weight-source.h",
+        "sha256": "eab219b03446f4ce69691ad3b661b45af10cfc054895150537f00198b62a5dca"
+      },
+      {
+        "name": "shielded-wide.h",
+        "sha256": "5dc5ba2c59c4dacc58f413707bd95bdac94640d990977a93dd1d5e2160e4f352"
+      },
+      {
+        "name": "shielded-wire-sched.h",
+        "sha256": "0d999b52941bb1b486cccece6119d3aa90d961146534fba9f4a50a0918558796"
+      },
+      {
+        "name": "shielded-wire.h",
+        "sha256": "5c50c72084ccd6567d4651669c8cea307d84bbbb96c3a49d0ac946e215424156"
+      },
+      {
+        "name": "tweetnacl.h",
+        "sha256": "43f29ad721d9927b747b0100ab4160c119e7bb180c7c98a66e4bf79d31244287"
+      },
+      {
+        "name": "shielded-omp-profile.c",
+        "sha256": "4c26c608b616e88594bd69531312e2aa3a7e854cf4f1eb4d33bed242aa1255ee"
+      }
+    ],
+    "vendoredHeaders": [
+      {
+        "name": "ggml-alloc.h",
+        "sha256": "94e4cd069b9313b2ceb35dacec901981e0bb478d8bb31035b7126be091998c23"
+      },
+      {
+        "name": "ggml-backend-impl.h",
+        "sha256": "d9c62d72b13bff67ef7ada8feccf90c9cd1b6d176eae85df3ed1d4f3d2240e52"
+      },
+      {
+        "name": "ggml-backend.h",
+        "sha256": "a620e815b43a44cc72d5f216629a3a91980335b61bc37eb6b2d0813368c3704f"
+      },
+      {
+        "name": "ggml-impl.h",
+        "sha256": "2ed56e264202906d107e26d08eabb242d3107b026ebfb78096fa1e5f94bdbbb8"
+      },
+      {
+        "name": "ggml.h",
+        "sha256": "c65c30fdb4dce95eac71c26bb38ae8423fbc80d79db91d2b2ffaea8c4e46276a"
+      },
+      {
+        "name": "gguf.h",
+        "sha256": "e56714aab702e5ce62ee587a409643c08f7e93e8fbb77f48ef7cc85075f96fa4"
+      }
+    ]
+  },
+  "cmdlineTemplate": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app",
+  "volumeBinding": {
+    "field": "HOST_DATA (SNP report offset 0xC0, 32 bytes); MRCONFIGID on TDX",
+    "canonicalLine": "name|alg|root|salt|dataBlockSize|hashBlockSize|dataBlocks|hashStartBlock|sd(1/0)|gguf",
+    "digest": "sha256(lines.sort().join(\"\\n\") + \"\\n\")",
+    "note": "Volume images are built by metal/volumes.mjs and are themselves reproducible: same source tree in, same verity root hash out. The guest reads HOST_DATA back from its own report and refuses to mount a table that does not hash to it."
+  },
+  "note": "The SEV-SNP launch measurement is a function of (OVMF, this kernel, the initramfs, and the final cmdline). Recompute it independently with sev-snp-measure using the sha256 fields here; metal/verify.mjs checks a live report against the pinned launch measurement.",
+  "controlOverlayHistory": [
+    {
+      "baseInitramfsSha256": "849d6f8cc6d572fffabdbe8b13e4a7bc82ee7e6136fdfa92d908128aa37db322",
+      "commit": "2857356cde9b35c1b9b046c201d74ec8a517bca0",
+      "builder": "metal/overlay-control-image.py",
+      "files": [
+        {
+          "path": "/app/supervisor.js",
+          "sha256": "4beb671705222c5401bd83f49589bda68721a92b80bacbddff6f10d51a899401"
+        },
+        {
+          "path": "/opt/metal/gsup.mjs",
+          "sha256": "4cf28fd2782f66fb5d06e70fee1c35c0c0c84e39a7abdb6082b3dc7ffccada51"
+        },
+        {
+          "path": "/opt/metal/agent.mjs",
+          "sha256": "7639e0ffb4e24cd7146ce89e9168e2a073dec12d2285aff615ba9105b53d25dc"
+        },
+        {
+          "path": "/app/isolation/m4/guestd/supervisor-splice.mjs",
+          "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b"
+        },
+        {
+          "path": "/app/isolation/m4/guestd/supervisor-guestcert.mjs",
+          "sha256": "a61e8c17f4a4fb280b61c692a25b7c1be1ab6df233ff69c4295a85797def158f"
+        },
+        {
+          "path": "/app/session-api-auth.mjs",
+          "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29"
+        },
+        {
+          "path": "/app/verification-checkpoints.mjs",
+          "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29"
+        }
+      ]
+    }
+  ],
+  "controlOverlay": {
+    "baseInitramfsSha256": "516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc",
+    "commit": "0080dc0247f04af9bb87b2eaa1d6d7d65582a65b",
+    "builder": "metal/overlay-control-image.py",
+    "builderSha256": "9935625ba2109409e69f492358030f919ab5819c723cbc917a33cc49347226b1",
+    "files": [
+      {
+        "path": "/app/supervisor.js",
+        "source": "supervisor.js",
+        "sha256": "4ad9a3ef2a1d24472ea8b11fed490b28aab3c5a25afdc0baf06c6b7bf66b3862"
+      },
+      {
+        "path": "/app/addressbook.js",
+        "source": "addressbook.js",
+        "sha256": "fe3f27e6c64367c9b9f14742315efc9357aaed88e2f831b3754832fd74b1ce92"
+      },
+      {
+        "path": "/app/egress.js",
+        "source": "egress.js",
+        "sha256": "99a99f08e08a66472b8921d38d05d9a63d65c76a0eb6ac085d511c447df3dbd8"
+      },
+      {
+        "path": "/app/net-guard.mjs",
+        "source": "net-guard.mjs",
+        "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af"
+      },
+      {
+        "path": "/app/windows/node/session-api-auth.mjs",
+        "source": "windows/node/session-api-auth.mjs",
+        "sha256": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb"
+      },
+      {
+        "path": "/app/windows/node/verification-checkpoints.mjs",
+        "source": "windows/node/verification-checkpoints.mjs",
+        "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29"
+      },
+      {
+        "path": "/app/windows/node/host-admission.bundle.mjs",
+        "source": "windows/node/host-admission.bundle.mjs",
+        "sha256": "7ce23a55c9ffccf1c30c818ef3d7a6774cf3c8743fcac62a1421d11456794fc6"
+      },
+      {
+        "path": "/app/sdk/bootstrap/package.mjs",
+        "source": "sdk/bootstrap/package.mjs",
+        "sha256": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a"
+      },
+      {
+        "path": "/app/sdk/bootstrap/storage.mjs",
+        "source": "sdk/bootstrap/storage.mjs",
+        "sha256": "98e22b7b87b6d636cf6001d9ba859f4da3443af42f386deeb74ac622bcefccb3"
+      },
+      {
+        "path": "/app/sdk/storage/gateways.mjs",
+        "source": "sdk/storage/gateways.mjs",
+        "sha256": "ea34a5a01e2371aa63be5c62422f19d25c8b62b454eba90a75e7dbb4cbe85119"
+      },
+      {
+        "path": "/app/sdk/storage/upload-auth.mjs",
+        "source": "sdk/storage/upload-auth.mjs",
+        "sha256": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1"
+      },
+      {
+        "path": "/app/sdk/storage/replicas.mjs",
+        "source": "sdk/storage/replicas.mjs",
+        "sha256": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25"
+      },
+      {
+        "path": "/app/site/js/core/upload-auth.js",
+        "source": "site/js/core/upload-auth.js",
+        "sha256": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23"
+      },
+      {
+        "path": "/app/isolation/m4/guestd/supervisor-transport.mjs",
+        "source": "isolation/m4/guestd/supervisor-transport.mjs",
+        "sha256": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75"
+      },
+      {
+        "path": "/app/isolation/m4/guestd/control-client.mjs",
+        "source": "isolation/m4/guestd/control-client.mjs",
+        "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6"
+      },
+      {
+        "path": "/app/isolation/m4/guestd/supervisor-splice.mjs",
+        "source": "isolation/m4/guestd/supervisor-splice.mjs",
+        "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b"
+      },
+      {
+        "path": "/app/isolation/m4/guestd/supervisor-guestcert.mjs",
+        "source": "isolation/m4/guestd/supervisor-guestcert.mjs",
+        "sha256": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597"
+      },
+      {
+        "path": "/app/isolation/m2/judge.mjs",
+        "source": "isolation/m2/judge.mjs",
+        "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd"
+      },
+      {
+        "path": "/app/isolation/contract/runtime.mjs",
+        "source": "isolation/contract/runtime.mjs",
+        "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69"
+      },
+      {
+        "path": "/app/relay/snp-verify.mjs",
+        "source": "relay/snp-verify.mjs",
+        "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91"
+      },
+      {
+        "path": "/app/client/lease-executor-authority.mjs",
+        "source": "client/lease-executor-authority.mjs",
+        "sha256": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99"
+      },
+      {
+        "path": "/app/client/lease-executor-client.mjs",
+        "source": "client/lease-executor-client.mjs",
+        "sha256": "bd082b005f770b36d29495ee1cb3e193efc458ecbe49056997cdfb48876ab2dd"
+      },
+      {
+        "path": "/app/metal/guest/owner-nomination.mjs",
+        "source": "metal/guest/owner-nomination.mjs",
+        "sha256": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0"
+      },
+      {
+        "path": "/app/network/canonical.mjs",
+        "source": "network/canonical.mjs",
+        "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3"
+      },
+      {
+        "path": "/app/network/directory-client.mjs",
+        "source": "network/directory-client.mjs",
+        "sha256": "eb601c1d737f062bb1f7031980846feb93533fc5789512215051b4eacf571a09"
+      },
+      {
+        "path": "/app/network/host-capacity-producer.mjs",
+        "source": "network/host-capacity-producer.mjs",
+        "sha256": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0"
+      },
+      {
+        "path": "/app/network/host-capacity-record.mjs",
+        "source": "network/host-capacity-record.mjs",
+        "sha256": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551"
+      },
+      {
+        "path": "/app/network/host-owner-nomination.mjs",
+        "source": "network/host-owner-nomination.mjs",
+        "sha256": "10ba547e9a1237c0978701d8521055839b8042af9444e3606ed0ebf16c7635f6"
+      },
+      {
+        "path": "/app/network/host-policy-adapters.mjs",
+        "source": "network/host-policy-adapters.mjs",
+        "sha256": "6d641432912f26592543a61b202b287298c2eca13dcc9c4f98c3214618395c84"
+      },
+      {
+        "path": "/app/network/lease-executor-authority.mjs",
+        "source": "network/lease-executor-authority.mjs",
+        "sha256": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99"
+      },
+      {
+        "path": "/app/network/lease-executor-client.mjs",
+        "source": "network/lease-executor-client.mjs",
+        "sha256": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a"
+      },
+      {
+        "path": "/app/network/lease-gas-owner.mjs",
+        "source": "network/lease-gas-owner.mjs",
+        "sha256": "ddd3ba9bb016562c9387bd7418f016c03fbcc5b9db9706bad5905da81762afe5"
+      },
+      {
+        "path": "/app/network/lease-gas-runtime.mjs",
+        "source": "network/lease-gas-runtime.mjs",
+        "sha256": "91b5e357af8a2f9acbbe5164603e0ac08a358abadc3967c41855a339073f53fc"
+      },
+      {
+        "path": "/app/network/lease-relay-discovery.mjs",
+        "source": "network/lease-relay-discovery.mjs",
+        "sha256": "c54749b70ca746bfc33922c1ca59b5860783d3a102443c17a0bfec6470cfbb42"
+      },
+      {
+        "path": "/app/network/lease-release-journal.mjs",
+        "source": "network/lease-release-journal.mjs",
+        "sha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6"
+      },
+      {
+        "path": "/app/network/network-authorities.mjs",
+        "source": "network/network-authorities.mjs",
+        "sha256": "fbe3141976ef22a87173fb56def5d5545520c13667f61355d5a889b82f497448"
+      },
+      {
+        "path": "/app/network/network-policy-core.mjs",
+        "source": "network/network-policy-core.mjs",
+        "sha256": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064"
+      },
+      {
+        "path": "/app/network/network-policy.mjs",
+        "source": "network/network-policy.mjs",
+        "sha256": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f"
+      },
+      {
+        "path": "/app/network/provider-directory.mjs",
+        "source": "network/provider-directory.mjs",
+        "sha256": "88d3bbf0bcc5ffb922f8a97c858238ef589bb5cff7d3c0c27cbc45e051e6f6db"
+      },
+      {
+        "path": "/app/network/provider-qualification.mjs",
+        "source": "network/provider-qualification.mjs",
+        "sha256": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9"
+      },
+      {
+        "path": "/app/network/registry-reconcile.mjs",
+        "source": "network/registry-reconcile.mjs",
+        "sha256": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e"
+      },
+      {
+        "path": "/app/network/route-record.mjs",
+        "source": "network/route-record.mjs",
+        "sha256": "be3bfab79561740b7b76aa6d34efa85f5b825a5b8ccbaca49f81a74f4c226e85"
+      },
+      {
+        "path": "/app/network/rpc-identity.mjs",
+        "source": "network/rpc-identity.mjs",
+        "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57"
+      },
+      {
+        "path": "/app/network/service-index.mjs",
+        "source": "network/service-index.mjs",
+        "sha256": "8420b37f8ee8cd4bf8c7cb25450480a1d104a5e2a9d031e84a8f0551accfc76d"
+      },
+      {
+        "path": "/app/relay/net-guard.mjs",
+        "source": "relay/net-guard.mjs",
+        "sha256": "f319fa3754b8991cb2a71a9c9d7a7637edee1803721109fb78273a2be39931a8"
+      },
+      {
+        "path": "/opt/metal/gsup.mjs",
+        "source": "metal/guest/gsup.mjs",
+        "sha256": "10127e1170d71d6f23d26e01ebf5a0bfee19c51f1121148c13ab43f9d49e4d24"
+      },
+      {
+        "path": "/opt/metal/agent.mjs",
+        "source": "metal/guest/agent.mjs",
+        "sha256": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a"
+      },
+      {
+        "path": "/opt/metal/host-policy.bundle.mjs",
+        "source": "metal/guest/host-policy.bundle.mjs",
+        "sha256": "be01edb3838ca87503752bd08a4b7c72c1905c2c1822430113433cd6ce713654"
+      },
+      {
+        "path": "/opt/metal/shielded.mjs",
+        "source": "metal/guest/shielded.mjs",
+        "sha256": "f38f0abcaef8029edfd7144adc3c7ccea87c7291107265863195117bc60bdb7f"
+      },
+      {
+        "path": "/opt/metal/shielded-probe.mjs",
+        "source": "metal/guest/shielded-probe.mjs",
+        "sha256": "e3ff32ee3a993f1f94603f0d1dbdcfc0169be1c3da91b575d5613fd5450e831f"
+      },
+      {
+        "path": "/opt/metal/shielded-shm.mjs",
+        "source": "metal/guest/shielded-shm.mjs",
+        "sha256": "92d3a36942244658fe6f7e0b1a070611db631076d914efda66935152cbb84731"
+      },
+      {
+        "path": "/opt/metal/measured-control.mjs",
+        "source": "metal/guest/measured-control.mjs",
+        "sha256": "18f472149238dd4409abd2c87dfe71a48dbb151c778e9a735bf40302cd8cd332"
+      },
+      {
+        "path": "/opt/metal/lease-gas-conduit.bundle.mjs",
+        "source": "metal/guest/lease-gas-conduit.bundle.mjs",
+        "sha256": "c46c65d75abcac0f0c1ce478a31dc8bbc147d165cab302e3703635b669b72a5f"
+      },
+      {
+        "path": "/opt/metal/owner-nomination.mjs",
+        "source": "metal/guest/owner-nomination.mjs",
+        "sha256": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0"
+      }
+    ],
+    "supervisorClosure": {
+      "rules": "metal/supervisor-closure.mjs",
+      "packages": [
+        {
+          "name": "cors",
+          "version": "2.8.6"
+        },
+        {
+          "name": "express",
+          "version": "4.22.2"
+        },
+        {
+          "name": "jose",
+          "version": "5.10.0"
+        },
+        {
+          "name": "viem",
+          "version": "2.53.1"
+        },
+        {
+          "name": "ws",
+          "version": "8.21.1"
+        }
+      ]
+    },
+    "collapsedIdenticalDuplicates": {
+      "app/session-api-auth.mjs": 9,
+      "app/verification-checkpoints.mjs": 1
+    }
+  }
+}

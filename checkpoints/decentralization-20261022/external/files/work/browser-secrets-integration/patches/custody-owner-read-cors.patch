@@ -1,0 +1,124 @@
+--- a/custody/v2/http.mjs
++++ b/custody/v2/http.mjs
+@@ -4,7 +4,8 @@
+ // client key is the TCP peer, not a client-chosen x-forwarded-for (see clientKeyFor).
+ //
+ // Added: the owner-read routes (/v2/custody/owner-read/challenge, /v2/custody/owner-read) with the ordinary 256 KiB bound,
+-// served only by a custodian that has them (docs/security/custody-owner-read.md).
++// served only by a custodian that has them (docs/security/custody-owner-read.md). They alone carry public, credentialless
++// CORS and answer their OPTIONS preflight (OWNER_READ_ROUTES below), so the owner's own browser can call them directly.
+ // Added: the Shield host-session routes (custody/v2/shield-evidence.mjs, shield-operator.mjs), ONLY when the custodian has
+ // the measured Shield adapter installed; without it they are exactly an unknown route (404). Their bounds:
+ //   .../challenge  the ordinary 256 KiB body bound;
+@@ -60,6 +61,15 @@
+ }
+ export const ATTEST_READ_MS = 60_000;
+ 
++// BROWSER OWNERS (docs/security/custody-owner-read.md "Browsers and CORS"): the two owner-read routes answer ANY origin,
++// credentialless. Their authority is the owner's signature over a fresh challenge and an ephemeral recipient key - never an
++// origin or a cookie - and their answers are HPKE ciphertext to that key. A preflight is answered before the rate limit, the
++// body and the custodian: it spends no token, challenge or owner-read budget. Every other route is unchanged (no CORS).
++export const OWNER_READ_ROUTES = Object.freeze(["/v2/custody/owner-read/challenge", "/v2/custody/owner-read"]);
++const OWNER_READ_CORS = Object.freeze({ "access-control-allow-origin": "*" });
++const OWNER_READ_PREFLIGHT = Object.freeze({ ...OWNER_READ_CORS, "access-control-allow-methods": "POST", "access-control-allow-headers": "content-type",
++                                             "access-control-max-age": "600", "cache-control": "no-store", "content-length": "0" });
++
+ const json = (res, code, body, headers = {}) => { res.writeHead(code, { "content-type": "application/json", "cache-control": "no-store", ...headers }); res.end(JSON.stringify(body)); };
+ 
+ // -> Buffer, or null after answering 413 (or 408 past `deadlineMs`; the rest of the body is discarded and the connection
+@@ -105,6 +115,7 @@
+   if (shieldOn && !(limits && Number.isSafeInteger(limits.maxAttestBytes) && Number.isSafeInteger(limits.maxConcurrentAttests)))
+     throw new Error("custody router: the Shield adapter carries no measured limits");
+   let attesting = 0;
++  const ownerReadOn = typeof custodian.ownerChallenge === "function" && typeof custodian.ownerRead === "function";
+ 
+   async function shieldRoute(res, route, body) {
+     try { return json(res, 200, await (route === "challenge" ? custodian.shieldChallenge(body) : custodian.shieldAttest(body))); }
+@@ -119,6 +130,10 @@
+     const u = new URL(req.url, "http://x");
+     const client = clientOf(req);
+     let held = false;
++    if (ownerReadOn && OWNER_READ_ROUTES.includes(u.pathname)) {
++      if (req.method === "OPTIONS") { res.writeHead(204, OWNER_READ_PREFLIGHT); return res.end(); }
++      for (const [k, v] of Object.entries(OWNER_READ_CORS)) res.setHeader(k, v);     // every answer below, refusals included
++    }
+     try {
+       if (req.method === "GET" && (u.pathname === "/health" || u.pathname === "/")) return json(res, 200, { ok: true, role: "custodian-v2" });
+       if (req.method === "GET" && u.pathname === "/v2/custody/info") return json(res, 200, { ...member.info(servedCommittee()), chainId, vault,
+--- a/custody/v2/ingress.mjs
++++ b/custody/v2/ingress.mjs
+@@ -1,6 +1,8 @@
+ // TLS is owned by this host operator. The proxy sees public protocol messages
+ // and HPKE ciphertext, never the sealed guest state or plaintext secret shares.
+ // The owner-read routes (custody/v2/custodian.mjs ownerRead) are forwarded; the custodian itself refuses them per policy.
++// Their CORS preflight (OPTIONS on exactly those two paths) is forwarded too: the custodian answers it (custody/v2/http.mjs)
++// without spending anything. Every other OPTIONS stays this site's 404.
+ // The Shield host-session routes are forwarded too: on an image without the measured Shield opt-in the custodian answers
+ // them 404 itself (custody/v2/http.mjs). reverse_proxy sets X-Forwarded-For to the client address it saw; the custodian
+ // reads it only when measured with --trusted-proxy for its forwarder (custody/v2/http.mjs clientKeyFor).
+@@ -18,12 +20,19 @@
+     method POST
+     path /v2/custody/evidence /v2/custody/challenge /v2/custody/release /v2/custody/join /v2/custody/approve /v2/custody/independent-genesis /v2/custody/code-approve /v2/custody/shield-session/challenge /v2/custody/shield-session/attest /v2/custody/owner-read/challenge /v2/custody/owner-read
+   }
++  @owner_read_preflight {
++    method OPTIONS
++    path /v2/custody/owner-read/challenge /v2/custody/owner-read
++  }
+   handle @public_info {
+     reverse_proxy 127.0.0.1:${mgmtPort}
+   }
+   handle @public_protocol {
+     reverse_proxy 127.0.0.1:${mgmtPort}
+   }
++  handle @owner_read_preflight {
++    reverse_proxy 127.0.0.1:${mgmtPort}
++  }
+   handle {
+     respond "Not found" 404
+   }
+--- a/docs/security/custody-owner-read.md
++++ b/docs/security/custody-owner-read.md
+@@ -6,7 +6,8 @@
+ ## What it is
+ 
+ The deployment's policy owner can ask the committee for its own values, from any client: the CLI
+-(`enclave --independent … secrets ls|set|rm|clear`) or the browser (`custody/v2/owner-secrets.mjs`). The same DLEQ-proved
++(`enclave --independent … secrets ls|set|rm|clear`) or the browser (`custody/v2/owner-secrets.mjs`, bundled unchanged as
++`site/vendor/custody-v2.js` for the independent dashboard's Secrets tab). The same DLEQ-proved
+ partials a guest receives are sealed to an **ephemeral** key the client generates for that one read. Neither the host
+ operator, the relay nor Enclave is a recipient or an authorizer.
+ 
+@@ -53,6 +54,33 @@
+ - A guest release challenge cannot authorize an owner read, nor the reverse.
+ - Partials bound to one domain never verify, or open, as the other's.
+ 
++## Browsers and CORS
++
++The dashboard (`site/js/core/independent-secrets.js`, the Secrets tab in independent mode) calls the custodians directly,
++cross-origin. Exactly the two owner-read routes allow that:
++- **Answers.** Every answer on `/v2/custody/owner-read/challenge` and `/v2/custody/owner-read`, refusals included, carries
++  `Access-Control-Allow-Origin: *`.
++- **No credentials.** There is never `Allow-Credentials`. The page sends `credentials: "omit"`, and no cookie or origin is
++  read.
++- **Preflight.** `OPTIONS` on those two paths answers `204` with `Allow-Methods: POST`, `Allow-Headers: content-type` and
++  `Max-Age: 600`. The router answers it before the rate limit, the body and the custodian, so it spends no rate token, no
++  challenge and no owner-read budget, and it carries no data.
++- **The ingress.** `directCustodyIngress` forwards that `OPTIONS` for exactly those two paths. Every other `OPTIONS` is
++  still the site's 404.
++- **Everything else is unchanged.** Every other route (guest release, challenge, join, approve, Shield, info) keeps no CORS
++  headers and its `405` on `OPTIONS`. So does a custodian without owner read.
++
++**Why public CORS, not owner-chosen origins.**
++- The authority is the owner's signature over a fresh single-use challenge, the current revisions, committee and epoch, and
++  an ephemeral recipient key. The answers are HPKE ciphertext to that key.
++- Anyone can already send these requests from outside a browser, and `Origin` is a browser-supplied header. An origin
++  allowlist would protect nothing cryptographic, and a stale list would break the owner's own client.
++- A phishing page that gets the owner to sign an `OwnerRead` could relay through its own server whatever CORS says. The
++  defences are:
++  - the wallet's typed-data display (domain `EnclaveSecretVaultV2`, type `OwnerRead`, the recipient key);
++  - the per-policy opt-in;
++  - the 300 s lifetime.
++
+ ## The pause guarantee
+ 
+ **Paused means nothing is released, to the owner either.** While paused, `secrets ls`, `rm` and a merging `set` are

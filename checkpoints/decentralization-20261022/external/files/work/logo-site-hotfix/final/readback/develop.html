@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>(function(){
+var heal=function(){try{
+  var k="enclave_skew_reload",last=+sessionStorage.getItem(k)||0;
+  if(Date.now()-last<240000)return;
+  sessionStorage.setItem(k,String(Date.now()));
+  setTimeout(function(){location.reload();},8000);
+}catch(e){}};
+addEventListener("error",function(e){
+  var t=e.target;
+  if(t&&(t.tagName==="SCRIPT"||(t.tagName==="LINK"&&t.rel==="modulepreload")))heal();
+},true);
+addEventListener("unhandledrejection",function(e){
+  if(/dynamically imported module|Failed to fetch|error loading/i.test(String(e.reason)))heal();
+});
+})();</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070A0F" />
+<title>Developer Guide, CLI & API Reference · Enclave</title>
+<meta name="description" content="Build a WebAssembly app once and understand where it runs: developer guide, architecture and protection levels, CLI, MCP server for agents, and the full REST API reference." />
+<link rel="canonical" href="https://enclave.host/develop" />
+<meta name="robots" content="index,follow,max-image-preview:large" />
+<meta property="og:site_name" content="Enclave" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://enclave.host/develop" />
+<meta property="og:title" content="Developer Guide, CLI & API Reference · Enclave" />
+<meta property="og:description" content="Build and ship your first WebAssembly app for Enclave's confidential GPU cloud: the developer guide, the enclave CLI, and the full API reference." />
+<meta property="og:image" content="https://enclave.host/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Enclave: compute that cannot see your data. Portable apps, explicit protection, verifiable execution, independent infrastructure." />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://enclave.host/assets/og.png" />
+<link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<script>
+/* Cross-document view transitions are skipped by Chromium when extensions
+   inject content scripts (MetaMask et al): the old page sees pageswap with
+   no viewTransition. Flag it, and the NEXT page (this script runs pre-paint)
+   plays the same settle-in itself (html.soft-enter, see base.css) - content
+   only, the static header stays put. */
+(function(){
+  try { if (sessionStorage.getItem("enclave_novt")) { sessionStorage.removeItem("enclave_novt"); document.documentElement.classList.add("soft-enter"); } } catch(e){}
+  addEventListener("pageswap", function(e){
+    try { if (!e.viewTransition && e.activation) sessionStorage.setItem("enclave_novt", "1"); } catch(e){}
+  });
+})();
+</script>
+<link rel="preconnect" href="https://mainnet.base.org" crossorigin />
+<link rel="preload" as="image" href="assets/develop-cinematic.webp" />
+<link rel="stylesheet" href="css/site.css" />
+<link rel="modulepreload" href="js/chunks/chunk-LLYUEQ45.js" />
+<link rel="modulepreload" href="js/chunks/chunk-TXG5D22N.js" />
+<link rel="modulepreload" href="js/chunks/chunk-IBXEASKH.js" />
+<link rel="modulepreload" href="js/chunks/develop-VDOFFTKK.js" />
+<link rel="modulepreload" href="js/chunks/chunk-WI3UXHZF.js" />
+<link rel="modulepreload" href="js/chunks/chunk-QZPLS7ZY.js" />
+<link rel="modulepreload" href="js/chunks/chunk-YOZ2TTAJ.js" />
+<link rel="modulepreload" href="js/chunks/chunk-S2A6SCSN.js" />
+<link rel="modulepreload" href="js/chunks/chunk-Y4V34UYZ.js" />
+<link rel="modulepreload" href="js/chunks/chunk-CPRDRZHM.js" />
+<link rel="modulepreload" href="js/chunks/chunk-277DVH75.js" />
+<link rel="modulepreload" href="js/chunks/chunk-SHT3C7TR.js" />
+<link rel="modulepreload" href="js/chunks/chunk-IKC2P5XV.js" />
+<link rel="modulepreload" href="js/chunks/chunk-SLJRHRBL.js" />
+<link rel="modulepreload" href="js/chunks/chunk-D7VGFCH5.js" />
+<link rel="modulepreload" href="js/chunks/chunk-Z5J4PI3T.js" />
+<link rel="modulepreload" href="js/chunks/chunk-3LBUJ242.js" />
+<script type="module" src="js/boot.js?media=2"></script>
+<script type="application/ld+json" data-breadcrumb>
+{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+{"@type":"ListItem","position":1,"name":"Enclave","item":"https://enclave.host/"},
+{"@type":"ListItem","position":2,"name":"Develop","item":"https://enclave.host/develop"}]}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebAPI",
+  "name": "Enclave API",
+  "description": "CORS-enabled REST API for deploying WebAssembly apps onto attested enclaves and other verifiable hosts: create and fund deployments, stream logs, fetch attestation, all callable from front-end JavaScript or an agent.",
+  "documentation": "https://enclave.host/develop#api",
+  "termsOfService": "https://enclave.host/terms",
+  "provider": { "@type": "Organization", "name": "Enclave Host, Inc.", "url": "https://enclave.host/" }
+}
+</script>
+</head>
+<body>
+<c-header current="develop" data-ssr><header class="nav">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="wrap nav-inner">
+    <a href="./" class="brand" aria-label="Enclave home">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+        <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkH"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkH)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="./" data-view="overview">Overview</a>
+      <a href="apps" data-view="apps">Apps</a>
+      <a href="develop" data-view="develop" class="active">Develop</a>
+      <a href="host" data-view="host">Host</a>
+      <a href="dashboard" data-view="dashboard" hidden>Dashboard</a>
+    </nav>
+    <c-wallet-button data-ssr><div class="wallet-mount" id="walletMount">
+  <button class="btn btn-primary btn-sm" id="walletBtn" type="button" aria-controls="walletPop">Sign in <span class="arr" aria-hidden="true">→</span></button>
+  <div class="wallet-pop" id="walletPop" hidden></div>
+</div></c-wallet-button>
+  </div>
+</header></c-header>
+<script>(function(){try{
+var s=JSON.parse(localStorage.getItem("enclave_session")||"null");
+var a=JSON.parse(localStorage.getItem("enclave_account")||"null");
+var wallet=s&&s.address,acct=a&&a.token;
+if(!wallet&&!acct)return;
+var dt=document.querySelector('.nav-links a[data-view="dashboard"]');if(dt)dt.hidden=false;
+var b=document.getElementById("walletBtn");if(!b)return;
+b.classList.add("connected");b.textContent="";
+var d=document.createElement("span");d.className="wdot";b.appendChild(d);
+b.appendChild(document.createTextNode(wallet?s.address.slice(0,6)+"…"+s.address.slice(-4):"Signed in"));
+b.dataset.painted="1";
+}catch(e){}})();</script>
+<main id="main" tabindex="-1">
+<h1 class="sr-only">Develop for Enclave: WebAssembly app guide, architecture, CLI, MCP, and API reference</h1>
+<section id="develop-home" data-view="develop" aria-label="Developer documentation" style="padding:84px 0 0;">
+  <a id="develop"></a>
+  <div class="wrap">
+    <div class="visual-banner">
+      <c-cinematic-scene scene="develop" image="assets/develop-cinematic.webp" video="assets/develop-cinematic.mp4" data-ssr><div class="cinema-media" aria-hidden="true">
+  <img class="cinema-image" src="assets/develop-cinematic.webp" alt="" width="1672" height="941" decoding="async" />
+  <video class="cinema-video" data-src="assets/develop-cinematic.mp4" muted loop playsinline preload="none" tabindex="-1"></video>
+</div>
+<div class="cinema-shade" aria-hidden="true"></div></c-cinematic-scene>
+    <c-section-head eyebrow="Develop" heading="From idea to enclave." data-ssr><div class="sec-head">
+  <span class="eyebrow">Develop</span>
+  <h2>From idea to enclave.</h2>
+  <p>Everything needed to understand and ship a confidential app: follow the guide from an empty directory to an attested endpoint, inspect the architecture and protection levels, drive every operation with the CLI or <a href="#mcp">MCP</a>, and use the API reference for every call the platform answers.</p>
+</div></c-section-head>
+    </div>
+    <nav class="dev-tabs" id="devTabs" aria-label="Developer documentation tabs">
+      <a href="#docs" data-devtab="guide" class="on" aria-current="true">Guide</a>
+      <a href="#cli" data-devtab="cli">CLI</a>
+      <a href="#mcp" data-devtab="mcp">MCP</a>
+      <a href="#api" data-devtab="api">API reference</a>
+      <a href="#architecture" data-devtab="architecture">Architecture</a>
+    </nav>
+  </div>
+</section>
+<section id="docs" data-view="develop" aria-label="App development guide">
+  <div class="wrap">
+    <article class="doc doc-lead">
+      <h3>Build your first Wasm app.</h3>
+      <p>This guide takes you from an empty directory to a paid, attested, publicly reachable app: first the <b>Hello</b> walkthrough end to end, then a worked example for every capability the platform gives your code. That covers HTTP handling, the <span class="mono">/data</span> scratch filesystem, raw TCP/UDP service ports, GPU inference, user-held-key encrypted volumes, and attestation your users can check themselves. Everything here runs against the same <a href="#api">public API</a> the store's Deploy button uses. The package you build is the same on every backend; the protection level belongs to the host it lands on, and the <a href="#contract">Architecture tab</a> says what each one guarantees.</p>
+    </article>
+
+    <div class="docs-layout">
+      <aside class="docs-side">
+        <nav class="docs-nav" aria-label="Guide chapters">
+          <div class="grp">Get started</div>
+          <ul>
+            <li><a href="#docs-model" class="on"><span class="n">01</span>The app model</a></li>
+            <li><a href="#docs-toolchain"><span class="n">02</span>Toolchain setup</a></li>
+            <li><a href="#docs-hello"><span class="n">03</span>Hello, enclave</a></li>
+          </ul>
+          <div class="grp">Ship it</div>
+          <ul>
+            <li><a href="#docs-publish"><span class="n">04</span>Publish to the store</a></li>
+            <li><a href="#docs-deploy"><span class="n">05</span>Deploy it</a></li>
+            <li><a href="#docs-call"><span class="n">06</span>Call your app</a></li>
+          </ul>
+          <div class="grp">Capabilities</div>
+          <ul>
+            <li><a href="#docs-http"><span class="n">07</span>HTTP in depth</a></li>
+            <li><a href="#docs-data"><span class="n">08</span>The /data filesystem</a></li>
+            <li><a href="#docs-ports"><span class="n">09</span>Service apps &amp; ports</a></li>
+            <li><a href="#docs-tcp"><span class="n">10</span>TCP &amp; in-enclave TLS</a></li>
+            <li><a href="#docs-udp"><span class="n">11</span>UDP</a></li>
+            <li><a href="#docs-gpu"><span class="n">12</span>GPU inference (wasi-nn)</a></li>
+            <li><a href="#docs-encvol"><span class="n">13</span>Encrypted volumes</a></li>
+            <li><a href="#docs-domains"><span class="n">14</span>Custom domains</a></li>
+          </ul>
+          <div class="grp">Reference</div>
+          <ul>
+            <li><a href="#docs-attest"><span class="n">15</span>Attestation for users</a></li>
+            <li><a href="#docs-langs"><span class="n">16</span>Other languages</a></li>
+            <li><a href="#docs-limits"><span class="n">17</span>Limits &amp; sandbox</a></li>
+            <li><a href="#docs-troubleshoot"><span class="n">18</span>Troubleshooting</a></li>
+          </ul>
+          <div class="grp">Agents</div>
+          <ul>
+            <li><a href="#docs-sessions"><span class="n">19</span>Wallet sessions</a></li>
+          </ul>
+        </nav>
+      </aside>
+
+      <div class="docs-main">
+
+        <!-- 01 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-model">
+          <h3><span class="n">01</span>The app model</h3>
+          <p>An Enclave app is a <b>WebAssembly component</b> that targets <code>wasi:http</code>, the format <code>wasmtime serve</code> runs. It exports one interface, <code>wasi:http/incoming-handler</code>: the runtime hands your code an HTTP request, your code returns a response. Like a serverless function, except it runs inside a hardware-attested confidential enclave, and anyone can verify that.</p>
+          <p>Inside the enclave your app runs in a strict capability sandbox, in its own OS process, launched by the exact same <code>wasmtime</code> command you can run locally:</p>
+          <ul>
+            <li><b>Filesystem</b>: a single private, writable <code>/data</code> directory (RAM-backed scratch, torn down with the deployment). Nothing else is visible, and paths that escape it (<code>/data/../..</code>) are refused by the runtime. <a href="#docs-data">Chapter 08 →</a></li>
+            <li><b>Environment</b>: empty, except what the platform hands you deliberately - <code>ENCLAVE_PORTS</code> for service apps, <code>ENCLAVE_HOSTS</code> with every hostname this deployment answers on (<a href="#docs-domains">Chapter 14 →</a>), <code>ENCLAVE_MEM_MB</code> and <code>ENCLAVE_AVAILABLE_PARALLELISM</code> with the memory and thread count this deployment's share actually carries, and the config/secrets channels described later. No host env ever leaks in.</li>
+            <li><b>Network</b>: none by default beyond the HTTP socket the runtime serves for you. Declaring open ports switches the app to service mode with <code>wasi:sockets</code>. <a href="#docs-ports">Chapter 09 →</a></li>
+            <li><b>GPU</b>: none by default. A deployment that buys a GPU share gets <code>wasi-nn</code> - ONNX, GGUF (llama.cpp) and image-diffusion (stable-diffusion.cpp) inference through the enclave's runtime; on today's hosts the card is reached through Enclave Shield's masked offload. <a href="#docs-gpu">Chapter 12 →</a></li>
+            <li><b>Memory</b>: the guest's linear memory is capped at the deployment's CPU share of the node's RAM (cpuShare × <span data-live-spec="node-ram">64</span>&nbsp;GB), enforced by the runtime - always at least the <code>memMb</code> the app's specs declare, since the specs floor the share.</li>
+            <li><b>No host reach</b>: no processes, no exec, no SSH (a Wasm app isn't an OS; there's nothing to SSH into, and the platform ships no SSH channel at all).</li>
+          </ul>
+          <p>Two kinds of app, one format:</p>
+          <ul>
+            <li><b>Web apps</b> (the default, and this guide's walkthrough): export the handler; the platform owns the listener and routes requests to you.</li>
+            <li><b>Service apps</b>: declare open ports (<code>http:N</code> / <code>tcp:N</code> / <code>udp:N</code>) and run as a long-lived command component that binds its own sockets: databases, IRC servers, DNS resolvers. <a href="#docs-ports">Chapter 09 →</a></li>
+          </ul>
+          <p>And one catalog every app reference points at:</p>
+          <ul>
+            <li><b>The on-chain app store</b>: the <a href="apps">Apps</a> tab: anyone publishes, bytes live on IPFS addressed by CID, listings live in the <code>EnclaveAppCatalog</code> contract on Base. First-party samples (<code>hello-world</code>, <code>nn-demo</code>, <code>llm-chat</code>) are published there too - the enclave image ships no deployable apps, so every deploy resolves to a CID the enclave fetches and hash-verifies. <a href="#docs-publish">Chapter 04 →</a></li>
+          </ul>
+          <div class="doc-note">
+            <span class="nt">The contract</span>
+            <p>If <code>wasmtime serve</code> runs your <code>.wasm</code> locally, the enclave runs it too: the manager launches the identical command per tenant. That's the whole compatibility story, and it's why every chapter here ends with a local command you can verify before spending a cent. The same component also runs, interpreted, inside the Windows host's enclave; a versioned domain contract shared by every backend is in development and described in the <a href="#package">Architecture tab</a>.</p>
+          </div>
+        </article>
+
+        <!-- 02 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-toolchain">
+          <h3><span class="n">02</span>Toolchain setup</h3>
+          <p>The walkthrough uses <b>Rust</b>, the most mature component toolchain today (other languages in <a href="#docs-langs">chapter 15</a>). You need the WASI 0.2 target, <code>cargo-component</code>, and, for local testing, the same <code>wasmtime</code> runtime the enclave uses (WASI 0.3 async components are also served - their pinned toolchain is at the end of <a href="#docs-hello">chapter 03</a>):</p>
+          <c-code fn="terminal" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code># Rust component toolchain
+rustup target add wasm32-wasip2
+cargo install cargo-component
+
+# the runtime the enclave runs (wasmtime 49 line), for local testing
+curl https://wasmtime.dev/install.sh -sSf | bash
+wasmtime --version</code></pre>
+</div></c-code>
+        </article>
+
+        <!-- 03 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-hello">
+          <h3><span class="n">03</span>Hello, enclave</h3>
+          <p>Five steps from nothing to a running app: scaffold, declare the world, write the handler, build, run. The result is byte-for-byte the kind of component the platform's own <code>hello-world</code> sample is.</p>
+
+          <h4>Step 1: scaffold a component crate</h4>
+          <c-code fn="terminal" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>cargo component new hello --lib &amp;&amp; cd hello
+cargo add wasi        # WASI 0.2 bindings</code></pre>
+</div></c-code>
+
+          <h4>Step 2: declare the world</h4>
+          <p>The world tells the toolchain what your component imports and exports. An Enclave web app exports exactly one thing:</p>
+          <c-code fn="wit/world.wit" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">wit/world.wit</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>package enclave:hello;
+
+world hello {
+  export wasi:http/incoming-handler@0.2.0;
+}</code></pre>
+</div></c-code>
+
+          <h4>Step 3: write the handler</h4>
+          <c-code fn="src/lib.rs" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">src/lib.rs</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>use wasi::http::types::{
+    Fields, IncomingRequest, OutgoingBody, OutgoingResponse, ResponseOutparam,
+};
+
+wasi::http::proxy::export!(Component);
+
+struct Component;
+
+impl wasi::exports::http::incoming_handler::Guest for Component {
+    fn handle(_req: IncomingRequest, out: ResponseOutparam) {
+        // 1. make a response and take its body handle
+        let resp = OutgoingResponse::new(Fields::new());
+        let body = resp.body().unwrap();
+
+        // 2. hand the response to the host FIRST, then stream the body
+        ResponseOutparam::set(out, Ok(resp));
+        let stream = body.write().unwrap();
+        stream.blocking_write_and_flush(b"hello from Enclave\n").unwrap();
+        drop(stream);
+
+        // 3. finishing the body is what completes the response
+        OutgoingBody::finish(body, None).unwrap();
+    }
+}</code></pre>
+</div></c-code>
+          <div class="doc-note warn">
+            <span class="nt">Version drift</span>
+            <p>The <code>wasi</code> crate's binding APIs shift between releases. Pin the version documented for your <code>cargo-component</code> and let the compiler guide the exact handler signature; the shape above (<code>proxy::export!</code>, set the outparam, write, finish) is the stable <code>wasi:http</code> pattern.</p>
+          </div>
+
+          <h4>Step 4: build</h4>
+          <c-code fn="terminal" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>cargo component build --release --target wasm32-wasip2
+# artifact: target/wasm32-wasip2/release/hello.wasm</code></pre>
+</div></c-code>
+          <p>This emits a <b>component</b> (layer 1 in the wasm preamble), not a plain core module. The upload gateway and the enclave both check that field and reject core modules, so anything that builds this way is already in the right format.</p>
+
+          <h4>Step 5: run it locally</h4>
+          <c-code fn="terminal" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>wasmtime serve --addr 127.0.0.1:8080 target/wasm32-wasip2/release/hello.wasm
+curl 127.0.0.1:8080/          # → hello from Enclave</code></pre>
+</div></c-code>
+          <p>Works? Then it works in the enclave. For a full dress rehearsal, add the exact flags the enclave launches with, giving you the same sandbox, memory cap, and <code>/data</code> preopen your deployment will get (the cap is your deployment's CPU share of the node's RAM - at least your published <code>memMb</code>; the 128&nbsp;MB minimum shown here):</p>
+          <c-code fn="terminal · enclave parity" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal · enclave parity</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>mkdir -p scratch
+wasmtime serve -Scli -Shttp -Sp3 -W component-model-async \
+  --dir scratch::/data \
+  -W max-memory-size=134217728 \
+  --addr 127.0.0.1:8080 target/wasm32-wasip2/release/hello.wasm</code></pre>
+</div></c-code>
+
+          <h4>Going async: WASIp3 components</h4>
+          <p><b>wasm32-wasip3</b> is the component model's native-async target: one instance serves many in-flight requests, imports don't block it, and request/response bodies are first-class <code>stream</code>s - the right substrate for agent apps whose time goes to model and tool calls. The enclave serves both worlds side by side. The simplest guest route is the <b><code>wasip3</code> crate</b> - no WIT files in your repo at all. Match the WIT the fleet serves: the pinned wasmtime (the 49 line) serves <code>wasi:http@0.3.0</code> final, so use a crate line whose build metadata reads <code>+wasi-0.3.0</code> (0.7.x and newer); <code>0.6.0</code> targets the older <code>0.3.0-rc-2026-03-15</code> snapshot and will <b>not</b> instantiate against it.</p>
+          <c-code fn="Cargo.toml" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">Cargo.toml</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasip3 = { version = "0.7", features = ["async-spawn"] }   # 0.7.x+ target wasi 0.3.0 final</code></pre>
+</div></c-code>
+          <c-code fn="src/lib.rs · the whole app" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">src/lib.rs · the whole app</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>use wasip3::http::types::{ErrorCode, Fields, Request, Response};
+use wasip3::{wit_future, wit_stream};
+
+wasip3::http::service::export!(Hello);
+
+struct Hello;
+
+impl wasip3::exports::http::handler::Guest for Hello {
+    async fn handle(_req: Request) -&gt; Result&lt;Response, ErrorCode&gt; {
+        let (mut body_tx, body_rx) = wit_stream::new();
+        let (result_tx, result_rx) = wit_future::new(|| Ok(None));
+        let (resp, _transmit) = Response::new(Fields::new(), Some(body_rx), result_rx);
+        drop(result_tx);
+        wasip3::spawn(async move {           // stream the body after returning the response
+            let leftover = body_tx.write_all(b"hello from wasip3\n".to_vec()).await;
+            assert!(leftover.is_empty());
+        });
+        Ok(resp)
+    }
+}</code></pre>
+</div></c-code>
+          <p>Stable Rust lists the target but ships no std for it (and the shipped linkers predate a flag the builtin target emits), so p3 builds go through the platform's <b>blessed toolchain container</b> (<code>wasm/Dockerfile.wasip3-build</code> in the platform repo). It carries a pinned nightly with <code>rust-src</code>, a wasip3 wasi-libc it builds itself from the upstream-pinned revision, a stripped copy of rustc's own target spec, and every determinism flag baked in - the same source and lockfile give everyone the same bytes, so commit your <code>Cargo.lock</code>:</p>
+          <c-code fn="terminal" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>docker build -f wasm/Dockerfile.wasip3-build -t enclave-wasip3-build wasm/
+docker run --rm -v "$PWD":/src --entrypoint cargo enclave-wasip3-build generate-lockfile   # once
+docker run --rm -v "$PWD":/src enclave-wasip3-build
+# artifact: target/wasm32-wasip3/release/&lt;app&gt;.wasm - no custom RUSTFLAGS,
+# no shim crates, no spec files in YOUR repo; the container carries all of it
+wasmtime serve -Scli -Shttp -Sp3 -W component-model-async \
+  --addr 127.0.0.1:8080 target/wasm32-wasip3/release/hello.wasm
+for i in $(seq 8); do curl -s 127.0.0.1:8080/ &amp; done; wait   # concurrent on ONE instance</code></pre>
+</div></c-code>
+          <p>Publishing is unchanged - the upload path reads your component's exports and stamps the detected world (<code>"wasi": "0.3"</code>) into the version config, so only p3-capable enclaves claim it (per-box <code>p3</code> on <code>/availability</code>; ANDed fleet-wide when every runner serves it). Notes:</p>
+          <ul>
+            <li><b>Instances are reused and concurrent.</b> Up to 16 requests share one instance (and its linear memory and globals) before it's recycled after ~128 requests or 1s idle. That's the feature - warm state across an agent session - but if your handler assumes per-request isolation, dial it down per version in the config: <code>{"p3": {"maxConcurrent": 1, "maxReuse": 256, "idleSeconds": 5}}</code>. Billing is unchanged either way: you pay per second for the share, never per request.</li>
+            <li><b>wasi-nn works via the 0.2 bridge.</b> Import <code>wasi:nn@0.2.0-rc-2024-10-28</code> from your p3 world exactly as from a p2 one - same backends, same <code>/models</code> preloads. Its <code>compute()</code> is a sync hostcall that stalls the instance's other requests for the duration, so nn apps on the bridge should set <code>"p3": {"maxConcurrent": 1}</code>. The async, streaming <code>wasi:nn@0.3-draft</code> (host pushes tokens over a <code>stream&lt;u8&gt;</code>) is published in the platform repo at <code>wasm/wit/wasi-nn-0.3-draft/</code> and lands with the next runtime toolchain cut.</li>
+            <li><b>Streams still need bytes.</b> The gateway's ~180s cut is an idle timer per hop - any body byte resets it, and SSE comment heartbeats pass through untouched (the proxies are content-type-blind). Same rules as p2: emit early, emit often, and send <code>content-encoding: identity</code> on event streams.</li>
+            <li><b>Don't block - it aborts</b> (Rust builds). Until the toolchain moves to an LLVM-23 rustc, the wasip3 libc's futex has the same semantics std documents for p1/p2: a wait that would actually block <b>aborts the instance</b>. In a single-threaded async world that means: never hold a <code>std::sync</code> lock or channel across an <code>.await</code>, and never call blocking std APIs from the handler - use the async primitives (<code>wit_stream</code>/<code>wit_future</code>, <code>wasip3::spawn</code>). Uncontended locks are fine; contention only exists if you parked one across an await. (Cooperative-threads C/C++ builds are the exception: their futex suspends the thread instead - see the threads note below.)</li>
+            <li><b>Cooperative threads (C/C++, rolling out).</b> The C image <code>enclave-wasip3c-build</code> compiles <code>pthread</code> code to a wasip3 component whose threads run cooperatively on the instance's async runtime: <code>pthread_create</code>/<code>join</code>, mutexes, condvars and blocking waits all behave - threads interleave (concurrency, not extra cores; a spin-loop never yields, use the primitives). The upload path detects the thread imports and stamps <code>"threads": true</code> so only thread-capable enclaves claim it (per-box <code>coopThreads</code> on <code>/availability</code>, same pattern as <code>p3</code>); until the fleet's runtime cut lands, expect the capability to read false fleet-wide. Rust <code>std::thread</code> follows automatically when rustc lands on LLVM 23 - no action on your side.</li>
+            <li><b>Release LTO is forced to <code>thin</code></b> by the container (a <code>cargo</code> config override, so it wins over your <code>Cargo.toml</code>): fat LTO reproducibly fails with a duplicate <code>cabi_realloc</code> between std's wit-bindgen copy and the app's own.</li>
+          </ul>
+        </article>
+
+        <!-- 04 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-publish">
+          <h3><span class="n">04</span>Publish to the app store</h3>
+          <p>Your app's bytes go on <b>IPFS</b>, addressed by their CID (a hash of the exact wasm). The listing goes on <b>Base</b>, in the <code>EnclaveAppCatalog</code> contract. Publishing is one wallet transaction on the <a href="apps">Apps</a> tab:</p>
+          <ol>
+            <li>Connect your wallet (header button) and hit <b>+ Publish app</b>.</li>
+            <li>Pick a <b>slug</b>, your app's stable id, e.g. <code>my-hello</code> (a–z, 0–9, hyphens, ≤ 40 chars). Slugs live in <i>your wallet's namespace</i>: the on-chain app id is <code>keccak256(publisher, slug)</code>, so nobody can squat or write to your lineage. The slug doesn't have to match your crate name.</li>
+            <li>Set a <b>version</b> label (e.g. <code>1.0.0</code>) and choose your <code>hello.wasm</code>. The file is validated (component check, ≤ 2 GB), its world contract is detected from the exports (wasip2 or wasip3 - stamped into the version config as <code>wasi</code> so runners route p3 work to p3-capable boxes), uploaded, pinned to IPFS, and the <b>CID</b> field fills in (or paste a CID you pinned yourself).</li>
+            <li>Set the display name, a description, and the app's <b>exact minimum resources</b> on four axes: the VRAM (GB) and GPU compute (TFLOPS) it needs on one card (both 0 for CPU-only apps, which is most of them), and the RAM (MB - also the runtime-enforced memory cap; the Hello app is fine at 128) and CPU compute (GFLOPS, at least 1 - every app computes something - and note the unit: a whole <span data-live-spec="node-vcpus">16</span>-vCPU node is only ≈<span data-live-spec="node-gflops">1000</span> GFLOPS ≈ 1 TFLOPS, so declaring the node's full GFLOPS claims the entire node and forces a 100% CPU share; most small apps want 1-50) it needs on the node. These specs set the MINIMUM shares on the deploy page's two dials (spec ÷ server spec, the larger of the memory and compute axes); deploys below them are refused. Only for service apps, add the <b>open ports</b> the version may bind (<a href="#docs-ports">chapter 09</a>). Leave ports empty for a standard web app.</li>
+            <li>Optionally set an <b>hourly fee</b> for running your app. It is stored on the version record, shown to every deployer up front, and paid <b>straight to your publisher wallet</b>: whenever a deployer funds a deployment of your app, your share of that funding is forwarded to your wallet in the same transaction (non-custodial, like all Enclave payments). The fee is capped on-chain by the platform, immutable per version like the ports and config, and covered by the owner's approval - re-pricing means publishing a new version, so an approved app can never silently change its price. Leave it at 0 for a free app.</li>
+            <li><b>Publish to Base</b>: one transaction, signed by your wallet, attributed on-chain to you.</li>
+          </ol>
+          <h4>Versioning rules (enforced by the contract)</h4>
+          <ul>
+            <li>Versions are <b>append-only history</b>: you never edit a release, you publish the same slug again with a new version label and CID. <code>editApp</code> changes display metadata; <code>setActive</code> delists the app; <code>yankVersion</code> pulls a bad release (kept for history, hidden from browsing).</li>
+            <li>A release's <b>CID belongs to its app forever</b>: no other app can ever list the same bytes, and yanking or delisting doesn't free it. The <i>same</i> app <b>can re-list its own CID</b> in a new version - that's the metadata fix (same bytes, corrected specs or ports; the <b>add version</b> button pre-fills it) - and the enclaves' deploy gate follows the <b>newest</b> listing of a CID, which starts Pending again (a metadata change is re-approved like any release). After the fix lands, yank the superseded version. Publishing a new version to a delisted slug automatically relists the app.</li>
+            <li>A CID can be listed <b>once across the whole catalog</b>, so a CID maps unambiguously to one app version.</li>
+            <li>Each version carries its own open-ports config; it can change from release to release.</li>
+          </ul>
+          <div class="doc-note warn">
+            <span class="nt">Approval gates deploys</span>
+            <p>Publishing is permissionless, but every version starts <b>Pending</b> and the enclave refuses to deploy its CID (<code>403 not_approved</code>) until the catalog owner approves that exact CID on-chain. A new release starts Pending again. Your app card on the Apps tab shows the per-version status badge. The separate <b>verified</b> badge is a curation signal only: it never gates execution; the CID does.</p>
+          </div>
+        </article>
+
+        <!-- 05 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-deploy">
+          <h3><span class="n">05</span>Deploy it</h3>
+          <p>A deployment names an app, a slice of the card, and who may reach it. The app reference is always a <b>catalog listing</b>:</p>
+          <div class="tbl"><table class="params">
+            <thead><tr><th scope="col">reference</th><th scope="col">meaning</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" class="pname">my-hello:1.0.0</th><td>A store app by slug and version (or <code>&lt;publisher&gt;/my-hello:1.0.0</code> to disambiguate). It resolves against the on-chain catalog to that version's exact <code>ipfs://&lt;cid&gt;</code>; the enclave fetches those bytes, verifies every block hashes to the CID (a tampering gateway fails the check), confirms it's a component, and runs it. The verified CID is folded into the attestation.</td></tr>
+            </tbody>
+          </table></div>
+          <p>Unlisted CIDs can't deploy: the catalog listing carries everything a deploy needs on-chain - the resource specs that floor the dials, the open ports, the publisher's hourly fee if the version charges one (shown in the rate before you sign; paid to the publisher's wallet out of each funding), and the owner's approval of that exact CID. Built something new? Publish it first (<a href="#docs-publish">chapter 04</a>), then deploy the slug.</p>
+          <p>The easy path is the <a href="apps">store</a>: your published app's card has a <b>Deploy</b> button that sizes the shares from the version's specs, applies its open ports and config, and funds it in one step; the model volumes, config, protection and relay of a running deployment are tabs on its dashboard row. No wallet or crypto is needed there: sign in with a passkey (or approve from your phone), add credit by card through Stripe Checkout, and deploy with a dollar budget. Your credit sits in a credit vault that only your passkey can authorize and that can spend only on Enclave compute, and the platform pays every network fee. A wallet adds what credit deployments don't support yet: live logs, the in-browser attestation view, secrets, custom domains, config overrides and apps with a publisher fee.</p>
+          <p>Agents and direct integrations use the wallet path below, which is the same public API the site speaks:</p>
+
+          <h4>Sign in over the API: an Ethereum signature</h4>
+          <c-code fn="deploy.js · SIWE handshake" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">deploy.js · SIWE handshake</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>const API = "https://api.enclave.host/v1";
+
+const addr  = (await ethereum.request({ method: "eth_requestAccounts" }))[0];
+const { message } = await (await fetch(`${API}/auth/nonce?address=${addr}`)).json();
+const signature   = await ethereum.request({ method: "personal_sign", params: [message, addr] });
+const { token }   = await (await fetch(`${API}/auth/login`, {
+  method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ message, signature }),
+})).json();          // short-lived bearer token, bound to your address</code></pre>
+</div></c-code>
+
+          <h4>Create the deployment: one transaction, you own the record</h4>
+          <p>A deployment is an <b>on-chain work item</b>, not one enclave's private state. <code>create()</code> on the <code>EnclaveDeployments</code> contract records the intent - the app's <b>catalog version record</b> (<code>catalog://&lt;appId&gt;/&lt;versionIndex&gt;</code>), the two shares (in 1/1000ths), visibility - under <i>your</i> address, and mints the id (<code>keccak256(sender, nonce)</code>, the <code>Created</code> event's first topic). The reference names a <b>version</b>, never bytes: runners take the wasm, config and ports from that immutable record - exactly what the catalog owner approved. (CID references are refused: a CID names bytes, and several versions with different approved configs can share bytes.) Because the ledger holds the spec and the balance, the deployment <b>survives enclave updates and crashes</b>: runners serve it under expiring leases, and when a runner dies, any other enclave picks the work up. Nothing to sign in besides your wallet.</p>
+          <c-code fn="deploy.js · EnclaveDeployments.create()" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">deploy.js · EnclaveDeployments.create()</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>// create(appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, configCid,
+//        feeRecipient, feePerSec6)
+// appRef = catalog://&lt;appId&gt;/&lt;versionIndex&gt; - the on-chain version record
+// shares are 1/1000ths: gpuShare 0.25 -&gt; 250; a GPU app needs gpuMilli &gt;= cpuMilli
+// appPort/ports ride along untrusted (the record decides); configCid must be ""
+// feeRecipient/feePerSec6 copy the version's publisher fee (its publisher's
+// wallet + the per-second fee; 0x0/0 for a free app) - snapshotted like the
+// rate, and runners refuse a record that under-declares it (the consoles and
+// the CLI fill this in for you)
+create("catalog://0x06a4…c13/5", 250, 50, 8080, "", true, "", "0x0…0", 0)
+// -&gt; the receipt's Created event: topics[1] is your deployment id (bytes32)</code></pre>
+</div></c-code>
+
+          <h4>Attach model volumes: big weights, attested, not in the wasm</h4>
+          <p>An enclave can carry <b>attested read-only model volumes</b>: weights declared in the enclave's config become a dm-verity image whose root hash is part of the enclave measurement, so the attestation commits to the exact bytes. A version <b>attaches</b> volumes by name and the runner mounts each read-only at <code>/models/&lt;name&gt;</code> inside the guest - so a multi-GB model reaches your app without riding the app wasm (no <code>include_bytes!</code>, no IPFS weight fetch, none of the 4&nbsp;GiB linear-memory ceiling on the weights). Volumes ride the <b>version's config</b> - its <code>volumes</code> key - set at publish (the publish form's App config box, or <code>enclave publish --config</code>) and delivered to the app as <code>ENCLAVE_CONFIG</code> straight from the on-chain record. Like the bytes, specs and ports, the config is <b>immutable once published and covered by the version's approval</b> - a publisher cannot change an approved release's behavior; a new default config means a new version and a fresh review. For deployers it is the <b>default</b>, not a straitjacket: on fleets that support it, a deployment may carry its own config override at create (the deploy form's App config box, or <code>enclave deploy --config</code>) - it replaces the version's config as that one deployment's <code>ENCLAVE_CONFIG</code>, and the catalog record and every other deployment stay untouched.</p>
+          <p><b>Large configs.</b> A config up to 4096 bytes is stored inline in the version record. Past that it is pinned to IPFS and the record carries its <b>CID</b> instead, which raises the ceiling to <b>1&nbsp;MB</b> - the publish path does this for you, so <code>enclave publish --config</code> and the App config box behave the same either way. The guarantee does not change: the CID is part of the immutable, approval-covered version record, exactly like the wasm CID beside it, and the enclave fetches it through the same path that verifies the content hashes back to the CID - so what your app receives is what the owner approved, not whatever a gateway felt like serving. Two details worth knowing if your config is large: a handful of keys (<code>wasi</code>, <code>threads</code>, <code>set</code>, <code>gpuOptional</code>, <code>cpuFallback</code>, <code>volumes</code>, <code>_media</code>) stay on-chain as a small manifest, because a runner reads them to pick a machine - and size the share it must have bought - before it fetches anything; and above 64&nbsp;KB the config no longer fits in an environment variable (a kernel limit on argument size), so it arrives <em>only</em> as a file. Read <code>ENCLAVE_CONFIG_FILE</code> - it is set at every size, and points at the same JSON <code>ENCLAVE_CONFIG</code> carries when it fits.</p>
+          <c-code fn="the version's config → ENCLAVE_CONFIG" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">the version's config → ENCLAVE_CONFIG</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>// published WITH the version (enclave publish --config '…'); the runner reads it
+// from the catalog record, mounts each volume at /models/&lt;name&gt; (read-only), and
+// hands the whole object to the app as ENCLAVE_CONFIG.
+{ "volumes": ["qwen2.5-0.5b"], "system_prompt": "…app config…" }
+// GET /availability lists the volumes the fleet carries (name, bytes, which enclaves).</code></pre>
+</div></c-code>
+
+          <h4>Secrets: private values that never touch the chain</h4>
+          <p>Everything above is <b>public by design</b> - the catalog config and a deployment's config override live on an open ledger, so an S3 key pasted into either is published to the world. Real credentials go in the deployment's <b>secrets</b> instead: env-var-shaped values stored on the platform's API relay (encrypted at rest, never on-chain, capped at 64 keys / 16&nbsp;KB) and handed only to the enclave that holds your deployment's live lease, which injects each one as an environment variable when the app starts - alongside <code>ENCLAVE_CONFIG</code>, so your app just reads its env. Managing them takes no session and no gas: each change is one <code>personal_sign</code> over a canonical string, and the relay honors it only from the deployment's on-chain owner wallet. A running app picks changes up on its next start (<code>enclave restart</code>, or the dashboard's Restart). Plain reality, stated plainly: the relay operator can technically read these values (that is what lets an unattended restart re-inject them) - for credentials even the operator must never see, use <a href="#docs-encvol">encrypted volumes</a>, whose keys derive from your wallet signature client-side.</p>
+          <c-code fn="enclave secrets · private env vars" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">enclave secrets · private env vars</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code># stage at deploy (stored before the first claim, so the app boots with them)
+enclave deploy encrypted-volumes:1.2 --fund 5 --secrets-file .env
+
+# or manage them any time - one wallet signature per change
+enclave secrets set 0x9c41…88d1 S3_SECRET_ACCESS_KEY=… --restart
+enclave secrets ls  0x9c41…88d1          # names only; --show reveals
+enclave secrets rm  0x9c41…88d1 OLD_KEY  # "clear" removes all</code></pre>
+</div></c-code>
+          <p>Secrets also reach apps that only read <code>ENCLAVE_CONFIG</code>: a <code>$NAME</code> (or <code>${NAME}</code>) inside any config <em>string</em> resolves to the secret of that name when the enclave launches the app - so the on-chain config carries a harmless placeholder and the private value is spliced in at start, inside the enclave. Only names actually stored as secrets substitute (any other <code>$</code> stays literal; <code>$$</code> escapes one before a real name), and the deployment record keeps showing the placeholder - the resolved value exists only in the app's environment.</p>
+          <c-code fn="App config · secret placeholders" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">App config · secret placeholders</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>{ "endpoint": "https://s3.eu-central-1.wasabisys.com", "bucket": "my-bucket",
+  "credentials": { "accessKeyId": "$S3_ACCESS_KEY_ID",
+                   "secretAccessKey": "$S3_SECRET_ACCESS_KEY" } }</code></pre>
+</div></c-code>
+
+          <h4>Fund it: pay-per-second, credited on-chain, no custody</h4>
+          <p>On the site, card credit does this step for you: your credit vault creates and funds the record when you deploy. From a wallet, funding lands in the deployment's on-chain <code>balance6</code> and the USDC splits in the same transaction: the host's share stays in the ledger as escrow, released to the host only for time it proves, and the rest forwards (ETH fundings forward in full). Your rate is snapshotted at create: <code>gpuShare × $<span data-live-price="unit-hr" data-gpu="100">6</span>/hr + cpuShare × $<span data-live-price="unit-hr" data-cpu="100">3</span>/hr</code>, plus the app's hourly publisher fee if it charges one. On a paid app every funding is split in that same transaction: the publisher's share (their fee's fraction of the rate) goes straight to their wallet, the host's share to escrow, the rest to Enclave. Pay either way:</p>
+          <c-code fn="EnclaveDeployments · two ways to fund" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">EnclaveDeployments · two ways to fund</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>// USDC: sign an EIP-3009 ReceiveWithAuthorization (gas-free wallet signature,
+// to = the EnclaveDeployments contract, nonce prefixed with the id's first 16 bytes), then ONE tx:
+fundWithAuthorization(bytes32 id, address from, uint256 value,
+                      uint256 validAfter, uint256 validBefore,
+                      bytes32 nonce, bytes signature)
+
+// ETH: one payable call; credited at the Chainlink ETH/USD rate read IN the contract:
+fundEth(bytes32 id) payable</code></pre>
+</div></c-code>
+          <p>Enclaves sweep the ledger for funded, unleased work about once a minute; <code>POST /v1/claim-hint {"id": …}</code> skips the wait by asking the fleet to claim right now. The claiming enclave fetches your wasm from IPFS, verifies it hashes to the CID, launches it, and renews its lease while healthy - <code>balance / rate</code> seconds of runtime, burned lease by lease, with clean handovers refunding the unused tail. The console does all of the signing and encoding for you.</p>
+
+          <h4>Watch it come up</h4>
+          <p>The ledger shows the claim (<code>get(id).runner</code> + a live <code>leaseUntil</code>); the runner's status API shows the launch. The SIWE token from above authorizes the owner-only status route - sign in with the same wallet that sent <code>create()</code>.</p>
+          <c-code fn="deploy.js · poll until running" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">deploy.js · poll until running</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>let d;                                   // id = the bytes32 from the Created event
+do {
+  await new Promise(r =&gt; setTimeout(r, 2000));
+  d = await (await fetch(`${API}/deployments/${id}`, {
+    headers: { "Authorization": `Bearer ${token}` },
+  })).json();
+} while (d.status !== "running");
+
+console.log(d.network.endpoint);     // https://…/x/0x…
+// your app's own origin: the id's first 8 hex chars as a subdomain
+console.log(`https://${id.slice(2, 10)}.app.enclave.host`);</code></pre>
+</div></c-code>
+          <h4>Keep it alive, or stop it</h4>
+          <ul>
+            <li><b>Top up</b>: another <code>fundWithAuthorization</code> / <code>fundEth</code> with a fresh nonce, any time - each payment adds <code>amount / rate</code> seconds to the on-chain balance.</li>
+            <li><b>Upgrade</b>: <code>setAppRef(id, "catalog://&lt;appId&gt;/&lt;newIndex&gt;")</code> (owner-only) repoints the deployment at another approved version of the app - paid time, shares and the live lease all stay on the record, and the runner restarts the app in place on the new version within about a minute (new wasm fetched before the old instance stops). No second buy-in to pick up a new release; the dashboard's <b>Version</b> control and <code>enclave upgrade</code> are exactly this call. Shares bought at <code>create()</code> are immutable - and so is the publisher-fee snapshot - so a version whose minimums exceed the shares, or whose publisher fee exceeds the snapshot, can't be switched to - deploy that one fresh.</li>
+            <li><b>Stop</b>: <code>setActive(false)</code> on the contract (owner-only) takes the work off the queue - the current runner's watcher tears it down and releases the lease, refunding the unused tail to your deployment's balance. That balance stays on the record: <code>setActive(true)</code> later resumes from what's left. To get money back instead, <code>refund(id)</code> (the owner or its delegate) first pays the host for proven time, then returns your own unspent escrow to the owner and deactivates the deployment. Only that escrow comes back - the host's share of what the owner funded in USDC; the publisher's cut, Enclave's share and ETH fundings are final - so fund in small top-ups. <code>DELETE /v1/deployments/{id}</code> alone only stops the CURRENT run; an active, funded deployment gets re-claimed.</li>
+            <li><b>Fairness</b>: the quantum of trust is the lease (30 min). A runner that dies mid-lease has burned that lease - that is the worst case; clean shutdowns and enclave updates <code>release()</code> and lose you nothing, and another enclave resumes your app from its CID.</li>
+          </ul>
+        </article>
+
+        <!-- 06 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-call">
+          <h3><span class="n">06</span>Call your app</h3>
+          <p>Every deployment serves HTTP on its own path and, through the gateway, its own origin (so one app can never touch another app's cookies or storage, or the site's):</p>
+          <c-code fn="terminal" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code># public deployment: anyone, no auth
+curl https://3xk9f2qa.app.enclave.host/            # per-deployment origin (id without "dep_")
+curl https://&lt;enclave-host&gt;/x/dep_3xK9f2Qa/    # same app, direct to its enclave
+
+# private deployment (public: false): owner's bearer token only
+curl -H "Authorization: Bearer $LOGIN_TOKEN" https://&lt;enclave-host&gt;/x/dep_3xK9f2Qa/</code></pre>
+</div></c-code>
+          <ul>
+            <li>Any method, any subpath, headers and body pass through to your handler. The one exception: the <code>Authorization</code> header authenticates at the platform and is <b>stripped before your app sees the request</b>; the token never reaches tenant code.</li>
+            <li><code>public</code> only governs who may <i>send requests</i>. Confidentiality is unaffected either way; the operator can't see inside the enclave regardless.</li>
+            <li>Your app's <code>println!</code> / stderr output lands in the deployment log: <code>GET /v1/deployments/{id}/logs</code> (owner-only).</li>
+          </ul>
+        </article>
+
+        <!-- 07 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-http">
+          <h3><span class="n">07</span>HTTP in depth: routing, headers, body</h3>
+          <p>Everything a web app needs beyond hello: reading the method, path and headers, consuming the request body, and writing a status, headers, and a streamed response. This drop-in <code>src/lib.rs</code> shows all of it:</p>
+          <c-code fn="src/lib.rs · echo app" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">src/lib.rs · echo app</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>use wasi::http::types::{
+    Fields, IncomingRequest, Method, OutgoingBody, OutgoingResponse, ResponseOutparam,
+};
+
+wasi::http::proxy::export!(Component);
+struct Component;
+
+fn read_body(req: IncomingRequest) -&gt; Vec&lt;u8&gt; {
+    let body = req.consume().unwrap();
+    let stream = body.stream().unwrap();
+    let mut buf = Vec::new();
+    while let Ok(chunk) = stream.blocking_read(64 * 1024) {
+        if chunk.is_empty() { break; }
+        buf.extend_from_slice(&amp;chunk);
+    }
+    buf                       // a stream error here means end-of-body (Closed)
+}
+
+fn respond(out: ResponseOutparam, status: u16, ctype: &amp;str, payload: &amp;[u8]) {
+    let headers = Fields::new();
+    headers.set(&amp;"content-type".to_string(), &amp;[ctype.as_bytes().to_vec()]).unwrap();
+    let resp = OutgoingResponse::new(headers);
+    resp.set_status_code(status).unwrap();
+    let body = resp.body().unwrap();
+    ResponseOutparam::set(out, Ok(resp));
+    let stream = body.write().unwrap();
+    for chunk in payload.chunks(4096) {       // write in ≤ 4096-byte chunks
+        stream.blocking_write_and_flush(chunk).unwrap();
+    }
+    drop(stream);
+    OutgoingBody::finish(body, None).unwrap();
+}
+
+impl wasi::exports::http::incoming_handler::Guest for Component {
+    fn handle(req: IncomingRequest, out: ResponseOutparam) {
+        let method = req.method();                               // Method::Get, Method::Post, …
+        let path   = req.path_with_query().unwrap_or_default();  // "/echo?x=1"
+
+        match (method, path.as_str()) {
+            (Method::Get, "/") =&gt;
+                respond(out, 200, "text/plain", b"routes: GET /headers - POST /echo\n"),
+
+            (Method::Get, "/headers") =&gt; {                       // request headers
+                let mut s = String::new();
+                for (name, value) in req.headers().entries() {
+                    s.push_str(&amp;format!("{name}: {}\n", String::from_utf8_lossy(&amp;value)));
+                }
+                respond(out, 200, "text/plain", s.as_bytes());
+            }
+
+            (Method::Post, p) if p.starts_with("/echo") =&gt; {     // request body
+                let body = read_body(req);
+                respond(out, 200, "application/octet-stream", &amp;body);
+            }
+
+            _ =&gt; respond(out, 404, "text/plain", b"not found\n"),
+        }
+    }
+}</code></pre>
+</div></c-code>
+          <c-code fn="terminal · test it" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal · test it</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>wasmtime serve --addr 127.0.0.1:8080 target/wasm32-wasip2/release/hello.wasm
+curl 127.0.0.1:8080/headers
+curl -X POST --data-binary 'round trip' 127.0.0.1:8080/echo</code></pre>
+</div></c-code>
+          <div class="doc-note warn">
+            <span class="nt">Fresh instance per request</span>
+            <p><code>wasmtime serve</code> instantiates your component <b>per request</b>: globals and statics do not survive from one request to the next. State that must outlive a request goes in <code>/data</code> (next chapter). Also note the 4096-byte ceiling per <code>blocking_write_and_flush</code> call; chunk larger payloads as above.</p>
+          </div>
+        </article>
+
+        <!-- 08 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-data">
+          <h3><span class="n">08</span>The /data scratch filesystem</h3>
+          <p>Every deployment gets a private, writable <code>/data</code> directory, so ordinary file-using code (a SQLite database, a cache, config, logs) ports to wasm without a rewrite. In Rust it's plain <code>std::fs</code>; every language's stdlib file I/O maps to the same <code>wasi:filesystem</code> interface. Extending the echo app with a hit counter:</p>
+          <c-code fn="src/lib.rs · add a route" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">src/lib.rs · add a route</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>use std::fs;
+
+// (Method::Get, "/hits"): a per-deployment counter that survives across requests
+(Method::Get, "/hits") =&gt; {
+    let hits: u64 = fs::read_to_string("/data/hits")
+        .ok().and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0) + 1;
+    fs::write("/data/hits", hits.to_string()).unwrap();
+    respond(out, 200, "text/plain", format!("visit #{hits}\n").as_bytes());
+}</code></pre>
+</div></c-code>
+          <p>Test locally with the parity flag from chapter 03 (<code>--dir scratch::/data</code>). Know exactly what <code>/data</code> is:</p>
+          <ul>
+            <li><b>Private</b>: your app sees only its own <code>/data</code>; there is no preopen for anything else, and escaping paths are refused by the runtime. Isolation is the wasi capability model, not a convention.</li>
+            <li><b>Ephemeral</b>: it's RAM-backed scratch inside the enclave's already-encrypted memory, torn down when the deployment ends. No persistence, no shared storage: treat it as scratch, not a database of record. For data that persists under a key only your user holds, see <a href="#docs-encvol">encrypted volumes (ch. 13)</a>.</li>
+            <li><b>Capped</b>: usage is limited by the version's <code>storage_mb</code> (default 256 MB); an app that exceeds it is killed by the audit sweep, since ramdisk files consume RAM the memory cap doesn't cover. Publish with <code>storage_mb: 0</code> to opt out of <code>/data</code> entirely.</li>
+          </ul>
+        </article>
+
+        <!-- 09 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-ports">
+          <h3><span class="n">09</span>Service apps: open ports &amp; ENCLAVE_PORTS</h3>
+          <p>Declaring open ports (on the version you publish, applied to every deployment of it from the on-chain record) changes how your app runs: instead of <code>wasmtime serve</code> calling your handler, the enclave launches it with <code>wasmtime run</code> as a <b>long-running command component</b> (a <code>main()</code>) granted <code>wasi:sockets</code>: it binds its declared ports itself, and may also make outbound TCP/UDP connections and DNS lookups. Rust's <code>std::net</code> on <code>wasm32-wasip2</code> maps straight onto it.</p>
+          <div class="tbl"><table class="params">
+            <thead><tr><th scope="col">entry</th><th scope="col">meaning</th><th scope="col">reached at</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" class="pname">http:N</th><td>your app serves HTTP on port N itself (max one entry)</td><td><code>/x/{id}/…</code>, the same URL as a web app</td></tr>
+              <tr><th scope="row" class="pname">tcp:N</th><td>a raw TCP listener</td><td><code>/x/{id}/tcp/N</code> bridge · <code>/x/{id}/tls/N</code> + public relay (<a href="#docs-tcp">ch. 10</a>)</td></tr>
+              <tr><th scope="row" class="pname">udp:N</th><td>a datagram socket</td><td><code>/x/{id}/udp/N</code> bridge · per-deployment IPv6 (<a href="#docs-udp">ch. 11</a>)</td></tr>
+            </tbody>
+          </table></div>
+          <p>Declared ports are <b>logical</b>: your app's stable, advertised interface, like a container's <code>EXPOSE</code>. Each deployment gets its own <b>actual</b> loopback bind, so any number of tenants can run "the <code>tcp:5432</code> app" simultaneously with zero conflicts; URLs always use the logical number and route by deployment id. The mapping arrives in one environment variable:</p>
+          <c-code fn="the ENCLAVE_PORTS contract" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">the ENCLAVE_PORTS contract</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>ENCLAVE_PORTS=tcp:5432=31245,udp:9053=31246     # logical=actual; BIND THE ACTUAL</code></pre>
+</div></c-code>
+          <div class="doc-note warn">
+            <span class="nt">The one rule</span>
+            <p><b>Read <code>ENCLAVE_PORTS</code> and bind the actual ports. Never hardcode.</b> The socket grant is coarse, so an audit sweep polices the fine print: an app that binds a port it wasn't assigned is killed on the spot. Labels are 1–49999 (1080/8080/8090/8091 reserved for infrastructure); labels below 1024 (say <code>udp:53</code>) are always remapped to an unprivileged actual. Up to 8 entries per version.</p>
+          </div>
+          <p>Parsing the contract is a few lines; every service example below uses this helper:</p>
+          <c-code fn="src/main.rs · ENCLAVE_PORTS helper" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">src/main.rs · ENCLAVE_PORTS helper</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>/// "tcp:7000=31245,udp:9053=31246" → the actual port for a logical entry.
+fn actual_port(logical: &amp;str) -&gt; u16 {
+    std::env::var("ENCLAVE_PORTS").unwrap_or_default()
+        .split(',')
+        .find_map(|e| e.trim().strip_prefix(&amp;format!("{logical}="))?.parse().ok())
+        .unwrap_or_else(|| panic!("{logical} not in ENCLAVE_PORTS"))
+}</code></pre>
+</div></c-code>
+          <p>Readiness: the enclave waits (~20 s) for your first <code>http:</code>/<code>tcp:</code> port to accept before marking the deployment running, so bind early in <code>main()</code>. Both launch modes also pass <code>-S p3</code> (on runtimes that prove it), so you may target the async <b>WASIp3</b> API surface instead of wasip2's poll-based one - same sandbox, same rules; the pinned p3 toolchain is at the end of <a href="#docs-hello">chapter 03</a>.</p>
+        </article>
+
+        <!-- 10 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-tcp">
+          <h3><span class="n">10</span>TCP: bridge, in-enclave TLS, public relay</h3>
+          <p>A complete TCP echo service. Note it's a <i>command</i> component (no <code>--lib</code>) with a <code>main()</code> that runs for the deployment's lifetime:</p>
+          <c-code fn="src/main.rs · tcp echo" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">src/main.rs · tcp echo</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>use std::io::{Read, Write};
+use std::net::TcpListener;
+
+fn main() {
+    let port = actual_port("tcp:7000");             // ← the helper from chapter 09
+    let listener = TcpListener::bind(("0.0.0.0", port)).expect("bind");
+    println!("echo on {port}");                     // shows up in your deployment logs
+    for conn in listener.incoming() {               // wasip2 has no threads:
+        let Ok(mut sock) = conn else { continue };  // serve connections one at a time
+        let mut buf = [0u8; 4096];
+        while let Ok(n) = sock.read(&amp;mut buf) {
+            if n == 0 || sock.write_all(&amp;buf[..n]).is_err() { break; }
+        }
+    }
+}</code></pre>
+</div></c-code>
+          <c-code fn="terminal · build &amp;amp; test in run mode" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal · build &amp;amp; test in run mode</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>cargo component new tcp-echo &amp;&amp; cd tcp-echo     # no --lib: a command component
+cargo component build --release --target wasm32-wasip2
+
+# exactly how the enclave launches a service app:
+wasmtime run -Scli -Sp3 -Stcp -Sudp -Sinherit-network -Sallow-ip-name-lookup \
+  --env ENCLAVE_PORTS=tcp:7000=7000 \
+  target/wasm32-wasip2/release/tcp-echo.wasm
+printf 'ping\n' | nc 127.0.0.1 7000              # → ping   (another terminal)</code></pre>
+</div></c-code>
+          <p>Publish it with open ports <code>tcp:7000</code>, deploy, and reach it three ways:</p>
+          <c-code fn="terminal · clients" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal · clients</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code># 1. WebSocket bridge on the attested origin (private deployments: append ?token=&lt;bearer&gt;)
+websocat --binary tcp-listen:127.0.0.1:7000 \
+  "wss://&lt;enclave-host&gt;/x/dep_3xK9f2Qa/tcp/7000"
+nc 127.0.0.1 7000                                # → your app, end to end
+
+# 2. Direct public TLS via the relay: stock clients, no websocat. Public deployments
+#    only; hostname = deployment id with its underscore hyphenated (dep_abc123 → dep-abc123)
+psql "host=abc12345.app.enclave.host port=5432 sslmode=verify-full"
+irssi -c abc12345.app.enclave.host -p 6667 --tls</code></pre>
+</div></c-code>
+          <p>Your app does <b>nothing</b> for the TLS path: keep speaking plain TCP on the assigned port. The platform mints its key + cert <i>inside the enclave</i> at boot; the untrusted relay only routes ciphertext by SNI, and the session terminates in-enclave at <code>/x/{id}/tls/{port}</code>. Verifying clients can bind the session to the attestation by pinning the cert published over the attested origin:</p>
+          <c-code fn="terminal · pin the bridge cert" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal · pin the bridge cert</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>curl -s https://&lt;enclave-host&gt;/v1/tls-bridge | jq -r .fingerprint256
+openssl s_client -connect abc12345.app.enclave.host:6667 \
+  -servername abc12345.app.enclave.host &lt;/dev/null 2&gt;/dev/null \
+  | openssl x509 -noout -fingerprint -sha256       # must match</code></pre>
+</div></c-code>
+        </article>
+
+        <!-- 11 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-udp">
+          <h3><span class="n">11</span>UDP: datagrams &amp; per-deployment IPv6</h3>
+          <p>Same shape as TCP: bind the actual port, speak datagrams:</p>
+          <c-code fn="src/main.rs · udp echo" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">src/main.rs · udp echo</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>use std::net::UdpSocket;
+
+fn main() {
+    let port = actual_port("udp:9053");             // ← the helper from chapter 09
+    let sock = UdpSocket::bind(("0.0.0.0", port)).expect("bind");
+    let mut buf = [0u8; 65535];
+    loop {
+        let Ok((n, from)) = sock.recv_from(&amp;mut buf) else { continue };
+        let _ = sock.send_to(&amp;buf[..n], from);
+    }
+}</code></pre>
+</div></c-code>
+          <p><b>Every public deployment gets its own dedicated IPv6 address</b> (deterministic from its id, out of the relay's routed /64). Its declared <code>tcp:N</code> and <code>udp:N</code> ports are reachable at <code>[address]:N</code> - at the real port you declared, routed by destination IP, no SNI and no remapping. The address is in the deploy/status response under <code>network.address</code> (and <code>network.tcp</code> / <code>network.udp</code> per protocol). TCP is raw passthrough (any protocol - your app owns TLS or plaintext); publish with <code>udp:9053</code> or <code>tcp:5432</code>:</p>
+          <c-code fn="terminal · clients" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal · clients</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code># 1a. UDP, direct to the deployment's own IPv6 (public deployments)
+printf 'ping' | socat -t2 - 'UDP6:[2a01:4f9:c013:9b52:9c1e:…]:9053'
+
+# 1b. TCP, direct to the SAME address at the real port (any protocol)
+psql 'host=2a01:4f9:c013:9b52:9c1e:… port=5432 …'
+nc 2a01:4f9:c013:9b52:9c1e:… 5432
+
+# 2. the WebSocket bridge on the attested origin (1 message = 1 datagram)
+websocat --binary udp-listen:127.0.0.1:9053 \
+  "wss://&lt;enclave-host&gt;/x/dep_3xK9f2Qa/udp/9053?token=&lt;bearer&gt;"
+printf 'ping' | socat -t2 - UDP:127.0.0.1:9053</code></pre>
+</div></c-code>
+          <ul>
+            <li><b>IPv6 only</b>: a box has one IPv4; v4-only clients can't reach the direct endpoint (the bridge still works anywhere WebSockets do).</li>
+            <li><b>The relay sees cleartext</b>: unlike the TCP path, the UDP relay is not a confidentiality boundary. If your protocol needs privacy, encrypt at the app layer (e.g. DTLS).</li>
+            <li>Datagram boundaries are preserved end to end; idle bridge flows close after 120 s.</li>
+          </ul>
+        </article>
+
+        <!-- 12 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-gpu">
+          <h3><span class="n">12</span>GPU inference (wasi-nn)</h3>
+          <p>Buying a GPU share doesn't just reserve silicon - it grants an interface. A deployment with <code>gpuShare &gt; 0</code> is launched with <b>wasi-nn</b>: your component imports <code>wasi:nn</code> and hands the runtime a model. Three backends sit behind the same interface - <b>ONNX Runtime</b> for ONNX graphs, a bundled <b>llama.cpp (ggml)</b> backend for GGUF language models, and a bundled <b>stable-diffusion.cpp</b> backend for image-generation checkpoints. <code>execution-target</code> <code>gpu</code> runs on the card (the CUDA provider / CUDA-offloaded llama.cpp / GPU diffusion); <code>cpu</code> runs on the node. A deployment without a GPU share doesn't get the import at all - the component fails to instantiate - so the boundary is structural, not a quota. On today's hosts the card is reached only through Enclave Shield's masked offload, which serves GGUF models through the llama.cpp backend; the ONNX and diffusion GPU paths served only on the retired hosted fleet.</p>
+          <ul>
+            <li><b>The share is a reservation, not a wall.</b> Your deployment reserves <code>gpuShare</code> of the card's memory and compute on the host's Shield worker, exactly the budget the deployment priced. That is scheduling and accounting between tenants, not a hardware boundary: what protects your data on the card is that the card only ever holds masked values, and every result is checked before your app uses it (<a href="#shield">Enclave Shield</a>).</li>
+            <li><b>GPU means GPU.</b> The platform's runtime is patched so target <code>gpu</code> either runs on CUDA or fails the <code>load()</code> - never a silent fallback to the CPU. On the ONNX path that means the CUDA provider initializes or the load fails (ONNX Runtime's default is a quiet CPU fallback); on the GGUF path the whole model offloads to your slice by default, and the backend refuses to run if the CUDA module didn't actually load; the diffusion backend is strict the same way. Want CPU inference? Ask for <code>cpu</code>.</li>
+            <li><b>Isolation is the capability model again</b>: graphs and tensors are opaque handles scoped to your instance. Nothing like a device pointer or a raw kernel ever crosses the boundary.</li>
+          </ul>
+          <p>Import the interfaces in your world (WIT deps vendored from the wasmtime the fleet pins, the 49 line; wasi:nn <code>0.2.0-rc-2024-10-28</code>):</p>
+          <c-code fn="wit/world.wit" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">wit/world.wit</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>package you:app;
+
+world app {
+  import wasi:nn/tensor@0.2.0-rc-2024-10-28;
+  import wasi:nn/errors@0.2.0-rc-2024-10-28;
+  import wasi:nn/inference@0.2.0-rc-2024-10-28;
+  import wasi:nn/graph@0.2.0-rc-2024-10-28;
+  export wasi:http/incoming-handler@0.2.6;
+}</code></pre>
+</div></c-code>
+          <p>A <b>WASIp3</b> app imports the same <code>wasi:nn@0.2</code> interfaces from its p3 world - the runtime links both API sets into one process, so nothing changes on the nn side (the bridge; see the p3 notes in <a href="#docs-hello">chapter 03</a> for the one concurrency caveat). The async, token-streaming <code>wasi:nn@0.3-draft</code> is published in the platform repo and arrives with a future runtime cut.</p>
+          <p>Load once, compute per request - the whole API is four calls, and it drives all three backends. <b>The ONNX path first.</b> Tensors cross the boundary as little-endian bytes in any ONNX element type - fp16, fp32, fp64, bf16, i32, i64, u8 - and outputs come back in the model's actual dtype. Zero-size dimensions are legal (an empty KV cache bootstrapping a decoder's first step), and <code>compute</code> returns owned tensor handles you can feed straight back as the next step's inputs, so KV-cache bytes never round-trip through your linear memory.</p>
+          <c-code fn="src/lib.rs · inference" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">src/lib.rs · inference</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>use bindings::wasi::nn::graph::{load, ExecutionTarget, GraphEncoding};
+use bindings::wasi::nn::tensor::{Tensor, TensorType};
+
+static MODEL: &amp;[u8] = include_bytes!("model.onnx");
+
+let graph = load(&amp;[MODEL.to_vec()], GraphEncoding::Onnx, ExecutionTarget::Gpu)?;
+let ctx   = graph.init_execution_context()?;
+let x     = Tensor::new(&amp;[1, 4], TensorType::Fp32, &amp;input_bytes);   // little-endian f32s
+let out   = ctx.compute(vec![("X".into(), x)])?;                     // named tensors, in and out</code></pre>
+</div></c-code>
+          <p>Try it without writing code: the <code>nn-demo</code> app in the <a href="apps">Apps</a> catalog is exactly this. Deploy it with 1% GPU + 1% CPU and hit <code>/?target=gpu</code>; it runs a tiny ONNX graph and echoes which target served it.</p>
+          <p><b>The GGUF path: generative LLMs via llama.cpp.</b> <code>GraphEncoding::Ggml</code> loads any GGUF model - split-GGUF families included - on the runtime's bundled llama.cpp backend. The natural delivery is a <b>model volume</b> (<a href="#docs-deploy">ch. 05</a>): attach a GGUF volume to your version and the runtime preloads it once at process start as a <b>named graph</b>, registered under the volume's name. <code>load_by_name()</code> then hands you the graph without the weights ever entering your linear memory - so model size is bounded by your share of the card, not by wasm32's 4&nbsp;GiB. (Small GGUFs can still ride <code>load()</code> from embedded bytes.) The inference contract is an autoregressive decode loop: feed <code>"tokens"</code> (i32, dims <code>[1,&nbsp;n]</code>, chunk your prefill at 512 tokens per compute), get back <code>"logits"</code> (fp32, <code>[1,&nbsp;n_vocab]</code>, for the last token), sample, feed the sampled token back. The KV cache lives inside the execution context and persists across <code>compute()</code> calls - a fresh context is a fresh sequence. Tokenization and sampling are yours: the backend speaks token ids, not strings.</p>
+          <c-code fn="src/lib.rs · GGUF decode loop" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">src/lib.rs · GGUF decode loop</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>use bindings::wasi::nn::graph::load_by_name;
+
+let graph = load_by_name("qwen2.5-0.5b")?;   // the attached GGUF volume's name
+let ctx   = graph.init_execution_context()?; // fresh context = fresh sequence
+let mut next = prompt_ids;                   // Vec&lt;i32&gt;, ≤ 512 per compute
+loop {
+    let t   = Tensor::new(&amp;[1, next.len() as u32], TensorType::I32, &amp;le_bytes(&amp;next));
+    let out = ctx.compute(vec![("tokens".into(), t)])?;  // ("logits", fp32 [1, n_vocab])
+    let id  = sample(&amp;out);                  // your sampler: greedy, top-p, …
+    if id == EOS { break; }
+    emit(id); next = vec![id];               // KV cache persists in `ctx`
+}</code></pre>
+</div></c-code>
+          <p>And for the full-scale proof, deploy <code>llm-chat</code> from the same catalog: an OpenAI-compatible LLM service with a web chat UI in one small component - and no weights in the wasm at all. Its versions attach GGUF model volumes; the runtime preloads each as a named graph, and the app drives the whole tokens-in/logits-out decode through <code>wasi:nn</code> on your share of the GPU: chunked prefill, KV cache resident in the execution context, tokenizer and sampler in the guest, target <code>gpu</code> strict.</p>
+          <p><b>The image path: diffusion via stable-diffusion.cpp.</b> The same four calls generate images. Attach an image-checkpoint volume - SD-Turbo-class full checkpoints, SDXL, FLUX-family GGUF quants, or split-component DiT families (Qwen-Image, Z-Image) - and the runtime preloads it through the bundled <b>stable-diffusion.cpp</b> backend as a named graph: <code>load_by_name()</code>, weights never in your linear memory, exactly like GGUF volumes. The contract is one <code>compute()</code> per image, all named tensors: <code>prompt</code> (utf-8 bytes) is the only required input; <code>negative_prompt</code>, <code>steps</code> (i32, default 20), <code>seed</code> (i64), <code>width</code>/<code>height</code> (i32, 64-multiples, default 512), <code>cfg</code> (fp32, default 7.0 - set 1.0 for turbo models) and <code>sample_method</code>/<code>scheduler</code> (sd.cpp names) are optional. Back comes <code>image</code>: u8, dims <code>[1,&nbsp;h,&nbsp;w,&nbsp;3]</code>, RGB row-major. Generation blocks inside the call, and requests against the same checkpoint queue - one generation at a time per model.</p>
+          <c-code fn="src/lib.rs · one image" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">src/lib.rs · one image</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>let graph  = load_by_name("sd-turbo")?;      // the attached checkpoint volume's name
+let ctx    = graph.init_execution_context()?;
+let prompt = b"a lighthouse in a storm, oil painting";
+let out    = ctx.compute(vec![
+    ("prompt".into(), Tensor::new(&amp;[prompt.len() as u32], TensorType::U8, prompt)),
+    ("steps".into(),  Tensor::new(&amp;[1], TensorType::I32, &amp;4i32.to_le_bytes())),
+    ("cfg".into(),    Tensor::new(&amp;[1], TensorType::Fp32, &amp;1.0f32.to_le_bytes())), // turbo: guidance off
+])?;                                         // ("image", u8 [1, 512, 512, 3], RGB)</code></pre>
+</div></c-code>
+          <p><b>Getting the model in.</b> Three routes. <b>Embed it</b> (<code>include_bytes!</code>) for anything small - it ships inside your published CID, so it's attested with your code; the ceilings are the ≤&nbsp;2&nbsp;GB wasm artifact and the ≤&nbsp;4&nbsp;GiB linear memory that <code>load()</code> passes bytes through. <b>Attach a model volume</b> (<a href="#docs-deploy">ch. 05</a>) for anything big: attested read-only weights mounted at <code>/models/&lt;name&gt;</code> - and a GGUF or image-checkpoint volume is additionally preloaded as a named wasi-nn graph for <code>load_by_name()</code>, skipping your linear memory entirely. Or <b>fetch at startup</b> over outbound HTTP into memory and check the hash yourself before loading - the platform verifies your <i>code</i> by CID, a fetched model is your responsibility.</p>
+          <div class="doc-note">
+            <span class="nt">Local testing</span>
+            <p>Stock <code>wasmtime</code> release binaries don't compile wasi-nn in - and the platform's runtime carries patches you'll want locally too (strict GPU target, the full tensor-dtype set, zero-size tensors, the GGUF and diffusion backends; unpatched wasmtime rejects everything but fp32 and has no ggml or sdcpp at all). Build the same runtime the enclave uses: in a checkout of the wasmtime commit the fleet pins (the 49 line; the exact commit is <code>WASMTIME_VERSION</code> in <code>wasm/Dockerfile.wasmtime</code>), <code>git apply wasm/wasmtime-onnx-gpu-strict.patch</code> (and <code>wasm/wasmtime-nn-ggml.patch</code> for GGUF, plus <code>wasm/wasmtime-nn-sdcpp.patch</code> on top of it for diffusion) from the Enclave repo, point <code>ORT_LIB_LOCATION</code> at the official Microsoft <code>onnxruntime-linux-x64-gpu</code> distribution, and <code>cargo build --release --features "wasi-nn,wasmtime-wasi-nn/onnx-cuda,wasmtime-wasi-nn/ggml"</code> - the <code>ggml</code> feature links the prebuilt <code>enclave-llamacpp</code> libraries from the repo's releases via <code>ELL_LIB_LOCATION</code> (add <code>wasmtime-wasi-nn/sdcpp</code>, linking <code>libenclave_sd</code> via <code>ESD_LIB_LOCATION</code>, for the diffusion backend); then <code>wasmtime serve -S nn app.wasm</code>, adding <code>-S nn-graph=ggml::&lt;dir&gt;</code> to preload a local GGUF (or <code>sd::&lt;dir&gt;</code> for an image checkpoint) under the directory's basename like the platform does with volumes. (Avoid the <code>onnx-download</code> feature: it pulls a prebuilt ONNX Runtime with precompiled kernels for consumer GPUs only - it works on a desktop card but JIT-hangs on datacenter parts. The MS build is exactly how the platform's own runtime is built - see <code>wasm/Dockerfile.wasmtime</code> in the repo.) Without CUDA libraries installed, target <code>gpu</code> fails (by design); test with <code>cpu</code> locally and <code>gpu</code> on the enclave.</p>
+          </div>
+        </article>
+
+        <!-- 13 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-encvol">
+          <h3><span class="n">13</span>Encrypted volumes</h3>
+          <p>Confidential storage where <b>only your user holds the key</b>. A directory is encrypted client-side with <a href="https://rclone.org/crypt/" rel="noopener">rclone crypt</a> and the ciphertext pushed to any S3-compatible bucket the owner controls; the deployment's App Config names <i>where</i> that ciphertext lives - never a key. At unlock time the key enters through the app, over the deployment's in-enclave-terminated TLS, and the enclave pulls and decrypts into a live mount. The bucket, the network, and the operator's host only ever see ciphertext: file <i>names</i> and contents are both encrypted at rest, and plaintext exists only on the CVM's encrypted ramdisk while the volume is unlocked.</p>
+
+          <h4>Push data</h4>
+          <p><code>scripts/enclave-encvol.sh</code> in the <a href="https://github.com/EnclaveHost/enclave" rel="noopener">Enclave repo</a> is the client half: it encrypts locally and syncs ciphertext up, mirroring exactly what the enclave runs at unlock, so a push here always pulls there.</p>
+          <c-code fn="terminal · encrypt + upload" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal · encrypt + upload</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… \
+ENCVOL_PASSWORD=… ENCVOL_SALT=… \
+  scripts/enclave-encvol.sh push ./my-data \
+  --endpoint https://s3.example.com --bucket my-bucket --path vol --name docs</code></pre>
+</div></c-code>
+          <p>It prints the exact <code>encVolumes</code> App Config snippet to publish. <code>pull</code> and <code>ls</code> round-trip the volume from anywhere else you hold the key.</p>
+
+          <h4>Name it in the App Config</h4>
+          <p>Everything in the config is public and non-secret - it says where ciphertext lives and how it was packed:</p>
+          <div class="tbl"><table class="params">
+            <thead><tr><th scope="col">field</th><th scope="col">meaning</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" class="pname">name</th><td>the mount: your app sees <code>/enc/&lt;name&gt;</code></td></tr>
+              <tr><th scope="row" class="pname">endpoint · bucket · path</th><td>where the ciphertext lives (any S3-compatible endpoint; public hosts only)</td></tr>
+              <tr><th scope="row" class="pname">provider · region</th><td>S3 dialect hints, when the endpoint needs them</td></tr>
+              <tr><th scope="row" class="pname">filenameEncryption · directoryNameEncryption</th><td>how names were packed (defaults: <code>standard</code>, on - must match the push)</td></tr>
+              <tr><th scope="row" class="pname">maxMb</th><td>plaintext cap (default 1024); like <code>/data</code>, it is RAM-backed, and a volume that outgrows it gets the app killed by the audit sweep</td></tr>
+              <tr><th scope="row" class="pname">readOnly</th><td>drop the S3 credentials right after the pull; disables push-back</td></tr>
+              <tr><th scope="row" class="pname">unlock · keyId</th><td>UI hints: lead with wallet or password; <code>keyId</code> is the stable label the wallet signs, so renaming a volume doesn't change its key</td></tr>
+              <tr><th scope="row" class="pname">credsEnvelope</th><td>S3 credentials, sealed under the owner's wallet key - safe to publish (below)</td></tr>
+              <tr><th scope="row" class="pname">encrypted</th><td>default <code>true</code>; <code>false</code> mounts the bucket verbatim, no crypt layer (below)</td></tr>
+            </tbody>
+          </table></div>
+
+          <h4>What your app sees</h4>
+          <p>The deployment starts <b>immediately</b>, with an empty live preopen per volume - no key ceremony on the critical path. After unlock, decrypted files appear in place; your code needs <b>no crypto and no S3 client</b>, just <code>std::fs</code> reads. Three environment variables are the whole contract:</p>
+          <c-code fn="the ENCLAVE_ENC contract" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">the ENCLAVE_ENC contract</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>ENCLAVE_ENC=docs,models          # volume names; each mounted at /enc/&lt;name&gt;
+ENCLAVE_ENC_API=http://…         # the in-enclave manager's loopback unlock plane
+ENCLAVE_ENC_TOKEN=…              # bearer for that plane - only your app holds it</code></pre>
+</div></c-code>
+          <p>Your app drives the plane over loopback: <code>GET $ENCLAVE_ENC_API</code> for per-volume status (<code>locked</code> / <code>syncing</code> / <code>unlocked</code> / <code>pushing</code>), and <code>POST …/unlock</code> (password, optional salt, optional S3 credentials), <code>…/sync</code> (encrypt local edits back to the bucket), <code>…/lock</code> (wipe plaintext, drop credentials) - all authenticated with the token, which must never reach a browser. The first-party <b>encrypted-volumes</b> app in the store is the reference implementation: a complete unlock UI whose <code>/api/*</code> proxy keeps the token server-side.</p>
+
+          <h4>Three ways to unlock</h4>
+          <p><b>Password.</b> The manager takes an opaque password (+ optional salt) and runs the pull. Simplest, and what headless automation uses.</p>
+          <p><b>Wallet.</b> No password to keep: the key is <i>derived</i> from a deterministic ECDSA <code>personal_sign</code> over a canonical message naming the volume - only the wallet holder can reproduce it, nothing is stored or verified server-side, and no transaction is made. The contract is byte-exact across the CLI, the push script, and the app:</p>
+          <c-code fn="the derivation contract (v1)" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">the derivation contract (v1)</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>message  = "Enclave encrypted volume key v1\nvolume: &lt;keyId&gt;\n\n
+            Signing derives this volume's encryption key. Only sign in
+            apps you trust with its contents."
+sig      = lowercase 65-byte personal_sign hex, 0x-prefixed
+password = sha256_hex( sig + "\n" + "enclave-encvol-v1:password" )
+salt     = sha256_hex( sig + "\n" + "enclave-encvol-v1:salt" )</code></pre>
+</div></c-code>
+          <p><b>Wallet + sealed credentials: one signature, nothing typed.</b> Bucket credentials can ride the public config encrypted under the <i>same</i> signature - <code>enclave encvol seal-creds</code> prints the <code>credsEnvelope</code> value. At unlock, one signature derives the crypt key <i>and</i> opens the credentials, in the browser, before anything is sent:</p>
+          <c-code fn="the credentials envelope (v1)" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">the credentials envelope (v1)</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>encKey / macKey = sha256( sig + "\n" + "enclave-encvol-v1:creds-enc" / ":creds-mac" )
+envelope        = "encv1:" + base64( iv[16] || AES-256-CTR(encKey, iv, credsJSON)
+                                            || HMAC-SHA256(macKey, iv || ct)[32] )</code></pre>
+</div></c-code>
+
+          <h4>Plain volumes: skip the crypt layer</h4>
+          <p>Not everything is secret. <code>"encrypted": false</code> mounts the bucket <b>verbatim</b> - same live <code>/enc/&lt;name&gt;</code> preopen, same unlock/sync/lock lifecycle and caps, no crypt anywhere. Think public datasets, published model weights, assets your app serves. Unlock then takes S3 credentials only - an empty body suffices for a public-read bucket - and refuses a password outright; <code>filenameEncryption</code> / <code>directoryNameEncryption</code> don't apply. Push data with any S3 client, or <code>enclave-encvol.sh push --plain</code> to get the matching config snippet. The bucket host sees every byte of a plain volume: keep anything confidential in an encrypted one.</p>
+
+          <h4>Restarts, locking, write-back</h4>
+          <p>Nothing survives a restart, <b>by design</b>: an unlocked volume is plaintext in enclave RAM plus credentials in the manager's memory, and a re-claim, update, or crash returns the volume to <code>locked</code> - someone holding the key must unlock again. Wallet mode makes that a ten-second signature rather than a secret to retrieve; <b>Lock</b> is the same wipe on demand. Push-back (<code>sync</code>) re-encrypts local edits to the bucket with the same key - it needs write-capable credentials at unlock and a volume not marked <code>readOnly</code>.</p>
+          <div class="doc-note warn">
+            <span class="nt">Trust fine print</span>
+            <p>rclone crypt authenticates file <i>contents</i>, not the <i>tree</i>: a malicious bucket can serve a stale or partial file set, though never forged bytes. The <code>credsEnvelope</code> is exactly as sensitive as the volume - the wallet that signs for the key opens the credentials, so guard that wallet accordingly. Wallet unlock needs a deterministic (RFC&nbsp;6979) EOA signer - MetaMask, Ledger, and the CLI wallet qualify; smart-contract and randomized MPC wallets don't, so give those users password mode.</p>
+          </div>
+        </article>
+
+        <!-- 14 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-domains">
+          <h3><span class="n">14</span>Custom domains</h3>
+          <p>Every deployment answers on its own subdomain, <code>&lt;label&gt;.app.enclave.host</code>. You can also attach <b>a domain you own</b>, and the app serves it under that name - same backend, no redirect, no frame - with a certificate <b>minted inside the enclave</b>. The private key for your domain is generated in the CVM and never leaves it, which is the same guarantee the platform subdomain already gives you.</p>
+          <p>Open <b>Domains</b> on the deployment in the <a href="dashboard">dashboard</a>, type the hostname, and it shows you the exact records to create. There are three:</p>
+          <c-code fn="your DNS provider" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">your DNS provider</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code># 1. routing - where the traffic goes
+shop.example.com.                    CNAME  cc1f4f3f.app.enclave.host.
+
+# 2. ownership - proves this deployment may claim the name
+_enclave-challenge.shop.example.com. TXT    "enclave-verify-9f3a…"
+
+# 3. certificates - delegates issuance AND renewal. Leave it in place.
+_acme-challenge.shop.example.com.    CNAME  _acme-challenge.cc1f4f3f.app.enclave.host.</code></pre>
+</div></c-code>
+          <p>DNS is re-checked every few minutes, so the status moves on its own: <b>waiting for DNS</b> → <b>verified</b> → <b>live</b>, usually within a minute or two of the records publishing. Nothing is served on your name until it is verified <i>and</i> its certificate exists - a name with no certificate gets a refused handshake, never a warning page.</p>
+
+          <h4><span class="mono">www</span> vs the apex</h4>
+          <p>A subdomain like <code>www.example.com</code> or <code>shop.example.com</code> is the easy case: it can hold a CNAME, so record 1 above works as written.</p>
+          <p>An <b>apex</b> (<code>example.com</code>, no subdomain) cannot hold a CNAME - <a href="https://datatracker.ietf.org/doc/html/rfc1034" target="_blank" rel="noopener">RFC&nbsp;1034</a> forbids a CNAME alongside the SOA and NS records every zone apex must have. Two ways round it, and we accept both:</p>
+          <ul>
+            <li><b>CNAME flattening</b> (Cloudflare's <span class="mono">CNAME</span> at the root, Route 53 <span class="mono">ALIAS</span>, DNSimple <span class="mono">ALIAS</span>, Netlify, and most modern providers). You enter a CNAME to <code>&lt;label&gt;.app.enclave.host</code> and the provider publishes our <b>A/AAAA records</b> under your apex instead. Verification sees those addresses, recognizes our edge, and accepts it - flattening and a real CNAME are the same proof that traffic reaches us.</li>
+            <li><b>A/AAAA by hand</b>, pointing at our edge addresses. It works, and it is what flattening does for you, but it is a static copy of an address we may one day change: prefer flattening, or a <code>www</code> subdomain, wherever your provider offers it.</li>
+          </ul>
+          <p>The common shape is to attach <b>both</b>: <code>example.com</code> (flattened) and <code>www.example.com</code> (CNAME), then have your app redirect one to the other. Each is a separate attachment with its own certificate. Records 2 and 3 are per-hostname either way - <code>_enclave-challenge.www.example.com</code> is a different record from <code>_enclave-challenge.example.com</code>.</p>
+
+          <h4>Writing an app that serves more than one name</h4>
+          <p>Your guest environment carries <code>ENCLAVE_HOSTS</code>: a comma-separated list of every hostname this deployment answers on, its own subdomain first. Use it for the checks only your app can make - a Host allowlist, CSRF trusted origins, a websocket <code>Origin</code> check - instead of hardcoding a name you cannot know at publish time. Build absolute URLs and redirects from the <b>request's</b> Host (it reaches you untouched), and leave cookies host-only unless you have a reason not to.</p>
+          <p><code>ENCLAVE_HOSTS</code> is set when the app starts, so a domain attached to a running app appears in it after a <b>restart</b>. Routing and TLS for the new name work immediately - only the app's own view of the list waits.</p>
+
+          <h4>When it doesn't go live</h4>
+          <ul>
+            <li><b>"No TXT record …"</b> - the <code>_enclave-challenge</code> record is missing or holds a different value. Some providers append the zone name for you: creating <code>_enclave-challenge.shop.example.com</code> in the <i>example.com</i> zone often needs the name entered as <code>_enclave-challenge.shop</code>.</li>
+            <li><b>"CNAME does not point at …"</b> - the name resolves, but somewhere else. If you use a CDN in front of us, put it in <b>DNS-only</b> mode (Cloudflare: grey cloud, not orange). A proxying CDN terminates TLS itself, so our edge never sees your visitors' handshakes and the certificate we mint for you is never presented.</li>
+            <li><b>"CAA records only allow …"</b> - your zone publishes a <a href="https://datatracker.ietf.org/doc/html/rfc8659" target="_blank" rel="noopener">CAA</a> policy that excludes our CA. Add <code>0 issue "sectigo.com"</code> alongside whatever is there, or remove the restriction.</li>
+            <li><b>A certificate error, with the CA's own words</b> - issuance was attempted and refused. The reason is shown verbatim under the domain; nearly always it is CAA, or record 3 missing so the CA cannot find the challenge.</li>
+            <li><b>It was live and went back to "waiting for DNS"</b> - the records stopped resolving for a sustained period, so routing and issuance were withdrawn. Put them back and it recovers by itself, usually within a few minutes.</li>
+          </ul>
+          <div class="doc-note">
+            <span class="nt">Detaching</span>
+            <p>Detach in the dashboard and routing stops within a minute; the enclave drops the certificate (it only ever held it in RAM). Remove the three records at your provider too - a <code>CNAME</code> left pointing at a name you no longer own is worth cleaning up wherever it points.</p>
+          </div>
+        </article>
+
+        <!-- 15 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-attest">
+          <h3><span class="n">15</span>Attestation for your users</h3>
+          <p>On a confidential host the platform's core promise extends to your app: a user can verify, cryptographically and before sending a byte of data, that they're talking to an attested enclave running exactly the code that was measured. For apps deployed by CID, the attestation includes <b>your app</b>: its <code>app.cid</code> field names the exact bytes that ran, hash-verified against the CID inside the enclave by the measured runtime, with a <code>coverage</code> note stating precisely what covers it (the boot measurement covers the runtime; the runtime pins your app).</p>
+          <c-code fn="terminal · verify before you send data" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal · verify before you send data</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code># Enclave's own verifier (verifier/ in the repo, bundled into the CLI):
+enclave attest dep_3xK9f2Qa                       # the box your deployment runs on
+enclave attest dep_3xK9f2Qa --expect &lt;measurement&gt;  # pin the launch measurement yourself
+
+# what it checks: a FRESH report for a nonce it draws (sent through the relay to the box),
+# AMD signature up to AMD's root, firmware floor, guest policy, the box's key bound to the
+# nonce, and the launch measurement (yours with --expect; otherwise the operator's list,
+# reported as "limited", never as a pass)</code></pre>
+</div></c-code>
+          <c-code fn="verify.js · in your users' browser" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">verify.js · in your users' browser</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>// same-origin, hash-pinned build of verifier/web
+import { verifyMetalBoxWeb } from "https://enclave.host/vendor/enclave-verifier.js";
+
+const r = await verifyMetalBoxWeb({ name: "metal0", expected: { measurements: ["&lt;measurement&gt;"] } });
+if (r.status !== "verified") throw new Error("not verified: " + r.reasons.at(-1));
+// r.transportKeySha256 is the key the report binds: use it for an end-to-end channel</code></pre>
+</div></c-code>
+          <p>Point your users at the <a href="./#attest">attestation walkthrough</a> for what each link in the chain proves, or embed the check in your own client as above. For raw-TCP services, add the <a href="#docs-tcp">bridge-cert pin</a> so even the TLS session is bound to the measured enclave.</p>
+        </article>
+
+        <!-- 15 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-langs">
+          <h3><span class="n">16</span>Other languages</h3>
+          <p>The platform runs <b>components</b>, not a language: anything that emits a <code>wasi:http</code> component works. Mature routes today:</p>
+          <ul>
+            <li><b>Rust</b>: <code>cargo-component</code>, as used throughout this guide. The most complete support, including <code>std::net</code> for service apps.</li>
+            <li><b>JavaScript / TypeScript</b>: <code>jco componentize</code> (ComponentizeJS) turns a JS module exporting a fetch-style handler into a <code>wasi:http</code> component.</li>
+            <li><b>Python</b>: <code>componentize-py</code> builds components from Python code implementing the same world.</li>
+            <li><b>Go</b>: TinyGo's <code>wasip2</code> target with the <code>wasi:http</code> bindings.</li>
+          </ul>
+          <p>The acceptance test is identical regardless of toolchain. If this runs, it deploys:</p>
+          <c-code fn="terminal" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>wasmtime serve --addr 127.0.0.1:8080 app.wasm &amp;&amp; curl 127.0.0.1:8080/</code></pre>
+</div></c-code>
+          <p>One caveat for service apps: raw-socket support (<code>wasi:sockets</code>) varies by toolchain: Rust's stdlib maps today; check yours before designing around <code>tcp:</code>/<code>udp:</code> ports.</p>
+        </article>
+
+        <!-- 16 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-limits">
+          <h3><span class="n">17</span>Limits &amp; sandbox reference</h3>
+          <h4>What your code can touch</h4>
+          <div class="tbl"><table class="params">
+            <thead><tr><th scope="col">capability</th><th scope="col">web app (default)</th><th scope="col">service app (declared ports)</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" class="pname">inbound HTTP</th><td>your handler, fresh instance per request</td><td><code>http:N</code>: you bind and serve it yourself</td></tr>
+              <tr><th scope="row" class="pname">sockets</th><td>none</td><td>bind assigned actuals · outbound TCP/UDP · DNS lookups</td></tr>
+              <tr><th scope="row" class="pname">GPU (wasi-nn)</th><td colspan="2">only with <code>gpuShare</code> &gt; 0: ONNX + GGUF (llama.cpp) + image diffusion (stable-diffusion.cpp) via <code>wasi:nn</code> on a reserved share of the card (VRAM = share × <span data-live-spec="card-vram">140.4</span> GB), through Enclave Shield's masked offload; no share = no import (<a href="#docs-gpu">ch. 12</a>)</td></tr>
+              <tr><th scope="row" class="pname">filesystem</th><td colspan="2"><code>/data</code> only: private, RAM-backed, ephemeral, capped by <code>storage_mb</code></td></tr>
+              <tr><th scope="row" class="pname">environment</th><td>empty</td><td><code>ENCLAVE_PORTS</code> only</td></tr>
+              <tr><th scope="row" class="pname">memory</th><td colspan="2">linear memory capped at the deployment's <code>cpuShare</code> × node RAM, enforced by the runtime</td></tr>
+              <tr><th scope="row" class="pname">host / exec / SSH</th><td colspan="2">none: structurally absent, not merely denied</td></tr>
+            </tbody>
+          </table></div>
+          <h4>Numbers to know</h4>
+          <div class="tbl"><table class="params">
+            <thead><tr><th scope="col">limit</th><th scope="col">value</th><th scope="col">notes</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" class="pname">wasm artifact</th><td>≤ 2 GB</td><td>enforced at upload and again at fetch</td></tr>
+              <tr><th scope="row" class="pname">app specs (vramMb/gpuGflops/memMb/cpuGflops)</th><td>exact MB + GFLOPS, per version</td><td>set the MINIMUM deploy shares (spec ÷ server spec, larger of memory/compute, ceil to %)</td></tr>
+              <tr><th scope="row" class="pname">config <code>cpuFallback</code> (memMb/cpuGflops)</th><td>exact MB + GFLOPS · only with <code>gpuOptional</code></td><td>the node minimum WITHOUT a card, replacing memMb/cpuGflops there. The four specs above describe your app beside the card it asked for; if its weights move into node RAM when there isn't one, say so here</td></tr>
+              <tr><th scope="row" class="pname">memory cap</th><td>= memMb</td><td>exactly what you ask for, runtime-enforced; the CPU share is derived from it</td></tr>
+              <tr><th scope="row" class="pname">/data cap (storage_mb)</th><td>256 MB default · 0 = no /data</td><td>audit sweep kills on breach</td></tr>
+              <tr><th scope="row" class="pname">open ports</th><td>≤ 8 entries · labels 1–49999</td><td>1080/8080/8090/8091 reserved · labels &lt; 1024 always remapped</td></tr>
+              <tr><th scope="row" class="pname">GPU/VRAM share</th><td>0–100% of one card</td><td>0 = CPU-only · VRAM+compute in proportion · floored at the app's minimum · × $<span data-live-price="unit-hr" data-gpu="100">6</span>/hr</td></tr>
+              <tr><th scope="row" class="pname">CPU/RAM share</th><td>1–100% of the node</td><td>RAM+vCPU in proportion (sets the memory cap) · floored at the app's minimum · ≤ GPU share for GPU apps · × $<span data-live-price="unit-hr" data-cpu="100">3</span>/hr</td></tr>
+              <tr><th scope="row" class="pname">readiness window</th><td>~20 s</td><td>first <code>http:</code>/<code>tcp:</code> port must accept, or the deploy fails</td></tr>
+              <tr><th scope="row" class="pname">body writes</th><td>≤ 4096 bytes per call</td><td>chunk larger payloads (<a href="#docs-http">ch. 07</a>)</td></tr>
+              <tr><th scope="row" class="pname">UDP bridge idle</th><td>120 s</td><td>per WebSocket flow</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <!-- 17 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-troubleshoot">
+          <h3><span class="n">18</span>Troubleshooting</h3>
+          <div class="tbl"><table class="params symptoms">
+            <thead><tr><th scope="col">symptom</th><th scope="col">cause → fix</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" class="pname">"a core wasm module, not a wasi:http component"</th><td>You built a plain module. Build with <code>cargo component</code> for wasip2, or the blessed wasip3 container (<a href="#docs-hello">chapter 03</a>) - both emit components; the upload gateway and the enclave both check the component layer field.</td></tr>
+              <tr><th scope="row" class="pname">"app targets WASIp3 … a p3-capable enclave must claim it"</th><td>Your version published as <code>wasi: "0.3"</code> but landed on (or was hinted to) a box whose runtime doesn't serve p3 yet. Pick a p3-capable enclave in the deploy target list (per-box <code>p3</code> on <code>/availability</code>), or wait for the fleet-wide flag.</td></tr>
+              <tr><th scope="row" class="pname">403 not_approved on deploy</th><td>That version is still Pending (or was Rejected); the catalog owner approves each CID before it can run. Check the status badge on your app card in <a href="apps">Apps</a>.</td></tr>
+              <tr><th scope="row" class="pname">"firewall: bound unassigned port(s) … app killed"</th><td>The app hardcoded a port. Read <code>ENCLAVE_PORTS</code> and bind the <i>actual</i> ports (<a href="#docs-ports">ch. 09</a>).</td></tr>
+              <tr><th scope="row" class="pname">"did not open port in time"</th><td>Bind your first <code>http:</code>/<code>tcp:</code> port early in <code>main()</code>; the readiness window is ~20 s.</td></tr>
+              <tr><th scope="row" class="pname">"storage: /data used … exceeds the cap; app killed"</th><td>Write less, or publish the next version with a larger <code>storage_mb</code>.</td></tr>
+              <tr><th scope="row" class="pname">502 no_http at /x/{id}</th><td>The app declares only <code>tcp:</code>/<code>udp:</code> ports, so there's no HTTP to proxy. Use the bridge or relay paths (<a href="#docs-tcp">ch. 10</a>–<a href="#docs-udp">11</a>).</td></tr>
+              <tr><th scope="row" class="pname">409 when opening a tcp/udp bridge</th><td>The app hasn't actually bound that port (yet); the bridge refuses until the enclave confirms the bind. Check the deployment logs.</td></tr>
+              <tr><th scope="row" class="pname">state vanishes between requests</th><td>Web apps get a fresh instance per request. Persist in <code>/data</code> (<a href="#docs-data">ch. 08</a>).</td></tr>
+              <tr><th scope="row" class="pname">runs locally, memory-traps deployed</th><td>Local wasmtime is uncapped unless you pass <code>-W max-memory-size</code>. Test with the parity command (<a href="#docs-hello">ch. 03</a>) at your published <code>memMb</code> (the cap at the minimum CPU share).</td></tr>
+              <tr><th scope="row" class="pname">"component imports instance wasi:nn/… not found in the linker"</th><td>The app imports <code>wasi:nn</code> but the deployment bought no GPU share. Redeploy with <code>resources.gpuShare</code> &gt; 0 (<a href="#docs-gpu">ch. 12</a>).</td></tr>
+              <tr><th scope="row" class="pname">wasi-nn fails: "Failed while accessing backend: …"</th><td>The suffix carries the actual backend cause (ONNX Runtime, llama.cpp or stable-diffusion.cpp) - read it. Common ones: CUDA can't initialize (target <code>gpu</code> on a CPU-only node or local wasmtime without CUDA libraries - strict on purpose, no silent CPU fallback; use <code>cpu</code> there), an input tensor's name/shape/dtype not matching the model, a model operator the provider doesn't support, a <code>load_by_name()</code> name that doesn't match an attached GGUF or checkpoint volume, or a GGUF prefill batch over the 512-token compute limit (chunk it).</td></tr>
+              <tr><th scope="row" class="pname">deploy fails: "GPU interface warming up" / "GPU interface unavailable on this node"</th><td>GPU deployments launch only after the enclave's boot-time CUDA readiness probe passes (so a broken GPU path fails your deploy loudly instead of hanging your app). "Warming up" resolves in a minute or two - retry; "unavailable" carries the probe's diagnosis and is an operator problem, not yours.</td></tr>
+            </tbody>
+          </table></div>
+          <h4>Ship checklist</h4>
+          <ol>
+            <li><code>wasmtime serve</code> (or <code>run</code>, for service apps) runs it locally, including with the enclave-parity flags.</li>
+            <li>No hardcoded ports anywhere; everything comes from <code>ENCLAVE_PORTS</code>.</li>
+            <li>All writes go under <code>/data</code>, stay under the cap, and survive being wiped.</li>
+            <li>Publish on the <a href="apps">Apps</a> tab → wait for the version's <b>Approved</b> badge → <a href="apps">deploy</a> it from its card.</li>
+            <li>Verify your own deployment's <a href="#docs-attest">attestation</a>, then hand the same check to your users.</li>
+          </ol>
+        </article>
+
+        <!-- 19 ------------------------------------------------------------ -->
+        <article class="doc" id="docs-sessions">
+          <h3><span class="n">19</span>Wallet sessions: let an agent act without your key</h3>
+          <p>Every on-chain change above is a wallet transaction. A <b>session</b> lets an agent, a script or a browser tab make those changes without holding your wallet key. It is a P-256 key, a policy and an optional USDC budget, approved <b>once</b> by your wallet. The key signs each action, the platform's relayer submits it to your <b>session vault</b> (one <code>SessionVault</code> contract per wallet, on Base), and the vault checks the policy on-chain before it calls the ledger or the catalog. There is no wallet prompt per action and no ETH: the relayer is reimbursed a small USDC fee per operation out of the session's budget, at a price the key itself signed. The vault has no admin, so you can always end a session or withdraw straight from your wallet.</p>
+
+          <h4>What a policy allows</h4>
+          <div class="tbl"><table class="params">
+            <thead><tr><th scope="col">field</th><th scope="col">meaning</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" class="pname">actions</th><td>On-chain: <code>deploy.create</code>, <code>deploy.fund</code>, <code>deploy.setAppRef</code> and <code>deploy.setConfig</code> (staging only), <code>deploy.setShares</code>, <code>deploy.setMaxRate</code>, <code>deploy.setActive</code>, <code>deploy.refund</code>, <code>app.publish</code>. API scopes the relay enforces from the same grant: <code>api.status</code>, <code>api.logs</code>, <code>api.restart</code>, <code>api.upload</code>, <code>api.appAccess</code>, <code>api.placement</code>, <code>api.account</code>.</td></tr>
+              <tr><th scope="row" class="pname">environments</th><td><code>staging</code> and/or <code>prod</code>. A deployment your vault holds is one or the other; every deployment your <b>wallet</b> holds counts as <code>prod</code>. A session never changes what a production deployment runs.</td></tr>
+              <tr><th scope="row" class="pname">apps</th><td>Up to 8: a slug of your vault's own apps, <code>0x&lt;appId&gt;</code> for any app, or <code>*</code> for any free app. Paid apps and publishing always need the app named.</td></tr>
+              <tr><th scope="row" class="pname">budget &amp; limits</th><td>USDC escrowed now; spend and operations per period; the relay fee cap per operation; the publisher-fee ceiling; the ceiling on any price cap it sets.</td></tr>
+              <tr><th scope="row" class="pname">expiry</th><td>After it nothing passes, and the unspent budget returns to your wallet.</td></tr>
+            </tbody>
+          </table></div>
+          <p>Presets: <code>browser</code> (sign-in on enclave.host: every deployment action, any free app, staging and prod, $0 budget, 12 h), <code>staging-publish</code> (agents: publish and run named apps on staging only, $10 escrowed, $5/day, 7 days) and <code>auth-only</code> (status reads, no money).</p>
+
+          <h4>Open one from a terminal</h4>
+          <c-code fn="agent terminal · enclave session" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">agent terminal · enclave session</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>enclave session new --preset staging-publish --app myapp-staging --budget 10 --days 7 --label "Claude Code"
+# prints what it allows, a check code (3F9A-0C1E) and https://enclave.host/grant#…
+# you open the link, compare the check code, and sign: once, or twice with a budget
+# (the grant, then the USDC it escrows). The relayer submits; you need no ETH.
+
+enclave publish …                 # now acts through the session, no wallet prompt
+enclave session status            # budget, spend, time left
+enclave session terminate         # sign out: the unspent budget returns to you</code></pre>
+</div></c-code>
+          <p>Add <code>--env</code> to print <code>export ENCLAVE_SESSION=…</code> instead of storing a key file, for agents that keep secrets in their environment. Treat that value as a key. The full walkthrough is <a href="https://github.com/EnclaveHost/enclave/blob/main/docs/guides/claude-code-staging-session.md" target="_blank" rel="noopener">Give Claude Code a staging session</a>.</p>
+
+          <h4>The apps your wallet owns</h4>
+          <p>A session can also manage the deployments your wallet holds, where they are. You allow it once, for your vault, with one wallet transaction to the deployments ledger: <a href="sessions">Sessions</a> → <b>Apps your wallet owns</b> → <b>Grant</b>, or <code>enclave session delegate</code> run with your wallet key. After that, every session whose grant covers <code>prod</code> may, within its own actions:</p>
+          <ul>
+            <li>suspend and resume, resize, and lower the price cap;</li>
+            <li>add runtime out of its budget, credited to your wallet (a paid app only if the grant names it and its fee is under the grant's ceiling);</li>
+            <li>cancel, with the refund paid to your wallet.</li>
+          </ul>
+          <p>It can never change the version or config a wallet-held app runs, raise its price cap, move it out of your wallet, or touch its secrets. <b>Revoke</b> on the same card, or <code>enclave session delegate --revoke</code>, cuts every session off your wallet's apps in one transaction. Staging-only sessions, such as the <code>staging-publish</code> preset, never reach them.</p>
+          <div class="doc-note warn">
+            <span class="nt">A production session reaches all of them</span>
+            <p>The grant's app list narrows only which paid apps a session may fund. A session holding <code>prod</code> and <code>deploy.setActive</code> can stop <i>any</i> app your wallet owns. Give production to agents sparingly: only the actions they need, a small budget, a short expiry.</p>
+          </div>
+
+          <h4>Always your wallet's</h4>
+          <p>Topping up, extending or withdrawing from the vault; promoting a version to production; opening, changing or ending other sessions; secrets and custom domains; moving a deployment; anything touching the treasury. Ending a session, by sign-out, expiry or revocation, never stops what is already running: deployments keep their own balance on the ledger.</p>
+          <p>Contracts on Base: session vault factory <code>0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C</code>, deployments ledger <code>0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B</code>. The relay API is in the <a href="#api-sessions">API reference</a>; the agent tools are on the <a href="#mcp-sessions">MCP tab</a>.</p>
+        </article>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="cli" data-view="develop" aria-label="The enclave CLI" hidden>
+  <div class="wrap">
+    <div class="docs-main" style="max-width:920px;">
+        <article class="doc" id="docs-cli">
+          <h3>The <code>enclave</code> CLI</h3>
+          <p>One executable file, wallet-native - your wallet is your account. Point it at a key and every operation on this page becomes a one-liner; state lives in <code>~/.config/enclave/</code> and nothing else touches your machine.</p>
+
+          <h4>Install</h4>
+          <p>Three routes, same result: the <code>enclave</code> command on your PATH. Each needs node ≥ 20; pick the one that fits.</p>
+          <c-code-tabs data-ssr><div class="code-tabs">
+  <div class="code-tabs-bar" role="tablist"></div>
+  <c-code tab="Linux / macOS" os="linux mac" fn="install · Linux / macOS" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">install · Linux / macOS</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>curl -fsSL https://get.enclave.host | sh</code></pre>
+</div></c-code>
+            <c-code tab="Windows" os="windows" fn="install · Windows (PowerShell)" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">install · Windows (PowerShell)</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>irm https://get.enclave.host/install.ps1 | iex</code></pre>
+</div></c-code>
+            <c-code tab="git + npm" fn="install · from a clone, via npm (any OS)" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">install · from a clone, via npm (any OS)</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>git clone https://github.com/EnclaveHost/enclave
+cd enclave/cli
+npm i
+npm i -g .</code></pre>
+</div></c-code>
+</div></c-code-tabs>
+
+          <h4>Authenticate</h4>
+          <p>No signup step: the CLI authenticates with whatever key you point it at. Generate a fresh one or import the wallet you already use; commands that spend need USDC on Base under that address.</p>
+          <c-code fn="bring a wallet" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">bring a wallet</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code># generate fresh, or import the key you already use
+enclave key new                    # prints the address; fund it with USDC on Base
+enclave key import                 # reads a private key from stdin; or ENCLAVE_KEY env
+enclave whoami                     # address, USDC balance, running deployments</code></pre>
+</div></c-code>
+          <p>Auth is SIWE under the hood: commands that need the API sign a one-time challenge (<code>GET /auth/nonce</code> → <code>POST /auth/login</code>) and cache the bearer token until it expires. On-chain commands (create, fund, publish) sign Base transactions with the same key - the CLI never sends your key anywhere.</p>
+          <p>No wallet? Sign in with your Enclave account instead: <code>enclave login</code> prints a link you approve from your phone or any browser where your passkey works, and the terminal holds an account session. That session reads the deployments and credit that belong to your account (<code>ls</code>, <code>whoami</code>, <code>account</code>); deploying and adding credit stay on the site, where your passkey can sign.</p>
+
+          <h4>Command reference</h4>
+          <div class="tbl"><table class="params cmds">
+            <thead><tr><th scope="col">command</th><th scope="col">does</th><th scope="col">maps to</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" class="pname">enclave deploy &lt;app&gt; --gpu 0.25 --cpu 0.05 --fund 5</th><td>create + fund + wait until live, one shot; prints the app URL. Shares are fractions of one card / one node; omitted, they default to the app's catalog minimums</td><td><code>EnclaveDeployments.create()</code> · <code>fundWithAuthorization</code> · <code>POST /claim-hint</code></td></tr>
+              <tr><th scope="row" class="pname">enclave ls</th><td>your deployments, state and funded time remaining</td><td><code>GET /deployments</code> · <code>GET /account</code></td></tr>
+              <tr><th scope="row" class="pname">enclave status &lt;id&gt;</th><td>one deployment: state, runner, lease, balance, URL</td><td><code>GET /deployments/{id}</code></td></tr>
+              <tr><th scope="row" class="pname">enclave logs &lt;id&gt; [-f]</th><td>your app's stdout/stderr; <code>-f</code> follows</td><td><code>GET /deployments/{id}/logs</code></td></tr>
+              <tr><th scope="row" class="pname">enclave fund &lt;id&gt; --usdc 5 | --eth 0.002</th><td>top up runtime by the second</td><td><code>fundWithAuthorization</code> / <code>fundEth</code></td></tr>
+              <tr><th scope="row" class="pname">enclave attest &lt;id&gt;</th><td>fetch the CPU + GPU attestation reports and verify them locally; prints measurements and the verdict</td><td><code>GET /deployments/{id}/attestation</code></td></tr>
+              <tr><th scope="row" class="pname">enclave restart &lt;id&gt;</th><td>stop + relaunch the app in place: same version, endpoint and balance (app state is ephemeral) - the fix for a wedged instance, no wallet tx</td><td><code>POST /deployments/{id}/restart</code></td></tr>
+              <tr><th scope="row" class="pname">enclave stop &lt;id&gt;</th><td>take the work item off the queue, then terminate; unspent balance stays on the record for a later reactivation (or the owner calls <code>refund</code> to recover its own unspent escrow)</td><td><code>EnclaveDeployments.setActive(false)</code> · <code>DELETE /deployments/{id}</code></td></tr>
+              <tr><th scope="row" class="pname">enclave upgrade &lt;id&gt; [&lt;version&gt;]</th><td>switch a deployment to another approved version of its app (default: the latest); paid time carries over - the runner restarts the app in place on the new version</td><td><code>EnclaveDeployments.setAppRef()</code> · <code>POST /claim-hint</code></td></tr>
+              <tr><th scope="row" class="pname">enclave secrets set|ls|rm|clear &lt;id&gt;</th><td>private env vars for a deployment (S3 keys, API tokens): relay-stored, never on-chain, injected at app start by the lease-holding enclave; one wallet signature per change, checked against the on-chain owner (--restart applies changes now, ls --show reveals values)</td><td><code>POST /secrets/{id}</code> · <code>POST /secrets/{id}/get</code></td></tr>
+              <tr><th scope="row" class="pname">enclave publish app.wasm --slug hello</th><td>validate the component, pin to IPFS, cut a catalog version; add <code>--fee $/hr</code> to charge deployers an hourly fee, paid straight to your wallet (capped on-chain, immutable per version)</td><td><code>ipfs.enclave.host/add-wasm</code> · <code>EnclaveAppCatalog</code></td></tr>
+              <tr><th scope="row" class="pname">enclave apps [query]</th><td>browse or search the on-chain catalog</td><td><code>EnclaveAppCatalog</code> reads</td></tr>
+              <tr><th scope="row" class="pname">enclave encvol message &lt;keyId&gt;</th><td>print the canonical message a wallet signs for a volume key (<a href="#docs-encvol">ch. 13</a>)</td><td>local only - nothing sent anywhere</td></tr>
+              <tr><th scope="row" class="pname">enclave encvol derive --key-id K | --sig 0x…</th><td>an encrypted volume's password + salt: the CLI wallet signs the canonical message itself (deterministic, RFC 6979), or derive from a signature made in any other wallet</td><td>local only - nothing sent anywhere</td></tr>
+              <tr><th scope="row" class="pname">enclave encvol seal-creds --key-id K</th><td>encrypt S3 credentials (<code>AWS_*</code> env, or <code>--access-key</code>/<code>--secret-key</code>) under the wallet key → a <code>credsEnvelope</code> value for the public App Config; the app then unlocks with one signature, nothing typed</td><td>local only - nothing sent anywhere</td></tr>
+              <tr><th scope="row" class="pname">enclave pricing · availability · gpu</th><td>rates + live ETH quote · fleet headroom · GPU probe state</td><td><code>GET /pricing</code> · <code>/availability</code> · <code>/gpu</code></td></tr>
+              <tr><th scope="row" class="pname">enclave account</th><td>address, payment forwarder, totals; signed in with an account: profile, credit balance, account deployments</td><td><code>GET /account</code> · <code>GET /account/me</code> · <code>GET /billing/vault</code></td></tr>
+              <tr><th scope="row" class="pname">enclave login · logout</th><td>sign in with your Enclave account (passkey): approve a link from your phone or any signed-in browser; the session reads your account's deployments and credit, and never signs transactions</td><td><code>POST /account/device/start</code> · <code>/claim</code></td></tr>
+              <tr><th scope="row" class="pname">enclave session new --preset staging-publish --app S [--budget 10] [--days 7] [--env]</th><td>make a session key and print what it may do, a check code and a grant link; the owner opens the link and signs once with their wallet; the key is stored 0600 (or printed as <code>ENCLAVE_SESSION</code> with <code>--env</code>) and becomes the active session (<a href="#cli-sessions">below</a>)</td><td><code>/grant#…</code> · <code>POST /sessions/open</code></td></tr>
+              <tr><th scope="row" class="pname">enclave session status · list · use &lt;sid&gt;</th><td>live or ended, budget and spend, this period's limit, expiry, actions and environments; the stored sessions; pick the active one</td><td><code>SessionVault.sessionOf</code> (a chain read)</td></tr>
+              <tr><th scope="row" class="pname">enclave session terminate</th><td>sign out: the unspent budget returns to the owner's wallet and the key file is deleted; running deployments are not touched</td><td><code>POST /sessions/end</code></td></tr>
+              <tr><th scope="row" class="pname">enclave session top-up-link --amount 5</th><td>a link for the owner: one wallet signature adds budget</td><td><code>/sessions#topup=…</code> · <code>POST /sessions/owner</code> (<code>topUpWithAuthorization</code>)</td></tr>
+              <tr><th scope="row" class="pname">enclave session delegate [--revoke] [--status [--owner 0x…]]</th><td>run by the owner with the wallet key: let every session of your vault act on the apps your wallet owns, as production (one wallet transaction); <code>--revoke</code> takes it back for all of them at once; <code>--status</code> reads it and needs no key</td><td><code>EnclaveDeployments.setDelegate(vault, bool)</code> · <code>GET /sessions/owner/{address}</code></td></tr>
+            </tbody>
+          </table></div>
+          <p>Global flags: <code>--json</code> for machine-readable output, <code>-x</code> to print every REST call and transaction before it is sent (the curl-equivalent escape hatch), <code>--base</code> / <code>ENCLAVE_API_BASE</code> to target an enclave directly instead of the gateway, <code>--rpc</code> for your own Base RPC.</p>
+
+          <h4>The whole lifecycle, in five lines</h4>
+          <c-code fn="terminal" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>enclave publish target/wasm32-wasip2/release/hello.wasm --slug hello
+enclave deploy hello:1 --fund 2          # create, fund $2, wait for live; shares = app minimums
+enclave attest 0x3f2a9c1b                # verify before you send data (any unique id prefix)
+curl https://3f2a9c1b.app.enclave.host/      # → hello from Enclave
+enclave logs 0x3f2a9c1b -f               # watch it serve</code></pre>
+</div></c-code>
+          <p>Everything the site does, nothing it hides: any command run with <code>-x</code> shows the exact API traffic, ready to replay with <code>curl</code>.</p>
+
+          <h4 id="cli-sessions">Act through a session (agents, no wallet key)</h4>
+          <p>With a session active, or <code>ENCLAVE_SESSION</code> set, these commands act <b>through it</b> instead of the wallet key: <code>publish</code> (the publisher is your session vault), <code>deploy</code> (<code>--env staging|prod</code>, default staging; <code>--fund</code> comes out of the session budget), <code>fund --usdc</code>, <code>upgrade</code>, <code>resize</code>, <code>config set|clear</code>, <code>stop</code>, <code>resume</code>, <code>rate-cap</code> and <code>refund</code>. They work on deployments your vault holds and, once the owner has run <code>enclave session delegate</code>, on the apps the owner's wallet holds, which a session treats as production: stop, resume, resize, fund, refund (to the wallet) and a lower <code>rate-cap</code>, never <code>upgrade</code> or <code>config</code>. A refusal (budget, policy, environment, expiry, missing delegation) prints its code and the next step, and the command stops: it never falls back to the wallet key. <code>--wallet</code> uses the wallet key for one command.</p>
+          <c-code fn="terminal · a session's day" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal · a session's day</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>enclave session new --preset staging-publish --app myapp-staging --budget 10 --days 7 --label "Claude Code"
+enclave publish target/wasm32-wasip2/release/app.wasm --slug myapp-staging --version 0.4.1
+enclave deploy myapp-staging:0.4.1 --env staging --fund 2
+enclave session status
+enclave session terminate                 # unspent budget back to the owner</code></pre>
+</div></c-code>
+          <p>Secrets, transfers, promotion to production and the vault's own money (top-up, extend, withdraw) stay with the owner's wallet. See <a href="#docs-sessions">chapter 19</a> for the policy model.</p>
+        </article>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== MCP SERVER ===================== -->
+<section id="mcp" data-view="develop" aria-label="MCP server for coding agents" hidden>
+  <div class="wrap">
+    <div class="docs-main" style="max-width:920px;">
+        <article class="doc" id="docs-mcp">
+          <h3>The MCP server</h3>
+          <p>Coding agents connect over the Model Context Protocol at <code>https://mcp.enclave.host</code> (Streamable HTTP). It exposes the full platform surface as typed tools: the catalog, pricing, live capacity, deployments, logs, attestation, sign-in, and uploads. An agent holding a funded key can browse the catalog, deploy, fund, watch logs, publish, and verify attestation end to end.</p>
+
+          <h4>Connect</h4>
+          <p>One URL, no signup, no API key. Pick your client:</p>
+          <c-code-tabs data-ssr><div class="code-tabs">
+  <div class="code-tabs-bar" role="tablist"></div>
+  <c-code tab="Claude Code" fn="connect · Claude Code" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">connect · Claude Code</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>claude mcp add --transport http enclave https://mcp.enclave.host</code></pre>
+</div></c-code>
+            <c-code tab="Cursor / mcp.json" fn="connect · mcp.json (Cursor and most IDE agents)" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">connect · mcp.json (Cursor and most IDE agents)</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>{ "mcpServers": { "enclave": { "url": "https://mcp.enclave.host" } } }</code></pre>
+</div></c-code>
+            <c-code tab="VS Code" fn="connect · VS Code" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">connect · VS Code</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>code --add-mcp '{"name":"enclave","type":"http","url":"https://mcp.enclave.host"}'</code></pre>
+</div></c-code>
+            <c-code tab="Any client" fn="connect · raw JSON-RPC" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">connect · raw JSON-RPC</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>curl -s https://mcp.enclave.host -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'</code></pre>
+</div></c-code>
+</div></c-code-tabs>
+          <p>Once connected, the <code>guide</code> tool (topic <code>getting-started</code>) walks the agent through everything below on its own.</p>
+
+          <h4>No keys, by design</h4>
+          <p>No tool accepts a private key, signs anything, or submits a wallet transaction. Reads are direct; every state change comes back as an <b>unsigned Base transaction</b> <code>{chainId, to, data, value}</code>, validated against live chain state first (catalog approval, share minimums, the GPU cap, publisher fee snapshots), for the agent to sign with your own wallet. Sign-in and uploads take locally produced signatures. Session tokens for owner-scoped reads ride per-call parameters or the Authorization header; transactions never need a session. An agent with no wallet can instead act through a <a href="#mcp-sessions">wallet session</a>: the builders then return calls for the agent's own session key to sign, and <code>session_execute</code> hands the signed calls to the sessions relayer.</p>
+
+          <h4>Tool reference</h4>
+          <div class="tbl"><table class="params cmds">
+            <thead><tr><th scope="col">tool</th><th scope="col">does</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" class="pname">guide</th><td>how-to guides: getting-started, deploy, publish, funding, attestation, volumes, networking, fees, cli</td></tr>
+              <tr><th scope="row" class="pname">pricing · availability · gpu_capacity · platform_status</th><td>live rates, available GPU/CPU shares, model volumes, per-tenant GPU grants, gateway health</td></tr>
+              <tr><th scope="row" class="pname">list_apps · get_app</th><td>the on-chain catalog: versions, approval state, resource specs, ports, publisher fees</td></tr>
+              <tr><th scope="row" class="pname">list_deployments · get_deployment</th><td>a wallet's work, live fleet view merged with the on-chain ledger; status, rate, balance, network addresses</td></tr>
+              <tr><th scope="row" class="pname">deployment_logs · restart_deployment · terminate_hosted · account</th><td>owner-scoped operations (session token)</td></tr>
+              <tr><th scope="row" class="pname">fleet_attestation · deployment_attestation</th><td>attestation documents; real verification stays client-side against the pinned repo</td></tr>
+              <tr><th scope="row" class="pname">auth_nonce · auth_login</th><td>SIWE sign-in: fetch the message, sign it locally, trade the signature for a session token</td></tr>
+              <tr><th scope="row" class="pname">upload_token</th><td>wallet-signed authorization for pinning wasm and images to IPFS</td></tr>
+              <tr><th scope="row" class="pname">plan_deploy</th><td>validate + price a deployment, returns the unsigned <code>create()</code> transaction</td></tr>
+              <tr><th scope="row" class="pname">build_fund</th><td>unsigned funding transactions: USDC approve + fund, or payable <code>fundEth</code></td></tr>
+              <tr><th scope="row" class="pname">build_stop · build_resume · build_upgrade</th><td>unsigned lifecycle transactions; upgrade validates approval, share fit, and the fee snapshot</td></tr>
+              <tr><th scope="row" class="pname">build_publish</th><td>unsigned <code>publishVersion</code> transaction from a pinned CID</td></tr>
+              <tr><th scope="row" class="pname">claim_hint</th><td>nudge the fleet to claim funded work right now</td></tr>
+            </tbody>
+          </table></div>
+
+          <h4>A typical deploy, agent-side</h4>
+          <p><code>list_apps</code> → <code>plan_deploy</code> → sign and send the create transaction → read the new id from the receipt's <code>Created</code> event → <code>build_fund</code> → sign and send → <code>claim_hint</code> → poll <code>get_deployment</code> until <code>running</code>. The app serves at its own origin, <code>https://&lt;first-8-hex-of-id&gt;.app.enclave.host</code>.</p>
+          <p>The <a href="#docs-cli">CLI</a> and MCP are equivalent surfaces: anything an agent plans over MCP can also be run with <code>enclave</code> one-liners, and both talk to the same <a href="#api">API</a> and contracts underneath.</p>
+
+          <h4 id="mcp-sessions">Sessions: act without a wallet</h4>
+          <p>An agent that holds no wallet works through a <a href="#docs-sessions">wallet session</a>. It keeps a P-256 key of its own, its owner approves a policy for that key once, and the agent signs each action with it. The server still holds no keys and signs nothing; the sessions relayer submits, paid out of the session's budget.</p>
+          <div class="tbl"><table class="params cmds">
+            <thead><tr><th scope="col">tool</th><th scope="col">does</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" class="pname">session_request</th><td><code>{publicKey: {x, y}, label, preset, budgetUsd, spendPerDayUsd, expiresInHours, apps, environments, owner}</code> → <code>{link, checkCode, keyHash, policy, vault, sid}</code>: the grant link the owner opens and signs with their wallet (with <code>owner</code> set, only that wallet may sign, and <code>vault</code> and <code>sid</code> are known in advance). Nothing is on-chain until they sign.</td></tr>
+              <tr><th scope="row" class="pname">session_status</th><td><code>{owner}</code> → the owner's vault, its sessions (live or not, actions, environments, budget, spend, expiry), held deployments and <code>delegation</code>; or <code>{publicKey}</code> → the sessions opened for that key</td></tr>
+              <tr><th scope="row" class="pname">plan_deploy · build_fund · build_stop · build_resume · build_resize · build_set_max_rate · build_refund · build_upgrade · build_set_config · build_publish</th><td>with <code>session: {vault, sid}</code>: instead of unsigned wallet transactions, return <code>calls</code>, each <code>{action, actionName, describe, nonce, fee, deadline, args, digest, digestSha256}</code>, for the session key to sign. The builder refuses up front what the session can't do (an action outside the grant, a production record for a staging session, a missing delegation).</td></tr>
+              <tr><th scope="row" class="pname">session_execute</th><td><code>{vault, sid, publicKey, calls}</code>, each call with its <code>signature</code> added → <code>{executed}</code>: the calls go through the sessions relayer in order, and it stops at the first failure</td></tr>
+              <tr><th scope="row" class="pname">session_end</th><td>sign out, in two calls: <code>{vault, sid}</code> returns a digest; sign it, then call again with <code>publicKey</code>, <code>deadline</code> and <code>signature</code>. The unspent budget goes back to the owner; running apps are untouched</td></tr>
+              <tr><th scope="row" class="pname">build_delegate</th><td><code>{owner, grant}</code> → the owner's unsigned wallet transaction (<code>setDelegate</code> on the deployments ledger) that lets their sessions act on the apps their wallet owns, as production; <code>grant: false</code> revokes it for every session at once</td></tr>
+            </tbody>
+          </table></div>
+          <p>The flow: generate a P-256 key and keep the private half in the agent's secret store → <code>session_request</code> → the owner opens the link, checks the code and approves → <code>session_status</code> until the session is live → a builder with <code>session</code> → sign each <code>digest</code> → <code>session_execute</code>. The signature is ECDSA P-256 over SHA-256 of the 32 digest bytes, which is exactly what WebCrypto computes:</p>
+          <c-code fn="agent · sign the calls" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">agent · sign the calls</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>// call.digest is the EIP-712 digest of SessionCall(sessionId, nonce, action, argsHash, fee, deadline),
+// domain {name: "Enclave Sessions", version: "1", chainId: 8453, verifyingContract: vault}
+for (const call of calls) {
+  const digest = Uint8Array.from(call.digest.slice(2).match(/../g), (h) =&gt; parseInt(h, 16));
+  const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, privateKey, digest));
+  call.signature = "0x" + [...sig].map((b) =&gt; b.toString(16).padStart(2, "0")).join("");   // r ‖ s, 64 bytes
+}
+// then: session_execute { vault, sid, publicKey: {x, y}, calls }</code></pre>
+</div></c-code>
+          <div class="doc-note warn">
+            <span class="nt">Pick the preset deliberately</span>
+            <p><code>session_request</code> defaults to the <code>agent</code> preset: the browser policy's deployment actions (every deployment action, any free app, staging and production; never signing in as the owner or opening their private apps) with a $20 budget for 7 days. Once the owner has delegated, such a session can stop, resize or cancel <i>every</i> app their wallet owns. For an agent that only publishes and tests, pass <code>preset: "staging-publish"</code>: it is staging only and never reaches the wallet's apps. A session never changes what a production deployment runs, and never touches secrets.</p>
+          </div>
+        </article>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== API REFERENCE ===================== -->
+<section class="api" id="api" data-view="develop" aria-label="API reference" hidden>
+  <div class="wrap">
+    <div class="api-head">
+      <article class="doc">
+        <h3>The Enclave API</h3>
+        <p>Everything the service does, fully scoped. Authenticate with an Ethereum signature, pay USDC or ETH per deployment, and orchestrate confidential compute over plain HTTPS. Prefer a terminal? The <a href="#docs-cli">enclave CLI</a> wraps every operation below. Wallet sessions have their own signed surface, documented <a href="#api-sessions">after the reference</a>.</p>
+      </article>
+      <div class="api-meta">
+        <span class="chip">OpenAPI <b>3.1</b></span>
+        <span class="chip">base <b>https://api.enclave.host/v1</b></span>
+        <span class="chip">auth <b>SIWE bearer</b></span>
+        <a class="chip" href="openapi.json" download id="dlSpec">⬇ <b>openapi.json</b></a>
+      </div>
+    </div>
+
+    <c-api-reference data-ssr><div class="api-layout">
+  <aside class="api-side">
+    <div class="api-search"><input type="text" class="api-search-input" placeholder="filter operations…" spellcheck="false" aria-label="Filter operations" /></div>
+    <nav class="api-nav" aria-label="API operations"></nav>
+  </aside>
+  <div class="api-main"></div>
+</div></c-api-reference>
+
+    <div class="docs-main" style="max-width:920px;margin-top:48px;">
+      <article class="doc" id="api-sessions">
+        <h3>Sessions API</h3>
+        <p>Wallet sessions (<a href="#docs-sessions">guide chapter 19</a>) are served under <code>https://api.enclave.host/v1/sessions</code>. The relay holds no keys and is trusted for liveness only: every write carries a signature the session vault checks on-chain, either the session key's (P-256) or the owner wallet's (EIP-712), and every submission is simulated first, so a call the vault would refuse is never sent. JSON in and out. Bigints come back as <code>"123n"</code> strings; requests accept those, decimal strings or integers. Errors are <code>{error, code}</code>.</p>
+        <div class="tbl"><table class="params cmds">
+          <thead><tr><th scope="col">route</th><th scope="col">body → answer</th></tr></thead>
+          <tbody>
+            <tr><th scope="row" class="pname">GET /config</th><td>→ <code>{chainId, factory, book, usdc, router, relayer, site, rpc, keyAttestations}</code>: the chain and vault factory this relay serves</td></tr>
+            <tr><th scope="row" class="pname">POST /quote</th><td><code>{vault, sid, action}</code> → <code>{fee, deadline, nonce}</code>: the relay fee for one action (USDC, 6 decimals), a deadline 120 s out, and the session's next nonce</td></tr>
+            <tr><th scope="row" class="pname">POST /execute</th><td><code>{vault, sid, nonce, action, args, fee, deadline, x, y, r, s}</code> → <code>{txHash, result, block}</code>. <code>args</code> is the action's ABI-encoded arguments; <code>x, y</code> the session public key; <code>r, s</code> its signature over the <code>SessionCall</code> digest (below)</td></tr>
+            <tr><th scope="row" class="pname">POST /open</th><td><code>{owner, grant, ownerSig, deposit?}</code> → <code>{txHash, vault, sid, block}</code>: opens a session the owner signed. A grant with a budget needs <code>deposit: {validAfter, validBefore, sig}</code>, the owner's USDC <code>ReceiveWithAuthorization</code> whose nonce is the grant digest</td></tr>
+            <tr><th scope="row" class="pname">POST /owner</th><td><code>{owner, vault, op, args, sig}</code> → <code>{txHash, block}</code>: an owner operation, EIP-712-signed by the owner wallet and relayed gas-free (rate-limited per owner). <code>op</code>: <code>topUp</code>, <code>topUpWithAuthorization</code>, <code>extend</code>, <code>terminate</code>, <code>revokeAll</code>, <code>withdraw</code>, <code>promote</code>, <code>adopt</code>, <code>setEnvironment</code>, <code>release</code></td></tr>
+            <tr><th scope="row" class="pname">POST /end</th><td><code>{vault, sid, deadline, x, y, r, s}</code> → <code>{txHash, refund6}</code>: the session key signs itself out (<code>SessionEnd(sessionId, deadline)</code>); its API access ends first, and the unspent budget returns to the owner</td></tr>
+            <tr><th scope="row" class="pname">GET /by-key/{keyHash}</th><td>→ <code>{sessions}</code>: the sessions opened for a key, <code>keyHash = keccak256(abi.encode(x, y))</code></td></tr>
+            <tr><th scope="row" class="pname">GET /owner/{address}</th><td>→ <code>{owner, vault, deployed, sessions, held, delegation: {ledger, supported, granted}}</code>: the owner's vault, its sessions and held deployments, and whether the owner has let the vault act on the apps their wallet owns</td></tr>
+            <tr><th scope="row" class="pname">GET /session/{vault}/{sid}</th><td>→ <code>{vault, sid, state, index, ops, revoked}</code>: on-chain state (live, balance, spend, limits, expiry, actions) and the relay's action log</td></tr>
+            <tr><th scope="row" class="pname">POST /attest</th><td>binds a session key to an enclave measurement (attested keys); answers <code>503 attest_disabled</code> while that is off</td></tr>
+          </tbody>
+        </table></div>
+
+        <h4>Actions and their arguments</h4>
+        <p><code>action</code> is the number; <code>args</code> is <code>abi.encode</code> of the arguments (for <code>deploy.create</code> and <code>app.publish</code>, of one tuple). The SDK in <code>sdk/sessions</code> builds all of them.</p>
+        <div class="tbl"><table class="params">
+          <thead><tr><th scope="col">#</th><th scope="col">action</th><th scope="col">args</th></tr></thead>
+          <tbody>
+            <tr><th scope="row" class="pname">0</th><td><code>deploy.create</code></td><td><code>(string appRef, uint16 gpuMilli, uint16 cpuMilli, uint32 appPort, string ports, bool isPublic, string configCid, uint256 maxRate6, uint8 env, uint256 fund6)</code>; <code>env</code> 1 = staging, 2 = prod; the publisher fee is read from the catalog, never passed</td></tr>
+            <tr><th scope="row" class="pname">1</th><td><code>deploy.fund</code></td><td><code>(bytes32 id, uint256 amount6)</code></td></tr>
+            <tr><th scope="row" class="pname">2</th><td><code>deploy.setAppRef</code></td><td><code>(bytes32 id, string appRef)</code>, staging only</td></tr>
+            <tr><th scope="row" class="pname">3</th><td><code>deploy.setConfig</code></td><td><code>(bytes32 id, string config)</code>, staging only</td></tr>
+            <tr><th scope="row" class="pname">4</th><td><code>deploy.setShares</code></td><td><code>(bytes32 id, uint16 gpuMilli, uint16 cpuMilli)</code></td></tr>
+            <tr><th scope="row" class="pname">5</th><td><code>deploy.setMaxRate</code></td><td><code>(bytes32 id, uint256 maxRate6)</code>, USDC per second; production caps only go down</td></tr>
+            <tr><th scope="row" class="pname">6</th><td><code>deploy.setActive</code></td><td><code>(bytes32 id, bool active)</code></td></tr>
+            <tr><th scope="row" class="pname">7</th><td><code>deploy.refund</code></td><td><code>(bytes32 id)</code>; the refund goes to whoever holds the deployment (your vault or your wallet)</td></tr>
+            <tr><th scope="row" class="pname">8</th><td><code>app.publish</code></td><td><code>(string slug, string name, string description, string version, string cid, uint32[4] res, string ports, string config, string configCid)</code>; to your vault's apps the grant names, free versions only</td></tr>
+          </tbody>
+        </table></div>
+        <c-code fn="the session key's signature" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">the session key's signature</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>SessionCall(bytes32 sessionId, uint256 nonce, uint8 action, bytes32 argsHash, uint256 fee, uint64 deadline)
+  domain   = {name: "Enclave Sessions", version: "1", chainId: 8453, verifyingContract: vault}
+  argsHash = keccak256(args)
+  r, s     = ECDSA P-256 over SHA-256(the 32-byte EIP-712 digest)   // the vault verifies it with the P-256 precompile</code></pre>
+</div></c-code>
+        <p>A deployment your wallet holds counts as production to a session: only sessions that cover <code>prod</code> act on it, and <code>deploy.setAppRef</code> and <code>deploy.setConfig</code> never pass. Suspend, resume, resize, cap and refund also need the owner's one-time <code>setDelegate(vault, true)</code> on the deployments ledger (<code>0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B</code>); without it the ledger reverts <code>"!owner"</code>. Funding a paid one needs its app named in the grant as <code>0x&lt;appId&gt;</code>.</p>
+
+        <h4>Session-signed requests to other routes</h4>
+        <p>A few relay routes also accept the session key in place of a wallet signature, each gated by an API scope in the grant: <code>POST /v1/account/session-login</code> (<code>api.account</code>: an account token that ends with the session), <code>POST /v1/apps/upload-token</code> (<code>api.upload</code>) and <code>/v1/placement/{id}</code> (<code>api.placement</code>). No bearer token is issued; each request is signed on its own:</p>
+        <c-code fn="Authorization: EnclaveSession" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">Authorization: EnclaveSession</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>Authorization: EnclaveSession v1 vault=&lt;addr&gt;,sid=&lt;0x…&gt;,ts=&lt;unix&gt;,n=&lt;nonce&gt;,x=&lt;b64url&gt;,y=&lt;b64url&gt;,sig=&lt;b64url&gt;
+
+sig = ECDSA P-256 over SHA-256 of the UTF-8 string
+  "enclave-api-v1\n" + METHOD + "\n" + host + path + query + "\n" + hex(sha256(body)) + "\n"
+  + ts + "\n" + n + "\n" + lowercase(vault) + "\n" + lowercase(sid)
+
+// ts within 60 s of the relay's clock; n is 8-64 base64url characters, single use;
+// sig is the raw r ‖ s (64 bytes), base64url</code></pre>
+</div></c-code>
+        <p>The relay checks the signature, that the key belongs to the session, that the session is live on-chain (mutations read it fresh, reads may use a cache of at most 5 s), and that the grant holds the route's scope. Secrets and custom domains never accept a session: they stay owner-wallet signatures.</p>
+      </article>
+    </div>
+  </div>
+</section>
+<section id="architecture" data-view="develop" aria-label="Architecture" hidden>
+  <div class="wrap">
+    <c-section-head eyebrow="Architecture" heading="How Enclave works, and what each part guarantees." data-ssr><div class="sec-head">
+  <span class="eyebrow">Architecture</span>
+  <h2>How Enclave works, and what each part guarantees.</h2>
+  <p>This is the architecture behind the front page, written as the invariants it holds rather than the parts it is made of. The dated engineering note at the end records what has been demonstrated, what has not, and what is attached right now, so the design and the evidence never blur.</p>
+</div></c-section-head>
+
+    <div class="hostdoc arch">
+
+      <h2 id="package">One app bundle, one domain contract</h2>
+      <p>An Enclave app is a <b>WebAssembly component</b> targeting <code>wasi:http</code>. Its bytes live on IPFS addressed by content hash, its listing lives in the <code>EnclaveAppCatalog</code> contract on Base, and the runtime inside the enclave refuses any bytes that do not hash to the CID in the deployment's on-chain record. One build, no per-host binaries.</p>
+      <p>Underneath the catalog, every backend speaks one versioned agreement, <code>enclave-domain-abi/1</code>. A bundle is a canonical manifest plus the artifact, and its identity is the hash of exactly those bytes. An attestation report binds the domain's transport key and a fresh nonce in its first half and the app's identity in its second, and that identity comes from the layer that loaded the bundle, never from the caller. Every domain moves through the same starting, running, ending and ended lifecycle, is reclaimed exactly once however it ends, and answers one small control protocol. A Go reference implementation and a Rust mirror are checked against one set of conformance vectors. Every backend speaks this contract and nothing else.</p>
+      <div class="doc-note">
+        <span class="nt">What portable means here</span>
+        <p>The package is the same everywhere. The guarantees come from the host, and the host must prove them. A bundle that runs on a confidential server and on an enclave backend gets the protection the machine proved when it attached, and that proof, not the machine's description of itself, is what the listing, the attestation document and your dashboard show. Portability is about your build, never about flattening the differences between hosts.</p>
+      </div>
+
+      <h2 id="contract">The isolation contract</h2>
+      <p>A host is admitted by what it proves, never by what it runs. The contract is independent of the operating system: the same properties, the same verifier rules, on every backend.</p>
+      <ol class="arch-props">
+        <li><b>Per-app hardware isolation.</b> Each app runs in its own hardware-enforced domain. Another app cannot read its memory, reach its sockets, or obtain a report that names it.</li>
+        <li><b>The ordinary host operating system is excluded.</b> A smaller, measured trusted layer that the hardware's virtualization enforces owns the domains; the operating system above it keeps running the machine without being able to see into them.</li>
+        <li><b>Measured identity.</b> A domain's identity is the hash of exactly the bundle it runs, and the code that names it is itself inside a measurement a verifier can derive.</li>
+        <li><b>Attestation.</b> A report names the domain's identity and is signed by something the host does not control: the processor, or the trusted layer with a root in the machine's measured boot.</li>
+        <li><b>Key and traffic binding.</b> The domain's transport key is generated inside it and bound into the report, and TLS terminates inside the domain, so nothing on the host can sit in the middle.</li>
+        <li><b>Fail-closed verification.</b> Unverified means refused. A field that is present but unsigned is unauthenticated, and a report that cannot be chained to its root is not evidence.</li>
+        <li><b>Lifecycle cleanup.</b> A domain that ends is reclaimed exactly once, however it ends, and leaves nothing behind for the next one.</li>
+        <li><b>Portable operation.</b> The same bundle, the same domain contract, the same verifier rule, across every backend.</li>
+      </ol>
+      <p>Two kinds of host meet this contract: a confidential processor, and, on machines without one, <b>Enclave Shield</b>, described next. Both are held to one set of acceptance tests covering every property above, and a machine is listed only when it passes them. A machine that meets part of the contract is not listed at a weaker level; it is not listed. The relay derives eligibility from the evidence it verified when the machine attached, never from the machine's own description of itself and never from the operating system it runs.</p>
+
+      <a id="shielded"></a><a id="masked-offload"></a><!-- anchors this section was first published under; #shield is canonical -->
+      <h2 id="shield">Enclave Shield</h2>
+      <p><b>Enclave Shield is Enclave's proprietary protection technology for machines that lack confidential-computing hardware.</b> It has two components, and on such a machine both together are Shield protection: a host isolation component that keeps the ordinary operating system out of each app's domain, and a GPU offload component that lets a GPU outside a confidential boundary compute on masked inputs and return verified results, so it never receives plaintext protected state. The architecture is OS-independent: the same portable app bundle, the same domain contract and the same security contract span every backend, and the operating system is an implementation backend, never a product tier.</p>
+
+      <h3>The host isolation component</h3>
+      <p>Hardware-enforced per-app CPU isolation. A smaller, measured trusted layer that the hardware's virtualization enforces owns the app domains, and the machine's ordinary operating system keeps running the machine without being able to see into them; the layer's own identity is rooted in the machine's measured boot, and its report names each domain. The guarantee is the same on every operating system: a backend is part of the product only because it enforces this contract on its platform, and the operating system is an implementation detail beneath it, never the boundary. There is no plain or software-only fallback tier; a machine that cannot meet the contract is not a host. The distinction we keep honest: this component isolates apps from each other and from the host operating system and enforces the measured, signed policy, but it does not give the separate guarantee a confidential processor gives, that the machine's owner cannot inspect the data.</p>
+
+      <h3>The GPU offload component</h3>
+      <p><b>Masked, verified GPU offload for any GPU that does not support, or is not operating in, confidential-computing mode.</b> Its guarantee is exact: the untrusted card sees only masked inputs, returns results that are verified before use, and never receives plaintext protected state. The trusted domain keeps the tokenizer, sampling, attention and every nonlinear step; only the large matrix multiplies leave it, each activation hidden under a one-time pad before it goes and checked against a fast probabilistic proof when it comes back. A wrong or tampered result aborts before any output. The weights are public; the card and its host learn shapes and timing, and can refuse to serve, and that is all.</p>
+      <p>This component is selected by the card, never by the host. It applies wherever the attached GPU is outside the confidential boundary, even when the app or VM runs inside a confidential CPU. A GPU operating in a supported confidential-computing mode sits inside the boundary and does not need it. Shield's GPU component alone never makes a host eligible for tenant apps; on a machine without confidential hardware an app needs both components, the host isolation for the host and the offload for the card.</p>
+      <div class="doc-note">
+        <span class="nt">The rule, and the gate</span>
+        <p>In Enclave's architecture, <b>Shield's GPU offload is the only supported way to expose a GPU that is not operating in confidential-computing mode</b>, on any host. Admission reads and states the card's protection mode from explicit, verified GPU evidence (inside the boundary, or outside it and reached through Shield), never inferring the rule from the CPU's technology, the host operating system, whether the CPU is confidential, or the absence of a field; a card outside the boundary is neither advertised as capacity nor routed GPU work until its Shield evidence verifies, and admission fails closed. This is Enclave's policy for its own platform, not a claim about every possible system.</p>
+      </div>
+      <p>The performance research on the offload mechanism, masked decoding of large models on datacenter cards, is a separate line of work from the product rule; its figures live in the dated evidence note, never here. Enclave Shield is not the pVM CPU phone tier, described further down.</p>
+
+      <h2 id="levels">Two ways to meet it</h2>
+      <p>Confidential hardware does not replace the contract; it adds to it: on a confidential processor the same domain gains memory encryption and protection from the machine's operator, and the report is signed by the processor itself. The app, the bundle, and the way you verify it do not change. The GPU is a separate axis on both: inside the boundary when the card runs in confidential-computing mode, otherwise through Shield's GPU offload. The table states what each level guarantees; what is attached right now is the fleet panel below.</p>
+      <div class="tbl">
+        <table class="params">
+          <thead><tr><th scope="col">property</th><th scope="col">Enclave Shield (no confidential-computing hardware)</th><th scope="col">on confidential hardware</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">the host's operating system</th><td>excluded from the domain by the measured trusted layer</td><td>excluded by the processor: guest memory is encrypted and integrity-protected against it</td></tr>
+            <tr><th scope="row">the machine's owner and operator</th><td>kept out of the domain through the operating system; not excluded the way a confidential processor excludes them, and still runs the machine</td><td>cannot read the domain at all; can still stop or starve it</td></tr>
+            <tr><th scope="row">physical access to memory</th><td>not defended, and the level says so</td><td>not defended by current processors, and the level says so</td></tr>
+            <tr><th scope="row">root of the report</th><td>the trusted layer's key, rooted in the machine's measured boot</td><td>the processor's fused key, chained to the silicon vendor</td></tr>
+            <tr><th scope="row">keys and traffic</th><td>generated and terminated inside the domain</td><td>generated and terminated inside the confidential VM</td></tr>
+            <tr><th scope="row">a GPU on the host</th><td>no card here runs in confidential-computing mode, so every card is reached only through Shield's GPU offload: masked inputs, verified results, never plaintext; not advertised or routed until its Shield evidence verifies</td><td>a card in a supported confidential-computing mode sits inside the boundary; any other card, even beside a confidential processor, is reached only through Shield's GPU offload under the same rule</td></tr>
+            <tr><th scope="row">app against app</th><td>one hardware domain per app</td><td>one hardware domain per app, inside the processor's boundary</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="doc-note warn">
+        <span class="nt">The limit we state on purpose</span>
+        <p>A confidential processor defends memory against <b>software</b>: the host operating system, its administrator, and everything running beside the VM. It does not defend against someone with physical access and lab equipment on the memory bus, and current processors say so themselves. On the hosted fleet the operator is remote from the machines; a self-hosted seller owns theirs. That difference is real, and it is why a host's listing names who runs it and how it attests rather than printing one green word for every box.</p>
+      </div>
+      <p>There is no level below the contract. Ordinary virtualization with the host operating system in charge is a baseline the isolation work runs for comparison, and it is never built for, listed, routed tenant work, or sold. Which machines are attached right now is shown live <a href="#fleet">at the bottom of this page</a>.</p>
+
+      <h2 id="verify">What is measured, and by whom</h2>
+      <p>"Attested" on this site means one thing: a signature chain from a root the host does not control down to the bytes that are running, checked by <b>your</b> client. A field that is merely present in a document is unauthenticated until something signs it, and the copy says which is which.</p>
+      <div class="tbl">
+        <table class="params">
+          <thead><tr><th scope="col">link</th><th scope="col">confidential hardware</th><th scope="col">Enclave Shield</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">root of trust</th><td>the CPU vendor's fused key; the GPU vendor's, where a card is inside the boundary</td><td>the machine's measured boot, vouching for the trusted layer's per-boot key</td></tr>
+            <tr><th scope="row">the measurement covers</th><td>firmware, kernel and the runtime image; on a confidential server the guest's kernel, initramfs and boot arguments, built on the host from a tagged release; no signed release measurement exists yet, so the operator's published allowlist is the reference unless you pin your own</td><td>the trusted layer and the code that names domains, so that a derived measurement covers the naming authority</td></tr>
+            <tr><th scope="row">your app</th><td>not in the boot measurement on purpose: the measured runtime refuses bytes that do not hash to the CID in your deployment record, and the attestation says exactly that</td><td>the bundle's hash, named in the report by the measured layer that loaded it</td></tr>
+            <tr><th scope="row">transport key</th><td>generated inside the VM and bound into the report; the operator cannot sit in the middle</td><td>generated inside the domain and bound into the report</td></tr>
+            <tr><th scope="row">who checks</th><td colspan="2">your browser (the verifier ships from this origin), the CLI, an agent's tool call, or a fully independent third-party tool; the API's self-check is a labeled diagnostic, never the verdict</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Run it now on the <a href="./#attest">front page's live check</a>, or read <a href="#docs-attest">how to embed it in your own client</a>.</p>
+
+      <h2 id="pvm-cpu">A phone tier: pVM CPU</h2>
+      <p>The pVM CPU tier is distinct from the server isolation contract above: <b>CPU-only inference inside a Pixel's protected VM</b>. The model runs entirely on the CPU cores the protected VM owns, the VM's attestation chain is verified by the relay before the phone is admitted, and admission is by proven capability, never by device name. It wears an amber <span class="ap-badge warn">pvm cpu</span> badge wherever it appears, so it is never mistaken for the jade badge of a confidential server. It is the only phone tier: there is no accelerator tier. Which phones hold it, and what has been measured on which device, is in the dated evidence note, with the device, the model and the conditions attached.</p>
+
+      <h2 id="independent">Independent infrastructure</h2>
+      <p>The platform is designed not to stop working if this company, its servers, or its domain name go away. Hosts still supply hardware, connectivity, power and upkeep; the point is that no <b>indispensable</b> party sits between a deployer and a host. What is already on public contracts and content addressing, and what runs on our machines, is listed under its own heading.</p>
+      <div class="arch-split">
+        <div>
+          <h3>Already independent</h3>
+          <ul>
+            <li><b>The catalog, the deployment ledger, the host registry and payment routing</b> are contracts on a public chain. Funding a deployment is a transaction; a publisher's fee forwards to their wallet in the same one; nobody takes custody.</li>
+            <li><b>App bundles are content-addressed</b> and hash-checked inside the enclave, so any mirror that serves the right bytes is as good as ours.</li>
+            <li><b>The source, the measurements and the release provenance are public</b>, and the verifier runs on your side.</li>
+            <li><b>Confidential servers can be self-launched</b> on hardware you own, from the same published images, with no vendor control plane in the path. metal0 is one, serving now.</li>
+            <li><b>Your own apps on your own box run free</b>: a zero-rate deployment needs no balance at all.</li>
+            <li><b>The CLI and the MCP server hold no keys.</b> State changes come back as unsigned transactions for your wallet, or an agent's, to sign.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Still runs on our servers</h3>
+          <ul>
+            <li><b>Discovery and placement</b> at <code>api.enclave.host</code>, which also hubs the tunnels that make home machines behind carrier NAT reachable.</li>
+            <li><b>Traffic relays</b> that splice app connections to enclaves by name and carry TCP, UDP and outbound IPv6. They never hold a TLS key and see ciphertext, but they are ours.</li>
+            <li><b>The site and the IPFS gateway.</b> Availability only: the bytes are hash-checked in the enclave regardless of who served them.</li>
+            <li><b>The certificate service</b>, which sees only a signing request; the private key stays in the enclave. It also answers the DNS zone that delegated ACME challenges point to, so whoever runs it could obtain a certificate for a delegated name without the enclave; certificate transparency logs are where that would show.</li>
+            <li><b>Card and stablecoin checkout</b>, which creates and funds the on-chain record on your behalf.</li>
+            <li><b>The measurement allowlist</b> that admits new hosts and new releases. It lives in the relay's configuration and is published with every attestation answer.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>The rest of the design</h3>
+      <p>The architecture removes the remaining indispensable parties one by one: publisher-owned signatures over app bundles, a trust policy you keep locally instead of a list we publish, runtime measurements reproducible by anyone and verified on your side, several mirrors and peer transports for bundles, coordinators that are interchangeable or bypassed by talking to a host directly, and secrets and state that recover without any party we run. The contracts and payment paths in use are not replaced by this page; the evidence note says which of these pieces run and which do not.</p>
+
+      <h2 id="progress">Engineering evidence, 2026-10-14</h2>
+      <p>The dated record of what has been demonstrated against the architecture above, what has not, and what is attached right now. Everything on this page above this line describes the product; everything below it is measured fact. The scripts, the negative tests and the corrections live in the repository's <a href="https://github.com/EnclaveHost/enclave/tree/main/isolation" target="_blank" rel="noopener">isolation</a>, <a href="https://github.com/EnclaveHost/enclave/tree/main/windows" target="_blank" rel="noopener">windows</a> and <a href="https://github.com/EnclaveHost/enclave/tree/main/shielded" target="_blank" rel="noopener">shielded</a> directories.</p>
+      <ul class="hostdoc-list">
+        <li><b>Attached right now.</b> The live panel below is authoritative. On 2026-10-14 three hosts serve, each running one VM per app: a self-launched confidential server (AMD SEV-SNP), a Windows machine running Enclave Shield, and a Pixel 10 phone in the pVM CPU tier. The hosted confidential fleet, where apps shared one confidential VM as a Wasm sandbox and a process each, was retired on 2026-10-14 together with its container provider.</li>
+        <li><b>Confidential server, in production.</b> The node's own confidential VM runs only the control plane; every app runs in its own SEV-SNP guest on the same machine, its TLS ends inside that guest, and the node serves only deployments that require this isolation. The site and the CLI check the server's report (AMD chain, a fresh nonce) against the operator's published allowlist, which gives a "limited" verdict: genuine and fresh, not independently reproduced. Pinning a measurement you derived yourself (<code>enclave attest --expect</code>) is what reaches "verified". The guest image is built on the host from a tagged release, so no signed release measurement exists yet. Each app guest's own report binds its TLS key. Since 2026-10-17 a public deployment's Verify button checks that report in your browser: fetched from the app's own address over a fresh nonce, from the same processor as the server, against the relay's published prediction of that guest, so it is limited too. Run live against production on 2026-10-17, all 18 checks passed on a public app's guest. The CLI checks only the server.</li>
+        <li><b>The domain contract.</b> A Go reference and a Rust mirror pass one set of conformance vectors, and the Windows partition backend is checked against the same vectors.</li>
+        <li><b>Per-app hardware domains on confidential hardware.</b> One confidential guest per app is in production (above). Demonstrated in the lab on one AMD EPYC host: one app per confidential guest with the app inside the launch measurement, TLS inside and the key bound into the report; several apps under a monitor inside one guest, separated by the guest kernel and labeled weaker; a hardware privilege split with a measured firmware layer above the monitor, where the derived digest equals the live report but covers that firmware layer and not the monitor image; and one confidential guest per app driven by the domain contract, where an adversary with root in its own guest minted a fully signed, correctly bound report naming the other app and was rejected on the measurement alone, independently rechecked from the saved evidence (14 checks, none failing). Not demonstrated: one hardware plane per app inside one guest with the naming authority in the measured firmware layer; hardware caps that at two or three apps per guest. The run of the same image on ordinary virtualization is a control, not a level.</li>
+        <li><b>Enclave Shield, host isolation component.</b> In production on one Windows machine: every app runs in its own VBS-isolated Hyper-V partition, booted from our measured paravisor image with the kernel, initramfs and command line inside the measured pages, and holds its own TLS key. The relay checks the machine's boot through its TPM (Secure Boot on, test signing off) and verifies each partition's hardware-signed report, which binds the app, the runtime, the TLS key and a fresh nonce. Under VBS isolation the hypervisor keeps Windows out of a partition's memory; our own test of that from the host side has not been run yet, so the machine's records still say the host is not excluded. The hypervisor and the person with physical access remain trusted. Since 2026-10-16 your browser can check it too, from the deployment's Verify button: the machine's TPM-quoted boot, with a credential the page mints itself, then that app's partition report under that boot's key, over a fresh nonce. The verdict stays limited, and the CLI does not do this check yet. The Linux backend exists as a design; nothing upstream provides it on x86.</li>
+        <li><b>Enclave Shield, GPU offload component.</b> In production on two hosts: the confidential server's two V100-class cards, which have no confidential-computing mode, serve a 27B model to its app guests over vsock, and the Windows machine's integrated GPU serves a small model through Vulkan. Neither card is reachable except through the offload. Pre-dealt masks, which would trade the GPU's work for a dealer the platform runs, are not in production. The design's reviews so far are internal; no external review has been done. Figures from the large-model performance research are withheld until they are stable; when published they carry the model, the hardware, the mode and the conditions.</li>
+        <li><b>The pVM CPU tier.</b> A Pixel 10 serves CPU-only apps, one protected VM per app. The relay verifies each protected VM's attestation chain to Google's pinned root at attach and judges a capability report signed inside the VM against a served-model policy. Since 2026-10-17 a public deployment's Verify button checks the app's own protected VM in your browser as well. The evidence comes from the app's own address over a fresh nonce. It must chain to Google's root, bind the key the app's TLS certificate carries, and come from the phone's own VM or a sibling holding the phone's registered proof key. The verdict is limited, because the expected app, the allow-lists and the proof key are the relay's statements. Run live against production on 2026-10-18, all 14 checks passed on a public deployment on the Pixel 10. The Pixel 10 baseline is recorded in the repository (shielded/anchor/avf/PVM-CPU.md, with its raw data); no speed figure is published here. No Pixel 11 has been runtime-validated. The earlier accelerator experiments are closed and are not a tier.</li>
+        <li><b>Independence.</b> On public contracts and content addressing: the catalog, the deployment ledger, the host registry, payment routing, hash-checked bundles, public source, self-launched confidential servers, free self-hosting, keyless CLI and MCP. Running on company servers: discovery and placement, the traffic relays, the site and IPFS gateway, the certificate service and its DNS zone, checkout, deployment secrets (the relay operator can read them), and the measurement allowlist that admits new hosts and releases. Not implemented: publisher-owned signatures, local trust policy, mirrors and peer transports, interchangeable coordinators, independent recovery of secrets and state. The source is published for audit under a license that does not permit others to run the service.</li>
+      </ul>
+
+      <h2 id="fleet">What is serving right now</h2>
+      <p>The live fleet, with the badges the tables above explain. A jade badge is hardware evidence the relay or the box's own attestation presented; the absence of one is the signal, and a machine without it takes no tenant work. This panel is the answer to "what can I deploy on right now".</p>
+      <div class="arch-fleet"><c-fleet-list data-ssr><div class="fleet-list"></div>
+<div class="fleet-foot"></div>
+<!-- Seller CTA: the fleet is open to anyone with confidential hardware, and
+     this list is where a new host shows up. Links to /host (what you need, the
+     CLI flow, how earning works; the repo docs are linked from there). -->
+<p class="fleet-cta">
+  <span>Your hardware belongs on this list.</span>
+  Run an enclave on a box you own, claim paid work from the open queue, and the
+  ledger pays your wallet for every lease you serve.
+  <a href="host">Host an enclave &rarr;</a>
+</p></c-fleet-list></div>
+
+    </div>
+  </div>
+</section>
+</main>
+<c-footer data-ssr><footer aria-label="Footer">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="./" class="brand" aria-label="Enclave home">
+          <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+            <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkF"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkF)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+        </a>
+        <p>Compute that cannot see your data. Paid per second, for anything that holds a key.</p>
+        <div class="foot-meta">
+          <span>built + operated by Enclave Host, Inc.</span>
+          <span>front-end: static, pinned to IPFS · <code>enclave.host</code></span>
+        </div>
+      </div>
+      <nav aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          <li><a href="./#why">What you get</a></li>
+          <li><a href="./#how">How it works</a></li>
+          <li><a href="apps">App store</a></li>
+          <li><a href="./#pricing">Pricing</a></li>
+          <li><a href="develop#architecture">Architecture</a></li>
+          <li><a href="develop#progress">Engineering evidence</a></li>
+          <li><a href="./#about">About the company</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Developers">
+        <h2>Developers</h2>
+        <ul>
+          <li><a href="develop#docs">App development guide</a></li>
+          <li><a href="develop#api">API reference</a></li>
+          <li><a href="openapi.json" id="dlSpec2">OpenAPI spec</a></li>
+          <li><a href="./#attest">Attestation guide</a></li>
+          <li><a href="develop#api">Error codes</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Trust">
+        <h2>Trust</h2>
+        <ul>
+          <li><a href="develop#contract">The isolation contract</a></li>
+          <li><a href="develop#shield">Enclave Shield</a></li>
+          <li><a href="./#attest">Verify an enclave</a></li>
+          <li><a href="develop#verify">What is measured</a></li>
+          <li><a href="develop#independent">What runs on our servers</a></li>
+          <li><a href="https://github.com/EnclaveHost/enclave" target="_blank" rel="noopener">Source on GitHub</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Contact and legal">
+        <h2>Contact</h2>
+        <ul>
+          <li><a class="foot-mail" href="mailto:support@enclave.host">Support<code>support@enclave.host</code></a></li>
+          <li><a class="foot-mail" href="mailto:security@enclave.host">Security disclosures<code>security@enclave.host</code></a></li>
+          <li><a href=".well-known/security.txt">security.txt</a></li>
+          <li><a href="terms">Terms of Service</a></li>
+          <li><a href="privacy">Privacy Policy</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Enclave Host, Inc. · content-addressed on IPFS · build <span data-build>166bf9d3 · 2026-10-19</span></span>
+      <span>designed to outlive any one operator</span>
+    </div>
+  </div>
+</footer></c-footer>
+<c-toast data-ssr><div id="toast" role="status" aria-live="polite" aria-atomic="true"></div></c-toast>
+</body>
+</html>

@@ -1,0 +1,20 @@
+104c104,105
+<         rec = Recorder({"state": "Ready", "user": "SYSTEM", "triggers": 1, "argSha": hashlib.sha256(ti.task_args(d, "guard", h).encode()).hexdigest()})
+---
+>         rec = Recorder({"state": "Ready", "user": "SYSTEM", "triggers": 1, "argSha": hashlib.sha256(ti.task_args(d, "guard", h).encode()).hexdigest(),
+>                         "actions": 1, "exe": ti.PS_EXE, "logon": "ServiceAccount", "level": "Highest"})   # 7d P6: + the definition step
+107c108
+<         self.assertIn("-Trigger $tr", rec.scripts[-1]); self.assertNotRegex(rec.scripts[-1], r"Register-ScheduledTask [^;]*-Force", "never overwrite a task of the same name")
+---
+>         self.assertIn("-Trigger $tr", rec.scripts[-2]); self.assertNotRegex(rec.scripts[-2], r"Register-ScheduledTask [^;]*-Force", "never overwrite a task of the same name")   # 7d P6: [-1] is the definition read
+112c113
+<         self.assertTrue(ti.register_task("EnclaveTunnelApply-x", "apply", d, None, h)["argsMatch"]); self.assertNotIn("-Trigger", rec.scripts[-1]); self.assertNotIn("New-ScheduledTaskTrigger", rec.scripts[-1])
+---
+>         self.assertTrue(ti.register_task("EnclaveTunnelApply-x", "apply", d, None, h)["argsMatch"]); self.assertNotIn("-Trigger", rec.scripts[-2]); self.assertNotIn("New-ScheduledTaskTrigger", rec.scripts[-2])
+115a117,118
+>         rec.answer["exe"] = "C:\\x\\powershell.exe"; rec.answer["triggers"] = 0                   # 7d P6: a wrong exe is a mismatch
+>         self.assertFalse(ti.register_task("EnclaveTunnelApply-x", "apply", d, None, h)["argsMatch"])
+138c141
+<         self.assertEqual(len(rec.scripts), 13 + 12, "stage dir x3, listener, start, drop, 3 tasks, poll, fresh proof, confirm, preflight + built_scripts")
+---
+>         self.assertEqual(len(rec.scripts), 13 + 12 + 8, "7d P2/P6: +1 definition read per register_task (3 + 3 in built_scripts), +2 drop_when_done in built_scripts; stage dir x3, listener, start, drop, 3 tasks, poll, fresh proof, confirm, preflight + built_scripts")

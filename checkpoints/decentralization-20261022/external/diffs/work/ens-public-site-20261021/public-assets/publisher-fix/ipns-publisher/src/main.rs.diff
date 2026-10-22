@@ -1,0 +1,472 @@
+--- a/ipns-publisher/src/main.rs
++++ b/ipns-publisher/src/main.rs
+@@ -14,6 +14,7 @@
+ //! engine polls, and the publisher advances at most one bounded network
+ //! task per tick, the s3-ipfs-adapter discipline.
+ 
++mod anchor;
+ mod egress;
+ mod httpd;
+ mod ipni;
+@@ -59,6 +60,10 @@
+     ipni_publisher_url: Option<String>, // this app's own public https URL
+     ipni_indexers: Vec<String>,
+     ipni_all_blocks: bool,
++    /// `releaseAnchor`: the value comes from the on-chain anchor (src/anchor.rs), not `value`
++    anchor: Option<anchor::Config>,
++    /// a configuration that must not publish at all (never a silent fallback to another authority)
++    config_error: Option<String>,
+ }
+ 
+ /// The public bootstrap set, filtered to what Step 0 allows: TCP only.
+@@ -129,11 +134,22 @@
+         None => (None, Some("ipnsKey is not configured".to_string())),
+     };
+     let ipni = v.get("ipni");
++    let lifetime_secs = n("lifetimeSecs", 48 * 3600);
++    let (anchor, config_error) = match v.get("releaseAnchor") {
++        None | Some(serde_json::Value::Null) => (None, None),
++        Some(_) if s("value").is_some() => {
++            (None, Some("set either `value` or `releaseAnchor`, not both: nothing is published".to_string()))
++        }
++        Some(a) => match anchor::parse_config(a, lifetime_secs) {
++            Ok(c) => (Some(c), None),
++            Err(e) => (None, Some(format!("{e}: nothing is published"))),
++        },
++    };
+     Config {
+         identity,
+         key_error,
+         value_src: s("value").unwrap_or_default(),
+-        lifetime_secs: n("lifetimeSecs", 48 * 3600),
++        lifetime_secs,
+         republish_secs: n("republishSecs", 4 * 3600).max(60),
+         ttl_secs: n("ttlSecs", 3600).max(1),
+         delegates: list("delegates").unwrap_or_else(|| vec!["https://delegated-ipfs.dev".into()]),
+@@ -149,6 +165,8 @@
+             .map(|a| a.iter().filter_map(|x| x.as_str()).filter(|x| !x.is_empty()).map(str::to_string).collect())
+             .unwrap_or_else(|| vec!["https://cid.contact".into()]),
+         ipni_all_blocks: ipni.and_then(|i| i.get("announceAllBlocks")).and_then(|x| x.as_bool()).unwrap_or(true),
++        anchor,
++        config_error,
+     }
+ }
+ 
+@@ -169,6 +187,9 @@
+     /// Kick the DHT publish machinery: non-blocking, the p2p engine advances
+     /// in the event loop.
+     DhtPublish,
++    /// One step of a release-anchor quorum round (one endpoint per tick); re-enqueues itself at the front until
++    /// the round is decided. `force` publishes after a successful round even when nothing changed.
++    AnchorRead { force: bool },
+ }
+ 
+ struct DelegateResult {
+@@ -193,6 +214,22 @@
+     durable_state: bool,
+     dht: Option<p2p::Dht>,
+     provider: Option<provider::Provider>,
++    anchor: AnchorRuntime,
++}
++
++/// The release-anchor side of the state machine (idle unless `releaseAnchor` is configured).
++#[derive(Default)]
++struct AnchorRuntime {
++    round: Option<anchor::Round>,
++    rpc: Option<anchor::HttpRpc>,
++    authority: Option<anchor::Authority>,
++    high_water: Option<anchor::HighWater>,
++    /// the anchor seq the current record was signed from
++    signed_seq: Option<u64>,
++    outcomes: Vec<(String, String)>,
++    last_error: Option<String>,
++    rounds_ok: u64,
++    rounds_failed: u64,
+ }
+ 
+ impl App {
+@@ -233,14 +270,26 @@
+             durable_state: false,
+             dht: None,
+             provider,
++            anchor: AnchorRuntime::default(),
+         };
+         app.load_state();
+-        if app.cfg.identity.is_some() {
+-            app.enqueue_publish();
++        if app.publishing_enabled() {
++            match &app.cfg.anchor {
++                Some(_) => app.enqueue_anchor_read(true),
++                None => app.enqueue_publish(),
++            }
+         }
+         app
+     }
+ 
++    fn publishing_enabled(&self) -> bool {
++        self.cfg.identity.is_some() && self.cfg.config_error.is_none()
++    }
++
++    fn name_hash(&self) -> [u8; 32] {
++        anchor::name_hash(&self.cfg.identity.as_ref().expect("anchor read without identity").peer_mh)
++    }
++
+     /// When the published value is an /ipfs/<cid>, tell the IPNI provider to
+     /// advertise that root over HTTP. Called from do_sign on the signed value.
+     fn announce_provider(&mut self) {
+@@ -257,6 +306,11 @@
+     fn load_state(&mut self) {
+         let Ok(raw) = std::fs::read_to_string(STATE_FILE) else { return };
+         let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) else { return };
++        if let Some(hw) = v.get("anchor").and_then(anchor::HighWater::from_json) {
++            eprintln!("[ipns-publisher] state file: anchor high-water block {} seq {}", hw.block, hw.seq);
++            self.anchor.high_water = Some(hw);
++            self.durable_state = true;
++        }
+         let seq = v.get("sequence").and_then(|x| x.as_u64());
+         let value = v.get("value").and_then(|x| x.as_str());
+         if let (Some(seq), Some(value)) = (seq, value) {
+@@ -267,12 +321,19 @@
+     }
+ 
+     fn save_state(&mut self) {
+-        let json = format!(
+-            "{{\"sequence\":{},\"value\":\"{}\",\"published_at\":{}}}\n",
+-            self.sequence,
+-            json_escape(&String::from_utf8_lossy(&self.value)),
+-            self.published_at.unwrap_or(0),
+-        );
++        let mut fields = Vec::new();
++        if self.record.is_some() {
++            fields.push(format!(
++                "\"sequence\":{},\"value\":\"{}\",\"published_at\":{}",
++                self.sequence,
++                json_escape(&String::from_utf8_lossy(&self.value)),
++                self.published_at.unwrap_or(0),
++            ));
++        }
++        if let Some(hw) = &self.anchor.high_water {
++            fields.push(format!("\"anchor\":{}", hw.to_json()));
++        }
++        let json = format!("{{{}}}\n", fields.join(","));
+         match std::fs::write(STATE_FILE, json) {
+             Ok(()) => self.durable_state = true,
+             Err(e) => {
+@@ -315,9 +376,18 @@
+ 
+     /// Advance one bounded task. Returns whether work happened.
+     fn tick(&mut self) -> bool {
+-        if self.cfg.identity.is_some() && Instant::now() >= self.next_publish {
+-            self.next_publish = Instant::now() + Duration::from_secs(self.cfg.republish_secs);
+-            self.enqueue_publish();
++        if self.publishing_enabled() && Instant::now() >= self.next_publish {
++            match &self.cfg.anchor {
++                // anchor mode polls the chain; each decided round chooses whether to (re)sign
++                Some(a) => {
++                    self.next_publish = Instant::now() + Duration::from_secs(a.poll_secs);
++                    self.enqueue_anchor_read(false);
++                }
++                None => {
++                    self.next_publish = Instant::now() + Duration::from_secs(self.cfg.republish_secs);
++                    self.enqueue_publish();
++                }
++            }
+         }
+         let Some(task) = self.tasks.pop_front() else { return false };
+         match task {
+@@ -326,10 +396,75 @@
+             Task::Sign => self.do_sign(),
+             Task::Put(delegate) => self.do_put(&delegate),
+             Task::DhtPublish => self.do_dht_publish(),
++            Task::AnchorRead { force } => self.do_anchor_read(force),
+         }
+         true
+     }
+ 
++    fn enqueue_anchor_read(&mut self, force: bool) {
++        for t in self.tasks.iter_mut() {
++            if let Task::AnchorRead { force: f } = t {
++                *f |= force; // one round at a time; a forced request upgrades the queued one
++                return;
++            }
++        }
++        self.tasks.push_back(Task::AnchorRead { force });
++    }
++
++    /// One step of the quorum round. When the round is decided: keep the authority (and the high-water) on
++    /// success, then sign if the anchor moved, a republish is due, or `force`. A failed round keeps the previous
++    /// authority, which can still sign only until its bound (plan_sign), never beyond.
++    fn do_anchor_read(&mut self, force: bool) {
++        let name_hash = self.name_hash();
++        let Some(cfg) = &self.cfg.anchor else { return };
++        let rt = &mut self.anchor;
++        let rpc = rt.rpc.get_or_insert_with(|| anchor::HttpRpc::new(cfg.rpc_timeout));
++        let round = rt.round.get_or_insert_with(|| anchor::Round::new(cfg));
++        let Some(result) = round.step(cfg, rpc, rt.high_water.as_ref(), &name_hash, &now_unix) else {
++            self.tasks.push_front(Task::AnchorRead { force });
++            return;
++        };
++        rt.outcomes = cfg.endpoints.iter().map(|e| e.id.clone()).zip(round.outcomes.iter().cloned()).collect();
++        rt.round = None;
++        let authority_ttl = cfg.authority_ttl_secs as i64;
++        let (chain_id, contract) = (cfg.chain_id, cfg.contract);
++        match result {
++            Ok(auth) => {
++                rt.rounds_ok += 1;
++                rt.last_error = None;
++                let st = &auth.state;
++                eprintln!(
++                    "[ipns-publisher] anchor: seq {} cid {} at block {} ({} endpoints agree){}",
++                    st.seq,
++                    st.cid,
++                    auth.block.number,
++                    auth.agreeing,
++                    if st.retired { " — RETIRED: signing stopped; the owner must configure a new anchor" } else { "" }
++                );
++                let hw = anchor::HighWater { chain_id, contract, block: auth.block.number, seq: st.seq };
++                let moved = rt.high_water.as_ref() != Some(&hw);
++                rt.high_water = Some(hw);
++                rt.authority = Some(auth);
++                if moved {
++                    self.save_state();
++                }
++            }
++            Err(e) => {
++                rt.rounds_failed += 1;
++                eprintln!("[ipns-publisher] anchor round refused: {e}");
++                rt.last_error = Some(e);
++            }
++        }
++        let Some(auth) = &self.anchor.authority else { return };
++        let now = now_unix();
++        let changed = self.record.is_none() || self.anchor.signed_seq != Some(auth.state.seq);
++        let due = self.published_at.map_or(true, |t| now >= t + self.cfg.republish_secs as i64)
++            || self.validity_unix - now < authority_ttl / 2;
++        if !auth.state.retired && (force || changed || due) {
++            self.enqueue_publish();
++        }
++    }
++
+     /// Non-blocking DHT sequence recovery: kick the GET walk on the first
+     /// visit, then re-enqueue this task (ahead of Sign) until it converges.
+     fn do_recover_dht(&mut self, started: bool) {
+@@ -419,6 +554,9 @@
+     }
+ 
+     fn do_sign(&mut self) {
++        if self.cfg.anchor.is_some() {
++            return self.do_sign_anchor();
++        }
+         let value = match self.resolve_value() {
+             Ok(v) => v,
+             Err(e) => {
+@@ -443,10 +581,41 @@
+         } else {
+             0
+         };
+-        let id = self.cfg.identity.as_ref().expect("sign task without identity");
+         let validity_unix = now_unix() + self.cfg.lifetime_secs as i64;
++        self.sign_and_push(value, seq, validity_unix, self.cfg.ttl_secs);
++    }
++
++    /// Anchor mode: the value and sequence come only from the quorum-read authority, the EOL and TTL are capped
++    /// by it, and any refusal (no or expired authority, retired, a higher recovered sequence) signs nothing.
++    fn do_sign_anchor(&mut self) {
++        let Some(cfg) = &self.cfg.anchor else { return };
++        let recovered = self.recovered_seq.as_ref().map(|(s, v, _)| (*s, v.as_slice()));
++        let plan = anchor::plan_sign(
++            cfg,
++            self.anchor.authority.as_ref(),
++            now_unix(),
++            self.cfg.lifetime_secs,
++            self.cfg.ttl_secs,
++            recovered,
++        );
++        match plan {
++            Ok(p) => {
++                let anchor_seq = self.anchor.authority.as_ref().map(|a| a.state.seq);
++                if self.sign_and_push(p.value, p.sequence, p.eol, p.ttl_secs) {
++                    self.anchor.signed_seq = anchor_seq;
++                }
++            }
++            Err(e) => {
++                eprintln!("[ipns-publisher] publish refused: {e}");
++                self.last_error = Some(e);
++            }
++        }
++    }
++
++    fn sign_and_push(&mut self, value: Vec<u8>, seq: u64, validity_unix: i64, ttl_secs: u64) -> bool {
++        let id = self.cfg.identity.as_ref().expect("sign task without identity");
+         let validity = ipns::rfc3339(validity_unix);
+-        match ipns::build_record(id, &value, &validity, seq, self.cfg.ttl_secs * 1_000_000_000) {
++        match ipns::build_record(id, &value, &validity, seq, ttl_secs * 1_000_000_000) {
+             Ok(rec) => {
+                 eprintln!(
+                     "[ipns-publisher] signed sequence {seq} for {} (EOL {validity})",
+@@ -468,10 +637,12 @@
+                 }
+                 // advertise the new site root over HTTP (IPNI), if enabled
+                 self.announce_provider();
++                true
+             }
+             Err(e) => {
+                 eprintln!("[ipns-publisher] record build failed: {e}");
+                 self.last_error = Some(e);
++                false
+             }
+         }
+     }
+@@ -598,6 +769,15 @@
+             if app.cfg.identity.is_none() {
+                 return srv.respond(key, json(503, "Service Unavailable", "{\"error\":\"no ipnsKey configured\"}".into()));
+             }
++            if let Some(e) = &app.cfg.config_error {
++                let body = format!("{{\"error\":\"{}\"}}", json_escape(e));
++                return srv.respond(key, json(503, "Service Unavailable", body));
++            }
++            if app.cfg.anchor.is_some() {
++                // never a sign from cached state on demand: a fresh quorum round first
++                app.enqueue_anchor_read(true);
++                return srv.respond(key, json(202, "Accepted", "{\"status\":\"reading the release anchor\"}".into()));
++            }
+             app.enqueue_publish();
+             srv.respond(key, json(202, "Accepted", "{\"status\":\"publishing\"}".into()));
+         }
+@@ -661,11 +841,65 @@
+         Some(p) => p.status_json(),
+         None => "null".into(),
+     };
++    let opt_str = |o: &Option<String>| match o {
++        Some(e) => format!("\"{}\"", json_escape(e)),
++        None => "null".into(),
++    };
++    let authority_mode = if app.cfg.anchor.is_some() { "release-anchor" } else { "fixed-value" };
++    let anchor_json = match &app.cfg.anchor {
++        None => "null".to_string(),
++        Some(a) => {
++            let rt = &app.anchor;
++            let hx = |b: &[u8]| format!("0x{}", multiformats::hex(b));
++            let authority = match &rt.authority {
++                Some(au) => format!(
++                    "{{\"seq\":{},\"cid\":\"{}\",\"block\":{},\"blockHash\":\"{}\",\"blockTimestamp\":{},\"readAt\":{},\"until\":{},\"agreeing\":{},\"retired\":{},\"successor\":\"{}\",\"owner\":\"{}\",\"delegate\":\"{}\",\"delegateUntil\":{}}}",
++                    au.state.seq,
++                    json_escape(&au.state.cid),
++                    au.block.number,
++                    hx(&au.block.hash),
++                    au.block.timestamp,
++                    au.read_at,
++                    au.until,
++                    au.agreeing,
++                    au.state.retired,
++                    hx(&au.state.successor),
++                    hx(&au.state.owner),
++                    hx(&au.state.delegate),
++                    au.state.delegate_until,
++                ),
++                None => "null".into(),
++            };
++            let endpoints: Vec<String> = rt
++                .outcomes
++                .iter()
++                .map(|(id, o)| format!("{{\"id\":\"{}\",\"outcome\":\"{}\"}}", json_escape(id), json_escape(o)))
++                .collect();
++            format!(
++                "{{\"chainId\":{},\"contract\":\"{}\",\"codeHash\":\"{}\",\"quorum\":{},\"rpcs\":{},\"sequenceOffset\":{},\"authorityTtlSecs\":{},\"authority\":{authority},\"highWater\":{},\"endpoints\":[{}],\"lastError\":{},\"roundsOk\":{},\"roundsFailed\":{},\"signedAnchorSeq\":{}}}",
++                a.chain_id,
++                hx(&a.contract),
++                hx(&a.code_hash),
++                a.quorum,
++                a.endpoints.len(),
++                a.sequence_offset,
++                a.authority_ttl_secs,
++                rt.high_water.as_ref().map(|h| h.to_json()).unwrap_or_else(|| "null".into()),
++                endpoints.join(","),
++                opt_str(&rt.last_error),
++                rt.rounds_ok,
++                rt.rounds_failed,
++                rt.signed_seq.map(|s| s.to_string()).unwrap_or_else(|| "null".into()),
++            )
++        }
++    };
+     json(
+         200,
+         "OK",
+         format!(
+-            "{{{id_block},\"sequence\":{},\"value\":\"{}\",\"validUntil\":{},\"publishedAt\":{},\"recovered\":{recovered},\"delegates\":[{}],\"mode\":\"{dht_mode}\",\"dht\":{dht_detail},\"ipni\":{ipni},\"durableState\":{},\"queuedTasks\":{},\"uptimeSecs\":{uptime}}}",
++            "{{{id_block},\"authorityMode\":\"{authority_mode}\",\"configError\":{},\"lastError\":{},\"anchor\":{anchor_json},\"sequence\":{},\"value\":\"{}\",\"validUntil\":{},\"publishedAt\":{},\"recovered\":{recovered},\"delegates\":[{}],\"mode\":\"{dht_mode}\",\"dht\":{dht_detail},\"ipni\":{ipni},\"durableState\":{},\"queuedTasks\":{},\"uptimeSecs\":{uptime}}}",
++            opt_str(&app.cfg.config_error),
++            opt_str(&app.last_error),
+             app.sequence,
+             json_escape(&String::from_utf8_lossy(&app.value)),
+             app.validity_unix,
+@@ -715,6 +949,23 @@
+         Some(d) => esc(&d.status_line()),
+         None => "http-only mode (no DHT publish yet)".to_string(),
+     };
++    let authority = match (&app.cfg.config_error, &app.cfg.anchor, &app.anchor.authority) {
++        (Some(e), _, _) => format!("<td class=err>config error: {}</td>", esc(e)),
++        (None, None, _) => "<td>fixed value (config <code>value</code>)</td>".to_string(),
++        (None, Some(_), None) => format!(
++            "<td class=err>release anchor: no quorum read yet{}</td>",
++            app.anchor.last_error.as_deref().map(|e| format!(" ({})", esc(e))).unwrap_or_default()
++        ),
++        (None, Some(_), Some(au)) => format!(
++            "<td class={}>release anchor seq {} at block {} ({} endpoints agree), valid until {}{}</td>",
++            if app.anchor.last_error.is_some() || au.state.retired { "err" } else { "ok" },
++            au.state.seq,
++            au.block.number,
++            au.agreeing,
++            ipns::rfc3339(au.until),
++            app.anchor.last_error.as_deref().map(|e| format!("; last round refused: {}", esc(e))).unwrap_or_default()
++        ),
++    };
+     let body = format!(
+         r#"<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+ <title>ipns-publisher</title>
+@@ -728,6 +979,7 @@
+ <h1>ipns-publisher</h1>
+ <table>
+ {identity}
++<tr><th>Authority</th>{authority}</tr>
+ {record}
+ {delegates}
+ <tr><th>DHT</th><td>{dht}</td></tr>
+@@ -753,6 +1005,8 @@
+             println!("peer-id:   {}", id.peer_id());
+             println!("ipns-name: {}", id.ipns_name());
+             println!("routing:   {}", multiformats::hex(&id.routing_key()));
++            // the ReleaseAnchor constructor's nameHash for this name
++            println!("anchor-name-hash: 0x{}", multiformats::hex(&anchor::name_hash(&id.peer_mh)));
+         }
+         // dhtpublish <key> <value> [ttl-secs] — build a record and PUT it on
+         // the public DHT, driving the engine to completion with live logging.
+@@ -811,9 +1065,26 @@
+     match &cfg.identity {
+         Some(id) => {
+             eprintln!("[ipns-publisher] publishing as {} ({})", id.ipns_name(), id.peer_id());
++            match (&cfg.config_error, &cfg.anchor) {
++                (Some(e), _) => eprintln!("[ipns-publisher] CONFIG ERROR: {e}"),
++                (None, Some(a)) => eprintln!(
++                    "[ipns-publisher] value: release anchor 0x{} on chain {} | {}-of-{} rpcs [{}] | {} confirmations | maxBlockAge {}s | authority {}s | poll {}s | offset {}",
++                    multiformats::hex(&a.contract),
++                    a.chain_id,
++                    a.quorum,
++                    a.endpoints.len(),
++                    a.endpoints.iter().map(|e| e.id.as_str()).collect::<Vec<_>>().join(", "),
++                    a.confirmations,
++                    a.max_block_age_secs,
++                    a.authority_ttl_secs,
++                    a.poll_secs,
++                    a.sequence_offset
++                ),
++                (None, None) => eprintln!("[ipns-publisher] value: {}", cfg.value_src),
++            }
+             eprintln!(
+-                "[ipns-publisher] value: {} | lifetime {}s | republish {}s | ttl {}s",
+-                cfg.value_src, cfg.lifetime_secs, cfg.republish_secs, cfg.ttl_secs
++                "[ipns-publisher] lifetime {}s | republish {}s | ttl {}s",
++                cfg.lifetime_secs, cfg.republish_secs, cfg.ttl_secs
+             );
+         }
+         None => eprintln!(

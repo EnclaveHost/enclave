@@ -1,0 +1,19 @@
+# Isolated forge project for the IPNS release-anchor candidate. solc 0.8.35 (the repo's pinned compiler, from the
+# local svm cache), offline. No CBOR metadata, so the runtime codehash depends only on the source and these settings;
+# scripts/expected-codehash.mjs derives the pinned codehash from out/ without reading any chain.
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = []
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+bytecode_hash = "none"
+cbor_metadata = false
+offline = true
+
+[fuzz]
+runs = 256

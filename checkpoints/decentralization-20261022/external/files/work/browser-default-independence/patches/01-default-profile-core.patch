@@ -1,0 +1,1125 @@
+--- a/site/js/core/sha256.js
++++ b/site/js/core/sha256.js
+@@ -0,0 +1,56 @@
++/* ============================================================
++   Synchronous SHA-256 (FIPS 180-4) for the few checks that must
++   finish before any other module binds anything: the built-in
++   default profile and its reviewed authority profile are identified
++   by the SHA-256 of their exact bytes (js/core/default-authority.js),
++   and config.js reads that state synchronously at load, where
++   crypto.subtle (async) cannot be awaited.
++   test/site-default-authority.test.mjs checks it against node:crypto.
++   ============================================================ */
++const K = new Uint32Array([
++  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
++  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
++  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
++  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
++  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
++  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
++  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
++  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2]);
++
++export function sha256Bytes(input){
++  const msg = input instanceof Uint8Array ? input : new TextEncoder().encode(String(input));
++  const len = msg.length, bitLen = len * 8;
++  const total = ((len + 9 + 63) >> 6) << 6;
++  const buf = new Uint8Array(total);
++  buf.set(msg); buf[len] = 0x80;
++  const dv = new DataView(buf.buffer);
++  dv.setUint32(total - 8, Math.floor(bitLen / 0x100000000));
++  dv.setUint32(total - 4, bitLen >>> 0);
++  const H = new Uint32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]);
++  const W = new Uint32Array(64);
++  for (let off = 0; off < total; off += 64){
++    for (let i = 0; i < 16; i++) W[i] = dv.getUint32(off + i * 4);
++    for (let i = 16; i < 64; i++){
++      const a = W[i - 15], b = W[i - 2];
++      const s0 = ((a >>> 7) | (a << 25)) ^ ((a >>> 18) | (a << 14)) ^ (a >>> 3);
++      const s1 = ((b >>> 17) | (b << 15)) ^ ((b >>> 19) | (b << 13)) ^ (b >>> 10);
++      W[i] = (W[i - 16] + s0 + W[i - 7] + s1) >>> 0;
++    }
++    let [a, b, c, d, e, f, g, h] = H;
++    for (let i = 0; i < 64; i++){
++      const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
++      const ch = (e & f) ^ (~e & g);
++      const t1 = (h + S1 + ch + K[i] + W[i]) >>> 0;
++      const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
++      const maj = (a & b) ^ (a & c) ^ (b & c);
++      const t2 = (S0 + maj) >>> 0;
++      h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
++    }
++    H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0; H[2] = (H[2] + c) >>> 0; H[3] = (H[3] + d) >>> 0;
++    H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
++  }
++  const out = new Uint8Array(32), odv = new DataView(out.buffer);
++  for (let i = 0; i < 8; i++) odv.setUint32(i * 4, H[i]);
++  return out;
++}
++export const sha256Hex = (input) => Array.from(sha256Bytes(input), (b) => b.toString(16).padStart(2, "0")).join("");
+--- a/site/js/core/authority-profile.js
++++ b/site/js/core/authority-profile.js
+@@ -0,0 +1,226 @@
++/* ============================================================
++   The reviewed authority profile in the browser.
++
++   A port of network/authority-profile.mjs (validateProfile,
++   encodeProfile, parseProfile, profileRead + checkObservation) onto
++   the page's own primitives: no node:crypto, no viem, no imports that
++   bind contracts. The node module stays the reference;
++   test/site-default-authority.test.mjs runs both on the reviewed Base
++   profile and on every single-field corruption of it, and fails on
++   any difference in PROFILE_LAYOUT or in the verdicts.
++
++   A profile never vouches for itself: its bytes must hash to a digest
++   the caller already holds (the build compiles it beside the bytes),
++   be canonically encoded, and every contract it names must, at ONE
++   block the profile's RPCs agree on, carry exactly the reviewed code
++   and the reviewed bindings. Nothing observed is ever adopted.
++   ============================================================ */
++import { sha256Hex } from "./sha256.js";
++import { keccak256Hex, keccak256Utf8 } from "./keccak.js";
++
++export const AUTHORITY_KIND = "enclave.authority-profile";
++export const AUTHORITY_MAX_BYTES = 65536;
++const MAX_RUNTIME_BYTES = 24576;
++const A = "address", B = "bool", U = "uint256", T3 = "address,address,address";
++const owned = { owner: A, pendingOwner: A };
++// network/authority-profile.mjs PROFILE_LAYOUT, verbatim (parity-tested)
++export const AUTHORITY_LAYOUT = Object.freeze({
++  registry: { role: "host-pin", immutable: { registrySchema: U }, reviewedState: {} },
++  deployments: { role: "host-pin", immutable: { usdc: A, registry: A, deploymentsSchema: U },
++    reviewedState: { ...owned, payout: A, ethUsdFeed: A, bandwidthRouter: A, feeRouter: A, prover: A, importsSealed: B, retired: B } },
++  appCatalog: { role: "host-pin", immutable: {}, reviewedState: { ...owned, importsSealed: B } },
++  proofOfTime: { role: "host-pin", immutable: { deployments: A, registry: A }, reviewedState: owned },
++  enclavePay: { role: "host-pin", immutable: { usdc: A }, reviewedState: { ...owned, payout: A } },
++  verificationFees: { role: "host-pin", immutable: { ledger: A, proof: A, token: A }, reviewedState: {} },
++  connectivity: { role: "network", immutable: { ledger: A, registry: A }, reviewedState: {} },
++  sessionVaultFactory: { role: "new-path", artifact: "PinnedSessionVaultFactory", immutable: { implementation: A, authorityPins: T3 }, reviewedState: {} },
++  pinnedSessionAuthority: { role: "new-path", artifact: "PinnedSessionAuthority", immutable: { deployments: A, appCatalog: A, sessionVaultFactory: A }, reviewedState: {} },
++  sessionVaultImplementation: { role: "new-path", artifact: "SessionVault", immutable: { usdc: A, book: A, router: A, keyAttestations: A, maxVault6: U, factory: A }, reviewedState: { owner: A } },
++  sessionVaultLib: { role: "new-path", artifact: "SessionVaultLib", immutable: {}, reviewedState: {} },
++  hostOwnership: { role: "new-path", artifact: "EnclaveHostOwnership", immutable: { registry: A }, reviewedState: {} },
++  secretVaultV2: { role: "new-path", artifact: "EnclaveSecretVaultV2",
++    immutable: { book: A, enclaveOwner: A, hostOwnership: A, hostRegistry: A, deploymentLedger: A, sessionVaultFactory: A }, reviewedState: {} },
++  usdc: { role: "external", immutable: {}, reviewedState: {} },
++  paymentRouter: { role: "dependency", immutable: { usdc: A, treasury: A }, reviewedState: {} },
++  keyAttestations: { role: "dependency", immutable: {}, reviewedState: owned },
++  legacySessionVaultFactory: { role: "legacy-compatibility", immutable: { implementation: A }, reviewedState: {} },
++  legacySessionVaultImplementation: { role: "legacy-compatibility", immutable: { usdc: A, book: A, router: A, keyAttestations: A, factory: A }, reviewedState: { owner: A } },
++});
++const LINKS = [
++  ["deployments", "immutable", "usdc", "usdc"], ["deployments", "immutable", "registry", "registry"],
++  ["deployments", "reviewedState", "bandwidthRouter", "connectivity"], ["deployments", "reviewedState", "feeRouter", "verificationFees"],
++  ["deployments", "reviewedState", "prover", "proofOfTime"],
++  ["proofOfTime", "immutable", "deployments", "deployments"], ["proofOfTime", "immutable", "registry", "registry"],
++  ["enclavePay", "immutable", "usdc", "usdc"],
++  ["verificationFees", "immutable", "ledger", "deployments"], ["verificationFees", "immutable", "proof", "proofOfTime"], ["verificationFees", "immutable", "token", "usdc"],
++  ["connectivity", "immutable", "ledger", "deployments"], ["connectivity", "immutable", "registry", "registry"],
++  ["sessionVaultFactory", "immutable", "implementation", "sessionVaultImplementation"],
++  ["sessionVaultFactory", "immutable", "authorityPins", ["deployments", "appCatalog", "pinnedSessionAuthority"]],
++  ["pinnedSessionAuthority", "immutable", "deployments", "deployments"], ["pinnedSessionAuthority", "immutable", "appCatalog", "appCatalog"],
++  ["pinnedSessionAuthority", "immutable", "sessionVaultFactory", "sessionVaultFactory"],
++  ["sessionVaultImplementation", "immutable", "usdc", "usdc"], ["sessionVaultImplementation", "immutable", "book", "pinnedSessionAuthority"],
++  ["sessionVaultImplementation", "immutable", "router", "paymentRouter"], ["sessionVaultImplementation", "immutable", "keyAttestations", "keyAttestations"],
++  ["sessionVaultImplementation", "immutable", "factory", "sessionVaultFactory"],
++  ["hostOwnership", "immutable", "registry", "registry"],
++  ["secretVaultV2", "immutable", "book", "pinnedSessionAuthority"], ["secretVaultV2", "immutable", "hostOwnership", "hostOwnership"],
++  ["secretVaultV2", "immutable", "hostRegistry", "registry"], ["secretVaultV2", "immutable", "deploymentLedger", "deployments"],
++  ["secretVaultV2", "immutable", "sessionVaultFactory", "sessionVaultFactory"],
++  ["paymentRouter", "immutable", "usdc", "usdc"],
++  ["legacySessionVaultFactory", "immutable", "implementation", "legacySessionVaultImplementation"],
++  ["legacySessionVaultImplementation", "immutable", "factory", "legacySessionVaultFactory"],
++  ["legacySessionVaultImplementation", "immutable", "usdc", "usdc"], ["legacySessionVaultImplementation", "immutable", "router", "paymentRouter"],
++  ["legacySessionVaultImplementation", "immutable", "keyAttestations", "keyAttestations"],
++];
++// the strict contract-pin document (network/contract-pins.mjs) a browser profile carries
++export const PIN_KEYS = Object.freeze(["registry", "deployments", "appCatalog", "proofOfTime", "enclavePay", "verificationFees", "sessionVaultFactory", "secretVaultV2"]);
++
++const plain = (v) => !!v && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype;
++const address = /^0x[0-9a-f]{40}$/, hash32 = /^0x[0-9a-f]{64}$/, zero = "0x" + "0".repeat(40);
++function exactKeys(value, required, optional, what){
++  if (!plain(value)) throw Error(what + " must be an object");
++  for (const k of Object.keys(value)) if (!required.includes(k) && !optional.includes(k)) throw Error("unknown field: " + what + "." + k);
++  for (const k of required) if (!Object.hasOwn(value, k)) throw Error("missing field: " + what + "." + k);
++}
++const text = (v, max, what) => { if (typeof v !== "string" || !v.length || v.length > max || /[\u0000-\u001f\u007f]/.test(v)) throw Error("invalid " + what); return v; };
++
++/* Sorted keys, two-space indentation, one trailing newline: the bytes the digest covers. */
++export function encodeAuthority(value){
++  const sort = (v) => {
++    if (v === null || typeof v === "boolean" || typeof v === "string") return v;
++    if (typeof v === "number"){ if (!Number.isSafeInteger(v)) throw Error("profile numbers must be safe integers"); return v; }
++    if (Array.isArray(v)) return v.map(sort);
++    if (plain(v)) return Object.fromEntries(Object.keys(v).sort().map((k) => [k, sort(v[k])]));
++    throw Error("profile must contain only JSON values");
++  };
++  return JSON.stringify(sort(value), null, 2) + "\n";
++}
++
++function checkValue(type, value, what){
++  if (type === A){ if (typeof value !== "string" || !address.test(value)) throw Error("invalid address binding: " + what); return; }
++  if (type === B){ if (typeof value !== "boolean") throw Error("invalid boolean binding: " + what); return; }
++  if (type === U){ if (typeof value !== "string" || !/^(0|[1-9][0-9]{0,77})$/.test(value)) throw Error("invalid integer binding: " + what); return; }
++  if (type === T3){ if (!Array.isArray(value) || value.length !== 3 || value.some((v) => typeof v !== "string" || !address.test(v))) throw Error("invalid tuple binding: " + what); return; }
++  throw Error("unsupported binding type");
++}
++
++export function validateAuthority(profile){
++  exactKeys(profile, ["kind", "version", "chainId", "scope", "review", "builds", "contracts"], [], "profile");
++  if (profile.kind !== AUTHORITY_KIND || profile.version !== 1) throw Error("unsupported authority profile");
++  if (profile.chainId !== 8453) throw Error("authority profile is not for Base mainnet");
++  text(profile.scope, 2048, "scope");
++  exactKeys(profile.review, ["blockNumber", "blockHash", "blockTimestamp", "capturedAt", "rpcHosts", "inputs"], [], "review");
++  const r = profile.review;
++  if (!/^[1-9][0-9]{0,15}$/.test(r.blockNumber) || !hash32.test(r.blockHash) || !Number.isSafeInteger(r.blockTimestamp) || r.blockTimestamp <= 0
++    || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,3})?Z$/.test(r.capturedAt)) throw Error("invalid review snapshot");
++  if (!Array.isArray(r.rpcHosts) || r.rpcHosts.length < 2 || r.rpcHosts.length > 8 || new Set(r.rpcHosts).size !== r.rpcHosts.length
++    || r.rpcHosts.some((h) => typeof h !== "string" || !/^[a-z0-9.-]{1,253}$/.test(h))) throw Error("invalid review RPC hosts");
++  if (!plain(r.inputs) || Object.keys(r.inputs).length < 1 || Object.keys(r.inputs).length > 8) throw Error("invalid review inputs");
++  for (const [k, v] of Object.entries(r.inputs)){
++    if (!/^[a-zA-Z][a-zA-Z0-9]{0,63}$/.test(k)) throw Error("invalid review input name");
++    exactKeys(v, ["description", "sha256"], [], "review.inputs." + k); text(v.description, 512, "input description");
++    if (!/^[0-9a-f]{64}$/.test(v.sha256)) throw Error("invalid input digest");
++  }
++  if (!plain(profile.builds) || Object.keys(profile.builds).length > 4) throw Error("invalid builds");
++  for (const [name, b] of Object.entries(profile.builds)){
++    if (!/^[a-z][a-z0-9-]{0,63}$/.test(name)) throw Error("invalid build name");
++    exactKeys(b, ["compiler", "sourceCommit", "sourceSha256", "record"], [], "builds." + name);
++    text(b.compiler, 128, "compiler"); text(b.record, 256, "build record");
++    if (!/^[0-9a-f]{40}$/.test(b.sourceCommit)) throw Error("invalid build commit");
++    if (!plain(b.sourceSha256) || !Object.keys(b.sourceSha256).length || Object.keys(b.sourceSha256).length > 16
++      || Object.entries(b.sourceSha256).some(([f, h]) => !/^[A-Za-z0-9]{1,64}\.sol$/.test(f) || !/^[0-9a-f]{64}$/.test(h))) throw Error("invalid build sources");
++  }
++  const names = Object.keys(AUTHORITY_LAYOUT);
++  exactKeys(profile.contracts, names, [], "contracts");
++  const seen = new Map();
++  for (const name of names){
++    const c = profile.contracts[name], layout = AUTHORITY_LAYOUT[name], what = "contracts." + name;
++    const compiled = !!layout.artifact;
++    exactKeys(c, ["role", "address", "codeHash", "runtimeBytes", "codeProvenance", "immutable", "reviewedState", "ownerPowers"], compiled ? ["artifact", "build"] : [], what);
++    if (c.role !== layout.role) throw Error("wrong role: " + name);
++    if (!address.test(c.address) || c.address === zero) throw Error("invalid address: " + name);
++    if (seen.has(c.address)) throw Error("duplicate contract address: " + name + " and " + seen.get(c.address));
++    seen.set(c.address, name);
++    if (!hash32.test(c.codeHash) || !Number.isSafeInteger(c.runtimeBytes) || c.runtimeBytes < 1 || c.runtimeBytes > MAX_RUNTIME_BYTES) throw Error("invalid code pin: " + name);
++    if (c.codeProvenance !== (compiled ? "compiled-runtime" : "observed")) throw Error("wrong code provenance: " + name);
++    if (compiled && (c.artifact !== layout.artifact || typeof c.build !== "string" || !Object.hasOwn(profile.builds, c.build))) throw Error("wrong build reference: " + name);
++    for (const section of ["immutable", "reviewedState"]){
++      exactKeys(c[section], Object.keys(layout[section]), [], what + "." + section);
++      for (const [getter, type] of Object.entries(layout[section])) checkValue(type, c[section][getter], name + "." + getter);
++    }
++    if (!Array.isArray(c.ownerPowers) || c.ownerPowers.length < 1 || c.ownerPowers.length > 16) throw Error("invalid owner powers: " + name);
++    c.ownerPowers.forEach((p) => text(p, 400, "owner power"));
++  }
++  for (const [from, section, getter, to] of LINKS){
++    const got = profile.contracts[from][section][getter];
++    const want = Array.isArray(to) ? to.map((n) => profile.contracts[n].address) : profile.contracts[to].address;
++    if (JSON.stringify(got) !== JSON.stringify(want)) throw Error(`inconsistent binding: ${from}.${getter} must name ${[to].flat().join(",")}`);
++  }
++  return profile;
++}
++
++/* Exact bytes (UTF-8 text) in, validated profile out, only for the digest the caller already holds. */
++export function parseAuthority(textIn, { expectedDigest } = {}){
++  if (typeof expectedDigest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(expectedDigest)) throw Error("an expected authority digest (sha256:<64 hex>) is required");
++  if (typeof textIn !== "string") throw Error("authority profile text required");
++  const bytes = new TextEncoder().encode(textIn);
++  if (bytes.length > AUTHORITY_MAX_BYTES) throw Error("authority profile too large");
++  const digest = "sha256:" + sha256Hex(bytes);
++  if (digest !== expectedDigest) throw Error("authority profile digest mismatch: got " + digest);
++  let value; try { value = JSON.parse(textIn); } catch { throw Error("malformed authority profile"); }
++  if (encodeAuthority(value) !== textIn) throw Error("authority profile is not canonically encoded");
++  return { digest, profile: validateAuthority(value) };
++}
++
++export const pinsOfAuthority = (profile) => Object.fromEntries(PIN_KEYS.map((k) => [k, profile.contracts[k].address]));
++
++/* ---- on chain ----
++   Everything the profile pins, at ONE agreed block of `reader` (js/core/quorum.js): every call needs `quorum` identical
++   answers at that block hash, and an agreed revert is a fact ("!reverted"), never a pass. */
++const sel = (name) => "0x" + keccak256Utf8(name + "()").slice(2, 10);
++const words = (hex) => { const h = String(hex).replace(/^0x/, ""); const out = []; for (let i = 0; i + 64 <= h.length; i += 64) out.push(h.slice(i, i + 64)); return out; };
++function decodeGetter(type, hex){
++  const w = words(hex);
++  const addr = (x) => (x && /^0{24}/.test(x)) ? "0x" + x.slice(24) : "!invalid";
++  if (type === A) return w.length === 1 ? addr(w[0]) : "!invalid";
++  if (type === B) return w.length === 1 && /^0{63}[01]$/.test(w[0]) ? w[0].endsWith("1") : "!invalid";
++  if (type === U) return w.length === 1 ? BigInt("0x" + w[0]).toString() : "!invalid";
++  if (type === T3) return w.length === 3 ? w.map(addr) : "!invalid";
++  return "!invalid";
++}
++
++export async function observeAuthority(profile, reader, { snap = null, concurrency = 4 } = {}){
++  snap ||= await reader.snapshot();
++  const contracts = {}, tasks = [];
++  for (const [name, layout] of Object.entries(AUTHORITY_LAYOUT)){
++    const target = profile.contracts[name].address, row = contracts[name] = { codeHash: null, runtimeBytes: 0, immutable: {}, reviewedState: {} };
++    tasks.push(async () => {
++      const code = await reader.code(snap, target);
++      if (code !== null && code !== undefined && (typeof code !== "string" || !/^0x(?:[0-9a-f]{2})*$/.test(code))) throw Error("malformed code from the chain endpoints");
++      if (code && code.length > 2 + 2 * MAX_RUNTIME_BYTES) throw Error("oversized code from the chain endpoints");
++      if (code && code !== "0x"){ row.codeHash = keccak256Hex(code); row.runtimeBytes = (code.length - 2) / 2; }
++    });
++    for (const section of ["immutable", "reviewedState"]) for (const [getter, type] of Object.entries(layout[section])) tasks.push(async () => {
++      try { row[section][getter] = decodeGetter(type, await reader.call(snap, target, sel(getter))); }
++      catch (e){ if (!(e && e.revert)) throw e; row[section][getter] = "!reverted"; }
++    });
++  }
++  let i = 0;
++  await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, 8)) }, async () => { while (i < tasks.length) await tasks[i++](); }));
++  return { blockNumber: snap.number, blockHash: snap.hash, timestamp: snap.timestamp, rpcs: snap.rpcs, contracts };
++}
++
++/* Every difference is a refusal; nothing observed is adopted (network/authority-profile.mjs checkObservation). */
++export function authorityProblems(profile, observation){
++  const problems = [];
++  for (const [name, layout] of Object.entries(AUTHORITY_LAYOUT)){
++    const want = profile.contracts[name], got = observation.contracts && observation.contracts[name];
++    if (!got){ problems.push(name + ": not observed"); continue; }
++    if (!got.codeHash){ problems.push(name + ": no deployed code at " + want.address); continue; }
++    if (got.codeHash !== want.codeHash || got.runtimeBytes !== want.runtimeBytes) problems.push(name + ": code hash mismatch (" + got.codeHash + ")");
++    for (const getter of Object.keys(layout.immutable))
++      if (JSON.stringify(got.immutable[getter]) !== JSON.stringify(want.immutable[getter])) problems.push(`${name}.${getter}: binding mismatch (${JSON.stringify(got.immutable[getter])})`);
++    for (const getter of Object.keys(layout.reviewedState))
++      if (JSON.stringify(got.reviewedState[getter]) !== JSON.stringify(want.reviewedState[getter])) problems.push(`${name}.${getter}: reviewed mutable state changed (${JSON.stringify(got.reviewedState[getter])})`);
++  }
++  return problems;
++}
+--- a/site/js/core/default-authority.js
++++ b/site/js/core/default-authority.js
+@@ -0,0 +1,92 @@
++/* ============================================================
++   The on-chain half of the packaged default profile's authority check
++   (js/core/independent.js checks the bytes at load).
++
++   At ONE block the profile's RPCs agree on, every contract of the
++   reviewed authority profile must carry exactly its reviewed runtime
++   code (hash and size) and its pinned immutable bindings
++   (js/core/authority-profile.js observeAuthority). Until that holds,
++   every agreed decision of this page (js/core/independent-chain.js
++   reader) and every send refuses with the reason; nothing falls back
++   to Enclave's API or address book.
++
++   Reviewed MUTABLE values (an owner, a pending owner, a payout, the
++   ledger's retirement) are different: they are reported as drift,
++   loudly, but they do not stop the page. A pinned contract's owner
++   could otherwise disable every default frontend at will by moving
++   pendingOwner, which is exactly the veto this mode removes. Every
++   method this page relies on is still checked against agreed code
++   before use, and the ledger enforces its own retirement.
++
++   Status: unchecked | verifying | verified{block,hash,at,drift[]} |
++           refused{problems[]} | unavailable{reason}. A result is reused
++   for 10 minutes; `enclave:authority` announces every change.
++   ============================================================ */
++import { INDEPENDENT } from "./config.js";
++import { observeAuthority, authorityProblems } from "./authority-profile.js";
++
++export const AUTHORITY_MAX_AGE_MS = 10 * 60 * 1000;
++
++export class AuthorityError extends Error {
++  constructor(message, status){ super(message); this.name = "AuthorityError"; this.status = status || null; this.authority = true; }
++}
++
++export const authorityApplies = () => INDEPENDENT.state === "on" && INDEPENDENT.source === "default" && !!INDEPENDENT.authority;
++
++let status = { state: authorityApplies() ? "unchecked" : "not-applicable" };
++let inflight = null;
++const publish = (s) => {
++  status = Object.freeze({ ...s });
++  try { document.dispatchEvent(new CustomEvent("enclave:authority", { detail: status })); } catch {}
++  return status;
++};
++export const authorityStatus = () => status;
++export const _resetAuthorityForTests = () => { status = { state: authorityApplies() ? "unchecked" : "not-applicable" }; inflight = null; };
++
++/* Split checkObservation's problems: code and immutable bindings refuse; reviewed mutable state is drift. */
++export function classifyProblems(problems){
++  const drift = problems.filter((p) => / reviewed mutable state changed /.test(p));
++  return { hard: problems.filter((p) => !drift.includes(p)), drift };
++}
++
++export async function ensureAuthority(reader, { force = false, maxAgeMs = AUTHORITY_MAX_AGE_MS } = {}){
++  if (!authorityApplies()) return publish({ state: "not-applicable" });
++  if (!force && status.state === "verified" && Date.now() - status.at < maxAgeMs) return status;
++  if (inflight) return inflight;
++  inflight = (async () => {
++    publish({ state: "verifying", previous: status.state });
++    try {
++      const obs = await observeAuthority(INDEPENDENT.authority, reader);
++      const { hard, drift } = classifyProblems(authorityProblems(INDEPENDENT.authority, obs));
++      if (hard.length) return publish({ state: "refused", problems: hard, drift, block: obs.blockNumber, at: Date.now() });
++      return publish({ state: "verified", block: obs.blockNumber, hash: obs.blockHash, blockTime: obs.timestamp, agreeing: obs.rpcs.length,
++        drift, at: Date.now() });
++    } catch (e){
++      return publish({ state: "unavailable", reason: String((e && e.message) || e).slice(0, 300), at: Date.now() });
++    } finally { inflight = null; }
++  })();
++  return inflight;
++}
++
++/* What a decision or a send awaits. Not the packaged default (an owner-chosen profile, the hosted service): no-op. */
++export async function requireAuthority(reader){
++  const s = await ensureAuthority(reader);
++  if (s.state === "not-applicable" || s.state === "verified") return s;
++  if (s.state === "refused") throw new AuthorityError("The default network profile's contracts do not match their reviewed code at block " + s.block
++    + ": " + s.problems.slice(0, 4).join("; ") + ". Nothing is read for decisions or signed until this is resolved; you can choose your own network profile instead.", s);
++  throw new AuthorityError("The default network profile's contracts could not be checked against their reviewed code: " + (s.reason || "no agreement yet")
++    + ". Nothing is signed until the chain endpoints agree; this page does not fall back to Enclave's hosted service.", s);
++}
++
++/* A short line for banners and panels. */
++export function authorityLine(s = status){
++  switch (s.state){
++    case "verified": return "Reviewed contracts verified at block " + s.block + (s.agreeing ? " (" + s.agreeing + " chain endpoints agree)" : "")
++      + (s.drift && s.drift.length ? " · governance changed since review: " + s.drift.join("; ") : "");
++    case "verifying": return "Checking the reviewed contracts against the chain…";
++    case "refused": return "Refused: the contracts do not match their reviewed code (" + s.problems.slice(0, 3).join("; ") + ")";
++    case "unavailable": return "Not verified yet: " + s.reason;
++    case "unchecked": return "Not checked yet";
++    default: return "";
++  }
++}
+--- a/site/js/core/default-startup.js
++++ b/site/js/core/default-startup.js
+@@ -0,0 +1,81 @@
++/* ============================================================
++   Startup of the packaged default independent profile (every page;
++   imported by js/boot.js).
++
++   With the reviewed default in force (js/core/independent.js source
++   "default") the page, at load and without waiting for any click:
++     1. checks the reviewed authority on chain (js/core/default-authority.js);
++     2. reads the service index for untrusted candidates
++        (js/core/service-discovery.js), once that check passes;
++     3. keeps one status bar under the header saying which profile is in
++        force, whether its contracts are verified, and what it found.
++   A refused or unreachable check is shown as such and stops decisions;
++   nothing here ever calls Enclave's API or switches to the hosted service.
++   The explicit hosted choice and an invalid default are shown the same way.
++   ============================================================ */
++import { INDEPENDENT } from "./config.js";
++
++const BAR_CLASS = "ind-default-bar";
++const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
++let _started = false, _discovery = null;
++export const defaultDiscovery = () => _discovery;
++
++function bar(){
++  if (typeof document === "undefined") return null;
++  let el = document.querySelector("." + BAR_CLASS);
++  if (!el){
++    const header = document.querySelector("c-header, header");
++    if (!header) return null;
++    el = document.createElement("div"); el.className = BAR_CLASS; el.setAttribute("role", "status"); el.setAttribute("aria-live", "polite");
++    header.after(el);
++  }
++  return el;
++}
++function paint(html, cls){ const el = bar(); if (!el) return; el.className = BAR_CLASS + (cls ? " " + cls : ""); el.innerHTML = html; }
++
++async function paintAuthority(){
++  const A = await import("./default-authority.js");
++  const s = A.authorityStatus();
++  const name = INDEPENDENT.profile && INDEPENDENT.profile.name ? esc(INDEPENDENT.profile.name) : "default network profile";
++  const disc = _discovery && !_discovery.off && !_discovery.error
++    ? " · service index: " + (_discovery.candidates || []).length + " candidate ad(s) at block " + esc(_discovery.block)
++    : _discovery && _discovery.error ? " · service index unavailable: " + esc(_discovery.error) : "";
++  const cls = s.state === "verified" ? (s.drift && s.drift.length ? "warn" : "ok") : s.state === "refused" || s.state === "unavailable" ? "warn" : "";
++  paint('<b>Independent</b> · ' + name + ' · ' + esc(A.authorityLine(s)) + disc
++    + ' <a class="ind-bar-more" href="dashboard#network-profile">details</a>', cls);
++}
++
++export async function startDefault({ reader } = {}){
++  if (_started) return; _started = true;
++  if (INDEPENDENT.state === "off" && INDEPENDENT.packaged && INDEPENDENT.hosted && INDEPENDENT.hosted.confirmed){
++    paint('<b>Enclave’s hosted service</b> (your explicit choice in this tab; not independent). <a href="dashboard#network-profile">Return to the independent default</a>', "warn");
++    return;
++  }
++  if (INDEPENDENT.source === "default" && INDEPENDENT.state === "invalid"){
++    paint('<b>The default network profile built into this site cannot be used:</b> ' + esc(INDEPENDENT.error)
++      + '. Nothing is signed, and this page does not fall back to Enclave’s hosted service. <a href="dashboard#network-profile">Choose a network profile</a>', "warn");
++    return;
++  }
++  if (!(INDEPENDENT.state === "on" && INDEPENDENT.source === "default")) return;
++  document.addEventListener("enclave:authority", () => { paintAuthority(); });
++  const IC = await import("./independent-chain.js");
++  const A = await import("./default-authority.js");
++  const base = reader || IC.baseReader();
++  paintAuthority();
++  const s = await A.ensureAuthority(base);
++  if (s.state !== "verified"){ paintAuthority(); return; }
++  if (INDEPENDENT.profile.serviceIndex){
++    try {
++      const SD = await import("./service-discovery.js");
++      _discovery = await SD.discover({ profile: INDEPENDENT.profile, reader: reader || IC.reader() });
++    } catch (e){ _discovery = { error: String(e && e.message || e).slice(0, 200) }; }
++    try { document.dispatchEvent(new CustomEvent("enclave:discovery", { detail: _discovery })); } catch {}
++  }
++  paintAuthority();
++}
++
++// every page: start once the document exists (no-op unless the packaged default is involved)
++if (typeof document !== "undefined" && INDEPENDENT.packaged){
++  const go = () => startDefault().catch((e) => paint("Independent default: " + esc(e && e.message || e), "warn"));
++  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", go, { once: true }); else go();
++}
+--- a/site/js/gen/default-profile.js
++++ b/site/js/gen/default-profile.js
+@@ -0,0 +1,10 @@
++/* The default authority profile packaged with the site (js/core/default-authority.js).
++
++   null here: the site keeps its hosted default, exactly as before this module existed. A build that ships the
++   reviewed independent default replaces this module through scripts/build-site.mjs --default-profile <module>, with a
++   module written by scripts/network/default-profile.mjs module (it refuses a gate report that is not publishable unless
++   --provisional, and a provisional module only starts on a loopback origin). Never edit this by hand.
++
++   Shape: { format: "enclave-default-profile/v1", provisional, profileText, profileDigest, authorityText,
++            authorityDigest, gateDigest } */
++export const DEFAULT_PROFILE = null;
+--- a/site/js/core/independent.js
++++ b/site/js/core/independent.js
+@@ -11,13 +11,19 @@
+    network directories. docs/network/independent-dashboard.md
+    documents the format.
+ 
+-   This module imports nothing from the rest of the site: config.js
+-   reads it synchronously at load, before any other binding exists.
++   This module imports nothing that binds a contract: config.js reads it
++   synchronously at load, before any other binding exists. Its imports are
++   pure (URL rules, hashing, the packaged default and its checks).
+    An unreadable or invalid saved profile is NEVER silently replaced by
+    the central defaults: config.js then pins no contracts at all, so
+    nothing can be signed until the profile is fixed or removed.
+    ============================================================ */
+ 
++import { rpcEndpoint } from "../../../network/rpc-identity.mjs";
++import { sha256Hex } from "./sha256.js";
++import { parseAuthority, pinsOfAuthority } from "./authority-profile.js";
++import { DEFAULT_PROFILE } from "../gen/default-profile.js";
++
+ export const PROFILE_FORMAT = "enclave-browser-profile";
+ export const PROFILE_KEY = "enclave_independent_profile";
+ export const PROFILE_MAX_BYTES = 32768;
+@@ -30,6 +36,7 @@
+ const OPTIONAL_PINS = ["enclavePay", "verificationFees", "sessionVaultFactory", "secretVaultV2"];
+ const ADDR = /^0x[0-9a-fA-F]{40}$/;
+ const ZERO_ADDR = /^0x0{40}$/i;
++const HASH32 = /^0x[0-9a-f]{64}$/;
+ const AUDIENCE = /^0x[0-9a-f]{64}$/;
+ 
+ const plainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+@@ -114,18 +121,27 @@
+ 
+ export function validateProfile(value){
+   exactKeys(value, ["format", "version", "name", "chainId", "rpcs", "quorum", "confirmations", "maxBlockAgeSeconds",
+-    "contractPins", "usdc", "ethUsdFeed", "storage", "directories", "source"], "profile");
++    "contractPins", "usdc", "ethUsdFeed", "storage", "directories", "source", "serviceIndex", "hostPolicyOrigins"], "profile");
+   if (value.format !== PROFILE_FORMAT || value.version !== 1) throw new Error("not an " + PROFILE_FORMAT + " version 1 document");
+   if (value.chainId !== BASE_CHAIN_ID) throw new Error("profile chainId must be 8453 (Base)");
+   const name = value.name == null ? "" : value.name;
+   if (typeof name !== "string" || name.length > 80 || /[\u0000-\u001f]/.test(name)) throw new Error("profile name must be a short single line");
+   if (!Array.isArray(value.rpcs) || value.rpcs.length < 2 || value.rpcs.length > 8) throw new Error("profile needs 2–8 RPC origins");
+-  const rpcs = [], seen = new Set();
++  const rpcs = [], seen = new Set(), votes = new Set();
++  let loopbackAliases = false;
+   for (const raw of value.rpcs){
+     const u = origin(raw, "RPC");
+     // Distinct origins are required, not proof of distinct operators.
+     if (seen.has(u.origin)) throw new Error("RPC origins must be distinct: " + raw);
+-    seen.add(u.origin); rpcs.push(u.pathname === "/" ? u.origin : u.href);
++    // One public host is ONE vote whatever its port, path or spelling (network/rpc-identity.mjs): three URLs on one
++    // endpoint are not a quorum. Loopback (a local test chain) is one machine anyway; aliases of one loopback port
++    // are accepted for local tests only and marked, so the panel can say they are not independent votes.
++    let id; try { id = rpcEndpoint(raw).identity; } catch (e){ throw new Error("RPC " + raw + ": " + e.message); }
++    if (votes.has(id)){
++      if (!id.startsWith("loopback")) throw new Error("RPC " + raw + " is the same endpoint as another RPC in this profile: one host is one vote");
++      loopbackAliases = true;
++    }
++    votes.add(id); seen.add(u.origin); rpcs.push(u.pathname === "/" ? u.origin : u.href);
+   }
+   const quorum = value.quorum == null ? 2 : value.quorum;
+   if (!Number.isInteger(quorum) || quorum < 2 || quorum > rpcs.length) throw new Error("quorum must be 2 to the number of RPCs");
+@@ -148,6 +164,22 @@
+     source = Object.freeze({ authorityProfileDigest: value.source.authorityProfileDigest, reviewBlock: value.source.reviewBlock == null ? null : String(value.source.reviewBlock) });
+   }
+   const storage = value.storage == null ? null : validateStoragePlan(value.storage);
++  // optional: the EnclaveServiceIndex the page discovers untrusted service candidates from (js/core/service-discovery.js)
++  let serviceIndex = null;
++  if (value.serviceIndex != null){
++    exactKeys(value.serviceIndex, ["address", "codeHash"], "service index pin");
++    if (typeof value.serviceIndex.address !== "string" || !ADDR.test(value.serviceIndex.address) || ZERO_ADDR.test(value.serviceIndex.address)) throw new Error("serviceIndex.address must be the index contract");
++    if (typeof value.serviceIndex.codeHash !== "string" || !HASH32.test(value.serviceIndex.codeHash.toLowerCase())) throw new Error("serviceIndex.codeHash must be keccak256 of its runtime code");
++    serviceIndex = Object.freeze({ address: value.serviceIndex.address.toLowerCase(), codeHash: value.serviceIndex.codeHash.toLowerCase() });
++  }
++  // optional: origins that mirror host admission policies by their on-chain hash (bytes, never authority)
++  const mirrors = value.hostPolicyOrigins == null ? [] : value.hostPolicyOrigins;
++  if (!Array.isArray(mirrors) || mirrors.length > 8) throw new Error("hostPolicyOrigins must be a list of at most 8 origins");
++  const hostPolicyOrigins = [...new Set(mirrors.map((raw) => {
++    const u = origin(raw, "host policy mirror", { allowLoopbackHttp: false });
++    if (u.pathname !== "/") throw new Error("host policy mirror must be a bare https origin: " + raw);
++    return u.origin;
++  }))];
+   const dirs = value.directories == null ? [] : value.directories;
+   if (!Array.isArray(dirs) || dirs.length > 8) throw new Error("directories must be a list of at most 8 origins");
+   const directories = [...new Set(dirs.map((raw) => {
+@@ -160,7 +192,8 @@
+   return Object.freeze({ format: PROFILE_FORMAT, version: 1, name, chainId: BASE_CHAIN_ID, rpcs: Object.freeze(rpcs), quorum,
+     confirmations, maxBlockAgeSeconds, contracts: Object.freeze(contracts), usdc: value.usdc.toLowerCase(),
+     ethUsdFeed: ethUsdFeed && ethUsdFeed.toLowerCase(), source,
+-    storage: storage && Object.freeze(storage), directories: Object.freeze(directories) });
++    storage: storage && Object.freeze(storage), directories: Object.freeze(directories),
++    serviceIndex, hostPolicyOrigins: Object.freeze(hostPolicyOrigins), loopbackAliases });
+ }
+ 
+ export function parseProfile(text){
+@@ -184,28 +217,99 @@
+ function storage(){ try { return globalThis.localStorage || null; } catch { return null; } }
+ function tabStorage(){ try { return globalThis.sessionStorage || null; } catch { return null; } }
+ const ACK_KEY = "enclave_independent_ack";
++// The explicit choice of Enclave's hosted service over a packaged independent default: remembered per browser, but
++// honoured only in a tab that confirmed it (a planted value never moves anyone to the hosted service on its own).
++export const HOSTED_OPTIN_KEY = "enclave_hosted_optin";
++const HOSTED_ACK_KEY = "enclave_hosted_ack";
++export const DEFAULT_PROFILE_FORMAT = "enclave-default-profile/v1";
++
++export function pageIsLoopback(){
++  try { const h = String(globalThis.location && globalThis.location.hostname || "").toLowerCase();
++    return h === "localhost" || h.endsWith(".localhost") || h === "127.0.0.1" || h === "::1" || h === "[::1]"; }
++  catch { return false; }
++}
++
++/* The default profile packaged with this build (js/gen/default-profile.js), checked before anything binds:
++     - the browser profile text and the reviewed authority profile hash to the digests compiled beside them (a
++       substituted or damaged text is refused, never used);
++     - the authority profile is canonical and has the reviewed v1 layout (js/core/authority-profile.js);
++     - the profile names that authority (source.authorityProfileDigest), its eight contract pins, payment token and
++       reviewed ETH/USD feed are exactly the authority's;
++     - a PROVISIONAL (test) build only runs on a loopback origin, and only a provisional one may use loopback RPCs.
++   The on-chain half (code hashes and bindings at an agreed block) is js/core/default-authority.js. */
++export function checkPackagedDefault(pkg, { loopback = pageIsLoopback() } = {}){
++  if (!pkg || typeof pkg !== "object" || pkg.format !== DEFAULT_PROFILE_FORMAT) throw new Error("the packaged default profile is not an " + DEFAULT_PROFILE_FORMAT + " module");
++  const provisional = pkg.provisional === true;
++  if (provisional && !loopback) throw new Error("this build carries a PROVISIONAL test profile, which only runs on a loopback origin");
++  if (typeof pkg.profileText !== "string" || typeof pkg.profileDigest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(pkg.profileDigest))
++    throw new Error("the packaged default profile has no digest");
++  const profileDigest = "sha256:" + sha256Hex(pkg.profileText);
++  if (profileDigest !== pkg.profileDigest) throw new Error("the packaged default profile does not match its digest " + pkg.profileDigest + " (got " + profileDigest + "): substituted or damaged");
++  const profile = parseProfile(pkg.profileText);
++  const { profile: authority } = parseAuthority(pkg.authorityText, { expectedDigest: pkg.authorityDigest });
++  if (!profile.source || profile.source.authorityProfileDigest !== pkg.authorityDigest)
++    throw new Error("the packaged default profile does not name the packaged authority profile");
++  const pins = pinsOfAuthority(authority);
++  for (const [k, a] of Object.entries(pins)) if (profile.contracts[k] !== a)
++    throw new Error("the packaged default pins " + k + " " + profile.contracts[k] + ", not the reviewed " + a);
++  if (profile.usdc !== authority.contracts.usdc.address) throw new Error("the packaged default's payment token is not the reviewed one");
++  const feed = authority.contracts.deployments.reviewedState.ethUsdFeed;
++  if (profile.ethUsdFeed && profile.ethUsdFeed !== feed) throw new Error("the packaged default's ETH/USD feed is not the reviewed one");
++  if (!provisional && profile.rpcs.some((u) => LOOPBACK.has(new URL(u).hostname))) throw new Error("a published default profile cannot name loopback RPCs");
++  return { profile, authority, profileDigest, authorityDigest: pkg.authorityDigest, gateDigest: pkg.gateDigest || null, provisional };
++}
+ 
+-/* { state, profile, text, source, error }:
+-     "off"         no profile: the hosted defaults apply;
++/* { state, profile, text, source, error, authority, packaged, hosted }:
++     "off"         no profile: the hosted defaults apply (no packaged default, or a hosted choice confirmed in this tab);
+      "on"          the profile rules every chain/storage binding;
+      "unconfirmed" a SAVED profile this tab has not confirmed yet - nothing is pinned or signed until the user
+                    reviews it (name, fingerprint, contracts) and confirms. localStorage outlives whatever wrote it,
+                    and this text decides which contracts a wallet signs against, so a value planted by a past XSS
+                    or a shared browser never becomes active on its own. A built-in profile ships with the code
+                    itself and needs no confirmation;
+-     "invalid"     a profile exists but cannot be used: nothing is pinned or signed, and nothing falls back. */
+-export function loadProfileState(store = storage(), builtIn = BUILT_IN_PROFILE_TEXT, tab = tabStorage()){
+-  let text = null, source = null;
+-  try { text = store ? store.getItem(PROFILE_KEY) : null; } catch { text = null; }
++     "invalid"     a profile exists but cannot be used: nothing is pinned or signed, and nothing falls back.
++   source: "saved" (the owner's own choice; takes precedence), "built-in" (a mirror's BUILT_IN_PROFILE_TEXT), or
++   "default" (the reviewed profile packaged with this build; its authority is checked on chain before anything is
++   signed). `packaged` describes the packaged default even when a saved profile is in use, so the panel can offer it. */
++export function loadProfileState(store = storage(), builtIn = BUILT_IN_PROFILE_TEXT, tab = tabStorage(), packagedModule = DEFAULT_PROFILE,
++  { loopback = pageIsLoopback() } = {}){
++  const read = (s, k) => { try { return s ? s.getItem(k) : null; } catch { return null; } };
++  let packaged = null, packagedError = null;
++  if (packagedModule != null){
++    try { packaged = checkPackagedDefault(packagedModule, { loopback }); }
++    catch (e){ packagedError = String((e && e.message) || e); }
++  }
++  const hostedChosen = packagedModule != null && read(store, HOSTED_OPTIN_KEY) === "1";
++  const hosted = { chosen: hostedChosen, confirmed: hostedChosen && read(tab, HOSTED_ACK_KEY) === "1" };
++  const base = { packaged: packaged && { profileDigest: packaged.profileDigest, authorityDigest: packaged.authorityDigest, gateDigest: packaged.gateDigest,
++    provisional: packaged.provisional, name: packaged.profile.name }, packagedError, hosted, authority: null };
++  let text = read(store, PROFILE_KEY), source = null;
+   if (text != null) source = "saved";
+   else if (builtIn != null){ text = builtIn; source = "built-in"; }
+-  if (text == null) return { state: "off", profile: null, text: null, source: null, error: null };
+-  let profile;
+-  try { profile = parseProfile(text); }
+-  catch (e){ return { state: "invalid", profile: null, text, source, error: String((e && e.message) || e) }; }
+-  let ack = null; try { ack = tab ? tab.getItem(ACK_KEY) : null; } catch { ack = null; }
+-  const state = source === "built-in" || ack === text ? "on" : "unconfirmed";
+-  return { state, profile, text, source, error: null };
++  if (text != null){
++    let profile;
++    try { profile = parseProfile(text); }
++    catch (e){ return { ...base, state: "invalid", profile: null, text, source, error: String((e && e.message) || e) }; }
++    const ack = read(tab, ACK_KEY);
++    const state = source === "built-in" || ack === text ? "on" : "unconfirmed";
++    return { ...base, state, profile, text, source, error: null };
++  }
++  if (packagedModule == null) return { ...base, state: "off", profile: null, text: null, source: null, error: null };
++  // the packaged default: an explicit hosted choice confirmed in THIS tab is the only way off it
++  if (hosted.confirmed) return { ...base, state: "off", profile: null, text: null, source: null, error: null };
++  if (!packaged) return { ...base, state: "invalid", profile: null, text: packagedModule && packagedModule.profileText || null, source: "default", error: packagedError };
++  return { ...base, state: "on", profile: packaged.profile, text: packagedModule.profileText, source: "default", error: null, authority: packaged.authority };
++}
++
++/* The explicit hosted choice (never automatic): remembered, and honoured in this tab now. */
++export function chooseHostedService(store = storage(), tab = tabStorage()){
++  if (!store || !tab) throw new Error("this browser has no storage for the choice");
++  store.setItem(HOSTED_OPTIN_KEY, "1"); tab.setItem(HOSTED_ACK_KEY, "1");
++}
++export function confirmHostedService(tab = tabStorage()){ if (!tab) throw new Error("this browser has no session storage"); tab.setItem(HOSTED_ACK_KEY, "1"); }
++export function returnToDefault(store = storage(), tab = tabStorage()){
++  if (store){ store.removeItem(HOSTED_OPTIN_KEY); store.removeItem(PROFILE_KEY); }
++  if (tab){ tab.removeItem(HOSTED_ACK_KEY); tab.removeItem(ACK_KEY); }
+ }
+ 
+ // Saving is an explicit user action in this tab, so it also confirms the profile here.
+--- a/site/js/core/config.js
++++ b/site/js/core/config.js
+@@ -55,9 +55,23 @@
+    rpc.walletconnect.org (unused; rpcMap pins Base to mainnet.base.org),
+    pulse.walletconnect.org (telemetry) and verify/secure.walletconnect.org
+    (iframes, so frame-src not connect-src), and all degrade silently. */
+-// Independent mode offers no WalletConnect: its transport is Reown's relay, a third-party origin this mode never
+-// contacts on its own. Injected wallets (and Frame/Clef-style local signers) still work.
+-export const WALLETCONNECT_PROJECT_ID = IND_ANY ? "" : "e935970def12ab5d05b6b8ff7abd8d75";
++// Independent mode never contacts a WalletConnect relay on its own. The OWNER may choose one explicitly (network profile
++// panel): their project id and a relay URL they pick (Reown's, or one they run). A relay carries the end-to-end encrypted
++// session between this page and the wallet; it cannot sign or alter what is signed, and no Enclave service is involved.
++// Without that choice: injected wallets (and Frame/Clef-style local signers) and the passkey account.
++export const WC_TRANSPORT_KEY = "enclave_wc_transport";
++export function ownerWalletConnect(){
++  try {
++    const v = JSON.parse(localStorage.getItem(WC_TRANSPORT_KEY) || "null");
++    if (!v || typeof v.projectId !== "string" || !/^[0-9a-f]{32}$/i.test(v.projectId)) return null;
++    const u = new URL(String(v.relayUrl || ""));
++    if (u.protocol !== "wss:" || u.username || u.password || u.hash) return null;
++    return { projectId: v.projectId.toLowerCase(), relayUrl: u.origin + (u.pathname === "/" ? "" : u.pathname) };
++  } catch (e) { return null; }
++}
++const WC_OWNER = IND_ANY ? ownerWalletConnect() : null;
++export const WALLETCONNECT_PROJECT_ID = IND_ANY ? (WC_OWNER ? WC_OWNER.projectId : "") : "e935970def12ab5d05b6b8ff7abd8d75";
++export const WALLETCONNECT_RELAY_URL = WC_OWNER ? WC_OWNER.relayUrl : "";   // "" = the library's default relay (hosted mode)
+ 
+ /* ---- loopback-only override gate -------------------------------------------
+    Two reads below (enclave_addressbook, enclave_rpc) exist ONLY so the e2e
+--- a/site/js/boot.js
++++ b/site/js/boot.js
+@@ -20,6 +20,7 @@
+    ============================================================ */
+ 
+ import "./core/addressbook.js";   // resolve contract addresses from the on-chain book (no-op until one is configured)
++import "./core/default-startup.js";   // the packaged independent default: authority check + discovery at load (no-op without one)
+ 
+ const PAGES = {
+   overview:  () => import("./pages/overview.js"),
+--- a/site/js/core/wallet.js
++++ b/site/js/core/wallet.js
+@@ -20,7 +20,7 @@
+    (the in-CVM SIWE token), now only the fallback for a host that
+    hasn't learned sessions yet, or a wallet with no session.
+    ============================================================ */
+-import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID, INDEPENDENT, APP_CATALOG_RPCS } from "./config.js";
++import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID, WALLETCONNECT_RELAY_URL, INDEPENDENT, APP_CATALOG_RPCS } from "./config.js";
+ 
+ /* A read the wallet could not answer. Hosted: Base's public RPC. Independent mode: only the profile's RPCs (the
+    rotating pool; nothing else is contacted), and no profile RPC means no answer rather than a default origin. */
+@@ -127,7 +127,9 @@
+       projectId: WALLETCONNECT_PROJECT_ID,
+       chains: [BASE_CHAIN],            // Base only: this site signs nothing else
+       showQrModal: false,              // we render the pairing code ourselves (qr.js)
+-      rpcMap: { [BASE_CHAIN]: "https://mainnet.base.org" },
++      // independent mode: the owner's chosen relay, and reads through the profile's own RPCs (never a default endpoint)
++      ...(WALLETCONNECT_RELAY_URL ? { relayUrl: WALLETCONNECT_RELAY_URL } : {}),
++      rpcMap: { [BASE_CHAIN]: INDEPENDENT.state === "on" ? INDEPENDENT.profile.rpcs[0] : "https://mainnet.base.org" },
+       metadata: {
+         name: "Enclave",
+         description: "Verifiable confidential compute",
+@@ -744,6 +746,11 @@
+   catch(e){ throw new EnclaveError("Switch your wallet to Base to pay.", 0); }
+ }
+ export async function sendTx(to, data, value, gasLimit){
++  // the packaged default profile: nothing is sent until its reviewed contracts are verified on chain (js/core/default-authority.js)
++  if (INDEPENDENT.state === "on" && INDEPENDENT.source === "default"){
++    const A = await import("./default-authority.js");
++    await A.requireAuthority((await import("./independent-chain.js")).baseReader());
++  }
+   const tx = { from: Enclave.address, data, value: value || "0x0" };
+   if (to) tx.to = to; // omitted = contract creation
+   // A caller that KNOWS the cost passes it and we skip estimation entirely.
+--- a/site/js/core/independent-ui.js
++++ b/site/js/core/independent-ui.js
+@@ -7,8 +7,8 @@
+    using it. Wording stays plain; the profile format is documented in
+    docs/network/independent-dashboard.md.
+    ============================================================ */
+-import { INDEPENDENT } from "./config.js";
+-import { parseProfile, saveProfile, clearProfile, confirmSavedProfile, profileFingerprint } from "./independent.js";
++import { INDEPENDENT, WC_TRANSPORT_KEY, ownerWalletConnect } from "./config.js";
++import { parseProfile, saveProfile, clearProfile, confirmSavedProfile, profileFingerprint, chooseHostedService, confirmHostedService, returnToDefault } from "./independent.js";
+ import { createQuorumReader } from "./quorum.js";
+ import { keccak256Utf8 } from "./keccak.js";
+ import { esc } from "./util.js";
+@@ -52,49 +52,154 @@
+     + '<dt>Payment token</dt><dd><code>' + esc(p.usdc) + '</code></dd>'
+     + '<dt>Chain endpoints</dt><dd>' + p.rpcs.map((u) => esc(new URL(u).host)).join(", ") + ' · ' + p.quorum + ' must agree, ' + p.confirmations + ' confirmations</dd>'
+     + '<dt>Storage</dt><dd>' + (p.storage ? p.storage.replicas.map((r) => esc(new URL(r.upload).host)).join(", ") + ' · ' + p.storage.minimumCopies + ' verified copies required' : 'none (uploads off)') + '</dd>'
+-    + '<dt>Network directories</dt><dd>' + (p.directories.length ? p.directories.map(esc).join(", ") : 'none (network settings off)') + '</dd>'
++    + '<dt>Network directories</dt><dd>' + (p.directories.length ? p.directories.map(esc).join(", ") : 'none listed') + '</dd>'
++    + '<dt>Service index</dt><dd>' + (p.serviceIndex ? '<code>' + esc(p.serviceIndex.address) + '</code> (code pinned)' : 'none (no discovery)') + '</dd>'
++    + (p.hostPolicyOrigins && p.hostPolicyOrigins.length ? '<dt>Host policy mirrors</dt><dd>' + p.hostPolicyOrigins.map(esc).join(", ") + '</dd>' : '')
+     + '</dl>';
+ }
+ 
++/* The import form: an owner-chosen profile, checked against the chain and the publisher's fingerprint before use. */
++function importForm(root, reload, { open = false, label = "Use your own network profile" } = {}){
++  const box = document.createElement("details");
++  box.className = "ind-panel ind-import"; if (open) box.open = true;
++  box.innerHTML = '<summary>' + esc(label) + '</summary>'
++    + '<p class="dim">A network profile names the contracts, chain endpoints and storage you trust. With one, this dashboard reads and writes the chain directly and uploads to your storage adapters; it does not use Enclave’s API, upload service or address book. Only use a profile from a source you trust: it decides which contracts your wallet signs for.</p>'
++    + '<textarea class="ind-text" rows="8" spellcheck="false" placeholder="Paste the profile JSON"></textarea>'
++    + '<input type="file" class="ind-file" accept="application/json,.json">'
++    + '<label class="dim" for="indExpect">The profile’s fingerprint, exactly as its publisher announced it</label>'
++    + '<input id="indExpect" class="ind-expect ac-in" spellcheck="false" autocomplete="off" placeholder="sha256:…">'
++    + '<div><button class="btn btn-sm ind-check" type="button">Check</button> <button class="btn btn-sm btn-primary ind-use" type="button" disabled>Use this profile</button></div>'
++    + '<div class="term ind-out" role="status" aria-live="polite"></div>';
++  root.append(box);
++  const ta = box.querySelector(".ind-text"), out = box.querySelector(".ind-out"), use = box.querySelector(".ind-use");
++  box.querySelector(".ind-file").addEventListener("change", async (e) => { const f = e.target.files && e.target.files[0]; if (f) ta.value = await f.text(); use.disabled = true; });
++  ta.addEventListener("input", () => { use.disabled = true; });
++  box.querySelector(".ind-expect").addEventListener("input", () => { use.disabled = true; });
++  box.querySelector(".ind-check").addEventListener("click", async () => {
++    use.disabled = true; out.innerHTML = "checking…";
++    try {
++      const p = parseProfile(ta.value);
++      const lines = await checkProfile(p);
++      const fp = await profileFingerprint(ta.value);
++      const expect = normFp(box.querySelector(".ind-expect").value);
++      const fpOk = expect.length === 64 && expect === fp;
++      out.innerHTML = '<div>' + esc(p.name || "profile") + ' · fingerprint <code>sha256:' + fp + '</code></div>'
++        + '<div class="' + (fpOk ? "ok" : "warn") + '">' + (fpOk ? "✓ matches the fingerprint you entered" : expect ? "✗ does NOT match the fingerprint you entered - do not use this profile" : "✗ enter the publisher’s fingerprint to use this profile") + '</div>'
++        + summary(p) + lines.map((l) => '<div class="' + (l.ok ? "ok" : "warn") + '">' + (l.ok ? "✓ " : "✗ ") + esc(l.text) + '</div>').join("");
++      use.disabled = !fpOk || !lines.every((l) => l.ok);
++    } catch (e){ out.innerHTML = '<div class="warn">✗ ' + esc(e.message || String(e)) + '</div>'; }
++  });
++  use.addEventListener("click", () => { try { saveProfile(ta.value); reload(); } catch (e){ out.innerHTML = '<div class="warn">✗ ' + esc(e.message) + '</div>'; } });
++  return box;
++}
++
++/* The owner's WalletConnect transport (js/core/config.js ownerWalletConnect): their project id and a relay they choose.
++   Off until chosen; a relay carries the encrypted session and cannot sign or change what is signed. */
++function walletTransport(root, reload){
++  const div = document.createElement("details");
++  div.className = "ind-wc";
++  let cur = null; try { cur = JSON.parse(localStorage.getItem(WC_TRANSPORT_KEY) || "null"); } catch {}
++  const active = ownerWalletConnect();
++  div.innerHTML = '<summary>Wallet transport: ' + (active ? 'WalletConnect through <code>' + esc(active.relayUrl) + '</code> (your choice)' : 'injected wallets and your passkey account (WalletConnect off)') + '</summary>'
++    + '<p class="dim">WalletConnect reaches wallets that are not browser extensions (a phone wallet, Trezor Suite). Its relay carries the end-to-end encrypted session between this page and your wallet: it cannot sign or change what you sign, but it sees that a session exists. Choose a relay you trust (Reown’s public relay, or one you run) and your own project id. No Enclave service is involved.</p>'
++    + '<label class="dim">Project id <input class="ind-wc-id ac-in" spellcheck="false" autocomplete="off" placeholder="32 hex characters" value="' + esc(cur && cur.projectId || "") + '"></label> '
++    + '<label class="dim">Relay <input class="ind-wc-relay ac-in" spellcheck="false" autocomplete="off" placeholder="wss://relay.example" value="' + esc(cur && cur.relayUrl || "") + '"></label> '
++    + '<button class="btn btn-sm ind-wc-save" type="button">Use this transport</button> '
++    + (cur ? '<button class="btn btn-sm ind-wc-off" type="button">Turn WalletConnect off</button>' : '')
++    + ' <span class="ind-wc-out" role="status"></span>';
++  root.append(div);
++  div.querySelector(".ind-wc-save").addEventListener("click", () => {
++    const v = { projectId: div.querySelector(".ind-wc-id").value.trim(), relayUrl: div.querySelector(".ind-wc-relay").value.trim() };
++    const prev = localStorage.getItem(WC_TRANSPORT_KEY);
++    localStorage.setItem(WC_TRANSPORT_KEY, JSON.stringify(v));
++    if (!ownerWalletConnect()){ if (prev == null) localStorage.removeItem(WC_TRANSPORT_KEY); else localStorage.setItem(WC_TRANSPORT_KEY, prev);
++      div.querySelector(".ind-wc-out").textContent = "✗ a project id is 32 hex characters and the relay a wss:// URL without credentials"; return; }
++    reload();
++  });
++  const off = div.querySelector(".ind-wc-off");
++  if (off) off.addEventListener("click", () => { localStorage.removeItem(WC_TRANSPORT_KEY); reload(); });
++}
++
++/* The explicit hosted choice: a button, a plain statement of what it means, and nothing automatic. */
++function hostedChoice(root, reload){
++  const div = document.createElement("div");
++  div.className = "ind-hosted-choice";
++  div.innerHTML = '<details><summary>Use Enclave’s hosted service instead (not independent)</summary>'
++    + '<p class="dim">The hosted service is run by Enclave: card and credit payments, accounts made on Enclave’s relay, live logs through the relay, relay-held secrets and domains. It resolves contracts through Enclave’s address book and uses Enclave’s API, so it is not independent and Enclave can refuse it. It applies to this browser until you return; each new tab asks you to confirm it.</p>'
++    + '<button class="btn btn-sm ind-hosted" type="button">Use the hosted service</button></details>';
++  root.append(div);
++  div.querySelector(".ind-hosted").addEventListener("click", () => { chooseHostedService(); reload(); });
++}
++
++/* Service-index discovery: what the index lists (untrusted), which operators' directories this page uses (the user's
++   choice), and what cannot be reached from here. */
++async function discoverySection(root, p){
++  const sec = document.createElement("div");
++  sec.className = "ind-discovery";
++  sec.innerHTML = '<h4>Services discovered from the index</h4><div class="term ind-disc-out" role="status" aria-live="polite">reading the service index…</div>';
++  root.append(sec);
++  const out = sec.querySelector(".ind-disc-out");
++  if (!p.serviceIndex){ out.innerHTML = '<div class="dim">This profile pins no service index, so nothing is discovered; only the profile’s own directories are used.</div>'; return; }
++  const SD = await import("./service-discovery.js");
++  const IC = await import("./independent-chain.js");
++  const render = async (force) => {
++    let d;
++    try { d = await SD.discover({ profile: p, reader: IC.reader(), force }); }
++    catch (e){ out.innerHTML = '<div class="warn">✗ the service index could not be read: ' + esc(e.message || String(e)) + ' (nothing is substituted for it)</div>'; return; }
++    const choices = SD.loadChoices(p);
++    const ops = SD.operatorsOf(d.candidates);
++    const dirs = SD.pageDirectories(p, d, { choices });
++    out.innerHTML = '<div class="dim">Index ' + esc(short(d.index)) + ' · read at block ' + esc(d.block) + ' (' + d.agreeing + ' chain endpoints agree) · '
++      + Object.entries(d.windows).map(([k, w]) => esc(k) + " " + w.examined + "/" + w.total + (w.complete ? "" : " (partial)")).join(", ")
++      + (d.expired ? ' · ' + d.expired + ' expired ad(s) ignored' : '') + (d.rejected.length ? ' · ' + d.rejected.length + ' malformed ad(s) refused' : '') + '</div>'
++      + '<p class="dim">' + esc(d.notice) + '</p>'
++      + (ops.length ? ops.map((o) => '<div class="ind-op" data-op="' + esc(o.operator) + '"><label><input type="checkbox" class="ind-op-use"' + (choices.directoryOperators.includes(o.operator) ? " checked" : "")
++          + (o.kinds.directory ? "" : " disabled") + '> operator <code>' + esc(o.operator) + '</code></label> · ' + Object.keys(o.kinds).map(esc).join(", ")
++          + '<ul>' + o.endpoints.map((e) => '<li>' + esc(e.kind) + ' ' + esc(e.url) + (e.reachable ? "" : ' <span class="warn">not reachable from this page: ' + esc(e.reason) + '</span>')
++            + ' <span class="dim">until ' + esc(new Date(e.expiresAt * 1000).toISOString().slice(0, 10)) + '</span></li>').join("") + '</ul></div>').join("")
++        : '<div class="dim">No current advertisements. The profile’s own directories are used.</div>')
++      + '<div class="dim">This page uses ' + (dirs.length ? dirs.length + ' director' + (dirs.length === 1 ? 'y' : 'ies') + ' from ' + SD.participantsOf(dirs) + ' participant(s): '
++          + dirs.map((x) => esc(x.origin) + (x.reachable ? (x.warning ? " (" + esc(x.warning) + ")" : "") : " (unreachable here)")).join(", ") : 'no directory') + '. One operator is one participant however many endpoints it lists.</div>'
++      + '<button class="btn btn-sm ind-disc-again" type="button">Read again</button>';
++    out.querySelectorAll(".ind-op-use").forEach((cb) => cb.addEventListener("change", () => {
++      const set = new Set(SD.loadChoices(p).directoryOperators);
++      const op = cb.closest(".ind-op").dataset.op;
++      if (cb.checked) set.add(op); else set.delete(op);
++      SD.saveChoices(p, { directoryOperators: [...set] }); render(false);
++    }));
++    out.querySelector(".ind-disc-again").addEventListener("click", () => render(true));
++  };
++  render(false);
++}
++
+ export function mountIndependentPanel(root, { compact = false } = {}){
+   if (!root) return;
+   const st = INDEPENDENT;
+   const reload = () => location.reload();
++  root.id ||= "network-profile";
+   const fpLine = (text) => profileFingerprint(text).then((fp) => {
+     const el = root.querySelector(".ind-fp"); if (el) el.textContent = "fingerprint sha256:" + fp;
+   }).catch(() => {});
++  // the packaged default exists, and this tab confirmed the explicit hosted choice
++  if (st.state === "off" && st.packaged && st.hosted && st.hosted.confirmed){
++    root.innerHTML = '<div class="ind-panel ind-hosted-on" role="status"><b>Enclave’s hosted service</b> · your explicit choice for this browser, not independent. '
++      + '<button class="btn btn-sm ind-return" type="button">Return to the independent default</button></div>';
++    root.querySelector(".ind-return").addEventListener("click", () => { returnToDefault(); reload(); });
++    return;
++  }
+   if (st.state === "off"){
+     if (compact) return;
+-    root.innerHTML = '<details class="ind-panel"><summary>Use your own network profile</summary>'
+-      + '<p class="dim">A network profile names the contracts, chain endpoints and storage you trust. With one, this dashboard reads and writes the chain directly and uploads to your storage adapters; it does not use Enclave’s API, upload service or address book. Only use a profile from a source you trust: it decides which contracts your wallet signs for.</p>'
+-      + '<textarea class="ind-text" rows="8" spellcheck="false" placeholder="Paste the profile JSON"></textarea>'
+-      + '<input type="file" class="ind-file" accept="application/json,.json">'
+-      + '<label class="dim" for="indExpect">The profile’s fingerprint, exactly as its publisher announced it</label>'
+-      + '<input id="indExpect" class="ind-expect ac-in" spellcheck="false" autocomplete="off" placeholder="sha256:…">'
+-      + '<div><button class="btn btn-sm ind-check" type="button">Check</button> <button class="btn btn-sm btn-primary ind-use" type="button" disabled>Use this profile</button></div>'
+-      + '<div class="term ind-out" role="status" aria-live="polite"></div></details>';
+-    const ta = root.querySelector(".ind-text"), out = root.querySelector(".ind-out"), use = root.querySelector(".ind-use");
+-    root.querySelector(".ind-file").addEventListener("change", async (e) => { const f = e.target.files && e.target.files[0]; if (f) ta.value = await f.text(); use.disabled = true; });
+-    ta.addEventListener("input", () => { use.disabled = true; });
+-    root.querySelector(".ind-expect").addEventListener("input", () => { use.disabled = true; });
+-    root.querySelector(".ind-check").addEventListener("click", async () => {
+-      use.disabled = true; out.innerHTML = "checking…";
+-      try {
+-        const p = parseProfile(ta.value);
+-        const lines = await checkProfile(p);
+-        const fp = await profileFingerprint(ta.value);
+-        const expect = normFp(root.querySelector(".ind-expect").value);
+-        const fpOk = expect.length === 64 && expect === fp;
+-        out.innerHTML = '<div>' + esc(p.name || "profile") + ' · fingerprint <code>sha256:' + fp + '</code></div>'
+-          + '<div class="' + (fpOk ? "ok" : "warn") + '">' + (fpOk ? "✓ matches the fingerprint you entered" : expect ? "✗ does NOT match the fingerprint you entered - do not use this profile" : "✗ enter the publisher’s fingerprint to use this profile") + '</div>'
+-          + summary(p) + lines.map((l) => '<div class="' + (l.ok ? "ok" : "warn") + '">' + (l.ok ? "✓ " : "✗ ") + esc(l.text) + '</div>').join("");
+-        use.disabled = !fpOk || !lines.every((l) => l.ok);
+-      } catch (e){ out.innerHTML = '<div class="warn">✗ ' + esc(e.message || String(e)) + '</div>'; }
+-    });
+-    use.addEventListener("click", () => { try { saveProfile(ta.value); reload(); } catch (e){ out.innerHTML = '<div class="warn">✗ ' + esc(e.message) + '</div>'; } });
++    root.innerHTML = "";
++    importForm(root, reload, { label: "Use your own network profile" });
+     return;
+   }
+   if (st.state === "invalid"){
++    if (st.source === "default"){
++      root.innerHTML = '<div class="ind-panel ind-bad" role="alert"><b>The default network profile built into this site cannot be used:</b> ' + esc(st.error)
++        + '. Nothing is signed, and this page does not fall back to Enclave’s hosted service.</div>';
++      if (!compact){ importForm(root, reload, { open: true }); hostedChoice(root, reload); }
++      return;
++    }
+     root.innerHTML = '<div class="ind-panel ind-bad" role="alert"><b>Your saved network profile cannot be used:</b> ' + esc(st.error)
+       + '. Nothing is signed until it is fixed or removed - this page does not fall back to Enclave’s hosted service.'
+       + ' <button class="btn btn-sm ind-clear" type="button">Remove profile</button></div>';
+@@ -122,11 +227,47 @@
+     root.querySelector(".ind-clear").addEventListener("click", () => { clearProfile(); reload(); });
+     return;
+   }
++  if (st.source === "default"){
++    const pk = st.packaged;
++    root.innerHTML = '<div class="ind-panel ind-on ind-default" role="status"><b>Independent</b> · ' + esc(p.name || "default network profile")
++      + ' · built into this site' + (pk.provisional ? ' · <b class="warn">PROVISIONAL test profile</b>' : '')
++      + (compact ? '' : '<p class="dim">This dashboard reads and writes the chain through the reviewed default profile. Its contracts are checked against their reviewed code at a block the chain endpoints agree on before anything is decided or signed. It does not use Enclave’s API, upload service or address book, and it never switches to the hosted service by itself.</p>'
++        + '<dl class="ind-dl"><dt>Profile</dt><dd><code class="ind-pdigest">' + esc(pk.profileDigest) + '</code></dd>'
++        + '<dt>Reviewed authority</dt><dd><code class="ind-adigest">' + esc(pk.authorityDigest) + '</code> · review block ' + esc(st.authority.review.blockNumber) + '</dd>'
++        + '<dt>Contracts</dt><dd class="ind-auth-line">checking…</dd></dl>'
++        + summary(p) + (p.loopbackAliases ? '<p class="warn">Some chain endpoints are aliases of one local endpoint: they are not independent votes.</p>' : '')
++        + '<button class="btn btn-sm ind-recheck" type="button">Check now</button> <div class="term ind-out" role="status" aria-live="polite"></div>')
++      + '</div>';
++    if (compact) return;
++    const line = root.querySelector(".ind-auth-line");
++    import("./default-authority.js").then((A) => {
++      const show = () => { const s = A.authorityStatus(); line.textContent = A.authorityLine(s) || s.state; line.className = "ind-auth-line " + (s.state === "verified" ? (s.drift && s.drift.length ? "warn" : "ok") : s.state === "refused" || s.state === "unavailable" ? "warn" : ""); };
++      show(); document.addEventListener("enclave:authority", show);
++      root.querySelector(".ind-recheck").addEventListener("click", async () => {
++        const IC = await import("./independent-chain.js");
++        await A.ensureAuthority(IC.baseReader(), { force: true }); show();
++      });
++    });
++    if (st.hosted && st.hosted.chosen && !st.hosted.confirmed){
++      const n = document.createElement("div"); n.className = "ind-panel ind-hosted-pending";
++      n.innerHTML = 'Earlier you chose Enclave’s hosted service on this browser. It is not used in this tab until you confirm. '
++        + '<button class="btn btn-sm ind-hosted-confirm" type="button">Use the hosted service in this tab</button> <button class="btn btn-sm ind-return" type="button">Forget that choice</button>';
++      root.append(n);
++      n.querySelector(".ind-hosted-confirm").addEventListener("click", () => { confirmHostedService(); reload(); });
++      n.querySelector(".ind-return").addEventListener("click", () => { returnToDefault(); reload(); });
++    }
++    discoverySection(root, p).catch(() => {});
++    walletTransport(root, reload);
++    importForm(root, reload, { label: "Use your own network profile instead" });
++    hostedChoice(root, reload);
++    return;
++  }
+   root.innerHTML = '<div class="ind-panel ind-on" role="status"><b>Independent mode</b>' + (p.name ? ' · ' + esc(p.name) : '')
+     + (st.source === "built-in" ? ' · built into this site' : '') + ' · <span class="ind-fp dim"></span>'
+     + (compact ? '' : '<p class="dim">This dashboard reads and writes the chain through your profile and uploads to your storage adapters. Enclave’s hosted features - card and credit payments, account sign-in, live logs and restarts, private environment variables, custom domains and host pinning - are not used here.</p>'
+-      + summary(p) + '<button class="btn btn-sm ind-recheck" type="button">Check now</button> '
+-      + (st.source === "saved" ? '<button class="btn btn-sm ind-clear" type="button">Stop using this profile</button>' : '')
++      + summary(p) + (p.loopbackAliases ? '<p class="warn">Some chain endpoints are aliases of one local endpoint: they are not independent votes.</p>' : '')
++      + '<button class="btn btn-sm ind-recheck" type="button">Check now</button> '
++      + (st.source === "saved" ? '<button class="btn btn-sm ind-clear" type="button">' + (st.packaged ? 'Return to the built-in default profile' : 'Stop using this profile') + '</button>' : '')
+       + '<div class="term ind-out" role="status" aria-live="polite"></div>')
+     + '</div>';
+   fpLine(st.text);
+@@ -138,6 +279,18 @@
+   });
+   const cl = root.querySelector(".ind-clear");
+   if (cl) cl.addEventListener("click", () => { clearProfile(); reload(); });
++  if (!compact && p.serviceIndex) discoverySection(root, p).catch(() => {});
++  if (!compact) walletTransport(root, reload);
++}
++
++/* A page that only Enclave's hosted service provides (card checkout, phone sign-in, Sign in with Enclave for apps), opened
++   on an independent dashboard: say what it is and offer the explicit hosted choice. Nothing here calls the relay. */
++export function mountHostedOnly(body, what){
++  if (!body) return;
++  body.innerHTML = '<div class="ind-panel ind-hosted-only" role="status"><b>' + esc(what) + ' is part of Enclave’s hosted service.</b> '
++    + 'This dashboard runs independently and does not use Enclave’s API or relay, so this page cannot work here. '
++    + 'To use it, choose the hosted service explicitly (it is not independent, and Enclave can refuse it).</div>';
++  hostedChoice(body, () => location.reload());
+ }
+ 
+ /* Wallet session controls for independent mode: every owner action is a transaction the wallet sends to its own
+--- a/site/components/wallet-button/wallet-button.js
++++ b/site/components/wallet-button/wallet-button.js
+@@ -11,7 +11,7 @@
+    `enclave:wallet`; the button itself is repainted by refreshWallet).
+    ============================================================ */
+ import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
+-import { Enclave } from "../../js/core/api.js";
++import { Enclave, INDEPENDENT_MODE } from "../../js/core/api.js";
+ import { Wallet, connectWallet, refreshWallet, restoreSession, toggleWalletPop } from "../../js/core/wallet.js";
+ import { restoreAccountSession, openSignIn } from "../../js/core/account.js";
+ import { ACCOUNTS_ENABLED } from "../../js/core/config.js";
+@@ -35,6 +35,13 @@
+     const wb = this.querySelector("#walletBtn");
+     wb.addEventListener("click", async () => {
+       if (Enclave.address || Enclave.accountAuthed()){ toggleWalletPop(); return; }
++      // independent mode (a network profile, or the packaged default): no relay sign-in exists here. An injected wallet
++      // connects directly; without one, the dashboard's own passkey account panel is where an owner signs in.
++      if (INDEPENDENT_MODE){
++        try { await connectWallet(); } catch(e){ /* no wallet in this browser: the passkey account panel is the way in */ }
++        navigate("dashboard", { push: true });
++        return;
++      }
+       if (ACCOUNTS_ENABLED){
+         // the sign-in chooser (passkey / phone / wallet), wallet or not
+         try { await openSignIn(); navigate("dashboard", { push: true }); }
+@@ -70,9 +77,13 @@
+     Wallet.init();
+     refreshWallet();
+     restoreSession();          // silently restore a prior wallet + sign-in across refreshes
+-    restoreAccountSession();   // and the relay account session (separate trust domain)
+-    // a live wallet session re-derives its account token (no prompt); a dead one is tidied away
+-    import("../../js/core/account.js").then((m) => m.restoreSessionAccount()).catch(() => {});
++    // the relay account session (separate trust domain) - hosted mode only: independent mode never uses the relay, and a
++    // hosted account stored in this browser is named on the dashboard instead of being shown as signed in
++    if (!INDEPENDENT_MODE){
++      restoreAccountSession();
++      // a live wallet session re-derives its account token (no prompt); a dead one is tidied away
++      import("../../js/core/account.js").then((m) => m.restoreSessionAccount()).catch(() => {});
++    }
+   }
+ }
+ register("c-wallet-button", WalletButton);
+--- a/site/components/enclave-panel/enclave-panel.js
++++ b/site/components/enclave-panel/enclave-panel.js
+@@ -106,7 +106,10 @@
+       if (!el) return;
+       if (liveHash) { el.textContent = liveHash; el.title = "live from " + Enclave.base + "/attestation - run the full check in the Root of trust section"; }
+       else el.textContent = "unavailable";
+-    }).catch(() => { const el = $("#measureHash"); if (el) el.textContent = "api unreachable"; });
++    }).catch((e) => { const el = $("#measureHash"); if (!el) return;
++      // independent mode never asks Enclave's API: say so instead of calling it unreachable
++      el.textContent = e && e.independent ? "not read in independent mode" : "api unreachable";
++      if (e && e.independent) el.title = "This dashboard does not use Enclave's API. Each deployment's Connect tab gives the attestation-checking native client command."; });
+ 
+     size(); seed();
+     if (reduce) { frame(); }
+--- a/site/components/live-verify/live-verify.js
++++ b/site/components/live-verify/live-verify.js
+@@ -10,6 +10,11 @@
+ import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
+ import { esc } from "../../js/core/util.js";
+ import { liveBoxes, boxVerifiable, verifyBoxInBrowser, verificationHtml, TIER_NAMES } from "../../js/core/verify.js";
++import { INDEPENDENT_MODE } from "../../js/core/api.js";
++// Independent mode: this check reaches each host through Enclave's API (the relay's host table and its /t/<box> tunnel),
++// which an independent dashboard never asks. Say so, and name the path that does not need it.
++const INDEPENDENT_NOTE = "In-browser host verification reaches each host through Enclave’s API, which this independent dashboard does not use. "
++  + "Verify a host or an app with the attestation-checking native client instead: each deployment’s Connect tab gives the exact command.";
+ 
+ const TIERS = ["snp", "avf", "hv-node"];   // the order the chips read in
+ 
+@@ -26,6 +31,7 @@
+ 
+   // the chips: only kinds with at least one verifiable host now; a failed read leaves them hidden (the button still works)
+   async loadTiers() {
++    if (INDEPENDENT_MODE) return;
+     try {
+       const rows = (await liveBoxes()).filter(boxVerifiable);
+       this._by = new Map(TIERS.map((m) => [m, rows.filter((e) => e.mode === m)]).filter(([, l]) => l.length));
+@@ -46,6 +52,7 @@
+     const body = this.querySelector(".lv-body");
+     body.hidden = false; body.setAttribute("aria-busy", "true"); btn.disabled = true;
+     const status = (cls, t) => { body.innerHTML = '<div class="lv-verdict ' + cls + '" role="status">' + esc(t) + "</div>"; };
++    if (INDEPENDENT_MODE){ status("", INDEPENDENT_NOTE); btn.disabled = false; body.setAttribute("aria-busy", "false"); return; }
+     try {
+       status("", "finding a live host …");
+       if (!this._by) await this.loadTiers();
+--- a/site/js/core/verify.js
++++ b/site/js/core/verify.js
+@@ -151,6 +151,9 @@
+ // Any other box gets an honest "not here" with what the relay checked instead.
+ export const boxVerifiable = (row) => !!(row && row.name && VERIFIERS[row.mode]);
+ export function unverifiableReason(row) {
++  // independent mode's rows come from the pinned registry, not the relay: the in-browser challenge reaches a host through
++  // Enclave's API, which that mode never asks
++  if (row && row.independent) return "a host read from the pinned registry. The in-browser challenge goes through Enclave’s API, which this independent dashboard does not use: verify it with the attestation-checking native client.";
+   const m = row && row.mode;
+   if (m === "vbs") return "a Windows VBS enclave host. The relay verifies its enclave report when it attaches; this page cannot run that check yet.";
+   return "a host that attached without hardware evidence the relay verified (a token or operator attach), so there is nothing for this page to challenge.";

@@ -1,0 +1,33 @@
+import fs from 'node:fs';
+import {createPublicClient,http,encodeFunctionData} from '../enclave/node_modules/viem/_esm/index.js';
+import {artifactIdentity} from '../enclave/sdk/storage/unixfs.mjs';
+const serialize=x=>JSON.stringify(x,(_,v)=>typeof v==='bigint'?v.toString():v);
+const urls=['https://mainnet.base.org','https://base-rpc.publicnode.com','https://base.drpc.org','https://base.public.blockpi.network/v1/rpc/public'];
+const peers=urls.map(url=>({url,c:createPublicClient({transport:http(url,{timeout:15000,retryCount:0})})}));
+const heads=await Promise.allSettled(peers.map(async p=>({...p,head:await p.c.getBlockNumber()})));
+const available=heads.filter(r=>r.status==='fulfilled').map(r=>r.value).sort((a,b)=>a.head>b.head?-1:1);
+if(available.length<3)throw Error('fewer than three RPC peers');
+const blockNumber=available[2].head-2n;
+const catalog='0x18419CA2b502D423A8de6269AEeE171a378626e3',appId='0x4306e588755347dbb30b5e2090cacbc7e20b00afedff750fe352fe99d6d77a7c';
+const abi=JSON.parse(fs.readFileSync(new URL('../enclave/contracts/EnclaveAppCatalog.abi.json',import.meta.url)));
+const rows=await Promise.allSettled(available.map(async p=>{
+ const before=await p.c.getBlock({blockNumber});
+ const read=(functionName,args)=>p.c.readContract({address:catalog,abi,functionName,args,blockNumber});
+ const app=await read('getApp',[appId]);const index=BigInt(app.versionCount)-1n;
+ const [version,fee]=await Promise.all([read('getVersion',[appId,index]),read('versionFee',[appId,index])]);
+ const after=await p.c.getBlock({blockNumber});if(before.hash!==after.hash)throw Error('block changed');
+ return {peer:p,hash:before.hash,app,version,fee};
+}));
+const groups=new Map();for(const r of rows){if(r.status!=='fulfilled')continue;const {peer,...state}=r.value;const key=serialize(state);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(r.value);}
+const agreed=[...groups.values()].find(a=>a.length>=3);if(!agreed)throw Error('catalog state lacks three agreeing peers');
+const {app,version:v,fee,peer,hash}=agreed[0];
+if(v.version!=='1.0.17')throw Error('unexpected live latest catalog version; re-review required');
+const artifact=artifactIdentity(fs.readFileSync(new URL('../enclave-apps/s3-ipfs-adapter/target/wasm32-wasip2/release/s3-ipfs-adapter.wasm',import.meta.url)));
+const args=[app.slug,app.name,app.description,'1.0.18',artifact.cid,[v.vramMb,v.gpuGflops,v.memMb,v.cpuGflops],v.ports,v.config,fee];
+const simulation=await peer.c.simulateContract({account:app.publisher,address:catalog,abi,functionName:'publishVersion',args,blockNumber});
+if(simulation.result[0].toLowerCase()!==appId||Number(simulation.result[1])!==app.versionCount)throw Error('unexpected publication result');
+const data=encodeFunctionData({abi,functionName:'publishVersion',args});
+const gas=await peer.c.estimateGas({account:app.publisher,to:catalog,data});
+const output={status:'prepared-not-signed',preparedAt:new Date().toISOString(),chainId:8453,blockNumber:blockNumber.toString(),blockHash:hash,agreeingRpcPeers:agreed.map(r=>r.peer.url),version:'1.0.18',previousVersion:v.version,index:app.versionCount,appId,artifact,transaction:{from:app.publisher,to:catalog,value:'0x0',data,estimatedGas:gas.toString()},effects:['Publish this exact tested adapter WASM in the existing catalog.','Keep generic uploads disabled in the generic catalog defaults.','No deployment is upgraded by this transaction.'],requirements:['Confirm full artifact readback in upload.json before signing.','Re-read catalog state and simulate immediately before signing; this unsigned request may become stale.','A separate deployment update is required to activate the new bytecode and opt in to generic file uploads.']};
+const dir=new URL('../../outputs/runtime-file-adapter/',import.meta.url);fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(new URL('publication.json',dir),JSON.stringify(output,null,2)+'\n');
+console.log(JSON.stringify({status:output.status,version:output.version,index:output.index,blockNumber:output.blockNumber,agreeingPeers:agreed.length,cid:artifact.cid,estimatedGas:gas.toString()}));

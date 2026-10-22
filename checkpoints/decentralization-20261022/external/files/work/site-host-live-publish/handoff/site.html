@@ -1,0 +1,16 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Enclave · Site activation</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head><body><main>
+<p class="eyebrow">ENCLAVE · LOCAL WALLET HANDOFF · SITE ACTIVATION</p>
+<h1>Publish the Enclave site and deploy one staging instance</h1>
+<p>Five MetaMask confirmations from the administrator account, in this order: (1) sign the upload authorization for the frozen site package, (2) publish catalog version <b>enclave-site:1</b>, (3) create the public site deployment on the Hyper-V host tier, then on the reviewed lease-gas page (4) deposit <b>0.001 ETH</b> lease gas and (5) enable its sponsorship policy. No USDC and no other funds. Network fees are extra.</p>
+<dl><dt>Network</dt><dd>Base · chain 8453</dd><dt>Administrator</dt><dd id="owner"></dd><dt>Deployment</dt><dd id="deployment"></dd><dt>Progress</dt><dd id="progress"></dd></dl>
+<p>Press <b>Start</b> once. Each step is rechecked on two RPC providers right before it opens in MetaMask. A rejection pauses; anything unknown stops and offers only hash verification or a chain-checked release.</p>
+<p id="wallet">Detecting MetaMask…</p>
+<div class="actions"><button id="connect" disabled>Connect MetaMask</button><button id="start" disabled>Start</button></div>
+<section id="current" hidden><h2 id="current-title"></h2><p id="current-detail"></p></section>
+<p id="status" role="status">Loading…</p>
+<div id="recovery" hidden><p id="recovery-text"></p><div class="actions"><input id="hash" placeholder="0x… transaction hash from MetaMask activity" size="70" spellcheck="false"><button id="check">Verify this hash</button><button id="release" hidden>Release unanswered request</button></div></div>
+<p id="handover" hidden>Steps 1-3 are confirmed. <a id="handover-link" href="#" rel="noopener">Continue to steps 4-5 (reviewed lease-gas page)</a></p>
+<table><thead><tr><th>#</th><th>Action</th><th>Destination</th><th>Amount</th><th>Status</th></tr></thead><tbody id="ops"></tbody></table>
+<details><summary>Inspect the current request</summary><pre id="transaction"></pre></details>
+<p class="fine">This page cannot sign. Your key stays in MetaMask. The upload signature is checked to recover to the administrator before it is used; the upload token and the signature never leave the local process and are never stored. Every receipt is checked on two providers for the exact recipient, calldata, value, nonce and events.</p>
+</main></body></html>

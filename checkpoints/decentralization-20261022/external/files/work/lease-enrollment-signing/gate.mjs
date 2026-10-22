@@ -1,0 +1,2 @@
+// Explicit human approval received; exact proposal and amount remain pinned. User signs every transaction.
+export const APPROVAL_GATE = Object.freeze({"locked": false, "approvedProposalSha256": "6e1b0bfb10a0d502921215e0624885406a0f2805e45bc2d4934a8d9e63e609f2", "approvedBy": "Human user: yes, in response to 0.0013 ETH plus Base fees and 25-transaction signing sequence", "approvedAt": "2026-10-20T23:35:10.238470+00:00"});

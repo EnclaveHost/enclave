@@ -1,0 +1,14 @@
+--- ref/config-names-read.py	2026-10-21 21:42:09.719149439 -0700
++++ root/config-names-read.r2.py	2026-10-21 22:01:15.933329939 -0700
+@@ -10,8 +10,9 @@
+ 
+ HERE = pathlib.Path(__file__).resolve().parent; W = next(p for p in HERE.parents if p.name == 'work')
+ TRANSPORT = W / 'nucbox-tls-20261021/root-activate-reviewed.py'; TRANSPORT_SHA = 'c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f'
+-FILES = ['run-node.cmd', 'node-config.cmd', 'node-config.local.cmd', 'run-network.cmd', 'shield-config.cmd', 'run-card.cmd']
+-OUT = HERE / 'live-config-names.json'; LIMIT = 7900
++FILES = ['run-node.cmd', 'node-config.cmd', 'node-config.local.cmd', 'run-network.cmd', 'shield-config.cmd', 'run-card.cmd',
++         'run-shield.cmd', 'shield-config.local.cmd']   # r2: the Shield launcher and its new local hook (installer r6)
++OUT = HERE / 'live-config-names.r2.json'; LIMIT = 7900
+ sha = lambda p: hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
+ TEXT = (r"function TS($t){-join([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes([string]$t))|%{$_.ToString('x2')})};"
+         r"$o=[ordered]@{};foreach($f in 'FILESX'.Split('|')){$p='C:\ProgramData\Enclave\'+$f;$e=[ordered]@{present=(Test-Path -LiteralPath $p)};"

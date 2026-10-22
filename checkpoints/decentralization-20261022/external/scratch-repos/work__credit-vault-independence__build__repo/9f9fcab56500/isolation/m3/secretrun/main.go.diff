@@ -1,0 +1,45 @@
+--- a/isolation/m3/secretrun/main.go
++++ b/isolation/m3/secretrun/main.go
+@@ -27,18 +27,25 @@
+ 	if len(b) > 65536 {
+ 		return syscall.E2BIG
+ 	}
+-	var env map[string]string
+-	if e = json.Unmarshal(b, &env); e != nil {
++	var all map[string]string
++	if e = json.Unmarshal(b, &all); e != nil {
+ 		return e
+ 	}
++	// The front's pipe carries the owner's secrets AND the front's own release facts (storage writer fencing: the two
++	// reserved ENCLAVE_ names, appconfig.SplitFacts). Each set is validated by its own rule: an owner secret still may never
++	// use the ENCLAVE_ prefix, and a fact must be one of the two names with a strictly formed value.
++	env, facts := appconfig.SplitFacts(all)
+ 	if e = shieldconfig.Validate(env); e != nil {
+ 		return e
+ 	}
++	if e = appconfig.ValidateFacts(facts); e != nil {
++		return e
++	}
+ 	cfg, e := os.ReadFile("/app.config")
+ 	if e != nil {
+ 		return e
+ 	}
+-	resolved, e := appconfig.Resolve(string(cfg), env)
++	resolved, e := appconfig.ResolveWithFacts(string(cfg), env, facts)
+ 	if e != nil {
+ 		return e
+ 	}
+@@ -67,6 +74,13 @@
+ 		native = append(native, k+"="+env[k])
+ 		args = append(args, "--env", k)
+ 	}
++	// the facts are also in the app's environment (sia-s3 resolves a "$NAME" config value from its own environment)
++	for _, k := range []string{appconfig.FactInstanceIsolation, appconfig.FactWriterAuthority} {
++		if v, ok := facts[k]; ok {
++			native = append(native, k+"="+v)
++			args = append(args, "--env", k)
++		}
++	}
+ 	if publicWeb {
+ 		native = append(native, shieldconfig.PublicWebEgressEnv)
+ 		args = append(args, "--env", "ENCLAVE_EGRESS")

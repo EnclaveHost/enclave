@@ -1,0 +1,201 @@
+{
+ "package": "work/g4-node-final-package-20261021",
+ "base": "work/node-hold-package-20261021 (605 final, untouched)",
+ "controller": {
+  "path": "helper/root-node-hold.py",
+  "sha": "76705b38493d35bbc0d1925139d7d85693743154c708bfe6a68babf020a92493",
+  "original": "f80d5b5704d16b24768580c55da63f24fac976ccef7643514f15adce3878098b"
+ },
+ "scripts": {
+  "bundle-swap.ps1": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/cron-startup-20261021/respawn-activation/bundle-swap.ps1",
+   "sha": "21d85c69b2b70564cc04f7ea7d72e9f763ef8ae65059fdb9972f0413f042b103",
+   "verified": true
+  },
+  "node-hold-cutover.ps1": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/g4-node-final-package-20261021/helper/node-hold-cutover.ps1",
+   "sha": "2984c6f2d651d56c5a12ce022dddd4d84a3f3871389e7f170687643f3e8b9d06",
+   "verified": true
+  }
+ },
+ "transport": {
+  "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/nucbox-tls-20261021/root-activate-reviewed.py",
+  "sha": "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f",
+  "verified": true
+ },
+ "cutoverOriginal": "e369c5e204f4d0fe9c6277a7237d7f0ddae6beea6a1bfe935825481b34c6ac45",
+ "groups": {
+  "network": [
+   "ingress",
+   "privacy",
+   "worker"
+  ],
+  "control": [
+   "wallet",
+   "hsn",
+   "hst",
+   "enroll",
+   "bundle",
+   "hvcert",
+   "appzone",
+   "agent",
+   "host"
+  ]
+ },
+ "files": {
+  "wallet": {
+   "target": "C:\\Program Files\\Enclave\\control\\network\\wallet-admission.mjs",
+   "how": "put",
+   "old": "absent",
+   "new": "0fa7678f7586388b4725f1432683fa4ab172fd1d57c163d9a63195fbb2f445ee",
+   "local": "control/new/wallet-admission.mjs",
+   "group": "control",
+   "vsOriginal": "unchanged"
+  },
+  "hsn": {
+   "target": "C:\\Program Files\\Enclave\\control\\network\\host-service-names.mjs",
+   "how": "put",
+   "old": "absent",
+   "new": "a46123cbb70ab666f9dfb23b5b545fe76d87658c6bf82c7f7574579d0c65b32c",
+   "local": "control/new/host-service-names.mjs",
+   "group": "control",
+   "vsOriginal": "was absent->08bda1e6"
+  },
+  "hst": {
+   "target": "C:\\Program Files\\Enclave\\control\\network\\host-service-transport.mjs",
+   "how": "put",
+   "old": "absent",
+   "new": "de5bb98a2e77ffd90ccf65211f564d9515f667b4cd6d17cbb3644fb2ca454e06",
+   "local": "control/new/host-service-transport.mjs",
+   "group": "control",
+   "vsOriginal": "was absent->e75f0331"
+  },
+  "enroll": {
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\network-enroll.mjs",
+   "how": "swap",
+   "old": "2d97a0e10e40ceaa0be897708dc3cfa48742619450605efc107b22674caae2ac",
+   "new": "a9729786598107e69d24d5163ea8592d114f93a9b6693106a7fa3414c95430d6",
+   "local": "control/new/network-enroll.mjs",
+   "group": "control",
+   "vsOriginal": "was 2d97a0e1->6bd0a858"
+  },
+  "bundle": {
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\host-admission.bundle.mjs",
+   "how": "swap",
+   "old": "66c6e15a793b8dc4cb80f209b6ffa405c40c7d235284727384e4833576610067",
+   "new": "6bef372d00a27567e94a11d00f165312f9d715a795519e7a7ad77b4718623b18",
+   "local": "control/new/host-admission.bundle.mjs",
+   "group": "control",
+   "vsOriginal": "unchanged"
+  },
+  "hvcert": {
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\hvcert.mjs",
+   "how": "swap",
+   "old": "91b9f2db7eb3be98efec1594dfe95245475a0cf234d9ce6843657b37bc2b1557",
+   "new": "3a87d9b897765fc8bc42a2648f310f8ad504022798534603bce9b0fdafe0d9d5",
+   "local": "control/new/hvcert.mjs",
+   "group": "control",
+   "vsOriginal": "unchanged"
+  },
+  "appzone": {
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\appzone.mjs",
+   "how": "swap",
+   "old": "ba9d9bb13f2ea19cdcbdcdbc021ddbabbd201618ff1e834b733cc220fc8c26c6",
+   "new": "65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68",
+   "local": "control/new/appzone.mjs",
+   "group": "control",
+   "vsOriginal": "unchanged"
+  },
+  "agent": {
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\agent.mjs",
+   "how": "swap",
+   "old": "c223c0435d859f0bde0d496a2eb1e8a2db4af44a47e32bf653710244c5ccd2ba",
+   "new": "ec5e75c72c7a43c0a8282df36a8233d68a8d3903c7e5d2ba4063c82161e2c004",
+   "local": "control/new/agent.mjs",
+   "group": "control",
+   "vsOriginal": "unchanged"
+  },
+  "host": {
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\host.mjs",
+   "how": "swap",
+   "old": "c4629529903ee87edd258fb5b1964525bcf29b3a1109d9f0c30e74b06d05cfd0",
+   "new": "0c82e9ba3fe9919435b9876168132db2fb63614920b9a90f0efbeb5f23ffc6e7",
+   "local": "control/new/host.mjs",
+   "group": "control",
+   "vsOriginal": "unchanged"
+  },
+  "ingress": {
+   "target": "C:\\Program Files\\Enclave\\network\\host-service-ingress.mjs",
+   "how": "put",
+   "old": "absent",
+   "new": "c952dce4fe007c48c81e1726a743d850dc2f5231204d01466349bfa5ffcc62d3",
+   "local": "build/out/candidate-g4/host-service-ingress.mjs",
+   "group": "network",
+   "vsOriginal": "NEW (G4)"
+  },
+  "privacy": {
+   "target": "C:\\Program Files\\Enclave\\network\\privacy-agent.mjs",
+   "how": "swap",
+   "old": "3883f67ce2414a1c328bd8ead7e46fea071e5e6e86c95a866070bb3241888cd6",
+   "new": "7ef4e2303d841e86269d3bbb7ce5f43a5ead5b0d2f2898f9b69774da1ac13147",
+   "local": "build/out/candidate-g4/privacy-agent.mjs",
+   "group": "network",
+   "vsOriginal": "was 3883f67c->5c03987d"
+  },
+  "worker": {
+   "target": "C:\\Program Files\\Enclave\\network\\windows-circuit-worker.mjs",
+   "how": "swap",
+   "old": "c52025ba7f63d514023f29c8a0c54cec53725522fa270aaaaad308f84a07910d",
+   "new": "13ce44f1b39d4521e32266f2dad234958af70b1b05e2a3f6638535571e8cf320",
+   "local": "build/out/candidate-g4/windows-circuit-worker.mjs",
+   "group": "network",
+   "vsOriginal": "unchanged"
+  }
+ },
+ "keepUnchanged": {
+  "C:\\Program Files\\Enclave\\network\\enclave-wg.exe": "cbaf8313ce4e2cfce347abed99bdeaf5fc0631b8ab07bfbab20471f60920264c",
+  "C:\\Program Files\\Enclave\\network\\enclave-circuit-firewall.exe": "78daec71f51f89a53600cb7d4bfb0492e2f0d642047422e4fbec30b2a5c238a6"
+ },
+ "nodeExe": {
+  "path": "C:\\Program Files\\nodejs\\node.exe",
+  "sha": "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3",
+  "evidence": "root native writer proof 21:29Z (outputs/decentralization-audit/native-wallet-writer-proof.json) + 605 NATIVE-ACL-READY fixture"
+ },
+ "runNodeSha": "3366a005f8530903c83a334053280f41ed904df09133e92505c44f558acb6686",
+ "localCfgSha": "85698d20b4f8fb494c8620aeb80d5b4fbd2ec637ef40c7fa02693ba41ee2aa73",
+ "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+ "freshness": {
+  "preflight": 1800,
+  "cutoverPreflight": 600,
+  "bound": 900
+ },
+ "control": {
+  "SHA256SUMS.txt": "ff6cf1a0e62eada47feeffc31838567302bb4ccb85d97123fe60e01c76dfebc0",
+  "original": "3b2c1906bc9f011d89613efe2759151dbc1d66fbc7fa699fb4d2f6d7310fdef2",
+  "composeG4": "eb258c7ab86bd3e3c63b37ccf217ea13b457416cb761e1fd6fa6b9229a35ec68"
+ },
+ "networkBuild": {
+  "build-manifest.json": "9da6b17431be557e7448a80b9e120f13ea5b2cd1b89c264a95dd9ce0e9f229e0",
+  "from": "work/g4-network-composition-20261021/out (COMPOSITION-RESULT caabfc8c)"
+ },
+ "tests": {
+  "helper/test_root_node_hold.py": "3fd0fb5ff15413b89e0d533bd2d578732dbba87ffa5b4b7e97707beadbb3fcb4",
+  "tools/cutover-mock.ps1": "7e2efef6e7683c7504c3b9cd430ca4850024f2765cd9c82741ffcc22fd36eb4c",
+  "tools/cutover-mock-test.py": "53e617c5e9c09b3d4d60b1c947458ad11d8c6c05fac96cdb5d5314663a55c17b",
+  "g4-final-tests/mock.out": "87b794ab1da42cfe7ce94d528fa3c5f1f2dfffaea358c53346dd0c080e8ea154",
+  "g4-final-tests/mock-negative-original.out": "a39326f2e2c776ec4a564698376732ff7ae140edec8531780486dbdec4982ce2",
+  "g4-final-tests/unit.out": "9837ae76f4ff4ead37bd438baf39d53f9a5a1ac4df793c220fff7bb652a5f1b2",
+  "g4-final-tests/n2-probe.out": "0f272c789bea0880741d38bf8e8166702e08e9749bee8f5c98039e3388082303",
+  "g4-final-tests/parse.out": "780928da5536a8de39845a91ae7d27c914a6ff24188d306ce6fbada38e3a4acd"
+ },
+ "diffs": {
+  "diffs/control-SHA256SUMS.diff": "f3f4cc96fee39d2f971af93ad7bdd8126328cfb5386fe50cca0b6f22f63bf33e",
+  "diffs/cutover-mock-test.py.diff": "154e42be45686a92400b98025f69352957a82c96309b3cda3fff4f61701fa083",
+  "diffs/cutover-mock.ps1.diff": "e1e0c6f6d70f9b49df70e0d25238419f6b61b7756e18ebf43f6e5f4fa1ed2889",
+  "diffs/node-hold-cutover.ps1.diff": "a0fc472648a8104820030cfd75caa3d45ecfabde87d4509ae61e329f8cf31bae",
+  "diffs/root-node-hold.py.diff": "b7e02656de7f72b214e9f854d9ad5c5b62f2ff394e6712e88f29edb843b52972",
+  "diffs/test_root_node_hold.py.diff": "9533faa3664507591c3d59d6ec119208055bafd5e139cfa0f75b1a92543689bc",
+  "diffs/tree-only-new.txt": "4ddadc00a864d64145969ebb09d72f9ef9a6a631218d699f9f7a8df32206a43b",
+  "diffs/tree-vs-original.txt": "fce6156b1d1303d86483e421476c53d288bb61eafef0085cf5e0030a35f6a3e0"
+ }
+}

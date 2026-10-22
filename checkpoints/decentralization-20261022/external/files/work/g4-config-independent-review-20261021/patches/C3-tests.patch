@@ -1,0 +1,39 @@
+--- ../patches/challenge-replica-host.test.orig.mjs	2026-10-21 16:17:04.388399612 -0700
++++ test/challenge-replica-host.test.mjs	2026-10-21 16:17:04.398453853 -0700
+@@ -202,8 +202,14 @@
+     const cfg = {relay: 'http://127.0.0.1:9', checkers: ['0x' + '22'.repeat(20)], apps: 'all', wgBinary: '/bin/true', nodeBinary: process.execPath, workerModule: '/bin/true'};
+     await assert.rejects(createNetworkHost({config: {...cfg, challengeReplica: {...base(), certsApi: 'https://api.enclave.host'}}, directory: dir, authorize: () => true,
+       fetch: async () => new Response('{}', {status: 404})}), /challengeReplica: legacy central input/);
+-    await assert.rejects(createNetworkHost({config: {...cfg, challengeReplica: {...base(), release: {...base().release, dir: path.join(dir, 'missing')}}}, directory: dir,
+-      authorize: () => true, fetch: async () => new Response('{}', {status: 404})}), /release: dns.mjs must be a regular file/);
++    // a START failure (here: the release directory is gone, as after a full reinstall of Program Files) is logged and never
++    // takes the host's network down (work/g4-config-independent-review-20261021 C3)
++    const logs = [];
++    const h2 = await createNetworkHost({config: {...cfg, challengeReplica: {...base(), release: {...base().release, dir: path.join(dir, 'missing')}}}, directory: dir,
++      authorize: () => true, fetch: async () => new Response('{}', {status: 404}), log: (m) => logs.push(m)});
++    for (let i = 0; i < 100 && !logs.some((l) => l.includes('challenge replica not started')); i++) await new Promise((r) => setTimeout(r, 20));
++    assert.ok(logs.some((l) => /challenge replica not started .*release: dns\.mjs must be a regular file/.test(l)), logs.join('\n'));
++    assert.equal(h2.challengeReplica, null, 'nothing started'); await h2.close();
+     const host = await createNetworkHost({config: cfg, directory: dir, authorize: () => true, fetch: async () => new Response('{}', {status: 404})});
+     assert.equal(host.challengeReplica, null, 'absent: nothing started'); await host.close();
+   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+--- ../patches/challenge-front-managed.test.orig.mjs	2026-10-21 16:17:04.389343575 -0700
++++ test/challenge-front-managed.test.mjs	2026-10-21 16:17:04.398577002 -0700
+@@ -77,9 +77,14 @@
+   const cfg = {relay: 'http://127.0.0.1:9', checkers: ['0x' + '22'.repeat(20)], apps: 'all', wgBinary: '/bin/true', nodeBinary: process.execPath, workerModule: '/bin/true'};
+   await assert.rejects(createNetworkHost({config: {...cfg, challengeReplica: base()}, runner: '0x' + '11'.repeat(32), directory: dir, authorize: () => true,
+     fetch: async () => new Response('{}', {status: 404})}), /front.managed: hostPolicy.endpoint is not this host's registry endpoint/);
+-  // the right runner passes this check (and is then refused by the release check, before anything binds)
+-  await assert.rejects(createNetworkHost({config: {...cfg, challengeReplica: base()}, runner: HOST_ID, directory: dir, authorize: () => true,
+-    fetch: async () => new Response('{}', {status: 404})}), /release: dns.mjs must be a regular file/);
++  // the right runner passes this check; the replica's START is then refused by the release check - logged, never fatal to
++  // the host's network (C3), and the managed front stays undeclared/stopped
++  const logs = [];
++  const h = await createNetworkHost({config: {...cfg, challengeReplica: base()}, runner: HOST_ID, directory: dir, authorize: () => true,
++    fetch: async () => new Response('{}', {status: 404}), log: (m) => logs.push(m)});
++  for (let i = 0; i < 100 && !logs.some((l) => l.includes('challenge replica not started')); i++) await new Promise((r) => setTimeout(r, 20));
++  assert.ok(logs.some((l) => /challenge replica not started .*release: dns\.mjs must be a regular file/.test(l)), logs.join('\n'));
++  assert.equal(h.challengeReplica, null); await h.close();
+ });
+ 
+ test('the declaration contract: refusal reasons, proof matching, bounded validity', () => {

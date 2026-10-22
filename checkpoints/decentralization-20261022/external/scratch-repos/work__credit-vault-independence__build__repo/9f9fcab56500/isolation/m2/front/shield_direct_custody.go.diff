@@ -1,0 +1,33 @@
+--- a/isolation/m2/front/shield_direct_custody.go
++++ b/isolation/m2/front/shield_direct_custody.go
+@@ -91,6 +91,13 @@
+ 	if err = shieldconfig.Validate(values); err != nil {
+ 		return nil, err
+ 	}
++	// Release facts on the same private pipe (secretrun separates them, appconfig.SplitFacts): "vbs", and the lease's
++	// writer authority from this guest's own RPC quorum when the measured config refers to it.
++	facts, err := directFacts(ctx, auth, text, shieldIsolation)
++	if err != nil {
++		return nil, err
++	}
++	facts = referencedFacts(facts, text)
+ 	if err = auth.Revalidate(ctx); err != nil {
+ 		return nil, err
+ 	}
+@@ -108,7 +115,15 @@
+ 			fwd.Close()
+ 		}
+ 	}()
+-	payload, err := json.Marshal(values)
++	launch := make(map[string]string, len(values)+len(facts))
++	for k, v := range values {
++		launch[k] = v
++	}
++	for k, v := range facts {
++		launch[k] = v
++	}
++	payload, err := json.Marshal(launch)
++	launch = nil
+ 	if err != nil || len(payload) > 65536 {
+ 		return nil, errors.New("Shield secret launch payload exceeds limit")
+ 	}

@@ -1,0 +1,151 @@
+--- a/api/app/client.go
++++ b/api/app/client.go
+@@ -17,6 +17,7 @@
+ 
+ 	"github.com/fxamacker/cbor/v2"
+ 	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
+ 	"go.sia.tech/indexd/api"
+ 	"go.sia.tech/indexd/hosts"
+ 	"go.sia.tech/indexd/sharing"
+@@ -33,6 +34,16 @@
+ 
+ 	validity   time.Duration
+ 	enableCBOR bool
++	// fence, when set, is sent as the signed sf parameter of every request (FENCING PATCH)
++	fence *accounts.Credential
++}
++
++// WithFence returns a copy of the client whose requests carry the writer fence f as the signed sf parameter (nil:
++// none). Fenced mutations need it once a fence is installed on the account (FENCING PATCH).
++func (c *Client) WithFence(f *accounts.Credential) *Client {
++	c2 := *c
++	c2.fence = f
++	return &c2
+ }
+ 
+ type requestAppConnectionOptions struct {
+@@ -84,8 +95,19 @@
+ 		return nil, nil, fmt.Errorf("failed to parse URL: %w", err)
+ 	}
+ 
+-	// prepare request hash
++	// prepare request hash: a request carrying sf is signed over the fenced hash (FENCING PATCH). An sf that is not
++	// exactly one canonical value is left for the server to refuse.
+ 	sigHash := requestHash(method, u.Host, u.Path, validUntil, requestBuf)
++	if vals := u.Query()[queryParamFence]; len(vals) == 1 {
++		if cred, err := accounts.ParseCredential(vals[0]); err == nil {
++			sigHash = fencedRequestHash(method, u.Host, u.Path, validUntil, requestBuf, cred)
++			// G-C2: with op (and optional sq) the request is v4
++			r := &http.Request{URL: u}
++			if cas, err := parseCASParams(r, true); err == nil && cas != nil {
++				sigHash = v4RequestHash(method, u.Host, u.Path, validUntil, requestBuf, cred, cas)
++			}
++		}
++	}
+ 
+ 	// prepare query parameters
+ 	val := url.Values{}
+@@ -171,7 +193,15 @@
+ 			return fmt.Errorf("failed to marshal request data: %w", err)
+ 		}
+ 	}
+-	u, body, err := sign(appKey, time.Now().Add(c.validity), method, fmt.Sprintf("%s%s", c.baseURL, route), requestBuf)
++	endpoint := fmt.Sprintf("%s%s", c.baseURL, route)
++	if c.fence != nil {
++		sep := "?"
++		if strings.Contains(route, "?") {
++			sep = "&"
++		}
++		endpoint += sep + queryParamFence + "=" + c.fence.String()
++	}
++	u, body, err := sign(appKey, time.Now().Add(c.validity), method, endpoint, requestBuf)
+ 	if err != nil {
+ 		return fmt.Errorf("failed to sign request: %w", err)
+ 	}
+@@ -605,3 +635,85 @@
+ 	}
+ 	return c
+ }
++
++// FenceResponse is the body of GET /fence (FENCING PATCH).
++type FenceResponse = accounts.FenceState
++
++// RaiseFenceResponse is the body of a successful POST /fence: the installed fence, the receipt to present with it
++// (sf = fence || receipt), and the event sequence head (FENCING PATCH).
++type RaiseFenceResponse struct {
++	Fence   accounts.Fence   `json:"fence"`
++	Receipt accounts.Receipt `json:"receipt"`
++	Seq     uint64           `json:"seq"`
++	Mode    *string          `json:"mode,omitempty"` // G-C2: "cas" when the raise enrolled (or kept) cas mode
++}
++
++// CASResult is the answer to a successful v4 head-advancing mutation (G-C2).
++type CASResult struct {
++	Seq      uint64 `json:"seq"`
++	Replayed bool   `json:"replayed"`
++}
++
++// CASConflictResponse is the body of a G-C2 refusal (HTTP 412).
++type CASConflictResponse struct {
++	Conflict string          `json:"conflict"` // "seq" | "op" | "mode"
++	Seq      *uint64         `json:"seq"`
++	Mode     *string         `json:"mode,omitempty"`
++	Fence    *accounts.Fence `json:"fence"`
++}
++
++// RaiseFenceMode installs the writer fence f with an enrolment mode ("cas", or "" for none) (G-C2).
++func (c *Client) RaiseFenceMode(ctx context.Context, appKey types.PrivateKey, f accounts.Fence, mode string) (resp RaiseFenceResponse, err error) {
++	req := map[string]string{"fence": f.String()}
++	if mode != "" {
++		req["mode"] = mode
++	}
++	err = c.signedRequest(ctx, appKey, http.MethodPost, "/fence", req, &resp)
++	return
++}
++
++// PinObjectCAS pins obj as a v4 request with the expected head sq and the operation id op (G-C2). The client must
++// carry the fence credential (WithFence).
++func (c *Client) PinObjectCAS(ctx context.Context, appKey types.PrivateKey, obj slabs.SealedObject, sq uint64, op accounts.OpID) (resp CASResult, err error) {
++	err = c.signedRequest(ctx, appKey, http.MethodPost, fmt.Sprintf("/objects?sq=%d&op=%s", sq, op), obj.PinRequest(), &resp)
++	return
++}
++
++// DeleteObjectCAS deletes the object as a v4 request with the expected head sq and the operation id op (G-C2).
++func (c *Client) DeleteObjectCAS(ctx context.Context, appKey types.PrivateKey, key types.Hash256, sq uint64, op accounts.OpID) (resp CASResult, err error) {
++	err = c.signedRequest(ctx, appKey, http.MethodDelete, fmt.Sprintf("/objects/%s?sq=%d&op=%s", key, sq, op), nil, &resp)
++	return
++}
++
++// Credential returns the credential the raise issued.
++func (r RaiseFenceResponse) Credential() accounts.Credential {
++	return accounts.Credential{Fence: r.Fence, Receipt: r.Receipt}
++}
++
++// RaiseFenceRequest is the body of POST /fence (FENCING PATCH).
++type RaiseFenceRequest struct {
++	Fence accounts.Fence `json:"fence"`
++}
++
++// FencedResponse is the body of a 409 fence refusal (FENCING PATCH).
++type FencedResponse struct {
++	Fence *accounts.Fence `json:"fence"`
++}
++
++// Fence returns the account's installed writer fence and its event sequence head (FENCING PATCH).
++func (c *Client) Fence(ctx context.Context, appKey types.PrivateKey) (resp FenceResponse, err error) {
++	err = c.signedRequest(ctx, appKey, http.MethodGet, "/fence", nil, &resp)
++	return
++}
++
++// RaiseFence installs the writer fence f (FENCING PATCH).
++func (c *Client) RaiseFence(ctx context.Context, appKey types.PrivateKey, f accounts.Fence) (resp RaiseFenceResponse, err error) {
++	err = c.signedRequest(ctx, appKey, http.MethodPost, "/fence", RaiseFenceRequest{Fence: f}, &resp)
++	return
++}
++
++// ListObjectsSeq returns one page of the account's commit-ordered object sequence (FENCING PATCH).
++func (c *Client) ListObjectsSeq(ctx context.Context, appKey types.PrivateKey, after uint64, limit int) (resp slabs.SeqListing, err error) {
++	err = c.signedRequest(ctx, appKey, http.MethodGet, fmt.Sprintf("/seq/objects?after=%d&limit=%d", after, limit), nil, &resp)
++	return
++}

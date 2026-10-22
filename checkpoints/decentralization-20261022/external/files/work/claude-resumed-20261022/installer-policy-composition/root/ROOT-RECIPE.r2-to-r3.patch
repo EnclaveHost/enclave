@@ -1,0 +1,42 @@
+--- ../config-persistence-r2/root/ROOT-RECIPE.txt	2026-10-21 22:36:41.764189173 -0700
++++ root/ROOT-RECIPE.txt	2026-10-21 22:45:28.616767275 -0700
+@@ -1,7 +1,10 @@
+-ROOT-ONLY RECIPE (r2): move the operator's hand-made launcher settings into the update-proof local hooks, then allow installer r6.
+-r2 = the r1 recipe with migrate-local-config.ps1's write path fixed (see REVIEW.txt section 1) and NO execution-policy override.
++ROOT-ONLY RECIPE (r3): move the operator's hand-made launcher settings into the update-proof local hooks, then allow installer r6.
++r2 = the r1 recipe with migrate-local-config.ps1's write path fixed and NO execution-policy override.
++r3 = r2 + the hook OWNER preserved: File.Replace keeps the destination's DACL but NOT its owner (root's native test 2026-10-22,
++     work/root-private-file-native-20261022). See REVIEW.txt section 0.
+ 
+-EXECUTION POLICY: the host's PowerShell execution policy is Restricted, so migrate-local-config.ps1 cannot run there as it
++EXECUTION POLICY: the host's PowerShell execution policy is Restricted (root's native check 05:37Z), so full native
++execution of migrate-local-config.ps1 remains PENDING the user's/root's approval. It cannot run there as it
+ stands. This recipe gives NO policy override (no -ExecutionPolicy argument, no encoded command, no dot-sourcing or pasting the
+ script text). Whether and how a reviewed script may run on the host is root's authorization decision. Until then, steps 4-5
+ and every native validation of this script are PENDING. The script targets Windows PowerShell 5.1 (.NET Framework
+@@ -68,7 +71,14 @@
+   r2 write path:
+   - temp beside the hook (.<hook>.migrate-<guid>.tmp), created EXCLUSIVELY with its protected SYSTEM/Administrators DACL
+     before any byte is written;
+-  - ReplaceFile keeps the hook's own DACL and puts the old bytes in the new backup, which is hash-checked;
++  - the replacement is created WITH the hook's current owner (read and validated: SYSTEM or Administrators only), in the
++    same exclusive call, before any content; its actual owner is checked before the replace;
++  - File.Replace keeps the hook's DACL but gives it the REPLACEMENT's owner (so: the hook's own) and moves the old bytes, with
++    the old owner, into the new backup, which is hash-checked. The hook's owner is verified unchanged after the replace;
++  - if this token may not assign the hook's owner (the live hook is SYSTEM-owned; an administrator's SSH token may not be
++    allowed to assign SYSTEM), the run FAILS BEFORE any replacement or backup, with no privilege enabled or adjusted. Root
++    then decides how, if at all, a SYSTEM-owned replacement may be made. There is no fallback to an Administrators-owned
++    hook;
+   - a hook to be created is created EXCLUSIVELY (never over a file that appeared meanwhile);
+   - any reparse point (link/junction/mount point) on the root, a hook, a source, backup\ or any ancestor, or a
+     non-SYSTEM/Administrators owner or writer, REFUSES.
+@@ -95,7 +105,8 @@
+   Root handles such a line by hand.
+ - NOT natively verified (Linux tests stub them):
+   - the two Windows-ACL primitives (Open-NewPrivateFile, New-DirWithPrivateAcl) and Test-PrivateAcl;
+-  - ReplaceFile's DACL preservation;
++  - File.Replace DACL preservation (root measured: DACL kept, owner NOT kept), and that the FileSecurity owner given at
++    CreateNew is accepted for SYSTEM under the token that runs the script (root is testing this natively; not assumed);
+   - junction/mount-point detection.
+   When root authorizes script execution, one native plan+execute on a scratch copy (-Root <copy>) is advised before the
+   live run.

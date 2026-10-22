@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# TEST-ONLY ssh: runs the remote command HERE, as that host: FSROOT=$MOCK_ROOT_<alias> (its mock filesystem, also the path
+# prefix the transfer scripts were given) and MOCK_UNIT=$MOCK_UNIT_<alias>, with the mock systemctl/curl/pgrep/ss first on PATH
+set -u
+while [ $# -gt 0 ]; do case "$1" in -n|-q) shift ;; -o) shift 2 ;; *) break ;; esac; done
+alias=$1; shift; a=${alias//-/_}; root=MOCK_ROOT_$a; unit=MOCK_UNIT_$a
+[ -n "${!root:-}" ] || { echo "mock ssh: unknown host $alias" >&2; exit 255; }
+[ -e "${!root}/mock/unreachable" ] && { echo "ssh: connect to host $alias port 22: Connection timed out" >&2; exit 255; }
+FSROOT=${!root} MOCK_UNIT=${!unit:-} bash -c "$*"

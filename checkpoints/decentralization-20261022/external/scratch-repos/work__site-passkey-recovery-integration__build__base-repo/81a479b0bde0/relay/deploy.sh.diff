@@ -1,0 +1,24 @@
+--- a/relay/deploy.sh
++++ b/relay/deploy.sh
+@@ -41,7 +41,11 @@
+ # /opt/enclave-dns (a separate install) and the old nan-relay box (RELAY_SSH_HOST) no longer answers, which failed every
+ # relay deploy at its first scp. An unreachable DNS host is skipped loudly; the api relay below still deploys.
+ if ssh -o ConnectTimeout=15 -o BatchMode=yes "$DNS_HOST" true 2>/dev/null; then
+-  scp dns-relay.js fleet.mjs net-guard.mjs fleet-auth.js boxhost.js package.json package-lock.json "$DNS_HOST":/opt/nan-relay/
++  # Bundle DNS authorization dependencies before shipping the flat service directory.
++  [ -d ../node_modules/esbuild ] || (cd .. && npm ci --no-audit --no-fund --ignore-scripts)
++  [ -d node_modules/viem ] || npm ci --no-audit --no-fund --ignore-scripts
++  node build-network.mjs
++  scp dns-relay.js fleet.mjs net-guard.mjs fleet-auth.js boxhost.js network-runtime.bundle.mjs network-runtime.bundle.mjs.manifest.json package.json package-lock.json "$DNS_HOST":/opt/nan-relay/
+   scp systemd/enclave-dns.service "$DNS_HOST":/etc/systemd/system/
+   ssh "$DNS_HOST" 'cd /opt/nan-relay && npm ci --omit=dev --no-audit --no-fund && systemctl daemon-reload && systemctl restart enclave-dns && systemctl is-active enclave-dns'
+ else
+@@ -88,7 +92,7 @@
+ node build-network.mjs
+ scp network-runtime.bundle.mjs network-runtime.bundle.mjs.manifest.json nan:/opt/nan-relay/
+ ssh nan 'node /opt/nan-relay/network-runtime.bundle.mjs'
+-scp api-relay.js guest-prediction-row.mjs mcp.js auth.js sso.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js secrets-release.mjs custody-state.mjs measurement-predict.mjs host-delegation.mjs fleet-auth.js certs.js domains.js store.js fleet.mjs net-guard.mjs tunnel.js pvm-cpu-tier.mjs pvm-market.mjs pvm-secrets.mjs pvm-app-attest.mjs pvm-evidence-core.mjs snp-verify.mjs avf-verify.mjs avf-policy.mjs avf-binding.mjs vbs-verify.mjs vbs-policy.mjs vbs-credential.mjs vbs-tcglog.mjs vbs-tcglog-core.mjs vbs-tpm.mjs hvnode-verify.mjs hvnode-core.mjs vbs-app-verify.mjs vbs-vm-report.mjs vbs-runtime.mjs shield-app-policy.mjs shield-app-verifier.mjs shield-marketplace.mjs shield-app-fresh.mjs snp-app-fresh.mjs pvm-app-fresh.mjs shield-derive.mjs pads.mjs host-sponsor.mjs host-names.mjs referrals.mjs route-grace.mjs pad-grant.mjs pad-state.mjs pad-shipment-store.mjs pad-ack.mjs boxhost.js package.json package-lock.json shield-secrets.mjs placement.mjs cheapest-claim.mjs contract-owner-signature.mjs sessions.mjs sessions-abi.mjs vbs-app-core.mjs vbs-vm-report-core.mjs nan:/opt/nan-relay/
++scp api-relay.js registry-liveness.mjs host-liveness.mjs host-capacity-record.mjs canonical.mjs guest-prediction-row.mjs mcp.js auth.js sso.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js secrets-release.mjs custody-state.mjs measurement-predict.mjs host-delegation.mjs fleet-auth.js certs.js domains.js store.js fleet.mjs net-guard.mjs tunnel.js pvm-cpu-tier.mjs pvm-market.mjs pvm-secrets.mjs pvm-app-attest.mjs pvm-evidence-core.mjs snp-verify.mjs avf-verify.mjs avf-policy.mjs avf-binding.mjs vbs-verify.mjs vbs-policy.mjs vbs-credential.mjs vbs-tcglog.mjs vbs-tcglog-core.mjs vbs-tpm.mjs hvnode-verify.mjs hvnode-core.mjs vbs-app-verify.mjs vbs-vm-report.mjs vbs-runtime.mjs shield-app-policy.mjs shield-app-verifier.mjs shield-marketplace.mjs shield-market-evidence.mjs shield-app-fresh.mjs snp-app-fresh.mjs pvm-app-fresh.mjs shield-derive.mjs pads.mjs host-sponsor.mjs host-names.mjs referrals.mjs route-grace.mjs pad-grant.mjs pad-state.mjs pad-shipment-store.mjs pad-ack.mjs boxhost.js package.json package-lock.json shield-secrets.mjs placement.mjs cheapest-claim.mjs contract-owner-signature.mjs sessions.mjs sessions-abi.mjs vbs-app-core.mjs vbs-vm-report-core.mjs nan:/opt/nan-relay/
+ # hvnode-verify.mjs is the NucBox node's attach (tunnel mode hv-node), built on the vbs-*.mjs TPM
+ # and measured-boot primitives (the VBS-enclave attach itself is retired). api-relay.js reads the
+ # pinned AMD fTPM roots from ./fixtures/tpm-roots.pem (vbs-policy.mjs VBS_DEFAULT_EK_ROOTS) at

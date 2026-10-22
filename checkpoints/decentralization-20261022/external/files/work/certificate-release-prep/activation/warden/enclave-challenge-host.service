@@ -1,0 +1,60 @@
+# Enclave host challenge service on warden-host (work/certificate-release-prep, release @LABEL@): the app-zone DNS-01
+# challenge replica (route DNS + attested pushes: SEV-SNP and Enclave Shield TPM host sessions) behind the platform host
+# policy gate, from the pinned release (challenge-host.mjs runs dns.mjs + network-runtime.bundle.mjs; no node_modules).
+# STAGE 1: loopback ports, NOT delegated, NOT advertised. Runs beside enclave-host-services.service (its route-dns role keeps
+# 127.0.0.1:18153/18154; this unit uses 18253/18254 and the front 18443) and changes no existing service.
+#
+# Limits are the whole cgroup's (launcher + replica child): MemoryMax/High/SwapMax are kernel limits (RSS + page cache).
+# Restart: the launcher restarts the replica child itself (backoff 1 s .. 60 s); systemd restarts the launcher on failure.
+# A platform-policy refusal (ban, allowlist miss, deregistration) is NOT a failure: the launcher keeps running with the
+# replica and front stopped until a new authenticated admit.
+[Unit]
+Description=Enclave host challenge service (release @LABEL@, stage 1: loopback, not delegated)
+After=network-online.target enclave-host-services.service
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+DynamicUser=yes
+StateDirectory=enclave-challenge-host
+StateDirectoryMode=0750
+WorkingDirectory=/var/lib/enclave-challenge-host
+# the front's TLS key reaches the service only as a credential (/run/credentials/enclave-challenge-host.service/front.key)
+LoadCredential=front.key:/etc/enclave-challenge/@LABEL@/front.key
+ExecStartPre=/usr/bin/node /opt/enclave-challenge/releases/@DNS_SHA@/challenge-host.mjs check /etc/enclave-challenge/@LABEL@/challenge.json
+ExecStart=/usr/bin/node --max-old-space-size=128 /opt/enclave-challenge/releases/@DNS_SHA@/challenge-host.mjs run /etc/enclave-challenge/@LABEL@/challenge.json
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=30s
+KillMode=mixed
+KillSignal=SIGTERM
+
+MemoryAccounting=yes
+MemoryHigh=384M
+MemoryMax=512M
+MemorySwapMax=0
+CPUAccounting=yes
+CPUQuota=100%
+CPUWeight=50
+TasksMax=128
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

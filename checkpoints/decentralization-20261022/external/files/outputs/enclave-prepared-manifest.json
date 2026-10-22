@@ -1,0 +1,9 @@
+{
+  "preparedAt": "2026-10-19T01:16:13.076271+00:00",
+  "sourceCommit": "8b37c3714d90fc1371800d475c72c7fc57432426",
+  "file": "enclave-prepared.mjs",
+  "sha256": "4919b0a3dca7f5cf90ada5d56f8ab257efa70902f850d5ad7420936ba1bfe18d",
+  "bytes": 1199768,
+  "installed": false,
+  "scope": "Prepared CLI supports explicit catalog releases with status notices and preserves wallet/session scope checks. Direct wallet uploads require the adapter upgrade."
+}

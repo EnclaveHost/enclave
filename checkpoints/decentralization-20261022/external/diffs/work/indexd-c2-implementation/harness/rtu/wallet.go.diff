@@ -1,0 +1,16 @@
+--- a/testutils/wallet.go
++++ b/testutils/wallet.go
+@@ -1,4 +1,4 @@
+-package testutils
++package rtu
+ 
+ import (
+ 	"math"
+@@ -37,6 +37,6 @@
+ 			t.Fatal(err)
+ 		}
+ 	}
+-	c.addSyncFn(syncFn)
++	c.addSyncFn(t, syncFn)
+ 	return w
+ }

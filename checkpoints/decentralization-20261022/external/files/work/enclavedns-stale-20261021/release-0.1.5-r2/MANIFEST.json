@@ -1,0 +1,84 @@
+{
+ "artifact": {
+  "file": "release-0.1.5-r2/enclavedns-0.1.5.wasm",
+  "bytes": 2588705,
+  "sha256": "e3780187ebaff9e0f4f1440d8292f7e161f764825e5e2f56880150d6605ef5e9",
+  "cidv1": "bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau",
+  "cidMethod": "kubo ipfs add --only-hash --cid-version=1 (defaults); same method reproduces v4 bafybeicsvzar\u2026 from 0d14ec08 bytes",
+  "selfReportedVersion": "EnclaveDNS 0.1.5",
+  "componentWitIdenticalTo": "0d14ec08 (v4)"
+ },
+ "inputs": {
+  "sourceFiles": {
+   "LICENSE": "be5392a136622551ecd2af7f2facefeb89ee7109b53ebdcd19416753b98ad882",
+   "enclavedns/Cargo.lock": "aaafdda76c3ebb92f8ad66c12f11400e740bd101e63beb48c9944a83ec6ca6f8",
+   "enclavedns/Cargo.toml": "a73e53fa0c8e347bc84827daf19703609fcf84eb3100049ddc28220bfd342520",
+   "enclavedns/README.md": "b57d22987a59906c867d94038d643604bc778c668d8d86dcba711bfd9625c3ba",
+   "enclavedns/src/auth.rs": "bdd7fca62f1f5c5ab8e582439f34164faf8a5c752b565b89f406eadfc9462a50",
+   "enclavedns/src/config.rs": "bee9a12ace9cf85bc4aac6e2518938e05efdb43cc969022178efa56c3d149364",
+   "enclavedns/src/dnssec.rs": "ed6211a485e7847c31d73449998dbbe59605782bdb6c64974519c3107ca70f3c",
+   "enclavedns/src/ens.rs": "f5380d9c76d9a013920c3dfa2bc574b8d2f782a35aea549187d233006530d16d",
+   "enclavedns/src/http.rs": "b1149032a25c609aaf3b750705549137bfa245c3a98450dd8f5cc8dfe5cbad4d",
+   "enclavedns/src/main.rs": "16b6b226a0cf09903c79fccf6ff41d44fee59cc499a4177d5571249dcf78cb87",
+   "enclavedns/src/name.rs": "185c5fb298f91b4dc4664afc6af10d5e9fc8f7a49f546359d32586ae93a08a15",
+   "enclavedns/src/net.rs": "65f8a7359b7f51714850441a7087f032e03a5c45eb251f8ac9d14f3c2b42f771",
+   "enclavedns/src/onion.rs": "5d1220e3ea85358d25d8028ec3cd52ba9d703888ead36f65d5acb5ec8ff20dd3",
+   "enclavedns/src/rdata.rs": "2ad59d020e8baaeba5bb933120015f8a66abbea0c0f35e1daadd31ec6ef9dda6",
+   "enclavedns/src/resolver.rs": "ea2b8f74f7d743075db578ff66a48385e4359079ebfea4b2bd0f9c735c15ae58",
+   "enclavedns/src/server.rs": "f99d02f22194b8a49bf5b82c6acc54a50ef602b8c0ca0d1371d93ccde5c1d05a",
+   "enclavedns/src/tls.rs": "d452e8bdc683e74984ea346e29dc08c9d4d4f4f11d8fdf6cc5e6b890e601dc43",
+   "enclavedns/src/ui.html": "7256cfd901d5eb8e976148afdd884904368ff3c4d21a42edcbd005e045505cb5",
+   "enclavedns/src/wire.rs": "efc09d03c0a7531c9afe3c7d1a42c8e7e4eb5c85ab8715ee39559ad8aaf77772",
+   "enclavedns/.cargo/config.toml": "98a9825c82f0cfc8a084dd1011b45a72d22cbadbb8734b27c54b9e6df5e0e804",
+   "enclavedns/tests/live.sh": "eb76f7bf6b9867f9dea2c4aae6743201cbd5e215cf74156e1689b9adb9f3facc",
+   "enclavedns/scripts/new-secrets.sh": "0227558aabe996cd871239ba8b1862efee3bbc17275344d2f6b26488021a658e",
+   "enclavedns/assets/banner.png": "6fb970e08b2b69f845f2778bfdd359b32ee823e1a7686558b606618a8e68952e",
+   "enclavedns/assets/banner.svg": "ddff7970cd5b9acc2eafb3728fe0459f998de1b792817844bfb1189154b13e5d",
+   "enclavedns/assets/deploy-config.template.json": "8eb2888fcae6869b036768b35883805e23a14cdaaf128edd6d0651510b7dd6fb",
+   "enclavedns/assets/logo.png": "1239c9c6e03aef1dc581d5bacd33f705663e3a48508e9d2e63d3d7dfe3d75a5c",
+   "enclavedns/assets/logo.svg": "8f306f5f7f83e556f0d4e9bb2bdf96159bd656fc3ea669a5f711a0f7b36dae61"
+  },
+  "cargoLockSha256": "aaafdda76c3ebb92f8ad66c12f11400e740bd101e63beb48c9944a83ec6ca6f8",
+  "basedOn": {
+   "canonicalRepo": "work/enclave-apps HEAD 50f93d74c5a41acb8df73c8ae094d8c9fb05e666 (enclavedns src unchanged since e015b3cd9e2fe34febf23b2116c4e65ec303e0fb)",
+   "patch": "fresh-before-stale-r2.patch 763f65d54c3937909dfa235b2dc772f22b4a402e7039675f466dfbc4a48c214a",
+   "versionBumpOnly": "Cargo.toml + Cargo.lock 0.1.3 -> 0.1.5"
+  },
+  "toolchain": {
+   "rustc": "rustc 1.99.0-nightly (84b36a78a 2026-08-06); binary: rustc; commit-hash: 84b36a78a28a63f134171c670be1932ffa2485f8; commit-date: 2026-08-06; host: x86_64-unknown-linux-gnu; release: 1.99.0-nightly; LLVM version: 23.1.0",
+   "cargo": "cargo 1.99.0-nightly (c79e8f894 2026-08-04)",
+   "wasmComponentLd": "wasm-component-ld 0.5.13",
+   "target": "wasm32-wasip2"
+  },
+  "command": "cargo build --release --target wasm32-wasip2 --offline --locked -j1",
+  "profile": "Cargo.toml [profile.release] opt-level=3 lto=true strip=true codegen-units=1 panic=abort (unchanged)",
+  "deps": "crates.io registry, offline, versions pinned by Cargo.lock"
+ },
+ "buildReceipt": {
+  "log": "release-0.1.5-r2/build-release.out",
+  "peakTreeRssMiB": 844,
+  "queueCapMiB": 1536,
+  "note": "root approved 2048; queue max choice is 1536"
+ },
+ "tests": {
+  "fixedSuite": "r2-tests.out: 45 passed (test component c1f773ec1e8fac299788694bc68992dda51e73d8abe697da2ed4fc60c6616359)",
+  "reviewControl": "r2-tests.out: b09130c7 + reviewer counterexamples -> both FAIL (component 9bb809e0961a0bbf476856ca8fa23f0da5e5d028dc7a0e69e125f0510756fd11)",
+  "smoke": "verify2.out: lookup localhost/.invalid exit 0; verify.part1-256.out: validate ok, WIT identical"
+ },
+ "rollback": {
+  "catalogApp": "0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06",
+  "index": 4,
+  "label": "0.1.4",
+  "cid": "bafybeicsvzar5llxdpwzypbhpo66sr5emywuum3u7jbvb35dnsz37h34uu",
+  "sha256": "0d14ec08333cabca00a3e147759bcea0ceb4fd302b8181ffa6af14164af09bd2",
+  "bytes": 2579532,
+  "localCopies": [
+   "/home/steven/Documents/Codex/2026-10-18/wo/work/bootstrap-cas/bafybeicsvzar5llxdpwzypbhpo66sr5emywuum3u7jbvb35dnsz37h34uu.bin",
+   "/home/steven/Projects/enclave-apps-dns/enclavedns/target/wasm32-wasip2/release/enclavedns.wasm"
+  ],
+  "appRef": "catalog://0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06/4"
+ },
+ "obsolete": {
+  "release-0.1.5/enclavedns-0.1.5-OBSOLETE-9e1bcf39.wasm": "built from b09130c7 before review R1/R2; DO NOT PUBLISH"
+ }
+}

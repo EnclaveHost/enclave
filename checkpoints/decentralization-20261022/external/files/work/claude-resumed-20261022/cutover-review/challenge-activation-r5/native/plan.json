@@ -1,0 +1,60 @@
+{
+  "mode": "PLAN ONLY (no network call made)",
+  "manifestSha": "4a6b0a30be2a5bc498944ae2e6c8005c1290f761307568dbef4c784332d87faa",
+  "manifest": {
+    "transportSha": "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f",
+    "files": {
+      "chact.ps1": "850c1825e606359462b6119625b29f454dd4b0a78dfa4bd2fc27ada8c0aeb7a3",
+      "node-hold-cutover.ps1": "df2e58f2569d04b2021a570d8525769ef84976335d2c2657e7e2a3a92604a5d8",
+      "edit-privacy-config.mjs": "4d9c231e624e9c51bc83e1e86b06816aa53a38a168752881a0ec71a879a8d511",
+      "challengeReplica.json": "2b644d22c3fe1517fcca13fd01c07363cd0f5f5a65ea7f16fb466d958d0b62ad",
+      "native-challenge-test.ps1": "c6e5e2803e638f42a644c008132653cf5ea6e468626d815931d663783019d8fa"
+    },
+    "stagePrefix": "C:\\ProgramData\\Enclave\\staging\\chact-native-",
+    "fixtureSec": 150,
+    "validateSecs": 210,
+    "fixtureWaitSec": 175,
+    "cleanupWait": [
+      25,
+      10
+    ],
+    "drain": [
+      70,
+      90
+    ],
+    "remove": [
+      30,
+      60
+    ],
+    "policyOk": [
+      "RemoteSigned",
+      "Unrestricted",
+      "Bypass"
+    ]
+  },
+  "localMismatches": {},
+  "stagePattern": "C:\\ProgramData\\Enclave\\staging\\chact-native-<uuid4 hex 12>",
+  "steps": [
+    "O_EXCL native-attempt.json",
+    "create stage (refuse existing)",
+    "scp 5 pinned files",
+    "validate: exact file count + 5 FileSha pins; effective execution policy honoured (refusal recorded, no workaround); native-challenge-test.ps1 as a registered bounded child (fixture bound 150 s, wait 175 s)",
+    "drain (always after a create attempt): wait for, then stop by an open re-checked handle, the registered own processes (budgeted)",
+    "remove: re-confirm every registered identity gone, re-read the registry; delete + verify gone only if unchanged, launch registered and the fixture recorded its confirmed cleanup; else KEEP the stage",
+    "write native-result.json (always; cleanup unknown if its call failed)"
+  ],
+  "texts": {
+    "create": "$s='C:\\ProgramData\\Enclave\\staging\\chact-native-000000000000';if(Test-Path -LiteralPath $s){throw 'stage exists'};$null=New-Item -ItemType Directory -Path $s;@{created=$s}|ConvertTo-Json -Compress",
+    "validate": "$s='C:\\ProgramData\\Enclave\\staging\\chact-native-000000000000';function J($o){$o|ConvertTo-Json -Compress -Depth 8};$g=Join-Path $s 'owned.jsonl';if(@(Get-ChildItem -LiteralPath $s -Force).Count -ne 5){throw 'stage file count differs'};$h=@{'chact.ps1'='850c1825e606359462b6119625b29f454dd4b0a78dfa4bd2fc27ada8c0aeb7a3';'node-hold-cutover.ps1'='df2e58f2569d04b2021a570d8525769ef84976335d2c2657e7e2a3a92604a5d8';'edit-privacy-config.mjs'='4d9c231e624e9c51bc83e1e86b06816aa53a38a168752881a0ec71a879a8d511';'challengeReplica.json'='2b644d22c3fe1517fcca13fd01c07363cd0f5f5a65ea7f16fb466d958d0b62ad';'native-challenge-test.ps1'='c6e5e2803e638f42a644c008132653cf5ea6e468626d815931d663783019d8fa'};foreach($k in $h.Keys){if((FileSha (Join-Path $s $k)) -ne $h[$k]){throw ('pin mismatch: '+$k)}};$ep=[string](Get-ExecutionPolicy);if(@('RemoteSigned','Unrestricted','Bypass') -notcontains $ep){J @{refused='execution-policy';executionPolicy=$ep;launched=$false};exit 7};$si=New-Object Diagnostics.ProcessStartInfo;$si.FileName='powershell.exe';$f=Join-Path $s 'native-challenge-test.ps1';$si.Arguments='-NoProfile -NonInteractive -File \"'+$f+'\" -Stage \"'+$s+'\"';$si.UseShellExecute=$false;$si.CreateNoWindow=$true;$si.RedirectStandardOutput=$true;$si.RedirectStandardError=$true;[IO.File]::AppendAllText($g,'{\"launching\":true}'+[char]10);$p=[Diagnostics.Process]::Start($si);$st=$(try{$p.StartTime.ToUniversalTime().ToString('o')}catch{'unknown'});[IO.File]::AppendAllText($g,(J ([ordered]@{role='fixture-host';pid=$p.Id;start=$st}))+[char]10);$o=$p.StandardOutput.ReadToEndAsync();$e=$p.StandardError.ReadToEndAsync();if(-not $p.WaitForExit(175000)){J @{timeout=$true;launched=$true;fixturePid=$p.Id};exit 8};$t=$(if($o.Wait(5000)){$o.Result}else{''});$x=$(if($e.Wait(5000)){$e.Result}else{''});$j=@($t -split '\r?\n'|?{$_ -like '{*'})[-1];if($j){$j;exit $p.ExitCode};$fr=Join-Path $s 'fixture-result.json';if(Test-Path -LiteralPath $fr){$k=@([IO.File]::ReadAllLines($fr)|?{$_ -like '{*'})[-1];if($k){J @{fixtureResultFile=$true;exit=$p.ExitCode;result=($k|ConvertFrom-Json)};exit 10}};if($x -match 'PSSecurityException|UnauthorizedAccess|running scripts is disabled|not digitally signed'){J @{refused='execution-policy';executionPolicy=$ep;launched=$true;exit=$p.ExitCode};exit 7};J @{noFixtureOutput=$true;launched=$true;exit=$p.ExitCode};exit 9",
+    "drain": "$s='C:\\ProgramData\\Enclave\\staging\\chact-native-000000000000';if(-not $s.StartsWith('C:\\ProgramData\\Enclave\\staging\\chact-native-')){throw 'not a chact-native stage'};$r=[ordered]@{stage=$s};if(-not(Test-Path -LiteralPath $s)){$r.gone=$true;$r.registered=0;$r|ConvertTo-Json -Compress;exit 0};$g=Join-Path $s 'owned.jsonl';$L=@($(if(Test-Path -LiteralPath $g){[IO.File]::ReadAllLines($g)|Where-Object{$_ -like '{*'}|ForEach-Object{$_|ConvertFrom-Json}}));$rows=@($L|Where-Object{$_.pid});$D=(Get-Date).AddSeconds(70);function T{[int][math]::Max(1,[math]::Min(10,($D-(Get-Date)).TotalSeconds))};function St($x){$v=$x.start;if($v -is [datetime]){return $v.ToUniversalTime()};try{[datetime]::Parse([string]$v,$null,[Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()}catch{$null}};function Same($x){$c=@(Get-CimInstance Win32_Process -Filter ('ProcessId='+[int]$x.pid) -OperationTimeoutSec (T));if($c.Count -ne 1){return 'gone'};$w=St $x;if($null -eq $w){return 'unknown'};if([math]::Abs(($c[0].CreationDate.ToUniversalTime()-$w).TotalSeconds) -lt 1){'same'}else{'gone'}};$end=(Get-Date).AddSeconds(25);do{$al=@($rows|Where-Object{(Same $_) -ne 'gone'});if(-not $al.Count){break};Start-Sleep -Seconds 1}while((Get-Date) -lt $end -and (Get-Date) -lt $D);$r.stopped=@();foreach($x in @($al|Where-Object{(Same $_) -eq 'same'})){try{$h=Get-Process -Id ([int]$x.pid);$null=$h.Handle;if([math]::Abs(($h.StartTime.ToUniversalTime()-(St $x)).TotalSeconds) -lt 1){$h.Kill();$r.stopped+=[string]$x.role+':'+$x.pid}}catch{}};$end=(Get-Date).AddSeconds(10);do{$al=@($rows|Where-Object{(Same $_) -ne 'gone'});if(-not $al.Count){break};Start-Sleep -Seconds 1}while((Get-Date) -lt $end -and (Get-Date) -lt $D);$r.registered=$rows.Count;$r.alive=@($al|ForEach-Object{[string]$_.role+':'+$_.pid});$r|ConvertTo-Json -Compress",
+    "remove": "$s='C:\\ProgramData\\Enclave\\staging\\chact-native-000000000000';if(-not $s.StartsWith('C:\\ProgramData\\Enclave\\staging\\chact-native-')){throw 'not a chact-native stage'};$r=[ordered]@{stage=$s};if(-not(Test-Path -LiteralPath $s)){$r.gone=$true;$r.registered=0;$r|ConvertTo-Json -Compress;exit 0};$g=Join-Path $s 'owned.jsonl';$L=@($(if(Test-Path -LiteralPath $g){[IO.File]::ReadAllLines($g)|Where-Object{$_ -like '{*'}|ForEach-Object{$_|ConvertFrom-Json}}));$rows=@($L|Where-Object{$_.pid});$D=(Get-Date).AddSeconds(30);function T{[int][math]::Max(1,[math]::Min(10,($D-(Get-Date)).TotalSeconds))};function St($x){$v=$x.start;if($v -is [datetime]){return $v.ToUniversalTime()};try{[datetime]::Parse([string]$v,$null,[Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()}catch{$null}};function Same($x){$c=@(Get-CimInstance Win32_Process -Filter ('ProcessId='+[int]$x.pid) -OperationTimeoutSec (T));if($c.Count -ne 1){return 'gone'};$w=St $x;if($null -eq $w){return 'unknown'};if([math]::Abs(($c[0].CreationDate.ToUniversalTime()-$w).TotalSeconds) -lt 1){'same'}else{'gone'}};$al=@($rows|Where-Object{(Same $_) -ne 'gone'});$why=@();if($al.Count){$why+='registered own processes not confirmed exited'};if(@($L|Where-Object{$_.launching}).Count -and -not @($rows|Where-Object{$_.role -eq 'fixture-host'}).Count){$why+='a fixture launch has no registered identity'};$fin=@($L|Where-Object{$_.cleanup -eq 'fixture'});if(@($rows|Where-Object{$_.role -eq 'fixture'}).Count -and -not($fin.Count -eq 1 -and $fin[0].allExited -eq $true -and $fin[0].queryCleanupFailed -eq $false)){$why+='the fixture recorded no confirmed cleanup of its children and bounded readers'};$L2=@($(if(Test-Path -LiteralPath $g){[IO.File]::ReadAllLines($g)|Where-Object{$_ -like '{*'}}));if($L2.Count -ne $L.Count){$why+='the registry changed during cleanup';$r.registeredNow=$L2.Count};$r.registered=$rows.Count;$r.alive=@($al|ForEach-Object{[string]$_.role+':'+$_.pid});if($why.Count){$r.gone=$false;$r.kept=($why -join '; ')+': the stage is kept';$r|ConvertTo-Json -Compress;exit 0};Remove-Item -LiteralPath $s -Recurse -Force;$r.gone=(-not(Test-Path -LiteralPath $s));$r|ConvertTo-Json -Compress"
+  },
+  "encodedSizes": {
+    "create": 1852,
+    "validate": 7556,
+    "drain": 6176,
+    "remove": 7128
+  },
+  "encodedLimit": 7900,
+  "execute": "python3 run-native.py --execute --root-reviewed 4a6b0a30be2a5bc498944ae2e6c8005c1290f761307568dbef4c784332d87faa"
+}

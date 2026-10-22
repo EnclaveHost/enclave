@@ -1,0 +1,69 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/mock.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/mock.rs
+@@ -21,6 +21,10 @@
+     /// [`MockNetwork::apply_deferred`] (after any number of listings, restarts
+     /// or deadlines: no timing assumption).
+     Defer,
++    /// PATCH C2: the call is applied normally (so a fault queued after it hits the NEXT call, e.g. a write's phase 2).
++    Pass,
++    /// PATCH C2: the indexer refuses the call definitively (a 400): nothing is applied, and the caller knows it.
++    Reject,
+ }
+ 
+ /// A mock Sia network: a mock indexer paired with a mock host transport, whose
+@@ -116,6 +120,12 @@
+         self.api.set_offline(offline);
+     }
+ 
++    /// PATCH U1: hold object-event publication (pins and deletes leave the event feed until released), as indexd
++    /// does between publisher ticks or during a publication stall. Releasing publishes everything held.
++    pub fn hold_publication(&self, hold: bool) {
++        self.api.hold_publication(hold);
++    }
++
+     /// Queues `fault` for the next call of `op` on the mock indexer:
+     /// `"pin_object"` (also object metadata updates), `"delete_object"`, or
+     /// `"pin_slabs"` (the upload path; only [`Fault::Hang`] applies there).
+@@ -145,10 +155,41 @@
+         self.api.pin_slabs_calls()
+     }
+ 
++    /// PATCH U1-B (blocked listing): the indexer's operator blocks (or unblocks) an object key, as indexd's admin
++    /// API does (`PUT`/`DELETE /objects/blocklist/:key`).
++    pub fn block_object(&self, key: crate::Hash256, blocked: bool) {
++        self.api.block_object(key, blocked);
++    }
++
++    /// PATCH C2, TEST ONLY: model an old indexd without the "cas-v4" capability.
++    pub fn set_no_cas_capability(&self, old: bool) {
++        self.api.set_no_cas_capability(old);
++    }
++
++    /// PATCH C2: this mock indexer's account head and whether it is enrolled ("mode": "cas").
++    pub fn c2_head(&self) -> (u64, bool) {
++        self.api.c2_head()
++    }
++
++    /// PATCH U1-B: cap every current-listing page at `n` entries, whatever the limit asked (None: no cap).
++    pub fn set_listing_page_limit(&self, n: Option<usize>) {
++        self.api.set_page_limit(n);
++    }
++
++    /// PATCH (writer fencing): the fence installed on this mock indexer's account.
++    pub fn installed_fence(&self) -> Option<crate::fence::FenceToken> {
++        self.api.installed_fence()
++    }
++
++    /// PATCH (writer fencing): raises this mock indexer installed.
++    pub fn fence_raises(&self) -> usize {
++        self.api.fence_raises()
++    }
++
+     /// Builds an [`Sdk`] backed by this network.
+     pub async fn sdk(&self, app_key: AppKey) -> Result<Sdk, BuilderError> {
+         Sdk::with_backends(
+-            app_client::Client::Mock(self.api.clone()),
++            app_client::Client::Mock(self.api.for_new_client()), // PATCH (writer fencing): its own credential slot
+             Client::Mock(self.transport.clone()),
+             Arc::new(app_key),
+         )

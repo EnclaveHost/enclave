@@ -1,0 +1,15 @@
+diff --git a/Dockerfile b/Dockerfile
+index 881526f5..1d4f9659 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -14,7 +14,9 @@ WORKDIR /app
+ COPY package.json package-lock.json ./
+ RUN npm ci --omit=dev
+ COPY supervisor.js ./
+-COPY sdk/bootstrap/package.mjs ./sdk/bootstrap/
++COPY sdk/bootstrap/package.mjs sdk/bootstrap/storage.mjs ./sdk/bootstrap/
++COPY sdk/storage/replicas.mjs sdk/storage/upload-auth.mjs sdk/storage/gateways.mjs ./sdk/storage/
++COPY site/js/core/upload-auth.js ./site/js/core/
+ COPY windows/node/verification-checkpoints.mjs ./windows/node/
+ COPY windows/node/host-admission.bundle.mjs ./windows/node/
+ # wallet sessions as owner credentials (shared with the Windows node, which ships it through deploy-files.mjs)

@@ -1,0 +1,24 @@
+--- a/isolation/m2/front/shield_direct.go
++++ b/isolation/m2/front/shield_direct.go
+@@ -26,7 +26,8 @@
+ //     until the package, bundle config, egress and fresh lease agree. No relay release is accepted.
+ // The attestation every ACME push carries is the m3 monitor's: the launcher's signed document plus the guest's own
+ // OpenHCL VBS report (vtpmclient) over Bind2(this key, the push hash, RuntimeID) || AppID. A responder accepts it only
+-// under a Shield policy its operator pinned, with a host TPM session it challenged itself (relay/dns-challenge-shield.mjs).
++// under a Shield policy its operator pinned, with a host TPM session it challenged itself (relay/dns-challenge-shield.mjs);
++// an app-zone replica, additionally, only under the session of the lease's runner (network/app-zone-shield.mjs).
+ import (
+ 	"bytes"
+ 	"context"
+@@ -129,6 +130,11 @@
+ 	if f.names, err = f.startOwnerNames(startup, d.egress, roots); err != nil {
+ 		return err
+ 	}
++	// app-zone issuance (appzone.go), as on the SNP direct front: this domain's own key and ACME account, its own
++	// <id8>.<zone> name only (the launcher's /cert.name, which must equal the authorized deployment), each dns-01 push
++	// carrying this domain's Shield document; a replica accepts it only under a TPM session of the lease's runner
++	// (network/app-zone-shield.mjs). A guest whose package selects no app zone keeps every existing path.
++	f.appZone = f.startAppZone(startup, d.egress, roots)
+ 	fmt.Printf("DOM shield direct: deployment 0x%x authorized by its owner-committed package (tier T0-hv, hostExcluded=false)\n", id[:4])
+ 	return nil
+ }

@@ -1,0 +1,14 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {reconcileApps} from './reconcile-apps.mjs';
+const root=path.resolve('work/host-reconcile-fresh');await fs.mkdir(root,{recursive:true,mode:0o700});
+const production=JSON.parse(await fs.readFile('/home/steven/enclave-prod/enclave-network/metal0/config.json'));
+const configFile=path.join(root,'config.json'),namesFile=path.join(root,'names.json');
+await fs.writeFile(configFile,JSON.stringify({version:2,runner:production.runner,chain:production.chain,apps:[],enclaveNetwork:{}},null,2),{flag:'wx',mode:0o600});
+await fs.writeFile(namesFile,JSON.stringify({version:1,deployments:Object.fromEntries(production.apps.map(a=>[a.deploymentId,a.names]))}),{mode:0o600});
+let reloads=0;
+const result=await reconcileApps({configFile,namesFile,guestdRoot:'/home/steven/enclave-prod/guestd-root',pinFile:'outputs/host-runtime-release/contract-pins.json',reloadAgent:async()=>{reloads++;}});
+const config=JSON.parse(await fs.readFile(configFile));
+if(!config.apps.some(a=>a.deploymentId.startsWith('0x9eb4e600')&&a.names.includes('eyesoff.ai'))||reloads!==1)throw Error('fresh enrollment did not recover expected app and custom name');
+await fs.writeFile(path.join(root,'result.json'),JSON.stringify({...result,apps:config.apps.map(a=>({deploymentId:a.deploymentId,names:a.names})),reloads,liveAgentReloaded:false},null,2));
+console.log(JSON.stringify({freshApps:config.apps.length,reloads,liveAgentReloaded:false}));

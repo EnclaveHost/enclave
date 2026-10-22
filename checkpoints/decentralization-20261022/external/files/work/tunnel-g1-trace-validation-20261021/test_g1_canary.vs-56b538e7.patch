@@ -1,0 +1,76 @@
+--- ../tunnel-g1-owner-20261021/test_g1_canary.py	2026-10-21 15:31:55.385019716 -0700
++++ test_g1_canary.py	2026-10-21 15:37:12.920276331 -0700
+@@ -92,9 +92,10 @@
+             self.lock.release()
+             try: self.watch_done.wait(3)
+             finally: self.lock.acquire()
+-            starts = [{"pid": PIDS[n[-1]], "ppid": self.opt.get("tracePpid", 1234), "sid": self.opt.get("traceSid", "S-1-5-18")}
+-                      for n, k in self.tasks.items() if k["lastRun"]]
+-            return {"from": self.iso(), "sched": 1234, "on": True, "starts": starts, "to": self.iso()}
++            starts = [{"pid": PIDS[n[-1]], "ppid": self.opt.get("tracePpid", 1234), "session": 0, "sid": self.opt.get("traceSid", "S-1-5-18"),
++                       "created": self.iso(k["lastRun"] + self.opt.get("traceSkew", 0))} for n, k in self.tasks.items() if k["lastRun"]]
++            return {"from": self.iso(), "sched": 1234, "on": True, "starts": starts, "errs": [],
++                    "cleanup": {"unregistered": True, "subscribers": 0}, "to": self.iso()}
+         if "$G1='watch'" in x:
+             start = self.watch_from = self.t; self.watch_in.set(); self.lock.release()
+             try: self.s_started.wait(2)
+@@ -192,7 +193,12 @@
+         G.Canary.load = self.orig_load; G.CLOCK.update(self.orig_clock); G.LIMIT = self.orig_limit; shutil.rmtree(self.tmp)
+ 
+     def plan(self, **kw):
+-        a = type("A", (), {"manifest": str(self.man), "offset_min": kw.get("offset", 2)})()
++        tvf = None
++        if kw.get("tv"):                                               # a native trace-validation result (trace_validate.py)
++            import test_trace_validate as TV
++            r = TV.GOOD if kw["tv"] == "valid" else TV.mut(starts__0__sid="S-1-5-18")
++            tvf = self.tmp / "tv.json"; tvf.write_text(json.dumps({"result": r}))
++        a = type("A", (), {"manifest": str(self.man), "offset_min": kw.get("offset", 2), "trace_validation": str(tvf) if tvf else None})()
+         out = io.StringIO()
+         with contextlib.redirect_stdout(out): G.cmd_plan(a)
+         return json.loads(out.getvalue())
+@@ -381,7 +387,7 @@
+ 
+ 
+     def test_19_start_trace_sid_is_direct_token_proof_when_getowner_races(self):
+-        p = self.plan(); fake = self.wire(owner=None, orc=None); code, res, J = self.go(p, fake)
++        p = self.plan(tv="valid"); fake = self.wire(owner=None, orc=None); code, res, J = self.go(p, fake)
+         v = res["verdict"]; self.assertEqual(v["G1"], "PASS", v); self.assertTrue(all(i["via"] == ["startTraceSid"] for i in v["identity"].values()))
+ 
+     def test_20_null_owner_without_trace_is_incomplete_and_keeps_diagnostics(self):
+@@ -390,14 +396,34 @@
+         self.assertTrue(all(i["ownerRc"] == 8 and "ownerErr" in i for i in v["identity"].values()))
+ 
+     def test_21_no_weakening_admin_sid_is_not_system_proof(self):
+-        p = self.plan(); fake = self.wire(owner=None, orc=None, traceSid="S-1-5-32-544"); code, res, J = self.go(p, fake)
++        p = self.plan(tv="valid"); fake = self.wire(owner=None, orc=None, traceSid="S-1-5-32-544"); code, res, J = self.go(p, fake)
+         self.assertTrue(res["verdict"]["G1"].startswith("INCOMPLETE"), res["verdict"])     # receipts are S-1-5-18 here too: not counted
+ 
+     def test_22_trace_start_from_another_parent_is_not_joined(self):
+-        p = self.plan(); fake = self.wire(owner=None, orc=None, tracePpid=999); code, res, J = self.go(p, fake)
++        p = self.plan(tv="valid"); fake = self.wire(owner=None, orc=None, tracePpid=999); code, res, J = self.go(p, fake)
+         self.assertTrue(res["verdict"]["G1"].startswith("INCOMPLETE"), res["verdict"])
+ 
+ 
++    def test_23_trace_sid_does_not_count_without_native_validation(self):
++        p = self.plan(); fake = self.wire(owner=None, orc=None); code, res, J = self.go(p, fake)
++        v = res["verdict"]; self.assertTrue(v["G1"].startswith("INCOMPLETE"), v)
++        self.assertTrue(all(i["traceSid"] == "S-1-5-18" and i["traceValidated"] is False and i["via"] == [] for i in v["identity"].values()))
++
++    def test_24_validation_that_saw_system_for_a_user_child_is_rejected(self):
++        p = self.plan(tv="provider-system"); fake = self.wire(owner=None, orc=None); code, res, J = self.go(p, fake)
++        plan = json.loads((G.RUNS / p["run"] / "PLAN.json").read_text())
++        self.assertIs(plan["traceValidation"]["VALID"], False); self.assertIn("sidIsSessionUser", plan["traceValidation"]["failed"])
++        self.assertTrue(res["verdict"]["G1"].startswith("INCOMPLETE"))
++
++    def test_25_pid_reuse_time_mismatch_is_not_joined(self):
++        p = self.plan(tv="valid"); fake = self.wire(owner=None, orc=None, traceSkew=10); code, res, J = self.go(p, fake)
++        v = res["verdict"]; self.assertTrue(v["G1"].startswith("INCOMPLETE"), v); self.assertTrue(all(i["traceJoined"] == 0 for i in v["identity"].values()))
++
++    def test_26_getowner_alone_still_passes_without_validation(self):
++        p = self.plan(); fake = self.wire(); code, res, J = self.go(p, fake)
++        self.assertEqual(res["verdict"]["G1"], "PASS"); self.assertTrue(all(i["via"] == ["getOwner"] for i in res["verdict"]["identity"].values()))
++
++
+ def main():
+     r = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(T))
+     return 0 if r.wasSuccessful() else 1

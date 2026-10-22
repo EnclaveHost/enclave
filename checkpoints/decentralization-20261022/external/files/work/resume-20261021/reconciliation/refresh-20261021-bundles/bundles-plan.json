@@ -1,0 +1,47 @@
+{
+ "at": "2026-10-21T13:11:24.695943+00:00",
+ "mode": "--plan",
+ "oldTree": "7990461e081fbed62fd41eb2918666cbb10af8cc",
+ "sourceToBundle": {
+  "platform-api": {
+   "oldSha256": "efebdc19257d4f1b6d5af8d7d6ce1a82c89c3d08f9c37bc826ee0a4626538121",
+   "newSha256": "e7a4fc1d72801810daa326756c768b2aa1055ca962bf569dfffc3c029a0a8dc3",
+   "bytes": 8461902,
+   "inputs": 2193,
+   "sourceInputs": 88,
+   "dependencyInputs": 2105,
+   "sourceInputsChangedVsOld": [
+    "relay/api-relay.js",
+    "relay/boxhost.js",
+    "relay/network-runtime.bundle.mjs",
+    "relay/secrets.js",
+    "relay/snp-verify.mjs"
+   ],
+   "allSourceInputsEqualCandidate": true,
+   "dependenciesEqualOldManifest": true,
+   "manifestSha256": "ff3e8dac7891013e5c118658a995c98c5fcb7834b55fb61201f7263314681cb5"
+  },
+  "mcp-server": {
+   "oldSha256": "a026ec651cecda69f084652d89406101f85a5f35c6da5effd3c251861d1af2bc",
+   "newSha256": "bf33fee0ff91b7c6b8807e8eac105b8ec0cd47cfd8d2350c93c8b1230cc2ae70",
+   "bytes": 4926578,
+   "inputs": 2970,
+   "sourceInputs": 92,
+   "dependencyInputs": 2878,
+   "sourceInputsChangedVsOld": [
+    "relay/snp-verify.mjs",
+    "windows/node/host-admission.bundle.mjs"
+   ],
+   "allSourceInputsEqualCandidate": true,
+   "dependenciesEqualOldManifest": true,
+   "manifestSha256": "5b6757a3c16df61ebec625960883b8bea57da209a6c886a99a21468fbbeb5b79"
+  },
+  "network-runtime (generated prerequisite, gitignored, NOT in the candidate)": {
+   "sha256": "1357ec00de225222e335f8974ac5f09d9eac0bc094e167c1ab024cf736d87fd4",
+   "builtBy": "relay/build-network.mjs (in bundle-refresh/tree)",
+   "mainPrebuilt": "3de76b54cf64fc06b5965bcc989290d6653de6e4f6e59f00b0da52e39218d76a",
+   "differsOnlyBy": "relay/snp-verify.mjs (candidate == T(main): one comment)"
+  }
+ },
+ "stop": []
+}

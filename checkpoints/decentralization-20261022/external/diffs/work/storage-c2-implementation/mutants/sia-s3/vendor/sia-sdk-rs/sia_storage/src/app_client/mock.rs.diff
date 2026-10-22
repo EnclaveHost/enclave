@@ -1,0 +1,492 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/mock.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/mock.rs
+@@ -19,6 +19,7 @@
+ use crate::slabs::{SealedObjectSummary, Slab};
+ use crate::time::Duration;
+ use crate::{Account, App, AppMetadata, HostQuery, KeyStats, Object, ObjectsCursor, SealedObject};
++use crate::fence::{FenceCredential, FenceRaise, FenceReceipt, FenceSlot, FenceState, FenceToken};
+ 
+ const MOCK_AUTHORITY: &str = "mock.indexd";
+ 
+@@ -65,6 +66,44 @@
+     offline: bool,
+     /// Faults the next calls of an operation suffer, in order (see [`crate::mock::Fault`]).
+     faults: HashMap<&'static str, VecDeque<crate::mock::Fault>>,
++    /// PATCH U1: while set, pins and deletes stay unpublished, as indexd's object events do until its publisher
++    /// stamps them (1 s ticks, or a stall): the event feed (`objects`) leaves them out, `current_objects` does not.
++    hold_publication: bool,
++    unpublished: std::collections::HashSet<Hash256>,
++    /// PATCH (writer fencing): the account's installed fence and the receipt issued for it (interface v3 section 2)
++    fence: Option<FenceToken>,
++    fence_receipt: Option<[u8; 16]>,
++    /// raises the indexer applied (installed), for tests
++    fence_raises: usize,
++    /// PATCH C2 (G-C2 v4.0): sticky CAS enrolment, the account's event sequence head, and the last head-advancing
++    /// operation (id and server-computed digest; cleared by every raise)
++    cas_mode: bool,
++    seq: u64,
++    last_op: Option<([u8; 16], [u8; 32])>,
++    /// PATCH C2, TEST ONLY: an old indexd without the "cas-v4" capability
++    no_cas_capability: bool,
++    /// PATCH C2, TEST ONLY: an indexd with cas-v4 but before G-C2 R2 (no "op-nonce" capability, no opNonce)
++    no_op_nonce: bool,
++    /// PATCH U1-B (blocked listing): object keys the indexer's operator blocked (indexd's blocklist is by object key,
++    /// across accounts): hidden from the feed, refused by `object` and by a re-pin (451), listed flagged and without
++    /// the object by `current_objects` (which models `?blocked=true`, the only way the SDK asks)
++    blocked: std::collections::HashSet<Hash256>,
++    /// PATCH U1-B: the most entries one `current_objects` page returns, whatever the limit asked (None: the limit)
++    page_limit: Option<usize>,
++}
++
++/// PATCH (writer fencing): the exact check every fenced mutation runs, at the moment the indexer applies it.
++fn fence_check(state: &State, cred: Option<FenceCredential>) -> Result<(), Option<FenceToken>> {
++    match (state.fence, cred) {
++        (None, None) => Ok(()),
++        (None, Some(_)) => Err(None),
++        (Some(f), Some(c)) if c.token == f && Some(c.receipt.0) == state.fence_receipt => Ok(()),
++        (Some(f), _) => Err(Some(f)),
++    }
++}
++
++fn fence_refusal_error(current: Option<FenceToken>) -> Error {
++    Error::Fenced(current)
+ }
+ 
+ /// An in-memory stand-in for the indexer API.
+@@ -80,6 +119,9 @@
+ pub(crate) struct Client {
+     state: Arc<RwLock<State>>,
+     deferred: Arc<std::sync::Mutex<Vec<Deferred>>>,
++    /// PATCH (writer fencing): CLIENT-side state (the credential this SDK presents); not indexer state. Each SDK built
++    /// on a mock network gets its own (`for_new_client`).
++    fence: FenceSlot,
+ }
+ 
+ #[cfg(test)]
+@@ -96,6 +138,149 @@
+         Self::default()
+     }
+ 
++    /// PATCH (writer fencing): the same mock indexer, seen by a new client (its own credential slot).
++    pub(crate) fn for_new_client(&self) -> Self {
++        Self { state: self.state.clone(), deferred: self.deferred.clone(), fence: FenceSlot::default() }
++    }
++
++    pub(crate) fn fence_slot(&self) -> &FenceSlot {
++        &self.fence
++    }
++
++    fn cred(&self) -> Option<FenceCredential> {
++        self.fence.lock().unwrap().cred
++    }
++
++    /// PATCH C2: does this client send v4 requests (it enrolled)? Non-advancing routes carry a fresh op then.
++    fn v4(&self) -> bool {
++        !matches!(self.fence.lock().unwrap().c2, crate::fence::C2State::Off)
++    }
++
++    /// PATCH C2, TEST ONLY: model an old indexd without the "cas-v4" capability.
++    pub(crate) fn set_no_cas_capability(&self, old: bool) {
++        self.state.write().unwrap().no_cas_capability = old;
++    }
++
++    /// PATCH C2, TEST ONLY: model a cas-v4 indexd before G-C2 R2 (no op-nonce).
++    pub(crate) fn set_no_op_nonce(&self, old: bool) {
++        self.state.write().unwrap().no_op_nonce = old;
++    }
++
++    /// PATCH C2, TEST ONLY: the account's head and CAS mode.
++    pub(crate) fn c2_head(&self) -> (u64, bool) {
++        let st = self.state.read().unwrap();
++        (st.seq, st.cas_mode)
++    }
++
++    /// Records a fenced refusal on this client (the first one) and returns the error.
++    fn refused(&self, current: Option<FenceToken>) -> Error {
++        let mut st = self.fence.lock().unwrap();
++        if st.conflict.is_none() {
++            st.conflict = Some(current);
++        }
++        fence_refusal_error(current)
++    }
++
++    /// PATCH (writer fencing): the installed fence, for tests.
++    pub(crate) fn installed_fence(&self) -> Option<FenceToken> {
++        self.state.read().unwrap().fence
++    }
++
++    pub(crate) fn fence_raises(&self) -> usize {
++        self.state.read().unwrap().fence_raises
++    }
++
++    /// PATCH (writer fencing): `GET /fence`.
++    pub(crate) async fn fence_get(&self, _: &PrivateKey) -> Result<FenceState, Error> {
++        self.reachable()?;
++        // fault op "fence_get": Hang models a GET /fence that never answers (the reader times out)
++        if let Some(crate::mock::Fault::Hang) = self.take_fault("fence_get") {
++            return std::future::pending().await;
++        }
++        let state = self.state.read().unwrap();
++        use sha2::Digest;
++        Ok(FenceState {
++            fence: state.fence,
++            receipt_sha256: state.fence_receipt.map(|r| sha2::Sha256::digest(r).into()),
++            seq: Some(state.seq),
++            last_op: state.last_op.map(|(o, _)| o),
++            last_op_digest: state.last_op.map(|(_, d)| d),
++            cas_mode: state.cas_mode,
++            capabilities: if state.no_cas_capability {
++                vec!["fence-v3".into()]
++            } else if state.no_op_nonce {
++                vec!["fence-v3".into(), crate::fence::C2_CAPABILITY.into()]
++            } else {
++                vec!["fence-v3".into(), crate::fence::C2_CAPABILITY.into(), crate::fence::C2_NONCE_CAPABILITY.into()]
++            },
++            // G-C2 R2: fresh entropy in every answer, never stored
++            op_nonce: (!state.no_cas_capability && !state.no_op_nonce).then(rand::random),
++        })
++    }
++
++    /// PATCH (writer fencing): `POST /fence`: install only a strictly greater token; a new receipt every time. Faults
++    /// apply under the op name "fence_raise" (e.g. ApplyThenFail: installed, response lost).
++    /// PATCH C2: `cas` sends "mode": "cas" (sticky enrolment; an old indexd ignores it). On an enrolled account a raise
++    /// without it is refused (412 mode). Every install clears the last operation. Returns the head with an install.
++    pub(crate) async fn fence_raise(&self, _: &PrivateKey, token: FenceToken, cas: bool) -> Result<(FenceRaise, Option<u64>), Error> {
++        self.reachable()?;
++        self.with_fault("fence_raise", move |me| {
++            let mut state = me.state.write().unwrap();
++            if state.cas_mode && !cas {
++                return Err(Error::ModeConflict);
++            }
++            if state.fence.is_none_or(|f| token > f) {
++                let receipt: [u8; 16] = rand::random();
++                state.fence = Some(token);
++                state.fence_receipt = Some(receipt);
++                state.fence_raises += 1;
++                state.last_op = None;
++                if cas && !state.no_cas_capability {
++                    state.cas_mode = true;
++                }
++                Ok((FenceRaise::Installed(FenceCredential { token, receipt: FenceReceipt(receipt) }), Some(state.seq)))
++            } else {
++                Ok((FenceRaise::Refused(state.fence), None))
++            }
++        })
++        .await
++    }
++
++    /// PATCH C2 (G-C2 v4.0 section 4): the CAS gate of a head-advancing mutation, checked after the fence and before
++    /// any side effect. Ok(None): apply. Ok(Some(seq)): the identical operation was applied already (replayed; apply
++    /// nothing). A v3 request on an enrolled account, or a v4 one that is not at the head, is refused.
++    fn cas_gate(state: &State, v4: Option<crate::fence::C2Op>, digest: impl FnOnce() -> [u8; 32]) -> Result<Option<u64>, Error> {
++        let Some(v4) = v4 else {
++            return Ok(None);
++        };
++        let Some(sq) = v4.sq else {
++            return Err(Error::Api(StatusCode::BAD_REQUEST, "sq is required on a head-advancing route".into()));
++        };
++        if !state.cas_mode {
++            return Err(Error::SeqConflict(None));
++        }
++        if state.seq == sq {
++            return Ok(None);
++        }
++        if state.seq == sq + 1 {
++            if let Some((op, d)) = state.last_op {
++                if op == v4.op {
++                    return if d == digest() { Ok(Some(state.seq)) } else { Err(Error::OpConflict(Some(state.seq))) };
++                }
++            }
++        }
++        Err(Error::SeqConflict(Some(state.seq)))
++    }
++
++    /// PATCH C2: after an applied head-advancing mutation: the head advances and a v4 operation is recorded.
++    fn cas_applied(state: &mut State, v4: Option<crate::fence::C2Op>, digest: [u8; 32]) -> Option<crate::fence::C2Answer> {
++        state.seq += 1;
++        v4.map(|v| {
++            state.last_op = Some((v.op, digest));
++            crate::fence::C2Answer { seq: state.seq, replayed: false }
++        })
++    }
++
+     /// Appends to the host list returned by [`Client::hosts`].
+     pub(crate) fn add_hosts(&self, hosts: Vec<Host>) {
+         self.state.write().unwrap().hosts.extend(hosts);
+@@ -134,6 +319,30 @@
+         self.state.write().unwrap().offline = offline;
+     }
+ 
++    /// PATCH U1: hold (or release, publishing everything held) object-event publication.
++    pub(crate) fn hold_publication(&self, hold: bool) {
++        let mut state = self.state.write().unwrap();
++        state.hold_publication = hold;
++        if !hold {
++            state.unpublished.clear();
++        }
++    }
++
++    /// PATCH U1-B: the indexer's operator blocks (or unblocks) an object key, as its admin API does.
++    pub(crate) fn block_object(&self, key: Hash256, blocked: bool) {
++        let mut state = self.state.write().unwrap();
++        if blocked {
++            state.blocked.insert(key);
++        } else {
++            state.blocked.remove(&key);
++        }
++    }
++
++    /// PATCH U1-B: cap every `current_objects` page at `n` entries (a server whose pages are shorter than asked).
++    pub(crate) fn set_page_limit(&self, n: Option<usize>) {
++        self.state.write().unwrap().page_limit = n;
++    }
++
+     /// Queues `fault` for the next call of `op` (`"pin_object"`, `"pin_slabs"` or `"delete_object"`).
+     pub(crate) fn push_fault(&self, op: &'static str, fault: crate::mock::Fault) {
+         self.state.write().unwrap().faults.entry(op).or_default().push_back(fault);
+@@ -172,6 +381,13 @@
+                 });
+                 std::future::pending().await
+             }
++            Some(Fault::Pass) => apply(self),
++            Some(Fault::ApplyThenLose) => {
++                // the request reaches the indexer (applied or refused there), and its answer, whatever it was, is lost
++                let _ = apply(self);
++                Err(Error::Api(StatusCode::BAD_GATEWAY, format!("{op}: response lost")).into())
++            }
++            Some(Fault::Reject) => Err(Error::Api(StatusCode::BAD_REQUEST, format!("{op}: rejected (test fault)")).into()),
+             Some(Fault::Defer) => {
+                 self.deferred.lock().unwrap().push(Box::new(move |me: &Client| {
+                     let _ = apply(me);
+@@ -276,6 +492,9 @@
+         key: &Hash256,
+     ) -> Result<SealedObject, Error> {
+         self.reachable()?;
++        if self.state.read().unwrap().blocked.contains(key) {
++            return Err(Error::Api(StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS, "object is unavailable for legal reasons".into()));
++        }
+         self.state
+             .read()
+             .unwrap()
+@@ -296,11 +515,13 @@
+         let mut events: Vec<SealedObjectEvent> = state
+             .objects
+             .iter()
++            .filter(|(id, _)| !state.unpublished.contains(*id) && !state.blocked.contains(*id))
+             .map(|(id, stored)| SealedObjectEvent {
+                 id: *id,
+                 deleted: stored.sealed.is_none(),
+                 updated_at: stored.updated_at,
+                 object: stored.sealed.clone(),
++                blocked: false,
+             })
+             .collect();
+         // Hash256 is not Ord; order by its raw bytes so the cursor has a
+@@ -315,15 +536,62 @@
+         Ok(events)
+     }
+ 
++    /// PATCH U1: current (not deleted) objects in ID byte order after `after`, published or not. PATCH U1-B: blocked
++    /// ones flagged, without their object, as `?blocked=true` lists them.
++    pub(crate) async fn current_objects(
++        &self,
++        _: &PrivateKey,
++        after: Option<Hash256>,
++        limit: Option<usize>,
++    ) -> Result<Vec<SealedObjectEvent>, Error> {
++        self.reachable()?;
++        let state = self.state.read().unwrap();
++        let mut events: Vec<SealedObjectEvent> = state
++            .objects
++            .iter()
++            .filter_map(|(id, stored)| {
++                let blocked = state.blocked.contains(id);
++                stored.sealed.clone().map(|o| SealedObjectEvent {
++                    id: *id,
++                    deleted: false,
++                    updated_at: stored.updated_at,
++                    object: (!blocked).then_some(o),
++                    blocked,
++                })
++            })
++            .collect();
++        let key = |e: &SealedObjectEvent| *AsRef::<[u8; 32]>::as_ref(&e.id);
++        events.sort_by_key(key);
++        if let Some(after) = after {
++            let after = *AsRef::<[u8; 32]>::as_ref(&after);
++            events.retain(|e| key(e) > after);
++        }
++        events.truncate(limit.unwrap_or(usize::MAX).min(state.page_limit.unwrap_or(usize::MAX)));
++        Ok(events)
++    }
++
+     pub(crate) async fn pin_object(
+         &self,
+         _: &PrivateKey,
+         object: &SealedObject,
+-    ) -> Result<(), PinObjectError> {
++        v4: Option<crate::fence::C2Op>,
++    ) -> Result<Option<crate::fence::C2Answer>, PinObjectError> {
+         self.reachable()?;
+         let object = object.clone();
+-        self.with_fault("pin_object", move |me| {
++        let cred = self.cred();
++        let r = self.with_fault("pin_object", move |me| {
+             let mut state = me.state.write().unwrap();
++            if let Err(current) = fence_check(&state, cred) {
++                return Err(PinObjectError::Client(fence_refusal_error(current)));
++            }
++            let body = serde_json::to_vec(&super::PinObjectRequest::from(&object)).unwrap_or_default();
++            let digest = cred.zip(v4).map(|(c, v)| crate::fence::c2_op_digest("POST", "mock", "/objects", &c, &v, Some(&body))).unwrap_or([0; 32]);
++            if let Some(seq) = Self::cas_gate(&state, v4, || digest)? {
++                return Ok(Some(crate::fence::C2Answer { seq, replayed: true }));
++            }
++            if state.blocked.contains(&object.id()) {
++                return Err(PinObjectError::Client(Error::Api(StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS, "object is unavailable for legal reasons".into())));
++            }
+             if object
+                 .slabs
+                 .iter()
+@@ -338,23 +606,44 @@
+                     updated_at: Utc::now(),
+                 },
+             );
+-            Ok(())
++            if state.hold_publication {
++                state.unpublished.insert(object.id());
++            }
++            Ok(Self::cas_applied(&mut state, v4, digest))
+         })
+-        .await
++        .await;
++        match r {
++            Err(PinObjectError::Client(Error::Fenced(current))) => Err(PinObjectError::Client(self.refused(current))),
++            other => other,
++        }
+     }
+ 
+-    pub(crate) async fn delete_object(&self, _: &PrivateKey, key: &Hash256) -> Result<(), Error> {
++    pub(crate) async fn delete_object(&self, _: &PrivateKey, key: &Hash256, v4: Option<crate::fence::C2Op>) -> Result<Option<crate::fence::C2Answer>, Error> {
+         self.reachable()?;
+         let key = *key;
+-        self.with_fault("delete_object", move |me| me.apply_delete(&key)).await
++        let cred = self.cred();
++        match self.with_fault("delete_object", move |me| me.apply_delete(&key, cred, v4)).await {
++            Err(Error::Fenced(current)) => Err(self.refused(current)),
++            other => other,
++        }
+     }
+ 
+-    fn apply_delete(&self, key: &Hash256) -> Result<(), Error> {
++    fn apply_delete(&self, key: &Hash256, cred: Option<FenceCredential>, v4: Option<crate::fence::C2Op>) -> Result<Option<crate::fence::C2Answer>, Error> {
+         let mut state = self.state.write().unwrap();
++        if let Err(current) = fence_check(&state, cred) {
++            return Err(fence_refusal_error(current));
++        }
++        let digest = cred.zip(v4).map(|(c, v)| crate::fence::c2_op_digest("DELETE", "mock", &format!("/objects/{key}"), &c, &v, None)).unwrap_or([0; 32]);
++        if let Some(seq) = Self::cas_gate(&state, v4, || digest)? {
++            return Ok(Some(crate::fence::C2Answer { seq, replayed: true }));
++        }
+         match state.objects.get_mut(key) {
+             Some(stored) => {
+                 stored.sealed = None;
+                 stored.updated_at = Utc::now();
++                if state.hold_publication {
++                    state.unpublished.insert(*key);
++                }
+             }
+             None => {
+                 return Err(Error::Api(
+@@ -368,7 +657,7 @@
+         for stored in state.sharing_keys.values_mut() {
+             stored.attached.remove(key);
+         }
+-        Ok(())
++        Ok(Self::cas_applied(&mut state, v4, digest))
+     }
+ 
+     pub(crate) async fn pin_slabs(
+@@ -381,6 +670,13 @@
+             return std::future::pending().await;
+         }
+         let mut state = self.state.write().unwrap();
++        if let Err(current) = fence_check(&state, self.cred()) {
++            drop(state);
++            return Err(self.refused(current));
++        }
++        if state.cas_mode && !self.v4() {
++            return Err(Error::ModeConflict);
++        }
+         state.pin_slabs_calls += 1;
+         #[cfg(test)]
+         state.pin_slabs_requests.push(slabs.to_vec());
+@@ -413,6 +709,13 @@
+     ) -> Result<(), Error> {
+         self.reachable()?;
+         let mut state = self.state.write().unwrap();
++        if let Err(current) = fence_check(&state, self.cred()) {
++            drop(state);
++            return Err(self.refused(current));
++        }
++        if state.cas_mode && !self.v4() {
++            return Err(Error::ModeConflict);
++        }
+         let referenced: HashSet<Hash256> = state
+             .objects
+             .values()
+@@ -537,6 +840,13 @@
+         req: &KeyRequest,
+     ) -> Result<KeyResponse, Error> {
+         let mut state = self.state.write().unwrap();
++        if let Err(current) = fence_check(&state, self.cred()) {
++            drop(state);
++            return Err(self.refused(current));
++        }
++        if state.cas_mode && !self.v4() {
++            return Err(Error::ModeConflict);
++        }
+         if state.sharing_keys.contains_key(&req.public_key) {
+             return Err(Error::Api(
+                 StatusCode::CONFLICT,
+@@ -599,6 +909,13 @@
+     ) -> Result<(), Error> {
+         let owner = app_key.public_key();
+         let mut state = self.state.write().unwrap();
++        if let Err(current) = fence_check(&state, self.cred()) {
++            drop(state);
++            return Err(self.refused(current));
++        }
++        if state.cas_mode && !self.v4() {
++            return Err(Error::ModeConflict);
++        }
+         // Checked before removing so one account cannot revoke another's key.
+         match state.sharing_keys.get(public_key) {
+             Some(k) if k.account == owner => {}
+@@ -616,6 +933,13 @@
+     ) -> Result<(), Error> {
+         let now = Utc::now();
+         let mut state = self.state.write().unwrap();
++        if let Err(current) = fence_check(&state, self.cred()) {
++            drop(state);
++            return Err(self.refused(current));
++        }
++        if state.cas_mode && !self.v4() {
++            return Err(Error::ModeConflict);
++        }
+         let slabs = state
+             .objects
+             .get(&req.object_id)
+@@ -826,6 +1150,13 @@
+         object_key: &Hash256,
+     ) -> Result<(), Error> {
+         let mut state = self.state.write().unwrap();
++        if let Err(current) = fence_check(&state, self.cred()) {
++            drop(state);
++            return Err(self.refused(current));
++        }
++        if state.cas_mode && !self.v4() {
++            return Err(Error::ModeConflict);
++        }
+         let stored = Self::owned_mut(&mut state, app_key, sharing_key)?;
+         if stored.attached.remove(object_key).is_none() {
+             return Err(Error::Api(

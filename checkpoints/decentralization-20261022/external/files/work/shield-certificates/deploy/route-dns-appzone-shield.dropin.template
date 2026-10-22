@@ -1,0 +1,19 @@
+# /etc/systemd/system/enclave-route-dns.service.d/zz-app-zone-shield.conf  (TEMPLATE - root fills <...>; NOT applied)
+# Adds Enclave Shield (T0-hv, hostExcluded=false) admission to a route replica that ALREADY runs the app-zone authority
+# (work/app-zone-certificates deploy/route-dns-appzone.dropin.template). Without this file the replica refuses every Shield
+# push ("this replica accepts no Enclave Shield evidence") and answers 405 on the session routes. Rollback: remove this
+# file, daemon-reload, restart (no state: host sessions and challenge values are disposable).
+# The release directory must hold a dns.mjs + network-runtime.bundle.mjs built from work/shield-certificates/tree.
+[Service]
+# The operator's pinned enclave-shield-app-policy/1 (relay/shield-app-policy.mjs validates it at start): the TPM EK roots,
+# platforms ("attested" or explicit {ekCertSha256, pcr0} pins) and the admitted (VBS launch digest, RuntimeID) pairs of the
+# REVIEWED Shield-direct front image(s). Root's input from the Shield-direct release records; no value is invented here.
+Environment=APP_CHALLENGE_SHIELD_POLICY=/etc/enclave-route-dns/shield-app-policy.json
+# The reviewed Base authority profile (contracts/deployments/network-profile-base.json, docs/network/authority-profile.md)
+# and its digest: every host-identity read is judged against its registry pin (address 0x868eb7fc..., code hash, schema 4).
+Environment=APP_CHALLENGE_SHIELD_PROFILE=/etc/enclave-route-dns/network-profile-base.json
+Environment=APP_CHALLENGE_SHIELD_PROFILE_DIGEST=sha256:ee957827032cf7208434e4c73f9e859a27e4fc5c6cab5f4a2153308c09eb4cb8
+# Two or more RPCs on distinct hosts (the same agreeing public set the app-zone authority uses)
+Environment=APP_CHALLENGE_SHIELD_RPCS=https://mainnet.base.org,https://base-rpc.publicnode.com,https://base.drpc.org
+# Optional strict pin document; if given it must name the same registry as the profile
+#Environment=APP_CHALLENGE_SHIELD_PINS=/etc/enclave-route-dns/contract-pins-production-base.json

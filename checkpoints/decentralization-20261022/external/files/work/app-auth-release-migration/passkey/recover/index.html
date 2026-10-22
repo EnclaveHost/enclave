@@ -1,0 +1,37 @@
+<!doctype html>
+<!-- Passkey account recovery signer (EAB1 PROTOCOL §3a). A static page for Enclave's own site at the credit-vault
+     factory's pinned origin (production: https://enclave.host). Candidate - served by the site owner, not by this repo. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign with your Enclave passkey</title>
+<style>
+  body { font: 15px/1.55 system-ui, sans-serif; max-width: 680px; margin: 40px auto; padding: 0 18px; color: #1a1a1a; }
+  textarea, select, input { width: 100%; box-sizing: border-box; font: 13px/1.45 ui-monospace, monospace; margin: 6px 0 12px; padding: 8px; }
+  button { font: 600 14px system-ui; padding: 9px 16px; cursor: pointer; }
+  .bad { color: #a12; } #vault { font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<h1>Sign with your Enclave passkey</h1>
+<p>For an Enclave account that signs in with a passkey. Apps no longer ask Enclave who you are: your passkey signs
+here, on the site it was made for, and the app checks that signature on chain. Your migration file stays in this
+browser.</p>
+<label for="file">1. Your account migration file</label>
+<input type="file" id="file" accept=".json,application/json">
+<div id="step2" hidden>
+  <label for="key">Passkey</label>
+  <select id="key"></select>
+  <p>Your account's address, to give the app: <span id="vault"></span></p>
+  <label for="message">2. The message the app shows you to sign</label>
+  <textarea id="message" rows="10" spellcheck="false"></textarea>
+  <p id="what"></p>
+  <button id="sign">Sign with my passkey</button>
+  <label for="signature">3. The signature, to paste back into the app</label>
+  <textarea id="signature" rows="4" readonly></textarea>
+</div>
+<p id="note"></p>
+<script type="module" src="recover.js"></script>
+</body>
+</html>

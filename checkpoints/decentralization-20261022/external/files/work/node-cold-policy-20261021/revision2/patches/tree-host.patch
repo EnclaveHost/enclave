@@ -1,0 +1,229 @@
+--- base/windows/node/host.mjs	2026-10-21 13:47:05.699509498 -0700
++++ tree/windows/node/host.mjs	2026-10-21 14:08:06.042043840 -0700
+@@ -63,6 +63,22 @@
+ // reverts "lease expired" and the app is stopped - for risc-box, a cold boot of the whole machine.
+ // 15 minutes gives three attempts inside a ~30-minute lease, for twice the renewals' gas (cents).
+ const RENEW_LEAD_MS = 15 * 60_000;
++// NON-DESTRUCTIVE WALLET HOLD (network/wallet-admission.mjs). An UNKNOWN host-wallet answer keeps a running domain (its
++// key and certificate) ONLY once the network agent confirms it withdrew that deployment's ingress and egress
++// (walletHoldAcknowledged); otherwise the domain is retired exactly as before. The wait is bounded: WALLET_HOLD_ACK_MS
++// covers the agent's 1-s admission timer, its serialized snapshot, the circuit closes and an allocation already in flight
++// (which must settle before it acknowledges); it is spent only while that agent is up and reads this host's channel.
++// The channel document is re-issued every WALLET_CHANNEL_HEARTBEAT_MS (it lives 30 s); that never extends a decision,
++// whose deadline is the chain snapshot's own (host-admission decision().validUntil).
++const WALLET_HOLD_ACK_MS = 15_000, WALLET_HOLD_POLL_MS = 250, WALLET_CHANNEL_HEARTBEAT_MS = 10_000;
++/** The wallet hold channel, opted into per host (ENCLAVE_NETWORK_WALLET_HOLD=1) beside the network agent it enrolls. */
++export function walletAdmissionFromEnv(env = process.env) {
++  if (env.ENCLAVE_NETWORK_WALLET_HOLD !== "1") return null;
++  const dir = String(env.ENCLAVE_NETWORK_AGENT_DIR || "");
++  if (!path.isAbsolute(dir)) return { error: "ENCLAVE_NETWORK_WALLET_HOLD=1 needs an absolute ENCLAVE_NETWORK_AGENT_DIR" };
++  // the privacy agent's state directory is <agent dir>\state (network-enroll.mjs baseConfig, repointed on every pass)
++  return { file: path.join(dir, "wallet-admission.json"), statusFile: path.join(dir, "state", "status.json") };
++}
+ 
+ /**
+  * Why an isolated instance's stated boundary is not this backend's, or null when it is. hyperv-partition-per-app is T0-hv
+@@ -151,6 +167,10 @@
+     // host:port of the manager's data plane. Without it the app zone has no splicer, so an
+     // isolated deployment is refused at the route rather than served through this agent.
+     this.cfg.isolationDataAddr  = this.cfg.isolationDataAddr  || process.env.ENCLAVE_ISOLATION_DATA_ADDR || "";
++    // The wallet hold channel's configuration ({file, statusFile}, or null: off, and an UNKNOWN policy retires as before).
++    this.walletAdmission = cfg.walletAdmission !== undefined ? cfg.walletAdmission : walletAdmissionFromEnv();
++    this.walletChannel = null;
++    this.walletChannelOff = !this.walletAdmission ? "off (not configured)" : this.walletAdmission.error || "not started";
+     /// Secrets this box fetched for a lease it holds, in memory only: never written beside the
+     /// state file, never logged, and dropped when the lease goes.
+     this.secrets = new Map();
+@@ -286,6 +306,7 @@
+   }
+ 
+   async init() {
++    await this.walletChannelStart({ heartbeat: true });
+     try {
+       await chain.resolveAddresses();
+       chain.loadOperator(path.join(this.cfg.dir, "operator.key"));
+@@ -1372,6 +1393,7 @@
+   async ensureApp(id, d, { force = false, version = null } = {}) {
+     const wallet = await this.#walletPolicyState({ ...d, id });
+     if (wallet.refusal) return await this.#giveUp(id, wallet.refusal, { retry: true });
++    if (!wallet.unknown) wallet.unknown = this.#walletGrant(id, d, wallet);
+     if (wallet.unknown) return await this.#walletHold(id, wallet.unknown);
+     if (this.records.get(id)?.walletHeld) this.#record(id, { walletHeld: null });
+     if (force) this.#respawnAfter.delete(id);
+@@ -2082,6 +2104,7 @@
+       // claiming it. The receipt is the truth; give the reads two minutes to catch up.
+       if (!ours) {
+         if (rec.claimedAt && Date.now() - rec.claimedAt < 120_000) continue;
++        this.#walletRevoke(id);
+         await this.consider(id).catch((e) => this.log(`re-claim ${id.slice(0, 10)}: ${e.message}`));
+         continue;
+       }
+@@ -2089,6 +2112,7 @@
+       if (pinRefusal) { await this.#giveUp(id, pinRefusal, { retry: true }); continue; }
+       const wallet = await this.#walletPolicyState({ ...d, id });
+       if (wallet.refusal) { await this.#giveUp(id, wallet.refusal, { retry: true }); continue; }
++      if (!wallet.unknown) wallet.unknown = this.#walletGrant(id, d, wallet);
+       if (wallet.unknown) {
+         if (untilMs < Date.now()) { await this.#stopApp(id, `its lease lapsed while the host wallet policy was unavailable (not renewed): ${wallet.unknown}`); continue; }
+         await this.#walletHold(id, wallet.unknown);
+@@ -2255,6 +2279,7 @@
+     return p;
+   }
+   async #giveUpOnce(id, why, { retry = false } = {}) {
++    this.#walletRevoke(id);
+     this.#respawnAfter.delete(id);
+     // An isolated domain first: handing the lease back while its partition still serves would
+     // leave the deployment answering with no lease behind it (defect 15). And if it could NOT be confirmed gone, the
+@@ -2437,6 +2462,7 @@
+   }
+ 
+   async #stopApp(id, why) {
++    this.#walletRevoke(id);
+     // BEFORE forgetting anything: a partition is not in this.apps, so without this the domain
+     // simply keeps running under a lease that has ended. An unconfirmed retire keeps the deployment TRACKED, so the
+     // next tick (which reads the same ledger state and comes back here) retries it rather than forgetting a VM that
+@@ -2866,7 +2892,12 @@
+   // refused and nothing is served on it - and never "refused": the lease is not given back on chain for it.
+   async #walletPolicyState(d) {
+     if (!this.hostAdmission) return { refusal: null, unknown: null };
+-    try { return { refusal: (await this.hostAdmission.refusal({ deploymentId: d.id, appRef: d.appRef, forPrivate: d.isPublic === false })) || null, unknown: null }; }
++    try {
++      const q = { deploymentId: d.id, appRef: d.appRef, forPrivate: d.isPublic === false };
++      // with the hold channel on, the same decision plus the chain deadline its allow may be published until
++      if (this.walletChannel) { const r = await this.hostAdmission.decision(q); return { refusal: r?.refusal || null, unknown: null, validUntil: r?.validUntil }; }
++      return { refusal: (await this.hostAdmission.refusal(q)) || null, unknown: null };
++    }
+     catch (e) {
+       const m = String(e.message).slice(0, 240);
+       // a deployment the policy cannot judge by its form is refused by the policy itself, not unknown
+@@ -2887,13 +2918,105 @@
+    */
+   async #walletHold(id, unknown) {
+     const why = `host wallet policy unavailable (${unknown}): not served, renewed or released until it is established; asked again each pass`;
+-    const gone = await this.#retireIsolated(id, why);
++    const prev = this.records.get(id) || {};
++    if (this.walletChannel) {
++      // NOTHING HERE SERVES IT FROM NOW, before anything is asked: the app zone refuses a record that is not running, the
++      // streams it already splices are cut, an in-process app stops. Then the network agent must confirm the hold.
++      this.#record(id, { status: "held", walletHeld: true, port: null });
++      try { this.servingWithdrawn?.(id); } catch (e) { this.log(`${String(id).slice(0, 10)} app-zone withdrawal: ${e.message}`); }
++      const app = this.apps.get(id);
++      if (app) { await app.stop(); this.apps.delete(id); }
++      const held = await this.#walletHoldConfirmed(id);
++      if (held.ok) {
++        const inst = prev.isolation?.instance || prev.isolationHeld || null;
++        const reason = `${why}; ${inst ? `its domain ${inst}` : "its domain"} is KEPT: the network agent confirmed its ingress and egress withdrawn`;
++        if (prev.reason !== reason) this.log(`${String(id).slice(0, 10)} ${reason} (hold revision ${held.revision})`);
++        return this.#record(id, { status: "held", walletHeld: true, walletKept: true, port: null, reason });
++      }
++      unknown = `${unknown}; not kept: ${held.why}`;
++    }
++    const whyRetired = this.walletChannel ? `host wallet policy unavailable (${unknown}): not served, renewed or released until it is established; asked again each pass` : why;
++    const gone = await this.#retireIsolated(id, whyRetired);
+     const app = this.apps.get(id);
+     if (app) { await app.stop(); this.apps.delete(id); }
+     const rec = this.records.get(id) || {};
+-    if (rec.reason !== why) this.log(`${String(id).slice(0, 10)} ${why}`);
+-    return this.#record(id, { status: "held", walletHeld: true, port: null,
+-      reason: gone ? why : `${why}; the isolated domain could not be confirmed gone yet (retried)` });
++    if (rec.reason !== whyRetired) this.log(`${String(id).slice(0, 10)} ${whyRetired}`);
++    return this.#record(id, { status: "held", walletHeld: true, walletKept: null, port: null,
++      reason: gone ? whyRetired : `${whyRetired}; the isolated domain could not be confirmed gone yet (retried)` });
++  }
++  /** The wallet hold channel (network/wallet-admission.mjs): written EMPTY under a fresh generation, so no grant of an
++   *  earlier process survives this one's start; re-issued by the heartbeat; off (the old retire) on any failure. */
++  async walletChannelStart({ heartbeat = false } = {}) {
++    const wa = this.walletAdmission;
++    if (!wa || wa.error || this.walletChannel) return this.walletChannel;
++    try {
++      if (!this.hostAdmission) throw new Error("this host has no wallet admission");
++      if (typeof this.hostAdmission.decision !== "function") throw new Error("the host admission has no decision() with its chain deadline (an older host-admission bundle)");
++      if (!this.cfg.isolationManager) throw new Error("no isolation manager: no domain here is preserved by a network hold");
++      if (!path.isAbsolute(String(wa.file || "")) || !path.isAbsolute(String(wa.statusFile || ""))) throw new Error("absolute channel and status files required");
++      const mod = await import("../../network/wallet-admission.mjs");
++      this.#walletAck = mod.walletHoldAcknowledged;
++      this.walletChannel = new mod.WalletAllowWriter({ file: wa.file, runner: this.enclaveId.toLowerCase() });
++      this.walletChannelOff = null;
++      this.log(`wallet hold channel: ${wa.file}, generation ${this.walletChannel.generation.slice(0, 8)}, written EMPTY (nothing is admitted on the network until a fresh allow)`);
++      if (heartbeat) this.#walletBeat = setInterval(() => this.walletHeartbeat(), WALLET_CHANNEL_HEARTBEAT_MS).unref?.();
++    } catch (e) {
++      this.walletChannel = null; this.walletChannelOff = e.message;
++      this.log(`wallet hold channel OFF (an UNKNOWN wallet policy retires the domain, as before): ${e.message}`);
++    }
++    return this.walletChannel;
++  }
++  #walletAck = null; #walletBeat = null; #walletBeatError = null;
++  /** Re-issue the channel document (its 30-s life). Decisions keep their own deadlines; a failure lets it lapse (closed). */
++  walletHeartbeat() {
++    if (!this.walletChannel) return;
++    try { this.walletChannel.heartbeat(); if (this.#walletBeatError) this.log("wallet hold channel: written again"); this.#walletBeatError = null; }
++    catch (e) { if (this.#walletBeatError !== e.message) this.log(`wallet hold channel NOT written (the network admits nothing once it lapses): ${e.message}`); this.#walletBeatError = e.message; }
++  }
++  /** A DEFINITE allow, published to the network with its own chain deadline -> null, or why it could not be (an UNKNOWN). */
++  #walletGrant(id, d, w) {
++    if (!this.walletChannel) return null;
++    try {
++      this.walletChannel.allow(String(id).toLowerCase(), { appRef: d.appRef, configCid: String(d.configCid ?? ""), validUntil: w.validUntil });
++      return null;
++    } catch (e) { return `the allow could not be published to the network agent (${e.message})`; }
++  }
++  /** Withdraw this box's published allow (a refusal, a stop, a lease no longer ours). Unconfirmed: the caller retires. */
++  #walletRevoke(id) {
++    if (!this.walletChannel) return;
++    try { this.walletChannel.hold(String(id).toLowerCase()); }
++    catch (e) { this.log(`${String(id).slice(0, 10)} wallet hold channel: the allow could not be withdrawn (${e.message}); it lapses with its deadline`); }
++  }
++  /** Write the hold, then wait (bounded) for the network agent's acknowledgement of exactly it. -> {ok, revision} | {ok:false, why} */
++  async #walletHoldConfirmed(id) {
++    // Windows refuses the rename while the network agent has the file open (its 1-s read): a sharing refusal is retried
++    // briefly (a hold rewritten is the same hold); anything else, or a refusal that persists, is the old retire
++    let hold;
++    for (let attempt = 0; ; attempt++) {
++      try { hold = this.walletChannel.hold(String(id).toLowerCase()); break; }
++      catch (e) {
++        if (!["EPERM", "EACCES", "EBUSY"].includes(e.code) || attempt >= 9) return { ok: false, why: `the hold could not be written (${e.message})` };
++        await new Promise((r) => setTimeout(r, 25 * (attempt + 1)));
++      }
++    }
++    // (cfg.walletHoldAckMs: a shorter bound for tests only; production uses WALLET_HOLD_ACK_MS)
++    const ackMs = Number(this.cfg.walletHoldAckMs) > 0 ? Number(this.cfg.walletHoldAckMs) : WALLET_HOLD_ACK_MS;
++    const runner = this.enclaveId.toLowerCase(), end = Date.now() + ackMs;
++    for (;;) {
++      let status = null;
++      try { status = JSON.parse(fs.readFileSync(this.walletAdmission.statusFile, "utf8")); } catch {}
++      const now = Date.now();
++      if (this.#walletAck({ status, runner, id: String(id).toLowerCase(), hold, now })) return { ok: true, revision: hold.revision };
++      // waiting helps only while an agent reports enforcing THIS host's channel; with none, the old retire, now. A late
++      // status (an agent slowed by load) is waited for, within the same bound.
++      const w = status?.walletAdmission;
++      if (!status) return { ok: false, why: "the network agent's status cannot be read" };
++      if (!w) return { ok: false, why: "the network agent does not enforce wallet holds (no walletAdmission in its status)" };
++      if (w.runner !== runner) return { ok: false, why: "the network agent reads another runner's channel" };
++      if (now >= end) return { ok: false, why: `the network agent did not confirm the withdrawal within ${ackMs / 1000} s`
++        + (Number.isSafeInteger(status.updatedAt) && now - status.updatedAt >= 5000 ? " (its status is stale)" : "") };
++      await new Promise((r) => setTimeout(r, WALLET_HOLD_POLL_MS));
++    }
+   }
+   claimRefusal(d, { version = null, capacity, appsEnabled, invited = false, ownerAllow = this.ownerSet() }) {
+     // an admitted audit job (servesAuditJob) is claimed as its fee wallet's own: owner-only scope still holds, because only
+@@ -3573,6 +3696,11 @@
+     };
+   }
+ 
++  /** Asked by the app zone at the moment it would splice or serve (after its own resolve): still served here? */
++  appZoneAdmitted(id) {
++    const rec = this.records.get(String(id).toLowerCase());
++    return !!rec && !rec.walletHeld && rec.status === "running";
++  }
+   async appZoneTarget(ref) {
+     // A label (the first 8 hex, which is what the hostname carries) or a full id: resolved against
+     // the leases this box holds, so a prefix that matches nothing here is simply not ours.
+@@ -3584,6 +3712,8 @@
+       id = hit[0];
+     }
+     const rec = this.records.get(id);
++    // HELD ON AN UNKNOWN WALLET POLICY: nothing is spliced or served here (the domain may be kept, its traffic is not)
++    if (rec?.walletHeld) return null;
+     // WHOSE app: in owner-only scope a deployment whose ledger owner this box no longer serves (a delegation removed,
+     // expired or invalid) is never spliced, whatever list the relay still holds - the removal takes effect here at once
+     // (enclave-bf's belt, enclave-87's revocation ruling on the make-before-break re-attach).

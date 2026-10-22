@@ -1,0 +1,34 @@
+{
+  "sites": {
+    "bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou": {
+      "sha256": "ad7867eccffd23f2e4e874a5149c4c904e5acc8d5ded367cb561dbec6845f0d9",
+      "bytes": 35127042
+    },
+    "bafybeig3rai3tyoimbhb32vo6hkkw3o336wluht7owbs7mefhtiridwp6y": {
+      "sha256": "16c498f396856a9b2dc70f6182bdae73fe2069d753e6bd390627168d7769c18b",
+      "bytes": 39856744
+    }
+  },
+  "hosts": {
+    "us-west": {
+      "ip": "134.199.235.187",
+      "beforeSha256": "ad44dd6275222bbf63afca7375678c17577458f3e45887cd1d862300f3245150",
+      "candidateSha256": "6f201b7ee3ba90d9babcec835b7d9fe2cee9849487ce60c956f563495c89b7ed"
+    },
+    "eu-central": {
+      "ip": "134.209.248.172",
+      "beforeSha256": "46d081d7692e37ee15e17f2a95d957e9c3b6a3179850ce99cf96a72d6a8bc647",
+      "candidateSha256": "e95c95950af86e9854eb2fff088a7a7d500c0349d06062ae5aa48a581d03ea29"
+    },
+    "ap-southeast": {
+      "ip": "165.245.191.129",
+      "beforeSha256": "a10251bd1313aba13e394b2d1c9df4142654b133136fa5e8cf6eb264ae56ca35",
+      "candidateSha256": "c849dbed49f554a7318a5d1ea35f49a7de7d44555c30d5e6bff9c03ad0e48e63"
+    },
+    "ca-east": {
+      "ip": "146.190.246.39",
+      "beforeSha256": "e5b0e55fff079be14768b6e6025ed829e0d7330542cc3ba35eadf892ea2209cc",
+      "candidateSha256": "a04afa647920ca6b2837c5e446783d9f3b1bca0a95c9b269fe5079fdb4e3d174"
+    }
+  }
+}

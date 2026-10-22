@@ -1,0 +1,637 @@
+--- a/enclavedns/README.md
++++ b/enclavedns/README.md
+@@ -233,9 +233,13 @@
+     them, and identical upstream questions in flight are asked only once;
+   - a slow upstream is hedged: the next one is asked too after twice its
+     smoothed round trip;
+-  - a name asked in the last tenth of its TTL is refreshed in the background,
+-    and for an hour past its TTL an expired answer is served at once (TTL 30,
+-    RFC 8767) while it refreshes. A failed refresh keeps the old answer.
++  - a name asked in the last tenth of its TTL is refreshed in the background;
++    a name asked after its TTL is asked again first, and only if no answer
++    comes within 1.8 s of the request (one budget for a whole CNAME chain), or
++    the upstreams fail, is the expired answer served,
++    for up to an hour past its TTL (TTL 30, RFC 8767). A fresh answer always
++    wins, NXDOMAIN and bogus included; a failed refresh keeps the old answer,
++    and for 30 s after one, expired answers for that name are served at once.
+ 
+   `GET /api/status` shows each upstream's smoothed round trip, the HTTP/2 and
+   HTTP/1.1 connection counts and the time of the last new connection.
+@@ -268,7 +272,7 @@
+ cargo build --release --target wasm32-wasip2
+ # -> target/wasm32-wasip2/release/enclavedns.wasm (~2.5 MB)
+ 
+-cargo test --target wasm32-wasip2      # 35 unit tests, run under wasmtime
++cargo test --target wasm32-wasip2      # 45 unit tests, run under wasmtime
+ ```
+ 
+ The unit tests include the RFC 4034 key-tag and DS examples, the RFC 5155
+--- a/enclavedns/src/net.rs
++++ b/enclavedns/src/net.rs
+@@ -365,7 +365,16 @@
+ 
+ /// Monotonic milliseconds.
+ pub fn now_ms() -> u64 {
+-    wasip2::clocks::monotonic_clock::now() / 1_000_000
++    let ms = wasip2::clocks::monotonic_clock::now() / 1_000_000;
++    #[cfg(test)]
++    let ms = ms + SKEW_MS.with(|s| s.get());
++    ms
++}
++
++#[cfg(test)]
++thread_local! {
++    /// Tests move bookkeeping time (TTLs, deadlines) forward; timers still run in real time.
++    pub static SKEW_MS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+ }
+ 
+ pub enum Either<A, B> {
+--- a/enclavedns/src/resolver.rs
++++ b/enclavedns/src/resolver.rs
+@@ -13,12 +13,13 @@
+ use crate::tls::{self, Conn};
+ use crate::wire::{ede, rcode, rrsets, ty, Message, Record};
+ use std::cell::{Cell, RefCell};
+-use std::collections::{HashMap, HashSet};
++use std::collections::HashMap;
+ use std::future::Future;
+ use std::io;
+ use std::net::{IpAddr, SocketAddr};
+ use std::pin::Pin;
+ use std::rc::Rc;
++use std::task::{Context, Poll, Waker};
+ use std::time::Duration;
+ 
+ pub type Fut<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
+@@ -189,12 +190,17 @@
+ /// Per-request limits shared by every sub-lookup it causes.
+ pub struct Ctx {
+     pub deadline_ms: u64,
++    /// After this, expired answers stand in at once, however many names
++    /// (CNAME hops) the request visits: the client response timer is the
++    /// request's, not each lookup's.
++    pub stale_by_ms: u64,
+     pub queries: Cell<u32>,
+ }
+ 
+ impl Ctx {
+     pub fn new(budget: Duration) -> Rc<Ctx> {
+-        Rc::new(Ctx { deadline_ms: net::now_ms() + budget.as_millis() as u64, queries: Cell::new(0) })
++        let now = net::now_ms();
++        Rc::new(Ctx { deadline_ms: now + budget.as_millis() as u64, stale_by_ms: now + STALE_WAIT_MS, queries: Cell::new(0) })
+     }
+ 
+     fn left(&self) -> Duration {
+@@ -211,10 +217,16 @@
+ const MAX_QUERIES_PER_REQUEST: u32 = 150;
+ /// An upstream answer is shared with identical questions for this long.
+ const FWD_MEMO_MS: u64 = 5_000;
+-/// How long past its TTL an answer may still be served while it refreshes.
++/// How long past its TTL an answer may still be served when it cannot be refreshed.
+ const STALE_MS: u64 = 3_600_000;
+ /// The TTL a stale answer is handed out with (RFC 8767 §4).
+ const STALE_TTL: u32 = 30;
++/// How long a client request waits for fresh answers before expired ones
++/// stand in for them (RFC 8767 §5 client response timer, 1.8 s suggested).
++const STALE_WAIT_MS: u64 = 1_800;
++/// After a refresh fails, expired answers for that name are served without
++/// that wait for this long (RFC 8767 §5 failure recheck timer).
++const STALE_RECHECK_MS: u64 = 30_000;
+ const MAX_DEPTH: u32 = 12;
+ 
+ #[derive(Clone)]
+@@ -238,6 +250,31 @@
+     done_ms: Cell<u64>,
+ }
+ 
++/// One background re-resolution of (name, type), shared by every query
++/// waiting on it. Dropping a waiter (a timeout, a closed connection) never
++/// stops it: it runs to its own deadline and refreshes the cache.
++#[derive(Default)]
++struct Refresh {
++    done: RefCell<Option<Answer>>,
++    wakers: RefCell<Vec<Waker>>,
++}
++
++struct RefreshDone(Rc<Refresh>);
++
++impl Future for RefreshDone {
++    type Output = Answer;
++    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Answer> {
++        if let Some(a) = self.0.done.borrow().as_ref() {
++            return Poll::Ready(a.clone());
++        }
++        let mut w = self.0.wakers.borrow_mut();
++        if !w.iter().any(|x| x.will_wake(cx.waker())) {
++            w.push(cx.waker().clone());
++        }
++        Poll::Pending
++    }
++}
++
+ #[derive(Clone, Copy, Default)]
+ pub struct UpstreamStat {
+     pub srtt_ms: u32,
+@@ -296,7 +333,9 @@
+     tcp_idle: RefCell<HashMap<String, Vec<(Conn, u64)>>>,
+     fwd: RefCell<HashMap<(Name, u16), Rc<FwdSlot>>>,
+     pub upstream_stats: RefCell<Vec<UpstreamStat>>,
+-    refreshing: RefCell<HashSet<(Name, u16)>>,
++    refreshing: RefCell<HashMap<(Name, u16), Rc<Refresh>>>,
++    /// when a refresh last failed to get any answer, by (name, type)
++    refresh_failed: RefCell<HashMap<(Name, u16), u64>>,
+     host_lookups: RefCell<HashMap<String, (Vec<IpAddr>, u64)>>,
+     pub http: Rc<tls::Pool>,
+     pub stats: RefCell<Stats>,
+@@ -341,6 +380,7 @@
+             fwd: RefCell::default(),
+             upstream_stats: RefCell::new(ups),
+             refreshing: RefCell::default(),
++            refresh_failed: RefCell::default(),
+             host_lookups: RefCell::default(),
+             http,
+             stats: RefCell::default(),
+@@ -410,11 +450,13 @@
+             rcode::NOERROR | rcode::NXDOMAIN => a.ttl,
+             _ => a.ttl.min(30),
+         };
++        let mut c = self.cache.borrow_mut();
+         if ttl == 0 {
++            // not to be kept: and an older entry is no fallback for it either
++            c.remove(&(name.to_lowercase(), qtype));
+             return;
+         }
+         let now = net::now_ms();
+-        let mut c = self.cache.borrow_mut();
+         if c.len() >= self.cfg.cache_entries {
+             c.retain(|_, (_, exp, _)| *exp + STALE_MS > now);
+             if c.len() >= self.cfg.cache_entries {
+@@ -454,14 +496,27 @@
+                     return a;
+                 }
+                 Some((mut a, _, _)) if depth == 0 && matches!(a.rcode, rcode::NOERROR | rcode::NXDOMAIN) && a.sec != Sec::Bogus => {
+-                    // RFC 8767: answer from the expired entry now, refresh behind it
++                    // RFC 8767: ask again first; the expired entry stands in
++                    // only if no answer comes in time (or the attempt fails),
++                    // and the attempt goes on behind it to refresh the cache
++                    let failed_at = self.refresh_failed.borrow().get(&(name.to_lowercase(), qtype)).copied();
++                    let job = self.refresh(name, qtype);
++                    if failed_at.is_none_or(|t| net::now_ms() >= t + STALE_RECHECK_MS) {
++                        let wait = Duration::from_millis(ctx.stale_by_ms.saturating_sub(net::now_ms())).min(ctx.left());
++                        if let Ok(fresh) = net::timeout(wait, async { Ok(RefreshDone(job).await) }).await {
++                            if matches!(fresh.rcode, rcode::NOERROR | rcode::NXDOMAIN) {
++                                // the refresh has cached it (a bogus answer too)
++                                self.stats.borrow_mut().cache_misses += 1;
++                                return fresh;
++                            }
++                        }
++                    }
+                     self.stats.borrow_mut().stale_served += 1;
+                     for r in a.answer.iter_mut().chain(a.authority.iter_mut()) {
+                         r.ttl = STALE_TTL;
+                     }
+                     a.ttl = STALE_TTL;
+                     a.source = "stale cache";
+-                    self.refresh(name, qtype);
+                     return a;
+                 }
+                 _ => {}
+@@ -473,24 +528,45 @@
+         })
+     }
+ 
+-    /// Re-resolve (name, qtype) in the background; a failure keeps the old
+-    /// entry (RFC 8767: stale beats an outage).
+-    fn refresh(self: &Rc<Self>, name: &Name, qtype: u16) {
++    /// Re-resolve (name, qtype) in the background, at most once at a time.
++    /// Any answer replaces the entry, a bogus one too (as a miss would keep
++    /// it); a failure keeps the old one (RFC 8767: stale beats an outage).
++    fn refresh(self: &Rc<Self>, name: &Name, qtype: u16) -> Rc<Refresh> {
+         let key = (name.to_lowercase(), qtype);
+-        if !self.refreshing.borrow_mut().insert(key.clone()) {
+-            return;
++        if let Some(job) = self.refreshing.borrow().get(&key) {
++            return job.clone();
+         }
++        let job = Rc::new(Refresh::default());
++        self.refreshing.borrow_mut().insert(key.clone(), job.clone());
+         self.stats.borrow_mut().refreshes += 1;
+-        let me = self.clone();
++        let (me, done) = (self.clone(), job.clone());
+         wstd::runtime::spawn(async move {
+             let ctx = Ctx::new(Duration::from_secs(9));
+             let a = me.resolve(&key.0, key.1, &ctx, 0).await;
+-            if matches!(a.rcode, rcode::NOERROR | rcode::NXDOMAIN) && a.sec != Sec::Bogus {
++            let answered = matches!(a.rcode, rcode::NOERROR | rcode::NXDOMAIN);
++            if answered {
+                 me.cache_put(&key.0, key.1, &a);
+             }
++            {
++                let mut f = me.refresh_failed.borrow_mut();
++                if answered {
++                    f.remove(&key);
++                } else {
++                    let now = net::now_ms();
++                    if f.len() >= 4096 {
++                        f.retain(|_, t| now < *t + STALE_RECHECK_MS);
++                    }
++                    f.insert(key.clone(), now);
++                }
++            }
+             me.refreshing.borrow_mut().remove(&key);
++            *done.done.borrow_mut() = Some(a);
++            for w in done.wakers.borrow_mut().drain(..) {
++                w.wake();
++            }
+         })
+         .detach();
++        job
+     }
+ 
+     /// Resolve and validate from the network, without the answer cache.
+@@ -1535,3 +1611,385 @@
+     };
+     a
+ }
++
++#[cfg(test)]
++mod tests {
++    //! Serve-stale against a real upstream: a UDP DNS server on loopback in
++    //! this same component, answering whatever the test currently says.
++    use super::*;
++    use crate::server::{Server, Via};
++
++    #[derive(Clone, Copy)]
++    enum Mode {
++        Answer([u8; 4], u32),
++        NxDomain,
++        ServFail,
++        Silent,
++    }
++
++    struct Fake {
++        name: Name,
++        mode: Cell<Mode>,
++        delay_ms: Cell<u64>,
++        /// queries seen for `name` (any type)
++        asked: Cell<u32>,
++        stop: Cell<bool>,
++    }
++
++    async fn fake(name: &str, mode: Mode) -> (Rc<Fake>, SocketAddr) {
++        let f = Rc::new(Fake { name: Name::parse(name).unwrap(), mode: Cell::new(mode), delay_ms: Cell::new(0), asked: Cell::new(0), stop: Cell::new(false) });
++        let mut sock = None;
++        for _ in 0..40 {
++            let addr = SocketAddr::new([127, 0, 0, 1].into(), 20_000 + net::random_u16() % 40_000);
++            if let Ok(s) = Udp::bind(addr).await {
++                sock = Some((Rc::new(s), addr));
++                break;
++            }
++        }
++        let (sock, addr) = sock.expect("a loopback UDP port");
++        let me = f.clone();
++        wstd::runtime::spawn(async move {
++            while !me.stop.get() {
++                let Ok((b, from)) = net::timeout(Duration::from_millis(50), sock.recv()).await else { continue };
++                let Ok(q) = Message::parse(&b) else { continue };
++                let (me, sock) = (me.clone(), sock.clone());
++                wstd::runtime::spawn(async move {
++                    let ours = q.questions.first().is_some_and(|x| x.name == me.name);
++                    let mut r = Message { id: q.id, qr: true, rd: q.rd, ra: true, questions: q.questions.clone(), ..Default::default() };
++                    if ours {
++                        me.asked.set(me.asked.get() + 1);
++                        if me.delay_ms.get() > 0 {
++                            net::sleep(Duration::from_millis(me.delay_ms.get())).await;
++                        }
++                        match me.mode.get() {
++                            Mode::Answer(ip, ttl) if q.questions[0].qtype == ty::A => r.answers.push(Record::new(me.name.clone(), ty::A, ttl, ip.to_vec())),
++                            Mode::Answer(..) => {}
++                            Mode::NxDomain => r.rcode = rcode::NXDOMAIN,
++                            Mode::ServFail => r.rcode = rcode::SERVFAIL,
++                            Mode::Silent => return,
++                        }
++                    } else if matches!(me.mode.get(), Mode::Silent) {
++                        return;
++                    }
++                    // anything else: an empty NOERROR (no DNSKEY for the root, so validation fails)
++                    let _ = sock.send_to(&r.to_bytes(1232), from).await;
++                })
++                .detach();
++            }
++        })
++        .detach();
++        (f, addr)
++    }
++
++    fn resolver(up: SocketAddr, validate: bool) -> Rc<Resolver> {
++        let cfg = Config { forward: vec![Upstream::Udp(up)], validate, transport: Transport::Udp, ..Config::default() };
++        Resolver::new(cfg, Rc::new(tls::Pool::default()))
++    }
++
++    const OLD: [u8; 4] = [192, 0, 2, 1];
++    const NEW: [u8; 4] = [198, 51, 100, 7];
++
++    /// Cache `ip` for `name` as an earlier resolution would have, then age it.
++    fn seed(r: &Resolver, name: &Name, ip: [u8; 4], sec: Sec, ttl: u32, age_ms: u64) {
++        let mut a = Answer::negative(rcode::NOERROR, ttl, "network");
++        a.answer.push(Record::new(name.clone(), ty::A, ttl, ip.to_vec()));
++        a.sec = sec;
++        r.cache_put(name, ty::A, &a);
++        advance(age_ms);
++    }
++
++    /// Let `ms` of bookkeeping time pass at once (the monotonic clock of a
++    /// fresh component starts near 0, so entries cannot be back-dated).
++    fn advance(ms: u64) {
++        net::SKEW_MS.with(|s| s.set(s.get() + ms));
++    }
++
++    fn ips(a: &Answer) -> Vec<IpAddr> {
++        a.answer.iter().filter_map(rr_ip).collect()
++    }
++
++    async fn ask(r: &Rc<Resolver>, name: &Name) -> (Answer, u64) {
++        let t0 = net::now_ms();
++        let a = r.lookup(name, ty::A, &Ctx::new(Duration::from_secs(9)), 0).await;
++        (a, net::now_ms() - t0)
++    }
++
++    async fn settle(r: &Rc<Resolver>) {
++        for _ in 0..200 {
++            if r.refreshing.borrow().is_empty() {
++                return;
++            }
++            net::sleep(Duration::from_millis(50)).await;
++        }
++        panic!("a refresh never finished");
++    }
++
++    /// Run a test body on the reactor; a hang is a failure, not a stuck run.
++    fn run<F: Future<Output = ()>>(body: impl FnOnce() -> F) {
++        wstd::runtime::block_on(async {
++            net::timeout(Duration::from_secs(45), async {
++                body().await;
++                Ok(())
++            })
++            .await
++            .expect("test did not finish in 45 s");
++        })
++    }
++
++    #[test]
++    fn expired_entry_and_healthy_upstream_give_the_new_address_first() {
++        run(|| async {
++            let name = Name::parse("38f368d6.app.enclave.test").unwrap();
++            let (up, addr) = fake("38f368d6.app.enclave.test", Mode::Answer(NEW, 60)).await;
++            let r = resolver(addr, false);
++            seed(&r, &name, OLD, Sec::Insecure, 30, 31_000);
++            let server = Server::new(r.clone(), Vec::new(), None, false, None, true, 1000.0, 1000.0);
++            // the client's very first question after expiry, end to end on the wire
++            let q = Message::query(4242, &name, ty::A, true, false, false).to_bytes(512);
++            let m = Message::parse(&server.handle(&q, Via::Udp).await.unwrap()).unwrap();
++            assert_eq!(m.rcode, rcode::NOERROR);
++            assert_eq!(m.answers.iter().filter_map(rr_ip).collect::<Vec<_>>(), vec![IpAddr::from(NEW)]);
++            assert_eq!(m.answers[0].ttl, 60, "a fresh answer carries its own TTL, not the stale 30");
++            assert_eq!(up.asked.get(), 1);
++            // the DoH JSON's Sources: fresh from the network, never "stale cache"
++            let res = server.resolve(&name, ty::A, false, false).await;
++            assert_eq!(res.sources, vec!["cache"]);
++            assert_eq!(res.answer.iter().filter_map(rr_ip).collect::<Vec<_>>(), vec![IpAddr::from(NEW)]);
++            assert_eq!(r.stats.borrow().stale_served, 0);
++            up.stop.set(true);
++        });
++    }
++
++    #[test]
++    fn unavailable_upstream_falls_back_to_bounded_stale() {
++        run(|| async {
++            let name = Name::parse("www.down.test").unwrap();
++            let (up, addr) = fake("www.down.test", Mode::Silent).await;
++            let r = resolver(addr, false);
++            seed(&r, &name, OLD, Sec::Insecure, 300, 301_000);
++            // no answer: the old address after the bounded wait, with the stale TTL
++            let (a, ms) = ask(&r, &name).await;
++            assert_eq!(a.source, "stale cache");
++            assert_eq!(ips(&a), vec![IpAddr::from(OLD)]);
++            assert!(a.ttl == STALE_TTL && a.answer.iter().all(|x| x.ttl == STALE_TTL));
++            assert!((STALE_WAIT_MS - 50..STALE_WAIT_MS + 700).contains(&ms), "waited {ms} ms");
++            // that refresh failed: stale at once until the recheck timer runs out
++            settle(&r).await;
++            let (a, ms) = ask(&r, &name).await;
++            assert_eq!(a.source, "stale cache");
++            assert!(ms < 300, "waited {ms} ms after a failed refresh");
++            // the upstream refusing (SERVFAIL) is unavailability too: stale, at once
++            up.mode.set(Mode::ServFail);
++            settle(&r).await;
++            r.refresh_failed.borrow_mut().clear();
++            let (a, ms) = ask(&r, &name).await;
++            assert_eq!((a.source, ips(&a)), ("stale cache", vec![IpAddr::from(OLD)]));
++            assert!(ms < 1000, "waited {ms} ms for a SERVFAIL");
++            // it recovers: the refresh kicked by a stale answer refills the cache
++            up.mode.set(Mode::Answer(NEW, 60));
++            settle(&r).await;
++            let (a, _) = ask(&r, &name).await;
++            assert_eq!(a.source, "stale cache");
++            settle(&r).await;
++            let (a, _) = ask(&r, &name).await;
++            assert_eq!((a.source, ips(&a)), ("cache", vec![IpAddr::from(NEW)]));
++            // past STALE_MS nothing old is served, however dead the upstream
++            up.mode.set(Mode::Silent);
++            seed(&r, &name, OLD, Sec::Insecure, 300, 300_000 + STALE_MS + 1_000);
++            let (a, _) = ask(&r, &name).await;
++            assert_eq!(a.rcode, rcode::SERVFAIL);
++            assert!(a.answer.is_empty());
++            up.stop.set(true);
++        });
++    }
++
++    #[test]
++    fn slow_upstream_serves_stale_then_the_refresh_lands() {
++        run(|| async {
++            let name = Name::parse("slow.test").unwrap();
++            let (up, addr) = fake("slow.test", Mode::Answer(NEW, 60)).await;
++            up.delay_ms.set(2_500);
++            let r = resolver(addr, false);
++            seed(&r, &name, OLD, Sec::Insecure, 30, 31_000);
++            let (a, ms) = ask(&r, &name).await;
++            assert_eq!((a.source, ips(&a)), ("stale cache", vec![IpAddr::from(OLD)]));
++            assert!(ms < STALE_WAIT_MS + 700, "waited {ms} ms");
++            // the attempt was not abandoned with the client
++            settle(&r).await;
++            let (a, _) = ask(&r, &name).await;
++            assert_eq!((a.source, ips(&a)), ("cache", vec![IpAddr::from(NEW)]));
++            assert_eq!(up.asked.get(), 1);
++            up.stop.set(true);
++        });
++    }
++
++    #[test]
++    fn fresh_nxdomain_wins_over_stale() {
++        run(|| async {
++            let name = Name::parse("gone.test").unwrap();
++            let (up, addr) = fake("gone.test", Mode::NxDomain).await;
++            let r = resolver(addr, false);
++            seed(&r, &name, OLD, Sec::Insecure, 30, 31_000);
++            let (a, _) = ask(&r, &name).await;
++            assert_eq!((a.rcode, a.source), (rcode::NXDOMAIN, "network"));
++            assert!(a.answer.is_empty());
++            // the denial replaced the old entry: nothing old to fall back on
++            up.mode.set(Mode::Silent);
++            let (a, _) = ask(&r, &name).await;
++            assert_eq!((a.rcode, a.source), (rcode::NXDOMAIN, "cache"));
++            up.stop.set(true);
++        });
++    }
++
++    #[test]
++    fn fresh_bogus_wins_over_stale_and_bogus_is_never_stale() {
++        run(|| async {
++            let name = Name::parse("signed.test").unwrap();
++            // validating: an unsigned answer with no root DNSKEY behind it is bogus
++            let (up, addr) = fake("signed.test", Mode::Answer(NEW, 60)).await;
++            let r = resolver(addr, true);
++            seed(&r, &name, OLD, Sec::Insecure, 30, 31_000);
++            let server = Server::new(r.clone(), Vec::new(), None, false, None, true, 1000.0, 1000.0);
++            let q = Message::query(7, &name, ty::A, true, false, false).to_bytes(512);
++            let m = Message::parse(&server.handle(&q, Via::Udp).await.unwrap()).unwrap();
++            assert_eq!(m.rcode, rcode::SERVFAIL, "bogus is refused, not papered over with stale data");
++            assert!(m.answers.is_empty());
++            assert_eq!(r.stats.borrow().stale_served, 0);
++            // the bogus result replaced the old entry; once it expires it is not served stale either
++            up.mode.set(Mode::Silent);
++            let (a, _) = ask(&r, &name).await;
++            assert_eq!((a.sec, a.source), (Sec::Bogus, "cache"));
++            advance(61_000);
++            let (a, _) = ask(&r, &name).await;
++            assert_eq!(a.rcode, rcode::SERVFAIL);
++            assert_ne!(a.source, "stale cache");
++            up.stop.set(true);
++        });
++    }
++
++    #[test]
++    fn ttl_zero_is_not_cached_and_leaves_nothing_stale() {
++        run(|| async {
++            let name = Name::parse("zero.test").unwrap();
++            let (up, addr) = fake("zero.test", Mode::Answer(NEW, 0)).await;
++            let r = resolver(addr, false);
++            seed(&r, &name, OLD, Sec::Insecure, 30, 31_000);
++            let (a, _) = ask(&r, &name).await;
++            assert_eq!((a.source, ips(&a), a.ttl), ("network", vec![IpAddr::from(NEW)], 0));
++            settle(&r).await;
++            // FWD_MEMO_MS shares one upstream answer briefly: let it lapse
++            advance(FWD_MEMO_MS + 100);
++            let (a, _) = ask(&r, &name).await;
++            assert_eq!((a.source, ips(&a)), ("network", vec![IpAddr::from(NEW)]));
++            assert_eq!(up.asked.get(), 2, "TTL 0 is asked again, never cached");
++            advance(FWD_MEMO_MS + 100);
++            up.mode.set(Mode::Silent);
++            let (a, _) = ask(&r, &name).await;
++            assert_eq!(a.rcode, rcode::SERVFAIL, "the TTL 0 answer superseded the old entry");
++            assert!(a.answer.is_empty());
++            up.stop.set(true);
++        });
++    }
++
++    #[test]
++    fn concurrent_queries_share_one_refresh() {
++        run(|| async {
++            let name = Name::parse("busy.test").unwrap();
++            let (up, addr) = fake("busy.test", Mode::Answer(NEW, 60)).await;
++            up.delay_ms.set(300);
++            let r = resolver(addr, false);
++            seed(&r, &name, OLD, Sec::Insecure, 30, 31_000);
++            let asks: Vec<_> = (0..25).map(|_| ask(&r, &name)).collect();
++            for (a, ms) in net::join_all(asks).await {
++                assert_eq!((a.source, ips(&a)), ("network", vec![IpAddr::from(NEW)]));
++                assert!(ms < STALE_WAIT_MS, "waited {ms} ms");
++            }
++            assert_eq!(up.asked.get(), 1, "one upstream question for 25 clients");
++            assert_eq!(r.stats.borrow().refreshes, 1);
++            assert_eq!(r.stats.borrow().stale_served, 0);
++            up.stop.set(true);
++        });
++    }
++
++    #[test]
++    fn cancelled_waiter_neither_hangs_nor_stops_the_refresh() {
++        run(|| async {
++            let name = Name::parse("gone-client.test").unwrap();
++            let (up, addr) = fake("gone-client.test", Mode::Answer(NEW, 60)).await;
++            up.delay_ms.set(800);
++            let r = resolver(addr, false);
++            seed(&r, &name, OLD, Sec::Insecure, 30, 31_000);
++            // the client goes away while waiting on the fresh answer
++            match net::select2(ask(&r, &name), net::sleep(Duration::from_millis(100))).await {
++                net::Either::Left(_) => panic!("answered before the upstream could"),
++                net::Either::Right(()) => {}
++            }
++            assert_eq!(r.refreshing.borrow().len(), 1, "the refresh outlives its first waiter");
++            // a second client joins the same attempt and gets the new address
++            let (a, ms) = ask(&r, &name).await;
++            assert_eq!((a.source, ips(&a)), ("network", vec![IpAddr::from(NEW)]));
++            assert!(ms < 1_500, "waited {ms} ms");
++            assert_eq!(up.asked.get(), 1);
++            assert!(r.refreshing.borrow().is_empty());
++            // and with every waiter gone, the refresh still fills the cache
++            seed(&r, &name, OLD, Sec::Insecure, 30, 31_000);
++            advance(FWD_MEMO_MS + 100);
++            let _ = net::select2(ask(&r, &name), net::sleep(Duration::from_millis(100))).await;
++            settle(&r).await;
++            let (a, _) = ask(&r, &name).await;
++            assert_eq!((a.source, ips(&a)), ("cache", vec![IpAddr::from(NEW)]));
++            assert_eq!(up.asked.get(), 2);
++            up.stop.set(true);
++        });
++    }
++
++    // Independent review counterexamples (work/enclavedns-stale-review-20261021/review_counterexamples.rs 96eb6022), verbatim.
++
++    /// R1: a validating refresh slower than STALE_WAIT_MS that comes back BOGUS is not cached by the refresh job
++    /// (`answered && a.sec != Sec::Bogus`), so the old NOERROR entry keeps being served stale, for up to STALE_MS,
++    /// although every fresh answer is bogus. Expected: once the refresh has a bogus answer, no stale NOERROR data.
++    #[test]
++    fn slow_bogus_refresh_does_not_keep_old_data_alive() {
++        run(|| async {
++            let name = Name::parse("slow-signed.test").unwrap();
++            let (up, addr) = fake("slow-signed.test", Mode::Answer(NEW, 60)).await;
++            up.delay_ms.set(2_500);
++            let r = resolver(addr, true);   // validating: the fake's unsigned answer is bogus
++            seed(&r, &name, OLD, Sec::Insecure, 30, 31_000);
++            let (a, _) = ask(&r, &name).await;            // times out: stale (allowed: no answer yet)
++            assert_eq!(a.source, "stale cache");
++            settle(&r).await;                              // the refresh got its (bogus) answer
++            up.mode.set(Mode::Silent);
++            advance(FWD_MEMO_MS + 100);
++            let (a, _) = ask(&r, &name).await;
++            assert!(!(a.source == "stale cache" && a.rcode == rcode::NOERROR && !a.answer.is_empty()),
++                "old data served stale after the refresh returned bogus");
++            up.stop.set(true);
++        });
++    }
++
++    /// R2: the client response timer is per lookup, not per client request. A CNAME chain of 3 expired names with a
++    /// silent upstream makes the FIRST client request wait ~3 x 1.8 s (one 9 s Ctx for the whole chain), past common stub
++    /// timeouts; the published behaviour answered at once. Expected (RFC 8767 sec. 5): one bounded wait per request.
++    #[test]
++    fn expired_cname_chain_waits_once_per_request() {
++        run(|| async {
++            let (a_, b_, c_) = (Name::parse("a.chain.test").unwrap(), Name::parse("b.chain.test").unwrap(), Name::parse("c.chain.test").unwrap());
++            let (up, addr) = fake("a.chain.test", Mode::Silent).await;
++            let r = resolver(addr, false);
++            for (n, t) in [(&a_, &b_), (&b_, &c_)] {
++                let mut x = Answer::negative(rcode::NOERROR, 300, "network");
++                x.answer.push(Record::new(n.clone(), ty::CNAME, 300, t.wire().to_vec()));
++                r.cache_put(n, ty::A, &x);
++            }
++            seed(&r, &c_, OLD, Sec::Insecure, 300, 301_000);   // ages all three past their TTL
++            let server = Server::new(r.clone(), Vec::new(), None, false, None, true, 1000.0, 1000.0);
++            let t0 = net::now_ms();
++            let res = server.resolve(&a_, ty::A, false, false).await;
++            let ms = net::now_ms() - t0;
++            assert!(res.answer.iter().filter_map(rr_ip).any(|ip| ip == IpAddr::from(OLD)));
++            assert!(ms < STALE_WAIT_MS + 700, "the first request waited {ms} ms for a 3-name chain");
++            up.stop.set(true);
++        });
++    }
++}

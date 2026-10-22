@@ -1,0 +1,59 @@
+--- r1/fresh_rehearsal.py
++++ r2/fresh_rehearsal.py
+@@ -11,7 +11,11 @@
+         SNAP  -> INP/retirement-snapshot
+         LIVE  -> INP/live-indexd-<run>.pgdump (for a coupled backup: the same quiesced dump)
+         BINARIES["indexd-original"] -> (SNAP/indexd, the module's own ORIG_SHA 2d7a637e) - same hash, new source
+-        RUNS  -> this package's runs/ (journals/stages/results never land in the other worker's package)
++        RUNS  -> work/fr-runs/ (r2; journals/stages/results never land in the other worker's package). NOT this package's
++                 runs/: the stage holds PostgreSQL's unix socket, which indexd (pgx, Go) dials on the HOST side as
++                 <RUNS>/<16-hex run id>/sock/.s.PGSQL.5432, and Go refuses an AF_UNIX name longer than 107 bytes with
++                 EINVAL (syscall_linux.go SockaddrUnix.sockaddr, Path [108]int8). Under the package that path was 138
++                 bytes: root-run1 (aaee0cac7170551d) failed at S1 exactly there. socket_path_problem() gates it.
+   - It adds "inputProvenance" to the module's results (written by the module) - setup's own literal
+     "freshQuiescedCutoverBackup": false is the unchanged base return value; the provenance block is the validated fact.
+ Fresh-input gate (before ANY module action, in --plan and --execute): the receipt chain
+@@ -45,7 +49,10 @@
+     "archiveDir": WORK / "private" / "indexd-recovery",
+ }
+ PERSIST = ["GeoLite2-City.mmdb", "consensus.db", "indexd", "indexd.pgdump"]
+-RUNS = HERE / "runs"
++RUNS = WORK / "fr-runs"                                                   # short: see socket_path_problem()
++RUN_ID_HEX = 16                                                           # c2fx.Run: secrets.token_hex(8)
++SOCK_SUFFIX = "/sock/.s.PGSQL.5432"                                       # base bind_stage SOCK = W/"sock"; indexd.yml port 5432
++SUN_PATH_MAX = 107                                                        # sizeof(sockaddr_un.sun_path) 108 minus the NUL
+ 
+ 
+ def sha(p):
+@@ -85,6 +92,20 @@
+     return mod
+ 
+ 
++def socket_path_problem(runs, base_source):
++    """None if indexd's host-side PostgreSQL socket path fits AF_UNIX for every run id; else the reason. The constants are
++    re-derived from the base module's own source, so a change there cannot silently invalidate this gate."""
++    if 'SOCK, MIG = W / "secrets", W / "state", W / "sock", W / "migration"' not in base_source or "  host: {SOCK}\n  port: 5432\n" not in base_source:
++        return "base module no longer binds SOCK=W/sock with database host {SOCK} port 5432: re-derive the socket gate"
++    n = len(str(Path(runs))) + 1 + RUN_ID_HEX + len(SOCK_SUFFIX)
++    if n > SUN_PATH_MAX:
++        return f"PostgreSQL socket path would be {n} bytes (> {SUN_PATH_MAX}, AF_UNIX limit): indexd cannot connect"
++    p = Path(runs)
++    if p.is_symlink() or (p.exists() and not p.is_dir()):
++        return f"{runs} is not a plain directory"
++    return None
++
++
+ def _mode(p):
+     return stat.S_IMODE(os.lstat(p).st_mode)
+ 
+@@ -168,6 +189,10 @@
+     if argv[:1] == ["--recover"] and len(argv) == 2:
+         return mod.main(argv)                                  # the module's own identity-checked recovery, on our RUNS
+     facts, bad = validate_fresh(FRESH["inputDir"], FRESH["backupReceipt"], FRESH["integrity"], FRESH["archiveDir"])
++    sp = socket_path_problem(RUNS, BASE.read_text())
++    if sp:
++        bad.append(sp)
++    facts["pgSocketPathMaxBytes"] = len(str(RUNS)) + 1 + RUN_ID_HEX + len(SOCK_SUFFIX)
+     got, base_bad = mod.pins()
+     m = manifest(got, facts)
+     if argv in ([], ["--plan"]):

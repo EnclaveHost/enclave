@@ -1,0 +1,21 @@
+--- a/network/native-client.mjs
++++ b/network/native-client.mjs
+@@ -22,7 +22,8 @@
+ const identity=l=>recordHash(Object.fromEntries(['id','chainId','deployments','owner','runner','runnerOperator','appRef','configCid'].map(k=>[k,l[k]])));
+ 
+ export class NativeClient {
+-  constructor(profile,{reader,fetch=globalThis.fetch,probe=probeGuest,now=Date.now,maxConcurrent=4}={}){
++  // hostAdmission: the platform host policy for the route's lease host (network/host-policy-adapters.mjs leaseHostAdmission)
++  constructor(profile,{reader,fetch=globalThis.fetch,probe=probeGuest,now=Date.now,maxConcurrent=4,hostAdmission=null}={}){
+     if(!Number.isSafeInteger(maxConcurrent)||maxConcurrent<1||maxConcurrent>32)throw Error('native client concurrency must be 1..32');
+     // Snapshot all caller inputs: asynchronous proof work must not permit a
+     // caller's later mutation to change the expected app or verification policy.
+@@ -48,7 +49,7 @@
+     // Literal directory origins make the DNS-independent claim enforceable.
+     if(this.transport.origins.some(o=>!isIP(new URL(o).hostname.replace(/^\[|\]$/g,''))))throw Error('native discovery requires literal directory addresses');
+     this.now=now;this.probe=probe;this.fetch=fetch;this.operators=new Map();this.tail=Promise.resolve();this.maxConcurrent=maxConcurrent;this.open=0;
+-    this.directory=new PublicDirectory({directory:path.join(p.stateDir,recordHash({chainId:p.chainId??8453,pins:this.pins,id:p.deploymentId,checkers:p.checkers})),checkers:p.checkers,now,
++    this.directory=new PublicDirectory({directory:path.join(p.stateDir,recordHash({chainId:p.chainId??8453,pins:this.pins,id:p.deploymentId,checkers:p.checkers})),checkers:p.checkers,now,hostAdmission,
+       leaseOf:async id=>id===p.deploymentId?this.reader.get(id):null,
+       hostOperator:async id=>{
+         if(!this.operators.has(id))this.operators.set(id,this.reader.registryEntries(this.pins.registry,[id]).then(([h])=>h?.active?h.operator:null));

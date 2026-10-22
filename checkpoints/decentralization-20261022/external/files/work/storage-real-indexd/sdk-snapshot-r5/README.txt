@@ -1,0 +1,1 @@
+snapshot of /home/steven/Documents/Codex/2026-10-18/wo/work/storage-fencing-implementation/sia-s3 at 2026-10-20T00:15:18-07:00 matching R5-source.sha256 (SDK worker 29963, 00:15:00); read-only copy, never edited

@@ -1,0 +1,144 @@
+--- a/sia-s3/src/config.rs
++++ b/sia-s3/src/config.rs
+@@ -23,6 +23,11 @@
+ //!   "writeQuorum": 1, ... }
+ //! ```
+ //!
++//! Changing the set is a migration (replica.rs, "Membership"): a replica that
++//! is leaving stays listed with `"retiring": true` until the new set has been
++//! admitted. It is read from and sealed, but is not a member: `writeQuorum`
++//! counts members only.
++//!
+ //! Indexer URLs are canonicalized (scheme, lowercase host without a trailing
+ //! dot, port only when not the scheme's default, path without a trailing
+ //! slash) and must be distinct. That only stops one endpoint being counted as
+@@ -44,18 +49,25 @@
+     pub indexer: String,
+     /// 32-byte seed of the app key registered on this indexer
+     pub app_key: [u8; 32],
++    /// leaving the membership: a source and seal holder for the change, never a member of the new set
++    pub retiring: bool,
+ }
+ 
+ /// Never prints the seed.
+ impl std::fmt::Debug for ReplicaCfg {
+     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+-        f.debug_struct("ReplicaCfg").field("name", &self.name).field("indexer", &self.indexer).field("app_key", &"<redacted>").finish()
++        f.debug_struct("ReplicaCfg")
++            .field("name", &self.name)
++            .field("indexer", &self.indexer)
++            .field("app_key", &"<redacted>")
++            .field("retiring", &self.retiring)
++            .finish()
+     }
+ }
+ 
+ pub struct Config {
+     pub replicas: Vec<ReplicaCfg>,
+-    /// replicas that must commit a write (default: a majority)
++    /// members (replicas not retiring) that must commit a write (default: a majority of them)
+     pub write_quorum: usize,
+     pub region: String,
+     pub buckets: Vec<String>,
+@@ -118,7 +130,7 @@
+             let indexer = resolve(&j["indexer"]).unwrap_or_else(|| "https://sia.enclave.host".into());
+             let indexer = canonical_indexer(&indexer).map_err(|e| format!("indexer: {e}"))?;
+             let key = default_key.ok_or("appKey is missing or unresolved")?;
+-            return Ok(vec![ReplicaCfg { name: "primary".into(), indexer, app_key: key32(key)? }]);
++            return Ok(vec![ReplicaCfg { name: "primary".into(), indexer, app_key: key32(key)?, retiring: false }]);
+         }
+         v @ Value::String(_) => {
+             let raw = resolve(v).ok_or("replicas is unresolved")?;
+@@ -145,7 +157,11 @@
+             v => resolve(v),
+         }
+         .ok_or_else(|| format!("replica {name}: appKey is missing or unresolved"))?;
+-        let rc = ReplicaCfg { name, indexer, app_key: key32(&key).map_err(|e| format!("replica {}: {e}", r["name"]))? };
++        let retiring = match &r["retiring"] {
++            Value::Null => false,
++            v => v.as_bool().ok_or_else(|| format!("replica {name}: retiring must be true or false"))?,
++        };
++        let rc = ReplicaCfg { name, indexer, app_key: key32(&key).map_err(|e| format!("replica {}: {e}", r["name"]))?, retiring };
+         if out.iter().any(|o| o.name == rc.name) {
+             return Err(format!("duplicate replica name {:?}", rc.name));
+         }
+@@ -154,6 +170,9 @@
+         }
+         out.push(rc);
+     }
++    if out.iter().all(|r| r.retiring) {
++        return Err("every replica is retiring: at least one must be a member".into());
++    }
+     for r in &out {
+         if r.indexer.starts_with("http://") {
+             // kept for a local or tunnelled indexer: the SDK signs requests with the app key and verifies sealed
+@@ -200,12 +219,13 @@
+ 
+     let default_key = if j["appKey"].is_null() { None } else { resolve(&j["appKey"]) };
+     let replicas = replicas(&j, default_key.as_deref())?;
++    let members = replicas.iter().filter(|r| !r.retiring).count();
+     let write_quorum = match &j["writeQuorum"] {
+-        Value::Null => replicas.len() / 2 + 1,
++        Value::Null => members / 2 + 1,
+         v => v.as_u64().ok_or("writeQuorum must be a number")? as usize,
+     };
+-    if !(1..=replicas.len()).contains(&write_quorum) {
+-        return Err(format!("writeQuorum must be 1-{} (the number of replicas)", replicas.len()));
++    if !(1..=members).contains(&write_quorum) {
++        return Err(format!("writeQuorum must be 1-{members} (the number of replicas that are not retiring)"));
+     }
+     let secs = |name: &str, default: u64, min: u64| -> Result<u64, String> {
+         match j[name].as_u64() {
+@@ -251,6 +271,7 @@
+         repair_every_secs: j["repairEverySecs"].as_u64().unwrap_or(300).max(10),
+         repair_max_bytes: j["repairMaxBytesPerPass"].as_u64().unwrap_or(1 << 30),
+         opts: Opts {
++            listing: crate::store::Listing::Current,
+             shards: (10, 20),
+             meta_timeout: Duration::from_secs(meta_timeout),
+             upload_timeout: Duration::from_secs(secs("uploadTimeoutSecs", 1800, 60)?),
+@@ -277,7 +298,10 @@
+     #[test]
+     fn a_0_1_config_is_one_replica() {
+         let c = cfg(&format!(r#","indexer":"https://sia.enclave.host","appKey":"{K1}""#)).unwrap();
+-        assert_eq!(c.replicas, vec![ReplicaCfg { name: "primary".into(), indexer: "https://sia.enclave.host".into(), app_key: [0x11; 32] }]);
++        assert_eq!(
++            c.replicas,
++            vec![ReplicaCfg { name: "primary".into(), indexer: "https://sia.enclave.host".into(), app_key: [0x11; 32], retiring: false }]
++        );
+         assert_eq!((c.opts.meta_timeout.as_secs(), c.opts.upload_timeout.as_secs(), c.timing.meta_grace.as_secs()), (120, 1800, 5));
+         assert_eq!(c.write_quorum, 1);
+     }
+@@ -295,6 +319,21 @@
+     }
+ 
+     #[test]
++    fn retiring_replicas_are_listed_but_not_members() {
++        let c = cfg(&format!(
++            r#","appKey":"{K1}","replicas":[{{"name":"old","indexer":"https://old.example","retiring":true}},{{"name":"a","indexer":"https://a.example"}},{{"name":"b","indexer":"https://b.example"}},{{"name":"c","indexer":"https://c.example","retiring":false}}]"#
++        ))
++        .unwrap();
++        assert_eq!(c.replicas.iter().map(|r| r.retiring).collect::<Vec<_>>(), [true, false, false, false]);
++        assert_eq!(c.write_quorum, 2, "a majority of the three members");
++        // a retiring replica is still one indexer: listing it twice is refused like any alias
++        let twice = format!(
++            r#","appKey":"{K1}","replicas":[{{"name":"a","indexer":"https://a.example"}},{{"name":"b","indexer":"https://A.example","retiring":true}}]"#
++        );
++        assert!(cfg(&twice).is_err());
++    }
++
++    #[test]
+     fn replicas_may_arrive_as_one_json_string() {
+         let list = format!(r#"[{{"name":"a","indexer":"https://a.example","appKey":"{K1}"}},{{"name":"b","indexer":"https://b.example","appKey":"{K2}"}}]"#);
+         let c = cfg(&format!(r#","replicas":{},"writeQuorum":1"#, serde_json::to_string(&list).unwrap())).unwrap();
+@@ -315,6 +354,10 @@
+             format!(r#","appKey":"{K1}","replicas":[{{"name":"a","indexer":"ftp://a.example"}}]"#),
+             format!(r#","appKey":"{K1}","replicas":[]"#),
+             format!(r#","appKey":"{K1}","metadataTimeoutSecs":1"#),
++            // a quorum over a retiring replica, or nothing but retiring ones
++            format!(r#","appKey":"{K1}","replicas":[{{"name":"a","indexer":"https://a.example"}},{{"name":"b","indexer":"https://b.example","retiring":true}}],"writeQuorum":2"#),
++            format!(r#","appKey":"{K1}","replicas":[{{"name":"a","indexer":"https://a.example","retiring":true}}]"#),
++            format!(r#","appKey":"{K1}","replicas":[{{"name":"a","indexer":"https://a.example","retiring":"yes"}}]"#),
+         ] {
+             assert!(cfg(&bad).is_err(), "{bad}");
+         }

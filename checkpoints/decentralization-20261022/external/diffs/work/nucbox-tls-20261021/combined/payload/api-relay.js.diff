@@ -1,0 +1,151 @@
+--- a/relay/api-relay.js
++++ b/relay/api-relay.js
+@@ -61,6 +61,8 @@
+ //                                  follow every registered enclave (+ loud warning).
+ //   CORS_ORIGINS       optional    comma-separated allowed browser origins
+ //                                  (default https://enclave.host,https://www.enclave.host)
++//   CORS_PUBLIC_ORIGINS optional   comma-separated EXACT origins answered with Allow-Origin but never Allow-Credentials
++//                                  (default: the site's ENS origins https://enclavehost.eth, .eth.link, .eth.limo)
+ //   SSO_SIGNER_KEY     optional    secp256k1 private key (0x-hex) for minting
+ //                                  Sign-in-with-Enclave (EST1) tokens - a
+ //                                  DEDICATED key, never one that signs
+@@ -73,7 +75,10 @@
+ //   FANOUT_MAX_INFLIGHT optional   global cap on concurrent upstream fan-out (256)
+ //   AVAIL_POLL_SEC     optional    availability poll cadence (default 10)
+ //   REGISTRY_POLL_SEC  optional    registry re-read cadence (default 300)
+-//   STALE_AFTER_SEC    optional    drop enclaves silent on-chain > this (3600)
++//   STALE_AFTER_SEC    optional    how long an operator's own registry write counts as liveness evidence (3600);
++//                                  a direct row is listed only while it answers /availability AND has fresh evidence:
++//                                  that, or its unexpired operator-signed record at /v1/host/capacity
++//                                  (relay/registry-liveness.mjs). Hosts send no periodic heartbeat transaction.
+ //   MCP_DOMAIN         optional    Host(s) served as the MCP endpoint (default
+ //                                  mcp.enclave.host); /mcp on the API host
+ //                                  serves it too. See mcp.js.
+@@ -103,6 +108,7 @@
+ import { createPlacement, pinnedHost } from "./placement.mjs";
+ import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson, agreeingRead } from "./measurement-predict.mjs";
+ import { createTunnelHub } from "./tunnel.js";
++import { createRegistryLiveness } from "./registry-liveness.mjs";
+ import { createReferrals } from "./referrals.mjs";
+ import { withDetachGrace } from "./route-grace.mjs";
+ import {LeaseReader,createNetworkRoutes,DurableState,createLeaseSource,createRegistryOperator,createNetworkApi} from "./network-runtime.bundle.mjs";
+@@ -304,7 +310,7 @@
+ // and from other tenants). Host uses a hyphen ("dep-abc") since "_" is invalid
+ // in a hostname; we map it back to the canonical "dep_abc". Empty = disabled.
+ // Comma-separated: during a domain cutover both the new and the old suffix
+-// route (e.g. "app.enclave.host,app.nan.host"); the first entry is primary.
++// route (e.g. "app.enclave.host,app.enclavehost.eth"); the first entry is primary.
+ const APP_DOMAINS       = (process.env.APP_DOMAIN || "").toLowerCase().split(",")
+   .map(s => s.trim().replace(/^\.+|\.+$/g, "")).filter(Boolean);
+ 
+@@ -336,6 +342,13 @@
+ // CORS (fix 5): allowlist instead of reflecting any Origin with credentials.
+ const CORS_ORIGINS = (process.env.CORS_ORIGINS || "https://enclave.host,https://www.enclave.host")
+   .split(",").map((s) => s.trim()).filter(Boolean);
++// The same site published under its ENS name: the native https://enclavehost.eth and the eth.link / eth.limo gateway
++// hosts (those two are a third party's servers). Its pages call this API with fetch() that sends no browser credentials
++// (a session rides in the Authorization header the page itself sets), so an exact Allow-Origin is all they need; they
++// never get Allow-Credentials, so no cookie a proxied app may have set on this origin is ever readable from them.
++// Exact https origins only: no wildcard, no reflection.
++const CORS_PUBLIC_ORIGINS = (process.env.CORS_PUBLIC_ORIGINS ?? "https://enclavehost.eth,https://enclavehost.eth.link,https://enclavehost.eth.limo")
++  .split(",").map((s) => s.trim()).filter((s) => /^https:\/\/[a-z0-9.-]+$/.test(s));
+ // Trusted-proxy switch (fix 6): Caddy fronts the relay in production and sets
+ // x-forwarded-host / x-forwarded-for. Default trusts those (current behavior).
+ // Set TRUSTED_PROXY to an off value (0/false/off/no/none) when the relay is
+@@ -699,16 +712,19 @@
+   for (let start = 0; start < total; start += 50)
+     out.push(...await c.readContract({ address: REGISTRY_ADDRESS, abi,
+       functionName: "getPage", args: [BigInt(start), 50n] }));
+-  const now = Math.floor(Date.now() / 1000);
+   warnIfUnauthenticated();
+-  const fresh = out.filter((e) => e.active && now - Number(e.lastSeen) <= STALE_AFTER_SEC);
+-  // Snapshot every live entry's declarations before the dial-safety filters —
+-  // see declaredById above. Deregistered and stale rows are excluded with the
+-  // rest: a box that stopped saying it is here declares nothing.
+-  declaredById = new Map(await Promise.all(fresh.map(async (e) =>
++  // ADMISSION is the registry's active flag (plus the operator allowlist and the dial-safety filters below). Whether
++  // an admitted row is UP is decided per poll from authenticated evidence (pollAvailability, registry-liveness.mjs),
++  // never from a periodic on-chain write: hosts no longer send one, and a healthy host's lastSeen grows old.
++  const admitted = out.filter((e) => e.active === true);
++  // Snapshot every admitted entry's declarations before the dial-safety filters —
++  // see declaredById above. Deregistered rows are excluded with the rest: a box
++  // that left declares nothing. (A tunnel row's twin is no longer dropped here an
++  // hour after its last registry write: a tunnel box never heartbeated.)
++  declaredById = new Map(await Promise.all(admitted.map(async (e) =>
+     [String(await endpointId(String(e.endpoint || "").replace(/\/+$/, ""))).toLowerCase(),
+      { payoutWallet: e.payoutWallet || null, caps: Number(capsOf(e)), region: e.region || null }])));
+-  return Promise.all(fresh
++  return Promise.all(admitted
+     // B2: only vetted operators (baked default, or the env allowlist). Pass-all
+     // ONLY under the explicit TRUSTED_OPERATORS=* opt-in — never by omission.
+     .filter((e) => OPERATORS_UNRESTRICTED || TRUSTED_OPERATORS.includes(String(e.operator || "").toLowerCase()))
+@@ -730,7 +746,9 @@
+     .map(async ({ e, endpoint }) =>
+       ({ endpoint, id: await endpointId(endpoint), name: endpointName(endpoint), repo: e.repo,
+          lastSeen: Number(e.lastSeen), payoutWallet: e.payoutWallet || null,
+-         caps: Number(capsOf(e)), region: e.region || null })));
++         caps: Number(capsOf(e)), region: e.region || null,
++         // what liveness is judged against: the row exactly as registered (registry-liveness.mjs)
++         registryRow: { endpoint: String(e.endpoint), operator: String(e.operator).toLowerCase(), active: e.active === true, lastSeen: Number(e.lastSeen) } })));
+ }
+ 
+ // --- EnclaveDeployments ledger (the source of truth for a wallet's work) --------
+@@ -941,8 +959,13 @@
+   catch { return null; } finally { clearTimeout(t); }
+ }
+ 
+-let registry = [];                 // [{endpoint, id, repo, lastSeen}] (id = the registry's keccak256(endpoint))
+-let live = [];                     // registry ∩ answering, each + {availability, checkedAt}
++let registry = [];                 // [{endpoint, id, repo, lastSeen, registryRow}] (id = the registry's keccak256(endpoint))
++let live = [];                     // registry ∩ answering ∩ live evidence, each + {availability, checkedAt, liveness}
++// Liveness of a DIRECT registry row: its signed capacity record or its operator's recent registry write. A tunnel row's
++// liveness is its authenticated attach (tunnel.js); a static dev list has no chain and is not judged.
++const registryLiveness = createRegistryLiveness({ chainId: 8453, registry: () => REGISTRY_ADDRESS, fetchJson: (u) => fetchJson(u),
++  registryUpdateWindowSec: STALE_AFTER_SEC, log: (m) => console.warn(`[api-relay] ${m}`) });
++const _livenessSaid = new Map();   // endpoint -> last verdict logged (logs on change only)
+ let updatedAt = null;
+ 
+ async function pollRegistry() {
+@@ -986,7 +1009,20 @@
+                        : await fetchJson(`${e.endpoint}/availability`);
+       // a pVM CPU row's pool is the relay-verified VM size (pvmCpuAvailability), never the phone host's own word
+       if (a && e.tunnel) a = pvmCpuAvailability(e, a);
+-      rows[idx] = a ? { ...e, availability: a, relay: hasNoResources(a), checkedAt: new Date().toISOString() } : null;
++      // a direct registry row is listed only on authenticated, bounded-fresh evidence: an answer on its URL is not
++      // proof that its operator is the one running it, and its on-chain lastSeen no longer moves on a timer
++      let liveness = null;
++      if (a && e.registryRow) {
++        liveness = await registryLiveness.judge(e.registryRow);
++        const said = liveness.live ? liveness.evidence : "not live";      // the verdict's class: the reason's age moves every poll
++        if (_livenessSaid.get(e.endpoint) !== said) { _livenessSaid.set(e.endpoint, said); if (!liveness.live) console.warn(`[api-relay] ${e.endpoint} not listed: ${liveness.reason}`); }
++        if (!liveness.live) a = null;
++      }
++      // lastSeen stays what clients have always filtered on (site pricing.js, older CLIs): for a direct row it is now the
++      // newest AUTHENTICATED time (record issue or registry write); the raw registry value rides as registryLastSeen
++      const { registryRow, ...pub } = e;
++      rows[idx] = a ? { ...pub, ...(liveness ? { lastSeen: liveness.seenSec, registryLastSeen: registryRow.lastSeen, liveness: { evidence: liveness.evidence, until: Math.floor(liveness.untilMs / 1000) } } : {}),
++                        availability: a, relay: hasNoResources(a), checkedAt: new Date().toISOString() } : null;
+     }
+   };
+   await Promise.all(Array.from({ length: Math.min(AVAIL_POLL_CONCURRENCY, src.length || 1) }, worker));
+@@ -1051,6 +1087,8 @@
+   if (corsAllowed(origin)) {
+     h["Access-Control-Allow-Origin"] = origin;
+     h["Access-Control-Allow-Credentials"] = "true";
++  } else if (origin && CORS_PUBLIC_ORIGINS.includes(origin)) {
++    h["Access-Control-Allow-Origin"] = origin;                 // exact, no credentials
+   } else if (CORS_ORIGINS.includes("*")) {
+     h["Access-Control-Allow-Origin"] = "*";                    // wildcard, no credentials
+   }
+@@ -1428,8 +1466,10 @@
+ // needs percent-encoding, backslashes, repeated slashes or dot segments, so any of those refuses. A trailing slash is
+ // tolerated. Canonical = percent-decoded (up to three levels), backslashes as slashes, repeated slashes collapsed, dot
+ // segments resolved, lower-cased; a path that will not decode is refused. null = allowed.
++// /v1/host/capacity: the box's operator-signed capacity record, its off-chain liveness evidence for readers that hold no
++// relay trust (docs/network/host-liveness.md); public, read-only, and verified by every reader against the registry row
+ const BOX_OWN_SURFACES = new Set(["/availability", "/health", "/v1/health", "/v1/version", "/v1/pricing", "/v1/session-jwks",
+-                                  "/v1/net-map", "/v1/udp-map", "/v1/attestation", "/.well-known/Cloud Provider-attestation"]);
++                                  "/v1/net-map", "/v1/udp-map", "/v1/attestation", "/.well-known/Cloud Provider-attestation", "/v1/host/capacity"]);
+ const CUSTODY_SURFACES = new Map([["/v2/custody/info", "GET"], ["/v2/custody/challenge", "POST"], ["/v2/custody/release", "POST"],
+                                    ["/v2/custody/evidence", "POST"], ["/v2/custody/join", "POST"], ["/v2/custody/approve", "POST"]]);
+ function canonicalBoxPath(path) {

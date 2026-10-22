@@ -1,0 +1,35 @@
+--- a/relay/tunnel.js
++++ b/relay/tunnel.js
+@@ -177,6 +177,8 @@
+                                   onReferral = () => {},
+                                   operatorFor = null, operatorAttach = false,
+                                   trustedOperators = [], operatorsUnrestricted = false,
++                                  // hostAdmission(name) -> { admit, reason }: the platform host policy (relay/api-relay.js); null = off
++                                  hostAdmission = null,
+                                   // this relay's public origin (selfRoutedUrl form 2) and, for an hv-node's owner-only
+                                   // serving, what a hosting delegation must name: { chainId, registry: () => address }
+                                   tunnelOrigin = "https://api.enclave.host", ownerOnly = null,
+@@ -515,6 +517,11 @@
+             // filters on this set, applied here because a tunnel row skips it.
+             if (!operatorsUnrestricted && !trusted.has(owner))
+               return deny(`${owner} owns ${name} on chain but is not a trusted operator of this relay`);
++            if (hostAdmission) {
++              const pd = await hostAdmission(name).catch((e) => ({ admit: false, reason: e.message }));
++              if (settled) return;
++              if (!pd || pd.admit !== true) return deny(`${name} is refused by the platform host policy: ${pd?.reason || "no decision"}`);
++            }
+             // A live holder is only displaceable by the same on-chain owner —
+             // which this signature just proved. Two boxes sharing one operator
+             // key is the operator's own business; a stranger cannot get here.
+@@ -667,6 +674,11 @@
+             // name would be held by a tunnel that answers nothing, forever.
+             if (settled) return;
+             if (!res.ok) return deny(res.reasons[res.reasons.length - 1] || "quote invalid");
++            if (hostAdmission) {                          // attested attach: the same platform decision for this name's host
++              const pd = await hostAdmission(name).catch((e) => ({ admit: false, reason: e.message }));
++              if (settled) return;
++              if (!pd || pd.admit !== true) return deny(`${name} is refused by the platform host policy: ${pd?.reason || "no decision"}`);
++            }
+             // WHOSE NAME IS THIS? A quote proves the image, not the box, so a
+             // name that is REGISTERED ON CHAIN belongs to whoever registered it
+             // — and only that operator's key can take it, whether the real box

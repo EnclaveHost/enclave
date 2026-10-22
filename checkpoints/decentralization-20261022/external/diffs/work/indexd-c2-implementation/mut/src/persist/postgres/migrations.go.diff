@@ -1,0 +1,35 @@
+--- a/persist/postgres/migrations.go
++++ b/persist/postgres/migrations.go
+@@ -513,4 +513,32 @@
+ EXECUTE FUNCTION slabs_maintain_repair_stats();`)
+ 		return err
+ 	},
++	// FENCING PATCH: writer fence and commit-ordered object event sequence (see init.sql)
++	func(ctx context.Context, tx *txn, log *zap.Logger) error {
++		_, err := tx.Exec(ctx, `-- FENCING PATCH: a per-account writer fence (ballot) and a commit-ordered object event sequence. Accounts that never
++-- install a fence keep fence NULL, event_seq 0 and seq_enabled FALSE, and behave exactly as before.
++ALTER TABLE accounts ADD COLUMN fence BYTEA CHECK (fence IS NULL OR LENGTH(fence) = 32);
++ALTER TABLE accounts ADD COLUMN fence_receipt BYTEA CHECK (fence_receipt IS NULL OR LENGTH(fence_receipt) = 16);
++ALTER TABLE accounts ADD CONSTRAINT accounts_fence_receipt_pair CHECK ((fence IS NULL) = (fence_receipt IS NULL));
++ALTER TABLE accounts ADD COLUMN event_seq BIGINT NOT NULL DEFAULT 0 CHECK (event_seq >= 0);
++ALTER TABLE accounts ADD COLUMN seq_enabled BOOLEAN NOT NULL DEFAULT FALSE;
++-- set (and committed) before a raise waits for the row: from then on every mutation queues behind the raise
++ALTER TABLE accounts ADD COLUMN fence_pending BOOLEAN NOT NULL DEFAULT FALSE;
++ALTER TABLE accounts ADD CONSTRAINT accounts_seq_enabled_needs_fence CHECK (fence IS NOT NULL OR NOT seq_enabled);
++ALTER TABLE object_events ADD COLUMN seq BIGINT CHECK (seq IS NULL OR seq > 0);
++-- one position per account and seq: a seq can never be handed out twice
++CREATE UNIQUE INDEX object_events_account_id_seq_idx ON object_events(account_id, seq) WHERE seq IS NOT NULL;`)
++		return err
++	},
++	// G-C2: conditional head + exact-operation record + sticky enrolment (see init.sql)
++	func(ctx context.Context, tx *txn, log *zap.Logger) error {
++		_, err := tx.Exec(ctx, `-- G-C2 (work/indexd-c2-implementation-interface.txt): conditional head with an exact-operation record, and a sticky
++-- enrolment. Accounts that never enrol keep cas_mode FALSE and last_op NULL, and behave exactly as before.
++ALTER TABLE accounts ADD COLUMN last_op BYTEA CHECK (last_op IS NULL OR LENGTH(last_op) = 16);
++ALTER TABLE accounts ADD COLUMN last_op_digest BYTEA CHECK (last_op_digest IS NULL OR LENGTH(last_op_digest) = 32);
++ALTER TABLE accounts ADD CONSTRAINT accounts_last_op_pair CHECK ((last_op IS NULL) = (last_op_digest IS NULL));
++ALTER TABLE accounts ADD COLUMN cas_mode BOOLEAN NOT NULL DEFAULT FALSE;
++ALTER TABLE accounts ADD CONSTRAINT accounts_cas_needs_fence CHECK (fence IS NOT NULL OR NOT cas_mode);`)
++		return err
++	},
+ }

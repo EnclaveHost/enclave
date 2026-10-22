@@ -1,0 +1,1116 @@
+{
+ "format": "enclave-control-package/1",
+ "composedFrom": {
+  "frozenInventory": "work/lease-readiness-20261022/frozen-control.json",
+  "tests": "work/lease-readiness-20261022/final2.out (62 pass, session 64144)",
+  "privacy": "work/g4-challenge-retry-package-20261022/build-result.json",
+  "liveSnapshot": {
+   "path": "work/root-live-control-20261022/snapshot.json",
+   "sha256": "064cf6a07498c71c72c12618baf60c5f8c104f439cbce499f870d8f61522be78",
+   "finishedAt": "2026-10-22T01:44:55.177445+00:00"
+  },
+  "cutover": {
+   "path": "work/node-stop-proof-20261022/helper/node-hold-cutover.ps1",
+   "sha256": "d88bab632e6ae0f5f7208f82a1c8ec0ab209ed4f5a5b82c45de38731ccce466f"
+  },
+  "budget": {
+   "path": "work/node-stop-proof-20261022/budget.json",
+   "sha256": "7dbff07dc49b1aa9715d80ac638cafc7701c624b5384a4bb8812fc31235f8819",
+   "leaseBudget": {
+    "revertSec": 550,
+    "marginSec": 180,
+    "forwardMinSec": 180,
+    "startNodeSec": 150
+   },
+   "minimumRemainingBeforeStop": 910
+  }
+ },
+ "deploy": [
+  {
+   "group": "network",
+   "name": "network/privacy-agent.mjs",
+   "target": "C:\\Program Files\\Enclave\\network\\privacy-agent.mjs",
+   "old": "7ef4e2303d841e86269d3bbb7ce5f43a5ead5b0d2f2898f9b69774da1ac13147",
+   "new": "cfb69370a00dea147340c64bbd712f118eb8cb825237ac79b3b053b586350801",
+   "how": "swap",
+   "loadedBy": [
+    "privacy-agent (\\Enclave\\Network task)"
+   ],
+   "oldEvidence": "root-stated current live 7ef4e230 (g4 network activation); preflight must observe it",
+   "source": "work/g4-challenge-retry-package-20261022/candidate/privacy-agent.mjs (build-result.json)"
+  },
+  {
+   "group": "control",
+   "name": "network/host-service-names.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\network\\host-service-names.mjs",
+   "old": "absent",
+   "new": "a46123cbb70ab666f9dfb23b5b545fe76d87658c6bf82c7f7574579d0c65b32c",
+   "how": "put",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash (absent)"
+  },
+  {
+   "group": "control",
+   "name": "network/host-service-transport.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\network\\host-service-transport.mjs",
+   "old": "absent",
+   "new": "de5bb98a2e77ffd90ccf65211f564d9515f667b4cd6d17cbb3644fb2ca454e06",
+   "how": "put",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash (absent)"
+  },
+  {
+   "group": "control",
+   "name": "network/wallet-admission.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\network\\wallet-admission.mjs",
+   "old": "absent",
+   "new": "0fa7678f7586388b4725f1432683fa4ab172fd1d57c163d9a63195fbb2f445ee",
+   "how": "put",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash (absent)"
+  },
+  {
+   "group": "control",
+   "name": "sdk/storage/model-volumes.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\sdk\\storage\\model-volumes.mjs",
+   "old": "absent",
+   "new": "152ed24ce1ab6d2ca87a4d81d46fbab48d471559d59c2e35d76faf076a57501a",
+   "how": "put",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash (absent)"
+  },
+  {
+   "group": "control",
+   "name": "windows/vbslike/manager/model-volumes.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\model-volumes.mjs",
+   "old": "absent",
+   "new": "15304eabf58e201c2e60c66b380b045e8bce3706f36aeef5479bf4900cef6954",
+   "how": "put",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash (absent)"
+  },
+  {
+   "group": "control",
+   "name": "windows/node/appzone.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\appzone.mjs",
+   "old": "ba9d9bb13f2ea19cdcbdcdbc021ddbabbd201618ff1e834b733cc220fc8c26c6",
+   "new": "65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68",
+   "how": "swap",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "group": "control",
+   "name": "windows/node/chain.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\chain.mjs",
+   "old": "753818e234916190d75ddfca1f0129ecb95f456a258326598c71f8eaceb0ba00",
+   "new": "86c81124cca6f6e1c06c25c075c03c6811bb46e9344291df080245ffdf3d6580",
+   "how": "swap",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "group": "control",
+   "name": "windows/node/host-admission.bundle.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\host-admission.bundle.mjs",
+   "old": "66c6e15a793b8dc4cb80f209b6ffa405c40c7d235284727384e4833576610067",
+   "new": "6bef372d00a27567e94a11d00f165312f9d715a795519e7a7ad77b4718623b18",
+   "how": "swap",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "group": "control",
+   "name": "windows/node/hvcert.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\hvcert.mjs",
+   "old": "91b9f2db7eb3be98efec1594dfe95245475a0cf234d9ce6843657b37bc2b1557",
+   "new": "3a87d9b897765fc8bc42a2648f310f8ad504022798534603bce9b0fdafe0d9d5",
+   "how": "swap",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": true,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "group": "control",
+   "name": "windows/node/lease-gas-runtime.bundle.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\lease-gas-runtime.bundle.mjs",
+   "old": "d2e363c5f74ae66bf4f0f6ba67890cf1ba95e1b80cc37201a9e68b6fbff5dc7f",
+   "new": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d",
+   "how": "swap",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "group": "control",
+   "name": "windows/node/network-enroll.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\network-enroll.mjs",
+   "old": "2d97a0e10e40ceaa0be897708dc3cfa48742619450605efc107b22674caae2ac",
+   "new": "a9729786598107e69d24d5163ea8592d114f93a9b6693106a7fa3414c95430d6",
+   "how": "swap",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": true,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "group": "control",
+   "name": "windows/node/shield-sessions.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\shield-sessions.mjs",
+   "old": "5706db7bac997906ae0f631d156c9fb801f1fb7e3fe1813b5697696bc760dd00",
+   "new": "dbd160f1da0ccfa0d33a20386611cddd70fc2645fe6e20f2daf7fc8792e81266",
+   "how": "swap",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": true,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "group": "control",
+   "name": "windows/node/shield-startup.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\shield-startup.mjs",
+   "old": "00ae53d8d640abf16d57101ca388cb0f71976e1855dc2e3edf22353b00623f3a",
+   "new": "8dea4d59f2ee296fc7908e25a013240034f0da48d67bf9524a29b191becda2ca",
+   "how": "swap",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "group": "control",
+   "name": "windows/node/shield-verdict.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\shield-verdict.mjs",
+   "old": "6f134d8b27baea62044506c820df9fc36fbcaa68a64a5754f36bb18a7e5dbd95",
+   "new": "e8910fa0daee97e9da8aaceccbb11ea9b9aebf7e3e24738c69089cc3398de231",
+   "how": "swap",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": true,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "group": "control",
+   "name": "windows/vbslike/datapath/node-bridge.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\datapath\\node-bridge.mjs",
+   "old": "24408ce67c4104ca4abf97290d3a8eb7a30f2aee7c4ce05b887d9259c09dafef",
+   "new": "6a80bb3c09adffa5a12c780fbb3240de21a820361473ecb4ded6501e03c4a353",
+   "how": "swap",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": true,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "group": "control",
+   "name": "windows/vbslike/datapath/partition-offers.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\datapath\\partition-offers.mjs",
+   "old": "c13ddf69d2c669567cd868852817c62d473a3eaa031862caefbb67d84389c79e",
+   "new": "553742bf70546465f834cdf266b5a0ae4b7cb6552ec15f692498fb1ee3ce3562",
+   "how": "swap",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "group": "control",
+   "name": "windows/node/host.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\host.mjs",
+   "old": "c4629529903ee87edd258fb5b1964525bcf29b3a1109d9f0c30e74b06d05cfd0",
+   "new": "9634cb40c60b74f92eff8497f687dcaa1ec04a33c21cbd22dc745d773b1da396",
+   "how": "swap",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "group": "control",
+   "name": "windows/node/agent.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\agent.mjs",
+   "old": "c223c0435d859f0bde0d496a2eb1e8a2db4af44a47e32bf653710244c5ccd2ba",
+   "new": "76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1",
+   "how": "swap",
+   "loadedBy": [
+    "agent"
+   ],
+   "lazyInOldAgent": false,
+   "lazyInOldManager": false,
+   "oldEvidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  }
+ ],
+ "keep": [
+  {
+   "name": "availability/host-acceptor.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\availability\\host-acceptor.mjs",
+   "sha256": "63436160d00ecae43d5eff7046b13e16e2fad04a423d32102afaa7645bbfb85d",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "isolation/contract/runtime.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\isolation\\contract\\runtime.mjs",
+   "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "isolation/m2/judge.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\isolation\\m2\\judge.mjs",
+   "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "isolation/m4/guestd/supervisor-guestcert.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\isolation\\m4\\guestd\\supervisor-guestcert.mjs",
+   "sha256": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "isolation/m4/guestd/supervisor-splice.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\isolation\\m4\\guestd\\supervisor-splice.mjs",
+   "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "network/canonical.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\network\\canonical.mjs",
+   "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "network/host-capacity-producer.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\network\\host-capacity-producer.mjs",
+   "sha256": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "network/host-capacity-record.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\network\\host-capacity-record.mjs",
+   "sha256": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "network/owner-names.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\network\\owner-names.mjs",
+   "sha256": "66dfc694094979bd69456992b0343dbd6a1879791a92e054bcf7e0883a8d78b3",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "network/registry-reconcile.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\network\\registry-reconcile.mjs",
+   "sha256": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "network/rpc-identity.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\network\\rpc-identity.mjs",
+   "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "network/shield-expectation.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\network\\shield-expectation.mjs",
+   "sha256": "1af59d09f6edbc42071f7ded3fb8d42c90232c57c12ae17cfec6724de66f1a4a",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "relay/avf-verify.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\relay\\avf-verify.mjs",
+   "sha256": "081d826f674d8579f3636c28b4dbd6b62955bd0ff0b8f2710157980ecd9764fd",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "relay/snp-verify.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\relay\\snp-verify.mjs",
+   "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash",
+   "candidateSha256": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046",
+   "note": "comment-only delta; the recorded live bytes stay (minimal package)"
+  },
+  {
+   "name": "relay/vbs-policy.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\relay\\vbs-policy.mjs",
+   "sha256": "0e915d95b6771db87e00cee5ef97b82459da0b43653629a2e03264c78a3901cc",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "relay/vbs-tcglog-core.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\relay\\vbs-tcglog-core.mjs",
+   "sha256": "936fc2ccc116154b6936d16a05fa89774a8f68a6dcb36b2733b064d4f2425912",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "relay/vbs-tcglog.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\relay\\vbs-tcglog.mjs",
+   "sha256": "b7c6b2e43c4fde1fbc6730b2ce53d257a83003673b3b56257b60983083a7036d",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "relay/vbs-tpm.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\relay\\vbs-tpm.mjs",
+   "sha256": "993c69a8e9931d67fb741ff93c52dc10503f11b42aedb125a42cffb71922b4f6",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "relay/vbs-verify.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\relay\\vbs-verify.mjs",
+   "sha256": "1b26c6b328d463b6597bc26ea4f8220403638e84655da1ddddea5152cd57b868",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "sdk/bootstrap/package.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\sdk\\bootstrap\\package.mjs",
+   "sha256": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash",
+   "note": "already live at the candidate bytes (fresh snapshot); recorded 38d49b09 was stale: verify-only, never re-applied"
+  },
+  {
+   "name": "sdk/storage/replicas.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\sdk\\storage\\replicas.mjs",
+   "sha256": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/appframe.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\appframe.mjs",
+   "sha256": "fd02f5b9f221291357ca0491a81e3330013f6bcec8149b48d3a1463b4ce05681",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/apprun.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\apprun.mjs",
+   "sha256": "09c60eb7fbe7e6a63cd0696bac6c53b9dfa826e103cc1f0f64ce359abab361ce",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/apptls.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\apptls.mjs",
+   "sha256": "2fb25b001874488104175523dc8409b515b55c5d7922678737e463fe9ed44414",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/audit-jobs.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\audit-jobs.mjs",
+   "sha256": "6a6fe3ae786a0a8ffdbf1cbf2dc1e2335035c6adb13058623932f209d97ec4c5",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/blob-cache.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\blob-cache.mjs",
+   "sha256": "6f34642f9d84706cc26f3f5dd69a70c88b24e73d3c3ab2c6c8b3cc9a82905c38",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/compute-measure.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\compute-measure.mjs",
+   "sha256": "6e98c52b45ed9a1f4cbdfa91a8bdc2f43aca8102fdfb1cb22ab4e29b0462af3b",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/domains.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\domains.mjs",
+   "sha256": "a10085de2437ca664f8e8c2d71e2560d095296f55d3ddd53f4b11c8b9634bf41",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/gas-runway.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\gas-runway.mjs",
+   "sha256": "1c89eb294039236c738384d9bcd5bf57a3b274d5bfef0ff3284dd956f5f5a537",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/host-delegation.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\host-delegation.mjs",
+   "sha256": "153f9aa731014a7aabdf9c221970b085577de80bdae738bc782d35deb777888c",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/host-identity.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\host-identity.mjs",
+   "sha256": "ff9e46d9bcec08ff50ab04f0f4581845050b70e5c68debb64ec3cdf255822668",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/hosting.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\hosting.mjs",
+   "sha256": "f2f3f46cd2fcc5433d988379546cd8c142ec878907457ffe1a01d4a1c89f17b7",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/hvnode-attach.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\hvnode-attach.mjs",
+   "sha256": "bcd715675c2e0bea32c417a820ec4620e3bad9bad07d7d4c81ef2b47daaaa21d",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/hvnode-evidence.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\hvnode-evidence.mjs",
+   "sha256": "5e0f11a03b07a585a79a0ec14b23f47ddc5f5af9ce8edc10dccea2400aba06c5",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/hyperv-events.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\hyperv-events.mjs",
+   "sha256": "c91242a456a4c0944ba3bf12bb0db6aa4010db2f4b50960bf4127290fe9933b4",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/isolation-client.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\isolation-client.mjs",
+   "sha256": "8d07cb4ea105819c8f769e942c58063d20cf1289544c2afac0b9aeda0d963b7b",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/isolation-lifecycle.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\isolation-lifecycle.mjs",
+   "sha256": "5ae5f457f35fd4debb0b77f8b16ec00325d003470551354377e51c791734b033",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/payout.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\payout.mjs",
+   "sha256": "c59f855efb487650acffb93fea6d22d44c2867a31e37eff39651008634db785d",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/price-guide.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\price-guide.mjs",
+   "sha256": "e9869b25b28896cef1691a8a0c26b7ee9b57c117ff668ae264dee745b89cd3ee",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/release-channel.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\release-channel.mjs",
+   "sha256": "f690c29b606879468db94b7b78f283e7de09f94a262803e13ee4dc61b447f942",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/secrets.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\secrets.mjs",
+   "sha256": "d034d871c98090c663cee59458063e85368d4eb83f1cdcf9fa816673ddfadc95",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/session-api-auth.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\session-api-auth.mjs",
+   "sha256": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/session.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\session.mjs",
+   "sha256": "cb14d370a09655bb05884a6a1f5bcd4dd0b28ebe0180ae881c9c00c6222be438",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/shield-custody.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\shield-custody.mjs",
+   "sha256": "5f70528f54cbd092b93f2b0dc7dcffcb2a91e5d1ff64c626f6297e890cf363a2",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/shield-secrets.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\shield-secrets.mjs",
+   "sha256": "c5c4b9c2da1235fe35029ef2a1edce4db058b6b9c9289f0d3363fd59b857a30e",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/shield-witness.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\shield-witness.mjs",
+   "sha256": "a316361afb19f4bdd05f5e001b916b684669ce9ac03f9788830ed61f06c2b91e",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/shieldedcard.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\shieldedcard.mjs",
+   "sha256": "287f86d53617455f390fb65e39d99cb4f996edc1f4050351bd7ee710bc69f047",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/siwe.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\siwe.mjs",
+   "sha256": "2446021db3b97dc06b0af964c44ccdb1890aa4004a41f5d0fb3db553668af82e",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/sponsor.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\sponsor.mjs",
+   "sha256": "896fb8d99b498c2b7fa8f925fabc58835d049031bb7148b9b419158bb8cc4bb3",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/startup-egress.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\startup-egress.mjs",
+   "sha256": "957d6be65f411619cb557e71dc151a123ecba2c6a539018255f4cf47cd2ea5a2",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/tunnel-handover.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\tunnel-handover.mjs",
+   "sha256": "b551e68336ac68c7f26ce6965f5586f75f2bd6536890f9b6ac1fdef4e037f54f",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/update-watch.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\update-watch.mjs",
+   "sha256": "9104b137b884ae5d46dfa94f2ec8529d36ee2cd51c89f204eec9335cd1af46a7",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/verification-checkpoints.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\verification-checkpoints.mjs",
+   "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/node/waf.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\waf.mjs",
+   "sha256": "d44da8feb6b55073e1f18264d028e3f854c85215ae3a97208ef329638c1ee94a",
+   "loadedBy": [
+    "agent"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/vbslike/datapath/datapath.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\datapath\\datapath.mjs",
+   "sha256": "1149dfb2099a8ea3963c570d61d40e7b304d060b73c62694a31e8346bd258771",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/vbslike/manager/bridge-auth.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\bridge-auth.mjs",
+   "sha256": "259b4e879e91ab97b7776ee661a7aeda84c8a47c521a1e0d71e65df479693860",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/vbslike/manager/custody-key-file.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\custody-key-file.mjs",
+   "sha256": "4eb7f3a73ee6857c8191a006e510b6072e431f9f9a42cd4fca9fa157797bd8cc",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/vbslike/manager/custody-transport.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\custody-transport.mjs",
+   "sha256": "a77a922ade374993540b8c0027234a5dd184c71fe3cbe4d44b04a506ed49652c",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/vbslike/manager/derive.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\derive.mjs",
+   "sha256": "504342510c09dadeac0ec925bf071ff9378a56c5c9cc6990c29bbaf85635ad4e",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/vbslike/manager/egress.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\egress.mjs",
+   "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/vbslike/manager/fetchcid.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\fetchcid.mjs",
+   "sha256": "5f3443c431d36812554202303c4b5596a181727f88c74d95a52a6440cc46cafd",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/vbslike/verify/boot-statements.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\verify\\boot-statements.mjs",
+   "sha256": "f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "windows/vbslike/verify/judge-hv.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\verify\\judge-hv.mjs",
+   "sha256": "bae3916e4a9ee1c3f4d67503f76b52d93febfbf356375a3321c7fe1fb9781f7f",
+   "loadedBy": [
+    "agent",
+    "manager"
+   ],
+   "evidence": "fresh root snapshot 2026-10-22T01:44:55Z full hash"
+  },
+  {
+   "name": "network/host-service-ingress.mjs",
+   "target": "C:\\Program Files\\Enclave\\network\\host-service-ingress.mjs",
+   "sha256": "c952dce4fe007c48c81e1726a743d850dc2f5231204d01466349bfa5ffcc62d3",
+   "evidence": "already live (root G4 network apply); NOT replaced"
+  },
+  {
+   "name": "network/windows-circuit-worker.mjs",
+   "target": "C:\\Program Files\\Enclave\\network\\windows-circuit-worker.mjs",
+   "sha256": "13ce44f1b39d4521e32266f2dad234958af70b1b05e2a3f6638535571e8cf320",
+   "evidence": "already live (root G4 network apply); NOT replaced"
+  },
+  {
+   "name": "network/enclave-wg.exe",
+   "target": "C:\\Program Files\\Enclave\\network\\enclave-wg.exe",
+   "sha256": "cbaf8313ce4e2cfce347abed99bdeaf5fc0631b8ab07bfbab20471f60920264c",
+   "evidence": "preserve (WireGuard binary, no native change)"
+  },
+  {
+   "name": "network/enclave-circuit-firewall.exe",
+   "target": "C:\\Program Files\\Enclave\\network\\enclave-circuit-firewall.exe",
+   "sha256": "78daec71f51f89a53600cb7d4bfb0492e2f0d642047422e4fbec30b2a5c238a6",
+   "evidence": "preserve (firewall binary, no native change)"
+  }
+ ],
+ "excluded": [
+  {
+   "name": "network/connectivity-chain.mjs",
+   "sha256": "c857a08f5b6eb1a94ff173041e353d9041b937083eb062382608e0dd5cfb17a7",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "network/guarded-fetch.mjs",
+   "sha256": "0559a0ece3084671e4d745d2d17218473584b84f393b79c724e0db8d9b668a34",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "network/host-admission-policy.mjs",
+   "sha256": "a15c05ea4dfd963ba72be60af03f0a712f39974423abe4b1abc80cbfabc145e0",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "network/lease-reader.mjs",
+   "sha256": "907ba85d40e3938d6a2aa3e22904bb9449b3bce5426eaf27003892922b6efa5e",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "network/network-authorities.mjs",
+   "sha256": "fbe3141976ef22a87173fb56def5d5545520c13667f61355d5a889b82f497448",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "network/network-policy-core.mjs",
+   "sha256": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "network/network-policy.mjs",
+   "sha256": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "network/provider-qualification.mjs",
+   "sha256": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "network/registry-abi.mjs",
+   "sha256": "4973d7ad4800b683d23ff531dd2bfabb5cd00ba3c46767f223b53965839fc02d",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "network/route-record.mjs",
+   "sha256": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "network/socks-connect.mjs",
+   "sha256": "5cedac9e6f3420f7381ea96b9cdf1d09f45012293f1af8b141b4c8bd9f8cdc74",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "relay/net-guard.mjs",
+   "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "scripts/network/prepare-host-policy.mjs",
+   "sha256": "441d40347d4fd3c4ac34a4020125719ff3feddfc2b320f74da9c3471b0f545fd",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "site/js/core/catalog-policy.js",
+   "sha256": "58806185a5ed3fe70163d9ec04ba129399b2557d67270538e2efb0aea949b6f5",
+   "recordedLiveSha256": "absent",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "windows/node/apptool.mjs",
+   "sha256": "bc8531ab6fd2f543ad28df647c44dacdb2136c15f980b91db2d6a00e8094fe38",
+   "liveSha256": "bc8531ab6fd2f543ad28df647c44dacdb2136c15f980b91db2d6a00e8094fe38",
+   "why": "unchanged and not loaded by the node agent or VM manager (CLI-only closure)"
+  },
+  {
+   "name": "windows/node/client.mjs",
+   "sha256": "44e7277d8de3a751c7715fa496b415469a065b292152bf596d4ee7ff95895b79",
+   "liveSha256": "44e7277d8de3a751c7715fa496b415469a065b292152bf596d4ee7ff95895b79",
+   "why": "unchanged and not loaded by the node agent or VM manager (CLI-only closure)"
+  },
+  {
+   "name": "windows/node/deploy-files.mjs",
+   "sha256": "8b9d21480a19a00e07e5d1ce73d1898966a7b5ef8422f9c43c6074e326c1789a",
+   "liveSha256": "8b9d21480a19a00e07e5d1ce73d1898966a7b5ef8422f9c43c6074e326c1789a",
+   "why": "unchanged and not loaded by the node agent or VM manager (CLI-only closure)"
+  },
+  {
+   "name": "windows/node/host-onchain.mjs",
+   "sha256": "de5f5b27edded2661318705e9c411c385fe23f689593d2c2ad7f493bc696f48b",
+   "recordedLiveSha256": "1a750655481f89c9db8cb8f974a534caf8f9aedd563d033845ff41ba1d5effe7",
+   "liveSha256": "1a750655481f89c9db8cb8f974a534caf8f9aedd563d033845ff41ba1d5effe7",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  },
+  {
+   "name": "windows/node/host-ownership.mjs",
+   "sha256": "19bcec5c27b4228a683c20d4ef0ead83a6aaeea5e3470012342aaad05ddb85f5",
+   "recordedLiveSha256": "19bcec5c27b4228a683c20d4ef0ead83a6aaeea5e3470012342aaad05ddb85f5",
+   "liveSha256": "absent",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path; live absent differs from the recorded 19bcec5c (fresh snapshot): nothing live imports it"
+  },
+  {
+   "name": "windows/node/keys.mjs",
+   "sha256": "8715bb5a0a9ea3ed4428063fa7614c85c3a3922c74a52debd54eacfeb5a10d80",
+   "recordedLiveSha256": "7453fd586a29c7b4422e75bd731c0d76f07c679eeea995aa47fe04d1257e2518",
+   "liveSha256": "7453fd586a29c7b4422e75bd731c0d76f07c679eeea995aa47fe04d1257e2518",
+   "why": "not loaded by the node agent or VM manager: operator CLI / installer closure (host-onchain, host-ownership, keys, prepare-host-policy); deferred to the release/installer path"
+  }
+ ],
+ "managerOnlyObserved": [
+  {
+   "name": "windows/vbslike/manager/backend.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\backend.mjs",
+   "rootReceipt": null
+  },
+  {
+   "name": "windows/vbslike/manager/console-log.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\console-log.mjs",
+   "rootReceipt": null
+  },
+  {
+   "name": "windows/vbslike/manager/main.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\main.mjs",
+   "rootReceipt": null
+  },
+  {
+   "name": "windows/vbslike/manager/memory-share.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\memory-share.mjs",
+   "rootReceipt": null
+  },
+  {
+   "name": "windows/vbslike/manager/package-transport.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\package-transport.mjs",
+   "rootReceipt": null
+  },
+  {
+   "name": "windows/vbslike/manager/psrun.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\psrun.mjs",
+   "rootReceipt": null
+  },
+  {
+   "name": "windows/vbslike/manager/ready.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\ready.mjs",
+   "rootReceipt": null
+  },
+  {
+   "name": "windows/vbslike/manager/server.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\server.mjs",
+   "rootReceipt": "58b5d7fd76e7d3bbd3c64780a27e8475dce4dd1aa21753f1e44aaee9c5ea8beb"
+  },
+  {
+   "name": "windows/vbslike/manager/shield-profile.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\shield-profile.mjs",
+   "rootReceipt": null
+  },
+  {
+   "name": "windows/vbslike/manager/wmi-launcher.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\wmi-launcher.mjs",
+   "rootReceipt": null
+  },
+  {
+   "name": "windows/vbslike/manager/wmiserve-run.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\wmiserve-run.mjs",
+   "rootReceipt": "8107f272741c40a3d6ea51c0054d5fdc0904cd277346265cd01ca9de1c74ed17"
+  }
+ ],
+ "counts": {
+  "deployControl": 18,
+  "deployNetwork": 1,
+  "put": 5,
+  "swap": 14,
+  "keep": 67,
+  "excluded": 20,
+  "agentClosure": 81,
+  "managerClosure": 29,
+  "all60Closure": 101
+ }
+}

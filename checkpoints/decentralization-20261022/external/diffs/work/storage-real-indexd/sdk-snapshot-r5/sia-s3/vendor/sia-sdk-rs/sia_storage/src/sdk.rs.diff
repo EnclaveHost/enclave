@@ -1,0 +1,67 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/sdk.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/sdk.rs
+@@ -243,6 +243,24 @@
+         Ok(obj)
+     }
+ 
++    /// PATCH U1 (needs the U1 indexd endpoint): the account's current objects in ID order after `after`, read
++    /// from the indexer's object table: unlike [Sdk::object_events], an acknowledged pin is listed at once.
++    /// Consecutive pages (each `after` = the last ID of the page before) return every object committed before
++    /// the first page that is not deleted meanwhile, exactly once.
++    pub async fn current_objects(&self, after: Option<Hash256>, limit: Option<usize>) -> Result<Vec<ObjectEvent>, Error> {
++        let events = self.api_client.current_objects(&self.app_key.0, after, limit).await.map_err(|e| Error::App(format!("{e:?}")))?;
++        events
++            .into_iter()
++            .map(|event| {
++                let object = match event.object {
++                    Some(sealed) => Some(sealed.open(self.app_key.as_ref())?),
++                    None => None,
++                };
++                Ok(ObjectEvent { id: event.id, deleted: event.deleted, updated_at: event.updated_at, object })
++            })
++            .collect()
++    }
++
+     /// Retrieves a list of object events from the indexer. This
+     /// can be used to synchronize local state with the indexer.
+     ///
+@@ -279,6 +297,39 @@
+         Ok(objs)
+     }
+ 
++    /// PATCH (writer fencing): the credential every fenced mutation of this SDK (and its clones) carries from now on.
++    /// Clears any recorded refusal.
++    pub fn set_fence_credential(&self, cred: Option<crate::fence::FenceCredential>) {
++        self.api_client.set_fence(cred);
++    }
++
++    /// PATCH (writer fencing): the credential this SDK presents (None: none).
++    pub fn fence_credential(&self) -> Option<crate::fence::FenceCredential> {
++        self.api_client.fence_credential()
++    }
++
++    /// PATCH (writer fencing): the first fenced refusal since the credential was set: the fence the indexer holds
++    /// instead (inner None: none installed there).
++    pub fn fence_conflict(&self) -> Option<Option<crate::fence::FenceToken>> {
++        self.api_client.fence_conflict()
++    }
++
++    /// PATCH (writer fencing): `GET /fence`.
++    pub async fn fence_state(&self) -> Result<crate::fence::FenceState, Error> {
++        self.api_client
++            .fence_get(&self.app_key.0)
++            .await
++            .map_err(Error::AppClient)
++    }
++
++    /// PATCH (writer fencing): `POST /fence`; a refusal is `Ok(FenceRaise::Refused(..))`.
++    pub async fn fence_raise(&self, token: crate::fence::FenceToken) -> Result<crate::fence::FenceRaise, Error> {
++        self.api_client
++            .fence_raise(&self.app_key.0, token)
++            .await
++            .map_err(Error::AppClient)
++    }
++
+     /// Prunes unused slabs from the indexer. This helps to free up
+     /// storage space by removing slabs that are no longer
+     /// referenced by objects.

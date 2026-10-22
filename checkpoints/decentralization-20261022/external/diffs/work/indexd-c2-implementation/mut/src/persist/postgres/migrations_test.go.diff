@@ -1,0 +1,11 @@
+--- a/persist/postgres/migrations_test.go
++++ b/persist/postgres/migrations_test.go
+@@ -600,7 +600,7 @@
+ 	// prepare 2 databases
+ 	ci := connectionInfoFromEnv()
+ 	ci2 := ci
+-	ci2.Database = "indexd2"
++	ci2.Database = ci.Database + "_2" // FENCING PATCH (test only): was "indexd2"; keeps test databases in one namespace
+ 
+ 	// cleanup
+ 	ctx := context.Background()

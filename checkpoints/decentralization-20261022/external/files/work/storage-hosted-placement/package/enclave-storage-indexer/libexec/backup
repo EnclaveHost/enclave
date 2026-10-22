@@ -1,0 +1,20 @@
+#!/bin/bash
+# backup <r>: OPTIONAL encrypted logical backup, for the loss of the WHOLE replica set (single replicas are rebuilt
+# from peers instead). pg_dump -Fc of the indexd database | zstd | CMS AuthEnvelopedData (AES-256-GCM, RFC 5083) to
+# the owner's backup certificate(s). The plaintext dump never touches the disk. Output: outbox/<r>-<UTC>.cms + .sha256.
+source "$(dirname "$0")/common.sh"
+r=$(replica_name "${1:-}")
+load_env "$r"
+recip=$ETC/$r/owner-backup.pem
+[ -f "$recip" ] || die "no owner-backup.pem: backups are disabled for $r (replicas rebuild from peers)"
+PG=${PG_BIN:-/usr/lib/postgresql/18/bin}
+DUMP=${ESI_TEST_DUMP_CMD:-"$PG/pg_dump -Fc -h $RUN/$r/pg -d indexd"}
+out=$VAR/$r/outbox
+mkdir -p "$out"
+f=$out/$r-$(date -u +%Y%m%dT%H%M%SZ).cms
+umask 077
+# shellcheck disable=SC2086
+$DUMP | zstd -q -19 | openssl cms -encrypt -binary -aes-256-gcm -outform DER -out "$f.part" "$recip"
+mv "$f.part" "$f"
+(cd "$out" && sha256sum "$(basename "$f")" > "$(basename "$f").sha256")
+echo "backup $f ($(stat -c %s "$f") bytes)"

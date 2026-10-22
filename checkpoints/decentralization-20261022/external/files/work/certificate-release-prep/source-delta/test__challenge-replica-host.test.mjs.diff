@@ -1,0 +1,55 @@
+--- a/test/challenge-replica-host.test.mjs
++++ b/test/challenge-replica-host.test.mjs
+@@ -18,7 +18,8 @@
+ import {execFileSync} from 'node:child_process';
+ import {createHash} from 'node:crypto';
+ import {fileURLToPath} from 'node:url';
+-import {challengeReplicaConfig, challengeReplicaEnv, verifyReplicaRelease, challengeReplicaAdDraft, startChallengeReplica, ROLES} from '../network/challenge-replica-host.mjs';
++import {challengeReplicaConfig, challengeReplicaEnv, verifyReplicaRelease, challengeReplicaAdDraft, startChallengeReplica, ROLES, hostPolicyGateEnv} from '../network/challenge-replica-host.mjs';
++import {CARRIER_MIRROR} from '../network/policy-carriers.mjs';
+ import {createNetworkHost} from '../network/enclave-network-host.mjs';
+ import {appZoneShieldParty} from '../network/app-zone-shield.mjs';
+ import * as F from './app-zone-fixture.mjs';
+@@ -156,6 +157,42 @@
+     await assert.rejects(startChallengeReplica(cfg, {spawn: () => { spawns++; throw new Error('must not spawn'); }, fetch: async () => { throw new Error('offline'); }}),
+       /not started: platform host policy/);
+     assert.equal(spawns, 0, 'nothing ran before an authenticated admit');
++  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
++});
++
++test('host policy carriers (first host without the fleet): the integrated carriers, explicit only; the gate is shown the reserved carrier origin', () => {
++  const book = '0xab214342d5a490150a4a977063a2f88e21f80907', own = '0x' + 'bb'.repeat(20);
++  const withCarriers = (hp) => challengeReplicaConfig({...base(), hostPolicy: {policy: 'production', endpoint: 'https://host-a.example.org', stateDir: '/var/lib/c/host-policy', ...hp}});
++  const c = withCarriers({carriers: {importDir: '/var/lib/c/policy-import', policyMirrorStateDir: '/var/lib/enclave-host-services/policy-mirror'}, mirrors: ['https://mirror.example.org/platform-policy']});
++  const {env, shape} = hostPolicyGateEnv(c.hostPolicy);
++  assert.equal(env.ENCLAVE_PLATFORM_HOST_POLICY, 'production');
++  assert.deepEqual(env.ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS.split(','), ['https://mirror.example.org/platform-policy', CARRIER_MIRROR]);
++  assert.deepEqual(shape.platformHostPolicyCarriers, {importDir: '/var/lib/c/policy-import'});
++  assert.deepEqual(shape.services, [{role: 'policy-mirror', config: {stateDir: '/var/lib/enclave-host-services/policy-mirror'}}]);
++  const explicit = withCarriers({policy: {book, hostOwnership: own, mirrors: []}, carriers: {importDir: '/var/lib/c/policy-import'}, rpcs: ['https://rpc-one.example', 'https://rpc-two.example']});
++  const e2 = hostPolicyGateEnv(explicit.hostPolicy).env;
++  assert.equal(JSON.parse(e2.ENCLAVE_PLATFORM_HOST_POLICY).book, book); assert.equal(e2.ENCLAVE_PLATFORM_HOST_POLICY_RPCS, 'https://rpc-one.example/,https://rpc-two.example/');
++  assert.equal(hostPolicyGateEnv(withCarriers({}).hostPolicy).env.ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS, undefined, 'no carriers: the gate is unchanged');
++  for (const [hp, re] of [[{carriers: {}}, /names no carrier/], [{carriers: {importDir: 'relative'}}, /absolute/], [{carriers: {secret: '/x'}}, /unknown field/],
++    [{mirrors: ['http://mirror.example.org/p']}, /https/], [{rpcs: ['https://one.example']}, /2 to 8 RPCs/]]) assert.throws(() => withCarriers(hp), re);
++  assert.throws(() => challengeReplicaConfig({...base(), hostPolicy: {policy: 'off', carriers: {importDir: '/x'}}}), /takes no endpoint, stateDir, mirrors, rpcs or carriers/);
++});
++
++test('the REAL gate with carriers, fresh offline host: still nothing starts, and the carrier origin is answered locally (never fetched)', {timeout: 120_000}, async () => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'challenge-carriers-'));
++  try {
++    const dns = Buffer.from('export {};\n'), bundle = Buffer.from('export const x = 1;\n');
++    fs.writeFileSync(path.join(dir, 'dns.mjs'), dns, {mode: 0o444}); fs.writeFileSync(path.join(dir, 'network-runtime.bundle.mjs'), bundle, {mode: 0o444});
++    fs.writeFileSync(path.join(dir, 'dns.mjs.manifest.json'), JSON.stringify({sha256: require256(dns), runtimeBundleSha256: require256(bundle)}), {mode: 0o444});
++    for (const d of ['policy', 'import', 'mirror-store/documents']) fs.mkdirSync(path.join(dir, d), {recursive: true});
++    const cfg = challengeReplicaConfig({...base(), release: {dir, dnsSha256: require256(dns), runtimeBundleSha256: require256(bundle)},
++      hostPolicy: {policy: 'production', endpoint: 'https://host-a.example.org', stateDir: path.join(dir, 'policy'),
++        carriers: {importDir: path.join(dir, 'import'), policyMirrorStateDir: path.join(dir, 'mirror-store')}}});
++    const asked = []; let spawns = 0;
++    await assert.rejects(startChallengeReplica(cfg, {spawn: () => { spawns++; throw new Error('must not spawn'); },
++      fetch: async (u) => { asked.push(String(u?.url ?? u)); throw new Error('offline'); }}), /not started: platform host policy/);
++    assert.equal(spawns, 0);
++    assert.ok(!asked.some((u) => u.includes('policy-carriers.invalid')), 'the reserved carrier origin reached the network: ' + asked.join(' '));
+   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+ });
+ 

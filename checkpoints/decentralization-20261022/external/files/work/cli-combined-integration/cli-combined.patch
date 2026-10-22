@@ -1,0 +1,1226 @@
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -339,7 +339,7 @@
+ // ---- global flags + config ---------------------------------------------------
+ // Parsed once, up front; command args are whatever remains.
+ const opt = { json: false, trace: false, base: null, rpc: null, yes: false,
+-              unsigned: false, signer: null, from: null, contractPins: null,
++              unsigned: false, signer: null, signerMode: null, from: null, contractPins: null,
+               // --wallet: act with the wallet key even when a session is active (see "sessions" below)
+               wallet: false,
+               // `enclave attest` (verifier/metal-box.mjs, this repository's own verifier): --expect pins the launch measurement(s)
+@@ -353,6 +353,14 @@
+ const IND_VALUE_FLAGS = { "--profile": "profile", "--profile-digest": "profileDigest", "--quorum": "quorum",
+   "--confirmations": "confirmations", "--max-block-age": "maxBlockAge", "--usdc-token": "usdcToken", "--directories": "directories",
+   "--state-dir": "stateDir", "--native-profile": "nativeProfile", "--max-fee-gwei": "maxFeeGwei" };
++// The value of `flag` as written AFTER the command word `cmd` in the raw argv, or null. The global parser takes its flags
++// out wherever they appear; a command whose own flag shares a global name (custody migrate --from FILE) gets it back.
++function commandFlag(cmd, flag) {
++  const a = process.argv.slice(2), at = a.indexOf(cmd);
++  if (at < 0) return null;
++  const i = a.indexOf(flag, at + 1);
++  return i < 0 || i + 1 >= a.length ? null : a[i + 1];
++}
+ const args = [];
+ {
+   const a = argv.slice(2);
+@@ -376,6 +384,8 @@
+     // node-hid is a native module with per-platform binaries.
+     else if (a[i] === "--unsigned") opt.unsigned = true;
+     else if (a[i] === "--signer") opt.signer = a[++i];
++    // independent mode: auto | sign | wallet-send | handoff (cli/independent-signer.mjs)
++    else if (a[i] === "--signer-mode") opt.signerMode = a[++i];
+     else if (a[i] === "--from") opt.from = a[++i];
+     else if (a[i] === "--wallet") opt.wallet = true;
+     else if (a[i] === "--independent") opt.independent = true;
+@@ -495,6 +505,9 @@
+   "this command needs a SIGNED MESSAGE, not a transaction, so --unsigned cannot express it. "
+   + "Use --signer <url> (Frame/Clef sign messages too), or run it with a local key";
+ function loadKey({ required = true } = {}) {
++  // independent mode with --signer (or --signer-mode handoff): the external signer, whose transactions, messages and
++  // typed data are each checked against what was asked (cli/independent-signer.mjs)
++  if (INDEPENDENT?.signer) return INDEPENDENT.signer;
+   // an address is enough when something else holds the key
+   if (opt.unsigned || opt.signer) {
+     if (opt.from) {
+@@ -2896,8 +2909,8 @@
+   }
+ }
+ 
+-async function cmdAvailability() {
+-  if (INDEPENDENT) throw new Error("free capacity is a host fact that is not on chain; independent mode lists registered hosts and their posted prices instead: enclave hosts");
++async function cmdAvailability(rest = []) {
++  if (INDEPENDENT) return cmdAvailabilityIndependent(rest);
+   const a = await api("GET", "/availability");
+   if (opt.json) return jout(a);
+   if (a.aggregate) {
+@@ -2913,6 +2926,24 @@
+   }
+ }
+ 
++// Independent mode: free capacity is each host's own signed /availability record (cli/independent-capacity.mjs), read
++// from capacity directories the user names, from named registered hosts, or from every live registered host (--cold),
++// and verified against the reviewed profile's registry at one agreed block of this quorum. Self-reported by each host's
++// registry operator, never proof of free hardware, and never a registered price.
++async function cmdAvailabilityIndependent(rest) {
++  const f = flags(rest, { bool: ["--cold"], val: ["--capacity-directories", "--hosts", "--max-hosts", "--capacity-state"] });
++  const { chain, trust } = INDEPENDENT;
++  if (!trust.profile) throw new Error("independent availability binds host records to the reviewed registry code: run it with --profile FILE --profile-digest sha256:… (explicit --contract-pins carry no code hash)");
++  const list = (v) => String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
++  const directories = list(f["capacity-directories"]), hosts = list(f.hosts);
++  if (!directories.length && !hosts.length && !f.cold)
++    throw new Error("usage: enclave availability --independent … --capacity-directories URL,… | --hosts ENDPOINT|ID,… | --cold [--max-hosts N] [--capacity-state FILE]   (name a source: there is no default directory)");
++  const C = await import("./independent-capacity.mjs");
++  const r = await C.readCapacity({ reader: chain, profile: trust.profile, directories, hosts, cold: !!f.cold, maxHosts: f["max-hosts"], state: f["capacity-state"] });
++  if (opt.json) return jout({ ...r, profileDigest: trust.digest });
++  C.renderCapacity(r, trust.digest, say);
++}
++
+ async function cmdGpu(rest = []) {
+   if (INDEPENDENT) return cmdGpuIndependent(rest);
+   const g = await api("GET", "/v1/gpu").catch((e) => {
+@@ -3099,6 +3130,18 @@
+ 
+ // ---- secret custody (cli/custody.mjs; docs/security/secret-custody.md): the CLI's own helpers, handed in ----------
+ async function cmdCustodyHere(rest) {
++  // independent: custody v2 only, every read a quorum of the operator's RPCs, every write the independent writer, the vault
++  // the reviewed pin; no Enclave API, relay or first-answer RPC (cli/custody-independent.mjs; work/custody-cli-interface.txt)
++  if (INDEPENDENT) {
++    const { cmdCustodyIndependent } = await import("./custody-independent.mjs");
++    // --from and --yes are also global flags (the signer's wallet; approve prompts), taken out of argv before the
++    // command runs. Written after `custody`, --from is custody's own (migrate's export file); either --yes confirms.
++    const from = commandFlag("custody", "--from");
++    if (from !== null && opt.from === from) opt.from = null;
++    rest = [...rest, ...(from !== null ? ["--from", from] : []), ...(opt.yes ? ["--yes"] : [])];
++    return cmdCustodyIndependent(rest, { flags, loadKey, say, jout, short, secretsKv, env, json: !!opt.json, warn: (m) => console.error(m),
++      readFile: (p) => fs.readFileSync(p, "utf8"), chain: INDEPENDENT.chain, trust: INDEPENDENT.trust, send: INDEPENDENT.send });
++  }
+   // loaded on use: the custody code imports ../custody (and viem from the repo root), which a bare `cli/` install lacks
+   const { cmdCustody } = await import("./custody.mjs");
+   return cmdCustody(rest, {
+@@ -3484,7 +3527,7 @@
+ }
+ // Independent mode: `--unsigned` WITHOUT --from, while a session is active, prints the session-signed call for any gas
+ // payer (the session still authorizes it); `--unsigned --from ADDR` stays the wallet path, signed elsewhere, as hosted.
+-const walletChosen = () => opt.wallet || (opt.unsigned && (!INDEPENDENT || !!opt.from)) || !!opt.signer;
++const walletChosen = () => opt.wallet || (opt.unsigned && (!INDEPENDENT || !!opt.from)) || !!opt.signer || opt.signerMode === "handoff";
+ async function sessionStore() { return new (await sessionsSdk()).FileStore(SESSION_DIR); }
+ const explicitRpc = () => !!(opt.rpc || env.ENCLAVE_RPC);
+ const sessionAccount = (s) => ({ address: s.vault });
+@@ -3846,9 +3889,11 @@
+     if (sub === "terminate" || sub === "end") return sessionTerminateIndependent(rest);
+     if (sub === "top-up") return sessionTopUpIndependent(rest);
+     if (sub === "revoke-all") return sessionRevokeAllIndependent(rest);
++    // watched on chain (cli/independent-login-cli.mjs): no relay polling, and the owner's own top-up link
++    if (sub === "resume-wait" || sub === "top-up-link") return independentLogin(`session ${sub}`, rest);
+     if (!["list", "ls", "use", "delegate"].includes(sub))
+       throw new Error(`session ${sub || ""} uses the hosted sessions relayer; independent mode offers session new | open | inspect | status | `
+-        + `list | use | terminate | top-up | revoke-all | delegate`);
++        + `list | use | terminate | top-up | top-up-link | resume-wait | revoke-all | delegate`);
+   }
+   if (sub === "new") return sessionNew(rest);
+   if (sub === "resume-wait") return sessionResumeWait(rest);
+@@ -4577,6 +4622,17 @@
+                              holds the key - Frame (http://127.0.0.1:1248) or
+                              Clef - which drives the Ledger/Trezor itself and
+                              pops the approval. Reads still use --rpc.
++                             With --independent the signer only SIGNS: the
++                             quorum prepares nonce/gas/fees, every field of the
++                             signed bytes is checked, and the quorum broadcasts
++                             them (Clef's account_* API is spoken natively).
++  --signer-mode M            independent only: auto (sign; a wallet that can
++                             only send gets the prepared transaction, checked
++                             on chain afterwards), sign, wallet-send, or
++                             handoff (no endpoint, e.g. MetaMask: print the
++                             exact transaction; then enclave signer attach).
++  enclave --independent … signer probe|list|show|resolve|attach|rebroadcast|abandon
++                             inspect and settle the signer's journaled intents.
+   Both need --from: a signer may hold several accounts, and every ownership
+   gate here keys on the address, so guessing would act as the wrong wallet.
+   Message-signing commands (login, upload, encvol) need --signer; --unsigned
+@@ -4596,6 +4652,8 @@
+ Transactions are signed once, broadcast unchanged and confirmed by the quorum;
+ an unconfirmed outcome is reported, never resent (--max-fee-gwei, default 5).
+   ls [--owner ADDR] · status <id> · hosts [--all] · pricing · apps · whoami
++  availability --capacity-directories URL,… | --hosts ENDPOINT,… | --cold [--max-hosts N] [--capacity-state FILE]
++      (hosts' own signed /availability, checked against the profile's registry; self-reported, not a price)
+   deploy <app> --cpu --gpu [--max-rate] (chain-only) · fund · stop · resume
+   rate-cap · refund · transfer · upgrade · resize · bootstrap · publish --storage-plan
+   session inspect [<sid> | --vault ADDR --sid SID] · session list | use
+@@ -4604,6 +4662,12 @@
+   attest <id> --native-profile FILE   (the native client's SNP verification)
+   attest <id> --host-report           (host-reported document; exit 3, never a pass)
+   config show|set|clear <id> [--waf …] [--storage-plan FILE] · encvol … · host declare-payout|clear-payout|fund|status
++  host init|build|install|run|check|referral   (plan-driven onboarding, docs/network/independent-host-onboarding.md;
++      check reports the control guest's attestation as UNKNOWN: it is not host readiness)
++  login --frontend ORIGIN [--owner ADDR] [--no-wait | --resume] · logout · account · session resume-wait | top-up-link
++      (the owner's own account approves a session grant; the CLI adopts it from the agreed chain)
++  custody status|set|migrate|pause|resume|clear|claim <id>   (custody v2: whole-map secrets; secrets ls/rm need the owner read, not yet)
++  move <id> <host-id> --directories IP,…   (refused when the target has the same operator as the current host)
+   app-token <id> --out NEW_FILE · cpu-profile start <id> --seconds N | stop <id> | get <id> --out F
+       (management mutations are sent once; a lost answer exits 4: check status first)
+ The deployed registry is schema 4: capability bits and relay registration are refused.
+@@ -4623,6 +4687,20 @@
+ // not a payment; earnings sweep to payoutAddress (default: this CLI wallet).
+ async function cmdHost(rest) {
+   const sub = rest.shift();
++  // Independent onboarding (docs/network/independent-host-onboarding.md): the plan-driven lifecycle with no relay,
++  // tunnel, Enclave control or artifact defaults. init records the authorities THIS invocation was given (the same
++  // --profile/--profile-digest or --contract-pins and --rpc quorum); every later command reads them from the plan.
++  if (INDEPENDENT && ["init", "build", "install", "run", "check", "referral"].includes(sub)) {
++    const { hostLifecycle } = await import("./host-independent-lifecycle.mjs");
++    const t = INDEPENDENT.trust, pinsFile = opt.contractPins || env.ENCLAVE_CONTRACT_PINS_FILE;
++    const auth = sub !== "init" ? [] : [
++      ...(opt.profile ? ["--profile", opt.profile, "--profile-digest", opt.profileDigest] : ["--contract-pins", pinsFile]),
++      "--rpc", t.rpcs.join(","), "--quorum", String(t.quorum), "--confirmations", String(t.confirmations), "--max-block-age", String(t.maxBlockAgeMs / 1000)];
++    // --json is also a global flag (taken out of argv); `check` is the one lifecycle command that prints JSON
++    const code = await hostLifecycle([sub, ...rest, ...(sub === "check" && opt.json ? ["--json"] : []), ...auth]);
++    if (code) exit(code);
++    return;
++  }
+   const f = flags(rest, { val: ["--config", "--name", "--payout", "--eth", "--address", "--mode", "--cpus", "--mem", "--eab-kid", "--eab-hmac", "--price-cpu", "--price-gpu", "--gpu", "--repo", "--supervisor", "--wasm", "--kernel", "--url", "--referral"] });
+   const cfgPath = f.config || path.join("metal", "config.json");
+   const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgPath, "utf8")); } catch { return null; } };
+@@ -4632,9 +4710,8 @@
+     return privateKeyToAccount(pk).address;
+   };
+   if (INDEPENDENT && !["declare-payout", "clear-payout", "fund", "status"].includes(sub))
+-    throw new Error(`host ${sub || ""} configures and runs this machine's host (relay tunnel defaults, supervisor); independent mode offers `
+-      + `host declare-payout | clear-payout | fund | status. A host that runs without Enclave control services is set up per `
+-      + `docs/network/direct-host-control.md (ISOLATION_DIRECT_ONLY)`);
++    throw new Error(`host ${sub || ""}: independent mode offers host init | build | install | run | check | referral `
++      + `(docs/network/independent-host-onboarding.md) and host declare-payout | clear-payout | fund | status`);
+ 
+   if (sub === "init") {
+     let cfg = readCfg();
+@@ -4971,26 +5048,24 @@
+ const INDEPENDENT_COMMANDS = new Set(["key", "whoami", "ls", "list", "status", "hosts", "pricing", "availability", "apps",
+   "deploy", "fund", "stop", "suspend", "resume", "rate-cap", "cap", "refund", "cancel", "transfer", "upgrade", "set-version",
+   "resize", "bootstrap", "artifact", "session", "logs", "restart", "attest", "publish", "app-token", "cpu-profile",
+-  "config", "encvol", "host", "gpu", "move"]);
++  "config", "encvol", "host", "gpu", "move", "login", "logout", "account", "signer", "custody"]);
+ // Why each remaining command has no independent path (work/cli-remaining-interface.txt has the exact missing pieces).
+ const INDEPENDENT_REFUSALS = {
+-  secrets: "relay-held secrets are a hosted service; the independent path is custody v2 inside an owner-committed startup "
+-    + "package (bootstrap prepare --custody-file, SEV-SNP), owned by the custody workstream",
+-  custody: "the custody CLI (cli/custody.mjs) still reads through first-answer RPC clients and relay hooks; it is refused "
+-    + "here until the custody workstream accepts quorum clients",
+-  account: "Enclave accounts (passkey sign-in, orders, credit) are the hosted account service; independently, your wallet "
+-    + "is the account (ls, whoami, fund)",
+-  login: "account sign-in is the hosted account service; independent mode acts with your wallet key",
+-  logout: "account sessions are the hosted account service; independent mode keeps no account token",
++  secrets: "relay-held secrets are a hosted service. Independently, `custody status|set|migrate|pause|resume|clear|claim` "
++    + "stores the WHOLE map in custody v2; listing, showing, removing one KEY or merging need the owner read "
++    + "(work/owner-secrets-interface.txt), which is not integrated yet: it needs its final source and a new measured custodian image",
+ };
+ async function configureIndependent() {
+   const asked = opt.independent || opt.profile || opt.profileDigest;
+-  const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei"].filter((k) => opt[k] !== null);
++  const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei", "signerMode"].filter((k) => opt[k] !== null);
+   if (!asked) {
+-    if (strays.length) throw new Error("--quorum, --confirmations, --max-block-age, --usdc-token and --max-fee-gwei apply to independent mode: add --independent");
++    if (strays.length) throw new Error("--quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei and --signer-mode apply to independent mode: add --independent");
+     return;
+   }
+-  if (opt.signer) throw new Error("independent mode signs locally and broadcasts the same bytes to every RPC; --signer (an external node that broadcasts itself) is not supported here - use --unsigned to sign elsewhere");
++  const external = !!opt.signer || opt.signerMode === "handoff";
++  if (external && opt.unsigned) throw new Error("--signer / --signer-mode handoff and --unsigned are different ways to sign elsewhere; use one");
++  if (opt.signerMode && !external) throw new Error("--signer-mode needs --signer URL (handoff alone needs no endpoint: --signer-mode handoff)");
++  if (external && !opt.from) throw new Error(`${opt.signer ? "--signer" : "--signer-mode handoff"} needs --from 0x… — the wallet this is for`);
+   if (!(opt.rpc || env.ENCLAVE_RPC)) throw new Error("independent mode needs explicit RPCs: --rpc https://a,https://b[,…] (at least two; there is no default set)");
+   const I = await import("./independent.mjs");
+   const trust = I.loadIndependentTrust({ profileFile: opt.profile, profileDigest: opt.profileDigest, contractPins: CONTRACT_PINS,
+@@ -5003,9 +5078,32 @@
+   const chain = new I.QuorumChain({ rpcs: trust.rpcs, quorum: trust.quorum, confirmations: trust.confirmations, maxBlockAgeMs: trust.maxBlockAgeMs });
+   const maxFeeGwei = opt.maxFeeGwei !== null ? numFlag(opt.maxFeeGwei, "--max-fee-gwei") : 5;
+   INDEPENDENT = { trust, chain, I, maxFeeGwei, pc: I.quorumPublicClient(chain), send: I.quorumWriter(chain, { maxFeeGwei, log: (m) => trace(m) }) };
++  if (external) {
++    // the user's wallet is the signing authority, never a chain-state oracle: sendQuorumTx hands it the prepared
++    // transaction through account.sendQuorumTx (cli/independent.mjs), and every outcome is a journaled intent
++    const X = await import("./independent-signer.mjs");
++    INDEPENDENT.signer = X.createExternalSigner({ url: opt.signer, from: opt.from, chainId: chain.chainId, mode: opt.signerMode || "auto",
++      journalDir: signerJournalDir(), log: (m) => stderr.write(`signer: ${m}\n`), onHandoff: signerHandoff });
++  }
+   stderr.write(`independent: ${trust.profile ? `reviewed profile ${trust.digest}` : "explicit contract pins"}; ${trust.quorum} of ${trust.rpcs.length} RPCs must agree `
+     + `at one block ${trust.confirmations} deep; no Enclave API, address book or first-answer read\n`);
+ }
++const signerJournalDir = () => path.resolve(opt.stateDir ? path.join(opt.stateDir, "signer") : path.join(CONF_DIR, "independent-signer"));
++// --signer-mode handoff: the exact transaction for the user's own wallet (MetaMask, a hardware wallet app), then stop
++function signerHandoff(rec, params) {
++  if (opt.json) { jout({ handoff: rec.id, transaction: params }); exit(0); }
++  say(`\nNOT SENT by this CLI. Send exactly this transaction from ${rec.from} with your own wallet (its nonce, gas and fees are part of it),`);
++  say(`then: enclave --independent … signer attach ${rec.id} <0xhash>   (the quorum checks the mined transaction against it)\n`);
++  say(JSON.stringify(params, null, 2));
++  exit(0);
++}
++async function cmdSigner(rest) {
++  requireIndependent("signer");
++  const X = await import("./independent-signer.mjs");
++  const [sub, ...r] = rest;
++  return X.signerCommand(sub, r, { chain: INDEPENDENT.chain, signer: INDEPENDENT.signer || null, journal: X.intentJournal(signerJournalDir()),
++    say, jout, json: opt.json, waitOpts: { timeoutMs: 180000, pollMs: 1000 } });
++}
+ const quorumLine = (s) => `block ${s.blockNumber} (${s.blockHash.slice(0, 10)}…): ${s.agreeing} of ${s.peers} RPCs agreed`;
+ const quorumJson = (s) => ({ blockNumber: String(s.blockNumber), blockHash: s.blockHash, agreeing: s.agreeing, peers: s.peers, quorum: INDEPENDENT.trust.quorum });
+ let _indRegistry = null;
+@@ -5487,6 +5585,20 @@
+   const tx = await S.prepareSessionOpen({ publicClient: INDEPENDENT.pc, factory, owner: ownerSigner, chainId: DEFAULTS.chainId, grant: pending.grant });
+   return sessionFinishOpen(S, store, pending, tx, owner, opt.unsigned ? null : loadKey({ required: false }));
+ }
++// Sign-in with no Enclave account service: a session key and grant made here, approved by the owner's own account (a
++// wallet or a passkey Safe) on a frontend the owner chose, opened on the pinned factory, and adopted once the agreed chain
++// shows exactly that session (cli/independent-login.mjs; work/independent-login-interface.txt).
++async function independentLogin(cmd, rest) {
++  const L = await import("./independent-login-cli.mjs");
++  const S = await sessionsSdk(), { I, chain, trust } = INDEPENDENT, factory = independentFactory();
++  await I.assertReviewedCode(chain, trust.profile, ["sessionVaultFactory"]);
++  await assertPinnedSessionFactory();
++  return L.independentLoginCommand(cmd, rest, { S, chain, pc: INDEPENDENT.pc, sessionSnapshot: I.sessionSnapshot, store: await sessionStore(),
++    stateDir: path.join(SESSION_DIR, "login"), factory, chainId: DEFAULTS.chainId, profileDigest: trust.digest || null, env,
++    flags, numFlag, say, info: opt.json ? (t) => stderr.write(t + "\n") : say, jout, json: !!opt.json, confirm,
++    interactive: !!(stdin.isTTY && stdout.isTTY), gasKey: () => (opt.unsigned ? null : loadKey({ required: false })),
++    sendTx: (account, { to, data }) => I.sendQuorumTx(chain, { account, to, data, maxFeeGwei: INDEPENDENT.maxFeeGwei, log: (m) => trace(m) }) });
++}
+ async function sessionTerminateIndependent(rest) {
+   const f = flags(rest, {});
+   const s = await loadSession(f._[0]);
+@@ -5583,7 +5695,7 @@
+   publish: cmdPublish, apps: cmdApps, artifact: cmdArtifact,
+   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,
+   encvol: cmdEncvol, host: cmdHost, session: cmdSession, hosts: cmdHosts,
+-  "app-token": cmdAppToken, "cpu-profile": cmdCpuProfile,
++  "app-token": cmdAppToken, "cpu-profile": cmdCpuProfile, signer: cmdSigner,
+ };
+ 
+ // Resolve the platform's contract addresses from the on-chain address book
+@@ -5649,7 +5761,8 @@
+   if (cmd === "deploy" && args.includes("--chain-only") && !CONTRACT_PINS)
+     throw new Error("--chain-only requires --contract-pins (or ENCLAVE_CONTRACT_PINS_FILE)");
+   if (!OFFLINE) await resolveAddressBook();
+-  await COMMANDS[cmd](args);
++  if (INDEPENDENT && (cmd === "login" || cmd === "logout" || cmd === "account")) await independentLogin(cmd, args);
++  else await COMMANDS[cmd](args);
+ } catch (e) {
+   die(e?.message || String(e));
+ }
+--- a/cli/independent.mjs
++++ b/cli/independent.mjs
+@@ -356,7 +356,9 @@
+  * -> the agreed receipt (status success), or throws: a definite refusal (nothing pending) or OutcomeUnknownError.
+  */
+ export async function sendQuorumTx(chain, { account, to, data, value = 0n, maxFeeGwei = 5, gasCap = 15_000_000n, timeoutMs = 180000, pollMs = 1000, log = () => {} }) {
+-  if (typeof account?.signTransaction !== "function") throw new Error("independent mode signs locally: use the wallet key (ENCLAVE_KEY or the key file) or --unsigned");
++  // an external signer (cli/independent-signer.mjs) runs this same preparation and broadcast with its wallet as the signer
++  if (typeof account?.sendQuorumTx === "function") return account.sendQuorumTx(chain, { to, data, value, maxFeeGwei, gasCap, timeoutMs, pollMs, log });
++  if (typeof account?.signTransaction !== "function") throw new Error("independent mode signs with the wallet key (ENCLAVE_KEY or the key file), an external signer (--signer URL --from 0x…) or --unsigned");
+   const from = account.address;
+   // 1. the call must succeed at an agreed block (preconditions, as the ledger itself judges them)
+   const sim = await chain.snapshot(async (c, blockNumber) => {
+--- a/cli/build.mjs
++++ b/cli/build.mjs
+@@ -32,8 +32,13 @@
+   platform: "node",
+   format: "esm",
+   plugins: [cliViem],
+-  // bundled deps still use require() internally; give them one
+-  banner: { js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url);' },
++  // bundled deps still use require() internally; give them one.
++  // process.argv[1] is hidden before any bundled module runs. Helpers that are also standalone tools
++  // (cli/independent-capacity.mjs, cli/host-independent-lifecycle.mjs, windows/node/host-identity.mjs,
++  // scripts/network/fetch-runtime.mjs) run their own main when argv[1] is their own file. In ONE bundled file that test
++  // is true for every module, so they would also run on enclave's argv: the capacity tool exits 1 under `availability`,
++  // and `host` runs twice. The CLI itself never reads argv[1].
++  banner: { js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url); process.argv[1] = "";' },
+   outfile: out,
+   logLevel: "warning",
+ });
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -35,7 +35,7 @@
+ import { execFileSync, execFile } from "node:child_process";
+ import { promisify } from "node:util";
+ const pexec = promisify(execFile);
+-import { openSync, readSync, closeSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, chmodSync, statfsSync, readdirSync, unlinkSync, statSync } from "node:fs";
++import { openSync, readSync, closeSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, chmodSync, statfsSync, readdirSync, unlinkSync, statSync, lstatSync } from "node:fs";
+ import { tmpdir } from "node:os";
+ import { join, dirname } from "node:path";
+ import { WebSocketServer, createWebSocketStream } from "ws";
+@@ -303,7 +303,11 @@
+ // 2026-07-17 on mainnet.base.org). BASE_RPC stays FIRST so an explicit
+ // override is authoritative; the rest are fallbacks (mirrors cli/enclave.mjs
+ // and the relay's publicnode lesson).
+-const RPC_POOL = [...new Set([BASE_RPC,
++// BASE_RPCS (comma-separated): the operator's chosen RPCs, EXACTLY - no public defaults are appended. An independent
++// host (cli/host-independent-lifecycle.mjs) names its quorum here so its reads never reach an RPC it did not choose.
++const RPC_POOL = process.env.BASE_RPCS
++  ? [...new Set(process.env.BASE_RPCS.split(",").map((s) => s.trim()).filter(Boolean))]
++  : [...new Set([BASE_RPC,
+   "https://base-rpc.publicnode.com", "https://base.drpc.org",
+   "https://1rpc.io/base", "https://mainnet.base.org"])];
+ const rpcTransport = () => viemFallback(RPC_POOL.map((u) => viemHttp(u, { retryCount: 2, retryDelay: 500 })));
+@@ -471,7 +475,19 @@
+ // opt-in: if REGISTRY_ENABLED isn't set, the enclave just doesn't advertise.
+ const REGISTRY_ENABLED  = /^(1|true|on)$/i.test(process.env.REGISTRY_ENABLED || "");
+ // (REGISTRY_ADDRESS is a live binding from ./addressbook.js)
+-const REGISTRY_PK       = process.env.REGISTRY_PRIVATE_KEY || "";        // operator key (enclave secret); needs a little Base ETH for gas
++// operator key (enclave secret); needs a little Base ETH for gas. REGISTRY_PRIVATE_KEY_FILE keeps it out of the
++// environment: a regular file of this user's, mode 0600/0400 (cli/host-independent-lifecycle.mjs operator.key).
++// A problem is FATAL like need(): the fatal guard above would swallow a throw and leave a host that never registers.
++function registryKeyFile(file) {
++  const bad = (why) => { console.error(`FATAL: REGISTRY_PRIVATE_KEY_FILE ${why}`); process.exit(1); };
++  let st; try { st = lstatSync(file); } catch { bad("does not exist"); }
++  if (!st.isFile() || (st.mode & 0o077) || (process.getuid && st.uid !== process.getuid())) bad("must be this user's regular 0600 file");
++  const k = readFileSync(file, "utf8").trim();
++  if (!/^(0x)?[0-9a-fA-F]{64}$/.test(k)) bad("does not hold a private key");
++  return k.startsWith("0x") ? k : "0x" + k;
++}
++if (process.env.REGISTRY_PRIVATE_KEY && process.env.REGISTRY_PRIVATE_KEY_FILE) { console.error("FATAL: set REGISTRY_PRIVATE_KEY or REGISTRY_PRIVATE_KEY_FILE, not both"); process.exit(1); }
++const REGISTRY_PK       = process.env.REGISTRY_PRIVATE_KEY || (process.env.REGISTRY_PRIVATE_KEY_FILE ? registryKeyFile(process.env.REGISTRY_PRIVATE_KEY_FILE) : "");
+ const ENCLAVE_REPO      = process.env.ENCLAVE_REPO || "";                // e.g. "EnclaveHost/enclave" - what callers attest against; MUST match GitHub's canonical casing (Sigstore compares it verbatim)
+ const ENCLAVE_MEASUREMENT = process.env.ENCLAVE_MEASUREMENT || ("0x" + "0".repeat(64)); // optional cross-check
+ const HEARTBEAT_SEC     = parseInt(process.env.REGISTRY_HEARTBEAT_SEC || "900", 10);
+--- a/cli/host-independent-lifecycle.mjs
++++ b/cli/host-independent-lifecycle.mjs
+@@ -36,7 +36,10 @@
+ import { publicHostPolicyLoader, hostPolicyOrigins } from "../network/host-admission-runtime.mjs";
+ import { readHostAdmissionPolicy } from "../network/host-admission-policy.mjs";
+ 
+-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++// The checkout holding supervisor.js and isolation/: this file's parent, or (bundled into cli/dist/enclave.mjs) its
++// grandparent. Without one, the defaults name paths that `run` refuses; pass --supervisor and --isolation.
++const HERE = path.dirname(fileURLToPath(import.meta.url));
++const REPO = [path.resolve(HERE, ".."), path.resolve(HERE, "../..")].find((d) => fs.existsSync(path.join(d, "supervisor.js"))) ?? path.resolve(HERE, "..");
+ export const PLAN_FORMAT = "enclave-independent-host/v1";
+ export const REFERRAL_FORMAT = "enclave-host-referral/v1";
+ const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+@@ -163,18 +166,18 @@
+     "-vcek", L.vcek, "-chain", L.chain, "-min-tcb", L.minTcb, "-product", g.product, "-listen", g.listen, "-data-listen", g.dataListen,
+     "-instance-prefix", g.instancePrefix], env: { GUESTD_ENABLE: "1" } };
+ }
+-const SECRET_ENV = new Set(["REGISTRY_PRIVATE_KEY", "SECRET"]);
++const SECRET_ENV = new Set(["SECRET"]);
+ /** The direct-only supervisor's environment (docs/network/direct-host-control.md). secrets: {operatorKey, secret} or null (redacted). */
+ export function supervisorEnv(dir, plan, ctx, secrets = null) {
+   const L = layout(dir, plan), r = plan.runtime, sel = plan.selling;
+   const env = {
+     ISOLATION_DIRECT_ONLY: "1", ISOLATION_BACKEND: "snp-guest-per-app", PROVISION_BACKEND: "vm",
+     VMMGR_URL: "http://" + plan.guestd.listen, GUESTD_KEY_FILE: L.pair, GUESTD_DATA_ADDR: plan.guestd.dataListen,
+-    ENCLAVE_CONTRACT_PINS_FILE: L.pins, ADDRESS_BOOK_ADDRESS: "", BASE_RPC: plan.authorities.rpcs[0],
++    ENCLAVE_CONTRACT_PINS_FILE: L.pins, ADDRESS_BOOK_ADDRESS: "", BASE_RPC: plan.authorities.rpcs[0], BASE_RPCS: plan.authorities.rpcs.join(","),
+     ...(r.storagePlan ? { GUEST_BOOTSTRAP_STORAGE_PLAN_FILE: r.storagePlan } : { GUEST_BOOTSTRAP_GATEWAYS: r.gateways.map((g) => g + "/ipfs").join(",") }),
+     IPFS_GATEWAY: JSON.stringify(r.gateways),
+     SECRETS_API: "", DOMAINS_API: "", CERTS_API: "", DNS_API: "", APP_CERT_DOMAIN: "", ISOLATION_RELEASE: "",
+-    REGISTRY_ENABLED: "1", REGISTRY_PRIVATE_KEY: secrets ? secrets.operatorKey : "<redacted: operator.key>", ENCLAVE_REPO: plan.identity.repo,
++    REGISTRY_ENABLED: "1", REGISTRY_PRIVATE_KEY_FILE: L.operator, ENCLAVE_REPO: plan.identity.repo,
+     PUBLIC_URL: plan.identity.publicUrl, CLAIM_ENABLED: "1", SECRET: secrets ? secrets.secret : "<redacted: supervisor.secret>",
+     PORT: String(plan.supervisor.port), NODE_VCPUS: String(plan.guestd.guestCpus),
+     ...(plan.supervisor.attestationUrl ? { ATTESTATION_URL: plan.supervisor.attestationUrl } : {}),
+@@ -220,7 +223,7 @@
+       + `ExecStart=${[plan.supervisor.node, plan.supervisor.path].map(unitArg).join(" ")}\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n`,
+   };
+ }
+-const envFileText = (env) => "# written by cli/host-independent-lifecycle.mjs install; mode 0600; holds this host's operator key\n"
++const envFileText = (env) => "# written by cli/host-independent-lifecycle.mjs install; mode 0600; holds the supervisor SECRET (the operator key stays in operator.key)\n"
+   + Object.entries(env).map(([k, v]) => envLine(k, v)).join("\n") + "\n";
+ function readSecrets(L) {
+   for (const f of [L.operator, L.secret]) { const p = privateFileProblem(f); if (p) fail(`${f}: ${p}`); }
+--- a/test/cli-host-independent-lifecycle.test.mjs
++++ b/test/cli-host-independent-lifecycle.test.mjs
+@@ -156,7 +156,8 @@
+   assert.equal((await cli(initArgs(dir, { extra: ["--policy-dir", path.join(d, "policies"), "--payout", "0x" + "12".repeat(20)] }))).code, 0);
+   const dry = await cli(["install", "--dir", dir, "--unit-dir", units]);
+   assert.equal(dry.code, 0, dry.err); noSecrets(dry.all, dir);
+-  assert.match(dry.out, /REGISTRY_PRIVATE_KEY='<redacted: operator.key>'/);
++  assert.match(dry.out, /REGISTRY_PRIVATE_KEY_FILE='[^']*\/operator\.key'/); assert(!/REGISTRY_PRIVATE_KEY=/.test(dry.out));
++  assert.match(dry.out, /BASE_RPCS='https:\/\/rpc-a\.example,https:\/\/rpc-b\.example'/);
+   assert.match(dry.out, /ENCLAVE_HOST_OWNERSHIP='0xf5e9e6c02449001f6e8e95e5d87413f2cb6790ea'/);
+   assert.match(dry.out, /-gateway "\[\\"http:\/\/203\.0\.113\.5:8189\\"\]"/);
+   assert(!/enclave\.host/.test(dry.out), "no Enclave origin anywhere in the units or environment");
+@@ -165,7 +166,8 @@
+   assert.equal(ap.code, 0, ap.err); noSecrets(ap.all, dir);
+   const env = path.join(dir, "supervisor.env");
+   assert.equal(mode(env), "600");
+-  assert(fs.readFileSync(env, "utf8").includes(`REGISTRY_PRIVATE_KEY='${secretsOf(dir)[0]}'`));
++  assert(!fs.readFileSync(env, "utf8").includes(secretsOf(dir)[0].slice(2)), "the operator key stays in operator.key");
++  assert(fs.readFileSync(env, "utf8").includes(`SECRET='${secretsOf(dir)[1]}'`));
+   assert.deepEqual(fs.readdirSync(units).sort(), ["enclave-independent-host-guestd.service", "enclave-independent-host-supervisor.service"]);
+   assert.equal((await cli(["install", "--dir", dir, "--unit-dir", units, "--apply"])).code, 0, "re-applying identical files is a no-op");
+   const originalEnv = fs.readFileSync(env, "utf8");
+@@ -222,6 +224,7 @@
+   assert.equal((await cli(initArgs(dir))).code, 0);
+   const plan = loadPlan(dir), ctx = planTrust(plan);
+   const env = supervisorEnv(dir, { ...plan, supervisor: { ...plan.supervisor, port: 0 } }, ctx, { operatorKey: "0x" + "11".repeat(32), secret: "ab".repeat(32) });
++  assert.equal(env.REGISTRY_PRIVATE_KEY_FILE, path.join(dir, "operator.key")); assert.equal(env.REGISTRY_PRIVATE_KEY, undefined);
+   assert.deepEqual(directOnlyEnvProblems(env), []);
+   const start = (e) => new Promise((ok) => {
+     const c = spawn(process.execPath, ["--max-old-space-size=160", path.join(REPO, "supervisor.js")], { cwd: REPO, env: { PATH: process.env.PATH, HOME: d, ...e }, stdio: ["ignore", "pipe", "pipe"] });
+@@ -230,7 +233,11 @@
+     c.on("exit", (code) => { clearTimeout(stop); ok({ code, log }); });
+   });
+   const good = await start(env);
+-  assert.match(good.log, /\[direct\] direct-only host control/); assert(!/refused/.test(good.log));
++  assert.match(good.log, /\[direct\] direct-only host control/); assert(!/refused|REGISTRY_PRIVATE_KEY_FILE must/.test(good.log));
++  fs.chmodSync(path.join(dir, "operator.key"), 0o644);
++  const loose = await start(env);
++  assert.equal(loose.code, 1); assert.match(loose.log, /FATAL: REGISTRY_PRIVATE_KEY_FILE must be this user's regular 0600 file/);
++  fs.chmodSync(path.join(dir, "operator.key"), 0o600);
+   const { SECRETS_API: _, ...unset } = env;
+   assert.deepEqual(directOnlyEnvProblems(unset), ["SECRETS_API must be set and empty"]);
+   const bad = await start(unset);
+--- a/docs/network/independent-cli.md
++++ b/docs/network/independent-cli.md
+@@ -92,18 +92,53 @@
+ - **Limit.** The ledger lets only the lease holder end a lease, so a dead or hostile source can only be waited out
+   (stop, then resume, which forfeits the tail).
+ 
++**`availability`.** Each host's own signed `/availability` record (`docs/network/independent-capacity.md`). Name a source:
++`--capacity-directories URL,…` (anyone's capacity directory, not the management `--directories`), `--hosts ENDPOINT|ID,…`,
++or `--cold` (every live registered host). Each record is verified against the reviewed profile's registry at one agreed
++block, so `--profile` is required. The figures are self-reported by the host's registry operator and are never a
++registered price; `hosts` still lists the posted prices.
++
++**`login`, `logout`, `account`, `session resume-wait`, `session top-up-link`** (`cli/independent-login.mjs`,
++`work/independent-login-interface.txt`). There is no account service. `login --frontend ORIGIN` makes a local session key
++and a bounded grant, and prints an approval link to the frontend origin you chose, together with a check code.
++- **Approval.** Your own account (a wallet, or a passkey Safe through ERC-1271) signs. Any gas payer opens the session
++  on the pinned factory. The CLI adopts only the exact matching session, read from the agreed chain.
++- **Resume.** `login --resume` and `session resume-wait` continue from the saved state.
++- **logout** clears only the local pointer. It never claims a remote revocation.
++- **Not available independently:** hosted credit and order history, and a passkey-only first deployment (it needs a
++  gas payer or ERC-6492).
++
++**`custody status|set|migrate|pause|resume|clear|claim <id>`** (`cli/custody-independent.mjs`,
++`docs/security/custody-independent-cli.md`). Custody v2 only.
++- **Reads:** quorum reads through the custody v2 reader.
++- **Writes:** the independent writer, with an exact readback.
++- **Trust:** the reviewed `secretVaultV2` pin, and the owner's own committee and rules files. An Enclave-seated
++  committee needs `--allow-enclave-seat`. `--payer-key` pays gas for the owner's signature.
++
++**`host init|build|install|run|check|referral`** (`docs/network/independent-host-onboarding.md`). The plan-driven
++onboarding with no relay, tunnel or Enclave control:
++- `init` records the `--profile`/`--contract-pins` and `--rpc` quorum of this invocation;
++- the supervisor reads the operator key from `operator.key` (0600) and only the plan's RPCs (`BASE_RPCS`). Those
++  supervisor reads are still FIRST-ANSWER (viem fallback), not this CLI's quorum; closing that belongs to the measured
++  control integration.
++`check` is not a readiness proof: the control guest's attestation is reported UNKNOWN until a measured control guest
++boots it.
++
+ **Refused commands.** Each refusal names its dependency; `work/cli-remaining-interface.txt` lists the exact missing
+ protocol pieces.
+-- **`availability`:** free capacity is a host fact that is neither on chain nor in the directories. Use `hosts`.
+-- **`secrets`:** relay-held. The independent path is custody v2 in an owner-committed package
+-  (`bootstrap prepare --custody-file`, SNP), owned by the custody workstream.
+-- **`custody`:** `cli/custody.mjs` still uses first-answer clients and relay hooks.
+-- **`account`, `login`, `logout`:** the hosted account service; your wallet is the independent account.
+-- **`host init|build|install|run|check|referral`:** this machine's host setup. For hosts that run without Enclave
+-  control services, see `docs/network/direct-host-control.md`.
+-- **`session resume-wait` and `session top-up-link`:** relay-only. Use `session open` and `session top-up` instead.
+-
+-`--signer` is refused because an external node broadcasts on its own; use `--unsigned` to sign elsewhere.
++- **`secrets`:** relay-held. Independently, `custody` stores the WHOLE map. Listing names, showing one value, removing
++  one KEY and merging need the owner read (`work/owner-secrets-interface.txt`). That is not integrated yet: it needs
++  its final source and a new measured custodian image.
++
++`--signer URL --from ADDR` uses an external wallet as the signing authority, never as a chain-state oracle
++(`docs/network/independent-signer.md`). The quorum prepares nonce, gas and fees. The wallet signs (Clef
++`account_signTransaction`, or `eth_signTransaction`). Every field of the signed bytes and the recovered sender are
++checked, and the quorum broadcasts those exact bytes.
++- A wallet that can only send is used in `--signer-mode auto|wallet-send`. It gets the prepared transaction once, and
++  the hash is accepted only as the quorum sees it mined. That is a weaker guarantee.
++- `--signer-mode handoff` prints the exact transaction for a wallet without an endpoint (MetaMask);
++  `signer attach` then confirms it.
++- An ambiguous outcome stays a journaled intent until `signer resolve` decides it.
+ 
+ ### Sessions
+ 
+@@ -275,5 +310,6 @@
+   answer.
+ - **Pinned contracts keep their owners' powers.** See `docs/network/authority-profile.md`.
+ - **Registry entries and prices are self-declared.** Attestation, not the list, decides whom to trust.
+-- **Hardware sizes and free capacity are not on chain,** so share floors and capacity are not checked here.
++- **Hardware sizes and free capacity are not on chain.** Share floors are not checked here. `availability` shows each
++  host's own signed report, not proof of free hardware.
+ - **Directory origins are operator choices.** A literal IP does not mean an independent operator.
+--- a/test/cli-independent.test.mjs
++++ b/test/cli-independent.test.mjs
+@@ -156,8 +156,9 @@
+   }
+   const five = await cli(["hosts"], { pins: pins5File });
+   assert.equal(five.code, 1); assert.match(five.err, /reports schema 5/);
++  // availability reads hosts' signed capacity records, bound to the reviewed registry CODE: explicit pins carry no code hash
+   const avail = await cli(["availability"]);
+-  assert.equal(avail.code, 1); assert.match(avail.err, /not on chain/);
++  assert.equal(avail.code, 1); assert.match(avail.err, /reviewed registry code: run it with --profile/);
+   noEnclave();
+ });
+ 
+@@ -254,10 +255,16 @@
+ 
+ test("hosted-only commands, session relaying and an external signer are refused in independent mode", T, async () => {
+   // move is an independent command now (test/cli-independent-move.test.mjs), but only toward a registry host id, never a name
+-  for (const [args, re] of [[["secrets", "list", "0x" + "11".repeat(32)]], [["login"]], [["move", "0x11111111", "box"], /registry host id.*no host names/], [["account"]]]) {
++  for (const [args, re] of [[["secrets", "list", "0x" + "11".repeat(32)]], [["move", "0x11111111", "box"], /registry host id.*no host names/]]) {
+     const x = await cli(args);
+     assert.equal(x.code, 1); assert.match(x.err, re || /not available in independent mode/);
+   }
++  // sign-in is an independent command now (cli/independent-login.mjs, test/cli-combined-independent.test.mjs): without the
++  // frontend the owner reviewed it refuses before anything is made or sent; `account` reports the local state
++  const li = await cli(["login"]);
++  assert.equal(li.code, 1); assert.match(li.err, /name the frontend you approve sessions on: --frontend/);
++  const ac = await cli(["account"]);
++  assert.equal(ac.code, 0, ac.err); assert.match(ac.out, /account: none yet/);
+   // Intended behaviour: `session new` is a SUPPORTED independent command (the owner signs the grant for the pinned factory;
+   // it is exercised end to end in test/cli-independent-sessions.test.mjs). What must refuse is a grant with no owner to
+   // sign it, and the subcommands that exist only through the hosted relayer.
+@@ -266,9 +273,10 @@
+   assert.equal(nobody.code, 1); assert.match(nobody.err, /name the owner wallet: --owner ADDRESS/);
+   assert.doesNotMatch(nobody.err, /hosted sessions relayer/);
+   assert.equal(r.rpcLog.filter((x) => x.method === "eth_sendRawTransaction").length, s0, "no grant was signed or sent");
+-  for (const sub of ["resume-wait", "top-up-link"]) {
++  // resume-wait and top-up-link are watched on chain now (no relayer): each refuses precisely without its inputs
++  for (const [sub, re] of [["resume-wait", /./], ["top-up-link", /--amount/]]) {
+     const sn = await cli(["session", sub, "x"]);
+-    assert.equal(sn.code, 1); assert.match(sn.err, /hosted sessions relayer/);
++    assert.equal(sn.code, 1); assert.match(sn.err, re); assert.doesNotMatch(sn.err, /hosted sessions relayer/);
+   }
+   const sg = await cli(["ls", "--signer", "http://127.0.0.1:1"]);
+   assert.equal(sg.code, 1); assert.match(sg.err, /--signer/);
+--- a/test/cli-independent-sessions.test.mjs
++++ b/test/cli-independent-sessions.test.mjs
+@@ -384,7 +384,7 @@
+   noEnclave();
+ });
+ 
+-test("encvol is local; host declare-payout, status and fund use the schema-4 registry and the quorum; host setup stays refused", T, async () => {
++test("encvol is local; host declare-payout, status and fund use the schema-4 registry and the quorum; host setup needs its plan directory", T, async () => {
+   const m = await cli(["encvol", "message", "k1"]);
+   assert.equal(m.code, 0, m.err); assert.match(m.out, /Enclave encrypted volume key v1/);
+   const dv = await cli(["encvol", "derive", "--key-id", "k1", "--json"]);
+@@ -402,11 +402,12 @@
+   assert.equal(await r.pc.getBalance({ address: r.operator }) - before, 1_000_000_000_000_000n);
+   const clr = await cli(["host", "clear-payout", "--url", r.endpoint, "--wallet"]);
+   assert.equal(clr.code, 0, clr.err); assert.equal((await reg(r.runner)).payoutWallet, "0x0000000000000000000000000000000000000000");
++  // host setup is the plan-driven lifecycle now (docs/network/independent-host-onboarding.md): it needs the host's directory
+   for (const sub of ["init", "run", "install"]) {
+     const x = await cli(["host", sub]);
+-    assert.equal(x.code, 1); assert.match(x.err, /direct-host-control\.md/);
++    assert.equal(x.code, 1); assert.match(x.err, /--dir HOST_DIR is required/);
+   }
+-  for (const [cmd, re] of [["move", /registry host id.*no host names/], ["secrets", /custody v2/], ["account", /hosted account service/]]) {
++  for (const [cmd, re] of [["move", /registry host id.*no host names/], ["secrets", /custody v2/]]) {
+     const x = await cli([cmd, "0x" + "11".repeat(32), "x"]);
+     assert.equal(x.code, 1); assert.match(x.err, re);
+   }
+--- /dev/null
++++ b/test/cli-independent-signer-cli.test.mjs
+@@ -0,0 +1,122 @@
++// The PATCHED cli/enclave.mjs (work/independent-signer-integration/*.patch applied) with an external signer, as a
++// subprocess against a real local chain: anvil on chain 8453 read through two RPC origins (anvil and a forwarder on a
++// second port), wallets that are a SEPARATE anvil behind JSON-RPC fixtures. Only anvil's published dev keys are used.
++// ENCLAVE_CLI_ENTRY runs the same cases against the built bundle (cli/build.mjs).
++import test, { before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import net from "node:net";
++import http from "node:http";
++import path from "node:path";
++import { spawn, execFileSync } from "node:child_process";
++import { fileURLToPath } from "node:url";
++import { createPublicClient, createWalletClient, http as viemHttp, defineChain } from "viem";
++import { privateKeyToAccount } from "viem/accounts";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const CLI = process.env.ENCLAVE_CLI_ENTRY ? path.resolve(process.env.ENCLAVE_CLI_ENTRY) : path.join(REPO, "cli", "enclave.mjs");
++const A0 = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
++const A1 = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
++const local = defineChain({ id: 8453, name: "local-base", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [] } } });
++const patched = fs.readFileSync(CLI, "utf8").includes("cmdSigner");
++const tools = (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); } catch { return "needs Foundry's anvil"; } return patched ? null : "needs the integration patches applied"; })();
++const T = tools ? { skip: tools } : { timeout: 120000 };
++
++const procs = [], servers = [];
++let chainRpc, forwarderRpc, walletRpc, pc, tmp, pins;
++const freePort = () => new Promise((ok) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
++async function anvil() {
++  const port = await freePort();
++  procs.push(spawn("anvil", ["--port", String(port), "--chain-id", "8453", "--silent", "--base-fee", "5000000"], { stdio: "ignore" }));
++  const url = `http://127.0.0.1:${port}`, c = createPublicClient({ chain: local, transport: viemHttp(url) });
++  for (let i = 0; i < 100; i++) { try { await c.getChainId(); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
++  return url;
++}
++const call = async (url, method, params = []) => {
++  const j = await (await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) })).json();
++  return "error" in j ? { error: j.error } : { result: j.result };
++};
++async function server(handler) {
++  const calls = [];
++  const srv = http.createServer(async (req, res) => {
++    let b = ""; for await (const c of req) b += c;
++    const m = JSON.parse(b);
++    const one = async (x) => { calls.push(x.method); return { jsonrpc: "2.0", id: x.id, ...(await handler(x)) }; };
++    res.writeHead(200, { "content-type": "application/json" });
++    res.end(JSON.stringify(Array.isArray(m) ? await Promise.all(m.map(one)) : await one(m)));
++  });
++  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
++  servers.push(srv);
++  return { url: `http://127.0.0.1:${srv.address().port}`, calls };
++}
++function cli(args, { home }) {
++  return new Promise((resolve) => {
++    const p = spawn(process.execPath, [CLI, ...args], { env: { PATH: process.env.PATH, HOME: home, XDG_CONFIG_HOME: path.join(home, ".config"), ENCLAVE_ADDRESS_BOOK: "" }, stdio: ["ignore", "pipe", "pipe"] });
++    let out = "", err = "";
++    p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));
++    p.on("close", (code) => resolve({ code, out, err }));
++  });
++}
++const IND = () => ["--independent", "--contract-pins", pins, "--rpc", `${chainRpc},${forwarderRpc}`, "--confirmations", "0"];
++const fund = (eth = "0.001") => ["--yes", "host", "fund", "--address", A1.address, "--eth", eth];
++
++before(async () => {
++  if (tools) return;
++  chainRpc = await anvil();
++  walletRpc = await anvil();
++  pc = createPublicClient({ chain: local, transport: viemHttp(chainRpc) });
++  forwarderRpc = (await server((m) => call(chainRpc, m.method, m.params))).url;
++  tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cli-ind-signer-cli-"));
++  pins = path.join(tmp, "pins.json");
++  const a = (n) => "0x" + n.toString(16).padStart(40, "0");
++  fs.writeFileSync(pins, JSON.stringify({ version: 1, chainId: 8453, contracts: { registry: a(1), deployments: a(2), appCatalog: a(3), proofOfTime: a(4),
++    enclavePay: a(0), verificationFees: a(0), sessionVaultFactory: a(0), secretVaultV2: a(0) } }));
++});
++after(() => { for (const s of servers) { s.closeAllConnections(); s.close(); } for (const p of procs) p.kill("SIGKILL"); if (tmp) fs.rmSync(tmp, { recursive: true, force: true }); });
++
++test("patched CLI: --signer signs only; the quorum prepares, broadcasts and confirms one transaction; signer list shows the intent", T, async () => {
++  const home = path.join(tmp, "h1");
++  const wallet = await server((m) => call(walletRpc, m.method, m.params));
++  const n0 = await pc.getTransactionCount({ address: A0.address }), b0 = await pc.getBalance({ address: A1.address });
++  const r = await cli([...IND(), "--signer", wallet.url, "--from", A0.address, ...fund()], { home });
++  assert.equal(r.code, 0, r.err); assert.match(r.out, /✓ funded \(tx 0x[0-9a-f]{64}, confirmed by 2 RPCs\)/);
++  assert.match(r.err, /signer: .*signed 0x[0-9a-f]{64} \(intent tx-/);
++  assert.equal(await pc.getTransactionCount({ address: A0.address }), n0 + 1);
++  assert.equal(await pc.getBalance({ address: A1.address }), b0 + 10n ** 15n);
++  assert.equal(wallet.calls.filter((m) => m === "eth_signTransaction").length, 1);
++  assert.ok(!wallet.calls.some((m) => /getTransactionCount|estimateGas|gasPrice|feeHistory|sendRawTransaction|sendTransaction|getBalance/.test(m)), wallet.calls.join());
++  const l = await cli([...IND(), "--json", "signer", "list"], { home });
++  assert.equal(l.code, 0, l.err);
++  const intents = JSON.parse(l.out).intents;
++  assert.equal(intents.length, 1); assert.equal(intents[0].state, "confirmed"); assert.equal(intents[0].raw, undefined);
++});
++
++test("patched CLI: a broadcast-only wallet is used in auto mode (announced), refused in sign mode; --from is required", T, async () => {
++  const home = path.join(tmp, "h2");
++  const sendOnly = await server((m) => m.method === "eth_signTransaction" ? { error: { code: -32601, message: "Method not found" } } : call(chainRpc, m.method, m.params));
++  const strict = await cli([...IND(), "--signer", sendOnly.url, "--signer-mode", "sign", "--from", A0.address, ...fund()], { home });
++  assert.notEqual(strict.code, 0); assert.match(strict.err, /does not offer eth_signTransaction; nothing was broadcast/);
++  const n0 = await pc.getTransactionCount({ address: A0.address });
++  const r = await cli([...IND(), "--signer", sendOnly.url, "--from", A0.address, ...fund()], { home });
++  assert.equal(r.code, 0, r.err); assert.match(r.err, /cannot sign without broadcasting.*weaker/);
++  assert.equal(await pc.getTransactionCount({ address: A0.address }), n0 + 1);
++  assert.equal(sendOnly.calls.filter((m) => m === "eth_sendTransaction").length, 1);
++  const nf = await cli([...IND(), "--signer", sendOnly.url, ...fund()], { home });
++  assert.notEqual(nf.code, 0); assert.match(nf.err, /--signer needs --from/);
++  const stray = await cli(["--signer-mode", "sign", "whoami"], { home });
++  assert.notEqual(stray.code, 0); assert.match(stray.err, /apply to independent mode/);
++});
++
++test("patched CLI: handoff prints the exact transaction and exits; signer attach confirms the user's own send by quorum", T, async () => {
++  const home = path.join(tmp, "h3");
++  const h = await cli([...IND(), "--json", "--signer-mode", "handoff", "--from", A0.address, ...fund()], { home });
++  assert.equal(h.code, 0, h.err);
++  const { handoff, transaction } = JSON.parse(h.out.slice(h.out.indexOf("{\n")));   // host fund prints its intent first
++  assert.match(handoff, /^tx-/); assert.equal(transaction.to.toLowerCase(), A1.address.toLowerCase()); assert.equal(transaction.value, "0x38d7ea4c68000");
++  const busy = await cli([...IND(), "--signer-mode", "handoff", "--from", A0.address, ...fund()], { home });
++  assert.notEqual(busy.code, 0); assert.match(busy.err, new RegExp(`intent ${handoff}.*unresolved`));
++  const sent = await createWalletClient({ chain: local, account: A0, transport: viemHttp(chainRpc) }).request({ method: "eth_sendTransaction", params: [transaction] });
++  const a = await cli([...IND(), "signer", "attach", handoff, sent], { home });
++  assert.equal(a.code, 0, a.err); assert.match(a.out, new RegExp(`confirmed: ${sent}`));
++});
+--- /dev/null
++++ b/test/cli-capacity.test.mjs
+@@ -0,0 +1,117 @@
++// Integration test for cli-enclave.patch: run it in a tree WITH the patch applied
++//   HC_PRISTINE_ROOT=/path/to/unpatched/tree node --test test/cli-capacity.test.mjs
++// The real `enclave` binary (cli/enclave.mjs) in independent mode reads hosts' signed capacity records from two capacity
++// directories, verifies them through cli/independent.mjs's QuorumChain against a schema-4 registry behind two local
++// JSON-RPC servers, and prints the aggregate with each host counted once. Every CLI process runs under
++// test/helpers/cli-network-guard.mjs: any non-loopback connection, and any request to the stand-in Enclave API, is
++// logged, and the log must stay empty. Without --independent the command must answer exactly as the unpatched CLI does
++// (HC_PRISTINE_ROOT names that tree; without it the comparison is skipped and only the patched output is checked).
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import { spawn } from "node:child_process";
++import { once } from "node:events";
++import { pathToFileURL } from "node:url";
++import { privateKeyToAccount } from "viem/accounts";
++import { buildHostCapacityRecord, signHostCapacity, hostIdOf } from "../network/host-capacity.mjs";
++import { gpuDoc, shieldDoc, chainFixture } from "./helpers/host-capacity-fixture.mjs";
++import { parseProfile, contractPinsFromProfile } from "../network/authority-profile.mjs";
++
++const ROOT = new URL("../", import.meta.url).pathname;
++const GUARD = pathToFileURL(path.join(ROOT, "test/helpers/cli-network-guard.mjs")).href;
++const opA = privateKeyToAccount("0x" + "a1".repeat(32)), opB = privateKeyToAccount("0x" + "b2".repeat(32));
++const A = "https://host-a.example.org", B = "https://host-b.example.org/t/box-b", DOWN = "https://127.0.0.1:1";
++
++async function serve(t, handler) {
++  const s = http.createServer(handler); s.listen(0, "127.0.0.1"); await once(s, "listening");
++  t.after(() => { s.closeAllConnections(); return new Promise((r) => s.close(r)); });
++  return { origin: `http://127.0.0.1:${s.address().port}`, port: s.address().port };
++}
++function run(root, args, env) {
++  return new Promise((resolve) => {
++    // ENCLAVE_CLI_ENTRY: the built bundle (cli/build.mjs) in place of this tree's source entry; the pristine root stays source
++    const entry = root === ROOT && process.env.ENCLAVE_CLI_ENTRY ? path.resolve(process.env.ENCLAVE_CLI_ENTRY) : path.join(root, "cli/enclave.mjs");
++    const p = spawn(process.execPath, [entry, ...args], { cwd: os.tmpdir(), env });
++    let out = "", err = "";
++    const killer = setTimeout(() => { err += "\n[test: CLI killed after 60 s]"; p.kill("SIGKILL"); }, 60_000);
++    p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));
++    p.on("close", (code) => { clearTimeout(killer); resolve({ code, out, err, json: (() => { try { return JSON.parse(out); } catch { return null; } })() }); });
++  });
++}
++
++async function rig(t) {
++  const c = await chainFixture(t), lastSeen = Math.floor(c.blockTime / 1000) - 60;
++  c.state.hosts.push({ endpoint: A, operator: opA.address, active: true, lastSeen, cpu: 200, gpu: 1500 },
++                     { endpoint: B, operator: opB.address, active: true, lastSeen, cpu: 120 },
++                     { endpoint: DOWN, operator: opB.address, active: true, lastSeen, cpu: 1 });
++  const sign = (op, endpoint, doc) => signHostCapacity(op, buildHostCapacityRecord({ availability: doc(Date.now()), chainId: 8453, registry: c.binding.address, endpoint, operator: op.address }));
++  const envA = await sign(opA, A, gpuDoc), envB = await sign(opB, B, shieldDoc);
++  // two independent capacity directories, both holding A (one twice) and one holding B: each host must count once
++  const d1 = await serve(t, (q, r) => { r.setHeader("content-type", "application/json"); r.end(JSON.stringify({ records: [envA, envB, envA] })); });
++  const d2 = await serve(t, (q, r) => { r.setHeader("content-type", "application/json"); r.end(JSON.stringify({ records: [envA] })); });
++  const apiHits = [];
++  const api = await serve(t, (q, r) => { apiHits.push(q.url); r.setHeader("content-type", "application/json");
++    r.end(JSON.stringify(q.url === "/availability" ? { aggregate: true, enclaves: 3, gpuShareFree: 0.5, cpuShareFree: 0.25, gpuEnclaveCpuShareFree: 0.125 } : {})); });
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "capacity-cli-")); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const netLog = path.join(dir, "net.log"); fs.writeFileSync(netLog, "");
++  const env = (deny) => ({ PATH: process.env.PATH, HOME: dir, XDG_CONFIG_HOME: path.join(dir, "conf"), ENCLAVE_API_BASE: api.origin, ENCLAVE_ADDRESS_BOOK: "0x" + "ab".repeat(20),
++    NODE_OPTIONS: `--import=${GUARD}`, ENCLAVE_TEST_NET_LOG: netLog, ...(deny ? { ENCLAVE_TEST_DENY_PORT: String(api.port) } : {}) });
++  const independent = ["--independent", "--profile", c.profileFile, "--profile-digest", c.digest, "--rpc", c.rpcOrigins.join(","), "--confirmations", "1"];
++  return { c, d1, d2, api, apiHits, netLog, env, independent };
++}
++
++test("independent availability: signed records from two capacity directories, verified at one agreed block, each host once", { timeout: 120_000 }, async (t) => {
++  const r = await rig(t);
++  const x = await run(ROOT, ["availability", ...r.independent, "--capacity-directories", `${r.d1.origin},${r.d2.origin}`, "--hosts", hostIdOf(DOWN), "--json"], r.env(true));
++  assert.equal(x.code, 0, x.err);
++  const a = x.json.aggregate;
++  assert.equal(a.enclaves, 2); assert.equal(a.claiming, 2); assert.equal(a.unknown, 1, "the named host that could not be read is unknown, not zero");
++  assert.deepEqual(a.totals, { vcpusFree: 20.8, ramGbFree: 63.2, vramFreeGb: 50 });
++  assert.equal(a.gpuShareFree, 0.625); assert.equal(a.shielded.gpuShareFree, 0.3);
++  const hA = x.json.hosts.find((h) => h.endpoint === A), down = x.json.hosts.find((h) => h.endpoint === DOWN);
++  assert.deepEqual(hA.capacity.sources.sort(), [r.d1.origin, r.d1.origin, r.d2.origin].sort());
++  assert.equal(hA.registry.postedPricesAreNotCapacity, true);
++  assert.equal(down.capacity.status, "unreachable"); assert.match(down.capacity.reasons.join(" "), /non-public/);
++  assert.equal(x.json.profileDigest, r.c.digest);
++  // the human answer, through the same reader
++  const y = await run(ROOT, ["availability", ...r.independent, "--capacity-directories", r.d1.origin], r.env(true));
++  assert.equal(y.code, 0, y.err);
++  assert.match(y.out, /best gpu slice\s+63% of a card/); assert.match(y.out, /enclave shield\s+30% of a card/);
++  assert.match(y.out, /self-reported by each host's registry operator/);
++  assert.deepEqual(r.apiHits, [], "the stand-in Enclave API was called");
++  assert.equal(fs.readFileSync(r.netLog, "utf8"), "", "a non-loopback or Enclave connection was attempted");
++});
++
++test("independent availability refuses without a source or a reviewed profile, and when the registry is not the reviewed code", { timeout: 120_000 }, async (t) => {
++  const r = await rig(t);
++  let x = await run(ROOT, ["availability", ...r.independent], r.env(true));
++  assert.equal(x.code, 1); assert.match(x.err, /name a source: there is no default directory/);
++  const pins = path.join(path.dirname(r.c.profileFile), "pins.json");
++  // the same authorities as explicit --contract-pins (authority-profile.mjs contractPinsFromProfile): addresses, no code hashes
++  fs.writeFileSync(pins, JSON.stringify(contractPinsFromProfile(parseProfile(fs.readFileSync(r.c.profileFile), { expectedDigest: r.c.digest }).profile)));
++  x = await run(ROOT, ["availability", "--independent", "--contract-pins", pins, "--usdc-token", "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "--rpc", r.c.rpcOrigins.join(","),
++    "--confirmations", "1", "--cold"], r.env(true));
++  assert.equal(x.code, 1); assert.match(x.err, /reviewed registry code: run it with --profile/);
++  r.c.state.code = "0x60006000";
++  x = await run(ROOT, ["availability", ...r.independent, "--cold"], r.env(true));
++  assert.equal(x.code, 1); assert.match(x.err, /does not carry the reviewed code/);
++  assert.deepEqual(r.apiHits, []);
++});
++
++test("without --independent, availability answers exactly as before the patch", { timeout: 120_000 }, async (t) => {
++  const r = await rig(t);
++  for (const args of [["availability"], ["availability", "--json"]]) {
++    const x = await run(ROOT, args, r.env(false));
++    assert.equal(x.code, 0, x.err);
++    if (args.includes("--json")) assert.deepEqual(x.json, { aggregate: true, enclaves: 3, gpuShareFree: 0.5, cpuShareFree: 0.25, gpuEnclaveCpuShareFree: 0.125 });
++    else assert.match(x.out, /fleet\s+3 live enclave\(s\)/);
++    if (process.env.HC_PRISTINE_ROOT) {
++      const before = await run(process.env.HC_PRISTINE_ROOT, args, r.env(false));
++      assert.equal(x.out, before.out, `${args.join(" ")}: output differs from the unpatched CLI`); assert.equal(x.code, before.code);
++    }
++  }
++  assert.ok(r.apiHits.includes("/availability"));
++});
+--- /dev/null
++++ b/test/cli-combined-independent.test.mjs
+@@ -0,0 +1,172 @@
++// The combined independent CLI (work/cli-combined-integration-interface.txt): the features that arrived as separate glue
++// patches, driven through ONE real cli/enclave.mjs (or the built bundle: ENCLAVE_CLI_ENTRY) as a subprocess. Real local
++// chain: the cli-independent rig (anvil, chain 8453; the real ledger, the deployed schema-4 registry and the pinned
++// session factory; three JSON-RPC origins). Every CLI process runs under the network guard, which refuses and logs any
++// non-loopback connection; the log must stay empty and the stand-in Enclave API unhit.
++//   - login: a session grant approved by the owner's own wallet and opened by a separate gas payer; resume; account;
++//     top-up-link; logout. Then the signature hand-back: the owner only signs, and the CLI's gas key submits.
++//   - host: the plan-driven lifecycle through `enclave host` (patch 01). The supervisor environment carries the key FILE and
++//     the plan's RPCs (patches 02/03). `check` reads the rig chain through the quorum, and never reports ready (the control
++//     attestation is UNKNOWN).
++//   - dispatch: custody and signer now dispatch; secrets stays refused, naming the pending owner read.
++import test, { before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { spawn } from "node:child_process";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { privateKeyToAccount } from "viem/accounts";
++import { haveTools, startRig, KEYS } from "./helpers/cli-independent-rig.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const CLI = process.env.ENCLAVE_CLI_ENTRY ? path.resolve(process.env.ENCLAVE_CLI_ENTRY) : path.join(REPO, "cli", "enclave.mjs");
++const GUARD = pathToFileURL(path.join(REPO, "test/helpers/cli-network-guard.mjs")).href;
++const FRONTEND = "https://owner-reviewed.example";
++const skip = haveTools();
++const T = skip ? { skip, timeout: 240000 } : { timeout: 240000 };
++let r, tmp, pinsFile, netLog, sessionDir, S;
++
++before(async () => {
++  if (skip) return;
++  r = await startRig();
++  tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cli-combined-"));
++  pinsFile = path.join(tmp, "pins.json"); fs.writeFileSync(pinsFile, JSON.stringify(r.pins));
++  netLog = path.join(tmp, "net.log"); fs.writeFileSync(netLog, "");
++  sessionDir = path.join(tmp, "sessions");
++  S = await import("../sdk/sessions/dist/node.mjs");
++});
++after(async () => { if (r) await r.stop(); if (tmp) fs.rmSync(tmp, { recursive: true, force: true }); });
++
++const independent = () => ["--independent", "--contract-pins", pinsFile, "--usdc-token", r.addresses.usdc, "--rpc", r.rpcs.join(","), "--confirmations", "1"];
++async function cli(args, { key = KEYS.owner, env = {} } = {}) {
++  await r.mine(); await r.mine();
++  return new Promise((resolve) => {
++    const p = spawn(process.execPath, [CLI, ...independent(), ...args], { cwd: tmp, env: {
++      PATH: process.env.PATH, HOME: tmp, XDG_CONFIG_HOME: path.join(tmp, "conf"), ENCLAVE_SESSION_DIR: sessionDir,
++      ...(key ? { ENCLAVE_KEY: key } : {}), ENCLAVE_API_BASE: r.apiOrigin, ENCLAVE_ADDRESS_BOOK: "0x" + "ab".repeat(20),
++      NODE_OPTIONS: `--import=${GUARD}`, ENCLAVE_TEST_NET_LOG: netLog, ENCLAVE_TEST_DENY_PORT: String(r.apiPort), ...env } });
++    let out = "", err = "";
++    const killer = setTimeout(() => { err += "\n[test: CLI killed after 180 s]"; p.kill("SIGKILL"); }, 180000);
++    p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));
++    p.on("close", (code) => { clearTimeout(killer); resolve({ code, out, err, all: out + err }); });
++  });
++}
++const noEnclave = () => {
++  assert.equal(r.apiHits.length, 0, "the stand-in Enclave API was never called");
++  assert.equal(fs.readFileSync(netLog, "utf8").trim(), "", "no non-loopback connection was attempted");
++};
++const linkOf = (text) => { const m = /https:\/\/owner-reviewed\.example\/grant#\S+/.exec(text); assert.ok(m, text); return m[0]; };
++/** what the owner's frontend does with the link: decode it, check the key against the grant */
++function grantOf(link) {
++  const g = S.decodeGrantRequest(link.split("#")[1]);
++  assert.equal(S.keyHashOf(BigInt(g.x), BigInt(g.y)).toLowerCase(), String(g.grant.sessionKey).toLowerCase(), "the link's key is the grant's key");
++  return g.grant;
++}
++/** no private key of the login (PKCS#8) or wallet appears in any file the CLI wrote */
++function noKeyMaterial(dir) {
++  for (const f of fs.readdirSync(dir, { recursive: true })) {
++    const p = path.join(dir, String(f));
++    if (!fs.statSync(p).isFile() || /\.key$|\.pkcs8$/.test(p)) continue;
++    const t = fs.readFileSync(p, "utf8");
++    for (const k of Object.values(KEYS)) assert.ok(!t.includes(k.slice(2)), `${p} holds a wallet key`);
++  }
++}
++
++test("login: the owner's own wallet approves the printed grant, a separate payer opens it, the CLI adopts exactly it; account, top-up-link, logout", T, async () => {
++  const owner = privateKeyToAccount(KEYS.owner);
++  const a = await cli(["login", "--frontend", FRONTEND, "--owner", owner.address, "--no-wait"]);
++  assert.equal(a.code, 0, a.all);
++  assert.match(a.out, /check code [0-9A-F]{4}-[0-9A-F]{4}/);
++  const link = linkOf(a.out);
++  assert.ok(!/PRIVATE|pkcs8/i.test(link), "the link carries no key");
++  const grant = grantOf(link);
++  // the owner's frontend: the owner signs as the account, and ANOTHER wallet pays the gas
++  const prep = await S.prepareSessionOpen({ publicClient: r.pc, factory: r.addresses.factory, owner, chainId: 8453, grant });
++  const rc = await r.pc.waitForTransactionReceipt({ hash: await r.wc(KEYS.other).sendTransaction({ to: prep.to, data: prep.data }) });
++  assert.equal(rc.status, "success");
++  const b = await cli(["login", "--frontend", FRONTEND, "--resume", "--wait-minutes", "1"]);
++  assert.equal(b.code, 0, b.all);
++  assert.match(b.out, new RegExp(`signed in: session 0x[0-9a-f]{64} of ${owner.address.toLowerCase()}`));
++  const acct = await cli(["account"]);
++  assert.equal(acct.code, 0, acct.all);
++  assert.match(acct.out, new RegExp(`account: ${owner.address.toLowerCase()}`)); assert.match(acct.out, /\(live\)/);
++  const top = await cli(["session", "top-up-link", "--amount", "3", "--frontend", FRONTEND]);
++  assert.equal(top.code, 0, top.all);
++  assert.match(top.out, /https:\/\/owner-reviewed\.example\/sessions#topup=0x[0-9a-fA-F]{40}:0x[0-9a-f]{64}:3000000/);
++  const out = await cli(["logout"]);
++  assert.equal(out.code, 0, out.all);
++  assert.match(out.out, /STILL LIVE on chain: .*session terminate/);
++  noKeyMaterial(sessionDir);
++  noEnclave();
++});
++
++test("login hand-back: another account only signs the grant; the CLI checks it on chain and its OWN gas key submits", T, async () => {
++  const account = privateKeyToAccount(KEYS.other), gasKey = KEYS.deployer;
++  const a = await cli(["login", "--frontend", FRONTEND, "--owner", account.address, "--switch-account", "--no-wait"], { key: gasKey });
++  assert.equal(a.code, 0, a.all);
++  const grant = grantOf(linkOf(a.out));
++  const vault = await S.vaultAddress(r.pc, r.addresses.factory, account.address);
++  const sig = await account.signTypedData(S.grantTypedData(8453, vault, grant));
++  const gasBefore = await r.pc.getTransactionCount({ address: privateKeyToAccount(gasKey).address });
++  const accountBefore = await r.pc.getTransactionCount({ address: account.address });
++  // the gas payer is asked to confirm; --yes is that confirmation in a non-interactive run
++  const b = await cli(["--yes", "login", "--frontend", FRONTEND, "--owner-signature", sig, "--wait-minutes", "1"], { key: gasKey });
++  assert.equal(b.code, 0, b.all);
++  assert.match(b.out, new RegExp(`signed in: session 0x[0-9a-f]{64} of ${account.address.toLowerCase()}`));
++  assert.equal(await r.pc.getTransactionCount({ address: privateKeyToAccount(gasKey).address }), gasBefore + 1, "the CLI's gas key sent exactly the open");
++  assert.equal(await r.pc.getTransactionCount({ address: account.address }), accountBefore, "the account itself sent nothing");
++  noEnclave();
++});
++
++test("host: init/install/run/check through `enclave host` with the plan's quorum; key FILE and BASE_RPCS; check is never ready", T, async () => {
++  const dir = path.join(tmp, "host"), units = path.join(tmp, "units");
++  const init = ["host", "init", "--dir", dir, "--public-url", "https://host.example.org", "--repo", "example/enclave", "--release-id", "a".repeat(64),
++    "--gateways", "http://203.0.113.5:8189", "--guest-mem-mib", "4096", "--guest-cpus", "2", "--supervisor-port", "1", "--attestation-url", "http://127.0.0.1:9/rad"];
++  const i = await cli(init);
++  assert.equal(i.code, 0, i.all);
++  const plan = JSON.parse(fs.readFileSync(path.join(dir, "host-plan.json"), "utf8") || "null"); assert.ok(plan, i.all);
++  assert.equal(plan.authorities.contractPins, pinsFile, "init recorded THIS invocation's pins");
++  assert.deepEqual(plan.authorities.rpcs, r.rpcs, "and its RPC quorum");
++  assert.equal(plan.supervisor.path, path.join(REPO, "supervisor.js"), "the default supervisor is this checkout's (bundled or not)");
++  const keyText = fs.readFileSync(path.join(dir, "operator.key"), "utf8").trim();
++  const dry = await cli(["host", "install", "--dir", dir, "--unit-dir", units]);
++  assert.equal(dry.code, 0, dry.all);
++  assert.match(dry.out, /REGISTRY_PRIVATE_KEY_FILE='[^']*\/operator\.key'/); assert.ok(!/REGISTRY_PRIVATE_KEY=/.test(dry.out));
++  assert.ok(dry.out.includes(`BASE_RPCS='${r.rpcs.join(",")}'`), dry.out);
++  assert.ok(!dry.all.includes(keyText.replace(/^0x/, "")), "the operator key is never printed");
++  const ap = await cli(["host", "install", "--dir", dir, "--unit-dir", units, "--apply"]);
++  assert.equal(ap.code, 0, ap.all);
++  assert.equal((fs.statSync(path.join(dir, "supervisor.env")).mode & 0o777).toString(8), "600");
++  assert.ok(!fs.readFileSync(path.join(dir, "supervisor.env"), "utf8").includes(keyText.replace(/^0x/, "")), "the key stays in operator.key");
++  const run = await cli(["host", "run", "--dir", dir, "--component", "supervisor", "--dry-run"]);
++  assert.equal(run.code, 0, run.all);
++  assert.match(run.out, /SECRET='<redacted>'/); assert.match(run.out, /REGISTRY_PRIVATE_KEY_FILE=/);
++  const chk = await cli(["host", "check", "--dir", dir, "--unit-dir", units, "--json"]);
++  assert.ok([3, 4].includes(chk.code), `check exits 3 (not ready) or 4 (unknown), never 0: ${chk.code}\n${chk.all}`);
++  let rows; try { rows = JSON.parse(chk.out.slice(chk.out.indexOf("{"))).rows; } catch { assert.fail(`check --json printed no JSON:\n${chk.all}`); }
++  const att = rows.find((x) => x.item === "control attestation");
++  assert.equal(att.status, "unknown", "a configured attestation URL is UNKNOWN, not ready");
++  assert.equal(rows.find((x) => x.item === "installed units").status, "ready", "the installed environment matches the plan exactly");
++  const bad = await cli(["host", "frobnicate"]);
++  assert.notEqual(bad.code, 0); assert.match(bad.all, /independent mode offers host init \| build \| install \| run \| check \| referral/);
++  noEnclave();
++});
++
++test("dispatch: custody and signer reach their commands; secrets stays refused, naming the pending owner read; --signer-mode needs --independent", T, async () => {
++  const sec = await cli(["secrets", "ls", "0x" + "11".repeat(32)]);
++  assert.notEqual(sec.code, 0);
++  assert.match(sec.all, /not available in independent mode: .*custody status\|set\|migrate.*owner read .*not integrated yet/);
++  // custody runs its own pin check (these rig pins carry no secretVaultV2), not the old blanket refusal
++  const cus = await cli(["custody", "status", "0x" + "11".repeat(32)]);
++  assert.notEqual(cus.code, 0); assert.doesNotMatch(cus.all, /not available in independent mode/);
++  const sig = await cli(["signer", "list"]);
++  assert.equal(sig.code, 0, sig.all);
++  const hosted = await new Promise((resolve) => {
++    const p = spawn(process.execPath, [CLI, "--signer-mode", "sign", "ls"], { cwd: tmp, env: { PATH: process.env.PATH, HOME: tmp, NODE_OPTIONS: `--import=${GUARD}`,
++      ENCLAVE_TEST_NET_LOG: netLog, ENCLAVE_API_BASE: r.apiOrigin } });
++    let all = ""; p.stdout.on("data", (d) => (all += d)); p.stderr.on("data", (d) => (all += d)); p.on("close", (code) => resolve({ code, all }));
++  });
++  assert.notEqual(hosted.code, 0); assert.match(hosted.all, /--signer-mode apply to independent mode: add --independent/);
++  noEnclave();
++});
+--- /dev/null
++++ b/test/cli-combined-custody.test.mjs
+@@ -0,0 +1,190 @@
++// Independent custody through the REAL combined cli/enclave.mjs (or the built bundle: ENCLAVE_CLI_ENTRY) as a subprocess:
++// create, rotate, pause/resume, recover after a ledger transfer, migrate from a sealed export, and clear. The world is
++// test/custody-cli-independent.test.mjs's: anvil with the REAL EnclaveSecretVaultV2 and EnclaveHostOwnership (the rig's
++// compile cache), ledger and registry stand-ins, and a REAL independent committee (3 hosts, distinct non-Enclave owners)
++// whose key the test knows. That suite drives the command in-process. This one drives the dispatch: the custody glue,
++// and the flags custody shares with enclave's global ones (`migrate --from FILE`, `clear --yes`), which the global parser
++// takes out of argv. Synthetic: no custodian runs; a stored bundle is opened with the committee's known secret.
++import { test, before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import { spawn } from "node:child_process";
++import { createHash, randomBytes } from "node:crypto";
++import { createRequire } from "node:module";
++import { createPublicClient, createWalletClient, http as viemHttp, keccak256, toBytes, stringToHex, parseEther, bytesToHex, hexToBytes } from "viem";
++import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
++import { foundry } from "viem/chains";
++import { secp256k1 } from "@noble/curves/secp256k1";
++import * as v2 from "../custody/v2/protocol.mjs";
++import * as D from "../custody/v2/digests.mjs";
++import { VAULT_V2_ABI } from "../custody/v2/chain.mjs";
++
++const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
++const CLI = process.env.ENCLAVE_CLI_ENTRY ? path.resolve(process.env.ENCLAVE_CLI_ENTRY) : path.join(ROOT, "cli", "enclave.mjs");
++const require = createRequire(import.meta.url);
++const haveAnvil = (() => { try { require("node:child_process").execFileSync("anvil", ["--version"], { stdio: "ignore" }); return true; } catch { return false; } })();
++const options = { skip: !haveAnvil && "needs Foundry's anvil", timeout: 300000 };
++const CHAIN = 8453;
++
++// the same compile cache key as test/custody-cli-independent.test.mjs and test/helpers/independent-custody-rig.mjs
++function compiled() {
++  const rig = fs.readFileSync(path.join(ROOT, "test/helpers/independent-custody-rig.mjs"), "utf8");
++  const MOCKS = /const MOCKS = `([\s\S]*?)`;/.exec(rig)[1];
++  const src = fs.readFileSync(path.join(ROOT, "contracts/EnclaveSecretVaultV2.sol"), "utf8"), own = fs.readFileSync(path.join(ROOT, "contracts/EnclaveHostOwnership.sol"), "utf8");
++  const key = createHash("sha256").update(src).update(own).update(MOCKS).digest("hex").slice(0, 16);
++  const cache = path.join(process.env.TMPDIR || "/tmp", `enclave-custody-v2-independent-rig-${key}.json`);
++  if (fs.existsSync(cache)) return JSON.parse(fs.readFileSync(cache, "utf8"));
++  const out = JSON.parse(require("solc").compile(JSON.stringify({ language: "Solidity", sources: { "V.sol": { content: src }, "Rig.sol": { content: MOCKS }, "Ownership.sol": { content: own } },
++    settings: { viaIR: true, optimizer: { enabled: true, runs: 200 }, outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } } } })));
++  const pick = (f, n) => ({ abi: out.contracts[f][n].abi, bytecode: "0x" + out.contracts[f][n].evm.bytecode.object });
++  const r = { ownership: pick("Ownership.sol", "EnclaveHostOwnership"), vault: pick("V.sol", "EnclaveSecretVaultV2"), book: pick("Rig.sol", "RigBook"),
++              ledger: pick("Rig.sol", "RigLedger"), registry: pick("Rig.sol", "RigRegistry") };
++  fs.writeFileSync(cache, JSON.stringify(r));
++  return r;
++}
++
++let W;
++const children = [], servers = [];
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cli-combined-custody-"));
++const file = (name, content, mode = 0o600) => { const p = path.join(tmp, name); fs.writeFileSync(p, content, { mode }); return p; };
++const freePort = () => new Promise((ok) => { const s = http.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
++async function forwarder(upstream) {
++  const srv = http.createServer(async (req, res) => {
++    const chunks = []; for await (const c of req) chunks.push(c);
++    const r = await fetch(upstream, { method: "POST", headers: { "content-type": "application/json" }, body: Buffer.concat(chunks) });
++    const out = Buffer.from(await r.text());
++    res.writeHead(200, { "content-type": "application/json", "content-length": out.length }); res.end(out);
++  });
++  await new Promise((ok) => srv.listen(0, "127.0.0.1", ok));
++  servers.push(srv);
++  return `http://127.0.0.1:${srv.address().port}`;
++}
++
++before(async () => {
++  if (!haveAnvil) return;
++  const C = compiled();
++  const port = await freePort();
++  children.push(require("node:child_process").spawn("anvil", ["--port", String(port), "--silent", "--chain-id", String(CHAIN)], { stdio: "ignore" }));
++  const url = `http://127.0.0.1:${port}`, chain = { ...foundry, id: CHAIN };
++  const pub = createPublicClient({ chain, transport: viemHttp(url) });
++  for (let i = 0; i < 100; i++) { try { await pub.getChainId(); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
++  const fund = async (a, eth = "100") => pub.request({ method: "anvil_setBalance", params: [a.address, "0x" + parseEther(eth).toString(16)] });
++  const acct = async () => { const k = generatePrivateKey(), a = privateKeyToAccount(k); await fund(a); return Object.assign(a, { key: k }); };
++  const wallet = (a) => createWalletClient({ account: a, chain, transport: viemHttp(url) });
++  const send = async (a, address, abi, functionName, args) => {
++    const r = await pub.waitForTransactionReceipt({ hash: await wallet(a).writeContract({ address, abi, functionName, args }) });
++    if (r.status !== "success") throw new Error(`${functionName} reverted`); return r;
++  };
++  const deploy = async (a, c, args = []) => (await pub.waitForTransactionReceipt({ hash: await wallet(a).deployContract({ abi: c.abi, bytecode: c.bytecode, args }) })).contractAddress.toLowerCase();
++  const deployer = await acct(), enclaveWallet = await acct();
++  const book = await deploy(deployer, C.book), ledger = await deploy(deployer, C.ledger), registry = await deploy(deployer, C.registry);
++  await send(deployer, book, C.book.abi, "set", [stringToHex("deployments", { size: 32 }), ledger]);
++  await send(deployer, book, C.book.abi, "set", [stringToHex("registry", { size: 32 }), registry]);
++  const ownership = await deploy(deployer, C.ownership, [registry]);
++  const vault = await deploy(deployer, C.vault, [book, enclaveWallet.address, ownership]);
++  const host = async (name, owner) => {
++    const op = await acct(), endpoint = `https://${name}.host.test`, registryId = keccak256(toBytes(endpoint));
++    await send(deployer, registry, C.registry.abi, "set", [endpoint, op.address, true, owner.address]);
++    await send(op, ownership, C.ownership.abi, "proposeOwner", [registryId, owner.address]);
++    await send(owner, ownership, C.ownership.abi, "acceptOwner", [registryId]);
++    return { op, registryId };
++  };
++  // an INDEPENDENT committee (3 seats, t = 2) with a key the test knows: f(x) = a0 + a1 x
++  const a0 = secp256k1.utils.normPrivateKeyToScalar(secp256k1.utils.randomPrivateKey()), a1 = secp256k1.utils.normPrivateKeyToScalar(secp256k1.utils.randomPrivateKey());
++  const commitments = Buffer.concat([secp256k1.ProjectivePoint.BASE.multiply(a0).toRawBytes(true), secp256k1.ProjectivePoint.BASE.multiply(a1).toRawBytes(true)]);
++  const hosts = [];
++  for (let i = 0; i < 3; i++) hosts.push(await host(`ind-${i}`, await acct()));
++  const ms = hosts.map((h, i) => { const identity = privateKeyToAccount(generatePrivateKey());
++    return { identity, m: { identity: identity.address, encKey: bytesToHex(randomBytes(32)), endpoint: `https://custody-${i}.test`, chipId: bytesToHex(randomBytes(32)),
++                            registryId: h.registryId, measurement: "0x" + "6d".repeat(32) } }; });
++  const codeSet = ["0x" + "6d".repeat(32)], salt = bytesToHex(randomBytes(32));
++  const indCid = D.committeeIdOf({ chainId: CHAIN, vault, salt, Y: commitments.subarray(0, 33) }).toLowerCase();
++  const gd = D.independentGenesisDigest({ chainId: CHAIN, vault, committeeId: indCid, commitments, machines: ms.map((x) => x.m), codeSet });
++  await send(deployer, vault, VAULT_V2_ABI, "createIndependentCommittee", [salt, ms.map((x) => x.m), bytesToHex(commitments), codeSet,
++    await Promise.all(ms.map((x) => D.signDigest(x.identity, gd))),
++    await Promise.all(ms.map((x, i) => D.signDigest(hosts[i].op, D.hostDigest({ chainId: CHAIN, vault, machine: x.m }))))]);
++  await pub.request({ method: "evm_setAutomine", params: [false] });
++  await pub.request({ method: "evm_setIntervalMining", params: [1] });
++  const dep = async (owner) => { const id = bytesToHex(randomBytes(32)); await send(deployer, ledger, C.ledger.abi, "set", [id, owner.address, "0x" + "00".repeat(32), deployer.address, 0n]); return id; };
++  const rpcs = await Promise.all([0, 1, 2].map(() => forwarder(url)));
++  const pins = file("pins.json", JSON.stringify({ version: 1, chainId: CHAIN, contracts: { registry, deployments: ledger, appCatalog: "0x" + "c1".repeat(20),
++    proofOfTime: "0x" + "c2".repeat(20), enclavePay: "0x" + "00".repeat(20), verificationFees: "0x" + "00".repeat(20), sessionVaultFactory: "0x" + "00".repeat(20), secretVaultV2: vault } }));
++  W = { C, pub, send, acct, deployer, ledger, vault, indCid, a0, dep, rpcs, pins };
++});
++after(() => { for (const s of servers) { s.closeAllConnections?.(); s.close(); } for (const c of children) try { c.kill("SIGKILL"); } catch {} fs.rmSync(tmp, { recursive: true, force: true }); });
++
++function cli(key, args) {
++  const home = fs.mkdtempSync(path.join(tmp, "home-"));
++  return new Promise((resolve) => {
++    const p = spawn(process.execPath, [CLI, "--independent", "--contract-pins", W.pins, "--usdc-token", "0x" + "c3".repeat(20), "--rpc", W.rpcs.join(","),
++      "--confirmations", "1", "--max-block-age", "600", "--max-fee-gwei", "1000", ...args],
++      { env: { PATH: process.env.PATH, HOME: home, XDG_CONFIG_HOME: path.join(home, ".config"), ENCLAVE_KEY: key }, stdio: ["ignore", "pipe", "pipe"] });
++    let out = "", err = ""; p.stdout.on("data", (d) => { out += d; }); p.stderr.on("data", (d) => { err += d; });
++    const t = setTimeout(() => p.kill("SIGKILL"), 200000);
++    p.on("close", (code) => { clearTimeout(t); resolve({ code, out, err, all: out + err }); });
++  });
++}
++const SNP = { v: 1, appId: "a7".repeat(32), images: [{ platform: "sev-snp", measurement: "77".repeat(48), runtimeId: "cd".repeat(32) }],
++              minTcb: { Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } }, vmpl: 0 };
++const state = async (id) => {
++  const [owner, policyRev, secretRev, committeeId, paused, rules] = await W.pub.readContract({ address: W.vault, abi: VAULT_V2_ABI, functionName: "policyOf", args: [id] });
++  const [, , data] = await W.pub.readContract({ address: W.vault, abi: VAULT_V2_ABI, functionName: "bundleOf", args: [id] });
++  return { owner: owner.toLowerCase(), policyRev, secretRev, committeeId, paused, rules, data };
++};
++const opened = (id, s) => v2.decryptBundle({ S: v2.parseBundle(hexToBytes(s.data)).Rp.multiply(W.a0),
++  label: v2.labelOf({ chainId: CHAIN, vault: W.vault, id, secretRev: s.secretRev, committeeId: W.indCid }), bundle: hexToBytes(s.data) }).env;
++const ok = (r) => assert.equal(r.code, 0, r.all);
++
++test("create, rotate, pause/resume through the real CLI: values never printed, rule bytes kept verbatim, every write read back", options, async () => {
++  const owner = await W.acct(), id = await W.dep(owner), rules = file("snp.json", JSON.stringify(SNP));
++  let r = await cli(owner.key, ["custody", "set", id, "API_KEY=s3cret-one", "--rules", rules, "--committee", W.indCid, "--no-config"]);
++  ok(r); assert.match(r.out, /read back at agreed block/); assert.ok(!r.all.includes("s3cret-one"));
++  const s1 = await state(id);
++  assert.deepEqual(opened(id, s1), { API_KEY: "s3cret-one" });
++  // rotate: the whole map is replaced, the rules are rewritten verbatim
++  r = await cli(owner.key, ["custody", "set", id, "API_KEY=s3cret-two", "DB_URL=postgres://x", "--no-config"]);
++  ok(r); assert.ok(!r.all.includes("s3cret-two"));
++  const s2 = await state(id);
++  assert.equal(s2.secretRev, s1.secretRev + 1n); assert.equal(s2.rules, s1.rules, "rule bytes kept verbatim");
++  assert.deepEqual(opened(id, s2), { API_KEY: "s3cret-two", DB_URL: "postgres://x" });
++  ok(await cli(owner.key, ["custody", "pause", id]));
++  assert.equal((await state(id)).paused, true);
++  r = await cli(owner.key, ["--json", "custody", "status", id]);
++  ok(r); assert.equal(JSON.parse(r.out).paused, true);
++  ok(await cli(owner.key, ["custody", "resume", id]));
++  const s3 = await state(id);
++  assert.deepEqual([s3.paused, s3.rules, s3.data], [false, s1.rules, s2.data], "pause/resume change only the flag");
++});
++
++test("recover after a ledger transfer: the old owner is refused, the new owner claims (old bundle destroyed) and sets", options, async () => {
++  const owner = await W.acct(), next = await W.acct(), id = await W.dep(owner), rules = file("snp2.json", JSON.stringify(SNP));
++  ok(await cli(owner.key, ["custody", "set", id, "OLD=secret", "--rules", rules, "--committee", W.indCid, "--no-config"]));
++  await W.send(W.deployer, W.ledger, W.C.ledger.abi, "set", [id, next.address, "0x" + "00".repeat(32), W.deployer.address, 0n]);
++  let r = await cli(owner.key, ["custody", "set", id, "OLD=again", "--no-config"]);
++  assert.notEqual(r.code, 0); assert.match(r.all, /the ledger moved this deployment .*custody claim/);
++  r = await cli(next.key, ["custody", "claim", id]);
++  ok(r); assert.match(r.out, /claimed: .* paused, with no bundle/);
++  const c = await state(id);
++  assert.deepEqual([c.owner, c.paused, c.data], [next.address.toLowerCase(), true, "0x"]);
++  ok(await cli(next.key, ["custody", "set", id, "NEW=value", "--rules", rules, "--no-config"]));
++  assert.deepEqual(opened(id, await state(id)), { NEW: "value" });
++});
++
++test("migrate --from a sealed export and clear --yes: the flags custody shares with enclave's global ones reach custody", options, async () => {
++  const owner = await W.acct(), id = await W.dep(owner), rules = file("snp3.json", JSON.stringify(SNP));
++  const pass = file("pass.txt", "correct horse battery staple\n"), sealed = path.join(tmp, "values.enc");
++  let r = await cli(owner.key, ["custody", "seal-export", "--id", id, "--in", file("values.env", "C=3\nD=4\n"), "--out", sealed, "--passphrase-file", pass]);
++  ok(r); assert.ok(!fs.readFileSync(sealed, "utf8").includes("C=3"));
++  r = await cli(owner.key, ["custody", "migrate", id, "--from", sealed, "--passphrase-file", pass, "--rules", rules, "--committee", W.indCid, "--no-config"]);
++  ok(r); assert.match(r.all, /relay's copy .* is NOT touched/);
++  const s = await state(id);
++  assert.deepEqual(opened(id, s), { C: "3", D: "4" });
++  r = await cli(owner.key, ["custody", "clear", id]);
++  assert.notEqual(r.code, 0); assert.match(r.all, /re-run with --yes/);
++  ok(await cli(owner.key, ["custody", "clear", id, "--yes"]));
++  const c = await state(id);
++  assert.deepEqual([c.data, c.secretRev, c.rules], ["0x", s.secretRev + 1n, s.rules]);
++});

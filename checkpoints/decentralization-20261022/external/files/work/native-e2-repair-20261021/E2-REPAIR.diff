@@ -1,0 +1,114 @@
+--- base/win-udp-fixture.ps1	2026-10-21 10:43:11.377807219 -0700
++++ fixed/win-udp-fixture.ps1	2026-10-21 10:54:07.298316884 -0700
+@@ -23,9 +23,18 @@
+ # its remove was verified; any other (remove failed, manifest unreadable, a throw before tracking, a timed-out process not
+ # confirmed stopped) is KEPT as the receipt and reported FAIL.
+ # Exit: 0 all PASS, 1 a FAIL, 2 refused.
++# E2 REPAIR (work/native-e2-repair-20261021, after root's native run 2026-10-21): inside the AppContainer, node.exe could not
++#   resolve a main SCRIPT path - its realpath walk lstat()s every component and the sandbox token is denied C:\ (EPERM).
++#   The probe now runs with NO main file: worker.exe --input-type=module --eval <probe.mjs text> probe.mjs <granted> <other>
++#   (probe.mjs is a builtin-only ES module, its bytes unchanged; 'probe.mjs' is only a placeholder argv[1], so
++#   process.argv.slice(2) still yields the two ports). The sandbox tool quotes each argument with Go windows.EscapeArg;
++#   the probe text must contain no double quote and no backslash, so that quoting is a plain "..." wrap that the C runtime
++#   parses back exactly (refused before anything is installed otherwise).
++#   -E2Only: run only the quoting self-check, the root recovery locator, E2 (install, the three probes, remove) and the
++#   scoped cleanup - not the read-only installed-policy scan, E3 or E1 (all unchanged and already PASS natively).
+ param([Parameter(Mandatory)][string]$NewWgExe, [Parameter(Mandatory)][string]$WgTestExe, [Parameter(Mandatory)][string]$NodeExe,
+       [Parameter(Mandatory)][string]$Peer, [string]$FirewallExe = "$env:ProgramFiles\Enclave\network\enclave-circuit-firewall.exe",
+-      [string]$CircuitRoot = "$env:ProgramData\Enclave\network\state\network-circuits", [switch]$ReadOnly)
++      [string]$CircuitRoot = "$env:ProgramData\Enclave\network\state\network-circuits", [switch]$ReadOnly, [switch]$E2Only)
+ $ErrorActionPreference = 'Stop'
+ $script:failed = 0
+ function Pass($m) { Write-Output "PASS $m" }
+@@ -78,29 +87,53 @@
+ if (-not $admin) { Refuse 'run as Administrator (the firewall tool installs WFP filters)' }
+ foreach ($f in @($NewWgExe, $WgTestExe, $NodeExe, $FirewallExe, "$PSScriptRoot\probe.mjs", "$PSScriptRoot\listener.mjs")) { if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { Refuse "missing $f" } }
+ if ($Peer -notmatch '^(\d{1,3}\.){3}\d{1,3}:\d{1,5}$') { Refuse '-Peer must be a public IPv4 ip:port' }
++if ($E2Only -and $ReadOnly) { Refuse '-E2Only and -ReadOnly exclude each other' }
++# the E2 probe runs as --eval text (no main file): Go windows.EscapeArg must only wrap it in quotes
++$probeSrc = [IO.File]::ReadAllText("$PSScriptRoot\probe.mjs")
++if ($probeSrc.Contains([string][char]34) -or $probeSrc.Contains([string][char]92) -or $probeSrc.Length -gt 8000 -or -not $probeSrc.Trim()) { Refuse 'probe.mjs must be non-empty, under 8000 characters, without double quotes or backslashes (it is passed as one --eval argument)' }
+ # quoting self-check (a native parser, node, must see exactly these arguments) - before anything is installed
+ $want = @('C:\Program Files\x y\z.exe', 'quote"inside', 'trail\', 'a b\\', '')
+ try { $r = Run $NodeExe (@('-e', 'process.stdout.write(JSON.stringify(process.argv.slice(1)))') + $want) 30 } catch { Refuse "cannot launch $NodeExe : $_" }
+ if ($r.code -ne 0 -or $r.out -ne ($want | ConvertTo-Json -Compress)) { Refuse "argument quoting self-check failed: $($r.out)" }
+ Pass 'argument quoting: a native parser sees paths with spaces, quotes and trailing backslashes exactly'
++$want2 = @('--input-type=module', '--eval', $probeSrc, 'probe.mjs', '18001', '18002')
++# '--' ends node's own options: without it node would TAKE --input-type/--eval itself and run the probe (checked locally)
++$r = Run $NodeExe (@('-e', 'process.stdout.write(JSON.stringify(process.argv.slice(1)))', '--') + $want2) 30
++# compare PARSED arrays, ordinal: Windows PowerShell's ConvertTo-Json escapes ' < > & differently from JSON.stringify
++# Windows PowerShell 5.1 emits a parsed JSON array as ONE pipeline object, so @($json | ConvertFrom-Json) is a 1-element
++# array holding the array (root's native run: refused). -InputObject + a foreach STATEMENT yields the elements on 5.1 and 7.
++$parsed = $null; $got = $null; try { $parsed = ConvertFrom-Json -InputObject $r.out; $got = @(foreach ($el in $parsed) { $el }) } catch {}
++$same = ($r.code -eq 0) -and ($null -ne $got) -and ($got.Count -eq $want2.Count)
++$bad = @()
++if ($null -ne $got) { for ($i = 0; $i -lt [Math]::Max($got.Count, $want2.Count); $i++) {
++  $gi = if ($i -lt $got.Count) { [string]$got[$i] } else { $null }; $wi = if ($i -lt $want2.Count) { $want2[$i] } else { $null }
++  if (-not [string]::Equals($gi, $wi, [StringComparison]::Ordinal)) { $same = $false
++    $bad += ('#{0} gotLen {1} wantLen {2}' -f $i, $(if ($null -eq $gi) { 'none' } else { $gi.Length }), $(if ($null -eq $wi) { 'none' } else { $wi.Length })) } } }
++if (-not $same) { Refuse ("E2 eval argument self-check failed: exit {0}; parsed {1}; gotCount {2}; wantCount {3}; mismatches [{4}]; head {5}" -f $r.code,
++  $(if ($null -eq $parsed) { 'null' } else { $parsed.GetType().FullName }), $(if ($null -eq $got) { 'null' } else { $got.Count }), $want2.Count, ($bad -join '; '),
++  $r.out.Substring(0, [Math]::Min(120, $r.out.Length))) }
++Pass 'argument quoting: the multi-line E2 --eval probe text arrives as ONE exact argument'
+ 
+ # ---- R: read-only
+ foreach ($f in @($NewWgExe, $WgTestExe, $FirewallExe, $NodeExe, "$env:ProgramFiles\Enclave\network\enclave-wg.exe")) {
+   if (Test-Path -LiteralPath $f) { Write-Output ("HASH {0} {1}" -f (Get-FileHash -Algorithm SHA256 -LiteralPath $f).Hash.ToLower(), $f) } }
+ $loopUdp = 0; $tunnels = 0
+-if (Test-Path -LiteralPath $CircuitRoot) {
++if ($E2Only) { Write-Output 'NOTE -E2Only: the read-only installed-policy scan, E3 and E1 are NOT run (unchanged; already PASS natively)' }
++elseif (Test-Path -LiteralPath $CircuitRoot) {
+   foreach ($c in Get-ChildItem -LiteralPath $CircuitRoot -Recurse -Filter 'firewall-config.json' -ErrorAction SilentlyContinue) {
+     $j = Get-Content -Raw -LiteralPath $c.FullName | ConvertFrom-Json
+     if ($j.tunnel) { $tunnels++ }
+     foreach ($p in $j.programs) { foreach ($u in @($p.udp)) { if ("$u" -like '127.*') { $loopUdp++ } } } } }
++if (-not $E2Only) {
+ Write-Output "NOTE installed circuit policies (read only): $tunnels tunnel-mode under $CircuitRoot"
+-if ($loopUdp -eq 0) { Pass 'R no installed circuit policy grants loopback UDP' } else { Fail "R $loopUdp loopback UDP grant(s) installed" }
++if ($loopUdp -eq 0) { Pass 'R no installed circuit policy grants loopback UDP' } else { Fail "R $loopUdp loopback UDP grant(s) installed" } }
+ 
+ # ---- E3 first (no install, no sandbox): the NEW relay code on real Windows sockets
++if (-not $E2Only) {
+ $r = Run $WgTestExe @('-test.run', '^TestUDPIngress', '-test.v', '-test.count', '1', '-test.timeout', '120s') 150
+ $passes = @([regex]::Matches($r.out, '--- PASS: (TestUDPIngress\w+)') | ForEach-Object { $_.Groups[1].Value })
+ if ($r.code -eq 0 -and $passes.Count -ge 7 -and $r.out -notmatch '--- FAIL') { Pass ("E3 the new relay code natively on Windows ({0} tests): {1}" -f $passes.Count, ($passes -join ', ')) }
+-else { Fail "E3 wg-udp-test.exe exit $($r.code): $($r.out.Substring([Math]::Max(0, $r.out.Length - 600)))" }
++else { Fail "E3 wg-udp-test.exe exit $($r.code): $($r.out.Substring([Math]::Max(0, $r.out.Length - 600)))" } }
+ if ($ReadOnly) { Write-Output "READONLY-RC=$script:failed"; [Environment]::Exit($script:failed) }
+ 
+ $root = Join-Path $env:ProgramData ("Enclave\native win " + (Hex32).Substring(0, 12)); $mine = @(); $listener = $null; $owned = @{}; $clean = @{}
+@@ -109,6 +142,7 @@
+   New-Item -ItemType Directory -Path $root -Force | Out-Null
+   $ports = 1..5 | ForEach-Object { FreePort }
+   # ---- E1: policy acceptance of the new binary's exact DNS service-circuit policy (not executed)
++  if (-not $E2Only) {
+   $d1 = Join-Path $root ("enclave-circuit-" + (Hex32)); New-Item -ItemType Directory -Path $d1 | Out-Null; $mine += $d1
+   Copy-Item -LiteralPath $NewWgExe -Destination "$d1\enclave-wg.exe"
+   WriteJson "$d1\firewall-config.json" @{ directory = $d1; appContainer = $true; tunnel = $true; programs = @(@{ path = "$d1\enclave-wg.exe"; udp = @($Peer);
+@@ -128,14 +162,14 @@
+   WriteJson "$d1n\firewall-config.json" @{ directory = $d1n; appContainer = $true; tunnel = $true; programs = @(@{ path = "$d1n\enclave-wg.exe"; udp = @($Peer, '127.0.0.1:18153'); connect = @(); listen = @($ports[2]) }) }
+   $r = Run $FirewallExe @('install', "$d1n\firewall-config.json") 60
+   if ($r.code -ne 0 -and -not (Test-Path -LiteralPath "$d1n\firewall.json")) { Pass 'E1 a loopback-UDP grant is refused and installs nothing (why UDP 53 is framed onto TCP)' }
+-  else { Fail "E1 loopback UDP accepted (exit $($r.code))"; Track $d1n }
++  else { Fail "E1 loopback UDP accepted (exit $($r.code))"; Track $d1n } }
+   # ---- E2: AppContainer + WFP grant semantics, observed from inside a sandbox (node.exe as worker.exe, NOT the new binary)
+   $g = FreePort; $o = FreePort
+   $listener = Start-Native $NodeExe @("$PSScriptRoot\listener.mjs", "$g", "$o")
+   Start-Sleep -Milliseconds 800
+   if ($listener.p.HasExited) { throw "the loopback listener exited at start: $($listener.e.Result)" }
+   $d2 = Join-Path $root ("enclave-circuit-" + (Hex32)); New-Item -ItemType Directory -Path $d2 | Out-Null; $mine += $d2
+-  Copy-Item -LiteralPath $NodeExe -Destination "$d2\worker.exe"; Copy-Item -LiteralPath "$PSScriptRoot\probe.mjs" -Destination "$d2\probe.mjs"
++  Copy-Item -LiteralPath $NodeExe -Destination "$d2\worker.exe"
+   WriteJson "$d2\firewall-config.json" @{ directory = $d2; appContainer = $true; programs = @(@{ path = "$d2\worker.exe"; connect = @("127.0.0.1:$g"); listen = @() }) }
+   $r = Run $FirewallExe @('install', "$d2\firewall-config.json") 60
+   Track $d2
+@@ -143,7 +177,8 @@
+   else { Fail "E2 install exit $($r.code)" }
+   if ($owned[$d2]) {
+     if ((Exempt).Contains($owned[$d2].sid)) { Pass 'E2 its loopback exemption is present' } else { Write-Output 'NOTE E2 exemption added at sandbox launch, not at install' }
+-    WriteJson "$d2\worker-sandbox.json" @{ directory = $d2; executable = "$d2\worker.exe"; args = @("$d2\probe.mjs", "$g", "$o") }
++    # no main file: the probe is --eval text (node's main-script realpath walk lstat()s C:\, which the AppContainer denies)
++    WriteJson "$d2\worker-sandbox.json" @{ directory = $d2; executable = "$d2\worker.exe"; args = @('--input-type=module', '--eval', $probeSrc, 'probe.mjs', "$g", "$o") }
+     $r = Run $FirewallExe @('sandbox', "$d2\worker-sandbox.json") 40
+     $line = ($r.out -split "`n" | Where-Object { $_ -like '*"type":"probe"*' } | Select-Object -First 1)
+     if (-not $line) { Fail "E2 no probe result (exit $($r.code)): $($r.out.Substring(0, [Math]::Min(400, $r.out.Length)))" } else {

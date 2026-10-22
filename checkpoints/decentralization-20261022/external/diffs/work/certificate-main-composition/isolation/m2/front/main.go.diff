@@ -1,0 +1,44 @@
+--- a/isolation/m2/front/main.go
++++ b/isolation/m2/front/main.go
+@@ -110,9 +110,10 @@
+ 	boundary         string      // the self-test init produced; relayed verbatim, never composed here
+ 	tunnels          *portTunnels
+ 	app              http.Handler
+-	certs            *certState  // a CA certificate for this domain's own key and deployment name (certs.go)
+-	names            *ownerNames // direct startup: the owner-committed names (names.go); nil = none
+-	ready            *readiness  // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
++	certs            *certState     // a CA certificate for this domain's own key and deployment name (certs.go)
++	names            *ownerNames    // direct startup: the owner-committed names (names.go); nil = none
++	appZone          *appZoneIssuer // direct startup: in-guest ACME for this deployment's app-zone name (appzone.go); nil = none
++	ready            *readiness     // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
+ 	tsmMu            sync.Mutex
+ }
+ 
+@@ -296,6 +297,7 @@
+ 				if f.names, err = f.startOwnerNames(prov.owner, p.egress, p.roots); err != nil {
+ 					return "", err
+ 				}
++				f.appZone = f.startAppZone(prov.owner, p.egress, p.roots)
+ 			}
+ 			warmupPath = configuredWarmup(prov.config)
+ 			return prov.config, nil
+@@ -359,6 +361,9 @@
+ 		if f.names != nil && f.names.issuer != nil {
+ 			go f.names.issuer.run(context.Background(), time.Minute)
+ 		}
++		if f.appZone != nil {
++			go f.appZone.run(context.Background(), time.Minute)
++		}
+ 		if warmupPath != "" {
+ 			fmt.Println("DOM warmup: started")
+ 			fmt.Printf("DOM warmup: %s\n", bootWarmup(context.Background(), *upstream, warmupPath, 15*time.Minute))
+@@ -395,6 +400,9 @@
+ 	case namesPath:
+ 		f.names.serve(w, r)
+ 		return
++	case appZonePath:
++		f.appZone.serve(w, r)
++		return
+ 	case readyPath:
+ 		f.ready.serve(w, r)
+ 		return

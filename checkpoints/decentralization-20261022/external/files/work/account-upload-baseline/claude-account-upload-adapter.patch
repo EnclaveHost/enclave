@@ -1,0 +1,1367 @@
+--- a/s3-ipfs-adapter/README.md	2026-10-19 16:26:57.197252492 -0700
++++ b/s3-ipfs-adapter/README.md	2026-10-19 22:34:29.723600095 -0700
+@@ -194,9 +194,110 @@
+ JSON authorization for a WASM, image or generic file upload. Repeating the same request
+ within its validity window is possible and still consumes upload quotas.
+ 
+-This path supports EOA signatures. Contract wallets and platform sessions
+-still use the legacy validating routes until independent contract/session verification
+-is implemented. Enabling this feature alone does not retire the relay.
++This path supports EOA signatures. Smart accounts (a Safe, a passkey account)
++use the explicit v2 scheme below. Platform sessions still use the legacy
++validating routes. Enabling this feature alone does not retire the relay.
++
++## Smart-account upload protocol (ERC-1271, v2)
++
++A smart account has no private key to personal-sign the v1 message. Instead,
++its own contract approves the upload through `isValidSignature`, read on the
++chain by readers the adapter owner pins. Turn it on with
++`upload.contractWallets` next to `walletAudience`:
++
++```json
++"contractWallets": {
++  "chainId": 8453,
++  "rpcs": ["https://base-rpc.one.example", "https://base-rpc.two.example", "https://base-rpc.three.example"],
++  "quorum": 2,
++  "confirmations": 2,
++  "max_age_secs": 120,
++  "timeout_secs": 5,
++  "max_bytes": 65536
++}
++```
++
++Absent, v2 requests are refused (401). The config is checked at start; an
++invalid block is logged and leaves v2 off. The rules:
++
++- `rpcs` names 2 to 7 distinct reader hosts. Each must be `https`; `http` is
++  allowed only on loopback. No credentials, query or fragment.
++- `quorum` is at least 2. `chainId` defaults to 8453.
++- The rest default to the values shown.
++
++The grammar and the check are the apps' shared `wallet.contract_wallets`
++verification (`src/contract_wallet.rs` is a verbatim copy, pinned by a test).
++
++The client sends the following headers:
++
++- `x-upload-scheme: erc1271-v2`. The scheme is explicit and is never inferred
++  from a signature's length.
++- `x-upload-address`: the account.
++- `x-upload-sha256`.
++- `x-upload-nonce`: 32 lowercase hex digits, random.
++- `x-upload-expiry`: at most 900 seconds ahead.
++- `x-upload-signature`: the account's ERC-1271 bytes as `0x` hex, at most
++  6144 bytes.
++
++The signature is over the EIP-191 hash of this exact text:
++
++```text
++enclave-storage-upload:v2
++scheme:erc1271
++chainId:<contractWallets.chainId>
++service:<full deployment ID>
++method:POST
++path:</add-json, /add-image, /add-wasm or /add-file>
++account:<account address>
++sha256:<SHA-256 of the upload body>
++bytes:<Content-Length>
++nonce:<nonce>
++expiry:<Unix seconds>
++```
++
++That hash is what the adapter passes to `isValidSignature(bytes32,bytes)`. For
++a Safe, it is the usual Safe message signature over that hash.
++
++How the adapter checks, before it accepts any body byte:
++
++1. **Chain read.** Each reader states its chain and head. The check is made at
++   the quorum-th highest head minus `confirmations`. Every reader answers with
++   the block number, hash and time, and the `isValidSignature` answer read at
++   that block hash.
++2. **Agreement.** The upload is approved only when exactly one answer reaches
++   `quorum` and says valid, so one lying or failing reader can neither approve
++   nor veto. A split refuses. A block older than `max_age_secs` refuses.
++3. **Replay.** Each account and nonce pair is used once (409 on reuse) until its
++   expiry.
++4. **Budget.** Chain checks are limited to 30 a minute (429 beyond).
++
++After the body arrives, its hash and length are checked as for v1. The
++per-wallet budgets count the account. A v2 header next to an `x-upload-token`
++is refused, and a refused v2 request never falls back to v1, HMAC or unsigned
++mode.
++
++An account must already be deployed. An undeployed address has no code and is
++refused. An ERC-6492 (counterfactual) signature is refused with "deploy the
++account first". Deploy the account through its normal path, then upload.
++
++There is no relay, issuer or service signer. The only authority is the
++account's contract, as read by the readers you pin.
++
++### Gateway reads from a dashboard
++
++A browser publisher verifies every upload by reading the exact bytes back from
++this adapter's `/ipfs/<cid>` in ranges. It also reads committed startup
++settings from the same place. These reads apply to v1 and v2 alike.
++
++For an origin listed in `upload.allowOrigins` (exact match only, no fallback),
++the gateway answers:
++
++- `GET` and `HEAD` with `access-control-allow-origin`, which echoes the origin,
++  and exposes `content-range`, `content-length` and `etag`;
++- an `OPTIONS` preflight allowing `range` and `cache-control`.
++
++Other origins get no CORS headers, and credentials are never allowed. The bytes
++are public and content-addressed; this grants no authority.
+ 
+ ## Limits, by design
+ 
+--- a/s3-ipfs-adapter/src/main.rs	2026-10-19 16:25:42.387679763 -0700
++++ b/s3-ipfs-adapter/src/main.rs	2026-10-19 22:30:09.882303925 -0700
+@@ -33,6 +33,8 @@
+ //! computed the index, so the published root CID is a faithful commitment
+ //! to the bucket's contents at index time.
+ 
++mod account_upload;
++mod contract_wallet;
+ mod egress;
+ mod httpd;
+ mod imgcheck;
+@@ -198,6 +200,18 @@
+             per_addr_daily: un("perAddrDailyBytes", 4 * 1024 * 1024 * 1024),
+             global_daily: un("globalDailyBytes", 16 * 1024 * 1024 * 1024),
+             json_per_ip_hourly: un("jsonPerIpHourly", 60) as f64,
++            // smart-account (ERC-1271) uploads: only with the operator's own pinned chain readers; a bad block disables
++            // them (fails closed) and says why
++            contract_wallets: match u.get("contractWallets") {
++                None | Some(serde_json::Value::Null) => None,
++                Some(v) => match account_upload::AccountCfg::parse(v) {
++                    Ok(c) => Some(c),
++                    Err(e) => {
++                        eprintln!("[s3-ipfs-adapter] config: {e}; smart-account uploads disabled");
++                        None
++                    }
++                },
++            },
+         })
+     });
+     Config {
+@@ -1154,8 +1168,13 @@
+         ("POST", "/api/upload") => api_upload(app, srv, key, req),
+         ("POST", "/api/delete") => api_delete(app, srv, key, req),
+         ("GET", p) | ("HEAD", p) if p == "/ipfs" || p.starts_with("/ipfs/") => {
+-            gateway(app, srv, key, req)
++            // configured browser origins may read (the dashboard's readback); every gateway answer is written
++            // synchronously, and the slot is cleared afterwards so it can never reach another response
++            srv.next_extra = app.cfg.upload.as_ref().map(|c| upload::gateway_cors(req, c)).unwrap_or_default();
++            gateway(app, srv, key, req);
++            srv.next_extra.clear();
+         }
++        ("OPTIONS", p) if p == "/ipfs" || p.starts_with("/ipfs/") => srv.respond(key, upload::gateway_preflight(req, app.cfg.upload.as_ref())),
+         _ => srv.respond(key, json(404, "Not Found", "{\"error\":\"no such route\"}".into())),
+     }
+ }
+@@ -2199,7 +2218,7 @@
+             upload_key: String::new(), wallet_audience: format!("0x{}", "ab".repeat(32)), allow_unsigned: false,
+             allow_origins: allow_origins(Some(&serde_json::json!(["https://enclave.host", "https://dash.example.org"]))),
+             max_wasm: 1024, max_file: 0, max_image: 1024, max_json: 1024, per_addr_daily: 1024, global_daily: 4096,
+-            json_per_ip_hourly: 60.0,
++            json_per_ip_hourly: 60.0, contract_wallets: None,
+         };
+         let req = |origin: &str| httpd::Request {
+             method: "OPTIONS".into(), path: "/add-wasm".into(), query: String::new(),
+--- a/s3-ipfs-adapter/src/upload.rs	2026-10-19 12:45:25.429206169 -0700
++++ b/s3-ipfs-adapter/src/upload.rs	2026-10-19 22:30:28.471519677 -0700
+@@ -62,6 +62,8 @@
+     pub per_addr_daily: u64,
+     pub global_daily: u64,
+     pub json_per_ip_hourly: f64,
++    /// `contractWallets`: the chain and pinned readers for smart-account (ERC-1271) uploads; None = v2 refused
++    pub contract_wallets: Option<crate::account_upload::AccountCfg>,
+ }
+ 
+ impl UploadCfg {
+@@ -84,6 +86,8 @@
+     /// Uploads that completed in S3 and await the snapshot merge the main
+     /// loop performs (it owns &mut App; sinks do not).
+     pub commits: Vec<PendingCommit>,
++    /// smart-account uploads: used (account, nonce) pairs and the chain-check budget
++    pub account_guard: crate::account_upload::Guard,
+ }
+ 
+ pub struct PendingCommit {
+@@ -103,6 +107,7 @@
+             slots: 0,
+             seq: 0,
+             commits: Vec::new(),
++            account_guard: Default::default(),
+         }))
+     }
+ }
+@@ -207,11 +212,27 @@
+ /// is checked in `verify_body` once the body is complete. Direct signatures
+ /// are checked here, and their declared body hash is checked at completion.
+ fn precheck(cfg: &UploadCfg, req: &Request) -> Result<Option<AuthHdrs>, (u16, String)> {
++    precheck_with(cfg, req, None)
++}
++
++/// precheck, plus smart-account (ERC-1271) uploads when the route passes the shared state: their replay memory and
++/// chain-check budget live there, and the account's contract is asked through the operator's pinned readers
++/// (account_upload.rs) before a single body byte is accepted.
++fn precheck_with(cfg: &UploadCfg, req: &Request, shared: Option<&RefCell<Shared>>) -> Result<Option<AuthHdrs>, (u16, String)> {
+     for name in ["x-upload-address", "x-upload-expiry", "x-upload-token", "x-upload-signature", "x-upload-sha256"] {
+         if req.headers.iter().filter(|(k,_)| k == name).count() > 1 {
+             return Err((401, "duplicate upload authorization header".into()));
+         }
+     }
++    // an explicitly declared smart-account upload is decided ONLY by the account (never falls back to another scheme)
++    if req.header("x-upload-scheme").is_some() {
++        let claim = crate::account_upload::parse(cfg.contract_wallets.as_ref(), &cfg.wallet_audience, req, now_secs())?;
++        let (Some(acfg), Some(sh)) = (cfg.contract_wallets.as_ref(), shared) else {
++            return Err((401, "smart-account uploads are not available on this route".into()));
++        };
++        crate::account_upload::verify(acfg, &claim, &mut sh.borrow_mut().account_guard, &mut crate::account_upload::NetReaders)?;
++        return Ok(Some(AuthHdrs { address: claim.account, expiry: claim.expiry, token: String::new(), wallet_body: Some((claim.hash, claim.size)) }));
++    }
+     let wallet_attempt = req.header("x-upload-signature").is_some() || req.header("x-upload-sha256").is_some();
+     // The generic route accepts only deployment- and path-bound signatures.
+     // Legacy HMAC tokens have no path binding and cannot authorize this route.
+@@ -323,10 +344,36 @@
+         .with("access-control-allow-methods", "POST, OPTIONS")
+         .with(
+             "access-control-allow-headers",
+-            "content-type, x-upload-address, x-upload-expiry, x-upload-token, x-upload-signature, x-upload-sha256",
++            "content-type, x-upload-address, x-upload-expiry, x-upload-token, x-upload-signature, x-upload-sha256, x-upload-scheme, x-upload-nonce",
+         )
+ }
+ 
++/// The gateway's CORS: a configured browser origin (exactly; no fallback, no `*`, no credentials) may READ the public,
++/// content-addressed bytes - the dashboard's exact-byte readback after an upload, and its read of committed startup
++/// settings, both send `range` and `cache-control` and read `content-range`. Nothing here authorizes anything.
++pub fn gateway_cors(req: &Request, cfg: &UploadCfg) -> Vec<(String, String)> {
++    let origin = req.header("origin").unwrap_or("").trim_end_matches('/');
++    if origin.is_empty() || !cfg.allow_origins.iter().any(|o| o.as_str() == origin) {
++        return Vec::new();
++    }
++    vec![
++        ("access-control-allow-origin".into(), origin.to_string()),
++        ("vary".into(), "Origin".into()),
++        ("access-control-expose-headers".into(), "content-range, content-length, etag".into()),
++    ]
++}
++
++/// The preflight for a gateway read (OPTIONS /ipfs/...).
++pub fn gateway_preflight(req: &Request, cfg: Option<&UploadCfg>) -> Response {
++    let mut resp = Response::new(204, "No Content");
++    let cors = cfg.map(|c| gateway_cors(req, c)).unwrap_or_default();
++    if !cors.is_empty() {
++        resp.headers.extend(cors);
++        resp = resp.with("access-control-allow-methods", "GET, HEAD, OPTIONS").with("access-control-allow-headers", "range, cache-control");
++    }
++    resp
++}
++
+ // ---- pinning ----------------------------------------------------------------
+ 
+ /// Compute leaf digests for buffered bytes, kubo-chunked.
+@@ -393,7 +440,7 @@
+     if req.body.len() > cap {
+         return Err((413, format!("too large (max {cap} bytes)")));
+     }
+-    let auth = precheck(cfg, req)?;
++    let auth = precheck_with(cfg, req, Some(&app.upload_shared))?;
+     if let Some(a) = &auth {
+         let hash = hex_of(&Sha256::digest(&req.body));
+         verify_body(a, &cfg.upload_key, &hash, req.body.len() as u64)?;
+@@ -523,7 +570,7 @@
+     if declared > max_bytes {
+         return refuse(srv, conn, req, cfg, 413, &format!("too large (max {max_bytes} bytes)"));
+     }
+-    let auth = match precheck(cfg, req) {
++    let auth = match precheck_with(cfg, req, Some(&app.upload_shared)) {
+         Err((code, msg)) => return refuse(srv, conn, req, cfg, code, &msg),
+         Ok(a) => a,
+     };
+@@ -826,7 +873,7 @@
+     use k256::ecdsa::SigningKey;
+     use sha3::Keccak256;
+     fn cfg() -> UploadCfg {
+-        UploadCfg { upload_key: String::new(), wallet_audience: format!("0x{}", "ab".repeat(32)), allow_unsigned: false, allow_origins: vec![], max_wasm: 1024, max_file: 1024, max_image: 1024, max_json: 1024, per_addr_daily: 1024, global_daily: 4096, json_per_ip_hourly: 60.0 }
++        UploadCfg { upload_key: String::new(), wallet_audience: format!("0x{}", "ab".repeat(32)), allow_unsigned: false, allow_origins: vec![], max_wasm: 1024, max_file: 1024, max_image: 1024, max_json: 1024, per_addr_daily: 1024, global_daily: 4096, json_per_ip_hourly: 60.0, contract_wallets: None }
+     }
+     fn request(c: &UploadCfg, expiry: u64) -> Request { request_for(c, expiry, "/add-json") }
+     fn request_for(c: &UploadCfg, expiry: u64, path: &str) -> Request {
+@@ -841,6 +888,27 @@
+         Request { method:"POST".into(),path:path.into(),query:String::new(),body:b"{}".to_vec(),stream_len:None,headers:vec![("content-length".into(),"2".into()),("x-upload-address".into(),address.into()),("x-upload-expiry".into(),expiry.to_string()),("x-upload-sha256".into(),hash),("x-upload-signature".into(),signature)] }
+     }
+     #[test]
++    fn gateway_reads_are_open_only_to_configured_origins() {
++        let mut c = cfg();
++        c.allow_origins = vec!["https://dash.example".into(), "http://localhost:5173".into()];
++        let get = |origin: Option<&str>, method: &str| Request { method: method.into(), path: "/ipfs/bafkreia".into(), query: String::new(), body: Vec::new(), stream_len: None,
++            headers: origin.map(|o| vec![("origin".to_string(), o.to_string())]).unwrap_or_default() };
++        let h = gateway_cors(&get(Some("https://dash.example/"), "GET"), &c);
++        let find = |h: &Vec<(String, String)>, k: &str| h.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone());
++        assert_eq!(find(&h, "access-control-allow-origin").as_deref(), Some("https://dash.example"));
++        assert!(find(&h, "access-control-expose-headers").unwrap().contains("content-range"));
++        assert!(h.iter().all(|(k, _)| k != "access-control-allow-credentials"));
++        // no fallback to the first origin (unlike the upload preflight), and nothing without an Origin
++        assert!(gateway_cors(&get(Some("https://evil.example"), "GET"), &c).is_empty());
++        assert!(gateway_cors(&get(None, "GET"), &c).is_empty());
++        let p = gateway_preflight(&get(Some("http://localhost:5173"), "OPTIONS"), Some(&c));
++        assert_eq!(p.status, 204);
++        assert_eq!(find(&p.headers, "access-control-allow-headers").as_deref(), Some("range, cache-control"));
++        assert_eq!(find(&p.headers, "access-control-allow-methods").as_deref(), Some("GET, HEAD, OPTIONS"));
++        assert!(gateway_preflight(&get(Some("https://evil.example"), "OPTIONS"), Some(&c)).headers.iter().all(|(k, _)| !k.starts_with("access-control")));
++        assert!(gateway_preflight(&get(Some("https://dash.example"), "OPTIONS"), None).headers.iter().all(|(k, _)| !k.starts_with("access-control")));
++    }
++    #[test]
+     fn direct_upload_needs_no_relay_secret_and_binds_final_bytes() {
+         let c=cfg(); assert!(c.enabled());
+         let req=request(&c,now_secs()+300); let a=precheck(&c,&req).unwrap().unwrap();
+--- a/s3-ipfs-adapter/src/httpd.rs	2026-10-19 12:38:33.402667092 -0700
++++ b/s3-ipfs-adapter/src/httpd.rs	2026-10-19 22:30:09.881751500 -0700
+@@ -168,6 +168,9 @@
+     app: &'static str,
+     started: Instant,
+     pump_cursor: usize,
++    /// Headers added to the next response this server writes (set by a route around a synchronous handler, cleared
++    /// by it afterwards): the gateway's CORS for configured browser origins.
++    pub next_extra: Vec<(String, String)>,
+ }
+ 
+ /// `ENCLAVE_PORTS=http:8000=18321,tcp:7777=18322` → the actual port to bind.
+@@ -201,7 +204,7 @@
+             .set_nonblocking(true)
+             .expect("non-blocking listener");
+         println!("[{app}] listening on 127.0.0.1:{port}");
+-        Server { listener, conns: Vec::new(), app, started: Instant::now(), pump_cursor: 0 }
++        Server { listener, conns: Vec::new(), app, started: Instant::now(), pump_cursor: 0, next_extra: Vec::new() }
+     }
+ 
+     pub fn uptime_secs(&self) -> u64 {
+@@ -421,7 +424,8 @@
+         };
+     }
+ 
+-    pub fn respond(&mut self, key: usize, resp: Response) {
++    pub fn respond(&mut self, key: usize, mut resp: Response) {
++        resp.headers.extend(std::mem::take(&mut self.next_extra));
+         let Some(conn) = self.conns.get_mut(key) else { return };
+         // Answering a streaming-route request WITHOUT consuming its body:
+         // the engine will not resynchronize past an unread body, so the
+@@ -449,6 +453,7 @@
+         head_only: bool,
+         src: Box<dyn Body>,
+     ) {
++        resp.headers.extend(std::mem::take(&mut self.next_extra));
+         let Some(conn) = self.conns.get_mut(key) else { return };
+         let chunked = len.is_none();
+         let mut head = format!("HTTP/1.1 {} {}\r\n", resp.status, resp.reason);
+--- /dev/null	2026-10-18 09:07:59.617104336 -0700
++++ b/s3-ipfs-adapter/src/account_upload.rs	2026-10-19 22:14:15.339072240 -0700
+@@ -0,0 +1,523 @@
++//! Smart-account upload authorization (`x-upload-scheme: erc1271-v2`): an upload signed by a CONTRACT account - a Safe
++//! whose owners are passkeys, for example - which has no private key and so cannot make the v1 EIP-191 signature
++//! (wallet_upload.rs). Additive: v1 wallet signatures and the legacy relay HMAC token are unchanged.
++//!
++//! The account signs (through its own contract, ERC-1271) the EIP-191 digest of this exact text:
++//!
++//!   enclave-storage-upload:v2
++//!   scheme:erc1271
++//!   chainId:<the chain the operator configured>
++//!   service:<this adapter's deployment id>
++//!   method:POST
++//!   path:</add-json | /add-image | /add-wasm | /add-file>
++//!   account:<0x + 40 lowercase hex>
++//!   sha256:<the body's sha256>
++//!   bytes:<the body's size>
++//!   nonce:<32 lowercase hex, single use>
++//!   expiry:<unix seconds, at most 900 s ahead>
++//!
++//! The adapter asks the account itself - isValidSignature(digest, signature) - through the OWNER-PINNED chain readers
++//! (`upload.contractWallets`, the suite's `contract_wallets` grammar), and accepts only what the shared, reviewed
++//! check_1271 accepts: an identical snapshot (block number, hash, time and the answer AT THAT HASH) held by at least
++//! `quorum` distinct readers, no competing snapshot reaching quorum, fresh by the clock read after the reads. Nobody
++//! else vouches: no relay, no issuer, no service signer.
++//!
++//! What is refused, and when (all before a single body byte):
++//!   - not configured (no `upload.contractWallets`): 401, the adapter never guesses a chain or a reader;
++//!   - malformed headers, an expired or too-distant expiry, a legacy token alongside, a scope this route does not take;
++//!   - an ERC-6492 signature (an account not deployed yet): 401 "deploy the account first". Exact counterfactual
++//!     validation would rely on simulating a factory call the adapter has not reviewed; a deployed account answers
++//!     for itself;
++//!   - a nonce already used by this account within its lifetime: 409;
++//!   - more than CHECKS_PER_MINUTE chain checks in a minute (the event loop is single-threaded): 429;
++//!   - a signature the account's contract does not accept, or readers that do not agree: 403.
++//! The declared sha256 and size are checked against the body when it is complete (upload::verify_body), as for v1.
++
++use std::collections::HashMap;
++use std::io::{Read, Write};
++use std::sync::Arc;
++use std::time::Duration;
++
++use sha3::{Digest, Keccak256};
++
++use crate::contract_wallet::{check_1271, ChainReaders, ContractCfg, ERC6492_MAGIC};
++use crate::httpd::Request;
++
++pub const SCHEME: &str = "erc1271-v2";
++pub const MAX_SIGNATURE_BYTES: usize = 6144;
++/// Chain checks the adapter will run per minute, across all clients (each is a few reader round trips on a
++/// single-threaded loop). Beyond it: 429, nothing read.
++pub const CHECKS_PER_MINUTE: u32 = 30;
++const MAX_AHEAD_SECS: u64 = 900;
++const PATHS: [&str; 4] = ["/add-json", "/add-image", "/add-wasm", "/add-file"];
++
++/// `upload.contractWallets`: the chain and the readers the OPERATOR chose for smart-account uploads.
++#[derive(Clone, Debug, PartialEq)]
++pub struct AccountCfg {
++    pub chain_id: u64,
++    pub contract: ContractCfg,
++}
++
++impl AccountCfg {
++    pub fn parse(v: &serde_json::Value) -> Result<AccountCfg, String> {
++        if !v.is_object() {
++            return Err("upload.contractWallets must be an object".into());
++        }
++        let chain_id = match v.get("chainId") {
++            None | Some(serde_json::Value::Null) => 8453,
++            Some(c) => c.as_u64().filter(|n| *n > 0).ok_or("upload.contractWallets.chainId must be a chain id")?,
++        };
++        let contract = ContractCfg::parse(v).map_err(|e| e.replace("wallet.contract_wallets", "upload.contractWallets"))?;
++        Ok(AccountCfg { chain_id, contract })
++    }
++}
++
++/// The exact text an account signs (see the module comment).
++#[allow(clippy::too_many_arguments)]
++pub fn message(chain_id: u64, service: &str, path: &str, account: &str, hash: &str, bytes: u64, nonce: &str, expiry: u64) -> String {
++    format!("enclave-storage-upload:v2\nscheme:erc1271\nchainId:{chain_id}\nservice:{service}\nmethod:POST\npath:{path}\naccount:{account}\nsha256:{hash}\nbytes:{bytes}\nnonce:{nonce}\nexpiry:{expiry}")
++}
++
++/// The EIP-191 digest of `msg`: the hash isValidSignature is asked about.
++pub fn digest(msg: &str) -> [u8; 32] {
++    let mut h = Keccak256::new();
++    h.update(format!("\x19Ethereum Signed Message:\n{}", msg.len()));
++    h.update(msg.as_bytes());
++    h.finalize().into()
++}
++
++fn lower_hex(s: &str, digits: usize) -> bool {
++    s.len() == digits && s.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
++}
++
++/// One smart-account upload request, parsed and checked from its headers alone.
++#[derive(Debug, Clone)]
++pub struct Claim {
++    pub account: String,
++    pub hash: String,
++    pub size: u64,
++    pub nonce: String,
++    pub expiry: u64,
++    pub signature: Vec<u8>,
++    pub digest: [u8; 32],
++}
++
++/// Everything decidable without the network, at `now`. `audience` is this adapter's deployment id.
++pub fn parse(cfg: Option<&AccountCfg>, audience: &str, req: &Request, now: u64) -> Result<Claim, (u16, String)> {
++    let bad = |m: &str| Err((401u16, m.to_string()));
++    if req.header("x-upload-scheme").map(str::trim) != Some(SCHEME) {
++        return bad("unknown upload authorization scheme");
++    }
++    for name in ["x-upload-scheme", "x-upload-nonce"] {
++        if req.headers.iter().filter(|(k, _)| k == name).count() > 1 {
++            return bad("duplicate upload authorization header");
++        }
++    }
++    if req.header("x-upload-token").is_some() {
++        return bad("a smart-account upload carries no relay token");
++    }
++    let Some(cfg) = cfg else {
++        return bad("smart-account uploads are not configured on this adapter (upload.contractWallets)");
++    };
++    if !(audience.len() == 66 && audience.starts_with("0x") && lower_hex(&audience[2..], 64)) {
++        return bad("direct uploads are not configured");
++    }
++    let h = |n: &str| req.header(n).unwrap_or("").trim().to_string();
++    let account = h("x-upload-address");
++    if !(account.len() == 42 && account.starts_with("0x") && lower_hex(&account[2..], 40)) {
++        return bad("bad upload account");
++    }
++    let nonce = h("x-upload-nonce");
++    if !lower_hex(&nonce, 32) {
++        return bad("bad upload nonce");
++    }
++    let Ok(expiry) = h("x-upload-expiry").parse::<u64>() else { return bad("bad upload expiry") };
++    if expiry < now {
++        return bad("upload authorization expired; retry");
++    }
++    if expiry > now + MAX_AHEAD_SECS {
++        return bad("upload authorization expiry too far in the future");
++    }
++    let hash = h("x-upload-sha256");
++    let size = req.header("content-length").and_then(|s| s.trim().parse::<u64>().ok());
++    if !lower_hex(&hash, 64) || size.is_none() || req.method != "POST" || !PATHS.contains(&req.path.as_str()) {
++        return bad("bad smart-account upload scope");
++    }
++    let sig_hex = h("x-upload-signature");
++    let Some(raw) = sig_hex.strip_prefix("0x") else { return Err((403, "invalid smart-account upload signature".into())) };
++    if raw.is_empty() || raw.len() % 2 != 0 || raw.len() > MAX_SIGNATURE_BYTES * 2 || !raw.bytes().all(|c| c.is_ascii_hexdigit()) {
++        return Err((403, "invalid smart-account upload signature".into()));
++    }
++    let signature: Vec<u8> = (0..raw.len() / 2).map(|i| u8::from_str_radix(&raw[2 * i..2 * i + 2], 16).unwrap()).collect();
++    if signature.ends_with(&ERC6492_MAGIC) {
++        return bad("deploy the account first: this adapter accepts a smart-account upload only from a deployed account (an ERC-6492 signature is for one that is not deployed yet)");
++    }
++    let size = size.unwrap();
++    let msg = message(cfg.chain_id, audience, &req.path, &account, &hash, size, &nonce, expiry);
++    Ok(Claim { digest: digest(&msg), account, hash, size, nonce, expiry, signature })
++}
++
++/// Replay memory and the chain-check budget. One per process (the loop is single-threaded).
++#[derive(Default)]
++pub struct Guard {
++    used: HashMap<String, u64>, // "account:nonce" -> expiry
++    minute: u64,
++    checks: u32,
++}
++
++impl Guard {
++    fn prune(&mut self, now: u64) {
++        self.used.retain(|_, exp| *exp >= now);
++    }
++    fn key(c: &Claim) -> String {
++        format!("{}:{}", c.account, c.nonce)
++    }
++}
++
++/// The decision for a parsed claim: replay, budget, then the account's own answer through the agreeing readers. Marks
++/// the nonce used only after the account accepted, so a refused attempt cannot burn someone's nonce.
++pub fn verify(cfg: &AccountCfg, c: &Claim, guard: &mut Guard, readers: &mut dyn ChainReaders) -> Result<(), (u16, String)> {
++    let now = readers.now();
++    {
++        let g = &mut *guard;
++        g.prune(now);
++        if g.used.contains_key(&Guard::key(c)) {
++            return Err((409, "this upload authorization was already used; sign a new one".into()));
++        }
++        if g.minute != now / 60 {
++            g.minute = now / 60;
++            g.checks = 0;
++        }
++        if g.checks >= CHECKS_PER_MINUTE {
++            return Err((429, "too many smart-account upload checks right now; retry shortly".into()));
++        }
++        g.checks += 1;
++    }
++    check_1271(&cfg.contract, cfg.chain_id, &c.account, &c.digest, &c.signature, readers).map_err(|e| (403u16, e))?;
++    // the readers took time: the authorization must still be alive when the decision is made
++    let now = readers.now();
++    if c.expiry < now {
++        return Err((401, "upload authorization expired while it was being checked; retry".into()));
++    }
++    let g = guard;
++    if g.used.contains_key(&Guard::key(c)) {
++        return Err((409, "this upload authorization was already used; sign a new one".into()));
++    }
++    g.used.insert(Guard::key(c), c.expiry);
++    Ok(())
++}
++
++// ---- the readers, over this app's own outbound network ------------------------------------------
++
++/// JSON-RPC POSTs to the pinned readers through the app's egress (egress::dial), TLS by rustls with webpki roots
++/// (https), plain TCP only for loopback test nodes (RpcUrl refuses plain http elsewhere).
++pub struct NetReaders;
++
++impl ChainReaders for NetReaders {
++    fn post(&mut self, url: &str, body: &[u8], timeout_secs: u64, max_bytes: usize) -> Result<Vec<u8>, String> {
++        rpc_post(url, body, Duration::from_secs(timeout_secs), max_bytes)
++    }
++    fn now(&self) -> u64 {
++        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
++    }
++}
++
++enum Wire {
++    Plain(std::net::TcpStream),
++    Tls(Box<rustls::StreamOwned<rustls::ClientConnection, std::net::TcpStream>>),
++}
++impl Read for Wire {
++    fn read(&mut self, b: &mut [u8]) -> std::io::Result<usize> {
++        match self { Wire::Plain(s) => s.read(b), Wire::Tls(s) => s.read(b) }
++    }
++}
++impl Write for Wire {
++    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
++        match self { Wire::Plain(s) => s.write(b), Wire::Tls(s) => s.write(b) }
++    }
++    fn flush(&mut self) -> std::io::Result<()> {
++        match self { Wire::Plain(s) => s.flush(), Wire::Tls(s) => s.flush() }
++    }
++}
++
++/// (https, host for TLS/Host header, dial host, port, path) of a reader URL that RpcUrl already accepted.
++fn split_url(url: &str) -> Result<(bool, String, String, u16, String), String> {
++    let r = crate::contract_wallet::RpcUrl::parse(url).map_err(|e| format!("reader url: {e}"))?;
++    let rest = url.split_once("://").map(|(_, r)| r).unwrap_or("");
++    let path = rest.find('/').map(|i| rest[i..].to_string()).unwrap_or_else(|| "/".into());
++    let dial = r.host.trim_start_matches('[').trim_end_matches(']').to_string();
++    Ok((r.https, r.host.clone(), dial, r.port, path))
++}
++
++fn rpc_post(url: &str, body: &[u8], timeout: Duration, max_bytes: usize) -> Result<Vec<u8>, String> {
++    let (https, host, dial, port, path) = split_url(url)?;
++    let deadline = std::time::Instant::now() + timeout + Duration::from_secs(2);
++    let sock = crate::egress::dial(&dial, port, None)?;
++    let _ = sock.set_read_timeout(Some(timeout));
++    let _ = sock.set_write_timeout(Some(timeout));
++    let mut wire = if https {
++        let roots = rustls::RootCertStore { roots: webpki_roots::TLS_SERVER_ROOTS.to_vec() };
++        let config = rustls::ClientConfig::builder_with_provider(Arc::new(rustls_rustcrypto::provider()))
++            .with_safe_default_protocol_versions()
++            .map_err(|e| format!("tls versions: {e}"))?
++            .with_root_certificates(roots)
++            .with_no_client_auth();
++        let name = rustls::pki_types::ServerName::try_from(dial.clone()).map_err(|_| "bad TLS server name".to_string())?;
++        let conn = rustls::ClientConnection::new(Arc::new(config), name).map_err(|e| format!("tls setup: {e}"))?;
++        Wire::Tls(Box::new(rustls::StreamOwned::new(conn, sock)))
++    } else {
++        Wire::Plain(sock)
++    };
++    let default_port = if https { 443 } else { 80 };
++    let host_hdr = if port == default_port { host.clone() } else { format!("{host}:{port}") };
++    let head = format!("POST {path} HTTP/1.1\r\nHost: {host_hdr}\r\nContent-Type: application/json\r\nAccept: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
++    wire.write_all(head.as_bytes()).and_then(|_| wire.write_all(body)).and_then(|_| wire.flush()).map_err(|e| format!("reader write: {e}"))?;
++    // read the whole answer (the peer closes), bounded by size and by time
++    let cap = max_bytes + 16 * 1024;
++    let mut raw = Vec::new();
++    let mut buf = [0u8; 8192];
++    loop {
++        if std::time::Instant::now() > deadline {
++            return Err("reader timed out".into());
++        }
++        match wire.read(&mut buf) {
++            Ok(0) => break,
++            Ok(n) => {
++                raw.extend_from_slice(&buf[..n]);
++                if raw.len() > cap {
++                    return Err("reader answered too much".into());
++                }
++            }
++            // a TLS peer that closes without close_notify still delivered a complete HTTP answer
++            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof && !raw.is_empty() => break,
++            Err(e) => return Err(format!("reader read: {e}")),
++        }
++    }
++    parse_http(&raw, max_bytes)
++}
++
++/// The body of a complete HTTP/1.1 200 answer (content-length, chunked, or close-delimited).
++fn parse_http(raw: &[u8], max_bytes: usize) -> Result<Vec<u8>, String> {
++    let end = raw.windows(4).position(|w| w == b"\r\n\r\n").ok_or("reader sent no HTTP header")?;
++    let head = std::str::from_utf8(&raw[..end]).map_err(|_| "reader sent a non-UTF-8 header")?;
++    let mut lines = head.split("\r\n");
++    let status = lines.next().unwrap_or("");
++    if status.split_whitespace().nth(1) != Some("200") {
++        return Err(format!("reader answered {}", status.split_whitespace().nth(1).unwrap_or("?")));
++    }
++    let mut len = None;
++    let mut chunked = false;
++    for l in lines {
++        if let Some((k, v)) = l.split_once(':') {
++            let (k, v) = (k.trim().to_ascii_lowercase(), v.trim());
++            if k == "content-length" { len = v.parse::<usize>().ok(); }
++            if k == "transfer-encoding" && v.to_ascii_lowercase().contains("chunked") { chunked = true; }
++        }
++    }
++    let rest = &raw[end + 4..];
++    let body = if chunked {
++        let mut out = Vec::new();
++        let mut at = 0;
++        loop {
++            let nl = rest[at..].windows(2).position(|w| w == b"\r\n").ok_or("reader sent a broken chunk")? + at;
++            let size_txt = std::str::from_utf8(&rest[at..nl]).map_err(|_| "reader sent a broken chunk")?;
++            let size = usize::from_str_radix(size_txt.split(';').next().unwrap_or("").trim(), 16).map_err(|_| "reader sent a broken chunk")?;
++            at = nl + 2;
++            if size == 0 { break; }
++            if at + size > rest.len() || out.len() + size > max_bytes { return Err("reader sent a broken or oversized chunk".into()); }
++            out.extend_from_slice(&rest[at..at + size]);
++            at += size + 2;
++        }
++        out
++    } else if let Some(n) = len {
++        if n > rest.len() { return Err("reader answer ended early".into()); }
++        rest[..n].to_vec()
++    } else {
++        rest.to_vec()
++    };
++    if body.len() > max_bytes {
++        return Err("reader answered too much".into());
++    }
++    Ok(body)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    const AUD: &str = "0xabababababababababababababababababababababababababababababababab";
++    const ACCOUNT: &str = "0x5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a";
++    const NOW: u64 = 1_800_000_000;
++
++    fn cfg() -> AccountCfg {
++        AccountCfg::parse(&serde_json::json!({ "rpcs": ["http://127.0.0.1:8001", "http://127.0.0.1:8002", "http://127.0.0.1:8003"], "quorum": 2, "confirmations": 0 })).unwrap()
++    }
++    fn sha(b: &[u8]) -> String {
++        use sha2::Digest as _;
++        sha2::Sha256::digest(b).iter().map(|x| format!("{x:02x}")).collect()
++    }
++    fn req(path: &str, body: &[u8], nonce: &str, expiry: u64, sig: &str) -> Request {
++        Request { method: "POST".into(), path: path.into(), query: String::new(), body: body.to_vec(), stream_len: None, headers: vec![
++            ("content-length".into(), body.len().to_string()), ("x-upload-scheme".into(), SCHEME.into()), ("x-upload-address".into(), ACCOUNT.into()),
++            ("x-upload-sha256".into(), sha(body)), ("x-upload-nonce".into(), nonce.into()), ("x-upload-expiry".into(), expiry.to_string()),
++            ("x-upload-signature".into(), sig.into())] }
++    }
++    fn good() -> Request { req("/add-json", b"{}", &"0f".repeat(16), NOW + 300, &format!("0x{}", "51".repeat(97))) }
++
++    /// Stand-in readers: each URL answers with its own head, block and verdict; `calls` records what was asked.
++    struct Readers { answers: HashMap<String, (u64, String, u64, Option<bool>)>, chain: u64, now: u64, calls: Vec<String> }
++    impl ChainReaders for Readers {
++        fn post(&mut self, url: &str, body: &[u8], _: u64, _: usize) -> Result<Vec<u8>, String> {
++            self.calls.push(String::from_utf8_lossy(body).to_string());
++            let Some((head, hash, ts, valid)) = self.answers.get(url).cloned() else { return Err("down".into()) };
++            let q: serde_json::Value = serde_json::from_slice(body).unwrap();
++            let method = q[0]["method"].as_str().unwrap().to_string();
++            let out = match method.as_str() {
++                "eth_chainId" => serde_json::json!([{ "id": 1, "result": format!("0x{:x}", self.chain) }, { "id": 2, "result": { "number": format!("0x{head:x}") } }]),
++                "eth_getBlockByNumber" => serde_json::json!([{ "id": 1, "result": { "number": q[0]["params"][0], "hash": hash, "timestamp": format!("0x{ts:x}") } }]),
++                "eth_call" => match valid {
++                    Some(true) => serde_json::json!([{ "id": 2, "result": format!("0x1626ba7e{}", "0".repeat(56)) }]),
++                    Some(false) => serde_json::json!([{ "id": 2, "error": { "code": 3, "message": "execution reverted" } }]),
++                    None => serde_json::json!([{ "id": 2, "result": "0xgarbage" }]),
++                },
++                _ => unreachable!(),
++            };
++            Ok(out.to_string().into_bytes())
++        }
++        fn now(&self) -> u64 { self.now }
++    }
++    fn readers(answers: &[(u64, &str, Option<bool>)]) -> Readers {
++        let urls = ["http://127.0.0.1:8001", "http://127.0.0.1:8002", "http://127.0.0.1:8003"];
++        Readers { answers: answers.iter().zip(urls).map(|((h, hash, v), u)| (u.to_string(), (*h, hash.to_string(), NOW - 2, *v))).collect(), chain: 8453, now: NOW, calls: vec![] }
++    }
++    const H: &str = "0x1111111111111111111111111111111111111111111111111111111111111111";
++    const H2: &str = "0x2222222222222222222222222222222222222222222222222222222222222222";
++
++    #[test]
++    fn message_binds_every_field_and_differs_from_v1() {
++        let m = message(8453, AUD, "/add-json", ACCOUNT, &"cd".repeat(32), 2, &"0f".repeat(16), NOW);
++        assert_eq!(m, format!("enclave-storage-upload:v2\nscheme:erc1271\nchainId:8453\nservice:{AUD}\nmethod:POST\npath:/add-json\naccount:{ACCOUNT}\nsha256:{}\nbytes:2\nnonce:{}\nexpiry:{NOW}", "cd".repeat(32), "0f".repeat(16)));
++        let v1 = crate::wallet_upload::message(AUD, "/add-json", ACCOUNT, &"cd".repeat(32), 2, NOW);
++        assert_ne!(digest(&m), digest(&v1));
++        let base = digest(&m);
++        for other in [message(1, AUD, "/add-json", ACCOUNT, &"cd".repeat(32), 2, &"0f".repeat(16), NOW),
++                      message(8453, &format!("0x{}", "ef".repeat(32)), "/add-json", ACCOUNT, &"cd".repeat(32), 2, &"0f".repeat(16), NOW),
++                      message(8453, AUD, "/add-wasm", ACCOUNT, &"cd".repeat(32), 2, &"0f".repeat(16), NOW),
++                      message(8453, AUD, "/add-json", &format!("0x{}", "5b".repeat(20)), &"cd".repeat(32), 2, &"0f".repeat(16), NOW),
++                      message(8453, AUD, "/add-json", ACCOUNT, &"00".repeat(32), 2, &"0f".repeat(16), NOW),
++                      message(8453, AUD, "/add-json", ACCOUNT, &"cd".repeat(32), 3, &"0f".repeat(16), NOW),
++                      message(8453, AUD, "/add-json", ACCOUNT, &"cd".repeat(32), 2, &"0e".repeat(16), NOW),
++                      message(8453, AUD, "/add-json", ACCOUNT, &"cd".repeat(32), 2, &"0f".repeat(16), NOW + 1)] {
++            assert_ne!(digest(&other), base, "{other}");
++        }
++    }
++
++    #[test]
++    fn headers_alone_refuse_everything_refusable() {
++        let c = cfg();
++        assert!(parse(Some(&c), AUD, &good(), NOW).is_ok());
++        assert_eq!(parse(None, AUD, &good(), NOW).unwrap_err().0, 401, "not configured: never guessed");
++        let with = |f: &dyn Fn(&mut Request)| { let mut r = good(); f(&mut r); parse(Some(&c), AUD, &r, NOW) };
++        assert!(with(&|r| r.headers.retain(|(k, _)| k != "x-upload-scheme")).is_err(), "the scheme is explicit");
++        assert!(with(&|r| r.headers.push(("x-upload-scheme".into(), SCHEME.into()))).is_err(), "duplicate");
++        assert!(with(&|r| r.headers.push(("x-upload-token".into(), "00".repeat(32)))).is_err(), "no token alongside");
++        assert!(with(&|r| r.method = "PUT".into()).is_err(), "method");
++        assert!(with(&|r| r.path = "/add-other".into()).is_err(), "path");
++        assert!(with(&|r| { r.headers.retain(|(k, _)| k != "x-upload-address"); r.headers.push(("x-upload-address".into(), ACCOUNT.to_uppercase().replace("0X", "0x"))) }).is_err(), "canonical account");
++        assert!(with(&|r| { r.headers.retain(|(k, _)| k != "x-upload-nonce"); r.headers.push(("x-upload-nonce".into(), "0f".repeat(8))) }).is_err(), "nonce size");
++        assert!(parse(Some(&c), AUD, &req("/add-json", b"{}", &"0f".repeat(16), NOW - 1, "0x51"), NOW).is_err(), "expired");
++        assert!(parse(Some(&c), AUD, &req("/add-json", b"{}", &"0f".repeat(16), NOW + 901, "0x51"), NOW).is_err(), "too far ahead");
++        assert_eq!(parse(Some(&c), AUD, &req("/add-json", b"{}", &"0f".repeat(16), NOW + 60, "0x"), NOW).unwrap_err().0, 403, "empty signature");
++        assert_eq!(parse(Some(&c), AUD, &req("/add-json", b"{}", &"0f".repeat(16), NOW + 60, &format!("0x{}", "11".repeat(MAX_SIGNATURE_BYTES + 1))), NOW).unwrap_err().0, 403, "oversized");
++        let wrapped = format!("0x{}{}", "11".repeat(96), ERC6492_MAGIC.iter().map(|b| format!("{b:02x}")).collect::<String>());
++        let e = parse(Some(&c), AUD, &req("/add-json", b"{}", &"0f".repeat(16), NOW + 60, &wrapped), NOW).unwrap_err();
++        assert!(e.0 == 401 && e.1.contains("deploy the account first"), "{e:?}");
++        assert!(parse(Some(&c), "0xshort", &good(), NOW).is_err(), "no audience, no direct uploads");
++    }
++
++    #[test]
++    fn the_accounts_own_answer_by_agreeing_readers_and_single_use() {
++        let c = cfg();
++        let claim = parse(Some(&c), AUD, &good(), NOW).unwrap();
++        let mut g = Guard::default();
++        // two of three agree it is valid at the same block: accepted; the call asked is isValidSignature(digest, sig)
++        let mut r = readers(&[(100, H, Some(true)), (100, H, Some(true)), (100, H, Some(false))]);
++        verify(&c, &claim, &mut g, &mut r).unwrap();
++        let call = r.calls.iter().find(|q| q.contains("eth_call")).unwrap();
++        assert!(call.contains(&format!("0x1626ba7e{}", claim.digest.iter().map(|b| format!("{b:02x}")).collect::<String>())), "{call}");
++        assert!(call.contains(ACCOUNT));
++        // the same authorization again: replay refused, no chain read
++        let n = r.calls.len();
++        assert_eq!(verify(&c, &claim, &mut g, &mut r).unwrap_err().0, 409);
++        assert_eq!(r.calls.len(), n, "a replay costs no reads");
++        // a new nonce, but the account's contract says no at quorum: refused, and the nonce is not burnt
++        let other = parse(Some(&c), AUD, &req("/add-json", b"{}", &"1e".repeat(16), NOW + 300, "0x51"), NOW).unwrap();
++        let e = verify(&c, &other, &mut g, &mut readers(&[(100, H, Some(false)), (100, H, Some(false)), (100, H, Some(true))])).unwrap_err();
++        assert!(e.0 == 403 && e.1.contains("does not accept"), "{e:?}");
++        verify(&c, &other, &mut g, &mut readers(&[(100, H, Some(true)), (100, H, Some(true)), (100, H, None)])).unwrap();
++    }
++
++    #[test]
++    fn inconsistent_readers_wrong_chain_and_stale_blocks_refuse() {
++        let c = cfg();
++        let fresh = |n: &str| parse(Some(&c), AUD, &req("/add-json", b"{}", &n.repeat(16), NOW + 300, "0x51"), NOW).unwrap();
++        let mut g = Guard::default();
++        // a split: two different blocks, no quorum for one answer
++        let e = verify(&c, &fresh("01"), &mut g, &mut readers(&[(100, H, Some(true)), (100, H2, Some(true)), (100, H, None)])).unwrap_err();
++        assert!(e.0 == 403 && e.1.contains("did not agree"), "{e:?}");
++        // one reader lying "valid" is one vote short
++        assert!(verify(&c, &fresh("02"), &mut g, &mut readers(&[(100, H, Some(true)), (100, H, Some(false)), (100, H, Some(false))])).is_err());
++        // readers on another chain take no part
++        let mut r = readers(&[(100, H, Some(true)), (100, H, Some(true)), (100, H, Some(true))]);
++        r.chain = 1;
++        assert!(verify(&c, &fresh("03"), &mut g, &mut r).unwrap_err().1.contains("too few chain readers"));
++        // a stale agreed block
++        let mut r = readers(&[(100, H, Some(true)), (100, H, Some(true)), (100, H, Some(true))]);
++        r.now = NOW + 10_000;
++        let late = parse(Some(&c), AUD, &req("/add-json", b"{}", &"04".repeat(16), NOW + 300, "0x51"), NOW).unwrap();
++        assert!(verify(&c, &late, &mut g, &mut r).is_err());
++    }
++
++    #[test]
++    fn the_check_budget_is_bounded() {
++        let c = cfg();
++        let mut g = Guard::default();
++        for i in 0..CHECKS_PER_MINUTE {
++            let cl = parse(Some(&c), AUD, &req("/add-json", b"{}", &format!("{i:032x}"), NOW + 300, "0x51"), NOW).unwrap();
++            let _ = verify(&c, &cl, &mut g, &mut readers(&[(100, H, Some(false)), (100, H, Some(false)), (100, H, Some(false))]));
++        }
++        let cl = parse(Some(&c), AUD, &req("/add-json", b"{}", &"ff".repeat(16), NOW + 300, "0x51"), NOW).unwrap();
++        let mut r = readers(&[(100, H, Some(true)), (100, H, Some(true)), (100, H, Some(true))]);
++        assert_eq!(verify(&c, &cl, &mut g, &mut r).unwrap_err().0, 429);
++        assert!(r.calls.is_empty(), "over budget: nothing read");
++    }
++
++    #[test]
++    fn configuration_is_the_shared_grammar() {
++        assert!(AccountCfg::parse(&serde_json::json!({ "rpcs": ["https://a.example"], "quorum": 2 })).is_err(), "at least two readers");
++        assert!(AccountCfg::parse(&serde_json::json!({ "rpcs": ["https://a.example/x", "https://a.example/y"] })).unwrap_err().contains("upload.contractWallets"), "same host twice");
++        assert!(AccountCfg::parse(&serde_json::json!({ "rpcs": ["http://rpc.example", "https://b.example"] })).is_err(), "plain http off loopback");
++        assert!(AccountCfg::parse(&serde_json::json!({ "rpcs": ["https://a.example/?key=1", "https://b.example"] })).is_err(), "no query");
++        let c = AccountCfg::parse(&serde_json::json!({ "chainId": 84532, "rpcs": ["https://a.example", "https://b.example"] })).unwrap();
++        assert_eq!(c.chain_id, 84532); assert_eq!(c.contract.quorum, 2);
++        assert!(AccountCfg::parse(&serde_json::json!({ "chainId": 0, "rpcs": ["https://a.example", "https://b.example"] })).is_err());
++    }
++
++    #[test]
++    fn http_answers_are_parsed_strictly() {
++        assert_eq!(parse_http(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}", 100).unwrap(), b"{}");
++        assert_eq!(parse_http(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\n{\r\n1\r\n}\r\n0\r\n\r\n", 100).unwrap(), b"{}");
++        assert!(parse_http(b"HTTP/1.1 500 Oops\r\n\r\n", 100).is_err());
++        assert!(parse_http(b"HTTP/1.1 200 OK\r\nContent-Length: 9\r\n\r\n{}", 100).is_err());
++        assert!(parse_http(b"HTTP/1.1 200 OK\r\n\r\n0123456789", 5).is_err());
++    }
++
++    #[test]
++    fn copied_verbatim_from_the_shared_wallet_module() {
++        let file = include_str!("contract_wallet.rs");
++        let body = file.split_once("#![allow(dead_code)]\n\n").unwrap().1.trim_end_matches('\n');
++        use sha2::Digest as _;
++        let h: String = sha2::Sha256::digest(body.as_bytes()).iter().map(|b| format!("{b:02x}")).collect();
++        assert_eq!(h, "f25c4e669b7906140e954cf20c54e8f91a0624eeceb8a92a2a54d3c96693173f", "contract_wallet.rs drifted from the shared wallet.rs sections");
++    }
++}
+--- /dev/null	2026-10-18 09:07:59.617104336 -0700
++++ b/s3-ipfs-adapter/src/contract_wallet.rs	2026-10-19 22:11:32.333879375 -0700
+@@ -0,0 +1,480 @@
++//! Contract-wallet (EIP-1271) signature checks by AGREEING owner-pinned chain readers.
++//!
++//! VERBATIM copy of the shared, reviewed implementation the suite's apps carry in their `wallet.rs`
++//! (eyesoff-ai, jot, depot, api-mcp-adapter - identical files, sha256 4619d6bb1fcf37d8e647c975756e57523fa5426de9b20b6f90bfde455425ed3f),
++//! lines 122-150, 249-296, 297-405, 474-476, 840-866, 1048-1295: ContractCfg (+ parse), RpcUrl, hex, ChainReaders/HttpReaders,
++//! and the EIP-1271 / ERC-6492 section ending in check_1271. Nothing here is edited; keep it byte-identical to that
++//! source when the shared file changes (test `copied_verbatim_from_the_shared_wallet_module` pins the hash of this
++//! body). The upload route REFUSES ERC-6492 (counterfactual) signatures before calling check_1271 (account_upload.rs),
++//! so the 6492 half is present only to stay a faithful copy.
++#![allow(dead_code)]
++
++/// `wallet.contract_wallets`: how a contract wallet's signature is checked.
++/// Explicitly pinned JSON-RPC readers (distinct hosts). A verdict counts only
++/// when at least `quorum` of them return the IDENTICAL snapshot - block
++/// number, block hash, block time and isValidSignature's answer at that hash -
++/// and no other snapshot also reaches `quorum` (check_1271). One reader can
++/// neither approve nor veto; `quorum` colluding readers can do either, so
++/// choose more than half of `rpcs`, from operators you do not expect to collude.
++///
++/// ELAPSED TIME. Readers are asked one after another: up to `rpcs.len()` head
++/// requests, then up to two requests (header, call) per remaining reader, each
++/// bounded by `timeout_secs`. A check can therefore take up to about
++/// 3 x readers x timeout_secs (7 readers at 15 s: ~5 minutes). Freshness and
++/// sign-in expiry are judged AFTER that, so readers that hang until their
++/// timeout can push an honest check past `max_age_secs` (or past the sign-in's
++/// expiry) and refuse it. Slow readers are tolerated only within that budget:
++/// keep 3 x readers x timeout_secs well under `max_age_secs`.
++#[derive(Clone, Debug, PartialEq)]
++pub struct ContractCfg {
++    pub rpcs: Vec<String>,
++    pub quorum: usize,
++    /// blocks behind the lowest reported head the check is made at
++    pub confirmations: u64,
++    /// how old that block may be, seconds
++    pub max_age_secs: u64,
++    /// per reader request
++    pub timeout_secs: u64,
++    pub max_bytes: usize,
++}
++
++
++impl ContractCfg {
++    pub fn parse(c: &serde_json::Value) -> Result<ContractCfg, String> {
++        let rpcs: Vec<String> = c
++            .get("rpcs")
++            .and_then(|r| r.as_array())
++            .ok_or("wallet.contract_wallets.rpcs must be a list of JSON-RPC URLs")?
++            .iter()
++            .map(|u| u.as_str().map(|u| u.trim().to_string()).ok_or("wallet.contract_wallets.rpcs entries must be strings".to_string()))
++            .collect::<Result<_, _>>()?;
++        if !(2..=7).contains(&rpcs.len()) {
++            return Err("wallet.contract_wallets.rpcs must name 2 to 7 readers".into());
++        }
++        // Each URL is parsed strictly, and each must be a distinct READER: one
++        // public host is one vote however its port, path, case or trailing dot
++        // is spelled. Diagnostics name the entry by index and canonical host,
++        // never by URL - a path or query may carry an API key.
++        let mut seen: Vec<(String, usize)> = Vec::new();
++        for (i, u) in rpcs.iter().enumerate() {
++            let r = RpcUrl::parse(u).map_err(|why| format!("wallet.contract_wallets.rpcs[{i}] is not a usable reader URL: {why}"))?;
++            if let Some((_, j)) = seen.iter().find(|(id, _)| *id == r.reader_id()) {
++                return Err(format!(
++                    "wallet.contract_wallets.rpcs[{i}] is the same reader as rpcs[{j}] ({}): each reader must be a distinct host",
++                    r.reader_id()
++                ));
++            }
++            seen.push((r.reader_id(), i));
++        }
++        let num = |k: &str, d: u64| -> Result<u64, String> {
++            match c.get(k) {
++                None | Some(serde_json::Value::Null) => Ok(d),
++                Some(v) => v.as_u64().ok_or(format!("wallet.contract_wallets.{k} must be a non-negative integer")),
++            }
++        };
++        let quorum = num("quorum", 2)? as usize;
++        if quorum < 2 || quorum > rpcs.len() {
++            return Err("wallet.contract_wallets.quorum must be at least 2 and at most the number of readers".into());
++        }
++        Ok(ContractCfg {
++            rpcs,
++            quorum,
++            confirmations: num("confirmations", 2)?.min(64),
++            max_age_secs: num("max_age_secs", 120)?.clamp(10, 3600),
++            timeout_secs: num("timeout_secs", 5)?.clamp(1, 15),
++            max_bytes: (num("max_bytes", 65_536)? as usize).clamp(4096, 1 << 20),
++        })
++    }
++}
++
++
++/// A pinned reader URL, parsed strictly. Grammar accepted, nothing else:
++///
++///   ("https" | "http") "://" host [":" port] ["/" path]
++///   host = DNS name (letters, digits, hyphens; labels 1..63, total <= 253,
++///          one optional trailing dot) | dotted-quad IPv4 | "[" IPv6 "]"
++///   port = 1..65535 in decimal, no sign
++///   path = letters, digits and "-._~/" only
++///
++/// No credentials (`@`), query (`?`), fragment (`#`), percent-escapes,
++/// whitespace or non-ASCII anywhere. A name whose last label is numeric must
++/// be a valid dotted quad (so `127.1` or `0x7f.0.0.1` are refused, not
++/// guessed at). Plain http only on loopback, a local node under test.
++#[derive(Debug, Clone, PartialEq)]
++pub struct RpcUrl {
++    pub https: bool,
++    /// canonical: lowercase, no trailing dot; IPv4 dotted quad; IPv6 in
++    /// brackets in its compressed form (an IPv4-mapped one as its IPv4)
++    pub host: String,
++    pub port: u16,
++    pub loopback: bool,
++}
++
++impl RpcUrl {
++    pub fn parse(u: &str) -> Result<RpcUrl, &'static str> {
++        if !u.is_ascii() || u.bytes().any(|b| b.is_ascii_whitespace() || b.is_ascii_control()) {
++            return Err("only plain ASCII, no spaces");
++        }
++        if u.contains(['@', '?', '#', '%', '\\']) {
++            return Err("no credentials, query, fragment or escapes");
++        }
++        let (https, rest) = if let Some(r) = u.strip_prefix("https://") {
++            (true, r)
++        } else if let Some(r) = u.strip_prefix("http://") {
++            (false, r)
++        } else {
++            return Err("the scheme must be https:// (or http:// on loopback)");
++        };
++        let (authority, path) = match rest.find('/') {
++            Some(i) => rest.split_at(i),
++            None => (rest, ""),
++        };
++        if !path.bytes().all(|b| b.is_ascii_alphanumeric() || b"-._~/".contains(&b)) {
++            return Err("the path may hold only letters, digits and -._~/");
++        }
++        let (host_part, port_part) = if let Some(v6) = authority.strip_prefix('[') {
++            let (inside, after) = v6.split_once(']').ok_or("an IPv6 host needs its closing bracket")?;
++            let port = match after {
++                "" => None,
++                p => Some(p.strip_prefix(':').ok_or("junk after the IPv6 host")?),
++            };
++            let ip: std::net::Ipv6Addr = inside.parse().map_err(|_| "not an IPv6 address")?;
++            let host = match ip.to_ipv4_mapped() {
++                Some(v4) => v4.to_string(),
++                None => format!("[{ip}]"),
++            };
++            (host, port)
++        } else {
++            let (h, p) = match authority.split_once(':') {
++                Some((h, p)) => (h, Some(p)),
++                None => (authority, None),
++            };
++            let h = h.to_ascii_lowercase();
++            let h = h.strip_suffix('.').unwrap_or(&h).to_string();
++            if h.is_empty() || h.len() > 253 {
++                return Err("no host");
++            }
++            let labels: Vec<&str> = h.split('.').collect();
++            let numeric_tail = labels.last().is_some_and(|l| l.bytes().all(|b| b.is_ascii_digit()));
++            if numeric_tail {
++                let ip: std::net::Ipv4Addr = h.parse().map_err(|_| "a numeric host must be a dotted-quad IPv4 address")?;
++                (ip.to_string(), p)
++            } else {
++                for l in &labels {
++                    let ok = (1..=63).contains(&l.len())
++                        && l.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
++                        && !l.starts_with('-')
++                        && !l.ends_with('-');
++                    if !ok {
++                        return Err("not a valid host name");
++                    }
++                }
++                (h, p)
++            }
++        };
++        let port = match port_part {
++            None => if https { 443 } else { 80 },
++            Some(p) if !p.is_empty() && p.len() <= 5 && p.bytes().all(|b| b.is_ascii_digit()) => {
++                p.parse::<u16>().ok().filter(|n| *n > 0).ok_or("the port must be 1..65535")?
++            }
++            Some(_) => return Err("the port must be 1..65535"),
++        };
++        let loopback = matches!(host_part.as_str(), "localhost" | "127.0.0.1" | "[::1]");
++        if !https && !loopback {
++            return Err("plain http is only for a loopback test node");
++        }
++        Ok(RpcUrl { https, host: host_part, port, loopback })
++    }
++
++    /// Who answers: one public HOST is one reader whatever its port or path;
++    /// on loopback (a test rig, where every reader is the same machine) the
++    /// port tells readers apart, and the three loopback spellings are one.
++    pub fn reader_id(&self) -> String {
++        if self.loopback {
++            format!("loopback port {}", self.port)
++        } else {
++            self.host.clone()
++        }
++    }
++}
++
++fn hex(bytes: &[u8]) -> String {
++    bytes.iter().map(|b| format!("{b:02x}")).collect()
++}
++
++/// How a reader is reached: POST `body` (JSON-RPC) to `url`, within
++/// `timeout_secs`, reading at most `max_bytes`. Each app supplies its own
++/// outbound HTTP; this file makes no call itself.
++pub type RpcPost<'a> = &'a mut dyn ChainReaders;
++
++/// The pinned readers as the app reaches them, and the app's clock. The clock
++/// is asked again AFTER the reads, so a slow round of readers cannot carry a
++/// block or a sign-in past its freshness: the decision is made at decision
++/// time, not at the time the request arrived.
++pub trait ChainReaders {
++    /// POST `body` (JSON-RPC) to `url` within `timeout_secs`, reading at most `max_bytes`
++    fn post(&mut self, url: &str, body: &[u8], timeout_secs: u64, max_bytes: usize) -> Result<Vec<u8>, String>;
++    /// unix seconds, now
++    fn now(&self) -> u64;
++}
++
++/// An app's outbound HTTP function as ChainReaders, on the system clock.
++pub struct HttpReaders<F: FnMut(&str, &[u8], u64, usize) -> Result<Vec<u8>, String>>(pub F);
++
++impl<F: FnMut(&str, &[u8], u64, usize) -> Result<Vec<u8>, String>> ChainReaders for HttpReaders<F> {
++    fn post(&mut self, url: &str, body: &[u8], timeout_secs: u64, max_bytes: usize) -> Result<Vec<u8>, String> {
++        (self.0)(url, body, timeout_secs, max_bytes)
++    }
++    fn now(&self) -> u64 {
++        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
++    }
++}
++
++// ---- EIP-1271: contract wallets, by agreeing pinned readers ------------------
++
++/// isValidSignature(bytes32,bytes) and its success value
++const EIP1271_MAGIC: [u8; 4] = [0x16, 0x26, 0xba, 0x7e];
++
++/// ERC-6492: the 32 bytes a counterfactual (not yet deployed) wallet's
++/// signature ends in, after abi.encode(address factory, bytes factoryCalldata,
++/// bytes signature).
++pub const ERC6492_MAGIC: [u8; 32] = [0x64, 0x92, 0x64, 0x92, 0x64, 0x92, 0x64, 0x92, 0x64, 0x92, 0x64, 0x92, 0x64, 0x92, 0x64, 0x92,
++                                     0x64, 0x92, 0x64, 0x92, 0x64, 0x92, 0x64, 0x92, 0x64, 0x92, 0x64, 0x92, 0x64, 0x92, 0x64, 0x92];
++/// ERC-6492's off-chain validator (`ValidateSigOffchain`, constructor
++/// (address signer, bytes32 hash, bytes signature)): run as a DEPLOYLESS
++/// eth_call it deploys the wallet through its factory call if it has no code,
++/// asks isValidSignature, and returns one byte, 0x01 or 0x00. Byte-exact copy
++/// of viem 2.53.1 `erc6492SignatureValidatorByteCode`, 1684 bytes, sha256 of
++/// this hex text 037d6b69e53bae264a9a752be534c6373b3f829fb606456f184d2ba841de6ea4,
++/// keccak-256 041473019f1c0ec0ea1e4e47621014f0be087857c75b5cd71e7df4fa962d57b9 (pinned by
++/// a test). Nothing is deployed: an eth_call is a simulation.
++pub const ERC6492_VALIDATOR: &str = "0x608060405234801561001057600080fd5b5060405161069438038061069483398101604081905261002f9161051e565b600061003c848484610048565b9050806000526001601ff35b60007f64926492649264926492649264926492649264926492649264926492649264926100748361040c565b036101e7576000606080848060200190518101906100929190610577565b60405192955090935091506000906001600160a01b038516906100b69085906105dd565b6000604051808303816000865af19150503d80600081146100f3576040519150601f19603f3d011682016040523d82523d6000602084013e6100f8565b606091505b50509050876001600160a01b03163b60000361016057806101605760405162461bcd60e51b815260206004820152601e60248201527f5369676e617475726556616c696461746f723a206465706c6f796d656e74000060448201526064015b60405180910390fd5b604051630b135d3f60e11b808252906001600160a01b038a1690631626ba7e90610190908b9087906004016105f9565b602060405180830381865afa1580156101ad573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906101d19190610633565b6001600160e01b03191614945050505050610405565b6001600160a01b0384163b1561027a57604051630b135d3f60e11b808252906001600160a01b03861690631626ba7e9061022790879087906004016105f9565b602060405180830381865afa158015610244573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906102689190610633565b6001600160e01b031916149050610405565b81516041146102df5760405162461bcd60e51b815260206004820152603a602482015260008051602061067483398151915260448201527f3a20696e76616c6964207369676e6174757265206c656e6774680000000000006064820152608401610157565b6102e7610425565b5060208201516040808401518451859392600091859190811061030c5761030c61065d565b016020015160f81c9050601b811480159061032b57508060ff16601c14155b1561038c5760405162461bcd60e51b815260206004820152603b602482015260008051602061067483398151915260448201527f3a20696e76616c6964207369676e617475726520762076616c756500000000006064820152608401610157565b60408051600081526020810180835289905260ff83169181019190915260608101849052608081018390526001600160a01b0389169060019060a0016020604051602081039080840390855afa1580156103ea573d6000803e3d6000fd5b505050602060405103516001600160a01b0316149450505050505b9392505050565b600060208251101561041d57600080fd5b508051015190565b60405180606001604052806003906020820280368337509192915050565b6001600160a01b038116811461045857600080fd5b50565b634e487b7160e01b600052604160045260246000fd5b60005b8381101561048c578181015183820152602001610474565b50506000910152565b600082601f8301126104a657600080fd5b81516001600160401b038111156104bf576104bf61045b565b604051601f8201601f19908116603f011681016001600160401b03811182821017156104ed576104ed61045b565b60405281815283820160200185101561050557600080fd5b610516826020830160208701610471565b949350505050565b60008060006060848603121561053357600080fd5b835161053e81610443565b6020850151604086015191945092506001600160401b0381111561056157600080fd5b61056d86828701610495565b9150509250925092565b60008060006060848603121561058c57600080fd5b835161059781610443565b60208501519093506001600160401b038111156105b357600080fd5b6105bf86828701610495565b604086015190935090506001600160401b0381111561056157600080fd5b600082516105ef818460208701610471565b9190910192915050565b828152604060208201526000825180604084015261061e816060850160208701610471565b601f01601f1916919091016060019392505050565b60006020828403121561064557600080fd5b81516001600160e01b03198116811461040557600080fd5b634e487b7160e01b600052603260045260246000fdfe5369676e617475726556616c696461746f72237265636f7665725369676e6572";
++
++/// Is `sig` an ERC-6492 wrapper, and a well-formed one? The suffix, then the
++/// strict ABI shape abi.encode(address, bytes, bytes): an address word, two
++/// in-range offsets, lengths that fit, and a non-empty inner signature. Err for
++/// a suffix over a malformed body: that is refused, never guessed at.
++fn erc6492_parts(sig: &[u8]) -> Result<Option<(String, usize, usize)>, String> {
++    let Some(body) = sig.strip_suffix(&ERC6492_MAGIC[..]) else { return Ok(None) };
++    let bad = || "contract wallet: malformed EIP-6492 signature".to_string();
++    let word = |at: usize| body.get(at..at + 32).ok_or_else(bad);
++    let small = |w: &[u8]| -> Result<usize, String> {
++        if w[..24].iter().any(|b| *b != 0) { return Err(bad()); }
++        Ok(u64::from_be_bytes(w[24..32].try_into().unwrap()) as usize)
++    };
++    let factory = word(0)?;
++    if factory[..12].iter().any(|b| *b != 0) {
++        return Err(bad());
++    }
++    let dynamic = |head: usize| -> Result<usize, String> {
++        let off = small(word(head)?)?;
++        if off % 32 != 0 || off < 96 { return Err(bad()); }
++        let len = small(word(off)?)?;
++        let end = off.checked_add(32).and_then(|x| x.checked_add(len)).ok_or_else(bad)?;
++        if end > body.len() { return Err(bad()); }
++        Ok(len)
++    };
++    let (calldata_len, inner_len) = (dynamic(32)?, dynamic(64)?);
++    if inner_len == 0 {
++        return Err(bad());
++    }
++    Ok(Some((format!("0x{}", hex(&factory[12..])), calldata_len, inner_len)))
++}
++
++/// The deployless validator call for an ERC-6492 signature: the validator's
++/// creation code followed by its constructor arguments.
++fn calldata_6492(address: &str, hash: &[u8; 32], sig: &[u8]) -> String {
++    let word = |n: usize| format!("{n:064x}");
++    let mut padded = hex(sig);
++    while padded.len() % 64 != 0 {
++        padded.push('0');
++    }
++    format!("{}{:0>64}{}{}{}{}", ERC6492_VALIDATOR, address.trim_start_matches("0x"), hex(hash), word(96), word(sig.len()), padded)
++}
++
++/// How a reader's eth_call answer is read as a vote.
++#[derive(Clone, Copy, PartialEq, Debug)]
++enum Verdict {
++    /// isValidSignature's return: the magic value, left-aligned in a word
++    Eip1271,
++    /// the ERC-6492 validator's single byte
++    Erc6492,
++}
++
++fn calldata_1271(hash: &[u8; 32], sig: &[u8]) -> String {
++    let word = |n: usize| format!("{n:064x}");
++    let mut padded = hex(sig);
++    while padded.len() % 64 != 0 {
++        padded.push('0');
++    }
++    format!("0x{}{}{}{}{}", hex(&EIP1271_MAGIC), hex(hash), word(64), word(sig.len()), padded)
++}
++
++fn hex_u64(v: &serde_json::Value) -> Option<u64> {
++    let s = v.as_str()?.strip_prefix("0x")?;
++    if s.is_empty() || s.len() > 16 {
++        return None;
++    }
++    u64::from_str_radix(s, 16).ok()
++}
++
++/// 0x-prefixed hex to bytes. Anything that is not ASCII hex digits is refused
++/// BEFORE any slicing: a reader's answer is hostile input, and slicing a
++/// multi-byte character in half would panic the app.
++fn hex_bytes(s: &str) -> Option<Vec<u8>> {
++    let s = s.strip_prefix("0x")?;
++    if s.len() % 2 != 0 || !s.bytes().all(|b| b.is_ascii_hexdigit()) {
++        return None;
++    }
++    let b = s.as_bytes();
++    let nib = |c: u8| (c as char).to_digit(16).map(|d| d as u8);
++    (0..b.len() / 2).map(|i| Some(nib(b[2 * i])? << 4 | nib(b[2 * i + 1])?)).collect()
++}
++
++fn rpc_call(readers: &mut dyn ChainReaders, c: &ContractCfg, url: &str, body: &serde_json::Value) -> Result<serde_json::Value, String> {
++    let bytes = readers.post(url, body.to_string().as_bytes(), c.timeout_secs, c.max_bytes)?;
++    if bytes.len() > c.max_bytes {
++        return Err("reader answered too much".into());
++    }
++    serde_json::from_slice(&bytes).map_err(|_| "reader did not answer JSON".to_string())
++}
++
++/// A 32-byte hash as 0x + 64 lowercase hex, or None.
++fn block_hash(v: Option<&serde_json::Value>) -> Option<String> {
++    let h = v?.as_str()?.to_ascii_lowercase();
++    (h.len() == 66 && h.starts_with("0x") && h[2..].bytes().all(|b| b.is_ascii_hexdigit())).then_some(h)
++}
++
++/// One reader's COMPLETE answer: the block it read (number, hash, time) and
++/// what isValidSignature said there. Two readers agree only when all four
++/// match; a verdict is never counted apart from the block it was read at.
++#[derive(Clone, PartialEq, Debug)]
++struct Snapshot {
++    number: u64,
++    hash: String,
++    timestamp: u64,
++    valid: bool,
++}
++
++fn first_result(r: &serde_json::Value, id: u64) -> Option<&serde_json::Value> {
++    let item = match r {
++        serde_json::Value::Array(items) => items.iter().find(|i| i.get("id").and_then(|x| x.as_u64()) == Some(id))?,
++        one => one,
++    };
++    item.get("result")
++}
++
++/// What one reader says at block `target`: the block's header first, then the
++/// call AT THAT EXACT HASH (EIP-1898 `{blockHash}`), so the verdict is bound to
++/// the block the reader named and to nothing else. None when the reader gives
++/// no usable answer (down, no such block, a malformed hash, garbage): that is
++/// absence, never a vote either way. A revert IS a vote: "not valid".
++fn snapshot_at(readers: &mut dyn ChainReaders, c: &ContractCfg, url: &str, target: u64, call_obj: &serde_json::Value, verdict: Verdict) -> Option<Snapshot> {
++    let q = serde_json::json!([{ "jsonrpc": "2.0", "id": 1, "method": "eth_getBlockByNumber", "params": [format!("0x{target:x}"), false] }]);
++    let r = rpc_call(readers, c, url, &q).ok()?;
++    let block = first_result(&r, 1)?;
++    if hex_u64(block.get("number")?)? != target {
++        return None;
++    }
++    let hash = block_hash(block.get("hash"))?;
++    let timestamp = hex_u64(block.get("timestamp")?)?;
++    let call = serde_json::json!([{ "jsonrpc": "2.0", "id": 2, "method": "eth_call",
++        "params": [call_obj, { "blockHash": hash, "requireCanonical": true }] }]);
++    let r = rpc_call(readers, c, url, &call).ok()?;
++    let item = match &r {
++        serde_json::Value::Array(items) => items.iter().find(|i| i.get("id").and_then(|x| x.as_u64()) == Some(2))?.clone(),
++        one => one.clone(),
++    };
++    let valid = if let Some(res) = item.get("result") {
++        let ret = hex_bytes(res.as_str()?)?; // garbage: no vote
++        match verdict {
++            Verdict::Eip1271 => ret.len() >= 32 && ret[..4] == EIP1271_MAGIC && ret[4..32].iter().all(|b| *b == 0),
++            // exactly one byte, 0 or 1; anything else is no answer at all
++            Verdict::Erc6492 => match ret.as_slice() { [1] => true, [0] => false, _ => return None },
++        }
++    } else {
++        // an execution revert is the contract saying no; any other error
++        // (unknown block, rate limit, internal) is no answer at all
++        let e = item.get("error")?;
++        let code = e.get("code").and_then(|x| x.as_i64());
++        let msg = e.get("message").and_then(|x| x.as_str()).unwrap_or("").to_ascii_lowercase();
++        if code == Some(3) || msg.contains("revert") { false } else { return None }
++    };
++    Some(Snapshot { number: target, hash, timestamp, valid })
++}
++
++/// EIP-1271 by the pinned readers, decided by AGREEMENT ON THE WHOLE ANSWER.
++///
++///   1. Each reader states its chain id and head. A reader on another chain, or
++///      that cannot say, takes no further part.
++///   2. The target block is the `quorum`-th highest head (so at least `quorum`
++///      readers claim to have it) minus `confirmations`. One reader lagging,
++///      stale or lying about its head can neither drag the check to an old
++///      block nor push it past what the others have.
++///   3. Each remaining reader returns a SNAPSHOT: that block's number, hash and
++///      time, and the wallet's verdict read AT THAT HASH: isValidSignature on
++///      the wallet for an ordinary contract signature, or - for an EIP-6492
++///      signature from a wallet that may not exist yet - the deployless
++///      ERC-6492 validator, which simulates the wallet's factory call and asks
++///      the same question in one eth_call.
++///   4. Identical snapshots are counted. Approve only when exactly one
++///      snapshot - and it says valid - is held by at least `quorum` distinct
++///      readers, and no other snapshot also reaches `quorum` (a split refuses).
++///      Refuse when a "not valid" snapshot reaches quorum, or when nothing
++///      does. One reader can therefore neither approve (it is one vote short)
++///      nor veto (a lone "no", revert or garbage is outvoted).
++///   5. The winning block must be fresh by the clock read AFTER the network
++///      reads, not the clock from before them.
++pub fn check_1271(c: &ContractCfg, chain_id: u64, address: &str, hash: &[u8; 32], sig: &[u8], readers: RpcPost) -> Result<(), String> {
++    // a malformed EIP-6492 wrapper is refused before any reader is asked
++    erc6492_parts(sig)?;
++    // 1. who is on this chain, and how far each has got
++    let mut heads: Vec<(&str, u64)> = Vec::new();
++    for url in &c.rpcs {
++        let q = serde_json::json!([
++            { "jsonrpc": "2.0", "id": 1, "method": "eth_chainId", "params": [] },
++            { "jsonrpc": "2.0", "id": 2, "method": "eth_getBlockByNumber", "params": ["latest", false] },
++        ]);
++        let Ok(r) = rpc_call(&mut *readers, c, url, &q) else { continue };
++        let on_chain = first_result(&r, 1).and_then(hex_u64) == Some(chain_id);
++        if let (true, Some(n)) = (on_chain, first_result(&r, 2).and_then(|b| b.get("number")).and_then(hex_u64)) {
++            heads.push((url.as_str(), n));
++        }
++    }
++    if heads.len() < c.quorum {
++        return Err("contract wallet: too few chain readers on this chain answered; try again".into());
++    }
++    // 2. the block at least `quorum` readers have reached, a few confirmations deep
++    let mut ns: Vec<u64> = heads.iter().map(|(_, n)| *n).collect();
++    ns.sort_unstable_by(|a, b| b.cmp(a));
++    let target = ns[c.quorum - 1].saturating_sub(c.confirmations);
++    // 3. complete snapshots, asked the right question for the signature's kind
++    let (call_obj, verdict) = match erc6492_parts(sig)? {
++        None => (serde_json::json!({ "to": address, "data": calldata_1271(hash, sig) }), Verdict::Eip1271),
++        Some(_) => (serde_json::json!({ "data": calldata_6492(address, hash, sig) }), Verdict::Erc6492),
++    };
++    let snaps: Vec<Snapshot> = heads.iter().filter_map(|(url, _)| snapshot_at(&mut *readers, c, url, target, &call_obj, verdict)).collect();
++    // 4. agreement on the whole answer
++    let mut tally: Vec<(&Snapshot, usize)> = Vec::new();
++    for s in &snaps {
++        match tally.iter_mut().find(|(t, _)| *t == s) {
++            Some((_, n)) => *n += 1,
++            None => tally.push((s, 1)),
++        }
++    }
++    let carried: Vec<&Snapshot> = tally.iter().filter(|(_, n)| *n >= c.quorum).map(|(s, _)| *s).collect();
++    let winner = match carried.as_slice() {
++        [] => return Err("contract wallet: the chain readers did not agree on an answer; refused (try again)".into()),
++        [one] => *one,
++        _ => return Err("contract wallet: the chain readers split between answers; refused".into()),
++    };
++    if !winner.valid {
++        return Err("contract wallet: the wallet contract does not accept this signature".into());
++    }
++    // 5. fresh at decision time
++    let now = readers.now();
++    if winner.timestamp > now + 60 || now.saturating_sub(winner.timestamp) > c.max_age_secs {
++        return Err("contract wallet: the agreed block is stale; refused".into());
++    }
++    Ok(())
++}

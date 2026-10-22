@@ -1,0 +1,216 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/erasure_coding.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/erasure_coding.rs
+@@ -8,6 +8,7 @@
+ 
+ use crate::EncryptionKey;
+ use crate::encryption::Chacha20Cipher;
++use crate::object_encryption::hedged_key;
+ 
+ #[derive(Debug, Error)]
+ pub enum Error {
+@@ -88,12 +89,16 @@
+ /// partial slab.
+ pub(crate) struct SlabReader {
+     data_shards: usize,
+-    encryption_key: EncryptionKey,
+     shards: Vec<Vec<u8>>,
+-    /// Contiguous landing area for incoming data. The object keystream is
+-    /// applied to it in one call per fill, then the bytes are scattered into
+-    /// the interleaved shard layout. Allocated once and reused, so a slab
+-    /// costs no allocation here.
++    /// PATCH (clone privacy): the current slab's plaintext ranges in slab
++    /// order, each with the data key of the object it belongs to. The slab key
++    /// is chosen, and these ranges encrypted, only once the slab is complete
++    /// (see [seal](Self::seal)).
++    segments: Vec<(usize, usize, EncryptionKey)>,
++    /// Contiguous landing area for incoming data, scattered from here into
++    /// the interleaved shard layout; when a slab is sealed, the same buffer
++    /// holds one chunk at a time while the object keystream is applied.
++    /// Allocated once and reused, so a slab costs no allocation here.
+     read_buffer: Vec<u8>,
+     length: usize,
+     total_length: u64,
+@@ -125,13 +130,64 @@
+     Ok(read_total)
+ }
+ 
++/// Visits the interleaved data-shard layout of slab bytes `start..start + len`
++/// in slab order: `f(shard, offset in shard, offset in the range, length)`.
++/// 64-byte segments are striped across the data shards.
++fn for_each_striped(
++    data_shards: usize,
++    start: usize,
++    len: usize,
++    mut f: impl FnMut(usize, usize, usize, usize),
++) {
++    let stripe_size = SEGMENT_SIZE * data_shards;
++    let mut off = 0;
++    while off < len {
++        let logical = start + off;
++        let shard_index = (logical % stripe_size) / SEGMENT_SIZE;
++        let byte_in_seg = logical % SEGMENT_SIZE;
++        let dst = (logical / stripe_size) * SEGMENT_SIZE + byte_in_seg;
++        let take = (SEGMENT_SIZE - byte_in_seg).min(len - off);
++        f(shard_index, dst, off, take);
++        off += take;
++    }
++}
++
++/// PATCH (clone privacy): the domain of the hedged slab key derivation.
++const SLAB_KEY_DOMAIN: &[u8] = b"sia_storage/slab-key/v1";
++
++/// PATCH (clone privacy): the key of a complete slab, derived from fresh
++/// randomness AND everything that determines the slab's ciphertext: the
++/// layout, the length, each plaintext range with its data key, and the data
++/// shards' plaintext (zero padding included). See
++/// [hedged_key](crate::object_encryption::hedged_key). Every field before the
++/// shards has a fixed width, so the encoding is unambiguous.
++fn hedged_slab_key(
++    total_shards: usize,
++    length: usize,
++    segments: &[(usize, usize, EncryptionKey)],
++    data: &[Vec<u8>],
++) -> EncryptionKey {
++    let mut header = zeroize::Zeroizing::new(Vec::with_capacity(32 + segments.len() * 48));
++    for v in [data.len(), total_shards, length, segments.len()] {
++        header.extend((v as u64).to_le_bytes());
++    }
++    for (start, end, data_key) in segments {
++        header.extend((*start as u64).to_le_bytes());
++        header.extend((*end as u64).to_le_bytes());
++        header.extend(data_key.as_ref());
++    }
++    let mut parts: Vec<&[u8]> = vec![header.as_slice()];
++    parts.extend(data.iter().map(|d| d.as_slice()));
++    hedged_key(SLAB_KEY_DOMAIN, &parts)
++}
++
+ impl SlabReader {
+     pub(crate) fn new(data_shards: usize, parity_shards: usize) -> Self {
+         let total_shards = data_shards + parity_shards;
+         Self {
+             data_shards,
+-            encryption_key: rand::random::<[u8; 32]>().into(),
+             shards: vec![vec![0u8; SECTOR_SIZE]; total_shards],
++            segments: Vec::new(),
+             read_buffer: vec![0u8; READ_BUFFER_SIZE],
+             length: 0,
+             total_length: 0,
+@@ -162,12 +218,53 @@
+         }
+         let length = self.length;
+         let shards = mem::take(&mut self.shards);
+-        let encryption_key = mem::replace(&mut self.encryption_key, [0u8; 32].into());
+-        Some(ReadSlab {
++        Some(self.seal(shards, length))
++    }
++
++    /// PATCH (clone privacy): completes a slab. Its key is chosen only now,
++    /// from fresh randomness and the slab's whole content (`hedged_slab_key`),
++    /// and only then is each range encrypted with its object's keystream, as
++    /// [read_slab](Self::read_slab) used to do while reading.
++    ///
++    /// Why: a key chosen before the input is complete is shared by every copy
++    /// of a running process (the copies' RNGs are copies too), so copies given
++    /// different input would encrypt it under the same keystreams in both
++    /// layers. With a hedged key they get independent keystreams unless the
++    /// slab is identical, in which case the ciphertext is identical too:
++    /// equality is all copies can reveal. With fresh randomness the key is as
++    /// random as before. The stored format is unchanged.
++    fn seal(&mut self, mut shards: Vec<Vec<u8>>, length: usize) -> ReadSlab {
++        let segments = mem::take(&mut self.segments);
++        let total_shards = shards.len();
++        let encryption_key = hedged_slab_key(
++            total_shards,
++            length,
++            &segments,
++            &shards[..self.data_shards],
++        );
++        let data_shards = self.data_shards;
++        for (start, end, data_key) in segments {
++            let mut cipher = Chacha20Cipher::new_v1(data_key, start as u64, &encryption_key);
++            let mut p = start;
++            while p < end {
++                let n = (end - p).min(self.read_buffer.len());
++                let buf = &mut self.read_buffer[..n];
++                for_each_striped(data_shards, p, n, |s, dst, off, take| {
++                    buf[off..off + take].copy_from_slice(&shards[s][dst..dst + take]);
++                });
++                cipher.apply_keystream(buf);
++                for_each_striped(data_shards, p, n, |s, dst, off, take| {
++                    shards[s][dst..dst + take].copy_from_slice(&buf[off..off + take]);
++                });
++                p += n;
++            }
++        }
++        self.read_buffer.fill(0); // it held plaintext
++        ReadSlab {
+             encryption_key,
+             length,
+             shards,
+-        })
++        }
+     }
+ 
+     /// Reads data from the reader until reaching the optimal slab size or EOF,
+@@ -184,12 +281,10 @@
+         if self.length == self.optimal_data_size() {
+             return Ok((0, None));
+         }
+-        let mut cipher = Chacha20Cipher::new_v1(data_key, self.length as u64, &self.encryption_key);
+         let mut total_read = 0;
+-        let stripe_size = SEGMENT_SIZE * self.data_shards;
+ 
+         while self.length < self.optimal_data_size() {
+-            // Fill the buffer, then encrypt it in one pass. `want` never
++            // Fill the buffer, then stripe it into the shards. `want` never
+             // exceeds what is left of the slab, so the reader is never taken
+             // past the boundary.
+             let remaining = self.optimal_data_size() - self.length;
+@@ -199,20 +294,18 @@
+                 break;
+             }
+ 
++            // PATCH (clone privacy): stored as plaintext and recorded with its
++            // data key; `seal` encrypts it once the slab is complete. Recorded
++            // as soon as it lands, so bytes from a read that errors later are
++            // encrypted (with the failed object's key) like any others.
+             let start_len = self.length;
+-            cipher.apply_keystream(&mut self.read_buffer[..filled]);
+-
+-            let mut off = 0;
+-            while off < filled {
+-                let logical = start_len + off;
+-                let shard_index = (logical % stripe_size) / SEGMENT_SIZE;
+-                let byte_in_seg = logical % SEGMENT_SIZE;
+-                let seg_start = (logical / stripe_size) * SEGMENT_SIZE;
+-                let dst = seg_start + byte_in_seg;
+-                let take = (SEGMENT_SIZE - byte_in_seg).min(filled - off);
+-                self.shards[shard_index][dst..dst + take]
+-                    .copy_from_slice(&self.read_buffer[off..off + take]);
+-                off += take;
++            let (shards, buf) = (&mut self.shards, &self.read_buffer);
++            for_each_striped(self.data_shards, start_len, filled, |s, dst, off, take| {
++                shards[s][dst..dst + take].copy_from_slice(&buf[off..off + take]);
++            });
++            match self.segments.last_mut() {
++                Some((_, end, key)) if *end == start_len && *key == data_key => *end += filled,
++                _ => self.segments.push((start_len, start_len + filled, data_key.clone())),
+             }
+ 
+             self.length += filled;
+@@ -228,13 +321,7 @@
+             let length = mem::take(&mut self.length);
+             let total_shards = self.shards.len();
+             let shards = mem::replace(&mut self.shards, vec![vec![0u8; SECTOR_SIZE]; total_shards]);
+-            let encryption_key =
+-                mem::replace(&mut self.encryption_key, rand::random::<[u8; 32]>().into());
+-            Some(ReadSlab {
+-                encryption_key,
+-                length,
+-                shards,
+-            })
++            Some(self.seal(shards, length))
+         } else {
+             None
+         };

@@ -1,0 +1,11 @@
+--- a/relay/api-relay.js
++++ b/relay/api-relay.js
+@@ -304,7 +304,7 @@
+ // and from other tenants). Host uses a hyphen ("dep-abc") since "_" is invalid
+ // in a hostname; we map it back to the canonical "dep_abc". Empty = disabled.
+ // Comma-separated: during a domain cutover both the new and the old suffix
+-// route (e.g. "app.enclave.host,app.nan.host"); the first entry is primary.
++// route (e.g. "app.enclave.host,app.enclavehost.eth"); the first entry is primary.
+ const APP_DOMAINS       = (process.env.APP_DOMAIN || "").toLowerCase().split(",")
+   .map(s => s.trim().replace(/^\.+|\.+$/g, "")).filter(Boolean);
+ 

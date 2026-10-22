@@ -1,0 +1,15 @@
+{
+  "format": "enclave-storage-indexer-host/v1",
+  "host": { "endpoint": "@HOST_PUBLIC_URL@" },
+  "platformHostPolicy": "production",
+  "replica": "@REPLICA@",
+  "package": { "dir": "/opt/enclave-storage-indexer/current", "manifest": "sha256:@PACKAGE_MANIFEST_SHA256@" },
+  "pgBin": "/usr/lib/postgresql/18/bin",
+  "stateRoot": "/var/lib/enclave-storage-indexer",
+  "runtimeDir": "/run/enclave-storage-indexer",
+  "credentialsDir": "/run/credentials/enclave-storage-indexer-host@@REPLICA@.service",
+  "descriptorFile": "/etc/enclave-storage-indexer/@REPLICA@/descriptor.json",
+  "adminAddress": "127.0.0.1:9980",
+  "appAddress": "127.0.0.1:9982",
+  "advertiseURL": "@ADVERTISE_URL@"
+}

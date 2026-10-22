@@ -1,0 +1,22 @@
+#!/bin/bash
+# descriptor <r>: the replica's service descriptor for platform admission. The service index is discovery metadata;
+# admission and delisting stay with the Enclave administrator, who signs or rejects it. Not signed here.
+source "$(dirname "$0")/common.sh"
+r=$(replica_name "${1:-}")
+load_env "$r"
+pkg=$(cat "$PKG/PACKAGE_SHA256" 2>/dev/null || echo unbuilt)
+python3 - "$r" "$pkg" <<'PY'
+import json, os, sys
+r, pkg = sys.argv[1], sys.argv[2]
+print(json.dumps({
+    "format": "enclave-storage-indexer-descriptor/1",
+    "replica": r,
+    "enclaveHostId": os.environ["ENCLAVE_HOST_ID"],
+    "applicationAPI": os.environ["ADVERTISE_URL"],
+    "failureDomain": {"site": os.environ["FAILURE_DOMAIN_SITE"], "provider": os.environ["FAILURE_DOMAIN_PROVIDER"],
+                      "power": os.environ["FAILURE_DOMAIN_POWER"]},
+    "package": pkg,
+    "indexd": {"version": "v0.6.0-fence.2-c2", "sha256": "e6e812fd625de0cd7c5956c5c5bffc5f3d1822784d65125cdc704ba793ec2955",
+               "capabilities": ["cas-v4", "op-nonce", "fence"]},
+}, sort_keys=True))
+PY

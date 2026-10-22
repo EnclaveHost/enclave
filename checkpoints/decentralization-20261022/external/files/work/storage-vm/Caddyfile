@@ -1,0 +1,9 @@
+{
+    http_port 9080
+    https_port 9443
+    admin 127.0.0.1:2019
+}
+sia.enclave.host {
+    bind 127.0.0.1
+    reverse_proxy 127.0.0.1:9982
+}

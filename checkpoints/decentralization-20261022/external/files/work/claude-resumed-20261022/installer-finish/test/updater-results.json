@@ -1,0 +1,52 @@
+{
+ "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-resumed-20261022/installer-finish/src/update-host.r4.ps1",
+ "results": {
+  "A-roles-preserving-release-installs": {
+   "exit": 0,
+   "installs": [
+    "2026.10.22"
+   ],
+   "log": "2026-10-22T01:56:36Z update 2026.10.12.47 -> 2026.10.22 for 'nucbox-k11-4': UNSIGNED legacy channel https://get.enclave.host/windows/ (hashes from the same unsigned latest.json)\n2026-10-22T01:56:36Z installing 2026.10.22 (only the changed files)\n2026-10-22T01:56:36Z updated to 2026.10.22\n",
+   "stderr": ""
+  },
+  "B-roles-legacy-release-refused": {
+   "exit": 1,
+   "installs": [],
+   "log": "2026-10-22T01:56:37Z update 2026.10.12.47 -> 2026.10.22 for 'nucbox-k11-4': UNSIGNED legacy channel https://get.enclave.host/windows/ (hashes from the same unsigned latest.json)\n2026-10-22T01:56:37Z update failed: release 2026.10.22's installer does not preserve the roles beside the release (/tmp/uh-r4-_zjw68hh/PF/Enclave\\host-services, \\Enclave\\enclave-host-services-hs2, \\Enclave\\NetworkChecker, \\Enclave\\Relay): not installing it\n",
+   "stderr": ""
+  },
+  "C-roles-failed-install-no-legacy-rollback": {
+   "exit": 1,
+   "installs": [
+    "2026.10.22"
+   ],
+   "log": "2026-10-22T01:56:37Z update 2026.10.12.47 -> 2026.10.22 for 'nucbox-k11-4': UNSIGNED legacy channel https://get.enclave.host/windows/ (hashes from the same unsigned latest.json)\n2026-10-22T01:56:37Z installing 2026.10.22 (only the changed files)\n2026-10-22T01:56:37Z install of 2026.10.22 FAILED (exit 1); RECOVERY REQUIRED, NOT rolling back to 2026.10.12.47: its installer would delete /tmp/uh-r4-xeyj8nza/PF/Enclave\\host-services, \\Enclave\\enclave-host-services-hs2, \\Enclave\\NetworkChecker, \\Enclave\\Relay or leave those roles stopped (see /tmp/uh-r4-xeyj8nza/PD/Enclave\\logs\\install-status.json)\n",
+   "stderr": ""
+  },
+  "D-roles-failed-install-preserving-rollback": {
+   "exit": 1,
+   "installs": [
+    "2026.10.22",
+    "2026.10.12.47"
+   ],
+   "log": "2026-10-22T01:56:38Z update 2026.10.12.47 -> 2026.10.22 for 'nucbox-k11-4': UNSIGNED legacy channel https://get.enclave.host/windows/ (hashes from the same unsigned latest.json)\n2026-10-22T01:56:38Z installing 2026.10.22 (only the changed files)\n2026-10-22T01:56:38Z install of 2026.10.22 FAILED (exit 1): reinstalling 2026.10.12.47\n2026-10-22T01:56:38Z rollback to 2026.10.12.47: exit 0\n",
+   "stderr": ""
+  },
+  "E-plain-host-unchanged-behaviour": {
+   "exit": 1,
+   "installs": [
+    "2026.10.22",
+    "2026.10.12.47"
+   ],
+   "log": "2026-10-22T01:56:38Z update 2026.10.12.47 -> 2026.10.22 for 'nucbox-k11-4': UNSIGNED legacy channel https://get.enclave.host/windows/ (hashes from the same unsigned latest.json)\n2026-10-22T01:56:38Z installing 2026.10.22 (only the changed files)\n2026-10-22T01:56:38Z install of 2026.10.22 FAILED (exit 1): reinstalling 2026.10.12.47\n2026-10-22T01:56:38Z rollback to 2026.10.12.47: exit 0\n",
+   "stderr": ""
+  },
+  "F-only-a-role-task-counts": {
+   "exit": 1,
+   "installs": [],
+   "log": "2026-10-22T01:56:39Z update 2026.10.12.47 -> 2026.10.22 for 'nucbox-k11-4': UNSIGNED legacy channel https://get.enclave.host/windows/ (hashes from the same unsigned latest.json)\n2026-10-22T01:56:39Z update failed: release 2026.10.22's installer does not preserve the roles beside the release (\\Enclave\\enclave-host-services-hs2, \\Enclave\\NetworkChecker, \\Enclave\\Relay): not installing it\n",
+   "stderr": ""
+  }
+ },
+ "failures": []
+}

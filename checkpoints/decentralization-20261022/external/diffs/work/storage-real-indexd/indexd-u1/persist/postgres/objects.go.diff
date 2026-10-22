@@ -1,0 +1,64 @@
+--- a/persist/postgres/objects.go
++++ b/persist/postgres/objects.go
+@@ -161,6 +161,61 @@
+ 	return
+ }
+ 
++// ListCurrentObjects lists the account's current objects in object key order, starting after the given key: a
++// listing of the objects table itself, independent of when object events are published (PATCH U1, sia-s3).
++//
++// Guarantee: the pages read with consecutive `after` cursors return every object whose pin committed before
++// the first page was read and that was not deleted before the page covering its key, exactly once, with its
++// metadata as committed when that page was read. Object keys never change, and each page covers a strictly
++// higher key range. Blocked objects are left out, as in the object feed.
++func (s *Store) ListCurrentObjects(account proto.Account, after types.Hash256, limit int) (events []slabs.ObjectEvent, err error) {
++	err = s.transaction(func(ctx context.Context, tx *txn) error {
++		accountID, _, err := accountID(ctx, tx, account)
++		if err != nil {
++			return err
++		}
++		rows, err := tx.Query(ctx, `
++			SELECT o.id, o.object_key, o.encrypted_data_key, o.encrypted_meta_key, o.encrypted_metadata, o.data_signature, o.meta_signature, o.created_at, o.updated_at
++			FROM objects o
++			WHERE o.account_id = $1 AND o.object_key > $2
++			  AND NOT EXISTS (SELECT 1 FROM blocked_objects b WHERE b.object_key = o.object_key)
++			ORDER BY o.object_key ASC
++			LIMIT $3`, accountID, sqlHash256(after), limit)
++		if err != nil {
++			return fmt.Errorf("failed to query current objects: %w", err)
++		}
++		objectsByID := make(map[int64]*slabs.SealedObject)
++		var keys []types.Hash256
++		var objs []*slabs.SealedObject
++		err = forEachRow(rows, func(row pgx.CollectableRow) error {
++			id, key, obj, err := scanObject(row)
++			if err != nil {
++				return err
++			}
++			o := obj
++			objectsByID[id] = &o
++			keys = append(keys, key)
++			objs = append(objs, &o)
++			return nil
++		})
++		if err != nil {
++			return fmt.Errorf("failed to scan current objects: %w", err)
++		} else if err := loadObjectSlabs(ctx, tx, objectsByID); err != nil {
++			return err
++		}
++		events = make([]slabs.ObjectEvent, 0, len(objs))
++		for i, obj := range objs {
++			// an object always has at least one slab: one without slab rows was deleted after its row was read
++			if len(obj.Slabs) == 0 {
++				continue
++			}
++			events = append(events, slabs.ObjectEvent{Key: keys[i], UpdatedAt: obj.UpdatedAt, Object: obj})
++		}
++		return nil
++	})
++	return
++}
++
+ // ListObjectsWithoutSlabs lists object events without their slabs, which are
+ // paginated separately with ObjectSlabs.
+ func (s *Store) ListObjectsWithoutSlabs(account proto.Account, cursor slabs.Cursor, limit int) (events []slabs.ObjectEventWithoutSlabs, err error) {

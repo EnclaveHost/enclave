@@ -1,0 +1,439 @@
+--- a/src/windows/capture-public-inputs.ps1
++++ b/src/windows/capture-public-inputs.ps1
+@@ -4,16 +4,17 @@
+ # policy import. Run from the extracted stage:  windows\capture-public-inputs.ps1 -NodeExe <node.exe> [-Endpoint <url>]
+ param([Parameter(Mandatory = $true)][string]$NodeExe, [string]$Endpoint = 'https://api.enclave.host/t/nucbox-k11-4', [string]$Out = '.\listeners.txt')
+ . (Join-Path $PSScriptRoot 'common.ps1')
+-$v = & $NodeExe -p "process.version"; Write-Output "== node: $NodeExe $v"
++Use-StageRoot
++$v = Invoke-Tool $NodeExe @('-p', 'process.version'); Write-Output "== node: $NodeExe $v"
+ $lines = @()
+ foreach ($t in Get-NetTCPConnection -State Listen) { $a = $t.LocalAddress; if ($a -match ':') { $a = "[$a]" }; $lines += "tcp LISTEN 0 0 ${a}:$($t.LocalPort) *:*" }
+ foreach ($u in Get-NetUDPEndpoint) { $a = $u.LocalAddress; if ($a -match ':') { $a = "[$a]" }; $lines += "udp UNCONN 0 0 ${a}:$($u.LocalPort) *:*" }
+ $lines | Set-Content -LiteralPath $Out -Encoding ASCII
+ Write-Output "== $($lines.Count) listeners written to $Out"
+-$cfg = Get-Content -Raw -LiteralPath (Join-Path $Stage 'config\spec.windows.json') | ConvertFrom-Json
+-$pin = [IO.Path]::GetTempFileName(); [IO.File]::WriteAllText($pin, ($cfg.serviceIndex | ConvertTo-Json -Compress))
++$spec = Get-Content -Raw -LiteralPath (Join-Path $Stage 'config\spec.windows.json') | ConvertFrom-Json
++$pin = [IO.Path]::GetTempFileName(); [IO.File]::WriteAllText($pin, ($spec.serviceIndex | ConvertTo-Json -Compress))
+ Write-Output '== public chain facts'
+-& $NodeExe (Join-Path $Stage 'bin\stage-tool.mjs') capture-public --endpoint $Endpoint --index-pin $pin
++Invoke-Tool $NodeExe @((Join-Path $Stage 'bin\stage-tool.mjs'), 'capture-public', '--endpoint', $Endpoint, '--index-pin', $pin)
+ Write-Output '== anchored policy (dry run)'
+-& $NodeExe (Join-Path $Stage 'bin\stage-tool.mjs') policy-import --import-dir 'C:\nonexistent-dry-run' --dry-run
++Invoke-Tool $NodeExe @((Join-Path $Stage 'bin\stage-tool.mjs'), 'policy-import', '--import-dir', 'C:\nonexistent-dry-run', '--dry-run')
+ Remove-Item -LiteralPath $pin
+--- a/src/windows/common.ps1
++++ b/src/windows/common.ps1
+@@ -3,16 +3,50 @@
+ Set-StrictMode -Version 3
+ $Label    = '@LABEL@'
+ $Stage    = Split-Path -Parent $PSScriptRoot                                  # the extracted stage directory
+-$Opt      = 'C:\Program Files\Enclave\host-services\' + $Label                # bin, packages, windows scripts (read-only to the service)
+-$Root     = 'C:\ProgramData\Enclave\host-services\' + $Label
+-$Cfg      = $Root + '\config'                                                 # host-services.json, supervisor.json, install-receipt.txt
+-$Data     = $Root + '\data'                                                   # PUBLIC data filled by an administrator; read-only to the service
+-$State    = $Root + '\state'                                                  # the service's only writable directory
+-$Receipt  = $Cfg + '\install-receipt.txt'
+-$TaskPath = '\Enclave\'
+-$TaskName = 'enclave-host-services-' + $Label
+ $LocalService = '*S-1-5-19'                                                   # NT AUTHORITY\LOCAL SERVICE (unprivileged, like DynamicUser)
+ function Fail([string]$m, [int]$code = 3) { Write-Error ("{0}: {1}" -f (Split-Path -Leaf $MyInvocation.PSCommandPath), $m) -ErrorAction Continue; exit $code }
++# Production defaults. -InstallRoot <dir> -TaskName <name> (both, on every script) select an ISOLATED install instead:
++# <dir>\program and <dir>\root replace the two production directories, the task is \<name> and the stop event is derived
++# from <dir>. <dir> must be a canonical, not yet existing directory under C:\ProgramData that overlaps no production
++# stage path. Every script calls Use-StageRoot right after dot-sourcing this file: a refusal (Fail) must exit the SCRIPT,
++# and `exit` reached while this file is still being dot-sourced would only leave this file. Nothing is written here.
++function Use-StageRoot {
++  $script:Isolated = [string](Get-Variable -Name InstallRoot -Scope Script -ValueOnly -ErrorAction SilentlyContinue)
++  $script:IsoTask  = [string](Get-Variable -Name TaskName -Scope Script -ValueOnly -ErrorAction SilentlyContinue)
++  $iso = $script:Isolated; $tn = $script:IsoTask
++  if ($iso -or $tn) {
++    if (-not ($iso -and $tn)) { Fail '-InstallRoot and -TaskName go together (an isolated install has its own task)' }
++    if ($iso -notmatch '^C:\\ProgramData\\[^\\]' -or $iso.EndsWith('\') -or [IO.Path]::GetFullPath($iso) -ne $iso -or $iso.Contains('/')) {
++      Fail "-InstallRoot must be a canonical absolute path under C:\ProgramData (got '$iso')" }
++    $lower = $iso.ToLowerInvariant() + '\'
++    foreach ($p in 'C:\ProgramData\Enclave\host-services\', 'C:\Program Files\Enclave\') {
++      $q = $p.ToLowerInvariant(); if ($lower.StartsWith($q) -or $q.StartsWith($lower)) { Fail "-InstallRoot '$iso' overlaps the production path $p" } }
++    if ($tn -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$' -or $tn -like 'enclave-host-services-*') { Fail "-TaskName '$tn' is not a distinct task name" }
++    $script:Opt      = $iso + '\program'
++    $script:Root     = $iso + '\root'
++    $script:TaskPath = '\'
++    $script:TaskName = $tn
++    $sha = [Security.Cryptography.SHA256]::Create()
++    $script:EventLabel = $Label + '-' + (-join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($lower))[0..3] | ForEach-Object { $_.ToString('x2') }))
++  } else {
++    $script:Opt      = 'C:\Program Files\Enclave\host-services\' + $Label   # bin, packages, windows scripts (read-only to the service)
++    $script:Root     = 'C:\ProgramData\Enclave\host-services\' + $Label
++    $script:TaskPath = '\Enclave\'
++    $script:TaskName = 'enclave-host-services-' + $Label
++    $script:EventLabel = $Label
++  }
++  $script:Cfg     = $script:Root + '\config'                                # host-services.json, supervisor.json, install-receipt.txt
++  $script:Data    = $script:Root + '\data'                                  # PUBLIC data filled by an administrator; read-only to the service
++  $script:State   = $script:Root + '\state'                                 # the service's only writable directory
++  $script:Receipt = $script:Cfg + '\install-receipt.txt'
++}
++# Native tools report progress on stderr. When the caller redirects output (*> log, 2>&1), Windows PowerShell 5.1 turns
++# every stderr line into an error record, and under 'Stop' the FIRST one aborts the script (W9: fill-data stopped after
++# one object). Here stderr lines pass through as plain host text and the tool's exit code ($LASTEXITCODE) decides.
++function Invoke-Tool([string]$Exe, [object[]]$ToolArgs = @()) {
++  $ErrorActionPreference = 'Continue'
++  & $Exe @ToolArgs 2>&1 | ForEach-Object { if ($_ -is [Management.Automation.ErrorRecord]) { Write-Host ([string]$_) } else { $_ } }
++}
+ function Sha([string]$p) { (Get-FileHash -Algorithm SHA256 -LiteralPath $p).Hash.ToLowerInvariant() }
+ function Test-StageSums {
+   foreach ($line in Get-Content -LiteralPath (Join-Path $Stage 'STAGE-SHA256SUMS')) {
+--- a/src/windows/fill-data.ps1
++++ b/src/windows/fill-data.ps1
+@@ -3,10 +3,11 @@
+ #   windows\fill-data.ps1 artifacts -ToolArgs '--from-dir','D:\retained' [,'--from-origin','http://<replica>:8189' ...]
+ #   windows\fill-data.ps1 policy [-ToolArgs '--carrier','https://<mirror>/platform-policy']
+ # (-ToolArgs: an explicit array, so PowerShell never tries to bind the tool's --options as its own parameters)
+-param([Parameter(Mandatory = $true)][ValidateSet('artifacts', 'policy')][string]$What, [string[]]$ToolArgs = @())
++param([Parameter(Mandatory = $true)][ValidateSet('artifacts', 'policy')][string]$What, [string[]]$ToolArgs = @(), [string]$InstallRoot = '', [string]$TaskName = '')
+ . (Join-Path $PSScriptRoot 'common.ps1')
++Use-StageRoot
+ if (-not (Test-Path -LiteralPath $Receipt)) { Fail "stage $Label is not installed" }
+ $node = (Get-Supervisor).node
+-if ($What -eq 'artifacts') { & $node "$Opt\bin\stage-tool.mjs" fill-artifacts --manifest "$Data\bootstrap-manifest.json" --dir "$Data\artifacts" $ToolArgs }
+-else { & $node "$Opt\bin\stage-tool.mjs" policy-import --import-dir "$Data\policy-import" $ToolArgs }
++if ($What -eq 'artifacts') { Invoke-Tool $node (@("$Opt\bin\stage-tool.mjs", 'fill-artifacts', '--manifest', "$Data\bootstrap-manifest.json", '--dir', "$Data\artifacts") + $ToolArgs) }
++else { Invoke-Tool $node (@("$Opt\bin\stage-tool.mjs", 'policy-import', '--import-dir', "$Data\policy-import") + $ToolArgs) }
+ exit $LASTEXITCODE
+--- a/src/windows/health.ps1
++++ b/src/windows/health.ps1
+@@ -1,15 +1,16 @@
+ # Stage-1 health of Windows stage @LABEL@: the task is running, a FRESH decision of the unchanged platform host policy
+ # gate for this host, the four roles, served artifacts, real DNS (including every static platform label), the policy
+ # mirror. Exit 0 healthy, 2 unhealthy.
+-param([int]$WaitSeconds = 0, [switch]$AllArtifacts)
++param([int]$WaitSeconds = 0, [switch]$AllArtifacts, [string]$InstallRoot = '', [string]$TaskName = '')
+ . (Join-Path $PSScriptRoot 'common.ps1')
++Use-StageRoot
+ $t = Get-Task
+ if ($null -eq $t -or $t.State -ne 'Running') { Write-Output "FAIL  task $TaskPath$TaskName is not running ($(if ($t) { $t.State } else { 'absent' }))"; exit 2 }
+ $sup = Get-Supervisor
+ $extra = @(); if ($AllArtifacts) { $extra = @('--artifacts', 'all') }
+ $deadline = (Get-Date).AddSeconds($WaitSeconds)
+ while ($true) {
+-  & $sup.node "$Opt\bin\stage-tool.mjs" health --config "$Cfg\host-services.json" @extra
++  Invoke-Tool $sup.node (@("$Opt\bin\stage-tool.mjs", 'health', '--config', "$Cfg\host-services.json") + $extra)
+   if ($LASTEXITCODE -eq 0) { exit 0 }
+   if ((Get-Date) -ge $deadline) { exit 2 }
+   Write-Output '(not healthy yet; retrying in 10 s)'; Start-Sleep -Seconds 10
+--- a/src/windows/install.ps1
++++ b/src/windows/install.ps1
+@@ -3,23 +3,38 @@
+ # scheduled task \Enclave\enclave-host-services-@LABEL@ with NO trigger (manual start only: stage 1 is not enabled at
+ # boot). Changes no existing file, task, service, firewall rule or provider setting. Starts nothing.
+ #   windows\install.ps1 -NodeExe 'C:\Program Files\nodejs\node.exe' -ListenersFile .\listeners.txt
+-param([Parameter(Mandatory = $true)][string]$NodeExe, [Parameter(Mandatory = $true)][string]$ListenersFile)
++# ISOLATED (validation) install: add -InstallRoot <new dir under C:\ProgramData> -TaskName <name>, and optionally
++# -FixtureDir <dir> holding a fixture host-services.json + bootstrap-manifest.json that replace the production
++# configuration and manifest (never allowed without -InstallRoot). Every other step is the same.
++param([Parameter(Mandatory = $true)][string]$NodeExe, [string]$ListenersFile = '', [string]$InstallRoot = '', [string]$TaskName = '', [string]$FixtureDir = '')
+ . (Join-Path $PSScriptRoot 'common.ps1')
++Use-StageRoot
++if ($FixtureDir -and -not $Isolated) { Fail '-FixtureDir is only for an isolated install (-InstallRoot, -TaskName)' }
++if ($FixtureDir) {
++  if (-not [IO.Path]::IsPathRooted($FixtureDir) -or [IO.Path]::GetFullPath($FixtureDir) -ne $FixtureDir) { Fail "-FixtureDir must be a canonical absolute path (got '$FixtureDir')" }
++  foreach ($f in 'host-services.json', 'bootstrap-manifest.json') { if (-not (Test-Path -LiteralPath "$FixtureDir\$f" -PathType Leaf)) { Fail "no $f in $FixtureDir" } }
++  $fx = Get-Content -Raw -LiteralPath "$FixtureDir\host-services.json" | ConvertFrom-Json
++  if ($fx.packagesDir -ne "$Opt\packages" -or $fx.stateRoot -ne $State) { Fail "the fixture configuration is not for this install root ($Opt\packages, $State)" }
++} elseif (-not $ListenersFile) { Fail '-ListenersFile is required (the listener capture gen-config checks the ports against)' }
+ Test-StageSums
+ $inputs = Get-Content -Raw -LiteralPath (Join-Path $Stage 'STAGE-INPUTS.json') | ConvertFrom-Json
+ if ($inputs.packagesCurrent -ne $true -and $env:ALLOW_TEST_STAGE -ne '1') { Fail 'this is a TEST stage (its packages were not current with its tree): refusing to install' }
+ if (-not [IO.Path]::IsPathRooted($NodeExe) -or -not (Test-Path -LiteralPath $NodeExe -PathType Leaf)) { Fail "no node at $NodeExe" }
+-$major = [int](& $NodeExe -p "process.versions.node.split('.')[0]")
++$major = [int](Invoke-Tool $NodeExe @('-p', "process.versions.node.split('.')[0]"))
+ if ($major -lt 22) { Fail "node $major at $NodeExe; >= 22 required" }
+ if ($env:ProgramFiles -ne 'C:\Program Files' -or $env:ProgramData -ne 'C:\ProgramData') { Fail 'the stage paths assume C:\Program Files and C:\ProgramData' }
++# The receipt is written AS install goes (dirs, then each file, config, task) and ends with the line `complete`, so a
++# failed install can always be undone exactly by rollback.ps1. A re-run is only a re-run of a COMPLETE install.
+ $rerun = Test-Path -LiteralPath $Receipt
++if ($rerun -and @(Get-Content -LiteralPath $Receipt)[-1] -ne 'complete') {
++  Fail "an earlier install did not complete ($Receipt): run windows\rollback.ps1 (it removes exactly what that install created), then install again" }
+ $files = @()
+ foreach ($f in Get-ChildItem -LiteralPath (Join-Path $Stage 'bin') -File) { $files += , @($f.FullName, "$Opt\bin\$($f.Name)") }
+ foreach ($f in Get-ChildItem -LiteralPath (Join-Path $Stage 'packages') -File) { $files += , @($f.FullName, "$Opt\packages\$($f.Name)") }
+ foreach ($f in Get-ChildItem -LiteralPath (Join-Path $Stage 'windows') -File) { $files += , @($f.FullName, "$Opt\windows\$($f.Name)") }
+ $files += , @((Join-Path $Stage 'ACTIVATION-WINDOWS.txt'), "$Opt\ACTIVATION-WINDOWS.txt")
+ $files += , @((Join-Path $Stage 'STAGE-SHA256SUMS'), "$Opt\STAGE-SHA256SUMS")
+-$files += , @((Join-Path $Stage 'data\bootstrap-manifest.json'), "$Data\bootstrap-manifest.json")
++$files += , @($(if ($FixtureDir) { "$FixtureDir\bootstrap-manifest.json" } else { Join-Path $Stage 'data\bootstrap-manifest.json' }), "$Data\bootstrap-manifest.json")
+ # compare-and-swap: a first install finds every target absent; a re-run finds exactly this stage's bytes
+ foreach ($p in $files) {
+   if (Test-Path -LiteralPath $p[1]) {
+@@ -28,39 +43,63 @@
+   }
+ }
+ if (-not $rerun) {
++  if ($Isolated) {
++    if (Test-Path -LiteralPath $Isolated) { Fail "refusing: $Isolated already exists (an isolated install creates its root)" }
++    if (-not (Test-Path -LiteralPath (Split-Path -Parent $Isolated) -PathType Container)) { Fail "the parent of $Isolated does not exist" }
++  }
+   foreach ($d in $Opt, $Root) { if (Test-Path -LiteralPath $d) { Fail "refusing: $d already exists" } }
+   if (Get-Task) { Fail "refusing: the scheduled task $TaskPath$TaskName already exists" }
+ }
+-$receipt = New-Object System.Collections.Generic.List[string]
+-if ($rerun) { foreach ($l in Get-Content -LiteralPath $Receipt) { if ($l -like 'dir *') { $receipt.Add($l) } } }
++# NOT $receipt: PowerShell names are case-insensitive and $Receipt is the receipt's PATH (common.ps1)
++$receiptLines = New-Object System.Collections.Generic.List[string]
++function Save-Receipt { [IO.File]::WriteAllLines($Receipt, [string[]]$receiptLines) }
++if ($rerun) { foreach ($l in Get-Content -LiteralPath $Receipt) { if ($l -like 'dir *') { $receiptLines.Add($l) } } }
+ else {
+-  foreach ($d in 'C:\Program Files\Enclave', 'C:\Program Files\Enclave\host-services', $Opt, "$Opt\bin", "$Opt\packages", "$Opt\windows",
+-                 'C:\ProgramData\Enclave', 'C:\ProgramData\Enclave\host-services', $Root, $Cfg, $Data, "$Data\artifacts", "$Data\policy-import", $State) {
+-    if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d | Out-Null; $receipt.Add("dir $d") }
++  $parents = if ($Isolated) { @($Isolated) } else { @('C:\Program Files\Enclave', 'C:\Program Files\Enclave\host-services') }
++  $mids = if ($Isolated) { @() } else { @('C:\ProgramData\Enclave', 'C:\ProgramData\Enclave\host-services') }
++  foreach ($d in @($parents) + @($Opt, "$Opt\bin", "$Opt\packages", "$Opt\windows") + @($mids) + @($Root, $Cfg, $Data, "$Data\artifacts", "$Data\policy-import", $State)) {
++    if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d | Out-Null; $receiptLines.Add("dir $d") }
++  }
++  Save-Receipt
++  if ($Isolated) {
++    # the isolated root replaces Program Files too: SYSTEM and Administrators full, LOCAL SERVICE read, nothing inherited
++    Invoke-Tool icacls.exe @($Isolated, '/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F', "${LocalService}:(OI)(CI)RX") | Out-Null
++    if ($LASTEXITCODE -ne 0) { Fail "icacls $Isolated failed" }
+   }
+   # this stage's own directories only: SYSTEM and Administrators full, LOCAL SERVICE read; the state directory writable by it
+-  & icacls.exe $Root /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "${LocalService}:(OI)(CI)RX" | Out-Null
++  Invoke-Tool icacls.exe @($Root, '/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F', "${LocalService}:(OI)(CI)RX") | Out-Null
+   if ($LASTEXITCODE -ne 0) { Fail "icacls $Root failed" }
+-  & icacls.exe $State /grant:r "${LocalService}:(OI)(CI)M" | Out-Null
++  Invoke-Tool icacls.exe @($State, '/grant:r', "${LocalService}:(OI)(CI)M") | Out-Null
+   if ($LASTEXITCODE -ne 0) { Fail "icacls $State failed" }
+ }
+ foreach ($p in $files) {
+   if (-not (Test-Path -LiteralPath $p[1])) { Copy-Item -LiteralPath $p[0] -Destination $p[1] }
+-  $receipt.Add("file $(Sha $p[1]) $($p[1])")
++  $receiptLines.Add("file $(Sha $p[1]) $($p[1])")
++  if (-not $rerun) { Save-Receipt }
+ }
+ # the exact configuration: the stage's public spec + this host's listener capture (refuses a port in use)
+ if (-not $rerun) {
+-  & $NodeExe "$Opt\bin\stage-tool.mjs" gen-config --spec (Join-Path $Stage 'config\spec.windows.json') --listeners $ListenersFile --out "$Cfg\host-services.json"
+-  if ($LASTEXITCODE -ne 0) { Fail 'gen-config refused (a port in use, or a malformed spec)' }
++  if ($FixtureDir) { Copy-Item -LiteralPath "$FixtureDir\host-services.json" -Destination "$Cfg\host-services.json" }
++  else {
++    Invoke-Tool $NodeExe @("$Opt\bin\stage-tool.mjs", 'gen-config', '--spec', (Join-Path $Stage 'config\spec.windows.json'), '--listeners', $ListenersFile, '--out', "$Cfg\host-services.json")
++    if ($LASTEXITCODE -ne 0) { Fail 'gen-config refused (a port in use, or a malformed spec)' }
++  }
++  $receiptLines.Add("file $(Sha "$Cfg\host-services.json") $Cfg\host-services.json"); Save-Receipt
+   $sup = Get-Content -Raw -LiteralPath (Join-Path $Stage 'config\supervisor.template.json') | ConvertFrom-Json
+   $sup.node = $NodeExe
++  if ($Isolated) {
++    $sup.runner = "$Opt\bin\host-services-runner.mjs"; $sup.config = "$Cfg\host-services.json"; $sup.workDir = $State
++    $sup.log = "$State\supervisor.log"; $sup.stopEvent = "Global\Enclave-host-services-$EventLabel-stop"
++  }
+   [IO.File]::WriteAllText("$Cfg\supervisor.json", ($sup | ConvertTo-Json -Depth 4), (New-Object System.Text.UTF8Encoding $false))
++  $receiptLines.Add("file $(Sha "$Cfg\supervisor.json") $Cfg\supervisor.json"); Save-Receipt
++} else {
++  $receiptLines.Add("file $(Sha "$Cfg\host-services.json") $Cfg\host-services.json")
++  $receiptLines.Add("file $(Sha "$Cfg\supervisor.json") $Cfg\supervisor.json")
+ }
+-$receipt.Add("file $(Sha "$Cfg\host-services.json") $Cfg\host-services.json")
+-$receipt.Add("file $(Sha "$Cfg\supervisor.json") $Cfg\supervisor.json")
+-& "$Opt\bin\hostsvc-supervisor.exe" check "$Cfg\supervisor.json"
++Invoke-Tool "$Opt\bin\hostsvc-supervisor.exe" @('check', "$Cfg\supervisor.json")
+ if ($LASTEXITCODE -ne 0) { Fail 'the supervisor refuses supervisor.json' }
+-$check = & $NodeExe "$Opt\bin\host-services-runner.mjs" check "$Cfg\host-services.json" | Out-String
++$check = Invoke-Tool $NodeExe @("$Opt\bin\host-services-runner.mjs", 'check', "$Cfg\host-services.json") | Out-String
+ if ($LASTEXITCODE -ne 0) { Fail "the runner refuses the configuration: $check" }
+ $j = $check | ConvertFrom-Json
+ if (-not $j.ok -or @($j.warnings).Count -gt 0) { Fail "the runner check reported warnings: $($j.warnings -join '; ')" }
+@@ -70,7 +109,9 @@
+   $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+   Register-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -Action $action -Principal $principal -Settings $settings | Out-Null
+ }
+-$receipt.Add("task $TaskPath$TaskName $Opt\bin\hostsvc-supervisor.exe")
+-[IO.File]::WriteAllLines($Receipt, $receipt)
++$receiptLines.Add("task $TaskPath$TaskName $Opt\bin\hostsvc-supervisor.exe")
++$receiptLines.Add('complete')
++Save-Receipt
+ Write-Output "installed Windows stage $Label ($(if ($rerun) { 're-run, unchanged' } else { 'first install' })); receipt $Receipt"
++if ($Isolated) { Write-Output "ISOLATED install: root $Isolated, task $TaskPath$TaskName, stop event Global\Enclave-host-services-$EventLabel-stop" }
+ Write-Output 'NOT started and no boot trigger. Next: windows\fill-data.ps1 artifacts ..., windows\fill-data.ps1 policy, windows\start.ps1'
+--- a/src/windows/rollback.ps1
++++ b/src/windows/rollback.ps1
+@@ -3,14 +3,16 @@
+ # the one scheduled task (only if its action is still this stage's supervisor); remove each installed file whose bytes are
+ # still what install wrote (a changed file is KEPT and reported, exit 4); remove the filled data and the state (unless
+ # -KeepData / -KeepState) and the directories install created. Stage 1 published nothing: there is no public rollback.
+-param([switch]$KeepData, [switch]$KeepState)
++param([switch]$KeepData, [switch]$KeepState, [string]$InstallRoot = '', [string]$TaskName = '')
+ . (Join-Path $PSScriptRoot 'common.ps1')
++Use-StageRoot
+ if (-not (Test-Path -LiteralPath $Receipt)) { Fail "no install receipt ($Receipt): nothing of stage $Label to roll back" }
+ $lines = Get-Content -LiteralPath $Receipt
+ $modified = $false
+-& (Join-Path $PSScriptRoot 'stop.ps1')
++$iso = @{}; if ($Isolated) { $iso = @{ InstallRoot = $Isolated; TaskName = $IsoTask } }
++& (Join-Path $PSScriptRoot 'stop.ps1') @iso
+ foreach ($l in $lines) {
+-  if ($l -match '^task (\\Enclave\\)(\S+) (.+)$') {
++  if ($l -match '^task (\\(?:[^\\ ]+\\)*)([^\\ ]+) (.+)$') {
+     $t = Get-ScheduledTask -TaskPath $Matches[1] -TaskName $Matches[2] -ErrorAction SilentlyContinue
+     if ($t) {
+       if ($t.Actions[0].Execute -ne $Matches[3]) { Write-Warning "KEPT (changed since install): task $($Matches[1])$($Matches[2])"; $modified = $true }
+--- a/src/windows/start.ps1
++++ b/src/windows/start.ps1
+@@ -1,9 +1,11 @@
+ #Requires -RunAsAdministrator
+ # Start stage @LABEL@ (the task has no boot trigger: a reboot does not start it until root adds one). Then wait for health.
+-param([int]$WaitSeconds = 600)
++param([int]$WaitSeconds = 600, [string]$InstallRoot = '', [string]$TaskName = '')
+ . (Join-Path $PSScriptRoot 'common.ps1')
++Use-StageRoot
+ if (-not (Test-Path -LiteralPath $Receipt)) { Fail "stage $Label is not installed" }
+ if (-not (Get-ChildItem -LiteralPath "$Data\artifacts" -File | Select-Object -First 1)) { Fail 'no artifacts: run windows\fill-data.ps1 artifacts first' }
+ Start-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName
+-& (Join-Path $PSScriptRoot 'health.ps1') -WaitSeconds $WaitSeconds
++$iso = @{}; if ($Isolated) { $iso = @{ InstallRoot = $Isolated; TaskName = $IsoTask } }
++& (Join-Path $PSScriptRoot 'health.ps1') -WaitSeconds $WaitSeconds @iso
+ exit $LASTEXITCODE
+--- a/src/windows/stop.ps1
++++ b/src/windows/stop.ps1
+@@ -2,15 +2,20 @@
+ # Stop stage @LABEL@: the supervisor's stop event -> CTRL_BREAK to the runner (it stops every role and exits 0); after
+ # stopTimeoutSec the supervisor terminates the job. If the task is still running 15 s after that, the task is ended
+ # (KILL_ON_JOB_CLOSE ends the whole tree). Then prove none of the stage's ports is listening. Nothing public changes.
++param([string]$InstallRoot = '', [string]$TaskName = '')
+ . (Join-Path $PSScriptRoot 'common.ps1')
+-$sup = Get-Supervisor
++Use-StageRoot
+ $t = Get-Task
++# a rollback re-run after a kept (changed) file finds the configuration already removed: then there is nothing to signal
++$haveSup = Test-Path -LiteralPath ($Cfg + '\supervisor.json')
+ if ($t -and $t.State -eq 'Running') {
+-  & "$Opt\bin\hostsvc-supervisor.exe" stop "$Cfg\supervisor.json"
+-  $deadline = (Get-Date).AddSeconds([int]$sup.stopTimeoutSec + 15)
++  $timeout = 30
++  if ($haveSup) { Invoke-Tool "$Opt\bin\hostsvc-supervisor.exe" @('stop', "$Cfg\supervisor.json"); $timeout = [int](Get-Supervisor).stopTimeoutSec }
++  $deadline = (Get-Date).AddSeconds($timeout + 15)
+   while ((Get-Task).State -eq 'Running' -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 1 }
+   if ((Get-Task).State -eq 'Running') { Write-Warning 'the supervisor did not exit in time: ending the task (the job kills the tree)'; Stop-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName }
+ }
++if (-not (Test-Path -LiteralPath ($Cfg + '\host-services.json'))) { Write-Output "stopped $TaskPath$TaskName; no configuration is left to name the stage ports"; exit 0 }
+ Start-Sleep -Seconds 2
+ $left = @()
+ foreach ($p in Get-StagePorts) {
+--- a/src/ACTIVATION-WINDOWS.txt
++++ b/src/ACTIVATION-WINDOWS.txt
+@@ -47,9 +47,11 @@
+   capture shows in use.
+ 
+ ACTIVATION (root, elevated PowerShell on minipc, from the extracted stage; `tar -xf` works on Windows 10+)
+-Script files: minipc's execution policy refuses .ps1 files ("running scripts is disabled", measured 2026-10-21). Run each
+-script as `powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\<script>.ps1 <args>`: process scope only, the
+-machine policy stays as it is. Every step below means that form.
++Script files: minipc's execution policy refuses .ps1 files ("running scripts is disabled", measured 2026-10-21). In the
++elevated PowerShell window, first run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force` (THIS window
++only; the machine policy stays as it is), then run every script below exactly as written (`.\windows\<script>.ps1 ...`).
++Do NOT use `powershell -File`: it passes every argument as a single string, so `-ToolArgs '--from-dir','D:\x'` arrives
++as one value. (This is the form W9 executed.)
+ 0. windows\capture-public-inputs.ps1 -NodeExe '<node.exe>'. It writes listeners.txt and prints public chain facts.
+    Expect:
+    - node >= 22;
+@@ -72,6 +74,19 @@
+ ROLLBACK: windows\rollback.ps1 [-KeepData] [-KeepState]. Removes exactly what the receipt lists: the task (only if its
+ action is still this supervisor), files whose bytes are unchanged (a changed one is kept, exit 4), data, state, and the
+ directories install created. Nothing public was published, so there is no public rollback.
++- install.ps1 writes the receipt AS it goes and ends it with `complete`. If an install fails part-way (exit 3, e.g. a
++  port in use), run rollback.ps1: it removes exactly what that install created. install.ps1 refuses to run over an
++  incomplete receipt.
++- After a kept (changed) file: restore or remove it, then run rollback.ps1 again (exit 0 = the pre-install state).
++- Output may be redirected to a log (`*> install.log`): native tools' stderr no longer aborts a script.
++
++ISOLATED INSTALL (validation only; production omits these parameters and nothing changes)
++Every script takes -InstallRoot <dir> -TaskName <name> (both, or neither):
++- <dir> must be a canonical, not yet existing directory under C:\ProgramData that overlaps no production stage path;
++- the files go to <dir>\program and <dir>\root (ACL as above, on <dir>), the task is \<name>, and the stop event
++  is Global\Enclave-host-services-@LABEL@-<8 hex of sha256(<dir>)>-stop;
++- install.ps1 -FixtureDir <dir> (only with -InstallRoot) takes host-services.json and bootstrap-manifest.json from a
++  fixture (winval/src/fixture-world.mjs --install) instead of gen-config and the production manifest.
+ 
+ WHAT IS VERIFIED (Linux, isolated; logs/job-go.run1.log)
+ - go vet for linux and windows/amd64.
+@@ -93,10 +108,26 @@
+  W1 PASS. The tree is in THE job: with ActiveProcessLimit 3 the job admitted the runner + 2 children and refused
+     children 3 and 4 (spawn UNKNOWN, synchronous). The hard CPU-rate cap held one busy child at 0.509 of one CPU
+     (50% job) against 1.086 uncapped (1600% job). Runner -> roles parentage checked.
+- W2 PASS (with a measured caveat). jobMemoryMiB 300, three children each committing and HOLDING 120 MiB: the first
+-    succeeded, the second was refused at 90 MiB (10 MiB steps) and the third at 0 (ERR_MEMORY_ALLOCATION_FAILED); the
+-    same with single 120 MiB buffers. PeakJobMemoryUsed reported 303 and 324 MiB: Windows lets the job's recorded peak
+-    pass the nominal limit by a few percent (process-creation charges). Allocations ARE refused at the limit.
++ W2 commit cap: PASS (strict). The runs 3/4 assertion "PeakJobMemoryUsed <= 300" FAILED (303, 324 MiB) and is kept as
++    measured: that counter is not the committed memory. Mechanism, measured INSIDE the job by winval/jobprobe (started
++    by the real supervisor in the runner's place; QueryInformationJobObject on its own job, JobObjectBasicProcessIdList,
++    PROCESS_MEMORY_COUNTERS_EX.PrivateUsage), jobMemoryMiB 300, two runs:
++    - concurrent children commit+write 8 MiB steps until refused (ERROR_COMMITMENT_LIMIT, 1455): the job then holds
++      297.3 / 297.0 MiB, never above 300; every child's last refused step would have crossed 300;
++    - a process created while the job is full: CreateProcess returned, but it never ran its code (it never reported;
++      the job kept 4 processes and <= 300 MiB committed);
++    - the boundary: with 13.06 MiB committed the largest single commit that succeeds is 286 MiB, 287 MiB is refused,
++      i.e. the job's charge equals the sum of PrivateUsage (1 MiB resolution) and the limit is exact;
++    - refused requests of +256 and +768 MiB over the limit moved PeakJobMemoryUsed to 556 and 1069 MiB (= committed +
++      request) while the committed sum stayed 13 MiB. PeakJobMemoryUsed counts REFUSED charge attempts.
++    Microsoft documents JOB_OBJECT_LIMIT_JOB_MEMORY as "When a process attempts to commit memory that would exceed the
++    job-wide limit, it fails" (proved) and PeakJobMemoryUsed only as "The peak memory usage of all processes currently
++    associated with the job" (it does not say refused requests are excluded; measured: they are included).
++    Guarantee proved: the committed memory of the whole tree never exceeds jobMemoryMiB; commits beyond it fail. No
++    reservation margin is needed for the cap; the host budget for this stage is jobMemoryMiB (1024 MiB) of commit.
++    Reading supervisor.log: "job peak committed memory N MiB" prints PeakJobMemoryUsed, so N may exceed the limit when
++    allocations were refused; it is not evidence of a breach. (The supervisor is unchanged; its configuration of the
++    limit is exactly as intended: LimitFlags 0x2608, JobMemoryLimit = jobMemoryMiB.)
+  W3 PASS. The runner exited 0 leaving 3 DETACHED children (outside Node's own job, so only the supervisor's job could
+     end them). The supervisor treated the exit as final and closed the job: all 3 ended.
+  W4 PASS. Stop event set by an Administrator: CTRL_BREAK -> the runner's SIGBREAK, children stopped, "runner stopped (0)",
+@@ -111,8 +142,32 @@
+     sockets and get crypto randomness; the real roles serve HTTP and DNS (W6 health).
+  W8 PASS. A LOCAL SERVICE scheduled task (\EnclaveHostServicesValidation-20261021-LocalService, no trigger, unregistered
+     after the run) ran the supervisor: it created the Global\ stop event, an Administrator set it, the stop was graceful.
+- W9 NOT VERIFIED. install.ps1, rollback.ps1 and the other stage scripts parse under PowerShell 5.1 with 0 errors on
+-    minipc. They were NOT executed: they write fixed production paths (C:\Program Files\Enclave\host-services\...,
+-    C:\ProgramData\Enclave\host-services\..., the \Enclave\ task folder) and have no isolated-root parameter.
+-    Root runs them on a clean Windows test VM: install, idempotent re-run (refused by compare-and-swap), a changed-file
+-    refusal (rollback exit 4), and an exact rollback.
++ W9 PASS (isolated root, fixture chain). The REAL installer of the hs2 Windows stage (this archive's scripts, run in an
++    elevated PowerShell after Set-ExecutionPolicy -Scope Process Bypass), under
++    C:\ProgramData\Enclave\host-services-install-validation-20261021 and task \EnclaveHostServicesInstallValidation-20261021-hs2,
++    27/27 checks (winval/v2/results-w9):
++    - guards: 9 unsafe -InstallRoot/-TaskName forms refused with exit 3 and nothing written; the defaults still resolve
++      to the production paths, task and stop event;
++    - a deliberately failing install (a wrong package pin; the runner refuses): exit 3 after writing, an incomplete
++      receipt; a new install over it is refused; rollback removes exactly what it created;
++    - install: exit 0; one task, LOCAL SERVICE, ServiceAccount, Limited, NO trigger, Ready, action = the installed
++      supervisor; every receipt file inside the root and equal to its recorded sha256; installed bytes equal
++      STAGE-SHA256SUMS; ACL protected (SYSTEM, Administrators full; LOCAL SERVICE read; state LOCAL SERVICE modify);
++      supervisor.json names only the isolated root, its own stop event and the production limits (1024 MiB, 150%);
++      nothing started;
++    - re-run: exit 0, "re-run, unchanged", the identical receipt;
++    - fill-data artifacts (sha256-verified); start.ps1: the task Running as LOCAL SERVICE and stage-1 health all PASS;
++    - fixture ban: health fails on the gate, the task stays Running; fixture unban: health PASS;
++    - stop.ps1: exit 0, "runner stopped (0)", job not terminated, no stage port listening, task Ready, no process left;
++    - compare-and-swap: a changed installed file is refused by a re-run (exit 3); rollback keeps it and the receipt
++      (exit 4) and removes everything else; after restoring it, rollback exit 0 and the root and task are gone.
++    Production task list, states and actions identical before and after; the validation root removed afterwards.
++    Defects this run found and fixed (all in the stage scripts, none in main):
++    - install.ps1: `$receipt` (the list) and `$Receipt` (the path) are ONE PowerShell variable: the original installer
++      could never write its receipt;
++    - an install failing part-way left files with no receipt (no rollback possible): now a progressive receipt;
++    - stop.ps1 failed when the configuration had already been removed (the second rollback after a kept file);
++    - with redirected output, native stderr aborted fill-data after one object (and turned refusals into exceptions);
++    - `powershell -File` cannot pass -ToolArgs arrays (activation now uses a process-scope policy bypass).
++    Not exercised on minipc (production paths; no fixture equivalent): gen-config against a listener capture (the fixture
++    configuration replaces it) and fill-data policy (public chain reads).
+--- a/src/ACTIVATION.txt
++++ b/src/ACTIVATION.txt
+@@ -145,5 +145,6 @@
+   anchored, a cold restart with the fleet down needs importDir (fill-data policy) or this host's mirror store, which
+   persists.
+ - Host owner: no accepted metal0 owner on the original extension yet; root's unsigned enrollment is pending (D2).
+-- Windows (minipc): the separate hs2-windows archive (ACTIVATION-WINDOWS.txt). Its runtime (W1-W8) was validated on
+-  minipc in an isolated root; install/rollback (W9) still need a clean Windows test VM.
++- Windows (minipc): the separate hs2-windows archive (ACTIVATION-WINDOWS.txt). W1, W3-W9 PASS on minipc in isolated roots
++  (W6 and W9 against a fixture chain); W2: the job commit cap is strict (PASS), its PeakJobMemoryUsed counter includes
++  refused requests (the raw "peak <= limit" check failed, kept as measured).

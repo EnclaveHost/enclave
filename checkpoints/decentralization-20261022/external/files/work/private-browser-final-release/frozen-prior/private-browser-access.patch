@@ -1,0 +1,1347 @@
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -2133,6 +2133,38 @@
+   saveStateSoon();
+ }
+ 
++// ---- the owner's sign-in frontends (the envelope's `access` namespace) ------
++// WHERE a private app's browser sign-in goes. Without it the bounce uses SIWE_URI, a per-HOST setting (enclave.host by
++// default), so no owner could choose. With it, the bounce names ONLY the owner's own origins: the first is followed and
++// every other one is offered as an explicit link, never enclave.host as a silent fallback. It grants nothing: whoever
++// signs in at a frontend still needs the owner's session (the /__enclave/session hand-off below). It lives on chain
++// because only the owner can write the envelope (setConfig): a host can neither choose nor rewrite it. An older runner
++// refuses the unknown namespace at claim, so it can never serve such an app with an enclave.host bounce.
++// Exact origins only: https://<lowercase DNS name>[:port], or a frontend on the owner's own machine at
++// http://127.0.0.1|[::1]|localhost:<port>. No path, query, fragment or userinfo; at most four; unique.
++// (Literals inside the hoisted functions, not module consts: earlier self-test seams can parse an envelope while a
++// module-level const would still be in its temporal dead zone.)
++function accessOrigin(x) {
++  const dns = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
++  if (typeof x !== "string" || x.length > 300) return false;
++  const m = /^(https?):\/\/(\[::1\]|[^/:?#@[\]]+)(?::([1-9][0-9]{0,4}))?$/.exec(x);
++  if (!m || (m[3] && +m[3] > 65535)) return false;
++  const loop = m[2] === "127.0.0.1" || m[2] === "[::1]" || m[2] === "localhost";
++  if (m[1] === "http") return loop && !!m[3];
++  return !loop && dns.test(m[2]) && /[a-z]/.test(m[2].split(".").at(-1));
++}
++function parseAccess(a) {
++  if (!a || Array.isArray(a) || typeof a !== "object") throw new Error("access must be a JSON object like {\"frontends\":[\"https://dash.example.org\"]}");
++  const bad = Object.keys(a).filter((k) => k !== "frontends");
++  if (bad.length) throw new Error(`unknown access option ${JSON.stringify(bad[0])} (this runner knows: frontends)`);
++  const f = a.frontends;
++  if (!Array.isArray(f) || f.length < 1 || f.length > 4) throw new Error("access.frontends must list 1..4 sign-in origins");
++  for (const x of f) if (!accessOrigin(x))
++    throw new Error(`access.frontends entry ${JSON.stringify(x)} is not an exact origin (https://<lowercase DNS name>[:port], or http://127.0.0.1|[::1]|localhost:<port>; no path)`);
++  if (new Set(f).size !== f.length) throw new Error("access.frontends lists an origin twice");
++  return { frontends: [...f] };
++}
++
+ function parseDepOptions(raw, gpuMilli) {
+   const s = String(raw || "").trim();
+   if (!s) return ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND } : {};
+@@ -2146,7 +2178,7 @@
+   // deployment that is already serving here - with a message that says what the deployment asked for.
+   if ("isolation" in o && !ISOLATION_BACKEND)
+     throw new Error(`this deployment requires per-app hardware isolation (isolation.require=${JSON.stringify(o.isolation && o.isolation.require)}), which this runner does not provide`);
+-  const known = ["waf", "config", "configCid", "gpu", "network", "placement", ...(ISOLATION_BACKEND ? ["isolation"] : []), ...(ISOLATION_BACKEND === "snp-guest-per-app" ? ["guestBootstrap"] : [])];
++  const known = ["waf", "config", "configCid", "gpu", "network", "placement", ...(ISOLATION_BACKEND ? ["isolation"] : []), ...(ISOLATION_BACKEND === "snp-guest-per-app" ? ["guestBootstrap"] : []), "access"];
+   const unknown = Object.keys(o).filter((k) => !known.includes(k));
+   if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: ${known.join(", ")})`);
+   const opts = ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND } : {};
+@@ -2169,6 +2201,7 @@
+       throw new Error(`isolation.require must be one of: ${ISOLATION_BACKENDS.join(", ")}`);
+     opts.isolation = iso.require ?? ISOLATION_BACKEND;
+   }
++  if ("access" in o) opts.access = parseAccess(o.access);
+   if ("network" in o) {
+     const n = o.network;
+     if (!n || Array.isArray(n) || typeof n !== "object") throw new Error("network must be a JSON object");
+@@ -2336,12 +2369,27 @@
+   return cfg(newO) === cfg(oldO) ? "waf" : "restart";
+ }
+ 
++// What a parsed envelope sets on a SERVING record without a restart: the waf rules and the owner's sign-in frontends
++// (`access`, what the private-app bounce offers). ONE function for the claim/resume record and an owner's live edit
++// (applyEnvelopeEdit), so the two can never disagree; a namespace the envelope no longer carries is removed.
++function applyLiveOptions(rec, o) {
++  if (o.waf) rec.waf = o.waf; else delete rec.waf;
++  if (o.access) rec.access = o.access; else delete rec.access;
++  return rec;
++}
++
+ // CFG_EDIT_SELFTEST='{"records":[{"rec":{…},"chainCid":"…"},…]}' prints each
+ // record's verdict as one JSON line and exits - same contract as the seams
+ // above (test/config-edit.test.mjs drives it).
+ if (process.env.CFG_EDIT_SELFTEST) {
+   const c = JSON.parse(process.env.CFG_EDIT_SELFTEST);
+-  console.log(JSON.stringify((c.records || []).map((r) => ({ verdict: envelopeEditVerdict(r.rec || {}, r.chainCid) }))));
++  // `apply: true` adds what the edit leaves on the record's live fields (applyLiveOptions), when the edit is applied
++  console.log(JSON.stringify((c.records || []).map((r) => {
++    const verdict = envelopeEditVerdict(r.rec || {}, r.chainCid);
++    if (!c.apply || !["waf", "restart"].includes(verdict)) return { verdict };
++    const live = applyLiveOptions({ ...(r.rec || {}) }, parseDepOptions(r.chainCid));
++    return { verdict, live: { waf: live.waf ?? null, access: live.access ?? null } };
++  })));
+   process.exit(0);
+ }
+ 
+@@ -5110,6 +5158,37 @@
+     `var SUB=${jsStr(req.url || "/")};` +
+     `var here=location.pathname+location.search;` +
+     `var root=here.length>=SUB.length&&here.slice(here.length-SUB.length)===SUB?here.slice(0,here.length-SUB.length):"";`;
++  // The OWNER's sign-in frontends (the envelope's `access`): only those origins are offered - the first is followed,
++  // every other one is an explicit link - and never enclave.host. Re-checked here so a restored or stale record can only
++  // ever name an exact origin. Nothing about who may enter changes: that is the hand-off's session check.
++  const owned = (rec.access && Array.isArray(rec.access.frontends) ? rec.access.frontends : []).filter(accessOrigin);
++  if (owned.length) {
++    const urls = owned.map((o) => `${o}/authorize?d=${encodeURIComponent(rec.id)}`);
++    const links = urls.map((u, i) => `<li><a class="fe" href="${esc(u)}">${esc(owned[i])}</a></li>`).join("");
++    const p = `here.slice(root.length)||"/"`;
++    // every link carries the wanted path in its FRAGMENT (no server log, no Referer)
++    const linkJs = `var ps="#p="+encodeURIComponent(${p});var fe=document.querySelectorAll("a.fe");` +
++      `for(var i=0;i<fe.length;i++)fe[i].href=fe[i].getAttribute("href")+ps;`;
++    if (wrongAddr)
++      return htmlPage(res, 403, "Wrong wallet &middot; Sign in",
++        `<h1>Wrong wallet</h1><p>This app is private. You are signed in as <code>${esc(wrongAddr)}</code>, ` +
++        `which does not own it. Switch wallets, then sign in again at a sign-in page this app's owner chose:</p>` +
++        `<ul>${links}</ul>`,
++        rootJs + linkJs + `fetch(root+"/__enclave/signout",{method:"POST"}).catch(function(){});`);
++    return htmlPage(res, 401, "Sign in",
++      `<h1>This app is private</h1><p id="st" role="status">Sign in with the wallet that owns it, at the sign-in page its owner chose. ` +
++      `Redirecting to the first&hellip;</p><p>Sign-in pages this app's owner chose:</p><ul>${links}</ul>`,
++      rootJs + linkJs +
++      `var t=0;try{t=+sessionStorage.getItem("enclave_az")||0;sessionStorage.removeItem("enclave_az");}catch(e){}` +
++      `if(Date.now()-t<15000){document.getElementById("st").textContent=` +
++      `"You signed in, but this host still refuses the app. Its owner may have changed, or the deployment moved. Try one of the sign-in pages below, or open the app again from your dashboard.";}` +
++      // Back here within 30 s of following the first page means it did not work (unreachable, refused, or abandoned):
++      // stay, and ask for an explicit choice among the owner's pages. Never a silent move to some other origin.
++      `else{var f=0;try{f=+sessionStorage.getItem("enclave_fe")||0;}catch(e){}` +
++      `if(Date.now()-f<30000){document.getElementById("st").textContent=` +
++      `"The first sign-in page did not complete. Choose one of the sign-in pages this app's owner chose below, or try again.";}` +
++      `else{try{sessionStorage.setItem("enclave_fe",String(Date.now()));}catch(e){}location.replace(fe[0].href);}}`);
++  }
+   // A WRONG wallet is a dead end, not a step: bouncing would send the user to a
+   // page that can only tell them the same thing, and back again. Say it here
+   // and make the next move a deliberate click. 403, matching the JSON path.
+@@ -5154,6 +5233,30 @@
+     // Token arrives as a bearer so this needs no body parser — the data path is
+     // mounted ahead of express.json() on purpose (bodies stream untouched).
+     (async () => {
++      // The OWNER-SELECTED frontend's hand-off: no token minted elsewhere, but ONE EnclaveSession authorization the
++      // owner's session signed for EXACTLY this URL - POST <this host's base>/x/<full id>/__enclave/session?d=<full id>,
++      // empty body. Judged by the same verifier and record rule as every other session route (sessionApi: live session,
++      // key, api.appAccess scope, a nonce used once on this host, +-60 s; refusal: the vault's environment or the owner's
++      // ledger delegation), against THIS host's own bases - never the request's Host. A signature for another host, another
++      // deployment, another path, or one already used here, opens nothing. Then the same audience-bound cookie as below.
++      if (isSessionHeader(req.headers.authorization)) {
++        const q = (req.url || "").includes("?") ? req.url.slice(req.url.indexOf("?") + 1) : "";
++        if (q !== "d=" + rec.id)
++          return fail(res, 400, "bad_request", "A session hand-off names exactly this deployment: ?d=<its full id>.");
++        if (Number(req.headers["content-length"] || 0) > 0 || req.headers["transfer-encoding"])
++          return fail(res, 400, "bad_request", "A session hand-off carries no body.");
++        let s, why;
++        try {
++          s = await sessionApi.verify({ header: req.headers.authorization, method: "POST", path: `/x/${rec.id}${req.url}`,
++            body: Buffer.alloc(0), scope: "api.appAccess", fresh: true });
++          why = await sessionApi.refusal(s, rec, { fresh: true });
++        } catch (e) { return sessionFail(res, e); }
++        if (why) return fail(res, 403, "not_allowed", why);
++        const minted = await mintAppToken(rec.owner, rec.id);
++        res.setHeader("Set-Cookie",
++          `${APP_COOKIE}=${minted}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${APP_TTL_SEC}`);
++        return res.status(204).end();
++      }
+       const m = (req.headers.authorization || "").match(/^Bearer\s+(.+)$/i);
+       // Shape-check BEFORE this value can reach a response header. Node would
+       // throw on a CR/LF in setHeader, and a doctored token should fail the
+@@ -5192,7 +5295,7 @@
+   htmlPage(res, 200, "Signing in &middot; Enclave",
+     `<h1>Signing you in&hellip;</h1><p id="m">One moment.</p>`,
+     `var h=new URLSearchParams(location.hash.slice(1));` +
+-    `var t=h.get("t")||"",p=h.get("p")||"/";` +
++    `var t=h.get("t")||"",a=h.get("a")||"",p=h.get("p")||"/";` +
+     // Resolve and compare ORIGINS rather than pattern-match the string. A
+     // leading-slash regex looks sufficient and is not: the URL parser folds
+     // backslashes into slashes, so "/\\evil.com" passes /^\/(?!\/)/ and then
+@@ -5201,14 +5304,22 @@
+     `try{var _u=new URL(p,location.href);p=_u.origin===location.origin?_u.pathname+_u.search:"/";}catch(e){p="/";}` +
+     `var root=location.pathname.replace(/\\/__enclave\\/session\\/?$/,"");` +
+     `function bad(x){document.getElementById("m").textContent=x;}` +
+-    `if(!t)bad("This sign-in link is incomplete. Start again from enclave.host.");else{` +
+-    `fetch(location.pathname,{method:"POST",headers:{Authorization:"Bearer "+t},cache:"no-store"})` +
+-    `.then(function(r){if(!r.ok)throw 0;` +
++    `function done(){` +
+     // Mark the hand-off so a bounce arriving right back here is recognised as a
+     // LOOP rather than redirected onward (see loginBounce's loop breaker).
+     `try{sessionStorage.setItem("enclave_az",String(Date.now()));}catch(e){}` +
+-    // Scrub the token out of history BEFORE leaving, so Back cannot resurrect it.
+-    `history.replaceState(null,"",root+p);location.replace(root+p);})` +
++    // Scrub the credential out of history BEFORE leaving, so Back cannot resurrect it.
++    `history.replaceState(null,"",root+p);location.replace(root+p);}` +
++    // The owner-selected frontend's form: a session authorization for EXACTLY this URL (path and ?d=), posted back to
++    // it. The host answers why it refused; that text is shown as text, and a retry starts at the sign-in page again.
++    `if(a){if(!/^EnclaveSession v1 [!-~][ -~]{0,2000}$/.test(a))bad("This sign-in link is malformed. Start again from your sign-in page.");else ` +
++    `fetch(location.pathname+location.search,{method:"POST",headers:{Authorization:a},cache:"no-store"})` +
++    `.then(function(r){if(r.ok)return done();return r.json().catch(function(){return null;}).then(function(j){` +
++    `bad("This host refused the sign-in"+(j&&j.message?": "+j.message:".")+" Start again from your sign-in page.");});})` +
++    `.catch(function(){bad("This host could not be reached. Start again from your sign-in page.");});}` +
++    `else if(!t)bad("This sign-in link is incomplete. Start again from your sign-in page.");else{` +
++    `fetch(location.pathname,{method:"POST",headers:{Authorization:"Bearer "+t},cache:"no-store"})` +
++    `.then(function(r){if(!r.ok)throw 0;done();})` +
+     `.catch(function(){bad("That sign-in expired. Start again from enclave.host.");});}`);
+   return true;
+ }
+@@ -5970,6 +6081,7 @@
+     })(),   // a card on the UNTRUSTED host, reached by masked offload; NOT `gpu` — see shieldedCapacity()
+     networkOptions: true,   // accepts the network options envelope; fleet capability checks keep older runners from claiming unsupported options
+     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
++    appAccessFrontends: true,   // this build parses the envelope's `access` namespace (the owner's private-app sign-in frontends) and accepts the session-signed /__enclave/session hand-off
+     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
+     configEdit: true,   // this build's audit re-applies an owner's setConfig to LIVE deployments (waf live-swapped, config = restart in place); without it an edit only lands at the next re-claim — same fleet-AND rule
+     shareResize: true,   // this build's audit re-slices a LIVE deployment on an owner's setShares (rev-6 ledgers); without it the billing would change while the served slice silently didn't — same fleet-AND rule, clients refuse the tx against an older fleet
+@@ -10357,11 +10469,11 @@
+     return refuse(why);
+   }
+   const o = parseDepOptions(cur);                  // waf/restart: the verdict already parsed it clean
+-  if (o.waf) rec.waf = o.waf; else delete rec.waf;
++  applyLiveOptions(rec, o);
+   if (verdict === "waf") {
+     rec._envelope = cur;
+     delete rec.configChange;
+-    console.log(`[claim] ${rec.id} owner updated the waf envelope; applied live`);
++    console.log(`[claim] ${rec.id} owner updated the waf/access envelope; applied live`);
+     saveStateSoon();
+     return;
+   }
+@@ -11564,7 +11676,7 @@
+     ...(() => { try {
+       const o = parseDepOptions(d.configCid, d.gpuMilli);
+       const f = overrideConfigFields(o, g);
+-      return { ...(o.waf ? { waf: o.waf } : {}),
++      return { ...applyLiveOptions({}, o),
+                ...(f.configOverride ? { config: f.config, appConfigCid: f.appConfigCid, configOverride: true } : {}) };
+     } catch { return {}; } })(),
+     // the two shares the deployment bought on-chain — _shares keeps the exact
+--- a/site/js/pages/authorize.js
++++ b/site/js/pages/authorize.js
+@@ -24,6 +24,14 @@
+    carried across, and it is re-checked at the app origin too.
+    One consequence, deliberately accepted: a private app reached
+    through a custom domain lands back on its canonical subdomain.
++
++   INDEPENDENT MODE (an owner-selected sign-in frontend; see
++   js/core/app-access.js): no token is minted here and nothing goes
++   to enclave.host. The app origin comes from an agreed chain read
++   (the runner's registry endpoint), the platform host policy must
++   admit the runner, and this browser's session signs one hand-off
++   for exactly that origin. Every refusal says why and offers a
++   retry; nothing falls back to another origin.
+    ============================================================ */
+ import "../../components/header/header.js";
+ import "../../components/footer/footer.js";
+@@ -87,6 +95,43 @@
+   } catch(e){ return false; }
+ }
+ 
++/* Independent mode: the owner-selected frontend's flow. */
++async function mountIndependent(body, id){
++  const A = await import("../core/app-access.js");
++  let want = "/";
++  try { want = new URLSearchParams(location.hash.slice(1)).get("p") || "/"; } catch(e){}
++  const say = (note) => { body.innerHTML = card('<p class="co-note" role="status">' + esc(note) + '</p>'); };
++  const refused = (e) => {
++    const kind = (e && e.kind) || "refused";
++    const extra = kind === "session" || kind === "scope" ? '<a class="btn" href="sessions">Open Sessions</a> '
++      : kind === "owner" ? '<button class="btn" id="azSwitch" type="button">Switch wallet</button> ' : '';
++    body.innerHTML = card('<p class="co-note" role="alert">' + esc((e && e.message) || String(e)) + '</p>' +
++      '<button class="btn btn-primary" id="azRetry" type="button">Try again</button> ' + extra +
++      '<a class="btn" href="dashboard">Go to your dashboard</a>');
++    $("#azRetry").addEventListener("click", () => run(), { once: true });
++    const sw = $("#azSwitch");
++    if (sw) sw.addEventListener("click", async () => { try { await connectWallet(); } catch(_){} run(); }, { once: true });
++    $("#azRetry").focus();
++  };
++  async function run(){
++    try {
++      say("Checking your wallet…");
++      await walletReady(1500);
++      if (!Enclave.address){
++        body.innerHTML = card('<p class="co-note">Connect the wallet that owns this app.</p>' +
++          '<button class="btn btn-primary" id="azGo" type="button">Connect wallet</button>');
++        await new Promise((r) => $("#azGo").addEventListener("click", r, { once: true }));
++        await connectWallet();
++      }
++      say("Reading this app's lease from the chain…");
++      const out = await A.openPrivateApp(id, { path: want });
++      say("Opening the app at " + out.origin + "…");
++      location.replace(out.url);
++    } catch(e){ refused(e); }
++  }
++  await run();
++}
++
+ function fatal(body, msg){
+   body.innerHTML = card('<p class="co-note">' + esc(msg) + '</p>' +
+     '<a class="btn" href="dashboard">Go to your dashboard</a>');
+@@ -96,6 +141,7 @@
+   const body = $("#azBody"); if (!body) return;
+   const id = String(new URL(location.href).searchParams.get("d") || "").trim();
+   if (!id) return fatal(body, "This link is missing a deployment. Open the app from your dashboard instead.");
++  if (INDEPENDENT_MODE) return mountIndependent(body, id);
+ 
+   const go = (label, note) => {
+     body.innerHTML = card('<p class="co-note">' + esc(note) + '</p>' +
+--- a/site/components/deployments/deployments.js
++++ b/site/components/deployments/deployments.js
+@@ -126,6 +126,16 @@
+     + LOCK_OPEN + ' open ↗</a>';
+ }
+ 
++/* Independent mode: an app has no Enclave app name, so the row links this frontend's own sign-in page (authorize.js ->
++   js/core/app-access.js). It reads the lease and the runner's registered address at an agreed block, and opens a private
++   app with this browser's session (a public one directly). Nothing here contacts enclave.host. */
++function independentOpenCtl(d){
++  if (!(INDEPENDENT_MODE && d && (d.status || "") === "claimed" && /^0x[0-9a-f]{64}$/.test(String(d.id || "")))) return "";
++  const what = d.public ? "Open app (new tab) - at the address its host registered" : "Open app (new tab) - signs in with this browser's session";
++  return '<div class="enc-eprow"><a class="enc-open enc-open-independent" href="authorize?d=' + esc(encodeURIComponent(d.id)) + '" target="_blank" rel="noopener"'
++    + ' aria-label="' + esc(what) + '" title="' + esc(what) + '">' + LOCK_OPEN + ' open ↗</a></div>';
++}
++
+ // Per-row SECRETS section (wallet-owned on-chain rows): rendered PERMANENTLY
+ // as its locked bar - id + the Unlock control - with the editor body absent
+ // until a reveal signature succeeds (_secretsWire). Values only ever exist in
+@@ -882,7 +892,16 @@
+       + '<div class="enc-mgmt-deleg" hidden></div>'
+       + '<div class="enc-mgmt-trust" hidden></div>'
+       + '<div class="enc-mgmt-out" hidden></div>'
+-      + '<div class="enc-mgmt-native" hidden></div>';
++      + '<div class="enc-mgmt-native" hidden></div>'
++      // the owner's choice of sign-in pages for this PRIVATE app (the envelope's `access`; js/core/app-access.js)
++      + '<div class="enc-mgmt-access"><div class="ap-attbar">private app sign-in</div>'
++      +   '<p class="dim">Where this app’s sign-in page sends you: your own sign-in origins (this dashboard, or another you run), at most 4, one per line. '
++      +   'Empty means the host’s default sign-in. Saving is one transaction from the wallet that holds the deployment; every other deployment option is kept. '
++      +   'Passkeys stay tied to enclave.host and do not move: on another origin you open the app with a session.</p>'
++      +   '<label class="dim" for="emFe' + esc(appLabel(id)) + '">Sign-in origins</label> '
++      +   '<textarea id="emFe' + esc(appLabel(id)) + '" class="em-fe ac-in" rows="2" cols="40" spellcheck="false" placeholder="https://dash.example.org"></textarea> '
++      +   '<button type="button" class="btn btn-sm em-fe-read">Read current</button> <button type="button" class="btn btn-sm em-fe-save">Save</button>'
++      +   '<div class="term em-fe-status" role="status" aria-live="polite"></div></div>';
+     const st = box.querySelector(".enc-mgmt-status"), out = box.querySelector(".enc-mgmt-out");
+     const trustEl = box.querySelector(".enc-mgmt-trust"), nativeEl = box.querySelector(".enc-mgmt-native");
+     const paint = (cls, t) => paintLine(st, cls, t);
+@@ -904,6 +923,42 @@
+       nativeEl.querySelector(".em-copycmd").addEventListener("click", (e) => copyText(n.command, e.currentTarget));
+     };
+     const showOut = (html) => { out.hidden = false; out.innerHTML = html; };
++    {
++      const feSt = box.querySelector(".em-fe-status"), feIn = box.querySelector(".em-fe");
++      const fePaint = (cls, t) => paintLine(feSt, cls, t);
++      const A = () => import("../../js/core/app-access.js"), ICm = () => import("../../js/core/independent-chain.js");
++      box.querySelector(".em-fe-read").addEventListener("click", async (ev) => {
++        const b = ev.currentTarget; b.disabled = true;
++        try {
++          const now = await (await ICm()).deploymentAt(id);          // a fresh agreed read
++          const list = (await A()).accessFrontends(now.row && now.row.configCid);
++          feIn.value = list.join("\n");
++          fePaint("ok", list.length ? "[✓] " + list.length + " sign-in origin(s), read at block " + now.snap.number : "[✓] none chosen: the host's default sign-in applies (block " + now.snap.number + ")");
++        } catch (e){ fePaint("warn", "[x] " + (e.message || String(e))); }
++        b.disabled = false;
++      });
++      box.querySelector(".em-fe-save").addEventListener("click", async (ev) => {
++        const b = ev.currentTarget; b.disabled = true;
++        try {
++          const lines = feIn.value.split(/\s+/).map((x) => x.trim()).filter(Boolean);
++          const now = await (await ICm()).deploymentAt(id);          // the owner's change applies to the record as it is NOW
++          if (!now.row) throw new Error("this deployment is not on the pinned ledger");
++          const holder = String(now.row.owner || "").toLowerCase(), me = String(actingOwner(Enclave.address) || "").toLowerCase();
++          if (!me || holder !== me) throw new Error("only the wallet that holds this deployment (" + holder + ") can change its options here; a deployment your session vault holds changes them through the Sessions page");
++          const env = (await A()).withAccessFrontends(now.row.configCid || "", lines);
++          if (env === String(now.row.configCid || "")){ fePaint("info", "nothing to change"); b.disabled = false; return; }
++          await ensureBaseChain();
++          fePaint("info", "[*] " + (lines.length ? "set " + lines.length + " sign-in origin(s)" : "return to the host's default sign-in") + " (one transaction)…");
++          await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: env }])));
++          this._envLearn(id, env);
++          fePaint("ok", "[✓] saved. The host applies it on its next ledger read; the app keeps running.");
++        } catch (e){
++          const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
++          fePaint("warn", rejected ? "[x] declined in the wallet - nothing changed" : "[x] " + (e.message || String(e)));
++        }
++        b.disabled = false;
++      });
++    }
+     // A deployment the WALLET holds (not its session vault) is managed only once the owner has let the vault act for the
+     // wallet on the ledger (setDelegate): the host's gateway checks that grant itself. Shown, never granted automatically.
+     const delegEl = box.querySelector(".enc-mgmt-deleg");
+@@ -1514,7 +1569,7 @@
+         (d.versionChange && d.versionChange.error ? '<div class="enc-err" title="the requested version change has not applied - the previous version keeps serving; the runner retries automatically">⚠ version change pending: ' + esc(d.versionChange.error) + '</div>' : '') +
+         (st === "queued" ? '<div class="enc-why" data-why="' + esc(d.id) + '" role="status" aria-live="polite" hidden></div>' : '') +
+         (ep ? '<div class="enc-eprow"><button class="enc-ep" data-ep="' + esc(ep) + '">' + esc(ep) + ' ⧉</button>'
+-              + openCtl(d, ep, this._tls && this._tls.get(d.id)) + '</div>' : '') +
++              + openCtl(d, ep, this._tls && this._tls.get(d.id)) + '</div>' : '') + independentOpenCtl(d) +
+         // panel tabs (develop-page idiom): each button toggles its panel below;
+         // aria-expanded doubles as the active-tab style hook. Transfer lives
+         // here - it opens a panel and does not belong beside Cancel.
+--- a/docs/session-auth.md
++++ b/docs/session-auth.md
+@@ -139,6 +139,60 @@
+ right to the content behind it — and the name is 8 hex of an id that is already
+ public on-chain, which `HEAD /x/<id>` has always confirmed to anyone.
+ 
++### The owner's own sign-in page (no mandatory enclave.host)
++
++The bounce above goes to `SIWE_URI/authorize`. That is a per-HOST setting
++(enclave.host by default), so an owner could not choose where they sign in. The
++deployment-options envelope now carries the owner's choice:
++
++```json
++{"access": {"frontends": ["https://dash.example.org", "http://127.0.0.1:5173"]}}
++```
++
++- **What a frontend may be.** 1-4 exact origins: `https://<lowercase DNS name>[:port]`,
++  or a frontend on the owner's own machine at `http://127.0.0.1|[::1]|localhost:<port>`.
++  No path, query, fragment or userinfo.
++- **Who can set it, and how runners treat it.**
++  - Only the owner writes it, with `setConfig` on the ledger. A host can neither
++    choose nor rewrite it.
++  - The supervisor parses it fail-closed at claim and resume, and applies an owner
++    edit live, without a restart.
++  - A runner older than this refuses the unknown namespace at claim, so it never
++    serves such an app with an enclave.host bounce.
++- **The bounce.** With `access.frontends` set, the bounce names only those origins.
++  The first is followed; each one is an explicit link. If the first does not
++  complete, coming back asks for a choice among them. There is never a silent
++  fallback to enclave.host.
++- **The hand-off.** The frontend does not need a token minted elsewhere.
++  `/__enclave/session?d=<full id>` also accepts one `EnclaveSession v1`
++  authorization: a POST with an empty body, signed by the owner's session for
++  exactly `<host base>/x/<full id>/__enclave/session?d=<full id>`.
++  - It is judged by the same `sessionApi.verify` and `sessionApi.refusal` as every
++    session route: live session, key hash, `api.appAccess` scope, a nonce used once
++    on this host, a ±60 s window, and the vault's environment or the owner's ledger
++    delegation (Safe-held deployments included).
++  - The host checks it against its own bases, never the request's `Host`.
++  - Success sets the same audience-bound cookie as the token path.
++  - The frontend delivers it in the URL fragment: no server log, no Referer. The
++    page scrubs history before leaving.
++- **What the frontend does** (`site/js/core/app-access.js`, the independent
++  dashboard's `/authorize`):
++  1. reads the lease at an agreed block;
++  2. requires the platform host policy to admit the runner;
++  3. takes the app origin from the runner's registry endpoint (its own
++    `PUBLIC_URL`, never an Enclave dashboard or API name);
++  4. signs the hand-off.
++
++  A host that registered an endpoint it does not serve gains nothing: the
++  signature names that endpoint's host, which the genuine supervisor does not
++  accept.
++- **Passkeys and wallets.** Passkeys stay enclave.host relying-party credentials,
++  and choosing another frontend does not migrate them. On another origin the owner
++  signs with a session. A plain wallet signature is never accepted on this path.
++- **Platform administration** is unchanged. A host-policy ban refuses `/x/:id`,
++  including the hand-off, before any owner check, and the frontend refuses a host
++  the policy refuses.
++
+ ## No legacy path
+ 
+ There was never a live session to migrate, so this shipped as a hard cut: the old
+--- a/test/isolation-claim-gate.test.mjs
++++ b/test/isolation-claim-gate.test.mjs
+@@ -50,7 +50,7 @@
+   const r = await seam({ parse: ['{"waf":{"blockScanners":true}}', '{"nope":{}}', "", '{"gpu":{"optional":false}}'] });
+   assert.equal(r.parse[0].ok, true);
+   // the unknown-namespace message lists exactly the namespaces it always did
+-  assert.equal(r.parse[1].error, 'unknown option namespace "nope" (this runner knows: waf, config, configCid, gpu, network, placement)');
++  assert.equal(r.parse[1].error, 'unknown option namespace "nope" (this runner knows: waf, config, configCid, gpu, network, placement, access)');
+   assert.deepEqual(r.parse[2], { ok: true, opts: {} });
+   assert.equal(r.parse[3].ok, true);
+ });
+--- /dev/null
++++ b/site/js/core/app-access.js
+@@ -0,0 +1,171 @@
++/* ============================================================
++   Private-app browser access from an OWNER-SELECTED frontend
++   (work/private-browser-access-interface.txt).
++
++   A private app's sign-in bounce goes to the sign-in pages its
++   owner put in the deployment-options envelope (`access.frontends`,
++   written only by the owner's setConfig). This module is what such
++   a frontend runs. Nothing here talks to enclave.host or Enclave's
++   API:
++
++     1. an AGREED read of the deployment's lease (independent-chain):
++        active, a current runner whose registry entry is live and
++        operated by the lease's operator, and the owner is this wallet
++        or its session vault;
++     2. the Enclave administrator's platform host policy admits that
++        runner (a ban refuses here, before anything is signed);
++     3. the app origin is the runner's REGISTRY endpoint (its own
++        PUBLIC_URL) + /x/<id>, an https origin that is never an Enclave
++        dashboard or API name;
++     4. this browser's session signs ONE EnclaveSession authorization
++        for EXACTLY POST <that host>/x/<id>/__enclave/session?d=<id>;
++     5. the browser goes there with the authorization in the FRAGMENT
++        (no server log, no Referer). The host checks the session
++        against the chain and its own bases, and sets the app cookie.
++
++   A host that registered a different endpoint than it serves gains
++   nothing: the signature names the endpoint's host, and the genuine
++   supervisor accepts only its own bases. Every refusal is explicit
++   and retryable; there is no fallback to another origin.
++   ============================================================ */
++import { INDEPENDENT } from "./config.js";
++
++const ID = /^0x[0-9a-f]{64}$/;
++export const MAX_FRONTENDS = 4;
++const lower = (a) => String(a || "").toLowerCase();
++
++export class AppAccessError extends Error {
++  /** kind: chain | stopped | no-host | registry | policy | owner | session | scope | endpoint | public */
++  constructor(message, { kind = "refused" } = {}){ super(message); this.name = "AppAccessError"; this.kind = kind; }
++}
++const fail = (m, kind) => new AppAccessError(m, { kind });
++
++/* ---- the envelope's `access` namespace (the supervisor's parseAccess, mirrored) ---- */
++const DNS = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
++/** An exact sign-in origin: https://<lowercase DNS name>[:port], or http://127.0.0.1|[::1]|localhost:<port>. */
++export function validFrontend(x){
++  if (typeof x !== "string" || x.length > 300) return false;
++  const m = /^(https?):\/\/(\[::1\]|[^/:?#@[\]]+)(?::([1-9][0-9]{0,4}))?$/.exec(x);
++  if (!m || (m[3] && +m[3] > 65535)) return false;
++  const loop = m[2] === "127.0.0.1" || m[2] === "[::1]" || m[2] === "localhost";
++  if (m[1] === "http") return loop && !!m[3];
++  return !loop && DNS.test(m[2]) && /[a-z]/.test(m[2].split(".").at(-1));
++}
++function envelopeOf(raw){
++  const e = JSON.parse(String(raw || "").trim() || "{}");
++  if (!e || Array.isArray(e) || typeof e !== "object") throw new Error("Invalid deployment options.");
++  return e;
++}
++/** The owner's sign-in frontends in an envelope ([] = none chosen: the host's default sign-in applies). Throws on a
++ *  malformed namespace, exactly as a runner refuses it. */
++export function accessFrontends(raw){
++  const e = envelopeOf(raw);
++  if (!("access" in e)) return [];
++  const a = e.access;
++  if (!a || Array.isArray(a) || typeof a !== "object" || Object.keys(a).some((k) => k !== "frontends") || !Array.isArray(a.frontends) ||
++      a.frontends.length < 1 || a.frontends.length > MAX_FRONTENDS || !a.frontends.every(validFrontend) || new Set(a.frontends).size !== a.frontends.length)
++    throw new Error("Invalid sign-in frontends in the deployment options.");
++  return [...a.frontends];
++}
++/** The envelope with its `access` namespace set to `frontends` (empty = removed). Every other namespace is kept byte for
++ *  byte in meaning; a malformed current envelope is refused rather than overwritten. */
++export function withAccessFrontends(raw, frontends, cap = 4096){
++  accessFrontends(raw);                                   // never silently replace a namespace this page cannot read
++  const e = envelopeOf(raw);
++  const list = (frontends || []).map((x) => String(x).trim()).filter(Boolean);
++  if (list.length > MAX_FRONTENDS) throw new Error(`At most ${MAX_FRONTENDS} sign-in frontends.`);
++  for (const x of list) if (!validFrontend(x)) throw new Error(`${JSON.stringify(x)} is not an exact origin (https://name[:port], no path).`);
++  if (new Set(list).size !== list.length) throw new Error("A sign-in frontend is listed twice.");
++  if (list.length) e.access = { frontends: list }; else delete e.access;
++  const text = JSON.stringify(e);
++  if (new TextEncoder().encode(text).length > cap) throw new Error(`Deployment options exceed this ledger's ${cap}-byte limit.`);
++  return text;
++}
++
++/* ---- the app origin and the exact hand-off target ---- */
++// Enclave's own dashboard and API front doors are not app hosts: a hand-off is never aimed at them.
++const ENCLAVE_NAMES = /(^|\.)(enclave|nan)\.host$/;
++/** -> { origin, root, hostPath, sessionUrl } for deployment `id` on a runner whose registry endpoint is `endpoint`. */
++export function handoffTarget(endpoint, id){
++  if (!ID.test(id || "")) throw fail("a full lower-case deployment id is required", "endpoint");
++  let u;
++  try { u = new URL(String(endpoint || "")); } catch { throw fail("The host's registered endpoint is not a URL, so this app has no browser address.", "endpoint"); }
++  if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash)
++    throw fail("The host's registered endpoint is not a plain https origin, so this app has no browser address. Use the native client.", "endpoint");
++  if (ENCLAVE_NAMES.test(u.hostname))
++    throw fail(`This host is reachable only through Enclave's own name (${u.hostname}), which this sign-in page does not use. Open the app from Enclave's dashboard, or use the native client.`, "endpoint");
++  const path = u.pathname.replace(/\/+$/, "");
++  const root = path + "/x/" + id;
++  const hostPath = u.host + root + "/__enclave/session?d=" + id;
++  return { origin: u.origin, root, hostPath, sessionUrl: "https://" + hostPath };
++}
++/** The path the user asked for, kept only if it resolves inside the app (authorize.js wantedPath's rule). */
++export function wantedPath(p, origin){
++  try {
++    const base = new URL(origin), u = new URL(String(p || "/"), base);
++    return u.origin === base.origin ? u.pathname + u.search : "/";
++  } catch { return "/"; }
++}
++
++/* ---- dependencies (tests inject; the page loads the real ones) ---- */
++let _deps = null;
++export function _useForTests(deps){ _deps = deps; }
++async function deps(){
++  if (_deps) return _deps;
++  const IC = await import("./independent-chain.js");
++  const S = await import("./sessions.js");
++  const { Enclave } = await import("./api.js");
++  const IDN = await import("./identity.js");
++  const IM = await import("./independent-management.js");
++  return { agreedLease: IC.agreedLease, leaseHostPolicy: IC.leaseHostPolicy, session: () => S.currentSession(), actions: async () => (await S.sdk()).ACTIONS,
++           wallet: () => Enclave.address, owner: () => IDN.actingOwner(Enclave.address), checkAuthorization: async (...a) => (await IM.transport()).checkAuthorizationWeb(...a) };
++}
++
++/**
++ * Prepare the navigation that opens private deployment `id` as its owner. -> { url, origin, root, runner, block } where
++ * `url` carries the session authorization in its fragment. A PUBLIC deployment needs none: { url, public: true }.
++ * Throws AppAccessError; nothing was sent anywhere (only chain reads happened).
++ */
++export async function openPrivateApp(id, { path = "/" } = {}){
++  if (!ID.test(id || "")) throw fail("a full lower-case deployment id is required", "endpoint");
++  if (!_deps && INDEPENDENT.state !== "on") throw fail("independent mode is not active in this tab", "chain");
++  const D = await deps();
++  let lr;
++  try { lr = await D.agreedLease(id); }
++  catch (e){ throw fail("The chain endpoints did not agree on this deployment's lease (" + String(e.message || e).slice(0, 160) + "). Nothing was signed.", "chain"); }
++  const { lease } = lr;
++  if (!lease.active) throw fail("This deployment is stopped on the ledger, so there is nothing to open.", "stopped");
++  if (/^0x0{64}$/.test(lease.runner) || !(lease.leaseUntil > Date.now()))
++    throw fail("No host holds a current lease for this deployment, so it is not running anywhere right now.", "no-host");
++  if (!lr.current || !lr.host)
++    throw fail("The host's registry entry is inactive or names another operator, so its address is not trusted. Nothing was signed.", "registry");
++  // the Enclave administrator's platform host policy: a host it does not admit is never sent anything
++  const pol = await D.leaseHostPolicy(lease);
++  if (!pol || pol.admit !== true)
++    throw fail("The platform host policy refuses this deployment's host: " + ((pol && pol.reason) || "no decision") + ". Nothing was signed.", "policy");
++  const target = handoffTarget(lr.host.endpoint, id);
++  const want = wantedPath(path, target.origin);
++  if (lease.isPublic) return { url: target.origin + target.root + want, public: true, origin: target.origin, runner: lease.runner, block: lease.blockNumber };
++  const c = await D.session().catch(() => null);
++  const who = lower(D.owner ? D.owner() : D.wallet());
++  if (!who) throw fail("Connect the wallet that owns this app first.", "owner");
++  if (!c || !c.session || !c.session.handle)
++    throw fail("Opening a private app from this page is signed by a session: start one on the Sessions page first. Nothing was signed.", "session");
++  if (lower(c.owner) !== who) throw fail("This browser's session belongs to another wallet. Nothing was signed.", "session");
++  const vault = lower(c.session.handle.vault);
++  if (lease.owner !== who && lease.owner !== vault)
++    throw fail(`This app's current owner is ${lease.owner} (read at block ${lease.blockNumber}), not this wallet or its session vault.`, "owner");
++  const st = await c.session.status().catch(() => null);
++  if (st && (!st.live || Number(st.expiresAt) <= Math.floor(Date.now() / 1000)))
++    throw fail("This browser's session has ended. Start a new one on the Sessions page.", "session");
++  const bit = (await D.actions())["api.appAccess"];
++  if (bit == null || (st && ((BigInt(st.actions) >> BigInt(bit)) & 1n) !== 1n))
++    throw fail("This browser's session does not allow opening apps (api.appAccess). Start a session that does.", "scope");
++  const empty = new Uint8Array(0);
++  const authorization = await c.session.apiAuthorization("POST", target.sessionUrl, empty);
++  // the signer must have signed exactly this request (the host checks it again, against its own bases)
++  try { await D.checkAuthorization(authorization, { method: "POST", hostPath: target.hostPath, body: empty }); }
++  catch (e){ throw fail("This browser's session signer did not sign exactly this hand-off (" + String(e.message || e).slice(0, 120) + "). Nothing was sent.", "session"); }
++  return { url: target.sessionUrl + "#a=" + encodeURIComponent(authorization) + "&p=" + encodeURIComponent(want),
++           origin: target.origin, root: target.root, runner: lease.runner, block: lease.blockNumber };
++}
+--- /dev/null
++++ b/test/private-app-frontends.test.mjs
+@@ -0,0 +1,345 @@
++// PRIVATE-APP BROWSER ACCESS FROM AN OWNER-SELECTED FRONTEND (work/private-browser-access-interface.txt).
++//
++// Three layers, each through real code:
++//   1. the supervisor's envelope rules (parseDepOptions / envelopeEditVerdict) through its existing WAF_SELFTEST and
++//      CFG_EDIT_SELFTEST seams;
++//   2. the frontend module (site/js/core/app-access.js) with REAL P-256 signing (WebCrypto) and the REAL signature check
++//      the browser bundle ships (network/management-browser.mjs checkAuthorizationWeb); its chain reads are injected;
++//   3. the ACTUAL supervisor.js as a child process (test/helpers/private-app-supervisor.mjs): its real /x/:id data path,
++//      sign-in bounce, /__enclave/session hand-off, sessionApi verification and record judgement, against a local chain
++//      fixture; and, for the platform ban, the real host-policy gate fed by a local policy world.
++// Synthetic keys and local fixtures only. No Enclave service, real chain, wallet or user session is used.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import path from 'node:path';
++import { execFile } from 'node:child_process';
++import { promisify } from 'node:util';
++import { mkdtempSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++import { generateKeyPairSync, createPublicKey } from 'node:crypto';
++import { getAddress, keccak256, toBytes, toFunctionSelector } from 'viem';
++import { sessionRequestSigner } from '../network/management-client.mjs';
++import { checkAuthorizationWeb } from '../network/management-browser.mjs';
++import { sessionKeyHash, delegateSlot } from '../windows/node/session-api-auth.mjs';
++import { startPrivateAppSupervisor } from './helpers/private-app-supervisor.mjs';
++import { platformPolicyWorld } from './helpers/platform-policy-world.mjs';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const pexec = promisify(execFile);
++
++// ---------------------------------------------------------------------------------------------------------------- 1
++async function seam(env) {
++  const { stdout } = await pexec(process.execPath, [path.join(ROOT, 'supervisor.js')], {
++    env: { PATH: process.env.PATH, SECRET: 'test-secret', SESSION_KEY_DIR: mkdtempSync(path.join(tmpdir(), 'enc-access-')),
++           ADDRESS_BOOK_ADDRESS: '', REGISTRY_ENABLED: '', CLAIM_ENABLED: '', APP_CERT_DOMAIN: '', DNS_API: '', ...env } });
++  return JSON.parse(stdout.trim().split('\n').filter(Boolean).at(-1));
++}
++// one vector list shared by the supervisor and the site mirror
++const GOOD = [['https://dash.example.org'], ['https://dash.example.org:8443', 'https://alt.example.net'], ['http://127.0.0.1:5173'],
++  ['http://[::1]:9000'], ['http://localhost:3000'], ['https://a.example', 'https://b.example', 'https://c.example', 'https://d.example']];
++const BAD = [[], ['https://dash.example.org/'], ['https://dash.example.org/authorize'], ['https://Dash.example.org'], ['http://dash.example.org'],
++  ['https://127.0.0.1'], ['http://127.0.0.1'], ['https://user@dash.example.org'], ['https://dash.example.org?x=1'], ['https://dash.example.org#f'],
++  ['https://localhost:3000'], ['https://dash'], ['https://a.example', 'https://a.example'], ['javascript:alert(1)'], ['https://dash.example.org:99999'],
++  ['https://a.example', 'https://b.example', 'https://c.example', 'https://d.example', 'https://e.example']];
++
++test('the envelope `access` namespace: exact owner origins only, fail-closed, and applied live (no restart)', async () => {
++  const env = (a) => JSON.stringify({ access: a });
++  const r = await seam({ WAF_SELFTEST: JSON.stringify({ parse: [
++    ...GOOD.map((f) => env({ frontends: f })), ...BAD.map((f) => env({ frontends: f })),
++    env({ frontends: ['https://dash.example.org'], extra: 1 }), env(['https://dash.example.org']), env('https://dash.example.org'),
++    JSON.stringify({ access: { frontends: ['https://dash.example.org'] }, waf: { rps: 5 }, config: { k: 1 } }),
++  ] }) });
++  GOOD.forEach((f, i) => assert.deepEqual(r.parse[i].ok.access, { frontends: f }, JSON.stringify(f)));
++  BAD.forEach((f, i) => assert.ok(r.parse[GOOD.length + i].err, 'refused: ' + JSON.stringify(f)));
++  const tail = r.parse.slice(GOOD.length + BAD.length);
++  assert.match(tail[0].err, /unknown access option "extra"/);
++  assert.ok(tail[1].err && tail[2].err);
++  assert.deepEqual(tail[3].ok.access, { frontends: ['https://dash.example.org'] }, 'access rides beside waf and config');
++  assert.equal(tail[3].ok.waf.rps, 5);
++
++  const running = (envelope) => ({ rec: { _onchain: true, status: 'running', _envelope: envelope } });
++  const v = await seam({ CFG_EDIT_SELFTEST: JSON.stringify({ apply: true, records: [
++    { ...running('{}'), chainCid: env({ frontends: ['https://dash.example.org'] }) },                                  // owner chooses
++    { ...running(env({ frontends: ['https://dash.example.org'] })), chainCid: env({ frontends: ['https://alt.example.net'] }) },   // owner changes
++    { ...running(env({ frontends: ['https://dash.example.org'] })), chainCid: '{}' },                                   // owner returns to default
++    { ...running('{}'), chainCid: env({ frontends: ['https://dash.example.org/path'] }) },                              // malformed: kept serving, surfaced
++    { ...running(env({ frontends: ['https://dash.example.org'] })), chainCid: JSON.stringify({ access: { frontends: ['https://dash.example.org'] }, config: { k: 2 } }) },
++  ] }) });
++  assert.deepEqual(v.map((x) => x.verdict), ['waf', 'waf', 'waf', 'error', 'restart']);
++  // what each applied edit leaves live on the serving record (the claim/resume record uses the same function)
++  assert.deepEqual(v.map((x) => x.live && x.live.access), [{ frontends: ['https://dash.example.org'] }, { frontends: ['https://alt.example.net'] }, null, undefined,
++    { frontends: ['https://dash.example.org'] }]);
++});
++
++test('an older-namespace refusal is fail-closed: an unknown access option never parses to "no options"', async () => {
++  const r = await seam({ WAF_SELFTEST: JSON.stringify({ parse: [JSON.stringify({ access: { frontend: 'https://dash.example.org' } })] }) });
++  assert.match(r.parse[0].err, /unknown access option "frontend"/);
++});
++
++// ---------------------------------------------------------------------------------------------------------------- 2
++globalThis.localStorage ||= (() => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; })();
++globalThis.sessionStorage ||= globalThis.localStorage;
++globalThis.location ||= { hostname: 'dash.example.org', origin: 'https://dash.example.org', href: 'https://dash.example.org/authorize' };
++const A = await import(pathToFileURL(path.join(ROOT, 'site/js/core/app-access.js')).href);
++
++test('the site mirror agrees with the supervisor on every origin vector, and edits keep every other namespace', () => {
++  for (const f of GOOD) assert.ok(f.every(A.validFrontend), JSON.stringify(f));
++  for (const f of BAD.filter((x) => x.length === 1)) assert.equal(A.validFrontend(f[0]), false, f[0]);
++  const raw = JSON.stringify({ waf: { rps: 5 }, placement: { hostId: '0x' + '12'.repeat(32) }, config: { k: 1 } });
++  const set = A.withAccessFrontends(raw, ['https://dash.example.org', 'http://127.0.0.1:5173']);
++  assert.deepEqual(JSON.parse(set), { waf: { rps: 5 }, placement: { hostId: '0x' + '12'.repeat(32) }, config: { k: 1 },
++    access: { frontends: ['https://dash.example.org', 'http://127.0.0.1:5173'] } });
++  assert.deepEqual(A.accessFrontends(set), ['https://dash.example.org', 'http://127.0.0.1:5173']);
++  assert.deepEqual(JSON.parse(A.withAccessFrontends(set, [])), JSON.parse(raw), 'empty = back to the host default; nothing else changes');
++  assert.throws(() => A.withAccessFrontends(raw, ['https://dash.example.org/authorize']), /not an exact origin/);
++  assert.throws(() => A.withAccessFrontends(raw, ['https://a.example', 'https://a.example']), /twice/);
++  assert.throws(() => A.withAccessFrontends(JSON.stringify({ access: { frontends: 'x' } }), []), /Invalid sign-in frontends/, 'a malformed namespace is never overwritten');
++  assert.throws(() => A.withAccessFrontends(JSON.stringify({ waf: { pathBlock: ['/' + 'x'.repeat(4100)] } }), ['https://a.example']), /4096-byte/);
++});
++
++test('the hand-off target is the runner\'s registered origin, exactly, and never an Enclave dashboard or API name', () => {
++  const id = '0x' + 'ab'.repeat(32);
++  assert.deepEqual(A.handoffTarget('https://box.example:8443', id), { origin: 'https://box.example:8443', root: '/x/' + id,
++    hostPath: 'box.example:8443/x/' + id + '/__enclave/session?d=' + id, sessionUrl: 'https://box.example:8443/x/' + id + '/__enclave/session?d=' + id });
++  assert.equal(A.handoffTarget('https://box.example/t/metal0/', id).hostPath, 'box.example/t/metal0/x/' + id + '/__enclave/session?d=' + id);
++  for (const bad of ['http://box.example', 'https://u:p@box.example', 'https://box.example?x=1', 'https://box.example#x', 'not a url',
++                     'https://api.enclave.host/t/metal0', 'https://enclave.host', 'https://box1.enclave.host', 'https://api.nan.host'])
++    assert.throws(() => A.handoffTarget(bad, id), A.AppAccessError, bad);
++  assert.equal(A.wantedPath('/\\evil.com/x', 'https://box.example'), '/', 'the backslash trick resolves off-origin and is dropped');
++  assert.equal(A.wantedPath('/a/b?c=1', 'https://box.example'), '/a/b?c=1');
++});
++
++// a REAL session key in WebCrypto, and the vault/sid the chain fixture says it belongs to
++async function webSession({ vault, sid, owner, actions = 1n << 132n, live = true, expiresAt = Math.floor(Date.now() / 1000) + 3600 }) {
++  const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
++  const jwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
++  const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
++  const apiAuthorization = async (method, url, body) => {
++    const u = new URL(url), hostPath = u.host + u.pathname + u.search, ts = Math.floor(Date.now() / 1000);
++    const n = Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString('base64url');
++    const bh = hex(await crypto.subtle.digest('SHA-256', body));
++    const msg = `enclave-api-v1\n${method}\n${hostPath}\n${bh}\n${ts}\n${n}\n${vault.toLowerCase()}\n${sid.toLowerCase()}`;
++    const sig = Buffer.from(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, kp.privateKey, new TextEncoder().encode(msg))).toString('base64url');
++    return `EnclaveSession v1 vault=${vault},sid=${sid},ts=${ts},n=${n},x=${jwk.x},y=${jwk.y},sig=${sig}`;
++  };
++  return { owner, session: { handle: { vault, sid }, status: async () => ({ live, expiresAt, actions: String(actions) }), apiAuthorization },
++           keyHash: sessionKeyHash(Buffer.from(jwk.x, 'base64url'), Buffer.from(jwk.y, 'base64url')) };
++}
++
++test('openPrivateApp: owner, lease, registry and the platform policy decide BEFORE anything is signed; the result is the exact signed hand-off', async () => {
++  const id = '0x' + 'cd'.repeat(32), wallet = '0x' + '77'.repeat(20), vault = '0x' + '88'.repeat(20), sid = '0x' + '99'.repeat(32);
++  const s = await webSession({ vault, sid, owner: wallet });
++  let signed = 0;
++  const sess = { ...s, session: { ...s.session, apiAuthorization: async (...a) => { signed++; return s.session.apiAuthorization(...a); } } };
++  const lease = (o = {}) => ({ id, owner: vault, runner: '0x' + 'ee'.repeat(32), runnerOperator: '0x' + '44'.repeat(20), chainId: 8453, active: true, isPublic: false,
++    leaseUntil: Date.now() + 600000, validUntil: Date.now() + 60000, blockNumber: '1000', ...o });
++  const world = { lr: { current: true, host: { endpoint: 'https://box.example:8443' }, lease: lease() }, pol: { admit: true }, session: sess };
++  A._useForTests({ agreedLease: async () => world.lr, leaseHostPolicy: async () => world.pol, session: async () => world.session,
++    actions: async () => ({ 'api.appAccess': 132 }), wallet: () => wallet, owner: () => wallet, checkAuthorization: checkAuthorizationWeb });
++  const out = await A.openPrivateApp(id, { path: '/inbox?q=1' });
++  const [base, frag] = out.url.split('#');
++  assert.equal(base, 'https://box.example:8443/x/' + id + '/__enclave/session?d=' + id);
++  const h = new URLSearchParams(frag);
++  assert.equal(h.get('p'), '/inbox?q=1');
++  await checkAuthorizationWeb(h.get('a'), { method: 'POST', hostPath: 'box.example:8443/x/' + id + '/__enclave/session?d=' + id, body: new Uint8Array(0) });
++  assert.equal(signed, 1);
++  const refusals = [
++    [() => { world.lr = { ...world.lr, lease: lease({ active: false }) }; }, 'stopped'],
++    [() => { world.lr = { ...world.lr, lease: lease({ runner: '0x' + '00'.repeat(32) }) }; }, 'no-host'],
++    [() => { world.lr = { ...world.lr, current: false }; }, 'registry'],
++    [() => { world.pol = { admit: false, reason: 'banned by platform policy #3 (operator): abuse' }; }, 'policy'],
++    [() => { world.lr = { ...world.lr, lease: lease({ owner: '0x' + '55'.repeat(20) }) }; }, 'owner'],          // an unrelated wallet's app
++    [() => { world.session = { ...sess, owner: '0x' + '66'.repeat(20) }; }, 'session'],
++    [() => { world.session = null; }, 'session'],
++    [() => { world.session = { ...sess, session: { ...sess.session, status: async () => ({ live: false, expiresAt: 0, actions: '0' }) } }; }, 'session'],
++    [() => { world.session = { ...sess, session: { ...sess.session, status: async () => ({ live: true, expiresAt: Math.floor(Date.now() / 1000) + 99, actions: String(1n << 128n) }) } }; }, 'scope'],
++    [() => { world.lr = { ...world.lr, host: { endpoint: 'https://api.enclave.host/t/metal0' } }; }, 'endpoint'],
++  ];
++  for (const [mutate, kind] of refusals) {
++    const keep = { ...world };
++    mutate(); signed = 0;
++    await assert.rejects(A.openPrivateApp(id), (e) => e instanceof A.AppAccessError && e.kind === kind, kind);
++    assert.equal(signed, 0, 'nothing is signed for a refused open: ' + kind);
++    Object.assign(world, keep);
++  }
++  // a signer that signs something OTHER than the exact hand-off (buggy or hostile): refused, nothing navigates
++  const keep = world.session;
++  world.session = { ...sess, session: { ...sess.session, apiAuthorization: (m, u, b) => s.session.apiAuthorization(m, u.replace('box.example', 'evil.example'), b) } };
++  await assert.rejects(A.openPrivateApp(id), (e) => e instanceof A.AppAccessError && e.kind === 'session' && /did not sign exactly this hand-off/.test(e.message));
++  world.session = keep;
++  world.lr = { ...world.lr, lease: lease({ isPublic: true }) };
++  assert.deepEqual(await A.openPrivateApp(id, { path: '/' }), { url: 'https://box.example:8443/x/' + id + '/', public: true, origin: 'https://box.example:8443', runner: '0x' + 'ee'.repeat(32), block: '1000' });
++  A._useForTests(null);
++});
++
++// ---------------------------------------------------------------------------------------------------------------- 3
++const PUBLIC_URL = 'https://host.private.example';
++const HOST = 'host.private.example';
++const pins = { registry: '0x' + '06'.repeat(20), deployments: '0x' + '05'.repeat(20), appCatalog: '0x' + '08'.repeat(20), proofOfTime: '0x' + '09'.repeat(20),
++  enclavePay: '0x' + '00'.repeat(20), verificationFees: '0x' + '00'.repeat(20), sessionVaultFactory: '0x' + '07'.repeat(20), secretVaultV2: '0x' + '00'.repeat(20) };
++const ID_VAULT = '0x' + 'a1'.repeat(32), ID_SAFE = '0x' + 'a2'.repeat(32), ID_DEFAULT = '0x' + 'a3'.repeat(32);
++const VAULT = getAddress('0x' + '88'.repeat(20)), SID = '0x' + '99'.repeat(32), SAFE = getAddress('0x' + '5a'.repeat(20));
++const OTHER_VAULT = getAddress('0x' + '33'.repeat(20)), OTHER_SID = '0x' + '34'.repeat(32), OTHER_WALLET = getAddress('0x' + '35'.repeat(20));
++const FRONTENDS = ['https://dash.owner.example', 'https://backup.owner.example'];
++const P256 = () => generateKeyPairSync('ec', { namedCurve: 'P-256' });
++const keyHashOf = (k) => { const j = createPublicKey(k.privateKey).export({ format: 'jwk' }); return sessionKeyHash(Buffer.from(j.x, 'base64url'), Buffer.from(j.y, 'base64url')); };
++const APP = 1n << 132n;
++
++function world() {
++  const owner = P256(), stranger = P256();
++  const chain = { factory: pins.sessionVaultFactory, ledger: pins.deployments, ledgerCode: '0x', delegated: new Set(), vaults: {
++    // the owner's session vault: a SAFE owns it (a contract wallet; the vault does not care what kind of address)
++    [VAULT.toLowerCase()]: { owner: SAFE, held: { [ID_VAULT]: 2, [ID_DEFAULT]: 2 }, sessions: { [SID]: { keyHash: keyHashOf(owner), actions: String(APP), envs: 2, expiresAt: Math.floor(Date.now() / 1000) + 3600, live: true } } },
++    // an unrelated wallet's vault and live session, with every scope
++    [OTHER_VAULT.toLowerCase()]: { owner: OTHER_WALLET, held: {}, sessions: { [OTHER_SID]: { keyHash: keyHashOf(stranger), actions: String((1n << 200n) - 1n), envs: 3, expiresAt: Math.floor(Date.now() / 1000) + 3600, live: true } } },
++  } };
++  return { chain, owner, stranger,
++    sign: (k, v, s, now) => sessionRequestSigner({ vault: v, sid: s, privateKey: k.privateKey, ...(now ? { now } : {}) }) };
++}
++const deployments = [{ id: ID_VAULT, owner: VAULT, access: { frontends: FRONTENDS } },   // vault-held, owner chose frontends
++                     { id: ID_SAFE, owner: SAFE, access: { frontends: FRONTENDS } },     // held by the Safe wallet itself
++                     { id: ID_DEFAULT, owner: VAULT }];                                   // no choice: the host default
++const target = (id) => `/x/${id}/__enclave/session?d=${id}`;
++async function post(port, pathq, header, extra = {}) {
++  const r = await fetch(`http://127.0.0.1:${port}${pathq}`, { method: 'POST', headers: { authorization: header, ...extra } });
++  let j = null; try { j = await r.json(); } catch {}
++  return { status: r.status, cookie: r.headers.get('set-cookie'), code: j && (j.code || j.error), message: j && j.message };
++}
++const cookieOf = (sc) => sc && sc.split(';')[0];
++
++test('ACTUAL supervisor: the bounce names only the owner\'s frontends; the session hand-off opens the app; the default flow is unchanged', { timeout: 120000 }, async (t) => {
++  const w = world();
++  const sup = await startPrivateAppSupervisor(t, { chain: w.chain, deployments, pins, publicUrl: PUBLIC_URL });
++  const base = `http://127.0.0.1:${sup.port}`;
++  const nav = (id, cookie) => fetch(`${base}/x/${id}/inbox?q=1`, { headers: { 'sec-fetch-dest': 'document', ...(cookie ? { cookie } : {}) }, redirect: 'manual' });
++
++  // the bounce for an owner-chosen app: only the owner's origins, never enclave.host
++  const b = await nav(ID_VAULT);
++  const page = await b.text();
++  assert.equal(b.status, 401);
++  for (const f of FRONTENDS) assert.ok(page.includes(`href="${f}/authorize?d=${ID_VAULT}"`), f);
++  assert.ok(!/enclave\.host/.test(page), 'no enclave.host link or redirect on the owner-chosen bounce');
++  assert.match(b.headers.get('content-security-policy'), /default-src 'none'/);
++  // the default app keeps the host's sign-in (SIWE_URI, enclave.host by default): the normal-origin flow is unchanged
++  const d = await (await nav(ID_DEFAULT)).text();
++  assert.ok(d.includes(`https://enclave.host/authorize?d=${ID_DEFAULT}`) && d.includes('Continue to enclave.host'));
++
++  // the owner's hand-off: one session signature for exactly this host + path + deployment
++  const sign = w.sign(w.owner, VAULT, SID);
++  const ok = await post(sup.port, target(ID_VAULT), sign({ method: 'POST', hostPath: HOST + target(ID_VAULT), body: Buffer.alloc(0) }));
++  assert.equal(ok.status, 204, JSON.stringify(ok));
++  assert.match(ok.cookie, /^enclave_app=[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+; HttpOnly; Secure; SameSite=Strict; Path=\/; Max-Age=43200$/);
++  const opened = await nav(ID_VAULT, cookieOf(ok.cookie));
++  assert.equal(opened.status, 200);
++  assert.match(await opened.text(), new RegExp('PRIVATE-APP ' + ID_VAULT));
++  const seen = sup.tenants[ID_VAULT].at(-1);
++  assert.equal(seen.cookie, null, 'the app never sees the owner\'s cookie');
++  assert.equal(seen.authorization, null);
++  // the cookie is audience-bound: it opens no sibling deployment on this host, and is no control-plane session
++  assert.equal((await nav(ID_DEFAULT, cookieOf(ok.cookie))).status, 401);
++  assert.equal((await fetch(`${base}/v1/deployments`, { headers: { authorization: 'Bearer ' + cookieOf(ok.cookie).slice('enclave_app='.length) } })).status, 401);
++
++  // the normal-origin token flow still works: an app token minted on the control plane, redeemed at the app origin
++  const tokenPath = `/v1/deployments/${ID_DEFAULT}/app-token`;
++  const mint = await fetch(base + tokenPath, { method: 'POST', headers: { authorization: sign({ method: 'POST', hostPath: HOST + tokenPath, body: Buffer.alloc(0) }) } });
++  assert.equal(mint.status, 200);
++  const { token } = await mint.json();
++  const redeem = await post(sup.port, `/x/${ID_DEFAULT}/__enclave/session`, 'Bearer ' + token);
++  assert.equal(redeem.status, 204);
++  assert.equal((await nav(ID_DEFAULT, cookieOf(redeem.cookie))).status, 200);
++});
++
++test('ACTUAL supervisor: forged, replayed, wrong-deployment, wrong-host, wrong-path, expired, unrelated and unscoped hand-offs open nothing', { timeout: 120000 }, async (t) => {
++  const w = world();
++  const sup = await startPrivateAppSupervisor(t, { chain: w.chain, deployments, pins, publicUrl: PUBLIC_URL });
++  const sign = w.sign(w.owner, VAULT, SID);
++  const hp = (id, host = HOST) => host + target(id);
++  const empty = Buffer.alloc(0);
++  // replay: the second use of one signature is refused (single-use nonce on this host)
++  const h = sign({ method: 'POST', hostPath: hp(ID_VAULT), body: empty });
++  assert.equal((await post(sup.port, target(ID_VAULT), h)).status, 204);
++  const replay = await post(sup.port, target(ID_VAULT), h);
++  assert.deepEqual([replay.status, replay.cookie], [401, null]);
++  assert.match(replay.message, /replayed/);
++  const cases = {
++    // signed for ANOTHER host (a frontend tricked into aiming at an attacker's origin): never verifies here
++    wrongHost: [target(ID_VAULT), sign({ method: 'POST', hostPath: hp(ID_VAULT, 'evil.example'), body: empty }), 401],
++    // signed for one deployment, presented for another (both on this host, same owner vault)
++    wrongDeployment: [target(ID_DEFAULT), sign({ method: 'POST', hostPath: hp(ID_VAULT), body: empty }), 401],
++    // a query that does not name exactly this deployment
++    wrongQuery: [`/x/${ID_VAULT}/__enclave/session?d=${ID_DEFAULT}`, sign({ method: 'POST', hostPath: HOST + `/x/${ID_VAULT}/__enclave/session?d=${ID_DEFAULT}`, body: empty }), 400],
++    missingQuery: [`/x/${ID_VAULT}/__enclave/session`, sign({ method: 'POST', hostPath: HOST + `/x/${ID_VAULT}/__enclave/session`, body: empty }), 400],
++    // the control-plane app-token signature is not a hand-off (a different path)
++    wrongPath: [target(ID_VAULT), sign({ method: 'POST', hostPath: HOST + `/v1/deployments/${ID_VAULT}/app-token`, body: empty }), 401],
++    // two minutes old
++    expired: [target(ID_VAULT), w.sign(w.owner, VAULT, SID, () => Date.now() - 120000)({ method: 'POST', hostPath: hp(ID_VAULT), body: empty }), 401],
++    // a key that is not the session's
++    forged: [target(ID_VAULT), w.sign(P256(), VAULT, SID)({ method: 'POST', hostPath: hp(ID_VAULT), body: empty }), 401],
++    // an unrelated wallet's own valid, fully-scoped session
++    unrelated: [target(ID_VAULT), w.sign(w.stranger, OTHER_VAULT, OTHER_SID)({ method: 'POST', hostPath: hp(ID_VAULT), body: empty }), 403],
++  };
++  for (const [name, [pathq, header, status]] of Object.entries(cases)) {
++    const r = await post(sup.port, pathq, header);
++    assert.deepEqual([r.status, r.cookie], [status, null], name + ' ' + JSON.stringify(r));
++  }
++  // a body is refused (the signature covers none)
++  const withBody = await fetch(`http://127.0.0.1:${sup.port}${target(ID_VAULT)}`, { method: 'POST', body: 'x',
++    headers: { authorization: sign({ method: 'POST', hostPath: hp(ID_VAULT), body: empty }) } });
++  assert.equal(withBody.status, 400);
++  // a session without api.appAccess
++  w.chain.vaults[VAULT.toLowerCase()].sessions[SID].actions = String(1n << 128n);
++  const unscoped = await post(sup.port, target(ID_VAULT), sign({ method: 'POST', hostPath: hp(ID_VAULT), body: empty }));
++  assert.deepEqual([unscoped.status, unscoped.cookie], [403, null]);
++  assert.match(unscoped.message, /lacks api.appAccess/);
++  assert.equal(sup.tenants[ID_VAULT].length, 0, 'no refused hand-off ever reached the app');
++});
++
++test('ACTUAL supervisor: revocation, owner rotation and the Safe\'s ledger delegation are read from the chain at hand-off time', { timeout: 120000 }, async (t) => {
++  const w = world();
++  const sup = await startPrivateAppSupervisor(t, { chain: w.chain, deployments, pins, publicUrl: PUBLIC_URL });
++  const sign = w.sign(w.owner, VAULT, SID), empty = Buffer.alloc(0);
++  const go = (id) => post(sup.port, target(id), sign({ method: 'POST', hostPath: HOST + target(id), body: empty }));
++  // the Safe holds ID_SAFE directly: a session opens it only once the Safe let its vault act for it on the ledger
++  assert.equal((await go(ID_SAFE)).status, 403, 'a ledger without delegation support');
++  w.chain.ledgerCode = '0x63' + toFunctionSelector('setDelegate(address,bool)').slice(2);
++  const ungranted = await go(ID_SAFE);
++  assert.equal(ungranted.status, 403);
++  assert.match(ungranted.message, /setDelegate/);
++  w.chain.delegated.add(delegateSlot(SAFE, VAULT).toLowerCase());                 // the Safe's own setDelegate transaction
++  assert.equal((await go(ID_SAFE)).status, 204, 'Safe-delegated session opens the Safe-held app');
++  // owner rotation: the vault's owner changes away from the Safe; the Safe's delegation no longer speaks for this vault
++  w.chain.vaults[VAULT.toLowerCase()].owner = OTHER_WALLET;
++  assert.equal((await go(ID_SAFE)).status, 403, 'rotated: the vault no longer belongs to the deployment\'s holder');
++  w.chain.vaults[VAULT.toLowerCase()].owner = SAFE;
++  // the deployment leaves the session's environments (adopted to staging only)
++  w.chain.vaults[VAULT.toLowerCase()].held[ID_VAULT] = 1;
++  assert.equal((await go(ID_VAULT)).status, 403);
++  w.chain.vaults[VAULT.toLowerCase()].held[ID_VAULT] = 2;
++  assert.equal((await go(ID_VAULT)).status, 204);
++  // revocation: the owner ends the session
++  w.chain.vaults[VAULT.toLowerCase()].sessions[SID].live = false;
++  const ended = await go(ID_VAULT);
++  assert.deepEqual([ended.status, ended.code], [401, 'session_ended']);
++});
++
++test('ACTUAL supervisor: the platform administrator\'s host ban refuses the app and its hand-off before any owner check', { timeout: 180000 }, async (t) => {
++  const hostId = keccak256(toBytes(PUBLIC_URL)).toLowerCase(), op = '0x' + '44'.repeat(20);
++  const pw = await platformPolicyWorld(t, { hosts: { [hostId]: { endpoint: PUBLIC_URL, operator: op, owner: '0x' + '55'.repeat(20), active: true } } });
++  await pw.publish({ deny: [] });
++  const w = world();
++  const sup = await startPrivateAppSupervisor(t, { chain: w.chain, deployments, pins, publicUrl: PUBLIC_URL,
++    env: pw.env({ ENCLAVE_PLATFORM_HOST_POLICY_INTERVAL_SEC: '1', ENCLAVE_PLATFORM_HOST_POLICY_GRACE_SEC: '6' }) });
++  const base = `http://127.0.0.1:${sup.port}`;
++  const serving = async () => (await (await fetch(`${base}/v1/health`)).json()).platformHostPolicy;
++  const until = async (fn, ms = 20000) => { const end = Date.now() + ms; while (Date.now() < end) { if (await fn()) return true; await new Promise((r) => setTimeout(r, 250)); } return false; };
++  assert.ok(await until(async () => (await serving())?.serving === true));
++  const sign = w.sign(w.owner, VAULT, SID), empty = Buffer.alloc(0);
++  assert.equal((await post(sup.port, target(ID_VAULT), sign({ method: 'POST', hostPath: HOST + target(ID_VAULT), body: empty }))).status, 204, 'admitted: the owner opens it');
++  await pw.publish({ deny: [{ kind: 'operator', value: op, reason: 'abuse' }] });
++  assert.ok(await until(async () => (await serving())?.banned === true));
++  const banned = await post(sup.port, target(ID_VAULT), sign({ method: 'POST', hostPath: HOST + target(ID_VAULT), body: empty }));
++  assert.deepEqual([banned.status, banned.code, banned.cookie], [403, 'host_policy_refused', null]);
++  const nav = await fetch(`${base}/x/${ID_VAULT}/`, { headers: { 'sec-fetch-dest': 'document' } });
++  assert.equal(nav.status, 403);
++});
+--- /dev/null
++++ b/test/helpers/private-app-supervisor.mjs
+@@ -0,0 +1,120 @@
++// Test-only process fixture for PRIVATE-APP BROWSER ACCESS (work/private-browser-access-interface.txt): the ACTUAL
++// supervisor.js, unmodified and without any self-test seam, as a child process. Derived from management-supervisor.mjs
++// (kept unchanged); this one adds what the private data path needs:
++//   - several deployments, each restored from a seeded STATE_FILE (the supervisor's own loadState) as a running, PRIVATE,
++//     vm-backed record exactly as a claim leaves it - including `access` (what parseDepOptions makes of an envelope);
++//   - a tenant HTTP server per deployment behind its forwarded port, recording what reached the app (e.g. its Cookie);
++//   - chain reads from `chain`: session vaults and factory (eth_call), and the deployments ledger's code and delegation
++//     storage (eth_getCode / eth_getStorageAt), so the owner-delegation path (a Safe-held deployment) is real;
++//   - the network: the loopback-only preload refuses every non-loopback fetch (no RPC fallback, no Enclave domain).
++import {spawn} from 'node:child_process';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import http from 'node:http';
++import net from 'node:net';
++import {decodeFunctionData, encodeFunctionResult, getAddress} from 'viem';
++import {VAULT_ABI, FACTORY_ABI} from '../../windows/node/session-api-auth.mjs';
++
++const ABI = [...VAULT_ABI, ...FACTORY_ABI];
++const ZERO32 = '0x' + '00'.repeat(32);
++export const freePort = () => new Promise(r => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
++const readJson = req => new Promise((resolve, reject) => { const c = []; req.on('data', d => c.push(d)); req.once('end', () => { try { resolve(c.length ? JSON.parse(Buffer.concat(c)) : null); } catch (e) { reject(e); } }); });
++
++// chain: {factory, ledger, ledgerCode, delegated: Set<slot>, vaults: {<vault lc>: {owner, held: {<id>: env},
++//         sessions: {<sid>: {keyHash, actions, envs, expiresAt, live}}}}}. Mutable: tests rotate, revoke and delegate live.
++function rpcServer(chain) {
++  const call = ({to, data}) => {
++    const {functionName, args} = decodeFunctionData({abi: ABI, data});
++    const at = String(to).toLowerCase(), v = chain.vaults[at];
++    let result;
++    if (functionName === 'isVault') { if (at !== chain.factory.toLowerCase()) throw Error('not the factory'); result = !!chain.vaults[String(args[0]).toLowerCase()]; }
++    else if (!v) throw Error('no contract');
++    else if (functionName === 'owner') result = getAddress(v.owner);
++    else if (functionName === 'held') result = [v.held[String(args[0]).toLowerCase()] || 0, ZERO32, ZERO32];
++    else if (functionName === 'sessionOf') {
++      const x = v.sessions[String(args[0]).toLowerCase()];
++      const s = x || {keyHash: ZERO32, actions: '0', envs: 0, expiresAt: 0, live: false};
++      result = [{keyHash: s.keyHash, measurement: ZERO32, actions: BigInt(s.actions), expiresAt: BigInt(s.expiresAt), epoch: 0n, envs: s.envs, state: 0, anyApp: false,
++        balance6: 0n, spent6: 0n, perPeriod6: 0n, maxFee6: 0n, maxAppFeeHour6: 0n, maxRateHour6: 0n, periodStart: 0n, period: 0, opsPerPeriod: 0, periodSpent6: 0n, periodOps: 0},
++        !!(x && x.live), []];
++    } else throw Error('unscripted');
++    return encodeFunctionResult({abi: ABI, functionName, result});
++  };
++  const one = m => {
++    try {
++      if (m.method === 'eth_chainId') return {result: '0x2105'};
++      if (m.method === 'eth_blockNumber') return {result: '0x100'};
++      if (m.method === 'eth_getLogs') return {result: []};
++      if (m.method === 'eth_call') return {result: call(m.params[0])};
++      if (m.method === 'eth_getCode') return {result: String(m.params[0]).toLowerCase() === String(chain.ledger || '').toLowerCase() ? (chain.ledgerCode || '0x') : '0x'};
++      if (m.method === 'eth_getStorageAt') {
++        const on = String(m.params[0]).toLowerCase() === String(chain.ledger || '').toLowerCase() && chain.delegated && chain.delegated.has(String(m.params[1]).toLowerCase());
++        return {result: '0x' + '0'.repeat(63) + (on ? '1' : '0')};
++      }
++      return {error: {code: -32601, message: 'not available in this fixture'}};
++    } catch (e) { return {error: {code: 3, message: 'execution reverted: ' + e.message, data: '0x'}}; }
++  };
++  return http.createServer(async (req, res) => {
++    const body = await readJson(req).catch(() => null);
++    const answer = Array.isArray(body) ? body.map(m => ({jsonrpc: '2.0', id: m.id, ...one(m)})) : {jsonrpc: '2.0', id: body?.id, ...one(body || {})};
++    res.writeHead(200, {'content-type': 'application/json'}); res.end(JSON.stringify(answer));
++  });
++}
++
++const managerServer = () => http.createServer(async (req, res) => {
++  await readJson(req).catch(() => null);
++  const u = new URL(req.url, 'http://manager.local');
++  res.writeHead(200, {'content-type': 'application/json'});
++  if (req.method === 'GET' && u.pathname === '/vms') return res.end('[]');
++  if (req.method === 'GET' && u.pathname.startsWith('/vms/')) return res.end(JSON.stringify({id: u.pathname.slice(5), status: 'running'}));
++  res.end('{"ok":true}');
++});
++
++// The private app itself: answers every path with its id, and records each request's Cookie (the supervisor must have
++// stripped its own enclave_app pair before the app sees it).
++function tenantServer(id, seen) {
++  return http.createServer((req, res) => {
++    seen.push({path: req.url, cookie: req.headers.cookie || null, authorization: req.headers.authorization || null});
++    res.writeHead(200, {'content-type': 'text/html; charset=utf-8'});
++    res.end(`<!doctype html><title>private app</title><h1 id="app">PRIVATE-APP ${id}</h1>`);
++  });
++}
++
++/**
++ * -> {port, tenants: {<id>: [requests]}, stdout()} once the supervisor listens.
++ * deployments: [{id, owner, access?}] restored running + private. `env` adds or overrides supervisor environment.
++ */
++export async function startPrivateAppSupervisor(t, {chain, deployments, pins, publicUrl, env = {}}) {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'private-app-supervisor-'));
++  t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
++  const rpc = rpcServer(chain), manager = managerServer(), tenants = {}, servers = [rpc, manager];
++  for (const d of deployments) { tenants[d.id] = []; servers.push(d._server = tenantServer(d.id, tenants[d.id])); }
++  await Promise.all(servers.map(s => new Promise(r => s.listen(0, '127.0.0.1', r))));
++  t.after(() => { for (const s of servers) { s.closeAllConnections?.(); s.close(); } });
++  const pinFile = path.join(dir, 'pins.json');
++  fs.writeFileSync(pinFile, JSON.stringify({version: 1, chainId: 8453, contracts: pins}));
++  const stateFile = path.join(dir, 'state.json');
++  fs.writeFileSync(stateFile, JSON.stringify({savedAt: Date.now(), deployments: deployments.map((d, i) => ({id: d.id, owner: getAddress(d.owner), status: 'running', public: false,
++    firewall: [], image: {reference: 'catalog://0x' + '00'.repeat(32) + '/0'}, command: [], config: '', resources: {cpuShare: 0.1, gpuShare: 0},
++    network: {port: 8080, protocol: 'https'}, remainingMs: null, _vmId: 'vm-private-' + i, _vmHostPort: d._server.address().port, _port: 0,
++    ...(d.access ? {access: d.access} : {}), startedAt: Date.now(), createdAt: new Date().toISOString()}))}));
++  const port = await freePort();
++  const child = spawn(process.execPath, ['--import', new URL('./loopback-only-fetch.mjs', import.meta.url).pathname, 'supervisor.js'], {
++    cwd: new URL('../..', import.meta.url).pathname,
++    env: {PATH: process.env.PATH, HOME: dir, SECRET: 'private-app-fixture-secret', PORT: String(port), ENABLE_MPS: '0', STATE_FILE: stateFile,
++      PROVISION_BACKEND: 'vm', VMMGR_URL: `http://127.0.0.1:${manager.address().port}`, BASE_RPC: `http://127.0.0.1:${rpc.address().port}`,
++      ENCLAVE_CONTRACT_PINS_FILE: pinFile, ADDRESS_BOOK_ADDRESS: '', PUBLIC_URL: publicUrl, SECRETS_API: '', DOMAINS_API: '', CERTS_API: '', DNS_API: '',
++      APP_CERT_DOMAIN: '', CLAIM_ENABLED: '', REGISTRY_ENABLED: '', SESSION_KEY_DIR: path.join(dir, 'session-key'), ...env},
++  });
++  t.after(() => child.kill('SIGKILL'));
++  let out = '';
++  child.stdout.on('data', d => { out += d; }); child.stderr.on('data', d => { out += d; });
++  await new Promise((resolve, reject) => {
++    const timer = setTimeout(() => reject(Error('the supervisor did not start:\n' + out.slice(-2000))), 30000);
++    const check = () => { if (out.includes(`enclave supervisor on :${port}`)) { clearTimeout(timer); resolve(); } };
++    child.stdout.on('data', check);
++    child.once('exit', code => { clearTimeout(timer); reject(Error(`the supervisor exited ${code}:\n` + out.slice(-2000))); });
++  });
++  return {port, tenants, stdout: () => out, child};
++}
+--- /dev/null
++++ b/e2e/private-access.config.mjs
+@@ -0,0 +1,17 @@
++// Real Chromium for PRIVATE-APP BROWSER ACCESS from an owner-selected frontend (work/private-browser-access-interface.txt).
++// Separate from playwright.config.mjs: no relay, no anvil, no global setup. Each spec starts its own local world:
++// the ACTUAL supervisor.js (test/helpers/private-app-supervisor.mjs) behind a local TLS front, and an owner frontend
++// origin. Names resolve to 127.0.0.1 only through Chromium's host-resolver rules; every other request is aborted and
++// recorded by the spec.
++//   npx playwright test -c private-access.config.mjs        (from e2e/, through the shared test queue)
++import { defineConfig } from "@playwright/test";
++
++export default defineConfig({
++  testDir: "./private-access",
++  timeout: 120_000,
++  expect: { timeout: 20_000 },
++  retries: 0,
++  workers: 1,
++  reporter: "list",
++  use: { browserName: "chromium", reducedMotion: "reduce", trace: "retain-on-failure" },
++});
+--- /dev/null
++++ b/e2e/private-access/private-app.spec.mjs
+@@ -0,0 +1,223 @@
++// REAL Chromium: a private app opened from the OWNER-SELECTED sign-in frontend (work/private-browser-access-interface.txt).
++//
++// What is real:
++//   - Chromium, its TLS stack, cookies (HttpOnly; Secure; SameSite=Strict), fragments, history and redirects;
++//   - the ACTUAL supervisor.js (unmodified child process) behind a local TLS front at https://host.pa.test:<port>
++//     (= its PUBLIC_URL): its sign-in bounce page, the /__enclave/session page and its POST, sessionApi verification
++//     against the chain fixture, the record judgement, and the private /x/<id> proxy to a fixture app;
++//   - the owner frontend at https://owner.pa.test:<port>: the REAL site/js/core/app-access.js and the REAL vendored
++//     browser bundle's checkAuthorizationWeb, with the session key signing in Chromium's WebCrypto.
++// What is a fixture: the chain (a local JSON-RPC answering the session vault/factory reads for the supervisor; and, for
++// the frontend, the agreed lease, registry and host-policy answers handed in as JSON, because the full independent-mode
++// bootstrap needs deployed ledger contracts), the app itself, and a self-signed certificate (ignoreHTTPSErrors).
++// Every request to any other origin is aborted and recorded; enclave.host and its API must never be contacted.
++import { test, expect, chromium } from "@playwright/test";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import https from "node:https";
++import { execFileSync } from "node:child_process";
++import { fileURLToPath } from "node:url";
++import { generateKeyPairSync } from "node:crypto";
++import { sessionKeyHash } from "../../windows/node/session-api-auth.mjs";
++import { startPrivateAppSupervisor, freePort } from "../../test/helpers/private-app-supervisor.mjs";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
++const ID_VAULT = "0x" + "a1".repeat(32), ID_DEFAULT = "0x" + "a3".repeat(32), ID_FAILOVER = "0x" + "a4".repeat(32);
++const VAULT = "0x" + "88".repeat(20), SID = "0x" + "99".repeat(32), SAFE = "0x" + "5a".repeat(20);
++const OTHER_VAULT = "0x" + "33".repeat(20), OTHER_SID = "0x" + "34".repeat(32), OTHER_WALLET = "0x" + "35".repeat(20);
++const pins = { registry: "0x" + "06".repeat(20), deployments: "0x" + "05".repeat(20), appCatalog: "0x" + "08".repeat(20), proofOfTime: "0x" + "09".repeat(20),
++  enclavePay: "0x" + "00".repeat(20), verificationFees: "0x" + "00".repeat(20), sessionVaultFactory: "0x" + "07".repeat(20), secretVaultV2: "0x" + "00".repeat(20) };
++const APP = 1n << 132n;
++
++const cleanups = [];
++const t = { after: (fn) => cleanups.push(fn) };            // the helper's node:test-style hook
++const W = {};
++
++function certs(dir) {
++  execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes", "-subj", "/CN=pa.test", "-days", "1",
++    "-addext", "subjectAltName=DNS:host.pa.test,DNS:owner.pa.test,DNS:down.pa.test", "-keyout", dir + "/key", "-out", dir + "/cert"], { stdio: "ignore" });
++  return { key: fs.readFileSync(dir + "/key"), cert: fs.readFileSync(dir + "/cert") };
++}
++const listen = (s, port) => new Promise((r) => s.listen(port, "127.0.0.1", r));
++function front(tls, targetPort) {                          // the host's TLS front: bytes to the supervisor, unchanged
++  return https.createServer(tls, (req, res) => {
++    const up = http.request({ host: "127.0.0.1", port: targetPort, method: req.method, path: req.url, headers: req.headers }, (u) => { res.writeHead(u.statusCode, u.headers); u.pipe(res); });
++    up.on("error", () => { if (!res.headersSent) res.writeHead(502); res.end(); });
++    req.pipe(up);
++  });
++}
++const FRONTEND = `<!doctype html><html lang="en"><meta charset="utf-8"><title>Owner sign-in</title><main><h1>Owner sign-in</h1><p id="st" role="status">Opening…</p></main>
++<script type="module">
++import * as A from "/js/core/app-access.js";
++import { checkAuthorizationWeb } from "/vendor/management.js";
++const st = document.getElementById("st");
++const b64u = (b) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
++const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
++try {
++  const fx = await (await fetch("/fixture.json", { cache: "no-store" })).json();
++  const key = await crypto.subtle.importKey("jwk", fx.jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
++  const apiAuthorization = async (method, url, body) => {
++    const u = new URL(url), hostPath = u.host + u.pathname + u.search, ts = Math.floor(Date.now() / 1000), n = b64u(crypto.getRandomValues(new Uint8Array(12)));
++    const msg = "enclave-api-v1\\n" + method + "\\n" + hostPath + "\\n" + hex(await crypto.subtle.digest("SHA-256", body)) + "\\n" + ts + "\\n" + n + "\\n" + fx.vault.toLowerCase() + "\\n" + fx.sid.toLowerCase();
++    const sig = b64u(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(msg)));
++    return "EnclaveSession v1 vault=" + fx.vault + ",sid=" + fx.sid + ",ts=" + ts + ",n=" + n + ",x=" + fx.jwk.x + ",y=" + fx.jwk.y + ",sig=" + sig;
++  };
++  A._useForTests({ agreedLease: async () => fx.lr, leaseHostPolicy: async () => fx.pol,
++    session: async () => ({ owner: fx.wallet, session: { handle: { vault: fx.vault, sid: fx.sid }, status: async () => fx.status, apiAuthorization } }),
++    actions: async () => ({ "api.appAccess": 132 }), wallet: () => fx.wallet, owner: () => fx.wallet, checkAuthorization: checkAuthorizationWeb });
++  const d = new URL(location.href).searchParams.get("d") || "";
++  let p = "/"; try { p = new URLSearchParams(location.hash.slice(1)).get("p") || "/"; } catch (e) {}
++  const out = await A.openPrivateApp(d, { path: p });
++  st.textContent = "Opening the app at " + out.origin + "…";
++  location.replace(out.url);
++} catch (e) { st.setAttribute("role", "alert"); st.textContent = "Refused (" + (e.kind || "error") + "): " + e.message; }
++</script></html>`;
++function frontendServer(tls) {                              // the owner's own sign-in origin: static files + the fixture
++  const types = { ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json" };
++  return https.createServer(tls, (req, res) => {
++    const u = new URL(req.url, "https://owner.pa.test");
++    W.frontendHits.push(u.pathname);
++    if (u.pathname === "/authorize") { res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }); return res.end(FRONTEND); }
++    if (u.pathname === "/fixture.json") { res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }); return res.end(JSON.stringify(W.fixture())); }
++    const file = u.pathname.startsWith("/network/") ? path.join(ROOT, u.pathname) : path.join(ROOT, "site", u.pathname);
++    if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end(); }
++    res.writeHead(200, { "content-type": types[path.extname(file)] || "application/octet-stream" });
++    fs.createReadStream(file).pipe(res);
++  });
++}
++
++test.beforeAll(async () => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "private-access-e2e-"));
++  cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const tls = certs(dir);
++  const [hostPort, ownerPort, downPort] = [await freePort(), await freePort(), await freePort()];
++  W.host = `https://host.pa.test:${hostPort}`; W.owner = `https://owner.pa.test:${ownerPort}`; W.down = `https://down.pa.test:${downPort}`;
++  const owner = generateKeyPairSync("ec", { namedCurve: "P-256" }), stranger = generateKeyPairSync("ec", { namedCurve: "P-256" });
++  const jwkOf = (k) => k.privateKey.export({ format: "jwk" });
++  const kh = (k) => { const j = jwkOf(k); return sessionKeyHash(Buffer.from(j.x, "base64url"), Buffer.from(j.y, "base64url")); };
++  const live = { keyHash: kh(owner), actions: String(APP), envs: 2, expiresAt: Math.floor(Date.now() / 1000) + 3600, live: true };
++  W.chain = { factory: pins.sessionVaultFactory, ledger: pins.deployments, ledgerCode: "0x", delegated: new Set(), vaults: {
++    [VAULT]: { owner: SAFE, held: { [ID_VAULT]: 2, [ID_DEFAULT]: 2, [ID_FAILOVER]: 2 }, sessions: { [SID]: live } },
++    [OTHER_VAULT]: { owner: OTHER_WALLET, held: {}, sessions: { [OTHER_SID]: { ...live, keyHash: kh(stranger), actions: String((1n << 200n) - 1n), envs: 3 } } } } };
++  const sup = await startPrivateAppSupervisor(t, { chain: W.chain, pins, publicUrl: W.host, deployments: [
++    { id: ID_VAULT, owner: VAULT, access: { frontends: [W.owner] } },
++    { id: ID_DEFAULT, owner: VAULT },
++    { id: ID_FAILOVER, owner: VAULT, access: { frontends: [W.down, W.owner] } } ] });
++  W.tenants = sup.tenants;
++  const servers = [front(tls, sup.port), frontendServer(tls)];
++  await listen(servers[0], hostPort); await listen(servers[1], ownerPort);
++  cleanups.push(() => { for (const s of servers) { s.closeAllConnections?.(); s.close(); } });
++  // what the frontend's agreed reads report (the runner's registry endpoint is the supervisor's PUBLIC_URL)
++  const lease = { owner: VAULT, runner: "0x" + "ee".repeat(32), runnerOperator: "0x" + "44".repeat(20), chainId: 8453, deployments: pins.deployments, active: true,
++    isPublic: false, leaseUntil: Date.now() + 3600000, validUntil: Date.now() + 600000, blockNumber: "1000" };
++  W.who = { wallet: SAFE, vault: VAULT, sid: SID, jwk: jwkOf(owner), status: { live: true, expiresAt: live.expiresAt, actions: String(APP) }, lease };
++  W.stranger = { wallet: OTHER_WALLET, vault: OTHER_VAULT, sid: OTHER_SID, jwk: jwkOf(stranger), status: { live: true, expiresAt: live.expiresAt, actions: String((1n << 200n) - 1n) } };
++  W.as = W.who;
++  W.leaseOverride = null;
++  W.fixture = () => ({ jwk: W.as.jwk, vault: W.as.vault, sid: W.as.sid, wallet: W.as.wallet, status: W.as.status, pol: { admit: true },
++    lr: { current: true, host: { endpoint: W.host }, lease: { ...lease, ...(W.leaseOverride || {}), id: W.lastId } } });
++});
++test.afterAll(async () => { for (const f of cleanups.reverse()) { try { await f(); } catch {} } });
++
++async function browser() {
++  const b = await chromium.launch({ args: ["--host-resolver-rules=MAP host.pa.test 127.0.0.1, MAP owner.pa.test 127.0.0.1, MAP down.pa.test 127.0.0.1"] });
++  const context = await b.newContext({ ignoreHTTPSErrors: true });
++  const blocked = [];
++  const allowed = new Set([new URL(W.host).host, new URL(W.owner).host]);
++  await context.route("**/*", (route) => {
++    const u = new URL(route.request().url());
++    if (allowed.has(u.host)) return route.continue();
++    blocked.push(u.origin + u.pathname);
++    return route.abort("blockedbyclient");
++  });
++  return { b, context, blocked };
++}
++const enclaveHits = (blocked) => blocked.filter((u) => /(^|\/\/|\.)enclave\.host|nan\.host/.test(u));
++
++test("the owner opens a private app from their chosen frontend; enclave.host and its API are never contacted", async () => {
++  W.frontendHits = []; W.as = W.who; W.lastId = ID_VAULT; W.leaseOverride = null;
++  const { b, context, blocked } = await browser();
++  const page = await context.newPage();
++  await page.goto(`${W.host}/x/${ID_VAULT}/inbox?q=1`);
++  await expect(page.locator("#app")).toHaveText(`PRIVATE-APP ${ID_VAULT}`);
++  expect(page.url()).toBe(`${W.host}/x/${ID_VAULT}/inbox?q=1`);                       // the path the owner asked for
++  expect(W.frontendHits).toContain("/authorize");                                        // went through the owner's frontend
++  const cookie = (await context.cookies(W.host)).find((c) => c.name === "enclave_app");
++  expect(cookie && cookie.httpOnly && cookie.secure && cookie.sameSite === "Strict").toBeTruthy();
++  expect(W.tenants[ID_VAULT].every((r) => !/enclave_app/.test(r.cookie || ""))).toBe(true);   // the app never sees it
++  // the hand-off credential is gone from history: Back does not land on the #a= URL
++  const hist = await page.evaluate(() => location.href);
++  expect(hist.includes("#a=")).toBe(false);
++  expect(enclaveHits(blocked)).toEqual([]);
++  expect(blocked).toEqual([]);
++  // the SAME hand-off URL used again is refused by the host (single-use), and opens nothing new
++  await b.close();
++});
++
++test("an unrelated wallet is refused before signing; a forged owner claim is refused by the host", async () => {
++  W.frontendHits = []; W.lastId = ID_VAULT;
++  // (a) the frontend reads the lease and refuses: the stranger's wallet/vault is not the owner. Nothing is signed or sent.
++  W.as = W.stranger; W.leaseOverride = null;
++  let { b, context, blocked } = await browser();
++  let page = await context.newPage();
++  await page.goto(`${W.host}/x/${ID_VAULT}/`);
++  await expect(page.locator("#st[role=alert]")).toContainText("Refused (owner)");
++  expect(W.tenants[ID_VAULT].length).toBeGreaterThanOrEqual(0);
++  expect((await context.cookies(W.host)).some((c) => c.name === "enclave_app")).toBe(false);
++  await b.close();
++  // (b) the frontend is LIED to (its read claims the stranger's vault owns the app) and signs: the host judges the chain
++  W.leaseOverride = { owner: OTHER_VAULT };
++  ({ b, context, blocked } = await browser());
++  page = await context.newPage();
++  const before = W.tenants[ID_VAULT].length;
++  await page.goto(`${W.host}/x/${ID_VAULT}/`);
++  await expect(page.locator("#m")).toContainText("This host refused the sign-in: This session does not belong to the deployment's owner.");
++  expect((await context.cookies(W.host)).some((c) => c.name === "enclave_app")).toBe(false);
++  expect(W.tenants[ID_VAULT].length).toBe(before);                                       // nothing reached the app
++  expect(enclaveHits(blocked)).toEqual([]);
++  await b.close();
++  W.as = W.who; W.leaseOverride = null;
++});
++
++test("the owner's first sign-in page is down: no fallback to enclave.host; an explicit choice of the owner's other page works", async () => {
++  W.frontendHits = []; W.as = W.who; W.lastId = ID_FAILOVER; W.leaseOverride = null;
++  const { b, context, blocked } = await browser();
++  const page = await context.newPage();
++  await page.goto(`${W.host}/x/${ID_FAILOVER}/`).catch(() => {});                       // bounce -> down.pa.test (aborted)
++  await expect.poll(() => blocked.some((u) => u.startsWith(W.down))).toBe(true);
++  // the owner opens the app link again (location.replace left no bounce entry to go Back to): the bounce now stays
++  await page.goto(`${W.host}/x/${ID_FAILOVER}/`);
++  await expect(page.locator("#st")).toContainText("The first sign-in page did not complete");
++  const links = page.locator("a.fe");
++  await expect(links).toHaveCount(2);
++  await expect(links.nth(1)).toHaveText(W.owner);
++  await links.nth(1).click();                                                              // the owner's explicit choice
++  await expect(page.locator("#app")).toHaveText(`PRIVATE-APP ${ID_FAILOVER}`);
++  expect(enclaveHits(blocked)).toEqual([]);
++  await b.close();
++});
++
++test("an app whose owner chose nothing keeps the host default: the bounce still targets enclave.host (unchanged)", async () => {
++  const { b, context, blocked } = await browser();
++  const page = await context.newPage();
++  await page.goto(`${W.host}/x/${ID_DEFAULT}/`).catch(() => {});
++  await expect.poll(() => blocked.some((u) => u === "https://enclave.host/authorize")).toBe(true);
++  await b.close();
++});
++
++test("a used hand-off URL is single-use: replaying it in the browser is refused by the host", async () => {
++  W.frontendHits = []; W.as = W.who; W.lastId = ID_VAULT; W.leaseOverride = null;
++  const { b, context } = await browser();
++  const page = await context.newPage();
++  let handoff = null;
++  page.on("framenavigated", (f) => { if (f === page.mainFrame() && f.url().includes("/__enclave/session")) handoff = f.url(); });
++  await page.goto(`${W.host}/x/${ID_VAULT}/`);
++  await expect(page.locator("#app")).toHaveText(`PRIVATE-APP ${ID_VAULT}`);
++  expect(handoff && handoff.includes("#a=EnclaveSession")).toBeTruthy();
++  const second = await context.newPage();
++  await second.goto(handoff);
++  await expect(second.locator("#m")).toContainText("replayed request");
++  await b.close();
++});

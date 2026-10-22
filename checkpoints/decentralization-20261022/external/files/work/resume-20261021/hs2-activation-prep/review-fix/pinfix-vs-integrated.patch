@@ -1,0 +1,16 @@
+104a105,114
+> def verify_pairs_ps(pairs):
+>     """PowerShell: $pinsOk true only if every (path, sha256) pair matches, checked in this session; $pinChecked counts the
+>     pairs actually checked. Each pair is appended with the UNARY COMMA ($pp+=,@(path,hash)): written as statements inside
+>     @(...) PowerShell unrolls every inner array into its scalars, so $q became one string and $q[0] its first character
+>     (2026-10-21 fill refusal pinBad ['C','7','C','c','C','9'])."""
+>     adds = "".join(f"$pp+=,@('{p}','{h}');" for p, h in pairs)
+>     return ("$pinsOk=$true;$pinBad=@();$pinChecked=0;$pp=@();" + adds
+>             + "foreach($q in $pp){$pinChecked++;if(!(Test-Path -LiteralPath $q[0]) -or (Get-FileHash -LiteralPath $q[0] -Algorithm SHA256).Hash.ToLower() -ne $q[1]){$pinsOk=$false;$pinBad+=$q[0]}};"
+>             + "if($pinChecked -ne " + str(len(pairs)) + "){$pinsOk=$false;$pinBad+='(pin list malformed: '+$pinChecked+' checked)'};")
+> 
+107,108c117
+<     pairs = ";".join(f"@('{p}','{h}')" for p, h in L.pins_for(action))
+<     return ("$pinsOk=$true;$pinBad=@();foreach($q in @(" + pairs + ")){if(!(Test-Path -LiteralPath $q[0]) -or (Get-FileHash -LiteralPath $q[0] -Algorithm SHA256).Hash.ToLower() -ne $q[1]){$pinsOk=$false;$pinBad+=$q[0]}};")
+---
+>     return verify_pairs_ps(L.pins_for(action))

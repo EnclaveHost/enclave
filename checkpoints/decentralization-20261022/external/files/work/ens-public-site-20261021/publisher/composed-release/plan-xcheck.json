@@ -1,0 +1,44 @@
+{
+ "planSha256": "185b621369f38c15c2d5eaa2e8e4c060502f2340dc22f87aa2efa553bfefda4f",
+ "appRefNext": "catalog://0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef/6",
+ "publish": {
+  "sha": "e6456032d7a23f9ac690c914135af714dfc5a9a2d49ed1086c1871c8564798f1",
+  "equalsReleasePrep": true
+ },
+ "config": {
+  "sha": "5564945ecaaf691162dcd3082683df2e32650d28db1d5a58d9dcde80610c98a6",
+  "equalsCliUnsigned": true
+ },
+ "upgrade": {
+  "sha": "db3a9541bebbd2fefa6853f6b68dbaf84fbc455036591a936541a41eaa717ed8",
+  "selector": "0x4d506615"
+ },
+ "steps": [
+  {
+   "n": 1,
+   "step": "upload",
+   "kind": "personal_sign"
+  },
+  {
+   "n": 2,
+   "step": "publish",
+   "kind": "transaction",
+   "to": "0x18419ca2b502d423a8de6269aeee171a378626e3",
+   "value": "0x0"
+  },
+  {
+   "n": 3,
+   "step": "upgrade",
+   "kind": "transaction",
+   "to": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+   "value": "0x0"
+  },
+  {
+   "n": 4,
+   "step": "config",
+   "kind": "transaction",
+   "to": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+   "value": "0x0"
+  }
+ ]
+}

@@ -1,0 +1,56 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/sdk/bootstrap/package.mjs	2026-10-20 14:57:53.163587150 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/certificate-main-composition/sdk/bootstrap/package.mjs	2026-10-20 15:25:28.398553184 -0700
+@@ -41,7 +41,7 @@
+ // is only a name the guest will certify for its own key; a CA's DNS validation,
+ // through the owner's _acme-challenge delegation, is what proves control.
+ // EAB entries name custody secrets; credential values never belong here.
+-export const MAX_OWNER_NAMES=10;
++export const MAX_OWNER_NAMES=10, MAX_APP_ZONE_CHALLENGES=8;
+ const dnsLabel=/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/, nameURL=/^https:\/\/([^/]+)(\/[A-Za-z0-9._~/-]*)?$/, secretName=/^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+ export function dnsName(s){
+   if(typeof s!=='string'||s.length<1||s.length>253)return false;
+@@ -53,12 +53,15 @@
+ const noNull=x=>x===null?false:Array.isArray(x)?x.every(noNull):object(x)?Object.values(x).every(noNull):true;
+ export function validateNames(n,secretsMode){
+   if(!object(n)||!noNull(n))throw Error('owner names must be an object without nulls');
+-  keys(n,['hosts','acme']);
+-  if(!Array.isArray(n.hosts)||n.hosts.length<1||n.hosts.length>MAX_OWNER_NAMES)throw Error(`owner names need 1 to ${MAX_OWNER_NAMES} hosts`);
+-  n.hosts.forEach((h,i)=>{
+-    if(!ownerHost(h))throw Error('owner name is not a lowercase DNS name outside enclave.host');
+-    if(i>0&&!(n.hosts[i-1]<h))throw Error('owner names must be strictly ascending and unique');
+-  });
++  keys(n,['hosts','acme','appZone']);
++  // hosts may be absent only when the member selects app-zone issuance alone (and then no owner ACME either)
++  if(Object.hasOwn(n,'hosts')||!Object.hasOwn(n,'appZone')){
++    if(!Array.isArray(n.hosts)||n.hosts.length<1||n.hosts.length>MAX_OWNER_NAMES)throw Error(`owner names need 1 to ${MAX_OWNER_NAMES} hosts`);
++    n.hosts.forEach((h,i)=>{
++      if(!ownerHost(h))throw Error('owner name is not a lowercase DNS name outside enclave.host');
++      if(i>0&&!(n.hosts[i-1]<h))throw Error('owner names must be strictly ascending and unique');
++    });
++  }else if(Object.hasOwn(n,'acme'))throw Error('owner ACME selection needs owner hosts');
+   if(Object.hasOwn(n,'acme')){
+     const a=n.acme;keys(a,['directory','challenge','zone','eab']);
+     if(!httpsName(a.directory)||!httpsName(a.challenge)||!dnsName(a.zone))throw Error('owner ACME selection needs HTTPS directory and challenge URLs and a DNS zone');
+@@ -69,6 +72,22 @@
+       if(secretsMode!=='custody-v2')throw Error('owner ACME EAB needs custody-v2 secrets');
+     }
+   }
++  // App-zone issuance (isolation/m2/front/appzone.go): only WHERE the guest asks - a CA directory and 1..8 independently
++  // operated challenge replicas; the name is the guest's own HOST_DATA label in its measured zone, never chosen here.
++  if(Object.hasOwn(n,'appZone')){
++    const z=n.appZone;keys(z,['directory','challenges','eab']);
++    if(!httpsName(z.directory)||!Array.isArray(z.challenges)||z.challenges.length<1||z.challenges.length>MAX_APP_ZONE_CHALLENGES)
++      throw Error(`app-zone ACME selection needs an HTTPS directory and 1 to ${MAX_APP_ZONE_CHALLENGES} challenge replica URLs`);
++    z.challenges.forEach((c,i)=>{
++      if(!httpsName(c))throw Error('app-zone challenge replicas must be HTTPS URLs');
++      if(i>0&&!(z.challenges[i-1]<c))throw Error('app-zone challenge replicas must be strictly ascending and unique');
++    });
++    if(Object.hasOwn(z,'eab')){
++      keys(z.eab,['kid','hmac']);
++      if(!secretName.test(z.eab.kid??'')||!secretName.test(z.eab.hmac??'')||z.eab.kid===z.eab.hmac)throw Error('app-zone ACME EAB must name two distinct custody secrets');
++      if(secretsMode!=='custody-v2')throw Error('app-zone ACME EAB needs custody-v2 secrets');
++    }
++  }
+   return n;
+ }
+ // Owner-named log history sources (optional; isolation/m2/bootstrap/history.go is the guest's identical check,

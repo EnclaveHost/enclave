@@ -1,0 +1,25 @@
+--- original/bundle/upgrade-manifest.json	2026-10-21 18:49:06.785119515 -0700
++++ package/bundle/upgrade-manifest.json	2026-10-21 18:58:48.712778585 -0700
+@@ -116,7 +116,21 @@
+     "changedPins": {
+       "sha256:1ad58e1d6998d21be853994df4df2875a92f02cab013c19764a826799fd3e5cb": "sha256:8a654c0da8ddf3e377db5a564195cb1638a31597ef9bf261c5508a6b1d389b6b"
+     },
+-    "challengeAdded": false
++    "challengeAdded": false,
++    "changes": {
++      "route-dns.config.challengeTxtUpstreams": {
++        "old": null,
++        "new": [
++          "127.0.0.1:18353",
++          "127.0.0.1:31053"
++        ]
++      },
++      "service-tls.config.challenge.declarationFile": {
++        "old": "C:\\ProgramData\\Enclave\\network\\challenge\\challenge-front.json",
++        "new": "C:\\ProgramData\\Enclave\\challenge-replica\\challenge-front.json"
++      }
++    },
++    "orders": "held"
+   },
+   "receipt": {
+     "old": "a583031c307ffdaa2e549e78dc2f04cc4cd188d9fddc37d8457c51a9898dac44"

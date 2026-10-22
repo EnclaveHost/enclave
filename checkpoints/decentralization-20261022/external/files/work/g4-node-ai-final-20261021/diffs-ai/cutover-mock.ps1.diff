@@ -1,0 +1,13 @@
+--- frozen/tools/cutover-mock.ps1
++++ ai-final/tools/cutover-mock.ps1
+@@ -74,7 +74,9 @@
+   # N3 (G4 final): the live data dir carries a NON-inheritable BU read (root's evidence); the scenarios add an inheritable one
+   $isRoot = $LiteralPath.TrimEnd('\', '/') -eq $global:S.root.TrimEnd('\', '/'); $isNet = $LiteralPath -eq (Join-Path $global:S.root 'network')
+   $bu = $(if ($isRoot -and $global:S.scenario -eq 'pd-inherit-read-bad') { 'ContainerInherit, ObjectInherit' } elseif ($isRoot) { 'None' } elseif ($isNet -and $global:S.scenario -eq 'netdir-read-bad') { 'ContainerInherit, ObjectInherit' } else { $null })
+-  $a = [pscustomobject]@{ Sddl = 'O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)'; AreAccessRulesProtected = $true; Extra = $extra; Bu = $bu }
++  # AI precondition (node-hold-acl-normalization): a config file whose DACL is NOT auto-inherited (the native fixture's failing 'inherited' form)
++  $noai = ($global:S.scenario -eq 'cfg-acl-no-ai' -and $LiteralPath -like '*privacy-config.json') -or ($global:S.scenario -eq 'local-acl-no-ai' -and $LiteralPath -like '*node-config.local.cmd')
++  $a = [pscustomobject]@{ Sddl = $(if ($noai) { 'O:BAG:S-1-5-21-1-2-3-513D:(A;ID;FA;;;SY)(A;ID;FA;;;BA)' } else { 'O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)' }); AreAccessRulesProtected = $true; Extra = $extra; Bu = $bu }
+   $a | Add-Member ScriptMethod GetAccessRules { param($x, $y, $z)
+     $r = @([pscustomobject]@{ AccessControlType = 'Allow'; FileSystemRights = 2032127; IdentityReference = [pscustomobject]@{ Value = 'S-1-5-18' }; InheritanceFlags = 'ContainerInherit, ObjectInherit'; PropagationFlags = 'None' },
+            [pscustomobject]@{ AccessControlType = 'Allow'; FileSystemRights = 2032127; IdentityReference = [pscustomobject]@{ Value = 'S-1-5-32-544' }; InheritanceFlags = 'ContainerInherit, ObjectInherit'; PropagationFlags = 'None' })

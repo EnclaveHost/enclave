@@ -1,0 +1,192 @@
+{
+ "at": "2026-10-21T12:54:43Z",
+ "remoteProgramSha256": "f39511f30ace56ad1ed942288227bfd7fae731d0f6b2f0d25d244e51d61e79f7",
+ "results": [
+  {
+   "case": "S1 preflight: exit 0",
+   "ok": true,
+   "detail": "rc=0 result='PREFLIGHT OK: both files LIVE'"
+  },
+  {
+   "case": "S1 preflight: files {'secrets.js': '6f3d8c76', 'api-relay.js': '27f71ad3'}",
+   "ok": true,
+   "detail": "{'secrets.js': '6f3d8c76', 'api-relay.js': '27f71ad3'} rc=0 result='PREFLIGHT OK: both files LIVE'"
+  },
+  {
+   "case": "S1 preflight: 0 restart(s)",
+   "ok": true,
+   "detail": "0 rc=0 result='PREFLIGHT OK: both files LIVE'"
+  },
+  {
+   "case": "S1: before = LIVE: ENS origins get no ACAO (the bug e49 fixes)",
+   "ok": true,
+   "detail": "{\"https://enclavehost.eth\": {\"get\": [200, null, null], \"preflight\": [204, null, null]}, \"https://enclavehost.eth.link\": {\"get\": [200, null, null], \"preflight\": [204, null, null]}, \"https://enclavehost.eth.limo\": {\"get\": [200, null, null], \"preflight\": [204, null, null]}, \"https://enclave.host\": {\"ge"
+  },
+  {
+   "case": "S1: before = LIVE: exists stalls past 3 s under hanging custody (the bug relay-exists fixes)",
+   "ok": true,
+   "detail": "[{\"code\": 503, \"s\": 16.159, \"acao\": null, \"acac\": null, \"body\": {\"error\": \"custody_unconfirmed\"}}]"
+  },
+  {
+   "case": "S2 CAS drift: exit 2",
+   "ok": true,
+   "detail": "rc=2 result=\"REFUSED: live ['api-relay.js'] match neither pin\""
+  },
+  {
+   "case": "S2 CAS drift: 0 restart(s)",
+   "ok": true,
+   "detail": "0 rc=2 result=\"REFUSED: live ['api-relay.js'] match neither pin\""
+  },
+  {
+   "case": "S2: drifted file untouched, no backup taken",
+   "ok": true,
+   "detail": "rc=2 result=\"REFUSED: live ['api-relay.js'] match neither pin\""
+  },
+  {
+   "case": "S3 syntax: exit 2",
+   "ok": true,
+   "detail": "rc=2 result='REFUSED: node --check failed for NEW api-relay.js (Node.js v22.23.3)'"
+  },
+  {
+   "case": "S3 syntax: files {'secrets.js': '6f3d8c76', 'api-relay.js': '27f71ad3'}",
+   "ok": true,
+   "detail": "{'secrets.js': '6f3d8c76', 'api-relay.js': '27f71ad3'} rc=2 result='REFUSED: node --check failed for NEW api-relay.js (Node.js v22.23.3)'"
+  },
+  {
+   "case": "S3 syntax: 0 restart(s)",
+   "ok": true,
+   "detail": "0 rc=2 result='REFUSED: node --check failed for NEW api-relay.js (Node.js v22.23.3)'"
+  },
+  {
+   "case": "S3: no temp/check files left",
+   "ok": true,
+   "detail": "rc=2 result='REFUSED: node --check failed for NEW api-relay.js (Node.js v22.23.3)'"
+  },
+  {
+   "case": "S4 crash: exit 3",
+   "ok": true,
+   "detail": "rc=3 result='FAILED, ROLLED BACK (relay healthy on LIVE): relay not healthy after restart (rc 0, failed, health 0)'"
+  },
+  {
+   "case": "S4 crash: files {'secrets.js': '6f3d8c76', 'api-relay.js': '27f71ad3'}",
+   "ok": true,
+   "detail": "{'secrets.js': '6f3d8c76', 'api-relay.js': '27f71ad3'} rc=3 result='FAILED, ROLLED BACK (relay healthy on LIVE): relay not healthy after restart (rc 0, failed, health 0)'"
+  },
+  {
+   "case": "S4 crash: 2 restart(s)",
+   "ok": true,
+   "detail": "2 rc=3 result='FAILED, ROLLED BACK (relay healthy on LIVE): relay not healthy after restart (rc 0, failed, health 0)'"
+  },
+  {
+   "case": "S4: healthy on LIVE after auto-rollback",
+   "ok": true,
+   "detail": "rc=3 result='FAILED, ROLLED BACK (relay healthy on LIVE): relay not healthy after restart (rc 0, failed, health 0)'"
+  },
+  {
+   "case": "S5 CORS reflect: exit 3",
+   "ok": true,
+   "detail": "rc=3 result=\"FAILED, ROLLED BACK (relay healthy on LIVE): get https://evil.example: untrusted origin got 'https://evil.example'/None; preflight https://evil.example: untrusted origin got 'https://evil.example'/None; get https://enclavehost.eth.evil.example: untrusted origin got 'https://enclavehost.eth.evil.example'/None\""
+  },
+  {
+   "case": "S5 CORS reflect: files {'secrets.js': '6f3d8c76', 'api-relay.js': '27f71ad3'}",
+   "ok": true,
+   "detail": "{'secrets.js': '6f3d8c76', 'api-relay.js': '27f71ad3'} rc=3 result=\"FAILED, ROLLED BACK (relay healthy on LIVE): get https://evil.example: untrusted origin got 'https://evil.example'/None; preflight https://evil.example: untrusted origin got 'https://evil.example'/None; get https://enclavehost.eth.evil.example: untrusted origin got 'https://enclavehost.eth.evil.example'/None\""
+  },
+  {
+   "case": "S5 CORS reflect: 2 restart(s)",
+   "ok": true,
+   "detail": "2 rc=3 result=\"FAILED, ROLLED BACK (relay healthy on LIVE): get https://evil.example: untrusted origin got 'https://evil.example'/None; preflight https://evil.example: untrusted origin got 'https://evil.example'/None; get https://enclavehost.eth.evil.example: untrusted origin got 'https://enclavehost.eth.evil.example'/None\""
+  },
+  {
+   "case": "S5: the untrusted-origin gate is what failed",
+   "ok": true,
+   "detail": "[\"get https://evil.example: untrusted origin got 'https://evil.example'/None\", \"preflight https://evil.example: untrusted origin got 'https://evil.example'/None\", \"get https://enclavehost.eth.evil.example: untrusted origin got 'https://enclavehost.eth.evil.example'/None\", \"preflight https://enclaveh"
+  },
+  {
+   "case": "S6 execute reviewed pair: exit 0",
+   "ok": true,
+   "detail": "rc=0 result='ACTIVATED: both files NEW, relay healthy, exists fast, CORS exact'"
+  },
+  {
+   "case": "S6 execute reviewed pair: files {'secrets.js': '4c491271', 'api-relay.js': '481f0041'}",
+   "ok": true,
+   "detail": "{'secrets.js': '4c491271', 'api-relay.js': '481f0041'} rc=0 result='ACTIVATED: both files NEW, relay healthy, exists fast, CORS exact'"
+  },
+  {
+   "case": "S6 execute reviewed pair: 1 restart(s)",
+   "ok": true,
+   "detail": "1 rc=0 result='ACTIVATED: both files NEW, relay healthy, exists fast, CORS exact'"
+  },
+  {
+   "case": "S6: exists 3x 200 exists:true each < 3 s with custody hanging",
+   "ok": true,
+   "detail": "[{\"code\": 200, \"s\": 1.507, \"acao\": null, \"acac\": null, \"body\": {\"exists\": true}}, {\"code\": 200, \"s\": 1.502, \"acao\": null, \"acac\": null, \"body\": {\"exists\": true}}, {\"code\": 200, \"s\": 1.502, \"acao\": null, \"acac\": null, \"body\": {\"exists\": true}}]"
+  },
+  {
+   "case": "S6: backups hold LIVE",
+   "ok": true,
+   "detail": "rc=0 result='ACTIVATED: both files NEW, relay healthy, exists fast, CORS exact'"
+  },
+  {
+   "case": "S7 execute again: exit 2",
+   "ok": true,
+   "detail": "rc=2 result='REFUSED: execute needs BOTH files at their LIVE pins'"
+  },
+  {
+   "case": "S7 execute again: files {'secrets.js': '4c491271', 'api-relay.js': '481f0041'}",
+   "ok": true,
+   "detail": "{'secrets.js': '4c491271', 'api-relay.js': '481f0041'} rc=2 result='REFUSED: execute needs BOTH files at their LIVE pins'"
+  },
+  {
+   "case": "S7 execute again: 0 restart(s)",
+   "ok": true,
+   "detail": "0 rc=2 result='REFUSED: execute needs BOTH files at their LIVE pins'"
+  },
+  {
+   "case": "S8 rollback: exit 0",
+   "ok": true,
+   "detail": "rc=0 result='ROLLED BACK: both files LIVE, relay healthy'"
+  },
+  {
+   "case": "S8 rollback: files {'secrets.js': '6f3d8c76', 'api-relay.js': '27f71ad3'}",
+   "ok": true,
+   "detail": "{'secrets.js': '6f3d8c76', 'api-relay.js': '27f71ad3'} rc=0 result='ROLLED BACK: both files LIVE, relay healthy'"
+  },
+  {
+   "case": "S8 rollback: 1 restart(s)",
+   "ok": true,
+   "detail": "1 rc=0 result='ROLLED BACK: both files LIVE, relay healthy'"
+  },
+  {
+   "case": "S9 rollback again: exit 2",
+   "ok": true,
+   "detail": "rc=2 result='REFUSED: both files already LIVE; nothing to roll back (no restart)'"
+  },
+  {
+   "case": "S9 rollback again: files {'secrets.js': '6f3d8c76', 'api-relay.js': '27f71ad3'}",
+   "ok": true,
+   "detail": "{'secrets.js': '6f3d8c76', 'api-relay.js': '27f71ad3'} rc=2 result='REFUSED: both files already LIVE; nothing to roll back (no restart)'"
+  },
+  {
+   "case": "S9 rollback again: 0 restart(s)",
+   "ok": true,
+   "detail": "0 rc=2 result='REFUSED: both files already LIVE; nothing to roll back (no restart)'"
+  },
+  {
+   "case": "S10 nothing starts: exit 4",
+   "ok": true,
+   "detail": "rc=4 result='CRITICAL: ROLLBACK DID NOT RESTORE A HEALTHY RELAY: relay not healthy after restart (rc 1, failed, health 0) | relay not healthy after restart (rc 1, failed, health 0) []'"
+  },
+  {
+   "case": "S10 nothing starts: 2 restart(s)",
+   "ok": true,
+   "detail": "2 rc=4 result='CRITICAL: ROLLBACK DID NOT RESTORE A HEALTHY RELAY: relay not healthy after restart (rc 1, failed, health 0) | relay not healthy after restart (rc 1, failed, health 0) []'"
+  },
+  {
+   "case": "S10: CRITICAL reported, files restored to LIVE",
+   "ok": true,
+   "detail": "rc=4 result='CRITICAL: ROLLBACK DID NOT RESTORE A HEALTHY RELAY: relay not healthy after restart (rc 1, failed, health 0) | relay not healthy after restart (rc 1, failed, health 0) []'"
+  }
+ ],
+ "failed": []
+}

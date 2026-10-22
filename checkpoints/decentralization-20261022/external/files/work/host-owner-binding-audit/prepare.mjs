@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import {prepareHostPolicy} from '../enclave/scripts/network/prepare-host-policy.mjs';
+import {LeaseReader} from '../enclave/network/lease-reader.mjs';
+import {PRODUCTION_BOOK,PRODUCTION_HOST_OWNERSHIP,PRODUCTION_RPCS} from '../enclave/network/platform-host-policy-config.mjs';
+const old=JSON.parse(fs.readFileSync('outputs/metal0-host-enrollment-current/transactions.json'));
+const release=JSON.parse(fs.readFileSync('outputs/host-ownership-release/deployment-receipt.json'));
+const reader=new LeaseReader({addressBook:PRODUCTION_BOOK,rpc:PRODUCTION_RPCS});
+const owner=old.transactions.find(t=>t.purpose.includes('accepts')).transaction.from;
+const result=await prepareHostPolicy({policy:{...old.policy,ownershipContract:PRODUCTION_HOST_OWNERSHIP},owner,registry:release.registry.toLowerCase(),reader});
+if(result.observation.ownershipCodeHash!==release.runtimeCodeHash)throw Error('Runtime differs from verified original deployment');
+if(result.observation.endpoint!=='https://api.enclave.host/t/metal0')throw Error('Unexpected registry endpoint');
+const out='outputs/metal0-production-owner-enrollment';fs.mkdirSync(out);
+const doc={...result,at:new Date().toISOString(),status:'prepared-not-signed-not-activated',note:'Uses the existing production ownership extension. Supersedes alternate-contract signing package for this host. Existing host-local policy choices preserved; platform administrator policy remains additional enforcement. No signature, broadcast, funding or runtime changes.',remaining:['Operator nomination, then owner acceptance and host-local policy commitment require ordered simulation/signing/readback.','Stage policy document before commitment; activate host-local enforcement only after owner/policy readback.','Do not activate alternate immutable session/custody migration.']};
+fs.writeFileSync(out+'/'+result.policyHash+'.json',JSON.stringify(result.policy,null,2)+'\n',{flag:'wx'});
+fs.writeFileSync(out+'/transactions.json',JSON.stringify(doc,null,2)+'\n',{flag:'wx'});
+console.log(JSON.stringify({status:doc.status,hostId:result.policy.hostId,contract:PRODUCTION_HOST_OWNERSHIP,transactions:result.transactions.length,policyHash:result.policyHash,block:result.observation.blockNumber}));

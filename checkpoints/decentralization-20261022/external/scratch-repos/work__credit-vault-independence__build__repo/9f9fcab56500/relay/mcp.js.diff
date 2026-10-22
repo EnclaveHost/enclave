@@ -1,0 +1,11 @@
+--- a/relay/mcp.js
++++ b/relay/mcp.js
+@@ -1197,7 +1197,7 @@
+   },
+   {
+     name: "build_host_fund",
+-    description: "Unsigned plain ETH transfer that GASES a self-hosted (metal) enclave's operator EOA — the in-config key that signs the box's register/heartbeat/claim transactions (metal/PROTOCOL.md; `enclave host init` prints the address). Not a payment to anyone: the ETH is consumed as Base network fees over months, and earnings never touch this key (they sweep to the box's payoutAddress). Once funded, the box registers itself and appears as serving.",
++    description: "Unsigned plain ETH transfer that GASES a self-hosted (metal) enclave's operator EOA — the in-config key that signs the box's register/claim/renew transactions (metal/PROTOCOL.md; `enclave host init` prints the address). Not a payment to anyone: the ETH is consumed as Base network fees over months, and earnings never touch this key (they sweep to the box's payoutAddress). Once funded, the box registers itself and appears as serving.",
+     inputSchema: S({ address: { type: "string", description: "the operator EOA (0x + 40 hex; from `enclave host init` / metal/config.json)" },
+                      eth: { type: "number", description: "ETH amount (default 0.002 — covers a long time at Base fees)" } }, ["address"]),
+     handler: async ({ address, eth }) => {

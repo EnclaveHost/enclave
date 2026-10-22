@@ -1,0 +1,136 @@
+--- forge/src/main/EnclaveLeaseGasReserve.sol	2026-10-20 15:55:35.933081752 -0700
++++ proposal/EnclaveLeaseGasReserve1271.sol	2026-10-20 15:59:23.142413703 -0700
+@@ -1,7 +1,20 @@
+ // SPDX-License-Identifier: MIT
+ pragma solidity ^0.8.24;
+ 
+-/// @title EnclaveLeaseGasReserve - an app's own ETH reserve pays the gas of its host's lease claim, renew and release.
++/// @title EnclaveLeaseGasReserve1271 - CANDIDATE (optional, UNAPPROVED; work/credit-vault-independence/proposal).
++///
++/// EnclaveLeaseGasReserve (main 1d173473) plus ONE additive capability: an owner of record that is a CONTRACT ACCOUNT
++/// (an existing EnclaveCreditVault, or any ERC-1271 wallet) can configure, allow claimants and withdraw by signature,
++/// because a credit vault cannot originate those calls (its allowlist reaches only the ledger; no ownerCall). Every
++/// pre-existing function keeps its exact behaviour; the owner-gated bodies moved into internal functions that the
++/// msg.sender path and the signature path share. Digests: keccak256(abi.encode(TAG, this reserve, chainid, id, owner,
++/// args..., sigNonce[budgetKey(id, owner)], deadline)), TAG one per action; the CURRENT owner of record is re-read at
++/// execution for configure/claimant (a signature made under a previous owner is void), the nonce makes each one-shot,
++/// and the owner's own isValidSignature (staticcall) is the verifier: for a credit vault that is a passkey assertion at
++/// its pinned origin. Not a production source; the ready11 setup uses the unmodified reserve.
++///
++/// --- original header ---
++/// EnclaveLeaseGasReserve - an app's own ETH reserve pays the gas of its host's lease claim, renew and release.
+ ///
+ /// PROTOTYPE (work/app-lease-gas, design B; design A is EnclaveLeaseGasPaymaster, ERC-4337). Additive: the ledger
+ /// (rev 16d) and the registry (schema 4) are used as deployed; no existing balance is touched or spendable here.
+@@ -30,7 +43,7 @@
+ ///   - release: the current runner, if the owner allows sponsored release (stop / move / early hand-back still work
+ ///     with zero host ETH). A release requires a lease held, which requires a claim: releases are bounded by claims;
+ ///   - money: per-operation cap, per-epoch cap, balance - all in finish(), after the measurement.
+-contract EnclaveLeaseGasReserve {
++contract EnclaveLeaseGasReserve1271 {
+     // ---- bindings ---------------------------------------------------------------------------------------------------
+     address public immutable ledger;
+     IRegistryR public immutable registry;
+@@ -324,9 +337,70 @@
+     ///         does this through its vault's ownerCall(reserve, configure(...)): msg.sender is then the vault.
+     function configure(bytes32 id, Policy calldata p) external {
+         require(_ownerOf(id) == msg.sender, "!owner");
++        _configure(id, msg.sender, p);
++    }
++
++    function setClaimant(bytes32 id, address operator, bool allowed) external {
++        require(_ownerOf(id) == msg.sender, "!owner");
++        _setClaimant(id, msg.sender, operator, allowed);
++    }
++
++    /// @notice Withdraw from the caller's own reserve for `id` (keyed to the caller: a previous owner keeps what it put
++    ///         in, and that reserve is never charged for a new owner's leases). No ledger read: works after migration.
++    function withdraw(bytes32 id, uint256 amountWei, address payable to) external {
++        _withdraw(id, msg.sender, amountWei, to);
++    }
++
++    // ---- CANDIDATE: the same three owner actions, authorized by the owner's ERC-1271 signature -----------------------
++    bytes32 public constant TAG_CONFIGURE = keccak256("EnclaveLeaseGasReserve.configureBySig.v1");
++    bytes32 public constant TAG_CLAIMANT = keccak256("EnclaveLeaseGasReserve.setClaimantBySig.v1");
++    bytes32 public constant TAG_WITHDRAW = keccak256("EnclaveLeaseGasReserve.withdrawBySig.v1");
++    /// next signature nonce per (deployment, owner): every signed action consumes one, in order
++    mapping(bytes32 => uint256) public sigNonce;
++    event SignedAction(bytes32 indexed id, address indexed owner, bytes32 tag, uint256 nonce);
++
++    function configureDigest(bytes32 id, address owner_, Policy calldata p, uint256 nonce_, uint256 deadline) public view returns (bytes32) {
++        return keccak256(abi.encode(TAG_CONFIGURE, address(this), block.chainid, id, owner_, keccak256(abi.encode(p)), nonce_, deadline));
++    }
++    function claimantDigest(bytes32 id, address owner_, address operator, bool allowed, uint256 nonce_, uint256 deadline) public view returns (bytes32) {
++        return keccak256(abi.encode(TAG_CLAIMANT, address(this), block.chainid, id, owner_, operator, allowed, nonce_, deadline));
++    }
++    function withdrawDigest(bytes32 id, address owner_, uint256 amountWei, address to, uint256 nonce_, uint256 deadline) public view returns (bytes32) {
++        return keccak256(abi.encode(TAG_WITHDRAW, address(this), block.chainid, id, owner_, amountWei, to, nonce_, deadline));
++    }
++
++    /// @notice configure() for the CURRENT owner of record, authorized by its signature over configureDigest. Anyone submits.
++    function configureBySig(bytes32 id, Policy calldata p, uint256 deadline, bytes calldata signature) external {
++        address o = _ownerOf(id);
++        _consume(id, o, TAG_CONFIGURE, configureDigest(id, o, p, sigNonce[budgetKey(id, o)], deadline), deadline, signature);
++        _configure(id, o, p);
++    }
++    function setClaimantBySig(bytes32 id, address operator, bool allowed, uint256 deadline, bytes calldata signature) external {
++        address o = _ownerOf(id);
++        _consume(id, o, TAG_CLAIMANT, claimantDigest(id, o, operator, allowed, sigNonce[budgetKey(id, o)], deadline), deadline, signature);
++        _setClaimant(id, o, operator, allowed);
++    }
++    /// @notice withdraw() from `owner_`'s own reserve for `id` (keyed like withdraw: no ledger read), to the signed `to`.
++    function withdrawBySig(bytes32 id, address owner_, uint256 amountWei, address payable to, uint256 deadline, bytes calldata signature) external {
++        _consume(id, owner_, TAG_WITHDRAW, withdrawDigest(id, owner_, amountWei, to, sigNonce[budgetKey(id, owner_)], deadline), deadline, signature);
++        _withdraw(id, owner_, amountWei, to);
++    }
++
++    /// deadline, a contract owner, its ERC-1271 answer (a staticcall: the verifier cannot change state), then the nonce
++    function _consume(bytes32 id, address o, bytes32 tag, bytes32 digest, uint256 deadline, bytes calldata signature) internal {
++        require(block.timestamp <= deadline, "expired");
++        require(o.code.length != 0, "owner is not a contract");   // an EOA owner calls directly; no ecrecover path here
++        (bool ok, bytes memory ret) = o.staticcall(abi.encodeWithSelector(0x1626ba7e, digest, signature));
++        require(ok && ret.length >= 32 && bytes4(abi.decode(ret, (bytes32))) == 0x1626ba7e, "bad signature");
++        bytes32 k = budgetKey(id, o);
++        uint256 n = sigNonce[k]++;
++        emit SignedAction(id, o, tag, n);
++    }
++
++    function _configure(bytes32 id, address o, Policy calldata p) internal {
+         require(p.claimPolicy <= POLICY_ALLOWLIST && p.maxPerOpWei <= p.epochCapWei && p.epochSec >= 600 && p.epochSec <= 30 days, "bad config");
+         require(p.renewWindow >= 30 && p.renewWindow <= 1 days && p.minExtension >= 1, "bad window");
+-        Reserve storage r = _reserves[budgetKey(id, msg.sender)];
++        Reserve storage r = _reserves[budgetKey(id, o)];
+         (r.enabled, r.claimPolicy, r.sponsorRelease, r.maxClaimsPerEpoch, r.maxPerOpWei, r.epochCapWei) =
+             (p.enabled, p.claimPolicy, p.sponsorRelease, p.maxClaimsPerEpoch, p.maxPerOpWei, p.epochCapWei);
+         if (r.epochSec != p.epochSec) { r.epochSec = p.epochSec; r.epochIndex = 0; r.epochSpentWei = 0; r.epochClaims = 0; }
+@@ -335,23 +409,20 @@
+         // creation here and every relayed operation has the same, calibrated tail
+         if (r.lastClaimAt == 0) r.lastClaimAt = 1;
+         if (r.lastClaimOperator == address(0)) r.lastClaimOperator = NO_OPERATOR;
+-        emit Configured(id, msg.sender, p);
++        emit Configured(id, o, p);
+     }
+ 
+-    function setClaimant(bytes32 id, address operator, bool allowed) external {
+-        require(_ownerOf(id) == msg.sender, "!owner");
+-        claimantAllowed[budgetKey(id, msg.sender)][operator] = allowed;
+-        emit ClaimantSet(id, msg.sender, operator, allowed);
++    function _setClaimant(bytes32 id, address o, address operator, bool allowed) internal {
++        claimantAllowed[budgetKey(id, o)][operator] = allowed;
++        emit ClaimantSet(id, o, operator, allowed);
+     }
+ 
+-    /// @notice Withdraw from the caller's own reserve for `id` (keyed to the caller: a previous owner keeps what it put
+-    ///         in, and that reserve is never charged for a new owner's leases). No ledger read: works after migration.
+-    function withdraw(bytes32 id, uint256 amountWei, address payable to) external {
++    function _withdraw(bytes32 id, address o, uint256 amountWei, address payable to) internal {
+         require(_tload(T_ID) == 0, "busy");              // never between an operation's begin and finish
+-        Reserve storage r = _reserves[budgetKey(id, msg.sender)];
++        Reserve storage r = _reserves[budgetKey(id, o)];
+         require(r.balanceWei >= amountWei, "short");
+         r.balanceWei -= uint128(amountWei);
+-        emit Withdrawn(id, msg.sender, to, amountWei);
++        emit Withdrawn(id, o, to, amountWei);
+         (bool ok,) = to.call{value: amountWei}("");
+         require(ok, "send");
+     }

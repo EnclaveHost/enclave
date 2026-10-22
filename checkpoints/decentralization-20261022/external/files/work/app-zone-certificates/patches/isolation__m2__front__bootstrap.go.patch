@@ -1,0 +1,12 @@
+--- a/isolation/m2/front/bootstrap.go
++++ b/isolation/m2/front/bootstrap.go
+@@ -131,6 +131,9 @@
+ 	if g, e := auth.NameGrant(); e == nil && g.ACME != nil && g.ACME.EAB != nil {
+ 		out.owner.eabKID, out.owner.eabKey, out.owner.eabErr = eabFrom(secrets, g.ACME.EAB)
+ 	}
++	if g, e := auth.NameGrant(); e == nil && g.AppZone != nil && g.AppZone.EAB != nil {
++		out.owner.appEabKID, out.owner.appEabKey, out.owner.appEabErr = eabFrom(secrets, g.AppZone.EAB)
++	}
+ 	if text != "" {
+ 		resolved, e := appconfig.Resolve(text, secrets)
+ 		if e != nil {

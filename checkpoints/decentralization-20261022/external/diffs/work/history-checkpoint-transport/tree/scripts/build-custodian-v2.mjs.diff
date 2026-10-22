@@ -1,0 +1,22 @@
+--- a/scripts/build-custodian-v2.mjs
++++ b/scripts/build-custodian-v2.mjs
+@@ -7,6 +7,8 @@
+ // Every other cpio entry is copied byte for byte. The launch measurement is printed (sev-snp-measure, 2 vCPUs).
+ //
+ //   node scripts/build-custodian-v2.mjs --base <metal dist dir> --out <new dir> --vault 0x… --host-ownership 0x… [--vcpus 2] [--transport direct|tunnel]
++//     [--book 0x…]  the deployed book-bound vault (0xE486…): registry/ledger follow that EnclaveAddressBook at each agreed block
++//     [--host-policy FILE]  {book, hostOwnership, mirrors[]}: enforce the admin's anchored platform host policy (network/platform-host-policy.mjs)
+ //        [--independent-owners owners.json | --independent-admission owner-permits]   (independent committees; see
+ //        docs/security/independent-custody-activation.md; either one bundles the static DKG helper)
+ //        [--shield-recipients shield.json]   (OPTIONAL Enclave Shield release recipients: this operator's TPM EK roots, their
+@@ -35,7 +37,9 @@
+ const { measured: MEASURED, policy: POLICY, needsDkg: NEEDS_DKG } = custodianMeasured({ vault: arg("vault", ""), hostOwnership: arg("host-ownership", ""),
+   transport: arg('transport','direct'), ownerList: ownerFile ? JSON.parse(fs.readFileSync(ownerFile,'utf8')) : null, admission: arg("independent-admission", null),
+   shieldRecipients: shieldFile ? JSON.parse(fs.readFileSync(shieldFile, "utf8")) : null,
+-  trustedProxies: arg("trusted-proxy", null) === null ? null : String(arg("trusted-proxy", "")).split(",").map((x) => x.trim()).filter(Boolean) });
++  trustedProxies: arg("trusted-proxy", null) === null ? null : String(arg("trusted-proxy", "")).split(",").map((x) => x.trim()).filter(Boolean),
++  book: arg("book", null),
++  hostPolicy: arg("host-policy", null) === null ? null : JSON.parse(fs.readFileSync(arg("host-policy", ""), "utf8")) });
+ const { vault: VAULT, hostOwnership: HOST_OWNERSHIP, transport: TRANSPORT, independentOwners: INDEPENDENT_OWNERS } = MEASURED;
+ const INDEPENDENT_ADMISSION = MEASURED.independentAdmission || null;
+ const sha = (b) => createHash("sha256").update(b).digest("hex");

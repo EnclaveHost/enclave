@@ -1,0 +1,5 @@
+# TLS ingress for one replica's APPLICATION API only (the admin API stays on loopback). ACME certificate for the
+# replica's own DNS name; replace the placeholder at activation.
+<PLACEHOLDER_REPLICA_HOSTNAME> {
+    reverse_proxy 127.0.0.1:9982
+}

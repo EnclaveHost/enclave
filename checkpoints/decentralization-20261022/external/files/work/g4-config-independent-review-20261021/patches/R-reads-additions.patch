@@ -1,0 +1,12 @@
+--- ../g4-live-config-prep-20261021/root-steps/R-reads.ps1	2026-10-21 15:39:59.146610744 -0700
++++ root-steps/R-reads.ps1	2026-10-21 16:21:04.378663463 -0700
+@@ -30,4 +30,9 @@
+ $o.enroll = Sha "$PF\control\windows\node\network-enroll.mjs"; $o.privacyAgent = Sha "$PF\network\privacy-agent.mjs"
+ $cf = "$PD\network\privacy-config.json"; $o.privacyConfig = [ordered]@{ sha = (Sha $cf); enKeys = @(([IO.File]::ReadAllText($cf) | ConvertFrom-Json).enclaveNetwork.PSObject.Properties.Name) }
+ $o.hostPolicyStateDir = (Test-Path -LiteralPath "$PD\network\state\challenge-host-policy")
++# (review 9d) R12 the file's ending (enroll writes none, the hold cutover "\n"): the edit keeps whichever it finds
++$o.privacyConfig.finalNewline = ([IO.File]::ReadAllBytes($cf)[-1] -eq 10)
++# (review 9d) R13 how many objects M1's Set-Acl on the network dir walks (inheritance re-propagation), and how many are protected
++$t = @(Get-ChildItem -LiteralPath "$PD\network" -Recurse -Force -ErrorAction SilentlyContinue)
++$o.networkTree = [ordered]@{ objects = $t.Count; protectedSample = @($t | Select-Object -First 400 | Where-Object { (Get-Acl -LiteralPath $_.FullName).AreAccessRulesProtected }).Count }
+ $o | ConvertTo-Json -Compress -Depth 6

@@ -1,0 +1,377 @@
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -35,7 +35,7 @@
+ import { execFileSync, execFile } from "node:child_process";
+ import { promisify } from "node:util";
+ const pexec = promisify(execFile);
+-import { openSync, readSync, closeSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, chmodSync, statfsSync, readdirSync, unlinkSync, statSync, lstatSync } from "node:fs";
++import { openSync, readSync, closeSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, chmodSync, statfsSync, readdirSync, unlinkSync, statSync, lstatSync, writeSync, fsyncSync } from "node:fs";
+ import { tmpdir } from "node:os";
+ import { join, dirname } from "node:path";
+ import { WebSocketServer, createWebSocketStream } from "ws";
+@@ -54,6 +54,8 @@
+ // This host's own signed capacity record for independent readers (docs/network/independent-capacity.md).
+ import { createHostCapacityProducer, capacityDirectoryOrigins, HOST_CAPACITY_PATH } from "./network/host-capacity-producer.mjs";
+ import { mayReconcile } from "./network/registry-reconcile.mjs";   // the registration rule the Windows node follows too
++// app-funded lease gas: the configuration boundary and sender shared with windows/node/chain.mjs
++import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender } from "./network/lease-gas-runtime.mjs";
+ // Wallet sessions (SessionVault) as owner credentials, verified on chain: shared with the Windows node.
+ import { createSessionApiAuth, isSessionHeader, hasScope, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES }
+   from "./windows/node/session-api-auth.mjs";
+@@ -3610,6 +3612,10 @@
+ // from the block it last finished - payments made during the outage are credited.
+ // Without a writable STATE_FILE this degrades to freezing within one process only.
+ let _stateDirty = false, _statePersistable = true;
++// The state file could not be read, or holds a malformed release journal, while app-funded leases are configured: an
++// unresolved sponsored release may be in it (relays send those, so no operator nonce fences them). Then no lease is
++// claimed, resumed, renewed or sent and the file is never overwritten until an operator resolves it. null = sound.
++let _stateCorrupt = null;
+ // Lease releases outlive the process that sent them (releaseLease below): a release() still in a mempool can land after
+ // a restart and end whatever lease this operator then holds. So each release is a durable INTENT, persisted with the
+ // public identity of every transaction it signed ({hash, nonce}) BEFORE that transaction is broadcast. Never a key,
+@@ -3620,7 +3626,7 @@
+ function serializeState() {
+   const recs = [...deployments.values()].map(r => {
+     const o = { ...r };
+-    for (const k of ["_payTimer", "_respawning", "_renewing", "_restarting"]) delete o[k];   // live handles only
++    for (const k of ["_payTimer", "_respawning", "_renewing", "_restarting", "_leaseGasLead"]) delete o[k];   // live handles only
+     return o;
+   });
+   const now = Date.now();
+@@ -3636,15 +3642,41 @@
+ }
+ const LEASE_FLOOR_KEEP_MS = 24 * 3600_000;
+ function saveStateNow() {
+-  if (!_statePersistable) return;
++  if (!_statePersistable || _stateCorrupt) return;   // never overwrite a journal that failed to load
++  // Accounting and shutdown replace the SAME file as the release journal. Every replacement keeps its durability (the
++  // strict writer below), even though this caller treats a failure as best-effort: logged, the state stays dirty and
++  // is retried, and the previous durable file is never replaced by an unsynced one (root review + writers.patch).
++  try { saveStateStrict("state checkpoint"); }
++  catch (e) { console.warn(`[state] save failed: ${e.message}`); }
++}
++function saveStateSoon() { _stateDirty = true; }
++// STRICT persistence, for a decision that must be durable BEFORE an external effect (a sponsored release lease reaching
++// a relay): write a separate temp file completely (a byte loop: a short write continues, zero or invalid progress
++// throws), fsync it, rename it over the state file, fsync the directory - and THROW on any failure, including a state
++// file that cannot be persisted at all and a directory fsync that fails after the rename (the caller then sends
++// nothing). Accounting and shutdown use this SAME writer. Killing a process does not simulate a physical power loss:
++// what is guaranteed and tested is the order of these calls.
++function saveStateStrict(what) {
++  if (!_statePersistable) throw new Error(`the state file is unavailable: ${what} cannot be made durable`);
++  if (_stateCorrupt) throw new Error(`the state file failed to load (${_stateCorrupt}): ${what} is refused until it is resolved`);
++  const tmp = STATE_FILE + ".strict.tmp";
++  const fd = openSync(tmp, "w", 0o600);
+   try {
+-    const tmp = STATE_FILE + ".tmp";
+-    writeFileSync(tmp, serializeState());
+-    renameSync(tmp, STATE_FILE);                 // atomic: a crash never leaves a torn file
+-    _stateDirty = false;
+-  } catch (e) { console.warn(`[state] save failed: ${e.message}`); }
+-}
+-function saveStateSoon() { _stateDirty = true; }
++    const bytes = Buffer.from(serializeState(), "utf8");
++    let offset = 0;
++    while (offset < bytes.length) {
++      const wrote = writeSync(fd, bytes, offset, bytes.length - offset);
++      if (!Number.isInteger(wrote) || wrote <= 0 || wrote > bytes.length - offset)
++        throw new Error(`state write made invalid progress (${wrote})`);
++      offset += wrote;
++    }
++    fsyncSync(fd);
++  } finally { closeSync(fd); }
++  renameSync(tmp, STATE_FILE);
++  const dir = openSync(dirname(STATE_FILE), "r");
++  try { fsyncSync(dir); } finally { closeSync(dir); }
++  _stateDirty = false;
++}
+ function initStatePersistence() {
+   try { mkdirSync(dirname(STATE_FILE), { recursive: true }); }
+   catch (e) {
+@@ -3670,10 +3702,41 @@
+ // CLAIM_TERMINAL (defined near the claim path) aliases this.
+ const TERMINAL_STATUSES = new Set(["expired", "failed", "terminated", "stopping"]);
+ 
++// A release journal that can be trusted to hold every unresolved sponsored release: each intent names its id and its
++// transactions, each sponsored attempt every signed lease's exact intent. -> null, or what is wrong.
++function releaseJournalProblem(s) {
++  if (!s || typeof s !== "object" || Array.isArray(s)) return "not a state object";
++  if (s.releaseIntents === undefined) return null;
++  if (!Array.isArray(s.releaseIntents)) return "releaseIntents is not a list";
++  const n = (v) => typeof v === "string" && /^[0-9]{1,78}$/.test(v);
++  for (const it of s.releaseIntents) {
++    if (!it || !/^0x[0-9a-f]{64}$/.test(String(it.id || "")) || !Array.isArray(it.txs)) return "an intent without an id or transaction list";
++    for (const t of it.txs) {
++      if (!t || typeof t !== "object") return `${it.id}: a malformed transaction`;
++      if (!t.sponsored) continue;
++      if (!Array.isArray(t.intents)) return `${it.id}: a sponsored attempt without its signed leases`;
++      for (const x of t.intents)
++        if (!x || !n(x.nonce) || !n(x.deadline) || !n(x.maxChargeWei) || !n(x.fromBlock) || !/^0x[0-9a-fA-F]{40}$/.test(String(x.payee || ""))
++            || !/^0x[0-9a-fA-F]{64}$/.test(String(x.enclaveId || ""))) return `${it.id}: a signed lease without its exact intent`;
++    }
++  }
++  return null;
++}
+ function loadState() {
+   if (!_statePersistable || !existsSync(STATE_FILE)) return;
++  // app-funded leases: an unreadable or malformed journal may hide an unresolved sponsored release, so fail CLOSED for
++  // every lease operation instead of starting fresh. Unconfigured: exactly main's behaviour.
++  const strictJournal = leaseGasConfigured(Object.fromEntries(Object.entries(process.env).filter(([k]) => /^(ENCLAVE_)?LEASE_GAS_/.test(k))));
++  const corrupt = (why) => {
++    _stateCorrupt = why;
++    console.error(`[state] ${STATE_FILE}: ${why}. It may hold an unresolved sponsored release, so this host claims, resumes, renews and releases NOTHING and never overwrites the file until an operator repairs or removes it (after checking this operator's recent leases on chain)`);
++  };
+   let s; try { s = JSON.parse(readFileSync(STATE_FILE, "utf8")); }
+-  catch (e) { console.warn(`[state] unreadable (${e.message}) - starting fresh`); return; }
++  catch (e) {
++    if (strictJournal) return corrupt(`unreadable (${String(e.message).slice(0, 120)})`);
++    console.warn(`[state] unreadable (${e.message}) - starting fresh`); return;
++  }
++  if (strictJournal) { const bad = releaseJournalProblem(s); if (bad) return corrupt(`the release journal is malformed: ${bad}`); }
+   const gapMs = Math.max(0, Date.now() - (s.savedAt || Date.now()));
+   if (s.payFromBlock != null) _payFromBlock = BigInt(s.payFromBlock);   // watcher resumes where it stopped
+   for (const [k, b] of s.seenLogs || []) _seenLogs.set(k, BigInt(b));
+@@ -9479,6 +9542,69 @@
+ }
+ const sendClaimTx = (functionName, args) => sendOperatorTx(DEPLOYMENTS_ADDRESS, CLAIM_TX_ABI, functionName, args);
+ 
++// ---- app-funded lease gas (work/app-lease-gas design B; the same runtime as windows/node/chain.mjs) ----------------
++// The user's direction: lease claims and renewals are paid by the APP, not the host's wallet. Configured
++// (ENCLAVE_LEASE_GAS_FILE + _DIGEST + _RPCS + _RELAYS, or the LEASE_GAS_* aliases), claim, renew and release are
++// signed locally by the operator key (EIP-7702-delegated to the reviewed EnclaveLeaseExecutor; the authorization rides
++// in a relay's transaction), sent by any listed relay and paid from the app's reserve in that same transaction. The
++// host checks every landing against its own RPC quorum. A partial or invalid configuration, or a refusal (the owner
++// never enabled a reserve, an empty reserve, outside the renew window...), REFUSES the lease write in words: nothing
++// ever falls back to this key's ETH. Entirely unconfigured: exactly the operator-paid path above. Registry, bond,
++// proof-of-time, settle and withdrawEarnings transactions are unchanged (still this key's own).
++const leaseGasEnv = Object.freeze(Object.fromEntries(Object.entries(process.env).filter(([k]) => /^(ENCLAVE_)?LEASE_GAS_/.test(k))));
++const leaseGasActive = () => leaseGasConfigured(leaseGasEnv);
++// the host's CURRENT bindings (the address book may move them): a record for another ledger or registry refuses
++const leaseBindings = () => ({ chain: base, ledger: DEPLOYMENTS_ADDRESS, registry: REGISTRY_ADDRESS });
++let _leaseGas = null, _onLeaseSigned = null;
++function leaseGasSender() {
++  if (!_leaseGas) {
++    const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
++    _leaseGas = configuredLeaseSender({ config, account: claimSigner().account, getBindings: leaseBindings,
++      log: (m) => console.log(m), onSigned: (s) => (_onLeaseSigned ? _onLeaseSigned(s) : undefined) });
++  }
++  return _leaseGas;
++}
++if (leaseGasActive()) {
++  try { const c = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
++        console.log(`[lease-gas] app-funded leases ON: reserve ${c.reserve}, ${c.relays.length} relay(s), ${c.clients.length} RPC(s) (quorum ${c.quorum}); this key's ETH is never used for claim/renew/release`); }
++  catch (e) { console.warn(`[lease-gas] app-funded leases are configured but cannot be loaded now (${e.message}); every claim/renew/release refuses until they can`); }
++}
++function leaseGasError(fn, id, e) {
++  const code = e && e.code;
++  const msg = `app-funded ${fn} of ${id} not sent: ${(e && e.message) || e}${code === "OverRateCap" ? " (over rate cap)" : ""}; this host's ETH is never used instead`;
++  console.warn(`[lease-gas] ${msg}`);
++  return Object.assign(new Error(msg), { code, leaseGas: true });
++}
++/** sendClaimTx's shape (a hash promise with .receipt) for claim/renew. The receipt is the one the host's own quorum
++ *  verified (target, exact lease, reserve payment, ledger effect); the 7702 authorization consumes an account nonce,
++ *  so it waits its turn in the one operator queue. */
++function sendLeaseTx(functionName, args) {
++  if (!leaseGasActive()) return sendClaimTx(functionName, args);
++  const job = async () => {
++    if (_stateCorrupt) throw leaseGasError(functionName, args[0], new Error(`the release journal failed to load (${_stateCorrupt})`));
++    try { const r = await leaseGasSender()[functionName](...args); return { hash: r.hash, receipt: r.receipt }; }
++    catch (e) { throw leaseGasError(functionName, args[0], e); }
++  };
++  const started = _txChain.then(job, job);
++  _txChain = started.then(() => {}, () => {});
++  const p = started.then((x) => x.hash);
++  p.receipt = started.then((x) => x.receipt);
++  p.receipt.catch(() => {});   // callers await p first; its rejection is the one they see
++  return p;
++}
++/** A sponsored renew is valid only inside the owner's window before leaseUntil (the reserve enforces it): renew at the
++ *  window's lead (fresh, verified owner policy; cached 5 min), never earlier. Unreadable: the ordinary margin, and the
++ *  send then refuses in words. */
++async function leaseGasRenewDue(rec) {
++  const now = Date.now();
++  if (!rec._leaseGasLead || now - rec._leaseGasLead.at > 300_000) {
++    let ms = RENEW_MARGIN_SEC * 1000;
++    try { ms = await leaseGasSender().renewLeadMs(rec.id, ms); } catch { /* refused at the send */ }
++    rec._leaseGasLead = { at: now, ms };
++  }
++  return rec._leaseUntil * 1000 - now <= rec._leaseGasLead.ms;
++}
++
+ // ---- claim bond (anti-sybil, EnclaveDeployments rev 7) ----------------------
+ // The ledger can require an operator to lock USDC before it may claim. That
+ // gate is the only on-chain cost of a SYBIL claim: registration is open and the
+@@ -9698,14 +9824,16 @@
+ }
+ // Why this host must not resume, claim or renew `id` now: a release of it may still land.
+ function releaseHold(id) {
++  if (_stateCorrupt) return `this host's release journal failed to load (${_stateCorrupt}); no lease is resumed or claimed until an operator resolves it`;
+   const it = _releaseIntents.get(id);
+   if (!it) return null;
+   const tx = it.txs.find((t) => t.state === "pending");
+-  return `a release of this deployment from this host is unresolved (${tx ? `transaction ${tx.hash}, nonce ${tx.nonce}` : "deciding"}); `
++  return `a release of this deployment from this host is unresolved (${tx ? (tx.sponsored ? `sponsored lease nonce ${tx.leaseNonce ?? "-"}, deadline ${tx.deadline ?? "-"}` : `transaction ${tx.hash}, nonce ${tx.nonce}`) : "deciding"}); `
+     + "not resuming or claiming it until it is";
+ }
+ const releaseView = (it) => ({ release: { why: it.why, openedAt: new Date(it.openedAt).toISOString(), recovered: !!it.recovered,
+-  transactions: it.txs.map((t) => ({ hash: t.hash, nonce: t.nonce, state: t.state, ...(t.block != null ? { block: t.block } : {}) })) } });
++  transactions: it.txs.map((t) => ({ hash: t.hash, nonce: t.nonce, state: t.state, ...(t.block != null ? { block: t.block } : {}),
++    ...(t.sponsored ? { sponsored: true, leaseNonce: t.leaseNonce ?? null, deadline: t.deadline ?? null } : {}) })) } });
+ 
+ // Open the intent for `id` after a block-pinned read shows THIS host's live lease. The intent exists before the read, so
+ // a renewal, resume or claim starting meanwhile stands aside. -> {intent} | {intent: null, code, message}; throws when
+@@ -9748,9 +9876,90 @@
+     + `${Number.isFinite(block) ? `, block ${block}` : ""})`);
+   return { outcome, block: Number.isFinite(block) ? block : null, tx: tx || null, intent: it };
+ }
++// ---- a SPONSORED release (app-funded lease gas): the same durable intent, a different transaction ----
++// One attempt = one release lease (executor nonce, deadline, max charge) signed once per relay asked (only the payee
++// differs). The attempt is persisted BEFORE anything is signed, and every signed lease BEFORE its relay sees it. It is
++// resolved only from the chain: a quorum-verified receipt of exactly this lease is success; the executor nonce lane
++// moving past it, or its deadline passing at a verified block, is a FENCE (it can never land) and never success.
++const leaseIntentView = (s) => ({ payee: s.payee, nonce: String(s.nonce), deadline: String(s.deadline), kind: s.kind,
++  enclaveId: s.lease.enclaveId, maxChargeWei: String(s.lease.maxChargeWei), fromBlock: String(s.fromBlock),
++  operator: lc(s.operator), reserve: lc(s.reserve), executor: lc(s.executor), chainId: Number(s.chainId), ledger: lc(s.ledger) });
++async function acceptSponsoredLanding(it, tx, v) {
++  tx.hash = v.hash;
++  const block = Number(v.blockNumber);
++  const head = Number(await chainClient.getBlockNumber({ cacheTime: 0 }));
++  if (head - block + 1 < RELEASE_CONFIRMATIONS) { saveStateNow(); return; }   // landed, not yet confirmed
++  tx.state = "success"; tx.block = block;
++  try {
++    tx.released = parseEventLogs({ abi: RELEASED_EVENT, logs: v.receipt.logs, eventName: "Released", strict: false })
++      .some((l) => lc(l.address) === it.ledger && lc(l.args.id) === it.id && lc(l.args.enclaveId) === it.runner);
++  } catch { tx.released = false; }
++  saveStateNow();
++}
++function sponsoredRelease(it) {
++  const tx = { sponsored: true, hash: null, state: "pending", signedAt: Date.now(), intents: [] };
++  const job = async () => {
++    it.attempts++; it.txs.push(tx);
++    try { saveStateStrict(`release attempt ${it.attempts} of ${it.id}`); }   // durable (fsync, rename, dir fsync) before anything is signed
++    catch (e) {
++      // nothing signed, nothing sent: not an attempt. The intent stays open (the hold) and is retried once the disk works.
++      it.txs.pop(); it.attempts--;
++      console.error(`[release] ${it.id} sponsored release NOT started: the attempt could not be made durable (${e.message}); nothing was signed or sent`);
++      await sleepMs(RELEASE_POLL_MS);                     // the resolver loop retries; do not spin on a failing disk
++      return { ...tx, state: "unsent", notDurable: true };
++    }
++    _onLeaseSigned = (s) => {                             // each signed lease: durable before its relay has it, or no relay gets it
++      tx.intents.push(leaseIntentView(s));
++      try { saveStateStrict(`the signed release lease of ${it.id} for ${s.payee}`); }
++      catch (e) { tx.intents.pop(); throw e; }            // the client then sends it to NO relay (NotPersisted)
++      tx.leaseNonce = Number(s.nonce); tx.deadline = Number(s.deadline);
++    };
++    let note = "";
++    try {
++      const r = await leaseGasSender().release(it.id);
++      await acceptSponsoredLanding(it, tx, r.verified);
++      note = `landed ${tx.hash}${tx.state === "pending" ? " (confirming)" : ""}`;
++    } catch (e) {
++      // the state file keeps fixed words only (an error's text can name an endpoint)
++      if (e && e.code === "NotPersisted" && !tx.intents.length) {
++        // signed, but the journal refused it before ANY relay saw it: nothing can land, and it is not an attempt
++        it.txs.pop(); it.attempts--;
++        console.error(`[release] ${it.id} sponsored release NOT sent: ${e.message}`);
++        await sleepMs(RELEASE_POLL_MS);
++        return { ...tx, state: "unsent", notDurable: true };
++      }
++      if (!tx.intents.length) { tx.state = "unsent"; tx.why = String((e && e.code) || "refused"); }        // nothing signed: nothing can land
++      else if (e && e.code === "NonceConsumed") tx.state = "consumed";                                      // a fence, never this release's success
++      else tx.why = String((e && e.code) || "relay");                                                      // may still land: resolved from the chain
++      try { saveStateStrict(`the outcome of release attempt ${it.attempts} of ${it.id}`); }
++      catch (se) { console.error(`[release] ${it.id}: recording the attempt's outcome failed (${se.message}); the chain decides it again after a restart`); }
++      note = `${tx.state}: ${String((e && e.message) || e).slice(0, 240)}`;
++    } finally { _onLeaseSigned = null; }
++    console.log(`[release] ${it.id} sponsored release ${it.attempts}/${RELEASE_ATTEMPTS} lease nonce ${tx.leaseNonce ?? "-"} (${it.why}; ${note}); the app's reserve pays, never this host`);
++    return tx;
++  };
++  const p = _txChain.then(job, job);
++  _txChain = p.then(() => {}, () => {});
++  return p;
++}
++async function resolveSponsoredReleaseTx(it, tx) {
++  if (it.ledger !== lc(DEPLOYMENTS_ADDRESS)) { tx.state = "ledger-moved"; saveStateNow(); return; }   // the old ledger's lease is not this one
++  if (!tx.intents || !tx.intents.length) { tx.state = "unsent"; saveStateNow(); return; }            // stopped before signing: nothing can land
++  const x = tx.intents[0];
++  const want = { id: it.id, kind: 3, enclaveId: x.enclaveId, nonce: BigInt(x.nonce), deadline: BigInt(x.deadline), maxChargeWei: BigInt(x.maxChargeWei) };
++  // settled by the identity RECORDED with the signed lease (its operator, chain, reserve, executor, ledger), never by
++  // this process's current key or configuration: a rotated key or record cannot fence another signer's lease
++  const recorded = { operator: x.operator, chainId: x.chainId, reserve: x.reserve, executor: x.executor, ledger: x.ledger };
++  const r = await leaseGasSender().resolveSigned(want, BigInt(x.fromBlock), tx.intents.map((i) => i.payee), recorded);
++  if (r.why && tx.unsettledWhy !== r.why) { tx.unsettledWhy = r.why; console.warn(`[release] ${it.id} held: ${r.why}`); }
++  if (r.state === "landed") return acceptSponsoredLanding(it, tx, r.verified);
++  if (r.state === "consumed" || r.state === "expired") { tx.state = r.state; tx.block = r.block; saveStateNow(); }
++}
++
+ // Sign locally, persist {hash, nonce}, then broadcast, inside the one operator queue (sendOperatorTx): the next operator
+ // transaction still waits for this one's receipt (bounded), and its nonce comes after this one's.
+ function signAndSendRelease(it) {
++  if (leaseGasActive()) return sponsoredRelease(it);   // never this key's ETH once app-funded leases are configured
+   const signed = _txChain.then(async () => {
+     const { account, wallet } = claimSigner();
+     const request = await wallet.prepareTransactionRequest({ account, to: getAddress(DEPLOYMENTS_ADDRESS),
+@@ -9784,6 +9993,7 @@
+   return p.catch((e) => { tx.fence.failed = true; console.warn(`[release] ${it.id} fencing nonce ${tx.nonce} failed (${e.shortMessage || e.message}); retried later`); });
+ }
+ async function resolveReleaseTx(it, tx) {
++  if (tx.sponsored) return resolveSponsoredReleaseTx(it, tx);   // no fence transaction: the lease deadline is the fence
+   let r = null;
+   try { r = await chainClient.getTransactionReceipt({ hash: tx.hash }); }
+   catch (e) { if (!/TransactionReceiptNotFound|could not be found/i.test(`${e.name} ${e.message}`)) throw e; }
+@@ -9910,12 +10120,14 @@
+   // lease runs out within one quantum and the reaper tears it down.)
+   if (_reach.tripped) return;
+   if (HOST_POLICY_GATE.serviceRefusal()) return;   // refused by the platform: leases lapse and can be claimed elsewhere
++  if (_stateCorrupt) return;   // a release journal that failed to load: nothing is renewed until it is resolved
+   for (const rec of deployments.values()) {
+     if (!rec._onchain || rec.status !== "running" || rec._renewing) continue;
+     if (_releaseIntents.has(rec.id)) continue;   // a release of it may still land: buying more of that lease helps nobody
+     if (rec._leaseUntil * 1000 - Date.now() > RENEW_MARGIN_SEC * 1000) continue;
+     if ((rec._renewBackoffUntil || 0) > Date.now()) continue;   // a reverting tx must not re-fire every pass
+     const lapsed = rec._leaseUntil * 1000 <= Date.now();
++    if (leaseGasActive() && !lapsed && !(await leaseGasRenewDue(rec))) continue;   // a sponsored renew waits for the app's window
+     rec._renewing = true;
+     try {
+       const fresh = await readLedgerContract("get", [rec.id]);
+@@ -9923,7 +10135,7 @@
+       if (pinRefusal) { await retireForPlacement(rec, pinRefusal); continue; }
+       const walletRefusal = await hostWalletRefusal(rec.id,fresh.appRef,fresh.isPublic===false);
+       if(walletRefusal) { await retireForPlacement(rec,walletRefusal); continue; }
+-      const sent = lapsed ? sendClaimTx("claim", [rec.id, _enclaveId]) : sendClaimTx("renew", [rec.id]);
++      const sent = lapsed ? sendLeaseTx("claim", [rec.id, _enclaveId]) : sendLeaseTx("renew", [rec.id]);
+       await sent;
+       const rcpt = await sent.receipt;
+       if (rcpt.status !== "success") throw new Error(`${lapsed ? "re-claim" : "renew"} tx reverted`);
+@@ -10336,7 +10548,7 @@
+       // helps nobody and burns the user's lease.
+       if (opMine && !leaseLive && rec.status === "running") {
+         try {
+-          const sent = sendClaimTx("claim", [rec.id, _enclaveId]);
++          const sent = sendLeaseTx("claim", [rec.id, _enclaveId]);
+           await sent;
+           const rcpt = await sent.receipt;
+           const until = rcpt.status === "success" ? leaseFromReceipt(rcpt, "Claimed", rec.id) : null;
+@@ -10751,8 +10963,12 @@
+   //  - at most CLAIM_MAX_PER_SWEEP adoptions start per pass, so a large
+   //    claimable backlog drains gently instead of stampeding the queue.
+   const now = Date.now();
++  // app-funded: a sponsored renew cannot start before the owner's window (r._leaseGasLead, the verified lead), so its
++  // urgency is half THAT lead, not half a global margin the reserve would refuse anyway (an owner window below the
++  // margin must not block new work for minutes); operator-paid records keep main's rule
+   const pressed = [...deployments.values()].some((r) =>
+-    r._onchain && r.status === "running" && r._leaseUntil * 1000 - now < RENEW_MARGIN_SEC * 500);
++    r._onchain && r.status === "running"
++    && r._leaseUntil * 1000 - now < (leaseGasActive() && r._leaseGasLead ? Math.min(r._leaseGasLead.ms, RENEW_MARGIN_SEC * 1000) : RENEW_MARGIN_SEC * 1000) / 2);
+   if (pressed) return;
+   let started = 0;
+   for (const d of rest) {
+@@ -11271,7 +11487,7 @@
+   if (releaseHold(d.id)) return releaseHold(d.id);
+   let rcpt;
+   try {
+-    const sent = sendClaimTx("claim", [d.id, _enclaveId]);
++    const sent = sendLeaseTx("claim", [d.id, _enclaveId]);
+     await sent;
+     rcpt = await sent.receipt;
+   } catch (e) { console.log(`[claim] ${d.id} claim tx failed (${e.shortMessage || e.message})`); return; }

@@ -1,0 +1,602 @@
+--- a/sia-s3/src/store.rs
++++ b/sia-s3/src/store.rs
+@@ -37,6 +37,11 @@
+ //! whenever it appears, so a write that lands arbitrarily late, or old data an
+ //! indexer replays, cannot bring a deleted key back. Floors are kept for good;
+ //! once one is pinned, the payload it covers is reclaimed.
++//!
++//! A *membership record* (`ms`) states which replica set this replica's
++//! contents are complete for (replica.rs, "Membership"). It lives in metadata
++//! alone, on a one-byte object, and is never rewritten: a newer record is a new
++//! object.
+ 
+ use std::cell::{Cell, RefCell};
+ use std::collections::{BTreeMap, HashMap, HashSet};
+@@ -165,6 +170,42 @@
+     pub c: u64,
+ }
+ 
++/// A membership: its epoch, write quorum and members (`member_id` of each canonical indexer URL, sorted).
++#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
++#[serde(deny_unknown_fields)]
++pub struct MsDef {
++    pub s: u64,
++    pub w: u32,
++    pub m: Vec<String>,
++}
++
++/// A membership record, in a record object's metadata. `k` is "a" (admitted: this replica held the complete
++/// history when membership `d` admitted it) or "s" (sealed: this replica belonged to membership `p`, which `d`
++/// replaced). `p` is absent when `d` replaced a deployment that had no records. `c` carries the version ceiling.
++#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
++#[serde(deny_unknown_fields)]
++pub struct MsRec {
++    pub k: String,
++    pub d: MsDef,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub p: Option<MsDef>,
++    /// the highest version-range ceiling the writer knew when it wrote this record (its own acknowledged one, or any
++    /// it observed): a later writer's clock starts above it (replica.rs, "Versions", M2)
++    #[serde(default, skip_serializing_if = "is_zero")]
++    pub c: u64,
++}
++
++impl MsRec {
++    pub fn admit(&self) -> bool {
++        self.k == "a"
++    }
++}
++
++/// A replica's name in membership records: 64 bits of SHA-256 over its canonical indexer URL.
++pub fn member_id(indexer: &str) -> String {
++    hex::encode(&Sha256::digest(indexer.as_bytes())[..8])
++}
++
+ /// The body of a ledger object: deletion floors, each a key hash and the version of its newest deletion.
+ #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+ #[serde(deny_unknown_fields)]
+@@ -210,12 +251,19 @@
+     /// this object is a ledger of deletion floors
+     #[serde(default, skip_serializing_if = "Option::is_none")]
+     pub lg: Option<LgRef>,
++    /// this object is a membership record
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub ms: Option<MsRec>,
++    /// this object is a version-range ceiling: the writer that pinned it stamps no version above this (ms clock), and
++    /// a later writer starts strictly above the highest ceiling its boot set holds (replica.rs, "Versions")
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub ck: Option<u64>,
+ }
+ 
+ impl Meta {
+     /// Does the object mean something by its metadata alone (not counting being some key's data)?
+     fn purposeful(&self) -> bool {
+-        !self.e.is_empty() || self.mp.is_some() || !self.d.is_empty() || self.mf.is_some() || self.lg.is_some()
++        !self.e.is_empty() || self.mp.is_some() || !self.d.is_empty() || self.mf.is_some() || self.lg.is_some() || self.ms.is_some() || self.ck.is_some()
+     }
+ 
+     fn normalized(mut self) -> Meta {
+@@ -273,6 +321,12 @@
+     pub ledgers: Vec<String>,
+     /// ledger objects whose body could not be read: their floors are unknown, so nothing is swept or merged
+     pub unread_ledgers: Vec<String>,
++    /// membership records, by object id
++    pub records: Vec<(String, MsRec)>,
++    /// version-range ceiling objects: (object id, ceiling)
++    pub ceilings: Vec<(String, u64)>,
++    /// the highest version-range ceiling this replica holds (0: none, a legacy replica)
++    pub ceiling: u64,
+ }
+ 
+ #[derive(Default, Clone, Serialize)]
+@@ -287,6 +341,8 @@
+ pub struct Opts {
+     /// (data, parity) shards per slab
+     pub shards: (u8, u8),
++    /// how a replica's objects are listed at load and at a re-read (PATCH U1)
++    pub listing: Listing,
+     /// longest wait for one indexer metadata call (pin, delete, a page of the object feed)
+     pub meta_timeout: Duration,
+     /// longest wait for one upload or download
+@@ -295,10 +351,23 @@
+ 
+ impl Default for Opts {
+     fn default() -> Self {
+-        Opts { shards: (10, 20), meta_timeout: Duration::from_secs(120), upload_timeout: Duration::from_secs(1800) }
++        Opts { shards: (10, 20), listing: Listing::Current, meta_timeout: Duration::from_secs(120), upload_timeout: Duration::from_secs(1800) }
+     }
+ }
+ 
++/// How a replica's objects are listed (PATCH U1). indexd 0.6.0's event feed leaves out every object whose latest
++/// pin or delete has not been published yet (published at most once a second, stalled while the database clock is
++/// behind the last published second), so a feed listing is not a superset of the pins the indexer acknowledged,
++/// which the boot quorum and every re-read rely on.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum Listing {
++    /// the indexer's current objects, read from its object table (the U1 endpoint, GET /current/objects): every
++    /// pin acknowledged before the listing began. An indexer without the endpoint fails the load (fail closed).
++    Current,
++    /// the event feed (GET /objects): misses unpublished pins. Kept only to demonstrate the defect.
++    Feed,
++}
++
+ pub struct Store {
+     pub sdk: Sdk,
+     pub idx: Mutex<Index>,
+@@ -311,8 +380,40 @@
+     pub ambiguous_ms: Cell<u64>,
+     /// bumped by every remote change that succeeded
+     pub changes: Cell<u64>,
++    /// set once, when `Cluster::reconcile` replaces this store with a fresh listing: from then on no call through this
++    /// store reaches the indexer (`remote` refuses before sending), so a caller still holding the old `Rc` (the
++    /// compactor, an UploadPart, a DELETE's floor) cannot change durable state the fresh index does not know about
++    retired: Cell<bool>,
++    /// remote calls sent and not yet answered (or abandoned): `reconcile` swaps only when this is 0
++    inflight: Cell<u32>,
++}
++
++/// Counts one remote call in flight. Dropped before the answer (the caller's future was abandoned, e.g. by `fan_out`):
++/// the call may still be applied, so the store is marked ambiguous.
++struct InFlight<'a> {
++    store: &'a Store,
++    answered: bool,
+ }
+ 
++impl<'a> InFlight<'a> {
++    fn new(store: &'a Store) -> Self {
++        store.inflight.set(store.inflight.get() + 1);
++        InFlight { store, answered: false }
++    }
++}
++
++impl Drop for InFlight<'_> {
++    fn drop(&mut self) {
++        self.store.inflight.set(self.store.inflight.get().saturating_sub(1));
++        if !self.answered {
++            self.store.mark_ambiguous();
++        }
++    }
++}
++
++/// What a call on a replaced store answers: nothing was sent.
++pub const RETIRED: &str = "this replica's index was replaced while the call was prepared; nothing was sent; retry";
++
+ /// How a new version's entry is stored on one replica.
+ pub enum Placement {
+     /// in the metadata of its host object
+@@ -363,7 +464,37 @@
+ }
+ 
+ fn e2s<E: std::fmt::Display>(e: E) -> String {
+-    e.to_string()
++    redact(&e.to_string())
++}
++
++/// `s` with the query and fragment cut from every http(s) URL in it. The SDK authenticates each indexer request
++/// with a signature in its URL's query (`sv`, `sc`, `ss`), and an HTTP client error names the URL it failed on;
++/// error text reaches the unauthenticated status page and /healthz, so it never carries a query.
++pub fn redact(s: &str) -> String {
++    let mut out = String::with_capacity(s.len());
++    let mut rest = s;
++    loop {
++        let at = match (rest.find("http://"), rest.find("https://")) {
++            (Some(a), Some(b)) => a.min(b),
++            (Some(a), None) | (None, Some(a)) => a,
++            (None, None) => break,
++        };
++        out.push_str(&rest[..at]);
++        let url = &rest[at..];
++        // the URL runs to whitespace or a character that ends it in prose and error text
++        let end = url.find(|c: char| c.is_whitespace() || matches!(c, ')' | '(' | '"' | '\'' | '<' | '>' | ',' | ';' | '`')).unwrap_or(url.len());
++        let token = &url[..end];
++        match token.find(['?', '#']) {
++            Some(q) => {
++                out.push_str(&token[..q]);
++                out.push_str("?[redacted]");
++            }
++            None => out.push_str(token),
++        }
++        rest = &url[end..];
++    }
++    out.push_str(rest);
++    out
+ }
+ 
+ pub fn md5_hex(b: &[u8]) -> String {
+@@ -438,6 +569,10 @@
+ pub fn build_index(objs: HashMap<String, (Object, Meta)>, manifests: HashMap<String, Manifest>, ledgers: HashMap<String, Ledger>) -> Index {
+     let mut idx = Index { objs, manifests, ..Default::default() };
+     for (id, (_, m)) in &idx.objs {
++        if let Some(c) = m.ck {
++            idx.ceilings.push((id.clone(), c));
++            idx.ceiling = idx.ceiling.max(c);
++        }
+         if m.lg.is_some() {
+             match ledgers.get(id) {
+                 Some(l) => {
+@@ -471,6 +606,9 @@
+         for t in &m.d {
+             idx.tombs.entry(t.q.clone()).or_default().push((id.clone(), t.clone()));
+         }
++        if let Some(r) = &m.ms {
++            idx.records.push((id.clone(), r.clone()));
++        }
+     }
+     let mut dups = 0;
+     for (kk, key) in cands {
+@@ -493,7 +631,7 @@
+     let referenced: HashSet<String> = idx.keys.values().flat_map(|k| k.objects()).collect();
+     for (id, (obj, m)) in &idx.objs {
+         // objects holding tombstones stay until the tombstones are collected; unread manifests are unknown
+-        if referenced.contains(id) || !m.d.is_empty() || m.lg.is_some() || (m.mf.is_some() && !idx.manifests.contains_key(id)) {
++        if referenced.contains(id) || !m.d.is_empty() || m.lg.is_some() || m.ms.is_some() || m.ck.is_some() || (m.mf.is_some() && !idx.manifests.contains_key(id)) {
+             continue;
+         }
+         if let Some(t) = &m.mp {
+@@ -573,6 +711,44 @@
+         self.unread_ledgers.is_empty()
+     }
+ 
++    /// Is every key and deletion this replica holds known: no unread ledger, and no unread manifest that may hold a
++    /// live version (`blocking_unresolved`; a superseded one is dead whatever it holds)?
++    pub fn complete(&self) -> bool {
++        self.unread_ledgers.is_empty() && self.blocking_unresolved().is_empty()
++    }
++
++    /// The newest membership record here: highest epoch, an admission over a seal.
++    pub fn newest_record(&self) -> Option<&MsRec> {
++        self.records.iter().map(|(_, r)| r).max_by_key(|r| (r.d.s, r.admit()))
++    }
++
++    /// The highest version ceiling this replica holds evidence of: its ceiling objects, and the ceilings its
++    /// membership records carry.
++    pub fn version_floor(&self) -> u64 {
++        self.records.iter().map(|(_, r)| r.c).fold(self.ceiling, u64::max)
++    }
++
++    /// Unresolved manifests (body unreadable) that may hold a key's newest version here: their signed metadata names a
++    /// version that no resolved entry of the same key, and no tombstone or floor, matches or supersedes. Without
++    /// their bodies this index would serve an older version (or none) of those keys, and could delete or move data
++    /// objects only those manifests name. A superseded one is harmless: its version is dead whatever it holds.
++    pub fn blocking_unresolved(&self) -> Vec<String> {
++        if self.unresolved.is_empty() {
++            return Vec::new();
++        }
++        let live: HashMap<String, Ver> = self.keys.iter().map(|(kk, k)| (qkey(&kk.0, &kk.1), k.entry.ver())).collect();
++        self.unresolved
++            .iter()
++            .filter(|id| {
++                let Some(mf) = self.objs.get(*id).and_then(|(_, m)| m.mf.as_ref()) else { return false };
++                let v = mf.ver();
++                let superseded = live.get(&mf.q).is_some_and(|lv| *lv >= v) || self.tomb(&mf.q).is_some_and(|t| t.ver() >= v);
++                !superseded
++            })
++            .cloned()
++            .collect()
++    }
++
+     fn superseded(&self, kk: &KK, v: &Ver) -> bool {
+         self.keys.get(kk).is_some_and(|k| k.entry.ver() >= *v) || self.tomb(&qkey(&kk.0, &kk.1)).is_some_and(|t| t.ver() >= *v)
+     }
+@@ -580,6 +756,42 @@
+ 
+ /// List the indexer's objects and read every manifest body: the durable state, independent of any in-memory index.
+ pub async fn fetch_index(sdk: &Sdk, opts: &Opts) -> Res<Index> {
++    let latest = match opts.listing {
++        Listing::Current => list_current(sdk, opts).await?,
++        Listing::Feed => list_feed(sdk, opts).await?,
++    };
++    index_listed(sdk, opts, latest).await
++}
++
++/// Every current object, page by page in ID order (keyset pagination over the indexer's object table).
++async fn list_current(sdk: &Sdk, opts: &Opts) -> Res<HashMap<String, Option<Object>>> {
++    let mut latest: HashMap<String, Option<Object>> = HashMap::new();
++    let mut after = None;
++    loop {
++        let page = tokio::time::timeout(opts.meta_timeout, sdk.current_objects(after, Some(500)))
++            .await
++            .map_err(|_| format!("object listing: no answer within {:?}", opts.meta_timeout))?
++            .map_err(|e| {
++                let e = e2s(e);
++                if e.contains("404") {
++                    "the indexer has no consistent object listing (GET /current/objects, indexd patch U1); a feed listing can miss acknowledged pins, so this replica is not loaded".to_string()
++                } else {
++                    e
++                }
++            })?;
++        for e in &page {
++            latest.insert(e.id.to_string(), if e.deleted { None } else { e.object.clone() });
++        }
++        match page.last() {
++            Some(last) if page.len() >= 500 => after = Some(last.id),
++            _ => break,
++        }
++    }
++    Ok(latest)
++}
++
++/// The event feed (indexd 0.6.0's only listing): misses objects whose latest event is unpublished.
++async fn list_feed(sdk: &Sdk, opts: &Opts) -> Res<HashMap<String, Option<Object>>> {
+     let mut latest: HashMap<String, Option<Object>> = HashMap::new();
+     let mut cursor: Option<ObjectsCursor> = None;
+     loop {
+@@ -599,13 +811,24 @@
+             break;
+         }
+     }
++    Ok(latest)
++}
++
++async fn index_listed(sdk: &Sdk, opts: &Opts, latest: HashMap<String, Option<Object>>) -> Res<Index> {
+     let mut objs = HashMap::new();
+     for (id, obj) in latest {
+         let Some(obj) = obj else { continue };
+-        if let Ok(m) = serde_json::from_slice::<Meta>(&obj.metadata) {
+-            if m.v == 1 || m.v == 2 {
++        match serde_json::from_slice::<Meta>(&obj.metadata) {
++            Ok(m) if m.v == 1 || m.v == 2 => {
+                 objs.insert(id, (obj, m));
+             }
++            Ok(_) => {}
++            Err(_) if unreadable_record(&obj.metadata) => {
++                // a membership record (from a newer version?) that cannot be read: what this replica was admitted
++                // to, or sealed against, is unknown. It stays unloaded rather than be counted wrongly.
++                return Err(format!("membership record {id} cannot be read by this version"));
++            }
++            Err(_) => {}
+         }
+     }
+     // manifest and ledger bodies, eight downloads at a time
+@@ -646,9 +869,22 @@
+         // they hide. It stays unloaded (and is retried) rather than risk that.
+         return Err(format!("{} ledger(s) could not be read", idx.unread_ledgers.len()));
+     }
++    let blocking = idx.blocking_unresolved();
++    if !blocking.is_empty() {
++        // a manifest body is read from Sia hosts, not the indexer: a host outage at load is no indexer fault. Loaded
++        // without it, this replica would count toward the boot quorum while missing (possibly acknowledged) newest
++        // versions, serve older ones, and let maintenance delete data objects only that manifest names. Like an
++        // unread ledger, it stays unloaded and is retried; the replicas that can read theirs serve.
++        return Err(format!("{} manifest(s) of live key versions could not be read", blocking.len()));
++    }
+     Ok(idx)
+ }
+ 
++/// Is this metadata (which did not parse as `Meta`) a membership record all the same?
++fn unreadable_record(raw: &[u8]) -> bool {
++    serde_json::from_slice::<serde_json::Value>(raw).is_ok_and(|v| v.get("ms").is_some())
++}
++
+ /// Download an object's whole body, refusing one whose size disagrees with its signed metadata.
+ async fn read_body(sdk: &Sdk, obj: &Object, n: u64, z: &str, max: u64, deadline: Duration) -> Res<Vec<u8>> {
+     if n > max || n != obj.size() {
+@@ -698,9 +934,25 @@
+             listed_ms,
+             ambiguous_ms: Cell::new(0),
+             changes: Cell::new(0),
++            retired: Cell::new(false),
++            inflight: Cell::new(0),
+         })
+     }
+ 
++    /// This store has been replaced (see `retired`). Irreversible.
++    pub fn retire(&self) {
++        self.retired.set(true);
++    }
++
++    pub fn is_retired(&self) -> bool {
++        self.retired.get()
++    }
++
++    /// Remote calls sent through this store and not yet answered.
++    pub fn in_flight(&self) -> u32 {
++        self.inflight.get()
++    }
++
+     /// Has a remote change had an unknown outcome since the listing behind the index began?
+     pub fn dirty(&self) -> bool {
+         self.ambiguous_ms.get() >= self.listed_ms
+@@ -715,16 +967,26 @@
+     }
+ 
+     /// One indexer call that changes durable state. Its outcome is unknown when it errs or does not answer in time:
+-    /// the indexer may have applied it, or may still.
++    /// the indexer may have applied it, or may still. Every pin and delete goes through here.
++    ///
++    /// On a retired store the call is refused before `fut` is polled: the SDK's calls are `async fn`s, so nothing has
++    /// been sent, and the outcome is known (nothing happened). Error text never carries the SDK's signed request URLs.
+     async fn remote<T, E: std::fmt::Display>(&self, what: &str, fut: impl Future<Output = Result<T, E>>) -> Res<T> {
+-        match tokio::time::timeout(self.opts.meta_timeout, fut).await {
++        if self.retired.get() {
++            return Err(format!("{what}: {RETIRED}"));
++        }
++        let mut flight = InFlight::new(self);
++        let r = tokio::time::timeout(self.opts.meta_timeout, fut).await;
++        flight.answered = true;
++        drop(flight);
++        match r {
+             Ok(Ok(v)) => {
+                 self.changes.set(self.changes.get() + 1);
+                 Ok(v)
+             }
+             Ok(Err(e)) => {
+                 self.mark_ambiguous();
+-                Err(format!("{what}: {e}"))
++                Err(format!("{what}: {}", redact(&e.to_string())))
+             }
+             Err(_) => {
+                 self.mark_ambiguous();
+@@ -1059,6 +1321,7 @@
+         let mut done = 0;
+         for (id, nm, parts) in todo {
+             let Some((obj, _)) = idx.objs.get(&id).cloned() else { continue };
++            let manifest_gone = nm.mf.is_none();
+             if nm.purposeful() || idx.referenced_elsewhere(&id, &none) {
+                 let mut o = obj.clone();
+                 let nm = self.pin_with(&mut o, nm).await?;
+@@ -1067,6 +1330,10 @@
+                 self.delete(&obj).await?;
+                 idx.objs.remove(&id);
+             }
++            if manifest_gone {
++                // a dead manifest whose body was unreadable no longer holds the orphan sweep back
++                idx.unresolved.retain(|u| *u != id);
++            }
+             self.drop_parts(&mut idx, &parts, &none).await;
+             done += 1;
+         }
+@@ -1097,6 +1364,57 @@
+         Ok(())
+     }
+ 
++    /// Upload the one-byte body of a future membership record (nothing is pinned: an unused one leaves only slabs,
++    /// which `prune_slabs` reclaims).
++    pub async fn upload_record(&self) -> Res<Object> {
++        self.upload(Rc::from(&[0u8][..])).await
++    }
++
++    /// Record a membership statement durably here: pin an uploaded record body with the record as its metadata.
++    pub async fn pin_record(&self, mut obj: Object, rec: MsRec) -> Res<()> {
++        let meta = self.pin_with(&mut obj, Meta { p: true, ms: Some(rec.clone()), ..Default::default() }).await?;
++        let id = obj.id().to_string();
++        let mut idx = self.idx.lock().await;
++        idx.objs.insert(id.clone(), (obj, meta));
++        idx.records.push((id, rec));
++        Ok(())
++    }
++
++    /// The highest version-range ceiling this replica holds (0: none).
++    pub async fn ceiling(&self) -> u64 {
++        self.idx.lock().await.ceiling
++    }
++
++    /// Record version-range ceiling `c` durably here: a NEW object (a 1-byte body, the ceiling in its signed metadata),
++    /// never an in-place update, because a late pin of an older reservation must not be able to lower what this
++    /// replica holds. Once it is pinned, this replica's lower ceiling objects are redundant and are deleted (best
++    /// effort: a leftover only costs an object). Ok when `c` is pinned here.
++    pub async fn write_ceiling(&self, c: u64) -> Res<()> {
++        let mut obj = self.upload(Rc::from(&[0u8][..])).await?;
++        let meta = self.pin_with(&mut obj, Meta { p: true, ck: Some(c), ..Default::default() }).await?;
++        let id = obj.id().to_string();
++        let mut idx = self.idx.lock().await;
++        idx.objs.insert(id.clone(), (obj, meta));
++        idx.ceilings.push((id, c));
++        idx.ceiling = idx.ceiling.max(c);
++        let top = idx.ceiling;
++        let lower: Vec<String> = idx.ceilings.iter().filter(|(_, v)| *v < top).map(|(i, _)| i.clone()).collect();
++        for old in lower {
++            let Some((o, _)) = idx.objs.get(&old).cloned() else { continue };
++            match self.delete(&o).await {
++                Ok(()) => {
++                    idx.objs.remove(&old);
++                    idx.ceilings.retain(|(i, _)| *i != old);
++                }
++                Err(e) => {
++                    eprintln!("[sia-s3] ceiling object {old} left behind: {e}");
++                    break;
++                }
++            }
++        }
++        Ok(())
++    }
++
+     /// With more than a few ledgers (and every one read), write one listing every floor, then delete the others.
+     /// Returns how many were merged away. A floor is never dropped: the new ledger is pinned first, and holds all.
+     pub async fn merge_ledgers(&self) -> Res<usize> {
+@@ -1182,6 +1500,30 @@
+         Ok(etag)
+     }
+ 
++    /// Make an uploaded copy of another replica's part `n` (ETag and size as that replica lists them) this
++    /// replica's part `n` of upload `uid`, replacing a part `n` it held with another ETag. Ok(false) when it holds that part already.
++    #[allow(clippy::too_many_arguments)]
++    pub async fn adopt_part(&self, uid: &str, b: &str, k: &str, started: i64, n: u32, (etag, size): (&str, u64), mut obj: Object) -> Res<bool> {
++        let mut idx = self.idx.lock().await;
++        let u = idx.uploads.entry(uid.to_string()).or_insert_with(|| Upload { b: b.into(), k: k.into(), started, parts: BTreeMap::new() });
++        if u.parts.get(&n).is_some_and(|p| p.1 == etag) {
++            return Ok(false);
++        }
++        let meta = Meta { p: size >= self.compact_max_object, mp: Some(PartTag { u: uid.into(), b: b.into(), k: k.into(), n, t: etag.into() }), ..Default::default() };
++        let meta = self.pin_with(&mut obj, meta).await?;
++        let id = obj.id().to_string();
++        let old = idx.uploads.get_mut(uid).and_then(|u| u.parts.insert(n, (id.clone(), etag.into(), size)));
++        idx.objs.insert(id, (obj, meta));
++        if let Some((old_id, _, _)) = old {
++            if let Some((o, _)) = idx.objs.get(&old_id).cloned() {
++                if self.delete(&o).await.is_ok() {
++                    idx.objs.remove(&old_id);
++                }
++            }
++        }
++        Ok(true)
++    }
++
+     /// Validate a completion here and stage its placement: inline on part 1 when the entry fits, else a manifest
+     /// over every part, uploaded now, outside any lock.
+     pub async fn stage_complete(&self, uid: &str, want: &[(u32, String)]) -> Res<Completion> {
+@@ -1370,6 +1712,9 @@
+             done += 1;
+         }
+         drop(idx);
++        if self.is_retired() {
++            return Ok(done); // replaced meanwhile: this store sends nothing more (the fresh one's next pass prunes)
++        }
+         if let Ok(Err(e)) = tokio::time::timeout(self.opts.meta_timeout, self.sdk.prune_slabs(None)).await {
+             eprintln!("[sia-s3] compact: prune_slabs: {e}");
+         }
+@@ -1410,6 +1755,21 @@
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn signed_indexer_urls_never_reach_error_text() {
++        // reqwest names the URL it failed on, and the SDK signs every indexer request in that URL's query
++        let e = "http error: error sending request for url (https://sia.example.org/api/objects/abc?sv=1790000000&sc=AAAA&ss=SIGNATURE): connection refused";
++        let r = redact(e);
++        assert_eq!(r, "http error: error sending request for url (https://sia.example.org/api/objects/abc?[redacted]): connection refused");
++        assert!(!r.contains("ss=") && !r.contains("SIGNATURE") && !r.contains("sv="));
++        assert_eq!(redact("no url here"), "no url here");
++        assert_eq!(redact("a http://h:9980/p b https://x/y#frag?z c"), "a http://h:9980/p b https://x/y?[redacted] c");
++        assert_eq!(redact("https://[::1]:8080/a?ss=1&x"), "https://[::1]:8080/a?[redacted]");
++        assert_eq!(redact("'https://a/b?ss=1', \"http://c/d?sv=2\""), "'https://a/b?[redacted]', \"http://c/d?[redacted]\"");
++        // the error helper used for every SDK error redacts too
++        assert_eq!(e2s("for url (https://i.example/x?ss=s)"), "for url (https://i.example/x?[redacted])");
++    }
++
+     fn entry(key: &str, parts: usize) -> Entry {
+         Entry {
+             b: "ipfs".into(),
+@@ -1470,6 +1830,32 @@
+     }
+ 
+     #[test]
++    fn membership_records_fit_in_metadata_and_are_never_swept() {
++        // the largest set config allows (16 indexers) replacing another of 16 still fits the metadata budget
++        let ids = |seed: &str| {
++            let mut m: Vec<String> = (0..16).map(|i| member_id(&format!("https://indexer-{seed}-{i}.example.org"))).collect();
++            m.sort();
++            m
++        };
++        let rec = MsRec { k: "s".into(), d: MsDef { s: u64::MAX, w: 16, m: ids("new") }, p: Some(MsDef { s: u64::MAX - 1, w: 16, m: ids("old") }), c: u64::MAX };
++        let meta = Meta { p: true, ms: Some(rec.clone()), ..Default::default() }.normalized();
++        assert!(meta_bytes(&meta).is_ok() && meta.v == 2, "0.1.x leaves v2 objects alone");
++        assert_eq!(member_id("https://sia.enclave.host").len(), 16);
++        // a record object is listed as such, is never an orphan, and leaves the key space alone
++        let mut objs = HashMap::new();
++        objs.insert("ms".to_string(), (Object::default(), meta));
++        objs.insert("old".to_string(), (Object::default(), Meta { v: 1, e: vec![ver_entry(100)], ..Default::default() }));
++        let idx = build_index(objs, HashMap::new(), HashMap::new());
++        assert_eq!(idx.records, vec![("ms".to_string(), rec.clone())]);
++        assert!(idx.orphans.is_empty() && idx.keys.len() == 1);
++        assert_eq!(idx.newest_record(), Some(&rec));
++        // an unknown field in a record is refused (it is not this version's record), not misread
++        let raw = br#"{"v":2,"p":true,"ms":{"k":"a","d":{"s":1,"w":1,"m":[]},"x":1}}"#;
++        assert!(serde_json::from_slice::<Meta>(raw).is_err() && unreadable_record(raw), "fetch_index refuses to load it");
++        assert!(!unreadable_record(br#"{"something":"else"}"#));
++    }
++
++    #[test]
+     fn ledgers_are_checked_against_their_signed_metadata() {
+         let l = Ledger { v: 1, f: vec![Tomb { q: qkey("b", "k"), h: 5, i: "i".into() }] };
+         let raw = serde_json::to_vec(&l).unwrap();

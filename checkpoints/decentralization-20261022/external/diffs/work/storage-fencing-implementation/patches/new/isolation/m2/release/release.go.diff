@@ -1,0 +1,22 @@
+--- a/isolation/m2/release/release.go
++++ b/isolation/m2/release/release.go
+@@ -106,10 +106,19 @@
+ 	// Custody points at the deployment's custody state (EnclaveSecretVault) when its secrets are held by custodians
+ 	// rather than the relay: Secrets is then empty, and the front fetches them itself (custody.go, isolation/m2/custody).
+ 	Custody *Custody `json:"custody,omitempty"`
++	// Facts are what the RELAY established for this release (not the owner's): the writer authority of the lease the
++	// secrets were released under (storage writer fencing, work/storage-fencing-implementation-interface.txt v3 s5).
++	Facts *ReleaseFacts `json:"facts,omitempty"`
+ 
+ 	opened bool // set ONLY by SealKey.Open: this release came through the attested channel
+ }
+ 
++// ReleaseFacts: relay-established facts the front hands the app through reserved config names (provision.go).
++type ReleaseFacts struct {
++	// {"source":"lease17"|"lease16",...} computed by the relay from FINALIZED chain reads of the lease it released for
++	WriterAuthority json.RawMessage `json:"writerAuthority,omitempty"`
++}
++
+ // Attested reports whether this Release was produced by SealKey.Open, i.e. decrypted from the relay's sealed reply.
+ // Another package cannot set it, so a Release assembled from anything else (host-delivered config) is never trusted.
+ func (r *Release) Attested() bool { return r != nil && r.opened }

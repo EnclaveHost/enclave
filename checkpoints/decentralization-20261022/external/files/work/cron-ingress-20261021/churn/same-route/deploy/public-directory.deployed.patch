@@ -1,0 +1,46 @@
+--- a/network/public-directory.mjs
++++ b/network/public-directory.mjs
+@@ -15,8 +15,18 @@
+ // landing during a slow read withheld every app).
+ const routeContext=(state,id)=>{const publication=state.publications[id]??null,at=new Set((publication?.bundle?.record?.routes||[]).map(r=>r?.address));
+   return {publication,policy:state.policies[id]??null,providers:Object.entries(state.providers).filter(([,e])=>at.has(e?.record?.record?.address)).sort(([a],[b])=>a<b?-1:a>b?1:0)};};
++// The same publication merely RE-SIGNED: its context without the record's sequence, issuedAt, expiresAt and signature.
++// Hosts re-sign an unchanged route every few seconds (2026-10-21 17:18Z: about every 4 s per app), so a slow read nearly
++// always sees one. Everything else stays: endpoint, policy, the delegation and its signature, the routes, a direct route's
++// qualification, the stored policy and the named providers' entries.
++const READ_SAME=Symbol('verified publication, re-signs aside');
++const sameContext=(state,id)=>{const c=routeContext(state,id),p=c.publication;
++  return p?{...c,publication:{...p,bundle:{authorization:p.bundle?.authorization??null,record:{...p.bundle?.record,sequence:null,issuedAt:null,expiresAt:null}}}}:c;};
+ const equal=(a,b)=>recordHash(a)===recordHash(b);
+ const empty=()=>({version:1,providers:{},policies:{},publications:{},management:{}});
++// Tag a verified route with the state it stands for; a newer re-sign's (possibly shorter) expiry bounds it.
++const resigned=(route,s,id)=>Object.assign(route,{expiresAt:Math.min(route.expiresAt,s.publications[id].bundle.record.expiresAt),
++  [READ_CONTEXT]:recordHash(routeContext(s,id)),[READ_SAME]:recordHash(sameContext(s,id))});
+ export class PublicDirectory {
+   // importManagement: replicate host-management records from peer snapshots (directory replicas set it; an app client's
+   // private directory does not need every host's endpoint and leaves it off).
+@@ -145,7 +155,11 @@
+       try{route=await this.checkRoute(s.publications[id],s);}catch(e){error=e;}
+       await this.tail;
+       const latest=await this.read();
+-      if(equal(context(s),context(latest))){if(error)throw error;return Object.assign(route,{[READ_CONTEXT]:recordHash(context(latest))});}
++      if(equal(context(s),context(latest))){if(error)throw error;return resigned(route,latest,id);}
++      // Only a re-sign of the same publication landed: the verified routes are exactly what the newer record authorizes,
++      // served no longer than the newer record's own expiry. Never on an error (an older sequence fails the replay floor a
++      // newer acceptance advanced): that retries on the newer record.
++      if(!error&&equal(sameContext(s,id),sameContext(latest,id)))return resigned(route,latest,id);
+       s=latest;
+     }
+     throw Error('route state changed during verification');
+@@ -168,7 +182,10 @@
+       }));
+       await this.tail;
+       s=await this.read();
+-      const changed=Object.keys(s.publications).filter(id=>results.get(id)&&results.get(id)[READ_CONTEXT]!==recordHash(routeContext(s,id)));
++      const changed=Object.keys(s.publications).filter(id=>{const r=results.get(id);
++        if(!r||r[READ_CONTEXT]===recordHash(routeContext(s,id)))return false;
++        if(r[READ_SAME]!==recordHash(sameContext(s,id)))return true;
++        resigned(r,s,id);return false;});   // re-signed since it was verified: bounded by the newer expiry, not withheld
+       if(changed.length&&attempt<2)continue;
+       // Continuous updates can withhold that app, never resurrect its old route
+       // or starve all other apps. No asynchronous work follows this final check.

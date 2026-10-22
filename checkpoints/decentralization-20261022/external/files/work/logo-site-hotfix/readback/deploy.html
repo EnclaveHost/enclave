@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>(function(){
+var heal=function(){try{
+  var k="enclave_skew_reload",last=+sessionStorage.getItem(k)||0;
+  if(Date.now()-last<240000)return;
+  sessionStorage.setItem(k,String(Date.now()));
+  setTimeout(function(){location.reload();},8000);
+}catch(e){}};
+addEventListener("error",function(e){
+  var t=e.target;
+  if(t&&(t.tagName==="SCRIPT"||(t.tagName==="LINK"&&t.rel==="modulepreload")))heal();
+},true);
+addEventListener("unhandledrejection",function(e){
+  if(/dynamically imported module|Failed to fetch|error loading/i.test(String(e.reason)))heal();
+});
+})();</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070A0F" />
+<title>Deploy · Enclave</title>
+<meta name="robots" content="noindex" />
+<link rel="canonical" href="https://enclave.host/apps/" />
+<!-- The deploy console is gone: an app deploys from its card in the store, and
+     every setting the console carried is a tab on the deployment's dashboard
+     row. This stub keeps old links and bookmarks landing somewhere useful. -->
+<script>location.replace("apps");</script>
+<meta http-equiv="refresh" content="0;url=apps" />
+</head>
+<body style="background:#070A0F;color:#93A1B5;font-family:monospace;padding:2em">
+Moved - <a style="color:#2FE6A8" href="apps">continue to the app store</a>.
+</body>
+</html>

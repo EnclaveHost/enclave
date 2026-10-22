@@ -1,0 +1,41 @@
+#!/bin/bash
+# preflight <r>: refuses to set up or start an indexer replica where the placement rules forbid it. Exit 0 = OK.
+# Rules (work/effective-goal-requirements.txt, HOSTED SERVICE PLACEMENT + PROVIDER INDEPENDENCE):
+#  - never on a DigitalOcean machine (they stay minimal WireGuard transport hosts);
+#  - an Enclave host (ENCLAVE_HOST_ID set) with a declared failure domain (site, provider, power);
+#  - native PostgreSQL major 18 (same major as the tested fixture image), memory and disk for the live primary's caps;
+#  - no placeholder left in the non-secret config.
+source "$(dirname "$0")/common.sh"
+r=$(replica_name "${1:-}")
+DMI=${ESI_TEST_DMI:-/sys/class/dmi/id}
+fail=0
+bad() { echo "PREFLIGHT FAIL: $*" >&2; fail=1; }
+for f in sys_vendor board_vendor bios_vendor chassis_vendor; do
+  v=$(cat "$DMI/$f" 2>/dev/null || true)
+  case "${v,,}" in *digitalocean*) bad "this machine reports $f='$v': DigitalOcean machines are transport-only, never indexer hosts";; esac
+done
+[ -f /etc/cloud/cloud.cfg.d/90_dpkg.cfg ] && grep -qi digitalocean /etc/cloud/cloud.cfg.d/90_dpkg.cfg 2>/dev/null && [ -z "${ESI_TEST_ROOT:-}" ] \
+  && bad "cloud-init reports a DigitalOcean datasource"
+load_env "$r"
+[ -n "${ENCLAVE_HOST_ID:-}" ] && [[ "$ENCLAVE_HOST_ID" =~ ^0x[0-9a-f]{64}$ ]] || bad "ENCLAVE_HOST_ID must be the host's 0x-prefixed 32-byte Enclave id"
+for k in FAILURE_DOMAIN_SITE FAILURE_DOMAIN_PROVIDER FAILURE_DOMAIN_POWER; do
+  [ -n "${!k:-}" ] || bad "$k is required (replicas of one set must differ in site, provider and power)"
+done
+case "${FAILURE_DOMAIN_PROVIDER,,}" in *digitalocean*) bad "FAILURE_DOMAIN_PROVIDER names DigitalOcean";; esac
+[[ "${ADVERTISE_URL:-}" =~ ^https://[a-z0-9.-]+(:[0-9]+)?$ ]] || bad "ADVERTISE_URL must be https://<host>[:port]"
+PG=${PG_BIN:-/usr/lib/postgresql/18/bin}
+if [ -x "$PG/postgres" ]; then
+  maj=$("$PG/postgres" --version | sed -E 's/.* ([0-9]+)\..*/\1/')
+  [ "$maj" = 18 ] || bad "PostgreSQL major $maj at $PG (need 18)"
+else
+  bad "no PostgreSQL 18 server at $PG (set PG_BIN in replica.env)"
+fi
+avail=$(awk '/MemAvailable/ {print int($2/1024)}' "${ESI_TEST_MEMINFO:-/proc/meminfo}")
+[ "$avail" -ge 2304 ] || bad "MemAvailable ${avail} MiB < 2304 MiB (indexd 1 GiB + PostgreSQL 1 GiB + 256 MiB margin, the live primary's caps)"
+mkdir -p "$VAR" 2>/dev/null || true
+free=$(df -Pk "$VAR" 2>/dev/null | awk 'NR==2 {print int($4/1024)}')
+[ "${free:-0}" -ge 3584 ] || bad "free disk under $VAR is ${free:-0} MiB < 3.5 GiB"
+[ -f "$PKG/share/GeoLite2-City.mmdb" ] || bad "GeoLite2-City.mmdb missing from the package (indexd would download it)"
+if [ -f "$ETC/$r/indexd.base.yml" ] && grep -q "<PLACEHOLDER" "$ETC/$r/indexd.base.yml"; then bad "indexd.base.yml still has placeholders"; fi
+[ $fail -eq 0 ] && echo "PREFLIGHT OK: replica $r on Enclave host $ENCLAVE_HOST_ID (site $FAILURE_DOMAIN_SITE, provider $FAILURE_DOMAIN_PROVIDER, power $FAILURE_DOMAIN_POWER)"
+exit $fail

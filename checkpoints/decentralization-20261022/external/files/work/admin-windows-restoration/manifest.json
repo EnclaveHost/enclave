@@ -1,0 +1,91 @@
+{
+  "files": [
+    {
+      "file": "host.mjs",
+      "sha256": "b29f47dbefa65c2a1dd831856a5561865618c6a31e3240b20c19102cef750898",
+      "bytes": 244023,
+      "walletVisibility": false,
+      "catalogBypass": true,
+      "afterSha256": "eeb6b5d641ce83aff9e96fc97ccbead4b762260a93bc78c2f3a8e2231684fc78"
+    },
+    {
+      "file": "chain.mjs",
+      "sha256": "6bd9df748aeff581b0ce7fe5843d91018b6a6578cfc38ecab3d856116d2373cc",
+      "bytes": 51961,
+      "walletVisibility": false,
+      "catalogBypass": true,
+      "afterSha256": "192dd90d1789e6d2f4cad9053b2b25365707ec5da9b6752c2f9037a53abf9cc7"
+    },
+    {
+      "file": "host-admission.bundle.mjs",
+      "sha256": "2d4c8bd58e9c184d4c8ed9983ebcf3db5a33e725b6e23986368720f7f77528aa",
+      "bytes": 309172,
+      "walletVisibility": false,
+      "catalogBypass": false,
+      "afterSha256": "3ec5461286b86a0d13f3511a2ca09713c28ede91b2ebe76f70b6d6c14643ee9b"
+    }
+  ],
+  "beforeVMs": [
+    {
+      "id": "hvbbf173f004ba905c63da377f8be15bd2",
+      "name": "shield-readiness-v1",
+      "status": "running",
+      "appId": "a79db30fdf40b37499c8dbf955728c74541fa140201059158694c841736f5030"
+    },
+    {
+      "id": "hve6d4a70353539989783189fe100af11a",
+      "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "status": "running",
+      "appId": "f432295313edd734941113fea9c0703c061534450a7abad167b601922a2c3308"
+    },
+    {
+      "id": "hv78a96bfc074920557d1873d7cea73b6c",
+      "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "running",
+      "appId": "ad0f596eb7b1599d4710967dadb30092b3d48cac5e77a1c3456f0e01affe76cc"
+    },
+    {
+      "id": "hvadec2374498f1f32fb376c4381f103e7",
+      "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "status": "running",
+      "appId": "3f770400d06ed1c96601dfecc2446d0b5e51d15a0b0018616e340ecb03997995"
+    },
+    {
+      "id": "hva08d2562e364bd6153a6237b8ff21f4e",
+      "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "running",
+      "appId": "3800479088b61c2add3d847d8c4d2019dfd3182748a9cdbc02ba44eee0244dba"
+    },
+    {
+      "id": "hv9393a62bf2083ec19024ed7ad6571826",
+      "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "status": "running",
+      "appId": "10c44a8a81b03e43d91411717be2bb0e477014da322a046e635493c7535d0ea6"
+    },
+    {
+      "id": "hv93ef37d22869dfced4bc02175cf2dfff",
+      "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "status": "running",
+      "appId": "ea9d47738f079748b7e3fd29e18c496e2b9e88cd861473671cd9535888654ac3"
+    },
+    {
+      "id": "hve3829b32bcaca7b45c09ff59929f70fc",
+      "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "status": "running",
+      "appId": "322c52065ddf51a20ee2ad73772b75aa8b870a795352ccfbb080854951b9da81"
+    },
+    {
+      "id": "hv0e07be04b9b4ae2c1e6bfee9face8755",
+      "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "status": "running",
+      "appId": "3dfcbff878c88c4ef6ba53f7b907bd129cafdb6f077455afa41a74a60cdef768"
+    },
+    {
+      "id": "hv6f5791c7b4fc0978c50512883a273f1a",
+      "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "status": "running",
+      "appId": "46de1836623ebbab5157ddc24ac5d82fd7bc67625a73d7703c5ab0267f9bd1b7"
+    }
+  ],
+  "scope": "Only host admission modules; no manager/guest/installer/contract changes"
+}

@@ -1,0 +1,136 @@
+--- a/site/js/core/catalog.js
++++ b/site/js/core/catalog.js
+@@ -12,7 +12,7 @@
+    Load progress is announced with `enclave:catalog` events (detail.type:
+    loading | loaded | error) - pages render, this module doesn't.
+    ============================================================ */
+-import { APP_CATALOG_ADDRESS, IPFS_IMG_GATEWAY, IPFS_JSON_UPLOAD_URL, IPFS_WALLET_AUDIENCE } from "./config.js";
++import { APP_CATALOG_ADDRESS, IPFS_IMG_GATEWAY, IPFS_IMG_FALLBACKS, IPFS_JSON_UPLOAD_URL, IPFS_WALLET_AUDIENCE, STORAGE_PLAN, INDEPENDENT } from "./config.js";
+ import { catConfigured, appCount, catGetAppsPage, catGetVersions, catOwner, APPROVAL, CAT_MAX } from "./chain.js";
+ import { lsGet, lsSet, emit, on, esc } from "./util.js";
+ import { minPctsOf } from "./pricing.js";
+@@ -239,6 +239,69 @@
+ // which the Kubo gateway derives from the ?filename extension; bare raster
+ // CIDs content-sniff fine without it.
+ export const mediaUrl = (cid, svg) => IPFS_IMG_GATEWAY + encodeURIComponent(cid) + (svg ? "?filename=enclave-logo.svg" : "");
++/* Media fallback for the renderers (store tile, detail banner, dashboard chip). A CSS background has no error event, so an
++   unreachable preferred gateway used to leave an EMPTY band with no placeholder (the disappearing logos). A media CID is
++   resolved on use: the preferred mediaUrl first, then config.js IPFS_IMG_FALLBACKS in order, each attempt bounded by
++   MEDIA_TRY_MS (an image that loads = delivered); the first gateway that delivers is used everywhere that CID appears, and
++   if none does the renderer's own placeholder shows instead. The answer is kept MEDIA_HIT_TTL_MS (a gateway) or
++   MEDIA_MISS_TTL_MS (none delivered); renders inside that window repaint from it with no request, the first render after it
++   re-checks the whole list once (shared by every concurrent caller) while the last answer stays painted. So an outage heals
++   and a dead chosen gateway is replaced on a later render, with at most one round of MEDIA_MAX_TRIES attempts per CID per
++   window and no timer of its own. Gateways are transport only: never trusted beyond showing the picture, and a working URL
++   is not a replica. */
++export const MEDIA_TRY_MS = 8000, MEDIA_MAX_TRIES = 4, MEDIA_HIT_TTL_MS = 10 * 60 * 1000, MEDIA_MISS_TTL_MS = 60 * 1000;
++const _media = new Map();   // "s:"/"r:" + cid -> { url: string|null, at } last answer, + { pending: Promise } while (re)checking
++const mediaKey = (cid, svg) => (svg ? "s:" : "r:") + cid;
++const mediaFresh = (e) => !!e && "url" in e && Date.now() - e.at < (e.url ? MEDIA_HIT_TTL_MS : MEDIA_MISS_TTL_MS);
++export function mediaUrls(cid, svg){
++  const c = cleanCid(cid); if (!c) return [];
++  const q = svg ? "?filename=enclave-logo.svg" : "";
++  return [...new Set([IPFS_IMG_GATEWAY, ...(IPFS_IMG_FALLBACKS || [])].filter((g) => /^https?:\/\/[^\s'"()]+\/$/.test(g)))]
++    .slice(0, MEDIA_MAX_TRIES).map((g) => g + encodeURIComponent(c) + q);
++}
++function mediaLoads(url, ms){
++  return new Promise((done) => {
++    const img = new Image(); let over = false;
++    const end = (ok) => { if (over) return; over = true; clearTimeout(t); img.onload = img.onerror = null; if (!ok) img.src = ""; done(ok); };
++    const t = setTimeout(() => end(false), ms);
++    img.onload = () => end(true); img.onerror = () => end(false);
++    img.src = url;
++  });
++}
++// -> Promise<the first URL that delivers the CID's image, or null>; one resolution per CID at a time, reused until it expires
++export function resolveMedia(cid, svg){
++  const c = cleanCid(cid); if (!c) return Promise.resolve(null);
++  const k = mediaKey(c, svg), e = _media.get(k);
++  if (e && e.pending) return e.pending;
++  if (mediaFresh(e)) return Promise.resolve(e.url);
++  const pending = (async () => {
++    let hit = null;
++    for (const u of mediaUrls(c, svg)) { if (await mediaLoads(u, MEDIA_TRY_MS)) { hit = u; break; } }
++    _media.set(k, { url: hit, at: Date.now() }); return hit;
++  })();
++  _media.set(k, { ...e, pending });   // the previous answer stays readable for synchronous repaints meanwhile
++  return pending;
++}
++/* Paint `el`'s background with the CID's image (resolved as above) or, when no gateway delivers it, `fallbackCss` (a CSS
++   background value, e.g. placeholderArt); `onResult(shown)` follows every paint, so a hidden optional banner comes back
++   when its media recovers. A later call for another CID on the same element wins. */
++export function applyMedia(el, cid, svg, fallbackCss, onResult){
++  if (!el) return;
++  const c = cleanCid(cid), k = c ? mediaKey(c, svg) : "";
++  el.dataset.mediaKey = k;
++  const paint = (u) => { if (el.dataset.mediaKey !== k) return; el.style.backgroundImage = u ? "url('" + u + "')" : (fallbackCss || ""); if (onResult) onResult(!!u); };
++  if (!c) return paint(null);
++  const e = _media.get(k);
++  if (e && "url" in e) return paint(e.url);   // MUTANT: synchronous path ignores expiry
++  paint(e && "url" in e ? e.url : mediaUrl(c, svg));   // the last answer, or (first sight) the preferred URL as before
++  resolveMedia(c, svg).then(paint);
++}
++// HTML-string renderers: mark the element with mediaAttrs(...) and call hydrateMedia(container) after inserting it
++export const mediaAttrs = (cid, svg, fallbackCss) => cleanCid(cid)
++  ? ' data-media-cid="' + esc(cleanCid(cid)) + '" data-media-svg="' + (svg ? "1" : "") + '" data-media-alt="' + esc(fallbackCss || "") + '"' : "";
++export function hydrateMedia(root){
++  if (root && root.querySelectorAll) root.querySelectorAll("[data-media-cid]").forEach((el) => applyMedia(el, el.dataset.mediaCid, el.dataset.mediaSvg === "1", el.dataset.mediaAlt || ""));
++}
+ export function mediaOf(version){
+   if (!version || !version.config) return {};
+   try {
+@@ -390,6 +453,8 @@
+    the wasm upload, the images, and both config pins (a publisher's version
+    config and a deployer's per-deployment override). */
+ export async function signedUploadToken(bytes){
++  // independent mode has no token service: uploads are wallet-signed per adapter (independentUpload below)
++  if (INDEPENDENT.state !== "off") throw new EnclaveError("Uploads in independent mode go to the profile's storage adapters, never the upload-token API.", 0);
+   if (!Enclave.address){ try { await connectWallet(); } catch(_){} }
+   if (!Enclave.address || !Enclave.provider) throw new EnclaveError("Connect your wallet to upload; your signature authorizes the pin.", 0);
+   const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(b => b.toString(16).padStart(2, "0")).join("");
+@@ -424,7 +489,32 @@
+    Enclaves re-fetch and hash-verify either one, so this pin is AVAILABILITY,
+    never trust: a gateway that served different bytes would fail the check, not
+    change what runs. */
++/* Independent mode: publish bytes to EVERY adapter in the profile's storage
++   plan (js/core/storage-plan.js) - local CID, one wallet signature per
++   adapter, exact-byte readback, minimum verified copies. Returns the CID and
++   the availability report. No profile storage plan = uploads are off. */
++export async function independentUpload(bytes, kind, onProgress){
++  if (INDEPENDENT.state !== "on") throw new EnclaveError("Confirm the independent profile in Settings before uploading.", 0);
++  if (!STORAGE_PLAN) throw new EnclaveError("The independent profile names no storage adapters, so uploads are off here. Paste a CID you have pinned, or add a storage plan to the profile.", 0);
++  if (!Enclave.address){ try { await connectWallet(); } catch(_){} }
++  if (!Enclave.address || !Enclave.provider) throw new EnclaveError("Connect your wallet: each storage adapter needs your signature for this upload.", 0);
++  const { publishToPlan } = await import("./storage-plan.js");
++  try {
++    const report = await publishToPlan(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), kind, STORAGE_PLAN,
++      { address: Enclave.address.toLowerCase(), signMessage: ({ message }) => personalSign(message) }, { onProgress });
++    return { cid: report.cid, report };
++  } catch(err){
++    if (err && (err.code === 4001 || /reject|denied|declin|cancell/i.test(err.message || ""))) throw new EnclaveError("upload canceled: you declined a wallet signature (nothing was uploaded).", 0);
++    throw (err instanceof EnclaveError) ? Object.assign(err, { report: err.report }) : Object.assign(new EnclaveError(err.message || String(err), 0), { report: err && err.report });
++  }
++}
++
+ export async function putConfig(text){
++  if (INDEPENDENT.state !== "off"){
++    const buf = new TextEncoder().encode(text);
++    if (buf.byteLength > CAT_MAX.configMax) throw new EnclaveError("config too long (≤ " + CAT_MAX.configMax + " bytes)", 0);
++    return (await independentUpload(buf, "json")).cid;
++  }
+   if (!IPFS_JSON_UPLOAD_URL) throw new EnclaveError("Large configs aren’t configured here (no config pin gateway).", 0);
+   const buf = new TextEncoder().encode(text);
+   if (buf.byteLength > CAT_MAX.configMax)
+@@ -578,3 +668,12 @@
+   const name = (hit && (hit.app.name || hit.app.slug)) || String(label || "?");
+   return placeholderArt((cr && cr.appId) || ref || label, name);
+ }
++// the same chip's media-fallback attributes (see hydrateMedia): the thumbnail CID, and the placeholder for when no gateway delivers it
++export function artAttrsOfRef(ref, label){
++  const cr = parseCatalogRef(ref);
++  const hit = cr && appOfRef(cr);
++  const m = hit && hit.v ? mediaOf(hit.v) : {};
++  if (!m.thumbnail) return "";
++  const name = (hit && (hit.app.name || hit.app.slug)) || String(label || "?");
++  return mediaAttrs(m.thumbnail, m.thumbnailSvg, placeholderArt((cr && cr.appId) || ref || label, name));
++}

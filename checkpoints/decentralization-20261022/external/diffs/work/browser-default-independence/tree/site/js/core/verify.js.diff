@@ -1,0 +1,12 @@
+--- a/site/js/core/verify.js
++++ b/site/js/core/verify.js
+@@ -151,6 +151,9 @@
+ // Any other box gets an honest "not here" with what the relay checked instead.
+ export const boxVerifiable = (row) => !!(row && row.name && VERIFIERS[row.mode]);
+ export function unverifiableReason(row) {
++  // independent mode's rows come from the pinned registry, not the relay: the in-browser challenge reaches a host through
++  // Enclave's API, which that mode never asks
++  if (row && row.independent) return "a host read from the pinned registry. The in-browser challenge goes through Enclave’s API, which this independent dashboard does not use: verify it with the attestation-checking native client.";
+   const m = row && row.mode;
+   if (m === "vbs") return "a Windows VBS enclave host. The relay verifies its enclave report when it attaches; this page cannot run that check yet.";
+   return "a host that attached without hardware evidence the relay verified (a token or operator attach), so there is nothing for this page to challenge.";

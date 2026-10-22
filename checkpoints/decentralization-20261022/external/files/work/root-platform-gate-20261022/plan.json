@@ -1,0 +1,6 @@
+{
+  "stage": "C:\\ProgramData\\Enclave\\staging\\policygate-fb06538a82a5",
+  "gateSha": "e7f3199525273505a85e053dbd5fa29e2312cfe1d621e74e80ab3f0f5aa3e83f",
+  "psSha": "c3b49ad3985d502288451ea17f31f64aae706892214101e42b27a420722f106a",
+  "scope": "Read-only exact installed host-admission bundle, no stateDir; native gate optionR only. Own staging only; no production configuration or process restart."
+}

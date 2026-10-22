@@ -1,0 +1,63 @@
+--- a/jot/src/sso.rs
++++ b/jot/src/sso.rs
+@@ -38,6 +38,9 @@
+     pub authorize_url: String,
+     /// tolerated clock drift on `iat`, seconds
+     pub skew_secs: u64,
++    /// CUTOVER (unix seconds): from this moment no EST1 counts here, whatever it says about itself - an issuer can mint
++    /// any `iat`, so only the deployment's own clock can end its authority. Set it ahead of the issuer's retirement.
++    pub until: Option<u64>,
+ }
+ 
+ impl SsoConfig {
+@@ -68,7 +71,11 @@
+             if u.is_empty() { "https://enclave.host/sso/authorize".to_string() } else { u }
+         };
+         let skew_secs = s.get("skew_secs").and_then(|x| x.as_u64()).unwrap_or(300);
+-        Ok(Some(SsoConfig { signer, audience, accept, authorize_url, skew_secs }))
++        let until = match s.get("until") {
++            None | Some(serde_json::Value::Null) => None,
++            Some(u) => Some(u.as_u64().ok_or("sso.until must be unix seconds")?),
++        };
++        Ok(Some(SsoConfig { signer, audience, accept, authorize_url, skew_secs, until }))
+     }
+ }
+ 
+@@ -81,6 +88,10 @@
+ #[derive(Debug)]
+ pub struct Claims {
+     pub sub: String,
++    /// the audience it was minted for (this deployment, or one in `accept`)
++    pub aud: String,
++    /// when it was minted: an account link wants a sign-in made just now
++    pub iat: u64,
+ }
+ 
+ fn keccak(bytes: &[u8]) -> [u8; 32] {
+@@ -138,6 +149,9 @@
+ /// prose (they land in the 401 body); none of them leak what WAS expected.
+ pub fn verify(cfg: &SsoConfig, token: &str, now_secs: u64) -> Result<Claims, String> {
+     let rest = token.strip_prefix("EST1.").ok_or("not an Enclave sign-in token")?;
++    if cfg.until.is_some_and(|u| now_secs >= u) {
++        return Err("Sign in with Enclave has ended for this notebook: sign in with your wallet".into());
++    }
+     let (payload_b64, sig_b64) = rest.split_once('.').ok_or("malformed sign-in token")?;
+ 
+     let payload = URL_SAFE_NO_PAD.decode(payload_b64).map_err(|_| "malformed sign-in token payload")?;
+@@ -181,7 +195,7 @@
+         return Err("sign-in expired; sign in again".into());
+     }
+     let sub = canonical_sub(&sub).ok_or("malformed sign-in token payload")?;
+-    Ok(Claims { sub })
++    Ok(Claims { sub, aud: aud.to_lowercase(), iat })
+ }
+ 
+ #[cfg(test)]
+@@ -200,6 +214,7 @@
+             accept: accept.iter().map(|s| s.to_string()).collect(),
+             authorize_url: "https://enclave.host/sso/authorize".into(),
+             skew_secs: 300,
++            until: None,
+         }
+     }
+ 

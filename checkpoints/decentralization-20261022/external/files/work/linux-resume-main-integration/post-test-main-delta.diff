@@ -1,0 +1,224 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/linux-resume-repair/main-tree/supervisor.js	2026-10-20 22:31:26.287465815 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/linux-resume-main-integration/staged/supervisor.js	2026-10-20 22:49:42.465152841 -0700
+@@ -2133,6 +2133,38 @@
+   saveStateSoon();
+ }
+ 
++// ---- the owner's sign-in frontends (the envelope's `access` namespace) ------
++// WHERE a private app's browser sign-in goes. Without it the bounce uses SIWE_URI, a per-HOST setting (enclave.host by
++// default), so no owner could choose. With it, the bounce names ONLY the owner's own origins: the first is followed and
++// every other one is offered as an explicit link, never enclave.host as a silent fallback. It grants nothing: whoever
++// signs in at a frontend still needs the owner's session (the /__enclave/session hand-off below). It lives on chain
++// because only the owner can write the envelope (setConfig): a host can neither choose nor rewrite it. An older runner
++// refuses the unknown namespace at claim, so it can never serve such an app with an enclave.host bounce.
++// Exact origins only: https://<lowercase DNS name>[:port], or a frontend on the owner's own machine at
++// http://127.0.0.1|[::1]|localhost:<port>. No path, query, fragment or userinfo; at most four; unique.
++// (Literals inside the hoisted functions, not module consts: earlier self-test seams can parse an envelope while a
++// module-level const would still be in its temporal dead zone.)
++function accessOrigin(x) {
++  const dns = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
++  if (typeof x !== "string" || x.length > 300) return false;
++  const m = /^(https?):\/\/(\[::1\]|[^/:?#@[\]]+)(?::([1-9][0-9]{0,4}))?$/.exec(x);
++  if (!m || (m[3] && +m[3] > 65535)) return false;
++  const loop = m[2] === "127.0.0.1" || m[2] === "[::1]" || m[2] === "localhost";
++  if (m[1] === "http") return loop && !!m[3];
++  return !loop && dns.test(m[2]) && /[a-z]/.test(m[2].split(".").at(-1));
++}
++function parseAccess(a) {
++  if (!a || Array.isArray(a) || typeof a !== "object") throw new Error("access must be a JSON object like {\"frontends\":[\"https://dash.example.org\"]}");
++  const bad = Object.keys(a).filter((k) => k !== "frontends");
++  if (bad.length) throw new Error(`unknown access option ${JSON.stringify(bad[0])} (this runner knows: frontends)`);
++  const f = a.frontends;
++  if (!Array.isArray(f) || f.length < 1 || f.length > 4) throw new Error("access.frontends must list 1..4 sign-in origins");
++  for (const x of f) if (!accessOrigin(x))
++    throw new Error(`access.frontends entry ${JSON.stringify(x)} is not an exact origin (https://<lowercase DNS name>[:port], or http://127.0.0.1|[::1]|localhost:<port>; no path)`);
++  if (new Set(f).size !== f.length) throw new Error("access.frontends lists an origin twice");
++  return { frontends: [...f] };
++}
++
+ function parseDepOptions(raw, gpuMilli) {
+   const s = String(raw || "").trim();
+   if (!s) return ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND } : {};
+@@ -2146,7 +2178,7 @@
+   // deployment that is already serving here - with a message that says what the deployment asked for.
+   if ("isolation" in o && !ISOLATION_BACKEND)
+     throw new Error(`this deployment requires per-app hardware isolation (isolation.require=${JSON.stringify(o.isolation && o.isolation.require)}), which this runner does not provide`);
+-  const known = ["waf", "config", "configCid", "gpu", "network", "placement", ...(ISOLATION_BACKEND ? ["isolation"] : []), ...(ISOLATION_BACKEND === "snp-guest-per-app" ? ["guestBootstrap"] : [])];
++  const known = ["waf", "config", "configCid", "gpu", "network", "placement", ...(ISOLATION_BACKEND ? ["isolation"] : []), ...(ISOLATION_BACKEND === "snp-guest-per-app" ? ["guestBootstrap"] : []), "access"];
+   const unknown = Object.keys(o).filter((k) => !known.includes(k));
+   if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: ${known.join(", ")})`);
+   const opts = ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND } : {};
+@@ -2169,6 +2201,7 @@
+       throw new Error(`isolation.require must be one of: ${ISOLATION_BACKENDS.join(", ")}`);
+     opts.isolation = iso.require ?? ISOLATION_BACKEND;
+   }
++  if ("access" in o) opts.access = parseAccess(o.access);
+   if ("network" in o) {
+     const n = o.network;
+     if (!n || Array.isArray(n) || typeof n !== "object") throw new Error("network must be a JSON object");
+@@ -2336,12 +2369,27 @@
+   return cfg(newO) === cfg(oldO) ? "waf" : "restart";
+ }
+ 
++// What a parsed envelope sets on a SERVING record without a restart: the waf rules and the owner's sign-in frontends
++// (`access`, what the private-app bounce offers). ONE function for the claim/resume record and an owner's live edit
++// (applyEnvelopeEdit), so the two can never disagree; a namespace the envelope no longer carries is removed.
++function applyLiveOptions(rec, o) {
++  if (o.waf) rec.waf = o.waf; else delete rec.waf;
++  if (o.access) rec.access = o.access; else delete rec.access;
++  return rec;
++}
++
+ // CFG_EDIT_SELFTEST='{"records":[{"rec":{…},"chainCid":"…"},…]}' prints each
+ // record's verdict as one JSON line and exits - same contract as the seams
+ // above (test/config-edit.test.mjs drives it).
+ if (process.env.CFG_EDIT_SELFTEST) {
+   const c = JSON.parse(process.env.CFG_EDIT_SELFTEST);
+-  console.log(JSON.stringify((c.records || []).map((r) => ({ verdict: envelopeEditVerdict(r.rec || {}, r.chainCid) }))));
++  // `apply: true` adds what the edit leaves on the record's live fields (applyLiveOptions), when the edit is applied
++  console.log(JSON.stringify((c.records || []).map((r) => {
++    const verdict = envelopeEditVerdict(r.rec || {}, r.chainCid);
++    if (!c.apply || !["waf", "restart"].includes(verdict)) return { verdict };
++    const live = applyLiveOptions({ ...(r.rec || {}) }, parseDepOptions(r.chainCid));
++    return { verdict, live: { waf: live.waf ?? null, access: live.access ?? null } };
++  })));
+   process.exit(0);
+ }
+ 
+@@ -5223,6 +5271,37 @@
+     `var SUB=${jsStr(req.url || "/")};` +
+     `var here=location.pathname+location.search;` +
+     `var root=here.length>=SUB.length&&here.slice(here.length-SUB.length)===SUB?here.slice(0,here.length-SUB.length):"";`;
++  // The OWNER's sign-in frontends (the envelope's `access`): only those origins are offered - the first is followed,
++  // every other one is an explicit link - and never enclave.host. Re-checked here so a restored or stale record can only
++  // ever name an exact origin. Nothing about who may enter changes: that is the hand-off's session check.
++  const owned = (rec.access && Array.isArray(rec.access.frontends) ? rec.access.frontends : []).filter(accessOrigin);
++  if (owned.length) {
++    const urls = owned.map((o) => `${o}/authorize?d=${encodeURIComponent(rec.id)}`);
++    const links = urls.map((u, i) => `<li><a class="fe" href="${esc(u)}">${esc(owned[i])}</a></li>`).join("");
++    const p = `here.slice(root.length)||"/"`;
++    // every link carries the wanted path in its FRAGMENT (no server log, no Referer)
++    const linkJs = `var ps="#p="+encodeURIComponent(${p});var fe=document.querySelectorAll("a.fe");` +
++      `for(var i=0;i<fe.length;i++)fe[i].href=fe[i].getAttribute("href")+ps;`;
++    if (wrongAddr)
++      return htmlPage(res, 403, "Wrong wallet &middot; Sign in",
++        `<h1>Wrong wallet</h1><p>This app is private. You are signed in as <code>${esc(wrongAddr)}</code>, ` +
++        `which does not own it. Switch wallets, then sign in again at a sign-in page this app's owner chose:</p>` +
++        `<ul>${links}</ul>`,
++        rootJs + linkJs + `fetch(root+"/__enclave/signout",{method:"POST"}).catch(function(){});`);
++    return htmlPage(res, 401, "Sign in",
++      `<h1>This app is private</h1><p id="st" role="status">Sign in with the wallet that owns it, at the sign-in page its owner chose. ` +
++      `Redirecting to the first&hellip;</p><p>Sign-in pages this app's owner chose:</p><ul>${links}</ul>`,
++      rootJs + linkJs +
++      `var t=0;try{t=+sessionStorage.getItem("enclave_az")||0;sessionStorage.removeItem("enclave_az");}catch(e){}` +
++      `if(Date.now()-t<15000){document.getElementById("st").textContent=` +
++      `"You signed in, but this host still refuses the app. Its owner may have changed, or the deployment moved. Try one of the sign-in pages below, or open the app again from your dashboard.";}` +
++      // Back here within 30 s of following the first page means it did not work (unreachable, refused, or abandoned):
++      // stay, and ask for an explicit choice among the owner's pages. Never a silent move to some other origin.
++      `else{var f=0;try{f=+sessionStorage.getItem("enclave_fe")||0;}catch(e){}` +
++      `if(Date.now()-f<30000){document.getElementById("st").textContent=` +
++      `"The first sign-in page did not complete. Choose one of the sign-in pages this app's owner chose below, or try again.";}` +
++      `else{try{sessionStorage.setItem("enclave_fe",String(Date.now()));}catch(e){}location.replace(fe[0].href);}}`);
++  }
+   // A WRONG wallet is a dead end, not a step: bouncing would send the user to a
+   // page that can only tell them the same thing, and back again. Say it here
+   // and make the next move a deliberate click. 403, matching the JSON path.
+@@ -5267,6 +5346,30 @@
+     // Token arrives as a bearer so this needs no body parser — the data path is
+     // mounted ahead of express.json() on purpose (bodies stream untouched).
+     (async () => {
++      // The OWNER-SELECTED frontend's hand-off: no token minted elsewhere, but ONE EnclaveSession authorization the
++      // owner's session signed for EXACTLY this URL - POST <this host's base>/x/<full id>/__enclave/session?d=<full id>,
++      // empty body. Judged by the same verifier and record rule as every other session route (sessionApi: live session,
++      // key, api.appAccess scope, a nonce used once on this host, +-60 s; refusal: the vault's environment or the owner's
++      // ledger delegation), against THIS host's own bases - never the request's Host. A signature for another host, another
++      // deployment, another path, or one already used here, opens nothing. Then the same audience-bound cookie as below.
++      if (isSessionHeader(req.headers.authorization)) {
++        const q = (req.url || "").includes("?") ? req.url.slice(req.url.indexOf("?") + 1) : "";
++        if (q !== "d=" + rec.id)
++          return fail(res, 400, "bad_request", "A session hand-off names exactly this deployment: ?d=<its full id>.");
++        if (Number(req.headers["content-length"] || 0) > 0 || req.headers["transfer-encoding"])
++          return fail(res, 400, "bad_request", "A session hand-off carries no body.");
++        let s, why;
++        try {
++          s = await sessionApi.verify({ header: req.headers.authorization, method: "POST", path: `/x/${rec.id}${req.url}`,
++            body: Buffer.alloc(0), scope: "api.appAccess", fresh: true });
++          why = await sessionApi.refusal(s, rec, { fresh: true });
++        } catch (e) { return sessionFail(res, e); }
++        if (why) return fail(res, 403, "not_allowed", why);
++        const minted = await mintAppToken(rec.owner, rec.id);
++        res.setHeader("Set-Cookie",
++          `${APP_COOKIE}=${minted}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${APP_TTL_SEC}`);
++        return res.status(204).end();
++      }
+       const m = (req.headers.authorization || "").match(/^Bearer\s+(.+)$/i);
+       // Shape-check BEFORE this value can reach a response header. Node would
+       // throw on a CR/LF in setHeader, and a doctored token should fail the
+@@ -5305,7 +5408,7 @@
+   htmlPage(res, 200, "Signing in &middot; Enclave",
+     `<h1>Signing you in&hellip;</h1><p id="m">One moment.</p>`,
+     `var h=new URLSearchParams(location.hash.slice(1));` +
+-    `var t=h.get("t")||"",p=h.get("p")||"/";` +
++    `var t=h.get("t")||"",a=h.get("a")||"",p=h.get("p")||"/";` +
+     // Resolve and compare ORIGINS rather than pattern-match the string. A
+     // leading-slash regex looks sufficient and is not: the URL parser folds
+     // backslashes into slashes, so "/\\evil.com" passes /^\/(?!\/)/ and then
+@@ -5314,14 +5417,22 @@
+     `try{var _u=new URL(p,location.href);p=_u.origin===location.origin?_u.pathname+_u.search:"/";}catch(e){p="/";}` +
+     `var root=location.pathname.replace(/\\/__enclave\\/session\\/?$/,"");` +
+     `function bad(x){document.getElementById("m").textContent=x;}` +
+-    `if(!t)bad("This sign-in link is incomplete. Start again from enclave.host.");else{` +
+-    `fetch(location.pathname,{method:"POST",headers:{Authorization:"Bearer "+t},cache:"no-store"})` +
+-    `.then(function(r){if(!r.ok)throw 0;` +
++    `function done(){` +
+     // Mark the hand-off so a bounce arriving right back here is recognised as a
+     // LOOP rather than redirected onward (see loginBounce's loop breaker).
+     `try{sessionStorage.setItem("enclave_az",String(Date.now()));}catch(e){}` +
+-    // Scrub the token out of history BEFORE leaving, so Back cannot resurrect it.
+-    `history.replaceState(null,"",root+p);location.replace(root+p);})` +
++    // Scrub the credential out of history BEFORE leaving, so Back cannot resurrect it.
++    `history.replaceState(null,"",root+p);location.replace(root+p);}` +
++    // The owner-selected frontend's form: a session authorization for EXACTLY this URL (path and ?d=), posted back to
++    // it. The host answers why it refused; that text is shown as text, and a retry starts at the sign-in page again.
++    `if(a){if(!/^EnclaveSession v1 [!-~][ -~]{0,2000}$/.test(a))bad("This sign-in link is malformed. Start again from your sign-in page.");else ` +
++    `fetch(location.pathname+location.search,{method:"POST",headers:{Authorization:a},cache:"no-store"})` +
++    `.then(function(r){if(r.ok)return done();return r.json().catch(function(){return null;}).then(function(j){` +
++    `bad("This host refused the sign-in"+(j&&j.message?": "+j.message:".")+" Start again from your sign-in page.");});})` +
++    `.catch(function(){bad("This host could not be reached. Start again from your sign-in page.");});}` +
++    `else if(!t)bad("This sign-in link is incomplete. Start again from your sign-in page.");else{` +
++    `fetch(location.pathname,{method:"POST",headers:{Authorization:"Bearer "+t},cache:"no-store"})` +
++    `.then(function(r){if(!r.ok)throw 0;done();})` +
+     `.catch(function(){bad("That sign-in expired. Start again from enclave.host.");});}`);
+   return true;
+ }
+@@ -6083,6 +6194,7 @@
+     })(),   // a card on the UNTRUSTED host, reached by masked offload; NOT `gpu` — see shieldedCapacity()
+     networkOptions: true,   // accepts the network options envelope; fleet capability checks keep older runners from claiming unsupported options
+     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
++    appAccessFrontends: true,   // this build parses the envelope's `access` namespace (the owner's private-app sign-in frontends) and accepts the session-signed /__enclave/session hand-off
+     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
+     configEdit: true,   // this build's audit re-applies an owner's setConfig to LIVE deployments (waf live-swapped, config = restart in place); without it an edit only lands at the next re-claim — same fleet-AND rule
+     shareResize: true,   // this build's audit re-slices a LIVE deployment on an owner's setShares (rev-6 ledgers); without it the billing would change while the served slice silently didn't — same fleet-AND rule, clients refuse the tx against an older fleet
+@@ -10484,11 +10596,11 @@
+     return refuse(why);
+   }
+   const o = parseDepOptions(cur);                  // waf/restart: the verdict already parsed it clean
+-  if (o.waf) rec.waf = o.waf; else delete rec.waf;
++  applyLiveOptions(rec, o);
+   if (verdict === "waf") {
+     rec._envelope = cur;
+     delete rec.configChange;
+-    console.log(`[claim] ${rec.id} owner updated the waf envelope; applied live`);
++    console.log(`[claim] ${rec.id} owner updated the waf/access envelope; applied live`);
+     saveStateSoon();
+     return;
+   }
+@@ -11704,7 +11816,7 @@
+     ...(() => { try {
+       const o = parseDepOptions(d.configCid, d.gpuMilli);
+       const f = overrideConfigFields(o, g);
+-      return { ...(o.waf ? { waf: o.waf } : {}),
++      return { ...applyLiveOptions({}, o),
+                ...(f.configOverride ? { config: f.config, appConfigCid: f.appConfigCid, configOverride: true } : {}) };
+     } catch { return {}; } })(),
+     // the two shares the deployment bought on-chain — _shares keeps the exact

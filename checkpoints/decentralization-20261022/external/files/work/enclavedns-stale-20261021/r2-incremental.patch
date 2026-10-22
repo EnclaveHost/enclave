@@ -1,0 +1,144 @@
+--- a/enclavedns/src/resolver.rs
++++ b/enclavedns/src/resolver.rs
+@@ -190,12 +190,17 @@
+ /// Per-request limits shared by every sub-lookup it causes.
+ pub struct Ctx {
+     pub deadline_ms: u64,
++    /// After this, expired answers stand in at once, however many names
++    /// (CNAME hops) the request visits: the client response timer is the
++    /// request's, not each lookup's.
++    pub stale_by_ms: u64,
+     pub queries: Cell<u32>,
+ }
+ 
+ impl Ctx {
+     pub fn new(budget: Duration) -> Rc<Ctx> {
+-        Rc::new(Ctx { deadline_ms: net::now_ms() + budget.as_millis() as u64, queries: Cell::new(0) })
++        let now = net::now_ms();
++        Rc::new(Ctx { deadline_ms: now + budget.as_millis() as u64, stale_by_ms: now + STALE_WAIT_MS, queries: Cell::new(0) })
+     }
+ 
+     fn left(&self) -> Duration {
+@@ -216,8 +221,8 @@
+ const STALE_MS: u64 = 3_600_000;
+ /// The TTL a stale answer is handed out with (RFC 8767 §4).
+ const STALE_TTL: u32 = 30;
+-/// How long a client query waits for a fresh answer before an expired one
+-/// stands in for it (RFC 8767 §5 client response timer, 1.8 s suggested).
++/// How long a client request waits for fresh answers before expired ones
++/// stand in for them (RFC 8767 §5 client response timer, 1.8 s suggested).
+ const STALE_WAIT_MS: u64 = 1_800;
+ /// After a refresh fails, expired answers for that name are served without
+ /// that wait for this long (RFC 8767 §5 failure recheck timer).
+@@ -497,12 +502,11 @@
+                     let failed_at = self.refresh_failed.borrow().get(&(name.to_lowercase(), qtype)).copied();
+                     let job = self.refresh(name, qtype);
+                     if failed_at.is_none_or(|t| net::now_ms() >= t + STALE_RECHECK_MS) {
+-                        let wait = Duration::from_millis(STALE_WAIT_MS).min(ctx.left());
++                        let wait = Duration::from_millis(ctx.stale_by_ms.saturating_sub(net::now_ms())).min(ctx.left());
+                         if let Ok(fresh) = net::timeout(wait, async { Ok(RefreshDone(job).await) }).await {
+                             if matches!(fresh.rcode, rcode::NOERROR | rcode::NXDOMAIN) {
+-                                // what a miss would keep: a bogus answer replaces the old entry too
++                                // the refresh has cached it (a bogus answer too)
+                                 self.stats.borrow_mut().cache_misses += 1;
+-                                self.cache_put(name, qtype, &fresh);
+                                 return fresh;
+                             }
+                         }
+@@ -524,8 +528,9 @@
+         })
+     }
+ 
+-    /// Re-resolve (name, qtype) in the background, at most once at a time;
+-    /// a failure keeps the old entry (RFC 8767: stale beats an outage).
++    /// Re-resolve (name, qtype) in the background, at most once at a time.
++    /// Any answer replaces the entry, a bogus one too (as a miss would keep
++    /// it); a failure keeps the old one (RFC 8767: stale beats an outage).
+     fn refresh(self: &Rc<Self>, name: &Name, qtype: u16) -> Rc<Refresh> {
+         let key = (name.to_lowercase(), qtype);
+         if let Some(job) = self.refreshing.borrow().get(&key) {
+@@ -539,7 +544,7 @@
+             let ctx = Ctx::new(Duration::from_secs(9));
+             let a = me.resolve(&key.0, key.1, &ctx, 0).await;
+             let answered = matches!(a.rcode, rcode::NOERROR | rcode::NXDOMAIN);
+-            if answered && a.sec != Sec::Bogus {
++            if answered {
+                 me.cache_put(&key.0, key.1, &a);
+             }
+             {
+@@ -1937,4 +1942,54 @@
+             up.stop.set(true);
+         });
+     }
++
++    // Independent review counterexamples (work/enclavedns-stale-review-20261021/review_counterexamples.rs 96eb6022), verbatim.
++
++    /// R1: a validating refresh slower than STALE_WAIT_MS that comes back BOGUS is not cached by the refresh job
++    /// (`answered && a.sec != Sec::Bogus`), so the old NOERROR entry keeps being served stale, for up to STALE_MS,
++    /// although every fresh answer is bogus. Expected: once the refresh has a bogus answer, no stale NOERROR data.
++    #[test]
++    fn slow_bogus_refresh_does_not_keep_old_data_alive() {
++        run(|| async {
++            let name = Name::parse("slow-signed.test").unwrap();
++            let (up, addr) = fake("slow-signed.test", Mode::Answer(NEW, 60)).await;
++            up.delay_ms.set(2_500);
++            let r = resolver(addr, true);   // validating: the fake's unsigned answer is bogus
++            seed(&r, &name, OLD, Sec::Insecure, 30, 31_000);
++            let (a, _) = ask(&r, &name).await;            // times out: stale (allowed: no answer yet)
++            assert_eq!(a.source, "stale cache");
++            settle(&r).await;                              // the refresh got its (bogus) answer
++            up.mode.set(Mode::Silent);
++            advance(FWD_MEMO_MS + 100);
++            let (a, _) = ask(&r, &name).await;
++            assert!(!(a.source == "stale cache" && a.rcode == rcode::NOERROR && !a.answer.is_empty()),
++                "old data served stale after the refresh returned bogus");
++            up.stop.set(true);
++        });
++    }
++
++    /// R2: the client response timer is per lookup, not per client request. A CNAME chain of 3 expired names with a
++    /// silent upstream makes the FIRST client request wait ~3 x 1.8 s (one 9 s Ctx for the whole chain), past common stub
++    /// timeouts; the published behaviour answered at once. Expected (RFC 8767 sec. 5): one bounded wait per request.
++    #[test]
++    fn expired_cname_chain_waits_once_per_request() {
++        run(|| async {
++            let (a_, b_, c_) = (Name::parse("a.chain.test").unwrap(), Name::parse("b.chain.test").unwrap(), Name::parse("c.chain.test").unwrap());
++            let (up, addr) = fake("a.chain.test", Mode::Silent).await;
++            let r = resolver(addr, false);
++            for (n, t) in [(&a_, &b_), (&b_, &c_)] {
++                let mut x = Answer::negative(rcode::NOERROR, 300, "network");
++                x.answer.push(Record::new(n.clone(), ty::CNAME, 300, t.wire().to_vec()));
++                r.cache_put(n, ty::A, &x);
++            }
++            seed(&r, &c_, OLD, Sec::Insecure, 300, 301_000);   // ages all three past their TTL
++            let server = Server::new(r.clone(), Vec::new(), None, false, None, true, 1000.0, 1000.0);
++            let t0 = net::now_ms();
++            let res = server.resolve(&a_, ty::A, false, false).await;
++            let ms = net::now_ms() - t0;
++            assert!(res.answer.iter().filter_map(rr_ip).any(|ip| ip == IpAddr::from(OLD)));
++            assert!(ms < STALE_WAIT_MS + 700, "the first request waited {ms} ms for a 3-name chain");
++            up.stop.set(true);
++        });
++    }
+ }
+--- a/enclavedns/README.md
++++ b/enclavedns/README.md
+@@ -235,7 +235,8 @@
+     smoothed round trip;
+   - a name asked in the last tenth of its TTL is refreshed in the background;
+     a name asked after its TTL is asked again first, and only if no answer
+-    comes within 1.8 s (or the upstreams fail) is the expired answer served,
++    comes within 1.8 s of the request (one budget for a whole CNAME chain), or
++    the upstreams fail, is the expired answer served,
+     for up to an hour past its TTL (TTL 30, RFC 8767). A fresh answer always
+     wins, NXDOMAIN and bogus included; a failed refresh keeps the old answer,
+     and for 30 s after one, expired answers for that name are served at once.
+@@ -271,7 +272,7 @@
+ cargo build --release --target wasm32-wasip2
+ # -> target/wasm32-wasip2/release/enclavedns.wasm (~2.5 MB)
+ 
+-cargo test --target wasm32-wasip2      # 43 unit tests, run under wasmtime
++cargo test --target wasm32-wasip2      # 45 unit tests, run under wasmtime
+ ```
+ 
+ The unit tests include the RFC 4034 key-tag and DS examples, the RFC 5155

@@ -1,0 +1,1449 @@
+{
+ "at": "2026-10-21T06:43:53.159402+00:00",
+ "base": [
+  "2026-10-20T19:57:47-07:00",
+  "frozen candidate: /home/steven/Documents/Codex/2026-10-18/wo/work/android-independent-host/tree (patch sha256 944aa6c76e6afe58a96b0d2d85033164ae57f39e63ae55cf2998d2f866eb3759, MANIFEST sha256 8f5a54df46f31bd5f4b8400792ed83e0a438f6a67672a48f5c9cafbec88f212a)",
+  "candidate base: 2026-10-20T16:05:00-07:00",
+  "candidate base: main HEAD e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+  "candidate base: main status sha256 d953e0984e1ae6d3c4834bc5750f4067f3fafc7dffccd74cbf34b7518384342a",
+  "candidate base: deployed ea8210a55544cb0a12fba667635f4801a874cbc8",
+  "main HEAD now e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+  "main status sha256 now 2f005e08c05d3879b513abfb7ea04375a61bb57c8f86aa584749a9811a18d893"
+ ],
+ "patch": {
+  "file": "work/android-feature-completion/android-feature-completion.patch",
+  "sha256": "ebea233d8fc75a03400075b6627d755b981de574d07e30f958a27c018373b4d7",
+  "files": 31
+ },
+ "files": [
+  {
+   "path": "cli/custody-independent.mjs",
+   "base": "db712c1db5aac536914ecabfcb478256e2d7ad8522d1b9bae3ae2ebf642260f3",
+   "new": "4bba40541dd140609496f807c623b376cc9ca4bd54b307904675283c03d361da"
+  },
+  {
+   "path": "custody/v2/avf-evidence.mjs",
+   "base": null,
+   "new": "33f46a8ca0abcf6e6a4d5707799d1cf4ada4ed0f003067c8a4fcb9ad7936b354"
+  },
+  {
+   "path": "custody/v2/avf-operator.mjs",
+   "base": null,
+   "new": "e00e4e998c7be628f4cf366674b5498f15866bb602de35313fdafe5fe43f9487"
+  },
+  {
+   "path": "custody/v2/avf-rules.mjs",
+   "base": null,
+   "new": "9ee0e2aadc60de9ecb87cd0111a94c3902f89925da623ccefc42649ccad48fdf"
+  },
+  {
+   "path": "custody/v2/avf-status.mjs",
+   "base": null,
+   "new": "478b35e3b9f6b405ca5815c8e7df8774e9cb2d7956da3f8b8867b2348df1330f"
+  },
+  {
+   "path": "custody/v2/build-config.mjs",
+   "base": "649a9ad442a2bda53e80a8febacb5f94bc3e5314edaaacc791d6916e860115f1",
+   "new": "ec1ee7af048c37d20e802d3f39cceb794fd00221838f5c12073077429aeca1fe"
+  },
+  {
+   "path": "custody/v2/custodian.mjs",
+   "base": "320453fc802f4c9bf49058ab0219c60779b42df52de6fc5653f7228015bc285c",
+   "new": "2d75c9076e60f8ec2efc29f13670cc61751a10786ca7ba9ee207c805cd8f83d9"
+  },
+  {
+   "path": "custody/v2/daemon.mjs",
+   "base": "557b6e40958fa05cc7547a6d7d77152c7135aae32dd736dcd6bbede281521d1d",
+   "new": "c49900920d228800562efd8cba5fcd15349ad961f7541ca9ece64d4795674e18"
+  },
+  {
+   "path": "custody/v2/owner-secrets.mjs",
+   "base": "958c985304df7fbdec42c102399d0a004fe52814deb380c1ab9ebd5d15d855ac",
+   "new": "75eb8b66359962dc34ab084defeb21e52c5ea71c47c230b9fbb7f9e745f3d91f"
+  },
+  {
+   "path": "docs/security/custody-avf-recipients.md",
+   "base": null,
+   "new": "9b40e007014f8b17bd486aed1f14b27f0edd548fee981fc73fe930b0c5572ce2"
+  },
+  {
+   "path": "isolation/m2/cmd/pvmcustody-so/main.go",
+   "base": null,
+   "new": "1420f9a98f0a1f481be9dcb9a130f6e30a022ea79a08b667164888dbaf850112"
+  },
+  {
+   "path": "isolation/m2/pvmcustody/avf.go",
+   "base": null,
+   "new": "65f09256c879cfdf530c90e391b4816e4070eb5fd6bbb8c07d4817ea15eafd65"
+  },
+  {
+   "path": "isolation/m2/pvmcustody/pvmcustody_test.go",
+   "base": null,
+   "new": "242c3a32f7d121b6a8ce1cdf68036f7c198da57a333875f518e3c1747278dadc"
+  },
+  {
+   "path": "isolation/m2/pvmcustody/start.go",
+   "base": null,
+   "new": "7b7b8368091a143d9f985cd6e63d364be309fa60a9e2503f3631cf48a7311abd"
+  },
+  {
+   "path": "isolation/m2/pvmcustody/state.go",
+   "base": null,
+   "new": "77164b18f1b70e9fe3129654e07be1e92e7295a9e20ee9fca99320ad6b35fbac"
+  },
+  {
+   "path": "scripts/build-custodian-v2.mjs",
+   "base": "f98efa59eb8f1dbc39a40b9f513312230b25785b4b8821f3f1ed3c88689da6b0",
+   "new": "57063535110ec8f948163ba8f314a39297410d440ad54f954628d0b43c361935"
+  },
+  {
+   "path": "shielded/anchor/avf/INDEPENDENT.md",
+   "base": "927025cab38c2bfc7f987abfc3b5fcdd9de77b6ec50f2ca7f7c51382b43eea00",
+   "new": "e92343aefd260aef4da05a671e9b2dc0343c291a4c5bd9d2e5067bd5eeb5509c"
+  },
+  {
+   "path": "shielded/anchor/avf/host/app/EgressPool.java",
+   "base": "ca0c260a5270424cf8b3ed40ac6e19c7af6b96f2583ec830311c8bb9032c3be6",
+   "new": "430ddc58e898592572d52115c6bb030c40d12645dd3062757450c1213a14b0b9"
+  },
+  {
+   "path": "shielded/anchor/avf/host/app/Main.java",
+   "base": "38f788ed0e6d7b18403201a3cd43a4e58e44a8732e0e44eadfc8602be2094c06",
+   "new": "84a039730f023137ffeb3b93805f4def78415f876403e12de92ca0cfdd1bb782"
+  },
+  {
+   "path": "shielded/anchor/avf/payload/anchor_payload.c",
+   "base": "25a226881bd8bc90ed1e0cf8c15c74e1bc46d56c20efc29f456f6fce5a7d5bfc",
+   "new": "e0d66b8af4a711b481fe4223045134b04029310cd0947e957760f361e206a44a"
+  },
+  {
+   "path": "shielded/anchor/avf/runner/egress.mjs",
+   "base": "c76601958fc4f7bfbab7428b4f52fed3cd6f13f0e05fc2a28acf868e75ff1ccb",
+   "new": "1198e27ff79dc92a67395ad27e262a81bdade2787f130c0c8e11a329276c1fd7"
+  },
+  {
+   "path": "shielded/anchor/avf/runner/host-agent.mjs",
+   "base": "331dac88ffbc67093d8e0bb09e5c9339d39c6343848a7142f504cbf5c4c35ed0",
+   "new": "559b4ab0d4f1b76c784a4b64b7a4623ee790fdbb9689f99db95aae8dd8005eda"
+  },
+  {
+   "path": "shielded/anchor/avf/runner/independent.mjs",
+   "base": "b367ab93ecf59914f6e98375347e017a07e73c8978d2cf50c3f266c3f4af5ce4",
+   "new": "a8e620f9732ff333f04da3b8e646a45fadb1202a33507dd34026e8ae7b13192a"
+  },
+  {
+   "path": "test/custody-v2-avf-go.test.mjs",
+   "base": null,
+   "new": "773c25b884df6e9add6d43eec91568418f1920b844bcef29168527e8ea856513"
+  },
+  {
+   "path": "test/custody-v2-avf.test.mjs",
+   "base": null,
+   "new": "b9a76a33d799b3df995f1c1e56623e80a83443e90e3f390fdea2a867d6554920"
+  },
+  {
+   "path": "test/fixtures/avf-custody-challenge-vector.json",
+   "base": null,
+   "new": "b77fb58ca4178ccc22551a4b7839b705789043c2e5fa989da484b5af24118035"
+  },
+  {
+   "path": "test/fixtures/google/attestation-status-20261021.README.txt",
+   "base": null,
+   "new": "4d0cb7fbcec2577b7440175f3ab9819fe3bf1fe2ac699eced63ecdb0dddb813b"
+  },
+  {
+   "path": "test/fixtures/google/attestation-status-20261021.json",
+   "base": null,
+   "new": "e59e67bf6dac42bd0a2fda963a3a85c09d6db6fd4742ae06d7d760c7c4ee80c8"
+  },
+  {
+   "path": "test/helpers/avf-custody-rig.mjs",
+   "base": null,
+   "new": "3937b35ede7c740abebec2f9f94bf25cc04e8e8793d4607571f07b2eba599373"
+  },
+  {
+   "path": "test/pvm-custody-host.test.mjs",
+   "base": null,
+   "new": "021294f21df2f58115362258bd36a34a2651d0f124d1c9b42f411fe5125fe1de"
+  },
+  {
+   "path": "test/pvm-independent-lifecycle.test.mjs",
+   "base": "e7137278a2122dd0228ea1fd27ce312ae2753a6afa27504acca47423ab23ffd8",
+   "new": "176ae9188fc616b8fbb48930d8cbde18f5f5cb2779658800e66bc83776f8428a"
+  }
+ ],
+ "artifacts": {
+  "artifacts/apk-feature-relaydial-unsigned.apk": {
+   "sha256": "c000f885d15c9df7f669802524e895a1104e641cdcfc2b47bceb339a89740748",
+   "bytes": 141777515
+  },
+  "artifacts/apk-feature-unsigned.apk": {
+   "sha256": "c54e2ddc6556edbe4f5115762387df77f5ffb45460cee2b7af9a52c422e3bd1e",
+   "bytes": 141761131
+  },
+  "artifacts/phone-funding-plan.json": {
+   "sha256": "d13618596005271c6ca4f98c2712e6faca8c4f56dd128c6fff3394652612f9fc",
+   "bytes": 3444
+  },
+  "artifacts/dex-feature-relaydial/dex/classes.dex": {
+   "sha256": "edbf23717b14aeaf778f9add4e2a72f65a6b8392848d549d663b027013136f1c",
+   "bytes": 259032
+  },
+  "artifacts/dex-feature/dex/classes.dex": {
+   "sha256": "317a4a33f431dbe045b6e00915516e4c21179eee42348d400a6fa581d836de92",
+   "bytes": 251388
+  },
+  "artifacts/bundle-feature/adb-self.mjs": {
+   "sha256": "f2116c78f6d5c141cec7a63a65fbb118e91820022ca1b8086f9a9e57ba70ffe9",
+   "bytes": 63316
+  },
+  "artifacts/bundle-feature/build.json": {
+   "sha256": "7c19e5da2643b70c2976b0413157876ab8d5a25b26a0af88212739d6ed7f748a",
+   "bytes": 1180
+  },
+  "artifacts/bundle-feature/idle-app.wasm": {
+   "sha256": "3577d2168a65f9d4e28d4cb4c955ed7937102a1f1701f123f5f3f6a85b423195",
+   "bytes": 82387
+  },
+  "artifacts/bundle-feature/net-child.mjs": {
+   "sha256": "7dfd80b58e25c682eb91ccfa920be8020669f36bdcf2de47a1e6baab77af338c",
+   "bytes": 2714596
+  },
+  "artifacts/bundle-feature/standalone.mjs": {
+   "sha256": "143d2e9f9ddfb8e45bc4b7f5ed39b6a3c12c1546381bbf086d072afc51d420e0",
+   "bytes": 1499445
+  },
+  "artifacts/bundle-feature/windows-circuit-worker.mjs": {
+   "sha256": "dcac53cbe4f4fe19ee10ed5e2719ecff38817990bd1078dbb082f77d8bc2c332",
+   "bytes": 136374
+  },
+  "artifacts/native/libpvmcustody.so": {
+   "sha256": "97ec0d1c93e79837fcebcefe023ac4c1ebd7f4d58c3a22e31c900159b8cdd79d",
+   "bytes": 8245736
+  },
+  "artifacts/native/payload-base/libanchor.so": {
+   "sha256": "5916c1dce070568f4192d91d6cb3d8d79aaefe2ec6fc585999c0955a5d3127a2",
+   "bytes": 373808
+  },
+  "artifacts/native/payload-candidate/libanchor.so": {
+   "sha256": "81131e75c5ae20767c544d5c8a48c333fa1b70bc6f115dfbbf97ef0a65fe11bc",
+   "bytes": 378088
+  }
+ },
+ "suites": {
+  "avf-go1": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "d2297e1b18cc6ec3401342b391b41177c293ac9e22cee2e58cdf4598d3c8c1cf",
+   "final": false
+  },
+  "avf-go2": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "2059ab6a9cf35d1cad0404a35c34a901b4230674b4040c940a8da34c9911e66a",
+   "final": false
+  },
+  "avf1": {
+   "tests": 10,
+   "pass": 8,
+   "fail": 2,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "d82cf42a18b17e5f2f560b57e3187c0dd6724b221bcd662eae4154064310ee8c",
+   "final": false
+  },
+  "avf2": {
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "ff2cb53e355f982d195da5a42bda4f8da216c81a09552f5138e5f90097e032ac",
+   "final": false
+  },
+  "base-anchor-app": {
+   "tests": 1,
+   "pass": 0,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "a5d69dd8d898c3d35665f1fd7cac6711a2d3f77b75ec7b3172f728dab6251ae5",
+   "final": false,
+   "baselineFor": "final-anchor-app"
+  },
+  "base-anchor-attach-instance": {
+   "tests": 2,
+   "pass": 1,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "18eefd60ea40a9fbfdd731d566293e06c065f89394d88391e532b41b760621a1",
+   "final": false,
+   "baselineFor": "final3-anchor-attach-instance"
+  },
+  "base-anchor-pins": {
+   "tests": 2,
+   "pass": 1,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "2d1fa5407f548e32c003bf442cf159a6086e6d4bd3c6dfa2bcb067a7ae54f57f",
+   "final": false,
+   "baselineFor": "final-anchor-pins"
+  },
+  "base-anchor-reattach": {
+   "tests": 2,
+   "pass": 0,
+   "fail": 2,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "4ccfee603261ef63be1914a7232c0b9f3f03829bee99eaffda5d14c491184b66",
+   "final": false,
+   "baselineFor": "final-anchor-reattach"
+  },
+  "base-pvm-client-gate": {
+   "tests": 1,
+   "pass": 0,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "3d38faf31a2cce921c3118250fedec15f1e43f8e716e3360dfcaa86a1e7bfd99",
+   "final": false,
+   "baselineFor": "final-pvm-client-gate"
+  },
+  "base-pvm-instance-binding-checker": {
+   "tests": 14,
+   "pass": 13,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "7d45f717d6e145437d6bd5db3e6f8b0c6cd93e1f82d3643e15fd3c6a1faa98f4",
+   "final": false,
+   "baselineFor": "final-pvm-instance-binding-checker"
+  },
+  "base-pvm-instance-binding": {
+   "tests": 2,
+   "pass": 1,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "17a6a48d9d07897f27cbc3b46e5be2ad1e05480a0f5b04ced42efd7ba54e7cad",
+   "final": false,
+   "baselineFor": "final-pvm-instance-binding"
+  },
+  "base-pvm-proof-agent-checker": {
+   "tests": 16,
+   "pass": 15,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "20a371a7de2f55d3cb35acf7eaff60df646b5f3d6837ab04d084b55645aa42c6",
+   "final": false,
+   "baselineFor": "final-pvm-proof-agent-checker"
+  },
+  "base-pvm-proof-key-checker": {
+   "tests": 14,
+   "pass": 13,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "ad8b870527d0883d30e8c26beccd53350dd29187e361a4181b2c0eba49fa5a1c",
+   "final": false,
+   "baselineFor": "final-pvm-proof-key-checker"
+  },
+  "base-pvm-proof-key": {
+   "tests": 1,
+   "pass": 0,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "b114708c06be11c87b1a710042cc15ca267ff12d6f843e2e43f696643876c6ef",
+   "final": false,
+   "baselineFor": "final-pvm-proof-key"
+  },
+  "base-pvm-relay-reconnect-checker": {
+   "tests": 26,
+   "pass": 25,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "6ac75e01a1348a4f4f3ebfdb123836a9634701aa030f746cfe77565727fc1405",
+   "final": false,
+   "baselineFor": "final-pvm-relay-reconnect-checker"
+  },
+  "base-pvm-relay-route-checker": {
+   "tests": 26,
+   "pass": 25,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "74493f0945e520c06345ca9292a3c5c594bf0aac79ec02c1f213d8c562fed794",
+   "final": false,
+   "baselineFor": "final-pvm-relay-route-checker"
+  },
+  "base-pvm-runner-agent-checker": {
+   "tests": 16,
+   "pass": 15,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "58b086b88bde4c0d5d3f2f0232e80329eb72a04a6cb4348dbcaf788ed94c5a81",
+   "final": false,
+   "baselineFor": "final-pvm-runner-agent-checker"
+  },
+  "base-pvm-runner-resolver": {
+   "tests": 7,
+   "pass": 6,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "eb35437fed466344adf9ed95369e8c4f7c7fc831385c5fcb40d81e9a5ff47877",
+   "final": false,
+   "baselineFor": "final-pvm-runner-resolver"
+  },
+  "custody-host1": {
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "850cd33d5965c0cb6d3f8c47fd4fcf0e36f2ff9f1702facc14048f7dfb7d11d4",
+   "final": false
+  },
+  "custody-host2": {
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "04eb8aeccb3780dc6a7281b43c25f06a04fb6ab747cb58a32e581cfb8d138420",
+   "final": false
+  },
+  "egress1": {
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "6a2a2033dcc17f6eec79d1f2b11875b338c950bad73ec7b2088d3006ad94e679",
+   "final": false
+  },
+  "final-anchor-app": {
+   "tests": 1,
+   "pass": 0,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "adae73d00dee3ac8df6db397300981b355800101fb50b75389093e28ccbe4f7a",
+   "final": true
+  },
+  "final-anchor-artifact-profile": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "9e21b57ca7612b0f12d0e4ff3914afa5f656281143022d61dd018cc5d46cac35",
+   "final": true
+  },
+  "final-anchor-attach-instance": {
+   "tests": 2,
+   "pass": 0,
+   "fail": 2,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "f2efa5afee1f391b53f0b7f44e20ee8dc9e77329a506b6024704f1f9db45e72b",
+   "final": false
+  },
+  "final-anchor-catalog": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "f9369ee4dd1cfd163f60097f354f3943630c34e05ab1b2dddb361245ac017ef4",
+   "final": true
+  },
+  "final-anchor-copy": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "150ccc3e04cfb1728815f0f1f1ebbb34a6523ea06c5b1b37978886dc1e41dcf2",
+   "final": true
+  },
+  "final-anchor-gguf": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "d8732e81fd4f9f48b82c9da11369843067218330e54b90bb36c5d732c589248e",
+   "final": true
+  },
+  "final-anchor-header-file": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "83b2f9243680f7b9b1e391d3f2ab8198862f5b3659ee251e9a6eaf87f58e2a1a",
+   "final": true
+  },
+  "final-anchor-idle-pool": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "b28134aec87b90b46125f2c92c30f69ce14cee09c1b640cfade63c3117a8dbc0",
+   "final": true
+  },
+  "final-anchor-local-proto": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "9c262fc5c06db2aa654d9fa1d378d3b08529a1f6df47a9dfbb4ccd1ccc97f8e4",
+   "final": true
+  },
+  "final-anchor-maskbench": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "c06e1ed7cad4c2a0239c26b5cb0e10ad3bc52eb067236d518dfdb36d2bcdd210",
+   "final": true
+  },
+  "final-anchor-model-cache": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "89f88df019fc7c196c215d8bac5ad7899eb0a91472b4d8f461de9c3b8fb0cb03",
+   "final": true
+  },
+  "final-anchor-names": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "3d87120150b6af4b92f9db48097b910f395ee33c732fc0dddaa5fc0e6e7fa592",
+   "final": true
+  },
+  "final-anchor-pins": {
+   "tests": 2,
+   "pass": 1,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "2ad431adad4e0bf3274074e01a019025785bf5912157bf605810efae9503d15e",
+   "final": true
+  },
+  "final-anchor-placement": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "45db61a6a47a78b70348e6c2eb4fea821c232104cc393c6458d722d97ed826f9",
+   "final": true
+  },
+  "final-anchor-prepare": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "2f91d66b63c62346b12bcc1d1e0b8835780465e073e25d8c72bacd61f8c02469",
+   "final": true
+  },
+  "final-anchor-reattach": {
+   "tests": 2,
+   "pass": 0,
+   "fail": 2,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "3b902bf5468e73227b83bfbf1903ca038efd0c97f7e174e3d32edbc64234a917",
+   "final": true
+  },
+  "final-anchor-rx-profile": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "1c94c75cceb5153f320a6a54aaafd087dec40c53f626d006a3d2bcf2ed6a3485",
+   "final": true
+  },
+  "final-anchor-sha256": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "3dd93eb1f28db364fc76db04314d9d863c66c14e9e44efcbc5c12393031bb079",
+   "final": true
+  },
+  "final-anchor-stderr-export": {
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "073d9f09898e0429b034a8bc562b5e49c37432d2735e6831e0a0de55e785e947",
+   "final": true
+  },
+  "final-anchor-striped-read": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "9b9ba93acfd23be1f5bc927e5ed7a6232dafde2e9f0983b2d4e24d30f8d81756",
+   "final": true
+  },
+  "final-avf-der": {
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "be019346bf24afeb1661fcff1ab6d198b08f51c27e3e8b71b92823e0f51ad4fe",
+   "final": true
+  },
+  "final-avf-real-pixel10": {
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "56e0f44779711cdf7cea46d3bb38423d82babb3aac898a7061fc9659efafaee2",
+   "final": true
+  },
+  "final-avf-real-v2-attach": {
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "f62dfb79c9b33a92ddd03cd4eebaa3716c7053689a0b12a506a01c8f059f7127",
+   "final": true
+  },
+  "final-avf-rkp-pin": {
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "2345a075518b75b8998e66a26f93e3726e32c6ea76118604399984ba7f47dca8",
+   "final": true
+  },
+  "final-avf": {
+   "tests": 14,
+   "pass": 14,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "74f4687df4d70dcebca76952ee4dcde35506eb12790ec2ae41949395953c750e",
+   "final": true
+  },
+  "final-custody-cli-independent": {
+   "tests": 12,
+   "pass": 11,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 1,
+   "logSha256": "291ed48f4482b256bbdff343ef19ab82946a2736b28461f5c2867b1963a80c1b",
+   "final": true
+  },
+  "final-custody-cli": {
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "27d1a3789beb5e959c32ca789338a606628054d5730e274b7b42f928be382201",
+   "final": true
+  },
+  "final-custody-deploy": {
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "d9c907241f2bfcdcfb5d551aac7255f3b50baea4602079309cbf2a21667f3aab",
+   "final": true
+  },
+  "final-custody-direct-host": {
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "fb87fb31ecda0c4b4379026fdb5ddf4a32c6791aa3afda81377bf702a2bf54a6",
+   "final": true
+  },
+  "final-custody-direct-ingress": {
+   "tests": 1,
+   "pass": 0,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 1,
+   "logSha256": "49028e4f3456475eac69c2d1879fdce48bea445cdab8975f54206474ea4adcd1",
+   "final": true
+  },
+  "final-custody-e2e": {
+   "tests": 22,
+   "pass": 22,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "b7b1a26e7216a26d78dd4f5050b7395ebdb2fef51aba0d31baa3bcaa0031b13c",
+   "final": true
+  },
+  "final-custody-endpoints": {
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "cd1a8e5cb64cc25697872d67d5c96c7c16c807d790d3c288731690eb33363639",
+   "final": true
+  },
+  "final-custody-hardware": {
+   "tests": 7,
+   "pass": 7,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "bdbbb556a7701da23639b3169d868aa190b998c73225d7dc3590f854a3601e69",
+   "final": true
+  },
+  "final-custody-hpke": {
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "b3e3509ea5dd4002595c0bab5e42d23b0abcfa99a7e95fc46f7c17b97a4ff320",
+   "final": true
+  },
+  "final-custody-independent-admission": {
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "782a01321d14bbce556db1af9bb30666894521875666ab6872afa67a5380396e",
+   "final": true
+  },
+  "final-custody-independent-genesis": {
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "8e54164e53e160fe98d365bc4c282279cde4574999eb5f9cff2edd3b03c6f0a8",
+   "final": true
+  },
+  "final-custody-keystore": {
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "6c0b7e2e5c1b68af0be7cdb9575249cac0b99c56d79513fa01b905cf80c2d354",
+   "final": true
+  },
+  "final-custody-owner-read-transport": {
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "976470056e0a7810c6972a9404490f8c5d697666c3d4b35f6102f3a2ab559e61",
+   "final": true
+  },
+  "final-custody-owner-read": {
+   "tests": 13,
+   "pass": 13,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "b10c28bee5c80506d7fd6483f71b6b432c48f55dc1afb57514bac63d99f82df4",
+   "final": true
+  },
+  "final-custody-owner-rewrap": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "ef20a00cda455aa8d39868fc25b42dd5e4139bf6db9ce730df05334a8e175746",
+   "final": true
+  },
+  "final-custody-registry-schema": {
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "ca071adce7fc8e2b18df30d536e86cf4e14641a3d1d265bee9890f2fc357a5fe",
+   "final": true
+  },
+  "final-custody-relay": {
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "c748f6c2ad53c24ad75986415d0058ebe687065bd5e4dfe11582a1d8a62d4e49",
+   "final": true
+  },
+  "final-custody-rewrap-result-auth": {
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "402f479cda79c15397350945455fab15958245d9961eae43f981d599aba1f681",
+   "final": true
+  },
+  "final-custody-rewrap-unit": {
+   "tests": 7,
+   "pass": 7,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "3d65f27f819ea92f85468361caf148c85fe04d1add13cf80448e9e8401e99188",
+   "final": true
+  },
+  "final-custody-secrets-cli-independent": {
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "f310b2fde64aadfad94eb6e619550fc60621ee9cb3cee6ed5c5cd9b18796fa0f",
+   "final": true
+  },
+  "final-custody-supervisor": {
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "9193103f66dcbdd26f75033513b6c296979018a62fcc6932e58a7ee43101c3e6",
+   "final": true
+  },
+  "final-custody-threshold": {
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "33cd1865e7fed94a7f66b28d22892c3384f70b433daf7f734d602ebc4215387d",
+   "final": true
+  },
+  "final-custody-v2-book-vault": {
+   "tests": 16,
+   "pass": 16,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "6f3d7b122e1358497b389eb71d861bf06bca4f5dfbcd2714869304ef84612e89",
+   "final": true
+  },
+  "final-custody-v2-build": {
+   "tests": 11,
+   "pass": 11,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "b02417897f433c63c1618db30eb2d6c389298d5676f43d1eca8eddbefde910f0",
+   "final": true
+  },
+  "final-custody-v2-capacity": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "26a934634bcb870bf65d73d1b8be94b357e34e8db07658e24a91330630d9391f",
+   "final": true
+  },
+  "final-custody-v2-chain-quorum": {
+   "tests": 11,
+   "pass": 11,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "8e5cd8f7b6181716db40a09e306192b2fefe0d3792431900698ff7da49ee6407",
+   "final": true
+  },
+  "final-custody-v2-deploy": {
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "87d021ba5a8d7cc8fab80c77e943f7814cb10fdaa9d6caf9d43cd46598d24a2d",
+   "final": true
+  },
+  "final-custody-v2-e2e": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "93fa2b36ef92f6832f9e9c8d641f729d7900755bf5334b9c06551ba093fb2d54",
+   "final": true
+  },
+  "final-custody-v2-host-ownership": {
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "63c12763b22038b0c9b3e1de433b0ed5691a406730fd5d3f0e9bc77491f52f97",
+   "final": true
+  },
+  "final-custody-v2-independent-governance": {
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "6b77b523cf9653a96f5433a8a22d3193e0f78be417de7904dc5c152fa64d07d7",
+   "final": true
+  },
+  "final-custody-v2-independent-identity": {
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "b88cd3eddb712a1845b4743605ce128674238ec609aafcb539b616935e254a1a",
+   "final": true
+  },
+  "final-custody-v2-independent-lifecycle": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "fc88a52ea4b7a3d5b3bfb45683f712457c5570fd8fdb56863e8467ad8eaecc5e",
+   "final": true
+  },
+  "final-custody-v2-independent-runtime": {
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "1ad2d71f4f8fd67cdcc14f47616b87264f4b3943bf1cf71361c5d34d41b34599",
+   "final": true
+  },
+  "final-custody-v2-ingress-ratekey": {
+   "tests": 1,
+   "pass": 0,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 1,
+   "logSha256": "3d21dfb8351bcd49e7c07c038c6293cc3eef379ff5d4e6349c104e319e4d434f",
+   "final": true
+  },
+  "final-custody-v2-original-vault-e2e": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "1b8d54f008496462df4f75224544e580faa31a8ff2b41372f3f68a01c89bf6b2",
+   "final": true
+  },
+  "final-custody-v2-protocol": {
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "db887852ca0e055b5ee5afea81a6dbc018e77ed8c4cc7853c4182ca0be219a10",
+   "final": true
+  },
+  "final-custody-v2-release-authority": {
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "848c2614a82bfda94d29023595fb3b5ed619d7e707263bc8aa09813143055f32",
+   "final": true
+  },
+  "final-custody-v2-shield-daemon": {
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "947cd6d3e046d244bd6537281c438fc9ac728595dfaf94ad37bd97635e955c69",
+   "final": true
+  },
+  "final-custody-vectors": {
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "da5a1fc83baf86428a322d5605acff77b8218609b9a4b91be87400943e2c458b",
+   "final": true
+  },
+  "final-independent-custody-cli": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "44a50fe4626227484f54e7806e75bd612a26adf803df26fc851e7159cea50095",
+   "final": true
+  },
+  "final-pvm-app-attest": {
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "54d6a3c40ec381ac2cd1ced43191f3143c9344999402356ba5eedf3b13c7acbf",
+   "final": true
+  },
+  "final-pvm-app-evidence-v4": {
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "8376b71baf7eaaa8fb81761527e619d5ffb8be889daf85d382b0fcc408bc285a",
+   "final": true
+  },
+  "final-pvm-attach-cosigner": {
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "e0b9b2c8bcc2cee127e686c2e74bd6d9eef8ac3759ea44f92c3d74f3acd33140",
+   "final": true
+  },
+  "final-pvm-client-activation": {
+   "tests": 9,
+   "pass": 9,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "11939670d8947effb7b0d63d3f1f4501d754fea073040bac22b6b82abc2ef3ae",
+   "final": true
+  },
+  "final-pvm-client-artifact": {
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "fae38a69162b9181b77d4b53f123f9e096ec1c2b2179f43a40181ebf1110eeac",
+   "final": true
+  },
+  "final-pvm-client-deployments": {
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "d7e65e060be778f14e057fc2e9a03b22551ebcaa5d00d88c5ceaf6ebcb51564d",
+   "final": true
+  },
+  "final-pvm-client-gate": {
+   "tests": 1,
+   "pass": 0,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "fba86af4d36436cc4b2394a77f03776756032e58bae6fa0449843f77712c374e",
+   "final": true
+  },
+  "final-pvm-client-trust": {
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "c948e849e3809c8a7ff6b59fd2d25db47f499c7d97e626de813217db1b0d0ef7",
+   "final": true
+  },
+  "final-pvm-cpu-device-profile": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "ad4af1bc584465f44c0d77fcff876f1407751253dd69cd530ca193e19bda654f",
+   "final": true
+  },
+  "final-pvm-cpu-tier": {
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "98a5ba48c543d2316fb0fd99f3c4a515f1ae7a1f4dd2030385aaca4eeaaad038",
+   "final": true
+  },
+  "final-pvm-device-local": {
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "da78756d4ece49ff46d398d2a55c9d9c4db9490d300395af0f9f7c01a5aa942c",
+   "final": true
+  },
+  "final-pvm-device-transport": {
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "c3b5353adee06573b0ef11c8529481cd0494ddf6e28b0cbd3955e57a46a7acae",
+   "final": true
+  },
+  "final-pvm-egress": {
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "d1df40b6ceac61a0e976c9fb10242ef9e94400ec645a1d991e4afc6cc75ac767",
+   "final": true
+  },
+  "final-pvm-host-agent-slots": {
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "d02d0da7d027d54729516e8535c78b46a7b9bcea3ac173fc7e04c226b460eac2",
+   "final": true
+  },
+  "final-pvm-host-agent": {
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "41062c4bc70f3899c825fd0be3bcdb14adabb6e66d16a1653ae72e0862b6de78",
+   "final": true
+  },
+  "final-pvm-independent-lifecycle": {
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "2616ea9541241d2eaebae1cda36e8713d72e5dd319e92aac05d513b47264bef0",
+   "final": true
+  },
+  "final-pvm-independent-profile": {
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "3a9eda9ef06d6116c72fb3f75255313d2403c51c05be88811795232f7ecb914c",
+   "final": true
+  },
+  "final-pvm-independent-runner": {
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "5d738e7d3fc426f564724174207421036f61e79dcd9869885db1a68e79f62194",
+   "final": true
+  },
+  "final-pvm-instance-binding-checker": {
+   "tests": 14,
+   "pass": 13,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "c8a7b91c1f99fc0f953ea0946d46da56304237554b1927499aae05f79b28ebc9",
+   "final": true
+  },
+  "final-pvm-instance-binding": {
+   "tests": 2,
+   "pass": 1,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "000c812c81dd05a7c920528a84df2a97da2285a1ea919611ce4b9a0e43313248",
+   "final": true
+  },
+  "final-pvm-market": {
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "b17193d6a0cb6cacca5f25d6d8a76493bbe1d6698ea4638cb62e7e12a8b02fe8",
+   "final": true
+  },
+  "final-pvm-proof-agent-checker": {
+   "tests": 16,
+   "pass": 15,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "55a17eb0022036bb4ebb6fc594e220dd637be7815806b6c6ebd692b3c5c65afc",
+   "final": true
+  },
+  "final-pvm-proof-agent": {
+   "tests": 13,
+   "pass": 13,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "e28c6446e1a4552ee9f0935cf15ecea0a0e4b98c293975da0a9c1843ec5a2a85",
+   "final": true
+  },
+  "final-pvm-proof-key-checker": {
+   "tests": 14,
+   "pass": 13,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "396ec07030b26a7d0a9759c1baf0b4be4358b21889568c94271d8997e7e702a7",
+   "final": true
+  },
+  "final-pvm-proof-key-fixtures": {
+   "tests": 34,
+   "pass": 34,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "ffa92f1a80c2dedc2cab46303e683c4893af2539c41b7d4c7ae71877ea5feaa6",
+   "final": true
+  },
+  "final-pvm-proof-key": {
+   "tests": 1,
+   "pass": 0,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "b4bb7bf80296da5aae02033caeaa48ba9f44a9659ebc9c68640a29537728d5dd",
+   "final": true
+  },
+  "final-pvm-relay-reconnect-checker": {
+   "tests": 26,
+   "pass": 25,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "511f97e05c8e95c351f94334b8104ff6ff1e753d7df282cf8a80341d3e8676bb",
+   "final": true
+  },
+  "final-pvm-relay-route-checker": {
+   "tests": 26,
+   "pass": 25,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "85ed324fd3c9e1eff8a97af4c5089d7db6353a7bd7aa94569143a930a5cd8395",
+   "final": true
+  },
+  "final-pvm-runner-agent-checker": {
+   "tests": 16,
+   "pass": 15,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "54d5c03b35fafd10d66e7e5f05702f17858246b7f3523bfbe67f09881fde44dd",
+   "final": true
+  },
+  "final-pvm-runner-agent": {
+   "tests": 14,
+   "pass": 14,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "dad140bcffc600dcf0212dcba692e1fa9a08d79f00950a6c046011b14eace76c",
+   "final": true
+  },
+  "final-pvm-runner-resolver": {
+   "tests": 7,
+   "pass": 6,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "488216c31907c6606276153667133cbdc4a62cf2cb6cb15dd8e26defed1e6fd1",
+   "final": true
+  },
+  "final-pvm-sealed": {
+   "tests": 7,
+   "pass": 7,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "b866b4fdc4847d457a0a2e2df55892ae647e4ae4ce38069f49eb690c3b2458a8",
+   "final": true
+  },
+  "final-pvm-sni-router": {
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "92fb5ba162040c837c7022049bcb8d34a2d1a8b7bc0d6a4f8ef8588c50140c95",
+   "final": true
+  },
+  "final-pvm-standalone": {
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "3815e6181569339d2007ec11ce1c3b4353054a8f32c17f3fda951a5cadb6e071",
+   "final": true
+  },
+  "final-pvm-stream-traces": {
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "1c6b69b61c8881a7f613455194dd7a6bb35ef17871932a3ac03e2ac086e2fab0",
+   "final": true
+  },
+  "final-pvm-v3-fixtures": {
+   "tests": 24,
+   "pass": 24,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "bddf1ae976334ec010163a12e1c76352bd469bd33208564afabf4ae904a335ef",
+   "final": true
+  },
+  "final-pvm-web-verify": {
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "052996ced98b50c3a4a7d68067e7ef2e9d13e3bb9069bd4597de2cabff9a42d6",
+   "final": true
+  },
+  "final-shield-custody": {
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "6114fc572f56636e2fdf464f5a05acb119ecc1305807089fee86e295ed16cdab",
+   "final": true
+  },
+  "final3-anchor-attach-instance": {
+   "tests": 2,
+   "pass": 1,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "15a6cb08a3d50be0344e55d997e3bc6f3e80027fd4d83e47f7cd594e8586e97f",
+   "final": true
+  },
+  "final3-pvm-custody-host": {
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "9b94e73fbab55d9d21da3ca6ceb82f4c11dfdb0de5d68f41d81faec495889963",
+   "final": true
+  },
+  "host-agent1": {
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "a98aa1f0636db0e6198885ba88f7dfbd3348cf86cebb8daab35984364a2b1968",
+   "final": false
+  },
+  "lifecycle1": {
+   "tests": 6,
+   "pass": 5,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "291f688a329f32f0255de18418edff7ca60197a3186b3bc31cce6fdfe7b99abb",
+   "final": false
+  },
+  "lifecycle2": {
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "6345b2333ab81a095fe6ec890d52cfc06a00a77da43d398249a2b7de960367ed",
+   "final": false
+  },
+  "profile1": {
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "75eaf018f5132df13546d96381e750599dd9f6874563b6d550e76ce1f1c2a1eb",
+   "final": false
+  },
+  "regress-custody1": {
+   "tests": 33,
+   "pass": 32,
+   "fail": 1,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "764dbc51eb0aae9eec69e1e816b1de91dcf7b0e93d3d5594a07679105f9f59dc",
+   "final": false
+  },
+  "regress-custody2": {
+   "tests": 33,
+   "pass": 32,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 1,
+   "logSha256": "99b014d610a7523b67d84fbeaae044bf318811fa87fefd9c5c460ce272006b23",
+   "final": false
+  },
+  "shield-daemon2": {
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "logSha256": "22a19f2d366f8b74c1bae2afd06cadcd161f95ccd76d164c6c382705576fbf0f",
+   "final": false
+  }
+ },
+ "signed": false,
+ "installed": false,
+ "productionActivated": false
+}

@@ -1,0 +1,50 @@
+--- ../g4-live-config-prep-20261021/root-steps/edit-privacy-config.mjs	2026-10-21 15:39:06.577605968 -0700
++++ root-steps/edit-privacy-config.mjs	2026-10-21 16:17:54.562416783 -0700
+@@ -1,8 +1,9 @@
+ // ROOT-RUN on minipc with the runtime node (C:\Program Files\Enclave\runtime\node\node.exe), inside the protected-temp
+ // procedure of PLAN.txt M4: node edit-privacy-config.mjs <privacy-config.json> <out-temp> <block.json> <expectSha256> <blockSha256>
+ // Adds ONLY enclaveNetwork.challengeReplica (network-enroll a9729786's slot: before walletAdmission, which stays last).
+-// Refuses unless: the input is the CAS-pinned bytes; it round-trips EXACTLY in network-enroll's own format
+-// (JSON.stringify(c, null, 2) + "\n"), so no other byte can change; the block is the reviewed bytes; no challengeReplica
++// Refuses unless: the input is the CAS-pinned bytes; it round-trips EXACTLY in one of the two formats its writers use -
++// network-enroll a9729786 writeAtomic: JSON.stringify(c, null, 2) (NO final newline), the hold cutover's config edit:
++// the same + "\n" - and the output keeps that same ending, so no other byte can change (independent review 9d); the block is the reviewed bytes; no challengeReplica
+ // exists yet. Prints only shas and key NAMES (never a config value).
+ import fs from 'node:fs'; import { createHash } from 'node:crypto';
+ const [file, out, blockFile, expectSha, blockSha] = process.argv.slice(2);
+@@ -11,15 +12,16 @@
+ const raw = fs.readFileSync(file); if (sha(raw) !== expectSha) fail('privacy-config is not the pinned sha (CAS)');
+ const braw = fs.readFileSync(blockFile); if (sha(braw) !== blockSha) fail('the block is not the reviewed bytes');
+ const text = raw.toString('utf8'), c = JSON.parse(text);
+-if (JSON.stringify(c, null, 2) + '\n' !== text) fail('the file is not in network-enroll format: an edit could change other bytes');
++const nl = text.endsWith('\n') ? '\n' : '';
++if (JSON.stringify(c, null, 2) + nl !== text) fail('the file is not in network-enroll format: an edit could change other bytes');
+ const e = c.enclaveNetwork; if (!e || typeof e !== 'object' || Array.isArray(e)) fail('no enclaveNetwork object');
+ if (e.challengeReplica !== undefined) fail('challengeReplica already present');
+ const wa = e.walletAdmission; delete e.walletAdmission;
+ e.challengeReplica = JSON.parse(braw.toString('utf8'));
+ if (wa !== undefined) e.walletAdmission = wa;                       // walletAdmission stays LAST (the hold helper's no-op rule)
+-const next = JSON.stringify(c, null, 2) + '\n';
++const next = JSON.stringify(c, null, 2) + nl;
+ // proof that nothing else changed: removing the block again gives the original bytes back
+ const back = JSON.parse(next); delete back.enclaveNetwork.challengeReplica;
+-if (JSON.stringify(back, null, 2) + '\n' !== text) fail('internal: the edit changed other bytes');
++if (JSON.stringify(back, null, 2) + nl !== text) fail('internal: the edit changed other bytes');
+ fs.writeFileSync(out, next);
+ console.log(JSON.stringify({ before: expectSha, after: sha(next), enclaveNetworkKeys: Object.keys(c.enclaveNetwork) }));
+--- ../g4-live-config-prep-20261021/root-steps/test-edit.mjs	2026-10-21 15:39:06.577895787 -0700
++++ root-steps/test-edit.mjs	2026-10-21 16:17:54.564516558 -0700
+@@ -17,4 +17,12 @@
+ assert.ok(run(base, sha(base), '0'.repeat(64)).refused.includes('reviewed bytes'));
+ assert.ok(run(r.out).refused.includes('already present'));
+ const nw = JSON.parse(JSON.stringify(cfg)); delete nw.enclaveNetwork.walletAdmission; const r2 = run(JSON.stringify(nw, null, 2) + '\n'); assert.equal(Object.keys(JSON.parse(r2.out).enclaveNetwork).at(-1), 'challengeReplica');
+-fs.rmSync(d, { recursive: true, force: true }); console.log('edit-privacy-config: 6/6 PASS');
++// network-enroll a9729786 writes WITHOUT a final newline (writeAtomic(JSON.stringify(cfg, null, 2))): accepted, ending kept
++const enrollText = JSON.stringify(cfg, null, 2); const r3 = run(enrollText); assert.ok(r3.ok, JSON.stringify(r3));
++assert.ok(!r3.out.endsWith('\n'), 'enroll format kept'); const b3 = JSON.parse(r3.out); delete b3.enclaveNetwork.challengeReplica; assert.equal(JSON.stringify(b3, null, 2), enrollText);
++// what network-enroll would now compute (its key order: ..., challengeReplica, walletAdmission LAST) equals the edited section,
++// so its next pass is a no-op (no rewrite, no agent restart)
++const e3 = JSON.parse(r3.out).enclaveNetwork, want = { ...Object.fromEntries(Object.entries(e3).filter(([k]) => !['challengeReplica', 'walletAdmission'].includes(k))), challengeReplica: e3.challengeReplica, walletAdmission: e3.walletAdmission };
++assert.equal(JSON.stringify(e3), JSON.stringify(want));
++assert.ok(run(enrollText + '\n\n').refused.includes('network-enroll format'), 'any other ending refuses');
++fs.rmSync(d, { recursive: true, force: true }); console.log('edit-privacy-config: 9/9 PASS');

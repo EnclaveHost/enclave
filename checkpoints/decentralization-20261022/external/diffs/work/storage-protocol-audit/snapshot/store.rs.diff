@@ -1,0 +1,234 @@
+--- a/sia-s3/src/store.rs
++++ b/sia-s3/src/store.rs
+@@ -37,6 +37,11 @@
+ //! whenever it appears, so a write that lands arbitrarily late, or old data an
+ //! indexer replays, cannot bring a deleted key back. Floors are kept for good;
+ //! once one is pinned, the payload it covers is reclaimed.
++//!
++//! A *membership record* (`ms`) states which replica set this replica's
++//! contents are complete for (replica.rs, "Membership"). It lives in metadata
++//! alone, on a one-byte object, and is never rewritten: a newer record is a new
++//! object.
+ 
+ use std::cell::{Cell, RefCell};
+ use std::collections::{BTreeMap, HashMap, HashSet};
+@@ -165,6 +170,38 @@
+     pub c: u64,
+ }
+ 
++/// A membership: its epoch, write quorum and members (`member_id` of each canonical indexer URL, sorted).
++#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
++#[serde(deny_unknown_fields)]
++pub struct MsDef {
++    pub s: u64,
++    pub w: u32,
++    pub m: Vec<String>,
++}
++
++/// A membership record, in a record object's metadata. `k` is "a" (admitted: this replica held the complete
++/// history when membership `d` admitted it) or "s" (sealed: this replica belonged to membership `p`, which `d`
++/// replaced). `p` is absent when `d` replaced a deployment that had no records.
++#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
++#[serde(deny_unknown_fields)]
++pub struct MsRec {
++    pub k: String,
++    pub d: MsDef,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub p: Option<MsDef>,
++}
++
++impl MsRec {
++    pub fn admit(&self) -> bool {
++        self.k == "a"
++    }
++}
++
++/// A replica's name in membership records: 64 bits of SHA-256 over its canonical indexer URL.
++pub fn member_id(indexer: &str) -> String {
++    hex::encode(&Sha256::digest(indexer.as_bytes())[..8])
++}
++
+ /// The body of a ledger object: deletion floors, each a key hash and the version of its newest deletion.
+ #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+ #[serde(deny_unknown_fields)]
+@@ -210,12 +247,15 @@
+     /// this object is a ledger of deletion floors
+     #[serde(default, skip_serializing_if = "Option::is_none")]
+     pub lg: Option<LgRef>,
++    /// this object is a membership record
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub ms: Option<MsRec>,
+ }
+ 
+ impl Meta {
+     /// Does the object mean something by its metadata alone (not counting being some key's data)?
+     fn purposeful(&self) -> bool {
+-        !self.e.is_empty() || self.mp.is_some() || !self.d.is_empty() || self.mf.is_some() || self.lg.is_some()
++        !self.e.is_empty() || self.mp.is_some() || !self.d.is_empty() || self.mf.is_some() || self.lg.is_some() || self.ms.is_some()
+     }
+ 
+     fn normalized(mut self) -> Meta {
+@@ -273,6 +313,8 @@
+     pub ledgers: Vec<String>,
+     /// ledger objects whose body could not be read: their floors are unknown, so nothing is swept or merged
+     pub unread_ledgers: Vec<String>,
++    /// membership records, by object id
++    pub records: Vec<(String, MsRec)>,
+ }
+ 
+ #[derive(Default, Clone, Serialize)]
+@@ -471,6 +513,9 @@
+         for t in &m.d {
+             idx.tombs.entry(t.q.clone()).or_default().push((id.clone(), t.clone()));
+         }
++        if let Some(r) = &m.ms {
++            idx.records.push((id.clone(), r.clone()));
++        }
+     }
+     let mut dups = 0;
+     for (kk, key) in cands {
+@@ -493,7 +538,7 @@
+     let referenced: HashSet<String> = idx.keys.values().flat_map(|k| k.objects()).collect();
+     for (id, (obj, m)) in &idx.objs {
+         // objects holding tombstones stay until the tombstones are collected; unread manifests are unknown
+-        if referenced.contains(id) || !m.d.is_empty() || m.lg.is_some() || (m.mf.is_some() && !idx.manifests.contains_key(id)) {
++        if referenced.contains(id) || !m.d.is_empty() || m.lg.is_some() || m.ms.is_some() || (m.mf.is_some() && !idx.manifests.contains_key(id)) {
+             continue;
+         }
+         if let Some(t) = &m.mp {
+@@ -573,6 +618,16 @@
+         self.unread_ledgers.is_empty()
+     }
+ 
++    /// Is every key and deletion this replica holds known (no unread manifest or ledger)?
++    pub fn complete(&self) -> bool {
++        self.unresolved.is_empty() && self.unread_ledgers.is_empty()
++    }
++
++    /// The newest membership record here: highest epoch, an admission over a seal.
++    pub fn newest_record(&self) -> Option<&MsRec> {
++        self.records.iter().map(|(_, r)| r).max_by_key(|r| (r.d.s, r.admit()))
++    }
++
+     fn superseded(&self, kk: &KK, v: &Ver) -> bool {
+         self.keys.get(kk).is_some_and(|k| k.entry.ver() >= *v) || self.tomb(&qkey(&kk.0, &kk.1)).is_some_and(|t| t.ver() >= *v)
+     }
+@@ -602,10 +657,17 @@
+     let mut objs = HashMap::new();
+     for (id, obj) in latest {
+         let Some(obj) = obj else { continue };
+-        if let Ok(m) = serde_json::from_slice::<Meta>(&obj.metadata) {
+-            if m.v == 1 || m.v == 2 {
++        match serde_json::from_slice::<Meta>(&obj.metadata) {
++            Ok(m) if m.v == 1 || m.v == 2 => {
+                 objs.insert(id, (obj, m));
+             }
++            Ok(_) => {}
++            Err(_) if unreadable_record(&obj.metadata) => {
++                // a membership record (from a newer version?) that cannot be read: what this replica was admitted
++                // to, or sealed against, is unknown. It stays unloaded rather than be counted wrongly.
++                return Err(format!("membership record {id} cannot be read by this version"));
++            }
++            Err(_) => {}
+         }
+     }
+     // manifest and ledger bodies, eight downloads at a time
+@@ -649,6 +711,11 @@
+     Ok(idx)
+ }
+ 
++/// Is this metadata (which did not parse as `Meta`) a membership record all the same?
++fn unreadable_record(raw: &[u8]) -> bool {
++    serde_json::from_slice::<serde_json::Value>(raw).is_ok_and(|v| v.get("ms").is_some())
++}
++
+ /// Download an object's whole body, refusing one whose size disagrees with its signed metadata.
+ async fn read_body(sdk: &Sdk, obj: &Object, n: u64, z: &str, max: u64, deadline: Duration) -> Res<Vec<u8>> {
+     if n > max || n != obj.size() {
+@@ -1097,6 +1164,22 @@
+         Ok(())
+     }
+ 
++    /// Upload the one-byte body of a future membership record (nothing is pinned: an unused one leaves only slabs,
++    /// which `prune_slabs` reclaims).
++    pub async fn upload_record(&self) -> Res<Object> {
++        self.upload(Rc::from(&[0u8][..])).await
++    }
++
++    /// Record a membership statement durably here: pin an uploaded record body with the record as its metadata.
++    pub async fn pin_record(&self, mut obj: Object, rec: MsRec) -> Res<()> {
++        let meta = self.pin_with(&mut obj, Meta { p: true, ms: Some(rec.clone()), ..Default::default() }).await?;
++        let id = obj.id().to_string();
++        let mut idx = self.idx.lock().await;
++        idx.objs.insert(id.clone(), (obj, meta));
++        idx.records.push((id, rec));
++        Ok(())
++    }
++
+     /// With more than a few ledgers (and every one read), write one listing every floor, then delete the others.
+     /// Returns how many were merged away. A floor is never dropped: the new ledger is pinned first, and holds all.
+     pub async fn merge_ledgers(&self) -> Res<usize> {
+@@ -1182,6 +1265,30 @@
+         Ok(etag)
+     }
+ 
++    /// Make an uploaded copy of another replica's part `n` (ETag and size as that replica lists them) this
++    /// replica's part `n` of upload `uid`, replacing a part `n` it held with another ETag. Ok(false) when it holds that part already.
++    #[allow(clippy::too_many_arguments)]
++    pub async fn adopt_part(&self, uid: &str, b: &str, k: &str, started: i64, n: u32, (etag, size): (&str, u64), mut obj: Object) -> Res<bool> {
++        let mut idx = self.idx.lock().await;
++        let u = idx.uploads.entry(uid.to_string()).or_insert_with(|| Upload { b: b.into(), k: k.into(), started, parts: BTreeMap::new() });
++        if u.parts.get(&n).is_some_and(|p| p.1 == etag) {
++            return Ok(false);
++        }
++        let meta = Meta { p: size >= self.compact_max_object, mp: Some(PartTag { u: uid.into(), b: b.into(), k: k.into(), n, t: etag.into() }), ..Default::default() };
++        let meta = self.pin_with(&mut obj, meta).await?;
++        let id = obj.id().to_string();
++        let old = idx.uploads.get_mut(uid).and_then(|u| u.parts.insert(n, (id.clone(), etag.into(), size)));
++        idx.objs.insert(id, (obj, meta));
++        if let Some((old_id, _, _)) = old {
++            if let Some((o, _)) = idx.objs.get(&old_id).cloned() {
++                if self.delete(&o).await.is_ok() {
++                    idx.objs.remove(&old_id);
++                }
++            }
++        }
++        Ok(true)
++    }
++
+     /// Validate a completion here and stage its placement: inline on part 1 when the entry fits, else a manifest
+     /// over every part, uploaded now, outside any lock.
+     pub async fn stage_complete(&self, uid: &str, want: &[(u32, String)]) -> Res<Completion> {
+@@ -1470,6 +1577,32 @@
+     }
+ 
+     #[test]
++    fn membership_records_fit_in_metadata_and_are_never_swept() {
++        // the largest set config allows (16 indexers) replacing another of 16 still fits the metadata budget
++        let ids = |seed: &str| {
++            let mut m: Vec<String> = (0..16).map(|i| member_id(&format!("https://indexer-{seed}-{i}.example.org"))).collect();
++            m.sort();
++            m
++        };
++        let rec = MsRec { k: "s".into(), d: MsDef { s: u64::MAX, w: 16, m: ids("new") }, p: Some(MsDef { s: u64::MAX - 1, w: 16, m: ids("old") }) };
++        let meta = Meta { p: true, ms: Some(rec.clone()), ..Default::default() }.normalized();
++        assert!(meta_bytes(&meta).is_ok() && meta.v == 2, "0.1.x leaves v2 objects alone");
++        assert_eq!(member_id("https://sia.enclave.host").len(), 16);
++        // a record object is listed as such, is never an orphan, and leaves the key space alone
++        let mut objs = HashMap::new();
++        objs.insert("ms".to_string(), (Object::default(), meta));
++        objs.insert("old".to_string(), (Object::default(), Meta { v: 1, e: vec![ver_entry(100)], ..Default::default() }));
++        let idx = build_index(objs, HashMap::new(), HashMap::new());
++        assert_eq!(idx.records, vec![("ms".to_string(), rec.clone())]);
++        assert!(idx.orphans.is_empty() && idx.keys.len() == 1);
++        assert_eq!(idx.newest_record(), Some(&rec));
++        // an unknown field in a record is refused (it is not this version's record), not misread
++        let raw = br#"{"v":2,"p":true,"ms":{"k":"a","d":{"s":1,"w":1,"m":[]},"x":1}}"#;
++        assert!(serde_json::from_slice::<Meta>(raw).is_err() && unreadable_record(raw), "fetch_index refuses to load it");
++        assert!(!unreadable_record(br#"{"something":"else"}"#));
++    }
++
++    #[test]
+     fn ledgers_are_checked_against_their_signed_metadata() {
+         let l = Ledger { v: 1, f: vec![Tomb { q: qkey("b", "k"), h: 5, i: "i".into() }] };
+         let raw = serde_json::to_vec(&l).unwrap();

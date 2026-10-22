@@ -1,0 +1,80 @@
+--- a/persist/postgres/objects.go
++++ b/persist/postgres/objects.go
+@@ -317,11 +317,18 @@
+ // of the account's objects are unpinned and queued for deletion by
+ // PruneDeletedSlabs.
+ func (s *Store) DeleteObject(account proto.Account, objectKey types.Hash256) error {
++	return s.DeleteObjectFenced(account, nil, objectKey)
++}
++
++// DeleteObjectFenced is DeleteObject under the writer fence sf (FENCING PATCH): the account row is locked and the
++// fence checked first; with the sequence enabled the deletion gets the next seq.
++func (s *Store) DeleteObjectFenced(account proto.Account, sf *accounts.Credential, objectKey types.Hash256) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		accountID, _, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
+ 		if err != nil {
+ 			return err
+ 		}
++		accountID := la.id
+ 
+ 		var objectID int64
+ 		err = tx.QueryRow(ctx, `SELECT id FROM objects WHERE object_key = $1 AND account_id = $2 FOR UPDATE`, sqlHash256(objectKey), accountID).Scan(&objectID)
+@@ -350,12 +357,19 @@
+ 		if err != nil {
+ 			return fmt.Errorf("failed to delete object: %w", err)
+ 		}
+-		_, err = tx.Exec(ctx, `
+-                       UPDATE object_events SET was_deleted = TRUE, updated_at = NULL
++		seq, err := nextSeq(ctx, tx, la)
++		if err != nil {
++			return err
++		}
++		res, err := tx.Exec(ctx, `
++                       UPDATE object_events SET was_deleted = TRUE, updated_at = NULL, seq = $3
+                        WHERE account_id = $1 AND object_key = $2`,
+-			accountID, sqlHash256(objectKey))
++			accountID, sqlHash256(objectKey), seq)
+ 		if err != nil {
+ 			return fmt.Errorf("failed to update object events: %w", err)
++		} else if la.seqEnabled && res.RowsAffected() != 1 {
++			// a consumed seq must belong to exactly one row: never commit a gap behind a deletion
++			return fmt.Errorf("object %v has %d event rows", objectKey, res.RowsAffected())
+ 		}
+ 
+ 		// unpin the object's slabs that are no longer referenced by any of
+@@ -399,8 +413,15 @@
+ // PinObject saves the given object for the given account. If an object with
+ // the given key exists for an account, it is overwritten.
+ func (s *Store) PinObject(account proto.Account, obj slabs.PinObjectRequest) error {
++	return s.PinObjectFenced(account, nil, obj)
++}
++
++// PinObjectFenced is PinObject under the writer fence sf (FENCING PATCH): the account row is locked and the fence
++// checked first; with the sequence enabled the object's event gets the next seq.
++func (s *Store) PinObjectFenced(account proto.Account, sf *accounts.Credential, obj slabs.PinObjectRequest) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		accountID, deleted, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		accountID, deleted := la.id, la.deleted
+ 		if err != nil {
+ 			return err
+ 		} else if deleted {
+@@ -431,10 +452,14 @@
+ 			return fmt.Errorf("failed to insert object: %w", err)
+ 		}
+ 
++		seq, err := nextSeq(ctx, tx, la)
++		if err != nil {
++			return err
++		}
+ 		_, err = tx.Exec(ctx, `
+-			INSERT INTO object_events (object_key, account_id, was_deleted) VALUES ($1, $2, FALSE)
+-			ON CONFLICT (account_id, object_key) DO UPDATE SET (was_deleted, updated_at) = (FALSE, NULL)`,
+-			sqlHash256(obj.ID), accountID)
++			INSERT INTO object_events (object_key, account_id, was_deleted, seq) VALUES ($1, $2, FALSE, $3)
++			ON CONFLICT (account_id, object_key) DO UPDATE SET (was_deleted, updated_at, seq) = (FALSE, NULL, EXCLUDED.seq)`,
++			sqlHash256(obj.ID), accountID, seq)
+ 		if err != nil {
+ 			return fmt.Errorf("failed to insert object event: %w", err)
+ 		}

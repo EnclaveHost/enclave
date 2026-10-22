@@ -1,0 +1,249 @@
+--- a/relay/network-runtime.bundle.mjs
++++ b/relay/network-runtime.bundle.mjs
+@@ -74756,6 +74756,7 @@
+ }
+ 
+ // network/app-zone-challenge.mjs
++var SHIELD_DOC_FORMAT = "hyperv-partition-domain/v1";
+ var APP_PUSH_NONCE_PREFIX = "enclave-app-acme-push-v2\n";
+ var APP_PUSH_SIG_PREFIX = "enclave-app-acme-push-sig-v2\n";
+ var APP_PUSH_MAX_BYTES = 32768;
+@@ -74985,11 +74986,26 @@
+     size: () => used.size
+   };
+ }
+-function createAppZoneAuthority({ zone, measurements, judge: judge2, mode: mode2 = "trusted", minTcb, kds = true, reader: reader2, pins, ledger, pushes = createPushLedger(), now = Date.now }) {
++function createAppZoneAuthority({
++  zone,
++  measurements,
++  judge: judge2,
++  mode: mode2 = "trusted",
++  minTcb,
++  kds = true,
++  reader: reader2,
++  pins,
++  ledger,
++  pushes = createPushLedger(),
++  now = Date.now,
++  shield = null
++}) {
+   if (!ACCEPT2[mode2]) throw new Error("unknown judge mode");
+-  if (!(measurements instanceof Set) || !measurements.size) throw new Error("pinned measurements required");
++  const snpOn = measurements instanceof Set && measurements.size > 0;
++  if (!snpOn && !shield) throw new Error("pinned measurements required");
++  if (shield && typeof shield.verify !== "function") throw new Error("the Shield verifier must be network/app-zone-shield.mjs createAppZoneShield");
+   if (!pins || !["deployments", "registry", "catalog"].every((k) => ADDR2.test(lc5(pins[k] || "")) && !ZERO40.test(lc5(pins[k])))) throw new Error("deployments, registry and catalog pins required");
+-  if (typeof judge2 !== "function" || !reader2 || !ledger) throw new Error("judge, quorum reader and ledger index required");
++  if (snpOn && typeof judge2 !== "function" || !reader2 || !ledger) throw new Error("judge, quorum reader and ledger index required");
+   const p02 = { deployments: lc5(pins.deployments), registry: lc5(pins.registry), catalog: lc5(pins.catalog) };
+   return {
+     pushes,
+@@ -75000,12 +75016,20 @@
+         const { p, spki, doc, nonce: nonce2 } = pre;
+         const digest = pushDigest(raw);
+         if (p.op === "set" && pushes.seen(digest)) return deny2(409, "this push was already used (one-shot)");
+-        const report = Buffer.from(doc.report, "base64");
+-        const measurement = report.length >= 192 ? report.subarray(144, 192).toString("hex") : "";
+-        if (!measurements.has(measurement)) return deny2(403, "the launch measurement is not pinned by this replica");
+-        const v = await judge2(doc, spki, nonce2, { measurement, appSha: doc.appSha256, mode: mode2, kds, hostData: p.deploymentId, ...minTcb !== void 0 ? { minTcb } : {} });
+-        if (!ACCEPT2[mode2].includes(v.verdict) || minTcb !== void 0 && v.verdict !== "attested")
+-          return deny2(403, `attestation ${v.verdict}: ${String(v.reasons?.at(-1) || "").slice(0, 160)}`);
++        let v;
++        if (doc.format === SHIELD_DOC_FORMAT) {
++          if (!shield) return deny2(403, "this replica accepts no Enclave Shield evidence");
++          v = await shield.verify({ doc, spki, nonce: nonce2, lease: p.lease });
++          if (!v.ok) return deny2(v.status || 403, v.why);
++        } else {
++          if (!snpOn) return deny2(403, "this replica accepts no SEV-SNP evidence");
++          const report = Buffer.from(doc.report, "base64");
++          const measurement = report.length >= 192 ? report.subarray(144, 192).toString("hex") : "";
++          if (!measurements.has(measurement)) return deny2(403, "the launch measurement is not pinned by this replica");
++          v = await judge2(doc, spki, nonce2, { measurement, appSha: doc.appSha256, mode: mode2, kds, hostData: p.deploymentId, ...minTcb !== void 0 ? { minTcb } : {} });
++          if (!ACCEPT2[mode2].includes(v.verdict) || minTcb !== void 0 && v.verdict !== "attested")
++            return deny2(403, `attestation ${v.verdict}: ${String(v.reasons?.at(-1) || "").slice(0, 160)}`);
++        }
+         await ledger.sync().catch(() => {
+         });
+         const unique2 = ledger.uniqueRefusal(p.deploymentId);
+@@ -75021,7 +75045,18 @@
+         const untilMs = Math.min(p.ts * 1e3 + 3e5, p.order.expires * 1e3);
+         const ttlSec = Math.max(1, Math.min(APP_TXT_MAX_TTL_S, Math.floor((p.order.expires * 1e3 - now()) / 1e3)));
+         if (p.op === "set") pushes.consume(digest, untilMs);
+-        return { ok: true, op: p.op, name: p.name, value: p.value, ttlSec, digest, deploymentId: p.deploymentId, verdict: v.verdict, block: String(facts.blockNumber) };
++        return {
++          ok: true,
++          op: p.op,
++          name: p.name,
++          value: p.value,
++          ttlSec,
++          digest,
++          deploymentId: p.deploymentId,
++          verdict: v.verdict,
++          block: String(facts.blockNumber),
++          ...v.tier ? { tier: v.tier, hostExcluded: v.hostExcluded } : {}
++        };
+       } catch {
+         return deny2(500, "verification error");
+       }
+@@ -76797,6 +76832,8 @@
+ }
+ var shieldResponderId = (zone) => createHash11("sha256").update(`enclave-shield-responder-v1
+ ${zone}`).digest("hex");
++var appZoneShieldParty = (zone) => createHash11("sha256").update(`enclave-app-zone-shield-v1
++${zone}`).digest("hex");
+ 
+ // relay/shield-host-session.mjs
+ var HEX322 = /^[0-9a-f]{64}$/;
+@@ -77341,7 +77378,7 @@
+ }
+ 
+ // relay/dns-challenge-shield.mjs
+-var SHIELD_DOC_FORMAT = "hyperv-partition-domain/v1";
++var SHIELD_DOC_FORMAT2 = "hyperv-partition-domain/v1";
+ var SHIELD_DOC_TIER = "T0-hv";
+ var HEX2 = /^[0-9a-f]{64}$/;
+ var deny3 = (status, why) => ({ ok: false, status, why });
+@@ -77463,7 +77500,7 @@
+ }
+ function isShieldPush(raw) {
+   try {
+-    return JSON.parse(Buffer.from(raw).toString("utf8"))?.attestation?.format === SHIELD_DOC_FORMAT;
++    return JSON.parse(Buffer.from(raw).toString("utf8"))?.attestation?.format === SHIELD_DOC_FORMAT2;
+   } catch {
+     return false;
+   }
+@@ -77471,6 +77508,7 @@
+ function createShieldChallengeAuth({
+   policy,
+   zone,
++  party: givenParty = null,
+   registryEntry,
+   recoverSigner,
+   now = Date.now,
+@@ -77490,7 +77528,8 @@
+   for (const [k, [min, max]] of Object.entries(LIMITS))
+     if (!Number.isSafeInteger(opts[k]) || opts[k] < min || opts[k] > max) throw new Error(`${k} must be an integer in ${min}..${max}`);
+   if (typeof registryEntry !== "function") throw new Error("a Shield responder needs its own registry read (registryEntry)");
+-  const party = shieldResponderId(zone);
++  if (givenParty !== null && !HEX2.test(String(givenParty))) throw new Error("party must be a 32-byte hex id");
++  const party = givenParty ?? shieldResponderId(zone);
+   const entry = async (hostId) => {
+     const e = await registryEntry(hostId);
+     if (e?.refused) {
+@@ -77536,18 +77575,15 @@
+     log(`[dns-relay] shield host session ${s.endpoint} until ${new Date(until).toISOString()}`);
+     return { ok: true, party, until, tier: "hv-node", hostExcluded: false, idksModulusSha256: s.host.boot?.idksModulusSha256 || null };
+   }
+-  async function authorize2({ raw, sig, method }) {
++  async function verifyAttestation({ doc, spki, nonce: nonce2, hostId: onlyHost = null, operator: onlyOperator = null }) {
+     try {
+-      const pre = pushPreconditions({ raw, sig, method, zone, now });
+-      if (!pre.ok) return pre;
+-      const { p, spki, doc, nonce: nonce2 } = pre;
+-      if (doc.format !== SHIELD_DOC_FORMAT || doc.tier !== SHIELD_DOC_TIER) return deny3(403, "the attestation is not an Enclave Shield (T0-hv) document");
++      if (doc.format !== SHIELD_DOC_FORMAT2 || doc.tier !== SHIELD_DOC_TIER) return deny3(403, "the attestation is not an Enclave Shield (T0-hv) document");
+       const fault = validateRuntimeIdentity(doc.runtime);
+       if (fault) return deny3(403, `the attestation states no admissible runtime: ${String(fault).slice(0, 120)}`);
+       const ridBytes = runtimeId(doc.runtime), rid = ridBytes.toString("hex");
+       sweep();
+-      const sessions = [...live.entries()].reverse();
+-      if (!sessions.length) return deny3(403, "no live Shield host session on this responder: the host must attest its TPM boot here first");
++      const sessions = [...live.entries()].reverse().filter(([h, s]) => (onlyHost === null || h === String(onlyHost).toLowerCase()) && (onlyOperator === null || s.operator === String(onlyOperator).toLowerCase()));
++      if (!sessions.length) return deny3(403, onlyHost === null ? "no live Shield host session on this responder: the host must attest its TPM boot here first" : "no live Shield host session for this lease's runner and operator: that host must attest its TPM boot here first");
+       const measurements = policy.images.filter((i) => i.runtimeId === rid).map((i) => i.measurement);
+       if (!measurements.length) return deny3(403, "Shield attestation refused: runtime has no admitted image");
+       let envelope;
+@@ -77586,19 +77622,31 @@
+         const fresh = await current(hostId, s);
+         if (fresh === "revoked") return deny3(403, "the host's registry entry no longer names this endpoint and operator as active: its session ended");
+         if (fresh === "unavailable") return deny3(503, "the host's registry entry could not be re-read (no chain quorum); retry");
+-        return {
+-          ok: true,
+-          name: p.name,
+-          value: p.value,
+-          deploymentId: p.deploymentId,
+-          op: p.op,
+-          verdict: "shield-attested",
+-          tier: "hv-node",
+-          hostExcluded: false,
+-          measurement: v.measurement
+-        };
++        return { ok: true, verdict: "shield-attested", tier: "hv-node", hostExcluded: false, measurement: v.measurement, hostId, endpoint: s.endpoint, operator: s.operator };
+       }
+       return deny3(403, `Shield attestation refused: ${String(why).slice(0, 200)}`);
++    } catch {
++      return deny3(500, "verification error");
++    }
++  }
++  async function authorize2({ raw, sig, method }) {
++    try {
++      const pre = pushPreconditions({ raw, sig, method, zone, now });
++      if (!pre.ok) return pre;
++      const { p, spki, doc, nonce: nonce2 } = pre;
++      const v = await verifyAttestation({ doc, spki, nonce: nonce2 });
++      if (!v.ok) return v;
++      return {
++        ok: true,
++        name: p.name,
++        value: p.value,
++        deploymentId: p.deploymentId,
++        op: p.op,
++        verdict: v.verdict,
++        tier: v.tier,
++        hostExcluded: v.hostExcluded,
++        measurement: v.measurement
++      };
+     } catch {
+       return deny3(500, "verification error");
+     }
+@@ -77678,12 +77726,42 @@
+     challenge: (b) => hosts.challenge(b),
+     attest,
+     authorize: authorize2,
++    verifyAttestation,
+     handle,
+     sessions: () => {
+       sweep();
+       return live.size;
+     },
+     inflight: () => ({ challenge: routes["/v1/shield-session/challenge"].held, attest: routes["/v1/shield-session/attest"].held })
++  };
++}
++
++// network/app-zone-shield.mjs
++var APP_ZONE_SHIELD_SESSION_PATH = "/v1/app-zone/shield-session";
++function createAppZoneShield({ policy, zone, registryEntry, recoverSigner, ...rest }) {
++  if (typeof zone !== "string" || !zone) throw new Error("the app zone is required");
++  const party = appZoneShieldParty(zone);
++  const auth = createShieldChallengeAuth({ ...rest, policy, zone, party, registryEntry, recoverSigner });
++  const handle = (req, res, json) => {
++    const u = new URL("http://x" + req.url);
++    if (!u.pathname.startsWith(APP_ZONE_SHIELD_SESSION_PATH + "/")) return Promise.resolve(false);
++    const tail = u.pathname.slice(APP_ZONE_SHIELD_SESSION_PATH.length);
++    if (!["/challenge", "/attest"].includes(tail)) return Promise.resolve(false);
++    req.url = "/v1/shield-session" + tail + u.search;
++    return auth.handle(req, res, json);
++  };
++  return {
++    party,
++    /** -> { ok, verdict, tier, hostExcluded, measurement, hostId, endpoint, operator } | { ok: false, status, why }. Never throws. */
++    verify: ({ doc, spki, nonce: nonce2, lease }) => {
++      if (!lease || !/^0x[0-9a-f]{64}$/.test(String(lease.runner)) || !/^0x[0-9a-f]{40}$/.test(String(lease.operator)))
++        return Promise.resolve({ ok: false, status: 400, why: "a Shield push must name its lease runner and operator" });
++      return auth.verifyAttestation({ doc, spki, nonce: nonce2, hostId: lease.runner, operator: lease.operator });
++    },
++    handle,
++    attest: auth.attest,
++    challenge: auth.challenge,
++    sessions: auth.sessions
+   };
+ }
+ 
+@@ -78744,6 +78822,7 @@
+   LeaseReader,
+   authorizePush,
+   createAppZoneAuthority,
++  createAppZoneShield,
+   createHostPolicyRuntime,
+   createLeaseSource,
+   createLedgerIndex,

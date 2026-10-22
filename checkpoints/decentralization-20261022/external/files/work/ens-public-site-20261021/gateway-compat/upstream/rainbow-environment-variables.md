@@ -1,0 +1,639 @@
+# Rainbow Environment Variables
+
+`rainbow` ships with some implicit defaults that can be adjusted via env variables below.
+
+- [Configuration](#configuration)
+  - [`RAINBOW_GATEWAY_DOMAINS`](#rainbow_gateway_domains)
+  - [`RAINBOW_SUBDOMAIN_GATEWAY_DOMAINS`](#rainbow_subdomain_gateway_domains)
+  - [`RAINBOW_TRUSTLESS_GATEWAY_DOMAINS`](#rainbow_trustless_gateway_domains)
+  - [`RAINBOW_DATADIR`](#rainbow_datadir)
+  - [`RAINBOW_GC_INTERVAL`](#rainbow_gc_interval)
+  - [`RAINBOW_GC_THRESHOLD`](#rainbow_gc_threshold)
+  - [`RAINBOW_IPNS_MAX_CACHE_TTL`](#rainbow_ipns_max_cache_ttl)
+  - [`RAINBOW_PEERING`](#rainbow_peering)
+  - [`RAINBOW_SEED`](#rainbow_seed)
+  - [`RAINBOW_SEED_INDEX`](#rainbow_seed_index)
+  - [`RAINBOW_DHT_ROUTING`](#rainbow_dht_routing)
+  - [`RAINBOW_HTTP_ROUTERS`](#rainbow_http_routers)
+  - [`RAINBOW_HTTP_ROUTERS_TIMEOUT`](#rainbow_http_routers_timeout)
+  - [`RAINBOW_ROUTING_TIMEOUT`](#rainbow_routing_timeout)
+  - [`RAINBOW_DNSLINK_RESOLVERS`](#rainbow_dnslink_resolvers)
+  - [`RAINBOW_DNSLINK_GATEWAY_DOMAINS`](#rainbow_dnslink_gateway_domains)
+  - [`RAINBOW_BOOTSTRAP`](#rainbow_bootstrap)
+  - [`RAINBOW_AUTOCONF`](#rainbow_autoconf)
+  - [`RAINBOW_AUTOCONF_URL`](#rainbow_autoconf_url)
+  - [`RAINBOW_AUTOCONF_REFRESH`](#rainbow_autoconf_refresh)
+  - [`ROUTING_IGNORE_PROVIDERS`](#routing_ignore_providers)
+  - [`RAINBOW_HTTP_RETRIEVAL_ENABLE`](#rainbow_http_retrieval_enable)
+  - [`RAINBOW_HTTP_RETRIEVAL_ALLOWLIST`](#rainbow_http_retrieval_allowlist)
+  - [`RAINBOW_HTTP_RETRIEVAL_DENYLIST`](#rainbow_http_retrieval_denylist)
+  - [`RAINBOW_HTTP_RETRIEVAL_WORKERS`](#rainbow_http_retrieval_workers)
+  - [`RAINBOW_HTTP_RETRIEVAL_MAX_DONT_HAVE_ERRORS`](#rainbow_http_retrieval_max_dont_have_errors)
+  - [`RAINBOW_HTTP_RETRIEVAL_METRICS_LABELS_FOR_ENDPOINTS`](#rainbow_http_retrieval_metrics_labels_for_endpoints)
+  - [`RAINBOW_MAX_CONCURRENT_REQUESTS`](#rainbow_max_concurrent_requests)
+  - [`RAINBOW_RETRIEVAL_TIMEOUT`](#rainbow_retrieval_timeout)
+  - [`BITSWAP_ENABLE_DUPLICATE_BLOCK_STATS`](#bitswap_enable_duplicate_block_stats)
+  - [`RAINBOW_MAX_RANGE_REQUEST_FILE_SIZE`](#rainbow_max_range_request_file_size)
+  - [`RAINBOW_MAX_DESERIALIZED_RESPONSE_SIZE`](#rainbow_max_deserialized_response_size)
+  - [`RAINBOW_MAX_UNIXFS_DAG_RESPONSE_SIZE`](#rainbow_max_unixfs_dag_response_size)
+  - [`RAINBOW_DIAGNOSTIC_SERVICE_URL`](#rainbow_diagnostic_service_url)
+  - [`RAINBOW_DEPRECATED_X_IPFS_PATH`](#rainbow_deprecated_x_ipfs_path)
+- [Experiments](#experiments)
+  - [`RAINBOW_SEED_PEERING`](#rainbow_seed_peering)
+  - [`RAINBOW_SEED_PEERING_MAX_INDEX`](#rainbow_seed_peering_max_index)
+  - [`RAINBOW_PEERING_SHARED_CACHE`](#rainbow_peering_shared_cache)
+  - [`RAINBOW_REMOTE_BACKENDS`](#rainbow_remote_backends)
+  - [`RAINBOW_REMOTE_BACKENDS_MODE`](#rainbow_remote_backends_mode)
+  - [`RAINBOW_REMOTE_BACKENDS_IPNS`](#rainbow_remote_backends_ipns)
+- [Logging](#logging)
+  - [`GOLOG_LOG_LEVEL`](#golog_log_level)
+  - [`GOLOG_LOG_FMT`](#golog_log_fmt)
+  - [`GOLOG_FILE`](#golog_file)
+  - [`GOLOG_TRACING_FILE`](#golog_tracing_file)
+- [Testing](#testing)
+  - [`GATEWAY_CONFORMANCE_TEST`](#gateway_conformance_test)
+  - [`IPFS_NS_MAP`](#ipfs_ns_map)
+- [Tracing](#tracing)
+  - [`RAINBOW_TRACING_AUTH`](#rainbow_tracing_auth)
+  - [`RAINBOW_SAMPLING_FRACTION`](#rainbow_sampling_fraction)
+
+## Configuration
+
+### `RAINBOW_GATEWAY_DOMAINS`
+
+Comma-separated list of [path gateway](https://specs.ipfs.tech/http-gateways/path-gateway/)
+hostnames that will serve both trustless and deserialized response types.
+
+Example:  passing `ipfs.io` will enable deserialized handler for flat
+[path gateway](https://specs.ipfs.tech/http-gateways/path-gateway/)
+requests with the `Host` header set to `ipfs.io`.
+
+Default: `127.0.0.1`
+
+### `RAINBOW_SUBDOMAIN_GATEWAY_DOMAINS`
+
+Comma-separated list of [subdomain gateway](https://specs.ipfs.tech/http-gateways/subdomain-gateway/)
+domains for website hosting with Origin-isolation per content root.
+
+Example: passing `dweb.link` will enable handler for Origin-isolated
+[subdomain gateway](https://specs.ipfs.tech/http-gateways/subdomain-gateway/)
+requests with the `Host` header with subdomain values matching
+`*.ipfs.dweb.link` or  `*.ipns.dweb.link`.
+
+Default: `localhost`
+
+> [!IMPORTANT]
+> **Reverse Proxy Requirement:** When running Rainbow behind a reverse proxy
+> (such as nginx), the original `Host` header **must** be forwarded to Rainbow
+> for subdomain gateway routing to work. Rainbow uses the `Host` header to
+> detect subdomain patterns like `{cid}.ipfs.example.org`.
+>
+> If the `Host` header is not forwarded correctly, Rainbow will not recognize
+> subdomain requests and will return the default landing page instead of the
+> expected IPFS content.
+>
+> If `X-Forwarded-Proto` is not set, redirects over HTTPS will use wrong protocol
+> and DNSLink names will not be inlined for subdomain gateways.
+>
+> Example: minimal nginx configuration for `example.org`
+>
+> ```nginx
+> server {
+>     listen 80;
+>     listen [::]:80;
+>
+>     # IMPORTANT: Include wildcard to match subdomain gateway requests.
+>     # The dot prefix matches both apex domain and all subdomains.
+>     server_name .example.org;
+>
+>     location / {
+>         proxy_pass http://127.0.0.1:8090;
+>
+>         # IMPORTANT: Forward the original Host header to Rainbow.
+>         # Without this, subdomain gateway routing will not work.
+>         proxy_set_header Host $host;
+>
+>         # IMPORTANT: X-Forwarded-Proto is required for correct behavior:
+>         # - Redirects will use https:// URLs when set to "https"
+>         # - DNSLink names will be inlined for subdomain gateways
+>         #   (e.g., /ipns/en.wikipedia-on-ipfs.org → en-wikipedia--on--ipfs-org.ipns.example.org)
+>         proxy_set_header X-Forwarded-Proto $scheme;
+>         proxy_set_header X-Forwarded-Host  $host;
+>     }
+> }
+> ```
+>
+> Common mistakes to avoid:
+>
+> - **Missing wildcard in `server_name`:** Using only `server_name example.org;`
+>   will not match subdomain requests like `{cid}.ipfs.example.org`. Always
+>   include `*.example.org` or use the dot prefix `.example.org`.
+>
+> - **Wrong `Host` header value:** Using `proxy_set_header Host $proxy_host;`
+>   sends the backend's hostname (e.g., `127.0.0.1:8090`) instead of the
+>   original `Host` header. Always use `$host` or `$http_host`.
+>
+> - **Missing `Host` header entirely:** If `proxy_set_header Host` is not
+>   specified, nginx defaults to `$proxy_host`, which breaks subdomain routing.
+
+### `RAINBOW_TRUSTLESS_GATEWAY_DOMAINS`
+
+Specifies trustless-only hostnames.
+
+Comma-separated list of [trustless gateway](https://specs.ipfs.tech/http-gateways/trustless-gateway/)
+domains, where unverified website asset hosting and deserialized responses is
+disabled, and **response types requested via `?format=` and `Accept` HTTP header are limited to
+[verifiable content types](https://docs.ipfs.tech/reference/http/gateway/#trustless-verifiable-retrieval)**:
+- [`application/vnd.ipld.raw`](https://www.iana.org/assignments/media-types/application/vnd.ipld.raw)
+- [`application/vnd.ipld.car`](https://www.iana.org/assignments/media-types/application/vnd.ipld.car)
+- [`application/vnd.ipfs.ipns-record`](https://www.iana.org/assignments/media-types/application/vnd.ipfs.ipns-record)
+
+**NOTE:** This setting is applied on top of everything else, to ensure
+trustless domains can't be used for phishing or direct hotlinking and hosting of third-party content. Hostnames that are passed to both `RAINBOW_GATEWAY_DOMAINS` and `RAINBOW_TRUSTLESS_GATEWAY_DOMAINS` will work only as trustless gateways. 
+
+Example:  passing `trustless-gateway.link` will ensure only verifiable content types are supported
+when request comes with the `Host` header set to `trustless-gateway.link`.
+
+Default: none (`Host` is ignored and gateway at `127.0.0.1` supports both deserialized and verifiable response types)
+
+### `RAINBOW_DATADIR`
+
+Directory for persistent data (keys, blocks, denylists)
+
+Default: not set (uses the current directory)
+
+### `RAINBOW_GC_INTERVAL`
+
+The interval at which the garbage collector will be called. This is given as a string that corresponds to the duration of the interval. Set 0 to disable.
+
+Default: `60m`
+
+### `RAINBOW_GC_THRESHOLD`
+
+The threshold of how much free space one wants to always have available on disk. This is used with the periodic garbage collector.
+
+When the periodic GC runs, it checks for the total and available space on disk. If the available space is larger than the threshold, the GC is not called. Otherwise, the GC is asked to remove how many bytes necessary such that the threshold of available space on disk is met.
+
+Default: `0.3` (always keep 30% of the disk available)
+
+### `RAINBOW_IPNS_MAX_CACHE_TTL`
+
+When set, it defines the upper bound limit (in ms) of how long a `/ipns/{id}`
+lookup result will be cached and read from cache before checking for updates.
+
+The limit is applied to everything under the `/ipns/` namespace, and allows to cap both
+the [Time-To-Live (TTL)](https://specs.ipfs.tech/ipns/ipns-record/#ttl-uint64)
+of [IPNS Records](https://specs.ipfs.tech/ipns/ipns-record/)
+and the [TTL of DNS TXT records](https://datatracker.ietf.org/doc/html/rfc2181#section-8)
+with [DNSLink](https://dnslink.dev/).
+
+Default: No upper bound, [TTL from IPNS Record](https://specs.ipfs.tech/ipns/ipns-record/#ttl-uint64) or [TTL from DNSLink](https://datatracker.ietf.org/doc/html/rfc2181#section-8) used as-is.
+
+### `RAINBOW_PEERING`
+
+A comma-separated list of [multiaddresses](https://docs.libp2p.io/concepts/fundamentals/addressing/) of peers to stay connected to.
+
+> [!TIP]
+> If `RAINBOW_SEED` is set and `/p2p/rainbow-seed/N` value is found here, Rainbow
+> will replace it with a valid `/p2p/` for a peer ID generated from same seed
+> and index `N`. This is useful when `RAINBOW_SEED_PEERING` can't be used,
+> or when peer routing should be skipped and specific address should be used.
+
+Default: not set (no peering)
+
+### `RAINBOW_SEED`
+
+Base58 seed to derive PeerID from. Can be generated with `rainbow gen-seed`.
+If set, requires `RAINBOW_SEED_INDEX` to be set as well.
+
+Default: not set
+
+### `RAINBOW_SEED_INDEX`
+
+Index to derivate the PeerID identity from `RAINBOW_SEED`.
+
+Default: not set
+
+### `RAINBOW_DHT_ROUTING`
+
+Control the type of Amino DHT client used for for routing. Options are `accelerated`, `standard` and `off`.
+
+Default: `accelerated`
+
+### `RAINBOW_HTTP_ROUTERS`
+
+HTTP servers with /routing/v1 endpoints to use for delegated routing (comma-separated).
+
+The special value `auto` expands to network-appropriate defaults from autoconf when [`RAINBOW_AUTOCONF`](#rainbow_autoconf) is enabled.
+
+Default: `auto`
+
+### `RAINBOW_HTTP_ROUTERS_TIMEOUT`
+
+Timeout for HTTP requests to routing endpoints.
+
+This setting controls the network-level timeout for HTTP requests made to delegated HTTP routers (such as cid.contact). This is the maximum time Rainbow will wait for an HTTP response from a routing endpoint before timing out the request.
+
+A shorter timeout provides faster failure detection but may increase timeout errors during network congestion. A longer timeout reduces timeout errors but may cause slower responses when routing endpoints are unavailable.
+
+Default: 30s
+
+### `RAINBOW_ROUTING_TIMEOUT`
+
+Timeout for parallel routing operations.
+
+This setting controls the application-level timeout for the parallel router when querying multiple routing systems (DHT, delegated routers, etc.) simultaneously. This is separate from the HTTP request timeout and represents the overall time budget for a routing operation.
+
+This should typically be equal to or greater than RAINBOW_HTTP_ROUTERS_TIMEOUT to allow HTTP requests sufficient time to complete within the overall routing operation.
+
+Default: 30s
+
+### `RAINBOW_DNSLINK_RESOLVERS`
+
+DNS-over-HTTPS servers to use for resolving DNSLink on specified TLDs (comma-separated map: `TLD:URL,TLD2:URL2`).
+
+It is possible to override OS resolver by passing root:  `. : catch-URL`.
+
+The special value `auto` expands to network-appropriate defaults from autoconf when [`RAINBOW_AUTOCONF`](#rainbow_autoconf) is enabled.
+
+Default: `. : auto`
+
+### `RAINBOW_DNSLINK_GATEWAY_DOMAINS`
+
+Comma-separated list of domains allowed to use [DNSLink](https://dnslink.dev/) resolution via the `Host` header.
+
+When set, only domains in this list (and their subdomains) can trigger DNSLink resolution. This provides a safelist mechanism for DNSLink on public gateways, preventing arbitrary domains from using the gateway's DNSLink resolution capabilities.
+
+Example: passing `example.com,mysite.org` will allow DNSLink resolution only for:
+- `example.com` (exact match)
+- `sub.example.com` (subdomain match)
+- `mysite.org` (exact match)
+- Any subdomain of `mysite.org`
+
+When a domain not in this list is accessed, the gateway will not attempt DNSLink resolution for that domain.
+
+Default: not set (all domains can use DNSLink - backward compatible)
+
+> [!NOTE]
+> This setting only controls which domains can use DNSLink resolution. It does not affect regular `/ipfs/` or `/ipns/` path access.
+
+### `RAINBOW_BOOTSTRAP`
+
+Comma-separated list of bootstrap peer multiaddrs for libp2p connections.
+
+The special value `auto` expands to network-appropriate defaults from autoconf when [`RAINBOW_AUTOCONF`](#rainbow_autoconf) is enabled.
+
+Default: `auto`
+
+### `RAINBOW_AUTOCONF`
+
+Enable autoconf for automatic expansion of `auto` placeholder values in bootstrap peers, DNS resolvers, and HTTP routers.
+
+When enabled, Rainbow will fetch configuration from [`RAINBOW_AUTOCONF_URL`](#rainbow_autoconf_url) and replace `auto` placeholders with network-appropriate defaults.
+
+When disabled, using the `auto` placeholder in any configuration will cause an error. You must provide explicit values for bootstrap peers, DNS resolvers, and HTTP routers when autoconf is disabled.
+
+Default: `true`
+
+### `RAINBOW_AUTOCONF_URL`
+
+URL to fetch autoconf data from. Must be an HTTPS URL returning a valid autoconf.json file.
+
+Default: `https://conf.ipfs-mainnet.org/autoconf.json`
+
+### `RAINBOW_AUTOCONF_REFRESH`
+
+How often to refresh autoconf data from the configured URL.
+
+Default: `24h`
+
+### `ROUTING_IGNORE_PROVIDERS`
+
+Comma-separated list of peer IDs whose provider records should be ignored during routing.
+
+This is useful when you want to exclude specific peers from being considered as content providers, especially in cases where you know certain peers might advertise content but you prefer not to retrieve from them directly (for example, to ignore peer IDs from bitswap endpoints of providers that offer HTTP).
+
+Default: not set (no peers are ignored)
+
+### `RAINBOW_HTTP_RETRIEVAL_ENABLE`
+
+Controls whether HTTP-based block retrieval is enabled.
+
+When enabled, Rainbow can use [Trustless HTTP Gateways](https://specs.ipfs.tech/http-gateways/trustless-gateway/) to perform block retrievals in parallel to [Bitswap](https://specs.ipfs.tech/bitswap-protocol/). This takes advantage of peers with `/tls` + `/http` multiaddrs (HTTPS is required).
+
+Note that this feature works in the same way as Bitswap: known HTTP-peers receive optimistic block requests even for content that they are not announcing.
+
+Default: `true` (HTTP retrieval enabled)
+
+### `RAINBOW_HTTP_RETRIEVAL_ALLOWLIST`
+
+Comma-separated list of hostnames that are allowed for HTTP retrievals.
+
+When HTTP retrieval is enabled, this setting limits HTTP retrievals to only the specified hostnames. This provides a way to restrict which gateways Rainbow will attempt to retrieve blocks from.
+
+Example: `example.com,ipfs.example.com`
+
+Default: not set (when HTTP retrieval is enabled, all hosts are allowed)
+
+### `RAINBOW_HTTP_RETRIEVAL_DENYLIST`
+
+Comma-separated list of hostnames that are allowed for HTTP retrievals.
+
+When HTTP retrieval is enabled, this setting disables retrieval from the specified hostnames. This provides a way to restrict specific hostnames that should not be used for retrieval.
+
+Example: `example.com,ipfs.example.com`
+
+Default: not set (when HTTP retrieval is enabled, all no hosts are disabled)
+
+
+### `RAINBOW_HTTP_RETRIEVAL_WORKERS`
+
+The number of concurrent worker threads to use for HTTP retrievals.
+
+This setting controls the level of parallelism for HTTP-based block retrieval operations. Higher values can improve performance when retrieving many blocks but may increase resource usage.
+
+Default: `32`
+
+### `RAINBOW_HTTP_RETRIEVAL_MAX_DONT_HAVE_ERRORS`
+
+The number of errors (usually 404s) that can happen in a row before we disconnect from and endpoint and stop making optimistic requests for blocks.
+
+We do not want to requests random blocks from HTTP endpoints forever after having discovered them, so if an endpoint is returning 404s to a number of requests in a row (100 by default), we will "disconnect". We can always reconnect later if a provide records points us again to that endpoint.
+
+Default: `100`
+
+### `RAINBOW_HTTP_RETRIEVAL_METRICS_LABELS_FOR_ENDPOINTS`
+
+Request metrics exposed on the metrics endpoint can be labelled with the endpoint the requests were sent to.
+
+Since default behaviour is to send HTTP requests to any endpoints found, doing
+this for all requests by default may cause unwanted metric cardinality growth
+so we just don't do it.
+
+In order to enable for all hosts, use `*`. Otherwise you can enable for
+specific hosts by providing a list.
+
+Using this is useful to track where the HTTP requests are going.
+
+Example: `example.com,ipfs.example.com`
+
+Default: not set
+
+### `RAINBOW_MAX_CONCURRENT_REQUESTS`
+
+Maximum number of concurrent HTTP requests that the gateway will process.
+
+This setting provides rate limiting to protect the gateway from resource exhaustion during high load scenarios. When the limit is reached, new requests will receive a `429 Too Many Requests` response with a `Retry-After` header set to 60 seconds (hardcoded value).
+
+Setting this to `0` disables the concurrent request limit.
+
+Default: `4096`
+
+### `RAINBOW_RETRIEVAL_TIMEOUT`
+
+Maximum duration for content retrieval operations.
+
+This timeout applies to both:
+- Initial content retrieval (time to first byte)
+- Time between subsequent writes during streaming
+
+If content cannot be retrieved within this period, the gateway returns a `504 Gateway Timeout` error. For responses that have already started streaming, the connection will be terminated with a truncation message if no data is written within the timeout period.
+
+Default: `30s`
+
+### `BITSWAP_ENABLE_DUPLICATE_BLOCK_STATS`
+
+Controls whether bitswap duplicate block statistics are collected.
+
+When enabled, bitswap will track and report metrics about duplicate blocks received. This is useful for debugging and performance analysis of block duplication issues, but adds memory and CPU overhead during bitswap operations.
+
+**Performance impact:** When enabled, additional memory and CPU resources are used to track duplicate block statistics. Only enable when actively investigating bitswap behavior.
+
+Default: `false`
+
+### `RAINBOW_MAX_RANGE_REQUEST_FILE_SIZE`
+
+Maximum file size in bytes for which HTTP Range requests are supported. Range requests for files larger than this limit will return `501 Not Implemented` error with a message suggesting to switch to verifiable block requests (`application/vnd.ipld.raw`).
+
+This setting provides protection against issues with CDN and reverse proxy implementations that have bugs or limitations when handling byte range requests for large files. Cloudflare, in particular, has a [known issue](https://github.com/ipfs/boxo/issues/856#issuecomment-2786431369) where range requests for files over 5 GiB are silently ignored - instead of returning the requested byte range, Cloudflare returns the entire file. This causes serious problems:
+- **Excess bandwidth consumption and billing**: Clients expecting a small range (e.g., web browsers requesting parts of a large SQLite database) will receive and be billed for the entire multi-gigabyte file
+- **Client failures**: Naive clients like JavaScript applications may crash or hang when they receive gigabytes of data instead of the requested range
+
+When a range request exceeds the configured limit, the gateway will return an HTTP 501 error suggesting the client to use verifiable block requests instead, which are more suitable for large file transfers and can be independently verified.
+
+Set to `0` to disable this limit and allow range requests for files of any size (use with caution if your gateway is behind a CDN or reverse proxy).
+
+Default: `5368709120` (5 GiB - matches Cloudflare's threshold to prevent excess billing)
+
+### `RAINBOW_MAX_DESERIALIZED_RESPONSE_SIZE`
+
+Maximum file or directory DAG size in bytes for deserialized (non-trustless) responses. When the resolved UnixFS content exceeds this limit, the gateway returns a cacheable `410 Gone` response suggesting operators run their own IPFS node for large content.
+
+This limit only applies to deserialized responses. Trustless formats (`application/vnd.ipld.raw`, `application/vnd.ipld.car`) are **not** affected, so clients can still fetch large content as verifiable blocks or CAR streams.
+
+Typical use: cap bandwidth from browser-facing deserialized traffic while keeping verifiable block and CAR retrieval unrestricted. The limit is enforced using the root UnixFS block's reported size, so no extra block fetches are required. The `410 Gone` response is served with a long-lived `Cache-Control` header so CDNs (Cloudflare, Fastly) cache the rejection and shield the origin from repeat requests.
+
+Set to `0` to disable this limit.
+
+Default: `0` (disabled)
+
+### `RAINBOW_MAX_UNIXFS_DAG_RESPONSE_SIZE`
+
+Maximum UnixFS file or directory DAG size in bytes, applied to **all** response formats: deserialized, raw blocks (`application/vnd.ipld.raw`), CAR (`application/vnd.ipld.car`), and TAR (`application/x-tar`). When the resolved UnixFS DAG size exceeds this limit, the gateway returns a cacheable `410 Gone` response regardless of the requested response format.
+
+Use this when you want a hard ceiling on response size across every format the gateway serves, for example to prevent a single client from pulling a multi-terabyte dataset via CAR. This is independent of `RAINBOW_MAX_DESERIALIZED_RESPONSE_SIZE`; both can be set together.
+
+Most handlers reuse the size already available from normal request processing. The CAR handler performs a lightweight `Head` call to obtain the DAG size upfront (the root block is then cached for the subsequent CAR traversal). The `410 Gone` response is served with a long-lived `Cache-Control` header so CDNs cache the rejection.
+
+Set to `0` to disable this limit.
+
+Default: `0` (disabled)
+
+### `RAINBOW_DIAGNOSTIC_SERVICE_URL`
+
+URL for a service to diagnose CID retrievability issues. When the gateway returns a 504 Gateway Timeout error, an "Inspect retrievability of CID" button will be shown that links to this service with the CID appended as `?cid=<CID-to-diagnose>`.
+
+The default service is provided by [Shipyard](https://ipshipyard.com) on best-effort basis, but anyone can run their own instance of [ipfs-check](https://github.com/ipfs/ipfs-check) and point this setting to it.
+
+Set to empty string to disable the button.
+
+Default: `https://check.ipfs.network`
+
+### `RAINBOW_DEPRECATED_X_IPFS_PATH`
+
+Set to `true` to keep sending the deprecated `X-Ipfs-Path` response header next to `Ipfs-Uri`, and to list it in `Access-Control-Expose-Headers`.
+
+`Ipfs-Uri` replaces `X-Ipfs-Path` ([IPIP-548](https://specs.ipfs.tech/ipips/ipip-0548/)). The old header cannot carry every UnixFS file name: even when enabled, it is omitted for content paths with bytes that are not valid in an HTTP field value, such as raw non-ASCII names. Use this only as a bridge while clients migrate to `Ipfs-Uri`.
+
+Default: `false`
+
+## Experiments
+
+### `RAINBOW_SEED_PEERING`
+
+> [!WARNING]
+> Experimental feature.
+
+Automated version of `RAINBOW_PEERING` which does not require providing multiaddrs.
+
+Instead, it will set up peering with peers that share the same seed (requires `RAINBOW_SEED_INDEX` to be set up).
+
+> [!NOTE]
+> Runs a separate light DHT for peer routing with the main host if DHT routing is disabled.
+
+Default: `false` (disabled)
+
+### `RAINBOW_SEED_PEERING_MAX_INDEX`
+
+Informs the largest index to derive for `RAINBOW_SEED_PEERING`.
+If you have more instances than the default, increase it here.
+
+Default: 100
+
+### `RAINBOW_PEERING_SHARED_CACHE`
+
+> [!WARNING]
+> Experimental feature, will result in increased network I/O due to Bitswap server being run in addition to the lean client.
+
+Enable sharing of local cache to peers safe-listed with `RAINBOW_PEERING`
+or `RAINBOW_SEED_PEERING`.
+
+Once enabled, Rainbow will respond to [Bitswap](https://docs.ipfs.tech/concepts/bitswap/)
+queries from these safelisted peers, serving locally cached blocks if requested.
+
+> [!TIP]
+> The main use case for this feature is scaling and load balancing across a
+> fleet of rainbow, or other bitswap-capable IPFS services. Cache sharing allows
+> clustered services to check if any of the other instances has a requested CID.
+> This saves resources as data cached on other instance can be fetched internally
+> (e.g. LAN) rather than externally (WAN, p2p).
+
+> [!CAUTION]
+> This mode comes with additional overhead, YMMV. A bitswap server
+> applies `WithPeerBlockRequestFilter` and only answers to safelisted peers;
+> however may still increase resource usage, as every requested CID will be
+> also broadcasted to peered nodes.
+
+Default: `false` (no cache sharing, no bitswap server, client-only)
+
+### `RAINBOW_REMOTE_BACKENDS`
+
+> [!WARNING]
+> Experimental feature, forces setting `RAINBOW_LIBP2P=false`.
+
+URL(s) of of remote [trustless gateways](https://docs.ipfs.tech/reference/http/gateway/#trustless-verifiable-retrieval)
+to use as backend instead of libp2p node with Bitswap.
+
+Default: not set
+
+### `RAINBOW_REMOTE_BACKENDS_MODE`
+
+Requires `RAINBOW_REMOTE_BACKENDS` to be set.
+
+Controls how requests to remote backend are made.
+
+- `block`  will use [application/vnd.ipld.raw](https://www.iana.org/assignments/media-types/application/vnd.ipld.raw) to fetch raw blocks one by one
+- `car` will use [application/vnd.ipld.car](https://www.iana.org/assignments/media-types/application/vnd.ipld.car) and [IPIP-402: Partial CAR Support on Trustless Gateways](https://specs.ipfs.tech/ipips/ipip-0402/) for fetching multiple blocks per request
+
+Default: `block`
+
+### `RAINBOW_REMOTE_BACKENDS_IPNS`
+
+Controls whether to fetch IPNS Records ([`application/vnd.ipfs.ipns-record`](https://www.iana.org/assignments/media-types/application/vnd.ipfs.ipns-record)) from trustless gateway defined in `RAINBOW_REMOTE_BACKENDS`.
+This is done in addition to other routing systems, such as `RAINBOW_DHT_ROUTING` or `RAINBOW_HTTP_ROUTERS` (if also enabled).
+
+Default: `true`
+
+## Logging
+
+### `GOLOG_LOG_LEVEL`
+
+Specifies the log-level, both globally and on a per-subsystem basis. Level can
+be one of:
+
+* `debug`
+* `info`
+* `warn`
+* `error`
+* `dpanic`
+* `panic`
+* `fatal`
+
+Per-subsystem levels can be specified with `subsystem=level`.  One global level
+and one or more per-subsystem levels can be specified by separating them with
+commas.
+
+Default: `error`
+
+Example:
+
+```console
+GOLOG_LOG_LEVEL="error,rainbow=debug,caboose=debug" rainbow
+```
+
+### `GOLOG_LOG_FMT`
+
+Specifies the log message format.  It supports the following values:
+
+- `color` -- human readable, colorized (ANSI) output
+- `nocolor` -- human readable, plain-text output.
+- `json` -- structured JSON.
+
+For example, to log structured JSON (for easier parsing):
+
+```bash
+export GOLOG_LOG_FMT="json"
+```
+
+The logging format defaults to `color` when the output is a terminal, and
+`nocolor` otherwise.
+
+### `GOLOG_FILE`
+
+Sets the file to which the logs are saved. By default, they are printed to the standard error output.
+
+### `GOLOG_TRACING_FILE`
+
+Sets the file to which the tracing events are sent. By default, tracing is disabled.
+
+Warning: Enabling tracing will likely affect performance.
+
+## Testing
+
+### `GATEWAY_CONFORMANCE_TEST`
+
+Setting to `true` enables support for test fixtures required by [ipfs/gateway-conformance](https://github.com/ipfs/gateway-conformance) test suite.
+
+### `IPFS_NS_MAP`
+
+Adds static namesys records for deterministic tests and debugging.
+Useful for testing `/ipns/` support without having to do real IPNS/DNS lookup.
+
+Example:
+
+```console
+$ IPFS_NS_MAP="dnslink-test1.example.com:/ipfs/bafkreicysg23kiwv34eg2d7qweipxwosdo2py4ldv42nbauguluen5v6am,dnslink-test2.example.com:/ipns/dnslink-test1.example.com" ./gateway-binary
+...
+$ curl -is http://127.0.0.1:8081/dnslink-test2.example.com/ | grep Etag
+Etag: "bafkreicysg23kiwv34eg2d7qweipxwosdo2py4ldv42nbauguluen5v6am"
+```
+
+## Tracing
+
+See [tracing.md](tracing.md).
+
+### `RAINBOW_TRACING_AUTH`
+
+Optional, setting to non-empty value enables on-demand tracing per-request.
+
+The ability to pass `Traceparent` or `Tracestate` headers is guarded by an
+`Authorization` header. The value of the `Authorization` header should match
+the value in the `RAINBOW_TRACING_AUTH` environment variable.
+
+### `RAINBOW_SAMPLING_FRACTION`
+
+Optional, set to 0 by default.
+
+The fraction (between 0 and 1) of requests that should be sampled.
+This is calculated independently of any Traceparent based sampling.
+

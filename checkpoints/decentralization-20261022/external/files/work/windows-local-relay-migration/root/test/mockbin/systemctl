@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# TEST-ONLY mock systemctl over $FSROOT. State: $FSROOT/mock/{active,enabled}; the unit file / mask link live at the real
+# relative path. Faithful to the behaviour that matters: `mask` FAILS while a regular unit file exists at the path (as on the
+# source host), `start` fails for a masked or missing unit. Failure injection: $FSROOT/mock/fail-<verb>, stuck stop:
+# $FSROOT/mock/stuck-stop. Every call is logged to $FSROOT/mock/calls.
+set -u
+M=$FSROOT/mock; U=$FSROOT/etc/systemd/system/enclave-lease-relay.service
+echo "$*" >> "$M/calls"
+args=(); for a in "$@"; do [[ "$a" == --quiet || "$a" == --value ]] && continue; args+=("$a"); done
+verb=${args[0]:-}
+[ -e "$M/fail-$verb" ] && { echo "mock: $verb failed" >&2; exit 1; }
+masked() { [ -L "$U" ] && [ "$(readlink "$U")" = /dev/null ]; }
+case "$verb" in
+  show) p=${args[2]}
+    case "$p" in
+      ActiveState) [ -e "$M/active" ] && echo active || echo inactive ;;
+      UnitFileState) if masked; then echo masked; elif [ -f "$U" ]; then [ -e "$M/enabled" ] && echo enabled || echo disabled; else echo ""; fi ;;
+      FragmentPath) [ -f "$U" ] && [ ! -L "$U" ] && echo "$U" || echo "" ;;
+      LoadState) if masked; then echo masked; elif [ -f "$U" ]; then echo loaded; else echo not-found; fi ;;
+    esac ;;
+  is-active) [ -e "$M/active" ] ;;
+  # stop-writes-state: an in-flight send settles WHILE the relay stops (its journal is rewritten before it exits)
+  stop) [ -e "$M/stuck-stop" ] && exit 0; [ -e "$M/stop-writes-state" ] && cp "$M/stop-writes-state" "$FSROOT/var/lib/private/enclave-lease-relay-state/relay-send.json"; rm -f "$M/active" ;;
+  start) if masked || [ ! -f "$U" ]; then echo "mock: unit masked or not found" >&2; exit 1; fi; touch "$M/active" ;;
+  disable) rm -f "$M/enabled" ;;
+  enable) [ -f "$U" ] && ! masked || exit 1; touch "$M/enabled" ;;
+  mask) if [ -e "$U" ] && ! [ -L "$U" ]; then echo "Failed to mask unit: File exists" >&2; exit 1; fi; ln -sfn /dev/null "$U" ;;
+  unmask) masked && rm -f "$U"; exit 0 ;;
+  daemon-reload) exit 0 ;;
+  *) echo "mock: unsupported $*" >&2; exit 1 ;;
+esac

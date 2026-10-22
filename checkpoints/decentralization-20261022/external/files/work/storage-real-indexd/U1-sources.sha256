@@ -1,0 +1,12 @@
+4bc1e0a8dbdc247077832becfac9728c5700752820135143ac554354ec316fe9  indexd-u1.patch
+74528a6b9c974cc1196007a01a09be21de6314221ba77e4dc987bb9ab762f4d0  sia-s3/src/store.rs
+4cea7ed00fe46e7c99806221bf04f6913cc0971f2b7ee320fba72332fb3ac6ee  sia-s3/src/replica.rs
+b8ea0b4d062042d6b767c68a04ffd52397768d9eb5580cc38803584ec04adff1  sia-s3/src/real_indexd.rs
+ed289747a50d5c481c1bcee9e90fc6190fe70492cb1d8aeceab8db3135cf8473  sia-s3/vendor/sia-sdk-rs/sia_storage/src/sdk.rs
+c012244c7906e1f2f23b98eefe089775577a1dc3d252a64dee5ec0a493c33700  sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client.rs
+9247f9baff2790d2eb0c25c5b3eb69756444b5d2eb0ffb9cebf865b37aee9f75  sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/http.rs
+0b853c83b380bd6b19b2d79a4e03a56f51b4a7edd55fce691bad2e6477c174c4  sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/mock.rs
+256b01b7383ba8a63bc1aab92e237f81ae0a9b0957263f78851a64dca1c1f296  sia-s3/vendor/sia-sdk-rs/sia_storage/src/mock.rs
+297f593a70a4d25586dc4436cae241ecc5f4f35b973e9b32bce7ae20dbc5470e  bin/harness
+6c5b6e782469d7db653af6f6a95211df17d71dc07d212e1d7458bb0a6a818c45  bin/harness-u1
+77f324e7b593ecfcb0bd083f45b6007ae00bb8aa724ebc51db0032aa5c81a3df  bin/sias3-real-driver

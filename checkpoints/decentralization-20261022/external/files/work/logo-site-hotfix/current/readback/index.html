@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>(function(){
+var heal=function(){try{
+  var k="enclave_skew_reload",last=+sessionStorage.getItem(k)||0;
+  if(Date.now()-last<240000)return;
+  sessionStorage.setItem(k,String(Date.now()));
+  setTimeout(function(){location.reload();},8000);
+}catch(e){}};
+addEventListener("error",function(e){
+  var t=e.target;
+  if(t&&(t.tagName==="SCRIPT"||(t.tagName==="LINK"&&t.rel==="modulepreload")))heal();
+},true);
+addEventListener("unhandledrejection",function(e){
+  if(/dynamically imported module|Failed to fetch|error loading/i.test(String(e.reason)))heal();
+});
+})();</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070A0F" />
+<title>Enclave · Compute That Cannot See Your Data</title>
+<meta name="description" content="Compute that cannot see your data. Package an app once, run it on hosts that prove their protection in your browser, and pay per second." />
+<link rel="canonical" href="https://enclave.host/" />
+<meta name="robots" content="index,follow,max-image-preview:large" />
+<meta property="og:site_name" content="Enclave" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://enclave.host/" />
+<meta property="og:title" content="Enclave · Compute That Cannot See Your Data" />
+<meta property="og:description" content="Deploy a WebAssembly app from your browser or an agent, check the host before you send a byte, and pay per second." />
+<meta property="og:image" content="https://enclave.host/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Enclave: compute that cannot see your data. Portable apps, explicit protection, verifiable execution, independent infrastructure." />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://enclave.host/assets/og.png" />
+<link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<script>
+/* The old single-page site routed every tab with a #hash; keep those deep
+   links alive by bouncing to the page that owns the anchor now. */
+(function(){
+  var h = location.hash.slice(1); if (!h) return;
+  var dev = h === "develop" || h === "docs" || h === "cli" || h === "api"
+         || h.indexOf("docs-") === 0 || h.indexOf("op-") === 0 || h.indexOf("grp-") === 0;
+  if (h === "deploy") return location.replace("apps");   // the old console is gone: apps deploy from their store card
+  var page = h === "apps" ? "apps" : dev ? "develop" : null;
+  if (page) location.replace(page + (h === "apps" || h === "develop" ? "" : "#" + h));
+})();
+</script>
+<script>
+/* Cross-document view transitions are skipped by Chromium when extensions
+   inject content scripts (MetaMask et al): the old page sees pageswap with
+   no viewTransition. Flag it, and the NEXT page (this script runs pre-paint)
+   plays the same settle-in itself (html.soft-enter, see base.css) - content
+   only, the static header stays put. */
+(function(){
+  try { if (sessionStorage.getItem("enclave_novt")) { sessionStorage.removeItem("enclave_novt"); document.documentElement.classList.add("soft-enter"); } } catch(e){}
+  addEventListener("pageswap", function(e){
+    try { if (!e.viewTransition && e.activation) sessionStorage.setItem("enclave_novt", "1"); } catch(e){}
+  });
+})();
+</script>
+<link rel="preconnect" href="https://mainnet.base.org" crossorigin />
+<link rel="dns-prefetch" href="https://api.enclave.host" />
+<link rel="preload" as="image" href="assets/compute-cinematic.webp" fetchpriority="high" />
+<link rel="stylesheet" href="css/site.css" />
+<link rel="modulepreload" href="js/chunks/chunk-LLYUEQ45.js" />
+<link rel="modulepreload" href="js/chunks/chunk-TXG5D22N.js" />
+<link rel="modulepreload" href="js/chunks/chunk-IBXEASKH.js" />
+<link rel="modulepreload" href="js/chunks/overview-5DDHKLCB.js" />
+<link rel="modulepreload" href="js/chunks/chunk-SLJRHRBL.js" />
+<link rel="modulepreload" href="js/chunks/chunk-SHT3C7TR.js" />
+<link rel="modulepreload" href="js/chunks/chunk-S2A6SCSN.js" />
+<link rel="modulepreload" href="js/chunks/chunk-IKC2P5XV.js" />
+<link rel="modulepreload" href="js/chunks/chunk-D7VGFCH5.js" />
+<link rel="modulepreload" href="js/chunks/chunk-Z5J4PI3T.js" />
+<link rel="modulepreload" href="js/chunks/chunk-3LBUJ242.js" />
+<link rel="modulepreload" href="js/chunks/chunk-277DVH75.js" />
+<script type="module" src="js/boot.js"></script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://enclave.host/#org",
+      "name": "Enclave Host, Inc.",
+      "alternateName": "Enclave",
+      "slogan": "Compute that cannot see your data.",
+      "url": "https://enclave.host/",
+      "logo": { "@type": "ImageObject", "url": "https://enclave.host/assets/logo-1024.png", "width": 1024, "height": 1024 },
+      "email": "support@enclave.host",
+      "sameAs": ["https://github.com/EnclaveHost/enclave"],
+      "founder": {
+        "@type": "Person",
+        "name": "Steven Batchelor",
+        "jobTitle": "Founder & CEO",
+        "image": "https://enclave.host/assets/steven-clean-v2.png",
+        "sameAs": ["https://www.linkedin.com/in/steven-batchelor-50791627/"]
+      }
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://enclave.host/#website",
+      "url": "https://enclave.host/",
+      "name": "Enclave",
+      "description": "Compute that cannot see your data: one portable WebAssembly app package, run on independent hosts whose protection level is stated and verifiable, paid per second.",
+      "publisher": { "@id": "https://enclave.host/#org" }
+    },
+    {
+      "@type": "Service",
+      "@id": "https://enclave.host/#service",
+      "name": "Enclave verifiable compute",
+      "serviceType": "Confidential computing (CPU and GPU), verifiable app hosting",
+      "provider": { "@id": "https://enclave.host/#org" },
+      "url": "https://enclave.host/",
+      "areaServed": "Worldwide",
+      "description": "On-demand hosting for WebAssembly apps on attested confidential CPUs and GPUs and on hosts that state a lesser protection level, with CPU and GPU shares metered and paid per second.",
+      "offers": [
+        {
+          "@type": "Offer",
+          "name": "GPU / VRAM share",
+          "priceSpecification": { "@type": "UnitPriceSpecification", "price": 6, "priceCurrency": "USD", "unitText": "hour, per full GPU card" }
+        },
+        {
+          "@type": "Offer",
+          "name": "CPU / RAM share",
+          "priceSpecification": { "@type": "UnitPriceSpecification", "price": 3, "priceCurrency": "USD", "unitText": "hour, per whole CPU node" }
+        }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<c-header current="overview" data-ssr><header class="nav">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="wrap nav-inner">
+    <a href="./" class="brand" aria-label="Enclave home">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+        <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkH"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkH)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="./" data-view="overview" class="active">Overview</a>
+      <a href="apps" data-view="apps">Apps</a>
+      <a href="develop" data-view="develop">Develop</a>
+      <a href="host" data-view="host">Host</a>
+      <a href="dashboard" data-view="dashboard" hidden>Dashboard</a>
+    </nav>
+    <c-wallet-button data-ssr><div class="wallet-mount" id="walletMount">
+  <button class="btn btn-primary btn-sm" id="walletBtn" type="button" aria-controls="walletPop">Sign in <span class="arr" aria-hidden="true">→</span></button>
+  <div class="wallet-pop" id="walletPop" hidden></div>
+</div></c-wallet-button>
+  </div>
+</header></c-header>
+<script>(function(){try{
+var s=JSON.parse(localStorage.getItem("enclave_session")||"null");
+var a=JSON.parse(localStorage.getItem("enclave_account")||"null");
+var wallet=s&&s.address,acct=a&&a.token;
+if(!wallet&&!acct)return;
+var dt=document.querySelector('.nav-links a[data-view="dashboard"]');if(dt)dt.hidden=false;
+var b=document.getElementById("walletBtn");if(!b)return;
+b.classList.add("connected");b.textContent="";
+var d=document.createElement("span");d.className="wdot";b.appendChild(d);
+b.appendChild(document.createTextNode(wallet?s.address.slice(0,6)+"…"+s.address.slice(-4):"Signed in"));
+b.dataset.painted="1";
+}catch(e){}})();</script>
+<main id="main" tabindex="-1">
+<!-- ===================== HERO ===================== -->
+<a id="top"></a>
+<section class="hero" data-view="overview" aria-label="Intro">
+  <c-cinematic-scene scene="compute" image="assets/compute-cinematic.webp" video="assets/compute-cinematic.mp4" data-ssr><div class="cinema-media" aria-hidden="true">
+  <img class="cinema-image" src="assets/compute-cinematic.webp" alt="" width="1672" height="941" decoding="async" />
+  <video class="cinema-video" data-src="assets/compute-cinematic.mp4" muted loop playsinline preload="none" tabindex="-1"></video>
+</div>
+<div class="cinema-shade" aria-hidden="true"></div></c-cinematic-scene>
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <span class="eyebrow">Verifiable compute · API v1</span>
+      <h1>Compute that<br><span class="hl">cannot see</span><br>your data.</h1>
+      <p class="lede">Your apps. Your data. <b>Your boundary.</b></p>
+      <p class="hero-detail">Hardware isolation keeps the ordinary host OS out. Confidential hardware also protects against the machine’s operator.</p>
+      <div class="hero-cta">
+        <a href="apps" class="btn btn-primary">Deploy an app <span class="arr" aria-hidden="true">→</span></a>
+        <a href="develop#architecture" class="btn btn-ghost">How it works</a>
+      </div>
+      <ul class="hero-benefits" aria-label="Enclave benefits">
+        <li><strong>Build once</strong><span>Run across hosts</span></li>
+        <li><strong>Verify first</strong><span>Check before connecting</span></li>
+        <li><strong>Pay as you go</strong><span>Only for compute used</span></li>
+      </ul>
+    </div>
+
+
+  </div>
+  <h2 class="hero-trust">Built on the hardware isolation enterprises trust.</h2>
+</section>
+<c-ticker data-ssr><section class="ticker" aria-label="Hardware isolation technology">
+  <div class="ticker-window">
+    <div class="ticker-track">
+      <ul class="ticker-group" aria-label="Technology companies">
+        <li><img src="assets/technology/google.svg" alt="Google" width="126" height="41" /></li>
+        <li><img src="assets/technology/microsoft.png" alt="Microsoft" width="148" height="31" /></li>
+        <li><img src="assets/technology/amd.svg" alt="AMD" width="121" height="31" /></li>
+        <li><img src="assets/technology/intel.svg" alt="Intel" width="84" height="33" /></li>
+        <li><img src="assets/technology/nvidia.svg" alt="NVIDIA" width="132" height="25" /></li>
+        <li><img src="assets/technology/arm.svg" alt="Arm" width="92" height="30" /></li>
+        <li><img src="assets/technology/aws.svg" alt="AWS" width="68" height="40" /></li>
+      </ul>
+    </div>
+  </div>
+</section></c-ticker>
+<!-- ===================== WHAT YOU GET ===================== -->
+<section id="why" data-view="overview" aria-label="What you get">
+  <div class="wrap">
+    <c-section-head eyebrow="What you get" heading="One build. Every backend. Nothing taken on faith." data-ssr><div class="sec-head">
+  <span class="eyebrow">What you get</span>
+  <h2>One build. Every backend. Nothing taken on faith.</h2>
+  <p><a href="develop#architecture">The architecture, in full ↗</a></p>
+</div></c-section-head>
+    <div class="cards">
+      <div class="card jade">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></div>
+        <span class="tag">one bundle</span>
+        <h3>Portable</h3>
+        <p>Build a WebAssembly component once and it runs on every backend. The host's operating system is an implementation detail, never a rewrite.</p>
+      </div>
+      <div class="card iris">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M8 12h8M12 8v8"/></svg></div>
+        <span class="tag">CPU + GPU protection</span>
+        <h3>Enclave Shield</h3>
+        <p>Our proprietary CPU isolation keeps the host OS out of your app. Masked offload protects your data on GPUs outside the confidential boundary. <a href="#protection">How Shield works →</a></p>
+      </div>
+      <div class="card jade">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></div>
+        <span class="tag">proof, not promises</span>
+        <h3>Verifiable</h3>
+        <p>Check the chain from the silicon to your app's exact bytes before you connect, in your browser, from the CLI, or in an agent's tool call. <a href="#attest">Run it now →</a></p>
+      </div>
+      <div class="card amber">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8"/></svg></div>
+        <span class="tag">no gatekeeper</span>
+        <h3>Independent</h3>
+        <p>Catalog, ledger and payments run on public contracts. Apps are content-addressed, the source is published for audit, and hosts are run by their owners. Designed to outlive any one company, ours included. <a href="develop#independent">What still runs on our servers, listed honestly →</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ===================== WHO IT IS FOR ===================== -->
+<section id="who" data-view="overview" class="section-wash" aria-label="Who it is for">
+  <div class="wrap">
+    <c-section-head eyebrow="Who it is for" heading="Anything holding a key is a customer." data-ssr><div class="sec-head">
+  <span class="eyebrow">Who it is for</span>
+  <h2>Anything holding a key is a customer.</h2>
+  <p>Four ways in, one identity. No accounts, no approvals.</p>
+</div></c-section-head>
+    <div class="cards">
+      <div class="card jade">
+        <span class="tag">deployers</span>
+        <h3>Use an app</h3>
+        <p>Pick an app, fund it, use it: a private model chat, an image generator, a game server, any tool you would not trust with your data anywhere else. <a href="apps">Browse the store →</a></p>
+      </div>
+      <div class="card iris">
+        <span class="tag">publishers</span>
+        <h3>Publish an app</h3>
+        <p>Ship a WebAssembly component to the catalog in a minute, set an hourly fee if you like, and get paid every time someone funds it. <a href="develop">The developer guide →</a></p>
+      </div>
+      <div class="card jade">
+        <span class="tag">hosts</span>
+        <h3>Sell your hardware</h3>
+        <p>Register a machine you own and get paid for every lease it serves. Your machine proves its protection when it attaches, so buyers never have to take your word for it. <a href="host">Host an enclave →</a></p>
+      </div>
+      <div class="card amber">
+        <span class="tag">agents</span>
+        <h3>Drive it with a key</h3>
+        <p>Everything a person can do here, an agent can do over REST and MCP: browse, deploy, fund, verify. No step assumes a human. <a href="develop#mcp">The MCP server →</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ===================== HOW IT WORKS ===================== -->
+<section id="how" data-view="overview" aria-label="How it works">
+  <div class="wrap">
+    <c-section-head eyebrow="Lifecycle" heading="Five calls, start to finish." data-ssr><div class="sec-head">
+  <span class="eyebrow">Lifecycle</span>
+  <h2>Five calls, start to finish.</h2>
+  <p>From zero to a live endpoint you have checked. Click a step to see what crosses the wire.</p>
+</div></c-section-head>
+    <c-flow data-ssr><div class="flow">
+  <div class="steps" role="tablist" aria-label="Lifecycle steps">
+    <button class="step active" type="button" role="tab" id="flow-tab-1" aria-selected="true" tabindex="0" aria-controls="flow-detail"><span class="num">1</span><div><div class="st-t">Sign in</div><div class="st-d">Prove it's you with a key you hold. No email, no password.</div></div></button>
+    <button class="step" type="button" role="tab" id="flow-tab-2" aria-selected="false" tabindex="-1" aria-controls="flow-detail"><span class="num">2</span><div><div class="st-t">Create a deployment</div><div class="st-d">Pick the app and its CPU and GPU shares. You own the record, and it survives enclave updates.</div></div></button>
+    <button class="step" type="button" role="tab" id="flow-tab-3" aria-selected="false" tabindex="-1" aria-controls="flow-detail"><span class="num">3</span><div><div class="st-t">Fund runtime</div><div class="st-d">Payment credits runtime the moment it lands. Payments are final, so fund small and top up any time.</div></div></button>
+    <button class="step" type="button" role="tab" id="flow-tab-4" aria-selected="false" tabindex="-1" aria-controls="flow-detail"><span class="num">4</span><div><div class="st-t">Verify the enclave</div><div class="st-d">Pull the CPU attestation and GPU report and check them yourself.</div></div></button>
+    <button class="step" type="button" role="tab" id="flow-tab-5" aria-selected="false" tabindex="-1" aria-controls="flow-detail"><span class="num">5</span><div><div class="st-t">Stop (or let it expire)</div><div class="st-d">Tear down and release the share. Unspent runtime stays on the record for a later restart, or cancel to get back the unspent part held for the host.</div></div></button>
+  </div>
+  <div class="flow-detail" id="flow-detail" role="tabpanel" aria-labelledby="flow-tab-1" tabindex="0"></div>
+</div></c-flow>
+  </div>
+</section>
+
+<!-- ===================== THE CONTRACT ===================== -->
+<section id="protection" data-view="overview" aria-labelledby="protection-title">
+  <div class="wrap">
+    <div class="protection-intro">
+      <div>
+        <span class="eyebrow">The isolation contract</span>
+        <h2 id="protection-title">One contract.<br>Two paths to isolation.</h2>
+      </div>
+      <p>Both paths give every app its own hardware domain. They differ in who is kept out.</p>
+    </div>
+
+    <div class="protection-paths">
+      <article class="protection-path protection-shield">
+        <div class="protection-label"><span class="protection-dot"></span>Enclave Shield</div>
+        <h3>Your app, isolated<br>from the host OS.</h3>
+        <p class="protection-description">Works on any operating system, including CPUs without confidential-computing support.</p>
+        <ul class="protection-features">
+          <li>A measured trusted layer enforces each app’s domain.</li>
+          <li>App identity, keys, and traffic stay bound together.</li>
+          <li>No software-only fallback.</li>
+        </ul>
+        <p class="protection-boundary"><span>Protects against</span>The host operating system.<small>Does not add protection from the machine’s owner.</small></p>
+      </article>
+      <article class="protection-path protection-confidential">
+        <div class="protection-label"><span class="protection-dot"></span>Confidential hardware</div>
+        <h3>The same isolation.<br>A deeper boundary.</h3>
+        <p class="protection-description">Adds processor-backed memory protection against the machine’s operator.</p>
+        <ul class="protection-features">
+          <li>Encrypted, integrity-protected memory.</li>
+          <li>A processor-signed report you check before connecting.</li>
+          <li>TLS terminates inside the enclave.</li>
+        </ul>
+        <p class="protection-boundary"><span>Protects against</span>The host OS and operator software.<small>Physical attacks with lab equipment are outside this claim.</small></p>
+      </article>
+    </div>
+
+    <div class="protection-gpu">
+      <div class="protection-gpu-intro">
+        <span class="eyebrow">GPU protection</span>
+        <h3>GPU power.<br>Protected data.</h3>
+        <p>Each card is protected according to its own proven mode, whatever the CPU.</p>
+      </div>
+      <div class="protection-gpu-modes">
+        <div class="protection-gpu-mode">
+          <span class="protection-mode-icon" aria-hidden="true">↳</span>
+          <div><h4>Confidential GPU</h4><p>In a supported confidential-computing mode, the card runs inside the enclave.</p></div>
+        </div>
+        <div class="protection-gpu-mode">
+          <span class="protection-mode-icon" aria-hidden="true">↳</span>
+          <div><h4>Other GPUs · Enclave Shield</h4><p>Masked inputs. Checked results. No plaintext protected state. No work is routed to the card until Shield’s checks pass.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="protection-assurance">
+      <p>One standard on every operating system.</p>
+      <a href="develop#contract">The full contract <span aria-hidden="true">↗</span></a>
+    </div>
+    <details class="protection-details">
+      <summary>Security boundaries &amp; verification requirements<span aria-hidden="true">+</span></summary>
+      <div class="protection-details-body">
+        <h4>Enclave Shield</h4><p>Shield protects machines without confidential-computing hardware. Each app runs in its own domain, kept apart from the host OS by a smaller, measured trusted layer that the hardware's virtualization enforces. The app's identity is measured and its keys and traffic are bound to it. Checks fail closed, and a finished domain leaves nothing behind. Shield does not stop the machine's owner from inspecting data; only a confidential processor adds that. A Shield host is listed only after it passes the common acceptance tests.</p>
+        <h4>Confidential hardware</h4><p>Each app keeps its own domain, and the processor adds a boundary around the whole machine: memory is encrypted and integrity-protected against everything outside it, operator included. Before connecting, you check a report signed by the processor and chained to the silicon vendor.</p>
+        <h4>GPU admission</h4><p>A GPU in a supported confidential-computing mode runs inside the boundary. Any other GPU, even one beside a confidential processor, is used only through <b>Shield's masked offload</b>: the card sees masked inputs, its results are checked before use, and it never receives plaintext protected state. Admission reads proof of the card's own mode, never the CPU, the host, or a missing field. Until that proof checks out, the card is neither advertised nor routed.</p>
+        <h4>Scope and limitations</h4><p>Nothing here is called unable to see your data unless hardware enforces it and a signed report says so. A confidential processor defends memory against <b>software</b>, not against physical attacks with lab equipment, and a self-hosted seller has physical access to their own machine. A machine that meets only part of the contract is not listed, and ordinary virtualization with the host OS in charge is never built, listed, or sold. Which hosts are attached, and what each has proven, is on the live fleet panel and in the dated evidence note on the architecture page. <a href="develop#contract">The contract, property by property →</a></p>
+      </div>
+    </details>
+  </div>
+</section>
+
+<section id="attest" data-view="overview" aria-label="Attestation">
+  <div class="wrap">
+    <c-section-head eyebrow="Root of trust" heading="The proof, not the promise." data-ssr><div class="sec-head">
+  <span class="eyebrow">Root of trust</span>
+  <h2>The proof, not the promise.</h2>
+  <p>A chain of measurements that ends in your browser. Walk each link, then run the check yourself against a live host.</p>
+</div></c-section-head>
+    <c-attest-chain data-ssr><div class="attest-wrap">
+  <ol class="chain" aria-label="Chain of measurements">
+    <li class="link active"><h3 class="lk-h"><button class="lk-btn" type="button" aria-pressed="true" aria-controls="attest-artifact"><span class="lk-n" aria-hidden="true">01</span><span class="lk-t">Hardware root of trust</span></button></h3><p class="lk-d">The CPU (AMD SEV-SNP on today's fleet) and the NVIDIA GPU hold keys fused at manufacture that Enclave can't extract or forge. The root of trust is the silicon vendor (AMD, NVIDIA, or Intel on a TDX host), not the operator.</p></li>
+    <li class="link"><h3 class="lk-h"><button class="lk-btn" type="button" aria-pressed="false" aria-controls="attest-artifact"><span class="lk-n" aria-hidden="true">02</span><span class="lk-t">The VM measures itself</span></button></h3><p class="lk-d">On boot the AMD secure processor signs a report over the launch measurement, a SHA-384 digest of the firmware, the kernel, and the exact runtime image. Change one byte and it changes. Your app is deliberately <i>not</i> in it: the app arrives later by CID, and the runtime refuses any bytes that don't match the CID in your deployment record. (On Intel TDX: a DCAP quote over MRTD + RTMRs.)</p></li>
+    <li class="link"><h3 class="lk-h"><button class="lk-btn" type="button" aria-pressed="false" aria-controls="attest-artifact"><span class="lk-n" aria-hidden="true">03</span><span class="lk-t">The GPU attests too</span></button></h3><p class="lk-d">With confidential computing on, the GPU signs an attestation report over your nonce, proving CC mode, driver, and vBIOS before any data reaches VRAM. Check it against NVIDIA's NRAS or nvtrust.</p></li>
+    <li class="link"><h3 class="lk-h"><button class="lk-btn" type="button" aria-pressed="false" aria-controls="attest-artifact"><span class="lk-n" aria-hidden="true">04</span><span class="lk-t">TLS is born inside</span></button></h3><p class="lk-d">The enclave generates its TLS keypair in sealed memory and folds the public-key hash into the quote's report_data. The private key never leaves the boundary, so the operator can't sit in the middle.</p></li>
+    <li class="link"><h3 class="lk-h"><button class="lk-btn" type="button" aria-pressed="false" aria-controls="attest-artifact"><span class="lk-n" aria-hidden="true">05</span><span class="lk-t">Your browser verifies</span></button></h3><p class="lk-d">Enclave's own open-source verifier (<code>verifier/</code> in the repo, served from this site) checks it in your browser: it sends the box a fresh nonce, then verifies the signed report up to AMD's root, the firmware floor, the guest policy, the key binding to your nonce and the launch measurement. The API's own selfCheck is only a diagnostic; trust counts when YOUR client computes it. Try it live below.</p></li>
+  </ol>
+  <div class="attest-side">
+    <div class="as-h"><span>GET /v1/deployments/{id}/attestation</span></div>
+    <div class="code" id="attest-artifact" style="border:0;border-radius:0;"><div class="codebar"><span class="fn attest-fn" aria-live="polite"></span><button class="copybtn" type="button">⧉ copy</button></div><pre><code class="attest-out"></code></pre></div>
+  </div>
+</div></c-attest-chain>
+    <div class="verification-stage"><c-enclave-panel data-ssr><div class="enclave" id="enclave">
+  <span class="corner tl"></span><span class="corner tr"></span>
+  <span class="corner bl"></span><span class="corner br"></span>
+  <div class="enclave-bar">
+    <span class="lbl"><span class="seal" aria-hidden="true">◆</span> enclave · confidential vm · one per app</span>
+    <span class="bar-right"><span id="enclaveState" aria-hidden="true">sealed</span><button class="ep-pause" type="button" aria-pressed="false" aria-label="Pause the enclave animation">⏸︎</button></span>
+  </div>
+  <canvas class="enclave-canvas" id="enclaveCanvas" role="img" aria-label="Animated diagram of data sealed inside a measured enclave"></canvas>
+  <div class="enclave-foot">
+    <span class="k">launch measurement · live</span>
+    <span id="measureHash" role="status">fetching …</span>
+  </div>
+</div></c-enclave-panel><c-live-verify data-ssr><div class="lv">
+  <div class="lv-h">
+    <div class="lv-txt">
+      <h3>Don't take our word for it</h3>
+      <p>Your browser checks a live host's hardware attestation itself, with Enclave's open-source <a href="https://github.com/EnclaveHost/enclave/tree/main/verifier" target="_blank" rel="noopener">verifier</a>.</p>
+    </div>
+    <div class="lv-act">
+      <div class="lv-tiers" role="radiogroup" aria-label="Kind of host" hidden></div>
+      <button class="btn btn-primary lv-run" type="button">Verify a host <span class="arr">→</span></button>
+    </div>
+  </div>
+  <div class="lv-body" hidden></div>
+  <div class="lv-foot">
+    <a href="host#fleet">Pick a specific host →</a>
+    <details class="lv-how"><summary>How this works</summary>
+      <p>The page draws a fresh nonce. The relay carries it to the host and brings the host's evidence back untouched, and the verifier (served from this site, hash-pinned) checks it against hardware roots built into it: AMD's for SEV-SNP, Google's for phone pVMs, the TPM maker's for Enclave Shield, where the page also mints the TPM credential itself. The relay can delay a check but cannot fake one. Expected builds come from the operator's list, so a pass reads "genuine and fresh", not "independently reproduced". From a terminal: <code>enclave attest --expect &lt;measurement&gt;</code>.</p>
+    </details>
+  </div>
+</div></c-live-verify></div>
+  </div>
+</section>
+
+<!-- ===================== PRICING ===================== -->
+<section id="pricing" data-view="overview" class="section-wash" aria-label="Pricing">
+  <div class="wrap">
+    <div class="pricing-market">
+      <div class="pricing-intro">
+        <span class="eyebrow">Pricing</span>
+        <h2>Your workload.<br><span>Your choice of host.</span></h2>
+        <p>Hosts set their own rates. Pick the hardware and protection your app needs and see the price before you pay.</p>
+        <div class="pricing-actions">
+          <a class="btn btn-primary" href="apps">Find an app <span class="arr" aria-hidden="true">→</span></a>
+          <a class="pricing-text-link" href="develop#fleet">Explore hosts <span aria-hidden="true">↗</span></a>
+        </div>
+        <span class="pricing-meter"><span aria-hidden="true"></span>Metered by the second.</span>
+      </div>
+      <div class="pricing-breakdown" aria-label="What makes up your price">
+        <div class="pricing-breakdown-head"><span>Your compute, itemized</span><span class="pricing-rate-tag">Host-set rates</span></div>
+        <div class="pricing-line">
+          <span class="pricing-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4M18 9h4m-4 6h4"/></svg></span>
+          <div><h3>CPU &amp; memory</h3><p>The share of the host your app uses.</p></div>
+          <span class="pricing-line-label">Your allocation</span>
+        </div>
+        <div class="pricing-line">
+          <span class="pricing-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="6" width="18" height="11" rx="2"/><circle cx="9" cy="11.5" r="2.5"/><path d="M15 9h3m-3 3h3M6 17v3m4-3v3m4-3v3M1 5v14"/></svg></span>
+          <div><h3>GPU compute &amp; VRAM</h3><p>Add accelerator resources when you need them.</p></div>
+          <span class="pricing-line-label">Optional</span>
+        </div>
+        <div class="pricing-line">
+          <span class="pricing-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m10 8-4 4 4 4m4-8 4 4-4 4"/></svg></span>
+          <div><h3>App publisher fee</h3><p>Included in the quoted rate for paid apps.</p></div>
+          <span class="pricing-line-label">If applicable</span>
+        </div>
+        <div class="pricing-total"><span>Your deployment rate</span><strong>Shown before you pay</strong><p>Based on the host, resources, and app you choose.</p></div>
+      </div>
+    </div>
+    <ol class="pricing-steps">
+      <li><span class="pricing-step-number" aria-hidden="true">01</span><div><h3>Find your fit</h3><p>Compare available hosts, hardware, and protection.</p></div></li>
+      <li><span class="pricing-step-number" aria-hidden="true">02</span><div><h3>Size your compute</h3><p>Allocate resources to match your app’s requirements.</p></div></li>
+      <li><span class="pricing-step-number" aria-hidden="true">03</span><div><h3>Fund your runtime</h3><p>Start with a small top-up. Add more time as you go.</p></div></li>
+    </ol>
+    <details class="pricing-billing">
+      <summary>How billing works <span aria-hidden="true">+</span></summary>
+      <div class="pricing-billing-copy">
+        <p><b>Rates come from the host.</b> Your rate is your CPU and GPU shares at that host’s posted rates, plus any publisher fee, which goes to the app’s publisher. You see it before you fund.</p>
+        <p><b>Payments buy runtime.</b> Prepaid time is metered by the second. Unused time stays on the deployment’s public record so you can stop and resume later, and cancelling returns the unspent part held for the host; the rest of a payment is final. Fund in small top-ups.</p>
+        <p><b>Resources follow your app.</b> Each app sets minimum allocations, and GPU work needs an available GPU host. Shares are software-enforced allocations; they do not by themselves create hardware isolation. <a href="develop#contract">What does →</a></p>
+        <p><b>Rates round up.</b> Per-second rates are rounded up to whole millionths of a dollar.</p>
+        <a class="pricing-text-link" id="priceAddrLink" target="_blank" rel="noopener" aria-label="View the EnclaveDeployments contract on Basescan">View the billing contract <span aria-hidden="true">↗</span></a>
+      </div>
+    </details>
+  </div>
+</section>
+<!-- ===================== ABOUT ===================== -->
+<section id="about" data-view="overview" style="border-top:1px solid var(--line-soft);" aria-label="About the company">
+  <div class="wrap">
+    <c-section-head eyebrow="The company" heading="Who's behind this." data-ssr><div class="sec-head">
+  <span class="eyebrow">The company</span>
+  <h2>Who's behind this.</h2>
+  <p>Enclave is designed so you never have to take the operator's word for anything. You should still know whose word you are not taking: <b>Enclave Host,&nbsp;Inc.</b></p>
+</div></c-section-head>
+
+    <div class="cards about-cards">
+      <div class="card jade">
+        <span class="tag">the operator</span>
+        <h3>Enclave Host, Inc.</h3>
+        <p>The company that builds and operates Enclave. Payments to it settle on a public record, and its enclaves prove what they run before you send them a byte.</p>
+        <div class="about-links">
+          <a class="btn btn-ghost" href="https://github.com/EnclaveHost/enclave" target="_blank" rel="noopener">Source on GitHub <span class="arr" aria-hidden="true">↗</span></a>
+          <a class="btn btn-ghost" href="mailto:support@enclave.host">support@enclave.host</a>
+        </div>
+      </div>
+      <div class="card iris">
+        <span class="tag">the founder</span>
+        <div class="founder-id">
+          <img class="f-ava" src="assets/steven-clean-v2.png" alt="Steven Batchelor" width="322" height="385" loading="lazy" decoding="async" />
+          <div>
+            <h3>Steven Batchelor</h3>
+            <span class="f-role">Founder &amp; CEO</span>
+          </div>
+        </div>
+        <p>Steven is a certified application architect focused on serverless architecture, with an enterprise consulting background and a passion for decentralized systems. He builds Enclave hands-on, from the attested enclave stack and settlement contracts to the site you are reading. Based in Arizona.</p>
+        <div class="about-links">
+          <a class="btn btn-ghost" href="https://www.linkedin.com/in/steven-batchelor-50791627/" target="_blank" rel="noopener">LinkedIn <span class="arr" aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+<c-footer data-ssr><footer aria-label="Footer">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="./" class="brand" aria-label="Enclave home">
+          <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+            <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkF"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkF)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+        </a>
+        <p>Compute that cannot see your data. Paid per second, for anything that holds a key.</p>
+        <div class="foot-meta">
+          <span>built + operated by Enclave Host, Inc.</span>
+          <span>front-end: static, pinned to IPFS · <code>enclave.host</code></span>
+        </div>
+      </div>
+      <nav aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          <li><a href="./#why">What you get</a></li>
+          <li><a href="./#how">How it works</a></li>
+          <li><a href="apps">App store</a></li>
+          <li><a href="./#pricing">Pricing</a></li>
+          <li><a href="develop#architecture">Architecture</a></li>
+          <li><a href="develop#progress">Engineering evidence</a></li>
+          <li><a href="./#about">About the company</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Developers">
+        <h2>Developers</h2>
+        <ul>
+          <li><a href="develop#docs">App development guide</a></li>
+          <li><a href="develop#api">API reference</a></li>
+          <li><a href="openapi.json" id="dlSpec2">OpenAPI spec</a></li>
+          <li><a href="./#attest">Attestation guide</a></li>
+          <li><a href="develop#api">Error codes</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Trust">
+        <h2>Trust</h2>
+        <ul>
+          <li><a href="develop#contract">The isolation contract</a></li>
+          <li><a href="develop#shield">Enclave Shield</a></li>
+          <li><a href="./#attest">Verify an enclave</a></li>
+          <li><a href="develop#verify">What is measured</a></li>
+          <li><a href="develop#independent">What runs on our servers</a></li>
+          <li><a href="https://github.com/EnclaveHost/enclave" target="_blank" rel="noopener">Source on GitHub</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Contact and legal">
+        <h2>Contact</h2>
+        <ul>
+          <li><a class="foot-mail" href="mailto:support@enclave.host">Support<code>support@enclave.host</code></a></li>
+          <li><a class="foot-mail" href="mailto:security@enclave.host">Security disclosures<code>security@enclave.host</code></a></li>
+          <li><a href=".well-known/security.txt">security.txt</a></li>
+          <li><a href="terms">Terms of Service</a></li>
+          <li><a href="privacy">Privacy Policy</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Enclave Host, Inc. · content-addressed on IPFS · build <span data-build>166bf9d3 · 2026-10-19</span></span>
+      <span>designed to outlive any one operator</span>
+    </div>
+  </div>
+</footer></c-footer>
+<c-toast data-ssr><div id="toast" role="status" aria-live="polite" aria-atomic="true"></div></c-toast>
+</body>
+</html>

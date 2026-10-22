@@ -1,0 +1,24 @@
+--- a/scripts/build-host-service-packages.mjs
++++ b/scripts/build-host-service-packages.mjs
+@@ -16,13 +16,19 @@
+ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+ const out = path.join(root, 'network/host-services/packages');
+ const args = process.argv.slice(2);
+-if (args.length && !(args.length === 1 && args[0] === '--check')) throw new Error('usage: build-host-service-packages.mjs [--check]');
+-const check = args.includes('--check');
++// A selected role uses exactly the same build and verification path as a full release.
++let check = false, selectedRole = null;
++for (let i = 0; i < args.length; i++) {
++  if (args[i] === '--check' && !check) check = true;
++  else if (args[i] === '--role' && selectedRole === null && Object.hasOwn(ROLES, args[i + 1])) selectedRole = args[++i];
++  else throw new Error('usage: build-host-service-packages.mjs [--check] [--role <known role>]');
++}
+ const sha = (b) => createHash('sha256').update(b).digest('hex');
+ const CHAIN_READER = new Set(['custody/v2/quorum.mjs']);
+ await fs.mkdir(out, { recursive: true });
+ const summary = [];
+ for (const [role, r] of Object.entries(ROLES)) {
++  if (selectedRole !== null && selectedRole !== role) continue;
+   const result = await build({ absWorkingDir: root, entryPoints: [r.bundleEntry || r.entry], outfile: path.join(out, `${role}.mjs`), write: false, metafile: true,
+     bundle: true, platform: 'node', format: 'esm', target: 'node22', legalComments: 'none',
+     // the banner's names are opaque to esbuild, so they must not collide with any bundled module's top-level import

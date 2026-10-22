@@ -1,0 +1,39 @@
+# Sia indexer replica %i: indexd v0.6.0-fence.2-c2 (G-C2: cas-v4, op-nonce, fence), its own wallet, contracts,
+# PostgreSQL and chain state. Caps as the live primary (MemoryMax 1G, GOMEMLIMIT 512MiB). Secrets arrive as encrypted
+# systemd credentials; render-config writes the full config into this unit's tmpfs RuntimeDirectory only.
+[Unit]
+Description=Enclave storage indexer replica %i (indexd G-C2)
+Requires=enclave-storage-indexer-pg@%i.service
+After=network-online.target enclave-storage-indexer-pg@%i.service
+Wants=network-online.target
+ConditionPathExists=/etc/enclave-storage-indexer/%i/ALLOW_LIVE_START
+[Service]
+User=enclave-storage-indexer
+Group=enclave-storage-indexer
+EnvironmentFile=/etc/enclave-storage-indexer/%i/replica.env
+RuntimeDirectory=enclave-storage-indexer/%i/indexd
+RuntimeDirectoryMode=0700
+LoadCredentialEncrypted=recovery-phrase:/etc/enclave-storage-indexer/%i/recovery-phrase.cred
+LoadCredentialEncrypted=admin-password:/etc/enclave-storage-indexer/%i/admin-password.cred
+Environment=INDEXD_CONFIG_FILE=/run/enclave-storage-indexer/%i/indexd/indexd.yml
+Environment=INDEXD_DATA_DIR=/var/lib/enclave-storage-indexer/%i/state
+Environment=GOMEMLIMIT=512MiB
+WorkingDirectory=/var/lib/enclave-storage-indexer/%i/state
+ExecStartPre=/opt/enclave-storage-indexer/current/libexec/preflight %i
+ExecStartPre=/opt/enclave-storage-indexer/current/libexec/render-config %i
+ExecStart=/opt/enclave-storage-indexer/current/bin/indexd
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=180
+MemoryMax=1G
+MemorySwapMax=0
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ReadWritePaths=/var/lib/enclave-storage-indexer/%i/state
+[Install]
+WantedBy=multi-user.target

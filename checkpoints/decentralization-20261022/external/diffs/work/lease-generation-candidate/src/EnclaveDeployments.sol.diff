@@ -1,0 +1,354 @@
+--- a/contracts/EnclaveDeployments.sol
++++ b/contracts/EnclaveDeployments.sol
+@@ -357,7 +357,12 @@
+     // >= 13 only to know that offering the wider dial will not revert here.
+     // Rev 14: optional host-authored rates for individual resource allocations.
+     // Rev 16: qualified direct-bandwidth billing with backed USDC revenue shares.
+-    uint256 public constant deploymentsSchema = 16;
++    // Rev 17 keeps the struct byte-for-byte and every rev-16d selector, event and storage slot, and NAMES LEASES: each
++    // claim opens a new per-deployment generation (leaseOf, LeaseOpened); releaseLease ends only the lease it names
++    // (runner + generation), so a stale or duplicated release can never end a later lease of the same operator, even
++    // one re-claimed in the same block at the same leaseUntil. An operator may refuse the unnamed legacy release(id)
++    // for its own key (setGuardedReleaseOnly). The feature gates on >= 17.
++    uint256 public constant deploymentsSchema = 17;
+     address public bandwidthRouter;
+ 
+     /// A once-bound receipt verifier. It cannot change the
+@@ -517,6 +522,9 @@
+     ///      make the victim's hostname ambiguous. Reserving the prefix makes
+     ///      that impossible instead of merely unlikely: the create loop below
+     ///      simply rolls to the next nonce, and the grind has nothing to land on.
++    // isDelegate (rev 16d) is declared HERE, ahead of _prefixTaken, so it keeps 15d's slot 23: the relay, the SDK and
++    // the rehearsal read a grant straight from storage at slot 23 (relay/sessions.mjs DELEGATE_SLOT)
++    mapping(address => mapping(address => bool)) private isDelegate;
+     mapping(bytes4 => bool) private _prefixTaken;
+ 
+     event Created(bytes32 indexed id, address indexed owner, string appRef, uint16 gpuMilli, uint16 cpuMilli, uint256 rate);
+@@ -551,6 +559,22 @@
+     event MaxFeeSet(uint256 maxFeePerSec6);
+     event PayoutChanged(address indexed payout);
+     event OwnerChanged(address indexed owner);
++
++    /// @notice Owner-approved delegates (rev 15d, wallet sessions: docs/design/sessions.md §16).
++    ///         `isDelegate[owner][delegate]` lets `delegate` act on EVERY deployment `owner` holds
++    ///         through the owner-gated calls - setMaxRate, setAppRef, setShares, setConfig, setActive
++    ///         and refund (which still pays the owner) - but never transferDeployment: a delegate
++    ///         can't move a record. The intended delegate is the owner's session vault, which
++    ///         enforces each session's policy; the owner grants and revokes it here, alone.
++    ///         No public getter (EIP-170 has no room for one): read a grant from storage -
++    ///         keccak256(abi.encode(delegate, keccak256(abi.encode(owner, DELEGATE_SLOT)))), with
++    ///         DELEGATE_SLOT recorded beside the deployment - or from the DelegateSet events.
++    event DelegateSet(address indexed owner, address indexed delegate, bool allowed);
++    function _delegated(address owner_) private view returns (bool) { return isDelegate[owner_][msg.sender]; }
++    function setDelegate(address delegate, bool allowed) external {
++        isDelegate[msg.sender][delegate] = allowed;
++        emit DelegateSet(msg.sender, delegate, allowed);
++    }
+     event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
+     event FeedChanged(address indexed feed);
+ 
+@@ -938,6 +962,7 @@
+     ///      never re-derived), so a transferred id never moves or collides.
+     function transferDeployment(bytes32 id, address to) external {
+         Deployment storage d = _requireOwned(id);
++        require(d.owner == msg.sender, "!owner");   // the OWNER's alone: a delegate never moves a record
+         require(to != address(0), "zero addr");
+         require(ownerEscrow6[id] == 0 || _earn[id].escrow6 == 0, "refund first");
+         d.owner = to;
+@@ -1025,14 +1050,9 @@
+     ///      platform can re-back such a deployment with fundEscrow.
+     function fundEth(bytes32 id) external payable {
+         Deployment storage d = _requireActive(id);
+-        require(msg.value > 0, "amount=0");
+-        require(address(ethUsdFeed) != address(0), "eth funding disabled");
+-        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) = ethUsdFeed.latestRoundData();
+-        require(answer > 0 && block.timestamp - updatedAt <= FEED_MAX_AGE, "stale price");
+-        require(answeredInRound >= roundId, "incomplete round");   // reject an answer carried over from an earlier (unfinalized) round
+-        // wei(1e18) * price(1e8) -> USDC 6dp: divide by 1e20
+-        uint256 credited = (msg.value * uint256(answer)) / 1e20;
+-        require(credited > 0, "amount=0");
++        // the price read and its checks (live feed, fresh, finalized round, non-zero credit) are the library's since
++        // rev 16d (EIP-170); the money moves here
++        uint256 credited = EnclaveLedgerBandwidth.ethCredit(ethUsdFeed, msg.value, FEED_MAX_AGE);
+         d.balance6 += credited;                                    // effects before interaction (CEI): a contract payout can't reenter mid-credit
+         // the publisher's cut splits the WEI (their wallet gets ETH, not USDC).
+         // A fee recipient that reverts on plain sends blocks only ETH funding
+@@ -1108,6 +1128,9 @@
+                                                              // the previous runner's watermark must not
+                                                              // carry over and hand this one free seconds
+         emit Claimed(id, enclaveId, msg.sender, until, burned);
++        uint64 g;
++        unchecked { g = ++_leaseGen[id]; }                  // 2^64 claims of one id is unreachable
++        emit LeaseOpened(id, enclaveId, g);
+     }
+ 
+     /// @notice Extend a live lease (only the current runner, only before expiry —
+@@ -1130,45 +1153,31 @@
+         emit Renewed(id, d.runner, until, burned);
+     }
+ 
+-    /// @notice Graceful hand-back: refund the unused lease tail to the balance and
+-    ///         reopen the queue. Called on clean shutdown, on teardown after the
+-    ///         owner stops the deployment, or when provisioning fails right after
+-    ///         a claim (so the user doesn't pay for a runner that never served).
+-    /// @dev THE PARTIAL-PERIOD PATH, and it is ORDER-SENSITIVE. A runner tearing
+-    ///      down mid-hour - the app crashed, the owner stopped it, the box is
+-    ///      being drained - settles the fraction it actually served by posting a
+-    ///      final checkpoint to EnclaveProofOfTime and THEN releasing. The
+-    ///      checkpoint moves provenUntil to the moment of the crash, this call
+-    ///      credits exactly that, and the unserved remainder of the lease goes
+-    ///      back to the tenant.
+-    ///
+-    ///      Proof and release live on different contracts, so there is no single
+-    ///      multicall spanning them - and this call CLEARS the watermark, so a
+-    ///      final proof sent after it has no lease left to prove against and
+-    ///      settles nothing. Runners must send checkpoint-then-release, in that
+-    ///      order, through a queue that serializes on confirmation. Releasing
+-    ///      without the final proof at all is legal and costs the runner the
+-    ///      unproven tail, so the incentive points at settling honestly either
+-    ///      way.
+-    function release(bytes32 id) external {
+-        Deployment storage d = _deployments[id];
+-        require(_exists[id], "unknown");
+-        require(d.runnerOperator == msg.sender, "not runner");
+-        _creditRunner(d);                        // pay for time HELD; the refunded tail earns nothing
+-        uint256 tail = 0;                        // not `refund` — that names the owner-facing rev-10 call
+-        if (d.leaseUntil > block.timestamp) {
+-            tail = (d.leaseUntil - block.timestamp) * d.rate;
+-            d.balance6 += tail;
+-            d.spent6 -= tail;
+-        }
+-        bytes32 enclaveId = d.runner;
+-        d.runner = bytes32(0);
+-        d.runnerOperator = address(0);
+-        d.leaseUntil = 0;
+-        _earn[id].creditedUntil = 0;             // meter idles until the next claim restarts it
+-        provenUntil[id] = 0;                     // and the proof watermark resets with it
+-        emit Released(id, enclaveId, tail);
+-    }
++    // release(id) and releaseLease(id, runner, generation) run in EnclaveLeaseGeneration (rev 17, EIP-170) with this
++    // contract's storage and msg.sender: releaseLease through fallback() below, release(id) through this declared entry
++    // point too, so Solidity callers typed against EnclaveDeployments and its ABI keep it. The rev-16d semantics of release(id):
++    // @notice Graceful hand-back: refund the unused lease tail to the balance and
++    //         reopen the queue. Called on clean shutdown, on teardown after the
++    //         owner stops the deployment, or when provisioning fails right after
++    //         a claim (so the user doesn't pay for a runner that never served).
++    // @dev THE PARTIAL-PERIOD PATH, and it is ORDER-SENSITIVE. A runner tearing
++    //      down mid-hour - the app crashed, the owner stopped it, the box is
++    //      being drained - settles the fraction it actually served by posting a
++    //      final checkpoint to EnclaveProofOfTime and THEN releasing. The
++    //      checkpoint moves provenUntil to the moment of the crash, this call
++    //      credits exactly that, and the unserved remainder of the lease goes
++    //      back to the tenant.
++    //
++    //      Proof and release live on different contracts, so there is no single
++    //      multicall spanning them - and this call CLEARS the watermark, so a
++    //      final proof sent after it has no lease left to prove against and
++    //      settles nothing. Runners must send checkpoint-then-release, in that
++    //      order, through a queue that serializes on confirmation. Releasing
++    //      without the final proof at all is legal and costs the runner the
++    //      unproven tail, so the incentive points at settling honestly either
++    //      way.
++
++    function release(bytes32 id) external { EnclaveLeaseGeneration.release(id); }
+ 
+     /// @dev Burn one lease quantum starting at `from`: as many seconds as the
+     ///      balance affords, capped at leaseSec. Reverts if the balance can't buy
+@@ -1329,16 +1338,9 @@
+     ///      and refund() see zero. Clients can therefore render this number
+     ///      directly and refund() will pay it.
+     function refundableOf(bytes32 id) public view returns (uint256) {
+-        Deployment storage d = _deployments[id];
+-        Earn storage e = _earn[id];
+-        // seconds a live lease — or a late checkpoint against one that lapsed —
+-        // could still prove and be paid for. That money is the seller's.
+-        uint256 reserve = d.leaseUntil > e.creditedUntil
+-            ? uint256(d.leaseUntil - e.creditedUntil) * e.rate6
+-            : 0;
+-        uint256 free = e.escrow6 > reserve ? e.escrow6 - reserve : 0;
+-        uint256 own = ownerEscrow6[id];
+-        return own < free ? own : free;
++        // in the library since rev 16d (EIP-170): seconds a live lease - or a late checkpoint against one that
++        // lapsed - could still prove and be paid for are the seller's; the owner's backing caps the rest
++        return EnclaveLedgerBandwidth.refundable(_deployments[id], _earn[id], ownerEscrow6[id]);
+     }
+ 
+     /// @notice Cancel a deployment and take its unused runtime back (rev 10).
+@@ -1361,7 +1363,7 @@
+     function refund(bytes32 id) external {
+         require(_exists[id], "unknown");
+         EnclaveLedgerBandwidth.refund(_deployments[id], _earn[id], earned6, ownerEscrow6,
+-            usdc, retired, proofRequired(), provenUntil[id]);
++            usdc, retired || _delegated(_deployments[id].owner), proofRequired(), provenUntil[id]);
+     }
+ 
+     /// @notice Recover a DRAINED deployment's residual escrow dust to payout.
+@@ -1451,6 +1453,33 @@
+     bool public importsSealed;
+     event ImportsSealed();
+ 
++    // ---- lease generations (rev 17) ---------------------------------------
++    // Declared after every rev-16d variable: each existing slot (isDelegate at 23 included) is unchanged.
++    /// @dev id -> generation of the latest lease opened here (0 = never claimed on this ledger). Bumped by claim only;
++    ///      renew keeps it (a renewal continues the same lease) and release leaves it (the next claim moves past it).
++    mapping(bytes32 => uint64) private _leaseGen;
++    /// @dev operator -> the unnamed release(id) is refused for this key (only releaseLease works); read and set
++    ///      through the extension (guardedReleaseOnly / setGuardedReleaseOnly), by the operator about itself alone.
++    mapping(address => bool) private _guardedReleaseOnly;
++    event LeaseOpened(bytes32 indexed id, bytes32 indexed enclaveId, uint64 generation);
++
++    /// @notice Rev 17 extension: a selector this contract does not define runs in EnclaveLeaseGeneration - the linked,
++    ///         stateless library below - by DELEGATECALL: this contract's storage, the original msg.sender, no value.
++    ///         It defines exactly release, releaseLease, leaseOf, guardedReleaseOnly and setGuardedReleaseOnly (see
++    ///         IEnclaveDeploymentsLeases); any other selector reverts there with no data, as it did here. The target is
++    ///         the link-time library address in this runtime: no setter, no admin, no upgrade.
++    fallback() external {
++        address lib = address(EnclaveLeaseGeneration);
++        assembly ("memory-safe") {
++            let p := mload(0x40)
++            calldatacopy(p, 0, calldatasize())
++            let ok := delegatecall(gas(), lib, p, calldatasize(), 0, 0)
++            returndatacopy(p, 0, returndatasize())
++            if iszero(ok) { revert(p, returndatasize()) }
++            return(p, returndatasize())
++        }
++    }
++
+     /// @notice Migrate records verbatim from a previous EnclaveDeployments (the
+     ///         admin console reads them via getPage and replays them here).
+     ///         balance6/spent6 are ACCOUNTING numbers (nothing is custodied, so
+@@ -1828,7 +1857,7 @@
+         require(_exists[id], "unknown");
+         // deliberately the admin gate's string: a unique one here costs ~46
+         // bytes of the EIP-170 headroom this contract does not have
+-        require(d.owner == msg.sender, "!owner");
++        require(d.owner == msg.sender || _delegated(d.owner), "!owner");
+     }
+     function _requireActive(bytes32 id) private view returns (Deployment storage d) {
+         d = _deployments[id];
+@@ -1890,8 +1919,9 @@
+     }
+     function refund(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e,
+         mapping(address => uint256) storage earned, mapping(bytes32 => uint256) storage ownerEscrow,
+-        IERC20Auth usdc, bool retired, bool proofRequired, uint64 proven) external {
+-        require(d.owner == msg.sender || retired, "!owner");
++        IERC20Auth usdc, bool open, bool proofRequired, uint64 proven) external {
++        // open: the ledger is retired (any caller may push money home) or the caller is the owner's delegate (rev 16d)
++        require(d.owner == msg.sender || open, "!owner");
+         credit(d,e,earned,proofRequired,proven);
+         uint256 reserve = d.leaseUntil > e.creditedUntil ? uint256(d.leaseUntil - e.creditedUntil) * e.rate6 : 0;
+         uint256 amount = e.escrow6 > reserve ? e.escrow6 - reserve : 0;
+@@ -1902,6 +1932,21 @@
+         emit ActiveSet(d.id,false);emit Refunded(d.id,d.owner,amount);
+     }
+ 
++    /// @dev fundEth's USDC credit (6dp) for `value` wei at the feed's ETH/USD answer (8dp), as it always checked it.
++    function ethCredit(IAggregatorV3 feed, uint256 value, uint256 maxAge) external view returns (uint256 credited) {
++        require(value > 0, "amount=0");
++        require(address(feed) != address(0), "eth funding disabled");
++        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) = feed.latestRoundData();
++        require(answer > 0 && block.timestamp - updatedAt <= maxAge, "stale price");
++        require(answeredInRound >= roundId, "incomplete round");   // reject an answer carried over from an earlier (unfinalized) round
++        credited = (value * uint256(answer)) / 1e20;              // wei(1e18) * price(1e8) -> USDC 6dp
++        require(credited > 0, "amount=0");
++    }
++    function refundable(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e, uint256 own) external view returns (uint256) {
++        uint256 reserve = d.leaseUntil > e.creditedUntil ? uint256(d.leaseUntil - e.creditedUntil) * e.rate6 : 0;
++        uint256 free = e.escrow6 > reserve ? e.escrow6 - reserve : 0;
++        return own < free ? own : free;
++    }
+     function backing(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e) public view returns (uint256) {
+         uint256 reserve = d.balance6;
+         if (d.leaseUntil > e.creditedUntil) reserve += uint256(d.leaseUntil - e.creditedUntil) * e.rate6;
+@@ -1936,3 +1981,91 @@
+         emit BandwidthSplit(d.id,beneficiary,amount6,provider6,amount6-provider6);
+     }
+ }
++
++/// The rev-17 lease surface as one ABI, for clients: the ledger answers it through fallback() -> EnclaveLeaseGeneration.
++interface IEnclaveDeploymentsLeases {
++    function release(bytes32 id) external;
++    function releaseLease(bytes32 id, bytes32 runner, uint64 generation) external;
++    function leaseOf(bytes32 id) external view returns (bytes32 runner, address runnerOperator, uint64 leaseUntil, uint64 generation);
++    function guardedReleaseOnly(address operator) external view returns (bool);
++    function setGuardedReleaseOnly(bool on) external;
++    event Released(bytes32 indexed id, bytes32 indexed enclaveId, uint256 refunded6);
++    event GuardedReleaseOnlySet(address indexed operator, bool on);
++}
++
++/// Rev 17: the lease-naming surface of EnclaveDeployments, moved out of the ledger for EIP-170. Linked like
++/// EnclaveLedgerBandwidth and reached ONLY through the ledger's fallback (DELEGATECALL): it runs on the ledger's storage
++/// with the caller's msg.sender. Stateless, no admin, no target. Its non-view entry points refuse a direct CALL (the
++/// viaIR library guard), so calling the library itself changes nothing anywhere.
++///
++/// EXPLICIT STORAGE LAYOUT: the ledger slots below are fixed by the ledger's declaration order (rev 16d's, with the two
++/// rev-17 mappings appended). scripts/build.mjs refuses a build whose compiler layout differs from any of them.
++library EnclaveLeaseGeneration {
++    uint256 internal constant DEPLOYMENTS_SLOT = 12;   // mapping(bytes32 => Deployment) _deployments
++    uint256 internal constant EXISTS_SLOT = 13;        // mapping(bytes32 => bool) _exists
++    uint256 internal constant EARN_SLOT = 15;          // mapping(bytes32 => Earn) _earn
++    uint256 internal constant EARNED_SLOT = 17;        // mapping(address => uint256) earned6
++    uint256 internal constant PROVEN_SLOT = 19;        // mapping(bytes32 => uint64) provenUntil
++    uint256 internal constant GENERATION_SLOT = 26;    // mapping(bytes32 => uint64) _leaseGen
++    uint256 internal constant GUARDED_SLOT = 27;       // mapping(address => bool) _guardedReleaseOnly
++
++    event Released(bytes32 indexed id, bytes32 indexed enclaveId, uint256 refunded6);
++    event GuardedReleaseOnlySet(address indexed operator, bool on);
++
++    function _deployments() private pure returns (mapping(bytes32 => EnclaveDeployments.Deployment) storage m) { assembly ("memory-safe") { m.slot := DEPLOYMENTS_SLOT } }
++    function _exists() private pure returns (mapping(bytes32 => bool) storage m) { assembly ("memory-safe") { m.slot := EXISTS_SLOT } }
++    function _earn() private pure returns (mapping(bytes32 => EnclaveDeployments.Earn) storage m) { assembly ("memory-safe") { m.slot := EARN_SLOT } }
++    function _earned() private pure returns (mapping(address => uint256) storage m) { assembly ("memory-safe") { m.slot := EARNED_SLOT } }
++    function _proven() private pure returns (mapping(bytes32 => uint64) storage m) { assembly ("memory-safe") { m.slot := PROVEN_SLOT } }
++    function _generation() private pure returns (mapping(bytes32 => uint64) storage m) { assembly ("memory-safe") { m.slot := GENERATION_SLOT } }
++    function _guarded() private pure returns (mapping(address => bool) storage m) { assembly ("memory-safe") { m.slot := GUARDED_SLOT } }
++
++    /// @notice Graceful hand-back of whatever lease the caller holds on `id` - rev 16d's release, unchanged - unless
++    ///         the caller opted into guardedReleaseOnly ("guarded release only"). See the ledger's comment above
++    ///         _burnLease for the checkpoint-then-release ordering.
++    function release(bytes32 id) external { _release(id, false, bytes32(0), 0); }
++
++    /// @notice Release exactly the lease (runner, generation): a stale, replayed or second-host release meant for an
++    ///         earlier lease of this operator reverts "not this lease" instead of ending a later one - including a
++    ///         re-claim in the same block at the same leaseUntil. Same body as release(id).
++    function releaseLease(bytes32 id, bytes32 runner, uint64 generation) external { _release(id, true, runner, generation); }
++
++    /// @notice The lease a host decides on, in one call at one block. generation 0 = never claimed on this ledger.
++    function leaseOf(bytes32 id) external view returns (bytes32 runner, address runnerOperator, uint64 leaseUntil, uint64 generation) {
++        EnclaveDeployments.Deployment storage d = _deployments()[id];
++        return (d.runner, d.runnerOperator, d.leaseUntil, _generation()[id]);
++    }
++
++    function guardedReleaseOnly(address operator) external view returns (bool) { return _guarded()[operator]; }
++
++    /// @notice Refuse (or allow again) the unnamed release(id) for the caller's own key. Set it once every host
++    ///         holding this key sends releaseLease; an older binary's blind release then ends nothing.
++    function setGuardedReleaseOnly(bool on) external {
++        _guarded()[msg.sender] = on;
++        emit GuardedReleaseOnlySet(msg.sender, on);
++    }
++
++    function _release(bytes32 id, bool named, bytes32 runner, uint64 gen) private {
++        EnclaveDeployments.Deployment storage d = _deployments()[id];
++        require(_exists()[id], "unknown");
++        require(d.runnerOperator == msg.sender, "not runner");
++        if (named) require(d.runner == runner && _generation()[id] == gen, "not this lease");
++        else require(!_guarded()[msg.sender], "guarded release only");
++        EnclaveDeployments.Earn storage e = _earn()[id];
++        // pay for time HELD; the refunded tail earns nothing (proofRequired: the ledger's own view, read in place)
++        EnclaveLedgerBandwidth.credit(d, e, _earned(), EnclaveDeployments(address(this)).proofRequired(), _proven()[id]);
++        uint256 tail = 0;                        // not `refund` - that names the owner-facing rev-10 call
++        if (d.leaseUntil > block.timestamp) {
++            tail = (d.leaseUntil - block.timestamp) * d.rate;
++            d.balance6 += tail;
++            d.spent6 -= tail;
++        }
++        bytes32 enclaveId = d.runner;
++        d.runner = bytes32(0);
++        d.runnerOperator = address(0);
++        d.leaseUntil = 0;
++        e.creditedUntil = 0;                     // meter idles until the next claim restarts it
++        _proven()[id] = 0;                       // and the proof watermark resets with it
++        emit Released(id, enclaveId, tail);
++    }
++}

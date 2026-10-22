@@ -1,0 +1,23 @@
+--- a/isolation/m2/front/appzone.go
++++ b/isolation/m2/front/appzone.go
+@@ -131,7 +131,9 @@
+ 	}
+ 	label, _, ok := strings.Cut(certs.name, ".")
+ 	if certs.name == "" || !ok || label != hex.EncodeToString(g.Deployment[:4]) {
+-		return nil, errors.New("this domain's HOST_DATA name is not this deployment's app-zone name")
++		// the name is the SNP report's HOST_DATA, or on a Shield partition the launcher's /cert.name: either way it
++		// must be the deployment the owner-committed startup authorized
++		return nil, errors.New("this domain's name (HOST_DATA or the launcher's) is not this deployment's app-zone name")
+ 	}
+ 	if g.AppZone.EAB != nil && (eabKID == "" || len(eabKey) == 0) {
+ 		return nil, errors.New("the selected CA needs an EAB this guest could not resolve")
+@@ -412,7 +414,8 @@
+ 	_ = json.NewEncoder(w).Encode(i.status())
+ }
+ 
+-// startAppZone prepares the issuer for an SNP direct guest whose package selects app-zone issuance (started once the
++// startAppZone prepares the issuer for a direct guest (SEV-SNP, or an Enclave Shield partition: shield_direct.go) whose
++// package selects app-zone issuance (started once the
+ // app serves, like owner names). Problems are printed and stated on the endpoint; they never stop the app, and a guest
+ // without the member keeps every existing certificate path (relay CSR install, owner names) unchanged.
+ func (f *front) startAppZone(o *ownerStartup, dial func() (net.Conn, error), roots *x509.CertPool) *appZoneIssuer {

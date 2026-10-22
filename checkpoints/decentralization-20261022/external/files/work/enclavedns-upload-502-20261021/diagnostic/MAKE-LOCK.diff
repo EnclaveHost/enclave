@@ -1,0 +1,20 @@
+--- ../root-diagnostic/before/make-lock.mjs	2026-10-21 11:18:10.432070880 -0700
++++ make-lock.mjs	2026-10-21 11:21:50.244912589 -0700
+@@ -1,3 +1,4 @@
++// DIAGNOSTIC COPY of wallet-handoff/make-lock.mjs 9e4df2e0: own files serve.mjs + upload-diagnostic.mjs; the handoff's in place.
+ // Writes files.lock.json: the sha256 of every file serve.mjs loads, own and reused (reused files are read, never changed).
+ //   node make-lock.mjs   (then review; serve.mjs refuses unless --approved-files names this file's sha256)
+ import fs from "node:fs";
+@@ -7,8 +8,10 @@
+ 
+ const here = path.dirname(fileURLToPath(import.meta.url));
+ const FILES = [
+-  "serve.mjs", "trust.mjs", "handoff-plan.mjs", "chain.mjs", "server.mjs", "app.js", "index.html",
+-  "pins/version-config-v4.json", "pins/envelope-current.json", "artifact/enclavedns-0.1.5.wasm",
++  "serve.mjs", "upload-diagnostic.mjs",
++  // the reviewed handoff's own files, used in place (never copied or changed)
++  ...["trust.mjs", "handoff-plan.mjs", "chain.mjs", "server.mjs", "app.js", "index.html",
++    "pins/version-config-v4.json", "pins/envelope-current.json", "artifact/enclavedns-0.1.5.wasm"].map((f) => "../../enclavedns-stale-20261021/wallet-handoff/" + f),
+   // reused unchanged (reviewed site activation, enrollment and lease-gas modules, and what they load)
+   "../../site-host-live-publish/handoff/site-upload.mjs", "../../site-host-live-publish/handoff/site-chain.mjs", "../../site-host-live-publish/handoff/site-trust.mjs",
+   "../../lease-enrollment-signing/trust.mjs", "../../lease-enrollment-signing/chain.mjs", "../../lease-enrollment-signing/handoff-server.mjs", "../../lease-enrollment-signing/queue.css",

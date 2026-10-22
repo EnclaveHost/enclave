@@ -1,0 +1,13 @@
+# Isolated Foundry run: solc 0.8.35, LEGACY codegen, optimizer off (via_ir compiles of these suites exceed the 768 MiB cap, optimized or not). Behavior only; deployed bytecode identity is proven separately.
+[profile.default]
+src = "contracts"
+test = "contracts/foundry/test"
+out = "out"
+cache_path = "cache"
+libs = ["contracts/foundry/lib"]
+solc = "/home/steven/.local/share/svm/0.8.35/solc-0.8.35"
+offline = true
+optimizer = true
+optimizer_runs = 200
+code_size_limit = 1000000
+via_ir = true

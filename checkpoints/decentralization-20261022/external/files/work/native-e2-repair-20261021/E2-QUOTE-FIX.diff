@@ -1,0 +1,24 @@
+--- fixed-d3b2516e/win-udp-fixture.ps1	2026-10-21 10:49:57.019400647 -0700
++++ fixed/win-udp-fixture.ps1	2026-10-21 10:54:07.298316884 -0700
+@@ -100,10 +100,18 @@
+ # '--' ends node's own options: without it node would TAKE --input-type/--eval itself and run the probe (checked locally)
+ $r = Run $NodeExe (@('-e', 'process.stdout.write(JSON.stringify(process.argv.slice(1)))', '--') + $want2) 30
+ # compare PARSED arrays, ordinal: Windows PowerShell's ConvertTo-Json escapes ' < > & differently from JSON.stringify
+-$got = $null; try { $got = @($r.out | ConvertFrom-Json) } catch {}
++# Windows PowerShell 5.1 emits a parsed JSON array as ONE pipeline object, so @($json | ConvertFrom-Json) is a 1-element
++# array holding the array (root's native run: refused). -InputObject + a foreach STATEMENT yields the elements on 5.1 and 7.
++$parsed = $null; $got = $null; try { $parsed = ConvertFrom-Json -InputObject $r.out; $got = @(foreach ($el in $parsed) { $el }) } catch {}
+ $same = ($r.code -eq 0) -and ($null -ne $got) -and ($got.Count -eq $want2.Count)
+-if ($same) { for ($i = 0; $i -lt $want2.Count; $i++) { if (-not [string]::Equals([string]$got[$i], $want2[$i], [StringComparison]::Ordinal)) { $same = $false } } }
+-if (-not $same) { Refuse "E2 eval argument self-check failed: $($r.out.Substring(0, [Math]::Min(200, $r.out.Length)))" }
++$bad = @()
++if ($null -ne $got) { for ($i = 0; $i -lt [Math]::Max($got.Count, $want2.Count); $i++) {
++  $gi = if ($i -lt $got.Count) { [string]$got[$i] } else { $null }; $wi = if ($i -lt $want2.Count) { $want2[$i] } else { $null }
++  if (-not [string]::Equals($gi, $wi, [StringComparison]::Ordinal)) { $same = $false
++    $bad += ('#{0} gotLen {1} wantLen {2}' -f $i, $(if ($null -eq $gi) { 'none' } else { $gi.Length }), $(if ($null -eq $wi) { 'none' } else { $wi.Length })) } } }
++if (-not $same) { Refuse ("E2 eval argument self-check failed: exit {0}; parsed {1}; gotCount {2}; wantCount {3}; mismatches [{4}]; head {5}" -f $r.code,
++  $(if ($null -eq $parsed) { 'null' } else { $parsed.GetType().FullName }), $(if ($null -eq $got) { 'null' } else { $got.Count }), $want2.Count, ($bad -join '; '),
++  $r.out.Substring(0, [Math]::Min(120, $r.out.Length))) }
+ Pass 'argument quoting: the multi-line E2 --eval probe text arrives as ONE exact argument'
+ 
+ # ---- R: read-only

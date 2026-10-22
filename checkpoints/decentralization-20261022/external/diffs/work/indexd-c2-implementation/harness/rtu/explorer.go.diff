@@ -1,0 +1,8 @@
+--- a/testutils/explorer.go
++++ b/testutils/explorer.go
+@@ -1,4 +1,4 @@
+-package testutils
++package rtu
+ 
+ import (
+ 	"context"

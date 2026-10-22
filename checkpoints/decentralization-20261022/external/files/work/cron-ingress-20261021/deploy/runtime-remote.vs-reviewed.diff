@@ -1,0 +1,22 @@
+--- ../../../directory-runtime-activation/activation/runtime-remote.py	2026-10-20 00:32:18.693383359 -0700
++++ activation/runtime-remote.py	2026-10-21 09:24:28.012747040 -0700
+@@ -1,5 +1,6 @@
+-# Host side of the enclave-public-directory runtime upgrade. NOT run against a host by this workstream: root runs it via
+-# activate-runtime.py after review. Sent as `ssh <host> python3 -` with one prepended line `PARAMS = '<json>'`. Runs as root.
++# Host side of the enclave-public-directory runtime upgrade (runtime-cb9ff18 -> runtime-2467cea; adapted from the
++# root-reviewed 2026-10-20 program: only the backup-mismatch branch changed, it no longer removes a file). NOT run against a
++# host by this workstream: root runs it via activate-runtime.py after review. Sent as `ssh <host> python3 -` with one prepended line `PARAMS = '<json>'`. Runs as root.
+ #
+ # Scope: ONLY the enclave-public-directory service. Writes exactly:
+ #   - the new bundle file (created once; an existing file must already hold the exact bytes);
+@@ -435,8 +436,8 @@
+     journal('bundle-ready', sha=P['bundle_sha256'])
+     if sha(BACKUP) is None:
+         _replace(BACKUP, DROPIN.read_bytes(), 'absent')
+-        if sha(BACKUP) != BASE:
+-            BACKUP.unlink(); return {'state': 'refused', 'error': 'drop-in changed while backing up: nothing installed'}
++        if sha(BACKUP) != BASE:   # never removed: the next run refuses on it, for operator review
++            journal('refused', why='backup does not hold the baseline drop-in'); return {'state': 'refused', 'error': 'drop-in changed while backing up: nothing installed; backup left for operator review'}
+         journal('backup', sha=BASE)
+     try:
+         _replace(DROPIN, NEW_BYTES, BASE)

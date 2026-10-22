@@ -1,0 +1,21 @@
+--- a/isolation/m4/guestd/server_test.go
++++ b/isolation/m4/guestd/server_test.go
+@@ -415,6 +415,18 @@
+ 	}
+ }
+ 
++// encVolumes is claimed only by a release guestd whose pinned template states it (rt/encvol.enabled).
++func TestHealthStatesEncVolumesOnlyWithTheImageAndARelease(t *testing.T) {
++	for _, c := range []struct{ marker, release, want bool }{{false, false, false}, {true, false, false}, {false, true, false}, {true, true, true}} {
++		r := newRig(t)
++		r.s.RuntimeEncvol, r.s.Release = c.marker, c.release
++		_, h := r.do("GET", "/health", nil)
++		if got := h["supports"].(map[string]any)["encVolumes"]; got != c.want {
++			t.Errorf("marker=%v release=%v: encVolumes=%v, want %v", c.marker, c.release, got, c.want)
++		}
++	}
++}
++
+ // A deployment-named instance is launched with its deployment id as HOST_DATA and verified against it; a lab name
+ // gets none. The raw 32 bytes (as hex), not a hash, so a verifier compares bytes it already holds.
+ func TestHostDataIsTheDeploymentID(t *testing.T) {

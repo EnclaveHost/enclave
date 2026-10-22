@@ -1,0 +1,21 @@
+import {makePredictor,predictorEnv,catalogReader,agreeingRead} from './measurement-predict.replicas.mjs';
+import {createPublicClient,http} from 'viem';
+import {base} from 'viem/chains';
+import fs from 'node:fs';
+import {createHash} from 'node:crypto';
+const options=predictorEnv();
+const clients=process.env.SECRETS_RELEASE_CATALOG_RPCS.split(',').map(u=>createPublicClient({chain:base,transport:http(u.trim(),{timeout:6000,retryCount:1})}));
+const address=async()=> process.env.APP_CATALOG_ADDRESS || agreeingRead(clients,c=>c.readContract({address:process.env.ADDRESS_BOOK_ADDRESS,abi:[{type:'function',name:'addr',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'address'}]}],functionName:'addr',args:['0x'+Buffer.from('appCatalog').toString('hex').padEnd(64,'0')]}),{key:x=>x.toLowerCase(),what:'catalog address'});
+const predictor=makePredictor({...options,readCatalog:catalogReader(clients,address)});
+const report={startedAt:new Date().toISOString(),gateways:options.gateways,emptySeed:options.seedComponents.length===0,problems:predictor.problems};
+const save=()=>fs.writeFileSync(options.work+'/result.json',JSON.stringify(report,null,2)+'\n');
+fs.mkdirSync(options.work,{recursive:true,mode:0o700});
+if(predictor.problems.length) {save();process.exit(1)}
+report.kat=await predictor.selfTest();save();console.log(JSON.stringify({kat:report.kat}));
+if(!report.kat.ok) process.exit(2);
+const artifact=await predictor.fetchVerified('bafybeihnfbvrrnuioglduqx6k4hniceutqthzg6aawnaeeyhds3vx2gl7q',8<<20);
+report.adapterArtifact=artifact.ok?{ok:true,bytes:artifact.bytes.length,sha256:createHash('sha256').update(artifact.bytes).digest('hex')}:{ok:false,reason:artifact.reason};save();console.log(JSON.stringify({artifact:report.adapterArtifact}));
+report.prediction=await predictor.expectedFor('catalog://0x4306e588755347dbb30b5e2090cacbc7e20b00afedff750fe352fe99d6d77a7c/17');
+const previous=JSON.parse(fs.readFileSync('/opt/nan-relay/replica-expected-before.json','utf8'));
+report.exactMeasurements=report.prediction.ok && report.prediction.appId===previous.appId && previous.images.every(a=>report.prediction.images.some(b=>a.release===b.release && a.runtimeId===b.runtimeId && a.measurement===b.measurement)) && report.prediction.images.length===previous.images.length;
+report.completedAt=new Date().toISOString();save();console.log(JSON.stringify({prediction:report.prediction.ok,exactMeasurements:report.exactMeasurements,images:report.prediction.images?.length,reason:report.prediction.reason}));process.exit(artifact.ok && report.exactMeasurements?0:3);

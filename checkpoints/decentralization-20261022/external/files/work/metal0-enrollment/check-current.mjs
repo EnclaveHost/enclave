@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import {createPublicClient,http,parseAbi,keccak256} from '../enclave/node_modules/viem/_esm/index.js';
+import {createQuorumReader} from '../enclave/custody/v2/quorum.mjs';
+import {authorityReads} from '../enclave/scripts/independent-authorities.mjs';
+const address='0xF5E9E6C02449001f6E8e95E5d87413f2cb6790ea',hostId='0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be';
+const clients=['https://mainnet.base.org','https://base-rpc.publicnode.com','https://base.drpc.org','https://base.public.blockpi.network/v1/rpc/public'].map(url=>createPublicClient({transport:http(url,{timeout:12000,retryCount:0})}));
+const q=createQuorumReader({clients,minAgree:3,chainId:8453,confirmations:2,timeoutMs:20000});
+const abi=parseAbi(['function authority(bytes32) view returns (address owner,address pendingOwner,uint64 revision,bytes32 policyHash)']);
+const result=await q(async(c,b)=>{const r=authorityReads(c,b.blockHash);const code=await r.code(address);if(keccak256(code)!=='0xe38a0e160dd929c366bccd30636285458c288ada475f1b74ffc3289febf1d5dd')throw Error('code pin differs');const [owner,pendingOwner,revision,policyHash]=await r.read(address,abi,'authority',[hostId]);return{address,hostId,owner,pendingOwner,revision,policyHash};});
+const text=JSON.stringify({at:new Date().toISOString(),...result},(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n';fs.writeFileSync('outputs/metal0-host-owner-signing/current-state.json',text);console.log(text);

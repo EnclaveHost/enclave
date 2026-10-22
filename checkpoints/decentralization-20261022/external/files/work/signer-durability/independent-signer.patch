@@ -1,0 +1,1297 @@
+diff -ruN a/cli/independent-signer.mjs b/cli/independent-signer.mjs
+--- a/cli/independent-signer.mjs	2026-10-19 23:42:59.227856279 -0700
++++ b/cli/independent-signer.mjs	2026-10-19 23:42:59.228594486 -0700
+@@ -14,6 +14,7 @@
+ // Nothing is retried automatically. An ambiguous outcome stays an intent until `signer resolve` decides it from the chain.
+ // work/independent-signer-interface.txt is the contract.
+ import fs from "node:fs";
++import os from "node:os";
+ import path from "node:path";
+ import crypto from "node:crypto";
+ import { getAddress, keccak256, parseTransaction, serializeTransaction, recoverTransactionAddress, recoverMessageAddress,
+@@ -196,41 +197,224 @@
+ // ---- intent journal -----------------------------------------------------------------------------------------------------
+ 
+ const UNRESOLVED = new Set(["signed", "requested", "submitted", "unknown", "handoff"]);
++const DECIDED = new Set(["confirmed", "reverted", "rejected", "not-delivered", "mismatch", "replaced", "abandoned"]);
+ export const isUnresolved = (rec) => UNRESOLVED.has(rec?.state);
++/** Not provably decided: an unresolved state, or one this version does not know (a newer CLI's, a hand edit). Blocks sends. */
++export const isOpen = (rec) => !DECIDED.has(rec?.state);
+ const enc = (o) => JSON.stringify(o, (_k, v) => typeof v === "bigint" ? `${v}n` : v, 2);
+ const dec = (s) => JSON.parse(s, (_k, v) => typeof v === "string" && /^-?\d+n$/.test(v) ? BigInt(v.slice(0, -1)) : v);
+ const ID_RE = /^tx-[0-9a-z]{6,12}-[0-9a-f]{8}$/;
++const SLOT_FORMAT = "enclave-signer-slot/v1";
++const ACCT_RE = /^\d{1,16}-0x[0-9a-f]{40}$/, KEY_RE = /^(\d{1,16}-0x[0-9a-f]{40})\/(\d{8})$/;
++const gen8 = (n) => String(n).padStart(8, "0");
++
++// Durable files: nothing is reported written before it is on disk. A record is flushed before it is renamed into place,
++// and its directory after, so the name survives a power loss too. Windows: Node cannot flush a directory handle, so the
++// renamed file is flushed again and the rename's own durability rests on NTFS's metadata log (best effort there). A
++// POSIX filesystem that refuses fsync on a directory (EINVAL/ENOTSUP: some network and FUSE mounts) gets the same
++// best effort rather than no CLI at all.
++const WIN = process.platform === "win32";
++function syncDir(d) {
++  if (WIN) return;
++  const fd = fs.openSync(d, "r");
++  try { fs.fsyncSync(fd); } catch (e) { if (e.code !== "EINVAL" && e.code !== "ENOTSUP") throw e; } finally { fs.closeSync(fd); }
++}
++function writeAll(fd, text) { const b = Buffer.from(text); for (let o = 0; o < b.length;) o += fs.writeSync(fd, b, o, b.length - o); fs.fsyncSync(fd); }
++/** `f` is created only if it does not exist (EEXIST: O_EXCL, CREATE_NEW on Windows), 0600, flushed with its name. */
++function createExclusive(f, text) {
++  const fd = fs.openSync(f, "wx", 0o600);
++  try { writeAll(fd, text); } catch (e) { fs.closeSync(fd); try { fs.unlinkSync(f); } catch {} throw e; }
++  fs.closeSync(fd);
++  syncDir(path.dirname(f));
++}
++/** `f` replaced atomically: a reader, or a crash, sees the old content or the new, never a part. */
++function replaceDurable(f, text) {
++  const tmp = `${f}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
++  const fd = fs.openSync(tmp, "wx", 0o600);
++  try { writeAll(fd, text); } catch (e) { fs.closeSync(fd); try { fs.unlinkSync(tmp); } catch {} throw e; }
++  fs.closeSync(fd);
++  try { fs.renameSync(tmp, f); } catch (e) { try { fs.unlinkSync(tmp); } catch {} throw e; }
++  if (WIN) { const fd2 = fs.openSync(f, "r+"); try { fs.fsyncSync(fd2); } finally { fs.closeSync(fd2); } }
++  else syncDir(path.dirname(f));
++}
++/** A private directory: 0700 (tightened on POSIX when it already existed), its creation flushed into its parent. */
++function privateDir(d) {
++  const first = fs.mkdirSync(d, { recursive: true, mode: 0o700 });
++  if (!WIN && (fs.statSync(d).mode & 0o777) !== 0o700) fs.chmodSync(d, 0o700);
++  if (first) for (let x = d; ; x = path.dirname(x)) { syncDir(path.dirname(x)); if (x === first) break; }
++}
+ 
+-/** Durable intents: one 0600 JSON file per transaction this CLI asked a wallet about, written atomically before the request. */
++/**
++ * Durable intents: one 0600 JSON file per transaction this CLI asked a wallet about, on disk before the request.
++ * Reservations: at most one send in flight per (journal, chain, account), across processes. A send takes the next
++ * generation <dir>/slot-<chainId>-<from>.<gen>.slot by exclusive create, before it reads the pending nonce or asks the
++ * wallet anything; gen N+1 can only be created once gen N carries its .released marker, and no generation file is ever
++ * removed, so a late or repeated release only ever marks its own generation. The send's intent names the generation;
++ * it is released when that intent is decided (any command), or at the end of a send that recorded no intent. Nothing
++ * waits for a reservation and nothing takes one over: a holder that died before recording an intent is released by hand.
++ */
+ export function intentJournal(dir) {
+   if (!dir) throw new SignerError("state", "an external signer needs a journal directory (--state-dir)");
+   dir = path.resolve(dir);
+-  const ensure = () => fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+   const fileOf = (id) => { if (!ID_RE.test(String(id))) throw new SignerError("state", "not an intent id"); return path.join(dir, `${id}.json`); };
++  // never echo an unreadable file's content: it may hold signed bytes
++  const unreadable = (id, why) => new SignerError("state", `intent file ${id}.json in ${dir} is unreadable (${why}); it may hold an unresolved `
++    + `transaction, so nothing is sent from this journal until it is reviewed and restored, or set aside: enclave --independent … signer quarantine ${id}`, { unreadable: id, why });
+   function put(rec) {
+-    ensure();
+-    const f = fileOf(rec.id), tmp = `${f}.${process.pid}.tmp`;
+-    fs.writeFileSync(tmp, enc({ ...rec, updatedAt: Date.now() }) + "\n", { mode: 0o600 });
+-    fs.renameSync(tmp, f);
++    privateDir(dir);
++    replaceDurable(fileOf(rec.id), enc({ ...rec, updatedAt: Date.now() }) + "\n");
+     return rec;
+   }
+   function get(id) {
++    const f = fileOf(id);
+     let s;
+-    try { s = fs.readFileSync(fileOf(id), "utf8"); } catch (e) { if (e.code === "ENOENT") throw new SignerError("state", `no intent ${id}`); throw e; }
+-    const rec = dec(s);
+-    if (rec.format !== INTENT_FORMAT || rec.id !== id) throw new SignerError("state", `intent ${id} is not a signer intent`);
++    try { s = fs.readFileSync(f, "utf8"); } catch (e) { if (e.code === "ENOENT") throw new SignerError("state", `no intent ${id}`); throw unreadable(id, e.code || "read error"); }
++    let rec;
++    try { rec = dec(s); } catch { throw unreadable(id, `not JSON, ${s.length} bytes`); }
++    if (!rec || typeof rec !== "object" || rec.format !== INTENT_FORMAT || rec.id !== id) throw unreadable(id, "not a signer intent");
++    if (!isAddr(rec.from) || !Number.isSafeInteger(rec.chainId) || typeof rec.state !== "string") throw unreadable(id, "fields missing");
+     return rec;
+   }
+-  function list() {
+-    let names = [];
+-    try { names = fs.readdirSync(dir); } catch (e) { if (e.code !== "ENOENT") throw e; }
+-    return names.filter((n) => n.endsWith(".json") && ID_RE.test(n.slice(0, -5))).map((n) => { try { return get(n.slice(0, -5)); } catch { return null; } })
+-      .filter(Boolean).sort((a, b) => a.createdAt - b.createdAt);
++  /** Every intent file: the readable records, and the unreadable ones, which are never dropped silently. */
++  function scan() {
++    const records = [], problems = [];
++    for (const n of names()) {
++      if (!n.endsWith(".json") || !ID_RE.test(n.slice(0, -5))) continue;
++      try { records.push(get(n.slice(0, -5))); }
++      catch (e) { if (e.unreadable) problems.push({ id: e.unreadable, file: path.join(dir, n), why: e.why }); else if (!/^no intent /.test(e.message)) throw e; }
++    }
++    return { records: records.sort((a, b) => a.createdAt - b.createdAt), problems };
+   }
++  const list = () => scan().records;
++  const problems = () => scan().problems;
+   const create = (fields) => put({ format: INTENT_FORMAT, id: `tx-${Date.now().toString(36)}-${crypto.randomBytes(4).toString("hex")}`, createdAt: Date.now(), ...fields });
+-  const update = (id, fields) => put({ ...get(id), ...fields });
+-  const unresolved = (from, chainId) => list().filter((r) => isUnresolved(r) && r.from.toLowerCase() === from.toLowerCase() && r.chainId === Number(chainId));
+-  return { dir, put, get, list, create, update, unresolved };
++  function update(id, fields) {
++    const cur = get(id), next = { ...cur, ...fields };
++    // a decided intent never reopens: when another command decided it first (abandon, resolve), only facts are added
++    if (!isOpen(cur) && isOpen(next)) next.state = cur.state;
++    put(next);
++    // the decision is on disk; a release that fails here stays pending and the next reserve() completes it
++    if (!isOpen(next) && next.slot) try { settle(next.slot, next); } catch {}
++    return next;
++  }
++  const unresolved = (from, chainId) => {
++    const s = scan();
++    if (s.problems.length) throw new SignerError("state", `refusing to send: ${s.problems.length} intent file${s.problems.length === 1 ? "" : "s"} in ${dir} cannot be read `
++      + `(${s.problems[0].id}.json: ${s.problems[0].why}); one may hold an unresolved transaction from ${getAddress(from)}. Review it, then restore it or set it aside: `
++      + `enclave --independent … signer quarantine ${s.problems[0].id}`, { unreadable: s.problems.map((p) => p.id) });
++    return s.records.filter((r) => isOpen(r) && r.from.toLowerCase() === from.toLowerCase() && r.chainId === Number(chainId));
++  };
++
++  // ---- reservations ----
++  const names = () => { try { return fs.readdirSync(dir); } catch (e) { if (e.code !== "ENOENT") throw e; return []; } };
++  const SLOT_NAME = /^slot-(\d{1,16}-0x[0-9a-f]{40})\.(\d{8})\.(slot|released)$/;
++  function gens(acct) {
++    let top = 0, lastReleased = 0;
++    const released = new Set();
++    for (const n of names()) {
++      const [, a, g, ext] = SLOT_NAME.exec(n) || [];
++      if (a !== acct) continue;
++      if (ext === "slot") top = Math.max(top, Number(g)); else { released.add(Number(g)); lastReleased = Math.max(lastReleased, Number(g)); }
++    }
++    // a marker without its generation would pre-release a future one: refuse instead of guessing
++    if (lastReleased > top) throw new SignerError("state", `${dir} has a release marker for reservation ${acct}/${gen8(lastReleased)} but no such reservation; review it by hand`);
++    return { next: top + 1, open: top > 0 && !released.has(top) ? `${acct}/${gen8(top)}` : null };
++  }
++  const slotFile = (key, ext) => { const m = KEY_RE.exec(String(key)); return m ? path.join(dir, `slot-${m[1]}.${m[2]}.${ext}`) : null; };
++  function holder(key) {
++    try { const h = JSON.parse(fs.readFileSync(slotFile(key, "slot"), "utf8")); if (h?.format === SLOT_FORMAT) return { pid: h.pid, host: h.host, createdAt: h.createdAt }; } catch {}
++    return { unreadable: true };
++  }
++  const isReleased = (key) => fs.existsSync(slotFile(key, "released"));
++  function markReleased(key, info) {
++    const f = slotFile(key, "slot");
++    if (!f || !fs.existsSync(f)) return false;   // only a generation that exists
++    try { createExclusive(slotFile(key, "released"), JSON.stringify({ ...info, pid: process.pid, at: Date.now() }) + "\n"); }
++    catch (e) { if (e.code !== "EEXIST") throw e; }
++    return true;
++  }
++  /** Release `key` unless a readable open intent is still bound to it. */
++  function settle(key, rec = null) {
++    if (scan().records.some((r) => r.slot === key && isOpen(r))) return false;
++    return markReleased(key, rec ? { intent: rec.id, why: `intent ${rec.state}` } : { intent: null, why: "the send recorded no open intent" });
++  }
++  function busy(key, open) {
++    if (open) return new SignerError("busy", `refusing to send: intent ${open.id} (${open.state}, nonce ${open.nonce}) from ${getAddress(open.from)} is unresolved; `
++      + `${resolveHint(open.id)} first (or attach/abandon it)`, { intent: open.id, reservation: key });
++    const h = holder(key);
++    const who = h.unreadable ? "its holder stopped while taking it" : `process ${h.pid} on ${h.host}, since ${new Date(h.createdAt).toISOString()}`;
++    return new SignerError("busy", `refusing to send: another send from this account holds the signing reservation ${key} (${who}) and has recorded no intent yet. `
++      + `If no enclave command for this account is still running, it stopped before broadcasting anything or asking a wallet to broadcast `
++      + `(a signature it asked for was never journaled or sent): enclave --independent … signer release ${key}`, { reservation: key });
++  }
++  /** -> { key, assertHeld(), settle() }, or SignerError busy. Never waits, never takes over another holder's reservation. */
++  function reserve(from, chainId) {
++    const acct = `${Number(chainId)}-${String(from).toLowerCase()}`;
++    if (!ACCT_RE.test(acct)) throw new SignerError("state", "not an account to reserve");
++    for (let pass = 0; ; pass++) {
++      const g = gens(acct);
++      if (g.open) {
++        const s = scan(), bound = s.records.filter((r) => r.slot === g.open);
++        // its send recorded an intent and that intent is decided: only the release was lost (a crash) - finish it
++        if (pass === 0 && !s.problems.length && bound.length && !bound.some(isOpen)) { markReleased(g.open, { intent: bound[0].id, why: `completed later: intent ${bound[0].state}` }); continue; }
++        throw busy(g.open, bound.find(isOpen));
++      }
++      privateDir(dir);
++      const key = `${acct}/${gen8(g.next)}`;
++      try { createExclusive(slotFile(key, "slot"), JSON.stringify({ format: SLOT_FORMAT, key, pid: process.pid, host: os.hostname(), createdAt: Date.now() }) + "\n"); }
++      catch (e) { if (e.code === "EEXIST") throw busy(key, null); throw e; }
++      // assertHeld(rec) runs after the send records its intent and before that intent goes to the wallet or the RPCs: the
++      // holder writes its intent, then checks for a release; a hand release checks for an intent, then writes. So of a
++      // live holder and a send that follows a hand release, at most one goes on.
++      return { key, settle: () => settle(key),
++        assertHeld(rec = null) {
++          if (!isReleased(key)) return;
++          if (rec) update(rec.id, { state: "abandoned", abandonedFrom: rec.state, note: `reservation ${key} was released by hand first; nothing of this intent was sent` });
++          throw new SignerError("busy", `the signing reservation ${key} was released by hand while this send was in progress; it stops here and broadcasts nothing`, { reservation: key });
++        } };
++    }
++  }
++  /** Open reservations, for `signer list`. */
++  function reservations() {
++    const accts = new Set(names().map((n) => SLOT_NAME.exec(n)?.[1]).filter(Boolean));
++    const out = [], records = scan().records;
++    for (const a of [...accts].sort()) {
++      let g;
++      try { g = gens(a); } catch (e) { out.push({ key: `${a}/?`, error: e.message }); continue; }
++      if (!g.open) continue;
++      const bound = records.filter((r) => r.slot === g.open);
++      out.push({ key: g.open, intent: bound.find(isOpen)?.id || null, decided: bound.length && !bound.some(isOpen) ? bound[0].id : null, ...holder(g.open) });
++    }
++    return out;
++  }
++  /** `signer release <key>`: the explicit end of a reservation whose holder recorded no open intent (a stopped process). */
++  function releaseReservation(key) {
++    const f = slotFile(key, "slot");
++    if (!f) throw new SignerError("state", "not a reservation (<chainId>-<0xaddress>/<8 digits>, as signer list prints it)");
++    if (!fs.existsSync(f)) throw new SignerError("state", `no reservation ${key}`);
++    if (isReleased(key)) throw new SignerError("state", `reservation ${key} is already released`);
++    const s = scan();
++    if (s.problems.length) throw new SignerError("state", `intent file ${s.problems[0].id}.json is unreadable and may belong to ${key}: review it (signer quarantine ${s.problems[0].id}) first`);
++    const open = s.records.find((r) => r.slot === key && isOpen(r));
++    if (open) throw new SignerError("state", `intent ${open.id} (${open.state}, nonce ${open.nonce}) holds ${key}: resolve, attach or abandon it instead`, { intent: open.id });
++    const h = holder(key);
++    markReleased(key, { intent: null, why: "released by hand" });
++    return { key, holder: h, warning: `if ${h.unreadable ? "its holder" : `process ${h.pid} on ${h.host}`} is in fact still running, it stops before it broadcasts `
++      + "or asks the wallet to; a signature it may have asked for was never journaled or sent. Unless an intent file of it was set aside with "
++      + "quarantine, nothing of it is pending, and the next send takes the quorum's pending nonce" };
++  }
++  /** `signer quarantine <id>`: set an UNREADABLE intent file aside (kept, private) after review. Readable ones are settled. */
++  function quarantine(id) {
++    const f = fileOf(id);
++    try { const rec = get(id); throw new SignerError("state", `intent ${id} is readable (${rec.state}): settle it with resolve, attach or abandon; quarantine is for unreadable files`); }
++    catch (e) { if (!e.unreadable) throw e; }
++    const to = `${f}.quarantined-${Date.now()}`;
++    fs.renameSync(f, to);
++    syncDir(dir);
++    return { id, file: to, warning: "if it held an unresolved transaction, a wallet may still send it; the next send from that account takes the quorum's "
++      + "pending nonce, so at most one of them can be mined. A reservation it held stays until signer release" };
++  }
++  return { dir, put, get, list, problems, create, update, unresolved, reserve, reservations, releaseReservation, quarantine };
+ }
+ const wantOf = (r) => ({ type: "eip1559", chainId: r.chainId, nonce: Number(r.nonce), to: getAddress(r.to), value: BigInt(r.value), data: r.data,
+   gas: BigInt(r.gas), maxFeePerGas: BigInt(r.maxFeePerGas), maxPriorityFeePerGas: BigInt(r.maxPriorityFeePerGas) });
+@@ -353,6 +537,12 @@
+   catch (e) { if (e.mined) return { state: journal.get(id).state, error: e.message, intent: journal.get(id) }; throw e; }
+ }
+ 
++async function decidedReceipt(chain, rec) {
++  const s = await lookHash(chain, rec);
++  if (!s.value.receipt) throw new SignerError("state", `intent ${rec.id} is recorded confirmed, but the quorum shows no receipt for ${rec.hash} at block ${s.blockNumber}`, { intent: rec.id });
++  return { ...s.value.receipt, agreedBlock: s.blockNumber, agreeing: s.agreeing, intent: rec.id, adjusted: rec.adjusted || [] };
++}
++
+ /** Wait for an intent with a hash to be mined and agreed: the receipt (sendQuorumTx-shaped) or throws. */
+ export async function confirmIntent(chain, journal, id, { timeoutMs = 180000, pollMs = 1000, now = Date.now, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+   const deadline = now() + timeoutMs;
+@@ -360,7 +550,9 @@
+   for (;;) {
+     try {
+       const r = await resolveIntent(chain, journal, id);
+-      if (r.state === "confirmed") return r.receipt;
++      if (r.state === "confirmed") return r.receipt || await decidedReceipt(chain, r.intent);   // another command may have confirmed it
++      if (!isOpen(r.intent) && !r.error && r.state !== "replaced")
++        throw new SignerError("state", `intent ${id} was ${r.state} meanwhile by another command; see signer show ${id}`, { intent: id, decided: true });
+       if (r.state === "replaced") throw new SignerError("replaced", `intent ${id}: ${r.note}`, { intent: id, definite: true });
+       if (r.error) throw Object.assign(new SignerError(r.state === "mismatch" ? "mismatch" : "state", r.error), { mined: true, intent: id });
+       last = r.pending ? "not yet mined in a confirmed block" : r.note || r.state;
+@@ -468,13 +660,13 @@
+   }
+ 
+   function assertFree() {
+-    const open = journal.unresolved(address, chainId);
++    const open = journal.unresolved(address, chainId);   // open intents of this account; throws while any intent file is unreadable
+     if (open.length) throw new SignerError("busy", `refusing to send: intent ${open[0].id} (${open[0].state}, nonce ${open[0].nonce}) from ${address} is unresolved; `
+       + `${resolveHint(open[0].id)} first (or attach/abandon it)`, { intent: open[0].id });
+   }
+   const record = (pre, extra) => journal.create({ from: address, chainId, to: getAddress(extra.to), data: String(extra.data || "0x").toLowerCase(),
+     value: BigInt(extra.value || 0n), nonce: pre.nonce, gas: pre.gas, maxFeePerGas: pre.maxFeePerGas, maxPriorityFeePerGas: pre.maxPriorityFeePerGas,
+-    capWei: pre.capWei, gasCap: BigInt(extra.gasCap ?? 15_000_000n), startBlock: pre.startBlock, feePolicy, signer: label, mode: extra.mode, state: extra.state, hash: null });
++    capWei: pre.capWei, gasCap: BigInt(extra.gasCap ?? 15_000_000n), startBlock: pre.startBlock, feePolicy, signer: label, mode: extra.mode, state: extra.state, hash: null, slot: extra.slot.key });
+   const sendParams = (rec) => ({ from: address, to: rec.to, value: hex(rec.value), data: rec.data, nonce: hex(rec.nonce), gas: hex(rec.gas),
+     maxFeePerGas: hex(rec.maxFeePerGas), maxPriorityFeePerGas: hex(rec.maxPriorityFeePerGas), chainId: hex(chainId), type: "0x2" });
+ 
+@@ -483,6 +675,7 @@
+     await probe();
+     await walletChain();
+     const rec = record(pre, { ...o, mode: "wallet-send", state: "requested" });
++    o.slot.assertHeld(rec);
+     log(`asking ${label} to SEND nonce ${rec.nonce} to ${rec.to} itself (intent ${rec.id}; approve it in the wallet)`);
+     let hash;
+     try { hash = await rpc.call("eth_sendTransaction", [sendParams(rec)], { timeoutMs: approvalTimeoutMs }); }
+@@ -503,6 +696,7 @@
+   async function handoff(chain, o) {
+     const pre = await preflight(chain, { from: address, ...o });
+     const rec = record(pre, { ...o, mode: "handoff", state: "handoff" });
++    o.slot.assertHeld(rec);
+     const params = sendParams(rec);
+     if (onHandoff) return onHandoff(rec, params);
+     throw new SignerError("handoff", `send this exact transaction from ${address} with your own wallet, then run: enclave --independent … signer attach ${rec.id} <0xhash>\n`
+@@ -516,15 +710,29 @@
+     const note = (m) => { log(m); if (l !== log) l(m); };
+     if (chain.chainId !== chainId) throw new SignerError("chain", `the signer is configured for chain ${chainId}, the quorum is chain ${chain.chainId}`);
+     assertFree();
+-    const o = { to, data, value, maxFeeGwei, gasCap, timeoutMs, pollMs };
++    // one send in flight per journal and account, across processes: reserved before the pending nonce is read or the
++    // wallet is asked anything, held while this send's intent is open, released once it is decided (by any command)
++    const slot = journal.reserve(address, chainId);
++    try {
++      assertFree();   // again under the reservation
++      return await sendReserved(chain, { to, data, value, maxFeeGwei, gasCap, timeoutMs, pollMs, slot }, note, l);
++    } finally {
++      try { slot.settle(); } catch (e) { log(`could not release reservation ${slot.key} (${clip(e.message)}); sends from ${address} stay refused until: signer release ${slot.key}`); }
++    }
++  }
++  async function sendReserved(chain, o, note, l) {
++    const { to, data, value, maxFeeGwei, gasCap, timeoutMs, pollMs, slot } = o;
+     if (mode === "handoff") return handoff(chain, o);
+     if (mode === "wallet-send") return walletSend(chain, o);
+     let rec = null;
+     const signing = { address, signTransaction: async (tx) => {
++      slot.assertHeld();
+       const raw = await signTransaction(tx);
+       const t = intendedTx(tx, chainId);
+-      rec = journal.create({ from: address, chainId, to: t.to, data: t.data, value: t.value, nonce: t.nonce, gas: t.gas, maxFeePerGas: t.maxFeePerGas,
+-        maxPriorityFeePerGas: t.maxPriorityFeePerGas, startBlock: chain.lastBlock ?? 0n, signer: label, mode: "sign", state: "signed", raw, hash: keccak256(raw) });
++      const r = journal.create({ from: address, chainId, to: t.to, data: t.data, value: t.value, nonce: t.nonce, gas: t.gas, maxFeePerGas: t.maxFeePerGas,
++        maxPriorityFeePerGas: t.maxPriorityFeePerGas, startBlock: chain.lastBlock ?? 0n, signer: label, mode: "sign", state: "signed", raw, hash: keccak256(raw), slot: slot.key });
++      slot.assertHeld(r);
++      rec = r;
+       note(`${label} signed ${rec.hash} (intent ${rec.id}); every field checked, broadcasting these bytes through the quorum`);
+       return raw;
+     } };
+@@ -576,10 +784,11 @@
+   return confirmIntent(chain, journal, id, opts);
+ }
+ 
+-/** Close an unresolved intent by hand. The wallet might still send it; the next send reuses its nonce, so at most one mines. */
++/** Close an unresolved intent by hand. The wallet might still send it; the next send reuses its nonce, so at most one mines.
++ *  Its reservation is released with it. */
+ export function abandonIntent(journal, id) {
+   const rec = journal.get(id);
+-  if (!isUnresolved(rec)) throw new SignerError("state", `intent ${id} is ${rec.state}`);
++  if (!isOpen(rec)) throw new SignerError("state", `intent ${id} is ${rec.state}`);
+   journal.update(id, { state: "abandoned", abandonedFrom: rec.state });
+   return { id, nonce: rec.nonce, warning: `if a wallet still holds ${rec.hash || `the request for nonce ${rec.nonce}`}, it may yet be mined; `
+     + `the next transaction from ${rec.from} reuses nonce ${rec.nonce}, so at most one of them can be` };
+@@ -591,7 +800,8 @@
+   const journal = ctx.signer?.journal || ctx.journal;
+   const out = (o, text) => (json ? jout(o) : say(text));
+   const show = (r) => `${r.id}  ${r.state}  ${r.mode}  nonce ${r.nonce}  to ${r.to}${r.hash ? `  ${r.hash}` : ""}`;
+-  const usage = "usage: enclave --independent … signer probe | list | show <id> | resolve <id> | attach <id> <0xhash> | rebroadcast <id> | abandon <id>";
++  const usage = "usage: enclave --independent … signer probe | list | show <id> | resolve <id> | attach <id> <0xhash> | rebroadcast <id> | abandon <id> "
++    + "| release <reservation> | quarantine <id>";
+   const id = rest[0];
+   if (sub === "probe") {
+     if (!ctx.signer) throw new SignerError("state", "signer probe needs --signer URL --from 0x…");
+@@ -599,12 +809,22 @@
+     return out(p, `${p.label}: ${p.protocol === "clef" ? "Clef (account_* API)" : "EIP-1193 JSON-RPC"}; offers ${p.address}${p.walletChainId ? `; wallet chain ${p.walletChainId}` : ""}. `
+       + "Whether it signs without broadcasting is learned at the first transaction (nothing is signed by a probe).");
+   }
+-  if (sub === "list") { const l = journal.list(); return out({ intents: l.map(({ raw, ...r }) => r) }, l.length ? l.map(show).join("\n") : "no signer intents"); }
++  if (sub === "list") {
++    const l = journal.list(), held = journal.reservations(), bad = journal.problems();
++    const text = [...l.map(show),
++      ...held.map((h) => `reservation ${h.key}  ${h.error ? `UNREADABLE: ${h.error}` : h.intent ? `held by intent ${h.intent}`
++        : h.decided ? `intent ${h.decided} is decided; the next send completes the release`
++        : `held with no intent recorded (${h.unreadable ? "holder unreadable" : `process ${h.pid} on ${h.host}`}); if that process is gone: signer release ${h.key}`}`),
++      ...bad.map((p) => `UNREADABLE ${p.id}.json (${p.why}): every send from this journal is refused; review it, then restore it or: signer quarantine ${p.id}`)];
++    return out({ intents: l.map(({ raw, ...r }) => r), reservations: held, unreadable: bad.map(({ id: i, why }) => ({ id: i, why })) }, text.length ? text.join("\n") : "no signer intents");
++  }
+   if (!id && sub !== undefined) throw new SignerError("state", usage);
+   if (sub === "show") { const { raw, ...r } = journal.get(id); return out(r, Object.entries(r).map(([k, v]) => `${k.padEnd(22)} ${typeof v === "object" ? JSON.stringify(v, (_k, x) => typeof x === "bigint" ? String(x) : x) : String(v)}`).join("\n")); }
+   if (sub === "resolve") { const r = await resolveIntent(ctx.chain, journal, id); const { raw, ...i } = r.intent; return out({ ...r, intent: i }, `${show(i)}${r.note ? `\n${r.note}` : ""}${r.error ? `\n${r.error}` : ""}`); }
+   if (sub === "attach") { const r = await attachHash(ctx.chain, journal, id, rest[1], ctx.waitOpts); return out(r, `confirmed: ${r.transactionHash} in block ${r.blockNumber}, by ${r.agreeing} RPCs${r.adjusted?.length ? ` (the wallet changed ${r.adjusted.join(", ")})` : ""}`); }
+   if (sub === "rebroadcast") { const r = await rebroadcast(ctx.chain, journal, id, ctx.waitOpts); return out(r, `confirmed: ${r.transactionHash} in block ${r.blockNumber}, by ${r.agreeing} RPCs`); }
+   if (sub === "abandon") { const r = abandonIntent(journal, id); return out(r, `intent ${id} abandoned. ${r.warning}`); }
++  if (sub === "release") { const r = journal.releaseReservation(id); return out(r, `reservation ${id} released. ${r.warning}`); }
++  if (sub === "quarantine") { const r = journal.quarantine(id); return out(r, `intent file ${id}.json set aside as ${r.file}. ${r.warning}`); }
+   throw new SignerError("state", usage);
+ }
+diff -ruN a/test/cli-independent-signer-durability.test.mjs b/test/cli-independent-signer-durability.test.mjs
+--- a/test/cli-independent-signer-durability.test.mjs	1969-12-31 17:00:00.000000000 -0700
++++ b/test/cli-independent-signer-durability.test.mjs	2026-10-19 23:42:59.229311373 -0700
+@@ -0,0 +1,476 @@
++// cli/independent-signer.mjs: durable intent writes, the cross-process signing reservation, and recovery after real
++// crashes. Crashes are SIGKILLs of a separate process (helpers/signer-child.mjs) at exact points: before any wallet
++// request, during the wallet's answer, after the signed bytes are journaled, after publication, between an intent's tmp
++// write and its rename, and between an intent's decision and its reservation's release. The chain is a real anvil read
++// through QuorumChain; wallets are fixtures in front of it or of a published dev key (127.0.0.1 only).
++//   run: node --test --test-concurrency=1 test/cli-independent-signer-durability.test.mjs
++import test, { before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import { spawnSync } from "node:child_process";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { createPublicClient, http as viemHttp } from "viem";
++import { foundry } from "viem/chains";
++import { QuorumChain } from "../cli/independent.mjs";
++import { createExternalSigner, intentJournal, resolveIntent, rebroadcast, abandonIntent, confirmIntent, signerCommand } from "../cli/independent-signer.mjs";
++import { A0, SINK, WAIT, HANG, tools, anvil, call, walletServer, forward, keyWallet, gatedChain, until, child, tmpRoot, cleanup } from "./helpers/signer-harness.mjs";
++
++const TREE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const MOD = pathToFileURL(path.join(TREE, "cli/independent-signer.mjs")).href;
++const T = tools ? { skip: tools } : { timeout: 120000 };
++const POSIX = process.platform !== "win32";
++
++let chainRpc, pc, chain, tmp, n = 0;
++const jdir = () => path.join(tmp, `journal-${++n}`);
++const nonceOf = () => pc.getTransactionCount({ address: A0.address });
++before(async () => {
++  if (tools) return;
++  ({ url: chainRpc, c: pc } = await anvil());
++  await pc.request({ method: "anvil_setCode", params: [SINK, "0x00"] });
++  const c = () => createPublicClient({ chain: foundry, transport: viemHttp(chainRpc) });
++  chain = new QuorumChain({ clients: [{ origin: chainRpc + "/a", client: c() }, { origin: chainRpc + "/b", client: c() }], quorum: 2, confirmations: 0, maxBlockAgeMs: 600000, chainId: 31337 });
++  tmp = tmpRoot("signer-durability-");
++});
++after(() => cleanup(tmp));
++
++const signer = (url, o = {}) => createExternalSigner({ url, from: A0.address, chainId: 31337, approvalTimeoutMs: 5000, probeTimeoutMs: 2000, ...o });
++/** A broadcast-only wallet in front of the chain node (anvil's unlocked dev account): onSend(msg) decides each eth_sendTransaction. */
++const sendOnly = (onSend = (m) => forward(chainRpc)(m)) => walletServer((m) => m.method === "eth_signTransaction" ? { error: { code: -32601, message: "Method not found" } }
++  : m.method === "eth_sendTransaction" ? onSend(m) : forward(chainRpc)(m));
++const kid = (cfg) => child({ tree: TREE, chainRpc, from: A0.address, to: SINK, data: "0x5a", ...cfg });
++async function crashed(k) { const x = await k.exited; assert.equal(x.signal, "SIGKILL", `the child was killed (exit ${JSON.stringify(x)}; ${k.stderr().slice(0, 300)})`); }
++const text = async (sub, rest, journal) => { const lines = []; await signerCommand(sub, rest, { chain, journal, say: (l) => lines.push(l), jout: (o) => lines.push(o), json: false, waitOpts: WAIT }); return lines.join("\n"); };
++const files = (dir) => fs.readdirSync(dir).sort();
++
++// ---- durable writes -------------------------------------------------------------------------------------------------
++
++/** Every fs call made while fn runs, with the path behind each descriptor. */
++function spyFs(fn) {
++  const names = ["openSync", "writeSync", "fsyncSync", "closeSync", "renameSync"], orig = Object.fromEntries(names.map((k) => [k, fs[k]]));
++  const fds = new Map(), ev = [];
++  fs.openSync = (p, flags, mode) => { const fd = orig.openSync(p, flags, mode); fds.set(fd, String(p)); ev.push({ op: "open", p: String(p), flags, mode }); return fd; };
++  fs.writeSync = (fd, ...a) => { ev.push({ op: "write", p: fds.get(fd) }); return orig.writeSync(fd, ...a); };
++  fs.fsyncSync = (fd) => { ev.push({ op: "fsync", p: fds.get(fd) }); return orig.fsyncSync(fd); };
++  fs.closeSync = (fd) => { ev.push({ op: "close", p: fds.get(fd) }); return orig.closeSync(fd); };
++  fs.renameSync = (a, b) => { ev.push({ op: "rename", p: String(b), from: String(a) }); return orig.renameSync(a, b); };
++  try { fn(); } finally { Object.assign(fs, orig); }
++  return ev;
++}
++const at = (ev, pred, from = 0, what = "event") => { const i = ev.findIndex((e, j) => j >= from && pred(e)); assert.ok(i >= 0, `${what} not found in ${JSON.stringify(ev.slice(from).map((e) => `${e.op} ${path.basename(e.p || "")}`))}`); return i; };
++/** tmp opened exclusively 0600 -> written -> flushed -> closed -> renamed onto `file` -> the directory flushed. */
++function assertReplaced(ev, file) {
++  const r = at(ev, (e) => e.op === "rename" && e.p === file, 0, `rename onto ${path.basename(file)}`), tmpf = ev[r].from;
++  const o = at(ev, (e) => e.op === "open" && e.p === tmpf, 0, "tmp open");
++  assert.equal(ev[o].flags, "wx"); assert.equal(ev[o].mode, 0o600);
++  const w = at(ev, (e) => e.op === "write" && e.p === tmpf, o, "tmp write"), s = at(ev, (e) => e.op === "fsync" && e.p === tmpf, w, "tmp fsync"), c = at(ev, (e) => e.op === "close" && e.p === tmpf, s, "tmp close");
++  assert.ok(c < r, "flushed and closed before the rename");
++  const d = at(ev, (e) => e.op === "open" && e.p === path.dirname(file), r, "directory open after the rename");
++  at(ev, (e) => e.op === "fsync" && e.p === path.dirname(file), d, "directory fsync after the rename");
++}
++/** created exclusively 0600 -> written -> flushed -> closed -> the directory flushed. */
++function assertCreated(ev, file) {
++  const o = at(ev, (e) => e.op === "open" && e.p === file, 0, `create ${path.basename(file)}`);
++  assert.equal(ev[o].flags, "wx"); assert.equal(ev[o].mode, 0o600);
++  const s = at(ev, (e) => e.op === "fsync" && e.p === file, o, "fsync"), c = at(ev, (e) => e.op === "close" && e.p === file, s, "close");
++  at(ev, (e) => e.op === "fsync" && e.p === path.dirname(file), c, "directory fsync after the create");
++}
++
++test("durable writes: intents are flushed before they are renamed into place and the directory after; reservations are created exclusively and flushed", { skip: !POSIX && "POSIX order" }, () => {
++  const dir = jdir(), j = intentJournal(dir);
++  let rec, slot;
++  const ev = spyFs(() => {
++    slot = j.reserve(A0.address, 31337);
++    rec = j.create({ from: A0.address, chainId: 31337, nonce: 0, state: "handoff", slot: slot.key });
++    j.update(rec.id, { state: "abandoned" });   // decided: releases the reservation
++  });
++  const f = path.join(dir, `${rec.id}.json`), slotf = path.join(dir, `slot-31337-${A0.address.toLowerCase()}.00000001.slot`);
++  assertCreated(ev, slotf);
++  assertReplaced(ev, f);
++  assertReplaced(ev.slice(ev.findIndex((e) => e.op === "rename" && e.p === f) + 1), f);   // the update, too
++  assertCreated(ev, slotf.replace(/\.slot$/, ".released"));
++  assert.ok(ev.findIndex((e) => e.op === "open" && e.p.endsWith(".released")) > ev.findLastIndex((e) => e.op === "rename" && e.p === f), "released only after the decision is on disk");
++  assert.deepEqual(files(dir).filter((x) => x.endsWith(".tmp")), [], "no tmp file left");
++});
++
++test("a filesystem that refuses directory fsync (EINVAL) still works; any other flush error fails the write before it is reported", { skip: !POSIX && "POSIX" }, () => {
++  const dir = jdir(), j = intentJournal(dir), orig = { openSync: fs.openSync, fsyncSync: fs.fsyncSync };
++  const dirFds = new Set();
++  const fail = (code) => {
++    fs.openSync = (p, ...a) => { const fd = orig.openSync(p, ...a); if (String(p) === dir) dirFds.add(fd); else dirFds.delete(fd); return fd; };
++    fs.fsyncSync = (fd) => { if (dirFds.has(fd)) throw Object.assign(new Error(code), { code }); return orig.fsyncSync(fd); };
++  };
++  fs.mkdirSync(dir, { recursive: true });
++  try {
++    fail("EINVAL");
++    const r = j.create({ from: A0.address, chainId: 31337, nonce: 0, state: "handoff" });
++    assert.equal(j.get(r.id).state, "handoff");
++    fail("EIO");
++    assert.throws(() => j.create({ from: A0.address, chainId: 31337, nonce: 1, state: "handoff" }), /EIO/);
++  } finally { Object.assign(fs, orig); }
++});
++
++test("durable writes, Windows branch (process.platform win32 in a child): the renamed file is flushed again; no directory handle is opened", () => {
++  const dir = jdir();
++  const script = `Object.defineProperty(process, "platform", { value: "win32" });
++    const fs = (await import("node:fs")).default; const ev = [], fds = new Map(), o = { ...fs };
++    fs.openSync = (p, f, m) => { const fd = o.openSync(p, f, m); fds.set(fd, String(p)); ev.push(["open", String(p), f]); return fd; };
++    fs.fsyncSync = (fd) => { ev.push(["fsync", fds.get(fd)]); return o.fsyncSync(fd); };
++    fs.renameSync = (a, b) => { ev.push(["rename", String(b)]); return o.renameSync(a, b); };
++    const S = await import(${JSON.stringify(MOD)}); const j = S.intentJournal(${JSON.stringify(dir)});
++    const r = j.create({ from: "${A0.address}", chainId: 31337, nonce: 0, state: "handoff" });
++    console.log(JSON.stringify({ ev, id: r.id }));`;
++  const out = spawnSync(process.execPath, ["--input-type=module", "-e", script], { cwd: TREE, encoding: "utf8" });
++  assert.equal(out.status, 0, out.stderr);
++  const { ev, id } = JSON.parse(out.stdout.trim().split("\n").at(-1));
++  const f = path.join(dir, `${id}.json`), r = ev.findIndex((e) => e[0] === "rename" && e[1] === f);
++  assert.ok(r > 0 && ev.slice(0, r).some((e) => e[0] === "fsync" && e[1] !== f), "the tmp file is flushed before the rename");
++  assert.deepEqual(ev.slice(r + 1, r + 3), [["open", f, "r+"], ["fsync", f]]);
++  assert.ok(!ev.some((e) => e[0] === "open" && e[1] === dir), "no directory handle (Node cannot flush one on Windows)");
++});
++
++test("private files: the journal directory is tightened to 0700, every intent and reservation file is 0600, signed bytes never printed", { ...T, skip: T.skip || (!POSIX && "POSIX modes") }, async () => {
++  const dir = jdir();
++  fs.mkdirSync(dir, { mode: 0o755 }); fs.chmodSync(dir, 0o755);
++  const w = await walletServer(keyWallet());
++  const s = signer(w.url, { mode: "sign", journalDir: dir });
++  const r = await s.sendQuorumTx(chain, { to: SINK, data: "0x01", ...WAIT });
++  assert.equal(fs.statSync(dir).mode & 0o777, 0o700);
++  for (const f of files(dir)) assert.equal(fs.statSync(path.join(dir, f)).mode & 0o777, 0o600, f);
++  assert.deepEqual(files(dir).filter((f) => !f.endsWith(".json")).map((f) => f.replace(/0x[0-9a-f]{40}/, "A")), ["slot-31337-A.00000001.released", "slot-31337-A.00000001.slot"]);
++  const raw = s.journal.get(r.intent).raw;
++  assert.match(raw, /^0x02/);
++  const shown = (await text("list", [], s.journal)) + (await text("show", [r.intent], s.journal));
++  assert.ok(!shown.includes(raw.slice(2, 40)), "list and show never print the signed bytes");
++  for (const f of files(dir).filter((x) => !x.endsWith(".json"))) assert.ok(!fs.readFileSync(path.join(dir, f), "utf8").includes(raw.slice(2, 40)));
++});
++
++// ---- reservations ---------------------------------------------------------------------------------------------------
++
++test("reservation lifecycle: held while the intent is open, released when it is decided by any command; generations are never reused", T, async () => {
++  const dir = jdir(), handed = [];
++  const h = createExternalSigner({ from: A0.address, chainId: 31337, mode: "handoff", journalDir: dir, onHandoff: (rec, params) => { handed.push({ rec, params }); return { handoff: rec.id }; } });
++  await h.sendQuorumTx(chain, { to: SINK, data: "0x3a", ...WAIT });
++  const key = `31337-${A0.address.toLowerCase()}/00000001`;
++  assert.deepEqual(h.journal.reservations().map((x) => [x.key, x.intent]), [[key, handed[0].rec.id]]);
++  const e = await h.sendQuorumTx(chain, { to: SINK, ...WAIT }).catch((x) => x);
++  assert.equal(e.code, "busy"); assert.equal(e.intent, handed[0].rec.id);
++  assert.throws(() => h.journal.releaseReservation(key), /holds .*abandon it instead/);
++  abandonIntent(h.journal, handed[0].rec.id);
++  assert.deepEqual(h.journal.reservations(), []);
++  assert.throws(() => h.journal.releaseReservation(key), /already released/);
++  await h.sendQuorumTx(chain, { to: SINK, data: "0x3b", ...WAIT });
++  assert.equal(h.journal.get(handed[1].rec.id).slot, key.replace(/1$/, "2"), "the next send takes the NEXT generation");
++  // a late or repeated release of generation 1 cannot touch generation 2
++  assert.equal(h.journal.update(handed[0].rec.id, { note: "late write" }).state, "abandoned");
++  assert.equal(h.journal.reservations()[0].key, key.replace(/1$/, "2"));
++  // a sign-only refusal (nothing recorded) releases at once
++  const deny = await walletServer((m) => m.method === "eth_signTransaction" ? { error: { code: 4001, message: "User rejected" } } : keyWallet()(m));
++  const d = signer(deny.url, { journalDir: jdir() });
++  assert.equal((await d.sendQuorumTx(chain, { to: SINK, ...WAIT }).catch((x) => x)).code, "rejected");
++  assert.deepEqual(d.journal.reservations(), []);
++  // a stray release marker for a generation that does not exist is refused, never trusted
++  const stray = intentJournal(jdir());
++  fs.mkdirSync(stray.dir, { recursive: true });
++  fs.writeFileSync(path.join(stray.dir, `slot-31337-${A0.address.toLowerCase()}.00000001.released`), "{}\n", { mode: 0o600 });
++  assert.throws(() => stray.reserve(A0.address, 31337), /release marker for reservation .*00000001 but no such reservation/);
++  assert.match(stray.reservations()[0].error, /no such reservation/);
++});
++
++test("a hand release racing a LIVE holder: the holder records its intent, sees the release, and stops; the wallet is asked once", T, async () => {
++  const w = await sendOnly();
++  const dir = jdir(), before = await nonceOf();
++  let go, arrived = false;
++  const gate = new Promise((r) => (go = r));
++  const holder = signer(w.url, { mode: "wallet-send", journalDir: dir });
++  const run = holder.sendQuorumTx(gatedChain(chain, async () => { arrived = true; await gate; }), { to: SINK, data: "0xa1", ...WAIT }).catch((x) => x);
++  await until(() => arrived);
++  const [held] = holder.journal.reservations();
++  assert.equal(held.intent, null); assert.equal(held.pid, process.pid);
++  holder.journal.releaseReservation(held.key);                         // the user's mistake: the holder is alive
++  const other = await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, data: "0xa2", ...WAIT });
++  assert.equal(other.status, "success");
++  go();
++  const e = await run;
++  assert.equal(e.code, "busy"); assert.match(e.message, /released by hand/);
++  assert.equal(w.count("eth_sendTransaction"), 1, "only the later send asked the wallet");
++  const stopped = holder.journal.list().find((r) => r.slot === held.key);
++  assert.equal(stopped.state, "abandoned"); assert.match(stopped.note, /nothing of this intent was sent/);
++  assert.equal(await nonceOf(), before + 1);
++});
++
++const marker = (dir, key) => path.join(dir, `slot-${key.replace("/", ".")}.released`);
++
++test("hand release vs a holder in ANOTHER process paused before its nonce read: the holder records its intent, sees the release, stops", T, async () => {
++  const w = await sendOnly(), dir = jdir(), before = await nonceOf();
++  const k = kid({ url: w.url, mode: "wallet-send", journalDir: dir, gate: true });
++  await k.wait("READY"); k.send("START"); await k.wait("ARRIVED");
++  const j = intentJournal(dir), [held] = j.reservations();
++  assert.equal(held.pid, k.p.pid);
++  j.releaseReservation(held.key);
++  assert.equal((await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT })).status, "success");
++  k.send("GO");
++  await k.wait("RESULT", 30000);
++  assert.equal(k.result().code, "busy"); assert.match(k.result().message, /released by hand/);
++  assert.equal(w.count("eth_sendTransaction"), 1, "only the later send asked the wallet");
++  assert.equal(j.list().find((r) => r.slot === held.key).state, "abandoned");
++  assert.equal(await nonceOf(), before + 1);
++});
++
++test("a release written AFTER a holder in another process recorded its intent (a stale hand release) lets no second send through", T, async () => {
++  let asked = false, answer;
++  const w = await sendOnly(async (m) => { asked = true; await new Promise((r) => (answer = r)); return forward(chainRpc)(m); });
++  const dir = jdir(), before = await nonceOf();
++  const k = kid({ url: w.url, mode: "wallet-send", journalDir: dir });
++  await k.wait("READY"); k.send("START");
++  await until(() => asked);                                     // the holder is inside eth_sendTransaction
++  const j = intentJournal(dir), [rec] = j.list();
++  assert.equal(rec.state, "requested");
++  assert.throws(() => j.releaseReservation(rec.slot), /abandon it instead/);
++  fs.writeFileSync(marker(dir, rec.slot), "{}\n", { mode: 0o600 });   // what a release that checked BEFORE the intent existed would write
++  const e = await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT }).catch((x) => x);
++  assert.equal(e.code, "busy"); assert.equal(e.intent, rec.id);
++  answer();
++  await k.wait("RESULT", 30000);
++  assert.equal(k.result().ok, true, JSON.stringify(k.result()));
++  assert.equal(w.count("eth_sendTransaction"), 1, "the second send never reached the wallet");
++  assert.equal(await nonceOf(), before + 1);
++});
++
++test("a holder killed between its intent write and its release check, then released anyway: still refused until the intent is settled", T, async () => {
++  const w = await sendOnly(), dir = jdir();
++  const k = kid({ url: w.url, mode: "wallet-send", journalDir: dir, crashAt: "after-intent" });
++  await k.wait("READY"); k.send("START");
++  await crashed(k);
++  assert.equal(w.count("eth_sendTransaction"), 0);
++  const j = intentJournal(dir), [rec] = j.list();
++  assert.equal(rec.state, "requested");
++  assert.throws(() => j.releaseReservation(rec.slot), /abandon it instead/);
++  fs.writeFileSync(marker(dir, rec.slot), "{}\n", { mode: 0o600 });
++  const e = await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT }).catch((x) => x);
++  assert.equal(e.code, "busy"); assert.equal(e.intent, rec.id);
++  assert.equal(w.count("eth_sendTransaction"), 0);
++  abandonIntent(j, rec.id);
++  const r = await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT });
++  assert.equal(Number((await pc.getTransaction({ hash: r.transactionHash })).nonce), rec.nonce, "the abandoned nonce, used once");
++  assert.equal(w.count("eth_sendTransaction"), 1);
++});
++
++test("an intent recorded between a send's first check and its reservation (another process, an older CLI) is caught by the recheck", T, async () => {
++  const w = await sendOnly(), dir = jdir(), other = intentJournal(dir), orig = fs.openSync;
++  let planted = null;
++  fs.openSync = (p, ...a) => {   // exactly when this send creates its reservation file, another writer records an open intent
++    if (!planted && String(p).endsWith(".00000001.slot")) planted = other.create({ from: A0.address, chainId: 31337, nonce: 0, to: SINK, state: "requested", mode: "wallet-send" });
++    return orig(p, ...a);
++  };
++  let e;
++  try { e = await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT }).catch((x) => x); }
++  finally { fs.openSync = orig; }
++  assert.ok(planted);
++  assert.equal(e.code, "busy"); assert.equal(e.intent, planted.id);
++  assert.equal(w.calls.length, 0, "the wallet is not contacted");
++  assert.deepEqual(other.reservations(), [], "its own reservation, which recorded nothing, is released");
++});
++
++// ---- crashes (SIGKILL of a separate process) ---------------------------------------------------------------------------
++
++async function recoverByRelease(dir, w, pid) {
++  const j = intentJournal(dir);
++  const [held] = j.reservations();
++  assert.equal(held.intent, null); assert.equal(held.pid, pid, "the dead holder is named");
++  assert.match(await text("list", [], j), /held with no intent recorded .*signer release/);
++  const e = await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT }).catch((x) => x);
++  assert.equal(e.code, "busy"); assert.equal(e.reservation, held.key); assert.match(e.message, /signer release/);
++  assert.match(await text("release", [held.key], j), /released/);
++  const before = await nonceOf();
++  const r = await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT });
++  assert.equal(r.status, "success"); assert.equal(await nonceOf(), before + 1);
++}
++
++test("crash after the reservation, before any wallet request: nothing was asked; the next send is refused until an explicit release", T, async () => {
++  const w = await sendOnly(), dir = jdir();
++  const k = kid({ url: w.url, mode: "wallet-send", journalDir: dir, gate: true });
++  await k.wait("READY"); k.send("START"); await k.wait("ARRIVED");
++  await k.kill(); await crashed(k);
++  assert.equal(w.calls.length, 0, "the wallet was never contacted");
++  assert.deepEqual(intentJournal(dir).list(), []);
++  await recoverByRelease(dir, w, k.p.pid);
++});
++
++test("crash between an intent's flushed tmp file and its rename: no intent, and no wallet request was ever made", T, async () => {
++  const w = await sendOnly(), dir = jdir();
++  const k = kid({ url: w.url, mode: "wallet-send", journalDir: dir, crashAt: "intent-rename" });
++  await k.wait("READY"); k.send("START");
++  await crashed(k);
++  assert.equal(w.count("eth_sendTransaction"), 0, "the request is only made once its intent is on disk");
++  const j = intentJournal(dir);
++  assert.deepEqual(j.list(), []); assert.deepEqual(j.problems(), [], "a leftover tmp file is not an intent");
++  const left = files(dir).filter((f) => f.endsWith(".tmp"));
++  assert.equal(left.length, 1);
++  if (POSIX) assert.equal(fs.statSync(path.join(dir, left[0])).mode & 0o777, 0o600);
++  await recoverByRelease(dir, w, k.p.pid);
++});
++
++test("crash during eth_sendTransaction after the wallet broadcast: the intent is on disk; busy, release refused, resolve confirms and releases", T, async () => {
++  let asked = false;
++  const w = await sendOnly(async (m) => { await forward(chainRpc)(m); asked = true; return HANG; });
++  const dir = jdir(), before = await nonceOf();
++  const k = kid({ url: w.url, mode: "wallet-send", journalDir: dir });
++  await k.wait("READY"); k.send("START");
++  await until(() => asked); await k.kill(); await crashed(k);
++  const j = intentJournal(dir);
++  const [rec] = j.list();
++  assert.equal(rec.state, "requested"); assert.equal(rec.hash, null); assert.equal(rec.nonce, before);
++  const e = await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT }).catch((x) => x);
++  assert.equal(e.code, "busy"); assert.equal(e.intent, rec.id);
++  assert.throws(() => j.releaseReservation(rec.slot), /abandon it instead/);
++  assert.equal((await resolveIntent(chain, j, rec.id)).state, "confirmed");
++  assert.deepEqual(j.reservations(), [], "decided by resolve: released");
++  const ok = await sendOnly();
++  const r = await signer(ok.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT });
++  assert.equal(r.status, "success"); assert.equal(await nonceOf(), before + 2);
++});
++
++test("crash during eth_sendTransaction that the wallet never broadcast: resolve keeps it open; abandon releases; the nonce is reused once", T, async () => {
++  let asked = false;
++  const w = await sendOnly(() => { asked = true; return HANG; });
++  const dir = jdir(), before = await nonceOf();
++  const k = kid({ url: w.url, mode: "wallet-send", journalDir: dir });
++  await k.wait("READY"); k.send("START");
++  await until(() => asked); await k.kill(); await crashed(k);
++  const j = intentJournal(dir), [rec] = j.list();
++  const r = await resolveIntent(chain, j, rec.id);
++  assert.equal(r.state, "requested"); assert.ok(r.open);
++  assert.match(await text("abandon", [rec.id], j), /at most one/);
++  assert.deepEqual(j.reservations(), []);
++  const ok = await sendOnly();
++  const r2 = await signer(ok.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT });
++  assert.equal(Number((await pc.getTransaction({ hash: r2.transactionHash })).nonce), before);
++});
++
++test("crash during the signature request: nothing was journaled or broadcast; explicit release, then the next send", T, async () => {
++  let asked = false;
++  const w = await walletServer(async (m) => { if (m.method !== "eth_signTransaction") return keyWallet()(m); asked = true; return HANG; });
++  const dir = jdir(), before = await nonceOf();
++  const k = kid({ url: w.url, mode: "sign", journalDir: dir });
++  await k.wait("READY"); k.send("START");
++  await until(() => asked); await k.kill(); await crashed(k);
++  assert.deepEqual(intentJournal(dir).list(), []);
++  assert.equal(await nonceOf(), before);
++  const ok = await sendOnly();
++  await recoverByRelease(dir, ok, k.p.pid);
++});
++
++test("crash after the signed bytes are journaled, before publication: resolve keeps it open; rebroadcast sends the same bytes; one signature", T, async () => {
++  const w = await walletServer(keyWallet());
++  const dir = jdir(), before = await nonceOf();
++  const k = kid({ url: w.url, mode: "sign", journalDir: dir, publish: "hang-before" });
++  await k.wait("READY"); k.send("START"); await k.wait("BROADCASTING");
++  await k.kill(); await crashed(k);
++  const j = intentJournal(dir), [rec] = j.list();
++  assert.equal(rec.state, "signed"); assert.match(rec.raw, /^0x02/);
++  if (POSIX) assert.equal(fs.statSync(path.join(dir, `${rec.id}.json`)).mode & 0o777, 0o600);
++  assert.equal(await nonceOf(), before, "nothing published");
++  const e = await signer(w.url, { mode: "sign", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT }).catch((x) => x);
++  assert.equal(e.code, "busy"); assert.equal(e.intent, rec.id);
++  assert.ok((await resolveIntent(chain, j, rec.id)).open);
++  const rb = await rebroadcast(chain, j, rec.id, WAIT);
++  assert.equal(rb.transactionHash, rec.hash);
++  assert.equal(w.count("eth_signTransaction"), 1, "never re-signed");
++  assert.deepEqual(j.reservations(), []);
++  assert.equal(await nonceOf(), before + 1);
++});
++
++test("crash after publication: resolve confirms the journaled hash and releases; the next send takes the next nonce", T, async () => {
++  const w = await walletServer(keyWallet());
++  const dir = jdir(), before = await nonceOf();
++  const k = kid({ url: w.url, mode: "sign", journalDir: dir, publish: "hang-after" });
++  await k.wait("READY"); k.send("START"); await k.wait("PUBLISHED");
++  await k.kill(); await crashed(k);
++  const j = intentJournal(dir), [rec] = j.list();
++  assert.equal(rec.state, "signed");
++  assert.equal((await resolveIntent(chain, j, rec.id)).state, "confirmed");
++  assert.deepEqual(j.reservations(), []);
++  const r = await signer(w.url, { mode: "sign", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT });
++  assert.equal(Number((await pc.getTransaction({ hash: r.transactionHash })).nonce), before + 1);
++});
++
++test("crash after the intent is decided, before its reservation is released: the next send completes the release itself", T, async () => {
++  const w = await walletServer(keyWallet());
++  const dir = jdir();
++  const k = kid({ url: w.url, mode: "sign", journalDir: dir, crashAt: "release-marker" });
++  await k.wait("READY"); k.send("START");
++  await crashed(k);
++  const j = intentJournal(dir), [rec] = j.list();
++  assert.equal(rec.state, "confirmed");
++  const [held] = j.reservations();
++  assert.equal(held.decided, rec.id);
++  assert.match(await text("list", [], j), /is decided; the next send completes the release/);
++  const r = await signer(w.url, { mode: "sign", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT });
++  assert.equal(r.status, "success");
++  assert.equal(j.get(r.intent).slot, held.key.replace(/1$/, "2"));
++});
++
++// ---- unreadable or unknown journal entries ------------------------------------------------------------------------------
++
++test("an unreadable intent file is never dropped silently: every send is refused (wallet untouched) until it is reviewed and set aside", T, async () => {
++  const w = await sendOnly(), dir = jdir();
++  const ok = await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT });
++  const SECRETISH = "0x02f8" + "ab".repeat(60);
++  const bad = path.join(dir, "tx-corrupt1-deadbeef.json");
++  fs.writeFileSync(bad, `{"format":"enclave-signer-intent/v1","raw":"${SECRETISH}","state":"sig`, { mode: 0o600 });   // torn
++  const j = intentJournal(dir);
++  assert.deepEqual(j.list().map((r) => r.id), [ok.intent]);
++  assert.deepEqual(j.problems().map((p) => p.id), ["tx-corrupt1-deadbeef"]);
++  const listed = await text("list", [], j);
++  assert.match(listed, /UNREADABLE tx-corrupt1-deadbeef\.json .*quarantine tx-corrupt1-deadbeef/);
++  const calls = w.calls.length, slotsBefore = files(dir).filter((f) => f.startsWith("slot-")).length;
++  const e = await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT }).catch((x) => x);
++  assert.equal(e.code, "state"); assert.match(e.message, /cannot be read .*quarantine/);
++  assert.equal(w.calls.length, calls, "the wallet is not contacted");
++  assert.equal(files(dir).filter((f) => f.startsWith("slot-")).length, slotsBefore, "no reservation is taken");
++  const shown = await text("show", ["tx-corrupt1-deadbeef"], j).catch((x) => x.message);
++  for (const m of [listed, e.message, shown]) assert.ok(!m.includes("abababab"), "the file's content is never echoed");
++  assert.throws(() => j.quarantine(ok.intent), /is readable/);
++  const q = await text("quarantine", ["tx-corrupt1-deadbeef"], j);
++  assert.match(q, /set aside/);
++  const kept = files(dir).find((f) => f.startsWith("tx-corrupt1-deadbeef.json.quarantined-"));
++  assert.ok(kept, "kept for review, not deleted");
++  if (POSIX) assert.equal(fs.statSync(path.join(dir, kept)).mode & 0o777, 0o600);
++  assert.equal((await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT })).status, "success");
++});
++
++test("an intent in a state this version does not know blocks sends like an unresolved one, and can be abandoned explicitly", T, async () => {
++  const w = await sendOnly(), dir = jdir(), j = intentJournal(dir);
++  const odd = j.create({ from: A0.address, chainId: 31337, nonce: 0, to: SINK, state: "a-future-state", mode: "sign" });
++  const e = await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT }).catch((x) => x);
++  assert.equal(e.code, "busy"); assert.equal(e.intent, odd.id);
++  abandonIntent(j, odd.id);
++  assert.equal((await signer(w.url, { mode: "wallet-send", journalDir: dir }).sendQuorumTx(chain, { to: SINK, ...WAIT })).status, "success");
++});
++
++// ---- decisions made by another command -----------------------------------------------------------------------------------
++
++test("a decided intent never reopens, and a send waiting on it stops when another command decides it", T, async () => {
++  const ghost = await sendOnly(() => ({ result: "0x" + "77".repeat(32) }));   // a hash that never appears
++  const dir = jdir(), s = signer(ghost.url, { mode: "wallet-send", journalDir: dir });
++  const run = s.sendQuorumTx(chain, { to: SINK, ...WAIT, timeoutMs: 60000 }).catch((x) => x);
++  await until(() => s.journal.list()[0]?.state === "submitted");
++  const t0 = Date.now();
++  abandonIntent(intentJournal(dir), s.journal.list()[0].id);          // "another command"
++  const e = await run;
++  assert.equal(e.code, "state"); assert.match(e.message, /abandoned meanwhile/);
++  assert.ok(Date.now() - t0 < 10000, "not left waiting for the timeout");
++  const id = s.journal.list()[0].id;
++  assert.equal(s.journal.update(id, { state: "submitted", hash: "0x" + "88".repeat(32) }).state, "abandoned");
++  // confirmed by another command while this one waited: the receipt, not undefined
++  const real = await call(chainRpc, "eth_sendTransaction", [{ from: A0.address, to: SINK, data: "0xc0" }]);
++  await pc.waitForTransactionReceipt({ hash: real.result });
++  const tx = await pc.getTransaction({ hash: real.result });
++  const j = intentJournal(jdir());
++  const rec = j.create({ from: A0.address, chainId: 31337, to: SINK, data: "0xc0", value: 0n, nonce: Number(tx.nonce), gas: tx.gas, maxFeePerGas: tx.maxFeePerGas,
++    maxPriorityFeePerGas: tx.maxPriorityFeePerGas, startBlock: 0n, mode: "wallet-send", state: "submitted", hash: real.result });
++  assert.equal((await resolveIntent(chain, j, rec.id)).state, "confirmed");
++  const receipt = await confirmIntent(chain, j, rec.id, WAIT);
++  assert.equal(receipt.transactionHash, real.result); assert.equal(receipt.status, "success");
++});
+diff -ruN a/test/cli-independent-signer-race.test.mjs b/test/cli-independent-signer-race.test.mjs
+--- a/test/cli-independent-signer-race.test.mjs	1969-12-31 17:00:00.000000000 -0700
++++ b/test/cli-independent-signer-race.test.mjs	2026-10-19 23:42:59.229276443 -0700
+@@ -0,0 +1,120 @@
++// One unresolved intent per signing account: concurrent sends from one journal, in one process and in separate
++// processes, against a real anvil chain read through the CLI's QuorumChain. Every send is held at its first
++// pending-nonce read until every other send has either reached that read too or finished, so the interleaving that
++// raced in the old module (both pass the busy check, both read nonce N, both ask the wallet) is forced, not hoped for.
++//   run: node --test --test-concurrency=1 test/cli-independent-signer-race.test.mjs
++//   negative control: SIGNER_TREE=<tree with the old module> node --test ... (expected to FAIL: two intents at one nonce)
++import test, { before, after } from "node:test";
++import assert from "node:assert/strict";
++import path from "node:path";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { createPublicClient, http as viemHttp } from "viem";
++import { foundry } from "viem/chains";
++import { A0, SINK, WAIT, tools, anvil, walletServer, forward, gatedChain, until, child, tmpRoot, cleanup } from "./helpers/signer-harness.mjs";
++
++const TREE = path.resolve(process.env.SIGNER_TREE || path.join(path.dirname(fileURLToPath(import.meta.url)), ".."));
++const S = await import(pathToFileURL(path.join(TREE, "cli/independent-signer.mjs")).href);
++const { QuorumChain } = await import(pathToFileURL(path.join(TREE, "cli/independent.mjs")).href);
++const T = tools ? { skip: tools } : { timeout: 120000 };
++
++let chainRpc, walletRpc, pc, chain, tmp, n = 0;
++const jdir = () => path.join(tmp, `journal-${++n}`);
++const nonceOf = () => pc.getTransactionCount({ address: A0.address });
++before(async () => {
++  if (tools) return;
++  ({ url: chainRpc, c: pc } = await anvil());
++  ({ url: walletRpc } = await anvil());
++  await pc.request({ method: "anvil_setCode", params: [SINK, "0x00"] });
++  const c = () => createPublicClient({ chain: foundry, transport: viemHttp(chainRpc) });
++  chain = new QuorumChain({ clients: [{ origin: chainRpc + "/a", client: c() }, { origin: chainRpc + "/b", client: c() }], quorum: 2, confirmations: 0, maxBlockAgeMs: 600000, chainId: 31337 });
++  tmp = tmpRoot("signer-race-");
++});
++after(() => cleanup(tmp));
++
++const summary = (dir) => S.intentJournal(dir).list().map((r) => `${r.id} ${r.state} nonce ${r.nonce}`).join("; ");
++/** Two sends at once in THIS process, each held at its pending-nonce read until both have reached it or finished. */
++async function racePair(signers, opts) {
++  let arrivals = 0, go;
++  const gate = new Promise((r) => (go = r));
++  const gated = gatedChain(chain, async () => { arrivals++; await gate; });
++  const out = [];
++  const runs = signers.map((s, i) => s.sendQuorumTx(gated, { to: SINK, data: `0x0${i + 1}`, ...WAIT, ...opts }).then((v) => (out[i] = { v }), (e) => (out[i] = { e })));
++  await until(() => arrivals + out.filter(Boolean).length === signers.length, 15000, "both sends to reach the nonce read or finish");
++  const arrivedBeforeGo = arrivals;
++  go();
++  await Promise.all(runs);
++  return { out, arrivedBeforeGo };
++}
++
++test("same process, two signer objects on one journal (handoff): one intent; the other send never reads the nonce", T, async () => {
++  const dir = jdir();
++  const mk = () => S.createExternalSigner({ from: A0.address, chainId: 31337, mode: "handoff", journalDir: dir, onHandoff: (rec) => ({ handoff: rec.id, nonce: rec.nonce }) });
++  const { out, arrivedBeforeGo } = await racePair([mk(), mk()]);
++  const handoffs = S.intentJournal(dir).list().filter((r) => r.state === "handoff");
++  assert.equal(handoffs.length, 1, `unresolved handoff intents for one account: ${summary(dir)}`);
++  assert.equal(arrivedBeforeGo, 1, "only one send read the pending nonce");
++  const busy = out.find((o) => o.e);
++  assert.equal(busy?.e?.code, "busy");
++});
++
++test("same process, ONE signer object, two sends (wallet-send): the wallet is asked to send once", T, async () => {
++  const w = await walletServer(async (m) => m.method === "eth_signTransaction" ? { error: { code: -32601, message: "Method not found" } } : forward(chainRpc)(m));
++  const s = S.createExternalSigner({ url: w.url, from: A0.address, chainId: 31337, mode: "wallet-send", journalDir: jdir(), approvalTimeoutMs: 5000, probeTimeoutMs: 2000 });
++  const before = await nonceOf();
++  const { out } = await racePair([s, s]);
++  assert.equal(w.count("eth_sendTransaction"), 1, `eth_sendTransaction requests: ${w.count("eth_sendTransaction")}; intents: ${summary(s.journal.dir)}`);
++  assert.equal(out.filter((o) => o.v?.status === "success").length, 1);
++  assert.equal(out.find((o) => o.e)?.e?.code, "busy");
++  assert.equal(await nonceOf(), before + 1);
++});
++
++test("same process, two signer objects (sign): one signature request, one broadcast", T, async () => {
++  const w = await walletServer(forward(walletRpc));
++  const dir = jdir();
++  const mk = () => S.createExternalSigner({ url: w.url, from: A0.address, chainId: 31337, mode: "sign", journalDir: dir, approvalTimeoutMs: 5000, probeTimeoutMs: 2000 });
++  const before = await nonceOf();
++  const { out } = await racePair([mk(), mk()]);
++  assert.equal(w.count("eth_signTransaction"), 1, `eth_signTransaction requests: ${w.count("eth_signTransaction")}; intents: ${summary(dir)}`);
++  assert.equal(out.filter((o) => o.v?.status === "success").length, 1);
++  assert.equal(await nonceOf(), before + 1);
++});
++
++/** Two child processes on one journal: started together, each held at its nonce read until both reached it or finished. */
++async function raceProcesses(cfg) {
++  const kids = [0, 1].map((i) => child({ tree: TREE, chainRpc, from: A0.address, to: SINK, data: `0x0${i + 1}`, gate: true, ...cfg }));
++  for (const k of kids) await k.wait("READY");
++  for (const k of kids) k.send("START");
++  await until(() => kids.every((k) => k.has("ARRIVED") || k.has("RESULT")), 20000, "both children to reach the nonce read or finish");
++  const arrivedBeforeGo = kids.filter((k) => k.has("ARRIVED")).length;
++  for (const k of kids) k.send("GO");
++  for (const k of kids) await k.wait("RESULT", 30000);
++  return { results: kids.map((k) => k.result()), arrivedBeforeGo };
++}
++
++test("separate processes, one journal (wallet-send): the wallet is asked to send once; the other process is refused before reading the nonce", T, async () => {
++  const w = await walletServer(async (m) => m.method === "eth_signTransaction" ? { error: { code: -32601, message: "Method not found" } } : forward(chainRpc)(m));
++  const dir = jdir(), before = await nonceOf();
++  const { results, arrivedBeforeGo } = await raceProcesses({ url: w.url, mode: "wallet-send", journalDir: dir });
++  assert.equal(w.count("eth_sendTransaction"), 1, `eth_sendTransaction requests: ${w.count("eth_sendTransaction")}; intents: ${summary(dir)}`);
++  assert.equal(arrivedBeforeGo, 1);
++  assert.equal(results.filter((r) => r.ok).length, 1, JSON.stringify(results));
++  assert.equal(results.find((r) => !r.ok).code, "busy");
++  assert.equal(await nonceOf(), before + 1);
++});
++
++test("separate processes, one journal (sign): one signature request and one broadcast", T, async () => {
++  const w = await walletServer(forward(walletRpc));
++  const dir = jdir(), before = await nonceOf();
++  const { results } = await raceProcesses({ url: w.url, mode: "sign", journalDir: dir });
++  assert.equal(w.count("eth_signTransaction"), 1, `eth_signTransaction requests: ${w.count("eth_signTransaction")}; intents: ${summary(dir)}`);
++  assert.equal(results.filter((r) => r.ok).length, 1, JSON.stringify(results));
++  assert.equal(await nonceOf(), before + 1);
++});
++
++test("separate processes, one journal (handoff): one handoff intent", T, async () => {
++  const dir = jdir();
++  const { results } = await raceProcesses({ mode: "handoff", journalDir: dir });
++  const handoffs = S.intentJournal(dir).list().filter((r) => r.state === "handoff");
++  assert.equal(handoffs.length, 1, `unresolved handoff intents for one account: ${summary(dir)}`);
++  assert.equal(results.filter((r) => r.ok).length, 1, JSON.stringify(results));
++});
+diff -ruN a/test/cli-independent-signer-reservation-cli.test.mjs b/test/cli-independent-signer-reservation-cli.test.mjs
+--- a/test/cli-independent-signer-reservation-cli.test.mjs	1969-12-31 17:00:00.000000000 -0700
++++ b/test/cli-independent-signer-reservation-cli.test.mjs	2026-10-19 23:42:59.229338402 -0700
+@@ -0,0 +1,136 @@
++// The CLI (cli/enclave.mjs, or the built bundle via ENCLAVE_CLI_ENTRY) with an external signer: one send in flight per
++// account and journal across separate CLI processes, recovery from a CLI killed mid-send, and an unreadable journal
++// file. The chain is anvil (chain 8453) read through two RPC origins; the second origin is a forwarder that can HOLD
++// every pending-nonce read, so two CLI processes are forced into the interleaving that raced before (both past the busy
++// check, both about to read nonce N). Only anvil's published dev keys are used; nothing leaves 127.0.0.1.
++//   run: node --test --test-concurrency=1 test/cli-independent-signer-reservation-cli.test.mjs
++//   bundle: ENCLAVE_CLI_ENTRY=cli/dist/enclave.mjs node --test ...
++import test, { before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import net from "node:net";
++import http from "node:http";
++import path from "node:path";
++import { spawn, execFileSync } from "node:child_process";
++import { fileURLToPath } from "node:url";
++import { createPublicClient, http as viemHttp, defineChain } from "viem";
++import { privateKeyToAccount } from "viem/accounts";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const CLI = process.env.ENCLAVE_CLI_ENTRY ? path.resolve(process.env.ENCLAVE_CLI_ENTRY) : path.join(REPO, "cli", "enclave.mjs");
++const A0 = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
++const A1 = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
++const local = defineChain({ id: 8453, name: "local-base", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [] } } });
++const integrated = fs.readFileSync(CLI, "utf8").includes("signer attach");
++const tools = (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); } catch { return "needs Foundry's anvil"; } return integrated ? null : "needs the external-signer CLI integration"; })();
++const T = tools ? { skip: tools } : { timeout: 120000 };
++
++const procs = [], servers = [], clis = new Set();
++let chainRpc, forwarderRpc, tmp, pins;
++const held = [];            // pending-nonce reads held at the forwarder: [release]
++let holding = false;
++const freePort = () => new Promise((ok) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
++const call = async (url, method, params = []) => {
++  const j = await (await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) })).json();
++  return "error" in j ? { error: j.error } : { result: j.result };
++};
++const until = async (pred, ms, what) => { const end = Date.now() + ms; while (!pred()) { if (Date.now() > end) throw new Error(`timed out: ${what}`); await new Promise((r) => setTimeout(r, 10)); } };
++const releaseAll = () => { holding = false; for (const go of held.splice(0)) go(); };
++
++before(async () => {
++  if (tools) return;
++  const port = await freePort();
++  procs.push(spawn("anvil", ["--port", String(port), "--chain-id", "8453", "--silent", "--base-fee", "5000000"], { stdio: "ignore" }));
++  chainRpc = `http://127.0.0.1:${port}`;
++  const pc = createPublicClient({ chain: local, transport: viemHttp(chainRpc) });
++  for (let i = 0; i < 100; i++) { try { await pc.getChainId(); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
++  const srv = http.createServer(async (req, res) => {
++    let b = ""; for await (const c of req) b += c;
++    const m = JSON.parse(b);
++    const one = async (x) => {
++      if (holding && x.method === "eth_getTransactionCount" && x.params?.[1] === "pending") await new Promise((go) => held.push(go));
++      return { jsonrpc: "2.0", id: x.id, ...(await call(chainRpc, x.method, x.params)) };
++    };
++    res.writeHead(200, { "content-type": "application/json" });
++    res.end(JSON.stringify(Array.isArray(m) ? await Promise.all(m.map(one)) : await one(m)));
++  });
++  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
++  servers.push(srv);
++  forwarderRpc = `http://127.0.0.1:${srv.address().port}`;
++  tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cli-signer-reservation-"));
++  pins = path.join(tmp, "pins.json");
++  const a = (n) => "0x" + n.toString(16).padStart(40, "0");
++  fs.writeFileSync(pins, JSON.stringify({ version: 1, chainId: 8453, contracts: { registry: a(1), deployments: a(2), appCatalog: a(3), proofOfTime: a(4),
++    enclavePay: a(0), verificationFees: a(0), sessionVaultFactory: a(0), secretVaultV2: a(0) } }));
++});
++after(() => { releaseAll(); for (const p of clis) p.kill("SIGKILL"); for (const s of servers) { s.closeAllConnections(); s.close(); } for (const p of procs) p.kill("SIGKILL"); if (tmp) fs.rmSync(tmp, { recursive: true, force: true }); });
++
++function cli(args, { home }) {
++  const p = spawn(process.execPath, [CLI, ...args], { env: { PATH: process.env.PATH, HOME: home, XDG_CONFIG_HOME: path.join(home, ".config"), ENCLAVE_ADDRESS_BOOK: "" }, stdio: ["ignore", "pipe", "pipe"] });
++  clis.add(p);
++  let out = "", err = "";
++  p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));
++  const done = new Promise((resolve) => p.on("close", (code, signal) => { clis.delete(p); resolve({ code, signal, out, err }); }));
++  return Object.assign(done, { p, exited: () => !clis.has(p) });
++}
++const IND = (home) => ["--independent", "--contract-pins", pins, "--rpc", `${chainRpc},${forwarderRpc}`, "--confirmations", "0", "--state-dir", path.join(home, "state")];
++const handoff = (home) => [...IND(home), "--json", "--signer-mode", "handoff", "--from", A0.address, "--yes", "host", "fund", "--address", A1.address, "--eth", "0.001"];
++const handoffOf = (r) => { const i = r.out.indexOf("{\n"); return i < 0 ? null : JSON.parse(r.out.slice(i)); };
++const list = async (home) => { const l = await cli([...IND(home), "--json", "signer", "list"], { home }); assert.equal(l.code, 0, l.err); return JSON.parse(l.out); };
++
++test("two CLI processes on one state dir, held at the pending-nonce read: one handoff; the other is refused before reading the nonce", T, async () => {
++  const home = path.join(tmp, "race");
++  holding = true;
++  const runs = [cli(handoff(home), { home }), cli(handoff(home), { home })];
++  await until(() => held.length + runs.filter((r) => r.exited()).length >= 2, 30000, "both CLIs at the nonce read or finished");
++  const heldBeforeGo = held.length;
++  releaseAll();
++  const [a, b] = await Promise.all(runs);
++  const handed = [a, b].map(handoffOf).filter(Boolean);
++  assert.equal(handed.length, 1, `handoffs printed: ${handed.length} (${handed.map((h) => `${h.handoff} nonce ${h.transaction.nonce}`).join("; ")})`);
++  assert.equal(heldBeforeGo, 1, "only one CLI reached the pending-nonce read");
++  const refused = [a, b].find((r) => !handoffOf(r));
++  assert.notEqual(refused.code, 0); assert.match(refused.err, /signing reservation|is unresolved/);
++  const l = await list(home);
++  assert.equal(l.intents.filter((r) => r.state === "handoff").length, 1);
++  assert.equal(l.reservations.length, 1); assert.equal(l.reservations[0].intent, handed[0].handoff);
++});
++
++test("a CLI killed after taking the reservation: the next CLI is refused and names it; signer release (explicit) lets sends go on", T, async () => {
++  const home = path.join(tmp, "killed");
++  holding = true;
++  const run = cli(handoff(home), { home });
++  await until(() => held.length === 1, 30000, "the CLI at the nonce read");
++  run.p.kill("SIGKILL");
++  assert.equal((await run).signal, "SIGKILL");
++  releaseAll();
++  const l = await list(home);
++  assert.deepEqual(l.intents, []); assert.equal(l.reservations.length, 1);
++  assert.equal(l.reservations[0].intent, null); assert.equal(l.reservations[0].pid, run.p.pid);
++  const key = l.reservations[0].key;
++  const busy = await cli(handoff(home), { home });
++  assert.notEqual(busy.code, 0); assert.match(busy.err, new RegExp(`signing reservation ${key.replace(/[/]/g, "\\/")}.*signer release ${key.replace(/[/]/g, "\\/")}`, "s"));
++  const text = await cli([...IND(home), "signer", "list"], { home });
++  assert.match(text.out, /held with no intent recorded .*signer release/);
++  const rel = await cli([...IND(home), "signer", "release", key], { home });
++  assert.equal(rel.code, 0, rel.err); assert.match(rel.out, /released/);
++  const ok = await cli(handoff(home), { home });
++  assert.equal(ok.code, 0, ok.err); assert.match(handoffOf(ok).handoff, /^tx-/);
++});
++
++test("an unreadable intent file stops every CLI send (its content never printed) until signer quarantine sets it aside", T, async () => {
++  const home = path.join(tmp, "unreadable");
++  const dir = path.join(home, "state", "signer");
++  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
++  fs.writeFileSync(path.join(dir, "tx-corrupt1-deadbeef.json"), `{"format":"enclave-signer-intent/v1","raw":"0x02f8${"cd".repeat(60)}","sta`, { mode: 0o600 });
++  const r = await cli(handoff(home), { home });
++  assert.notEqual(r.code, 0); assert.match(r.err, /cannot be read .*signer quarantine tx-corrupt1-deadbeef/);
++  const l = await cli([...IND(home), "signer", "list"], { home });
++  assert.match(l.out, /UNREADABLE tx-corrupt1-deadbeef\.json/);
++  for (const x of [r.err, r.out, l.out, l.err]) assert.ok(!x.includes("cdcdcdcd"), "the file's content is never printed");
++  const q = await cli([...IND(home), "signer", "quarantine", "tx-corrupt1-deadbeef"], { home });
++  assert.equal(q.code, 0, q.err); assert.match(q.out, /set aside/);
++  const ok = await cli(handoff(home), { home });
++  assert.equal(ok.code, 0, ok.err);
++});
+diff -ruN a/test/helpers/signer-child.mjs b/test/helpers/signer-child.mjs
+--- a/test/helpers/signer-child.mjs	1969-12-31 17:00:00.000000000 -0700
++++ b/test/helpers/signer-child.mjs	2026-10-19 23:42:59.229943370 -0700
+@@ -0,0 +1,62 @@
++// One external-signer send in its OWN process, for the cross-process and crash tests of cli/independent-signer.mjs.
++//   node signer-child.mjs '<json>'   { tree, chainRpc, journalDir, mode, url, from, to, data, gate, publish, crashAt }
++// stdout, one line each and written synchronously (a line is out before any later kill):
++//   READY            set up; waits for START on stdin
++//   ARRIVED          (gate) paused just before its first pending-nonce read; waits for GO on stdin
++//   BROADCASTING     (publish) eth_sendRawTransaction is about to leave; PUBLISHED once one RPC accepted it
++//   RESULT <json>    the send's outcome
++// crashAt kills THIS process with SIGKILL at an exact filesystem step: "intent-rename" (an intent's tmp file is written
++// and flushed, not yet renamed into place), "after-intent" (that rename done, nothing after it) or "release-marker" (an
++// intent is decided on disk, its reservation not yet released). publish: "hang-before" | "hang-after" stops forever around the first broadcast, for the parent to kill.
++import fs from "node:fs";
++import path from "node:path";
++import readline from "node:readline";
++import { pathToFileURL } from "node:url";
++
++const cfg = JSON.parse(process.argv[2]);
++const say = (l) => fs.writeSync(1, l + "\n");
++const die = () => process.kill(process.pid, "SIGKILL");
++if (cfg.crashAt === "intent-rename") { const o = fs.renameSync; fs.renameSync = (a, b) => { if (/tx-[0-9a-z-]+\.json$/.test(String(b))) die(); return o(a, b); }; }
++if (cfg.crashAt === "after-intent") { const o = fs.renameSync; fs.renameSync = (a, b) => { const r = o(a, b); if (/tx-[0-9a-z-]+\.json$/.test(String(b))) die(); return r; }; }
++if (cfg.crashAt === "release-marker") { const o = fs.openSync; fs.openSync = (p, ...a) => { if (String(p).endsWith(".released")) die(); return o(p, ...a); }; }
++
++const lines = readline.createInterface({ input: process.stdin });
++const heard = new Set(), waiting = new Map();
++lines.on("line", (l) => { heard.add(l); waiting.get(l)?.(); });
++const hear = (l) => heard.has(l) ? Promise.resolve() : new Promise((r) => waiting.set(l, r));
++
++const { createPublicClient, http } = await import("viem");
++const { foundry } = await import("viem/chains");
++const { QuorumChain } = await import(pathToFileURL(path.join(cfg.tree, "cli/independent.mjs")).href);
++const S = await import(pathToFileURL(path.join(cfg.tree, "cli/independent-signer.mjs")).href);
++
++const client = () => {
++  const c = createPublicClient({ chain: foundry, transport: http(cfg.chainRpc) });
++  return new Proxy(c, { get: (t, k) => k !== "request" ? t[k] : async (a) => {
++    if (a.method !== "eth_sendRawTransaction" || !cfg.publish) return t.request(a);
++    say("BROADCASTING");
++    if (cfg.publish === "hang-before") return new Promise(() => {});
++    const r = await t.request(a);
++    say("PUBLISHED");
++    return cfg.publish === "hang-after" ? new Promise(() => {}) : r;
++  } });
++};
++const chain = new QuorumChain({ clients: [{ origin: cfg.chainRpc + "/a", client: client() }, { origin: cfg.chainRpc + "/b", client: client() }],
++  quorum: 2, confirmations: 0, maxBlockAgeMs: 600000, chainId: 31337 });
++let arrived = false;
++const each = chain.each.bind(chain);
++chain.each = async (fn, what) => {
++  if (cfg.gate && what === "pending nonce" && !arrived) { arrived = true; say("ARRIVED"); await hear("GO"); }
++  return each(fn, what);
++};
++const signer = S.createExternalSigner({ url: cfg.url, from: cfg.from, chainId: 31337, mode: cfg.mode, journalDir: cfg.journalDir,
++  approvalTimeoutMs: 20000, probeTimeoutMs: 5000, onHandoff: (rec) => ({ handoff: rec.id, nonce: rec.nonce }) });
++say("READY");
++await hear("START");
++let result;
++try {
++  const r = await signer.sendQuorumTx(chain, { to: cfg.to, data: cfg.data, timeoutMs: 15000, pollMs: 50 });
++  result = { ok: true, intent: r.intent ?? r.handoff, hash: r.transactionHash ?? null };
++} catch (e) { result = { ok: false, code: e.code ?? null, intent: e.intent ?? null, reservation: e.reservation ?? null, message: String(e.message) }; }
++say("RESULT " + JSON.stringify(result));
++process.exit(0);
+diff -ruN a/test/helpers/signer-harness.mjs b/test/helpers/signer-harness.mjs
+--- a/test/helpers/signer-harness.mjs	1969-12-31 17:00:00.000000000 -0700
++++ b/test/helpers/signer-harness.mjs	2026-10-19 23:42:59.229966110 -0700
+@@ -0,0 +1,93 @@
++// Shared fixtures for the external-signer concurrency and durability tests: anvil chains, JSON-RPC wallet fixtures,
++// a pending-nonce gate, and child processes running signer-child.mjs. Only anvil's published development keys are used;
++// nothing talks to a network beyond 127.0.0.1.
++import fs from "node:fs";
++import os from "node:os";
++import net from "node:net";
++import http from "node:http";
++import path from "node:path";
++import readline from "node:readline";
++import { spawn, execFileSync } from "node:child_process";
++import { fileURLToPath } from "node:url";
++import { createPublicClient, http as viemHttp } from "viem";
++import { privateKeyToAccount } from "viem/accounts";
++import { foundry } from "viem/chains";
++
++export const KEY0 = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";   // anvil dev account 0 (published)
++export const A0 = privateKeyToAccount(KEY0);
++export const SINK = "0x000000000000000000000000000000000000c0de";                            // code 0x00: any call succeeds
++export const WAIT = { timeoutMs: 15000, pollMs: 50 };
++export const HANG = Symbol("hang");
++export const CHILD = path.join(path.dirname(fileURLToPath(import.meta.url)), "signer-child.mjs");
++export const tools = (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); return null; } catch { return "needs Foundry's anvil"; } })();
++
++const procs = [], servers = [], kids = [];
++const freePort = () => new Promise((ok) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
++export async function anvil() {
++  const port = await freePort();
++  procs.push(spawn("anvil", ["--port", String(port), "--chain-id", "31337", "--silent", "--base-fee", "5000000"], { stdio: "ignore" }));
++  const url = `http://127.0.0.1:${port}`, c = createPublicClient({ chain: foundry, transport: viemHttp(url) });
++  for (let i = 0; i < 100; i++) { try { await c.getChainId(); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
++  return { url, c };
++}
++export const call = async (url, method, params = []) => {
++  const j = await (await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) })).json();
++  return "error" in j ? { error: j.error } : { result: j.result };
++};
++/** A JSON-RPC wallet fixture: handler(msg) -> {result} | {error} | HANG. Records every method asked. */
++export async function walletServer(handler) {
++  const calls = [];
++  const srv = http.createServer(async (req, res) => {
++    let b = ""; for await (const c of req) b += c;
++    const m = JSON.parse(b); calls.push(m);
++    const r = await handler(m);
++    if (r === HANG) return;
++    res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ jsonrpc: "2.0", id: m.id, ...r }));
++  });
++  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
++  servers.push(srv);
++  return { url: `http://127.0.0.1:${srv.address().port}/rpc?token=SECRET-TOKEN`, calls, count: (method) => calls.filter((c) => c.method === method).length };
++}
++export const forward = (url) => (m) => call(url, m.method, m.params);
++/** A sign-only wallet answering from a dev key in this process (eth_signTransaction, as anvil answers it); no node of its own. */
++export const keyWallet = (account = A0) => async (m) => {
++  if (m.method === "eth_accounts" || m.method === "eth_requestAccounts") return { result: [account.address] };
++  if (m.method === "eth_chainId") return { result: "0x7a69" };
++  if (m.method !== "eth_signTransaction") return { error: { code: -32601, message: `the method ${m.method} does not exist/is not available` } };
++  const p = m.params[0];
++  return { result: await account.signTransaction({ type: "eip1559", chainId: Number(p.chainId), nonce: Number(p.nonce), to: p.to, value: BigInt(p.value),
++    data: p.data, gas: BigInt(p.gas), maxFeePerGas: BigInt(p.maxFeePerGas), maxPriorityFeePerGas: BigInt(p.maxPriorityFeePerGas), accessList: [] }) };
++};
++/** The same chain, with hook() awaited before every pending-nonce read (the first thing a send asks the chain). */
++export function gatedChain(chain, hook) {
++  const g = Object.create(chain);
++  g.each = async (fn, what) => { if (what === "pending nonce") await hook(); return chain.each(fn, what); };
++  return g;
++}
++export async function until(pred, ms = 15000, what = "condition") {
++  const end = Date.now() + ms;
++  while (!pred()) { if (Date.now() > end) throw new Error(`timed out waiting for ${what}`); await new Promise((r) => setTimeout(r, 5)); }
++}
++/** signer-child.mjs in its own process. */
++export function child(cfg) {
++  const p = spawn(process.execPath, [CHILD, JSON.stringify(cfg)], { stdio: ["pipe", "pipe", "pipe"] });
++  kids.push(p);
++  const lines = [];
++  let err = "";
++  readline.createInterface({ input: p.stdout }).on("line", (l) => lines.push(l));
++  p.stderr.on("data", (d) => (err += d));
++  const exited = new Promise((r) => p.on("exit", (code, signal) => r({ code, signal })));
++  const has = (prefix) => lines.some((l) => l === prefix || l.startsWith(prefix + " "));
++  return { p, lines, exited, has, stderr: () => err,
++    send: (l) => p.stdin.write(l + "\n"),
++    wait: (prefix, ms) => until(() => has(prefix), ms, `${prefix} from child ${p.pid} (lines ${JSON.stringify(lines)}; stderr ${err.slice(0, 400)})`),
++    result: () => { const l = lines.find((x) => x.startsWith("RESULT ")); return l ? JSON.parse(l.slice(7)) : null; },
++    kill: async () => { p.kill("SIGKILL"); return exited; } };
++}
++export function tmpRoot(prefix) { return fs.mkdtempSync(path.join(os.tmpdir(), prefix)); }
++export function cleanup(tmp) {
++  for (const k of kids) { try { k.kill("SIGKILL"); } catch {} }
++  for (const s of servers) { s.closeAllConnections(); s.close(); }
++  for (const p of procs) p.kill("SIGKILL");
++  if (tmp) fs.rmSync(tmp, { recursive: true, force: true });
++}

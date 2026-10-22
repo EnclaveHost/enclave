@@ -1,0 +1,38 @@
+# enclave-host-relay-eu-lan.service - the minipc FALLBACK listener for warden's own lease relay (user service). A per-user
+# manager cannot apply systemd's IP access lists (they need eBPF cgroup programs; tested in this workspace), so the fixed
+# forwarder enforces the peer itself: listen ONLY 192.168.8.249:8549, accept ONLY 192.168.8.238, forward ONLY
+# 127.0.0.1:8549, all fixed in the code (no argument, environment or file changes them). Installed and started only by
+# user-forwarder.sh --activate, after the relay itself is active and answering as the moved payee.
+[Unit]
+Description=Enclave lease relay: fixed LAN forwarder for the minipc fallback (user service)
+Requires=enclave-host-relay-eu.service
+After=enclave-host-relay-eu.service
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=@TARGET@/releases/@RELEASE@/forwarder
+UnsetEnvironment=NODE_OPTIONS NODE_PATH NODE_EXTRA_CA_CERTS
+ExecStartPre=/usr/bin/node @TARGET@/releases/@RELEASE@/verify-release.mjs
+ExecStart=/usr/bin/node --max-old-space-size=32 @TARGET@/releases/@RELEASE@/forwarder/lan-forwarder.mjs
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=10
+UMask=0077
+MemoryMax=64M
+MemorySwapMax=0
+TasksMax=16
+LimitNOFILE=256
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_UNIX
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=default.target

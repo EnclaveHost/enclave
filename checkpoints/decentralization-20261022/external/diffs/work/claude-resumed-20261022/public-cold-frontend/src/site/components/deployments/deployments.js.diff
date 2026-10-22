@@ -1,0 +1,1279 @@
+--- a/site/components/deployments/deployments.js
++++ b/site/components/deployments/deployments.js
+@@ -19,7 +19,14 @@
+ import "../volume-picker/volume-picker.js";   // the Models tab's checklist
+ import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet } from "../../js/core/util.js";
+ import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
+-import { Enclave } from "../../js/core/api.js";
++import { Enclave, INDEPENDENT_MODE } from "../../js/core/api.js";
++
++/* The API's claim nudge. Hosts sweep the ledger for funded work about once a minute anyway, so independent mode
++   (js/core/independent.js) sends none - the call resolves to an empty answer without touching the network. */
++function claimHint(init){
++  if (INDEPENDENT_MODE) return Promise.resolve(new Response('{"accepted":null,"independent":true}', { headers: { "content-type": "application/json" } }));
++  return fetch(Enclave.base + "/claim-hint", init);
++}
+ import { openStateOf, probeAppTls } from "../../js/core/app-tls.js";
+ import { pad32, encUint, encCall, hexBig, DEP_SEL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, catGetApp, catGetVersion, waitReceipt } from "../../js/core/chain.js";
+ import { authenticate, asHostOwner, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx as walletSendTx, personalSign } from "../../js/core/wallet.js";
+@@ -29,14 +36,14 @@
+ const sendTx = (to, data, value, gas) => String(to).toLowerCase() === String(DEPLOYMENTS_ADDRESS).toLowerCase()
+   ? import("../../js/core/sessions.js").then((S) => S.ledgerSend(data, () => walletSendTx(to, data, value, gas)))
+   : walletSendTx(to, data, value, gas);
+-import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, specOfRef, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
++import { slugOfRef, artOfRef, artAttrsOfRef, hydrateMedia, loadCatalog, parseCatalogRef, catalogRef, specOf, specOfRef, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
+ import { appShares } from "../../js/core/app-resources.js";
+ import { cpuPoolBadge, gpuPoolBadge } from "../../js/core/pool-badges.js";
+ import { shareEditor } from "../../js/core/share-editor.js";
+ import { resourceOverview } from "../../js/core/resource-overview.js";
+ import { vspecOf, boxOfEndpoint, verifyBoxInBrowser, verdictBadge, verificationHtml, boxModeOf, boxRowOf, verifyAppInBrowser } from "../../js/core/verify.js";
+ import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
+-import { payForRuntime } from "../../js/core/fund.js";
++import { payForRuntime, fundingTerms } from "../../js/core/fund.js";
+ import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
+ import { isolationOptions, withIsolationRequirements, hostMeetsTeeRequirements, hostsTakeConfig } from "../../js/core/isolation-options.js";
+ import { placementMessage, pinnedHost, withPlacementPin } from "../../js/core/placement-options.js";
+@@ -45,6 +52,8 @@
+ import { custodyAvailable, custodyStatus, saveToCustody, rulesFromPredictionPreview } from "../../js/core/custody.js";
+ import { BUCKETS, bucketOf, countBuckets } from "../../js/core/deploy-status.js";
+ import { LastGood, listIdentity, failureReason, asOf } from "../../js/core/list-state.js";
++import { currentIdentity, identityKey, actingOwner } from "../../js/core/identity.js";
++import { recoveryRoute } from "../../js/core/ledger-recovery.js";
+ import { shareRates, minPctsOf, cpuFloorFor, cardServesApp, adoptServerSpec, leaseHostOf, moveTargetsFor, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
+ 
+ // Keep search and the card title on the same resolved app identity.
+@@ -117,6 +126,16 @@
+     + LOCK_OPEN + ' open ↗</a>';
+ }
+ 
++/* Independent mode: an app has no Enclave app name, so the row links this frontend's own sign-in page (authorize.js ->
++   js/core/app-access.js). It reads the lease and the runner's registered address at an agreed block, and opens a private
++   app with this browser's session (a public one directly). Nothing here contacts enclave.host. */
++function independentOpenCtl(d){
++  if (!(INDEPENDENT_MODE && d && (d.status || "") === "claimed" && /^0x[0-9a-f]{64}$/.test(String(d.id || "")))) return "";
++  const what = d.public ? "Open app (new tab) - at the address its host registered" : "Open app (new tab) - signs in with this browser's session";
++  return '<div class="enc-eprow"><a class="enc-open enc-open-independent" href="authorize?d=' + esc(encodeURIComponent(d.id)) + '" target="_blank" rel="noopener"'
++    + ' aria-label="' + esc(what) + '" title="' + esc(what) + '">' + LOCK_OPEN + ' open ↗</a></div>';
++}
++
+ // Per-row SECRETS section (wallet-owned on-chain rows): rendered PERMANENTLY
+ // as its locked bar - id + the Unlock control - with the editor body absent
+ // until a reveal signature succeeds (_secretsWire). Values only ever exist in
+@@ -178,8 +197,9 @@
+ const DEP_APK_BASE = "https://github.com/EnclaveHost/enclave-apps/releases/download/mobile-dep-";
+ const DEP_INDEX_URL = "https://raw.githubusercontent.com/EnclaveHost/enclave-apps/main/mobile-index.json";
+ let DEP_APKS = null;    // Set of 8-hex labels once the index answers
+-fetch(DEP_INDEX_URL)
+-  .then((r) => (r.ok ? r.json() : null))
++// independent mode hides the phone downloads (they pair through Enclave's app names), so it does not fetch the index
++(INDEPENDENT_MODE ? Promise.resolve(null) : fetch(DEP_INDEX_URL))
++  .then((r) => (r && r.ok ? r.json() : null))
+   .then((j) => { DEP_APKS = new Set(((j && j.deployments) || []).map(String)); })
+   .catch(() => { DEP_APKS = new Set(); });
+ export function mobilePairLink(d, ep){
+@@ -300,7 +320,35 @@
+ // (on-chain txs + enclave-session reads); "vault" rows are owned by the
+ // account's credit vault (money/control ops are passkey-signed through the
+ // relay); "order" rows are legacy provisioner-owned (read-only here).
+-function ctlOf(d){ return d && d.viaVault ? "vault" : (d && d.orderId ? "order" : "wallet"); }
++// A row on a ledger the platform administrator REPLACED (address-book profile, js/core/independent-chain.js
++// retiredLedgerRecords) is read-only too: only its recovery (refund to the owner) is offered, on that ledger.
++function ctlOf(d){ return d && d.viaVault ? "vault" : (d && (d.orderId || d.retiredLedger) ? "order" : "wallet"); }
++// a wallet is needed only when someone must pay gas and the dashboard's passkey account does not pay its own (account-transport.js)
++const needsWallet = async () => !Enclave.provider && !(INDEPENDENT_MODE && await import("../../js/core/account-transport.js").then((m) => m.accountPaysOwnGas()).catch(() => false));
++const needPayer = async () => { if (await needsWallet()) await connectWallet(); };
++// independent mode: a listed row not held by the acting owner itself is held by its session vault (the listing holds only those two)
++// what replaced ledgers still hold for a row, one holding per ledger (js/core/independent-chain.js withReplacedHoldings):
++// a read-only row of a record left on replaced ledgers shows them all; a carried-over row only those with money left
++function holdingsOf(d){
++  const hs = (d && d.replacedHoldings) || [];
++  return d && d.retiredLedger ? hs : hs.filter((h) => h.refundable6 !== "0");
++}
++// the path that may push this holding's refund, by the record's owner ON THAT LEDGER (js/core/ledger-recovery.js)
++const routeOf = (h) => recoveryRoute(h, { identity: currentIdentity().kind, acting: actingOwner(Enclave.address) });
++function holdingNote(d, h){
++  const route = routeOf(h);
++  return '<div class="enc-retired" role="note" data-rid="' + esc(d.id) + '" data-ledger="' + esc(h.ledger) + '">'
++    + (d.retiredLedger ? 'On' : 'Carried over to the current ledger; earlier funding is still held on')
++    + ' ledger <code>' + esc(h.ledger) + '</code>, which the platform replaced'
++    + (h.ledgerRetired ? ' and retired: anyone may push its refund, and it always pays the record’s owner there. ' : ' (not retired yet: only the record’s owner there can refund it). ')
++    + 'Owner there: <code>' + esc(h.owner) + '</code>. '
++    + (h.refundable6 != null ? esc((Number(h.refundable6) / 1e6).toFixed(2)) + ' USDC is refundable there. ' : '')
++    + (h.refundable6 === "0" ? '' : route ? '<button class="btn btn-sm enc-rrefund" data-id="' + esc(d.id) + '" data-ledger="' + esc(h.ledger) + '" data-by="' + route + '">Recover funds'
++        + (route === "account" ? ' (approve with passkey)' : '') + '</button> '
++      : '<span class="dim">Until the platform retires that ledger, only that owner can refund it. </span>')
++    + '<span class="enc-rref-out" role="status" aria-live="polite"></span></div>';
++}
++function vaultHeld(d){ const o = actingOwner(Enclave.address); return !!o && !!d && !d.retiredLedger && !!d.owner && String(d.owner).toLowerCase() !== o; }
+ /* ---- saved config VARIATIONS: named app-config documents, THIS BROWSER only ----
+    A variation is a config the owner wants to come back to (a tuning they A/B,
+    a seasonal setting) - it never rides the chain until Applied, so it lives in
+@@ -468,6 +516,16 @@
+     document.addEventListener("enclave:session", this._onSess);
+     this._onLog = (e) => this._onRunlog(e.detail || {});
+     document.addEventListener("enclave:runlog", this._onLog);
++    // the dashboard identity changed (wallet <-> passkey account, or the account verified/was refused): nothing of the
++    // previous identity survives - rows, the last good read, open panels and the cached session (js/core/identity.js)
++    this._onIdentity = () => {
++      if (this._paintedId === identityKey() + "|" + currentIdentity().state) return;
++      this._good = new LastGood(); this._list = []; this._rowsFor = null;
++      const body = this.querySelector(".enc-body"); if (body) body.innerHTML = "";
++      import("../../js/core/sessions.js").then((S) => S.identityChanged()).catch(() => {});
++      this.refresh({ spinner: true });
++    };
++    document.addEventListener("enclave:identity", this._onIdentity);
+     // deploys in flight (soft-nav away and back): rejoin every live run.
+     // After a HARD reload none are live - but some may sit interrupted in the
+     // persisted log (the refresh killed their deploy flows mid-stream); hand
+@@ -498,8 +556,9 @@
+     if (this._onAcct) document.removeEventListener("enclave:account", this._onAcct);
+     if (this._onSess) document.removeEventListener("enclave:session", this._onSess);
+     if (this._onLog) document.removeEventListener("enclave:runlog", this._onLog);
++    if (this._onIdentity) document.removeEventListener("enclave:identity", this._onIdentity);
+     if (this._onCat) document.removeEventListener("enclave:catalog", this._onCat);
+-    this._wired = false; this._onAuth = null; this._onWallet = null; this._onAcct = null; this._onSess = null; this._onLog = null; this._onCat = null;
++    this._wired = false; this._onAuth = null; this._onWallet = null; this._onAcct = null; this._onSess = null; this._onLog = null; this._onCat = null; this._onIdentity = null;
+   }
+ 
+   /* ---- live-deploy strips: one per run streaming with no row to live in ---- */
+@@ -559,8 +618,10 @@
+     this._paintedFor = Enclave.address;             // what this paint reflects (see _onWallet)
+     this._paintedAcct = Enclave.accountAuthed();    // …and the account edge (_onAcct)
+     this._paintedSess = Enclave.sessionMayServe();  // …and the wallet-session edge (_onSess)
++    const acctId = INDEPENDENT_MODE ? identityKey() : "";   // a selected passkey account (independent mode) lists as itself
++    this._paintedId = acctId + "|" + currentIdentity().state;
+     const hideBar = () => { const tb = this.querySelector(".enc-toolbar"); if (tb) tb.hidden = true; };
+-    if (!Enclave.address && !this._paintedAcct){
++    if (!Enclave.address && !this._paintedAcct && !acctId){
+       this._stopPoll(); hideBar(); this._sessionNote();
+       const pager = this.querySelector(".enc-pager"); if (pager){ pager.hidden = true; pager.innerHTML = ""; }
+       body.innerHTML = '<div class="enc-empty">Sign in (above) to see your enclaves.</div>'; return;
+@@ -569,7 +630,7 @@
+     // ledger data, scoped by address (api.js adds ?owner= when tokenless);
+     // a session only enriches rows with the enclaves' live view
+     // whose list this paint is: rows are never shown to another wallet/account
+-    const who = listIdentity(Enclave.address, this._paintedAcct, Enclave.accountId);
++    const who = acctId || listIdentity(Enclave.address, this._paintedAcct, Enclave.accountId);
+     if (!this._good) this._good = new LastGood();
+     if (this._rowsFor !== who){ this._rowsFor = null; this._list = []; body.innerHTML = ""; }   // another identity's rows never linger through a load
+     if (!body.querySelector(".enc-row") || opts.spinner) body.innerHTML = '<div class="loading" role="status">loading your enclaves…</div>';
+@@ -579,8 +640,10 @@
+       // proceeds and the poll repaints with it (loadCatalog self-dedupes)
+       loadCatalog().catch(() => null);
+       const list = [];
+-      if (Enclave.address){
++      let scan = null;
++      if (Enclave.address || acctId){
+         const res = await Enclave.listDeployments();
++        scan = (res && res.independentScan) || null;
+         list.push(...(Array.isArray(res) ? res : ((res && (res.deployments || res.items || res.data)) || [])));
+         // rows the wallet's SessionVault holds (sessions): the same panel, acted on through the session
+         try {
+@@ -607,6 +670,7 @@
+       this._sessionNote();
+       this._rowsFor = who;
+       this._renderRows(list, opts.highlight);
++      this._scanNote(scan);
+       this._startPoll();
+     } catch(e){
+       // an expired/refused session isn't a wall anymore: drop the token and
+@@ -625,7 +689,8 @@
+      0), and none of anyone else's rows. Either way a Retry, plus the poll. ---- */
+   _listFailed(who, e) {
+     const body = this.querySelector(".enc-body"); if (!body) return;
+-    const v = this._good.failed(who, e);
++    // an unverified passkey account is not a failed read: its rows are not shown at all, with the reason
++    const v = e && e.identityRefused ? { kind: "error" } : this._good.failed(who, e);
+     const tb = this.querySelector(".enc-toolbar"); if (tb) tb.hidden = false;   // refresh + Deploy CTA stay reachable
+     if (v.kind === "stale"){
+       if (this._rowsFor !== who || !body.querySelector(".enc-row")){ this._rowsFor = who; this._renderRows(v.rows); }
+@@ -637,7 +702,7 @@
+     $$(".enc-segs button", this).forEach(b => { const n = b.querySelector("b"); if (n) n.textContent = "–"; b.classList.add("zero"); b.title = "not loaded"; });
+     const pager = this.querySelector(".enc-pager"); if (pager){ pager.hidden = true; pager.innerHTML = ""; }
+     body.innerHTML = '<div class="enc-empty enc-loaderr" role="alert" title="' + esc(e && e.message || String(e)) + '">'
+-      + 'Couldn’t load your apps: ' + esc(failureReason(e)) + '. This is a failed read, not an empty list. Retrying every 10 s. '
++      + (e && e.identityRefused ? 'No apps are shown: ' + esc(e.message) + '. ' : 'Couldn’t load your apps: ' + esc(failureReason(e)) + '. This is a failed read, not an empty list. ') + 'Retrying every 10 s. '
+       + '<button type="button" class="btn btn-sm enc-retry">Retry now</button></div>';
+     body.querySelector(".enc-retry").addEventListener("click", () => this.refresh({ spinner: true }));
+   }
+@@ -657,6 +722,37 @@
+     el.querySelector(".enc-retry").addEventListener("click", () => this.refresh({ spinner: true }));
+   }
+ 
++  /* Independent mode lists from the ledger a few pages per read (js/core/independent-list.js). Until the scan has
++     covered every record, say so - the rows shown are verified, but more may exist - and keep reading. Any
++     deployment can also be added by its full id. */
++  _scanNote(scan) {
++    let el = this.querySelector(".enc-scannote");
++    if (!scan){ if (el) el.remove(); return; }
++    const body = this.querySelector(".enc-body"); if (!body) return;
++    if (!el){ el = document.createElement("div"); el.className = "enc-sessnote enc-scannote"; el.setAttribute("role", "status"); body.before(el); }
++    const partial = !scan.complete;
++    // never the "No apps yet" empty state for a scan that has not finished
++    if (partial && !body.querySelector(".enc-row"))
++      body.innerHTML = '<div class="enc-empty" role="status">Still reading the ledger: ' + scan.scanned + ' of ' + scan.total + ' records checked, none of yours found so far.</div>';
++    el.innerHTML = (partial
++        ? '⏳ <b>Partial list:</b> checked ' + scan.scanned + ' of ' + scan.total + ' ledger records so far. The apps shown are verified; others of yours may not be listed yet. Still reading…'
++          + (scan.reason ? ' <span class="dim">(' + esc(scan.reason) + ')</span>' : '')
++        : '<span class="dim">Read from the ledger at block ' + esc(String(scan.block)) + ' (' + scan.total + ' records checked).</span>')
++      + (scan.notMine && scan.notMine.length ? ' <span class="warn">Not owned by this wallet: ' + scan.notMine.map((x) => esc(x.slice(0, 10) + "…")).join(", ") + '</span>' : '')
++      + (scan.replaced ? ' <span class="dim enc-replaced-scan">Found ' + scan.replaced + ' of your record(s) on ledgers the platform replaced.</span>' : '')
++      + (scan.ledgerHistory && !scan.ledgerHistory.complete ? ' <span class="dim enc-history-scan">Replaced ledgers: ' + esc(scan.ledgerHistory.reason) + '.</span>' : '')
++      + (scan.replacedError ? ' <span class="warn enc-replaced-scan">Couldn’t read the replaced ledger: ' + esc(scan.replacedError) + '</span>' : '')
++      + ' <label class="dim">Add by id <input class="enc-watch ac-in" spellcheck="false" placeholder="0x… full deployment id" size="30"></label>'
++      + ' <button type="button" class="btn btn-sm enc-watch-go">Add</button>';
++    el.querySelector(".enc-watch-go").addEventListener("click", async () => {
++      try { (await import("../../js/core/independent-list.js")).watchId(el.querySelector(".enc-watch").value); this.refresh({ spinner: true }); }
++      catch(e){ showToast(e.message || String(e)); }
++    });
++    clearTimeout(this._scanMore);
++    if (partial) this._scanMore = setTimeout(() => { if (this.isConnected && !this._panelPinned?.()) this.refresh(); }, 1500);
++  }
++
++
+   /* ---- a dropped session must be VISIBLE. Every fleet update reboots the
+      enclaves, which mints fresh in-enclave session keys (ramdisk-backed by
+      design) and 401s every stored token; the refresh path above then falls
+@@ -684,6 +780,594 @@
+     body.before(el);
+   }
+ 
++  /* ---- Host & price tab (independent mode): the registered hosts' own totals for this record's shares, its current
++     ceiling and host pin, and the owner's explicit changes (setMaxRate / the envelope's placement pin) - the retry path
++     when no host claims, with no API. Nothing here raises the ceiling unless the owner saves a higher one. ---- */
++  async _hostPrice(id, btn) {
++    const box = btn.closest(".enc-row").querySelector(".enc-hostp");
++    if (!box) return;
++    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
++    box.hidden = false; btn.setAttribute("aria-expanded", "true");
++    const paintBox = async () => {
++      box.innerHTML = '<div class="ap-attbar">host &amp; price · ' + esc(id) + '</div><div class="term enc-host-status" role="status" aria-live="polite">reading the ledger and the host registry…</div>';
++      const st = box.querySelector(".enc-host-status"), paint = (cls, t) => paintLine(st, cls, t);
++      const IC = await import("../../js/core/independent-chain.js");
++      let at, cap, q, pin;
++      try {
++        at = await IC.deploymentAt(id);
++        if (!at.row) throw new Error("this deployment is not on the pinned ledger");
++        cap = await IC.agreedCap(id);
++        q = await IC.independentQuotes({ gpuMilli: at.row.gpuMilli, cpuMilli: at.row.cpuMilli, owner: at.row.owner });
++        pin = pinnedHost(at.row.configCid || "");
++      } catch(e){ st.textContent = ""; paint("warn", "[x] " + (e.message || e)); return; }
++      const usdHr = (p6) => "$" + (Number(p6) * 3600 / 1e6).toFixed(4) + "/hr";
++      const runner = String(at.row.runner || "").toLowerCase();
++      const elig = q.hosts.filter((h) => h.eligible);
++      st.textContent = "";
++      paint("info", "ceiling " + usdHr(cap.cap6) + " · " + (pin ? "pinned to " + ((q.hosts.find((h) => h.hostId === pin) || {}).endpoint || pin) : "any host at or under the ceiling")
++        + " · read at block " + q.block);
++      // hosts whose liveness could not be checked are an outage, not "no capacity"
++      if (q.liveness && q.liveness.note) paint("warn", "[!] " + q.liveness.note);
++      if (q.policy && q.policy.unavailable) paint("warn", "[!] " + q.policy.note);
++      const table = document.createElement("div");
++      table.className = "enc-host-list";
++      table.innerHTML = q.hosts.map((h) => '<div class="' + (h.eligible ? "" : "dim") + '">' + esc(h.endpoint) + ' · '
++        + (h.eligible ? (h.free ? "free for this owner" : esc(usdHr(h.rate6)) + " for this size" + (h.rate6 <= cap.cap6 ? " · within the ceiling" : " · above the ceiling"))
++          : esc(h.reason)) + (h.hostId === runner ? " · holds the lease now" : "") + '</div>').join("")
++        + '<p class="dim">Prices are what each host posts in the registry. A posted price is not reserved capacity: a host may be full or decline. Hosts claim funded work on their own; nothing here contacts them.</p>';
++      st.before(table);
++      if (String(at.row.owner).toLowerCase() !== String(Enclave.address || "").toLowerCase()){
++        const { sessionsConfig } = await import("../../js/core/sessions.js");
++        if (!(await sessionsConfig().catch(() => null))){ paint("dimln", "only the deployment’s owner can change this"); return; }
++      }
++      const form = document.createElement("div");
++      form.className = "enc-host-form";
++      form.innerHTML = '<label>Host <select class="eh-host"><option value="">Any host at or under the ceiling</option>'
++        + elig.map((h) => '<option value="' + esc(h.hostId) + '"' + (h.hostId === pin ? " selected" : "") + '>' + esc(h.endpoint) + (h.free ? " · free for you" : " · " + esc(usdHr(h.rate6))) + '</option>').join("")
++        + (pin && !elig.some((h) => h.hostId === pin) ? '<option value="' + esc(pin) + '" selected>current pin (not live now)</option>' : '')
++        + '</select></label> <label>Price ceiling, $/hr <input class="eh-cap" type="number" min="0.0001" step="any" value="' + (Number(cap.cap6) * 3600 / 1e6).toFixed(4) + '"></label> '
++        + '<button class="btn btn-sm btn-primary eh-go" type="button">Save</button>';
++      st.before(form);
++      form.querySelector(".eh-go").addEventListener("click", async (ev) => {
++        const go = ev.currentTarget; go.disabled = true;
++        try {
++          const hostId = form.querySelector(".eh-host").value;
++          const next6 = BigInt(Math.ceil((parseFloat(form.querySelector(".eh-cap").value) || 0) * 1e6 / 3600));
++          if (!(next6 > 0n)) throw new Error("the ceiling must be above zero");
++          const h = q.hosts.find((x) => x.hostId === hostId);
++          if (h && !h.free && h.eligible && h.rate6 > next6) throw new Error(h.endpoint + " charges " + usdHr(h.rate6) + ", above that ceiling - it could never take this; raise the ceiling or choose another host");
++          // a host pinned now must be admitted by the platform host policy now (a fresh decision; this panel may be old)
++          if (hostId) await IC.assertHostAdmitted(hostId);
++          // re-read at a fresh agreed block: the owner's explicit change applies to the record as it is now
++          const now = await IC.deploymentAt(id);
++          const capNow = (await IC.agreedCap(id)).cap6;
++          const env = withPlacementPin(now.row.configCid || "", hostId, !hostId);
++          const pinChanged = pinnedHost(env) !== pinnedHost(now.row.configCid || "");
++          if (next6 === capNow && !pinChanged){ paint("info", "nothing to change"); go.disabled = false; return; }
++          await ensureBaseChain();
++          if (next6 !== capNow){
++            paint("info", "[*] set the ceiling to " + usdHr(next6) + " (one transaction)…");
++            await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, encCall(DEP_SEL.setMaxRate, [{ t: "bytes32", v: id }, { t: "uint", v: next6 }])));
++          }
++          if (pinChanged){
++            paint("info", "[*] " + (hostId ? "pin it to " + (h ? h.endpoint : hostId) : "allow any host") + " (one transaction)…");
++            await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: env }])));
++            this._envLearn(id, env);
++          }
++          await paintBox();
++        } catch(e){
++          const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
++          paint("warn", rejected ? "[x] declined in the wallet - nothing changed" : "[x] " + (e.message || String(e)));
++          go.disabled = false;
++        }
++      });
++    };
++    await paintBox();
++  }
++
++  /* ---- Manage tab (independent mode): the deployment's CURRENT host, through the management origin its operator signed
++     (js/core/independent-management.js; api.js routes logs/attestation/restart/app-token there too). Every action is one
++     session-signed request after a fresh agreed lease read; nothing is retried. Host answers are labeled host-reported;
++     the transport is labeled browser WebPKI, never an SPKI check; the native client is offered whenever this path fails. */
++  async _manage(id, btn) {
++    const box = btn.closest(".enc-row").querySelector(".enc-mgmt");
++    if (!box) return;
++    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); this._mgmtToken = null; return; }
++    box.hidden = false; btn.setAttribute("aria-expanded", "true");
++    const M = await import("../../js/core/independent-management.js");
++    box.innerHTML = '<div class="ap-attbar">host management · ' + esc(id) + '</div>'
++      + '<p class="dim enc-mgmt-intro">Reaches the host that holds this deployment’s lease now, at the browser origin its operator signed. Each action is one request signed by this browser’s wallet session; nothing is retried automatically.</p>'
++      + '<div class="enc-mgmt-actions">'
++      +   '<button type="button" class="btn btn-sm em-status">Status</button> '
++      +   '<button type="button" class="btn btn-sm em-logs">Logs</button> <label class="dim">tail <input class="em-tail ac-in" type="number" min="1" max="2000" value="200" size="5"></label> '
++      +   '<button type="button" class="btn btn-sm em-att">Attestation (host-reported)</button> '
++      +   '<button type="button" class="btn btn-sm em-gpu">GPU (host-reported)</button> '
++      +   '<button type="button" class="btn btn-sm em-token">App token</button> '
++      +   '<button type="button" class="btn btn-sm em-prof">CPU profile</button> '
++      +   '<button type="button" class="btn btn-sm em-prof-start">Start profile</button> <label class="dim"><input class="em-secs ac-in" type="number" min="1" max="60" value="10" size="3"> s</label> '
++      +   '<button type="button" class="btn btn-sm em-prof-stop">Stop profile</button> '
++      +   '<button type="button" class="btn btn-sm danger em-restart">Restart</button>'
++      + '</div>'
++      + '<div class="term enc-mgmt-status" role="status" aria-live="polite"></div>'
++      + '<div class="enc-mgmt-deleg" hidden></div>'
++      + '<div class="enc-mgmt-trust" hidden></div>'
++      + '<div class="enc-mgmt-out" hidden></div>'
++      + '<div class="enc-mgmt-native" hidden></div>'
++      // the owner's choice of sign-in pages for this PRIVATE app (the envelope's `access`; js/core/app-access.js)
++      + '<div class="enc-mgmt-access"><div class="ap-attbar">private app sign-in</div>'
++      +   '<p class="dim">Where this app’s sign-in page sends you: your own sign-in origins (this dashboard, or another you run), at most 4, one per line. '
++      +   'Empty means the host’s default sign-in. Saving is one transaction from the wallet that holds the deployment; every other deployment option is kept. '
++      +   'Passkeys stay tied to enclave.host and do not move: on another origin you open the app with a session.</p>'
++      +   '<label class="dim" for="emFe' + esc(appLabel(id)) + '">Sign-in origins</label> '
++      +   '<textarea id="emFe' + esc(appLabel(id)) + '" class="em-fe ac-in" rows="2" cols="40" spellcheck="false" placeholder="https://dash.example.org"></textarea> '
++      +   '<button type="button" class="btn btn-sm em-fe-read">Read current</button> <button type="button" class="btn btn-sm em-fe-save">Save</button>'
++      +   '<div class="term em-fe-status" role="status" aria-live="polite"></div></div>';
++    const st = box.querySelector(".enc-mgmt-status"), out = box.querySelector(".enc-mgmt-out");
++    const trustEl = box.querySelector(".enc-mgmt-trust"), nativeEl = box.querySelector(".enc-mgmt-native");
++    const paint = (cls, t) => paintLine(st, cls, t);
++    const buttons = () => [...box.querySelectorAll(".enc-mgmt-actions button")];
++    const mutations = () => [...box.querySelectorAll(".em-restart, .em-prof-start, .em-prof-stop")];
++    let unknownPending = false;            // a mutation whose outcome is unknown: no mutation until status is checked
++    const showTrust = (t) => {
++      trustEl.hidden = false;
++      trustEl.innerHTML = '<div class="enc-mgmt-via"><b>Transport: browser WebPKI</b> · <code>' + esc(t.origin) + '</code> · signed by host operator <code>' + esc(t.operator)
++        + '</code> (management record #' + esc(String(t.sequence)) + ') · lease read at block ' + esc(String(t.block)) + '</div>'
++        + '<p class="dim">' + esc(M.TRANSPORT_NOTE) + ' <b>Native SPKI: not checked by this page.</b></p>';
++    };
++    const showNative = (n) => {
++      if (!n){ nativeEl.hidden = true; nativeEl.innerHTML = ""; return; }
++      nativeEl.hidden = false;
++      nativeEl.innerHTML = '<p><b>Use the native client instead</b> (it pins the host’s exact TLS key over a literal IP, with no DNS name or public CA):</p>'
++        + '<pre class="enc-mgmt-cmd">' + esc(n.command) + '</pre><button type="button" class="btn btn-sm em-copycmd">Copy command</button>'
++        + n.notes.map((x) => '<p class="dim">' + esc(x) + '</p>').join("");
++      nativeEl.querySelector(".em-copycmd").addEventListener("click", (e) => copyText(n.command, e.currentTarget));
++    };
++    const showOut = (html) => { out.hidden = false; out.innerHTML = html; };
++    {
++      const feSt = box.querySelector(".em-fe-status"), feIn = box.querySelector(".em-fe");
++      const fePaint = (cls, t) => paintLine(feSt, cls, t);
++      const A = () => import("../../js/core/app-access.js"), ICm = () => import("../../js/core/independent-chain.js");
++      box.querySelector(".em-fe-read").addEventListener("click", async (ev) => {
++        const b = ev.currentTarget; b.disabled = true;
++        try {
++          const now = await (await ICm()).deploymentAt(id);          // a fresh agreed read
++          const list = (await A()).accessFrontends(now.row && now.row.configCid);
++          feIn.value = list.join("\n");
++          fePaint("ok", list.length ? "[✓] " + list.length + " sign-in origin(s), read at block " + now.snap.number : "[✓] none chosen: the host's default sign-in applies (block " + now.snap.number + ")");
++        } catch (e){ fePaint("warn", "[x] " + (e.message || String(e))); }
++        b.disabled = false;
++      });
++      box.querySelector(".em-fe-save").addEventListener("click", async (ev) => {
++        const b = ev.currentTarget; b.disabled = true;
++        try {
++          const lines = feIn.value.split(/\s+/).map((x) => x.trim()).filter(Boolean);
++          const now = await (await ICm()).deploymentAt(id);          // the owner's change applies to the record as it is NOW
++          if (!now.row) throw new Error("this deployment is not on the pinned ledger");
++          const holder = String(now.row.owner || "").toLowerCase(), me = String(actingOwner(Enclave.address) || "").toLowerCase();
++          if (!me || holder !== me) throw new Error("only the wallet that holds this deployment (" + holder + ") can change its options here; a deployment your session vault holds changes them through the Sessions page");
++          const env = (await A()).withAccessFrontends(now.row.configCid || "", lines);
++          if (env === String(now.row.configCid || "")){ fePaint("info", "nothing to change"); b.disabled = false; return; }
++          await ensureBaseChain();
++          fePaint("info", "[*] " + (lines.length ? "set " + lines.length + " sign-in origin(s)" : "return to the host's default sign-in") + " (one transaction)…");
++          await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: env }])));
++          this._envLearn(id, env);
++          fePaint("ok", "[✓] saved. The host applies it on its next ledger read; the app keeps running.");
++        } catch (e){
++          const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
++          fePaint("warn", rejected ? "[x] declined in the wallet - nothing changed" : "[x] " + (e.message || String(e)));
++        }
++        b.disabled = false;
++      });
++    }
++    // A deployment the WALLET holds (not its session vault) is managed only once the owner has let the vault act for the
++    // wallet on the ledger (setDelegate): the host's gateway checks that grant itself. Shown, never granted automatically.
++    const delegEl = box.querySelector(".enc-mgmt-deleg");
++    const showDelegation = async () => {
++      const dep = (this._list || []).find((x) => String(x.id).toLowerCase() === id.toLowerCase());
++      // the dashboard identity holds it directly: the wallet, or a verified passkey account (never the gas payer)
++      const owner = actingOwner(Enclave.address), acct = currentIdentity().kind === "account";
++      if (!dep || !owner || String(dep.owner || "").toLowerCase() !== owner) return;
++      const S = await import("../../js/core/sessions.js");
++      let d = null;
++      try { d = await S.walletDelegation(owner, true); } catch (e){ d = null; }
++      if (!box.isConnected) return;
++      delegEl.hidden = false;
++      const who = acct ? "Your passkey account" : "Your wallet", whom = acct ? "your account" : "your wallet";
++      if (!d || d.noVault){ delegEl.innerHTML = '<p class="dim">' + who + ' holds this deployment. Its host takes your session’s signature only after you start a session and let its vault act for ' + whom + ' on the ledger.</p>'; return; }
++      if (!d.supported){ delegEl.innerHTML = '<p class="dim">' + who + ' holds this deployment, and this ledger cannot let a session vault act for it: use the native client with a session of its own.</p>'; return; }
++      if (d.granted){ delegEl.innerHTML = '<p class="dim">' + who + ' holds this deployment; your session vault <code>' + esc(d.vault) + '</code> may act for it on the ledger.</p>'; return; }
++      delegEl.innerHTML = '<p>' + who + ' holds this deployment. Its host takes your session’s signature only once you let your session vault <code>' + esc(d.vault)
++        + '</code> act for ' + whom + ' on the ledger (' + (acct ? 'one passkey approval; your wallet pays gas' : 'one wallet transaction') + '; revocable).</p><button type="button" class="btn btn-sm em-deleg-go">'
++        + (acct ? 'Allow (approve with passkey)' : 'Allow (one wallet transaction)') + '</button>';
++      delegEl.querySelector(".em-deleg-go").addEventListener("click", async (ev) => {
++        const b = ev.currentTarget; b.disabled = true;
++        try {
++          if (acct) paint("dimln", "  ↳ sent " + await S.setAccountDelegation(true));
++          else await S.setWalletDelegation(true, { onSent: (h) => paint("dimln", "  ↳ sent " + h + " · waiting for confirmation…") });
++          paint("ok", "[✓] your session vault may now act for " + whom); await showDelegation();
++        }
++        catch (e){ paint("warn", "[x] " + (e.message || String(e))); b.disabled = false; }
++      });
++    };
++    showDelegation();
++    const run = async (label, fn) => {
++      buttons().forEach((b) => (b.disabled = true));
++      st.textContent = ""; paint("info", "[*] " + label + ": reading the lease at an agreed block, then the host’s signed management record…");
++      try {
++        const r = await fn();
++        if (!box.isConnected) return;
++        showTrust(r.trust); showNative(null);
++        return r;
++      } catch (e){
++        if (!box.isConnected) return;
++        const unknown = e && e.outcomeUnknown;
++        if (unknown) unknownPending = true;
++        paint(unknown ? "warn" : "warn", (unknown ? "[!] outcome unknown: " : "[x] ") + (e.message || String(e)));
++        if (unknown) paint("info", "    Check status before asking again. The page will not resend it.");
++        if (e && (e.kind === "delegation" || /delegat/.test(e.message || ""))){
++          paint("dimln", "    A deployment your wallet holds needs a ledger delegation to your session vault before its host takes the session’s signature.");
++          showDelegation();
++        }
++        if (e && e.kind === "busy") paint("dimln", "    Nothing was forwarded. The page does not retry by itself.");
++        showNative(e && e.kind !== "no-gpu" ? e.native : null);     // a CPU-only host is a fact, not a transport failure
++        return null;
++      } finally {
++        if (box.isConnected){
++          buttons().forEach((b) => (b.disabled = false));
++          if (unknownPending) mutations().forEach((b) => { b.disabled = true; b.title = "outcome of the last request is unknown: check status first"; });
++        }
++      }
++    };
++    box.querySelector(".em-status").addEventListener("click", async () => {
++      const r = await run("status", () => M.hostStatus(id));
++      if (!r) return;
++      unknownPending = false; mutations().forEach((b) => { b.disabled = false; b.title = ""; });
++      paint("ok", "[✓] host-reported status: " + String((r.result.json && r.result.json.status) || "(no status field)"));
++      showOut('<div class="dim">Host-reported status (what the host says; not verified by this page):</div><pre class="ap-attpre em-json">' + hlJson(r.result.json) + '</pre>');
++    });
++    box.querySelector(".em-logs").addEventListener("click", async () => {
++      const tail = Math.max(1, Math.min(2000, parseInt(box.querySelector(".em-tail").value, 10) || 200));
++      const r = await run("logs", () => M.hostLogs(id, tail));
++      if (!r) return;
++      paint("ok", "[✓] last " + tail + " log lines (a tail; there is no follow mode)");
++      showOut('<pre class="ap-attpre em-logtext"></pre>');
++      out.querySelector(".em-logtext").textContent = r.result.text || "(no output yet)";
++    });
++    box.querySelector(".em-att").addEventListener("click", async () => {
++      const r = await run("attestation", () => M.hostAttestation(id));
++      if (!r) return;
++      paint("warn", "[!] host-reported attestation document: NOT verified by this page");
++      const n = M.nativeCommands(id, "attestation");
++      showOut('<div class="enc-mgmt-hostrep"><b>Host-reported, not verified.</b> ' + esc(M.HOST_REPORTED_NOTE)
++        + ' This page sent a fresh nonce; the document ' + (r.echoesNonce ? 'echoes it' : 'does not echo it') + ', which proves nothing about the app on its own.</div>'
++        + '<div class="dim">Verified evidence: <code>' + esc(n.command) + '</code> (the Connect tab builds its starting profile).</div>'
++        + '<pre class="ap-attpre em-json">' + hlJson(r.result.json) + '</pre>');
++    });
++    box.querySelector(".em-gpu").addEventListener("click", async () => {
++      const r = await run("GPU", () => M.hostGpu(id));
++      if (!r) return;
++      const v = M.gpuView(r.result.json);
++      showOut('<div class="enc-mgmt-hostrep"><b>' + esc(v.headline) + ' · host-reported, not verified.</b> ' + esc(v.note) + '</div>'
++        + '<dl class="ss-facts em-gpu-rows">' + v.rows.map(([k, x]) => '<dt>' + esc(k) + '</dt><dd>' + esc(x) + '</dd>').join("") + '</dl>'
++        + (v.tenants.length ? '<div class="dim">Tenants on this card (host-reported):</div><ul class="em-gpu-tenants">'
++          + v.tenants.map((t) => '<li>' + esc(String(t.pct)) + '% · ' + esc(t.status) + (t.sms != null ? ' · ' + esc(String(t.sms)) + ' SMs' : '') + '</li>').join("") + '</ul>' : '')
++        + (v.cards.length ? '<ul class="em-gpu-cards">' + v.cards.map((c) => '<li>card ' + esc(c.id) + ' · ' + (c.available ? 'available' : 'not available')
++          + (c.vramFreeGb != null ? ' · ' + esc(String(c.vramFreeGb)) + ' GB free of ' + esc(String(c.vramBudgetGb)) : '') + (c.shareFree ? ' · ' + esc(c.shareFree) + ' share free' : '')
++          + (c.claims.length ? '<div class="dim">The host also reports ' + esc(c.claims.join(", ")) + ' for this card. These are the host’s own claims; this page did not verify them.</div>' : '')
++          + '</li>').join("") + '</ul>' : '')
++        + '<details><summary>Raw answer</summary><pre class="ap-attpre em-json">' + hlJson(r.result.json) + '</pre></details>');
++      paint("ok", "[✓] host-reported GPU state" + (r.result.json && r.result.json.role ? " (" + r.result.json.role + ")" : ""));
++    });
++    box.querySelector(".em-token").addEventListener("click", async () => {
++      this._mgmtToken = null;
++      const r = await run("app token", () => M.hostAppToken(id));
++      if (!r) return;
++      const t = r.result.json;
++      this._mgmtToken = { id, token: t.token };          // held in memory only; never painted, logged or stored
++      paint("ok", "[✓] app token for this deployment (" + t.tokenType + ", until " + t.expiresAt + ")");
++      showOut('<p>The token opens this private app as its owner. It is audience-bound to this deployment, held in this page’s memory only, and never shown or stored. Send it only to the app.</p>'
++        + '<button type="button" class="btn btn-sm em-token-copy">Copy token</button> <button type="button" class="btn btn-sm em-token-save">Save as file</button>');
++      out.querySelector(".em-token-copy").addEventListener("click", (e) => { if (this._mgmtToken && this._mgmtToken.id === id) copyText(this._mgmtToken.token, e.currentTarget); });
++      out.querySelector(".em-token-save").addEventListener("click", () => {
++        if (!this._mgmtToken || this._mgmtToken.id !== id) return;
++        const url = URL.createObjectURL(new Blob([this._mgmtToken.token + "\n"], { type: "text/plain" }));
++        const a = document.createElement("a"); a.href = url; a.download = "app-token-" + id.slice(2, 10) + ".txt"; a.click();
++        setTimeout(() => URL.revokeObjectURL(url), 1000);
++      });
++    });
++    box.querySelector(".em-prof").addEventListener("click", async () => {
++      const r = await run("CPU profile", () => M.hostCpuProfile(id));
++      if (!r) return;
++      const j = r.result.json || {}, bytes = M.profileBytes(j);
++      paint("ok", "[✓] CPU profile: " + String(j.state) + (j.seconds ? ", " + j.seconds + " s" : "") + (bytes ? ", " + bytes.length + " bytes captured" : ""));
++      showOut('<div class="dim">Host-reported profiler state:</div><pre class="ap-attpre em-json">' + hlJson({ ...j, data: j.data ? "(" + (bytes ? bytes.length : 0) + " bytes, gperftools)" : j.data }) + '</pre>'
++        + (bytes ? '<button type="button" class="btn btn-sm em-prof-save">Download capture</button>' : ''));
++      const save = out.querySelector(".em-prof-save");
++      if (save) save.addEventListener("click", () => {
++        const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
++        const a = document.createElement("a"); a.href = url; a.download = "cpu-profile-" + id.slice(2, 10) + ".prof"; a.click();
++        setTimeout(() => URL.revokeObjectURL(url), 1000);
++      });
++    });
++    box.querySelector(".em-prof-start").addEventListener("click", async () => {
++      const seconds = parseInt(box.querySelector(".em-secs").value, 10);
++      if (!(Number.isSafeInteger(seconds) && seconds >= 1 && seconds <= 60)) return paint("warn", "[x] a profile runs 1 to 60 seconds");
++      const r = await run("start CPU profile", () => M.hostCpuProfileControl(id, { action: "start", seconds }));
++      if (r) paint("ok", "[✓] profiling started (" + r.result.outcome + "): " + String(r.result.json.state) + "; read it with CPU profile when it completes");
++    });
++    box.querySelector(".em-prof-stop").addEventListener("click", async () => {
++      const r = await run("stop CPU profile", () => M.hostCpuProfileControl(id, { action: "stop" }));
++      if (r) paint("ok", "[✓] profiling stopped (" + r.result.outcome + "): " + String(r.result.json.state));
++    });
++    box.querySelector(".em-restart").addEventListener("click", async () => {
++      if (!confirm("Restart this app once through its host’s management endpoint?\n\nIt is sent one time and never retried automatically. If the answer is lost, check status before asking again.")) return;
++      const r = await run("restart", () => M.hostRestart(id));
++      if (r) paint("ok", "[✓] restart " + r.result.outcome + " (host-reported: " + String(r.result.json.status) + ")");
++    });
++  }
++
++  /* ---- Connect tab (independent mode): a starting trust profile for the native client, built only from the
++     network profile's pins, with the remaining trust decisions named rather than filled in ---- */
++  async _nativeConnect(id, btn) {
++    const box = btn.closest(".enc-row").querySelector(".enc-nat");
++    if (!box) return;
++    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
++    box.hidden = false; btn.setAttribute("aria-expanded", "true");
++    const { INDEPENDENT } = await import("../../js/core/config.js");
++    const { nativeStarter } = await import("../../js/core/native-instructions.js");
++    let out;
++    try {
++      const book = INDEPENDENT.profile.addressBook
++        ? await (await import("../../js/core/platform-addresses.js")).resolvePlatformAddresses() : null;
++      out = nativeStarter(INDEPENDENT.profile, id.toLowerCase(), appLabel(id), book);
++    }
++    catch(e){ box.innerHTML = '<p class="warn">' + esc(e.message || String(e)) + '</p>'; return; }
++    box.innerHTML = '<div class="ap-attbar">connect without Enclave names · ' + esc(id) + '</div>'
++      + '<p>Start from this profile (save it as <code>base-profile.json</code>) and decide the open items yourself:</p>'
++      + '<ul class="enc-nat-todo">' + out.todo.map((t) => '<li>' + esc(t) + '</li>').join("") + '</ul>'
++      + '<pre class="enc-nat-json">' + esc(JSON.stringify(out.starter, null, 2)) + '</pre>'
++      + '<button class="btn btn-sm enc-nat-copy" type="button">Copy profile</button>'
++      + '<pre class="enc-nat-cmd">' + esc(out.commands.join("\n")) + '</pre>'
++      + out.notes.map((n) => '<p class="dim">' + esc(n) + '</p>').join("");
++    box.querySelector(".enc-nat-copy").addEventListener("click", () => copyText(JSON.stringify(out.starter, null, 2)));
++  }
++
++  /* ---- Startup tab (independent mode): the owner-committed startup package ----
++     Publish the exact startup settings to every adapter in the profile's storage plan (each copy read back), then
++     commit their hash with the owner's own setConfig - the CLI's bootstrap prepare/publish/activate. The record's
++     owner, app and current options are read at a block the profile's RPCs agree on, before and after publishing. */
++  async _startup(id, btn) {
++    const box = btn.closest(".enc-row").querySelector(".enc-start");
++    if (!box) return;
++    if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
++    box.hidden = false; btn.setAttribute("aria-expanded", "true");
++    box.innerHTML = '<div class="ap-attbar">startup settings · ' + esc(id) + '</div><div class="term enc-start-status" role="status" aria-live="polite"></div>';
++    const st = box.querySelector(".enc-start-status"), paint = (cls, t) => paintLine(st, cls, t);
++    const SP = await import("../../js/core/startup-package.js");
++    const CP = await import("../../js/core/history-checkpoint.js");
++    const IC = await import("../../js/core/independent-chain.js");
++    const { STORAGE_PLAN } = await import("../../js/core/config.js");
++    let at;
++    try { at = await IC.deploymentAt(id); } catch(e){ paint("warn", "[x] couldn’t read this deployment at an agreed block: " + (e.message || e)); return; }
++    if (!at.row){ paint("warn", "[x] this deployment is not on the pinned ledger"); return; }
++    if (at.rev !== SP.STARTUP_LEDGER_SCHEMA){ paint("warn", "[x] the pinned ledger (schema " + at.rev + ") does not support owner-committed startup"); return; }
++    const row = at.row, owner = String(row.owner).toLowerCase();
++    const scope = { chainId: 8453, ledger: String(DEPLOYMENTS_ADDRESS).toLowerCase(), deployment: id.toLowerCase(), owner: row.owner, appRef: row.appRef };
++    const intent = SP.committedIntent(row.configCid);
++    const gateways = STORAGE_PLAN ? STORAGE_PLAN.replicas.map((r) => r.gateway) : [];
++    let current = null;
++    if (intent && intent.disabled) paint("info", "startup is disabled until you commit settings (created for owner-published startup)");
++    else if (intent){
++      paint("info", "committed startup settings " + intent.sha256.slice(0, 16) + "… (block " + at.snap.number + ")");
++      if (gateways.length){
++        const rc = await SP.readCommitted(intent, scope, gateways).catch((e) => ({ verified: [], failed: gateways, error: e }));
++        current = rc.manifest;
++        if (current && current.names?.hosts) paint("info", "custom names in these settings: " + current.names.hosts.join(", "));
++        if (current && current.names?.appZone) paint("info", "the app issues its address certificate using your selected CA and challenge replicas");
++        if (current && current.history && current.history.rpcs) paint("info", "history sources in these settings: " + current.history.rpcs.join(", "));
++        if (current && current.history && current.history.checkpoints) paint("info", "checkpoint mirrors in these settings: " + current.history.checkpoints.join(", "));
++        paint(rc.verified.length ? "ok" : "warn", (rc.verified.length ? "[✓] " : "[!] ") + rc.verified.length + " of " + gateways.length + " storage adapters return the exact committed bytes");
++      }
++    } else paint("info", "no startup settings are committed: this deployment uses its catalog version’s settings");
++    if (owner !== actingOwner(Enclave.address)){ paint("dimln", "only the deployment’s owner (" + owner + ") can change its startup settings"); return; }
++    if (!STORAGE_PLAN){ paint("warn", "[!] the independent profile names no storage adapters, so startup settings cannot be published from here"); return; }
++    const fid = "es" + appLabel(id);
++    const cn = current && current.names ? current.names : null;
++    const ch = current && current.history ? current.history : null;
++    const committed = !!(intent && !intent.disabled);
++    const form = document.createElement("div");
++    form.className = "enc-start-body";
++    form.innerHTML =
++        '<label for="' + fid + 'c">App settings (JSON, as the app reads ENCLAVE_CONFIG)</label>'
++      + '<textarea id="' + fid + 'c" class="es-cfg" rows="5" spellcheck="false">' + esc(current ? current.configText : "{}") + '</textarea>'
++      + '<label for="' + fid + 'a">App ID</label><input id="' + fid + 'a" class="es-app" spellcheck="false" placeholder="64 hex characters, from the host’s runtime" value="' + esc(current ? current.appId : "") + '">'
++      + '<label for="' + fid + 'r">Runtime ID</label><input id="' + fid + 'r" class="es-rt" spellcheck="false" placeholder="64 hex characters, from the host’s runtime" value="' + esc(current ? current.runtimeId : "") + '">'
++      + '<details><summary>Secrets held by custodians (optional)</summary><label for="' + fid + 'p">Custody pointer (JSON) - never paste secret values here</label>'
++      + '<textarea id="' + fid + 'p" class="es-cust" rows="3" spellcheck="false">' + esc(current && current.custody ? JSON.stringify(current.custody) : "") + '</textarea></details>'
++      // custom names: part of the committed startup package (naming worker's schema, docs/network/independent-names.md)
++      + '<fieldset class="es-names"><legend>Custom names (optional)</legend>'
++      + '<label for="' + fid + 'h">Names this app answers to, one per line (empty = none)</label>'
++      + '<textarea id="' + fid + 'h" class="es-hosts" rows="3" spellcheck="false" autocapitalize="off">' + esc(cn?.hosts ? cn.hosts.join("\n") : "") + '</textarea>'
++      + '<details' + (cn && cn.acme ? " open" : "") + '><summary>Certificates issued inside the app (optional)</summary>'
++      + '<label for="' + fid + 'ad">CA directory URL</label><input id="' + fid + 'ad" class="es-acme-dir" spellcheck="false" placeholder="https://ca.example/directory" value="' + esc(cn && cn.acme ? cn.acme.directory : "") + '">'
++      + '<label for="' + fid + 'ac">Challenge responder URL</label><input id="' + fid + 'ac" class="es-acme-ch" spellcheck="false" placeholder="https://responder.example" value="' + esc(cn && cn.acme ? cn.acme.challenge : "") + '">'
++      + '<label for="' + fid + 'az">Responder zone</label><input id="' + fid + 'az" class="es-acme-zone" spellcheck="false" placeholder="acme.responder.example" value="' + esc(cn && cn.acme ? cn.acme.zone : "") + '">'
++      + '<label for="' + fid + 'ek">CA account key id: name of a custodian-held secret (optional)</label><input id="' + fid + 'ek" class="es-eab-kid" spellcheck="false" value="' + esc(cn && cn.acme && cn.acme.eab ? cn.acme.eab.kid : "") + '">'
++      + '<label for="' + fid + 'eh">CA account HMAC: name of a custodian-held secret (optional)</label><input id="' + fid + 'eh" class="es-eab-hmac" spellcheck="false" value="' + esc(cn && cn.acme && cn.acme.eab ? cn.acme.eab.hmac : "") + '">'
++      + '</details><details' + (cn?.appZone ? ' open' : '') + '><summary>App address certificate (optional)</summary>'
++      + '<p class="dim">SEV-SNP guests can keep their certificate key inside the app. Choose a CA and challenge replicas for its own deployment address. Leave these fields empty to use the existing certificate path.</p>'
++      + '<label for="' + fid + 'zd">CA directory URL</label><input id="' + fid + 'zd" class="es-appzone-dir" spellcheck="false" value="' + esc(cn?.appZone?.directory || '') + '">'
++      + '<label for="' + fid + 'zc">Challenge replica URLs, one per line</label><textarea id="' + fid + 'zc" class="es-appzone-challenges" rows="3" spellcheck="false">' + esc((cn?.appZone?.challenges || []).join('\n')) + '</textarea>'
++      + '<label for="' + fid + 'zk">CA account key id: name of a custodian-held secret (optional)</label><input id="' + fid + 'zk" class="es-appzone-kid" spellcheck="false" value="' + esc(cn?.appZone?.eab?.kid || '') + '">'
++      + '<label for="' + fid + 'zh">CA account HMAC: name of a custodian-held secret (optional)</label><input id="' + fid + 'zh" class="es-appzone-hmac" spellcheck="false" value="' + esc(cn?.appZone?.eab?.hmac || '') + '">'
++      + '</details><div class="term es-names-preview" role="status" aria-live="polite"></div></fieldset>'
++      // history sources for cold starts: part of the committed package (work/history-owner-tools-interface.txt)
++      + '<fieldset class="es-history"><legend>History sources for cold starts (optional)</legend>'
++      + '<p class="dim">A freshly started app guest proves which lease it runs under by reading that lease’s history from the chain. Its own RPCs serve only recent history (under about 3 hours), so for a lease held longer name log-capable Base RPCs here: two run by different operators. These settings are published for anyone to read, so never put an API key in a URL.</p>'
++      + '<label for="' + fid + 'y">HTTPS RPC URLs, one per line (empty = none)</label>'
++      + '<textarea id="' + fid + 'y" class="es-hist" rows="2" spellcheck="false" autocapitalize="off">' + esc(ch && ch.rpcs ? ch.rpcs.join("\n") : "") + '</textarea>'
++      // attested history checkpoints: mirrors committed with the package (work/history-checkpoint-transport-interface.txt)
++      + '<label for="' + fid + 'm">Checkpoint mirrors: HTTPS URLs where you keep copies of this app’s history checkpoint, one per line (empty = none)</label>'
++      + '<textarea id="' + fid + 'm" class="es-hist-cp" rows="2" spellcheck="false" autocapitalize="off">' + esc(ch && ch.checkpoints ? ch.checkpoints.join("\n") : "") + '</textarea>'
++      + '<label><input type="checkbox" class="es-hist-public"> These URLs hold no private key (a path that looks like a key is otherwise refused)</label>'
++      + '<details class="es-hist-options"><summary>Public endpoints others have used (check them yourself)</summary>'
++      + '<ul class="dim">' + SP.HISTORY_PUBLIC_OPTIONS.map((o) => '<li><code>' + esc(o.url) + '</code> · ' + esc(o.operator) + ' · probed ' + esc(o.probed) + ': ' + esc(o.served) + '. Limits: ' + esc(o.limits) + '.</li>').join("") + '</ul>'
++      + '<p class="dim">' + esc(SP.HISTORY_KEYLESS_LIMIT) + '</p>'
++      + '<button class="btn btn-sm es-hist-fill" type="button">Fill these in (you can edit them)</button></details>'
++      + '<div class="term es-hist-preview" role="status" aria-live="polite"></div>'
++      + '<details class="es-cp"><summary>History checkpoint: save a copy for your mirrors</summary>'
++      + '<p class="dim">A running SEV-SNP guest that verified this lease’s history serves an attested checkpoint of it. Keep copies where the URLs above point (any web space you control): a guest started after its host is gone loads them instead of the full history. A copy proves itself, so wherever you keep it only decides whether it can be found. Refresh it now and then (the newer, the less history a new guest reads) and before its revocation list goes stale: <code>enclave history checkpoint refresh-crl</code>.</p>'
++      + '<label for="' + fid + 'f">Running deployment’s address</label><input id="' + fid + 'f" class="es-cp-from" spellcheck="false" value="' + esc(CP.defaultFront(id)) + '">'
++      + '<button class="btn btn-sm es-cp-fetch" type="button">Fetch and check</button> '
++      + '<label class="btn btn-sm">Open a file<input type="file" class="es-cp-file" accept="application/json,.json" hidden></label> '
++      + '<button class="btn btn-sm es-cp-save" type="button" disabled>Save a copy</button>'
++      + '<div class="term es-cp-out" role="status" aria-live="polite"></div></details></fieldset>'
++      + (committed && !current ? '<label class="warn"><input type="checkbox" class="es-blind"> The committed settings could not be read back. Replace them anyway (their names and settings will be what you enter here).</label>' : '')
++      // the isolation tier that starts it: SEV-SNP by default (the CLI's choice); an Enclave Shield partition only when chosen
++      + '<label for="' + fid + 'b">Isolation tier that starts it</label><select id="' + fid + 'b" class="es-backend">'
++      + Object.entries(SP.STARTUP_BACKENDS).map(([k, v]) => '<option value="' + esc(k) + '"' + (k === (SP.requiredBackend(row.configCid) === "hyperv-partition-per-app" ? "hyperv-partition-per-app" : SP.DEFAULT_STARTUP_BACKEND) ? " selected" : "") + '>' + esc(v.label) + '</option>').join("")
++      + '</select><p class="dim es-backend-note"></p>'
++      + '<p class="dim">Publishing asks ' + (currentIdentity().kind === "account" ? 'your passkey account to approve' : 'your wallet to sign') + ' once per storage adapter (' + STORAGE_PLAN.replicas.length + '), then commit with one transaction. Hosts that start apps in their own SEV-SNP guest can then start it without Enclave’s release service.</p>'
++      + '<button class="btn btn-sm btn-primary es-go" type="button">Publish and commit</button>';
++    st.before(form);
++    // live names preview: validated exactly as the guest and CLI validate them, with the DNS records to publish
++    const namesInput = () => ({ hostsText: form.querySelector(".es-hosts").value, directory: form.querySelector(".es-acme-dir").value,
++      challenge: form.querySelector(".es-acme-ch").value, zone: form.querySelector(".es-acme-zone").value,
++      eabKid: form.querySelector(".es-eab-kid").value, eabHmac: form.querySelector(".es-eab-hmac").value,
++      appZoneDirectory: form.querySelector(".es-appzone-dir").value, appZoneChallengesText: form.querySelector(".es-appzone-challenges").value,
++      appZoneEabKid: form.querySelector(".es-appzone-kid").value, appZoneEabHmac: form.querySelector(".es-appzone-hmac").value });
++    const secretsMode = () => form.querySelector(".es-cust").value.trim() ? "custody-v2" : "public";
++    const backendSel = form.querySelector(".es-backend"), backendNote = form.querySelector(".es-backend-note");
++    const showBackend = () => {
++      backendNote.textContent = backendSel.value === "hyperv-partition-per-app"
++        ? "Weaker than the default: the host node, not the app’s partition, re-reads your commitment on chain, the evidence is the host’s TPM-quoted boot and the partition’s VSM report rather than SEV-SNP, and custodians never release custody-v2 secrets to it, so its settings must be public. Only Enclave Shield hosts claim it. The CLI’s bootstrap activate does not offer this choice yet."
++        : "The app’s own SEV-SNP guest re-reads your commitment on chain before it starts; custodians may release custody-v2 secrets to it. This is what the CLI’s bootstrap activate writes.";
++    };
++    backendSel.addEventListener("change", showBackend); showBackend();
++    const preview = form.querySelector(".es-names-preview");
++    const showNames = async () => {
++      let names;
++      try { names = SP.namesFromForm(namesInput(), secretsMode()); }
++      catch(e){ preview.innerHTML = '<div class="warn">✗ ' + esc(e.message || String(e)) + '</div>'; return null; }
++      const before = new Set(cn?.hosts || []), after = new Set(names?.hosts || []);
++      const added = [...after].filter((h) => !before.has(h)), removed = [...before].filter((h) => !after.has(h));
++      let html = !names ? '<div class="dim">No custom names: only the deployment’s own identity is served.</div>'
++        : '<div>' + (names.hosts || []).length + ' custom name(s)' + (added.length ? ' · adding ' + esc(added.join(", ")) : '') + (removed.length ? ' · removing ' + esc(removed.join(", ")) : '') + '</div>';
++      if (names?.appZone) html += '<div>App address certificate: ' + esc(names.appZone.directory) + ' · ' + names.appZone.challenges.length + ' challenge replica(s)</div>';
++      else if (cn?.appZone) html += '<div>Removing the app address certificate settings.</div>';
++      if (!names && removed.length) html += '<div>removing ' + esc(removed.join(", ")) + '</div>';
++      if (names && names.acme){
++        const enclaveRun = SP.enclaveOperatedSelection(names);
++        if (enclaveRun.length) html += '<div class="warn es-enclave-acme">Your ' + esc(enclaveRun.join(", ")) + ' choice is run by Enclave. It works only while Enclave runs it, so it is not independent of Enclave; choose a CA and a challenge responder you or another operator run.</div>';
++        const alias = await SP.challengeAlias(id.toLowerCase(), owner, names.acme.zone);
++        html += '<div class="dim">Publish at each name’s DNS (the record also names this deployment’s current owner; a transfer needs new records):</div>'
++          + '<pre class="es-dns">' + names.hosts.map((h) => esc("_acme-challenge." + h + ".  CNAME  " + alias + ".")).join("\n") + '</pre>';
++      } else if (names?.hosts?.length) html += '<div class="dim">Without a CA selection, certificates are issued outside the app: whoever controls a name’s DNS fetches the app’s certificate request and posts the chain back.</div>';
++      html += '<div class="dim">A listed name is your claim, not proof: a certificate is issued only through the name’s own DNS.</div>';
++      preview.innerHTML = html;
++      return names;
++    };
++    form.querySelectorAll(".es-hosts, .es-acme-dir, .es-acme-ch, .es-acme-zone, .es-eab-kid, .es-eab-hmac, .es-appzone-dir, .es-appzone-challenges, .es-appzone-kid, .es-appzone-hmac, .es-cust").forEach((el) => el.addEventListener("input", () => { showNames(); }));
++    showNames();
++    // history preview: validated exactly as the guest validates it, with what the owner should know
++    const historyInput = () => ({ rpcsText: form.querySelector(".es-hist").value, checkpointsText: form.querySelector(".es-hist-cp").value, pathIsPublic: form.querySelector(".es-hist-public").checked });
++    const histPreview = form.querySelector(".es-hist-preview");
++    const showHistory = () => {
++      let h;
++      try { h = SP.historyFromForm(historyInput()); }
++      catch(e){ histPreview.innerHTML = '<div class="warn">✗ ' + esc(e.message || String(e)) + '</div>'; return; }
++      const rpcs = h && h.rpcs ? h.rpcs : [], ops = [...new Set(rpcs.map(SP.historyOperator))];
++      histPreview.innerHTML = (h ? '<div>' + rpcs.length + ' source(s) · operators: ' + esc(ops.join(", ") || "none") + (h.checkpoints ? ' · ' + h.checkpoints.length + ' checkpoint mirror(s)' : '') + '</div>' : '')
++        + SP.historyWarnings(h).map((w) => '<div class="warn">' + esc(w) + '</div>').join("");
++    };
++    form.querySelectorAll(".es-hist, .es-hist-cp, .es-hist-public").forEach((el) => el.addEventListener("input", showHistory));
++    form.querySelector(".es-hist-public").addEventListener("change", showHistory);
++    form.querySelector(".es-hist-fill").addEventListener("click", () => {
++      const area = form.querySelector(".es-hist"), have = area.value.split(/[\s,]+/).filter(Boolean);
++      area.value = [...new Set([...have, ...SP.HISTORY_PUBLIC_OPTIONS.map((o) => o.url)])].join("\n");
++      showHistory();
++    });
++    showHistory();
++    // checkpoint copies: fetched from the running guest (it serves any origin) or opened from a file, checked here the way
++    // the guest reads them (CP.checkCheckpoint), saved for the owner's mirrors; the AMD evidence is judged by the guest
++    const cpOut = form.querySelector(".es-cp-out"), cpSave = form.querySelector(".es-cp-save");
++    let cpText = null;
++    const showCheckpoint = async (text, from) => {
++      cpText = null; cpSave.disabled = true;
++      try {
++        const c = await CP.checkCheckpoint(text, { chainId: scope.chainId, ledger: scope.ledger, deployment: id.toLowerCase() });
++        cpText = text; cpSave.disabled = false;
++        cpOut.innerHTML = '<div>[✓] ' + esc(from) + ': blocks ' + c.lo + '–' + c.hi + ' · ' + c.logs + ' lease log(s), ' + c.claims + ' claim(s) · the report binds exactly this statement and this deployment</div>'
++          + '<div class="dim">measurement ' + esc(c.measurement.slice(0, 16)) + '… · ' + (c.hasCertificates ? 'AMD certificates attached' : 'no AMD certificates attached yet (enclave history checkpoint import adds them)') + ' · ' + (c.hasCrl ? 'a revocation list attached' : 'no revocation list attached yet (enclave history checkpoint refresh-crl adds one)') + '</div>'
++          + '<div class="warn">' + esc(c.notJudged) + '</div>';
++      } catch(e){ cpOut.innerHTML = '<div class="warn">✗ ' + esc(from) + ': ' + esc(e.message || String(e)) + '</div>'; }
++    };
++    form.querySelector(".es-cp-fetch").addEventListener("click", async () => {
++      const from = form.querySelector(".es-cp-from").value.trim();
++      try { await showCheckpoint(await CP.fetchCheckpoint(from), from); }
++      catch(e){ cpText = null; cpSave.disabled = true; cpOut.innerHTML = '<div class="warn">✗ ' + esc(e.message || String(e)) + '</div>'; }
++    });
++    form.querySelector(".es-cp-file").addEventListener("change", async (ev) => {
++      const file = ev.target.files && ev.target.files[0];
++      if (!file) return;
++      if (file.size > CP.MAX_CHECKPOINT_BYTES){ cpOut.innerHTML = '<div class="warn">✗ checkpoint size</div>'; return; }
++      await showCheckpoint(await file.text(), file.name);
++    });
++    cpSave.addEventListener("click", () => {
++      if (!cpText) return;
++      const a = document.createElement("a");
++      a.href = URL.createObjectURL(new Blob([cpText], { type: "application/json" }));
++      a.download = "history-checkpoint-" + id.slice(2, 10).toLowerCase() + ".json";
++      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
++    });
++    const go = form.querySelector(".es-go");
++    go.addEventListener("click", async () => {
++      go.disabled = true;
++      try {
++        const cfgText = form.querySelector(".es-cfg").value.trim() || "{}";
++        try { const c = JSON.parse(cfgText); if (!c || typeof c !== "object") throw 0; } catch { throw new Error("the app settings must be a JSON object or array"); }
++        const custRaw = form.querySelector(".es-cust").value.trim();
++        const custody = custRaw ? JSON.parse(custRaw) : null;
++        const backend = backendSel.value;
++        if (custody && !SP.STARTUP_BACKENDS[backend].custody)
++          throw new Error("an Enclave Shield partition never receives custody-v2 secrets: remove the custody pointer, or choose the SEV-SNP tier");
++        if (committed && !current && !(form.querySelector(".es-blind") || {}).checked)
++          throw new Error("the committed settings could not be read back from storage; confirm that you want to replace them");
++        const names = SP.namesFromForm(namesInput(), custody ? "custody-v2" : "public");
++        if (names?.appZone && backend !== "snp-guest-per-app")
++          throw new Error("app address certificate settings currently require the SEV-SNP tier");
++        const history = SP.historyFromForm(historyInput());
++        const pkg = await SP.preparePackage(scope, { appId: form.querySelector(".es-app").value, runtimeId: form.querySelector(".es-rt").value, configText: cfgText, custody, names, history });
++        paint("info", "[*] startup package " + pkg.sha256.slice(0, 16) + "… (" + pkg.bytes.length + " bytes) · sign once per storage adapter…");
++        const { publishPackageToPlan } = await import("../../js/core/storage-plan.js");
++        // who authorizes each storage upload: a wallet key by EIP-191 (upload v1), or - under a passkey account identity -
++        // the ACCOUNT itself through its contract (ERC-1271, upload v2: each adapter asks the account via the chain readers
++        // its operator pinned). A connected wallet only ever pays gas for an account; it never signs as the account.
++        const acctOwner = currentIdentity().kind === "account";
++        const signer = acctOwner ? await (await import("../../js/core/sessions.js")).accountUploadSigner()
++          : { address: owner, signMessage: ({ message }) => personalSign(message) };
++        if (acctOwner) paint("dimln", "    your passkey account signs each upload itself (ERC-1271); the storage adapters check it with its contract");
++        const report = await publishPackageToPlan(pkg.bytes, STORAGE_PLAN, signer);
++        paint("ok", "[✓] " + report.verifiedCopies + " of " + STORAGE_PLAN.replicas.length + " storage adapters hold the exact bytes (needed " + report.minimumCopies + ")");
++        // re-read at a fresh agreed block: the owner, app and options this commit replaces must be unchanged
++        const again = await IC.deploymentAt(id);
++        if (!again.row || String(again.row.owner).toLowerCase() !== owner || again.row.appRef !== row.appRef)
++          throw new Error("the deployment’s owner or app changed while publishing - nothing was committed");
++        const envelope = SP.activationEnvelope(again.row.configCid, pkg.intent, { backend });
++        paint("info", acctOwner ? "[*] commit it on the ledger (your passkey account approves)…" : "[*] commit it on the ledger (wallet · one transaction)…");
++        await ensureBaseChain();
++        const h = await sendTx(DEPLOYMENTS_ADDRESS, encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: envelope }]));
++        paint("dimln", "  ↳ sent " + h + " · waiting for confirmation…");
++        await waitReceipt(h);
++        paint("ok", "[✓] committed: hosts with a direct SEV-SNP runtime can now start this deployment from these settings once it is funded");
++        this._envLearn(id, envelope);
++      } catch(e){
++        const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
++        paint("warn", rejected ? "[x] declined in the wallet - nothing was committed" : "[x] " + (e.message || String(e)));
++      } finally { go.disabled = false; }
++    });
++  }
++
+   async _shares(id, btn) {
+     const listed = (this._list || []).find(row => row.id === id);
+     if (!listed) return;
+@@ -736,7 +1420,7 @@
+         status.textContent = 'Confirm the price limit in your ' + (via ? 'passkey prompt.' : 'wallet.');
+         if (via) await (await import('../../js/core/vault.js')).vaultOp('control', { id, action: 'maxrate', maxRate6: Number(next) });
+         else {
+-          if (!Enclave.provider) await connectWallet();
++          await needPayer();
+           await ensureBaseChain();
+           await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS, encCall(DEP_SEL.setMaxRate, [{ t: 'bytes32', v: id }, { t: 'uint', v: next }])));
+         }
+@@ -834,7 +1518,7 @@
+       // the row's app identity, shared by the cover-art chip and the meta line
+       const appLbl = deploymentTitle(d);
+       const shareText = encTier(d);
+-      const art = artOfRef(d.image && d.image.reference, appLbl || d.id);
++      const art = artOfRef(d.image && d.image.reference, appLbl || d.id), artAttrs = artAttrsOfRef(d.image && d.image.reference, appLbl || d.id);
+       // the card leads with the APP, not the raw id: the bytes32 becomes a
+       // compact copy chip (full value in data-copy/title), stated once per card
+       const idShort = (d.id || "").length > 20 ? d.id.slice(0, 10) + "…" + d.id.slice(-4) : (d.id || "–");
+@@ -848,7 +1532,7 @@
+       const runwayPct = runwaySec != null ? Math.max(2, Math.min(100, Math.round(100 * runwaySec / RUNWAY_FULL))) : null;
+       return '<div class="enc-row' + (highlight && d.id === highlight ? " enc-new" : "") + '">' +
+         '<div class="enc-main">' +
+-          '<span class="enc-thumb" style="background-image:' + art + '" aria-hidden="true"></span>' +
++          '<span class="enc-thumb" style="background-image:' + art + '"' + artAttrs + ' aria-hidden="true"></span>' +
+           '<span class="enc-title">' + esc(appLbl || idShort) + '</span>' +
+           '<span class="ap-badge ' + statusCls(st) + '">' + esc(st) + '</span>' +
+           '<span class="ap-badge ' + (d.public ? 'ep-public' : 'ep-private') + '" title="' + (d.public ? 'anyone can reach the app endpoint' : 'only your wallet token can reach the app') + '">' + (d.public ? 'public' : 'private') + '</span>' +
+@@ -865,7 +1549,7 @@
+           // the acts row holds only IMMEDIATE actions; everything that opens a
+           // panel lives in the tab strip below (develop-page tab idiom)
+           '<span class="enc-acts">' +
+-            (st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-restart" data-id="' + esc(d.id) + '" title="Stop and relaunch the app in place - same version, endpoint and balance; app state is ephemeral. The fix for a wedged instance (e.g. a model that never loaded at boot)">Restart</button>' : '') +
++            (!INDEPENDENT_MODE && st === "running" && ctl === "wallet" ? '<button class="btn btn-sm enc-restart" data-id="' + esc(d.id) + '" title="Stop and relaunch the app in place - same version, endpoint and balance; app state is ephemeral. The fix for a wedged instance (e.g. a model that never loaded at boot)">Restart</button>' : '') +
+             (resumable && ctl !== "order" ? '<button class="btn btn-sm ok enc-resume" data-id="' + esc(d.id) + '" title="Put it back on the queue - an enclave re-claims it and the app relaunches fresh from its published version, spending the remaining balance">Resume</button>' : '') +
+             (live && ctl !== "order" ? (onchain
+               ? '<button class="btn btn-sm warn enc-kill" data-id="' + esc(d.id) + '" title="Stop the app and take it off the queue. The remaining balance stays on the deployment - Resume restarts it any time">Suspend</button>'
+@@ -879,17 +1563,18 @@
+           '</span>' +
+         '</div>' +
+         ((st === "failed" || st === "expired") && d.error ? '<div class="enc-err" title="why this deployment ' + esc(st) + '">⚠ ' + esc(d.error) + '</div>' : '') +
++        holdingsOf(d).map((h) => holdingNote(d, h)).join('') +
+         // a version change the runner could not apply yet (unapproved/oversized
+         // target, catalog unreachable): the OLD version keeps serving; say why
+         (d.versionChange && d.versionChange.error ? '<div class="enc-err" title="the requested version change has not applied - the previous version keeps serving; the runner retries automatically">⚠ version change pending: ' + esc(d.versionChange.error) + '</div>' : '') +
+         (st === "queued" ? '<div class="enc-why" data-why="' + esc(d.id) + '" role="status" aria-live="polite" hidden></div>' : '') +
+         (ep ? '<div class="enc-eprow"><button class="enc-ep" data-ep="' + esc(ep) + '">' + esc(ep) + ' ⧉</button>'
+-              + openCtl(d, ep, this._tls && this._tls.get(d.id)) + '</div>' : '') +
++              + openCtl(d, ep, this._tls && this._tls.get(d.id)) + '</div>' : '') + independentOpenCtl(d) +
+         // panel tabs (develop-page idiom): each button toggles its panel below;
+         // aria-expanded doubles as the active-tab style hook. Transfer lives
+         // here - it opens a panel and does not belong beside Cancel.
+         '<div class="enc-tabs" role="group" aria-label="deployment panels">' +
+-          '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>' +
++          (INDEPENDENT_MODE ? '' : '<button class="btn btn-sm enc-outbtn" data-id="' + esc(d.id) + '" aria-expanded="false">Output</button>') +
+           (live && ctl !== "order" ? '<button class="btn btn-sm enc-fundbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="' + (ctl === "vault" ? 'Add runtime from your credit balance - one passkey tap' : 'Add runtime - a gas-free USDC signature credits the deployment’s on-chain balance') + '">Top up</button>' : '') +
+           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-upgbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Switch to another approved version of this app - paid time carries over; the app restarts in place on the new version">Version</button>' : '') +
+           '<button class="btn btn-sm enc-sharesbtn" data-id="' + esc(d.id) + '" data-editable="' + (onchain && (live || resumable) && ctl !== "order") + '" aria-expanded="false" title="App requirements, host capacity, and running allocation">Resources</button>' +
+@@ -897,14 +1582,20 @@
+           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-modbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="The model volumes this app mounts: attested read-only weights the fleet carries, picked by name - a change relaunches the app in place on the new set; the catalog and every other deployment stay untouched">Models</button>' : '') +
+           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-wafbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Per-IP rate limit + request filter, enforced inside the enclave at the app’s front door - add, tune or remove it any time; a running app picks the change up live">Protect</button>' : '') +
+           (onchain && (live || resumable) && ctl !== "order" ? '<button class="btn btn-sm enc-netbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="This app’s network: its routes, providers and settings. TLS ends in the app guest.">Network</button>' : '') +
+-          '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Choose a preferred host for this app, or resume an ended app on a selected host. Same URL, version and balance">Pin</button>' +
+-          '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>' +
+-          (mobileOffer(d, ep) ? '<button class="btn btn-sm enc-mobbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Downloads</button>' : '') +
++          (INDEPENDENT_MODE ? '' : '<button class="btn btn-sm enc-movebtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Choose a preferred host for this app, or resume an ended app on a selected host. Same URL, version and balance">Pin</button>') +
++          (INDEPENDENT_MODE ? '' : '<button class="btn btn-sm enc-verify" data-id="' + esc(d.id) + '" aria-expanded="false">Verify</button>') +
++          // independent mode: the owner-committed startup package (js/core/startup-package.js) for wallet-owned records
++          (INDEPENDENT_MODE && onchain && (live || resumable) && ctl === "wallet" ? '<button class="btn btn-sm enc-hostbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Which registered hosts may run this app, and the most it will pay">Host &amp; price</button>' : '') +
++          (INDEPENDENT_MODE && onchain && vaultHeld(d) ? '<button class="btn btn-sm enc-envbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Staging or production: whether your sessions may change this app’s version, or only you">Environment</button>' : '') +
++          (INDEPENDENT_MODE && onchain && (live || resumable) ? '<button class="btn btn-sm enc-mgmtbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Status, logs, host-reported attestation, restart, app token and CPU profile, from the host that holds the lease, at the origin its operator signed">Manage</button>' : '') +
++          (INDEPENDENT_MODE && onchain ? '<button class="btn btn-sm enc-natbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Reach this app with the attestation-checking native client, without Enclave’s names or certificates">Connect</button>' : '') +
++          (INDEPENDENT_MODE && onchain && (live || resumable) && ctl === "wallet" ? '<button class="btn btn-sm enc-startbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Publish this app’s startup settings to your storage adapters and commit them on the ledger, so a host can start it without Enclave’s release service">Startup</button>' : '') +
++          (!INDEPENDENT_MODE && mobileOffer(d, ep) ? '<button class="btn btn-sm enc-mobbtn" data-id="' + esc(d.id) + '" aria-expanded="false" title="Install this app on a phone - the mobile build verifies the enclave on the device before the app loads">Downloads</button>' : '') +
+           // secrets/domains are tabs like every other panel; their toggle
+           // buttons live HERE, the sections below hold only body + status
+           // (the wire helpers resolve the toggle at row level)
+-          (onchain && (live || resumable) && ctl === "wallet" ? '<button class="btn btn-sm es-toggle" aria-controls="esBody' + appLabel(d.id) + '" aria-expanded="false" title="Private env vars for this app (S3 keys, API tokens): stored on the relay - never on the public chain - and injected at app start by the enclave holding its lease. One wallet signature reveals them for editing">Secrets</button>' : '') +
+-          (onchain && (live || resumable) && ctl === "wallet" ? '<button class="btn btn-sm ed-toggle" aria-controls="edBody' + appLabel(d.id) + '" aria-expanded="false" title="Serve this app on a domain you own, with a certificate minted inside the enclave">Domains</button>' : '') +
++          (!INDEPENDENT_MODE && onchain && (live || resumable) && ctl === "wallet" ? '<button class="btn btn-sm es-toggle" aria-controls="esBody' + appLabel(d.id) + '" aria-expanded="false" title="Private env vars for this app (S3 keys, API tokens): stored on the relay - never on the public chain - and injected at app start by the enclave holding its lease. One wallet signature reveals them for editing">Secrets</button>' : '') +
++          (!INDEPENDENT_MODE && onchain && (live || resumable) && ctl === "wallet" ? '<button class="btn btn-sm ed-toggle" aria-controls="edBody' + appLabel(d.id) + '" aria-expanded="false" title="Serve this app on a domain you own, with a certificate minted inside the enclave">Domains</button>' : '') +
+           // wallet rows only: a vault-owned record's on-chain owner IS the
+           // vault contract - handing it to an outside wallet would tear it
+           // out of the vault's accounting (a vault feature if ever wanted)
+@@ -920,14 +1611,33 @@
+         '<div class="enc-mod" hidden></div>' +
+         '<div class="enc-mob" hidden></div>' +
+         '<div class="enc-xfer" hidden></div>' +
+-        (onchain && (live || resumable) && ctl === "wallet" ? secretsSection(d.id) : '') +
+-        (onchain && (live || resumable) && ctl === "wallet" ? domainsSection(d.id) : '') +
++        (!INDEPENDENT_MODE && onchain && (live || resumable) && ctl === "wallet" ? secretsSection(d.id) : '') +
++        (!INDEPENDENT_MODE && onchain && (live || resumable) && ctl === "wallet" ? domainsSection(d.id) : '') +
++        (INDEPENDENT_MODE ? '<div class="enc-env" hidden></div><div class="enc-start" hidden></div><div class="enc-nat" hidden></div><div class="enc-hostp" hidden></div><div class="enc-mgmt" hidden></div>' : '') +
+         '<div class="enc-out" data-id="' + esc(d.id) + '" hidden></div>' +
+         '<div class="enc-att" hidden></div>' +
+       '</div>';
+     }).join("");
++    hydrateMedia(body);   // the app chips: preferred gateway, configured fallbacks, then the placeholder (once per CID)
+     $$(".enc-id", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
+     $$(".enc-ep", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.ep)));
++    // recovery on a replaced ledger: refund(id) sent to THAT ledger (js/core/platform-addresses.js allows exactly this
++    // and suspend there); the connected wallet pays the gas, and the ledger pays the record's owner
++    $$(".enc-rrefund", body).forEach(b => b.addEventListener("click", async () => {
++      const out = b.parentElement.querySelector(".enc-rref-out");
++      b.disabled = true; out.textContent = "checking the replaced ledger…";
++      try {
++        const call = { to: b.dataset.ledger, data: "0x" + DEP_SEL.refund + pad32(b.dataset.id) };
++        // the passkey account sends through its Safe (its own path: a wallet only if the wallet pays the account's gas);
++        // otherwise the dashboard's wallet sends. On a retired ledger anyone may push the refund; it pays the owner there.
++        let h;
++        if (b.dataset.by === "account"){ await needPayer(); h = await (await import("../../js/core/sessions.js")).safeExecute(call); }
++        else { if (!Enclave.provider) await connectWallet(); h = await walletSendTx(call.to, call.data); }
++        out.textContent = "sent " + h + " · waiting for confirmation…";
++        await waitReceipt(h);
++        out.textContent = "refunded to the record's owner"; this.refresh && this.refresh({ spinner: false });
++      } catch(e){ out.textContent = "✗ " + (e.message || String(e)); b.disabled = false; }
++    }));
+     // STRICT tabs: opening one panel first closes any open sibling - via the
+     // open tab's own click path (capture phase runs before the open handler),
+     // so each panel keeps its own close semantics. Re-entry is safe: the
+@@ -941,6 +1651,7 @@
+     $$(".enc-outbtn", body).forEach(b => b.addEventListener("click", () => this._output(b.dataset.id, b)));
+     $$(".enc-fundbtn", body).forEach(b => b.addEventListener("click", () => this._fund(b.dataset.id, b)));
+     $$(".enc-upgbtn", body).forEach(b => b.addEventListener("click", () => this._upgrade(b.dataset.id, b)));
++    $$(".enc-envbtn", body).forEach(b => b.addEventListener("click", () => this._envPanel(b.dataset.id, b)));
+     $$(".enc-sharesbtn", body).forEach(b => b.addEventListener("click", () => this._shares(b.dataset.id, b)));
+     $$(".enc-movebtn", body).forEach(b => b.addEventListener("click", () => this._move(b.dataset.id, b)));
+     $$(".enc-wafbtn", body).forEach(b => b.addEventListener("click", () => this._waf(b.dataset.id, b)));
+@@ -952,6 +1663,10 @@
+     $$(".enc-dom[data-id]", body).forEach(el => this._domainsWire(el));
+     $$(".enc-mobbtn", body).forEach(b => b.addEventListener("click", () => this._mobile(b.dataset.id, b)));
+     $$(".enc-verify", body).forEach(b => b.addEventListener("click", () => this._verify(b.dataset.id, b)));
++    $$(".enc-startbtn", body).forEach(b => b.addEventListener("click", () => this._startup(b.dataset.id, b)));
++    $$(".enc-natbtn", body).forEach(b => b.addEventListener("click", () => this._nativeConnect(b.dataset.id, b)));
++    $$(".enc-hostbtn", body).forEach(b => b.addEventListener("click", () => this._hostPrice(b.dataset.id, b)));
++    $$(".enc-mgmtbtn", body).forEach(b => b.addEventListener("click", () => this._manage(b.dataset.id, b)));
+     // each allocation's pool pill, coloured as Live enclaves colours the serving box's pool
+     $$(".enc-pool[data-box]", body).forEach(el => boxRowOf(el.dataset.box).then((row) => {
+       const html = row && (el.dataset.pool === "gpu" ? gpuPoolBadge(row) : cpuPoolBadge(row));
+@@ -995,7 +1710,7 @@
+       if (c && Date.now() - c.at < 30_000) continue;
+       this._why.set(d.id, { ...(c || {}), at: Date.now() });   // stamp before the await: overlapping polls must not double-probe
+       try {
+-        const r = await fetch(Enclave.base + "/claim-hint", { method: "POST",
++        const r = await claimHint({ method: "POST",
+           headers: { "content-type": "application/json" }, body: JSON.stringify({ id: d.id }) });
+         const h = await r.json();
+         if (h && h.accepted === false && h.reason)
+@@ -1015,7 +1730,7 @@
+       el.innerHTML = c.terminal
+         ? "⚠ won’t start by waiting - the fleet refuses this work: " + esc(c.reason)
+           + " (check the app’s minimum resources in Resources)"
+-        : '<span class="dim">fleet: ' + esc(c.reason) + " - retrying automatically</span>";
++        : '<span class="dim">fleet: ' + esc(c.reason) + "</span>";
+       el.hidden = false;
+     });
+   }
+@@ -1157,7 +1872,7 @@
+       +   '<label for="efAmt">Add runtime (' + (via ? 'USD' : 'USDC') + ')</label>'
+       +   '<input class="ef-amt" id="efAmt" type="number" value="5" min="0.01" step="any" inputmode="decimal" />'
+       +   '<span class="ef-est"></span>'
+-      +   '<button class="btn btn-sm btn-primary ef-go" type="button">' + (via ? 'Confirm with passkey' : 'Sign &amp; pay') + '</button>'
++      +   '<button class="btn btn-sm btn-primary ef-go" type="button">' + (via ? 'Confirm with passkey' : INDEPENDENT_MODE && currentIdentity().kind === "account" ? 'Pay from your account' : 'Sign &amp; pay') + '</button>'
+       + '</div>'
+       + '<div class="term enc-fund-status" role="status" aria-live="polite"></div>';
+     const amt = box.querySelector(".ef-amt"), est = box.querySelector(".ef-est");
+@@ -1167,7 +1882,7 @@
+     // has no runner watching its balance: funding is what re-queues it, and one
+     // claim-hint makes the fleet's re-claim prompt instead of next-sweep
+     const revive = ["expired", "unfunded"].indexOf(d.status || "") !== -1;
+-    const nudge = () => { if (revive) fetch(Enclave.base + "/claim-hint", { method: "POST",
++    const nudge = () => { if (revive) claimHint({ method: "POST",
+       headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {}); };
+     const okTail = revive ? " · re-queued: the fleet re-claims it and the app relaunches within a minute"
+                           : " · the enclave picks up the new balance within a minute";
+@@ -1197,15 +1912,9 @@
+       }
+       try {
+         // no SIWE: the EIP-3009 authorization IS the proof of key ownership
+-        if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
++        if (await needsWallet()){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+         await ensureBaseChain();
+-        let pricing = null;
+-        try { pricing = await (await fetch(Enclave.base + "/pricing", { signal: AbortSignal.timeout(8000) })).json(); } catch(e){}
+-        await payForRuntime({
+-          contract: DEPLOYMENTS_ADDRESS, deploymentRef: id,
+-          usdcDomain: pricing && pricing.usdcDomain, usdc: (pricing && pricing.usdc) || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+-          ethUsd: pricing && pricing.ethUsd,
+-        }, usd, "USDC", paint);
++        await payForRuntime({ contract: DEPLOYMENTS_ADDRESS, deploymentRef: id, ...(await fundingTerms()) }, usd, "USDC", paint);
+         nudge();
+         paint("ok", "[✓] topped up" + (rate > 0 ? " - +" + fmtDur(usd / rate) + " of runtime" : "") + okTail);
+         showToast("topped up " + id.slice(0, 10) + "… with $" + usd.toFixed(2));
+@@ -1252,7 +1961,6 @@
+     let app = STORE.byId[cr.appId] || (sharesOnly ? { slug: 'app', versions: [] } : null);
+     try { const current = await catGetApp(cr.appId); if (app) app = {...app,active:current?.active}; }
+     catch { return fail('[x] Could not verify current app moderation. Close and reopen to retry.'); }
+-
+     if (!app || !app.versions) return fail("[x] the catalog doesn’t list this deployment’s app (delisted?) - nothing to switch to");
+     let currentVersion = null;
+     if (sharesOnly) {
+@@ -1535,7 +2243,7 @@
+             throw new Error('The app’s host changed. Reopen Resources to size its current allocation.');
+         }
+         if (restartResize && (resized || d.active === false)) {
+-          if (!via && !Enclave.provider) await connectWallet();
++          if (!via) await needPayer();
+           if (!via) await ensureBaseChain();
+           const walletTx = async data => { const hash = await sendTx(DEPLOYMENTS_ADDRESS, data); await waitReceipt(hash); };
+           const activeCall = active => encCall(DEP_SEL.setActive, [{ t: "bytes32", v: id }, { t: "bool", v: active }]);
+@@ -1560,7 +2268,7 @@
+           });
+           saved = true;
+           if (result.resumed) {
+-            fetch(Enclave.base + "/claim-hint", { method: "POST", headers: { "content-type": "application/json" },
++            claimHint({ method: "POST", headers: { "content-type": "application/json" },
+               body: JSON.stringify({ id, force: true }) }).catch(() => {});
+           }
+           if (this._why) this._why.delete(id);
+@@ -1580,7 +2288,7 @@
+         } else {
+           // no SIWE: setAppRef/setShares are owner-gated on-chain - a connected
+           // wallet is all this needs; Version and Shares each send their own action
+-          if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
++          if (await needsWallet()){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+           await ensureBaseChain();
+           paint("info", "[*] confirm the transaction in your wallet…");
+           const calls = [];
+@@ -1595,7 +2303,7 @@
+         if (this._why) this._why.delete(id);   // a pre-change decline reason must not outlive the switch
+         // nudge the fleet: makes queued/suspended rows relaunch promptly (a
+         // running one is restarted by its own runner's next ledger pass)
+-        fetch(Enclave.base + "/claim-hint", { method: "POST",
++        claimHint({ method: "POST",
+           headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {});
+         paint("ok", "[✓] " + doneWord + " - the runner applies it within a minute; paid time and the endpoint carry over");
+         showToast(doneWord.replace(/^switched/, "switched " + id.slice(0, 10) + "…").replace(/^resized/, "resized " + id.slice(0, 10) + "…"));
+@@ -1637,7 +2345,7 @@
+             const { vaultOp } = await import("../../js/core/vault.js");
+             await vaultOp("control", { id, action: "maxrate", maxRate6: Number(next6) });
+           } else {
+-            if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
++            if (await needsWallet()){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+             await ensureBaseChain();
+             paint("info", "[*] confirm the transaction in your wallet…");
+             const th = await sendTx(DEPLOYMENTS_ADDRESS,
+@@ -1680,7 +2388,7 @@
+     if (box.hidden || !box.isConnected) return;              // closed while loading
+     const fail = (msg) => { box.querySelector(".enc-waf-status").innerHTML = ""; paintLine(box.querySelector(".enc-waf-status"), "warn", msg); };
+     if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
+-    if (avail && avail.waf !== true)
++    if (avail && !avail.independent && avail.waf !== true)
+       return fail("[!] the live fleet doesn’t enforce the protection envelope yet - enabling it now could strand this deployment on its next claim; try again after the fleet updates");
+     // the current envelope: waf + config namespaces; anything unparseable
+     // reads as empty (setConfig replaces it wholesale, which also heals it)
+@@ -1762,7 +2470,7 @@
+         } else {
+           // setConfig is owner-gated on-chain - a connected wallet is all
+           // this needs; the envelope rides one transaction
+-          if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
++          if (await needsWallet()){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+           await ensureBaseChain();
+           paint("info", "[*] confirm the transaction in your wallet…");
+           const th = await sendTx(DEPLOYMENTS_ADDRESS,
+@@ -1845,7 +2553,9 @@
+     let editBlocked = null;
+     if (rev < 5 && !hasOv)
+       editBlocked = "The current ledger does not support changing this deployment’s models.";
+-    else if ((!avail || avail.configOverride !== true) && !hostsTakeConfig(fleet, raw) && !hasOv)
++    // Independent mode cannot ask hosts what they support (that view is the API's): the edit is the owner's ledger
++    // record, and a host that does not take it declines the claim under its own policy.
++    else if (!(avail && avail.independent) && (!avail || avail.configOverride !== true) && !hostsTakeConfig(fleet, raw) && !hasOv)
+       editBlocked = "Changing models is unavailable because fleet support is missing or could not be verified.";
+     if (editBlocked && !allowReadOnly) return { err: editBlocked };
+     // The STOCK config: the catalog version this deployment references. On a
+@@ -1888,7 +2598,7 @@
+         const { vaultOp } = await import("../../js/core/vault.js");
+         await vaultOp("control", { id, action: "options", envelope });
+       } else {
+-        if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
++        if (await needsWallet()){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+         await ensureBaseChain();
+         paint("info", "[*] confirm the transaction in your wallet…");
+         const th = await sendTx(DEPLOYMENTS_ADDRESS,
+@@ -2244,7 +2954,7 @@
+     const sha256hex = async (s) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))]
+       .map(b => b.toString(16).padStart(2, "0")).join("");
+     const sign = async (message) => {
+-      if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
++      if (await needsWallet()){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+       return personalSign(message);
+     };
+     const call = async (path, body) => {
+@@ -2376,7 +3086,7 @@
+             + rules.images.map((im) => "measurement " + im.measurement.slice(0, 16) + "… / runtime " + im.runtimeId.slice(0, 12) + "…").join("; ")
+             + " - as the relay predicts them. Check them, then click Admit and save.");
+         }
+-        if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
++        if (await needsWallet()){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+         const r = await saveToCustody({ id, env, admittedRules: admitted, sendTx: (to, data) => walletSendTx(to, data), waitReceipt,
+                                         onStep: (m) => paint("info", "[*] " + m) });
+         admitted = null; cust.textContent = "Save to custody";
+@@ -2427,7 +3137,7 @@
+     if (!id || !toggle || !body_ || !list || !input || !add || !st) return;
+     const paint = (cls, txt) => paintLine(st, cls, txt);
+     const sign = async (message) => {
+-      if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
++      if (await needsWallet()){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
+       return personalSign(message);
+     };
+     const call = async (path, body) => {
+@@ -2767,7 +3477,7 @@
+       // The remaining balance stays on the record and setActive(true) re-queues
+       // it, so for on-chain rows this is a SUSPEND, not an end.
+       if (onchain){
+-        showToast("confirm setActive(false) in your wallet - this suspends the app and takes it off the queue");
++        showToast((INDEPENDENT_MODE && currentIdentity().kind === "account" ? "approve setActive(false) with your passkey" : "confirm setActive(false) in your wallet") + " - this suspends the app and takes it off the queue");
+         await ensureBaseChain();
+         const th = await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.setActive + pad32(id.replace(/^0x/, "")) + encUint(0));
+         await waitReceipt(th);
+@@ -2920,7 +3630,7 @@
+     go.addEventListener("click", async () => {
+       const to = (aIn.value || "").trim();
+       if (!/^0x[0-9a-fA-F]{40}$/.test(to)) return paint("warn", "[x] not an Ethereum address (0x + 40 hex characters)");
+-      if (to.toLowerCase() === String(Enclave.address || "").toLowerCase()) return paint("warn", "[x] that address already owns this deployment");
++      if (to.toLowerCase() === actingOwner(Enclave.address)) return paint("warn", "[x] that address already owns this deployment");
+       if (/^0x0{40}$/i.test(to)) return paint("warn", "[x] the zero address");
+       const lines = ["Transfer " + id.slice(0, 10) + "… to", "", to, "",
+                      (chain ? usd(amount6) + " comes back to your wallet first, then this wallet loses every right to the record"
+@@ -3150,7 +3860,7 @@
+     const label = go.textContent;
+     const vault = via ? (await import("../../js/core/vault.js")).vaultOp : null;
+     const walletActive = async active => {
+-      if (!Enclave.provider) await connectWallet();
++      if (!Enclave.provider) await connectWallet();   // Pin is hosted-only: a wallet pays
+       await ensureBaseChain();
+       await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS,
+         encCall(DEP_SEL.setActive, [{ t: "bytes32", v: id }, { t: "bool", v: active }])));
+@@ -3176,11 +3886,14 @@
+         const cap = (await depSchemaRev()) >= 5 ? 4096 : 100;
+         let envelope = withIsolationRequirements(fresh.configCid, choice, cap);
+         if (box._placementTargets) envelope = withPlacementPin(envelope, hostId, allowFallback, cap);
++        // independent mode: a pinned host must be admitted by the platform host policy at a fresh block
++        if (INDEPENDENT_MODE && box._placementTargets && /^0x[0-9a-f]{64}$/.test(hostId || ""))
++          await (await import("../../js/core/independent-chain.js")).assertHostAdmitted(hostId);
+         if (envelope !== String(fresh.configCid || "")) {
+           paintLine(s, "info", "Confirm the placement and hardware requirements in your wallet.");
+           if (via) await vault("control", { id, action: "options", envelope });
+           else {
+-            if (!Enclave.provider) await connectWallet();
++            if (!Enclave.provider) await connectWallet();   // Pin is hosted-only: a wallet pays
+             await ensureBaseChain();
+             await waitReceipt(await sendTx(DEPLOYMENTS_ADDRESS,
+               encCall(DEP_SEL.setConfig, [{ t: "bytes32", v: id }, { t: "str", v: envelope }])));
+@@ -3199,7 +3912,7 @@
+         if (!box._placement?.configured || box._placement.hostId !== hostId || (box._placement.allowFallback !== false) !== allowFallback) {
+           const body = { hostId, allowFallback };
+           if (!via) {
+-            if (!Enclave.provider) await connectWallet();
++            if (!Enclave.provider) await connectWallet();   // Pin is hosted-only: a wallet pays
+             body.expiry = Math.floor(Date.now() / 1000) + 300;
+             body.nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+             paintLine(s, 'info', 'Confirm the placement preference in your wallet.');
+@@ -3228,7 +3941,7 @@
+           : `[*] buying ${upg.gpuPct}% GPU on ${upg.target.name} (setShares)…`);
+         if (via) await vault("control", { id, action: "resize", gpuMilli: upg.gpuPct * 10, cpuMilli: upg.cpuPct * 10 });
+         else {
+-          if (!Enclave.provider) await connectWallet();
++          if (!Enclave.provider) await connectWallet();   // Pin is hosted-only: a wallet pays
+           await ensureBaseChain();
+           const th = await sendTx(DEPLOYMENTS_ADDRESS,
+             encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: upg.gpuPct * 10 }, { t: "uint", v: upg.cpuPct * 10 }]));
+@@ -3353,7 +4066,7 @@
+           const { vaultOp } = await import("../../js/core/vault.js");
+           await vaultOp("control", { id, action: "resume" });
+         } else {
+-          showToast("confirm setActive(true) in your wallet - this re-queues the app; billing resumes once it runs");
++          showToast((INDEPENDENT_MODE && currentIdentity().kind === "account" ? "approve setActive(true) with your passkey" : "confirm setActive(true) in your wallet") + " - this re-queues the app; billing resumes once it runs");
+           await ensureBaseChain();
+           const th = await sendTx(DEPLOYMENTS_ADDRESS, "0x" + DEP_SEL.setActive + pad32(id.replace(/^0x/, "")) + encUint(1));
+           await waitReceipt(th);
+@@ -3366,7 +4079,7 @@
+       // force: Resume is the ONE hint allowed to override a failed row's
+       // ex-runner provision cooldown (the automatic hints - the why-probe,
+       // the funding nudges - must not, or a crash-looping app never rests)
+-      fetch(Enclave.base + "/claim-hint", { method: "POST",
++      claimHint({ method: "POST",
+         headers: { "content-type": "application/json" }, body: JSON.stringify({ id, force: true }) })
+         .then(r => r.json())
+         .then(h => { if (h && h.accepted === false && h.reason) showToast("the fleet declined the resume nudge: " + h.reason); })
+@@ -3420,13 +4133,56 @@
+      gap exactly as wide as the wallet interaction, and a repaint through it
+      rebuilds the row and strands the reveal in detached DOM (the dropdown
+      "closes" under the wallet popup). The poll catches up once it clears. */
++  /* A record the owner's session vault holds (independent mode): staging (the owner's sessions may change its version) or
++     production (each version change is the owner's own approval), adopting a record the vault was given, and releasing it
++     back to the owner. Every change is an owner operation: the wallet's transaction, or the passkey account's approval
++     with the wallet paying gas (sessions.ownerOp). */
++  async _envPanel(id, btn) {
++    const box = btn.closest(".enc-row").querySelector(".enc-env"); if (!box) return;
++    if (!box.hidden && !box.dataset.busy){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
++    btn.setAttribute("aria-expanded", "true"); box.hidden = false;
++    box.innerHTML = '<div class="ap-attbar">environment · ' + esc(id) + '</div><div class="enc-env-body"></div><div class="term enc-env-status" role="status" aria-live="polite"></div>';
++    const body = box.querySelector(".enc-env-body"), st = box.querySelector(".enc-env-status");
++    const paint = (cls, txt) => paintLine(st, cls, txt);
++    const dep = (this._list || []).find((x) => String(x.id).toLowerCase() === id.toLowerCase());
++    const vault = String(dep && dep.owner || "").toLowerCase(), owner = actingOwner(Enclave.address);
++    const acct = currentIdentity().kind === "account";
++    let held;
++    try { held = await (await import("../../js/core/independent-chain.js")).agreedHeld(vault, id); }
++    catch (e){ paint("warn", "[x] couldn’t read the vault’s environment for this app: " + (e.message || e)); return; }
++    if (!box.isConnected || box.hidden) return;
++    const how = acct ? "approve with your passkey; your wallet pays gas" : "one wallet transaction";
++    const S = await import("../../js/core/sessions.js");
++    const act = (label, op, done) => async (ev) => {
++      const b = ev.currentTarget; box.dataset.busy = "1"; body.querySelectorAll("button").forEach((x) => (x.disabled = true));
++      paint("info", "[*] " + label + " (" + how + ")…");
++      try { const r = await S.ownerOp(op); paint("ok", "[✓] " + done + (r && r.txHash ? " · " + r.txHash : "")); delete box.dataset.busy; setTimeout(() => this.refresh(), 900); }
++      catch (e){ paint("warn", "[x] " + (e.message || String(e))); delete box.dataset.busy; body.querySelectorAll("button").forEach((x) => (x.disabled = false)); }
++      void b;
++    };
++    const env = held.env;
++    body.innerHTML = env === 1 ? '<p><b>Staging.</b> Your sessions may change this app’s version and settings.</p><button type="button" class="btn btn-sm enc-env-prod">Move to production</button>'
++      : env === 2 ? '<p><b>Production.</b> Every version change is your own approval; your sessions cannot change it.</p><button type="button" class="btn btn-sm enc-env-stg">Move to staging</button>'
++        + '<p class="dim">Moving to staging lets your sessions change it again, and its production secrets become available to whatever version a session then points it at.</p>'
++      : '<p><b>Not adopted.</b> Your vault holds it, but your sessions cannot act on it until you adopt it.</p><button type="button" class="btn btn-sm enc-env-adopt">Adopt as staging</button>';
++    if (owner) body.innerHTML += ' <button type="button" class="btn btn-sm enc-env-release">Release to ' + (acct ? "your passkey account" : "your wallet") + '</button>';
++    const on = (cls, fn) => { const b = body.querySelector(cls); if (b) b.addEventListener("click", fn); };
++    on(".enc-env-prod", act("moving it to production", { op: "setEnvironment", deployment: id, environment: "prod" }, "production: version changes now need your approval"));
++    on(".enc-env-stg", act("moving it to staging", { op: "setEnvironment", deployment: id, environment: "staging" }, "staging"));
++    on(".enc-env-adopt", act("adopting it as staging", { op: "adopt", deployment: id, environment: "staging" }, "adopted as staging"));
++    on(".enc-env-release", (ev) => {
++      if (!confirm("Release this app from your session vault to " + (acct ? "your passkey account" : "your wallet") + "? Your sessions then no longer act on it.")) return;
++      return act("releasing it", { op: "release", deployment: id, to: owner }, "released: " + (acct ? "your passkey account" : "your wallet") + " holds it now")(ev);
++    });
++  }
++
+   _panelPinned() {
+-    return !!this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-shares:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-net:not([hidden]), .enc-cfg:not([hidden]), .enc-mod:not([hidden]), .enc-mob:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden]), .enc-sec[data-busy], .enc-dom[data-busy]");
++    return !!this.querySelector(".enc-att:not([hidden]), .enc-out:not([hidden]), .enc-fund:not([hidden]), .enc-upg:not([hidden]), .enc-shares:not([hidden]), .enc-move:not([hidden]), .enc-waf:not([hidden]), .enc-net:not([hidden]), .enc-cfg:not([hidden]), .enc-mod:not([hidden]), .enc-mob:not([hidden]), .enc-sec-body:not([hidden]), .enc-dom-body:not([hidden]), .enc-sec[data-busy], .enc-dom[data-busy], .enc-mgmt:not([hidden]), .enc-start:not([hidden]), .enc-hostp:not([hidden]), .enc-nat:not([hidden]), .enc-env:not([hidden])");
+   }
+   _startPoll() {
+     if (this._poll) return;
+     this._poll = setInterval(() => {
+-      if (!Enclave.address && !Enclave.accountAuthed()){ this._stopPoll(); return; }
++      if (!Enclave.address && !Enclave.accountAuthed() && !(INDEPENDENT_MODE && identityKey())){ this._stopPoll(); return; }
+       if (this._panelPinned()) return;
+       this.refresh();
+     }, 10000);

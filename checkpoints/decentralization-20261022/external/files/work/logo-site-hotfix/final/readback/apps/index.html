@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="../" />
+<script>(function(){
+var heal=function(){try{
+  var k="enclave_skew_reload",last=+sessionStorage.getItem(k)||0;
+  if(Date.now()-last<240000)return;
+  sessionStorage.setItem(k,String(Date.now()));
+  setTimeout(function(){location.reload();},8000);
+}catch(e){}};
+addEventListener("error",function(e){
+  var t=e.target;
+  if(t&&(t.tagName==="SCRIPT"||(t.tagName==="LINK"&&t.rel==="modulepreload")))heal();
+},true);
+addEventListener("unhandledrejection",function(e){
+  if(/dynamically imported module|Failed to fetch|error loading/i.test(String(e.reason)))heal();
+});
+})();</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070A0F" />
+<title>App Store: Deploy Wasm Apps on Verifiable Hosts · Enclave</title>
+<meta name="description" content="Browse ready-to-run WebAssembly apps and deploy any of them in a couple of clicks, on confidential hardware or on a host whose protection level is stated on its listing. Pay per second, only for the time you use. Every app is a wasi:http component with a public, tamper-evident listing; publishing takes a minute." />
+<link rel="canonical" href="https://enclave.host/apps/" />
+<meta name="robots" content="index,follow,max-image-preview:large" />
+<meta property="og:site_name" content="Enclave" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://enclave.host/apps/" />
+<meta property="og:title" content="App Store: Deploy Wasm Apps on Verifiable Hosts" />
+<meta property="og:description" content="Browse ready-to-run WebAssembly apps and deploy any of them in a couple of clicks, on hosts whose protection level is stated up front. Pay per second, only for the time you use." />
+<meta property="og:image" content="https://enclave.host/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Enclave: compute that cannot see your data. Portable apps, explicit protection, verifiable execution, independent infrastructure." />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://enclave.host/assets/og.png" />
+<link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<script>
+/* Cross-document view transitions are skipped by Chromium when extensions
+   inject content scripts (MetaMask et al): the old page sees pageswap with
+   no viewTransition. Flag it, and the NEXT page (this script runs pre-paint)
+   plays the same settle-in itself (html.soft-enter, see base.css) - content
+   only, the static header stays put. */
+(function(){
+  try { if (sessionStorage.getItem("enclave_novt")) { sessionStorage.removeItem("enclave_novt"); document.documentElement.classList.add("soft-enter"); } } catch(e){}
+  addEventListener("pageswap", function(e){
+    try { if (!e.viewTransition && e.activation) sessionStorage.setItem("enclave_novt", "1"); } catch(e){}
+  });
+})();
+</script>
+<link rel="preconnect" href="https://ipfs.enclave.host" />
+<link rel="preconnect" href="https://mainnet.base.org" crossorigin />
+<link rel="preload" as="image" href="assets/apps-cinematic.webp" />
+<link rel="stylesheet" href="css/site.css" />
+<link rel="modulepreload" href="js/chunks/chunk-LLYUEQ45.js" />
+<link rel="modulepreload" href="js/chunks/chunk-TXG5D22N.js" />
+<link rel="modulepreload" href="js/chunks/chunk-IBXEASKH.js" />
+<link rel="modulepreload" href="js/chunks/apps-2OPIGZ3T.js" />
+<link rel="modulepreload" href="js/chunks/chunk-KP3A2MIC.js" />
+<link rel="modulepreload" href="js/chunks/chunk-277DVH75.js" />
+<link rel="modulepreload" href="js/chunks/chunk-SHT3C7TR.js" />
+<link rel="modulepreload" href="js/chunks/chunk-S2A6SCSN.js" />
+<link rel="modulepreload" href="js/chunks/chunk-Y4V34UYZ.js" />
+<link rel="modulepreload" href="js/chunks/chunk-CPRDRZHM.js" />
+<link rel="modulepreload" href="js/chunks/chunk-D7VGFCH5.js" />
+<link rel="modulepreload" href="js/chunks/chunk-Z5J4PI3T.js" />
+<link rel="modulepreload" href="js/chunks/chunk-3LBUJ242.js" />
+<script type="module" src="js/boot.js?media=2"></script>
+<script type="application/ld+json" data-breadcrumb>
+{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+{"@type":"ListItem","position":1,"name":"Enclave","item":"https://enclave.host/"},
+{"@type":"ListItem","position":2,"name":"Apps","item":"https://enclave.host/apps/"}]}
+</script>
+</head>
+<body>
+<c-header current="apps" data-ssr><header class="nav">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="wrap nav-inner">
+    <a href="./" class="brand" aria-label="Enclave home">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+        <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkH"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkH)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="./" data-view="overview">Overview</a>
+      <a href="apps" data-view="apps" class="active">Apps</a>
+      <a href="develop" data-view="develop">Develop</a>
+      <a href="host" data-view="host">Host</a>
+      <a href="dashboard" data-view="dashboard" hidden>Dashboard</a>
+    </nav>
+    <c-wallet-button data-ssr><div class="wallet-mount" id="walletMount">
+  <button class="btn btn-primary btn-sm" id="walletBtn" type="button" aria-controls="walletPop">Sign in <span class="arr" aria-hidden="true">→</span></button>
+  <div class="wallet-pop" id="walletPop" hidden></div>
+</div></c-wallet-button>
+  </div>
+</header></c-header>
+<script>(function(){try{
+var s=JSON.parse(localStorage.getItem("enclave_session")||"null");
+var a=JSON.parse(localStorage.getItem("enclave_account")||"null");
+var wallet=s&&s.address,acct=a&&a.token;
+if(!wallet&&!acct)return;
+var dt=document.querySelector('.nav-links a[data-view="dashboard"]');if(dt)dt.hidden=false;
+var b=document.getElementById("walletBtn");if(!b)return;
+b.classList.add("connected");b.textContent="";
+var d=document.createElement("span");d.className="wdot";b.appendChild(d);
+b.appendChild(document.createTextNode(wallet?s.address.slice(0,6)+"…"+s.address.slice(-4):"Signed in"));
+b.dataset.painted="1";
+}catch(e){}})();</script>
+<main id="main" tabindex="-1">
+<h1 class="sr-only">Enclave app store: deploy WebAssembly apps on confidential GPUs</h1>
+<section id="apps" data-view="apps" aria-label="Wasm app store">
+  <!-- two hash-routed views: the store (default) and the publish page
+       (apps.html#publish) - apps.js toggles them; not a header tab. Deploying
+       happens from an app's card (one decision: the amount); everything else a
+       deployment carries is a tab on its dashboard row. -->
+  <div class="wrap" id="storeView">
+    <div class="store-hero visual-banner">
+      <c-cinematic-scene scene="apps" image="assets/apps-cinematic.webp" video="assets/apps-cinematic.mp4" data-ssr><div class="cinema-media" aria-hidden="true">
+  <img class="cinema-image" src="assets/apps-cinematic.webp" alt="" width="1672" height="941" decoding="async" />
+  <video class="cinema-video" data-src="assets/apps-cinematic.mp4" muted loop playsinline preload="none" tabindex="-1"></video>
+</div>
+<div class="cinema-shade" aria-hidden="true"></div></c-cinematic-scene>
+      <c-section-head eyebrow="App store" heading="Simply pick an app and deploy it." data-ssr><div class="sec-head">
+  <span class="eyebrow">App store</span>
+  <h2>Simply pick an app and deploy it.</h2>
+  <p>Browse ready-to-run apps and launch any of them on <b>private, confidential hardware</b> in a couple of clicks. Pay for exactly the time you use - <b>no setup, no subscription</b>. And everything here is open: an app's code and listing can't be swapped out from under you, and you can <b>verify what you're running</b> yourself, before it touches your data. Built something of your own? <a href="#publish">Publishing it</a> takes a minute, and your app can charge an hourly fee that goes straight to you whenever someone runs it.</p>
+</div></c-section-head>
+    </div>
+
+    <div class="store-toolbar">
+      <div class="seg" id="storeFilter" role="group" aria-label="Filter apps">
+        <!-- Featured is the default tab and is NOT a featured-only filter: the apps
+             with a standing campaign (or the editorial pick) come first, gold-bordered,
+             and every other approved app follows, each exactly once. -->
+        <button data-filter="featured" class="on" type="button" aria-pressed="true">Featured</button>
+        <button data-filter="approved" type="button" aria-pressed="false">Approved</button>
+        <button data-filter="pending" type="button" hidden aria-pressed="false">Pending</button>
+        <button data-filter="rejected" type="button" hidden aria-pressed="false">Rejected</button>
+        <button data-filter="delisted" type="button" hidden aria-pressed="false">Delisted</button>
+      </div>
+      <input type="text" id="storeSearch" placeholder="search name, CID, publisher…" spellcheck="false" autocapitalize="off" autocomplete="off" enterkeyhint="search" aria-label="Search apps" />
+      <button class="btn btn-sm" id="storeRefresh" type="button"><span class="rf-icon" aria-hidden="true">↻</span> refresh</button>
+      <a class="btn btn-primary btn-sm" id="storePublishBtn" href="#publish">+ Publish app</a>
+    </div>
+
+    <!-- what the gold means, and the way in to promoting an app. It replaces the
+         aside's foot; apps.js fills it and shows it on the Featured tab only. -->
+    <div class="featured-foot" id="featuredNote" hidden>
+      <span class="hint" id="featuredHint"></span>
+      <button class="featured-promote" type="button" id="featuredPromote" hidden>Promote your app →</button>
+    </div>
+
+    <div class="store-grid" id="storeGrid"></div>
+    <nav class="store-pager" id="storePager" hidden aria-label="App list pages">
+      <button class="btn btn-sm" id="pagePrev" type="button" aria-label="Previous page">‹ prev</button>
+      <span class="page-status" id="pageStatus" aria-live="polite"></span>
+      <button class="btn btn-sm" id="pageNext" type="button" aria-label="Next page">next ›</button>
+    </nav>
+    <div class="contract-foot"><a class="contract-link" id="catAddrLink" target="_blank" rel="noopener" aria-label="View the EnclaveAppCatalog contract on Basescan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg> contract</a></div>
+  </div>
+
+  <!-- one app's full page (apps?app=appId); apps.js renders the app-detail component here -->
+  <div class="wrap" id="appDetailView" hidden></div>
+
+  <div class="wrap" id="publishView" hidden>
+    <c-section-head eyebrow="App store · publish" heading="Publish a Wasm app version." data-ssr><div class="sec-head">
+  <span class="eyebrow">App store · publish</span>
+  <h2>Publish a Wasm app version.</h2>
+  <p>Add a <span class="mono">wasi:http</span> component release to the on-chain catalog. Its bytes go on IPFS; the CID and metadata go on Base. An app is keyed by <b>slug</b> in your wallet's namespace; publish the same slug again to cut a new <b>version</b>. Only you (<span class="mono">msg.sender</span>) can add versions, edit, or delist it. New to building components? The <a href="develop#docs">developer guide</a> takes you from an empty directory to a published app.</p>
+</div></c-section-head>
+
+    <div class="publish-panel" id="publishPanel">
+      <div class="pub-grid">
+        <div>
+          <label for="pubSlug">App slug <span class="dim">(stable id · a–z0–9-, ≤ 40)</span></label>
+          <input type="text" id="pubSlug" maxlength="40" placeholder="my-app" spellcheck="false" autocapitalize="off" autocomplete="off" aria-required="true" />
+        </div>
+        <div>
+          <label for="pubVersion">Version <span class="dim">(label · e.g. 1.0.0)</span></label>
+          <input type="text" id="pubVersion" maxlength="32" value="1.0.0" placeholder="1.0.0" spellcheck="false" autocapitalize="off" autocomplete="off" />
+        </div>
+        <div class="full" id="pubFileRow">
+          <label for="pubFile">Wasm file <span class="dim">(.wasm component · ≤ 2 GB · uploaded &amp; pinned to IPFS)</span></label>
+          <input type="file" id="pubFile" accept=".wasm,application/wasm" />
+          <div class="hint" id="pubFileHint"></div>
+          <div id="pubUpBar" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" hidden><div></div></div>
+        </div>
+        <div class="full">
+          <label for="pubCid">IPFS CID <span class="dim">(auto-filled after upload, or paste one you've pinned)</span></label>
+          <input type="text" id="pubCid" placeholder="bafybei…" spellcheck="false" autocapitalize="off" autocomplete="off" aria-required="true" />
+        </div>
+        <div>
+          <label for="pubName">Name <span class="dim">(display)</span></label>
+          <input type="text" id="pubName" maxlength="80" placeholder="My app" spellcheck="false" />
+        </div>
+        <div>
+          <label for="pubVram">VRAM <span class="dim">(min GB of one card · 0 = no VRAM need)</span></label>
+          <input type="number" id="pubVram" value="0" min="0" step="0.5" />
+        </div>
+        <div>
+          <label for="pubGpuT">GPU compute <span class="dim">(min TFLOPS · both GPU fields 0 = CPU-only app)</span></label>
+          <input type="number" id="pubGpuT" value="0" min="0" step="1" />
+        </div>
+        <div class="field" id="pubGpuNeedField" hidden>
+          <label>GPU need <span class="dim">(what the two GPU fields above MEAN)</span></label>
+          <div class="seg" id="pubGpuNeed" role="group" aria-label="GPU need">
+            <button data-gpuneed="0" class="on" type="button" aria-pressed="true">Required</button>
+            <button data-gpuneed="1" type="button" aria-pressed="false">Desired</button>
+          </div>
+          <div class="dim" id="pubGpuNeedNote" role="status" style="margin-top:7px;font-family:var(--font-mono);font-size:.68rem;line-height:1.5;"></div>
+        </div>
+        <div>
+          <label for="pubMem">Memory <span class="dim">(min MB of RAM · the runtime-enforced cap)</span></label>
+          <input type="number" id="pubMem" value="128" min="1" step="1" />
+        </div>
+        <div>
+          <label for="pubCpuG">CPU compute <span class="dim">(min GFLOPS · at least 1 - everything computes · a whole node ≈ 1000)</span></label>
+          <input type="number" id="pubCpuG" value="1" min="1" step="1" />
+        </div>
+        <div class="field full" id="pubNoGpuField" hidden>
+          <label>Without a card <span class="dim">(what this app needs from a node when no GPU is available · leave at 0 to use the two fields above)</span></label>
+          <div class="pub-nogpu">
+            <div>
+              <label for="pubNoGpuMem">Memory <span class="dim">(min MB of RAM)</span></label>
+              <input type="number" id="pubNoGpuMem" value="0" min="0" step="1" />
+            </div>
+            <div>
+              <label for="pubNoGpuCpuG">CPU compute <span class="dim">(min GFLOPS)</span></label>
+              <input type="number" id="pubNoGpuCpuG" value="0" min="0" step="1" />
+            </div>
+          </div>
+          <div class="dim" id="pubNoGpuNote" role="status" style="margin-top:7px;font-family:var(--font-mono);font-size:.68rem;line-height:1.5;"></div>
+        </div>
+        <div>
+          <label for="pubFee">Hourly fee <span class="dim">(optional · USD per hour, paid straight to your wallet while the app runs · 0 = free · capped on-chain · immutable per version, like ports)</span></label>
+          <input type="number" id="pubFee" value="0" min="0" step="0.01" />
+        </div>
+        <div class="full">
+          <label for="pubPorts">Open ports <span class="dim">(optional · e.g. <b>http:8088, tcp:5432, udp:9053</b> · empty = standard web app · can change per version)</span></label>
+          <input type="text" id="pubPorts" maxlength="96" placeholder="empty = wasi:http web app on the standard endpoint" spellcheck="false" autocapitalize="off" autocomplete="off" />
+        </div>
+        <div class="full">
+          <label for="pubDesc">Description <span class="dim">(≤ 500 chars)</span></label>
+          <textarea id="pubDesc" maxlength="500" placeholder="What does it do?"></textarea>
+        </div>
+        <div class="full pub-media">
+          <span class="lbl">App images <span class="dim">(optional · PNG/JPEG/WebP/GIF/SVG · ≤ 4 MB · pinned to IPFS &amp; stored with this version)</span></span>
+          <div class="pub-media-row">
+            <div class="pub-img">
+              <div class="pub-img-top">Thumbnail <span class="dim">catalog tile · ~16:9</span></div>
+              <label class="pub-img-prev" id="pubThumbPrev" for="pubThumbFile"><span class="pub-img-ph">＋ add image</span></label>
+              <input type="file" id="pubThumbFile" class="sr-only" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" aria-label="Thumbnail image" />
+              <input type="hidden" id="pubThumbCid" />
+              <div class="pub-img-foot"><span class="hint" id="pubThumbHint"></span><button type="button" class="btn btn-sm pub-img-clear" id="pubThumbClear" hidden>clear</button></div>
+            </div>
+            <div class="pub-img">
+              <div class="pub-img-top">Banner <span class="dim">app page hero · ~4:1</span></div>
+              <label class="pub-img-prev banner" id="pubBannerPrev" for="pubBannerFile"><span class="pub-img-ph">＋ add image</span></label>
+              <input type="file" id="pubBannerFile" class="sr-only" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" aria-label="Banner image" />
+              <input type="hidden" id="pubBannerCid" />
+              <div class="pub-img-foot"><span class="hint" id="pubBannerHint"></span><button type="button" class="btn btn-sm pub-img-clear" id="pubBannerClear" hidden>clear</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="full">
+          <label for="pubConfig">App config <span class="dim">(optional · default/template JSON for deployments of THIS version - the deploy console pre-fills from it · immutable once published and covered by the version's approval, like ports · ≤ 4096 bytes minified)</span></label>
+          <!-- no maxlength: the add-version prefill pretty-prints the stored (minified)
+               config, which can legally exceed 4096 chars - a maxlength here then
+               silently blocks all typing. readPubConfig enforces the real ceiling on
+               the minified bytes at publish. -->
+          <textarea id="pubConfig" placeholder='empty · or JSON, e.g. {"backend":"ggml","model_volume":"qwen2.5-0.5b"}' spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+        </div>
+      </div>
+      <div class="pub-actions">
+        <button class="btn btn-primary btn-sm" id="pubSubmit" type="button">Publish to Base</button>
+        <button class="btn btn-sm" id="pubCancel" type="button">← back to apps</button>
+        <span class="pub-status" id="pubStatus" role="status"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<c-footer data-ssr><footer aria-label="Footer">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="./" class="brand" aria-label="Enclave home">
+          <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+            <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkF"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkF)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+        </a>
+        <p>Compute that cannot see your data. Paid per second, for anything that holds a key.</p>
+        <div class="foot-meta">
+          <span>built + operated by Enclave Host, Inc.</span>
+          <span>front-end: static, pinned to IPFS · <code>enclave.host</code></span>
+        </div>
+      </div>
+      <nav aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          <li><a href="./#why">What you get</a></li>
+          <li><a href="./#how">How it works</a></li>
+          <li><a href="apps">App store</a></li>
+          <li><a href="./#pricing">Pricing</a></li>
+          <li><a href="develop#architecture">Architecture</a></li>
+          <li><a href="develop#progress">Engineering evidence</a></li>
+          <li><a href="./#about">About the company</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Developers">
+        <h2>Developers</h2>
+        <ul>
+          <li><a href="develop#docs">App development guide</a></li>
+          <li><a href="develop#api">API reference</a></li>
+          <li><a href="openapi.json" id="dlSpec2">OpenAPI spec</a></li>
+          <li><a href="./#attest">Attestation guide</a></li>
+          <li><a href="develop#api">Error codes</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Trust">
+        <h2>Trust</h2>
+        <ul>
+          <li><a href="develop#contract">The isolation contract</a></li>
+          <li><a href="develop#shield">Enclave Shield</a></li>
+          <li><a href="./#attest">Verify an enclave</a></li>
+          <li><a href="develop#verify">What is measured</a></li>
+          <li><a href="develop#independent">What runs on our servers</a></li>
+          <li><a href="https://github.com/EnclaveHost/enclave" target="_blank" rel="noopener">Source on GitHub</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Contact and legal">
+        <h2>Contact</h2>
+        <ul>
+          <li><a class="foot-mail" href="mailto:support@enclave.host">Support<code>support@enclave.host</code></a></li>
+          <li><a class="foot-mail" href="mailto:security@enclave.host">Security disclosures<code>security@enclave.host</code></a></li>
+          <li><a href=".well-known/security.txt">security.txt</a></li>
+          <li><a href="terms">Terms of Service</a></li>
+          <li><a href="privacy">Privacy Policy</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Enclave Host, Inc. · content-addressed on IPFS · build <span data-build>166bf9d3 · 2026-10-19</span></span>
+      <span>designed to outlive any one operator</span>
+    </div>
+  </div>
+</footer></c-footer>
+<c-toast data-ssr><div id="toast" role="status" aria-live="polite" aria-atomic="true"></div></c-toast>
+</body>
+</html>

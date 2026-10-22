@@ -1,0 +1,19 @@
+# Isolated test project for the app-funded lease gas prototype (work/app-lease-gas). Mirrors the ledger's live
+# settings (solc 0.8.35, viaIR, runs 1 - rev 16d's EIP-170 setting); evm prague for EIP-7702. Sources under src/live
+# are VERBATIM copies of the live rev-16d ledger (sha256 2771a524...) and schema-4 registry (sha256 e81f5d51...).
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = ["lib"]
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 1
+via_ir = true
+evm_version = "prague"
+offline = true
+fs_permissions = [{ access = "read", path = "fixtures" }]
+
+[fuzz]
+runs = 256

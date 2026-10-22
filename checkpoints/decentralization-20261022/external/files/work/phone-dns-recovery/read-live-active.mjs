@@ -1,0 +1,8 @@
+import {createPublicClient,http} from "../enclave/node_modules/viem/_esm/index.js";
+import fs from "node:fs";
+const c=createPublicClient({transport:http("https://base-rpc.publicnode.com",{timeout:12000,retryCount:1})});
+const components=[["id","bytes32"],["owner","address"],["appRef","string"],["ports","string"],["configCid","string"],["gpuMilli","uint16"],["cpuMilli","uint16"],["appPort","uint32"],["isPublic","bool"],["active","bool"],["createdAt","uint64"],["rate","uint256"],["balance6","uint256"],["spent6","uint256"],["runner","bytes32"],["runnerOperator","address"],["leaseUntil","uint64"]].map(([name,type])=>({name,type}));
+const abi=[{type:"function",name:"count",stateMutability:"view",inputs:[],outputs:[{type:"uint256"}]},{type:"function",name:"getPage",stateMutability:"view",inputs:[{type:"uint256"},{type:"uint256"}],outputs:[{type:"tuple[]",components}]}];
+const address="0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B";const blockNumber=await c.getBlockNumber();const total=Number(await c.readContract({address,abi,functionName:"count",blockNumber}));if(total>1000)throw Error("unexpected size");const rows=[];
+for(let i=0;i<total;i+=50){const page=await c.readContract({address,abi,functionName:"getPage",args:[BigInt(i),50n],blockNumber});for(const r of page)if(r.active)rows.push(Object.fromEntries(["id","owner","appRef","active","runner","runnerOperator","leaseUntil","rate","balance6"].map(k=>[k,typeof r[k]==="bigint"?String(r[k]):r[k]])));}
+const result={at:new Date().toISOString(),ledger:address,blockNumber:String(blockNumber),total,rows};fs.writeFileSync(new URL("live-active-deployments.json",import.meta.url),JSON.stringify(result,null,2)+"\n");console.log(JSON.stringify(result));

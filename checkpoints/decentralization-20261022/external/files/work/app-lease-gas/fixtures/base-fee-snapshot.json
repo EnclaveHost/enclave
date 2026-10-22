@@ -1,0 +1,104 @@
+{
+ "readOnly": true,
+ "rpcs": [
+  "https://mainnet.base.org",
+  "https://base-rpc.publicnode.com"
+ ],
+ "block": 52854662,
+ "blockHash": "0x67e1a9e0f2c62f3d580d499ff4a89a3ac647b3a7d510f263ebc8d462f6b498e8",
+ "timestamp": 1792498671,
+ "at": "2026-10-20T12:17:51.000Z",
+ "baseFeePerGas": "5000000",
+ "maxPriorityFeePerGasByRpc": {
+  "https://mainnet.base.org": "1000000",
+  "https://base-rpc.publicnode.com": "1000000"
+ },
+ "ledger": {
+  "address": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+  "leaseSec": "1800"
+ },
+ "ethUsd": {
+  "feed": "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70",
+  "decimals": 8,
+  "roundId": "55340232221128663930",
+  "answer": "238142447096",
+  "updatedAt": 1792498131,
+  "ageAtBlockSec": 540
+ },
+ "gasPriceOracle": {
+  "address": "0x420000000000000000000000000000000000000F",
+  "isFjord": true,
+  "l1BaseFee": "66830815",
+  "blobBaseFee": "3119397",
+  "baseFeeScalar": 2269,
+  "blobBaseFeeScalar": 1055762
+ },
+ "l1": {
+  "B:claim+auth": {
+   "rawBytes": 565,
+   "l1FeeWei": "2072086920",
+   "upperBoundWei": "2871084653",
+   "l2GasEquivalentAtBaseFee": "414"
+  },
+  "B:renew": {
+   "rawBytes": 469,
+   "l1FeeWei": "1474034724",
+   "upperBoundWei": "2411780567",
+   "l2GasEquivalentAtBaseFee": "294"
+  },
+  "B:release": {
+   "rawBytes": 469,
+   "l1FeeWei": "1474034724",
+   "upperBoundWei": "2411780567",
+   "l2GasEquivalentAtBaseFee": "294"
+  },
+  "B:claim(move)+auth": {
+   "rawBytes": 565,
+   "l1FeeWei": "2072086920",
+   "upperBoundWei": "2871084653",
+   "l2GasEquivalentAtBaseFee": "414"
+  },
+  "B:claim(rate0)+auth": {
+   "rawBytes": 565,
+   "l1FeeWei": "2072086920",
+   "upperBoundWei": "2871084653",
+   "l2GasEquivalentAtBaseFee": "414"
+  },
+  "B:renew(rate0)": {
+   "rawBytes": 469,
+   "l1FeeWei": "1474034724",
+   "upperBoundWei": "2411780567",
+   "l2GasEquivalentAtBaseFee": "294"
+  },
+  "B:claim": {
+   "rawBytes": 469,
+   "l1FeeWei": "1603213999",
+   "upperBoundWei": "2411780567",
+   "l2GasEquivalentAtBaseFee": "320"
+  },
+  "B:renew(race winner)": {
+   "rawBytes": 469,
+   "l1FeeWei": "1445328219",
+   "upperBoundWei": "2411780567",
+   "l2GasEquivalentAtBaseFee": "289"
+  },
+  "A:claim#0": {
+   "rawBytes": 1111,
+   "l1FeeWei": "2612726105",
+   "upperBoundWei": "5492945478",
+   "l2GasEquivalentAtBaseFee": "522"
+  },
+  "A:claim+auth#1": {
+   "rawBytes": 1207,
+   "l1FeeWei": "3081599026",
+   "upperBoundWei": "5957033982",
+   "l2GasEquivalentAtBaseFee": "616"
+  },
+  "A:renew#2": {
+   "rawBytes": 1079,
+   "l1FeeWei": "2459624743",
+   "upperBoundWei": "5339844116",
+   "l2GasEquivalentAtBaseFee": "491"
+  }
+ }
+}

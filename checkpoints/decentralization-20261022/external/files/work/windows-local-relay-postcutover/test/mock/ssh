@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# TEST-ONLY ssh: drops options and the host, then runs `bash -s` LOCALLY (source collector, with the mocks on PATH), or for
+# `powershell ...` captures the script from stdin to $MOCK_PS_CAPTURE and answers one COLLECT-JSON line ($MOCK_MINIPC_JSON)
+args=("$@"); i=0
+while [ $i -lt ${#args[@]} ]; do case "${args[$i]}" in -o) i=$((i+2));; -*) i=$((i+1));; *) break;; esac; done
+i=$((i+1)); cmd=("${args[@]:$i}")
+case "${cmd[0]}" in
+  bash) exec bash -s ;;
+  powershell) cat > "$MOCK_PS_CAPTURE"; echo "noise line"; printf 'COLLECT-JSON %s\r\n' "$MOCK_MINIPC_JSON" ;;
+  *) echo "mock ssh: unsupported ${cmd[*]}" >&2; exit 1 ;;
+esac

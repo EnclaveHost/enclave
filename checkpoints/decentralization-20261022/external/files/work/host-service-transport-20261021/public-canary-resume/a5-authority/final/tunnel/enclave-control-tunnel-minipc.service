@@ -1,0 +1,16 @@
+[Unit]
+Description=Encrypted challenge-DNS feed to minipc (route-dns challengeTxtUpstream 127.0.0.1:31053)
+After=network-online.target
+Wants=network-online.target
+[Service]
+User=enclave-control-tunnel
+Group=enclave-control-tunnel
+ExecStart=/usr/local/libexec/enclave-control-tunnel-minipc.sh
+Restart=always
+RestartSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+[Install]
+WantedBy=multi-user.target

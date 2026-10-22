@@ -1,0 +1,90 @@
+--- a/network/challenge-replica-host.mjs
++++ b/network/challenge-replica-host.mjs
+@@ -32,6 +32,7 @@
+ import {SERVICE_KINDS, validateAdInput, publishTypedData} from './service-index.mjs';
+ import {canonical as canonicalJson} from './route-record.mjs';
+ import {createHostServiceGate, resolveHostPolicyConfig} from './host-service-gate.mjs';
++import {CARRIER_MIRROR} from './policy-carriers.mjs';
+ 
+ export const ROLES = Object.freeze(['app-zone-replica', 'owner-responder']);
+ const KEYS = ['role', 'release', 'zones', 'ns', 'listen', 'front', 'routeMap', 'chain', 'snp', 'shield', 'peers', 'upstream', 'hostPolicy'];
+@@ -73,6 +74,24 @@
+   const out = list.map((u) => { let x; try { x = new URL(u); } catch { fail(`${where}: not a URL`); } if (x.protocol !== 'https:' || x.username || x.password) fail(`${where} must be https without credentials`); return x.href; });
+   if (new Set(out.map((u) => new URL(u).hostname)).size !== out.length) fail(`${where} must name distinct hosts (one host cannot vote twice)`);
+   return out;
++}
++
++// The integrated runner's configuration shape for the SAME gate inputs (network/host-services/runner.mjs policyEnv and
++// policyCarrierFetch take it): no second implementation of the policy env or the carrier fetch.
++function runnerPolicyShape(h) {
++  const pc = h.carriers ? {...(h.carriers.importDir ? {importDir: h.carriers.importDir} : {}), ...(h.carriers.peers ? {peers: h.carriers.peers} : {})} : null;
++  return {platformHostPolicy: h.policy, ...(h.mirrors.length ? {platformHostPolicyMirrors: h.mirrors} : {}), ...(h.rpcs ? {platformHostPolicyRpcs: h.rpcs} : {}),
++    ...(pc && Object.keys(pc).length ? {platformHostPolicyCarriers: pc} : {}),
++    services: h.carriers?.policyMirrorStateDir ? [{role: 'policy-mirror', config: {stateDir: h.carriers.policyMirrorStateDir}}] : []};
++}
++/** The gate's environment for a normalized hostPolicy (with the reserved carrier origin when carriers are configured). */
++export function hostPolicyGateEnv(h) {
++  const shape = runnerPolicyShape(h);
++  const env = {ENCLAVE_PLATFORM_HOST_POLICY: typeof h.policy === 'string' ? h.policy : JSON.stringify(h.policy)};
++  const mirrors = [...h.mirrors, ...(h.carriers ? [CARRIER_MIRROR] : [])];
++  if (mirrors.length) env.ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS = mirrors.join(',');
++  if (h.rpcs) env.ENCLAVE_PLATFORM_HOST_POLICY_RPCS = h.rpcs.join(',');
++  return {env, shape};
+ }
+ 
+ /** cfg.enclaveNetwork.challengeReplica -> the normalized configuration; throws on anything malformed, missing or legacy. */
+@@ -135,7 +154,7 @@
+   if (c.upstream !== undefined) { if (!replica) fail('upstream belongs to the app-zone-replica role'); const u = hostPort(c.upstream, 'upstream'); upstream = `${u.ip.includes(':') ? `[${u.ip}]` : u.ip}:${u.port}`; }
+   // the platform host policy (network/host-service-gate.mjs, the gate both host runtimes use for app service): explicit,
+   // never defaulted; "off" must be written and is reported as such
+-  only(c.hostPolicy, ['policy', 'endpoint', 'stateDir'], 'hostPolicy');
++  only(c.hostPolicy, ['policy', 'endpoint', 'stateDir', 'mirrors', 'rpcs', 'carriers'], 'hostPolicy');
+   const policy = c.hostPolicy.policy;
+   if (!(policy === 'production' || policy === 'off' || isObj(policy))) fail('hostPolicy.policy must be "production", "off" or an explicit {book, hostOwnership, mirrors, ...}');
+   try { resolveHostPolicyConfig({env: {ENCLAVE_PLATFORM_HOST_POLICY: typeof policy === 'string' ? policy : JSON.stringify(policy)}, chainId: 8453}); }
+@@ -145,8 +164,28 @@
+     try { const u = new URL(c.hostPolicy.endpoint); if (u.protocol !== 'https:' && u.protocol !== 'http:') throw 0; endpoint = String(c.hostPolicy.endpoint); }
+     catch { fail('hostPolicy.endpoint must be this host\'s registry endpoint (its PUBLIC_URL)'); }
+     stateDir = absFile(c.hostPolicy.stateDir, 'hostPolicy.stateDir');
+-  } else if (c.hostPolicy.endpoint !== undefined || c.hostPolicy.stateDir !== undefined) fail('hostPolicy "off" takes no endpoint or stateDir');
+-  const hostPolicy = {policy, endpoint, stateDir};
++  } else if (['endpoint', 'stateDir', 'mirrors', 'rpcs', 'carriers'].some((k) => c.hostPolicy[k] !== undefined)) fail('hostPolicy "off" takes no endpoint, stateDir, mirrors, rpcs or carriers');
++  // Carriers for the policy DOCUMENT without the fleet (network/policy-carriers.mjs through the integrated runner's own
++  // policyEnv/policyCarrierFetch, not a copy): an operator-imported directory, this host's policy-mirror role store, other
++  // hosts' policy mirrors. Untrusted transport: the unchanged gate still requires the book's anchored digest signed by its
++  // current owner at a fresh agreed block. mirrors: extra HTTPS mirror origins; rpcs: the policy's own RPC quorum.
++  let mirrors = [], rpcs = null, carriers = null;
++  if (c.hostPolicy.mirrors !== undefined) {
++    if (!Array.isArray(c.hostPolicy.mirrors) || c.hostPolicy.mirrors.length > 8) fail('hostPolicy.mirrors must list at most 8 https origins');
++    mirrors = c.hostPolicy.mirrors.map((m, i) => { let u; try { u = new URL(m); } catch { fail(`hostPolicy.mirrors[${i}] is not a URL`); }
++      if (u.protocol !== 'https:' || u.username || u.password || u.search || u.hash) fail(`hostPolicy.mirrors[${i}] must be https without credentials`); return u.href.replace(/\/+$/, ''); });
++  }
++  if (c.hostPolicy.rpcs !== undefined) rpcs = rpcList(c.hostPolicy.rpcs, 'hostPolicy.rpcs');
++  if (c.hostPolicy.carriers !== undefined) {
++    only(c.hostPolicy.carriers, ['importDir', 'policyMirrorStateDir', 'peers'], 'hostPolicy.carriers');
++    const k = c.hostPolicy.carriers;
++    carriers = {...(k.importDir !== undefined ? {importDir: absFile(k.importDir, 'hostPolicy.carriers.importDir')} : {}),
++      ...(k.policyMirrorStateDir !== undefined ? {policyMirrorStateDir: absFile(k.policyMirrorStateDir, 'hostPolicy.carriers.policyMirrorStateDir')} : {}),
++      ...(k.peers !== undefined ? {peers: k.peers} : {})};
++    if (!Object.keys(carriers).length) fail('hostPolicy.carriers names no carrier');
++  }
++  const hostPolicy = {policy, endpoint, stateDir, mirrors, rpcs, carriers};
++  if (policy !== 'off') { try { const e = hostPolicyGateEnv(hostPolicy); resolveHostPolicyConfig({env: e.env, chainId: 8453}); } catch (e) { fail(`hostPolicy: ${e.message}`); } }
+   return Object.freeze({role: c.role, release, zones, nsName, nsNames, listen, front, routeMap, snp, shield, chain, peers, upstream, hostPolicy});
+ }
+ 
+@@ -256,8 +295,12 @@
+   const release = verifyReplicaRelease(cfg.release);
+   const env = challengeReplicaEnv(cfg);
+   if (extraCaFile) env.NODE_EXTRA_CA_CERTS = extraCaFile;
+-  gate ||= createHostServiceGate({env: {ENCLAVE_PLATFORM_HOST_POLICY: typeof cfg.hostPolicy.policy === 'string' ? cfg.hostPolicy.policy : JSON.stringify(cfg.hostPolicy.policy)},
+-    chainId: 8453, endpoint: cfg.hostPolicy.endpoint, stateDir: cfg.hostPolicy.stateDir, log});
++  if (!gate) {
++    const {env: policyEnvVars, shape} = hostPolicyGateEnv(cfg.hostPolicy);
++    // carriers: the integrated runner's own carrier fetch (it answers only CARRIER_MIRROR; everything else is `fetch`)
++    const gateFetch = cfg.hostPolicy.carriers ? await (await import('./host-services/runner.mjs')).policyCarrierFetch(shape, {fetch, log}) : fetch;
++    gate = createHostServiceGate({env: policyEnvVars, chainId: 8453, endpoint: cfg.hostPolicy.endpoint, stateDir: cfg.hostPolicy.stateDir, fetch: gateFetch, log});
++  }
+   let child = null, closed = false, backoff = 1000, timer = null, lastExit = null, front = null, serving = false, stoppedFor = null;
+   const run = () => {
+     if (closed || !serving) return;

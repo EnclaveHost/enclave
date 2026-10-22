@@ -1,0 +1,32 @@
+--- a/test/metal-control-overlay.test.py
++++ b/test/metal-control-overlay.test.py
+@@ -1,4 +1,4 @@
+-import gzip, hashlib, importlib.util, io, json, stat, subprocess, tempfile, unittest
++import gzip, hashlib, importlib.util, io, json, os, stat, subprocess, tempfile, unittest
+ from pathlib import Path
+ REPO=Path(__file__).resolve().parent.parent
+ spec=importlib.util.spec_from_file_location('overlay_control_image', REPO/'metal/overlay-control-image.py')
+@@ -71,4 +71,23 @@
+         self.base_image([('app/addressbook.js',0o100644,b'aliased',2)])
+         with self.assertRaisesRegex(ValueError,'hardlinked replacement'):mod.overlay(self.base,self.root/'out',COMMIT,REPO)
+ 
++    def test_direct_chain_closure_follows_the_commits_supervisor(self):
++        # a disposable repository: the overlay installs network/direct-chain.mjs and its import closure exactly when that
++        # commit's supervisor.js imports it, and nothing more when it does not
++        r=self.root/'repo';(r/'network').mkdir(parents=True);(r/'cli').mkdir();(r/'relay').mkdir()
++        (r/'network/direct-chain.mjs').write_text('import { QuorumChain } from "../cli/independent.mjs";\nimport { a } from "./rpc-identity.mjs";\n')
++        (r/'cli/independent.mjs').write_text("import x from '../network/rpc-identity.mjs';\nconst y = await import('../relay/net-guard.mjs');\n")
++        (r/'network/rpc-identity.mjs').write_text('export const a = 1;\n');(r/'relay/net-guard.mjs').write_text('export default 1;\n')
++        # never inherit GIT_DIR/GIT_WORK_TREE (or any GIT_*): every command must act on this disposable repository only
++        clean={k:v for k,v in os.environ.items() if not k.startswith('GIT_')}
++        g=lambda *a:subprocess.check_output(['git','-C',str(r),*a],text=True,env=clean).strip()
++        g('init','-q');g('config','user.email','t@t');g('config','user.name','t')
++        (r/'supervisor.js').write_text('const x = 1;\n');g('add','-A');g('commit','-qm','before')
++        before=g('rev-parse','HEAD')
++        (r/'supervisor.js').write_text('const D = await import("./network/direct-chain.mjs");\n');g('add','-A');g('commit','-qm','after')
++        after=g('rev-parse','HEAD')
++        self.assertEqual(mod.app_files(before,r),list(mod.APP_FILES))
++        extra=[f for f in mod.app_files(after,r) if f not in mod.APP_FILES]
++        self.assertEqual(sorted(extra),['cli/independent.mjs','network/direct-chain.mjs','network/rpc-identity.mjs','relay/net-guard.mjs'])
++
+ if __name__=='__main__':unittest.main()

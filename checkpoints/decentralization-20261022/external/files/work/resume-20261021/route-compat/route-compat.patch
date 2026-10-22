@@ -1,0 +1,72 @@
+diff -ru a/relay/api-relay.js b/relay/api-relay.js
+--- a/relay/api-relay.js	2026-10-21 06:06:04.449951619 -0700
++++ b/relay/api-relay.js	2026-10-21 06:06:04.483489253 -0700
+@@ -1495,7 +1495,7 @@
+ // /v1/host/capacity: the box's operator-signed capacity record, its off-chain liveness evidence for readers that hold no
+ // relay trust (docs/network/host-liveness.md); public, read-only, and verified by every reader against the registry row
+ const BOX_OWN_SURFACES = new Set(["/availability", "/health", "/v1/health", "/v1/version", "/v1/pricing", "/v1/session-jwks",
+-                                  "/v1/net-map", "/v1/udp-map", "/v1/attestation", "/.well-known/Cloud Provider-attestation", "/v1/host/capacity"]);
++                                  "/v1/net-map", "/v1/udp-map", "/v1/attestation", "/.well-known/Cloud Provider-attestation", "/v1/host/capacity"]);
+ const CUSTODY_SURFACES = new Map([["/v2/custody/info", "GET"], ["/v2/custody/challenge", "POST"], ["/v2/custody/release", "POST"],
+                                    ["/v2/custody/evidence", "POST"], ["/v2/custody/join", "POST"], ["/v2/custody/approve", "POST"],
+                                    ["/v2/custody/code-approve", "POST"]]);
+diff -ru a/supervisor.js b/supervisor.js
+--- a/supervisor.js	2026-10-21 06:06:04.443064044 -0700
++++ b/supervisor.js	2026-10-21 06:06:04.482763638 -0700
+@@ -4699,7 +4699,7 @@
+ // report_data binds it; this supervisor reads the stored document over loopback (ATTESTATION_URL, set by metal/guest/gsup.mjs),
+ // relays it verbatim under RAD_PATH (a legacy name kept for wire compatibility: the relay's allowlist and older clients use
+ // it) and PARSES the report so the registers are inspectable. It never asserts trust on a client's behalf.
+-const RAD_PATH        = "/.well-known/Cloud Provider-attestation";
++const RAD_PATH        = "/.well-known/Cloud Provider-attestation";
+ const ATTESTATION_URL = process.env.ATTESTATION_URL || "";                 // explicit RAD URL override
+ const RAD_CACHE_MS    = parseInt(process.env.RAD_CACHE_MS || "300000", 10); // convenience-copy staleness bound
+ const sha256Hex = (b) => createHash("sha256").update(b).digest("hex");
+diff -ru a/test/cli-attest-verifier.test.mjs b/test/cli-attest-verifier.test.mjs
+--- a/test/cli-attest-verifier.test.mjs	2026-10-21 06:06:04.459509023 -0700
++++ b/test/cli-attest-verifier.test.mjs	2026-10-21 06:06:15.888779532 -0700
+@@ -40,8 +40,8 @@
+       return send(200, { name: "box1", nonce: nonce.toString("hex"), document: { format: "sev-snp-guest-metal-v1", body, transportKey: SP.toString("base64"), name: "box1" }, operatorAllowlist: { source: "test", admittedAtAttach: MEAS, measurements: [MEAS] } });
+     }
+     if (m) return send(404, { error: "no_box", message: `no attested SEV-SNP box named ${m[1]}` });
+-    if (u.pathname === "/v1/deployments/dep_metal/attestation") return send(200, { verification: { attestationEndpoint: `${base}/t/box1/.well-known/Cloud Provider-attestation` } });
+-    if (u.pathname === "/v1/deployments/dep_gone/attestation") return send(200, { verification: { attestationEndpoint: `${base}/t/nobox/.well-known/Cloud Provider-attestation` } });
++    if (u.pathname === "/v1/deployments/dep_metal/attestation") return send(200, { verification: { attestationEndpoint: `${base}/t/box1/.well-known/Cloud Provider-attestation` } });
++    if (u.pathname === "/v1/deployments/dep_gone/attestation") return send(200, { verification: { attestationEndpoint: `${base}/t/nobox/.well-known/Cloud Provider-attestation` } });
+     if (u.pathname === "/v1/deployments/dep_shield/attestation") return send(409, { error: "shield_tls_only" });
+     send(404, { error: "not_found" });
+   });
+diff -ru a/test/relay-u7-eligible-routing.test.mjs b/test/relay-u7-eligible-routing.test.mjs
+--- a/test/relay-u7-eligible-routing.test.mjs	2026-10-21 06:06:04.454988009 -0700
++++ b/test/relay-u7-eligible-routing.test.mjs	2026-10-21 06:06:15.888644183 -0700
+@@ -313,10 +313,10 @@
+   // its own read-only surfaces stay reachable, by path and by box hostname
+   // ("/v1/./health" is resolved to "/v1/health" by the client and the relay's own URL parse BEFORE the gate, so the box
+   //  receives exactly its own surface: that is the same request, not an encoding of another)
+-  for (const p of ["/availability", "/Availability", "/availability/", "/v1/health", "/v1/./health", "/v1/attestation", "/.well-known/Cloud Provider-attestation"])
++  for (const p of ["/availability", "/Availability", "/availability/", "/v1/health", "/v1/./health", "/v1/attestation", "/.well-known/Cloud Provider-attestation"])
+     assert.equal((await getJ(origin, `/t/${NAME}${p}`)).status, 200, p);
+   assert.equal((await getJ(origin, "/availability", boxHost)).status, 200);
+-  assert.equal((await getJ(origin, "/.well-known/Cloud Provider-attestation", boxHost)).status, 200);
++  assert.equal((await getJ(origin, "/.well-known/Cloud Provider-attestation", boxHost)).status, 200);
+   // everything else is refused: the tenant paths, enclave-5d's five, the encodings, the collection, and any other path
+   const before = seen.length;
+   const refused = async (p, h = {}, init = {}) => {
+@@ -333,7 +333,7 @@
+                    "/v1/tls-bridge", "/hello", "/v1/secrets", "/%E0%A4%A",                                 // anything else
+                    "/v1/attestation/verify", "/.well-known/other",                                          // exact entries, no prefixes
+                    // enclave-5d's round-2 finding: a raw tenant path that CANONICALIZES to an own surface
+-                   `/x/${D_E}/..%2F..%2Favailability`, `/x/${D_E}/..%2f..%2f.well-known/Cloud Provider-attestation`,
++                   `/x/${D_E}/..%2F..%2Favailability`, `/x/${D_E}/..%2f..%2f.well-known/Cloud Provider-attestation`,
+                    `/x/${D_E}/..%252F..%252Favailability`, `/v1/deployments/${D_E}/..%2F..%2F..%2Fv1%2Fhealth`,
+                    "//availability", "/%61vailability"])
+     await refused(`/t/${NAME}${p}`);
+@@ -351,7 +351,7 @@
+   const SENT = "sentinel-" + randomBytes(8).toString("hex");
+   const cred = { authorization: `Bearer ${SENT}`, cookie: `session=${SENT}`, "proxy-authorization": `Basic ${SENT}` };
+   for (const [p, h] of [[`/t/${NAME}/availability`, cred], ["/availability", { ...cred, ...boxHost }],
+-                        [`/t/${NAME}/v1/attestation`, cred], ["/.well-known/Cloud Provider-attestation", { ...cred, ...boxHost }]]) {
++                        [`/t/${NAME}/v1/attestation`, cred], ["/.well-known/Cloud Provider-attestation", { ...cred, ...boxHost }]]) {
+     const n = headersSeen.length;
+     const r = await fetch(origin + p, { headers: h });
+     assert.equal(r.status, 200, p);

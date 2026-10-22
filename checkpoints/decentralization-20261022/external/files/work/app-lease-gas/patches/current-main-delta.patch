@@ -1,0 +1,1688 @@
+--- a/client/lease-executor-client.mjs
++++ b/client/lease-executor-client.mjs
+@@ -21,8 +21,10 @@
+ //     recovered from the chain (the nonce lane and the reserve's logs); a nonce consumed by anything else is NOT
+ //     taken as this operation's success.
+ import http from "node:http";
++import fs from "node:fs";
++import { strictWriteFile } from "../network/lease-release-journal.mjs";
+ import { getAddress, concat, encodeFunctionData, decodeFunctionData, decodeFunctionResult, decodeEventLog, decodeErrorResult, keccak256, hashTypedData,
+-         recoverAddress, isAddress, isHex, encodeAbiParameters, formatTransactionRequest } from "viem";
++         recoverAddress, isAddress, isHex, encodeAbiParameters, formatTransactionRequest, parseTransaction, recoverTransactionAddress } from "viem";
+ import { recoverAuthorizationAddress } from "viem/utils";
+ import { leaseDeploymentPins, leaseRpcSet, verifiedLeaseAuthority } from "./lease-executor-authority.mjs";
+ export { leaseDeploymentPins, verifiedLeaseAuthority } from "./lease-executor-authority.mjs";
+@@ -273,10 +275,29 @@
+   return { data, authorizationList: delegated ? undefined : [authorization], fees, expectedCharge };
+ }
+ 
+-/** RELAY: check, simulate, send, and confirm the payment from the receipt (the event emitted by the PINNED reserve). */
++const definiteRejection = (m) => /insufficient funds|intrinsic gas|exceeds block gas|invalid sender|invalid signature|max fee per gas less than block base fee|fee cap|transaction type not supported/i.test(m);
++const alreadyKnown = (m) => /already known|known transaction|already imported/i.test(m);
++/** Broadcast the IDENTICAL signed bytes to every provider of the quorum set (never a re-signature).
++ *  -> "accepted" (a provider answered this hash or knows it) | "rejected" (every provider refused definitively: nothing
++ *  can be pending) | "unknown" (no clear answer: the bytes may be in a mempool - resolved from the chain, never re-signed) */
++export async function broadcastRaw(rpc, raw, hash) {
++  const rs = await Promise.allSettled(rpc.peers.map((p) => rpc.request(p.client, "eth_sendRawTransaction", [raw])));
++  let accepted = 0, rejected = 0;
++  for (const r of rs) {
++    if (r.status === "fulfilled" && lc(String(r.value)) === lc(hash)) { accepted++; continue; }
++    const m = r.status === "fulfilled" ? `answered ${String(r.value).slice(0, 20)}` : String(r.reason?.details || r.reason?.shortMessage || r.reason?.message || r.reason);
++    if (alreadyKnown(m)) accepted++; else if (r.status === "rejected" && definiteRejection(m)) rejected++;
++  }
++  return accepted ? "accepted" : rejected === rs.length ? "rejected" : "unknown";
++}
++
++/** RELAY: check, simulate, sign ONCE, broadcast the same bytes to every provider, and confirm the payment from the
++ *  receipt (the event emitted by the PINNED reserve), all through the RPC quorum - no single provider is required.
++ *  sentState ({get, set}, startLeaseRelay's durable record of this key's last signed transaction): while that one is
++ *  unresolved (its nonce not yet consumed on the quorum), nothing new is signed - its bytes are re-broadcast instead. */
+ export async function relayLease({ client: singleClient, clients = [singleClient], wallet, pinned, signed,
+   quorum, confirmations = 0, maxBlockAgeSecs, allowLoopbackHttp = false, rpcTimeoutMs, now,
+-  gas = 600_000n, receiptTimeoutMs = 120_000 }) {
++  gas = 600_000n, receiptTimeoutMs = 120_000, sentState = null }) {
+   const verified = await verifiedLeaseAuthority({ clients, deployment: pinned, quorum, confirmations, maxBlockAgeSecs,
+     allowLoopbackHttp, timeoutMs: rpcTimeoutMs, now });
+   pinned = verified.pins;
+@@ -284,8 +305,16 @@
+   const client = verified.client;
+   const rpc = leaseRpcSet(clients, { quorum, allowLoopbackHttp, timeoutMs: rpcTimeoutMs });
+   const payee = wallet.account.address;
+-  const c = await checkRelayRequest({ client, pinned, payee, signed });
+   const nonce = await client.getTransactionCount({ address: payee });
++  const sent = sentState?.get();
++  if (sent) {
++    if (nonce > sent.nonce) sentState.set(null);   // its nonce is consumed on the quorum: resolved
++    else {
++      await broadcastRaw(rpc, sent.raw, sent.hash); // the SAME bytes again, never a new signature or a new nonce
++      throw new LeaseRefusal("RelayBusy", `this relay's transaction ${sent.hash} (nonce ${sent.nonce}) is unresolved: re-broadcast, not re-signed; retry shortly`);
++    }
++  }
++  const c = await checkRelayRequest({ client, pinned, payee, signed });
+   const tx = { account: wallet.account, to: signed.operator, data: c.data, authorizationList: c.authorizationList, gas,
+                nonce, maxPriorityFeePerGas: c.fees.priorityFee, maxFeePerGas: c.fees.maxFeePerGas };
+   try {
+@@ -296,7 +325,14 @@
+     }, "relay simulation");
+   } catch (e) { throw new LeaseRefusal("Simulation", `simulation: ${reasonOf(e)}`); }
+   verified.assertFresh();
+-  const hash = await wallet.sendTransaction(tx);
++  const raw = await wallet.account.signTransaction({ chainId: pinned.chainId, type: c.authorizationList ? "eip7702" : "eip1559", nonce, to: signed.operator,
++    data: c.data, value: 0n, gas, maxFeePerGas: c.fees.maxFeePerGas, maxPriorityFeePerGas: c.fees.priorityFee,
++    ...(c.authorizationList ? { authorizationList: c.authorizationList } : {}) });
++  const hash = keccak256(raw);
++  sentState?.set({ nonce, raw, hash });           // durable BEFORE any provider has the bytes
++  const outcome = await broadcastRaw(rpc, raw, hash);
++  if (outcome === "rejected") { sentState?.set(null); throw new LeaseRefusal("Rejected", `every provider refused the transaction ${hash}: nothing was sent`); }
++  // accepted, or unknown (a lost reply): the hash is this relay's own - the quorum shows whether it landed
+   const deadline = Date.now() + receiptTimeoutMs;
+   for (;;) {
+     try {
+@@ -306,9 +342,10 @@
+         .map((l) => { try { return decodeEventLog({ abi: RESERVE_ABI, data: l.data, topics: l.topics }); } catch { return null; } })
+         .find((ev) => ev?.eventName === "LeaseGasPaid" && ev.args.id === signed.lease.id &&
+           lc(ev.args.operator) === lc(signed.operator) && lc(ev.args.payee) === lc(payee) && Number(ev.args.kind) === signed.lease.kind)?.args;
+-      return { hash, receipt, paid, expectedCharge: c.expectedCharge };
++      sentState?.set(null);
++      return { hash, receipt, paid, expectedCharge: c.expectedCharge, broadcast: outcome };
+     } catch (e) {
+-      if (Date.now() >= deadline) throw new Error(`lease ${hash} is not quorum-confirmed: ${reasonOf(e)}`);
++      if (Date.now() >= deadline) throw new Error(`lease ${hash} is not quorum-confirmed (broadcast ${outcome}): ${reasonOf(e)}; it stays this relay's unresolved transaction`);
+       await sleep(500);
+     }
+   }
+@@ -320,10 +357,26 @@
+  */
+ export async function startLeaseRelay({ client, clients = [client], wallet, deployment, quorum, confirmations = 0,
+   maxBlockAgeSecs, allowLoopbackHttp = false, rpcTimeoutMs, now, host = "127.0.0.1", port = 0,
+-                                        maxBody = 4096, maxConcurrent = 4, requestTimeoutMs = 60_000, log = () => {} }) {
++                                        maxBody = 4096, maxConcurrent = 4, requestTimeoutMs = 60_000, receiptTimeoutMs = 120_000, log = () => {}, stateFile = null }) {
+   const options = { clients, deployment, quorum, confirmations, maxBlockAgeSecs, allowLoopbackHttp, timeoutMs: rpcTimeoutMs, now };
++  // this key's last signed, not-yet-resolved transaction: persisted strictly (temp, fsync, rename, dir fsync) BEFORE its
++  // broadcast when a stateFile is configured, so a restarted relay re-broadcasts those bytes instead of signing anew
+   const pinned = await pinRelayContracts(options);
+   if (wallet.chain?.id !== pinned.chainId) throw new Error("relay wallet chain differs from reviewed deployment");
++  let sent = null;
++  if (stateFile && fs.existsSync(stateFile)) {
++    const j = JSON.parse(fs.readFileSync(stateFile, "utf8"));
++    if (j && j.raw) {
++      // only THIS key's own transaction on this chain at the recorded nonce: another key's record is refused, not re-broadcast
++      const bad = (why) => { throw new Error(`${stateFile}: not this relay's send record (${why}); settle it by hand`); };
++      if (!/^0x[0-9a-f]+$/i.test(j.raw) || keccak256(j.raw) !== j.hash || !Number.isSafeInteger(j.nonce)) bad("malformed");
++      const tx = parseTransaction(j.raw);
++      if (tx.chainId !== pinned.chainId || tx.nonce !== j.nonce) bad(`chain ${tx.chainId}, nonce ${tx.nonce}`);
++      if (getAddress(await recoverTransactionAddress({ serializedTransaction: j.raw })) !== getAddress(wallet.account.address)) bad("signed by another key");
++      sent = j;
++    }
++  }
++  const sentState = { get: () => sent, set: (x) => { if (stateFile) strictWriteFile(stateFile, JSON.stringify(x || {})); sent = x; } };
+   let inflight = 0, sendQueue = Promise.resolve();
+   const server = http.createServer(async (req, res) => {
+     const reply = (status, body) => { if (res.writableEnded) return; res.writeHead(status, { "content-type": "application/json" });
+@@ -342,7 +395,7 @@
+       try { signed = parseRelayRequest(JSON.parse(Buffer.concat(chunks).toString())); } catch (e) { return reply(400, { error: e.code || "bad_json", message: String(e.message).slice(0, 200) }); }
+       // one send at a time from this key (its account nonce), and therefore per operator too
+       // A timed-out HTTP response must not unlock this key while the original job can still broadcast.
+-      pendingJob = sendQueue.then(() => relayLease({ ...options, rpcTimeoutMs, wallet, pinned, signed }));
++      pendingJob = sendQueue.then(() => relayLease({ ...options, rpcTimeoutMs, wallet, pinned, signed, sentState, receiptTimeoutMs }));
+       sendQueue = pendingJob.catch(() => {});
+       const r = await withTimeout(pendingJob, requestTimeoutMs, "relay");
+       log(`[relay] ${r.receipt.status} ${r.hash} paid ${r.paid?.chargedWei ?? "none"}`);
+@@ -412,11 +465,12 @@
+     allowLoopbackHttp, timeoutMs: rpcTimeoutMs, now });
+   const executor = async () => (await authority()).pins.executor;
+ 
+-  async function nonceAt(id, verified) {
++  /** `who`'s executor nonce for `id` (its own storage; only meaningful while `who` is delegated to the pinned executor). */
++  async function nonceAt(id, verified, who = account.address) {
+     const c = verified.client;
+-    const code = lc((await c.getCode({ address: account.address })) || "0x");
++    const code = lc((await c.getCode({ address: who })) || "0x");
+     if (code !== designator(pins.executor)) return 0n;
+-    return BigInt(await c.readContract({ address: account.address, abi: EXECUTOR_ABI, functionName: "nonceOf", args: [id] }));
++    return BigInt(await c.readContract({ address: who, abi: EXECUTOR_ABI, functionName: "nonceOf", args: [id] }));
+   }
+   const nonceOf = async (id) => nonceAt(id, await authority());
+ 
+@@ -428,16 +482,17 @@
+     return Math.min(fallbackMs, Math.max(5, Number(r.renewWindow) - 15) * 1000);
+   }
+ 
+-  const verifyLanded = (hash, want, payees) => verifyLeaseReceipt({ rpc, pins, operator: account.address, hash, want, payees });
++  const verifyLanded = (hash, want, payees, operator = account.address) => verifyLeaseReceipt({ rpc, pins, operator, hash, want, payees });
+ 
+-  /** The chain's own record: a LeaseGasPaid by this operator for `id` from `fromBlock` whose transaction is THIS lease. */
+-  async function findLanded(want, fromBlock, payees) {
++  /** The chain's own record: a LeaseGasPaid by `operator` (default: this key) for `id` from `fromBlock` whose transaction
++   *  is THIS lease, through the PINNED reserve. */
++  async function findLanded(want, fromBlock, payees, operator = account.address) {
+     const answers = await Promise.allSettled(clients.map((c) => withTimeout(
+-      c.getContractEvents({ address: reserve, abi: RESERVE_ABI, eventName: "LeaseGasPaid", args: { id: want.id, operator: account.address }, fromBlock }),
++      c.getContractEvents({ address: reserve, abi: RESERVE_ABI, eventName: "LeaseGasPaid", args: { id: want.id, operator }, fromBlock }),
+       requestTimeoutMs, "lease logs")));
+     const hashes = [...new Set(answers.filter((a) => a.status === "fulfilled")
+       .flatMap((a) => a.value.slice(-32).map((g) => g.transactionHash)))];
+-    for (const hash of hashes) { try { return await verifyLanded(hash, want, payees); } catch {} }
++    for (const hash of hashes) { try { return await verifyLanded(hash, want, payees, operator); } catch {} }
+     return null;
+   }
+ 
+@@ -480,7 +535,7 @@
+         // the operation stops here: no POST to this relay or any later one (leases already POSTed were journaled).
+         if (onSigned) {
+           try { await onSigned({ nonce, deadline, payee: lease.payee, kind: kindName,
+-            lease: { ...lease }, fromBlock, operator: account.address, reserve, executor: ex }); }
++            lease: { ...lease }, fromBlock, operator: account.address, reserve, executor: ex, chainId: pins.chainId, ledger: pins.ledger }); }
+           catch (e) {
+             throw new LeaseRefusal("NotPersisted", `${kindName} ${id}: the signed lease could not be made durable (${String(e?.message || e).slice(0, 200)}); it was sent to no relay`);
+           }
+@@ -512,26 +567,52 @@
+   }
+ 
+   /**
+-   * Settle a lease this host SIGNED earlier (a durable journal entry, possibly from before a restart) from the chain:
+-   *   landed   - a quorum-verified receipt of exactly this intent (the only success);
+-   *   consumed - the executor nonce lane moved past it without a verified landing: a FENCE (it can never land now),
+-   *              not proof that it ran;
+-   *   expired  - its deadline is behind a quorum-verified block and the lane did not move: a fence too;
+-   *   pending  - it may still land. want: {id, kind, enclaveId, nonce, deadline, maxChargeWei}; payees: every payee signed.
++   * Settle a lease SIGNED earlier (a durable journal entry, possibly from before a restart, possibly by ANOTHER key or
++   * under another deployment record) from the chain, bound to the identity RECORDED with it - never to this client's
++   * current key or configuration (root review 20:21Z):
++   *   landed   - a quorum-verified receipt of exactly this intent by the RECORDED operator, and ONLY when the recorded
++   *              chain, reserve, executor and ledger are all present and equal to this client's pinned ones (the only
++   *              success; a matching-field receipt in another or an unrecorded domain is not this operation);
++   *   consumed - the RECORDED operator's own executor nonce lane moved past it: a FENCE, not proof that it ran. Only when
++   *              the recorded chain, reserve, executor and ledger are this client's pinned ones (the lane is that
++   *              operator's storage under that executor's namespace);
++   *   expired  - its deadline is behind a quorum-verified block of the RECORDED chain (it can then land nowhere): a
++   *              fence too, never a success;
++   *   pending  - it may still land, or the record cannot be settled automatically (`why`): the caller keeps it HELD.
++   * want: {id, kind, enclaveId, nonce, deadline, maxChargeWei}; payees: every payee signed;
++   * recorded: {operator, chainId, reserve, executor, ledger} as journaled (a missing field is unknown, never assumed).
+    */
+-  async function resolveSigned(want, fromBlock, payees) {
+-    const landed = await findLanded(want, fromBlock, payees).catch(() => null);
+-    if (landed) return { state: "landed", verified: landed };
++  async function resolveSigned(want, fromBlock, payees, recorded = {}) {
++    const operator = recorded.operator && isAddress(String(recorded.operator)) ? getAddress(recorded.operator) : null;
++    if (!operator) return { state: "pending", why: "the journal entry names no operator: settle it by hand from the chain" };
++    const same = (a, b) => !!a && lc(a) === lc(b);
++    const sameChain = recorded.chainId !== undefined && recorded.chainId !== null && Number(recorded.chainId) === pins.chainId;
++    // the RECORDED domain is this client's pinned one, every field present and equal: only then can a receipt or a
++    // nonce here say anything about the recorded operation (root review P1/P2: a matching-field receipt in another
++    // domain, or for an entry without its domain, is NOT the recorded lease's success)
++    const sameDomain = sameChain && same(recorded.reserve, pins.reserve) && same(recorded.executor, pins.executor) && same(recorded.ledger, pins.ledger);
++    if (sameDomain) {
++      const landed = await findLanded(want, fromBlock, payees, operator).catch(() => null);
++      if (landed) return { state: "landed", verified: landed };
++    }
+     const verified = await authority();
+     const block = Number(verified.block.number);
+-    const n = await nonceAt(want.id, verified);
+-    if (n > want.nonce) return { state: "consumed", block };
++    if (!sameChain) return { state: "pending", block, why: `the lease was signed for chain ${recorded.chainId ?? "unknown"}; this client is pinned to chain ${pins.chainId}` };
++    if (sameDomain) {
++      const n = await nonceAt(want.id, verified, operator);
++      if (n > want.nonce) return { state: "consumed", block };
++    }
+     if (verified.block.timestamp > want.deadline) {
+-      // a landing at or before the deadline is in a block at or below this one: look once more before fencing
+-      const again = await findLanded(want, fromBlock, payees).catch(() => null);
+-      return again ? { state: "landed", verified: again } : { state: "expired", block };
++      if (sameDomain) {
++        // a landing at or before the deadline is in a block at or below this one: look once more before fencing
++        const again = await findLanded(want, fromBlock, payees, operator).catch(() => null);
++        if (again) return { state: "landed", verified: again };
++      }
++      // past its deadline on the RECORDED chain it can never land, in any domain: a fence, never a success
++      return { state: "expired", block };
+     }
+-    return { state: "pending", block };
++    return sameDomain ? { state: "pending", block }
++      : { state: "pending", block, why: "the lease was signed under another (or an unrecorded) reserve/executor/ledger: held until its deadline on its chain" };
+   }
+ 
+   return {
+--- a/network/lease-gas-owner.mjs
++++ b/network/lease-gas-owner.mjs
+@@ -304,8 +304,25 @@
+   const l1 = (authorization ? l1UpperAuthWei : l1UpperWei) * BigInt(limits.l1Bps) / 10_000n;
+   return { gas, price: gasPrice, l1, wei: gas * gasPrice + l1 };
+ }
+-/** Renewals per day for a rate-0 lease of leaseSec renewed once inside renewWindow (a host renews near the window's start). */
+-export const renewsPerDay = (leaseSec, renewWindow) => 86400 / Math.max(60, Number(leaseSec) - Math.max(0, Number(renewWindow) - 15));
++/**
++ * Renewals a lease needs to stay up for `seconds` from its claim, by the DEPLOYED ledger's rule (rev 16d: claim() buys
++ * min(leaseSec, balance / rate); renew() extends FROM leaseUntil by min(leaseSec, balance / rate)): after the claim and n
++ * renewals the lease covers (n + 1) x extensionSec, so n = ceil(seconds / extensionSec) - 1. The renew window only moves
++ * WHEN each renewal is sent (renewWindow - 15 s before leaseUntil), never how many there are.
++ *   - rate 0 (self-hosted) or a compute balance covering every quantum: extensionSec = leaseSec (the steady state is
++ *     86400 / leaseSec renewals a day: 48 for leaseSec 1800);
++ *   - a PARTLY funded paid lease buys shorter extensions and renews more often until its balance runs out: bound it by
++ *     passing a shorter extensionSec (the owner's minExtension is the floor the reserve sponsors).
++ * Integer arithmetic only.
++ */
++export function renewalsFor(seconds, { leaseSec, extensionSec = leaseSec }) {
++  const T = BigInt(seconds), ext = BigInt(extensionSec);
++  if (ext <= 0n) throw new OwnerRefusal("a lease extension must be positive");
++  if (T <= ext) return 0n;
++  return (T + ext - 1n) / ext - 1n;
++}
++/** The steady-state renewals a day of a rate-0 / fully funded lease (display only; budgets use renewalsFor). */
++export const renewsPerDay = (leaseSec) => 86400 / Number(leaseSec);
+ /**
+  * The cost model at a given price: per-op charge per kind at min(effective fee, owner cap, ceiling), what the owner's caps
+  * allow, and a per-day figure for renewals only (claims and releases are events). ILLUSTRATIVE: it is the price NOW.
+@@ -316,10 +333,11 @@
+   const atCap = [cap, limits.maxGasPriceCeiling].reduce((m, x) => (x < m ? x : m));
+   const per = {}, worst = {};
+   for (const k of ["claim", "renew", "release"]) { per[k] = chargeOf({ kind: k, gasPrice: price, limits, l1UpperWei, l1UpperAuthWei }); worst[k] = chargeOf({ kind: k, gasPrice: atCap, limits, l1UpperWei, l1UpperAuthWei }); }
+-  const rpd = renewsPerDay(leaseSec, policy?.renewWindow ?? POLICY_DEFAULTS.renewWindow);
+-  const perDayWei = BigInt(Math.ceil(rpd * Number(per.renew.wei)));
++  const rpd = renewsPerDay(leaseSec);
++  const perDayWei = (per.renew.wei * 86400n + BigInt(leaseSec) - 1n) / BigInt(leaseSec);   // steady state, rounded up
+   return { price, effectiveFee, ownerCap: cap, ceiling: limits.maxGasPriceCeiling, priceLimitedBy: effectiveFee > atCap ? "owner cap / ceiling (relays will refuse: they would be paid below their cost)" : "market fee",
+-    perOp: per, atOwnerCap: worst, renewsPerDay: rpd, renewPerDayWei: perDayWei,
++    perOp: per, atOwnerCap: worst, renewsPerDay: rpd, renewPerDayWei: perDayWei, leaseSec: Number(leaseSec),
++    renewalModel: "steady state of a rate-0 / fully funded lease: one renew per leaseSec (the ledger extends FROM leaseUntil); a partly funded paid lease renews more often",
+     formula: `(measured gas + ${INTRINSIC_GAS} + ${CALLDATA_GAS_PER_BYTE} x ${CANONICAL_LENGTH} + overhead[kind]) x min(tx gas price, owner cap, ceiling) + l1Bps/10000 x L1 upper bound` };
+ }
+ 
+@@ -439,9 +457,11 @@
+   const n = Number(days);
+   if (!Number.isFinite(n) || n <= 0 || n > 3650) throw new OwnerRefusal("--days must be a number of days from 0 to 3650");
+   if (!cost) throw new OwnerRefusal("--days needs the live fee (a quorum read)");
+-  // renewals for N days plus one claim (with its authorization) and one release, at the current fee
+-  return { wei: BigInt(Math.ceil(n * Number(cost.renewPerDayWei))) + cost.perOp.claim.wei + cost.perOp.release.wei,
+-    basis: `${n} days of renewals + one claim + one release at ${cost.price} wei/gas (ILLUSTRATIVE: today's fee)` };
++  // one claim (with its authorization: the worst case) + the renewals N days need (renewalsFor) + one release, at the fee read now
++  if (!Number.isInteger(n * 86400)) throw new OwnerRefusal("--days must be a whole number of seconds");
++  const renewals = renewalsFor(n * 86400, { leaseSec: cost.leaseSec });
++  return { wei: cost.perOp.claim.wei + renewals * cost.perOp.renew.wei + cost.perOp.release.wei, renewals,
++    basis: `one claim + ${renewals} renewals (${n} days of a rate-0 / fully funded lease, leaseSec ${cost.leaseSec}) + one release at ${cost.price} wei/gas - the fee read now, not a forecast` };
+ }
+ export function parseEthAmount(s) {
+   const m = /^(\d{1,9})(?:\.(\d{1,18}))?$/.exec(String(s).trim());
+--- a/network/lease-release-journal.mjs
++++ b/network/lease-release-journal.mjs
+@@ -74,7 +74,9 @@
+       const e = entries.get(String(id).toLowerCase());
+       if (!e) throw new Error("no open release entry");
+       e.intents.push({ payee: s.payee, nonce: String(s.nonce), deadline: String(s.deadline), kind: s.kind, enclaveId: s.lease.enclaveId,
+-        maxChargeWei: String(s.lease.maxChargeWei), fromBlock: String(s.fromBlock), operator: String(s.operator).toLowerCase() });
++        maxChargeWei: String(s.lease.maxChargeWei), fromBlock: String(s.fromBlock), operator: String(s.operator).toLowerCase(),
++        // the identity the lease was signed under: recovery is bound to it (an old entry without it is held, never guessed)
++        chainId: Number(s.chainId), reserve: String(s.reserve).toLowerCase(), executor: String(s.executor).toLowerCase(), ledger: String(s.ledger).toLowerCase() });
+       try { save(); } catch (err) { e.intents.pop(); throw err; }
+     },
+     /** Remove a settled entry. A failed write leaves it on disk: after a restart it is settled from the chain again. */
+--- a/network/lease-relay-service.mjs
++++ b/network/lease-relay-service.mjs
+@@ -12,14 +12,18 @@
+ //
+ //   LEASE_RELAY_RECORD=FILE LEASE_RELAY_DIGEST=sha256:… LEASE_RELAY_RPCS=https://a,https://b[,…]
+ //   LEASE_RELAY_KEY_FILE=/path/0600 LEASE_RELAY_LISTEN=127.0.0.1:8545x LEASE_RELAY_MAX_FLOAT_ETH=0.02
+-//   [LEASE_RELAY_MIN_FLOAT_ETH=0.001] [LEASE_RELAY_QUORUM=n]   node network/lease-relay-service.mjs
++//   LEASE_RELAY_STATE=/var/lib/…/relay-send.json [LEASE_RELAY_MIN_FLOAT_ETH=0.001] [LEASE_RELAY_QUORUM=n]   node network/lease-relay-service.mjs
++// RPCs: name three independent providers with a quorum of two - any one may be down or wrong. Nothing depends on the
++// first one: reads, simulation, broadcast and receipts all go through the quorum; a send whose reply is lost is
++// re-broadcast as the SAME signed bytes, never re-signed. LEASE_RELAY_STATE (required by the CLI: a writable file on
++// durable storage, the unit's StateDirectory) keeps those bytes across a restart; it holds only this key's own send.
+ // Put it behind TLS (hosts accept only https relays, except loopback fixtures).
+ import fs from "node:fs";
+-import { createPublicClient, createWalletClient, http, parseEther, formatEther, defineChain } from "viem";
++import { createPublicClient, http, parseEther, formatEther, defineChain } from "viem";
+ import { privateKeyToAccount } from "viem/accounts";
+ import { parseDeploymentRecord } from "./lease-gas-owner.mjs";
+ import { startLeaseRelay } from "./lease-executor-client.mjs";
+-import { leaseRpcSet } from "./lease-executor-authority.mjs";
++import { leaseRpcSet, verifiedLeaseAuthority } from "./lease-executor-authority.mjs";
+ 
+ function readKeyFile(file) {
+   const st = fs.statSync(file);
+@@ -31,23 +35,31 @@
+ 
+ /** Start the relay service from explicit settings (the CLI entry below maps the environment onto these). */
+ export async function startRelayService({ recordFile, digest, rpcs, keyFile, listen = "127.0.0.1:0", maxFloatEth, minFloatEth = "0.001", quorum,
+-  allowLoopbackHttp = false, readFile = fs.readFileSync, log = (m) => console.log(m), checkEveryMs = 60_000, relayOptions = {} }) {
++  allowLoopbackHttp = false, readFile = fs.readFileSync, log = (m) => console.log(m), checkEveryMs = 60_000, stateFile = null, relayOptions = {} }) {
+   if (!recordFile || !digest) throw new Error("the relay needs the reviewed deployment record and its digest (LEASE_RELAY_RECORD, LEASE_RELAY_DIGEST)");
+   if (!maxFloatEth) throw new Error("the relay needs LEASE_RELAY_MAX_FLOAT_ETH: the most this hot key may hold (a small float)");
+   const deployment = parseDeploymentRecord(readFile(recordFile), { expectedDigest: digest });
+   const chain = defineChain({ id: deployment.chainId, name: `chain-${deployment.chainId}`, nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcs[0]] } } });
+   const clients = rpcs.map((url) => createPublicClient({ chain, transport: http(url, { retryCount: 0, timeout: 10_000 }) }));
+-  leaseRpcSet(clients, { quorum, allowLoopbackHttp });                 // the identity/threshold rules, before anything else
++  const rpc = leaseRpcSet(clients, { quorum, allowLoopbackHttp });     // the identity/threshold rules, before anything else
+   const account = privateKeyToAccount(readKeyFile(keyFile));
+   const maxFloat = parseEther(String(maxFloatEth)), minFloat = parseEther(String(minFloatEth));
+   if (minFloat >= maxFloat) throw new Error("the minimum float must be below the maximum");
+-  // the balance, as every configured RPC reports it: the highest answer counts against the cap
+-  const balance = async () => (await Promise.all(clients.map((c) => c.getBalance({ address: account.address })))).reduce((m, x) => (x > m ? x : m), 0n);
++  // the balance as the QUORUM agrees on it at one verified anchor block (a provider that is down, or answers another
++  // chain, block or value, is outvoted, not obeyed): one failed provider of three neither blocks startup nor decides it
++  const balance = async () => {
++    const v = await verifiedLeaseAuthority({ clients, deployment, quorum, allowLoopbackHttp, confirmations: relayOptions.confirmations ?? 0, now: relayOptions.now });
++    const r = await rpc.agree(rpc.peers, async (p) => BigInt(await rpc.request(p.client, "eth_getBalance", [account.address, { blockHash: v.block.hash, requireCanonical: true }])),
++      "the relay key's balance");
++    return r.value;
++  };
+   const b0 = await balance();
+   if (b0 > maxFloat) throw new Error(`relay key ${account.address} holds ${formatEther(b0)} ETH, above its ${maxFloatEth} ETH float cap: move the excess out first`);
+   const [host, port] = String(listen).split(/:(?=\d+$)/);
+-  const wallet = createWalletClient({ chain, account, transport: http(rpcs[0], { retryCount: 0, timeout: 15_000 }) });
+-  const relay = await startLeaseRelay({ client: clients[0], clients, wallet, deployment, quorum, allowLoopbackHttp, host, port: Number(port || 0), log, ...relayOptions });
++  // the key and the chain only, with no transport: every read, the simulation, the broadcast (the same signed bytes to
++  // EVERY provider) and the receipt go through the quorum (client/lease-executor-client.mjs relayLease)
++  const wallet = { account, chain };
++  const relay = await startLeaseRelay({ client: clients[0], clients, wallet, deployment, quorum, allowLoopbackHttp, host, port: Number(port || 0), log, stateFile, ...relayOptions });
+   let low = b0 < minFloat;
+   const check = async () => { try { const b = await balance(); low = b < minFloat; if (b > maxFloat) log(`[relay] WARNING: ${formatEther(b)} ETH above the float cap`);
+     if (low) log(`[relay] WARNING: ${formatEther(b)} ETH is below the ${minFloatEth} ETH minimum float: refill`); } catch {} };
+@@ -58,8 +70,9 @@
+ 
+ if (import.meta.url === `file://${process.argv[1]}`) {
+   const e = process.env;
++  if (!e.LEASE_RELAY_STATE) { console.error("[relay] not started: LEASE_RELAY_STATE is not set (the durable record of this key's unresolved send; there is no default)"); process.exit(1); }
+   startRelayService({ recordFile: e.LEASE_RELAY_RECORD, digest: e.LEASE_RELAY_DIGEST, rpcs: String(e.LEASE_RELAY_RPCS || "").split(",").map((s) => s.trim()).filter(Boolean),
+     keyFile: e.LEASE_RELAY_KEY_FILE, listen: e.LEASE_RELAY_LISTEN || "127.0.0.1:0", maxFloatEth: e.LEASE_RELAY_MAX_FLOAT_ETH, minFloatEth: e.LEASE_RELAY_MIN_FLOAT_ETH || "0.001",
+-    quorum: e.LEASE_RELAY_QUORUM ? Number(e.LEASE_RELAY_QUORUM) : undefined })
++    quorum: e.LEASE_RELAY_QUORUM ? Number(e.LEASE_RELAY_QUORUM) : undefined, stateFile: e.LEASE_RELAY_STATE })
+     .catch((err) => { console.error(`[relay] not started: ${err.message}`); process.exit(1); });
+ }
+--- a/cli/lease-gas.mjs
++++ b/cli/lease-gas.mjs
+@@ -118,7 +118,7 @@
+     ctx.say(`  owner of record ${a.ledger.owner} (${a.ownerKind.kind}${a.ownerKind.detail ? ": " + a.ownerKind.detail : ""}); rate ${a.ledger.rate6} µUSDC/s; lease ${a.ledger.leaseLive ? "LIVE" : "expired"} until ${new Date(a.ledger.leaseUntil * 1000).toISOString()}`);
+     ctx.say(`  reserve ${eth(r.balanceWei)}; ${r.configured ? (r.enabled ? "ENABLED" : "configured, DISABLED") : "NOT CONFIGURED"}; claims: ${r.claimPolicy}; release ${r.sponsorRelease ? "sponsored" : "not sponsored"}`);
+     if (r.configured) ctx.say(`  caps: ${eth(r.maxPerOpWei)} per op, ${eth(r.epochCapWei)} per ${r.epochSec}s epoch (${eth(r.epochLeftWei)} left, ${r.epochClaims}/${r.maxClaimsPerEpoch} claims); gas price cap ${formatGwei(r.maxGasPrice)} gwei; renew window ${r.renewWindow}s`);
+-    ctx.say(`  charge now (upper, at ${formatGwei(c.price)} gwei): claim ${eth(c.perOp.claim)}, renew ${eth(c.perOp.renew)}, release ${eth(c.perOp.release)}; ~${c.renewsPerDay.toFixed(1)} renewals/day = ${eth(c.renewPerDayWei)}/day (ILLUSTRATIVE: today's fee)`);
++    ctx.say(`  charge now (upper, at ${formatGwei(c.price)} gwei): claim ${eth(c.perOp.claim)}, renew ${eth(c.perOp.renew)}, release ${eth(c.perOp.release)}; ~${c.renewsPerDay.toFixed(1)} renewals/day = ${eth(c.renewPerDayWei)}/day (steady state of a rate-0 / fully funded lease, at the fee read now: not a forecast)`);
+     ctx.say(`  L1: upper bound ${eth(a.l1.upperBoundWei)}, charged share ${eth(a.l1.chargedShareWei)}; proof cutover ${a.gates.proofRequiredFrom ? new Date(a.gates.proofRequiredFrom * 1000).toISOString() + (a.gates.proofCutoverPassed ? " (passed)" : "") : "not set"}; ${a.gates.claimBondNote}`);
+     if (a.runner) ctx.say(`  runner ${a.runner.operator}: renew ${a.runner.renew.status}, release ${a.runner.release.status}; ${a.runner.delegatedToExecutor ? "delegated to the executor" : "not yet delegated"}; operator ETH ${eth(a.runner.operatorEthWei)}; payout${a.runner.registry?.payoutIsOwner ? " = owner" : " ≠ owner"}`);
+     if (a.candidate) ctx.say(`  candidate ${a.candidate.operator}: claim ${a.candidate.claim.status}`);
+--- a/windows/node/chain.mjs
++++ b/windows/node/chain.mjs
+@@ -319,10 +319,12 @@
+     if (!leaseGasActive()) { out.push({ id: e.id, outcome: "held: app-funded leases are not configured, so it cannot be verified" }); continue; }
+     const x = e.intents[0];
+     const want = { id: e.id, kind: 3, enclaveId: x.enclaveId, nonce: BigInt(x.nonce), deadline: BigInt(x.deadline), maxChargeWei: BigInt(x.maxChargeWei) };
+-    const r = await leaseSender().resolveSigned(want, BigInt(x.fromBlock), e.intents.map((i) => i.payee));
++    // settled by the identity RECORDED with the signed lease, never by this process's current key or configuration
++    const recorded = { operator: x.operator, chainId: x.chainId, reserve: x.reserve, executor: x.executor, ledger: x.ledger };
++    const r = await leaseSender().resolveSigned(want, BigInt(x.fromBlock), e.intents.map((i) => i.payee), recorded);
+     if (r.state === "landed") { leaseJournal.settle(e.id, "released"); out.push({ id: e.id, outcome: "released", hash: r.verified.hash }); }
+     else if (r.state === "consumed" || r.state === "expired") { leaseJournal.settle(e.id, r.state); out.push({ id: e.id, outcome: r.state }); }
+-    else out.push({ id: e.id, outcome: "pending" });
++    else out.push({ id: e.id, outcome: r.why ? `held: ${r.why}` : "pending" });
+   }
+   return out;
+ }
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -35,7 +35,7 @@
+ import { execFileSync, execFile } from "node:child_process";
+ import { promisify } from "node:util";
+ const pexec = promisify(execFile);
+-import { openSync, readSync, closeSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, chmodSync, statfsSync, readdirSync, unlinkSync, statSync, lstatSync } from "node:fs";
++import { openSync, readSync, closeSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, chmodSync, statfsSync, readdirSync, unlinkSync, statSync, lstatSync, writeSync, fsyncSync } from "node:fs";
+ import { tmpdir } from "node:os";
+ import { join, dirname } from "node:path";
+ import { WebSocketServer, createWebSocketStream } from "ws";
+@@ -54,6 +54,8 @@
+ // This host's own signed capacity record for independent readers (docs/network/independent-capacity.md).
+ import { createHostCapacityProducer, capacityDirectoryOrigins, HOST_CAPACITY_PATH } from "./network/host-capacity-producer.mjs";
+ import { mayReconcile } from "./network/registry-reconcile.mjs";   // the registration rule the Windows node follows too
++// app-funded lease gas: the configuration boundary and sender shared with windows/node/chain.mjs
++import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender } from "./network/lease-gas-runtime.mjs";
+ // Wallet sessions (SessionVault) as owner credentials, verified on chain: shared with the Windows node.
+ import { createSessionApiAuth, isSessionHeader, hasScope, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES }
+   from "./windows/node/session-api-auth.mjs";
+@@ -3610,6 +3612,10 @@
+ // from the block it last finished - payments made during the outage are credited.
+ // Without a writable STATE_FILE this degrades to freezing within one process only.
+ let _stateDirty = false, _statePersistable = true;
++// The state file could not be read, or holds a malformed release journal, while app-funded leases are configured: an
++// unresolved sponsored release may be in it (relays send those, so no operator nonce fences them). Then no lease is
++// claimed, resumed, renewed or sent and the file is never overwritten until an operator resolves it. null = sound.
++let _stateCorrupt = null;
+ // Lease releases outlive the process that sent them (releaseLease below): a release() still in a mempool can land after
+ // a restart and end whatever lease this operator then holds. So each release is a durable INTENT, persisted with the
+ // public identity of every transaction it signed ({hash, nonce}) BEFORE that transaction is broadcast. Never a key,
+@@ -3620,7 +3626,7 @@
+ function serializeState() {
+   const recs = [...deployments.values()].map(r => {
+     const o = { ...r };
+-    for (const k of ["_payTimer", "_respawning", "_renewing", "_restarting"]) delete o[k];   // live handles only
++    for (const k of ["_payTimer", "_respawning", "_renewing", "_restarting", "_leaseGasLead"]) delete o[k];   // live handles only
+     return o;
+   });
+   const now = Date.now();
+@@ -3636,15 +3642,41 @@
+ }
+ const LEASE_FLOOR_KEEP_MS = 24 * 3600_000;
+ function saveStateNow() {
+-  if (!_statePersistable) return;
+-  try {
+-    const tmp = STATE_FILE + ".tmp";
+-    writeFileSync(tmp, serializeState());
+-    renameSync(tmp, STATE_FILE);                 // atomic: a crash never leaves a torn file
+-    _stateDirty = false;
+-  } catch (e) { console.warn(`[state] save failed: ${e.message}`); }
++  if (!_statePersistable || _stateCorrupt) return;   // never overwrite a journal that failed to load
++  // Accounting and shutdown replace the SAME file as the release journal. Every replacement keeps its durability (the
++  // strict writer below), even though this caller treats a failure as best-effort: logged, the state stays dirty and
++  // is retried, and the previous durable file is never replaced by an unsynced one (root review + writers.patch).
++  try { saveStateStrict("state checkpoint"); }
++  catch (e) { console.warn(`[state] save failed: ${e.message}`); }
+ }
+ function saveStateSoon() { _stateDirty = true; }
++// STRICT persistence, for a decision that must be durable BEFORE an external effect (a sponsored release lease reaching
++// a relay): write a separate temp file completely (a byte loop: a short write continues, zero or invalid progress
++// throws), fsync it, rename it over the state file, fsync the directory - and THROW on any failure, including a state
++// file that cannot be persisted at all and a directory fsync that fails after the rename (the caller then sends
++// nothing). Accounting and shutdown use this SAME writer. Killing a process does not simulate a physical power loss:
++// what is guaranteed and tested is the order of these calls.
++function saveStateStrict(what) {
++  if (!_statePersistable) throw new Error(`the state file is unavailable: ${what} cannot be made durable`);
++  if (_stateCorrupt) throw new Error(`the state file failed to load (${_stateCorrupt}): ${what} is refused until it is resolved`);
++  const tmp = STATE_FILE + ".strict.tmp";
++  const fd = openSync(tmp, "w", 0o600);
++  try {
++    const bytes = Buffer.from(serializeState(), "utf8");
++    let offset = 0;
++    while (offset < bytes.length) {
++      const wrote = writeSync(fd, bytes, offset, bytes.length - offset);
++      if (!Number.isInteger(wrote) || wrote <= 0 || wrote > bytes.length - offset)
++        throw new Error(`state write made invalid progress (${wrote})`);
++      offset += wrote;
++    }
++    fsyncSync(fd);
++  } finally { closeSync(fd); }
++  renameSync(tmp, STATE_FILE);
++  const dir = openSync(dirname(STATE_FILE), "r");
++  try { fsyncSync(dir); } finally { closeSync(dir); }
++  _stateDirty = false;
++}
+ function initStatePersistence() {
+   try { mkdirSync(dirname(STATE_FILE), { recursive: true }); }
+   catch (e) {
+@@ -3670,10 +3702,41 @@
+ // CLAIM_TERMINAL (defined near the claim path) aliases this.
+ const TERMINAL_STATUSES = new Set(["expired", "failed", "terminated", "stopping"]);
+ 
++// A release journal that can be trusted to hold every unresolved sponsored release: each intent names its id and its
++// transactions, each sponsored attempt every signed lease's exact intent. -> null, or what is wrong.
++function releaseJournalProblem(s) {
++  if (!s || typeof s !== "object" || Array.isArray(s)) return "not a state object";
++  if (s.releaseIntents === undefined) return null;
++  if (!Array.isArray(s.releaseIntents)) return "releaseIntents is not a list";
++  const n = (v) => typeof v === "string" && /^[0-9]{1,78}$/.test(v);
++  for (const it of s.releaseIntents) {
++    if (!it || !/^0x[0-9a-f]{64}$/.test(String(it.id || "")) || !Array.isArray(it.txs)) return "an intent without an id or transaction list";
++    for (const t of it.txs) {
++      if (!t || typeof t !== "object") return `${it.id}: a malformed transaction`;
++      if (!t.sponsored) continue;
++      if (!Array.isArray(t.intents)) return `${it.id}: a sponsored attempt without its signed leases`;
++      for (const x of t.intents)
++        if (!x || !n(x.nonce) || !n(x.deadline) || !n(x.maxChargeWei) || !n(x.fromBlock) || !/^0x[0-9a-fA-F]{40}$/.test(String(x.payee || ""))
++            || !/^0x[0-9a-fA-F]{64}$/.test(String(x.enclaveId || ""))) return `${it.id}: a signed lease without its exact intent`;
++    }
++  }
++  return null;
++}
+ function loadState() {
+   if (!_statePersistable || !existsSync(STATE_FILE)) return;
++  // app-funded leases: an unreadable or malformed journal may hide an unresolved sponsored release, so fail CLOSED for
++  // every lease operation instead of starting fresh. Unconfigured: exactly main's behaviour.
++  const strictJournal = leaseGasConfigured(Object.fromEntries(Object.entries(process.env).filter(([k]) => /^(ENCLAVE_)?LEASE_GAS_/.test(k))));
++  const corrupt = (why) => {
++    _stateCorrupt = why;
++    console.error(`[state] ${STATE_FILE}: ${why}. It may hold an unresolved sponsored release, so this host claims, resumes, renews and releases NOTHING and never overwrites the file until an operator repairs or removes it (after checking this operator's recent leases on chain)`);
++  };
+   let s; try { s = JSON.parse(readFileSync(STATE_FILE, "utf8")); }
+-  catch (e) { console.warn(`[state] unreadable (${e.message}) - starting fresh`); return; }
++  catch (e) {
++    if (strictJournal) return corrupt(`unreadable (${String(e.message).slice(0, 120)})`);
++    console.warn(`[state] unreadable (${e.message}) - starting fresh`); return;
++  }
++  if (strictJournal) { const bad = releaseJournalProblem(s); if (bad) return corrupt(`the release journal is malformed: ${bad}`); }
+   const gapMs = Math.max(0, Date.now() - (s.savedAt || Date.now()));
+   if (s.payFromBlock != null) _payFromBlock = BigInt(s.payFromBlock);   // watcher resumes where it stopped
+   for (const [k, b] of s.seenLogs || []) _seenLogs.set(k, BigInt(b));
+@@ -9479,6 +9542,69 @@
+ }
+ const sendClaimTx = (functionName, args) => sendOperatorTx(DEPLOYMENTS_ADDRESS, CLAIM_TX_ABI, functionName, args);
+ 
++// ---- app-funded lease gas (work/app-lease-gas design B; the same runtime as windows/node/chain.mjs) ----------------
++// The user's direction: lease claims and renewals are paid by the APP, not the host's wallet. Configured
++// (ENCLAVE_LEASE_GAS_FILE + _DIGEST + _RPCS + _RELAYS, or the LEASE_GAS_* aliases), claim, renew and release are
++// signed locally by the operator key (EIP-7702-delegated to the reviewed EnclaveLeaseExecutor; the authorization rides
++// in a relay's transaction), sent by any listed relay and paid from the app's reserve in that same transaction. The
++// host checks every landing against its own RPC quorum. A partial or invalid configuration, or a refusal (the owner
++// never enabled a reserve, an empty reserve, outside the renew window...), REFUSES the lease write in words: nothing
++// ever falls back to this key's ETH. Entirely unconfigured: exactly the operator-paid path above. Registry, bond,
++// proof-of-time, settle and withdrawEarnings transactions are unchanged (still this key's own).
++const leaseGasEnv = Object.freeze(Object.fromEntries(Object.entries(process.env).filter(([k]) => /^(ENCLAVE_)?LEASE_GAS_/.test(k))));
++const leaseGasActive = () => leaseGasConfigured(leaseGasEnv);
++// the host's CURRENT bindings (the address book may move them): a record for another ledger or registry refuses
++const leaseBindings = () => ({ chain: base, ledger: DEPLOYMENTS_ADDRESS, registry: REGISTRY_ADDRESS });
++let _leaseGas = null, _onLeaseSigned = null;
++function leaseGasSender() {
++  if (!_leaseGas) {
++    const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
++    _leaseGas = configuredLeaseSender({ config, account: claimSigner().account, getBindings: leaseBindings,
++      log: (m) => console.log(m), onSigned: (s) => (_onLeaseSigned ? _onLeaseSigned(s) : undefined) });
++  }
++  return _leaseGas;
++}
++if (leaseGasActive()) {
++  try { const c = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
++        console.log(`[lease-gas] app-funded leases ON: reserve ${c.reserve}, ${c.relays.length} relay(s), ${c.clients.length} RPC(s) (quorum ${c.quorum}); this key's ETH is never used for claim/renew/release`); }
++  catch (e) { console.warn(`[lease-gas] app-funded leases are configured but cannot be loaded now (${e.message}); every claim/renew/release refuses until they can`); }
++}
++function leaseGasError(fn, id, e) {
++  const code = e && e.code;
++  const msg = `app-funded ${fn} of ${id} not sent: ${(e && e.message) || e}${code === "OverRateCap" ? " (over rate cap)" : ""}; this host's ETH is never used instead`;
++  console.warn(`[lease-gas] ${msg}`);
++  return Object.assign(new Error(msg), { code, leaseGas: true });
++}
++/** sendClaimTx's shape (a hash promise with .receipt) for claim/renew. The receipt is the one the host's own quorum
++ *  verified (target, exact lease, reserve payment, ledger effect); the 7702 authorization consumes an account nonce,
++ *  so it waits its turn in the one operator queue. */
++function sendLeaseTx(functionName, args) {
++  if (!leaseGasActive()) return sendClaimTx(functionName, args);
++  const job = async () => {
++    if (_stateCorrupt) throw leaseGasError(functionName, args[0], new Error(`the release journal failed to load (${_stateCorrupt})`));
++    try { const r = await leaseGasSender()[functionName](...args); return { hash: r.hash, receipt: r.receipt }; }
++    catch (e) { throw leaseGasError(functionName, args[0], e); }
++  };
++  const started = _txChain.then(job, job);
++  _txChain = started.then(() => {}, () => {});
++  const p = started.then((x) => x.hash);
++  p.receipt = started.then((x) => x.receipt);
++  p.receipt.catch(() => {});   // callers await p first; its rejection is the one they see
++  return p;
++}
++/** A sponsored renew is valid only inside the owner's window before leaseUntil (the reserve enforces it): renew at the
++ *  window's lead (fresh, verified owner policy; cached 5 min), never earlier. Unreadable: the ordinary margin, and the
++ *  send then refuses in words. */
++async function leaseGasRenewDue(rec) {
++  const now = Date.now();
++  if (!rec._leaseGasLead || now - rec._leaseGasLead.at > 300_000) {
++    let ms = RENEW_MARGIN_SEC * 1000;
++    try { ms = await leaseGasSender().renewLeadMs(rec.id, ms); } catch { /* refused at the send */ }
++    rec._leaseGasLead = { at: now, ms };
++  }
++  return rec._leaseUntil * 1000 - now <= rec._leaseGasLead.ms;
++}
++
+ // ---- claim bond (anti-sybil, EnclaveDeployments rev 7) ----------------------
+ // The ledger can require an operator to lock USDC before it may claim. That
+ // gate is the only on-chain cost of a SYBIL claim: registration is open and the
+@@ -9698,14 +9824,16 @@
+ }
+ // Why this host must not resume, claim or renew `id` now: a release of it may still land.
+ function releaseHold(id) {
++  if (_stateCorrupt) return `this host's release journal failed to load (${_stateCorrupt}); no lease is resumed or claimed until an operator resolves it`;
+   const it = _releaseIntents.get(id);
+   if (!it) return null;
+   const tx = it.txs.find((t) => t.state === "pending");
+-  return `a release of this deployment from this host is unresolved (${tx ? `transaction ${tx.hash}, nonce ${tx.nonce}` : "deciding"}); `
++  return `a release of this deployment from this host is unresolved (${tx ? (tx.sponsored ? `sponsored lease nonce ${tx.leaseNonce ?? "-"}, deadline ${tx.deadline ?? "-"}` : `transaction ${tx.hash}, nonce ${tx.nonce}`) : "deciding"}); `
+     + "not resuming or claiming it until it is";
+ }
+ const releaseView = (it) => ({ release: { why: it.why, openedAt: new Date(it.openedAt).toISOString(), recovered: !!it.recovered,
+-  transactions: it.txs.map((t) => ({ hash: t.hash, nonce: t.nonce, state: t.state, ...(t.block != null ? { block: t.block } : {}) })) } });
++  transactions: it.txs.map((t) => ({ hash: t.hash, nonce: t.nonce, state: t.state, ...(t.block != null ? { block: t.block } : {}),
++    ...(t.sponsored ? { sponsored: true, leaseNonce: t.leaseNonce ?? null, deadline: t.deadline ?? null } : {}) })) } });
+ 
+ // Open the intent for `id` after a block-pinned read shows THIS host's live lease. The intent exists before the read, so
+ // a renewal, resume or claim starting meanwhile stands aside. -> {intent} | {intent: null, code, message}; throws when
+@@ -9748,9 +9876,90 @@
+     + `${Number.isFinite(block) ? `, block ${block}` : ""})`);
+   return { outcome, block: Number.isFinite(block) ? block : null, tx: tx || null, intent: it };
+ }
++// ---- a SPONSORED release (app-funded lease gas): the same durable intent, a different transaction ----
++// One attempt = one release lease (executor nonce, deadline, max charge) signed once per relay asked (only the payee
++// differs). The attempt is persisted BEFORE anything is signed, and every signed lease BEFORE its relay sees it. It is
++// resolved only from the chain: a quorum-verified receipt of exactly this lease is success; the executor nonce lane
++// moving past it, or its deadline passing at a verified block, is a FENCE (it can never land) and never success.
++const leaseIntentView = (s) => ({ payee: s.payee, nonce: String(s.nonce), deadline: String(s.deadline), kind: s.kind,
++  enclaveId: s.lease.enclaveId, maxChargeWei: String(s.lease.maxChargeWei), fromBlock: String(s.fromBlock),
++  operator: lc(s.operator), reserve: lc(s.reserve), executor: lc(s.executor), chainId: Number(s.chainId), ledger: lc(s.ledger) });
++async function acceptSponsoredLanding(it, tx, v) {
++  tx.hash = v.hash;
++  const block = Number(v.blockNumber);
++  const head = Number(await chainClient.getBlockNumber({ cacheTime: 0 }));
++  if (head - block + 1 < RELEASE_CONFIRMATIONS) { saveStateNow(); return; }   // landed, not yet confirmed
++  tx.state = "success"; tx.block = block;
++  try {
++    tx.released = parseEventLogs({ abi: RELEASED_EVENT, logs: v.receipt.logs, eventName: "Released", strict: false })
++      .some((l) => lc(l.address) === it.ledger && lc(l.args.id) === it.id && lc(l.args.enclaveId) === it.runner);
++  } catch { tx.released = false; }
++  saveStateNow();
++}
++function sponsoredRelease(it) {
++  const tx = { sponsored: true, hash: null, state: "pending", signedAt: Date.now(), intents: [] };
++  const job = async () => {
++    it.attempts++; it.txs.push(tx);
++    try { saveStateStrict(`release attempt ${it.attempts} of ${it.id}`); }   // durable (fsync, rename, dir fsync) before anything is signed
++    catch (e) {
++      // nothing signed, nothing sent: not an attempt. The intent stays open (the hold) and is retried once the disk works.
++      it.txs.pop(); it.attempts--;
++      console.error(`[release] ${it.id} sponsored release NOT started: the attempt could not be made durable (${e.message}); nothing was signed or sent`);
++      await sleepMs(RELEASE_POLL_MS);                     // the resolver loop retries; do not spin on a failing disk
++      return { ...tx, state: "unsent", notDurable: true };
++    }
++    _onLeaseSigned = (s) => {                             // each signed lease: durable before its relay has it, or no relay gets it
++      tx.intents.push(leaseIntentView(s));
++      try { saveStateStrict(`the signed release lease of ${it.id} for ${s.payee}`); }
++      catch (e) { tx.intents.pop(); throw e; }            // the client then sends it to NO relay (NotPersisted)
++      tx.leaseNonce = Number(s.nonce); tx.deadline = Number(s.deadline);
++    };
++    let note = "";
++    try {
++      const r = await leaseGasSender().release(it.id);
++      await acceptSponsoredLanding(it, tx, r.verified);
++      note = `landed ${tx.hash}${tx.state === "pending" ? " (confirming)" : ""}`;
++    } catch (e) {
++      // the state file keeps fixed words only (an error's text can name an endpoint)
++      if (e && e.code === "NotPersisted" && !tx.intents.length) {
++        // signed, but the journal refused it before ANY relay saw it: nothing can land, and it is not an attempt
++        it.txs.pop(); it.attempts--;
++        console.error(`[release] ${it.id} sponsored release NOT sent: ${e.message}`);
++        await sleepMs(RELEASE_POLL_MS);
++        return { ...tx, state: "unsent", notDurable: true };
++      }
++      if (!tx.intents.length) { tx.state = "unsent"; tx.why = String((e && e.code) || "refused"); }        // nothing signed: nothing can land
++      else if (e && e.code === "NonceConsumed") tx.state = "consumed";                                      // a fence, never this release's success
++      else tx.why = String((e && e.code) || "relay");                                                      // may still land: resolved from the chain
++      try { saveStateStrict(`the outcome of release attempt ${it.attempts} of ${it.id}`); }
++      catch (se) { console.error(`[release] ${it.id}: recording the attempt's outcome failed (${se.message}); the chain decides it again after a restart`); }
++      note = `${tx.state}: ${String((e && e.message) || e).slice(0, 240)}`;
++    } finally { _onLeaseSigned = null; }
++    console.log(`[release] ${it.id} sponsored release ${it.attempts}/${RELEASE_ATTEMPTS} lease nonce ${tx.leaseNonce ?? "-"} (${it.why}; ${note}); the app's reserve pays, never this host`);
++    return tx;
++  };
++  const p = _txChain.then(job, job);
++  _txChain = p.then(() => {}, () => {});
++  return p;
++}
++async function resolveSponsoredReleaseTx(it, tx) {
++  if (it.ledger !== lc(DEPLOYMENTS_ADDRESS)) { tx.state = "ledger-moved"; saveStateNow(); return; }   // the old ledger's lease is not this one
++  if (!tx.intents || !tx.intents.length) { tx.state = "unsent"; saveStateNow(); return; }            // stopped before signing: nothing can land
++  const x = tx.intents[0];
++  const want = { id: it.id, kind: 3, enclaveId: x.enclaveId, nonce: BigInt(x.nonce), deadline: BigInt(x.deadline), maxChargeWei: BigInt(x.maxChargeWei) };
++  // settled by the identity RECORDED with the signed lease (its operator, chain, reserve, executor, ledger), never by
++  // this process's current key or configuration: a rotated key or record cannot fence another signer's lease
++  const recorded = { operator: x.operator, chainId: x.chainId, reserve: x.reserve, executor: x.executor, ledger: x.ledger };
++  const r = await leaseGasSender().resolveSigned(want, BigInt(x.fromBlock), tx.intents.map((i) => i.payee), recorded);
++  if (r.why && tx.unsettledWhy !== r.why) { tx.unsettledWhy = r.why; console.warn(`[release] ${it.id} held: ${r.why}`); }
++  if (r.state === "landed") return acceptSponsoredLanding(it, tx, r.verified);
++  if (r.state === "consumed" || r.state === "expired") { tx.state = r.state; tx.block = r.block; saveStateNow(); }
++}
++
+ // Sign locally, persist {hash, nonce}, then broadcast, inside the one operator queue (sendOperatorTx): the next operator
+ // transaction still waits for this one's receipt (bounded), and its nonce comes after this one's.
+ function signAndSendRelease(it) {
++  if (leaseGasActive()) return sponsoredRelease(it);   // never this key's ETH once app-funded leases are configured
+   const signed = _txChain.then(async () => {
+     const { account, wallet } = claimSigner();
+     const request = await wallet.prepareTransactionRequest({ account, to: getAddress(DEPLOYMENTS_ADDRESS),
+@@ -9784,6 +9993,7 @@
+   return p.catch((e) => { tx.fence.failed = true; console.warn(`[release] ${it.id} fencing nonce ${tx.nonce} failed (${e.shortMessage || e.message}); retried later`); });
+ }
+ async function resolveReleaseTx(it, tx) {
++  if (tx.sponsored) return resolveSponsoredReleaseTx(it, tx);   // no fence transaction: the lease deadline is the fence
+   let r = null;
+   try { r = await chainClient.getTransactionReceipt({ hash: tx.hash }); }
+   catch (e) { if (!/TransactionReceiptNotFound|could not be found/i.test(`${e.name} ${e.message}`)) throw e; }
+@@ -9910,12 +10120,14 @@
+   // lease runs out within one quantum and the reaper tears it down.)
+   if (_reach.tripped) return;
+   if (HOST_POLICY_GATE.serviceRefusal()) return;   // refused by the platform: leases lapse and can be claimed elsewhere
++  if (_stateCorrupt) return;   // a release journal that failed to load: nothing is renewed until it is resolved
+   for (const rec of deployments.values()) {
+     if (!rec._onchain || rec.status !== "running" || rec._renewing) continue;
+     if (_releaseIntents.has(rec.id)) continue;   // a release of it may still land: buying more of that lease helps nobody
+     if (rec._leaseUntil * 1000 - Date.now() > RENEW_MARGIN_SEC * 1000) continue;
+     if ((rec._renewBackoffUntil || 0) > Date.now()) continue;   // a reverting tx must not re-fire every pass
+     const lapsed = rec._leaseUntil * 1000 <= Date.now();
++    if (leaseGasActive() && !lapsed && !(await leaseGasRenewDue(rec))) continue;   // a sponsored renew waits for the app's window
+     rec._renewing = true;
+     try {
+       const fresh = await readLedgerContract("get", [rec.id]);
+@@ -9923,7 +10135,7 @@
+       if (pinRefusal) { await retireForPlacement(rec, pinRefusal); continue; }
+       const walletRefusal = await hostWalletRefusal(rec.id,fresh.appRef,fresh.isPublic===false);
+       if(walletRefusal) { await retireForPlacement(rec,walletRefusal); continue; }
+-      const sent = lapsed ? sendClaimTx("claim", [rec.id, _enclaveId]) : sendClaimTx("renew", [rec.id]);
++      const sent = lapsed ? sendLeaseTx("claim", [rec.id, _enclaveId]) : sendLeaseTx("renew", [rec.id]);
+       await sent;
+       const rcpt = await sent.receipt;
+       if (rcpt.status !== "success") throw new Error(`${lapsed ? "re-claim" : "renew"} tx reverted`);
+@@ -10336,7 +10548,7 @@
+       // helps nobody and burns the user's lease.
+       if (opMine && !leaseLive && rec.status === "running") {
+         try {
+-          const sent = sendClaimTx("claim", [rec.id, _enclaveId]);
++          const sent = sendLeaseTx("claim", [rec.id, _enclaveId]);
+           await sent;
+           const rcpt = await sent.receipt;
+           const until = rcpt.status === "success" ? leaseFromReceipt(rcpt, "Claimed", rec.id) : null;
+@@ -10751,8 +10963,12 @@
+   //  - at most CLAIM_MAX_PER_SWEEP adoptions start per pass, so a large
+   //    claimable backlog drains gently instead of stampeding the queue.
+   const now = Date.now();
++  // app-funded: a sponsored renew cannot start before the owner's window (r._leaseGasLead, the verified lead), so its
++  // urgency is half THAT lead, not half a global margin the reserve would refuse anyway (an owner window below the
++  // margin must not block new work for minutes); operator-paid records keep main's rule
+   const pressed = [...deployments.values()].some((r) =>
+-    r._onchain && r.status === "running" && r._leaseUntil * 1000 - now < RENEW_MARGIN_SEC * 500);
++    r._onchain && r.status === "running"
++    && r._leaseUntil * 1000 - now < (leaseGasActive() && r._leaseGasLead ? Math.min(r._leaseGasLead.ms, RENEW_MARGIN_SEC * 1000) : RENEW_MARGIN_SEC * 1000) / 2);
+   if (pressed) return;
+   let started = 0;
+   for (const d of rest) {
+@@ -11271,7 +11487,7 @@
+   if (releaseHold(d.id)) return releaseHold(d.id);
+   let rcpt;
+   try {
+-    const sent = sendClaimTx("claim", [d.id, _enclaveId]);
++    const sent = sendLeaseTx("claim", [d.id, _enclaveId]);
+     await sent;
+     rcpt = await sent.receipt;
+   } catch (e) { console.log(`[claim] ${d.id} claim tx failed (${e.shortMessage || e.message})`); return; }
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -28,6 +28,9 @@
+ COPY net-guard.mjs ./
+ # the host's own signed capacity record (GET /v1/host/capacity): the producer and the record core, no packages
+ COPY network/canonical.mjs network/host-capacity-record.mjs network/host-capacity-producer.mjs network/registry-reconcile.mjs ./network/
++# app-funded lease gas (claim/renew/release paid by the app's reserve): the runtime shared with the Windows node
++COPY network/lease-gas-runtime.mjs network/lease-gas-owner.mjs network/lease-executor-client.mjs network/lease-executor-authority.mjs network/lease-release-journal.mjs network/rpc-identity.mjs ./network/
++COPY client/lease-executor-client.mjs client/lease-executor-authority.mjs ./client/
+ # If you add the spawn implementation in its own files, COPY them here too.
+ ENV PORT=8080
+ EXPOSE 8080
+--- a/docs/network/lease-relay-release.md
++++ b/docs/network/lease-relay-release.md
+@@ -35,6 +35,7 @@
+ | `/etc/enclave-lease-relay/deployment.json` | The reviewed deployment record. |
+ | `/etc/enclave-lease-relay/relay.key` | The hot key: 0600, root. |
+ | `/etc/systemd/system/enclave-lease-relay.service` | From `relay/systemd/enclave-lease-relay.service`. |
++| `/var/lib/enclave-lease-relay/relay-send.json` | The key's last signed transaction while its outcome is unknown (the unit's `StateDirectory`). |
+ 
+ The unit hands the key to the service only as a systemd credential (`LoadCredential`). The service runs as a dynamic
+ user with a read-only system and loopback-only listening.
+@@ -56,6 +57,16 @@
+ | `LEASE_RELAY_LISTEN` | `127.0.0.1:<port>` or `[::1]:<port>`, with an explicit port. |
+ | `LEASE_RELAY_KEY_FILE` | Set by the unit to the credential path. It must be owner-only. The check never reads its content. |
+ | `LEASE_RELAY_ARTIFACT_SHA256` | The reviewed `lease-relay.mjs`, which `current/` must hold. |
++| `LEASE_RELAY_STATE` | Set by the unit to a file in its `StateDirectory`: an absolute path in an existing directory. The relay writes the signed transaction there (fsync, rename) BEFORE any provider has it. |
++
++**RPC failure.** Name three independent providers with a quorum of two. Every read, the simulation, the balance, the
++broadcast and the receipt go through the quorum, so the relay starts and serves with any one provider down or answering
++another chain, and no provider is its "primary". It signs each transaction once and sends the same bytes to every
++provider. If no provider answers clearly (for example the reply is lost), it waits for that transaction by its own hash.
++Until the quorum's account nonce has passed it, the relay re-broadcasts those bytes and answers new requests with
++`RelayBusy` (hosts fail over); it never signs another transaction at that nonce. The state file carries this across a
++restart. A state file signed by another key, or for another chain or nonce, stops the relay from starting: settle it by
++hand.
+ 
+ The service itself still refuses:
+ - a record that is not the reviewed one;
+@@ -92,7 +103,8 @@
+    below `LEASE_RELAY_MAX_FLOAT_ETH`; the relay refuses a key above its cap.
+ 2. Run the configuration check by hand. Outside the unit, set the key path yourself; the check only stats the key file
+    and never reads it:
+-   `sudo env $(grep -v '^#' /etc/enclave-lease-relay/relay.env) LEASE_RELAY_KEY_FILE=/etc/enclave-lease-relay/relay.key node /opt/enclave-lease-relay/current/lease-relay-check.mjs`.
++   `sudo env $(grep -v '^#' /etc/enclave-lease-relay/relay.env) LEASE_RELAY_KEY_FILE=/etc/enclave-lease-relay/relay.key LEASE_RELAY_STATE=$(mktemp -d)/relay-send.json node /opt/enclave-lease-relay/current/lease-relay-check.mjs`.
++   (The unit's state directory exists only from its first start; `ExecStartPre` checks the real one.)
+    It must print `lease relay configuration ok`.
+ 3. `systemctl start enclave-lease-relay` (not `enable` yet). Then confirm locally:
+    - `curl -s http://127.0.0.1:<port>/v1/info` names the reserve, the executor and the payee (the key's address);
+--- a/network/lease-relay-check.mjs
++++ b/network/lease-relay-check.mjs
+@@ -9,7 +9,9 @@
+ //   LEASE_RELAY_LISTEN                        a loopback host:port; TLS is terminated in front of it
+ //   LEASE_RELAY_KEY_FILE                      owner-only (0600/0400) regular file; its CONTENT is never read here
+ //   LEASE_RELAY_ARTIFACT_SHA256               the reviewed lease-relay.mjs this directory must hold
++//   LEASE_RELAY_STATE                         set by the unit (StateDirectory): the durable record of the key's unresolved send
+ // Exit 0 with a one-line summary, or 1 listing every problem. No RPC is contacted, no key is read, nothing is written.
++// The state file holds only a signed transaction the relay already broadcast (public bytes), never the key.
+ import fs from "node:fs";
+ import path from "node:path";
+ import { createHash } from "node:crypto";
+@@ -67,6 +69,25 @@
+       else if (st.size > 256) problems.push(`${keyFile} is ${st.size} bytes: one hex key is expected`);
+     } catch (e) { problems.push(`${keyFile}: ${e.code || e.message}`); }
+   }
++  // the durable record of this key's last signed, unresolved transaction: a restarted relay re-broadcasts THOSE bytes
++  // instead of signing anew at that nonce, so it must live on durable storage the service can write (the unit's StateDirectory)
++  const stateFile = need("LEASE_RELAY_STATE");
++  let pendingSend = null;
++  if (stateFile) {
++    if (!path.isAbsolute(stateFile)) problems.push(`LEASE_RELAY_STATE=${stateFile} must be an absolute path`);
++    else {
++      try { if (!fs.statSync(path.dirname(stateFile)).isDirectory()) problems.push(`${path.dirname(stateFile)} is not a directory`); }
++      catch (e) { problems.push(`LEASE_RELAY_STATE directory ${path.dirname(stateFile)}: ${e.code || e.message}`); }
++      try {
++        const st = fs.lstatSync(stateFile);
++        if (!st.isFile() || st.size > 64 * 1024) problems.push(`${stateFile} must be a regular file of at most 64 KiB`);
++        else {
++          let j = null; try { j = JSON.parse(fs.readFileSync(stateFile, "utf8")); } catch { problems.push(`${stateFile} is not JSON: settle it by hand`); }
++          if (j && j.raw) pendingSend = j.hash ? `${String(j.hash).slice(0, 18)}... at nonce ${j.nonce}` : "an incomplete record";
++        }
++      } catch (e) { if (e.code !== "ENOENT") problems.push(`${stateFile}: ${e.code || e.message}`); }
++    }
++  }
+   const want = need("LEASE_RELAY_ARTIFACT_SHA256");
+   if (want && !/^[0-9a-f]{64}$/.test(want)) problems.push("LEASE_RELAY_ARTIFACT_SHA256 must be 64 lowercase hex");
+   else if (want && releaseDir) {
+@@ -76,7 +97,7 @@
+     } catch (e) { problems.push(`lease-relay.mjs: ${e.code || e.message}`); }
+   }
+   const summary = problems.length ? null
+-    : `lease relay configuration ok: record ${digest.slice(7, 19)}..., ${rpcs.length} RPCs (quorum ${quorumRaw}), float ${minF}..${maxF} ETH, listen ${listen}, artifact ${want.slice(0, 12)}...`;
++    : `lease relay configuration ok: record ${digest.slice(7, 19)}..., ${rpcs.length} RPCs (quorum ${quorumRaw}), float ${minF}..${maxF} ETH, listen ${listen}, artifact ${want.slice(0, 12)}...${pendingSend ? `; unresolved send ${pendingSend} (re-broadcast before any new one)` : ""}`;
+   return { ok: !problems.length, problems, summary };
+ }
+ 
+--- a/relay/systemd/enclave-lease-relay.service
++++ b/relay/systemd/enclave-lease-relay.service
+@@ -5,6 +5,7 @@
+ #   /opt/enclave-lease-relay/current -> releases/<sha256>   the release this unit runs (switch it to stage or roll back)
+ #   /etc/enclave-lease-relay/relay.env                      every setting, explicit (relay.env.example)
+ #   /etc/enclave-lease-relay/relay.key                      the hot key (0600 root): handed to the service as a credential
++#   /var/lib/enclave-lease-relay/relay-send.json            the key's unresolved signed send (StateDirectory; survives restarts)
+ [Unit]
+ Description=Enclave app-funded lease relay
+ After=network-online.target
+@@ -17,6 +18,10 @@
+ # the key reaches the service only as a systemd credential (a private, read-only copy); the env names its path
+ LoadCredential=relay-key:/etc/enclave-lease-relay/relay.key
+ Environment=LEASE_RELAY_KEY_FILE=%d/relay-key
++# a send whose outcome is unknown is re-broadcast from here as the SAME signed bytes after a restart, never re-signed
++StateDirectory=enclave-lease-relay
++StateDirectoryMode=0700
++Environment=LEASE_RELAY_STATE=%S/enclave-lease-relay/relay-send.json
+ WorkingDirectory=/opt/enclave-lease-relay/current
+ # refuses to start unless every setting is explicit and valid and the directory holds the reviewed artifact
+ ExecStartPre=/usr/bin/node /opt/enclave-lease-relay/current/lease-relay-check.mjs
+--- /dev/null
++++ b/scripts/make-deployment-record.mjs
+@@ -0,0 +1,132 @@
++// Generate the reviewed lease-gas deployment record FROM THE CHAIN (never typed by hand), after a deployment:
++//   node scripts/make-deployment-record.mjs --rpc https://a,https://b[,…] --reserve 0x… --pins ../enclave/contracts/deployments/contract-pins-base.json
++//        [--chain-id 8453] [--l1-oracle 0x…] [--out lease-gas-record.json] --artifacts <forge out> [--sources contracts]
++// Read-only. It refuses unless ALL of this holds at ONE anchor block that is at least two blocks deep on every RPC and
++// whose hash every RPC still reports after the reads (no reorg in between):
++//   - the RPCs are distinct providers (the repository's shared URL identity rule; plain http only with an explicit
++//     loopback FIXTURE injection, never for a record to publish);
++//   - the reserve's and the executor's RUNTIME code is EXACTLY the reviewed artifact with every immutable filled with
++//     its expected value - executor: reserve = the reserve, ledger = the pinned ledger, SELF = the executor's own address;
++//     reserve: ledger / registry = the pinned ones, l1Oracle = Base's GasPriceOracle (or --l1-oracle). The immutable map
++//     comes from the compiler's immutableReferences, ordered by declaration in the reviewed source, whose keccak must
++//     equal the artifact metadata's;
++//   - reserve.executor() is bound (non-zero) and executor.reserve() points back; delegationCodeHash = keccak(0xef0100 || executor).
++// Output: the record (enclave-lease-gas-deployment/v1) and its sha256 digest - the digest is what hosts, relays and
++// owners pin (ENCLAVE_LEASE_GAS_DIGEST / LEASE_RELAY_DIGEST / --lease-gas-digest).
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import crypto from "node:crypto";
++import { createPublicClient, http, getAddress, keccak256, toHex, parseAbi, defineChain } from "viem";
++import { rpcEndpoint } from "../network/rpc-identity.mjs";
++
++const arg = (k, d = null) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
++export const BASE_L1_ORACLE = "0x420000000000000000000000000000000000000F";
++const ZERO = "0x0000000000000000000000000000000000000000";
++export const ABI = parseAbi(["function executor() view returns (address)", "function reserve() view returns (address)", "function ledger() view returns (address)",
++  "function registry() view returns (address)", "function delegationCodeHash() view returns (bytes32)", "function owner() view returns (address)",
++  "function limits() view returns (uint64,uint32,uint32,uint32,uint32,uint16)", "function l1Oracle() view returns (address)"]);
++const SOURCES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../contracts");
++const CONTRACTS = { reserve: { file: "EnclaveLeaseGasReserve.sol", name: "EnclaveLeaseGasReserve" }, executor: { file: "EnclaveLeaseExecutor.sol", name: "EnclaveLeaseExecutor" } };
++
++/** The reviewed artifact plus its immutable variables, by name, in declaration order. */
++export function reviewed(which, { artifacts, sources = SOURCES } = {}) {
++  if (!artifacts) throw new Error("name the reviewed forge artifacts (--artifacts <forge out>)");
++  const c = CONTRACTS[which];
++  const art = JSON.parse(fs.readFileSync(path.join(artifacts, c.file, c.name + ".json"), "utf8"));
++  const meta = typeof art.rawMetadata === "string" ? JSON.parse(art.rawMetadata) : art.metadata;
++  const key = Object.keys(meta.sources).find((k) => k.endsWith("/" + c.file) || k === c.file);
++  const src = fs.readFileSync(path.join(sources, c.file), "utf8");
++  if (!key || keccak256(toHex(src)) !== meta.sources[key].keccak256) throw new Error(`${c.file}: the reviewed source is not the artifact's (metadata keccak)`);
++  const body = src.slice(src.indexOf(`contract ${c.name}`));
++  const names = [...body.matchAll(/^\s*[\w.]+\s+(?:public\s+|private\s+|internal\s+)?immutable\s+(\w+)\s*;/gm)].map((m) => m[1]);
++  const ids = Object.keys(art.deployedBytecode.immutableReferences || {}).map(Number).sort((a, b) => a - b);
++  if (ids.length !== names.length) throw new Error(`${c.file}: ${ids.length} immutables in the artifact, ${names.length} in the source`);
++  const refs = Object.fromEntries(names.map((n, i) => [n, art.deployedBytecode.immutableReferences[String(ids[i])]]));
++  return { art, names, refs };
++}
++/** The exact runtime the reviewed artifact has with these immutable values (name -> address). */
++export function expectedRuntime({ art, names, refs }, values) {
++  const code = Buffer.from(art.deployedBytecode.object.replace(/^0x/, ""), "hex");
++  for (const n of names) {
++    if (!values[n]) throw new Error(`no expected value for immutable ${n}`);
++    const word = Buffer.from(getAddress(values[n]).slice(2).padStart(64, "0"), "hex");
++    for (const { start, length } of refs[n]) { if (length !== 32) throw new Error(`immutable ${n}: ${length}-byte slot`); word.copy(code, start); }
++  }
++  return "0x" + code.toString("hex");
++}
++
++/**
++ * rpcs: production RPC URLs (distinct providers). fixtureClients: TEST ONLY - viem clients injected by a test against a
++ * local chain; they are labelled as such in the evidence and never count as independent providers.
++ */
++export async function makeRecord({ rpcs, reserve, pins, chainId = 8453, l1Oracle = chainId === 8453 ? BASE_L1_ORACLE : null, artifacts,
++  sources = SOURCES, fixtureClients = null, confirmations = 2 }) {
++  let clients, providers;
++  if (fixtureClients) { clients = fixtureClients; providers = clients.map((_, i) => `fixture-${i}`); }
++  else {
++    if (!Array.isArray(rpcs) || rpcs.length < 2) throw new Error("name at least two RPCs (--rpc a,b): every value must agree");
++    const ids = new Map();
++    for (const u of rpcs) {
++      const e = rpcEndpoint(u);
++      if (e.loopback) throw new Error(`${e.label}: a loopback RPC is a local fixture, not a provider for a record to publish`);
++      if (ids.has(e.identity)) throw new Error(`RPCs ${ids.get(e.identity)} and ${e.label} are one provider (${e.identity}): name independent providers`);
++      ids.set(e.identity, e.label);
++    }
++    providers = [...ids.values()];
++    const chain = defineChain({ id: chainId, name: `chain-${chainId}`, nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [] } } });
++    clients = rpcs.map((u) => createPublicClient({ chain, transport: http(u, { retryCount: 0, timeout: 15_000 }) }));
++  }
++  if (!l1Oracle) throw new Error("name the expected L1 fee oracle (--l1-oracle): only Base's predeploy is known by default");
++  const R = { reserve: reviewed("reserve", { artifacts, sources }), executor: reviewed("executor", { artifacts, sources }) };
++  reserve = getAddress(reserve);
++  const heads = await Promise.all(clients.map(async (c) => { if (await c.getChainId() !== chainId) throw new Error("an RPC is on another chain"); return c.getBlockNumber({ cacheTime: 0 }); }));
++  const blockNumber = heads.reduce((m, x) => (x < m ? x : m)) - BigInt(confirmations);
++  if (blockNumber < 0n) throw new Error("the chain is not deep enough for the confirmations");
++  const reads = await Promise.all(clients.map(async (c) => {
++    const blk = await c.getBlock({ blockNumber });
++    const r = (address, functionName) => c.readContract({ address, abi: ABI, functionName, blockNumber });
++    const executor = getAddress(await r(reserve, "executor"));
++    if (executor === ZERO) return { blockHash: blk.hash, executor };
++    const [rc, ec, back, ledger, registry, dch, admin, limits, oracle] = await Promise.all([c.getCode({ address: reserve, blockNumber }), c.getCode({ address: executor, blockNumber }),
++      r(executor, "reserve"), r(reserve, "ledger"), r(reserve, "registry"), r(reserve, "delegationCodeHash"), r(reserve, "owner"), r(reserve, "limits"), r(reserve, "l1Oracle")]);
++    return { blockHash: blk.hash, executor, rc, ec, back: getAddress(back), ledger: getAddress(ledger), registry: getAddress(registry), dch, admin: getAddress(admin),
++      limits: limits.map(String), l1Oracle: getAddress(oracle) };
++  }));
++  const key = (x) => JSON.stringify(x);
++  if (reads.some((x) => key(x) !== key(reads[0]))) throw new Error(`the RPCs disagree at block ${blockNumber}`);
++  const v = reads[0];
++  if (v.executor === ZERO) throw new Error("the reserve has no executor bound (bindExecutor not called, or not yet two blocks deep)");
++  // the anchor is still canonical on every RPC, and still two blocks deep, after all the reads
++  const after = await Promise.all(clients.map(async (c) => ({ hash: (await c.getBlock({ blockNumber })).hash, head: await c.getBlockNumber({ cacheTime: 0 }) })));
++  if (after.some((a) => a.hash !== v.blockHash)) throw new Error(`block ${blockNumber} was replaced during the reads (reorg): run again`);
++  if (after.some((a) => a.head < blockNumber + BigInt(confirmations))) throw new Error("an RPC's head fell below the anchor's confirmations");
++  if (v.back !== reserve) throw new Error("the executor is bound to another reserve");
++  if (v.ledger !== getAddress(pins.deployments) || v.registry !== getAddress(pins.registry)) throw new Error("the reserve is bound to another ledger or registry than the pinned ones");
++  if (v.l1Oracle !== getAddress(l1Oracle)) throw new Error(`the reserve's L1 oracle ${v.l1Oracle} is not the expected ${l1Oracle}`);
++  if (v.dch.toLowerCase() !== keccak256(`0xef0100${v.executor.slice(2)}`).toLowerCase()) throw new Error("delegationCodeHash is not 0xef0100 || executor");
++  const want = {
++    reserve: expectedRuntime(R.reserve, { ledger: pins.deployments, registry: pins.registry, l1Oracle }),
++    executor: expectedRuntime(R.executor, { reserve, ledger: pins.deployments, SELF: v.executor }),
++  };
++  for (const [what, code] of [["reserve", v.rc], ["executor", v.ec]])
++    if (!code || keccak256(code) !== keccak256(want[what])) throw new Error(`the ${what}'s runtime is not the reviewed artifact with its expected immutables (${R[what].names.join(", ")})`);
++  const record = { format: "enclave-lease-gas-deployment/v1", chainId, reserve, executor: v.executor, reserveCodeHash: keccak256(v.rc), executorCodeHash: keccak256(v.ec),
++    ledger: v.ledger, registry: v.registry };
++  const bytes = Buffer.from(JSON.stringify(record));
++  return { record, bytes, digest: "sha256:" + crypto.createHash("sha256").update(bytes).digest("hex"),
++    evidence: { block: Number(blockNumber), blockHash: v.blockHash, providers, fixture: !!fixtureClients, admin: v.admin, l1Oracle: v.l1Oracle, limits: v.limits,
++      immutables: { reserve: R.reserve.names, executor: R.executor.names } } };
++}
++
++if (import.meta.url === `file://${process.argv[1]}`) {
++  const pinsDoc = JSON.parse(fs.readFileSync(arg("--pins", "../enclave/contracts/deployments/contract-pins-base.json"), "utf8"));
++  makeRecord({ rpcs: String(arg("--rpc", "")).split(",").filter(Boolean), reserve: arg("--reserve"), pins: pinsDoc.contracts || pinsDoc,
++    chainId: Number(arg("--chain-id", "8453")), l1Oracle: arg("--l1-oracle") || undefined, artifacts: arg("--artifacts"), sources: arg("--sources", SOURCES) })
++    .then(({ bytes, digest, evidence }) => {
++      const out = arg("--out", "lease-gas-record.json");
++      fs.writeFileSync(out, bytes);
++      console.log(JSON.stringify({ wrote: out, digest, evidence }, null, 1));
++    })
++    .catch((e) => { console.error(`not written: ${e.message}`); process.exit(1); });
++}
+--- a/test/lease-authority.test.mjs
++++ b/test/lease-authority.test.mjs
+@@ -41,6 +41,8 @@
+       const q = JSON.parse(Buffer.concat(chunks));
+       observations.push(q);
+       if (state.mode === "down") { res.writeHead(503); return res.end(); }
++      // the relay's send seam: it signs once and broadcasts the raw bytes through its RPCs, so hold the broadcast here
++      if (state.mode === "hold-send" && q.method === "eth_sendRawTransaction") { state.sends = (state.sends || 0) + 1; await state.gate; }
+       let result = await W.rpc(q.method, q.params);
+       if (state.mode === "chain" && q.method === "eth_chainId") result = "0x1";
+       if (state.mode === "stale" && q.method === "eth_getBlockByNumber")
+@@ -113,9 +115,9 @@
+   const [a, b] = await Promise.all([proxy(), proxy()]);
+   const key = generatePrivateKey(), wallet = W.wc(key);
+   await W.fund(wallet.account.address);
+-  let sends = 0;
+-  const r = await B.startLeaseRelay({ ...opts([a.client, b.client], null),
+-    wallet: { ...wallet, sendTransaction: (tx) => { sends++; return wallet.sendTransaction(tx); } } });
++  // the relay signs once and broadcasts the raw bytes through its RPCs: count what actually reached them
++  const sends = () => [a, b].flatMap((p) => p.observations).filter((q) => q.method === "eth_sendRawTransaction").length;
++  const r = await B.startLeaseRelay({ ...opts([a.client, b.client], null), wallet });
+   try {
+     const o = await W.owner(), op = await W.operator("https://relay-revalidate.test");
+     const id = await W.create(o); await W.enable(o, id);
+@@ -125,7 +127,7 @@
+       a.state.mode = mode;
+       const answer = await postLease(r.url, body);
+       assert.equal(answer.status, 502, JSON.stringify(answer));
+-      assert.equal(sends, 0, mode);
++      assert.equal(sends(), 0, mode);
+       assert.equal(await W.pc.getBalance({ address: wallet.account.address }), balance);
+     }
+   } finally { await r.close(); }
+@@ -154,11 +156,13 @@
+ test("an HTTP timeout does not release the relay queue or its capacity while a send remains pending", T, async () => {
+   const key = generatePrivateKey(), wallet = W.wc(key);
+   await W.fund(wallet.account.address);
+-  let open, sends = 0;
++  let open;
+   const gate = new Promise((resolve) => { open = resolve; });
+-  const r = await B.startLeaseRelay({ client: W.pc, deployment: dep, allowLoopbackHttp: true,
+-    wallet: { ...wallet, sendTransaction: async (tx) => { sends++; await gate; return wallet.sendTransaction(tx); } },
++  // the held broadcast is forwarded once the gate opens, even after the relay stopped waiting for that answer
++  const held = await proxy("hold-send"); held.state.gate = gate;
++  const r = await B.startLeaseRelay({ client: held.client, deployment: dep, allowLoopbackHttp: true, wallet,
+     requestTimeoutMs: 500, maxConcurrent: 1 });
++  const sendsOf = () => held.state.sends || 0;
+   let id, op;
+   try {
+     const o = await W.owner(); op = await W.operator("https://relay-timeout-queue.test");
+@@ -166,10 +170,10 @@
+     const body = await requestFor(op, id, wallet.account.address);
+     const first = await postLease(r.url, body);
+     assert.equal(first.status, 502, JSON.stringify(first));
+-    assert.equal(sends, 1);
++    assert.equal(sendsOf(), 1);
+     const second = await postLease(r.url, body);
+     assert.equal(second.status, 503, "the timed-out job still occupies the queue");
+-    assert.equal(sends, 1, "no overlapping send from the same funded key");
++    assert.equal(sendsOf(), 1, "no overlapping send from the same funded key");
+   } finally {
+     open();
+     await r.close();
+--- /dev/null
++++ b/test/lease-gas-cost-model.test.mjs
+@@ -0,0 +1,52 @@
++// The owner cost model's renewal count follows the DEPLOYED ledger (rev 16d): claim() buys one extension, renew()
++// extends FROM leaseUntil (frozen source test/fixtures/ledger-rev16d-source/EnclaveDeployments.sol renew -> _burnLease(d, d.leaseUntil)).
++// A host renews renewWindow - 15 s before leaseUntil; that moves WHEN, never HOW MANY. Pure arithmetic, no chain.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { renewalsFor, renewsPerDay, budgetAmount } from "../network/lease-gas-owner.mjs";
++
++/** Simulate the ledger: claim at 0; while the lease would end inside the period, renew `lead` before leaseUntil. */
++function simulate(seconds, { ext, lead }) {
++  let until = ext, renewals = 0;
++  const at = [];
++  while (until < seconds) { at.push(until - lead); until += ext; renewals++; }
++  return { renewals, at };
++}
++
++test("the frozen ledger source extends a renew FROM leaseUntil (the premise of the model)", () => {
++  const src = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "fixtures/ledger-rev16d-source/EnclaveDeployments.sol"), "utf8");
++  const renew = src.slice(src.indexOf("function renew(bytes32 id) external"), src.indexOf("function renew(bytes32 id) external") + 900);
++  assert.match(renew, /_burnLease\(d, d\.leaseUntil\)/);
++});
++
++test("31 days at several renew windows: the count is the recurrence's, independent of the window; 48 a day steady", () => {
++  const T = 31 * 86400, leaseSec = 1800;
++  for (const renewWindow of [30, 300, 900, 1799]) {
++    const sim = simulate(T, { ext: leaseSec, lead: renewWindow - 15 });
++    assert.equal(renewalsFor(T, { leaseSec }), BigInt(sim.renewals), `window ${renewWindow}`);
++    // every renewal is inside its window and one leaseSec apart (no drift from the window)
++    for (let i = 1; i < sim.at.length; i++) assert.equal(sim.at[i] - sim.at[i - 1], leaseSec);
++  }
++  assert.equal(renewalsFor(T, { leaseSec }), BigInt(31 * 48 - 1));
++  assert.equal(renewsPerDay(1800), 48);
++  assert.equal(renewalsFor(86400, { leaseSec }), 47n, "one day: the claim covers the first half hour");
++  assert.equal(renewalsFor(1800, { leaseSec }), 0n);
++  assert.equal(renewalsFor(1801, { leaseSec }), 1n);
++});
++
++test("a partly funded paid lease (shorter extensions) renews more often: bounded by the shorter extension", () => {
++  const T = 31 * 86400;
++  for (const ext of [600, 1200, 1799]) assert.equal(renewalsFor(T, { leaseSec: 1800, extensionSec: ext }), BigInt(simulate(T, { ext, lead: 285 }).renewals));
++  assert.ok(renewalsFor(T, { leaseSec: 1800, extensionSec: 600 }) > renewalsFor(T, { leaseSec: 1800 }));
++});
++
++test("--days budgets are exact integer wei: claim + renewals + release, no Number rounding", () => {
++  const cost = { leaseSec: 1800, price: 6_000_000n, perOp: { claim: { wei: 2_105_297_625_249n }, renew: { wei: 1_272_191_893_751n }, release: { wei: 1_135_457_893_750n } } };
++  const a = budgetAmount({ days: 30 }, cost);
++  assert.equal(a.renewals, 1439n);
++  assert.equal(a.wei, 2_105_297_625_249n + 1439n * 1_272_191_893_751n + 1_135_457_893_750n);
++  assert.throws(() => budgetAmount({}, cost), /no default amount/);
++});
+--- a/test/lease-gas-owner-cli.test.mjs
++++ b/test/lease-gas-owner-cli.test.mjs
+@@ -254,7 +254,13 @@
+   const pw = (await cli(lg("plan", "--ids", ids[0], "--max-gas-price-gwei", "0.05", "--per-app-wei", "12345"))).json;
+   assert.equal(pw.apps[0].amount.wei, "12345");
+   const pd = (await cli(lg("plan", "--ids", ids[0], "--max-gas-price-gwei", "0.05", "--days", "7"))).json;
+-  assert.match(pd.apps[0].amount.basis, /7 days of renewals \+ one claim \+ one release/);
++  // the deployed ledger extends a renew FROM leaseUntil: covering 7 days takes ceil(604800 / leaseSec) - 1 renewals
++  const m = /one claim \+ (\d+) renewals \(7 days of a rate-0 \/ fully funded lease, leaseSec (\d+)\)/.exec(pd.apps[0].amount.basis);
++  assert.ok(m, pd.apps[0].amount.basis);
++  const leaseSec = BigInt(m[2]), n = BigInt(m[1]);
++  assert.equal(n, (604800n + leaseSec - 1n) / leaseSec - 1n);
++  const per = pd.costModel.perOp;
++  assert.equal(BigInt(pd.apps[0].amount.wei), BigInt(per.claim) + n * BigInt(per.renew) + BigInt(per.release), "integer wei: claim + n renewals + release");
+   assert.ok(BigInt(pd.apps[0].amount.wei) > 0n);
+   // executing the plan's requests exactly as printed enrolls every app
+   for (const a of p.apps) for (const s of a.steps) await walletSends(o.key, s);
+--- a/test/lease-relay-release.test.mjs
++++ b/test/lease-relay-release.test.mjs
+@@ -66,7 +66,7 @@
+   fs.writeFileSync(path.join(dir, "deployment.json"), recordBytes);
+   env = { LEASE_RELAY_RECORD: path.join(dir, "deployment.json"), LEASE_RELAY_DIGEST: "sha256:" + sha(recordBytes), LEASE_RELAY_RPCS: rpcs.join(","),
+     LEASE_RELAY_QUORUM: "2", LEASE_RELAY_MAX_FLOAT_ETH: "0.02", LEASE_RELAY_MIN_FLOAT_ETH: "0.001", LEASE_RELAY_LISTEN: `127.0.0.1:${await freePort()}`,
+-    LEASE_RELAY_ARTIFACT_SHA256: artifactSha };
++    LEASE_RELAY_ARTIFACT_SHA256: artifactSha, LEASE_RELAY_STATE: path.join(dir, "relay-send.json") };
+ });
+ after(() => { for (const p of proxies) { p.closeAllConnections?.(); p.close(); } W?.stop(); if (dir) fs.rmSync(dir, { recursive: true, force: true }); });
+ 
+@@ -89,7 +89,7 @@
+   assert.equal(w.status, 0, `a check that opened the key would fail here: ${w.stderr}`);
+   const rpcs = env.LEASE_RELAY_RPCS.split(",");
+   for (const [why, over, want] of [
+-    ...["LEASE_RELAY_RECORD", "LEASE_RELAY_DIGEST", "LEASE_RELAY_RPCS", "LEASE_RELAY_QUORUM", "LEASE_RELAY_MAX_FLOAT_ETH", "LEASE_RELAY_MIN_FLOAT_ETH", "LEASE_RELAY_LISTEN", "LEASE_RELAY_KEY_FILE", "LEASE_RELAY_ARTIFACT_SHA256"]
++    ...["LEASE_RELAY_RECORD", "LEASE_RELAY_DIGEST", "LEASE_RELAY_RPCS", "LEASE_RELAY_QUORUM", "LEASE_RELAY_MAX_FLOAT_ETH", "LEASE_RELAY_MIN_FLOAT_ETH", "LEASE_RELAY_LISTEN", "LEASE_RELAY_KEY_FILE", "LEASE_RELAY_ARTIFACT_SHA256", "LEASE_RELAY_STATE"]
+       .map((k2) => [`no ${k2}`, { [k2]: "" }, new RegExp(`${k2} is not set \\(there is no default\\)`)]),
+     ["wrong digest", { LEASE_RELAY_DIGEST: "sha256:" + "0".repeat(64) }, /not the reviewed sha256:0000/],
+     ["one RPC", { LEASE_RELAY_RPCS: rpcs[0], LEASE_RELAY_QUORUM: "1" }, /2\.\.16 independent providers/],
+@@ -97,6 +97,8 @@
+     ["the same provider twice", { LEASE_RELAY_RPCS: `${rpcs[0]},${rpcs[0]}` }, /appears twice/],
+     ["no majority", { LEASE_RELAY_RPCS: `${rpcs[0]},${rpcs[1]},https://127.0.0.2:1`, LEASE_RELAY_QUORUM: "1" }, /strict majority/],
+     ["min not below max", { LEASE_RELAY_MIN_FLOAT_ETH: "0.02" }, /must be below/],
++    ["relative state file", { LEASE_RELAY_STATE: "relay-send.json" }, /must be an absolute path/],
++    ["state file in no directory", { LEASE_RELAY_STATE: path.join(dir, "absent", "relay-send.json") }, /LEASE_RELAY_STATE directory .*ENOENT/],
+     ["zero float", { LEASE_RELAY_MAX_FLOAT_ETH: "0" }, /positive decimal/],
+     ["public listener", { LEASE_RELAY_LISTEN: "0.0.0.0:8545" }, /127\.0\.0\.1:PORT/],
+     ["no port", { LEASE_RELAY_LISTEN: "127.0.0.1:0" }, /explicit port/],
+@@ -150,6 +152,7 @@
+     assert.equal((await W.row(id)).runnerOperator, "0x0000000000000000000000000000000000000000");
+     for (const tx of [c, x]) assert.equal(tx.receipt.status, "success");
+     assert.equal(await W.pc.getBalance({ address: op.address }), 0n, "the host never held ETH");
++    assert.deepEqual(JSON.parse(fs.readFileSync(env.LEASE_RELAY_STATE, "utf8")), {}, "both sends resolved: the durable record holds no unresolved send");
+     const left = await W.pc.getBalance({ address: payee });
+     assert.ok(left > 0n && left <= 2n * 10n ** 16n, `the relay key stays within its float: ${left}`);
+     // bad requests: oversized, malformed, wrong method, concurrent - every one answered with a refusal, none sent
+@@ -179,6 +182,13 @@
+   assert.deepEqual(e.exit, { code: 1, signal: null }); assert.match(e.out, /not started: relay key 0x[0-9a-fA-F]{40} holds 1(\.0+)? ETH, above its 0\.02 ETH float cap/);
+ });
+ 
++test("the artifact's own CLI refuses to start without the durable send record (LEASE_RELAY_STATE)", T, async () => {
++  const k = generatePrivateKey(); await W.fund(privateKeyToAccount(k).address, 10n ** 16n);
++  const relay = serve({ LEASE_RELAY_KEY_FILE: keyFile(k), LEASE_RELAY_STATE: "" });
++  const e = await relay.url.then(() => assert.fail("served"), (err) => err);
++  assert.deepEqual(e.exit, { code: 1, signal: null }); assert.match(e.out, /not started: LEASE_RELAY_STATE is not set/);
++});
++
+ // Last: it moves the chain two hours past the wall clock. A host whose own clock agrees with that chain asks the relay;
+ // the relay, on the real clock, refuses before sending anything.
+ test("the artifact refuses to relay against a chain head ahead of its own clock", T, async () => {
+--- /dev/null
++++ b/test/lease-relay-resilience.test.mjs
+@@ -0,0 +1,173 @@
++// The relay SERVICE (network/lease-relay-service.mjs) with THREE RPC providers and a quorum of TWO: no single provider is
++// required - not the first one - and a send whose reply is lost is resolved from the chain by its own hash and
++// re-broadcast as the SAME signed bytes, never re-signed at a new nonce (root follow-on 21:31Z). Local anvil behind
++// three controllable fixture proxies (loopback, explicit fixture permission); fixture keys only; zero-ETH host.
++import { test, before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import crypto from "node:crypto";
++import * as viem from "viem";
++import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
++import * as B from "../client/lease-executor-client.mjs";
++import { startRelayService } from "../network/lease-relay-service.mjs";
++import { startWorld, haveAnvil, ZERO32 } from "./helpers/lease-gas-world.mjs";
++
++const T = { skip: !haveAnvil && "needs anvil", timeout: 180_000 };
++let W, dir, rec, digest; const P = [], closers = [];
++/** A provider in front of anvil. mode: {down, wrongChain, sendRaw: "normal" | "lose-reply" (forwards, then errors) | "blackhole"} */
++async function provider() {
++  const mode = { down: false, wrongChain: false, sendRaw: "normal", raws: [] };
++  const s = http.createServer((req, res) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", async () => {
++    if (mode.down) return req.socket.destroy();
++    let j = null; try { j = JSON.parse(b); } catch {}
++    const answer = (o) => { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ jsonrpc: "2.0", id: j?.id, ...o })); };
++    if (j?.method === "eth_chainId" && mode.wrongChain) return answer({ result: "0x1" });
++    if (j?.method === "eth_sendRawTransaction") {
++      mode.raws.push(j.params[0]);
++      if (mode.sendRaw === "blackhole") return answer({ error: { code: -32000, message: "upstream timeout" } });
++      if (mode.sendRaw === "lose-reply") { await fetch(W.rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: b }); return req.socket.destroy(); }
++    }
++    const r = await fetch(W.rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: b });
++    res.writeHead(r.status, { "content-type": "application/json" }); res.end(await r.text()); }); });
++  await new Promise((ok) => s.listen(0, "127.0.0.1", ok));
++  closers.push(() => { s.closeAllConnections(); s.close(); });
++  return { url: `http://127.0.0.1:${s.address().port}`, mode };
++}
++before(async () => {
++  if (!haveAnvil) return;
++  W = await startWorld();
++  dir = fs.mkdtempSync(path.join(os.tmpdir(), "relay-resilience-"));
++  const bytes = Buffer.from(JSON.stringify({ format: "enclave-lease-gas-deployment/v1", chainId: 8453,
++    ...Object.fromEntries(["reserve", "executor", "ledger", "registry", "reserveCodeHash", "executorCodeHash"].map((k) => [k, W.addr[k]])) }));
++  rec = path.join(dir, "record.json"); fs.writeFileSync(rec, bytes);
++  digest = "sha256:" + crypto.createHash("sha256").update(bytes).digest("hex");
++  for (let i = 0; i < 3; i++) P.push(await provider());
++});
++after(async () => { for (const c of closers.reverse()) { try { await c(); } catch {} } W?.stop(); if (dir) fs.rmSync(dir, { recursive: true, force: true }); });
++const reset = () => { for (const p of P) Object.assign(p.mode, { down: false, wrongChain: false, sendRaw: "normal", raws: [] }); };
++const keyFile = (key) => { const f = path.join(dir, `k-${crypto.randomBytes(4).toString("hex")}`); fs.writeFileSync(f, key + "\n", { mode: 0o600 }); return f; };
++async function service(key, o = {}) {
++  const svc = await startRelayService({ recordFile: rec, digest, rpcs: P.map((p) => p.url), quorum: 2, keyFile: keyFile(key), allowLoopbackHttp: true,
++    maxFloatEth: "0.02", log: () => {}, relayOptions: { requestTimeoutMs: 20_000, receiptTimeoutMs: 4000, ...(o.relayOptions || {}) }, ...o });
++  closers.push(() => svc.close());
++  return svc;
++}
++async function relayKey() { const k = generatePrivateKey(); await W.fund(privateKeyToAccount(k).address, 10n ** 16n); return k; }
++async function enrolled() { const owner = await W.owner(), id = await W.create(owner); await W.enable(owner, id); return id; }
++const hostClient = (op, url) => B.createLeaseClient({ client: W.pc, account: op.account, reserve: W.addr.reserve, deployment: { chainId: 8453, ...W.addr },
++  relays: [url], allowLoopbackHttp: true, confirmations: 0, requestTimeoutMs: 20_000 });
++async function signedClaim(op, id, payee) {
++  const deadline = (await W.pc.getBlock()).timestamp + 300n;
++  const lease = { id, kind: 1, enclaveId: op.enclaveId, nonce: 0n, deadline, payee, maxChargeWei: 10n ** 15n };
++  const signature = await op.account.signTypedData({ domain: { name: "EnclaveLeaseExecutor", version: "1", chainId: 8453, verifyingContract: op.address },
++    types: { Lease: [{ name: "reserve", type: "address" }, { name: "id", type: "bytes32" }, { name: "kind", type: "uint8" }, { name: "enclaveId", type: "bytes32" },
++      { name: "nonce", type: "uint64" }, { name: "deadline", type: "uint64" }, { name: "payee", type: "address" }, { name: "maxChargeWei", type: "uint256" }] },
++    primaryType: "Lease", message: { reserve: W.addr.reserve, ...lease } });
++  const authorization = await op.account.signAuthorization({ contractAddress: W.addr.executor, chainId: 8453, nonce: await W.pc.getTransactionCount({ address: op.address }) });
++  return JSON.stringify({ operator: op.address, lease, signature, authorization }, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
++}
++const post = (url, body) => fetch(`${url}/v1/lease`, { method: "POST", headers: { "content-type": "application/json" }, body }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
++/** every transaction the relay key sent, by nonce, read straight from anvil */
++async function sentBy(addr, fromBlock) {
++  const out = [];
++  for (let n = fromBlock; n <= await W.pc.getBlockNumber({ cacheTime: 0 }); n++)
++    for (const tx of (await W.pc.getBlock({ blockNumber: n, includeTransactions: true })).transactions) if (viem.getAddress(tx.from) === addr) out.push({ nonce: tx.nonce, hash: tx.hash });
++  return out;
++}
++
++test("the FIRST provider down at startup and throughout: the service starts on the quorum and lands a zero-ETH host's claim", T, async () => {
++  reset(); P[0].mode.down = true;
++  const svc = await service(await relayKey());
++  const id = await enrolled(), op = await W.operator("https://resilience-a.test");
++  const r = await hostClient(op, svc.url).claim(id, op.enclaveId);
++  assert.equal(r.receipt.status, "success");
++  assert.equal(await W.pc.getBalance({ address: op.address }), 0n);
++});
++
++test("a provider on another chain is outvoted, not obeyed", T, async () => {
++  reset(); P[1].mode.wrongChain = true;
++  const svc = await service(await relayKey());
++  const id = await enrolled(), op = await W.operator("https://resilience-b.test");
++  assert.equal((await hostClient(op, svc.url).claim(id, op.enclaveId)).receipt.status, "success");
++});
++
++test("the primary accepts the raw transaction then loses its reply (and then every provider does): one transaction, landed, verified by its own hash", T, async () => {
++  for (const mode of [["lose-reply", "normal", "normal"], ["lose-reply", "lose-reply", "lose-reply"]]) {
++    reset(); mode.forEach((m, i) => (P[i].mode.sendRaw = m));
++    const k = await relayKey(), svc = await service(k), payee = privateKeyToAccount(k).address;
++    const from = await W.pc.getBlockNumber({ cacheTime: 0 });
++    const id = await enrolled(), op = await W.operator(`https://resilience-c-${mode.join("-")}.test`);
++    const r = await hostClient(op, svc.url).claim(id, op.enclaveId);
++    assert.equal(r.receipt.status, "success", mode.join(","));
++    const txs = await sentBy(payee, from);
++    assert.equal(txs.length, 1, "exactly one relay transaction");
++    assert.equal(new Set(P.flatMap((p) => p.mode.raws)).size, 1, "every provider got the SAME signed bytes");
++  }
++});
++
++test("an unknown outcome that never landed: the restarted relay re-broadcasts the SAME bytes, signs nothing new at that nonce, then serves again", T, async () => {
++  reset(); for (const p of P) p.mode.sendRaw = "blackhole";
++  const k = await relayKey(), payee = privateKeyToAccount(k).address, stateFile = path.join(dir, "relay-send.json");
++  const from = await W.pc.getBlockNumber({ cacheTime: 0 });
++  const svc1 = await service(k, { stateFile });
++  const idA = await enrolled(), opA = await W.operator("https://resilience-d.test");
++  const a = await post(svc1.url, await signedClaim(opA, idA, payee));
++  assert.equal(a.status, 502, JSON.stringify(a.body));
++  const record = JSON.parse(fs.readFileSync(stateFile, "utf8"));
++  assert.ok(record.raw && record.hash && Number.isInteger(record.nonce), "the signed bytes were durable before any provider had them");
++  assert.deepEqual(await sentBy(payee, from), [], "nothing landed");
++  await svc1.close();
++  // the providers recover; the relay restarts on the same state file
++  reset();
++  const svc2 = await service(k, { stateFile });
++  const idB = await enrolled(), opB = await W.operator("https://resilience-e.test");
++  const b = await post(svc2.url, await signedClaim(opB, idB, payee));
++  assert.equal(b.status, 422); assert.equal(b.body.error, "RelayBusy");
++  assert.deepEqual(new Set(P.flatMap((p) => p.mode.raws)), new Set([record.raw]), "only the recorded bytes were (re-)broadcast");
++  // those bytes land (A's claim); then the relay serves B at the NEXT nonce
++  for (let i = 0; i < 20 && (await sentBy(payee, from)).length === 0; i++) await new Promise((ok) => setTimeout(ok, 250));
++  assert.deepEqual(await sentBy(payee, from), [{ nonce: record.nonce, hash: record.hash }], "the nonce was used by the recorded transaction itself");
++  assert.equal((await W.row(idA)).runnerOperator, opA.address);
++  const b2 = await post(svc2.url, await signedClaim(opB, idB, payee));
++  assert.equal(b2.status, 200, JSON.stringify(b2.body));
++  const txs = await sentBy(payee, from);
++  assert.deepEqual(txs.map((t) => t.nonce), [record.nonce, record.nonce + 1]);
++  assert.equal(JSON.parse(fs.readFileSync(stateFile, "utf8")).raw, undefined, "resolved: no unresolved send left");
++});
++
++test("the primary accepts the raw transaction, its reply is lost and it sits UNMINED: nothing else is signed until that nonce resolves", T, async () => {
++  reset(); P[0].mode.sendRaw = "lose-reply"; P[1].mode.sendRaw = P[2].mode.sendRaw = "blackhole";
++  const k = await relayKey(), payee = privateKeyToAccount(k).address, svc = await service(k);
++  const idA = await enrolled(), opA = await W.operator("https://resilience-g.test"), idB = await enrolled(), opB = await W.operator("https://resilience-h.test");
++  const bodyA = await signedClaim(opA, idA, payee), bodyB = await signedClaim(opB, idB, payee);
++  const n0 = await W.pc.getTransactionCount({ address: payee });
++  await W.rpc("evm_setAutomine", [false]);
++  try {
++    const a = await post(svc.url, bodyA);
++    assert.equal(a.status, 502, JSON.stringify(a.body));          // not quorum-confirmed: it is in a mempool, unmined
++    const b = await post(svc.url, bodyB);
++    assert.equal(b.status, 422, JSON.stringify(b.body)); assert.equal(b.body.error, "RelayBusy");
++    assert.equal(new Set(P.flatMap((p) => p.mode.raws)).size, 1, "ONE signature: no second transaction at that nonce or after it while it is unresolved");
++  } finally { await W.rpc("evm_setAutomine", [true]); }
++  reset();
++  await W.rpc("evm_mine", []);
++  assert.equal((await W.row(idA)).runnerOperator, opA.address, "the one signed transaction (A's claim) landed");
++  const b2 = await post(svc.url, bodyB);
++  assert.equal(b2.status, 200, JSON.stringify(b2.body));
++  assert.equal(await W.pc.getTransactionCount({ address: payee }), n0 + 2, "A at its nonce, then B at the next");
++});
++
++test("a send record signed by ANOTHER key is refused at startup, never re-broadcast", T, async () => {
++  reset();
++  const other = await relayKey(), mine = await relayKey(), stateFile = path.join(dir, "other-send.json");
++  const acct = privateKeyToAccount(other);
++  const raw = await acct.signTransaction({ chainId: 8453, type: "eip1559", nonce: 0, to: acct.address, value: 0n, gas: 21_000n, maxFeePerGas: 10n ** 9n, maxPriorityFeePerGas: 1n });
++  fs.writeFileSync(stateFile, JSON.stringify({ nonce: 0, raw, hash: viem.keccak256(raw) }));
++  await assert.rejects(service(mine, { stateFile }), /not this relay's send record \(signed by another key\)/);
++  assert.deepEqual(P.flatMap((p) => p.mode.raws), [], "nothing was broadcast");
++  await assert.rejects(service(other, { stateFile: (fs.writeFileSync(stateFile, JSON.stringify({ nonce: 1, raw, hash: viem.keccak256(raw) })), stateFile) }),
++    /not this relay's send record \(chain 8453, nonce 0\)/, "a record whose nonce is not its transaction's");
++});
+--- /dev/null
++++ b/test/lease-resolve-domain.test.mjs
+@@ -0,0 +1,89 @@
++// Shared resolver (client/lease-executor-client.mjs resolveSigned, used by the Linux supervisor journal and the Windows
++// release journal): a journaled signed lease is settled ONLY within the domain RECORDED with it - its chain, reserve,
++// executor and ledger (root review P1/P2). A receipt in the CURRENT domain whose lease fields happen to match is NOT
++// proof that the recorded operation ran; a record without that identity stays HELD. Local anvil, fixture keys only.
++//   R1 = the world's reserve/executor; R2 = a second reserve/executor on the same ledger.
++//   1. the operator signs a release under R1 (held by its relay, never landing);
++//   2. the SAME operator's operation with IDENTICAL lease fields (id, kind, nonce, deadline, payee, max charge) lands
++//      through R2 (sent directly with a fixture key: the executors share the operator's nonce storage);
++//   3. a client pinned to R2 must NOT declare the R1 record landed, nor an identity-less record; an R2-recorded entry
++//      with those fields IS landed (the positive control); under R1 the record is fenced by the consumed nonce.
++import { test, before, after } from "node:test";
++import assert from "node:assert/strict";
++import http from "node:http";
++import * as viem from "viem";
++import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
++import * as B from "../client/lease-executor-client.mjs";
++import { startWorld, haveAnvil, ZERO32, DEPLOYER } from "./helpers/lease-gas-world.mjs";
++
++const T = { skip: !haveAnvil && "needs anvil", timeout: 180_000 };
++let W, R2, relayKey, relay1, front; const closers = [];
++before(async () => {
++  if (!haveAnvil) return;
++  W = await startWorld();
++  R2 = await W.newReserve();
++  relayKey = generatePrivateKey(); await W.fund(privateKeyToAccount(relayKey).address);
++  relay1 = await B.startLeaseRelay({ client: W.pc, wallet: W.wc(relayKey), deployment: { chainId: 8453, ...W.addr }, allowLoopbackHttp: true });
++  closers.push(() => relay1.close());
++  // a front for relay1 that answers /v1/info but HOLDS every lease POST (never forwards, never answers)
++  front = http.createServer(async (req, res) => {
++    if (req.method !== "POST") { const x = await fetch(relay1.url + req.url); res.writeHead(x.status, { "content-type": "application/json" }); return res.end(await x.text()); }
++    for await (const _ of req);   // held
++  });
++  await new Promise((ok) => front.listen(0, "127.0.0.1", ok));
++  front.url = `http://127.0.0.1:${front.address().port}`;
++  closers.push(() => { front.closeAllConnections(); front.close(); });
++});
++after(async () => { for (const c of closers.reverse()) { try { await c(); } catch {} } W?.stop(); });
++const dep1 = () => ({ chainId: 8453, ...W.addr });
++const dep2 = () => ({ chainId: 8453, reserve: R2.reserve, executor: R2.executor, ledger: W.addr.ledger, registry: W.addr.registry,
++  reserveCodeHash: R2.reserveCodeHash, executorCodeHash: R2.executorCodeHash });
++const client = (op, deployment, relays, onSigned) => B.createLeaseClient({ client: W.pc, account: op.account, reserve: deployment.reserve, deployment,
++  relays, allowLoopbackHttp: true, confirmations: 0, requestTimeoutMs: 2000, overallTimeoutMs: 20_000, onSigned });
++
++test("a matching-field receipt in ANOTHER domain, or with an unrecorded domain, is not the recorded lease's success", T, async () => {
++  const owner = await W.owner(), id = await W.create(owner);
++  await W.enable(owner, id);                          // R1
++  await W.enable(owner, id, { reserve: R2.reserve });  // R2: the same deployment enrolled in a second reserve
++  const op = await W.operator("https://resolve-domain.test");
++  await client(op, dep1(), [relay1.url]).claim(id, op.enclaveId);
++  // 1. the release signed under R1 (journaled by onSigned), held by its relay
++  let s = null;
++  const fromBlock = await W.pc.getBlockNumber();
++  await assert.rejects(client(op, dep1(), [front.url], (x) => { s = x; }).release(id), (e) => e.code === "NotRelayed");
++  assert.ok(s && s.reserve === W.addr.reserve && s.executor === W.addr.executor && s.chainId === 8453 && s.ledger === W.addr.ledger);
++  const want = { id, kind: 3, enclaveId: ZERO32, nonce: BigInt(s.nonce), deadline: BigInt(s.deadline), maxChargeWei: BigInt(s.lease.maxChargeWei) };
++  const payees = [s.payee];
++  // 2. the same operator, IDENTICAL lease fields, landed through R2 (re-delegating the key to R2's executor)
++  const lease = { ...want, payee: s.payee };
++  const signature = await op.account.signTypedData({ domain: { name: "EnclaveLeaseExecutor", version: "1", chainId: 8453, verifyingContract: op.address },
++    types: { Lease: [{ name: "reserve", type: "address" }, { name: "id", type: "bytes32" }, { name: "kind", type: "uint8" }, { name: "enclaveId", type: "bytes32" },
++      { name: "nonce", type: "uint64" }, { name: "deadline", type: "uint64" }, { name: "payee", type: "address" }, { name: "maxChargeWei", type: "uint256" }] },
++    primaryType: "Lease", message: { reserve: R2.reserve, ...lease } });
++  const authorization = await op.account.signAuthorization({ contractAddress: R2.executor, chainId: 8453, nonce: await W.pc.getTransactionCount({ address: op.address }) });
++  const sender = W.wc(DEPLOYER);
++  const fees = await B.currentFees(W.pc);   // what a relay sends with (base fee + 0.001 gwei): the charge stays under the signed maximum
++  const hash = await sender.sendTransaction({ to: op.address, data: B.leaseCalldata(lease, signature), authorizationList: [authorization], gas: 1_000_000n,
++    maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.priorityFee });
++  const rc = await W.pc.waitForTransactionReceipt({ hash });
++  assert.equal(rc.status, "success");
++  const paid = await W.pc.getContractEvents({ address: R2.reserve, abi: W.A.reserve.abi, eventName: "LeaseGasPaid", fromBlock });
++  assert.equal(paid.length, 1); assert.equal(paid[0].args.payee, s.payee);
++  // 3. resolved by a client pinned to R2
++  const c2 = client(op, dep2(), [relay1.url]);
++  const recordedR1 = { operator: op.address, chainId: 8453, reserve: W.addr.reserve, executor: W.addr.executor, ledger: W.addr.ledger };
++  const r1 = await c2.resolveSigned(want, fromBlock, payees, recordedR1);
++  assert.notEqual(r1.state, "landed", "an R2 receipt is not the R1 lease's success");
++  assert.equal(r1.state, "pending");
++  const unknown = await c2.resolveSigned(want, fromBlock, payees, { operator: op.address });
++  assert.notEqual(unknown.state, "landed", "an identity-less record is never settled by a current-domain receipt");
++  assert.equal(unknown.state, "pending");
++  // positive control: the entry RECORDED under R2 with those fields is that receipt
++  const recordedR2 = { operator: op.address, chainId: 8453, reserve: R2.reserve, executor: R2.executor, ledger: W.addr.ledger };
++  const ok = await c2.resolveSigned(want, fromBlock, payees, recordedR2);
++  assert.equal(ok.state, "landed"); assert.equal(ok.verified.hash, hash);
++  // under its own domain (R1): never "landed"; the key now runs R2's executor, so R1's lane cannot be read as a fence
++  // either - the R1 record stays held until its deadline on the recorded chain
++  const c1 = client(op, dep1(), [relay1.url]);
++  assert.equal((await c1.resolveSigned(want, fromBlock, payees, recordedR1)).state, "pending");
++});
+--- /dev/null
++++ b/test/make-deployment-record.test.mjs
+@@ -0,0 +1,85 @@
++// scripts/make-deployment-record.mjs: the reviewed record is generated FROM THE CHAIN (agreeing providers, one anchor two
++// blocks deep and still canonical after the reads), only when each deployed runtime is EXACTLY the reviewed artifact
++// with every immutable at its expected value. Local anvil; the two "providers" are an explicit FIXTURE injection (the
++// same local node through a pass-through proxy), never counted as independent.
++import { test, before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import * as viem from "viem";
++import { makeRecord, reviewed } from "../scripts/make-deployment-record.mjs";
++import { parseDeploymentRecord } from "../network/lease-gas-owner.mjs";
++import { leaseDeploymentPins } from "../client/lease-executor-authority.mjs";
++import { startWorld, haveAnvil, DEPLOYER } from "./helpers/lease-gas-world.mjs";
++import { REPO, leaseGasForgeOut } from "./helpers/lease-gas-forge.mjs";
++const BUILD = () => ({ artifacts: leaseGasForgeOut(), sources: path.join(REPO, "contracts") });
++
++const T = { skip: !haveAnvil && "needs anvil", timeout: 120_000 };
++let W, proxy, clients, dir;
++const mine = async (n = 3) => { for (let i = 0; i < n; i++) await W.rpc("evm_mine", []); };
++before(async () => {
++  if (!haveAnvil) return;
++  W = await startWorld();
++  // a second fixture origin: passes everything through, unless told to rewrite one answer (proxy.mutate)
++  proxy = http.createServer((req, res) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", async () => {
++    const r = await fetch(W.rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: b });
++    let text = await r.text();
++    if (proxy.mutate) { try { const j = JSON.parse(b), out = JSON.parse(text); const m = proxy.mutate(j, out); if (m) text = JSON.stringify(m); } catch {} }
++    res.writeHead(r.status, { "content-type": "application/json" }); res.end(text); }); });
++  await new Promise((ok) => proxy.listen(0, "127.0.0.1", ok));
++  clients = [W.pc, viem.createPublicClient({ chain: W.chain, transport: viem.http(`http://127.0.0.1:${proxy.address().port}`) })];
++  dir = fs.mkdtempSync(path.join(os.tmpdir(), "record-"));
++  await mine();   // the generator reads two blocks below the head: mine past bindExecutor (finality is not weakened)
++});
++after(() => { proxy?.close(); W?.stop(); if (dir) fs.rmSync(dir, { recursive: true, force: true }); });
++const pins = () => ({ deployments: W.addr.ledger, registry: W.addr.registry });
++const base = (o = {}) => ({ ...BUILD(), fixtureClients: clients, reserve: W.addr.reserve, pins: pins(), l1Oracle: viem.zeroAddress, ...o });
++
++test("the exact reviewed runtimes (every immutable at its expected value) yield the record the runtime pins accept", T, async () => {
++  const { record, bytes, digest, evidence } = await makeRecord(base());
++  assert.equal(record.executor, W.addr.executor);
++  assert.equal(record.reserveCodeHash, W.addr.reserveCodeHash); assert.equal(record.executorCodeHash, W.addr.executorCodeHash);
++  assert.deepEqual(evidence.immutables, { reserve: ["ledger", "registry", "l1Oracle"], executor: ["reserve", "ledger", "SELF"] });
++  assert.equal(evidence.fixture, true);
++  const parsed = parseDeploymentRecord(bytes, { expectedDigest: digest });
++  assert.equal(leaseDeploymentPins(parsed).reserve, W.addr.reserve);
++});
++
++test("refused: an executor whose ledger immutable or SELF is not the expected one (same code otherwise)", T, async () => {
++  const code = await W.pc.getCode({ address: W.addr.executor });
++  const R = reviewed("executor", BUILD());
++  const patched = (name, value) => { const b = Buffer.from(code.slice(2), "hex"); const w = Buffer.from(value.slice(2).padStart(64, "0"), "hex");
++    for (const { start } of R.refs[name]) w.copy(b, start); return "0x" + b.toString("hex"); };
++  try {
++    await W.rpc("anvil_setCode", [W.addr.executor, patched("ledger", W.addr.usdc)]); await mine();
++    await assert.rejects(makeRecord(base()), /executor's runtime is not the reviewed artifact with its expected immutables/);
++    await W.rpc("anvil_setCode", [W.addr.executor, patched("SELF", W.addr.registry)]); await mine();
++    await assert.rejects(makeRecord(base()), /executor's runtime is not the reviewed artifact/);
++  } finally { await W.rpc("anvil_setCode", [W.addr.executor, code]); await mine(); }
++  await makeRecord(base());   // restored: accepted again
++});
++
++test("refused: other pinned authorities, an unexpected L1 oracle, an unbound executor", T, async () => {
++  await assert.rejects(makeRecord(base({ pins: { ...pins(), registry: W.addr.usdc } })), /another ledger or registry than the pinned/);
++  await assert.rejects(makeRecord(base({ l1Oracle: W.addr.usdc })), /L1 oracle .* is not the expected/);
++  const fresh = await W.deploy(W.A.reserve, [W.addr.ledger, W.addr.registry, viem.zeroAddress,
++    { maxGasPriceCeiling: 10n ** 9n, overheadClaimGas: 0, overheadRenewGas: 0, overheadReleaseGas: 0, minClaimInterval: 60, l1Bps: 0 }]);
++  await mine();
++  await assert.rejects(makeRecord(base({ reserve: fresh })), /no executor bound/);
++});
++
++test("refused: the anchor block replaced during the reads (reorg), RPCs that disagree", T, async () => {
++  let n = 0;
++  proxy.mutate = (req, out) => (req.method === "eth_getBlockByNumber" && ++n === 2 && out.result ? { ...out, result: { ...out.result, hash: "0x" + "ab".repeat(32) } } : null);
++  try { await assert.rejects(makeRecord(base()), /replaced during the reads \(reorg\)/); } finally { proxy.mutate = null; }
++  proxy.mutate = (req, out) => (req.method === "eth_getCode" ? { ...out, result: "0x00" } : null);
++  try { await assert.rejects(makeRecord(base()), /disagree/); } finally { proxy.mutate = null; }
++});
++
++test("refused before any read: one provider named twice, a loopback RPC for a record to publish", T, async () => {
++  const prod = (rpcs) => makeRecord({ rpcs, reserve: W.addr.reserve, pins: pins() });
++  await assert.rejects(prod(["https://rpc.provider-a.example/key1", "https://rpc.provider-a.example/key2"]), /are one provider/);
++  await assert.rejects(prod([W.rpcUrl, `http://127.0.0.1:${proxy.address().port}`]), /loopback RPC is a local fixture/);
++});
+--- a/test/windows-release-journal.test.mjs
++++ b/test/windows-release-journal.test.mjs
+@@ -184,3 +184,95 @@
+   assert.equal(f.posts(1) + f.posts(2) + f.posts(3), 0);
+   assert.equal(fs.readFileSync(journal, "utf8"), '{"version":1,"releases":[{"id":"0xtrunc');
+ });
++
++/** move the chain (and the fixture clock every module here follows) forward */
++async function advance(sec) {
++  await W.warpTo((await W.pc.getBlock()).timestamp + BigInt(sec));
++  globalThis.leaseGasFixtureClockOffset = Math.max(0, Number((await W.pc.getBlock()).timestamp) * 1000 - Date.now());
++}
++
++test("6. operator rotation: another key's higher nonce never settles a pending release; rotating back stays HELD; the late landing settles it", T, async () => {
++  const f = await front();
++  const opB = await W.operator("https://windows-release-journal-b.test");
++  await W.write(owner.key, W.addr.registry, W.A.registry.abi, "setPayoutWallet", [opB.enclaveId]);
++  const id = await W.create(owner, { fund6: 0n });
++  await W.enable(owner, id, { p: { claimPolicy: 1, claimCooldown: 0 } });
++  // B leases the deployment twice first: B's executor nonce lane for it reaches 4
++  const cB = await boot([relay.url], path.join(dir, "j6-b.json"), { NODE_OPERATOR_KEY: opB.key });
++  for (let i = 0; i < 2; i++) { await cB.claimDeployment(id, opB.enclaveId); await cB.releaseDeployment(id); await advance(61); }
++  const laneB = await W.pc.readContract({ address: opB.address, abi: B.EXECUTOR_ABI, functionName: "nonceOf", args: [id] });
++  assert.equal(laneB, 4n);
++  // A claims (A's lane 0 -> 1) and signs its release at nonce 1; the relay holds it
++  const journal = path.join(dir, "j6.json");
++  const cA = await boot([f.url], journal);
++  await cA.claimDeployment(id, op.enclaveId);
++  await assert.rejects(cA.releaseDeployment(id), (e) => e.pending === true);
++  const entry = journalOf(journal).releases[0];
++  assert.equal(entry.intents[0].nonce, "1"); assert.equal(entry.intents[0].operator, op.address.toLowerCase());
++  assert.equal(entry.intents[0].reserve, W.addr.reserve.toLowerCase()); assert.equal(entry.intents[0].executor, W.addr.executor.toLowerCase());
++  assert.equal(entry.intents[0].chainId, 8453); assert.equal(entry.intents[0].ledger, W.addr.ledger.toLowerCase());
++  // the box restarts with key B: B's lane (4) is not A's; nothing is settled, the hold stays
++  const rotated = await boot([relay.url], journal, { NODE_OPERATOR_KEY: opB.key });
++  assert.deepEqual(await rotated.resolvePendingReleases(), [{ id: id.toLowerCase(), outcome: "pending" }]);
++  assert.match(rotated.releaseHold(id), /unresolved/);
++  // and back to key A: still held - no claim, no renewal
++  const back = await boot([relay.url], journal);
++  assert.match(back.releaseHold(id), /unresolved/);
++  await assert.rejects(back.renewDeployment(id), (e) => e.code === "ReleasePending");
++  // the relay finally sends A's signed release: settled RELEASED from its verified receipt (as A's), even by the B process
++  f.open();
++  for (let i = 0; i < 40 && !/^0x0{40}$/i.test((await W.row(id)).runnerOperator); i++) await new Promise((ok) => setTimeout(ok, 250));
++  const settled = await rotated.resolvePendingReleases();
++  assert.equal(settled.length, 1); assert.equal(settled[0].outcome, "released");
++});
++
++test("7. record rotation: a pending release signed under another reserve is not fenced by its nonce here; only its deadline settles it", T, async () => {
++  const f = await front();   // never opened
++  const id = await enrolled();
++  const journal = path.join(dir, "j7.json");
++  const c1 = await boot([f.url], journal, { TEST_LEASE_FIXTURE_TTL_SEC: "30" });
++  await c1.claimDeployment(id, op.enclaveId);
++  await assert.rejects(c1.releaseDeployment(id), (e) => e.pending === true);
++  // another operation of THIS operator under the SAME reserve consumes that nonce (and releases the lease)
++  const other = B.createLeaseClient({ client: W.pc, account: op.account, reserve: W.addr.reserve, deployment: { chainId: 8453, ...W.addr },
++    relays: [relay.url], allowLoopbackHttp: true, confirmations: 0, now: () => Date.now() + (globalThis.leaseGasFixtureClockOffset || 0) });
++  await other.release(id);
++  // the box restarts on a NEW reviewed record (another reserve/executor): the old lease's identity is not this record's
++  const R2 = await W.newReserve();
++  const bytes = Buffer.from(JSON.stringify({ format: "enclave-lease-gas-deployment/v1", chainId: 8453, reserve: R2.reserve, executor: R2.executor,
++    ledger: W.addr.ledger, registry: W.addr.registry, reserveCodeHash: R2.reserveCodeHash, executorCodeHash: R2.executorCodeHash }));
++  fs.writeFileSync(path.join(dir, "record-r2.json"), bytes);
++  const r2env = { ENCLAVE_LEASE_GAS_FILE: path.join(dir, "record-r2.json"), ENCLAVE_LEASE_GAS_DIGEST: "sha256:" + createHash("sha256").update(bytes).digest("hex") };
++  const c2 = await boot([relay.url], journal, r2env);
++  // HELD, with the reason: the recorded reserve/executor is not this record's, so neither its nonce nor a receipt here settles it
++  assert.deepEqual(await c2.resolvePendingReleases(), [{ id: id.toLowerCase(),
++    outcome: "held: the lease was signed under another (or an unrecorded) reserve/executor/ledger: held until its deadline on its chain" }],
++    "a nonce under another record is no fence here");
++  assert.match(c2.releaseHold(id), /unresolved/);
++  // under the ORIGINAL record the same entry IS fenced by its own lane
++  const c1b = await boot([relay.url], path.join(dir, "j7-copy.json"));
++  fs.copyFileSync(journal, path.join(dir, "j7-copy.json")); c1b.setLeaseJournal(path.join(dir, "j7-copy.json"));
++  assert.deepEqual((await c1b.resolvePendingReleases()).map((x) => x.outcome), ["consumed"]);
++  // past its deadline on the recorded chain: the new-record process may settle it - as a fence, never as released
++  await advance(45);
++  assert.deepEqual((await c2.resolvePendingReleases()).map((x) => x.outcome), ["expired"]);
++  assert.equal(c2.releaseHold(id), null);
++});
++
++test("8. an entry whose identity was never recorded (an older journal) is HELD, never guessed from the current key", T, async () => {
++  const f = await front();
++  const id = await enrolled();
++  const journal = path.join(dir, "j8.json");
++  const c = await boot([f.url], journal, { TEST_LEASE_FIXTURE_TTL_SEC: "30" });
++  await c.claimDeployment(id, op.enclaveId);
++  await assert.rejects(c.releaseDeployment(id), (e) => e.pending === true);
++  const j = journalOf(journal);
++  for (const k of ["chainId", "reserve", "executor", "ledger"]) delete j.releases[0].intents[0][k];
++  fs.writeFileSync(journal, JSON.stringify(j));
++  await advance(45);   // even past its deadline: the chain it was signed for is unknown
++  const c2 = await boot([relay.url], journal);
++  const r = await c2.resolvePendingReleases();
++  assert.equal(r.length, 1); assert.match(r[0].outcome, /^held: the lease was signed for chain unknown/);
++  assert.match(c2.releaseHold(id), /unresolved/);
++  assert.equal(journalOf(journal).releases.length, 1, "the old entry is kept, not discarded");
++});

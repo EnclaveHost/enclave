@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# TEST-ONLY: /v1/info answers while a relay unit of this host is active, as $M/info (default: the moved eu-central payee);
+# $M/front-still-serves keeps an https front answering; $M/silent: no answer at all
+M=${MOCK_DIR:-$FSROOT/mock}; url=${!#}
+[ -e "$M/silent" ] && exit 7
+if { [ -e "$M/active-enclave-host-relay-eu.service" ] || [ -e "$M/active-enclave-lease-relay.service" ]; } || { [[ "$url" == https://* ]] && [ -e "$M/front-still-serves" ]; }; then
+  if [ -f "$M/info" ]; then cat "$M/info"; else echo '{"chainId":8453,"reserve":"0x12A3f873041Dec436DaA0085B766a399A6fA3639","executor":"0x8900BACA2167873BA2F8a8bAE8b4876E6396d343","payee":"0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a"}'; fi; exit 0; fi
+exit 7

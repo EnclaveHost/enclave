@@ -1,0 +1,939 @@
+--- a/network/host-services/roles.mjs
++++ b/network/host-services/roles.mjs
+@@ -0,0 +1,154 @@
++// Enclave host-service roles (work/hosted-service-placement): the PUBLIC discovery and bootstrap services that today run
++// as ordinary systemd units on the four DigitalOcean transport machines, as roles an Enclave host runs from a pinned,
++// reproducible package (scripts/build-host-service-packages.mjs) under network/host-services/runner.mjs.
++//
++// Why a host role and not an Enclave app: an Enclave app is a WebAssembly component (isolation/contract/RUNTIME.md,
++// bundle kind wasm-component, refused otherwise). These services are Node programs (node:http, node:dgram, durable
++// files, viem, IPNS). No supported runtime runs them as a component, and none is claimed here. What makes them fit an
++// Enclave HOST is what they serve: public records whose authority is a signature, a chain read or a content hash, never
++// the server. A host serves them; clients verify them (network/cold-bootstrap.mjs, directory-client.mjs, discovery.mjs).
++//
++// Every role here:
++//   - holds NO secret (no key, token, fleet secret, upload or control credential) and its config refuses any;
++//   - keeps the original authority resolution: the admin-controlled EnclaveAddressBook (and optional authority pins), the
++//     operator's RPC quorum, the operator's pinned checkers; nothing defaults to an enclave.host origin;
++//   - starts COLD: no discovery, storage adapter, artifact download, lease relay or app it helps recover is needed to start
++//     (`cold` lists exactly what is);
++//   - is advertised by the host operator in the ownerless EnclaveServiceIndex (`advertise`) as an untrusted candidate; the
++//     platform host policy (bans, allowlist) applies on the host (runner gate) and on every client (applyHostPolicy).
++import path from 'node:path';
++import { validateNetworkAuthorities } from '../network-authorities.mjs';
++import { rpcEndpoint } from '../rpc-identity.mjs';
++import { validateCarrierBases } from '../policy-carriers.mjs';
++
++export const PACKAGE_FORMAT = 'enclave-host-service-package/v1';
++export const CONFIG_FORMAT = 'enclave-host-services/v1';
++const ADDR = /^0x[0-9a-fA-F]{40}$/, NONZERO = (a) => ADDR.test(a) && !/^0x0{40}$/i.test(a);
++const fail = (role, m) => { throw new Error(`${role}: ${m}`); };
++const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
++function only(role, o, allowed, required = allowed) {
++  if (!plain(o)) fail(role, 'config must be an object');
++  for (const k of Object.keys(o)) if (!allowed.includes(k)) fail(role, `unknown config field ${JSON.stringify(k)}${SECRETISH.test(k) ? ' (a host service holds no secret)' : ''}`);
++  for (const k of required) if (o[k] === undefined || o[k] === null || o[k] === '') fail(role, `${k} is required`);
++}
++// a name that looks like a credential is refused even before the allowlist says why
++export const SECRETISH = /(secret|token|password|passwd|private|mnemonic|seed|apikey|api_key|auth|hmac|credential|key$|keyfile)/i;
++const port = (role, v, what) => { if (!Number.isInteger(v) || v < 1 || v > 65535) fail(role, `${what} must be a port`); return v; };
++const bind = (role, v) => { if (typeof v !== 'string' || !/^(127\.0\.0\.1|0\.0\.0\.0|::|::1|(\d{1,3}\.){3}\d{1,3})$/.test(v)) fail(role, 'bind must be an IP literal'); return v; };
++const absDir = (role, v, what) => { if (typeof v !== 'string' || !path.isAbsolute(v) || v.includes('\0')) fail(role, `${what} must be an absolute path`); return v; };
++function rpcs(role, list) {
++  if (!Array.isArray(list) || list.length < 2 || list.length > 8) fail(role, 'rpc: 2 to 8 Base RPC URLs of distinct providers (the operator\'s quorum)');
++  const seen = new Set();
++  for (const [i, r] of list.entries()) {
++    let e; try { e = rpcEndpoint(r); } catch (x) { fail(role, `rpc[${i}]: ${x.message}`); }
++    if (seen.has(e.identity)) fail(role, `rpc[${i}] repeats a provider`); seen.add(e.identity);
++  }
++  return list;
++}
++const origins = (role, list, what, { min = 0, max = 8 } = {}) => {
++  if (!Array.isArray(list) || list.length < min || list.length > max) fail(role, `${what}: ${min} to ${max} origins`);
++  return list.map((o, i) => {
++    let u; try { u = new URL(o); } catch { fail(role, `${what}[${i}] is not a URL`); }
++    if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password || u.search || u.hash || u.pathname !== '/') fail(role, `${what}[${i}] must be a bare http(s) origin`);
++    return u.origin;
++  });
++};
++
++/**
++ * role -> { entry (repo-relative module bundled), kind (service-index kind), runtime, state, cold, launch(config, paths) }.
++ * launch -> { args: [...], env: {...}, configFile: object|null } for the child process; only validated, public fields.
++ */
++export const ROLES = Object.freeze({
++  'directory-replica': Object.freeze({
++    entry: 'network/directory-server.mjs', kind: 'directory', runtime: 'node>=22 (host role; not a wasm component)',
++    serves: 'signed public network records: providers, checker qualifications, owner policies, app routes, host management records',
++    state: { durable: true, what: 'accepted records and per-app replay floors (route-floors)', rebuild: 'records re-import from peers and re-publication; replay floors must persist (a corrupt store refuses startup, never resets)' },
++    secrets: 'none',
++    cold: ['two or more Base RPC providers (the operator\'s quorum)', 'the admin-controlled EnclaveAddressBook address (and optional authority pins)'],
++    notCold: ['peers (optional; a replica starts empty and accepts signed submissions)', 'storage adapters', 'artifact replicas', 'lease relays', 'any app'],
++    validate(c) {
++      only('directory-replica', c, ['port', 'bind', 'stateDir', 'rpc', 'addressBook', 'authorityPins', 'checkers', 'peers'], ['port', 'bind', 'stateDir', 'rpc', 'addressBook', 'checkers']);
++      port('directory-replica', c.port, 'port'); bind('directory-replica', c.bind); absDir('directory-replica', c.stateDir, 'stateDir'); rpcs('directory-replica', c.rpc);
++      if (!NONZERO(c.addressBook)) fail('directory-replica', 'addressBook must be the admin-controlled EnclaveAddressBook address');
++      if (c.authorityPins !== undefined) { try { validateNetworkAuthorities(c.authorityPins); } catch (e) { fail('directory-replica', `authorityPins: ${e.message}`); } }
++      if (!Array.isArray(c.checkers) || c.checkers.length < 1 || c.checkers.length > 16 || !c.checkers.every(NONZERO)) fail('directory-replica', 'checkers: 1 to 16 checker addresses the operator trusts');
++      const peers = origins('directory-replica', c.peers ?? [], 'peers');
++      return { port: c.port, bind: c.bind, stateDir: c.stateDir, rpc: [...c.rpc], addressBook: c.addressBook, ...(c.authorityPins ? { authorityPins: c.authorityPins } : {}),
++        checkers: c.checkers.map((x) => x.toLowerCase()), peers };
++    },
++    launch(c) { return { configFile: c, env: {} }; },
++  }),
++  'bootstrap-replica': Object.freeze({
++    entry: 'network/bootstrap-gateway.mjs', kind: 'replica', runtime: 'node>=22 (host role; not a wasm component)',
++    serves: 'CID-addressed public bootstrap artifacts (release and runtime downloads), GET/HEAD /ipfs/<cid>, digest-checked at start',
++    state: { durable: true, what: 'the artifact files of a verified bootstrap manifest', rebuild: 'refilled by CID from any replica or storage copy (fill: sha256 and CAR digest checked before a file is kept)' },
++    secrets: 'none',
++    cold: ['the artifact files on local disk, each checked against the manifest\'s sha256 and CAR digest before the first request'],
++    notCold: ['discovery', 'directories', 'storage adapters', 'lease relays', 'any app', 'the network (once filled)'],
++    validate(c) {
++      only('bootstrap-replica', c, ['port', 'bind', 'directory', 'manifest', 'maxObjectBytes'], ['port', 'bind', 'directory', 'manifest']);
++      port('bootstrap-replica', c.port, 'port'); bind('bootstrap-replica', c.bind);
++      absDir('bootstrap-replica', c.directory, 'directory'); absDir('bootstrap-replica', c.manifest, 'manifest');
++      if (c.maxObjectBytes !== undefined && (!Number.isSafeInteger(c.maxObjectBytes) || c.maxObjectBytes < 1 || c.maxObjectBytes > 1024 ** 3)) fail('bootstrap-replica', 'maxObjectBytes: 1 byte to 1 GiB');
++      return { port: c.port, bind: c.bind, directory: c.directory, manifest: c.manifest, ...(c.maxObjectBytes ? { maxObjectBytes: c.maxObjectBytes } : {}) };
++    },
++    launch(c) { return { configFile: c, env: {} }; },
++  }),
++  'route-dns': Object.freeze({
++    entry: 'relay/dns-relay.js', kind: 'dns', runtime: 'node>=22 (host role; not a wasm component)',
++    // a plain script: bundled behind the argv guard so no bundled library's own CLI entry check can fire (argv-guard.mjs)
++    bundleEntry: 'network/host-services/entries/route-dns.mjs',
++    serves: 'authoritative answers for the app zone from VERIFIED routes (DNS_READ_ONLY: no fleet discovery, no challenge writes, no TXT key)',
++    state: { durable: false, what: 'none: the route map is re-read from the route source', rebuild: 'n/a' },
++    secrets: 'none (read-only mode forces the TXT key off)',
++    cold: ['a route source: this host\'s own directory replica (loopback) or another directory origin the operator names'],
++    notCold: ['the fleet relay', 'api.enclave.host', 'storage adapters', 'lease relays', 'any app'],
++    validate(c) {
++      only('route-dns', c, ['dnsPort', 'bind', 'apiPort', 'apiBind', 'zone', 'ipZone', 'nsName', 'nsNames', 'routeMapUrl', 'rateLimitPerSec', 'rateLimitCap'],
++        ['dnsPort', 'bind', 'apiPort', 'zone', 'ipZone', 'nsName', 'nsNames', 'routeMapUrl']);
++      port('route-dns', c.dnsPort, 'dnsPort'); bind('route-dns', c.bind); port('route-dns', c.apiPort, 'apiPort');
++      if (c.apiBind !== undefined) bind('route-dns', c.apiBind);
++      const zoneRe = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$/;
++      if (typeof c.zone !== 'string' || !zoneRe.test(c.zone)) fail('route-dns', 'zone must be the app zone the operator serves');
++      if (typeof c.ipZone !== 'string' || !zoneRe.test(c.ipZone)) fail('route-dns', 'ipZone must be the address zone the operator serves');
++      if (!Array.isArray(c.nsNames) || c.nsNames.length < 1 || c.nsNames.length > 8 || !c.nsNames.every((n) => typeof n === 'string' && zoneRe.test(n))) fail('route-dns', 'nsNames: 1 to 8 nameserver names');
++      if (!c.nsNames.includes(c.nsName)) fail('route-dns', 'nsName (this replica) must be one of nsNames');
++      let u; try { u = new URL(c.routeMapUrl); } catch { fail('route-dns', 'routeMapUrl is not a URL'); }
++      if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password || u.search || u.hash || u.pathname !== '/v1/network/routes') fail('route-dns', 'routeMapUrl must be a directory\'s /v1/network/routes (no credentials or query)');
++      for (const k of ['rateLimitPerSec', 'rateLimitCap']) if (c[k] !== undefined && (!Number.isInteger(c[k]) || c[k] < 1 || c[k] > 1e6)) fail('route-dns', `${k}: 1 to 1000000`);
++      return { ...c };
++    },
++    // dns-relay reads its configuration from the environment: exactly these names, every one explicit (NO_FALLBACK there
++    // refuses an absent name instead of an enclave.host default)
++    launch(c) {
++      // the push API answers 503 without a TXT key (read-only); it listens on loopback unless the operator says otherwise
++      return { configFile: null, env: { DNS_READ_ONLY: '1', APP_ZONE: c.zone, IP_ZONE: c.ipZone, NS_NAME: c.nsName, NS_NAMES: c.nsNames.join(','), ROUTE_MAP_URL: c.routeMapUrl,
++        DNS_PORT: String(c.dnsPort), DNS_BIND: c.bind, DNS_API_PORT: String(c.apiPort), DNS_API_BIND: c.apiBind || '127.0.0.1',
++        ...(c.rateLimitPerSec ? { DNS_RL_PER_SEC: String(c.rateLimitPerSec) } : {}), ...(c.rateLimitCap ? { DNS_RL_CAP: String(c.rateLimitCap) } : {}) } };
++    },
++  }),
++  'policy-mirror': Object.freeze({
++    entry: 'network/host-services/policy-mirror.mjs', kind: 'policy', runtime: 'node>=22 (host role; not a wasm component)',
++    serves: 'the administrator\'s signed platform host policy documents by digest (GET /platform-policy/<digest>.json, POST /platform-policy): an untrusted carrier the platform host policy gate and clients verify',
++    state: { durable: false, what: 'documents the address book\'s current owner signs at a fresh agreed block (public data)', rebuild: 'refilled by digest from importDir, peers or publication; every gate re-verifies' },
++    secrets: 'none',
++    cold: ['two or more Base RPC providers (the operator\'s quorum)', 'the admin-controlled EnclaveAddressBook and the hostOwnership extension it binds', 'the anchored document from ANY carrier: importDir (an operator-imported copy), a peer, or a publication'],
++    notCold: ['the fleet\'s /platform-policy routes', 'discovery', 'storage adapters', 'lease relays', 'any app', 'this host\'s own admission (its gate reads importDir and this role\'s store from disk)'],
++    validate(c) {
++      only('policy-mirror', c, ['port', 'bind', 'stateDir', 'rpc', 'minAgree', 'book', 'hostOwnership', 'peers', 'importDir', 'syncSec', 'maxDocuments'],
++        ['port', 'bind', 'stateDir', 'rpc', 'book', 'hostOwnership']);
++      port('policy-mirror', c.port, 'port'); bind('policy-mirror', c.bind); absDir('policy-mirror', c.stateDir, 'stateDir'); rpcs('policy-mirror', c.rpc);
++      if (c.minAgree !== undefined && (!Number.isInteger(c.minAgree) || c.minAgree <= c.rpc.length / 2 || c.minAgree > c.rpc.length)) fail('policy-mirror', 'minAgree must be a majority of rpc');
++      for (const k of ['book', 'hostOwnership']) if (!NONZERO(c[k])) fail('policy-mirror', `${k} must be the platform host policy's ${k === 'book' ? 'admin-controlled EnclaveAddressBook' : 'EnclaveHostOwnership extension'}`);
++      let peers; try { peers = validateCarrierBases(c.peers ?? [], 'peers'); } catch (e) { fail('policy-mirror', e.message); }
++      if (c.importDir !== undefined) absDir('policy-mirror', c.importDir, 'importDir');
++      if (c.syncSec !== undefined && (!Number.isInteger(c.syncSec) || c.syncSec < 5 || c.syncSec > 3600)) fail('policy-mirror', 'syncSec: 5 to 3600');
++      if (c.maxDocuments !== undefined && (!Number.isInteger(c.maxDocuments) || c.maxDocuments < 2 || c.maxDocuments > 32)) fail('policy-mirror', 'maxDocuments: 2 to 32');
++      return { port: c.port, bind: c.bind, stateDir: c.stateDir, rpc: [...c.rpc], ...(c.minAgree ? { minAgree: c.minAgree } : {}), book: c.book.toLowerCase(),
++        hostOwnership: c.hostOwnership.toLowerCase(), peers, ...(c.importDir ? { importDir: c.importDir } : {}), ...(c.syncSec ? { syncSec: c.syncSec } : {}),
++        ...(c.maxDocuments ? { maxDocuments: c.maxDocuments } : {}) };
++    },
++    launch(c) { return { configFile: c, env: {} }; },
++  }),
++});
++export const ROLE_NAMES = Object.freeze(Object.keys(ROLES));
+--- a/network/host-services/runner.mjs
++++ b/network/host-services/runner.mjs
+@@ -0,0 +1,283 @@
++// Run Enclave host-service packages on an Enclave host (network/host-services/roles.mjs; work/hosted-service-placement).
++//
++//   node network/host-services/runner.mjs check <host-services.json>     validate, verify every package, print the plan
++//   node network/host-services/runner.mjs run <host-services.json>       ...then start and supervise the roles
++//   node network/host-services/runner.mjs advertise <host-services.json> --operator 0x.. --slot N --sequence N [--ttl-days D]
++//                                                                         the UNSIGNED service-index publication for each
++//                                                                         role (the operator signs and sends it; nothing here)
++//
++// host-services.json:
++//   { "format": "enclave-host-services/v1",
++//     "host": { "endpoint": "<this host's registry endpoint (its PUBLIC_URL)>", "publicEndpoints": { "<role>": ["http://A.B.C.D:P/"] } },
++//     "platformHostPolicy": "production" | "off" | { book, hostOwnership, mirrors[], activation?, rpcs?, minAgree? },
++//     "platformHostPolicyMirrors"?: ["https://…"], "platformHostPolicyRpcs"?: ["https://…", …],
++//     "platformHostPolicyCarriers"?: { "importDir"?: "/abs/dir", "peers"?: ["http(s)://<host>/platform-policy"], "serviceIndex"?: true },
++//     "serviceIndex"?: { chainId, address, codeHash },
++//     "packagesDir": "/abs/dir", "stateRoot": "/abs/dir",
++//     "services": [ { "role": "directory-replica", "package": "sha256:<the reviewed package manifest digest>", "heapMiB": 256, "config": { … } } ] }
++//
++// Policy documents without the fleet (network/policy-carriers.mjs): the gate below is the unchanged platform host policy
++// gate; besides its configured HTTPS mirrors (production: the fleet's) it is shown untrusted CARRIERS - an operator-imported
++// copy (importDir), this host's own policy-mirror store (read from disk, so the role need not be running), other hosts'
++// policy mirrors (peers) and those advertised in the pinned service index (serviceIndex: true). Each candidate must be signed
++// by the book's current owner at a fresh agreed block before the gate sees it, and the gate still requires the anchored
++// digest, its own signature check, the sequence high-water and the bans. So a fresh host with an empty cache starts while
++// the book anchors a policy and every fleet mirror is down, and a policy-mirror host does not need its own mirror to start.
++//
++// What the runner guarantees:
++//   - only the reviewed bytes run: the manifest digest is the operator's pin, the bundle must match the manifest;
++//   - only public configuration reaches a role: each role's strict validator (roles.mjs); no field that names a secret;
++//   - a role's process gets no inherited environment (PATH and the role's own names only), a V8 heap cap (heapMiB, passed as
++//     --max-old-space-size: it bounds the JavaScript old-space heap only, NOT the process's resident memory - buffers,
++//     native and code memory are outside it; the process memory limit is the host service manager's, e.g. systemd
++//     MemoryMax= on the runner's unit, which bounds every role it starts), and a restart backoff that also covers a
++//     failed spawn;
++//   - the platform host policy gates it exactly as it gates app service on this host (network/host-service-gate.mjs): a ban,
++//     an allowlist miss or a deregistration STOPS every role (sticky until the admin's admit); a transient outage keeps
++//     serving for the gate's grace; "off" must be written explicitly and is reported as such.
++import fs from 'node:fs';
++import path from 'node:path';
++import { spawn as spawnChild } from 'node:child_process';
++import { createHash } from 'node:crypto';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++import { PRODUCTION_BOOK, PRODUCTION_HOST_OWNERSHIP } from '../platform-host-policy-config.mjs';
++import { ROLES, CONFIG_FORMAT, PACKAGE_FORMAT, SECRETISH } from './roles.mjs';
++import { CARRIER_MIRROR, validateCarrierBases } from '../policy-carriers.mjs';
++import { rpcEndpoint } from '../rpc-identity.mjs';
++
++const sha = (b) => createHash('sha256').update(b).digest('hex');
++const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
++const fail = (m) => { throw new Error(`host services: ${m}`); };
++
++/** The reviewed package for `role`: its manifest must hash to `pin` (sha256:<hex>), its bundle to the manifest. */
++export function loadPackage(packagesDir, role, pin) {
++  if (!ROLES[role]) fail(`unknown role ${JSON.stringify(role)}`);
++  if (!/^sha256:[0-9a-f]{64}$/.test(String(pin))) fail(`${role}: package must pin the reviewed manifest digest (sha256:<64 hex>)`);
++  const manifestFile = path.join(packagesDir, `${role}.package.json`);
++  const raw = fs.readFileSync(manifestFile);
++  if ('sha256:' + sha(raw) !== pin) fail(`${role}: package manifest ${manifestFile} is not the pinned ${pin}`);
++  const m = JSON.parse(raw);
++  if (m.format !== PACKAGE_FORMAT || m.role !== role || m.entry !== ROLES[role].entry || m.kind !== ROLES[role].kind) fail(`${role}: the manifest is not this role's package`);
++  const bundle = path.join(packagesDir, path.basename(m.bundle));
++  const bytes = fs.readFileSync(bundle);
++  if (sha(bytes) !== m.bundleSha256 || bytes.length !== m.bytes) fail(`${role}: bundle ${bundle} does not match its manifest`);
++  return { manifest: m, bundle, pin };
++}
++
++/** -> the normalized configuration (throws on anything else). */
++export function validateHostServicesConfig(cfg) {
++  if (!plain(cfg)) fail('configuration must be an object');
++  const allowed = ['format', 'host', 'platformHostPolicy', 'platformHostPolicyMirrors', 'platformHostPolicyRpcs', 'platformHostPolicyCarriers', 'serviceIndex', 'packagesDir', 'stateRoot', 'services'];
++  for (const k of Object.keys(cfg)) if (!allowed.includes(k)) fail(`unknown field ${JSON.stringify(k)}${SECRETISH.test(k) ? ' (host services hold no secret)' : ''}`);
++  if (cfg.format !== CONFIG_FORMAT) fail(`format must be ${CONFIG_FORMAT}`);
++  for (const k of ['packagesDir', 'stateRoot']) if (typeof cfg[k] !== 'string' || !path.isAbsolute(cfg[k])) fail(`${k} must be an absolute path`);
++  if (cfg.platformHostPolicy === undefined) fail('platformHostPolicy is required: "production", an explicit platform JSON, or "off" (explicit; not a production configuration)');
++  if (!(cfg.platformHostPolicy === 'production' || cfg.platformHostPolicy === 'off' || plain(cfg.platformHostPolicy))) fail('platformHostPolicy: "production" | "off" | { book, hostOwnership, mirrors[] }');
++  if (cfg.platformHostPolicyMirrors !== undefined && (!Array.isArray(cfg.platformHostPolicyMirrors) || cfg.platformHostPolicyMirrors.some((u) => typeof u !== 'string' || !/^https:\/\/[^\s/?#@]+(\/[^\s?#]*)?$/.test(u)))) fail('platformHostPolicyMirrors: https URLs');
++  // the policy's own RPC quorum: https (http only on loopback), one vote per provider (network/rpc-identity.mjs)
++  if (cfg.platformHostPolicyRpcs !== undefined) {
++    if (!Array.isArray(cfg.platformHostPolicyRpcs) || cfg.platformHostPolicyRpcs.length < 1 || cfg.platformHostPolicyRpcs.length > 8) fail('platformHostPolicyRpcs: 1 to 8 RPC URLs');
++    const ids = cfg.platformHostPolicyRpcs.map((u, i) => { try { return rpcEndpoint(u).identity; } catch (e) { return fail(`platformHostPolicyRpcs[${i}]: https (http only on loopback), without credentials`); } });
++    if (new Set(ids).size !== ids.length) fail('platformHostPolicyRpcs: distinct providers');
++  }
++  const pc = cfg.platformHostPolicyCarriers;
++  if (pc !== undefined) {
++    if (!plain(pc) || Object.keys(pc).some((k) => !['importDir', 'peers', 'serviceIndex'].includes(k))) fail('platformHostPolicyCarriers: { importDir?, peers?, serviceIndex? }');
++    if (pc.importDir !== undefined && (typeof pc.importDir !== 'string' || !path.isAbsolute(pc.importDir))) fail('platformHostPolicyCarriers.importDir must be an absolute path');
++    try { validateCarrierBases(pc.peers ?? [], 'platformHostPolicyCarriers.peers'); } catch (e) { fail(e.message); }
++    if (pc.serviceIndex !== undefined && typeof pc.serviceIndex !== 'boolean') fail('platformHostPolicyCarriers.serviceIndex: true or false');
++    if (pc.serviceIndex && !cfg.serviceIndex) fail('platformHostPolicyCarriers.serviceIndex needs the pinned serviceIndex');
++    if (cfg.platformHostPolicy === 'off') fail('platformHostPolicyCarriers with platformHostPolicy "off": nothing would use them');
++  }
++  if (!plain(cfg.host)) fail('host is required');
++  for (const k of Object.keys(cfg.host)) if (!['endpoint', 'publicEndpoints'].includes(k)) fail(`host has an unknown field ${JSON.stringify(k)}`);
++  if (cfg.platformHostPolicy !== 'off' && !/^https:\/\/[^\s/?#@]+$/.test(String(cfg.host.endpoint || '').replace(/\/+$/, ''))) fail('host.endpoint: this host\'s registry endpoint (its PUBLIC_URL) is required to enforce the platform host policy');
++  if (!Array.isArray(cfg.services) || cfg.services.length < 1 || cfg.services.length > 8) fail('services: 1 to 8 roles');
++  const seen = new Set();
++  const services = cfg.services.map((s, i) => {
++    if (!plain(s)) fail(`services[${i}] must be an object`);
++    if (s.memoryMiB !== undefined) fail(`services[${i}].memoryMiB is now heapMiB: it caps the V8 heap (--max-old-space-size), not the process's memory; set the process limit in the host's service manager`);
++    for (const k of Object.keys(s)) if (!['role', 'package', 'heapMiB', 'config'].includes(k)) fail(`services[${i}] has an unknown field ${JSON.stringify(k)}`);
++    const role = ROLES[s.role];
++    if (!role) fail(`services[${i}]: unknown role ${JSON.stringify(s.role)}`);
++    if (seen.has(s.role)) fail(`services[${i}]: ${s.role} twice`); seen.add(s.role);
++    const heapMiB = s.heapMiB ?? 256;
++    if (!Number.isInteger(heapMiB) || heapMiB < 64 || heapMiB > 2048) fail(`services[${i}].heapMiB: 64 to 2048 (V8 old-space heap cap)`);
++    return { role: s.role, package: s.package, heapMiB, config: role.validate(s.config) };
++  });
++  // a policy mirror carries THIS platform's documents: its book and ownership extension must be the gate's
++  const pm = services.find((s) => s.role === 'policy-mirror');
++  if (pm && cfg.platformHostPolicy !== 'off') {
++    const p = cfg.platformHostPolicy === 'production' ? { book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP } : cfg.platformHostPolicy;
++    if (String(p.book).toLowerCase() !== pm.config.book || String(p.hostOwnership).toLowerCase() !== pm.config.hostOwnership) fail('policy-mirror: book and hostOwnership must be the platformHostPolicy\'s');
++  }
++  const pe = cfg.host.publicEndpoints ?? {};
++  if (!plain(pe)) fail('host.publicEndpoints must map roles to endpoints');
++  for (const [r, list] of Object.entries(pe)) {
++    if (!seen.has(r)) fail(`host.publicEndpoints names ${r}, which this host does not run`);
++    if (!Array.isArray(list) || list.length < 1 || list.length > 4) fail(`host.publicEndpoints.${r}: 1 to 4 endpoints`);
++  }
++  return { ...cfg, services, host: { endpoint: cfg.host.endpoint ? String(cfg.host.endpoint).replace(/\/+$/, '') : null, publicEndpoints: pe } };
++}
++
++/** Whether the gate is shown carriers (configured ones, or this host's own policy-mirror store). */
++const usesCarriers = (cfg) => cfg.platformHostPolicy !== 'off' && (!!cfg.platformHostPolicyCarriers || cfg.services.some((s) => s.role === 'policy-mirror'));
++/** The env names the existing gate reads (network/platform-host-policy-config.mjs), from the explicit configuration. The
++ *  carrier set is one more mirror origin (CARRIER_MIRROR, answered by policyCarrierFetch). */
++export function policyEnv(cfg) {
++  const p = cfg.platformHostPolicy;
++  const mirrors = [...(cfg.platformHostPolicyMirrors || []), ...(usesCarriers(cfg) ? [CARRIER_MIRROR] : [])];
++  return { ENCLAVE_PLATFORM_HOST_POLICY: typeof p === 'string' ? p : JSON.stringify(p),
++    ...(mirrors.length ? { ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS: mirrors.join(',') } : {}),
++    ...(cfg.platformHostPolicyRpcs ? { ENCLAVE_PLATFORM_HOST_POLICY_RPCS: cfg.platformHostPolicyRpcs.join(',') } : {}) };
++}
++/**
++ * The fetch the gate uses: CARRIER_MIRROR answered from this host's carriers (importDir, its policy-mirror store, peers,
++ * service-index policy mirrors), each candidate signed by the book's current owner at a fresh agreed block of the policy's
++ * own RPC quorum; everything else goes to `fetch`.
++ */
++export async function policyCarrierFetch(cfg, { fetch = globalThis.fetch, log = () => {} } = {}) {
++  if (!usesCarriers(cfg)) return fetch;
++  const { resolveHostPolicyConfig } = await import('../platform-host-policy-config.mjs');
++  const { quorumSnapshot } = await import('../host-policy-runtime.mjs');
++  const pcm = await import('../policy-carriers.mjs');
++  const resolved = resolveHostPolicyConfig({ env: policyEnv(cfg), chainId: 8453 });
++  const { book, hostOwnership, rpcs, minAgree } = resolved.config;
++  if (!rpcs || !rpcs.length) fail('platform host policy carriers need the policy\'s RPC quorum (platformHostPolicyRpcs or the platform\'s rpcs)');
++  const pc = cfg.platformHostPolicyCarriers || {};
++  const mirror = cfg.services.find((s) => s.role === 'policy-mirror');
++  const carriers = [
++    ...(pc.importDir ? [pcm.fileCarrier(pc.importDir)] : []),
++    ...(mirror ? [pcm.fileCarrier(path.join(mirror.config.stateDir, 'documents'))] : []),
++    ...pcm.httpCarriers(pc.peers || [], { fetch }),
++    ...(pc.serviceIndex ? [pcm.indexCarriers({ pin: cfg.serviceIndex, peers: rpcs, fetch, log })] : []),
++  ];
++  const verify = pcm.freshVerifier({ snapshot: quorumSnapshot({ rpcs, minAgree }), book, hostOwnership });
++  return pcm.carrierFetch({ carriers, verify, fetch, log });
++}
++
++/** The plan: what would run, from which verified bytes, with which public configuration. No process is started. */
++export function planHostServices(rawCfg) {
++  const cfg = validateHostServicesConfig(rawCfg);
++  const services = cfg.services.map((s) => {
++    const pkg = loadPackage(cfg.packagesDir, s.role, s.package);
++    const launch = ROLES[s.role].launch(s.config);
++    return { ...s, bundle: pkg.bundle, bundleSha256: pkg.manifest.bundleSha256, kind: pkg.manifest.kind, launch };
++  });
++  return { cfg, services };
++}
++
++/**
++ * Start and supervise the plan. gate: { start(), stop(), check(), serviceRefusal(), status() } (default: the platform host
++ * policy gate for this host, network/host-service-gate.mjs). -> { status(), stop() }.
++ */
++export async function runHostServices(rawCfg, { gate = null, spawn = spawnChild, fetch = globalThis.fetch, log = (m) => console.log(new Date().toISOString(), m), intervalMs = 5000,
++  backoffMs = 1000, maxBackoffMs = 60000, gateIntervalMs = null } = {}) {
++  const { cfg, services } = planHostServices(rawCfg);
++  if (!gate) {
++    const { createHostServiceGate } = await import('../host-service-gate.mjs');
++    gate = createHostServiceGate({ env: policyEnv(cfg), chainId: 8453, endpoint: cfg.host.endpoint, stateDir: path.join(cfg.stateRoot, 'host-policy'), log,
++      fetch: await policyCarrierFetch(cfg, { fetch, log }), ...(gateIntervalMs ? { intervalMs: gateIntervalMs } : {}) });
++  }
++  if (cfg.platformHostPolicy === 'off') log('[host-services] platform host policy is EXPLICITLY OFF for these roles: not a production configuration');
++  const units = services.map((s) => ({ ...s, child: null, restarts: 0, wait: backoffMs, lastExit: null, timer: null, stopped: false }));
++  let stopping = false, refusal = null;
++  const start = (u) => {
++    if (stopping || refusal || u.child || u.timer) return;          // a pending restart keeps its backoff
++    const dir = path.join(cfg.stateRoot, u.role);
++    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
++    const argv = [`--max-old-space-size=${u.heapMiB}`, u.bundle];      // a V8 heap cap, not a process memory limit
++    if (u.launch.configFile) {
++      const file = path.join(dir, 'config.json');
++      fs.writeFileSync(file, JSON.stringify(u.launch.configFile), { mode: 0o600 });
++      argv.push(file);
++    }
++    // no inherited environment: the role's own public names and a PATH, nothing of the host's
++    let child;
++    try { child = spawn(process.execPath, argv, { cwd: dir, env: { PATH: '/usr/local/bin:/usr/bin:/bin', ...u.launch.env }, stdio: ['ignore', 'pipe', 'pipe'] }); }
++    catch (e) { u.startedAt = Date.now(); return ended(u, null, { error: e }); }
++    u.child = child; u.startedAt = Date.now();
++    const relay = (stream) => stream?.on('data', (d) => { for (const line of String(d).split('\n').filter(Boolean)) log(`[${u.role}] ${line.slice(0, 500)}`); });
++    relay(child.stdout); relay(child.stderr);
++    // 'error': the process could not be spawned (EAGAIN, ENOMEM, EACCES...) - no 'exit' may follow - or a signal could not
++    // be delivered to it (it may still be running). Either is handled; neither throws out of the runner.
++    child.on('error', (e) => {
++      if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return ended(u, child, { error: e });
++      log(`[host-services] ${u.role} (pid ${child.pid}): ${e.code || e.message}; still running`);
++    });
++    child.on('exit', (code, signal) => ended(u, child, { code, signal }));
++    if (child.pid !== undefined) log(`[host-services] ${u.role} started (pid ${child.pid}, package ${u.package.slice(0, 19)}…, V8 heap cap ${u.heapMiB} MiB)`);
++  };
++  // one end per child, whichever of 'exit' / 'error' (or a throwing spawn) reports it first
++  const ended = (u, child, how) => {
++    if (child && u.child !== child) return;
++    if (child) { if (child.ended) return; child.ended = true; }
++    u.child = null; u.lastExit = { code: how.code ?? null, signal: how.signal ?? null, ...(how.error ? { error: how.error.code || how.error.message } : {}), at: Date.now() };
++    if (stopping || refusal || u.stopped) return;
++    if (Date.now() - u.startedAt > 60000) u.wait = backoffMs;      // it ran: start the backoff over
++    u.restarts++; log(`[host-services] ${u.role} ${how.error ? `could not start (${how.error.code || how.error.message})` : `exited (${how.signal || how.code})`}; restarting in ${u.wait} ms`);
++    u.timer = setTimeout(() => { u.timer = null; start(u); }, u.wait); u.timer.unref?.();
++    u.wait = Math.min(maxBackoffMs, u.wait * 2);
++  };
++  const halt = (u) => { if (u.timer) { clearTimeout(u.timer); u.timer = null; } if (u.child) { try { u.child.kill('SIGTERM'); } catch (e) { log(`[host-services] ${u.role}: SIGTERM failed (${e.code || e.message})`); } } };
++  const apply = async () => {
++    await gate.check().catch(() => {});
++    const r = gate.serviceRefusal();
++    if (r && !refusal) { refusal = r; log(`[host-services] STOPPING every role: ${r}`); units.forEach(halt); }
++    else if (!r && refusal) { log(`[host-services] admitted again: starting roles (${refusal} cleared)`); refusal = null; }
++    if (!refusal) units.forEach(start);
++  };
++  gate.start?.();
++  await apply();
++  const timer = setInterval(() => void apply(), intervalMs); timer.unref?.();
++  return {
++    status: () => ({ platformHostPolicy: gate.status?.() ?? null, refusal, services: units.map((u) => ({ role: u.role, kind: u.kind, package: u.package,
++      bundleSha256: u.bundleSha256, running: !!u.child, pid: u.child?.pid ?? null, restarts: u.restarts, lastExit: u.lastExit })) }),
++    async stop() {
++      stopping = true; clearInterval(timer); gate.stop?.();
++      await Promise.all(units.map((u) => new Promise((ok) => { if (!u.child) { halt(u); return ok(); } u.child.once('exit', ok); halt(u); setTimeout(() => { try { u.child?.kill('SIGKILL'); } catch {} ok(); }, 5000).unref?.(); })));
++    },
++  };
++}
++
++/** The UNSIGNED service-index publication of each role this host serves (network/service-index.mjs; the operator signs). */
++export async function advertisements(rawCfg, { operator, slot, sequence, ttlSec = 30 * 86400, now = Math.floor(Date.now() / 1000) }) {
++  const si = await import('../service-index.mjs');
++  const { cfg, services } = planHostServices(rawCfg);
++  if (!cfg.serviceIndex) fail('serviceIndex (the pinned index) is required to prepare advertisements');
++  const pin = si.validateIndexPin(cfg.serviceIndex);
++  if (!/^0x[0-9a-fA-F]{40}$/.test(String(operator)) || !Number.isInteger(slot) || !/^[1-9][0-9]*$/.test(String(sequence))) fail('advertise needs --operator 0x…, --slot N and --sequence N (> 0)');
++  return services.filter((s) => cfg.host.publicEndpoints[s.role]).map((s, i) => {
++    // the descriptor names the exact package a candidate claims to run (a claim, not proof: clients verify what is served)
++    // (the shape service-index.mjs verifyDescriptor reads: format, operator and kind, then the role's own fields)
++    const descriptor = Buffer.from(JSON.stringify({ format: 'enclave-service-descriptor/v1', operator: String(operator).toLowerCase(), kind: s.kind,
++      role: s.role, package: s.package, bundleSha256: s.bundleSha256 }));
++    const input = si.validateAdInput({ slot: slot + i, kind: s.kind, endpoints: cfg.host.publicEndpoints[s.role], ttlSec, descriptor: si.descriptorHash(descriptor) });
++    const typed = si.publishTypedData({ chainId: pin.chainId, index: pin.address, operator, slot: input.slot, kind: input.kind, sequence: BigInt(sequence),
++      expiresAt: BigInt(now + ttlSec), descriptor: input.descriptor, endpoints: input.endpoints });
++    return { role: s.role, kind: s.kind, endpoints: input.endpoints, descriptor: descriptor.toString(), descriptorHash: input.descriptor, typedData: typed, signed: false };
++  });
++}
++
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
++  const [cmd, file, ...rest] = process.argv.slice(2);
++  const usage = 'usage: runner.mjs check|run|advertise <host-services.json> [--operator 0x.. --slot N --sequence N --ttl-days D]';
++  if (!['check', 'run', 'advertise'].includes(cmd) || !file) { console.error(usage); process.exit(2); }
++  const cfg = JSON.parse(fs.readFileSync(file, 'utf8'));
++  try {
++    if (cmd === 'check') {
++      const { cfg: c, services } = planHostServices(cfg);
++      const warnings = c.platformHostPolicy !== 'off' && !usesCarriers(c) ? ['no platform host policy carrier (platformHostPolicyCarriers or a policy-mirror role): the only policy mirrors are the configured HTTPS ones (production: the fleet\'s four), so with them down a fresh host cannot load an anchored policy and will not start'] : [];
++      console.log(JSON.stringify({ ok: true, platformHostPolicy: c.platformHostPolicy, policyCarriers: usesCarriers(c) ? { ...(c.platformHostPolicyCarriers || {}), ownPolicyMirror: c.services.some((s) => s.role === 'policy-mirror') } : null,
++        warnings, services: services.map((s) => ({ role: s.role, kind: s.kind, package: s.package,
++        bundleSha256: s.bundleSha256, heapMiB: s.heapMiB, env: Object.keys(s.launch.env), configFile: !!s.launch.configFile })) }, null, 2));
++    } else if (cmd === 'advertise') {
++      const flag = (n) => { const i = rest.indexOf(n); return i >= 0 ? rest[i + 1] : undefined; };
++      const ads = await advertisements(cfg, { operator: flag('--operator'), slot: Number(flag('--slot') ?? 0), sequence: flag('--sequence') ?? '1', ttlSec: Number(flag('--ttl-days') ?? 30) * 86400 });
++      console.log(JSON.stringify(ads, (k, v) => (typeof v === 'bigint' ? v.toString() : v), 2));
++    } else {
++      const running = await runHostServices(cfg);
++      for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { running.stop().then(() => process.exit(0)); });
++    }
++  } catch (e) { console.error(e.message); process.exit(1); }
++}
+--- a/scripts/build-host-service-packages.mjs
++++ b/scripts/build-host-service-packages.mjs
+@@ -0,0 +1,67 @@
++// Build the Enclave host-service packages (network/host-services/roles.mjs; work/hosted-service-placement): one
++// dependency-free bundle per role, with the same esbuild options as the bundles the fleet already runs (network/build.mjs:
++// enclave-directory.mjs), and a package manifest naming the bundle's sha256, every input's sha256, the role's runtime,
++// state, secrets, cold-start dependencies and service-index kind. An operator pins the MANIFEST digest; the runner
++// (network/host-services/runner.mjs) refuses any other bytes. --check: refuse stale bundles or manifests.
++//   node scripts/build-host-service-packages.mjs [--check]
++import { build } from 'esbuild';
++import fs from 'node:fs/promises';
++import path from 'node:path';
++import { createHash } from 'node:crypto';
++import { fileURLToPath } from 'node:url';
++import { execFileSync } from 'node:child_process';
++import os from 'node:os';
++import { ROLES, PACKAGE_FORMAT } from '../network/host-services/roles.mjs';
++
++const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const out = path.join(root, 'network/host-services/packages');
++const args = process.argv.slice(2);
++if (args.length && !(args.length === 1 && args[0] === '--check')) throw new Error('usage: build-host-service-packages.mjs [--check]');
++const check = args.includes('--check');
++const sha = (b) => createHash('sha256').update(b).digest('hex');
++const CHAIN_READER = new Set(['custody/v2/quorum.mjs']);
++await fs.mkdir(out, { recursive: true });
++const summary = [];
++for (const [role, r] of Object.entries(ROLES)) {
++  const result = await build({ absWorkingDir: root, entryPoints: [r.bundleEntry || r.entry], outfile: path.join(out, `${role}.mjs`), write: false, metafile: true,
++    bundle: true, platform: 'node', format: 'esm', target: 'node22', legalComments: 'none',
++    // the banner's names are opaque to esbuild, so they must not collide with any bundled module's top-level import
++    // (relay/network-runtime.bundle.mjs, itself a bundle, imports createRequire as bundleRequire)
++    banner: { js: `// Generated by scripts/build-host-service-packages.mjs from ${r.entry} (role ${role}); do not edit.\nimport {createRequire as __enclaveHostRoleCreateRequire} from "node:module"; const require=__enclaveHostRoleCreateRequire(import.meta.url);` } });
++  const bytes = Buffer.from(result.outputFiles[0].contents);
++  // inside one bundle every module's import.meta.url is the bundle's: a library's "am I the main script?" check would fire
++  // and run that library's CLI. Only the role's own entry check may be present, unless the role is bundled behind the
++  // argv guard (r.bundleEntry: network/host-services/argv-guard.mjs makes every such check false).
++  // the bundle must at least parse (a duplicate top-level declaration is a SyntaxError only node reports)
++  const probe = path.join(os.tmpdir(), `host-role-${role}-${process.pid}.mjs`);
++  try { await fs.writeFile(probe, bytes); execFileSync(process.execPath, ['--check', probe], { stdio: ['ignore', 'ignore', 'pipe'] }); }
++  catch (e) { throw new Error(`${role}: the bundle does not parse: ${String(e.stderr || e.message).split('\n').filter(Boolean).slice(0, 6).join(' | ')}`); }
++  finally { await fs.rm(probe, { force: true }); }
++  const mainChecks = (bytes.toString('utf8').match(/process\.argv\[1\]\s*&&[^\n]{0,200}import\.meta\.url/g) || []).length;
++  if (!r.bundleEntry && mainChecks > 1) throw new Error(`${role}: ${mainChecks} bundled "main module" checks; a bundled library's CLI would run inside the role (bundle it behind network/host-services/argv-guard.mjs)`);
++  const inputs = {};
++  for (const rel of Object.keys(result.metafile.inputs).sort()) {
++    const normalized = rel.includes('node_modules/') ? 'node_modules/' + rel.split('node_modules/').pop() : rel;
++    const digest = sha(await fs.readFile(path.resolve(root, rel)));
++    if (inputs[normalized] && inputs[normalized] !== digest) throw new Error(`${role}: ambiguous bundle input ${normalized}`);
++    inputs[normalized] = digest;
++  }
++  // what the bundle could reach that a public, secret-free, cold-startable role must never need
++  // (custody/v2/quorum.mjs is the RPC majority-agreement reader - no key, no secret, no custody state - that the policy
++  // mirror's fresh-block checks use through host-policy-runtime.mjs quorumSnapshot; it is the only custody/ path allowed)
++  const forbidden = Object.keys(inputs).filter((f) => !CHAIN_READER.has(f) && /(^|\/)(custody|lease-relay-service|lease-gas-runtime|storage\/|sdk\/storage|secrets?-release|shield-secrets)/.test(f));
++  if (forbidden.length) throw new Error(`${role}: the bundle reaches modules a host-service role must not depend on: ${forbidden.join(', ')}`);
++  const manifest = JSON.stringify({ format: PACKAGE_FORMAT, role, entry: r.entry, ...(r.bundleEntry ? { bundleEntry: r.bundleEntry } : {}), bundle: `${role}.mjs`, bundleSha256: sha(bytes), bytes: bytes.length,
++    runtime: r.runtime, kind: r.kind, serves: r.serves, state: r.state, secrets: r.secrets, cold: r.cold, notCold: r.notCold,
++    builder: 'scripts/build-host-service-packages.mjs', inputs }, null, 2) + '\n';
++  const files = [[`${role}.mjs`, bytes], [`${role}.package.json`, Buffer.from(manifest)]];
++  for (const [name, content] of files) {
++    const file = path.join(out, name);
++    if (check) {
++      const have = await fs.readFile(file).catch(() => null);
++      if (!have || !have.equals(content)) throw new Error(`${name} is stale; run node scripts/build-host-service-packages.mjs`);
++    } else await fs.writeFile(file, content);
++  }
++  summary.push(`${role}: bundle ${bytes.length} bytes sha256:${sha(bytes).slice(0, 16)}…, manifest sha256:${sha(Buffer.from(manifest))}, ${Object.keys(inputs).length} inputs`);
++}
++console.log(summary.join('\n') + (check ? '\n(verified current)' : ''));
+--- a/network/cold-bootstrap.mjs
++++ b/network/cold-bootstrap.mjs
+@@ -0,0 +1,108 @@
++// Cold-start discovery and bootstrap WITHOUT a named failure domain (work/hosted-service-placement): a client with empty
++// caches finds directories, bootstrap replicas and DNS replicas, reads public records and fetches verified bootstrap
++// artifacts, and proves it used nothing inside the failure domains it was told to treat as down (today: the four
++// DigitalOcean transport machines, whose simultaneous loss is a required failure domain).
++//
++// What it starts from (and nothing else):
++//   - two or more Base RPCs of distinct providers (the caller's quorum) and the PINNED EnclaveServiceIndex (chain, address,
++//     runtime code hash): network/service-index.mjs readServiceIndex, one agreed snapshot, untrusted candidates;
++//   - the platform host policy's operator decisions (network/host-policy-adapters.mjs operatorDecider): an administrator's
++//     ban removes an operator's advertisements (applyHostPolicy) - Enclave administration applies to discovery too. With
++//     `policy` ({ book, hostOwnership, activation? }) the client loads the ANCHORED policy itself, without the fleet: from
++//     the policy carriers the same index read lists (kind "policy", failure domains excluded) plus any it names, through
++//     the unchanged gate (anchor, current-owner signature, bans) over the same RPC quorum (network/policy-carriers.mjs);
++//   - a pinned bootstrap manifest (CID -> sha256) for any artifact it fetches.
++// No enclave.host name, no fleet address, no storage adapter, no lease relay, no app: none of the things being recovered.
++// A candidate endpoint inside a failure domain - an address in it, or a name that resolves into it - is EXCLUDED and named
++// in the evidence, never silently used. Candidates prove nothing: records are verified by signature/chain, artifacts by hash.
++import { createHash } from 'node:crypto';
++import * as si from './service-index.mjs';
++import { DirectoryClient } from './directory-client.mjs';
++import { createHostPolicyRuntime, quorumSnapshot } from './host-policy-runtime.mjs';
++import { operatorDecider } from './host-policy-adapters.mjs';
++import { CARRIER_MIRROR, httpCarriers, freshVerifier, carrierFetch, validateCarrierBases, rpcPeers } from './policy-carriers.mjs';
++
++const isV4 = (h) => /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(h);
++/**
++ * failureDomains: [{ name, addresses: [IPv4...], names?: [hostname suffixes...] }]. resolve(hostname) -> [IPv4...] (the
++ * caller's resolver; a name that cannot be resolved is excluded too: its failure domain is unknown).
++ */
++export async function classifyEndpoint(endpoint, failureDomains, resolve) {
++  const h = new URL(endpoint).hostname.toLowerCase();
++  for (const d of failureDomains) {
++    if ((d.names || []).some((n) => h === n || h.endsWith('.' + n))) return { excluded: true, domain: d.name, reason: `name ${h} is in ${d.name}` };
++  }
++  let addresses = [h];
++  if (!isV4(h)) {
++    try { addresses = await resolve(h); } catch (e) { return { excluded: true, domain: 'unknown', reason: `name ${h} did not resolve (${e.message})` }; }
++    if (!Array.isArray(addresses) || !addresses.length) return { excluded: true, domain: 'unknown', reason: `name ${h} resolved to nothing` };
++  }
++  for (const d of failureDomains) {
++    const hit = addresses.find((a) => (d.addresses || []).includes(a));
++    if (hit) return { excluded: true, domain: d.name, reason: `${h === hit ? 'address' : `${h} -> ${hit}`} is in ${d.name}` };
++  }
++  return { excluded: false, addresses };
++}
++
++/**
++ * -> { index: {blockNumber, blockHash}, candidates, refusedByPolicy, excluded: [{endpoint, operator, kind, domain, reason}],
++ *      usable: {directory:[origins], replica:[origins], dns:[endpoints]}, directory: {origins, answers}, artifacts: [{cid, origin, bytes}] }
++ * Throws when no usable directory answers, or an artifact asked for cannot be fetched and verified from a usable replica.
++ */
++export async function coldDiscover({ peers, clients, indexPin, lookups = [], decide = null, policy = null, failureDomains = [], resolve = async () => { throw new Error('no resolver'); },
++  fetch = globalThis.fetch, directoryPath = '/v1/network/records', manifest = null, artifacts = [], timeoutMs = 8000 }) {
++  if (decide && policy) throw new Error('coldDiscover: pass decide OR policy, not both');
++  if (peers) peers = rpcPeers(peers);          // RPC URLs or {label, client} entries
++  const read = await si.readServiceIndex({ peers, clients, pin: indexPin, kinds: ['directory', 'replica', 'dns', ...(policy ? ['policy'] : [])], lookups });
++  if (read.status !== 'complete') throw new Error('service index read incomplete: a partial list proves nothing about the rest');
++  const excluded = [], usable = { directory: [], replica: [], dns: [], policy: [] };
++  let policyRuntime = null;
++  if (policy) {
++    // carriers are untrusted and judged by nothing but the bytes they serve, so they are used BEFORE the policy is known
++    // (the policy is what they carry); failure domains still exclude them
++    for (const c of read.candidates.filter((x) => x.kindName === 'policy')) for (const endpoint of c.endpoints) {
++      const k = await classifyEndpoint(endpoint, failureDomains, resolve);
++      if (k.excluded) excluded.push({ endpoint, operator: c.operator, kind: 'policy', domain: k.domain, reason: k.reason });
++      else if (!usable.policy.includes(endpoint.replace(/\/+$/, ''))) usable.policy.push(endpoint.replace(/\/+$/, ''));
++    }
++    const bases = [...new Set([...usable.policy, ...validateCarrierBases(policy.carriers || [], 'policy.carriers')])].slice(0, 16);
++    // the policy is read over the SAME quorum as the index
++    const snapshot = quorumSnapshot({ clients: clients || peers.map((p) => p.client), minAgree: policy.minAgree ?? null });
++    const pf = carrierFetch({ carriers: httpCarriers(bases, { fetch, timeoutMs }), verify: freshVerifier({ snapshot, book: policy.book, hostOwnership: policy.hostOwnership }), fetch });
++    policyRuntime = createHostPolicyRuntime({ book: String(policy.book).toLowerCase(), hostOwnership: String(policy.hostOwnership).toLowerCase(), mirrors: [CARRIER_MIRROR],
++      activation: policy.activation || 'anchor' }, { snapshot, fetch: pf });
++    decide = operatorDecider(policyRuntime.gate);
++  }
++  const judged = decide ? await si.applyHostPolicy(read, decide) : { ...read, refusedByPolicy: [] };
++  for (const c of judged.candidates) for (const endpoint of c.endpoints) {
++    if (c.kindName === 'policy') continue;
++    const k = await classifyEndpoint(endpoint, failureDomains, resolve);
++    if (k.excluded) { excluded.push({ endpoint, operator: c.operator, kind: c.kindName, domain: k.domain, reason: k.reason }); continue; }
++    const origin = new URL(endpoint).origin;
++    if (!usable[c.kindName].includes(origin)) usable[c.kindName].push(c.kindName === 'dns' ? endpoint : origin);
++  }
++  if (!usable.directory.length) throw new Error(`no directory outside the failure domains (${excluded.length} candidate endpoint(s) excluded)`);
++  // public records only; a failing origin cannot hide another's answer (DirectoryClient reads every origin)
++  const client = new DirectoryClient({ origins: usable.directory.map((o) => o + '/'), fetch, timeoutMs });
++  const answers = await client.read(directoryPath);
++  const got = [];
++  for (const cid of artifacts) {
++    const want = manifest?.verifiedObjects?.find((e) => e.cid === cid);
++    if (!want || !/^[0-9a-f]{64}$/.test(want.sha256 || '')) throw new Error(`artifact ${cid} is not in the pinned bootstrap manifest`);
++    let ok = null;
++    for (const origin of usable.replica) {
++      try {
++        const r = await fetch(`${origin}/ipfs/${cid}`, { redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(timeoutMs) });
++        if (!r.ok) continue;
++        const bytes = Buffer.from(await r.arrayBuffer());
++        if (createHash('sha256').update(bytes).digest('hex') !== want.sha256) continue;   // a lying replica costs a try, never correctness
++        ok = { cid, origin, bytes }; break;
++      } catch { /* next replica */ }
++    }
++    if (!ok) throw new Error(`artifact ${cid}: no replica outside the failure domains served the pinned bytes`);
++    got.push(ok);
++  }
++  return { index: { blockNumber: read.blockNumber, blockHash: read.blockHash }, candidates: judged.candidates, refusedByPolicy: judged.refusedByPolicy,
++    ...(judged.platformPolicyNote ? { platformPolicyNote: judged.platformPolicyNote } : {}), ...(policyRuntime ? { policy: policyRuntime.status() } : {}),
++    excluded, usable, directory: { origins: usable.directory, answers }, artifacts: got, evidence: read.evidence };
++}
+--- a/scripts/check-transport-profile.mjs
++++ b/scripts/check-transport-profile.mjs
+@@ -0,0 +1,37 @@
++// Is a WireGuard provider configured as MINIMAL TRANSPORT (work/hosted-service-placement)? A transport machine keeps only
++// WireGuard tunnel establishment, packet/byte forwarding and the management that strictly needs: exit/guard tunnels and
++// peers, raw SNI/Host routing to the tunnel of the peer that holds a name (no TLS termination), the peer-grant control API,
++// its signed provider record and its transfer budget (network/wg-provider/*). Everything else is an application service
++// that belongs on an Enclave host or app, and this refuses it:
++//   localRoutes  - services ON the box (a custodian, a website) reached by name on the public ports;
++//   noSniRoute   - an IP-certificate recovery ingress into an on-box TLS service;
++//   relay        - the Enclave relay's custom-domain map (and, in a legacy bootstrap, the directory fallback);
++//   bootstrap "legacy" - Enclave's mutable defaults instead of the operator's explicit authorities.
++// A paid/settlement role (pricePerGiB6 > 0: receipts, on-chain attestations) is reported as a separate role, not transport.
++//   node scripts/check-transport-profile.mjs <provider.json>     exit 0 = transport-only, 1 = not (reasons printed)
++// It reads the configuration's FIELD NAMES and values only; it never opens a key file the configuration names.
++import fs from 'node:fs';
++import { pathToFileURL } from 'node:url';
++
++export function checkTransportProfile(cfg) {
++  if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) throw new Error('provider configuration must be an object');
++  const violations = [], separateRoles = [], transport = [];
++  const roles = Array.isArray(cfg.roles) ? cfg.roles : ['guard', 'ingress', 'egress'];
++  for (const r of roles) if (!['guard', 'ingress', 'egress'].includes(r)) violations.push(`role ${JSON.stringify(r)} is not a transport role`);
++  transport.push(`WireGuard roles ${roles.join(', ')}`, 'raw SNI/Host routing to peer tunnels (no TLS termination)', 'peer-grant control API', 'signed provider record', 'transfer budget');
++  const local = cfg.localRoutes && typeof cfg.localRoutes === 'object' ? Object.keys(cfg.localRoutes) : [];
++  if (local.length) violations.push(`localRoutes serves ${local.length} on-box service name(s) (${local.slice(0, 4).join(', ')}): application co-location; move each service to an Enclave host/app`);
++  if (cfg.noSniRoute) violations.push('noSniRoute forwards SNI-less TLS to an on-box service (an IP-certificate recovery ingress): an application endpoint on the transport machine');
++  if (cfg.relay) violations.push('relay: the custom-domain map comes from the Enclave relay; route records and owner names belong in directories');
++  const mode = cfg.bootstrap ?? 'legacy';
++  if (mode !== 'explicit') violations.push('bootstrap is legacy (Enclave defaults: relay directory fallback, mutable address book); use "explicit" with the operator\'s own authorities');
++  if ((cfg.pricePerGiB6 || 0) > 0 || cfg.proofKeyFile) separateRoles.push('paid provider: receipt co-signing and on-chain checker attestations (settlement for a community provider on a registry host), not transport');
++  return { ok: violations.length === 0, transport, violations, separateRoles };
++}
++
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
++  if (!process.argv[2]) { console.error('usage: check-transport-profile.mjs <provider.json>'); process.exit(2); }
++  const r = checkTransportProfile(JSON.parse(fs.readFileSync(process.argv[2], 'utf8')));
++  console.log(JSON.stringify(r, null, 2));
++  process.exit(r.ok ? 0 : 1);
++}
+--- a/test/hosted-service-placement.test.mjs
++++ b/test/hosted-service-placement.test.mjs
+@@ -0,0 +1,219 @@
++// Hosted discovery/bootstrap services as Enclave host roles, cold-started WITHOUT the DigitalOcean failure domain
++// (work/hosted-service-placement). On a REAL local chain (anvil: the independent rig's contracts and three JSON-RPC
++// origins, plus the ownerless EnclaveServiceIndex compiled from the reviewed source):
++//   - two Enclave hosts run the PACKAGED roles (scripts/build-host-service-packages.mjs bundles, pinned manifests) under
++//     network/host-services/runner.mjs: a directory replica, a bootstrap replica and (host A) a read-only route DNS;
++//   - the index holds the production-shaped advertisement of the four DigitalOcean machines AND each host operator's own;
++//   - every DigitalOcean address is unreachable (the transport refuses it), and a mirror NAME that resolves into the fleet
++//     is offered too;
++//   - a cold client (network/cold-bootstrap.mjs) with empty caches finds the hosts' services from the pinned index alone,
++//     reads signed records that were submitted to one host and replicated to the other, verifies them against the chain,
++//     and fetches a bootstrap artifact by its pinned digest - and the evidence shows it excluded every fleet endpoint;
++//   - Enclave administration holds: an administrator's ban removes an operator's advertisements, and a host the platform
++//     host policy refuses STOPS its roles; package and configuration integrity refuse tampering and any secret.
++import { test, before, after } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import dgram from 'node:dgram';
++import { createHash } from 'node:crypto';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++import { privateKeyToAccount } from 'viem/accounts';
++import { startRig, haveTools, KEYS, freePort } from './helpers/cli-independent-rig.mjs';
++import { execFileSync } from 'node:child_process';
++import * as si from '../network/service-index.mjs';
++import { planHostServices, runHostServices, advertisements, loadPackage, validateHostServicesConfig } from '../network/host-services/runner.mjs';
++import { ROLES } from '../network/host-services/roles.mjs';
++import { coldDiscover, classifyEndpoint } from '../network/cold-bootstrap.mjs';
++import { DirectoryClient } from '../network/directory-client.mjs';
++import { signProviderRecord, providerIdFor } from '../network/provider-directory.mjs';
++import { artifactIdentity } from '../sdk/storage/unixfs.mjs';
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const PKG = path.join(REPO, 'network/host-services/packages');
++// solc-js (viaIR) in a short-lived child, as the rig compiles the registry: the compiler's WebAssembly memory never shrinks,
++// and it must not count against this test's process-tree budget while the hosts' roles run
++const compileIndexInChild = () => JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e',
++  `import { compileServiceIndex } from ${JSON.stringify(pathToFileURL(path.join(REPO, 'scripts/network/service-index.mjs')).href)}; process.stdout.write(JSON.stringify(compileServiceIndex()));`],
++  { maxBuffer: 16 << 20, timeout: 180000 }).toString());
++// haveTools() -> null when anvil, openssl and the Foundry build are present, else the reason
++const skip = haveTools() || (!fs.existsSync(path.join(PKG, 'directory-replica.package.json')) ? 'needs the built packages (scripts/build-host-service-packages.mjs)' : false);
++const DO = { name: 'digitalocean', addresses: ['134.199.235.187', '134.209.248.172', '165.245.191.129', '146.190.246.39'] };
++const pin = (role) => 'sha256:' + createHash('sha256').update(fs.readFileSync(path.join(PKG, `${role}.package.json`))).digest('hex');
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-placement-'));
++let rig, index, indexPin, hosts = {}, artifact, manifest, fetchLog = [];
++// Stand-in PUBLIC addresses for the two Enclave hosts (the network maps them to the hosts' loopback listeners); the fleet's
++// addresses are refused at the transport, as in a whole-provider outage.
++const HOST_ADDR = { a: '9.9.9.9', b: '149.112.112.112' };
++const netFetch = (url, opts) => {
++  const u = new URL(url); fetchLog.push(u.hostname);
++  if (DO.addresses.includes(u.hostname)) return Promise.reject(new TypeError('connect ECONNREFUSED (DigitalOcean down)'));
++  if (Object.values(HOST_ADDR).includes(u.hostname)) { u.hostname = '127.0.0.1'; return fetch(u, opts); }
++  return Promise.reject(new TypeError(`no route to ${u.hostname}`));
++};
++const resolve = async (name) => ({ 'dir.sneaky-mirror.net': ['134.209.248.172'], 'replica.host-a.net': [HOST_ADDR.a] })[name] || [];
++const gateOf = (state) => ({ check: async () => {}, start() {}, stop() {}, serviceRefusal: () => state.refusal, status: () => ({ platformHostPolicy: 'test', refusal: state.refusal }) });
++// on a timeout, every host's status and last log lines are part of the error (the only evidence a queued run leaves)
++const diag = () => Object.values(hosts).map((h) => `--- host ${h.name}: ${JSON.stringify(h.running?.status?.() ?? null).slice(0, 1500)}\n${h.logs.slice(-25).join('\n').slice(-4000)}`).join('\n');
++const wait = async (f, ms = 30000, what = 'condition') => { const end = Date.now() + ms; for (;;) { try { const v = await f(); if (v) return v; } catch {} if (Date.now() > end) throw new Error(`timed out: ${what}\n${diag()}`); await new Promise((r) => setTimeout(r, 250)); } };
++
++async function startHost(name, { peers = [], dns = false, gate = { refusal: null } } = {}) {
++  const dir = path.join(tmp, 'host-' + name); fs.mkdirSync(path.join(dir, 'artifacts'), { recursive: true });
++  for (const ext of ['bin', 'car']) fs.writeFileSync(path.join(dir, 'artifacts', `${artifact.cid}.${ext}`), ext === 'bin' ? artifact.bytes : artifact.car);
++  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest));
++  const ports = { dir: await freePort(), boot: await freePort(), dns: await freePort(), api: await freePort() };
++  const services = [
++    { role: 'directory-replica', package: pin('directory-replica'), heapMiB: 192, config: { port: ports.dir, bind: '127.0.0.1', stateDir: path.join(dir, 'directory-state'),
++      rpc: rig.rpcs, addressBook: '0x' + '0b'.repeat(20), authorityPins: { deployments: rig.addresses.ledger, registry: rig.addresses.registry, connectivity: '0x' + '00'.repeat(20), sessionVaultFactory: '0x' + '00'.repeat(20) }, checkers: ['0x' + '3c'.repeat(20)], peers } },
++    { role: 'bootstrap-replica', package: pin('bootstrap-replica'), heapMiB: 128, config: { port: ports.boot, bind: '127.0.0.1', directory: path.join(dir, 'artifacts'), manifest: path.join(dir, 'manifest.json') } },
++    ...(dns ? [{ role: 'route-dns', package: pin('route-dns'), heapMiB: 128, config: { dnsPort: ports.dns, bind: '127.0.0.1', apiPort: ports.api, zone: 'app.placement-test.net',
++      ipZone: 'ip.placement-test.net', nsName: 'ns-a.placement-test.net', nsNames: ['ns-a.placement-test.net', 'ns-b.placement-test.net'], routeMapUrl: `http://127.0.0.1:${ports.dir}/v1/network/routes` } }] : []),
++  ];
++  const cfg = { format: 'enclave-host-services/v1', host: { endpoint: `https://host-${name}.placement-test.net`, publicEndpoints: {
++      'directory-replica': [`http://${HOST_ADDR[name]}:${ports.dir}/`], 'bootstrap-replica': [`http://${HOST_ADDR[name]}:${ports.boot}/`] } },
++    platformHostPolicy: 'production', serviceIndex: indexPin, packagesDir: PKG, stateRoot: path.join(dir, 'state'), services };
++  const logs = [];
++  const running = await runHostServices(cfg, { gate: gateOf(gate), log: (m) => logs.push(m), intervalMs: 300 });
++  await wait(() => fetch(`http://127.0.0.1:${ports.dir}/health`).then((r) => r.ok), 20000, `host ${name} directory`);
++  await wait(() => fetch(`http://127.0.0.1:${ports.boot}/ipfs/${artifact.cid}`, { method: 'HEAD' }).then((r) => r.ok), 20000, `host ${name} replica`);
++  return { name, cfg, ports, running, logs, gate, dir };
++}
++async function publish(key, slot, kind, endpoints, sequence = 1n) {
++  const now = BigInt(Math.floor(Date.now() / 1000)) + 0n;
++  const blk = await rig.pc.getBlock();
++  await rig.write(rig.wc(key), index, si.SERVICE_INDEX_ABI, 'publish', [slot, si.SERVICE_KINDS[kind], si.AD_VERSION, sequence, blk.timestamp + 30n * 86400n, '0x' + '00'.repeat(32), endpoints]);
++  void now;
++}
++
++before(async () => {
++  if (skip) return;
++  rig = await startRig();
++  const built = compileIndexInChild();
++  const hash = await rig.wc(KEYS.deployer).deployContract({ abi: built.abi, bytecode: built.bytecode });
++  index = (await rig.pc.waitForTransactionReceipt({ hash })).contractAddress;
++  indexPin = si.validateIndexPin({ chainId: 8453, address: index, codeHash: built.codeHash });
++  const bytes = Buffer.from('enclave host runtime release (bootstrap artifact fixture) ' + 'x'.repeat(4096));
++  artifact = { cid: artifactIdentity(new Uint8Array(bytes)).cid, bytes, car: Buffer.concat([Buffer.from('car:'), bytes]) };
++  manifest = { verifiedObjects: [{ cid: artifact.cid, sha256: createHash('sha256').update(artifact.bytes).digest('hex'), carSha256: createHash('sha256').update(artifact.car).digest('hex') }] };
++  hosts.a = await startHost('a', { dns: true });
++  hosts.b = await startHost('b', { peers: [`http://127.0.0.1:${hosts.a.ports.dir}/`] });
++  // the index as production has it (the four fleet machines) plus each host operator's own advertisement, and a mirror whose
++  // NAME resolves into the fleet
++  await publish(KEYS.operator, 0, 'directory', DO.addresses.map((ip) => `http://${ip}:8188/`));
++  await publish(KEYS.operator, 1, 'replica', DO.addresses.map((ip) => `http://${ip}:8189/`));
++  await publish(KEYS.operator, 2, 'directory', ['http://dir.sneaky-mirror.net:8188/']);
++  for (const [key, h] of [[KEYS.other, hosts.a], [KEYS.owner, hosts.b]]) {
++    await publish(key, 0, 'directory', h.cfg.host.publicEndpoints['directory-replica']);
++    await publish(key, 1, 'replica', h.cfg.host.publicEndpoints['bootstrap-replica']);
++  }
++  for (let i = 0; i < 4; i++) await rig.mine();
++});
++after(async () => {
++  for (const h of Object.values(hosts)) await h.running?.stop().catch(() => {});
++  await rig?.stop();
++  fs.rmSync(tmp, { recursive: true, force: true });
++});
++
++test('packages: only the reviewed bytes run, only public configuration reaches a role, and no role reaches custody, storage or lease relays', { skip }, () => {
++  for (const role of Object.keys(ROLES)) {
++    const p = loadPackage(PKG, role, pin(role));
++    assert.equal(p.manifest.role, role); assert.equal(p.manifest.secrets.startsWith('none'), true);
++    // the policy mirror's fresh-block checks use the RPC quorum reader (custody/v2/quorum.mjs: no key, no custody state)
++    for (const f of Object.keys(p.manifest.inputs)) if (f !== 'custody/v2/quorum.mjs') assert.doesNotMatch(f, /(^|\/)(custody|lease-relay-service|lease-gas-runtime|sdk\/storage)\//, `${role} reaches ${f}`);
++  }
++  assert.throws(() => loadPackage(PKG, 'directory-replica', 'sha256:' + '0'.repeat(64)), /not the pinned/);
++  const copy = path.join(tmp, 'tampered'); fs.mkdirSync(copy);
++  for (const f of fs.readdirSync(PKG)) fs.copyFileSync(path.join(PKG, f), path.join(copy, f));
++  fs.appendFileSync(path.join(copy, 'bootstrap-replica.mjs'), '\n// changed');
++  assert.throws(() => loadPackage(copy, 'bootstrap-replica', pin('bootstrap-replica')), /does not match its manifest/);
++  const cfg = hosts.a.cfg, svc = (role, config) => ({ ...cfg, services: [{ role, package: pin(role), config }] });
++  const dirCfg = cfg.services[0].config;
++  assert.throws(() => validateHostServicesConfig(svc('directory-replica', { ...dirCfg, privateKey: '0x01' })), /unknown config field "privateKey" \(a host service holds no secret\)/);
++  assert.throws(() => validateHostServicesConfig(svc('directory-replica', { ...dirCfg, addressBook: '0x' + '00'.repeat(20) })), /admin-controlled EnclaveAddressBook/);
++  assert.throws(() => validateHostServicesConfig(svc('directory-replica', { ...dirCfg, rpc: [rig.rpcs[0]] })), /2 to 8 Base RPC/);
++  assert.throws(() => validateHostServicesConfig(svc('route-dns', { ...hosts.a.cfg.services[2].config, routeMapUrl: 'https://api.enclave.host/v1/network/routes?key=1' })), /no credentials or query/);
++  assert.throws(() => validateHostServicesConfig({ ...cfg, platformHostPolicy: undefined }), /platformHostPolicy is required/);
++  assert.throws(() => validateHostServicesConfig({ ...cfg, fleetSecret: 'x' }), /host services hold no secret/);
++  assert.throws(() => validateHostServicesConfig({ ...cfg, services: [{ role: 'wasm-directory', package: 'sha256:' + '0'.repeat(64), config: {} }] }), /unknown role/);
++  // the launched roles inherit nothing of the host's environment
++  const plan = planHostServices(cfg);
++  assert.deepEqual(Object.keys(plan.services.find((s) => s.role === 'route-dns').launch.env).sort(),
++    ['APP_ZONE', 'DNS_API_BIND', 'DNS_API_PORT', 'DNS_BIND', 'DNS_PORT', 'DNS_READ_ONLY', 'IP_ZONE', 'NS_NAME', 'NS_NAMES', 'ROUTE_MAP_URL']);
++});
++
++test('cold start from the pinned index alone, with every DigitalOcean endpoint down: signed records and a verified artifact from Enclave hosts', { skip }, async () => {
++  // a signed provider record submitted to host A only; host B replicates it from A (its peer), and both verify it on chain
++  const operator = privateKeyToAccount(KEYS.operator), address = '8.8.4.4', now = Date.now();
++  const record = { version: 1, providerId: providerIdFor(operator.address, address), operator: operator.address.toLowerCase(), address,
++    wgExitKey: Buffer.alloc(32, 1).toString('base64'), wgGuardKey: Buffer.alloc(32, 2).toString('base64'), ports: { exit: 51820, guard: 51821, control: 51822 },
++    roles: ['guard', 'ingress', 'egress'], pricePerGiB6: 0, region: 'placement-test', kind: 'community', hostId: rig.runner, issuedAt: now, expiresAt: now + 1800000 };
++  const signed = await signProviderRecord(operator, record);
++  const post = await fetch(`http://127.0.0.1:${hosts.a.ports.dir}/v1/network/providers`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(signed) });
++  assert.equal(post.status, 200, await post.text());
++  await wait(async () => (await (await fetch(`http://127.0.0.1:${hosts.b.ports.dir}/v1/network/providers`)).json()).providers.length === 1, 40000, 'host B replicates host A');
++
++  fetchLog = [];
++  const r = await coldDiscover({ peers: rig.rpcs, indexPin, failureDomains: [DO], resolve, fetch: netFetch, directoryPath: '/v1/network/providers', manifest, artifacts: [artifact.cid] });
++  // every fleet endpoint, and the name that resolves into the fleet, was EXCLUDED - never contacted
++  assert.equal(r.excluded.filter((e) => e.domain === 'digitalocean').length, 9, JSON.stringify(r.excluded));
++  assert.ok(r.excluded.some((e) => e.endpoint === 'http://dir.sneaky-mirror.net:8188/' && /dir\.sneaky-mirror\.net -> 134\.209\.248\.172 is in digitalocean/.test(e.reason)));
++  assert.deepEqual(fetchLog.filter((h) => DO.addresses.includes(h)), [], 'no hidden DigitalOcean download');
++  assert.deepEqual(r.usable.directory.sort(), [`http://${HOST_ADDR.a}:${hosts.a.ports.dir}`, `http://${HOST_ADDR.b}:${hosts.b.ports.dir}`].sort());
++  assert.equal(r.directory.answers.length, 2, 'both Enclave hosts answered');
++  // the records verify against the chain (the registry's operator for the provider's host), whichever host served them
++  const registryAbi = rig.A.registry4.abi;
++  const hostOperator = async (id) => { const e = await rig.pc.readContract({ address: rig.addresses.registry, abi: registryAbi, functionName: 'get', args: [id] }); return e.operator ?? e[1]; };
++  const verified = await new DirectoryClient({ origins: r.usable.directory.map((o) => o + '/'), fetch: netFetch }).providers({ hostOperator });
++  assert.equal(verified.providers.length, 1); assert.equal(verified.providers[0].record.record.providerId, record.providerId);
++  assert.equal(r.artifacts.length, 1); assert.ok(r.artifacts[0].bytes.equals(artifact.bytes));
++  assert.ok([`http://${HOST_ADDR.a}:${hosts.a.ports.boot}`, `http://${HOST_ADDR.b}:${hosts.b.ports.boot}`].includes(r.artifacts[0].origin));
++  // without the hosts' advertisements there is nothing to fall back to: the fleet is never used silently
++  await assert.rejects(coldDiscover({ peers: rig.rpcs, indexPin, failureDomains: [DO, { name: 'hosts', addresses: Object.values(HOST_ADDR) }], resolve, fetch: netFetch }),
++    /no directory outside the failure domains/);
++});
++
++test('administration holds: a banned operator\'s advertisements are dropped, and a refused host stops its roles', { skip }, async () => {
++  const bOperator = privateKeyToAccount(KEYS.owner).address.toLowerCase();
++  const decide = async (ops) => Object.fromEntries(ops.map((o) => [o, o === bOperator ? { admit: false, status: 'refused', reason: 'banned by platform policy #7 (operator): abuse' } : { admit: true, status: 'admitted' }]));
++  const r = await coldDiscover({ peers: rig.rpcs, indexPin, decide, failureDomains: [DO], resolve, fetch: netFetch, directoryPath: '/v1/network/providers' });
++  assert.deepEqual(r.usable.directory, [`http://${HOST_ADDR.a}:${hosts.a.ports.dir}`]);
++  assert.ok(r.refusedByPolicy.some((x) => x.candidate.operator === bOperator));
++  // the platform host policy refuses host B: its runner stops every role (sticky until an admit), and starts them again after
++  hosts.b.gate.refusal = 'platform host policy: banned by platform policy #7 (host)';
++  await wait(async () => { try { await fetch(`http://127.0.0.1:${hosts.b.ports.dir}/health`); return false; } catch { return true; } }, 15000, 'host B stops');
++  assert.equal(hosts.b.running.status().refusal, hosts.b.gate.refusal);
++  assert.ok(hosts.b.logs.some((l) => /STOPPING every role/.test(l)));
++  hosts.b.gate.refusal = null;
++  await wait(() => fetch(`http://127.0.0.1:${hosts.b.ports.dir}/health`).then((x) => x.ok), 20000, 'host B serves again after the admit');
++});
++
++test('cold dependencies: artifacts serve with the chain down; route DNS answers from its own host\'s directory; endpoints are classified, not trusted', { skip }, async () => {
++  for (const i of [0, 1, 2]) rig.rpcModes[i] = 'down';
++  try {
++    const a = await fetch(`http://127.0.0.1:${hosts.a.ports.boot}/ipfs/${artifact.cid}`);
++    assert.ok(Buffer.from(await a.arrayBuffer()).equals(artifact.bytes), 'a bootstrap replica needs no chain, discovery, storage or relay');
++    assert.equal((await fetch(`http://127.0.0.1:${hosts.a.ports.dir}/health`)).status, 200, 'a directory replica keeps serving through an RPC outage');
++  } finally { for (const i of [0, 1, 2]) rig.rpcModes[i] = 'ok'; }
++  // SOA of the app zone from host A's route DNS (read-only: its route map is host A's own directory replica)
++  const q = Buffer.concat([Buffer.from([0x12, 0x34, 0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 0]),
++    ...'app.placement-test.net'.split('.').map((l) => Buffer.concat([Buffer.from([l.length]), Buffer.from(l)])), Buffer.from([0, 0, 6, 0, 1])]);
++  const answer = await wait(() => new Promise((ok) => {
++    const s = dgram.createSocket('udp4'); const t = setTimeout(() => { s.close(); ok(null); }, 1500);
++    s.on('message', (m) => { clearTimeout(t); s.close(); ok(m); }); s.send(q, hosts.a.ports.dns, '127.0.0.1');
++  }), 20000, 'route DNS answers');
++  assert.equal(answer.readUInt16BE(0), 0x1234); assert.equal(answer[3] & 0x0f, 0, 'NOERROR'); assert.ok(answer.readUInt16BE(6) >= 1, 'an SOA answer');
++  assert.ok(answer[2] & 0x04, 'authoritative');
++  assert.deepEqual(await classifyEndpoint('http://replica.host-a.net:80/', [DO], resolve), { excluded: false, addresses: [HOST_ADDR.a] });
++  assert.equal((await classifyEndpoint('http://unknown.example-host.net/', [DO], resolve)).excluded, true, 'an unresolvable name has an unknown failure domain');
++});
++
++test('advertisements are prepared for the operator to sign; nothing is signed or sent here', { skip }, async () => {
++  const ads = await advertisements(hosts.a.cfg, { operator: privateKeyToAccount(KEYS.other).address, slot: 0, sequence: 2 });
++  assert.deepEqual(ads.map((a) => a.kind).sort(), ['directory', 'replica']);
++  for (const a of ads) {
++    assert.equal(a.signed, false); assert.equal(a.typedData.primaryType, 'Publish');
++    assert.equal(a.descriptorHash, si.descriptorHash(Buffer.from(a.descriptor)));
++    const d = JSON.parse(a.descriptor); assert.equal(d.format, 'enclave-service-descriptor/v1'); assert.equal(d.package, pin(d.role));
++  }
++});
+--- a/test/transport-profile.test.mjs
++++ b/test/transport-profile.test.mjs
+@@ -0,0 +1,50 @@
++// A WireGuard provider configured as minimal transport (scripts/check-transport-profile.mjs; work/hosted-service-placement):
++// the transport-only shape passes; each application responsibility found on the fleet's providers refuses, by name.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { spawnSync } from 'node:child_process';
++import { fileURLToPath } from 'node:url';
++import { checkTransportProfile } from '../scripts/check-transport-profile.mjs';
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const MINIMAL = { bootstrap: 'explicit', operatorKeyFile: '/etc/enclave-network/operator.key', publicAddress: '203.0.113.7', uplink: 'eth0', roles: ['guard', 'ingress', 'egress'],
++  rpc: ['https://rpc-a.example', 'https://rpc-b.example'], directories: ['https://dir-a.example/'], authorityPins: { deployments: '0x' + '11'.repeat(20), registry: '0x' + '22'.repeat(20) },
++  checkers: ['0x' + '33'.repeat(20)], zone: 'app.example', probeZone: 'probe.example', pricePerGiB6: 0 };
++
++test('the minimal transport shape passes, and names what it keeps', () => {
++  const r = checkTransportProfile(MINIMAL);
++  assert.equal(r.ok, true, r.violations.join('; '));
++  assert.deepEqual(r.separateRoles, []);
++  assert.ok(r.transport.some((t) => /no TLS termination/.test(t)));
++});
++
++test('application responsibilities on a transport machine refuse, each by name', () => {
++  for (const [over, re] of [
++    [{ localRoutes: { 'custodian.example': { host: '127.0.0.1', tls: 8443, http: 8080 } } }, /localRoutes serves 1 on-box service name/],
++    [{ noSniRoute: { host: '127.0.0.1', tls: 9443 } }, /noSniRoute/],
++    [{ relay: 'https://api.enclave.host' }, /custom-domain map comes from the Enclave relay/],
++    [{ bootstrap: undefined }, /bootstrap is legacy/],
++    [{ roles: ['guard', 'dns'] }, /role "dns" is not a transport role/],
++  ]) {
++    const cfg = { ...MINIMAL, ...over }; for (const k of Object.keys(cfg)) if (cfg[k] === undefined) delete cfg[k];
++    const r = checkTransportProfile(cfg);
++    assert.equal(r.ok, false, JSON.stringify(over)); assert.ok(r.violations.some((v) => re.test(v)), r.violations.join('; '));
++  }
++  const paid = checkTransportProfile({ ...MINIMAL, pricePerGiB6: 5, proofKeyFile: '/etc/enclave-network/proof.key' });
++  assert.equal(paid.ok, true); assert.match(paid.separateRoles[0], /settlement/);
++});
++
++test('the command exits 1 on a non-transport configuration and never opens a key file it names', () => {
++  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'transport-profile-'));
++  try {
++    const f = path.join(d, 'provider.json');
++    fs.writeFileSync(f, JSON.stringify({ ...MINIMAL, operatorKeyFile: path.join(d, 'does-not-exist.key'), localRoutes: { 'site.example': { host: '127.0.0.1', tls: 8443, http: 8080 } } }));
++    const r = spawnSync(process.execPath, [path.join(REPO, 'scripts/check-transport-profile.mjs'), f], { encoding: 'utf8' });
++    assert.equal(r.status, 1, r.stderr); assert.match(r.stdout, /localRoutes/);
++    fs.writeFileSync(f, JSON.stringify({ ...MINIMAL, operatorKeyFile: path.join(d, 'does-not-exist.key') }));
++    assert.equal(spawnSync(process.execPath, [path.join(REPO, 'scripts/check-transport-profile.mjs'), f], { encoding: 'utf8' }).status, 0);
++  } finally { fs.rmSync(d, { recursive: true, force: true }); }
++});

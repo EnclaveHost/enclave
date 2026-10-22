@@ -1,0 +1,159 @@
+--- frozen/g1_canary.py	2026-10-21 15:02:48.089533206 -0700
++++ proposed/g1_canary.py	2026-10-21 15:08:26.882624439 -0700
+@@ -51,7 +51,7 @@
+        "register_task": ["name", "mode", "d", "at_expr", "hashes"], "start_task": ["name"], "drop_task": ["name"],
+        "mkdir_protected": ["d"], "scp_to": ["d", "files"], "seal_and_prove": ["d", "names"], "fresh_proof": ["d"],
+        "remove_dir": ["d"]}
+-CLOCK = {"now": time.time, "sleep": time.sleep}
++CLOCK = {"now": time.time, "sleep": time.sleep, "mono": time.monotonic}   # deadlines use mono: a wall-clock step cannot stretch them
+ 
+ 
+ def utc(t=None): return datetime.datetime.fromtimestamp(CLOCK["now"]() if t is None else t, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+@@ -64,7 +64,14 @@
+ 
+ # ------------------------------------------------------------------------------------------------- read-only scripts
+ # every script starts with $G1='<kind>' (a marker, harmless) and leaves its result in $o for the controller's ps()
+-def s_pre(stage_root, outer, prefix):
++def s_real(user):
++    """the REAL system the canary must not touch: sshd_config bytes, the tunnel account, its keys file, sshd state + PID"""
++    return ("$cf='C:\\ProgramData\\ssh\\sshd_config';$o.real=[ordered]@{cfgSha=$(if(Test-Path -LiteralPath $cf){(Get-FileHash -Algorithm SHA256 -LiteralPath $cf).Hash.ToLower()}else{'absent'});"
++            "user=[bool](Get-LocalUser -Name '" + q(user) + "' -ErrorAction SilentlyContinue);keys=(Test-Path -LiteralPath 'C:\\ProgramData\\ssh\\" + q(user) + "_authorized_keys');"
++            "sshd=[string](Get-Service sshd).Status;sshdPid=[int](Get-CimInstance Win32_Service -Filter \"Name='sshd'\" -OperationTimeoutSec 10).ProcessId}")
++
++
++def s_pre(stage_root, outer, prefix, user):
+     return ("$G1='pre';$S=[Security.Principal.SecurityIdentifier];$ok=@('" + "','".join(TRUSTED) + "');"
+             "$id=[Security.Principal.WindowsIdentity]::GetCurrent();"
+             "$o=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');tzMin=[int][TimeZoneInfo]::Local.GetUtcOffset([DateTime]::Now).TotalMinutes;"
+@@ -78,7 +85,7 @@
+             "$c.reparse=[bool]($i.Attributes -band 1024);$c.sddl=$a.Sddl;$c.risky=@();$c.create=@();"
+             "foreach($e in $a.GetAccessRules($true,$true,$S)){if($e.AccessControlType -ne 'Allow' -or ($e.PropagationFlags -band 2)){continue};"
+             "$w=$e.IdentityReference.Value;$r=[int64][int]$e.FileSystemRights;if($w -in $ok){continue};"
+-            "if($r -band " + str(CHAIN_MASK) + "){$c.risky+=($w+':0x'+('{0:x}' -f $r))}elseif($r -band 6){$c.create+=$w}}};$o.chain+=$c}")
++            "if($r -band " + str(CHAIN_MASK) + "){$c.risky+=($w+':0x'+('{0:x}' -f $r))}elseif($r -band 6){$c.create+=$w}}};$o.chain+=$c};" + s_real(user))
+ 
+ 
+ def s_stage(paths):
+@@ -156,9 +163,9 @@
+     return "$G1='stop';$n='" + q(name) + "';Stop-ScheduledTask -TaskName $n;$o=[ordered]@{state=[string](Get-ScheduledTask -TaskName $n).State}"
+ 
+ 
+-def s_verify(prefix, outer):
++def s_verify(prefix, outer, user):
+     return ("$G1='verify';$o=[ordered]@{tasks=@(Get-ScheduledTask -TaskName '" + q(prefix) + "*' -ErrorAction SilentlyContinue|%{$_.TaskName});"
+-            "outer=(Test-Path -LiteralPath '" + q(outer) + "')}")
++            "outer=(Test-Path -LiteralPath '" + q(outer) + "')};" + s_real(user))
+ 
+ 
+ def s_parse(script):
+@@ -218,11 +225,11 @@
+ 
+ def build_scripts(P, m):
+     """every script the canary sends, exactly (for sizes, parse and review)"""
+-    R = P["roles"]; out = {"pre": s_pre(P["stageRoot"], P["outer"], P["prefix"]),
++    R = P["roles"]; out = {"pre": s_pre(P["stageRoot"], P["outer"], P["prefix"], P["winUser"]),
+                            "stage": s_stage([P["outer"]] + [p for r in R.values() for p in (r["dir"], r["dir"] + "\\params.json", r["dir"] + "\\tunnel-receiver.ps1")]),
+                            "tamper": s_tamper(R["n"]["dir"] + "\\params.json", base64.b64decode(R["n"]["tamperedB64"])),
+                            "watch": s_watch({r["encSha"]: k for k, r in R.items()}, P["watchSec"]),
+-                           "events": s_events(P["prefix"], "2026-01-01T00:00:00Z"), "verify": s_verify(P["prefix"], P["outer"])}
++                           "events": s_events(P["prefix"], "2026-01-01T00:00:00Z"), "verify": s_verify(P["prefix"], P["outer"], P["winUser"])}
+     for k, r in R.items():
+         out[f"inspect-{k}"] = s_inspect(r["task"]); out[f"collect-{k}"] = s_collect(r["task"], r["dir"]); out[f"stop-{k}"] = s_stop(r["task"])
+     return out
+@@ -276,6 +283,9 @@
+     c = Canary(run); m = c.load()
+     if re.search(r"Unregister-ScheduledTask|schtasks", base64.b64decode(m.launcher("C:\\x", "guard", {"tunnel-receiver.ps1": "0" * 64, "params.json": "0" * 64})).decode("utf-16-le"), re.I):
+         shutil.rmtree(d); sys.exit("the launcher unregisters tasks: refusing")
++    hz = {"tunnel-receiver.ps1": "0" * 64, "params.json": "0" * 64}
++    if re.search(r"ExecutionPolicy", rtext + m.task_args("C:\\x", "preflight", hz) + base64.b64decode(m.launcher("C:\\x", "preflight", hz)).decode("utf-16-le"), re.I):
++        shutil.rmtree(d); sys.exit("an execution-policy flag/change is in the task or receiver bytes: refusing")
+     outer = m.STAGE_WIN.format(run=run); prefix = f"EnclaveTunnelCanary-{run}"
+     rsha = sha((d / "src/tunnel-receiver.ps1").read_bytes()); roles = {}
+     for k in ROLES:
+@@ -291,7 +301,7 @@
+             tb = json.dumps(dict(params, runId=run + "tampered"), indent=1).encode(); (rd / "params.tampered.json").write_bytes(tb)
+             r["tamperedB64"] = base64.b64encode(tb).decode(); r["tamperedSha"] = sha(tb)
+         roles[k] = r
+-    P.update({"stageRoot": m.STAGE_ROOT, "outer": outer, "prefix": prefix, "roles": roles, "watchSec": a.offset_min * 60 + 60,
++    P.update({"stageRoot": m.STAGE_ROOT, "winUser": m.WINUSER, "outer": outer, "prefix": prefix, "roles": roles, "watchSec": a.offset_min * 60 + 60,
+               "pollSec": 10, "collectSec": 150, "runningWaitSec": 60, "leadSec": 15})
+     (d / "PLAN.json").write_text(json.dumps(P))
+     scripts = build_scripts(P, m); sizes, prod = encoded_sizes(m, c.tm, P, scripts)
+@@ -356,7 +366,7 @@
+ 
+ def run_canary(c, m, ev):
+     P = c.plan; R = P["roles"]; ev.update({"planSha": sha((c.dir / "PLAN.json").read_bytes()), "sources": P["sources"]})
+-    pre = c.ps("preflight", s_pre(P["stageRoot"], P["outer"], P["prefix"])); ev["preflight"] = pre
++    pre = c.ps("preflight", s_pre(P["stageRoot"], P["outer"], P["prefix"], P["winUser"])); ev["preflight"] = pre
+     skew = (parse_utc(pre.get("utc")) or CLOCK["now"]()) - CLOCK["now"]()     # minipc clock - this clock (only for waiting)
+     why = chain_ok(pre, P)
+     if why: ev["refused"] = why; return ev                                  # nothing was made
+@@ -369,7 +379,7 @@
+         if sc.get("error"): ev["abort"] = f"scp-{k}: {sc['error']}"; return ev
+         seal = c.call(f"seal-{k}", m.seal_and_prove, r["dir"], ["params.json", "tunnel-receiver.ps1"])
+         files = {n: (v or {}).get("sha") for n, v in (seal.get("files") or {}).items()}
+-        if seal.get("trust") or files != {"params.json": r["paramsSha"], "tunnel-receiver.ps1": r["receiverSha"]}:
++        if seal.get("ancestors") != [] or seal.get("trust") or files != {"params.json": r["paramsSha"], "tunnel-receiver.ps1": r["receiverSha"]}:
+             ev["abort"] = f"seal-{k}: staged dir/bytes not proven: {seal}"; return ev
+     st = c.ps("stage-proof", json.loads((c.dir / "scripts.json").read_text())["stage"]); ev["stageBefore"] = st
+     if st.get("error") or any(not i.get("exists") or i.get("reparse") or i.get("owner") not in TRUSTED[:2] or i.get("write") for i in st.get("items") or []):
+@@ -385,12 +395,12 @@
+             tp = c.ps("tamper-n", s_tamper(r["dir"] + "\\params.json", base64.b64decode(r["tamperedB64"])))
+             fp = c.call("fresh-n", m.fresh_proof, r["dir"]); trig = parse_utc(((ins.get("triggers") or [{}])[0]).get("startUtc"))
+             ev["tamper"] = {"write": tp, "fresh": fp, "triggerUtc": utc(trig) if trig else None,
+-                            "valid": (tp.get("before") == r["paramsSha"] and tp.get("after") == r["tamperedSha"] and not fp.get("trust")
++                            "valid": (tp.get("before") == r["paramsSha"] and tp.get("after") == r["tamperedSha"] and not fp.get("trust") and fp.get("ancestors") == []
+                                       and trig is not None and parse_utc(tp.get("at")) is not None and parse_utc(tp.get("at")) < trig - 5)}
+             if not ev["tamper"]["valid"]: ev["abort"] = "the tamper did not land cleanly before the trigger"; return ev
+     for k in ("o", "s"):
+         fp = c.call(f"fresh-{k}", m.fresh_proof, R[k]["dir"])
+-        if fp.get("trust") or fp.get("files") != {"params.json": R[k]["paramsSha"], "tunnel-receiver.ps1": R[k]["receiverSha"]}:
++        if fp.get("ancestors") != [] or fp.get("trust") or fp.get("files") != {"params.json": R[k]["paramsSha"], "tunnel-receiver.ps1": R[k]["receiverSha"]}:
+             ev["abort"] = f"fresh-{k}: the staged bytes changed before execution"; return ev
+     trig = max(parse_utc(ev["tasks"][k]["definition"]["triggers"][0]["startUtc"]) for k in ("n", "o"))
+     ev["window"] = {"triggerLatestUtc": utc(trig)}
+@@ -402,10 +412,10 @@
+     ev["start"] = c.call("start-s", m.start_task, R["s"]["task"], detail={"task": R["s"]["task"]})
+     w.join(); ev["watch"] = box.get("r")
+     ev["collect"] = {}
+-    end = CLOCK["now"]() + P["collectSec"]
++    end = CLOCK["mono"]() + P["collectSec"]
+     while True:
+         for k, r in R.items(): ev["collect"][k] = c.ps(f"collect-{k}", s_collect(r["task"], r["dir"]))
+-        if all(terminal(k, ev["collect"][k]) for k in R) or CLOCK["now"]() > end: break
++        if all(terminal(k, ev["collect"][k]) for k in R) or CLOCK["mono"]() > end: break
+         CLOCK["sleep"](P["pollSec"])
+     ev["events"] = c.ps("events", s_events(P["prefix"], utc(parse_utc(pre.get("utc")) or CLOCK["now"]() - 600)))
+     ev["stageAfter"] = c.ps("stage-proof-after", json.loads((c.dir / "scripts.json").read_text())["stage"])
+@@ -426,10 +436,10 @@
+     regs = [e["detail"]["task"] for e in J if e["phase"] == "attempt" and e["step"].startswith("register-")]
+     for name in regs:
+         if not pre_ok: res["tasks"][name] = "left: ownership unproven (no clean preflight)"; continue
+-        end = CLOCK["now"]() + P["runningWaitSec"]
++        end = CLOCK["mono"]() + P["runningWaitSec"]
+         while True:
+             ins = c.ps("cleanup-inspect", s_inspect(name))
+-            if ins.get("error") or not ins.get("registered") or ins.get("state") != "Running" or CLOCK["now"]() > end: break
++            if ins.get("error") or not ins.get("registered") or ins.get("state") != "Running" or CLOCK["mono"]() > end: break
+             CLOCK["sleep"](5)
+         if ins.get("error"): res["tasks"][name] = f"unknown: {ins['error']}"; continue
+         if not ins.get("registered"): res["tasks"][name] = "absent"; continue
+@@ -437,7 +447,7 @@
+         res["tasks"][name] = c.call("cleanup-drop", m.drop_task, name, detail={"task": name})
+     made = any(e["phase"] == "result" and e["step"] == "mkdir-outer" and (e["detail"] or {}).get("created") for e in J)
+     res["outer"] = c.call("cleanup-remove", m.remove_dir, P["outer"]) if made else "not created by this run"
+-    v = c.ps("cleanup-verify", s_verify(P["prefix"], P["outer"]))
++    v = c.ps("cleanup-verify", s_verify(P["prefix"], P["outer"], P["winUser"]))
+     res["verify"] = v; res["clean"] = (not v.get("error") and v.get("tasks") == [] and v.get("outer") is False)
+     return res
+ 
+@@ -495,6 +505,9 @@
+         cl = cleanup(c, m) if any(e["step"] == "preflight" for e in c.journal()) else {"clean": True, "note": "nothing remote"}
+         try: v = verdict(ev, c.plan) if (ev.get("refused") or ev.get("abort") or ev.get("collect")) else {"G1": "FAIL", "why": "interrupted before collection"}
+         except Exception as e: v = {"G1": "FAIL", "why": f"evidence incomplete: {type(e).__name__}: {e}"}
++        rb, ra = (ev.get("preflight") or {}).get("real"), (cl.get("verify") or {}).get("real")
++        v.setdefault("checks", {})["real.unchanged"] = bool(rb) and rb == ra and rb.get("user") is False and rb.get("keys") is False
++        if v["G1"] == "PASS" and not v["checks"]["real.unchanged"]: v["G1"] = "FAIL"   # sshd_config, account, keys, sshd PID
+         out = {"at": utc(), "run": c.run, "verdict": v, "cleanup": cl, "evidence": ev}
+         (c.dir / "G1-RESULT.json").write_text(json.dumps(out, indent=1) + "\n")
+         print(json.dumps({"run": c.run, "G1": v["G1"], "checks": v.get("checks"), "identity": v.get("identity"), "why": v.get("why"),

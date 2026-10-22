@@ -1,0 +1,147 @@
+{
+ "what": "preflight",
+ "at": "2026-10-21T23:20:35Z",
+ "identities": {
+  "at": "2026-10-21T23:20:31Z",
+  "cmd": [
+   {
+    "pid": 23976,
+    "start": "2026-10-21T15:01:03.5932460Z"
+   }
+  ],
+  "agent": [
+   {
+    "pid": 8644,
+    "parent": 23976,
+    "start": "2026-10-21T15:01:03.6706520Z"
+   }
+  ],
+  "privacy": [
+   {
+    "pid": 38416,
+    "start": "2026-10-21T00:05:03.7361540Z"
+   }
+  ],
+  "manager": "35464@2026-10-21T12:13:07.5552110Z",
+  "vms": "hv1adbc0fa1db4a4bc785e09259b6f8a70|0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a|running,hv364b77b1df9081f7de0d91e74ac3d247|0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371|running,hv3b9e2494e1d2f69305e55ab582579ad0|0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681|running,hv3f742170c660948e2bf61cc04370db94|0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238|running,hv5022aee537a9b5c673e8c495e5a6967d|0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b|running,hv65a6d8e871a2529c4f83849c0bd050eb|0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c|running,hvab93fbd9cf3c5abf5520dd3b743bcc50|0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33|running,hvbb3032d23186a7603a5b3ad87934c98b|shield-readiness-v1|running,hvcd57c485b60ba2478cada4684fafe50a|0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77|running,hvdd8044243de1a08fc722381c5116879e|0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c|running",
+  "hyperv": "0e010097-cbd9-4c48-b680-7bffbee1c61b|enclave-app-hvab93fbd9cf3c5a-10c44a8a|Running,2414cf23-9b10-405f-835e-78feb099e5be|enclave-app-hv1adbc0fa1db4a4-3dfcbff8|Running,2beedb20-6b51-461d-956c-a70e64bf3213|enclave-app-hvcd57c485b60ba2-ad0f596e|Running,43280e01-1987-453b-8214-5a693c53177f|enclave-app-hv364b77b1df9081-f4322953|Running,4a4ddcac-d06f-4a5c-b96e-e692302db5c8|enclave-storage|Running,53b2c83c-a936-4d45-a929-112bfcb5a10f|enclave-app-hv3f742170c66094-ea9d4773|Running,55987653-f678-40a8-93f0-2f58c189c99e|enclave-app-hvbb3032d23186a7-a79db30f|Running,cb223df2-a201-42bb-bd04-c8a7d8968876|enclave-app-hvdd8044243de1a0-3f770400|Running,d59367a4-0783-4775-b584-31f78264bd8e|enclave-app-hv3b9e2494e1d2f6-46de1836|Running,dd8df95d-b771-4545-a861-0092e74a40f3|enclave-control|Running,e1bc6332-ef3a-44e9-a6d0-003ceba9b3b8|enclave-app-hv65a6d8e871a252-38004790|Running,f8a8bfc8-c174-4077-adf2-eb512321a8c5|enclave-app-hv5022aee537a9b5-322c5206|Running",
+  "wg": 21,
+  "tasks": [
+   "Card=Running",
+   "enclave-host-services-hs2=Running",
+   "Network=Running",
+   "NetworkChecker=Running",
+   "Node=Running",
+   "Relay=Running",
+   "Shield=Running",
+   "Update=Ready"
+  ],
+  "netWriters": [
+   "S-1-5-18",
+   "S-1-5-32-544"
+  ],
+  "netReaders": [
+   "S-1-5-18",
+   "S-1-5-32-544"
+  ],
+  "pdInheritReaders": [
+   "S-1-5-18",
+   "S-1-5-32-544"
+  ],
+  "update": {
+   "state": "Ready",
+   "next": "2026-10-22T00:13:36.0000000Z"
+  },
+  "nodeExe": "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3",
+  "runtimeNodeExe": "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3",
+  "runNode": "3366a005f8530903c83a334053280f41ed904df09133e92505c44f558acb6686",
+  "local": "85698d20b4f8fb494c8620aeb80d5b4fbd2ec637ef40c7fa02693ba41ee2aa73",
+  "flag": false,
+  "cfg": "d5810879c79d0cd173c5fb837b09def6205c6bea1cb0849f0f7cd33c27286752",
+  "enKeys": [
+   "relay",
+   "checkers",
+   "apps",
+   "control",
+   "wgBinary",
+   "nodeBinary",
+   "workerModule",
+   "firewallBinary",
+   "directories",
+   "paid",
+   "hostEgress",
+   "paceMbps"
+  ],
+  "wallet": "absent",
+  "statusAgeMs": 139,
+  "statusWallet": null,
+  "egressApps": 9,
+  "cfgAcl": "O:SYG:SYD:AI(A;ID;FA;;;BA)(A;ID;FA;;;SY)",
+  "localAcl": "O:SYG:SYD:AI(A;ID;FA;;;BA)(A;ID;FA;;;SY)"
+ },
+ "files": {
+  "C:\\Program Files\\Enclave\\control\\network\\wallet-admission.mjs": "absent",
+  "C:\\Program Files\\Enclave\\control\\network\\host-service-names.mjs": "absent",
+  "C:\\Program Files\\Enclave\\control\\network\\host-service-transport.mjs": "absent",
+  "C:\\Program Files\\Enclave\\control\\windows\\node\\network-enroll.mjs": "2d97a0e10e40ceaa0be897708dc3cfa48742619450605efc107b22674caae2ac",
+  "C:\\Program Files\\Enclave\\control\\windows\\node\\host-admission.bundle.mjs": "66c6e15a793b8dc4cb80f209b6ffa405c40c7d235284727384e4833576610067",
+  "C:\\Program Files\\Enclave\\control\\windows\\node\\hvcert.mjs": "91b9f2db7eb3be98efec1594dfe95245475a0cf234d9ce6843657b37bc2b1557",
+  "C:\\Program Files\\Enclave\\control\\windows\\node\\appzone.mjs": "ba9d9bb13f2ea19cdcbdcdbc021ddbabbd201618ff1e834b733cc220fc8c26c6",
+  "C:\\Program Files\\Enclave\\control\\windows\\node\\agent.mjs": "c223c0435d859f0bde0d496a2eb1e8a2db4af44a47e32bf653710244c5ccd2ba",
+  "C:\\Program Files\\Enclave\\control\\windows\\node\\host.mjs": "c4629529903ee87edd258fb5b1964525bcf29b3a1109d9f0c30e74b06d05cfd0",
+  "C:\\Program Files\\Enclave\\network\\host-service-ingress.mjs": "c952dce4fe007c48c81e1726a743d850dc2f5231204d01466349bfa5ffcc62d3",
+  "C:\\Program Files\\Enclave\\network\\privacy-agent.mjs": "7ef4e2303d841e86269d3bbb7ce5f43a5ead5b0d2f2898f9b69774da1ac13147",
+  "C:\\Program Files\\Enclave\\network\\windows-circuit-worker.mjs": "13ce44f1b39d4521e32266f2dad234958af70b1b05e2a3f6638535571e8cf320",
+  "C:\\Program Files\\Enclave\\network\\enclave-wg.exe": "cbaf8313ce4e2cfce347abed99bdeaf5fc0631b8ab07bfbab20471f60920264c",
+  "C:\\Program Files\\Enclave\\network\\enclave-circuit-firewall.exe": "78daec71f51f89a53600cb7d4bfb0492e2f0d642047422e4fbec30b2a5c238a6"
+ },
+ "state": {
+  "wallet": "old",
+  "hsn": "old",
+  "hst": "old",
+  "enroll": "old",
+  "bundle": "old",
+  "hvcert": "old",
+  "appzone": "old",
+  "agent": "old",
+  "host": "old",
+  "ingress": "new",
+  "privacy": "new",
+  "worker": "new"
+ },
+ "keepUnchanged": {
+  "C:\\Program Files\\Enclave\\network\\enclave-wg.exe": true,
+  "C:\\Program Files\\Enclave\\network\\enclave-circuit-firewall.exe": true
+ },
+ "coverage": {
+  "expectedIds": [
+   "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+   "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+   "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+   "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+   "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+   "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+   "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+   "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+   "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238"
+  ],
+  "blockers": [],
+  "staleEnrolledWithoutVm": [
+   "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
+   "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
+   "0x5b0c79e8604f1e799e91469854cc716339ec46933378aeac390c06cdb233bb85",
+   "0x5ece7c2e86a0ce4e0aebd1994f6f2348196ecf38e96660beba23c1d54108c730",
+   "0x791d078e3d105ee1926fbf39a9e2de7084b44c04cb7698c6370d1332e648abd6",
+   "0x8a0c1dc0d336a90ece9a52bc1633178b940f5fabbd2781b5b8202d843bb6091a",
+   "0x942555baa666245d77e00bd0b6327567fadad03643ee466a7f9474d1c5a03c31",
+   "0xfe63875d23aa1586d991b3ae4e98ecdf3fe7fdf65d6167164a999d04721e3da7"
+  ],
+  "records": 19,
+  "apps": 17
+ },
+ "gate": {
+  "policyUnavailable30min": 0,
+  "shortLeases": 3
+ },
+ "errors": {}
+}

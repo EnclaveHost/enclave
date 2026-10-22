@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# TEST-ONLY scp -3: "alias:path" -> "alias:path" as a local copy (the paths already carry the hosts' test prefixes).
+# $MOCK_SCP_FAIL=<file name>: the copy of that file fails after writing part of it (an interrupted transfer)
+set -u
+args=(); while [ $# -gt 0 ]; do case "$1" in -3|-q) shift ;; -o|-l) shift 2 ;; *) args+=("$1"); shift ;; esac; done
+src=${args[0]#*:}; dst=${args[1]#*:}
+if [ -n "${MOCK_SCP_FAIL:-}" ] && [[ "$dst" == *".incoming-$MOCK_SCP_FAIL-"* ]]; then head -c 3 "$src" > "$dst"; exit 1; fi
+cp "$src" "$dst"

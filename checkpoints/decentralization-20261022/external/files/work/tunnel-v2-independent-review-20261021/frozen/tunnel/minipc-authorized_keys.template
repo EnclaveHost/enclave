@@ -1,0 +1,1 @@
+restrict,port-forwarding,permitlisten="127.0.0.1:31053",command="cmd.exe /c exit 1" <PUBLIC KEY: the control VM's /var/lib/enclave-control-tunnel/id_ed25519.pub, one line>

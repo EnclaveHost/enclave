@@ -1,0 +1,11 @@
+--- a/test/isolation-claim-gate.test.mjs
++++ b/test/isolation-claim-gate.test.mjs
+@@ -50,7 +50,7 @@
+   const r = await seam({ parse: ['{"waf":{"blockScanners":true}}', '{"nope":{}}', "", '{"gpu":{"optional":false}}'] });
+   assert.equal(r.parse[0].ok, true);
+   // the unknown-namespace message lists exactly the namespaces it always did
+-  assert.equal(r.parse[1].error, 'unknown option namespace "nope" (this runner knows: waf, config, configCid, gpu, network, placement)');
++  assert.equal(r.parse[1].error, 'unknown option namespace "nope" (this runner knows: waf, config, configCid, gpu, network, placement, access)');
+   assert.deepEqual(r.parse[2], { ok: true, opts: {} });
+   assert.equal(r.parse[3].ok, true);
+ });

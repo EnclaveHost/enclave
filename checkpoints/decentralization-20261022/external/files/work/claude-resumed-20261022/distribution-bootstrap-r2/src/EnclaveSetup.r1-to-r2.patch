@@ -1,0 +1,44 @@
+--- a/windows/installer/EnclaveSetup.cs	2026-10-21 21:28:17.457637711 -0700
++++ b/windows/installer/EnclaveSetup.cs	2026-10-21 21:28:32.396484081 -0700
+@@ -634,17 +634,35 @@
+         /// stops setup.
+         /// </summary>
+         void PinPolicy() { PinPolicy(WorkDir, opt); }
++        /// <summary>At most max bytes from s, or a throw: reads up to max + 1 bytes, so a stream longer than max (however its
++        /// Length reports, e.g. a file still growing) is refused instead of truncated or accepted.</summary>
++        internal static byte[] ReadBounded(Stream s, int max)
++        {
++            var buf = new byte[max + 1]; int n = 0, r;
++            while (n <= max && (r = s.Read(buf, n, max + 1 - n)) > 0) n += r;
++            if (n > max) throw new Exception("more than " + max + " bytes");
++            var b = new byte[n]; Array.Copy(buf, b, n); return b;
++        }
+         internal static void PinPolicy(string workDir, SetupOptions opt)
+         {
+             string pinned = Path.Combine(workDir, "release-policy.pinned.json");
+             if (opt.PolicySha256 == null)
+             {
+-                var info = new FileInfo(opt.ReleasePolicy);
+-                if (!info.Exists || info.Length > 4 * 16 * 1024) throw new Exception("the release policy " + opt.ReleasePolicy + " is missing or too large");
+-                byte[] b = File.ReadAllBytes(opt.ReleasePolicy);
+-                if (File.Exists(pinned)) File.Delete(pinned);
+-                File.WriteAllBytes(pinned, b);
+-                using (var h = SHA256.Create()) opt.PolicySha256 = BitConverter.ToString(h.ComputeHash(b)).Replace("-", "").ToLowerInvariant();
++                // ONE open handle that no other process may write while it is open; the 64 KiB bound is enforced on the bytes
++                // actually read (never on a Length that a growing file can outrun); only the complete bytes are published
++                byte[] b;
++                try { using (var f = new FileStream(opt.ReleasePolicy, FileMode.Open, FileAccess.Read, FileShare.Read)) b = ReadBounded(f, 4 * 16 * 1024); }
++                catch (Exception e) { throw new Exception("the release policy " + opt.ReleasePolicy + " is missing or too large (" + e.Message + ")"); }
++                string sha; using (var h = SHA256.Create()) sha = BitConverter.ToString(h.ComputeHash(b)).Replace("-", "").ToLowerInvariant();
++                string tmp = pinned + ".tmp-" + Guid.NewGuid().ToString("N").Substring(0, 8);
++                try
++                {
++                    File.WriteAllBytes(tmp, b);
++                    if (Sha256(tmp) != sha) throw new Exception("the pinned release policy could not be written exactly");
++                    if (File.Exists(pinned)) File.Replace(tmp, pinned, null); else File.Move(tmp, pinned);
++                }
++                finally { if (File.Exists(tmp)) File.Delete(tmp); }
++                opt.PolicySha256 = sha;
+                 opt.ReleasePolicy = pinned;
+             }
+             if (!string.Equals(Path.GetFullPath(opt.ReleasePolicy), Path.GetFullPath(pinned), StringComparison.OrdinalIgnoreCase))

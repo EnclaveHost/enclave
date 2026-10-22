@@ -1,0 +1,67 @@
+--- a/test/relay-deploy-closure.test.mjs
++++ b/test/relay-deploy-closure.test.mjs
+@@ -17,6 +17,10 @@
+ import fs from "node:fs";
+ import path from "node:path";
+ import { fileURLToPath } from "node:url";
++import { tmpdir } from "node:os";
++import { spawn } from "node:child_process";
++import net from "node:net";
++import { setTimeout as delay } from "node:timers/promises";
+ 
+ const RELAY = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "relay");
+ const deploySh = fs.readFileSync(path.join(RELAY, "deploy.sh"), "utf8");
+@@ -82,7 +86,7 @@
+       if (seen.has(rel)) continue;
+       seen.add(rel);
+       const abs = path.join(RELAY, shipped.get(rel));
+-      if (!fs.existsSync(abs)) continue;           // a stale list entry is a different problem
++      assert.ok(fs.existsSync(abs), `deployment lists missing source ${abs}`);
+       for (const spec of relativeImports(abs)) {
+         const dep = path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec));
+         if (!shipped.has(dep)) missing.push(`${host}: ${rel} imports ${spec} — ship ${dep} (a scp line into ${root}${path.posix.dirname(dep) === "." ? "" : path.posix.dirname(dep) + "/"})`);
+@@ -92,3 +96,44 @@
+   }
+   assert.deepEqual(missing, [], "unshipped imports would crash-loop the daemon on ERR_MODULE_NOT_FOUND:\n" + missing.join("\n"));
+ });
++
++test("the DNS payload boots in a flat directory without the repository, including its attested judge", { timeout: 15000 }, async () => {
++  const dir = fs.mkdtempSync(path.join(tmpdir(), "enclave-dns-shipped-"));
++  const freePort = () => new Promise((resolve, reject) => {
++    const s = net.createServer();
++    s.on("error", reject);
++    s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => resolve(p)); });
++  });
++  let child, exited;
++  try {
++    const target = scpTargets().find((t) => /\$DNS_HOST/.test(t.host));
++    assert.ok(target, "DNS deployment must have a payload");
++    for (const f of [...target.files, "package.json"]) fs.copyFileSync(path.join(RELAY, f), path.join(dir, path.basename(f)));
++    assert.equal(fs.existsSync(path.join(dir, "../network/contract-pins.mjs")), false, "no source tree beside the payload");
++    const dnsPort = await freePort(), apiPort = await freePort();
++    child = spawn(process.execPath, [path.join(dir, "dns-relay.js")], {
++      cwd: dir,
++      env: { PATH: process.env.PATH, DNS_BIND: "127.0.0.1", DNS_PORT: String(dnsPort),
++        DNS_API_BIND: "127.0.0.1", DNS_API_PORT: String(apiPort), NS_NAME: "ns1.flat.test",
++        DNS_CHALLENGE_AUTH: "attested", CHALLENGE_ZONE: "challenge.flat.test",
++        ATTESTED_MEASUREMENTS: "ab".repeat(48), ATTESTED_JUDGE_MODE: "lab-unsigned", ATTESTED_KDS: "0" },
++      stdio: ["ignore", "pipe", "pipe"],
++    });
++    exited = new Promise((resolve) => child.once("exit", resolve));
++    let log = "";
++    child.stdout.on("data", (b) => { log += b; });
++    child.stderr.on("data", (b) => { log += b; });
++    child.on("error", (e) => { log += e.message; });
++    for (let i = 0; i < 80; i++) {
++      const health = await fetch(`http://127.0.0.1:${apiPort}/health`, { signal: AbortSignal.timeout(300) })
++        .then((r) => r.json()).catch(() => null);
++      if (health?.mode === "attested" && health.zones?.challenge === "challenge.flat.test") return;
++      if (child.exitCode !== null) break;
++      await delay(100);
++    }
++    assert.fail(`the shipped DNS payload did not start: ${log}`);
++  } finally {
++    if (child && child.exitCode === null) { child.kill("SIGKILL"); await exited; }
++    fs.rmSync(dir, { recursive: true, force: true });
++  }
++});

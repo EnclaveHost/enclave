@@ -1,0 +1,53 @@
+--- a/windows/node/network-enroll.mjs
++++ b/windows/node/network-enroll.mjs
+@@ -19,6 +19,7 @@
+ import path from "node:path";
+ import { createHash } from "node:crypto";
+ import { shieldExpectation, catalogRef } from "../../network/shield-expectation.mjs";
++import { validateHostServicesTransport } from "../../network/host-service-transport.mjs";
+ 
+ const ID = /^0x[0-9a-f]{64}$/;
+ // settings of the retired TUNA transport a box's config may still hold; the agent ignores them, the next pass drops them
+@@ -69,6 +70,16 @@
+   return structuredClone(h);
+ }
+ 
++/** An operator's enclaveNetwork.hostServices (this box's own public service roles, network/host-service-transport.mjs): the
++ *  operator's opt-in, set by hand, never computed - and NEVER dropped. -> { block (byte-for-byte copy) | null, error | null }.
++ *  A block this release cannot validate (a typo, a field a newer release added) is kept exactly as written and reported on
++ *  every pass; the privacy agent then refuses host services only (apps unaffected) until the operator fixes it. */
++export function hostServicesBlock(h) {
++  if (h === undefined) return { block: null, error: null };
++  try { validateHostServicesTransport(h); return { block: structuredClone(h), error: null }; }
++  catch (e) { return { block: structuredClone(h), error: e.message }; }
++}
++
+ /** An operator's enclaveNetwork.paceMbps (this host's uplink in Mbps; circuits pace their UDP to it) kept when it is a number
+  *  in (0, 100000]; else none (unpaced). */
+ export function validPaceMbps(v) {
+@@ -100,10 +111,15 @@
+     const hostEgress = validHostEgress(cfg?.enclaveNetwork?.hostEgress);
+     // PACING (main d476cc0f9): the operator's uplink in Mbps, set by hand like hostEgress and kept the same way
+     const paceMbps = validPaceMbps(cfg?.enclaveNetwork?.paceMbps);
++    // HOST SERVICES: the operator's opt-in, kept byte-for-byte (valid or not: never deleted); only then is the service
++    // worker named (no other box's section changes, so nothing restarts for this release alone)
++    const { block: hostServices, error: hostServicesError } = hostServicesBlock(cfg?.enclaveNetwork?.hostServices);
++    if (hostServicesError) log(`HOST SERVICES CONFIG INVALID (kept unchanged; the privacy agent refuses host services until it is fixed): ${hostServicesError}`);
+     // Directory choice belongs to the host operator; enrollment must not silently
+     // restore the default relay each time a new app appears.
+     const directories = cfg?.enclaveNetwork?.directories || config.enclaveNetwork.directories;
+-    const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork, directories }), ...(hostEgress ? { hostEgress } : {}), ...(paceMbps ? { paceMbps } : {}) };
++    const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork, directories }), ...(hostEgress ? { hostEgress } : {}), ...(paceMbps ? { paceMbps } : {}),
++      ...(hostServices ? { hostServices, serviceWorkerModule: path.join(binDir, "host-service-ingress.mjs") } : {}) };
+     // a box whose config predates the current enclaveNetwork section (or still runs TUNA): switched once, then restarted
+     let switched = false;
+     if (JSON.stringify(cfg.enclaveNetwork) !== JSON.stringify(want)) {
+@@ -169,7 +185,7 @@
+       if (switched) { log("restarting the privacy agent on its new network configuration"); await restartAgent().catch((e) => log(`agent restart: ${e.message}`)); }
+     }
+     // waiting: apps whose new version's partition is not ready yet - the caller looks again soon instead of in 5 minutes
+-    return { ready: true, apps: cfg.apps.length, changed: changed && cfg.apps.length > 0, waiting };
++    return { ready: true, apps: cfg.apps.length, changed: changed && cfg.apps.length > 0, waiting, ...(hostServicesError ? { hostServicesError } : {}) };
+   }
+   return { pass };
+ }

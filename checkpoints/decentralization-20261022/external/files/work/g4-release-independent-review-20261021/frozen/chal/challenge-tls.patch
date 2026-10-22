@@ -1,0 +1,1432 @@
+--- a/network/host-service-names.mjs
++++ b/network/host-service-names.mjs
+@@ -31,9 +31,22 @@
+   const h = hostLabel(hostId); validServiceZone(zone);
+   return Object.fromEntries(Object.entries(HOST_SERVICE_LABELS).map(([label, role]) => [role, `${label}-${h}.${zone}`]));
+ }
+-/** a name of the host-service SHAPE (any host) in `zone`, or of that shape anywhere when zone is null */
++// The host's attested challenge PUSH origin (the app-zone-replica's managed front, challenge-replica-host.mjs; TLS by the
++// host's service-tls role): chal-<base32(registry id)>.<zone>, a 57-character label (<= 63). Deliberately NOT one of
++// hostServiceNames(): a provider grants it only when its operator opts in (hostServices.challenge), so the exact three-name
++// grant of every existing provider and host is unchanged. It has the service SHAPE, so no app or customer name can hold it.
++export const HOST_CHALLENGE_LABEL = 'chal';
++export const HOST_CHALLENGE_ROLE = 'app-zone-replica';
++/** -> 'chal-<b32>.<zone>' for one host */
++export function hostChallengeName(hostId, zone) {
++  const h = hostLabel(hostId); validServiceZone(zone);
++  return `${HOST_CHALLENGE_LABEL}-${h}.${zone}`;
++}
++/** -> 'https://chal-<b32>.<zone>' (the only origin a managed challenge front may declare) */
++export const hostChallengeOrigin = (hostId, zone) => `https://${hostChallengeName(hostId, zone)}`;
++/** a name of the host-service SHAPE (any host; the three roles and the challenge origin) in `zone`, or anywhere when zone is null */
+ export function isHostServiceName(name, zone = null) {
+   const n = String(name || '').toLowerCase();
+-  const m = /^(dir|boot|policy)-([a-z2-7]{52})\.(.+)$/.exec(n);
++  const m = /^(dir|boot|policy|chal)-([a-z2-7]{52})\.(.+)$/.exec(n);
+   return !!m && (zone === null || m[3] === zone);
+ }
+--- a/network/challenge-front-declaration.mjs
++++ b/network/challenge-front-declaration.mjs
+@@ -0,0 +1,41 @@
++// The contract between an Enclave host's MANAGED challenge front (challenge-replica-host.mjs, run by the network runtime)
++// and the host's service-tls role (host-services/service-tls.mjs, run by the host-services runner): two processes, two
++// packages, one host (work/challenge-host-tls-20261021). The front writes a declaration file; service-tls fronts the
++// host-derived challenge name (host-service-names.mjs hostChallengeName) only while that declaration is valid for EXACTLY
++// its pinned expectation and the process on the loopback port proves it holds the declared key. Nothing here is an
++// authority: the platform host policy still admits the host on both sides, and every push is attested end to end.
++import { createHmac, timingSafeEqual } from 'node:crypto';
++
++export const FRONT_PROOF_PATH = '/.well-known/enclave-challenge-front';
++// Liveness is the HMAC proof service-tls asks for every 5 s (a dead or replaced front fails it at once), not the file's
++// age: the declaration is rewritten only on start/stop and every 20 min, so its trust check (an ACL read on Windows) runs
++// rarely. The validity bounds a stale serving file left by a crash; it never keeps a dead front fronted (no proof).
++export const DECLARATION_TTL_MS = 3_600_000;
++export const DECLARATION_EVERY_MS = 1_200_000;
++const HEX64 = /^[0-9a-f]{64}$/;
++
++/** HMAC-SHA256(proofKey, nonce): the front's answer to service-tls's proof request */
++export const frontProof = (key, nonce) => createHmac('sha256', Buffer.from(key, 'hex')).update('enclave-challenge-front/v1|' + nonce).digest('hex');
++export function proofMatches(key, nonce, proof) {
++  if (typeof proof !== 'string' || !HEX64.test(proof)) return false;
++  return timingSafeEqual(Buffer.from(frontProof(key, nonce), 'hex'), Buffer.from(proof, 'hex'));
++}
++
++/**
++ * -> null when `doc` is a serving declaration of exactly the expected front, else the reason (a string).
++ * expect: { hostId, name, origin, frontPort, release: { dnsSha256, runtimeBundleSha256 } } (service-tls's pinned config)
++ */
++export function frontDeclarationRefusal(doc, expect, now = Date.now()) {
++  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return 'not a declaration';
++  if (doc.version !== 1 || doc.kind !== 'enclave-challenge-front') return 'not an enclave-challenge-front v1 declaration';
++  if (doc.role !== 'app-zone-replica') return 'not an app-zone-replica front';
++  if (doc.hostId !== expect.hostId) return 'declared for another host';
++  if (doc.name !== expect.name || doc.origin !== `https://${expect.name}` || expect.origin !== doc.origin) return 'declared for another name';
++  if (doc.release?.dnsSha256 !== expect.release.dnsSha256 || doc.release?.runtimeBundleSha256 !== expect.release.runtimeBundleSha256) return 'a release other than the pinned one';
++  if (!Number.isSafeInteger(doc.issuedAt) || !Number.isSafeInteger(doc.expiresAt) || doc.expiresAt - doc.issuedAt > 2 * DECLARATION_TTL_MS || doc.issuedAt > now + 5000) return 'malformed validity';
++  if (doc.expiresAt <= now) return 'expired (the front stopped heartbeating)';
++  if (doc.state !== 'serving') return `the front is ${String(doc.state).slice(0, 20)}${doc.reason ? ` (${String(doc.reason).slice(0, 120)})` : ''}`;
++  if (doc.front !== `127.0.0.1:${expect.frontPort}`) return 'declared on another address or port than the pinned loopback front';
++  if (typeof doc.proofKey !== 'string' || !HEX64.test(doc.proofKey)) return 'no proof key';
++  return null;
++}
+--- a/network/challenge-replica-host.mjs
++++ b/network/challenge-replica-host.mjs
+@@ -15,9 +15,17 @@
+ //   2. the release directory must hold exactly the pinned dns.mjs and network-runtime.bundle.mjs
+ //      (scripts/build-challenge-replica-release.mjs); a changed byte refuses the start;
+ //   3. the child gets ONLY the derived environment (never this host's environment, keys or wallet);
+-//   4. a minimal HTTPS front exposes only the push and Shield-session routes, with the replica's own body caps, and
+-//      strips credentials. TLS there is transport: every push is signed by the guest key and attested end to end, and a
+-//      host session is public evidence the replica verifies itself;
++//   4. a minimal front exposes only the push and Shield-session routes, with the replica's own body caps, and strips
++//      credentials. TLS there is transport: every push is signed by the guest key and attested end to end, and a host
++//      session is public evidence the replica verifies itself. Two front modes:
++//        - static (front.certFile/keyFile): this module terminates HTTPS from operator files (unchanged);
++//        - managed (front.managed, app-zone-replica only; work/challenge-host-tls-20261021): a PLAINTEXT front bound to
++//          loopback only, for this host's service-tls role, which terminates TLS for the host-derived name
++//          chal-<base32(registry id)>.<zone> (host-service-names.mjs) with the host's own certificate and pipes the bytes
++//          here. No key is copied. It answers only Host = that name, and it DECLARES itself (declarationFile: serving with a
++//          proof key, refreshed every 20 min, 1 h validity; stopped on halt/close; mode 0640, in a directory only
++//          SYSTEM/Administrators write and LOCAL SERVICE reads) so service-tls fronts exactly this admitted local front and
++//          closes when it stops or stops answering the key proof;
+ //   5. the EnclaveServiceIndex `dns` (kind 4) advertisement is DRAFTED as unsigned typed data, never published here.
+ // Trust that packaging cannot change: whoever answers DNS for a delegated zone can satisfy dns-01 for every name in it,
+ // so which hosts serve the platform app zone stays the zone owner's (Enclave admin's) delegation decision; an
+@@ -27,7 +35,11 @@
+ import path from 'node:path';
+ import http from 'node:http';
+ import https from 'node:https';
+-import {createHash} from 'node:crypto';
++import {createHash, randomBytes} from 'node:crypto';
++import {keccak256, toBytes} from 'viem';
++import {hostChallengeName} from './host-service-names.mjs';
++import {FRONT_PROOF_PATH, frontProof, DECLARATION_TTL_MS, DECLARATION_EVERY_MS} from './challenge-front-declaration.mjs';
++export {FRONT_PROOF_PATH, frontProof, DECLARATION_TTL_MS, DECLARATION_EVERY_MS};
+ import {spawn as spawnProcess} from 'node:child_process';
+ import {SERVICE_KINDS, validateAdInput, publishTypedData} from './service-index.mjs';
+ import {canonical as canonicalJson} from './route-record.mjs';
+@@ -113,9 +125,19 @@
+   if (!nsNames.includes(nsName) || nsNames.length > 8 || new Set(nsNames).size !== nsNames.length) fail('ns.names must list 1 to 8 distinct names including ns.name');
+   only(c.listen, ['dns', 'api'], 'listen');
+   const listen = {dns: hostPort(c.listen.dns, 'listen.dns'), api: hostPort(c.listen.api, 'listen.api', {loopback: true})};
+-  only(c.front, ['listen', 'certFile', 'keyFile', 'origin'], 'front');
+-  const front = {listen: hostPort(c.front.listen, 'front.listen'), certFile: absFile(c.front.certFile, 'front.certFile'), keyFile: absFile(c.front.keyFile, 'front.keyFile'),
++  only(c.front, ['listen', 'certFile', 'keyFile', 'origin', 'managed'], 'front');
++  const managed = c.front.managed !== undefined;
++  let front;
++  if (!managed) front = {mode: 'static', listen: hostPort(c.front.listen, 'front.listen'), certFile: absFile(c.front.certFile, 'front.certFile'), keyFile: absFile(c.front.keyFile, 'front.keyFile'),
+     origin: httpsOrigin(c.front.origin, 'front.origin')};
++  else {
++    // managed: TLS belongs to this host's service-tls role (one host certificate, renewed there); this front is plaintext,
++    // so it may only ever bind loopback, and a static key pair beside it would be a second copy of a TLS identity
++    if (!replica) fail('front.managed: only the app-zone-replica has a host-derived challenge origin (an owner responder keeps its static front)');
++    if (c.front.certFile !== undefined || c.front.keyFile !== undefined) fail('front.managed conflicts with front.certFile/keyFile: the host\'s service-tls role holds the certificate (no static key copy)');
++    only(c.front.managed, ['zone', 'declarationFile'], 'front.managed');
++    front = {mode: 'managed', listen: hostPort(c.front.listen, 'front.listen', {loopback: true}), zone: c.front.managed.zone, declarationFile: absFile(c.front.managed.declarationFile, 'front.managed.declarationFile')};
++  }
+   let routeMap = null;
+   if (replica) {
+     let u; try { u = new URL(c.routeMap); } catch { fail('routeMap must be an http(s) URL'); }
+@@ -186,6 +208,16 @@
+   }
+   const hostPolicy = {policy, endpoint, stateDir, mirrors, rpcs, carriers};
+   if (policy !== 'off') { try { const e = hostPolicyGateEnv(hostPolicy); resolveHostPolicyConfig({env: e.env, chainId: 8453}); } catch (e) { fail(`hostPolicy: ${e.message}`); } }
++  if (front.mode === 'managed') {
++    // the name is this host's: derived from its REGISTRY id = keccak256 of hostPolicy.endpoint exactly as registered (the
++    // runner; enclave-network-host refuses a different one). A managed front is never run without the platform host policy.
++    if (policy === 'off') fail('front.managed is refused with hostPolicy "off": a host-certified challenge origin is served only by an admitted host');
++    front.hostId = keccak256(toBytes(endpoint)).toLowerCase();
++    try { front.name = hostChallengeName(front.hostId, front.zone); } catch (e) { fail(`front.managed.zone: ${e.message}`); }
++    const derived = `https://${front.name}`;
++    if (c.front.origin !== undefined && httpsOrigin(c.front.origin, 'front.origin') !== derived) fail(`front.origin must be this host's derived challenge origin ${derived}`);
++    front.origin = derived;
++  }
+   return Object.freeze({role: c.role, release, zones, nsName, nsNames, listen, front, routeMap, snp, shield, chain, peers, upstream, hostPolicy});
+ }
+ 
+@@ -239,12 +271,29 @@
+   'owner-responder': [['/v1/txt', ['POST', 'DELETE'], 32768], ['/v1/shield-session/challenge', ['POST'], 796108],
+     ['/v1/shield-session/attest', ['POST'], 12591104], ['/health', ['GET'], 0]],
+ };
+-/** The HTTPS front: only the role's routes, bounded bodies, no credentials or cookies either way. -> {server, close} */
++/** The front: only the role's routes, bounded bodies, no credentials or cookies either way. -> {server, port, proof, close}
++ *  static: HTTPS from the operator's files on front.listen. managed: plaintext on LOOPBACK only (validated), Host must be
++ *  the host-derived challenge name, plus GET /.well-known/enclave-challenge-front (header x-enclave-front-nonce: 64 hex)
++ *  -> {proof: HMAC-SHA256(proofKey, nonce)}, so service-tls can tell this front from anything else bound to its port. */
+ export async function startReplicaFront(cfg, {log = () => {}} = {}) {
+   const routes = new Map(FRONT_ROUTES[cfg.role].map(([p, methods, cap]) => [p, {methods, cap}]));
+-  const server = https.createServer({cert: fs.readFileSync(cfg.front.certFile), key: fs.readFileSync(cfg.front.keyFile), minVersion: 'TLSv1.2'}, (req, res) => {
++  const managed = cfg.front.mode === 'managed';
++  if (managed && !['127.0.0.1', '::1'].includes(cfg.front.listen.ip)) fail('a managed (plaintext) front binds loopback only');
++  const proofKey = managed ? randomBytes(32).toString('hex') : null;
++  const handler = (req, res) => {
+     const send = (code, body) => { if (res.headersSent) return; res.writeHead(code, {'content-type': 'application/json', 'cache-control': 'no-store'}); res.end(JSON.stringify(body)); };
+     let u; try { u = new URL(req.url, 'https://front'); } catch { req.resume(); return send(400, {error: 'bad request'}); }
++    if (managed) {
++      // the bytes come through service-tls for exactly the host-derived name; anything else is not this origin
++      const host = String(req.headers.host || '').toLowerCase().replace(/:443$/, '');
++      if (host !== cfg.front.name) { req.resume(); return send(421, {error: 'misdirected request'}); }
++      if (u.pathname === FRONT_PROOF_PATH && !u.search) {
++        req.resume();
++        const nonce = req.headers['x-enclave-front-nonce'];
++        if (req.method !== 'GET' || typeof nonce !== 'string' || !/^[0-9a-f]{64}$/.test(nonce)) return send(400, {error: 'bad proof request'});
++        return send(200, {proof: frontProof(proofKey, nonce)});
++      }
++    }
+     const r = routes.get(u.pathname);
+     if (!r || u.search) { req.resume(); return send(404, {error: 'not_found'}); }
+     if (!r.methods.includes(req.method)) { req.resume(); return send(405, {error: 'method_not_allowed'}); }
+@@ -263,11 +312,33 @@
+     let n = 0;
+     req.on('data', (d) => { n += d.length; if (n > r.cap) { up.destroy(); req.destroy(); send(413, {error: 'body_too_large'}); } });
+     req.pipe(up);
+-  });
++  };
++  const server = managed ? http.createServer(handler)
++    : https.createServer({cert: fs.readFileSync(cfg.front.certFile), key: fs.readFileSync(cfg.front.keyFile), minVersion: 'TLSv1.2'}, handler);
+   server.headersTimeout = 15_000; server.requestTimeout = 180_000;
+   await new Promise((ok, no) => { server.once('error', no); server.listen(cfg.front.listen.port, cfg.front.listen.ip, ok); });
+-  log(`challenge replica: https front on ${cfg.front.listen.ip}:${server.address().port} (${cfg.role})`);
+-  return {server, port: server.address().port, close: () => new Promise((ok) => { server.closeAllConnections?.(); server.close(() => ok()); })};
++  log(`challenge replica: ${managed ? `loopback front for service-tls (${cfg.front.name})` : 'https front'} on ${cfg.front.listen.ip}:${server.address().port} (${cfg.role})`);
++  return {server, port: server.address().port, proofKey,
++    close: () => new Promise((ok) => { server.closeAllConnections?.(); server.close(() => ok()); })};
++}
++
++// ---- the managed front's declaration (read by the host's service-tls role) ----------------------------------------------
++/** The declaration document for a managed front: serving (with its proof key) or stopped. */
++export function frontDeclaration(cfg, release, {state, port = null, proofKey = null, reason = null, now = Date.now()}) {
++  return {version: 1, kind: 'enclave-challenge-front', hostId: cfg.front.hostId, role: cfg.role, name: cfg.front.name, origin: cfg.front.origin,
++    release: {dnsSha256: release.dnsSha256, runtimeBundleSha256: release.runtimeBundleSha256}, state, pid: process.pid,
++    ...(state === 'serving' ? {front: `${cfg.front.listen.ip.includes(':') ? `[${cfg.front.listen.ip}]` : cfg.front.listen.ip}:${port}`, proofKey} : {reason: String(reason || 'stopped').slice(0, 200)}),
++    issuedAt: now, expiresAt: now + DECLARATION_TTL_MS};
++}
++/** temp + fsync + rename (+ directory fsync on POSIX); mode 0640: the service-tls reader needs read access, nobody write */
++export function writeDeclaration(file, doc, {fsx = fs, platform = process.platform} = {}) {
++  const dir = path.dirname(file), tmp = path.join(dir, `.${path.basename(file)}.tmp-${randomBytes(6).toString('hex')}`);
++  try {
++    const fd = fsx.openSync(tmp, 'wx', 0o640);
++    try { fsx.writeSync(fd, JSON.stringify(doc)); fsx.fsyncSync(fd); } finally { fsx.closeSync(fd); }
++    fsx.renameSync(tmp, file);
++  } catch (e) { try { fsx.unlinkSync(tmp); } catch { /* absent */ } throw e; }
++  if (platform !== 'win32') { const d = fsx.openSync(dir, 'r'); try { fsx.fsyncSync(d); } finally { fsx.closeSync(d); } }
+ }
+ 
+ /** The EnclaveServiceIndex kind-dns advertisement, as UNSIGNED typed data for the host operator's key. Never published here. */
+@@ -291,8 +362,14 @@
+ // enclave-network-host.mjs ownerNameRoots; no configuration file can set them. Production RPCs and peers are verified
+ // against Node's public roots, and the gate is network/host-service-gate.mjs for hostPolicy.
+ export async function startChallengeReplica(cfg, {node = process.execPath, spawn = spawnProcess, fetch = globalThis.fetch, log = () => {}, readyMs = 60_000,
+-                                                  extraCaFile = null, gate = null, gateIntervalMs = 5000} = {}) {
++                                                  extraCaFile = null, gate = null, gateIntervalMs = 5000, declareEveryMs = DECLARATION_EVERY_MS} = {}) {
+   const release = verifyReplicaRelease(cfg.release);
++  // managed front: what service-tls may front, declared; a write failure never serves (service-tls needs a valid one)
++  const declare = (state, why = null) => {
++    if (cfg.front.mode !== 'managed') return;
++    try { writeDeclaration(cfg.front.declarationFile, frontDeclaration(cfg, release, {state, port: front?.port, proofKey: front?.proofKey, reason: why})); }
++    catch (e) { log(`challenge replica: declaration ${state} not written (${e.code || e.message}); service-tls ${state === 'serving' ? 'does not front it' : 'closes on expiry or a failed proof'}`); }
++  };
+   const env = challengeReplicaEnv(cfg);
+   if (extraCaFile) env.NODE_EXTRA_CA_CERTS = extraCaFile;
+   if (!gate) {
+@@ -302,6 +379,7 @@
+     gate = createHostServiceGate({env: policyEnvVars, chainId: 8453, endpoint: cfg.hostPolicy.endpoint, stateDir: cfg.hostPolicy.stateDir, fetch: gateFetch, log});
+   }
+   let child = null, closed = false, backoff = 1000, timer = null, lastExit = null, front = null, serving = false, stoppedFor = null;
++  declare('stopped', 'starting');
+   const run = () => {
+     if (closed || !serving) return;
+     child = spawn(node, [release.entry], {cwd: cfg.release.dir, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true});
+@@ -335,7 +413,7 @@
+     const c = child; if (!c) return;
+     await new Promise((ok) => { const k = setTimeout(() => { try { c.kill('SIGKILL'); } catch {} ok(); }, 5000); c.once('exit', () => { clearTimeout(k); ok(); }); try { c.kill('SIGTERM'); } catch { clearTimeout(k); ok(); } });
+   };
+-  const halt = async (why) => { serving = false; stoppedFor = why; await front?.close(); front = null; await stopChild(); };
++  const halt = async (why) => { serving = false; stoppedFor = why; declare('stopped', why); await front?.close(); front = null; await stopChild(); };
+   // start: the child, then (once healthy) the front. Throws on no readiness, after stopping what it started.
+   const begin = async () => {
+     serving = true; stoppedFor = null; backoff = 1000; lastExit = null;
+@@ -350,7 +428,8 @@
+     }
+     if (!ready) { await halt('not ready'); fail(`the replica did not become ready (${lastExit || why})`); }
+     backoff = 1000;
+-    try { front = await startReplicaFront(cfg, {log}); } catch (e) { await halt('front'); fail(`https front: ${e.message}`); }
++    try { front = await startReplicaFront(cfg, {log}); } catch (e) { await halt('front'); fail(`${cfg.front.mode === 'managed' ? 'loopback' : 'https'} front: ${e.message}`); }
++    declare('serving');
+     log(`challenge replica serving: ${cfg.role}, release ${release.dnsSha256.slice(0, 12)}, ${cfg.snp ? 'SEV-SNP ' : ''}${cfg.shield ? 'Shield ' : ''}evidence`);
+   };
+   // the policy's first answer decides whether anything starts at all
+@@ -373,8 +452,10 @@
+     })().finally(() => { ticking = null; });
+   }, gateIntervalMs);
+   tick.unref?.();
++  const beat = cfg.front.mode === 'managed' ? setInterval(() => { if (front && serving && !closed) declare('serving'); }, declareEveryMs) : null;
++  beat?.unref?.();
+   return {env, release, get frontPort() { return frontPort; }, health, pid: () => child?.pid ?? null,
+     // serving: healthy and the front is open; wanted: admitted and (re)starting or running
+     status: () => ({serving: front !== null, wanted: serving, stoppedFor, platformHostPolicy: gate.status?.() ?? null}),
+-    close: async () => { closed = true; clearInterval(tick); gate.stop?.(); await ticking; await halt('closed'); }};
++    close: async () => { closed = true; clearInterval(tick); if (beat) clearInterval(beat); gate.stop?.(); await ticking; await halt('closed'); }};
+ }
+--- a/network/enclave-network-host.mjs
++++ b/network/enclave-network-host.mjs
+@@ -73,6 +73,8 @@
+  const probeUrls=egressProbeUrls(c.egressProbeUrls,rpc);
+  // the host's DNS/challenge service (challenge-replica-host.mjs), judged now - before anything binds - and started last
+  const challengeCfg=c.challengeReplica===undefined?null:challengeReplicaConfig(c.challengeReplica);
++ // a managed challenge front serves this host's own derived origin: its registry id must be this runner (challenge-host-tls)
++ if(challengeCfg?.front.mode==='managed'&&challengeCfg.front.hostId!==String(runner||'').toLowerCase())throw new Error('Enclave network: challengeReplica.front.managed: hostPolicy.endpoint is not this host\'s registry endpoint (keccak256 differs from the runner)');
+  const onNetwork=id=>c.apps==='all'||c.apps.includes(id);
+  const relay=async(p,init)=>{if(!c.relay)throw new Error('BYO requires an operator-local config directory or an explicit relay');const r=await fetch(new URL(p,c.relay),{...init,signal:AbortSignal.timeout(10000)});if(r.status===404)return null;const b=await r.json().catch(()=>null);if(!r.ok)throw new Error(`relay ${p.split('/').slice(0,4).join('/')}: ${b?.error||r.status}`);return b;};
+  const directories=new DirectoryClient({origins:c.directories||(c.relay?[c.relay]:[]),fetch});
+--- a/network/host-services/service-tls.mjs
++++ b/network/host-services/service-tls.mjs
+@@ -32,6 +32,16 @@
+ //     front (404 for unknown challenges, raw pass-through by Host), but it never contacts the CA - no account, no order, no
+ //     renewal. A stored valid certificate still serves until it expires. Approval is a reviewed configuration change, made
+ //     only after public DNS and every provider route for the derived names are proven (G3 activation, g3-final-package).
++//   - THE CHALLENGE ORIGIN (optional `challenge`, work/challenge-host-tls-20261021). The app-zone-replica's attested push
++//     origin chal-<base32(registry id)>.<zone> (host-service-names.mjs hostChallengeName) joins the SAME certificate. Its
++//     owner is the network runtime (challenge-replica-host.mjs, a managed loopback front), not this runner, so it is not a
++//     cfg.services role: this role fronts it ONLY while (1) the front's declaration file - read through one handle whose
++//     file, directory and every directory above passed the trust checks for that read (writers SYSTEM/Administrators,
++//     readers of its proof key SYSTEM/Administrators/LOCAL SERVICE; POSIX root or this uid, no other access) - is a
++//     serving, unexpired declaration of exactly the pinned host, name, loopback port and replica release, (2) the process
++//     on that port proves the declared key (HMAC over a fresh nonce: the front's liveness), (3) this host is admitted and
++//     (4) a valid certificate is held. Checked every 5 s; any failure closes its listener and its connections. Port 80 answers only its http-01 tokens: there is no plaintext
++//     push API. The front keeps every route/method/body/credential restriction itself.
+ //   - NO CONTENT CAPTURE. The port-80 front reads at most 16 KiB of request head to find the Host and the target; it
+ //     logs neither, nor any header or body. TLS plaintext is never inspected. Logs carry names, events and CA errors.
+ import fs from 'node:fs';
+@@ -39,16 +49,19 @@
+ import net from 'node:net';
+ import tls from 'node:tls';
+ import { duplexPair } from 'node:stream';
++import { request as httpRequest } from 'node:http';
+ import { spawn as spawnChild } from 'node:child_process';
+ import { createPrivateKey, randomBytes, X509Certificate } from 'node:crypto';
+ import { keccak256, toBytes } from 'viem';
+-import { HOST_SERVICE_ROLES, hostServiceNames, validServiceZone } from '../host-service-names.mjs';
++import { HOST_SERVICE_ROLES, hostServiceNames, hostChallengeName, validServiceZone } from '../host-service-names.mjs';
++import { FRONT_PROOF_PATH, frontDeclarationRefusal, proofMatches } from '../challenge-front-declaration.mjs';
+ import { ACME_DIRECTORIES, createAcmeClient, newKey, pemBlocks } from './acme-http01.mjs';
+ 
+ const ROLE = 'service-tls';
+ const fail = (m) => { throw new Error(`${ROLE}: ${m}`); };
+ const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
+ const isPort = (v) => Number.isInteger(v) && v >= 1 && v <= 65535;
++const HEX64 = /^[0-9a-f]{64}$/;
+ const FRONTED = Object.keys(HOST_SERVICE_ROLES);              // directory-replica, bootstrap-replica, policy-mirror
+ const SERVER_AUTH = '1.3.6.1.5.5.7.3.1';
+ const HEAD_MAX = 16 * 1024;
+@@ -60,14 +73,18 @@
+ 
+ // ---- configuration ------------------------------------------------------------------------------------------------------
+ /**
+- * The operator's role config: { hostId, zone, httpPort, tlsPorts: { <role>: port }, ca: "letsencrypt", orders?: "held" | "approved" }.
++ * The operator's role config: { hostId, zone, httpPort, tlsPorts: { <role>: port }, ca: "letsencrypt", orders?: "held" | "approved",
++ *   challenge?: { tlsPort, frontPort, declarationFile, release: { dnsSha256, runtimeBundleSha256 } } }.
++ * challenge: front the host's attested challenge push origin (see THE CHALLENGE ORIGIN): tlsPort = its loopback TLS port
++ * (G1 routes the name's 443 there), frontPort = the network runtime's managed loopback front (challengeReplica.front.listen),
++ * declarationFile = its challengeReplica.front.managed.declarationFile, release = the pinned challenge replica release.
+  * No secret, no names. `orders` absent = "held" (no CA contact at all; see ORDERS HELD above).
+  * hostId: this host's REGISTRY id (the runner id G1's agent uses, EnclaveRegistry idOf = keccak256(endpoint bytes as
+  * registered)); the names are derived from it, and the runner refuses it unless host.endpoint hashes to exactly it.
+  */
+ export function validateServiceTlsConfig(c) {
+   if (!plain(c)) fail('config must be an object');
+-  for (const k of Object.keys(c)) if (!['hostId', 'zone', 'httpPort', 'tlsPorts', 'ca', 'orders'].includes(k)) fail(`unknown config field ${JSON.stringify(k)} (names are derived from the host id; keys are generated on the host)`);
++  for (const k of Object.keys(c)) if (!['hostId', 'zone', 'httpPort', 'tlsPorts', 'ca', 'orders', 'challenge'].includes(k)) fail(`unknown config field ${JSON.stringify(k)} (names are derived from the host id; keys are generated on the host)`);
+   if (typeof c.hostId !== 'string' || !/^0x[0-9a-f]{64}$/.test(c.hostId) || /^0x0{64}$/.test(c.hostId)) fail('hostId must be this host\'s registry id (0x + 64 lowercase hex)');
+   try { validServiceZone(c.zone); } catch (e) { fail(e.message); }
+   if (!isPort(c.httpPort)) fail('httpPort must be a port');
+@@ -76,13 +93,25 @@
+     if (!FRONTED.includes(r)) fail(`tlsPorts: ${JSON.stringify(r)} has no derived service name`);
+     if (!isPort(p)) fail(`tlsPorts.${r} must be a port`);
+   }
+-  const ports = [c.httpPort, ...Object.values(c.tlsPorts)];
+-  if (new Set(ports).size !== ports.length) fail('httpPort and tlsPorts must be distinct');
++  let challenge = null;
++  if (c.challenge !== undefined) {
++    const k = c.challenge;
++    if (!plain(k)) fail('challenge must be an object');
++    for (const f of Object.keys(k)) if (!['tlsPort', 'frontPort', 'declarationFile', 'release'].includes(f)) fail(`challenge: unknown field ${JSON.stringify(f)} (the name is derived from the host id)`);
++    if (!isPort(k.tlsPort) || !isPort(k.frontPort)) fail('challenge.tlsPort and challenge.frontPort must be ports');
++    if (typeof k.declarationFile !== 'string' || !path.isAbsolute(k.declarationFile)) fail('challenge.declarationFile must be an absolute path');
++    if (!plain(k.release) || Object.keys(k.release).sort().join() !== 'dnsSha256,runtimeBundleSha256' || !HEX64.test(k.release.dnsSha256) || !HEX64.test(k.release.runtimeBundleSha256))
++      fail('challenge.release must pin { dnsSha256, runtimeBundleSha256 } of the challenge replica release (64 hex each)');
++    challenge = { tlsPort: k.tlsPort, frontPort: k.frontPort, declarationFile: k.declarationFile, release: { dnsSha256: k.release.dnsSha256, runtimeBundleSha256: k.release.runtimeBundleSha256 } };
++  }
++  const ports = [c.httpPort, ...Object.values(c.tlsPorts), ...(challenge ? [challenge.tlsPort, challenge.frontPort] : [])];
++  if (new Set(ports).size !== ports.length) fail('httpPort, tlsPorts and the challenge ports must be distinct');
+   // staging roots are not in the trust store and acceptance is never weakened, so only the production CA is offered
+   if (!Object.hasOwn(ACME_DIRECTORIES, c.ca)) fail(`ca must be one of ${Object.keys(ACME_DIRECTORIES).join(', ')}`);
+   const orders = c.orders === undefined ? 'held' : c.orders;
+   if (orders !== 'held' && orders !== 'approved') fail('orders must be "held" or "approved" (absent = "held")');
+-  return { hostId: c.hostId, zone: c.zone, httpPort: c.httpPort, tlsPorts: Object.fromEntries(FRONTED.filter((r) => c.tlsPorts[r]).map((r) => [r, c.tlsPorts[r]])), ca: c.ca, orders };
++  return { hostId: c.hostId, zone: c.zone, httpPort: c.httpPort, tlsPorts: Object.fromEntries(FRONTED.filter((r) => c.tlsPorts[r]).map((r) => [r, c.tlsPorts[r]])), ca: c.ca, orders,
++    ...(challenge ? { challenge } : {}) };
+ }
+ 
+ /**
+@@ -109,7 +138,7 @@
+   if (!Object.keys(upstreams).length) fail(`this host runs none of ${FRONTED.join(', ')}`);
+   const used = [];
+   for (const s of cfg.services) if (s.role !== ROLE) for (const k of ['port', 'apiPort', 'dnsPort']) if (isPort(s.config[k])) used.push(s.config[k]);
+-  for (const p of [config.httpPort, ...Object.values(config.tlsPorts)]) if (used.includes(p)) fail(`port ${p} is another role's`);
++  for (const p of [config.httpPort, ...Object.values(config.tlsPorts), ...(config.challenge ? [config.challenge.tlsPort, config.challenge.frontPort] : [])]) if (used.includes(p)) fail(`port ${p} is another role's`);
+   const mirror = byRole['policy-mirror'];
+   const policy = Object.fromEntries(POLICY_FIELDS.filter((k) => cfg[k] !== undefined).map((k) => [k, cfg[k]]));
+   if (mirror) policy.policyMirrorStateDir = mirror.stateDir;
+@@ -131,7 +160,167 @@
+ 
+ /** The G1 values (enclaveNetwork.hostServices, e49's host-service-transport.mjs): the role ports, and tls = { httpPort,
+  *  tlsPorts } (port 80 of every derived name -> httpPort, port 443 -> tlsPorts[role]). Root's integration checks equality. */
+-export const ingressPorts = (c) => ({ ports: { ...c.upstreams }, tls: { httpPort: c.httpPort, tlsPorts: { ...c.tlsPorts } } });
++export const ingressPorts = (c) => ({ ports: { ...c.upstreams }, tls: { httpPort: c.httpPort, tlsPorts: { ...c.tlsPorts }, ...(c.challenge ? { challengePort: c.challenge.tlsPort } : {}) } });
++
++// ---- the challenge front's declaration: who may change it, who may read its proof key (root review R1-R3) --------------
++// Threat model (one host). The WRITER is the network runtime: Windows SYSTEM or an elevated Administrators member; POSIX
++// root or this reader's own uid. The ONE other reader is this role: Windows LOCAL SERVICE (the hs2 account); POSIX this
++// process, optionally through one of its own groups (mode 0640). UNTRUSTED: every other local account and service SID,
++// AppContainer circuit processes, and anything that binds the front's loopback port after the front stopped. None of them
++// may change what is read (write the file, replace it or any directory above it, change an owner or ACL) or read the proof
++// key. SYSTEM and Administrators are trusted: they control the host anyway; their own races are not defended against.
++// Every accepted declaration is read through ONE handle whose file was verified (type, single link, owner, permissions);
++// on Windows the ACL chain (one PowerShell) is re-read when that file's identity changes and at least every refreshMs.
++const SID = { system: 'S-1-5-18', admins: 'S-1-5-32-544', localService: 'S-1-5-19', trustedInstaller: 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464' };
++const DECL_WRITERS = new Set([SID.system, SID.admins]);                       // write the directory and the file; own the file
++const DECL_READERS = new Set([SID.system, SID.admins, SID.localService]);     // read the file (its proof key)
++const PATH_OWNERS = new Set([SID.system, SID.admins, SID.trustedInstaller]);  // own the directories above (C:\ is TrustedInstaller's)
++const FR = { readData: 0x1, writeData: 0x2, append: 0x4, writeEa: 0x10, deleteChild: 0x40, writeAttr: 0x100, delete: 0x10000, writeDac: 0x40000, writeOwner: 0x80000,
++  genericAll: 0x10000000, genericWrite: 0x40000000, genericRead: 0x80000000 };
++const WRITE_RIGHTS = FR.writeData | FR.append | FR.writeEa | FR.deleteChild | FR.writeAttr | FR.delete | FR.writeDac | FR.writeOwner | FR.genericAll | FR.genericWrite;
++const REPLACE_RIGHTS = FR.delete | FR.writeDac | FR.writeOwner | FR.genericAll;   // on a component; plus deleteChild on a directory
++const READ_RIGHTS = FR.readData | FR.genericRead | FR.genericAll;
++const effective = (aces) => (aces || []).filter((a) => a.allow && !a.inheritOnly);  // deny entries only narrow; inherit-only ones do not apply here
++/**
++ * Windows: chain = [{ path, exists, reparse, dir, owner, aces: [{ sid, allow, rights, inheritOnly }] }] from the volume root
++ * to the declaration file (last; it may be absent). -> evidence, or throws. Every component: present, no reparse point,
++ * a trusted owner, nobody else able to replace or re-permission it (or delete a directory's children). The directory and
++ * the file: written only by SYSTEM/Administrators; the file owned by them and READ only by them and LOCAL SERVICE.
++ */
++export function evaluateDeclarationChain(chain) {
++  if (!Array.isArray(chain) || chain.length < 2) fail('declaration path ACLs could not be read');
++  const n = chain.length;
++  for (const [i, c] of chain.entries()) {
++    const last = i === n - 1, what = last ? 'the declaration file' : i === n - 2 ? 'the declaration directory' : `ancestor ${c?.path}`;
++    if (last && !c?.exists) break;                                   // absent file: a normal startup, nothing to trust yet
++    if (!c?.exists) fail(`${what} is absent`);
++    if (c.reparse) fail(`${what} is a reparse point (link or junction)`);
++    if (!last && !c.dir) fail(`${what} is not a directory`);
++    if (last && c.dir) fail('the declaration file is a directory');
++    if (!(i >= n - 2 ? DECL_WRITERS : PATH_OWNERS).has(c.owner)) fail(`${what} is owned by ${c.owner}, not SYSTEM or Administrators`);
++    const aces = effective(c.aces);
++    const replace = aces.filter((a) => !PATH_OWNERS.has(a.sid) && (Number(a.rights) & (REPLACE_RIGHTS | (c.dir ? FR.deleteChild : 0)))).map((a) => a.sid);
++    if (replace.length) fail(`${what} lets ${[...new Set(replace)].join(', ')} replace or re-permission it`);
++    if (i < n - 2) continue;
++    const writers = aces.filter((a) => !DECL_WRITERS.has(a.sid) && (Number(a.rights) & WRITE_RIGHTS)).map((a) => a.sid);
++    if (writers.length) fail(`${what} lets ${[...new Set(writers)].join(', ')} write: only SYSTEM and Administrators may`);
++    if (!last) continue;
++    const readers = aces.filter((a) => !DECL_READERS.has(a.sid) && (Number(a.rights) & READ_RIGHTS)).map((a) => a.sid);
++    if (readers.length) fail(`the declaration file lets ${[...new Set(readers)].join(', ')} read its proof key: only SYSTEM, Administrators and LOCAL SERVICE may`);
++  }
++  return { platform: 'win32', dirOwner: chain[n - 2].owner, file: chain[n - 1].exists ? { owner: chain[n - 1].owner } : null };
++}
++// read-only: owner, reparse flag, type and DACL (SIDs, rights, inherit-only) of every component from the volume root to the
++// file, path from the environment (no quoting), stdin closed
++export const CHAIN_PS = "$ErrorActionPreference='Stop';$p=[IO.Path]::GetFullPath($env:ENCLAVE_DECL_FILE);$l=@();$c=$p;"
++  + "while($c){$l=,$c+$l;$q=[IO.Path]::GetDirectoryName($c);if(-not $q -or $q -eq $c){break};$c=$q};"
++  + "$o=@(foreach($x in $l){if(Test-Path -LiteralPath $x){$i=Get-Item -LiteralPath $x -Force;$a=Get-Acl -LiteralPath $x;"
++  + "@{path=$x;exists=$true;reparse=[bool]($i.Attributes -band [IO.FileAttributes]::ReparsePoint);dir=[bool]$i.PSIsContainer;owner=$a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value;"
++  + "aces=@($a.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])|ForEach-Object{@{sid=$_.IdentityReference.Value;allow=($_.AccessControlType -eq 'Allow');rights=[int64]$_.FileSystemRights;"
++  + "inheritOnly=[bool]($_.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::InheritOnly)}})}}else{@{path=$x;exists=$false}}});"
++  + "'CHAIN '+(ConvertTo-Json -InputObject $o -Compress -Depth 5)";
++export function readDeclarationChain(file, { spawn = spawnChild, timeoutMs = 30_000 } = {}) {
++  const root = process.env.SystemRoot || 'C:\\Windows';
++  return new Promise((ok, no) => {
++    const p = spawn(path.join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoProfile', '-NonInteractive', '-Command', CHAIN_PS],
++      { env: { SystemRoot: root, ENCLAVE_DECL_FILE: file }, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
++    let out = '';
++    const t = setTimeout(() => { p.kill(); no(new Error('ACL chain read timed out')); }, timeoutMs);
++    p.stdout.on('data', (d) => { if (out.length < 262144) out += d; });
++    p.on('error', (e) => { clearTimeout(t); no(e); });
++    p.on('exit', (code) => {
++      clearTimeout(t);
++      const line = out.split(/\r?\n/).find((l) => l.startsWith('CHAIN '));
++      if (code !== 0 || !line) return no(new Error(`ACL chain read failed (exit ${code})`));
++      try { ok(JSON.parse(line.slice(6))); } catch { no(new Error('ACL chain read returned no JSON')); }
++    });
++  });
++}
++const posixIds = () => ({ owners: new Set([0, process.getuid()]), groups: new Set([process.getgid(), ...process.getgroups()]) });
++/** POSIX: every directory from / down: real directory, owned by root or this uid, writable by nobody else (an ancestor may be
++ *  sticky, like /tmp: others cannot rename what they do not own); the declaration directory itself writable by its owner only */
++function posixPathTrust(file, fsx, { owners }) {
++  const dir = path.dirname(path.resolve(file)), parts = [];
++  for (let c = dir; ; c = path.dirname(c)) { parts.unshift(c); if (path.dirname(c) === c) break; }
++  for (const c of parts) {
++    const what = c === dir ? 'the declaration directory' : `ancestor ${c}`, st = fsx.lstatSync(c, { throwIfNoEntry: false });
++    if (!st) fail(`${what} is absent`);
++    if (st.isSymbolicLink() || !st.isDirectory()) fail(`${what} is a link or not a directory`);
++    if (!owners.has(st.uid)) fail(`${what} is owned by uid ${st.uid}, not root or this process`);
++    if ((st.mode & 0o022) && !(c !== dir && (st.mode & 0o1000))) fail(`${what} is group- or world-writable (mode ${(st.mode & 0o7777).toString(8)})`);
++  }
++}
++/** POSIX file (by its open handle's stat): owned by root or us, written by its owner only, never readable by others; readable
++ *  by a group only when that group is one of this reader's own (the designated reader group) */
++function posixFileTrust(st, { owners, groups }) {
++  const mode = Number(st.mode);
++  if (!owners.has(Number(st.uid))) fail(`the declaration file is owned by uid ${st.uid}, not root or this process`);
++  if (mode & 0o022) fail(`the declaration file is group- or world-writable (mode ${(mode & 0o777).toString(8)})`);
++  if (mode & 0o004) fail(`the declaration file is world-readable (mode ${(mode & 0o777).toString(8)}): its proof key would be exposed`);
++  if ((mode & 0o040) && !groups.has(Number(st.gid))) fail(`the declaration file is readable by group ${st.gid}, not one of this reader's groups`);
++  return { platform: 'posix', mode: (mode & 0o777).toString(8) };
++}
++/** Preflight (startup, tests): the path, and the file when it exists. -> evidence, or throws */
++export async function checkDeclarationFile(file, { platform = process.platform, fsx = fs, windowsChain = readDeclarationChain, ids = null } = {}) {
++  if (platform === 'win32') {
++    let chain; try { chain = await windowsChain(file); } catch (e) { fail(`declaration ACL chain read failed: ${e.message}`); }
++    return evaluateDeclarationChain(chain);
++  }
++  const who = ids || posixIds();
++  posixPathTrust(file, fsx, who);
++  const st = fsx.lstatSync(file, { throwIfNoEntry: false });
++  if (!st) return { platform, file: null };
++  if (st.isSymbolicLink() || !st.isFile()) fail('the declaration file is a link or not a regular file');
++  if (st.nlink !== 1) fail('the declaration file has other hard links');
++  return { platform, file: posixFileTrust(st, who) };
++}
++/**
++ * The runtime reader: every accepted declaration is read through ONE handle whose file was verified for that read.
++ * POSIX: path + file checks on every read (no subprocess). Windows: the ACL chain is re-read when the opened file's identity
++ * (volume, file index, size, mtime, ctime) differs from the last verified one, when forced, and at least every refreshMs; the
++ * same identity in between reuses the verdict (the front rewrites its declaration only on start/stop and every 20 min).
++ * -> { read({ force }) -> { doc, identity, evidence }, chainReads } ; throws on any refusal.
++ */
++export function createDeclarationReader(file, { platform = process.platform, fsx = fs, windowsChain = readDeclarationChain, refreshMs = 60_000, now = () => Date.now(), ids = null } = {}) {
++  let verified = null;
++  const r = { chainReads: 0,
++    async read({ force = false } = {}) {
++      const who = platform === 'win32' ? null : (ids || posixIds());
++      if (who) posixPathTrust(file, fsx, who);
++      const pre = fsx.lstatSync(file, { bigint: true, throwIfNoEntry: false });
++      if (!pre) { const e = new Error('declaration absent'); e.code = 'ENOENT'; throw e; }
++      if (pre.isSymbolicLink() || !pre.isFile()) fail('the declaration file is a link or not a regular file');
++      let fd;
++      try { fd = fsx.openSync(file, fs.constants.O_RDONLY | (platform !== 'win32' && fs.constants.O_NOFOLLOW ? fs.constants.O_NOFOLLOW : 0)); }
++      catch (e) { if (e.code === 'ELOOP') fail('the declaration file is a link'); throw e; }
++      try {
++        const st = fsx.fstatSync(fd, { bigint: true });
++        if (!st.isFile()) fail('the declaration file is not a regular file');
++        if (st.nlink !== 1n) fail('the declaration file has other hard links');
++        if (st.ino !== pre.ino || st.dev !== pre.dev) fail('the declaration file was replaced while being opened');
++        const identity = `${st.dev}:${st.ino}:${st.size}:${st.mtimeNs}:${st.ctimeNs}`;
++        let evidence;
++        if (platform === 'win32') {
++          if (force || !verified || verified.identity !== identity || now() - verified.at >= refreshMs) {
++            verified = null; r.chainReads++;
++            let chain; try { chain = await windowsChain(file); } catch (e) { fail(`declaration ACL chain read failed: ${e.message}`); }
++            evidence = evaluateDeclarationChain(chain);
++            if (!evidence.file) fail('the declaration file vanished during its ACL check');
++            // the ACLs read belong to THIS handle's file only if the path still names it afterwards
++            const after = fsx.lstatSync(file, { bigint: true, throwIfNoEntry: false });
++            if (!after || after.ino !== st.ino || after.dev !== st.dev) fail('the declaration file was replaced during its ACL check');
++            verified = { identity, at: now(), evidence };
++          } else evidence = verified.evidence;
++        } else evidence = posixFileTrust(st, who);
++        if (st.size > 65536n) fail('the declaration file is too large');
++        const buf = Buffer.alloc(Number(st.size)); let off = 0;
++        while (off < buf.length) { const n = fsx.readSync(fd, buf, off, buf.length - off, off); if (!n) break; off += n; }
++        let doc; try { doc = JSON.parse(buf.subarray(0, off).toString('utf8')); } catch { const e = new Error('declaration malformed'); e.code = 'malformed'; throw e; }
++        return { doc, identity, evidence };
++      } finally { fsx.closeSync(fd); }
++    } };
++  return r;
++}
+ 
+ // ---- the private key directory ------------------------------------------------------------------------------------------
+ const WINDOWS_ALLOWED = new Set(['S-1-5-18', 'S-1-5-32-544', 'S-1-5-19', 'S-1-3-0']);   // SYSTEM, Administrators, LOCAL SERVICE, CREATOR OWNER
+@@ -273,7 +462,7 @@
+ function track(server, set) { server.on('connection', (s) => { set.add(s); s.on('close', () => set.delete(s)); }); return server; }
+ 
+ /** port 80 of every fronted name: challenge answers for exact names, otherwise raw passthrough to the role. */
+-function createHttpFront({ routes, challenges, headTimeoutMs, idleMs, maxConnections }) {
++function createHttpFront({ routes, acmeOnly = new Set(), challenges, headTimeoutMs, idleMs, maxConnections }) {
+   const server = net.createServer((sock) => {
+     let buf = Buffer.alloc(0);
+     sock.setTimeout(headTimeoutMs, () => sock.destroy());
+@@ -288,13 +477,14 @@
+       const hosts = lines.slice(1).filter((l) => /^host:/i.test(l)).map((l) => l.slice(5).trim().toLowerCase().replace(/:80$/, ''));
+       if (!m || hosts.length !== 1) return reply(sock, 400, 'Bad Request');
+       const port = routes.get(hosts[0]);
+-      if (!port) return reply(sock, 421, 'Misdirected Request');
++      if (!port && !acmeOnly.has(hosts[0])) return reply(sock, 421, 'Misdirected Request');
+       const prefix = '/.well-known/acme-challenge/';
+       if (m[2].startsWith(prefix)) {
+         const answer = (m[1] === 'GET' || m[1] === 'HEAD') ? challenges.get(hosts[0])?.get(m[2].slice(prefix.length)) : null;
+         if (!answer) return reply(sock, 404, 'Not Found');
+         return sock.resume().end(`HTTP/1.1 200 OK\r\ncontent-type: application/octet-stream\r\ncontent-length: ${answer.length}\r\nconnection: close\r\ncache-control: no-store\r\n\r\n${m[1] === 'GET' ? answer : ''}`);
+       }
++      if (!port) return reply(sock, 404, 'Not Found');           // the challenge origin: https only, no plaintext API
+       sock.setTimeout(0);
+       const up = net.connect(port, '127.0.0.1');
+       up.write(buf); buf = null;
+@@ -306,11 +496,11 @@
+   return server;
+ }
+ /** one TLS listener per role: exactly its name as SNI, the host certificate, then a raw pipe to the role */
+-function createTlsFront({ name, port, context, idleMs, maxConnections }) {
++function createTlsFront({ name, port, context, idleMs, maxConnections, live = null }) {
+   const server = tls.createServer({ minVersion: 'TLSv1.2', ALPNProtocols: ['http/1.1'],
+     SNICallback: (sni, cb) => { const ctx = context(); if (String(sni || '').toLowerCase() === name && ctx) cb(null, ctx); else cb(new Error('unknown server name')); } },
+   (sock) => {
+-    if (String(sock.servername || '').toLowerCase() !== name) return sock.destroy();
++    if (String(sock.servername || '').toLowerCase() !== name || (live && !live())) return sock.destroy();
+     pipe(sock, net.connect(port, '127.0.0.1'), idleMs);
+   });
+   server.on('tlsClientError', () => {});
+@@ -327,10 +517,11 @@
+ export async function startServiceTls(c, { admit, directoryUrl = ACME_DIRECTORIES[c.ca], fetch = globalThis.fetch, roots = tls.rootCertificates,
+   now = () => Date.now(), log = (m) => console.log(m), fsx = fs, platform = process.platform, aclCheck = checkKeyDir, loop = true,
+   intervalMs = 60_000, backoffMs = 15 * 60_000, maxBackoffMs = 24 * 3600_000, headTimeoutMs = 10_000, idleMs = 120_000, maxConnections = 256,
+-  host = '127.0.0.1', acmeOptions = {}, budget = ISSUANCE_BUDGET } = {}) {
++  host = '127.0.0.1', acmeOptions = {}, budget = ISSUANCE_BUDGET, challengeEveryMs = 5000, declarationChain = readDeclarationChain, declarationRefreshMs = 60_000, declarationIds = null, proofTimeoutMs = 3000 } = {}) {
+   if (typeof admit !== 'function') fail('a platform host policy admission is required');
+   const all = hostServiceNames(c.hostId, c.zone);
+-  const tlsRoles = Object.keys(c.tlsPorts), certNames = tlsRoles.map((r) => all[r]);
++  const chalName = c.challenge ? hostChallengeName(c.hostId, c.zone) : null;
++  const tlsRoles = Object.keys(c.tlsPorts), certNames = [...tlsRoles.map((r) => all[r]), ...(chalName ? [chalName] : [])];
+   const routes = new Map(Object.entries(c.upstreams).map(([r, p]) => [all[r], p]));
+   const keysDir = path.join(c.stateDir, 'keys');
+   const acl = await aclCheck(keysDir, { platform, fsx });
+@@ -356,20 +547,61 @@
+ 
+   const sockets = new Set();
+   const http = { server: null, port: null }, fronts = Object.fromEntries(tlsRoles.map((r) => [r, { server: null, port: null }]));
+-  const listen = (slot, make, port) => new Promise((ok, no) => {
++  const listen = (slot, make, port, set = sockets) => new Promise((ok, no) => {
+     if (slot.server) return ok();
+-    const s = track(make(), sockets);
++    const s = track(make(), set);
+     s.once('error', (e) => { slot.server = null; no(e); });
+     s.listen(port, host, () => { slot.server = s; slot.port = s.address().port; ok(); });
+   });
+   const close = (slot) => { if (slot.server) { slot.server.close(); slot.server = null; } };
++  // ---- the challenge origin: fronted only for the verified, admitted local front (THE CHALLENGE ORIGIN) ----
++  const chal = chalName ? { slot: { server: null, port: null }, sockets: new Set(), ok: false, why: 'not checked', checking: null,
++    reader: createDeclarationReader(c.challenge.declarationFile, { platform, fsx, windowsChain: declarationChain, refreshMs: declarationRefreshMs, now, ids: declarationIds }) } : null;
++  const expect = chal && { hostId: c.hostId, name: chalName, origin: `https://${chalName}`, frontPort: c.challenge.frontPort, release: c.challenge.release };
++  const proveFront = (key) => new Promise((ok) => {
++    const nonce = randomBytes(32).toString('hex');
++    const req = httpRequest({ host: '127.0.0.1', port: c.challenge.frontPort, path: FRONT_PROOF_PATH, method: 'GET', headers: { host: chalName, 'x-enclave-front-nonce': nonce }, timeout: proofTimeoutMs }, (res) => {
++      let body = ''; res.setEncoding('utf8');
++      res.on('data', (d) => { body += d; if (body.length > 4096) req.destroy(new Error('oversized proof')); });
++      res.on('end', () => { let p = null; try { p = JSON.parse(body).proof; } catch { /* not a proof */ } ok(res.statusCode === 200 && proofMatches(key, nonce, p) ? null : 'the process on the front port does not hold the declared key'); });
++    });
++    req.on('timeout', () => req.destroy(new Error('timeout')));
++    req.on('error', (e) => ok(`the front port does not answer (${e.code || e.message})`));
++    req.end();
++  });
++  async function openChallenge() {
++    if (!chal?.ok || !context() || !st.admitted || st.refused || stopped) return;
++    await listen(chal.slot, () => createTlsFront({ name: chalName, port: c.challenge.frontPort, context, idleMs, maxConnections, live: () => chal.ok && st.admitted && !st.refused }), c.challenge.tlsPort, chal.sockets);
++  }
++  function closeChallenge({ connections = true } = {}) { if (!chal) return; close(chal.slot); if (connections) for (const s of chal.sockets) s.destroy(); }
++  async function checkChallenge({ acl = false } = {}) {
++    if (!chal) return null;
++    if (chal.checking) return chal.checking;
++    chal.checking = (async () => {
++      let why = null;
++      try {
++        // the bytes accepted are read through one handle whose file passed its trust checks for THIS read (R1-R3)
++        let doc = null;
++        try { ({ doc } = await chal.reader.read({ force: acl })); } catch (e) { why = e.code ? `declaration unreadable (${e.code})` : e.message; }
++        if (!why) why = frontDeclarationRefusal(doc, expect, now());
++        if (!why) why = await proveFront(doc.proofKey);
++      } catch (e) { why = String(e.message); }
++      const was = chal.ok; chal.ok = !why; chal.why = why;
++      if (!chal.ok) { if (was || chal.slot.server) log(`[service-tls] challenge front not fronted (${why}): ${chalName} closed`); closeChallenge(); }
++      else { if (!was) log(`[service-tls] challenge front verified: fronting ${chalName}`); await openChallenge(); }
++      return chal.ok;
++    })().finally(() => { chal.checking = null; });
++    return chal.checking;
++  }
+   async function openFronts() {
+-    await listen(http, () => createHttpFront({ routes, challenges, headTimeoutMs, idleMs, maxConnections }), c.httpPort);
++    await listen(http, () => createHttpFront({ routes, acmeOnly: new Set(chalName ? [chalName] : []), challenges, headTimeoutMs, idleMs, maxConnections }), c.httpPort);
+     for (const r of tlsRoles) if (context()) await listen(fronts[r], () => createTlsFront({ name: all[r], port: c.upstreams[r], context, idleMs, maxConnections }), c.tlsPorts[r]);
++    await openChallenge();
+   }
+   function closeFronts() {
+     close(http); for (const r of tlsRoles) close(fronts[r]);
+     for (const s of sockets) s.destroy();
++    closeChallenge();
+     challenges.clear();
+   }
+   function refuse(d) {
+@@ -398,7 +630,7 @@
+   async function tick() {
+     if (stopped || !st.admitted || st.refused || ordering) return;
+     if (st.unsaved) { try { store.writeDoc(st.unsaved.keyPem, st.unsaved.chainPem); st.unsaved = null; } catch (e) { log(`[service-tls] saving the certificate failed again (${e.code || e.message})`); } }
+-    if (current && now() >= current.info.notAfter) { log('[service-tls] the certificate expired: TLS closed until a new one is issued'); current = null; for (const r of tlsRoles) close(fronts[r]); }
++    if (current && now() >= current.info.notAfter) { log('[service-tls] the certificate expired: TLS closed until a new one is issued'); current = null; for (const r of tlsRoles) close(fronts[r]); closeChallenge({ connections: false }); }
+     if (c.orders !== 'approved') {                          // held (or anything else): never contact the CA
+       if (!st.heldLogged) { st.heldLogged = true; log('[service-tls] ACME orders are HELD by configuration (orders != "approved"): no account, order or renewal; the port-80 front serves'); }
+       return;
+@@ -429,17 +661,23 @@
+     } catch (e) { backoff(e); }
+     finally { ordering = null; }
+   }
+-  const round = async () => { await checkPolicy(); await tick(); };
++  const round = async () => { await checkPolicy(); await checkChallenge({ acl: true }); await tick(); };
++  await checkChallenge({ acl: true });
+   await checkPolicy();
+-  if (loop) { void tick(); timer = setInterval(() => void round().catch((e) => log(`[service-tls] ${e.message}`)), intervalMs); timer.unref?.(); }
++  let chalTimer = null;
++  if (loop) {
++    void tick(); timer = setInterval(() => void round().catch((e) => log(`[service-tls] ${e.message}`)), intervalMs); timer.unref?.();
++    if (chal) { chalTimer = setInterval(() => void checkChallenge().catch((e) => log(`[service-tls] ${e.message}`)), challengeEveryMs); chalTimer.unref?.(); }
++  }
+   return {
+-    checkPolicy, tick, round,
+-    get ports() { return { http: http.port, tls: Object.fromEntries(tlsRoles.map((r) => [r, fronts[r].port])) }; },
++    checkPolicy, tick, round, checkChallenge,
++    get ports() { return { http: http.port, tls: Object.fromEntries(tlsRoles.map((r) => [r, fronts[r].port])), ...(chal ? { challenge: chal.slot.port } : {}) }; },
+     status: () => ({ hostId: c.hostId, ordering: c.orders === 'approved' ? 'approved' : 'held', issuedInWindow: ledger.issued.length, names: certNames, keyDir: acl, admitted: st.admitted, refused: st.refused, policyError: st.policyError,
+       certificate: current ? { notBefore: current.info.notBefore, notAfter: current.info.notAfter, renewAt: current.info.renewAt, fingerprint: current.info.fingerprint } : null,
+       orders: st.orders, failures: st.failures, nextAt: st.nextAt, lastError: st.lastError, unsaved: !!st.unsaved,
+-      listening: { http: !!http.server, tls: Object.fromEntries(tlsRoles.map((r) => [r, !!fronts[r].server])) } }),
+-    async stop() { stopped = true; if (timer) clearInterval(timer); ordering?.abort(); closeFronts(); },
++      listening: { http: !!http.server, tls: Object.fromEntries(tlsRoles.map((r) => [r, !!fronts[r].server])) },
++      ...(chal ? { challenge: { name: chalName, fronted: chal.ok, why: chal.why, listening: !!chal.slot.server } } : {}) }),
++    async stop() { stopped = true; if (timer) clearInterval(timer); if (chalTimer) clearInterval(chalTimer); ordering?.abort(); closeFronts(); },
+   };
+ }
+ 
+--- a/network/host-service-transport.mjs
++++ b/network/host-service-transport.mjs
+@@ -7,13 +7,17 @@
+ //
+ // config (cfg.enclaveNetwork.hostServices): { zone, exits: [providerId, ...] (1-8),
+ //   ports: { "directory-replica": 18188, "bootstrap-replica": 18189, "policy-mirror": 18190 } (any subset, loopback),
+-//   tls?: { httpPort, tlsPorts: { <role>: port } }     (G3, the host's service-tls role, work/host-service-tls-20261021:
++//   tls?: { httpPort, tlsPorts: { <role>: port },      (G3, the host's service-tls role, work/host-service-tls-20261021:
++//           challengePort? }                           (challengePort: the host's attested challenge origin
++//                                                        chal-<b32>.<zone> - its 443 goes there and its 80 to httpPort for
++//                                                        http-01 only; the exits must grant it, i.e. their operator opted in
++//                                                        with hostServices.challenge, work/challenge-host-tls-20261021)
+ //                                                        port 80 of every derived name goes to its front httpPort -
+ //                                                        ACME http-01 plus raw passthrough - and 443 to tlsPorts[role];
+ //                                                        a role without a TLS port is closed on 443),
+ //   dns?: { tcp: 18153, udp: 18153 } }                 (route-dns; the exit forwards 53 only if its operator pins this host)
+ import tls from 'node:tls';
+-import { hostServiceNames, HOST_SERVICE_ROLES, validServiceZone } from './host-service-names.mjs';
++import { hostServiceNames, hostChallengeName, HOST_SERVICE_ROLES, validServiceZone } from './host-service-names.mjs';
+ const ZERO = '0x' + '0'.repeat(64), COOLDOWN_MAX_MS = 30 * 60000;
+ const port = (v) => Number.isInteger(v) && v >= 1 && v <= 65535;
+ 
+@@ -25,10 +29,11 @@
+   const roles = Object.keys(HOST_SERVICE_ROLES);
+   if (!c.ports || typeof c.ports !== 'object' || !Object.keys(c.ports).length || Object.entries(c.ports).some(([r, p]) => !roles.includes(r) || !port(p))) throw new Error(`hostServices.ports: loopback ports of ${roles.join(', ')}`);
+   if (c.tls !== undefined) {
+-    const t = c.tls, ok = t && typeof t === 'object' && !Object.keys(t).some((k) => !['httpPort', 'tlsPorts'].includes(k)) && port(t.httpPort) &&
+-      t.tlsPorts && typeof t.tlsPorts === 'object' && Object.keys(t.tlsPorts).length && Object.entries(t.tlsPorts).every(([r, p]) => c.ports[r] && port(p));
+-    if (!ok) throw new Error('hostServices.tls: { httpPort, tlsPorts: { <served role>: port } }');
+-    const all = [...Object.values(c.ports), t.httpPort, ...Object.values(t.tlsPorts)];
++    const t = c.tls, ok = t && typeof t === 'object' && !Object.keys(t).some((k) => !['httpPort', 'tlsPorts', 'challengePort'].includes(k)) && port(t.httpPort) &&
++      t.tlsPorts && typeof t.tlsPorts === 'object' && Object.keys(t.tlsPorts).length && Object.entries(t.tlsPorts).every(([r, p]) => c.ports[r] && port(p)) &&
++      (t.challengePort === undefined || port(t.challengePort));
++    if (!ok) throw new Error('hostServices.tls: { httpPort, tlsPorts: { <served role>: port }, challengePort? }');
++    const all = [...Object.values(c.ports), t.httpPort, ...Object.values(t.tlsPorts), ...(t.challengePort !== undefined ? [t.challengePort] : [])];
+     if (new Set(all).size !== all.length) throw new Error('hostServices.tls: the front and TLS ports must differ from each other and from the role ports');
+   }
+   // route-dns answers UDP and TCP on ONE port; the host relays both over its TCP listener (a Windows circuit sandbox grants
+@@ -36,7 +41,8 @@
+   if (c.dns !== undefined && (!c.dns || typeof c.dns !== 'object' || Object.keys(c.dns).some((k) => !['tcp', 'udp'].includes(k)) || !port(c.dns.tcp) || c.dns.udp !== c.dns.tcp)) throw new Error('hostServices.dns: {tcp, udp}: route-dns\'s one loopback port (both the same)');
+   // absent blocks stay ABSENT (not null), so the normalized form validates again unchanged (privacy-agent validates, then
+   // HostServiceTransport validates what it is given)
+-  return { zone: c.zone, exits: [...new Set(c.exits)], ports: { ...c.ports }, ...(c.tls ? { tls: { httpPort: c.tls.httpPort, tlsPorts: { ...c.tls.tlsPorts } } } : {}),
++  return { zone: c.zone, exits: [...new Set(c.exits)], ports: { ...c.ports },
++    ...(c.tls ? { tls: { httpPort: c.tls.httpPort, tlsPorts: { ...c.tls.tlsPorts }, ...(c.tls.challengePort !== undefined ? { challengePort: c.tls.challengePort } : {}) } } : {}),
+     ...(c.dns ? { dns: { tcp: c.dns.tcp, udp: c.dns.udp } } : {}) };
+ }
+ 
+@@ -57,8 +63,11 @@
+     const c = validateHostServicesTransport(config);
+     Object.assign(this, { runtime, providers, grants, hostId: String(hostId).toLowerCase(), config: c, now, log });
+     const all = hostServiceNames(this.hostId, c.zone);
+-    this.granted = Object.values(all);   // the exit grants every derived name; only the configured roles answer
++    // the exit grants every derived name (plus the challenge origin when its operator opted in); only the configured roles answer
++    const chal = c.tls?.challengePort !== undefined ? hostChallengeName(this.hostId, c.zone) : null;
++    this.granted = [...Object.values(all), ...(chal ? [chal] : [])];
+     this.names = Object.fromEntries(Object.entries(c.ports).map(([role, p]) => [all[role], { http: c.tls ? c.tls.httpPort : p, tls: c.tls?.tlsPorts[role] || null }]));
++    if (chal) this.names[chal] = { http: c.tls.httpPort, tls: c.tls.challengePort };   // 80: http-01 only (service-tls); 443: the challenge front
+     this.circuits = new Map(); this.cooldown = new Map(); this.strikes = new Map(); this.closed = false; this.busy = false;
+   }
+   /**
+--- a/network/wg-provider/provider.mjs
++++ b/network/wg-provider/provider.mjs
+@@ -6,7 +6,10 @@
+ import {canonical} from '../route-record.mjs';
+ import {defaultNetworkPolicy,admitNetworkPolicy,networkUse} from '../network-policy.mjs';
+ import {paidGate} from './paid.mjs';
+-import {hostServiceNames,isHostServiceName} from '../host-service-names.mjs';
++import {hostServiceNames,hostChallengeName,isHostServiceName} from '../host-service-names.mjs';
++// a host's granted service names: its three role names, plus its challenge origin where this provider's operator opted in
++// (hostServices.challenge, work/challenge-host-tls-20261021); derived from the runner, never requested
++const serviceNamesOf=(runner,hs)=>[...Object.values(hostServiceNames(runner,hs.zone)),...(hs.challenge===true?[hostChallengeName(runner,hs.zone)]:[])];
+ 
+ export const REQUEST_MAX_AGE_MS=60000,PEER_TTL_MS=10*60000,MAX_PEERS=2048,MAX_SERVICE_HOSTS=64,DNS_STALE_MS=180000;
+ const app=/^0x[0-9a-f]{64}$/,hex32=/^[0-9a-f]{32}$/,wgKey=/^[A-Za-z0-9+/]{43}=$/,address=/^0x[0-9a-fA-F]{40}$/;
+@@ -85,7 +88,7 @@
+   for(const p of saved?.peers||[]){
+    if(!p||p.expiresAt<=now||!/^10\.7[78]\./.test(p.address||''))continue;
+    // a service peer's names follow THIS run's configuration, never the saved ones (a changed zone; host services withdrawn)
+-   if(p.role==='service'){if(!this.config.hostServices)continue;try{p.names=Object.values(hostServiceNames(p.runner,this.config.hostServices.zone));}catch{continue;}p.dnsOk=false;}
++   if(p.role==='service'){if(!this.config.hostServices)continue;try{p.names=serviceNamesOf(p.runner,this.config.hostServices);}catch{continue;}p.dnsOk=false;}
+    this.peers.set(p.key,p);this.used.add(p.address);
+    try{await this.kernel.setPeer({...p,role:p.role==='guard'||p.onGuard?'guard':'exit'});}catch(e){this.log('restore peer: '+e.message);}
+   }
+@@ -227,7 +230,7 @@
+    while(same.length>=2)await this.remove(same.shift(),'replaced');
+    peer={key:r.wgPublicKey,role:'service',deploymentId:r.deploymentId,runner:r.runner,address:this.allocate('exit'),createdAt:now,service:true};
+   }
+-  const names=Object.values(hostServiceNames(r.runner,hs.zone));
++  const names=serviceNamesOf(r.runner,hs);
+   Object.assign(peer,{egress:false,ingress:true,names,grantedAt:now,expiresAt:Math.min(r.expiresAt,now+PEER_TTL_MS)});
+   this.peers.set(peer.key,peer);await this.kernel.setPeer(peer);await this.sync();await this.persist();
+   if(this.config.hostServices?.dns?.hosts?.includes(peer.runner)&&peer.dnsOk!==true)void this.probeDnsPeers([peer]).then(()=>this.sync()).catch(e=>this.log('dns probe: '+e.message));
+--- a/network/wg-provider/host-services-config.mjs
++++ b/network/wg-provider/host-services-config.mjs
+@@ -2,7 +2,10 @@
+ // roles this transport carries, as raw packets (provider.mjs service, dnsTarget; kernel.mjs dns).
+ //   hostServices: { zone, platformHostPolicy: "production" | {book, hostOwnership, mirrors[], ...} | "off",
+ //                   platformHostPolicyMirrors?: [https], platformHostPolicyRpcs?: [url], maxHosts?,
+-//                   dns?: { hosts: [registry ids], staleMs?, perSourcePps?, perSourceBurst?, globalPps?, globalBurst?, tcpPerSource? } }
++//                   dns?: { hosts: [registry ids], staleMs?, perSourcePps?, perSourceBurst?, globalPps?, globalBurst?, tcpPerSource? },
++//                   challenge?: true }   (also grant each carried host its attested challenge origin chal-<b32>.<zone>
++//                                         (host-service-names.mjs hostChallengeName; work/challenge-host-tls-20261021);
++//                                         absent/false = exactly the three role names, as before)
+ // "off" is a development option, written explicitly: the transport profile (scripts/check-transport-profile.mjs) refuses it.
+ // zone: the APP zone itself (the hosted route-dns answers the derived labels from its appStatic, network/host-services/
+ // stage-tool.mjs hostServicePublication) or a zone apart from both the app and the probe zone - never nested in either.
+@@ -18,7 +21,7 @@
+ export function providerHostServices(hs, { zone = 'app.enclave.host', probeZone = 'probe.enclave.host', roles = [] } = {}) {
+   if (hs === undefined || hs === null) return null;
+   if (!plain(hs)) fail('must be an object');
+-  const allowed = ['zone', 'platformHostPolicy', 'platformHostPolicyMirrors', 'platformHostPolicyRpcs', 'maxHosts', 'dns'];
++  const allowed = ['zone', 'platformHostPolicy', 'platformHostPolicyMirrors', 'platformHostPolicyRpcs', 'maxHosts', 'dns', 'challenge'];
+   for (const k of Object.keys(hs)) if (!allowed.includes(k)) fail(`unknown field ${JSON.stringify(k)}`);
+   try { validServiceZone(hs.zone); } catch (e) { fail(e.message.replace(/^hostServices\.?/, '')); }
+   // the app zone itself is allowed (only the service SHAPE is reserved there); a zone nested in or above it, or touching the
+@@ -37,6 +40,7 @@
+   const mirrors = https(hs.platformHostPolicyMirrors, 'platformHostPolicyMirrors'), rpcs = https(hs.platformHostPolicyRpcs, 'platformHostPolicyRpcs');
+   if (p === 'off' && (mirrors.length || rpcs.length)) fail('platformHostPolicy "off" with mirrors or RPCs: nothing would use them');
+   if (hs.maxHosts !== undefined && (!Number.isInteger(hs.maxHosts) || hs.maxHosts < 1 || hs.maxHosts > 256)) fail('maxHosts: 1 to 256');
++  if (hs.challenge !== undefined && typeof hs.challenge !== 'boolean') fail('challenge: true or false');
+   let dns = null;
+   if (hs.dns !== undefined) {
+     const d = hs.dns;
+@@ -49,7 +53,7 @@
+     let l; try { l = dnsLimits(limits); } catch (e) { fail(e.message); }
+     dns = { hosts: [...new Set(hosts.map((h) => h.toLowerCase()))], staleMs: staleMs ?? 180000, limits: l };
+   }
+-  return { zone: hs.zone, platformHostPolicy: p, mirrors, rpcs, maxHosts: hs.maxHosts ?? 64, dns };
++  return { zone: hs.zone, platformHostPolicy: p, mirrors, rpcs, maxHosts: hs.maxHosts ?? 64, dns, ...(hs.challenge === true ? { challenge: true } : {}) };
+ }
+ 
+ /** DNS 53 forwarding FAILS CLOSED without conntrack-tools (final review N2): -> { on, limits|null, pins|null, reason|null }.
+--- a/network/host-services/stage-tool.mjs
++++ b/network/host-services/stage-tool.mjs
+@@ -40,7 +40,7 @@
+ import { httpCarriers, freshVerifier, candidateDigest } from '../policy-carriers.mjs';
+ import { hostIdOfEndpoint, createHostServiceGate } from '../host-service-gate.mjs';
+ import { planHostServices, policyEnv, policyCarrierFetch } from './runner.mjs';
+-import { hostServiceNames, validServiceZone } from '../host-service-names.mjs';
++import { hostServiceNames, hostChallengeName, validServiceZone } from '../host-service-names.mjs';
+ import { validateHostServicesTransport, tlsReady } from '../host-service-transport.mjs';
+ import { keccak256 as keccakBytes, toBytes } from 'viem';
+ import { ROLES } from './roles.mjs';
+@@ -165,7 +165,10 @@
+  *     client gets every provider that carries this host's grant, and tries the next when one is down;
+  *   - agent: enclaveNetwork.hostServices for the privacy agent - a service circuit to EXACTLY those exits;
+  *   - endpoints: what `runner.mjs advertise` may publish: http://, and https:// ONLY for a role in `ready` (a VERIFIED G3
+- *     handshake, tlsReady / --probe-tls) - a configured TLS port alone never advertises https.
++ *     handshake, tlsReady / --probe-tls) - a configured TLS port alone never advertises https;
++ *   - challenge (only with tls.challengePort, work/challenge-host-tls-20261021): the host's attested challenge origin
++ *     chal-<b32>.<zone>, added to appStatic for the same exits (which must grant it: hostServices.challenge on each). It is
++ *     not a role endpoint: the replica's own (unsigned) service-index draft carries it.
+  * hostId: the registry id (the runner) = keccak256 of the endpoint bytes EXACTLY as registered (EnclaveRegistry idOf;
+  * windows/node chain.mjs enclaveIdOf). Never normalized: a registered endpoint with a trailing slash is valid and keeps
+  * its own id. A given hostId that is not that hash is refused. G1 and G3 must name the same host by this one id.
+@@ -182,12 +185,13 @@
+   if (givenId !== null && String(givenId).toLowerCase() !== hostId) throw fail(1, 'host services: hostId is not keccak256 of this endpoint (the registry id)');
+   const names = hostServiceNames(hostId, zone);
+   const agent = validateHostServicesTransport({ zone, exits: ids, ports, ...(tls ? { tls } : {}), ...(dns ? { dns } : {}) });
+-  const appStatic = Object.fromEntries(Object.keys(ports).map((role) => [names[role].slice(0, -(zone.length + 1)), [...addresses]]));
++  const challenge = tls?.challengePort !== undefined ? hostChallengeName(hostId, zone) : null;
++  const appStatic = Object.fromEntries([...Object.keys(ports).map((role) => names[role]), ...(challenge ? [challenge] : [])].map((n) => [n.slice(0, -(zone.length + 1)), [...addresses]]));
+   // the route-dns role's own validation (public IPv4s, non-deployment labels): the same check its config will get
+   ROLES['route-dns'].validate({ dnsPort: 53, bind: '127.0.0.1', apiPort: 8154, zone, ipZone: 'ip.' + zone.split('.').slice(1).join('.'), nsName: 'ns-check.' + zone,
+     nsNames: ['ns-check.' + zone], routeMapUrl: 'http://127.0.0.1:1/v1/network/routes', appStatic });
+   const endpoints = Object.fromEntries(Object.keys(ports).map((role) => [role, [`${agent.tls?.tlsPorts[role] && ready[role] === true ? 'https' : 'http'}://${names[role]}/`]]));
+-  return { hostId, zone, names, appStatic, agent: { hostServices: { zone, exits: ids, ports, ...(tls ? { tls } : {}), ...(dns ? { dns } : {}) } }, endpoints };
++  return { hostId, zone, names, ...(challenge ? { challenge } : {}), appStatic, agent: { hostServices: { zone, exits: ids, ports, ...(tls ? { tls } : {}), ...(dns ? { dns } : {}) } }, endpoints };
+ }
+ 
+ export function genConfig(spec, listenersText) {
+--- a/test/service-tls.test.mjs
++++ b/test/service-tls.test.mjs
+@@ -21,17 +21,22 @@
+ import os from 'node:os';
+ import net from 'node:net';
+ import tls from 'node:tls';
++import http from 'node:http';
++import https from 'node:https';
++import { once } from 'node:events';
+ import path from 'node:path';
+ import { spawn } from 'node:child_process';
+ import { createHash, X509Certificate } from 'node:crypto';
+ import { fileURLToPath } from 'node:url';
+ import { flattenedVerify, importJWK, calculateJwkThumbprint } from 'jose';
+ import { keccak256, toBytes } from 'viem';
+-import { hostServiceNames } from '../network/host-service-names.mjs';
++import { hostServiceNames, hostChallengeName, isHostServiceName } from '../network/host-service-names.mjs';
++import { startReplicaFront, frontDeclaration, writeDeclaration } from '../network/challenge-replica-host.mjs';
++import { hostServicePublication } from '../network/host-services/stage-tool.mjs';
+ import { hostIdOfEndpoint } from '../network/host-service-gate.mjs';
+ import { createAcmeClient, newKey, pemWrap, jwkThumbprint, retryAfterAt } from '../network/host-services/acme-http01.mjs';
+ import { validateServiceTlsConfig, bindServiceTls, validateLaunchConfig, ingressPorts, verifyCertificate, createKeyStore, checkKeyDir,
+-  evaluateWindowsAcl, startServiceTls, policyAdmission, SERVICE_TLS_ROLE } from '../network/host-services/service-tls.mjs';
++  evaluateWindowsAcl, startServiceTls, policyAdmission, SERVICE_TLS_ROLE, checkDeclarationFile, evaluateDeclarationChain, createDeclarationReader } from '../network/host-services/service-tls.mjs';
+ import { validateHostServicesConfig } from '../network/host-services/runner.mjs';
+ import { ROLES } from '../network/host-services/roles.mjs';
+ 
+@@ -44,6 +49,7 @@
+ const NAMES = hostServiceNames(HOST_ID, ZONE);
+ const CERT_NAMES = [NAMES['directory-replica'], NAMES['bootstrap-replica']];
+ const fast = () => Promise.resolve();
++const FRIGHTS = { deleteChild: 0x40, writeDac: 0x40000 };
+ const OP_ZONE = (zone) => ({ hostId: HOST_ID, zone, httpPort: 18280, tlsPorts: { 'directory-replica': 18288 }, ca: 'letsencrypt' });
+ 
+ // ---- the openssl fixture CA ---------------------------------------------------------------------------------------------
+@@ -193,7 +199,8 @@
+ // ---- names and configuration --------------------------------------------------------------------------------------------
+ test('names: e49\'s pinned derivation, full 32-byte host id in base32, exact vectors', () => {
+   const pinned = fs.readFileSync(path.join(REPO, 'network/host-service-names.mjs'));
+-  assert.equal(createHash('sha256').update(pinned).digest('hex'), '08bda1e6dab058cbad50eed9c4f03997dd3ae9fdfd5c021ab6fdefe785f62b80');
++  // 08bda1e6 (e49) + the challenge origin (work/challenge-host-tls-20261021): the three vectors below are unchanged
++  assert.equal(createHash('sha256').update(pinned).digest('hex'), 'a46123cbb70ab666f9dfb23b5b545fe76d87658c6bf82c7f7574579d0c65b32c');
+   const v = hostServiceNames('0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a', 'svc.enclave.host');
+   assert.equal(v['directory-replica'], 'dir-f7hpjdlk22izuytea5czfmjykwlixh334uwemn3emcngrl2bir5a.svc.enclave.host');
+   assert.equal(v['bootstrap-replica'], 'boot-f7hpjdlk22izuytea5czfmjykwlixh334uwemn3emcngrl2bir5a.svc.enclave.host');
+@@ -475,7 +482,7 @@
+   const ups = { 'directory-replica': await upstream('dir'), 'bootstrap-replica': await upstream('boot'), 'policy-mirror': await upstream('policy') };
+   const stateDir = o.stateDir || fs.mkdtempSync(path.join(TMP, 'role-'));
+   const c = { hostId: HOST_ID, zone: ZONE, httpPort: 0, tlsPorts: { 'directory-replica': 0, 'bootstrap-replica': 0 }, ca: 'letsencrypt',
+-    ...(o.orders === null ? {} : { orders: o.orders ?? 'approved' }), host: { endpoint: ENDPOINT, hostId: HOST_ID },
++    ...(o.orders === null ? {} : { orders: o.orders ?? 'approved' }), ...(o.challenge ? { challenge: o.challenge } : {}), host: { endpoint: ENDPOINT, hostId: HOST_ID },
+     upstreams: Object.fromEntries(Object.entries(ups).map(([r, u]) => [r, u.port])), stateDir, policy: { platformHostPolicy: 'production' } };
+   const h = { ups, stateDir, logs: [], decision: { admit: true, status: 'admitted' }, admits: 0, clock: null };
+   let role = null;
+@@ -814,3 +821,278 @@
+     assert.equal(h.fx.st.fetches.length, 0, 'expiry does not implicitly enable issuance');
+   } finally { await h.close(); }
+ });
++
++// ---- the challenge origin (work/challenge-host-tls-20261021) ------------------------------------------------------------
++// The app-zone-replica's managed loopback front (challenge-replica-host.mjs, the REAL front code) behind this role's TLS:
++// a stand-in replica API records what the front forwards. The declaration is the front's own frontDeclaration/writeDeclaration.
++const CHAL = hostChallengeName(HOST_ID, ZONE);
++const PINNED = { dnsSha256: 'a'.repeat(64), runtimeBundleSha256: 'b'.repeat(64) };
++async function replicaApi() {
++  const got = [];
++  const server = http.createServer((req, res) => { let n = 0; req.on('data', (d) => { n += d.length; }); req.on('end', () => {
++    got.push({ method: req.method, path: req.url, sig: req.headers['x-attested-sig'] ?? null, auth: req.headers.authorization ?? null, cookie: req.headers.cookie ?? null, bytes: n });
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"ok":true}'); }); });
++  await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
++  return { got, port: server.address().port, close: () => new Promise((ok) => { server.closeAllConnections?.(); server.close(() => ok()); }) };
++}
++async function managedFront(apiPort) {
++  const dir = fs.mkdtempSync(path.join(TMP, 'decl-'));
++  const cfg = { role: 'app-zone-replica', listen: { api: { ip: '127.0.0.1', port: apiPort } },
++    front: { mode: 'managed', listen: { ip: '127.0.0.1', port: 0 }, hostId: HOST_ID, zone: ZONE, name: CHAL, origin: `https://${CHAL}`, declarationFile: path.join(dir, 'challenge-front.json') } };
++  const m = { cfg, dir, file: cfg.front.declarationFile, front: await startReplicaFront(cfg) };
++  m.declare = (state, o = {}) => writeDeclaration(m.file, { ...frontDeclaration(cfg, PINNED, { state, port: m.front.port, proofKey: m.front.proofKey, ...o }), ...(o.override || {}) });
++  return m;
++}
++function chalRequest(port, { method = 'POST', path: target = '/v1/app-challenge', headers = {}, body = '{}', host = CHAL } = {}) {
++  return new Promise((ok, no) => {
++    const req = https.request({ host: '127.0.0.1', port, method, path: target, servername: CHAL, ca: ROOTS, agent: false, headers: { host, 'content-type': 'application/json', ...headers } }, (res) => {
++      let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => ok({ status: res.statusCode, body: b }));
++    });
++    req.on('error', no); req.setTimeout(3000, () => req.destroy(new Error('timeout'))); req.end(body);
++  });
++}
++const peerFp = (port, servername) => new Promise((ok, no) => { const s = tls.connect({ port, host: '127.0.0.1', servername, ca: ROOTS }, () => { const fp = s.getPeerCertificate().fingerprint256; s.destroy(); ok(fp); }); s.on('error', no); });
++const chalOp = (frontPort, file) => ({ tlsPort: 0, frontPort, declarationFile: file, release: PINNED });
++
++test('challenge origin: names, config, runner binding, G1 transport and DNS publication; the three-role configuration is unchanged', () => {
++  // the name: the host's full registry id, a 57-character label, the service shape; the three role names are untouched
++  assert.equal(hostChallengeName('0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a', 'app.enclave.host'), 'chal-f7hpjdlk22izuytea5czfmjykwlixh334uwemn3emcngrl2bir5a.app.enclave.host');
++  assert.equal(CHAL.split('.')[0].length, 57); assert.ok(isHostServiceName(CHAL, ZONE));
++  assert.deepEqual(Object.keys(NAMES), ['directory-replica', 'bootstrap-replica', 'policy-mirror'], 'hostServiceNames stays the three roles');
++  assert.notEqual(hostChallengeName(hostIdOfEndpoint('https://host-b.example'), ZONE), CHAL);
++  assert.throws(() => hostChallengeName('0x' + '0'.repeat(64), ZONE), /nonzero/);
++  // config: absent = byte-identical normalization; present = pinned port, declaration and release, nothing else
++  assert.deepEqual(validateServiceTlsConfig(OP), { ...OP, orders: 'held' });
++  const CH = { tlsPort: 18291, frontPort: 18292, declarationFile: '/var/lib/enclave/network/challenge-front.json', release: PINNED };
++  assert.deepEqual(validateServiceTlsConfig({ ...OP, challenge: CH }).challenge, CH);
++  const bad = { 'a name': [{ ...CH, name: 'evil.example' }, /unknown field "name"/], 'relative declaration': [{ ...CH, declarationFile: 'decl.json' }, /absolute/],
++    'unpinned release': [{ ...CH, release: { dnsSha256: 'latest', runtimeBundleSha256: PINNED.runtimeBundleSha256 } }, /must pin/], 'extra release field': [{ ...CH, release: { ...PINNED, x: 1 } }, /must pin/],
++    'port clash': [{ ...CH, tlsPort: OP.httpPort }, /distinct/], 'same ports': [{ ...CH, frontPort: CH.tlsPort }, /distinct/], 'no port': [{ ...CH, frontPort: 0 }, /must be ports/], 'not an object': ['x', /must be an object/] };
++  for (const [what, [ch, re]] of Object.entries(bad)) assert.throws(() => validateServiceTlsConfig({ ...OP, challenge: ch }), re, what);
++  // runner binding: the front port must not be another role's; the launch config round-trips; G1 gets the challenge port
++  assert.throws(() => validateHostServicesConfig(hostCfg({}, { ...OP, challenge: { ...CH, frontPort: 18188 } })), /port 18188 is another role's/);
++  const c = validateHostServicesConfig(hostCfg({}, { ...OP, challenge: CH })).services.find((s) => s.role === 'service-tls').config;
++  assert.deepEqual(validateLaunchConfig(JSON.parse(JSON.stringify(c))).challenge, CH);
++  const ip = ingressPorts(c);
++  assert.deepEqual(ip.tls, { httpPort: 18280, tlsPorts: { 'directory-replica': 18288, 'bootstrap-replica': 18289 }, challengePort: 18291 });
++  const plainC = validateHostServicesConfig(hostCfg()).services.find((s) => s.role === 'service-tls').config;
++  assert.deepEqual(ingressPorts(plainC).tls, { httpPort: 18280, tlsPorts: { 'directory-replica': 18288, 'bootstrap-replica': 18289 } }, 'without challenge: unchanged');
++  return import('../network/host-service-transport.mjs').then((g1) => {
++    const tr = new g1.HostServiceTransport({ runtime: null, providers: null, grants: null, hostId: c.hostId, config: { zone: c.zone, exits: ['a'.repeat(16)], ...ip } });
++    assert.deepEqual(tr.names[CHAL], { http: 18280, tls: 18291 }, '80 -> http-01 front, 443 -> the challenge TLS port');
++    assert.deepEqual(tr.granted, [...Object.values(NAMES), CHAL], 'the exit must grant the challenge origin too');
++    const bare = new g1.HostServiceTransport({ runtime: null, providers: null, grants: null, hostId: c.hostId, config: { zone: c.zone, exits: ['a'.repeat(16)], ...ingressPorts(plainC) } });
++    assert.deepEqual(bare.granted, Object.values(NAMES), 'without challenge: exactly the three names');
++    assert.throws(() => g1.validateHostServicesTransport({ zone: c.zone, exits: ['a'.repeat(16)], ports: ip.ports, tls: { ...ip.tls, challengePort: 18280 } }), /must differ/);
++    // DNS: the challenge label resolves to the same exits as the roles
++    const pub = hostServicePublication({ endpoint: ENDPOINT, zone: ZONE, exits: [{ providerId: 'a'.repeat(16), address: '134.199.235.187' }], ports: ip.ports, tls: ip.tls });
++    assert.equal(pub.challenge, CHAL); assert.deepEqual(pub.appStatic[CHAL.slice(0, -(ZONE.length + 1))], ['134.199.235.187']);
++    assert.equal(hostServicePublication({ endpoint: ENDPOINT, zone: ZONE, exits: [{ providerId: 'a'.repeat(16), address: '134.199.235.187' }], ports: ip.ports, tls: ingressPorts(plainC).tls }).challenge, undefined);
++  });
++});
++
++// Windows ACL chain fixtures (root review R1/R2): the minipc shape from root's parent-ACL evidence
++// (tunnel-v2-independent-review-20261021/root-parent-acl-result.json) plus a declaration directory/file
++const SY = 'S-1-5-18', BA = 'S-1-5-32-544', LS = 'S-1-5-19', BU = 'S-1-5-32-545', AU = 'S-1-5-11', TI = 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464';
++const ace = (sid, rights, inheritOnly = false) => ({ sid, allow: true, rights, inheritOnly });
++const winChain = (file = {}) => [
++  { path: 'C:\\', exists: true, reparse: false, dir: true, owner: TI, aces: [ace(SY, 2032127), ace(BA, 2032127), ace(BU, 1179817), ace(AU, 0x4), ace(AU, 1245631, true)] },
++  { path: 'C:\\ProgramData', exists: true, reparse: false, dir: true, owner: SY, aces: [ace(SY, 2032127), ace(BA, 2032127), ace(BU, 1179817), ace(BU, 0x116), ace('S-1-3-0', 268435456, true)] },
++  { path: 'C:\\ProgramData\\Enclave', exists: true, reparse: false, dir: true, owner: BA, aces: [ace(SY, 2032127), ace(BA, 2032127), ace(BU, 1179817)] },
++  { path: 'C:\\ProgramData\\Enclave\\network', exists: true, reparse: false, dir: true, owner: BA, aces: [ace(SY, 2032127), ace(BA, 2032127)] },
++  { path: 'C:\\ProgramData\\Enclave\\network\\challenge', exists: true, reparse: false, dir: true, owner: BA, aces: [ace(SY, 2032127), ace(BA, 2032127), ace(LS, 1179817)] },
++  { path: 'C:\\ProgramData\\Enclave\\network\\challenge\\challenge-front.json', exists: true, reparse: false, dir: false, owner: SY, aces: [ace(SY, 2032127), ace(BA, 2032127), ace(LS, 1179817)], ...file }];
++test('challenge origin: declaration trust - the whole path and the FILE (owner, type, links, writers, proof-key readers); absent file starts', async () => {
++  // Windows: the minipc shape passes; an absent file is a normal startup
++  assert.deepEqual(evaluateDeclarationChain(winChain()), { platform: 'win32', dirOwner: BA, file: { owner: SY } });
++  assert.deepEqual(evaluateDeclarationChain(winChain({ exists: false })).file, null);
++  const bad = {
++    'directory safe, file writable by Users (R1)': [winChain({ aces: [ace(SY, 2032127), ace(BA, 2032127), ace(LS, 1179817), ace(BU, 0x2)] }), /declaration file lets S-1-5-32-545 write/],
++    'file Modify for LOCAL SERVICE': [winChain({ aces: [ace(SY, 2032127), ace(BA, 2032127), ace(LS, 1245631)] }), /lets S-1-5-19 (replace|write)/],
++    'file readable by Users (R2: proof key)': [winChain({ aces: [ace(SY, 2032127), ace(BA, 2032127), ace(LS, 1179817), ace(BU, 1179817)] }), /lets S-1-5-32-545 read its proof key/],
++    'file readable by Everyone via GENERIC_READ': [winChain({ aces: [ace(SY, 2032127), ace('S-1-1-0', 0x80000000)] }), /S-1-1-0 read its proof key/],
++    'file owned by a user': [winChain({ owner: 'S-1-5-21-1-2-3-1001' }), /declaration file is owned by S-1-5-21-1-2-3-1001/],
++    'file is a reparse point (R1 link)': [winChain({ reparse: true }), /declaration file is a reparse point/],
++    'file is a directory': [winChain({ dir: true }), /is a directory/],
++  };
++  for (const [what, [chain, re]] of Object.entries(bad)) assert.throws(() => evaluateDeclarationChain(chain), re, what);
++  const at = (i, patch) => winChain().map((c, j) => (j === i ? { ...c, ...patch } : c));
++  assert.throws(() => evaluateDeclarationChain(at(4, { aces: [ace(SY, 2032127), ace(BA, 2032127), ace(LS, 0x1301bf)] })), /declaration directory lets S-1-5-19/, 'LOCAL SERVICE may not write the directory');
++  assert.throws(() => evaluateDeclarationChain(at(3, { aces: [ace(SY, 2032127), ace(BA, 2032127), ace(BU, FRIGHTS.deleteChild)] })), /ancestor C:\\ProgramData\\Enclave\\network lets S-1-5-32-545 replace/, 'an ancestor whose children Users may delete');
++  assert.throws(() => evaluateDeclarationChain(at(2, { aces: [ace(SY, 2032127), ace(BA, 2032127), ace(AU, FRIGHTS.writeDac)] })), /lets S-1-5-11 replace or re-permission/);
++  assert.throws(() => evaluateDeclarationChain(at(2, { reparse: true })), /ancestor C:\\ProgramData\\Enclave is a reparse point/);
++  assert.throws(() => evaluateDeclarationChain(at(1, { owner: BU })), /owned by S-1-5-32-545/);
++  assert.throws(() => evaluateDeclarationChain(at(4, { exists: false })), /declaration directory is absent/);
++  assert.equal(evaluateDeclarationChain(at(1, { aces: [ace(SY, 2032127), ace(BU, FRIGHTS.deleteChild, true)] })).dirOwner, BA, 'inherit-only entries do not apply to the component itself');
++  // POSIX: secure path and the file itself
++  const d = fs.mkdtempSync(path.join(TMP, 'decl-acl-')), file = path.join(d, 'challenge-front.json');
++  assert.deepEqual(await checkDeclarationFile(file), { platform: process.platform, file: null }, 'an absent file in a private directory');
++  fs.writeFileSync(file, '{}', { mode: 0o640 }); fs.chmodSync(file, 0o640); assert.equal((await checkDeclarationFile(file)).file.mode, '640');
++  fs.chmodSync(file, 0o662); await assert.rejects(checkDeclarationFile(file), /declaration file is group- or world-writable/);
++  fs.chmodSync(file, 0o644); await assert.rejects(checkDeclarationFile(file), /world-readable .* proof key/, 'R2: others could read the proof key');
++  fs.chmodSync(file, 0o640);
++  await assert.rejects(checkDeclarationFile(file, { ids: { owners: new Set([0, process.getuid()]), groups: new Set([424242]) } }), /readable by group/, 'a group that is not the reader\'s');
++  await assert.rejects(checkDeclarationFile(file, { ids: { owners: new Set([0]), groups: new Set([process.getgid()]) } }), /owned by uid/);
++  const hard = path.join(d, 'hard.json'); fs.linkSync(file, hard); await assert.rejects(checkDeclarationFile(file), /other hard links/); fs.unlinkSync(hard);
++  const target = path.join(d, 'real.json'); fs.renameSync(file, target); fs.symlinkSync(target, file);
++  await assert.rejects(checkDeclarationFile(file), /link or not a regular file/, 'R1: a file link');
++  fs.unlinkSync(file); fs.renameSync(target, file);
++  fs.chmodSync(d, 0o775); await assert.rejects(checkDeclarationFile(file), /declaration directory is group- or world-writable/); fs.chmodSync(d, 0o700);
++  const link = path.join(TMP, 'decl-link'); fs.symlinkSync(d, link); await assert.rejects(checkDeclarationFile(path.join(link, 'x.json')), /directory is a link/);
++});
++
++test('challenge origin: the Windows reader re-verifies a REPLACED file (identity), not every 5 s; a file link is refused even under a safe ACL chain', async () => {
++  const d = fs.mkdtempSync(path.join(TMP, 'decl-win-')), file = path.join(d, 'challenge-front.json');
++  const put = (text) => { const t = path.join(d, `.t${Math.random()}`); fs.writeFileSync(t, text, { mode: 0o640 }); fs.renameSync(t, file); };
++  let chain = winChain(), clock = 1_000_000;
++  const r = createDeclarationReader(file, { platform: 'win32', windowsChain: async () => chain, refreshMs: 60_000, now: () => clock });
++  put('{"a":1}');
++  assert.deepEqual((await r.read()).doc, { a: 1 }); assert.equal(r.chainReads, 1);
++  for (let i = 0; i < 5; i++) await r.read();
++  assert.equal(r.chainReads, 1, 'the same file: no ACL subprocess per check');
++  clock += 60_000; await r.read(); assert.equal(r.chainReads, 2, 'bounded refresh');
++  // the front (or anyone) replaces the file: the new file is verified before its bytes are used; an unsafe one is refused
++  chain = winChain({ aces: [ace(SY, 2032127), ace(BA, 2032127), ace(LS, 1179817), ace(BU, 1179817)] });
++  put('{"a":2}');
++  await assert.rejects(r.read(), /S-1-5-32-545 read its proof key/); assert.equal(r.chainReads, 3);
++  await assert.rejects(r.read(), /proof key/, 'and stays refused (no cached success)');
++  chain = winChain(); assert.deepEqual((await r.read()).doc, { a: 2 });
++  await assert.rejects(r.read({ force: false }).then(() => { chain = winChain({ exists: false }); return r.read({ force: true }); }), /vanished during its ACL check/);
++  // a link at the file's path is refused whatever the ACLs say
++  chain = winChain(); const real = path.join(d, 'real.json'); fs.renameSync(file, real); fs.symlinkSync(real, file);
++  await assert.rejects(r.read(), /link or not a regular file/);
++});
++
++test('challenge origin: real TLS -> service-tls -> restricted loopback front -> replica; one SAN certificate; port 80 is http-01 only; no certificate = closed', async () => {
++  const api = await replicaApi(), m = await managedFront(api.port); m.declare('serving');
++  const h = await harness({ challenge: chalOp(m.front.port, m.file) });
++  try {
++    const { role, fx } = h;
++    assert.equal(role.status().challenge.fronted, true, 'declaration and proof verified');
++    assert.equal(role.status().challenge.listening, false, 'no certificate yet: closed (fail closed)');
++    await assert.rejects(peerFp(role.ports.challenge ?? 1, CHAL));
++    await role.tick();
++    assert.deepEqual(fx.st.newOrders, [[...CERT_NAMES, CHAL]], 'one certificate; the challenge origin in its SAN');
++    assert.ok(fx.st.validations.some((v) => v.name === CHAL && v.ok) && fx.st.validations.every((v) => v.ok), 'its http-01 through the port-80 front');
++    const port = role.ports.challenge;
++    assert.equal(role.status().challenge.listening, true); assert.equal(await peerFp(port, CHAL), role.status().certificate.fingerprint);
++    // an allowed push reaches the replica with its attestation header and without anything else
++    const r = await chalRequest(port, { headers: { 'x-attested-sig': 'sig-1', 'x-forwarded-for': '1.2.3.4' }, body: '{"a":1}' });
++    assert.equal(r.status, 200);
++    assert.deepEqual(api.got.at(-1), { method: 'POST', path: '/v1/app-challenge', sig: 'sig-1', auth: null, cookie: null, bytes: 7 });
++    assert.equal((await chalRequest(port, { path: '/v1/app-zone/shield-session/challenge' })).status, 200);
++    // the front's own restrictions hold behind the host's TLS; nothing refused reaches the replica
++    const n = api.got.length;
++    assert.equal((await chalRequest(port, { path: '/v1/txt' })).status, 404, 'another role\'s route');
++    assert.equal((await chalRequest(port, { path: '/v1/app-challenge?x=1' })).status, 404, 'no query');
++    assert.equal((await chalRequest(port, { method: 'GET' })).status, 405);
++    assert.equal((await chalRequest(port, { method: 'PUT' })).status, 405);
++    assert.equal((await chalRequest(port, { headers: { authorization: 'Bearer x' } })).status, 400, 'credentials');
++    assert.equal((await chalRequest(port, { headers: { cookie: 'a=b' } })).status, 400, 'cookies');
++    assert.equal((await chalRequest(port, { body: 'x'.repeat(40000) })).status, 413, 'the push body cap');
++    assert.equal((await chalRequest(port, { host: NAMES['directory-replica'] })).status, 421, 'Host must be the challenge origin');
++    assert.equal(api.got.length, n);
++    // SNI exact on the challenge port
++    await assert.rejects(peerFp(port, NAMES['directory-replica'])); await assert.rejects(peerFp(port, 'evil.example.test'));
++    // port 80: only http-01 tokens for the challenge name; a plaintext push is never forwarded
++    assert.match(await raw(role.ports.http, `POST /v1/app-challenge HTTP/1.1\r\nHost: ${CHAL}\r\ncontent-length: 2\r\n\r\n{}`), /^HTTP\/1\.1 404/);
++    assert.match(await httpGet(role.ports.http, CHAL, '/.well-known/acme-challenge/unknown'), /^HTTP\/1\.1 404/);
++    assert.match(await httpGet(role.ports.http, CHAL, `${'/.well-known/enclave-challenge-front'}`), /^HTTP\/1\.1 404/, 'not even the proof route');
++    assert.equal(api.got.length, n);
++    // the three roles behave as before
++    assert.match((await tlsTalk(role.ports.tls['directory-replica'], NAMES['directory-replica'])).reply, /^UPSTREAM dir/);
++    assert.match(await httpGet(role.ports.http, NAMES['bootstrap-replica'], '/x'), /^UPSTREAM boot/);
++    assert.deepEqual(fx.st.violations, []);
++  } finally { await h.close(); await m.front.close(); await api.close(); }
++});
++
++test('challenge origin: fronted only for the declared, proven local front; stop, expiry, spoofed declarations, a squatter and a writable directory close it', async () => {
++  const api = await replicaApi(), m = await managedFront(api.port); m.declare('serving');
++  const h = await harness({ challenge: chalOp(m.front.port, m.file) });
++  try {
++    const { role } = h; await role.tick();
++    assert.equal((await chalRequest(role.ports.challenge)).status, 200);
++    // the front declares stopped (its host was refused, or it closed): the listener AND an established connection close
++    const held = tls.connect({ port: role.ports.challenge, host: '127.0.0.1', servername: CHAL, ca: ROOTS }); await once(held, 'secureConnect');
++    // a full keep-alive round trip through it first: the pipe is established on the server side, not only the handshake
++    held.write(`GET /health HTTP/1.1\r\nHost: ${CHAL}\r\n\r\n`); assert.match(String((await once(held, 'data'))[0]), /^HTTP\/1\.1 200/);
++    const heldClosed = once(held, 'close');
++    m.declare('stopped', { reason: 'host refused' });
++    assert.equal(await role.checkChallenge(), false);
++    // promptly, by this role (the front's own keep-alive timeout would close it only after 5 s)
++    await Promise.race([heldClosed, new Promise((_, no) => setTimeout(() => no(new Error('the established connection was not closed promptly')), 1000))]);
++    assert.match(role.status().challenge.why, /the front is stopped \(host refused\)/); assert.equal(role.status().challenge.listening, false);
++    await assert.rejects(chalRequest(role.ports.challenge ?? 1));
++    m.declare('serving'); assert.equal(await role.checkChallenge(), true); assert.equal((await chalRequest(role.ports.challenge)).status, 200, 'serving again');
++    const spoofs = {
++      'another host': [{ hostId: hostIdOfEndpoint('https://host-b.example') }, /another host/],
++      'another name': [{ name: NAMES['directory-replica'] }, /another name/],
++      'another origin': [{ origin: 'https://evil.example.test' }, /another name/],
++      'another release': [{ release: { ...PINNED, dnsSha256: 'c'.repeat(64) } }, /pinned one/],
++      'another port': [{ front: '127.0.0.1:1' }, /another address or port/],
++      'a public address': [{ front: `0.0.0.0:${m.front.port}` }, /another address or port/],
++      'expired (no heartbeat)': [{ issuedAt: Date.now() - 60000, expiresAt: Date.now() - 1 }, /expired/],
++      'an overlong validity': [{ expiresAt: Date.now() + 3 * 3600e3 }, /malformed validity/],
++      'a key it cannot prove': [{ proofKey: 'f'.repeat(64) }, /does not hold the declared key/],
++      'the owner responder': [{ role: 'owner-responder' }, /not an app-zone-replica/],
++      'another kind': [{ kind: 'something' }, /not an enclave-challenge-front/],
++    };
++    for (const [what, [override, re]] of Object.entries(spoofs)) {
++      m.declare('serving', { override });
++      assert.equal(await role.checkChallenge(), false, what); assert.match(role.status().challenge.why, re, what); assert.equal(role.status().challenge.listening, false, what);
++      m.declare('serving'); assert.equal(await role.checkChallenge(), true, `${what}: restored`);
++    }
++    fs.writeFileSync(m.file, '{'); assert.equal(await role.checkChallenge(), false); assert.match(role.status().challenge.why, /unreadable/);
++    fs.unlinkSync(m.file); assert.equal(await role.checkChallenge(), false); assert.match(role.status().challenge.why, /unreadable \(ENOENT\)/);
++    m.declare('serving'); fs.chmodSync(m.dir, 0o770);
++    assert.equal(await role.checkChallenge(), false); assert.match(role.status().challenge.why, /group- or world-writable/, 'checked on every read, not only on the policy round');
++    fs.chmodSync(m.dir, 0o700); assert.equal(await role.checkChallenge(), true);
++    // R3: the declaration is atomically REPLACED by a file others can read (or write) after a successful front: the next
++    // ordinary check refuses it and the established TLS connection closes
++    const live = tls.connect({ port: role.ports.challenge, host: '127.0.0.1', servername: CHAL, ca: ROOTS }); await once(live, 'secureConnect');
++    live.write(`GET /health HTTP/1.1\r\nHost: ${CHAL}\r\n\r\n`); assert.match(String((await once(live, 'data'))[0]), /^HTTP\/1\.1 200/);
++    const liveClosed = once(live, 'close');
++    const valid = fs.readFileSync(m.file), tmpf = path.join(m.dir, '.replacement');
++    fs.writeFileSync(tmpf, valid, { mode: 0o644 }); fs.chmodSync(tmpf, 0o644); fs.renameSync(tmpf, m.file);
++    assert.equal(await role.checkChallenge(), false); assert.match(role.status().challenge.why, /world-readable .* proof key/);
++    await Promise.race([liveClosed, new Promise((_, no) => setTimeout(() => no(new Error('not closed promptly')), 1000))]);
++    assert.equal(role.status().challenge.listening, false);
++    fs.writeFileSync(tmpf, valid, { mode: 0o646 }); fs.chmodSync(tmpf, 0o646); fs.renameSync(tmpf, m.file);
++    assert.equal(await role.checkChallenge(), false); assert.match(role.status().challenge.why, /group- or world-writable/);
++    m.declare('serving'); assert.equal(await role.checkChallenge(), true, 'a safe declaration again');
++    // a squatter: the front closes, something else binds its port before the declaration expires; it cannot prove the key
++    const frontPort = m.front.port; await m.front.close();
++    assert.equal(await role.checkChallenge(), false); assert.match(role.status().challenge.why, /does not answer/);
++    const squat = http.createServer((q, s) => { s.writeHead(200, { 'content-type': 'application/json' }); s.end(JSON.stringify({ proof: 'a'.repeat(64) })); });
++    await new Promise((ok) => squat.listen(frontPort, '127.0.0.1', ok));
++    try { assert.equal(await role.checkChallenge(), false); assert.match(role.status().challenge.why, /does not hold the declared key/); assert.equal(role.status().challenge.listening, false); }
++    finally { await new Promise((ok) => squat.close(ok)); }
++  } finally { await h.close(); await m.front.close(); await api.close(); }
++});
++
++test('challenge origin: held orders never contact the CA (closed without a certificate); a refusal closes it; renewal includes it; expiry closes it', async () => {
++  const api = await replicaApi(), m = await managedFront(api.port); m.declare('serving');
++  const held = await harness({ orders: 'held', challenge: chalOp(m.front.port, m.file) });
++  try {
++    await held.role.tick(); await held.role.round();
++    assert.equal(held.fx.st.fetches.length, 0, 'held: no CA contact at all');
++    assert.equal(held.role.status().challenge.fronted, true); assert.equal(held.role.status().challenge.listening, false, 'held, no certificate: closed');
++    assert.match(await httpGet(held.role.ports.http, CHAL, '/'), /^HTTP\/1\.1 404/);
++  } finally { await held.close(); }
++  const h = await harness({ challenge: chalOp(m.front.port, m.file) });
++  try {
++    await h.role.tick(); const fp1 = h.role.status().certificate.fingerprint;
++    h.decision = { admit: false, status: 'banned', reason: 'platform ban' }; await h.role.checkPolicy();
++    assert.equal(h.role.status().challenge.listening, false); await assert.rejects(chalRequest(h.role.ports.challenge ?? 1));
++    h.decision = { admit: true, status: 'admitted' }; await h.role.checkPolicy();
++    assert.equal((await chalRequest(h.role.ports.challenge)).status, 200, 'admitted again');
++    h.clock = h.role.status().certificate.renewAt + 1000; m.declare('serving', { now: h.clock }); assert.equal(await h.role.checkChallenge(), true);
++    await h.role.tick();
++    assert.equal(h.fx.st.newOrders.length, 2); assert.deepEqual(h.fx.st.newOrders[1], [...CERT_NAMES, CHAL], 'the renewal carries the challenge origin');
++    const fp2 = h.role.status().certificate.fingerprint; assert.notEqual(fp2, fp1);
++    assert.equal(await peerFp(h.role.ports.challenge, CHAL), fp2, 'new handshakes get the renewed certificate');
++    h.clock = h.role.status().certificate.notAfter + 1; m.declare('serving', { now: h.clock }); h.fx.faults.serverError = true;
++    await h.role.tick();
++    assert.equal(h.role.status().certificate, null); assert.equal(h.role.status().challenge.listening, false, 'expired: closed');
++  } finally { await h.close(); await m.front.close(); await api.close(); }
++});
+--- a/test/wg-provider-host-services.test.mjs
++++ b/test/wg-provider-host-services.test.mjs
+@@ -7,7 +7,7 @@
+ import { recoverMessageAddress } from 'viem';
+ import { randomBytes, createHash } from 'node:crypto';
+ import { WgProvider, peerRequestMessage, grantMessage, revokeMessage, validatePeerRequest } from '../network/wg-provider/provider.mjs';
+-import { hostServiceNames, isHostServiceName, hostLabel, base32 } from '../network/host-service-names.mjs';
++import { hostServiceNames, hostChallengeName, isHostServiceName, hostLabel, base32 } from '../network/host-service-names.mjs';
+ import { providerHostServices } from '../network/wg-provider/host-services-config.mjs';
+ 
+ const ZERO = '0x' + '0'.repeat(64), app = '0x' + 'ab'.repeat(32), appRunner = '0x' + '11'.repeat(32);
+@@ -390,3 +390,40 @@
+   const gone = rig({ hostServices: null }); gone.p.store = store;
+   assert.equal(await gone.p.restore(), 0); assert.equal(gone.kernel.peers.size, 0);
+ });
++
++// ---- the host's challenge origin (work/challenge-host-tls-20261021): granted only where the provider's operator opted in ----
++test('challenge origin: absent opt-in = exactly the three names; hostServices.challenge grants and routes the owning host\'s challenge name only', async () => {
++  const plain = rig();
++  const g0 = (await plain.p.handle(await ask(plain))).grant;
++  assert.deepEqual(g0.names, Object.values(hostServiceNames(hostA, ZONE)), 'today\'s grant, unchanged');
++  assert.equal(plain.p.route(hostChallengeName(hostA, ZONE)), null, 'no opt-in: the challenge name is not routed');
++  const r = rig({ hostServices: { zone: ZONE, platformHostPolicy: 'on', challenge: true } });
++  const { grant } = await r.p.handle(await ask(r));
++  assert.deepEqual(grant.names, [...Object.values(hostServiceNames(hostA, ZONE)), hostChallengeName(hostA, ZONE)]);
++  assert.equal(r.p.route(hostChallengeName(hostA, ZONE)), grant.clientAddress);
++  assert.equal(r.p.route(hostChallengeName(hostB, ZONE)), null, 'another host\'s challenge name is not routed to this one');
++  const gB = (await r.p.handle(await ask(r, { runner: hostB, signer: opB }))).grant;
++  assert.equal(r.p.route(hostChallengeName(hostB, ZONE)), gB.clientAddress); assert.equal(r.p.route(hostChallengeName(hostA, ZONE)), grant.clientAddress);
++  assert.ok(isHostServiceName(hostChallengeName(hostA, ZONE), ZONE), 'the service shape: no app or customer name can hold it');
++  // a request cannot ask for names (the request shape has none): the grant is derived from the runner and the config only
++  await assert.rejects(async () => r.p.handle(await ask(r, { names: ['evil.example'] })));
++});
++
++test('challenge origin: provider config takes only a boolean; a restart re-derives the names from the current opt-in', async () => {
++  const ok = providerHostServices({ zone: 'svc.example', platformHostPolicy: 'production', challenge: true }, { roles: ['ingress'] });
++  assert.equal(ok.challenge, true);
++  assert.equal(Object.hasOwn(providerHostServices({ zone: 'svc.example', platformHostPolicy: 'production' }, { roles: ['ingress'] }), 'challenge'), false, 'absent stays absent');
++  assert.equal(Object.hasOwn(providerHostServices({ zone: 'svc.example', platformHostPolicy: 'production', challenge: false }, { roles: ['ingress'] }), 'challenge'), false);
++  for (const v of ['yes', 1, null, {}]) assert.throws(() => providerHostServices({ zone: 'svc.example', platformHostPolicy: 'production', challenge: v }, { roles: ['ingress'] }), /challenge: true or false/);
++  // restore: a saved service peer gets the names of THIS run's configuration
++  const saved = [];
++  const store = { load: async () => ({ peers: saved }), save: async () => {} };
++  const r = rig({ hostServices: { zone: ZONE, platformHostPolicy: 'on', challenge: true } });
++  const { grant } = await r.p.handle(await ask(r));
++  saved.push({ ...[...r.p.peers.values()].find((p) => p.role === 'service') });
++  const off = rig(); off.p.store = store; await off.p.restore();
++  const peer = [...off.p.peers.values()].find((p) => p.role === 'service');
++  assert.deepEqual(peer.names, Object.values(hostServiceNames(hostA, ZONE)), 'opt-in withdrawn: the restored peer loses the challenge name');
++  assert.equal(off.p.route(hostChallengeName(hostA, ZONE)), null);
++  assert.equal(grant.names.length, 4);
++});
+--- a/test/challenge-front-managed.test.mjs
++++ b/test/challenge-front-managed.test.mjs
+@@ -0,0 +1,166 @@
++// The app-zone-replica's MANAGED front (network/challenge-replica-host.mjs front.managed; work/challenge-host-tls-20261021):
++// TLS belongs to the host's service-tls role, so this front is plaintext on loopback only, answers only the host-derived
++// challenge origin, proves its declared key, and declares serving/stopped with the host policy gate's decisions.
++// The service-tls side (real TLS, restrictions behind it, spoofed declarations) is in test/service-tls.test.mjs.
++//   node --test test/challenge-front-managed.test.mjs
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import net from 'node:net';
++import path from 'node:path';
++import http from 'node:http';
++import {EventEmitter} from 'node:events';
++import {createHash, randomBytes} from 'node:crypto';
++import {keccak256, toBytes} from 'viem';
++import {challengeReplicaConfig, startChallengeReplica, startReplicaFront, challengeReplicaAdDraft} from '../network/challenge-replica-host.mjs';
++import {frontProof, frontDeclarationRefusal, proofMatches, FRONT_PROOF_PATH, DECLARATION_TTL_MS} from '../network/challenge-front-declaration.mjs';
++import {hostChallengeName} from '../network/host-service-names.mjs';
++import {createNetworkHost} from '../network/enclave-network-host.mjs';
++import * as F from './app-zone-fixture.mjs';
++
++const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'challenge-managed-'));
++test.after(() => fs.rmSync(TMP, {recursive: true, force: true}));
++const H = (c) => c.repeat(64);
++const ENDPOINT = 'https://host-a.example.org', HOST_ID = keccak256(toBytes(ENDPOINT)).toLowerCase(), ZONE = 'app.enclave.host';
++const NAME = hostChallengeName(HOST_ID, ZONE);
++const sha = (b) => createHash('sha256').update(b).digest('hex');
++const freePort = () => new Promise((ok) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); });
++// the same shape as test/challenge-replica-host.test.mjs base(), with a managed front
++const base = (front = {listen: '127.0.0.1:18292', managed: {zone: ZONE, declarationFile: '/var/lib/enclave/network/challenge-front.json'}}) => ({
++  role: 'app-zone-replica', release: {dir: '/opt/enclave-challenge/releases/x', dnsSha256: H('a'), runtimeBundleSha256: H('b')},
++  zones: {app: ZONE, ip: 'ip.enclave.host'}, ns: {name: 'ns-a.enclave.host'}, listen: {dns: '127.0.0.1:18153', api: '127.0.0.1:8154'}, front,
++  routeMap: 'http://127.0.0.1:18188/v1/network/routes', chain: {rpcs: ['https://rpc-one.example', 'https://rpc-two.example'], pins: {...F.PINS}},
++  shield: {policyFile: '/etc/c/shield-app-policy.json', profileFile: '/etc/c/profile.json', profileDigest: 'sha256:' + H('e'), rpcs: ['https://rpc-one.example', 'https://rpc-two.example']},
++  hostPolicy: {policy: 'production', endpoint: ENDPOINT, stateDir: '/var/lib/enclave-challenge/host-policy'}});
++const fakeGate = () => { const g = {refusal: null, async check() {}, serviceRefusal: () => g.refusal, start() {}, stop() {}, status: () => ({fake: true, refusal: g.refusal})}; return g; };
++function get(port, target, headers = {}) {
++  return new Promise((ok, no) => {
++    const r = http.request({host: '127.0.0.1', port, path: target, method: headers.method || 'GET', agent: false, headers: {host: NAME, ...headers}}, (res) => {
++      let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => { let j = null; try { j = JSON.parse(b); } catch {} ok({status: res.statusCode, body: j}); }); });
++    r.on('error', no); r.end();
++  });
++}
++
++test('managed front configuration: the name is the host\'s own; loopback only; no static key; never with policy "off"; static stays as it was', () => {
++  const c = challengeReplicaConfig(base());
++  assert.equal(c.front.mode, 'managed'); assert.equal(c.front.hostId, HOST_ID, 'keccak256 of hostPolicy.endpoint exactly');
++  assert.equal(c.front.name, NAME); assert.equal(c.front.origin, `https://${NAME}`);
++  assert.deepEqual(c.front.listen, {ip: '127.0.0.1', port: 18292});
++  assert.equal(challengeReplicaConfig(base({...base().front, origin: `https://${NAME}`})).front.origin, `https://${NAME}`, 'the derived origin may be written');
++  const bad = {
++    'a public bind': [{...base().front, listen: '0.0.0.0:443'}, /loopback/],
++    'a LAN bind': [{...base().front, listen: '192.168.8.238:18292'}, /loopback/],
++    'a static key beside it': [{...base().front, certFile: '/etc/c/front.pem', keyFile: '/etc/c/front.key'}, /conflicts with front.certFile\/keyFile/],
++    'only a cert file': [{...base().front, certFile: '/etc/c/front.pem'}, /conflicts/],
++    'another origin': [{...base().front, origin: 'https://challenge-a.example.org'}, /derived challenge origin/],
++    'another host\'s origin': [{...base().front, origin: `https://${hostChallengeName('0x' + '11'.repeat(32), ZONE)}`}, /derived challenge origin/],
++    'an unknown field': [{...base().front, managed: {...base().front.managed, name: 'evil.example'}}, /unknown field/],
++    'a relative declaration': [{...base().front, managed: {...base().front.managed, declarationFile: 'decl.json'}}, /absolute/],
++    'a bad zone': [{...base().front, managed: {...base().front.managed, zone: 'Not A Zone'}}, /front.managed.zone/],
++  };
++  for (const [what, [front, re]] of Object.entries(bad)) assert.throws(() => challengeReplicaConfig(base(front)), re, what);
++  const off = base(); off.hostPolicy = {policy: 'off'};
++  assert.throws(() => challengeReplicaConfig(off), /refused with hostPolicy "off"/);
++  const owner = {...base(), role: 'owner-responder', zones: {challenge: 'acme.owner.example'}}; delete owner.routeMap; delete owner.chain;
++  assert.throws(() => challengeReplicaConfig(owner), /only the app-zone-replica/);
++  // the static front: exactly as before (plus its mode)
++  const st = challengeReplicaConfig(base({listen: '203.0.113.7:443', certFile: '/etc/c/front.pem', keyFile: '/etc/c/front.key', origin: 'https://challenge-a.example.org'}));
++  assert.deepEqual(st.front, {mode: 'static', listen: {ip: '203.0.113.7', port: 443}, certFile: '/etc/c/front.pem', keyFile: '/etc/c/front.key', origin: 'https://challenge-a.example.org'});
++  // the service-index draft advertises the derived origin (still an unsigned draft)
++  const d = challengeReplicaAdDraft(c, {chainId: 8453, index: '0x' + '9a'.repeat(20), operator: '0x' + '42'.repeat(20), slot: 0, sequence: 1, expiresAt: 1900000000, ttlSec: 86400});
++  assert.deepEqual(d.typedData.message.endpoints, [`https://${NAME}/`]);
++});
++
++test('the network host refuses a managed front whose endpoint is not this runner\'s', async () => {
++  const dir = fs.mkdtempSync(path.join(TMP, 'nethost-'));
++  const cfg = {relay: 'http://127.0.0.1:9', checkers: ['0x' + '22'.repeat(20)], apps: 'all', wgBinary: '/bin/true', nodeBinary: process.execPath, workerModule: '/bin/true'};
++  await assert.rejects(createNetworkHost({config: {...cfg, challengeReplica: base()}, runner: '0x' + '11'.repeat(32), directory: dir, authorize: () => true,
++    fetch: async () => new Response('{}', {status: 404})}), /front.managed: hostPolicy.endpoint is not this host's registry endpoint/);
++  // the right runner passes this check (and is then refused by the release check, before anything binds)
++  await assert.rejects(createNetworkHost({config: {...cfg, challengeReplica: base()}, runner: HOST_ID, directory: dir, authorize: () => true,
++    fetch: async () => new Response('{}', {status: 404})}), /release: dns.mjs must be a regular file/);
++});
++
++test('the declaration contract: refusal reasons, proof matching, bounded validity', () => {
++  const key = randomBytes(32).toString('hex'), nonce = randomBytes(32).toString('hex'), now = Date.now();
++  assert.ok(proofMatches(key, nonce, frontProof(key, nonce)));
++  assert.equal(proofMatches(key, nonce, frontProof(randomBytes(32).toString('hex'), nonce)), false);
++  for (const p of [null, '', 'zz', 'a'.repeat(63), 7]) assert.equal(proofMatches(key, nonce, p), false);
++  const expect = {hostId: HOST_ID, name: NAME, origin: `https://${NAME}`, frontPort: 18292, release: {dnsSha256: H('a'), runtimeBundleSha256: H('b')}};
++  const good = {version: 1, kind: 'enclave-challenge-front', hostId: HOST_ID, role: 'app-zone-replica', name: NAME, origin: `https://${NAME}`, release: expect.release,
++    state: 'serving', pid: 1, front: '127.0.0.1:18292', proofKey: key, issuedAt: now, expiresAt: now + DECLARATION_TTL_MS};
++  assert.equal(frontDeclarationRefusal(good, expect, now), null);
++  assert.match(frontDeclarationRefusal({...good, issuedAt: now + 60_000, expiresAt: now + 61_000}, expect, now), /malformed validity/, 'issued in the future');
++  assert.match(frontDeclarationRefusal({...good, state: 'stopped', reason: 'closed'}, expect, now), /stopped \(closed\)/);
++  assert.match(frontDeclarationRefusal({...good, front: '[::1]:18292'}, expect, now), /another address/, 'service-tls pipes to 127.0.0.1 only');
++  assert.match(frontDeclarationRefusal({...good, proofKey: undefined}, expect, now), /no proof key/);
++  assert.match(frontDeclarationRefusal([], expect, now), /not a declaration/);
++  assert.match(frontDeclarationRefusal({...good, version: 2}, expect, now), /v1/);
++});
++
++test('lifecycle: the front serves only while admitted and the replica is ready; it declares serving (heartbeat), stopped on refusal and close', async () => {
++  const dir = fs.mkdtempSync(path.join(TMP, 'release-'));
++  const dns = Buffer.from('export {};\n'), bundle = Buffer.from('export const x = 1;\n');
++  fs.writeFileSync(path.join(dir, 'dns.mjs'), dns, {mode: 0o444}); fs.writeFileSync(path.join(dir, 'network-runtime.bundle.mjs'), bundle, {mode: 0o444});
++  fs.writeFileSync(path.join(dir, 'dns.mjs.manifest.json'), JSON.stringify({sha256: sha(dns), runtimeBundleSha256: sha(bundle)}), {mode: 0o444});
++  const declDir = fs.mkdtempSync(path.join(TMP, 'decl-')), file = path.join(declDir, 'challenge-front.json');
++  const frontPort = await freePort(), apiPort = await freePort();   // nothing listens on apiPort: the stand-in has no API
++  const cfg = challengeReplicaConfig({...base({listen: `127.0.0.1:${frontPort}`, managed: {zone: ZONE, declarationFile: file}}), listen: {dns: '127.0.0.1:18153', api: `127.0.0.1:${apiPort}`},
++    release: {dir, dnsSha256: sha(dns), runtimeBundleSha256: sha(bundle)}});
++  // a stand-in replica process (no real child) whose /health states the configured role
++  const health = {readOnly: true, appChallenge: {mode: 'attested-lease', judgeMode: 'trusted', ledgerIndex: {complete: true}, shield: {hostExcluded: false, registry: {profileDigest: cfg.shield.profileDigest}}}};
++  const children = [];
++  const spawn = () => { const c = new EventEmitter(); c.pid = 4000 + children.length; c.kill = () => setImmediate(() => c.emit('exit', 0, 'SIGTERM')); children.push(c); return c; };
++  const gate = fakeGate(), logs = [];
++  const read = () => JSON.parse(fs.readFileSync(file, 'utf8'));
++  const h = await startChallengeReplica(cfg, {spawn, gate, fetch: async () => new Response(JSON.stringify(health)), log: (m) => logs.push(m), gateIntervalMs: 40, declareEveryMs: 60, readyMs: 5000});
++  try {
++    let d = read();
++    assert.equal(d.state, 'serving'); assert.equal(d.front, `127.0.0.1:${frontPort}`); assert.equal(d.hostId, HOST_ID); assert.equal(d.name, NAME); assert.equal(d.origin, `https://${NAME}`);
++    assert.deepEqual(d.release, {dnsSha256: sha(dns), runtimeBundleSha256: sha(bundle)}); assert.match(d.proofKey, /^[0-9a-f]{64}$/); assert.ok(d.expiresAt - d.issuedAt <= DECLARATION_TTL_MS);
++    const key1 = d.proofKey;
++    if (process.platform !== 'win32') assert.equal(fs.statSync(file).mode & 0o777, 0o640, 'readable by the service-tls reader, writable by nobody else');
++    // the proof: only the holder of the declared key can answer a fresh nonce; Host must be the challenge origin
++    const nonce = randomBytes(32).toString('hex');
++    const p = await get(frontPort, FRONT_PROOF_PATH, {'x-enclave-front-nonce': nonce});
++    assert.equal(p.status, 200); assert.ok(proofMatches(d.proofKey, nonce, p.body.proof));
++    assert.equal((await get(frontPort, FRONT_PROOF_PATH, {'x-enclave-front-nonce': 'x'})).status, 400);
++    assert.equal((await get(frontPort, FRONT_PROOF_PATH, {'x-enclave-front-nonce': nonce, host: 'evil.example.test'})).status, 421);
++    assert.equal((await get(frontPort, '/health', {host: `${NAME}:443`})).status, 502, 'Host with :443 accepted; the stand-in replica API is absent');
++    assert.equal((await get(frontPort, '/v1/txt')).status, 404); assert.equal((await get(frontPort, '/v1/app-challenge')).status, 405);
++    // heartbeat
++    const first = d.expiresAt; await new Promise((r) => setTimeout(r, 200)); d = read(); assert.ok(d.expiresAt > first, 'the heartbeat extends the declaration');
++    // the platform host policy refuses this host: stopped declared, the front closed
++    gate.refusal = 'banned by the platform';
++    for (let i = 0; i < 100 && read().state !== 'stopped'; i++) await new Promise((r) => setTimeout(r, 20));
++    d = read(); assert.equal(d.state, 'stopped'); assert.match(d.reason, /banned/); assert.equal(d.proofKey, undefined, 'a stopped declaration carries no key');
++    await assert.rejects(get(frontPort, '/health'), 'the front is closed');
++    await new Promise((r) => setTimeout(r, 150)); assert.equal(read().state, 'stopped', 'no heartbeat while stopped');
++    // admitted again: a new front, a new key
++    gate.refusal = null;
++    for (let i = 0; i < 100 && read().state !== 'serving'; i++) await new Promise((r) => setTimeout(r, 20));
++    const again = read(); assert.equal(again.state, 'serving'); assert.match(again.proofKey, /^[0-9a-f]{64}$/); assert.notEqual(again.proofKey, key1, 'a new key per front start');
++  } finally { await h.close(); }
++  const last = read(); assert.equal(last.state, 'stopped'); assert.equal(last.reason, 'closed');
++  await assert.rejects(get(frontPort, '/health'), 'closed');
++  assert.deepEqual(fs.readdirSync(declDir), ['challenge-front.json'], 'no temp files left');
++});
++
++test('a declaration that cannot be written is logged and never serves; a crafted public managed front is refused at start', async () => {
++  const dir = fs.mkdtempSync(path.join(TMP, 'release2-'));
++  const dns = Buffer.from('export {};\n'), bundle = Buffer.from('export const y = 2;\n');
++  fs.writeFileSync(path.join(dir, 'dns.mjs'), dns, {mode: 0o444}); fs.writeFileSync(path.join(dir, 'network-runtime.bundle.mjs'), bundle, {mode: 0o444});
++  fs.writeFileSync(path.join(dir, 'dns.mjs.manifest.json'), JSON.stringify({sha256: sha(dns), runtimeBundleSha256: sha(bundle)}), {mode: 0o444});
++  const file = path.join(TMP, 'absent-dir', 'challenge-front.json'), frontPort = await freePort();
++  const cfg = challengeReplicaConfig({...base({listen: `127.0.0.1:${frontPort}`, managed: {zone: ZONE, declarationFile: file}}), release: {dir, dnsSha256: sha(dns), runtimeBundleSha256: sha(bundle)}});
++  const health = {readOnly: true, appChallenge: {mode: 'attested-lease', judgeMode: 'trusted', ledgerIndex: {complete: true}, shield: {hostExcluded: false, registry: {profileDigest: cfg.shield.profileDigest}}}};
++  const spawn = () => { const c = new EventEmitter(); c.pid = 5000; c.kill = () => setImmediate(() => c.emit('exit', 0, 'SIGTERM')); return c; };
++  const logs = [];
++  const h = await startChallengeReplica(cfg, {spawn, gate: fakeGate(), fetch: async () => new Response(JSON.stringify(health)), log: (m) => logs.push(m), declareEveryMs: 1000});
++  try {
++    assert.ok(logs.some((l) => /declaration serving not written \(ENOENT\); service-tls does not front it/.test(l)), logs.join('\n'));
++    assert.equal(fs.existsSync(file), false);
++  } finally { await h.close(); }
++  await assert.rejects(startReplicaFront({...cfg, front: {...cfg.front, listen: {ip: '0.0.0.0', port: 0}}}), /binds loopback only/);
++});

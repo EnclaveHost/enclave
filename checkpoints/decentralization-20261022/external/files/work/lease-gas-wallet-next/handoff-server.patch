@@ -1,0 +1,20 @@
+--- base/current/handoff-server.mjs	2026-10-20 13:47:45.984443541 -0700
++++ handoff-server.mjs	2026-10-20 14:46:54.707679670 -0700
+@@ -15,7 +15,7 @@
+   },
+  };
+ }
+-export function createHandoffServer({initialRequest,prepare,verify,journal,assets={}}) {
++export function createHandoffServer({initialRequest,prepare,verify,journal,assets={},accept=async()=>{}}) {
+  let state=journal.read(),origin;
+  const token=randomBytes(24).toString('hex');
+  const set=value=>{journal.write(value);state=value;};
+@@ -53,6 +53,8 @@
+    if(!['awaiting-wallet','submitted'].includes(state.status))return reply(res,409,{error:'no pending request'});
+    if(state.hash&&state.hash.toLowerCase()!==b.hash.toLowerCase())return reply(res,409,{error:'different transaction already submitted'});
+    const request=state.request,hash=b.hash.toLowerCase();
++   // A hash that belongs to another stage is refused BEFORE it is recorded here.
++   if(!state.hash)await accept(hash,request);
+    set({...state,status:'submitted',hash});
+    const result=await verify(request,hash);
+    set({...state,status:'confirmed',verification:result});

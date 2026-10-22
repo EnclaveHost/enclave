@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+import {build} from '../enclave/node_modules/esbuild/lib/main.js';
+const root=path.resolve('work/custody-runtime-provenance/source');
+const input=JSON.parse(fs.readFileSync('work/custody-runtime-provenance/public-build-input.json'));
+const measured=`export const MEASURED = Object.freeze(${JSON.stringify({chainId:8453,vault:input.vault,rpcs:['https://mainnet.base.org','https://base-rpc.publicnode.com','https://base.drpc.org','https://1rpc.io/base'],minAgree:2,maxAgeSec:120,enclaveOwner:'0x0b2d009c0c9af05b12100d77f3c815fea822ee61'})});\n`;
+const r=await build({entryPoints:[path.join(root,'custody/v2/daemon.mjs')],bundle:true,platform:'node',format:'esm',target:'node22',write:false,legalComments:'none',banner:{js:'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url);'},plugins:[{name:'measured',setup(b){b.onLoad({filter:/custody[\\/]v2[\\/]measured\.mjs$/},()=>({contents:measured,loader:'js'}));}}],metafile:true});
+const bytes=Buffer.from(r.outputFiles[0].contents),sha=createHash('sha256').update(bytes).digest('hex');
+fs.writeFileSync('work/custody-runtime-provenance/rebuilt-bundle.mjs',bytes);
+fs.writeFileSync('work/custody-runtime-provenance/bundle-result.json',JSON.stringify({commit:input.commit,sha256:sha,expected:input.expected,exactMatch:sha===input.expected,bytes:bytes.length,inputs:Object.keys(r.metafile.inputs)},null,2)+'\n');
+console.log(JSON.stringify({sha256:sha,expected:input.expected,exactMatch:sha===input.expected,bytes:bytes.length}));

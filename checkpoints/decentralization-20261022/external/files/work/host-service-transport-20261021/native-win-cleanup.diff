@@ -1,0 +1,131 @@
+--- ../native-win-rev4-frozen/win-udp-fixture.r41-87d1c26e.ps1	2026-10-21 10:40:39.791833417 -0700
++++ win-udp-fixture.ps1	2026-10-21 10:40:58.441490881 -0700
+@@ -19,7 +19,9 @@
+ #      The firewall admits only a PUBLIC WireGuard peer, so this needs a live provider: root's bounded canary at activation
+ #      (A5, one provider pinned to minipc; the provider's dns-probe log reads "answering"; dig @<front> is answered).
+ # Ephemeral state lives under "$env:ProgramData\Enclave\native win <random>" (a path WITH SPACES, to exercise quoting).
+-# Cleanup removes exactly the policies this script installed; a directory whose remove failed is KEPT as the receipt.
++# Cleanup removes exactly the policies this script installed. A directory is deleted ONLY if it holds no firewall.json or
++# its remove was verified; any other (remove failed, manifest unreadable, a throw before tracking, a timed-out process not
++# confirmed stopped) is KEPT as the receipt and reported FAIL.
+ # Exit: 0 all PASS, 1 a FAIL, 2 refused.
+ param([Parameter(Mandatory)][string]$NewWgExe, [Parameter(Mandatory)][string]$WgTestExe, [Parameter(Mandatory)][string]$NodeExe,
+       [Parameter(Mandatory)][string]$Peer, [string]$FirewallExe = "$env:ProgramFiles\Enclave\network\enclave-circuit-firewall.exe",
+@@ -45,18 +47,27 @@
+   $psi.UseShellExecute = $false; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.CreateNoWindow = $true
+   $p = [System.Diagnostics.Process]::Start($psi); if (-not $p) { throw "could not start $exe" }
+   return @{ p = $p; o = $p.StandardOutput.ReadToEndAsync(); e = $p.StandardError.ReadToEndAsync() } }
+-function Run([string]$exe, [string[]]$argv, [int]$sec = 30) {    # -> @{code; out}; a timeout is code -9 (killed)
++$script:stuck = @()   # timed-out processes that could not be confirmed stopped: cleanup then deletes nothing
++function Stop-Tree($h, [string]$what) {   # kill THIS process and its children (taskkill /T), then WAIT until it is gone
++  try { $k = Start-Native "$env:SystemRoot\System32\taskkill.exe" @('/T', '/F', '/PID', "$($h.p.Id)"); [void]$k.p.WaitForExit(15000) } catch {}
++  try { if (-not $h.p.HasExited) { $h.p.Kill() } } catch {}
++  if (-not $h.p.WaitForExit(30000)) { $script:stuck += $what; Fail "timeout: $what (pid $($h.p.Id)) not confirmed stopped" } }
++function Run([string]$exe, [string[]]$argv, [int]$sec = 30) {    # -> @{code; out}; a timeout is code -9 (tree killed, waited for)
+   $h = Start-Native $exe $argv
+-  if (-not $h.p.WaitForExit($sec * 1000)) { try { $h.p.Kill() } catch {}; [void]$h.p.WaitForExit(5000); return @{ code = -9; out = "TIMEOUT after $sec s" } }
++  if (-not $h.p.WaitForExit($sec * 1000)) { Stop-Tree $h ("$exe " + ($argv -join ' ')); return @{ code = -9; out = "TIMEOUT after $sec s" } }
+   $h.p.WaitForExit(); return @{ code = $h.p.ExitCode; out = ($h.o.Result + $h.e.Result) } }
+ function WfpXml { $f = Join-Path $env:TEMP ("wfp-" + [guid]::NewGuid() + ".xml")
+   $r = Run "$env:SystemRoot\System32\netsh.exe" @('wfp', 'show', 'filters', "file=$f") 120
+   if ($r.code -ne 0) { throw "netsh wfp show filters exit $($r.code)" }
+   $x = [IO.File]::ReadAllText($f); Remove-Item -LiteralPath $f -Force; return $x }
+ function Exempt { return (Run "$env:SystemRoot\System32\CheckNetIsolation.exe" @('LoopbackExempt', '-s') 60).out }
+-function Owned([string]$manifest) {   # this fixture's OWN filter ids and AppContainer SID, from its manifest
+-  $m = Get-Content -Raw -LiteralPath $manifest | ConvertFrom-Json
+-  return @{ ids = @($m.rules | ForEach-Object { ("$_" -replace '[{}]', '').ToLower() }); sid = "$($m.appContainerSid)" } }
++function Owned([string]$manifest) {   # this fixture's OWN filter ids and AppContainer SID, from its manifest (throws if unreadable)
++  $m = [IO.File]::ReadAllText($manifest) | ConvertFrom-Json
++  if ($null -eq $m -or $null -eq $m.rules) { throw "no rules list in $manifest" }   # never let $null become one empty id
++  return @{ ids = @(@($m.rules) | Where-Object { "$_" } | ForEach-Object { ("$_" -replace '[{}]', '').ToLower() }); sid = "$($m.appContainerSid)" } }
++function Track([string]$d) {   # record ANY manifest an install left, readable or not ($null = unreadable: remove is still tried, never verified)
++  if (-not (Test-Path -LiteralPath "$d\firewall.json")) { return }
++  try { $owned[$d] = Owned "$d\firewall.json" } catch { $owned[$d] = $null; Fail "manifest $d\firewall.json unreadable ($_): its removal cannot be verified; the directory will be kept" } }
+ function OwnedPresent($own) { $x = (WfpXml).ToLower(); return @($own.ids | Where-Object { $x.Contains($_) }).Count }
+ function FreePort { $l = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0); $l.Start(); $p = $l.LocalEndpoint.Port; $l.Stop(); return $p }
+ function Hex32 { -join ((1..16) | ForEach-Object { '{0:x2}' -f (Get-Random -Maximum 256) }) }
+@@ -91,7 +102,7 @@
+ else { Fail "E3 wg-udp-test.exe exit $($r.code): $($r.out.Substring([Math]::Max(0, $r.out.Length - 600)))" }
+ if ($ReadOnly) { Write-Output "READONLY-RC=$script:failed"; [Environment]::Exit($script:failed) }
+ 
+-$root = Join-Path $env:ProgramData ("Enclave\native win " + (Hex32).Substring(0, 12)); $mine = @(); $listener = $null; $owned = @{}
++$root = Join-Path $env:ProgramData ("Enclave\native win " + (Hex32).Substring(0, 12)); $mine = @(); $listener = $null; $owned = @{}; $clean = @{}
+ try {
+   New-Item -ItemType Directory -Path $root -Force | Out-Null
+   $ports = 1..5 | ForEach-Object { FreePort }
+@@ -101,22 +112,21 @@
+   WriteJson "$d1\firewall-config.json" @{ directory = $d1; appContainer = $true; tunnel = $true; programs = @(@{ path = "$d1\enclave-wg.exe"; udp = @($Peer);
+     connect = @("127.0.0.1:$($ports[0])", "127.0.0.1:$($ports[1])", '127.0.0.1:18153'); listen = @($ports[2], $ports[3], $ports[4]) }) }
+   $r = Run $FirewallExe @('install', "$d1\firewall-config.json") 60
+-  if ($r.code -eq 0 -and (Test-Path -LiteralPath "$d1\firewall.json")) {
+-    $owned[$d1] = Owned "$d1\firewall.json"; $n = OwnedPresent $owned[$d1]
++  Track $d1   # whatever the exit code: a failed install that wrote its manifest may have added filters
++  if ($r.code -eq 0 -and $owned[$d1]) {
++    $n = OwnedPresent $owned[$d1]
+     if ($owned[$d1].ids.Count -gt 0 -and $n -eq $owned[$d1].ids.Count) { Pass "E1 the DNS service-circuit tunnel policy installs; all $n of ITS filters are present" } else { Fail "E1 owned filters present $n of $($owned[$d1].ids.Count)" }
+-  } else { Fail "E1 install exit $($r.code): $($r.out.Substring(0, [Math]::Min(400, $r.out.Length)))"
+-    # a failed install that still wrote its manifest may have added filters: track them like E2 and the negative case
+-    if (Test-Path -LiteralPath "$d1\firewall.json") { $owned[$d1] = Owned "$d1\firewall.json" } }
+-  if ($owned[$d1]) {   # remove only what a manifest records; an install that wrote none added nothing
++  } else { Fail "E1 install exit $($r.code): $($r.out.Substring(0, [Math]::Min(400, $r.out.Length)))" }
++  if ($owned.ContainsKey($d1)) {   # remove only what a manifest records; an install that wrote none added nothing
+     $r = Run $FirewallExe @('remove', "$d1\firewall.json") 60
+-    if ($r.code -eq 0 -and (OwnedPresent $owned[$d1]) -eq 0) { Pass 'E1 removed: none of its filters remain'; $owned.Remove($d1) } else { Fail "E1 remove exit $($r.code) / filters left (finally retries, else keeps it)" } }
++    if ($r.code -eq 0 -and $owned[$d1] -and (OwnedPresent $owned[$d1]) -eq 0) { Pass 'E1 removed: none of its filters remain'; $clean[$d1] = $true; $owned.Remove($d1) } else { Fail "E1 remove exit $($r.code) / filters left or unverifiable (finally retries, then keeps it)" } }
+   # the rev2 shape (loopback UDP for DNS) is refused and leaves no manifest
+   $d1n = Join-Path $root ("enclave-circuit-" + (Hex32)); New-Item -ItemType Directory -Path $d1n | Out-Null; $mine += $d1n
+   Copy-Item -LiteralPath $NewWgExe -Destination "$d1n\enclave-wg.exe"
+   WriteJson "$d1n\firewall-config.json" @{ directory = $d1n; appContainer = $true; tunnel = $true; programs = @(@{ path = "$d1n\enclave-wg.exe"; udp = @($Peer, '127.0.0.1:18153'); connect = @(); listen = @($ports[2]) }) }
+   $r = Run $FirewallExe @('install', "$d1n\firewall-config.json") 60
+   if ($r.code -ne 0 -and -not (Test-Path -LiteralPath "$d1n\firewall.json")) { Pass 'E1 a loopback-UDP grant is refused and installs nothing (why UDP 53 is framed onto TCP)' }
+-  else { Fail "E1 loopback UDP accepted (exit $($r.code))"; if (Test-Path -LiteralPath "$d1n\firewall.json") { $owned[$d1n] = Owned "$d1n\firewall.json" } }
++  else { Fail "E1 loopback UDP accepted (exit $($r.code))"; Track $d1n }
+   # ---- E2: AppContainer + WFP grant semantics, observed from inside a sandbox (node.exe as worker.exe, NOT the new binary)
+   $g = FreePort; $o = FreePort
+   $listener = Start-Native $NodeExe @("$PSScriptRoot\listener.mjs", "$g", "$o")
+@@ -126,8 +136,9 @@
+   Copy-Item -LiteralPath $NodeExe -Destination "$d2\worker.exe"; Copy-Item -LiteralPath "$PSScriptRoot\probe.mjs" -Destination "$d2\probe.mjs"
+   WriteJson "$d2\firewall-config.json" @{ directory = $d2; appContainer = $true; programs = @(@{ path = "$d2\worker.exe"; connect = @("127.0.0.1:$g"); listen = @() }) }
+   $r = Run $FirewallExe @('install', "$d2\firewall-config.json") 60
+-  if ($r.code -eq 0 -and (Test-Path -LiteralPath "$d2\firewall.json")) { $owned[$d2] = Owned "$d2\firewall.json"; Pass "E2 a worker-shaped sandbox with one loopback TCP grant installs ($($owned[$d2].ids.Count) filters)" }
+-  else { Fail "E2 install exit $($r.code)"; if (Test-Path -LiteralPath "$d2\firewall.json") { $owned[$d2] = Owned "$d2\firewall.json" } }
++  Track $d2
++  if ($r.code -eq 0 -and $owned[$d2]) { Pass "E2 a worker-shaped sandbox with one loopback TCP grant installs ($($owned[$d2].ids.Count) filters)" }
++  else { Fail "E2 install exit $($r.code)" }
+   if ($owned[$d2]) {
+     if ((Exempt).Contains($owned[$d2].sid)) { Pass 'E2 its loopback exemption is present' } else { Write-Output 'NOTE E2 exemption added at sandbox launch, not at install' }
+     WriteJson "$d2\worker-sandbox.json" @{ directory = $d2; executable = "$d2\worker.exe"; args = @("$d2\probe.mjs", "$g", "$o") }
+@@ -139,18 +150,27 @@
+       if (-not $pr.tcpOther) { Pass 'E2 TCP to an ungranted loopback port is blocked' } else { Fail 'E2 ungranted TCP allowed' }
+       if (-not $pr.udpGranted) { Pass 'E2 UDP to loopback is blocked under a TCP-only grant (the framing is required)' } else { Fail 'E2 loopback UDP allowed: the grant model differs from the tool source' } }
+     $r = Run $FirewallExe @('remove', "$d2\firewall.json") 60
+-    if ($r.code -eq 0 -and (OwnedPresent $owned[$d2]) -eq 0 -and -not (Exempt).Contains($owned[$d2].sid)) { Pass 'E2 removed: none of its filters and no exemption remain'; $owned.Remove($d2) }
++    if ($r.code -eq 0 -and (OwnedPresent $owned[$d2]) -eq 0 -and -not (Exempt).Contains($owned[$d2].sid)) { Pass 'E2 removed: none of its filters and no exemption remain'; $clean[$d2] = $true; $owned.Remove($d2) }
+     else { Fail "E2 remove exit $($r.code) / owned filters or exemption left" } }
+ } catch { Fail "fatal: $_" }
+ finally {
+-  if ($listener -and -not $listener.p.HasExited) { try { $listener.p.Kill() } catch {} }
+-  # remove whatever THIS script installed and could not remove above; keep any directory whose remove still fails
++  if ($listener -and -not $listener.p.HasExited) { Stop-Tree $listener 'loopback listener' }
++  # remove whatever THIS script installed and could not remove above; nothing here may throw past a directory
+   $kept = @()
+   foreach ($d in @($owned.Keys)) {
+-    $r = Run $FirewallExe @('remove', "$d\firewall.json") 60
+-    if ($r.code -eq 0 -and (OwnedPresent $owned[$d]) -eq 0) { $owned.Remove($d) } else { $kept += $d; Fail "cleanup: $d NOT removed (exit $($r.code)); kept as the receipt" } }
+-  foreach ($d in $mine) { if ($kept -notcontains $d -and (Test-Path -LiteralPath $d)) { Remove-Item -LiteralPath $d -Recurse -Force } }
++    try {
++      $r = Run $FirewallExe @('remove', "$d\firewall.json") 60
++      if ($r.code -eq 0 -and $owned[$d] -and (OwnedPresent $owned[$d]) -eq 0) { $clean[$d] = $true; $owned.Remove($d) }
++      else { $kept += $d; Fail "cleanup: $d NOT verified removed (exit $($r.code)); kept as the receipt" } }
++    catch { $kept += $d; Fail "cleanup: $d remove could not be checked ($_); kept as the receipt" } }
++  # a directory holding a manifest whose remove was never verified (unreadable, or a throw before it was tracked) is kept
++  foreach ($d in $mine) { if ($kept -notcontains $d -and -not $clean[$d] -and (Test-Path -LiteralPath "$d\firewall.json")) { $kept += $d; Fail "cleanup: $d holds a firewall.json not verified removed; kept as the receipt" } }
++  if ($script:stuck.Count) { Fail ("cleanup: process(es) not confirmed stopped ({0}); every fixture directory kept" -f ($script:stuck -join '; ')); $kept = @($mine) }
++  foreach ($d in $mine) { if ($kept -notcontains $d -and (Test-Path -LiteralPath $d)) {
++    try { Remove-Item -LiteralPath $d -Recurse -Force } catch { $kept += $d; Fail "cleanup: could not delete $d ($_)" } } }
+   if (-not $kept.Count) { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue }
+   if (-not $kept.Count -and -not (Test-Path -LiteralPath $root)) { Pass 'cleanup: every fixture policy removed, the ephemeral directory gone' }
++  elseif (-not $kept.Count) { Fail "cleanup: $root could not be deleted" }
++  else { foreach ($d in $kept) { Write-Output "KEPT $d" } }
+ }
+ Write-Output "NATIVE-WIN-RC=$script:failed"; [Environment]::Exit($script:failed)

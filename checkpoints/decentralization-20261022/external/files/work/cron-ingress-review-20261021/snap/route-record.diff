@@ -1,0 +1,38 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/cron-ingress-review-20261021/snap/route-record.main.mjs	2026-10-20 10:31:47.118472588 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/cron-ingress-review-20261021/snap/route-record.patched.mjs	2026-10-21 09:13:51.079613412 -0700
+@@ -58,7 +58,7 @@
+       !Number.isSafeInteger(r.sequence) || r.sequence < 1 || !Number.isSafeInteger(r.issuedAt) || r.issuedAt > now + 5000 ||
+       !Number.isSafeInteger(r.expiresAt) || r.expiresAt <= now || r.expiresAt > d.expiresAt ||
+       r.expiresAt > lease.leaseUntil || r.expiresAt - r.issuedAt > 300000 || !Array.isArray(r.routes) || r.routes.length > maxRoutes) throw new Error('invalid or expired route record');
+-  const seen = new Set();
++  const seen = new Set(), served = [];
+   for (const route of r.routes) {
+     if (!route || typeof route.circuit !== 'string' || !/^[0-9a-f]{32}$/.test(route.circuit) || seen.has(route.circuit) ||
+         !net.isIP(route.address) || isBlockedHost(route.address) || route.port !== 443 || route.transport !== (p.mode==='direct'?'direct':'enclave-network') ||
+@@ -68,12 +68,17 @@
+       // The host's own public address, qualified for direct hosting by a trusted checker for THIS runner and operator.
+       const q=await verifyQualification(r.qualification,{hostId:lease.runner,operator:lease.runnerOperator,address:route.address,probeSigners:providerProbeSigners,now});
+       if(r.expiresAt>q.expiresAt)throw new Error('route outlives the host\'s direct-hosting qualification');
++      served.push(route);
+       continue;
+     }
+     // Public ingress only through a provider that is qualified for ingress right now, under this policy's price limit.
++    // A route through a provider that is not (its qualification lapsed or was revoked) is withheld; the record's other,
++    // still-qualified routes are served. One provider's lapse must not withdraw every app routed through it AND another
++    // provider (2026-10-21 16:01:51Z: a payload timeout on one provider dropped every app from every directory and DNS).
+     const exit=(networkProviders||[]).find(x=>x.address===route.address&&x.eligibleRoles.includes('ingress')&&x.qualifiedUntil>=Math.min(r.expiresAt,now+60000)&&x.pricePerGiB6<=(p.enclaveNetwork?.maxPricePerGiB6??0));
+-    if(!exit)throw new Error('route address is not a qualified Enclave-network ingress provider');
++    if(exit)served.push(route);
+   }
++  if(r.routes.length&&!served.length)throw new Error('route address is not a qualified Enclave-network ingress provider');
+   const sig = Buffer.from(bundle.signature || '', 'base64');
+   if (sig.length !== 64 || !verify(null,Buffer.from(message('route',r)),key,sig)) throw new Error('invalid route signature');
+   const hash = recordHash(r);
+@@ -83,5 +88,6 @@
+   // Persist BEFORE exposing a route, including withdrawal records with no routes.
+   return {epoch:d.epoch, publicKey:d.publicKey, sequence:r.sequence, hash};
+   });
+-  return {...r, expiresAt:Math.min(r.expiresAt,lease.validUntil), ipns:d.ipns};
++  // the signed record is the whole of r (signature, hash and replay floor above); only the qualified routes are exposed
++  return {...r, routes:served, expiresAt:Math.min(r.expiresAt,lease.validUntil), ipns:d.ipns};
+ }

@@ -1,0 +1,1255 @@
+--- a/network/host-services/storage-indexer-host.mjs
++++ b/network/host-services/storage-indexer-host.mjs
+@@ -0,0 +1,421 @@
++// The storage-indexer HOST ROLE: one Sia indexer replica (indexd G-C2 + its own PostgreSQL 18) supervised on an Enclave
++// host under the SAME platform host policy gate as app service (network/host-service-gate.mjs). Like the lease relay
++// (network/host-services/lease-relay-host.mjs) it is a KEYED role (the replica's wallet phrase), so it has its own
++// supervisor instead of runner.mjs's no-secret ROLES; it keeps the runner's discipline: pinned package bytes, no inherited
++// environment, memory caps, restart backoff, and the gate's refusal stops it (sticky until the admin's admit).
++//
++//   node network/host-services/storage-indexer-host.mjs check  <host.json>    validate, verify package + descriptor, print the plan
++//   node network/host-services/storage-indexer-host.mjs init   <host.json>    (admitted host only) initdb + database + base config
++//   node network/host-services/storage-indexer-host.mjs run    <host.json>    supervise PostgreSQL + indexd while admitted
++//   node network/host-services/storage-indexer-host.mjs backup <host.json> <out.cms> <owner-cert.pem>
++//   node network/host-services/storage-indexer-host.mjs restore <host.json> <in.cms> <owner-key.pem> <owner-cert.pem>
++//
++// Admission (no new authority):
++//   1. the platform host policy admits THIS host (its registry id = keccak256(host.endpoint)): the administrator's
++//      anchored policy (bans, allowlist), the registry row ACTIVE, the accepted owner. Anything else refuses.
++//   2. the replica descriptor (enclave-service-descriptor/v1, kind "storage", role "storage-indexer") names this host's
++//      registry id, this replica and this exact package, and is signed by THIS HOST'S REGISTRY OPERATOR, read from the
++//      same agreed snapshot the gate uses. Another operator's or another host's descriptor refuses.
++//   3. which replicas a deployment writes to is the deployment owner's sia-s3 configuration; discovery ads go through
++//      the service index (kind storage = 3), which is metadata, not authority.
++// "off" for the platform policy must be written explicitly; the role then refuses to run unless --ungated-test is given
++// (fixtures only), and says so.
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import net from 'node:net';
++import { spawn as spawnChild } from 'node:child_process';
++import { createHash } from 'node:crypto';
++import { pathToFileURL } from 'node:url';
++import { verifyMessage } from 'viem';
++
++export const CONFIG_FORMAT = 'enclave-storage-indexer-host/v1';
++export const DESCRIPTOR_FORMAT = 'enclave-service-descriptor/v1';
++export const ROLE = 'storage-indexer';
++export const KIND = 'storage';
++const SECRETISH = /(secret|password|phrase|seed|private|mnemonic|token|key)(?!.*(file|dir|cert|pin))/i;
++const sha = (b) => createHash('sha256').update(b).digest('hex');
++const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
++const fail = (m) => { throw new Error(`storage-indexer host: ${m}`); };
++const lc = (s) => String(s || '').toLowerCase();
++const normEndpoint = (e) => String(e || '').replace(/\/+$/, '');
++/**
++ * A registered host endpoint (the registry entry's PUBLIC_URL), e.g. https://api.enclave.host/t/metal0. The SAME syntax
++ * the platform host policy accepts for an endpoint (network/platform-host-policy.mjs KINDS.endpoint: lowercase host,
++ * optional port, path of [A-Za-z0-9._~/-]), with no credentials, query or fragment, and no empty, "." or ".." path
++ * segment. Canonical form = trailing slashes stripped, exactly what hostIdOfEndpoint (network/host-service-gate.mjs)
++ * hashes; nothing else is rewritten, so the registry id is unchanged. -> the canonical endpoint, or null.
++ */
++export function canonicalHostEndpoint(e) {
++  const c = normEndpoint(e);
++  if (!/^https:\/\/[a-z0-9.-]{1,180}(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~/-]{0,200})?$/.test(c)) return null;
++  const pathPart = c.slice(c.indexOf('/', 8));
++  if (c.indexOf('/', 8) !== -1 && pathPart.split('/').slice(1).some((seg) => seg === '' || seg === '.' || seg === '..')) return null;
++  const port = /:([0-9]{1,5})(?:\/|$)/.exec(c.slice(8));
++  if (port && (Number(port[1]) < 1 || Number(port[1]) > 65535)) return null;
++  return c;
++}
++
++/** -> normalized config (throws). Only public configuration: secrets come from credentialsDir files (systemd credentials). */
++export function validateConfig(cfg) {
++  if (!plain(cfg)) fail('configuration must be an object');
++  const allowed = ['format', 'host', 'platformHostPolicy', 'platformHostPolicyMirrors', 'platformHostPolicyRpcs', 'replica', 'package', 'pgBin',
++    'stateRoot', 'runtimeDir', 'credentialsDir', 'descriptorFile', 'adminAddress', 'appAddress', 'advertiseURL', 'memoryMiB', 'pgLibDir', 'syncer'];
++  for (const k of Object.keys(cfg)) if (!allowed.includes(k)) fail(`unknown field ${JSON.stringify(k)}${SECRETISH.test(k) ? ' (secrets come only from credentialsDir)' : ''}`);
++  if (cfg.format !== CONFIG_FORMAT) fail(`format must be ${CONFIG_FORMAT}`);
++  if (!plain(cfg.host) || Object.keys(cfg.host).some((k) => k !== 'endpoint')) fail('host: { endpoint } only');
++  const endpoint = canonicalHostEndpoint(cfg.host.endpoint);
++  if (!endpoint) fail("host.endpoint: this host's registered endpoint (its PUBLIC_URL), e.g. https://api.enclave.host/t/<name>: https, lowercase host, no credentials, query, fragment or dot/empty path segments");
++  if (cfg.platformHostPolicy === undefined) fail('platformHostPolicy is required: "production", an explicit platform JSON, or "off" (explicit; fixtures only)');
++  if (!(cfg.platformHostPolicy === 'production' || cfg.platformHostPolicy === 'off' || plain(cfg.platformHostPolicy))) fail('platformHostPolicy: "production" | "off" | { book, hostOwnership, mirrors[] }');
++  for (const k of ['platformHostPolicyMirrors', 'platformHostPolicyRpcs'])
++    // https only; plain http solely for loopback fixtures (a production policy RPC or mirror is never 127.0.0.1)
++    if (cfg[k] !== undefined && (!Array.isArray(cfg[k]) || cfg[k].some((u) => typeof u !== 'string' || !/^(https:\/\/[^\s?#@]+|http:\/\/127\.0\.0\.1:[0-9]{1,5}(\/[^\s?#@]*)?)$/.test(u)))) fail(`${k}: https URLs`);
++  if (!/^[a-z0-9][a-z0-9-]{0,30}$/.test(String(cfg.replica))) fail('replica: [a-z0-9][a-z0-9-]{0,30}');
++  if (!plain(cfg.package) || typeof cfg.package.dir !== 'string' || !path.isAbsolute(cfg.package.dir) || !/^sha256:[0-9a-f]{64}$/.test(String(cfg.package.manifest)))
++    fail('package: { dir: <absolute unpacked package>, manifest: "sha256:<digest of its MANIFEST.sha256>" }');
++  if (cfg.pgLibDir !== undefined && (typeof cfg.pgLibDir !== 'string' || !path.isAbsolute(cfg.pgLibDir))) fail('pgLibDir must be an absolute path');
++  const syncer = { address: ':9981', bootstrap: true, ...(cfg.syncer || {}) };
++  if (!plain(cfg.syncer ?? {}) || Object.keys(syncer).some((k) => !['address', 'bootstrap'].includes(k)) || typeof syncer.bootstrap !== 'boolean' || !/^(127\.0\.0\.1)?:[0-9]{1,5}$/.test(String(syncer.address)))
++    fail('syncer: { address: ":<port>" | "127.0.0.1:<port>", bootstrap: boolean }');
++  for (const k of ['pgBin', 'stateRoot', 'runtimeDir', 'credentialsDir', 'descriptorFile']) if (typeof cfg[k] !== 'string' || !path.isAbsolute(cfg[k])) fail(`${k} must be an absolute path`);
++  for (const k of ['adminAddress', 'appAddress']) if (!/^127\.0\.0\.1:[0-9]{1,5}$/.test(String(cfg[k]))) fail(`${k}: 127.0.0.1:<port> (loopback only)`);
++  if (!/^https:\/\/[a-z0-9.-]+(:[0-9]{1,5})?$/.test(String(cfg.advertiseURL))) fail('advertiseURL: https://<host>[:port] (the replica URL sia-s3 deployments use)');
++  const mem = { indexd: 1024, postgres: 1024, ...(cfg.memoryMiB || {}) };
++  for (const [k, v] of Object.entries(mem)) if (!['indexd', 'postgres'].includes(k) || !Number.isInteger(v) || v < 128 || v > 8192) fail('memoryMiB: { indexd, postgres } 128..8192');
++  return { ...cfg, host: { endpoint }, memoryMiB: mem, syncer };
++}
++
++/** The pinned package: MANIFEST.sha256 must hash to the pin and every file in it must verify. -> { indexd, geoip, manifest } */
++export function verifyPackage(dir, pin) {
++  const raw = fs.readFileSync(path.join(dir, 'MANIFEST.sha256'));
++  if ('sha256:' + sha(raw) !== pin) fail(`package manifest is not the pinned ${pin}`);
++  const lines = raw.toString().trim().split('\n');
++  for (const line of lines) {
++    const m = /^([0-9a-f]{64})  \.\/(.+)$/.exec(line);
++    if (!m || m[2].includes('..')) fail(`malformed manifest line ${JSON.stringify(line.slice(0, 80))}`);
++    if (sha(fs.readFileSync(path.join(dir, m[2]))) !== m[1]) fail(`package file ${m[2]} does not match its manifest`);
++  }
++  const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'PACKAGE.json'), 'utf8'));
++  return { indexd: path.join(dir, pkg.indexd.file), geoip: path.join(dir, pkg.geoip.file), indexdSha256: pkg.indexd.sha256, manifest: pin };
++}
++
++/** The replica descriptor bytes this host would serve, for the operator to sign (EIP-191 personal_sign of these exact bytes). */
++export function descriptorBytes({ operator, hostId, replica, packagePin, advertiseURL, indexdSha256 }) {
++  return JSON.stringify({ format: DESCRIPTOR_FORMAT, operator: lc(operator), kind: KIND, role: ROLE, hostId: lc(hostId), replica,
++    package: packagePin, applicationAPI: advertiseURL, indexd: { sha256: indexdSha256, capabilities: ['cas-v4', 'fence', 'op-nonce'] } });
++}
++
++/** -> the descriptor's operator if it is this replica's exact descriptor and the operator signed these bytes (throws otherwise). */
++export async function verifyDescriptor(file, { hostId, replica, packagePin, advertiseURL }) {
++  const d = JSON.parse(fs.readFileSync(file, 'utf8'));
++  if (!plain(d) || typeof d.descriptor !== 'string' || !/^0x[0-9a-f]{130}$/i.test(String(d.signature))) fail('descriptor file: { descriptor: "<bytes>", signature: "0x<65 bytes>" }');
++  const x = JSON.parse(d.descriptor);
++  if (x.format !== DESCRIPTOR_FORMAT || x.kind !== KIND || x.role !== ROLE) fail('descriptor is not a storage-indexer service descriptor');
++  if (lc(x.hostId) !== lc(hostId)) fail(`descriptor names host ${x.hostId}, not this host ${hostId}`);
++  if (x.replica !== replica) fail(`descriptor names replica ${x.replica}, not ${replica}`);
++  if (x.package !== packagePin) fail(`descriptor names package ${x.package}, not the pinned ${packagePin}`);
++  if (x.applicationAPI !== advertiseURL) fail(`descriptor advertises ${x.applicationAPI}, not ${advertiseURL}`);
++  if (!/^0x[0-9a-f]{40}$/.test(String(x.operator))) fail('descriptor operator must be an address');
++  if (!(await verifyMessage({ address: x.operator, message: d.descriptor, signature: d.signature }))) fail(`descriptor is not signed by its operator ${x.operator}`);
++  return { operator: lc(x.operator), descriptor: d.descriptor };
++}
++
++/** The env names the existing gate reads (network/platform-host-policy-config.mjs), from the explicit configuration. */
++export function policyEnv(cfg, extra = {}) {
++  const p = cfg.platformHostPolicy;
++  return { ENCLAVE_PLATFORM_HOST_POLICY: typeof p === 'string' ? p : JSON.stringify(p),
++    ...(cfg.platformHostPolicyMirrors ? { ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS: cfg.platformHostPolicyMirrors.join(',') } : {}),
++    ...(cfg.platformHostPolicyRpcs ? { ENCLAVE_PLATFORM_HOST_POLICY_RPCS: cfg.platformHostPolicyRpcs.join(',') } : {}), ...extra };
++}
++
++const withTimeout = (p, ms, what) => Promise.race([p, new Promise((_, no) => { const t = setTimeout(() => no(new Error(`${what} timed out after ${ms} ms`)), ms); t.unref?.(); })]);
++const registrySnapshots = new WeakMap();
++/** This host's registry row, read with the gate's OWN configuration (same RPC set, quorum rule, book and ownership
++ *  contract) at an agreed block, through the exported reader - never through the gate's mutable decision state. */
++async function registryRow(gate, hostId) {
++  const rc = gate.runtime.config;
++  let snap = registrySnapshots.get(gate);
++  if (!snap) {
++    const { quorumSnapshot } = await import('../host-policy-runtime.mjs');
++    snap = quorumSnapshot({ rpcs: rc.rpcs, minAgree: rc.minAgree ?? null }); registrySnapshots.set(gate, snap);
++  }
++  const { readPolicyFacts } = await import('../platform-host-policy.mjs');
++  const facts = await snap((at) => readPolicyFacts(at, { book: rc.book, hostOwnership: rc.hostOwnership, registryIds: [hostId] }));
++  return facts.hosts[hostId];
++}
++
++/**
++ * The admission decision for this host + replica, now. -> { admit, reason, hostId, operator }.
++ * gate: the platform host policy gate (createHostServiceGate) for this host's endpoint.
++ */
++export async function admission(cfg, gate, { ungatedTest = false } = {}) {
++  const { hostIdOfEndpoint } = await import('../host-service-gate.mjs');
++  const hostId = hostIdOfEndpoint(cfg.host.endpoint);
++  const pkg = verifyPackage(cfg.package.dir, cfg.package.manifest);
++  let d;
++  try { d = await verifyDescriptor(cfg.descriptorFile, { hostId, replica: cfg.replica, packagePin: cfg.package.manifest, advertiseURL: cfg.advertiseURL }); }
++  catch (e) { return { admit: false, reason: e.message, hostId }; }
++  if (!gate.enabled) {
++    return ungatedTest ? { admit: true, reason: 'platform host policy OFF (fixture only, not a production configuration)', hostId, operator: d.operator, pkg }
++                       : { admit: false, reason: 'platform host policy is off: the storage-indexer role runs only under the platform host policy', hostId };
++  }
++  await withTimeout(gate.check(), 30000, 'platform host policy check').catch(() => {});
++  const refused = gate.serviceRefusal();
++  if (refused) return { admit: false, reason: refused, hostId };
++  // the registry row from the gate's own runtime (same RPC quorum, same authority): bind the descriptor to it
++  let row;
++  try { row = await withTimeout(registryRow(gate, hostId), 30000, 'registry read'); }
++  // transient (RPC/mirror): the gate itself still admits this host (its bounded grace); never a reason to stop a running replica
++  catch (e) { return { admit: false, transient: true, reason: `registry row unreadable: ${String(e.message || e).slice(0, 160)}`, hostId }; }
++  if (!row || !row.active) return { admit: false, reason: 'host registry entry is not active', hostId };
++  if (normEndpoint(row.endpoint) !== cfg.host.endpoint) return { admit: false, reason: `registry endpoint ${row.endpoint} is not ${cfg.host.endpoint}`, hostId };
++  if (lc(row.operator) !== d.operator) return { admit: false, reason: `descriptor operator ${d.operator} is not this host's registry operator ${lc(row.operator)}`, hostId };
++  return { admit: true, reason: 'admitted by the platform host policy; descriptor signed by the registry operator', hostId, operator: d.operator, pkg };
++}
++
++// ---------------------------------------------------------------------------------------------------------------- runtime
++
++const pgEnv = (cfg) => ({ PATH: `${cfg.pgBin}:/usr/bin:/bin`, LC_ALL: 'C', TZ: 'UTC', ...(cfg.pgLibDir ? { LD_LIBRARY_PATH: cfg.pgLibDir } : {}) });
++const dataDir = (cfg) => path.join(cfg.stateRoot, cfg.replica, 'postgres');
++const stateDir = (cfg) => path.join(cfg.stateRoot, cfg.replica, 'state');
++const sockDir = (cfg) => path.join(cfg.runtimeDir, cfg.replica, 'pg');
++const run = (bin, args, opts = {}) => new Promise((ok, no) => {
++  const c = spawnChild(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], ...opts }); let out = '';
++  c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { out += d; });
++  c.on('error', no); c.on('exit', (code) => (code === 0 ? ok(out) : no(new Error(`${path.basename(bin)} exited ${code}: ${out.slice(-400)}`))));
++});
++
++/** initdb (peer auth, socket only) + the indexd database + the non-secret base config + the pinned GeoIP database. */
++export async function initReplica(cfg) {
++  const pkg = verifyPackage(cfg.package.dir, cfg.package.manifest);
++  const data = dataDir(cfg);
++  if (fs.existsSync(path.join(data, 'PG_VERSION'))) fail(`${data} is already initialised`);
++  for (const d of [data, stateDir(cfg), sockDir(cfg), path.join(cfg.stateRoot, cfg.replica, 'outbox')]) fs.mkdirSync(d, { recursive: true, mode: 0o700 });
++  await run(path.join(cfg.pgBin, 'initdb'), ['-D', data, '--auth-local=peer', '--auth-host=reject', '--encoding=UTF8', '--locale=C.UTF-8', '-U', os.userInfo().username], { env: pgEnv(cfg) });
++  const pg = await startPostgres(cfg);
++  try { await run(path.join(cfg.pgBin, 'createdb'), ['-h', sockDir(cfg), 'indexd'], { env: pgEnv(cfg) }); }
++  finally { await stopChild(pg, 'SIGINT'); }
++  fs.copyFileSync(pkg.geoip, path.join(stateDir(cfg), path.basename(pkg.geoip)));
++  return { data, state: stateDir(cfg) };
++}
++
++/** The full indexd.yml in the runtime dir (0600), from public config + credential files; never logged. -> path */
++export function renderIndexdConfig(cfg) {
++  const read = (n) => fs.readFileSync(path.join(cfg.credentialsDir, n), 'utf8').trim();
++  const phrase = read('recovery-phrase'), admin = read('admin-password');
++  const words = phrase.split(/\s+/);
++  if (!(words.length === 12 || words.length === 24) || !/^[a-z ]+$/.test(phrase)) fail('recovery-phrase credential: 12 or 24 lowercase words');
++  if (admin.length < 24 || !/^[A-Za-z0-9._~-]+$/.test(admin)) fail('admin-password credential: >= 24 URL-safe characters');
++  const y = (s) => JSON.stringify(s);
++  const text = [`recoveryPhrase: ${y(phrase)}`, 'autoOpenWebUI: false', `directory: ${y(stateDir(cfg))}`,
++    'adminAPI:', `  address: ${y(cfg.adminAddress)}`, `  password: ${y(admin)}`,
++    'applicationAPI:', `  address: ${y(cfg.appAddress)}`, `  advertiseURL: ${y(cfg.advertiseURL)}`,
++    'syncer:', `  address: ${y(cfg.syncer.address)}`, `  bootstrap: ${cfg.syncer.bootstrap}`, '  enableUPnP: false', 'consensus:', '  network: mainnet', 'explorer:', '  enabled: false', '  url: ""',
++    'database:', `  host: ${y(sockDir(cfg))}`, '  port: 5432', `  user: ${y(os.userInfo().username)}`, '  password: ""', '  database: indexd', '  sslmode: disable',
++    'log:', '  stdout:', '    enabled: true', '    level: info', '    format: json', '  file:', '    enabled: false', ''].join('\n');
++  const dir = path.join(cfg.runtimeDir, cfg.replica, 'indexd');
++  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
++  const file = path.join(dir, 'indexd.yml'), tmp = file + '.' + process.pid;
++  fs.writeFileSync(tmp, text, { mode: 0o600 }); fs.renameSync(tmp, file);
++  return file;
++}
++
++/** Settles exactly once per child: on its first 'exit', or on an 'error' when no process is (still) running (a spawn
++ *  failure emits 'error' and never 'exit'). -> { done: Promise<{ code, signal, error }>, settled } */
++function watch(child) {
++  if (child.__esiWatch) return child.__esiWatch;
++  let settle; const done = new Promise((r) => { settle = r; });
++  const w = { done, settled: false };
++  const fin = (v) => { if (w.settled) return; w.settled = true; settle(v); };
++  child.once('exit', (code, signal) => fin({ code, signal, error: null }));
++  child.on('error', (error) => { if (!child.pid || child.exitCode !== null || child.signalCode !== null) fin({ code: null, signal: null, error }); });
++  if ((child.exitCode !== null && child.exitCode !== undefined) || child.signalCode) fin({ code: child.exitCode, signal: child.signalCode, error: null });
++  child.__esiWatch = w;
++  return w;
++}
++const alive = (child) => !!child && !watch(child).settled;
++
++/** Terminates `child` (signal, then SIGKILL after ms) and resolves once it has exited. Safe for a child that never
++ *  spawned, one that already exited, and repeated or concurrent calls (they share the same completion). */
++function stopChild(child, signal = 'SIGTERM', ms = 60000) {
++  if (!child) return Promise.resolve();
++  const w = watch(child);
++  if (w.settled) return w.done;
++  try { child.kill(signal); } catch {}
++  const t = setTimeout(() => { try { child.kill('SIGKILL'); } catch {} }, ms); t.unref?.();
++  return w.done.finally(() => clearTimeout(t));
++}
++
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const waitFor = async (fn, ms, what) => { const end = Date.now() + ms; while (Date.now() < end) { if (await fn()) return; await sleep(200); } fail(`timed out waiting for ${what}`); };
++const socketUp = (file) => new Promise((ok) => { const s = net.connect(file); s.once('connect', () => { s.destroy(); ok(true); }); s.once('error', () => ok(false)); });
++const relayLines = (s, log, tag) => s?.on?.('data', (d) => { for (const l of String(d).split('\n').filter(Boolean)) log(`[${tag}] ${l.slice(0, 300)}`); });
++
++/** PostgreSQL for this replica: Unix socket only, no TCP, peer auth. -> the child once its socket answers. If the start
++ *  is aborted (signal), times out, or the server exits or fails to spawn first, the child is stopped (never orphaned)
++ *  and this throws. */
++export async function startPostgres(cfg, { log = () => {}, spawn = spawnChild, signal = null, readyTimeoutMs = 60000 } = {}) {
++  if (signal?.aborted) fail('PostgreSQL start aborted');
++  fs.mkdirSync(sockDir(cfg), { recursive: true, mode: 0o700 });
++  const child = spawn(path.join(cfg.pgBin, 'postgres'), ['-D', dataDir(cfg), '-c', 'listen_addresses=', '-c', `unix_socket_directories=${sockDir(cfg)}`,
++    '-c', 'shared_buffers=128MB', '-c', 'max_connections=50', '-c', 'jit=off'], { env: pgEnv(cfg), stdio: ['ignore', 'pipe', 'pipe'] });
++  const w = watch(child);
++  relayLines(child.stdout, log, 'postgres'); relayLines(child.stderr, log, 'postgres');
++  try {
++    await waitFor(async () => {
++      if (signal?.aborted) fail('PostgreSQL start aborted');
++      if (w.settled) { const r = await w.done; fail(`PostgreSQL ${r.error ? `failed to start: ${r.error.message}` : `exited (${r.signal || r.code}) before its socket answered`}`); }
++      return socketUp(path.join(sockDir(cfg), '.s.PGSQL.5432'));
++    }, readyTimeoutMs, 'PostgreSQL socket');
++  } catch (e) { await stopChild(child, 'SIGINT', 15000); throw e; }
++  return child;
++}
++
++/** indexd for this replica: no inherited environment, a memory limit, its config from the runtime dir. -> the child */
++export function startIndexd(cfg, pkg, { log = () => {}, spawn = spawnChild } = {}) {
++  const config = renderIndexdConfig(cfg);
++  const child = spawn(pkg.indexd, [], { cwd: stateDir(cfg), stdio: ['ignore', 'pipe', 'pipe'],
++    env: { PATH: '/usr/bin:/bin', HOME: stateDir(cfg), INDEXD_CONFIG_FILE: config, INDEXD_DATA_DIR: stateDir(cfg), GOMEMLIMIT: `${Math.floor(cfg.memoryMiB.indexd / 2)}MiB` } });
++  watch(child);
++  relayLines(child.stdout, log, 'indexd'); relayLines(child.stderr, log, 'indexd');
++  return child;
++}
++
++/**
++ * Supervise while admitted. Refusal (ban, allowlist miss, inactive/deregistered, wrong operator/descriptor, package
++ * change): stop indexd, then PostgreSQL (data kept), and stay stopped until admitted again. Crashes restart with backoff.
++ * stop() is TERMINAL and idempotent: it aborts an in-flight PostgreSQL start, waits for the in-flight decision, then
++ * stops both processes; after `await stop()` no child of this supervisor runs and no pending callback can start one.
++ * deps (tests): { admission, startPostgres, startIndexd } replace the real ones.
++ * -> { status(), stop(), tick() }
++ */
++export async function superviseReplica(rawCfg, { gate = null, ungatedTest = false, log = (m) => console.log(new Date().toISOString(), m), intervalMs = 5000,
++  backoffMs = 1000, maxBackoffMs = 60000, deps = {} } = {}) {
++  const d = { admission, startPostgres, startIndexd, ...deps };
++  const cfg = validateConfig(rawCfg);
++  if (!gate) {
++    const { createHostServiceGate } = await import('../host-service-gate.mjs');
++    gate = createHostServiceGate({ env: policyEnv(cfg), chainId: 8453, endpoint: cfg.host.endpoint, stateDir: path.join(cfg.stateRoot, cfg.replica, 'host-policy'), log });
++  }
++  if (!fs.existsSync(path.join(dataDir(cfg), 'PG_VERSION'))) fail(`replica ${cfg.replica} is not initialised (run init on an admitted host)`);
++  const st = { pg: null, indexd: null, refusal: 'not checked yet', admitted: false, restarts: 0, wait: backoffMs, timer: null, stopping: false, stopped: null,
++    lastExit: null, pkg: null, inflight: null, phase: 'idle', abort: new AbortController() };
++  const clearRestart = () => { if (st.timer) { clearTimeout(st.timer); st.timer = null; } };
++  const shutdown = async (why) => {
++    clearRestart();
++    if (st.indexd || st.pg) log(`[storage-indexer] stopping replica ${cfg.replica}: ${why}`);
++    const i = st.indexd; st.indexd = null; await stopChild(i, 'SIGTERM', 180000);
++    const p = st.pg; st.pg = null; await stopChild(p, 'SIGINT', 150000);
++  };
++  const scheduleRestart = () => {
++    if (st.stopping || !st.admitted || st.timer) return;
++    st.restarts++; log(`[storage-indexer] indexd restarting in ${st.wait} ms`);
++    st.timer = setTimeout(() => { st.timer = null; if (!st.stopping) startIndexdNow(); }, st.wait); st.timer.unref?.();
++    st.wait = Math.min(maxBackoffMs, st.wait * 2);
++  };
++  const startIndexdNow = () => {
++    if (st.stopping || !st.admitted || st.indexd || !alive(st.pg) || st.timer) return;   // a pending backoff restart owns the next start
++    let child;
++    try { child = d.startIndexd(cfg, st.pkg, { log }); }
++    catch (e) { st.lastExit = { code: null, signal: null, error: e.message, at: Date.now() }; log(`[storage-indexer] indexd failed to start: ${e.message}`); scheduleRestart(); return; }
++    st.indexd = child; const started = Date.now();
++    // exactly once per child, whether it exits, fails to spawn ('error' without 'exit'), or both
++    watch(child).done.then(({ code, signal, error }) => {
++      if (st.indexd === child) st.indexd = null;
++      st.lastExit = { code, signal, error: error ? error.message : null, at: Date.now() };
++      if (st.stopping || !st.admitted) return;
++      if (Date.now() - started > 60000) st.wait = backoffMs;
++      log(`[storage-indexer] indexd ${error ? `failed: ${error.message}` : `exited (${signal || code})`}`);
++      scheduleRestart();
++    });
++    log(`[storage-indexer] indexd started (pid ${child.pid}) for replica ${cfg.replica}`);
++  };
++  const tick = async () => {
++    if (st.stopping) return;
++    st.phase = 'deciding';                                     // spawns nothing; stop() need not wait for it (an RPC may hang)
++    const a = await d.admission(cfg, gate, { ungatedTest });
++    st.phase = 'acting';
++    if (st.stopping) return;                                   // stop() arrived while deciding: never act on that decision
++    if (!a.admit && a.transient && st.admitted) { log(`[storage-indexer] keeping replica ${cfg.replica} running through a transient read failure: ${a.reason}`); return; }
++    if (!a.admit) {
++      if (st.admitted || st.refusal !== a.reason || Date.now() - (st.refusalLogged || 0) > 60000) {
++        log(`[storage-indexer] NOT running replica ${cfg.replica}: ${a.reason}`); st.refusalLogged = Date.now();
++      }
++      st.admitted = false; st.refusal = a.reason; await shutdown(a.reason); return;
++    }
++    if (!st.admitted) log(`[storage-indexer] replica ${cfg.replica} admitted: ${a.reason}`);
++    st.admitted = true; st.refusal = null; st.pkg = a.pkg;
++    if (!alive(st.pg)) {
++      st.pg = null;
++      const pg = await d.startPostgres(cfg, { log, signal: st.abort.signal });
++      if (st.stopping) { await stopChild(pg, 'SIGINT', 150000); return; }   // started across a stop: never kept
++      st.pg = pg; log('[storage-indexer] PostgreSQL started (socket only)');
++    }
++    if (st.stopping) return;
++    startIndexdNow();
++  };
++  // one decision at a time: overlapping ticks (timer, callers) share the in-flight one
++  const once = () => {
++    if (st.inflight) return st.inflight;
++    st.inflight = (async () => { try { await tick(); } catch (e) { log(`[storage-indexer] tick: ${e.message}`); } })().finally(() => { st.inflight = null; st.phase = 'idle'; });
++    return st.inflight;
++  };
++  gate.start?.();
++  await once();
++  // NOT unref'd: while refused, PostgreSQL and indexd are stopped and this timer is what keeps the supervisor alive
++  const iv = setInterval(() => { if (!st.stopping) void once(); }, intervalMs);
++  return {
++    tick: () => (st.stopping ? Promise.resolve() : once()),
++    status: () => ({ replica: cfg.replica, admitted: st.admitted, refusal: st.refusal, postgres: alive(st.pg), indexd: alive(st.indexd),
++      indexdPid: st.indexd?.pid ?? null, restarts: st.restarts, lastExit: st.lastExit, stopped: st.stopping, platformHostPolicy: gate.status?.() ?? null }),
++    stop() {
++      return (st.stopped ||= (async () => {
++        st.stopping = true; clearInterval(iv); clearRestart(); st.abort.abort(); gate.stop?.();
++        // a tick that is STARTING or STOPPING processes finishes first (an aborted PostgreSQL start stops its own child);
++        // a tick still DECIDING is not awaited: it re-checks `stopping` before acting, so it can never start anything
++        if (st.inflight && st.phase !== 'deciding') await st.inflight;
++        await shutdown('supervisor stopped');
++      })());
++    },
++  };
++}
++
++/** Encrypted logical backup: pg_dump -Fc | zstd | CMS AuthEnvelopedData (AES-256-GCM) to the owner's certificate. */
++export async function backupReplica(cfg, outFile, ownerCert) {
++  const sh = `set -o pipefail; "${cfg.pgBin}/pg_dump" -Fc -h "${sockDir(cfg)}" -d indexd | zstd -q -12 | openssl cms -encrypt -binary -aes-256-gcm -outform DER -out "${outFile}.part" "${ownerCert}"`;
++  await run('/bin/bash', ['-c', sh], { env: pgEnv(cfg) });
++  fs.renameSync(outFile + '.part', outFile);
++  const digest = sha(fs.readFileSync(outFile));
++  fs.writeFileSync(outFile + '.sha256', `${digest}  ${path.basename(outFile)}\n`);
++  return digest;
++}
++
++/** Restore into THIS replica's empty indexd database (PostgreSQL running): digest, decrypt, decompress, pg_restore. */
++export async function restoreReplica(cfg, inFile, ownerKey, ownerCert) {
++  const want = fs.readFileSync(inFile + '.sha256', 'utf8').split(/\s+/)[0];
++  if (sha(fs.readFileSync(inFile)) !== want) fail(`backup ${inFile} does not match its digest`);
++  // a restore goes into a freshly initialised replica BEFORE its indexd ever starts (indexd would create its schema)
++  const temp = (await socketUp(path.join(sockDir(cfg), '.s.PGSQL.5432'))) ? null : await startPostgres(cfg);
++  try {
++    const sh = `set -o pipefail; openssl cms -decrypt -binary -inform DER -in "${inFile}" -inkey "${ownerKey}" -recip "${ownerCert}" | zstd -q -d | "${cfg.pgBin}/pg_restore" --exit-on-error --single-transaction -h "${sockDir(cfg)}" -d indexd`;
++    await run('/bin/bash', ['-c', sh], { env: pgEnv(cfg) });
++  } finally { if (temp) await stopChild(temp, 'SIGINT'); }
++}
++
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
++  const [cmd, file, ...rest] = process.argv.slice(2);
++  const usage = 'usage: storage-indexer-host.mjs check|init|run|backup|restore <host.json> [...]';
++  if (!['check', 'init', 'run', 'backup', 'restore'].includes(cmd) || !file) { console.error(usage); process.exit(2); }
++  try {
++    const cfg = validateConfig(JSON.parse(fs.readFileSync(file, 'utf8')));
++    const { createHostServiceGate } = await import('../host-service-gate.mjs');
++    const gate = createHostServiceGate({ env: policyEnv(cfg), chainId: 8453, endpoint: cfg.host.endpoint, stateDir: path.join(cfg.stateRoot, cfg.replica, 'host-policy') });
++    if (cmd === 'check') { const a = await admission(cfg, gate); console.log(JSON.stringify({ admit: a.admit, reason: a.reason, hostId: a.hostId, operator: a.operator ?? null }, null, 2)); process.exit(a.admit ? 0 : 1); }
++    if (cmd === 'init') { const a = await admission(cfg, gate); if (!a.admit) fail(`refusing init: ${a.reason}`); console.log(JSON.stringify(await initReplica(cfg))); process.exit(0); }
++    if (cmd === 'backup') { console.log(await backupReplica(cfg, rest[0], rest[1])); process.exit(0); }
++    if (cmd === 'restore') { await restoreReplica(cfg, rest[0], rest[1], rest[2]); console.log('restored'); process.exit(0); }
++    const sup = await superviseReplica(cfg, { gate });
++    for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { sup.stop().then(() => process.exit(0)); });
++  } catch (e) { console.error(e.message); process.exit(1); }
++}
+--- a/test/storage-indexer-host.test.mjs
++++ b/test/storage-indexer-host.test.mjs
+@@ -0,0 +1,195 @@
++// The storage-indexer HOST ROLE in REAL processes (network/host-services/storage-indexer-host.mjs):
++//   - admission through the EXISTING platform host policy gate (network/host-service-gate.mjs) against the local policy
++//     world (test/helpers/platform-policy-world.mjs: admin-signed, book-anchored policy; registry rows; outages);
++//   - refusals: a descriptor signed by another key than the host's registry operator, a descriptor for another host,
++//     a package that is not the pinned one, an admin BAN, an INACTIVE registry entry; the policy explicitly off;
++//   - a real lifecycle on the reviewed package bytes (enclave-storage-indexer-1.0.0-rc1, indexd G-C2 e6e812fd...) and a
++//     real PostgreSQL 18.6 (Arch packages verified and extracted into work/storage-host-role/pg18, no system install):
++//     init (initdb, database, base config) -> run (PostgreSQL socket-only + indexd: its schema migrations) -> admin API ->
++//     encrypted backup -> admin ban stops BOTH processes (data kept) -> unban restarts on the same data -> indexd crash
++//     restarts -> restore into a fresh replica -> indexd starts on the restored database.
++// Nothing here touches a real chain, key, host or network beyond loopback. Sia syncing is off (bootstrap false).
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import net from 'node:net';
++import { spawn, execFileSync } from 'node:child_process';
++import { createHash } from 'node:crypto';
++import { fileURLToPath } from 'node:url';
++import { keccak256, toBytes } from 'viem';
++import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
++import { platformPolicyWorld } from './helpers/platform-policy-world.mjs';
++import { descriptorBytes } from '../network/host-services/storage-indexer-host.mjs';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const WORK = path.resolve(ROOT, '..', '..');
++const ROLE = path.join(ROOT, 'network/host-services/storage-indexer-host.mjs');
++const PG = process.env.STORAGE_PG18_ROOT || path.join(WORK, 'storage-host-role/pg18/root');
++const DIST = process.env.STORAGE_PACKAGE_TARBALL || path.join(WORK, 'storage-hosted-placement/package/dist/enclave-storage-indexer-1.0.0-rc1.tar.zst');
++const sha = (b) => createHash('sha256').update(b).digest('hex');
++const idOf = (e) => keccak256(toBytes(e)).toLowerCase();
++const wait = (ms) => new Promise((r) => setTimeout(r, ms));
++async function until(fn, ms = 60000, every = 500) { const end = Date.now() + ms; let last; while (Date.now() < end) { last = await fn().catch(() => null); if (last) return last; await wait(every); } return last; }
++const freePort = () => { const s = net.createServer(); return new Promise((r) => s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); })); };
++
++test('storage-indexer host role: platform-policy admission, refusals, and a real PostgreSQL 18 + indexd lifecycle', { timeout: 900_000 }, async (t) => {
++  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'storage-role-'));
++  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
++  // the reviewed package bytes: unpack the frozen dist tarball; its pin is the digest of its MANIFEST.sha256
++  fs.mkdirSync(path.join(tmp, 'pkg'));
++  execFileSync('bash', ['-c', `zstd -q -d -c "${DIST}" | tar -C "${tmp}/pkg" -xf -`]);
++  const pkgDir = path.join(tmp, 'pkg/enclave-storage-indexer');
++  const pin = 'sha256:' + sha(fs.readFileSync(path.join(pkgDir, 'MANIFEST.sha256')));
++  const pkg = JSON.parse(fs.readFileSync(path.join(pkgDir, 'PACKAGE.json'), 'utf8'));
++
++  const operator = privateKeyToAccount(generatePrivateKey()), stranger = privateKeyToAccount(generatePrivateKey());
++  // the PRODUCTION shape of a registered host endpoint (registry PUBLIC_URL), path included
++  const endpoint = 'https://api.enclave.host/t/metal0', hostId = idOf(endpoint);
++  const w = await platformPolicyWorld(t, { hosts: { [hostId]: { endpoint, operator: operator.address.toLowerCase(), owner: operator.address.toLowerCase(), active: true } } });
++  await w.publish({ deny: [] });                                         // the admin's anchored policy (no denial)
++
++  const replicaCfg = async (replica, { signer = operator, forHost = hostId, packagePin = pin } = {}) => {
++    const root = path.join(tmp, replica);
++    for (const d of ['state', 'run', 'cred']) fs.mkdirSync(path.join(root, d), { recursive: true, mode: 0o700 });
++    const [adminPort, appPort, syncPort] = [await freePort(), await freePort(), await freePort()];
++    const advertiseURL = `https://${replica}.indexer.example`;
++    const bytes = descriptorBytes({ operator: signer.address, hostId: forHost, replica, packagePin, advertiseURL, indexdSha256: pkg.indexd.sha256 });
++    fs.writeFileSync(path.join(root, 'descriptor.json'), JSON.stringify({ descriptor: bytes, signature: await signer.signMessage({ message: bytes }) }));
++    // the credentials systemd would decrypt into $CREDENTIALS_DIRECTORY: a fresh throwaway wallet phrase and admin password
++    const phrase = execFileSync(path.join(pkgDir, pkg.indexd.file), ['seed'], { env: { PATH: '/usr/bin:/bin' } }).toString().match(/Recovery Phrase: (.+)/)[1].trim();
++    fs.writeFileSync(path.join(root, 'cred/recovery-phrase'), phrase, { mode: 0o600 });
++    const adminPw = sha(generatePrivateKey()).slice(0, 40);
++    fs.writeFileSync(path.join(root, 'cred/admin-password'), adminPw, { mode: 0o600 });
++    const cfg = { format: 'enclave-storage-indexer-host/v1', host: { endpoint }, platformHostPolicy: w.config, platformHostPolicyRpcs: w.rpcs, replica,
++      package: { dir: pkgDir, manifest: pin }, pgBin: path.join(PG, 'usr/bin'), pgLibDir: path.join(PG, 'usr/lib'), stateRoot: path.join(root, 'state'),
++      runtimeDir: path.join(root, 'run'), credentialsDir: path.join(root, 'cred'), descriptorFile: path.join(root, 'descriptor.json'),
++      adminAddress: `127.0.0.1:${adminPort}`, appAddress: `127.0.0.1:${appPort}`, advertiseURL, memoryMiB: { indexd: 1024, postgres: 512 },
++      syncer: { address: `127.0.0.1:${syncPort}`, bootstrap: false } };
++    const file = path.join(root, 'host.json'); fs.writeFileSync(file, JSON.stringify(cfg));
++    return { file, cfg, adminPw, root };
++  };
++  const env = { PATH: '/usr/bin:/bin', HOME: tmp, NODE_EXTRA_CA_CERTS: w.ca };
++  const cli = (args) => new Promise((ok) => {
++    const c = spawn(process.execPath, [ROLE, ...args], { env, stdio: ['ignore', 'pipe', 'pipe'] }); let out = '';
++    c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { out += d; });
++    c.on('exit', (code) => ok({ code, out }));
++  });
++  // the CLI prints the gate's own log lines, then the JSON verdict
++  // a refusal is asserted by its DECISIVE reason: a transient policy read (fail closed, "policy unreadable") is retried
++  const refusedFor = async (file, re) => until(async () => { const x = await check(file); return x.code === 1 && re.test(x.reason) ? x : null; }, 60000, 1000);
++  const check = async (file) => { const r = await cli(['check', file]); const i = r.out.search(/^\{/m);
++    try { return { code: r.code, ...JSON.parse(r.out.slice(i)) }; } catch { return { code: r.code, reason: r.out.trim() }; } };
++
++  // ---- refusals (nothing starts)
++  const r1 = await replicaCfg('r1');
++  const bad = await replicaCfg('rbad', { signer: stranger });
++  let c = await refusedFor(bad.file, /is not this host's registry operator/);
++  assert.ok(c, 'a descriptor signed by another key than the registry operator is refused');
++  const other = await replicaCfg('rother', { forHost: idOf('https://api.enclave.host/t/nucbox-k11-4') });   // a real sibling host's id
++  c = await refusedFor(other.file, /descriptor names host 0x[0-9a-f]+, not this host/); assert.ok(c, 'a descriptor for another host is refused');
++  const wrongPkg = await replicaCfg('rpkg', { packagePin: 'sha256:' + '00'.repeat(32) });
++  c = await refusedFor(wrongPkg.file, /descriptor names package/); assert.ok(c, 'a descriptor for another package is refused');
++  await w.publish({ deny: [{ kind: 'registryId', value: hostId, reason: 'abuse' }] });            // the admin BANS the host
++  c = await until(async () => { const x = await check(r1.file); return /banned/.test(x.reason) ? x : null; }, 30000);
++  assert.ok(c, 'the ban is enforced'); assert.equal(c.code, 1); assert.match(c.reason, /banned by platform policy #\d+ \(registryId\): abuse/);
++  const initBanned = await until(async () => { const x = await cli(['init', r1.file]); return /refusing init: .*banned/.test(x.out) ? x : null; }, 60000, 1000);
++  assert.ok(initBanned && initBanned.code === 1, 'a banned host cannot even initialise a replica');
++  assert.ok(!fs.existsSync(path.join(r1.cfg.stateRoot, 'r1/postgres/PG_VERSION')), 'a refused init creates nothing');
++  await w.publish({ deny: [] });                                                                     // the admin unbans
++  w.state.hosts[hostId].active = false;                                                              // ... but the registry entry is inactive
++  c = await until(async () => { const x = await check(r1.file); return /not active/.test(x.reason) ? x : null; }, 30000);
++  assert.ok(c, 'an inactive registry entry refuses');
++  w.state.hosts[hostId].active = true;
++  const offCfg = { ...r1.cfg, platformHostPolicy: 'off' }; delete offCfg.platformHostPolicyRpcs;
++  fs.writeFileSync(path.join(tmp, 'off.json'), JSON.stringify(offCfg));
++  c = await refusedFor(path.join(tmp, 'off.json'), /policy is off: the storage-indexer role runs only under the platform host policy/); assert.ok(c, 'no silent ungated mode');
++  const seen = [];
++  c = await until(async () => { const x = await check(r1.file); seen.push(x); return x.admit ? x : null; }, 60000);
++  assert.ok(c?.admit, `admitted: active, not banned, descriptor signed by the registry operator; last checks: ${JSON.stringify(seen.slice(-3))}`); assert.equal(c.operator, operator.address.toLowerCase());
++
++  // ---- init with real PostgreSQL 18
++  // init refuses unless admitted NOW (a fresh process has no grace): retried as an operator would
++  const init = await until(async () => { const x = await cli(['init', r1.file]); return x.code === 0 ? x : null; }, 60000, 2000);
++  assert.ok(init, 'init on the admitted host');
++  assert.equal(fs.readFileSync(path.join(r1.cfg.stateRoot, 'r1/postgres/PG_VERSION'), 'utf8').trim(), '18');
++  assert.ok(fs.existsSync(path.join(r1.cfg.stateRoot, 'r1/state/GeoLite2-City.mmdb')), 'the pinned GeoIP database is placed (indexd never downloads it)');
++
++  // ---- run under the supervisor
++  const psql = (cfg, sqlText) => execFileSync(path.join(PG, 'usr/bin/psql'), ['-h', path.join(cfg.runtimeDir, cfg.replica, 'pg'), '-d', 'indexd', '-Atc', sqlText],
++    { env: { PATH: '/usr/bin:/bin', LD_LIBRARY_PATH: path.join(PG, 'usr/lib') } }).toString().trim();
++  // null when indexd is not serving (connection refused included)
++  const adminState = async (r) => { try { const res = await fetch(`http://${r.cfg.adminAddress}/api/state`, { headers: { authorization: 'Basic ' + Buffer.from(':' + r.adminPw).toString('base64') } }); return res.ok ? await res.json() : null; } catch { return null; } };
++  const startRun = (r) => { const c2 = spawn(process.execPath, [ROLE, 'run', r.file], { env, stdio: ['ignore', 'pipe', 'pipe'] }); let out = '';
++    c2.stdout.on('data', (d) => { out += d; }); c2.stderr.on('data', (d) => { out += d; }); t.after(() => { try { c2.kill('SIGKILL'); } catch {} }); return { child: c2, log: () => out }; };
++  const sup = startRun(r1);
++  const st1 = await until(() => adminState(r1), 120000);
++  assert.ok(st1, `indexd serves its admin API under the supervisor:\n${sup.log().slice(-2000)}`);
++  const phrase1 = fs.readFileSync(path.join(r1.root, 'cred/recovery-phrase'), 'utf8').trim();
++  assert.ok(!sup.log().includes(phrase1) && !sup.log().includes(r1.adminPw) && !/Recovery Phrase/i.test(sup.log()), 'no secret in the supervisor log');
++  const v1 = psql(r1.cfg, 'SELECT db_version FROM global_settings');
++  const tables1 = psql(r1.cfg, "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'");
++  assert.ok(Number(v1) >= 27 && Number(tables1) > 10, `indexd migrated its schema in PostgreSQL 18 (db_version ${v1}, ${tables1} tables)`);
++  assert.equal(fs.statSync(path.join(r1.cfg.runtimeDir, 'r1/indexd/indexd.yml')).mode & 0o777, 0o600, 'the rendered config is private');
++  assert.equal(psql(r1.cfg, 'SHOW listen_addresses'), '', 'PostgreSQL listens on no TCP address');
++
++  // ---- encrypted backup of the live replica
++  execFileSync('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-384', '-nodes', '-keyout', path.join(tmp, 'owner.key'), '-out', path.join(tmp, 'owner.pem'),
++    '-subj', '/CN=owner-backup', '-days', '2'], { stdio: 'pipe' });
++  const bk = await cli(['backup', r1.file, path.join(tmp, 'r1.cms'), path.join(tmp, 'owner.pem')]);
++  assert.equal(bk.code, 0, bk.out);
++  assert.match(execFileSync('openssl', ['cms', '-cmsout', '-inform', 'DER', '-in', path.join(tmp, 'r1.cms'), '-print']).toString(), /authEnvelopedData/);
++
++  // ---- the admin BANS the host: both processes stop, data kept; the unban restarts them on the same data
++  const pidBefore = st1 && Number(execFileSync('bash', ['-c', `pgrep -f "^${pkgDir}/bin/indexd" | head -1`]).toString().trim());
++  await w.publish({ deny: [{ kind: 'operator', value: operator.address.toLowerCase(), reason: 'abuse' }] });
++  assert.ok(await until(async () => !(await adminState(r1)) && !fs.existsSync(path.join(r1.cfg.runtimeDir, 'r1/pg/.s.PGSQL.5432')) && /NOT running replica r1: platform host policy: banned/.test(sup.log()), 90000),
++    `a ban stops indexd AND PostgreSQL:\n${sup.log().slice(-1500)}`);
++  assert.ok(fs.existsSync(path.join(r1.cfg.stateRoot, 'r1/postgres/PG_VERSION')), 'the replica data is kept');
++  await w.publish({ deny: [] });
++  assert.ok(await until(() => adminState(r1), 120000), `the unban restarts the replica:\n${sup.log().slice(-3000)}`);
++  assert.equal(psql(r1.cfg, 'SELECT db_version FROM global_settings'), v1, 'same database after the restart');
++
++  // ---- an indexd crash restarts under backoff
++  const pid = Number(execFileSync('bash', ['-c', `pgrep -f "^${pkgDir}/bin/indexd" | head -1`]).toString().trim());
++  assert.ok(pid > 0 && pid !== pidBefore, 'a new indexd process after the unban');
++  process.kill(pid, 'SIGKILL');
++  assert.ok(await until(async () => /indexd exited \(SIGKILL\)/.test(sup.log()) && /indexd restarting in \d+ ms/.test(sup.log()) && (await adminState(r1)), 120000), `the supervisor restarts a crashed indexd:\n${sup.log().slice(-2000)}`);
++
++  // ---- restore drill (a): the backup restored under a NEW wallet phrase is REFUSED by indexd itself (a restored database is
++  //      that replica's identity; two indexers must never act for the same contracts), and the supervisor backs off
++  const r2 = await replicaCfg('r2');
++  assert.ok(await until(async () => (await cli(['init', r2.file])).code === 0 || null, 60000, 2000), 'init r2');
++  const rs = await cli(['restore', r2.file, path.join(tmp, 'r1.cms'), path.join(tmp, 'owner.key'), path.join(tmp, 'owner.pem')]);
++  assert.equal(rs.code, 0, rs.out);
++  const sup2 = startRun(r2);
++  assert.ok(await until(async () => /wallet seed change detected/.test(sup2.log()), 120000), `indexd refuses another wallet's restored database:\n${sup2.log().slice(-1500)}`);
++  await wait(20000);
++  // restarts follow the exponential backoff (1 s doubling): every gap >= ~1 s and the gaps grow
++  const starts = [...sup2.log().matchAll(/^(\S+) \[storage-indexer\] indexd started/gm)].map((m) => Date.parse(m[1]));
++  const gaps = starts.slice(1).map((x, i) => x - starts[i]);
++  assert.ok(gaps.length >= 2 && gaps.every((g) => g >= 900) && gaps[gaps.length - 1] >= 3500, `restarts follow the backoff, gaps ms ${JSON.stringify(gaps)}`);
++  assert.equal(await adminState(r2), null, 'nothing served from a mismatched identity');
++  sup2.child.kill('SIGTERM'); await new Promise((r) => sup2.child.once('exit', r));
++  // ---- restore drill (b): r1's HOST is lost; r1 is restored on a new host directory with r1's OWN offline phrase -> serves
++  sup.child.kill('SIGTERM'); await new Promise((r) => sup.child.once('exit', r));
++  const r1b = await replicaCfg('r1b');
++  fs.copyFileSync(path.join(r1.root, 'cred/recovery-phrase'), path.join(r1b.root, 'cred/recovery-phrase'));
++  assert.ok(await until(async () => (await cli(['init', r1b.file])).code === 0 || null, 60000, 2000), 'init r1b');
++  const rb = await cli(['restore', r1b.file, path.join(tmp, 'r1.cms'), path.join(tmp, 'owner.key'), path.join(tmp, 'owner.pem')]);
++  assert.equal(rb.code, 0, rb.out);
++  const sup3 = startRun(r1b);
++  assert.ok(await until(() => adminState(r1b), 120000), `the restored replica serves with its own phrase:\n${sup3.log().slice(-1500)}`);
++  assert.equal(psql(r1b.cfg, 'SELECT db_version FROM global_settings'), v1);
++  assert.equal(psql(r1b.cfg, "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"), tables1);
++  // a tampered backup never reaches pg_restore
++  const tampered = fs.readFileSync(path.join(tmp, 'r1.cms')); tampered[tampered.length >> 1] ^= 1;
++  fs.writeFileSync(path.join(tmp, 't.cms'), tampered); fs.writeFileSync(path.join(tmp, 't.cms.sha256'), sha(tampered) + '  t.cms\n');
++  const r3 = await replicaCfg('r3'); assert.ok(await until(async () => (await cli(['init', r3.file])).code === 0 || null, 60000, 2000), 'init r3');
++  const rt = await cli(['restore', r3.file, path.join(tmp, 't.cms'), path.join(tmp, 'owner.key'), path.join(tmp, 'owner.pem')]);
++  assert.equal(rt.code, 1, 'a tampered backup is refused (GCM)');
++
++  sup3.child.kill('SIGTERM'); await new Promise((r) => sup3.child.once('exit', r));
++  assert.ok(!fs.existsSync(path.join(r1b.cfg.runtimeDir, 'r1b/pg/.s.PGSQL.5432')) && !fs.existsSync(path.join(r1.cfg.runtimeDir, 'r1/pg/.s.PGSQL.5432')), 'a supervisor stop shuts PostgreSQL down cleanly');
++});
+--- a/test/storage-indexer-host-lifecycle.test.mjs
++++ b/test/storage-indexer-host-lifecycle.test.mjs
+@@ -0,0 +1,286 @@
++// Deterministic lifecycle tests for the storage-indexer supervisor (network/host-services/storage-indexer-host.mjs):
++// stop() against in-flight admission and in-flight PostgreSQL start, overlapping ticks, spawn errors, stop idempotence,
++// startup timeout without orphans, and the preserved backoff. Admission and indexd are injected (deps); PostgreSQL
++// starts through the REAL startPostgres with an injected spawn (fake children) and a real Unix socket for readiness.
++// THE ASSERTION: after `await stop()` no child of the supervisor runs and no pending callback can start one.
++// A negative control runs root's reproduction scenario (work/storage-stop-race-proof.mjs) on the PRIOR candidate
++// (21a3552d...) and requires the race to reproduce there.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import net from 'node:net';
++import path from 'node:path';
++import vm from 'node:vm';
++import { EventEmitter } from 'node:events';
++import { createHash } from 'node:crypto';
++import { fileURLToPath } from 'node:url';
++import { superviseReplica, startPostgres, validateConfig, canonicalHostEndpoint, descriptorBytes, verifyDescriptor } from '../network/host-services/storage-indexer-host.mjs';
++import { hostIdOfEndpoint } from '../network/host-service-gate.mjs';
++import { validatePolicy, POLICY_FORMAT } from '../network/platform-host-policy.mjs';
++import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
++
++const HERE = path.dirname(fileURLToPath(import.meta.url));
++const tick0 = () => new Promise((r) => setImmediate(r));
++let nextPid = 40000;
++
++class FakeChild extends EventEmitter {
++  constructor({ failSpawn = false } = {}) {
++    super(); this.pid = failSpawn ? undefined : nextPid++; this.exitCode = null; this.signalCode = null; this.kills = [];
++    if (failSpawn) setImmediate(() => this.emit('error', Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' })));
++  }
++  get running() { return this.pid !== undefined && this.exitCode === null && this.signalCode === null; }
++  kill(sig) {
++    this.kills.push(sig);
++    if (!this.running) return false;
++    setImmediate(() => { if (!this.running) return; this.signalCode = sig; this.emit('exit', null, sig); });
++    return true;
++  }
++  crash(code = 1) { this.exitCode = code; this.emit('exit', code, null); }
++}
++
++function world(t) {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'esi-life-'));
++  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const cfg = { format: 'enclave-storage-indexer-host/v1', host: { endpoint: 'https://host.example' }, platformHostPolicy: 'off', replica: 'r1',
++    package: { dir: path.join(dir, 'pkg'), manifest: 'sha256:' + '0'.repeat(64) }, pgBin: path.join(dir, 'pgbin'), stateRoot: path.join(dir, 'state'),
++    runtimeDir: path.join(dir, 'run'), credentialsDir: path.join(dir, 'cred'), descriptorFile: path.join(dir, 'd.json'),
++    adminAddress: '127.0.0.1:1', appAddress: '127.0.0.1:2', advertiseURL: 'https://r1.example' };
++  fs.mkdirSync(path.join(cfg.stateRoot, 'r1/postgres'), { recursive: true }); fs.writeFileSync(path.join(cfg.stateRoot, 'r1/postgres/PG_VERSION'), '18\n');
++  const sockFile = path.join(cfg.runtimeDir, 'r1/pg/.s.PGSQL.5432');
++  const children = [], servers = [];
++  let pgReady = true, pgFailSpawn = false, admit = { admit: false, reason: 'refused (initial)' }, pendingAdmit = null, admissions = 0, concurrent = 0, maxConcurrent = 0;
++  const pgSpawn = () => {
++    const c = new FakeChild({ failSpawn: pgFailSpawn }); c.kind = 'postgres'; children.push(c);
++    if (c.pid !== undefined && pgReady) { fs.mkdirSync(path.dirname(sockFile), { recursive: true }); const s = net.createServer().listen(sockFile); servers.push(s);
++      c.once('exit', () => s.close()); }
++    return c;
++  };
++  t.after(() => servers.forEach((s) => s.close()));
++  const deps = {
++    admission: async () => {
++      admissions++; concurrent++; maxConcurrent = Math.max(maxConcurrent, concurrent);
++      try { if (pendingAdmit) return await pendingAdmit.promise; return admit; } finally { concurrent--; }
++    },
++    startPostgres: (c, o) => startPostgres(c, { ...o, spawn: pgSpawn, readyTimeoutMs: o.readyTimeoutMs ?? 3000 }),
++    startIndexd: () => { const c = new FakeChild(); c.kind = 'indexd'; children.push(c); return c; },
++  };
++  const gate = { start() {}, stop() {}, status: () => ({}) };
++  const logs = [];
++  return {
++    cfg, deps, gate, children, logs,
++    log: (m) => logs.push(m),
++    live: () => children.filter((c) => c.running),
++    spawned: (kind) => children.filter((c) => c.kind === kind).length,
++    set admit(v) { admit = v; }, set pgReady(v) { pgReady = v; }, set pgFailSpawn(v) { pgFailSpawn = v; },
++    holdAdmission() { let resolve; const promise = new Promise((r) => { resolve = r; }); pendingAdmit = { promise }; return (v) => { pendingAdmit = null; resolve(v); }; },
++    stats: () => ({ admissions, maxConcurrent }),
++  };
++}
++const ADMIT = { admit: true, reason: 'fixture admit', pkg: {} };
++const sup = (w, o = {}) => superviseReplica(w.cfg, { gate: w.gate, deps: w.deps, log: w.log, intervalMs: 3_600_000, backoffMs: 50, ...o });
++
++test('positive control: admitted -> PostgreSQL and indexd run; stop -> nothing runs', async (t) => {
++  const w = world(t); w.admit = ADMIT;
++  const s = await sup(w);
++  assert.equal(w.spawned('postgres'), 1); assert.equal(w.spawned('indexd'), 1);
++  assert.deepEqual([s.status().postgres, s.status().indexd], [true, true]);
++  await s.stop();
++  assert.equal(w.live().length, 0, 'every child exited');
++  assert.deepEqual([s.status().postgres, s.status().indexd], [false, false]);
++});
++
++test('stop during an in-flight ADMISSION: the pending admit can never start anything (root reproduction scenario)', async (t) => {
++  const w = world(t);
++  const s = await sup(w);                                   // initial decision: refused
++  const release = w.holdAdmission();
++  const pending = s.tick();                                 // the decision is now in flight
++  await tick0();
++  await s.stop();
++  assert.equal(w.live().length, 0, 'nothing runs when stop() resolves');
++  const before = w.children.length;
++  release(ADMIT);                                           // the late admit arrives after the terminal stop
++  await pending; await tick0(); await new Promise((r) => setTimeout(r, 100));
++  assert.equal(w.children.length, before, 'no child was spawned after stop()');
++  assert.equal(w.live().length, 0);
++  assert.equal(s.status().postgres, false);
++});
++
++test('stop during an in-flight PostgreSQL START (awaiting its socket): the start is aborted and its child stopped', async (t) => {
++  const w = world(t);
++  const s = await sup(w);
++  w.admit = ADMIT; w.pgReady = false;                       // the server never answers its socket
++  const pending = s.tick();
++  for (let i = 0; i < 20 && w.spawned('postgres') === 0; i++) await tick0();
++  assert.equal(w.spawned('postgres'), 1, 'PostgreSQL was spawned and is awaiting readiness');
++  await s.stop();
++  assert.equal(w.live().length, 0, 'the half-started PostgreSQL was stopped before stop() resolved');
++  await pending;
++  assert.equal(w.spawned('indexd'), 0, 'indexd never started');
++  assert.equal(w.children.length, 1);
++});
++
++test('a start that completes during stop() is never kept (late readiness)', async (t) => {
++  const w = world(t);
++  // PostgreSQL that becomes ready only after stop() was called: startPostgres resolves, the tick must stop it
++  // the slow start is installed BEFORE the supervisor is built (it copies its deps at construction)
++  let gate, entered = 0; const slow = new Promise((r) => { gate = r; });
++  w.deps.startPostgres = async () => { entered++; await slow; const c = new FakeChild(); c.kind = 'postgres'; w.children.push(c); return c; };
++  const s = await sup(w);                                   // initial decision: refused (nothing started)
++  w.admit = ADMIT;
++  const pending = s.tick();
++  for (let i = 0; i < 20 && !entered; i++) await tick0();
++  assert.equal(entered, 1, 'the tick is inside the PostgreSQL start when stop() is called');
++  let stopResolved = false;
++  const stopping = s.stop().then(() => { stopResolved = true; });
++  for (let i = 0; i < 10; i++) await tick0();
++  await new Promise((r) => setTimeout(r, 50));
++  assert.equal(stopResolved, false, 'stop() does not resolve while a start is in flight (it waits for the acting tick)');
++  gate();                                                   // the start completes after stop() began
++  await stopping; await pending;
++  assert.equal(stopResolved, true);
++  assert.equal(entered, 1, 'no second start was attempted');
++  assert.equal(w.live().length, 0, 'the late PostgreSQL was stopped');
++  assert.equal(w.spawned('indexd'), 0);
++});
++
++test('overlapping ticks share one decision; one PostgreSQL and one indexd', async (t) => {
++  const w = world(t);
++  const s = await sup(w);
++  const release = w.holdAdmission();
++  const ticks = Array.from({ length: 10 }, () => s.tick());
++  await tick0();
++  assert.equal(w.stats().maxConcurrent, 1, 'never two decisions at once');
++  release(ADMIT); await Promise.all(ticks);
++  assert.equal(w.spawned('postgres'), 1); assert.equal(w.spawned('indexd'), 1);
++  await Promise.all([s.tick(), s.tick(), s.tick()]);
++  assert.equal(w.spawned('postgres'), 1, 'running processes are not started again'); assert.equal(w.spawned('indexd'), 1);
++  await s.stop(); assert.equal(w.live().length, 0);
++});
++
++test('PostgreSQL spawn error (no exit event): the start fails cleanly, nothing orphaned, the supervisor keeps deciding', async (t) => {
++  const w = world(t);
++  const s = await sup(w);
++  w.admit = ADMIT; w.pgFailSpawn = true;
++  await s.tick();
++  assert.equal(w.live().length, 0);
++  assert.ok(w.logs.some((l) => /PostgreSQL failed to start: spawn ENOENT/.test(l)), w.logs.join('\n'));
++  w.pgFailSpawn = false;
++  await s.tick();
++  assert.equal(s.status().postgres, true, 'the next decision starts it normally');
++  await s.stop(); assert.equal(w.live().length, 0);
++});
++
++test('PostgreSQL that never answers within the readiness timeout is stopped (no orphan)', async () => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'esi-to-'));
++  const kids = [];
++  const cfg = { pgBin: dir, stateRoot: dir, runtimeDir: dir, replica: 'r1' };
++  await assert.rejects(startPostgres(cfg, { spawn: () => { const c = new FakeChild(); kids.push(c); return c; }, readyTimeoutMs: 400 }), /timed out waiting for PostgreSQL socket/);
++  assert.equal(kids.length, 1); assert.equal(kids[0].running, false, 'the timed-out server was stopped');
++  fs.rmSync(dir, { recursive: true, force: true });
++});
++
++test('indexd spawn error and error+exit are each handled exactly once; restarts follow the backoff; stop clears a pending restart', async (t) => {
++  const w = world(t); w.admit = ADMIT;
++  let mode = 'error-only';                                  // backoff 200 ms: failure 1 at ~0, restart ~200 (failure 2), next ~600
++  w.deps.startIndexd = () => {
++    const c = new FakeChild({ failSpawn: mode === 'error-only' }); c.kind = 'indexd'; w.children.push(c);
++    if (mode === 'error-and-exit') setImmediate(() => { c.emit('error', new Error('boom')); c.crash(2); });
++    return c;
++  };
++  const s = await sup(w, { backoffMs: 200 });
++  await new Promise((r) => setTimeout(r, 60));
++  assert.equal(s.status().restarts, 1, 'a spawn error without exit schedules exactly one restart');
++  mode = 'error-and-exit';
++  await new Promise((r) => setTimeout(r, 300));              // the restart at ~200 ms runs, then error+exit
++  const r = s.status().restarts;
++  assert.equal(r, 2, 'error followed by exit is ONE failure');
++  mode = 'ok';
++  const gaps = [];
++  await s.stop();                                           // stops while a backoff restart is pending
++  const n = w.children.length;
++  await new Promise((r2) => setTimeout(r2, 700));
++  assert.equal(w.children.length, n, 'a pending backoff restart never fires after stop()');
++  assert.equal(w.live().length, 0);
++  void gaps;
++});
++
++test('stop() is idempotent and safe when overlapping: one shutdown, every caller resolves', async (t) => {
++  const w = world(t); w.admit = ADMIT;
++  const s = await sup(w);
++  const [pg, ix] = [w.children.find((c) => c.kind === 'postgres'), w.children.find((c) => c.kind === 'indexd')];
++  const a = s.stop(), b = s.stop();
++  assert.equal(a, b, 'the same terminal stop');
++  await Promise.all([a, b]); await s.stop();
++  assert.deepEqual(ix.kills, ['SIGTERM'], 'indexd signalled once'); assert.deepEqual(pg.kills, ['SIGINT'], 'PostgreSQL signalled once');
++  assert.equal(w.live().length, 0);
++  await s.tick();
++  assert.equal(w.children.length, 2, 'a tick after stop does nothing');
++});
++
++test('NEGATIVE CONTROL: root\'s reproduction scenario reproduces the race on the PRIOR candidate 21a3552d', async () => {
++  const bytes = fs.readFileSync(path.join(HERE, 'fixtures/prior-21a3552d-storage-indexer-host.mjs.txt'), 'utf8');
++  assert.equal(createHash('sha256').update(bytes).digest('hex'), '21a3552d17dbe0584757eb7f212e05bef4897ae7648febc453d67467bc21ef8f');
++  const start = bytes.indexOf('export async function superviseReplica('), end = bytes.indexOf('\n/** Encrypted logical backup:', start);
++  const source = bytes.slice(start, end).replace('export async function', 'async function');
++  let mode = 'refuse', unblock, pgStarts = 0;
++  const ctx = vm.createContext({ console, Date, Promise, setTimeout, clearTimeout, setInterval, clearInterval,
++    fs: { existsSync: () => true }, path: { join: (...x) => x.join('/') }, validateConfig: (x) => x, dataDir: () => '/fixture',
++    admission: async () => (mode === 'refuse' ? { admit: false, reason: 'fixture' } : new Promise((r) => { unblock = r; })),
++    startPostgres: async () => { pgStarts++; return { exitCode: null, signalCode: null }; },
++    stopChild: async (c) => { if (c) c.exitCode = 0; }, startIndexd: () => new EventEmitter() });
++  vm.runInContext(source + '\nglobalThis.subject = superviseReplica;', ctx);
++  const s = await ctx.subject({ replica: 'fixture', stateRoot: '/fixture', host: { endpoint: 'https://fixture.invalid' } },
++    { gate: { start() {}, stop() {}, status: () => ({}) }, log: () => {}, intervalMs: 3_600_000 });
++  mode = 'pending';
++  const pending = s.tick(); await Promise.resolve();
++  await s.stop();
++  const atStop = pgStarts;
++  unblock({ admit: true, reason: 'fixture', pkg: {} }); await pending;
++  assert.ok(pgStarts > atStop, 'the prior candidate starts PostgreSQL after stop() resolved: this suite detects the race');
++  await s.stop();
++});
++
++// ---- registered endpoints (production shape https://api.enclave.host/t/<name>) ----
++const POLICY = (value) => ({ format: POLICY_FORMAT, chainId: 8453, book: '0x' + 'b0'.repeat(20), registry: '0x' + 'e0'.repeat(20), hostOwnership: '0x' + 'c0'.repeat(20),
++  sequence: 1, issuedAt: 1, expiresAt: 0, maxStaleSec: 0, previousDigest: '0x' + '00'.repeat(32), mode: 'denylist', deny: [{ kind: 'endpoint', value, reason: 'x' }], admit: [] });
++const policyAccepts = (v) => { try { validatePolicy(POLICY(v)); return true; } catch { return false; } };
++
++test('registered host endpoints WITH a path are accepted; canonical form keeps the registry id; malformed ones refused', async (t) => {
++  const w = world(t);
++  const accepted = { 'https://api.enclave.host/t/metal0': 'https://api.enclave.host/t/metal0', 'https://api.enclave.host/t/nucbox-k11-4': 'https://api.enclave.host/t/nucbox-k11-4',
++    'https://api.enclave.host/t/nucbox-k11-4/': 'https://api.enclave.host/t/nucbox-k11-4', 'https://host.example': 'https://host.example',
++    'https://host.example:8443/a/b-c_d.e~f': 'https://host.example:8443/a/b-c_d.e~f' };
++  for (const [input, canon] of Object.entries(accepted)) {
++    const cfg = validateConfig({ ...w.cfg, host: { endpoint: input } });
++    assert.equal(cfg.host.endpoint, canon, `${input} canonical`);
++    assert.equal(hostIdOfEndpoint(cfg.host.endpoint), hostIdOfEndpoint(input), `${input}: the registry id is unchanged by canonicalization`);
++    assert.ok(policyAccepts(canon), `${input}: the platform host policy accepts the same endpoint syntax`);
++  }
++  const refused = ['https://user:pw@api.enclave.host/t/metal0', 'https://api.enclave.host/t/metal0?x=1', 'https://api.enclave.host/t/metal0#f', 'http://api.enclave.host/t/metal0',
++    'https://API.enclave.host/t/metal0', 'https://api.enclave.host/t/../metal0', 'https://api.enclave.host/t/./metal0', 'https://api.enclave.host//t/metal0', 'https://api.enclave.host/t//metal0',
++    'https://api.enclave.host:0/t', 'https://api.enclave.host:70000/t', 'https://api.enclave.host/t/metal0 x', 'https://api.enclave.host/t/%2e%2e', 'api.enclave.host/t/metal0', ''];
++  for (const e of refused) {
++    assert.equal(canonicalHostEndpoint(e), null, `${JSON.stringify(e)} refused`);
++    assert.throws(() => validateConfig({ ...w.cfg, host: { endpoint: e } }), /host\.endpoint/, `${JSON.stringify(e)} refused by validateConfig`);
++  }
++});
++
++test('a descriptor signed by the operator binds to exactly the registered /t/<name> host; another host or operator refuses', async (t) => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'esi-desc-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const op = privateKeyToAccount(generatePrivateKey()), other = privateKeyToAccount(generatePrivateKey());
++  const metal0 = hostIdOfEndpoint('https://api.enclave.host/t/metal0'), nucbox = hostIdOfEndpoint('https://api.enclave.host/t/nucbox-k11-4');
++  assert.notEqual(metal0, nucbox);
++  const pin = 'sha256:' + '1'.repeat(64), url = 'https://r1.indexer.example';
++  const write = async (name, signer, hostId) => { const bytes = descriptorBytes({ operator: signer.address, hostId, replica: 'r1', packagePin: pin, advertiseURL: url, indexdSha256: 'e6' });
++    const f = path.join(dir, name); fs.writeFileSync(f, JSON.stringify({ descriptor: bytes, signature: await signer.signMessage({ message: bytes }) })); return f; };
++  const want = { hostId: hostIdOfEndpoint(validateConfig({ ...world(t).cfg, host: { endpoint: 'https://api.enclave.host/t/metal0/' } }).host.endpoint), replica: 'r1', packagePin: pin, advertiseURL: url };
++  assert.equal(want.hostId, metal0, 'the config path yields the registered id');
++  const ok = await verifyDescriptor(await write('ok.json', op, metal0), want);
++  assert.equal(ok.operator, op.address.toLowerCase());
++  await assert.rejects(verifyDescriptor(await write('nucbox.json', op, nucbox), want), /descriptor names host 0x[0-9a-f]+, not this host/);
++  const forged = JSON.parse(fs.readFileSync(await write('o.json', op, metal0), 'utf8'));
++  forged.signature = await other.signMessage({ message: forged.descriptor });
++  fs.writeFileSync(path.join(dir, 'forged.json'), JSON.stringify(forged));
++  await assert.rejects(verifyDescriptor(path.join(dir, 'forged.json'), want), /is not signed by its operator/);
++});
+--- a/test/fixtures/prior-21a3552d-storage-indexer-host.mjs.txt
++++ b/test/fixtures/prior-21a3552d-storage-indexer-host.mjs.txt
+@@ -0,0 +1,341 @@
++// The storage-indexer HOST ROLE: one Sia indexer replica (indexd G-C2 + its own PostgreSQL 18) supervised on an Enclave
++// host under the SAME platform host policy gate as app service (network/host-service-gate.mjs). Like the lease relay
++// (network/host-services/lease-relay-host.mjs) it is a KEYED role (the replica's wallet phrase), so it has its own
++// supervisor instead of runner.mjs's no-secret ROLES; it keeps the runner's discipline: pinned package bytes, no inherited
++// environment, memory caps, restart backoff, and the gate's refusal stops it (sticky until the admin's admit).
++//
++//   node network/host-services/storage-indexer-host.mjs check  <host.json>    validate, verify package + descriptor, print the plan
++//   node network/host-services/storage-indexer-host.mjs init   <host.json>    (admitted host only) initdb + database + base config
++//   node network/host-services/storage-indexer-host.mjs run    <host.json>    supervise PostgreSQL + indexd while admitted
++//   node network/host-services/storage-indexer-host.mjs backup <host.json> <out.cms> <owner-cert.pem>
++//   node network/host-services/storage-indexer-host.mjs restore <host.json> <in.cms> <owner-key.pem> <owner-cert.pem>
++//
++// Admission (no new authority):
++//   1. the platform host policy admits THIS host (its registry id = keccak256(host.endpoint)): the administrator's
++//      anchored policy (bans, allowlist), the registry row ACTIVE, the accepted owner. Anything else refuses.
++//   2. the replica descriptor (enclave-service-descriptor/v1, kind "storage", role "storage-indexer") names this host's
++//      registry id, this replica and this exact package, and is signed by THIS HOST'S REGISTRY OPERATOR, read from the
++//      same agreed snapshot the gate uses. Another operator's or another host's descriptor refuses.
++//   3. which replicas a deployment writes to is the deployment owner's sia-s3 configuration; discovery ads go through
++//      the service index (kind storage = 3), which is metadata, not authority.
++// "off" for the platform policy must be written explicitly; the role then refuses to run unless --ungated-test is given
++// (fixtures only), and says so.
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import net from 'node:net';
++import { spawn as spawnChild } from 'node:child_process';
++import { createHash } from 'node:crypto';
++import { pathToFileURL } from 'node:url';
++import { verifyMessage } from 'viem';
++
++export const CONFIG_FORMAT = 'enclave-storage-indexer-host/v1';
++export const DESCRIPTOR_FORMAT = 'enclave-service-descriptor/v1';
++export const ROLE = 'storage-indexer';
++export const KIND = 'storage';
++const SECRETISH = /(secret|password|phrase|seed|private|mnemonic|token|key)(?!.*(file|dir|cert|pin))/i;
++const sha = (b) => createHash('sha256').update(b).digest('hex');
++const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
++const fail = (m) => { throw new Error(`storage-indexer host: ${m}`); };
++const lc = (s) => String(s || '').toLowerCase();
++const normEndpoint = (e) => String(e || '').replace(/\/+$/, '');
++
++/** -> normalized config (throws). Only public configuration: secrets come from credentialsDir files (systemd credentials). */
++export function validateConfig(cfg) {
++  if (!plain(cfg)) fail('configuration must be an object');
++  const allowed = ['format', 'host', 'platformHostPolicy', 'platformHostPolicyMirrors', 'platformHostPolicyRpcs', 'replica', 'package', 'pgBin',
++    'stateRoot', 'runtimeDir', 'credentialsDir', 'descriptorFile', 'adminAddress', 'appAddress', 'advertiseURL', 'memoryMiB', 'pgLibDir', 'syncer'];
++  for (const k of Object.keys(cfg)) if (!allowed.includes(k)) fail(`unknown field ${JSON.stringify(k)}${SECRETISH.test(k) ? ' (secrets come only from credentialsDir)' : ''}`);
++  if (cfg.format !== CONFIG_FORMAT) fail(`format must be ${CONFIG_FORMAT}`);
++  if (!plain(cfg.host) || Object.keys(cfg.host).some((k) => k !== 'endpoint')) fail('host: { endpoint } only');
++  const endpoint = normEndpoint(cfg.host.endpoint);
++  if (!/^https:\/\/[^\s/?#@]+$/.test(endpoint)) fail("host.endpoint: this host's registry endpoint (its PUBLIC_URL), https");
++  if (cfg.platformHostPolicy === undefined) fail('platformHostPolicy is required: "production", an explicit platform JSON, or "off" (explicit; fixtures only)');
++  if (!(cfg.platformHostPolicy === 'production' || cfg.platformHostPolicy === 'off' || plain(cfg.platformHostPolicy))) fail('platformHostPolicy: "production" | "off" | { book, hostOwnership, mirrors[] }');
++  for (const k of ['platformHostPolicyMirrors', 'platformHostPolicyRpcs'])
++    // https only; plain http solely for loopback fixtures (a production policy RPC or mirror is never 127.0.0.1)
++    if (cfg[k] !== undefined && (!Array.isArray(cfg[k]) || cfg[k].some((u) => typeof u !== 'string' || !/^(https:\/\/[^\s?#@]+|http:\/\/127\.0\.0\.1:[0-9]{1,5}(\/[^\s?#@]*)?)$/.test(u)))) fail(`${k}: https URLs`);
++  if (!/^[a-z0-9][a-z0-9-]{0,30}$/.test(String(cfg.replica))) fail('replica: [a-z0-9][a-z0-9-]{0,30}');
++  if (!plain(cfg.package) || typeof cfg.package.dir !== 'string' || !path.isAbsolute(cfg.package.dir) || !/^sha256:[0-9a-f]{64}$/.test(String(cfg.package.manifest)))
++    fail('package: { dir: <absolute unpacked package>, manifest: "sha256:<digest of its MANIFEST.sha256>" }');
++  if (cfg.pgLibDir !== undefined && (typeof cfg.pgLibDir !== 'string' || !path.isAbsolute(cfg.pgLibDir))) fail('pgLibDir must be an absolute path');
++  const syncer = { address: ':9981', bootstrap: true, ...(cfg.syncer || {}) };
++  if (!plain(cfg.syncer ?? {}) || Object.keys(syncer).some((k) => !['address', 'bootstrap'].includes(k)) || typeof syncer.bootstrap !== 'boolean' || !/^(127\.0\.0\.1)?:[0-9]{1,5}$/.test(String(syncer.address)))
++    fail('syncer: { address: ":<port>" | "127.0.0.1:<port>", bootstrap: boolean }');
++  for (const k of ['pgBin', 'stateRoot', 'runtimeDir', 'credentialsDir', 'descriptorFile']) if (typeof cfg[k] !== 'string' || !path.isAbsolute(cfg[k])) fail(`${k} must be an absolute path`);
++  for (const k of ['adminAddress', 'appAddress']) if (!/^127\.0\.0\.1:[0-9]{1,5}$/.test(String(cfg[k]))) fail(`${k}: 127.0.0.1:<port> (loopback only)`);
++  if (!/^https:\/\/[a-z0-9.-]+(:[0-9]{1,5})?$/.test(String(cfg.advertiseURL))) fail('advertiseURL: https://<host>[:port] (the replica URL sia-s3 deployments use)');
++  const mem = { indexd: 1024, postgres: 1024, ...(cfg.memoryMiB || {}) };
++  for (const [k, v] of Object.entries(mem)) if (!['indexd', 'postgres'].includes(k) || !Number.isInteger(v) || v < 128 || v > 8192) fail('memoryMiB: { indexd, postgres } 128..8192');
++  return { ...cfg, host: { endpoint }, memoryMiB: mem, syncer };
++}
++
++/** The pinned package: MANIFEST.sha256 must hash to the pin and every file in it must verify. -> { indexd, geoip, manifest } */
++export function verifyPackage(dir, pin) {
++  const raw = fs.readFileSync(path.join(dir, 'MANIFEST.sha256'));
++  if ('sha256:' + sha(raw) !== pin) fail(`package manifest is not the pinned ${pin}`);
++  const lines = raw.toString().trim().split('\n');
++  for (const line of lines) {
++    const m = /^([0-9a-f]{64})  \.\/(.+)$/.exec(line);
++    if (!m || m[2].includes('..')) fail(`malformed manifest line ${JSON.stringify(line.slice(0, 80))}`);
++    if (sha(fs.readFileSync(path.join(dir, m[2]))) !== m[1]) fail(`package file ${m[2]} does not match its manifest`);
++  }
++  const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'PACKAGE.json'), 'utf8'));
++  return { indexd: path.join(dir, pkg.indexd.file), geoip: path.join(dir, pkg.geoip.file), indexdSha256: pkg.indexd.sha256, manifest: pin };
++}
++
++/** The replica descriptor bytes this host would serve, for the operator to sign (EIP-191 personal_sign of these exact bytes). */
++export function descriptorBytes({ operator, hostId, replica, packagePin, advertiseURL, indexdSha256 }) {
++  return JSON.stringify({ format: DESCRIPTOR_FORMAT, operator: lc(operator), kind: KIND, role: ROLE, hostId: lc(hostId), replica,
++    package: packagePin, applicationAPI: advertiseURL, indexd: { sha256: indexdSha256, capabilities: ['cas-v4', 'fence', 'op-nonce'] } });
++}
++
++/** -> the descriptor's operator if it is this replica's exact descriptor and the operator signed these bytes (throws otherwise). */
++export async function verifyDescriptor(file, { hostId, replica, packagePin, advertiseURL }) {
++  const d = JSON.parse(fs.readFileSync(file, 'utf8'));
++  if (!plain(d) || typeof d.descriptor !== 'string' || !/^0x[0-9a-f]{130}$/i.test(String(d.signature))) fail('descriptor file: { descriptor: "<bytes>", signature: "0x<65 bytes>" }');
++  const x = JSON.parse(d.descriptor);
++  if (x.format !== DESCRIPTOR_FORMAT || x.kind !== KIND || x.role !== ROLE) fail('descriptor is not a storage-indexer service descriptor');
++  if (lc(x.hostId) !== lc(hostId)) fail(`descriptor names host ${x.hostId}, not this host ${hostId}`);
++  if (x.replica !== replica) fail(`descriptor names replica ${x.replica}, not ${replica}`);
++  if (x.package !== packagePin) fail(`descriptor names package ${x.package}, not the pinned ${packagePin}`);
++  if (x.applicationAPI !== advertiseURL) fail(`descriptor advertises ${x.applicationAPI}, not ${advertiseURL}`);
++  if (!/^0x[0-9a-f]{40}$/.test(String(x.operator))) fail('descriptor operator must be an address');
++  if (!(await verifyMessage({ address: x.operator, message: d.descriptor, signature: d.signature }))) fail(`descriptor is not signed by its operator ${x.operator}`);
++  return { operator: lc(x.operator), descriptor: d.descriptor };
++}
++
++/** The env names the existing gate reads (network/platform-host-policy-config.mjs), from the explicit configuration. */
++export function policyEnv(cfg, extra = {}) {
++  const p = cfg.platformHostPolicy;
++  return { ENCLAVE_PLATFORM_HOST_POLICY: typeof p === 'string' ? p : JSON.stringify(p),
++    ...(cfg.platformHostPolicyMirrors ? { ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS: cfg.platformHostPolicyMirrors.join(',') } : {}),
++    ...(cfg.platformHostPolicyRpcs ? { ENCLAVE_PLATFORM_HOST_POLICY_RPCS: cfg.platformHostPolicyRpcs.join(',') } : {}), ...extra };
++}
++
++const withTimeout = (p, ms, what) => Promise.race([p, new Promise((_, no) => { const t = setTimeout(() => no(new Error(`${what} timed out after ${ms} ms`)), ms); t.unref?.(); })]);
++const registrySnapshots = new WeakMap();
++/** This host's registry row, read with the gate's OWN configuration (same RPC set, quorum rule, book and ownership
++ *  contract) at an agreed block, through the exported reader - never through the gate's mutable decision state. */
++async function registryRow(gate, hostId) {
++  const rc = gate.runtime.config;
++  let snap = registrySnapshots.get(gate);
++  if (!snap) {
++    const { quorumSnapshot } = await import('../host-policy-runtime.mjs');
++    snap = quorumSnapshot({ rpcs: rc.rpcs, minAgree: rc.minAgree ?? null }); registrySnapshots.set(gate, snap);
++  }
++  const { readPolicyFacts } = await import('../platform-host-policy.mjs');
++  const facts = await snap((at) => readPolicyFacts(at, { book: rc.book, hostOwnership: rc.hostOwnership, registryIds: [hostId] }));
++  return facts.hosts[hostId];
++}
++
++/**
++ * The admission decision for this host + replica, now. -> { admit, reason, hostId, operator }.
++ * gate: the platform host policy gate (createHostServiceGate) for this host's endpoint.
++ */
++export async function admission(cfg, gate, { ungatedTest = false } = {}) {
++  const { hostIdOfEndpoint } = await import('../host-service-gate.mjs');
++  const hostId = hostIdOfEndpoint(cfg.host.endpoint);
++  const pkg = verifyPackage(cfg.package.dir, cfg.package.manifest);
++  let d;
++  try { d = await verifyDescriptor(cfg.descriptorFile, { hostId, replica: cfg.replica, packagePin: cfg.package.manifest, advertiseURL: cfg.advertiseURL }); }
++  catch (e) { return { admit: false, reason: e.message, hostId }; }
++  if (!gate.enabled) {
++    return ungatedTest ? { admit: true, reason: 'platform host policy OFF (fixture only, not a production configuration)', hostId, operator: d.operator, pkg }
++                       : { admit: false, reason: 'platform host policy is off: the storage-indexer role runs only under the platform host policy', hostId };
++  }
++  await withTimeout(gate.check(), 30000, 'platform host policy check').catch(() => {});
++  const refused = gate.serviceRefusal();
++  if (refused) return { admit: false, reason: refused, hostId };
++  // the registry row from the gate's own runtime (same RPC quorum, same authority): bind the descriptor to it
++  let row;
++  try { row = await withTimeout(registryRow(gate, hostId), 30000, 'registry read'); }
++  // transient (RPC/mirror): the gate itself still admits this host (its bounded grace); never a reason to stop a running replica
++  catch (e) { return { admit: false, transient: true, reason: `registry row unreadable: ${String(e.message || e).slice(0, 160)}`, hostId }; }
++  if (!row || !row.active) return { admit: false, reason: 'host registry entry is not active', hostId };
++  if (normEndpoint(row.endpoint) !== cfg.host.endpoint) return { admit: false, reason: `registry endpoint ${row.endpoint} is not ${cfg.host.endpoint}`, hostId };
++  if (lc(row.operator) !== d.operator) return { admit: false, reason: `descriptor operator ${d.operator} is not this host's registry operator ${lc(row.operator)}`, hostId };
++  return { admit: true, reason: 'admitted by the platform host policy; descriptor signed by the registry operator', hostId, operator: d.operator, pkg };
++}
++
++// ---------------------------------------------------------------------------------------------------------------- runtime
++
++const pgEnv = (cfg) => ({ PATH: `${cfg.pgBin}:/usr/bin:/bin`, LC_ALL: 'C', TZ: 'UTC', ...(cfg.pgLibDir ? { LD_LIBRARY_PATH: cfg.pgLibDir } : {}) });
++const dataDir = (cfg) => path.join(cfg.stateRoot, cfg.replica, 'postgres');
++const stateDir = (cfg) => path.join(cfg.stateRoot, cfg.replica, 'state');
++const sockDir = (cfg) => path.join(cfg.runtimeDir, cfg.replica, 'pg');
++const run = (bin, args, opts = {}) => new Promise((ok, no) => {
++  const c = spawnChild(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], ...opts }); let out = '';
++  c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { out += d; });
++  c.on('error', no); c.on('exit', (code) => (code === 0 ? ok(out) : no(new Error(`${path.basename(bin)} exited ${code}: ${out.slice(-400)}`))));
++});
++
++/** initdb (peer auth, socket only) + the indexd database + the non-secret base config + the pinned GeoIP database. */
++export async function initReplica(cfg) {
++  const pkg = verifyPackage(cfg.package.dir, cfg.package.manifest);
++  const data = dataDir(cfg);
++  if (fs.existsSync(path.join(data, 'PG_VERSION'))) fail(`${data} is already initialised`);
++  for (const d of [data, stateDir(cfg), sockDir(cfg), path.join(cfg.stateRoot, cfg.replica, 'outbox')]) fs.mkdirSync(d, { recursive: true, mode: 0o700 });
++  await run(path.join(cfg.pgBin, 'initdb'), ['-D', data, '--auth-local=peer', '--auth-host=reject', '--encoding=UTF8', '--locale=C.UTF-8', '-U', os.userInfo().username], { env: pgEnv(cfg) });
++  const pg = await startPostgres(cfg);
++  try { await run(path.join(cfg.pgBin, 'createdb'), ['-h', sockDir(cfg), 'indexd'], { env: pgEnv(cfg) }); }
++  finally { await stopChild(pg, 'SIGINT'); }
++  fs.copyFileSync(pkg.geoip, path.join(stateDir(cfg), path.basename(pkg.geoip)));
++  return { data, state: stateDir(cfg) };
++}
++
++/** The full indexd.yml in the runtime dir (0600), from public config + credential files; never logged. -> path */
++export function renderIndexdConfig(cfg) {
++  const read = (n) => fs.readFileSync(path.join(cfg.credentialsDir, n), 'utf8').trim();
++  const phrase = read('recovery-phrase'), admin = read('admin-password');
++  const words = phrase.split(/\s+/);
++  if (!(words.length === 12 || words.length === 24) || !/^[a-z ]+$/.test(phrase)) fail('recovery-phrase credential: 12 or 24 lowercase words');
++  if (admin.length < 24 || !/^[A-Za-z0-9._~-]+$/.test(admin)) fail('admin-password credential: >= 24 URL-safe characters');
++  const y = (s) => JSON.stringify(s);
++  const text = [`recoveryPhrase: ${y(phrase)}`, 'autoOpenWebUI: false', `directory: ${y(stateDir(cfg))}`,
++    'adminAPI:', `  address: ${y(cfg.adminAddress)}`, `  password: ${y(admin)}`,
++    'applicationAPI:', `  address: ${y(cfg.appAddress)}`, `  advertiseURL: ${y(cfg.advertiseURL)}`,
++    'syncer:', `  address: ${y(cfg.syncer.address)}`, `  bootstrap: ${cfg.syncer.bootstrap}`, '  enableUPnP: false', 'consensus:', '  network: mainnet', 'explorer:', '  enabled: false', '  url: ""',
++    'database:', `  host: ${y(sockDir(cfg))}`, '  port: 5432', `  user: ${y(os.userInfo().username)}`, '  password: ""', '  database: indexd', '  sslmode: disable',
++    'log:', '  stdout:', '    enabled: true', '    level: info', '    format: json', '  file:', '    enabled: false', ''].join('\n');
++  const dir = path.join(cfg.runtimeDir, cfg.replica, 'indexd');
++  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
++  const file = path.join(dir, 'indexd.yml'), tmp = file + '.' + process.pid;
++  fs.writeFileSync(tmp, text, { mode: 0o600 }); fs.renameSync(tmp, file);
++  return file;
++}
++
++function stopChild(child, signal = 'SIGTERM', ms = 60000) {
++  return new Promise((ok) => {
++    if (!child || child.exitCode !== null || child.signalCode !== null) return ok();
++    const t = setTimeout(() => { try { child.kill('SIGKILL'); } catch {} }, ms); t.unref?.();
++    child.once('exit', () => { clearTimeout(t); ok(); }); child.kill(signal);
++  });
++}
++
++const waitFor = async (fn, ms, what) => { const end = Date.now() + ms; while (Date.now() < end) { if (await fn()) return; await new Promise((r) => setTimeout(r, 200)); } fail(`timed out waiting for ${what}`); };
++const socketUp = (file) => new Promise((ok) => { const s = net.connect(file); s.once('connect', () => { s.destroy(); ok(true); }); s.once('error', () => ok(false)); });
++
++/** PostgreSQL for this replica: Unix socket only, no TCP, peer auth. -> the child */
++export async function startPostgres(cfg, { log = () => {} } = {}) {
++  fs.mkdirSync(sockDir(cfg), { recursive: true, mode: 0o700 });
++  const child = spawnChild(path.join(cfg.pgBin, 'postgres'), ['-D', dataDir(cfg), '-c', 'listen_addresses=', '-c', `unix_socket_directories=${sockDir(cfg)}`,
++    '-c', 'shared_buffers=128MB', '-c', 'max_connections=50', '-c', 'jit=off'], { env: pgEnv(cfg), stdio: ['ignore', 'pipe', 'pipe'] });
++  const relay = (s) => s.on('data', (d) => { for (const l of String(d).split('\n').filter(Boolean)) log(`[postgres] ${l.slice(0, 300)}`); });
++  relay(child.stdout); relay(child.stderr);
++  await waitFor(async () => child.exitCode === null && socketUp(path.join(sockDir(cfg), '.s.PGSQL.5432')), 60000, 'PostgreSQL socket');
++  return child;
++}
++
++/** indexd for this replica: no inherited environment, a memory limit, its config from the runtime dir. -> the child */
++export function startIndexd(cfg, pkg, { log = () => {}, spawn = spawnChild } = {}) {
++  const config = renderIndexdConfig(cfg);
++  const child = spawn(pkg.indexd, [], { cwd: stateDir(cfg), stdio: ['ignore', 'pipe', 'pipe'],
++    env: { PATH: '/usr/bin:/bin', HOME: stateDir(cfg), INDEXD_CONFIG_FILE: config, INDEXD_DATA_DIR: stateDir(cfg), GOMEMLIMIT: `${Math.floor(cfg.memoryMiB.indexd / 2)}MiB` } });
++  const relay = (s) => s.on('data', (d) => { for (const l of String(d).split('\n').filter(Boolean)) log(`[indexd] ${l.slice(0, 300)}`); });
++  relay(child.stdout); relay(child.stderr);
++  return child;
++}
++
++/**
++ * Supervise while admitted. Refusal (ban, allowlist miss, inactive/deregistered, wrong operator/descriptor, package
++ * change): stop indexd, then PostgreSQL (data kept), and stay stopped until admitted again. Crashes restart with backoff.
++ * -> { status(), stop(), tick() }
++ */
++export async function superviseReplica(rawCfg, { gate = null, ungatedTest = false, log = (m) => console.log(new Date().toISOString(), m), intervalMs = 5000,
++  backoffMs = 1000, maxBackoffMs = 60000 } = {}) {
++  const cfg = validateConfig(rawCfg);
++  if (!gate) {
++    const { createHostServiceGate } = await import('../host-service-gate.mjs');
++    gate = createHostServiceGate({ env: policyEnv(cfg), chainId: 8453, endpoint: cfg.host.endpoint, stateDir: path.join(cfg.stateRoot, cfg.replica, 'host-policy'), log });
++  }
++  if (!fs.existsSync(path.join(dataDir(cfg), 'PG_VERSION'))) fail(`replica ${cfg.replica} is not initialised (run init on an admitted host)`);
++  const st = { pg: null, indexd: null, refusal: 'not checked yet', admitted: false, restarts: 0, wait: backoffMs, timer: null, stopping: false, lastExit: null, pkg: null };
++  const shutdown = async (why) => {
++    if (st.timer) { clearTimeout(st.timer); st.timer = null; }
++    if (st.indexd || st.pg) log(`[storage-indexer] stopping replica ${cfg.replica}: ${why}`);
++    const i = st.indexd; st.indexd = null; await stopChild(i, 'SIGTERM', 180000);
++    const p = st.pg; st.pg = null; await stopChild(p, 'SIGINT', 150000);
++  };
++  const startIndexdNow = () => {
++    if (st.stopping || !st.admitted || st.indexd || !st.pg || st.timer) return;   // a pending backoff restart owns the next start
++    const child = startIndexd(cfg, st.pkg, { log }); st.indexd = child; const started = Date.now();
++    child.on('exit', (code, signal) => {
++      if (st.indexd === child) st.indexd = null;
++      st.lastExit = { code, signal, at: Date.now() };
++      if (st.stopping || !st.admitted) return;
++      if (Date.now() - started > 60000) st.wait = backoffMs;
++      st.restarts++; log(`[storage-indexer] indexd exited (${signal || code}); restarting in ${st.wait} ms`);
++      st.timer = setTimeout(() => { st.timer = null; startIndexdNow(); }, st.wait); st.timer.unref?.();
++      st.wait = Math.min(maxBackoffMs, st.wait * 2);
++    });
++    log(`[storage-indexer] indexd started (pid ${child.pid}) for replica ${cfg.replica}`);
++  };
++  const tick = async () => {
++    if (st.stopping) return;
++    const a = await admission(cfg, gate, { ungatedTest });
++    if (!a.admit && a.transient && st.admitted) { log(`[storage-indexer] keeping replica ${cfg.replica} running through a transient read failure: ${a.reason}`); return; }
++    if (!a.admit) {
++      if (st.admitted || st.refusal !== a.reason || Date.now() - (st.refusalLogged || 0) > 60000) {
++        log(`[storage-indexer] NOT running replica ${cfg.replica}: ${a.reason}`); st.refusalLogged = Date.now();
++      }
++      st.admitted = false; st.refusal = a.reason; await shutdown(a.reason); return;
++    }
++    if (!st.admitted) log(`[storage-indexer] replica ${cfg.replica} admitted: ${a.reason}`);
++    st.admitted = true; st.refusal = null; st.pkg = a.pkg;
++    if (!st.pg || st.pg.exitCode !== null) { st.pg = await startPostgres(cfg, { log }); log('[storage-indexer] PostgreSQL started (socket only)'); }
++    startIndexdNow();
++  };
++  // one tick at a time: a slow stop/start never overlaps the next decision
++  let busy = false;
++  const once = async () => { if (busy) return; busy = true; try { await tick(); } catch (e) { log(`[storage-indexer] tick: ${e.message}`); } finally { busy = false; } };
++  gate.start?.();
++  await once();
++  // NOT unref'd: while refused, PostgreSQL and indexd are stopped and this timer is what keeps the supervisor alive
++  const iv = setInterval(() => void once(), intervalMs);
++  return {
++    tick: once,
++    status: () => ({ replica: cfg.replica, admitted: st.admitted, refusal: st.refusal, postgres: !!st.pg && st.pg.exitCode === null, indexd: !!st.indexd,
++      indexdPid: st.indexd?.pid ?? null, restarts: st.restarts, lastExit: st.lastExit, platformHostPolicy: gate.status?.() ?? null }),
++    async stop() { st.stopping = true; clearInterval(iv); gate.stop?.(); await shutdown('supervisor stopped'); },
++  };
++}
++
++/** Encrypted logical backup: pg_dump -Fc | zstd | CMS AuthEnvelopedData (AES-256-GCM) to the owner's certificate. */
++export async function backupReplica(cfg, outFile, ownerCert) {
++  const sh = `set -o pipefail; "${cfg.pgBin}/pg_dump" -Fc -h "${sockDir(cfg)}" -d indexd | zstd -q -12 | openssl cms -encrypt -binary -aes-256-gcm -outform DER -out "${outFile}.part" "${ownerCert}"`;
++  await run('/bin/bash', ['-c', sh], { env: pgEnv(cfg) });
++  fs.renameSync(outFile + '.part', outFile);
++  const digest = sha(fs.readFileSync(outFile));
++  fs.writeFileSync(outFile + '.sha256', `${digest}  ${path.basename(outFile)}\n`);
++  return digest;
++}
++
++/** Restore into THIS replica's empty indexd database (PostgreSQL running): digest, decrypt, decompress, pg_restore. */
++export async function restoreReplica(cfg, inFile, ownerKey, ownerCert) {
++  const want = fs.readFileSync(inFile + '.sha256', 'utf8').split(/\s+/)[0];
++  if (sha(fs.readFileSync(inFile)) !== want) fail(`backup ${inFile} does not match its digest`);
++  // a restore goes into a freshly initialised replica BEFORE its indexd ever starts (indexd would create its schema)
++  const temp = (await socketUp(path.join(sockDir(cfg), '.s.PGSQL.5432'))) ? null : await startPostgres(cfg);
++  try {
++    const sh = `set -o pipefail; openssl cms -decrypt -binary -inform DER -in "${inFile}" -inkey "${ownerKey}" -recip "${ownerCert}" | zstd -q -d | "${cfg.pgBin}/pg_restore" --exit-on-error --single-transaction -h "${sockDir(cfg)}" -d indexd`;
++    await run('/bin/bash', ['-c', sh], { env: pgEnv(cfg) });
++  } finally { if (temp) await stopChild(temp, 'SIGINT'); }
++}
++
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
++  const [cmd, file, ...rest] = process.argv.slice(2);
++  const usage = 'usage: storage-indexer-host.mjs check|init|run|backup|restore <host.json> [...]';
++  if (!['check', 'init', 'run', 'backup', 'restore'].includes(cmd) || !file) { console.error(usage); process.exit(2); }
++  try {
++    const cfg = validateConfig(JSON.parse(fs.readFileSync(file, 'utf8')));
++    const { createHostServiceGate } = await import('../host-service-gate.mjs');
++    const gate = createHostServiceGate({ env: policyEnv(cfg), chainId: 8453, endpoint: cfg.host.endpoint, stateDir: path.join(cfg.stateRoot, cfg.replica, 'host-policy') });
++    if (cmd === 'check') { const a = await admission(cfg, gate); console.log(JSON.stringify({ admit: a.admit, reason: a.reason, hostId: a.hostId, operator: a.operator ?? null }, null, 2)); process.exit(a.admit ? 0 : 1); }
++    if (cmd === 'init') { const a = await admission(cfg, gate); if (!a.admit) fail(`refusing init: ${a.reason}`); console.log(JSON.stringify(await initReplica(cfg))); process.exit(0); }
++    if (cmd === 'backup') { console.log(await backupReplica(cfg, rest[0], rest[1])); process.exit(0); }
++    if (cmd === 'restore') { await restoreReplica(cfg, rest[0], rest[1], rest[2]); console.log('restored'); process.exit(0); }
++    const sup = await superviseReplica(cfg, { gate });
++    for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { sup.stop().then(() => process.exit(0)); });
++  } catch (e) { console.error(e.message); process.exit(1); }
++}

@@ -1,0 +1,40 @@
+--- a/windows/node/network-enroll.mjs
++++ b/windows/node/network-enroll.mjs
+@@ -19,6 +19,7 @@
+ import path from "node:path";
+ import { createHash } from "node:crypto";
+ import { shieldExpectation, catalogRef } from "../../network/shield-expectation.mjs";
++import { validateHostServicesTransport } from "../../network/host-service-transport.mjs";
+ 
+ const ID = /^0x[0-9a-f]{64}$/;
+ // settings of the retired TUNA transport a box's config may still hold; the agent ignores them, the next pass drops them
+@@ -69,6 +70,13 @@
+   return structuredClone(h);
+ }
+ 
++/** An operator's enclaveNetwork.hostServices (this box's own public service roles, network/host-service-transport.mjs) kept
++ *  as it is when its shape is right; else none. Like hostEgress it is the operator's opt-in, set by hand, never computed. */
++export function validHostServices(h) {
++  if (h === undefined || h === null) return null;
++  try { validateHostServicesTransport(h); return structuredClone(h); } catch { return null; }
++}
++
+ /** An operator's enclaveNetwork.paceMbps (this host's uplink in Mbps; circuits pace their UDP to it) kept when it is a number
+  *  in (0, 100000]; else none (unpaced). */
+ export function validPaceMbps(v) {
+@@ -100,10 +108,14 @@
+     const hostEgress = validHostEgress(cfg?.enclaveNetwork?.hostEgress);
+     // PACING (main d476cc0f9): the operator's uplink in Mbps, set by hand like hostEgress and kept the same way
+     const paceMbps = validPaceMbps(cfg?.enclaveNetwork?.paceMbps);
++    // HOST SERVICES: the operator's opt-in, kept like hostEgress; only then is the service worker named (no other box's
++    // section changes, so nothing restarts for this release alone)
++    const hostServices = validHostServices(cfg?.enclaveNetwork?.hostServices);
+     // Directory choice belongs to the host operator; enrollment must not silently
+     // restore the default relay each time a new app appears.
+     const directories = cfg?.enclaveNetwork?.directories || config.enclaveNetwork.directories;
+-    const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork, directories }), ...(hostEgress ? { hostEgress } : {}), ...(paceMbps ? { paceMbps } : {}) };
++    const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork, directories }), ...(hostEgress ? { hostEgress } : {}), ...(paceMbps ? { paceMbps } : {}),
++      ...(hostServices ? { hostServices, serviceWorkerModule: path.join(binDir, "host-service-ingress.mjs") } : {}) };
+     // a box whose config predates the current enclaveNetwork section (or still runs TUNA): switched once, then restarted
+     let switched = false;
+     if (JSON.stringify(cfg.enclaveNetwork) !== JSON.stringify(want)) {

@@ -1,0 +1,63 @@
+--- r1/test_fresh.py
++++ r2/test_fresh.py
+@@ -1,6 +1,6 @@
+ """Static/source tests of fresh_rehearsal.py (no docker, PostgreSQL, build or rehearsal). The real fresh receipts and input
+ bytes are only HASHED; every negative case uses a synthetic receipt chain built here from random bytes."""
+-import hashlib, json, os, shutil, subprocess, sys, unittest
++import hashlib, json, os, shutil, socket, subprocess, sys, tempfile, unittest
+ from pathlib import Path
+ 
+ HERE = Path(__file__).resolve().parent
+@@ -89,7 +89,7 @@
+         for k in ("CONTROLLER", "MIGRATIONS", "DIGEST_PRODUCTION", "TOOL_PINS", "TOOLS", "MAX_SCOPE", "PG_MEM_MIB", "TOOL_MEM_MIB", "ORIG_SHA", "FENCE_SHA", "C2_SHA"):
+             self.assertEqual(getattr(a, k), getattr(b, k), k)
+         self.assertEqual([p for p, _ in b.PHASES], [p for p, _ in a.PHASES]); self.assertEqual(len(b.PHASES), 20)
+-        self.assertEqual(b.RUNS, PKG / "runs"); self.assertNotIn("storage-enclave-rehearsal", str(b.RUNS))
++        self.assertEqual(b.RUNS, F.WORK / "fr-runs"); self.assertNotIn("storage-enclave-rehearsal", str(b.RUNS))
+         self.assertEqual(Path(b.__file__), F.BASE.resolve(), "pins() hashes the ORIGINAL module file")
+ 
+     def test_a_changed_module_or_rhfx_is_refused(self):
+@@ -166,16 +166,40 @@
+         r = subprocess.run([sys.executable, "-B", str(PKG / "fresh_rehearsal.py"), *a], capture_output=True, text=True, timeout=600)
+         return r.returncode, r.stdout
+ 
++    # ---------- root-run1 regression: the PostgreSQL socket path must fit AF_UNIX ----------
++    def test_root_run1_socket_path_is_reproduced_and_now_refused_before_any_action(self):
++        base_src = F.BASE.read_text()
++        j = [json.loads(l) for l in (PKG / "runs" / "aaee0cac7170551d.journal.jsonl").read_text().splitlines()]
++        stage = next(e["name"] for e in j if e.get("event") == "created" and e.get("resource") == "stage")
++        self.assertEqual(len(stage + F.SOCK_SUFFIX), 138, "root-run1's actual host-side socket path")
++        self.assertIn("138 bytes", F.socket_path_problem(PKG / "runs", base_src), "the r1 layout is refused")
++        self.assertIsNone(F.socket_path_problem(F.RUNS, base_src))
++        self.assertLessEqual(len(str(F.RUNS)) + 1 + 16 + len(F.SOCK_SUFFIX), F.SUN_PATH_MAX)
++        self.assertIn("re-derive", F.socket_path_problem(F.RUNS, base_src.replace("  host: {SOCK}\n", "  host: {W}\n")))
++
++    def test_the_af_unix_limit_is_real_at_both_lengths(self):
++        # same lengths as r1 (138) and the r2 worst case: a server bound at the r2 length accepts a client; at 138 the
++        # name is refused before any connect (the kernel sun_path is 108 bytes; Go returns EINVAL for the same names)
++        r2 = len(str(F.RUNS)) + 1 + 16 + len(F.SOCK_SUFFIX)
++        with tempfile.TemporaryDirectory(prefix="afu-") as d:
++            def path(n):
++                q = Path(d) / ("p" * (n - len(d) - 1)); self.assertEqual(len(str(q)), n); return str(q)
++            ok = path(r2); srv = socket.socket(socket.AF_UNIX); srv.bind(ok); srv.listen(1)
++            cli = socket.socket(socket.AF_UNIX); cli.connect(ok); cli.close(); srv.close()
++            with socket.socket(socket.AF_UNIX) as s138, self.assertRaises(OSError) as e:
++                s138.connect(path(138))
++            self.assertIn("too long", str(e.exception))
++
+     def test_plan_and_refused_execute_create_nothing(self):
+-        self.assertFalse((PKG / "runs").exists())
++        self.assertFalse(F.RUNS.exists())
+         rc, out = self.cli("--plan"); plan = json.loads(out)
+         self.assertEqual(plan["freshProblems"], []); self.assertIn(rc, (0, 2))
+         self.assertEqual(rc == 0, plan["baseProblems"] == [])
+-        self.assertTrue(plan["freshInput"]["freshQuiescedCoupledBackup"])
++        self.assertTrue(plan["freshInput"]["freshQuiescedCoupledBackup"]); self.assertLessEqual(plan["freshInput"]["pgSocketPathMaxBytes"], 107)
+         self.assertEqual(plan["basePins"]["rehearse-c2.py"], F.BASE_SHA)
+         rc, out = self.cli("--execute", "0" * 64); self.assertEqual(rc, 2); self.assertIn("usage", out)
+         rc, out = self.cli("--execute", plan["manifest"]); self.assertEqual(rc, 2, out)   # pins pending or not isolated: the module refuses
+-        self.assertFalse((PKG / "runs").exists(), "a refused execute creates no runs dir, journal or stage")
++        self.assertFalse(F.RUNS.exists(), "a refused execute creates no runs dir, journal or stage")
+ 
+     def test_run_sh_is_the_base_run_sh_with_only_the_entry_point_changed(self):
+         base = (F.BASE.parent / "run.sh").read_text().splitlines(); ours = (PKG / "run.sh").read_text().splitlines()

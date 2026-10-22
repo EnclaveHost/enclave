@@ -1,0 +1,12 @@
+--- install-host.r6.ps1 (ed729c84)
++++ install-host.r6p.ps1 (merged)
+@@ -742,6 +742,9 @@
+   elseif (@($want.checkers).Count) { "set ENCLAVE_NETWORK_CHECKERS=$(@($want.checkers) -join ',')" }
+   else { "rem no checkers chosen (-NetworkCheckers): network enrollment refuses until this host's operator picks the ones it trusts" })
+ $(if (@($want.directories).Count) { "set ENCLAVE_NETWORK_DIRECTORIES=$(@($want.directories) -join ',')" })
++rem the platform host policy (admin host bans; windows/node/host.mjs builds its gate from this): production = on, activated by the
++rem admin's anchor. Unset is OFF on this node (it passes book:null). Keep it.
++set ENCLAVE_PLATFORM_HOST_POLICY=production
+ rem this box's own settings (node-config.local.cmd: never written by an update), after and over everything above
+ if exist "$PD\node-config.local.cmd" call "$PD\node-config.local.cmd"
+ "@ | Set-Content -Encoding ASCII (Join-Path $PD "node-config.cmd")

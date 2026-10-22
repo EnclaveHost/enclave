@@ -1,0 +1,54 @@
+--- a/s3-ipfs-adapter/src/main.rs
++++ b/s3-ipfs-adapter/src/main.rs
+@@ -33,8 +33,6 @@
+ //! computed the index, so the published root CID is a faithful commitment
+ //! to the bucket's contents at index time.
+ 
+-mod account_upload;
+-mod contract_wallet;
+ mod egress;
+ mod httpd;
+ mod imgcheck;
+@@ -200,18 +198,6 @@
+             per_addr_daily: un("perAddrDailyBytes", 4 * 1024 * 1024 * 1024),
+             global_daily: un("globalDailyBytes", 16 * 1024 * 1024 * 1024),
+             json_per_ip_hourly: un("jsonPerIpHourly", 60) as f64,
+-            // smart-account (ERC-1271) uploads: only with the operator's own pinned chain readers; a bad block disables
+-            // them (fails closed) and says why
+-            contract_wallets: match u.get("contractWallets") {
+-                None | Some(serde_json::Value::Null) => None,
+-                Some(v) => match account_upload::AccountCfg::parse(v) {
+-                    Ok(c) => Some(c),
+-                    Err(e) => {
+-                        eprintln!("[s3-ipfs-adapter] config: {e}; smart-account uploads disabled");
+-                        None
+-                    }
+-                },
+-            },
+         })
+     });
+     Config {
+@@ -1168,13 +1154,8 @@
+         ("POST", "/api/upload") => api_upload(app, srv, key, req),
+         ("POST", "/api/delete") => api_delete(app, srv, key, req),
+         ("GET", p) | ("HEAD", p) if p == "/ipfs" || p.starts_with("/ipfs/") => {
+-            // configured browser origins may read (the dashboard's readback); every gateway answer is written
+-            // synchronously, and the slot is cleared afterwards so it can never reach another response
+-            srv.next_extra = app.cfg.upload.as_ref().map(|c| upload::gateway_cors(req, c)).unwrap_or_default();
+-            gateway(app, srv, key, req);
+-            srv.next_extra.clear();
++            gateway(app, srv, key, req)
+         }
+-        ("OPTIONS", p) if p == "/ipfs" || p.starts_with("/ipfs/") => srv.respond(key, upload::gateway_preflight(req, app.cfg.upload.as_ref())),
+         _ => srv.respond(key, json(404, "Not Found", "{\"error\":\"no such route\"}".into())),
+     }
+ }
+@@ -2218,7 +2199,7 @@
+             upload_key: String::new(), wallet_audience: format!("0x{}", "ab".repeat(32)), allow_unsigned: false,
+             allow_origins: allow_origins(Some(&serde_json::json!(["https://enclave.host", "https://dash.example.org"]))),
+             max_wasm: 1024, max_file: 0, max_image: 1024, max_json: 1024, per_addr_daily: 1024, global_daily: 4096,
+-            json_per_ip_hourly: 60.0, contract_wallets: None,
++            json_per_ip_hourly: 60.0,
+         };
+         let req = |origin: &str| httpd::Request {
+             method: "OPTIONS".into(), path: "/add-wasm".into(), query: String::new(),

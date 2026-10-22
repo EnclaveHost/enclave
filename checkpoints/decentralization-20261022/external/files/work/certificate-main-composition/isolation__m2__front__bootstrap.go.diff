@@ -1,0 +1,12 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/isolation/m2/front/bootstrap.go	2026-10-20 14:10:35.343372367 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/certificate-main-composition/isolation/m2/front/bootstrap.go	2026-10-20 15:25:28.397102794 -0700
+@@ -115,6 +115,9 @@
+ 	if g, e := auth.NameGrant(); e == nil && g.ACME != nil && g.ACME.EAB != nil {
+ 		out.owner.eabKID, out.owner.eabKey, out.owner.eabErr = eabFrom(secrets, g.ACME.EAB)
+ 	}
++	if g, e := auth.NameGrant(); e == nil && g.AppZone != nil && g.AppZone.EAB != nil {
++		out.owner.appEabKID, out.owner.appEabKey, out.owner.appEabErr = eabFrom(secrets, g.AppZone.EAB)
++	}
+ 	if text != "" {
+ 		resolved, e := appconfig.ResolveWithFacts(text, secrets, facts)
+ 		if e != nil {

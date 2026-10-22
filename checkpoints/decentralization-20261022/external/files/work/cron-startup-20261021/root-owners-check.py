@@ -1,0 +1,4 @@
+import importlib.util,json,pathlib
+p=pathlib.Path('work/nucbox-tls-20261021/root-activate-reviewed.py').resolve();s=importlib.util.spec_from_file_location('transport',p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+r=m.ps(r"""$s=Invoke-RestMethod -TimeoutSec 15 'http://127.0.0.1:9600/v1/host/state';$l=@(Get-Content -LiteralPath 'C:\ProgramData\Enclave\logs\node.log' -Tail 1500|Select-String -SimpleMatch -Pattern @('delegation','owners:')|ForEach-Object {$_.Line}|Where-Object {$_.Substring(0,5) -ge '15:01'}|Select-Object -Last 15);[ordered]@{at=[DateTime]::UtcNow.ToString('o');owners=$s.availability.owners;operator=$s.availability.operator;leaseGas=$s.availability.leaseGas;delegationLines=$l}|ConvertTo-Json -Depth 4 -Compress""",secs=80)
+pathlib.Path(__file__).with_suffix('.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))

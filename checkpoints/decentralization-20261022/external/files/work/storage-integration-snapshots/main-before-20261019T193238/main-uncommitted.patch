@@ -1,0 +1,2192 @@
+diff --git a/sia-s3/README.md b/sia-s3/README.md
+index 26638aa..133f66d 100644
+--- a/sia-s3/README.md
++++ b/sia-s3/README.md
+@@ -36,8 +36,9 @@ is how deployment secrets arrive:
+ - `credentials`: every request must be SigV4-signed with one of these.
+ - Optional: `maxBodyBytes` (64 MiB; single PUT / part cap), `compactMaxObjectBytes` (8 MiB),
+   `compactEverySecs` (1800).
+-- Replication (optional): `replicas` (`[{name, indexer, appKey}]`, or one `$NAME` secret holding that array) in
+-  place of `indexer`, plus `writeQuorum` (default: a majority), `repairEverySecs` (300) and `repairMaxBytesPerPass`
++- Replication (optional): `replicas` (`[{name, indexer, appKey, retiring}]`, or one `$NAME` secret holding that
++  array) in place of `indexer`, plus `writeQuorum` (default: a majority of the replicas not `retiring`). Changing the
++  set is a migration with its own procedure (REPLICATION.md, "Membership changes"). Also `repairEverySecs` (300) and `repairMaxBytesPerPass`
+   (1 GiB). Deadlines: `metadataTimeoutSecs` (120), `uploadTimeoutSecs` (1800), `uploadGraceSecs` (30),
+   `metadataGraceSecs` (5), `stallTimeoutSecs` (120). See [REPLICATION.md](REPLICATION.md).
+ 
+diff --git a/sia-s3/REPLICATION.md b/sia-s3/REPLICATION.md
+index b47b2d0..22d4246 100644
+--- a/sia-s3/REPLICATION.md
++++ b/sia-s3/REPLICATION.md
+@@ -48,7 +48,8 @@ does not remove it. Replication makes each indexer one of N replicas, each with
+   - Plain `http://` is allowed for a local or tunnelled indexer and logs a warning. Over it, anyone on the path sees
+     which objects exist and can withhold or replay the indexer's answers. They cannot forge objects, which are
+     signed and sector-proof checked.
+-- `writeQuorum` (W) defaults to a majority and must be between 1 and N.
++- `writeQuorum` (W) defaults to a majority and must be between 1 and N. N counts members only: a replica marked
++  `"retiring": true` is listed only while a membership change moves away from it (see "Membership changes").
+ - Deadlines (seconds): `metadataTimeoutSecs` 120, `uploadTimeoutSecs` 1800, `uploadGraceSecs` 30,
+   `metadataGraceSecs` 5, `stallTimeoutSecs` 120. Maintenance: `repairEverySecs` 300, `repairMaxBytesPerPass` 1 GiB.
+ - The app key must already be registered on every indexer (indexd admin `POST /api/apps/register`, or the
+@@ -57,7 +58,7 @@ does not remove it. Replication makes each indexer one of N replicas, each with
+ | N, W | Writes during one indexer outage | Restart during one outage |
+ |---|---|---|
+ | 1, 1 | no | no |
+-| 2, 1 | yes | needs both, or the dead one removed from the config |
++| 2, 1 | yes | needs both; a dead one cannot be removed safely (see "Membership changes") |
+ | 2, 2 | no | yes |
+ | 3, 2 | yes | yes (recommended) |
+ 
+@@ -83,9 +84,11 @@ does not remove it. Replication makes each indexer one of N replicas, each with
+ - **Versions.** Every write is stamped with a millisecond clock that only moves forward (started past every version
+   and floor loaded) plus a random write id. Replicas merge by taking each key's newest version; a newer deletion
+   hides it.
+-- **Writes and boot.** A write succeeds when W replicas acknowledge it, and answers 503 `ServiceUnavailable`
+-  otherwise. The app serves once N - W + 1 replicas have loaded, so every acknowledged write is visible. A write that
+-  answered 503 may still become visible, as after an S3 500.
++- **Writes and boot.** A write succeeds when W *admitted* replicas acknowledge it, and answers 503
++  `ServiceUnavailable` otherwise. The app serves once N - W + 1 admitted replicas have loaded, so every acknowledged
++  write is visible. A write that answered 503 may still become visible, as after an S3 500. A replica is admitted
++  only once it holds the complete history (see "Membership changes"), so an empty or half-backfilled replica never
++  counts toward either number.
+ - **Deadlines and latency.** Every replica call has a deadline. Once W replicas have answered, the others get a
+   grace period (30 s for uploads, 5 s for metadata) and are then abandoned. A hung or slow indexer delays a write by
+   at most that grace, or fails it at the deadline when W cannot be reached. The write lock is never held past a
+@@ -115,6 +118,73 @@ does not remove it. Replication makes each indexer one of N replicas, each with
+   version and checks the size, and the MD5 for single-part ETags. It also applies missed deletes and purges dead
+   versions.
+ 
++## Membership changes
++
++Quorum intersection (any W set meets any N - W + 1 set) covers only writes acknowledged by W members **of the
++current set**. Data written under another set does not meet that: under one indexer it exists on that indexer only,
++and a replica added later holds none of it. So every replica keeps **membership records** (store.rs `MsRec`), and the
++cluster acts only on what they say (replica.rs, "Membership").
++
++- **Records.** Each is a one-byte object whose signed, sealed metadata names a membership: an epoch, W, and its
++  members (64 bits of SHA-256 of each canonical indexer URL, so changing an indexer's URL is a membership change),
++  plus the set it replaced. Records are only ever added,
++  never rewritten, so a pin applied late can only add evidence. A record this version cannot read keeps its replica
++  unloaded. 0.1.x leaves them alone (v2 objects); sweeping and compaction never touch them.
++  - `admit`: this replica held the complete history when this set admitted it.
++  - `seal`: this replica belonged to the set this one replaced; that set no longer acts.
++- **Admitted means complete.** A replica is admitted only when it is not dirty, every manifest and ledger it lists
++  has been read, and it holds:
++  - every key at the merged view's newest version,
++  - every deletion, as a tombstone or a floor at least as new,
++  - every part of every open multipart upload the sources hold.
++
++  The merged view must itself be complete: N - W + 1 admitted members of the acting set, every manifest and ledger
++  read.
++- **States** (`/healthz` → `replicas[].membership`, and `replicas[].voting` / `record` per replica):
++
++| State | When | Serves? | Who votes (counts toward W) |
++|---|---|---|---|
++| legacy, one indexer | no records, `primary` only | yes, as before | it |
++| legacy, several | no records, more than one replica configured | only with **every** configured replica loaded | every replica |
++| stable | the configured set is admitted at the newest epoch | with N - W + 1 admitted members loaded | admitted members |
++| migrating | another set is admitted (the one before the change) | under the old set's rules: its N - W + 1 | the old set's admitted members |
++| pending | the configured set was sealed, never had N - W + 1 admissions | no, maintenance finishes the change first | nobody |
++| waiting | admitted members that are not loaded may hold what serving needs | no | nobody |
++| refused | records disagree, or a sealed change to another set than the configured one | no | nobody |
++
++- **New members** are written to (PUT, DELETE, parts) as soon as they are loaded, and backfilled by maintenance:
++  keys, floors, and open multipart parts. They do not vote until admitted.
++- **Commit.** With every configured member loaded and caught up, maintenance commits the change under the write lock:
++  1. `seal` records go to the members of the old set that are configured, as members or `retiring`. At least W(old)
++     must succeed: any N - W + 1 set of the old members then meets a seal, so the old set never serves again (not
++     even if the configuration is reverted). If too few succeed, the cluster is *pending* and retries.
++  2. `admit` records go to every configured member. The set is *stable* once N - W + 1 have one.
++
++  A set that never reached N - W + 1 admissions never acknowledged a write, so its admitted members (or, before any,
++  the sealed old set) still hold everything. A commit interrupted at any point is therefore finished by the next
++  maintenance pass, or at the next boot before anything is served.
++- **One indexer.** A deployment without records (0.1.x, or one indexer on this version) keeps serving on its one
++  indexer as before. Its first maintenance pass writes one `admit` record (one small upload). From then on, a
++  migration away from it serves from the old indexer alone while the new ones are backfilled.
++- **Several indexers without records** (the first boot of a new replicated deployment, or a migration from one
++  indexer that never ran a maintenance pass of this version) serve only while every configured indexer is loaded:
++  only then is the indexer holding the existing data certainly among them.
++- **What a change needs.** The old set's N - W + 1 admitted members, loaded (sources), W(old) of them configured to
++  take seals, and every new member reachable at the commit. So:
++  - Replace or remove at most W(old) - 1 members of the old set at once, or keep the departing ones listed as
++    `retiring` until the commit.
++  - Losing more than N - W members of a set for good loses the guarantee for what only they held, and no change can
++    be committed from it. With N = 2, W = 1, that is one member. There is no override in this version; accepting that
++    loss would need a separate, explicit tool.
++  - Data can be lost only if every replica holding it is dropped from the configuration (nothing is left to say it
++    existed), or beyond the fault model below.
++- **During a migration** the old set's availability applies: from one old indexer, that indexer must be up; from a
++  deployment without records, every configured indexer must be up.
++- **Stable membership** keeps its availability: with N = 3, W = 2, one indexer down still serves and writes.
++- **Cost.** Two records per member per change (one small upload each), plus one per member admitted on its own. They
++  are kept.
++- **Interaction with clock ordering (final review B4)**: unchanged. Records carry no write versions.
++
+ ## Feature parity and limits
+ 
+ - **Multipart.** Up to 10,000 parts. An entry that does not fit in 1 KiB of metadata gets a manifest (store.rs).
+@@ -156,16 +226,31 @@ Activation needs, none of it done here:
+    errors or 1 KiB limit enforcement.
+ 5. A review, then a catalog version built from a committed, clean checkout (not from any test build) and published
+    with the owner's existing authority, and a redeploy with the replica list and keys as secrets.
+-6. The initial backfill: watch `/healthz` → `replicas[].behind` fall to 0.
++6. The initial migration (see "Membership changes"): every member `record.admitted` at the newest epoch, and
++   `membership.phase` `stable`.
+ 
+ ## Operator procedures
+ 
+-- **Add a replica.** Register the app key on the new indexer, add it to the list, keep N - W + 1 reachable for the
+-  next restart, and restart. Repair backfills it, and maintenance gives it every floor.
+-- **An indexer is down for a while.** With W reachable, clients see no change. When it returns it is re-read and
+-  caught up. A restart during the outage needs N - W + 1 other replicas.
+-- **An indexer is gone for good, or censored.** Remove it and restart. Re-adding an indexer account that missed
+-  writes is safe for deletions (floors from the others reach it), but a fresh app key is cleaner.
++Every change of the replica list or of `writeQuorum` is a migration (see "Membership changes"). The cluster refuses
++to count a replica that is not admitted, so a mistaken step leaves it unavailable, never serving an incomplete view.
++
++- **From one indexer to three (N = 3, W = 2).** Let the single indexer run one maintenance pass on this version
++  (`record.admitted`, epoch 1, on `/healthz`). Register the app key on the new indexers, list all three, restart. The
++  old indexer keeps serving (migrating) while repair backfills the new ones. Once all three are caught up and
++  loaded, maintenance commits epoch 2 (`stable`). If the old indexer is unavailable at a restart before that, the
++  service answers 503; it never serves the empty new replicas.
++- **Add a replica.** Register the app key, add it to the list, restart. The set serves under its old rules until the
++  new one is backfilled and the change commits.
++- **Replace or remove a replica.** List the departing replica with `"retiring": true` (or remove it outright if the
++  rest of the old set still has N - W + 1 members and W to seal), restart, wait for `stable`, then drop it from the
++  list.
++- **An indexer is down for a while.** With W admitted members reachable, clients see no change. When it returns it is
++  re-read and caught up. A restart during the outage needs N - W + 1 other admitted members.
++- **An indexer is gone for good, or censored.** Replace it as above while the rest of its set can still commit the
++  change (at most W - 1 lost; see "What a change needs"). An indexer that lost its state (or rolled back past its
++  record) is not admitted until backfilled again; a fresh app key is cleaner.
++- **Do not revert a committed change by editing the list back.** The old set's seals stop it from serving; the
++  newer set then waits for its members.
+ - **Restart or replace the writer.** Stop the old process first: one writer at a time.
+ - **Recover without any indexer.** `sia-s3 recovery export <indexer> <snapshot>` per replica, then `recovery read`
+   (README).
+@@ -191,6 +276,16 @@ Activation needs, none of it done here:
+   - A 16-part manifest key, a 1000-character key, and copies of both work across replicas, survive a reload, and are
+     reclaimed down to floors.
+   - Cold recovery of manifest keys works with the indexer offline.
++  - Membership (reproduced first, failing on 54818ba: `work/storage-membership-repro.log`):
++    - one populated indexer plus two empty ones, the old one offline: not ready, not writable, the empty view never
++      served (with and without a record on the old indexer);
++    - replacing a member after a DELETE acknowledged while the third was down: waits while the old set may be serving
++      elsewhere, migrates under the old rules, commits, and the deletion holds on every new member; reverting the
++      list cannot bring the old set back;
++    - an open multipart upload is handed over by a `retiring` replica and completes on the new set alone;
++    - a commit interrupted after the seal (admissions that never answer) is finished before anything is served,
++      also after a restart;
++    - the state machine itself, record by record (`membership_states_follow_the_records`).
+ 
+ ### Test memory: the disk-backed mock
+ 
+diff --git a/sia-s3/src/config.rs b/sia-s3/src/config.rs
+index 190662f..9105fef 100644
+--- a/sia-s3/src/config.rs
++++ b/sia-s3/src/config.rs
+@@ -23,6 +23,11 @@
+ //!   "writeQuorum": 1, ... }
+ //! ```
+ //!
++//! Changing the set is a migration (replica.rs, "Membership"): a replica that
++//! is leaving stays listed with `"retiring": true` until the new set has been
++//! admitted. It is read from and sealed, but is not a member: `writeQuorum`
++//! counts members only.
++//!
+ //! Indexer URLs are canonicalized (scheme, lowercase host without a trailing
+ //! dot, port only when not the scheme's default, path without a trailing
+ //! slash) and must be distinct. That only stops one endpoint being counted as
+@@ -44,18 +49,25 @@ pub struct ReplicaCfg {
+     pub indexer: String,
+     /// 32-byte seed of the app key registered on this indexer
+     pub app_key: [u8; 32],
++    /// leaving the membership: a source and seal holder for the change, never a member of the new set
++    pub retiring: bool,
+ }
+ 
+ /// Never prints the seed.
+ impl std::fmt::Debug for ReplicaCfg {
+     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+-        f.debug_struct("ReplicaCfg").field("name", &self.name).field("indexer", &self.indexer).field("app_key", &"<redacted>").finish()
++        f.debug_struct("ReplicaCfg")
++            .field("name", &self.name)
++            .field("indexer", &self.indexer)
++            .field("app_key", &"<redacted>")
++            .field("retiring", &self.retiring)
++            .finish()
+     }
+ }
+ 
+ pub struct Config {
+     pub replicas: Vec<ReplicaCfg>,
+-    /// replicas that must commit a write (default: a majority)
++    /// members (replicas not retiring) that must commit a write (default: a majority of them)
+     pub write_quorum: usize,
+     pub region: String,
+     pub buckets: Vec<String>,
+@@ -118,7 +130,7 @@ fn replicas(j: &Value, default_key: Option<&str>) -> Result<Vec<ReplicaCfg>, Str
+             let indexer = resolve(&j["indexer"]).unwrap_or_else(|| "https://sia.enclave.host".into());
+             let indexer = canonical_indexer(&indexer).map_err(|e| format!("indexer: {e}"))?;
+             let key = default_key.ok_or("appKey is missing or unresolved")?;
+-            return Ok(vec![ReplicaCfg { name: "primary".into(), indexer, app_key: key32(key)? }]);
++            return Ok(vec![ReplicaCfg { name: "primary".into(), indexer, app_key: key32(key)?, retiring: false }]);
+         }
+         v @ Value::String(_) => {
+             let raw = resolve(v).ok_or("replicas is unresolved")?;
+@@ -145,7 +157,11 @@ fn replicas(j: &Value, default_key: Option<&str>) -> Result<Vec<ReplicaCfg>, Str
+             v => resolve(v),
+         }
+         .ok_or_else(|| format!("replica {name}: appKey is missing or unresolved"))?;
+-        let rc = ReplicaCfg { name, indexer, app_key: key32(&key).map_err(|e| format!("replica {}: {e}", r["name"]))? };
++        let retiring = match &r["retiring"] {
++            Value::Null => false,
++            v => v.as_bool().ok_or_else(|| format!("replica {name}: retiring must be true or false"))?,
++        };
++        let rc = ReplicaCfg { name, indexer, app_key: key32(&key).map_err(|e| format!("replica {}: {e}", r["name"]))?, retiring };
+         if out.iter().any(|o| o.name == rc.name) {
+             return Err(format!("duplicate replica name {:?}", rc.name));
+         }
+@@ -154,6 +170,9 @@ fn replicas(j: &Value, default_key: Option<&str>) -> Result<Vec<ReplicaCfg>, Str
+         }
+         out.push(rc);
+     }
++    if out.iter().all(|r| r.retiring) {
++        return Err("every replica is retiring: at least one must be a member".into());
++    }
+     for r in &out {
+         if r.indexer.starts_with("http://") {
+             // kept for a local or tunnelled indexer: the SDK signs requests with the app key and verifies sealed
+@@ -200,12 +219,13 @@ pub fn parse(raw: &str) -> Result<Config, String> {
+ 
+     let default_key = if j["appKey"].is_null() { None } else { resolve(&j["appKey"]) };
+     let replicas = replicas(&j, default_key.as_deref())?;
++    let members = replicas.iter().filter(|r| !r.retiring).count();
+     let write_quorum = match &j["writeQuorum"] {
+-        Value::Null => replicas.len() / 2 + 1,
++        Value::Null => members / 2 + 1,
+         v => v.as_u64().ok_or("writeQuorum must be a number")? as usize,
+     };
+-    if !(1..=replicas.len()).contains(&write_quorum) {
+-        return Err(format!("writeQuorum must be 1-{} (the number of replicas)", replicas.len()));
++    if !(1..=members).contains(&write_quorum) {
++        return Err(format!("writeQuorum must be 1-{members} (the number of replicas that are not retiring)"));
+     }
+     let secs = |name: &str, default: u64, min: u64| -> Result<u64, String> {
+         match j[name].as_u64() {
+@@ -277,7 +297,10 @@ mod tests {
+     #[test]
+     fn a_0_1_config_is_one_replica() {
+         let c = cfg(&format!(r#","indexer":"https://sia.enclave.host","appKey":"{K1}""#)).unwrap();
+-        assert_eq!(c.replicas, vec![ReplicaCfg { name: "primary".into(), indexer: "https://sia.enclave.host".into(), app_key: [0x11; 32] }]);
++        assert_eq!(
++            c.replicas,
++            vec![ReplicaCfg { name: "primary".into(), indexer: "https://sia.enclave.host".into(), app_key: [0x11; 32], retiring: false }]
++        );
+         assert_eq!((c.opts.meta_timeout.as_secs(), c.opts.upload_timeout.as_secs(), c.timing.meta_grace.as_secs()), (120, 1800, 5));
+         assert_eq!(c.write_quorum, 1);
+     }
+@@ -294,6 +317,21 @@ mod tests {
+         assert_eq!(c.replicas[2].name, "r2");
+     }
+ 
++    #[test]
++    fn retiring_replicas_are_listed_but_not_members() {
++        let c = cfg(&format!(
++            r#","appKey":"{K1}","replicas":[{{"name":"old","indexer":"https://old.example","retiring":true}},{{"name":"a","indexer":"https://a.example"}},{{"name":"b","indexer":"https://b.example"}},{{"name":"c","indexer":"https://c.example","retiring":false}}]"#
++        ))
++        .unwrap();
++        assert_eq!(c.replicas.iter().map(|r| r.retiring).collect::<Vec<_>>(), [true, false, false, false]);
++        assert_eq!(c.write_quorum, 2, "a majority of the three members");
++        // a retiring replica is still one indexer: listing it twice is refused like any alias
++        let twice = format!(
++            r#","appKey":"{K1}","replicas":[{{"name":"a","indexer":"https://a.example"}},{{"name":"b","indexer":"https://A.example","retiring":true}}]"#
++        );
++        assert!(cfg(&twice).is_err());
++    }
++
+     #[test]
+     fn replicas_may_arrive_as_one_json_string() {
+         let list = format!(r#"[{{"name":"a","indexer":"https://a.example","appKey":"{K1}"}},{{"name":"b","indexer":"https://b.example","appKey":"{K2}"}}]"#);
+@@ -315,6 +353,10 @@ mod tests {
+             format!(r#","appKey":"{K1}","replicas":[{{"name":"a","indexer":"ftp://a.example"}}]"#),
+             format!(r#","appKey":"{K1}","replicas":[]"#),
+             format!(r#","appKey":"{K1}","metadataTimeoutSecs":1"#),
++            // a quorum over a retiring replica, or nothing but retiring ones
++            format!(r#","appKey":"{K1}","replicas":[{{"name":"a","indexer":"https://a.example"}},{{"name":"b","indexer":"https://b.example","retiring":true}}],"writeQuorum":2"#),
++            format!(r#","appKey":"{K1}","replicas":[{{"name":"a","indexer":"https://a.example","retiring":true}}]"#),
++            format!(r#","appKey":"{K1}","replicas":[{{"name":"a","indexer":"https://a.example","retiring":"yes"}}]"#),
+         ] {
+             assert!(cfg(&bad).is_err(), "{bad}");
+         }
+diff --git a/sia-s3/src/main.rs b/sia-s3/src/main.rs
+index 8435ce3..9825f3d 100644
+--- a/sia-s3/src/main.rs
++++ b/sia-s3/src/main.rs
+@@ -93,10 +93,11 @@ async fn load_replica(app: Rc<App>, cfg: Rc<Config>, i: usize) {
+                 eprintln!("[sia-s3] replica {}: boot: {e}; retrying in {wait}s", r.name);
+                 *app.cluster.replicas[i].error.borrow_mut() = Some(format!("boot: {e}"));
+                 *app.boot_error.borrow_mut() = Some(format!(
+-                    "{} of {} replicas needed are loaded ({}: {e})",
++                    "{} of {} replicas are loaded ({}: {e}){}",
+                     app.cluster.loaded().len(),
+-                    app.cluster.read_quorum(),
+-                    r.name
++                    app.cluster.n(),
++                    r.name,
++                    app.cluster.ms_reason().map(|m| format!("; {m}")).unwrap_or_default()
+                 ));
+                 tokio::time::sleep(Duration::from_secs(wait)).await;
+                 wait = (wait * 2).min(300);
+@@ -104,10 +105,8 @@ async fn load_replica(app: Rc<App>, cfg: Rc<Config>, i: usize) {
+         }
+     };
+     app.cluster.attach(i, store.clone()).await;
+-    eprintln!("[sia-s3] replica {} loaded ({}/{} loaded, {} needed)", r.name, app.cluster.loaded().len(), app.cluster.n(), app.cluster.read_quorum());
+-    if app.cluster.ready() {
+-        *app.boot_error.borrow_mut() = None;
+-    }
++    eprintln!("[sia-s3] replica {} loaded ({}/{} loaded)", r.name, app.cluster.loaded().len(), app.cluster.n());
++    *app.boot_error.borrow_mut() = if app.cluster.ready() { None } else { app.cluster.ms_reason() };
+     store.sweep().await;
+ }
+ 
+@@ -115,9 +114,19 @@ async fn boot(app: Rc<App>, cfg: Rc<Config>) {
+     for i in 0..cfg.replicas.len() {
+         tokio::task::spawn_local(load_replica(app.clone(), cfg.clone(), i));
+     }
++    // a membership change that was sealed but not finished is finished before anything is served: maintenance
++    // backfills and admits the configured members while every request answers 503
++    let mut last: Option<std::time::Instant> = None;
+     while !app.cluster.ready() {
++        if app.cluster.pending() && last.is_none_or(|t| t.elapsed() >= Duration::from_secs(cfg.repair_every_secs.min(60))) {
++            let r = app.cluster.repair(cfg.repair_max_bytes).await;
++            eprintln!("[sia-s3] finishing the membership change: {} copies, {} parts, {} records, {} pending", r.copies, r.parts, r.admitted, r.pending);
++            *app.boot_error.borrow_mut() = app.cluster.ms_reason();
++            last = Some(std::time::Instant::now());
++        }
+         tokio::time::sleep(Duration::from_secs(1)).await;
+     }
++    *app.boot_error.borrow_mut() = None;
+     eprintln!("[sia-s3] ready");
+     // with one indexer too: unknown outcomes are re-read, dead versions purged and tombstones collected
+     tokio::task::spawn_local(repair_loop(app.cluster.clone(), cfg.repair_every_secs, cfg.repair_max_bytes));
+@@ -150,10 +159,10 @@ async fn repair_loop(cluster: Rc<Cluster>, every: u64, max_bytes: u64) {
+     loop {
+         tokio::time::sleep(Duration::from_secs(every)).await;
+         let r = cluster.repair(max_bytes).await;
+-        if r.reconciled + r.purged + r.copies + r.deletes + r.floors + r.reclaimed + r.merged + r.pending > 0 {
++        if r.reconciled + r.purged + r.copies + r.deletes + r.floors + r.reclaimed + r.merged + r.parts + r.admitted + r.pending > 0 {
+             eprintln!(
+-                "[sia-s3] repair: {} re-read, {} dead versions purged, {} copies, {} deletes, {} floors written, {} tombstones reclaimed, {} ledgers merged, {} pending",
+-                r.reconciled, r.purged, r.copies, r.deletes, r.floors, r.reclaimed, r.merged, r.pending
++                "[sia-s3] repair: {} re-read, {} dead versions purged, {} copies, {} deletes, {} floors written, {} tombstones reclaimed, {} ledgers merged, {} multipart parts copied, {} membership records, {} pending",
++                r.reconciled, r.purged, r.copies, r.deletes, r.floors, r.reclaimed, r.merged, r.parts, r.admitted, r.pending
+             );
+         }
+     }
+@@ -232,7 +241,7 @@ fn main() {
+ 
+     local.block_on(&rt, async move {
+         let cluster = Cluster::new(
+-            cfg.replicas.iter().map(|r| (r.name.clone(), r.indexer.clone())).collect(),
++            cfg.replicas.iter().map(|r| (r.name.clone(), r.indexer.clone(), r.retiring)).collect(),
+             cfg.write_quorum,
+             cfg.opts.clone(),
+             cfg.timing.clone(),
+diff --git a/sia-s3/src/replica.rs b/sia-s3/src/replica.rs
+index 0bee0f1..9a2ce5f 100644
+--- a/sia-s3/src/replica.rs
++++ b/sia-s3/src/replica.rs
+@@ -11,9 +11,10 @@
+ //!   - Every write is stamped with a version (`Entry::ver`: a millisecond clock
+ //!     that only moves forward, plus a random write id). Replicas are merged by
+ //!     taking the newest version of each key; a newer tombstone hides it.
+-//!   - A write succeeds when `writeQuorum` (W) replicas commit it. Serving
+-//!     starts once N - W + 1 replicas have loaded, so every write that was
+-//!     acknowledged is in the merged view (any W set meets any N - W + 1 set).
++//!   - A write succeeds when `writeQuorum` (W) admitted replicas commit it.
++//!     Serving starts once N - W + 1 admitted replicas have loaded, so every
++//!     write that was acknowledged is in the merged view (any W set meets any
++//!     N - W + 1 set). "Admitted" is below, under "Membership".
+ //!   - Latency: every replica call has a deadline. Once W replicas have
+ //!     answered, the rest get a short grace period and are then abandoned, so
+ //!     one slow or hung indexer delays a write by at most that grace (or fails
+@@ -51,6 +52,35 @@
+ //! against Sia sector proofs), but it can withhold or replay them: this is not
+ //! Byzantine-fault-tolerant storage, and a lying majority defeats it.
+ //!
++//! Membership: quorum intersection only covers writes acknowledged by W
++//! members of the *current* replica set. Data written under another set (a
++//! single indexer before replication, or a set a replica was added to or
++//! removed from) is not covered, so every replica keeps durable membership
++//! records (store.rs `MsRec`) and only *admitted* replicas count:
++//!   - A membership is an epoch, a write quorum and its members (by indexer
++//!     URL). A replica is admitted to it by an `admit` record, written only
++//!     once it holds the complete history: every key at the newest version,
++//!     every deletion, every open multipart part.
++//!   - Serving needs N - W + 1 admitted members loaded, and only admitted
++//!     members count toward W (and toward a DELETE's durability). A new
++//!     member is written to and backfilled, but votes only once admitted.
++//!   - Changing the configured set (a *migration*) keeps the old set's rules
++//!     (its members vote, its quorums) while maintenance backfills the new
++//!     members. Once every new member is caught up, the change is committed
++//!     under the write lock: `seal` records go to the old members (W of them
++//!     at least), then `admit` records to the new ones. An old quorum always
++//!     meets a seal, so the old set never serves again; a set that never
++//!     reached N - W + 1 admissions never acknowledged anything, so a change
++//!     interrupted half way is finished from where it stopped.
++//!   - A deployment without records (0.1.x, or one indexer) is ready on its one
++//!     indexer as before, and records it at the first maintenance pass. With
++//!     several indexers and no records it is ready only when every configured
++//!     indexer is loaded: then their union includes the old one's data.
++//!   - Replicas leaving the set stay configured with `retiring: true` until the
++//!     change commits: sources and seal holders, written to only while the
++//!     old set they belong to still acts. A replica is known by its canonical
++//!     indexer URL, so changing that URL is a membership change too.
++//!
+ //! Writers: there must be one sia-s3 process writing to a set of app keys at a
+ //! time. indexd offers no fencing (no conditional pin), so a second writer is
+ //! invisible to this one until a reload, and two writers can make conditional
+@@ -73,11 +103,17 @@ use sia_storage::Object;
+ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+ use tokio::sync::Mutex;
+ 
+-use crate::store::{Completion, Cond, Entry, KK, Opts, Placement, Res, Store, Tomb, Ver, md5_hex, new_id, new_wid, now_ms, qkey};
++use crate::store::{
++    Completion, Cond, Entry, KK, MsDef, MsRec, Opts, Placement, Res, Store, Tomb, Ver, md5_hex, member_id, new_id, new_wid, now_ms, qkey,
++};
+ 
+ pub struct Replica {
+     pub name: String,
+     pub indexer: String,
++    /// its name in membership records (`member_id` of the indexer URL)
++    pub id: String,
++    /// listed only as a source for a membership change, not a member
++    pub retiring: bool,
+     store: RefCell<Option<Rc<Store>>>,
+     pub error: RefCell<Option<String>>,
+ }
+@@ -112,6 +148,52 @@ pub struct ClusterStats {
+     pub last_repair_error: Option<String>,
+ }
+ 
++/// Where the cluster stands with its membership (module docs, "Membership").
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
++#[serde(rename_all = "camelCase")]
++pub enum Phase {
++    /// no replica loaded yet
++    #[default]
++    Loading,
++    /// no membership records anywhere: one indexer, or every configured one loaded
++    Legacy,
++    /// the configured set is the admitted one
++    Stable,
++    /// serving under the previous set's rules while the configured set is backfilled
++    Migrating,
++    /// the configured set was sealed but has not reached N - W + 1 admissions: finishing that, not serving
++    Pending,
++    /// the admitted set may be serving from replicas that are not loaded
++    Waiting,
++    /// the records cannot be acted on as configured
++    Refused,
++}
++
++/// The membership state computed from the loaded replicas' records.
++#[derive(Clone, Debug, Default, PartialEq)]
++pub struct MsState {
++    pub phase: Phase,
++    pub ready: bool,
++    /// replicas whose acknowledgements count (empty unless ready)
++    pub voters: Vec<usize>,
++    /// acknowledgements a write needs
++    pub need: usize,
++    /// the set whose rules apply (None: records do not exist yet)
++    pub acting: Option<MsDef>,
++    /// the configured set, as it is (to be) admitted, and the set its records name as replaced
++    pub target: MsDef,
++    pub prev: Option<MsDef>,
++    /// loaded replicas holding the complete history between them, and how many of them must be complete
++    pub sources: Vec<usize>,
++    pub sources_needed: usize,
++    /// loaded replicas to seal before any admission to `target`, and how many seals that needs
++    pub seal_to: Vec<usize>,
++    pub seal_needed: usize,
++    /// admit every configured member at once (a change), rather than one at a time (joining)
++    pub commit: bool,
++    pub reason: Option<String>,
++}
++
+ #[derive(Default, Debug, PartialEq)]
+ pub struct RepairReport {
+     pub reconciled: usize,
+@@ -124,6 +206,10 @@ pub struct RepairReport {
+     pub reclaimed: usize,
+     /// ledgers merged away
+     pub merged: usize,
++    /// open multipart parts copied to members that lacked them
++    pub parts: usize,
++    /// membership records written (seals and admissions)
++    pub admitted: usize,
+     /// work left for the next pass (byte budget spent, or a replica failed)
+     pub pending: usize,
+ }
+@@ -145,6 +231,17 @@ impl Default for Timing {
+     }
+ }
+ 
++/// One version of an open multipart part as the sources hold it.
++struct PartVariant {
++    b: String,
++    k: String,
++    started: i64,
++    etag: String,
++    size: u64,
++    /// the replicas holding it, with their part objects
++    held: Vec<(usize, Object)>,
++}
++
+ /// Uploaded bodies awaiting commit, one object per replica that stored it. Nothing in it is pinned as an object, so
+ /// dropping it leaves only slabs, which `prune_slabs` reclaims.
+ #[derive(Default)]
+@@ -161,6 +258,7 @@ pub struct Cluster {
+     write: Mutex<()>,
+     clock: Cell<u64>,
+     pub view: RefCell<View>,
++    pub ms: RefCell<MsState>,
+     pub stats: RefCell<ClusterStats>,
+ }
+ 
+@@ -189,14 +287,14 @@ pub async fn join_all<F: Future>(futs: Vec<F>) -> Vec<F::Output> {
+     out.into_iter().map(|o| o.expect("polled to completion")).collect()
+ }
+ 
+-/// Run one call per replica concurrently. Returns when all have finished; or `grace` after `need` of them succeeded;
+-/// or at `deadline`. Calls still running then are dropped (cancelled) and come back as None.
++/// Run one call per replica concurrently. Returns when all have finished; or `grace` after `need` of them succeeded
++/// (`success` sees the replica and its result); or at `deadline`. Calls still running then are dropped (cancelled) and come back as None.
+ pub async fn fan_out<T, F: Future<Output = Res<T>>>(
+     jobs: Vec<(usize, F)>,
+     need: usize,
+     grace: Duration,
+     deadline: Duration,
+-    success: impl Fn(&Res<T>) -> bool,
++    success: impl Fn(usize, &Res<T>) -> bool,
+ ) -> Vec<(usize, Option<Res<T>>)> {
+     let ids: Vec<usize> = jobs.iter().map(|(i, _)| *i).collect();
+     let mut futs: Vec<Option<Pin<Box<F>>>> = jobs.into_iter().map(|(_, f)| Some(Box::pin(f))).collect();
+@@ -205,7 +303,7 @@ pub async fn fan_out<T, F: Future<Output = Res<T>>>(
+     let mut grace_timer: Option<Pin<Box<tokio::time::Sleep>>> = None;
+     std::future::poll_fn(|cx: &mut Context<'_>| {
+         let (mut running, mut good) = (0, 0);
+-        for (f, o) in futs.iter_mut().zip(out.iter_mut()) {
++        for ((f, o), i) in futs.iter_mut().zip(out.iter_mut()).zip(&ids) {
+             if let Some(fut) = f {
+                 if let Poll::Ready(r) = fut.as_mut().poll(cx) {
+                     *o = Some(r);
+@@ -213,7 +311,7 @@ pub async fn fan_out<T, F: Future<Output = Res<T>>>(
+                 }
+             }
+             match o {
+-                Some(r) if success(r) => good += 1,
++                Some(r) if success(*i, r) => good += 1,
+                 Some(_) => {}
+                 None => running += 1,
+             }
+@@ -277,18 +375,32 @@ fn cond_ok(v: &View, kk: &KK, cond: &Cond) -> Res<()> {
+     if ok { Ok(()) } else { Err("PreconditionFailed".into()) }
+ }
+ 
++/// Does `s` hold a record for membership `d` (an admission, when `admit`)?
++async fn holds(s: &Store, admit: bool, d: &MsDef) -> bool {
++    s.idx.lock().await.records.iter().any(|(_, r)| r.d == *d && (!admit || r.admit()))
++}
++
+ fn committed(r: &Res<bool>) -> bool {
+     matches!(r, Ok(true))
+ }
+ 
+ impl Cluster {
+-    /// `replicas`: (name, indexer URL) in configured order. 1 <= `write_quorum` <= replicas.
+-    pub fn new(replicas: Vec<(String, String)>, write_quorum: usize, opts: Opts, timing: Timing) -> Cluster {
+-        assert!(!replicas.is_empty() && (1..=replicas.len()).contains(&write_quorum));
++    /// `replicas`: (name, canonical indexer URL, retiring) in configured order. 1 <= `write_quorum` <= members (the
++    /// replicas not retiring).
++    pub fn new(replicas: Vec<(String, String, bool)>, write_quorum: usize, opts: Opts, timing: Timing) -> Cluster {
++        let members = replicas.iter().filter(|r| !r.2).count();
++        assert!((1..=members).contains(&write_quorum));
+         Cluster {
+             replicas: replicas
+                 .into_iter()
+-                .map(|(name, indexer)| Replica { name, indexer, store: RefCell::new(None), error: RefCell::new(None) })
++                .map(|(name, indexer, retiring)| Replica {
++                    name,
++                    id: member_id(&indexer),
++                    indexer,
++                    retiring,
++                    store: RefCell::new(None),
++                    error: RefCell::new(None),
++                })
+                 .collect(),
+             write_quorum,
+             opts,
+@@ -296,6 +408,7 @@ impl Cluster {
+             write: Mutex::new(()),
+             clock: Cell::new(0),
+             view: Default::default(),
++            ms: Default::default(),
+             stats: Default::default(),
+         }
+     }
+@@ -304,9 +417,14 @@ impl Cluster {
+         self.replicas.len()
+     }
+ 
+-    /// Replicas that must be loaded before the merged view is complete.
++    /// The configured members (replicas not retiring).
++    pub fn members(&self) -> Vec<usize> {
++        (0..self.n()).filter(|i| !self.replicas[*i].retiring).collect()
++    }
++
++    /// Admitted members of the configured set that must be loaded before the merged view is complete.
+     pub fn read_quorum(&self) -> usize {
+-        self.n() - self.write_quorum + 1
++        self.members().len() - self.write_quorum + 1
+     }
+ 
+     pub fn store(&self, i: usize) -> Option<Rc<Store>> {
+@@ -317,8 +435,166 @@ impl Cluster {
+         self.replicas.iter().enumerate().filter_map(|(i, r)| r.store().map(|s| (i, s))).collect()
+     }
+ 
++    /// Is the merged view complete, so the cluster may serve? See "Membership" in the module docs.
+     pub fn ready(&self) -> bool {
+-        self.loaded().len() >= self.read_quorum()
++        self.ms.borrow().ready
++    }
++
++    /// Why the cluster is not ready, when its membership is the reason.
++    pub fn ms_reason(&self) -> Option<String> {
++        self.ms.borrow().reason.clone()
++    }
++
++    /// Is a sealed membership change waiting to be finished (maintenance must run although nothing is served)?
++    pub fn pending(&self) -> bool {
++        self.ms.borrow().phase == Phase::Pending
++    }
++
++    fn voters(&self) -> Vec<usize> {
++        self.ms.borrow().voters.clone()
++    }
++
++    fn need(&self) -> usize {
++        self.ms.borrow().need.max(1)
++    }
++
++    /// How many of `ids` count toward a write quorum.
++    fn votes(&self, ids: impl IntoIterator<Item = usize>) -> usize {
++        let v = self.voters();
++        ids.into_iter().filter(|i| v.contains(i)).count()
++    }
++
++    /// Loaded replicas a write goes to: the voters and the configured members (new members are written to before
++    /// they vote; retiring replicas only while they vote).
++    pub fn targets(&self) -> Vec<(usize, Rc<Store>)> {
++        let v = self.voters();
++        self.loaded().into_iter().filter(|(i, _)| !self.replicas[*i].retiring || v.contains(i)).collect()
++    }
++
++    /// Loaded configured members: what maintenance brings up to the merged view.
++    fn backfill_targets(&self) -> Vec<(usize, Rc<Store>)> {
++        self.loaded().into_iter().filter(|(i, _)| !self.replicas[*i].retiring).collect()
++    }
++
++    /// The membership state the loaded replicas' records give (module docs, "Membership"). `recs`: each loaded
++    /// replica and the records it holds.
++    pub fn membership(&self, recs: &[(usize, Vec<MsRec>)]) -> MsState {
++        let n = self.n();
++        let members = self.members();
++        let mut cfg_m: Vec<String> = members.iter().map(|i| self.replicas[*i].id.clone()).collect();
++        cfg_m.sort();
++        let cfg = MsDef { s: 1, w: self.write_quorum as u32, m: cfg_m };
++        let loaded: Vec<usize> = recs.iter().map(|(i, _)| *i).collect();
++        let retiring: Vec<usize> = (0..n).filter(|i| self.replicas[*i].retiring).collect();
++        let in_set = |i: usize, d: &MsDef| d.m.contains(&self.replicas[i].id);
++        let rq = |d: &MsDef| d.m.len() + 1 - d.w as usize;
++        let mut st = MsState { target: cfg.clone(), need: self.write_quorum, ..Default::default() };
++        if loaded.is_empty() {
++            st.reason = Some("no replica is loaded".into());
++            return st;
++        }
++        let Some(top) = recs.iter().flat_map(|(_, rs)| rs.iter().map(|r| r.d.s)).max() else {
++            // no records: a deployment from before them
++            st.phase = Phase::Legacy;
++            st.commit = true;
++            st.sources = loaded.clone();
++            if n == 1 {
++                st.sources_needed = 1;
++                st.ready = true;
++            } else {
++                st.sources_needed = n;
++                st.seal_to = retiring.iter().copied().filter(|i| loaded.contains(i)).collect();
++                st.seal_needed = retiring.len();
++                st.ready = loaded.len() == n;
++                if !st.ready {
++                    st.reason = Some(format!(
++                        "no membership records yet: all {n} configured indexers must be loaded, so that the one holding the existing data is among them ({} are)",
++                        loaded.len()
++                    ));
++                }
++            }
++            if st.ready {
++                st.voters = loaded;
++            }
++            return st;
++        };
++        let at_top: Vec<(usize, &MsRec)> = recs.iter().flat_map(|(i, rs)| rs.iter().filter(|r| r.d.s == top).map(move |r| (*i, r))).collect();
++        let (cur, prev) = (at_top[0].1.d.clone(), at_top[0].1.p.clone());
++        let bad = |d: &MsDef| d.w == 0 || d.w as usize > d.m.len();
++        if at_top.iter().any(|(_, r)| r.d != cur || r.p != prev) || bad(&cur) || prev.as_ref().is_some_and(bad) {
++            st.phase = Phase::Refused;
++            st.reason = Some(format!("the membership records for epoch {top} disagree or are malformed; refusing to serve"));
++            return st;
++        }
++        let mut admitted: Vec<usize> = at_top.iter().filter(|(i, r)| r.admit() && in_set(*i, &cur)).map(|(i, _)| *i).collect();
++        admitted.dedup();
++        let unseen = cur.m.iter().filter(|id| !loaded.iter().any(|i| self.replicas[*i].id == **id)).count();
++        let configured = cur.m == cfg.m && cur.w == cfg.w;
++        let short = format!("{} of the {} needed admitted members of epoch {top} are loaded", admitted.len(), rq(&cur));
++        st.acting = Some(cur.clone());
++        if admitted.len() >= rq(&cur) {
++            st.ready = true;
++            st.voters = admitted.clone();
++            st.need = cur.w as usize;
++            st.sources = admitted;
++            st.sources_needed = rq(&cur);
++            if configured {
++                st.phase = Phase::Stable;
++                st.target = cur;
++                st.prev = prev;
++            } else {
++                st.phase = Phase::Migrating;
++                st.commit = true;
++                st.target = MsDef { s: top + 1, ..cfg };
++                st.seal_to = loaded.iter().copied().filter(|i| in_set(*i, &cur)).collect();
++                st.seal_needed = cur.w as usize;
++                st.prev = Some(cur);
++            }
++        } else if admitted.len() + unseen >= rq(&cur) {
++            // members not loaded may hold admissions: that set may have acknowledged writes only they hold
++            st.phase = Phase::Waiting;
++            st.reason = Some(format!("{short}; waiting for the others"));
++        } else if !configured {
++            st.phase = Phase::Refused;
++            st.reason = Some(format!(
++                "a change to the membership of epoch {top} ({} indexers, writeQuorum {}) was begun and not finished; configure that set again (the replicas it replaced listed as retiring) to finish it",
++                cur.m.len(),
++                cur.w
++            ));
++        } else {
++            // this set never had N - W + 1 admissions, so it never acknowledged a write: its admitted members and the
++            // set it replaced still hold everything
++            st.phase = Phase::Pending;
++            st.reason = Some(format!("finishing the membership change to epoch {top}: {short}"));
++            st.target = cur.clone();
++            st.prev = prev.clone();
++            if !admitted.is_empty() {
++                st.sources = admitted;
++                st.sources_needed = 1;
++            } else {
++                match &prev {
++                    None => {
++                        st.sources = loaded.clone();
++                        st.sources_needed = n;
++                        st.seal_to = retiring.iter().copied().filter(|i| loaded.contains(i)).collect();
++                        st.seal_needed = retiring.len();
++                    }
++                    Some(p) => {
++                        let newest = |i: usize| recs.iter().find(|(j, _)| *j == i).and_then(|(_, rs)| rs.iter().max_by_key(|r| (r.d.s, r.admit())));
++                        st.sources = loaded
++                            .iter()
++                            .copied()
++                            .filter(|i| in_set(*i, p))
++                            .filter(|i| newest(*i).is_some_and(|r| r.d.s == top || (r.admit() && r.d == *p)))
++                            .collect();
++                        st.sources_needed = rq(p);
++                        st.seal_to = loaded.iter().copied().filter(|i| in_set(*i, p)).collect();
++                        st.seal_needed = p.w as usize;
++                    }
++                }
++            }
++        }
++        st
+     }
+ 
+     /// Deadline for one replica's commit-phase call (a few metadata calls in sequence).
+@@ -342,10 +618,10 @@ impl Cluster {
+     fn refuse(&self, what: &str, ok: usize, errs: &[String]) -> String {
+         self.stats.borrow_mut().refused_writes += 1;
+         format!(
+-            "ServiceUnavailable: {what} reached {ok} of {} replicas, {} required ({})",
+-            self.n(),
+-            self.write_quorum,
+-            if errs.is_empty() { "replicas not loaded".to_string() } else { errs.join("; ") }
++            "ServiceUnavailable: {what} reached {ok} of {} admitted replicas, {} required ({})",
++            self.voters().len(),
++            self.need(),
++            if errs.is_empty() { "replicas not loaded or not admitted".to_string() } else { errs.join("; ") }
+         )
+     }
+ 
+@@ -363,7 +639,8 @@ impl Cluster {
+         } else {
+             (self.timing.upload_grace, self.opts.upload_timeout + self.opts.meta_timeout * 4)
+         };
+-        let out = fan_out(jobs, self.write_quorum, grace, deadline, success).await;
++        let voters = self.voters();
++        let out = fan_out(jobs, self.need(), grace, deadline, |i, r| voters.contains(&i) && success(r)).await;
+         let mut done = Vec::new();
+         let mut errs = Vec::new();
+         for (i, r) in out {
+@@ -457,6 +734,24 @@ impl Cluster {
+         v.keys.retain(|kk, e| tombs.get(&qkey(&kk.0, &kk.1)).is_none_or(|t| t.ver() < e.ver()));
+         self.clock.set(clock);
+         *self.view.borrow_mut() = v;
++        let mut recs = Vec::new();
++        for (i, s) in self.loaded() {
++            recs.push((i, s.idx.lock().await.records.iter().map(|(_, r)| r.clone()).collect()));
++        }
++        let st = self.membership(&recs);
++        let was = self.ms.replace(st.clone());
++        if (was.phase, was.ready, &was.acting, &was.target, &was.voters) != (st.phase, st.ready, &st.acting, &st.target, &st.voters) {
++            eprintln!(
++                "[sia-s3] membership: {:?}{}, epoch {} -> {}, {} voting of {} needed{}",
++                st.phase,
++                if st.ready { " (ready)" } else { "" },
++                st.acting.as_ref().map_or(0, |a| a.s),
++                st.target.s,
++                st.voters.len(),
++                st.need,
++                st.reason.as_ref().map(|r| format!(": {r}")).unwrap_or_default()
++            );
++        }
+     }
+ 
+     /// Recompute one key of the merged view.
+@@ -575,16 +870,17 @@ impl Cluster {
+ 
+     fn staged(&self, what: &str, results: Vec<(usize, Res<Object>)>, errs: Vec<String>) -> Res<Staged> {
+         let objs: Vec<(usize, Object)> = results.into_iter().filter_map(|(i, r)| r.ok().map(|o| (i, o))).collect();
+-        if objs.len() < self.write_quorum {
+-            return Err(self.refuse(what, objs.len(), &errs));
++        let votes = self.votes(objs.iter().map(|(i, _)| *i));
++        if votes < self.need() {
++            return Err(self.refuse(what, votes, &errs));
+         }
+         Ok(Staged { objs })
+     }
+ 
+     /// Upload a buffered body to every loaded replica.
+     pub async fn upload(&self, body: Vec<u8>) -> Res<Staged> {
+-        let stores = self.loaded();
+-        if stores.len() < self.write_quorum {
++        let stores = self.targets();
++        if self.votes(stores.iter().map(|(i, _)| *i)) < self.need() {
+             return Err(self.refuse("upload", 0, &[]));
+         }
+         let body: Rc<[u8]> = body.into();
+@@ -603,8 +899,8 @@ impl Cluster {
+     /// stops taking data for the stall time, is dropped from the tee; the others continue. A reader that ends early
+     /// ends every upload short; the caller's size and hash checks refuse those.
+     pub async fn upload_reader<R: AsyncRead + Unpin>(&self, mut reader: R) -> Res<Staged> {
+-        let stores = self.loaded();
+-        if stores.len() < self.write_quorum {
++        let stores = self.targets();
++        if self.votes(stores.iter().map(|(i, _)| *i)) < self.need() {
+             return Err(self.refuse("upload", 0, &[]));
+         }
+         let mut txs = Vec::new();
+@@ -676,8 +972,9 @@ impl Cluster {
+             .collect();
+         let (placed, errs) = self.fan("place", jobs, false, Result::is_ok).await;
+         let placed: Vec<(usize, (Object, Placement))> = placed.into_iter().filter_map(|(i, r)| r.ok().map(|p| (i, p))).collect();
+-        if placed.len() < self.write_quorum {
+-            return Err(self.refuse("PUT", placed.len(), &errs));
++        let votes = self.votes(placed.iter().map(|(i, _)| *i));
++        if votes < self.need() {
++            return Err(self.refuse("PUT", votes, &errs));
+         }
+ 
+         let _w = self.write.lock().await;
+@@ -692,9 +989,9 @@ impl Cluster {
+             })
+             .collect();
+         let (results, errs) = self.fan("PUT", jobs, true, committed).await;
+-        let ok = results.iter().filter(|(_, r)| committed(r)).count();
++        let ok = self.votes(results.iter().filter(|(_, r)| committed(r)).map(|(i, _)| *i));
+         self.refresh_key(&kk).await;
+-        if ok >= self.write_quorum { Ok(()) } else { Err(self.refuse("PUT", ok, &errs)) }
++        if ok >= self.need() { Ok(()) } else { Err(self.refuse("PUT", ok, &errs)) }
+     }
+ 
+     pub async fn copy(&self, src: (&str, &str), dst: (&str, &str)) -> Res<(String, i64)> {
+@@ -708,7 +1005,7 @@ impl Cluster {
+         let sv = se.ver();
+         let proto = Entry { b: dkk.0.clone(), k: dkk.1.clone(), m: 0, h: 0, i: String::new(), x: vec![], ..se };
+         let jobs = self
+-            .loaded()
++            .targets()
+             .into_iter()
+             .map(|(i, s)| {
+                 let (skk, sv, proto) = (skk.clone(), sv.clone(), proto.clone());
+@@ -717,8 +1014,9 @@ impl Cluster {
+             .collect();
+         let (placed, errs) = self.fan("copy", jobs, false, |r| matches!(r, Ok(Some(_)))).await;
+         let placed: Vec<(usize, Placement)> = placed.into_iter().filter_map(|(i, r)| r.ok().flatten().map(|p| (i, p))).collect();
+-        if placed.len() < self.write_quorum {
+-            return Err(self.refuse("copy", placed.len(), &errs));
++        let votes = self.votes(placed.iter().map(|(i, _)| *i));
++        if votes < self.need() {
++            return Err(self.refuse("copy", votes, &errs));
+         }
+ 
+         let _w = self.write.lock().await;
+@@ -734,9 +1032,9 @@ impl Cluster {
+             })
+             .collect();
+         let (results, errs) = self.fan("copy", jobs, true, committed).await;
+-        let ok = results.iter().filter(|(_, r)| committed(r)).count();
++        let ok = self.votes(results.iter().filter(|(_, r)| committed(r)).map(|(i, _)| *i));
+         self.refresh_key(&dkk).await;
+-        if ok >= self.write_quorum { Ok((d.t, d.m)) } else { Err(self.refuse("copy", ok, &errs)) }
++        if ok >= self.need() { Ok((d.t, d.m)) } else { Err(self.refuse("copy", ok, &errs)) }
+     }
+ 
+     pub async fn delete(&self, b: &str, k: &str) -> Res<()> {
+@@ -744,6 +1042,10 @@ impl Cluster {
+         let q = qkey(b, k);
+         let (t, errs) = {
+             let _w = self.write.lock().await;
++            let votes = self.votes(self.targets().into_iter().map(|(i, _)| i));
++            if votes < self.need() {
++                return Err(self.refuse("DELETE", votes, &[]));
++            }
+             let (live, tomb) = {
+                 let v = self.view.borrow();
+                 (v.keys.contains_key(&kk), v.tombs.get(&q).cloned())
+@@ -755,7 +1057,7 @@ impl Cluster {
+                 (false, None) => return Ok(()),
+             };
+             let jobs = self
+-                .loaded()
++                .targets()
+                 .into_iter()
+                 .map(|(i, s)| {
+                     let (kk, t) = (kk.clone(), t.clone());
+@@ -768,7 +1070,7 @@ impl Cluster {
+         };
+         let (mut recorded, mut missing) = self.recorded(&t).await;
+         let mut errs = errs;
+-        if recorded < self.write_quorum && !missing.is_empty() {
++        if recorded < self.need() && !missing.is_empty() {
+             // the others record the deletion as a floor in a new ledger (an upload, so outside the write lock:
+             // floors only ever add, and a floor hides the key wherever it is)
+             let jobs = missing
+@@ -782,27 +1084,28 @@ impl Cluster {
+             errs.extend(more);
+             recorded = self.recorded(&t).await.0;
+         }
+-        if recorded >= self.write_quorum {
++        if recorded >= self.need() {
+             Ok(())
+         } else {
+             self.stats.borrow_mut().refused_writes += 1;
+             Err(format!(
+-                "ServiceUnavailable: DELETE recorded durably on {recorded} of {} replicas, {} required{}",
+-                self.n(),
+-                self.write_quorum,
++                "ServiceUnavailable: DELETE recorded durably on {recorded} of {} admitted replicas, {} required{}",
++                self.voters().len(),
++                self.need(),
+                 if errs.is_empty() { String::new() } else { format!(" ({})", errs.join("; ")) }
+             ))
+         }
+     }
+ 
+-    /// Replicas that durably hold deletion `t` (a tombstone or floor at least as new), and the loaded ones that do
++    /// Voters that durably hold deletion `t` (a tombstone or floor at least as new), and the write targets that do
+     /// not (a floor in a new ledger records it there, whether or not they hold the key).
+     async fn recorded(&self, t: &Tomb) -> (usize, Vec<(usize, Rc<Store>)>) {
++        let voters = self.voters();
+         let mut recorded = 0;
+         let mut missing = Vec::new();
+-        for (i, s) in self.loaded() {
++        for (i, s) in self.targets() {
+             if s.idx.lock().await.tomb(&t.q).is_some_and(|x| x.ver() >= t.ver()) {
+-                recorded += 1;
++                recorded += voters.contains(&i) as usize;
+             } else {
+                 missing.push((i, s.clone()));
+             }
+@@ -820,9 +1123,10 @@ impl Cluster {
+     }
+ 
+     pub async fn create_upload(&self, b: &str, k: &str) -> Res<String> {
+-        let stores = self.loaded();
+-        if stores.len() < self.write_quorum {
+-            return Err(self.refuse("CreateMultipartUpload", stores.len(), &[]));
++        let stores = self.targets();
++        let votes = self.votes(stores.iter().map(|(i, _)| *i));
++        if votes < self.need() {
++            return Err(self.refuse("CreateMultipartUpload", votes, &[]));
+         }
+         let uid = new_id();
+         let started = now();
+@@ -845,8 +1149,9 @@ impl Cluster {
+ 
+     pub async fn upload_part(&self, uid: &str, n: u32, body: Vec<u8>) -> Res<String> {
+         let (b, k, started) = self.find_upload(uid).await.ok_or("NoSuchUpload")?;
+-        let stores = self.loaded();
+-        if stores.len() < self.write_quorum {
++        let stores = self.targets();
++        let acting = self.ms.borrow().acting.clone();
++        if self.votes(stores.iter().map(|(i, _)| *i)) < self.need() {
+             return Err(self.refuse("UploadPart", 0, &[]));
+         }
+         let body: Rc<[u8]> = body.into();
+@@ -865,14 +1170,22 @@ impl Cluster {
+         if !results.is_empty() && results.iter().all(|(_, r)| matches!(r, Err(e) if e == "NoSuchUpload")) {
+             return Err("NoSuchUpload".into()); // aborted meanwhile
+         }
+-        let ok = results.iter().filter(|(_, r)| r.is_ok()).count();
+-        if ok >= self.write_quorum { Ok(etag) } else { Err(self.refuse("UploadPart", ok, &errs)) }
++        // parts are uploaded outside the write lock, but counted under it: a membership commit (which holds it) sees
++        // every part acknowledged before it, and a part that straddled a commit is refused and retried. (A member
++        // admitted meanwhile to the same set changes nothing: a W set of the members admitted when the part was
++        // acknowledged meets every later N - W + 1 set of admitted members.)
++        let _w = self.write.lock().await;
++        if self.ms.borrow().acting != acting {
++            return Err("ServiceUnavailable: the membership changed during the upload; retry".into());
++        }
++        let ok = self.votes(results.iter().filter(|(_, r)| r.is_ok()).map(|(i, _)| *i));
++        if ok >= self.need() { Ok(etag) } else { Err(self.refuse("UploadPart", ok, &errs)) }
+     }
+ 
+     pub async fn complete_upload(&self, uid: &str, want: &[(u32, String)]) -> Res<(String, String, String)> {
+         let (b, k, _) = self.find_upload(uid).await.ok_or("NoSuchUpload")?;
+         let mut holders = Vec::new();
+-        for (i, s) in self.loaded() {
++        for (i, s) in self.targets() {
+             if s.idx.lock().await.uploads.contains_key(uid) {
+                 holders.push((i, s));
+             }
+@@ -883,10 +1196,11 @@ impl Cluster {
+             .iter()
+             .find_map(|(_, r)| r.as_ref().err().filter(|e| e.starts_with("InvalidPart") || e.starts_with("NoSuchUpload")).cloned());
+         let staged: Vec<(usize, Completion)> = staged.into_iter().filter_map(|(i, r)| r.ok().map(|c| (i, c))).collect();
+-        if staged.len() < self.write_quorum {
++        let votes = self.votes(staged.iter().map(|(i, _)| *i));
++        if votes < self.need() {
+             return Err(match (staged.len(), client) {
+                 (0, Some(e)) => e, // the request itself is wrong
+-                (n, _) => self.refuse("CompleteMultipartUpload", n, &errs),
++                _ => self.refuse("CompleteMultipartUpload", votes, &errs),
+             });
+         }
+ 
+@@ -900,8 +1214,8 @@ impl Cluster {
+             })
+             .collect();
+         let (results, errs) = self.fan("CompleteMultipartUpload", jobs, true, Result::is_ok).await;
+-        let ok = results.iter().filter(|(_, r)| r.is_ok()).count();
+-        if ok >= self.write_quorum {
++        let ok = self.votes(results.iter().filter(|(_, r)| r.is_ok()).map(|(i, _)| *i));
++        if ok >= self.need() {
+             // a replica that did not complete keeps no half upload: repair copies the completed key to it
+             for (i, s) in &holders {
+                 if !results.iter().any(|(j, r)| j == i && r.is_ok()) {
+@@ -912,14 +1226,14 @@ impl Cluster {
+         self.refresh_key(&(b.clone(), k.clone())).await;
+         let etag = results.into_iter().find_map(|(_, r)| r.ok()).map(|r| r.2);
+         match etag {
+-            Some(etag) if ok >= self.write_quorum => Ok((b, k, etag)),
++            Some(etag) if ok >= self.need() => Ok((b, k, etag)),
+             _ => Err(self.refuse("CompleteMultipartUpload", ok, &errs)),
+         }
+     }
+ 
+     pub async fn abort_upload(&self, uid: &str) -> Res<()> {
+         let jobs = self.loaded().into_iter().map(|(i, s)| (i, async move { s.abort_upload(uid).await })).collect();
+-        let out = fan_out(jobs, usize::MAX, Duration::ZERO, self.meta_deadline(), Result::is_ok).await;
++        let out = fan_out(jobs, usize::MAX, Duration::ZERO, self.meta_deadline(), |_, r| r.is_ok()).await;
+         let mut found = false;
+         let mut errs = Vec::new();
+         for (i, r) in out {
+@@ -974,7 +1288,8 @@ impl Cluster {
+     }
+ 
+     /// One maintenance pass: re-read ambiguous replicas, purge dead versions, apply missed deletes, copy up to
+-    /// `max_bytes` of newest versions to replicas that lack them, then collect tombstones behind the barrier.
++    /// `max_bytes` of newest versions and open multipart parts to members that lack them, collect tombstones behind
++    /// the barrier, then admit members that hold everything (or commit a membership change).
+     pub async fn repair(&self, max_bytes: u64) -> RepairReport {
+         let mut rep = RepairReport::default();
+         for (i, s) in self.loaded() {
+@@ -1003,9 +1318,11 @@ impl Cluster {
+         }
+ 
+         if self.n() > 1 {
+-            self.repair_replicas(max_bytes, &mut rep).await;
++            let spent = self.repair_replicas(max_bytes, &mut rep).await;
++            self.repair_parts(max_bytes, spent, &mut rep).await;
+         }
+         self.floors(&mut rep).await;
++        self.admission(&mut rep).await;
+         let mut st = self.stats.borrow_mut();
+         st.repair_passes += 1;
+         st.repaired_copies += rep.copies as u64;
+@@ -1018,14 +1335,15 @@ impl Cluster {
+         rep
+     }
+ 
+-    async fn repair_replicas(&self, max_bytes: u64, rep: &mut RepairReport) {
++    /// Returns the bytes copied.
++    async fn repair_replicas(&self, max_bytes: u64, rep: &mut RepairReport) -> u64 {
+         let (keys, tombs) = {
+             let v = self.view.borrow();
+             (v.keys.clone(), v.tombs.clone())
+         };
+         let mut copies: Vec<(usize, Entry)> = Vec::new();
+         let mut deletes: Vec<(usize, KK, Tomb)> = Vec::new();
+-        for (i, s) in self.loaded() {
++        for (i, s) in self.backfill_targets() {
+             let idx = s.idx.lock().await;
+             for (kk, e) in &keys {
+                 if idx.keys.get(kk).is_none_or(|k| k.entry.ver() < e.ver()) {
+@@ -1105,13 +1423,326 @@ impl Cluster {
+             }
+             self.refresh_key(&kk).await;
+         }
++        spent
++    }
++
++    /// Every part of an open multipart upload the sources hold: (upload, part number) -> the variants held
++    /// (ETag, size), each with the source replicas and their part objects, the most widely held first.
++    async fn source_parts(&self, sources: &[usize]) -> BTreeMap<(String, u32), Vec<PartVariant>> {
++        let mut out: BTreeMap<(String, u32), Vec<PartVariant>> = BTreeMap::new();
++        for i in sources {
++            let Some(s) = self.store(*i) else { continue };
++            let idx = s.idx.lock().await;
++            for (uid, u) in &idx.uploads {
++                for (n, (id, etag, size)) in &u.parts {
++                    let Some((obj, _)) = idx.objs.get(id) else { continue };
++                    let vs = out.entry((uid.clone(), *n)).or_default();
++                    match vs.iter_mut().find(|v| v.etag == *etag && v.size == *size) {
++                        Some(v) => v.held.push((*i, obj.clone())),
++                        None => vs.push(PartVariant {
++                            b: u.b.clone(),
++                            k: u.k.clone(),
++                            started: u.started,
++                            etag: etag.clone(),
++                            size: *size,
++                            held: vec![(*i, obj.clone())],
++                        }),
++                    }
++                }
++            }
++        }
++        for vs in out.values_mut() {
++            vs.sort_by_key(|v| std::cmp::Reverse(v.held.len()));
++        }
++        out
++    }
++
++    /// Copy open multipart parts the sources hold to members that lack them, within what is left of `max_bytes`.
++    /// A member that votes keeps any part it holds (its acknowledgement may be the one that counted); a member
++    /// that does not vote yet has a part no source holds replaced.
++    async fn repair_parts(&self, max_bytes: u64, mut spent: u64, rep: &mut RepairReport) {
++        let sources = self.ms.borrow().sources.clone();
++        let wanted = self.source_parts(&sources).await;
++        if wanted.is_empty() {
++            return;
++        }
++        let voters = self.voters();
++        for (i, target) in self.backfill_targets() {
++            for ((uid, n), vs) in &wanted {
++                let held = target.idx.lock().await.uploads.get(uid).and_then(|u| u.parts.get(n)).map(|p| (p.1.clone(), p.2));
++                let fine = match &held {
++                    None => false,
++                    Some(_) if voters.contains(&i) => true,
++                    Some((etag, size)) => vs.iter().any(|v| v.etag == *etag && v.size == *size),
++                };
++                if fine {
++                    continue;
++                }
++                let v = &vs[0];
++                if spent > 0 && spent + v.size > max_bytes {
++                    rep.pending += 1;
++                    continue;
++                }
++                spent += v.size;
++                let copy = async {
++                    let obj = self.copy_part(v, &target).await?;
++                    target.adopt_part(uid, &v.b, &v.k, v.started, *n, (&v.etag, v.size), obj).await
++                };
++                match tokio::time::timeout(self.opts.upload_timeout * 2, copy).await {
++                    Ok(Ok(_)) => rep.parts += 1,
++                    Ok(Err(e)) => {
++                        eprintln!("[sia-s3] repair: copy of part {n} of upload {uid} to {} failed", self.replicas[i].name);
++                        self.note(i, &format!("repair part: {e}"));
++                        rep.pending += 1;
++                    }
++                    Err(_) => {
++                        target.mark_ambiguous();
++                        self.note(i, "repair part: no completion in time");
++                        rep.pending += 1;
++                    }
++                }
++            }
++        }
++    }
++
++    /// Copy one part variant (from whichever source holds it) into a new upload on `target`, checked against its
++    /// size and MD5 (a part's ETag).
++    async fn copy_part(&self, v: &PartVariant, target: &Store) -> Res<Object> {
++        if v.size == 0 {
++            return target.upload(Rc::from(&[][..])).await;
++        }
++        let mut last = "no source holds the part".to_string();
++        for (i, obj) in &v.held {
++            let Some(src) = self.store(*i) else { continue };
++            let (mut tx, rx) = tokio::io::duplex(4 << 20);
++            let pump = async {
++                let mut tap = Tap::new(&mut tx, true);
++                let r = tokio::time::timeout(self.opts.upload_timeout, src.read_into(obj, 0, v.size, &mut tap)).await;
++                let md5 = tap.md5.take().map(|m| hex::encode(m.finalize()));
++                let n = tap.n;
++                drop(tap);
++                let _ = tx.shutdown().await;
++                drop(tx);
++                (r, n, md5)
++            };
++            let ((read, n, md5), up) = tokio::join!(pump, target.upload_reader(rx));
++            let bad = match read {
++                Ok(Ok(_)) if n == v.size && md5.as_deref() == Some(v.etag.as_str()) => None,
++                Ok(Ok(_)) => Some(format!("read {n} of {} bytes, or the MD5 differs from the ETag", v.size)),
++                Ok(Err(e)) => Some(e),
++                Err(_) => Some("read timed out".into()),
++            };
++            match (bad, up) {
++                (None, Ok(o)) => return Ok(o),
++                (Some(e), _) | (None, Err(e)) => last = format!("{}: {e}", self.replicas[*i].name),
++            }
++        }
++        Err(last)
++    }
++
++    /// Does replica `i` hold the complete history the merged view stands for: no unknown outcome since its listing,
++    /// every manifest and ledger read, every key at the view's version, every deletion, every open multipart part
++    /// the sources hold? Err says what is missing (counts only: this reaches the status page).
++    async fn caught_up(&self, i: usize, parts: &BTreeMap<(String, u32), Vec<PartVariant>>) -> Res<()> {
++        let s = self.store(i).ok_or("not loaded")?;
++        if s.dirty() {
++            return Err("its index is being re-read".into());
++        }
++        let idx = s.idx.lock().await;
++        if !idx.complete() {
++            return Err("some of its manifests or ledgers are unread".into());
++        }
++        let (keys, deletions) = {
++            let v = self.view.borrow();
++            let keys = v.keys.iter().filter(|(kk, e)| idx.keys.get(*kk).is_none_or(|k| k.entry.ver() != e.ver())).count();
++            let deletions = v.tombs.iter().filter(|(q, t)| idx.tomb(q).is_none_or(|x| x.ver() < t.ver())).count();
++            (keys, deletions)
++        };
++        let parts = parts
++            .iter()
++            .filter(|((uid, n), vs)| {
++                idx.uploads.get(uid).and_then(|u| u.parts.get(n)).is_none_or(|p| !vs.iter().any(|v| v.etag == p.1 && v.size == p.2))
++            })
++            .count();
++        if keys + deletions + parts > 0 {
++            return Err(format!("{keys} keys, {deletions} deletions and {parts} multipart parts behind"));
++        }
++        Ok(())
++    }
++
++    /// Are the sources of the current membership state loaded, with every manifest and ledger read, in the number
++    /// that makes their union the complete history?
++    async fn view_complete(&self, st: &MsState) -> bool {
++        let mut n = 0;
++        for i in &st.sources {
++            if let Some(s) = self.store(*i) {
++                n += s.idx.lock().await.complete() as usize;
++            }
++        }
++        st.sources_needed > 0 && n >= st.sources_needed
++    }
++
++    /// Admit members that hold the complete history to the configured membership (module docs, "Membership"). A
++    /// change (no records yet, or another set admitted) is committed only with every configured member loaded and
++    /// caught up: seals to the replaced set first, then admissions. Otherwise members join one at a time. Record
++    /// bodies are uploaded first, outside the write lock; under it, the state and every member are checked again and
++    /// only the records' metadata is pinned.
++    async fn admission(&self, rep: &mut RepairReport) {
++        let st = self.ms.borrow().clone();
++        if !matches!(st.phase, Phase::Legacy | Phase::Stable | Phase::Migrating | Phase::Pending) || !self.view_complete(&st).await {
++            if st.phase != Phase::Stable {
++                rep.pending += 1;
++            }
++            return;
++        }
++        let mut todo = Vec::new();
++        for i in self.members() {
++            match self.store(i) {
++                Some(s) if holds(&s, true, &st.target).await => {}
++                Some(_) => todo.push(i),
++                None if st.commit => {
++                    rep.pending += 1;
++                    return;
++                }
++                None => {}
++            }
++        }
++        if todo.is_empty() {
++            return;
++        }
++        let Some(admit) = self.admissible(&st, todo, rep).await else { return };
++        let mut seals = Vec::new();
++        if st.seal_needed > 0 {
++            for i in &st.seal_to {
++                if let Some(s) = self.store(*i) {
++                    if !holds(&s, false, &st.target).await {
++                        seals.push(*i);
++                    }
++                }
++            }
++        }
++        let uploads = seals.iter().map(|i| (*i, "s")).chain(admit.iter().map(|i| (*i, "a"))).collect::<Vec<_>>();
++        let bodies = join_all(
++            uploads
++                .iter()
++                .map(|(i, _)| {
++                    let s = self.store(*i);
++                    async move {
++                        let s = s.ok_or("not loaded")?;
++                        tokio::time::timeout(self.opts.upload_timeout, s.upload_record()).await.map_err(|_| "upload timed out".to_string())?
++                    }
++                })
++                .collect(),
++        )
++        .await;
++        let mut bodies: Vec<((usize, &str), Object)> = uploads
++            .into_iter()
++            .zip(bodies)
++            .filter_map(|((i, k), r)| match r {
++                Ok(o) => Some(((i, k), o)),
++                Err(e) => {
++                    self.note(i, &format!("membership record upload: {e}"));
++                    None
++                }
++            })
++            .collect();
++
++        let _w = self.write.lock().await;
++        if *self.ms.borrow() != st {
++            rep.pending += 1;
++            return;
++        }
++        let Some(admit) = self.admissible(&st, admit, rep).await else { return };
++        let record = |k: &str| MsRec { k: k.into(), d: st.target.clone(), p: st.prev.clone() };
++        let pin = |kind: &'static str, which: Vec<usize>, bodies: &mut Vec<((usize, &str), Object)>| {
++            let jobs: Vec<_> = which
++                .into_iter()
++                .filter_map(|i| {
++                    let at = bodies.iter().position(|((j, k), _)| *j == i && *k == kind)?;
++                    let (_, obj) = bodies.swap_remove(at);
++                    let (s, rec) = (self.store(i)?, record(kind));
++                    Some((i, async move { s.pin_record(obj, rec).await }))
++                })
++                .collect();
++            fan_out(jobs, usize::MAX, Duration::ZERO, self.meta_deadline(), |_, r| r.is_ok())
++        };
++        if st.seal_needed > 0 {
++            let mut sealed = 0;
++            for i in &st.seal_to {
++                if let Some(s) = self.store(*i) {
++                    sealed += holds(&s, false, &st.target).await as usize;
++                }
++            }
++            for (i, r) in pin("s", seals, &mut bodies).await {
++                match r {
++                    Some(Ok(())) => {
++                        sealed += 1;
++                        rep.admitted += 1;
++                    }
++                    Some(Err(e)) => self.note(i, &format!("membership seal: {e}")),
++                    None => {
++                        if let Some(s) = self.store(i) {
++                            s.mark_ambiguous();
++                        }
++                        self.note(i, "membership seal: no answer in time");
++                    }
++                }
++            }
++            if sealed < st.seal_needed {
++                // the old set no longer acts once any seal may exist: the change is pending until enough are durable
++                eprintln!("[sia-s3] membership: {sealed} of {} seals for epoch {} are durable; retrying", st.seal_needed, st.target.s);
++                rep.pending += 1;
++                self.rebuild().await;
++                return;
++            }
++        }
++        for (i, r) in pin("a", admit, &mut bodies).await {
++            match r {
++                Some(Ok(())) => {
++                    rep.admitted += 1;
++                    eprintln!("[sia-s3] membership: {} admitted to epoch {}", self.replicas[i].name, st.target.s);
++                }
++                Some(Err(e)) => {
++                    self.note(i, &format!("membership admit: {e}"));
++                    rep.pending += 1;
++                }
++                None => {
++                    if let Some(s) = self.store(i) {
++                        s.mark_ambiguous();
++                    }
++                    self.note(i, "membership admit: no answer in time");
++                    rep.pending += 1;
++                }
++            }
++        }
++        self.rebuild().await;
++    }
++
++    /// The members of `todo` that hold the complete history; None when there are none, or when a change (which
++    /// admits every member at once) has one that does not.
++    async fn admissible(&self, st: &MsState, todo: Vec<usize>, rep: &mut RepairReport) -> Option<Vec<usize>> {
++        let parts = self.source_parts(&st.sources).await;
++        let mut admit = Vec::new();
++        for i in todo {
++            match self.caught_up(i, &parts).await {
++                Ok(()) => admit.push(i),
++                Err(e) => {
++                    eprintln!("[sia-s3] membership: {} is not admitted yet: {e}", self.replicas[i].name);
++                    rep.pending += 1;
++                    if st.commit {
++                        return None;
++                    }
++                }
++            }
++        }
++        (!admit.is_empty()).then_some(admit)
+     }
+ 
+     /// Copy every deletion the view knows into a ledger floor on every loaded replica that lacks it, then reclaim
+     /// the tombstones (and payload) floors cover, and merge ledgers that have piled up. Never drops a floor.
+     async fn floors(&self, rep: &mut RepairReport) {
+         let deletions: Vec<Tomb> = self.view.borrow().tombs.values().cloned().collect();
+-        for (i, s) in self.loaded() {
++        for (i, s) in self.backfill_targets() {
+             let missing: Vec<Tomb> = {
+                 let idx = s.idx.lock().await;
+                 deletions.iter().filter(|t| idx.floors.get(&t.q).is_none_or(|f| f.ver() < t.ver())).cloned().collect()
+@@ -1162,11 +1793,22 @@ impl Cluster {
+     /// Per-replica state for /healthz and the status page (no keys or object names).
+     pub async fn replica_status(&self) -> Vec<serde_json::Value> {
+         let view_keys: Vec<(KK, Ver)> = self.view.borrow().keys.iter().map(|(kk, e)| (kk.clone(), e.ver())).collect();
++        let st = self.ms.borrow().clone();
+         let mut out = Vec::new();
+-        for r in &self.replicas {
+-            let mut v = serde_json::json!({ "name": r.name, "indexer": r.indexer, "loaded": false, "error": *r.error.borrow() });
++        for (i, r) in self.replicas.iter().enumerate() {
++            let mut v = serde_json::json!({
++                "name": r.name,
++                "indexer": r.indexer,
++                "retiring": r.retiring,
++                "loaded": false,
++                "error": *r.error.borrow(),
++                // the cluster's membership state, repeated on each replica
++                "membership": { "phase": st.phase, "ready": st.ready, "epoch": st.acting.as_ref().map(|a| a.s), "target": st.target.s, "reason": st.reason },
++            });
+             if let Some(s) = r.store() {
+                 let idx = s.idx.lock().await;
++                v["voting"] = st.voters.contains(&i).into();
++                v["record"] = idx.newest_record().map(|r| serde_json::json!({ "epoch": r.d.s, "admitted": r.admit() })).into();
+                 let behind = view_keys.iter().filter(|(kk, ver)| idx.keys.get(kk).is_none_or(|k| k.entry.ver() != *ver)).count();
+                 v["loaded"] = true.into();
+                 v["keys"] = idx.keys.len().into();
+@@ -1252,9 +1894,11 @@ mod tests {
+         cluster_with(nets, w, timing()).await
+     }
+ 
++    /// Boot a cluster over every net. A new deployment (every replica loaded, none with records yet) is admitted
++    /// right away, as its first maintenance pass would; a restart finds its records.
+     async fn cluster_with(nets: &[Net], w: usize, timing: Timing) -> Cluster {
+         let c = Cluster::new(
+-            (0..nets.len()).map(|i| (format!("r{i}"), format!("https://indexer-{i}.example"))).collect(),
++            (0..nets.len()).map(|i| (format!("r{i}"), format!("https://indexer-{i}.example"), false)).collect(),
+             w,
+             opts(),
+             timing,
+@@ -1264,9 +1908,17 @@ mod tests {
+                 c.attach(i, s).await;
+             }
+         }
++        settle(&c).await;
+         c
+     }
+ 
++    /// Only the admission step of a maintenance pass.
++    async fn settle(c: &Cluster) -> RepairReport {
++        let mut r = RepairReport::default();
++        c.admission(&mut r).await;
++        r
++    }
++
+     async fn get(c: &Cluster, k: &str) -> Option<Vec<u8>> {
+         let e = c.lookup("b", k)?;
+         let mut out = Vec::new();
+@@ -1288,7 +1940,7 @@ mod tests {
+         let mut total = RepairReport::default();
+         for _ in 0..6 {
+             let r = c.repair(1 << 30).await;
+-            let idle = r.reconciled + r.purged + r.copies + r.deletes + r.floors + r.reclaimed + r.merged + r.pending == 0;
++            let idle = r.reconciled + r.purged + r.copies + r.deletes + r.floors + r.reclaimed + r.merged + r.parts + r.admitted + r.pending == 0;
+             total.reconciled += r.reconciled;
+             total.purged += r.purged;
+             total.copies += r.copies;
+@@ -1296,6 +1948,8 @@ mod tests {
+             total.floors += r.floors;
+             total.reclaimed += r.reclaimed;
+             total.merged += r.merged;
++            total.parts += r.parts;
++            total.admitted += r.admitted;
+             total.pending = r.pending;
+             if idle {
+                 break;
+@@ -1719,7 +2373,7 @@ mod tests {
+             let idx = s.idx.lock().await;
+             assert!(idx.keys.is_empty() && idx.tombs.is_empty() && idx.manifests.is_empty() && idx.oldest.is_empty());
+             assert_eq!(idx.floors.len(), 4);
+-            assert_eq!(idx.objs.len(), idx.ledgers.len(), "only ledgers remain");
++            assert_eq!(idx.objs.len(), idx.ledgers.len() + idx.records.len(), "only ledgers (and the membership record) remain");
+         }
+     }
+ 
+@@ -1735,14 +2389,14 @@ mod tests {
+             let idx = s.idx.lock().await;
+             let q = qkey("b", "k");
+             assert!(idx.keys.is_empty() && idx.tombs.contains_key(&q) && idx.floors.is_empty());
+-            assert_eq!(idx.objs.len(), 1);
++            assert_eq!((idx.objs.len(), idx.records.len()), (2, 1), "the payload's object, and the membership record");
+         }
+         maintain(&c).await;
+         {
+             let s = one[0].load().await.unwrap();
+             let idx = s.idx.lock().await;
+             assert!(idx.keys.is_empty() && idx.tombs.is_empty() && idx.floors.contains_key(&qkey("b", "k")));
+-            assert_eq!(idx.objs.len(), idx.ledgers.len(), "the payload is gone; the floor stays");
++            assert_eq!(idx.objs.len(), idx.ledgers.len() + idx.records.len(), "the payload is gone; the floor stays");
+         }
+         c.put("b", "k", b"y".to_vec(), None, &Cond::None).await.unwrap();
+         assert_eq!(get(&cluster(&one, 1).await, "k").await.unwrap(), b"y");
+@@ -1764,12 +2418,359 @@ mod tests {
+     async fn fan_out_returns_after_quorum_and_grace_or_the_deadline() {
+         let t0 = std::time::Instant::now();
+         let jobs: Vec<(usize, Pin<Box<dyn Future<Output = Res<u32>>>>)> = vec![(0, Box::pin(async { Ok(1) })), (1, Box::pin(std::future::pending()))];
+-        let out = fan_out(jobs, 1, Duration::from_millis(50), Duration::from_secs(60), Result::is_ok).await;
++        let out = fan_out(jobs, 1, Duration::from_millis(50), Duration::from_secs(60), |_, r| r.is_ok()).await;
+         assert!(t0.elapsed() < Duration::from_secs(1));
+         assert!(matches!(out[0], (0, Some(Ok(1)))) && matches!(out[1], (1, None)));
+         let t0 = std::time::Instant::now();
+         let jobs: Vec<(usize, Pin<Box<dyn Future<Output = Res<u32>>>>)> = vec![(0, Box::pin(std::future::pending()))];
+-        let out = fan_out(jobs, 1, Duration::ZERO, Duration::from_millis(100), Result::is_ok).await;
++        let out = fan_out(jobs, 1, Duration::ZERO, Duration::from_millis(100), |_, r| r.is_ok()).await;
+         assert!(t0.elapsed() < Duration::from_secs(1) && out[0].1.is_none());
+     }
++
++    /// Boot a cluster over the indexers `which` (each keeps its own name and URL, whatever the set), as a restart
++    /// with a changed membership would.
++    async fn members(nets: &[Net], which: &[usize], w: usize) -> Cluster {
++        let c = Cluster::new(which.iter().map(|i| (format!("r{i}"), format!("https://indexer-{i}.example"), false)).collect(), w, opts(), timing());
++        for (j, i) in which.iter().enumerate() {
++            if let Ok(s) = nets[*i].load().await {
++                c.attach(j, s).await;
++            }
++        }
++        c
++    }
++
++    #[tokio::test]
++    async fn membership_repro_two_empty_indexers_and_the_old_one_offline() {
++        let nets = [Net::on_disk(1), Net::on_disk(2), Net::on_disk(3)];
++        // the existing single-indexer deployment (N = 1, W = 1) acknowledges a write and a delete
++        let old = members(&nets, &[0], 1).await;
++        old.put("b", "live", b"acknowledged".to_vec(), None, &Cond::None).await.unwrap();
++        old.put("b", "gone", b"x".to_vec(), None, &Cond::None).await.unwrap();
++        old.delete("b", "gone").await.unwrap();
++        maintain(&old).await;
++        drop(old);
++        // two empty indexers are added (N = 3, W = 2) and the old one is unavailable at the restart
++        nets[0].offline(true);
++        let c = members(&nets, &[0, 1, 2], 2).await;
++        eprintln!("REPRO-1 ready={} loaded={} live={:?}", c.ready(), c.loaded().len(), c.lookup("b", "live").map(|e| e.s));
++        assert!(!c.ready(), "two empty replicas pass as the whole history: GET live -> {:?}", c.lookup("b", "live"));
++    }
++
++    #[tokio::test]
++    async fn membership_repro_replacing_a_member_after_an_acknowledged_delete() {
++        let nets = [Net::on_disk(1), Net::on_disk(2), Net::on_disk(3), Net::on_disk(4)];
++        // {r0, r1, r2}, W = 2: the DELETE is acknowledged on r0 and r1 while r2 is down
++        let abc = members(&nets, &[0, 1, 2], 2).await;
++        abc.put("b", "k", b"old".to_vec(), None, &Cond::None).await.unwrap();
++        nets[2].offline(true);
++        abc.delete("b", "k").await.unwrap();
++        drop(abc);
++        nets[2].offline(false);
++        // r0 is replaced by an empty r3: {r1, r2, r3}, W = 2; r1 is unavailable at the restart
++        nets[1].offline(true);
++        let c = members(&nets, &[1, 2, 3], 2).await;
++        eprintln!("REPRO-2 ready={} loaded={} k={:?}", c.ready(), c.loaded().len(), c.lookup("b", "k").map(|e| e.s));
++        assert!(!c.ready() || c.lookup("b", "k").is_none(), "an acknowledged DELETE was undone: k -> {:?}", c.lookup("b", "k"));
++    }
++
++    #[tokio::test]
++    async fn membership_repro_open_multipart_upload_after_backfill() {
++        let nets = [Net::on_disk(1), Net::on_disk(2), Net::on_disk(3)];
++        let old = members(&nets, &[0], 1).await;
++        old.put("b", "live", b"acknowledged".to_vec(), None, &Cond::None).await.unwrap();
++        let uid = old.create_upload("b", "big").await.unwrap();
++        let etag = old.upload_part(&uid, 1, b"part one".to_vec()).await.unwrap();
++        drop(old);
++        // all three up: maintenance backfills the two new indexers
++        let c = members(&nets, &[0, 1, 2], 2).await;
++        let r = maintain(&c).await;
++        drop(c);
++        // the old indexer is retired; the two backfilled ones carry on
++        nets[0].offline(true);
++        let c = members(&nets, &[0, 1, 2], 2).await;
++        let done = c.complete_upload(&uid, &[(1, etag)]).await;
++        eprintln!("REPRO-3 maintain={r:?} ready={} live={:?} complete={done:?}", c.ready(), c.lookup("b", "live").map(|e| e.s));
++        assert!(done.is_ok(), "an acknowledged UploadPart was lost in the migration: {done:?}");
++    }
++
++    /// Boot a cluster over `which` = (net, retiring), each replica keeping its own name and URL.
++    async fn members_with(nets: &[Net], which: &[(usize, bool)], w: usize) -> Cluster {
++        let c = Cluster::new(which.iter().map(|(i, r)| (format!("r{i}"), format!("https://indexer-{i}.example"), *r)).collect(), w, opts(), timing());
++        for (j, (i, _)) in which.iter().enumerate() {
++            if let Ok(s) = nets[*i].load().await {
++                c.attach(j, s).await;
++            }
++        }
++        c
++    }
++
++    /// Maintenance passes without the admission step: backfill only.
++    async fn backfill(c: &Cluster) {
++        for _ in 0..4 {
++            let mut r = RepairReport::default();
++            let spent = c.repair_replicas(1 << 30, &mut r).await;
++            c.repair_parts(1 << 30, spent, &mut r).await;
++            c.floors(&mut r).await;
++        }
++    }
++
++    fn phase(c: &Cluster) -> (Phase, bool, u64) {
++        let st = c.ms.borrow();
++        (st.phase, st.ready, st.acting.as_ref().map_or(0, |a| a.s))
++    }
++
++    #[tokio::test]
++    async fn a_deployment_without_records_migrates_only_with_every_indexer_up() {
++        // 0.1.x / one indexer that never ran a maintenance pass of this version: no membership records anywhere
++        let nets = [Net::on_disk(1), Net::on_disk(2), Net::on_disk(3)];
++        let old = members(&nets, &[0], 1).await;
++        assert_eq!(phase(&old), (Phase::Legacy, true, 0), "one indexer without records serves as before");
++        old.put("b", "live", b"acknowledged".to_vec(), None, &Cond::None).await.unwrap();
++        old.put("b", "gone", b"x".to_vec(), None, &Cond::None).await.unwrap();
++        old.delete("b", "gone").await.unwrap();
++        drop(old);
++
++        // N = 3, W = 2 with two empty indexers: never ready, and never writable, while any indexer is missing
++        for down in 0..3 {
++            nets[down].offline(true);
++            let c = members(&nets, &[0, 1, 2], 2).await;
++            assert_eq!(phase(&c), (Phase::Legacy, false, 0), "r{down} down");
++            assert!(c.put("b", "x", b"y".to_vec(), None, &Cond::None).await.unwrap_err().starts_with("ServiceUnavailable"));
++            assert!(c.delete("b", "live").await.unwrap_err().starts_with("ServiceUnavailable"));
++            nets[down].offline(false);
++        }
++        assert_eq!(on_disk(&nets[0], "live").await.0.is_some(), true, "the refused DELETE recorded nothing that counts");
++
++        // all three up: the union holds everything; maintenance backfills, then commits epoch 1
++        let c = members(&nets, &[0, 1, 2], 2).await;
++        assert_eq!(phase(&c), (Phase::Legacy, true, 0));
++        c.put("b", "during", b"written during the migration".to_vec(), None, &Cond::None).await.unwrap();
++        let r = maintain(&c).await;
++        assert!(r.copies >= 2 && r.admitted == 3, "{r:?}");
++        assert_eq!(phase(&c), (Phase::Stable, true, 1));
++        drop(c);
++
++        // the old indexer is gone for good: the two admitted ones serve everything, and the delete
++        nets[0].offline(true);
++        let c = members(&nets, &[0, 1, 2], 2).await;
++        assert_eq!(phase(&c), (Phase::Stable, true, 1));
++        assert_eq!(get(&c, "live").await.unwrap(), b"acknowledged");
++        assert_eq!(get(&c, "during").await.unwrap(), b"written during the migration");
++        assert!(c.lookup("b", "gone").is_none());
++        for n in &nets[1..] {
++            assert_eq!(on_disk(n, "gone").await.1, true, "the floor reached the new indexer");
++        }
++    }
++
++    #[tokio::test]
++    async fn a_recorded_single_indexer_keeps_serving_while_new_members_are_backfilled() {
++        let nets = [Net::on_disk(1), Net::on_disk(2), Net::on_disk(3)];
++        let old = members(&nets, &[0], 1).await;
++        old.put("b", "live", b"acknowledged".to_vec(), None, &Cond::None).await.unwrap();
++        old.put("b", "gone", b"x".to_vec(), None, &Cond::None).await.unwrap();
++        old.delete("b", "gone").await.unwrap();
++        let r = maintain(&old).await;
++        assert_eq!((r.admitted, phase(&old)), (1, (Phase::Stable, true, 1)), "the first pass records the one indexer");
++        drop(old);
++
++        // the reported failure: N = 3, W = 2, the old indexer unavailable -> two empty replicas are not the history
++        nets[0].offline(true);
++        let c = members(&nets, &[0, 1, 2], 2).await;
++        assert_eq!(phase(&c), (Phase::Legacy, false, 0), "the new replicas have no records; the old one is not loaded");
++        assert!(c.check("b", "live", &Cond::IfNoneMatch).is_ok() && !c.ready(), "the empty view is never served");
++        drop(c);
++
++        // the old indexer alone, the new ones down: served under the old membership's rules (it votes, W = 1)
++        nets[0].offline(false);
++        nets[1].offline(true);
++        nets[2].offline(true);
++        let c = members(&nets, &[0, 1, 2], 2).await;
++        assert_eq!(phase(&c), (Phase::Migrating, true, 1));
++        assert_eq!(get(&c, "live").await.unwrap(), b"acknowledged");
++        c.put("b", "during", b"acknowledged by the old member".to_vec(), None, &Cond::None).await.unwrap();
++        maintain(&c).await;
++        assert_eq!(phase(&c), (Phase::Migrating, true, 1), "nothing commits without every new member");
++        drop(c);
++
++        // everyone up: the new members get written to but do not vote until admitted
++        nets[1].offline(false);
++        nets[2].offline(false);
++        let c = members(&nets, &[0, 1, 2], 2).await;
++        assert_eq!(phase(&c), (Phase::Migrating, true, 1));
++        assert_eq!(c.voters(), vec![0]);
++        let r = maintain(&c).await;
++        assert!(r.copies >= 4 && r.admitted == 4, "a seal on the old member, then three admissions: {r:?}");
++        assert_eq!(phase(&c), (Phase::Stable, true, 2));
++        drop(c);
++
++        nets[0].offline(true);
++        let c = members(&nets, &[0, 1, 2], 2).await;
++        assert_eq!(phase(&c), (Phase::Stable, true, 2));
++        assert_eq!(get(&c, "live").await.unwrap(), b"acknowledged");
++        assert_eq!(get(&c, "during").await.unwrap(), b"acknowledged by the old member");
++        assert!(c.lookup("b", "gone").is_none());
++        // stable membership availability is unchanged: one indexer down still serves and writes
++        c.put("b", "after", b"z".to_vec(), None, &Cond::None).await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn replacing_a_member_keeps_an_acknowledged_delete_and_the_old_set_never_serves_again() {
++        let nets = [Net::on_disk(1), Net::on_disk(2), Net::on_disk(3), Net::on_disk(4)];
++        // {r0, r1, r2}, W = 2, admitted at epoch 1; the DELETE is acknowledged on r0 and r1 while r2 is down
++        let abc = members(&nets, &[0, 1, 2], 2).await;
++        settle(&abc).await;
++        assert_eq!(phase(&abc), (Phase::Stable, true, 1));
++        abc.put("b", "k", b"old".to_vec(), None, &Cond::None).await.unwrap();
++        nets[2].offline(true);
++        abc.delete("b", "k").await.unwrap();
++        drop(abc);
++        nets[2].offline(false);
++
++        // r0 is replaced by an empty r3: {r1, r2, r3}. With r1 down only r2 (which missed the DELETE) is admitted:
++        // epoch 1 may still be serving from r0 and r1, so this waits
++        nets[1].offline(true);
++        let c = members(&nets, &[1, 2, 3], 2).await;
++        assert_eq!(phase(&c), (Phase::Waiting, false, 1));
++        drop(c);
++
++        // r1 back: epoch 1's rules serve (r1, r2 vote), the new set is backfilled, then committed as epoch 2
++        nets[1].offline(false);
++        let c = members(&nets, &[1, 2, 3], 2).await;
++        assert_eq!(phase(&c), (Phase::Migrating, true, 1));
++        assert!(c.lookup("b", "k").is_none());
++        let r = maintain(&c).await;
++        assert!(r.admitted == 5, "seals on r1 and r2, admissions of r1, r2, r3: {r:?}");
++        assert_eq!(phase(&c), (Phase::Stable, true, 2));
++        drop(c);
++
++        // epoch 2 with r1 down: r2 and r3 are admitted and both hold the deletion
++        nets[1].offline(true);
++        let c = members(&nets, &[1, 2, 3], 2).await;
++        assert_eq!(phase(&c), (Phase::Stable, true, 2));
++        assert!(c.lookup("b", "k").is_none());
++        for n in &nets[2..] {
++            assert_eq!(on_disk(n, "k").await.1, true, "the floor is on r{}", if std::ptr::eq(n, &nets[2]) { 2 } else { 3 });
++        }
++        drop(c);
++
++        // reverting the configuration to the old set cannot bring epoch 1 back: its quorum meets a seal
++        let old = members(&nets, &[0, 1, 2], 2).await;
++        assert_eq!(phase(&old), (Phase::Waiting, false, 2), "epoch 2 may be serving from r1 and r3");
++        nets[1].offline(false);
++    }
++
++    #[tokio::test]
++    async fn a_retiring_replica_hands_over_open_multipart_uploads() {
++        let nets = [Net::on_disk(1), Net::on_disk(2), Net::on_disk(3)];
++        let old = members(&nets, &[0], 1).await;
++        maintain(&old).await;
++        let uid = old.create_upload("b", "big").await.unwrap();
++        let p1 = old.upload_part(&uid, 1, vec![7u8; 5 << 20]).await.unwrap();
++        let p2 = old.upload_part(&uid, 2, b"tail".to_vec()).await.unwrap();
++        drop(old);
++
++        // r0 leaves: listed as retiring, it is the source and seal holder; r1 and r2 are the new set
++        let c = members_with(&nets, &[(0, true), (1, false), (2, false)], 2).await;
++        assert_eq!(phase(&c), (Phase::Migrating, true, 1));
++        let r = maintain(&c).await;
++        assert!(r.parts == 4 && r.admitted == 3, "two parts to each new member; a seal on r0, two admissions: {r:?}");
++        assert_eq!(phase(&c), (Phase::Stable, true, 2));
++        assert_eq!(c.voters(), vec![1, 2], "the retiring replica no longer votes");
++        drop(c);
++
++        // r0 is dropped from the configuration; the upload completes on the new set alone
++        nets[0].offline(true);
++        let c = members_with(&nets, &[(1, false), (2, false)], 2).await;
++        assert_eq!(phase(&c), (Phase::Stable, true, 2));
++        let (_, _, etag) = c.complete_upload(&uid, &[(1, p1), (2, p2)]).await.unwrap();
++        assert!(etag.ends_with("-2"));
++        let mut want = vec![7u8; 5 << 20];
++        want.extend_from_slice(b"tail");
++        assert_eq!(get(&c, "big").await.unwrap(), want);
++        drop(c);
++
++        // reverting to the retired indexer alone (N = 1 again, the new set down) cannot serve its stale view, which
++        // lacks "big": its seal says epoch 2 replaced it, and epoch 2's members may be serving
++        nets[0].offline(false);
++        nets[1].offline(true);
++        nets[2].offline(true);
++        let back = members(&nets, &[0], 1).await;
++        assert_eq!(phase(&back), (Phase::Waiting, false, 2));
++        assert!(back.lookup("b", "big").is_none() && !back.ready());
++    }
++
++    #[tokio::test]
++    async fn an_interrupted_commit_is_finished_before_anything_is_served() {
++        let nets = [Net::on_disk(1), Net::on_disk(2), Net::on_disk(3)];
++        let old = members(&nets, &[0], 1).await;
++        maintain(&old).await;
++        old.put("b", "live", b"acknowledged".to_vec(), None, &Cond::None).await.unwrap();
++        drop(old);
++
++        let c = members(&nets, &[0, 1, 2], 2).await;
++        backfill(&c).await;
++        // the seal and r0's admission land; r1's and r2's admissions never answer
++        nets[1].net.push_fault("pin_object", Fault::Hang);
++        nets[2].net.push_fault("pin_object", Fault::Hang);
++        let r = settle(&c).await;
++        assert_eq!(r.admitted, 2, "{r:?}");
++        assert_eq!(phase(&c), (Phase::Pending, false, 2), "sealed: the old set no longer acts, the new one is not ready");
++        assert!(c.put("b", "x", b"y".to_vec(), None, &Cond::None).await.unwrap_err().starts_with("ServiceUnavailable"));
++        drop(c);
++
++        // a restart sees the same: finishing comes first (main.rs runs maintenance while pending)
++        let c = members(&nets, &[0, 1, 2], 2).await;
++        assert!(c.pending() && !c.ready());
++        let r = maintain(&c).await;
++        assert_eq!(r.admitted, 2, "{r:?}");
++        assert_eq!(phase(&c), (Phase::Stable, true, 2));
++        drop(c);
++        nets[0].offline(true);
++        let c = members(&nets, &[0, 1, 2], 2).await;
++        assert_eq!(get(&c, "live").await.unwrap(), b"acknowledged");
++    }
++
++    #[test]
++    fn membership_states_follow_the_records() {
++        let c = Cluster::new((0..3).map(|i| (format!("r{i}"), format!("https://indexer-{i}.example"), false)).collect(), 2, opts(), timing());
++        let id = |i: usize| c.replicas[i].id.clone();
++        let def = |s: u64, w: u32, of: &[usize]| {
++            let mut m: Vec<String> = of.iter().map(|i| id(*i)).collect();
++            m.sort();
++            MsDef { s, w, m }
++        };
++        let rec = |k: &str, d: &MsDef, p: Option<&MsDef>| MsRec { k: k.into(), d: d.clone(), p: p.cloned() };
++        let cfg = def(1, 2, &[0, 1, 2]);
++        let one = def(1, 1, &[0]);
++        let next = MsDef { s: 2, ..cfg.clone() };
++
++        // no records: every configured replica must be loaded
++        assert_eq!(c.membership(&[(0, vec![]), (1, vec![])]).ready, false);
++        let st = c.membership(&[(0, vec![]), (1, vec![]), (2, vec![])]);
++        assert_eq!((st.phase, st.ready, st.voters.len(), st.need, st.commit), (Phase::Legacy, true, 3, 2, true));
++        // admitted at the configured set: N - W + 1 admitted members serve, and only they vote
++        let a = rec("a", &cfg, None);
++        let st = c.membership(&[(0, vec![a.clone()]), (1, vec![a.clone()]), (2, vec![])]);
++        assert_eq!((st.phase, st.ready, st.voters.clone()), (Phase::Stable, true, vec![0, 1]));
++        let st = c.membership(&[(0, vec![a.clone()]), (2, vec![])]);
++        assert_eq!((st.phase, st.ready), (Phase::Waiting, false), "r1 may hold the other admission");
++        // another set admitted (one old indexer): it serves, and the configured set is the target
++        let st = c.membership(&[(0, vec![rec("a", &one, None)]), (1, vec![])]);
++        assert_eq!((st.phase, st.ready, st.voters.clone(), st.need), (Phase::Migrating, true, vec![0], 1));
++        assert_eq!((st.target.clone(), st.prev.clone(), st.seal_to.clone(), st.seal_needed), (next.clone(), Some(one.clone()), vec![0], 1));
++        // sealed, never admitted by a quorum: finished from the sealed old member, not served
++        let sealed = rec("s", &next, Some(&one));
++        let st = c.membership(&[(0, vec![rec("a", &one, None), sealed.clone()]), (1, vec![]), (2, vec![])]);
++        assert_eq!((st.phase, st.ready, st.sources.clone(), st.sources_needed), (Phase::Pending, false, vec![0], 1));
++        // ... but not while an unloaded member might hold enough admissions
++        let st = c.membership(&[(0, vec![rec("a", &one, None), sealed.clone(), rec("a", &next, Some(&one))]), (1, vec![])]);
++        assert_eq!((st.phase, st.ready), (Phase::Waiting, false));
++        // records that disagree at the top epoch are refused
++        let st = c.membership(&[(0, vec![rec("a", &next, Some(&one))]), (1, vec![rec("a", &next, None)])]);
++        assert_eq!((st.phase, st.ready), (Phase::Refused, false));
++        // a sealed change to another set than the configured one is refused, not silently abandoned
++        let other = def(2, 1, &[0, 1]);
++        let st = c.membership(&[(0, vec![rec("s", &other, Some(&one))]), (1, vec![]), (2, vec![])]);
++        assert_eq!((st.phase, st.ready), (Phase::Refused, false));
++    }
+ }
+diff --git a/sia-s3/src/store.rs b/sia-s3/src/store.rs
+index 4994505..2eb63c1 100644
+--- a/sia-s3/src/store.rs
++++ b/sia-s3/src/store.rs
+@@ -37,6 +37,11 @@
+ //! whenever it appears, so a write that lands arbitrarily late, or old data an
+ //! indexer replays, cannot bring a deleted key back. Floors are kept for good;
+ //! once one is pinned, the payload it covers is reclaimed.
++//!
++//! A *membership record* (`ms`) states which replica set this replica's
++//! contents are complete for (replica.rs, "Membership"). It lives in metadata
++//! alone, on a one-byte object, and is never rewritten: a newer record is a new
++//! object.
+ 
+ use std::cell::{Cell, RefCell};
+ use std::collections::{BTreeMap, HashMap, HashSet};
+@@ -165,6 +170,38 @@ pub struct LgRef {
+     pub c: u64,
+ }
+ 
++/// A membership: its epoch, write quorum and members (`member_id` of each canonical indexer URL, sorted).
++#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
++#[serde(deny_unknown_fields)]
++pub struct MsDef {
++    pub s: u64,
++    pub w: u32,
++    pub m: Vec<String>,
++}
++
++/// A membership record, in a record object's metadata. `k` is "a" (admitted: this replica held the complete
++/// history when membership `d` admitted it) or "s" (sealed: this replica belonged to membership `p`, which `d`
++/// replaced). `p` is absent when `d` replaced a deployment that had no records.
++#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
++#[serde(deny_unknown_fields)]
++pub struct MsRec {
++    pub k: String,
++    pub d: MsDef,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub p: Option<MsDef>,
++}
++
++impl MsRec {
++    pub fn admit(&self) -> bool {
++        self.k == "a"
++    }
++}
++
++/// A replica's name in membership records: 64 bits of SHA-256 over its canonical indexer URL.
++pub fn member_id(indexer: &str) -> String {
++    hex::encode(&Sha256::digest(indexer.as_bytes())[..8])
++}
++
+ /// The body of a ledger object: deletion floors, each a key hash and the version of its newest deletion.
+ #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+ #[serde(deny_unknown_fields)]
+@@ -210,12 +247,15 @@ pub struct Meta {
+     /// this object is a ledger of deletion floors
+     #[serde(default, skip_serializing_if = "Option::is_none")]
+     pub lg: Option<LgRef>,
++    /// this object is a membership record
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub ms: Option<MsRec>,
+ }
+ 
+ impl Meta {
+     /// Does the object mean something by its metadata alone (not counting being some key's data)?
+     fn purposeful(&self) -> bool {
+-        !self.e.is_empty() || self.mp.is_some() || !self.d.is_empty() || self.mf.is_some() || self.lg.is_some()
++        !self.e.is_empty() || self.mp.is_some() || !self.d.is_empty() || self.mf.is_some() || self.lg.is_some() || self.ms.is_some()
+     }
+ 
+     fn normalized(mut self) -> Meta {
+@@ -273,6 +313,8 @@ pub struct Index {
+     pub ledgers: Vec<String>,
+     /// ledger objects whose body could not be read: their floors are unknown, so nothing is swept or merged
+     pub unread_ledgers: Vec<String>,
++    /// membership records, by object id
++    pub records: Vec<(String, MsRec)>,
+ }
+ 
+ #[derive(Default, Clone, Serialize)]
+@@ -471,6 +513,9 @@ pub fn build_index(objs: HashMap<String, (Object, Meta)>, manifests: HashMap<Str
+         for t in &m.d {
+             idx.tombs.entry(t.q.clone()).or_default().push((id.clone(), t.clone()));
+         }
++        if let Some(r) = &m.ms {
++            idx.records.push((id.clone(), r.clone()));
++        }
+     }
+     let mut dups = 0;
+     for (kk, key) in cands {
+@@ -493,7 +538,7 @@ pub fn build_index(objs: HashMap<String, (Object, Meta)>, manifests: HashMap<Str
+     let referenced: HashSet<String> = idx.keys.values().flat_map(|k| k.objects()).collect();
+     for (id, (obj, m)) in &idx.objs {
+         // objects holding tombstones stay until the tombstones are collected; unread manifests are unknown
+-        if referenced.contains(id) || !m.d.is_empty() || m.lg.is_some() || (m.mf.is_some() && !idx.manifests.contains_key(id)) {
++        if referenced.contains(id) || !m.d.is_empty() || m.lg.is_some() || m.ms.is_some() || (m.mf.is_some() && !idx.manifests.contains_key(id)) {
+             continue;
+         }
+         if let Some(t) = &m.mp {
+@@ -573,6 +618,16 @@ impl Index {
+         self.unread_ledgers.is_empty()
+     }
+ 
++    /// Is every key and deletion this replica holds known (no unread manifest or ledger)?
++    pub fn complete(&self) -> bool {
++        self.unresolved.is_empty() && self.unread_ledgers.is_empty()
++    }
++
++    /// The newest membership record here: highest epoch, an admission over a seal.
++    pub fn newest_record(&self) -> Option<&MsRec> {
++        self.records.iter().map(|(_, r)| r).max_by_key(|r| (r.d.s, r.admit()))
++    }
++
+     fn superseded(&self, kk: &KK, v: &Ver) -> bool {
+         self.keys.get(kk).is_some_and(|k| k.entry.ver() >= *v) || self.tomb(&qkey(&kk.0, &kk.1)).is_some_and(|t| t.ver() >= *v)
+     }
+@@ -602,10 +657,17 @@ pub async fn fetch_index(sdk: &Sdk, opts: &Opts) -> Res<Index> {
+     let mut objs = HashMap::new();
+     for (id, obj) in latest {
+         let Some(obj) = obj else { continue };
+-        if let Ok(m) = serde_json::from_slice::<Meta>(&obj.metadata) {
+-            if m.v == 1 || m.v == 2 {
++        match serde_json::from_slice::<Meta>(&obj.metadata) {
++            Ok(m) if m.v == 1 || m.v == 2 => {
+                 objs.insert(id, (obj, m));
+             }
++            Ok(_) => {}
++            Err(_) if unreadable_record(&obj.metadata) => {
++                // a membership record (from a newer version?) that cannot be read: what this replica was admitted
++                // to, or sealed against, is unknown. It stays unloaded rather than be counted wrongly.
++                return Err(format!("membership record {id} cannot be read by this version"));
++            }
++            Err(_) => {}
+         }
+     }
+     // manifest and ledger bodies, eight downloads at a time
+@@ -649,6 +711,11 @@ pub async fn fetch_index(sdk: &Sdk, opts: &Opts) -> Res<Index> {
+     Ok(idx)
+ }
+ 
++/// Is this metadata (which did not parse as `Meta`) a membership record all the same?
++fn unreadable_record(raw: &[u8]) -> bool {
++    serde_json::from_slice::<serde_json::Value>(raw).is_ok_and(|v| v.get("ms").is_some())
++}
++
+ /// Download an object's whole body, refusing one whose size disagrees with its signed metadata.
+ async fn read_body(sdk: &Sdk, obj: &Object, n: u64, z: &str, max: u64, deadline: Duration) -> Res<Vec<u8>> {
+     if n > max || n != obj.size() {
+@@ -1097,6 +1164,22 @@ impl Store {
+         Ok(())
+     }
+ 
++    /// Upload the one-byte body of a future membership record (nothing is pinned: an unused one leaves only slabs,
++    /// which `prune_slabs` reclaims).
++    pub async fn upload_record(&self) -> Res<Object> {
++        self.upload(Rc::from(&[0u8][..])).await
++    }
++
++    /// Record a membership statement durably here: pin an uploaded record body with the record as its metadata.
++    pub async fn pin_record(&self, mut obj: Object, rec: MsRec) -> Res<()> {
++        let meta = self.pin_with(&mut obj, Meta { p: true, ms: Some(rec.clone()), ..Default::default() }).await?;
++        let id = obj.id().to_string();
++        let mut idx = self.idx.lock().await;
++        idx.objs.insert(id.clone(), (obj, meta));
++        idx.records.push((id, rec));
++        Ok(())
++    }
++
+     /// With more than a few ledgers (and every one read), write one listing every floor, then delete the others.
+     /// Returns how many were merged away. A floor is never dropped: the new ledger is pinned first, and holds all.
+     pub async fn merge_ledgers(&self) -> Res<usize> {
+@@ -1182,6 +1265,30 @@ impl Store {
+         Ok(etag)
+     }
+ 
++    /// Make an uploaded copy of another replica's part `n` (ETag and size as that replica lists them) this
++    /// replica's part `n` of upload `uid`, replacing a part `n` it held with another ETag. Ok(false) when it holds that part already.
++    #[allow(clippy::too_many_arguments)]
++    pub async fn adopt_part(&self, uid: &str, b: &str, k: &str, started: i64, n: u32, (etag, size): (&str, u64), mut obj: Object) -> Res<bool> {
++        let mut idx = self.idx.lock().await;
++        let u = idx.uploads.entry(uid.to_string()).or_insert_with(|| Upload { b: b.into(), k: k.into(), started, parts: BTreeMap::new() });
++        if u.parts.get(&n).is_some_and(|p| p.1 == etag) {
++            return Ok(false);
++        }
++        let meta = Meta { p: size >= self.compact_max_object, mp: Some(PartTag { u: uid.into(), b: b.into(), k: k.into(), n, t: etag.into() }), ..Default::default() };
++        let meta = self.pin_with(&mut obj, meta).await?;
++        let id = obj.id().to_string();
++        let old = idx.uploads.get_mut(uid).and_then(|u| u.parts.insert(n, (id.clone(), etag.into(), size)));
++        idx.objs.insert(id, (obj, meta));
++        if let Some((old_id, _, _)) = old {
++            if let Some((o, _)) = idx.objs.get(&old_id).cloned() {
++                if self.delete(&o).await.is_ok() {
++                    idx.objs.remove(&old_id);
++                }
++            }
++        }
++        Ok(true)
++    }
++
+     /// Validate a completion here and stage its placement: inline on part 1 when the entry fits, else a manifest
+     /// over every part, uploaded now, outside any lock.
+     pub async fn stage_complete(&self, uid: &str, want: &[(u32, String)]) -> Res<Completion> {
+@@ -1469,6 +1576,32 @@ mod tests {
+         assert!(idx.orphans.is_empty());
+     }
+ 
++    #[test]
++    fn membership_records_fit_in_metadata_and_are_never_swept() {
++        // the largest set config allows (16 indexers) replacing another of 16 still fits the metadata budget
++        let ids = |seed: &str| {
++            let mut m: Vec<String> = (0..16).map(|i| member_id(&format!("https://indexer-{seed}-{i}.example.org"))).collect();
++            m.sort();
++            m
++        };
++        let rec = MsRec { k: "s".into(), d: MsDef { s: u64::MAX, w: 16, m: ids("new") }, p: Some(MsDef { s: u64::MAX - 1, w: 16, m: ids("old") }) };
++        let meta = Meta { p: true, ms: Some(rec.clone()), ..Default::default() }.normalized();
++        assert!(meta_bytes(&meta).is_ok() && meta.v == 2, "0.1.x leaves v2 objects alone");
++        assert_eq!(member_id("https://sia.enclave.host").len(), 16);
++        // a record object is listed as such, is never an orphan, and leaves the key space alone
++        let mut objs = HashMap::new();
++        objs.insert("ms".to_string(), (Object::default(), meta));
++        objs.insert("old".to_string(), (Object::default(), Meta { v: 1, e: vec![ver_entry(100)], ..Default::default() }));
++        let idx = build_index(objs, HashMap::new(), HashMap::new());
++        assert_eq!(idx.records, vec![("ms".to_string(), rec.clone())]);
++        assert!(idx.orphans.is_empty() && idx.keys.len() == 1);
++        assert_eq!(idx.newest_record(), Some(&rec));
++        // an unknown field in a record is refused (it is not this version's record), not misread
++        let raw = br#"{"v":2,"p":true,"ms":{"k":"a","d":{"s":1,"w":1,"m":[]},"x":1}}"#;
++        assert!(serde_json::from_slice::<Meta>(raw).is_err() && unreadable_record(raw), "fetch_index refuses to load it");
++        assert!(!unreadable_record(br#"{"something":"else"}"#));
++    }
++
+     #[test]
+     fn ledgers_are_checked_against_their_signed_metadata() {
+         let l = Ledger { v: 1, f: vec![Tomb { q: qkey("b", "k"), h: 5, i: "i".into() }] };

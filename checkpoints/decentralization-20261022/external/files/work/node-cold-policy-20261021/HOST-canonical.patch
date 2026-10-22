@@ -1,0 +1,82 @@
+--- base-canonical/host.mjs
++++ patched-canonical/host.mjs
+@@ -108,6 +108,9 @@
+     : "operator has no gas: it can read the ledger but cannot register, claim, renew or prove";
+ }
+ 
++// The longest an UNKNOWN host wallet policy may leave a domain that was already running before this agent process had any
++// definite answer for it (#coldWalletKeep): the host-admission snapshot's own validity (block timestamp + 90 s).
++const WALLET_COLD_CONFIRM_MS = 90_000;
+ export class Host {
+   constructor(cfg) {
+     this.cfg = cfg;                                  // { dir, endpoint, name, appsEnabled, ownerWallet, cpuPricePerSec6, vcpus, ramGb, wasmtime, python, gateway, portBase, inferenceUrl, log }
+@@ -2866,13 +2869,16 @@
+   // refused and nothing is served on it - and never "refused": the lease is not given back on chain for it.
+   async #walletPolicyState(d) {
+     if (!this.hostAdmission) return { refusal: null, unknown: null };
+-    try { return { refusal: (await this.hostAdmission.refusal({ deploymentId: d.id, appRef: d.appRef, forPrivate: d.isPublic === false })) || null, unknown: null }; }
++    let w;
++    try { w = { refusal: (await this.hostAdmission.refusal({ deploymentId: d.id, appRef: d.appRef, forPrivate: d.isPublic === false })) || null, unknown: null }; }
+     catch (e) {
+       const m = String(e.message).slice(0, 240);
+       // a deployment the policy cannot judge by its form is refused by the policy itself, not unknown
+-      if (/^catalog app reference required/.test(m)) return { refusal: `host wallet policy: ${m}`, unknown: null };
+-      return { refusal: null, unknown: m };
++      w = /^catalog app reference required/.test(m) ? { refusal: `host wallet policy: ${m}`, unknown: null } : { refusal: null, unknown: m };
+     }
++    // a DEFINITE answer (allowed or refused) in THIS process ends the cold-start keep for the deployment (#coldWalletKeep)
++    if (!w.unknown) { const k = String(d.id || "").toLowerCase(); this.#walletDefinite.add(k); this.#walletColdUnknown.delete(k); }
++    return w;
+   }
+   async walletPolicyRefusal(d) {
+     const w = await this.#walletPolicyState(d);
+@@ -2886,6 +2892,8 @@
+    * deployment, retired it AND sent its release.)
+    */
+   async #walletHold(id, unknown) {
++    const kept = await this.#coldWalletKeep(id, unknown);
++    if (kept) return kept;
+     const why = `host wallet policy unavailable (${unknown}): not served, renewed or released until it is established; asked again each pass`;
+     const gone = await this.#retireIsolated(id, why);
+     const app = this.apps.get(id);
+@@ -2895,6 +2903,40 @@
+     return this.#record(id, { status: "held", walletHeld: true, port: null,
+       reason: gone ? why : `${why}; the isolated domain could not be confirmed gone yet (retried)` });
+   }
++  #walletDefinite = new Set();       // deployments with a DEFINITE wallet answer in this process (lowercase ids)
++  #walletColdUnknown = new Map();    // deployment -> when this process first saw UNKNOWN for it, before any definite answer
++  /**
++   * COLD START ONLY (2026-10-21, minipc). A restarted agent has an empty policy cache and asks for every deployment at
++   * once; one transient quorum miss then made #walletHold RETIRE a domain that was already running, discarding its key and
++   * certificate. Before THIS process has seen any definite answer for a deployment, an UNKNOWN answer therefore does not
++   * destroy a domain the manager reports RUNNING for it: the domain is kept, and this node does what the hold does minus
++   * the retire - it does not serve, renew, claim or release anything for it, and asks again each pass. Bounded by
++   * WALLET_COLD_CONFIRM_MS, the host-admission snapshot's own validity window (block timestamp + 90 s): still unknown
++   * after that -> the ordinary hold below (retire). Not used once a definite answer was seen (a warm node holds exactly as
++   * before), nor for a deployment with no running domain, nor when the manager cannot be asked. A DEFINITE refusal never
++   * comes here: the callers give the deployment up first. -> the held record, or null for the ordinary hold.
++   */
++  async #coldWalletKeep(id, unknown) {
++    const k = String(id).toLowerCase();
++    if (this.#walletDefinite.has(k) || !this.cfg.isolationManager) return null;
++    const now = Date.now();
++    if (!this.#walletColdUnknown.has(k)) this.#walletColdUnknown.set(k, now);
++    if (now - this.#walletColdUnknown.get(k) >= WALLET_COLD_CONFIRM_MS) return null;
++    // no definite answer yet means ensureApp never got past its wallet gate in this process: nothing is served here
++    if (this.apps.has(id)) return null;
++    let domain = null;
++    try {
++      const { IsolationManagerClient } = await import("./isolation-client.mjs");
++      domain = await new IsolationManagerClient({ base: this.cfg.isolationManager }).findByName(id);
++    } catch { return null; }
++    if (!domain || domain.status !== "running") return null;
++    const why = `host wallet policy unavailable (${unknown}) before this agent's first definite answer: the running domain ${domain.id} is `
++      + `KEPT, not served, renewed or released here; asked again each pass, retired if still unavailable `
++      + `${Math.round(WALLET_COLD_CONFIRM_MS / 1000)} s after the first`;
++    const rec = this.records.get(id) || {};
++    if (rec.reason !== why) this.log(`${String(id).slice(0, 10)} ${why}`);
++    return this.#record(id, { status: "held", walletHeld: true, port: null, reason: why });
++  }
+   claimRefusal(d, { version = null, capacity, appsEnabled, invited = false, ownerAllow = this.ownerSet() }) {
+     // an admitted audit job (servesAuditJob) is claimed as its fee wallet's own: owner-only scope still holds, because only
+     // a payer this box serves can have created it here

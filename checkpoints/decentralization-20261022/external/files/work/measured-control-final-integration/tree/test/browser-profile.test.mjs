@@ -1,0 +1,123 @@
+// scripts/network/browser-profile.mjs: a browser profile is derived only from a REVIEWED authority profile whose digest
+// and contract pins the operator obtained out of band, plus explicit operator choices; the dashboard's own validator
+// accepts the result. And the dashboard's ETH funding quote (site/js/core/independent-chain.js ethFundingQuote) refuses
+// every unsafe feed state the deployed ledger would also refuse, before a wallet is asked to send value.
+//   run: node --test test/browser-profile.test.mjs
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { keccak256, toBytes } from "viem";
+import { convert } from "../scripts/network/browser-profile.mjs";
+import { parseProfile as parseBrowserProfile } from "../site/js/core/independent.js";
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const authorityBytes = fs.readFileSync(path.join(REPO, "contracts/deployments/network-profile-base.json"));
+const digest = "sha256:" + createHash("sha256").update(authorityBytes).digest("hex");
+const pins = JSON.parse(fs.readFileSync(path.join(REPO, "contracts/deployments/contract-pins-base.json"), "utf8"));
+const rpcs = ["https://base-rpc.publicnode.com", "https://mainnet.base.org", "https://base.drpc.org"];
+const storage = { version: 1, minimumCopies: 2, replicas: [
+  { upload: "https://s1.example/add-json", audience: "0x" + "01".repeat(32), gateway: "https://s1.example/ipfs" },
+  { upload: "https://s2.example/add-json", audience: "0x" + "02".repeat(32), gateway: "https://s2.example/ipfs" }] };
+
+test("conversion: reviewed pins, token, ledger feed and provenance; the dashboard accepts the exact output", () => {
+  const r = convert({ authorityBytes, expectDigest: digest, expectPins: pins, rpcs, storage, directories: ["https://dir.example"] });
+  const p = parseBrowserProfile(r.text);
+  assert.deepEqual(p.contracts, pins.contracts);
+  assert.equal(p.usdc, "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913");
+  assert.equal(p.ethUsdFeed, "0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70");
+  assert.equal(p.source.authorityProfileDigest, digest);
+  assert.equal(r.fingerprint, createHash("sha256").update(r.text).digest("hex"));
+  assert.equal(convert({ authorityBytes, expectDigest: digest, expectPins: pins, rpcs }).text,
+    convert({ authorityBytes, expectDigest: digest, expectPins: pins, rpcs }).text, "deterministic output");
+});
+
+test("conversion refuses anything not anchored out of band, and unsafe operator inputs", () => {
+  const ok = { authorityBytes, expectDigest: digest, expectPins: pins, rpcs };
+  assert.throws(() => convert({ ...ok, expectDigest: undefined }), /expected profile digest/);
+  assert.throws(() => convert({ ...ok, expectDigest: "sha256:" + "0".repeat(64) }), /digest mismatch/);
+  assert.throws(() => convert({ ...ok, authorityBytes: Buffer.concat([authorityBytes, Buffer.from(" ")]),
+    expectDigest: "sha256:" + createHash("sha256").update(Buffer.concat([authorityBytes, Buffer.from(" ")])).digest("hex") }), /canonical/);
+  const swapped = { ...pins, contracts: { ...pins.contracts, deployments: "0xf9e71385c5cb49844f2457ba6567de0742f8b89a" } };
+  assert.throws(() => convert({ ...ok, expectPins: swapped }), /contract pin deployments/);
+  assert.throws(() => convert({ ...ok, rpcs: ["https://base-rpc.publicnode.com"] }), /2–8 RPC/);
+  assert.throws(() => convert({ ...ok, rpcs: ["http://localhost:8545", "https://mainnet.base.org"] }), /HTTPS/);
+  assert.throws(() => convert({ ...ok, directories: ["http://203.0.113.7:8188"] }), /HTTPS origins/);
+  assert.throws(() => convert({ ...ok, storage: { ...storage, minimumCopies: 3 } }), /minimum/);
+});
+
+test("the command refuses to overwrite and prints the fingerprint", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bp-")), out = path.join(dir, "p.json");
+  try {
+    const args = ["scripts/network/browser-profile.mjs", "--authority", "contracts/deployments/network-profile-base.json", "--expect-digest", digest,
+      "--expect-pins", "contracts/deployments/contract-pins-base.json", ...rpcs.flatMap((u) => ["--rpc", u]), "--out", out];
+    const line = JSON.parse(execFileSync("node", args, { cwd: REPO, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }));
+    assert.equal(line.fingerprint, "sha256:" + createHash("sha256").update(fs.readFileSync(out)).digest("hex"));
+    assert.throws(() => execFileSync("node", args, { cwd: REPO, stdio: "ignore" }));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ---- ETH funding quote, against a scripted agreeing reader ----
+const sel = (s) => keccak256(toBytes(s)).slice(2, 10);
+const w = (v) => BigInt.asUintN(256, BigInt(v)).toString(16).padStart(64, "0");
+const LEDGER = pins.contracts.deployments, FEED = "0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70";
+function scripted({ feed = FEED, decimals = 8, answer = 2400n * 10n ** 8n, age = 60, roundId = 5, answeredIn = 5, feedCode = null } = {}){
+  const snap = { number: 100, hash: "0x" + "ab".repeat(32), timestamp: 1_800_000_000, rpcs: ["a", "b"] };
+  const push4 = (s) => "63" + sel(s);
+  return {
+    snapshot: async () => snap,
+    code: async (_s, a) => a === LEDGER ? "0x" + push4("ethUsdFeed()") + push4("fundEth(bytes32)") + "00"
+      : "0x" + (feedCode ?? (push4("latestRoundData()") + push4("decimals()"))) + "00",
+    call: async (_s, to, data) => {
+      if (to === LEDGER && data === "0x" + sel("ethUsdFeed()")) return "0x" + w(BigInt(feed));
+      if (data === "0x" + sel("decimals()")) return "0x" + w(decimals);
+      if (data === "0x" + sel("latestRoundData()")) return "0x" + w(roundId) + w(answer) + w(snap.timestamp - age) + w(snap.timestamp - age) + w(answeredIn);
+      throw new Error("unexpected call " + data);
+    },
+  };
+}
+let IC;
+test.before(async () => {
+  const profile = { format: "enclave-browser-profile", version: 1, chainId: 8453, rpcs: ["https://a.example", "https://b.example"], quorum: 2,
+    contractPins: pins, usdc: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", ethUsdFeed: FEED };
+  const text = JSON.stringify(profile), mem = (m) => ({ getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) });
+  globalThis.localStorage = mem(new Map([["enclave_independent_profile", text]]));
+  globalThis.sessionStorage = mem(new Map([["enclave_independent_ack", text]]));
+  globalThis.location = { hostname: "localhost" };
+  IC = await import(pathToFileURL(path.join(REPO, "site/js/core/independent-chain.js")).href + "?eth");
+});
+
+test("ETH quote: the ledger's reviewed 8-decimal feed with a fresh finalized round", async () => {
+  IC._setReaderForTests(scripted());
+  const q = await IC.ethFundingQuote();
+  assert.equal(q.ethUsd, 2400); assert.equal(q.feed, FEED); assert.equal(q.ageSeconds, 60);
+});
+
+test("ETH quote refuses: disabled, swapped feed, wrong decimals, stale, unfinished, non-positive, missing methods", async () => {
+  const cases = [
+    [{ feed: "0x" + "00".repeat(20) }, /disabled/],
+    [{ feed: "0x" + "77".repeat(20) }, /not the profile's reviewed feed/],
+    [{ decimals: 18 }, /assumes 8/],
+    [{ age: 7200 - 599 }, /old/],
+    [{ answeredIn: 4 }, /unfinished/],
+    [{ answer: 0n }, /not positive/],
+    [{ answer: -1n }, /not positive/],
+    [{ feedCode: "63" + sel("latestRoundData()") }, /does not implement decimals\(\)/],
+  ];
+  for (const [over, re] of cases){
+    IC._setReaderForTests(scripted(over));
+    await assert.rejects(IC.ethFundingQuote(), re, JSON.stringify(over, (k, v) => typeof v === "bigint" ? String(v) : v));
+  }
+});
+
+test("selector presence check handles PUSHn for selectors with leading zero bytes", async () => {
+  IC._setReaderForTests({ snapshot: async () => ({ number: 1 }), code: async () => "0x62bd4dee00" });
+  // 0x00bd4dee = payEth(bytes32) in EnclavePay: compilers push it as PUSH3 bd4dee
+  assert.equal(sel("payEth(bytes32)"), "00bd4dee");
+  await IC.assertImplements({ number: 1 }, "0x" + "12".repeat(20), "pay", ["payEth(bytes32)"]);
+  await assert.rejects(IC.assertImplements({ number: 1 }, "0x" + "34".repeat(20), "pay", ["fundEth(bytes32)"]), /does not implement fundEth/);
+});

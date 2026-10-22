@@ -1,0 +1,53 @@
+# The permissionless app-funded lease relay (network/lease-relay-service.mjs), from a standalone release directory built
+# by scripts/build-lease-relay-release.mjs. Template: review every value; docs/network/lease-relay-release.md has the
+# staging, TLS route and rollback steps. Nothing in the repository installs or starts this unit.
+#   /opt/enclave-lease-relay/releases/<artifact sha256>/   lease-relay.mjs, lease-relay-check.mjs, manifest.json
+#   /opt/enclave-lease-relay/current -> releases/<sha256>   the release this unit runs (switch it to stage or roll back)
+#   /etc/enclave-lease-relay/relay.env                      every setting, explicit (relay.env.example)
+#   /var/lib/enclave-lease-relay/relay.key                      the hot key (0600 root): handed to the service as a credential
+#   /var/lib/enclave-lease-relay-state/relay-send.json      the key's unresolved signed send (StateDirectory; survives restarts)
+[Unit]
+Description=Enclave app-funded lease relay
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+EnvironmentFile=/etc/enclave-lease-relay/relay.env
+# the key reaches the service only as a systemd credential (a private, read-only copy); the env names its path
+LoadCredential=relay-key:/var/lib/enclave-lease-relay/relay.key
+Environment=LEASE_RELAY_KEY_FILE=%d/relay-key
+# a send whose outcome is unknown is re-broadcast from here as the SAME signed bytes after a restart, never re-signed
+# its OWN directory, never one holding a key: with DynamicUser, systemd chowns a StateDirectory recursively at every start
+StateDirectory=enclave-lease-relay-state
+StateDirectoryMode=0700
+Environment=LEASE_RELAY_STATE=%S/enclave-lease-relay-state/relay-send.json
+WorkingDirectory=/opt/enclave-lease-relay/current
+# refuses to start unless every setting is explicit and valid and the directory holds the reviewed artifact
+ExecStartPre=/usr/local/bin/node /opt/enclave-lease-relay/current/lease-relay-check.mjs
+# --preserve-symlinks-main: the service starts only when its module URL equals the path it was run by; through the
+# `current` symlink Node would otherwise resolve the URL to releases/<sha256>/ and the relay would exit without serving
+ExecStart=/usr/local/bin/node --preserve-symlinks-main /opt/enclave-lease-relay/current/lease-relay.mjs
+Restart=on-failure
+RestartSec=10
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# measured (test/lease-relay-release.test.mjs, docs/network/lease-relay-release.md): set from the measured peak, with margin
+MemoryMax=192M
+TasksMax=64
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

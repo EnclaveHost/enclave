@@ -1,0 +1,56 @@
+table inet enclave_net {
+ map dns_dnat { type inet_service : ipv4_addr; }
+ set dns_rate4 { type ipv4_addr; size 65536; flags dynamic,timeout; timeout 60s; }
+ set dns_conn4 { type ipv4_addr; size 65536; flags dynamic; }
+ set egress4 { type ipv4_addr; }
+ set targets_udp { type ipv4_addr . inet_service; }
+ set targets_tcp { type ipv4_addr . inet_service; }
+ set own4 { type ipv4_addr; elements = { 203.0.113.7 } }
+ set blocked4 { type ipv4_addr; flags interval; elements = { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.0.0.0/24, 192.0.2.0/24, 192.88.99.0/24, 192.168.0.0/16, 198.18.0.0/15, 198.51.100.0/24, 203.0.113.0/24, 224.0.0.0/4, 240.0.0.0/4 } }
+ chain input {
+  type filter hook input priority -10; policy accept;
+  iifname { "wg-exit", "wg-guard" } ct state established,related accept
+  iifname { "wg-exit", "wg-guard" } meta l4proto tcp reject with tcp reset
+  iifname { "wg-exit", "wg-guard" } reject with icmpx admin-prohibited
+ }
+ chain forward {
+  type filter hook forward priority -10; policy accept;
+  ct state established,related accept
+  iifname { "wg-exit", "wg-guard" } oifname { "wg-exit", "wg-guard" } reject with icmpx admin-prohibited
+  iifname "eth0" oifname "wg-exit" ct status dnat meta l4proto { tcp, udp } th dport 53 accept
+  oifname { "wg-exit", "wg-guard" } drop
+  iifname "wg-exit" meta nfproto ipv6 reject with icmpx admin-prohibited
+  iifname "wg-exit" ip saddr != @egress4 reject with icmpx admin-prohibited
+  iifname "wg-exit" ip daddr @blocked4 meta l4proto tcp reject with tcp reset
+  iifname "wg-exit" ip daddr @blocked4 reject with icmpx admin-prohibited
+  iifname "wg-exit" ip daddr @own4 meta l4proto tcp reject with tcp reset
+  iifname "wg-exit" ip daddr @own4 reject with icmpx admin-prohibited
+  iifname "wg-exit" tcp dport 25 reject with tcp reset
+  iifname "wg-exit" oifname "eth0" accept
+  iifname "wg-guard" ip daddr . udp dport @targets_udp oifname "eth0" accept
+  iifname "wg-guard" ip daddr . tcp dport @targets_tcp oifname "eth0" accept
+  iifname "wg-guard" meta l4proto tcp reject with tcp reset
+  iifname { "wg-exit", "wg-guard" } reject with icmpx admin-prohibited
+ }
+ chain postrouting {
+  type nat hook postrouting priority srcnat; policy accept;
+  oifname "eth0" ip saddr { 10.77.0.0/16, 10.78.0.0/16 } masquerade
+  oifname "wg-exit" ct status dnat meta l4proto { tcp, udp } th dport 53 masquerade
+ }
+ chain dns_guard {
+  type filter hook prerouting priority -150; policy accept;
+  iifname "eth0" ip daddr 203.0.113.7 meta l4proto { tcp, udp } th dport 53 jump dns_limits
+ }
+ chain dns_limits {
+  limit rate over 2000/second burst 4000 packets drop
+  update @dns_rate4 { ip saddr limit rate over 20/second burst 40 packets } drop
+  meta l4proto tcp ct state new add @dns_conn4 { ip saddr ct count over 8 } drop
+ }
+ chain dns_dstnat {
+  type nat hook prerouting priority dstnat; policy accept;
+  iifname "eth0" ip daddr 203.0.113.7 udp dport 53 dnat ip to udp dport map @dns_dnat
+  iifname "eth0" ip daddr 203.0.113.7 tcp dport 53 dnat ip to tcp dport map @dns_dnat
+ }
+}
+add element inet enclave_net dns_dnat { 53 : 10.77.0.5 }
+flush map inet enclave_net dns_dnat

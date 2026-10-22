@@ -1,0 +1,8 @@
+#!/usr/bin/python3
+import socket,time
+for i in range(90):
+ try:
+  with socket.create_connection(('127.0.0.1',5432),timeout=1):pass
+  break
+ except OSError:time.sleep(1)
+else:raise SystemExit('PostgreSQL listener unavailable')

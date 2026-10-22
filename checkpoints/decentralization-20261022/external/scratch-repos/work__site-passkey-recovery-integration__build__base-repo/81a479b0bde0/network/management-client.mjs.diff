@@ -1,0 +1,64 @@
+--- a/network/management-client.mjs
++++ b/network/management-client.mjs
+@@ -99,6 +99,24 @@
+     const lease = this.reader.get(id), now = this.now();
+     if (!lease || lease.id !== id || !lease.active || lease.leaseUntil <= now || lease.validUntil <= now || lease.chainId !== this.chainId ||
+         String(lease.deployments).toLowerCase() !== this.pins.deployments) throw new ManagementError('no current lease for this deployment on the pinned ledger');
++    return this._endpoint(lease);
++  }
++
++  /** A host the OWNER names (a placement target), not the lease: its pinned-registry entry (agreeing reads: active, its
++   *  operator), then a management record for that runner signed by that operator. -> {lease: {runner, runnerOperator,
++   *  validUntil}, record} or throws (nothing is sent). */
++  async resolveHost(runner) {
++    if (!/^0x[0-9a-f]{64}$/.test(runner || '')) throw new ManagementError('an exact host (registry id) is required');
++    const [host] = await this.reader.registryEntries(this.pins.registry, [runner]);
++    const validUntil = Number(host?.blockTime) + (this.reader.maxBlockAgeMs ?? 90000);
++    if (!host || !host.active || !/^0x[0-9a-f]{40}$/.test(host.operator) || host.operator === ZERO)
++      throw new ManagementError('that host is not an active entry of the pinned registry');
++    if (!(validUntil > this.now())) throw new ManagementError('the registry answer is no longer fresh');
++    return this._endpoint({runner, runnerOperator: host.operator, validUntil});
++  }
++
++  async _endpoint(lease) {
++    const now = this.now();
+     const answers = await this.directories.read('/v1/network/records');
+     const envelopes = answers.flatMap(a => Array.isArray(a.value?.management) ? a.value.management.slice(0, 4096) : []);
+     const floorKey = this.floorKey(lease.runner, lease.runnerOperator), floor = await this.floors.get(floorKey);
+@@ -110,6 +128,12 @@
+   }
+ 
+   status() { return this._json('status'); }
++  /** Stop the app on the current host and hand its lease back. Exactly one attempt; the host answers released only once
++   *  ITS ledger read no longer names it. That is host-reported: confirm on your own quorum before acting on it. */
++  release() { return this._mutate('release'); }
++  /** Ask the host `runner` (a registry id the owner chose) to claim this deployment now. Advisory and idempotent: the
++   *  answer is {accepted, status|reason}; only the ledger says who holds the lease. */
++  claimHint({runner} = {}) { return this._json('claimHint', {}, undefined, {runner}); }
+   /** Host-reported GPU capacity for the current lease holder; not an attestation or a capacity reservation. */
+   gpu() { return this._json('gpu'); }
+   attestation({nonce} = {}) { return this._json('attestation', {nonce}); }
+@@ -148,8 +172,8 @@
+     return r;
+   }
+ 
+-  async _json(op, opts, bodyOpts) {
+-    const r = await this._open(op, opts, bodyOpts);
++  async _json(op, opts, bodyOpts, where) {
++    const r = await this._open(op, opts, bodyOpts, where);
+     const forwarded = r.headers['x-enclave-management-forwarded'] !== '0';
+     let bytes, readError = null;
+     try { const chunks = []; for await (const c of r.body) chunks.push(c); bytes = Buffer.concat(chunks); }
+@@ -171,9 +195,10 @@
+     return new ManagementError(message, {status: r.status, code, sent: true});
+   }
+ 
+-  async _open(op, opts = {}, bodyOpts) {
++  async _open(op, opts = {}, bodyOpts, {runner} = {}) {
+     const o = MANAGEMENT_OPERATIONS[op], target = managementTarget(op, this.deploymentId, opts), body = managementBody(op, bodyOpts);
+-    const {lease, record} = await this.resolve();
++    if ((o.host === 'named') !== (runner !== undefined)) throw new ManagementError(o.host === 'named' ? 'this operation goes to a host you name' : 'this operation goes to the current lease holder only');
++    const {lease, record} = o.host === 'named' ? await this.resolveHost(runner) : await this.resolve();
+     const hostPath = managementBase(lease.runner) + target, deadline = Math.min(record.expiresAt, lease.validUntil);
+     // SDK signers are asynchronous (a wallet, an agent key). Whatever comes back must be a session signature over
+     // exactly this request, and the lease and record must still be current once it has.

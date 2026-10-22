@@ -1,0 +1,26 @@
+--- evidence/g1_canary.57b27e8b.py	2026-10-21 15:21:41.005566642 -0700
++++ g1_canary.py	2026-10-21 15:21:59.695610880 -0700
+@@ -119,7 +119,8 @@
+ 
+ 
+ def s_watch(want, seconds):
+-    """want: {sha256(encoded command): role}. Only processes whose -EncodedCommand hashes to one of these are recorded."""
++    """want: {sha256(encoded command): role}. Only processes whose -EncodedCommand hashes to one of these are recorded.
++    PowerShell variables are case-insensitive: the hex result is $hx, never $h, which IS $H (the SHA256 object)."""
+     return ("$G1='watch';$want=@{" + ";".join(f"'{h}'='{r}'" for h, r in want.items()) + "};$end=(Get-Date).AddSeconds(" + str(int(seconds)) + ");"
+             "$H=[Security.Cryptography.SHA256]::Create();$done=@{};"
+             "$o=[ordered]@{from=[DateTime]::UtcNow.ToString('o');polls=0;checked=0;hits=@()};$seen=@{};$gone=@{};"
+@@ -128,10 +129,10 @@
+             "if($done.ContainsKey($key)){continue};$done[$key]=1;$o.checked++;"
+             "$c=Get-CimInstance Win32_Process -Filter \"ProcessId=$($p.Id)\" -OperationTimeoutSec 5 -ErrorAction SilentlyContinue;if(-not $c){continue};"
+             "$m=[regex]::Match([string]$c.CommandLine,'-EncodedCommand\\s+(\\S+)');if(-not $m.Success){continue};"
+-            "$h=-join($H.ComputeHash([Text.Encoding]::ASCII.GetBytes($m.Groups[1].Value))|%{$_.ToString('x2')});if(-not $want.ContainsKey($h)){continue};"
++            "$hx=-join($H.ComputeHash([Text.Encoding]::ASCII.GetBytes($m.Groups[1].Value))|%{$_.ToString('x2')});if(-not $want.ContainsKey($hx)){continue};"
+             "$w=$null;try{$w=Invoke-CimMethod -InputObject $c -MethodName GetOwner -OperationTimeoutSec 5}catch{};"
+-            "$pp=Get-CimInstance Win32_Process -Filter \"ProcessId=$($c.ParentProcessId)\" -OperationTimeoutSec 5 -ErrorAction SilentlyContinue;$seen[$want[$h]]=$p;"
+-            "$o.hits+=[ordered]@{role=$want[$h];pid=[int]$c.ProcessId;created=$c.CreationDate.ToUniversalTime().ToString('o');session=[int]$c.SessionId;"
++            "$pp=Get-CimInstance Win32_Process -Filter \"ProcessId=$($c.ParentProcessId)\" -OperationTimeoutSec 5 -ErrorAction SilentlyContinue;$seen[$want[$hx]]=$p;"
++            "$o.hits+=[ordered]@{role=$want[$hx];pid=[int]$c.ProcessId;created=$c.CreationDate.ToUniversalTime().ToString('o');session=[int]$c.SessionId;"
+             "exe=[string]$c.ExecutablePath;owner=$(if($w -and $w.User){[string]$w.Domain+'\\'+[string]$w.User}else{$null});"
+             "parent=[string]$pp.Name;parentSchedule=([string]$pp.CommandLine -match '\\s-s\\s+Schedule(\\s|$)')}};"
+             "foreach($r in @($seen.Keys)){try{if($seen[$r].HasExited){$gone[$r]=1}}catch{$gone[$r]=1}};if($gone.Count -ge $want.Count){break};Start-Sleep -Milliseconds 100};"

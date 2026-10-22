@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import {clientsFor} from '../lease-gas-wallet-signing/rpc-clients.mjs';
+import {verifiedLeaseAuthority} from '../app-lease-gas/client/lease-executor-authority.mjs';
+const rpcs=['https://base-rpc.publicnode.com','https://mainnet.base.org','https://base-mainnet.public.blastapi.io'];
+const deployment=JSON.parse(fs.readFileSync(new URL('./deployment.json',import.meta.url)));
+const result=await verifiedLeaseAuthority({clients:clientsFor(rpcs),deployment,quorum:2,confirmations:2,maxBlockAgeSecs:120});
+const evidence={at:new Date().toISOString(),rpcs,quorum:result.quorum,agreeing:result.agreeing,block:result.block,scope:'Read-only production authority, runtime code and reserve/executor binding verification; no keys, signing, broadcasting or activation.'};
+fs.writeFileSync(new URL('../../outputs/app-lease-gas-review/three-rpc-production-preflight.json',import.meta.url),JSON.stringify(evidence,(_k,v)=>typeof v==='bigint'?v.toString():v,2)+'\n');
+console.log(JSON.stringify(evidence,(_k,v)=>typeof v==='bigint'?v.toString():v));
+if(result.agreeing!==3)process.exitCode=2;

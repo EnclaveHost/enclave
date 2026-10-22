@@ -1,0 +1,25 @@
+[Unit]
+Description=Enclave Sia indexd (single writer)
+After=network-online.target enclave-indexd-postgres.service
+Requires=enclave-indexd-postgres.service
+Wants=network-online.target
+ConditionPathExists=/etc/enclave-indexd/ALLOW_LIVE_START
+[Service]
+User=enclave-indexd
+Group=enclave-indexd
+WorkingDirectory=/var/lib/enclave-indexd/state
+Environment=INDEXD_CONFIG_FILE=/etc/enclave-indexd/indexd.yml
+Environment=GOMEMLIMIT=512MiB
+ExecStartPre=/usr/local/lib/enclave-storage/wait-postgres
+ExecStart=/opt/enclave-indexd/indexd -instant
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=180
+MemoryMax=1G
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/enclave-indexd/state
+[Install]
+WantedBy=multi-user.target

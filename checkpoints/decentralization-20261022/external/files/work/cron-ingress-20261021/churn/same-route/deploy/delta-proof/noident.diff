@@ -1,0 +1,24 @@
+14202c14202,14209
+< }, equal = (a, b) => recordHash(a) === recordHash(b), empty = () => ({ version: 1, providers: {}, policies: {}, publications: {}, management: {} }), PublicDirectory = class {
+---
+> }, READ_SAME = /* @__PURE__ */ Symbol("verified publication, re-signs aside"), sameContext = (state, id) => {
+>   let c = routeContext(state, id), p = c.publication;
+>   return p ? { ...c, publication: { ...p, bundle: { authorization: p.bundle?.authorization ?? null, record: { ...p.bundle?.record, sequence: null, issuedAt: null, expiresAt: null } } } } : c;
+> }, equal = (a, b) => recordHash(a) === recordHash(b), empty = () => ({ version: 1, providers: {}, policies: {}, publications: {}, management: {} }), resigned = (route, s, id) => Object.assign(route, {
+>   expiresAt: Math.min(route.expiresAt, s.publications[id].bundle.record.expiresAt),
+>   [READ_CONTEXT]: recordHash(routeContext(s, id)),
+>   [READ_SAME]: recordHash(sameContext(s, id))
+> }), PublicDirectory = class {
+14330c14337
+<         return Object.assign(route, { [READ_CONTEXT]: recordHash(context(latest)) });
+---
+>         return resigned(route, latest, id);
+14331a14339
+>       if (!error && equal(sameContext(s, id), sameContext(latest, id))) return resigned(route, latest, id);
+14355c14363,14366
+<       let changed = Object.keys(s.publications).filter((id) => results.get(id) && results.get(id)[READ_CONTEXT] !== recordHash(routeContext(s, id)));
+---
+>       let changed = Object.keys(s.publications).filter((id) => {
+>         let r = results.get(id);
+>         return !r || r[READ_CONTEXT] === recordHash(routeContext(s, id)) ? !1 : r[READ_SAME] !== recordHash(sameContext(s, id)) ? !0 : (resigned(r, s, id), !1);
+>       });

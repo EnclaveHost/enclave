@@ -1,0 +1,215 @@
+--- work/node-lease-window-review-20261021/patch/proposed/helper/node-hold-cutover.ps1	2026-10-21 16:29:41.668428771 -0700
++++ work/node-deadline-root-20261022/helper/node-hold-cutover.ps1	2026-10-21 17:45:29.330156189 -0700
+@@ -1,3 +1,4 @@
++# ROOT revision 2026-10-22: decision fixes verified in Linux mocks only; native timing and renewal readiness remain activation blockers.
+ # node-hold-cutover.ps1 - the COORDINATED switch-on of the non-destructive wallet hold on minipc (PowerShell 5.1).
+ # Prepared by Claude 60543494 for ROOT; never run by its author. G4 + AI final package (work/g4-node-ai-final-20261021: 9d's
+ # frozen g4-node-final-package-20261021 2984c6f2 + the AI precondition, apply-ai-precondition.py f9a97362): + root review G-UPD (\Enclave\Update running or due inside the window REFUSES), N2 ($phase set before anything the
+@@ -11,14 +12,14 @@
+ # acknowledge a hold, and a stopped node retires nothing. The cost is a bounded app-traffic outage: from the privacy-agent
+ # restart until the node's first tick re-grants (the channel starts EMPTY).
+ # LEASE DEADLINE (PROPOSAL, node-lease-window-review-20261021; replaces the helper's static ">= 20 min at preflight"): the pins
+-# read every expected id's leaseUntil from the running node; the cutover is refused unless forward + revert + margin fit before
+-# the first one ends, and the forward waits are capped so a revert's node start still precedes it by lease.marginSec.
++# read every expected id's leaseUntil from the running node, again immediately before stopping it; the cutover is refused unless forward + revert + margin fit before
++# the first one ends. Forward waits preserve the configured recovery reserve; its native adequacy is NOT proven by this script.
+ #
+ #  -Mode cutover   1 pins: control/network files == new; node cmd+agent, manager, privacy agent == pinned PID+start;
+ #                    Hyper-V VM set (Get-VM Id|Name|State) and the manager's instances (id|name|status) == the preflight's
+ #                    (unavailable REFUSES); run-node.cmd, node-config.local.cmd, privacy-config.json == pinned sha; no
+ #                    wallet file; status.json fresh without walletAdmission. Snapshots: other \Enclave\ tasks' processes.
+-#                  2 STOP the Node task (identity re-verified before any kill)                       [nothing changed yet]
++#                  2 STOP the Node task (fresh lease guard after identity checks; mutation phase set first)
+ #                  3 privacy-config.json enclaveNetwork.walletAdmission = {file} appended LAST (exact backup, ACL kept;
+ #                    the edit temp carries the config's exact ACL BEFORE any byte enters it, removed in finally)
+ #                  4 node-config.local.cmd += "set ENCLAVE_NETWORK_WALLET_HOLD=1" (byte append, exact backup, ACL kept)
+@@ -65,12 +66,35 @@
+ # LEASE DEADLINE (node-lease-window-review-20261021): $LeaseEnd = the earliest leaseUntil (chain epoch s) of the expected ids,
+ # read from the running node at the pins. While the node is stopped nothing renews, and a lease that lapses meanwhile is a
+ # retired VM on the next tick. LeaseLeft = the seconds the FORWARD path may still spend so that a revert started now (each
+-# wait at its cap: lease.revertSec) still starts a node lease.marginSec (its first tick's renewal) before the first lease ends.
++# recovery budget: lease.revertSec) has a reserved interval before the first lease ends. The renewal margin is provisional;
++# API readiness is not evidence that the first renewal completed. Activation requires that separate readiness proof.
+ # The forward FreshStatus and channel waits are capped by it ($Fwd); the new node is started only with lease.startNodeSec left.
+-# RestartPrivacy is NOT capped: the revert itself needs exactly one privacy agent (lease.forwardMinSec covers it).
++# Forward paths reserve recovery against BOTH deadlines. In recovery, Lim uses the remaining global budget.
++# The 330-second parameter floor is necessary, not a native timing proof. DO NOT ACTIVATE this revision on mocks alone.
+ function NowS { [DateTimeOffset]::new((Get-Date).ToUniversalTime()).ToUnixTimeSeconds() }
+ function LeaseLeft { if ($null -eq $LeaseEnd) { return 0 }; $LeaseEnd - (NowS) - [int]$PRM.lease.marginSec - [int]$PRM.lease.revertSec }
+-function Lim($limitSec) { $l = [math]::Min($limitSec, (Left)); if ($Fwd) { $l = [math]::Min($l, (LeaseLeft)) }; return $l }
++function ForwardLeft { [math]::Min(((Left) - [int]$PRM.lease.revertSec), (LeaseLeft)) }
++function Lim($limitSec) { $l = [math]::Min($limitSec, (Left)); if ($Fwd) { $l = [math]::Min($l, (ForwardLeft)) }; return [math]::Max(0, $l) }
++function NeedForward { if ($Fwd -and (ForwardLeft) -le 0) { throw 'forward deadline reached; reserved recovery time must not be consumed' } }
++# Re-read AFTER identity checks, immediately before Stop-ScheduledTask. No mutation on unknown/short leases.
++function BeforeStop {
++  try {
++    $h = Invoke-RestMethod -UseBasicParsing -TimeoutSec 20 -Uri 'http://127.0.0.1:9600/v1/host/state'
++    $ids = @($PRM.expectedIds); if (-not $ids.Count) { return 'no expected deployments' }
++    $ends = @()
++    foreach ($id in $ids) {
++      $rows = @($h.deployments | Where-Object { [string]$_.id -eq [string]$id })
++      if ($rows.Count -ne 1 -or [string]$rows[0].status -ne 'running') { return 'a deployment is missing, duplicated, or not running' }
++      $v = $rows[0].leaseUntil
++      if (-not ($v -is [int] -or $v -is [long] -or $v -is [double] -or $v -is [decimal]) -or
++          [double]::IsNaN([double]$v) -or [double]::IsInfinity([double]$v) -or [double]$v -le 0 -or [math]::Floor([double]$v) -ne [double]$v) { return 'a lease deadline is invalid' }
++      $ends += [int64]$v
++    }
++    $script:LeaseEnd = ($ends | Measure-Object -Minimum).Minimum
++    if ((ForwardLeft) -lt [int]$PRM.lease.forwardMinSec) { return 'lease/global forward budget insufficient immediately before stop' }
++    return $null
++  } catch { return 'fresh lease read unavailable immediately before stop' }
++}
+ function Now { (Get-Date).ToUniversalTime().ToString('o') }
+ function NowMs { [DateTimeOffset]::new((Get-Date).ToUniversalTime()).ToUnixTimeMilliseconds() }
+ function IsoMs($s) { [DateTimeOffset]::Parse((Iso $s)).ToUnixTimeMilliseconds() }
+@@ -136,40 +160,81 @@
+   return $tmp }
+ # CAS write of ONE config file: $bytes into a protected temp, then [IO.File]::Replace; the temp never outlives the call
+ function CasWrite($path, $expect, [byte[]]$bytes) {
++  NeedForward
+   if ((Sha $path) -ne $expect) { throw "CAS refused: $path is not the expected sha" }
+   $acl = Get-Acl -LiteralPath $path; $tmp = ProtectedTemp $path '.nh-'
+   try { [IO.File]::WriteAllBytes($tmp, $bytes); if ((Sha $path) -ne $expect) { throw "CAS refused: $path changed during the write" }
+         [IO.File]::Replace($tmp, $path, [NullString]::Value); Set-Acl -LiteralPath $path -AclObject $acl }
+   finally { if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force } }
+   return [ordered]@{ after = (Sha $path); aclKept = ((Get-Acl -LiteralPath $path).Sddl -eq $acl.Sddl) } }
+-function StopNode($cmd, $agent) {   # node-restart.ps1's stop half: identity re-verified before Stop-ScheduledTask / Stop-Process
++function WaitNodeGone($pin, $name, $pat, $parent, $limitSec) {
++  $lim = (Get-Date).AddSeconds((Lim $limitSec))
++  while ((Get-Date) -lt $lim) {
++    $same = Same $pin.pid $pin.start $name $pat $parent
++    # A query that returns too late is not proof obtained inside this budget.
++    if ((Get-Date) -ge $lim) { return $false }
++    if (-not $same) { return $true }
++    Start-Sleep -Milliseconds 500
++  }
++  return $false
++}
++function StopNode($cmd, $agent) {
+   if (-not (Same $cmd.pid $cmd.start 'cmd.exe' $RUN_PAT 0) -or -not (Same $agent.pid $agent.start 'node.exe' $AGENT_PAT $cmd.pid)) { return 'identity changed; nothing stopped' }
++  if ($Fwd -and $phase -eq 'pins') { $refusal = BeforeStop; if ($refusal) { return ('REFUSED: ' + $refusal) } }
++  # A task API may stop the task and then throw. Mark the mutation boundary BEFORE invoking it.
++  if ($phase -eq 'pins') { $script:phase = 'stopping' }
+   Stop-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node'
+-  $d = (Get-Date).AddSeconds(30); while ((Same $cmd.pid $cmd.start 'cmd.exe' $RUN_PAT 0) -and (Get-Date) -lt $d) { Start-Sleep -Milliseconds 500 }
+-  if (Same $cmd.pid $cmd.start 'cmd.exe' $RUN_PAT 0) { return 'the run-node cmd.exe did not stop' }
+-  $d = (Get-Date).AddSeconds(30); while ((Same $agent.pid $agent.start 'node.exe' $AGENT_PAT $cmd.pid) -and (Get-Date) -lt $d) { Start-Sleep -Milliseconds 500 }
+-  if (Same $agent.pid $agent.start 'node.exe' $AGENT_PAT $cmd.pid) { Stop-Process -Id $agent.pid -Force
+-    $d = (Get-Date).AddSeconds(10); while ((Same $agent.pid $agent.start 'node.exe' $AGENT_PAT $cmd.pid) -and (Get-Date) -lt $d) { Start-Sleep -Milliseconds 500 }
+-    if (Same $agent.pid $agent.start 'node.exe' $AGENT_PAT $cmd.pid) { return 'the old agent is still running' } }
++  if (-not (WaitNodeGone $cmd 'cmd.exe' $RUN_PAT 0 30)) { return 'the run-node cmd.exe did not verifiably stop inside its budget' }
++  if (-not (WaitNodeGone $agent 'node.exe' $AGENT_PAT $cmd.pid 30)) {
++    NeedForward
++    $same = Same $agent.pid $agent.start 'node.exe' $AGENT_PAT $cmd.pid
++    NeedForward
++    if ($same) {
++      Stop-Process -Id $agent.pid -Force
++      if (-not (WaitNodeGone $agent 'node.exe' $AGENT_PAT $cmd.pid 10)) { return 'the old agent did not verifiably stop inside its budget' }
++    }
++  }
+   if (@((NodeProcs).agent).Count -ne 0) { return 'another node agent is running' }
+-  return 'stopped' }
++  return 'stopped'
++}
+ function NodeStopped { $q = NodeProcs; return ($q.cmd.Count -eq 0 -and $q.agent.Count -eq 0) }
+-function StartNode($limitSec) {   # -> the new {cmd, agent} answering on 9600, or $null
+-  Start-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node'; $lim = (Get-Date).AddSeconds([math]::Min($limitSec, (Left))); $n = $null
+-  while (-not $n -and (Get-Date) -lt $lim) { $q = NodeProcs; if ($q.cmd.Count -eq 1 -and $q.agent.Count -eq 1 -and $q.agent[0].parent -eq $q.cmd[0].pid) { $n = $q } else { Start-Sleep -Milliseconds 500 } }
+-  while ($n -and -not (AgentUp) -and (Get-Date) -lt $lim) { Start-Sleep -Seconds 1 }
+-  if ($n -and (AgentUp)) { return [ordered]@{ cmd = $n.cmd[0]; agent = $n.agent[0] } }; return $null }
+-function RestartPrivacy($pin, $limitSec) {   # stop THE pinned privacy agent; the Network task starts it again
+-  $pa = @(Privacy); if ($pa.Count -ne 1 -or $pa[0].pid -ne $pin.pid -or $pa[0].start -ne $pin.start) { return $null }
+-  Stop-Process -Id $pin.pid -Force; $lim = (Get-Date).AddSeconds([math]::Min($limitSec, (Left))); $n = $null
+-  # the NEW agent is any privacy agent whose (PID, start) is not the stopped one's: a reused PID is still a new process
+-  while (-not $n -and (Get-Date) -lt $lim) { Start-Sleep -Seconds 2; $n = @(Privacy | Where-Object { $_.pid -ne $pin.pid -or $_.start -ne $pin.start }) | Select-Object -First 1 }
+-  return $n }
++function StartNode($limitSec) {   # -> new process identities AND API response observed inside the available budget
++  $budget = Lim $limitSec; if ($budget -le 0) { return $null }
++  $lim = (Get-Date).AddSeconds($budget); $n = $null
++  Start-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node'
++  while (-not $n -and (Get-Date) -lt $lim) {
++    $q = NodeProcs; if ((Get-Date) -ge $lim) { return $null }
++    if ($q.cmd.Count -eq 1 -and $q.agent.Count -eq 1 -and $q.agent[0].parent -eq $q.cmd[0].pid) { $n = $q } else { Start-Sleep -Milliseconds 500 }
++  }
++  while ($n -and (Get-Date) -lt $lim) {
++    $up = AgentUp
++    if ((Get-Date) -ge $lim) { return $null }
++    if ($up) { return [ordered]@{ cmd = $n.cmd[0]; agent = $n.agent[0] } }
++    Start-Sleep -Seconds 1
++  }
++  return $null
++}
++function RestartPrivacy($pin, $limitSec) {
++  $budget = Lim $limitSec; if ($budget -le 0) { return $null }
++  $lim = (Get-Date).AddSeconds($budget)
++  $pa = @(Privacy)
++  # The identity query consumes this same budget; do not kill anything after it expired.
++  if ((Get-Date) -ge $lim -or ($Fwd -and (ForwardLeft) -le 0) -or $pa.Count -ne 1 -or $pa[0].pid -ne $pin.pid -or $pa[0].start -ne $pin.start) { return $null }
++  Stop-Process -Id $pin.pid -Force
++  while ((Get-Date) -lt $lim) {
++    Start-Sleep -Seconds 2; if ((Get-Date) -ge $lim) { break }
++    $n = @(Privacy | Where-Object { $_.pid -ne $pin.pid -or $_.start -ne $pin.start })
++    if ((Get-Date) -ge $lim) { return $null }
++    if ($n.Count -eq 1) { return $n[0] }
++  }
++  return $null
++}
+ # the NEW agent's own status (updatedAt >= its process start), fresh (< 5 s): enforcing THIS runner's channel (with or
+ # without a document of $wantGeneration), or (-plain) NOT enforcing
+ function FreshStatus($limitSec, $sinceMs, $mode, $wantGeneration) {
+   $lim = (Get-Date).AddSeconds((Lim $limitSec))
+   while ((Get-Date) -lt $lim) { $s = Status
++    if ((Get-Date) -ge $lim) { return $false }
+     if ($s -and [int64]$s.updatedAt -ge $sinceMs -and ((NowMs) - [int64]$s.updatedAt) -lt 5000) { $w = $s.walletAdmission
+       if ($mode -eq 'plain' -and -not $w) { return $true }
+       if ($mode -eq 'enforcing' -and $w -and [string]$w.runner -eq [string]$PRM.runner -and
+@@ -286,6 +351,10 @@
+     if ($Mode -eq 'cutover' -and (LeaseLeft) -lt [int]$lp.forwardMinSec) {
+       $why += "lease deadline: the first lease ($($first.id.Substring(0, 10))) ends in $($LeaseEnd - (NowS)) s, this cutover needs >= $([int]$lp.forwardMinSec + [int]$lp.revertSec + [int]$lp.marginSec) s (forward + revert + margin): run it right after the next renewals" } } }
+ if ($Mode -eq 'cutover') {
++  # This is only a NECESSARY floor: 90+90+150 are the explicit recovery waits alone.
++  # Native stop/query/file overhead and renewal readiness STILL require separate proof before activation.
++  if ($lp -and [int]$lp.revertSec -lt (90 + 90 + 150)) { $why += 'revert budget is shorter than its explicit 330-second waits (before native overhead)' }
++  if ($lp -and ((Left) - [int]$lp.revertSec) -lt [int]$lp.forwardMinSec) { $why += 'global deadline leaves insufficient forward time after reserving recovery' }
+   if ((Sha $LOCAL) -ne [string]$PRM.localSha) { $why += 'node-config.local.cmd is not the pinned sha' }
+   if ((Sha $CFG) -ne [string]$PRM.cfgSha) { $why += 'privacy-config.json is not the pinned sha' }
+   if ((Sha $WALLET) -ne 'absent') { $why += 'a wallet-admission.json already exists' }
+@@ -308,8 +377,10 @@
+ if ($Mode -eq 'rollback') { foreach ($k in 'local', 'cfg') { $b = $PRM.before.$k; $before[$k] = @{ before = [string]$b.before; after = [string]$b.after; backup = [string]$b.backup } } }
+ 
+ # ---------------------------------------------------------------- stop the node (both modes)
++$Fwd = ($Mode -eq 'cutover')
+ $st = StopNode ([ordered]@{ pid = [int]$PRM.node.cmdPid; start = (Iso $PRM.node.cmdStart) }) ([ordered]@{ pid = [int]$PRM.node.agentPid; start = (Iso $PRM.node.agentStart) })
+ Log ([ordered]@{ step = 'stop-node'; decision = $st; nodeStopped = (NodeStopped) })
++if ($st -like 'REFUSED:*') { Final $st ([ordered]@{ leaseFirstEnd = $LeaseEnd; forwardLeft = (ForwardLeft) }) }
+ if ($st -eq 'identity changed; nothing stopped') { Final 'REFUSED: the node identity changed before the stop; nothing was stopped or changed' ([ordered]@{}) }
+ if ($st -ne 'stopped' -or -not (NodeStopped)) { Recovery "the node could not be proven stopped before any change ($st); NO config changed; nothing started" ([ordered]@{}) }
+ $phase = 'stopped'
+@@ -323,6 +394,7 @@
+ 
+ # ---------------------------------------------------------------- cutover: configs (node stopped)
+ $phase = 'configs'
++NeedForward
+ PrivDir
+ $lb = [IO.File]::ReadAllBytes($LOCAL); $before.local.backup = Join-Path $PRIV "node-config.local.cmd.before-$Run"; [IO.File]::WriteAllBytes($before.local.backup, $lb)
+ $cb = [IO.File]::ReadAllBytes($CFG); $before.cfg.backup = Join-Path $PRIV "privacy-config.json.before-$Run"; [IO.File]::WriteAllBytes($before.cfg.backup, $cb)
+@@ -357,7 +429,7 @@
+ } finally { if ($edit -and (Test-Path -LiteralPath $edit)) { Remove-Item -LiteralPath $edit -Force } }
+ 
+ # ---------------------------------------------------------------- the network enforces BEFORE the node runs
+-$phase = 'enforcing'; $Fwd = $true
++$phase = 'enforcing'   # forward budgeting has been active since before the initial stop
+ $n = RestartPrivacy ([ordered]@{ pid = [int]$PRM.privacy.pid; start = (Iso $PRM.privacy.start) }) 90
+ $enf = $n -and (FreshStatus 90 (IsoMs $n.start) 'enforcing' $null); $eg = EgressApps
+ $same = ((Sha $LOCAL) -eq $before.local.after -and (Sha $CFG) -eq $before.cfg.after)
+@@ -369,8 +441,8 @@
+ # ---------------------------------------------------------------- start the node; verify ITS channel is what the network applies
+ # the new node is started only while its answer wait (lease.startNodeSec) still fits before the revert's deadline; otherwise the
+ # revert starts the OLD node now, while the margin still holds
+-if ((LeaseLeft) -lt [int]$PRM.lease.startNodeSec) {
+-  $r = Revert "LEASE: $([math]::Floor((LeaseLeft))) s of forward time left before the lease deadline (< lease.startNodeSec)"; $r.identityUnchanged = Identity $r
++if ((ForwardLeft) -lt [int]$PRM.lease.startNodeSec) {
++  $r = Revert "LEASE/GLOBAL: $([math]::Floor((ForwardLeft))) s of forward time left before the lease deadline (< lease.startNodeSec)"; $r.identityUnchanged = Identity $r
+   Final 'ROLLED_BACK_LEASE: the lease deadline left no time to start and verify the new node; the revert restored the flag then the block exactly, verified the network not enforcing, and started the node (old behaviour)' $r }
+ $phase = 'node-started'
+ $nn = StartNode 150

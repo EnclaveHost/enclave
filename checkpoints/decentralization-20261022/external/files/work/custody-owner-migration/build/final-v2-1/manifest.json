@@ -1,0 +1,102 @@
+{
+  "role": "enclave-custody-rewrap",
+  "commit": null,
+  "sourcesCommitted": false,
+  "sourceCheck": {
+    "untracked": [],
+    "dirty": "no git repository: Command failed: git ls-files -- custody/hpke.mjs custody/protocol.mjs custody/rules.mjs custody/threshold.mjs custody/v2/chain.mjs custody/v2/measured.mjs custody/v2/owner.mjs custody/v2/protocol.mjs custody/v2/quorum.mjs custody/v2/rewrap-gsup.mjs custody/v2/rewrap-guest.mjs custody/v2/rewrap.mjs custody/verifiers.mjs isolation/contract/runtime.mjs network/host-policy-mirrors.mjs network/platform-host-policy.mjs network/rpc-identity.mjs relay/snp-verify.mjs verifier/collateral-cache.mjs verifier/collateral.mjs verifier/consumer.mjs verifier/der.mjs verifier/envelope.mjs verifier/metal-box.mjs verifier/snp.mjs verifier/tls-binding.mjs scripts/build-custody-rewrap.mjs package.json package-lock.json"
+  },
+  "measured": {
+    "role": "enclave-custody-rewrap",
+    "chainId": 8453,
+    "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+    "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+    "rpcs": [
+      "https://mainnet.base.org",
+      "https://base-rpc.publicnode.com",
+      "https://base.drpc.org",
+      "https://base.public.blockpi.network/v1/rpc/public"
+    ],
+    "minAgree": 3,
+    "confirmations": 2,
+    "maxAgeSec": 120
+  },
+  "runtime": {
+    "name": "enclave-custody-rewrap",
+    "version": "1.0.0",
+    "execution": "jit",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+  },
+  "runtimeId": "203807f9ba70e096950bd79a55884ee9f8f7eab7a479705d9647cea94b0a70ab",
+  "base": {
+    "dir": "dist-custody-9e5fb2028",
+    "initramfsSha256": "7169150f50ae69b8cb85d433f5a2b44ea7553968408d9dfd373caa03a8c146e5",
+    "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "bundleInputs": {
+    "repo": [
+      "custody/hpke.mjs",
+      "custody/protocol.mjs",
+      "custody/rules.mjs",
+      "custody/threshold.mjs",
+      "custody/v2/chain.mjs",
+      "custody/v2/measured.mjs",
+      "custody/v2/owner.mjs",
+      "custody/v2/protocol.mjs",
+      "custody/v2/quorum.mjs",
+      "custody/v2/rewrap-gsup.mjs",
+      "custody/v2/rewrap-guest.mjs",
+      "custody/v2/rewrap.mjs",
+      "custody/verifiers.mjs",
+      "isolation/contract/runtime.mjs",
+      "network/host-policy-mirrors.mjs",
+      "network/platform-host-policy.mjs",
+      "network/rpc-identity.mjs",
+      "relay/snp-verify.mjs",
+      "verifier/collateral-cache.mjs",
+      "verifier/collateral.mjs",
+      "verifier/consumer.mjs",
+      "verifier/der.mjs",
+      "verifier/envelope.mjs",
+      "verifier/metal-box.mjs",
+      "verifier/snp.mjs",
+      "verifier/tls-binding.mjs"
+    ],
+    "packages": [
+      "@noble/ciphers@1.3.0",
+      "@noble/curves@1.9.1",
+      "@noble/hashes@1.8.0",
+      "abitype@1.2.3",
+      "isows@1.0.7",
+      "ox@0.14.29",
+      "viem@2.53.1",
+      "ws@8.21.1"
+    ]
+  },
+  "bundler": "esbuild@0.28.1",
+  "files": {
+    "/opt/metal/gsup.mjs": "11a4b97dc77dc75087db1b9659ffba629daa601e6ae116c662fde2e513b22e94",
+    "/opt/rewrap/rewrap.mjs": "3b1d179441ae255c5138a4a07b13d164393be62713f098fb91fd0180ab19896b"
+  },
+  "kernel": {
+    "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "initramfs": {
+    "sha256": "fc5d5602d67de50a1d096500655ec9ef8d8cd83dabb26100d2a77795342095e7",
+    "bytes": 279328018
+  },
+  "cmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app",
+  "vcpus": 2,
+  "measurement": "b0dc1308f40695d6cd99bb5c19c51e4e69ddbf52bf4ca031f82b127145a51956f6eee2ca4816882d9814c7362dc0b346",
+  "measurementSha256": "0xae236e47c9f6b8cd604765a3e7fdc888f08ef69cf17d06eefd0afd7a580d0f2f",
+  "ovmfSha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+  "rulesImage": {
+    "platform": "sev-snp",
+    "measurement": "b0dc1308f40695d6cd99bb5c19c51e4e69ddbf52bf4ca031f82b127145a51956f6eee2ca4816882d9814c7362dc0b346",
+    "runtimeId": "203807f9ba70e096950bd79a55884ee9f8f7eab7a479705d9647cea94b0a70ab"
+  }
+}

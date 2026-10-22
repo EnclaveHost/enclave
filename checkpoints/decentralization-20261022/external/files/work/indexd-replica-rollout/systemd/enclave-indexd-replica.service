@@ -1,0 +1,33 @@
+# indexd metadata REPLICA (independent: own wallet, own contracts, own PostgreSQL, own chain state).
+# Derived from work/storage-vm/enclave-indexd.service. Changes: release symlink, no -instant (a replica's
+# consensus.db is seeded from the operator's own verified snapshot; -instant without consensus.db requires the
+# external explorer), no swap. Caps are the LIVE PRIMARY's (MemoryMax 1G, GOMEMLIMIT 512MiB; capacity/capacity.json v2):
+# the live high-water is 380 MiB cgroup / 424 MiB VmHWM and no representative mainnet recovery/sync load measurement
+# substantiates a smaller cap (v1's 320M was below the measured high-water and is withdrawn). ALLOW guard = root's activation.
+[Unit]
+Description=Enclave Sia indexd metadata replica (indexd-fence release)
+After=network-online.target enclave-indexd-postgres.service
+Requires=enclave-indexd-postgres.service
+Wants=network-online.target
+ConditionPathExists=/etc/enclave-indexd/ALLOW_LIVE_START
+[Service]
+User=enclave-indexd
+Group=enclave-indexd
+WorkingDirectory=/var/lib/enclave-indexd/state
+Environment=INDEXD_CONFIG_FILE=/etc/enclave-indexd/indexd.yml
+Environment=INDEXD_DATA_DIR=/var/lib/enclave-indexd/state
+Environment=GOMEMLIMIT=512MiB
+ExecStartPre=/usr/local/lib/enclave-storage/wait-postgres
+ExecStart=/opt/enclave-indexd/releases/current/indexd
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=180
+MemoryMax=1G
+MemorySwapMax=0
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/enclave-indexd/state
+[Install]
+WantedBy=multi-user.target

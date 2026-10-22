@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# TEST-ONLY `ip -4 -o addr show`: this host's addresses ($M/ip-addrs, one per line; default loopback + 192.168.8.249)
+M=${MOCK_DIR:-$FSROOT/mock}; i=1
+{ [ -f "$M/ip-addrs" ] && cat "$M/ip-addrs" || printf '127.0.0.1\n192.168.8.249\n'; } | while read -r a; do echo "$i: eth0    inet $a/24 brd x scope global eth0"; i=$((i+1)); done

@@ -1,0 +1,410 @@
+--- install-host.ps1 (base 0dc5a801)
++++ install-host.r6p.ps1 (merged)
+@@ -40,14 +40,263 @@
+ $PF = Join-Path $env:ProgramFiles "Enclave"
+ $PD = Join-Path $env:ProgramData "Enclave"
+ function Emit($step, $state, $message) { [ordered]@{ step = $step; state = $state; message = $message } | ConvertTo-Json -Compress | Write-Output }
+-function Fail($step, $message) { Emit $step "fail" $message; exit 1 }
++function Fail($step, $message) { Emit $step "fail" $message; $script:Outcome = "failed"; $script:OutcomeDetail = "${step}: $message"; Restore-OtherTasks "after the failed install"; Save-InstallStatus "failed" $script:OutcomeDetail; exit 1 }
+ function Sha($p) { (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower() }
+ function List($s) { @(([string]$s).Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ }) }
++# WHAT AN INSTALL MAY STOP (ENCLAVE-ROLE-PRESERVATION-V1). The release owns only its directories and top-level files under Program
++# Files\Enclave. Other \Enclave\ tasks belong to roles installed by their own installers (host-services runners, Relay,
++# NetworkChecker, ...). One of them is stopped ONLY when it depends on a release-owned file (which this install may replace or
++# delete): a process of its running tree executes one, or that tree's command lines, its task action (program, arguments, working
++# directory) or a wrapper script (.cmd/.bat/.ps1) the action names refers to one - e.g. an external node.exe running a script in
++# network\ - or when Task Scheduler cannot say what it runs. Those references are compared as TEXT only, never run. Each role
++# stopped (with what is left of its process tree) is started again as soon as the files are in place - or, on ANY failure or
++# exit, by Fail / the finally below - and counts as restored only once Task Scheduler reports it Running again. A role that
++# depends on nothing of the release (e.g. hs2: C:\Program Files\nodejs running its own host-services\hs2) is never touched.
++# Every outcome is also written to ProgramData\Enclave\logs\install-status.json.
++$script:ReleaseDirs = @("runtime", "control", "network", "bin", "guest", "tray", "tuna")
++$script:ReleaseFiles = @("manifest.json", "uninstall-host.ps1", "update-host.ps1", "EnclaveSetup.exe")
++$script:CoreTasks = @("Shield", "Card", "Node", "Network", "Tuna")
++$script:PriorTasks = @{}; $script:StoppedOthers = [Collections.Generic.List[string]]::new(); $script:OthersRestored = $false; $script:RestoredOthers = @{}
++$script:StopReasons = @{}; $script:StoppedTrees = @{}; $script:PendingWhy = @{}
++function Test-ReleaseOwned([string]$path) { if (-not $path) { return $false }; foreach ($d in $script:ReleaseDirs) { if ($path.StartsWith("$PF\$d\", [StringComparison]::OrdinalIgnoreCase)) { return $true } }; return $false }
++# Does this text (a command line, a task action, a wrapper script) name a release-owned path? Separators, %xx escapes, doubled
++# backslashes and case are normalized; the text is never executed or parsed as a command. (8.3 short names are not resolved.)
++function Test-ReleaseRef([string]$text) {
++  if (-not $text) { return $false }
++  $t = $text.Replace('/', '\'); try { $t = [Uri]::UnescapeDataString($t) } catch { }
++  $t = [regex]::Replace($t, '\\{2,}', '\')
++  $root = [regex]::Escape($PF.Replace('/', '\').TrimEnd('\') + '\')
++  $names = @($script:ReleaseDirs + $script:ReleaseFiles | ForEach-Object { [regex]::Escape($_) }) -join '|'
++  return [regex]::IsMatch($t, "(?i)$root(?:$names)(?![A-Za-z0-9_.-])")
++}
++# \Enclave\<task> -> its running process tree (Task Scheduler's running instances: EnginePID and its descendants), each process
++# as {pid, created, exe, cmd}; or $null when that cannot be read (then every running other task counts as affected)
++function Get-RunningTaskTrees {
++  try { $svc = New-Object -ComObject Schedule.Service; $svc.Connect(); $run = @($svc.GetRunningTasks(1)) } catch { return $null }
++  $procs = @(Get-CimInstance Win32_Process); $byPid = @{}; $kids = @{}
++  foreach ($p in $procs) { $byPid[[int]$p.ProcessId] = $p; $k = [int]$p.ParentProcessId; if (-not $kids.ContainsKey($k)) { $kids[$k] = [Collections.Generic.List[object]]::new() }; $kids[$k].Add($p) }
++  $out = @{}
++  foreach ($r in $run) {
++    if ([string]$r.Path -notlike "\Enclave\*") { continue }
++    $n = ([string]$r.Path).Substring(9); $members = @(); $todo = [Collections.Generic.Queue[int]]::new(); $todo.Enqueue([int]$r.EnginePID); $seen = @{}
++    while ($todo.Count) { $i = $todo.Dequeue(); if ($seen.ContainsKey($i)) { continue }; $seen[$i] = 1
++      if ($byPid.ContainsKey($i)) { $p = $byPid[$i]; $members += [pscustomobject]@{ pid = $i; created = [string]$p.CreationDate; exe = [string]$p.ExecutablePath; cmd = [string]$p.CommandLine } }
++      if ($kids.ContainsKey($i)) { foreach ($c in $kids[$i]) { $todo.Enqueue([int]$c.ProcessId) } } }
++    $out[$n] = @($(if ($out.ContainsKey($n)) { $out[$n] }) + $members) }
++  return $out
++}
++# Why a running other role depends on the release ($null: it does not). Its task action and the wrapper scripts the action names
++# (at most 1 MB each; one level, a script those call is not followed) are read as text; an unreadable one counts as a dependency.
++function Get-ReleaseDependency($task, $tree) {
++  if ($null -eq $tree -or @($tree).Count -eq 0) { return "Task Scheduler could not say what it runs" }
++  foreach ($m in @($tree)) { if (Test-ReleaseOwned $m.exe) { return "process $($m.pid) runs $($m.exe)" } }
++  foreach ($m in @($tree)) { if (Test-ReleaseRef $m.cmd) { return "process $($m.pid) ($($m.exe)) is given a release file on its command line" } }
++  foreach ($a in @($task.Actions)) {
++    if ($null -eq $a) { continue }
++    $line = [Environment]::ExpandEnvironmentVariables("$([string]$a.Execute) $([string]$a.Arguments)")
++    $wd = [Environment]::ExpandEnvironmentVariables([string]$a.WorkingDirectory).Replace('/', '\').TrimEnd('\')
++    if (Test-ReleaseRef $line) { return "its task action names a release file" }
++    if ($wd -and ($wd -ieq $PF.TrimEnd('\') -or (Test-ReleaseRef "$wd\"))) { return "its task action works in $wd" }
++    # wrapper candidates: every token ending .cmd/.bat/.ps1, and every absolute path ending so (quoted or not, e.g. -Command "& 'C:\x.ps1'")
++    $scripts = @(foreach ($m in [regex]::Matches($line, '"([^"]*)"|(\S+)')) { $(if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $m.Groups[2].Value }) }) +
++               @(foreach ($m in [regex]::Matches($line, '(?i)(?:[A-Za-z]:\\|\\\\)[^"''<>|*?\r\n]*?\.(?:cmd|bat|ps1)(?![A-Za-z0-9_.])')) { $m.Value })
++    foreach ($f in @($scripts | Where-Object { $_ -match '\.(cmd|bat|ps1)$' } | Select-Object -Unique)) {
++      try {
++        $item = Get-Item -LiteralPath $f -ErrorAction Stop
++        if ($item.Length -gt 1MB) { return "its wrapper script $f is too large to read" }
++        $txt = [IO.File]::ReadAllText($item.FullName)
++        if ((Test-ReleaseRef $txt) -or (Test-ReleaseRef ([Environment]::ExpandEnvironmentVariables($txt)))) { return "its wrapper script $f names a release file" }
++      } catch { return "its wrapper script $f could not be read" }
++    }
++  }
++  return $null
++}
++# What this install did to the other roles, kept beside the logs for whoever reviews the host: the step output can be lost (an
++# update logs it, EnclaveSetup shows it once). Written as SYSTEM, so only into a logs folder that is already SYSTEM's and
++# Administrators' alone (an earlier install made it so); never into one another account could have made or planted files in.
++function Test-PrivateDir($dir) {
++  try {
++    $item = Get-Item -LiteralPath $dir -Force -ErrorAction Stop
++    if (-not $item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { return $false }
++    $acl = Get-Acl -LiteralPath $dir; $sid = [Security.Principal.SecurityIdentifier]
++    $others = @($acl.GetAccessRules($true, $true, $sid) | Where-Object { @("S-1-5-18", "S-1-5-32-544") -notcontains $_.IdentityReference.Value })
++    return $acl.AreAccessRulesProtected -and @("S-1-5-18", "S-1-5-32-544") -contains $acl.GetOwner($sid).Value -and $others.Count -eq 0
++  } catch { return $false }
++}
++$script:Outcome = $null; $script:OutcomeDetail = $null
++function Save-InstallStatus($result, $detail) {
++  try {
++    $d = Join-Path $PD "logs"
++    if (-not (Test-PrivateDir $d)) { return }
++    $roles = [ordered]@{}
++    foreach ($n in @($script:EarlierPending | Where-Object { -not $script:PriorTasks.ContainsKey($_) })) {
++      $roles[$n] = [ordered]@{ enabled = $null; running = $null; stopped = $true; why = "an earlier install stopped it"; outcome = "PENDING: stopped by an earlier install, not yet running again" } }
++    foreach ($n in @($script:PriorTasks.Keys | Sort-Object)) {
++      $roles[$n] = [ordered]@{ enabled = $script:PriorTasks[$n].enabled; running = $script:PriorTasks[$n].running
++                               stopped = $script:StoppedOthers.Contains($n); why = $script:StopReasons[$n]
++                               outcome = $(if ($script:RestoredOthers.ContainsKey($n)) { $script:RestoredOthers[$n] } elseif ($script:PendingWhy.ContainsKey($n)) { "PENDING: " + $script:PendingWhy[$n] } elseif ($script:StoppedOthers.Contains($n)) { "PENDING: not yet restarted" } else { $null }) } }
++    [ordered]@{ at = (Get-Date).ToUniversalTime().ToString("o"); result = $result; detail = $detail; updating = ($env:ENCLAVE_UPDATING -eq "1")
++                bundleVersion = $(if ($manifest) { [string]$manifest.version } else { $null }); otherRolesRestored = $script:OthersRestored; roles = $roles } |
++      ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 (Join-Path $d "install-status.json")
++  } catch { }
++}
++# Roles an EARLIER install stopped and did not see running again (install-status.json: stopped, outcome PENDING...). A rollback or
++# re-run must start them again like the roles it stops itself; without this they would look operator-stopped and the record lost.
++function Get-EarlierPending {
++  try {
++    $d = Join-Path $PD "logs"; $f = Join-Path $d "install-status.json"
++    if (-not (Test-PrivateDir $d) -or -not (Test-Path -LiteralPath $f -PathType Leaf)) { return @() }
++    $s = Get-Content -LiteralPath $f -Raw | ConvertFrom-Json
++    if ($null -eq $s.roles) { return @() }
++    return @($s.roles.PSObject.Properties | Where-Object { $_.Value.stopped -eq $true -and ([string]$_.Value.outcome).StartsWith("PENDING") } | ForEach-Object { [string]$_.Name })
++  } catch { return @() }
++}
++$script:EarlierPending = @()
++function Stop-ForInstall {
++  $trees = Get-RunningTaskTrees
++  foreach ($t in Get-ScheduledTask -TaskPath "\Enclave\" -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -ne "Update" }) {
++    $n = $t.TaskName; $running = ([string]$t.State -eq "Running")
++    $script:PriorTasks[$n] = [ordered]@{ enabled = [bool]$t.Settings.Enabled; running = $running }
++    if ($n -in $script:CoreTasks) { Stop-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction SilentlyContinue; continue }
++    if (-not $running) {
++      if ($script:EarlierPending -contains $n) { $script:StoppedOthers.Add($n); $script:StopReasons[$n] = "an earlier install stopped it and it was not running again" }
++      continue }
++    $tree = $(if ($null -ne $trees -and $trees.ContainsKey($n)) { @($trees[$n]) } else { $null })
++    $why = Get-ReleaseDependency $t $tree
++    if ($why) {
++      Stop-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction SilentlyContinue; $script:StoppedOthers.Add($n); $script:StopReasons[$n] = $why
++      if ($tree) { $script:StoppedTrees[$n] = @($tree) } }
++  }
++  # processes that execute a release-owned file, and what is left of the trees of the roles stopped above (the same process: the
++  # same id AND creation time, so a reused id is never hit); nothing else (never e.g. host-services\hs2 or C:\Program Files\nodejs)
++  $left = @{}; foreach ($n in $script:StoppedTrees.Keys) { foreach ($m in $script:StoppedTrees[$n]) { $left["$($m.pid)|$($m.created)"] = 1 } }
++  Get-CimInstance Win32_Process | Where-Object { (Test-ReleaseOwned ([string]$_.ExecutablePath)) -or $left.ContainsKey("$([int]$_.ProcessId)|$([string]$_.CreationDate)") } |
++    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
++  Save-InstallStatus "installing" "stopped: $(if ($script:StoppedOthers.Count) { $script:StoppedOthers -join ', ' } else { 'core tasks only' })"
++}
++function Restore-OtherTasks($why) {
++  if ($script:OthersRestored) { return }
++  $done = @(); $left = @(); $bad = @()
++  foreach ($n in $script:StoppedOthers) {
++    if ($script:RestoredOthers.ContainsKey($n)) { continue }
++    if (-not $script:PriorTasks[$n].enabled) {
++      $left += $n; $script:RestoredOthers[$n] = "operator-disabled"; continue
++    }
++    try {
++      $current = Get-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction Stop
++      if ($null -eq $current) { throw "the task no longer exists" }
++      if (-not $current.Settings.Enabled) {
++        $left += $n; $script:RestoredOthers[$n] = "operator-disabled"; continue
++      }
++      # Restored means SEEN Running again (a refused request, a vanished task or one that does not stay up remains pending, so
++      # the existing Fail/finally cleanup retries it); a role already restored is never requested twice.
++      if ([string]$current.State -ne "Running") {
++        Start-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction Stop
++        $state = ""
++        for ($w = 0; $w -lt 10; $w++) {
++          $state = [string](Get-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction Stop).State
++          if ($state -eq "Running") { break }; Start-Sleep 1 }
++        if ($state -ne "Running") { throw "started, but Task Scheduler reports it $state, not Running" }
++      }
++      $done += $n; $script:RestoredOthers[$n] = "running"; $script:PendingWhy.Remove($n)
++    } catch { $bad += "$n ($($_.Exception.Message))"; $script:PendingWhy[$n] = $_.Exception.Message }
++  }
++  $script:OthersRestored = (@($script:StoppedOthers | Where-Object { -not $script:RestoredOthers.ContainsKey($_) }).Count -eq 0)
++  if (-not ($done.Count + $left.Count + $bad.Count)) { return }
++  Save-InstallStatus $(if ($script:OthersRestored) { "roles-restored" } else { "roles-pending" }) $why
++  Emit "services" $(if ($bad.Count) { "warn" } else { "ok" }) ("other Enclave roles this install stopped, running again $why`: " + $(if ($done.Count) { $done -join ", " } else { "none" }) +
++    $(if ($bad.Count) { "; NOT running yet (retried at cleanup): " + ($bad -join ", ") } else { "" }) + $(if ($left.Count) { "; left stopped (disabled by their operator): " + ($left -join ", ") } else { "" }))
++}
++# AN AUTOMATIC UPDATE ON A HOST WITH ROLES BESIDE THE RELEASE. The updater running this script reinstalls the release that was
++# running, from its kept bundle in ProgramData\Enclave-setup, whenever this script exits non-zero. A kept installer without
++# ENCLAVE-ROLE-PRESERVATION-V1 deletes all of Program Files\Enclave (host-services\hs2, a top-level challenge-replica), leaves
++# every other role stopped, and puts that release's files back over the live ones. An updater that refuses such a rollback by
++# itself carries ENCLAVE-ROLLBACK-GUARD-V1. Under any other updater, on a host with such roles, this script refuses the update
++# BEFORE changing anything and exits 0 (the one exit that updater does not answer with that rollback). It says so in its output
++# (the update log), in ProgramData\Enclave\logs\install-status.json, and by leaving Program Files' manifest at the installed
++# version; that updater's own "updated" log line and tray state are then wrong, the manifest is not. Run by hand or by
++# EnclaveSetup (no ENCLAVE_UPDATING), no automatic rollback follows and this never applies.
++function Get-UnsafeRollback {
++  if ($env:ENCLAVE_UPDATING -ne "1") { return $null }
++  try {
++    $upd = Join-Path $PF "update-host.ps1"
++    if ((Test-Path -LiteralPath $upd) -and (Select-String -LiteralPath $upd -SimpleMatch "ENCLAVE-ROLLBACK-GUARD-V1" -Quiet)) { return $null }
++    $im = Join-Path $PF "manifest.json"
++    if (-not (Test-Path -LiteralPath $im)) { return $null }
++    $ver = [string](Get-Content -LiteralPath $im -Raw | ConvertFrom-Json).version
++    $back = Join-Path (Join-Path (Split-Path $PD) "Enclave-setup") (Join-Path $ver "install-host.ps1")
++    if (-not (Test-Path -LiteralPath $back)) { return $null }
++    if (Select-String -LiteralPath $back -SimpleMatch "ENCLAVE-ROLE-PRESERVATION-V1" -Quiet) { return $null }
++    $owned = @($script:ReleaseDirs + $script:ReleaseFiles)
++    $beside = @(Get-ChildItem -LiteralPath $PF -Force | Where-Object { $owned -notcontains $_.Name } | ForEach-Object { $_.Name })
++    $roles = @(Get-ScheduledTask -TaskPath "\Enclave\" -ErrorAction SilentlyContinue | Where-Object { @($script:CoreTasks + "Update") -notcontains $_.TaskName } | ForEach-Object { $_.TaskName })
++    if (-not ($beside.Count + $roles.Count)) { return $null }
++    $kept = @(@($beside | ForEach-Object { "$PF\$_" }) + @($roles | ForEach-Object { "\Enclave\$_" }))
++    return "its automatic rollback would run $back, which does not preserve $($kept -join ', ')"
++  } catch { return "this host's update state could not be read ($($_.Exception.Message))" }
++}
++# a core task this script registers (-Force enables it) that its operator had DISABLED is disabled again at once
++function Allowed($name) { -not ($script:PriorTasks.ContainsKey($name) -and -not $script:PriorTasks[$name].enabled) }
++# What a release OWNS in Program Files\Enclave: its directories and the bundle's top-level files. A full install removes
++# exactly these (never the whole folder): a role installed beside them (host-services\hs2, a top-level challenge-replica
++# release dir) survives. Anything INSIDE a release directory is release content and IS replaced.
++function Clear-ReleaseContent($root) {
++  if (-not (Test-Path -LiteralPath $root)) { return }
++  foreach ($d in $script:ReleaseDirs) { $p = Join-Path $root $d; if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force } }
++  foreach ($f in "manifest.json", "uninstall-host.ps1", "update-host.ps1", "EnclaveSetup.exe") { $p = Join-Path $root $f; if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force } }
++}
+ # node.exe with its stderr kept: native stderr under "Stop" throws in Windows PowerShell 5.1, so relaxed for this call only
+ function NodeRun($exe, [string[]] $a) {
+   $ErrorActionPreference = "Continue"
+   $o = @(& $exe @a 2>&1 | ForEach-Object { "$_" }); return @{ code = $LASTEXITCODE; out = ($o -join "`n").Trim() }
+ }
++$script:EarlierPending = @(Get-EarlierPending)
++$unsafe = Get-UnsafeRollback
++if ($unsafe) {
++  Save-InstallStatus "refused-unsafe-rollback" $unsafe
++  Emit "release" "fail" ("NOT INSTALLED, nothing on this PC changed: $unsafe. Install this release by hand (an administrator running its " +
++                        "install-host.ps1), or once the running update-host.ps1 refuses that rollback (ENCLAVE-ROLLBACK-GUARD-V1).")
++  exit 0
++}
++
++# THE OPERATOR'S OWN SETTINGS SURVIVE AN UPDATE (ENCLAVE-LOCAL-CONFIG-V1). Every launcher below is REWRITTEN by each install; only
++# the two local hooks are never written: node-config.local.cmd (called last by node-config.cmd, so it overrides the generated
++# node settings) and shield-config.local.cmd (called last by shield-config.cmd, the same for Enclave Shield). run-node.cmd and
++# run-shield.cmd are generated with NO set line at all, so any set line found in them was added by hand (e.g. the wallet
++# admission pins, contract pins or gateways) and is LOST by the rewrite unless the same line is in the matching local hook.
++# Such an install is refused BEFORE anything changes, naming the settings (never their values); the root-reviewed migration
++# (config-persistence/root/migrate-local-config.ps1) moves them. Under an updater it exits 0, the r4 rule (no rollback for a
++# refusal that changed nothing); by hand it fails.
++$script:SetLine = '(?i)^\s*(?:if [^\r\n]*?\s)?set\s+"?([A-Za-z_][A-Za-z0-9_]*)='          # finds EVERY set line, quoted or conditional
++function Get-SetLines($path) {
++  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return @() }
++  $i = 0
++  @(foreach ($l in [IO.File]::ReadAllLines($path)) { $i++; $m = [regex]::Match($l, $script:SetLine)
++    if ($m.Success) { [pscustomobject]@{ line = $i; name = $m.Groups[1].Value.ToUpperInvariant(); text = $l.TrimStart() } } })
++}
++# -> the hand-made set lines of a SET-free launcher that its hook does not reproduce verbatim as that name's LAST assignment
++function Get-UnpersistedSettings($dir) {
++  $out = @()
++  foreach ($pair in @(@("run-node.cmd", "node-config.local.cmd"), @("run-shield.cmd", "shield-config.local.cmd"))) {
++    $hook = @(Get-SetLines (Join-Path $dir $pair[1]))
++    foreach ($s in @(Get-SetLines (Join-Path $dir $pair[0]))) {
++      $last = @($hook | Where-Object { $_.name -eq $s.name } | Select-Object -Last 1)
++      $same = @($hook | Where-Object { $_.text -ceq $s.text })
++      if (-not $same.Count -or ($s.text -notmatch '(?i)^if\s' -and $last[0].text -cne $s.text)) { $out += "$($pair[0]):$($s.name)" }
++    }
++  }
++  return @($out | Select-Object -Unique)
++}
++$unpersisted = @(Get-UnpersistedSettings $PD)
++if ($unpersisted.Count) {
++  $why = "hand-made launcher settings that this install would overwrite and no local hook carries: " + ($unpersisted -join ", ")
++  Save-InstallStatus "refused-unpersisted-config" $why
++  if ($env:ENCLAVE_UPDATING -eq "1") {
++    Emit "config" "fail" "NOT INSTALLED, nothing on this PC changed: $why. Move them into the local hook first (root-reviewed migration)."
++    exit 0
++  }
++  Fail "config" "Nothing was changed: $why. Move them into node-config.local.cmd / shield-config.local.cmd first."
++}
+ 
+ # ---------------------------------------------------------------------------------------------------------------------
+ # 1. the machine
+@@ -186,10 +435,11 @@
+ # 5. files: the program in Program Files, state in ProgramData (SYSTEM + Administrators only)
+ # ---------------------------------------------------------------------------------------------------------------------
+ Emit "files" "run" "Installing Enclave"
+-# every service but \Enclave\Update: an automatic update (update-host.ps1) runs this script from that task
+-foreach ($t in Get-ScheduledTask -TaskPath "\Enclave\" -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -ne "Update" }) { Stop-ScheduledTask -TaskPath "\Enclave\" -TaskName $t.TaskName -ErrorAction SilentlyContinue }
+-Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($PF, [StringComparison]::OrdinalIgnoreCase) } |
+-  ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
++# from here to the end: whatever stops this script (Fail, -NoStart, an error, success), the other roles it stopped run again
++try {
++# the core services (not \Enclave\Update: an automatic update runs this script from that task), and only those other roles
++# and processes that execute release-owned files (Stop-ForInstall)
++Stop-ForInstall
+ Start-Sleep 2
+ $manifest = Get-Content (Join-Path $Bundle "manifest.json") -Raw | ConvertFrom-Json
+ $installedManifest = Join-Path $PF "manifest.json"
+@@ -212,7 +462,7 @@
+   if (Test-Path (Join-Path $PF "tuna")) { Remove-Item (Join-Path $PF "tuna") -Recurse -Force -ErrorAction SilentlyContinue }
+   $check = $changed
+ } else {
+-  if (Test-Path $PF) { Remove-Item $PF -Recurse -Force }
++  Clear-ReleaseContent $PF
+   New-Item -ItemType Directory -Force $PF | Out-Null
+   foreach ($d in "runtime", "control", "network", "bin", "guest", "tray") { Copy-Item (Join-Path $Bundle $d) (Join-Path $PF $d) -Recurse -Force }
+   $changed = $null; $gone = @()
+@@ -221,6 +471,7 @@
+ Copy-Item (Join-Path $Bundle "manifest.json"), (Join-Path $Bundle "uninstall-host.ps1"), (Join-Path $Bundle "update-host.ps1") $PF -Force
+ $bad = @($check | Where-Object { $p = Join-Path $PF ($_.path -replace '/', '\'); -not (Test-Path -LiteralPath $p) -or (Sha $p) -ne $_.sha256 })
+ if ($bad.Count) { Fail "files" "$($bad.Count) installed file(s) do not match the bundle's manifest (first: $($bad[0].path))." }
++Restore-OtherTasks "as soon as the files were in place"
+ # Settings > Apps > Installed apps: "Enclave", with Uninstall. Written now, not at the end, so a half-finished install can be
+ # removed too. EnclaveSetup.exe --uninstall copies itself out of Program Files and runs uninstall-host.ps1 with progress;
+ # without it (a scripted install), the script itself is the uninstaller.
+@@ -353,7 +604,8 @@
+ # here, or the manager refuses partitions the node admitted. It stays at least 16 GB short of the machine.
+ $localRam = Join-Path $PD "node-config.local.cmd"
+ if (Test-Path $localRam) {
+-  $m = Select-String -Path $localRam -Pattern '^set NODE_APP_RAM_GB=(\d+)\s*$' | Select-Object -Last 1
++  # quoted (set "NODE_APP_RAM_GB=48") or not: the same setting the node reads
++  $m = Select-String -Path $localRam -Pattern '^\s*set\s+"?NODE_APP_RAM_GB=(\d+)"?\s*$' | Select-Object -Last 1
+   if ($m) { $appRamGb = [math]::Max(4, [math]::Min($ramGb - 16, [int]$m.Matches[0].Groups[1].Value)) }
+ }
+ # one slot per 4 GB of the apps' half, up to 16: the count is only a ceiling (capacity() also holds every app to the RAM
+@@ -420,6 +672,8 @@
+ set ENCLAVE_WASM_SET=1
+ set ENCLAVE_WASM_MEMORY64=1
+ $(if (Test-Path $gpuProfile) { "set ENCLAVE_SHIELD_PROFILE=$gpuProfile" })
++rem this box's own Shield settings (shield-config.local.cmd: never written by an update), after and over everything above
++if exist "$PD\shield-config.local.cmd" call "$PD\shield-config.local.cmd"
+ "@ | Set-Content -Encoding ASCII (Join-Path $PD "shield-config.cmd")
+ 
+ # the card worker: the GPU half of a Shield GPU app, on 127.0.0.1:19595 only, holding at most the profile's 12 GiB; it sees
+@@ -488,6 +742,9 @@
+   elseif (@($want.checkers).Count) { "set ENCLAVE_NETWORK_CHECKERS=$(@($want.checkers) -join ',')" }
+   else { "rem no checkers chosen (-NetworkCheckers): network enrollment refuses until this host's operator picks the ones it trusts" })
+ $(if (@($want.directories).Count) { "set ENCLAVE_NETWORK_DIRECTORIES=$(@($want.directories) -join ',')" })
++rem the platform host policy (admin host bans; windows/node/host.mjs builds its gate from this): production = on, activated by the
++rem admin's anchor. Unset is OFF on this node (it passes book:null). Keep it.
++set ENCLAVE_PLATFORM_HOST_POLICY=production
+ rem this box's own settings (node-config.local.cmd: never written by an update), after and over everything above
+ if exist "$PD\node-config.local.cmd" call "$PD\node-config.local.cmd"
+ "@ | Set-Content -Encoding ASCII (Join-Path $PD "node-config.cmd")
+@@ -543,6 +800,7 @@
+   $p = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+   $s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+   Register-ScheduledTask -TaskPath "\Enclave\" -TaskName $name -Action $a -Trigger $t -Principal $p -Settings $s -Force | Out-Null
++  if (-not (Allowed $name)) { Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName $name | Out-Null }
+ }
+ Task "Shield" (Join-Path $PD "run-shield.cmd") "PT30S"
+ if (Test-Path (Join-Path $PF "bin\shielded-worker.exe")) { Task "Card" (Join-Path $PD "run-card.cmd") "PT20S" }
+@@ -558,27 +816,35 @@
+   Register-ScheduledTask -TaskPath "\Enclave\" -TaskName "Update" -Action $ua -Trigger $boot, $hourly -Settings $us `
+     -Principal (New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest) -Force | Out-Null
+ }
+-if (Get-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card" -ErrorAction SilentlyContinue) { Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card" }
+-Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Shield"
+-$ready = $false
+-for ($i = 0; $i -lt 60; $i++) {
+-  Start-Sleep 2
+-  try { $h = Invoke-RestMethod -UseBasicParsing -Uri "http://127.0.0.1:8091/health" -TimeoutSec 5; if ($h.canStart -or $h.ok) { $ready = $true; break } } catch { }
++$started = @(); $paused = @(@("Shield", "Card", "Node", "Network") | Where-Object { -not (Allowed $_) })
++if ((Allowed "Card") -and (Get-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card" -ErrorAction SilentlyContinue)) { Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card"; $started += "Card" }
++$shieldOn = Allowed "Shield"
++if ($shieldOn) {
++  Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Shield"
++  $ready = $false
++  for ($i = 0; $i -lt 60; $i++) {
++    Start-Sleep 2
++    try { $h = Invoke-RestMethod -UseBasicParsing -Uri "http://127.0.0.1:8091/health" -TimeoutSec 5; if ($h.canStart -or $h.ok) { $ready = $true; break } } catch { }
++  }
++  if (-not $ready) { Fail "services" "Enclave Shield did not come up (see $PD\logs\shield.log)." }
++  $started += "Shield"
+ }
+-if (-not $ready) { Fail "services" "Enclave Shield did not come up (see $PD\logs\shield.log)." }
+ if ($NoStart) {
+   Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName "Node" | Out-Null
+   Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName "Network" | Out-Null
+-  Emit "services" "ok" "Enclave Shield is running; the node is installed but NOT started (-NoStart): nothing registers"
+-  Emit "done" "ok" "Installed without joining the network"; exit 0
++  Emit "services" "ok" ($(if ($shieldOn) { "Enclave Shield is running" } else { "Enclave Shield is paused by its operator (not started)" }) + "; the node is installed but NOT started (-NoStart): nothing registers")
++  Emit "done" "ok" "Installed without joining the network"; $script:Outcome = "installed-nostart"; exit 0
+ }
+-Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Node"
+-Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Network"
+-Emit "services" "ok" "Enclave Shield, the node and the private-route agent are running, and start with Windows"
++foreach ($n in "Node", "Network") { if ($shieldOn -and (Allowed $n)) { Start-ScheduledTask -TaskPath "\Enclave\" -TaskName $n; $started += $n } }
++$nodeOn = $started -contains "Node"
++Emit "services" "ok" ("started: " + $(if ($started) { $started -join ", " } else { "nothing" }) +
++  $(if ($paused) { "; paused by their operator (left disabled, not started): " + ($paused -join ", ") } else { "" }) +
++  $(if (-not $shieldOn -and (@("Node", "Network") | Where-Object { Allowed $_ })) { "; Node/Network not started because Enclave Shield is paused" } else { "" }))
+ 
+ # ---------------------------------------------------------------------------------------------------------------------
+ # 8. join the network: hardware attestation, then the sponsored registration (no ETH needed)
+ # ---------------------------------------------------------------------------------------------------------------------
++if (-not $nodeOn) { Emit "join" "warn" "the node was not started (paused by its operator, or Enclave Shield is paused): not joining now" } else {
+ Emit "join" "run" $(if ($independent) { "Registering $($want.publicUrl) from the operator key (it needs a little Base ETH for gas)" } else { "Proving this PC's hardware to the network and registering '$Name'" })
+ $log = Join-Path $PD "logs\node.log"; $joined = $false
+ for ($i = 0; $i -lt 90; $i++) {
+@@ -591,6 +857,7 @@
+ if ($joined) { Emit "join" "ok" "'$Name' is registered and attached: it takes work from the network" }
+ elseif ($independent) { Emit "join" "warn" "'$Name' is installed but not registered yet: send operator $operator a little Base ETH and it registers itself (see $log)" }
+ else { Emit "join" "warn" "'$Name' is installed but not registered yet; it keeps trying (see $log)" }
++}
+ 
+ # ---------------------------------------------------------------------------------------------------------------------
+ # 9. the tray, for the owner
+@@ -645,5 +912,15 @@
+     }
+   }
+ }
+-Emit "done" "ok" "Enclave host '$Name' is set up"
++Emit "done" "ok" "Enclave host '$Name' is set up"; $script:Outcome = "installed"
++} finally {
++  Restore-OtherTasks "during final cleanup"
++  if (-not $script:OthersRestored) {
++    $pending = @($script:StoppedOthers | Where-Object { -not $script:RestoredOthers.ContainsKey($_) })
++    Save-InstallStatus "RECOVERY-REQUIRED" ("$(if ($script:Outcome) { $script:Outcome } else { 'stopped by an error' }); not running again: " + ($pending -join ", "))
++    Emit "services" "fail" ("Previously running role(s) this install stopped are NOT running again: " + ($pending -join ", ") + ". The host needs recovery (see $PD\logs\install-status.json).")
++    exit 1
++  }
++  Save-InstallStatus $(if ($script:Outcome) { $script:Outcome } else { "failed" }) $(if ($script:OutcomeDetail) { $script:OutcomeDetail } elseif (-not $script:Outcome) { "stopped by an error" } else { "" })
++}
+ exit 0

@@ -1,0 +1,42 @@
+{
+ "metal/guest/lease-gas-conduit.bundle.mjs.manifest.json": {
+  "bundle": "metal/guest/lease-gas-conduit.bundle.mjs",
+  "bundleMatches": true,
+  "inputs": 418,
+  "staleInputs": [],
+  "nodeModulesMismatch": 0,
+  "sidecarsMatch": true
+ },
+ "metal/guest/mcp-server.bundle.mjs.manifest.json": {
+  "bundle": "metal/guest/mcp-server.bundle.mjs",
+  "bundleMatches": true,
+  "inputs": 2970,
+  "staleInputs": [
+   "relay/snp-verify.mjs",
+   "windows/node/host-admission.bundle.mjs"
+  ],
+  "nodeModulesMismatch": 0,
+  "sidecarsMatch": true
+ },
+ "metal/guest/platform-api.bundle.mjs.manifest.json": {
+  "bundle": "metal/guest/platform-api.bundle.mjs",
+  "bundleMatches": false,
+  "inputs": 2193,
+  "staleInputs": [
+   "relay/api-relay.js",
+   "relay/boxhost.js",
+   "relay/network-runtime.bundle.mjs",
+   "relay/snp-verify.mjs"
+  ],
+  "nodeModulesMismatch": 0,
+  "sidecarsMatch": false
+ },
+ "windows/node/lease-gas-runtime.bundle.mjs.manifest.json": {
+  "bundle": "windows/node/lease-gas-runtime.bundle.mjs",
+  "bundleMatches": true,
+  "inputs": 430,
+  "staleInputs": [],
+  "nodeModulesMismatch": 0,
+  "sidecarsMatch": true
+ }
+}

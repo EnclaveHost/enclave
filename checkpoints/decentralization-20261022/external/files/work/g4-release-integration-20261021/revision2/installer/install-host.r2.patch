@@ -1,0 +1,172 @@
+--- installer/install-host.base-0dc5a801.ps1	2026-10-21 16:28:51.879405820 -0700
++++ installer/install-host.r2.ps1	2026-10-21 16:28:51.895749320 -0700
+@@ -40,9 +40,66 @@
+ $PF = Join-Path $env:ProgramFiles "Enclave"
+ $PD = Join-Path $env:ProgramData "Enclave"
+ function Emit($step, $state, $message) { [ordered]@{ step = $step; state = $state; message = $message } | ConvertTo-Json -Compress | Write-Output }
+-function Fail($step, $message) { Emit $step "fail" $message; exit 1 }
++function Fail($step, $message) { Emit $step "fail" $message; Restore-OtherTasks "after the failed install"; exit 1 }
+ function Sha($p) { (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower() }
+ function List($s) { @(([string]$s).Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ }) }
++# WHAT AN INSTALL MAY STOP. The release owns only its directories under Program Files\Enclave. Other \Enclave\ tasks belong to
++# roles installed by their own installers (host-services runners, Relay, NetworkChecker, ...). One of them is stopped ONLY when
++# its running process tree executes a release-owned file (which this install may replace or delete), or when Task Scheduler
++# cannot say what it runs; each one stopped is started again as soon as the files are in place - or, on ANY failure or exit,
++# by Fail / the finally below. A role that runs nothing of the release (e.g. hs2 on C:\Program Files\nodejs) is never touched.
++$script:ReleaseDirs = @("runtime", "control", "network", "bin", "guest", "tray", "tuna")
++$script:CoreTasks = @("Shield", "Card", "Node", "Network", "Tuna")
++$script:PriorTasks = @{}; $script:StoppedOthers = [Collections.Generic.List[string]]::new(); $script:OthersRestored = $false
++function Test-ReleaseOwned([string]$path) { if (-not $path) { return $false }; foreach ($d in $script:ReleaseDirs) { if ($path.StartsWith("$PF\$d\", [StringComparison]::OrdinalIgnoreCase)) { return $true } }; return $false }
++# \Enclave\<task> -> the executable paths of its running process tree (Task Scheduler's running instances: EnginePID and its
++# descendants), or $null when that cannot be read (then every running other task counts as affected: stopped and restored)
++function Get-RunningTaskTrees {
++  try { $svc = New-Object -ComObject Schedule.Service; $svc.Connect(); $run = @($svc.GetRunningTasks(1)) } catch { return $null }
++  $procs = @(Get-CimInstance Win32_Process); $byPid = @{}; $kids = @{}
++  foreach ($p in $procs) { $byPid[[int]$p.ProcessId] = $p; $k = [int]$p.ParentProcessId; if (-not $kids.ContainsKey($k)) { $kids[$k] = [Collections.Generic.List[object]]::new() }; $kids[$k].Add($p) }
++  $out = @{}
++  foreach ($r in $run) {
++    if ([string]$r.Path -notlike "\Enclave\*") { continue }
++    $n = ([string]$r.Path).Substring(9); $paths = @(); $todo = [Collections.Generic.Queue[int]]::new(); $todo.Enqueue([int]$r.EnginePID); $seen = @{}
++    while ($todo.Count) { $i = $todo.Dequeue(); if ($seen.ContainsKey($i)) { continue }; $seen[$i] = 1
++      if ($byPid.ContainsKey($i)) { $paths += [string]$byPid[$i].ExecutablePath }
++      if ($kids.ContainsKey($i)) { foreach ($c in $kids[$i]) { $todo.Enqueue([int]$c.ProcessId) } } }
++    $out[$n] = @($(if ($out.ContainsKey($n)) { $out[$n] }) + $paths) }
++  return $out
++}
++function Stop-ForInstall {
++  $trees = Get-RunningTaskTrees
++  foreach ($t in Get-ScheduledTask -TaskPath "\Enclave\" -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -ne "Update" }) {
++    $n = $t.TaskName; $running = ([string]$t.State -eq "Running")
++    $script:PriorTasks[$n] = [ordered]@{ enabled = [bool]$t.Settings.Enabled; running = $running }
++    if ($n -in $script:CoreTasks) { Stop-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction SilentlyContinue; continue }
++    if (-not $running) { continue }
++    $tree = $(if ($null -ne $trees -and $trees.ContainsKey($n)) { @($trees[$n]) } else { $null })
++    if ($null -eq $tree -or $tree.Count -eq 0 -or @($tree | Where-Object { Test-ReleaseOwned $_ }).Count) {
++      Stop-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction SilentlyContinue; $script:StoppedOthers.Add($n) }
++  }
++  # only processes that execute a release-owned file (never e.g. host-services\hs2 or C:\Program Files\nodejs)
++  Get-CimInstance Win32_Process | Where-Object { Test-ReleaseOwned ([string]$_.ExecutablePath) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
++}
++function Restore-OtherTasks($why) {
++  if ($script:OthersRestored) { return }; $script:OthersRestored = $true
++  if (-not $script:StoppedOthers.Count) { return }
++  $done = @(); $left = @()
++  foreach ($n in $script:StoppedOthers) {
++    if ($script:PriorTasks[$n].enabled -and (Get-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction SilentlyContinue)) { Start-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction SilentlyContinue; $done += $n } else { $left += $n } }
++  Emit "roles" "ok" ("other Enclave roles started again $why`: " + $(if ($done) { $done -join ", " } else { "none" }) + $(if ($left) { "; left stopped (disabled by their operator): " + ($left -join ", ") } else { "" }))
++}
++# a core task this script registers (-Force enables it) that its operator had DISABLED is disabled again at once
++function Allowed($name) { -not ($script:PriorTasks.ContainsKey($name) -and -not $script:PriorTasks[$name].enabled) }
++# What a release OWNS in Program Files\Enclave: its directories and the bundle's top-level files. A full install removes
++# exactly these (never the whole folder): a role installed beside them (host-services\hs2, a top-level challenge-replica
++# release dir) survives. Anything INSIDE a release directory is release content and IS replaced.
++function Clear-ReleaseContent($root) {
++  if (-not (Test-Path -LiteralPath $root)) { return }
++  foreach ($d in $script:ReleaseDirs) { $p = Join-Path $root $d; if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force } }
++  foreach ($f in "manifest.json", "uninstall-host.ps1", "update-host.ps1", "EnclaveSetup.exe") { $p = Join-Path $root $f; if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force } }
++}
+ # node.exe with its stderr kept: native stderr under "Stop" throws in Windows PowerShell 5.1, so relaxed for this call only
+ function NodeRun($exe, [string[]] $a) {
+   $ErrorActionPreference = "Continue"
+@@ -186,10 +243,11 @@
+ # 5. files: the program in Program Files, state in ProgramData (SYSTEM + Administrators only)
+ # ---------------------------------------------------------------------------------------------------------------------
+ Emit "files" "run" "Installing Enclave"
+-# every service but \Enclave\Update: an automatic update (update-host.ps1) runs this script from that task
+-foreach ($t in Get-ScheduledTask -TaskPath "\Enclave\" -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -ne "Update" }) { Stop-ScheduledTask -TaskPath "\Enclave\" -TaskName $t.TaskName -ErrorAction SilentlyContinue }
+-Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($PF, [StringComparison]::OrdinalIgnoreCase) } |
+-  ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
++# from here to the end: whatever stops this script (Fail, -NoStart, an error, success), the other roles it stopped run again
++try {
++# the core services (not \Enclave\Update: an automatic update runs this script from that task), and only those other roles
++# and processes that execute release-owned files (Stop-ForInstall)
++Stop-ForInstall
+ Start-Sleep 2
+ $manifest = Get-Content (Join-Path $Bundle "manifest.json") -Raw | ConvertFrom-Json
+ $installedManifest = Join-Path $PF "manifest.json"
+@@ -212,7 +270,7 @@
+   if (Test-Path (Join-Path $PF "tuna")) { Remove-Item (Join-Path $PF "tuna") -Recurse -Force -ErrorAction SilentlyContinue }
+   $check = $changed
+ } else {
+-  if (Test-Path $PF) { Remove-Item $PF -Recurse -Force }
++  Clear-ReleaseContent $PF
+   New-Item -ItemType Directory -Force $PF | Out-Null
+   foreach ($d in "runtime", "control", "network", "bin", "guest", "tray") { Copy-Item (Join-Path $Bundle $d) (Join-Path $PF $d) -Recurse -Force }
+   $changed = $null; $gone = @()
+@@ -221,6 +279,7 @@
+ Copy-Item (Join-Path $Bundle "manifest.json"), (Join-Path $Bundle "uninstall-host.ps1"), (Join-Path $Bundle "update-host.ps1") $PF -Force
+ $bad = @($check | Where-Object { $p = Join-Path $PF ($_.path -replace '/', '\'); -not (Test-Path -LiteralPath $p) -or (Sha $p) -ne $_.sha256 })
+ if ($bad.Count) { Fail "files" "$($bad.Count) installed file(s) do not match the bundle's manifest (first: $($bad[0].path))." }
++Restore-OtherTasks "as soon as the files were in place"
+ # Settings > Apps > Installed apps: "Enclave", with Uninstall. Written now, not at the end, so a half-finished install can be
+ # removed too. EnclaveSetup.exe --uninstall copies itself out of Program Files and runs uninstall-host.ps1 with progress;
+ # without it (a scripted install), the script itself is the uninstaller.
+@@ -543,6 +602,7 @@
+   $p = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+   $s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+   Register-ScheduledTask -TaskPath "\Enclave\" -TaskName $name -Action $a -Trigger $t -Principal $p -Settings $s -Force | Out-Null
++  if (-not (Allowed $name)) { Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName $name | Out-Null }
+ }
+ Task "Shield" (Join-Path $PD "run-shield.cmd") "PT30S"
+ if (Test-Path (Join-Path $PF "bin\shielded-worker.exe")) { Task "Card" (Join-Path $PD "run-card.cmd") "PT20S" }
+@@ -558,27 +618,35 @@
+   Register-ScheduledTask -TaskPath "\Enclave\" -TaskName "Update" -Action $ua -Trigger $boot, $hourly -Settings $us `
+     -Principal (New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest) -Force | Out-Null
+ }
+-if (Get-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card" -ErrorAction SilentlyContinue) { Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card" }
+-Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Shield"
+-$ready = $false
+-for ($i = 0; $i -lt 60; $i++) {
+-  Start-Sleep 2
+-  try { $h = Invoke-RestMethod -UseBasicParsing -Uri "http://127.0.0.1:8091/health" -TimeoutSec 5; if ($h.canStart -or $h.ok) { $ready = $true; break } } catch { }
++$started = @(); $paused = @(@("Shield", "Card", "Node", "Network") | Where-Object { -not (Allowed $_) })
++if ((Allowed "Card") -and (Get-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card" -ErrorAction SilentlyContinue)) { Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card"; $started += "Card" }
++$shieldOn = Allowed "Shield"
++if ($shieldOn) {
++  Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Shield"
++  $ready = $false
++  for ($i = 0; $i -lt 60; $i++) {
++    Start-Sleep 2
++    try { $h = Invoke-RestMethod -UseBasicParsing -Uri "http://127.0.0.1:8091/health" -TimeoutSec 5; if ($h.canStart -or $h.ok) { $ready = $true; break } } catch { }
++  }
++  if (-not $ready) { Fail "services" "Enclave Shield did not come up (see $PD\logs\shield.log)." }
++  $started += "Shield"
+ }
+-if (-not $ready) { Fail "services" "Enclave Shield did not come up (see $PD\logs\shield.log)." }
+ if ($NoStart) {
+   Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName "Node" | Out-Null
+   Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName "Network" | Out-Null
+-  Emit "services" "ok" "Enclave Shield is running; the node is installed but NOT started (-NoStart): nothing registers"
++  Emit "services" "ok" ($(if ($shieldOn) { "Enclave Shield is running" } else { "Enclave Shield is paused by its operator (not started)" }) + "; the node is installed but NOT started (-NoStart): nothing registers")
+   Emit "done" "ok" "Installed without joining the network"; exit 0
+ }
+-Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Node"
+-Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Network"
+-Emit "services" "ok" "Enclave Shield, the node and the private-route agent are running, and start with Windows"
++foreach ($n in "Node", "Network") { if ($shieldOn -and (Allowed $n)) { Start-ScheduledTask -TaskPath "\Enclave\" -TaskName $n; $started += $n } }
++$nodeOn = $started -contains "Node"
++Emit "services" "ok" ("started: " + $(if ($started) { $started -join ", " } else { "nothing" }) +
++  $(if ($paused) { "; paused by their operator (left disabled, not started): " + ($paused -join ", ") } else { "" }) +
++  $(if (-not $shieldOn -and (@("Node", "Network") | Where-Object { Allowed $_ })) { "; Node/Network not started because Enclave Shield is paused" } else { "" }))
+ 
+ # ---------------------------------------------------------------------------------------------------------------------
+ # 8. join the network: hardware attestation, then the sponsored registration (no ETH needed)
+ # ---------------------------------------------------------------------------------------------------------------------
++if (-not $nodeOn) { Emit "join" "warn" "the node was not started (paused by its operator, or Enclave Shield is paused): not joining now" } else {
+ Emit "join" "run" $(if ($independent) { "Registering $($want.publicUrl) from the operator key (it needs a little Base ETH for gas)" } else { "Proving this PC's hardware to the network and registering '$Name'" })
+ $log = Join-Path $PD "logs\node.log"; $joined = $false
+ for ($i = 0; $i -lt 90; $i++) {
+@@ -591,6 +659,7 @@
+ if ($joined) { Emit "join" "ok" "'$Name' is registered and attached: it takes work from the network" }
+ elseif ($independent) { Emit "join" "warn" "'$Name' is installed but not registered yet: send operator $operator a little Base ETH and it registers itself (see $log)" }
+ else { Emit "join" "warn" "'$Name' is installed but not registered yet; it keeps trying (see $log)" }
++}
+ 
+ # ---------------------------------------------------------------------------------------------------------------------
+ # 9. the tray, for the owner
+@@ -646,4 +715,5 @@
+   }
+ }
+ Emit "done" "ok" "Enclave host '$Name' is set up"
++} finally { Restore-OtherTasks "after the install stopped early" }
+ exit 0

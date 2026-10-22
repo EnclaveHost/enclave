@@ -1,0 +1,12 @@
+[
+  {
+    "path": "test/storage-front-cold-history.test.mjs",
+    "before": "342da31563d14881a9625ae281ed5970b4379d29544d860fe89a63da6bee401a",
+    "candidate": "021338909725fc757fcc6eec7a930b5e28cb26e2e60a9502c51f7bf859c9b505"
+  },
+  {
+    "path": "test/helpers/lease16d-rig.mjs",
+    "before": "3404496d2a8696365ac2b743c80983b3af8ae7b5e53fb3f7b8a28ddb68dc3eee",
+    "candidate": "5c868429eeceb168f9a63f975b3c1035aff43b338d6fbf4c68d4d71a67341926"
+  }
+]

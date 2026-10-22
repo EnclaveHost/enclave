@@ -1,0 +1,169 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client.rs
+@@ -84,6 +84,11 @@
+     /// A custom error.
+     #[error("custom error: {0}")]
+     Custom(String),
++
++    /// PATCH (writer fencing): a fenced mutation or raise was refused; the indexer holds this fence instead
++    /// (None: no fence is installed there).
++    #[error("fenced: the indexer holds fence {0:?}")]
++    Fenced(Option<crate::fence::FenceToken>),
+ }
+ 
+ #[derive(Debug, Error)]
+@@ -389,6 +394,61 @@
+ }
+ 
+ impl Client {
++    /// PATCH (writer fencing): the credential every fenced mutation of this client carries from now on (None: none).
++    pub(crate) fn set_fence(&self, cred: Option<crate::fence::FenceCredential>) {
++        let slot = match self {
++            Self::Http(c) => c.fence_slot(),
++            #[cfg(any(test, feature = "mock"))]
++            Self::Mock(c) => c.fence_slot(),
++        };
++        let mut st = slot.lock().unwrap();
++        st.cred = cred;
++        st.conflict = None;
++    }
++
++    /// PATCH (writer fencing): the credential this client presents.
++    pub(crate) fn fence_credential(&self) -> Option<crate::fence::FenceCredential> {
++        let slot = match self {
++            Self::Http(c) => c.fence_slot(),
++            #[cfg(any(test, feature = "mock"))]
++            Self::Mock(c) => c.fence_slot(),
++        };
++        slot.lock().unwrap().cred
++    }
++
++    /// PATCH (writer fencing): the first fenced refusal this client saw since its credential was set: the fence the
++    /// indexer holds instead (inner None: none installed).
++    pub(crate) fn fence_conflict(&self) -> Option<Option<crate::fence::FenceToken>> {
++        let slot = match self {
++            Self::Http(c) => c.fence_slot(),
++            #[cfg(any(test, feature = "mock"))]
++            Self::Mock(c) => c.fence_slot(),
++        };
++        slot.lock().unwrap().conflict
++    }
++
++    /// PATCH (writer fencing): `GET /fence`.
++    pub(crate) async fn fence_get(&self, app_key: &PrivateKey) -> Result<crate::fence::FenceState, Error> {
++        match self {
++            Self::Http(c) => c.fence_get(app_key).await,
++            #[cfg(any(test, feature = "mock"))]
++            Self::Mock(c) => c.fence_get(app_key).await,
++        }
++    }
++
++    /// PATCH (writer fencing): `POST /fence`. A refusal is an `Ok(FenceRaise::Refused)`, not an error.
++    pub(crate) async fn fence_raise(
++        &self,
++        app_key: &PrivateKey,
++        token: crate::fence::FenceToken,
++    ) -> Result<crate::fence::FenceRaise, Error> {
++        match self {
++            Self::Http(c) => c.fence_raise(app_key, token).await,
++            #[cfg(any(test, feature = "mock"))]
++            Self::Mock(c) => c.fence_raise(app_key, token).await,
++        }
++    }
++
+     /// Creates a client that talks to a real indexer over HTTP.
+     pub(crate) fn new<U: IntoUrl>(base_url: U) -> Result<Self, Error> {
+         Ok(Self::Http(http::Client::new(base_url)?))
+@@ -526,6 +586,20 @@
+         }
+     }
+ 
++    /// PATCH U1: the account's current objects in ID order after `after` (see the HTTP client).
++    pub(crate) async fn current_objects(
++        &self,
++        app_key: &PrivateKey,
++        after: Option<Hash256>,
++        limit: Option<usize>,
++    ) -> Result<Vec<SealedObjectEvent>, Error> {
++        match self {
++            Self::Http(c) => c.current_objects(app_key, after, limit).await,
++            #[cfg(any(test, feature = "mock"))]
++            Self::Mock(c) => c.current_objects(app_key, after, limit).await,
++        }
++    }
++
+     /// Pins an object to the indexer. If an object with the same ID already
+     /// exists for the account, it is overwritten.
+     pub(crate) async fn pin_object(
+@@ -811,12 +885,40 @@
+     body: Option<&[u8]>,
+     valid_until: DateTime<Utc>,
+ ) -> Hash256 {
++    request_hash_fenced(url, method, body, valid_until, None)
++}
++
++/// PATCH (writer fencing): the request hash, with `"indexd/fence/v2" || credential` appended after the body when the
++/// request carries `sf` (interface v3 section 3). Without a credential it is byte-identical to `request_hash`.
++pub(crate) fn request_hash_fenced(
++    url: &Url,
++    method: Method,
++    body: Option<&[u8]>,
++    valid_until: DateTime<Utc>,
++    fence: Option<&[u8; 48]>,
++) -> Hash256 {
+     let host_port = url
+         .port()
+         .map_or(url.host_str().unwrap_or("localhost").to_string(), |port| {
+             format!("{}:{}", url.host_str().unwrap_or("localhost"), port)
+         });
+     let mut state = Params::new().hash_length(32).to_state();
++    // INDEXD-FENCE R5 (snapshot experiment by the indexd owner, NOT the SDK worker's candidate): with a credential the
++    // hash is the length-bound sia Encoder stream "indexd/fence/v3"; without one it is byte-identical to 0.6.0.
++    if let Some(cred) = fence {
++        let ws = |state: &mut blake2b_simd::State, b: &[u8]| {
++            state.update(&(b.len() as u64).to_le_bytes());
++            state.update(b);
++        };
++        ws(&mut state, b"indexd/fence/v3");
++        ws(&mut state, method.as_str().as_bytes());
++        ws(&mut state, host_port.as_bytes());
++        ws(&mut state, url.path().as_bytes());
++        state.update(&(valid_until.timestamp() as u64).to_le_bytes());
++        state.update(cred);
++        ws(&mut state, body.unwrap_or(&[]));
++        return state.finalize().into();
++    }
+     state.update(method.as_str().as_bytes());
+     state.update(host_port.as_bytes());
+     state.update(url.path().as_bytes());
+@@ -827,6 +929,30 @@
+     state.finalize().into()
+ }
+ 
++/// PATCH (writer fencing): `sign`, plus the `sf` parameter (covered by the signature) when a credential is given.
++fn sign_fenced(
++    app_key: &PrivateKey,
++    url: &Url,
++    method: Method,
++    body: Option<&[u8]>,
++    valid_until: DateTime<Utc>,
++    fence: Option<&crate::fence::FenceCredential>,
++) -> Vec<(&'static str, String)> {
++    let cred = fence.map(|c| c.bytes());
++    let hash = request_hash_fenced(url, method, body, valid_until, cred.as_ref());
++    let public_key = app_key.public_key();
++    let signature = app_key.sign(hash.as_ref());
++    let mut out = vec![
++        (QUERY_PARAM_VALID_UNTIL, valid_until.timestamp().to_string()),
++        (QUERY_PARAM_CREDENTIAL, URL_SAFE.encode(public_key)),
++        (QUERY_PARAM_SIGNATURE, URL_SAFE.encode(signature.as_ref())),
++    ];
++    if let Some(c) = fence {
++        out.push((crate::fence::QUERY_PARAM_FENCE, c.query_value()));
++    }
++    out
++}
++
+ fn sign(
+     app_key: &PrivateKey,
+     url: &Url,

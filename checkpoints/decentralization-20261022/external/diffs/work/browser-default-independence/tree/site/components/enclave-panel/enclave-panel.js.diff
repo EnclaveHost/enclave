@@ -1,0 +1,14 @@
+--- a/site/components/enclave-panel/enclave-panel.js
++++ b/site/components/enclave-panel/enclave-panel.js
+@@ -106,7 +106,10 @@
+       if (!el) return;
+       if (liveHash) { el.textContent = liveHash; el.title = "live from " + Enclave.base + "/attestation - run the full check in the Root of trust section"; }
+       else el.textContent = "unavailable";
+-    }).catch(() => { const el = $("#measureHash"); if (el) el.textContent = "api unreachable"; });
++    }).catch((e) => { const el = $("#measureHash"); if (!el) return;
++      // independent mode never asks Enclave's API: say so instead of calling it unreachable
++      el.textContent = e && e.independent ? "not read in independent mode" : "api unreachable";
++      if (e && e.independent) el.title = "This dashboard does not use Enclave's API. Each deployment's Connect tab gives the attestation-checking native client command."; });
+ 
+     size(); seed();
+     if (reduce) { frame(); }

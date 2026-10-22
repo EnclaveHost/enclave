@@ -1,0 +1,26 @@
+--- a/windows/node/host.mjs
++++ b/windows/node/host.mjs
+@@ -2032,7 +2032,22 @@
+     }
+     return moved;
+   }
+-  async tick() {
++  /**
++   * ONE pass at a time. The 30 s interval (start()) fires whether or not the previous pass has finished, and a pass can
++   * take longer than that: every tracked deployment's wallet policy and lease reads are chain quorum reads, each up to its
++   * 30 s deadline when public RPCs rate-limit (2026-10-21, nucbox). Two overlapping passes asked the same policy twice,
++   * retired the same VM twice and raced the same renewal ("nonce consumed", then "not yet in the renew window"). A call
++   * while a pass runs therefore JOINS that pass (same promise, same outcome); the guard clears when it settles, success or
++   * error, so the next interval starts a fresh pass. Nothing is skipped or cached: every pass still makes every check.
++   */
++  tick() {
++    if (this.#tickInFlight) return this.#tickInFlight;
++    const pass = this.#tickOnce().finally(() => { if (this.#tickInFlight === pass) this.#tickInFlight = null; });
++    this.#tickInFlight = pass;
++    return pass;
++  }
++  #tickInFlight = null;
++  async #tickOnce() {
+     if (!this.chainReady) return;
+     // journaled sponsored releases: settled ONLY from the chain (verified receipt = released; consumed/expired = fence)
+     try { for (const r of await chain.resolvePendingReleases()) this.log(`release ${r.id.slice(0, 10)}: ${r.outcome}${r.hash ? ` (${r.hash})` : ""}`); }

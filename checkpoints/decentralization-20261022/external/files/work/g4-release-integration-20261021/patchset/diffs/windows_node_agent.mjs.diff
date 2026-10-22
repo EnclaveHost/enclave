@@ -1,0 +1,50 @@
+diff --git a/../resume-20261021/reconciled-candidate/windows/node/agent.mjs b/tree/windows/node/agent.mjs
+index 61207a3..59a5b79 100644
+--- a/../resume-20261021/reconciled-candidate/windows/node/agent.mjs
++++ b/tree/windows/node/agent.mjs
+@@ -948,7 +948,7 @@ async function startHostingControls() {
+         const { createResponderSessions, sessionTargets } = await import('./shield-sessions.mjs');
+         const responders = createResponderSessions({ hostId: host.enclaveId, endpoint: PUBLIC_URL, nodeKey, tpm: tpmCmd, keysFrame,
+           managerHealth: isolationHealth, platform: platformInfo, sign, log: (m) => log(m) });
+-        const tickResponders = () => { const t = sessionTargets(host.records.values(), { appZone: host.cfg.appZone }); if (t.length) responders.refresh(t).catch((e) => log(`shield responder sessions: ${e.message}`)); };
++        const tickResponders = () => { const t = sessionTargets(host.records.values()); if (t.length) responders.refresh(t).catch((e) => log(`shield responder sessions: ${e.message}`)); };
+         setTimeout(tickResponders, 45_000).unref?.(); setInterval(tickResponders, 120_000).unref?.();
+         // DIRECT SHIELD CUSTODY (shield-custody.mjs): only with the manager's callback key (ENCLAVE_CUSTODY_CALLBACK_KEY_FILE,
+         // the file the manager reads too). Each request is answered only after a fresh quorum read re-verifies the startup
+@@ -970,7 +970,7 @@ async function startHostingControls() {
+                 return authority.materialize(id, { manager, runtimeId: host.cfg.isolationRuntimeId, enclaveId: host.enclaveId, needLease: true,
+                   walletRefusal: (row) => host.walletPolicyRefusal(row) });
+               },
+-              ensureSessions: () => responders.refresh(sessionTargets(host.records.values(), { appZone: host.cfg.appZone })),
++              ensureSessions: () => responders.refresh(sessionTargets(host.records.values())),
+               log: (m) => log(m) });
+             setInterval(() => { custody.pass().catch((e) => log(`shield custody: ${e.message}`)); }, 2000).unref?.();
+             log('shield custody: answering direct custody requests through the manager callback');
+@@ -1059,6 +1059,9 @@ async function startHostingControls() {
+           enroll ||= createNetworkEnroll({ agentDir: NET.agentDir, binDir: NET.binDir,
+             runner: host.enclaveId, relayBase,
+             config: { agentDir: NET.agentDir, binDir: NET.binDir, nodeBinary: process.execPath,
++                      // the wallet hold channel the node writes (host.mjs walletChannelStart): the network agent enforces it
++                      // only while this node actually runs one; otherwise the block is dropped (and the agent restarted once)
++                      walletAdmission: host.walletChannel ? { file: host.walletAdmission.file } : null,
+                       operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
+                       policyFile: NET.policy, tpmBinary: process.env.TPMATTEST_EXE,
+                       tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
+@@ -1150,6 +1153,8 @@ async function startHostingControls() {
+     zone = appZone({
+       isolationSplicer,
+       resolve: (id) => host.appZoneTarget(id),
++      // re-asked after the resolve, at the moment of splicing: a wallet hold between the two is not served
++      admitted: (id) => host.appZoneAdmitted(id),
+       // A gate-served app (wasi:http, enclave:app) has no socket: its own hostname is served by
+       // terminating TLS here and carrying the request through the gate, the same frame the /x/
+       // path uses.
+@@ -1160,6 +1165,8 @@ async function startHostingControls() {
+       maxBodyBytes: Math.round((Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64) * 1048576),
+       log: (m) => log(`[app-zone] ${m}`),
+     });
++    // a wallet hold cuts what the app zone already splices or serves for that deployment (host.mjs #walletHold)
++    host.servingWithdrawn = (id) => zone.closeDeployment(id);
+     try {
+       const { loadOperator } = await import('./chain.mjs');
+       const acct = loadOperator(path.join(DIR, 'operator.key'));

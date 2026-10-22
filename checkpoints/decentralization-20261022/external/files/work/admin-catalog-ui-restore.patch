@@ -1,0 +1,115 @@
+diff --git a/site/apps.html b/site/apps.html
+index fae74e75..be5208ba 100644
+--- a/site/apps.html
++++ b/site/apps.html
+@@ -72,6 +72,7 @@
+              and every other approved app follows, each exactly once. -->
+         <button data-filter="featured" class="on" type="button" aria-pressed="true">Featured</button>
+         <button data-filter="approved" type="button" aria-pressed="false">Approved</button>
++        <button data-filter="all" type="button" aria-pressed="false">All releases</button>
+         <button data-filter="pending" type="button" hidden aria-pressed="false">Pending</button>
+         <button data-filter="rejected" type="button" hidden aria-pressed="false">Rejected</button>
+         <button data-filter="delisted" type="button" hidden aria-pressed="false">Delisted</button>
+diff --git a/site/components/app-card/app-card.js b/site/components/app-card/app-card.js
+index 1ae02e03..d0212f92 100644
+--- a/site/components/app-card/app-card.js
++++ b/site/components/app-card/app-card.js
+@@ -49,14 +49,14 @@ class AppCard extends EnclaveElement {
+       : (!STORE.owner || isOfficial) ? ''
+       : '<span class="app-badge comm" title="Community-published; not owner-verified">community</span>';
+     const apBadge = v.approval === APPROVAL.approved
+-      ? (isOfficial ? '' : '<span class="app-badge" title="Approved by the catalog owner; deployable">✓ approved</span>')
++      ? (isOfficial ? '' : '<span class="app-badge" title="Approved by the catalog owner; host admission still applies">✓ approved</span>')
+       : v.approval === APPROVAL.rejected
+-      ? '<span class="app-badge rej" title="Rejected by the catalog owner; deploys are refused">✕ rejected</span>'
+-      : '<span class="app-badge unv" title="Awaiting catalog-owner approval; deploys are refused until then">pending</span>';
++      ? '<span class="app-badge rej" title="Rejected by the catalog owner; each host decides whether to accept it">✕ rejected</span>'
++      : '<span class="app-badge unv" title="Awaiting catalog-owner approval; each host decides whether to accept it">pending</span>';
+     const officialBadge = isOfficial
+       ? '<span class="app-badge" title="Published by Enclave Host, Inc. (the catalog deployer wallet)">★ by Enclave</span>' : "";
+     const delistBadge = app.active ? ''
+-      : '<span class="app-badge del" title="Delisted: hidden from the public store; only you (its publisher) and the catalog owner see it.">delisted</span>';
++      : '<span class="app-badge del" title="Delisted from recommendations; available under All releases.">delisted</span>';
+     this.querySelector(".app-badges").innerHTML = officialBadge + badge + apBadge + delistBadge;
+ 
+     // rating - only once someone has rated it. An unrated app shows nothing
+diff --git a/site/components/app-detail/app-detail.js b/site/components/app-detail/app-detail.js
+index 3356074c..ce07d96a 100644
+--- a/site/components/app-detail/app-detail.js
++++ b/site/components/app-detail/app-detail.js
+@@ -49,17 +49,17 @@ class AppDetail extends EnclaveElement {
+       : (!STORE.owner || isOfficial) ? ''
+       : '<span class="app-badge comm" title="Community-published; not owner-verified">community</span>';
+     const apBadge = v.approval === APPROVAL.approved
+-      ? (isOfficial ? '' : '<span class="app-badge" title="Approved by the catalog owner; deployable">✓ approved</span>')
++      ? (isOfficial ? '' : '<span class="app-badge" title="Approved by the catalog owner; host admission still applies">✓ approved</span>')
+       : v.approval === APPROVAL.rejected
+-      ? '<span class="app-badge rej" title="Rejected by the catalog owner; deploys are refused">✕ rejected</span>'
+-      : '<span class="app-badge unv" title="Awaiting catalog-owner approval; deploys are refused until then">pending</span>';
++      ? '<span class="app-badge rej" title="Rejected by the catalog owner; each host decides whether to accept it">✕ rejected</span>'
++      : '<span class="app-badge unv" title="Awaiting catalog-owner approval; each host decides whether to accept it">pending</span>';
+     const officialBadge = isOfficial
+       ? '<span class="app-badge" title="Published by Enclave Host, Inc. (the catalog deployer wallet)">★ by Enclave</span>' : "";
+     const delistBadge = app.active ? ''
+-      : '<span class="app-badge del" title="Delisted: hidden from the public store; only you (its publisher) and the catalog owner see it. Relist to restore it, or publish a new version to this slug (that relists it automatically).">delisted</span>';
++      : '<span class="app-badge del" title="Delisted from recommendations; available under All releases. Relist to restore it, or publish a new version to this slug (that relists it automatically).">delisted</span>';
+     this.querySelector(".app-badges").innerHTML = officialBadge + badge + apBadge + delistBadge;
+ 
+-    const nVis = visibleVerIdxs(app).length;   // yanked/rejected count only for the publisher + owner
++    const nVis = visibleVerIdxs(app).length;   // all immutable releases remain visible
+     // the rating rides in the meta line and links to the reviews block below
+     // (unrated apps show nothing - see <c-app-reviews>)
+     const t = tallyOf(app.appId), avg = avgOf(app.appId);
+@@ -109,9 +109,7 @@ class AppDetail extends EnclaveElement {
+     this.querySelector(".app-cid code").textContent = v.cid;
+ 
+     this.querySelector(".app-actions").innerHTML =
+-      '<button class="btn btn-primary btn-sm" data-act="deploy" type="button"'
+-        + (!app.active ? ' disabled title="Delisted: the enclave refuses its CIDs; relist first"'
+-           : v.approval === APPROVAL.approved ? '' : ' disabled title="Deploys unlock once the catalog owner approves this version"') + '>Deploy →</button>'
++      '<button class="btn btn-primary btn-sm" data-act="deploy" type="button">Deploy →</button>'
+       + '<a class="btn btn-sm" href="' + gw + '" target="_blank" rel="noopener">fetch .wasm</a>'
+       + (isPub ? '<button class="btn btn-sm" data-act="newver" type="button" title="Open the publish form pre-filled from this version (new file/CID required)">add version</button>' : '')
+       + (isPub && !app.active ? '<button class="btn btn-sm" data-act="relist" type="button">relist</button>' : '')
+diff --git a/site/js/pages/apps.js b/site/js/pages/apps.js
+index 040c762d..f2f2cbce 100644
+--- a/site/js/pages/apps.js
++++ b/site/js/pages/apps.js
+@@ -1,3 +1,4 @@
++import {catalogAdmissionNotice} from "../core/catalog-policy.js";
+ /* ============================================================
+    Apps page - the on-chain catalog store. Each listing renders
+    as a <c-app-card>; the page owns the toolbar (filter/search),
+@@ -79,7 +80,9 @@ function renderApps(){
+   const myApp = (a) => !!me && a.publisher.toLowerCase() === me;
+   syncModTabs(me, isOwner);
+   let apps;
+-  if (STORE.filter === "delisted"){
++  if (STORE.filter === "all"){
++    apps = STORE.apps.filter(a => a.versions.length);
++  } else if (STORE.filter === "delisted"){
+     // moderation view: the catalog owner sees EVERY delisted app; a publisher
+     // sees only their own - their one path back (relist, or republish the slug).
+     apps = STORE.apps.filter(a => a.versions.length && !a.active && (isOwner || myApp(a)));
+@@ -488,6 +491,7 @@ function quickDeploy(app, v, idx){
+       '<p class="qd-sub">Runs in a VM of its own on <b class="qd-shares"></b> at <b class="qd-rate">$' + perHr + '/hr</b>. ' +
+         (acct ? 'It runs on your credit - it runs until the time you bought is used up, and you can top up or stop it whenever you like.'
+               : 'Fund it from your wallet - it runs until the time you bought is used up, and you can top up or stop it whenever you like.') + '</p>' +
++      (catalogAdmissionNotice(app, v) ? '<p class="qd-sub qd-catalog">' + esc(catalogAdmissionNotice(app, v)) + '</p>' : '') +
+       '<p class="qd-sub qd-target" hidden></p>' +
+       '<p class="qd-sub qd-prot" hidden></p>' +
+       '<p class="qd-sub qd-fee" hidden></p>' +
+@@ -1682,11 +1686,8 @@ function renderDetail(appId){
+   if (!catConfigured()){ host.innerHTML = '<div class="store-note">The on-chain catalog isn’t wired up on this deployment yet.</div>'; return; }
+   if (!STORE.loaded){ host.innerHTML = '<div class="loading" role="status">reading catalog from Base…</div>'; return; }
+   const app = STORE.byId[appId] || (STORE.apps || []).find(a => a.appId === appId);
+-  // a direct link to an app with nothing the viewer may see (every version
+-  // yanked/rejected, or nothing approved/endorsed and the viewer is neither
+-  // its publisher nor the catalog owner) reads as absent, same as the grid -
+-  // not as an empty page
+-  if (!app || !visibleVerIdxs(app).length || !(appApproved(app) || appVerified(app) || appPrivileged(app))){ host.innerHTML = '<div class="store-note">That app isn’t in the catalog. <a href="apps">← all apps</a></div>'; document.title = "Apps · Enclave"; return; }
++  // Direct links retain access to every published release, including delisted apps.
++  if (!app || !visibleVerIdxs(app).length){ host.innerHTML = '<div class="store-note">That app isn’t in the catalog. <a href="apps">← all apps</a></div>'; document.title = "Apps · Enclave"; return; }
+   document.title = app.name + " · Enclave";
+   let el = host.querySelector("c-app-detail");
+   if (!el){ host.innerHTML = ""; el = document.createElement("c-app-detail"); host.appendChild(el); }

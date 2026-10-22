@@ -1,0 +1,15 @@
+--- ../node-hold-package-20261021/control/SHA256SUMS.txt	2026-10-21 15:02:56.407768951 -0700
++++ control/SHA256SUMS.txt	2026-10-21 15:26:29.611935848 -0700
+@@ -7,9 +7,9 @@
+ ec5e75c72c7a43c0a8282df36a8233d68a8d3903c7e5d2ba4063c82161e2c004  new/agent.mjs
+ 65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68  new/appzone.mjs
+ 6bef372d00a27567e94a11d00f165312f9d715a795519e7a7ad77b4718623b18  new/host-admission.bundle.mjs
+-08bda1e6dab058cbad50eed9c4f03997dd3ae9fdfd5c021ab6fdefe785f62b80  new/host-service-names.mjs
+-e75f033152f4c26e08e7a965a961729acf303f36aa49ce75170a66a6beb26e5c  new/host-service-transport.mjs
++a46123cbb70ab666f9dfb23b5b545fe76d87658c6bf82c7f7574579d0c65b32c  new/host-service-names.mjs
++de5bb98a2e77ffd90ccf65211f564d9515f667b4cd6d17cbb3644fb2ca454e06  new/host-service-transport.mjs
+ 0c82e9ba3fe9919435b9876168132db2fb63614920b9a90f0efbeb5f23ffc6e7  new/host.mjs
+ 3a87d9b897765fc8bc42a2648f310f8ad504022798534603bce9b0fdafe0d9d5  new/hvcert.mjs
+-6bd0a858e8d323d8b227ed9539f8d9bf7f20feb4d6403846a168e45caaaa9261  new/network-enroll.mjs
++a9729786598107e69d24d5163ea8592d114f93a9b6693106a7fa3414c95430d6  new/network-enroll.mjs
+ 0fa7678f7586388b4725f1432683fa4ab172fd1d57c163d9a63195fbb2f445ee  new/wallet-admission.mjs

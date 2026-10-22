@@ -1,0 +1,44 @@
+diff --git a/home/steven/Documents/Codex/2026-10-18/wo/work/g4-config-independent-review-20261021/revision2/root-retry-review/challenge-replica-host.before.mjs b/home/steven/Documents/Codex/2026-10-18/wo/work/g4-config-independent-review-20261021/revision2/network-tree/network/challenge-replica-host.mjs
+index 1118dcc..f6dd524 100644
+--- a/home/steven/Documents/Codex/2026-10-18/wo/work/g4-config-independent-review-20261021/revision2/root-retry-review/challenge-replica-host.before.mjs
++++ b/home/steven/Documents/Codex/2026-10-18/wo/work/g4-config-independent-review-20261021/revision2/network-tree/network/challenge-replica-host.mjs
+@@ -425,23 +425,36 @@ export async function startChallengeReplica(cfg, {node = process.execPath, spawn
+     serving = true; stoppedFor = null; backoff = 1000; lastExit = null;
+     run();
+     const t0 = Date.now();
+-    let deadline = t0 + readyMs, indexed = -1;
++    let deadline = t0 + Math.min(readyMs, maxReadyMs), indexed = -1, lastPolicyCheck = t0;
++    const admitted = async () => {
++      await gate.check().catch(() => {});
++      lastPolicyCheck = Date.now();
++      const refusal = gate.serviceRefusal();
++      if (cancelled() || refusal) { await halt(cancelled() ? 'cancelled' : refusal); fail(cancelled() ? 'start cancelled' : refusal); }
++    };
+     let ready = null, why = 'not answering';
+     while (Date.now() < deadline && serving && !cancelled()) {
++      // Indexing may take minutes. Keep enforcing the same host policy throughout that wait.
++      if (Date.now() - lastPolicyCheck >= gateIntervalMs) await admitted();
+       try {
+         const h = await health(); if (h.ok) { ready = h; break; } why = 'health does not state the configured role, trusted judge, complete index and pinned profile';
+         // progress, not a fixed deadline: while the ledger label index grows the wait goes on (stallMs past the last growth,
+         // never beyond maxReadyMs); the declaration stays 'stopped' until the replica is genuinely ready
+         const n = Number(h.state?.appChallenge?.ledgerIndex?.size);
+-        if (Number.isSafeInteger(n) && n > indexed) { if (indexed >= 0) deadline = Math.min(Math.max(deadline, Date.now() + stallMs), t0 + maxReadyMs); indexed = n; }
++        // The first health may already contain the first full batch. Give that batch a sync interval too,
++        // otherwise restarting after readyMs can repeatedly discard it before the second batch arrives.
++        if (Number.isSafeInteger(n) && n >= 0 && n > indexed) { deadline = Math.min(Math.max(deadline, Date.now() + stallMs), t0 + maxReadyMs); indexed = n; }
+       } catch (e) { why = e.message; }
+       if (!child && lastExit && backoff > 4000) break;   // it keeps exiting: a configuration the replica itself refuses
+       await new Promise((r) => setTimeout(r, 250));
+     }
+-    if (!ready && cancelled()) { await halt('cancelled'); fail('start cancelled'); }
++    if (cancelled()) { await halt('cancelled'); fail('start cancelled'); }
+     if (!ready) { await halt('not ready'); fail(`the replica did not become ready (${lastExit || why}${indexed >= 0 ? `; ledger index at ${indexed} ids` : ''})`); }
++    // An admit observed before indexing is not sufficient to open a front after indexing finishes.
++    await admitted();
+     backoff = 1000;
+     try { front = await startReplicaFront(cfg, {log}); } catch (e) { await halt('front'); fail(`${cfg.front.mode === 'managed' ? 'loopback' : 'https'} front: ${e.message}`); }
++    if (cancelled()) { await halt('cancelled'); fail('start cancelled'); }
+     declare('serving');
+     log(`challenge replica serving: ${cfg.role}, release ${release.dnsSha256.slice(0, 12)}, ${cfg.snp ? 'SEV-SNP ' : ''}${cfg.shield ? 'Shield ' : ''}evidence`);
+   };

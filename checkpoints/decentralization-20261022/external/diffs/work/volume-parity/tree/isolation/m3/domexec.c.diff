@@ -1,0 +1,55 @@
+--- a/isolation/m3/domexec.c
++++ b/isolation/m3/domexec.c
+@@ -51,6 +51,12 @@
+ #include "../m2/app-seccomp.h"   /* the app runtime's seccomp filter, shared with the SNP guest's m2/dominit.c */
+ 
+ static int shield_on = 0;
++/* Encrypted volumes (m3/monitor/encvol.go): the monitor staged them (its root-owned, read-only /enc.volumes) as
++ * tmpfs mounts owned by the runtime's uid and group, 02770. The front - not root here - reaches them through that ONE
++ * group, given to it in this domain only; the runtime runs under umask 007 so what the app writes stays readable and
++ * replaceable by the front for push-back and lock. No marker: neither, exactly as before. */
++static int enc_domain = 0;
++static uid_t app_uid_g = 0, front_uid_g = 0;
+ static char shield_workers[192], shield_vram[80];
+ static const char *dom_id = "?";
+ static volatile sig_atomic_t front_pid_g = -1;
+@@ -223,7 +229,9 @@
+          * monitor's groups — root's among them — so a domain workload could reach anything granted by
+          * group membership. setgroups must happen while still privileged. A failure is reported on the
+          * console copy (a quiet child's stdout is /dev/null), as die() would, then the child exits 1. */
+-        const char *drop = setgroups(0, NULL) != 0 ? "setgroups" : setgid((gid_t)uid) != 0 ? "setgid"
++        gid_t app_gid = (gid_t)app_uid_g;
++        int groups_ok = enc_domain && uid == front_uid_g ? setgroups(1, &app_gid) == 0 : setgroups(0, NULL) == 0;
++        const char *drop = !groups_ok ? "setgroups" : setgid((gid_t)uid) != 0 ? "setgid"
+                          : setuid(uid) != 0 ? "setuid" : NULL;
+         if (drop) {
+             if (con >= 0) dprintf(con, "DOM%s ERROR %s: %s\n", dom_id, drop, strerror(errno));
+@@ -280,6 +288,7 @@
+             size_t n = 0; while (envp[n]) n++;
+             envp[n] = app_config_env; envp[n + 1] = NULL;
+         }
++        if (enc_domain && filter) umask(007);
+         execve(argv[0], argv, envp);
+         if (con >= 0) dprintf(con, "DOM%s ERROR exec %s: %s\n", dom_id, argv[0], strerror(errno));
+         _exit(127);
+@@ -310,6 +319,7 @@
+         return 2;
+     }
+     if (front_uid == uid) { printf("DOM%s ERROR the front and the runtime must not share a uid (%u)\n", dom_id, (unsigned)uid); return 2; }
++    app_uid_g = uid; front_uid_g = front_uid;
+     /* the null device the monitor opened for us (NULL_FD, above): it must BE the null device (char 1:3), or the domain
+      * does not start - a quiet workload with anything else on its stdio could reach the console or a file */
+     struct stat nst;
+@@ -448,6 +458,12 @@
+         public_web = 1;
+     } else if (errno != ENOENT) die("public web marker stat");
+     if (public_web && stat("/secret.id", &secret_st) != 0) die("public web needs a secret domain");
++    struct stat enc_st;
++    if (lstat("/enc.volumes", &enc_st) == 0) {
++        if (!S_ISREG(enc_st.st_mode) || enc_st.st_uid != 0 || (enc_st.st_mode & 0222)) die("encrypted volume marker");
++        if (stat("/secret.id", &secret_st) != 0) die("encrypted volumes need a secret domain");
++        enc_domain = 1;
++    } else if (errno != ENOENT) die("encrypted volume marker stat");
+     if (stat("/secret.id", &secret_st) == 0) {
+         if (shield_on || !S_ISREG(secret_st.st_mode) || secret_st.st_uid != 0 || (secret_st.st_mode & 0222) || secret_st.st_size != 66) die("secret deployment");
+         /* 443 belongs to the front's authenticated egress listeners. A command app needs

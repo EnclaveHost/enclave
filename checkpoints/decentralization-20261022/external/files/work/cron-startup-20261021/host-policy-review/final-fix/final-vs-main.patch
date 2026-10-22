@@ -1,0 +1,228 @@
+--- network/host-admission-runtime.mjs	2026-10-21 07:48:30.240193091 -0700
++++ ../src/network/host-admission-runtime.mjs	2026-10-21 07:48:58.863802338 -0700
+@@ -21,6 +21,14 @@
+   'function getVersion(bytes32,uint256) view returns ((string cid,string version,uint32 vramMb,uint32 gpuGflops,uint32 memMb,uint32 cpuGflops,uint64 createdAt,bool verified,bool yanked,string ports,uint8 approval,string config))',
+ ]);
+ const nonzero=a=>address.test(a||'')&&!/^0x0{40}$/.test(a);
++// The per-RPC reasons LeaseReader.agreed() collected (label, step, HTTP status; URL-redacted there), appended to a quorum
++// failure, so a hold says WHICH providers failed and how (e.g. 429 rate limits), not only "chain quorum unavailable".
++// Text only: the decision is unchanged (a failure is still unknown, never allow), and nothing is cached.
++const withReasons=(e,failures)=>{
++  if(!failures.length)return e;
++  const seen=[...new Set(failures.map(f=>String(f).replace(/\s+/g,' ').slice(0,120)))].slice(0,5);
++  return Object.assign(new Error(`${e.message} (${failures.length} RPC failure${failures.length===1?'':'s'}: ${seen.join('; ')})`.slice(0,600)),{cause:e});
++};
+ 
+ // Documents are public, addressed by their on-chain commitment, and may be
+ // distributed by any peer. A local verified cache makes admission independent
+@@ -68,7 +76,8 @@
+   reader,loadPolicy,now=Date.now,cacheMs=15000}) {
+   if(!id.test(hostId)||![ownershipContract,registry,catalog].every(nonzero))throw Error('explicit host, ownership, registry and catalog pins required');
+   if(!Number.isSafeInteger(cacheMs)||cacheMs<0||cacheMs>15000)throw Error('invalid host policy cache lifetime');
+-  reader ||= new LeaseReader({rpc,addressBook,now});
++  // the wallet admission's own reader rides out short public-RPC 429 windows (10 s budget inside the 30 s deadline)
++  reader ||= new LeaseReader({rpc,addressBook,now,rateLimitRetryMs:10000});
+   loadPolicy ||= publicHostPolicyLoader({directory:policyDirectory||'',origins:policyOrigins});
+   let cached=null,pending=null;
+   const policy=async()=>{
+@@ -76,6 +85,7 @@
+     if(pending)return pending;
+     pending=(async()=>{
+       const at=now();
++      const failures=[];
+       const snapshot=await reader.agreed(async(client,blockNumber)=>{
+         const [bound,a]=await Promise.all([
+           client.readContract({address:ownershipContract,abi:ownershipABI,functionName:'registry',blockNumber}),
+@@ -83,7 +93,7 @@
+         ]);
+         if(String(bound).toLowerCase()!==registry)throw Error('host authority registry pin mismatch');
+         return {owner:String(a[0]).toLowerCase(),revision:String(a[2]),policyHash:String(a[3]).toLowerCase()};
+-      });
++      },failures).catch(e=>{throw withReasons(e,failures);});
+       const resolved=await readHostAdmissionPolicy({hostId,ownershipContract,loadPolicy,readAuthority:async()=>snapshot});
+       const validUntil=snapshot.timestamp+90000,reuseUntil=Math.min(at+cacheMs,validUntil);
+       if(!Number.isSafeInteger(snapshot.timestamp)||snapshot.timestamp>now()+5000||snapshot.timestamp+90000<=now())throw Error('host authority snapshot expired');
+@@ -100,6 +110,7 @@
+       {
+         const m=String(appRef||'').match(/^catalog:\/\/(0x[0-9a-fA-F]{64})\/([0-9]{1,9})$/);
+         if(!m)throw Error('catalog app reference required');
++        const failures=[];
+         version=await reader.agreed(async(client,blockNumber)=>{
+           const [app,v]=await Promise.all([
+             client.readContract({address:catalog,abi:catalogABI,functionName:'getApp',args:[m[1]],blockNumber}),
+@@ -107,7 +118,7 @@
+           ]);
+           return {active:app.appId.toLowerCase()===m[1].toLowerCase()&&BigInt(app.versionCount)>BigInt(m[2])&&app.active===true,
+             yanked:v.yanked,approval:Number(v.approval)};
+-        });
++        },failures).catch(e=>{throw withReasons(e,failures);});
+       }
+       if(a.validUntil<=now())throw Error('host policy expired during admission');
+       return hostAdmissionRefusal(a.policy,{hostId,deploymentId,appRef,version,forPrivate});
+--- network/lease-reader.mjs	2026-10-21 07:48:30.238884583 -0700
++++ ../src/network/lease-reader.mjs	2026-10-21 07:48:58.863674329 -0700
+@@ -6,7 +6,7 @@
+ import {readConnectivity} from './connectivity-chain.mjs';
+ import {guardedFetch} from './guarded-fetch.mjs';
+ import {validateNetworkAuthorities} from './network-authorities.mjs';
+-import {rpcEndpoint,redactUrls} from './rpc-identity.mjs';
++import {rpcEndpoint,redactUrls,rpcLabel} from './rpc-identity.mjs';
+ const fields=[['id','bytes32'],['owner','address'],['appRef','string'],['ports','string'],['configCid','string'],['gpuMilli','uint16'],['cpuMilli','uint16'],['appPort','uint32'],['isPublic','bool'],['active','bool'],['createdAt','uint64'],['rate','uint256'],['balance6','uint256'],['spent6','uint256'],['runner','bytes32'],['runnerOperator','address'],['leaseUntil','uint64']];
+ const bookABI=[{type:'function',name:'addr',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'address'}]}];
+ const deploymentABI=[{type:'function',name:'get',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'tuple',components:fields.map(([name,type])=>({name,type}))}]}];
+@@ -23,6 +23,10 @@
+ }
+ // an RPC library's error can name the URL it called, API key and all: only a safe label of it is kept
+ const errText=e=>redactUrls(String(e?.shortMessage||e?.message||e)).slice(0,400);
++const rateLimited=t=>/rate limit|over rate|too many requests|compute units per second|\b429\b/i.test(t);
++// One per-RPC failure line for agreed()'s `failures`: WHICH RPC (its safe label, never the URL), which step, the HTTP
++// status when there is one (viem's shortMessage drops it: a 429 rate limit read only "HTTP request failed."). Text only.
++const failureText=(label,step,e)=>`${label}: ${step} ${Number.isInteger(e?.status)?'HTTP '+e.status+' ':''}${Number.isInteger(e?.code)?'code '+e.code+' ':''}${errText(e)}${e?.details?' ('+redactUrls(String(e.details)).slice(0,80)+')':''}`.slice(0,220);
+ // The vote identity of an RPC URL: network/rpc-identity.mjs, the rule every quorum reader shares (one public host is
+ // one vote however its URL is spelled; loopback by port; IPv4 written as IPv6 folded; https, plain http only on
+ // loopback; no credentials or fragment; no DNS, and distinct hosts are not proof of independent operators). Throws an
+@@ -71,7 +75,7 @@
+ // The fields agreed() itself puts on every answer; a read callback returning one is a bug, refused loudly.
+ const reservedFields=['hash','blockNumber','timestamp'];
+ export class LeaseReader {
+-  constructor({rpc,chainId=8453,addressBook,authorityPins,maxBlockAgeMs=90000,confirmations=2,deadlineMs=30000,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now}) {
++  constructor({rpc,chainId=8453,addressBook,authorityPins,maxBlockAgeMs=90000,confirmations=2,deadlineMs=30000,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now,rateLimitRetryMs=0}) {
+     if (!/^0x[0-9a-fA-F]{40}$/.test(addressBook||'')) throw new Error('invalid chain policy');
+     Object.assign(this,{chainId,addressBook,maxBlockAgeMs,confirmations,deadlineMs,includeHostPayout,includeConnectivity,now});
+     this.retryDelayMs=400;this.headGraceMs=250;
+@@ -89,6 +93,11 @@
+     this.clients=clients||rpc.map(url=>createPublicClient({chain:base,batch:{multicall:{wait:0}},
+       transport:http(url,{timeout:14000,retryCount:0,...(proxy?{fetchFn:guardedFetch(proxy,{timeoutMs:6000})}:{})})}));
+     this.lastBlock=0n;this.cache=new Map();
++    this.labels=clients?this.clients.map((_,i)=>`rpc${i+1}`):rpc.map(u=>rpcLabel(u));
++    // Opt-in (default 0 = the original three attempts): an agreed() call may spend up to this long, in total, retrying
++    // rate-limit refusals, inside its unchanged deadline. Enabled only by createHostAdmission's own reader.
++    if(!Number.isSafeInteger(rateLimitRetryMs)||rateLimitRetryMs<0||rateLimitRetryMs>=deadlineMs)throw new Error('invalid rate-limit retry budget');
++    this.rateLimitRetryMs=rateLimitRetryMs;
+   }
+   // Requests that arrive while a snapshot is queued join it: a burst of
+   // publications costs one chain read, not one per app.
+@@ -102,13 +111,27 @@
+     for(const id of ids)this.queued.ids.add(id);
+     return this.queued.run.then(rows=>{const byId=new Map(rows.map(row=>[row.id,row]));return ids.map(id=>byId.get(id)).filter(Boolean);});
+   }
+-  // Only a rate-limit refusal is retried, briefly; a timeout or a wrong answer is not.
+-  async limited(read) {
++  // Only a rate-limit refusal is retried; a timeout or a wrong answer is not.
++  //  * retryUntil null (every reader by default): the original rule, three attempts.
++  //  * retryUntil set (agreed() on a reader built with rateLimitRetryMs, i.e. the host wallet admission): retried with
++  //    backoff (0.4 s doubling, capped at 4 s) while the next attempt still starts before retryUntil = min(call start +
++  //    rateLimitRetryMs, deadline - 1 s). Public RPCs answer this site's bursts with short 429 windows; giving up after ~2 s
++  //    made the quorum "unavailable" and held running deployments (2026-10-21, nucbox). The budget is per agreed() call
++  //    and separate from its deadline, so an all-429 outage still answers UNKNOWN within about the budget, not after 30 s.
++  //    Each retry still passes agreed()'s gate (decided, superseded or past the deadline -> no request).
++  async limited(read,retryUntil=null) {
+     for(let attempt=0;;attempt++){
+       try{return await read();}
+       catch(e){
+-        if(attempt>=2||!/rate limit|over rate|too many requests|compute units per second|\b429\b/i.test(String(e?.message)))throw e;
+-        await new Promise(r=>setTimeout(r,this.retryDelayMs*(attempt+1)*(1+Math.random())));
++        if(retryUntil===null){
++          if(attempt>=2||!rateLimited(String(e?.message)))throw e;
++          await new Promise(r=>setTimeout(r,this.retryDelayMs*(attempt+1)*(1+Math.random())));
++          continue;
++        }
++        if(!rateLimited(String(e?.message)+' '+String(e?.details||'')))throw e;
++        const delay=Math.min(4000,this.retryDelayMs*2**attempt)*(1+Math.random()/2);
++        if(performance.now()+delay>=retryUntil)throw e;
++        await new Promise(r=>setTimeout(r,delay));
+       }
+     }
+   }
+@@ -141,6 +164,7 @@
+     if(typeof read!=='function')return Promise.reject(new Error('agreed() needs a read function'));
+     return new Promise((resolve,reject)=>{
+       const endAt=performance.now()+this.deadlineMs,fresh=ts=>ts+this.maxBlockAgeMs>this.now();
++      const retryUntil=this.rateLimitRetryMs>0?Math.min(performance.now()+this.rateLimitRetryMs,endAt-1000):null;
+       let closed=false,round=0,block=null,seen=new Map(),readers=new Set(),pending=0,grace=null;
+       const heads=new Map(),tried=[];let headsOutstanding=this.clients.length;
+       const finish=(err,out)=>{if(closed)return;closed=true;clearTimeout(grace);clearTimeout(deadline);if(err)reject(err);else resolve(out);};
+@@ -152,7 +176,15 @@
+         if(r!==null&&r!==round)return Promise.reject(new Error('superseded by a newer block'));
+         const left=Math.floor(endAt-performance.now());
+         if(left<=0)return Promise.reject(new Error('the chain read deadline has passed'));
+-        return timed(Promise.resolve().then(f),left);
++        // re-checked when the request is actually issued (a microtask later): a decision in between sends nothing. A request
++        // already handed to the transport (and a multicall batch flushed a macrotask later) is not aborted: it may still
++        // complete after the decision; its answer is ignored (reads at one fixed block; the decision cannot change).
++        return timed(Promise.resolve().then(()=>{
++          if(closed)throw new Error('the chain read was already decided');
++          if(r!==null&&r!==round)throw new Error('superseded by a newer block');
++          if(performance.now()>=endAt)throw new Error('the chain read deadline has passed');
++          return f();
++        }),left);
+       };
+       // `read` gets the client behind this gate, so its own requests obey it too.
+       const guarded=(c,r)=>new Proxy(c,{get(target,key){const v=Reflect.get(target,key);return typeof v==='function'?(...args)=>gate(r,()=>v.apply(target,args)):v;}});
+@@ -166,7 +198,7 @@
+         if(b<this.lastBlock)b=this.lastBlock;
+         return b;
+       };
+-      const readAt=(c,b,r)=>this.limited(async()=>{
++      const readAt=(c,b,r)=>this.limited(async()=>{   // retryUntil: the opt-in rate-limit budget (null = 3 attempts)
+         const g=guarded(c,r);
+         const {hash,timestamp}=header(await g.getBlock({blockNumber:b}),b);
+         if(timestamp>this.now()+5000||!fresh(timestamp))throw new Error('stale chain block');
+@@ -179,7 +211,7 @@
+         if(again.hash!==hash||again.timestamp!==timestamp)throw new Error('chain reorganized during read');
+         if(!fresh(timestamp))throw new Error('chain block became stale during the read');
+         return {...value,hash,blockNumber:String(b),timestamp};
+-      });
++      },retryUntil);
+       const addReader=c=>{
+         if(closed||readers.has(c))return;
+         const r=round,b=block;readers.add(c);pending++;
+@@ -200,7 +232,7 @@
+           finish(null,snap);
+         },e=>{
+           if(e?.readerBug)return finish(e);               // the caller's read is wrong: say so, do not dress it as a quorum failure
+-          if(!closed&&r===round)failures.push(errText(e));
++          if(!closed&&r===round)failures.push(failureText(this.labels[this.clients.indexOf(c)]||'rpc','read',e));
+         }).finally(()=>{if(r===round){pending--;settle();}});
+       };
+       const startRound=b=>{
+@@ -227,15 +259,20 @@
+       };
+       for(const c of this.clients)this.limited(async()=>{
+         const g=guarded(c,null);
+-        const [chainId,number]=await Promise.all([g.getChainId(),g.getBlockNumber({cacheTime:0})]);
++        // allSettled: one 429 does not end the attempt while its sibling request is still in flight; the rate-limit
++        // reason (if any) is the one rethrown, so the retry rule sees it
++        const got=await Promise.allSettled([g.getChainId(),g.getBlockNumber({cacheTime:0})]);
++        const bad=got.filter(x=>x.status==='rejected').map(x=>x.reason);
++        if(bad.length)throw bad.find(e=>rateLimited(String(e?.message)+' '+String(e?.details||'')))||bad[0];
++        const [chainId,number]=got.map(x=>x.value);
+         if(chainId!==this.chainId)throw new Error('wrong chain');
+         return BigInt(number);
+-      }).then(number=>{
++      },retryUntil).then(number=>{
+         if(closed)return;
+         heads.set(c,number);
+         if(block!==null)addReader(c);                  // a late head still reads at the chosen block
+         else if(heads.size>=2&&grace===null)grace=setTimeout(()=>{grace='fired';headsSettled();},this.headGraceMs);
+-      },()=>{}).finally(()=>{headsOutstanding--;headsSettled();});
++      },e=>{if(!closed)failures.push(failureText(this.labels[this.clients.indexOf(c)]||'rpc','head',e));}).finally(()=>{headsOutstanding--;headsSettled();});
+     });
+   }
+   async readSnapshot(ids) {
+--- network/platform-host-policy-config.mjs	2026-10-21 07:48:30.240817755 -0700
++++ ../src/network/platform-host-policy-config.mjs	2026-10-21 07:48:58.863875988 -0700
+@@ -18,12 +18,7 @@
+ // Public HTTPS transports verified on 2026-10-20; clients still verify the administrator signature and chain anchor.
+ // Publish a reviewed signed document to these routes BEFORE anchoring it. Extra operator-chosen mirrors are supported.
+ // These four regional endpoints share an infrastructure operator; they do not establish independent operation.
+-export const PRODUCTION_MIRRORS = Object.freeze([
+-  "https://134.199.235.187/platform-policy",
+-  "https://134.209.248.172/platform-policy",
+-  "https://165.245.191.129/platform-policy",
+-  "https://146.190.246.39/platform-policy",
+-]);
++export const PRODUCTION_MIRRORS = Object.freeze([]);
+ // The policy's own read quorum (distinct public Base RPCs; majority 3 of 4), independent of a component's single RPC.
+ export const PRODUCTION_RPCS = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"]);
+ export const PRODUCTION_HOST_POLICY = Object.freeze({ chainId: 8453, book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP,

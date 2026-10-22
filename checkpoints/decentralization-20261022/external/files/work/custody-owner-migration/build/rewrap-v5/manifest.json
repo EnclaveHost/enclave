@@ -1,0 +1,156 @@
+{
+  "role": "enclave-custody-rewrap",
+  "commit": "e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+  "sourcesCommitted": false,
+  "sourceCheck": {
+    "paths": [
+      "custody",
+      "isolation/m2/cmd/snpkey",
+      "isolation/m2/go.mod",
+      "isolation/m2/go.sum",
+      "relay/snp-verify.mjs",
+      "verifier",
+      "scripts/build-custodian-v2.mjs",
+      "package.json",
+      "package-lock.json",
+      "custody/hpke.mjs",
+      "custody/protocol.mjs",
+      "custody/rules.mjs",
+      "custody/threshold.mjs",
+      "custody/v2/chain.mjs",
+      "custody/v2/measured.mjs",
+      "custody/v2/owner.mjs",
+      "custody/v2/protocol.mjs",
+      "custody/v2/quorum.mjs",
+      "custody/v2/rewrap-gsup.mjs",
+      "custody/v2/rewrap-guest.mjs",
+      "custody/v2/rewrap.mjs",
+      "custody/verifiers.mjs",
+      "isolation/contract/runtime.mjs",
+      "network/host-policy-mirrors.mjs",
+      "network/platform-host-policy.mjs",
+      "network/rpc-identity.mjs",
+      "verifier/collateral-cache.mjs",
+      "verifier/collateral.mjs",
+      "verifier/consumer.mjs",
+      "verifier/der.mjs",
+      "verifier/envelope.mjs",
+      "verifier/metal-box.mjs",
+      "verifier/snp.mjs",
+      "verifier/tls-binding.mjs",
+      "scripts/build-custody-rewrap.mjs"
+    ],
+    "untracked": [
+      "custody/v2/rewrap-gsup.mjs",
+      "custody/v2/rewrap-guest.mjs",
+      "custody/v2/rewrap.mjs",
+      "network/host-policy-mirrors.mjs",
+      "network/platform-host-policy.mjs",
+      "scripts/build-custody-rewrap.mjs"
+    ],
+    "dirty": "M custody/rules.mjs\n M custody/v2/build-config.mjs\n M custody/v2/chain.mjs\n M custody/v2/custodian.mjs\n M custody/v2/daemon.mjs\n M custody/v2/governance.mjs\n M custody/v2/http.mjs\n M custody/v2/ingress.mjs\n M custody/v2/member.mjs\n M custody/v2/protocol.mjs\n M custody/v2/shield-rules.mjs\n M scripts/build-custodian-v2.mjs\n?? custody/v2/owner-secrets.mjs\n?? custody/v2/rewrap-gsup.mjs\n?? custody/v2/rewrap-guest.mjs\n?? custody/v2/rewrap-host.mjs\n?? custody/v2/rewrap.mjs\n?? network/host-policy-mirrors.mjs\n?? network/platform-host-policy.mjs\n?? scripts/build-custody-rewrap.mjs"
+  },
+  "measured": {
+    "role": "enclave-custody-rewrap",
+    "chainId": 8453,
+    "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+    "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+    "rpcs": [
+      "https://mainnet.base.org",
+      "https://base-rpc.publicnode.com",
+      "https://base.drpc.org",
+      "https://base.public.blockpi.network/v1/rpc/public"
+    ],
+    "minAgree": 3,
+    "confirmations": 2,
+    "maxAgeSec": 120,
+    "hostPolicy": {
+      "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+      "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
+      "mirrors": [
+        "https://134.199.235.187/platform-policy",
+        "https://134.209.248.172/platform-policy",
+        "https://165.245.191.129/platform-policy",
+        "https://146.190.246.39/platform-policy"
+      ]
+    }
+  },
+  "runtime": {
+    "name": "enclave-custody-rewrap",
+    "version": "1.0.0",
+    "execution": "jit",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "baseline",
+    "wx": "enforced",
+    "cache": "none"
+  },
+  "runtimeId": "203807f9ba70e096950bd79a55884ee9f8f7eab7a479705d9647cea94b0a70ab",
+  "base": {
+    "dir": "dist-custody-9e5fb2028",
+    "initramfsSha256": "7169150f50ae69b8cb85d433f5a2b44ea7553968408d9dfd373caa03a8c146e5",
+    "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "bundleInputs": {
+    "repo": [
+      "custody/hpke.mjs",
+      "custody/protocol.mjs",
+      "custody/rules.mjs",
+      "custody/threshold.mjs",
+      "custody/v2/chain.mjs",
+      "custody/v2/measured.mjs",
+      "custody/v2/owner.mjs",
+      "custody/v2/protocol.mjs",
+      "custody/v2/quorum.mjs",
+      "custody/v2/rewrap-gsup.mjs",
+      "custody/v2/rewrap-guest.mjs",
+      "custody/v2/rewrap.mjs",
+      "custody/verifiers.mjs",
+      "isolation/contract/runtime.mjs",
+      "network/host-policy-mirrors.mjs",
+      "network/platform-host-policy.mjs",
+      "network/rpc-identity.mjs",
+      "relay/snp-verify.mjs",
+      "verifier/collateral-cache.mjs",
+      "verifier/collateral.mjs",
+      "verifier/consumer.mjs",
+      "verifier/der.mjs",
+      "verifier/envelope.mjs",
+      "verifier/metal-box.mjs",
+      "verifier/snp.mjs",
+      "verifier/tls-binding.mjs"
+    ],
+    "packages": [
+      "@noble/ciphers@1.3.0",
+      "@noble/curves@1.9.1",
+      "@noble/hashes@1.8.0",
+      "abitype@1.2.3",
+      "isows@1.0.7",
+      "ox@0.14.29",
+      "viem@2.53.1",
+      "ws@8.21.1"
+    ]
+  },
+  "bundler": "esbuild@0.28.1",
+  "files": {
+    "/opt/metal/gsup.mjs": "11a4b97dc77dc75087db1b9659ffba629daa601e6ae116c662fde2e513b22e94",
+    "/opt/rewrap/rewrap.mjs": "5d585caba59875c3e404a21cbb56a9a46381e61f2512f56394d23225b3d544c2"
+  },
+  "kernel": {
+    "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "initramfs": {
+    "sha256": "1b090c69f6df2ec794403dd5823696d776e6b9ca97e99d93cc4d04f5de9f448c",
+    "bytes": 279328463
+  },
+  "cmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app",
+  "vcpus": 2,
+  "measurement": "f01a7166376cb192d7dac2abf89057d92825fc88c8d204cfac35df60b36d92d4be023018e0629dcab7ad695d8f06eb8e",
+  "measurementSha256": "0xf825c9b2ed578664f46309ba76cca7d7bebda87ead341b344c21e04944b91ccf",
+  "ovmfSha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+  "rulesImage": {
+    "platform": "sev-snp",
+    "measurement": "f01a7166376cb192d7dac2abf89057d92825fc88c8d204cfac35df60b36d92d4be023018e0629dcab7ad695d8f06eb8e",
+    "runtimeId": "203807f9ba70e096950bd79a55884ee9f8f7eab7a479705d9647cea94b0a70ab"
+  }
+}

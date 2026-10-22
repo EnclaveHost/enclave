@@ -1,0 +1,24 @@
+# TEMPLATE (not installed; root reviews and installs it only for the minipc FALLBACK rollout, after the Linux path is live).
+# The ONLY LAN exposure of warden's lease relay: one listener on warden's LAN address, accepting connections from minipc's
+# reviewed LAN addresses only, handed to enclave-host-relay-lan.service, which forwards them to the relay's loopback listener
+# (127.0.0.1:8549; the host role itself never binds a non-loopback address). Nothing else is exposed: no other address,
+# interface or port, no firewall rule is changed, and the relay protocol is the same public one the control CVM uses.
+# Every value below is checked by root's preflight (PLAN.md section 5): the LAN interface name, warden's address and
+# minipc's addresses (DHCP reservations), and that nothing else listens on :8549.
+[Unit]
+Description=Enclave lease relay: LAN listener for the minipc fallback (to 127.0.0.1:8549)
+Requires=enclave-host-relay.service
+After=enclave-host-relay.service
+
+[Socket]
+ListenStream=192.168.8.249:8549
+BindToDevice=LAN_INTERFACE_FROM_PREFLIGHT
+FreeBind=yes
+NoDelay=yes
+Backlog=16
+# the cgroup IP filter on the listening socket: minipc's two reviewed LAN addresses, nothing else
+IPAddressDeny=any
+IPAddressAllow=192.168.8.238/32 192.168.8.148/32
+
+[Install]
+WantedBy=sockets.target

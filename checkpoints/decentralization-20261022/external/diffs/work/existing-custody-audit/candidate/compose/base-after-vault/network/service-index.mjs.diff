@@ -1,0 +1,22 @@
+--- a/network/service-index.mjs
++++ b/network/service-index.mjs
+@@ -506,3 +506,19 @@
+   return { directories: dirs, pins: authority, rpc: [...rpc], chainId, outbound: o.href, dns: resolvers, smtp: smtp || null, smtpDomain: smtpDomain || null,
+            connectivity: authority.connectivity === ZERO ? null : authority.connectivity };
+ }
++
++/**
++ * Platform host policy over discovery candidates (network/platform-host-policy.mjs). decide(operators) -> { [operator]:
++ * { admit, reason } } judged at one agreed block. Refused candidates move to `refused`; nothing is admitted that the
++ * decision does not admit (a missing decision refuses). Ads stay untrusted self-descriptions either way.
++ */
++export async function applyHostPolicy(result, decide) {
++  const ops = [...new Set((result?.candidates || []).map((c) => String(c.operator).toLowerCase()))];
++  const d = ops.length ? await decide(ops) : {};
++  const candidates = [], refused = [];
++  for (const c of result?.candidates || []) {
++    const x = d[String(c.operator).toLowerCase()];
++    if (x && x.admit === true) candidates.push(c); else refused.push({ candidate: c, reason: x?.reason || 'no platform host policy decision' });
++  }
++  return { ...result, candidates, refusedByPolicy: refused };
++}

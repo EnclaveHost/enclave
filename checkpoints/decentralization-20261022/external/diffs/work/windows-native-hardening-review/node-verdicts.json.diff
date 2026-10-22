@@ -1,0 +1,214 @@
+--- a/test/windows-native/node-verdicts.json
++++ b/test/windows-native/node-verdicts.json
+@@ -244,211 +244,6 @@
+   "why": "mirror \"m.example/w/\" is not a URL"
+  },
+  {
+-  "name": "policy: mirror \"http://[::1]/\"",
+-  "verdict": "accept",
+-  "mirrors": [
+-   "http://[::1]/"
+-  ]
+- },
+- {
+-  "name": "policy: mirror \"http://[0:0:0:0:0:0:0:1]:9/w/\"",
+-  "verdict": "accept",
+-  "mirrors": [
+-   "http://[::1]:9/w/"
+-  ]
+- },
+- {
+-  "name": "policy: mirror \"http://[0000:0000:0000:0000:0000:0000:0000:0001]/w\"",
+-  "verdict": "accept",
+-  "mirrors": [
+-   "http://[::1]/w/"
+-  ]
+- },
+- {
+-  "name": "policy: mirror \"HTTP://[::1]:8080/A/../w\"",
+-  "verdict": "accept",
+-  "mirrors": [
+-   "http://[::1]:8080/w/"
+-  ]
+- },
+- {
+-  "name": "policy: mirror \"https://[::1]:443/w/\"",
+-  "verdict": "accept",
+-  "mirrors": [
+-   "https://[::1]/w/"
+-  ]
+- },
+- {
+-  "name": "policy: mirror \"http://[::1]:80/\"",
+-  "verdict": "accept",
+-  "mirrors": [
+-   "http://[::1]/"
+-  ]
+- },
+- {
+-  "name": "policy: mirror \"http://[::2]/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://[::2]/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"http://[::]/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://[::]/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"http://[::ffff:127.0.0.1]/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://[::ffff:127.0.0.1]/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"http://[::ffff:7f00:1]/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://[::ffff:7f00:1]/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"http://[fe80::1]/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://[fe80::1]/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"https://[2001:db8::1]/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"https://[2001:db8::1]/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"http://[0:0:0:0:0:0:0:2]/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://[0:0:0:0:0:0:0:2]/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"http://[::1/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://[::1/\" is not a URL"
+- },
+- {
+-  "name": "policy: mirror \"http://127.1/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://127.1/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"http://2130706433/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://2130706433/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"http://0x7f000001/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://0x7f000001/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"http://0x7f.0.0.1/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://0x7f.0.0.1/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"http://127.0.0.01/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://127.0.0.01/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"http://127.000.000.001/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://127.000.000.001/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"http://127.0.0.2/w/\"",
+-  "verdict": "refuse",
+-  "why": "mirror http://127.0.0.2/w/ must be https"
+- },
+- {
+-  "name": "policy: mirror \"http://127.255.255.255/\"",
+-  "verdict": "refuse",
+-  "why": "mirror http://127.255.255.255/ must be https"
+- },
+- {
+-  "name": "policy: mirror \"http://localhost.localdomain/\"",
+-  "verdict": "refuse",
+-  "why": "mirror http://localhost.localdomain/ must be https"
+- },
+- {
+-  "name": "policy: mirror \"http://localhost./\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://localhost./\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"http://sub.localhost/\"",
+-  "verdict": "refuse",
+-  "why": "mirror http://sub.localhost/ must be https"
+- },
+- {
+-  "name": "policy: mirror \"HTTP://LOCALHOST/w\"",
+-  "verdict": "accept",
+-  "mirrors": [
+-   "http://localhost/w/"
+-  ]
+- },
+- {
+-  "name": "policy: mirror \"http://localhost:80/w/\"",
+-  "verdict": "accept",
+-  "mirrors": [
+-   "http://localhost/w/"
+-  ]
+- },
+- {
+-  "name": "policy: mirror \"http://127.0.0.1:65535/\"",
+-  "verdict": "accept",
+-  "mirrors": [
+-   "http://127.0.0.1:65535/"
+-  ]
+- },
+- {
+-  "name": "policy: mirror \"http://127.0.0.1:65536/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://127.0.0.1:65536/\" is not a URL"
+- },
+- {
+-  "name": "policy: mirror \"http://localhost:/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"http://localhost:/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"https://192.0.2.1/w/\"",
+-  "verdict": "accept",
+-  "mirrors": [
+-   "https://192.0.2.1/w/"
+-  ]
+- },
+- {
+-  "name": "policy: mirror \"https://256.0.0.1/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"https://256.0.0.1/\" is not a URL"
+- },
+- {
+-  "name": "policy: mirror \"https://m.example./\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"https://m.example./\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"https://m..example/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"https://m..example/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"https://-m.example/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"https://-m.example/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"https://m_x.example/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"https://m_x.example/\" must name a DNS host, a dotted quad or [::1], written plainly"
+- },
+- {
+-  "name": "policy: mirror \"https://m.example.123/\"",
+-  "verdict": "refuse",
+-  "why": "mirror \"https://m.example.123/\" is not a URL"
+- },
+- {
+   "name": "policy: one mirror spelled twice",
+   "verdict": "refuse",
+   "why": "release policy lists a mirror twice"

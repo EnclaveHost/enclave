@@ -1,0 +1,13 @@
+--- a/isolation/m2/front/shield_direct_custody.go
++++ b/isolation/m2/front/shield_direct_custody.go
+@@ -107,6 +107,10 @@
+ 	if grant, e := auth.NameGrant(); e == nil && grant.ACME != nil && grant.ACME.EAB != nil {
+ 		startup.eabKID, startup.eabKey, startup.eabErr = eabFrom(values, grant.ACME.EAB)
+ 	}
++	// ...and app-zone issuance (appzone.go) its own selected CA's EAB, from the same bundle, exactly as the SNP direct front
++	if grant, e := auth.NameGrant(); e == nil && grant.AppZone != nil && grant.AppZone.EAB != nil {
++		startup.appEabKID, startup.appEabKey, startup.appEabErr = eabFrom(values, grant.AppZone.EAB)
++	}
+ 	eg.encID = id
+ 	fwd, err := eg.startDirect(auth, values)
+ 	if err != nil {

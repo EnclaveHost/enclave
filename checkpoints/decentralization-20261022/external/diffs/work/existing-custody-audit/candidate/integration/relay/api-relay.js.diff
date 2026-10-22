@@ -1,0 +1,58 @@
+--- a/relay/api-relay.js
++++ b/relay/api-relay.js
+@@ -84,6 +84,7 @@
+ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+ import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mjs";
+ import { isBlockedHost } from "./net-guard.mjs";
++import { createHostPolicyRuntime } from "../network/host-policy-runtime.mjs";
+ import { isMcpHost, handleMcp } from "./mcp.js";
+ import { handleAccount, initAccounts, verifyAccountSession, vaultKeyOf, setSessionHooks } from "./auth.js";
+ import { vaultAddressFor } from "./vaultsvc.js";
+@@ -196,6 +197,22 @@
+       ? _rawOperators.toLowerCase().split(",").map((s) => s.trim()).filter(Boolean)
+       : DEFAULT_TRUSTED_OPERATORS.slice());
+ 
++// Platform host policy (network/platform-host-policy.mjs): the admin's anchored ban/admission decision, enforced on
++// discovery, dial and tunnel attach IN ADDITION to TRUSTED_OPERATORS. Off unless ENCLAVE_PLATFORM_HOST_POLICY is set
++// ({book, hostOwnership, mirrors}); its quorum is ENCLAVE_PLATFORM_HOST_POLICY_RPCS (distinct HTTPS RPCs). A malformed
++// value refuses to start; an undecided host (policy unreadable, node behind the anchor) is not listed and cannot attach.
++const HOST_POLICY = createHostPolicyRuntime(process.env.ENCLAVE_PLATFORM_HOST_POLICY, {
++  rpcs: (process.env.ENCLAVE_PLATFORM_HOST_POLICY_RPCS || "").split(",").map((s) => s.trim()).filter(Boolean), log: (m) => console.log(m) });
++if (HOST_POLICY) {
++  const refresh = () => HOST_POLICY.gate.refresh().then((p) => console.log(`[host-policy] platform policy #${p.policy.sequence} ${p.digest.slice(0, 18)}...`),
++    (e) => console.error(`[host-policy] refresh failed (${e.code || "error"}): ${e.message}`));
++  refresh(); setInterval(refresh, 5 * 60_000).unref();
++}
++const hostPolicyAdmission = HOST_POLICY ? async (name) => {
++  const id = String(await endpointId(boxOrigin(name) || `${TUNNEL_ORIGIN}/t/${name}`)).toLowerCase();
++  return (await HOST_POLICY.admissions([id]))[id] || { admit: false, reason: "no decision" };
++} : null;
++
+ async function tunnelNameOwner(name) {
+   if (!REGISTRY_ADDRESS) return null;
+   // A minted box name (boxhost.js) registers under its OWN host, so its id is
+@@ -273,7 +290,7 @@
+   operatorAttach: /^(1|true|yes|on)$/i.test((process.env.TUNNEL_OPERATOR_ATTACH || "").trim()),
+   // and the owner still has to clear the same operator bar the dial path uses —
+   // a tunnel row bypasses that filter, so it is enforced at attach instead
+-  trustedOperators: TRUSTED_OPERATORS, operatorsUnrestricted: OPERATORS_UNRESTRICTED,
++  trustedOperators: TRUSTED_OPERATORS, operatorsUnrestricted: OPERATORS_UNRESTRICTED, hostAdmission: hostPolicyAdmission,
+   // this relay's own public origin: a tunnel's self-routed /t/<name> URL must name it (selfRoutedUrl form 2, enclave-bf);
+   // and what an hv-node's hosting delegation must name (relay/host-delegation.mjs): Base, and this relay's registry
+   tunnelOrigin: TUNNEL_ORIGIN, ownerOnly: { chainId: 8453, registry: () => REGISTRY_ADDRESS },
+@@ -708,10 +725,14 @@
+   declaredById = new Map(await Promise.all(fresh.map(async (e) =>
+     [String(await endpointId(String(e.endpoint || "").replace(/\/+$/, ""))).toLowerCase(),
+      { payoutWallet: e.payoutWallet || null, caps: Number(capsOf(e)), region: e.region || null }])));
++  // platform host policy: one agreed decision for every fresh row; a missing decision never lists or dials the host
++  const policyIds = HOST_POLICY ? (await Promise.all(fresh.map((e) => endpointId(String(e.endpoint || "").replace(/\/+$/, ""))))).map((x) => String(x).toLowerCase()) : null;
++  const policyDecisions = HOST_POLICY ? await HOST_POLICY.admissions(policyIds).catch((e) => { console.error(`[host-policy] ${e.message}`); return {}; }) : null;
+   return Promise.all(fresh
+     // B2: only vetted operators (baked default, or the env allowlist). Pass-all
+     // ONLY under the explicit TRUSTED_OPERATORS=* opt-in — never by omission.
+-    .filter((e) => OPERATORS_UNRESTRICTED || TRUSTED_OPERATORS.includes(String(e.operator || "").toLowerCase()))
++    .filter((e, i) => (OPERATORS_UNRESTRICTED || TRUSTED_OPERATORS.includes(String(e.operator || "").toLowerCase()))
++                      && (!policyDecisions || policyDecisions[policyIds[i]]?.admit === true))
+     .map((e) => ({ e, endpoint: e.endpoint.replace(/\/+$/, "") }))
+     // B1/B3: never route to a non-https discovered endpoint (real enclaves are https)
+     .filter(({ endpoint }) => { const ok = isHttpsEndpoint(endpoint); if (!ok) console.error(`[api-relay] skipping non-https registry endpoint: ${endpoint}`); return ok; })

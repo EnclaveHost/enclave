@@ -1,0 +1,6 @@
+{
+  "scriptSha": "018f9b935f785587d43e7fb419d61457e463faa23c3a0a87a8866a3c3379d089",
+  "planSha": "26edeb7b396c61a4c629021856d1c5353c9c92a6202998356ecba66570b17e01",
+  "scope": "Read configuration variable names and value hashes only; no production change; output retained locally.",
+  "rootCorrection": "Preserve double quotes in emitted .NET regex; native synthetic fixtures gate live read. Original script silently lost quoted SET names."
+}

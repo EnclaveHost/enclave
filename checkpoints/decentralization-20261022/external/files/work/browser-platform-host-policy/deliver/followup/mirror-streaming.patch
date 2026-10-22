@@ -1,0 +1,61 @@
+--- a/site/js/core/host-policy.js
++++ b/site/js/core/host-policy.js
+@@ -103,11 +103,25 @@
+       if (!r.ok) return new Response("", { status: r.status });
+       const len = Number(r.headers && r.headers.get && r.headers.get("content-length"));
+       if (Number.isFinite(len) && len > L.MAX_POLICY_BYTES) return new Response("", { status: 413 });
+-      const text = await r.text();
+-      return new Response(new TextEncoder().encode(text).length > L.MAX_POLICY_BYTES ? "" : text, { status: text ? 200 : 413 });
++      const bytes = await boundedBytes(r, L.MAX_POLICY_BYTES);   // streamed: never buffers past the cap
++      return bytes ? new Response(bytes, { status: 200 }) : new Response("", { status: 413 });
+     } finally { clearTimeout(t); if (init.signal) init.signal.removeEventListener("abort", onAbort); }
+   };
+ }
++/* the body's bytes, or null once it passes max (the stream is cancelled there, not read to its end) */
++async function boundedBytes(r, max){
++  if (!r.body || !r.body.getReader){ const b = new Uint8Array(await r.arrayBuffer()); return b.length > max ? null : b; }
++  const rd = r.body.getReader(), parts = []; let n = 0;
++  for (;;){
++    const { done, value } = await rd.read();
++    if (done) break;
++    n += value.length;
++    if (n > max){ try { await rd.cancel(); } catch {} return null; }
++    parts.push(value);
++  }
++  const all = new Uint8Array(n); let o = 0; for (const p of parts){ all.set(p, o); o += p.length; }
++  return all;
++}
+ /* the accepted {document, signature, digest, sequence} survives reloads (the loader's rollback floor); it is re-verified */
+ function localStore(book){
+   if (_store !== undefined) return _store;
+--- a/test/site-host-policy.test.mjs
++++ b/test/site-host-policy.test.mjs
+@@ -82,12 +82,13 @@
+ }
+ const rpc = async (url, method, params) => answer(url, method, params);
+ const newReader = () => createQuorumReader({ rpcs: profile.rpcs, quorum: 2, confirmations: 0, maxBlockAgeSeconds: 600, chainId: 8453, rpc });
+-// mirrors: url -> body (object) | Error | "hang"
++// mirrors: url -> body (object) | Error | "hang" | () => Response
+ const mirrors = new Map();
+ const mirrorFetch = async (url, init) => {
+   const v = mirrors.get(url);
+   if (v === "hang") return new Promise((_, no) => init.signal.addEventListener("abort", () => no(Object.assign(new Error("aborted"), { name: "AbortError" }))));
+   if (v instanceof Error) throw v;
++  if (typeof v === "function") return v();
+   if (v === undefined) return new Response("", { status: 404 });
+   return new Response(typeof v === "string" ? v : JSON.stringify(v), { status: 200, headers: { "content-type": "application/json" } });
+ };
+@@ -315,6 +316,13 @@
+   assert.equal(decision(await HP.policyDecisions(r, await reg(r)), "good").admit, true);
+   r = fresh(); mirrors.set("https://policy-a.example" + name, "{not json"); mirrors.set("https://policy-b.example" + name, "x".repeat(300 * 1024));
+   assert.match((await HP.policyDecisions(r, await reg(r))).unavailable, /not available from any mirror/);
++  // an endless body with no content-length: read only to just past the cap, then cancelled (never buffered whole)
++  r = fresh(); let served = 0, cancelled = 0;
++  const endless = () => new Response(new ReadableStream({ pull(c){ served += 16384; c.enqueue(new Uint8Array(16384).fill(32)); }, cancel(){ cancelled++; } }), { status: 200 });
++  mirrors.set("https://policy-a.example" + name, endless); mirrors.set("https://policy-b.example" + name, endless);
++  assert.match((await HP.policyDecisions(r, await reg(r))).unavailable, /not available from any mirror/);
++  assert.ok(cancelled >= 1, "the oversized stream was cancelled");
++  assert.ok(served <= cancelled * (256 * 1024 + 4 * 16384), "read " + served + " bytes for " + cancelled + " cancelled stream(s)");
+   r = fresh({ limits: { MIRROR_TIMEOUT_MS: 150, REFRESH_BUDGET_MS: 400, DECIDE_BUDGET_MS: 2000 } });
+   mirrors.set("https://policy-a.example" + name, "hang"); mirrors.set("https://policy-b.example" + name, "hang");
+   const t0 = Date.now(), p = await HP.policyDecisions(r, await reg(r));

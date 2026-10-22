@@ -1,0 +1,52 @@
+{
+  "mode": "PLAN ONLY (no network call made)",
+  "manifestSha": "04e11e448daeb9832ce8c79d321ac4c8b35fad1bb0d1bb307fa0197e7035332e",
+  "manifest": {
+    "transportSha": "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f",
+    "files": {
+      "BootstrapCheck.cs": "023d8d57b74daf937727472303b426192d3a49bd5793f12c819dfc4c138c53d6",
+      "FixtureJob.cs": "b82285d61fb64dddcd2149b50a9f56d6b1ee59ba9e4e442481cf7d133125741a",
+      "FixtureJobCheck.cs": "9e2d37679695f85ff1b8eebaa40f8208b4602303100ed804989bbc476d1d0901",
+      "native-bootstrap.ps1": "1bb3d6520309d19c2896e93366615aea782616989a2a7588ce0115f8a6e89225",
+      "repo/cli/host.ps1": "9c396209801be2edeae0d8e55d76d268b495e4755a3a464925843ed21b696488",
+      "repo/test/windows-native/Harness.cs": "5ec0768735a8bba108062e804ec348ca2d2397028abe92ac839bce2387ec3547",
+      "repo/test/windows-native/fixtures.json": "4e27f00729086ebbf0a550dcffa8cf8ecf0f34d377abd400acab18bc89127721",
+      "repo/test/windows-native/make-fixtures.mjs": "94608d043f00739e34913c47c678853cd40d5bcd00b5eb9e865185a36008983e",
+      "repo/test/windows-native/node-verdicts.json": "bbd28794165202f292dec38d9540defeb5971f7af8ebb45efc207839bdec1a9d",
+      "repo/test/windows-native/run.ps1": "bc337ae54703a9560bc1cbace2dd503fc7bfea58bf8ddf00f3187602e8d86d1b",
+      "repo/windows/installer/EnclaveSetup.cs": "5567d0ec12f31368b3687914c48cfd807eb93806b602d6a86e23c9558095bd19",
+      "repo/windows/installer/EnclaveSetup.manifest": "e2b9315ca02b67d5b9de90a9b246d32d5e6e134aaf041e0b12bc674a2de468cc",
+      "repo/windows/installer/install-host.ps1": "1d1580c8f9ac22f6ec96a34cea8455853b21a21cff5214187710f3483953b721",
+      "repo/windows/installer/update-host.ps1": "36f9e0d61afe58b77e566033ad1155d5c771252874f622592837c33e0a990112",
+      "repo/windows/node/release-channel.mjs": "f690c29b606879468db94b7b78f283e7de09f94a262803e13ee4dc61b447f942",
+      "repo/windows/node/update-watch.mjs": "9104b137b884ae5d46dfa94f2ec8529d36ee2cd51c89f204eec9335cd1af46a7",
+      "repo/windows/tray/TrayTheme.cs": "6de0a61684121d635772735772908521a3eb0179a5583abf1fc1ab13469d9284"
+    },
+    "stagePrefix": "C:\\ProgramData\\Enclave\\staging\\distribution-bootstrap-job-native-",
+    "fixtureSec": 900,
+    "validateSecs": 960
+  },
+  "localMismatches": {},
+  "stagePattern": "C:\\ProgramData\\Enclave\\staging\\distribution-bootstrap-job-native-<uuid4 hex 12>",
+  "steps": [
+    "O_EXCL native-attempt.json",
+    "create stage (refuse existing)",
+    "scp 17 pinned files",
+    "validate: exact recursive file count + FileSha pin of the fixture (it pins the other 16), then native-bootstrap.ps1 under the host execution policy (bound 900 s)",
+    "cleanup own stage + verify gone, unless the fixture reports childExitUnknown / gives no terminal report (then RECOVERY: nothing removed)",
+    "success only on fixture status PASS; PARTIAL / REFUSED / FAIL / UNKNOWN are reported as such",
+    "write native-result.json"
+  ],
+  "texts": {
+    "create": "$s='C:\\ProgramData\\Enclave\\staging\\distribution-bootstrap-job-native-000000000000';if(Test-Path -LiteralPath $s){throw 'stage exists'};$null=New-Item -ItemType Directory -Path $s;$null=New-Item -ItemType Directory -Path ($s+'\\repo');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\cli');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\test');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\windows');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\test\\windows-native');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\windows\\installer');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\windows\\node');$null=New-Item -ItemType Directory -Path ($s+'\\repo\\windows\\tray');@{created=$s}|ConvertTo-Json -Compress",
+    "validate": "$s='C:\\ProgramData\\Enclave\\staging\\distribution-bootstrap-job-native-000000000000';$ep=[string](Get-ExecutionPolicy);try{if(@(Get-ChildItem -LiteralPath $s -Recurse -Force -File).Count -ne 17){throw 'stage file count differs'};if((FileSha ($s+'\\native-bootstrap.ps1')) -ne '1bb3d6520309d19c2896e93366615aea782616989a2a7588ce0115f8a6e89225'){throw 'pin mismatch: native-bootstrap.ps1'}}catch{@{status='PRECHECK';pass=$false;error=$_.Exception.Message;executionPolicy=$ep}|ConvertTo-Json -Compress;exit 1};$ErrorActionPreference='Continue';$o=@(& powershell.exe -NoProfile -NonInteractive -File ($s+'\\native-bootstrap.ps1') -Stage $s 2>&1|%{\"$_\"});$c=$LASTEXITCODE;$j=@($o|?{$_ -like '{*'})|select -Last 1;if($j){$j;exit $c};$t=($o -join ' ');$r=$t -match 'execution polic|not digitally signed|running scripts is disabled';@{status=$(if($r){'REFUSED'}else{'NO-RESULT'});pass=$false;policyRefused=$r;executionPolicy=$ep;exit=$c;output=$t.Substring(0,[math]::Min(600,$t.Length))}|ConvertTo-Json -Compress;exit 1",
+    "cleanup": "$s='C:\\ProgramData\\Enclave\\staging\\distribution-bootstrap-job-native-000000000000';if(-not $s.StartsWith('C:\\ProgramData\\Enclave\\staging\\distribution-bootstrap-job-native-')){throw 'not a distribution-bootstrap-job-native stage'};if(Test-Path -LiteralPath $s){Remove-Item -LiteralPath $s -Recurse -Force};@{gone=(-not(Test-Path -LiteralPath $s))}|ConvertTo-Json -Compress"
+  },
+  "encodedSizes": {
+    "create": 3276,
+    "validate": 4016,
+    "cleanup": 2320
+  },
+  "encodedLimit": 7900,
+  "execute": "python3 run-native.py --execute --root-reviewed 04e11e448daeb9832ce8c79d321ac4c8b35fad1bb0d1bb307fa0197e7035332e"
+}

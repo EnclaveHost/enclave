@@ -1,0 +1,21 @@
+--- a/network/wg/forward.go
++++ b/network/wg/forward.go
+@@ -13,6 +13,7 @@
+ 	mu     sync.Mutex
+ 	conns  map[net.Conn]struct{}
+ 	ls     []net.Listener
++	pcs    []net.PacketConn // UDP ingress sockets (udpforward.go)
+ 	closed bool
+ 	Count  func(in, out int64) // in = toward the app, out = from the app
+ }
+@@ -49,6 +50,10 @@
+ 	for _, l := range f.ls {
+ 		l.Close()
+ 	}
++	for _, pc := range f.pcs {
++		pc.Close()
++	}
++	f.pcs = nil
+ 	for c := range f.conns {
+ 		c.Close()
+ 	}

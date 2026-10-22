@@ -1,0 +1,22 @@
+--- a/isolation/m4/guestd/server.go
++++ b/isolation/m4/guestd/server.go
+@@ -170,6 +170,7 @@
+ 	ShieldReleases    []string
+ 	RuntimeSET        bool // a real worker execution probe of the runtime used by this tree
+ 	RuntimeMem64      bool // a real 64-bit canonical ABI execution probe
++	RuntimeEncvol     bool // the pinned template carries encrypted volumes (rt/encvol.enabled: init trailer, front plane)
+ 	L                 Launcher
+ 	Auth              *controlAuth // guestd-control/1; nil = the unauthenticated, loopback-only lab mode
+ 	Store             *store       // catalog mappings; nil = only file:// bundles are accepted
+@@ -354,7 +355,10 @@
+ 			"supports": map[string]bool{"gpu": s.ShieldEnabled, "secrets": false, "egress": false, "config": false,
+ 				"ports": false, "protectedPorts": true, "configCid": false, "release": s.Release && !s.DirectBootstrap, "directBootstrap": s.Release && s.DirectBootstrap,
+ 				// legacyImage: a deployment that is not a release guest can still run here (on the previous image)
+-				"legacyImage": s.Release && s.Legacy != nil}})
++				"legacyImage": s.Release && s.Legacy != nil,
++				// encVolumes: the image runs the config's encrypted volumes inside the guest; config reaches only a release
++				// or owner-committed guest, so it is claimed only with one (supervisor.js isolationEncVolumesRefusal)
++				"encVolumes": s.RuntimeEncvol && s.Release}})
+ 	case r.Method == http.MethodPost && r.URL.Path == "/vms":
+ 		s.create(w, r)
+ 	case r.Method == http.MethodPost && r.URL.Path == "/prefetch":

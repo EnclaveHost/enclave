@@ -1,0 +1,21 @@
+17636c17636,17638
+<   const seen = /* @__PURE__ */ new Set();
+---
+>   const sig = Buffer.from(bundle.signature || "", "base64");
+>   if (sig.length !== 64 || !verify(null, Buffer.from(message("route", r)), key, sig)) throw new Error("invalid route signature");
+>   const seen = /* @__PURE__ */ new Set(), served = [];
+17642a17645
+>       served.push(route);
+17646c17649
+<     if (!exit) throw new Error("route address is not a qualified Enclave-network ingress provider");
+---
+>     if (exit) served.push(route);
+17648,17649c17651
+<   const sig = Buffer.from(bundle.signature || "", "base64");
+<   if (sig.length !== 64 || !verify(null, Buffer.from(message("route", r)), key, sig)) throw new Error("invalid route signature");
+---
+>   if (r.routes.length && !served.length) throw new Error("route address is not a qualified Enclave-network ingress provider");
+17655c17657
+<   return { ...r, expiresAt: Math.min(r.expiresAt, lease.validUntil), ipns: d.ipns };
+---
+>   return { ...r, routes: served, expiresAt: Math.min(r.expiresAt, lease.validUntil), ipns: d.ipns };

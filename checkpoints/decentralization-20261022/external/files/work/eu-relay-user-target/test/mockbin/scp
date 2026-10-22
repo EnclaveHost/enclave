@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# TEST-ONLY scp: "alias:path" or a local path on either side, as a local copy (remote paths already carry the test prefix).
+# $MOCK_SCP_FAIL=<file name>: a copy whose destination name contains ".incoming-<name>-" writes 3 bytes and fails
+set -u
+args=(); while [ $# -gt 0 ]; do case "$1" in -3|-q) shift ;; -o|-l) shift 2 ;; *) args+=("$1"); shift ;; esac; done
+strip() { if [[ "$1" == *:* ]] && [[ "$1" != /* ]]; then echo "${1#*:}"; else echo "$1"; fi; }
+src=$(strip "${args[0]}"); dst=$(strip "${args[1]}")
+if [ -n "${MOCK_SCP_FAIL:-}" ] && [[ "$dst" == *".incoming-$MOCK_SCP_FAIL-"* ]]; then head -c 3 "$src" > "$dst"; exit 1; fi
+cp "$src" "$dst"

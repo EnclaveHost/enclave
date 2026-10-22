@@ -1,0 +1,99 @@
+--- a/metal/guest/gsup.mjs
++++ b/metal/guest/gsup.mjs
+@@ -38,6 +38,11 @@
+ // (out-of-band, NOT measured — so the launch measurement is stable per image).
+ const cmdline = (() => { try { return fs.readFileSync('/proc/cmdline', 'utf8'); } catch { return ''; } })();
+ const cmdMode = (cmdline.match(/(?:^|\s)metal\.mode=([^\s]+)/) || [])[1];
++// MEASURED independent control (metal.control=direct on the measured cmdline; docs/network/measured-control-guest.md):
++// the supervisor runs ISOLATION_DIRECT_ONLY with the owner's config, which is accepted only when the PSP-signed HOST_DATA
++// binds it, and with keys minted here (metal/guest/measured-control.mjs). Nothing of the legacy relay/fleet path is
++// configured. Absent = the legacy path below, unchanged.
++const CONTROL = (cmdline.match(/(?:^|\s)metal\.control=([^\s]+)/) || [])[1] || '';
+ const fw = (() => {
+   for (const p of ['/sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.metal/raw']) {
+     try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch {}
+@@ -56,7 +61,8 @@
+ const FW_GFLOPS_PER_VCPU = Number(fw.gflopsPerVcpu);
+ const GFLOPS_MEASURED = Number.isFinite(FW_GFLOPS_PER_VCPU) && FW_GFLOPS_PER_VCPU > 0 && FW_GFLOPS_PER_VCPU <= 1000;
+ const NODE_GFLOPS = Math.max(1, Math.round((GFLOPS_MEASURED ? FW_GFLOPS_PER_VCPU : 1000 / 16) * NODE_VCPUS));
+-const MODE         = fw.mode || cmdMode || 'snp';      // snp | tdx | dev
++// snp | tdx | dev. A direct control guest takes the mode from the measured cmdline only (fw_cfg is the host's word).
++const MODE         = CONTROL ? (cmdMode || 'snp') : (fw.mode || cmdMode || 'snp');
+ const NAME         = fw.name || 'metal0';
+ const PUBLIC_URL   = fw.publicUrl || '';               // e.g. https://api.enclave.host/t/metal0
+ const RELAY_URL    = fw.relayUrl || '';                // wss://api.enclave.host/v1/fleet-tunnel
+@@ -313,7 +319,8 @@
+ const VOL_TABLE = Array.isArray(fw.volumes) ? fw.volumes : [];
+ const VOL_BOUND = MODE === 'snp' ? snpHostData() : '';
+ let mountedVols = [];
+-if (VOL_TABLE.length) {
++if (VOL_TABLE.length && CONTROL) log(`REFUSING all ${VOL_TABLE.length} model volume(s): a control guest runs no apps`);
++else if (VOL_TABLE.length) {
+   const computed = volumesDigest(VOL_TABLE);
+   if (MODE !== 'snp') {
+     // Nothing to check against: an unattested guest cannot prove anything about
+@@ -355,7 +362,7 @@
+ // --- wasm-manager (chroot) ---------------------------------------------------
+ const WASM_ROOT = '/opt/roots/wasm';
+ const wasmImgEnv = readJson('/opt/metal/wasm-env.json', {});
+-if (!ISO_BACKEND) start('wasm-manager',
++if (!ISO_BACKEND && !CONTROL) start('wasm-manager',
+   ['/usr/sbin/chroot', WASM_ROOT, '/usr/bin/python3', '/opt/enclave/wasm_manager.py'],
+   {
+     ...wasmImgEnv,
+@@ -395,7 +402,47 @@
+     SECRET,
+   });
+ 
++// --- measured independent control: the direct-only supervisor, the agent (RAD only) and the control front --------
++async function startDirectControl() {
++  const MC = await import('./measured-control.mjs');
++  const P = MC.GUEST_PATHS;
++  const status = (o) => { try { fs.writeFileSync(P.status, JSON.stringify({ at: new Date().toISOString(), control: CONTROL, mode: MODE, ...o })); } catch {} };
++  const plan = await MC.planDirectBoot({ cmdline, fw, reportHostData: MODE === 'snp' ? snpHostData() : '', flavorEnv, hostPolicyEnv: HOST_POLICY_ENV,
++    capacity: { vcpus: NODE_VCPUS, ramGb: NODE_RAM_GB, gflops: NODE_GFLOPS } });
++  if (!plan.ok) {
++    for (const r of plan.reasons) log(`direct control REFUSED: ${r}`);
++    log('no control service started: this guest serves nothing until it is launched with a config its HOST_DATA binds');
++    status({ ok: false, reasons: plan.reasons });
++    return;
++  }
++  fs.mkdirSync(P.runDir, { recursive: true, mode: 0o700 });
++  for (const [file, text] of Object.entries(plan.files)) { fs.writeFileSync(file, text, { mode: 0o600 }); fs.chmodSync(file, 0o600); }
++  const keys = MC.mintControlKeys();
++  const fileSha = (f) => { try { return MC.sha256Hex(fs.readFileSync(f)); } catch { return null; } };
++  const st = MC.controlStatement({ config: plan.config, digest: plan.digest, hostData: plan.hostData, mode: MODE, keys,
++    runtime: { gsupSha256: fileSha('/opt/metal/gsup.mjs'), helperSha256: fileSha('/opt/metal/measured-control.mjs'), supervisorSha256: fileSha('/app/supervisor.js') } });
++  fs.writeFileSync(P.statement, st.text, { mode: 0o644 });
++  fs.writeFileSync(P.serveConfig, JSON.stringify({ statement: P.statement, tlsKey: P.tlsKey, tlsCert: P.tlsCert, port: plan.config.controlPort,
++    upstream: { host: '127.0.0.1', port: 8080 }, mode: MODE, vcekB64: typeof fw.vcek === 'string' ? fw.vcek : '' }), { mode: 0o600 });
++  log(`direct control: config ${plan.digest.slice(0, 16)}… ${plan.bound ? 'BOUND by HOST_DATA' : `NOT BOUND (mode=${MODE} has no report: a lab launch that proves nothing)`}; `
++    + `operator ${plan.config.identity.operator}${plan.selling ? '' : ' (no operator key: not selling)'}; proof key, session key and control TLS key minted in this guest `
++    + `(TLS sha256:${keys.controlTls.spkiSha256.slice(0, 16)}…); front on :${plan.config.controlPort}`);
++  status({ ok: true, configDigest: plan.digest, hostData: plan.hostData, bound: plan.bound, controlPort: plan.config.controlPort, controlTlsSpkiSha256: keys.controlTls.spkiSha256 });
++  start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], plan.env, { cwd: '/app' });
++  // the agent serves the loopback RAD the supervisor's claim gate reads (teeOk); no relay, no tunnel, no token
++  start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
++    PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', METAL_MODE: MODE, METAL_NAME: NAME, METAL_PUBLIC_URL: plan.config.identity.publicUrl,
++    METAL_RELAY_URL: '', METAL_RELAY_HOST: '', METAL_TUNNEL_TOKEN: '', METAL_REFERRAL: '', METAL_VCEK_B64: typeof fw.vcek === 'string' ? fw.vcek : '',
++    METAL_SUP_URL: 'http://127.0.0.1:8080', METAL_RAD_PORT: '8443', NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt', SECRET: plan.env.SECRET,
++  });
++  start('control-front', ['/usr/local/bin/node', '/opt/metal/measured-control.mjs', 'serve', '--config', P.serveConfig],
++    { PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' });
++}
++if (CONTROL === 'direct') await startDirectControl().catch((e) => log(`direct control FAILED: ${e.message}; no control service started`));
++else if (CONTROL) log(`metal.control=${CONTROL} is not a known control mode; no control service started`);
++
+ // --- supervisor (base root) --------------------------------------------------
++if (!CONTROL) {
+ const supEnv = {
+   ...flavorEnv,                              // contract addresses, SIWE, CORS, ACME dirs, etc (non-secret)
+   ...HOST_POLICY_ENV,
+@@ -501,6 +548,7 @@
+   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
+   SECRET,
+ });
++}
+ 
+ // --- shielded GPU: prove the path at boot, then get out of the way -----------
+ // If the host advertises a shielded worker, run one real masked field GEMM

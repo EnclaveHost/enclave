@@ -1,0 +1,91 @@
+--- a/relay/secrets-release.mjs	2026-10-19 22:49:38.322027417 -0700
++++ b/relay/secrets-release.mjs	2026-10-19 22:49:58.721757115 -0700
+@@ -636,9 +636,18 @@
+     : !t.chips.includes(f.chipId.toString("hex")) ? "the report is not from a chip the lease holder attested with"
+     : null;
+   if (why) { console.warn(`[secrets-release] ${id}: REFUSED: ${why}`); bad(403, "evidence_refused", why); return true; }
++  // storage writer fencing (interface v3 s5): the writer authority of the lease this release is for, from FINALIZED
++  // reads at the block the lease was confirmed (ctx.leaseGeneration: rev >= 17 leaseOf(id).generation, else the
++  // finalized Claimed(id, runner) log). Omitted when unavailable: an app that needs it fails closed, others are unaffected.
++  let writerAuthority = null;
++  if (typeof ctx.leaseGeneration === "function") {
++    try { writerAuthority = await timedStep("release", id, "the lease generation", () => ctx.leaseGeneration(id, t.endpoint)); }
++    catch (e) { console.warn(`[secrets-release] ${id}: no lease generation fact (${e.message}); released without it`); }
++  }
+   const plaintext = JSON.stringify({ id, envelopeSha256: sha256(Buffer.from(envelope)).toString("hex"), config,
+                                      secrets: custody ? {} : envOf(id) || {},
+                                      ...(custody && !custody.cleared ? { custody } : {}),
++                                     ...(writerAuthority ? { facts: { writerAuthority } } : {}),
+                                      issuedAt: new Date().toISOString() });
+   let sealed;
+   try { sealed = sealRelease({ id, ticket, sealKey, plaintext }); }
+--- a/isolation/m2/release/release.go	2026-10-19 22:49:38.327222137 -0700
++++ b/isolation/m2/release/release.go	2026-10-19 22:49:58.721375217 -0700
+@@ -106,10 +106,19 @@
+ 	// Custody points at the deployment's custody state (EnclaveSecretVault) when its secrets are held by custodians
+ 	// rather than the relay: Secrets is then empty, and the front fetches them itself (custody.go, isolation/m2/custody).
+ 	Custody *Custody `json:"custody,omitempty"`
++	// Facts are what the RELAY established for this release (not the owner's): the writer authority of the lease the
++	// secrets were released under (storage writer fencing, work/storage-fencing-implementation-interface.txt v3 s5).
++	Facts *ReleaseFacts `json:"facts,omitempty"`
+ 
+ 	opened bool // set ONLY by SealKey.Open: this release came through the attested channel
+ }
+ 
++// ReleaseFacts: relay-established facts the front hands the app through reserved config names (provision.go).
++type ReleaseFacts struct {
++	// {"source":"lease17"|"lease16",...} computed by the relay from FINALIZED chain reads of the lease it released for
++	WriterAuthority json.RawMessage `json:"writerAuthority,omitempty"`
++}
++
+ // Attested reports whether this Release was produced by SealKey.Open, i.e. decrypted from the relay's sealed reply.
+ // Another package cannot set it, so a Release assembled from anything else (host-delivered config) is never trusted.
+ func (r *Release) Attested() bool { return r != nil && r.opened }
+--- a/isolation/m2/front/provision.go	2026-10-19 22:49:38.330860975 -0700
++++ b/isolation/m2/front/provision.go	2026-10-19 22:49:58.721557856 -0700
+@@ -159,7 +159,10 @@
+ 			return nil, err
+ 		}
+ 	}
+-	secrets := rel.Secrets
++	secrets, err := withReleaseFacts(rel.Secrets, rel.Facts)
++	if err != nil {
++		return nil, err
++	}
+ 	pol, err := egress.FromRelease(rel, relay)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("the allowlist: %w", err)
+@@ -378,3 +381,33 @@
+ 	}
+ 	return func(format string, a ...any) { logf("DOM "+format, a...) }
+ }
++
++// Reserved config substitution names (storage writer fencing, interface v3 s5-s6). The owner's config refers to them
++// ("writerAuthority": "$ENCLAVE_WRITER_AUTHORITY", "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION"); their values come
++// from the RELAY's facts and from THIS front's own build, never from the owner's secrets, which may not use the names.
++const (
++	reservedWriterAuthority   = "ENCLAVE_WRITER_AUTHORITY"
++	reservedInstanceIsolation = "ENCLAVE_INSTANCE_ISOLATION"
++	// this front is the SEV-SNP attested-release front; a Shield/VBS front sets "vbs" in its own build
++	thisBuildIsolation = "snp"
++)
++
++func withReleaseFacts(secrets map[string]string, facts *release.ReleaseFacts) (map[string]string, error) {
++	out := make(map[string]string, len(secrets)+2)
++	for k, v := range secrets {
++		if k == reservedWriterAuthority || k == reservedInstanceIsolation {
++			return nil, fmt.Errorf("the release's secrets use the reserved name %s: refused", k)
++		}
++		out[k] = v
++	}
++	out[reservedInstanceIsolation] = thisBuildIsolation
++	if facts != nil && len(facts.WriterAuthority) > 0 {
++		var probe map[string]any
++		if err := json.Unmarshal(facts.WriterAuthority, &probe); err != nil || probe["source"] == nil {
++			return nil, errors.New("the release's writerAuthority fact is not a JSON object with a source: refused")
++		}
++		out[reservedWriterAuthority] = string(facts.WriterAuthority)
++	}
++	// absent: the name stays unresolved, and an app that requires it fails closed on its own
++	return out, nil
++}

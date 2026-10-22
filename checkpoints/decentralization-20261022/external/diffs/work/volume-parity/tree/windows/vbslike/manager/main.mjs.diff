@@ -1,0 +1,10 @@
+--- a/windows/vbslike/manager/main.mjs
++++ b/windows/vbslike/manager/main.mjs
+@@ -272,6 +272,7 @@
+   secretsEnabled: env("ENCLAVE_SECRETS_V1") === "1",
+   configSocketServer: env("ENCLAVE_CONFIG_SOCKET_SERVER_V1") === "1",
+   protectedPorts: env("ENCLAVE_PROTECTED_PORTS_V1") === "1",
++  encVolumes: env("ENCLAVE_ENC_VOLUMES_V1") === "1",
+   wasmSet: env("ENCLAVE_WASM_SET") === "1", memory64: env("ENCLAVE_WASM_MEMORY64") === "1",
+   egress: egress && launcherOptions ? { enabled: true, mode: egress.mode } : null,
+   fetchConfig: cidFetcher({ script: fetcherPath, python: env("PYTHON_BIN", "python"),

@@ -1,0 +1,65 @@
+2c2,5
+< """ROOT-ONLY driver: hs2 r5 -> G3 (service-tls added, orders HELD; A5 route-dns source) in-place upgrade on minipc.
+---
+> """ROOT-ONLY driver: hs2 G3 -> G4 (service-tls fronts the challenge origin; orders stay HELD) in-place upgrade on minipc.
+> COPY of g3-final-package/root-hs2-g3.py 69fbc046 (root-reviewed, executed by root 20:57Z) by reviewer 9d; NEVER run by 9d
+> (no remote call made). Changes vs the G3 driver: ONLY the G4 bundle pins, root-g4/ receipts, hs2up-g4- staging and texts.
+> (G3 header) hs2 r5 -> G3 (service-tls added, orders HELD; A5 route-dns source) in-place upgrade on minipc.
+4c7
+< Changes vs the r5 driver: the G3 bundle pins, WORK path, root-g3/ receipts, hs2up-g3- staging, and the manifest's `add`
+---
+> Changes vs the r5 driver: the G3 bundle pins, WORK path, root-g3/ receipts, hs2up-g4- staging, and the manifest's `add`
+12c15
+<   root-hs2-r5.py --stage --preflight P     NEW unique C:\\ProgramData\\Enclave\\staging\\hs2up-g3-<uuid12>: upload the 9 bundle files +
+---
+>   root-hs2-r5.py --stage --preflight P     NEW unique C:\\ProgramData\\Enclave\\staging\\hs2up-g4-<uuid12>: upload the 9 bundle files +
+29c32
+< WORK = HERE.parent.parent          # g3-final-package -> host-service-tls-20261021 -> work
+---
+> WORK = HERE.parent.parent          # g4 -> challenge-host-tls-20261021 -> work
+32,34c35,37
+< BUNDLE = WORK / "host-service-tls-20261021/g3-final-package/upgrade-bundle-g3"
+< MSHA = "4d21e53f94ec976d3b1250e3746f687d445b698b501586b422d93d684e541a11"
+< BUNDLE_FILES = {  # bundle-relative path -> sha256 (the manifest itself + config + the 5 replaced + 2 added files)
+---
+> BUNDLE = WORK / "challenge-host-tls-20261021/g4/upgrade-bundle-g4"
+> MSHA = "afe3efb59b01cfa5fceef6411353c05d0e005fae48a86df8dcddf3612cecdb66"
+> BUNDLE_FILES = {  # bundle-relative path -> sha256 (the manifest itself + config + the 5 replaced files; G4 adds none)
+36,43c39,44
+<     "config/host-services.json": "47f3e1f56a4e232283b10641c03066616841d0da1286110961320c2e1e807518",
+<     "files/STAGE-SHA256SUMS": "f54c2e0f82b23624c65d9ae37577e377719b4e751bc6769a1ef01aaf052bf95b",
+<     "files/bin/host-services-runner.mjs": "c3c7d9f6cd3d075572a22f2da8e8a9c25d842b304929943f3306a6ff1cf5c0d3",
+<     "files/bin/stage-tool.mjs": "91cc88686f63e5d987145ad7a6ba0295ad1bb2b1510fc4c643041620842a7204",
+<     "files/packages/route-dns.mjs": "eb3c9c434766c68268620f2c594fdc335251765c87b0fd73ba37475d4d93bde0",
+<     "files/packages/route-dns.package.json": "1ad58e1d6998d21be853994df4df2875a92f02cab013c19764a826799fd3e5cb",
+<     "files/packages/service-tls.mjs": "7de2a5140f00c2ec0a4c4bc3c247666b2c5d16a1846bc06863366e0896f2991c",
+<     "files/packages/service-tls.package.json": "0da2366739edc23109fecffaf9d84d7abd16e75916eeff76a0e8e511b498b0df",
+---
+>     "config/host-services.json": "a02e9ecd8ae1739eed8d324b4db33fe9b6d5643b5d781780949f61a1385c7cfa",
+>     "files/STAGE-SHA256SUMS": "1fd2bda64de77e744220ac488cc760e3508b5d4ebcec110d0c2de12b5f356e6f",
+>     "files/bin/host-services-runner.mjs": "a075c7faa3f528019a66dbbdeaf105fe7c8a8b4415b3541693c55655456d5037",
+>     "files/bin/stage-tool.mjs": "600b036a6514e7ff1d23d3e159966b0b7736233b9d87417c7fa68a42c9549872",
+>     "files/packages/service-tls.mjs": "d976c794992a59142115119a4895be325ee256d3182feec277b640a07f5388ff",
+>     "files/packages/service-tls.package.json": "968f411382ee74f6a8bfdb4fe7a61d79e8e819c0a4165b31cac6f1d7f97fde8c",
+49c50
+< OUT = HERE / "root-g3"
+---
+> OUT = HERE / "root-g4"
+128c129
+<         if not isinstance(j, dict) or j.get("manifest") != MSHA or j.get("phase") != "complete": bad.append(f"run {run_id} journal {j!r} is not a completed G3 upgrade")
+---
+>         if not isinstance(j, dict) or j.get("manifest") != MSHA or j.get("phase") != "complete": bad.append(f"run {run_id} journal {j!r} is not a completed G4 upgrade")
+157,158c158,159
+<                  "mkstage": MKSTAGE.replace("DX", STAGING + r"\hs2up-g3-0123456789ab"),
+<                  "staged": STAGED.replace("DX", STAGING + r"\hs2up-g3-0123456789ab").replace("SRELS", srels())}
+---
+>                  "mkstage": MKSTAGE.replace("DX", STAGING + r"\hs2up-g4-0123456789ab"),
+>                  "staged": STAGED.replace("DX", STAGING + r"\hs2up-g4-0123456789ab").replace("SRELS", srels())}
+160c161
+<             texts["run-" + md] = run_text(STAGING + r"\hs2up-g3-0123456789ab", md, helper_args(md, arg))
+---
+>             texts["run-" + md] = run_text(STAGING + r"\hs2up-g4-0123456789ab", md, helper_args(md, arg))
+181c182
+<         d = STAGING + "\\hs2up-g3-" + uuid.uuid4().hex[:12]
+---
+>         d = STAGING + "\\hs2up-g4-" + uuid.uuid4().hex[:12]

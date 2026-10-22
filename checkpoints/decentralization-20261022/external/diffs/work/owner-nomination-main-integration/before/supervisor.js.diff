@@ -1,0 +1,2035 @@
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -23,7 +23,7 @@
+ import {validateStoragePlan} from "./sdk/bootstrap/storage.mjs";
+ import {bootstrapIntent,fetchPackage,verifyPackage,parseUniqueJSON} from "./sdk/bootstrap/package.mjs";
+ import { planCheckpoints } from "./windows/node/verification-checkpoints.mjs";
+-import {hostAdmissionFromEnv,hostAdmissionConfigured} from './windows/node/host-admission.bundle.mjs';
++import {hostAdmissionFromEnv,hostAdmissionConfigured,createHostServiceGate} from './windows/node/host-admission.bundle.mjs';
+ import cors from "cors";
+ import http from "node:http";
+ import https from "node:https";
+@@ -35,11 +35,11 @@
+ import { execFileSync, execFile } from "node:child_process";
+ import { promisify } from "node:util";
+ const pexec = promisify(execFile);
+-import { openSync, readSync, closeSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, chmodSync, statfsSync, readdirSync, unlinkSync, statSync } from "node:fs";
++import { openSync, readSync, closeSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, chmodSync, statfsSync, readdirSync, unlinkSync, statSync, lstatSync, writeSync, fsyncSync } from "node:fs";
+ import { tmpdir } from "node:os";
+ import { join, dirname } from "node:path";
+ import { WebSocketServer, createWebSocketStream } from "ws";
+-import { verifyMessage, createPublicClient, createWalletClient, http as viemHttp, fallback as viemFallback, getAddress, keccak256, toHex, stringToBytes, parseAbi, parseEventLogs, encodeAbiParameters } from "viem";
++import { verifyMessage, createPublicClient, createWalletClient, http as viemHttp, fallback as viemFallback, getAddress, keccak256, toHex, stringToBytes, parseAbi, parseEventLogs, encodeAbiParameters, encodeFunctionData } from "viem";
+ import { privateKeyToAccount } from "viem/accounts";
+ import { base } from "viem/chains";
+ import { SignJWT, jwtVerify } from "jose";
+@@ -51,6 +51,11 @@
+ // RUNNING enclave without a new release.
+ import { CONTRACT_PINS, initAddressBook, REGISTRY_ADDRESS, DEPLOYMENTS_ADDRESS, APP_CATALOG_ADDRESS,
+          FORWARDER_ADDRESS, PROOF_OF_TIME_ADDRESS } from "./addressbook.js";
++// This host's own signed capacity record for independent readers (docs/network/independent-capacity.md).
++import { createHostCapacityProducer, capacityDirectoryOrigins, HOST_CAPACITY_PATH } from "./network/host-capacity-producer.mjs";
++import { mayReconcile } from "./network/registry-reconcile.mjs";   // the registration rule the Windows node follows too
++// app-funded lease gas: the configuration boundary and sender shared with windows/node/chain.mjs
++import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender } from "./network/lease-gas-runtime.mjs";
+ // Wallet sessions (SessionVault) as owner credentials, verified on chain: shared with the Windows node.
+ import { createSessionApiAuth, isSessionHeader, hasScope, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES }
+   from "./windows/node/session-api-auth.mjs";
+@@ -303,7 +308,11 @@
+ // 2026-07-17 on mainnet.base.org). BASE_RPC stays FIRST so an explicit
+ // override is authoritative; the rest are fallbacks (mirrors cli/enclave.mjs
+ // and the relay's publicnode lesson).
+-const RPC_POOL = [...new Set([BASE_RPC,
++// BASE_RPCS (comma-separated): the operator's chosen RPCs, EXACTLY - no public defaults are appended. An independent
++// host (cli/host-independent-lifecycle.mjs) names its quorum here so its reads never reach an RPC it did not choose.
++const RPC_POOL = process.env.BASE_RPCS
++  ? [...new Set(process.env.BASE_RPCS.split(",").map((s) => s.trim()).filter(Boolean))]
++  : [...new Set([BASE_RPC,
+   "https://base-rpc.publicnode.com", "https://base.drpc.org",
+   "https://1rpc.io/base", "https://mainnet.base.org"])];
+ const rpcTransport = () => viemFallback(RPC_POOL.map((u) => viemHttp(u, { retryCount: 2, retryDelay: 500 })));
+@@ -466,15 +475,32 @@
+ 
+ // ---- on-chain discovery: self-register in EnclaveRegistry (no trusted gateway) --
+ // On boot the enclave publishes itself (endpoint + attestation repo) to the
+-// registry contract on Base, then heartbeats. Callers read the registry from
++// registry contract on Base. It sends NO periodic liveness transaction: the
++// registry holds identity, admission and configuration, written when they
++// change; liveness is off-chain (the signed capacity record at
++// /v1/host/capacity, network/host-liveness.mjs). Callers read the registry from
+ // any RPC and connect DIRECTLY, verifying attestation themselves. Entirely
+ // opt-in: if REGISTRY_ENABLED isn't set, the enclave just doesn't advertise.
+ const REGISTRY_ENABLED  = /^(1|true|on)$/i.test(process.env.REGISTRY_ENABLED || "");
+ // (REGISTRY_ADDRESS is a live binding from ./addressbook.js)
+-const REGISTRY_PK       = process.env.REGISTRY_PRIVATE_KEY || "";        // operator key (enclave secret); needs a little Base ETH for gas
++// operator key (enclave secret); needs a little Base ETH for gas. REGISTRY_PRIVATE_KEY_FILE keeps it out of the
++// environment: a regular file of this user's, mode 0600/0400 (cli/host-independent-lifecycle.mjs operator.key).
++// A problem is FATAL like need(): the fatal guard above would swallow a throw and leave a host that never registers.
++function registryKeyFile(file) {
++  const bad = (why) => { console.error(`FATAL: REGISTRY_PRIVATE_KEY_FILE ${why}`); process.exit(1); };
++  let st; try { st = lstatSync(file); } catch { bad("does not exist"); }
++  if (!st.isFile() || (st.mode & 0o077) || (process.getuid && st.uid !== process.getuid())) bad("must be this user's regular 0600 file");
++  const k = readFileSync(file, "utf8").trim();
++  if (!/^(0x)?[0-9a-fA-F]{64}$/.test(k)) bad("does not hold a private key");
++  return k.startsWith("0x") ? k : "0x" + k;
++}
++if (process.env.REGISTRY_PRIVATE_KEY && process.env.REGISTRY_PRIVATE_KEY_FILE) { console.error("FATAL: set REGISTRY_PRIVATE_KEY or REGISTRY_PRIVATE_KEY_FILE, not both"); process.exit(1); }
++const REGISTRY_PK       = process.env.REGISTRY_PRIVATE_KEY || (process.env.REGISTRY_PRIVATE_KEY_FILE ? registryKeyFile(process.env.REGISTRY_PRIVATE_KEY_FILE) : "");
+ const ENCLAVE_REPO      = process.env.ENCLAVE_REPO || "";                // e.g. "EnclaveHost/enclave" - what callers attest against; MUST match GitHub's canonical casing (Sigstore compares it verbatim)
+ const ENCLAVE_MEASUREMENT = process.env.ENCLAVE_MEASUREMENT || ("0x" + "0".repeat(64)); // optional cross-check
+-const HEARTBEAT_SEC     = parseInt(process.env.REGISTRY_HEARTBEAT_SEC || "900", 10);
++// How often the registration is READ and reconciled (repoint, price, proof key, payout, active): a transaction only on an
++// actual mismatch. REGISTRY_HEARTBEAT_SEC is the old name, still honoured for the cadence; no heartbeat is sent.
++const RECONCILE_SEC     = parseInt(process.env.REGISTRY_RECONCILE_SEC || process.env.REGISTRY_HEARTBEAT_SEC || "900", 10);
+ // The endpoint we advertise is NOT configured — it is derived from the request
+ // (originOf: the exact hostname the caller reached us at, which is the attested
+ // one and the only thing a verifier can use). Static config is validated once;
+@@ -500,8 +526,6 @@
+   { type: "function", name: "setPrices", stateMutability: "nonpayable",
+     inputs: [{ name: "id", type: "bytes32" }, { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }],
+     outputs: [] },
+-  { type: "function", name: "heartbeat", stateMutability: "nonpayable",
+-    inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
+ ];
+ const REGISTRY_ABI_V1 = [
+   { type: "function", name: "register", stateMutability: "nonpayable",
+@@ -547,12 +571,27 @@
+ }
+ 
+ // Register THIS enclave under `endpoint` (the hostname a caller reached us at),
+-// then heartbeat. Fires at most once (guarded); a transient failure resets the
++// then reconcile on a timer (reads; a transaction only on a mismatch). Fires at most once (guarded); a transient failure resets the
+ // guard so a later request retries. Never fatal — a failed advertisement must
+ // not take down the enclave.
+ let _registered = false;
+ let _registeredOn = null;         // WHICH registry _registered refers to (see below)
+-let _enclaveId = null;            // our EnclaveRegistry id (keccak256 of the advertised endpoint); claim gating needs it
++let _enclaveId = null;
++// PLATFORM HOST POLICY for THIS host (network/host-service-gate.mjs, in the shared host-admission bundle): on for the
++// production chain + address book or ENCLAVE_PLATFORM_HOST_POLICY (the measured direct guest sets it), activated by the
++// admin's anchor. An explicit refusal stops new claims/deployments, app traffic and lease renewal at once (sticky until the
++// admin's unban); a transient outage keeps serving within the grace after the last authenticated admit.
++const HOST_POLICY_GATE = (() => {
++  try { return createHostServiceGate({ env: process.env, chainId: CHAIN_ID, book: (process.env.ADDRESS_BOOK_ADDRESS || "").trim() || null,
++    endpoint: PUBLIC_URL || null, stateDir: dirname(STATE_FILE), log: (m) => console.log(m) }); }
++  catch (e) {                                   // on but unusable (no PUBLIC_URL, malformed config): refuse, never fail open
++    console.error(`[host-policy] REFUSING work and service: ${e.message}`);
++    const why = () => `platform host policy: ${e.message}`;
++    return { enabled: true, start() {}, newWorkRefusal: why, serviceRefusal: why, status: () => ({ platformHostPolicy: "on", serving: false, reason: e.message }) };
++  }
++})();
++HOST_POLICY_GATE.start();            // our EnclaveRegistry id (keccak256 of the advertised endpoint); claim gating needs it
++let _activeSeen = null;           // the row's active flag as the last reconcile pass read it (null: not read since register)
+ const HOST_WALLET_POLICY = hostAdmissionConfigured();
+ let _hostWalletAdmission = null;
+ async function hostWalletRefusal(deploymentId,appRef,forPrivate=false) {
+@@ -592,7 +631,7 @@
+   _registered = true;                                       // claim before await so a request burst registers once
+   _registeredOn = (REGISTRY_ADDRESS || "").toLowerCase();
+   try {
+-    // register/heartbeat go through the shared operator-tx queue (sendOperatorTx,
++    // register and every reconciling update go through the shared operator-tx queue (sendOperatorTx,
+     // defined with the claim loop): the SAME EOA signs registry and ledger txs,
+     // and public RPCs cap EIP-7702-delegated accounts at one in-flight tx — so
+     // every tx from this key is serialized through confirmation, never raced.
+@@ -611,26 +650,26 @@
+       : await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI_V1, "register",
+           [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT]);
+     _enclaveId = id; _advertisedEndpoint = endpoint;        // unlocks the claim loop (portable deployments)
++    _activeSeen = null;                                     // register() just set the row active; the next pass re-reads it
+     console.log(`[registry] registered ${endpoint} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`
+       + (rev >= 2 ? ` price=${SELL_CPU_PRICE6}/sec node${IS_GPU ? ` + ${SELL_GPU_PRICE6}/sec card` : ""}` : " (schema 1: unpriced)")
+       + (rev >= 3 ? ` proofKey=${proofKey}` : " (pre-schema-3 registry: no proof key published)"));
+-    // heartbeat loop - refresh liveness so readers don't treat us as down,
+-    // and keep the published price in step with our configuration (an operator
+-    // re-pricing by env restart must not have to re-register; a mismatch would
+-    // also mean we quote one price and charge another)
++    // reconcile loop: NO liveness transaction (readers take liveness from the
++    // signed capacity record, network/host-liveness.mjs). It keeps the published
++    // price, proof key and payout view in step with our configuration (an
++    // operator re-pricing by env restart must not have to re-register; a
++    // mismatch would also mean we quote one price and charge another), each a
++    // transaction only on an actual mismatch, and reports a deactivated row.
+     setInterval(async () => {
+-      try {
+-        const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "heartbeat", [id]);
+-        console.log(`[registry] heartbeat tx=${h}`);
+-      } catch (e) { console.warn(`[registry] heartbeat failed: ${e.shortMessage || e.message}`); }
+-      // an IDLE box gets no requests, so the heartbeat is its only chance to
+-      // notice the book repointed the registry - without this it heartbeats
+-      // forever into a contract the ledger no longer reads
++      // an IDLE box gets no requests, so this is its only chance to notice the
++      // book repointed the registry - without it the box stays registered on a
++      // contract the ledger no longer reads
+       if (registryRepointed()) return void advertise();
++      await syncRegisteredActive(id).catch(() => {});
+       await syncRegisteredPrice(id).catch(() => {});
+       await syncRegisteredProofKey(id).catch(() => {});
+       await syncDeclaredPayoutWallet(id).catch(() => {});
+-    }, Math.max(60, HEARTBEAT_SEC) * 1000).unref();
++    }, Math.max(60, RECONCILE_SEC) * 1000).unref();
+     syncRegisteredPrice(id).catch(() => {});
+     syncRegisteredProofKey(id).catch(() => {});
+     syncDeclaredPayoutWallet(id).catch(() => {});
+@@ -641,7 +680,7 @@
+ }
+ 
+ // Publish this box's configured price if the chain doesn't already carry it.
+-// One eth_call per heartbeat, a tx only on an actual mismatch — which is the
++// One eth_call per reconcile pass, a tx only on an actual mismatch — which is the
+ // operator changing SELL_*_PRICE6, or a registry that predates our entry. On a
+ // schema-1 registry there is nowhere to put it, so this is a no-op.
+ const REGISTRY_GET_ABI = [{ type: "function", name: "get", stateMutability: "view",
+@@ -679,8 +718,9 @@
+   if (await registryRev() < 2) return;
+   let e;
+   try { e = await registryEntry(id); }
+-  catch { return; }                                         // transient read: try again next heartbeat
++  catch { return; }                                         // transient read: try again next pass
+   if (Number(e.cpuPricePerSec6) === SELL_CPU_PRICE6 && Number(e.gpuPricePerSec6) === SELL_GPU_PRICE6) return;
++  if (!mayReconcile(e, claimSigner().account.address)) return;  // a deregistered (or another's) row is not re-priced
+   const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "setPrices",
+     [id, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6)]);
+   console.log(`[registry] price published: ${SELL_CPU_PRICE6}/sec node, ${SELL_GPU_PRICE6}/sec card `
+@@ -691,7 +731,7 @@
+ // key is memory-only, so a CVM relaunch mints a new one and the entry MUST
+ // follow it: a stale entry means every checkpoint we sign is rejected, the
+ // ledger's meter stops at our last proof, and we serve for free. One eth_call
+-// per heartbeat, a tx only on an actual mismatch (a relaunch, or a first boot
++// per reconcile pass, a tx only on an actual mismatch (a relaunch, or a first boot
+ // against a freshly migrated registry).
+ //
+ // It also keeps us HONEST in the direction that matters: whatever we publish
+@@ -702,13 +742,31 @@
+   if (await registryRev() < 3) return;                      // nowhere to put it yet
+   let e;
+   try { e = await registryEntry(id); }
+-  catch { return; }                                         // transient read: try again next heartbeat
++  catch { return; }                                         // transient read: try again next pass
+   const want = getAddress(PROOF_ACCOUNT.address);
+   if (e.proofKey && getAddress(e.proofKey) === want) return;
++  if (!mayReconcile(e, claimSigner().account.address)) return;  // a deregistered (or another's) row is left as it is
+   const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "setProofKey", [id, want]);
+   console.log(`[proof] proof key published: ${want} (was ${e.proofKey || "unset"}) tx=${h}`);
+ }
+ 
++// The row's ACTIVE flag is a status the operator key sets: register() turns it
++// on (every boot), deregister() turns it off. The old heartbeat also turned it
++// on every 15 minutes, silently undoing an operator's deregister; this pass only
++// REPORTS the state, on change. Claims need an active row (the ledger refuses
++// "enclave inactive") and readers drop an inactive host, so a deregistered box
++// stops taking work until it is restarted or registered again on purpose.
++async function syncRegisteredActive(id) {
++  let e;
++  try { e = await registryEntry(id); }
++  catch { return; }                                         // transient read: try again next pass
++  const active = e.active === true;
++  if (active === _activeSeen) return;
++  _activeSeen = active;
++  if (!active) console.warn(`[registry] ${id} is INACTIVE on chain (deregistered by the operator key): no claims, and no reader lists it; restart or register again to return`);
++  else console.log(`[registry] ${id} is active on chain`);
++}
++
+ // ---- the seller's declared payout wallet (registry schema 4) ---------------
+ // A rev-12 ledger charges NOTHING for a deployment whose owner is this box's
+ // declared payout wallet: a seller's own app on a seller's own box is free.
+@@ -724,7 +782,7 @@
+   if (await registryRev() < 4) return;                      // nowhere to declare one yet
+   let e;
+   try { e = await registryEntry(id); }
+-  catch { return; }                                         // transient read: try again next heartbeat
++  catch { return; }                                         // transient read: try again next pass
+   const ZERO = "0x0000000000000000000000000000000000000000";
+   const declared = e.payoutWallet && e.payoutWallet !== ZERO ? getAddress(e.payoutWallet) : null;
+   if (declared !== _declaredPayout) {
+@@ -2075,6 +2133,38 @@
+   saveStateSoon();
+ }
+ 
++// ---- the owner's sign-in frontends (the envelope's `access` namespace) ------
++// WHERE a private app's browser sign-in goes. Without it the bounce uses SIWE_URI, a per-HOST setting (enclave.host by
++// default), so no owner could choose. With it, the bounce names ONLY the owner's own origins: the first is followed and
++// every other one is offered as an explicit link, never enclave.host as a silent fallback. It grants nothing: whoever
++// signs in at a frontend still needs the owner's session (the /__enclave/session hand-off below). It lives on chain
++// because only the owner can write the envelope (setConfig): a host can neither choose nor rewrite it. An older runner
++// refuses the unknown namespace at claim, so it can never serve such an app with an enclave.host bounce.
++// Exact origins only: https://<lowercase DNS name>[:port], or a frontend on the owner's own machine at
++// http://127.0.0.1|[::1]|localhost:<port>. No path, query, fragment or userinfo; at most four; unique.
++// (Literals inside the hoisted functions, not module consts: earlier self-test seams can parse an envelope while a
++// module-level const would still be in its temporal dead zone.)
++function accessOrigin(x) {
++  const dns = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
++  if (typeof x !== "string" || x.length > 300) return false;
++  const m = /^(https?):\/\/(\[::1\]|[^/:?#@[\]]+)(?::([1-9][0-9]{0,4}))?$/.exec(x);
++  if (!m || (m[3] && +m[3] > 65535)) return false;
++  const loop = m[2] === "127.0.0.1" || m[2] === "[::1]" || m[2] === "localhost";
++  if (m[1] === "http") return loop && !!m[3];
++  return !loop && dns.test(m[2]) && /[a-z]/.test(m[2].split(".").at(-1));
++}
++function parseAccess(a) {
++  if (!a || Array.isArray(a) || typeof a !== "object") throw new Error("access must be a JSON object like {\"frontends\":[\"https://dash.example.org\"]}");
++  const bad = Object.keys(a).filter((k) => k !== "frontends");
++  if (bad.length) throw new Error(`unknown access option ${JSON.stringify(bad[0])} (this runner knows: frontends)`);
++  const f = a.frontends;
++  if (!Array.isArray(f) || f.length < 1 || f.length > 4) throw new Error("access.frontends must list 1..4 sign-in origins");
++  for (const x of f) if (!accessOrigin(x))
++    throw new Error(`access.frontends entry ${JSON.stringify(x)} is not an exact origin (https://<lowercase DNS name>[:port], or http://127.0.0.1|[::1]|localhost:<port>; no path)`);
++  if (new Set(f).size !== f.length) throw new Error("access.frontends lists an origin twice");
++  return { frontends: [...f] };
++}
++
+ function parseDepOptions(raw, gpuMilli) {
+   const s = String(raw || "").trim();
+   if (!s) return ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND } : {};
+@@ -2088,7 +2178,7 @@
+   // deployment that is already serving here - with a message that says what the deployment asked for.
+   if ("isolation" in o && !ISOLATION_BACKEND)
+     throw new Error(`this deployment requires per-app hardware isolation (isolation.require=${JSON.stringify(o.isolation && o.isolation.require)}), which this runner does not provide`);
+-  const known = ["waf", "config", "configCid", "gpu", "network", "placement", ...(ISOLATION_BACKEND ? ["isolation"] : []), ...(ISOLATION_BACKEND === "snp-guest-per-app" ? ["guestBootstrap"] : [])];
++  const known = ["waf", "config", "configCid", "gpu", "network", "placement", ...(ISOLATION_BACKEND ? ["isolation"] : []), ...(ISOLATION_BACKEND === "snp-guest-per-app" ? ["guestBootstrap"] : []), "access"];
+   const unknown = Object.keys(o).filter((k) => !known.includes(k));
+   if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: ${known.join(", ")})`);
+   const opts = ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND } : {};
+@@ -2111,6 +2201,7 @@
+       throw new Error(`isolation.require must be one of: ${ISOLATION_BACKENDS.join(", ")}`);
+     opts.isolation = iso.require ?? ISOLATION_BACKEND;
+   }
++  if ("access" in o) opts.access = parseAccess(o.access);
+   if ("network" in o) {
+     const n = o.network;
+     if (!n || Array.isArray(n) || typeof n !== "object") throw new Error("network must be a JSON object");
+@@ -2278,12 +2369,27 @@
+   return cfg(newO) === cfg(oldO) ? "waf" : "restart";
+ }
+ 
++// What a parsed envelope sets on a SERVING record without a restart: the waf rules and the owner's sign-in frontends
++// (`access`, what the private-app bounce offers). ONE function for the claim/resume record and an owner's live edit
++// (applyEnvelopeEdit), so the two can never disagree; a namespace the envelope no longer carries is removed.
++function applyLiveOptions(rec, o) {
++  if (o.waf) rec.waf = o.waf; else delete rec.waf;
++  if (o.access) rec.access = o.access; else delete rec.access;
++  return rec;
++}
++
+ // CFG_EDIT_SELFTEST='{"records":[{"rec":{…},"chainCid":"…"},…]}' prints each
+ // record's verdict as one JSON line and exits - same contract as the seams
+ // above (test/config-edit.test.mjs drives it).
+ if (process.env.CFG_EDIT_SELFTEST) {
+   const c = JSON.parse(process.env.CFG_EDIT_SELFTEST);
+-  console.log(JSON.stringify((c.records || []).map((r) => ({ verdict: envelopeEditVerdict(r.rec || {}, r.chainCid) }))));
++  // `apply: true` adds what the edit leaves on the record's live fields (applyLiveOptions), when the edit is applied
++  console.log(JSON.stringify((c.records || []).map((r) => {
++    const verdict = envelopeEditVerdict(r.rec || {}, r.chainCid);
++    if (!c.apply || !["waf", "restart"].includes(verdict)) return { verdict };
++    const live = applyLiveOptions({ ...(r.rec || {}) }, parseDepOptions(r.chainCid));
++    return { verdict, live: { waf: live.waf ?? null, access: live.access ?? null } };
++  })));
+   process.exit(0);
+ }
+ 
+@@ -2312,11 +2418,40 @@
+ // The derivation record guestd needs to turn a catalog version into the exact bundle it runs
+ // (enclave-catalog-bundle/1): the catalog ref, the component CID, the policy above, and the runtime the host's
+ // images carry (guestd's own /health states it; guestd refuses a record pinned to any other).
++// The measured Shield models (isolation/contract/inference.go shieldProfiles) and what each guest is given:
++// a minimum whole-percent GPU share, and a fixed guest shape where the model needs one. The relay's predictor
++// (relay/measurement-predict.mjs derivationRecord) derives the same policy; the two must agree byte for byte.
++const SHIELD_MODELS = {
++  "qwen2.5-0.5b-q8-gguf": { minMilli: 70, floorMiB: 8192 },
++  "qwen3.8-27b-mtp-q4-vl-gguf": { minMilli: 500, floorMiB: 51200, cpuPercent: 1600, vcpus: 16 },
++  // Z-Image-Turbo (stable-diffusion.cpp): 8 vCPUs; its offloaded DiT needs 89 milli per card (100 with headroom).
++  "z-image-turbo-q4km-sd": { minMilli: 100, floorMiB: 6144, cpuPercent: 800, vcpus: 8 },
++};
++// On SHIELDED cards a measured Shield model's card need is its contract minimum (only the masked layer weights live
++// there; isolation/contract/inference.go, and guestd admits exactly that), not the publisher's plain-card VRAM figure
++// or the volume size: Z-Image needs 89 milli per card (100 floor) where its catalog spec reads as 0.52. Mutates mins.
++function shieldMins(mins, vols, health) {
++  const inf = health && health.inference;
++  const model = _shieldedPool && ISOLATION_BACKEND && Array.isArray(vols) && vols.length === 1 ? vols[0] : null;
++  if (!model || !SHIELD_MODELS[model] || !inf || !(inf.models || [inf.model]).includes(model) || !(mins.gpuShare > 0)) return mins;
++  const s = SHIELD_MODELS[model].minMilli / 1000;
++  mins.gpuShare = s;
++  if (mins.gpuFloor > 0) mins.gpuFloor = s;
++  return mins;
++}
++// floorMiB: the model RAM floor the inference manager reports (/health.inference.modelFloorsMiB), as this tree admits it
++function shieldGuestPolicy(model, policy, floorMiB) {
++  const p = SHIELD_MODELS[model];
++  return { ...policy, ...(p?.vcpus ? { cpuPercent: p.cpuPercent, vcpus: p.vcpus } : {}), memMiB: Math.max(Number(policy?.memMiB) || 0, floorMiB - 384) };
++}
+ function isolatedInference(gpuMilli, volumes) {
+   const g = Number(gpuMilli || 0);
+-  if (!g && !(volumes || []).length) return null;
+-  if (!Number.isInteger(g) || g < 70 || g > 1000 || g % 10 !== 0 || !Array.isArray(volumes) || volumes.length !== 1 || !["qwen2.5-0.5b-q8-gguf", "qwen3.8-27b-mtp-q4-vl-gguf"].includes(volumes[0]) || (volumes?.[0] === "qwen3.8-27b-mtp-q4-vl-gguf" && g < 500))
+-    throw new Error("isolated inference requires a supported model and whole-percent GPU shares: at least 7% for 0.5B or 50% for 27B");
++  // A CPU deployment's volumes are general MODEL VOLUMES (isolationModelVolumesRefusal; the guest mounts them against
++  // its measured table), not the Shield GPU inference path, which keeps its measured models (SHIELD_MODELS) and shares.
++  if (!g) return null;
++  const p = Array.isArray(volumes) && volumes.length === 1 ? SHIELD_MODELS[volumes[0]] : undefined;
++  if (!Number.isInteger(g) || g < 70 || g > 1000 || g % 10 !== 0 || !p || g < p.minMilli)
++    throw new Error("isolated inference requires a supported model and whole-percent GPU shares: at least 7% for 0.5B, 10% for Z-Image or 50% for 27B");
+   return { model: volumes[0], gpuMilli: g };
+ }
+ function isolationDerivation(catalogRef, wasmRef, policy, runtimeId, httpPort = 0, tunnelPorts = [], inference = null) {
+@@ -2325,6 +2460,7 @@
+   if (!m || !c) throw new Error(`per-app isolation needs a catalog version and its component CID (got ${catalogRef} / ${wasmRef})`);
+   if (!/^[0-9a-f]{64}$/.test(String(runtimeId || ""))) throw new Error("the per-app manager states no runtime identity");
+   if (inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf") policy = {...policy, cpuPercent:1600, vcpus:16, memMiB:Math.max(policy.memMiB,51200-384)};
++  else if (inference?.model === "z-image-turbo-q4km-sd") policy = {...policy, cpuPercent:800, vcpus:8, memMiB:Math.max(policy.memMiB,6144-384)};
+   // a command that declares its HTTP port is enclave-catalog-bundle/2: the bundle states world wasi:cli and the port
+   return { ...(inference ? { inference } : {}), derivation: inference ? "enclave-catalog-bundle/4" : tunnelPorts.length ? "enclave-catalog-bundle/3" : httpPort ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
+            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: c[1], policy, runtimeId,
+@@ -2389,6 +2525,69 @@
+   return isolationPrefetchBody(g, h && h.catalog && h.catalog.runtimeId);
+ }
+ 
++// Encrypted volumes (the config's encVolumes; isolation/m2/encvol) in a per-app guest: the guest's own front runs the
++// standard runtime's /encvol plane and rclone-crypt format, so the key and plaintext stay inside the measured guest.
++// Two things differ from the standard tier and are checked here, before a lease is taken:
++//   - only an image that carries the trailer, plane and engine can serve them (guestd: supports.encVolumes, read from
++//     the pinned template's rt/encvol.enabled), and only a release or owner-committed guest receives its config;
++//   - a volume lives in the guest's RAM (its own tmpfs, encvol.TmpfsMiB), so the version's memMb must hold every
++//     volume at its cap plus ENC_GUEST_RESERVE_MIB for the runtime and app. The policy (and so the measurement) is
++//     never raised for them: a version that needs volumes declares the memory.
++// A config the guest would refuse (a malformed entry) is still counted here by its cap or the default; the guest's
++// parser (the standard runtime's rules) is the one that refuses it, at launch.
++const ENC_GUEST_RESERVE_MIB = 128, ENC_DEF_MB = 1024, ENC_MAX_MB = 4096;
++function isolationEncVolumes(config) {
++  let o; try { o = typeof config === "string" ? (config ? JSON.parse(config) : {}) : (config || {}); } catch { return []; }
++  const v = o && typeof o === "object" && !Array.isArray(o) ? o.encVolumes : null;
++  const falsy = v == null || v === false || v === 0 || v === "" || (Array.isArray(v) && !v.length) || (typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length);
++  return falsy ? [] : (Array.isArray(v) ? v : [v]);
++}
++const encTmpfsMiB = (m) => m + 1 + Math.floor(m / 64);   // = encvol.TmpfsMiB
++function isolationEncVolumesRefusal(config, sup, released, policy) {
++  const vols = isolationEncVolumes(config);
++  if (!vols.length) return null;
++  if (sup.encVolumes !== true || !released)
++    return "the deployment mounts encrypted volumes (encVolumes), which a per-app guest serves only from a release or owner-committed guest image that carries them; this manager or deployment cannot";
++  let need = 0;
++  for (const e of vols) {
++    let m = e && typeof e === "object" ? e.maxMb : null;
++    m = (m == null || m === false || m === 0 || m === "") ? ENC_DEF_MB : Math.trunc(Number(m));
++    if (!Number.isFinite(m) || m < 1 || m > ENC_MAX_MB) m = ENC_DEF_MB;
++    need += encTmpfsMiB(m);
++  }
++  const mem = Number(policy && policy.memMiB) || 0;
++  if (need + ENC_GUEST_RESERVE_MIB > mem)
++    return `the deployment's encrypted volumes need ${need} MiB of guest memory (a per-app guest holds each one in its own RAM), `
++         + `and the version's memMb gives the guest ${mem} MiB, of which ${ENC_GUEST_RESERVE_MIB} MiB stays for the runtime and app; `
++         + "publish the version with more memMb or lower the volumes' maxMb";
++  return null;
++}
++
++// Model volumes (the config's "volumes"; isolation/m2/modelvol.h) for a CPU deployment on the per-app tier: the guest
++// mounts each read-only over dm-verity against the root ITS OWN measured table pins (rt/model-volumes.table), so the
++// host supplies bytes and nothing else. Claimable only where all of it holds, refused (never dropped) otherwise:
++//   - the names reach the guest in its config, so only a release or owner-committed guest can get them;
++//   - the manager's pinned image carries the table (supports.modelVolumes);
++//   - every name is one this host offers (its health lists it: in the table AND intact in its store);
++//   - a ggml volume needs the runtime's measured preload probe (supports.nnPreload): the shared runtime gives every
++//     tenant wasi-nn and preloads ggml graphs, and an app built on load_by_name cannot run without it.
++const MODEL_VOLUMES_MAX = 8;   // modelvol.h MV_MAX
++function isolationModelVolumesRefusal(volumes, manager, released) {
++  const names = [...new Set((volumes || []).map((v) => String(v).trim()).filter(Boolean))];
++  if (!names.length) return null;
++  const sup = (manager && manager.supports) || {};
++  if (!released) return "the deployment attaches model volumes, which reach a per-app guest only in its release or owner-committed config";
++  if (sup.modelVolumes !== true) return "the deployment attaches model volumes, and this manager's per-app image carries no measured model-volume table";
++  if (names.length > MODEL_VOLUMES_MAX) return `the deployment attaches ${names.length} model volumes; a per-app guest mounts at most ${MODEL_VOLUMES_MAX}`;
++  const have = new Map((Array.isArray(manager.volumes) ? manager.volumes : []).filter((v) => v && v.kind === "model").map((v) => [String(v.name), v]));
++  const missing = names.filter((n) => !have.has(n));
++  if (missing.length) return "app needs model volume(s) this per-app host doesn't carry: " + missing.join(", ");
++  const ggml = names.filter((n) => have.get(n).backend === "ggml");
++  if (ggml.length && sup.nnPreload !== true)
++    return `model volume(s) ${ggml.join(", ")} preload as ggml graphs, and this per-app runtime has no measured wasi-nn ggml preload`;
++  return null;
++}
++
+ // ---- per-app isolation claim gate (ISOLATION_BACKEND set) ------------------
+ // PURE: every input is passed in, so ISOLATION_SELFTEST exercises exactly this decision. null = claimable here.
+ // On a box WITHOUT the backend it never refuses anything itself: parseDepOptions has already refused every
+@@ -2426,6 +2625,8 @@
+   const released = direct || isolationReleaseGuest(manager, listed);
+   if ((config || appConfigCid) && sup.config !== true && !released)
+     return "the deployment carries app config, which is not yet delivered into a per-app guest";
++  const encWhy = isolationEncVolumesRefusal(config, sup, released, policy);
++  if (encWhy) return encWhy;
+   if (hasSecrets !== false && sup.secrets !== true && !released)
+     return hasSecrets === true
+       ? "the deployment has staged secrets, and they would cross this host in plaintext (attested in-guest delivery is not built)"
+@@ -2446,8 +2647,12 @@
+   // (d1's rollout option (i)), and without one it cannot run here at all.
+   if (sup.release === true && !released && sup.legacyImage !== true)
+     return "this box's per-app guests need the attested release, and this deployment is not a release guest here (not listed by the relay, or this box has not opted in), and its manager has no legacy image to run it on";
+-  if (Number(gpuMilli)>0 || (volumes || []).length) {
++  const mvWhy = Number(gpuMilli) > 0 ? null : isolationModelVolumesRefusal(volumes, manager, released);
++  if (mvWhy) return mvWhy;
++  let shieldModel = null;
++  if (Number(gpuMilli)>0) {
+     let inf; try { inf=isolatedInference(gpuMilli,volumes); } catch(e) { return e.message; }
++    shieldModel = inf.model;
+     if (!released || !manager.inference || !(manager.inference.models || [manager.inference.model]).includes(inf.model) || sup.gpu!==true)
+       return "the measured Shield model release is not ready for this deployment";
+     const needs = Math.floor(31*2**30*inf.gpuMilli/1000);
+@@ -2455,7 +2660,7 @@
+     const floor = Number(manager.inference.modelFloorsMiB?.[inf.model]);
+     if (!Number.isSafeInteger(floor) || floor <= 0)
+       return "the inference manager reports no model RAM requirement; refusing an unbudgeted launch";
+-    policy = { ...policy, ...(inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {cpuPercent:1600,vcpus:16} : {}), memMiB: Math.max(Number(policy?.memMiB)||0, floor-384) };
++    policy = shieldGuestPolicy(inf.model, policy, floor);
+     if (manager.inference.shareBoundedMemory === true && Number.isInteger(cpuMilli) && cpuMilli > 0 && cpuMilli <= 1000 && manager.pool?.budget?.memMiB > 0)
+       policy = { ...policy, memMiB: Math.min(policy.memMiB, Math.floor(manager.pool.budget.memMiB * cpuMilli / 1000)) };
+   }
+@@ -2473,7 +2678,7 @@
+   // meets a 507 (a race between two claims) is a failed provision like any other: noted, backed off, released once.
+   const shareWhy = guestMemoryShareRefusal(manager.pool, policy, cpuMilli, held);
+   if (shareWhy) return shareWhy;
+-  return guestPoolRefusal(manager.pool || null, policy, held || null, heldSameRecord === true);
++  return guestPoolRefusal(manager.pool || null, policy, held || null, heldSameRecord === true, shieldModel);
+ }
+ 
+ // ---- the attested release: this box's half (docs/security/attested-release.md) ------------------------------------
+@@ -2713,6 +2918,9 @@
+                                         catch (err) { return { ok: false, error: err.message }; } }),
+     edits: (c.edits || []).map((r) => envelopeEditVerdict(r.rec || {}, r.chainCid)),
+     appConfig: (c.appConfig || []).map((x) => isolationAppConfig(x)),
++    encVolumes: (c.encVolumes || []).map((x) => isolationEncVolumesRefusal(x.config, x.supports || {}, x.released === true, x.policy || {})),
++    modelVolumes: (c.modelVolumes || []).map((x) => isolationModelVolumesRefusal(x.volumes, x.manager || null, x.released === true)),
++    inference: (c.inference || []).map((x) => { try { return isolatedInference(x.gpuMilli, x.volumes); } catch (e) { return { error: e.message }; } }),
+     recordDigest: (c.recordDigest || []).map((d) => derivationDigest(d)),
+     heldMatches: (c.heldMatches || []).map(x => isolationHeldSameRecord(x.held, x.g, x.firewall, x.runtimeId, x.inference)),
+     prefetch: (c.prefetch || []).map((x) => { try { return isolationPrefetchBody(x.g, x.runtimeId); } catch (err) { return { error: err.message }; } }),
+@@ -2998,7 +3206,10 @@
+              // is not a number (null = guestd could not read it) makes the host UNKNOWN, never "0 available" or
+              // "nothing pending"
+              memAvailableMiB: num(p.host.memAvailableMiB) && num(p.host.pendingMiB) ? p.host.memAvailableMiB : null,
+-             pendingMiB: num(p.host.pendingMiB) ? p.host.pendingMiB : 0 };
++             pendingMiB: num(p.host.pendingMiB) ? p.host.pendingMiB : 0,
++             // the lower floor guestd admits PREEMPTIBLE Shield guests against (pool.go), and which models those are
++             preemptibleFloorMiB: num(p.host.preemptibleFloorMiB) && p.host.preemptibleFloorMiB < p.host.floorMiB ? p.host.preemptibleFloorMiB : null,
++             preemptibleModels: Array.isArray(p.host.preemptibleModels) ? p.host.preemptibleModels.map(String) : [] };
+   return { budget, allocated, free, guests: Number(p.guests) || 0, overcommitted: p.overcommitted === true, host,
+     perGuest: { floorMiB: +g.floorMiB, runtimeMiB: +g.runtimeMiB, unitOverheadMiB: +g.unitOverheadMiB } };
+ }
+@@ -3068,10 +3279,15 @@
+   return Math.max(0, frac);
+ }
+ // The host's live room above guestd's floor, net of starting guests: undefined without a floor, -1 when unreadable.
+-function hostRoom(pool) {
++function hostRoom(pool, floorMiB) {
+   if (!pool || !pool.host) return undefined;
+   if (pool.host.memAvailableMiB === null) return -1;
+-  return pool.host.memAvailableMiB - pool.host.pendingMiB - pool.host.floorMiB;
++  return pool.host.memAvailableMiB - pool.host.pendingMiB - (floorMiB ?? pool.host.floorMiB);
++}
++// The floor guestd admits this model's guest against: the preemptible floor for a preemptible Shield model.
++function hostFloorFor(pool, model) {
++  const h = pool && pool.host;
++  return h && model && h.preemptibleFloorMiB != null && h.preemptibleModels.includes(model) ? h.preemptibleFloorMiB : h && h.floorMiB;
+ }
+ // Why this version's guest cannot be admitted by the pool guestd reported, or null (PURE; isolationClaimVerdict).
+ // `held` is the guest guestd ALREADY runs under this deployment's name (its GET /vms entry, starting or running): on a
+@@ -3080,7 +3296,7 @@
+ // is judged against free PLUS the room it holds, and never refused for the room it is itself using. A resume whose
+ // guest guestd no longer holds is a new guest and needs real room. (enclave-99's review of 829ea21b: judged against
+ // free alone, every canary's resume after the release's own reboot was refused.)
+-function guestPoolRefusal(rawPool, policy, held = null, heldSameRecord = false) {
++function guestPoolRefusal(rawPool, policy, held = null, heldSameRecord = false, model = null) {
+   const pool = readGuestPool(rawPool);
+   const holds = !!held && (held.status === "running" || held.status === "starting");
+   const heldRoom = holds ? readRoom(held.reserved) : null;
+@@ -3105,7 +3321,8 @@
+   // needs the host's room, crediting only what the replaced guest actually frees: its RAM, not the 768 allowance it
+   // never used (enclave-99). Refused here too, so no lease is taken, and no running guest is deleted, for a create
+   // guestd would refuse.
+-  const hr = hostRoom(pool);
++  const floor = hostFloorFor(pool, model);
++  const hr = hostRoom(pool, floor);
+   if (hr !== undefined && !(holds && heldSameRecord)) {
+     if (hr < 0 && pool.host.memAvailableMiB === null) return "the host's available memory is unknown, and guestd admits no guest while it is";
+     // the credit for the held guest the replacement deletes: a STARTING one is wholly in guestd's pending, so all of its
+@@ -3117,7 +3334,7 @@
+     // no live number in the reason: it is returned by the public claim-hint and logged by the sweep on every change,
+     // so MemAvailable must not be reconstructable from it (enclave-e3). The floor is configuration.
+     if (after < 0)
+-      return `the host is too low on memory: admitting this app's guest would take the host under guestd's ${pool.host.floorMiB} MiB floor`;
++      return `the host is too low on memory: admitting this app's guest would take the host under guestd's ${floor} MiB floor`;
+   }
+   return null;
+ }
+@@ -3554,29 +3771,71 @@
+ // from the block it last finished - payments made during the outage are credited.
+ // Without a writable STATE_FILE this degrades to freezing within one process only.
+ let _stateDirty = false, _statePersistable = true;
++// The state file could not be read, or holds a malformed release journal, while app-funded leases are configured: an
++// unresolved sponsored release may be in it (relays send those, so no operator nonce fences them). Then no lease is
++// claimed, resumed, renewed or sent and the file is never overwritten until an operator resolves it. null = sound.
++let _stateCorrupt = null;
++// Lease releases outlive the process that sent them (releaseLease below): a release() still in a mempool can land after
++// a restart and end whatever lease this operator then holds. So each release is a durable INTENT, persisted with the
++// public identity of every transaction it signed ({hash, nonce}) BEFORE that transaction is broadcast. Never a key,
++// never a signed transaction. Declared here because loadState() restores them at boot.
++const _releaseIntents = new Map();   // id -> intent (see beginRelease)
++const _leaseFloors = new Map();      // id -> {block, at}: no later decision about id may read the ledger below this block
++const _evacuated = new Map();        // id -> until (ms): this enclave stands down from (re-)claiming id
+ function serializeState() {
+   const recs = [...deployments.values()].map(r => {
+     const o = { ...r };
+-    for (const k of ["_payTimer", "_respawning", "_renewing", "_restarting"]) delete o[k];   // live handles only
++    for (const k of ["_payTimer", "_respawning", "_renewing", "_restarting", "_leaseGasLead"]) delete o[k];   // live handles only
+     return o;
+   });
++  const now = Date.now();
+   return JSON.stringify({
+-    savedAt: Date.now(),
++    savedAt: now,
+     payFromBlock: _payFromBlock == null ? null : _payFromBlock.toString(),
+     seenLogs: [..._seenLogs].map(([k, b]) => [k, b.toString()]),
+     deployments: recs,
++    releaseIntents: [..._releaseIntents.values()],
++    leaseFloors: [..._leaseFloors].filter(([, f]) => now - f.at < LEASE_FLOOR_KEEP_MS),
++    evacuated: [..._evacuated].filter(([, until]) => until > now),
+   });
+ }
++const LEASE_FLOOR_KEEP_MS = 24 * 3600_000;
+ function saveStateNow() {
+-  if (!_statePersistable) return;
+-  try {
+-    const tmp = STATE_FILE + ".tmp";
+-    writeFileSync(tmp, serializeState());
+-    renameSync(tmp, STATE_FILE);                 // atomic: a crash never leaves a torn file
+-    _stateDirty = false;
+-  } catch (e) { console.warn(`[state] save failed: ${e.message}`); }
++  if (!_statePersistable || _stateCorrupt) return;   // never overwrite a journal that failed to load
++  // Accounting and shutdown replace the SAME file as the release journal. Every replacement keeps its durability (the
++  // strict writer below), even though this caller treats a failure as best-effort: logged, the state stays dirty and
++  // is retried, and the previous durable file is never replaced by an unsynced one (root review + writers.patch).
++  try { saveStateStrict("state checkpoint"); }
++  catch (e) { console.warn(`[state] save failed: ${e.message}`); }
+ }
+ function saveStateSoon() { _stateDirty = true; }
++// STRICT persistence, for a decision that must be durable BEFORE an external effect (a sponsored release lease reaching
++// a relay): write a separate temp file completely (a byte loop: a short write continues, zero or invalid progress
++// throws), fsync it, rename it over the state file, fsync the directory - and THROW on any failure, including a state
++// file that cannot be persisted at all and a directory fsync that fails after the rename (the caller then sends
++// nothing). Accounting and shutdown use this SAME writer. Killing a process does not simulate a physical power loss:
++// what is guaranteed and tested is the order of these calls.
++function saveStateStrict(what) {
++  if (!_statePersistable) throw new Error(`the state file is unavailable: ${what} cannot be made durable`);
++  if (_stateCorrupt) throw new Error(`the state file failed to load (${_stateCorrupt}): ${what} is refused until it is resolved`);
++  const tmp = STATE_FILE + ".strict.tmp";
++  const fd = openSync(tmp, "w", 0o600);
++  try {
++    const bytes = Buffer.from(serializeState(), "utf8");
++    let offset = 0;
++    while (offset < bytes.length) {
++      const wrote = writeSync(fd, bytes, offset, bytes.length - offset);
++      if (!Number.isInteger(wrote) || wrote <= 0 || wrote > bytes.length - offset)
++        throw new Error(`state write made invalid progress (${wrote})`);
++      offset += wrote;
++    }
++    fsyncSync(fd);
++  } finally { closeSync(fd); }
++  renameSync(tmp, STATE_FILE);
++  const dir = openSync(dirname(STATE_FILE), "r");
++  try { fsyncSync(dir); } finally { closeSync(dir); }
++  _stateDirty = false;
++}
+ function initStatePersistence() {
+   try { mkdirSync(dirname(STATE_FILE), { recursive: true }); }
+   catch (e) {
+@@ -3602,10 +3861,41 @@
+ // CLAIM_TERMINAL (defined near the claim path) aliases this.
+ const TERMINAL_STATUSES = new Set(["expired", "failed", "terminated", "stopping"]);
+ 
++// A release journal that can be trusted to hold every unresolved sponsored release: each intent names its id and its
++// transactions, each sponsored attempt every signed lease's exact intent. -> null, or what is wrong.
++function releaseJournalProblem(s) {
++  if (!s || typeof s !== "object" || Array.isArray(s)) return "not a state object";
++  if (s.releaseIntents === undefined) return null;
++  if (!Array.isArray(s.releaseIntents)) return "releaseIntents is not a list";
++  const n = (v) => typeof v === "string" && /^[0-9]{1,78}$/.test(v);
++  for (const it of s.releaseIntents) {
++    if (!it || !/^0x[0-9a-f]{64}$/.test(String(it.id || "")) || !Array.isArray(it.txs)) return "an intent without an id or transaction list";
++    for (const t of it.txs) {
++      if (!t || typeof t !== "object") return `${it.id}: a malformed transaction`;
++      if (!t.sponsored) continue;
++      if (!Array.isArray(t.intents)) return `${it.id}: a sponsored attempt without its signed leases`;
++      for (const x of t.intents)
++        if (!x || !n(x.nonce) || !n(x.deadline) || !n(x.maxChargeWei) || !n(x.fromBlock) || !/^0x[0-9a-fA-F]{40}$/.test(String(x.payee || ""))
++            || !/^0x[0-9a-fA-F]{64}$/.test(String(x.enclaveId || ""))) return `${it.id}: a signed lease without its exact intent`;
++    }
++  }
++  return null;
++}
+ function loadState() {
+   if (!_statePersistable || !existsSync(STATE_FILE)) return;
++  // app-funded leases: an unreadable or malformed journal may hide an unresolved sponsored release, so fail CLOSED for
++  // every lease operation instead of starting fresh. Unconfigured: exactly main's behaviour.
++  const strictJournal = leaseGasConfigured(Object.fromEntries(Object.entries(process.env).filter(([k]) => /^(ENCLAVE_)?LEASE_GAS_/.test(k))));
++  const corrupt = (why) => {
++    _stateCorrupt = why;
++    console.error(`[state] ${STATE_FILE}: ${why}. It may hold an unresolved sponsored release, so this host claims, resumes, renews and releases NOTHING and never overwrites the file until an operator repairs or removes it (after checking this operator's recent leases on chain)`);
++  };
+   let s; try { s = JSON.parse(readFileSync(STATE_FILE, "utf8")); }
+-  catch (e) { console.warn(`[state] unreadable (${e.message}) - starting fresh`); return; }
++  catch (e) {
++    if (strictJournal) return corrupt(`unreadable (${String(e.message).slice(0, 120)})`);
++    console.warn(`[state] unreadable (${e.message}) - starting fresh`); return;
++  }
++  if (strictJournal) { const bad = releaseJournalProblem(s); if (bad) return corrupt(`the release journal is malformed: ${bad}`); }
+   const gapMs = Math.max(0, Date.now() - (s.savedAt || Date.now()));
+   if (s.payFromBlock != null) _payFromBlock = BigInt(s.payFromBlock);   // watcher resumes where it stopped
+   for (const [k, b] of s.seenLogs || []) _seenLogs.set(k, BigInt(b));
+@@ -3655,6 +3945,17 @@
+   }
+   if (deployments.size) console.log(`[state] restored ${deployments.size} deployment(s) `
+     + `(${running} running, ${waiting} awaiting payment) after ${Math.round(gapMs / 1000)}s down; clocks were frozen`);
++  // Releases sent by the previous life: each stays open (no resume, claim or renew of its id here) until every
++  // transaction it signed is resolved on chain. The resolver picks them up as soon as the operator key is usable.
++  for (const it of s.releaseIntents || []) {
++    if (!it || !/^0x[0-9a-f]{64}$/.test(String(it.id || "")) || !Array.isArray(it.txs)) continue;
++    it.recovered = true;
++    _releaseIntents.set(it.id, it);
++  }
++  for (const [id, f] of s.leaseFloors || []) if (f && Number.isFinite(f.block)) _leaseFloors.set(id, f);
++  for (const [id, until] of s.evacuated || []) if (until > Date.now()) _evacuated.set(id, until);
++  if (_releaseIntents.size) console.log(`[release] restored ${_releaseIntents.size} unresolved release(s): `
++    + [..._releaseIntents.values()].map((it) => `${it.id} (${it.txs.map((t) => t.hash).join(", ") || "nothing sent"})`).join("; "));
+ }
+ 
+ // ---- pool reconciliation: the RECORDS are the truth, the pools are a cache --
+@@ -3928,7 +4229,18 @@
+ async function vouchTenants() {
+   if (PROVISION_BACKEND !== "vm") return;   // worker backend has no lease route
+   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return;
+-  const ids = [...deployments.values()].filter(vouchesForLease).map((r) => String(r.id));
++  // Per-app guest tier: no beat until the claim sweep has read which live leases are this host's (_ownLeases). guestd reaps
++  // only while it hears from us (leaseExpired: Silence), so silence keeps every guest the previous control vouched for,
++  // while a beat naming only local records arms its dead-man against this host's own paid guests (a cold boot whose
++  // ledger read fails). Only while the platform's answer is transient: a KNOWN explicit refusal (fresh, or persisted and
++  // surfaced as refused-*) beats now, naming local records only - as with a ledger read, an explicitly refused host
++  // vouches for no unresumed lease - so guestd ends the rest; no ownership is guessed and nothing is released.
++  if (ISOLATION_BACKEND && CLAIM_ENABLED && !_ownLeases && !hostPolicyRefusedExplicitly()) {
++    _lastVouch = { at: new Date().toISOString(), ok: null, vouched: 0, reason: "withheld until the claim sweep has read this host's own leases" };
++    return;
++  }
++  const ids = [...new Set([...[...deployments.values()].filter(vouchesForLease).map((r) => String(r.id)),
++                           ...(ISOLATION_BACKEND && CLAIM_ENABLED ? unresumedOwnLeases() : [])])];
+   try {
+     const r = await vmReq("POST", "/vms/lease", { ids }, 15_000);
+     const ok = r.status === 200;
+@@ -3961,6 +4273,25 @@
+ 
+ // Set once the claim loop has finished its first pass, i.e. once this node has resumed the leases it holds on chain.
+ let _firstClaimSweepAt = 0;
++// Live leases the chain says are THIS host's but that no local record serves yet (sweepPartition's `own`, as the claim
++// sweep last read them): id -> leaseUntil (s); null until the first sweep since boot. Their guests outlive this node on
++// the host, and until the claim loop resumes them no record owns them. While the reason is transient (a policy read, a
++// provisioning back-off, the boot fence) they are vouched for and never reaped as orphans, bounded by the chain lease:
++// metal0 2026-10-21, a resume held by an unreadable policy let the reaper DELETE both paid guests, and the resume then
++// adopted them while guestd was still stopping them. Not on an explicit platform refusal (the host must stop serving),
++// and not while a release of the id from this host is unresolved (the guest is being handed back).
++let _ownLeases = null;
++const HOST_POLICY_EXPLICIT = new Set(["current", "stale-grace", "stale", "inactive", "authority", "refused-undecided", "refused-unreadable"]);
++function hostPolicyRefusedExplicitly() {
++  if (!HOST_POLICY_GATE.enabled) return false;
++  const s = HOST_POLICY_GATE.status() || {};
++  if (s.serving === true) return false;
++  return s.banned === true || HOST_POLICY_EXPLICIT.has(s.status) || s.status === undefined;   // an unusable gate fails closed
++}
++function unresumedOwnLeases(nowMs = Date.now()) {
++  if (!_ownLeases || hostPolicyRefusedExplicitly()) return [];
++  return [..._ownLeases].filter(([id, until]) => until * 1000 > nowMs && !releaseHold(id)).map(([id]) => id);
++}
+ async function reconcileInstances() {
+   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return [];
+   const stamp = (o) => { _instanceSweep = { at: new Date().toISOString(), ...o }; };
+@@ -3988,14 +4319,20 @@
+   // lease to launch it again (seen on the production canary, 2026-09-24). So reap nothing on this tier before the
+   // claim loop's first pass; the vouch above has already run, and guestd's own dead-man lease still ends
+   // anything nobody claims.
+-  if (ISOLATION_BACKEND && CLAIM_ENABLED && !_firstClaimSweepAt) {
++  if (ISOLATION_BACKEND && CLAIM_ENABLED && (!_firstClaimSweepAt || !_ownLeases)) {
+     stamp({ ok: true, reason: "per-app guest tier: no reaping before the claim loop's first pass", seen: instances.length, orphans: 0, reaped: 0 });
+     return [];
+   }
+-  const plan = orphanInstancePlan(instances, [...deployments.values()],
++  // this host's own unresumed live leases own their guests too (_ownLeases)
++  const ownOf = () => (ISOLATION_BACKEND && CLAIM_ENABLED ? unresumedOwnLeases() : []);
++  const plan = orphanInstancePlan(instances, [...deployments.values(), ...ownOf().map((id) => ({ id, status: "resuming" }))],
+                                   { nowMs: Date.now(), minAgeSec: INSTANCE_REAP_MIN_AGE_SEC });
+-  const reaped = [];
++  const reaped = [], kept = [];
+   for (const o of plan) {
++    // Owned again by now? A DELETE returns only once guestd has stopped the guest, which reads "running" and holds its
++    // name meanwhile, so a resume can adopt a planned orphan while an earlier DELETE waits: re-checked before each one.
++    const cur = deployments.get(o.id);
++    if ((cur && !TERMINAL_STATUSES.has(cur.status)) || ownOf().includes(o.id)) { kept.push(o.vmId); continue; }
+     const path = PROVISION_BACKEND === "vm"
+       ? `/vms/${encodeURIComponent(o.vmId)}` : `/tenants/${encodeURIComponent(o.vmId)}`;
+     try {
+@@ -4014,17 +4351,18 @@
+   }
+   // A pass that found orphans it could not delete is NOT ok - that is the leak
+   // still leaking, and it must not read as a clean sweep.
+-  stamp({ ok: reaped.length === plan.length, seen: instances.length,
+-          orphans: plan.length, reaped: reaped.length,
+-          reason: plan.length === 0 ? "clean"
+-                : reaped.length === plan.length ? `reaped ${reaped.length}`
+-                : `${plan.length - reaped.length} orphan(s) survived DELETE`,
++  const due = plan.length - kept.length;
++  stamp({ ok: reaped.length === due, seen: instances.length,
++          orphans: due, reaped: reaped.length,
++          reason: due === 0 ? "clean"
++                : reaped.length === due ? `reaped ${reaped.length}`
++                : `${due - reaped.length} orphan(s) survived DELETE`,
+           // WHICH instances the backend is running and who we think owns them:
+           // the single fact that would have ended the 2026-08-03 recurrence in
+           // one request instead of an evening of inference.
+           held: instances.slice(0, 20).map((v) => ({
+             id: String(v.name || v.id || ""), vm: String(v.id ?? ""), status: v.status || null,
+-            owned: !plan.some((o) => o.vmId === String(v.id ?? "")) })) });
++            owned: !plan.some((o) => o.vmId === String(v.id ?? "") && !kept.includes(o.vmId)) })) });
+   return reaped;
+ }
+ 
+@@ -4197,6 +4535,8 @@
+     if (shareWhy) throw new Error(shareWhy);
+     const body = { image: image.reference, name: deploymentId, cpuShare,
+       gpuShare: gpuShare || 0, appPort: appPort || 8080, ports: [], config: "", configCid: "", egress: "", derive,
++      // model volumes (CPU deployments): attached read-only; the guest mounts them against its measured table's roots
++      ...(!(Number(gpuShare) > 0) && volumesInConfig(config).length ? { volumes: [...new Set(volumesInConfig(config).map((v) => String(v).trim()).filter(Boolean))] } : {}),
+       ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}),
+       // sent only when true: a guestd that predates the release refuses unknown fields, and it is never asked for one
+       ...(released ? { release: true } : {}), ...(direct ? {bootstrap} : {}) };
+@@ -4968,6 +5308,37 @@
+     `var SUB=${jsStr(req.url || "/")};` +
+     `var here=location.pathname+location.search;` +
+     `var root=here.length>=SUB.length&&here.slice(here.length-SUB.length)===SUB?here.slice(0,here.length-SUB.length):"";`;
++  // The OWNER's sign-in frontends (the envelope's `access`): only those origins are offered - the first is followed,
++  // every other one is an explicit link - and never enclave.host. Re-checked here so a restored or stale record can only
++  // ever name an exact origin. Nothing about who may enter changes: that is the hand-off's session check.
++  const owned = (rec.access && Array.isArray(rec.access.frontends) ? rec.access.frontends : []).filter(accessOrigin);
++  if (owned.length) {
++    const urls = owned.map((o) => `${o}/authorize?d=${encodeURIComponent(rec.id)}`);
++    const links = urls.map((u, i) => `<li><a class="fe" href="${esc(u)}">${esc(owned[i])}</a></li>`).join("");
++    const p = `here.slice(root.length)||"/"`;
++    // every link carries the wanted path in its FRAGMENT (no server log, no Referer)
++    const linkJs = `var ps="#p="+encodeURIComponent(${p});var fe=document.querySelectorAll("a.fe");` +
++      `for(var i=0;i<fe.length;i++)fe[i].href=fe[i].getAttribute("href")+ps;`;
++    if (wrongAddr)
++      return htmlPage(res, 403, "Wrong wallet &middot; Sign in",
++        `<h1>Wrong wallet</h1><p>This app is private. You are signed in as <code>${esc(wrongAddr)}</code>, ` +
++        `which does not own it. Switch wallets, then sign in again at a sign-in page this app's owner chose:</p>` +
++        `<ul>${links}</ul>`,
++        rootJs + linkJs + `fetch(root+"/__enclave/signout",{method:"POST"}).catch(function(){});`);
++    return htmlPage(res, 401, "Sign in",
++      `<h1>This app is private</h1><p id="st" role="status">Sign in with the wallet that owns it, at the sign-in page its owner chose. ` +
++      `Redirecting to the first&hellip;</p><p>Sign-in pages this app's owner chose:</p><ul>${links}</ul>`,
++      rootJs + linkJs +
++      `var t=0;try{t=+sessionStorage.getItem("enclave_az")||0;sessionStorage.removeItem("enclave_az");}catch(e){}` +
++      `if(Date.now()-t<15000){document.getElementById("st").textContent=` +
++      `"You signed in, but this host still refuses the app. Its owner may have changed, or the deployment moved. Try one of the sign-in pages below, or open the app again from your dashboard.";}` +
++      // Back here within 30 s of following the first page means it did not work (unreachable, refused, or abandoned):
++      // stay, and ask for an explicit choice among the owner's pages. Never a silent move to some other origin.
++      `else{var f=0;try{f=+sessionStorage.getItem("enclave_fe")||0;}catch(e){}` +
++      `if(Date.now()-f<30000){document.getElementById("st").textContent=` +
++      `"The first sign-in page did not complete. Choose one of the sign-in pages this app's owner chose below, or try again.";}` +
++      `else{try{sessionStorage.setItem("enclave_fe",String(Date.now()));}catch(e){}location.replace(fe[0].href);}}`);
++  }
+   // A WRONG wallet is a dead end, not a step: bouncing would send the user to a
+   // page that can only tell them the same thing, and back again. Say it here
+   // and make the next move a deliberate click. 403, matching the JSON path.
+@@ -5012,6 +5383,30 @@
+     // Token arrives as a bearer so this needs no body parser — the data path is
+     // mounted ahead of express.json() on purpose (bodies stream untouched).
+     (async () => {
++      // The OWNER-SELECTED frontend's hand-off: no token minted elsewhere, but ONE EnclaveSession authorization the
++      // owner's session signed for EXACTLY this URL - POST <this host's base>/x/<full id>/__enclave/session?d=<full id>,
++      // empty body. Judged by the same verifier and record rule as every other session route (sessionApi: live session,
++      // key, api.appAccess scope, a nonce used once on this host, +-60 s; refusal: the vault's environment or the owner's
++      // ledger delegation), against THIS host's own bases - never the request's Host. A signature for another host, another
++      // deployment, another path, or one already used here, opens nothing. Then the same audience-bound cookie as below.
++      if (isSessionHeader(req.headers.authorization)) {
++        const q = (req.url || "").includes("?") ? req.url.slice(req.url.indexOf("?") + 1) : "";
++        if (q !== "d=" + rec.id)
++          return fail(res, 400, "bad_request", "A session hand-off names exactly this deployment: ?d=<its full id>.");
++        if (Number(req.headers["content-length"] || 0) > 0 || req.headers["transfer-encoding"])
++          return fail(res, 400, "bad_request", "A session hand-off carries no body.");
++        let s, why;
++        try {
++          s = await sessionApi.verify({ header: req.headers.authorization, method: "POST", path: `/x/${rec.id}${req.url}`,
++            body: Buffer.alloc(0), scope: "api.appAccess", fresh: true });
++          why = await sessionApi.refusal(s, rec, { fresh: true });
++        } catch (e) { return sessionFail(res, e); }
++        if (why) return fail(res, 403, "not_allowed", why);
++        const minted = await mintAppToken(rec.owner, rec.id);
++        res.setHeader("Set-Cookie",
++          `${APP_COOKIE}=${minted}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${APP_TTL_SEC}`);
++        return res.status(204).end();
++      }
+       const m = (req.headers.authorization || "").match(/^Bearer\s+(.+)$/i);
+       // Shape-check BEFORE this value can reach a response header. Node would
+       // throw on a CR/LF in setHeader, and a doctored token should fail the
+@@ -5050,7 +5445,7 @@
+   htmlPage(res, 200, "Signing in &middot; Enclave",
+     `<h1>Signing you in&hellip;</h1><p id="m">One moment.</p>`,
+     `var h=new URLSearchParams(location.hash.slice(1));` +
+-    `var t=h.get("t")||"",p=h.get("p")||"/";` +
++    `var t=h.get("t")||"",a=h.get("a")||"",p=h.get("p")||"/";` +
+     // Resolve and compare ORIGINS rather than pattern-match the string. A
+     // leading-slash regex looks sufficient and is not: the URL parser folds
+     // backslashes into slashes, so "/\\evil.com" passes /^\/(?!\/)/ and then
+@@ -5059,14 +5454,22 @@
+     `try{var _u=new URL(p,location.href);p=_u.origin===location.origin?_u.pathname+_u.search:"/";}catch(e){p="/";}` +
+     `var root=location.pathname.replace(/\\/__enclave\\/session\\/?$/,"");` +
+     `function bad(x){document.getElementById("m").textContent=x;}` +
+-    `if(!t)bad("This sign-in link is incomplete. Start again from enclave.host.");else{` +
+-    `fetch(location.pathname,{method:"POST",headers:{Authorization:"Bearer "+t},cache:"no-store"})` +
+-    `.then(function(r){if(!r.ok)throw 0;` +
++    `function done(){` +
+     // Mark the hand-off so a bounce arriving right back here is recognised as a
+     // LOOP rather than redirected onward (see loginBounce's loop breaker).
+     `try{sessionStorage.setItem("enclave_az",String(Date.now()));}catch(e){}` +
+-    // Scrub the token out of history BEFORE leaving, so Back cannot resurrect it.
+-    `history.replaceState(null,"",root+p);location.replace(root+p);})` +
++    // Scrub the credential out of history BEFORE leaving, so Back cannot resurrect it.
++    `history.replaceState(null,"",root+p);location.replace(root+p);}` +
++    // The owner-selected frontend's form: a session authorization for EXACTLY this URL (path and ?d=), posted back to
++    // it. The host answers why it refused; that text is shown as text, and a retry starts at the sign-in page again.
++    `if(a){if(!/^EnclaveSession v1 [!-~][ -~]{0,2000}$/.test(a))bad("This sign-in link is malformed. Start again from your sign-in page.");else ` +
++    `fetch(location.pathname+location.search,{method:"POST",headers:{Authorization:a},cache:"no-store"})` +
++    `.then(function(r){if(r.ok)return done();return r.json().catch(function(){return null;}).then(function(j){` +
++    `bad("This host refused the sign-in"+(j&&j.message?": "+j.message:".")+" Start again from your sign-in page.");});})` +
++    `.catch(function(){bad("This host could not be reached. Start again from your sign-in page.");});}` +
++    `else if(!t)bad("This sign-in link is incomplete. Start again from your sign-in page.");else{` +
++    `fetch(location.pathname,{method:"POST",headers:{Authorization:"Bearer "+t},cache:"no-store"})` +
++    `.then(function(r){if(!r.ok)throw 0;done();})` +
+     `.catch(function(){bad("That sign-in expired. Start again from enclave.host.");});}`);
+   return true;
+ }
+@@ -5113,6 +5516,7 @@
+                     "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"];
+ 
+ app.use("/x/:id", async (req, res) => {
++  { const pr = HOST_POLICY_GATE.serviceRefusal(); if (pr) return fail(res, 403, "host_policy_refused", pr); }
+   const rec = depByIdOrPrefix(req.params.id);
+   if (!rec) return fail(res, 404, "not_found", "Unknown deployment.");
+   // Ownership probe: the relay (and the TLS-issuance gate) asks HEAD /x/<id>
+@@ -5322,7 +5726,7 @@
+ // ============================================================================
+ // system
+ // ============================================================================
+-app.get("/v1/health", (_req, res) => res.json({ status: "ok", deployments: deployments.size,
++app.get("/v1/health", (_req, res) => res.json({ status: "ok", deployments: deployments.size, platformHostPolicy: HOST_POLICY_GATE.status(),
+   // watcher freshness is billing-critical: while it's stale, funded clocks are frozen
+   watcher: FORWARDER_ADDRESS ? { lastPollOkAt: _lastPollOkAt ? new Date(_lastPollOkAt).toISOString() : null,
+                                  fresh: (Date.now() - _lastPollOkAt) < WATCHER_STALE_SEC * 1000 } : null,
+@@ -5446,6 +5850,29 @@
+   const force = !!(req.body && req.body.force === true);
+   if (!/^0x[0-9a-f]{64}$/.test(id))
+     return fail(res, 422, "invalid_spec", "id must be the bytes32 deployment id (0x + 64 hex chars).");
++  return claimHintAnswer(req, res, id, { force, limit: true });
++});
++// The OWNER-SIGNED placement hint (independent management `claimHint`, scope api.placement): the same decision as the
++// public hint above, for an owner who reaches this host through its own management gateway instead of the relay. The
++// record is not held here, so the owner rule is judged against the LEDGER row. An authenticated owner skips the per-IP
++// bucket (the gateway bounds its own callers), but never the provision-failure cooldown: that override stays `resume`'s.
++app.post("/v1/deployments/:id/claim-hint", ownerAuth("api.placement"), async (req, res) => {
++  const id = String(req.params.id || "").toLowerCase();
++  if (!/^0x[0-9a-f]{64}$/.test(id)) return fail(res, 422, "invalid_spec", "id must be the bytes32 deployment id (0x + 64 hex chars).");
++  let d;
++  try { d = await readOnchainDeployment(id); }
++  catch (e) { return fail(res, 502, "chain_unreachable", "Could not read the deployment: " + (e.shortMessage || e.message)); }
++  if (!d || !Number(d.createdAt)) return fail(res, 404, "not_found", "No such deployment on the ledger.");
++  const owner = String(d.owner || "").toLowerCase();
++  if (req.walletSession) {
++    let why;
++    try { why = await sessionApi.refusal(req.walletSession, { id, owner }, { fresh: true }); }
++    catch (e) { return sessionFail(res, e); }
++    if (why) return fail(res, 403, "not_allowed", why);
++  } else if (owner !== String(req.address || "").toLowerCase()) return fail(res, 404, "not_found", "No such deployment.");
++  return claimHintAnswer(req, res, id, { force: false, limit: false });
++});
++async function claimHintAnswer(req, res, id, { force, limit }) {
+   if (!CLAIM_READY || !_enclaveId)
+     return fail(res, 503, "not_claiming", "This enclave is not claiming on-chain deployments right now.");
+   if (!teeOk())
+@@ -5454,7 +5881,7 @@
+   if (ex && !CLAIM_TERMINAL.has(ex.status)) return res.json({ accepted: true, status: ex.status });
+   if (_hintBusy.has(id)) return res.json({ accepted: true, status: "evaluating" });
+   // Beyond here every path does on-chain reads — rate-limit the source first.
+-  if (!hintRateOk(req)) return fail(res, 429, "rate_limited", "Too many new-id claim hints from your source; retry shortly.");
++  if (limit && !hintRateOk(req)) return fail(res, 429, "rate_limited", "Too many new-id claim hints from your source; retry shortly.");
+   _hintBusy.add(id);
+   try {
+     const d = await readOnchainDeployment(id);
+@@ -5482,7 +5909,7 @@
+   } catch (e) {
+     fail(res, 502, "chain_unreachable", "Could not evaluate the hint: " + (e.shortMessage || e.message));
+   } finally { _hintBusy.delete(id); }
+-});
++}
+ 
+ 
+ // ---- shielded GPU: a card this enclave uses but does NOT trust ---------------
+@@ -5567,7 +5994,7 @@
+   // Discovery can finish after registration. Publish the new ask immediately,
+   // rather than quoting it while the ledger retains a zero GPU price for 15 minutes.
+   if (_enclaveId && SELL_GPU_PRICE6 !== previousGpuPrice)
+-    syncRegisteredPrice(_enclaveId).catch(e => console.warn(`[registry] GPU price update will retry on heartbeat: ${e.shortMessage || e.message}`));
++    syncRegisteredPrice(_enclaveId).catch(e => console.warn(`[registry] GPU price update will retry on the next reconcile pass: ${e.shortMessage || e.message}`));
+   // Reconstruct every sibling's holds after discovery (restored arrays may
+   // predate the probe that creates card 1..N in this process).
+   if (_shieldedPool) reconcilePools();
+@@ -5804,6 +6231,7 @@
+     })(),   // a card on the UNTRUSTED host, reached by masked offload; NOT `gpu` — see shieldedCapacity()
+     networkOptions: true,   // accepts the network options envelope; fleet capability checks keep older runners from claiming unsupported options
+     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
++    appAccessFrontends: true,   // this build parses the envelope's `access` namespace (the owner's private-app sign-in frontends) and accepts the session-signed /__enclave/session hand-off
+     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
+     configEdit: true,   // this build's audit re-applies an owner's setConfig to LIVE deployments (waf live-swapped, config = restart in place); without it an edit only lands at the next re-claim — same fleet-AND rule
+     shareResize: true,   // this build's audit re-slices a LIVE deployment on an owner's setShares (rev-6 ledgers); without it the billing would change while the served slice silently didn't — same fleet-AND rule, clients refuse the tx against an older fleet
+@@ -5968,6 +6396,49 @@
+   }
+ });
+ 
++// GET /v1/host/capacity: the /availability document above, byte for byte, signed by the registry operator key for the
++// endpoint this host registered, on the registry it registered on (network/host-capacity-producer.mjs), so readers
++// with no relay can use it (cli/independent-capacity.mjs). The signature says WHO reported the numbers; it is not
++// proof the hardware is free, and readers check the signer against the pinned registry at an agreed block.
++// HOST_CAPACITY_DIRECTORIES: optional explicit directory origins (comma list, 1..8) the record is also POSTed to,
++// every half lifetime. No default: nothing is published anywhere unless the operator names it.
++// It signs only for a CONFIRMED registration on the CURRENT registry, read on every request. _registered alone is not
++// that: registerOnChain sets it BEFORE its transaction lands, and it outlives a repoint of the registry by the address
++// book. So all of: the once-guard is up; it was sent to the registry REGISTRY_ADDRESS names now; and _enclaveId - set
++// only when the register transaction succeeded, cleared by a repoint - is the enclaveId of the endpoint signed for.
++// Anything else answers 503 "not registered yet" and signs nothing.
++function capacityIdentity() {
++  const registry = (REGISTRY_ADDRESS || "").toLowerCase();
++  if (!_registered || !registry || _registeredOn !== registry) return null;
++  if (_activeSeen === false) return null;   // deregistered on chain (seen by the reconcile pass): no liveness evidence, as on Windows
++  // the landed id names the endpoint: no endpoint, or another one, matches it (registerOnChain never registers "")
++  if (_enclaveId !== keccak256(stringToBytes(String(_advertisedEndpoint)))) return null;
++  return { endpoint: _advertisedEndpoint, registry };
++}
++const _capacity = REGISTRY_READY ? createHostCapacityProducer({
++  account: privateKeyToAccount(REGISTRY_PK.startsWith("0x") ? REGISTRY_PK : `0x${REGISTRY_PK}`), chainId: CHAIN_ID,
++  hostIdOf: (endpoint) => keccak256(stringToBytes(endpoint)),   // the registry's enclaveId of an endpoint
++  identity: capacityIdentity,
++  availability: async () => {
++    const r = await fetch(`http://127.0.0.1:${server.address()?.port ?? PORT}/availability`, { signal: AbortSignal.timeout(10_000) });
++    if (!r.ok) throw new Error(`/availability answered ${r.status}`);
++    return r.json();
++  },
++}) : null;
++app.get(HOST_CAPACITY_PATH, async (_req, res) => {
++  if (!_capacity) return fail(res, 503, "not_advertised", "this host does not advertise in the registry, so it signs no capacity record");
++  const f = await _capacity.frame();
++  res.status(f.status).set(f.headers).send(f.body);
++});
++let _capacityDirs = [];
++try { const v = envList(process.env.HOST_CAPACITY_DIRECTORIES); _capacityDirs = v.length ? capacityDirectoryOrigins(v) : []; }
++catch (e) { console.warn(`[capacity] HOST_CAPACITY_DIRECTORIES ignored: ${e.message}`); }
++if (_capacity && _capacityDirs.length) setInterval(() => {
++  if (!capacityIdentity()) return;
++  _capacity.publish(_capacityDirs).then((all) => { for (const x of all) if (!x.ok) console.warn(`[capacity] ${x.origin}: ${x.error || x.status}`); })
++    .catch((e) => console.warn(`[capacity] not published: ${e.message}`));
++}, 150_000).unref();
++
+ // External proof that MPS caps are live: each running tenant's granted SM count
+ // (sanitized - no tenant ids). A 25% tenant should report ~33 of 132 SMs.
+ //
+@@ -7249,6 +7720,12 @@
+   if (ISOLATION_BACKEND && r.status === 200 && r.body && r.body.status === "starting") return true;
+   return r.status === 200 && r.body && r.body.status === "running";
+ }
++// guestd ended this instance to admit another guest (pool.go preemption): it reads "failed" with preempted: true.
++async function instancePreempted(rec) {
++  if (isMock() || PROVISION_BACKEND !== "vm" || !ISOLATION_BACKEND || !rec._vmId) return false;
++  const r = await vmReq("GET", `/vms/${encodeURIComponent(rec._vmId)}`, null, 5000).catch(() => null);
++  return !!(r && r.status === 200 && r.body && r.body.status === "failed" && r.body.preempted === true);
++}
+ function pauseRec(rec, reason) {
+   if (!rec.paused || rec.pauseReason !== reason) {
+     console.warn(`[bill] ${rec.id} clock FROZEN (${reason})`);
+@@ -7281,6 +7758,7 @@
+     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; rec._vmAppId = sp.appId; }
+     if (sp.portMap) rec.portMap = sp.portMap;
+     rec._respawnAt = 0; rec._respawnBackoffMs = 0;
++    if (rec._preemptedAt) { delete rec._preemptedAt; saveStateSoon(); }
+     console.log(`[bill] ${rec.id} instance respawned after outage`);
+     return true;
+   } catch (e) {
+@@ -7420,7 +7898,7 @@
+ // (same as any lease migration); nothing is charged for the moved tail. The
+ // evacuation set stops THIS enclave from re-claiming what it just dropped —
+ // without it the source's own sweep wins the race and the move never happens.
+-const _evacuated = new Map();                 // id -> until (ms)
++// (_evacuated is declared with the persisted state: a stand-down survives a restart.)
+ const EVAC_HOLDOFF_MS = 15 * 60_000;
+ // An OWNER-initiated move reuses the same set with a much shorter fuse: long
+ // enough for the destination to win the race it is being handed, short enough
+@@ -7433,12 +7911,14 @@
+   if (!rec) return fail(res, 404, "not_found", "No such deployment.");
+   if (!rec._onchain || !["running", "claimed"].includes(rec.status))
+     return fail(res, 409, "not_releasable", `Deployment is ${rec.status}.`);
++  const busy = releaseBlockedReason(rec);
++  if (busy) return fail(res, 409, "release_blocked", `Not released: ${busy}. Retry once it settles.`);
+   try { await stopContainer(rec); } catch {}
+   if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+   rec.status = "expired";
+   rec.error = "released by the operator (fleet consolidation); it re-queues and another enclave picks it up";
+   _evacuated.set(rec.id, Date.now() + EVAC_HOLDOFF_MS);
+-  proveAndRelease(rec, "operator release (consolidation)").catch(() => {});
++  proveAndRelease(rec, "operator release (consolidation)", { holdoffMs: EVAC_HOLDOFF_MS }).catch(() => {});
+   saveStateSoon();
+   console.log(`[admin] ${rec.id} released by operator (consolidation)`);
+   res.json(view(rec));
+@@ -7506,6 +7986,9 @@
+     return res.json({ id: rec.id, status: "canceled",
+                       note: "Reservation released; nothing was charged." });
+   }
++  // a restart or launch in flight would bring the app back up after this stop, serving with the lease handed back
++  const busy = rec._onchain ? releaseBlockedReason(rec) : null;
++  if (busy) return fail(res, 409, "release_blocked", `Nothing was stopped: ${busy}. Retry once it settles.`);
+   try { await stopContainer(rec); } catch {}
+   if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+   // stopContainer was awaited: the instance is gone, so this is the final state
+@@ -7528,7 +8011,7 @@
+     // here rather than leave the app dark for a quarter of an hour.
+     const evacuate = /^(1|true|yes)$/i.test(String(req.query.evacuate || ""));
+     if (evacuate) _evacuated.set(rec.id, Date.now() + MOVE_HOLDOFF_MS);
+-    proveAndRelease(rec, evacuate ? "owner move" : "owner delete").catch(() => {});
++    proveAndRelease(rec, evacuate ? "owner move" : "owner delete", { holdoffMs: evacuate ? MOVE_HOLDOFF_MS : 0 }).catch(() => {});
+     return res.json({ id: rec.id, status: "terminated",
+                ranSeconds: Math.round((rec.consumedMs || 0) / 1000),
+                ...(evacuate ? { standDownSec: Math.round(MOVE_HOLDOFF_MS / 1000) } : {}),
+@@ -7544,6 +8027,78 @@
+ });
+ 
+ 
++// The owner's RELEASE for a move (independent management `release`, docs/network/independent-management.md and
++// work/independent-move-interface.txt). Unlike DELETE above, whose answer is sent before the release transaction is even
++// signed, this answers released ONLY on the release's own receipt, and it releases only after a CONFIRMED stop: a
++// still-running copy is never handed to a second host. It runs on the release mechanism every release here uses
++// (beginRelease / driveRelease, work/independent-move-fix-interface.txt). In order:
++//   1. refusals before any effect: not_releasable (the ledger, read at or above this deployment's floor block, shows no
++//      live lease of THIS host: its enclave id, its operator), release_in_progress (an earlier release of it is still
++//      unresolved here), release_blocked (a restart, launch, relaunch or renewal is in flight), release_unavailable (the
++//      ledger cannot be read);
++//   2. stand down from re-claiming (the move holdoff), then stop; an unconfirmed stop restores everything and releases
++//      nothing (502 stop_unconfirmed);
++//   3. the final proof, then the release transaction, its {hash, nonce} persisted before it is broadcast;
++//   4. 200 {released: true} only on its success receipt carrying Released(id, this enclave), confirmed. Otherwise 503
++//      release_unconfirmed naming the transaction: the app stays stopped, this host resolves it (receipt, or its nonce
++//      consumed) before any retry, and until then never resumes, re-claims or renews the deployment, across restarts.
++// The answer is host-reported (one RPC); the owner confirms the release on its own quorum before hinting a target.
++app.post("/v1/deployments/:id/release", ownerAuth("api.restart"), async (req, res) => {
++  const rec = deployments.get(req.params.id);
++  if (!(await mayAct(req, res, rec))) return;
++  if (!rec._onchain || !DEPLOYMENTS_ADDRESS || !REGISTRY_PK || (rec._ledger && rec._ledger.toLowerCase() !== DEPLOYMENTS_ADDRESS.toLowerCase()))
++    return fail(res, 409, "not_releasable", "Only an on-chain lease this host holds on its own ledger can be released here.");
++  const open = _releaseIntents.get(rec.id);
++  if (open) return res.status(409).json({ code: "release_in_progress", ...releaseView(open),
++    message: "A release of this deployment is still unresolved here; read the ledger before asking again." });
++  const busy = releaseBlockedReason(rec);
++  if (busy) return fail(res, 409, "release_blocked", `Nothing was stopped: ${busy}. Retry once it settles.`);
++  let begun;
++  try { begun = await beginRelease(rec.id, "owner move", { holdoffMs: MOVE_HOLDOFF_MS, isBusy: () => releaseBlockedReason(rec) }); }
++  catch (e) { return fail(res, 503, "release_unavailable", `The ledger could not be read; nothing was stopped (${e.shortMessage || e.message}).`); }
++  if (!begun.intent) return fail(res, 409, begun.code, begun.message);
++  const it = begun.intent;
++  _evacuated.set(rec.id, Date.now() + MOVE_HOLDOFF_MS);
++  const prev = rec.status;
++  if (rec._payTimer) { clearTimeout(rec._payTimer); rec._payTimer = null; }
++  rec.status = "stopping";
++  let stopped = false;
++  try { stopped = await stopContainer(rec); } catch {}
++  if (!stopped) {
++    cancelRelease(it);                                     // nothing was signed: nothing can land
++    rec.status = prev; _evacuated.delete(rec.id); saveStateSoon();
++    return res.status(502).json({ code: "stop_unconfirmed", stopped: false, leaseHeld: true,
++      message: "The app's stop was not confirmed (the instance reconciler takes over); the lease was NOT released." });
++  }
++  if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
++  rec.status = "expired"; rec.error = "stopped for an owner move; handing the lease back";
++  saveStateNow();
++  await proveFinalPeriod(rec, "owner move");
++  const done = driveRelease(it).catch(() => null);
++  const out = await Promise.race([done, sleepMs(RELEASE_ANSWER_WAIT_MS).then(() => null)]);
++  const tx = it.txs[it.txs.length - 1] || null;
++  if (out && out.outcome === "released") {
++    rec.error = "released for an owner move; it re-queues for the host the owner steers it to";
++    saveStateSoon();
++    console.log(`[move] ${rec.id} released for an owner move (${out.tx.hash}) at block ${out.block}`);
++    return res.json({ id: rec.id, released: true, status: "released", txHash: out.tx.hash, blockNumber: out.block,
++      standDownSec: Math.round(MOVE_HOLDOFF_MS / 1000),
++      note: "This host's release transaction is mined and its receipt shows the lease released; the unused tail went back to "
++          + `the deployment's balance. It stands down from re-claiming for ${Math.round(MOVE_HOLDOFF_MS / 1000)}s.` });
++  }
++  const state = !out ? (tx ? `transaction ${tx.hash} (nonce ${tx.nonce}) is not resolved yet` : "the release is not signed yet")
++    : out.outcome === "not-held" || out.outcome === "gone" ? `the ledger (block ${out.block}) no longer shows this host's lease, but no release of ours confirms it`
++    : out.outcome === "lapsing" ? "the lease ends within a minute, so it lapses instead of being released"
++    : `the release ended ${out.outcome}`;
++  rec.error = `stopped for an owner move; the release is not confirmed (${state})`;
++  saveStateSoon();
++  return res.status(503).json({ code: "release_unconfirmed", stopped: true, leaseHeld: out && ["not-held", "gone", "lapsing"].includes(out.outcome) ? false : null,
++    ...releaseView(it), ...(tx ? { txHash: tx.hash } : {}),
++    message: `The app is stopped here, but the release is not confirmed: ${state}. `
++           + (out ? "" : "This host resolves it and does not resume, re-claim or renew the deployment until then. ")
++           + "Read the ledger before asking again." });
++});
++
+ // Top-up instructions. An on-chain deployment funds the EnclaveDeployments
+ // ledger - the contract, not this box, meters its runtime, so EnclavePay
+ // instructions here would take the user's money without crediting balance6.
+@@ -7806,6 +8361,8 @@
+   if (PROVISION_BACKEND !== "vm")
+     return fail(res, 501, "restart_unavailable", "Restart is only available for wasm (vm) deployments.");
+   if (rec._restarting) return fail(res, 409, "restart_in_progress", "A restart is already in progress.");
++  if (_releaseIntents.has(rec.id))
++    return fail(res, 409, "release_in_progress", "A release of this deployment is unresolved here; it is not restarted onto a lease that release may end.");
+   if (rec.status !== "running")
+     return fail(res, 409, "not_running", `Only a running deployment restarts in place (status: ${rec.status}). `
+       + "Queued/failed work relaunches on its own; suspended work resumes with setActive(true).");
+@@ -8649,6 +9206,7 @@
+ 
+ server.on("upgrade", async (req, socket, head) => {
+   const deny = (line) => { socket.write(`HTTP/1.1 ${line}\r\n\r\n`); socket.destroy(); };
++  if (/^\/x\//.test(req.url || "") && HOST_POLICY_GATE.serviceRefusal()) return deny("403 Forbidden");   // platform host policy
+ 
+   // ---- app HTTPS: /x/:id/https — the browser's TLS, terminated IN-ENCLAVE ----
+   // The passthrough relay tunnels the raw TLS bytes of <label>.APP_CERT_DOMAIN
+@@ -9113,7 +9671,7 @@
+ }
+ 
+ // One shared signer (the registry operator EOA) and ONE queue for every tx it
+-// signs — registry register/heartbeat and ledger claim/renew/release alike.
++// signs — registry register/updates and ledger claim/renew/release alike.
+ // The queue serializes through CONFIRMATION, not just send order: public RPCs
+ // cap EIP-7702-delegated EOAs at a single in-flight tx ("in-flight transaction
+ // limit reached for delegated accounts"), and even a plain EOA avoids account-
+@@ -9253,6 +9811,76 @@
+ }
+ const sendClaimTx = (functionName, args) => sendOperatorTx(DEPLOYMENTS_ADDRESS, CLAIM_TX_ABI, functionName, args);
+ 
++// ---- app-funded lease gas (work/app-lease-gas design B; the same runtime as windows/node/chain.mjs) ----------------
++// The user's direction: lease claims and renewals are paid by the APP, not the host's wallet. Configured
++// (ENCLAVE_LEASE_GAS_FILE + _DIGEST + _RPCS + _RELAYS, or the LEASE_GAS_* aliases), claim, renew and release are
++// signed locally by the operator key (EIP-7702-delegated to the reviewed EnclaveLeaseExecutor; the authorization rides
++// in a relay's transaction), sent by any listed relay and paid from the app's reserve in that same transaction. The
++// host checks every landing against its own RPC quorum. A partial or invalid configuration, or a refusal (the owner
++// never enabled a reserve, an empty reserve, outside the renew window...), REFUSES the lease write in words: nothing
++// ever falls back to this key's ETH. Entirely unconfigured: exactly the operator-paid path above. Registry, bond,
++// proof-of-time, settle and withdrawEarnings transactions are unchanged (still this key's own).
++const leaseGasEnv = Object.freeze(Object.fromEntries(Object.entries(process.env).filter(([k]) => /^(ENCLAVE_)?LEASE_GAS_/.test(k))));
++const leaseGasActive = () => leaseGasConfigured(leaseGasEnv);
++// the host's CURRENT bindings (the address book may move them): a record for another ledger or registry refuses
++const leaseBindings = () => ({ chain: base, ledger: DEPLOYMENTS_ADDRESS, registry: REGISTRY_ADDRESS });
++let _leaseGas = null, _onLeaseSigned = null;
++// designated relays found in the service index are judged by THIS host's platform host policy before every signature:
++// its policy gate (refreshed through the shared operatorDecider adapter), only an explicit admit pays a relay; a policy
++// that is on but unusable refuses every discovered relay; null only when the policy is explicitly off
++function leaseRelayPolicy(gate) {
++  if (gate?.runtime?.gate?.decideOperators) return gate.runtime.gate;
++  return gate?.enabled === false ? null : async () => { throw new Error("the platform host policy is on but unusable: no discovered relay is admitted"); };
++}
++function leaseGasSender() {
++  if (!_leaseGas) {
++    const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
++    _leaseGas = configuredLeaseSender({ config, account: claimSigner().account, getBindings: leaseBindings, relayPolicy: leaseRelayPolicy(HOST_POLICY_GATE),
++      log: (m) => console.log(m), onSigned: (s) => (_onLeaseSigned ? _onLeaseSigned(s) : undefined) });
++  }
++  return _leaseGas;
++}
++if (leaseGasActive()) {
++  try { const c = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
++        console.log(`[lease-gas] app-funded leases ON: reserve ${c.reserve}, ${c.relays.length} relay(s), ${c.clients.length} RPC(s) (quorum ${c.quorum}); this key's ETH is never used for claim/renew/release`); }
++  catch (e) { console.warn(`[lease-gas] app-funded leases are configured but cannot be loaded now (${e.message}); every claim/renew/release refuses until they can`); }
++}
++function leaseGasError(fn, id, e) {
++  const code = e && e.code;
++  const msg = `app-funded ${fn} of ${id} not sent: ${(e && e.message) || e}${code === "OverRateCap" ? " (over rate cap)" : ""}; this host's ETH is never used instead`;
++  console.warn(`[lease-gas] ${msg}`);
++  return Object.assign(new Error(msg), { code, leaseGas: true });
++}
++/** sendClaimTx's shape (a hash promise with .receipt) for claim/renew. The receipt is the one the host's own quorum
++ *  verified (target, exact lease, reserve payment, ledger effect); the 7702 authorization consumes an account nonce,
++ *  so it waits its turn in the one operator queue. */
++function sendLeaseTx(functionName, args) {
++  if (!leaseGasActive()) return sendClaimTx(functionName, args);
++  const job = async () => {
++    if (_stateCorrupt) throw leaseGasError(functionName, args[0], new Error(`the release journal failed to load (${_stateCorrupt})`));
++    try { const r = await leaseGasSender()[functionName](...args); return { hash: r.hash, receipt: r.receipt }; }
++    catch (e) { throw leaseGasError(functionName, args[0], e); }
++  };
++  const started = _txChain.then(job, job);
++  _txChain = started.then(() => {}, () => {});
++  const p = started.then((x) => x.hash);
++  p.receipt = started.then((x) => x.receipt);
++  p.receipt.catch(() => {});   // callers await p first; its rejection is the one they see
++  return p;
++}
++/** A sponsored renew is valid only inside the owner's window before leaseUntil (the reserve enforces it): renew at the
++ *  window's lead (fresh, verified owner policy; cached 5 min), never earlier. Unreadable: the ordinary margin, and the
++ *  send then refuses in words. */
++async function leaseGasRenewDue(rec) {
++  const now = Date.now();
++  if (!rec._leaseGasLead || now - rec._leaseGasLead.at > 300_000) {
++    let ms = RENEW_MARGIN_SEC * 1000;
++    try { ms = await leaseGasSender().renewLeadMs(rec.id, ms); } catch { /* refused at the send */ }
++    rec._leaseGasLead = { at: now, ms };
++  }
++  return rec._leaseUntil * 1000 - now <= rec._leaseGasLead.ms;
++}
++
+ // ---- claim bond (anti-sybil, EnclaveDeployments rev 7) ----------------------
+ // The ledger can require an operator to lock USDC before it may claim. That
+ // gate is the only on-chain cost of a SYBIL claim: registration is open and the
+@@ -9331,9 +9959,9 @@
+ // error means the cached shape is wrong for this ledger however it got there
+ // (a poisoned sniff, a mid-flight migration) — drop the cache, re-sniff, and
+ // re-read once instead of staying wedged until the next reboot or repoint.
+-async function readLedgerContract(functionName, args) {
++async function readLedgerContract(functionName, args, { blockNumber } = {}) {
+   const read = async () => chainClient.readContract({
+-    address: getAddress(DEPLOYMENTS_ADDRESS), abi: (await depsAbi()).abi, functionName, args });
++    address: getAddress(DEPLOYMENTS_ADDRESS), abi: (await depsAbi()).abi, functionName, args, ...(blockNumber != null ? { blockNumber } : {}) });
+   try { return await read(); }
+   catch (e) {
+     if (!shapeDecodeError(e.shortMessage || e.message)) throw e;
+@@ -9410,25 +10038,340 @@
+     ? bootstrapGateways().map(url=>new URL(url).origin)
+     : process.env.IPFS_GATEWAY || "https://ipfs.enclave.host"});
+ 
+-// Release with retries, in the background. A failed release strands the lease
+-// until it expires (~leaseSec of dead air for the user) — observed live when
+-// the release tx right behind a confirmed claim bounced off the public RPC.
+-async function releaseLease(id, why) {
+-  for (let i = 0; i < 4; i++) {
++// ---- lease release: ONE mechanism for every release (work/independent-move-fix-interface.txt) ----------------------
++// The deployed ledger's release(id) names no lease: it ends whatever lease this OPERATOR holds when it is mined. A blind
++// retry, or a release still in a mempool while this host resumes or re-claims the id, therefore ends a lease whose app
++// is running (work/claude-move-review-result.md). So every release here is a durable intent:
++//   - DECIDED on the lease's identity, never the operator alone: this enclave's id, this operator, the exact leaseUntil,
++//     read at a block at or above the id's ledger floor (the last block this host knows to matter for it), so a stale RPC
++//     answers "behind" instead of an old row;
++//   - SIGNED locally, its public identity {hash, nonce} persisted BEFORE the broadcast (no key, no signed bytes);
++//   - RESOLVED before anything else happens to the id: by its receipt (at RELEASE_CONFIRMATIONS), or by its nonce being
++//     consumed at a named block. A receipt timeout or a failed broadcast is not a failure. One unresolved release per id;
++//   - RETRIED only after that resolution, and only if a read at or above the resolution block still shows the SAME lease;
++//   - and while it is open, the id is not resumed, claimed, renewed or hinted here, across restarts too (loadState).
++// Success is the release's own success receipt carrying Released(id, this enclave), never a later ledger read.
++const RELEASE_ATTEMPTS = 4;
++const RELEASE_RETRY_MS = Math.max(1000, parseInt(process.env.RELEASE_RETRY_SEC || "15", 10) * 1000);   // x attempt number
++const RELEASE_POLL_MS = Math.max(500, parseInt(process.env.RELEASE_POLL_MS || "3000", 10));
++const RELEASE_FENCE_MS = Math.max(5000, parseInt(process.env.RELEASE_FENCE_SEC || "180", 10) * 1000);
++const RELEASE_CONFIRMATIONS = Math.max(1, parseInt(process.env.RELEASE_CONFIRMATIONS || "2", 10));
++const RELEASE_SEND_MARGIN_SEC = 60;          // never sign a release for a lease this close to its end: it lapses by itself
++const RELEASE_ANSWER_WAIT_MS = 90_000;       // how long the owner's release route waits for the resolution
++const RELEASED_EVENT = [{ type: "event", name: "Released", inputs: [
++  { name: "id", type: "bytes32", indexed: true }, { name: "enclaveId", type: "bytes32", indexed: true },
++  { name: "refunded6", type: "uint256", indexed: false }] }];
++const _releaseDrivers = new Map();           // id -> the promise of its running resolution loop
++const _releaseNotes = new Map();             // id -> the last unresolved-state message logged (memory only)
++const lc = (v) => String(v || "").toLowerCase();
++// This host's registry id: the claim loop's _enclaveId, or (registration disabled) the id its PUBLIC_URL registers as,
++// the same derivation the management base uses (managementBaseOf).
++const ownRunnerId = () => lc(_enclaveId || (PUBLIC_URL ? keccak256(stringToBytes(PUBLIC_URL)) : ""));
++// The lease the ledger row shows for THIS host, or null: runner, operator and a live leaseUntil, all three.
++function ownLiveLease(d) {
++  const self = ownRunnerId(), me = lc(claimSigner().account.address);
++  if (!self || lc(d.runner) !== self || lc(d.runnerOperator) !== me || !(Number(d.leaseUntil) * 1000 > Date.now())) return null;
++  return { runner: self, operator: me, leaseUntil: Number(d.leaseUntil) };
++}
++const sameLease = (d, it) => lc(d.runner) === it.runner && lc(d.runnerOperator) === it.operator && Number(d.leaseUntil) === it.leaseUntil;
++function noteLeaseFloor(id, block) {
++  if (!Number.isFinite(block)) return;
++  const f = _leaseFloors.get(id);
++  _leaseFloors.set(id, { block: Math.max(block, f ? f.block : 0), at: Date.now() });
++  saveStateSoon();
++}
++// The ledger row at a block the RPC names, never below `minBlock` or the id's floor. A lagging node either answers at
++// that block or errors; it cannot hand back an older row. -> {d, block}
++async function pinnedLedgerRow(id, minBlock = 0) {
++  const f = _leaseFloors.get(id), floor = Math.max(minBlock || 0, f && Date.now() - f.at < LEASE_FLOOR_KEEP_MS ? f.block : 0);
++  const head = Number(await chainClient.getBlockNumber({ cacheTime: 0 }));
++  if (head < floor) throw new Error(`the RPC's head block ${head} is behind block ${floor}, which this host already saw for this deployment`);
++  const d = await readLedgerContract("get", [id], { blockNumber: BigInt(head) });
++  return { d, block: head };
++}
++// Why a release must not start now: a restart, launch, respawn or renewal in flight would bring the app back up (or
++// move the lease) after the stop. null = clear.
++function releaseBlockedReason(rec) {
++  if (rec._restarting) return "an owner restart of this deployment is in progress here";
++  if (tenantProvisions.has(rec) || ["claimed", "stopping", "provisioning"].includes(rec.status)) return "the app is being launched here";
++  if (rec._respawning) return "the app is being relaunched after a crash here";
++  if (rec._renewing) return "a lease renewal is in flight here";
++  return null;
++}
++// Why this host must not resume, claim or renew `id` now: a release of it may still land.
++function releaseHold(id) {
++  if (_stateCorrupt) return `this host's release journal failed to load (${_stateCorrupt}); no lease is resumed or claimed until an operator resolves it`;
++  const it = _releaseIntents.get(id);
++  if (!it) return null;
++  const tx = it.txs.find((t) => t.state === "pending");
++  return `a release of this deployment from this host is unresolved (${tx ? (tx.sponsored ? `sponsored lease nonce ${tx.leaseNonce ?? "-"}, deadline ${tx.deadline ?? "-"}` : `transaction ${tx.hash}, nonce ${tx.nonce}`) : "deciding"}); `
++    + "not resuming or claiming it until it is";
++}
++const releaseView = (it) => ({ release: { why: it.why, openedAt: new Date(it.openedAt).toISOString(), recovered: !!it.recovered,
++  transactions: it.txs.map((t) => ({ hash: t.hash, nonce: t.nonce, state: t.state, ...(t.block != null ? { block: t.block } : {}),
++    ...(t.sponsored ? { sponsored: true, leaseNonce: t.leaseNonce ?? null, deadline: t.deadline ?? null } : {}) })) } });
++
++// Open the intent for `id` after a block-pinned read shows THIS host's live lease. The intent exists before the read, so
++// a renewal, resume or claim starting meanwhile stands aside. -> {intent} | {intent: null, code, message}; throws when
++// the ledger cannot be read (nothing was decided).
++async function beginRelease(id, why, { holdoffMs = 0, retry = true, isBusy = null } = {}) {
++  if (_releaseIntents.has(id)) return { intent: null, code: "release_in_progress", message: "A release of this deployment is still unresolved here." };
++  const it = { id, ledger: lc(DEPLOYMENTS_ADDRESS), why, holdoffMs, retry, openedAt: Date.now(), runner: null, operator: null,
++    leaseUntil: null, attempts: 0, txs: [] };
++  _releaseIntents.set(id, it);
++  let row;
++  try { row = await pinnedLedgerRow(id); }
++  catch (e) { _releaseIntents.delete(id); throw e; }
++  const busy = isBusy && isBusy();
++  if (busy) { _releaseIntents.delete(id); return { intent: null, code: "release_blocked", message: `Nothing was stopped: ${busy}. Retry once it settles.` }; }
++  const lease = ownLiveLease(row.d);
++  if (!lease) {
++    _releaseIntents.delete(id);
++    return { intent: null, code: "not_releasable", message: `At block ${row.block} the ledger does not show a live lease of this host `
++      + `(enclave ${ownRunnerId() || "unknown"}, operator ${lc(claimSigner().account.address)}) for that deployment `
++      + `(runner ${lc(row.d.runner)}, operator ${lc(row.d.runnerOperator)}); nothing was stopped.` };
++  }
++  Object.assign(it, lease, { decidedAt: row.block });
++  saveStateNow();
++  return { intent: it };
++}
++// Drop an intent that never signed anything (an unconfirmed stop): nothing can land.
++function cancelRelease(it) {
++  if (it.txs.length) return;
++  _releaseIntents.delete(it.id); saveStateNow();
++}
++function closeRelease(it, outcome, block) {
++  it.outcome = outcome; it.closedAt = Date.now();
++  _releaseIntents.delete(it.id); _releaseNotes.delete(it.id);
++  if (Number.isFinite(block)) noteLeaseFloor(it.id, block);
++  // the stand-down runs from the moment no release of ours can land any more, never from when it was asked for
++  if (it.holdoffMs && outcome !== "cancelled") _evacuated.set(it.id, Date.now() + it.holdoffMs);
++  saveStateNow();
++  const tx = it.txs[it.txs.length - 1];
++  console.log(`[release] ${it.id} ${outcome} (${it.why}; ${it.txs.length} transaction(s)${tx ? `, last ${tx.hash} ${tx.state}` : ""}`
++    + `${Number.isFinite(block) ? `, block ${block}` : ""})`);
++  return { outcome, block: Number.isFinite(block) ? block : null, tx: tx || null, intent: it };
++}
++// ---- a SPONSORED release (app-funded lease gas): the same durable intent, a different transaction ----
++// One attempt = one release lease (executor nonce, deadline, max charge) signed once per relay asked (only the payee
++// differs). The attempt is persisted BEFORE anything is signed, and every signed lease BEFORE its relay sees it. It is
++// resolved only from the chain: a quorum-verified receipt of exactly this lease is success; the executor nonce lane
++// moving past it, or its deadline passing at a verified block, is a FENCE (it can never land) and never success.
++const leaseIntentView = (s) => ({ payee: s.payee, nonce: String(s.nonce), deadline: String(s.deadline), kind: s.kind,
++  enclaveId: s.lease.enclaveId, maxChargeWei: String(s.lease.maxChargeWei), fromBlock: String(s.fromBlock),
++  operator: lc(s.operator), reserve: lc(s.reserve), executor: lc(s.executor), chainId: Number(s.chainId), ledger: lc(s.ledger) });
++async function acceptSponsoredLanding(it, tx, v) {
++  tx.hash = v.hash;
++  const block = Number(v.blockNumber);
++  const head = Number(await chainClient.getBlockNumber({ cacheTime: 0 }));
++  if (head - block + 1 < RELEASE_CONFIRMATIONS) { saveStateNow(); return; }   // landed, not yet confirmed
++  tx.state = "success"; tx.block = block;
++  try {
++    tx.released = parseEventLogs({ abi: RELEASED_EVENT, logs: v.receipt.logs, eventName: "Released", strict: false })
++      .some((l) => lc(l.address) === it.ledger && lc(l.args.id) === it.id && lc(l.args.enclaveId) === it.runner);
++  } catch { tx.released = false; }
++  saveStateNow();
++}
++function sponsoredRelease(it) {
++  const tx = { sponsored: true, hash: null, state: "pending", signedAt: Date.now(), intents: [] };
++  const job = async () => {
++    it.attempts++; it.txs.push(tx);
++    try { saveStateStrict(`release attempt ${it.attempts} of ${it.id}`); }   // durable (fsync, rename, dir fsync) before anything is signed
++    catch (e) {
++      // nothing signed, nothing sent: not an attempt. The intent stays open (the hold) and is retried once the disk works.
++      it.txs.pop(); it.attempts--;
++      console.error(`[release] ${it.id} sponsored release NOT started: the attempt could not be made durable (${e.message}); nothing was signed or sent`);
++      await sleepMs(RELEASE_POLL_MS);                     // the resolver loop retries; do not spin on a failing disk
++      return { ...tx, state: "unsent", notDurable: true };
++    }
++    _onLeaseSigned = (s) => {                             // each signed lease: durable before its relay has it, or no relay gets it
++      tx.intents.push(leaseIntentView(s));
++      try { saveStateStrict(`the signed release lease of ${it.id} for ${s.payee}`); }
++      catch (e) { tx.intents.pop(); throw e; }            // the client then sends it to NO relay (NotPersisted)
++      tx.leaseNonce = Number(s.nonce); tx.deadline = Number(s.deadline);
++    };
++    let note = "";
+     try {
+-      const sent = sendClaimTx("release", [id]);
+-      await sent;
+-      const rcpt = await sent.receipt;
+-      if (rcpt.status !== "success") throw new Error("release tx reverted");
+-      console.log(`[claim] released ${id} (${why})`);
+-      return true;
++      const r = await leaseGasSender().release(it.id);
++      await acceptSponsoredLanding(it, tx, r.verified);
++      note = `landed ${tx.hash}${tx.state === "pending" ? " (confirming)" : ""}`;
+     } catch (e) {
+-      console.warn(`[claim] release ${id} (${why}) attempt ${i + 1}/4 failed: ${e.shortMessage || e.message}`);
+-      await new Promise(r => setTimeout(r, 15_000 * (i + 1)));
++      // the state file keeps fixed words only (an error's text can name an endpoint)
++      if (e && e.code === "NotPersisted" && !tx.intents.length) {
++        // signed, but the journal refused it before ANY relay saw it: nothing can land, and it is not an attempt
++        it.txs.pop(); it.attempts--;
++        console.error(`[release] ${it.id} sponsored release NOT sent: ${e.message}`);
++        await sleepMs(RELEASE_POLL_MS);
++        return { ...tx, state: "unsent", notDurable: true };
++      }
++      if (!tx.intents.length) { tx.state = "unsent"; tx.why = String((e && e.code) || "refused"); }        // nothing signed: nothing can land
++      else if (e && e.code === "NonceConsumed") tx.state = "consumed";                                      // a fence, never this release's success
++      else tx.why = String((e && e.code) || "relay");                                                      // may still land: resolved from the chain
++      try { saveStateStrict(`the outcome of release attempt ${it.attempts} of ${it.id}`); }
++      catch (se) { console.error(`[release] ${it.id}: recording the attempt's outcome failed (${se.message}); the chain decides it again after a restart`); }
++      note = `${tx.state}: ${String((e && e.message) || e).slice(0, 240)}`;
++    } finally { _onLeaseSigned = null; }
++    console.log(`[release] ${it.id} sponsored release ${it.attempts}/${RELEASE_ATTEMPTS} lease nonce ${tx.leaseNonce ?? "-"} (${it.why}; ${note}); the app's reserve pays, never this host`);
++    return tx;
++  };
++  const p = _txChain.then(job, job);
++  _txChain = p.then(() => {}, () => {});
++  return p;
++}
++async function resolveSponsoredReleaseTx(it, tx) {
++  if (it.ledger !== lc(DEPLOYMENTS_ADDRESS)) { tx.state = "ledger-moved"; saveStateNow(); return; }   // the old ledger's lease is not this one
++  if (!tx.intents || !tx.intents.length) { tx.state = "unsent"; saveStateNow(); return; }            // stopped before signing: nothing can land
++  const x = tx.intents[0];
++  const want = { id: it.id, kind: 3, enclaveId: x.enclaveId, nonce: BigInt(x.nonce), deadline: BigInt(x.deadline), maxChargeWei: BigInt(x.maxChargeWei) };
++  // settled by the identity RECORDED with the signed lease (its operator, chain, reserve, executor, ledger), never by
++  // this process's current key or configuration: a rotated key or record cannot fence another signer's lease
++  const recorded = { operator: x.operator, chainId: x.chainId, reserve: x.reserve, executor: x.executor, ledger: x.ledger };
++  const r = await leaseGasSender().resolveSigned(want, BigInt(x.fromBlock), tx.intents.map((i) => i.payee), recorded);
++  if (r.why && tx.unsettledWhy !== r.why) { tx.unsettledWhy = r.why; console.warn(`[release] ${it.id} held: ${r.why}`); }
++  if (r.state === "landed") return acceptSponsoredLanding(it, tx, r.verified);
++  if (r.state === "consumed" || r.state === "expired") { tx.state = r.state; tx.block = r.block; saveStateNow(); }
++}
++
++// Sign locally, persist {hash, nonce}, then broadcast, inside the one operator queue (sendOperatorTx): the next operator
++// transaction still waits for this one's receipt (bounded), and its nonce comes after this one's.
++function signAndSendRelease(it) {
++  if (leaseGasActive()) return sponsoredRelease(it);   // never this key's ETH once app-funded leases are configured
++  const signed = _txChain.then(async () => {
++    const { account, wallet } = claimSigner();
++    const request = await wallet.prepareTransactionRequest({ account, to: getAddress(DEPLOYMENTS_ADDRESS),
++      data: encodeFunctionData({ abi: CLAIM_TX_ABI, functionName: "release", args: [it.id] }) });
++    const raw = await wallet.signTransaction(request);
++    const tx = { hash: keccak256(raw), nonce: Number(request.nonce), signedAt: Date.now(), state: "pending" };
++    it.attempts++; it.txs.push(tx);
++    saveStateNow();                                       // durable before it can exist anywhere else
++    // the state file keeps fixed words only: an RPC error's text can name its endpoint (and a key in its URL)
++    let why = "";
++    try { await wallet.sendRawTransaction({ serializedTransaction: raw }); tx.broadcast = "accepted"; }
++    catch (e) { tx.broadcast = "unconfirmed"; why = `: ${String(e.shortMessage || e.message).slice(0, 200)}`; }   // the chain decides, not this answer
++    saveStateNow();
++    console.log(`[release] ${it.id} release ${it.attempts}/${RELEASE_ATTEMPTS} signed ${tx.hash} nonce ${tx.nonce} (${it.why}; broadcast ${tx.broadcast}${why})`);
++    return tx;
++  });
++  _txChain = signed.then((tx) => tx.broadcast === "accepted" ? awaitReceipt(tx.hash) : null).then(() => {}, () => {});
++  return signed;
++}
++// Consume a stuck nonce ourselves (a zero-value transfer to self at exactly that nonce) once no transaction of ours is
++// known at it: either it mines, or the release does. Either way the release is then resolved, never left to land later.
++function fenceNonce(it, tx) {
++  tx.fence = { at: Date.now() };
++  const p = _txChain.then(async () => {
++    const { account, wallet } = claimSigner();
++    tx.fence.hash = await wallet.sendTransaction({ account, to: account.address, value: 0n, nonce: tx.nonce });
++    saveStateNow();
++    console.warn(`[release] ${it.id} nonce ${tx.nonce} of ${tx.hash} fenced by ${tx.fence.hash}`);
++  });
++  _txChain = p.then(() => {}, () => {});
++  return p.catch((e) => { tx.fence.failed = true; console.warn(`[release] ${it.id} fencing nonce ${tx.nonce} failed (${e.shortMessage || e.message}); retried later`); });
++}
++async function resolveReleaseTx(it, tx) {
++  if (tx.sponsored) return resolveSponsoredReleaseTx(it, tx);   // no fence transaction: the lease deadline is the fence
++  let r = null;
++  try { r = await chainClient.getTransactionReceipt({ hash: tx.hash }); }
++  catch (e) { if (!/TransactionReceiptNotFound|could not be found/i.test(`${e.name} ${e.message}`)) throw e; }
++  const head = Number(await chainClient.getBlockNumber({ cacheTime: 0 }));
++  if (r) {
++    const block = Number(r.blockNumber);
++    if (head - block + 1 < RELEASE_CONFIRMATIONS) return;                       // mined, not yet confirmed
++    tx.state = r.status === "success" ? "success" : "reverted"; tx.block = block;
++    try {
++      tx.released = r.status === "success" && parseEventLogs({ abi: RELEASED_EVENT, logs: r.logs, eventName: "Released", strict: false })
++        .some((l) => lc(l.address) === it.ledger && lc(l.args.id) === it.id && lc(l.args.enclaveId) === it.runner);
++    } catch { tx.released = false; }
++    saveStateNow();
++    return;
++  }
++  // no receipt: resolved only once the nonce is consumed at a block we can name (by ours or by any other transaction)
++  const operator = getAddress(it.operator);
++  const mined = await chainClient.getTransactionCount({ address: operator, blockNumber: BigInt(head) });
++  if (mined > tx.nonce) { tx.state = "consumed"; tx.block = head; saveStateNow(); return; }
++  if (Date.now() - (tx.fence ? tx.fence.at : tx.signedAt) > RELEASE_FENCE_MS) {
++    const pending = await chainClient.getTransactionCount({ address: operator, blockTag: "pending" });
++    if (pending <= tx.nonce) await fenceNonce(it, tx);
++  }
++}
++async function runRelease(it) {
++  // the last condition logged, kept in memory only (it carries RPC error text, which never goes into the state file)
++  const note = (m) => { if (_releaseNotes.get(it.id) !== m) { _releaseNotes.set(it.id, m); console.warn(`[release] ${it.id}: ${m}`); } };
++  for (;;) {
++    if (_releaseIntents.get(it.id) !== it) return { outcome: it.outcome || "cancelled", block: null, tx: null, intent: it };
++    const tx = it.txs[it.txs.length - 1];
++    if (tx && tx.state === "pending") {
++      try { await resolveReleaseTx(it, tx); } catch (e) { note(`resolving ${tx.hash} failed for now (${e.shortMessage || e.message})`); }
++      if (tx.state === "pending") await sleepMs(RELEASE_POLL_MS);
++      continue;
+     }
++    if (tx && tx.state === "success" && tx.released) return closeRelease(it, "released", tx.block);
++    if (!it.runner) return closeRelease(it, "cancelled");                  // never decided (interrupted mid-read): nothing signed
++    if (it.ledger !== lc(DEPLOYMENTS_ADDRESS)) return closeRelease(it, "ledger-moved", tx ? tx.block : undefined);
++    if (!it.retry && (tx || it.recovered)) return closeRelease(it, tx ? "not-retried" : "not-sent", tx ? tx.block : undefined);
++    if (tx && it.attempts >= RELEASE_ATTEMPTS) return closeRelease(it, "gave-up", tx.block);
++    if (tx) await sleepMs(RELEASE_RETRY_MS * it.attempts);
++    let row;
++    try { row = await pinnedLedgerRow(it.id, tx ? tx.block : 0); }
++    catch (e) { note(`not deciding yet: ${e.shortMessage || e.message}`); await sleepMs(RELEASE_POLL_MS); continue; }
++    if (!sameLease(row.d, it)) return closeRelease(it, tx ? "gone" : "not-held", row.block);
++    if (it.leaseUntil - Math.floor(Date.now() / 1000) < RELEASE_SEND_MARGIN_SEC) return closeRelease(it, "lapsing", row.block);
++    try { await signAndSendRelease(it); }
++    catch (e) { note(`could not sign the release (${e.shortMessage || e.message})`); await sleepMs(RELEASE_POLL_MS); }
++  }
++}
++// The resolution loop of `it` (one per id): resolves {outcome, block, tx, intent} once no release of it can land.
++function driveRelease(it) {
++  let p = _releaseDrivers.get(it.id);
++  if (!p) {
++    p = runRelease(it).catch((e) => { console.warn(`[release] ${it.id} resolver stopped: ${e.message}`); throw e; })
++      .finally(() => { if (_releaseDrivers.get(it.id) === p) _releaseDrivers.delete(it.id); });
++    _releaseDrivers.set(it.id, p);
+   }
+-  console.warn(`[claim] release ${id} (${why}) gave up; the lease expires on its own`);
+-  return false;
++  return p;
++}
++// Every release this host sends (the owner's move route, DELETE, consolidation, provision failures, the audit's teardown,
++// a placement retirement) goes through here. -> true only when its own receipt shows the lease released.
++async function releaseLease(id, why, { holdoffMs = 0, retry = true } = {}) {
++  let begun = null;
++  for (let i = 0; !begun; i++) {
++    try { begun = await beginRelease(id, why, { holdoffMs, retry }); }
++    catch (e) {
++      if (i >= 3) { console.warn(`[release] ${id} (${why}): the ledger cannot be read (${e.shortMessage || e.message}); not released, the lease expires on its own`); return false; }
++      await sleepMs(RELEASE_RETRY_MS * (i + 1));
++    }
++  }
++  if (!begun.intent) { console.warn(`[release] ${id} (${why}) not sent: ${begun.message}`); return false; }
++  const out = await driveRelease(begun.intent);
++  return out.outcome === "released";
++}
++// Boot: transactions this operator signed before this process started may still land. Resume (which sends nothing)
++// waits until the operator's mined nonce reaches the pending one seen at boot; intents restored from the state file
++// are resolved by their own loops. "unknown" holds too: an unreadable nonce is never read as "nothing in flight".
++let _bootTxFence = { state: "unknown" };
++async function checkBootTxFence() {
++  if (_bootTxFence.state === "clear") return;
++  try {
++    const address = claimSigner().account.address;
++    const latest = await chainClient.getTransactionCount({ address, blockTag: "latest" });
++    if (_bootTxFence.state === "unknown") {
++      const pending = await chainClient.getTransactionCount({ address, blockTag: "pending" });
++      _bootTxFence = pending > latest ? { state: "waiting", until: pending } : { state: "clear" };
++      if (_bootTxFence.state === "waiting") console.warn(`[release] this operator had transactions in flight at boot (nonces ${latest}..${pending - 1}); no lease is resumed here until they resolve`);
++    } else if (latest >= _bootTxFence.until) _bootTxFence = { state: "clear" };
++    if (_bootTxFence.state === "clear") console.log("[release] no operator transaction from before this boot is still in flight");
++  } catch (e) { /* stays unknown or waiting: checked again next pass */ }
++}
++function startReleaseResolver() {
++  if (!REGISTRY_PK) return;   // no operator key: nothing of ours can be in flight, and nothing here resumes or releases
++  const pass = async () => {
++    await checkBootTxFence();
++    if (!DEPLOYMENTS_ADDRESS) return;   // a live binding (the address book): restored intents wait for it
++    for (const it of [..._releaseIntents.values()]) driveRelease(it).catch(() => {});
++  };
++  pass();
++  const t = setInterval(pass, 15_000);
++  if (t.unref) t.unref();
+ }
+ 
+ // Renew every adopted lease that's inside the margin. A failed renew is not
+@@ -9452,11 +10395,15 @@
+   // finish AFTER abandonClaims swept — this catches that record too; the
+   // lease runs out within one quantum and the reaper tears it down.)
+   if (_reach.tripped) return;
++  if (HOST_POLICY_GATE.serviceRefusal()) return;   // refused by the platform: leases lapse and can be claimed elsewhere
++  if (_stateCorrupt) return;   // a release journal that failed to load: nothing is renewed until it is resolved
+   for (const rec of deployments.values()) {
+     if (!rec._onchain || rec.status !== "running" || rec._renewing) continue;
++    if (_releaseIntents.has(rec.id)) continue;   // a release of it may still land: buying more of that lease helps nobody
+     if (rec._leaseUntil * 1000 - Date.now() > RENEW_MARGIN_SEC * 1000) continue;
+     if ((rec._renewBackoffUntil || 0) > Date.now()) continue;   // a reverting tx must not re-fire every pass
+     const lapsed = rec._leaseUntil * 1000 <= Date.now();
++    if (leaseGasActive() && !lapsed && !(await leaseGasRenewDue(rec))) continue;   // a sponsored renew waits for the app's window
+     rec._renewing = true;
+     try {
+       const fresh = await readLedgerContract("get", [rec.id]);
+@@ -9464,7 +10411,7 @@
+       if (pinRefusal) { await retireForPlacement(rec, pinRefusal); continue; }
+       const walletRefusal = await hostWalletRefusal(rec.id,fresh.appRef,fresh.isPublic===false);
+       if(walletRefusal) { await retireForPlacement(rec,walletRefusal); continue; }
+-      const sent = lapsed ? sendClaimTx("claim", [rec.id, _enclaveId]) : sendClaimTx("renew", [rec.id]);
++      const sent = lapsed ? sendLeaseTx("claim", [rec.id, _enclaveId]) : sendLeaseTx("renew", [rec.id]);
+       await sent;
+       const rcpt = await sent.receipt;
+       if (rcpt.status !== "success") throw new Error(`${lapsed ? "re-claim" : "renew"} tx reverted`);
+@@ -9474,6 +10421,7 @@
+       // (observed live)
+       const until = leaseFromReceipt(rcpt, lapsed ? "Claimed" : "Renewed", rec.id);
+       if (until == null) throw new Error(`${lapsed ? "re-claim" : "renew"} receipt carried no lease event`);
++      noteLeaseFloor(rec.id, Number(rcpt.blockNumber));   // later lease decisions read at least this block
+       // the renewal moved one quantum from balance into the lease; mirror that
+       // locally so lease+balance (the reported time left) doesn't jump between
+       // audit refreshes
+@@ -9574,8 +10522,8 @@
+   // version's weights would land in node RAM and the volume-inclusive floor is
+   // the one it has to clear.
+   const onGpu = Number(rec.resources?.gpuShare || 0) > 0;
+-  const mins = minSharesOf(g.min,
+-    { volGb: volumeGb(neededVolumes(d, g), await vmHealth().catch(() => null)) });
++  const switchHealth = await vmHealth().catch(() => null);
++  const mins = shieldMins(minSharesOf(g.min, { volGb: volumeGb(neededVolumes(d, g), switchHealth) }), neededVolumes(d, g), switchHealth);
+   // derived, not required (as at claim): the shares this deployment takes are its dial or the new version's floors on
+   // this hardware, whichever is more; a larger floor is a bigger slice below (resize), not a refusal
+   const needGpu = onGpu ? mins.gpuFloor : 0;
+@@ -9685,11 +10633,11 @@
+     return refuse(why);
+   }
+   const o = parseDepOptions(cur);                  // waf/restart: the verdict already parsed it clean
+-  if (o.waf) rec.waf = o.waf; else delete rec.waf;
++  applyLiveOptions(rec, o);
+   if (verdict === "waf") {
+     rec._envelope = cur;
+     delete rec.configChange;
+-    console.log(`[claim] ${rec.id} owner updated the waf envelope; applied live`);
++    console.log(`[claim] ${rec.id} owner updated the waf/access envelope; applied live`);
+     saveStateSoon();
+     return;
+   }
+@@ -9819,6 +10767,8 @@
+     // claimed-branch below would double-provision it, and the death check
+     // would count the deliberate stop as a crash. The restart route owns it.
+     if (rec._restarting || tenantProvisions.has(rec)) continue;
++    // an unresolved release of it owns the lease's fate: no re-acquire, no second release, no teardown race
++    if (_releaseIntents.has(rec.id)) continue;
+     // the tick already paged the whole ledger once - one read serves the audit
+     // AND the sweep (per-record re-reads were what blew the RPC rate budget)
+     const d = ledgerById.get(rec.id.toLowerCase());
+@@ -9874,11 +10824,12 @@
+       // helps nobody and burns the user's lease.
+       if (opMine && !leaseLive && rec.status === "running") {
+         try {
+-          const sent = sendClaimTx("claim", [rec.id, _enclaveId]);
++          const sent = sendLeaseTx("claim", [rec.id, _enclaveId]);
+           await sent;
+           const rcpt = await sent.receipt;
+           const until = rcpt.status === "success" ? leaseFromReceipt(rcpt, "Claimed", rec.id) : null;
+           if (until != null) {
++            noteLeaseFloor(rec.id, Number(rcpt.blockNumber));
+             rec._leaseUntil = until;
+             rec.remainingMs = rec._leaseUntil * 1000 - Date.now();
+             rec._loseStrikes = 0;
+@@ -9946,6 +10897,18 @@
+       // app that keeps dying (crash-on-first-request) gets handed back after
+       // 3 deaths instead of flapping forever on the owner's dime.
+       if (rec.status === "running" && !(await instanceAlive(rec))) {
++        // guestd PREEMPTED it (pool.go: a preemptible Shield guest gives its room to a non-preemptible create, e.g.
++        // eyesoff's 27B relaunch on metal0). That is no death and never a reason to hand the lease back: the billing
++        // ticker's respawn relaunches it, with backoff, once guestd admits it again.
++        if (rec._preemptedAt || await instancePreempted(rec)) {
++          if (!rec._preemptedAt) {
++            console.warn(`[claim] ${rec.id} instance preempted by guestd; relaunching when there is room`);
++            rec._preemptedAt = Date.now();
++            try { if (rec._vmId) await vmReq("DELETE", `/vms/${encodeURIComponent(rec._vmId)}`, null, 15000).catch(() => {}); } catch {}
++            saveStateSoon();
++          }
++          continue;
++        }
+         rec._deaths = (rec._deaths || 0) + 1;
+         if (rec._deaths > 3) {
+           console.warn(`[claim] ${rec.id} app died ${rec._deaths}x; giving it back`);
+@@ -10248,6 +11211,10 @@
+ // outside the enclave, and it took chain forensics to tell them apart once.
+ const _sweepDeclines = new Map();             // id -> last logged reason
+ let _resumeHoldLogged = "";                   // last logged hold reason (log on change)
++// the claim loop's sweep stage: the tier's reaper waits for its first pass (reconcileInstances), stamped even when it threw
++async function claimSweepStage(ledger) {
++  try { await claimSweep(ledger); } finally { if (!_firstClaimSweepAt) _firstClaimSweepAt = Date.now(); }
++}
+ async function claimSweep(ledger) {
+   if (!(await backendHealthy())) return;      // don't take work we'd immediately fail
+   const sweepOne = async (d, opts) => {
+@@ -10267,6 +11234,7 @@
+     const ex = deployments.get(id);
+     return !!ex && !CLAIM_TERMINAL.has(ex.status);
+   });
++  _ownLeases = new Map(own.map((d) => [String(d.id), Number(d.leaseUntil)]));   // vouched and not reaped meanwhile (_ownLeases)
+   let hold = null;
+   for (const d of own) { const r = await sweepOne(d); if (r) hold ??= `${d.id}: ${r}`; }
+   if (hold) {
+@@ -10288,8 +11256,12 @@
+   //  - at most CLAIM_MAX_PER_SWEEP adoptions start per pass, so a large
+   //    claimable backlog drains gently instead of stampeding the queue.
+   const now = Date.now();
++  // app-funded: a sponsored renew cannot start before the owner's window (r._leaseGasLead, the verified lead), so its
++  // urgency is half THAT lead, not half a global margin the reserve would refuse anyway (an owner window below the
++  // margin must not block new work for minutes); operator-paid records keep main's rule
+   const pressed = [...deployments.values()].some((r) =>
+-    r._onchain && r.status === "running" && r._leaseUntil * 1000 - now < RENEW_MARGIN_SEC * 500);
++    r._onchain && r.status === "running"
++    && r._leaseUntil * 1000 - now < (leaseGasActive() && r._leaseGasLead ? Math.min(r._leaseGasLead.ms, RENEW_MARGIN_SEC * 1000) : RENEW_MARGIN_SEC * 1000) / 2);
+   if (pressed) return;
+   let started = 0;
+   for (const d of rest) {
+@@ -10371,10 +11343,22 @@
+ }
+ 
+ async function considerClaim(d, { hinted = false, forced = false, background = false } = {}) {
++  { const pr = HOST_POLICY_GATE.newWorkRefusal(); if (pr) return pr; }   // a host the platform refuses takes no new work
+   // No confidential CPU in our own attestation document, no tenant work - hinted, forced or swept.
+   if (!teeOk()) return "this enclave's attestation document presents no confidential CPU (" + (vmTech() || "unread") + "); not claiming";
+   const ex = deployments.get(d.id);
+   if (ex && !CLAIM_TERMINAL.has(ex.status)) return "already serving it here (status " + ex.status + ")";
++  // A release of this id from this host may still land: resuming (no transaction) or claiming now would hand it a lease
++  // that release ends. Held until every release it signed is resolved (releaseLease).
++  const held = releaseHold(d.id);
++  if (held) return held;
++  // A row from before a block this host already saw for this id (its last release, claim or renewal) can be stale. The
++  // one stale view that acts without a transaction is "this host's live lease" (a resume), so that row is re-read at or
++  // above the block, or the id waits. A claim is ordered after our own release by its nonce and re-checked on chain.
++  if (_leaseFloors.has(d.id) && lc(d.runner) === lc(_enclaveId) && Number(d.leaseUntil) * 1000 > Date.now()) {
++    try { d = { ...d, ...(await pinnedLedgerRow(d.id)).d, id: d.id }; }
++    catch (e) { return "the ledger read is older than this host's last lease change for it (" + (e.shortMessage || e.message) + "); waiting"; }
++  }
+   // Unreachable enclaves take no work — resumes included: re-provisioning an
+   // app behind a dead front burns the owner's lease for service nobody gets.
+   if (_reach.tripped) return "this enclave's advertised endpoint is gone from public DNS (unreachable); not claiming";
+@@ -10387,6 +11371,9 @@
+   // what makes enclave updates near-seamless for tenants.
+   const leaseLive = Number(d.leaseUntil) * 1000 > Date.now();
+   const resume = leaseLive && d.runner === _enclaveId;
++  // A resume sends no transaction, so nothing orders it after a release this operator signed before this boot.
++  if (resume && _bootTxFence.state !== "clear")
++    return "this operator's transactions from before this boot are not resolved yet (" + _bootTxFence.state + "); not resuming";
+   // Browser claim hints can arrive before the first sweep, too. They must not
+   // steal the shares of live leases still being recovered after a restart.
+   if (!resume && ISOLATION_BACKEND && (!_firstClaimSweepAt || _resumeHoldLogged))
+@@ -10491,6 +11478,7 @@
+   const wantVols = neededVolumes(d, g);
+   const health = (wantVols.length || gpuShare > 0) ? await vmHealth().catch(() => null) : undefined;
+   const mins = minSharesOf(g.min, { volGb: wantVols.length ? volumeGb(wantVols, health) : 0 });
++  shieldMins(mins, wantVols, health);
+   const resumeHeld = resume && ISOLATION_BACKEND ? await isolationHeldGuest(d.id) : null;
+   // Existing isolated guests already reserve their GPU/CPU room. Credit only
+   // a live-lease resume whose derivation matches exactly; replacements still
+@@ -10776,7 +11764,9 @@
+   if (resume) {
+     // we already HOLD this lease (a previous life of this enclave claimed
+     // it; the reboot wiped local state, not the chain) - no claim tx, just
+-    // pick the work back up
++    // pick the work back up. Re-checked here, after the prefetch: a release may have opened meanwhile.
++    const held = releaseHold(d.id);
++    if (held) return held;
+     console.log(`[claim] ${d.id} resuming our own live lease after a restart`);
+     if (await adopt(d, g, firewall, slice, { resume: true }) === false)
+       throw new Error("existing lease reservation cannot yet be restored");
+@@ -10788,9 +11778,10 @@
+   // just return — no record, no backoff, no log — so the hint kept cheerfully
+   // answering "claiming" while nothing ever happened. Say it out loud.
+   if (!open) { console.log(`[claim] ${d.id} no longer open to us (claimableBy=false); skipping`); return; }
++  if (releaseHold(d.id)) return releaseHold(d.id);
+   let rcpt;
+   try {
+-    const sent = sendClaimTx("claim", [d.id, _enclaveId]);
++    const sent = sendLeaseTx("claim", [d.id, _enclaveId]);
+     await sent;
+     rcpt = await sent.receipt;
+   } catch (e) { console.log(`[claim] ${d.id} claim tx failed (${e.shortMessage || e.message})`); return; }
+@@ -10799,6 +11790,7 @@
+   // re-reading the ledger here once handed a stale/rate-limited answer and the
+   // loop walked away from its own paid lease (tenant dark for a full quantum).
+   const until = leaseFromReceipt(rcpt, "Claimed", d.id);
++  noteLeaseFloor(d.id, Number(rcpt.blockNumber));     // later lease decisions read at least this block
+   if (until == null) {   // success receipt without our event: should be impossible - refund rather than strand
+     console.warn(`[claim] ${d.id} claim confirmed but no Claimed event found; releasing`);
+     releaseLease(d.id, "claim receipt unreadable").catch(() => {});   // never provisioned: nothing to prove
+@@ -10821,7 +11813,8 @@
+     heldReservation = isolationHeldSameRecord(held, g, firewall, health?.catalog?.runtimeId,
+       isolatedInference(d.gpuMilli, neededVolumes(d, g)));
+   }
+-  // Check after the await: another sweep/hint may already have adopted it.
++  // Check after the await: another sweep/hint may already have adopted it, or a release of it may have opened.
++  if (releaseHold(d.id)) { console.log(`[claim] ${d.id} not adopted: ${releaseHold(d.id)}`); return; }
+   const left = deployments.get(d.id);
+   // A concurrent hint/sweep may have completed its prefetch after another
+   // adoption already installed the live record. Never replace that launch.
+@@ -10865,7 +11858,7 @@
+     ...(() => { try {
+       const o = parseDepOptions(d.configCid, d.gpuMilli);
+       const f = overrideConfigFields(o, g);
+-      return { ...(o.waf ? { waf: o.waf } : {}),
++      return { ...applyLiveOptions({}, o),
+                ...(f.configOverride ? { config: f.config, appConfigCid: f.appConfigCid, configOverride: true } : {}) };
+     } catch { return {}; } })(),
+     // the two shares the deployment bought on-chain — _shares keeps the exact
+@@ -10995,6 +11988,85 @@
+     return { status: 404, body: {} };
+   };
+   _vmTech = "amd-sev-snp"; _enclaveId = c.enclaveId; _advertisedEndpoint = c.endpoint; _firstClaimSweepAt = Date.now();
++  _bootTxFence = { state: "clear" };   // the scripted chain has no operator nonce to read
++  // c.lifecycle (test/isolation-post-adoption-lease.test.mjs): a control cutover on a time scale, against guestd's OWN
++  // dead-man rules (isolation/m4/guestd/server.go lease, leaseExpired, tick, destroy): guests the previous control left
++  // running (each with the lease it vouched, and guestd's last beat), the platform host policy's state over time, and this
++  // process's real claim sweep stage and instance reconcile passes at their production cadence, scaled. guestd's DELETE
++  // and lapse return only after the guest's unit stopped (Reclaim runs inside them), and meanwhile the guest still reads
++  // "running" and holds its name - as there. Prints the timeline: beats, lapses, deletes, creates and the end state.
++  if (c.lifecycle) {
++    const L = c.lifecycle, t0 = Date.now(), at = () => Date.now() - t0, events = [], vms = new Map();
++    let lastBeat = L.lastBeatAgoMs == null ? 0 : t0 - L.lastBeatAgoMs;
++    for (const g of L.guests) vms.set(g.id, { ...g, status: "running", leaseUntil: t0 + g.leaseLeftMs, ending: false });
++    for (const id of L.releaseHeld || [])
++      _releaseIntents.set(id, { id, why: "test", openedAt: t0, txs: [{ state: "pending", sponsored: true, leaseNonce: 0, deadline: Math.floor(t0 / 1000) + 300 }] });
++    const gate = { ...L.gate[0][1] };
++    HOST_POLICY_GATE.enabled = true;
++    HOST_POLICY_GATE.status = () => ({ platformHostPolicy: "on", ...gate });
++    HOST_POLICY_GATE.newWorkRefusal = HOST_POLICY_GATE.serviceRefusal = () => (gate.serving ? null : `platform host policy: ${gate.reason}`);
++    const end = async (v, why) => {   // RequestEnd + Reclaim + remove: the caller waits out the unit's stop
++      if (v.ending) return false;
++      v.ending = true; events.push({ t: at(), [why]: v.id, name: v.name });
++      await new Promise((r) => setTimeout(r, L.reclaimMs));
++      vms.delete(v.id); events.push({ t: at(), gone: v.id });
++      return true;
++    };
++    const tick = () => {
++      if (!lastBeat || Date.now() - lastBeat > L.silenceMs) return;   // nothing before a beat, nothing while silent
++      for (const v of vms.values()) if (v.leaseUntil < Date.now()) end(v, "lapsed");
++    };
++    vmReq = async (method, path, body) => {
++      if (method === "GET" && path === "/health") return { status: 200, body: c.health };
++      if (method === "POST" && path === "/prefetch") { prefetched.push(body); return { status: 200, body: { appId: c.appId, bytes: 1, seconds: 0 } }; }
++      if (method === "GET" && path === "/vms") return { status: 200, body: { vms: [...vms.values()].map(({ leaseUntil, ending, ...v }) => v) } };
++      if (method === "POST" && path === "/vms/lease") {
++        const want = new Set(body.ids), extended = [], unvouched = [];
++        lastBeat = Date.now();
++        for (const v of vms.values()) {
++          if (want.has(v.name)) { v.leaseUntil = Date.now() + L.ttlMs; extended.push(v.name); }
++          else unvouched.push({ id: v.name, expiresIn: Math.round((v.leaseUntil - Date.now()) / 100) / 10 });
++        }
++        events.push({ t: at(), beat: [...want].sort(), extended: extended.sort() });
++        return { status: 200, body: { extended, unvouched, ttlSec: L.ttlMs / 1000 } };
++      }
++      if (method === "POST" && path === "/vms") {
++        posted.push(body);
++        const held = [...vms.values()].find((v) => v.name === body.name);
++        if (held) { events.push({ t: at(), conflict: held.id, ending: held.ending }); return { status: 409, body: { id: held.id } }; }
++        const id = "gn" + String(posted.length).padStart(8, "0");
++        vms.set(id, { id, name: body.name, status: "running", appId: c.appId, runtimeId: body.derive.runtimeId, recordSha256: derivationDigest(body.derive),
++          directBootstrap: !!body.bootstrap, bootstrapSha256: body.bootstrap ? createHash("sha256").update(Buffer.from(body.bootstrap, "base64")).digest("hex") : undefined,
++          createdAt: Math.floor(Date.now() / 1000), leaseUntil: Date.now() + L.ttlMs, ending: false });
++        events.push({ t: at(), created: id, name: body.name });
++        return { status: 201, body: { id, appId: c.appId, recordSha256: derivationDigest(body.derive) } };
++      }
++      const m = /^\/vms\/([A-Za-z0-9-]+)$/.exec(path);
++      if (m && method === "GET") { const v = vms.get(m[1]); return v ? { status: 200, body: (({ leaseUntil, ending, ...p }) => p)(v) } : { status: 404, body: {} }; }
++      if (m && method === "DELETE") { deleted.push(m[1]); const v = vms.get(m[1]); if (v) await end(v, "deleted"); return { status: 200, body: {} }; }
++      return { status: 404, body: {} };
++    };
++    _firstClaimSweepAt = 0;   // a cold boot of this process
++    const timers = [setInterval(tick, 25), setInterval(() => reconcileInstances().catch(() => {}), L.reconcileMs)];
++    let busy = false;
++    const claimPass = async () => {   // the claim loop's pass: its ledger read (scripted as failing until ledgerFromMs), then the sweep stage
++      if (busy || at() < (L.ledgerFromMs || 0)) return;
++      busy = true;
++      try { await claimSweepStage(c.rows); } finally { busy = false; }
++    };
++    timers.push(setTimeout(() => timers.push(setInterval(claimPass, L.claimMs)), L.claimOffsetMs || 0));
++    for (const [from, state] of L.gate.slice(1)) {
++      await new Promise((r) => setTimeout(r, Math.max(0, t0 + from - Date.now())));
++      Object.keys(gate).forEach((k) => delete gate[k]); Object.assign(gate, state); events.push({ t: at(), gate: state.status });
++    }
++    await new Promise((r) => setTimeout(r, Math.max(0, t0 + L.endMs - Date.now())));
++    timers.forEach((t) => { clearTimeout(t); clearInterval(t); });
++    await new Promise((r) => setTimeout(r, L.reclaimMs + 50));
++    const records = Object.fromEntries(c.rows.map((d) => { const r = deployments.get(d.id); return [d.id, r ? { status: r.status, vmId: r._vmId || null } : null]; }));
++    console.log(JSON.stringify({ events, vms: [...vms.values()].map((v) => ({ id: v.id, name: v.name })), records, txs, deleted, lastVouch: _lastVouch,
++      declines: Object.fromEntries(c.rows.map((d) => [d.id, _sweepDeclines.get(d.id) || null])) }));
++    process.exit(0);
++  }
+   const hold = setInterval(() => {}, 250);
+   const settled = (id) => { const r = deployments.get(id); return !r ? _sweepDeclines.has(id) : ["running", "failed"].includes(r.status); };
+   // a hint awaits its own claim; a sweep starts new claims in the background, so wait for each row to settle
+@@ -11033,7 +12105,10 @@
+       // 10s cap as the releases: a clean shutdown must stay fast, and losing
+       // the proof costs only us.
+       await proveFinalPeriod(rec, "shutdown").catch(() => {});
+-      await sendClaimTx("release", [rec.id]);
++      // durable and NOT retried: the next boot resolves it before resuming the id, and if it did not land the lease
++      // is still this host's to resume (a seamless update), not one to keep releasing
++      const begun = await beginRelease(rec.id, "shutdown", { retry: false });
++      if (begun.intent) await signAndSendRelease(begun.intent);
+     })),
+     new Promise(r => setTimeout(r, 10_000)),
+   ]);
+@@ -11317,9 +12392,9 @@
+ }
+ 
+ // Prove, then release, in that order — the one ordering the ledger cares about.
+-async function proveAndRelease(rec, why) {
++async function proveAndRelease(rec, why, opts = {}) {
+   await proveFinalPeriod(rec, why);
+-  return releaseLease(rec.id, why);
++  return releaseLease(rec.id, why, opts);
+ }
+ 
+ let _earn = { checkedAt: 0, earned6: null, withdrawnTotal6: 0n };
+@@ -11434,8 +12509,7 @@
+       if (ledger) {
+         const byId = new Map(ledger.map(d => [String(d.id).toLowerCase(), d]));
+         await stage("audit", () => auditClaims(byId));
+-        await stage("sweep", () => claimSweep(ledger));
+-        if (!_firstClaimSweepAt) _firstClaimSweepAt = Date.now();   // the tier's reaper waits for this (reconcileInstances)
++        await stage("sweep", () => claimSweepStage(ledger));
+       }
+     } finally { _claimBusy = false; }
+   }, CLAIM_POLL_SEC * 1000);
+@@ -11480,6 +12554,23 @@
+   };
+ }
+ 
++// HOST_CAPACITY_SELFTEST='{"endpoint":"https://…","registered":true,"confirmed":true,"confirmedFor":"https://…","registeredOn":"current"|"0x…"}'
++// (work/host-capacity-integration): put the registration state where registerOnChain leaves it (registered = the
++// once-guard, confirmed = the register transaction landed (_enclaveId), registeredOn = the registry it was sent to),
++// serve on an ephemeral loopback port and print this host's /availability and its /v1/host/capacity answer.
++if (process.env.HOST_CAPACITY_SELFTEST) {
++  const c = JSON.parse(process.env.HOST_CAPACITY_SELFTEST);
++  _advertisedEndpoint = c.endpoint || null; _registered = c.registered === true;
++  _registeredOn = c.registeredOn === "current" ? (REGISTRY_ADDRESS || "").toLowerCase() : c.registeredOn || null;
++  // confirmedFor: the endpoint the register transaction landed for, when not the one now known (default: that one)
++  const landed = c.confirmed === true ? c.confirmedFor || c.endpoint : null;
++  _enclaveId = landed ? keccak256(stringToBytes(landed)) : null;
++  await new Promise((r) => server.listen(0, "127.0.0.1", r));
++  const get = async (p) => { const r = await fetch(`http://127.0.0.1:${server.address().port}${p}`); return { status: r.status, body: await r.json() }; };
++  console.log(JSON.stringify({ availability: await get("/availability"), capacity: await get(HOST_CAPACITY_PATH) }));
++  process.exit(0);
++}
++
+ server.listen(PORT, () => console.log(`enclave supervisor on :${PORT} · ${IS_GPU
+   ? `${GPU_COUNT}×GPU @ ${CARD_VRAM_GB}GB (arbitrary split)`
+   : `CPU-only enclave (${NODE_VCPUS} vCPU / ${NODE_RAM_GB}GB, node-share split)`}`));
+@@ -11507,6 +12598,7 @@
+ 
+ // portable deployments: claim/renew/release on-chain leases (opt-in; see
+ // contracts/DEPLOYMENTS.md). Requires registry advertising + DEPLOYMENTS_ADDRESS.
++startReleaseResolver();   // before the claim loop: restored releases hold their ids from the first pass
+ startClaimLoop();
+ 
+ // in-enclave ACME: issue + renew per-app browser certs for <label>.APP_CERT_DOMAIN

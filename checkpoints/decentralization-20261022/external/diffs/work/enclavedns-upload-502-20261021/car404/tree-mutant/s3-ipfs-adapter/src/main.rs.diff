@@ -1,0 +1,182 @@
+--- a/s3-ipfs-adapter/src/main.rs
++++ b/s3-ipfs-adapter/src/main.rs
+@@ -40,6 +40,7 @@
+ mod imgcheck;
+ mod ipfs;
+ mod leavescache;
++mod probe;
+ mod redirects;
+ mod s3;
+ mod upload;
+@@ -1390,6 +1391,19 @@
+         Some((c, p)) => (c, p),
+         None => (rest, ""),
+     };
++    // The trustless-gateway probe path (src/probe.rs): HTTP-retrieval clients (boxo httpnet: Rainbow, Kubo) use this
++    // provider only after `HEAD|GET /ipfs/bafkqaaa?format=raw` answers 200. Every other CID takes the path below.
++    if let Some(p) = probe::probe_answer(cid_s, subpath, httpd::form_get(&req.query, "format").as_deref(), req.header("accept").unwrap_or("")) {
++        let mut resp = Response::new(p.status, p.reason)
++            .with("content-type", p.content_type)
++            .with("etag", &format!("\"{}\"", probe::PROBE_CID))
++            .with("cache-control", "public, max-age=29030400, immutable")
++            .with("x-ipfs-path", &req.path)
++            .with("x-ipfs-roots", probe::PROBE_CID)
++            .with("x-content-type-options", "nosniff");
++        resp.body = p.body;
++        return respond_sized(srv, key, resp, head_only);
++    }
+     let Some(root_cid) = Cid::parse(cid_s) else {
+         return srv.respond(
+             key,
+@@ -1454,6 +1468,9 @@
+     match format {
+         Format::Raw => serve_raw(&snap, &s3ctx, srv, key, &cur, base, head_only),
+         Format::Car => {
++            // A root this index does not hold gets the same 404 ?format=raw gives it, for HEAD and GET alike: not a
++            // 200 header block for any CID, nor a stream whose first pull fails before a byte is answered.
++            let _ = car_root_indexed; // MUTANT: the guard removed (negative control only)
+             let name = format!("{cur}.car");
+             let resp = base
+                 .with("content-type", "application/vnd.ipld.car; version=1")
+@@ -1598,6 +1615,16 @@
+     }
+ }
+ 
++/// Whether a CAR can start at `cid`: the lookup CarBody's first pull makes (a dag-pb node in `nodes`, anything else a
++/// leaf in `leaf_of`), which is also the one serve_raw answers its 404 from.
++fn car_root_indexed(snap: &Snapshot, cid: &Cid) -> bool {
++    if cid.codec == CODEC_DAG_PB {
++        snap.nodes.contains_key(&cid.digest)
++    } else {
++        snap.leaf_of.contains_key(&cid.digest)
++    }
++}
++
+ fn not_indexed(cid: &Cid) -> Response {
+     json(
+         404,
+@@ -2592,4 +2619,124 @@
+         assert!(b.gets.iter().all(|(k, _)| k != CACHE_REL), "the listing already said there is no cache");
+         assert!(b.objects.contains_key(CACHE_REL));
+     }
++
++    // ---- ?format=car of a CID outside the index (EnclaveDNS upload 502, 2026-10-21) ----------------------------
++
++    /// One request through the real engine and router, as main() serves it (poll -> route -> pump/flush), on a
++    /// loopback port of its own; `connection: close`, so the answer ends at EOF. -> (status, lowercased headers, body)
++    fn http_once(app: &mut App, method: &str, target: &str, accept: Option<&str>) -> (u16, Vec<(String, String)>, Vec<u8>) {
++        use std::io::{ErrorKind, Read, Write};
++        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
++        let mut srv = Server::bind("car404-test", port);
++        let mut c = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
++        let accept = accept.map(|a| format!("accept: {a}\r\n")).unwrap_or_default();
++        c.write_all(format!("{method} {target} HTTP/1.1\r\nhost: t\r\n{accept}connection: close\r\n\r\n").as_bytes()).unwrap();
++        c.set_nonblocking(true).unwrap();
++        let (mut got, mut buf, deadline) = (Vec::new(), [0u8; 65536], Instant::now() + Duration::from_secs(30));
++        // the client drains everything the socket holds on each pass
++        'serve: loop {
++            for (key, req) in srv.poll(MAX_BODY, &[], &[]) {
++                route(app, &mut srv, key, &req);
++            }
++            srv.pump();
++            srv.flush();
++            loop {
++                match c.read(&mut buf) {
++                    Ok(0) => break 'serve,
++                    Ok(n) => got.extend_from_slice(&buf[..n]),
++                    Err(e) if e.kind() == ErrorKind::WouldBlock => break,
++                    Err(e) => panic!("{method} {target}: {e}"),
++                }
++            }
++            assert!(Instant::now() < deadline, "{method} {target}: no complete answer ({} bytes)", got.len());
++            std::thread::sleep(Duration::from_millis(1));
++        }
++        let end = got.windows(4).position(|w| w == b"\r\n\r\n").unwrap_or_else(|| panic!("{method} {target}: no header block in {} bytes", got.len()));
++        let head = String::from_utf8_lossy(&got[..end]).to_string();
++        let mut lines = head.split("\r\n");
++        let status: u16 = lines.next().unwrap().split(' ').nth(1).unwrap().parse().unwrap();
++        let headers: Vec<(String, String)> = lines
++            .filter_map(|l| l.split_once(':').map(|(k, v)| (k.trim().to_ascii_lowercase(), v.trim().to_string())))
++            .collect();
++        let mut body = got[end + 4..].to_vec();
++        // a HEAD answer has no body, whatever its transfer-encoding says
++        if method != "HEAD" && headers.iter().any(|(k, v)| k == "transfer-encoding" && v == "chunked") {
++            let (mut out, mut i) = (Vec::new(), 0);
++            loop {
++                let nl = i + body[i..].windows(2).position(|w| w == b"\r\n")
++                    .unwrap_or_else(|| panic!("{method} {target}: chunked body cut at byte {i} of {}", body.len()));
++                let n = usize::from_str_radix(std::str::from_utf8(&body[i..nl]).unwrap().trim(), 16).unwrap();
++                if n == 0 {
++                    break;
++                }
++                out.extend_from_slice(&body[nl + 2..nl + 2 + n]);
++                i = nl + 2 + n + 2;
++            }
++            body = out;
++        }
++        (status, headers, body)
++    }
++
++    fn header<'a>(h: &'a [(String, String)], name: &str) -> Option<&'a str> {
++        h.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
++    }
++
++    #[test]
++    fn a_car_of_a_cid_outside_the_index_is_the_raw_404_for_head_and_get() {
++        let (_bucket, ep) = sample_bucket();
++        let mut app = boot(&ep);
++        run_until_ready(&mut app);
++        let absent = [
++            Cid { codec: CODEC_DAG_PB, digest: [0x5a; 32] },
++            Cid::raw([0x5b; 32]),
++            Cid::parse("bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau").unwrap(), // the 2026-10-21 one
++        ];
++        for cid in absent {
++            assert!(!car_root_indexed(&app.snap, &cid), "{cid}");
++            let (raw_status, _, raw_body) = http_once(&mut app, "GET", &format!("/ipfs/{cid}?format=raw"), None);
++            assert_eq!(raw_status, 404, "{cid}: the raw answer this must match");
++            for (target, accept) in [(format!("/ipfs/{cid}?format=car"), None), (format!("/ipfs/{cid}"), Some("application/vnd.ipld.car"))] {
++                for method in ["HEAD", "GET"] {
++                    let (status, h, body) = http_once(&mut app, method, &target, accept);
++                    assert_eq!(status, 404, "{method} {target} {accept:?}: a CID outside the index is not a 200 CAR");
++                    assert_eq!(header(&h, "content-type"), Some("application/json"), "{method} {target}");
++                    assert!(header(&h, "content-disposition").is_none(), "{method} {target}: no CAR attachment");
++                    if method == "GET" {
++                        assert_eq!(body, raw_body, "{target}: the same not_indexed answer ?format=raw gives");
++                    }
++                }
++            }
++        }
++    }
++
++    #[test]
++    fn a_car_of_an_indexed_cid_is_unchanged() {
++        let (_bucket, ep) = sample_bucket();
++        let mut app = boot(&ep);
++        run_until_ready(&mut app);
++        let file = |k: &str| app.snap.files.iter().find(|f| f.key == k).unwrap().root;
++        let big = file("pins/bafkbig");        // a multi-chunk file: a dag-pb root
++        let small = file("pins/bafksmall");    // one chunk: a raw root
++        let leaf = Cid::raw(*app.snap.leaf_of.keys().next().unwrap());
++        let dir = app.snap.root.expect("the bucket's root directory");
++        assert_eq!((big.codec, small.codec, dir.codec), (CODEC_DAG_PB, CODEC_RAW, CODEC_DAG_PB));
++        for cid in [big, small, leaf, dir] {
++            assert!(car_root_indexed(&app.snap, &cid), "{cid}");
++            // what the route streamed before this change: CarBody's own bytes
++            let mut want = Vec::new();
++            let mut src = CarBody::new(app.snap.clone(), app.s3.clone().unwrap(), cid);
++            while let Some(part) = src.pull().unwrap() {
++                want.extend(part);
++            }
++            assert!(want.starts_with(&ipfs::car_header(&cid)));
++            let (status, h, body) = http_once(&mut app, "GET", &format!("/ipfs/{cid}?format=car"), None);
++            assert_eq!(status, 200, "{cid}");
++            assert_eq!(header(&h, "content-type"), Some("application/vnd.ipld.car; version=1"));
++            assert_eq!(header(&h, "content-disposition"), Some(format!("attachment; filename=\"{cid}.car\"").as_str()));
++            assert_eq!(body, want, "{cid}: the CAR bytes are unchanged");
++            let (status, h, body) = http_once(&mut app, "HEAD", &format!("/ipfs/{cid}"), Some("application/vnd.ipld.car"));
++            assert_eq!((status, header(&h, "content-type")), (200, Some("application/vnd.ipld.car; version=1")), "{cid}");
++            assert!(body.is_empty(), "{cid}: HEAD has no body");
++        }
++    }
+ }

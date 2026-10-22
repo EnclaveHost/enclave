@@ -1,0 +1,11 @@
+[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);
+$n='C:\Program Files\nodejs\node.exe';$b='C:\Program Files\Enclave\control\windows\node\host-admission.bundle.mjs';$js='C:\ProgramData\Enclave\staging\policygate-ab4cdc0dc872\gate-proof.mjs';
+$o=[ordered]@{at=[DateTime]::UtcNow.ToString('o');bundle=FileSha $b;node=FileSha $n;script=FileSha $js};
+if($o.bundle -ne '6bef372d00a27567e94a11d00f165312f9d715a795519e7a7ad77b4718623b18' -or $o.node -ne 'b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3' -or $o.script -ne '72346b95702ed7ea6d14ae0a69d0c813844d925bb8c0d48216b79a1c7e9f9437'){throw 'public proof input pin mismatch'};
+$si=New-Object Diagnostics.ProcessStartInfo;$si.FileName=$n;$si.Arguments='--input-type=module';$si.UseShellExecute=$false;$si.CreateNoWindow=$true;$si.RedirectStandardInput=$true;$si.RedirectStandardOutput=$true;$si.RedirectStandardError=$true;
+$si.EnvironmentVariables['GATE_BUNDLE']=$b;$si.EnvironmentVariables['GATE_HOST']='0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a';$si.EnvironmentVariables['GATE_ENDPOINT']='https://api.enclave.host/t/nucbox-k11-4';$si.EnvironmentVariables['GATE_POLICY']='production';$si.EnvironmentVariables['GATE_RPCS']='https://base-rpc.publicnode.com,https://mainnet.base.org,https://base-rpc.polkachu.com,https://base.drpc.org';$si.EnvironmentVariables['GATE_OPTION']='P4-independent';
+$p=$null;$ex=$false;$timed=$false;
+try{$p=[Diagnostics.Process]::Start($si);$so=$p.StandardOutput.ReadToEndAsync();$se=$p.StandardError.ReadToEndAsync();$p.StandardInput.Write([IO.File]::ReadAllText($js));$p.StandardInput.Close();$ex=$p.WaitForExit(55000);if(-not $ex){$timed=$true;try{$p.Kill()}catch{};$ex=$p.WaitForExit(3000)};
+$o.exited=$ex;$o.timedOut=$timed;if($ex){$o.code=$p.ExitCode};if($ex -and -not $timed -and $so.Wait(2000)){$lines=@(([string]$so.Result -split "`n")|Where-Object{$_.Trim().StartsWith('{')});if($lines.Count -eq 1){$o.result=$lines[0]|ConvertFrom-Json}}}
+finally{if($p){if(-not $p.HasExited){try{$p.Kill()}catch{};$o.exitConfirmed=$p.WaitForExit(3000)}else{$o.exitConfirmed=$true};$p.Dispose()}};
+$o|ConvertTo-Json -Depth 10 -Compress

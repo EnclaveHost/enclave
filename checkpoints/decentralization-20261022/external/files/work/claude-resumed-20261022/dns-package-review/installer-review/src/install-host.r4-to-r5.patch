@@ -1,0 +1,68 @@
+--- frozen/src/install-host.r4.ps1	2026-10-21 19:00:18.562294057 -0700
++++ src/install-host.r5.ps1	2026-10-21 19:15:26.096168224 -0700
+@@ -97,13 +97,15 @@
+     $wd = [Environment]::ExpandEnvironmentVariables([string]$a.WorkingDirectory).Replace('/', '\').TrimEnd('\')
+     if (Test-ReleaseRef $line) { return "its task action names a release file" }
+     if ($wd -and ($wd -ieq $PF.TrimEnd('\') -or (Test-ReleaseRef "$wd\"))) { return "its task action works in $wd" }
+-    foreach ($m in [regex]::Matches($line, '"([^"]*)"|(\S+)')) {
+-      $f = $(if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $m.Groups[2].Value })
+-      if ($f -notmatch '\.(cmd|bat|ps1)$') { continue }
++    # wrapper candidates: every token ending .cmd/.bat/.ps1, and every absolute path ending so (quoted or not, e.g. -Command "& 'C:\x.ps1'")
++    $scripts = @(foreach ($m in [regex]::Matches($line, '"([^"]*)"|(\S+)')) { $(if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $m.Groups[2].Value }) }) +
++               @(foreach ($m in [regex]::Matches($line, '(?i)(?:[A-Za-z]:\\|\\\\)[^"''<>|*?\r\n]*?\.(?:cmd|bat|ps1)(?![A-Za-z0-9_.])')) { $m.Value })
++    foreach ($f in @($scripts | Where-Object { $_ -match '\.(cmd|bat|ps1)$' } | Select-Object -Unique)) {
+       try {
+         $item = Get-Item -LiteralPath $f -ErrorAction Stop
+         if ($item.Length -gt 1MB) { return "its wrapper script $f is too large to read" }
+-        if (Test-ReleaseRef ([IO.File]::ReadAllText($item.FullName))) { return "its wrapper script $f names a release file" }
++        $txt = [IO.File]::ReadAllText($item.FullName)
++        if ((Test-ReleaseRef $txt) -or (Test-ReleaseRef ([Environment]::ExpandEnvironmentVariables($txt)))) { return "its wrapper script $f names a release file" }
+       } catch { return "its wrapper script $f could not be read" }
+     }
+   }
+@@ -127,6 +129,8 @@
+     $d = Join-Path $PD "logs"
+     if (-not (Test-PrivateDir $d)) { return }
+     $roles = [ordered]@{}
++    foreach ($n in @($script:EarlierPending | Where-Object { -not $script:PriorTasks.ContainsKey($_) })) {
++      $roles[$n] = [ordered]@{ enabled = $null; running = $null; stopped = $true; why = "an earlier install stopped it"; outcome = "PENDING: stopped by an earlier install, not yet running again" } }
+     foreach ($n in @($script:PriorTasks.Keys | Sort-Object)) {
+       $roles[$n] = [ordered]@{ enabled = $script:PriorTasks[$n].enabled; running = $script:PriorTasks[$n].running
+                                stopped = $script:StoppedOthers.Contains($n); why = $script:StopReasons[$n]
+@@ -136,13 +140,27 @@
+       ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 (Join-Path $d "install-status.json")
+   } catch { }
+ }
++# Roles an EARLIER install stopped and did not see running again (install-status.json: stopped, outcome PENDING...). A rollback or
++# re-run must start them again like the roles it stops itself; without this they would look operator-stopped and the record lost.
++function Get-EarlierPending {
++  try {
++    $d = Join-Path $PD "logs"; $f = Join-Path $d "install-status.json"
++    if (-not (Test-PrivateDir $d) -or -not (Test-Path -LiteralPath $f -PathType Leaf)) { return @() }
++    $s = Get-Content -LiteralPath $f -Raw | ConvertFrom-Json
++    if ($null -eq $s.roles) { return @() }
++    return @($s.roles.PSObject.Properties | Where-Object { $_.Value.stopped -eq $true -and ([string]$_.Value.outcome).StartsWith("PENDING") } | ForEach-Object { [string]$_.Name })
++  } catch { return @() }
++}
++$script:EarlierPending = @()
+ function Stop-ForInstall {
+   $trees = Get-RunningTaskTrees
+   foreach ($t in Get-ScheduledTask -TaskPath "\Enclave\" -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -ne "Update" }) {
+     $n = $t.TaskName; $running = ([string]$t.State -eq "Running")
+     $script:PriorTasks[$n] = [ordered]@{ enabled = [bool]$t.Settings.Enabled; running = $running }
+     if ($n -in $script:CoreTasks) { Stop-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction SilentlyContinue; continue }
+-    if (-not $running) { continue }
++    if (-not $running) {
++      if ($script:EarlierPending -contains $n) { $script:StoppedOthers.Add($n); $script:StopReasons[$n] = "an earlier install stopped it and it was not running again" }
++      continue }
+     $tree = $(if ($null -ne $trees -and $trees.ContainsKey($n)) { @($trees[$n]) } else { $null })
+     $why = Get-ReleaseDependency $t $tree
+     if ($why) {
+@@ -232,6 +250,7 @@
+   $ErrorActionPreference = "Continue"
+   $o = @(& $exe @a 2>&1 | ForEach-Object { "$_" }); return @{ code = $LASTEXITCODE; out = ($o -join "`n").Trim() }
+ }
++$script:EarlierPending = @(Get-EarlierPending)
+ $unsafe = Get-UnsafeRollback
+ if ($unsafe) {
+   Save-InstallStatus "refused-unsafe-rollback" $unsafe

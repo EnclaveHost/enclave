@@ -1,0 +1,266 @@
+--- a/windows/node/host.mjs
++++ b/windows/node/host.mjs
+@@ -22,7 +22,7 @@
+ import path from "node:path";
+ import http from "node:http";
+ import * as chain from "./chain.mjs";
+-import {hostAdmissionFromEnv} from './host-admission.bundle.mjs';
++import {hostAdmissionFromEnv,createHostServiceGate} from './host-admission.bundle.mjs';
+ import { App, EnclaveApp, fetchArtifact, wasmLayer, appEnv, missingHostInterfaces, precompile } from "./apprun.mjs";
+ import { worldOf } from "./appframe.mjs";
+ import { fetchSecrets, secretsExist } from "./secrets.mjs";
+@@ -50,11 +50,12 @@
+ import { CAP_STEP, loadCaps, saveCaps } from "./hosting.mjs";
+ import { priceGuide, defaultPrice, rowTiers, perSec6Of, perHourOf } from "./price-guide.mjs";
+ import { gasRunway } from "./gas-runway.mjs";
++import { registrationAction, mayReconcile } from "../../network/registry-reconcile.mjs";
+ import { recentHyperVEvents } from "./hyperv-events.mjs";
+ import { createAuditJobs, auditAppRefsOf } from "./audit-jobs.mjs";
+ import { PARTITION_OFFERS } from "../vbslike/datapath/partition-offers.mjs";
+ 
+-const HEARTBEAT_MS = 10 * 60_000;
++const GAS_CHECK_MS = 10 * 60_000;       // the operator's gas runway is re-read (no transaction) this often
+ const TICK_MS = 30_000;
+ const PROOF_MS = 5 * 60_000;         // the contract's window is 15 min; the platform proves every 5
+ // Renew this long before the lease ends. It was 5 minutes, which with a 5-minute tick left exactly
+@@ -108,9 +109,18 @@
+     this.apps = new Map();                           // id -> App
+     this.records = new Map();                        // id -> { id, status, reason, appRef, cid, version, leaseUntil, claimedAt, provenAt }
+     this.enclaveId = chain.enclaveIdOf(cfg.endpoint);
++    // app-funded leases: the durable journal of sponsored releases (a release lease may land after this process dies)
++    if (cfg.dir) chain.setLeaseJournal(path.join(cfg.dir, "lease-release-journal.json"));
+     this.hostAdmission = cfg.hostAdmission ?? hostAdmissionFromEnv({hostId:this.enclaveId, rpc:chain.rpcUrls(), addressBook:chain.addressBook()});
+     if(this.hostAdmission && (this.hostAdmission.hostId!==this.enclaveId || typeof this.hostAdmission.refusal!=='function'))
+       throw new Error('wallet admission must bind this host');
++    // PLATFORM HOST POLICY for THIS box - the same gate as supervisor.js (network/host-service-gate.mjs): an explicit refusal
++    // stops new claims, app traffic and renewals (sticky until the admin's unban); a transient outage keeps serving within
++    // the grace. Activated by the shipped node configuration (node-config.cmd: ENCLAVE_PLATFORM_HOST_POLICY=production). An
++    // unmeasured box runs its operator's code, so this is the box's cooperative half; the platform-side gates (relay
++    // discovery/attach, routes, custody, management and CLI clients) refuse a banned host regardless of what it runs.
++    this.platformPolicy = cfg.platformPolicy ?? createHostServiceGate({ env: process.env, chainId: 8453, book: null,
++      hostId: this.enclaveId, stateDir: cfg.dir || null, log: (m) => this.log(m) });
+     this.registered = null;                          // the registry entry as last read
+     this.chainReady = false; this.lastError = "";
+     this.statePath = path.join(cfg.dir, "host-state.json");
+@@ -275,17 +285,23 @@
+         if (wei === 0n) this.log("operator has no gas: it can read the ledger but cannot register, claim, renew or prove");
+       } else this.log("no operator key on this box: it can run an app it is told about, but cannot hold a lease");
+       await this.refreshRegistration();
+-      await this.ensureRegistered();
++      await this.ensureRegistered({ phase: "boot" });
+     } catch (e) { this.lastError = e.message; this.log(`chain unavailable: ${e.message}`); }
++    this.platformPolicy.start();
+     setInterval(() => this.tick().catch((e) => this.log(`tick: ${e.message}`)), TICK_MS);
+-    setInterval(() => this.heartbeat().catch(() => {}), HEARTBEAT_MS);
++    setInterval(() => this.heartbeat().catch(() => {}), GAS_CHECK_MS);
+     setInterval(() => this.proveAll().catch((e) => this.log(`proof: ${e.message}`)), PROOF_MS);
+     this.tick().catch(() => {});
+   }
+-  async refreshRegistration() {
++  async refreshRegistration({ quiet = false } = {}) {
+     try {
+-      const e = await chain.readEnclave(this.enclaveId);
++      const e = await chain.readEnclave(this.enclaveId), was = this.registered;
+       this.registered = e && e.endpoint ? e : null;
++      if (quiet) {   // the routine read: say only what changed
++        if (was && this.registered && (was.active === true) !== (this.registered.active === true))
++          this.log(`registry: ${this.registered.endpoint} is now ${this.registered.active ? "active" : "INACTIVE (deregistered by the operator key; a routine pass does not re-activate it)"}`);
++        return;
++      }
+       // The card half says what this box ASKS (cardPrice) and, when the registry still lists something else, both.
+       const listed = Number(e?.gpuPricePerSec6 || 0), ask = this.cardPrice();
+       if (this.registered) this.log(`registry: listed as ${e.endpoint} price ${e.cpuPricePerSec6}/sec cpu`
+@@ -366,19 +382,22 @@
+    * no proof key. The measurement published here is the VBS enclave's own identity key, so anyone
+    * can compare the row against what the relay verified at attach.
+    */
+-  async ensureRegistered() {
++  // phase (network/registry-reconcile.mjs, the rule the Linux supervisor follows too): "boot" at start-up, "explicit" for
++  // a deliberate act (the address book moved the registry), "timer" for the routine tick. A tick never re-activates a row
++  // its operator deregistered; the initial registration and a corrected proof key or price still go out.
++  async ensureRegistered({ phase = "timer" } = {}) {
+     if (!this.chainReady || !this.cfg.appsEnabled || !chain.operatorAddress()) return;
+     const proofKey = chain.proofAddress() || "0x0000000000000000000000000000000000000000";
+-    const priced = this.registered && Number(this.registered.cpuPricePerSec6) > 0;
+-    const current = priced && this.registered.active
+-      && String(this.registered.proofKey).toLowerCase() === proofKey.toLowerCase()
+-      && String(this.registered.operator).toLowerCase() === String(chain.operatorAddress()).toLowerCase();
+-    if (current) return;
+-    if (this.registered && String(this.registered.operator).toLowerCase() !== String(chain.operatorAddress()).toLowerCase()
+-        && String(this.registered.operator) !== "0x0000000000000000000000000000000000000000") {
+-      this.log(`registry: ${this.cfg.endpoint} belongs to operator ${this.registered.operator}, not this box's key; refusing to re-register`);
++    const act = registrationAction(this.registered, { operator: chain.operatorAddress(), proofKey }, phase);
++    if (!act.register) {
++      if (act.reason !== "current" && this._registrationSaid !== act.reason) {
++        this._registrationSaid = act.reason;
++        this.log(/another operator/.test(act.reason) ? `registry: ${this.cfg.endpoint} belongs to operator ${this.registered.operator}, not this box's key; refusing to re-register`
++                                                     : `registry: ${this.cfg.endpoint}: ${act.reason}`);
++      }
+       return;
+     }
++    this._registrationSaid = null;
+     const args = { endpoint: this.cfg.endpoint, repo: this.cfg.repo || "EnclaveHost/enclave",
+       measurement: this.cfg.measurement || "0x0000000000000000000000000000000000000000000000000000000000000000",
+       cpuPricePerSec6: this.cfg.cpuPricePerSec6, gpuPricePerSec6: this.cardPrice(), proofKey };
+@@ -437,6 +456,7 @@
+    */
+   async ensurePriced({ setPrices = (...a) => chain.setPrices(...a), now = Date.now() } = {}) {
+     if (!this.chainReady || !this.registered || !chain.operatorAddress()) return;
++    if (!mayReconcile(this.registered, chain.operatorAddress())) return;   // a deregistered (or another's) row is not re-priced
+     // both asks: the CPU's (the owner's override, or the default from the network's prices) and the card's
+     // The CPU price: not the configured fallback before the network's prices are known (setPriceRows). Right after a
+     // start cfg holds that fallback, and posting it overwrote the market price on the registry only for the default
+@@ -535,20 +555,22 @@
+     this.applyPrices();
+     return this.pricingView();
+   }
++  /**
++   * The periodic local check. It sends NO transaction, for any endpoint: liveness is off-chain. A tunnelled box's comes
++   * from its authenticated tunnel (the relay's row), a dialed box's from the operator-signed capacity record it serves at
++   * <endpoint>/v1/host/capacity (network/host-liveness.mjs). No contract reads lastSeen; the registry is written only
++   * when this box's registration, price or proof key actually changes (ensureRegistered, ensurePriced, the proof key).
++   * The old on-chain heartbeat was gas burnt every 10 minutes by an idle box, 144 a day (nucbox-k11-2, 2026-10-12).
++   */
+   async heartbeat() {
+     if (!this.chainReady || !chain.operatorAddress() || !this.registered) return;
+-    // A box reached through a relay tunnel (its endpoint is <relay>/t/<name>) is NOT heartbeated on chain: the relay holds
+-    // its liveness (the tunnel row's lastSeen), the dialed-discovery staleness filter never applies to a tunnel row, and no
+-    // contract reads lastSeen. The transaction was gas burnt every 10 minutes by an idle box, 144 a day, and the one gas
+-    // cost a new host had before earning anything (nucbox-k11-2, 2026-10-12).
+-    if (!Host.isTunnelEndpoint(this.cfg.endpoint))
+-      try { await chain.heartbeatBox(this.enclaveId); } catch (e) { this.log(`heartbeat failed: ${e.shortMessage || e.message}`); }
++    await this.refreshRegistration({ quiet: true });   // READ the row (the Linux reconcile pass reads it too): a deregistration is seen, not undone
+     await this.warnLowGas();
+   }
+   static isTunnelEndpoint(endpoint) { return /^https:\/\/[a-z0-9.-]+\/t\/[a-z0-9][a-z0-9-]*$/i.test(String(endpoint || "")); }
+   /**
+    * Gas runs the lease. A renewal costs about 60k gas (measured: 0.00000036 ETH on Base), a
+-   * heartbeat and a claim more, so an empty tank does not fail loudly, it just stops renewing and
++   * claim more, so an empty tank does not fail loudly, it just stops renewing and
+    * the app quietly goes away at the end of the quantum. Warn while there is still time to top up.
+    */
+   async warnLowGas() {
+@@ -559,7 +581,9 @@
+       this._gasWarnedAt = now;
+       this.log(`operator gas is low: ${(Number(wei) / 1e18).toFixed(6)} ETH`
+         + (hoursLeft !== null ? `, about ${Math.round(hoursLeft)} hours at the measured ${(burnPerHour / 1e18).toFixed(6)} ETH/h` : `, about ${renews} renewals left`)
+-        + `. Top up ${chain.operatorAddress()} or apps stop renewing and go away`);
++        + (chain.leaseGasActive()
++          ? `. Lease claims, renewals and releases are paid by each app's own reserve (app-funded leases), so apps keep renewing; this ETH is only for this box's registry status, price and proof-key writes (and paid apps' proof checkpoints)`
++          : `. Top up ${chain.operatorAddress()} or apps stop renewing and go away`));
+     }
+     this.gasRenewals = Number(renews);
+     this.gasHoursLeft = hoursLeft === null ? null : Math.round(hoursLeft);
+@@ -585,6 +609,10 @@
+   async consider(id, { force = false, invited = false } = {}) {
+     id = String(id).toLowerCase();
+     if (!/^0x[0-9a-f]{64}$/.test(id)) return { accepted: false, reason: "id must be the bytes32 deployment id" };
++    // a sponsored release of it may still land (or the release journal failed to load): no claim or re-adoption here
++    const releaseHeld = chain.releaseHold(id);
++    if (releaseHeld) { this.#record(id, { status: "held", reason: releaseHeld }); return { accepted: false, reason: releaseHeld, standing: "held" }; }
++    { const pr = this.platformPolicy.newWorkRefusal(); if (pr) return { accepted: false, reason: pr }; }
+     if (!this.chainReady) return { accepted: false, reason: `chain unavailable: ${this.lastError}` };
+     await this.refreshOwners();
+     if (this.blocked.has(id)) {
+@@ -1978,11 +2006,18 @@
+     for (const k of moved) this.log(`address book: ${k} moved ${before[k]} -> ${chain.addresses[k]}`
+       + (k === "deployments" ? ": this box's leases are claimed again on the new ledger; running partitions keep running" : ""));
+     if (moved.includes("deployments")) { this.scanHold?.clear?.(); this.priceSent = null; this.#saveTracked(); }
+-    if (moved.includes("registry")) await this.refreshRegistration().catch(() => {});
++    if (moved.includes("registry")) {
++      await this.refreshRegistration().catch(() => {});
++      // a registry migration is a deliberate act (the book's owner moved it): register there as at boot
++      await this.ensureRegistered({ phase: "explicit" }).catch((e) => this.log(`register: ${e.message}`));
++    }
+     return moved;
+   }
+   async tick() {
+     if (!this.chainReady) return;
++    // journaled sponsored releases: settled ONLY from the chain (verified receipt = released; consumed/expired = fence)
++    try { for (const r of await chain.resolvePendingReleases()) this.log(`release ${r.id.slice(0, 10)}: ${r.outcome}${r.hash ? ` (${r.hash})` : ""}`); }
++    catch (e) { this.log(`release journal: not settled yet (${e.shortMessage || e.message})`); }
+     await this.followBook();
+     await this.enforceOff();
+     // whose deployments this box serves, re-read before the scan and the sweep ask (a deleted delegation ends here)
+@@ -2099,8 +2134,15 @@
+         this.#record(id, { noRenewSaid: untilMs });
+         this.log(`${id.slice(0, 10)} NOT renewed: a capacity-audit job is one quantum; the lease ends ${new Date(untilMs).toISOString()}`);
+       }
+-      if (rec.boundaryHeld !== true && rec.capHeld !== true && !notServing && !oneQuantum && untilMs - Date.now() < RENEW_LEAD_MS) {
+-        try { await chain.renewDeployment(id); this.log(`renewed ${id.slice(0, 10)}`); d = await chain.readDeployment(id); }
++      if (rec.boundaryHeld !== true && rec.capHeld !== true && !notServing && !oneQuantum && !this.platformPolicy.serviceRefusal() && untilMs - Date.now() < RENEW_LEAD_MS && !chain.releaseHold(id)) {
++        try {
++          const lead = await chain.renewLeadMs(id, RENEW_LEAD_MS);
++          if (untilMs - Date.now() < lead) {
++            await chain.renewDeployment(id);
++            this.log(`renewed ${id.slice(0, 10)}`);
++            d = await chain.readDeployment(id);
++          }
++        }
+         catch (e) {
+           // rateCap doctrine (the platform runner's, mirrored): a renew the LEDGER refuses is not
+           // an error to retry, it is the deployment's own rate cap or its balance saying "this is
+@@ -2205,7 +2247,11 @@
+         this.log(`released ${id.slice(0, 10)} back to the fleet (tx ${hash})`);
+         this.#record(id, { status: "released", reason: why });
+       }
+-    } catch (e) { this.log(`release ${id.slice(0, 10)} failed: ${e.shortMessage || e.message}`); }
++    } catch (e) {
++      // app-funded: a signed release whose relay answer was lost may still land; it is journaled and held, never reported
++      this.log(e.pending ? `release ${id.slice(0, 10)} unresolved: ${e.shortMessage || e.message}` : `release ${id.slice(0, 10)} failed: ${e.shortMessage || e.message}`);
++      if (e.pending) this.#record(id, { status: "held", reason: e.message });
++    }
+     return this.records.get(id);
+   }
+   /**
+@@ -2611,8 +2657,11 @@
+       appsEnabled: !!this.cfg.appsEnabled,
+       market: this.marketStatus(),
+       // the operator key's gas, so the TRAY says it before the apps go (a log line alone let the NucBox run dry, 10-13)
+-      gas: { operator: chain.operatorAddress() || null, low: this.gasLow === true,
+-             hoursLeft: this.gasHoursLeft ?? null, renewalsLeft: this.gasRenewals ?? null },
++      // app-funded leases: the apps' reserves pay claim/renew/release, so "low" no longer means apps stop renewing; the
++      // operator's own ETH still pays registry status/price/proof-key writes (registryEthLow)
++      gas: { operator: chain.operatorAddress() || null, leases: chain.leaseGasActive() ? "app-funded" : "operator-paid",
++             low: this.gasLow === true && !chain.leaseGasActive(), registryEthLow: this.gasLow === true,
++             hoursLeft: this.gasHoursLeft ?? null, renewalsLeft: chain.leaseGasActive() ? null : this.gasRenewals ?? null },
+       logsDir: this.cfg.dir,
+       // for the hosting panel (host-ui, shared with the phone's Enclave app): what it calls this machine, and the apps here
+       // (what occupies it, newest first, as dropPlan orders them)
+@@ -2635,7 +2684,7 @@
+     const verifiers = this.cfg.shieldVerifiers === true;     // the operator pinned a verifier set (agent.mjs)
+     if (this.relayAttached !== true && !verifiers) return no("not connected to the network yet");
+     if (!this.registered) return no("not registered on the network yet");
+-    if ((this.gasRenewals ?? 1) <= 0) return no("the operator key has no gas left for claims");
++    if (!chain.leaseGasActive() && (this.gasRenewals ?? 1) <= 0) return no("the operator key has no gas left for claims");   // app-funded: the app pays
+     if (this.scope() !== "market")
+       return no(verifiers && this.relayAttached !== true ? "this PC's selected verifiers have not admitted it to the market yet"
+         : "the network is verifying this PC (a few minutes after every start or update)");
+@@ -2895,7 +2944,7 @@
+     const partitions = [...this.records.values()].filter((r) => r && r.isolation && r.status === "running").length;
+     const cap = this.capacity();
+     const ready = !!(this.cfg.appsEnabled && this.registered && Number(this.registered.cpuPricePerSec6) > 0
+-                     && chain.operatorAddress() && (this.gasRenewals ?? 1) > 0);
++                     && chain.operatorAddress() && (chain.leaseGasActive() || (this.gasRenewals ?? 1) > 0));
+     return {
+       // Does this box take work from the market at all? That is a question about CAPABILITY, not
+       // about whether it is busy: an app runtime in the enclave, apps enabled, an operator key
+@@ -3004,7 +3053,8 @@
+       enclaveId: this.enclaveId,
+       registered: !!this.registered,
+       operator: chain.operatorAddress() || null,
+-      gasRenewalsLeft: this.gasRenewals ?? null,   // an operator key out of gas stops renewing, and the app goes at the end of its quantum
++      gasRenewalsLeft: chain.leaseGasActive() ? null : this.gasRenewals ?? null,   // operator-paid only: out of gas stops renewing
++      leaseGas: chain.leaseGasActive() ? "app-funded" : "operator-paid",
+       gasHoursLeft: this.gasHoursLeft ?? null,     // the key's MEASURED runway (warnLowGas); null until half an hour of samples
+ 
+       proofKey: chain.proofAddress() || null,
+@@ -3536,6 +3586,8 @@
+    */
+   async proxy(id, { method, pathRest, headers, body, ip = null, target = null }) {
+     const key = String(id).toLowerCase();
++    { const pr = this.platformPolicy.serviceRefusal();
++      if (pr) return { status: 403, headers: { "content-type": "application/json" }, body: Buffer.from(JSON.stringify({ error: "host_policy_refused", message: pr })) }; }
+     // THE DEPLOYMENT'S OWN PROTECTION RULES, before the app is consulted. Both of this box's doors
+     // funnel through here - the relay's /x/<id> path and the app's own hostname - so the rules
+     // hold on either, which is the property the envelope promises.

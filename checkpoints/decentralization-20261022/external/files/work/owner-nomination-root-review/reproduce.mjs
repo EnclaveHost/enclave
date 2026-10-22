@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {createHash} from 'node:crypto';
+import {createOwnerNominator,OWNERSHIP_ABI} from '../linux-owner-nomination/tree/network/host-owner-nomination.mjs';
+import {parseAbi,encodeFunctionResult,decodeFunctionData,keccak256,toBytes} from '../enclave/node_modules/viem/_esm/index.js';
+import {generatePrivateKey,privateKeyToAccount} from '../enclave/node_modules/viem/_esm/accounts/index.js';
+const account=privateKeyToAccount(generatePrivateKey()),addr=n=>'0x'+n.toString(16).padStart(40,'0'),zero=addr(0),contract=addr(111),registry=addr(112),owner=addr(113),endpoint='https://fixture.example/host',hostId=keccak256(toBytes(endpoint));
+const REG=parseAbi(['function get(bytes32) view returns ((string endpoint,string repo,bytes32 measurement,address operator,uint64 registeredAt,uint64 lastSeen,bool active))']);
+const nomination={format:'enclave-host-owner-nomination/v1',chainId:8453,ownershipContract:contract,ownershipCodeHash:keccak256('0x6000'),registry,hostId,endpoint,operator:account.address.toLowerCase(),owner,rpcs:['https://one.example','https://two.example'],quorum:2};
+const local={chainId:8453,registry,endpoint,hostId,operator:nomination.operator};
+const clients=nomination.rpcs.map(url=>({transport:{url},request:async({method,params})=>{
+ if(method==='eth_chainId')return '0x2105';
+ if(method==='eth_blockNumber')return '0x64';
+ if(method==='eth_getBlockByNumber')return {number:params[0],hash:'0x'+'ab'.repeat(32)};
+ if(method==='eth_getCode')return '0x6000';
+ if(method==='eth_getTransactionReceipt')return null;
+ if(method==='eth_getTransactionCount')return '0x0';
+ if(method==='eth_call'){
+  const [{to,data}]=params;
+  if(to.toLowerCase()===registry)return encodeFunctionResult({abi:REG,functionName:'get',result:{endpoint,repo:'fixture',measurement:'0x'+'00'.repeat(32),operator:account.address,registeredAt:1n,lastSeen:1n,active:true}});
+  const {functionName}=decodeFunctionData({abi:OWNERSHIP_ABI,data});
+  if(functionName==='registry')return encodeFunctionResult({abi:OWNERSHIP_ABI,functionName,result:registry});
+  if(functionName==='authority')return encodeFunctionResult({abi:OWNERSHIP_ABI,functionName,result:[zero,zero,0n,'0x'+'00'.repeat(32)]});
+  if(functionName==='proposeOwner')return '0x';
+ }
+ throw Error('Unimplemented fixture call '+method);
+}}));
+const sent=[];
+const signer={address:account.address,prepare:async r=>({...r,type:'eip1559',chainId:8453,nonce:0,gas:100000n,maxFeePerGas:1n,maxPriorityFeePerGas:1n}),sign:r=>account.signTransaction(r),broadcast:async raw=>{sent.push(decodeFunctionData({abi:OWNERSHIP_ABI,data:(await import('../enclave/node_modules/viem/_esm/index.js')).parseTransaction(raw).data}).args[1].toLowerCase());throw Error('fixture lost reply; no network');}};
+const base={nomination,local,queue:f=>f(),signer,clients,receiptMs:0};
+const broken=createOwnerNominator({...base,store:{load:()=>null,save:()=>{throw Error('disk failure')},saveDurable:()=>{throw Error('disk failure')}}});
+await broken.step();assert.equal(sent.length,0);
+await broken.step();const afterFailedPersistence=sent.length;
+assert.equal(afterFailedPersistence,1,'expected reproduction of current retry durability defect');
+let disk=null;const store={load:()=>disk,save:r=>{disk=structuredClone(r)},saveDurable:r=>{disk=structuredClone(r)}};
+await createOwnerNominator({...base,store}).step();
+const previous=sent.length,newOwner=addr(114);await createOwnerNominator({...base,nomination:{...nomination,owner:newOwner},store}).step();
+assert.equal(sent.length,previous+1);assert.equal(sent.at(-1),owner,'old nomination replayed under replacement recipient');
+const sourceSha256=createHash('sha256').update(fs.readFileSync(new URL('../linux-owner-nomination/tree/network/host-owner-nomination.mjs',import.meta.url))).digest('hex');
+console.log(JSON.stringify({status:'BOTH_REVIEW_FINDINGS_REPRODUCED',scope:'Actual nominator, fixture RPC/state/signing only; no network or production transaction',sourceSha256,afterFailedPersistence,oldRecipientReplayed:true}));

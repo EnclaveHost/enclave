@@ -1,0 +1,1464 @@
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -56,6 +56,8 @@
+ import { mayReconcile } from "./network/registry-reconcile.mjs";   // the registration rule the Windows node follows too
+ // app-funded lease gas: the configuration boundary and sender shared with windows/node/chain.mjs
+ import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender } from "./network/lease-gas-runtime.mjs";
++import { checkOwnerNomination, OWNER_NOMINATION_ENV } from "./metal/guest/owner-nomination.mjs";
++import { createOwnerNominator } from "./network/host-owner-nomination.mjs";
+ // Wallet sessions (SessionVault) as owner credentials, verified on chain: shared with the Windows node.
+ import { createSessionApiAuth, isSessionHeader, hasScope, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES }
+   from "./windows/node/session-api-auth.mjs";
+@@ -3780,6 +3782,7 @@
+ // public identity of every transaction it signed ({hash, nonce}) BEFORE that transaction is broadcast. Never a key,
+ // never a signed transaction. Declared here because loadState() restores them at boot.
+ const _releaseIntents = new Map();   // id -> intent (see beginRelease)
++let _ownerNominationRecord = null;     // the operator's owner nomination (network/host-owner-nomination.mjs), persisted
+ const _leaseFloors = new Map();      // id -> {block, at}: no later decision about id may read the ledger below this block
+ const _evacuated = new Map();        // id -> until (ms): this enclave stands down from (re-)claiming id
+ function serializeState() {
+@@ -3797,6 +3800,8 @@
+     releaseIntents: [..._releaseIntents.values()],
+     leaseFloors: [..._leaseFloors].filter(([, f]) => now - f.at < LEASE_FLOOR_KEEP_MS),
+     evacuated: [..._evacuated].filter(([, until]) => until > now),
++    // only once an owner nomination is configured: every earlier state file keeps its exact shape
++    ...(_ownerNominationRecord ? { ownerNomination: _ownerNominationRecord } : {}),
+   });
+ }
+ const LEASE_FLOOR_KEEP_MS = 24 * 3600_000;
+@@ -3898,6 +3903,7 @@
+   if (strictJournal) { const bad = releaseJournalProblem(s); if (bad) return corrupt(`the release journal is malformed: ${bad}`); }
+   const gapMs = Math.max(0, Date.now() - (s.savedAt || Date.now()));
+   if (s.payFromBlock != null) _payFromBlock = BigInt(s.payFromBlock);   // watcher resumes where it stopped
++  if (s.ownerNomination && typeof s.ownerNomination === "object" && !Array.isArray(s.ownerNomination)) _ownerNominationRecord = s.ownerNomination;
+   for (const [k, b] of s.seenLogs || []) _seenLogs.set(k, BigInt(b));
+   let running = 0, waiting = 0;
+   for (const r of s.deployments || []) {
+@@ -5727,6 +5733,8 @@
+ // system
+ // ============================================================================
+ app.get("/v1/health", (_req, res) => res.json({ status: "ok", deployments: deployments.size, platformHostPolicy: HOST_POLICY_GATE.status(),
++  // the operator's owner nomination, only when configured (public: contract, host, proposed owner, tx hash, state)
++  ...(OWNER_NOMINATION ? { ownerNomination: ownerNominationStatus() } : {}),
+   // watcher freshness is billing-critical: while it's stale, funded clocks are frozen
+   watcher: FORWARDER_ADDRESS ? { lastPollOkAt: _lastPollOkAt ? new Date(_lastPollOkAt).toISOString() : null,
+                                  fresh: (Date.now() - _lastPollOkAt) < WATCHER_STALE_SEC * 1000 } : null,
+@@ -9811,6 +9819,92 @@
+ }
+ const sendClaimTx = (functionName, args) => sendOperatorTx(DEPLOYMENTS_ADDRESS, CLAIM_TX_ABI, functionName, args);
+ 
++// ---- the operator's owner nomination on the ORIGINAL EnclaveHostOwnership (metal/guest/owner-nomination.mjs) ----------
++// ONLY with the host operator's explicit config (ENCLAVE_OWNER_NOMINATION: fw_cfg from the host controller's own config,
++// or the HOST_DATA-bound direct config): exactly one proposeOwner(hostId, owner) from this operator key, through the one
++// operator queue above, when the contract shows owner 0 / pending 0 (network/host-owner-nomination.mjs has the rules).
++// Never without that config, never a recipient from anywhere else, never a key leaving this process; acceptOwner and the
++// policy commitment stay the owner wallet's own steps. A failing nomination is logged and retried (bounded); it never
++// stops a lease, a renewal or a guest.
++const OWNER_NOMINATION = (() => {
++  const raw = process.env[OWNER_NOMINATION_ENV];
++  if (!raw) return null;
++  try { return { config: checkOwnerNomination(JSON.parse(raw), { allowLoopbackHttp: !!process.env.OWNER_NOMINATION_SELFTEST }) }; }
++  catch (e) { const why = String(e.message).slice(0, 200); console.warn(`[ownership] owner nomination REFUSED (${why}): nothing is proposed`); return { refused: why }; }
++})();
++let _ownerNominator = null, _ownerNominationTimer = null, _ownerNominationBroadcastHook = null;   // the hook: OWNER_NOMINATION_SELFTEST only
++function operatorQueue(job) { const p = _txChain.then(job, job); _txChain = p.then(() => {}, () => {}); return p; }
++function ownerNominator() {
++  if (_ownerNominator || !OWNER_NOMINATION?.config || !REGISTRY_PK) return _ownerNominator;
++  const { account, wallet } = claimSigner();
++  const broadcast = (raw) => wallet.sendRawTransaction({ serializedTransaction: raw });
++  _ownerNominator = createOwnerNominator({ nomination: OWNER_NOMINATION.config,
++    local: { chainId: CHAIN_ID, registry: REGISTRY_ADDRESS, endpoint: _advertisedEndpoint, operator: account.address, hostId: _enclaveId },
++    queue: operatorQueue, allowLoopbackHttp: !!process.env.OWNER_NOMINATION_SELFTEST,
++    signer: { address: account.address, prepare: (r) => wallet.prepareTransactionRequest({ account, ...r }), sign: (r) => wallet.signTransaction(r),
++              broadcast: (raw) => (_ownerNominationBroadcastHook ? _ownerNominationBroadcastHook(raw, broadcast) : broadcast(raw)) },
++    store: { load: () => _ownerNominationRecord, save: (r) => { _ownerNominationRecord = r; saveStateNow(); },
++             // strict: if the state file cannot take it, the in-memory record reverts too (no later save may persist what
++             // the nominator dropped as never broadcast)
++             saveDurable: (r) => { const prev = _ownerNominationRecord; _ownerNominationRecord = r;
++                                   try { saveStateStrict("the owner nomination"); } catch (e) { _ownerNominationRecord = prev; throw e; } } },
++    log: (m) => console.log(m) });
++  return _ownerNominator;
++}
++// starts once this host's registration is known (its endpoint and id); then a pass every 5 minutes until settled
++function startOwnerNomination() {
++  if (_ownerNominationTimer || !OWNER_NOMINATION?.config || !_enclaveId || !_advertisedEndpoint) return;
++  let nm; try { nm = ownerNominator(); } catch (e) { console.warn(`[ownership] owner nomination not started: ${e.message}`); return; }
++  if (!nm) return;
++  const pass = () => nm.step().then(() => { if (nm.terminal()) clearInterval(_ownerNominationTimer); }).catch(() => {});
++  setTimeout(pass, 30_000).unref?.();
++  _ownerNominationTimer = setInterval(pass, 5 * 60_000); _ownerNominationTimer.unref?.();
++}
++if (OWNER_NOMINATION?.config && !process.env.OWNER_NOMINATION_SELFTEST) {
++  const starter = setInterval(() => { startOwnerNomination(); if (_ownerNominationTimer) clearInterval(starter); }, 30_000);
++  starter.unref?.();
++}
++const ownerNominationStatus = () => !OWNER_NOMINATION ? undefined : OWNER_NOMINATION.refused ? { status: "refused", why: OWNER_NOMINATION.refused }
++  : _ownerNominator ? _ownerNominator.status() : { status: "waiting for this host's registration" };
++
++// OWNER_NOMINATION_SELFTEST='{"endpoint":"https://…","passes":n,"heartbeats":k,"ambiguous":null|"lost-reply"|"never-sent"|"never-sent-then-other"}'
++// (test/owner-nomination.test.mjs): this process's REAL nominator, operator key (REGISTRY_PRIVATE_KEY), operator queue
++// (_txChain, sendOperatorTx) and state file against a local chain (BASE_RPCS) and the config's RPC quorum. heartbeats:
++// that many registry heartbeat transactions from the same queue around the first pass (nonce concurrency). ambiguous:
++// the first broadcast loses its reply after reaching the chain / never reaches it / never reaches it and another
++// operator transaction takes its nonce. Prints {passes, heartbeats, status} and exits.
++if (process.env.OWNER_NOMINATION_SELFTEST) {
++  const c = JSON.parse(process.env.OWNER_NOMINATION_SELFTEST);
++  const hold = setInterval(() => {}, 1000);
++  _advertisedEndpoint = c.endpoint; _enclaveId = keccak256(stringToBytes(c.endpoint));
++  let nm = null, error = null;
++  try { nm = ownerNominator(); } catch (e) { error = e.message; }
++  // written synchronously: a large line still in an async pipe write would be lost at process.exit
++  if (!nm) { writeSync(1, JSON.stringify({ error: error || ownerNominationStatus()?.why || "no nominator (not configured)", status: ownerNominationStatus() ?? null }) + "\n"); process.exit(0); }
++  const HEARTBEAT = [{ type: "function", name: "heartbeat", stateMutability: "nonpayable", inputs: [{ type: "bytes32" }], outputs: [] }];
++  const beat = () => { const p = sendOperatorTx(REGISTRY_ADDRESS, HEARTBEAT, "heartbeat", [_enclaveId]); return p.receipt.then((r) => ({ hash: r.transactionHash, status: r.status }), (e) => ({ error: String(e.message).slice(0, 120) })); };
++  let first = true;
++  if (c.ambiguous) _ownerNominationBroadcastHook = async (raw, real) => {
++    if (!first) return real(raw);
++    first = false;
++    if (c.ambiguous === "lost-reply") { await real(raw); throw new Error("the reply was lost"); }
++    throw new Error("the broadcast never reached the chain");   // (inside the queue slot: never wait on the queue here)
++  };
++  const out = { passes: [], heartbeats: [] };
++  const beats = [];
++  for (let i = 0; i < (c.heartbeats || 0); i++) beats.push(beat());
++  const firstPass = nm.step();
++  for (let i = 0; i < (c.heartbeats || 0); i++) beats.push(beat());
++  await firstPass; out.passes.push(nm.status());
++  if (c.ambiguous === "never-sent-then-other") out.otherTx = await beat();   // the next operator transaction takes that nonce
++  out.heartbeats = await Promise.all(beats);
++  for (let i = 1; i < (c.passes || 4) && !nm.terminal(); i++) { await new Promise((r) => setTimeout(r, c.gapMs ?? 300)); await nm.step(); out.passes.push(nm.status()); }
++  await _txChain;
++  clearInterval(hold);
++  writeSync(1, JSON.stringify({ ...out, status: nm.status(), terminal: nm.terminal(), saved: _ownerNominationRecord ? { status: _ownerNominationRecord.status, tx: _ownerNominationRecord.tx ? { hash: _ownerNominationRecord.tx.hash, raw: !!_ownerNominationRecord.tx.raw } : null } : null }) + "\n");
++  process.exit(0);
++}
++
+ // ---- app-funded lease gas (work/app-lease-gas design B; the same runtime as windows/node/chain.mjs) ----------------
+ // The user's direction: lease claims and renewals are paid by the APP, not the host's wallet. Configured
+ // (ENCLAVE_LEASE_GAS_FILE + _DIGEST + _RPCS + _RELAYS, or the LEASE_GAS_* aliases), claim, renew and release are
+--- a/metal/enclave-metal.mjs
++++ b/metal/enclave-metal.mjs
+@@ -22,6 +22,7 @@
+ import { measureGflops } from './compute-measure.mjs';
+ import {prepareMetalHostPolicy} from './guest/host-policy.bundle.mjs';
+ import { leaseGasTransit } from './guest/lease-gas-conduit.bundle.mjs';
++import { checkOwnerNomination } from './guest/owner-nomination.mjs';
+ 
+ const HERE = path.dirname(fileURLToPath(import.meta.url));
+ function arg(name, dflt) { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : dflt; }
+@@ -223,6 +224,23 @@
+ const LEASE_GAS = DIRECT ? null : leaseGasTransit(cfg.leaseGas, { readFile: (f) => fs.readFileSync(f) });
+ if (LEASE_GAS) console.log(`[enclave-metal] app-funded lease gas: record ${LEASE_GAS.digest.slice(0, 19)}…, reserve ${LEASE_GAS.reserve}, `
+   + `${LEASE_GAS.relays.length} relay(s), ${LEASE_GAS.rpcs.length} RPC(s)${LEASE_GAS.quorum ? `, quorum ${LEASE_GAS.quorum}` : ''}`);
++// The operator's owner nomination for the ORIGINAL EnclaveHostOwnership (metal/guest/owner-nomination.mjs): public, the host
++// controller's OWN explicit config (no remote caller can supply it); checked here, again in the guest, and by the
++// supervisor against its operator key, chain, registry and endpoint. Absent: nothing is proposed. Invalid: REFUSES the
++// launch. A direct control guest takes it only inside its HOST_DATA-bound direct config.
++if (DIRECT && cfg.ownerNomination !== undefined && cfg.ownerNomination !== null)
++  throw new Error('control: "direct" takes ownerNomination only inside the bound direct config (HOST_DATA binds it there), not from the host config');
++const OWNER_NOMINATION = DIRECT || cfg.ownerNomination === undefined || cfg.ownerNomination === null ? null : checkOwnerNomination(cfg.ownerNomination);
++if (OWNER_NOMINATION) {
++  if (OWNER_NOMINATION.endpoint !== String(cfg.publicUrl || '').replace(/\/+$/, '')) throw new Error("ownerNomination.endpoint must be this host's publicUrl");
++  if (cfg.registryKey) {   // the operator key this host hands its guest: the nomination must name exactly its address
++    const MC = await import('./guest/measured-control.mjs'), viem = await MC.loadViem();
++    const k = String(cfg.registryKey).trim(), k0x = k.startsWith('0x') ? k : `0x${k}`;   // as the supervisor reads it (either form)
++    const op = MC.addressOfPublicKey(MC.secp256k1PublicKey(k0x), (b) => viem.keccak256(b));
++    if (op !== OWNER_NOMINATION.operator) throw new Error(`ownerNomination.operator ${OWNER_NOMINATION.operator} is not this host's operator key ${op}`);
++  }
++  console.log(`[enclave-metal] owner nomination: propose ${OWNER_NOMINATION.owner} on ${OWNER_NOMINATION.ownershipContract} for host ${OWNER_NOMINATION.hostId.slice(0, 10)}… (operator ${OWNER_NOMINATION.operator})`);
++}
+ const cmdline = [
+   'console=ttyS0', 'root=/dev/ram0', 'rootfstype=ramfs', 'quiet',
+   `metal.mode=${MODE}`,
+@@ -247,6 +265,8 @@
+   ...(HOST_ADMISSION?{hostAdmission:HOST_ADMISSION}:{}),
+   // the reviewed app-funded lease-gas configuration (LEASE_GAS above): public, checked again in the guest
+   ...(LEASE_GAS ? { leaseGas: LEASE_GAS } : {}),
++  // the operator's explicit owner nomination (OWNER_NOMINATION above): public, checked again in the guest and by the supervisor
++  ...(OWNER_NOMINATION ? { ownerNomination: OWNER_NOMINATION } : {}),
+   // the referral code this machine was set up with (`enclave host init --referral`): attribution only; the guest agent
+   // says it when it attaches (x-metal-referral, relay/referrals.mjs). fw_cfg, so it never changes the measurement
+   referral: cfg.referral || '',
+--- a/metal/guest/gsup.mjs
++++ b/metal/guest/gsup.mjs
+@@ -18,6 +18,7 @@
+ import { prepareShieldedShm } from './shielded-shm.mjs';
+ import {installMetalHostPolicy} from './host-policy.bundle.mjs';
+ import { leaseGasGuest, withLeaseGasEnv } from './lease-gas-conduit.bundle.mjs';
++import { guestOwnerNomination, withOwnerNominationEnv } from './owner-nomination.mjs';
+ 
+ const log = (...a) => { try { fs.writeSync(1, `[gsup] ${a.join(' ')}\n`); } catch {} };
+ const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return d; } };
+@@ -478,6 +479,14 @@
+ } else if (LEASE_GAS?.configured)
+   log(`app-funded lease gas REFUSED (${LEASE_GAS.reason}): every claim, renewal and release refuses; the operator's ETH is never used for them`);
+ 
++// --- the operator's owner nomination (metal/guest/owner-nomination.mjs) ---------------------------------------------------
++// fw_cfg `ownerNomination`, from the host controller's own config, checked again here; it becomes the supervisor's
++// ENCLAVE_OWNER_NOMINATION, which the supervisor checks a third time against its own key, chain, registry and endpoint
++// before anything is proposed. Absent: no such name. Invalid: refused here. A direct control guest takes it only from its
++// HOST_DATA-bound config (measured-control.mjs).
++const OWNER_NOMINATION = CONTROL ? { nomination: null, message: null } : guestOwnerNomination(fw.ownerNomination);
++if (OWNER_NOMINATION.message) log(OWNER_NOMINATION.message);
++
+ // --- supervisor (base root) --------------------------------------------------
+ if (!CONTROL) {
+ const supEnv = {
+@@ -567,7 +576,7 @@
+   ADMIN_TOKEN,
+   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
+ };
+-start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], withLeaseGasEnv(supEnv, LEASE_GAS), { cwd: '/app' });
++start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], withOwnerNominationEnv(withLeaseGasEnv(supEnv, LEASE_GAS), OWNER_NOMINATION.nomination), { cwd: '/app' });
+ 
+ // --- metal-agent -------------------------------------------------------------
+ start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
+--- a/metal/guest/measured-control.mjs
++++ b/metal/guest/measured-control.mjs
+@@ -49,6 +49,7 @@
+ import { createRequire } from 'node:module';
+ import { fileURLToPath, pathToFileURL } from 'node:url';
+ import { checkTransit, leaseGasGuest, withLeaseGasEnv } from './lease-gas-conduit.bundle.mjs';
++import { boundOwnerNomination, ownerNominationEnv } from './owner-nomination.mjs';
+ 
+ export const CONFIG_FORMAT = 'enclave-direct-control-config/v1';
+ export const STATEMENT_FORMAT = 'enclave-measured-control-statement/v1';
+@@ -97,7 +98,7 @@
+ /** The owner's config, strictly validated and canonical. Nothing is defaulted except controlPort. -> frozen object */
+ export function canonicalDirectConfig(raw) {
+   // every field is required except the optional leaseGas (checked below when present)
+-  const OPTIONAL_MEMBERS = ['leaseGas', 'mcp', 'platformApi'];
++  const OPTIONAL_MEMBERS = ['leaseGas', 'mcp', 'platformApi', 'ownerNomination'];
+   const fields = raw && typeof raw === 'object' && !Array.isArray(raw) && OPTIONAL_MEMBERS.some((k) => Object.hasOwn(raw, k))
+     ? Object.fromEntries(Object.entries(raw).filter(([k]) => !OPTIONAL_MEMBERS.includes(k))) : raw;
+   only(fields, ['format', 'chainId', 'contracts', 'profileDigest', 'rpcs', 'quorum', 'releaseId', 'replicas', 'identity', 'selling', 'isolation',
+@@ -157,6 +158,8 @@
+   if ([8080, 8091, 8443].includes(controlPort)) bad('controlPort must not be a port another guest service listens on');
+   const mcp = raw.mcp !== undefined ? directMcp(raw.mcp, { contracts, controlPort }) : null;
+   const platformApi = raw.platformApi !== undefined ? directPlatformApi(raw.platformApi, { controlPort }) : null;
++  const ownerNomination = raw.ownerNomination !== undefined ? directOwnerNomination(raw.ownerNomination, {
++    operator: raw.identity.operator.toLowerCase(), publicUrl: raw.identity.publicUrl, registry: contracts.registry }) : null;
+   if (mcp && platformApi && [platformApi.apiPort, platformApi.peerPort].includes(mcp.port)) bad('mcp.port must differ from both platformApi ports');
+   return deepFreeze({
+     format: CONFIG_FORMAT, chainId: CHAIN_ID, contracts, profileDigest: raw.profileDigest, rpcs, quorum, releaseId: raw.releaseId,
+@@ -169,8 +172,20 @@
+     ...(raw.leaseGas !== undefined ? { leaseGas: directLeaseGas(raw.leaseGas) } : {}),
+     ...(mcp ? { mcp } : {}),
+     ...(platformApi ? { platformApi } : {}),
++    ...(ownerNomination ? { ownerNomination } : {}),
+   });
+ }
++// The bound owner nomination (metal/guest/owner-nomination.mjs): the operator's explicit, public intent to propose ONE
++// owner wallet on the original EnclaveHostOwnership. Bound by HOST_DATA like everything here, written in its checked
++// form, and only for THIS config's own chain, operator, endpoint and registry - never another host's or recipient.
++function directOwnerNomination(raw, { operator, publicUrl, registry }) {
++  let n; try { n = boundOwnerNomination(raw); } catch (e) { bad(e.message); }
++  if (n.chainId !== CHAIN_ID) bad(`ownerNomination is for chain ${n.chainId}, not ${CHAIN_ID}`);
++  if (n.operator !== operator) bad('ownerNomination.operator must be identity.operator');
++  if (n.endpoint !== publicUrl) bad('ownerNomination.endpoint must be identity.publicUrl');
++  if (n.registry !== registry) bad('ownerNomination.registry must be contracts.registry');
++  return n;
++}
+ // The bound hosted-MCP member. Trust is NOT configured here: the adapter takes this config's contracts, rpcs and quorum
+ // (and resolves the admin AddressBook through contracts.sessionVaultFactory). Only discovery inputs, the storage plan, the
+ // approval frontend and scan bounds are its own. Strict, nothing defaulted, written in its canonical form.
+@@ -378,7 +393,9 @@
+     ENCLAVE_PLATFORM_HOST_POLICY: 'production', ENCLAVE_PLATFORM_HOST_POLICY_RPCS: cfg.rpcs.join(','),
+   };
+   // app-funded lease gas: only from the bound config (never flavor or host policy), absent = none of these names at all
+-  return withLeaseGasEnv(env, cfg.leaseGas ? leaseGasGuest(cfg.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null);
++  return { ...withLeaseGasEnv(env, cfg.leaseGas ? leaseGasGuest(cfg.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null),
++    // the owner nomination: only from the bound config, absent = no such name
++    ...ownerNominationEnv(cfg.ownerNomination || null) };
+ }
+ /** The rules supervisor.js directOnlyProblems applies at startup, plus this guest's own (no Enclave origin, keys present). */
+ export function directEnvProblems(env) {
+@@ -537,6 +554,9 @@
+ export function controlStatement({ config, digest, hostData, mode, keys, runtime = {}, bootId = randomBytes(16).toString('hex') }) {
+   const obj = { format: STATEMENT_FORMAT, role: 'direct-control', mode, chainId: CHAIN_ID, configDigest: digest, hostData,
+     identity: { publicUrl: config.identity.publicUrl, operator: config.identity.operator },
++    // a bound owner nomination is stated (who may be proposed, on which contract); absent: the statement keeps its bytes
++    ...(config.ownerNomination ? { ownerNomination: { ownershipContract: config.ownerNomination.ownershipContract,
++      ownershipCodeHash: config.ownerNomination.ownershipCodeHash, hostId: config.ownerNomination.hostId, owner: config.ownerNomination.owner } } : {}),
+     keys: { proof: { curve: 'secp256k1', publicKey: keys.proof.publicKey }, session: keys.session.jwk, controlTls: { spkiSha256: keys.controlTls.spkiSha256 },
+       // only a guest that runs the platform API role names its handoff key: every other statement keeps its exact bytes
+       ...(keys.platformApi ? { platformApi: { publicKey: keys.platformApi.publicKey } } : {}) },
+@@ -553,7 +573,13 @@
+   if (typeof text !== 'string' || Buffer.byteLength(text) > MAX_STATEMENT_BYTES) bad('statement must be a string up to 8 KiB');
+   let o; try { o = JSON.parse(text); } catch { bad('statement is not JSON'); }
+   if (canonicalJson(o) !== text) bad('statement is not in canonical form: the bound bytes are exactly the served bytes');
+-  only(o, ['format', 'role', 'mode', 'chainId', 'configDigest', 'hostData', 'identity', 'keys', 'runtime', 'bootId'], 'statement');
++  only(Object.hasOwn(o || {}, 'ownerNomination') ? Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'ownerNomination')) : o,
++    ['format', 'role', 'mode', 'chainId', 'configDigest', 'hostData', 'identity', 'keys', 'runtime', 'bootId'], 'statement');
++  if (Object.hasOwn(o, 'ownerNomination')) {
++    only(o.ownerNomination, ['ownershipContract', 'ownershipCodeHash', 'hostId', 'owner'], 'statement owner nomination');
++    if (!/^0x[0-9a-f]{40}$/.test(o.ownerNomination.ownershipContract) || !/^0x[0-9a-f]{40}$/.test(o.ownerNomination.owner)
++        || !/^0x[0-9a-f]{64}$/.test(o.ownerNomination.ownershipCodeHash) || !/^0x[0-9a-f]{64}$/.test(o.ownerNomination.hostId)) bad('statement owner nomination malformed');
++  }
+   if (o.format !== STATEMENT_FORMAT || o.role !== 'direct-control' || o.chainId !== CHAIN_ID) bad('statement format, role or chain is not a direct control statement');
+   if (!HEX64.test(o.configDigest) || !HEX64.test(o.hostData) || !/^[0-9a-f]{32}$/.test(o.bootId)) bad('statement digests or boot id malformed');
+   only(o.identity, ['publicUrl', 'operator'], 'statement identity');
+--- /dev/null
++++ b/metal/guest/owner-nomination.mjs
+@@ -0,0 +1,79 @@
++// The host operator's explicit, PUBLIC owner nomination for the ORIGINAL EnclaveHostOwnership extension
++// (contracts/EnclaveHostOwnership.sol: the registered operator proposes the first owner; that wallet accepts).
++// Dependency-free on purpose: the host launcher (metal/enclave-metal.mjs), the guest (gsup.mjs, measured-control.mjs
++// from /opt/metal) and the supervisor (network/host-owner-nomination.mjs) read it with this ONE checker.
++//
++// A host whose control key lives in its measured guest (Linux metal) cannot sign proposeOwner from an admin wallet.
++// With this config - and ONLY with it - the supervisor sends exactly one proposeOwner(hostId, owner) from the operator
++// key, through its one serialized operator transaction queue, when the original contract shows owner 0 and pending 0.
++// Absent = nothing happens. Nothing here names a recipient from anywhere but this operator-written config.
++//   { "format": "enclave-host-owner-nomination/v1", "chainId": 8453,
++//     "ownershipContract": "0x…", "ownershipCodeHash": "0x…", "registry": "0x…",
++//     "hostId": "0x…", "endpoint": "https://…", "operator": "0x…", "owner": "0x…",
++//     "rpcs": ["https://…", "https://…", "https://…"], "quorum": 2 }
++export const OWNER_NOMINATION_FORMAT = 'enclave-host-owner-nomination/v1';
++export const OWNER_NOMINATION_ENV = 'ENCLAVE_OWNER_NOMINATION';
++const ADDR = /^0x[0-9a-fA-F]{40}$/, B32 = /^0x[0-9a-fA-F]{64}$/, ZERO_ADDR = /^0x0{40}$/i, ZERO32 = /^0x0{64}$/i;
++const KEYS = ['format', 'chainId', 'ownershipContract', 'ownershipCodeHash', 'registry', 'hostId', 'endpoint', 'operator', 'owner', 'rpcs', 'quorum'];
++
++function bad(m) { throw new Error(`ownerNomination: ${m}`); }
++function addr(v, what) { if (typeof v !== 'string' || !ADDR.test(v) || ZERO_ADDR.test(v)) bad(`${what} must be a nonzero address`); return v.toLowerCase(); }
++function b32(v, what) { if (typeof v !== 'string' || !B32.test(v) || ZERO32.test(v)) bad(`${what} must be a nonzero bytes32`); return v.toLowerCase(); }
++
++/** -> the canonical, frozen nomination, or throws. allowLoopbackHttp: tests only (a loopback RPC fixture). */
++export function checkOwnerNomination(raw, { allowLoopbackHttp = false } = {}) {
++  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) bad('must be an object');
++  for (const k of Object.keys(raw)) if (!KEYS.includes(k)) bad(`unknown field ${k}`);
++  for (const k of KEYS) if (raw[k] === undefined || raw[k] === null) bad(`${k} is required`);
++  if (raw.format !== OWNER_NOMINATION_FORMAT) bad(`format must be ${OWNER_NOMINATION_FORMAT}`);
++  if (!Number.isSafeInteger(raw.chainId) || raw.chainId <= 0) bad('chainId must be a positive integer');
++  let ep;
++  try { ep = new URL(raw.endpoint); } catch { bad('endpoint must be a URL'); }
++  if (ep.protocol !== 'https:' || ep.username || ep.password || ep.search || ep.hash || ep.href.replace(/\/+$/, '') !== raw.endpoint)
++    bad('endpoint must be https, exactly as registered (no trailing slash, credentials, query or fragment)');
++  const operator = addr(raw.operator, 'operator'), owner = addr(raw.owner, 'owner');
++  if (owner === operator) bad('owner must be a wallet other than the operator key');
++  if (!Array.isArray(raw.rpcs) || raw.rpcs.length < 2 || raw.rpcs.length > 8) bad('rpcs must list 2..8 RPC URLs');
++  const hosts = new Set();
++  const rpcs = raw.rpcs.map((u, i) => {
++    let x; try { x = new URL(u); } catch { bad(`rpcs[${i}] must be a URL`); }
++    const loop = x.protocol === 'http:' && allowLoopbackHttp && (x.hostname === '127.0.0.1' || x.hostname === '[::1]');
++    if ((x.protocol !== 'https:' && !loop) || x.username || x.password || x.hash) bad(`rpcs[${i}] must be https without credentials`);
++    const id = loop ? `${x.hostname}:${x.port}` : x.hostname.toLowerCase();
++    if (hosts.has(id)) bad(`rpcs[${i}] repeats a provider (${id})`);
++    hosts.add(id);
++    return String(u);
++  });
++  if (!Number.isSafeInteger(raw.quorum) || raw.quorum < 2 || raw.quorum > rpcs.length || raw.quorum <= rpcs.length / 2)
++    bad('quorum must be a strict majority of the rpcs, at least 2');
++  return Object.freeze({ format: OWNER_NOMINATION_FORMAT, chainId: raw.chainId, ownershipContract: addr(raw.ownershipContract, 'ownershipContract'),
++    ownershipCodeHash: b32(raw.ownershipCodeHash, 'ownershipCodeHash'), registry: addr(raw.registry, 'registry'), hostId: b32(raw.hostId, 'hostId'),
++    endpoint: raw.endpoint, operator, owner, rpcs: Object.freeze(rpcs), quorum: raw.quorum });
++}
++
++/** Its canonical JSON (fixed key order: exactly checkOwnerNomination's output). */
++export const ownerNominationJson = (n) => JSON.stringify(n);
++
++/** Strict form for a BOUND config (direct control): it must already be written exactly in its checked form. */
++export function boundOwnerNomination(raw, opts) {
++  const n = checkOwnerNomination(raw, opts);
++  if (ownerNominationJson(n) !== JSON.stringify(raw)) bad('must be written in its checked form (lowercase addresses, field order as documented)');
++  return n;
++}
++
++/** The supervisor's env for it (merged into the supervisor env by gsup / measured-control). */
++export const ownerNominationEnv = (n) => (n ? { [OWNER_NOMINATION_ENV]: ownerNominationJson(n) } : {});
++
++/** The legacy guest's view of fw_cfg `ownerNomination` (gsup.mjs): -> { nomination | null, message | null }. */
++export function guestOwnerNomination(value) {
++  if (value === undefined || value === null) return { nomination: null, message: null };
++  try {
++    const n = checkOwnerNomination(value);
++    return { nomination: n, message: `owner nomination configured: propose ${n.owner} on ${n.ownershipContract} for host ${n.hostId.slice(0, 10)}…` };
++  } catch (e) { return { nomination: null, message: `owner nomination REFUSED (${e.message}): nothing is proposed` }; }
++}
++/** env with the nomination name ONLY from the checked nomination (any other source of that name is dropped). */
++export function withOwnerNominationEnv(env, nomination) {
++  const out = Object.fromEntries(Object.entries(env).filter(([k]) => k !== OWNER_NOMINATION_ENV));
++  return { ...out, ...ownerNominationEnv(nomination) };
++}
+--- a/metal/overlay-control-image.py
++++ b/metal/overlay-control-image.py
+@@ -25,7 +25,7 @@
+                'shielded-probe.mjs', 'shielded-shm.mjs']
+ # Guest modules a committed gsup.mjs may import: installed exactly when that commit's gsup imports them (its closure),
+ # so an overlay of an older commit is unchanged and a newer one never ships a gsup without its helper.
+-OPTIONAL_GUEST_FILES = ['measured-control.mjs', 'lease-gas-conduit.bundle.mjs']
++OPTIONAL_GUEST_FILES = ['measured-control.mjs', 'lease-gas-conduit.bundle.mjs', 'owner-nomination.mjs']
+ def guest_files(commit, repo):
+     show = lambda f: subprocess.check_output(['git', 'show', commit+':metal/guest/'+f], cwd=repo).decode()
+     files, texts = list(GUEST_FILES), {f: show(f) for f in GUEST_FILES}
+--- a/metal/build-image.mjs
++++ b/metal/build-image.mjs
+@@ -282,7 +282,7 @@
+ // the guest half of the shielded tier is trusted code and must be attested. The
+ // worker it talks to is not, and is not shipped here: it runs on the host, is
+ // assumed hostile, and its address arrives unmeasured over fw_cfg.
+-for (const f of ['gsup.mjs', 'host-policy.bundle.mjs', 'lease-gas-conduit.bundle.mjs', 'agent.mjs', 'shielded.mjs', 'shielded-probe.mjs', 'shielded-shm.mjs', 'measured-control.mjs'])
++for (const f of ['gsup.mjs', 'host-policy.bundle.mjs', 'lease-gas-conduit.bundle.mjs', 'agent.mjs', 'shielded.mjs', 'shielded-probe.mjs', 'shielded-shm.mjs', 'measured-control.mjs', 'owner-nomination.mjs'])
+   fs.copyFileSync(path.join(HERE, 'guest', f), path.join(md, f));
+ // the hosted independent MCP adapter (docs/network/hosted-mcp.md): a reproducible bundle of mcp/server.mjs and its closure
+ // (scripts/build-mcp-guest-bundle.mjs --check), started by gsup only for a bound config with an mcp member
+--- /dev/null
++++ b/network/host-owner-nomination.mjs
+@@ -0,0 +1,314 @@
++// The operator's ONE owner nomination on the ORIGINAL EnclaveHostOwnership (metal/guest/owner-nomination.mjs is the
++// config). The host's operator key signs it inside its measured control; nothing here exports, returns or logs a key.
++//
++// Exactly one kind of transaction exists here: proposeOwner(config.hostId, config.owner) to config.ownershipContract,
++// from the operator. A NEW one is signed only when ALL hold, read at one agreed, canonical block by an RPC quorum of the
++// config's own providers (rpc-identity rules, client/lease-executor-authority.mjs leaseRpcSet):
++//   - the contract's code hash is the reviewed one and its immutable registry() is the config's (and the host's) registry;
++//   - registry.get(hostId) is active, names THIS operator key, and its endpoint is the config's (= the host's own);
++//   - authority(hostId) is owner 0 AND pendingOwner 0;
++//   - a simulation of exactly that call from the operator succeeds at that block.
++// Already nominated (pending == owner) or already owned by that wallet: idempotent success, nothing sent. Any OTHER owner
++// or pending: refused, never replaced.
++//
++// The journal (store; the host's state file) is the ONLY authority for what may be broadcast:
++//   - a signed nomination is adopted into the record only after store.saveDurable succeeded with it; if that throws, the
++//     signed bytes are dropped (never broadcast, not counted as a send) and the next pass decides again;
++//   - every RE-broadcast of a recorded nomination is preceded by its own successful saveDurable (counter included);
++//   - a pending nomination loaded from the journal is checked before anything is done with it: keccak256(raw) == hash,
++//     raw parses with the recorded nonce and this chain, it goes to the recorded contract with value 0 and calldata
++//     exactly proposeOwner(recorded host, recorded owner), and it recovers to the recorded operator. Any mismatch: the
++//     record is left as it is and nothing is ever sent ("blocked-journal": manual reconciliation);
++//   - a pending nomination recorded under ANOTHER config (contract, host, owner or operator) is kept verbatim as
++//     `unresolved` and only OBSERVED (its receipt, or its operator's nonce passing it). It is never re-broadcast, and nothing
++//     new is signed while it may still land ("blocked-unresolved"); once settled it moves to `history` and this config is
++//     decided on the chain as it then is (a landed old nomination makes this one a conflict).
++// A recorded nomination of THIS config that has not settled is re-broadcast (the same bytes, bounded) only when a fresh
++// snapshot taken INSIDE its operator-queue slot (right before the durable write and the broadcast) still shows it
++// unsettled, owner 0 / pending 0 and the bindings; a matching nomination already on chain is success and a conflict stops
++// it - either way the recorded one stays recorded and observed. Sends, re-broadcasts and the receipt wait
++// are bounded, and everything that sends runs inside the host's ONE serialized operator queue (supervisor.js _txChain).
++// A failure is recorded as a retryable state; nothing else the host does waits on it.
++import { encodeFunctionData, decodeFunctionResult, keccak256, toBytes, parseAbi, createPublicClient, http, parseTransaction, recoverTransactionAddress } from "viem";
++import { leaseRpcSet } from "../client/lease-executor-authority.mjs";
++import { checkOwnerNomination } from "../metal/guest/owner-nomination.mjs";
++
++export const OWNERSHIP_ABI = parseAbi([
++  "function proposeOwner(bytes32 hostId, address next)",
++  "function registry() view returns (address)",
++  "function authority(bytes32) view returns (address owner, address pendingOwner, uint64 revision, bytes32 policyHash)",
++]);
++// the registry entry as the ownership contract itself reads it (IHostOwnershipRegistry.Entry: the first seven fields)
++const REGISTRY_ABI = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: [
++  { name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" }, { name: "operator", type: "address" },
++  { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" }, { name: "active", type: "bool" }] }] }];
++const ZERO = "0x" + "0".repeat(40);
++const ADDR = /^0x[0-9a-f]{40}$/, B32 = /^0x[0-9a-f]{64}$/;
++const lc = (v) => String(v || "").toLowerCase();
++const TERMINAL = new Set(["done", "refused", "gave-up", "blocked-journal"]);
++const plainOf = (o) => JSON.parse(JSON.stringify(o, (_k, v) => (typeof v === "bigint" ? v.toString() : v)));
++const pending = (r) => !!(r && r.tx && r.tx.state === "pending");
++
++/** The recorded nomination checked against its own record (contract, host, owner, operator) and chain. -> null | why */
++export async function journalProblem(r, chainId) {
++  if (!r || typeof r !== "object") return "the record is not an object";
++  for (const k of ["ownershipContract", "operator", "owner"]) if (!ADDR.test(String(r[k]))) return `the record's ${k} is malformed`;
++  if (!B32.test(String(r.hostId))) return "the record's hostId is malformed";
++  const t = r.tx;
++  if (!t || typeof t !== "object") return "the record names no transaction";
++  if (!B32.test(String(t.hash))) return "the recorded hash is malformed";
++  if (typeof t.raw !== "string" || !/^0x[0-9a-fA-F]+$/.test(t.raw)) return "the recorded signed bytes are malformed";
++  if (lc(keccak256(t.raw)) !== t.hash) return "the recorded signed bytes do not hash to the recorded hash";
++  let p; try { p = parseTransaction(t.raw); } catch { return "the recorded signed bytes do not parse"; }
++  if (!Number.isSafeInteger(t.nonce) || Number(p.nonce) !== t.nonce) return `the signed nonce ${p.nonce} is not the recorded ${t.nonce}`;
++  if (Number(p.chainId) !== chainId) return `the signed chain ${p.chainId} is not ${chainId}`;
++  if (lc(p.to) !== r.ownershipContract) return `the signed transaction goes to ${lc(p.to)}, not the recorded contract ${r.ownershipContract}`;
++  if (BigInt(p.value ?? 0n) !== 0n) return "the signed transaction carries value";
++  if (lc(p.data) !== lc(encodeFunctionData({ abi: OWNERSHIP_ABI, functionName: "proposeOwner", args: [r.hostId, r.owner] })))
++    return "the signed calldata is not exactly proposeOwner(recorded host, recorded owner)";
++  let signer; try { signer = lc(await recoverTransactionAddress({ serializedTransaction: t.raw })); } catch { return "the signed bytes carry no recoverable signature"; }
++  if (signer !== r.operator) return `the signed transaction is from ${signer}, not the recorded operator ${r.operator}`;
++  return null;
++}
++
++/**
++ * createOwnerNominator({ nomination, local: {chainId, registry, endpoint, operator, hostId?}, queue, signer, store, log,
++ *   allowLoopbackHttp, clients?, maxSends, maxRebroadcasts, receiptMs, confirmations, sleep })
++ *   queue(job)   runs job() in the host's ONE serialized operator queue and returns its promise
++ *   signer       { address, prepare(request) -> request, sign(request) -> raw 0x.., broadcast(raw) }  (no key access)
++ *   store        { load() -> record|null, save(record) best-effort, saveDurable(record) MUST throw if it cannot persist }
++ * -> { step() -> record, status() -> public view, terminal() }
++ */
++export function createOwnerNominator({ nomination, local, queue, signer, store, log = () => {}, allowLoopbackHttp = false, clients = null,
++  maxSends = 3, maxRebroadcasts = 3, receiptMs = 90_000, confirmations = 2, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), timeoutMs = 20_000 }) {
++  const n = checkOwnerNomination(nomination, { allowLoopbackHttp });
++  const cs = clients || n.rpcs.map((url) => createPublicClient({ transport: http(url, { timeout: timeoutMs, retryCount: 1 }) }));
++  const rpc = leaseRpcSet(cs, { quorum: n.quorum, allowLoopbackHttp, timeoutMs });
++  const key = { ownershipContract: n.ownershipContract, hostId: n.hostId, owner: n.owner, operator: n.operator };
++  const sameKey = (r) => !!r && r.ownershipContract === key.ownershipContract && r.hostId === key.hostId && r.owner === key.owner && r.operator === key.operator;
++  const loaded = store.load();
++  let rec;
++  if (sameKey(loaded)) {
++    rec = { ...loaded };
++    if (rec.status === "refused" && !pending(rec)) rec.status = "pending-check";   // a refusal is re-read once per boot (read-only)
++  } else {
++    // a different (or no) earlier record: THIS config starts fresh; every nomination the earlier one may still land is
++    // carried VERBATIM as unresolved (observed, never re-broadcast), and its settled history is kept
++    const carried = loaded && typeof loaded === "object" ? loaded : null;
++    const unresolved = [...(Array.isArray(carried?.unresolved) ? carried.unresolved : []),
++                        ...(pending(carried) ? [Object.fromEntries(Object.entries(carried).filter(([k]) => !["unresolved", "history"].includes(k)))] : [])];
++    rec = { ...key, status: "pending-check", why: null, sends: 0, tx: null, ...(unresolved.length ? { unresolved } : {}),
++            ...(Array.isArray(carried?.history) && carried.history.length ? { history: carried.history } : {}) };
++  }
++  rec.persistFailures = 0;
++  const save = () => { rec.updatedAt = new Date().toISOString(); try { store.save(plainOf(rec)); } catch (e) { log(`[ownership] state save failed: ${e.message}`); } };
++  /** saveDurable(next) succeeded -> rec becomes next and true; else rec is unchanged and false (nothing may be broadcast) */
++  const durable = (next, what) => {
++    const candidate = { ...next, updatedAt: new Date().toISOString() };
++    try { store.saveDurable(plainOf(candidate)); }
++    catch (e) { rec.persistFailures = (rec.persistFailures || 0) + 1; log(`[ownership] ${what} NOT broadcast: the journal could not be made durable (${e.message})`); return false; }
++    rec = candidate; return true;
++  };
++  const set = (status, why, extra = {}) => {
++    const changed = rec.status !== status || rec.why !== why;
++    Object.assign(rec, { status, why }, extra);
++    if (changed) log(`[ownership] ${status}: ${why}`);
++    save();
++    return rec;
++  };
++
++  // local bindings: the config must describe THIS host, THIS chain, THIS registry and THIS operator key
++  function localProblem() {
++    if (n.chainId !== local.chainId) return `config chain ${n.chainId} is not this host's chain ${local.chainId}`;
++    if (n.registry !== lc(local.registry)) return `config registry ${n.registry} is not this host's registry ${lc(local.registry)}`;
++    if (n.endpoint !== String(local.endpoint || "").replace(/\/+$/, "")) return `config endpoint ${n.endpoint} is not this host's endpoint ${local.endpoint}`;
++    if (n.hostId !== lc(keccak256(toBytes(n.endpoint)))) return "config hostId is not keccak256(endpoint)";
++    if (local.hostId && n.hostId !== lc(local.hostId)) return `config hostId ${n.hostId} is not this host's registered id ${lc(local.hostId)}`;
++    if (n.operator !== lc(local.operator) || n.operator !== lc(signer.address)) return `config operator ${n.operator} is not this host's operator key ${lc(signer.address)}`;
++    return null;
++  }
++
++  // one agreed canonical block (quorum-th highest head - confirmations), every read bound to its hash
++  async function agreedBlock(depth = confirmations) {
++    const heads = (await Promise.allSettled(rpc.peers.map(async (p) => {
++      if (BigInt(await rpc.request(p.client, "eth_chainId", [])) !== BigInt(n.chainId)) throw new Error("wrong chain");
++      return { ...p, head: BigInt(await rpc.request(p.client, "eth_blockNumber", [])) };
++    }))).filter((x) => x.status === "fulfilled").map((x) => x.value);
++    if (heads.length < rpc.required) throw new Error("the RPC quorum cannot read the configured chain");
++    const target = heads.map((h) => h.head).sort((a, b) => (a > b ? -1 : a < b ? 1 : 0))[rpc.required - 1] - BigInt(depth);
++    const agreed = await rpc.agree(heads, async (p) => {
++      const b = await rpc.request(p.client, "eth_getBlockByNumber", ["0x" + target.toString(16), false]);
++      if (!b || BigInt(b.number) !== target) throw new Error("invalid block");
++      return { number: target.toString(), hash: lc(b.hash) };   // a string: the record lands in the host's JSON state file
++    }, "the nomination block");
++    return { block: agreed.value, members: agreed.members };
++  }
++  const call = (p, to, data, at, from) => rpc.request(p.client, "eth_call", [{ to, data, ...(from ? { from } : {}) }, at]);
++  const proposeData = encodeFunctionData({ abi: OWNERSHIP_ABI, functionName: "proposeOwner", args: [n.hostId, n.owner] });
++
++  /** The chain's word at one agreed block: code, binding, registry entry, authority and (optionally) the simulation. */
++  async function snapshot({ simulate = false } = {}) {
++    const { block, members } = await agreedBlock();
++    const at = { blockHash: block.hash, requireCanonical: true };
++    const s = await rpc.agree(members, async (p) => {
++      const [code, reg, auth, entry] = await Promise.all([
++        rpc.request(p.client, "eth_getCode", [n.ownershipContract, at]),
++        call(p, n.ownershipContract, encodeFunctionData({ abi: OWNERSHIP_ABI, functionName: "registry" }), at),
++        call(p, n.ownershipContract, encodeFunctionData({ abi: OWNERSHIP_ABI, functionName: "authority", args: [n.hostId] }), at),
++        call(p, n.registry, encodeFunctionData({ abi: REGISTRY_ABI, functionName: "get", args: [n.hostId] }), at),
++      ]);
++      const [owner, pendingOwner, revision] = decodeFunctionResult({ abi: OWNERSHIP_ABI, functionName: "authority", data: auth });
++      const e = decodeFunctionResult({ abi: REGISTRY_ABI, functionName: "get", data: entry });
++      let sim = null;
++      if (simulate) {
++        // providers word a revert differently: the quorum agrees on the outcome only
++        try { await call(p, n.ownershipContract, proposeData, at, n.operator); sim = "ok"; } catch { sim = "reverts"; }
++      }
++      return { codeHash: lc(keccak256(code)), registry: lc(decodeFunctionResult({ abi: OWNERSHIP_ABI, functionName: "registry", data: reg })),
++               owner: lc(owner), pendingOwner: lc(pendingOwner), revision: String(revision),
++               entry: { endpoint: e.endpoint, operator: lc(e.operator), active: e.active }, sim };
++    }, "the ownership state");
++    return { ...s.value, block };
++  }
++  /** -> null (owner 0 / pending 0 and every binding holds: a nomination may go out), or {status, why} the snapshot settles. */
++  function decide(s) {
++    if (s.codeHash !== n.ownershipCodeHash) return { status: "refused", why: `contract code hash ${s.codeHash} is not the reviewed ${n.ownershipCodeHash}` };
++    if (s.registry !== n.registry) return { status: "refused", why: `the contract is bound to registry ${s.registry}, not ${n.registry}` };
++    if (s.owner === n.owner && s.pendingOwner === ZERO) return { status: "done", why: `owner ${n.owner} already accepted (revision ${s.revision}); nothing to send` };
++    if (s.owner === ZERO && s.pendingOwner === n.owner) return { status: "done", why: `${n.owner} is nominated; the owner wallet accepts next (acceptOwner)` };
++    if (s.owner !== ZERO || s.pendingOwner !== ZERO)
++      return { status: "refused", why: `the host already has owner ${s.owner} / pending ${s.pendingOwner}: never replaced from here` };
++    // not (yet) registered or inactive: retry later (the host registers itself at boot); another operator: refused
++    if (s.entry.operator === ZERO || !s.entry.active) return { status: "pending-check", why: "the registry entry is not registered/active yet; retry later" };
++    if (s.entry.operator !== n.operator) return { status: "refused", why: `the registry names operator ${s.entry.operator}, not ${n.operator}` };
++    if (s.entry.endpoint !== n.endpoint) return { status: "refused", why: `the registry entry's endpoint ${s.entry.endpoint} is not ${n.endpoint}` };
++    return null;
++  }
++
++  async function quorumReceipt(hash) {
++    return (await rpc.agree(rpc.peers, async (p) => {
++      const r = await rpc.request(p.client, "eth_getTransactionReceipt", [hash]);
++      return r ? { status: r.status, blockNumber: String(BigInt(r.blockNumber)), blockHash: lc(r.blockHash), to: lc(r.to) } : null;
++    }, "the nomination receipt")).value;
++  }
++  async function quorumNonce(address) {
++    return (await rpc.agree(rpc.peers, async (p) => Number(BigInt(await rpc.request(p.client, "eth_getTransactionCount", [address, "latest"]))), "the operator nonce")).value;
++  }
++  /** A recorded nomination, observed on the chain only: "mined" | "reverted" | "dropped" (its nonce went elsewhere) | null. */
++  async function observe(r) {
++    const receipt = await quorumReceipt(r.tx.hash);
++    if (receipt) return { state: receipt.status === "0x1" || receipt.status === "success" ? "mined" : "reverted", block: receipt.blockNumber };
++    if ((await quorumNonce(r.operator)) > r.tx.nonce) return { state: "dropped" };
++    return null;
++  }
++  async function waitReceipt(hash) {
++    const t0 = Date.now();
++    while (Date.now() - t0 < receiptMs) { if (await quorumReceipt(hash).catch(() => null)) return; await sleep(2000); }
++  }
++
++  // inside the operator queue: fresh re-read + simulation, sign, DURABLE, then broadcast, bounded receipt wait
++  async function sendJob() {
++    const s = await snapshot({ simulate: true });
++    const d = decide(s);
++    if (d) return set(d.status, d.why, { block: s.block });
++    if (s.sim !== "ok") return set("pending-check", `the simulation at block ${s.block.number} reverts; not sent`);
++    const request = await signer.prepare({ to: n.ownershipContract, data: proposeData, value: 0n });
++    if (Number(request.chainId) !== n.chainId) throw new Error(`the signer prepared chain ${request.chainId}, not ${n.chainId}`);
++    if (lc(request.to) !== n.ownershipContract || request.data !== proposeData || BigInt(request.value || 0) !== 0n) throw new Error("the prepared request is not exactly proposeOwner");
++    const raw = await signer.sign(request);
++    const tx = { hash: lc(keccak256(raw)), nonce: Number(request.nonce), raw, state: "pending", broadcast: "not yet", signedAt: new Date().toISOString(), rebroadcasts: 0 };
++    if (!durable({ ...rec, tx, sends: rec.sends + 1, status: "sent", why: `proposeOwner signed ${tx.hash} nonce ${tx.nonce}; broadcasting` }, `nomination ${tx.hash}`))
++      return set("pending-check", "the signed nomination could not be made durable: dropped, nothing broadcast; retry later");
++    try { await signer.broadcast(raw); rec.tx.broadcast = "accepted"; }
++    catch (e) { rec.tx.broadcast = "unconfirmed"; rec.tx.broadcastWhy = String(e?.shortMessage || e?.message || e).slice(0, 160); }
++    set("sent", `proposeOwner(${n.hostId}, ${n.owner}) signed ${rec.tx.hash} nonce ${rec.tx.nonce} (send ${rec.sends}/${maxSends}; broadcast ${rec.tx.broadcast})`);
++    if (rec.tx.broadcast === "accepted") await waitReceipt(rec.tx.hash);   // inside the queue slot: the next operator tx waits (bounded)
++    return rec;
++  }
++  /** This config's recorded, pending nomination against the chain as it is NOW: -> "settled" (receipt or nonce passed:
++   *  recorded), a settled record (the snapshot decided: done / refused / pending-check, or the re-broadcast bound is
++   *  reached - it stays recorded and observed), or null (owner 0 / pending 0 and every binding holds: it may go out again). */
++  async function recheckPending() {
++    const o = await observe(rec);
++    if (o) { rec.tx.state = o.state; if (o.block) rec.tx.block = o.block; save(); return "settled"; }
++    const s = await snapshot();
++    const d = decide(s);
++    if (d) return set(d.status, `${d.why} (recorded nomination ${rec.tx.hash} stays recorded and is observed, not re-broadcast)`, { block: s.block });
++    if ((rec.tx.rebroadcasts || 0) >= maxRebroadcasts) return set("sent", `nomination ${rec.tx.hash} not settled after ${maxRebroadcasts} re-broadcasts; observed only`);
++    return null;
++  }
++  // inside the operator queue: the SAME recorded bytes again. The queue may have waited behind other operator transactions,
++  // so the chain is re-read HERE (as sendJob does): settled meanwhile, another pending/owner, a lost registry entry or the
++  // bound reached -> nothing is broadcast. Then the counter is made durable, then the bytes go out.
++  async function rebroadcastJob() {
++    if (!pending(rec)) return rec;
++    const r = await recheckPending();
++    if (r) return rec;
++    const tx = { ...rec.tx, rebroadcasts: (rec.tx.rebroadcasts || 0) + 1, lastRebroadcastAt: new Date().toISOString() };
++    if (!durable({ ...rec, tx }, `re-broadcast of ${tx.hash}`)) return set("sent", `nomination ${tx.hash} not settled; the journal is not durable, so it is NOT re-broadcast`);
++    try { await signer.broadcast(rec.tx.raw); rec.tx.broadcast = "accepted"; } catch { rec.tx.broadcast = "unconfirmed"; }
++    return set("sent", `nomination ${rec.tx.hash} (nonce ${rec.tx.nonce}) re-broadcast ${rec.tx.rebroadcasts}/${maxRebroadcasts}: ${rec.tx.broadcast}`);
++  }
++
++  // every recorded nomination is checked once per process before anything is done with it
++  let checked = null;
++  async function checkJournal() {
++    for (const [i, u] of (rec.unresolved || []).entries()) {
++      const why = await journalProblem(u, n.chainId);
++      if (why) return `unresolved earlier nomination #${i} (${u?.tx?.hash ?? "no hash"}): ${why}`;
++    }
++    if (pending(rec)) { const why = await journalProblem(rec, n.chainId); if (why) return `the recorded nomination ${rec.tx.hash ?? "(no hash)"}: ${why}`; }
++    return null;
++  }
++
++  let running = null;
++  async function stepOnce() {
++    if (checked === null) checked = await checkJournal();
++    if (checked) return set("blocked-journal", `${checked}; nothing is sent and the record is kept for manual reconciliation`);
++    // 1. nominations recorded under another config: observed until settled; nothing new while any may still land
++    if (rec.unresolved?.length) {
++      const still = [];
++      for (const u of rec.unresolved) {
++        const o = await observe(u);
++        if (o) rec.history = [...(rec.history || []), { ...u, tx: { ...u.tx, state: o.state, ...(o.block ? { block: o.block } : {}) }, settledAt: new Date().toISOString() }];
++        else still.push(u);
++      }
++      if (still.length) rec.unresolved = still; else delete rec.unresolved;
++      if (still.length) return set("blocked-unresolved",
++        `${still.length} earlier nomination(s) under another config may still land (${still.map((u) => `${u.tx.hash} -> ${u.owner}`).join(", ")}): observed, never re-broadcast; nothing new is sent until settled`);
++      save();
++    }
++    if (TERMINAL.has(rec.status) && !pending(rec)) return rec;
++    const lp = localProblem();
++    if (lp) return set("refused", lp);
++    // 2. this config's own recorded nomination: settle from the chain, else re-check everything before re-broadcasting it
++    if (pending(rec)) {
++      const r = await recheckPending();                     // a cheap early answer; rebroadcastJob checks again in its slot
++      if (r && r !== "settled") return r;
++      if (!r) return queue(rebroadcastJob);
++    }
++    // 3. decide on the chain as it is now
++    const s = await snapshot();
++    const d = decide(s);
++    if (d) return set(d.status, d.why, { block: s.block });
++    if (rec.tx && rec.tx.state === "mined") return set("pending-check", `nomination ${rec.tx.hash} mined but the agreed block does not show it yet`);
++    if (rec.sends >= maxSends) return set("gave-up", `${rec.sends} nomination(s) sent without the contract showing it; not sending again`);
++    return queue(sendJob);
++  }
++  return {
++    nomination: n,
++    /** One pass (serialized: concurrent callers share it). Errors become a recorded, retryable state, never a throw. */
++    step() {
++      running ||= stepOnce().catch((e) => set(rec.status === "sent" || rec.status === "blocked-unresolved" ? rec.status : "pending-check", `retry later: ${String(e?.message || e).slice(0, 200)}`))
++        .finally(() => { running = null; });
++      return running;
++    },
++    status() {
++      const view = (t) => (t ? { hash: t.hash, nonce: t.nonce, state: t.state, broadcast: t.broadcast, block: t.block ?? null, rebroadcasts: t.rebroadcasts ?? 0 } : null);
++      const { tx, unresolved, history, ...r } = rec;
++      return { ...r, tx: view(tx), ...(unresolved ? { unresolved: unresolved.map((u) => ({ ownershipContract: u.ownershipContract, hostId: u.hostId, owner: u.owner, tx: view(u.tx) })) } : {}),
++               ...(history ? { history: history.map((u) => ({ owner: u.owner, tx: view(u.tx) })) } : {}) };
++    },
++    terminal: () => TERMINAL.has(rec.status) && !pending(rec) && !rec.unresolved?.length,
++  };
++}
+--- a/test/metal-measured-control.test.mjs
++++ b/test/metal-measured-control.test.mjs
+@@ -123,7 +123,10 @@
+   // the one reviewed change inside it: the supervisor gets its lease-gas names from the conduit only (lease-gas-conduit.mjs)
+   const LEASED = "withLeaseGasEnv(supEnv, LEASE_GAS)";
+   assert.equal(legacy(now).split(LEASED).length, 2, "the legacy supervisor starts with the conduit's lease-gas environment, once");
+-  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(LEASED, "supEnv"), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical, only wrapped in if (!CONTROL)");
++  // and the second reviewed change: the operator's checked owner nomination name, from fw_cfg only (owner-nomination.mjs)
++  const NOMINATED = "withOwnerNominationEnv(" + LEASED + ", OWNER_NOMINATION.nomination)";
++  assert.equal(legacy(now).split(NOMINATED).length, 2, "...wrapped once by the owner nomination's env");
++  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(NOMINATED, "supEnv"), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical, only wrapped in if (!CONTROL)");
+   assert.match(now, /if \(CONTROL === 'direct'\) await startDirectControl\(\)/);
+   assert.match(now, /if \(!CONTROL\) \{\nconst supEnv = \{/);
+   assert.match(now, /const MODE {9}= CONTROL \? \(cmdMode \|\| 'snp'\) : \(fw\.mode \|\| cmdMode \|\| 'snp'\);/);
+@@ -361,11 +364,11 @@
+ 
+ test("builder and overlay carry the helper and the measured token", () => {
+   const b = fs.readFileSync(path.join(REPO, "metal/build-image.mjs"), "utf8");
+-  assert.match(b, /'shielded-shm\.mjs', 'measured-control\.mjs'\]\)/);
++  assert.match(b, /'shielded-shm\.mjs', 'measured-control\.mjs', 'owner-nomination\.mjs'\]\)/);
+   assert.match(b, /\+ \(CONTROL \? ` metal\.control=\$\{CONTROL\}` : ''\);/);
+   assert.match(b, /--control direct needs --isolation snp-guest-per-app/);
+   const tpl = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE}' + ' metal.isolation=snp-guest-per-app' + ' metal.control=direct';
+   assert.equal(tpl.replace('${MODE}', 'snp'), CMDLINE, "builder template == launcher cmdline");
+   const o = fs.readFileSync(path.join(REPO, "metal/overlay-control-image.py"), "utf8");
+-  assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs'\]/);
++  assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs', 'owner-nomination\.mjs'\]/);
+ });
+--- a/test/metal-lease-gas-conduit.test.mjs
++++ b/test/metal-lease-gas-conduit.test.mjs
+@@ -230,7 +230,8 @@
+   const gsup = fs.readFileSync(path.join(REPO, "metal/guest/gsup.mjs"), "utf8"), launcher = fs.readFileSync(path.join(REPO, "metal/enclave-metal.mjs"), "utf8");
+   assert.match(gsup, /^import \{ leaseGasGuest, withLeaseGasEnv \} from '\.\/lease-gas-conduit\.bundle\.mjs';$/m);
+   assert.match(gsup, /const LEASE_GAS = CONTROL \? null : leaseGasGuest\(fw\.leaseGas\);/);
+-  assert.match(gsup, /start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], withLeaseGasEnv\(supEnv, LEASE_GAS\), \{ cwd: '\/app' \}\);/);
++  // the lease-gas names come from the conduit only; the owner nomination's wrapper adds/drops only its own name (owner-nomination.mjs)
++  assert.match(gsup, /start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], withOwnerNominationEnv\(withLeaseGasEnv\(supEnv, LEASE_GAS\), OWNER_NOMINATION\.nomination\), \{ cwd: '\/app' \}\);/);
+   assert.equal((gsup.match(/LEASE_GAS_/g) || []).length, 0, "gsup names no lease-gas variable itself");
+   assert.match(launcher, /^import \{ leaseGasTransit \} from '\.\/guest\/lease-gas-conduit\.bundle\.mjs';$/m);
+   assert.match(launcher, /\.\.\.\(LEASE_GAS \? \{ leaseGas: LEASE_GAS \} : \{\}\),/);
+@@ -272,6 +273,6 @@
+   assert.match(b, /const packages = checkPackages\(closure\.packages,/);
+   assert.match(b, /'host-policy\.bundle\.mjs', 'lease-gas-conduit\.bundle\.mjs'/);
+   assert.match(o, /installed_app, packages = app_files\(commit, repo\)/);
+-  assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs'\]/);
++  assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs', 'owner-nomination\.mjs'\]/);
+   assert.deepEqual(SUPERVISOR_ROOTS, ["supervisor.js", "addressbook.js"]);
+ });
+--- /dev/null
++++ b/test/owner-nomination.test.mjs
+@@ -0,0 +1,267 @@
++// The operator's owner nomination against the REAL contracts (contracts/EnclaveRegistry.sol and the ORIGINAL
++// contracts/EnclaveHostOwnership.sol, compiled here) on a local chain (anvil, chain 8453, 1 s blocks), driven through the
++// REAL supervisor (OWNER_NOMINATION_SELFTEST: its nominator, operator key, operator queue _txChain/sendOperatorTx and
++// strict state file) with the config's RPC quorum served by three loopback proxies (ok | down | lieA | lieB: a lie
++// corrupts the first word of every eth_call answer). Fixture keys only; nothing leaves loopback.
++import { test, before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import { spawn, execFile, execFileSync } from "node:child_process";
++import { promisify } from "node:util";
++import { fileURLToPath } from "node:url";
++import solc from "solc";
++import { createPublicClient, createWalletClient, http as viemHttp, keccak256, toBytes, decodeFunctionData, parseAbi } from "viem";
++import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
++
++const exec = promisify(execFile);
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const haveAnvil = (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); return true; } catch { return false; } })();
++const T = { skip: !haveAnvil && "needs anvil", timeout: 240_000 };
++const DEPLOYER = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
++const OWN_ABI = parseAbi(["function proposeOwner(bytes32 hostId, address next)", "function acceptOwner(bytes32 hostId)",
++  "function authority(bytes32) view returns (address owner, address pendingOwner, uint64 revision, bytes32 policyHash)"]);
++const lc = (a) => String(a).toLowerCase();
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "owner-nomination-chain-"));
++let anvil, url, chain, pc, C, registry, ownership, registry2, ownership2, codeHash, codeHash2, opKey, op, start = 0n;
++const proxies = [], closers = [];
++
++const freePort = () => new Promise((ok) => { const s = http.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
++const wallet = (key) => createWalletClient({ account: privateKeyToAccount(key), chain, transport: viemHttp(url) });
++const mined = async (hash) => { const r = await pc.waitForTransactionReceipt({ hash }); assert.equal(r.status, "success"); return r; };
++const fund = (a) => pc.request({ method: "anvil_setBalance", params: [a, "0x56bc75e2d63100000"] });
++async function deploy(name, args = []) {
++  const c = C.contracts[name + ".sol"][name];
++  return lc((await mined(await wallet(DEPLOYER).deployContract({ abi: c.abi, bytecode: "0x" + c.evm.bytecode.object, args }))).contractAddress);
++}
++async function host(tag, key = opKey) {
++  const endpoint = `https://api.example.test/t/${tag}`;
++  await mined(await wallet(key).writeContract({ address: registry, abi: C.contracts["EnclaveRegistry.sol"].EnclaveRegistry.abi, functionName: "register",
++    args: [endpoint, "owner/enclave", "0x" + "1".repeat(64), 1n, 0n, privateKeyToAccount(key).address] }));
++  return { endpoint, hostId: lc(keccak256(toBytes(endpoint))) };
++}
++const authority = async (hostId, at = ownership) => { const [owner, pendingOwner] = await pc.readContract({ address: at, abi: OWN_ABI, functionName: "authority", args: [hostId] }); return { owner: lc(owner), pending: lc(pendingOwner) }; };
++/** every transaction the operator sent from block `from`: {nonce, to, fn} */
++async function operatorTxs(from) {
++  const out = [];
++  for (let n = from; n <= await pc.getBlockNumber({ cacheTime: 0 }); n++)
++    for (const tx of (await pc.getBlock({ blockNumber: n, includeTransactions: true })).transactions)
++      if (lc(tx.from) === op) out.push({ nonce: tx.nonce, to: lc(tx.to), fn: lc(tx.to) === ownership || lc(tx.to) === ownership2 ? decodeFunctionData({ abi: OWN_ABI, data: tx.input }).functionName : "other", hash: tx.hash });
++  return out;
++}
++
++before(async () => {
++  if (!haveAnvil) return;
++  const port = await freePort();
++  anvil = spawn("anvil", ["--port", String(port), "--chain-id", "8453", "--block-time", "1", "--silent"], { stdio: "ignore" });
++  closers.push(() => anvil.kill("SIGKILL"));
++  url = `http://127.0.0.1:${port}`;
++  chain = { id: 8453, name: "local-8453", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [url] } } };
++  pc = createPublicClient({ chain, transport: viemHttp(url) });
++  for (let i = 0; i < 100; i++) { try { await pc.getChainId(); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
++  const sources = Object.fromEntries(["EnclaveRegistry", "EnclaveHostOwnership"].map((n) => [n + ".sol", { content: fs.readFileSync(path.join(REPO, "contracts", n + ".sol"), "utf8") }]));
++  C = JSON.parse(solc.compile(JSON.stringify({ language: "Solidity", sources, settings: { viaIR: true, optimizer: { enabled: true, runs: 200 }, outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } } } })));
++  assert.deepEqual((C.errors || []).filter((e) => e.severity === "error"), []);
++  registry = await deploy("EnclaveRegistry"); ownership = await deploy("EnclaveHostOwnership", [registry]);
++  registry2 = await deploy("EnclaveRegistry"); ownership2 = await deploy("EnclaveHostOwnership", [registry2]);
++  codeHash = lc(keccak256(await pc.getCode({ address: ownership }))); codeHash2 = lc(keccak256(await pc.getCode({ address: ownership2 })));
++  opKey = generatePrivateKey(); op = lc(privateKeyToAccount(opKey).address); await fund(op);
++  for (let i = 0; i < 3; i++) {
++    const mode = { m: "ok" };
++    const s = http.createServer((req, res) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", async () => {
++      if (mode.m === "down") { res.writeHead(503); return res.end("down"); }
++      const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: b });
++      let text = await r.text();
++      if (mode.m.startsWith("lie")) {
++        const j = JSON.parse(b), o = JSON.parse(text), flip = mode.m === "lieA" ? 1 : 2;
++        const lie = (q, a) => { if (q.method === "eth_call" && typeof a.result === "string" && a.result.length >= 66)
++          a.result = a.result.slice(0, 2) + (parseInt(a.result[2], 16) ^ flip).toString(16) + a.result.slice(3); return a; };
++        text = JSON.stringify(Array.isArray(j) ? o.map((a, k) => lie(j[k], a)) : lie(j, o));
++      }
++      res.writeHead(200, { "content-type": "application/json" }); res.end(text); }); });
++    await new Promise((ok) => s.listen(0, "127.0.0.1", ok));
++    closers.push(() => { s.closeAllConnections(); s.close(); });
++    proxies.push({ url: `http://127.0.0.1:${s.address().port}`, mode });
++  }
++  start = await pc.getBlockNumber();
++});
++after(() => { for (const c of closers.reverse()) try { c(); } catch {} fs.rmSync(tmp, { recursive: true, force: true }); });
++
++const setModes = (...m) => m.forEach((x, i) => (proxies[i].mode.m = x));
++const NOM = (h, o = {}) => ({ format: "enclave-host-owner-nomination/v1", chainId: 8453, ownershipContract: ownership, ownershipCodeHash: codeHash, registry,
++  hostId: h.hostId, endpoint: h.endpoint, operator: op, owner: o.owner ?? OWNER, rpcs: proxies.map((p) => p.url), quorum: 2, ...o });
++const OWNER_KEY = generatePrivateKey(), OWNER = lc(privateKeyToAccount(OWNER_KEY).address), OTHER = lc(privateKeyToAccount(generatePrivateKey()).address);
++/** the REAL supervisor's nominator, one seam run; returns its JSON line */
++async function nominate(h, { nom = NOM(h), state = path.join(tmp, `state-${Math.random().toString(16).slice(2)}.json`), key = opKey, selftest = {}, raw = null } = {}) {
++  const env = { PATH: process.env.PATH, HOME: tmp, SECRET: "owner-nomination-test", ENABLE_MPS: "0", STATE_FILE: state, CHAIN_ID: "8453",
++    BASE_RPC: url, BASE_RPCS: url, REGISTRY_ADDRESS: registry, ADDRESS_BOOK_ADDRESS: "", REGISTRY_ENABLED: "", CLAIM_ENABLED: "",
++    REGISTRY_PRIVATE_KEY: key, ENCLAVE_REPO: "owner/enclave", ENCLAVE_PLATFORM_HOST_POLICY: "off", SECRETS_API: "", DOMAINS_API: "", CERTS_API: "",
++    DNS_API: "", APP_CERT_DOMAIN: "", ACME_EAB_KID: "", ACME_EAB_HMAC: "",
++    ...(raw !== undefined && (raw ?? nom) ? { ENCLAVE_OWNER_NOMINATION: raw ?? JSON.stringify(nom) } : {}),
++    OWNER_NOMINATION_SELFTEST: JSON.stringify({ endpoint: h.endpoint, passes: 15, gapMs: 1000, ...selftest }) };
++  const { stdout, stderr } = await exec(process.execPath, ["supervisor.js"], { cwd: REPO, env, timeout: 200_000, maxBuffer: 8 << 20 })
++    .catch((e) => { throw new Error((e.stderr || "") + (e.stdout || "") + e.message); });
++  const line = stdout.trim().split("\n").filter((l) => l.startsWith("{")).at(-1);
++  if (!line) throw new Error("the seam printed no result line. stdout:\n" + stdout.slice(-3000) + "\nstderr:\n" + String(stderr).slice(-2000));
++  return { out: JSON.parse(line), state, log: stdout };
++}
++const proposes = (txs, h) => txs.filter((t) => t.fn === "proposeOwner");
++
++test("0/0: exactly one proposeOwner from the operator; the wallet is pending; a second run is idempotent; after acceptOwner still nothing", T, async () => {
++  setModes("ok", "ok", "ok");
++  const h = await host("positive"), from = await pc.getBlockNumber();
++  const { out, state } = await nominate(h);
++  assert.equal(out.status.status, "done", JSON.stringify(out));
++  assert.match(out.status.why, /is nominated; the owner wallet accepts next/);
++  assert.deepEqual(await authority(h.hostId), { owner: "0x" + "0".repeat(40), pending: OWNER });
++  const txs = await operatorTxs(from);
++  assert.equal(proposes(txs).length, 1, JSON.stringify(txs)); assert.equal(txs.length, 1);
++  assert.equal(out.status.tx.hash, lc(txs[0].hash)); assert.equal(out.saved.tx.raw, true, "the signed bytes were kept durable");
++  assert.equal(JSON.parse(fs.readFileSync(state, "utf8")).ownerNomination.status, "done");
++  // idempotent: a fresh process (and a fresh state file) sends nothing
++  const again = await nominate(h);
++  assert.equal(again.out.status.status, "done"); assert.equal(again.out.status.tx, null);
++  // the owner wallet accepts (its own step): the nomination stays satisfied, nothing is sent
++  await fund(OWNER); await mined(await wallet(OWNER_KEY).writeContract({ address: ownership, abi: OWN_ABI, functionName: "acceptOwner", args: [h.hostId] }));
++  await new Promise((r) => setTimeout(r, 3000));
++  const owned = await nominate(h);
++  assert.equal(owned.out.status.status, "done"); assert.match(owned.out.status.why, /already accepted/);
++  assert.equal(proposes(await operatorTxs(from)).length, 1, "still exactly one proposeOwner");
++});
++
++test("a DIFFERENT pending (or owner) is refused and never replaced", T, async () => {
++  setModes("ok", "ok", "ok");
++  const h = await host("conflict");
++  await mined(await wallet(opKey).writeContract({ address: ownership, abi: OWN_ABI, functionName: "proposeOwner", args: [h.hostId, OTHER] }));
++  await new Promise((r) => setTimeout(r, 3000));
++  const from = await pc.getBlockNumber();
++  const { out } = await nominate(h);
++  assert.equal(out.status.status, "refused"); assert.match(out.status.why, /already has owner .* pending 0x[0-9a-f]+: never replaced/);
++  assert.equal((await authority(h.hostId)).pending, OTHER);
++  assert.deepEqual(await operatorTxs(from), []);
++});
++
++test("wrong operator / wrong contract / unbound registry: refused, nothing sent", T, async () => {
++  setModes("ok", "ok", "ok");
++  const h = await host("bindings"), from = await pc.getBlockNumber();
++  // the config names another operator than this host's key
++  const a = await nominate(h, { nom: NOM(h, { operator: OTHER }) });
++  assert.equal(a.out.status.status, "refused"); assert.match(a.out.status.why, /is not this host's operator key/);
++  // the registry names another operator for this host (registered by another key; this key nominates for it)
++  const k2 = generatePrivateKey(); await fund(privateKeyToAccount(k2).address);
++  const h2 = await host("other-operator", k2);
++  const b = await nominate(h2);
++  assert.equal(b.out.status.status, "refused"); assert.match(b.out.status.why, /registry names operator/);
++  // not the reviewed code hash
++  const c = await nominate(h, { nom: NOM(h, { ownershipCodeHash: "0x" + "ab".repeat(32) }) });
++  assert.equal(c.out.status.status, "refused"); assert.match(c.out.status.why, /is not the reviewed/);
++  // a genuine EnclaveHostOwnership, with its own true code hash, bound to ANOTHER registry
++  const d = await nominate(h, { nom: NOM(h, { ownershipContract: ownership2, ownershipCodeHash: codeHash2 }) });
++  assert.equal(d.out.status.status, "refused"); assert.match(d.out.status.why, /bound to registry/);
++  assert.deepEqual(await operatorTxs(from), []);
++  assert.deepEqual(await authority(h.hostId), { owner: "0x" + "0".repeat(40), pending: "0x" + "0".repeat(40) });
++});
++
++test("RPC disagreement: no quorum, nothing sent, retried later; one liar is outvoted", T, async () => {
++  const h = await host("rpc"), from = await pc.getBlockNumber(), state = path.join(tmp, "rpc-state.json");
++  setModes("lieA", "lieB", "ok");
++  const a = await nominate(h, { state, selftest: { passes: 3 } });
++  assert.equal(a.out.terminal, false); assert.equal(a.out.status.status, "pending-check"); assert.match(a.out.status.why, /retry later: .*quorum did not agree/);
++  assert.deepEqual(await operatorTxs(from), []);
++  setModes("lieA", "ok", "ok");
++  const b = await nominate(h, { state });
++  assert.equal(b.out.status.status, "done", JSON.stringify(b.out)); assert.equal(proposes(await operatorTxs(from)).length, 1);
++  setModes("down", "down", "ok");
++  const c = await nominate(await host("rpc-down"), { selftest: { passes: 2 } });
++  assert.equal(c.out.status.status, "pending-check"); assert.match(c.out.status.why, /cannot read the configured chain/);
++});
++
++test("nonce concurrency: registry heartbeats from the same queue around the nomination all land, nonces contiguous, one proposeOwner", T, async () => {
++  setModes("ok", "ok", "ok");
++  const h = await host("concurrency"), from = await pc.getBlockNumber(), n0 = await pc.getTransactionCount({ address: op });
++  const { out } = await nominate(h, { selftest: { heartbeats: 3 } });
++  assert.equal(out.status.status, "done", JSON.stringify(out));
++  assert.equal(out.heartbeats.length, 6); assert.ok(out.heartbeats.every((x) => x.status === "success"), JSON.stringify(out.heartbeats));
++  const txs = await operatorTxs(from);
++  assert.equal(txs.length, 7); assert.equal(proposes(txs).length, 1);
++  assert.deepEqual(txs.map((t) => t.nonce).sort((x, y) => x - y), Array.from({ length: 7 }, (_, i) => n0 + i));
++});
++
++test("ambiguous broadcasts: a lost reply, a broadcast that never reached the chain, and one whose nonce another transaction took", T, async () => {
++  setModes("ok", "ok", "ok");
++  for (const [mode, sends] of [["lost-reply", 1], ["never-sent", 1], ["never-sent-then-other", 2]]) {
++    const h = await host("ambiguous-" + mode), from = await pc.getBlockNumber();
++    const { out } = await nominate(h, { selftest: { ambiguous: mode } });
++    assert.equal(out.status.status, "done", mode + " " + JSON.stringify(out));
++    assert.equal(out.status.sends, sends, mode);
++    const txs = await operatorTxs(from);
++    assert.equal(proposes(txs).length, 1, mode + ": exactly one proposeOwner landed");
++    assert.equal(out.status.tx.hash, lc(proposes(txs)[0].hash), mode + ": the recorded transaction is the one that landed");
++    if (mode === "never-sent-then-other") { assert.equal(txs.length, 2); assert.ok(out.otherTx?.status === "success"); }
++    assert.deepEqual(await authority(h.hostId), { owner: "0x" + "0".repeat(40), pending: OWNER });
++  }
++});
++
++test("no config: nothing at all; an invalid config: refused before anything", T, async () => {
++  setModes("ok", "ok", "ok");
++  const h = await host("absent"), from = await pc.getBlockNumber();
++  const none = await nominate(h, { raw: undefined, nom: null });
++  assert.match(none.out.error, /not configured/);
++  const bad = await nominate(h, { nom: NOM(h, { owner: op }) });
++  assert.match(bad.out.error, /other than the operator/);
++  assert.equal(bad.out.status.status, "refused");
++  assert.deepEqual(await operatorTxs(from), []);
++});
++
++// ---- the journal rules in the REAL supervisor (its strict state writer and operator queue), root review 2026-10-21 ------
++test("a state file that cannot be written: nothing is broadcast; writable again: the nomination goes out once", T, async () => {
++  setModes("ok", "ok", "ok");
++  const h = await host("journal-readonly"), from = await pc.getBlockNumber();
++  const ro = path.join(tmp, "readonly"); fs.mkdirSync(ro); fs.chmodSync(ro, 0o500);
++  const a = await nominate(h, { state: path.join(ro, "state.json"), selftest: { passes: 3, gapMs: 500 } });
++  assert.equal(a.out.status.status, "pending-check", JSON.stringify(a.out)); assert.match(a.out.status.why, /could not be made durable: dropped, nothing broadcast/);
++  assert.equal(a.out.status.sends, 0); assert.equal(a.out.status.tx, null);
++  assert.deepEqual(await operatorTxs(from), [], "no transaction reached the chain");
++  fs.chmodSync(ro, 0o700);
++  const b = await nominate(h, { state: path.join(ro, "state.json") });
++  assert.equal(b.out.status.status, "done", JSON.stringify(b.out)); assert.equal(proposes(await operatorTxs(from)).length, 1);
++});
++
++test("restart with a durable but never-broadcast nomination: exactly those bytes land", T, async () => {
++  setModes("ok", "ok", "ok");
++  const h = await host("journal-restart"), from = await pc.getBlockNumber(), state = path.join(tmp, "restart-state.json");
++  const a = await nominate(h, { state, selftest: { ambiguous: "never-sent", passes: 1 } });
++  assert.equal(a.out.status.status, "sent"); const known = a.out.status.tx.hash;
++  assert.equal(JSON.parse(fs.readFileSync(state, "utf8")).ownerNomination.tx.hash, known, "durable before the (failed) broadcast");
++  assert.deepEqual(await operatorTxs(from), []);
++  const b = await nominate(h, { state });
++  assert.equal(b.out.status.status, "done", JSON.stringify(b.out));
++  const txs = proposes(await operatorTxs(from));
++  assert.equal(txs.length, 1); assert.equal(lc(txs[0].hash), known, "the restarted process sent the recorded bytes, nothing new");
++  assert.equal(b.out.status.sends, 1);
++});
++
++test("a changed recipient while the earlier nomination is unresolved: nothing until it settles; the old recipient never lands", T, async () => {
++  setModes("ok", "ok", "ok");
++  const h = await host("journal-changed"), from = await pc.getBlockNumber(), state = path.join(tmp, "changed-state.json");
++  const a = await nominate(h, { state, selftest: { ambiguous: "never-sent", passes: 1 } });
++  const oldTx = JSON.parse(fs.readFileSync(state, "utf8")).ownerNomination.tx;
++  // the operator's config now names another owner
++  const b = await nominate(h, { state, nom: NOM(h, { owner: OTHER }), selftest: { passes: 2, gapMs: 500 } });
++  assert.equal(b.out.status.status, "blocked-unresolved", JSON.stringify(b.out));
++  assert.deepEqual(await operatorTxs(from), [], "neither the old recipient's nomination nor a new one");
++  const kept = JSON.parse(fs.readFileSync(state, "utf8")).ownerNomination;
++  assert.equal(kept.unresolved[0].tx.raw, oldTx.raw); assert.equal(kept.unresolved[0].owner, OWNER);
++  // another operator transaction takes that nonce (here a plain transfer by the same key): the old one can never land
++  await mined(await wallet(opKey).sendTransaction({ to: op, value: 0n }));
++  await new Promise((r) => setTimeout(r, 3000));
++  const c = await nominate(h, { state, nom: NOM(h, { owner: OTHER }) });
++  assert.equal(c.out.status.status, "done", JSON.stringify(c.out));
++  assert.deepEqual(await authority(h.hostId), { owner: "0x" + "0".repeat(40), pending: OTHER });
++  const ps = proposes(await operatorTxs(from));
++  assert.equal(ps.length, 1); assert.notEqual(lc(ps[0].hash), oldTx.hash, "the old recipient's bytes never landed");
++  const done = JSON.parse(fs.readFileSync(state, "utf8")).ownerNomination;
++  assert.equal(done.history[0].tx.raw, oldTx.raw); assert.equal(done.history[0].tx.state, "dropped");
++});
+--- /dev/null
++++ b/test/owner-nomination-config.test.mjs
+@@ -0,0 +1,174 @@
++// The owner nomination's PUBLIC config path (metal/guest/owner-nomination.mjs): the one checker, the legacy guest's
++// handling (gsup.mjs helpers), the HOST_DATA-bound direct config (measured-control.mjs: canonical form, digest, the
++// supervisor's env, the control statement), the REAL host launcher (fw_cfg) and the image's file lists. Absent stays
++// exactly as before everywhere. The on-chain half is test/owner-nomination.test.mjs.
++import { test, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { spawn } from "node:child_process";
++import { fileURLToPath } from "node:url";
++import { keccak256, toBytes } from "viem";
++import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
++import * as ON from "../metal/guest/owner-nomination.mjs";
++import * as MC from "../metal/guest/measured-control.mjs";
++import { supervisorClosure } from "../metal/supervisor-closure.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "owner-nomination-"));
++after(() => fs.rmSync(tmp, { recursive: true, force: true }));
++const a20 = (b) => "0x" + b.toString(16).padStart(2, "0").repeat(20);
++const NOM = (o = {}) => {
++  const endpoint = o.endpoint ?? "https://host.example.org";
++  return { format: ON.OWNER_NOMINATION_FORMAT, chainId: 8453, ownershipContract: a20(0x55), ownershipCodeHash: "0x" + "ee".repeat(32), registry: a20(0x11),
++    hostId: keccak256(toBytes(endpoint)), endpoint, operator: a20(0x99), owner: a20(0x0b),
++    rpcs: ["https://rpc-a.example/v1", "https://rpc-b.example", "https://rpc-c.example"], quorum: 2, ...o };
++};
++
++test("the checker: canonical form, and every malformed or unsafe nomination refused", () => {
++  const n = ON.checkOwnerNomination({ ...NOM(), owner: a20(0x0b).toUpperCase().replace("0X", "0x") });
++  assert.equal(n.owner, a20(0x0b));
++  assert.deepEqual(Object.keys(n), ["format", "chainId", "ownershipContract", "ownershipCodeHash", "registry", "hostId", "endpoint", "operator", "owner", "rpcs", "quorum"]);
++  assert.ok(Object.isFrozen(n));
++  for (const [what, raw, why] of [
++    ["unknown field", { ...NOM(), extra: 1 }, /unknown field extra/],
++    ["missing owner", (({ owner, ...r }) => r)(NOM()), /owner is required/],
++    ["zero owner", NOM({ owner: "0x" + "00".repeat(20) }), /owner must be a nonzero address/],
++    ["owner is the operator key", NOM({ owner: a20(0x99) }), /other than the operator/],
++    ["format", NOM({ format: "v0" }), /format must be/],
++    ["endpoint trailing slash", NOM({ endpoint: "https://host.example.org/" }), /exactly as registered/],
++    ["endpoint http", NOM({ endpoint: "http://host.example.org" }), /exactly as registered/],
++    ["zero hostId", NOM({ hostId: "0x" + "00".repeat(32) }), /hostId must be a nonzero bytes32/],
++    ["plain http rpc", NOM({ rpcs: ["http://rpc-a.example", "https://rpc-b.example"] }), /must be https/],
++    ["loopback rpc without the test permission", NOM({ rpcs: ["http://127.0.0.1:8545", "https://rpc-b.example"] }), /must be https/],
++    ["repeated provider", NOM({ rpcs: ["https://rpc-a.example/x", "https://rpc-a.example/y"] }), /repeats a provider/],
++    ["quorum 1", NOM({ quorum: 1 }), /strict majority/],
++    ["quorum not a majority", NOM({ rpcs: ["https://a.example", "https://b.example", "https://c.example", "https://d.example"], quorum: 2 }), /strict majority/],
++    ["one rpc", NOM({ rpcs: ["https://a.example"], quorum: 1 }), /2\.\.8/],
++  ]) assert.throws(() => ON.checkOwnerNomination(raw), why, what);
++  assert.equal(ON.checkOwnerNomination(NOM({ rpcs: ["http://127.0.0.1:1", "http://127.0.0.1:2"], quorum: 2 }), { allowLoopbackHttp: true }).quorum, 2);
++});
++
++test("legacy guest: fw_cfg is the ONLY source of the supervisor's nomination name; absent or invalid sets none", () => {
++  assert.deepEqual(ON.guestOwnerNomination(undefined), { nomination: null, message: null });
++  const ok = ON.guestOwnerNomination(JSON.parse(JSON.stringify(ON.checkOwnerNomination(NOM()))));
++  assert.match(ok.message, /owner nomination configured: propose 0x0b0b/);
++  const env = ON.withOwnerNominationEnv({ PATH: "/bin", [ON.OWNER_NOMINATION_ENV]: JSON.stringify(NOM({ owner: a20(0xf5) })) }, ok.nomination);
++  assert.deepEqual(JSON.parse(env[ON.OWNER_NOMINATION_ENV]), JSON.parse(JSON.stringify(ok.nomination)), "a flavor/host-policy copy of the name is replaced");
++  assert.equal(env.PATH, "/bin");
++  const badOne = ON.guestOwnerNomination({ ...NOM(), owner: a20(0x99) });
++  assert.equal(badOne.nomination, null); assert.match(badOne.message, /REFUSED/);
++  assert.deepEqual(ON.withOwnerNominationEnv({ B: "2", [ON.OWNER_NOMINATION_ENV]: "{}" }, null), { B: "2" }, "absent: no stray name survives");
++  const gsup = fs.readFileSync(path.join(REPO, "metal/guest/gsup.mjs"), "utf8");
++  assert.match(gsup, /const OWNER_NOMINATION = CONTROL \? \{ nomination: null, message: null \} : guestOwnerNomination\(fw\.ownerNomination\);/);
++  assert.match(gsup, /withOwnerNominationEnv\(withLeaseGasEnv\(supEnv, LEASE_GAS\), OWNER_NOMINATION\.nomination\)/);
++});
++
++// the direct (HOST_DATA-bound) config, as test/metal-lease-gas-conduit.test.mjs writes it
++const RAW = () => ({ format: MC.CONFIG_FORMAT, chainId: 8453,
++  contracts: { registry: a20(0x11), deployments: a20(0x12), appCatalog: a20(0x13), proofOfTime: a20(0x14), enclavePay: a20(0), verificationFees: a20(0), sessionVaultFactory: a20(0), secretVaultV2: a20(0) },
++  profileDigest: null, rpcs: ["https://rpc-a.example/v1", "https://rpc-b.example"], quorum: 2, releaseId: "ab".repeat(32),
++  replicas: { gateways: ["http://192.0.2.10:8189", "https://replica.example"], storagePlan: null },
++  identity: { publicUrl: "https://host.example.org", repo: "owner/enclave", operator: a20(0x99) },
++  selling: { cpuPrice6: 14, payout: null }, isolation: { managerUrl: "http://10.0.2.2:8095", dataAddr: "10.0.2.2:8096" }, hostAdmissionSha256: null, controlPort: 8444 });
++const BOUND = () => JSON.parse(JSON.stringify(ON.checkOwnerNomination(NOM())));
++const KEYS = { proof: { publicKey: "04" + "11".repeat(64) }, session: { jwk: { crv: "P-256", kty: "EC", x: "x", y: "y" } }, controlTls: { spkiSha256: "22".repeat(32) } };
++
++test("direct config: absent keeps the exact config and digest; present it is bound, stated and handed to the supervisor", () => {
++  const old = MC.canonicalDirectConfig(RAW()), withN = MC.canonicalDirectConfig({ ...RAW(), ownerNomination: BOUND() });
++  assert.equal("ownerNomination" in old, false);
++  assert.notEqual(MC.configDigest(withN), MC.configDigest(old), "HOST_DATA covers it: changing it changes the bound digest");
++  assert.notEqual(MC.configDigest(MC.canonicalDirectConfig({ ...RAW(), ownerNomination: { ...BOUND(), owner: a20(0x0c) } })), MC.configDigest(withN));
++  assert.deepEqual(withN.ownerNomination, ON.checkOwnerNomination(NOM()));
++  const env = MC.directSupervisorEnv(withN, { secrets: { secret: "ab".repeat(32) } });
++  assert.equal(env[ON.OWNER_NOMINATION_ENV], ON.ownerNominationJson(ON.checkOwnerNomination(NOM())));
++  assert.equal(ON.OWNER_NOMINATION_ENV in MC.directSupervisorEnv(old, { secrets: { secret: "ab".repeat(32) } }), false);
++  assert.deepEqual(MC.directEnvProblems(env), [], "the direct env rules still hold");
++  for (const [what, n, why] of [
++    ["another operator", { ...BOUND(), operator: a20(0x98) }, /operator must be identity\.operator/],
++    ["another endpoint", JSON.parse(JSON.stringify(ON.checkOwnerNomination(NOM({ endpoint: "https://other.example.org" })))), /endpoint must be identity\.publicUrl/],
++    ["another registry", { ...BOUND(), registry: a20(0x12) }, /registry must be contracts\.registry/],
++    ["another chain", { ...BOUND(), chainId: 1 }, /chain 1/],
++    ["not in its checked form", { ...BOUND(), owner: a20(0x0b).replace("0x0b0b", "0x0B0b") }, /checked form/],
++    ["unknown field", { ...BOUND(), x: 1 }, /unknown field/],
++  ]) assert.throws(() => MC.canonicalDirectConfig({ ...RAW(), ownerNomination: n }), why, what);
++  // the control statement names it (contract, code hash, host, owner); one without keeps its exact shape
++  const st = MC.controlStatement({ config: withN, digest: "33".repeat(32), hostData: "44".repeat(32), mode: "snp", keys: KEYS, bootId: "55".repeat(16) });
++  assert.deepEqual(MC.parseStatement(st.text).ownerNomination, { ownershipContract: a20(0x55), ownershipCodeHash: "0x" + "ee".repeat(32), hostId: NOM().hostId, owner: a20(0x0b) });
++  const plain = MC.controlStatement({ config: old, digest: "33".repeat(32), hostData: "44".repeat(32), mode: "snp", keys: KEYS, bootId: "55".repeat(16) });
++  assert.equal("ownerNomination" in MC.parseStatement(plain.text), false);
++  const forged = JSON.parse(st.text); forged.ownerNomination.extra = 1;
++  assert.throws(() => MC.parseStatement(MC.canonicalJson(forged)), /owner nomination/);
++});
++
++// ---- the real launcher (as test/metal-lease-gas-conduit.test.mjs drives it) ----------------------------------------------
++const KEY = "ab".repeat(32);
++function launch(cfgOver, { direct = null } = {}) {
++  const t = fs.mkdtempSync(path.join(tmp, "launch-"));
++  fs.mkdirSync(path.join(t, "dist")); fs.mkdirSync(path.join(t, "tmp"));
++  fs.writeFileSync(path.join(t, "dist", "vmlinuz"), "k"); fs.writeFileSync(path.join(t, "dist", "initramfs.cpio.gz"), "i");
++  fs.writeFileSync(path.join(t, "pair.key"), KEY + "\n", { mode: 0o600 });
++  if (direct) fs.writeFileSync(path.join(t, "direct.json"), JSON.stringify(direct));
++  fs.writeFileSync(path.join(t, "fake-qemu"), ["#!/bin/sh", "while [ $# -gt 0 ]; do",
++    '  if [ "$1" = -fw_cfg ]; then case "$2" in name=opt/org.enclave.metal,file=*) cp "${2#name=opt/org.enclave.metal,file=}" "$FAKE_QEMU_OUT.tmp" && mv "$FAKE_QEMU_OUT.tmp" "$FAKE_QEMU_OUT";; esac; fi',
++    "  shift", "done", "exec sleep 30"].join("\n") + "\n", { mode: 0o755 });
++  const cfg = { mode: "snp", name: "owner-test", cpus: 1, memMiB: 512, measureGflops: false, dist: path.join(t, "dist"), ovmf: path.join(t, "ovmf.fd"),
++    qemu: path.join(t, "fake-qemu"), relayUrl: "wss://relay.example.test/v1/fleet-tunnel",
++    isolation: { backend: "snp-guest-per-app", managerUrl: "http://10.0.2.2:8095", dataAddr: "10.0.2.2:8096", pairingKeyFile: path.join(t, "pair.key") },
++    ...(direct ? { control: "direct", direct: path.join(t, "direct.json"), relayUrl: undefined, hostfwd: [{ host: 18444, guest: 8444 }] } : {}), ...cfgOver };
++  for (const k of Object.keys(cfg)) if (cfg[k] === undefined) delete cfg[k];
++  fs.writeFileSync(path.join(t, "config.json"), JSON.stringify(cfg));
++  const out = path.join(t, "fwcfg.json");
++  const p = spawn(process.execPath, [path.join(REPO, "metal/enclave-metal.mjs"), "--config", path.join(t, "config.json")],
++    { env: { ...process.env, TMPDIR: path.join(t, "tmp"), FAKE_QEMU_OUT: out }, stdio: ["ignore", "pipe", "pipe"] });
++  let log = ""; p.stdout.on("data", (d) => { log += d; }); p.stderr.on("data", (d) => { log += d; });
++  const exited = new Promise((r) => p.on("exit", (code) => r(code)));
++  return { out, p, exited, log: () => log };
++}
++async function launched(cfgOver = {}, o = {}) {
++  const run = launch(cfgOver, o);
++  try {
++    for (let i = 0; i < 200 && !fs.existsSync(run.out); i++) { if (run.p.exitCode !== null) break; await new Promise((r) => setTimeout(r, 50)); }
++    if (!fs.existsSync(run.out)) return { refused: true, code: await Promise.race([run.exited, new Promise((r) => setTimeout(() => r("running"), 3000))]), log: run.log() };
++    return { fw: JSON.parse(fs.readFileSync(run.out, "utf8")), log: run.log() };
++  } finally { if (run.p.exitCode === null && run.p.signalCode === null) { run.p.kill("SIGTERM"); await run.exited; } }
++}
++
++test("the real launcher: the operator's own nomination crosses checked; a wrong one refuses the launch; absent stays absent", async () => {
++  const key = generatePrivateKey(), op = privateKeyToAccount(key).address.toLowerCase();
++  const pub = "https://api.example.test/t/owner-test";
++  const nom = NOM({ endpoint: pub, operator: op });
++  for (const k of [key, key.slice(2)]) {   // the operator key as the supervisor accepts it: with or without 0x
++    const r = await launched({ publicUrl: pub, registryKey: k, ownerNomination: nom });
++    assert.ok(!r.refused, r.log);
++    assert.deepEqual(r.fw.ownerNomination, JSON.parse(JSON.stringify(ON.checkOwnerNomination(nom))));
++    assert.match(r.log, /owner nomination: propose 0x0b0b/);
++  }
++  const unkeyed = await launched({ publicUrl: pub, ownerNomination: nom });
++  assert.ok(!unkeyed.refused, unkeyed.log);   // no host-side key: the supervisor checks against its own key
++  for (const [what, over, why] of [
++    ["another operator's key", { publicUrl: pub, registryKey: generatePrivateKey(), ownerNomination: nom }, /is not this host's operator key/],
++    ["another endpoint", { publicUrl: "https://api.example.test/t/other", ownerNomination: nom }, /must be this host's publicUrl/],
++    ["invalid", { publicUrl: pub, ownerNomination: { ...nom, owner: op } }, /other than the operator/],
++  ]) { const r = await launched(over); assert.equal(r.refused, true, what); assert.match(r.log, why, what); }
++  const off = await launched({ publicUrl: pub });
++  assert.ok(!off.refused, off.log); assert.equal("ownerNomination" in off.fw, false);
++});
++
++test("the real launcher, direct control: only the HOST_DATA-bound copy; a host-level one refuses", async () => {
++  const r = await launched({ ownerNomination: NOM() }, { direct: { ...RAW(), ownerNomination: BOUND() } });
++  assert.equal(r.refused, true, r.log); assert.match(r.log, /takes ownerNomination only inside the bound direct config/);
++  const ok = await launched({}, { direct: { ...RAW(), ownerNomination: BOUND() } });
++  assert.ok(!ok.refused, ok.log);
++  assert.deepEqual(ok.fw.direct.ownerNomination, BOUND()); assert.equal("ownerNomination" in ok.fw, false);
++});
++
++test("the image carries it: supervisor closure, the overlay's guest helpers and the image builder's list", () => {
++  const { files } = supervisorClosure(REPO);
++  for (const f of ["metal/guest/owner-nomination.mjs", "network/host-owner-nomination.mjs", "client/lease-executor-authority.mjs"]) assert.ok(files.includes(f), f);
++  assert.match(fs.readFileSync(path.join(REPO, "metal/overlay-control-image.py"), "utf8"), /OPTIONAL_GUEST_FILES = \[.*'owner-nomination\.mjs'\]/);
++  assert.match(fs.readFileSync(path.join(REPO, "metal/build-image.mjs"), "utf8"), /'measured-control\.mjs', 'owner-nomination\.mjs'\]\)/);
++  // dependency-free: the guest copy imports nothing
++  assert.doesNotMatch(fs.readFileSync(path.join(REPO, "metal/guest/owner-nomination.mjs"), "utf8"), /^import /m);
++});
+--- /dev/null
++++ b/test/owner-nomination-journal.test.mjs
+@@ -0,0 +1,245 @@
++// The nominator's JOURNAL rules (network/host-owner-nomination.mjs), with the ACTUAL module, an ephemeral local signer,
++// fixture RPCs that answer from one scripted chain, a serialized queue and a store whose writes can fail. Root's review
++// (work/owner-nomination-root-review/reproduce.mjs) reproduced two defects in the reviewed module d35041738...: a pending
++// signed nomination broadcast although every durable write failed, and an old recipient's nomination re-broadcast under a
++// changed config. These cases assert the repaired behaviour; the Anvil + real-supervisor half is owner-nomination.test.mjs.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++// NOMINATOR_MODULE: the module under test (default the repaired one; run-v5 also runs this suite against the preserved
++// earlier module to show the queue-delay case failing there)
++const { createOwnerNominator, OWNERSHIP_ABI, journalProblem } = await import(process.env.NOMINATOR_MODULE || "../network/host-owner-nomination.mjs");
++import { parseAbi, encodeFunctionResult, encodeFunctionData, decodeFunctionData, keccak256, toBytes, parseTransaction } from "viem";
++import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
++
++const addr = (n) => "0x" + n.toString(16).padStart(40, "0"), ZERO = addr(0);
++const CONTRACT = addr(111), OTHER_CONTRACT = addr(222), REGISTRY = addr(112), A = addr(113), B = addr(114), C = addr(115);
++const ENDPOINT = "https://fixture.example/host", HOST = keccak256(toBytes(ENDPOINT));
++const REG = parseAbi(["function get(bytes32) view returns ((string endpoint,string repo,bytes32 measurement,address operator,uint64 registeredAt,uint64 lastSeen,bool active))"]);
++
++function world() {
++  const account = privateKeyToAccount(generatePrivateKey()), op = account.address.toLowerCase();
++  const chain = { owner: ZERO, pending: ZERO, nonce: 0, receipts: {}, mode: "ok", active: true };
++  const sent = [];                                  // every broadcast that reached the "network": {hash, owner, nonce}
++  const client = (url) => ({ transport: { url }, request: async ({ method, params }) => {
++    if (method === "eth_chainId") return "0x2105";
++    if (method === "eth_blockNumber") return "0x64";
++    if (method === "eth_getBlockByNumber") return { number: params[0], hash: "0x" + "ab".repeat(32) };
++    if (method === "eth_getCode") return "0x6000";
++    if (method === "eth_getTransactionReceipt") return chain.receipts[params[0]] ?? null;
++    if (method === "eth_getTransactionCount") return "0x" + chain.nonce.toString(16);
++    if (method === "eth_call") {
++      const [{ to, data }] = params;
++      if (to.toLowerCase() === REGISTRY) return encodeFunctionResult({ abi: REG, functionName: "get", result: { endpoint: ENDPOINT, repo: "fixture",
++        measurement: "0x" + "00".repeat(32), operator: account.address, registeredAt: 1n, lastSeen: 1n, active: chain.active } });
++      const { functionName } = decodeFunctionData({ abi: OWNERSHIP_ABI, data });
++      if (functionName === "registry") return encodeFunctionResult({ abi: OWNERSHIP_ABI, functionName, result: REGISTRY });
++      if (functionName === "authority") return encodeFunctionResult({ abi: OWNERSHIP_ABI, functionName, result: [chain.owner, chain.pending, 0n, "0x" + "00".repeat(32)] });
++      if (functionName === "proposeOwner") return "0x";
++    }
++    throw new Error("unscripted " + method);
++  } });
++  const clients = [client("https://one.example"), client("https://two.example")];
++  // the network: "ok" mines it at once (receipt, pending set, nonce consumed); "lost" never reaches the chain
++  const broadcast = async (raw) => {
++    const p = parseTransaction(raw), hash = keccak256(raw).toLowerCase();
++    const owner = decodeFunctionData({ abi: OWNERSHIP_ABI, data: p.data }).args[1].toLowerCase();
++    if (chain.mode === "lost") throw new Error("fixture: the broadcast never reached the chain");
++    sent.push({ hash, owner, nonce: p.nonce });
++    if (p.nonce === chain.nonce) { chain.nonce++; chain.pending = owner; chain.receipts[hash] = { status: "0x1", blockNumber: "0x63", blockHash: "0x" + "cd".repeat(32), to: p.to }; }
++  };
++  const signer = { address: account.address, broadcast,
++    prepare: async (r) => ({ ...r, type: "eip1559", chainId: 8453, nonce: chain.nonce, gas: 100000n, maxFeePerGas: 1n, maxPriorityFeePerGas: 1n }),
++    sign: (r) => account.signTransaction(r) };
++  // the journal: `fail` makes every write throw (durable and best-effort alike); `disk` is what survives a restart
++  const store = { disk: null, fail: false, writes: 0,
++    load() { return this.disk ? structuredClone(this.disk) : null; },
++    save(r) { if (this.fail) throw new Error("disk failure"); this.writes++; this.disk = structuredClone(r); },
++    saveDurable(r) { if (this.fail) throw new Error("disk failure"); this.writes++; this.disk = structuredClone(r); } };
++  let tail = Promise.resolve();
++  // the operator queue's shape; `gate` stands for the operator transactions a job may wait behind before its slot starts
++  const gated = { gate: Promise.resolve(), started: 0 };
++  const queue = (job) => { const p = tail.then(() => gated.gate).then(() => { gated.started++; return job(); }); tail = p.then(() => {}, () => {}); return p; };
++  const nomination = (o = {}) => ({ format: "enclave-host-owner-nomination/v1", chainId: 8453, ownershipContract: CONTRACT, ownershipCodeHash: keccak256("0x6000"),
++    registry: REGISTRY, hostId: HOST, endpoint: ENDPOINT, operator: op, owner: A, rpcs: ["https://one.example", "https://two.example"], quorum: 2, ...o });
++  const make = (o = {}) => createOwnerNominator({ nomination: nomination(o), local: { chainId: 8453, registry: REGISTRY, endpoint: ENDPOINT, hostId: HOST, operator: op },
++    queue, signer, clients, store, receiptMs: 0, sleep: async () => {} });
++  return { account, op, chain, sent, store, signer, make, nomination, gated };
++}
++/** a validly signed proposeOwner, for building journals by hand */
++async function signed(account, { to = CONTRACT, owner = A, nonce = 0, value = 0n, hostId = HOST } = {}) {
++  const raw = await account.signTransaction({ type: "eip1559", chainId: 8453, nonce, gas: 100000n, maxFeePerGas: 1n, maxPriorityFeePerGas: 1n, to, value,
++    data: encodeFunctionData({ abi: OWNERSHIP_ABI, functionName: "proposeOwner", args: [hostId, owner] }) });
++  return { hash: keccak256(raw).toLowerCase(), nonce, raw, state: "pending", broadcast: "unconfirmed", rebroadcasts: 0 };
++}
++
++test("every write failing for several passes: nothing is broadcast and nothing is counted; recovered: one nomination, and its re-broadcasts wait for durability too", async () => {
++  const w = world(), nm = w.make();
++  w.store.fail = true;
++  for (let i = 0; i < 3; i++) await nm.step();
++  assert.deepEqual(w.sent, [], "no broadcast while no durable write succeeded");
++  assert.equal(nm.status().sends, 0); assert.equal(nm.status().tx, null, "no un-journaled signed nomination is kept");
++  assert.ok(nm.status().persistFailures >= 3);
++  assert.equal(w.store.disk, null);
++  // durable again: the next pass signs, journals and broadcasts - which here never reaches the chain
++  w.store.fail = false; w.chain.mode = "lost";
++  await nm.step();
++  const known = w.store.disk.tx;
++  assert.equal(known.state, "pending"); assert.equal(w.store.disk.sends, 1); assert.deepEqual(w.sent, []);
++  // the disk fails again: the KNOWN nomination is not re-broadcast either
++  w.store.fail = true; w.chain.mode = "ok";
++  await nm.step(); await nm.step();
++  assert.deepEqual(w.sent, [], "a re-broadcast needs its own durable write first");
++  assert.equal(w.store.disk.tx.rebroadcasts, 0);
++  // recovered: exactly the same known bytes go out, after their counter is durable
++  w.store.fail = false;
++  await nm.step();
++  assert.deepEqual(w.sent.map((s) => s.hash), [known.hash]);
++  assert.equal(w.store.disk.tx.raw, known.raw); assert.equal(w.store.disk.tx.rebroadcasts, 1);
++  await nm.step();
++  assert.equal(nm.status().status, "done"); assert.equal(w.store.disk.sends, 1, "one nomination in all");
++  assert.equal(w.chain.pending, A);
++});
++
++test("restart: from a journal that never became durable, nothing old exists to send; from a durable one, exactly that nomination", async () => {
++  // never durable: the signed bytes of the failed pass die with the process
++  const w = world(); w.store.fail = true;
++  await w.make().step();
++  w.store.fail = false;
++  const fresh = w.make();
++  assert.equal(fresh.status().tx, null);
++  await fresh.step();
++  assert.equal(w.sent.length, 1); assert.equal(w.sent[0].hash, w.store.disk.tx.hash, "only a journaled nomination ever reached the chain");
++  // durable but never broadcast (lost): the restarted process re-checks the chain and re-broadcasts those same bytes
++  const v = world(); v.chain.mode = "lost";
++  await v.make().step();
++  const known = structuredClone(v.store.disk.tx);
++  v.chain.mode = "ok";
++  const restarted = v.make();
++  await restarted.step();
++  assert.deepEqual(v.sent.map((s) => s.hash), [known.hash]);
++  await restarted.step();
++  assert.equal(restarted.status().status, "done"); assert.equal(v.store.disk.sends, 1);
++});
++
++test("a changed config while an earlier nomination is unresolved: the old one is kept, observed, never re-broadcast; nothing new until it settles", async () => {
++  // root's reproduction: A signed and lost, then the config names B
++  const w = world(); w.chain.mode = "lost";
++  await w.make().step();
++  const oldTx = structuredClone(w.store.disk.tx);
++  w.chain.mode = "ok";
++  const nb = w.make({ owner: B });
++  await nb.step(); await nb.step();
++  assert.deepEqual(w.sent, [], "neither the old recipient's nomination nor a new one is broadcast");
++  assert.equal(nb.status().status, "blocked-unresolved");
++  assert.equal(w.store.disk.unresolved[0].tx.raw, oldTx.raw, "the earlier signed nomination is kept verbatim");
++  assert.equal(w.store.disk.unresolved[0].owner, A);
++  // another operator transaction takes its nonce: it can never land -> settled as dropped, then B is decided on the chain
++  w.chain.nonce = 1;
++  await nb.step();
++  assert.equal(w.sent.length, 1); assert.equal(w.sent[0].owner, B);
++  assert.equal(w.store.disk.history[0].tx.raw, oldTx.raw); assert.equal(w.store.disk.history[0].tx.state, "dropped");
++  assert.equal(w.store.disk.unresolved, undefined);
++  await nb.step(); assert.equal(nb.status().status, "done");
++  // the other ending: the old nomination LANDS -> pending A, so B is a conflict and is never sent
++  const v = world(); v.chain.mode = "lost";
++  await v.make().step();
++  const old = v.store.disk.tx;
++  v.chain.receipts[old.hash] = { status: "0x1", blockNumber: "0x63", blockHash: "0x" + "cd".repeat(32), to: CONTRACT };
++  v.chain.pending = A; v.chain.nonce = 1;
++  const vb = v.make({ owner: B });
++  await vb.step();
++  assert.deepEqual(v.sent, []); assert.equal(vb.status().status, "refused"); assert.match(vb.status().why, /pending 0x0+71: never replaced/);
++  assert.equal(v.store.disk.history[0].tx.state, "mined"); assert.equal(v.store.disk.history[0].tx.raw, old.raw);
++  // changing the contract or host is the same boundary
++  for (const o of [{ ownershipContract: OTHER_CONTRACT }, { hostId: keccak256(toBytes("https://other.example")) }]) {
++    const u = world(); u.chain.mode = "lost";
++    await u.make().step();
++    const was = u.store.disk.tx.raw; u.chain.mode = "ok";
++    let nm; try { nm = u.make(o); } catch { continue; }   // a hostId not keccak(endpoint) is refused by the local binding later
++    await nm.step();
++    assert.deepEqual(u.sent, [], JSON.stringify(o)); assert.equal(u.store.disk.unresolved[0].tx.raw, was);
++  }
++});
++
++test("a malformed or conflicting journal fails closed: nothing is sent, and the recorded evidence is kept exactly", async () => {
++  const cases = [
++    ["hash not of the bytes", async (w) => ({ ...(await signed(w.account)), hash: "0x" + "ee".repeat(32) })],
++    ["bytes altered", async (w) => { const t = await signed(w.account); return { ...t, raw: t.raw.slice(0, -4) + (t.raw.endsWith("00") ? "1100" : "0000") }; }],
++    ["nonce differs", async (w) => ({ ...(await signed(w.account)), nonce: 5 })],
++    ["another recipient", async (w) => signed(w.account, { owner: C })],
++    ["another contract", async (w) => signed(w.account, { to: OTHER_CONTRACT })],
++    ["another host", async (w) => signed(w.account, { hostId: keccak256(toBytes("https://other.example")) })],
++    ["value", async (w) => signed(w.account, { value: 1n })],
++    ["another signer", async () => signed(privateKeyToAccount(generatePrivateKey()))],
++    ["not even bytes", async () => ({ hash: "0x" + "ee".repeat(32), nonce: 0, raw: "zz", state: "pending" })],
++  ];
++  for (const [what, make] of cases) {
++    const w = world();
++    const rec = { ownershipContract: CONTRACT, hostId: HOST, owner: A, operator: w.op, status: "sent", why: null, sends: 1, tx: await make(w) };
++    w.store.disk = structuredClone(rec);
++    const nm = w.make();
++    await nm.step(); await nm.step();
++    assert.deepEqual(w.sent, [], what);
++    assert.equal(nm.status().status, "blocked-journal", what); assert.equal(nm.terminal(), false, "it stays observed, never forgotten");
++    assert.deepEqual(w.store.disk.tx, rec.tx, `${what}: the recorded nomination is kept exactly`);
++    assert.ok(await journalProblem(rec, 8453), what);
++  }
++  // a malformed EARLIER nomination under another config blocks the same way, and is kept
++  const w = world();
++  const bad = { ownershipContract: CONTRACT, hostId: HOST, owner: A, operator: w.op, status: "sent", sends: 1, tx: { ...(await signed(w.account)), nonce: 9 } };
++  w.store.disk = structuredClone(bad);
++  const nb = w.make({ owner: B });
++  await nb.step();
++  assert.deepEqual(w.sent, []); assert.equal(nb.status().status, "blocked-journal");
++  assert.deepEqual(w.store.disk.unresolved[0].tx, bad.tx);
++  // and a well-formed journal is accepted by the same check
++  const ok = { ownershipContract: CONTRACT, hostId: HOST, owner: A, operator: w.op, tx: await signed(w.account) };
++  assert.equal(await journalProblem(ok, 8453), null);
++});
++
++test("a recorded nomination is re-broadcast only while the chain still shows owner 0 / pending 0", async () => {
++  const w = world(); w.chain.mode = "lost";
++  const nm = w.make();
++  await nm.step();
++  const known = w.store.disk.tx;
++  // meanwhile the chain already shows the nomination (another path, or an earlier copy): success, no re-broadcast
++  w.chain.mode = "ok"; w.chain.pending = A;
++  await nm.step();
++  assert.deepEqual(w.sent, []); assert.equal(nm.status().status, "done"); assert.equal(nm.terminal(), false, "the recorded one is still observed");
++  // a conflicting pending appears instead: refused, no re-broadcast
++  const v = world(); v.chain.mode = "lost";
++  const nv = v.make();
++  await nv.step();
++  v.chain.mode = "ok"; v.chain.pending = C;
++  await nv.step();
++  assert.deepEqual(v.sent, []); assert.equal(nv.status().status, "refused");
++  assert.equal(v.store.disk.tx.raw, (await Promise.resolve(v.store.disk.tx)).raw);
++  assert.equal(known.state, "pending");
++});
++
++test("queue delay: the chain changes while a re-broadcast waits for its operator-queue slot - nothing is broadcast, nothing overwritten, the proof stays", async () => {
++  for (const [what, change, status] of [
++    ["another wallet becomes pending", (c) => { c.pending = C; }, "refused"],
++    ["another wallet pending AND the registry entry inactive", (c) => { c.pending = C; c.active = false; }, "refused"],
++    ["the registry entry turns inactive", (c) => { c.active = false; }, "pending-check"],
++  ]) {
++    const w = world(); w.chain.mode = "lost";
++    const nm = w.make();
++    await nm.step();                                         // A signed, durable, broadcast lost: an ambiguous nomination
++    const proof = structuredClone(w.store.disk.tx);
++    assert.equal(proof.state, "pending");
++    w.chain.mode = "ok";
++    let release; w.gated.gate = new Promise((r) => { release = r; });
++    const before = w.gated.started;
++    const pass = nm.step();                                  // its pre-check sees owner 0 / pending 0 and queues the re-broadcast
++    for (let i = 0; i < 50 && w.gated.started === before; i++) await new Promise((r) => setTimeout(r, 5));
++    change(w.chain);                                         // ...meanwhile, behind an operator transaction, the chain moves
++    release(); await pass;
++    assert.deepEqual(w.sent, [], `${what}: nothing broadcast`);
++    if (w.chain.pending === C) assert.equal(w.chain.pending, C, "the other wallet's pending is not overwritten");
++    assert.equal(nm.status().status, status, what);
++    assert.equal(w.store.disk.tx.raw, proof.raw, `${what}: the recorded nomination is kept`);
++    assert.equal(w.store.disk.tx.state, "pending"); assert.equal(w.store.disk.tx.rebroadcasts, 0, "no re-broadcast was counted");
++    assert.equal(nm.terminal(), false, "the recorded nomination stays observed");
++  }
++});

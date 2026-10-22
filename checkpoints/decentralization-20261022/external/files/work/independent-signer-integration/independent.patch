@@ -1,0 +1,13 @@
+--- a/cli/independent.mjs
++++ b/cli/independent.mjs
+@@ -356,7 +356,9 @@
+  * -> the agreed receipt (status success), or throws: a definite refusal (nothing pending) or OutcomeUnknownError.
+  */
+ export async function sendQuorumTx(chain, { account, to, data, value = 0n, maxFeeGwei = 5, gasCap = 15_000_000n, timeoutMs = 180000, pollMs = 1000, log = () => {} }) {
+-  if (typeof account?.signTransaction !== "function") throw new Error("independent mode signs locally: use the wallet key (ENCLAVE_KEY or the key file) or --unsigned");
++  // an external signer (cli/independent-signer.mjs) runs this same preparation and broadcast with its wallet as the signer
++  if (typeof account?.sendQuorumTx === "function") return account.sendQuorumTx(chain, { to, data, value, maxFeeGwei, gasCap, timeoutMs, pollMs, log });
++  if (typeof account?.signTransaction !== "function") throw new Error("independent mode signs with the wallet key (ENCLAVE_KEY or the key file), an external signer (--signer URL --from 0x…) or --unsigned");
+   const from = account.address;
+   // 1. the call must succeed at an agreed block (preconditions, as the ledger itself judges them)
+   const sim = await chain.snapshot(async (c, blockNumber) => {

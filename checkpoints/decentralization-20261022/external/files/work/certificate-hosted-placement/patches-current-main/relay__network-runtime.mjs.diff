@@ -1,0 +1,10 @@
+--- a/relay/network-runtime.mjs
++++ b/relay/network-runtime.mjs
+@@ -13,6 +13,7 @@
+ export {authorizePush,parseMeasurements} from './dns-challenge-attested.mjs';
+ // The route replica's own app-zone challenge authority (APP_CHALLENGE_AUTH=attested-lease), same bundle for the same reason.
+ export {createAppZoneAuthority,createLedgerIndex} from '../network/app-zone-challenge.mjs';
++export {createAppZoneShield} from '../network/app-zone-shield.mjs';
+ export {createShieldChallengeAuth,isShieldPush,shieldRegistryBinding,shieldRegistryEntry} from './dns-challenge-shield.mjs';
+ export {judge} from '../isolation/m2/judge.mjs';
+ export {validateContractPins} from '../network/contract-pins.mjs';

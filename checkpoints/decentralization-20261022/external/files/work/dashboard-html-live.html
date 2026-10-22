@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>(function(){
+var heal=function(){try{
+  var k="enclave_skew_reload",last=+sessionStorage.getItem(k)||0;
+  if(Date.now()-last<240000)return;
+  sessionStorage.setItem(k,String(Date.now()));
+  setTimeout(function(){location.reload();},8000);
+}catch(e){}};
+addEventListener("error",function(e){
+  var t=e.target;
+  if(t&&(t.tagName==="SCRIPT"||(t.tagName==="LINK"&&t.rel==="modulepreload")))heal();
+},true);
+addEventListener("unhandledrejection",function(e){
+  if(/dynamically imported module|Failed to fetch|error loading/i.test(String(e.reason)))heal();
+});
+})();</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070A0F" />
+<title>Dashboard · Enclave</title>
+<!-- session-gated page: nothing indexable renders without a signed-in wallet -->
+<meta name="robots" content="noindex" />
+<meta name="description" content="Your running Enclave deployments: status, spend, endpoints, in-browser attestation checks, and the live provisioning output of your deploys." />
+<link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<script>
+/* Cross-document view transitions are skipped by Chromium when extensions
+   inject content scripts (MetaMask et al): the old page sees pageswap with
+   no viewTransition. Flag it, and the NEXT page (this script runs pre-paint)
+   plays the same settle-in itself (html.soft-enter, see base.css) - content
+   only, the static header stays put. */
+(function(){
+  try { if (sessionStorage.getItem("enclave_novt")) { sessionStorage.removeItem("enclave_novt"); document.documentElement.classList.add("soft-enter"); } } catch(e){}
+  addEventListener("pageswap", function(e){
+    try { if (!e.viewTransition && e.activation) sessionStorage.setItem("enclave_novt", "1"); } catch(e){}
+  });
+})();
+</script>
+<link rel="stylesheet" href="css/site.css" />
+<link rel="modulepreload" href="js/chunks/chunk-TPYLZMII.js" />
+<link rel="modulepreload" href="js/chunks/chunk-TXG5D22N.js" />
+<link rel="modulepreload" href="js/chunks/chunk-IBXEASKH.js" />
+<link rel="modulepreload" href="js/chunks/dashboard-P7PYGMN3.js" />
+<link rel="modulepreload" href="js/chunks/chunk-VBGEUAYX.js" />
+<link rel="modulepreload" href="js/chunks/chunk-GTNCPLQW.js" />
+<link rel="modulepreload" href="js/chunks/chunk-T3OPGSJB.js" />
+<link rel="modulepreload" href="js/chunks/chunk-GYV5CMTT.js" />
+<link rel="modulepreload" href="js/chunks/chunk-H7E4TEB3.js" />
+<link rel="modulepreload" href="js/chunks/chunk-NURKQGES.js" />
+<link rel="modulepreload" href="js/chunks/chunk-H4N2LVRK.js" />
+<link rel="modulepreload" href="js/chunks/chunk-IKC2P5XV.js" />
+<link rel="modulepreload" href="js/chunks/chunk-XN3PY4JF.js" />
+<link rel="modulepreload" href="js/chunks/chunk-LP3VVHCN.js" />
+<link rel="modulepreload" href="js/chunks/chunk-D7VGFCH5.js" />
+<link rel="modulepreload" href="js/chunks/chunk-IJ44ZDNT.js" />
+<link rel="modulepreload" href="js/chunks/chunk-HI32IXP7.js" />
+<script type="module" src="js/boot.js"></script>
+</head>
+<body>
+<c-header current="dashboard" data-ssr><header class="nav">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="wrap nav-inner">
+    <a href="./" class="brand" aria-label="Enclave home">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+        <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkH"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkH)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="./" data-view="overview">Overview</a>
+      <a href="apps" data-view="apps">Apps</a>
+      <a href="develop" data-view="develop">Develop</a>
+      <a href="host" data-view="host">Host</a>
+      <a href="dashboard" data-view="dashboard" class="active" hidden>Dashboard</a>
+    </nav>
+    <c-wallet-button data-ssr><div class="wallet-mount" id="walletMount">
+  <button class="btn btn-primary btn-sm" id="walletBtn" type="button" aria-controls="walletPop">Sign in <span class="arr" aria-hidden="true">→</span></button>
+  <div class="wallet-pop" id="walletPop" hidden></div>
+</div></c-wallet-button>
+  </div>
+</header></c-header>
+<script>(function(){try{
+var s=JSON.parse(localStorage.getItem("enclave_session")||"null");
+var a=JSON.parse(localStorage.getItem("enclave_account")||"null");
+var wallet=s&&s.address,acct=a&&a.token;
+if(!wallet&&!acct)return;
+var dt=document.querySelector('.nav-links a[data-view="dashboard"]');if(dt)dt.hidden=false;
+var b=document.getElementById("walletBtn");if(!b)return;
+b.classList.add("connected");b.textContent="";
+var d=document.createElement("span");d.className="wdot";b.appendChild(d);
+b.appendChild(document.createTextNode(wallet?s.address.slice(0,6)+"…"+s.address.slice(-4):"Signed in"));
+b.dataset.painted="1";
+}catch(e){}})();</script>
+<main id="main" tabindex="-1">
+<h1 class="sr-only">Your Enclave deployments</h1>
+<section id="dashboard" data-view="dashboard" aria-label="Dashboard">
+  <div class="wrap">
+    <div class="dash-head">
+      <c-section-head eyebrow="Dashboard · signed-in view" heading="Command center for your fleet." data-ssr><div class="sec-head">
+  <span class="eyebrow">Dashboard · signed-in view</span>
+  <h2>Command center for your fleet.</h2>
+  <p>Everything your wallet is running, in one place: each deployment's status, spend, endpoints, and an in-browser attestation check. Open a deployment's <b>Output</b> panel to watch what it's doing - its deploy narrative and the app's own logs, straight from the enclave. Launch new apps from the <a href="apps">Apps store</a>; the provisioning stream lands here.</p>
+</div></c-section-head>
+      <aside class="dash-fleet" aria-label="Live enclaves">
+        <h2 class="dash-fleet-h">Live enclaves</h2>
+        <c-fleet-list data-ssr><div class="fleet-list"></div>
+<div class="fleet-foot"></div>
+<!-- Seller CTA: the fleet is open to anyone with confidential hardware, and
+     this list is where a new host shows up. Links to /host (what you need, the
+     CLI flow, how earning works; the repo docs are linked from there). -->
+<p class="fleet-cta">
+  <span>Your hardware belongs on this list.</span>
+  Run an enclave on a box you own, claim paid work from the open queue, and the
+  ledger pays your wallet for every lease you serve.
+  <a href="host">Host an enclave &rarr;</a>
+</p></c-fleet-list>
+      </aside>
+    </div>
+    <c-deployments data-ssr><div class="enclaves">
+  <!-- the store's toolbar grammar: seg filter · search · count · refresh · primary CTA -->
+  <div class="store-toolbar enc-toolbar" hidden>
+    <div class="seg enc-segs" role="group" aria-label="Filter deployments by status">
+      <button data-bucket="all" class="on" aria-pressed="true" type="button">All <b></b></button>
+      <button data-bucket="running" aria-pressed="false" type="button">Running <b></b></button>
+      <button data-bucket="queued" aria-pressed="false" type="button">Queued <b></b></button>
+      <button data-bucket="ended" aria-pressed="false" type="button">Ended <b></b></button>
+      <button data-bucket="failed" aria-pressed="false" type="button">Failed <b></b></button>
+    </div>
+    <input type="text" class="enc-search" placeholder="search app, id, status…" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Search deployments" />
+    <button class="btn btn-sm enc-refresh" type="button">↻ refresh</button>
+    <a class="btn btn-primary btn-sm" href="apps">Deploy app <span class="arr" aria-hidden="true">→</span></a>
+  </div>
+  <!-- one strip per deploy that's streaming (or resumed after a reload) and has no row yet -->
+  <div class="enc-lives"></div>
+  <div class="enc-body"></div>
+  <!-- pagination: the list can grow unbounded, so show 5 rows per page -->
+  <div class="enc-pager" hidden></div>
+</div></c-deployments>
+    <div class="contract-foot"><a class="contract-link" id="depAddrLink" target="_blank" rel="noopener" aria-label="View the EnclaveDeployments contract on Basescan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg> contract</a></div>
+  </div>
+</section>
+</main>
+<c-footer data-ssr><footer aria-label="Footer">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="./" class="brand" aria-label="Enclave home">
+          <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+            <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkF"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkF)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+        </a>
+        <p>Compute that cannot see your data. Paid per second, for anything that holds a key.</p>
+        <div class="foot-meta">
+          <span>built + operated by Enclave Host, Inc.</span>
+          <span>front-end: static, pinned to IPFS · <code>enclave.host</code></span>
+        </div>
+      </div>
+      <nav aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          <li><a href="./#why">What you get</a></li>
+          <li><a href="./#how">How it works</a></li>
+          <li><a href="apps">App store</a></li>
+          <li><a href="./#pricing">Pricing</a></li>
+          <li><a href="develop#architecture">Architecture</a></li>
+          <li><a href="develop#progress">Engineering evidence</a></li>
+          <li><a href="./#about">About the company</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Developers">
+        <h2>Developers</h2>
+        <ul>
+          <li><a href="develop#docs">App development guide</a></li>
+          <li><a href="develop#api">API reference</a></li>
+          <li><a href="openapi.json" id="dlSpec2">OpenAPI spec</a></li>
+          <li><a href="./#attest">Attestation guide</a></li>
+          <li><a href="develop#api">Error codes</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Trust">
+        <h2>Trust</h2>
+        <ul>
+          <li><a href="develop#contract">The isolation contract</a></li>
+          <li><a href="develop#shield">Enclave Shield</a></li>
+          <li><a href="./#attest">Verify an enclave</a></li>
+          <li><a href="develop#verify">What is measured</a></li>
+          <li><a href="develop#independent">What runs on our servers</a></li>
+          <li><a href="https://github.com/EnclaveHost/enclave" target="_blank" rel="noopener">Source on GitHub</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Contact and legal">
+        <h2>Contact</h2>
+        <ul>
+          <li><a class="foot-mail" href="mailto:support@enclave.host">Support<code>support@enclave.host</code></a></li>
+          <li><a class="foot-mail" href="mailto:security@enclave.host">Security disclosures<code>security@enclave.host</code></a></li>
+          <li><a href=".well-known/security.txt">security.txt</a></li>
+          <li><a href="terms">Terms of Service</a></li>
+          <li><a href="privacy">Privacy Policy</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Enclave Host, Inc. · content-addressed on IPFS · build <span data-build>c2bc3cc6 · 2026-10-18</span></span>
+      <span>designed to outlive any one operator</span>
+    </div>
+  </div>
+</footer></c-footer>
+<c-toast data-ssr><div id="toast" role="status" aria-live="polite" aria-atomic="true"></div></c-toast>
+</body>
+</html>

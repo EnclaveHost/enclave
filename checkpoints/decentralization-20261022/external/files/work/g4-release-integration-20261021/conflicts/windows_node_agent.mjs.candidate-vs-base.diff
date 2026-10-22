@@ -1,0 +1,67 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/g4-release-integration-20261021/base-abe86262/control/windows/node/agent.mjs	1969-12-31 17:00:00.000000000 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/resume-20261021/reconciled-candidate/windows/node/agent.mjs	2026-10-21 04:12:50.477069102 -0700
+@@ -47,10 +47,12 @@
+ import { sponsoredRegister } from './sponsor.mjs';
+ import { finishHvAttach, reattachMode, relayTakesV2, shouldReattach } from './hvnode-attach.mjs';
+ import { tunnelHandover } from './tunnel-handover.mjs';
+-import { CONTRACT_PINS, addressBook, addresses as chainAddresses, publicClient } from './chain.mjs';
++import { CONTRACT_PINS, addressBook, addresses as chainAddresses, publicClient, operatorAccount, operatorAddress, enclaveIdOf } from './chain.mjs';
+ import { createSessionApiAuth, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES } from './session-api-auth.mjs';
+ import { measureGflops } from './compute-measure.mjs';
+ import { resolveIdentity } from './host-identity.mjs';
++// this box's own signed capacity record for independent readers (docs/network/independent-capacity.md); no packages
++import { createHostCapacityProducer, HOST_CAPACITY_PATH } from '../../network/host-capacity-producer.mjs';
+ const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
+ // SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
+ // and posts it back unchanged. The session it mints is for THIS box only (session.mjs).
+@@ -487,6 +489,21 @@
+ let shieldEvidenceReads = 0;
+ let shieldWitness = null;
+ let shieldSecrets = null;
++// GET /v1/host/capacity: the /availability below, signed by this box's registry operator key for the endpoint the
++// registry lists it under (network/host-capacity-producer.mjs), so a reader with no relay can use it. It says who
++// reported the numbers, not that the card or the cores are free. Made once the operator key is loaded; signs only while
++// the registry row read at start (host.registered) is active and this key's.
++let capacity = null;
++function capacityProducer() {
++  if (capacity || !operatorAccount()) return capacity;
++  // the registry row this box read for its own endpoint: signed for only while it is active and names this key
++  const identity = () => { const e = host.registered;
++    return e && e.active === true && e.endpoint && chainAddresses.registry && String(e.operator).toLowerCase() === String(operatorAddress()).toLowerCase()
++      ? { endpoint: e.endpoint, registry: chainAddresses.registry } : null; };
++  capacity = createHostCapacityProducer({ account: operatorAccount(), hostIdOf: enclaveIdOf, chainId: 8453, identity,
++    availability: async () => { const r = await handle({ path: '/availability', method: 'GET' }); if (r.status !== 200) throw new Error(`/availability answered ${r.status}`); return JSON.parse(r.body); } });
++  return capacity;
++}
+ async function handle(frame) {
+   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
+   const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
+@@ -560,6 +577,10 @@
+     shielded: card && host.sellsCard() ? { ...card, ...(cardProof ? { proof:cardProof } : {}),
+       ...(host.managerInference?.ready ? { model:host.managerInference.model, minimumGpuMilli:host.managerInference.minimumGpuMilli, runtimeId:host.managerInference.runtimeId } : {}) } : null,
+     model: MODEL ? path.basename(MODEL) : null, attachedAt, ...(APPS ? host.availability() : {}) });
++  if (p === HOST_CAPACITY_PATH && method === 'GET') {
++    const c = capacityProducer();
++    return c ? c.frame() : json(503, { error: 'capacity_not_signed', reason: 'no operator key on this box: it signs no capacity record' });
++  }
+   // ---- who is asking ---------------------------------------------------------------------
+   // The public half of this box's session key. Anyone can verify a token it minted - and confirm
+   // the operator did not mint it - holding no secret. On a confidential VM that last part is a
+@@ -927,7 +948,7 @@
+         const { createResponderSessions, sessionTargets } = await import('./shield-sessions.mjs');
+         const responders = createResponderSessions({ hostId: host.enclaveId, endpoint: PUBLIC_URL, nodeKey, tpm: tpmCmd, keysFrame,
+           managerHealth: isolationHealth, platform: platformInfo, sign, log: (m) => log(m) });
+-        const tickResponders = () => { const t = sessionTargets(host.records.values()); if (t.length) responders.refresh(t).catch((e) => log(`shield responder sessions: ${e.message}`)); };
++        const tickResponders = () => { const t = sessionTargets(host.records.values(), { appZone: host.cfg.appZone }); if (t.length) responders.refresh(t).catch((e) => log(`shield responder sessions: ${e.message}`)); };
+         setTimeout(tickResponders, 45_000).unref?.(); setInterval(tickResponders, 120_000).unref?.();
+         // DIRECT SHIELD CUSTODY (shield-custody.mjs): only with the manager's callback key (ENCLAVE_CUSTODY_CALLBACK_KEY_FILE,
+         // the file the manager reads too). Each request is answered only after a fresh quorum read re-verifies the startup
+@@ -949,7 +970,7 @@
+                 return authority.materialize(id, { manager, runtimeId: host.cfg.isolationRuntimeId, enclaveId: host.enclaveId, needLease: true,
+                   walletRefusal: (row) => host.walletPolicyRefusal(row) });
+               },
+-              ensureSessions: () => responders.refresh(sessionTargets(host.records.values())),
++              ensureSessions: () => responders.refresh(sessionTargets(host.records.values(), { appZone: host.cfg.appZone })),
+               log: (m) => log(m) });
+             setInterval(() => { custody.pass().catch((e) => log(`shield custody: ${e.message}`)); }, 2000).unref?.();
+             log('shield custody: answering direct custody requests through the manager callback');

@@ -1,0 +1,286 @@
+{
+ "at": "2026-10-21T00:54:25.358439+00:00",
+ "base": [
+  "2026-10-20T16:05:00-07:00",
+  "main HEAD e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+  "main status sha256 d953e0984e1ae6d3c4834bc5750f4067f3fafc7dffccd74cbf34b7518384342a",
+  "deployed ea8210a55544cb0a12fba667635f4801a874cbc8"
+ ],
+ "patch": {
+  "file": "work/android-independent-host/android-independent-host.patch",
+  "sha256": "944aa6c76e6afe58a96b0d2d85033164ae57f39e63ae55cf2998d2f866eb3759",
+  "files": 16
+ },
+ "files": [
+  {
+   "path": "network/pvm-independent-admission.mjs",
+   "base": null,
+   "new": "9c64a4e72a052eb76d890f8c6f167051e2490bb6c9a81b4a1b58867224d3e162"
+  },
+  {
+   "path": "shielded/anchor/avf/INDEPENDENT.md",
+   "base": null,
+   "new": "927025cab38c2bfc7f987abfc3b5fcdd9de77b6ec50f2ca7f7c51382b43eea00"
+  },
+  {
+   "path": "shielded/anchor/avf/host/app/Main.java",
+   "base": "dc4b6940ac3cbe393e47f35bf03b7c3574b064b16ceb86d6934b02065be2c6f4",
+   "new": "38f788ed0e6d7b18403201a3cd43a4e58e44a8732e0e44eadfc8602be2094c06"
+  },
+  {
+   "path": "shielded/anchor/avf/runner/host-agent.mjs",
+   "base": "5ac8d26c968ea792662ad68460e0319ff9922ee03026317bab30d62de877f187",
+   "new": "331dac88ffbc67093d8e0bb09e5c9339d39c6343848a7142f504cbf5c4c35ed0"
+  },
+  {
+   "path": "shielded/anchor/avf/runner/independent-runtime.mjs",
+   "base": null,
+   "new": "bb22d23ba87f970517cbf4ea7f8fe8d3f62deb77bd2fe270a5330c3453f30710"
+  },
+  {
+   "path": "shielded/anchor/avf/runner/independent.mjs",
+   "base": null,
+   "new": "b367ab93ecf59914f6e98375347e017a07e73c8978d2cf50c3f266c3f4af5ce4"
+  },
+  {
+   "path": "shielded/anchor/avf/runner/proof-agent.mjs",
+   "base": "1e4e8aadb98ef985649aba972cdb01b0718cd37568a5bea702cc3c3daa70e5a1",
+   "new": "15781912c7e129acee6df3e255472ffa4a97260133d5e9388f546ea50196b4a4"
+  },
+  {
+   "path": "shielded/anchor/avf/runner/pvm-device-local.mjs",
+   "base": "b480b47f9c3aac4edc842c39cbd28156c8d98765a16da8ef48956793eff9c54f",
+   "new": "44475baec1a79df709205fc730a67cbf052127611e7502b0cd41de55fa263ab8"
+  },
+  {
+   "path": "shielded/anchor/avf/runner/runner-agent.mjs",
+   "base": "db29d4d0826f85c08d8d506c5abb7238ca7a9df0dd85624e1f33467a651cd2e7",
+   "new": "7970b69ae4a49b2840b0d6cb480cecd733c12d105ff8ae286c6f314998402f7a"
+  },
+  {
+   "path": "shielded/anchor/avf/runner/standalone.mjs",
+   "base": "0f7afd1af5a638841ddf22759fc3c4915c99dd99250c067c926d832a3b1f5413",
+   "new": "0d0c76385b24eb6cc5fe437e054d432bf01d2b2c812682a82f4ac0f8822bbef8"
+  },
+  {
+   "path": "shielded/anchor/avf/runner/verifier-inputs.mjs",
+   "base": null,
+   "new": "0dadfcee1b5663728ad05b9ea63329132e01bdd8fb7ef717098e5ea8cd6b0998"
+  },
+  {
+   "path": "test/fixtures/lease-chain.mjs",
+   "base": "66833278a6fc27ccab9a7280c9b07e3c9a43e50534320b2f5a57dd99de36755f",
+   "new": "e8863a2be4d73818beef7a877eb7b667694296a9a9675bf68a459acb749a62be"
+  },
+  {
+   "path": "test/helpers/pvm-independent-world.mjs",
+   "base": null,
+   "new": "432119e5be8bd4b6cca4dd7b8fb5c0744085cf2d64a22b000c7d066e62020cb0"
+  },
+  {
+   "path": "test/pvm-independent-lifecycle.test.mjs",
+   "base": null,
+   "new": "e7137278a2122dd0228ea1fd27ce312ae2753a6afa27504acca47423ab23ffd8"
+  },
+  {
+   "path": "test/pvm-independent-profile.test.mjs",
+   "base": null,
+   "new": "4286627d74ef18be6ebd4cc0d03d674b8f05fd1c1eaf94f393ed4daa9fe0a0da"
+  },
+  {
+   "path": "test/pvm-independent-runner.test.mjs",
+   "base": null,
+   "new": "9dcac00bcc6b24c3f8d8cc2b16ce04fb44ced0f5a15da3864fe00a041fca6d2c"
+  }
+ ],
+ "artifacts": {
+  "artifacts/apk-candidate-relaydial-unsigned.apk": {
+   "sha256": "a12945ae4b11cd0fcde44d4b852cd6509e467bbaa796e8e38844937ac08515a2",
+   "bytes": 133477399
+  },
+  "artifacts/apk-candidate-unsigned.apk": {
+   "sha256": "561ac64554d48f0baf641d0498905adc41a1dd6a9662c8a4e5b83a59c888f5f2",
+   "bytes": 133461015
+  },
+  "artifacts/verifier-inputs/installed-0d56f955.json": {
+   "sha256": "afa76485cfff2a94e0aacecb0977bb620548f4e37a0129dac92d346edc191cf7",
+   "bytes": 522
+  },
+  "artifacts/dex-candidate-relaydial/dex/classes.dex": {
+   "sha256": "d51a94690737ced4a19170d0cd7f9cc11500f7d797a1cec36ed773272678e0f8",
+   "bytes": 258708
+  },
+  "artifacts/dex-candidate/dex/classes.dex": {
+   "sha256": "3b40d4b71362aa35afaf9b0a86ead1a7c05a971bf1d6d8b3c42724d8b02ae4a9",
+   "bytes": 251068
+  },
+  "artifacts/dex-base/dex/classes.dex": {
+   "sha256": "8bb873a0e96f92c3717925f376bc098b30cdba0d7fda5999c0d4139e0f90e7e4",
+   "bytes": 250916
+  },
+  "artifacts/bundle-base/adb-self.mjs": {
+   "sha256": "f2116c78f6d5c141cec7a63a65fbb118e91820022ca1b8086f9a9e57ba70ffe9",
+   "bytes": 63316
+  },
+  "artifacts/bundle-base/build.json": {
+   "sha256": "7c19e5da2643b70c2976b0413157876ab8d5a25b26a0af88212739d6ed7f748a",
+   "bytes": 1180
+  },
+  "artifacts/bundle-base/idle-app.wasm": {
+   "sha256": "3577d2168a65f9d4e28d4cb4c955ed7937102a1f1701f123f5f3f6a85b423195",
+   "bytes": 82387
+  },
+  "artifacts/bundle-base/net-child.mjs": {
+   "sha256": "7dfd80b58e25c682eb91ccfa920be8020669f36bdcf2de47a1e6baab77af338c",
+   "bytes": 2714596
+  },
+  "artifacts/bundle-base/standalone.mjs": {
+   "sha256": "9414001575363699294b792194935277455100d8238fc0676054d9b9632518df",
+   "bytes": 1002803
+  },
+  "artifacts/bundle-base/windows-circuit-worker.mjs": {
+   "sha256": "dcac53cbe4f4fe19ee10ed5e2719ecff38817990bd1078dbb082f77d8bc2c332",
+   "bytes": 136374
+  },
+  "artifacts/bundle-candidate/adb-self.mjs": {
+   "sha256": "f2116c78f6d5c141cec7a63a65fbb118e91820022ca1b8086f9a9e57ba70ffe9",
+   "bytes": 63316
+  },
+  "artifacts/bundle-candidate/build.json": {
+   "sha256": "7c19e5da2643b70c2976b0413157876ab8d5a25b26a0af88212739d6ed7f748a",
+   "bytes": 1180
+  },
+  "artifacts/bundle-candidate/idle-app.wasm": {
+   "sha256": "3577d2168a65f9d4e28d4cb4c955ed7937102a1f1701f123f5f3f6a85b423195",
+   "bytes": 82387
+  },
+  "artifacts/bundle-candidate/net-child.mjs": {
+   "sha256": "7dfd80b58e25c682eb91ccfa920be8020669f36bdcf2de47a1e6baab77af338c",
+   "bytes": 2714596
+  },
+  "artifacts/bundle-candidate/standalone.mjs": {
+   "sha256": "a25fb2762cf4781288d0e818616987419633a56b0ee7e03e657c16f3843512f9",
+   "bytes": 1477637
+  },
+  "artifacts/bundle-candidate/windows-circuit-worker.mjs": {
+   "sha256": "dcac53cbe4f4fe19ee10ed5e2719ecff38817990bd1078dbb082f77d8bc2c332",
+   "bytes": 136374
+  }
+ },
+ "suites": {
+  "baseline-pvm": {
+   "tests": 23,
+   "pass": 20,
+   "fail": 3,
+   "skipped": 0,
+   "logSha256": "6b9ac88e2568667c222471fa813199710413245f1da5d120f9b35702f7463874",
+   "final": false
+  },
+  "baseline-pvm2": {
+   "tests": 36,
+   "pass": 36,
+   "fail": 0,
+   "skipped": 0,
+   "logSha256": "b788b8654b23d413b9b44b7f10082ea3fb7c4bd7ee90ca4944e7a391a3ab87df",
+   "final": false
+  },
+  "regress-proof-r3": {
+   "tests": 13,
+   "pass": 13,
+   "fail": 0,
+   "skipped": 0,
+   "logSha256": "20420b8c4709298520ae23ab52a90e281f5455dc4809c73cb6a086beaa6d979e",
+   "final": true
+  },
+  "regress-pvm": {
+   "tests": 36,
+   "pass": 36,
+   "fail": 0,
+   "skipped": 0,
+   "logSha256": "4631a5350e705899ddd78ce5b554f83e5521597927f8cbaa2d43c1ceb189ac64",
+   "final": true
+  },
+  "regress-runner-final": {
+   "tests": 14,
+   "pass": 14,
+   "fail": 0,
+   "skipped": 0,
+   "logSha256": "a9232883dd61c967af101021540ed4adaf0def292c0e1c3dbe1280f5071f75a1",
+   "final": true
+  },
+  "regress-runner-r2": {
+   "tests": 27,
+   "pass": 26,
+   "fail": 1,
+   "skipped": 0,
+   "logSha256": "6340f4874f60bdb9a62b1b2c3f5310c86696e2514011260a0ab68ef4354c7d1d",
+   "final": false
+  },
+  "regress-standalone-final": {
+   "tests": 16,
+   "pass": 16,
+   "fail": 0,
+   "skipped": 0,
+   "logSha256": "38cbaa0442feb6a13348e2c8742a9c10895d96602fcb6e647d48f55a08fae2b5",
+   "final": true
+  },
+  "suite1-final": {
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "skipped": 0,
+   "logSha256": "c0c96aecdb71f45a97989f6e8560297c2f306d911e04a963177f45334ed8135a",
+   "final": true
+  },
+  "suite1-r3": {
+   "tests": 9,
+   "pass": 9,
+   "fail": 0,
+   "skipped": 0,
+   "logSha256": "4885faffd09bd8c21424bed0bb50af55a9e39a832dfb1e3d6e63e052eabaac99",
+   "final": false
+  },
+  "suite1": {
+   "tests": 9,
+   "pass": 9,
+   "fail": 0,
+   "skipped": 0,
+   "logSha256": "f1bc88b538a92a2b678d047d18051d28accd753c447c3e563b10ef7deb682528",
+   "final": false
+  },
+  "suite3-lifecycle-r2": {
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "skipped": 0,
+   "logSha256": "fb51ec12aca2c0b287848a15f09fbea43fef6b62041b8ef4635875b34d1bc1a9",
+   "final": true
+  },
+  "suite3-lifecycle": {
+   "tests": 5,
+   "pass": 3,
+   "fail": 2,
+   "skipped": 0,
+   "logSha256": "caacb8fb9913dc38b9f2d039ec9c330f7ff83b93c969827691eaeacb44ddbf67",
+   "final": false
+  },
+  "suite4-runner-r2": {
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "skipped": 0,
+   "logSha256": "640cf286698c65618ad84304bcb2cdf302bb5d042f6b647b27ec82692881d705",
+   "final": false
+  },
+  "suite4-runner-r3": {
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "skipped": 0,
+   "logSha256": "b73e5daeed70cc4bb294995ff0950bb3ed5a94cb571eb6d82e710617557c559a",
+   "final": true
+  }
+ },
+ "signed": false,
+ "productionActivated": false
+}

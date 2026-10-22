@@ -1,0 +1,53 @@
+--- ref/update-host.96f19838.ps1	2026-10-21 18:47:52.786285908 -0700
++++ src/update-host.r4.ps1	2026-10-21 18:50:59.730881052 -0700
+@@ -20,6 +20,11 @@
+ #     An independent host (node\host.json identity.mode) never uses this channel.
+ # A release that would drop identity records or release-policy verification is not installed on a host that relies on
+ # them, and is not rolled back to.
++# ROLES BESIDE THE RELEASE (ENCLAVE-ROLLBACK-GUARD-V1): on a host where other roles live beside the release (an entry in Program
++# Files\Enclave that no release owns, e.g. host-services\hs2 or challenge-replica, or an \Enclave\ task other than the release's
++# own), a release whose install-host.ps1 lacks ENCLAVE-ROLE-PRESERVATION-V1 is not installed, and a failed install is not rolled
++# back to one: such an installer deletes all of Program Files\Enclave and leaves those roles stopped. The log then says
++# RECOVERY REQUIRED; nothing is reinstalled automatically.
+ # Releases older than the running one and the one before it are removed. Log: ProgramData\Enclave\logs\update.log.
+ #   powershell -ExecutionPolicy Bypass -File update-host.ps1 [-Force]      (-Force: reinstall the latest even if current)
+ param([switch] $Force, [string] $Downloads = "https://get.enclave.host/windows/")
+@@ -101,6 +106,17 @@
+     (Select-String -LiteralPath $u -SimpleMatch "ENCLAVE-RELEASE-POLICY-V1" -Quiet) -and
+     (Test-Path -LiteralPath (Join-Path $dir "control\windows\node\release-channel.mjs"))
+ }
++# What lives beside the release in Program Files\Enclave and \Enclave\ (install-host.ps1's own lists); empty on a plain host.
++function RolesBeside {
++  $owned = @("runtime", "control", "network", "bin", "guest", "tray", "tuna", "manifest.json", "uninstall-host.ps1", "update-host.ps1", "EnclaveSetup.exe")
++  $beside = @(Get-ChildItem -LiteralPath $PF -Force | Where-Object { $owned -notcontains $_.Name } | ForEach-Object { "$PF\$($_.Name)" })
++  $roles = @(Get-ScheduledTask -TaskPath "\Enclave\" -ErrorAction SilentlyContinue | Where-Object { @("Shield", "Card", "Node", "Network", "Tuna", "Update") -notcontains $_.TaskName } | ForEach-Object { "\Enclave\$($_.TaskName)" })
++  return @($beside + $roles)
++}
++function Preserving($dir) {
++  $i = Join-Path $dir "install-host.ps1"
++  return (Test-Path -LiteralPath $i) -and (Select-String -LiteralPath $i -SimpleMatch "ENCLAVE-ROLE-PRESERVATION-V1" -Quiet)
++}
+ function Install($dir, $name, $owner, $setup, [switch] $Delta) {
+   # ENCLAVE_UPDATING: install-host.ps1 leaves the \Enclave\Update task (this script's own) running and registered as is
+   $env:ENCLAVE_UPDATING = "1"
+@@ -198,6 +214,11 @@
+     Progress "failed" $installed $latest.version
+     throw "release $($latest.version) does not keep identity records and signed updates, which this host relies on: not installing it"
+   }
++  $beside = @(RolesBeside)
++  if ($beside.Count -and -not (Preserving $dir)) {
++    Progress "failed" $installed $latest.version
++    throw "release $($latest.version)'s installer does not preserve the roles beside the release ($($beside -join ', ')): not installing it"
++  }
+   Log "installing $($latest.version)$(if ($delta) { ' (only the changed files)' })"
+   Progress "installing" $installed $latest.version
+   $owner = if ($hostRec.owner) { [string]$hostRec.owner } else { "" }
+@@ -206,6 +227,8 @@
+     $old = Join-Path $W $installed
+     if ($keep -and (Test-Path (Join-Path $old "install-host.ps1")) -and -not (Capable $old)) {
+       Log "install of $($latest.version) FAILED (exit $code); NOT rolling back to ${installed}: its installer would rewrite this host's identity or drop signed updates"
++    } elseif ($beside.Count -and (Test-Path (Join-Path $old "install-host.ps1")) -and -not (Preserving $old)) {
++      Log "install of $($latest.version) FAILED (exit $code); RECOVERY REQUIRED, NOT rolling back to ${installed}: its installer would delete $($beside -join ', ') or leave those roles stopped (see $PD\logs\install-status.json)"
+     } elseif (Test-Path (Join-Path $old "install-host.ps1")) {
+       Log "install of $($latest.version) FAILED (exit $code): reinstalling $installed"
+       $oldSetup = Get-ChildItem $W -Filter "EnclaveSetup-$installed.exe" | Select-Object -First 1

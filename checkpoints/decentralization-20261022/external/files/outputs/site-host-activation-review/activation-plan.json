@@ -1,0 +1,336 @@
+{
+ "UPDATED": "2026-10-21 claude 6b7af721: RECOVERY RELEASE supersedes the never-published first package (release bafybeibs6\u2026, wasm bc88d945\u2026, plan bf02628a\u2026)",
+ "recoveryRelease": {
+  "release": "bafybeic7sud3ozsx7fbyo5iwwzqxs3pun54kppahf5eaocupahxmwikjzq",
+  "wasmSha256": "4044ea8105cb5e8059464aff4a75b1148716989754a3c3553912ab86e12c5045",
+  "wasmBytes": 46004242,
+  "uploadCid": "bafybeia5kuadvnzrhsg6uru47cguoaavuxzkcy5zc3wun22pwmuh33wcfa",
+  "planSha256": "31dc9a23e40ef320cb6f7fa7dbee496288e4b2a0cdc03d814aba6f276e4c253b",
+  "delta": "site/components/deployments/deployments.js:1732 e9582468 -> cad9d2cc (fleet reason shown without asserting automatic retry)",
+  "evidence": [
+   "work/site-host-recovery-release/deliver/MANIFEST.txt",
+   "work/site-host-recovery-release/deliver/FINAL.sha256",
+   "work/site-host-recovery-release/logs/rs3.out",
+   "work/site-host-recovery-release/logs/fin2.out",
+   "work/site-host-live-publish/logs/ht9.out"
+  ],
+  "priorBackup": "work/site-host-live-publish/backup-final-release-bf02628a/",
+  "gasNote": "publish gas figures were simulated for the first package (same-length CID strings); root's fresh preflight re-simulates"
+ },
+ "schema": "enclave-site-host-activation-review/1",
+ "LABEL": "NOT SIGNED - NOT DEPLOYED - NOT PUBLISHED. Every wallet step is rechecked and simulated fresh at signing time by the handoff; root owns activation, the browser and the user's confirmation.",
+ "generatedAt": "2026-10-21T08:21:37.169Z",
+ "chainBasis": {
+  "chainId": 8453,
+  "blocks": {
+   "catalog/ledger probe": "52890214",
+   "lease/host probe": "52890695",
+   "sequence simulation": "52890773"
+  },
+  "rpcQuorum": "2-of-4 public RPCs for reads; the simulation ran on both production providers https://base-rpc.publicnode.com, https://mainnet.base.org and they agreed"
+ },
+ "artifacts": {
+  "wasm": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/site-host-recovery-release/deliver/package/site_host.wasm",
+   "sha256": "4044ea8105cb5e8059464aff4a75b1148716989754a3c3553912ab86e12c5045",
+   "bytes": 46004242,
+   "expectedUploadCid": "bafybeia5kuadvnzrhsg6uru47cguoaavuxzkcy5zc3wun22pwmuh33wcfa"
+  },
+  "release": {
+   "cid": "bafybeic7sud3ozsx7fbyo5iwwzqxs3pun54kppahf5eaocupahxmwikjzq",
+   "carSha256": "cc09fd14f11759dd988a7ea93ef7ef99e54bb7333a78f987626012642305f46a",
+   "carBytes": 45774003,
+   "dir": "/home/steven/Documents/Codex/2026-10-18/wo/work/site-host-recovery-release/release/bafybeic7sud3ozsx7fbyo5iwwzqxs3pun54kppahf5eaocupahxmwikjzq"
+  },
+  "packageManifest": "/home/steven/Documents/Codex/2026-10-18/wo/work/site-host-recovery-release/deliver/package/PACKAGE.json",
+  "integratedLock": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave-apps/site-host/release.lock.json (06ec9971\u2026)",
+  "evidence": {
+   "probe.json": "823b1ec3a6830dfda3589a54128e943bedc08464eb45f2280c3801f6febe09eb",
+   "probe2.json": "231e3d8ff457bd9b935e973fd8a8d35a897ef3a3784cf128f26369ba40adf2ee",
+   "probe3b.json": "87bbb753991c46511cc4a59c635878fd26239446c82a55a138eb653b5e70b8d4",
+   "probe4.json": "c02a71772574dc17a79ddacdc13161d72f7171f52bdbc65cd0b3f2d83923d87d",
+   "site-reserve-ops.json": "31ab3a943ecb8060efd4993604ffa08bc3ce7cd20ddc80f6719722207e69b28d",
+   "dir": "/home/steven/Documents/Codex/2026-10-18/wo/work/site-host-live-publish/logs"
+  },
+  "rebuild": "none: the frozen CAR/WASM are used as delivered"
+ },
+ "hostPrerequisites": {
+  "minipc (nucbox-k11-4, 0x2fcef48d\u2026447a)": {
+   "original EnclaveHostOwnership 0xbbd885d3\u2026 owner enrollment (3 signing steps)": "CONFIRMED 2026-10-19, not repeated: (1) operator 0x1a01\u2026 proposeOwner tx 0x0bc2d3cb\u20261d39 block 52802365, signed by the host operator key; (2) admin acceptOwner tx 0xa6807d70\u2026c9e0 block 52802425; (3) admin setPolicy 0x7b5519df\u2026 tx 0xf6f0cd00\u20268b94 block 52802605 (outputs/windows-host-enrollment). On chain now: owner 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61, revision 2, policy 0x7b5519df\u2026; runtime admission active.",
+   "registry": {
+    "operator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "payoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "payoutIsDeploymentOwner": true,
+    "active": true,
+    "proofKey": "0xEeDbfF2B4ae6c65F41f8aa8445Fd4B2Ad080cd26"
+   },
+   "appFundedLeaseMode": "ACTIVE (outputs/decentralization-audit/windows-local-relay-cutover.json: local relay 127.0.0.1:8549, payee 0x51ff\u2026835c, reserve 0x12a3\u20263639; temporary fallback https://134.209.248.172 is a DO machine). A new deployment is NOT claimed until its reserve is deposited and configured."
+  },
+  "metal0 (warden, 0x4dde6d1b\u20268be)": {
+   "state": "NOT a serving option now: CPU share 0 free; config pin needs the owner startup package; host-ownership not enrolled (owner 0x0, prepared-not-signed: outputs/metal0-production-owner-enrollment)",
+   "operatorSigningPath": "step 1 (proposeOwner) must come from metal0's registry operator 0xC9D0835C\u2026E6aB; the admin wallet cannot sign it. That key exists only inside metal0's measured control CVM (metal/guest/measured-control.mjs passes secrets.operatorKey to its supervisor as REGISTRY_PRIVATE_KEY). No supported command or endpoint signs proposeOwner with it (windows/node/host-onchain.mjs prepare-ownership only PREPARES it; minipc's nomination is on chain as operator-signed, but no reviewed tool records how that signature was produced). GAP: a narrow, owner-authorized host-side 'propose owner' action is required before metal0 can be enrolled; nothing was read from any key."
+  }
+ },
+ "leaseGas": {
+  "reserve": "0x12a3f873041dec436daa0085b766a399a6fa3639",
+  "executor": "0x8900BACA2167873BA2F8a8bAE8b4876E6396d343",
+  "checkedOnChain": {
+   "reserveOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+   "pendingOwner": "0x0000000000000000000000000000000000000000",
+   "paused": false,
+   "executorBoundToReserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+   "reserveRuntimeMatchesPin": true,
+   "executorRuntimeMatchesPin": true,
+   "ledgerAndRegistryCodeMatchPins": true,
+   "adminIsPlainEoa": true
+  },
+  "policy": "the reviewed enrollment policy (work/lease-enrollment-signing/trust.mjs) with claimPolicy 1 = self-hosted runner only (claimant's payoutWallet must be the owner: minipc qualifies; no claimant allowlist, no operator nomination needed)",
+  "referenceApp": "0xd9798e4c\u2026bbb9a (admin-owned, runs on minipc at rate 0, same policy, reserve balance 77151786073380 wei)",
+  "observedCost": "1287004763647 wei per renewal (cutover proof: 7722028581887 wei over 6 renewals); free leases renew about every 1500 s, so about 73359271527879 wei/day (~$0.18/day at ETH $2453.27)",
+  "proposedDepositWei": "1000000000000000",
+  "depositLasts": "about 13.6 days at observed gas; anyone may top it up with deposit(id); an empty reserve stops renewal (fail closed, nothing else is charged)"
+ },
+ "deployment": {
+  "host": "minipc only (single instance staging). NO two-host redundancy is claimed.",
+  "isolation": "hyperv-partition-per-app",
+  "minimumSlot": {
+   "cpu": "3% (catalog cpuGflops 10 / minipc measured 397.7 GFLOPS => 2.51% -> whole percent 3%); memory axis 256 MiB / 64 GiB => 1%",
+   "memoryPerInstance": "256 MiB guest (catalog memMb 256; measured serving peak 175-217 MiB)",
+   "chosen": "5% (cpuMilli 50): headroom if the host re-measures its GFLOPS lower"
+  },
+  "computeRate": "0: minipc's payoutWallet is the deployment owner (ledger _hostRate). claimableBy(id, minipc) is true with zero balance, so NO USDC compute funding is needed; the earlier $8 USDC proposal is withdrawn",
+  "maxRate6": "1 \u00b5USDC/s cap: any host that would charge more than that cannot claim (fail closed)",
+  "envelope": "{\"isolation\":{\"require\":\"hyperv-partition-per-app\"}}",
+  "predictedDeploymentId": "0x1abe9a34c07b5c9a2d0f85fd1873c1329d4fd92c3705b6c0e785ca282b970f2e",
+  "predictedAppHost": "https://1abe9a34.app.enclave.host (through the relay/DNS edge)"
+ },
+ "signingRequest": {
+  "walletAccount": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+  "chain": "Base 8453 (0x2105)",
+  "confirmations": 5,
+  "types": {
+   "personal_sign": 1,
+   "eth_sendTransaction": 4,
+   "eth_signTypedData": 0
+  },
+  "noUsdc": true,
+  "steps": [
+   {
+    "n": 1,
+    "stage": "A",
+    "type": "personal_sign",
+    "purpose": "authorize the 46 MB upload of site_host.wasm",
+    "message": "enclave-upload:4044ea8105cb5e8059464aff4a75b1148716989754a3c3553912ab86e12c5045:<EXPIRY>",
+    "freshness": "EXPIRY = unix now + 300 at signing (relay accepts <= now+600); sign immediately before root's upload",
+    "thenRoot": [
+     "POST https://api.enclave.host/v1/apps/upload-token {hash, expiry, signature}",
+     "POST https://ipfs.enclave.host/add-wasm (x-upload-address/expiry/token headers, the exact wasm bytes)",
+     "STOP unless the returned cid == bafybeia5kuadvnzrhsg6uru47cguoaavuxzkcy5zc3wun22pwmuh33wcfa",
+     "CAR-verify https://ipfs.enclave.host/ipfs/bafybeia5kuadvnzrhsg6uru47cguoaavuxzkcy5zc3wun22pwmuh33wcfa?format=car&dag-scope=all"
+    ]
+   },
+   {
+    "n": 2,
+    "stage": "A",
+    "type": "eth_sendTransaction",
+    "purpose": "publish enclave-site v1 (owner-sent, so approved on publish)",
+    "to": "0x18419CA2b502D423A8de6269AEeE171a378626e3",
+    "value": "0x0",
+    "data": "0x47910c23000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000001c00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000028000000000000000000000000000000000000000000000000000000000000002c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000032000000000000000000000000000000000000000000000000000000000000003400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c656e636c6176652d736974650000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c456e636c61766520736974650000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004854686520656e636c6176652e686f737420776562736974652c207365727665642066726f6d206f6e6520656d6265646465642c204349442d76657269666965642072656c6561736500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000013100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003b6261667962656961356b756164766e7a726873673675727534376367756f61617675787a6b6379357a633377756e323270776d75683333776366610000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000567b2272656c65617365223a22626166796265696337737564336f7a7378376662796f356977777a7178733370756e35346b70706168663565616f6375706168786d77696b6a7a71222c2277617369223a22302e32227d00000000000000000000",
+    "calldataSha256": "130719209c6be178a4b27df96f9caf7523a584be11fbac3209c6f31a42a6a032",
+    "decoded": {
+     "slug": "enclave-site",
+     "name": "Enclave site",
+     "description": "The enclave.host website, served from one embedded, CID-verified release",
+     "version": "1",
+     "cid": "bafybeia5kuadvnzrhsg6uru47cguoaavuxzkcy5zc3wun22pwmuh33wcfa",
+     "res": [
+      0,
+      0,
+      256,
+      10
+     ],
+     "ports": "",
+     "config": "{\"release\":\"bafybeic7sud3ozsx7fbyo5iwwzqxs3pun54kppahf5eaocupahxmwikjzq\",\"wasi\":\"0.2\"}",
+     "feePerSec6": "0"
+    },
+    "simulatedGas": 613937,
+    "recheck": [
+     "step 1 upload returned exactly the expected cid",
+     "numVersions(appId 0x34454e4c\u20268655) == 0",
+     "re-simulate from the owner at the signing block",
+     "nonce and fees filled at signing; no other pending owner transaction"
+    ]
+   },
+   {
+    "n": 3,
+    "stage": "A",
+    "type": "eth_sendTransaction",
+    "purpose": "create the public site deployment on the Hyper-V tier",
+    "to": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+    "value": "0x0",
+    "data": "0x36aaac4b0000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000320000000000000000000000000000000000000000000000000000000000001f9000000000000000000000000000000000000000000000000000000000000001c0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000004e636174616c6f673a2f2f3078333434353465346333303836353965396665393462353938386134653933656334346337313263623461373230333336336534393936303238356263383635352f30000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000347b2269736f6c6174696f6e223a7b2272657175697265223a226879706572762d706172746974696f6e2d7065722d617070227d7d000000000000000000000000",
+    "decoded": {
+     "appRef": "catalog://0x34454e4c308659e9fe94b5988a4e93ec44c712cb4a7203363e49960285bc8655/0",
+     "gpuMilli": 0,
+     "cpuMilli": 50,
+     "appPort": 8080,
+     "ports": "",
+     "isPublic": true,
+     "configCid": "{\"isolation\":{\"require\":\"hyperv-partition-per-app\"}}",
+     "feeRecipient": "0x0000000000000000000000000000000000000000",
+     "feePerSec6": "0",
+     "maxRate6": "1"
+    },
+    "simulatedGas": 393153,
+    "recheck": [
+     "step 2 confirmed: getVersion(appId,0) cid/config/approval=1",
+     "the owner created no other deployment since (else the id below changes and stage B is regenerated and re-reviewed)",
+     "minipc: claimEnabled, cpuShareFree >= 0.05, payoutWallet == owner",
+     "re-simulate"
+    ],
+    "afterReceipt": "the Created event's id MUST equal 0x1abe9a34c07b5c9a2d0f85fd1873c1329d4fd92c3705b6c0e785ca282b970f2e"
+   },
+   {
+    "n": 4,
+    "stage": "B",
+    "type": "eth_sendTransaction",
+    "purpose": "deposit 0.001 ETH lease gas for the site deployment",
+    "to": "0x12a3f873041dec436daa0085b766a399a6fa3639",
+    "value": "0x38d7ea4c68000",
+    "data": "0xb214faa51abe9a34c07b5c9a2d0f85fd1873c1329d4fd92c3705b6c0e785ca282b970f2e",
+    "gasCap": "0x493e0",
+    "simulatedGas": 92363
+   },
+   {
+    "n": 5,
+    "stage": "B",
+    "type": "eth_sendTransaction",
+    "purpose": "enable lease sponsorship: self-hosted runner only, <=0.05 gwei, <=4 claims/hour",
+    "to": "0x12a3f873041dec436daa0085b766a399a6fa3639",
+    "value": "0x0",
+    "data": "0x128a38491abe9a34c07b5c9a2d0f85fd1873c1329d4fd92c3705b6c0e785ca282b970f2e000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000001c4735de864900000000000000000000000000000000000000000000000000011ac81ab13eda0000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000012c000000000000000000000000000000000000000000000000000000000000025800000000000000000000000000000000000000000000000000000000000007080000000000000000000000000000000000000000000000000000000002faf080",
+    "gasCap": "0x61a80",
+    "policy": {
+     "enabled": true,
+     "sponsorRelease": true,
+     "maxClaimsPerEpoch": 4,
+     "maxPerOpWei": "31092172031561",
+     "epochCapWei": "310921720315610",
+     "epochSec": 3600,
+     "renewWindow": 300,
+     "minExtension": 600,
+     "claimCooldown": 1800,
+     "maxGasPrice": "50000000",
+     "claimPolicy": 1
+    },
+    "simulatedGas": 148491
+   }
+  ],
+  "stageBTransport": {
+   "command": "node /home/steven/Documents/Codex/2026-10-18/wo/work/site-host-live-publish/handoff/serve-site-reserve.mjs --deployment-id 0x1abe9a34c07b5c9a2d0f85fd1873c1329d4fd92c3705b6c0e785ca282b970f2e --deposit-wei 1000000000000000 --approved-ops sha256:104cfff82613feca6972f82cbbaeb79f908ca82eee1b54d2703f84228c7d9ef5 --serve",
+   "opsSha256": "104cfff82613feca6972f82cbbaeb79f908ca82eee1b54d2703f84228c7d9ef5",
+   "what": "the existing reviewed enrollment queue (plan.mjs builder, chain.mjs fresh two-provider anchor + eth_simulateV1 pre/post + exact-request receipt checks, queue-server.mjs ordered journals) on 127.0.0.1:39656; MetaMask signs in the browser; refuses any other id/amount/plan",
+   "validated": "offline print-only run reproduces exactly the simulated operations; refusal paths checked (logs/po.out)"
+  },
+  "stageATransport": {
+   "what": "IMPLEMENTED: a small pinned local handoff for steps 1-3 (work/site-host-live-publish/handoff: serve-site-activation.mjs, site-server.mjs, site-chain.mjs, site-upload.mjs, site-trust.mjs, site.html, site-app.js) on http://127.0.0.1:39657, then an explicit handover to the reviewed stage-B queue on :39656 after the create receipt is verified",
+   "startCommand": "cd work/site-host-live-publish/handoff && node serve-site-activation.mjs --approved-plan sha256:31dc9a23e40ef320cb6f7fa7dbee496288e4b2a0cdc03d814aba6f276e4c253b --serve",
+   "approvedPlan": {
+    "file": "outputs/site-host-activation-review/handoff-plan.json",
+    "sha256": "31dc9a23e40ef320cb6f7fa7dbee496288e4b2a0cdc03d814aba6f276e4c253b"
+   },
+   "guarantees": [
+    "loopback-only server, per-launch random token on every POST, Host/Origin/cross-site refusals, no-store replies with a self-only CSP, one action at a time",
+    "exact expected admin account and Base chain (page and server); readable operation, destination and amount for all five",
+    "personal_sign is ONLY enclave-upload:<frozen sha256>:<now+300>; the signature must recover to the admin; the token and the signature stay in process memory (never journaled, printed or logged)",
+    "the upload streams the pinned file hashed in flight (size and sha256 must match); replies are size-bounded; the returned CID must be the precomputed one; the gateway CAR must hold exactly the frozen file's DAG blocks, each hashed; only then can publish be prepared",
+    "pins checked before every send on two providers at one anchor: catalog/ledger/registry/reserve/executor code hashes, address book owner + entries, catalog owner/schema, ledger schema, admin with no code (no 7702), nonce = pending",
+    "publish refused if any enclave-site version exists; create refused if the owner's deployment counter moved (predicted id differs), the version differs, or minipc's payout wallet is not the admin: replan, never re-aim",
+    "each send is simulated fresh with its post-state; the labelled create+deposit+configure bundle pre-check must leave statusOf Ready and claimableBy true (simulation only)",
+    "journal written before a request reaches the browser; no duplicate publish/create; an unanswered request is released only with the nonce unused and the retry keeps that nonce; a landed hash is recovered by verification",
+    "landing: exact request (sender, recipient, chain, type, nonce, calldata, value, gas, fee caps, no authorization list), exact events (AppCreated/VersionPublished/VersionApprovalSet; MaxRateSet/Created/RunnerRateSet with the reviewed id), two confirmations, canonical, both providers agree",
+    "stage B starts only from a Created receipt verified on two providers with the reviewed id and only for the approved operations (sha256 104cfff8\u2026); it is the reviewed queue, unchanged. Its readiness is process-local: every process (a restart included) re-verifies that binding before opening its own listener over the same journals; a submitted deposit/configure survives and is never re-prepared; a listener failure is retried from the page without re-signing",
+    "upload: the token, add and CAR requests refuse redirects (redirect: error); every failure leaves the upload module as fixed text (UploadRefusal); anything else, or any text quoting the signature, is withheld; request-body parse errors never quote the body",
+    "CAR: the whole header must equal the canonical DAG-CBOR {roots: [expected CID], version: 1}; varints minimal and at most 5 bytes; every block hashed; the block set exactly the frozen file's",
+    "wallet compatibility: landing requires the exact gas limit and fee caps no higher than requested (unchanged); a landed transaction with the request's sender/nonce/recipient/calldata/value but altered gas or fees halts the flow for review instead of waiting"
+   ],
+   "tests": {
+    "files": [
+     "work/site-host-live-publish/handoff/test/site-handoff.test.mjs",
+     "work/site-host-live-publish/handoff/test/site-restart.test.mjs",
+     "work/site-host-live-publish/handoff/test/site-upload-net.test.mjs",
+     "work/site-host-live-publish/handoff/test/site-upload-secrets.test.mjs",
+     "work/site-host-live-publish/handoff/test/site-car.test.mjs"
+    ],
+    "helpers": [
+     "work/site-host-live-publish/handoff/test/site-harness.mjs",
+     "work/site-host-live-publish/handoff/test/upload-servers.mjs",
+     "work/site-host-live-publish/handoff/test/site-model.mjs (in-memory Base model, deployed ABIs, eth_simulateV1, receipts; a MODEL, not the chain)"
+    ],
+    "result": "21/21 pass (queue 512 MiB, peak 338 MiB, rc 0, logs/ht8.out)",
+    "actualChainEvidence": "gas limits (+25%) of all four transactions fit their caps against the actual two-provider simulation logs/probe4.json (Base block 52890773, both providers agree); the model charges those same gas figures",
+    "covers": [
+     "the exact five-step flow through to the reviewed queue",
+     "account/chain/destination/tampered artifact refusals",
+     "wrong CID, malformed/oversized replies, tampered/short/padded CAR; strict CAR header (version, roots array, unknown key, key order, foreign root, CARv2) and truncated/oversized/non-minimal varints, each refused within 200 ms",
+     "token/upload/CAR redirects refused by the real fetch between two real loopback servers; the redirect target receives nothing (a default-follow control shows it would have received the signature body and x-upload-token)",
+     "no token or signature in errors, page replies or disk journals: hostile echoing gateway, raw network exception, raw or signature-quoting runUpload exception, malformed request body",
+     "changed counter/version/payout",
+     "double click and in-flight concurrency",
+     "expiry (upload authorization and preparation)",
+     "interrupted submission, restart, release-with-used-nonce refusal, hash recovery",
+     "restart after create: an unconfirmed binding opens nothing; concurrent handovers share one listener; the actual stage-B HTTP server serves the kept deposit attempt, refuses a second deposit, then confirms deposit + configure (exactly four transactions)",
+     "stage-B listener failure (port in use): visible error, token-guarded retry, no re-sign/re-upload/re-create",
+     "wallet-altered landings (gas limit, fee cap, priority cap) halt for review; a lower fee cap is accepted; reverted landings, extra events, non-canonical or shallow receipts",
+     "stage-B refusal of unapproved operations"
+    ],
+    "offlineSmoke": "production entry point: pins, plan print (sha256 31dc9a23\u2026, byte-identical to the reviewed plan), wrong-pin refusal, loopback /state with the real admin and no stage B, token-less POST /start and /handover refused; no /start, no RPC, no wallet",
+    "notCounted": "four earlier 512 MiB attempts (logs/ht4-oom.out, ht5-guardstop.out, ht6-oom.out, ht7-oom.out) stopped on test memory (the CAR test copied the 46 MB CAR per case) and exposed one real bug, now fixed (the /handover reply was built before the retry finished); they are not results"
+   }
+  },
+  "wholeSequenceSimulation": {
+   "result": "all succeeded on both providers",
+   "after": {
+    "versionApproval": 1,
+    "reserve": "enabled, claimPolicy 1, balance 1000000000000000",
+    "statusOfClaimOnMinipc": "0 (Ready)",
+    "claimableByMinipc": true
+   }
+  }
+ },
+ "budgetProposal": {
+  "note": "a PROPOSAL; no new spending is approved by this document",
+  "leaseGasDepositEth": "0.001",
+  "feesEth": "0.0000074906 (gas 1247944 x 6000000 wei + L1 2966398502 wei at probe)",
+  "usdc": "0",
+  "totalEth": "0.0010074906",
+  "totalUsdAtProbe": "2.47",
+  "ownerBalanceAtProbeEth": "0.002859307327465036",
+  "runningCost": "about 0.000073 ETH/day lease gas at observed gas; compute 0"
+ },
+ "runtimeActivationNoSignature": [
+  "minipc's claim loop sees the public deployment (isolation hyperv-partition-per-app; release pin from the version config, delivered by config bundle V5)",
+  "reserve statusOf(claim) == Ready -> sponsored claim through the minipc local lease relay (payee 0x51ff\u2026835c)",
+  "the host fetches the wasm by CID from its IPFS gateway (installer default https://ipfs.enclave.host: DO-resolved) and verifies every block",
+  "the Shield partition starts site-host; the app answers at https://1abe9a34.app.enclave.host",
+  "verify: ledger.get(id).runner == minipc and leaseUntil > now; GET /.well-known/site-host names bafybeic7sud3ozsx7fbyo5iwwzqxs3pun54kppahf5eaocupahxmwikjzq; probe /, /dashboard, /credit/, /recover/, /authorize, /js/boot.js, /install.sh, a 404 against the production bytes and headers"
+ ],
+ "dnsSwitch": "NOT part of this request. enclave.host keeps serving bafybeig3\u2026 from the DO Caddy roots. Switching waits for a SECOND actual serving path and validated non-DO ingress, DNS and certificate (certificate worker); today only minipc can serve (metal0 blocked, Pixel not claim-enabled).",
+ "rollback": {
+  "before step 2": "nothing on chain; the uploaded CID is inert",
+  "steps 2-5": "enclave refund <id> or setActive(false) (owner); reserve withdraw(id, amount, to) returns unused lease gas; the version can be delisted by the catalog owner and only ever serves its own CID",
+  "production": "unchanged throughout: bafybeig3rai3tyoimbhb32vo6hkkw3o336wluht7owbs7mefhtiridwp6y on the DO Caddy roots; no DNS/IPNS/Caddy change"
+ },
+ "notClaimed": [
+  "provider independence (minipc, metal0 and the Pixel share one site and uplink; the wasm upload/fetch gateway and the relay fallback are DO-resolved)",
+  "two-host redundancy",
+  "end-to-end activation"
+ ],
+ "preserved": [
+  "Enclave admin powers (catalog approval/delisting, reserve pause/block, host-policy veto)",
+  "passkey origin https://enclave.host / rpId enclave.host",
+  "no optional or pinned authority migration; reserve 0x12a3\u2026 and executor 0x8900\u2026 reused as deployed",
+  "credit leaseGasReserve null (the credit page's parallel reserve stays OFF)"
+ ]
+}

@@ -1,0 +1,114 @@
+--- release-input/relay/dns-relay.js
++++ g3-g4/relay/dns-relay.js
+@@ -124,6 +124,22 @@
+     setInterval(() => ledger.sync().catch((e) => console.error(`[dns-relay] app-zone ledger index: ${e.message}`)), 60_000).unref();
+   } catch (e) { console.error(`fatal: APP_CHALLENGE_AUTH: ${e.message}`); process.exit(1); }
+ }
++// CHALLENGE_TXT_UPSTREAM (ip:port, TCP DNS): a READ-ONLY route replica that a provider's whole DNS port is pinned to (G2)
++// keeps answering the platform's relay-issued dns-01 challenges. Those TXT values live in the writable challenge daemon
++// (the fronts' dnsdist sends _acme-challenge TXT/ANY to it), so this replica merges that source's TXT for
++// _acme-challenge.*.APP_ZONE queries - the same merge an attested-lease replica does with APP_CHALLENGE_UPSTREAM. It writes
++// nothing and holds no key; one upstream at a time (not both variables).
++let CH_TXT_UPSTREAM = APPCH?.upstream || null;
++{
++  const up = (process.env.CHALLENGE_TXT_UPSTREAM || "").trim();
++  if (up) {
++    const m = /^(\[[0-9a-f:]+\]|[0-9.]+):([0-9]{1,5})$/i.exec(up);
++    const host = m ? m[1].replace(/^\[|\]$/g, "") : "", port = m ? Number(m[2]) : 0;
++    if (!READ_ONLY || ATTESTED || APPCH) { console.error("fatal: CHALLENGE_TXT_UPSTREAM is for a DNS_READ_ONLY route replica without APP_CHALLENGE_AUTH (whose own APP_CHALLENGE_UPSTREAM is the merge)"); process.exit(1); }
++    if (!m || !net.isIP(host) || port < 1 || port > 65535) { console.error("fatal: CHALLENGE_TXT_UPSTREAM must be ip:port"); process.exit(1); }
++    CH_TXT_UPSTREAM = { host, port };
++  }
++}
+ let ATTEST = null;
+ if (ATTESTED) {
+   const mode = process.env.ATTESTED_JUDGE_MODE || "trusted";
+@@ -249,7 +265,19 @@
+     if (b.tokens < 1) return false; b.tokens -= 1; return true;
+   };
+ }
+-const dnsRate = makeRateLimiter(DNS_RL_CAP, DNS_RL_PER_SEC);
++const dnsPerSource = makeRateLimiter(DNS_RL_CAP, DNS_RL_PER_SEC);
++// A host's DNS role behind the Enclave-network transport (network/wg/udpforward.go): every public query reaches it from the
++// LOOPBACK relay, so the per-source bucket would make all of them one 50 qps client. DNS_RL_TRANSPORT_PER_SEC/_CAP (both
++// set, or neither) give exactly the loopback sources ONE bounded aggregate bucket instead; the providers already limit each
++// real source (wg-provider/kernel.mjs dns_limits) and in total. Unset: unchanged (loopback is one per-source client).
++const DNS_RL_TRANSPORT_PER_SEC = parseInt(process.env.DNS_RL_TRANSPORT_PER_SEC || "0", 10);
++const DNS_RL_TRANSPORT_CAP = parseInt(process.env.DNS_RL_TRANSPORT_CAP || "0", 10);
++if (!!DNS_RL_TRANSPORT_PER_SEC !== !!DNS_RL_TRANSPORT_CAP || DNS_RL_TRANSPORT_PER_SEC < 0 || DNS_RL_TRANSPORT_CAP < DNS_RL_TRANSPORT_PER_SEC || DNS_RL_TRANSPORT_PER_SEC > 1e6) {
++  console.error("[dns-relay] DNS_RL_TRANSPORT_PER_SEC and DNS_RL_TRANSPORT_CAP: both or neither, 1..1000000, cap >= rate"); process.exit(1);
++}
++const dnsTransport = DNS_RL_TRANSPORT_PER_SEC ? makeRateLimiter(DNS_RL_TRANSPORT_CAP, DNS_RL_TRANSPORT_PER_SEC) : null;
++const LOOPBACK_RELAY = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
++const dnsRate = (src) => (dnsTransport && LOOPBACK_RELAY.has(src) ? dnsTransport("transport") : dnsPerSource(src));
+ const POLL_MS   = parseInt(process.env.NET_POLL_SEC || "15", 10) * 1000;
+ const SERIAL    = Math.floor(Date.now() / 1000);   // SOA serial: process start
+ const NEG_TTL   = 60;      // SOA MINIMUM = negative-cache TTL (RFC 2308)
+@@ -475,16 +503,20 @@
+ // APP_STATIC="label=1.2.3.4,label2=5.6.7.8": fixed A records for platform services that share the zone (the secret
+ // custodians, docs/security/secret-custody.md). A label must contain a non-hex character, so it can never be a deployment
+ // label (those are hex), and it answers before the route map.
++// A label may carry up to 8 addresses joined by "+" ("label=1.2.3.4+5.6.7.8"): every one is answered (a host's own service
++// name reached through several WireGuard providers, network/host-service-names.mjs; a client tries the next address when
++// one provider is down). A value with any malformed address is dropped whole, as a malformed single address always was.
+ const APP_STATIC = new Map(String(process.env.APP_STATIC || "").split(",").map((x) => x.trim()).filter(Boolean)
+   .map((x) => x.split("=").map((y) => y.trim().toLowerCase()))
+-  .filter(([l, a]) => /^[a-z0-9-]{1,63}$/.test(l || "") && /[g-z-]/.test(l) && ipv4Bytes(a || ""))
+-  .map(([l, a]) => [l, ipv4Bytes(a)]));
++  .map(([l, a]) => [l, String(a || "").split("+").map((y) => y.trim())])
++  .filter(([l, as]) => /^[a-z0-9-]{1,63}$/.test(l || "") && /[g-z-]/.test(l) && as.length >= 1 && as.length <= 8 && as.every((y) => ipv4Bytes(y)))
++  .map(([l, as]) => [l, as.map((y) => ipv4Bytes(y))]));
+ function resolveApp(qname, qtype) {
+   if (qname === APP_ZONE) return apex(APP_ZONE, qtype);
+   if (qname.startsWith("_acme-challenge.")) return resolveWildcard(qname, qtype, APP_ZONE, null, null);
+   const sub = qname.slice(0, -(APP_ZONE.length + 1));
+   const fixed = sub.includes(".") ? null : APP_STATIC.get(sub);
+-  if (fixed) return (qtype === T.A || qtype === T.ANY) ? HIT([rr(qname, T.A, 300, fixed)]) : NODATA(APP_ZONE);
++  if (fixed) return (qtype === T.A || qtype === T.ANY) ? HIT(fixed.map((a) => rr(qname, T.A, 300, a))) : NODATA(APP_ZONE);
+   // Routes govern addresses only. In particular, CAA must answer NODATA so
+   // the CA can check the parent policy before a guest has a serving route.
+   // SERVFAIL here creates a cycle: no certificate -> no route -> no certificate.
+@@ -781,7 +813,7 @@
+       judgeMode: ATTEST.mode, minTcb: ATTEST.minTcb !== undefined, kds: ATTEST.kds, measurements: ATTEST.measurements.size, txtRecords,
+       shield: ATTEST.shield ? { tier: "hv-node", hostExcluded: false, liveHostSessions: ATTEST.shield.sessions(), registry: ATTEST.shieldRegistry } : null });
+     return json(200, { ok: true, readOnly: READ_ONLY, zones: { ip: IP_ZONE, app: APP_ZONE, tcp: TCP_ZONE, box: BOX_ZONE },
+-                       deployments: deployments.length, txtRecords,
++                       deployments: deployments.length, txtRecords, ...(CH_TXT_UPSTREAM && !APPCH ? { challengeTxtUpstream: true } : {}),
+                        routeLabels: appRoutes.size, routeMap: ROUTE_MAP_URL || null,
+                        ...(APPCH ? { appChallenge: { mode: "attested-lease", judgeMode: APPCH.mode, measurements: APPCH.measurements.size,
+                          ledgerIndex: { complete: APPCH.ledger.complete(), size: APPCH.ledger.size() }, upstream: !!APPCH.upstream, peers: APPCH.peers.length,
+@@ -801,7 +833,7 @@
+   if (ATTESTED) return attestedPush(req, res, u, json);
+   if (u.pathname !== "/v1/txt" || (req.method !== "POST" && req.method !== "DELETE"))
+     return json(404, { error: "not_found", routes: ["GET /health", "POST /v1/txt", "DELETE /v1/txt"] });
+-  if (!dnsRate(req.socket?.remoteAddress || "unknown")) return json(429, { error: "rate_limited" });   // fix 11
++  if (!dnsPerSource(req.socket?.remoteAddress || "unknown")) return json(429, { error: "rate_limited" });   // fix 11 (the API: per source, always)
+ 
+   const chunks = []; let size = 0;
+   req.on("data", (d) => { size += d.length; if (size > 65536) req.destroy(); else chunks.push(d); });
+@@ -1034,7 +1066,7 @@
+     const id = Math.floor(Math.random() * 65536), labels = name.split(".");
+     const qd = Buffer.concat([...labels.map((l) => Buffer.concat([Buffer.from([l.length]), Buffer.from(l)])), Buffer.from([0]), u16(T.TXT), u16(1)]);
+     const msg = Buffer.concat([u16(id), u16(0), u16(1), u16(0), u16(0), u16(0), qd]);
+-    const sock = net.connect(APPCH.upstream.port, APPCH.upstream.host);
++    const sock = net.connect(CH_TXT_UPSTREAM.port, CH_TXT_UPSTREAM.host);
+     let buf = Buffer.alloc(0), over = false;
+     const end = (vals) => { if (over) return; over = true; clearTimeout(t); sock.destroy(); resolve(vals); };
+     const t = setTimeout(() => end([]), 1500);
+@@ -1069,7 +1101,7 @@
+   return out;
+ }
+ function appChallengeQuery(msg) {
+-  if (!APPCH?.upstream) return null;
++  if (!CH_TXT_UPSTREAM) return null;
+   let q;
+   try { q = parseQuery(msg); } catch { return null; }
+   if (!q || q.opcode !== 0 || (q.qclass !== 1 && q.qclass !== T.ANY) || (q.qtype !== T.TXT && q.qtype !== T.ANY)) return null;
+@@ -1094,6 +1126,7 @@
+ if (!READ_ONLY && !ATTESTED) { await fleet.start(); await fleet.startEligibility(); }
+ if (APPCH) console.log(`[dns-relay] app-zone DNS-01 authority for ${APP_ZONE}: attested-lease, judge ${APPCH.mode}, ${APPCH.measurements.size} pinned measurement(s)`
+   + `${APPCH.upstream ? ", merging upstream " + APPCH.upstream.host + ":" + APPCH.upstream.port : ""}${APPCH.peers.length ? ", " + APPCH.peers.length + " peer(s)" : ""}`);
++if (CH_TXT_UPSTREAM && !APPCH) console.log(`[dns-relay] read-only replica merging app-zone dns-01 TXT from ${CH_TXT_UPSTREAM.host}:${CH_TXT_UPSTREAM.port}`);
+ if (ATTESTED) console.log(`[dns-relay] attested DNS-01 responder for ${CHALLENGE_ZONE} (ns ${NS_NAME}); judge ${ATTEST.mode}, ${ATTEST.measurements.size} pinned measurement(s)`
+   + (ATTEST.shield ? "; Enclave Shield (T0-hv, hostExcluded=false) guests accepted under ATTESTED_SHIELD_POLICY" : ""));
+ else {

@@ -1,0 +1,128 @@
+--- a/src/replica.rs (frozen cb2a75f9)	2026-10-20 05:05:31.142259603 -0700
++++ b/src/replica.rs	2026-10-20 05:05:31.139259624 -0700
+@@ -5081,4 +5081,125 @@
+         assert_eq!(get(&c, "k").await.unwrap(), b"v");
+         c.fresh().await.unwrap();
+     }
++
++    // ---- G8 COUNTEREXAMPLE (work/storage-clone-resolution, TEST-ONLY; not part of the frozen SDK) ----
++
++    /// A memory copy of `p` taken now, as a host that snapshots a RUNNING instance after its raise and resumes the copy
++    /// would get: the same instance id, ballot and receipts, the same version clock and reserved range, and SDKs that
++    /// present the same credential. Its index is the same listing p's index came from.
++    async fn clone_of(p: &Cluster, nets: &[Net]) -> Cluster {
++        let q = Cluster::new(replica_list(&all(nets.len())), p.write_quorum, opts(), timing()).fenced_with_iid(lease_policy(5), p.fence.iid);
++        q.fence.ballot.set(p.ballot());
++        *q.fence.receipts.borrow_mut() = p.fence.receipts.borrow().clone();
++        q.clock.set(p.clock.get());
++        q.ceiling.set(p.ceiling.get());
++        q.observed.set(p.observed.get());
++        for (i, n) in nets.iter().enumerate() {
++            let sdk = n.net.sdk(n.key.clone()).await.unwrap();
++            sdk.set_fence_credential(p.store(i).unwrap().sdk.fence_credential());
++            q.load(i, sdk, 8 << 20, opts()).await.unwrap();
++        }
++        q
++    }
++
++    #[tokio::test]
++    async fn g8_counterexample_two_post_raise_clones_both_acknowledge_conflicting_conditional_creates() {
++        let nets = [Net::new(1), Net::new(2), Net::new(3)];
++        let (p, r) = fenced(&nets, &all(3), 2, lease_policy(5), None).await;
++        r.unwrap();
++        settle(&p).await;
++        maintain(&p).await;
++        p.put("b", "seed", b"s".to_vec(), None, &Cond::None).await.unwrap(); // a version range is reserved
++        let q = clone_of(&p, &nets).await;
++        assert!(p.ready() && q.ready());
++        // every indexer holds exactly the credential both present: neither can be told apart
++        for n in &nets {
++            assert_eq!(n.net.installed_fence(), p.ballot());
++        }
++        p.fresh().await.unwrap();
++        q.fresh().await.unwrap();
++        // P: If-None-Match create of k, acknowledged (W = 2 of 3)
++        p.put("b", "k", b"from-P".to_vec(), None, &Cond::IfNoneMatch).await.unwrap();
++        // Q: after P's acknowledgement its freshness round still passes, and it answers "absent" (stale read)
++        q.fresh().await.unwrap();
++        assert!(q.lookup("b", "k").is_none(), "stale read after an acknowledged create");
++        // Q: If-None-Match create of the same key, ALSO acknowledged
++        q.put("b", "k", b"from-Q".to_vec(), None, &Cond::IfNoneMatch).await.unwrap();
++        p.fresh().await.unwrap();
++        q.fresh().await.unwrap();
++        assert!(p.superseded().is_none() && q.superseded().is_none(), "no layer noticed");
++        // a later writer lists everything: only one of the two acknowledged conditional creates survives
++        let (later, r) = fenced(&nets, &all(3), 2, lease_policy(6), None).await;
++        r.unwrap();
++        maintain(&later).await;
++        let v = get(&later, "k").await.unwrap();
++        println!("G8-EVIDENCE conditional: P acked create, Q acked create, later boot reads {:?}", String::from_utf8_lossy(&v));
++        assert!(v == b"from-P" || v == b"from-Q");
++    }
++
++    #[tokio::test]
++    async fn g8_counterexample_a_clone_with_a_slower_clock_loses_a_later_acknowledged_unconditional_write() {
++        // single-writer rule I1/I2 orders one process's versions by its own monotonic clock; two copies of that
++        // clock diverge. Here P's copy runs an hour ahead (a host can skew a guest's clock), Q's is real time.
++        let nets = [Net::new(1), Net::new(2), Net::new(3)];
++        let (p, r) = fenced(&nets, &all(3), 2, lease_policy(5), None).await;
++        r.unwrap();
++        settle(&p).await;
++        maintain(&p).await;
++        p.put("b", "seed", b"s".to_vec(), None, &Cond::None).await.unwrap();
++        let q = clone_of(&p, &nets).await;
++        p.clock.set(now_ms() + 3_600_000);
++        // P writes v1 (acknowledged); THEN, later in real time, Q writes v2 (acknowledged)
++        p.put("b", "u", b"v1-earlier".to_vec(), None, &Cond::None).await.unwrap();
++        q.put("b", "u", b"v2-later".to_vec(), None, &Cond::None).await.unwrap();
++        let (later, r) = fenced(&nets, &all(3), 2, lease_policy(6), None).await;
++        r.unwrap();
++        maintain(&later).await;
++        let v = get(&later, "u").await.unwrap();
++        println!("G8-EVIDENCE ordering: v1 acked, then v2 acked later in real time; later boot reads {:?}", String::from_utf8_lossy(&v));
++        assert_eq!(v, b"v1-earlier", "the later acknowledged write is lost");
++    }
++
++    // ---- C2 ACCEPTANCE (work/storage-clone-resolution-interface.txt): what a fix must make true. These FAIL on the
++    // frozen SDK by design (it has no head CAS or commit phase); they are #[ignore] so the frozen suite is unchanged.
++
++    #[tokio::test]
++    #[ignore]
++    async fn c2_acceptance_a_post_raise_clone_can_neither_read_stale_nor_acknowledge_a_conflicting_create() {
++        let nets = [Net::new(1), Net::new(2), Net::new(3)];
++        let (p, r) = fenced(&nets, &all(3), 2, lease_policy(5), None).await;
++        r.unwrap();
++        settle(&p).await;
++        maintain(&p).await;
++        p.put("b", "seed", b"s".to_vec(), None, &Cond::None).await.unwrap();
++        let q = clone_of(&p, &nets).await;
++        p.put("b", "k", b"from-P".to_vec(), None, &Cond::IfNoneMatch).await.unwrap();
++        // required: Q's freshness round sees heads it did not produce on W voters -> fork -> stopped for good
++        assert!(q.fresh().await.is_err(), "C2: a clone must not confirm freshness after the other's acknowledged write");
++        assert!(q.put("b", "k", b"from-Q".to_vec(), None, &Cond::IfNoneMatch).await.is_err(), "C2: the conflicting create is not acknowledged");
++        assert!(q.superseded().is_some());
++        let (later, r) = fenced(&nets, &all(3), 2, lease_policy(6), None).await;
++        r.unwrap();
++        maintain(&later).await;
++        assert_eq!(get(&later, "k").await.unwrap(), b"from-P", "C2: the acknowledged create survives; the loser's never surfaces");
++    }
++
++    #[tokio::test]
++    #[ignore]
++    async fn c2_acceptance_a_clone_with_another_clock_cannot_acknowledge_a_write_after_the_other_wrote() {
++        let nets = [Net::new(1), Net::new(2), Net::new(3)];
++        let (p, r) = fenced(&nets, &all(3), 2, lease_policy(5), None).await;
++        r.unwrap();
++        settle(&p).await;
++        maintain(&p).await;
++        p.put("b", "seed", b"s".to_vec(), None, &Cond::None).await.unwrap();
++        let q = clone_of(&p, &nets).await;
++        p.clock.set(now_ms() + 3_600_000);
++        p.put("b", "u", b"v1-earlier".to_vec(), None, &Cond::None).await.unwrap();
++        assert!(q.put("b", "u", b"v2-later".to_vec(), None, &Cond::None).await.is_err(), "C2: only one branch can be acknowledged after a fork");
++        let (later, r) = fenced(&nets, &all(3), 2, lease_policy(6), None).await;
++        r.unwrap();
++        maintain(&later).await;
++        assert_eq!(get(&later, "u").await.unwrap(), b"v1-earlier");
++    }
+ }

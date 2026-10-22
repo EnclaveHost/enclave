@@ -1,0 +1,5 @@
+import subprocess,base64,pathlib
+ps=r'''$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';$id='0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c';$o=[ordered]@{at=[DateTime]::UtcNow.ToString('o')};$o.responses=@();foreach($p in @('/healthz','/resolve?name=example.com&type=A')){try{$r=Invoke-WebRequest -UseBasicParsing -TimeoutSec 25 ('http://127.0.0.1:9600/x/'+$id+$p);$o.responses+=@{path=$p;status=$r.StatusCode;body=[string]$r.Content}}catch{$o.responses+=@{path=$p;error=$_.Exception.Message}}};$o.node=@(Get-Content -LiteralPath 'C:\ProgramData\Enclave\logs\node.log' -Tail 3000|Where-Object {$_ -match '59f1273d'}|Select-Object -Last 10|ForEach-Object{$_.ToString()});'RESULT '+($o|ConvertTo-Json -Depth 4 -Compress)
+'''
+r=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=15','minipc','powershell','-NoProfile','-NonInteractive','-EncodedCommand',base64.b64encode(ps.encode('utf-16le')).decode()],capture_output=True,timeout=75)
+(pathlib.Path(__file__).parent/'root-app-local.out').write_bytes(r.stdout+r.stderr);print(r.stdout.decode(errors='replace')[:14000]);raise SystemExit(r.returncode)

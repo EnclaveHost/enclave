@@ -1,0 +1,62 @@
+{
+  "schema": "site-host-package/1",
+  "app": "site-host",
+  "version": "0.1.0",
+  "wasm": {
+    "file": "site_host.wasm",
+    "sha256": "4044ea8105cb5e8059464aff4a75b1148716989754a3c3553912ab86e12c5045",
+    "bytes": 46004242
+  },
+  "release": {
+    "cid": "bafybeic7sud3ozsx7fbyo5iwwzqxs3pun54kppahf5eaocupahxmwikjzq",
+    "car": {
+      "sha256": "cc09fd14f11759dd988a7ea93ef7ef99e54bb7333a78f987626012642305f46a",
+      "bytes": 45774003,
+      "blocks": 770
+    }
+  },
+  "toolchain": {
+    "rustc": "rustc 1.99.0-nightly (da86f4d07 2026-07-24)",
+    "cargo": "cargo 1.99.0-nightly (3efb1f477 2026-07-17)",
+    "target": "wasm32-wasip2",
+    "profile": "release (lto, opt-level s, strip)",
+    "rustflags": "--remap-path-prefix=<src>=/site-host --remap-path-prefix=<CARGO_HOME>=/cargo",
+    "locked": true
+  },
+  "source": {
+    "files": 20,
+    "sha256": "573b09437b649bb0c0a2194286467ab1845339754df2442f6c6305a88664c0c8"
+  },
+  "imports": [
+    "import wasi:io/poll@0.2.12",
+    "import wasi:clocks/monotonic-clock@0.2.12",
+    "import wasi:io/error@0.2.12",
+    "import wasi:io/streams@0.2.12",
+    "import wasi:http/types@0.2.9",
+    "import wasi:cli/environment@0.2.12",
+    "import wasi:cli/exit@0.2.12",
+    "import wasi:cli/stdin@0.2.12",
+    "import wasi:cli/stdout@0.2.12",
+    "import wasi:cli/stderr@0.2.12",
+    "import wasi:cli/terminal-input@0.2.12",
+    "import wasi:cli/terminal-output@0.2.12",
+    "import wasi:cli/terminal-stdin@0.2.12",
+    "import wasi:cli/terminal-stdout@0.2.12",
+    "import wasi:cli/terminal-stderr@0.2.12",
+    "import wasi:clocks/wall-clock@0.2.12",
+    "import wasi:filesystem/types@0.2.12",
+    "import wasi:filesystem/preopens@0.2.12",
+    "import wasi:random/insecure-seed@0.2.12",
+    "export wasi:http/incoming-handler@0.2.6"
+  ],
+  "catalog": {
+    "ports": "",
+    "mem": 256,
+    "cpuGflops": 10,
+    "vram": 0,
+    "gpuGflops": 0,
+    "config": {
+      "release": "bafybeic7sud3ozsx7fbyo5iwwzqxs3pun54kppahf5eaocupahxmwikjzq"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+--- a/shielded/anchor/avf/host/app/Ws.java
++++ b/shielded/anchor/avf/host/app/Ws.java
+@@ -19,17 +19,20 @@
+ import java.security.SecureRandom;
+ import java.util.Base64;
+ import java.util.Map;
+-import javax.net.ssl.SSLSocketFactory;
+ 
+ public final class Ws implements Closeable {
+     private final Socket sock; private final InputStream in; private final OutputStream out;
+     private final SecureRandom rnd = new SecureRandom();
+ 
++    /* Bounded (RUNNER-AGENT.md "Reconnect in place"): a relay that accepts nothing, or a frozen one, cannot hang the caller --
++     * the dial gives up after CONNECT_MS and every read after READ_MS unless setReadTimeout says otherwise. */
++    static final int CONNECT_MS = 10000, READ_MS = 20000;
+     public Ws(String url, Map<String, String> headers) throws IOException {
+         URI u = URI.create(url);
+         boolean tls = "wss".equals(u.getScheme());
+         int port = u.getPort() > 0 ? u.getPort() : (tls ? 443 : 80);
+-        Socket s = tls ? SSLSocketFactory.getDefault().createSocket(u.getHost(), port) : new Socket(u.getHost(), port);
++        // RelayDial: the TLS handshake proves the relay's host name, and a device DNS that cannot name the relay is not the end
++        Socket s = RelayDial.open(u.getHost(), port, tls, CONNECT_MS, READ_MS);
+         s.setTcpNoDelay(true);
+         sock = s; in = new BufferedInputStream(s.getInputStream()); out = s.getOutputStream();
+         byte[] key = new byte[16]; rnd.nextBytes(key);
+@@ -58,6 +61,9 @@
+ 
+     public synchronized void sendText(String s) throws IOException { frame(0x1, s.getBytes(StandardCharsets.UTF_8)); }
+ 
++    /** A read that waits longer than ms throws java.net.SocketTimeoutException: the caller decides the peer is gone. */
++    public void setReadTimeout(int ms) throws IOException { sock.setSoTimeout(ms); }
++
+     private void frame(int op, byte[] p) throws IOException {
+         ByteArrayOutputStream f = new ByteArrayOutputStream();
+         f.write(0x80 | op);

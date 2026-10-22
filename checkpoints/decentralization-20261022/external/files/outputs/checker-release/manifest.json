@@ -1,0 +1,26 @@
+{
+  "sourceCommit": "5c6d74dc930dd18502a3cd84131eb8224c93877d",
+  "status": "active on Windows; Nan checker stopped and disabled",
+  "files": {
+    "checker.mjs": {
+      "bytes": 310733,
+      "sha256": "0006e456b3b5bf629aad1bb3cc0478e3bddc2a2954a2a5d35c8b3bd53c5fdc28"
+    },
+    "run-checker.mjs": {
+      "bytes": 907,
+      "sha256": "34d223e8cb126f02c74857b90abfe39e77bc294efe004065027e9346e20d79cf"
+    },
+    "checker-directories.json": {
+      "bytes": 123,
+      "sha256": "9401efa635299ce485ab59b1a14b58efe1f3af6bc31bcea4e089fc1225b80ff4"
+    },
+    "README.txt": {
+      "bytes": 2450,
+      "sha256": "f3b1d0be7debc8b231fbbd68a80c866518b380ad3b1c82c891e0400cc4ddd27a"
+    }
+  },
+  "secretIncluded": false,
+  "existingCheckerAddress": "0x57144c9008cff0b3ed94f6e40964a321fbee848a",
+  "wireGuardBinarySha256": "cbaf8313ce4e2cfce347abed99bdeaf5fc0631b8ab07bfbab20471f60920264c",
+  "verification": "../checker-migration.json"
+}

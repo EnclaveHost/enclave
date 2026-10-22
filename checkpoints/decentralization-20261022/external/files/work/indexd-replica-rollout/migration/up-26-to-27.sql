@@ -1,0 +1,17 @@
+-- indexd-fence migration 26 -> 27 (REVIEW/AUDIT COPY). The release binary applies exactly this SQL itself at
+-- startup, inside ONE transaction together with "UPDATE global_settings SET db_version = 27"
+-- (persist/postgres/init.go upgradeDatabase). Do not run this file by hand against production; it is extracted
+-- verbatim from src/persist/postgres/migrations.go so the reviewed text and the binary's text can be compared.
+-- FENCING PATCH: a per-account writer fence (ballot) and a commit-ordered object event sequence. Accounts that never
+-- install a fence keep fence NULL, event_seq 0 and seq_enabled FALSE, and behave exactly as before.
+ALTER TABLE accounts ADD COLUMN fence BYTEA CHECK (fence IS NULL OR LENGTH(fence) = 32);
+ALTER TABLE accounts ADD COLUMN fence_receipt BYTEA CHECK (fence_receipt IS NULL OR LENGTH(fence_receipt) = 16);
+ALTER TABLE accounts ADD CONSTRAINT accounts_fence_receipt_pair CHECK ((fence IS NULL) = (fence_receipt IS NULL));
+ALTER TABLE accounts ADD COLUMN event_seq BIGINT NOT NULL DEFAULT 0 CHECK (event_seq >= 0);
+ALTER TABLE accounts ADD COLUMN seq_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+-- set (and committed) before a raise waits for the row: from then on every mutation queues behind the raise
+ALTER TABLE accounts ADD COLUMN fence_pending BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE accounts ADD CONSTRAINT accounts_seq_enabled_needs_fence CHECK (fence IS NOT NULL OR NOT seq_enabled);
+ALTER TABLE object_events ADD COLUMN seq BIGINT CHECK (seq IS NULL OR seq > 0);
+-- one position per account and seq: a seq can never be handed out twice
+CREATE UNIQUE INDEX object_events_account_id_seq_idx ON object_events(account_id, seq) WHERE seq IS NOT NULL;

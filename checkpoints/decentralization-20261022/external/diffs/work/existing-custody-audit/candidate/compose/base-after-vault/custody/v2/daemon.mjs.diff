@@ -1,0 +1,61 @@
+--- a/custody/v2/daemon.mjs
++++ b/custody/v2/daemon.mjs
+@@ -36,6 +36,8 @@
+ import { parseHostConfig } from "./host-config.mjs";
+ import { createCustodyRouter, validateTrustedProxies } from "./http.mjs";
+ import { shieldCustodyFor, validateShieldOperator } from "./shield-operator.mjs";
++import { createPlatformHostGate } from "../../network/platform-host-policy.mjs";
++import { httpPolicyMirrors } from "../../network/host-policy-mirrors.mjs";
+ 
+ const log = (...a) => console.log(new Date().toISOString(), ...a);
+ const FW = "/sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.custody/raw";
+@@ -110,9 +112,15 @@
+   let writes=Promise.resolve();
+   const saveNow = () => { const blob=seal(key,state);const next=writes.catch(()=>{}).then(()=>hostPut(hc.hostUrl,"/state",blob));writes=next;return next; };
+   const chain = createChainReaderV2({ chainId:MEASURED.chainId, hostOwnership:MEASURED.hostOwnership,
++    vaultKind:MEASURED.vaultKind||"pinned", book:MEASURED.book||null, hostPolicy:MEASURED.hostPolicy||null,
+     rpcs:MEASURED.rpcs, vault:MEASURED.vault, minAgree:MEASURED.minAgree, maxAgeSec:MEASURED.maxAgeSec,
+     confirmations:MEASURED.confirmations,
+     checkpoint:{load:()=>state.chainCheckpoint,save:async mark=>{state.chainCheckpoint=mark;await saveNow();}} });
++  if (MEASURED.vaultKind === "book") {                 // the measured book-bound vault's code and immutables, at an agreed block
++    const idn = await chain.readVaultIdentity();
++    if (idn.codeHash !== String(MEASURED.vaultCodeHash).toLowerCase() || idn.book !== String(MEASURED.book).toLowerCase() || idn.enclaveOwner !== String(MEASURED.enclaveOwner).toLowerCase())
++      throw new Error("the vault's code or immutables differ from the measured book-bound vault");
++  }
+   const store = { load: () => state.member, save: (m) => { state.member = m; saveNow().catch((e) => log(`STATE SAVE FAILED: ${e.message}`)); } };
+   const submit = async (fn, args) => {
+     const r = await fetch(hc.hostUrl + "/submit", { method: "POST", headers: { "content-type": "application/json" },
+@@ -134,6 +142,15 @@
+   };
+   // The measured independent policy: an explicit owner list, or owner permits (any distinct non-Enclave owners that sign);
+   // with neither, the legacy Enclave-founded admission (capacity receipts) applies.
++  // The measured platform host policy (present only when the image enables it): the gate reads the admin's book anchor
++  // and host facts at agreed blocks, loads the anchored document from the measured mirrors and keeps it in sealed state.
++  const hostGate = MEASURED.hostPolicy ? createPlatformHostGate({ book: MEASURED.hostPolicy.book, hostOwnership: MEASURED.hostPolicy.hostOwnership,
++    snapshot: chain.snapshot, mirrors: httpPolicyMirrors(MEASURED.hostPolicy.mirrors), log,
++    store: { load: () => state.hostPolicy || null, save: (v) => { state.hostPolicy = v; saveNow().catch((e) => log(`STATE SAVE FAILED: ${e.message}`)); } } }) : null;
++  if (hostGate) {
++    const tick = () => hostGate.refresh().then((p) => log(`platform host policy #${p.policy.sequence} ${p.digest.slice(0, 18)}...`), (e) => log(`platform host policy refresh: ${e.code || ""} ${e.message}`));
++    await tick(); setInterval(tick, 5 * 60_000).unref();
++  }
+   const policy = independentPolicy(MEASURED);
+   const admissionCheck = policy?.mode === "owner-list" ? ownerAdmissionCheck(policy.owners)
+     : policy?.mode === "owner-permits" ? ownerPermitAdmission({ enclaveOwner: MEASURED.enclaveOwner })
+@@ -141,7 +158,7 @@
+   const member = createMember({ chainId: MEASURED.chainId, vault: MEASURED.vault, identity, encPrivateKey, machine, chain, store, submit, fetchJson,
+                                 attestSelf: async (b) => tsmReport(b, hc.vcek), verifyPeerQuote, enclaveOwner: MEASURED.enclaveOwner, log,
+                                 // a non-Enclave candidate proves capacity with the audit witness's receipt for its chip (§5 item 2)
+-                                admissionCheck,
++                                admissionCheck, hostGate,
+                                 capacityCheck: receiptCapacityCheck({ chainId: MEASURED.chainId, contract: MEASURED.capacityContract, witnesses: MEASURED.witnesses }),
+                                 // this machine's own receipts, which its host fetches from the witness (unverified here: every member checks them)
+                                 capacityReceipts: async () => { const r = await fetch(hc.hostUrl + "/receipts"); return r.ok ? (await r.json()).slice(0, 8) : []; } });
+@@ -149,7 +166,7 @@
+   const shield = shieldCustodyFor(MEASURED.shieldRecipients, { party: encKey.slice(2) });
+   if (shield) log(`Shield recipients ON (measured): tier hv-node/T0-hv, hostExcluded false, ${shield.limits.maxSessions} host sessions, party ${encKey.slice(2, 14)}...`);
+   const custodian = createCustodianV2({ chainId: MEASURED.chainId, vault: MEASURED.vault, encPrivateKey, shares: member.shares, chain,
+-                                        verifiers: productionVerifiers({ collateral: cachedCollateral({ dir: "/tmp/amd-collateral", upstream: httpCollateral({ timeoutMs: 8000 }) }) }), shield, log });
++                                        verifiers: productionVerifiers({ collateral: cachedCollateral({ dir: "/tmp/amd-collateral", upstream: httpCollateral({ timeoutMs: 8000 }) }) }), hostGate, shield, log });
+ 
+   const runIndependent = createIndependentService({ policy, member, chain, identity, encPrivateKey, invoke: dkgHelper("/opt/custodian/dkg"),
+     state, persist: saveNow, fetchJson, submit, log });

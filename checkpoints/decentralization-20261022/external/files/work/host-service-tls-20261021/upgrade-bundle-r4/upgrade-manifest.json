@@ -1,0 +1,120 @@
+{
+ "format": "enclave-hs2-upgrade/v1",
+ "label": "hs2",
+ "id": "hs2-d5c751d4-to-2f8e3bf3",
+ "scripts": {
+  "windows/stop.ps1": "4efd8647e134b6663681bf274be8b39056b725798aba673f6608882446f9376e",
+  "windows/start.ps1": "21167adf3ee4a8b7a25697f3d71ba8c0154f3fadddf998ee607d42d6a86e84bd",
+  "windows/health.ps1": "e203ce1cd52d923d8d7492305c9851dea53b4c14af3d195d3c0ba37180333d93",
+  "windows/common.ps1": "779498ac137d417c472f324c2f1e5ed3789792d4e62b9bfcb60b88ddd76feb2b"
+ },
+ "replace": [
+  {
+   "path": "STAGE-SHA256SUMS",
+   "old": "d5c751d457ba13e411d8a26e17e3434318ba9da1f4c5fefe34627ce6ac13265c",
+   "new": "2f8e3bf366b09d5c7de7524234fb6dede604a96245317e9beebc231f7c9e2c35"
+  },
+  {
+   "path": "bin/host-services-runner.mjs",
+   "old": "6a9782f521c4816eb4c13630e51ebc661de52f22bb3975ec2cfe4cd06c502f0c",
+   "new": "071b4506c346eea3033ce3ca2d03a33cd23527b2a7d003fe83a131cefbb0b6b8"
+  },
+  {
+   "path": "bin/stage-tool.mjs",
+   "old": "9edddf920c36d8a2a8330258869655e2041c84e531138e36f20793ea49e6cf23",
+   "new": "fdd42acd12e0f77c06081456cd14187c621e9d50e0666ffe72b8eb92dd894aaf"
+  },
+  {
+   "path": "packages/directory-replica.mjs",
+   "old": "1308dc2470d17bdd89ebbc979440292efc2b4fa7c25b19899b9ce7915ba3301a",
+   "new": "9435f186323582f69b41c8df9ccc7e2cb7d55993ff21952c69219f9b94430972"
+  },
+  {
+   "path": "packages/directory-replica.package.json",
+   "old": "2d69a8be882bea9fc107208a3828e25a773ce0c988eac6347d377904e9e78668",
+   "new": "4e01c66c15245fd97f8d504b517e4105a50e9cd68cadb8ef6128d1b66ec306b6"
+  },
+  {
+   "path": "packages/policy-mirror.package.json",
+   "old": "de299c0e0aec18ff5764f457d8aa55e11e2fb3276f9afa9905324959f8a2d0fe",
+   "new": "56bf5c46ef156cb842b94b41c15fb2f3ec81deb9c5034a7ba766668c05ad32d6"
+  },
+  {
+   "path": "packages/route-dns.mjs",
+   "old": "9e8f759037bed94d1a1cb71b5143da679bf671e3b44eb079c465b8b1d17f38e8",
+   "new": "98448a1a09cdbf24764438d3587b3dda133ca32ca515f3df7c65496a6a6153a4"
+  },
+  {
+   "path": "packages/route-dns.package.json",
+   "old": "b47a0a1459a179db91d0ed74f3c1efb820d24dc727dfa1f5d26147bfc6249d4d",
+   "new": "38ef3af394c5daad22bc769248810453beb5c49d9f898893be656a597e0a7c8c"
+  }
+ ],
+ "add": [],
+ "unchanged": [
+  {
+   "path": "ACTIVATION-WINDOWS.txt",
+   "sha": "4c5bdb1170c2c31492f75d2c1b010af995ba3477e3a562cdbb5e6bcb620751a3"
+  },
+  {
+   "path": "bin/hostsvc-supervisor.exe",
+   "sha": "42be59ff5fef8bbc35654ac4240b09fbb71ed0c735ae0bd4da1154c170da37b1"
+  },
+  {
+   "path": "packages/bootstrap-replica.mjs",
+   "sha": "1e45e75f1f4a7d2b74ebac22f0e292d76323c9a11bf80203a20d289c9577f467"
+  },
+  {
+   "path": "packages/bootstrap-replica.package.json",
+   "sha": "7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc"
+  },
+  {
+   "path": "packages/policy-mirror.mjs",
+   "sha": "b816265b3ea4fc783019f2d54796cd6b05d497b9d4e770e752fa70be93da569c"
+  },
+  {
+   "path": "windows/capture-public-inputs.ps1",
+   "sha": "ac6ef038101715bf74d530071e16c22499cd23cb623bab90c96edb11b5dfee93"
+  },
+  {
+   "path": "windows/common.ps1",
+   "sha": "779498ac137d417c472f324c2f1e5ed3789792d4e62b9bfcb60b88ddd76feb2b"
+  },
+  {
+   "path": "windows/fill-data.ps1",
+   "sha": "c327e2f1a272f3b0d2a84bdfd0c4d57ee669bbee37c8252657c71ffb89ac947d"
+  },
+  {
+   "path": "windows/health.ps1",
+   "sha": "e203ce1cd52d923d8d7492305c9851dea53b4c14af3d195d3c0ba37180333d93"
+  },
+  {
+   "path": "windows/install.ps1",
+   "sha": "33531ad824fe625a1bf0ffee78db11af2c80f826a5bb0a3b07cc07aa48f827a1"
+  },
+  {
+   "path": "windows/rollback.ps1",
+   "sha": "75e9536392085bc3e502df14132f2bc4057cbc35c38729c1d1a1c8dff2daa8d3"
+  },
+  {
+   "path": "windows/start.ps1",
+   "sha": "21167adf3ee4a8b7a25697f3d71ba8c0154f3fadddf998ee607d42d6a86e84bd"
+  },
+  {
+   "path": "windows/stop.ps1",
+   "sha": "4efd8647e134b6663681bf274be8b39056b725798aba673f6608882446f9376e"
+  }
+ ],
+ "config": {
+  "old": "bef2446a14750871e3a696fe9c317ac930b8f0f8c7246efd393a8f0206946124",
+  "new": "edeed7ec6cf4bc414be3ac49175370081e3f89f89f96734bb0af5b58ab55c35e",
+  "changedPins": {
+   "sha256:2d69a8be882bea9fc107208a3828e25a773ce0c988eac6347d377904e9e78668": "sha256:4e01c66c15245fd97f8d504b517e4105a50e9cd68cadb8ef6128d1b66ec306b6",
+   "sha256:b47a0a1459a179db91d0ed74f3c1efb820d24dc727dfa1f5d26147bfc6249d4d": "sha256:38ef3af394c5daad22bc769248810453beb5c49d9f898893be656a597e0a7c8c",
+   "sha256:de299c0e0aec18ff5764f457d8aa55e11e2fb3276f9afa9905324959f8a2d0fe": "sha256:56bf5c46ef156cb842b94b41c15fb2f3ec81deb9c5034a7ba766668c05ad32d6"
+  }
+ },
+ "receipt": {
+  "old": "d828b3b888ccf7c2a062c58eda7980531d6344592e4ce3eeea5dc86c46b13508"
+ }
+}

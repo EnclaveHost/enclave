@@ -1,0 +1,897 @@
+--- a/isolation/m2/bootstrap/checkpoint.go
++++ b/isolation/m2/bootstrap/checkpoint.go
+@@ -17,7 +17,13 @@
+ //     the pinned ARK, DEBUG/MIGRATE_MA off, VMPL0;
+ //   - an OLD checkpoint (withheld newer ones): finalized history never changes, so it is still true; the tail after hi
+ //     is read under quorum, so a later same-runner release + reclaim is still found;
+-//   - a checkpoint past this guest's finalized view: not adopted until its hi is finalized here.
++//   - a checkpoint past this guest's finalized view: not adopted until its hi is finalized here;
++//   - expired or stale collateral: the certificates' and the CRL's window must hold at adoption (this guest's clock) AND
++//     at the agreed chain block's own timestamp when it is used (seedFromCheckpoint);
++//   - a gap: coverage is one contiguous range; a checkpoint extends it only when contiguous with it, else replaces it,
++//     and the search below its lo and the tail above its hi are read as before (leasegen.go). Its statement holds EVERY
++//     lease log of the deployment in [lo, hi] (Reader.keep keeps complete ranges), so it states no absence it did not read.
++// Transport (checkpoint_transport.go, checkpoint_producer.go): any carrier; the evidence authenticates itself.
+ 
+ import (
+ 	"bytes"
+@@ -29,6 +35,7 @@
+ 	"fmt"
+ 	"strings"
+ 	"sync"
++	"time"
+ )
+ 
+ const checkpointDomain = "enclave-history-checkpoint-v1\x00"
+@@ -104,6 +111,7 @@
+ type verifiedCheckpoint struct {
+ 	lo, hi uint64
+ 	logs   []leaseLog
++	window snpWindow // when its collateral holds (snpverify.go)
+ }
+ 
+ var checkpointMu sync.Mutex
+@@ -128,6 +136,13 @@
+ // AdoptCheckpoint verifies a checkpoint for id and keeps it for writerAuthority, which seeds coverage from it once its
+ // hi is finalized in this guest's own view. A refusal says why; the read itself is unaffected (it scans as before).
+ func (r *Reader) AdoptCheckpoint(id [32]byte, raw []byte) error {
++	return r.adoptCheckpoint(id, raw, nil, nil)
++}
++
++// adoptCheckpoint: AdoptCheckpoint, where the evidence's certificate table and CRL may also come from other carriers
++// (certPool, crlPool: another mirror's copy, a refreshed CRL). They are judged exactly as the envelope's own: chained to
++// the pinned ARK, the CRL ARK-signed and fresh. Its own collateral is tried first; its refusal is the one reported.
++func (r *Reader) adoptCheckpoint(id [32]byte, raw []byte, certPool, crlPool [][]byte) error {
+ 	checkpointMu.Lock()
+ 	trust := r.cpTrust
+ 	checkpointMu.Unlock()
+@@ -214,21 +229,64 @@
+ 		return errors.New("checkpoint evidence is not base64")
+ 	}
+ 	rd := CheckpointReportData(c.Statement)
+-	if e := verifySNPEvidence(report, certs, crl, snpPolicy{Product: trust.product, MinTCB: trust.minTCB, Measurements: [][]byte{trust.measurement},
+-		HostData: id[:], ReportData: rd[:], Now: r.now()}); e != nil {
+-		return fmt.Errorf("checkpoint evidence: %v", e)
++	pol := snpPolicy{Product: trust.product, MinTCB: trust.minTCB, Measurements: [][]byte{trust.measurement}, HostData: id[:], ReportData: rd[:], Now: r.now()}
++	win, tried, err := func() (snpWindow, int, error) {
++		var first error
++		tried := 0
++		for _, cs := range distinct(append([][]byte{certs}, certPool...)) {
++			for _, cr := range distinct(append([][]byte{crl}, crlPool...)) {
++				if tried++; tried > maxCollateralTries {
++					return snpWindow{}, tried - 1, first
++				}
++				w, e := checkSNPEvidence(report, cs, cr, pol)
++				if e == nil {
++					return w, tried, nil
++				}
++				if first == nil {
++					first = e
++				}
++			}
++		}
++		return snpWindow{}, tried, first
++	}()
++	if err != nil && tried > 1 {
++		return fmt.Errorf("checkpoint evidence: %v (and with every other carrier's certificates and CRL)", err)
++	}
++	if err != nil {
++		return fmt.Errorf("checkpoint evidence: %v", err)
+ 	}
+ 	checkpointMu.Lock()
+ 	defer checkpointMu.Unlock()
+ 	if r.cps == nil {
+ 		r.cps = map[[32]byte]*verifiedCheckpoint{}
+ 	}
++	// the furthest-reaching checkpoint is kept: an older one adopted later (replayed, rolled back) never replaces it
+ 	if old, ok := r.cps[id]; !ok || old.hi < st.Hi {
+-		r.cps[id] = &verifiedCheckpoint{lo: st.Lo, hi: st.Hi, logs: logs}
++		r.cps[id] = &verifiedCheckpoint{lo: st.Lo, hi: st.Hi, logs: logs, window: win}
+ 	}
+ 	return nil
+ }
+ 
++// maxCollateralTries bounds the (certificate table x CRL) combinations one checkpoint is verified with.
++const maxCollateralTries = 16
++
++// distinct: the non-empty byte strings of in, first occurrence kept.
++func distinct(in [][]byte) [][]byte {
++	var out [][]byte
++	seen := map[string]bool{}
++	for _, b := range in {
++		if len(b) == 0 || seen[string(b)] {
++			continue
++		}
++		seen[string(b)] = true
++		out = append(out, b)
++	}
++	if len(out) == 0 {
++		out = [][]byte{nil} // still judged, so the refusal names what is missing
++	}
++	return out
++}
++
+ func lowerHexWord(s string) bool {
+ 	if len(s) != 66 || !strings.HasPrefix(s, "0x") || s != strings.ToLower(s) {
+ 		return false
+@@ -237,20 +295,36 @@
+ 	return e == nil
+ }
+ 
+-// seedFromCheckpoint (writerAuthority): an adopted checkpoint becomes coverage once its hi is finalized in THIS view and
+-// it reaches further than what is already covered. -> the checkpoint's hi when seeded (its claim needs no re-check of
+-// canonicality: the producing guest checked it, and it is final), else 0.
+-func (r *Reader) seedFromCheckpoint(id [32]byte, finalized, agreed uint64) uint64 {
++// seedFromCheckpoint (writerAuthority): an adopted checkpoint becomes coverage once its hi is finalized in THIS view, its
++// collateral still holds at the agreed block's own timestamp and at this guest's clock, and it reaches further than what
++// is already covered. Contiguous with the existing coverage, it extends it (the verified blocks below its lo are kept);
++// otherwise it replaces it, so coverage stays ONE range with no unread gap. -> the checkpoint's hi when seeded (its claim
++// needs no re-check of canonicality: the producing guest checked it, and it is final), else 0.
++func (r *Reader) seedFromCheckpoint(id [32]byte, finalized, agreed, chainTime uint64) uint64 {
+ 	checkpointMu.Lock()
+ 	cp := r.cps[id]
+ 	checkpointMu.Unlock()
+ 	if cp == nil || cp.hi > finalized || cp.hi > agreed {
+ 		return 0
+ 	}
+-	if cov, ok := r.coverage(id); ok && cov.hi >= cp.hi {
++	if !cp.window.holds(time.Unix(int64(chainTime), 0)) || !cp.window.holds(r.now()) {
+ 		return 0
+ 	}
+-	r.keep(id, coverage{cp.lo, cp.hi, append([]leaseLog(nil), cp.logs...)})
++	cov, ok := r.coverage(id)
++	if ok && cov.hi >= cp.hi {
++		return 0
++	}
++	next := coverage{cp.lo, cp.hi, append([]leaseLog(nil), cp.logs...)}
++	if ok && cov.lo < cp.lo && cp.lo <= cov.hi+1 {
++		var below []leaseLog
++		for _, l := range cov.logs {
++			if l.block < cp.lo {
++				below = append(below, l)
++			}
++		}
++		next = coverage{cov.lo, cp.hi, append(below, next.logs...)}
++	}
++	r.keep(id, next)
+ 	return cp.hi
+ }
+ 
+--- /dev/null
++++ b/isolation/m2/bootstrap/checkpoint_producer.go
+@@ -0,0 +1,143 @@
++package bootstrap
++
++// Attested history checkpoints, the producer (work/history-checkpoint-transport-interface.txt). A measured SEV-SNP guest
++// that verified its lease's history keeps extending that verified coverage to the finalized head, states it
++// (CheckpointStatement), binds the statement into a fresh report of its own (REPORT_DATA = CheckpointReportData) and
++// serves the envelope at GET /.well-known/enclave-history-checkpoint: public chain data and the guest's own evidence,
++// no secret. Anyone may copy it to the owner's committed mirrors (cli: enclave history checkpoint export/mirror); the
++// copy is verified by whoever adopts it, never by whoever carried it. Only coverage this process verified is stated, and
++// a refresh that fails keeps the last envelope: finalized history never changes, so it stays true.
++
++import (
++	"context"
++	"crypto/sha256"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"net/http"
++	"sync"
++	"time"
++)
++
++const CheckpointPath = "/.well-known/enclave-history-checkpoint"
++
++type CheckpointProducer struct {
++	reader *Reader
++	id     [32]byte
++	report func(rd []byte) (rep, certs []byte, err error)
++	// extend reads the lease's logs to the finalized head into the verified coverage (leasegen.go); a variable for tests
++	extend   func(ctx context.Context) error
++	mu       sync.Mutex
++	envelope []byte
++	sum      [32]byte
++}
++
++// NewCheckpointProducer: for an owner-committed startup's deployment, reading through the same measured quorum and the
++// package's history sources, with report asking this guest's PSP for a report over a REPORT_DATA.
++func NewCheckpointProducer(a *Authorization, report func(rd []byte) (rep, certs []byte, err error)) (*CheckpointProducer, error) {
++	if a == nil || !a.valid || a.reader == nil || report == nil {
++		return nil, errors.New("checkpoint producer needs a verified startup and a report source")
++	}
++	p := &CheckpointProducer{reader: a.reader, id: a.snapshot.row.id, report: report}
++	history := a.history
++	p.extend = func(ctx context.Context) error {
++		// the coverage is extended step by step even when the fact itself is refused (a later claim, a renewal in flight)
++		_, err := a.reader.writerAuthority(ctx, p.id, func(snapshot) error { return nil }, history)
++		return err
++	}
++	return p, nil
++}
++
++// Refresh: extend the verified coverage, then, when its statement changed, bind it into a fresh report. -> the read's
++// error, if any (the envelope is still refreshed from what is verified).
++func (p *CheckpointProducer) Refresh(ctx context.Context) error {
++	readErr := p.extend(ctx)
++	st, err := p.reader.CheckpointStatement(p.id)
++	if err != nil {
++		return fmt.Errorf("checkpoint: %v (read: %v)", err, readErr)
++	}
++	sum := sha256.Sum256(st)
++	p.mu.Lock()
++	same := p.envelope != nil && sum == p.sum
++	p.mu.Unlock()
++	if same {
++		return readErr
++	}
++	rd := CheckpointReportData(st)
++	rep, certs, err := p.report(rd[:])
++	if err != nil {
++		return fmt.Errorf("checkpoint report: %v", err)
++	}
++	env, err := EncodeCheckpoint(st, rep, certs, nil)
++	if err != nil {
++		return err
++	}
++	p.mu.Lock()
++	p.envelope, p.sum = env, sum
++	p.mu.Unlock()
++	return readErr
++}
++
++// Run refreshes now and then every `every`, each attempt bounded, until ctx ends.
++func (p *CheckpointProducer) Run(ctx context.Context, every time.Duration, logf func(string, ...any)) {
++	for {
++		c, cancel := context.WithTimeout(ctx, 30*time.Minute)
++		err := p.Refresh(c)
++		cancel()
++		if logf != nil {
++			if lo, hi := p.Range(); hi > 0 {
++				logf("history checkpoint: serving blocks %d-%d (refresh: %v)", lo, hi, err)
++			} else {
++				logf("history checkpoint: none yet (%v)", err)
++			}
++		}
++		t := time.NewTimer(every)
++		select {
++		case <-ctx.Done():
++			t.Stop()
++			return
++		case <-t.C:
++		}
++	}
++}
++
++// Range: the served statement's blocks (0, 0: none yet).
++func (p *CheckpointProducer) Range() (lo, hi uint64) {
++	if p == nil {
++		return 0, 0
++	}
++	p.mu.Lock()
++	defer p.mu.Unlock()
++	if p.envelope == nil {
++		return 0, 0
++	}
++	var c struct {
++		Statement checkpointStatement `json:"statement"`
++	}
++	if e := json.Unmarshal(p.envelope, &c); e != nil {
++		return 0, 0
++	}
++	return c.Statement.Lo, c.Statement.Hi
++}
++
++// ServeHTTP: GET (or HEAD) the current envelope. Public data: any origin may read it (the site's export reads it).
++func (p *CheckpointProducer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
++	if r.Method != http.MethodGet && r.Method != http.MethodHead {
++		http.Error(w, "GET only", http.StatusMethodNotAllowed)
++		return
++	}
++	var env []byte
++	if p != nil {
++		p.mu.Lock()
++		env = p.envelope
++		p.mu.Unlock()
++	}
++	if env == nil {
++		http.Error(w, "no history checkpoint yet", http.StatusNotFound)
++		return
++	}
++	w.Header().Set("Content-Type", "application/json")
++	w.Header().Set("Cache-Control", "no-store")
++	w.Header().Set("Access-Control-Allow-Origin", "*")
++	w.Write(env)
++}
+--- /dev/null
++++ b/isolation/m2/bootstrap/checkpoint_transport.go
+@@ -0,0 +1,156 @@
++package bootstrap
++
++// Attested history checkpoints, the consumer's transport (work/history-checkpoint-transport-interface.txt). A cold-starting
++// SEV-SNP guest fetches checkpoints from the mirror URLs its owner COMMITTED in the startup package (history.checkpoints),
++// through its measured client, each host admitted to the dial allowlist only here, after Authorize verified the owner's
++// on-chain commitment. Nothing a host supplies is fetched or read. A mirror is only a carrier: every envelope is verified
++// (AdoptCheckpoint: AMD's chain to the pinned ARK, a fresh ARK-signed CRL, this guest's own measurement and TCB floor,
++// HOST_DATA, the statement binding), so a lost, stale or lying mirror costs availability, never correctness. Certificate
++// tables and CRLs any carrier brought are pooled: a refreshed CRL on one mirror completes a copy whose own CRL went stale.
++// Loading never fails a startup: without an adopted checkpoint the lease's history is read from the sources as before.
++
++import (
++	"context"
++	"encoding/base64"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"net"
++	"net/http"
++	"strings"
++	"sync"
++	"time"
++)
++
++// maxCheckpointBytes bounds one fetched envelope (AdoptCheckpoint's own bound); checkpointFetchTimeout one load.
++const maxCheckpointBytes = 32 << 20
++
++var checkpointFetchTimeout = 60 * time.Second
++
++// CheckpointMirrors: the owner-committed mirror URLs of this authorization's package (nil: none).
++func (a *Authorization) CheckpointMirrors() []string {
++	if a == nil || !a.valid || a.manifest.History == nil {
++		return nil
++	}
++	return append([]string(nil), a.manifest.History.Checkpoints...)
++}
++
++// CheckpointLoad: what a load did, for the guest's console. Hi is the adopted checkpoint's (0: none).
++type CheckpointLoad struct {
++	Lo, Hi  uint64
++	Results []string
++}
++
++func (l CheckpointLoad) String() string {
++	head := "none adopted"
++	if l.Hi > 0 {
++		head = fmt.Sprintf("adopted blocks %d-%d", l.Lo, l.Hi)
++	}
++	return head + " (" + strings.Join(l.Results, "; ") + ")"
++}
++
++// LoadCheckpoints: enable checkpoints with this guest's OWN SNP report (its measurement, product line and TCB are what a
++// producer must match), fetch every committed mirror at once (bounded), and adopt what verifies.
++func (a *Authorization) LoadCheckpoints(ctx context.Context, ownReport []byte) CheckpointLoad {
++	mirrors := a.CheckpointMirrors()
++	if len(mirrors) == 0 {
++		return CheckpointLoad{Results: []string{"no mirrors committed"}}
++	}
++	r := a.reader
++	if err := r.TrustCheckpointsFrom(ownReport); err != nil {
++		return CheckpointLoad{Results: []string{"not enabled: " + err.Error()}}
++	}
++	id := a.snapshot.row.id
++	ctx, cancel := context.WithTimeout(ctx, checkpointFetchTimeout)
++	defer cancel()
++	bodies, errs := make([][]byte, len(mirrors)), make([]error, len(mirrors))
++	var wg sync.WaitGroup
++	for i, u := range mirrors {
++		host, ok := historyURL(u)
++		if !ok { // Authorize validated it; never reached
++			errs[i] = errors.New("not a mirror URL")
++			continue
++		}
++		if r.allow != nil {
++			r.allow(net.JoinHostPort(host, "443"))
++		}
++		wg.Add(1)
++		go func(i int, u string) {
++			defer wg.Done()
++			bodies[i], errs[i] = r.fetchCheckpoint(ctx, u)
++		}(i, u)
++	}
++	wg.Wait()
++	var certPool, crlPool [][]byte
++	for _, b := range bodies {
++		if c, l := envelopeCollateral(b); c != nil || l != nil {
++			certPool, crlPool = append(certPool, c), append(crlPool, l)
++		}
++	}
++	var out CheckpointLoad
++	for i, u := range mirrors {
++		host, _ := historyURL(u)
++		if errs[i] != nil {
++			out.Results = append(out.Results, host+": unavailable: "+errs[i].Error())
++			continue
++		}
++		if e := r.adoptCheckpoint(id, bodies[i], certPool, crlPool); e != nil {
++			out.Results = append(out.Results, host+": refused: "+e.Error())
++			continue
++		}
++		out.Results = append(out.Results, host+": verified")
++	}
++	checkpointMu.Lock()
++	if cp := r.cps[id]; cp != nil {
++		out.Lo, out.Hi = cp.lo, cp.hi
++	}
++	checkpointMu.Unlock()
++	return out
++}
++
++// fetchCheckpoint: one mirror's envelope over the measured client (TLS to the measured roots, the guest's egress), HTTP
++// 200 only, no redirect followed, at most maxCheckpointBytes.
++func (r *Reader) fetchCheckpoint(ctx context.Context, u string) ([]byte, error) {
++	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
++	if err != nil {
++		return nil, errors.New("invalid mirror URL")
++	}
++	c := r.client
++	c.Timeout = checkpointFetchTimeout
++	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse } // a mirror is its URL
++	res, err := c.Do(req)
++	if err != nil {
++		return nil, errors.New("transport failed")
++	}
++	defer res.Body.Close()
++	if res.StatusCode != http.StatusOK {
++		return nil, fmt.Errorf("HTTP %d", res.StatusCode)
++	}
++	b, err := io.ReadAll(io.LimitReader(res.Body, maxCheckpointBytes+1))
++	if err != nil {
++		return nil, errors.New("transport failed")
++	}
++	if len(b) == 0 || len(b) > maxCheckpointBytes {
++		return nil, errors.New("size outside the limit")
++	}
++	return b, nil
++}
++
++// envelopeCollateral: an envelope's certificate table and CRL as carried, unjudged (they count only once AMD's chain
++// authenticates them in adoptCheckpoint); nil for anything unreadable.
++func envelopeCollateral(b []byte) (certs, crl []byte) {
++	if len(b) == 0 {
++		return nil, nil
++	}
++	var e struct {
++		Certs string `json:"certs"`
++		CRL   string `json:"crl"`
++	}
++	if json.Unmarshal(b, &e) != nil {
++		return nil, nil
++	}
++	certs, _ = base64.StdEncoding.DecodeString(e.Certs)
++	crl, _ = base64.StdEncoding.DecodeString(e.CRL)
++	return certs, crl
++}
+--- a/isolation/m2/bootstrap/history.go
++++ b/isolation/m2/bootstrap/history.go
+@@ -22,12 +22,19 @@
+ 
+ const MaxHistoryRPCs = 6
+ 
++// MaxCheckpointMirrors: owner-committed URLs a guest may fetch attested history checkpoints from (checkpoint_transport.go).
++const MaxCheckpointMirrors = 4
++
+ // leaseAttemptTimeout bounds one writer-authority attempt (leasegen.go); its completed steps are kept, so the next attempt
+ // resumes where it ended. A variable for tests.
+ var leaseAttemptTimeout = 5 * time.Minute
+ 
++// History: at least one member. "rpcs" (log sources) is the original member, unchanged; "checkpoints" (mirror URLs of
++// attested history checkpoints, work/history-checkpoint-transport-interface.txt) is optional and appended after it, so a
++// package without it keeps its exact bytes and meaning.
+ type History struct {
+-	RPCs []string `json:"rpcs"`
++	RPCs        []string `json:"rpcs,omitempty"`
++	Checkpoints []string `json:"checkpoints,omitempty"`
+ }
+ 
+ // historyField validates the optional member as it appears in the exact package bytes (raw).
+@@ -43,26 +50,48 @@
+ 	if h == nil || noNull(member) != nil {
+ 		return errors.New("owner history must be an object without nulls")
+ 	}
++	// a member that is present is never empty ("rpcs": [] is refused as before, not read as absent)
++	var members map[string]json.RawMessage
++	if json.Unmarshal(member, &members) != nil {
++		return errors.New("owner history must be an object without nulls")
++	}
++	if v, ok := members["rpcs"]; ok && (len(h.RPCs) == 0 || string(v) == "[]") {
++		return fmt.Errorf("owner history needs 1 to %d RPCs", MaxHistoryRPCs)
++	}
++	if v, ok := members["checkpoints"]; ok && (len(h.Checkpoints) == 0 || string(v) == "[]") {
++		return fmt.Errorf("owner history needs 1 to %d checkpoint mirrors", MaxCheckpointMirrors)
++	}
+ 	return h.Validate()
+ }
+ 
+ func (h *History) Validate() error {
+-	if h == nil || len(h.RPCs) < 1 || len(h.RPCs) > MaxHistoryRPCs {
++	if h == nil || len(h.RPCs) == 0 && len(h.Checkpoints) == 0 {
+ 		return fmt.Errorf("owner history needs 1 to %d RPCs", MaxHistoryRPCs)
+ 	}
+-	seen := map[string]bool{}
+-	for i, raw := range h.RPCs {
+-		host, ok := historyURL(raw)
+-		if !ok {
+-			return errors.New("owner history RPC must be https://<lowercase DNS name>[/path] with no port, query, fragment or credentials")
+-		}
+-		if i > 0 && !(h.RPCs[i-1] < raw) {
+-			return errors.New("owner history RPCs must be strictly ascending and unique")
+-		}
+-		if seen[host] {
+-			return errors.New("owner history RPC hosts must be distinct")
++	if len(h.RPCs) > MaxHistoryRPCs {
++		return fmt.Errorf("owner history needs 1 to %d RPCs", MaxHistoryRPCs)
++	}
++	if len(h.Checkpoints) > MaxCheckpointMirrors {
++		return fmt.Errorf("owner history needs 1 to %d checkpoint mirrors", MaxCheckpointMirrors)
++	}
++	for _, list := range []struct {
++		urls []string
++		what string
++	}{{h.RPCs, "RPC"}, {h.Checkpoints, "checkpoint mirror"}} {
++		seen := map[string]bool{}
++		for i, raw := range list.urls {
++			host, ok := historyURL(raw)
++			if !ok {
++				return fmt.Errorf("owner history %s must be https://<lowercase DNS name>[/path] with no port, query, fragment or credentials", list.what)
++			}
++			if i > 0 && !(list.urls[i-1] < raw) {
++				return fmt.Errorf("owner history %ss must be strictly ascending and unique", list.what)
++			}
++			if seen[host] {
++				return fmt.Errorf("owner history %s hosts must be distinct", list.what)
++			}
++			seen[host] = true
+ 		}
+-		seen[host] = true
+ 	}
+ 	return nil
+ }
+@@ -109,7 +138,7 @@
+ 		measured[p.name] = true
+ 	}
+ 	var out []endpoint
+-	for _, raw := range h.RPCs {
++	for _, raw := range h.RPCs { // (checkpoint mirrors are admitted only when fetched: checkpoint_transport.go)
+ 		host, ok := historyURL(raw)
+ 		if !ok || measured[host] {
+ 			continue
+--- a/isolation/m2/bootstrap/leasegen.go
++++ b/isolation/m2/bootstrap/leasegen.go
+@@ -413,7 +413,7 @@
+ 		budgets[p.name] = &budget{max: leaseMaxRequests}
+ 	}
+ 	// an adopted attested checkpoint (checkpoint.go) becomes coverage once its hi is finalized in this view
+-	r.seedFromCheckpoint(id, finalized, s.number)
++	r.seedFromCheckpoint(id, finalized, s.number, s.timestamp)
+ 	cov, have := r.coverage(id)
+ 	if have && !(cov.lo >= leaseFromBlock && cov.hi <= s.number && cov.lo <= cov.hi+1) {
+ 		have = false
+@@ -507,7 +507,13 @@
+ 	}
+ 	c := logs[ci]
+ 	if c.block <= finalized {
+-		keepFinal(c.block, logs[ci:]) // nothing older than the claim matters again
++		// nothing older than the claim's block matters again; that block's logs are kept whole, so coverage holds EVERY
++		// lease log of [lo, hi] (a checkpoint states it: checkpoint.go)
++		from := ci
++		for from > 0 && logs[from-1].block == c.block {
++			from--
++		}
++		keepFinal(c.block, logs[from:])
+ 	}
+ 	runner := "0x" + hex.EncodeToString(n.runner[:])
+ 	if len(c.topics) != 4 || c.topics[2] != runner || c.topics[3] != "0x"+strings.Repeat("0", 24)+strings.TrimPrefix(n.operator, "0x") {
+--- a/isolation/m2/bootstrap/snpverify.go
++++ b/isolation/m2/bootstrap/snpverify.go
+@@ -220,35 +220,35 @@
+ 
+ // checkAMDCRL: the ARK-signed CRL (RSASSA-PSS), issued by the pinned ARK, not from the future, NOT stale (policy
+ // "required": no stale-ok here), and the ASK's serial not revoked.
+-func checkAMDCRL(crlDER []byte, ask, ark *x509.Certificate, now time.Time) error {
++func checkAMDCRL(crlDER []byte, ask, ark *x509.Certificate, now time.Time) (*x509.RevocationList, error) {
+ 	if len(crlDER) == 0 {
+-		return errors.New("CRL: required but none was supplied")
++		return nil, errors.New("CRL: required but none was supplied")
+ 	}
+ 	crl, err := x509.ParseRevocationList(crlDER)
+ 	if err != nil {
+-		return fmt.Errorf("CRL unparseable: %v", err)
++		return nil, fmt.Errorf("CRL unparseable: %v", err)
+ 	}
+ 	if crl.SignatureAlgorithm != x509.SHA384WithRSAPSS {
+-		return fmt.Errorf("CRL signature algorithm %v is not RSASSA-PSS SHA-384", crl.SignatureAlgorithm)
++		return nil, fmt.Errorf("CRL signature algorithm %v is not RSASSA-PSS SHA-384", crl.SignatureAlgorithm)
+ 	}
+ 	if !bytes.Equal(crl.RawIssuer, ark.RawSubject) {
+-		return errors.New("CRL issuer is not the pinned ARK")
++		return nil, errors.New("CRL issuer is not the pinned ARK")
+ 	}
+ 	if ark.CheckSignature(crl.SignatureAlgorithm, crl.RawTBSRevocationList, crl.Signature) != nil {
+-		return errors.New("CRL signature does not verify with the pinned ARK")
++		return nil, errors.New("CRL signature does not verify with the pinned ARK")
+ 	}
+ 	if now.Before(crl.ThisUpdate) {
+-		return errors.New("CRL thisUpdate is in the future")
++		return nil, errors.New("CRL thisUpdate is in the future")
+ 	}
+ 	if crl.NextUpdate.IsZero() || now.After(crl.NextUpdate) {
+-		return fmt.Errorf("CRL is stale (nextUpdate %s)", crl.NextUpdate.UTC().Format(time.RFC3339))
++		return nil, fmt.Errorf("CRL is stale (nextUpdate %s)", crl.NextUpdate.UTC().Format(time.RFC3339))
+ 	}
+ 	for _, e := range crl.RevokedCertificateEntries {
+ 		if e.SerialNumber.Cmp(ask.SerialNumber) == 0 {
+-			return fmt.Errorf("the ASK (serial %x) is REVOKED", ask.SerialNumber)
++			return nil, fmt.Errorf("the ASK (serial %x) is REVOKED", ask.SerialNumber)
+ 		}
+ 	}
+-	return nil
++	return crl, nil
+ }
+ 
+ func verifySNPSignature(p *snpReport, vcek *x509.Certificate) error {
+@@ -336,46 +336,60 @@
+ 
+ // verifySNPEvidence: report + its certificate table + an ARK-signed CRL under pol. nil only when every check passed.
+ func verifySNPEvidence(report, auxblob, crlDER []byte, pol snpPolicy) error {
++	_, err := checkSNPEvidence(report, auxblob, crlDER, pol)
++	return err
++}
++
++// snpWindow: when the evidence's collateral holds: the latest NotBefore/thisUpdate to the earliest NotAfter/nextUpdate
++// of the VCEK, ASK, ARK and the CRL. A consumer re-judges it at the chain's own time before using the evidence.
++type snpWindow struct{ from, until time.Time }
++
++func (w snpWindow) holds(t time.Time) bool { return !t.Before(w.from) && !t.After(w.until) }
++
++// checkSNPEvidence: verifySNPEvidence, and the window its collateral was valid in.
++func checkSNPEvidence(report, auxblob, crlDER []byte, pol snpPolicy) (snpWindow, error) {
++	var win snpWindow
+ 	p, err := parseSNPReport(report)
+ 	if err != nil {
+-		return fmt.Errorf("report shape: %v", err)
++		return win, fmt.Errorf("report shape: %v", err)
+ 	}
+ 	product, err := snpProduct(p)
+ 	if err != nil {
+-		return fmt.Errorf("product line: %v", err)
++		return win, fmt.Errorf("product line: %v", err)
+ 	}
+ 	if product != pol.Product {
+-		return fmt.Errorf("product line: the report is from %s, the policy requires %s", product, pol.Product)
++		return win, fmt.Errorf("product line: the report is from %s, the policy requires %s", product, pol.Product)
+ 	}
+ 	if p.debug() {
+-		return errors.New("guest policy allows DEBUG: the host can read guest memory")
++		return win, errors.New("guest policy allows DEBUG: the host can read guest memory")
+ 	}
+ 	if p.migrateMA() {
+-		return errors.New("guest policy allows MIGRATE_MA")
++		return win, errors.New("guest policy allows MIGRATE_MA")
+ 	}
+ 	if p.vmpl != 0 {
+-		return fmt.Errorf("report is from VMPL%d, policy expects VMPL0", p.vmpl)
++		return win, fmt.Errorf("report is from VMPL%d, policy expects VMPL0", p.vmpl)
+ 	}
+ 	vcekDER, askDER, arkDER := certFromAuxblob(auxblob, guidVCEK), certFromAuxblob(auxblob, guidASK), certFromAuxblob(auxblob, guidARK)
+ 	if vcekDER == nil || askDER == nil || arkDER == nil {
+-		return errors.New("collateral: the certificate table lacks the VCEK, ASK or ARK")
++		return win, errors.New("collateral: the certificate table lacks the VCEK, ASK or ARK")
+ 	}
+ 	vcek, ask, ark, err := checkAMDChain(vcekDER, askDER, arkDER, product, pol.Now)
+ 	if err != nil {
+-		return fmt.Errorf("chain: %v", err)
++		return win, fmt.Errorf("chain: %v", err)
+ 	}
+-	if err = checkAMDCRL(crlDER, ask, ark, pol.Now); err != nil {
+-		return err
++	crl, err := checkAMDCRL(crlDER, ask, ark, pol.Now)
++	if err != nil {
++		return win, err
+ 	}
+ 	if err = verifySNPSignature(p, vcek); err != nil {
+-		return fmt.Errorf("signature: %v", err)
++		return win, fmt.Errorf("signature: %v", err)
+ 	}
+ 	if err = vcekMatchesReport(vcek, product, p); err != nil {
+-		return fmt.Errorf("vcek identity: %v", err)
++		return win, fmt.Errorf("vcek identity: %v", err)
+ 	}
+ 	fields := tcbFields[product]
+ 	if len(pol.MinTCB) != len(fields) {
+-		return errors.New("tcb policy: the floor must name every TCB field of the product line")
++		return win, errors.New("tcb policy: the floor must name every TCB field of the product line")
+ 	}
+ 	for _, which := range []struct {
+ 		b    []byte
+@@ -385,10 +399,10 @@
+ 		for _, f := range fields {
+ 			floor, ok := pol.MinTCB[f]
+ 			if !ok {
+-				return fmt.Errorf("tcb policy: no floor for %s", f)
++				return win, fmt.Errorf("tcb policy: no floor for %s", f)
+ 			}
+ 			if got[f] < floor {
+-				return fmt.Errorf("tcb policy: %s TCB %s %d < %d", which.what, f, got[f], floor)
++				return win, fmt.Errorf("tcb policy: %s TCB %s %d < %d", which.what, f, got[f], floor)
+ 			}
+ 		}
+ 	}
+@@ -399,15 +413,24 @@
+ 		}
+ 	}
+ 	if !allowed {
+-		return errors.New("measurement: the launch measurement is not an allowed one")
++		return win, errors.New("measurement: the launch measurement is not an allowed one")
+ 	}
+ 	if len(pol.ReportData) != 64 || !bytes.Equal(p.reportData, pol.ReportData) {
+-		return errors.New("binding: REPORT_DATA is not this statement's binding")
++		return win, errors.New("binding: REPORT_DATA is not this statement's binding")
+ 	}
+ 	if len(pol.HostData) != 32 || allZero(pol.HostData) || !bytes.Equal(p.hostData, pol.HostData) {
+-		return errors.New("host data: HOST_DATA is not the expected deployment")
++		return win, errors.New("host data: HOST_DATA is not the expected deployment")
+ 	}
+-	return nil
++	win = snpWindow{crl.ThisUpdate, crl.NextUpdate}
++	for _, c := range []*x509.Certificate{vcek, ask, ark} {
++		if c.NotBefore.After(win.from) {
++			win.from = c.NotBefore
++		}
++		if c.NotAfter.Before(win.until) {
++			win.until = c.NotAfter
++		}
++	}
++	return win, nil
+ }
+ 
+ func allZero(b []byte) bool {
+--- a/isolation/m2/front/bootstrap.go
++++ b/isolation/m2/front/bootstrap.go
+@@ -93,7 +93,7 @@
+ 	// Release facts (storage writer fencing): this build's isolation, and the lease's writer authority from the guest's
+ 	// OWN measured RPC quorum when the owner's config refers to it (relay-free). Waiting for a just-made claim to finalize
+ 	// happens here, before the Revalidate below, so the lease is re-checked after any wait.
+-	facts, err := directFacts(ctx, auth, text, snpIsolation)
++	facts, err := directFacts(ctx, auth, text, snpIsolation, p.loadCheckpoints)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -111,6 +111,9 @@
+ 		return nil, err
+ 	}
+ 	out := &provisioned{envelope: tag, owner: &ownerStartup{auth: auth}}
++	if _, ok := facts[appconfig.FactWriterAuthority]; ok {
++		out.writerAuthority = auth
++	}
+ 	// An owner-selected CA with an EAB: the binding is resolved here, from custody secrets, and kept in this process.
+ 	if g, e := auth.NameGrant(); e == nil && g.ACME != nil && g.ACME.EAB != nil {
+ 		out.owner.eabKID, out.owner.eabKey, out.owner.eabErr = eabFrom(secrets, g.ACME.EAB)
+@@ -135,12 +138,16 @@
+ // without it.
+ var writerAuthorityWindow, writerAuthorityInterval = 45 * time.Minute, 30 * time.Second
+ 
+-// directFacts: the facts a direct front hands the app. The writer authority only when the config refers to it.
+-func directFacts(ctx context.Context, auth *bootstrap.Authorization, configText, isolation string) (map[string]string, error) {
++// directFacts: the facts a direct front hands the app. The writer authority only when the config refers to it; before it
++// is read, checkpoints (nil: this build reads none) loads the owner-committed attested history checkpoints.
++func directFacts(ctx context.Context, auth *bootstrap.Authorization, configText, isolation string, checkpoints func(context.Context, *bootstrap.Authorization)) (map[string]string, error) {
+ 	facts := map[string]string{appconfig.FactInstanceIsolation: isolation}
+ 	if !strings.Contains(configText, appconfig.FactWriterAuthority) {
+ 		return facts, nil
+ 	}
++	if checkpoints != nil {
++		checkpoints(ctx, auth)
++	}
+ 	w, err := auth.WriterAuthorityWhenFinal(ctx, writerAuthorityWindow, writerAuthorityInterval)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("the lease's writer authority: %w", err)
+@@ -152,3 +159,45 @@
+ 	facts[appconfig.FactWriterAuthority] = j
+ 	return facts, nil
+ }
++
++// loadCheckpoints (SEV-SNP direct): the owner-committed attested history checkpoints, verified against THIS guest's own
++// report (its measurement, product line and TCB), adopted before the lease's history is read
++// (work/history-checkpoint-transport-interface.txt). Never a startup failure: without one, the history sources are read
++// as before.
++func (p *provisioner) loadCheckpoints(ctx context.Context, auth *bootstrap.Authorization) {
++	if len(auth.CheckpointMirrors()) == 0 {
++		return
++	}
++	logf := p.logf
++	if logf == nil {
++		logf = func(string, ...any) {}
++	}
++	if p.report == nil {
++		logf("DOM history checkpoints: this guest has no report source: not used")
++		return
++	}
++	own, _, err := p.report(make([]byte, 64))
++	if err != nil {
++		logf("DOM history checkpoints: no own report (%v): not used", err)
++		return
++	}
++	logf("DOM history checkpoints: %s", auth.LoadCheckpoints(ctx, own))
++}
++
++// checkpointRefresh: how often a direct SEV-SNP front re-reads its lease's history and re-binds its checkpoint.
++var checkpointRefresh = 6 * time.Hour
++
++// startCheckpointProducer (SEV-SNP direct, the lease's history verified at startup): serve this guest's attested history
++// checkpoint at bootstrap.CheckpointPath, refreshed every checkpointRefresh.
++func startCheckpointProducer(ctx context.Context, auth *bootstrap.Authorization, report func([]byte) ([]byte, []byte, error), logf func(string, ...any)) *bootstrap.CheckpointProducer {
++	if logf == nil {
++		logf = func(string, ...any) {}
++	}
++	p, err := bootstrap.NewCheckpointProducer(auth, report)
++	if err != nil {
++		logf("DOM history checkpoint: not served (%v)", err)
++		return nil
++	}
++	go p.Run(ctx, checkpointRefresh, domLogf(logf))
++	return p
++}
+--- a/isolation/m2/front/main.go
++++ b/isolation/m2/front/main.go
+@@ -110,9 +110,10 @@
+ 	boundary         string      // the self-test init produced; relayed verbatim, never composed here
+ 	tunnels          *portTunnels
+ 	app              http.Handler
+-	certs            *certState  // a CA certificate for this domain's own key and deployment name (certs.go)
+-	names            *ownerNames // direct startup: the owner-committed names (names.go); nil = none
+-	ready            *readiness  // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
++	certs            *certState                    // a CA certificate for this domain's own key and deployment name (certs.go)
++	names            *ownerNames                   // direct startup: the owner-committed names (names.go); nil = none
++	checkpoints      *bootstrap.CheckpointProducer // direct SEV-SNP startup: the attested history checkpoint; nil = none
++	ready            *readiness                    // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
+ 	tsmMu            sync.Mutex
+ }
+ 
+@@ -296,6 +297,9 @@
+ 				if f.names, err = f.startOwnerNames(prov.owner, p.egress, p.roots); err != nil {
+ 					return "", err
+ 				}
++				if prov.writerAuthority != nil { // this path is the M2 SEV-SNP guest (releaseForInit): its own PSP reports
++					f.checkpoints = startCheckpointProducer(context.Background(), prov.writerAuthority, f.report, p.logf)
++				}
+ 			}
+ 			warmupPath = configuredWarmup(prov.config)
+ 			return prov.config, nil
+@@ -398,6 +402,11 @@
+ 	case readyPath:
+ 		f.ready.serve(w, r)
+ 		return
++	case bootstrap.CheckpointPath:
++		if f.checkpoints != nil { // otherwise the path stays the app's, as before
++			f.checkpoints.ServeHTTP(w, r)
++			return
++		}
+ 	}
+ 	f.app.ServeHTTP(w, r)
+ }
+--- a/isolation/m2/front/provision.go
++++ b/isolation/m2/front/provision.go
+@@ -71,6 +71,9 @@
+ 	envelope string // the ledger envelope's sha256 (hex): public (it is on chain), stated on the console
+ 	fwd      *egress.Forwarder
+ 	owner    *ownerStartup // direct startup only: owner-committed names (names.go)
++	// direct startup only: the lease's writer authority was read (its history verified) under this authorization, so a
++	// checkpoint can be served from it
++	writerAuthority *bootstrap.Authorization
+ }
+ 
+ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtimeState, appSha []byte) (*provisioned, error) {
+--- a/isolation/m2/front/shield_direct_custody.go
++++ b/isolation/m2/front/shield_direct_custody.go
+@@ -93,7 +93,9 @@
+ 	}
+ 	// Release facts on the same private pipe (secretrun separates them, appconfig.SplitFacts): "vbs", and the lease's
+ 	// writer authority from this guest's own RPC quorum when the measured config refers to it.
+-	facts, err := directFacts(ctx, auth, text, shieldIsolation)
++	// no checkpoints: a Shield partition has no SEV-SNP report to judge one against, and no Shield (VBS) checkpoint
++	// verifier exists (work/history-checkpoint-transport-interface.txt): it reads its owner's history sources
++	facts, err := directFacts(ctx, auth, text, shieldIsolation, nil)
+ 	if err != nil {
+ 		return nil, err
+ 	}

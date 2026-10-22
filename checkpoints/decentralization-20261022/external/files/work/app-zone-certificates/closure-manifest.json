@@ -1,0 +1,81 @@
+{
+ "snapshotHead": "e762a9c5f523cf7fcb6d68118ca459290926f8fa",
+ "snapshotTime": "2026-10-20T13:12:06-07:00",
+ "modified": {
+  "relay/dns-relay.js": {
+   "base": "976d2a6b7a4704a8f8d0bd50de6af9ab6932b2d56ef12e437a674074c077901d",
+   "result": "3264d32e281f3986098e1a21f9c1d4c666cc60e8f710f4e6e5214ff710654e99",
+   "patch": "f93551f8f76143890d664f7e00114fb0f48b62fcf360fa26f2ef10aed8ff19c4"
+  },
+  "relay/network-runtime.mjs": {
+   "base": "d062fc34443db4bb8500ec7e2aa53f3c51566aad5bc8eedf21e8edb0ff8982b4",
+   "result": "a606c1a423ec0a2861e05a23e6fb51ed67a3c68e54c56de3aa09661083cd4b21",
+   "patch": "1a041814de68d9c19e27af0615218cb91fdb1b5d9fd79eb1d6cee8c07a414d76"
+  },
+  "isolation/m2/bootstrap/names.go": {
+   "base": "cf990ac8b693eb4f8da5625e17de630f2aa52205ede061c28b160d7dc25ff167",
+   "result": "fbdfe76ccc407a3851dabd41b2f42fcd81704edf315b6428b90223a9daeb243e",
+   "patch": "0d91db5c4037d2c44dc7cc38091df06ea5090b350d0ca903eae3989a2d3215b2"
+  },
+  "isolation/m2/front/names.go": {
+   "base": "f6f94979e0c43ef6b85cc2a637f58d1b9d06af50a2a9c9abf3bcd49894ed2366",
+   "result": "dcc566c4afa76ab053a47e33e45171bd107fb9d0344c13b6405cae1004d6ba0a",
+   "patch": "f3f9183f63558ac3ed6a15d2d4e62edc55f00dfc17819c750432f1f1fae17167"
+  },
+  "isolation/m2/front/main.go": {
+   "base": "b95a1c81fd8834ef48d2070ed350c8572efbf796d9821084f80adb52baf6f04f",
+   "result": "3acf7eeb65f8391f167eea3ae529bc05c296124858267e72ace7d576284d4bec",
+   "patch": "5624d0229bcc2d79f3b6ea4c9b5e624fc1fb24c1448a86f9d8f3abc6a9c8279b"
+  },
+  "isolation/m2/front/bootstrap.go": {
+   "base": "90d2bfc04df5d4b56dcb7e214dae3be72fc9d31e7fd4af7d9f15f30004156fc6",
+   "result": "22ae1ec5783666c1204798f6bef9cc19b5ba81e52b8499ef9ff93f80a6625bf7",
+   "patch": "9687c54b72d8e3265a7bced727384e98c38d73eba0ded7279147d9de026aa895"
+  },
+  "isolation/m2/front/names_test.go": {
+   "base": "a380f9a9e8e92aeaee1650c83823059fed82574e3e1f44e97a90a9684fc32dd9",
+   "result": "d3c2b4e8299d9fcd3f970595a4c200f1a50ee97cf9f2a948d271adac5ab8efca",
+   "patch": "cdaad85ad122c2f7d3e6eb14beac9d3445e96933055aab026b4caee297a81533"
+  },
+  "sdk/bootstrap/package.mjs": {
+   "base": "38d49b09cc642a006b1e263a1b35b2e85c03c2996d078849158fadf273a9c84a",
+   "result": "c200fd267deea13b9a5cf78ba11b2d52125977e57a8a34c428a5f78327569d3d",
+   "patch": "379b9dfa5715b2fc7cc8e0b2c8ada484d9988e44b6a22b0048c804a6427c53be"
+  },
+  "relay/network-runtime.bundle.mjs": {
+   "base": "1b3fcee576b2e13db7e1f6bc5c5d42a8174884a959abfd5a64f44841f3db696f",
+   "result": "8745998ac6ea3f049c977612c96be18efa9218732c31b71d817f437000402320",
+   "patch": "65bec4a63de154175bcd6f24fcbf246d94226145df8004c5c948f695dd88880d"
+  },
+  "relay/network-runtime.bundle.mjs.manifest.json": {
+   "base": "3d55064888a119b8d7bdece8244294881f1eb7d825975873e14a70dbd97ad4da",
+   "result": "2e65fb0c95a98f2707df99e7aa81061cb8f66ed54a61a0c577a54c067220f069",
+   "patch": "b6a24397b3855a48379af4018b7bde38d00fb8da321e825991f4a382c4ac82b6"
+  }
+ },
+ "new": {
+  "network/app-zone-challenge.mjs": "69c8dd140829b91dc42d7dd293fa33db514e95a112c78a841b1ba9c14af83b68",
+  "isolation/m2/front/appzone.go": "40ccc865e48b79b1ccaa2ee34a5b03b5c60347b1ef508c930661b23dce014e9f",
+  "isolation/m2/front/appzone_test.go": "b9a7beca775965079a06b2cba3409321ef57cbc5f7dfd2943bb6bf0ca8c1552a",
+  "isolation/m2/front/appzone_process_test.go": "598d8f5d7903d060ce8620041a55f01b3ee8b0f6d1158a10af32ac6679b976e4",
+  "isolation/m2/bootstrap/appzone_test.go": "b495a7201be993bb704284fea9404a347e89e49232cc31af3de8941cd32df4bb",
+  "isolation/m2/bootstrap/testdata/appzone-vectors.json": "5a078e05ab8e10a958772f891ca3a4490cd24cf80faf8a4cd681a435b00152f6",
+  "test/app-zone-fixture.mjs": "f536502a0ea9c05b04782978b264acfe63902e643bad33b648e08b5ebaf76d7a",
+  "test/app-zone-challenge.test.mjs": "50a0cfc21a4e8070273ab969e4e1bfd2f534945926c536355b7a0450ab312f04",
+  "test/app-zone-sdk.test.mjs": "27b2e71853c7575d6c109d247650df23772267bb95b25fcc62458ba1c839d22f",
+  "test/app-zone-replica.test.mjs": "a2cdeca5a999696e0355cb903f066f959ac48368237d2910144c88b5ceccb7a9",
+  "test/app-zone-fleet.mjs": "4f653832c56f585d679470239a28c42c079b70de46b2e14d769ca2d44028d1b6",
+  "test/run-app-zone.sh": "0752e3886e61d2b12eb450069efa0b7d7b326abecb75d6e028c5250d2848c256",
+  "docs/network/app-zone-certificates.md": "59243bc25bb073f5ba5d394fe86d720108923819eb66c916a153c8283044be13"
+ },
+ "deploy": {
+  "deploy/build-dns.mjs": "ff122f6d9adfde1dabfc2f429f6b3fe4a486fd75306735dfecd8610911b69e59",
+  "deploy/caddy-appzone.py": "06b5c2607904751831224821d63b587cf2e5bd75ff8f019d05325e9bfea63c23",
+  "deploy/dist/dns.mjs": "e99c2d7bd6058bce49e506e0fb1a99b8ec450d8431dd3feec27d19ccb6175319",
+  "deploy/dist/dns.mjs.manifest.json": "56e3e3a2653a7bd3752e9d6e2dab7b3f812ab264c7ef53c07889fe08844ce108",
+  "deploy/dist/network-runtime.bundle.mjs": "8745998ac6ea3f049c977612c96be18efa9218732c31b71d817f437000402320",
+  "deploy/dnsdist-challenge-rule.py": "40d34f78c9a8be74306e845d04ee6a8c9fdca6db70eeed1508741eefc5de6bf8",
+  "deploy/route-dns-appzone.dropin.template": "dbfe8ff3729c798ccd8a571510ba0b6ea086fdd79a34850965c37a8747f762fc",
+  "deploy/test-deploy.sh": "05134cb0c66ccca58a6f305291ac33428c2cb135d6ac6ff163fc5fccc987704d"
+ }
+}

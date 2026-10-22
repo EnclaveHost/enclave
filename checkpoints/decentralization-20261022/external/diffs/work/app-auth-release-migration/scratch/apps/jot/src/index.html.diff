@@ -1,0 +1,225 @@
+--- a/jot/src/index.html
++++ b/jot/src/index.html
+@@ -88,11 +88,36 @@
+   <p>This is a per-user notebook: every account sees only its own notes. Sign in with your Enclave account to open yours.</p>
+   <div class="row">
+     <button id="sso">Sign in with Enclave</button>
++    <button id="walletbtn" hidden>Sign in with your wallet</button>
++    <button class="ghost" id="handbtn" hidden title="A passkey account, a Safe, a hardware or command-line wallet: sign the message elsewhere and paste the signature">Another signer…</button>
++    <button class="ghost" id="linkbtn" hidden title="Let a wallet you hold open THIS account's notebook from now on">Link a wallet</button>
++    <button class="ghost" id="linkhandbtn" hidden title="Link a wallet that is not in this browser">Link another signer…</button>
++    <button class="ghost" id="restorebtn" hidden title="Restore an Enclave account's notebook from its migration file: a wallet or passkey the account had at the cutover signs">Restore an account…</button>
++    <input type="file" id="restorefile" accept=".json,application/json" hidden>
+     <span class="meta" id="who"></span>
+     <button class="ghost" id="switch" hidden>Switch account</button>
+     <button class="ghost" id="signout" hidden>Sign out</button>
+   </div>
+   <div class="err" id="ssoerr"></div>
++  <!-- the hand-signed path: a signer that is not in this browser signs the exact message shown here; the enclave checks
++       the signature it produced exactly as it checks a browser wallet's -->
++  <div id="handsign" hidden>
++    <p class="meta">For a wallet that is not in this browser: a passkey account (sign on the dashboard that holds its
++    passkeys; for an Enclave passkey restored from a migration file, at https://enclave.host/recover/, which shows the
++    address to enter here), a Safe, a hardware or command-line wallet. A contract account, deployed or not yet deployed, is checked
++    on chain only where this notebook's owner pinned chain readers.</p>
++    <div id="hs-addr-step">
++      <input id="hs-addr" autocomplete="off" spellcheck="false" placeholder="its address, 0x…">
++      <div class="row"><button class="mini" id="hs-next">Get the message to sign</button><button class="ghost mini" id="hs-cancel">Cancel</button></div>
++    </div>
++    <div id="hs-sig-step" hidden>
++      <p class="meta">Sign exactly this text as a personal message (EIP-191 personal_sign, a wallet's "sign message"). It
++      names this site, your address and this notebook; it is not a transaction.</p>
++      <textarea id="hs-msg" readonly rows="9"></textarea>
++      <textarea id="hs-sig" rows="3" spellcheck="false" placeholder="the signature it produced, 0x…"></textarea>
++      <div class="row"><button class="mini" id="hs-done">Continue</button><button class="ghost mini" id="hs-cancel2">Cancel</button></div>
++    </div>
++  </div>
+ </div>
+ 
+ <div class="card" id="keycard">
+@@ -163,7 +188,16 @@
+ // the payload claims beyond showing it.
+ const SSO_KEY = "jot-sso", SSO_STATE_KEY = "jot-sso-state";
+ function ssoClaims(t) {
+-  try { return JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); } catch (e) { return null; }
++  try {
++    const seg = atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"));
++    if (t.startsWith("EWS1.")) {
++      // a wallet sign-in: the EIP-4361 message, its expiry on "Expiration Time:"
++      const msg = new TextDecoder().decode(Uint8Array.from(seg, (c) => c.charCodeAt(0)));
++      const m = /\nExpiration Time: ([^\n]+)/.exec(msg);
++      return { sub: "wallet_" + (msg.split("\n")[1] || "").toLowerCase(), exp: m ? Math.floor(Date.parse(m[1]) / 1000) : NaN };
++    }
++    return JSON.parse(seg);
++  } catch (e) { return null; }
+ }
+ let ssoToken = null;
+ try { ssoToken = sessionStorage.getItem(SSO_KEY) || null; } catch (e) {}
+@@ -222,6 +256,115 @@
+   try { localStorage.removeItem(SSO_KEY); } catch (e) {}
+ }
+ 
++// Direct wallet sign-in, when the config has a `wallet` block: the visitor's
++// own wallet signs the EIP-4361 message this notebook composed for this host
++// and deployment (GET /api/auth/wallet/challenge), checked inside the enclave
++// (wallet.rs). It rides X-Sso-Token like an Enclave token and opens the
++// notebook of `wallet_0x…` - never the notebook of an Enclave account.
++// Who signs: the page's own browser wallet (EIP-1193), or - how === "hand" - the person, by hand (handSigner below):
++// the page shows the exact message and takes back the signature. Nothing pasted is trusted beyond its shape; the
++// enclave verifies it like any signature (an EOA offline, a contract account through the owner's pinned readers).
++// 65 bytes from an ordinary wallet, up to the server's 6144 from a contract account (an EIP-6492 wrapper included).
++const SIG_RE = /^0x(?:[0-9a-fA-F]{2}){65,6144}$/;
++function pickSigner(how) {
++  if (how === "hand") return handSigner();
++  const eth = window.ethereum;
++  if (!eth || typeof eth.request !== "function") return null;
++  return {
++    address: async () => { const a = await eth.request({ method: "eth_requestAccounts" }); return String((a && a[0]) || ""); },
++    sign: async (bytes, address) => eth.request({ method: "personal_sign", params: ["0x" + Array.from(bytes, (x) => x.toString(16).padStart(2, "0")).join(""), address] }),
++  };
++}
++async function walletStart(how) {
++  $("#ssoerr").textContent = "";
++  if (!(status && status.wallet)) return;
++  const signer = pickSigner(how);
++  if (!signer) { $("#ssoerr").textContent = "No browser wallet was found on this page: use Another signer instead."; return; }
++  try {
++    const address = await signer.address();
++    if (!/^0x[0-9a-fA-F]{40}$/.test(String(address || ""))) throw new Error("the wallet returned no account");
++    const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), (x) => x.toString(16).padStart(2, "0")).join("");
++    const d = await api("GET", "/api/auth/wallet/challenge?address=" + address + "&nonce=" + nonce);
++    const lines = d.message.split("\n");
++    if (lines[0] !== location.host + " wants you to sign in with your Ethereum account:" ||
++        lines[1].toLowerCase() !== address.toLowerCase() || !d.message.includes("\nNonce: " + nonce) ||
++        !d.message.endsWith("\n- urn:enclave:deployment:" + status.wallet.aud.toLowerCase()))
++      throw new Error("the sign-in message does not name this site, your address and this notebook");
++    const bytes = new TextEncoder().encode(d.message);
++    const sig = await signer.sign(bytes, address, d.message);
++    if (typeof sig !== "string" || !SIG_RE.test(sig)) throw new Error("the wallet returned no signature");
++    const b64u = (b) => btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
++    ssoToken = "EWS1." + b64u(bytes) + "." + b64u(Uint8Array.from(sig.slice(2).match(/../g), (x) => parseInt(x, 16)));
++    try { sessionStorage.setItem(SSO_KEY, ssoToken); localStorage.setItem(SSO_KEY, ssoToken); } catch (e) {}
++    await loadStatus(); await refresh(); fresh();
++  } catch (e) { $("#ssoerr").textContent = e && e.code === 4001 ? "Sign-in cancelled in the wallet." : "Wallet sign-in failed: " + ((e && e.message) || e); }
++}
++
++// Linking (link.rs on the server): while signed in with Enclave, make a
++// wallet you hold the way into THIS account's notebook, once and for good.
++// The server wants a sign-in from the last ten minutes and a wallet signature
++// naming this account, that sign-in and this notebook; it refuses a wallet
++// already linked or one with notes of its own, and never relinks.
++// given: an EAB1 migration file (the account proof), instead of a fresh Enclave sign-in
++async function linkStart(how, given) {
++  $("#ssoerr").textContent = "";
++  const c = ssoToken && !ssoToken.startsWith("EWS1.") ? ssoClaims(ssoToken) : null;
++  if (!c && !given) return;
++  if (!given && Date.now() / 1000 - c.iat > 540) {
++    $("#ssoerr").textContent = "Linking needs a fresh Enclave sign-in: sign in again, then press Link once more.";
++    ssoStart(false);
++    return;
++  }
++  const signer = pickSigner(how);
++  if (!signer) { $("#ssoerr").textContent = "No browser wallet was found on this page: link another signer instead."; return; }
++  try {
++    const address = await signer.address();
++    if (!/^0x[0-9a-fA-F]{40}$/.test(String(address || ""))) throw new Error("the wallet returned no account");
++    const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), (x) => x.toString(16).padStart(2, "0")).join("");
++    const d = await api("POST", "/api/link/challenge", given ? { address, nonce, account: given } : { address, nonce });
++    const acct = given ? d.account : c.sub;
++    const lines = d.message.split("\n");
++    if (lines[0] !== location.host + " wants you to sign in with your Ethereum account:" ||
++        lines[1].toLowerCase() !== String(address).toLowerCase() || !d.message.includes("\nNonce: " + nonce) ||
++        !d.message.includes("\n- urn:enclave:link:account:" + acct + "\n") ||
++        !lines[3].startsWith("Link the Enclave account " + acct + " to this wallet"))
++      throw new Error("the link message does not name this site, your address and this account");
++    const bytes = new TextEncoder().encode(d.message);
++    const sig = await signer.sign(bytes, address, d.message);
++    if (typeof sig !== "string" || !SIG_RE.test(sig)) throw new Error("the wallet returned no signature");
++    const b64u = (b) => btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
++    const wtok = "EWS1." + b64u(bytes) + "." + b64u(Uint8Array.from(sig.slice(2).match(/../g), (x) => parseInt(x, 16)));
++    const r = await api("POST", "/api/link", given ? { wallet: wtok, account: given } : { wallet: wtok });
++    $("#ssoerr").textContent = "Linked: wallet " + r.wallet.replace(/^wallet_/, "") + " now opens this notebook. Sign in with it next time.";
++  } catch (e) { $("#ssoerr").textContent = e && e.code === 4001 ? "Link cancelled in the wallet." : "Link failed: " + ((e && e.message) || e); }
++}
++
++// The hand-signed path's two steps, in the #handsign panel of the sign-in card. A Cancel rejects like a wallet's refusal.
++let hsWait = null;
++function hsAsk(step) {
++  return new Promise((resolve, reject) => {
++    hsWait = { resolve, reject };
++    $("#handsign").hidden = false;
++    $("#hs-addr-step").hidden = step !== "addr";
++    $("#hs-sig-step").hidden = step !== "sig";
++    $(step === "addr" ? "#hs-addr" : "#hs-sig").focus();
++  });
++}
++function hsSettle(value, err) {
++  const w = hsWait; hsWait = null;
++  if (err || value === undefined) $("#handsign").hidden = true;
++  if (w) err ? w.reject(err) : w.resolve(value);
++}
++function handSigner() {
++  return {
++    address: async () => { $("#hs-addr").value = ""; return hsAsk("addr"); },
++    sign: async (_bytes, _address, text) => {
++      $("#hs-msg").value = text; $("#hs-sig").value = "";
++      try { return await hsAsk("sig"); } finally { $("#handsign").hidden = true; }
++    },
++  };
++}
++
+ async function api(method, path, body, headers) {
+   const h = Object.assign({ "accept": "application/json" }, headers || {});
+   // X-Api-Key, not Authorization: the platform gateway consumes Authorization
+@@ -270,7 +413,12 @@
+   $("#signin").hidden = !status.users;
+   $("#usersnote").hidden = !status.users;
+   $("#who").textContent = signedIn ? "signed in as " + status.you.sub : (ssoToken && status.users ? "sign-in not accepted; sign in again" : "");
+-  $("#sso").hidden = signedIn;
++  $("#sso").hidden = signedIn || !status.sso;
++  $("#walletbtn").hidden = signedIn || !status.wallet;
++  $("#linkbtn").hidden = !(signedIn && status.wallet && status.wallet.link && ssoToken && !ssoToken.startsWith("EWS1."));
++  $("#handbtn").hidden = $("#walletbtn").hidden;
++  $("#linkhandbtn").hidden = $("#linkbtn").hidden;
++  $("#restorebtn").hidden = !(status.wallet && status.wallet.migration);
+   $("#switch").hidden = !signedIn;
+   $("#signout").hidden = !ssoToken;
+   $("#keycard").hidden = !(status.auth && !status.users);
+@@ -390,6 +538,37 @@
+ });
+ $("#forget").addEventListener("click", () => { key = ""; try { sessionStorage.removeItem("jot_key"); } catch (e) {} $("#key").value = ""; loadStatus(); });
+ $("#sso").addEventListener("click", () => ssoStart(false));
++$("#walletbtn").addEventListener("click", () => walletStart());
++$("#handbtn").addEventListener("click", () => walletStart("hand"));
++$("#linkbtn").addEventListener("click", () => linkStart());
++$("#linkhandbtn").addEventListener("click", () => linkStart("hand"));
++// Restoring from a migration file: the file is the account proof (checked in the enclave against the snapshot the owner
++// pinned); a wallet the account had at cutover signs the link - in this browser, or by hand when it is not here.
++$("#restorebtn").addEventListener("click", () => $("#restorefile").click());
++$("#restorefile").addEventListener("change", async () => {
++  const f = $("#restorefile").files && $("#restorefile").files[0];
++  $("#restorefile").value = "";
++  if (!f) return;
++  const text = (await f.text()).trim();
++  let j = null;
++  try { j = JSON.parse(text); } catch (e) {}
++  if (!j || j.kind !== "EAB1-bundle") { $("#ssoerr").textContent = "That is not an Enclave account migration file."; return; }
++  const b64u = (b) => btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
++  // a passkey-only account signs by hand, on Enclave's passkey signer page (its passkey works only there)
++  const wallets = (j.credentials || []).filter((c) => c.kind === "wallet").length;
++  linkStart(window.ethereum && wallets ? undefined : "hand", "EAB1." + b64u(new TextEncoder().encode(text)));
++});
++$("#hs-next").addEventListener("click", () => {
++  const a = $("#hs-addr").value.trim();
++  if (!/^0x[0-9a-fA-F]{40}$/.test(a)) { $("#ssoerr").textContent = "That is not an address (0x and 40 hex digits)."; return; }
++  hsSettle(a);
++});
++$("#hs-done").addEventListener("click", () => {
++  const sig = $("#hs-sig").value.trim().replace(/\s+/g, "");
++  if (!SIG_RE.test(sig)) { $("#ssoerr").textContent = "That is not a signature (0x and hex digits, at least 65 bytes)."; return; }
++  hsSettle(sig);
++});
++for (const id of ["#hs-cancel", "#hs-cancel2"]) $(id).addEventListener("click", () => hsSettle(undefined, Object.assign(new Error("cancelled"), { code: 4001 })));
+ $("#switch").addEventListener("click", () => { ssoDrop(); current = null; dirty = false; loadStatus(); ssoStart(true); });
+ $("#signout").addEventListener("click", () => { ssoDrop(); current = null; dirty = false; loadStatus(); });
+ $("#key").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#connect").click(); });

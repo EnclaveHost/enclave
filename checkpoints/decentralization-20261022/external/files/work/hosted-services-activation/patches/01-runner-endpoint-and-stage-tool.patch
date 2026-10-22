@@ -1,0 +1,604 @@
+--- a/network/host-services/runner.mjs
++++ b/network/host-services/runner.mjs
+@@ -91,7 +91,9 @@
+   }
+   if (!plain(cfg.host)) fail('host is required');
+   for (const k of Object.keys(cfg.host)) if (!['endpoint', 'publicEndpoints'].includes(k)) fail(`host has an unknown field ${JSON.stringify(k)}`);
+-  if (cfg.platformHostPolicy !== 'off' && !/^https:\/\/[^\s/?#@]+$/.test(String(cfg.host.endpoint || '').replace(/\/+$/, ''))) fail('host.endpoint: this host\'s registry endpoint (its PUBLIC_URL) is required to enforce the platform host policy');
++  // exactly as registered (the host id is keccak256 of it): an https URL, optionally with a path (relay tunnels register
++  // https://api.enclave.host/t/<name>), without credentials, query or fragment
++  if (cfg.platformHostPolicy !== 'off' && !/^https:\/\/[^\s/?#@]+(\/[^\s?#]*)?$/.test(String(cfg.host.endpoint || '').replace(/\/+$/, ''))) fail('host.endpoint: this host\'s registry endpoint (its PUBLIC_URL) is required to enforce the platform host policy');
+   if (!Array.isArray(cfg.services) || cfg.services.length < 1 || cfg.services.length > 8) fail('services: 1 to 8 roles');
+   const seen = new Set();
+   const services = cfg.services.map((s, i) => {
+@@ -277,7 +279,11 @@
+       console.log(JSON.stringify(ads, (k, v) => (typeof v === 'bigint' ? v.toString() : v), 2));
+     } else {
+       const running = await runHostServices(cfg);
+-      for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { running.stop().then(() => process.exit(0)); });
++      // the supervision timers are unref'd (library use). As a service the runner must STAY UP while no role runs - a
++      // fresh host not yet admitted, or a sticky platform-policy refusal - or it would exit 0, systemd would not restart a
++      // clean exit, and the admin's later authenticated admit (unban) would never restart the roles. Until SIGTERM/SIGINT.
++      const alive = setInterval(() => {}, 1 << 30);
++      for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { clearInterval(alive); running.stop().then(() => process.exit(0)); });
+     }
+   } catch (e) { console.error(e.message); process.exit(1); }
+ }
+--- a/network/host-services/stage-tool.mjs
++++ b/network/host-services/stage-tool.mjs
+@@ -0,0 +1,286 @@
++// Operator tool for staging Enclave host-service roles on an existing Enclave host (work/hosted-services-activation).
++// Everything here reads PUBLIC data or this host's own staged files; nothing signs, sends a transaction, publishes an
++// advertisement or reads a key. The authority code is the unchanged platform host policy gate and carriers.
++//
++//   node stage-tool.mjs capture-public --endpoint <registry endpoint> [--rpc <url> ...]
++//        one agreed block of the policy's RPC quorum: book owner, policy anchor state, book registry, the host's registry
++//        entry (operator, active), its accepted owner on hostOwnership, and the pinned service index's code hash
++//   node stage-tool.mjs policy-import --import-dir <dir> [--carrier <base URL> ...] [--dry-run]    (both: [--rpc <url> ...] [--book 0x.. --host-ownership 0x..], default production)
++//        the CURRENTLY ANCHORED admin-signed policy document, verified at a fresh agreed block (digest = anchor, signed by
++//        the book's current owner), written to <dir>/<digest>.json. Unanchored book: nothing is written and the result
++//        says so explicitly (the unchanged gate treats an unanchored book as "not activated" under production
++//        activation "anchor"). Torn anchor or unavailable document: exit 3, nothing written.
++//   node stage-tool.mjs fill-artifacts --manifest <verified manifest> --dir <artifact dir> [--from-dir <dir> ...] [--from-origin <url> ...] [--max-object-bytes N]
++//        copies every manifest object (<cid>.bin and <cid>.car) OPAQUELY, keeping a file only after its sha256 matches
++//   node stage-tool.mjs gen-config --spec <spec.json> --listeners <ss capture: text, or JSON {listeners:[...]}> --out <file>
++//        the exact host-services.json from a public spec; refuses a port that the capture shows in use
++//   node stage-tool.mjs health --config <host-services.json> [--artifacts sample|all] [--json]
++//        stage-1 health: a FRESH decision of the unchanged gate for this host (admission/ban/anchor), each role's own
++//        health, served artifacts against the manifest, real DNS answers, and the policy mirror's anchored document
++// Exit: 0 ok, 1 usage/config error, 2 unhealthy, 3 refused (torn anchor, unverifiable document, port in use, digest mismatch).
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import dgram from 'node:dgram';
++import { createHash } from 'node:crypto';
++import { pathToFileURL } from 'node:url';
++import { keccak256 } from 'viem';
++import { PRODUCTION_BOOK, PRODUCTION_HOST_OWNERSHIP, PRODUCTION_MIRRORS, PRODUCTION_RPCS, PRODUCTION_HOST_POLICY } from '../platform-host-policy-config.mjs';
++import { quorumSnapshot } from '../host-policy-runtime.mjs';
++import { readPolicyFacts, decodeAnchor } from '../platform-host-policy.mjs';
++import { httpCarriers, freshVerifier, candidateDigest } from '../policy-carriers.mjs';
++import { hostIdOfEndpoint, createHostServiceGate } from '../host-service-gate.mjs';
++import { planHostServices, policyEnv, policyCarrierFetch } from './runner.mjs';
++
++const fail = (code, m) => Object.assign(new Error(m), { exit: code });
++const sha = (b) => createHash('sha256').update(b).digest('hex');
++const writeAtomic = (file, data, mode = 0o644) => { fs.mkdirSync(path.dirname(file), { recursive: true }); const t = `${file}.tmp-${process.pid}`; fs.writeFileSync(t, data, { mode }); fs.renameSync(t, file); };
++function args(argv, multi = []) {
++  const o = { _: [] };
++  for (let i = 0; i < argv.length; i++) {
++    const a = argv[i];
++    if (!a.startsWith('--')) { o._.push(a); continue; }
++    const k = a.slice(2), boolean = ['dry-run', 'json'].includes(k);
++    const v = boolean ? true : argv[++i];
++    if (!boolean && v === undefined) throw fail(1, `--${k} needs a value`);
++    if (multi.includes(k)) (o[k] ||= []).push(v); else o[k] = v;
++  }
++  return o;
++}
++const snapOf = (rpcs) => quorumSnapshot({ rpcs: rpcs?.length ? rpcs : [...PRODUCTION_RPCS], minAgree: rpcs?.length ? null : PRODUCTION_HOST_POLICY.minAgree });
++const anchorOf = (facts) => { try { return decodeAnchor(facts.anchorHi, facts.anchorLo); } catch (e) { return { state: 'torn', reason: e.message }; } };
++
++// ---------------------------------------------------------------- capture-public
++export async function capturePublic({ endpoint, rpcs = null, book = PRODUCTION_BOOK, hostOwnership = PRODUCTION_HOST_OWNERSHIP, indexPin = null }) {
++  const hostId = hostIdOfEndpoint(endpoint);
++  const facts = await snapOf(rpcs)(async (at) => ({ ...(await readPolicyFacts(at, { book, hostOwnership, registryIds: [hostId] })), block: at.block ?? null,
++    indexCode: indexPin ? await at.code(indexPin.address) : null }));
++  const host = facts.hosts[hostId];
++  return { at: new Date().toISOString(), readOnly: true, block: String(facts.block), book, hostOwnership, bookOwner: facts.owner, bookOwnerIsContract: facts.ownerIsContract,
++    anchor: anchorOf(facts), registry: facts.registry, endpoint: String(endpoint).replace(/\/+$/, ''), hostId,
++    registryEntry: host ? { endpoint: host.endpoint, operator: host.operator, active: host.active } : null, acceptedOwner: host?.owner ?? null,
++    ...(indexPin ? { serviceIndex: { ...indexPin, agreedCodeHash: facts.indexCode && facts.indexCode !== '0x' ? keccak256(facts.indexCode) : null,
++      matchesPin: !!facts.indexCode && facts.indexCode !== '0x' && keccak256(facts.indexCode) === indexPin.codeHash.toLowerCase() } } : {}),
++    rpcs: rpcs?.length ? rpcs : [...PRODUCTION_RPCS] };
++}
++
++// ---------------------------------------------------------------- policy-import
++export async function policyImport({ importDir, carriers = [...PRODUCTION_MIRRORS], rpcs = null, book = PRODUCTION_BOOK, hostOwnership = PRODUCTION_HOST_OWNERSHIP, dryRun = false, fetch = globalThis.fetch }) {
++  const verify = freshVerifier({ snapshot: snapOf(rpcs), book, hostOwnership });
++  const first = await verify([]);
++  if (first.anchor.state === 'unanchored') {
++    if (!dryRun) fs.mkdirSync(importDir, { recursive: true, mode: 0o755 });
++    return { state: 'unanchored', block: first.block, wrote: null,
++      meaning: 'the address book anchors no platform host policy: under production activation "anchor" the unchanged gate admits this host as "not-activated" (reported as such); once the admin anchors a policy, run policy-import again (or let a carrier deliver it) or the host stops taking new work and stops serving after the gate\'s grace' };
++  }
++  if (first.anchor.state !== 'anchored') throw fail(3, `refused: the book's anchor is ${first.anchor.state}${first.anchor.reason ? ` (${first.anchor.reason})` : ''}; the gate refuses every host until the admin repairs it`);
++  const digest = first.anchor.digest, file = path.join(importDir, `${digest}.json`);
++  const tried = [];
++  for (const carrier of httpCarriers(carriers, { fetch })) {
++    const cands = (await carrier(digest)).filter((c) => candidateDigest(c) === digest);
++    tried.push(cands.length);
++    if (!cands.length) continue;
++    const v = (await verify(cands)).verified.find((x) => x.digest === digest);
++    if (!v) continue;
++    if (!dryRun) writeAtomic(file, JSON.stringify({ document: v.document, signature: v.signature, sequence: v.sequence }));
++    return { state: 'anchored', block: first.block, digest, sequence: v.sequence, wrote: dryRun ? null : file };
++  }
++  throw fail(3, `refused: no carrier (${carriers.length}) served the anchored document ${digest} signed by the book's current owner (candidates per carrier: ${tried.join(',')}); nothing written`);
++}
++
++// ---------------------------------------------------------------- fill-artifacts
++async function fileSha(file) { const h = createHash('sha256'); for await (const c of fs.createReadStream(file)) h.update(c); return h.digest('hex'); }
++async function keepVerified(src, dest, want) {
++  if (await fileSha(src) !== want) return false;
++  const t = `${dest}.tmp-${process.pid}`; fs.copyFileSync(src, t); fs.chmodSync(t, 0o644);
++  if (await fileSha(t) !== want) { fs.rmSync(t, { force: true }); return false; }
++  fs.renameSync(t, dest); return true;
++}
++async function fetchVerified(url, dest, want, max, fetch) {
++  const r = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(600_000) });
++  if (!r.ok || !r.body) return false;
++  const declared = Number(r.headers.get('content-length') || 0);
++  if (declared > max + 1024 * 1024) return false;
++  const t = `${dest}.tmp-${process.pid}`, out = fs.createWriteStream(t, { mode: 0o644 }), h = createHash('sha256');
++  let n = 0;
++  try { for await (const c of r.body) { n += c.length; if (n > max + 1024 * 1024) throw Error('too large'); h.update(c); if (!out.write(c)) await new Promise((ok) => out.once('drain', ok)); } }
++  catch { out.destroy(); fs.rmSync(t, { force: true }); return false; }
++  await new Promise((ok) => out.end(ok));
++  if (h.digest('hex') !== want) { fs.rmSync(t, { force: true }); return false; }
++  fs.renameSync(t, dest); return true;
++}
++export async function fillArtifacts({ manifest, dir, fromDirs = [], fromOrigins = [], maxObjectBytes = 1 << 30, fetch = globalThis.fetch, log = () => {} }) {
++  const m = JSON.parse(fs.readFileSync(manifest, 'utf8'));
++  if (!Array.isArray(m.verifiedObjects) || !m.verifiedObjects.length || m.verifiedObjects.length > 4096) throw fail(1, 'manifest: verifiedObjects (1..4096) required');
++  fs.mkdirSync(dir, { recursive: true, mode: 0o755 });
++  const out = { manifest, manifestSha256: sha(fs.readFileSync(manifest)), objects: m.verifiedObjects.length, kept: 0, copied: 0, fetched: 0, missing: [] };
++  for (const e of m.verifiedObjects) {
++    if (!/^[a-z0-9]{20,120}$/.test(String(e.cid)) || !/^[0-9a-f]{64}$/.test(String(e.sha256)) || !/^[0-9a-f]{64}$/.test(String(e.carSha256))) throw fail(3, `manifest entry is malformed: ${String(e.cid).slice(0, 80)}`);
++    if (e.bytes > maxObjectBytes) throw fail(3, `${e.cid}: ${e.bytes} bytes exceeds maxObjectBytes ${maxObjectBytes}`);
++    for (const [ext, want, query] of [['bin', e.sha256, ''], ['car', e.carSha256, '?format=car']]) {
++      const dest = path.join(dir, `${e.cid}.${ext}`);
++      if (fs.existsSync(dest) && await fileSha(dest) === want) { out.kept++; continue; }
++      let ok = false;
++      for (const d of fromDirs) { const src = path.join(d, `${e.cid}.${ext}`); if (fs.existsSync(src) && await keepVerified(src, dest, want)) { ok = true; out.copied++; break; } }
++      for (const o of ok ? [] : fromOrigins) { if (await fetchVerified(`${String(o).replace(/\/+$/, '')}/ipfs/${e.cid}${query}`, dest, want, maxObjectBytes, fetch).catch(() => false)) { ok = true; out.fetched++; break; } }
++      if (!ok) out.missing.push(`${e.cid}.${ext}`);
++      log(`${ok ? 'ok' : 'MISSING'} ${e.cid}.${ext}`);
++    }
++  }
++  return out;
++}
++
++// ---------------------------------------------------------------- gen-config
++/** listeners: `ss -Hltnu`-style lines (proto state recvq sendq local peer) -> [{ proto, address, port }] */
++export function parseListeners(text) {
++  const rows = [];
++  for (const line of String(text).split('\n')) {
++    const cols = line.trim().split(/\s+/);
++    if (cols.length < 5 || !['tcp', 'udp'].includes(cols[0])) continue;
++    const m = /^(.*):(\d+|\*)$/.exec(cols[4]);
++    if (m && m[2] !== '*') rows.push({ proto: cols[0], address: m[1].replace(/%.*$/, '').replace(/^\[|\]$/g, ''), port: Number(m[2]) });
++  }
++  return rows;
++}
++const conflicts = (rows, proto, bind, port) => rows.filter((r) => r.proto === proto && r.port === port &&
++  ['0.0.0.0', '*', '::', bind].includes(r.address));
++export function genConfig(spec, listenersText) {
++  const rows = parseListeners(listenersText);
++  if (!rows.length) throw fail(1, 'the listener capture has no tcp/udp listeners: capture `ss -Hltnu` on the host first');
++  const p = spec.ports, b = spec.bind;
++  const need = [['tcp', p.directory], ['tcp', p.bootstrap], ['udp', p.dns], ['tcp', p.dns], ['tcp', p.dnsApi], ['tcp', p.policy]];
++  if (new Set([p.directory, p.bootstrap, p.dns, p.dnsApi, p.policy]).size !== 5) throw fail(3, 'ports must be distinct');
++  for (const [proto, port] of need) { const c = conflicts(rows, proto, b, port); if (c.length) throw fail(3, `refused: ${proto} port ${port} is in use in the capture (${c.map((r) => r.address).join(', ')})`); }
++  // S: the service's WRITABLE state (systemd StateDirectory); D: root-filled PUBLIC data the service only reads
++  const S = spec.stateRoot, D = spec.dataRoot, rpcFleet = spec.directoryRpc, polRpc = [...PRODUCTION_RPCS];
++  return {
++    format: 'enclave-host-services/v1',
++    host: { endpoint: spec.endpoint, publicEndpoints: {} },        // stage 1: NOT advertised (no publicEndpoints)
++    platformHostPolicy: 'production',
++    platformHostPolicyCarriers: { importDir: path.join(D, 'policy-import'), serviceIndex: true },
++    serviceIndex: spec.serviceIndex,
++    packagesDir: spec.packagesDir, stateRoot: S,
++    services: [
++      { role: 'directory-replica', package: spec.pins['directory-replica'], heapMiB: 192,
++        config: { port: p.directory, bind: b, stateDir: path.join(S, 'directory-replica-state'), rpc: rpcFleet, addressBook: PRODUCTION_BOOK,
++          authorityPins: spec.authorityPins, checkers: spec.checkers, peers: spec.directoryPeers } },
++      { role: 'bootstrap-replica', package: spec.pins['bootstrap-replica'], heapMiB: 128,
++        config: { port: p.bootstrap, bind: b, directory: path.join(D, 'artifacts'), manifest: path.join(D, 'bootstrap-manifest.json'), maxObjectBytes: 1 << 30 } },
++      { role: 'route-dns', package: spec.pins['route-dns'], heapMiB: 160,
++        config: { dnsPort: p.dns, bind: b, apiPort: p.dnsApi, apiBind: '127.0.0.1', zone: spec.dns.zone, ipZone: spec.dns.ipZone, nsName: spec.dns.nsName,
++          nsNames: spec.dns.nsNames, routeMapUrl: `http://127.0.0.1:${p.directory}/v1/network/routes` } },
++      { role: 'policy-mirror', package: spec.pins['policy-mirror'], heapMiB: 128,
++        config: { port: p.policy, bind: b, stateDir: path.join(S, 'policy-mirror-state'), rpc: polRpc, minAgree: PRODUCTION_HOST_POLICY.minAgree,
++          book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP, peers: [...PRODUCTION_MIRRORS], importDir: path.join(D, 'policy-import'), syncSec: 60 } },
++    ],
++  };
++}
++
++// ---------------------------------------------------------------- health
++function dnsQuery(port, address, name, qtype, timeoutMs = 3000) {
++  const id = Math.floor(Math.random() * 65535);
++  const q = Buffer.concat([Buffer.from([id >> 8, id & 255, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]),
++    ...name.split('.').filter(Boolean).map((l) => Buffer.concat([Buffer.from([l.length]), Buffer.from(l)])), Buffer.from([0, 0, qtype, 0, 1])]);
++  return new Promise((ok) => {
++    const s = dgram.createSocket(address.includes(':') ? 'udp6' : 'udp4');
++    const t = setTimeout(() => { s.close(); ok(null); }, timeoutMs);
++    s.on('error', () => { clearTimeout(t); s.close(); ok(null); });
++    s.on('message', (m) => { if (m.readUInt16BE(0) !== id) return; clearTimeout(t); s.close();
++      ok({ rcode: m[3] & 0x0f, authoritative: !!(m[2] & 0x04), answers: m.readUInt16BE(6) }); });
++    s.send(q, port, address);
++  });
++}
++const local = (bind) => (bind === '0.0.0.0' ? '127.0.0.1' : bind === '::' ? '::1' : bind);
++async function getJson(url) { const r = await fetch(url, { signal: AbortSignal.timeout(8000) }); return { status: r.status, body: r.headers.get('content-type')?.includes('json') ? await r.json() : null }; }
++export async function health({ config, artifacts = 'sample', fetch: f = globalThis.fetch, rpcs = null }) {
++  const raw = JSON.parse(fs.readFileSync(config, 'utf8'));
++  const { cfg, services } = planHostServices(raw);            // pins and configuration exactly as the runner checks them
++  const checks = [], add = (name, ok, detail) => { checks.push({ name, ok: !!ok, detail }); return ok; };
++  const role = (r) => services.find((s) => s.role === r)?.config;
++  let book = { state: 'unread', digest: null };     // the book's anchor as the gate just read it (the mirror must match it)
++  // the gate: a FRESH decision by the unchanged gate (its own empty state; the same configuration and carriers as the runner)
++  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hostsvc-health-'));
++  try {
++    const env = { ...policyEnv(cfg), ...(rpcs ? { ENCLAVE_PLATFORM_HOST_POLICY_RPCS: rpcs.join(',') } : {}) };
++    const gate = createHostServiceGate({ env, chainId: 8453, endpoint: cfg.host.endpoint, stateDir: tmp, log: () => {}, fetch: await policyCarrierFetch(cfg, { fetch: f }) });
++    const s = await gate.check();
++    const st = gate.status();
++    add('gate: platform host policy admits this host now', s.serving === true, { hostId: st.hostId, status: s.status, reason: s.reason, banned: !!s.banned, anchor: st.runtime?.anchor, accepted: st.runtime?.accepted, activation: st.runtime?.activation });
++    // anchored: the gate holds that policy only once it verified the exact anchored digest at the same block
++    book = { state: st.runtime?.anchor || 'unread', digest: st.runtime?.anchor === 'anchored' ? st.runtime?.accepted?.digest ?? null : null };
++  } catch (e) { add('gate: platform host policy admits this host now', false, { error: e.message }); }
++  finally { fs.rmSync(tmp, { recursive: true, force: true }); }
++  const d = role('directory-replica');
++  if (d) { const r = await getJson(`http://${local(d.bind)}:${d.port}/health`).catch((e) => ({ error: e.message })); add('directory-replica /health', r.status === 200 && r.body?.ok === true, r); }
++  const b = role('bootstrap-replica');
++  if (b) {
++    const m = JSON.parse(fs.readFileSync(b.manifest, 'utf8')).verifiedObjects;
++    const pick = artifacts === 'all' ? m : [...m].sort((x, y) => x.bytes - y.bytes).slice(0, 1);
++    let bad = [];
++    for (const e of pick) {
++      try {
++        const r = await f(`http://${local(b.bind)}:${b.port}/ipfs/${e.cid}`, { signal: AbortSignal.timeout(120_000) });
++        const bytes = Buffer.from(await r.arrayBuffer());
++        if (r.status !== 200 || bytes.length !== e.bytes || sha(bytes) !== e.sha256) bad.push(e.cid);
++      } catch { bad.push(e.cid); }
++    }
++    const heads = [];
++    for (const e of artifacts === 'all' ? [] : m) { try { const r = await f(`http://${local(b.bind)}:${b.port}/ipfs/${e.cid}`, { method: 'HEAD', signal: AbortSignal.timeout(8000) }); if (r.status !== 200 || Number(r.headers.get('content-length')) !== e.bytes) heads.push(e.cid); } catch { heads.push(e.cid); } }
++    add(`bootstrap-replica serves the manifest (${pick.length} verified by sha256, ${artifacts === 'all' ? 0 : m.length} by HEAD size)`, !bad.length && !heads.length, { objects: m.length, badContent: bad.slice(0, 10), badHead: heads.slice(0, 10) });
++  }
++  const dn = role('route-dns');
++  if (dn) {
++    const soa = await dnsQuery(dn.dnsPort, local(dn.bind), dn.zone, 6), ns = await dnsQuery(dn.dnsPort, local(dn.bind), dn.zone, 2);
++    add(`route-dns answers SOA and NS for ${dn.zone} (authoritative, NOERROR)`, soa && soa.rcode === 0 && soa.authoritative && soa.answers >= 1 && ns && ns.rcode === 0 && ns.answers === dn.nsNames.length, { soa, ns });
++  }
++  const pm = role('policy-mirror');
++  if (pm) {
++    const r = await getJson(`http://${local(pm.bind)}:${pm.port}/health`).catch((e) => ({ error: e.message }));
++    // the mirror must agree with the BOOK (as the gate just read it), not merely with itself: a mirror still reporting an
++    // older anchor (or none) after the admin anchored a policy is unhealthy until it has synced and serves that document
++    let doc = null;
++    if (book.digest) { const g = await getJson(`http://${local(pm.bind)}:${pm.port}/platform-policy/${book.digest}.json`).catch(() => null); doc = g?.status === 200 && candidateDigest(g.body) === book.digest; }
++    const agrees = book.state === 'unanchored' ? r.body?.anchor === 'unanchored'
++      : book.state === 'anchored' && !!book.digest && r.body?.anchor === book.digest && r.body?.anchoredAvailable === true && doc === true;
++    add('policy-mirror /health (agrees with the book\'s anchor; serves the anchored document)', r.status === 200 && r.body?.ok === true && !r.body.error && agrees,
++      { anchor: r.body?.anchor, anchoredAvailable: r.body?.anchoredAvailable, documents: r.body?.documents, lastSyncError: r.body?.error ?? null, servedAnchoredDocument: doc, book });
++  }
++  return { at: new Date().toISOString(), config, hostEndpoint: cfg.host.endpoint, ok: checks.every((c) => c.ok), checks };
++}
++
++// ---------------------------------------------------------------- CLI
++// The staged bundle runs this through entries/stage-tool.mjs (behind argv-guard.mjs: the runner bundled with it has its own
++// "am I main?" check, which must not fire inside the tool).
++export function main(argv) {
++  const [cmd, ...rest] = argv;
++  const o = (() => { try { return args(rest, ['rpc', 'carrier', 'from-dir', 'from-origin']); } catch (e) { console.error(e.message); process.exit(1); } })();
++  const print = (v) => console.log(JSON.stringify(v, (k, x) => (typeof x === 'bigint' ? x.toString() : x), 2));
++  (async () => {
++    if (cmd === 'capture-public') {
++      if (!o.endpoint) throw fail(1, 'capture-public needs --endpoint');
++      const pin = o['index-pin'] ? JSON.parse(fs.readFileSync(o['index-pin'], 'utf8')) : null;
++      print(await capturePublic({ endpoint: o.endpoint, rpcs: o.rpc, indexPin: pin, book: (o.book || PRODUCTION_BOOK).toLowerCase(), hostOwnership: (o['host-ownership'] || PRODUCTION_HOST_OWNERSHIP).toLowerCase() }));
++    } else if (cmd === 'policy-import') {
++      if (!o['import-dir'] || !path.isAbsolute(o['import-dir'])) throw fail(1, 'policy-import needs an absolute --import-dir');
++      print(await policyImport({ importDir: o['import-dir'], carriers: o.carrier?.length ? o.carrier : [...PRODUCTION_MIRRORS], rpcs: o.rpc, dryRun: !!o['dry-run'],
++        book: (o.book || PRODUCTION_BOOK).toLowerCase(), hostOwnership: (o['host-ownership'] || PRODUCTION_HOST_OWNERSHIP).toLowerCase() }));
++    } else if (cmd === 'fill-artifacts') {
++      if (!o.manifest || !o.dir) throw fail(1, 'fill-artifacts needs --manifest and --dir');
++      const r = await fillArtifacts({ manifest: o.manifest, dir: o.dir, fromDirs: o['from-dir'] || [], fromOrigins: o['from-origin'] || [], maxObjectBytes: Number(o['max-object-bytes'] || (1 << 30)), log: (m) => console.error(m) });
++      print(r); if (r.missing.length) process.exitCode = 3;
++    } else if (cmd === 'gen-config') {
++      if (!o.spec || !o.listeners || !o.out) throw fail(1, 'gen-config needs --spec, --listeners and --out');
++      let text = fs.readFileSync(o.listeners, 'utf8');
++      try { const j = JSON.parse(text); if (Array.isArray(j.listeners)) text = j.listeners.join('\n'); } catch {}
++      const cfg = genConfig(JSON.parse(fs.readFileSync(o.spec, 'utf8')), text);
++      writeAtomic(o.out, JSON.stringify(cfg, null, 2) + '\n');
++      print({ wrote: o.out, sha256: sha(fs.readFileSync(o.out)) });
++    } else if (cmd === 'health') {
++      if (!o.config) throw fail(1, 'health needs --config');
++      const r = await health({ config: o.config, artifacts: o.artifacts || 'sample', rpcs: o.rpc });
++      if (o.json) print(r); else for (const c of r.checks) console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name}  ${JSON.stringify(c.detail).slice(0, 400)}`);
++      if (!r.ok) process.exitCode = 2;
++    } else throw fail(1, 'usage: stage-tool.mjs capture-public|policy-import|fill-artifacts|gen-config|health ... (see the header)');
++  })().catch((e) => { console.error(e.message); process.exit(e.exit || 1); });
++}
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main(process.argv.slice(2));
+--- a/network/host-services/entries/stage-tool.mjs
++++ b/network/host-services/entries/stage-tool.mjs
+@@ -0,0 +1,4 @@
++// Bundle entry of the staged operator tool (work/hosted-services-activation build): the argv guard, then the tool's CLI.
++import '../argv-guard.mjs';
++import { main } from '../stage-tool.mjs';
++main(process.argv.slice(2));
+--- a/test/hosted-services-stage.test.mjs
++++ b/test/hosted-services-stage.test.mjs
+@@ -0,0 +1,279 @@
++// The stage-1 rollout ARCHIVE (work/hosted-services-activation/build-stage.mjs) in a dependency-free directory with the real
++// Node and nothing else: no node_modules in any parent directory, no NODE_PATH, an empty environment (PATH only).
++//   1. the PRODUCTION stage as built: compare-and-swap install into a fake root, `runner check` of the exact production
++//      configuration (four final pins, no warnings), idempotent re-run, refusal of changed bytes, exact rollback that
++//      keeps a changed file and every pre-existing file; systemd-analyze verify of the unit;
++//   2. the SAME archive live on a local chain (anvil): only its configuration's chain addresses, RPCs, ports and fixture
++//      manifest are swapped for the local ones. The installed unit's own ExecStart runs the bundled runner (a systemctl
++//      test double moves its absolute paths under the fake root). Covered:
++//      - fill-data copies artifacts with digest checks;
++//      - policy-import on an UNANCHORED book writes nothing, and the unchanged gate admits as "not-activated";
++//      - stage-1 health passes for the gate and all four roles (real HTTP and real DNS);
++//      - the admin anchors a policy: policy-import verifies and imports it, and health shows "current" with the mirror
++//        serving it;
++//      - the admin bans the host's operator: every role stops and health fails on the gate;
++//      - stop.sh: the runner exits on SIGTERM with no child left and no port listening;
++//      - rollback.sh restores the fake root exactly.
++//   3. the runner's registry-endpoint fix: warden's real endpoint (with a path) is accepted and hashes to its host id.
++import { test, before, after } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import http from 'node:http';
++import { createHash } from 'node:crypto';
++import { execFileSync, spawnSync, spawn } from 'node:child_process';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++import { stringToHex } from 'viem';
++import { privateKeyToAccount } from 'viem/accounts';
++import { startRig, haveTools, KEYS, freePort } from './helpers/cli-independent-rig.mjs';
++import * as si from '../network/service-index.mjs';
++import { POLICY_FORMAT, policyTypedData, policyDigest, encodeAnchor, ANCHOR_KEYS } from '../network/platform-host-policy.mjs';
++import { validateHostServicesConfig } from '../network/host-services/runner.mjs';
++import { hostIdOfEndpoint } from '../network/host-service-gate.mjs';
++import { artifactIdentity } from '../sdk/storage/unixfs.mjs';
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const TAR = process.env.STAGE_TAR;
++const NODE = fs.existsSync('/usr/bin/node') ? '/usr/bin/node' : process.execPath;
++const WARDEN = 'https://api.enclave.host/t/metal0', WARDEN_ID = '0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be';
++// haveTools() is null when anvil and openssl ARE present (node:test skips on any non-false value, null included)
++const skip = haveTools() || (!TAR || !fs.existsSync(TAR) ? 'needs STAGE_TAR (the built archive)' : false);
++const OUT = path.join(REPO, 'contracts/foundry/out');
++const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, name + '.json'), 'utf8')); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
++const compileIndexInChild = () => JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e',
++  `import { compileServiceIndex } from ${JSON.stringify(pathToFileURL(path.join(REPO, 'scripts/network/service-index.mjs')).href)}; process.stdout.write(JSON.stringify(compileServiceIndex()));`],
++  { maxBuffer: 16 << 20, timeout: 180000 }).toString());
++const sha = (b) => createHash('sha256').update(b).digest('hex');
++const Z32 = '0x' + '00'.repeat(32);
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hostsvc-stage-'));
++const wait = async (f, ms, what) => { const end = Date.now() + ms; for (;;) { try { const v = await f(); if (v) return v; } catch {} if (Date.now() > end) throw new Error(`timed out: ${what}`); await new Promise((r) => setTimeout(r, 300)); } };
++const listening = (port) => new Promise((ok) => { const s = http.get({ host: '127.0.0.1', port, path: '/health', timeout: 1500 }, (r) => { r.resume(); ok(true); }); s.on('error', () => ok(false)); s.on('timeout', () => { s.destroy(); ok(false); }); });
++
++function extract(dir) {
++  fs.mkdirSync(dir, { recursive: true });
++  execFileSync('tar', ['-xf', TAR, '-C', dir]);
++  const stage = path.join(dir, fs.readdirSync(dir)[0]);
++  for (let d = stage; d !== path.dirname(d); d = path.dirname(d)) assert.equal(fs.existsSync(path.join(d, 'node_modules')), false, `node_modules above the stage at ${d}`);
++  return stage;
++}
++// a systemctl test double: records every call; with FAKE_LIVE=1, start runs the installed unit's ExecStart (absolute paths
++// moved under DESTDIR, the configuration's paths too) in an EMPTY environment, and stop sends SIGTERM like systemd
++function fakeSystemctl(dir) {
++  const f = path.join(dir, 'systemctl');
++  fs.writeFileSync(f, `#!/bin/bash
++echo "$*" >> "$FAKE_SYSTEMCTL_LOG"
++[ "$1" = "--quiet" ] && shift
++cmd=$1
++unitfile=$DESTDIR/etc/systemd/system/enclave-host-services.service; pidf=$DESTDIR/fake-unit.pid
++case "$cmd" in
++ clean) rm -rf "$DESTDIR/var/lib/enclave-host-services"; exit 0 ;;
++ start) [ "$FAKE_LIVE" = 1 ] || exit 0
++   line=$(grep '^ExecStart=' "$unitfile" | head -1 | cut -d= -f2-)
++   cfg=$(echo "$line" | awk '{print $NF}'); pcfg=$DESTDIR/fake-unit-config.json
++   sed -e "s#\\"/opt/enclave-host-services/#\\"$DESTDIR/opt/enclave-host-services/#g" -e "s#\\"/var/lib/enclave-host-services#\\"$DESTDIR/var/lib/enclave-host-services#g" "$DESTDIR$cfg" > "$pcfg"
++   line=$(echo "$line" | sed -e "s#/opt/enclave-host-services/#$DESTDIR/opt/enclave-host-services/#" -e "s#$cfg#$pcfg#")
++   mkdir -p "$DESTDIR/var/lib/enclave-host-services"; cd "$DESTDIR/var/lib/enclave-host-services"
++   setsid env -i PATH=/usr/bin:/bin $line > "$DESTDIR/fake-unit.log" 2>&1 < /dev/null &
++   echo $! > "$pidf"; exit 0 ;;
++ stop) [ -f "$pidf" ] || exit 0; pid=$(cat "$pidf")
++   kill -TERM "$pid" 2>/dev/null; for i in $(seq 1 300); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
++   if kill -0 "$pid" 2>/dev/null; then kill -KILL -- -"$pid"; echo KILLED >> "$FAKE_SYSTEMCTL_LOG"; fi
++   wait "$pid" 2>/dev/null; rm -f "$pidf"; exit 0 ;;
++ is-active) [ -f "$pidf" ] && kill -0 "$(cat "$pidf")" 2>/dev/null && exit 0; exit 3 ;;
++ show) echo ActiveState=fake; exit 0 ;;
++ *) exit 0 ;;
++esac
++`);
++  fs.chmodSync(f, 0o755);
++  return f;
++}
++// ASYNC on purpose: the rig's RPC origins are HTTP proxies inside THIS process, so a synchronous spawn would block them
++function sh(stage, script, args, { destdir, systemctl, live = false, log, extraEnv = {} }) {
++  return new Promise((ok) => {
++    const c = spawn('bash', [path.join(stage, 'scripts', script), ...args], { stdio: ['ignore', 'pipe', 'pipe'],
++      env: { PATH: '/usr/bin:/bin', HOME: tmp, DESTDIR: destdir, SYSTEMCTL: systemctl, NODE, FAKE_SYSTEMCTL_LOG: log, FAKE_LIVE: live ? '1' : '0', ...extraEnv } });
++    let stdout = '', stderr = '';
++    c.stdout.on('data', (d) => { stdout += d; }); c.stderr.on('data', (d) => { stderr += d; });
++    const t = setTimeout(() => c.kill('SIGKILL'), 900_000);
++    c.on('close', (status) => { clearTimeout(t); ok({ status, out: stdout + stderr, stdout }); });
++  });
++}
++const filesUnder = (d) => { const out = []; const walk = (x) => { for (const n of fs.readdirSync(x)) { const p = path.join(x, n); if (fs.lstatSync(p).isDirectory()) walk(p); else out.push(path.relative(d, p)); } }; walk(d); return out.sort(); };
++
++// a failing run must not leave the unit's runner and roles behind (the test double starts them in their own session)
++after(() => {
++  for (const root of ['root1', 'root2']) {
++    const pidf = path.join(tmp, root, 'fake-unit.pid');
++    if (!fs.existsSync(pidf)) continue;
++    const pid = Number(fs.readFileSync(pidf, 'utf8'));
++    try { process.kill(-pid, 'SIGTERM'); } catch {}
++    const end = Date.now() + 10000;
++    while (Date.now() < end) { try { process.kill(-pid, 0); } catch { break; } spawnSync('sleep', ['0.2']); }
++    try { process.kill(-pid, 'SIGKILL'); } catch {}
++  }
++  fs.rmSync(tmp, { recursive: true, force: true });
++});
++
++test('the production stage: verified compare-and-swap install, exact production `runner check`, and an exact rollback', { skip }, async () => {
++  const stage = extract(path.join(tmp, 'x1')), root = path.join(tmp, 'root1'), log = path.join(tmp, 'sc1.log');
++  for (const d of ['etc/systemd/system', 'opt', 'var/lib']) fs.mkdirSync(path.join(root, d), { recursive: true });   // as on a real host
++  fs.writeFileSync(path.join(root, 'etc/systemd/system/existing-app.service'), '[Service]\nExecStart=/bin/true\n');   // must survive untouched
++  const sc = fakeSystemctl(tmp), o = { destdir: root, systemctl: sc, log };
++  const cfg = JSON.parse(fs.readFileSync(path.join(stage, 'config/host-services.json'), 'utf8'));
++  assert.equal(cfg.platformHostPolicy, 'production'); assert.equal(cfg.host.endpoint, WARDEN); assert.deepEqual(cfg.host.publicEndpoints, {}, 'stage 1 advertises nothing');
++  assert.deepEqual(cfg.services.map((s) => s.package).sort(), ['sha256:2d69a8be882bea9fc107208a3828e25a773ce0c988eac6347d377904e9e78668', 'sha256:350c276f17a0ea15fc0451c614146554c2b08cf89c9b3258013ac188950d3cf8',
++    'sha256:7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc', 'sha256:a031723ee86c9bf3a2489936a3c7449a6c72ff9b999902e57644c9fbc773eb41']);
++  for (const s of cfg.services) for (const k of ['bind', 'apiBind']) if (s.config[k]) assert.equal(s.config[k], '127.0.0.1');
++  let r = await sh(stage, 'install.sh', [], o);
++  assert.equal(r.status, 0, r.out); assert.match(r.out, /installed stage hs1 \(first install\)/); assert.match(r.out, /NOT started and NOT enabled/);
++  assert.doesNotMatch(fs.readFileSync(log, 'utf8'), /^(start|enable|restart)/m, 'install starts and enables nothing');
++  r = await sh(stage, 'install.sh', [], o); assert.equal(r.status, 0, r.out); assert.match(r.out, /re-run, unchanged/);
++  const tool = path.join(root, 'opt/enclave-host-services/hs1/bin/stage-tool.mjs');
++  fs.appendFileSync(tool, '\n// changed');
++  r = await sh(stage, 'install.sh', [], o); assert.equal(r.status, 3); assert.match(r.out, /differs from this stage/);
++  // a fresh root that already has an enclave-host-services unit of someone else's: refused, nothing written
++  const other = path.join(tmp, 'root1b'); fs.mkdirSync(path.join(other, 'etc/systemd/system'), { recursive: true });
++  fs.writeFileSync(path.join(other, 'etc/systemd/system/enclave-host-services.service'), '[Service]\nExecStart=/bin/false\n');
++  r = await sh(stage, 'install.sh', [], { ...o, destdir: other }); assert.equal(r.status, 3); assert.match(r.out, /already exists/);
++  assert.deepEqual(filesUnder(other), ['etc/systemd/system/enclave-host-services.service']);
++  // rollback keeps the changed file (exit 4) and removes everything else install wrote
++  r = await sh(stage, 'rollback.sh', [], o); assert.equal(r.status, 4, r.out); assert.match(r.out, /KEPT \(changed since install\): .*stage-tool\.mjs/);
++  assert.deepEqual(filesUnder(root), ['etc/enclave-host-services/hs1/install-receipt.txt', 'etc/systemd/system/existing-app.service', 'opt/enclave-host-services/hs1/bin/stage-tool.mjs']);
++  fs.rmSync(tool);
++  r = await sh(stage, 'rollback.sh', [], o); assert.equal(r.status, 0, r.out);
++  assert.deepEqual(filesUnder(root), ['etc/systemd/system/existing-app.service'], 'exactly the pre-install state');
++  assert.equal(fs.readFileSync(path.join(root, 'etc/systemd/system/existing-app.service'), 'utf8'), '[Service]\nExecStart=/bin/true\n');
++  assert.deepEqual([fs.readdirSync(path.join(root, 'opt')), fs.readdirSync(path.join(root, 'var/lib')), fs.readdirSync(path.join(root, 'etc')).sort()], [[], [], ['systemd']],
++    'the directories install created are gone, and only those');
++  const calls = fs.readFileSync(log, 'utf8');
++  assert.match(calls, /^stop enclave-host-services\.service$/m); assert.match(calls, /^clean --what=state enclave-host-services\.service$/m);
++  for (const line of calls.split('\n').filter(Boolean)) if (line !== 'daemon-reload') assert.match(line, /enclave-host-services\.service$/, `only this unit is touched: ${line}`);
++  // the unit file itself
++  const v = spawnSync('systemd-analyze', ['verify', '--man=no', path.join(stage, 'systemd/enclave-host-services.service')], { encoding: 'utf8' });
++  assert.doesNotMatch(v.stderr + v.stdout, /Unknown (key|section)|Invalid|Failed to parse|bad-setting|Unknown lvalue/i, v.stderr);
++  const unit = fs.readFileSync(path.join(stage, 'systemd/enclave-host-services.service'), 'utf8');
++  for (const k of ['MemoryMax=1024M', 'MemoryHigh=768M', 'MemorySwapMax=0', 'CPUQuota=150%', 'TasksMax=256', 'Restart=on-failure', 'DynamicUser=yes', 'KillMode=mixed'])
++    assert.match(unit, new RegExp('^' + k.replace(/[%=]/g, (c) => c) + '$', 'm'), k);
++});
++
++let rig, book, ownership, bookAbi, index, indexPin, docs = [];
++async function sign(deny) {
++  const prev = docs.length ? docs[docs.length - 1].digest : Z32;
++  const p = { format: POLICY_FORMAT, chainId: 8453, book: book.toLowerCase(), registry: rig.addresses.registry.toLowerCase(), hostOwnership: ownership.toLowerCase(),
++    sequence: docs.length + 1, issuedAt: Math.floor(Date.now() / 1000) - 5, expiresAt: 0, maxStaleSec: 0, previousDigest: prev, mode: 'denylist', deny, admit: [] };
++  const d = { policy: p, digest: policyDigest(p), document: JSON.stringify(p), signature: await privateKeyToAccount(KEYS.deployer).signTypedData(policyTypedData(p)) };
++  docs.push(d); return d;
++}
++const anchor = async (digest) => { const a = encodeAnchor(digest); await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'setMany', [[ANCHOR_KEYS.hi, ANCHOR_KEYS.lo], [a.hi, a.lo]]); await rig.mine(); };
++before(async () => {
++  if (skip) return;
++  rig = await startRig();
++  const built = compileIndexInChild();
++  index = (await rig.pc.waitForTransactionReceipt({ hash: await rig.wc(KEYS.deployer).deployContract({ abi: built.abi, bytecode: built.bytecode }) })).contractAddress;
++  indexPin = si.validateIndexPin({ chainId: 8453, address: index, codeHash: built.codeHash });
++  const B = art('EnclaveAddressBook.sol', 'EnclaveAddressBook'); bookAbi = B.abi; book = await rig.deploy(B);
++  await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry]);
++  ownership = await rig.deploy(art('EnclaveHostOwnership.sol', 'EnclaveHostOwnership'), [rig.addresses.registry]);
++  // warden's REAL registry endpoint, registered on the local chain by a host operator
++  await rig.write(rig.wc(KEYS.other), rig.addresses.registry, rig.A.registry4.abi, 'register', [WARDEN, 'independent/host', Z32, 1000n, 0n, '0x' + '00'.repeat(20)]);
++  for (let i = 0; i < 3; i++) await rig.mine();
++});
++after(async () => { await rig?.stop(); });
++
++test('the same archive live on a local chain: unanchored -> anchored import -> ban, with stage-1 health, stop and rollback', { skip }, async () => {
++  const stage = extract(path.join(tmp, 'x2')), root = path.join(tmp, 'root2'), log = path.join(tmp, 'sc2.log');
++  for (const d of ['etc/systemd/system', 'opt', 'var/lib']) fs.mkdirSync(path.join(root, d), { recursive: true });
++  const sc = fakeSystemctl(tmp), o = { destdir: root, systemctl: sc, log, live: true };
++  // the local chain's addresses, RPCs, free ports and a fixture manifest in place of production's (nothing else changes)
++  const fixture = path.join(tmp, 'fixture-artifacts'); fs.mkdirSync(fixture);
++  const objects = [];
++  for (const n of [1, 2]) {
++    const bytes = Buffer.from(`enclave bootstrap fixture ${n} ` + 'x'.repeat(2048 * n)), car = Buffer.concat([Buffer.from('car:'), bytes]), cid = artifactIdentity(new Uint8Array(bytes)).cid;
++    fs.writeFileSync(path.join(fixture, `${cid}.bin`), bytes); fs.writeFileSync(path.join(fixture, `${cid}.car`), car);
++    objects.push({ cid, bytes: bytes.length, sha256: sha(bytes), carSha256: sha(car) });
++  }
++  const ports = { dir: await freePort(), boot: await freePort(), dns: await freePort(), api: await freePort(), pm: await freePort() };
++  const cfg = JSON.parse(fs.readFileSync(path.join(stage, 'config/host-services.json'), 'utf8'));
++  const pins = { deployments: rig.addresses.ledger, registry: rig.addresses.registry, connectivity: '0x' + '00'.repeat(20), sessionVaultFactory: '0x' + '00'.repeat(20) };
++  cfg.platformHostPolicy = { book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [], activation: 'anchor' };
++  cfg.platformHostPolicyRpcs = rig.rpcs; cfg.serviceIndex = indexPin;
++  const svc = Object.fromEntries(cfg.services.map((s) => [s.role, s.config]));
++  Object.assign(svc['directory-replica'], { port: ports.dir, rpc: rig.rpcs, addressBook: book, authorityPins: pins, peers: [] });
++  Object.assign(svc['bootstrap-replica'], { port: ports.boot });
++  Object.assign(svc['route-dns'], { dnsPort: ports.dns, apiPort: ports.api, routeMapUrl: `http://127.0.0.1:${ports.dir}/v1/network/routes` });
++  Object.assign(svc['policy-mirror'], { port: ports.pm, rpc: rig.rpcs, minAgree: 2, book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), peers: [], syncSec: 5 });
++  fs.writeFileSync(path.join(stage, 'config/host-services.json'), JSON.stringify(cfg, null, 2) + '\n');
++  fs.writeFileSync(path.join(stage, 'data/bootstrap-manifest.json'), JSON.stringify({ verifiedObjects: objects }));
++  const sums = fs.readFileSync(path.join(stage, 'STAGE-SHA256SUMS'), 'utf8').split('\n').filter(Boolean).map((l) => {
++    const f = l.slice(66); return ['config/host-services.json', 'data/bootstrap-manifest.json'].includes(f) ? `${sha(fs.readFileSync(path.join(stage, f)))}  ${f}` : l; });
++  fs.writeFileSync(path.join(stage, 'STAGE-SHA256SUMS'), sums.join('\n') + '\n');
++  const chain = ['--rpc', rig.rpcs[0], '--rpc', rig.rpcs[1], '--rpc', rig.rpcs[2], '--book', book, '--host-ownership', ownership];
++
++  let r = await sh(stage, 'install.sh', [], o); assert.equal(r.status, 0, r.out);
++  r = await sh(stage, 'fill-data.sh', ['artifacts', '--from-dir', fixture], o); assert.equal(r.status, 0, r.out);
++  assert.equal(JSON.parse(r.stdout).missing.length, 0);
++  // UNANCHORED: explicit, nothing written
++  r = await sh(stage, 'fill-data.sh', ['policy', ...chain], o); assert.equal(r.status, 0, r.out);
++  const un = JSON.parse(r.stdout); assert.equal(un.state, 'unanchored'); assert.equal(un.wrote, null); assert.match(un.meaning, /not-activated/);
++  assert.deepEqual(fs.readdirSync(path.join(root, 'var/lib/enclave-host-services-data/hs1/policy-import')), []);
++  // start: the unit's ExecStart (the bundled runner) in an empty environment, then stage-1 health
++  r = await sh(stage, 'start.sh', [], { ...o, extraEnv: { HEALTH_WAIT: '180' } });
++  assert.equal(r.status, 0, r.out + '\n--- unit log\n' + (fs.existsSync(path.join(root, 'fake-unit.log')) ? fs.readFileSync(path.join(root, 'fake-unit.log'), 'utf8').slice(-4000) : ''));
++  for (const name of ['gate: platform host policy admits this host now', 'directory-replica /health', 'bootstrap-replica serves the manifest', 'route-dns answers SOA and NS', 'policy-mirror /health'] )
++    assert.match(r.out, new RegExp(`PASS  ${name.replace(/[/()]/g, (c) => '\\' + c)}`), name);
++  assert.match(r.out, /"status":"not-activated"/); assert.match(r.out, new RegExp(`"hostId":"${WARDEN_ID}"`));
++  // ANCHORED: the admin signs and anchors; policy-import fetches it from a carrier and verifies it before writing
++  const docsServed = new Map();
++  const carrier = http.createServer((req, res) => { const m = /^\/policy\/(0x[0-9a-f]{64})\.json$/.exec(req.url); const d = m && docsServed.get(m[1]);
++    if (!d) { res.writeHead(404); return res.end(); } res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ document: d.document, signature: d.signature })); });
++  await new Promise((ok) => carrier.listen(0, '127.0.0.1', ok));
++  const carrierUrl = `http://127.0.0.1:${carrier.address().port}/policy`;
++  try {
++    const p1 = await sign([{ kind: 'operator', value: '0x' + '5a'.repeat(20), reason: 'unrelated' }]); docsServed.set(p1.digest, p1); await anchor(p1.digest);
++    r = await sh(stage, 'fill-data.sh', ['policy', '--carrier', carrierUrl, ...chain], o); assert.equal(r.status, 0, r.out);
++    const imp = JSON.parse(r.stdout); assert.equal(imp.state, 'anchored'); assert.equal(imp.digest, p1.digest);
++    assert.ok(fs.existsSync(path.join(root, `var/lib/enclave-host-services-data/hs1/policy-import/${p1.digest}.json`)));
++    r = await sh(stage, 'health.sh', ['--wait', '120'], o); assert.equal(r.status, 0, r.out);
++    assert.match(r.out, /"status":"current"/); assert.match(r.out, new RegExp(`"anchor":"${p1.digest}","anchoredAvailable":true`));
++    // a substituted document under the real signature is refused and nothing is written
++    const fake = { ...p1, document: JSON.stringify({ ...p1.policy, deny: [] }) };
++    const p2 = await sign([...p1.policy.deny, { kind: 'operator', value: privateKeyToAccount(KEYS.other).address.toLowerCase(), reason: 'abuse report' }]);
++    docsServed.set(p2.digest, { ...fake }); await anchor(p2.digest);
++    r = await sh(stage, 'fill-data.sh', ['policy', '--carrier', carrierUrl, ...chain], o); assert.equal(r.status, 3, r.out); assert.match(r.out, /refused: no carrier/);
++    assert.equal(fs.existsSync(path.join(root, `var/lib/enclave-host-services-data/hs1/policy-import/${p2.digest}.json`)), false);
++    // BAN: the real document; the runner stops every role, health fails on the gate
++    docsServed.set(p2.digest, p2);
++    r = await sh(stage, 'fill-data.sh', ['policy', '--carrier', carrierUrl, ...chain], o); assert.equal(r.status, 0, r.out);
++    await wait(async () => !(await listening(ports.dir)) && !(await listening(ports.pm)) && !(await listening(ports.boot)), 60000, 'every role stops on the ban');
++    // the refusal is sticky but the RUNNER STAYS UP (unit active, no role running) so an authenticated admit can resume it
++    await new Promise((x) => setTimeout(x, 3000));
++    r = await sh(stage, 'health.sh', [], o); assert.equal(r.status, 2, r.out);
++    assert.doesNotMatch(r.out, /unit enclave-host-services\.service is not active/, 'the runner must stay up while banned');
++    assert.match(r.out, /FAIL  gate: platform host policy admits this host now .*banned by platform policy #2 \(operator\): abuse report/);
++    assert.match(fs.readFileSync(path.join(root, 'fake-unit.log'), 'utf8'), /STOPPING every role/);
++    // UNBAN: the admin's next anchored policy, imported the same way; the same runner process restarts every role
++    const p3 = await sign(p1.policy.deny); docsServed.set(p3.digest, p3); await anchor(p3.digest);
++    r = await sh(stage, 'fill-data.sh', ['policy', '--carrier', carrierUrl, ...chain], o); assert.equal(r.status, 0, r.out);
++    r = await sh(stage, 'health.sh', ['--wait', '120'], o); assert.equal(r.status, 0, r.out);
++    assert.match(r.out, /"status":"current"/); assert.match(r.out, new RegExp(`"anchor":"${p3.digest}","anchoredAvailable":true`));
++    assert.match(fs.readFileSync(path.join(root, 'fake-unit.log'), 'utf8'), /admitted again/);
++  } finally { carrier.close(); }
++  // STOP: SIGTERM to the runner; no child left, no stage port listening
++  r = await sh(stage, 'stop.sh', [], o); assert.equal(r.status, 0, r.out); assert.match(r.out, /none of the stage ports/);
++  assert.doesNotMatch(fs.readFileSync(log, 'utf8'), /KILLED/, 'the runner exited on SIGTERM');
++  const left = spawnSync('pgrep', ['-f', root], { encoding: 'utf8' }).stdout.trim(); assert.equal(left, '', `processes left: ${left}`);
++  // ROLLBACK: exactly the pre-install state
++  r = await sh(stage, 'rollback.sh', [], o); assert.equal(r.status, 0, r.out);
++  assert.deepEqual(filesUnder(root).filter((f) => !f.startsWith('fake-unit')), [], 'nothing of the stage remains');
++  assert.deepEqual([fs.readdirSync(path.join(root, 'opt')), fs.readdirSync(path.join(root, 'var/lib')), fs.readdirSync(path.join(root, 'etc')).sort()], [[], [], ['systemd']]);
++});
++
++test('the runner accepts warden\'s registry endpoint (with a path) and its host id is the registered one', () => {
++  assert.equal(hostIdOfEndpoint(WARDEN), WARDEN_ID);
++  const base = { format: 'enclave-host-services/v1', host: { endpoint: WARDEN }, platformHostPolicy: 'production', packagesDir: '/opt/x', stateRoot: '/var/x',
++    services: [{ role: 'bootstrap-replica', package: 'sha256:' + '0'.repeat(64), config: { port: 1, bind: '127.0.0.1', directory: '/a', manifest: '/b' } }] };
++  assert.equal(validateHostServicesConfig(base).host.endpoint, WARDEN);
++  for (const bad of [`${WARDEN}?x=1`, `${WARDEN}#f`, 'https://user@api.enclave.host/t/metal0', 'http://api.enclave.host/t/metal0', 'https://api.enclave.host/t/me tal0'])
++    assert.throws(() => validateHostServicesConfig({ ...base, host: { endpoint: bad } }), /registry endpoint/, bad);
++});

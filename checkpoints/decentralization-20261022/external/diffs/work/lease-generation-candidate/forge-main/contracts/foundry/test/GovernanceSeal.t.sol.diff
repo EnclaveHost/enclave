@@ -1,0 +1,11 @@
+--- a/contracts/foundry/test/GovernanceSeal.t.sol
++++ b/contracts/foundry/test/GovernanceSeal.t.sol
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: MIT
+ pragma solidity ^0.8.20;
+ 
+-import { SessionRig } from "./SessionVault.t.sol";
++import { SessionRig } from "./SessionRig.sol";   // harness only: SessionRig extracted verbatim
+ import { GovernanceSeal } from "../../GovernanceSeal.sol";
+ 
+ contract GovernanceSealTest is SessionRig {

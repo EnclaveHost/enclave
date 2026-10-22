@@ -1,0 +1,71 @@
+--- a/sia-s3/src/s3.rs
++++ b/sia-s3/src/s3.rs
+@@ -69,6 +69,8 @@
+         "NoSuchUpload" => err(404, "NoSuchUpload", "The specified upload does not exist.", resource),
+         "PreconditionFailed" => err(412, "PreconditionFailed", "At least one of the pre-conditions you specified did not hold", resource),
+         "InvalidPart" | "InvalidPartOrder" | "EntityTooLarge" => err(400, code, &e, resource),
++        // PATCH U1-B: a version an indexer's operator may have blocked (replica.rs, "Blocked objects", B3)
++        "UnavailableForLegalReasons" => err(451, "UnavailableForLegalReasons", &e, resource),
+         // a write quorum of indexers did not take the request (replica.rs)
+         "ServiceUnavailable" => {
+             eprintln!("[sia-s3] {resource}: {e}");
+@@ -146,9 +148,19 @@
+     }
+     let store = app.cluster.clone();
+     if !store.ready() {
+-        let msg = app.boot_error.borrow().clone().unwrap_or_else(|| "index is loading".into());
++        let msg = store
++            .superseded()
++            .map(|w| format!("writer fencing stopped this instance: {w}"))
++            .or_else(|| app.boot_error.borrow().clone())
++            .unwrap_or_else(|| "index is loading".into());
+         return send(w, err(503, "SlowDown", &msg, &resource), ka).await;
+     }
++    // writer fencing: whatever this request is answered with (data, a listing, a 412, a 404, a DELETE of an absent key)
++    // must reflect every write acknowledged before it arrived, by any writer. A confirmation round started after
++    // this point must find our exact fence on W voters (Cluster::fresh); otherwise 503. No-op when unfenced.
++    if let Err(e) = store.fresh().await {
++        return send(w, err(503, "SlowDown", &e, &resource), ka).await;
++    }
+ 
+     let q = sigv4::parse_query(&req.query);
+     let qv = |k: &str| q.iter().find(|(a, _)| a == k).map(|(_, v)| v.as_str());
+@@ -371,6 +383,11 @@
+         let r = if req.method == "HEAD" { empty(404) } else { err(404, "NoSuchKey", "The specified key does not exist.", &resource) };
+         return send(w, r, ka).await;
+     };
++    // PATCH U1-B: a withheld version is neither read nor described (GET and HEAD alike), whatever replica holds it
++    if store.withheld(bucket, key, &entry.ver()) {
++        let r = if req.method == "HEAD" { empty(451) } else { store_err(crate::replica::WITHHELD.to_string(), &resource) };
++        return send(w, r, ka).await;
++    }
+     let size = entry.s;
+     // conditional reads: a resumed range must not stitch two versions together
+     let tag_matches = |h: &str| h.split(',').map(|t| t.trim().trim_start_matches("W/").trim_matches('"')).any(|t| t == "*" || t == entry.t);
+@@ -571,6 +588,8 @@
+                 "bootError": *app.boot_error.borrow(),
+                 "writeQuorum": c.write_quorum,
+                 "readQuorum": c.read_quorum(),
++                "writerFence": c.fence_status(),
++                "withheldVersions": c.withheld_count(),
+                 "replicas": c.replica_status().await,
+             });
+             if ready {
+@@ -612,6 +631,8 @@
+             "app": concat!("sia-s3/", env!("CARGO_PKG_VERSION")),
+             "ready": false,
+             "error": *app.boot_error.borrow(),
++            "writerFence": c.fence_status(),
++            "withheldVersions": c.withheld_count(),
+             "replicas": c.replica_status().await,
+         })
+         .to_string();
+@@ -628,6 +649,8 @@
+     };
+     let compactor = c.loaded().first().map(|(_, s)| serde_json::json!(*s.stats.borrow()));
+     serde_json::json!({
++        "writerFence": c.fence_status(),
++        "withheldVersions": c.withheld_count(),
+         "app": concat!("sia-s3/", env!("CARGO_PKG_VERSION")),
+         "ready": true,
+         "keys": keys,

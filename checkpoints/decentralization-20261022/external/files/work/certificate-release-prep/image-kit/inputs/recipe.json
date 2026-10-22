@@ -1,0 +1,216 @@
+{
+  "sourceRecipeSha256": "23a41fbd3babf52b29793f1d39f30a06ec707f6ce3fed06800913a72661dedce",
+  "inputs": [
+    {
+      "name": "igvmfilegen",
+      "sha256": "81647f66a88559d68c4d7565dfdcc355305c00cc842b49403a3c5188c36e1a1c",
+      "from": {
+        "file": "objects/81647f66a88559d68c4d7565dfdcc355305c00cc842b49403a3c5188c36e1a1c"
+      }
+    },
+    {
+      "name": "wsl-vmlinux.elf",
+      "sha256": "363b355389a02803e27884023670c4a0f0d2f584f946b48ba87c3633a6cf025a",
+      "from": {
+        "file": "objects/363b355389a02803e27884023670c4a0f0d2f584f946b48ba87c3633a6cf025a"
+      }
+    },
+    {
+      "name": "vbs-linux-candidate-manifest.json",
+      "sha256": "0ce9d8a87582bb5d60200d7f98c67ee357dbd042aec7338649c981753753df61",
+      "from": {
+        "file": "objects/0ce9d8a87582bb5d60200d7f98c67ee357dbd042aec7338649c981753753df61"
+      }
+    },
+    {
+      "name": "vbs-twin-manifest.json",
+      "sha256": "bcb15e0669639e1ce69ad80d8f07ffeab79008bbd6cc1e4bb5469a5304729453",
+      "from": {
+        "file": "objects/bcb15e0669639e1ce69ad80d8f07ffeab79008bbd6cc1e4bb5469a5304729453"
+      }
+    },
+    {
+      "name": "control-32d464cc-vbs.json",
+      "sha256": "d69614344dae9f7ec51b84d890f51aa7a70db0fb520f2832e50f19b61f01f1c1",
+      "from": {
+        "file": "objects/d69614344dae9f7ec51b84d890f51aa7a70db0fb520f2832e50f19b61f01f1c1"
+      }
+    },
+    {
+      "name": "openhcl_boot-cvm",
+      "sha256": "18dbeae950c1c143364638892ace4c2cf2128eb12d67f3de05bdbe37b2fd16bc",
+      "from": {
+        "file": "objects/18dbeae950c1c143364638892ace4c2cf2128eb12d67f3de05bdbe37b2fd16bc"
+      }
+    },
+    {
+      "name": "underhill-vmlinux-cvm",
+      "sha256": "4d6c417654d5d26374c3bc44ed1c6473d5a0d9e7b9773d2bb1dab2abe5306762",
+      "from": {
+        "file": "objects/4d6c417654d5d26374c3bc44ed1c6473d5a0d9e7b9773d2bb1dab2abe5306762"
+      }
+    },
+    {
+      "name": "openhcl-cvm.cpio.gz",
+      "sha256": "aa84ff85dc457f88009c34e443f231fd48df5170199d2496d71681bdf79acdb4",
+      "from": {
+        "file": "objects/aa84ff85dc457f88009c34e443f231fd48df5170199d2496d71681bdf79acdb4"
+      }
+    },
+    {
+      "name": "MSVM.fd",
+      "sha256": "cd69dd2ef2e3fc5c2e01ca7a01bf16bb0ac2d7f3b0b7277223c1282f4d998745",
+      "from": {
+        "file": "objects/cd69dd2ef2e3fc5c2e01ca7a01bf16bb0ac2d7f3b0b7277223c1282f4d998745"
+      }
+    },
+    {
+      "name": "mon-1539d5b2.cpio.gz",
+      "sha256": "1539d5b24f6ab22f45ffda7ba1e0d985dd462db35502f9d992828716ff686444",
+      "from": {
+        "file": "objects/1539d5b24f6ab22f45ffda7ba1e0d985dd462db35502f9d992828716ff686444"
+      }
+    },
+    {
+      "name": "vbs-linux-candidate-1539-vbs.json",
+      "sha256": "3be9882a4ac672d35fb490724e3e6517b6d1b4486fb293e9ef7ba2dc5c9eb384",
+      "from": {
+        "file": "objects/3be9882a4ac672d35fb490724e3e6517b6d1b4486fb293e9ef7ba2dc5c9eb384"
+      }
+    }
+  ],
+  "files": [
+    {
+      "path": "guest/igvm-vbs/vbs-linux-candidate-1539-b7ba7731.bin",
+      "role": "candidate.igvm",
+      "sha256": "b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748",
+      "bytes": 77794396,
+      "from": {
+        "file": "~/enclave-bench/ownguest-pkg/sources/candidate/vbs-linux-b7ba7731/vbs-linux-candidate.bin"
+      },
+      "boxReuse": "C:\\Users\\claude\\vbs-like\\pkg\\3384e097aa024b73\\guest\\igvm-vbs\\vbs-linux-candidate-1539-b7ba7731.bin",
+      "note": "THE FIRMWARE OF PROFILE vbsLinux AND THE ONE ELIGIBLE REFERENCE IMAGE since v39 (the rollover; eligibility is prospective and grants nothing beyond a permitted measured-image reference). a44bb55a's recipe with only the VTL0 initrd -> enclave-5d's 1539d5b2; launch digest 56FBB27F...; enclave-d1's byte review agrees (fd92d610); BOOTED and SERVED in its own canary 093904 (0bee8444); served by the package's own tree and launcher in the package-owned functional acceptance 094631 (98782fbb)."
+    }
+  ],
+  "rebuild": {
+    "vbsLinux1539": {
+      "kind": "igvmfilegen",
+      "igvmfilegen": "igvmfilegen",
+      "manifest": "vbs-linux-candidate-manifest.json",
+      "output": "file:guest/igvm-vbs/vbs-linux-candidate-1539-b7ba7731.bin",
+      "vbsJson": "vbs-linux-candidate-1539-vbs.json",
+      "resources": {
+        "openhcl_boot": "openhcl_boot-cvm",
+        "underhill_kernel": "underhill-vmlinux-cvm",
+        "underhill_initrd": "openhcl-cvm.cpio.gz",
+        "linux_kernel": "wsl-vmlinux.elf",
+        "linux_initrd": "mon-1539d5b2.cpio.gz"
+      },
+      "twin": {
+        "manifest": "vbs-twin-manifest.json",
+        "expectVbsJson": "control-32d464cc-vbs.json",
+        "resources": {
+          "uefi": "MSVM.fd",
+          "openhcl_boot": "openhcl_boot-cvm",
+          "underhill_kernel": "underhill-vmlinux-cvm",
+          "underhill_initrd": "openhcl-cvm.cpio.gz"
+        }
+      },
+      "mutations": [
+        {
+          "name": "one byte of the VTL0 kernel",
+          "kind": "resourceByte",
+          "resource": "linux_kernel",
+          "at": "elfFirstLoadMiddle",
+          "expectVbsBootDigest": "B1FCA9E8DCDE3E6FD65311F5B407EA21F9CBE1C75BA55A31F7B068C70839CF3F"
+        },
+        {
+          "name": "one byte of the VTL0 initrd",
+          "kind": "resourceByte",
+          "resource": "linux_initrd",
+          "at": "middle",
+          "expectVbsBootDigest": "17E5B4D5D98663DE5238F6FCABF02C1C06BDF3930B8EEDB40F00AEA7A575EB05"
+        },
+        {
+          "name": "the VTL0 command line",
+          "kind": "manifestEdit",
+          "path": [
+            "guest_configs",
+            0,
+            "image",
+            "openhcl",
+            "linux",
+            "command_line"
+          ],
+          "append": " mutation_test=1",
+          "expectVbsBootDigest": "9A17D7BA020EF8331DEA6D0629E9B97F255547804C4AA2DD4DC5DD7ECA73C9D7"
+        },
+        {
+          "name": "the static paravisor command line",
+          "kind": "manifestEdit",
+          "path": [
+            "guest_configs",
+            0,
+            "image",
+            "openhcl",
+            "command_line"
+          ],
+          "append": " mutation_test=1",
+          "expectVbsBootDigest": "38EE137D98857BDE3AC3301DF17633EA636BAD49F3DE8EB00DA17AEFABA15CBC"
+        },
+        {
+          "name": "static_command_line=false",
+          "kind": "manifestEdit",
+          "path": [
+            "guest_configs",
+            0,
+            "image",
+            "openhcl",
+            "static_command_line"
+          ],
+          "set": false,
+          "expectVbsBootDigest": "9D0C49BCF6863FA90D363805660327202D702C2ED34285B67ED9C42601683DC3"
+        }
+      ],
+      "mustContain": [
+        "OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux",
+        "console=ttyS0 rdinit=/init loglevel=3 report_host=9001"
+      ],
+      "mustNotContain": [
+        "OPENHCL_CONFIDENTIAL_DEBUG=1"
+      ],
+      "note": "the next production candidate: a44bb55a's manifest and resources with only linux_initrd -> 1539d5b2; rebuilt with the pinned igvmfilegen from pinned inputs only, in a scratch directory, after the same procedure first reproduced a44bb55a/58DFEBFE and the twin 77C66160; the mutations are against THIS baseline, first observed by enclave-63 (sources/candidate/vbs-linux-b7ba7731/BUILD.json) and re-checked on every --rebuild; enclave-d1 recomputed the two digests independently (fd92d610)"
+    },
+    "vbsLinux1539Debug": {
+      "kind": "igvmfilegen",
+      "igvmfilegen": "igvmfilegen",
+      "manifest": "vbs-linux-candidate-manifest.json",
+      "args": [
+        "--confidential-debug"
+      ],
+      "output": "file:guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-1539-DEBUG-TRUSTS-HOST-95de03cc.bin",
+      "vbsJson": "vbs-linux-candidate-1539-DEBUG-TRUSTS-HOST-vbs.json",
+      "resources": {
+        "openhcl_boot": "openhcl_boot-cvm",
+        "underhill_kernel": "underhill-vmlinux-cvm",
+        "underhill_initrd": "openhcl-cvm.cpio.gz",
+        "linux_kernel": "wsl-vmlinux.elf",
+        "linux_initrd": "mon-1539d5b2.cpio.gz"
+      },
+      "mustContain": [
+        "OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux OPENHCL_CONFIDENTIAL_DEBUG=1"
+      ],
+      "mustNotContain": [],
+      "note": "the b7ba7731 candidate's debug twin: the same inputs with --confidential-debug"
+    },
+    "g4probe": {
+      "mustContain": [
+        "OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux",
+        "console=ttyS0 rdinit=/init loglevel=3 report_host=9001"
+      ],
+      "mustNotContain": [
+        "OPENHCL_CONFIDENTIAL_DEBUG=1"
+      ]
+    }
+  }
+}

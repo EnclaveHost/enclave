@@ -1,0 +1,7 @@
+import fs from 'node:fs';import{createHash}from'node:crypto';import{execFileSync}from'node:child_process';import{privateKeyToAccount,generatePrivateKey}from'./enclave/node_modules/viem/_esm/accounts/index.js';import{directUploadHeaders}from'./enclave/sdk/storage/upload-auth.mjs';
+const file='work/enclave-apps/s3-ipfs-adapter/target/wasm32-wasip2/release/s3-ipfs-adapter.wasm',body=fs.readFileSync(file),sha=createHash('sha256').update(body).digest('hex'),cid=execFileSync('ipfs',['add','--only-hash','--cid-version=1','-Q',file],{encoding:'utf8'}).trim();const account=privateKeyToAccount(generatePrivateKey());
+const audience='0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33';
+const headers=await directUploadHeaders({audience,url:'https://7ae476a3.app.enclave.host/add-wasm',address:account.address,bytes:body,signMessage:args=>account.signMessage(args)});
+const r=await fetch('https://7ae476a3.app.enclave.host/add-wasm',{method:'POST',headers,body,signal:AbortSignal.timeout(240000)});const result=await r.json();console.log(JSON.stringify({status:r.status,cid,result,bytes:body.length,sha256:sha}));
+fs.mkdirSync('outputs/adapter-correction',{recursive:true});fs.writeFileSync('outputs/adapter-correction/upload.json',JSON.stringify({status:r.status,result,cid,bytes:body.length,sha256:sha,uploadedAt:new Date().toISOString()},null,2)+'\n');
+if(r.ok&&result.cid!==cid)throw Error('CID mismatch');

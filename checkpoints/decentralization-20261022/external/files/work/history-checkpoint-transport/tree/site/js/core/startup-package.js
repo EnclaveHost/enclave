@@ -1,0 +1,284 @@
+/* ============================================================
+   Owner-committed startup from the browser (independent mode).
+
+   The same artifacts as the CLI's `bootstrap prepare / publish /
+   activate` (cli/enclave.mjs cmdBootstrap, sdk/bootstrap/package.mjs),
+   without changing their schema:
+     package  = UTF-8 of JSON.stringify({version:1, chainId, ledger,
+                deployment, owner, appRef, appId, runtimeId, configText,
+                secretsMode, [custody], [names], [history]}) - the CLI's exact key order;
+     intent   = {version:1, sha256:<hex of those bytes>};
+     envelope = the record's current options with config/configCid
+                removed, guestBootstrap = intent and
+                isolation.require = "snp-guest-per-app".
+   The package is published to every adapter in the profile's storage
+   plan (each copy read back), and only then committed by the ledger
+   owner's own setConfig transaction. A host or storage provider only
+   delivers the bytes; the guest re-checks the owner's on-chain hash.
+   The browser supports public packages and an existing custody-v2
+   pointer; it never handles plaintext secret values.
+   ============================================================ */
+import { parseUniqueJSON } from "./independent.js";
+import { rawCid, hex } from "./unixfs.js";
+
+export const MAX_PACKAGE_BYTES = 128 * 1024;
+export const MAX_CONFIG_BYTES = 32768;
+export const MAX_ENVELOPE_BYTES = 4096;
+export const STARTUP_LEDGER_SCHEMA = 16;
+// An unavailable commitment: no package can ever hash to it, so no guest starts before activation (CLI --prepare-only).
+export const PREPARE_ONLY_ENVELOPE = Object.freeze({ isolation: { require: "snp-guest-per-app" }, guestBootstrap: { version: 1, sha256: "f".repeat(64) } });
+
+const HEX32 = /^[0-9a-f]{64}$/, ADDR = /^0x[0-9a-fA-F]{40}$/, ID32 = /^0x[0-9a-f]{64}$/;
+const nonzero = (s) => !/^(0x)?0*$/.test(s);
+const plain = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
+const utf8 = (s) => new TextEncoder().encode(s);
+export const sha256Hex = async (bytes) => hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+
+/* Owner-committed names (optional, appended last): the same check as sdk/bootstrap/package.mjs validateNames and the
+   measured guest's isolation/m2/bootstrap/names.go (the naming workstream owns the schema; test/site-independent-names
+   runs this mirror over the shared Go/JS vectors). The Startup tab builds a name set only from what the owner typed
+   (namesFromForm): no default CA, responder or zone, and no Enclave fallback. */
+export const MAX_OWNER_NAMES = 10;
+const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/, nameURL = /^https:\/\/([^/]+)(\/[A-Za-z0-9._~/-]*)?$/, secretName = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+export function dnsName(x){
+  if (typeof x !== "string" || x.length < 1 || x.length > 253) return false;
+  const labels = x.split(".");
+  return labels.length >= 2 && labels.every((l) => dnsLabel.test(l)) && /[a-z]/.test(labels.at(-1));
+}
+const ownerHost = (x) => dnsName(x) && x !== "enclave.host" && !x.endsWith(".enclave.host");
+const httpsName = (x) => { if (typeof x !== "string" || x.length > 512) return false; const m = nameURL.exec(x); return !!m && dnsName(m[1]); };
+const noNull = (x) => x === null ? false : Array.isArray(x) ? x.every(noNull) : plain(x) ? Object.values(x).every(noNull) : true;
+const onlyKeys = (o, allowed) => { if (!plain(o) || Object.keys(o).some((k) => !allowed.includes(k))) throw new Error("unknown or invalid startup fields"); };
+export function validateNames(n, secretsMode){
+  if (!plain(n) || !noNull(n)) throw new Error("owner names must be an object without nulls");
+  onlyKeys(n, ["hosts", "acme"]);
+  if (!Array.isArray(n.hosts) || n.hosts.length < 1 || n.hosts.length > MAX_OWNER_NAMES) throw new Error("owner names need 1 to " + MAX_OWNER_NAMES + " hosts");
+  n.hosts.forEach((h, i) => {
+    if (!ownerHost(h)) throw new Error("owner name is not a lowercase DNS name outside enclave.host");
+    if (i > 0 && !(n.hosts[i - 1] < h)) throw new Error("owner names must be strictly ascending and unique");
+  });
+  if (Object.hasOwn(n, "acme")){
+    const a = n.acme; onlyKeys(a, ["directory", "challenge", "zone", "eab"]);
+    if (!httpsName(a.directory) || !httpsName(a.challenge) || !dnsName(a.zone)) throw new Error("owner ACME selection needs HTTPS directory and challenge URLs and a DNS zone");
+    if ("_acme-challenge.".length + 32 + 1 + a.zone.length > 253) throw new Error("owner ACME challenge zone is too long");
+    if (Object.hasOwn(a, "eab")){
+      onlyKeys(a.eab, ["kid", "hmac"]);
+      if (!secretName.test(a.eab.kid ?? "") || !secretName.test(a.eab.hmac ?? "") || a.eab.kid === a.eab.hmac) throw new Error("owner ACME EAB must name two distinct custody secrets");
+      if (secretsMode !== "custody-v2") throw new Error("owner ACME EAB needs custody-v2 secrets");
+    }
+  }
+  return n;
+}
+
+/* Owner-named log history sources (optional, appended after names): the same check as sdk/bootstrap/package.mjs
+   validateHistory and the measured guest's isolation/m2/bootstrap/history.go (shared vectors:
+   isolation/m2/bootstrap/testdata/history-vectors.json; work/history-owner-tools-interface.txt). A cold-starting guest
+   must read every lease log from its claim on; the guest's own RPCs serve recent logs only. The package is PUBLISHED, so
+   a URL never carries a credential: no userinfo or query (refused), and a key-like path only with the owner's explicit
+   confirmation. Nothing is pre-selected: the public options below are offered, with their provenance and limits.
+   "checkpoints" (optional, after "rpcs"): owner-committed mirror URLs of attested history checkpoints, the same URL rule
+   (work/history-checkpoint-transport-interface.txt). */
+export const MAX_HISTORY_RPCS = 6, MAX_CHECKPOINT_MIRRORS = 4;
+const historyRe = /^https:\/\/([a-z0-9.-]+)(\/[A-Za-z0-9._~\/-]*)?$/;
+export function historyHost(url){
+  if (typeof url !== "string" || url.length < 1 || url.length > 512) return null;
+  const m = historyRe.exec(url);
+  return m && dnsName(m[1]) ? m[1] : null;
+}
+export function validateHistory(h){
+  if (!plain(h) || !noNull(h)) throw new Error("owner history must be an object without nulls");
+  onlyKeys(h, ["rpcs", "checkpoints"]);
+  const has = (k) => Object.hasOwn(h, k);
+  if (!has("rpcs") && !has("checkpoints")) throw new Error("owner history needs 1 to " + MAX_HISTORY_RPCS + " RPCs");
+  if (has("rpcs") && (!Array.isArray(h.rpcs) || h.rpcs.length < 1 || h.rpcs.length > MAX_HISTORY_RPCS)) throw new Error("owner history needs 1 to " + MAX_HISTORY_RPCS + " RPCs");
+  if (has("checkpoints") && (!Array.isArray(h.checkpoints) || h.checkpoints.length < 1 || h.checkpoints.length > MAX_CHECKPOINT_MIRRORS)) throw new Error("owner history needs 1 to " + MAX_CHECKPOINT_MIRRORS + " checkpoint mirrors");
+  for (const [list, what] of [[h.rpcs || [], "RPC"], [h.checkpoints || [], "checkpoint mirror"]]){
+    const hosts = new Set();
+    list.forEach((u, i) => {
+      const host = historyHost(u);
+      if (!host) throw new Error("owner history " + what + " must be https://<lowercase DNS name>[/path] with no port, query, fragment or credentials");
+      if (i > 0 && !(list[i - 1] < u)) throw new Error("owner history " + what + "s must be strictly ascending and unique");
+      if (hosts.has(host)) throw new Error("owner history " + what + " hosts must be distinct");
+      hosts.add(host);
+    });
+  }
+  return h;
+}
+export const historyOperator = (url) => { const h = historyHost(url); return h ? h.split(".").slice(-2).join(".") : null; };
+export const credentialLike = (url) => { const m = historyRe.exec(String(url)); return !!m && String(m[2] || "").split("/").some((seg) => /^[A-Za-z0-9_-]+$/.test(seg) && (seg.length >= 24 || seg.length >= 16 && /[A-Za-z]/.test(seg) && /[0-9]/.test(seg))); };
+/* The form's lines -> the canonical member (sorted, deduplicated, checked) or null for none; the guest's words on refusal. */
+export function historyFromForm({ rpcsText, pathIsPublic = false, checkpointsText = "" }){
+  const norm = (t) => [...new Set(String(t || "").split(/[\s,]+/).map((x) => x.trim()).filter(Boolean))].sort();
+  const rpcs = norm(rpcsText), mirrors = norm(checkpointsText);
+  if (!rpcs.length && !mirrors.length) return null;
+  for (const u of [...rpcs, ...mirrors]){
+    if (/^[a-z]+:\/\/[^/]*@/i.test(u)) throw new Error(u + ": credentials in a URL would be published with your settings");
+    if (/[?#]/.test(u)) throw new Error(u + ": a query or fragment would be published with your settings (and the guest refuses it)");
+    if (!historyHost(u)) throw new Error(u + ": must be https://<lowercase DNS name>[/path], no port");
+    if (credentialLike(u) && !pathIsPublic) throw new Error(u + ": its path looks like a provider key, and your settings are published for anyone to read; use a public endpoint or your own node, or confirm the path is public");
+  }
+  return validateHistory({ ...(rpcs.length ? { rpcs } : {}), ...(mirrors.length ? { checkpoints: mirrors } : {}) });
+}
+export const CHECKPOINT_SCOPE = "Checkpoint mirrors are read only by SEV-SNP direct guests of the same measured build, for this deployment: a Shield partition, or a new build, still needs history sources.";
+export function historyWarnings(h){
+  if (!h) return ["No history sources: a fresh app guest cannot prove a lease whose claim is older than its own RPCs serve (about 5,000 blocks, under 3 hours)."];
+  const w = [], rpcs = h.rpcs || [], mirrors = h.checkpoints || [], ops = new Set(rpcs.map(historyOperator));
+  if (ops.size < 2) w.push("Only " + ops.size + " independent operator: a claim older than the guest's own RPCs serve needs two operators that both serve its history.");
+  const enclave = [...rpcs, ...mirrors].filter((u) => /(^|\.)enclave\.host$/.test(historyHost(u)));
+  if (enclave.length) w.push(enclave.join(", ") + " is run by Enclave; it works only while Enclave runs it.");
+  if (mirrors.length) w.push(CHECKPOINT_SCOPE);
+  if (mirrors.length && !rpcs.length) w.push("Checkpoint mirrors without history sources: the blocks after a checkpoint are read from the guest's own RPCs alone, which serve recent logs only; keep the mirrors refreshed.");
+  return w;
+}
+/* sdk/bootstrap/package.mjs HISTORY_PUBLIC_OPTIONS (provenance: read-only probes of 2026-10-20). Offered, never selected. */
+export const HISTORY_PUBLIC_OPTIONS = Object.freeze([
+  Object.freeze({ url: "https://base-rpc.polkachu.com", operator: "Polkachu", probed: "2026-10-20",
+    served: "Base logs ~28 days back in 1000-block ranges (~3,000 blocks/s, no refusals in 30 requests)",
+    limits: "prunes history: earliest block 51,500,000 at the probe (~31.7 days), a rolling window; no availability guarantee; not run by Enclave" }),
+  Object.freeze({ url: "https://gateway.tenderly.co/public/base", operator: "Tenderly", probed: "2026-10-20",
+    served: "Base logs 35 and 120 days back in 1000-block ranges (~7,000 blocks/s)",
+    limits: "rate-limits bursts (HTTP 429); no availability guarantee; not run by Enclave; one operator even under two of its hostnames" }),
+]);
+export const HISTORY_KEYLESS_LIMIT = "No keyless second operator was found for history older than about 31 days: for older leases name your own node or a provider you choose.";
+
+/* Build the exact package bytes. scope: {chainId, ledger, deployment, owner, appRef}. */
+export async function preparePackage(scope, { appId, runtimeId, configText, custody = null, names = null, history = null }){
+  appId = String(appId || "").trim().toLowerCase().replace(/^0x/, "");
+  runtimeId = String(runtimeId || "").trim().toLowerCase().replace(/^0x/, "");
+  if (!HEX32.test(appId) || !nonzero(appId)) throw new Error("App ID must be 64 hex characters (from the host's direct runtime)");
+  if (!HEX32.test(runtimeId) || !nonzero(runtimeId)) throw new Error("Runtime ID must be 64 hex characters (from the host's direct runtime)");
+  const manifest = { version: 1, chainId: scope.chainId, ledger: scope.ledger, deployment: scope.deployment, owner: scope.owner,
+    appRef: scope.appRef, appId, runtimeId, configText: String(configText),
+    secretsMode: custody ? "custody-v2" : "public", ...(custody ? { custody } : {}), ...(names ? { names } : {}), ...(history ? { history } : {}) };
+  const bytes = utf8(JSON.stringify(manifest));
+  const intent = { version: 1, sha256: await sha256Hex(bytes) };
+  return { ...(await verifyPackage(bytes, intent, scope)), intent };
+}
+
+/* sdk/bootstrap/package.mjs verifyPackage, in the browser. */
+export async function verifyPackage(bytes, intent, scope = {}){
+  if (!(bytes instanceof Uint8Array) || !bytes.length || bytes.length > MAX_PACKAGE_BYTES) throw new Error("startup package size limit");
+  const sha256 = await sha256Hex(bytes);
+  if (!intent || intent.version !== 1 || intent.sha256 !== sha256) throw new Error("startup package hash mismatch");
+  const m = parseUniqueJSON(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  const allowed = ["version", "chainId", "ledger", "deployment", "owner", "appRef", "appId", "runtimeId", "configText", "secretsMode", "custody", "names", "history"];
+  if (!plain(m) || Object.keys(m).some((k) => !allowed.includes(k))) throw new Error("unknown or invalid startup fields");
+  if (m.version !== 1 || !Number.isSafeInteger(m.chainId) || m.chainId <= 0 || !ADDR.test(m.ledger || "") || !nonzero(m.ledger)
+    || !ADDR.test(m.owner || "") || !nonzero(m.owner) || !ID32.test(m.deployment || "") || !nonzero(m.deployment)
+    || !HEX32.test(m.appId || "") || !nonzero(m.appId) || !HEX32.test(m.runtimeId || "") || !nonzero(m.runtimeId) || typeof m.appRef !== "string" || !m.appRef
+    || typeof m.configText !== "string" || utf8(m.configText).length > MAX_CONFIG_BYTES) throw new Error("invalid startup package");
+  if (m.configText){ const c = parseUniqueJSON(m.configText); if (!c || typeof c !== "object") throw new Error("startup config must be a JSON object or array"); }
+  if (m.secretsMode === "public"){ if (m.custody != null) throw new Error("a public package cannot carry custody"); }
+  else if (m.secretsMode === "custody-v2"){ if (!plain(m.custody) || m.custody.v !== 2 || m.custody.chainId !== m.chainId) throw new Error("custody-v2 pointer required"); }
+  else throw new Error("explicit startup secrets mode required");
+  if (Object.hasOwn(m, "names")) validateNames(m.names, m.secretsMode);
+  if (Object.hasOwn(m, "history")) validateHistory(m.history);
+  for (const [k, v] of Object.entries(scope)){
+    if (v == null) continue;
+    const fold = k === "ledger" || k === "owner";
+    if ((fold ? String(m[k]).toLowerCase() : m[k]) !== (fold ? String(v).toLowerCase() : v)) throw new Error("startup " + k + " mismatch");
+  }
+  return { manifest: m, bytes, sha256, cid: rawCid(sha256) };
+}
+
+/* Which isolation tier starts an owner-committed package. The default is the CLI's (cmdBootstrap activate always names
+   snp-guest-per-app): the app's own SEV-SNP guest re-reads the commitment on chain before it starts, and custodians
+   release custody-v2 secrets to it. An Enclave Shield partition (windows/node/shield-startup.mjs) is an explicit, WEAKER
+   choice: the host node, not the partition, re-reads the commitment at an agreed block (the partition measures what it
+   runs but cannot read the chain), its evidence is the host's TPM-quoted boot plus the partition's VSM report rather than
+   SEV-SNP, and custody-v2 secrets are never released to it, so its package must be public. The package bytes are the same
+   for both; only the record's isolation requirement differs, so only hosts of that tier claim it. */
+export const STARTUP_BACKENDS = Object.freeze({
+  "snp-guest-per-app": { label: "AMD SEV-SNP guest per app (default)", custody: true },
+  "hyperv-partition-per-app": { label: "Enclave Shield partition per app (weaker; public settings only)", custody: false },
+});
+export const DEFAULT_STARTUP_BACKEND = "snp-guest-per-app";
+
+/* The record's options after activation (cmdBootstrap activate). `backend` other than the default is the explicit Shield
+   choice above; the default output is byte-identical to the CLI's. */
+export function activationEnvelope(current, intent, { backend = DEFAULT_STARTUP_BACKEND } = {}){
+  if (!Object.hasOwn(STARTUP_BACKENDS, backend)) throw new Error("unsupported isolation backend for owner-committed startup");
+  const cur = current ? parseUniqueJSON(String(current)) : {};
+  if (!plain(cur)) throw new Error("the record's current options are not a JSON object");
+  delete cur.config; delete cur.configCid;
+  cur.guestBootstrap = { version: 1, sha256: intent.sha256 };
+  cur.isolation = { ...(plain(cur.isolation) ? cur.isolation : {}), require: backend };
+  const text = JSON.stringify(cur);
+  if (utf8(text).length > MAX_ENVELOPE_BYTES) throw new Error("the startup options exceed the ledger's 4096-byte field");
+  return text;
+}
+
+/* The isolation tier a record requires now ("" = none named). */
+export function requiredBackend(envelope){
+  let o; try { o = parseUniqueJSON(String(envelope || "")); } catch { return ""; }
+  return plain(o) && plain(o.isolation) && typeof o.isolation.require === "string" ? o.isolation.require : "";
+}
+
+/* The commitment a record carries now (null = none; "disabled" = prepare-only). */
+export function committedIntent(envelope){
+  if (!envelope) return null;
+  let o; try { o = parseUniqueJSON(String(envelope)); } catch { return null; }
+  const g = plain(o) && plain(o.guestBootstrap) ? o.guestBootstrap : null;
+  if (!g || g.version !== 1 || !HEX32.test(g.sha256 || "")) return null;
+  return g.sha256 === "f".repeat(64) ? { disabled: true } : { version: 1, sha256: g.sha256 };
+}
+
+/* Fetch the committed package back from the plan's gateways by its raw CID and
+   check the exact hash and scope: what a host will see. */
+export async function readCommitted(intent, scope, gateways, { fetchImpl = (...a) => globalThis.fetch(...a) } = {}){
+  const cid = rawCid(intent.sha256);
+  const results = await Promise.allSettled(gateways.map(async (g) => {
+    const r = await fetchImpl(g.replace(/\/$/, "") + "/" + cid, { redirect: "error", credentials: "omit", cache: "no-store", signal: AbortSignal.timeout(15000) });
+    if (!r.ok){ await r.body?.cancel(); throw new Error("HTTP " + r.status); }
+    const buf = new Uint8Array(await r.arrayBuffer());
+    return { gateway: g, ...(await verifyPackage(buf, intent, scope)) };
+  }));
+  return { cid, verified: results.filter((x) => x.status === "fulfilled").map((x) => x.value.gateway),
+           failed: results.map((x, i) => x.status === "rejected" ? gateways[i] : null).filter(Boolean),
+           manifest: (results.find((x) => x.status === "fulfilled") || {}).value?.manifest || null };
+}
+
+/* The owner-bound DNS-01 alias (sdk/bootstrap/package.mjs challengeLabel/challengeAlias, naming worker's schema):
+   label = hex(sha256("enclave-acme-alias-v1\0" || deployment[32] || owner[20]))[:32]. It commits to the deployment
+   AND its current owner, so a delegation stops working when the deployment changes hands. */
+export async function challengeLabel(deployment, owner){
+  if (!/^0x[0-9a-f]{64}$/.test(String(deployment)) || !nonzero(deployment) || !ADDR.test(String(owner)) || !nonzero(owner))
+    throw new Error("challenge label needs a deployment and owner");
+  const hexBytes = (h) => Uint8Array.from(h.match(/../g).map((x) => parseInt(x, 16)));
+  const prefix = utf8("enclave-acme-alias-v1\0");
+  const buf = new Uint8Array(prefix.length + 52);
+  buf.set(prefix, 0); buf.set(hexBytes(deployment.slice(2)), prefix.length); buf.set(hexBytes(owner.slice(2).toLowerCase()), prefix.length + 32);
+  return (await sha256Hex(buf)).slice(0, 32);
+}
+export async function challengeAlias(deployment, owner, zone){
+  if (!dnsName(zone)) throw new Error("challenge alias needs a DNS zone");
+  return "_acme-challenge." + (await challengeLabel(deployment, owner)) + "." + zone;
+}
+
+/* The names member from form input, exactly as the CLI builds it (`--names` deduplicated and sorted; acme only with
+   a directory; eab only as two named custody secrets). null = no names member at all. Validated before returning. */
+/* Which parts of an owner's explicit ACME selection point at Enclave-operated names (enclave.host). Allowed - the schema
+   accepts any explicitly selected zone - but a responder or CA Enclave runs is not organizational independence, so the
+   Startup tab says so before the owner commits. -> ["directory" | "challenge" | "zone", ...] */
+export function enclaveOperatedSelection(names){
+  const a = names && names.acme; if (!a) return [];
+  const enclave = (h) => h === "enclave.host" || String(h).endsWith(".enclave.host");
+  const hostOf = (u) => { try { return new URL(u).hostname; } catch { return ""; } };
+  return [["directory", hostOf(a.directory)], ["challenge", hostOf(a.challenge)], ["zone", a.zone]].filter(([, h]) => enclave(h)).map(([k]) => k);
+}
+
+export function namesFromForm({ hostsText, directory, challenge, zone, eabKid, eabHmac }, secretsMode){
+  const hosts = [...new Set(String(hostsText || "").split(/[\s,]+/).map((x) => x.trim().toLowerCase()).filter(Boolean))].sort();
+  const acmeParts = [directory, challenge, zone].map((x) => String(x || "").trim());
+  const eab = [eabKid, eabHmac].map((x) => String(x || "").trim());
+  if (!hosts.length){
+    if (acmeParts.some(Boolean) || eab.some(Boolean)) throw new Error("ACME settings need at least one name");
+    return null;
+  }
+  const names = { hosts };
+  if (acmeParts.some(Boolean)){
+    names.acme = { directory: acmeParts[0], challenge: acmeParts[1], zone: acmeParts[2] };
+    if (eab.some(Boolean)) names.acme.eab = { kid: eab[0], hmac: eab[1] };
+  } else if (eab.some(Boolean)) throw new Error("EAB secret names need an ACME directory");
+  return validateNames(names, secretsMode);
+}

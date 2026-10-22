@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+import importlib.util,json,pathlib,sys,hashlib,datetime
+p=pathlib.Path(__file__).resolve().parent/'helper/root-node-hold.py'
+assert hashlib.sha256(p.read_bytes()).hexdigest()=='613b6f3836345000b9915db7d320e8b4764efb20b9a79bcc13f28bef3892d965'
+s=importlib.util.spec_from_file_location('h',p);h=importlib.util.module_from_spec(s);s.loader.exec_module(h);h.verify_local()
+ps=r'''$s=[IO.File]::ReadAllText('C:\ProgramData\Enclave\network\state\status.json')|ConvertFrom-Json;$e=[IO.File]::ReadAllText('C:\ProgramData\Enclave\network\state\egress-routes.json')|ConvertFrom-Json;[ordered]@{at=[DateTime]::UtcNow.ToString('o');ageMs=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()-[int64]$s.updatedAt;egressIds=@($e.apps.PSObject.Properties.Name);apps=@($s.apps|ForEach-Object{[ordered]@{id=$_.deploymentId;ready=$_.ready;leaseUntil=$_.leaseUntil;proofUntil=$_.proofUntil;errorPresent=($null -ne $_.error);errorClass=$(if($_.error -match 'lease|expired'){'lease/expiry'}elseif($_.error -match 'proof|attest'){'proof'}elseif($_.error -match 'timeout|timed out'){'timeout'}elseif($_.error -match 'admi|policy|denied'){'policy'}elseif($_.error){'other'}else{'none'});circuits=@($_.circuits|ForEach-Object{[ordered]@{kind=$_.kind;healthy=$_.healthy;ingress=$_.ingress;egress=$_.egress}})}})}|ConvertTo-Json -Compress -Depth 6'''
+r=h.m.ps(h.U+ps,90);o={'checkedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'result':r};out=pathlib.Path(sys.argv[1]);
+with out.open('x') as f:json.dump(o,f,indent=2);f.write('\n')
+print(json.dumps(o,indent=2));sys.exit(1 if 'error' in r else 0)

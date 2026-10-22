@@ -1,0 +1,30 @@
+import { test } from "node:test";
+import fs from "node:fs"; import os from "node:os"; import path from "node:path";
+import { keccak256, toBytes } from "viem";
+import { platformPolicyWorld, BOOK, REGISTRY, OWNERSHIP } from "./helpers/platform-policy-world.mjs";
+import { POLICY_FORMAT, policyTypedData, policyDigest, encodeAnchor } from "../network/platform-host-policy.mjs";
+import * as B from "../windows/node/host-admission.bundle.mjs";
+const EP = "https://api.enclave.host/t/carrier-test", HOST = keccak256(toBytes(EP)).toLowerCase(), Z32 = "0x" + "00".repeat(32);
+const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
+async function sign(w, { sequence, deny = [] }) { const p = { format: POLICY_FORMAT, chainId: 8453, book: BOOK, registry: REGISTRY, hostOwnership: OWNERSHIP, sequence, issuedAt: Math.floor(Date.now()/1000) - 5, expiresAt: 0, maxStaleSec: 0, previousDigest: Z32, mode: "denylist", deny, admit: [] };
+  const digest = policyDigest(p); const a = encodeAnchor(digest); w.state.hi = a.hi; w.state.lo = a.lo; return { digest, entry: { document: JSON.stringify(p), signature: await w.admin.signTypedData(policyTypedData(p)) } }; }
+test("debug", async (t) => {
+  const w = await platformPolicyWorld(t, { hosts: { [HOST]: { endpoint: EP, operator: "0x" + "44".repeat(20), owner: "0x" + "55".repeat(20), active: true } } });
+  const imp = tmp("i-"), st = tmp("s-"); const logs = [];
+  const env = { ENCLAVE_PLATFORM_HOST_POLICY: JSON.stringify({ book: BOOK, hostOwnership: OWNERSHIP, mirrors: [] }), ENCLAVE_PLATFORM_HOST_POLICY_RPCS: w.rpcs.join(","), ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS: JSON.stringify({ importDir: imp }) };
+  const g = B.createHostServiceGate({ env, chainId: 8453, endpoint: EP, stateDir: st, log: (m) => logs.push(m) });
+  let d = await sign(w, { sequence: 1 }); fs.writeFileSync(path.join(imp, d.digest + ".json"), JSON.stringify(d.entry));
+  console.log("A", JSON.stringify(await g.check()), JSON.stringify(g.runtime.status()));
+  d = await sign(w, { sequence: 2, deny: [{ kind: "registryId", value: HOST, reason: "abuse" }] }); fs.writeFileSync(path.join(imp, d.digest + ".json"), JSON.stringify(d.entry));
+  console.log("B", JSON.stringify(await g.check()), JSON.stringify(g.runtime.status()));
+  await new Promise((r) => setTimeout(r, 1100));
+  console.log("B2", JSON.stringify(await g.check()), JSON.stringify(g.runtime.status()));
+  const w2 = await platformPolicyWorld(t, { hosts: { [HOST]: { endpoint: EP, operator: "0x" + "44".repeat(20), owner: "0x" + "55".repeat(20), active: true } } });
+  const imp2 = tmp("i-"); const env2 = { ...env, ENCLAVE_PLATFORM_HOST_POLICY_RPCS: w2.rpcs.join(","), ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS: JSON.stringify({ importDir: imp2 }) };
+  const d2 = await sign(w2, { sequence: 1 }); fs.writeFileSync(path.join(imp2, d2.digest + ".json"), JSON.stringify(d2.entry));
+  w2.setDown(true); const g2 = B.createHostServiceGate({ env: env2, chainId: 8453, endpoint: EP, stateDir: tmp("s-"), log: (m) => logs.push(m) });
+  console.log("C", JSON.stringify(await g2.check()));
+  w2.setDown(false); console.log("D", JSON.stringify(await g2.check()), JSON.stringify(g2.runtime.status()));
+  await new Promise((r) => setTimeout(r, 1500)); console.log("E", JSON.stringify(await g2.check()), JSON.stringify(g2.runtime.status()));
+  console.log(logs.join("\n"));
+});

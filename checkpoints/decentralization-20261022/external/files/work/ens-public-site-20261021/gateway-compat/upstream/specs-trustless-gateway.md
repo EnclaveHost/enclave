@@ -1,0 +1,639 @@
+---
+title: Trustless Gateway Specification
+description: >
+  The minimal subset of HTTP Gateway response types facilitates data retrieval
+  via CID and ensures integrity verification, all while eliminating the need to
+  trust the gateway itself.
+date: 2026-03-05
+maturity: reliable
+editors:
+  - name: Marcin Rataj
+    github: lidel
+    affiliation:
+      name: Shipyard
+      url: https://ipshipyard.com
+  - name: Héctor Sanjuán
+    github: hsanjuan
+    affiliation:
+      name: Shipyard
+      url: https://ipshipyard.com
+  - name: Adin Schmahmann
+    github: aschmahmann
+    affiliation:
+      name: Shipyard
+      url: https://ipshipyard.com
+former_editors:
+  - name: Henrique Dias
+    github: hacdias
+thanks:
+  - name: Rod Vagg
+    github: rvagg
+xref:
+  - url
+  - path-gateway
+  - ipip-0412
+  - ipns-record
+tags: ['httpGateways', 'lowLevelHttpGateways', 'exchange']
+order: 1
+---
+
+Trustless Gateway is a _subset_ of :cite[path-gateway]
+that allows light IPFS clients to retrieve data behind a CID and verify its
+integrity without delegating any trust to the gateway itself.
+
+The minimal implementation means:
+
+- response type is always fully verifiable: client can decide between a raw block or a CAR stream
+- no UnixFS/IPLD deserialization
+- for raw blocks:
+  - data is requested by CID, only supported path is `/ipfs/{cid}`
+  - no path traversal or recursive resolution
+- for CARs:
+  - the pathing behavior is identical to :cite[path-gateway]
+
+# HTTP API
+
+A subset of "HTTP API" of :cite[path-gateway].
+
+## `GET /ipfs/{cid}[/{path}][?{params}]`
+
+Downloads verifiable, content-addressed data for the specified **immutable** content path.
+
+Optional `path` is permitted for requests that specify CAR format (`?format=car` or `Accept: application/vnd.ipld.car`).
+
+For block requests (`?format=raw` or `Accept: application/vnd.ipld.raw`), only `GET /ipfs/{cid}[?{params}]` is supported.
+
+Client and Server implementations SHOULD include support for the [`GET` probe path](#dedicated-probe-paths).
+
+## `HEAD /ipfs/{cid}[/{path}][?{params}]`
+
+Same as GET, but does not return any payload.
+
+Client and Server implementations SHOULD include support for the [`HEAD` probe path](#dedicated-probe-paths).
+
+## `GET /ipns/{key}[?{params}]`
+
+Downloads data at specified IPNS Key. Verifiable :cite[ipns-record] can be requested via `?format=ipns-record` or `Accept: application/vnd.ipfs.ipns-record`.
+
+## `HEAD /ipns/{key}[?{params}]`
+
+Same as GET, but does not return any payload.
+
+# HTTP Request
+
+Same as in :cite[path-gateway], but with limited number of supported response types.
+
+## Request Headers
+
+### `Accept` (request header)
+
+A Client SHOULD send this HTTP header to leverage content type negotiation
+based on section 12.5.1 of :cite[rfc9110].
+
+Below response types MUST be supported:
+
+- [application/vnd.ipld.raw](https://www.iana.org/assignments/media-types/application/vnd.ipld.raw)
+  - A single, verifiable raw block to be returned.
+
+Below response types SHOULD be supported:
+
+- [application/vnd.ipld.car](https://www.iana.org/assignments/media-types/application/vnd.ipld.car)
+  - Disables IPLD/IPFS deserialization, requests a verifiable CAR stream to be
+    returned, implementations MAY support optional CAR content type parameters
+    (:cite[ipip-0412]) and the explicit [CAR format signaling in HTTP Request](#car-format-signaling-in-request).
+
+- [application/vnd.ipfs.ipns-record](https://www.iana.org/assignments/media-types/application/vnd.ipfs.ipns-record)
+  - A verifiable :cite[ipns-record] (multicodec `0x0300`).
+
+A Gateway SHOULD return HTTP 400 Bad Request when running in strict trustless
+mode (no deserialized responses) and `Accept` header is missing.
+
+:::note
+
+A Client SHOULD include the [`format` query parameter](#format-request-query-parameter)
+in the request URL, in addition to the `Accept` header. This provides the best
+interoperability and ensures consistent HTTP cache behavior across various
+gateway implementations.
+
+:::
+
+### `Cache-Control: only-if-cached` (request header)
+
+Trustless gateways, particularly non-recursive ones serving from a local block
+store, are well-suited for :cite[path-gateway]'s `Cache-Control: only-if-cached`
+request header. When received, gateway SHOULD return HTTP 412 if the root block
+is not immediately available.
+
+## Request Query Parameters
+
+### :dfn[`format`] (request query parameter)
+
+Same as [`format`](https://specs.ipfs.tech/http-gateways/path-gateway/#format-request-query-parameter) in :cite[path-gateway], but with limited number of supported response types:
+- `format=raw` → `application/vnd.ipld.raw`
+- `format=car` → `application/vnd.ipld.car`
+- `format=ipns-record` → `application/vnd.ipfs.ipns-record`
+
+When both `Accept` HTTP header and `format` query parameter are present,
+`format` SHOULD take precedence.
+
+:::note
+
+A Client SHOULD include the `format` query parameter in the request URL, in
+addition to the `Accept` header. This provides the best interoperability and
+ensures consistent HTTP cache behavior across various gateway implementations.
+
+:::
+
+### :dfn[`dag-scope`] (request query parameter)
+
+Optional, `dag-scope=(block|entity|all)` with default value `all`, only available for CAR requests.
+
+Describes the shape of the DAG fetched the terminus of the specified path whose blocks
+are included in the returned CAR stream after the blocks required to traverse path segments.
+
+- `block` - Only the root block at the end of the path is returned after blocks
+  required to verify the specified path segments.
+
+- `entity` - For queries that traverse UnixFS data, `entity` roughly means return
+  blocks needed to verify the terminating element of the requested content path.
+  For UnixFS, all the blocks needed to read an entire UnixFS file, or enumerate a UnixFS directory.
+  For all queries that reference non-UnixFS data, `entity` is equivalent to `block`
+
+- `all` - Transmit the entire contiguous DAG that begins at the end of the path
+  query, after blocks required to verify path segments
+
+When present, returned `Etag` must include unique prefix based on the passed scope type.
+
+### :dfn[`entity-bytes`] (request query parameter)
+
+The optional `entity-bytes=from:to` parameter is available only for CAR
+requests.
+
+It implies `dag-scope=entity` and serves as a trustless equivalent of an HTTP
+Range Request.
+
+When the terminating entity at the end of the specified content path:
+
+- can be interpreted as a continuous array of bytes (such as a UnixFS file), a
+  Gateway MUST return only the minimal set of blocks necessary to verify the
+  specified byte range of that entity.
+
+  - When dealing with a sharded UnixFS file (`dag-pb`, `0x70`) and a non-zero
+  `from` value, the UnixFS data and `blocksizes` determine the
+  corresponding starting block for a given `from` offset.
+
+- cannot be interpreted as a continuous array of bytes (such as a DAG-CBOR/JSON
+  map or UnixFS directory), the parameter MUST be ignored, and the request is
+  equivalent to `dag-scope=entity`.
+
+Allowed values for `from` and `to` follow a subset of section 14.1.2 from
+:cite[rfc9110], where they are defined as offset integers that limit the
+returned blocks to only those necessary to satisfy the range `[from,to]`:
+
+- `from` value gives the byte-offset of the first byte in a range.
+- `to` value gives the byte-offset of the last byte in the range;
+  that is, the byte positions specified are inclusive.
+
+The following additional values are supported:
+
+- `*` can be substituted for end-of-file
+  - `entity-bytes=0:*` is the entire file (a verifiable version of HTTP request for `Range: 0-`)
+- Negative numbers can be used for referring to bytes from the end of a file
+  - `entity-bytes=-1024:*` is the last 1024 bytes of a file
+    (verifiable version of HTTP request for `Range: -1024`)
+  - It is also permissible (unlike with HTTP Range Requests) to ask for the
+    range of 500 bytes from the beginning of the file to 1000 bytes from the
+    end: `entity-bytes=499:-1000`
+
+A Gateway MUST augment the returned `Etag` based on the passed `entity-bytes`.
+
+A Gateway SHOULD return an HTTP 400 Bad Request error when the requested range
+is entirely outside of the entity's byte range and the Gateway is able to determine this
+upfront.
+
+In more nuanced error scenarios, a Gateway MUST return a valid CAR response
+that includes enough blocks for the client to understand why the requested
+`entity-bytes` was incorrect or why only a part of the requested byte range was
+returned:
+
+- If the requested `entity-bytes` resolves to a range that partially falls
+  outside the entity's byte range (before or after),
+  the response MUST include the subset of blocks within the entity's bytes.
+  - This allows clients to request valid ranges of the entity without needing
+    to know its total size beforehand, and it does not require the Gateway to
+    buffer the entire entity before returning the response.
+
+- If the requested `entity-bytes` resolves to a zero-length range or falls
+  fully outside the entity's bytes, the response is equivalent to
+  `dag-scope=block`.
+  - This allows client to produce a meaningful error (e.g, in case of UnixFS,
+    leverage `Data.blocksizes` information present in the root `dag-pb` block).
+
+- In streaming scenarios, if a Gateway is capable of returning the root block
+  but lacks prior knowledge of the final component of the requested content
+  path being invalid or absent in the DAG, a Gateway SHOULD respond with HTTP 200.
+  - This behavior is a consequence of HTTP streaming limitations: blocks are
+    not buffered, by the time a related parent block is being parsed and
+    returned to the client, the HTTP status code has already been sent to the
+    client.
+
+### :dfn[`car-version`] (request query parameter)
+
+Optional, only used on CAR requests.
+
+Serves same purpose as [CAR `version` content type parameter](#car-version-content-type-parameter).
+
+In case both are present in the request, the URL query parameter SHOULD take precedence and a matching [`Content-Location`](#content-location-response-header) SHOULD be returned with the response.
+
+### :dfn[`car-order`] (request query parameter)
+
+Optional, only used on CAR requests.
+
+Serves same purpose as [CAR `order` content type parameter](#car-order-content-type-parameter).
+
+In case both are present in the request, the URL query parameter SHOULD take precedence and a matching [`Content-Location`](#content-location-response-header) SHOULD be returned with the response.
+
+### :dfn[`car-dups`] (request query parameter)
+
+Optional, only used on CAR requests.
+
+Serves same purpose as [CAR `dups` content type parameter](#car-dups-content-type-parameter).
+
+In case both are present in the request, the URL query parameter SHOULD take precedence and a matching [`Content-Location`](#content-location-response-header) SHOULD be returned with the response.
+
+# HTTP Response
+
+Below MUST be implemented **in addition** to "HTTP Response" of
+:cite[path-gateway], with special attention to the "Response Status Codes" and
+the "Recursive vs non-recursive gateways" sections.
+
+## Response Status Codes
+
+Trustless Gateways MUST follow the response status codes defined in :cite[path-gateway], including:
+
+### `404 Not Found`
+
+A Trustless Gateway MUST return `404 Not Found` when the **root block** (the CID in the request path) is not available in the gateway's storage.
+
+This applies to:
+- HEAD requests for any CID
+- GET requests for raw blocks (`application/vnd.ipld.raw`)
+- GET requests for CAR streams (`application/vnd.ipld.car`) when the root block is missing
+
+For non-recursive Trustless Gateways (such as those serving from a local block store), this definitively signals that the requested content is not part of the gateway's dataset.
+
+### Streaming and Missing Child Blocks
+
+For CAR responses, once a gateway begins streaming (after successfully loading the root block), it has committed to HTTP `200 OK`. If a child block is encountered as missing during DAG traversal:
+
+- The gateway SHOULD terminate the stream (potentially with an incomplete CAR)
+- Clients MUST verify CAR completeness and handle incomplete streams as retrieval failures
+
+This follows the streaming principle stated in the [`entity-bytes`](#entity-bytes-request-query-parameter) section above.
+
+### `500 Internal Server Error`
+
+A Trustless Gateway SHOULD return `500 Internal Server Error` only for genuine server errors, not for content unavailability. Examples include storage backend failures, resource exhaustion, or unexpected internal errors.
+
+## Response Headers
+
+### `Content-Type` (response header)
+
+MUST be returned and include additional format-specific parameters when possible.
+
+If a CAR stream was requested:
+- the response MUST include the parameter specifying CAR version. For example:
+  `Content-Type: application/vnd.ipld.car; version=1`
+- the response SHOULD include additional content type parameters, as noted in
+  [CAR format signaling in Response](#car-format-signaling-in-response).
+
+### `Content-Disposition` (response header)
+
+MUST be returned and set to `attachment` to ensure requested bytes are not rendered by a web browser.
+
+When no custom `filename` is provided:
+- CAR responses should use `filename="<cid>.car"`
+- Raw block responses should use `filename="<cid>.bin"`
+
+### `Content-Location` (response header)
+
+Same as in :cite[path-gateway], SHOULD be returned when Trustless Gateway
+supports more than a single response format and the `format` query parameter is
+missing or does not match well-known format from `Accept` header.
+
+### `Etag` (response header)
+
+MUST be returned and follow the recommendations in :cite[path-gateway].
+
+:::note
+
+**Implementation Variance**: Etag generation for CAR responses is
+implementation-specific. Different gateways may generate different Etags for
+identical requests due to variations in what parameters are included (e.g.,
+`order`, `dups`) and how they are encoded in the Etag calculation.
+
+As a result, `If-None-Match` conditional requests may not work across different
+gateway implementations. Clients SHOULD NOT assume Etags are portable between
+gateways.
+
+:::
+
+# Block Responses (application/vnd.ipld.raw)
+
+An opaque bytes matching the requested block CID
+([application/vnd.ipld.raw](https://www.iana.org/assignments/media-types/application/vnd.ipld.raw)).
+
+The Body hash MUST match the Multihash from the requested CID.
+
+# CAR Responses (application/vnd.ipld.car)
+
+A CAR stream for the requested
+[application/vnd.ipld.car](https://www.iana.org/assignments/media-types/application/vnd.ipld.car)
+content type (with optional `order` and `dups` params), path and optional
+`dag-scope` and `entity-bytes` URL parameters.
+
+## CAR `version` (content type parameter)
+
+Value returned in
+[`CarV1Header.version`](https://ipld.io/specs/transport/car/carv1/#header)
+field MUST match the `version` parameter returned in `Content-Type` header.
+
+## CAR roots
+
+The behavior associated with the
+[`CarV1Header.roots`](https://ipld.io/specs/transport/car/carv1/#header) field
+is not currently specified.
+
+The lack of standard here means a client MUST assume different Gateways could return a different value.
+
+A Client SHOULD ignore this field.
+
+:::issue
+
+As of 2023-06-20, the behavior of the `roots`  CAR field remains an [unresolved item within the CARv1 specification](https://web.archive.org/web/20230328013837/https://ipld.io/specs/transport/car/carv1/#unresolved-items).
+
+:::
+
+## CAR `order` (content type parameter)
+
+The `order` parameter allows clients to specify the desired block order in the
+response. It supports the following values:
+
+- `dfs`: [Depth-First Search](https://en.wikipedia.org/wiki/Depth-first_search)
+  order, enables streaming responses with minimal memory usage.
+- `unk` (or missing): Unknown order, which serves as the implicit default when the `order`
+  parameter is unspecified. In this case, the client cannot make any assumptions
+  about the block order: blocks may arrive in a random order or be a result of
+  a custom DAG traversal algorithm.
+
+A Gateway SHOULD always return explicit `order` in CAR's `Content-Type` response header.
+
+A Gateway MAY skip `order` in CAR response if no order was explicitly requested
+by the client and the default order is unknown.
+
+A Client MUST assume implicit `order=unk` when `order` is missing, unknown, or empty.
+
+## CAR `dups` (content type parameter)
+
+The `dups` parameter specifies whether duplicate blocks (the same block
+occurring multiple times in the requested DAG) will be present in the CAR
+response. Useful when a deterministic block order is used.
+
+It accepts two values:
+- `y`: Duplicate blocks MUST be sent every time they occur during the DAG walk.
+- `n`: Duplicate blocks MUST be sent only once.
+
+When set to `y`, light clients are able to  discard blocks after
+reading them, removing the need for caching in-memory or on-disk.
+
+Setting to `n` allows for more efficient data transfer of certain types of
+data, but introduces additional resource cost on the receiving end, as each
+block needs to be kept around in case its CID appears again.
+
+If the `dups` parameter is absent from the `Accept` request header, the
+behavior is unspecified. In such cases, a Gateway should respond with `dups=n`
+if it has control over the duplicate status, or without `dups` parameter if it
+does not.
+Defaulting to the inclusion of duplicate blocks (`dups=y`) SHOULD only be
+implemented by Gateway systems that exclusively support `dups=y` and do not
+support any other behavior.
+
+A Client MUST not assume any implicit behavior when `dups` is missing.
+
+If the `dups` parameter is absent from the `Content-Type` response header, the
+behavior is unspecified, and the CAR response includes an arbitrary list of
+blocks. In this unknown state, the client MUST assume duplicates are not sent,
+but also MUST ignore duplicates and other unexpected blocks if they are present.
+
+A Gateway MUST always return `dups` in `Content-Type` response header
+when the duplicate status is known at the time of processing the request.
+A Gateway SHOULD not return `dups` if determining the duplicate status is not
+possible at the time of processing the request.
+
+A Gateway MUST NOT include virtual blocks identified by identity CIDs
+(multihash with `0x00` code) in CAR responses. This exclusion applies regardless
+of their presence in the DAG or the value assigned to the "dups" parameter, as
+the raw data is already present in the parent block that links to the identity
+CID.
+
+## CAR format parameters and determinism
+
+The default header and block order in a CAR format is not specified by IPLD specifications.
+
+Clients MUST NOT assume that CAR responses are deterministic (byte-for-byte identical) across different gateways.
+
+Clients MUST NOT assume that CAR includes CIDs and their blocks in the same order across different gateways.
+
+Clients MUST assume block order and duplicate status only if `Content-Type` returned with CAR responses includes optional `order` or `dups` parameters, as specified by :cite[ipip-0412].
+
+A Gateway SHOULD support some aspects of determinism by implementing content type negotiation and signaling via `Accept` and `Content-Type` headers.
+
+:::issue
+
+In controlled environments, clients MAY choose to rely on implicit and
+undocumented CAR determinism, subject to the agreement of the following
+conditions between the client and the gateway:
+- CAR version
+- content of [`CarV1Header.roots`](https://ipld.io/specs/transport/car/carv1/#header) field
+- order of blocks (`order` from :cite[ipip-0412])
+- status of duplicate blocks (`dups` from :cite[ipip-0412])
+
+Mind this is undocumented behavior, and MUST NOT be used on public networks.
+
+:::
+
+### CAR format signaling in Request
+
+Content type negotiation is based on section 12.5.1 of :cite[rfc9110].
+
+Clients MAY indicate their preferred block order by sending an `Accept` header in
+the HTTP request. The `Accept` header format is as follows:
+
+```
+Accept: application/vnd.ipld.car; version=1; order=dfs; dups=y
+```
+
+In the future, when more orders or parameters exist, clients will be able to
+specify a list of preferences, for example:
+
+```
+Accept: application/vnd.ipld.car;order=foo, application/vnd.ipld.car;order=dfs;dups=y;q=0.5
+```
+
+The above example is a list of preferences, the client would really like to use
+the hypothetical `order=foo` however if this isn't available it would accept
+`order=dfs` with `dups=y` instead (lower priority indicated via `q` parameter,
+as noted in :cite[rfc9110]).
+
+### CAR format signaling in Response
+
+The Trustless Gateway MUST always respond with a `Content-Type` header that includes
+information about all supported and known parameters, even if the client did not
+specify them in the request.
+
+The `Content-Type` header format is as follows:
+
+```
+Content-Type: application/vnd.ipld.car;version=1;order=dfs;dups=n
+```
+
+Gateway implementations SHOULD decide on the implicit default ordering or
+other parameters, and use it in responses when client did not explicitly
+specify any matching preference.
+
+A Gateway MAY choose to implement only some parameters and return HTTP
+400 Bad Request or 406 Not Acceptable when a client requested a response with
+unsupported content type variant.
+
+A Client MUST verify `Content-Type` returned with CAR response before
+processing the payload, as the legacy gateway may not support optional content
+type parameters like `order` an `dups` and return plain
+`application/vnd.ipld.car`.
+
+# IPNS Record Responses (application/vnd.ipfs.ipns-record)
+
+An opaque bytes matching the [Signed IPNS Record](https://specs.ipfs.tech/ipns/ipns-record/#ipns-record)
+for the requested [IPNS Name](https://specs.ipfs.tech/ipns/ipns-record/#ipns-name)
+returned as [application/vnd.ipfs.ipns-record](https://www.iana.org/assignments/media-types/application/vnd.ipfs.ipns-record).
+
+A Client MUST confirm the record signature match `libp2p-key` from the requested IPNS Name.
+
+A Client MUST [perform additional record verification according to the IPNS specification](https://specs.ipfs.tech/ipns/ipns-record/#record-verification).
+
+# Appendix: Notes for implementers
+
+## Dedicated Probe Paths
+
+Trustless gateways SHOULD provide probing endpoints as described below.
+
+### `GET /ipfs/bafkqaaa`
+
+`bafkqaaa` is the identity empty CID. This endpoint can be used to probe that
+that the endpoint corresponds to a trustless gateway.
+
+For block requests (signaled by `?format=raw` and `Accept: application/vnd.ipld.raw`), when supported, it MUST return `200 OK`
+and an empty body.
+
+For CAR requests (signaled by `?format=car` and `Accept: application/vnd.ipld.car`), when supported, it MUST return `200 OK` and a valid CAR with CAR Header `roots` set to `bafkqaaa`. Identity block MAY be skipped in the CAR Data section.
+
+This specific identity CID is special for probing. Other random
+identity CIDs MAY not be handled.
+
+### `HEAD /ipfs/bafkqaaa`
+
+`bafkqaaa` is the identity empty CID. If this endpoint is enabled, the gateway
+MUST support [`HEAD` requests](#head-ipfs-cid-path-params).
+
+The response is the same as [`GET`](#get-ipfs-bafkqaaa) but without body and all headers are optional.
+
+## Usage Within Peer-to-Peer (P2P) Networks {#p2p-usage}
+
+Trustless Gateways serve two primary deployment models:
+
+1. **Verifiable bridges**: Gateways that provide trustless access from HTTP clients into IPFS networks, where the gateway operator is distinct from content providers
+2. **P2P retrieval endpoints** (or **HTTP providers**): Peers within P2P networks that expose block stores via this HTTP API, acting as network participants rather than bridges
+
+When deploying gateways as P2P retrieval endpoints, implementers should be aware of additional constraints below:
+
+### Block Limits {#p2p-block-limits}
+
+Clients SHOULD NOT download unbounded amounts of data before being able to validate that data.
+
+Clients SHOULD limit the maximum block size to 2MiB.
+
+:::note
+
+This value aligns with the maximum block size used in Bitswap, and throughout much of the ecosystem. Blocks larger than 2MiB are not ecosystem-safe: tooling built to handle larger blocks will encounter compatibility issues with storage providers, pinning services, and other infrastructure that enforce this limit.
+
+Beyond compatibility, larger blocks increase memory pressure on resource-constrained clients and widen the window for incomplete transfers. Since blocks must be validated as a unit, smaller blocks allow for more granular verification and easier retries on failure.
+
+See [Supporting Large Blocks](https://discuss.ipfs.tech/t/supporting-large-ipld-blocks/15093/) for ongoing discussion.
+
+:::
+
+### HTTPS and HTTP/2 {#p2p-transport}
+
+Gateways serving data to non-LAN peers SHOULD support HTTPS and HTTP/2 (:cite[rfc9113]) or greater.
+
+Clients SHOULD restrict communications with non-LAN peers to HTTPS and HTTP/2 (:cite[rfc9113]) or greater.
+
+:::note
+
+**HTTP/2**
+
+HTTP/2 provides request multiplexing, which is critical for performance in P2P environments. HTTP/1.1 fundamentally lacks multiplexing: only one request-response pair can be active on a connection at a time. This creates head-of-line blocking, where a slow or large response blocks all subsequent responses on that connection, even if they are ready to send. HTTP/1.1's optional pipelining feature does not solve this because responses must still be returned in order.
+
+To work around this limitation, clients must open multiple parallel TCP connections to achieve concurrent requests. However, each additional connection incurs significant overhead: TCP handshake latency, memory buffers, bandwidth competition, and increased implementation complexity. Browsers limit concurrent connections per origin (typically 6-8) to manage these costs, but this limitation affects all HTTP/1.1 clients, not just browsers, as the overhead of maintaining many connections becomes prohibitive.
+
+When fetching content that requires many concurrent requests (block fetches, CAR queries, optimistic HEAD/GET probes), HTTP/1.1's lack of multiplexing creates a critical bottleneck. Clients face a difficult trade-off: either serialize requests (severely limiting throughput) or maintain many parallel connections (incurring substantial overhead). Users may experience acceptable performance with small test cases, but real-world IPFS content with deep DAG structures will encounter significant slowdowns. HTTP/2's stream multiplexing (:cite[rfc9113]) eliminates this bottleneck by allowing many concurrent requests over a single connection without head-of-line blocking at the application layer.
+
+**TLS**
+
+HTTPS provides transport security, preventing block data from being observed or tampered with in transit when communicating with peers over the public internet. While IPFS multihashes inherently allow clients to detect tampering (the digest verification provides cryptographic integrity), TLS prevents observation of transferred data and is also a prerequisite for HTTP/2 in web browsers, which do not support unencrypted HTTP/2 connections.
+
+**LAN Environments**
+
+For the purposes of this section, "LAN" refers to local area networks where peers communicate over trusted, high-bandwidth connections (e.g., within the same private network). "Non-LAN" refers to peers communicating over the public internet.
+
+In LAN environments, getting a TLS certificate setup with which to use HTTPS may be difficult, h2c (HTTP/2 over cleartext TCP, without TLS) may not be easily accessible across platforms/languages, and performance criteria are more controllable, which makes supporting HTTP/1.1 more manageable.
+
+:::
+
+### Recursion {#p2p-recursion}
+
+Trustless Gateways operating in P2P contexts SHOULD NOT recursively search for content.
+
+Gateways that do not have content locally SHOULD return `404 Not Found` rather than attempting to fetch from other gateways or peers.
+
+:::note
+
+In P2P networks, gateways serve as block stores for specific peers or content, rather than attempting to locate content across the entire network. Content discovery is handled by the P2P layer (e.g., Amino DHT, delegated routing), not by individual HTTP gateways. Clients are responsible for content routing and choosing which gateways to query.
+
+Returning `404 Not Found` for missing content allows clients to efficiently query multiple gateways in parallel and discover which ones have the content cached. See also the [`Cache-Control: only-if-cached`](#cache-control-only-if-cached-request-header) header for client-side control of this behavior.
+
+:::
+
+### Security Considerations {#p2p-security}
+
+#### HTTP Servers
+
+When serving content to peers over the public internet, HTTP servers:
+
+- **Transport Security**: SHOULD support HTTPS with valid TLS certificates to prevent observation of block data in transit (integrity is already provided by CID verification)
+- **Rate Limiting**: SHOULD implement request rate limiting and concurrent connection limits to prevent resource exhaustion. When limits are exceeded, SHOULD return HTTP `429 Too Many Requests` with a `Retry-After` header indicating when the client may retry
+- **Timeout Limits**: SHOULD enforce connection and request timeout limits to prevent resource exhaustion from slow or stalled connections
+- **Input Validation**: SHOULD validate CID format and encoding before processing requests to prevent malformed input attacks
+- **Path Validation**: For CAR requests with paths, SHOULD validate path components to prevent unexpected DAG traversal behavior or resource exhaustion from deeply nested paths
+- **Block Size Limits**: SHOULD enforce maximum block size limits (see [Block Limits](#p2p-block-limits)) to prevent memory exhaustion
+
+#### HTTP Clients
+
+When making requests to HTTP providers over the public internet, HTTP clients:
+
+- **Block Validation**: MUST validate all received blocks by verifying that the digest in the CID's Multihash matches the digest of the block payload before processing or storing
+- **Block Size Limits**: SHOULD limit the maximum accepted block size (see [Block Limits](#p2p-block-limits)) to prevent memory exhaustion from malicious servers
+- **Connection Management**:
+  - SHOULD implement connection pooling with appropriate limits to avoid overwhelming local resources
+  - SHOULD respect the server's HTTP/2 `SETTINGS_MAX_CONCURRENT_STREAMS` value (Section 6.5.2 of :cite[rfc9113]) to avoid overwhelming the server
+  - SHOULD use HTTP/2 connection coalescing when multiple origins resolve to the same server (shared IP and TLS certificate) to reduce connection overhead
+- **Timeout Limits**: SHOULD set appropriate connection and request timeout limits to prevent hanging on unresponsive servers. A safe default is to timeout after 30 seconds of not receiving any new bytes

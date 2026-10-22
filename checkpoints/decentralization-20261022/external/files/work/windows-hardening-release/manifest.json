@@ -1,0 +1,58 @@
+{
+ "plan": "app-lease-hardening-20261021",
+ "base": "work/enclave current main (8 recovery-hardening files integrated; certificate/checkpoint SDK integration included)",
+ "bundle": {
+  "path": "windows/node/lease-gas-runtime.bundle.mjs",
+  "sha256": "64712447030248173f35e8ac916c737dfd91f719d69335979a83f1cfffb356b6",
+  "inputs": 418,
+  "inputsMismatched": 0,
+  "rebuiltWith": "main scripts/build-windows-lease-runtime.mjs"
+ },
+ "closure": {
+  "builder": "windows/node/deploy-files.mjs closure()",
+  "files": 80,
+  "problems": []
+ },
+ "liveBefore": {
+  "at": "2026-10-21T02:50:35.1357578Z",
+  "source": "read-only inspect-public-closure.ps1 over ssh minipc (public source hashes only)"
+ },
+ "changes": [
+  {
+   "path": "sdk/bootstrap/package.mjs",
+   "before": "5e63d9e18d1463377213fdcdefb947b0f1348193e942063983180e56881fcc4a",
+   "after": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a"
+  },
+  {
+   "path": "windows/node/host.mjs",
+   "before": "b2fa0c6b8d8edb2223b2a020bddb5a21bd6d2949998a21667d572a4cd417778a",
+   "after": "2500c650d56c2cb526530c68b2469dde3eeb5044728a1e5f81888142e21f181c"
+  },
+  {
+   "path": "windows/node/lease-gas-runtime.bundle.mjs",
+   "before": "b92cf908717a9dc18155190eb3a1246800e11c22263e5942339d6cc61351ce7b",
+   "after": "64712447030248173f35e8ac916c737dfd91f719d69335979a83f1cfffb356b6"
+  }
+ ],
+ "unchanged": 77,
+ "managerShared": [],
+ "tool": {
+  "path": "tool/activate-control-source.mjs",
+  "sha256": "1815e173702a3d780c24145e72f33ee9b8af4f85f643e7c931eddfc0599a4f88"
+ },
+ "scripts": {
+  "00-verify-stage.ps1": "3c69c36909b4d46459b49f7822740ce279479d49f445fa72fa3b1752ce5419a0",
+  "10-preflight.ps1": "79b84d1d0385452165584efc38ec540cce84b06c06de6c6698d9247bd35ec829",
+  "20-activate.ps1": "70fcca0ba1336b3f77306eca3797569ab660028c0c43284bb0b4bb8a949635c5",
+  "30-verify.ps1": "f85c02d707bf88ae94c04e2d7f5c3cd2749fb589145c08bcf85dd65ea4f70545",
+  "90-rollback.ps1": "55b7300accbc94df1af2c6c6796f8bea13b3266dcf1285f5d2c8017244a8bafd",
+  "common.ps1": "31f480162a9e3e7a7fb906ade1373187833e18e1e9389f22e149683ceb0754d5"
+ },
+ "stageSums": "b7d986658cea80474776b4a896e17dbf269f44b9356e4ded92a19eeaeae5e634",
+ "zip": {
+  "file": "windows-hardening-release-app-lease-hardening-20261021.zip",
+  "sha256": "fb926d42fa1f08cff8e2287ed5bb65ab732fdaf3da1f0cf7b813e9856a7d1985",
+  "bytes": 678984
+ },
+ "stagedFiles": 88
+}

@@ -1,0 +1,25 @@
+--- a/site/vendor/host-policy.MANIFEST.json
++++ b/site/vendor/host-policy.MANIFEST.json
+@@ -0,0 +1,22 @@
++{
++  "file": "site/vendor/host-policy.js",
++  "sha256": "0ed6e70dc86f841f483128f753f5e849b62b18c744482df46e6064052b36fafa",
++  "bytes": 89185,
++  "entry": "export { createPlatformHostGate, readPolicyFacts, decodeAnchor, judgeHost, policyDigest, policyTypedData, validatePolicy, POLICY_FORMAT, ANCHOR_KEYS } from \"./network/platform-host-policy.mjs\";\nexport { httpPolicyMirrors, validateMirrors, MAX_POLICY_RESPONSE } from \"./network/host-policy-mirrors.mjs\";\nexport { encodeFunctionData, decodeFunctionResult } from \"viem\";\n",
++  "esbuild": "0.28.1",
++  "deps": {
++    "viem": "2.53.1"
++  },
++  "sources": {
++    "network/host-policy-mirrors.mjs": {
++      "sha256": "9b9be18db1c83621b127c3cf373598d0bfa697022c72989b32ae763f9a85b9bf",
++      "commit": null,
++      "committedClean": null
++    },
++    "network/platform-host-policy.mjs": {
++      "sha256": "8198228d436f144a8d62126adc479df21649e098e076153939937e6eaf70dde2",
++      "commit": null,
++      "committedClean": null
++    }
++  }
++}

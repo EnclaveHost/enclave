@@ -1,0 +1,43 @@
+diff -ruN a/docs/network/independent-signer.md b/docs/network/independent-signer.md
+--- a/docs/network/independent-signer.md	2026-10-19 23:20:40.320182681 -0700
++++ b/docs/network/independent-signer.md	2026-10-19 23:20:40.320910004 -0700
+@@ -30,9 +30,25 @@
+ 
+ ## Unknown outcomes
+ 
+-Every transaction is an intent: a 0600 file under `--state-dir`/signer, or `~/.config/enclave/independent-signer`. It
+-is written before the bytes or the request leave the process. While an intent from an account is unresolved, new
+-sends from that account are refused. Nothing is retried automatically.
++Every transaction is an intent: a file under `--state-dir`/signer, or `~/.config/enclave/independent-signer`. On
++Linux and macOS each file is 0600 and the directory is kept 0700. On Windows these modes do not apply; the files take the
++access control of the directory they are in. An intent is on disk before the bytes or the request leave the process: it
++is written to a temporary file, flushed, renamed into place, and then the directory is flushed. Two cases are best
++effort only. On Windows, Node cannot flush a directory, so the renamed file is flushed again and the rename itself
++relies on NTFS's own metadata log. Some network and FUSE mounts refuse to flush a directory. While an intent from an
++account is unresolved, new sends from that account are refused. Nothing is retried automatically.
++
++Only one send per account runs at a time. Before a send reads the nonce or asks the wallet anything, it takes a
++reservation file in the same directory. The file is created exclusively, so this holds across processes. The
++reservation lasts while the send's intent is open, and ends when the intent is decided by any command below. A
++second send, in this process or another, is refused at once; it never waits. Some cases are not covered:
++- Two different `--state-dir`s are two separate journals, so do not point concurrent sends for one account at
++  different ones.
++- An older `enclave` that predates reservations does not take one.
++- Filesystems without exclusive create (old NFS) give no guarantee.
++
++An intent file (`tx-….json`) that cannot be read, or an intent in a state this version does not know, also stops
++every send. It may hold an unresolved transaction, so it is never skipped silently.
+ 
+ | command | what it does |
+ |---|---|
+@@ -40,7 +56,9 @@
+ | `signer rebroadcast <id>` | The same signed bytes again (sign path only); never a new signature. |
+ | `signer attach <id> <hash>` | For a handoff, or an unknown intent without a hash. |
+ | `signer abandon <id>` | Explicit. The next send reuses the nonce, so at most one of the two can ever be mined. |
+-| `signer list`, `signer show <id>`, `signer probe` | Inspect. A probe lists accounts and the chain, and signs nothing. |
++| `signer release <reservation>` | Explicit. For a reservation whose send stopped (was killed, or crashed) before it recorded an intent. Unless one of its intent files was set aside with quarantine, such a send broadcast nothing and asked no wallet to broadcast. A signature it may have asked for was never journaled or sent. `signer list` shows the holder's process and host. Refused while an intent holds the reservation; settle that intent instead. If that send is in fact still running, it notices the release once it has recorded its intent, and stops before it broadcasts or asks the wallet to; it does not go on next to a later send. |
++| `signer quarantine <id>` | Explicit, after you review the file. Renames an unreadable intent file to `<id>.json.quarantined-<time>`, keeping it. Readable intents are refused (settle them). If the file held an unresolved transaction, the next send reuses its nonce, as with abandon. |
++| `signer list`, `signer show <id>`, `signer probe` | Inspect: intents, open reservations and unreadable files. A probe lists accounts and the chain, and signs nothing. |
+ 
+ ## Wallet capabilities (what was checked)
+ 

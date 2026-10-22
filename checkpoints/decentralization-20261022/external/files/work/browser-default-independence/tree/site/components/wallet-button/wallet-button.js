@@ -1,0 +1,89 @@
+/* ============================================================
+   <c-wallet-button> - the wallet control: sign-in button,
+   account popover, and the fullscreen wallet chooser it portals
+   to <body> (the header's backdrop-filter would otherwise become
+   the containing block for the fixed overlay, pinning it to the
+   bar - see the git history for that bug).
+
+   Owns the wallet lifecycle for whichever page mounts it: boots
+   EIP-6963 discovery, silently restores the previous session,
+   and repaints on every wallet/session change (wallet.js emits
+   `enclave:wallet`; the button itself is repainted by refreshWallet).
+   ============================================================ */
+import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
+import { Enclave, INDEPENDENT_MODE } from "../../js/core/api.js";
+import { Wallet, connectWallet, refreshWallet, restoreSession, toggleWalletPop } from "../../js/core/wallet.js";
+import { restoreAccountSession, openSignIn } from "../../js/core/account.js";
+import { ACCOUNTS_ENABLED } from "../../js/core/config.js";
+import { navigate } from "../../js/boot.js";
+import { $, showToast } from "../../js/core/util.js";
+
+class WalletButton extends EnclaveElement {
+  static templateUrl = new URL("./wallet-button.html", import.meta.url);
+
+  renderedCallback() {
+    if (this._wired) return;
+    this._wired = true;
+
+    // fullscreen wallet chooser, portaled OUTSIDE the blurred header
+    if (!$("#walletPick")) {
+      const pick = document.createElement("div");
+      pick.className = "wallet-pick"; pick.id = "walletPick"; pick.hidden = true;
+      document.body.appendChild(pick);
+    }
+
+    const wb = this.querySelector("#walletBtn");
+    wb.addEventListener("click", async () => {
+      if (Enclave.address || Enclave.accountAuthed()){ toggleWalletPop(); return; }
+      // independent mode (a network profile, or the packaged default): no relay sign-in exists here. An injected wallet
+      // connects directly; without one, the dashboard's own passkey account panel is where an owner signs in.
+      if (INDEPENDENT_MODE){
+        try { await connectWallet(); } catch(e){ /* no wallet in this browser: the passkey account panel is the way in */ }
+        navigate("dashboard", { push: true });
+        return;
+      }
+      if (ACCOUNTS_ENABLED){
+        // the sign-in chooser (passkey / phone / wallet), wallet or not
+        try { await openSignIn(); navigate("dashboard", { push: true }); }
+        catch(e){ if (!/cancelled/i.test((e && e.message) || "")) showToast((e && e.message) || String(e)); }
+        return;
+      }
+      const o = wb.innerHTML; wb.disabled = true; wb.innerHTML = "connecting…";
+      try {
+        await connectWallet();   // connecting IS signing in (SIWE stays lazy, at the private reads)
+        navigate("dashboard", { push: true });   // land where their apps live
+      }
+      catch(e){ showToast(e.message); }
+      finally { wb.disabled = false; if (!Enclave.address) wb.innerHTML = o; }
+    });
+
+    // pointerDOWN, not click: selecting text in the popover and releasing
+    // outside must not dismiss it (the click would land on the ancestor)
+    const dismiss = (refocus) => {
+      const pop = this.querySelector("#walletPop"); if (!pop || pop.hidden) return false;
+      pop.hidden = true; pop.innerHTML = "";
+      wb.setAttribute("aria-expanded", "false");
+      if (refocus) wb.focus();
+      return true;
+    };
+    document.addEventListener("pointerdown", (e) => {
+      if (e.target.closest("#walletPop") || e.target.closest("#walletBtn")) return;
+      dismiss(false);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") dismiss(true);
+    });
+
+    Wallet.init();
+    refreshWallet();
+    restoreSession();          // silently restore a prior wallet + sign-in across refreshes
+    // the relay account session (separate trust domain) - hosted mode only: independent mode never uses the relay, and a
+    // hosted account stored in this browser is named on the dashboard instead of being shown as signed in
+    if (!INDEPENDENT_MODE){
+      restoreAccountSession();
+      // a live wallet session re-derives its account token (no prompt); a dead one is tidied away
+      import("../../js/core/account.js").then((m) => m.restoreSessionAccount()).catch(() => {});
+    }
+  }
+}
+register("c-wallet-button", WalletButton);

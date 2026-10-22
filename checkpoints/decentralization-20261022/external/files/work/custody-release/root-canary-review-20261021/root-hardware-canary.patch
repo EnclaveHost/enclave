@@ -1,0 +1,34 @@
+--- root-hardware-canary.py.orig	2026-10-21 14:33:34.865316045 -0700
++++ root-hardware-canary.py.proposed	2026-10-21 14:33:34.874649329 -0700
+@@ -104,17 +104,28 @@
+     pre=subprocess.run(['bash',str(CANARY/'headroom-check.sh'),str(DIST),'3072','18970','18971',str(RUN)],capture_output=True,text=True)
+     (RUN/'preflight.log').write_text(pre.stdout+pre.stderr)
+     if pre.returncode: return pre.returncode
+-    paths=[DIST/'manifest.json',DIST/'vmlinuz',DIST/'initramfs.cpio.gz',DIST/'cmdline',REPO/'custody/v2/host.mjs',CANARY/'verify-custodian-quote.mjs',pathlib.Path(__file__)]
++    paths=[DIST/'manifest.json',DIST/'vmlinuz',DIST/'initramfs.cpio.gz',DIST/'cmdline',REPO/'custody/v2/host.mjs',CANARY/'verify-custodian-quote.mjs',pathlib.Path(__file__),
++           pathlib.Path('/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd')]
+     save('attempt.json',dict(at=now(),memoryCapMiB=5120,reserveMiB=16384,exclusiveBothQueueLanes=True,
+         hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}))
+     cmd=['systemd-run','--user','--scope','--quiet','--unit=enclave-custody-quote-canary-20261021',
+          '-p','MemoryMax=5120M','-p','MemorySwapMax=0','node',str(BASE/'enclave/test/helpers/memory-guard.mjs'),
+          '--max-rss-mib','5120','--floor-available-mib','16384','--log',str(RUN/'memory.log'),'--',
+-         'timeout','--signal=TERM','--kill-after=8s','210s','python3',str(pathlib.Path(__file__).resolve()),'--child']
++         'timeout','--signal=TERM','--kill-after=20s','210s','python3',str(pathlib.Path(__file__).resolve()),'--child']
+     with (RUN/'execution.log').open('x') as out:
+         p=subprocess.Popen(cmd,stdout=out,stderr=subprocess.STDOUT)
+         code=p.wait()
+-    save('terminal.json',dict(at=now(),exitCode=code))
++    # The scope's cgroup holds every process this run started (host launcher, QEMU, verifier), whatever its session:
++    # stop it (kills any survivor; a no-op when empty), then prove no QEMU of THIS run's state dir remains.
++    stop=subprocess.run(['systemctl','--user','stop','enclave-custody-quote-canary-20261021.scope'],capture_output=True,text=True,timeout=30)
++    survivors=[]
++    for d in pathlib.Path('/proc').iterdir():
++        if not d.name.isdigit(): continue
++        try: cl=(d/'cmdline').read_bytes().replace(b'\0',b' ').decode('utf8','replace')
++        except OSError: continue
++        if str(RUN) in cl and d.name!=str(os.getpid()): survivors.append(d.name)
++    if survivors and code==0: code=1
++    save('terminal.json',dict(at=now(),exitCode=code,scopeStop=stop.returncode,survivors=survivors))
+     print('CANARY TERMINAL',code,str(RUN),flush=True)
+     return code
+ if __name__=='__main__': sys.exit(main())

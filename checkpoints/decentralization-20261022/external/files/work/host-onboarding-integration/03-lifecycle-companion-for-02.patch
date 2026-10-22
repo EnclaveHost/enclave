@@ -1,0 +1,76 @@
+--- a/cli/host-independent-lifecycle.mjs	2026-10-19 21:07:28.397566494 -0700
++++ b/cli/host-independent-lifecycle.mjs	2026-10-19 21:06:23.177965429 -0700
+@@ -163,18 +163,18 @@
+     "-vcek", L.vcek, "-chain", L.chain, "-min-tcb", L.minTcb, "-product", g.product, "-listen", g.listen, "-data-listen", g.dataListen,
+     "-instance-prefix", g.instancePrefix], env: { GUESTD_ENABLE: "1" } };
+ }
+-const SECRET_ENV = new Set(["REGISTRY_PRIVATE_KEY", "SECRET"]);
++const SECRET_ENV = new Set(["SECRET"]);
+ /** The direct-only supervisor's environment (docs/network/direct-host-control.md). secrets: {operatorKey, secret} or null (redacted). */
+ export function supervisorEnv(dir, plan, ctx, secrets = null) {
+   const L = layout(dir, plan), r = plan.runtime, sel = plan.selling;
+   const env = {
+     ISOLATION_DIRECT_ONLY: "1", ISOLATION_BACKEND: "snp-guest-per-app", PROVISION_BACKEND: "vm",
+     VMMGR_URL: "http://" + plan.guestd.listen, GUESTD_KEY_FILE: L.pair, GUESTD_DATA_ADDR: plan.guestd.dataListen,
+-    ENCLAVE_CONTRACT_PINS_FILE: L.pins, ADDRESS_BOOK_ADDRESS: "", BASE_RPC: plan.authorities.rpcs[0],
++    ENCLAVE_CONTRACT_PINS_FILE: L.pins, ADDRESS_BOOK_ADDRESS: "", BASE_RPC: plan.authorities.rpcs[0], BASE_RPCS: plan.authorities.rpcs.join(","),
+     ...(r.storagePlan ? { GUEST_BOOTSTRAP_STORAGE_PLAN_FILE: r.storagePlan } : { GUEST_BOOTSTRAP_GATEWAYS: r.gateways.map((g) => g + "/ipfs").join(",") }),
+     IPFS_GATEWAY: JSON.stringify(r.gateways),
+     SECRETS_API: "", DOMAINS_API: "", CERTS_API: "", DNS_API: "", APP_CERT_DOMAIN: "", ISOLATION_RELEASE: "",
+-    REGISTRY_ENABLED: "1", REGISTRY_PRIVATE_KEY: secrets ? secrets.operatorKey : "<redacted: operator.key>", ENCLAVE_REPO: plan.identity.repo,
++    REGISTRY_ENABLED: "1", REGISTRY_PRIVATE_KEY_FILE: L.operator, ENCLAVE_REPO: plan.identity.repo,
+     PUBLIC_URL: plan.identity.publicUrl, CLAIM_ENABLED: "1", SECRET: secrets ? secrets.secret : "<redacted: supervisor.secret>",
+     PORT: String(plan.supervisor.port), NODE_VCPUS: String(plan.guestd.guestCpus),
+     ...(plan.supervisor.attestationUrl ? { ATTESTATION_URL: plan.supervisor.attestationUrl } : {}),
+@@ -220,7 +220,7 @@
+       + `ExecStart=${[plan.supervisor.node, plan.supervisor.path].map(unitArg).join(" ")}\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n`,
+   };
+ }
+-const envFileText = (env) => "# written by cli/host-independent-lifecycle.mjs install; mode 0600; holds this host's operator key\n"
++const envFileText = (env) => "# written by cli/host-independent-lifecycle.mjs install; mode 0600; holds the supervisor SECRET (the operator key stays in operator.key)\n"
+   + Object.entries(env).map(([k, v]) => envLine(k, v)).join("\n") + "\n";
+ function readSecrets(L) {
+   for (const f of [L.operator, L.secret]) { const p = privateFileProblem(f); if (p) fail(`${f}: ${p}`); }
+--- a/test/cli-host-independent-lifecycle.test.mjs	2026-10-19 21:07:28.398311420 -0700
++++ b/test/cli-host-independent-lifecycle.test.mjs	2026-10-19 21:07:04.814087018 -0700
+@@ -156,7 +156,8 @@
+   assert.equal((await cli(initArgs(dir, { extra: ["--policy-dir", path.join(d, "policies"), "--payout", "0x" + "12".repeat(20)] }))).code, 0);
+   const dry = await cli(["install", "--dir", dir, "--unit-dir", units]);
+   assert.equal(dry.code, 0, dry.err); noSecrets(dry.all, dir);
+-  assert.match(dry.out, /REGISTRY_PRIVATE_KEY='<redacted: operator.key>'/);
++  assert.match(dry.out, /REGISTRY_PRIVATE_KEY_FILE='[^']*\/operator\.key'/); assert(!/REGISTRY_PRIVATE_KEY=/.test(dry.out));
++  assert.match(dry.out, /BASE_RPCS='https:\/\/rpc-a\.example,https:\/\/rpc-b\.example'/);
+   assert.match(dry.out, /ENCLAVE_HOST_OWNERSHIP='0xf5e9e6c02449001f6e8e95e5d87413f2cb6790ea'/);
+   assert.match(dry.out, /-gateway "\[\\"http:\/\/203\.0\.113\.5:8189\\"\]"/);
+   assert(!/enclave\.host/.test(dry.out), "no Enclave origin anywhere in the units or environment");
+@@ -165,7 +166,8 @@
+   assert.equal(ap.code, 0, ap.err); noSecrets(ap.all, dir);
+   const env = path.join(dir, "supervisor.env");
+   assert.equal(mode(env), "600");
+-  assert(fs.readFileSync(env, "utf8").includes(`REGISTRY_PRIVATE_KEY='${secretsOf(dir)[0]}'`));
++  assert(!fs.readFileSync(env, "utf8").includes(secretsOf(dir)[0].slice(2)), "the operator key stays in operator.key");
++  assert(fs.readFileSync(env, "utf8").includes(`SECRET='${secretsOf(dir)[1]}'`));
+   assert.deepEqual(fs.readdirSync(units).sort(), ["enclave-independent-host-guestd.service", "enclave-independent-host-supervisor.service"]);
+   assert.equal((await cli(["install", "--dir", dir, "--unit-dir", units, "--apply"])).code, 0, "re-applying identical files is a no-op");
+   fs.appendFileSync(path.join(units, "enclave-independent-host-guestd.service"), "# operator edit\n");
+@@ -185,6 +187,7 @@
+   assert.equal((await cli(initArgs(dir))).code, 0);
+   const plan = loadPlan(dir), ctx = planTrust(plan);
+   const env = supervisorEnv(dir, { ...plan, supervisor: { ...plan.supervisor, port: 0 } }, ctx, { operatorKey: "0x" + "11".repeat(32), secret: "ab".repeat(32) });
++  assert.equal(env.REGISTRY_PRIVATE_KEY_FILE, path.join(dir, "operator.key")); assert.equal(env.REGISTRY_PRIVATE_KEY, undefined);
+   assert.deepEqual(directOnlyEnvProblems(env), []);
+   const start = (e) => new Promise((ok) => {
+     const c = spawn(process.execPath, ["--max-old-space-size=160", path.join(REPO, "supervisor.js")], { cwd: REPO, env: { PATH: process.env.PATH, HOME: d, ...e }, stdio: ["ignore", "pipe", "pipe"] });
+@@ -193,7 +196,11 @@
+     c.on("exit", (code) => { clearTimeout(stop); ok({ code, log }); });
+   });
+   const good = await start(env);
+-  assert.match(good.log, /\[direct\] direct-only host control/); assert(!/refused/.test(good.log));
++  assert.match(good.log, /\[direct\] direct-only host control/); assert(!/refused|REGISTRY_PRIVATE_KEY_FILE must/.test(good.log));
++  fs.chmodSync(path.join(dir, "operator.key"), 0o644);
++  const loose = await start(env);
++  assert.equal(loose.code, 1); assert.match(loose.log, /FATAL: REGISTRY_PRIVATE_KEY_FILE must be this user's regular 0600 file/);
++  fs.chmodSync(path.join(dir, "operator.key"), 0o600);
+   const { SECRETS_API: _, ...unset } = env;
+   assert.deepEqual(directOnlyEnvProblems(unset), ["SECRETS_API must be set and empty"]);
+   const bad = await start(unset);

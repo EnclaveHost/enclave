@@ -1,0 +1,46 @@
+--- a/eyesoff-ai/src/sso.rs
++++ b/eyesoff-ai/src/sso.rs
+@@ -66,6 +66,10 @@
+     /// tolerated clock drift on `iat`, seconds
+     #[serde(default = "default_skew")]
+     pub skew_secs: u64,
++    /// CUTOVER (unix seconds): from this moment no EST1 counts here, whatever it says about itself - an issuer can mint
++    /// any `iat`, so only the deployment's own clock can end its authority. Set it ahead of the issuer's retirement.
++    #[serde(default)]
++    pub until: Option<u64>,
+ }
+ 
+ fn default_authorize_url() -> String {
+@@ -154,6 +158,9 @@
+ /// prose (they land in the 401 body); none of them leak what WAS expected.
+ pub fn verify(cfg: &SsoConfig, token: &str, now_secs: u64) -> Result<Claims, String> {
+     let rest = token.strip_prefix("EST1.").ok_or("not an Enclave sign-in token")?;
++    if cfg.until.is_some_and(|u| now_secs >= u) {
++        return Err("Sign in with Enclave has ended for this deployment: sign in with your wallet".into());
++    }
+     let (payload_b64, sig_b64) = rest.split_once('.').ok_or("malformed sign-in token")?;
+ 
+     let payload = URL_SAFE_NO_PAD
+@@ -230,6 +237,7 @@
+             authorize_url: default_authorize_url(),
+             required: true,
+             skew_secs: 300,
++            until: None,
+         }
+     }
+ 
+@@ -321,6 +329,14 @@
+     }
+ 
+     #[test]
++    fn a_platform_token_cannot_name_a_wallet_identity() {
++        // wallet_0x… is proven only by the wallet's own signature (wallet.rs);
++        // the platform signer minting one must not open that wallet's data
++        let t = mint(&test_key(), &claims("wallet_0x00a329c0648769a73afac7f9381e08fb43dbea72", AUD, NOW, NOW + 3600), true);
++        assert!(verify(&cfg(), &t, NOW).is_err());
++    }
++
++    #[test]
+     fn garbage_is_rejected_not_panicked() {
+         for junk in ["", "EST1.", "EST1..", "EST1.!!.!!", "Bearer x", "EST2.a.b",
+                      "EST1.eyJ2IjoxfQ", "EST1.eyJ2IjoxfQ.AAAA"] {

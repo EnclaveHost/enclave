@@ -1,0 +1,369 @@
+--- pre-fix/custody/v2/rewrap.mjs
++++ fixed/custody/v2/rewrap.mjs
+@@ -13,8 +13,11 @@
+ //      rules naming it), then runs a NORMAL v2 release from the source committee (challenges, binding, SNP evidence,
+ //      the lease operator's signature - every custodian check unchanged), combines the verified partials inside the TEE,
+ //      re-encrypts the same {env, configSha256} to the destination committee's Y for secretRev + 1, opens its own output
+-//      once with the encryption scalar to check the round trip, and returns ONLY that ciphertext and public facts;
+-//   3. the owner checks the result (label proof for the destination) and signs ONE switch update: committee =
++//      once with the encryption scalar to check the round trip, and returns ONLY that ciphertext and public facts,
++//      ATTESTED: a fresh SNP report whose report_data binds the hash of exactly that result (resultBinding);
++//   3. the owner AUTHENTICATES the result (verifyRewrapResult: the existing SNP verifier, the admitted and authorized
++//      measurement, HOST_DATA, runtime, appId, TCB floors, and the binding of THIS result to THIS authorization) - the host
++//      that carried it is untrusted - and only then signs ONE switch update: committee =
+ //      destination, rules = the original rules (the rewrap image removed), bundle = the new ciphertext, guarded by
+ //      expectPolicyRev. Until then the old policy, rules, bundle and committee keep working unchanged.
+ // Nothing here bypasses an owner, an admin or a custodian check. A refused or interrupted run changes nothing on chain.
+@@ -22,8 +25,8 @@
+ import { hashTypedData, recoverTypedDataAddress, keccak256, encodeFunctionData, isAddress } from "viem";
+ import * as v2 from "./protocol.mjs";
+ import * as hpke from "../hpke.mjs";
+-import { checkEnv } from "../protocol.mjs";
+-import { parseRules, validateRules, canonicalRules } from "../rules.mjs";
++import { checkEnv, id32 } from "../protocol.mjs";
++import { parseRules, validateRules, canonicalRules, DEFAULT_MIN_TCB } from "../rules.mjs";
+ import { runtimeId } from "../../isolation/contract/runtime.mjs";
+ import { VAULT_V2_ABI, ERC1271_ABI } from "./chain.mjs";
+ import { makeUpdateV2, UPDATE_V2_ABI, updateTypedDataV2 } from "./owner.mjs";
+@@ -252,7 +255,7 @@
+ 
+ /**
+  * The whole guest run. -> the RESULT: public facts and the destination ciphertext. Never the payload.
+- * io: { chain, fetchJson, attester, operatorSign, self, now, log }
++ * io: { chain, fetchJson, attester, operatorSign, self, now, log }; the result's attestation comes from io.attester
+  */
+ export async function runRewrap({ chainId, vault, authorization, signature, io }) {
+   const a0 = normalizeAuthorization(authorization);
+@@ -268,20 +271,90 @@
+   try { sealed = sealForDestination({ chainId, vault, a, destY: Buffer.from(facts.dest.Y.slice(2), "hex"), payload }); }
+   finally { payload = null; }                       // the plaintext's only references end here
+   const bundleHex = "0x" + hex(sealed.bundle);
+-  return { format: REWRAP_FORMAT, chainId: Number(chainId), vault: lc(vault), authorizationDigest: digest, authorization: authorizationJson(a),
+-           checkedAtBlock: { number: String(facts.blockNumber), hash: facts.blockHash },
+-           destination: { committeeId: a.destCommitteeId, secretRev: a.destSecretRev.toString(), label: "0x" + hex(sealed.label) },
+-           bundle: bundleHex, bundleHash: keccak256(bundleHex), bundleBytes: sealed.bundle.length };
++  const pub = { format: REWRAP_FORMAT, chainId: Number(chainId), vault: lc(vault), authorizationDigest: digest, authorization: authorizationJson(a),
++                checkedAtBlock: { number: String(facts.blockNumber), hash: facts.blockHash },
++                destination: { committeeId: a.destCommitteeId, secretRev: a.destSecretRev.toString(), label: "0x" + hex(sealed.label) },
++                bundle: bundleHex, bundleHash: keccak256(bundleHex), bundleBytes: sealed.bundle.length };
++  // THE OUTPUT'S PROOF: a fresh SNP report whose report_data[0:32] is the hash of exactly this public result (its bundle,
++  // the authorization and its digest, the destination) - the same evidence document the custodians verify, so the owner
++  // authenticates what it receives with the existing verifier, not the host's word
++  return attestResult({ pub, attester: io.attester, appId: Buffer.from(sourceRules.appId, "hex") });
++}
++/** the guest's attestation of its public result: the evidence document over resultBinding(pub) (see verifyRewrapResult) */
++export async function attestResult({ pub, attester, appId }) {
++  return { ...pub, attestation: await attester.evidence(resultBinding(pub, attester.transportSpki), appId) };
++}
++
++// ---------------------------------------------------------------- the result and its attestation
++export const RESULT_DOMAIN = "enclave-custody-rewrap result/1\n";
++const RESULT_KEYS = Object.freeze(["format", "chainId", "vault", "authorizationDigest", "authorization", "checkedAtBlock", "destination", "bundle", "bundleHash", "bundleBytes"]);
++const canonicalJson = (x) => JSON.stringify(x, (k, v) => (v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map((kk) => [kk, v[kk]])) : v));
++/** report_data[0:32] of the result attestation: sha256(domain ‖ canonical JSON of the public result ‖ sha256(transport SPKI)) */
++export function resultBinding(result, transportSpki) {
++  const pub = Object.fromEntries(RESULT_KEYS.map((k) => [k, result[k]]));
++  return sha256(Buffer.concat([Buffer.from(RESULT_DOMAIN), Buffer.from(canonicalJson(pub)), sha256(Buffer.from(transportSpki))]));
+ }
+ 
+ /** the result object may carry nothing but these keys and these shapes: a defense against a future edit leaking a payload */
+ export function assertResultShape(r) {
+-  const keys = ["format", "chainId", "vault", "authorizationDigest", "authorization", "checkedAtBlock", "destination", "bundle", "bundleHash", "bundleBytes"];
++  const keys = [...RESULT_KEYS, "attestation"];
+   if (!r || JSON.stringify(Object.keys(r).sort()) !== JSON.stringify([...keys].sort())) refuse("bad_result", "unexpected result fields");
+-  if (r.format !== REWRAP_FORMAT || !/^0x[0-9a-f]+$/.test(r.bundle) || keccak256(r.bundle) !== r.bundleHash) refuse("bad_result", "malformed result");
++  if (r.format !== REWRAP_FORMAT || !/^0x[0-9a-f]+$/.test(r.bundle) || keccak256(r.bundle) !== r.bundleHash || r.bundleBytes !== (r.bundle.length - 2) / 2) refuse("bad_result", "malformed result");
++  const t = r.attestation;
++  if (!t || JSON.stringify(Object.keys(t).sort()) !== JSON.stringify(["abi", "format", "report", "runtime", "transportKey"]) || t.format !== SNP_GUEST_FORMAT || t.abi !== SNP_GUEST_ABI ||
++      typeof t.report !== "string" || typeof t.transportKey !== "string") refuse("bad_result", "the result carries no SNP evidence document");
+   return r;
+ }
+ 
++/** the floor a result attestation must meet: the policy's own floor, never below the platform's (pointwise maximum) */
++function attestationFloor(ruleFloor) {
++  const out = {};
++  for (const line of new Set([...Object.keys(ruleFloor || {}), ...Object.keys(DEFAULT_MIN_TCB)])) {
++    const a = ruleFloor?.[line], b = DEFAULT_MIN_TCB[line];
++    out[line] = Object.fromEntries(Object.keys(a || b).map((k) => [k, Math.max(a?.[k] ?? 0, b?.[k] ?? 0)]));
++  }
++  return out;
++}
++
++/**
++ * THE OWNER'S AUTHENTICATION of a rewrap result, before any switch can be built. Everything the owner is about to sign
++ * must be what the AUTHORIZED measured rewrap image produced:
++ *   - the result answers THIS authorization (digest and fields), chain and vault; its destination and label are the
++ *     authorized ones; the bundle's hash and size are its own;
++ *   - its attestation is a valid SEV-SNP evidence document under the EXISTING verifier (custody/verifiers.mjs; production:
++ *     productionVerifiers with AMD collateral): VCEK chain to the AMD root, TCB >= the policy's floor and the platform's,
++ *     not debuggable, the rules' VMPL, CHIP_ID unmasked;
++ *   - its measurement is the rewrap image the owner ADMITTED in the policy rules AND named in the authorization, its stated
++ *     runtime is the rewrap runtime, HOST_DATA is this deployment, report_data[32:64] is the policy's appId and
++ *     report_data[0:32] binds EXACTLY this result (resultBinding) and the attested transport key.
++ * rules: the policy's rules at the authorized source revision (they admit the rewrap image). verifiers: required.
++ * -> { measurement, chipId, synthetic } or throws RewrapRefusal
++ */
++export async function verifyRewrapResult({ chainId, vault, authorization, result, rules, verifiers }) {
++  const a = normalizeAuthorization(authorization);
++  const verify = verifiers && Object.prototype.hasOwnProperty.call(verifiers, SNP_GUEST_FORMAT) ? verifiers[SNP_GUEST_FORMAT] : null;
++  if (typeof verify !== "function") refuse("no_verifier", "an SEV-SNP evidence verifier is required to accept a rewrap result");
++  assertResultShape(result);
++  if (result.chainId !== Number(chainId) || result.vault !== lc(vault)) refuse("bad_result", "the result is for another chain or vault");
++  if (result.authorizationDigest !== rewrapDigest({ chainId, vault, authorization: a })) refuse("bad_result", "the result answers another authorization");
++  if (canonicalJson(result.authorization) !== canonicalJson(authorizationJson(a))) refuse("bad_result", "the result's authorization fields differ");
++  const label = v2.labelOf({ chainId, vault, id: a.id, secretRev: a.destSecretRev, committeeId: a.destCommitteeId });
++  if (result.destination?.committeeId !== a.destCommitteeId || result.destination?.secretRev !== a.destSecretRev.toString() || result.destination?.label !== "0x" + hex(label))
++    refuse("bad_result", "the result's destination is not the authorized one");
++  const bundle = Buffer.from(result.bundle.slice(2), "hex");
++  if (!v2.verifyLabelProof(bundle, label)) refuse("bad_result", "the bundle is not labelled for the authorized destination and revision");
++  const r = typeof rules === "string" ? parseRules(rulesBytes(rules)) : validateRules(rules);
++  const image = r.images.find((im) => im.platform === "sev-snp" && im.runtimeId === REWRAP_RUNTIME_ID && "0x" + hex(sha256(Buffer.from(im.measurement, "hex"))) === a.rewrapMeasurement);
++  if (!image) refuse("not_admitted", "the policy's rules do not admit the authorized rewrap image");
++  let rid; try { rid = runtimeId(result.attestation.runtime).toString("hex"); } catch (e) { refuse("bad_attestation", `runtime: ${e.message}`); }
++  if (rid !== REWRAP_RUNTIME_ID) refuse("bad_attestation", "the attestation states another runtime than the rewrap runtime");
++  let spki; try { spki = Buffer.from(result.attestation.transportKey, "base64"); } catch { spki = Buffer.alloc(0); }
++  const v = await verify({ doc: result.attestation, allowedMeasurements: [image.measurement], minTcb: attestationFloor(r.minTcb), vmpl: r.vmpl,
++                           binding: resultBinding(result, spki), appId: Buffer.from(r.appId, "hex"), hostData: id32(a.id) });
++  if (!v || v.ok !== true) refuse("bad_attestation", `the result's attestation does not verify: ${(v && v.reason) || "no verdict"}`);
++  return { measurement: v.measurement, chipId: v.chipId, synthetic: v.synthetic === true };
++}
++
+ // ---------------------------------------------------------------- the owner's side (CLI / tooling, outside any TEE)
+ const rulesBytes = (hexRules) => Buffer.from(String(hexRules).slice(2), "hex");
+ /**
+@@ -311,20 +384,26 @@
+ }
+ 
+ /**
+- * The owner's check of a guest's result, then the ONE switch update: destination committee, the ORIGINAL rules (the
+- * rewrap image removed), the new bundle; expectPolicyRev = the authorized source revision, so a policy that moved since
+- * is never switched. -> { switchUpdate }
++ * The ONE switch update, built ONLY after verifyRewrapResult authenticated the result's attestation: destination
++ * committee, the ORIGINAL rules (the rewrap image removed), the new bundle; expectPolicyRev = the authorized source
++ * revision, so a policy that moved since is never switched. rules: the admitted rules at that revision (see
++ * verifyRewrapResult); verifiers: required. -> { switchUpdate, attested }
+  */
+-export function checkResultAndSwitch({ chainId, vault, authorization, result, originalRules, paused = false }) {
++export async function checkResultAndSwitch({ chainId, vault, authorization, result, rules, verifiers, originalRules, paused = false }) {
+   const a = normalizeAuthorization(authorization);
+-  assertResultShape(result);
+-  if (result.authorizationDigest !== rewrapDigest({ chainId, vault, authorization: a })) refuse("bad_result", "the result answers another authorization");
+-  if (result.chainId !== Number(chainId) || result.vault !== lc(vault)) refuse("bad_result", "the result is for another chain or vault");
+-  const label = v2.labelOf({ chainId, vault, id: a.id, secretRev: a.destSecretRev, committeeId: a.destCommitteeId });
+-  const bundle = Buffer.from(result.bundle.slice(2), "hex");
+-  if (!v2.verifyLabelProof(bundle, label)) refuse("bad_result", "the bundle is not labelled for the authorized destination and revision");
+-  const switchUpdate = makeUpdateV2({ expectPolicyRev: a.sourcePolicyRev, policy: { committeeId: a.destCommitteeId, paused, rules: validateRules(originalRules) }, bundle });
+-  return { switchUpdate };
++  const attested = await verifyRewrapResult({ chainId, vault, authorization: a, result, rules, verifiers });
++  const switchUpdate = makeUpdateV2({ expectPolicyRev: a.sourcePolicyRev, policy: { committeeId: a.destCommitteeId, paused, rules: validateRules(originalRules) },
++                                      bundle: Buffer.from(result.bundle.slice(2), "hex") });
++  return { switchUpdate, attested };
++}
++
++/** the policy's rules WITHOUT exactly the authorized rewrap image (what the switch restores); refuses if it is not there */
++export function originalRulesOf(admittedRules, authorization) {
++  const a = normalizeAuthorization(authorization);
++  const r = typeof admittedRules === "string" ? parseRules(rulesBytes(admittedRules)) : validateRules(admittedRules);
++  const keep = r.images.filter((im) => !(im.platform === "sev-snp" && im.runtimeId === REWRAP_RUNTIME_ID && "0x" + hex(sha256(Buffer.from(im.measurement, "hex"))) === a.rewrapMeasurement));
++  if (keep.length !== r.images.length - 1) refuse("not_admitted", "the policy's rules do not admit exactly the authorized rewrap image");
++  return validateRules({ ...r, images: keep });
+ }
+ 
+ /** unsigned owner transactions: `update` from the owner EOA, or the EIP-712 for `updateBySig` (EOA or ERC-1271 owner) */
+--- pre-fix/scripts/custody-rewrap-plan.mjs
++++ fixed/scripts/custody-rewrap-plan.mjs
+@@ -8,13 +8,17 @@
+ //           -> admit (rules + the rewrap image; same committee/pause/bundle) and rollback, each as `update` calldata for an EOA
+ //              owner and as `updateBySig` EIP-712 data (EOA or ERC-1271 owner); the rewrap AUTHORIZATION's EIP-712 data
+ //              when the destination committee exists (else the source half, with the destination fields to fill)
+-//   switch: node scripts/custody-rewrap-plan.mjs --switch --authorization auth.json --result result.json --original-rules rules.json [--paused]
+-//           -> the owner's ONE switch update after checking the guest's result (label proof, digest, chain, vault)
++//   switch: node scripts/custody-rewrap-plan.mjs --switch --authorization auth.json --result result.json [--collateral-cache dir]
++//           -> reads the policy at one agreed block (it must still be the authorized source state; the original rules are
++//              the on-chain rules minus exactly the authorized rewrap image), AUTHENTICATES the result's SEV-SNP attestation
++//              with the production verifier (AMD collateral), and only then prints the ONE switch update
+ import fs from "node:fs";
+ import { keccak256, encodeFunctionData, decodeFunctionResult, parseAbi } from "viem";
+ import { createChainReaderV2, VAULT_V2_ABI, BOOK_KEYS } from "../custody/v2/chain.mjs";
+ import { MEASURED_RPCS } from "../custody/v2/build-config.mjs";
+-import { planRewrap, checkResultAndSwitch, rewrapTypedData, rewrapDigest, ownerUpdateRequests, normalizeAuthorization, REWRAP_RUNTIME_ID } from "../custody/v2/rewrap.mjs";
++import { planRewrap, checkResultAndSwitch, originalRulesOf, rewrapTypedData, rewrapDigest, ownerUpdateRequests, normalizeAuthorization, REWRAP_RUNTIME_ID } from "../custody/v2/rewrap.mjs";
++import { productionVerifiers } from "../custody/verifiers.mjs";
++import { cachedCollateral, httpCollateral } from "../verifier/consumer.mjs";
+ import { parseRules } from "../custody/rules.mjs";
+ 
+ const arg = (n, d) => { const i = process.argv.indexOf("--" + n); return i > 0 ? process.argv[i + 1] : d; };
+@@ -26,16 +30,32 @@
+ const REG_ABI = parseAbi(["function get(bytes32 id) view returns ((string endpoint, string repo, bytes32 measurement, address operator, uint64 registeredAt, uint64 lastSeen, bool active, uint64 cpuPricePerSec6, uint64 gpuPricePerSec6, address proofKey, address payoutWallet))"]);
+ const out = (o) => { const s = J(o) + "\n"; if (arg("out")) fs.writeFileSync(arg("out"), s, { flag: "wx" }); process.stdout.write(s); };
+ 
++const rpcs = String(arg("rpcs", MEASURED_RPCS.join(","))).split(",").map((s) => s.trim()).filter(Boolean);
++const chain = createChainReaderV2({ rpcs, vault: VAULT, vaultKind: "book", chainId: CHAIN_ID, minAgree: Number(arg("min-agree", String(Math.floor(rpcs.length / 2) + 1))), maxAgeSec: 300 });
++
+ if (has("switch")) {
++  // the owner AUTHENTICATES the result before anything is built: the policy as it stands now (one agreed block) must be
++  // exactly the authorized source state, and the result's SEV-SNP attestation must verify under the PRODUCTION verifier
++  // (AMD collateral, no synthetic roots) for the image the policy admits and the authorization names
+   const auth = JSON.parse(fs.readFileSync(arg("authorization"), "utf8"));
+-  const result = JSON.parse(fs.readFileSync(arg("result"), "utf8"));
+-  const originalRules = JSON.parse(fs.readFileSync(arg("original-rules"), "utf8"));
+-  const r = result.result || result;
+-  const { switchUpdate } = checkResultAndSwitch({ chainId: CHAIN_ID, vault: VAULT, authorization: auth.authorization || auth, result: r, originalRules, paused: has("paused") });
++  const posted = JSON.parse(fs.readFileSync(arg("result"), "utf8"));
++  const r = posted.result || posted;
+   const a = normalizeAuthorization(auth.authorization || auth);
+-  out({ what: "the owner's ONE switch update (destination committee, the original rules, the new bundle), guarded by expectPolicyRev",
+-        checked: { authorizationDigest: r.authorizationDigest, bundleHash: r.bundleHash, destination: r.destination },
+-        switch: { fields: switchUpdate, requests: ownerUpdateRequests({ chainId: CHAIN_ID, vault: VAULT, id: a.id, update: switchUpdate, deadline: Math.floor(Date.now() / 1000) + 3600 }) } });
++  const now = await chain.snapshot(async ({ call }) => {
++    const [owner, policyRev, secretRev, committeeId, paused, rules] = await call(VAULT, VAULT_V2_ABI, "policyOf", [a.id]);
++    const [, , bundle] = await call(VAULT, VAULT_V2_ABI, "bundleOf", [a.id]);
++    return { owner: owner.toLowerCase(), policyRev: policyRev.toString(), secretRev: secretRev.toString(), committeeId: committeeId.toLowerCase(), paused, rules: rules.toLowerCase(), bundleHash: keccak256(bundle) };
++  });
++  if (BigInt(now.policyRev) !== a.sourcePolicyRev || BigInt(now.secretRev) !== a.sourceSecretRev || now.committeeId !== a.sourceCommitteeId || now.bundleHash !== a.sourceBundleHash)
++    throw new Error(`the policy is no longer the authorized source state (now rev ${now.policyRev}/${now.secretRev}); a switch would revert - re-plan`);
++  const collateral = cachedCollateral({ dir: arg("collateral-cache", "/tmp/enclave-amd-collateral"), upstream: httpCollateral({ timeoutMs: 8000 }) });
++  const { switchUpdate, attested } = await checkResultAndSwitch({ chainId: CHAIN_ID, vault: VAULT, authorization: a, result: r, rules: now.rules,
++    verifiers: productionVerifiers({ collateral }), originalRules: originalRulesOf(now.rules, a), paused: now.paused });
++  if (attested.synthetic) throw new Error("a synthetic attestation was accepted: refusing");
++  out({ what: "the owner's ONE switch update (destination committee, the original rules, the new bundle), guarded by expectPolicyRev - built only after the result's SEV-SNP attestation verified",
++        checkedAtBlock: { number: String(now.blockNumber), hash: now.blockHash },
++        authenticated: { authorizationDigest: r.authorizationDigest, bundleHash: r.bundleHash, destination: r.destination, measurement: attested.measurement, chipId: attested.chipId },
++        switch: { fields: switchUpdate, requests: ownerUpdateRequests({ chainId: CHAIN_ID, vault: VAULT, id: a.id, update: switchUpdate, deadline: Number(now.blockTimestamp) + 3600 }) } });
+   process.exit(0);
+ }
+ 
+@@ -45,8 +65,6 @@
+ if (manifest.role !== "enclave-custody-rewrap" || !/^[0-9a-f]{96}$/.test(String(manifest.measurement)) || manifest.runtimeId !== REWRAP_RUNTIME_ID)
+   throw new Error("--rewrap-manifest is not a measured rewrap image manifest of this runtime");
+ if (manifest.measured?.vault !== VAULT || manifest.measured?.chainId !== CHAIN_ID) throw new Error("the rewrap image is measured for another chain or vault");
+-const rpcs = String(arg("rpcs", MEASURED_RPCS.join(","))).split(",").map((s) => s.trim()).filter(Boolean);
+-const chain = createChainReaderV2({ rpcs, vault: VAULT, vaultKind: "book", chainId: CHAIN_ID, minAgree: Number(arg("min-agree", String(Math.floor(rpcs.length / 2) + 1))), maxAgeSec: 300 });
+ const dest = arg("dest", null) ? String(arg("dest")).toLowerCase() : null;
+ const facts = await chain.snapshot(async ({ call }) => {
+   const [owner, policyRev, secretRev, committeeId, paused, rules] = await call(VAULT, VAULT_V2_ABI, "policyOf", [id]);
+@@ -82,6 +100,6 @@
+     "2 authorize (owner, EIP-712)": facts.dest ? { authorization, typedData: rewrapTypedData({ chainId: CHAIN_ID, vault: VAULT, authorization }), digest: rewrapDigest({ chainId: CHAIN_ID, vault: VAULT, authorization }) }
+                                                : { authorization, note: "the destination committee must exist first; rerun with --dest and --dest-code" },
+     "3 run (lease host operator)": "node custody/v2/rewrap-host.mjs <config> with this image; the result is ciphertext only",
+-    "4 switch (owner)": "node scripts/custody-rewrap-plan.mjs --switch --authorization … --result … --original-rules …",
++    "4 switch (owner)": "node scripts/custody-rewrap-plan.mjs --switch --authorization … --result … (verifies the result's SEV-SNP attestation first)",
+     "rollback before the switch (owner)": { fields: p.rollback, requests: ownerUpdateRequests({ chainId: CHAIN_ID, vault: VAULT, id, update: p.rollback, deadline }) } },
+   originalRules: p.originalRules });
+--- pre-fix/test/custody-owner-rewrap.test.mjs
++++ fixed/test/custody-owner-rewrap.test.mjs
+@@ -308,10 +308,26 @@
+   assert.ok(run2.result && run2.result.bundle !== lost.result.bundle, "a retry re-encrypts (fresh randomness), same destination and revision");
+   assert.deepEqual([run2.result.destination, run2.result.authorizationDigest], [lost.result.destination, lost.result.authorizationDigest]);
+ 
+-  // 5. the owner checks the result and signs ONE switch; a mismatched result or revision never commits
+-  const otherExpiry = await expiryIn(99);
+-  assert.throws(() => checkResultAndSwitch({ chainId, vault, authorization: { ...authA, expiry: otherExpiry }, result: run2.result, originalRules: pl.originalRules }), /another authorization/);
+-  const { switchUpdate } = checkResultAndSwitch({ chainId, vault, authorization: authA, result: run2.result, originalRules: pl.originalRules });
++  // 5. the owner AUTHENTICATES the result (its SEV-SNP attestation, existing verifier) and only then signs ONE switch.
++  //    The result came through the UNTRUSTED host: every host substitution is refused before a switch exists.
++  const admittedA = (await policyOf(idA)).rules;
++  const ownerSwitch = (authorization, result, originalRules, rules) => checkResultAndSwitch({ chainId, vault, authorization, result, rules, verifiers: newVerifiers, originalRules });
++  const switchCode = async (p) => { try { await p; return "built"; } catch (e) { return e.code || e.message; } };
++  {
++    const label = v2.labelOf({ chainId, vault, id: idA, secretRev: BigInt(authA.destSecretRev), committeeId: NEWC.cid });
++    const evil = v2.encryptBundle({ Y: Buffer.from(NEWC.Y.slice(2), "hex"), label, env: { API_KEY: "attacker-chosen" }, configSha256: "d".repeat(64) });
++    const eb = "0x" + Buffer.from(evil).toString("hex");
++    const tamper = [
++      ["ROOT P1: the host substitutes an attacker-chosen bundle under the public key and label", { ...run2.result, bundle: eb, bundleHash: keccak256(eb), bundleBytes: evil.length }, "bad_attestation"],
++      ["the lost run's attestation on this run's result", { ...run2.result, attestation: lost.result.attestation }, "bad_attestation"],
++      ["the guest's attestation re-sent with the evil bundle (attestation from a real run)", { ...lost.result, bundle: eb, bundleHash: keccak256(eb), bundleBytes: evil.length }, "bad_attestation"],
++    ];
++    for (const [what, forged, want] of tamper) assert.equal(await switchCode(ownerSwitch(authA, forged, pl.originalRules, admittedA)), want, what);
++    const otherExpiry = await expiryIn(99);
++    assert.equal(await switchCode(ownerSwitch({ ...authA, expiry: otherExpiry }, run2.result, pl.originalRules, admittedA)), "bad_result", "a result answers only its own authorization");
++  }
++  const { switchUpdate, attested } = await ownerSwitch(authA, run2.result, pl.originalRules, admittedA);
++  assert.equal(attested.measurement, REWRAP_MEAS, "the attested measurement is the admitted, authorized rewrap image");
+   const reqs = ownerUpdateRequests({ chainId, vault, id: idA, update: switchUpdate, deadline: 1n });
+   assert.equal(reqs.update.to, vault);
+   await A.apply(idA, switchUpdate);
+@@ -319,7 +335,7 @@
+   assert.deepEqual([switched.committeeId, switched.secretRev, switched.policyRev, switched.rules], [NEWC.cid, original.secretRev + 1n, original.policyRev + 2n, original.rules],
+     "the switch: destination committee, secretRev + 1, the ORIGINAL rules restored byte for byte");
+   await reverts(ownerA, vault, UPDATE_V2_ABI, "update", [idA, switchUpdate], /StaleRevision|revert/i);   // a replayed switch
+-  const { switchUpdate: lostSwitch } = checkResultAndSwitch({ chainId, vault, authorization: authA, result: lost.result, originalRules: pl.originalRules });
++  const { switchUpdate: lostSwitch } = await ownerSwitch(authA, lost.result, pl.originalRules, admittedA);   // genuine, but stale now
+   await reverts(ownerA, vault, UPDATE_V2_ABI, "update", [idA, lostSwitch], /StaleRevision|revert/i);      // the lost result, later
+   const out = await unlock(idA);
+   assert.deepEqual(out.env, ENV_A, "the NEW committee releases exactly the same payload");
+@@ -360,7 +376,7 @@
+   plB = await plan(idB); await B.apply(idB, plB.admit);
+   const runB = await runGuest({ authorization: plB.authorization, signature: await sign(B, plB.authorization) });
+   assert.ok(runB.result, runB.error);
+-  await B.apply(idB, checkResultAndSwitch({ chainId, vault, authorization: plB.authorization, result: runB.result, originalRules: plB.originalRules }).switchUpdate);
++  await B.apply(idB, (await ownerSwitch(plB.authorization, runB.result, plB.originalRules, (await policyOf(idB)).rules)).switchUpdate);
+   assert.deepEqual((await unlock(idB)).env, ENV_B, "64 keys survive the move");
+   // rollback AFTER the switch: the same mechanism in reverse (the corrected custodian releases, the old committee receives)
+   const back = planRewrap({ policy: await policyOf(idB), bundle: await bundleOf(idB), dest: { committeeId: OLDC.cid, Y: OLDC.Y }, destCodeMeasurement: sha(OLD_MEAS),
+@@ -368,7 +384,7 @@
+   await B.apply(idB, back.admit);
+   const runBack = await runGuest({ authorization: back.authorization, signature: await sign(B, back.authorization) });
+   assert.ok(runBack.result, runBack.error);
+-  await B.apply(idB, checkResultAndSwitch({ chainId, vault, authorization: back.authorization, result: runBack.result, originalRules: back.originalRules }).switchUpdate);
++  await B.apply(idB, (await ownerSwitch(back.authorization, runBack.result, back.originalRules, (await policyOf(idB)).rules)).switchUpdate);
+   assert.equal((await policyOf(idB)).committeeId, OLDC.cid);
+   assert.deepEqual((await unlock(idB)).env, ENV_B, "rolled back to the old committee: same payload");
+ 
+@@ -389,7 +405,10 @@
+   await send(keyC2, walletC, W1271.abi, "setOwner", [keyC.address]);
+   const runC = await runGuest({ authorization: plC.authorization, signature: sigC });
+   assert.ok(runC.result, runC.error);
+-  await Cw.apply(idC, checkResultAndSwitch({ chainId, vault, authorization: plC.authorization, result: runC.result, originalRules: plC.originalRules }).switchUpdate);
++  // a result for deployment A presented for C: genuine attestation, wrong deployment/authorization
++  assert.equal(await switchCode(ownerSwitch(plC.authorization, { ...runC.result, attestation: run2.result.attestation }, plC.originalRules, (await policyOf(idC)).rules)), "bad_attestation",
++    "evidence from another deployment's run (other HOST_DATA, other binding)");
++  await Cw.apply(idC, (await ownerSwitch(plC.authorization, runC.result, plC.originalRules, (await policyOf(idC)).rules)).switchUpdate);
+   assert.deepEqual((await unlock(idC)).env, ENV_C);
+ 
+   // ======================================================================== D. the old ciphertext is useless to the new committee
+@@ -404,7 +423,7 @@
+   const everything = JSON.stringify(posted) + "\n" + logs.join("\n");
+   for (const [k, v] of Object.entries({ ...ENV_A, ...ENV_B, ...ENV_C })) if (v.length >= 12) assert.ok(!everything.includes(v), `${k}'s value appears in a result, a host message or a log`);
+   for (const p of posted.filter((x) => x.result)) assert.deepEqual(Object.keys(p.result).sort(),
+-    ["authorization", "authorizationDigest", "bundle", "bundleBytes", "bundleHash", "chainId", "checkedAtBlock", "destination", "format", "vault"]);
++    ["attestation", "authorization", "authorizationDigest", "bundle", "bundleBytes", "bundleHash", "chainId", "checkedAtBlock", "destination", "format", "vault"]);
+   assert.equal(REWRAP_RUNTIME_ID, runtimeId((await import("../custody/v2/rewrap.mjs")).REWRAP_RUNTIME).toString("hex"));
+   assert.ok(rewrapDigest({ chainId, vault, authorization: authA }));
+   assert.ok(canonicalRules(RULES).length > 0);
+--- pre-fix/test/custody-rewrap-unit.test.mjs
++++ fixed/test/custody-rewrap-unit.test.mjs
+@@ -118,23 +118,24 @@
+   assert.throws(() => sealForDestination({ chainId: CHAIN, vault: VAULT, a, destY: Buffer.from(w.facts.dest.Y.slice(2), "hex"), payload: { env: { "BAD NAME": "x" }, configSha256: "c".repeat(64) } }), /env-var name/);
+ });
+ 
+-test("the result carries only ciphertext and public facts; the owner's switch checks it and restores the original rules", () => {
++test("the result carries only ciphertext, public facts and its SNP evidence document; nothing builds a switch without verifying it", async () => {
+   const w = world(), a = normalizeAuthorization(w.a);
+   const { bundle } = sealForDestination({ chainId: CHAIN, vault: VAULT, a, destY: Buffer.from(w.facts.dest.Y.slice(2), "hex"), payload: { env: w.env, configSha256: "c".repeat(64) } });
+   const bundleHex = "0x" + Buffer.from(bundle).toString("hex");
+   const result = { format: "enclave-custody-rewrap/1", chainId: CHAIN, vault: VAULT, authorizationDigest: rewrapDigest({ chainId: CHAIN, vault: VAULT, authorization: w.a }),
+     authorization: w.a, checkedAtBlock: { number: "1", hash: hex32() }, destination: { committeeId: a.destCommitteeId, secretRev: "4", label: "0x" }, bundle: bundleHex,
+-    bundleHash: keccak256(bundleHex), bundleBytes: bundle.length };
++    bundleHash: keccak256(bundleHex), bundleBytes: bundle.length,
++    attestation: { format: "sev-snp-guest-domain-v1", abi: "enclave-domain-abi/2", runtime: {}, transportKey: "", report: "" } };
+   assert.equal(assertResultShape(result), result);
+   assert.throws(() => assertResultShape({ ...result, env: w.env }), /unexpected result fields/, "a payload field is refused");
+   assert.throws(() => assertResultShape({ ...result, bundleHash: hex32() }), /malformed/);
+-  const { switchUpdate } = checkResultAndSwitch({ chainId: CHAIN, vault: VAULT, authorization: w.a, result, originalRules: RULES });
+-  assert.deepEqual([switchUpdate.expectPolicyRev, switchUpdate.setPolicy, switchUpdate.committeeId, switchUpdate.setBundle, switchUpdate.rules],
+-                   [5n, true, a.destCommitteeId, true, rulesHex(RULES)], "one atomic update: expect the authorized revision, destination, original rules, new bundle");
+-  const other = sealForDestination({ chainId: CHAIN, vault: VAULT, a: { ...a, destCommitteeId: hex32() }, destY: Buffer.from(w.facts.dest.Y.slice(2), "hex"), payload: { env: w.env, configSha256: "c".repeat(64) } });
+-  const otherHex = "0x" + Buffer.from(other.bundle).toString("hex");
+-  assert.throws(() => checkResultAndSwitch({ chainId: CHAIN, vault: VAULT, authorization: w.a, result: { ...result, bundle: otherHex, bundleHash: keccak256(otherHex) }, originalRules: RULES }), /not labelled/);
+-  assert.throws(() => checkResultAndSwitch({ chainId: 1, vault: VAULT, authorization: w.a, result, originalRules: RULES }), /another authorization|another chain/);
++  assert.throws(() => assertResultShape({ ...result, bundleBytes: 1 }), /malformed/);
++  const { attestation, ...bare } = result;
++  assert.throws(() => assertResultShape(bare), /unexpected result fields/, "an unattested (pre-fix) result is refused");
++  assert.throws(() => assertResultShape({ ...result, attestation: { ...attestation, extra: 1 } }), /no SNP evidence/);
++  await assert.rejects(checkResultAndSwitch({ chainId: CHAIN, vault: VAULT, authorization: w.a, result, rules: RULES_W, verifiers: {}, originalRules: RULES }), /verifier is required/,
++    "no verifier, no switch (test/custody-rewrap-result-auth.test.mjs covers the verification itself)");
++  assert.ok(attestation);
+ });
+ 
+ test("the owner's plan: admit adds exactly the rewrap image; rollback restores the original bytes; unsafe rules are refused", () => {

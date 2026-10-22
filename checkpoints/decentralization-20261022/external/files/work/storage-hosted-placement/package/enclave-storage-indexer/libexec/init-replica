@@ -1,0 +1,27 @@
+#!/bin/bash
+# init-replica <r>: run once by the host owner (root) after preflight. Creates PGDATA (peer auth, socket only), the
+# indexd role and database, and the non-secret indexd.base.yml. It never generates or prints secrets: it tells the
+# operator how to create the two encrypted credentials with systemd-creds.
+source "$(dirname "$0")/common.sh"
+r=$(replica_name "${1:-}")
+"$PKG/libexec/preflight" "$r"
+load_env "$r"
+PG=${PG_BIN:-/usr/lib/postgresql/18/bin}
+data=$VAR/$r/postgres sock=$RUN/$r/pg
+[ -e "$data/PG_VERSION" ] && die "$data already initialised"
+install -d -m 0700 -o enclave-storage-indexer -g enclave-storage-indexer "$data" "$VAR/$r/state" "$VAR/$r/outbox"
+install -d -m 0750 -o enclave-storage-indexer -g enclave-storage-indexer "$sock"
+runuser -u enclave-storage-indexer -- "$PG/initdb" -D "$data" --auth-local=peer --auth-host=reject --encoding=UTF8 --locale=C.UTF-8 >/dev/null
+runuser -u enclave-storage-indexer -- "$PG/pg_ctl" -D "$data" -o "-c listen_addresses='' -c unix_socket_directories='$sock'" -w start >/dev/null
+runuser -u enclave-storage-indexer -- "$PG/createdb" -h "$sock" indexd
+runuser -u enclave-storage-indexer -- "$PG/pg_ctl" -D "$data" -w stop >/dev/null
+sed -e "s|@REPLICA@|$r|g" -e "s|@ADVERTISE_URL@|$ADVERTISE_URL|g" -e "s|@SOCKET@|$sock|g" -e "s|@STATE@|$VAR/$r/state|g" \
+  "$PKG/templates/indexd.base.yml" > "$ETC/$r/indexd.base.yml"
+chmod 0640 "$ETC/$r/indexd.base.yml"
+cat <<MSG
+replica $r initialised. Create its credentials ON THIS HOST (never copy them off it):
+  $PKG/bin/indexd seed            # writes a NEW phrase for THIS replica only; never reuse another replica's
+  systemd-creds encrypt --name=recovery-phrase - $ETC/$r/recovery-phrase.cred   (paste the phrase, then Ctrl-D)
+  head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n' | systemd-creds encrypt --name=admin-password - $ETC/$r/admin-password.cred
+Then root activates: touch $ETC/$r/ALLOW_LIVE_START && systemctl enable --now enclave-storage-indexer@$r
+MSG

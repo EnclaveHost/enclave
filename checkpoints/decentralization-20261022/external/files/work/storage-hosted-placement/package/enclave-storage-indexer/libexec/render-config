@@ -1,0 +1,30 @@
+#!/bin/bash
+# render-config <r>: ExecStartPre of enclave-storage-indexer@<r>. indexd reads secrets only from its config file, so the
+# file is assembled per start in the unit's tmpfs RuntimeDirectory from the non-secret base and the systemd
+# credentials (decrypted by systemd into $CREDENTIALS_DIRECTORY). Nothing secret is written to the state dir or logged.
+source "$(dirname "$0")/common.sh"
+r=$(replica_name "${1:-}")
+base=$ETC/$r/indexd.base.yml
+out=${RUNTIME_DIRECTORY:-$RUN/$r}/indexd.yml
+cred=${CREDENTIALS_DIRECTORY:?CREDENTIALS_DIRECTORY is not set (LoadCredentialEncrypted in the unit)}
+[ -f "$base" ] || die "missing $base"
+grep -q "<PLACEHOLDER" "$base" && die "indexd.base.yml has placeholders"
+grep -qE '^[[:space:]]*recoveryPhrase:' "$base" && die "indexd.base.yml must not contain the recovery phrase"
+grep -E '^[[:space:]]*password:' "$base" | grep -vqE '^[[:space:]]*password: "(@ADMIN_PASSWORD@)?"[[:space:]]*(#.*)?$' \
+  && die "indexd.base.yml must not contain a password value (credentials only)"
+phrase=$(tr -d '\r' < "$cred/recovery-phrase" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+words=$(wc -w <<< "$phrase")
+[ "$words" -eq 12 ] || [ "$words" -eq 24 ] || die "recovery-phrase credential must be 12 or 24 words (got $words)"
+[[ "$phrase" =~ ^[a-z\ ]+$ ]] || die "recovery-phrase credential: lowercase words only"
+admin=$(tr -d '\r\n' < "$cred/admin-password")
+[ ${#admin} -ge 24 ] || die "admin-password credential must be at least 24 characters"
+[[ "$admin" =~ ^[A-Za-z0-9._~-]+$ ]] || die "admin-password credential: URL-safe characters only"
+umask 077
+tmp=$(mktemp "$out.XXXXXX")
+{
+  printf 'recoveryPhrase: "%s"\n' "$phrase"
+  sed -e "s|@ADMIN_PASSWORD@|$admin|" "$base"
+} > "$tmp"
+chmod 0600 "$tmp"
+mv -f "$tmp" "$out"
+echo "rendered $out (secrets from credentials; not logged)"

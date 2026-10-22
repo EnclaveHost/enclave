@@ -1,0 +1,6 @@
+{
+  "inputCount": 418,
+  "mismatches": [],
+  "failure": "bundle bytes match; raw esbuild input ordering depends on realpath of symlinked node_modules",
+  "candidateFix": "sort normalized input names before manifest serialization; no runtime byte change"
+}

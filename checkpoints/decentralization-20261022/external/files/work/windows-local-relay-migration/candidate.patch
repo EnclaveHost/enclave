@@ -1,0 +1,687 @@
+diff --git a/network/lease-relay-migration-check.mjs b/network/lease-relay-migration-check.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..de09177039245911b4fcee3b78d2c81f0cc8394e
+--- /dev/null
++++ b/network/lease-relay-migration-check.mjs
+@@ -0,0 +1,132 @@
++// lease-relay-migration-check.mjs - READ-ONLY gate before a lease relay KEY that was moved from another machine is started
++// here. A relay key must sign from ONE place at a time, and a send the old machine signed but never saw resolved must be
++// carried over (the relay re-broadcasts exactly those bytes, client/lease-executor-client.mjs startLeaseRelay), never
++// signed anew at the same nonce. This check proves, from public chain state, that the moved key's nonce is reconciled
++// with the moved send record. It never opens the key file and signs nothing.
++//
++// Settings: the relay's own (LEASE_RELAY_RECORD, LEASE_RELAY_DIGEST, LEASE_RELAY_RPCS, LEASE_RELAY_QUORUM,
++// LEASE_RELAY_STATE) plus LEASE_RELAY_EXPECTED_PAYEE (the moved key's public address).
++//   node lease-relay-migration-check.mjs            exit 0 = reconciled (one JSON line), 1 = refused (reasons), 2 = usage
++// At ONE block the RPC quorum agrees on (verifiedLeaseAuthority: the reviewed reserve/executor code and bindings too):
++//   - the send record must EXIST (the old machine's journal travels with the key; an absent one is not "nothing pending")
++//     and be exactly {} or {nonce, raw, hash} with keccak256(raw) = hash, a transaction on this chain at that nonce, signed
++//     by the expected payee;
++//   - {}: nothing of this key may be in flight anywhere: every answering provider's pending nonce equals the agreed nonce;
++//   - {nonce, raw, hash}: either that transaction is MINED (its receipt agreed by the quorum; the agreed nonce is past it),
++//     or it is still the key's NEXT transaction (agreed nonce = its nonce; no provider sees a pending nonce beyond it + 1):
++//     the relay re-broadcasts it before any new send. A nonce consumed by ANOTHER transaction, or an unknown transaction in
++//     flight, is refused: settle it by hand first.
++// The key's balance (public) is reported against the float cap; the relay itself refuses to start above its cap.
++// LEASE_RELAY_SOURCE_ORIGIN (optional, the old machine's public relay origin): exclusivity, a second check beside the old
++// machine's own stop receipt. It must NOT answer /v1/info as this payee. A connection refused/reset/timed out or an HTTP
++// error is "not serving"; a TLS/certificate failure proves nothing and refuses.
++import fs from "node:fs";
++import { pathToFileURL } from "node:url";
++import { createPublicClient, http, defineChain, getAddress, isAddress, keccak256, parseTransaction, recoverTransactionAddress, formatEther, parseEther } from "viem";
++import { parseDeploymentRecord } from "./lease-gas-owner.mjs";
++import { leaseRpcSet, verifiedLeaseAuthority } from "./lease-executor-authority.mjs";
++
++const HASH = /^0x[0-9a-f]{64}$/;
++
++/** The moved send record: null for {}, else { nonce, raw, hash, tx }; throws a reason for anything else. */
++export async function movedSendRecord(text, { chainId, payee }) {
++  let j; try { j = JSON.parse(text); } catch { throw new Error("the send record is not JSON"); }
++  if (!j || typeof j !== "object" || Array.isArray(j)) throw new Error("the send record is not an object");
++  const keys = Object.keys(j).sort().join(",");
++  if (keys === "") return null;
++  if (keys !== "hash,nonce,raw") throw new Error(`the send record has fields ${keys.slice(0, 80)}, not exactly nonce, raw, hash`);
++  if (!Number.isSafeInteger(j.nonce) || j.nonce < 0 || typeof j.raw !== "string" || !/^0x(?:[0-9a-fA-F]{2})+$/.test(j.raw) || typeof j.hash !== "string")
++    throw new Error("the send record's nonce, raw or hash is malformed");
++  if (keccak256(j.raw) !== j.hash.toLowerCase()) throw new Error("the send record's hash is not keccak256(raw)");
++  let tx; try { tx = parseTransaction(j.raw); } catch { throw new Error("the send record's raw bytes are not a signed transaction"); }
++  // (viem omits a zero nonce from a parsed transaction)
++  if (tx.chainId !== chainId || (tx.nonce ?? 0) !== j.nonce) throw new Error(`the send record is for chain ${tx.chainId} at nonce ${tx.nonce}, not chain ${chainId} at ${j.nonce}`);
++  let signer; try { signer = await recoverTransactionAddress({ serializedTransaction: j.raw }); } catch { throw new Error("the send record's transaction has no recoverable signature"); }
++  if (getAddress(signer) !== getAddress(payee)) throw new Error("the send record was signed by another key than the expected payee");
++  return { nonce: j.nonce, raw: j.raw, hash: j.hash.toLowerCase(), tx };
++}
++
++/** -> { serving: bool|null, detail }: null = cannot tell (refuse) */
++export async function probeSourceRelay(origin, { payee, fetchImpl = fetch, timeoutMs = 8000 }) {
++  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), timeoutMs);
++  try {
++    const r = await fetchImpl(`${origin}/v1/info`, { signal: ctl.signal });
++    if (r.status !== 200) return { serving: false, detail: `HTTP ${r.status}` };
++    let j = null; try { j = await r.json(); } catch { return { serving: false, detail: "HTTP 200, not relay JSON" }; }
++    if (j && isAddress(String(j.payee || "")) && getAddress(j.payee) === getAddress(payee)) return { serving: true, detail: `answers as ${getAddress(j.payee)}` };
++    return { serving: false, detail: `answers as another payee ${String(j?.payee || "none").slice(0, 42)}` };
++  } catch (e) {
++    const code = String(e?.cause?.code || e?.code || e?.name || "");
++    if (/CERT|TLS|SSL|ALTNAME|SELF_SIGNED|VERIFY/i.test(code)) return { serving: null, detail: `TLS failure ${code}: cannot tell whether it serves` };
++    return { serving: false, detail: `no answer (${code || String(e?.message || e).slice(0, 80)})` };
++  } finally { clearTimeout(t); }
++}
++
++/**
++ * -> { ok, decision, payee, block, nonce, record, pendingNonces, balanceEth, problems[] }
++ * clients: viem public clients over the relay's RPCs (the CLI builds them); the authority block is agreed by `quorum`.
++ */
++export async function checkRelayMigration({ recordBytes, digest, clients, quorum, stateFile, payee, maxFloatEth = null,
++  allowLoopbackHttp = false, rpcTimeoutMs = 10_000, confirmations = 0, now = Date.now, readFile = fs.readFileSync, sourceOrigin = null, fetchImpl = fetch }) {
++  const problems = [];
++  if (!isAddress(String(payee || ""))) throw new Error("LEASE_RELAY_EXPECTED_PAYEE must be the moved key's address");
++  payee = getAddress(payee);
++  const deployment = parseDeploymentRecord(recordBytes, { expectedDigest: digest });
++  let text;
++  try { text = readFile(stateFile, "utf8"); }
++  catch (e) { throw new Error(`${stateFile}: ${e.code || e.message}: the moved key's send record must be carried over with it (an absent record is not "nothing pending")`); }
++  if (Buffer.byteLength(text) > 64 * 1024) throw new Error(`${stateFile} is larger than a relay send record`);
++  const record = await movedSendRecord(text, { chainId: deployment.chainId, payee });
++  const v = await verifiedLeaseAuthority({ clients, deployment, quorum, allowLoopbackHttp, confirmations, timeoutMs: rpcTimeoutMs, now });
++  const nonce = await v.client.getTransactionCount({ address: payee });
++  const rpc = leaseRpcSet(clients, { quorum, allowLoopbackHttp, timeoutMs: rpcTimeoutMs });
++  // every provider's own pending view (mempools differ: ANY provider seeing more in flight than allowed refuses)
++  const pending = (await Promise.allSettled(rpc.peers.map(async (p) => Number(BigInt(await rpc.request(p.client, "eth_getTransactionCount", [payee, "pending"]))))))
++    .map((r) => (r.status === "fulfilled" ? r.value : null));
++  const balance = (await rpc.agree(rpc.peers, async (p) => BigInt(await rpc.request(p.client, "eth_getBalance", [payee, { blockHash: v.block.hash, requireCanonical: true }])), "the key's balance")).value;
++  let decision;
++  if (!record) {
++    decision = "nothing pending";
++    if (pending.some((n) => n !== null && n !== nonce)) problems.push(`a provider sees a pending nonce (${pending.join(",")}) beyond the agreed ${nonce} while the record is empty: an unknown transaction of this key is in flight; wait for it to resolve`);
++  } else {
++    const receipts = await rpc.agree(rpc.peers, async (p) => {
++      const r = await rpc.request(p.client, "eth_getTransactionReceipt", [record.hash]);
++      return r ? { mined: true, status: String(r.status), block: String(BigInt(r.blockNumber)) } : { mined: false };
++    }, "the recorded transaction's receipt").catch(() => null);
++    if (!receipts) problems.push("the RPC quorum does not agree whether the recorded transaction is mined: retry, or settle it by hand");
++    else if (receipts.value.mined) {
++      decision = `recorded transaction mined (status ${receipts.value.status}, block ${receipts.value.block})`;
++      if (nonce <= record.nonce) problems.push(`the recorded transaction is mined but the agreed nonce ${nonce} is not past it (${record.nonce}): the quorum's block is behind; retry`);
++      if (pending.some((n) => n !== null && n !== nonce)) problems.push(`a provider sees a pending nonce (${pending.join(",")}) beyond the agreed ${nonce}: an unknown transaction is in flight`);
++    } else {
++      decision = `recorded transaction at nonce ${record.nonce} not mined: the relay re-broadcasts these exact bytes before any new send`;
++      if (nonce !== record.nonce) problems.push(`the agreed nonce is ${nonce}, not the recorded ${record.nonce}: ${nonce > record.nonce ? "that nonce was consumed by ANOTHER transaction" : "a gap"}; settle the record by hand`);
++      if (pending.some((n) => n !== null && n > record.nonce + 1)) problems.push(`a provider sees a pending nonce (${pending.join(",")}) beyond the recorded transaction: an unknown transaction is in flight`);
++    }
++  }
++  if (pending.filter((n) => n !== null).length < rpc.required) problems.push(`only ${pending.filter((n) => n !== null).length} provider(s) answered the pending nonce; ${rpc.required} are required`);
++  let source = null;
++  if (sourceOrigin) {
++    source = { origin: sourceOrigin, ...(await probeSourceRelay(sourceOrigin, { payee, fetchImpl })) };
++    if (source.serving !== false) problems.push(`the source relay ${sourceOrigin} ${source.serving ? "STILL SERVES this key" : "cannot be shown stopped"} (${source.detail}): stop it before this machine starts the key`);
++  }
++  if (maxFloatEth !== null && balance > parseEther(String(maxFloatEth))) problems.push(`the key holds ${formatEther(balance)} ETH, above the ${maxFloatEth} ETH float cap: the relay would refuse to start`);
++  return { ok: problems.length === 0, decision: decision ?? null, payee, block: { number: String(v.block.number), hash: v.block.hash }, nonce,
++    record: record ? { nonce: record.nonce, hash: record.hash } : {}, pendingNonces: pending, balanceEth: formatEther(balance), source, problems };
++}
++
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
++  const e = process.env, need = (k) => { const x = String(e[k] || "").trim(); if (!x) { console.error(`[relay-migration] ${k} is not set`); process.exit(2); } return x; };
++  const recordFile = need("LEASE_RELAY_RECORD"), digest = need("LEASE_RELAY_DIGEST"), stateFile = need("LEASE_RELAY_STATE"), payee = need("LEASE_RELAY_EXPECTED_PAYEE");
++  const rpcs = need("LEASE_RELAY_RPCS").split(",").map((s) => s.trim()).filter(Boolean), quorum = Number(need("LEASE_RELAY_QUORUM"));
++  (async () => {
++    const recordBytes = fs.readFileSync(recordFile);
++    const deployment = parseDeploymentRecord(recordBytes, { expectedDigest: digest });
++    const chain = defineChain({ id: deployment.chainId, name: `chain-${deployment.chainId}`, nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcs[0]] } } });
++    const clients = rpcs.map((url) => createPublicClient({ chain, transport: http(url, { retryCount: 0, timeout: 10_000 }) }));
++    const r = await checkRelayMigration({ recordBytes, digest, clients, quorum, stateFile, payee, maxFloatEth: e.LEASE_RELAY_MAX_FLOAT_ETH || null,
++      sourceOrigin: e.LEASE_RELAY_SOURCE_ORIGIN ? new URL(e.LEASE_RELAY_SOURCE_ORIGIN).origin : null });
++    console.log(JSON.stringify(r));
++    process.exitCode = r.ok ? 0 : 1;
++  })().catch((err) => { console.error(`[relay-migration] refused: ${err.message}`); process.exitCode = 1; });
++}
+diff --git a/scripts/build-lease-relay-migration-check.mjs b/scripts/build-lease-relay-migration-check.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..f2be99c618fa3b6a441664007fedcb62f34c535d
+--- /dev/null
++++ b/scripts/build-lease-relay-migration-check.mjs
+@@ -0,0 +1,31 @@
++#!/usr/bin/env node
++// The relay migration gate as ONE standalone file (network/lease-relay-migration-check.mjs; no node_modules beside it), built
++// with the same esbuild options as scripts/build-lease-relay-release.mjs, so the same inputs give the same bytes.
++//   node scripts/build-lease-relay-migration-check.mjs OUTDIR [--expect-sha256 HEX]
++// OUTDIR/lease-relay-migration-check.mjs and OUTDIR/lease-relay-migration-check.manifest.json (sha256 of every input).
++// Nothing here reads a key, contacts an RPC or starts a service.
++import fs from "node:fs";
++import path from "node:path";
++import { createHash } from "node:crypto";
++import { fileURLToPath } from "node:url";
++import { build } from "esbuild";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const args = process.argv.slice(2), out = args[0] && !args[0].startsWith("--") ? path.resolve(args[0]) : null;
++const ex = args.indexOf("--expect-sha256"), expect = ex >= 0 ? String(args[ex + 1] || "") : null;
++if (!out || (expect !== null && !/^[0-9a-f]{64}$/.test(expect))) {
++  console.error("usage: node scripts/build-lease-relay-migration-check.mjs OUTDIR [--expect-sha256 HEX]"); process.exit(2);
++}
++const sha = (b) => createHash("sha256").update(b).digest("hex");
++const r = await build({ absWorkingDir: ROOT, entryPoints: ["network/lease-relay-migration-check.mjs"], platform: "node", format: "esm", target: "node20",
++  bundle: true, minify: true, write: false, metafile: true, preserveSymlinks: true });
++const bundle = Buffer.from(r.outputFiles[0].contents);
++const inputs = {};
++for (const rel of Object.keys(r.metafile.inputs).sort()) inputs[rel] = sha(fs.readFileSync(path.resolve(ROOT, rel)));
++const manifest = { format: "enclave-lease-relay-migration-check/v1", nodeTarget: "node20", entry: "network/lease-relay-migration-check.mjs",
++  artifact: { file: "lease-relay-migration-check.mjs", sha256: sha(bundle), bytes: bundle.length }, inputs };
++if (expect && manifest.artifact.sha256 !== expect) { console.error(`lease-relay-migration-check.mjs is ${manifest.artifact.sha256}, not the expected ${expect}: not written`); process.exit(1); }
++fs.mkdirSync(out, { recursive: true });
++fs.writeFileSync(path.join(out, "lease-relay-migration-check.mjs"), bundle);
++fs.writeFileSync(path.join(out, "lease-relay-migration-check.manifest.json"), JSON.stringify(manifest, null, 1) + "\n");
++console.log(JSON.stringify({ out, artifact: manifest.artifact, inputs: Object.keys(inputs).length }));
+diff --git a/test/fixtures/local-relay-migration/deployment.json b/test/fixtures/local-relay-migration/deployment.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..f9fecb7c467bc5b50b090f8393d26fc4f19d9dff
+--- /dev/null
++++ b/test/fixtures/local-relay-migration/deployment.json
+@@ -0,0 +1 @@
++{"format":"enclave-lease-gas-deployment/v1","chainId":8453,"reserve":"0x12A3f873041Dec436DaA0085B766a399A6fA3639","executor":"0x8900BACA2167873BA2F8a8bAE8b4876E6396d343","reserveCodeHash":"0xcc00efe9c79c17b34ef9edc2720939030834bf168abc52cea14dcb224304a979","executorCodeHash":"0xdd893cd48b7c102dc266949d027c33d396a7f8884533ee81b3b2275048ec9ab2","ledger":"0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B","registry":"0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC"}
+\ No newline at end of file
+diff --git a/test/fixtures/local-relay-migration/lease-gas-config.before.cmd b/test/fixtures/local-relay-migration/lease-gas-config.before.cmd
+new file mode 100644
+index 0000000000000000000000000000000000000000..8f4e589e477a59b6c0f58e7162d27c18ccc23745
+--- /dev/null
++++ b/test/fixtures/local-relay-migration/lease-gas-config.before.cmd
+@@ -0,0 +1,13 @@
++@rem Reviewed app-funded lease settings. No private keys or credentials.
++@set "ENCLAVE_LEASE_GAS_FILE=C:\ProgramData\Enclave\lease-gas\deployment.json"
++@set "ENCLAVE_LEASE_GAS_DIGEST=sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089"
++@set "ENCLAVE_LEASE_GAS_RPCS=https://base-rpc.publicnode.com,https://mainnet.base.org,https://base-mainnet.public.blastapi.io"
++@set "ENCLAVE_LEASE_GAS_RELAYS=https://134.199.235.187,https://134.209.248.172"
++@set "ENCLAVE_LEASE_GAS_QUORUM=2"
++@set "ENCLAVE_LEASE_GAS_RESERVE=0x12A3f873041Dec436DaA0085B766a399A6fA3639"
++@set "LEASE_GAS_FILE=C:\ProgramData\Enclave\lease-gas\deployment.json"
++@set "LEASE_GAS_DIGEST=sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089"
++@set "LEASE_GAS_RPCS=https://base-rpc.publicnode.com,https://mainnet.base.org,https://base-mainnet.public.blastapi.io"
++@set "LEASE_GAS_RELAYS=https://134.199.235.187,https://134.209.248.172"
++@set "LEASE_GAS_QUORUM=2"
++@set "LEASE_GAS_RESERVE=0x12A3f873041Dec436DaA0085B766a399A6fA3639"
+diff --git a/test/fixtures/local-relay-migration/lease-gas-config.cmd b/test/fixtures/local-relay-migration/lease-gas-config.cmd
+new file mode 100644
+index 0000000000000000000000000000000000000000..8decb2cd155a3fd592b400bfa328602595dd7730
+--- /dev/null
++++ b/test/fixtures/local-relay-migration/lease-gas-config.cmd
+@@ -0,0 +1,15 @@
++@rem Reviewed app-funded lease settings. No private keys or credentials.
++@set "ENCLAVE_LEASE_GAS_FILE=C:\ProgramData\Enclave\lease-gas\deployment.json"
++@set "ENCLAVE_LEASE_GAS_DIGEST=sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089"
++@set "ENCLAVE_LEASE_GAS_RPCS=https://base-rpc.publicnode.com,https://mainnet.base.org,https://base-mainnet.public.blastapi.io"
++@set "ENCLAVE_LEASE_GAS_LOCAL_RELAY=http://127.0.0.1:8549"
++@set "ENCLAVE_LEASE_GAS_RELAYS=https://134.209.248.172"
++@set "ENCLAVE_LEASE_GAS_QUORUM=2"
++@set "ENCLAVE_LEASE_GAS_RESERVE=0x12A3f873041Dec436DaA0085B766a399A6fA3639"
++@set "LEASE_GAS_FILE=C:\ProgramData\Enclave\lease-gas\deployment.json"
++@set "LEASE_GAS_DIGEST=sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089"
++@set "LEASE_GAS_RPCS=https://base-rpc.publicnode.com,https://mainnet.base.org,https://base-mainnet.public.blastapi.io"
++@set "LEASE_GAS_LOCAL_RELAY=http://127.0.0.1:8549"
++@set "LEASE_GAS_RELAYS=https://134.209.248.172"
++@set "LEASE_GAS_QUORUM=2"
++@set "LEASE_GAS_RESERVE=0x12A3f873041Dec436DaA0085B766a399A6fA3639"
+diff --git a/test/helpers/windows-lease-runtime-old-fixture.mjs b/test/helpers/windows-lease-runtime-old-fixture.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..72be8e694e50a1976bf94708c97bc2ce43455e81
+--- /dev/null
++++ b/test/helpers/windows-lease-runtime-old-fixture.mjs
+@@ -0,0 +1,12 @@
++// Test-only (the ACTIVATED bundle). Test-only transport/clock adapter. The host source is unchanged; production has no loopback/clock environment flag.
++// Everything else, including the reviewed-file parser, bindings, signing, relays and receipt verifier, runs for real.
++import * as real from "../../windows/node/lease-gas-runtime.bundle.old.mjs";   // the ACTIVATED bundle (64712447), for the rollback/ordering shapes
++export const leaseGasConfigured = real.leaseGasConfigured;
++export const openReleaseJournal = real.openReleaseJournal;
++export const loadLeaseGasConfig = (options) => real.loadLeaseGasConfig({
++  ...options, allowLoopbackHttp: true, rpcTimeoutMs: 2000,
++});
++export const configuredLeaseSender = (options) => real.configuredLeaseSender({
++  ...options, confirmations: 0, requestTimeoutMs: 2000, ttlSec: Number(process.env.TEST_LEASE_FIXTURE_TTL_SEC || 300),
++  now: () => Date.now() + (globalThis.leaseGasFixtureClockOffset || 0),
++});
+diff --git a/test/windows-local-relay-migration.test.mjs b/test/windows-local-relay-migration.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..73d6d8db13c4ccf9321e3ddd5b8e04cd42aa299f
+--- /dev/null
++++ b/test/windows-local-relay-migration.test.mjs
+@@ -0,0 +1,305 @@
++// Moving an EXISTING funded lease relay key (the DigitalOcean us-west relay) onto a Windows host as that host's OWN loopback
++// relay (work/windows-local-relay-migration). What runs here is what would be installed:
++//   - the node agent's chain module is the ACTIVATED one (windows/node/chain.mjs 753818e2, plan app-lease-hardening-
++//     20261021), unchanged; only its lease-gas runtime bundle is the new one (d2e363c5, LOCAL_RELAY). A test-only
++//     transport adapter (helpers/windows-lease-runtime-fixture.mjs: loopback RPCs, short timeouts) wraps the REAL bundle;
++//   - every relay is the reviewed release artifact (scripts/build-lease-relay-release.mjs) started as its run loop starts it;
++//   - the migration gate is the bundled check (scripts/build-lease-relay-migration-check.mjs) run as a separate process;
++//   - the node's settings are the staged lease-gas-config.cmd files, read by the config check with the real bundles.
++// Local anvil (chain 8453) behind https RPC proxies; fixture keys only. The "source" relay stands for us-west on
++// DigitalOcean, "eu-central" for the approved secondary, "target" for the same key moved to the Windows host.
++import { before, after, test } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import https from "node:https";
++import { spawn, execFileSync, spawnSync } from "node:child_process";
++import { registerHooks } from "node:module";
++import { createHash } from "node:crypto";
++import { fileURLToPath } from "node:url";
++import { keccak256 } from "viem";
++import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
++import { startWorld, haveAnvil, DEPLOYER } from "./helpers/lease-gas-world.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const FIX = path.join(REPO, "test/fixtures/local-relay-migration");
++const hostUrl = new URL("../windows/node/chain.mjs", import.meta.url).href;
++const newFixture = new URL("./helpers/windows-lease-runtime-fixture.mjs", import.meta.url).href;
++const oldFixture = new URL("./helpers/windows-lease-runtime-old-fixture.mjs", import.meta.url).href;
++const hooks = registerHooks({ resolve(specifier, context, nextResolve) {
++  if (context.parentURL?.startsWith(hostUrl) && specifier === "./lease-gas-runtime.bundle.mjs")
++    return { url: context.parentURL.includes("bundle=old") ? oldFixture : newFixture, shortCircuit: true };
++  return nextResolve(specifier, context);
++} });
++const T = { skip: !haveAnvil && "needs anvil", timeout: 600_000 };
++const sha = (b) => createHash("sha256").update(b).digest("hex");
++const ACTIVATED = { "windows/node/chain.mjs": "753818e234916190d75ddfca1f0129ecb95f456a258326598c71f8eaceb0ba00",
++  "windows/node/lease-gas-runtime.bundle.mjs": "d2e363c5f74ae66bf4f0f6ba67890cf1ba95e1b80cc37201a9e68b6fbff5dc7f",
++  "windows/node/lease-gas-runtime.bundle.old.mjs": "64712447030248173f35e8ac916c737dfd91f719d69335979a83f1cfffb356b6" };
++let W, dir, rel, mc, ca, record, digest, op, owner, K, E, source, eu, target, srcDir, tgtDir, euDir, tgtPort;
++const savedEnv = { ...process.env };
++const servers = [], procs = [];
++
++async function tlsProxy(target, { swallowSends = () => false } = {}) {
++  const server = https.createServer({ key: fs.readFileSync(path.join(dir, "leaf.key")), cert: fs.readFileSync(path.join(dir, "leaf.pem")) }, (req, res) => {
++    const chunks = []; req.on("data", (c) => chunks.push(c)); req.on("end", () => {
++      const body = Buffer.concat(chunks);
++      let msg = null; try { msg = JSON.parse(body); } catch {}
++      // a broadcast LOST in the mempool: the provider answers its hash and never forwards it
++      if (msg && !Array.isArray(msg) && msg.method === "eth_sendRawTransaction" && swallowSends()) {
++        res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: keccak256(msg.params[0]) }));
++      }
++      const up = http.request(target, { method: "POST", headers: { "content-type": "application/json" } }, (r) => { res.writeHead(r.statusCode, { "content-type": "application/json" }); r.pipe(res); });
++      up.on("error", () => { res.writeHead(502); res.end(); }); up.end(body); }); });
++  await new Promise((ok) => server.listen(0, "127.0.0.1", ok)); servers.push(server);
++  return `https://127.0.0.1:${server.address().port}`;
++}
++const freePort = () => new Promise((ok) => { const s = http.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
++const relayEnvOf = (d, rpcs, port) => ({ LEASE_RELAY_RECORD: record, LEASE_RELAY_DIGEST: digest, LEASE_RELAY_RPCS: rpcs.join(","), LEASE_RELAY_QUORUM: "2",
++  LEASE_RELAY_MAX_FLOAT_ETH: "0.02", LEASE_RELAY_MIN_FLOAT_ETH: "0.001", LEASE_RELAY_LISTEN: `127.0.0.1:${port}`, LEASE_RELAY_KEY_FILE: path.join(d, "relay.key"),
++  LEASE_RELAY_STATE: path.join(d, "relay-send.json"), LEASE_RELAY_ARTIFACT_SHA256: JSON.parse(fs.readFileSync(path.join(rel, "manifest.json"), "utf8")).artifact.sha256 });
++/** a relay as its run loop starts it: `node <release>\lease-relay.mjs` with its settings in the environment */
++function startRelay(env) {
++  const child = spawn(process.execPath, [path.join(rel, "lease-relay.mjs")], { cwd: rel, env: { PATH: process.env.PATH, NODE_EXTRA_CA_CERTS: ca, ...env }, stdio: ["ignore", "pipe", "pipe"] });
++  procs.push(child);
++  let out = ""; child.stdout.on("data", (b) => { out += b; }); child.stderr.on("data", (b) => { out += b; });
++  const exited = new Promise((ok) => child.once("exit", (code, signal) => ok({ code, signal })));
++  const url = new Promise((ok, no) => { const t = setInterval(() => { const m = /\[relay\] serving .* on (http:\/\/127\.0\.0\.1:\d+);/.exec(out); if (m) { clearInterval(t); ok(m[1]); } }, 20);
++    exited.then((e) => { clearInterval(t); no(new Error(`relay exited ${JSON.stringify(e)} before serving: ${out}`)); }); });
++  return { child, url, exited, log: () => out, stop: async () => { child.kill("SIGTERM"); await exited; } };
++}
++const relayCheck = (env) => spawnSync(process.execPath, [path.join(rel, "lease-relay-check.mjs")], { env: { PATH: process.env.PATH, ...env }, encoding: "utf8" });
++/** the migration gate, bundled, as the stage runs it (exit 0 = reconciled). ASYNC: the https RPC proxies live in this
++ *  process, so a synchronous child would block them and time out */
++function migrationCheck(env) {
++  return new Promise((ok) => {
++    const c = spawn(process.execPath, [path.join(mc, "lease-relay-migration-check.mjs")], { env: { PATH: process.env.PATH, NODE_EXTRA_CA_CERTS: ca, ...env }, stdio: ["ignore", "pipe", "pipe"] });
++    let out = "", err = ""; c.stdout.on("data", (b) => { out += b; }); c.stderr.on("data", (b) => { err += b; });
++    const t = setTimeout(() => c.kill("SIGKILL"), 120_000);
++    c.on("exit", (code) => { clearTimeout(t); let j = null; try { j = JSON.parse(out.trim().split("\n").at(-1)); } catch {} ok({ code, out: j, text: out + err }); });
++  });
++}
++async function loadHost(settings, { bundle = "new" } = {}) {
++  for (const key of Object.keys(process.env)) if (/^(ENCLAVE_)?LEASE_GAS_/.test(key)) delete process.env[key];
++  Object.assign(process.env, settings, { BASE_RPCS: W.rpcUrl, NODE_OPERATOR_KEY: op.key });
++  const c = await import(`${hostUrl}?bundle=${bundle}-${Math.random()}`);
++  c.loadOperator(); c.setLeaseJournal(path.join(dir, `journal-${Math.random()}.json`));
++  c.addresses.deployments = W.addr.ledger; c.addresses.registry = W.addr.registry;
++  return c;
++}
++const hostEnv = (o) => ({ ENCLAVE_LEASE_GAS_FILE: record, ENCLAVE_LEASE_GAS_DIGEST: digest, ENCLAVE_LEASE_GAS_RPCS: W.rpcUrl, ...o });
++async function newDeployment() {
++  const id = await W.create(owner, { fund6: 0n });
++  await W.enable(owner, id, { p: { claimPolicy: 1, renewWindow: 60, minExtension: 60 } });
++  return id;
++}
++async function paidTo(id, from) {
++  const ev = await W.pc.getContractEvents({ address: W.addr.reserve, abi: W.A.reserve.abi, eventName: "LeaseGasPaid", args: { id }, fromBlock: from });
++  return ev.map((e) => ({ kind: Number(e.args.kind), payee: e.args.payee }));
++}
++
++before(async () => {
++  dir = fs.mkdtempSync(path.join(os.tmpdir(), "local-relay-migration-"));
++  const out = path.join(dir, "build");
++  const built = JSON.parse(execFileSync(process.execPath, [path.join(REPO, "scripts/build-lease-relay-release.mjs"), out], { encoding: "utf8", timeout: 120_000 }).trim().split("\n").at(-1));
++  rel = path.join(dir, "Enclave", "lease-relay", "releases", built.artifact.sha256);
++  fs.mkdirSync(rel, { recursive: true }); for (const f of fs.readdirSync(out)) fs.copyFileSync(path.join(out, f), path.join(rel, f));
++  mc = path.join(dir, "migration-check");
++  execFileSync(process.execPath, [path.join(REPO, "scripts/build-lease-relay-migration-check.mjs"), mc], { encoding: "utf8", timeout: 120_000 });
++  if (!haveAnvil) return;
++  W = await startWorld();
++  for (const args of [["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-keyout", path.join(dir, "ca.key"), "-out", path.join(dir, "ca.pem"), "-days", "2", "-subj", "/CN=relay-migration-test-ca"],
++    ["req", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-keyout", path.join(dir, "leaf.key"), "-out", path.join(dir, "leaf.csr"), "-subj", "/CN=127.0.0.1"]])
++    execFileSync("openssl", args, { stdio: "ignore" });
++  fs.writeFileSync(path.join(dir, "ext.cnf"), "subjectAltName=IP:127.0.0.1\nbasicConstraints=CA:FALSE\n");
++  execFileSync("openssl", ["x509", "-req", "-in", path.join(dir, "leaf.csr"), "-CA", path.join(dir, "ca.pem"), "-CAkey", path.join(dir, "ca.key"), "-CAcreateserial", "-out", path.join(dir, "leaf.pem"), "-days", "2", "-extfile", path.join(dir, "ext.cnf")], { stdio: "ignore" });
++  ca = path.join(dir, "ca.pem");
++  const bytes = Buffer.from(JSON.stringify({ format: "enclave-lease-gas-deployment/v1", chainId: 8453,
++    ...Object.fromEntries(["reserve", "executor", "ledger", "registry", "reserveCodeHash", "executorCodeHash"].map((k) => [k, W.addr[k]])) }));
++  record = path.join(dir, "deployment.json"); fs.writeFileSync(record, bytes); digest = "sha256:" + sha(bytes);
++  // two funded relay keys (fixture keys): K = the key that MOVES (us-west), E = the approved secondary (eu-central)
++  K = { key: generatePrivateKey() }; K.address = privateKeyToAccount(K.key).address;
++  E = { key: generatePrivateKey() }; E.address = privateKeyToAccount(E.key).address;
++  for (const x of [K, E]) await W.fund(x.address, 10n ** 16n);
++  srcDir = path.join(dir, "do-us-west"); euDir = path.join(dir, "do-eu-central"); tgtDir = path.join(dir, "ProgramData", "Enclave", "lease-relay");
++  for (const [d, x] of [[srcDir, K], [euDir, E]]) { fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, "relay.key"), x.key.slice(2) + "\n", { mode: 0o600 }); }
++  W.swallow = false;
++  const srcRpcs = [await tlsProxy(W.rpcUrl, { swallowSends: () => W.swallow }), await tlsProxy(W.rpcUrl, { swallowSends: () => W.swallow }), await tlsProxy(W.rpcUrl, { swallowSends: () => W.swallow })];
++  W.rpcs = [await tlsProxy(W.rpcUrl), await tlsProxy(W.rpcUrl), await tlsProxy(W.rpcUrl)];
++  source = startRelay(relayEnvOf(srcDir, srcRpcs, await freePort())); source.at = await source.url;
++  eu = startRelay(relayEnvOf(euDir, W.rpcs, await freePort())); eu.at = await eu.url;
++  op = await W.operator("https://minipc.relay-migration.test");
++  owner = await W.owner();
++  await W.write(owner.key, W.addr.registry, W.A.registry.abi, "setPayoutWallet", [op.enclaveId]);
++});
++after(async () => {
++  for (const p of procs) { try { p.kill("SIGKILL"); } catch {} }
++  for (const s of servers) { s.closeAllConnections?.(); s.close(); }
++  W?.stop(); hooks.deregister();
++  for (const key of Object.keys(process.env)) if (!(key in savedEnv)) delete process.env[key];
++  Object.assign(process.env, savedEnv);
++  if (dir) fs.rmSync(dir, { recursive: true, force: true });
++});
++
++test("the minimal update: the ACTIVATED chain module, unchanged, consumes the new bundle through the same four imports", () => {
++  for (const [f, h] of Object.entries(ACTIVATED)) assert.equal(sha(fs.readFileSync(path.join(REPO, f))), h, f);
++  const chainSrc = fs.readFileSync(path.join(REPO, "windows/node/chain.mjs"), "utf8");
++  const imported = /import \{([^}]+)\} from "\.\/lease-gas-runtime\.bundle\.mjs"/.exec(chainSrc)[1].split(",").map((s) => s.trim()).sort();
++  assert.deepEqual(imported, ["configuredLeaseSender", "leaseGasConfigured", "loadLeaseGasConfig", "openReleaseJournal"]);
++  const exportsOf = (f) => /export\{([^}]+)\};/.exec(fs.readFileSync(path.join(REPO, f), "utf8"))[1].split(",").map((s) => s.trim().split(" as ")[1]).sort();
++  assert.deepEqual(exportsOf("windows/node/lease-gas-runtime.bundle.mjs"), exportsOf("windows/node/lease-gas-runtime.bundle.old.mjs"), "the same export surface");
++  for (const n of imported) assert.ok(exportsOf("windows/node/lease-gas-runtime.bundle.mjs").includes(n), n);
++  // the bundle is self-contained: node builtins only
++  const deps = [...fs.readFileSync(path.join(REPO, "windows/node/lease-gas-runtime.bundle.mjs"), "utf8").matchAll(/from"([^"]+)"/g)].map((m) => m[1]).filter((d) => !d.startsWith("node:") && !d.startsWith(","));
++  assert.deepEqual(deps, []);
++});
++
++test("the staged node settings: the new file loads in the NEW bundle as local-first + eu-central; the old bundle ignores LOCAL_RELAY; tampering refuses", () => {
++  const check = (bundle, cfg, extra = []) => { const r = spawnSync(process.execPath, [path.join(REPO, "windows/installer/lease-gas-config-check.mjs"), "--bundle", path.join(REPO, bundle), "--config", cfg, ...extra], { encoding: "utf8" });
++    return { code: r.status, out: JSON.parse(r.stdout.trim()) }; };
++  // the staged files, with only the record path pointed at the reviewed record's local copy (same digest)
++  const local = (name, edit = (s) => s) => { const f = path.join(os.tmpdir(), `lrm-${Math.random()}.cmd`);
++    fs.writeFileSync(f, edit(fs.readFileSync(path.join(FIX, name), "utf8").replaceAll("C:\\ProgramData\\Enclave\\lease-gas\\deployment.json", path.join(FIX, "deployment.json")))); return f; };
++  assert.equal(sha(fs.readFileSync(path.join(FIX, "lease-gas-config.before.cmd"))), "9ed3c199db6968a4274b40e9940a65a591f68295b1c3dae44e23084a27efa56e");
++  assert.equal(sha(fs.readFileSync(path.join(FIX, "deployment.json"))), "1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089");
++  const n = check("windows/node/lease-gas-runtime.bundle.mjs", local("lease-gas-config.cmd"), ["--expect-local", "http://127.0.0.1:8549", "--expect-relays", "https://134.209.248.172"]);
++  assert.equal(n.code, 0, JSON.stringify(n.out)); assert.equal(n.out.quorum, 2); assert.equal(n.out.rpcs, 3); assert.equal(n.out.reserve, "0x12A3f873041Dec436DaA0085B766a399A6fA3639");
++  const prev = check("windows/node/lease-gas-runtime.bundle.mjs", local("lease-gas-config.before.cmd"), ["--expect-local", "none", "--expect-relays", "https://134.199.235.187,https://134.209.248.172"]);
++  assert.equal(prev.code, 0, JSON.stringify(prev.out));
++  const oldNew = check("windows/node/lease-gas-runtime.bundle.old.mjs", local("lease-gas-config.cmd"), ["--expect-local", "none", "--expect-relays", "https://134.209.248.172"]);
++  assert.equal(oldNew.code, 0, "the activated bundle ignores LOCAL_RELAY: the new settings before (or after rolling back) the bundle mean eu-central only");
++  const oldOld = check("windows/node/lease-gas-runtime.bundle.old.mjs", local("lease-gas-config.before.cmd"), ["--expect-relays", "https://134.199.235.187,https://134.209.248.172"]);
++  assert.equal(oldOld.code, 0, "the live state today");
++  for (const [why, edit] of [["a non-loopback local relay", (s) => s.replaceAll("http://127.0.0.1:8549", "http://10.0.0.5:8549")],
++    ["the two names disagree", (s) => s.replace('LEASE_GAS_LOCAL_RELAY=http://127.0.0.1:8549"\r\n@set "LEASE_GAS_RELAYS', 'LEASE_GAS_LOCAL_RELAY=http://127.0.0.1:8550"\r\n@set "LEASE_GAS_RELAYS')],
++    ["a wrong digest", (s) => s.replaceAll("sha256:1665c218", "sha256:0665c218")], ["a stray setting", (s) => s + "\r\n@set \"PATH=C:\\x\"\r\n"]]) {
++    const r = check("windows/node/lease-gas-runtime.bundle.mjs", local("lease-gas-config.cmd", edit));
++    assert.equal(r.code, 1, why);
++  }
++});
++
++test("today, through the cutover window: the existing settings (us-west, eu-central) relay through us-west; with us-west stopped, eu-central serves; no operator ETH", T, async () => {
++  const host = await loadHost(hostEnv({ ENCLAVE_LEASE_GAS_RELAYS: `${source.at},${eu.at}` }), { bundle: "old" });
++  const from = await W.pc.getBlockNumber();
++  const id = await newDeployment();
++  await host.claimDeployment(id, op.enclaveId);
++  assert.deepEqual(await paidTo(id, from), [{ kind: 1, payee: K.address }], "us-west is first");
++  assert.equal(await W.pc.getBalance({ address: op.address }), 0n);
++});
++
++test("the source's unresolved send: a broadcast lost in the mempool leaves {nonce, raw, hash} on the source; the host fails over to eu-central", T, async () => {
++  const host = await loadHost(hostEnv({ ENCLAVE_LEASE_GAS_RELAYS: `${source.at},${eu.at}` }), { bundle: "old" });
++  const from = await W.pc.getBlockNumber();
++  const id = await newDeployment();
++  W.swallow = true;
++  await host.claimDeployment(id, op.enclaveId);
++  assert.deepEqual(await paidTo(id, from), [{ kind: 1, payee: E.address }], "the approved secondary served the claim");
++  // the source signed and journaled BEFORE broadcasting (durable first), then lost its broadcast
++  for (let i = 0; i < 100 && fs.readFileSync(path.join(srcDir, "relay-send.json"), "utf8").trim() === "{}"; i++) await new Promise((ok) => setTimeout(ok, 100));
++  // root's step on the source: STOP it (the stop comes before any start elsewhere); its journal stays where it is
++  await source.stop(); W.swallow = false;
++  const rec = JSON.parse(fs.readFileSync(path.join(srcDir, "relay-send.json"), "utf8"));
++  assert.deepEqual(Object.keys(rec).sort(), ["hash", "nonce", "raw"], "an unresolved send is on record");
++  assert.equal(await W.pc.getTransactionCount({ address: K.address }), rec.nonce, "never mined: it is still the key's next transaction");
++  assert.equal(await W.pc.getTransactionReceipt({ hash: rec.hash }).catch(() => null), null);
++  source.pending = rec;
++});
++
++test("the migration gate: refuses an absent journal, another key's record, a consumed nonce and a source still serving; passes the moved key", T, async () => {
++  assert.ok(source.pending, "the previous test left the source's unresolved send");
++  const envFor = (stateFile, o = {}) => ({ LEASE_RELAY_RECORD: record, LEASE_RELAY_DIGEST: digest, LEASE_RELAY_RPCS: W.rpcs.join(","), LEASE_RELAY_QUORUM: "2",
++    LEASE_RELAY_STATE: stateFile, LEASE_RELAY_EXPECTED_PAYEE: K.address, LEASE_RELAY_MAX_FLOAT_ETH: "0.02", ...o });
++  const scratch = (name, text) => { const f = path.join(dir, name); fs.writeFileSync(f, text); return f; };
++  let r = await migrationCheck(envFor(path.join(dir, "absent.json")));
++  assert.equal(r.code, 1, r.text); assert.match(r.text, /must be carried over/);
++  const eSigned = await privateKeyToAccount(E.key).signTransaction({ chainId: 8453, nonce: 0, to: E.address, value: 0n, gas: 21000n, maxFeePerGas: 1n, maxPriorityFeePerGas: 1n, type: "eip1559" });
++  r = await migrationCheck(envFor(scratch("other.json", JSON.stringify({ nonce: 0, raw: eSigned, hash: keccak256(eSigned) }))));
++  assert.equal(r.code, 1, r.text); assert.match(r.text, /signed by another key/);
++  const latest = await W.pc.getTransactionCount({ address: K.address });
++  const stale = await privateKeyToAccount(K.key).signTransaction({ chainId: 8453, nonce: latest - 1, to: K.address, value: 0n, gas: 21000n, maxFeePerGas: 1n, maxPriorityFeePerGas: 1n, type: "eip1559" });
++  r = await migrationCheck(envFor(scratch("stale.json", JSON.stringify({ nonce: latest - 1, raw: stale, hash: keccak256(stale) }))));
++  assert.equal(r.code, 1, r.text); assert.ok(r.out, r.text); assert.match(r.out.problems.join(" "), /consumed by ANOTHER transaction/);
++  r = await migrationCheck(envFor(scratch("empty.json", "{}")));
++  assert.equal(r.code, 0, r.text); assert.equal(r.out.decision, "nothing pending");
++  // root moves the key and the journal (opaque copies; the source keeps its own protected copies for rollback)
++  fs.mkdirSync(tgtDir, { recursive: true });
++  for (const f of ["relay.key", "relay-send.json"]) fs.copyFileSync(path.join(srcDir, f), path.join(tgtDir, f), fs.constants.COPYFILE_EXCL);
++  // exclusivity: a source that still answers as this key refuses (here: a second copy of the source started on its old journal)
++  const still = startRelay(relayEnvOf(srcDir, W.rpcs, await freePort())); const stillAt = await still.url;
++  r = await migrationCheck(envFor(path.join(tgtDir, "relay-send.json"), { LEASE_RELAY_SOURCE_ORIGIN: stillAt }));
++  assert.equal(r.code, 1, r.text); assert.ok(r.out, r.text); assert.match(r.out.problems.join(" "), /STILL SERVES this key/);
++  still.child.kill("SIGKILL"); await still.exited;   // killed before it could send anything
++  r = await migrationCheck(envFor(path.join(tgtDir, "relay-send.json"), { LEASE_RELAY_SOURCE_ORIGIN: source.at }));
++  assert.equal(r.code, 0, r.text);
++  assert.match(r.out.decision, /not mined: the relay re-broadcasts these exact bytes/);
++  assert.deepEqual(r.out.record, { nonce: source.pending.nonce, hash: source.pending.hash });
++  assert.equal(r.out.source.serving, false);
++  assert.equal(r.out.payee, K.address);
++});
++
++test("the moved key on the target: same payee, the journal's bytes re-broadcast before any new send, local FIRST with the DO relays absent, no operator ETH", T, async (t) => {
++  tgtPort = await freePort();   // (the staged settings name 8549; any loopback port is the same code path)
++  const env = relayEnvOf(tgtDir, W.rpcs, tgtPort);
++  const chk = relayCheck(env);
++  assert.equal(chk.status, 0, chk.stderr); assert.match(chk.stdout, new RegExp(`unresolved send ${source.pending.hash.slice(0, 18)}\\.\\.\\. at nonce ${source.pending.nonce}`));
++  target = startRelay(env); target.at = await target.url;
++  assert.equal(target.at, `http://127.0.0.1:${tgtPort}`);
++  const info = await (await fetch(`${target.at}/v1/info`)).json();
++  assert.equal(info.payee, K.address, "the same funded payee"); assert.equal(info.reserve, W.addr.reserve);
++  // the new settings shape: LOCAL_RELAY first, eu-central the alternate; us-west (DigitalOcean) is not listed. Every HTTP
++  // request the host's lease path makes is recorded: with no SERVICE_INDEX the bundle's discovery code (service-index,
++  // descriptors, policy carriers) is never reached - only the two configured relays are ever contacted
++  const realFetch = globalThis.fetch, fetched = [];
++  globalThis.fetch = (url, ...rest) => { fetched.push(new URL(String(url?.url ?? url)).origin); return realFetch(url, ...rest); };
++  t.after(() => { globalThis.fetch = realFetch; });
++  const host = await loadHost(hostEnv({ ENCLAVE_LEASE_GAS_LOCAL_RELAY: target.at, ENCLAVE_LEASE_GAS_RELAYS: eu.at }));
++  // the first request finds the source's unresolved send: the SAME bytes are re-broadcast (never re-signed) and that
++  // request is refused RelayBusy, so the host's alternate serves it; the next one is signed by the moved key
++  let from = await W.pc.getBlockNumber(), id = await newDeployment();
++  await host.claimDeployment(id, op.enclaveId);
++  assert.deepEqual(await paidTo(id, from), [{ kind: 1, payee: E.address }], "busy re-broadcasting: eu-central served this one");
++  const rc = await W.pc.getTransactionReceipt({ hash: source.pending.hash });
++  assert.ok(rc, "the source's unresolved send was re-broadcast as the same bytes and mined");
++  assert.equal(await W.pc.getTransactionCount({ address: K.address }), source.pending.nonce + 1, "its nonce, and nothing else, was consumed");
++  from = await W.pc.getBlockNumber(); id = await newDeployment();
++  await host.claimDeployment(id, op.enclaveId);
++  assert.deepEqual(await paidTo(id, from), [{ kind: 1, payee: K.address }], "the host's own relay, the moved key, first");
++  assert.equal(await W.pc.getTransactionCount({ address: K.address }), source.pending.nonce + 2, "then the new send at the next nonce");
++  const allowed = new Set([target.at, eu.at, new URL(W.rpcUrl).origin]);   // the two relays and the host's configured RPC
++  assert.ok(fetched.includes(target.at) && fetched.every((o) => allowed.has(o)), `only the configured relays and RPC were contacted: ${[...new Set(fetched)].join(", ")}`);
++  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(tgtDir, "relay-send.json"), "utf8")), {}, "nothing unresolved now");
++  assert.equal(await W.pc.getBalance({ address: op.address }), 0n, "the host never held ETH");
++});
++
++test("the local relay down: the approved secondary (eu-central) serves; restarted on its own key and journal it is first again", T, async () => {
++  await target.stop();
++  const host = await loadHost(hostEnv({ ENCLAVE_LEASE_GAS_LOCAL_RELAY: target.at, ENCLAVE_LEASE_GAS_RELAYS: eu.at }));
++  let from = await W.pc.getBlockNumber(), id = await newDeployment();
++  await host.claimDeployment(id, op.enclaveId);
++  assert.deepEqual(await paidTo(id, from), [{ kind: 1, payee: E.address }]);
++  const origin = target.at;
++  target = startRelay(relayEnvOf(tgtDir, W.rpcs, tgtPort)); target.at = await target.url;
++  assert.equal(target.at, origin, "the same loopback origin the settings name");
++  from = await W.pc.getBlockNumber(); id = await newDeployment();
++  await host.claimDeployment(id, op.enclaveId);
++  assert.deepEqual(await paidTo(id, from), [{ kind: 1, payee: K.address }]);
++  await host.releaseDeployment(id);
++  assert.deepEqual((await paidTo(id, from)).map((x) => x.kind), [1, 3], "release relayed too");
++  assert.equal(await W.pc.getBalance({ address: op.address }), 0n);
++});
++
++test("rollback shapes: the ACTIVATED bundle with the NEW settings relays only through eu-central; the new bundle with the OLD settings uses them as before", T, async () => {
++  assert.match(String(target.at), /^http:\/\/127\.0\.0\.1:\d+$/, "the local relay is serving (so ignoring it is the bundle's doing)");
++  assert.ok((await fetch(`${target.at}/v1/info`)).ok);
++  const oldHost = await loadHost(hostEnv({ ENCLAVE_LEASE_GAS_LOCAL_RELAY: target.at, ENCLAVE_LEASE_GAS_RELAYS: eu.at }), { bundle: "old" });
++  let from = await W.pc.getBlockNumber(), id = await newDeployment();
++  await oldHost.claimDeployment(id, op.enclaveId);
++  assert.deepEqual(await paidTo(id, from), [{ kind: 1, payee: E.address }], "LOCAL_RELAY is ignored by the activated bundle");
++  const newOld = await loadHost(hostEnv({ ENCLAVE_LEASE_GAS_RELAYS: `${source.at},${eu.at}` }));
++  from = await W.pc.getBlockNumber(); id = await newDeployment();
++  await newOld.claimDeployment(id, op.enclaveId);
++  assert.deepEqual(await paidTo(id, from), [{ kind: 1, payee: E.address }], "us-west down: eu-central, as today");
++  assert.equal(await W.pc.getBalance({ address: op.address }), 0n);
++});
+diff --git a/windows/installer/install-lease-relay.ps1 b/windows/installer/install-lease-relay.ps1
+index ff8712fb8037b4ea17cdd9ba43db3c0a8733c4a0..008d1a21d66cf58739f0b75dd0f8e6c346f082cc 100644
+--- a/windows/installer/install-lease-relay.ps1
++++ b/windows/installer/install-lease-relay.ps1
+@@ -20,6 +20,13 @@
+ #     -Record C:\ProgramData\Enclave\lease-gas\deployment.json -Digest sha256:<hex> `
+ #     -Rpcs https://a,https://b,https://c -Quorum 2 -MaxFloatEth 0.0002 -MinFloatEth 0.00005 [-Port 8549] [-NoTask]
+ # -NoTask installs files only (no scheduled task registered or started), for a scratch verification under other roots.
++#
++# MIGRATION (-ExpectedPayee 0x...): a relay key MOVED here from another machine (root copies relay.key and the old
++# machine's send record relay-send.json into the data directory first, after stopping the old relay). Then NO key is ever
++# generated: an absent key or an absent send record refuses before anything is installed (an unfunded fallback key, or
++# a lost unresolved send, must never be created by accident). After the task starts, the relay must answer /v1/info as
++# exactly that payee for the reviewed record's chain, reserve and executor; otherwise the task is stopped and disabled
++# (exit 4) and nothing points the node agent at it. The key's content is never read by this script.
+ param(
+   [Parameter(Mandatory = $true)][string]$Release,
+   [Parameter(Mandatory = $true)][string]$ArtifactSha256,
+@@ -30,6 +37,7 @@ param(
+   [Parameter(Mandatory = $true)][string]$MaxFloatEth,
+   [Parameter(Mandatory = $true)][string]$MinFloatEth,
+   [int]$Port = 8549,
++  [string]$ExpectedPayee = '',
+   [string]$ProgramRoot = (Join-Path $env:ProgramFiles 'Enclave'),
+   [string]$DataRoot = (Join-Path $env:ProgramData 'Enclave'),
+   [string]$Node = (Join-Path (Join-Path $env:ProgramFiles 'Enclave') 'runtime\node\node.exe'),
+@@ -50,6 +58,17 @@ if ((Sha (Join-Path $Release 'lease-relay-check.mjs')) -ne $manifest.check.sha25
+ if (-not (Test-Path -LiteralPath $Node -PathType Leaf)) { throw "no node runtime at $Node" }
+ if ($Port -lt 1 -or $Port -gt 65535) { throw "-Port must be 1..65535" }
+ if ($Quorum -lt 2) { throw "-Quorum must be at least 2" }
++$Migrating = $ExpectedPayee -ne ''
++if ($Migrating -and $ExpectedPayee -notmatch '^0x[0-9a-fA-F]{40}$') { throw "-ExpectedPayee must be the moved key's 0x address" }
++if ($Migrating) {
++  # before anything is installed: the moved key and its send record must already be in the private data directory
++  $mDir = Join-Path $DataRoot 'lease-relay'
++  foreach ($f in 'relay.key', 'relay-send.json') {
++    $mf = Join-Path $mDir $f
++    if (-not (Test-Path -LiteralPath $mf -PathType Leaf)) { throw "migration: $mf is absent. Copy the moved key and its send record there first; no key is generated in migration mode" }
++    if ((Get-Item -LiteralPath $mf).Length -eq 0) { throw "migration: $mf is empty" }
++  }
++}
+ 
+ # ---- 2. the program files: releases\<sha>\ (read-only data; the run loop starts exactly this directory's files)
+ $relDir = Join-Path $ProgramRoot "lease-relay\releases\$ArtifactSha256"
+@@ -75,6 +94,7 @@ if (-not $acl.AreAccessRulesProtected -or ($ids -join ',') -ne 'S-1-5-18,S-1-5-3
+ # ---- 4. the key: generated HERE, create-only, never printed or read back by this script
+ $keyFile = Join-Path $dataDir 'relay.key'
+ if (Test-Path -LiteralPath $keyFile) { Say "the existing relay key is kept ($keyFile)" }
++elseif ($Migrating) { throw "migration: $keyFile is absent; no key is generated in migration mode" }
+ else {
+   & $Node -e "const c=require('crypto'),fs=require('fs');const d=Buffer.from(c.generateKeyPairSync('ec',{namedCurve:'secp256k1'}).privateKey.export({format:'jwk'}).d,'base64url');if(d.length!==32)throw new Error('bad key length');fs.writeFileSync(process.argv[1],d.toString('hex')+'\n',{flag:'wx'});" $keyFile
+   if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $keyFile)) { throw "the relay key could not be created" }
+@@ -136,7 +156,25 @@ Start-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Relay'
+ Say "task \Enclave\Relay registered and started"
+ for ($i = 0; $i -lt 90; $i++) {
+   Start-Sleep 1
+-  try { $info = Invoke-RestMethod -TimeoutSec 3 "http://$listen/v1/info"; Say "serving: payee (fund this relay address with its float) $($info.payee); reserve $($info.reserve)"; exit 0 } catch {}
++  $info = $null
++  try { $info = Invoke-RestMethod -TimeoutSec 3 "http://$listen/v1/info" } catch {}
++  if (-not $info) { continue }
++  if (-not $Migrating) { Say "serving: payee (fund this relay address with its float) $($info.payee); reserve $($info.reserve)"; exit 0 }
++  # migration: exactly the moved key, for exactly the reviewed deployment record
++  $rec = Get-Content -LiteralPath $record -Raw | ConvertFrom-Json
++  $same = ([string]$info.payee -eq $ExpectedPayee) -and ([int64]$info.chainId -eq [int64]$rec.chainId) -and
++          ([string]$info.reserve -eq [string]$rec.reserve) -and ([string]$info.executor -eq [string]$rec.executor)
++  if ($same) { Say "serving the moved key: payee $($info.payee), chain $($info.chainId), reserve $($info.reserve), executor $($info.executor)"; exit 0 }
++  Stop-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Relay' -ErrorAction SilentlyContinue
++  Disable-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Relay' | Out-Null
++  Say "REFUSED: the relay answers payee $($info.payee) chain $($info.chainId) reserve $($info.reserve) executor $($info.executor), not the moved key $ExpectedPayee for the reviewed record; task \Enclave\Relay stopped and disabled"
++  exit 4
++}
++if ($Migrating) {
++  Stop-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Relay' -ErrorAction SilentlyContinue
++  Disable-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Relay' | Out-Null
++  Say "the relay did not answer on $listen within 90 s: task \Enclave\Relay stopped and disabled (see $log; the moved key and send record are kept)"
++  exit 3
+ }
+ Say "the relay did not answer on $listen within 90 s: see $log (an unfunded key still serves; a key above its cap refuses to start)"
+ exit 3
+diff --git a/windows/installer/lease-gas-config-check.mjs b/windows/installer/lease-gas-config-check.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..34173a8a31b6fd6575fbb1bfcbbeee232e421e02
+--- /dev/null
++++ b/windows/installer/lease-gas-config-check.mjs
+@@ -0,0 +1,50 @@
++// lease-gas-config-check.mjs - READ-ONLY: does a lease-gas-config.cmd (the `@set "NAME=value"` lines the node's run loop
++// calls) load in a GIVEN lease-gas runtime bundle exactly as the node agent loads it (windows/node/chain.mjs:
++// loadLeaseGasConfig over the ENCLAVE_/LEASE_GAS_ names, no RPC, no signing), and is it the reviewed shape?
++//   node lease-gas-config-check.mjs --bundle <lease-gas-runtime.bundle.mjs> --config <lease-gas-config.cmd>
++//        [--expect-local <origin>|none] [--expect-relays <origin,origin>|none]
++// The config holds public values only (record path and digest, RPC and relay origins, quorum, reserve). The deployment
++// record it names is read and checked against its digest. Prints one JSON line; exit 0 ok, 1 refused, 2 usage.
++// The host's own binding (its AddressBook ledger/registry) is checked again by the agent before every send; here the
++// record's own ledger/registry stand in for it, so this proves the file's syntax, digest and relay rules, not the binding.
++import fs from "node:fs";
++import path from "node:path";
++import { pathToFileURL } from "node:url";
++
++const args = process.argv.slice(2), opt = {};
++for (let i = 0; i < args.length; i += 2) { if (!/^--[a-z-]+$/.test(args[i]) || args[i + 1] === undefined) { console.error("usage: --bundle B --config C [--expect-local X|none] [--expect-relays X,Y|none]"); process.exit(2); } opt[args[i].slice(2)] = args[i + 1]; }
++if (!opt.bundle || !opt.config) { console.error("usage: --bundle B --config C [--expect-local X|none] [--expect-relays X,Y|none]"); process.exit(2); }
++
++/** `@set "NAME=value"` (or `set NAME=value`) lines -> { NAME: value }; only lease-gas names; anything else is refused */
++export function parseLeaseGasCmd(text) {
++  const env = {}, problems = [];
++  for (const raw of text.split(/\r?\n/)) {
++    const line = raw.trim();
++    if (!line || /^@?rem(\s|$)/i.test(line) || /^@?echo\s+off$/i.test(line)) continue;
++    const m = /^@?set\s+"([A-Z_]+)=([^"]*)"$/i.exec(line) || /^@?set\s+([A-Z_]+)=(.*)$/i.exec(line);
++    if (!m) { problems.push(`not a set line: ${line.slice(0, 60)}`); continue; }
++    if (!/^(ENCLAVE_)?LEASE_GAS_[A-Z_]+$/.test(m[1])) { problems.push(`not a lease-gas name: ${m[1]}`); continue; }
++    if (m[1] in env) problems.push(`${m[1]} is set twice`);
++    env[m[1]] = m[2];
++  }
++  return { env, problems };
++}
++
++const out = { config: path.resolve(opt.config), bundle: path.resolve(opt.bundle) };
++try {
++  const { env, problems } = parseLeaseGasCmd(fs.readFileSync(opt.config, "utf8"));
++  if (problems.length) throw new Error(problems.join("; "));
++  const rt = await import(pathToFileURL(path.resolve(opt.bundle)).href);
++  if (!rt.leaseGasConfigured(env)) throw new Error("the file configures no lease-gas setting (that is operator-paid, never acceptable here)");
++  const file = env.ENCLAVE_LEASE_GAS_FILE || env.LEASE_GAS_FILE;
++  const record = JSON.parse(fs.readFileSync(file, "utf8"));
++  const cfg = rt.loadLeaseGasConfig({ env, chain: { id: record.chainId }, ledger: record.ledger, registry: record.registry });
++  Object.assign(out, { ok: true, chainId: cfg.deployment.chainId, reserve: cfg.reserve, quorum: cfg.quorum, rpcs: cfg.clients.length,
++    localRelays: [...(cfg.localRelays || [])], relays: [...cfg.relays], discovery: !!cfg.relayDiscovery });
++  const want = (x) => (x === "none" ? [] : String(x).split(",").map((s) => s.trim()).filter(Boolean));
++  if (opt["expect-local"] !== undefined && JSON.stringify(out.localRelays) !== JSON.stringify(want(opt["expect-local"]))) throw new Error(`local relays ${JSON.stringify(out.localRelays)}, not ${JSON.stringify(want(opt["expect-local"]))}`);
++  if (opt["expect-relays"] !== undefined && JSON.stringify(out.relays) !== JSON.stringify(want(opt["expect-relays"]))) throw new Error(`relays ${JSON.stringify(out.relays)}, not ${JSON.stringify(want(opt["expect-relays"]))}`);
++  if (out.discovery) throw new Error("this rollout configures no relay discovery (SERVICE_INDEX)");
++} catch (e) { out.ok = false; out.error = String(e.message || e).slice(0, 400); }
++console.log(JSON.stringify(out));
++process.exitCode = out.ok ? 0 : 1;

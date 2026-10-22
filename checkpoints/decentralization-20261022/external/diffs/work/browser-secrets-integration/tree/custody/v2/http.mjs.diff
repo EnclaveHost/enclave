@@ -1,0 +1,72 @@
+--- a/custody/v2/http.mjs
++++ b/custody/v2/http.mjs
+@@ -3,6 +3,9 @@
+ // order, rate limit, 256 KiB body bound and error mapping - so tests drive the real router over real HTTP. One change: the
+ // client key is the TCP peer, not a client-chosen x-forwarded-for (see clientKeyFor).
+ //
++// Added: the owner-read routes (/v2/custody/owner-read/challenge, /v2/custody/owner-read) with the ordinary 256 KiB bound,
++// served only by a custodian that has them (docs/security/custody-owner-read.md). They alone carry public, credentialless
++// CORS and answer their OPTIONS preflight (OWNER_READ_ROUTES below), so the owner's own browser can call them directly.
+ // Added: the Shield host-session routes (custody/v2/shield-evidence.mjs, shield-operator.mjs), ONLY when the custodian has
+ // the measured Shield adapter installed; without it they are exactly an unknown route (404). Their bounds:
+ //   .../challenge  the ordinary 256 KiB body bound;
+@@ -58,6 +61,15 @@
+ }
+ export const ATTEST_READ_MS = 60_000;
+ 
++// BROWSER OWNERS (docs/security/custody-owner-read.md "Browsers and CORS"): the two owner-read routes answer ANY origin,
++// credentialless. Their authority is the owner's signature over a fresh challenge and an ephemeral recipient key - never an
++// origin or a cookie - and their answers are HPKE ciphertext to that key. A preflight is answered before the rate limit, the
++// body and the custodian: it spends no token, challenge or owner-read budget. Every other route is unchanged (no CORS).
++export const OWNER_READ_ROUTES = Object.freeze(["/v2/custody/owner-read/challenge", "/v2/custody/owner-read"]);
++const OWNER_READ_CORS = Object.freeze({ "access-control-allow-origin": "*" });
++const OWNER_READ_PREFLIGHT = Object.freeze({ ...OWNER_READ_CORS, "access-control-allow-methods": "POST", "access-control-allow-headers": "content-type",
++                                             "access-control-max-age": "600", "cache-control": "no-store", "content-length": "0" });
++
+ const json = (res, code, body, headers = {}) => { res.writeHead(code, { "content-type": "application/json", "cache-control": "no-store", ...headers }); res.end(JSON.stringify(body)); };
+ 
+ // -> Buffer, or null after answering 413 (or 408 past `deadlineMs`; the rest of the body is discarded and the connection
+@@ -103,6 +115,7 @@
+   if (shieldOn && !(limits && Number.isSafeInteger(limits.maxAttestBytes) && Number.isSafeInteger(limits.maxConcurrentAttests)))
+     throw new Error("custody router: the Shield adapter carries no measured limits");
+   let attesting = 0;
++  const ownerReadOn = typeof custodian.ownerChallenge === "function" && typeof custodian.ownerRead === "function";
+ 
+   async function shieldRoute(res, route, body) {
+     try { return json(res, 200, await (route === "challenge" ? custodian.shieldChallenge(body) : custodian.shieldAttest(body))); }
+@@ -117,6 +130,10 @@
+     const u = new URL(req.url, "http://x");
+     const client = clientOf(req);
+     let held = false;
++    if (ownerReadOn && OWNER_READ_ROUTES.includes(u.pathname)) {
++      if (req.method === "OPTIONS") { res.writeHead(204, OWNER_READ_PREFLIGHT); return res.end(); }
++      for (const [k, v] of Object.entries(OWNER_READ_CORS)) res.setHeader(k, v);     // every answer below, refusals included
++    }
+     try {
+       if (req.method === "GET" && (u.pathname === "/health" || u.pathname === "/")) return json(res, 200, { ok: true, role: "custodian-v2" });
+       if (req.method === "GET" && u.pathname === "/v2/custody/info") return json(res, 200, { ...member.info(servedCommittee()), chainId, vault,
+@@ -141,6 +158,13 @@
+       switch (u.pathname) {
+         case "/v2/custody/challenge": return json(res, 200, custodian.challenge({ client }));
+         case "/v2/custody/release": return json(res, 200, await custodian.release(body));
++        // the policy owner's own read (custody/v2/custodian.mjs ownerRead): present only with a custodian that serves it
++        case "/v2/custody/owner-read/challenge":
++          if (typeof custodian.ownerChallenge !== "function") break;
++          return json(res, 200, custodian.ownerChallenge({ client }));
++        case "/v2/custody/owner-read":
++          if (typeof custodian.ownerRead !== "function") break;
++          return json(res, 200, await custodian.ownerRead(body));
+         case "/v2/custody/evidence": return json(res, 200, await member.evidence(String(body.nonce || "")));
+         case "/v2/custody/join": return json(res, 200, await member.join(body, servedCommittee()));
+         case "/v2/custody/approve": return json(res, 200, await member.approve({ ...body, next: body.next || [] }));
+@@ -148,8 +172,9 @@
+         case "/v2/custody/independent-genesis": return json(res, 200, await runIndependent(body));
+         case "/v2/custody/code-approve": return json(res, 200, await member.approveCode({ committeeId: String(body.committeeId || servedCommittee() || ""),
+                                                                                          measurement: String(body.measurement || ""), add: body.add, permit: body.permit }));
+-        default: return json(res, 404, { error: "not_found", message: "Unknown custody route." });
++        default: break;
+       }
++      return json(res, 404, { error: "not_found", message: "Unknown custody route." });
+     } catch (e) {
+       if (res.headersSent) return;
+       if (e instanceof Refusal) return json(res, e.status, { error: e.code, message: e.message });

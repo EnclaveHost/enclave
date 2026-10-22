@@ -1,0 +1,11 @@
+import fs from 'node:fs/promises';
+import {LeaseReader} from '../enclave/network/lease-reader.mjs';
+import {startupExpectation} from '../enclave/network/startup-expectation.mjs';
+const p=JSON.parse(await fs.readFile(new URL('../native-client-proof/profile.json',import.meta.url)));
+const reader=new LeaseReader({rpc:p.rpc,addressBook:'0x'+'0'.repeat(40),authorityPins:p.authorityPins});
+const [lease]=await reader.refresh(['0x87508b958c4d14381b58fe05a781efbd3f185a36d5239abdf37e8f242f944538']);
+const runtime=JSON.parse(await fs.readFile(new URL('../direct-bootstrap-hardware-release-v3/template/rt/runtime.json',import.meta.url)));
+const bytes=await fs.readFile(new URL('../bootstrap-hardware/package.json',import.meta.url));
+const derived=await startupExpectation(lease,{runtime,bytes});
+await fs.writeFile(new URL('./chain.json',import.meta.url),JSON.stringify({verifiedAt:new Date().toISOString(),lease,expected:derived.expected,provenance:derived.provenance,runtime},null,2)+'\n');
+console.log(JSON.stringify({block:lease.blockNumber,owner:lease.owner,active:lease.active,runner:lease.runner,package:derived.provenance.cid,appId:derived.expected.appSha256}));

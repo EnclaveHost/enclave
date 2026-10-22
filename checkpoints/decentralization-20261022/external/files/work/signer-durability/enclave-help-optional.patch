@@ -1,0 +1,15 @@
+diff -ruN a/cli/enclave.mjs b/cli/enclave.mjs
+--- a/cli/enclave.mjs	2026-10-19 22:40:11.598972667 -0700
++++ b/cli/enclave.mjs	2026-10-19 22:40:11.609878335 -0700
+@@ -4632,7 +4632,10 @@
+                              handoff (no endpoint, e.g. MetaMask: print the
+                              exact transaction; then enclave signer attach).
+   enclave --independent … signer probe|list|show|resolve|attach|rebroadcast|abandon
+-                             inspect and settle the signer's journaled intents.
++                             inspect and settle the signer's journaled intents;
++                             signer release <reservation> | quarantine <id>
++                             end a stopped send's reservation, or set aside an
++                             unreadable intent file (both explicit; see list).
+   Both need --from: a signer may hold several accounts, and every ownership
+   gate here keys on the address, so guessing would act as the wrong wallet.
+   Message-signing commands (login, upload, encvol) need --signer; --unsigned

@@ -1,0 +1,29 @@
+--- proposed/wallet-admission.mjs.orig	2026-10-21 14:12:56.235730134 -0700
++++ proposed/wallet-admission.mjs.proposed	2026-10-21 14:19:44.021525369 -0700
+@@ -7,6 +7,9 @@
+ 
+ const ID=/^0x[0-9a-f]{64}$/, GEN=/^[0-9a-f]{32}$/;
+ const MAX_BYTES=262144, MAX_APPS=256, CHANNEL_MS=30000, POLICY_MS=90000;
++// A sharing violation of the atomic replace (Windows) is retried here, once per commit, within this exact budget.
++export const COMMIT_RETRY=Object.freeze({attempts:6,stepMs:25,budgetMs:375}); // waits 25+50+75+100+125 ms
++const SHARING=['EPERM','EACCES','EBUSY'],SLEEP=new Int32Array(new SharedArrayBuffer(4));
+ const plain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);
+ const exact=(o,keys)=>plain(o)&&Object.keys(o).length===keys.length&&Object.keys(o).every(k=>keys.includes(k));
+ const int=n=>Number.isSafeInteger(n)&&n>=0;
+@@ -41,7 +44,15 @@
+     const tmp=this.file+'.'+this.generation+'.'+next+'.tmp';let fd;
+     try{
+       fd=fs.openSync(tmp,'wx',0o600);fs.writeFileSync(fd,raw);fs.fsyncSync(fd);fs.closeSync(fd);fd=undefined;
+-      fs.renameSync(tmp,this.file); // Windows sharing errors refuse; never fall back to a torn in-place write.
++      // The replace MAY meet a Windows sharing violation (EPERM/EACCES/EBUSY) when another process holds the file without
++      // FILE_SHARE_DELETE (an antivirus or indexer scan, a non-Node reader); a Node reader opens with share-delete. The SAME
++      // complete temp file is renamed again, at most COMMIT_RETRY.attempts times (<= COMMIT_RETRY.budgetMs of waiting);
++      // never a torn in-place write. The document (issuedAt, expiresAt, every validUntil) is fixed BEFORE the first try, so
++      // a retry can only shorten what it grants, never extend it. This is the ONLY retry layer: callers do not retry.
++      for(let attempt=1;;attempt++){
++        try{fs.renameSync(tmp,this.file);break;}
++        catch(e){if(!SHARING.includes(e.code)||attempt>=COMMIT_RETRY.attempts)throw e;Atomics.wait(SLEEP,0,0,COMMIT_RETRY.stepMs*attempt);}
++      }
+       if(process.platform!=='win32'){const dir=fs.openSync(path.dirname(this.file),'r');try{fs.fsyncSync(dir);}finally{fs.closeSync(dir);}}
+       this.revision=next;return {generation:this.generation,revision:next};
+     }finally{if(fd!==undefined)fs.closeSync(fd);try{fs.unlinkSync(tmp);}catch(e){if(e.code!=='ENOENT')throw e;}}

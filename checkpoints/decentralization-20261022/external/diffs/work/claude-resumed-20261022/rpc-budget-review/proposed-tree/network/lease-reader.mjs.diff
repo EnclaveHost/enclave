@@ -1,0 +1,161 @@
+--- a/network/lease-reader.mjs
++++ b/network/lease-reader.mjs
+@@ -6,7 +6,7 @@
+ import {readConnectivity} from './connectivity-chain.mjs';
+ import {guardedFetch} from './guarded-fetch.mjs';
+ import {validateNetworkAuthorities} from './network-authorities.mjs';
+-import {rpcEndpoint,redactUrls} from './rpc-identity.mjs';
++import {rpcEndpoint,redactUrls,rpcLabel} from './rpc-identity.mjs';
+ const fields=[['id','bytes32'],['owner','address'],['appRef','string'],['ports','string'],['configCid','string'],['gpuMilli','uint16'],['cpuMilli','uint16'],['appPort','uint32'],['isPublic','bool'],['active','bool'],['createdAt','uint64'],['rate','uint256'],['balance6','uint256'],['spent6','uint256'],['runner','bytes32'],['runnerOperator','address'],['leaseUntil','uint64']];
+ const bookABI=[{type:'function',name:'addr',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'address'}]}];
+ const deploymentABI=[{type:'function',name:'get',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'tuple',components:fields.map(([name,type])=>({name,type}))}]}];
+@@ -23,6 +23,10 @@
+ }
+ // an RPC library's error can name the URL it called, API key and all: only a safe label of it is kept
+ const errText=e=>redactUrls(String(e?.shortMessage||e?.message||e)).slice(0,400);
++const rateLimited=t=>/rate limit|over rate|too many requests|compute units per second|\b429\b/i.test(t);
++// One per-RPC failure line for agreed()'s `failures`: WHICH RPC (its safe label, never the URL), which step, the HTTP
++// status when there is one (viem's shortMessage drops it: a 429 rate limit read only "HTTP request failed."). Text only.
++const failureText=(label,step,e)=>`${label}: ${step} ${Number.isInteger(e?.status)?'HTTP '+e.status+' ':''}${Number.isInteger(e?.code)?'code '+e.code+' ':''}${errText(e)}${e?.details?' ('+redactUrls(String(e.details)).slice(0,80)+')':''}`.slice(0,220);
+ // The vote identity of an RPC URL: network/rpc-identity.mjs, the rule every quorum reader shares (one public host is
+ // one vote however its URL is spelled; loopback by port; IPv4 written as IPv6 folded; https, plain http only on
+ // loopback; no credentials or fragment; no DNS, and distinct hosts are not proof of independent operators). Throws an
+@@ -71,10 +75,14 @@
+ // The fields agreed() itself puts on every answer; a read callback returning one is a bug, refused loudly.
+ const reservedFields=['hash','blockNumber','timestamp'];
+ export class LeaseReader {
+-  constructor({rpc,chainId=8453,addressBook,authorityPins,maxBlockAgeMs=90000,confirmations=2,deadlineMs=30000,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now}) {
++  constructor({rpc,chainId=8453,addressBook,authorityPins,maxBlockAgeMs=90000,confirmations=2,deadlineMs=30000,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now,rateLimitRetryMs=0}) {
+     if (!/^0x[0-9a-fA-F]{40}$/.test(addressBook||'')) throw new Error('invalid chain policy');
+     Object.assign(this,{chainId,addressBook,maxBlockAgeMs,confirmations,deadlineMs,includeHostPayout,includeConnectivity,now});
+     this.retryDelayMs=400;this.headGraceMs=250;
++    // A client's chain id is a property of its configured endpoint: verified on first use and again at least every
++    // chainRecheckMs (a mismatch then refuses exactly as before), not re-asked on every agreed() call. The head is still
++    // read every call. Halves the head requests each call sends to every RPC (2026-10-22 RPC budget review).
++    this.chainRecheckMs=10*60_000;this.chainVerified=new WeakMap();
+     const policy=policyProblem(this);if(policy)throw new Error(policy);
+     if (!clients) {
+       // one vote per public host: case, a trailing dot, the port and the path do not make another one
+@@ -89,6 +97,11 @@
+     this.clients=clients||rpc.map(url=>createPublicClient({chain:base,batch:{multicall:{wait:0}},
+       transport:http(url,{timeout:14000,retryCount:0,...(proxy?{fetchFn:guardedFetch(proxy,{timeoutMs:6000})}:{})})}));
+     this.lastBlock=0n;this.cache=new Map();
++    this.labels=clients?this.clients.map((_,i)=>`rpc${i+1}`):rpc.map(u=>rpcLabel(u));
++    // Opt-in (default 0 = the original three attempts): an agreed() call may spend up to this long, in total, retrying
++    // rate-limit refusals, inside its unchanged deadline. Enabled only by createHostAdmission's own reader.
++    if(!Number.isSafeInteger(rateLimitRetryMs)||rateLimitRetryMs<0||rateLimitRetryMs>=deadlineMs)throw new Error('invalid rate-limit retry budget');
++    this.rateLimitRetryMs=rateLimitRetryMs;
+   }
+   // Requests that arrive while a snapshot is queued join it: a burst of
+   // publications costs one chain read, not one per app.
+@@ -102,13 +115,27 @@
+     for(const id of ids)this.queued.ids.add(id);
+     return this.queued.run.then(rows=>{const byId=new Map(rows.map(row=>[row.id,row]));return ids.map(id=>byId.get(id)).filter(Boolean);});
+   }
+-  // Only a rate-limit refusal is retried, briefly; a timeout or a wrong answer is not.
+-  async limited(read) {
++  // Only a rate-limit refusal is retried; a timeout or a wrong answer is not.
++  //  * retryUntil null (every reader by default): the original rule, three attempts.
++  //  * retryUntil set (agreed() on a reader built with rateLimitRetryMs, i.e. the host wallet admission): retried with
++  //    backoff (0.4 s doubling, capped at 4 s) while the next attempt still starts before retryUntil = min(call start +
++  //    rateLimitRetryMs, deadline - 1 s). Public RPCs answer this site's bursts with short 429 windows; giving up after ~2 s
++  //    made the quorum "unavailable" and held running deployments (2026-10-21, nucbox). The budget is per agreed() call
++  //    and separate from its deadline, so an all-429 outage still answers UNKNOWN within about the budget, not after 30 s.
++  //    Each retry still passes agreed()'s gate (decided, superseded or past the deadline -> no request).
++  async limited(read,retryUntil=null) {
+     for(let attempt=0;;attempt++){
+       try{return await read();}
+       catch(e){
+-        if(attempt>=2||!/rate limit|over rate|too many requests|compute units per second|\b429\b/i.test(String(e?.message)))throw e;
+-        await new Promise(r=>setTimeout(r,this.retryDelayMs*(attempt+1)*(1+Math.random())));
++        if(retryUntil===null){
++          if(attempt>=2||!rateLimited(String(e?.message)))throw e;
++          await new Promise(r=>setTimeout(r,this.retryDelayMs*(attempt+1)*(1+Math.random())));
++          continue;
++        }
++        if(!rateLimited(String(e?.message)+' '+String(e?.details||'')))throw e;
++        const delay=Math.min(4000,this.retryDelayMs*2**attempt)*(1+Math.random()/2);
++        if(performance.now()+delay>=retryUntil)throw e;
++        await new Promise(r=>setTimeout(r,delay));
+       }
+     }
+   }
+@@ -141,6 +168,7 @@
+     if(typeof read!=='function')return Promise.reject(new Error('agreed() needs a read function'));
+     return new Promise((resolve,reject)=>{
+       const endAt=performance.now()+this.deadlineMs,fresh=ts=>ts+this.maxBlockAgeMs>this.now();
++      const retryUntil=this.rateLimitRetryMs>0?Math.min(performance.now()+this.rateLimitRetryMs,endAt-1000):null;
+       let closed=false,round=0,block=null,seen=new Map(),readers=new Set(),pending=0,grace=null;
+       const heads=new Map(),tried=[];let headsOutstanding=this.clients.length;
+       const finish=(err,out)=>{if(closed)return;closed=true;clearTimeout(grace);clearTimeout(deadline);if(err)reject(err);else resolve(out);};
+@@ -152,7 +180,15 @@
+         if(r!==null&&r!==round)return Promise.reject(new Error('superseded by a newer block'));
+         const left=Math.floor(endAt-performance.now());
+         if(left<=0)return Promise.reject(new Error('the chain read deadline has passed'));
+-        return timed(Promise.resolve().then(f),left);
++        // re-checked when the request is actually issued (a microtask later): a decision in between sends nothing. A request
++        // already handed to the transport (and a multicall batch flushed a macrotask later) is not aborted: it may still
++        // complete after the decision; its answer is ignored (reads at one fixed block; the decision cannot change).
++        return timed(Promise.resolve().then(()=>{
++          if(closed)throw new Error('the chain read was already decided');
++          if(r!==null&&r!==round)throw new Error('superseded by a newer block');
++          if(performance.now()>=endAt)throw new Error('the chain read deadline has passed');
++          return f();
++        }),left);
+       };
+       // `read` gets the client behind this gate, so its own requests obey it too.
+       const guarded=(c,r)=>new Proxy(c,{get(target,key){const v=Reflect.get(target,key);return typeof v==='function'?(...args)=>gate(r,()=>v.apply(target,args)):v;}});
+@@ -166,7 +202,7 @@
+         if(b<this.lastBlock)b=this.lastBlock;
+         return b;
+       };
+-      const readAt=(c,b,r)=>this.limited(async()=>{
++      const readAt=(c,b,r)=>this.limited(async()=>{   // retryUntil: the opt-in rate-limit budget (null = 3 attempts)
+         const g=guarded(c,r);
+         const {hash,timestamp}=header(await g.getBlock({blockNumber:b}),b);
+         if(timestamp>this.now()+5000||!fresh(timestamp))throw new Error('stale chain block');
+@@ -179,7 +215,7 @@
+         if(again.hash!==hash||again.timestamp!==timestamp)throw new Error('chain reorganized during read');
+         if(!fresh(timestamp))throw new Error('chain block became stale during the read');
+         return {...value,hash,blockNumber:String(b),timestamp};
+-      });
++      },retryUntil);
+       const addReader=c=>{
+         if(closed||readers.has(c))return;
+         const r=round,b=block;readers.add(c);pending++;
+@@ -200,7 +236,7 @@
+           finish(null,snap);
+         },e=>{
+           if(e?.readerBug)return finish(e);               // the caller's read is wrong: say so, do not dress it as a quorum failure
+-          if(!closed&&r===round)failures.push(errText(e));
++          if(!closed&&r===round)failures.push(failureText(this.labels[this.clients.indexOf(c)]||'rpc','read',e));
+         }).finally(()=>{if(r===round){pending--;settle();}});
+       };
+       const startRound=b=>{
+@@ -227,15 +263,22 @@
+       };
+       for(const c of this.clients)this.limited(async()=>{
+         const g=guarded(c,null);
+-        const [chainId,number]=await Promise.all([g.getChainId(),g.getBlockNumber({cacheTime:0})]);
+-        if(chainId!==this.chainId)throw new Error('wrong chain');
++        // allSettled: one 429 does not end the attempt while its sibling request is still in flight; the rate-limit
++        // reason (if any) is the one rethrown, so the retry rule sees it
++        const at=this.chainVerified.get(c),known=at!==undefined&&performance.now()-at<this.chainRecheckMs;
++        const got=await Promise.allSettled([known?this.chainId:g.getChainId(),g.getBlockNumber({cacheTime:0})]);
++        const bad=got.filter(x=>x.status==='rejected').map(x=>x.reason);
++        if(bad.length)throw bad.find(e=>rateLimited(String(e?.message)+' '+String(e?.details||'')))||bad[0];
++        const [chainId,number]=got.map(x=>x.value);
++        if(chainId!==this.chainId){this.chainVerified.delete(c);throw new Error('wrong chain');}
++        if(!known)this.chainVerified.set(c,performance.now());
+         return BigInt(number);
+-      }).then(number=>{
++      },retryUntil).then(number=>{
+         if(closed)return;
+         heads.set(c,number);
+         if(block!==null)addReader(c);                  // a late head still reads at the chosen block
+         else if(heads.size>=2&&grace===null)grace=setTimeout(()=>{grace='fired';headsSettled();},this.headGraceMs);
+-      },()=>{}).finally(()=>{headsOutstanding--;headsSettled();});
++      },e=>{if(!closed)failures.push(failureText(this.labels[this.clients.indexOf(c)]||'rpc','head',e));}).finally(()=>{headsOutstanding--;headsSettled();});
+     });
+   }
+   async readSnapshot(ids) {

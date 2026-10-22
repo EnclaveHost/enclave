@@ -1,0 +1,10 @@
+--- a/sia-s3/src/http.rs
++++ b/sia-s3/src/http.rs
+@@ -208,6 +208,7 @@
+         412 => "Precondition Failed",
+         413 => "Payload Too Large",
+         416 => "Range Not Satisfiable",
++        451 => "Unavailable For Legal Reasons",
+         500 => "Internal Server Error",
+         501 => "Not Implemented",
+         503 => "Service Unavailable",

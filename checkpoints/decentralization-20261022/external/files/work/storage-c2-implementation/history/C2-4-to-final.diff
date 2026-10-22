@@ -1,0 +1,22 @@
+--- ../indexd-c2-implementation/sdk-snapshot-c2-4/sia-s3/src/replica.rs	2026-10-20 07:53:21.837132192 -0700
++++ sia-s3/src/replica.rs	2026-10-20 09:14:38.522461268 -0700
+@@ -5565,6 +5565,19 @@
+         let old = Store::load_with(v3.clone(), 8 << 20, opts()).await.unwrap();
+         let e = old.upload(Rc::from(&b"x"[..])).await.unwrap_err();
+         assert!(e.contains("CAS mode"), "{e}");
++        // the head-advancing routes too: a v3 object pin and a v3 delete of objects whose slabs are pinned
++        let s = c.store(0).unwrap();
++        let obj = s.upload(Rc::from(&b"v3 target"[..])).await.unwrap();
++        let h1 = nets[0].net.c2_head().0;
++        assert!(v3.pin_object(&obj).await.is_err(), "a v3 object pin on an enrolled account is refused");
++        let seed_host = {
++            let idx = s.idx.lock().await;
++            let host = &idx.keys[&("b".to_string(), "seed".to_string())].host;
++            idx.objs[host].0.id()
++        };
++        assert!(v3.delete_object(&seed_host).await.is_err(), "a v3 delete of an existing object too");
++        assert_eq!(get(&c, "seed").await.unwrap(), b"s", "the object is still there");
++        assert_eq!(nets[0].net.c2_head().0, h1, "nothing applied");
+         let higher = sia_storage::fence::FenceToken::new(c.ballot().unwrap().generation(), c.ballot().unwrap().counter() + 1, [3; 16]).unwrap();
+         assert!(v3.fence_raise(higher).await.is_err(), "a raise without mode cas is refused on an enrolled account");
+         assert_eq!(nets[0].net.installed_fence(), c.ballot());

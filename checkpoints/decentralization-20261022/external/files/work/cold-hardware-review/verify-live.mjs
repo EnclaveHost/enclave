@@ -1,0 +1,17 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { parseReportStrict, checkChain, checkCrl, verifyReportSignature } from '../enclave/verifier/snp.mjs';
+import { vcekMatchesReport, checkMinTcb } from '../enclave/relay/snp-verify.mjs';
+const root=new URL('./',import.meta.url), read=p=>fs.readFileSync(new URL(p,root)), json=p=>JSON.parse(read(p));
+const env=json('current-guest-attestation.json'), statement=json('statement.json'), now=new Date();
+const report=Buffer.from(env.report,'base64'), p=parseReportStrict(report);
+const vcekDer=read('fresh-collateral/vcek.der'), chainPem=read('fresh-collateral/cert_chain.pem'), crlDer=read('fresh-collateral/crl.der');
+const chain=checkChain({vcekDer,chainPem,product:statement.product,now}); assert.equal(chain.ok,true,chain.why);
+const crl=checkCrl({crlDer,ark:chain.ark,ask:chain.ask,now}); assert.equal(crl.ok,true,JSON.stringify(crl)); assert.equal(crl.checked,true);
+assert.equal(vcekMatchesReport(vcekDer,statement.product,p),null);
+const sig=verifyReportSignature(p,chain.vcek); assert.equal(sig.ok,true,sig.why);
+const floor=checkMinTcb(json('fresh-collateral/min-tcb.json'),statement.product,p); assert.equal(floor.ok,true,floor.reason);
+assert.equal(p.chipId.subarray(0,8).toString('hex'),statement.chipId); assert.equal(p.reportedTcb.toString('hex'),statement.reportedTcbRaw);
+const result={at:now.toISOString(),scope:'Fresh firmware-derived AMD collateral matched a captured live guest report. This is not application admission, TLS binding verification, or a new cold guest boot.',checks:{amdPinnedRootChain:true,currentCrl:true,reportSignature:true,vcekChipAndTcb:true,firmwareChipAndTcb:true,existingOperatorFloor:true},product:statement.product,chipId:statement.chipId,reportedTcb:statement.reportedTcbRaw,reportSha256:createHash('sha256').update(report).digest('hex'),vcekSha256:createHash('sha256').update(vcekDer).digest('hex'),limitations:['Existing running host with four guests; acquisition did not consume a guest report.','Minimum TCB is the prior operator policy, not a new advisory review.','No independently pinned application measurement or actual TLS peer binding judged here.']};
+fs.writeFileSync(new URL('live-report-verification.json',root),JSON.stringify(result,null,2)+'\n'); console.log(JSON.stringify(result,null,2));

@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Enclave · EnclaveDNS release 0.1.5</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head><body><main>
+<p class="eyebrow">ENCLAVE · LOCAL WALLET HANDOFF · ENCLAVEDNS RELEASE</p>
+<h1>Release EnclaveDNS 0.1.5 to the existing deployment</h1>
+<p>Three MetaMask confirmations from the owner account, in this order:</p>
+<ol>
+<li><b>Sign</b> the upload authorization for the frozen, reviewed <b>enclavedns-0.1.5.wasm</b> (sha256 e3780187…, 2,588,705 bytes). A signature only: no fee, nothing on chain.</li>
+<li><b>Publish</b> catalog version <b>enclavedns:0.1.5</b> (CID bafybeic3peeq…). Its resources, ports and config are version 0.1.4's, unchanged.</li>
+<li><b>Upgrade</b> the existing deployment <b>0x59f1273d…</b> from 0.1.4 to 0.1.5, through the deployment's SessionVault <b>0xB794C4DD…</b> (<code>ownerCall</code> → <code>setAppRef</code>). The same deployment; the vault stays its owner and it stays a STAGING deployment.</li>
+</ol>
+<p>Every transaction sends <b>0 ETH</b>; only the network fee is paid. No new deployment, session, deposit, transfer or USDC.</p>
+<dl><dt>Network</dt><dd>Base · chain 8453</dd><dt>Owner</dt><dd id="owner"></dd><dt>Approved plan</dt><dd id="plan"></dd><dt>Progress</dt><dd id="progress"></dd></dl>
+<p>Press <b>Start</b> once. Each step is rechecked and simulated on two RPC providers right before it opens in MetaMask, and each step waits until the previous one is confirmed. A rejection pauses. Anything unknown stops and offers only hash verification or a chain-checked release.</p>
+<p id="wallet">Detecting MetaMask…</p>
+<div class="actions"><button id="connect" disabled>Connect MetaMask</button><button id="start" disabled>Start</button></div>
+<section id="current" hidden><h2 id="current-title"></h2><p id="current-detail"></p></section>
+<p id="status" role="status">Loading…</p>
+<div id="recovery" hidden><p id="recovery-text"></p><div class="actions"><input id="hash" placeholder="0x… transaction hash from MetaMask activity" size="70" spellcheck="false"><button id="check">Verify this hash</button><button id="release" hidden>Release unanswered request</button></div></div>
+<table><thead><tr><th>#</th><th>Action</th><th>Destination</th><th>Amount</th><th>Status</th></tr></thead><tbody id="ops"></tbody></table>
+<details open><summary>The exact current request</summary><pre id="transaction"></pre></details>
+<p class="fine">Your private key stays in MetaMask. The short-lived upload signature is sent to api.enclave.host, and the temporary upload token to ipfs.enclave.host. This handoff stores neither on disk. Every transaction receipt is checked on two providers for the exact sender, recipient, calldata, value, nonce and events.</p>
+</main></body></html>

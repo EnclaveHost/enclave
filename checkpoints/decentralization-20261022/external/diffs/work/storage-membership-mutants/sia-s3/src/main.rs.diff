@@ -1,0 +1,79 @@
+--- a/sia-s3/src/main.rs
++++ b/sia-s3/src/main.rs
+@@ -90,13 +90,16 @@
+         match async { Store::load_with(connect(r).await?, cfg.compact_max_object, cfg.opts.clone()).await }.await {
+             Ok(s) => break Rc::new(s),
+             Err(e) => {
++                // shown on the status page and /healthz: never a signed indexer URL (connect() errors carry them)
++                let e = crate::store::redact(&e);
+                 eprintln!("[sia-s3] replica {}: boot: {e}; retrying in {wait}s", r.name);
+                 *app.cluster.replicas[i].error.borrow_mut() = Some(format!("boot: {e}"));
+                 *app.boot_error.borrow_mut() = Some(format!(
+-                    "{} of {} replicas needed are loaded ({}: {e})",
++                    "{} of {} replicas are loaded ({}: {e}){}",
+                     app.cluster.loaded().len(),
+-                    app.cluster.read_quorum(),
+-                    r.name
++                    app.cluster.n(),
++                    r.name,
++                    app.cluster.ms_reason().map(|m| format!("; {m}")).unwrap_or_default()
+                 ));
+                 tokio::time::sleep(Duration::from_secs(wait)).await;
+                 wait = (wait * 2).min(300);
+@@ -104,10 +107,8 @@
+         }
+     };
+     app.cluster.attach(i, store.clone()).await;
+-    eprintln!("[sia-s3] replica {} loaded ({}/{} loaded, {} needed)", r.name, app.cluster.loaded().len(), app.cluster.n(), app.cluster.read_quorum());
+-    if app.cluster.ready() {
+-        *app.boot_error.borrow_mut() = None;
+-    }
++    eprintln!("[sia-s3] replica {} loaded ({}/{} loaded)", r.name, app.cluster.loaded().len(), app.cluster.n());
++    *app.boot_error.borrow_mut() = if app.cluster.ready() { None } else { app.cluster.ms_reason() };
+     store.sweep().await;
+ }
+ 
+@@ -115,9 +116,20 @@
+     for i in 0..cfg.replicas.len() {
+         tokio::task::spawn_local(load_replica(app.clone(), cfg.clone(), i));
+     }
++    // a membership change that was sealed but not finished, or a set of replicas without membership records, is
++    // finished (committed) before anything is served: maintenance backfills, seals and admits the configured members
++    // while every request answers 503
++    let mut last: Option<std::time::Instant> = None;
+     while !app.cluster.ready() {
++        if app.cluster.finishing() && last.is_none_or(|t| t.elapsed() >= Duration::from_secs(cfg.repair_every_secs.min(60))) {
++            let r = app.cluster.repair(cfg.repair_max_bytes).await;
++            eprintln!("[sia-s3] finishing the membership change: {} copies, {} parts, {} records, {} pending", r.copies, r.parts, r.admitted, r.pending);
++            *app.boot_error.borrow_mut() = app.cluster.ms_reason();
++            last = Some(std::time::Instant::now());
++        }
+         tokio::time::sleep(Duration::from_secs(1)).await;
+     }
++    *app.boot_error.borrow_mut() = None;
+     eprintln!("[sia-s3] ready");
+     // with one indexer too: unknown outcomes are re-read, dead versions purged and tombstones collected
+     tokio::task::spawn_local(repair_loop(app.cluster.clone(), cfg.repair_every_secs, cfg.repair_max_bytes));
+@@ -150,10 +162,10 @@
+     loop {
+         tokio::time::sleep(Duration::from_secs(every)).await;
+         let r = cluster.repair(max_bytes).await;
+-        if r.reconciled + r.purged + r.copies + r.deletes + r.floors + r.reclaimed + r.merged + r.pending > 0 {
++        if r.reconciled + r.purged + r.copies + r.deletes + r.floors + r.reclaimed + r.merged + r.parts + r.admitted + r.ceilings + r.pending > 0 {
+             eprintln!(
+-                "[sia-s3] repair: {} re-read, {} dead versions purged, {} copies, {} deletes, {} floors written, {} tombstones reclaimed, {} ledgers merged, {} pending",
+-                r.reconciled, r.purged, r.copies, r.deletes, r.floors, r.reclaimed, r.merged, r.pending
++                "[sia-s3] repair: {} re-read, {} dead versions purged, {} copies, {} deletes, {} floors written, {} tombstones reclaimed, {} ledgers merged, {} multipart parts copied, {} membership records, {} version ceilings copied, {} pending",
++                r.reconciled, r.purged, r.copies, r.deletes, r.floors, r.reclaimed, r.merged, r.parts, r.admitted, r.ceilings, r.pending
+             );
+         }
+     }
+@@ -232,7 +244,7 @@
+ 
+     local.block_on(&rt, async move {
+         let cluster = Cluster::new(
+-            cfg.replicas.iter().map(|r| (r.name.clone(), r.indexer.clone())).collect(),
++            cfg.replicas.iter().map(|r| (r.name.clone(), r.indexer.clone(), r.retiring)).collect(),
+             cfg.write_quorum,
+             cfg.opts.clone(),
+             cfg.timing.clone(),

@@ -1,0 +1,187 @@
+{
+ "title": "lease-gas plan for the funded, NOT self-hosted DNS deployment - ACTUAL CLI output on a Base FORK (UNSIGNED; nothing sent to Base; no consent assumed)",
+ "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+ "why": "root 16:22Z: its lease expired on 0x1A01…94e0; the phone host's EnclaveDNS upstream depends on it",
+ "ledgerAtFork": {
+  "owner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+  "rate6": "3",
+  "balance6": "4230400",
+  "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+  "leaseUntil": 1792490269,
+  "note": "the USDC compute balance stays where it is; lease gas is a separate ETH reserve"
+ },
+ "ownerChoice": {
+  "amount": "--days 30",
+  "maxGasPriceGwei": "0.05",
+  "claimPolicy": "allowlist",
+  "claimant": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+  "note": "the owner may allow other operators instead (or claim policy any); nothing here is the owner's decision"
+ },
+ "sendersEthOnForkAfterTheTenAppTopUp": {
+  "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61": "7233391756875000"
+ },
+ "ownerKind": {
+  "kind": "session-vault",
+  "address": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+  "detail": "vault of legacy SessionVault factory, owner 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61"
+ },
+ "plan": {
+  "reserve": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+  "executor": "0xDC4fF920a346bfdC925A928612278d2Fbfe1D5A2",
+  "record": "sha256:c468094db04a238362a3b25d195e873e88f1a588137d05b2e5437e23ce26d775",
+  "verifiedAt": "52865444",
+  "agreeing": "2/2",
+  "title": "lease-gas enrollment plan - UNSIGNED, nothing sent",
+  "fee": {
+   "base": "5000000",
+   "priority": "1000000",
+   "effective": "6000000"
+  },
+  "apps": [
+   {
+    "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+    "appRef": "catalog://0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06/4",
+    "owner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+    "ownerKind": {
+     "kind": "session-vault",
+     "address": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+     "detail": "vault of legacy SessionVault factory, owner 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61"
+    },
+    "rate6": "3",
+    "leaseLive": false,
+    "leaseUntil": 1792490269,
+    "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "reserveNow": "0",
+    "configuredNow": false,
+    "amount": {
+     "wei": "3228216612172489",
+     "eth": "0.003228216612172489",
+     "basis": "30 days of renewals + one claim + one release at 6000000 wei/gas (ILLUSTRATIVE: today's fee)"
+    },
+    "lastsDaysAtTodaysFee": 30,
+    "policy": {
+     "enabled": true,
+     "claimPolicy": 2,
+     "sponsorRelease": true,
+     "maxClaimsPerEpoch": 4,
+     "maxPerOpWei": "31092172031561",
+     "epochCapWei": "310921720315610",
+     "epochSec": 3600,
+     "renewWindow": 300,
+     "minExtension": 600,
+     "claimCooldown": 1800,
+     "maxGasPrice": "50000000"
+    },
+    "steps": [
+     {
+      "step": "deposit",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "3228216612172489",
+      "data": "0xb214faa559f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "what": "deposit(0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c) 0.003228216612172489 ETH",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865445"
+     },
+     {
+      "step": "configure",
+      "via": "ownerCall",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+      "value": "0",
+      "data": "0xeb66dbcf00000000000000000000000099f3c3315f366c47036be970675d5688bc792fef00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000184128a384959f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000001c4735de864900000000000000000000000000000000000000000000000000011ac81ab13eda0000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000012c000000000000000000000000000000000000000000000000000000000000025800000000000000000000000000000000000000000000000000000000000007080000000000000000000000000000000000000000000000000000000002faf08000000000000000000000000000000000000000000000000000000000",
+      "inner": {
+       "from": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+       "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+       "value": "0",
+       "data": "0x128a384959f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000001c4735de864900000000000000000000000000000000000000000000000000011ac81ab13eda0000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000012c000000000000000000000000000000000000000000000000000000000000025800000000000000000000000000000000000000000000000000000000000007080000000000000000000000000000000000000000000000000000000002faf080"
+      },
+      "what": "vault.ownerCall(reserve, configure(0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c))",
+      "notes": [
+       "the owner of record is SessionVault 0xB794C4DD0e1C5E6B72281799F282BfdE7654345D (legacy SessionVault factory 0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C); its owner 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61 sends ownerCall(reserve, …) directly - never signable, refused for USDC and the vault itself"
+      ],
+      "simulated": true,
+      "simBlock": "52865445"
+     }
+    ]
+   }
+  ],
+  "senders": [
+   {
+    "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "via": [
+     "direct",
+     "ownerCall"
+    ],
+    "requests": 2,
+    "valueWei": "3228216612172489",
+    "balanceWei": "7233391756875000",
+    "enough": true
+   }
+  ],
+  "totalWei": "3228216612172489",
+  "costModel": {
+   "price": "6000000",
+   "effectiveFee": "6000000",
+   "ownerCap": "50000000",
+   "ceiling": "1000000000",
+   "priceLimitedBy": "market fee",
+   "perOp": {
+    "claim": "2996585625249",
+    "renew": "1884251893750",
+    "release": "1470251893750"
+   },
+   "atOwnerCap": {
+    "claim": "24873737625249",
+    "renew": "15621403893750",
+    "release": "12171403893750"
+   },
+   "renewsPerDay": 57.03,
+   "renewPerDayWei": "107458325821783",
+   "formula": "(measured gas + 21000 + 16 x 388 + overhead[kind]) x min(tx gas price, owner cap, ceiling) + l1Bps/10000 x L1 upper bound"
+  },
+  "notes": [
+   "every request was simulated from its sender at an agreed block; re-run the plan right before signing (owners, leases and fees move)",
+   "the ledger rows are not touched: ids, storage and rates stay as they are; this only funds and enables the separate gas reserve",
+   "the claim bond (USDC collateral) and proof-of-time checkpoints are not lease gas and are not paid from this reserve"
+  ]
+ },
+ "claimant": {
+  "reserve": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+  "executor": "0xDC4fF920a346bfdC925A928612278d2Fbfe1D5A2",
+  "record": "sha256:c468094db04a238362a3b25d195e873e88f1a588137d05b2e5437e23ce26d775",
+  "verifiedAt": "52865445",
+  "agreeing": "2/2",
+  "unsigned": {
+   "chainId": 8453,
+   "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+   "to": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+   "value": "0",
+   "data": "0xeb66dbcf00000000000000000000000099f3c3315f366c47036be970675d5688bc792fef00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000064aea1d0a259f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c0000000000000000000000001a01194c34fe3577c6d0a54feb78af6253e494e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000"
+  },
+  "label": "vault.ownerCall(reserve, setClaimant(0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c, 0x1A01194c34Fe3577C6d0a54feB78af6253e494e0, true))",
+  "via": "ownerCall",
+  "inner": {
+   "from": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+   "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+   "value": "0",
+   "data": "0xaea1d0a259f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c0000000000000000000000001a01194c34fe3577c6d0a54feb78af6253e494e00000000000000000000000000000000000000000000000000000000000000001"
+  },
+  "simulated": {
+   "simulated": true,
+   "block": "52865446",
+   "agreeing": 2
+  },
+  "notes": [
+   "the owner of record is SessionVault 0xB794C4DD0e1C5E6B72281799F282BfdE7654345D (legacy SessionVault factory 0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C); its owner 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61 sends ownerCall(reserve, …) directly - never signable, refused for USDC and the vault itself"
+  ]
+ },
+ "executedOnForkOnly": {
+  "reserveWei": "3228216612172489",
+  "enabled": true,
+  "claimPolicy": 2,
+  "claimantAllowed": true
+ }
+}

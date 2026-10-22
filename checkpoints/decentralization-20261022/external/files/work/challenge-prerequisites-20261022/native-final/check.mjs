@@ -1,0 +1,26 @@
+// Read-only Windows validation: no service lifecycle, sockets, wallet or chain calls.
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {challengeReplicaConfig,challengeReplicaEnv,verifyReplicaRelease,hostPolicyGateEnv} from '../../g4-challenge-retry-package-20261022/src/network/challenge-replica-host.mjs';
+import {resolveHostPolicyConfig} from '../../g4-challenge-retry-package-20261022/src/network/platform-host-policy-config.mjs';
+import {CARRIER_MIRROR} from '../../g4-challenge-retry-package-20261022/src/network/policy-carriers.mjs';
+import {readDeclarationChain,evaluateDeclarationChain} from '../../g4-config-independent-review-20261021/revision2/hs2-tree/network/host-services/service-tls.mjs';
+const sha=p=>createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+const [blockFile,hostFile]=process.argv.slice(2);
+const cfg=challengeReplicaConfig(JSON.parse(fs.readFileSync(blockFile)));
+const host=JSON.parse(fs.readFileSync(hostFile)),tls=host.services.find(s=>s.role==='service-tls').config;
+assert.equal(cfg.front.declarationFile,'C:\\ProgramData\\Enclave\\challenge-replica\\challenge-front.json');
+assert.equal(cfg.front.declarationFile,tls.challenge.declarationFile);assert.equal(cfg.front.listen.port,tls.challenge.frontPort);
+assert.deepEqual(tls.challenge.release,{dnsSha256:cfg.release.dnsSha256,runtimeBundleSha256:cfg.release.runtimeBundleSha256});
+const release=verifyReplicaRelease(cfg.release);
+assert.equal(sha(cfg.shield.profileFile),'ee957827032cf7208434e4c73f9e859a27e4fc5c6cab5f4a2153308c09eb4cb8');
+const policy=JSON.parse(fs.readFileSync(cfg.shield.policyFile));assert.equal(policy.schema,'enclave-shield-app-policy/1');
+const env=challengeReplicaEnv(cfg);assert.equal(env.APP_CHALLENGE_JUDGE_MODE,'trusted');assert.ok(!env.APP_CHALLENGE_UPSTREAM);
+const rp=resolveHostPolicyConfig({env:hostPolicyGateEnv(cfg.hostPolicy).env,chainId:8453}).config;
+const prod=resolveHostPolicyConfig({env:{ENCLAVE_PLATFORM_HOST_POLICY:'production'},chainId:8453}).config;
+for(const k of ['book','hostOwnership','activation','minAgree','rpcs'])assert.deepEqual(rp[k],prod[k]);assert.deepEqual(rp.mirrors,[CARRIER_MIRROR]);
+const chain=await readDeclarationChain(cfg.front.declarationFile),acl=evaluateDeclarationChain(chain);
+assert.equal(acl.file,null,'replica is not enabled; declaration must still be absent');
+assert.equal(tls.orders,'held');
+console.log(JSON.stringify({ok:true,release,profileSha256:sha(cfg.shield.profileFile),shieldPolicySha256:sha(cfg.shield.policyFile),declarationAcl:acl,orders:tls.orders,adminControlsUnchanged:true,shieldOnly:!cfg.snp}));

@@ -1,0 +1,24 @@
+{
+  "record": {
+    "format": "enclave-lease-gas-deployment/v1",
+    "chainId": 8453,
+    "reserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+    "executor": "0x8900BACA2167873BA2F8a8bAE8b4876E6396d343",
+    "reserveCodeHash": "0xcc00efe9c79c17b34ef9edc2720939030834bf168abc52cea14dcb224304a979",
+    "executorCodeHash": "0xdd893cd48b7c102dc266949d027c33d396a7f8884533ee81b3b2275048ec9ab2",
+    "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+    "registry": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC"
+  },
+  "settings": {
+    "LEASE_RELAY_RECORD": "/etc/enclave-lease-relay/deployment.json",
+    "LEASE_RELAY_DIGEST": "sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089",
+    "LEASE_RELAY_RPCS": "https://base-rpc.publicnode.com,https://mainnet.base.org",
+    "LEASE_RELAY_QUORUM": "2",
+    "LEASE_RELAY_MAX_FLOAT_ETH": "0.0002",
+    "LEASE_RELAY_MIN_FLOAT_ETH": "0.00005",
+    "LEASE_RELAY_LISTEN": "127.0.0.1:8549",
+    "LEASE_RELAY_ARTIFACT_SHA256": "d5ca051672b11cb8d42f01096b3b29e6b880963c6fe41c7a21f4d444990af829"
+  },
+  "serviceSha256": "67ed398f1a5a2bd6850120e03dc8a30ec71f3e54b8296653efdf6e060128e1f4",
+  "activated": false
+}

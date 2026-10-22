@@ -1,0 +1,4 @@
+import fs from 'node:fs';
+const checks=await Promise.all(['https://enclave.host/dashboard','https://9eb4e600.app.enclave.host/ping','https://da09d0f2.app.enclave.host/','https://7ae476a3.app.enclave.host/healthz'].map(async url=>{try{const r=await fetch(url,{signal:AbortSignal.timeout(20000)});const out={url,status:r.status};if(url.endsWith('/ping')){const j=await r.json();out.pong=j.pong===true;out.ok=j.ok===true}else await r.body?.cancel();return out}catch(e){return {url,error:e.cause?.code||e.name}}}));
+const doc={at:new Date().toISOString(),readOnly:true,checks,allHealthy:checks.every(x=>x.status===200&&(!x.url.endsWith('/ping')||x.pong===true)),productionChanged:false};
+fs.writeFileSync('outputs/decentralization-audit/public-health-during-closeout.json',JSON.stringify(doc,null,2)+'\n');console.log(JSON.stringify(doc));

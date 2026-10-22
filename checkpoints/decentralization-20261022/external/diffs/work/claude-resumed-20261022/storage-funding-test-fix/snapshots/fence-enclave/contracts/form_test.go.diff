@@ -1,0 +1,108 @@
+--- a/contracts/form_test.go
++++ b/contracts/form_test.go
+@@ -761,7 +761,7 @@
+ 				settings.Prices.Collateral = types.Siacoins(1) // need to raise prices to be above minHostCollateral
+ 			},
+ 			calc: func(settings proto.HostSettings) (expectedAllowance types.Currency, expectedCollateral types.Currency) {
+-				return calcCost(settings, (512<<30)/proto.SectorSize) // value should scale in 256 GiB increments
++				return calcCost(settings, (304<<30)/proto.SectorSize) // enclave-small 8 GiB steps: floor(300/8)+1 = 38 steps = 304 GiB (stock 256 GiB steps: 512 GiB)
+ 			},
+ 		},
+ 		{
+@@ -807,6 +807,96 @@
+ 	}
+ }
+ 
++// TestContractFundingEnclaveSmall pins the enclave-small funding behaviour (enclave-small.patch 503e6fc9, the live
++// v0.6.0-enclave2 sizing). Contract growth is funded in 8 GiB steps, floor(existing/8 GiB)+1 of them, capped at 1 TiB.
++// Every expectation is a literal computed by hand from the go.sia.tech/core v0.21.7 price formulas, never from
++// contractFunding or the package constants. Per 4 MiB sector, at 1 H/byte prices and duration 1:
++//   - allowance = 4 MiB * 432 (temp storage) + 3 * 4 MiB (ingress, egress, storage) + 32 B (root ingress) = 1824522272 H;
++//   - store = 4 MiB + 32 B = 4194336 bytes, so collateral at 1 SC/byte/block = 4194336 SC per sector.
++// All growth sizes here are multiples of 8 GiB, so the 4 KiB rounding of the root ingress is exact.
++func TestContractFundingEnclaveSmall(t *testing.T) {
++	if contracts.MinContractGrowthRate != 8<<30 {
++		t.Fatalf("minContractGrowthRate = %d, want 8 GiB (enclave-small)", contracts.MinContractGrowthRate)
++	} else if contracts.MaxContractGrowthRate != 1<<40 {
++		t.Fatalf("maxContractGrowthRate = %d, want 1 TiB", contracts.MaxContractGrowthRate)
++	} else if !contracts.MinAllowance.Equals(types.Siacoins(10)) || !contracts.MinHostCollateral.Equals(types.Siacoins(1)) {
++		t.Fatalf("minAllowance %v / minHostCollateral %v, want 10 SC / 1 SC", contracts.MinAllowance, contracts.MinHostCollateral)
++	}
++
++	settings := proto.HostSettings{
++		MaxCollateral: types.MaxCurrency,
++		Prices: proto.HostPrices{
++			StoragePrice: types.NewCurrency64(1),
++			IngressPrice: types.NewCurrency64(1),
++			EgressPrice:  types.NewCurrency64(1),
++			Collateral:   types.Siacoins(1), // above minHostCollateral for every step
++		},
++	}
++	steps := []struct {
++		name         string
++		existing     uint64
++		growthGiB    uint64 // documentation only; the assertions use the literal currency values
++		allowanceH   uint64
++		collateralSC uint64
++	}{
++		{"empty", 0, 8, 3736621613056, 8590000128},
++		{"1 byte", 1, 8, 3736621613056, 8590000128},
++		{"just below 8 GiB", 8589934591, 8, 3736621613056, 8590000128},
++		{"exactly 8 GiB", 8589934592, 16, 7473243226112, 17180000256},
++		{"just above 8 GiB", 8589934593, 16, 7473243226112, 17180000256},
++		{"just below 16 GiB", 17179869183, 16, 7473243226112, 17180000256},
++		{"300 GiB", 322122547200, 304, 141991621296128, 326420004864},
++		{"1008 GiB, below the cap", 1082331758592, 1016, 474550944858112, 1090930016256},
++		{"1016 GiB, reaches the cap exactly", 1090921693184, 1024, 478287566471168, 1099520016384},
++		{"just below 1 TiB", 1099511627775, 1024, 478287566471168, 1099520016384},
++		{"exactly 1 TiB, capped (1032 GiB uncapped)", 1099511627776, 1024, 478287566471168, 1099520016384},
++		{"2 TiB, capped", 2199023255552, 1024, 478287566471168, 1099520016384},
++	}
++	for _, s := range steps {
++		t.Run(s.name, func(t *testing.T) {
++			allowance, collateral := contracts.ContractFunding(settings, s.existing, types.ZeroCurrency, 1)
++			if !allowance.Equals(types.NewCurrency64(s.allowanceH)) {
++				t.Errorf("%d GiB growth: allowance %v, want %v", s.growthGiB, allowance, types.NewCurrency64(s.allowanceH))
++			}
++			if !collateral.Equals(types.Siacoins(1).Mul64(s.collateralSC)) {
++				t.Errorf("%d GiB growth: collateral %v, want %v", s.growthGiB, collateral, types.Siacoins(1).Mul64(s.collateralSC))
++			}
++		})
++	}
++
++	t.Run("caller minimum allowance and minimum collateral clamps", func(t *testing.T) {
++		low := settings
++		low.Prices.Collateral = types.NewCurrency64(2) // 2 H/byte/block: 8 GiB growth risks ~17 GH, far below 1 SC
++		allowance, collateral := contracts.ContractFunding(low, 0, types.Siacoins(10), 1)
++		if !allowance.Equals(types.Siacoins(10)) || !collateral.Equals(types.Siacoins(1)) {
++			t.Fatalf("got %v / %v, want 10 SC (caller minimum) / 1 SC (minHostCollateral)", allowance, collateral)
++		}
++	})
++	t.Run("host max collateral clamps, allowance unchanged", func(t *testing.T) {
++		capped := settings
++		capped.MaxCollateral = types.Siacoins(10)
++		allowance, collateral := contracts.ContractFunding(capped, 322122547200, types.ZeroCurrency, 1)
++		if !allowance.Equals(types.NewCurrency64(141991621296128)) || !collateral.Equals(types.Siacoins(10)) {
++			t.Fatalf("got %v / %v, want 141991621296128 H / 10 SC", allowance, collateral)
++		}
++	})
++	t.Run("host max collateral below minHostCollateral: the minimum wins (existing order)", func(t *testing.T) {
++		tiny := settings
++		tiny.MaxCollateral = types.Siacoins(1).Div64(2)
++		if _, collateral := contracts.ContractFunding(tiny, 0, types.ZeroCurrency, 1); !collateral.Equals(types.Siacoins(1)) {
++			t.Fatalf("collateral %v, want 1 SC", collateral)
++		}
++	})
++	t.Run("zero storage price: unbounded collateral clamps to the host max", func(t *testing.T) {
++		free := settings
++		free.Prices.StoragePrice = types.ZeroCurrency
++		free.MaxCollateral = types.Siacoins(10)
++		if _, collateral := contracts.ContractFunding(free, 0, types.ZeroCurrency, 1); !collateral.Equals(types.Siacoins(10)) {
++			t.Fatalf("collateral %v, want 10 SC", collateral)
++		}
++	})
++}
++
+ func TestShouldReplaceContract(t *testing.T) {
+ 	contract := func(gfa, gff, gfr bool) contracts.CandidateContract {
+ 		t.Helper()

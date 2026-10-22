@@ -1,0 +1,29 @@
+--- src-6bef/network/lease-reader.mjs	2026-10-21 21:23:25.105210296 -0700
++++ proposed/network/lease-reader.mjs	2026-10-21 21:31:15.729462328 -0700
+@@ -79,6 +79,10 @@
+     if (!/^0x[0-9a-fA-F]{40}$/.test(addressBook||'')) throw new Error('invalid chain policy');
+     Object.assign(this,{chainId,addressBook,maxBlockAgeMs,confirmations,deadlineMs,includeHostPayout,includeConnectivity,now});
+     this.retryDelayMs=400;this.headGraceMs=250;
++    // A client's chain id is a property of its configured endpoint: verified on first use and again at least every
++    // chainRecheckMs (a mismatch then refuses exactly as before), not re-asked on every agreed() call. The head is still
++    // read every call. Halves the head requests each call sends to every RPC (2026-10-22 RPC budget review).
++    this.chainRecheckMs=10*60_000;this.chainVerified=new WeakMap();
+     const policy=policyProblem(this);if(policy)throw new Error(policy);
+     if (!clients) {
+       // one vote per public host: case, a trailing dot, the port and the path do not make another one
+@@ -261,11 +265,13 @@
+         const g=guarded(c,null);
+         // allSettled: one 429 does not end the attempt while its sibling request is still in flight; the rate-limit
+         // reason (if any) is the one rethrown, so the retry rule sees it
+-        const got=await Promise.allSettled([g.getChainId(),g.getBlockNumber({cacheTime:0})]);
++        const at=this.chainVerified.get(c),known=at!==undefined&&performance.now()-at<this.chainRecheckMs;
++        const got=await Promise.allSettled([known?this.chainId:g.getChainId(),g.getBlockNumber({cacheTime:0})]);
+         const bad=got.filter(x=>x.status==='rejected').map(x=>x.reason);
+         if(bad.length)throw bad.find(e=>rateLimited(String(e?.message)+' '+String(e?.details||'')))||bad[0];
+         const [chainId,number]=got.map(x=>x.value);
+-        if(chainId!==this.chainId)throw new Error('wrong chain');
++        if(chainId!==this.chainId){this.chainVerified.delete(c);throw new Error('wrong chain');}
++        if(!known)this.chainVerified.set(c,performance.now());
+         return BigInt(number);
+       },retryUntil).then(number=>{
+         if(closed)return;

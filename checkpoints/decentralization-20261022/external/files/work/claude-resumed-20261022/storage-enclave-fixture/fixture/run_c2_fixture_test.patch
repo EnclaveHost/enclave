@@ -1,0 +1,38 @@
+--- run_c2_fixture_test.py (G-C2 package)
++++ run_c2_fixture_test.py (storage-enclave-fixture)
+@@ -8,24 +8,30 @@
+ PostgreSQL container is bounded by docker (--memory 256m). No production, SSH or chain; the node has no peers.
+ 
+ Each stage asserts; results go to fixture/c2-fixture-results.json. Exit 0 only if every stage passed.
++
++storage-enclave-fixture copy: ONLY the paths below come from the runner (run-c2-fixture.py), so the NEW reproducible
++fence-enclave (c67ffa4d..., v27) and c2-enclave (2c0e5b06..., v28) binaries, the per-run stage (profile, secrets, c2client
++copy, results) and the package controller are used. Every stage function and assertion below is byte-identical to the
++G-C2 package copy (test/test_package.py checks this).
+ """
+ import json
++import os
+ import subprocess
+ import sys
+ import time
+ from pathlib import Path
+ 
+-here = Path(__file__).resolve().parent
+-root = here.parent
++here = Path(os.environ["C2FX_STAGE"])               # the run's stage: fixture-profile.json, c2client, secrets/, results
++CONTROLLER = Path(os.environ["C2FX_CONTROLLER"])
+ profile = here / "fixture-profile.json"
+ P = json.loads(profile.read_text())
+-FENCE = Path("/home/steven/Documents/Codex/2026-10-18/wo/work/indexd-replica-rollout/release/indexd-v0.6.0-fence.1-linux-amd64")
+-C2 = root / "release" / "indexd-v0.6.0-fence.2-c2-linux-amd64"
++FENCE = Path(os.environ["C2FX_FENCE"])
++C2 = Path(os.environ["C2FX_C2"])
+ results = []
+ 
+ 
+ def ctl(*a, ok=True):
+-    r = subprocess.run([sys.executable, str(root / "controller" / "replicactl.py"), "--profile", str(profile), *a],
++    r = subprocess.run([sys.executable, str(CONTROLLER), "--profile", str(profile), *a],
+                        capture_output=True, text=True)
+     try:
+         out = json.loads(r.stdout.strip().splitlines()[-1])

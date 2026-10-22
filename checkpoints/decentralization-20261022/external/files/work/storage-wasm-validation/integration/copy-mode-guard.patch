@@ -1,0 +1,52 @@
+--- a/vendor/sia-sdk-rs/sia_storage/src/lib.rs
++++ b/vendor/sia-sdk-rs/sia_storage/src/lib.rs
+@@ -102,6 +102,12 @@
+ };
+ pub use download::{Download, DownloadError};
+ pub use encryption::EncryptionKey;
++
++/// PATCH (clone privacy): the clone-safe encryption this SDK applies to new uploads and seals: slab keys, metadata
++/// keys and seal nonces are hedged, i.e. derived from fresh randomness AND the complete input they protect (see
++/// `object_encryption::hedged`). Copies of a running process that repeat every RNG then never reuse a keystream for
++/// different input; equal input gives equal ciphertext. Writers that tolerate copies of themselves require it.
++pub const CLONE_PRIVACY: &str = "hedged-v1";
+ pub use hosts::{QueueError, RPCError};
+ pub use slabs::{
+     Object, ObjectEvent, ObjectSummary, SealedObject, SealedObjectError, Sector, Slab, SlabVersion,
+--- a/src/fencing.rs
++++ b/src/fencing.rs
+@@ -189,9 +189,21 @@
+         }
+         match iso.evidence() {
+             Some(e) => warn.push(format!("isolation {iso:?}: {e}")),
+-            None => warn.push(format!(
+-                "isolation {iso:?}: no recorded no-clone evidence, and none assumed: C2 (verified at boot on every indexer) keeps storage semantics for copies of this instance"
+-            )),
++            None => {
++                // PATCH (clone privacy): copy-tolerant mode. C2 keeps storage SEMANTICS for copies; confidentiality for
++                // copies needs the SDK's clone-safe encryption (work/claude-storage-privacy-result.txt). Without it,
++                // copies encrypt different plaintext under the same keystreams: refuse.
++                if sia_storage::CLONE_PRIVACY != "hedged-v1" {
++                    return Err(format!(
++                        "isolation {iso:?} has no recorded no-clone evidence and this SDK's encryption is not clone-safe ({}): refusing copy-tolerant mode",
++                        sia_storage::CLONE_PRIVACY
++                    ));
++                }
++                warn.push(format!(
++                    "isolation {iso:?}: no recorded no-clone evidence, and none assumed: C2 (verified at boot on every indexer) keeps storage semantics, and {} encryption keeps confidentiality up to equality, for copies of this instance",
++                    sia_storage::CLONE_PRIVACY
++                ))
++            }
+         }
+         if self.accept_unevidenced_isolation {
+             warn.push("acceptUnevidencedIsolation is set: it is not needed by C2 and exempts nothing".into());
+--- a/src/replica.rs
++++ b/src/replica.rs
+@@ -673,6 +673,7 @@
+             "superseded": *self.fence.superseded.borrow(),
+             "reballots": self.fence.reballots.get(),
+             "c2": { "verified": self.fence.c2_verified.get(), "noCloneAssumed": false },
++            "clonePrivacy": sia_storage::CLONE_PRIVACY,
+         })
+     }
+ 

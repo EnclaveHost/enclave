@@ -1,0 +1,30 @@
+--- a/docs/network/independent-host-onboarding.md
++++ b/docs/network/independent-host-onboarding.md
+@@ -215,12 +215,21 @@
+   operator nominates the owner; `scripts/network/prepare-host-policy.mjs`
+   prepares that nomination unsigned. Until then, a host with `--policy-dir`
+   refuses every deployment.
+-- **The measured control guest**: the generated unit currently launches the
+-  supervisor on the host. Measured control guest boot and verification that
+-  the running supervisor and proof key belong to that guest still require
+-  integration. `check` reports a missing attestation URL as missing and a
+-  configured URL as unknown. Setting `--attestation-url http://127.0.0.1:…`
+-  alone does not establish readiness.
++- **The measured control guest**: by default the generated unit launches the
++  supervisor on the host, and `check` never reports that as attested (a
++  configured `--attestation-url` alone stays unknown). With `--control-image DIR
++  --control-measurements HEX --control-min-tcb FILE --control-ovmf FILE`, the
++  supervisor instead runs inside the MEASURED control CVM
++  ([measured-control-guest.md](measured-control-guest.md)):
++  - `install` writes `direct-control.json`, the config the guest's HOST_DATA
++    binds, and `control-launcher.json`, and a control unit running
++    `metal/enclave-metal.mjs` in place of a host supervisor;
++  - `check` verifies the guest end to end (report, measurement, config, TLS
++    key, the running supervisor's keys, the registry through your quorum), and
++    reports READY only when every check passes.
++  This still needs SEV-SNP hardware, a reviewed control image whose measurement
++  you recomputed, and a new deployment accepted on it before the host is
++  proven.
+ - **Replica operators**: they serve the release and packages you pinned. A
+   replica operated by Enclave is still a single organisation, not independence.
+ 

@@ -1,0 +1,40 @@
+{
+  "mode": "PLAN ONLY (no network call made)",
+  "manifestSha": "b8115834e8c91d218825e637b1327235a8b044bd6fd278aac415d569864bd2d9",
+  "manifest": {
+    "transportSha": "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f",
+    "files": {
+      "install-host.r5.ps1": "1d1580c8f9ac22f6ec96a34cea8455853b21a21cff5214187710f3483953b721",
+      "update-host.r5.ps1": "36f9e0d61afe58b77e566033ad1155d5c771252874f622592837c33e0a990112",
+      "install-host.r4.ps1": "f19dbc19ae19a698c7ded64b1023a502af3e627694728f4bb741407a091b5620",
+      "update-host.r4.ps1": "a2ba7b3bb4256d8a049fec84086da45517bfe0c42e2b623aabd18aeb7070a79c",
+      "fakebundle/install-host.ps1": "7ccda0fb9eccbf317f1497a73de94adb65ae549aa61672c4c9c0c6633e9333d2",
+      "native-test.ps1": "023f59f9a1e8cb4f9b4ccdf51b0288285935471d266223595a3e7fcee1f31936"
+    },
+    "stagePrefix": "C:\\ProgramData\\Enclave\\staging\\installer-r5-native-",
+    "fixtureSec": 600,
+    "validateSecs": 660
+  },
+  "localMismatches": {},
+  "stagePattern": "C:\\ProgramData\\Enclave\\staging\\installer-r5-native-<uuid4 hex 12>",
+  "steps": [
+    "O_EXCL native-attempt.json",
+    "create stage + fakebundle\\ (refuse existing)",
+    "scp 6 pinned files",
+    "validate: exact recursive file count + 6 FileSha pins, then native-test.ps1 (bound 600 s)",
+    "cleanup own stage (always after a create attempt) + verify gone",
+    "write native-result.json"
+  ],
+  "texts": {
+    "create": "$s='C:\\ProgramData\\Enclave\\staging\\installer-r5-native-000000000000';if(Test-Path -LiteralPath $s){throw 'stage exists'};$null=New-Item -ItemType Directory -Path $s;$null=New-Item -ItemType Directory -Path ($s+'\\fakebundle');@{created=$s}|ConvertTo-Json -Compress",
+    "validate": "$s='C:\\ProgramData\\Enclave\\staging\\installer-r5-native-000000000000';if(@(Get-ChildItem -LiteralPath $s -Recurse -Force -File).Count -ne 6){throw 'stage file count differs'};if((FileSha ($s+'\\install-host.r5.ps1')) -ne '1d1580c8f9ac22f6ec96a34cea8455853b21a21cff5214187710f3483953b721'){throw 'pin mismatch: install-host.r5.ps1'};if((FileSha ($s+'\\update-host.r5.ps1')) -ne '36f9e0d61afe58b77e566033ad1155d5c771252874f622592837c33e0a990112'){throw 'pin mismatch: update-host.r5.ps1'};if((FileSha ($s+'\\install-host.r4.ps1')) -ne 'f19dbc19ae19a698c7ded64b1023a502af3e627694728f4bb741407a091b5620'){throw 'pin mismatch: install-host.r4.ps1'};if((FileSha ($s+'\\update-host.r4.ps1')) -ne 'a2ba7b3bb4256d8a049fec84086da45517bfe0c42e2b623aabd18aeb7070a79c'){throw 'pin mismatch: update-host.r4.ps1'};if((FileSha ($s+'\\fakebundle\\install-host.ps1')) -ne '7ccda0fb9eccbf317f1497a73de94adb65ae549aa61672c4c9c0c6633e9333d2'){throw 'pin mismatch: fakebundle\\install-host.ps1'};if((FileSha ($s+'\\native-test.ps1')) -ne '023f59f9a1e8cb4f9b4ccdf51b0288285935471d266223595a3e7fcee1f31936'){throw 'pin mismatch: native-test.ps1'};& powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ($s+'\\native-test.ps1') -Stage $s;if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}",
+    "cleanup": "$s='C:\\ProgramData\\Enclave\\staging\\installer-r5-native-000000000000';if(-not $s.StartsWith('C:\\ProgramData\\Enclave\\staging\\installer-r5-native-')){throw 'not an installer-r5-native stage'};if(Test-Path -LiteralPath $s){Remove-Item -LiteralPath $s -Recurse -Force};@{gone=(-not(Test-Path -LiteralPath $s))}|ConvertTo-Json -Compress"
+  },
+  "encodedSizes": {
+    "create": 2032,
+    "validate": 4704,
+    "cleanup": 2208
+  },
+  "encodedLimit": 7900,
+  "execute": "python3 run-native.py --execute --root-reviewed b8115834e8c91d218825e637b1327235a8b044bd6fd278aac415d569864bd2d9"
+}

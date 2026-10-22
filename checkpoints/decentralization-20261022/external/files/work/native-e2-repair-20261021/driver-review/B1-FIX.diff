@@ -1,0 +1,31 @@
+--- compose5-review/root-hs2-r5.py	2026-10-21 10:55:51.830131438 -0700
++++ compose5-review/root-hs2-r5.py (proposed)	2026-10-21 11:09:02.177953794 -0700
+@@ -67,6 +67,7 @@
+     r"if(Test-Path -LiteralPath $q){try{$y=[IO.File]::ReadAllText($q)|ConvertFrom-Json;$v=[ordered]@{manifest=[string]$y.manifest;phase=[string]$y.phase;receiptNew=[string]$y.receiptNew}}catch{$v='unreadable'}};$j[$n]=$v}};"
+     r"[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');files=$f;config=FileSha ($r+'\config\host-services.json');receipt=FileSha ($r+'\config\install-receipt.txt');"
+     r"taskState=$(if($t){[string]$t.State}else{'absent'});taskXmlSha=$x;lock=$k;journal=$j;"
++    r"helpers=@(Get-CimInstance Win32_Process|Where-Object{([string]$_.CommandLine) -like '*hs2-upgrade.ps1*'}).Count;"
+     r"freeMiB=[math]::Floor((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory/1024);freeDiskMiB=[math]::Floor((Get-PSDrive C).Free/1MB)}|ConvertTo-Json -Depth 4 -Compress")
+ # the INSTALLED health.ps1 (pinned), WaitSeconds 0: only "PASS|FAIL  <check name>" kept, the detail column is dropped
+ HEALTH = UTF8 + (
+@@ -103,6 +104,8 @@
+     """kind upgrade|revert|recover|upgraded -> list of failures (empty = pass). 'upgraded' is the post-success expectation."""
+     f, bad = ev.get("facts", {}), []
+     if "error" in f: return [f"facts: {f.get('error')}"]
++    # an orphaned helper (ssh lost / wrapper killed: the remote child survives) still holds the lock: never act beside it
++    if f.get("helpers") != 0: return [f"{f.get('helpers')} hs2-upgrade.ps1 process(es) running: wait, then a new read-only preflight"]
+     if kind == "recover": return [] if f.get("lock") is not None else ["no active.lock to recover"]
+     want = "old" if kind == "upgrade" else "new"
+     files = f.get("files", {})
+@@ -217,7 +220,10 @@
+         res["at"] = now(); save(f"result-{kind}-{ts}.json", res)
+     hr, ex = res.get("helperResult") or {}, h.get("exit")
+     if h.get("started") is False: verdict, rc = "helper NOT started (staged drift): no change by this attempt", 1
+-    elif "error" in h or ex not in (0, 1, 2, 3) or not hr: verdict, rc = "UNKNOWN: no helper RESULT. ROOT: do not retry; read the post evidence; maybe --recover", 3
++    elif "error" in h or ex not in (0, 1, 2, 3) or not hr:
++        live = post.get("facts", {}).get("helpers")
++        verdict, rc = (f"UNKNOWN: no helper RESULT; hs2-upgrade.ps1 still running: {live}. ROOT: do not retry; if not 0, wait for it to end "
++                       "(it bounds itself, ~1950 s) and take a new read-only preflight; only then consider --recover"), 3
+     elif ex == 0:
+         g = gate(post, man, "upgraded", rid) if kind == "upgrade" else gate(post, man, "upgrade")  # revert/recover: back to the old pins
+         g = [b for b in g if not b.startswith("freeMiB") and not (kind == "recover" and b.startswith(("task ", "health ")))]  # Recover leaves the task stopped

@@ -1,0 +1,16 @@
+@rem Reviewed app-funded lease settings. No private keys or credentials.
+@set "ENCLAVE_LEASE_GAS_FILE=C:\ProgramData\Enclave\lease-gas\deployment.json"
+@set "ENCLAVE_LEASE_GAS_DIGEST=sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089"
+@set "ENCLAVE_LEASE_GAS_RPCS=https://base-rpc.publicnode.com,https://mainnet.base.org,https://base-mainnet.public.blastapi.io"
+@set "ENCLAVE_LEASE_GAS_RELAYS=https://134.199.235.187,https://134.209.248.172"
+@set "ENCLAVE_LEASE_GAS_QUORUM=2"
+@set "ENCLAVE_LEASE_GAS_RESERVE=0x12A3f873041Dec436DaA0085B766a399A6fA3639"
+@set "LEASE_GAS_FILE=C:\ProgramData\Enclave\lease-gas\deployment.json"
+@set "LEASE_GAS_DIGEST=sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089"
+@set "LEASE_GAS_RPCS=https://base-rpc.publicnode.com,https://mainnet.base.org,https://base-mainnet.public.blastapi.io"
+@set "LEASE_GAS_RELAYS=https://134.199.235.187,https://134.209.248.172"
+@set "LEASE_GAS_QUORUM=2"
+@set "LEASE_GAS_RESERVE=0x12A3f873041Dec436DaA0085B766a399A6fA3639"
+@rem the host's OWN relay (install-lease-relay.ps1, task \Enclave\Relay) first; the relays above stay as alternates
+@set "ENCLAVE_LEASE_GAS_LOCAL_RELAY=http://127.0.0.1:8549"
+@set "LEASE_GAS_LOCAL_RELAY=http://127.0.0.1:8549"

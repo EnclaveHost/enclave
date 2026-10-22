@@ -1,0 +1,171 @@
+{
+  "at": "2026-10-21T07:58:15.619Z",
+  "zone": "app.enclave.host",
+  "servers": [
+    "134.199.235.187",
+    "134.209.248.172",
+    "165.245.191.129",
+    "146.190.246.39"
+  ],
+  "labels": {
+    "custody-us-west": "134.199.235.187",
+    "custody-ca-east": "146.190.246.39",
+    "custody-ap-southeast": "165.245.191.129",
+    "custody-eu-central": "134.209.248.172"
+  },
+  "answers": {
+    "custody-us-west": {
+      "134.199.235.187": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "134.199.235.187",
+        "addresses": [
+          "134.199.235.187"
+        ]
+      },
+      "134.209.248.172": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "134.199.235.187",
+        "addresses": [
+          "134.199.235.187"
+        ]
+      },
+      "165.245.191.129": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "134.199.235.187",
+        "addresses": [
+          "134.199.235.187"
+        ]
+      },
+      "146.190.246.39": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "134.199.235.187",
+        "addresses": [
+          "134.199.235.187"
+        ]
+      }
+    },
+    "custody-ca-east": {
+      "134.199.235.187": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "146.190.246.39",
+        "addresses": [
+          "146.190.246.39"
+        ]
+      },
+      "134.209.248.172": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "146.190.246.39",
+        "addresses": [
+          "146.190.246.39"
+        ]
+      },
+      "165.245.191.129": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "146.190.246.39",
+        "addresses": [
+          "146.190.246.39"
+        ]
+      },
+      "146.190.246.39": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "146.190.246.39",
+        "addresses": [
+          "146.190.246.39"
+        ]
+      }
+    },
+    "custody-ap-southeast": {
+      "134.199.235.187": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "165.245.191.129",
+        "addresses": [
+          "165.245.191.129"
+        ]
+      },
+      "134.209.248.172": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "165.245.191.129",
+        "addresses": [
+          "165.245.191.129"
+        ]
+      },
+      "165.245.191.129": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "165.245.191.129",
+        "addresses": [
+          "165.245.191.129"
+        ]
+      },
+      "146.190.246.39": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "165.245.191.129",
+        "addresses": [
+          "165.245.191.129"
+        ]
+      }
+    },
+    "custody-eu-central": {
+      "134.199.235.187": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "134.209.248.172",
+        "addresses": [
+          "134.209.248.172"
+        ]
+      },
+      "134.209.248.172": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "134.209.248.172",
+        "addresses": [
+          "134.209.248.172"
+        ]
+      },
+      "165.245.191.129": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "134.209.248.172",
+        "addresses": [
+          "134.209.248.172"
+        ]
+      },
+      "146.190.246.39": {
+        "rcode": 0,
+        "authoritative": true,
+        "answers": 1,
+        "address": "134.209.248.172",
+        "addresses": [
+          "134.209.248.172"
+        ]
+      }
+    }
+  },
+  "refused": []
+}

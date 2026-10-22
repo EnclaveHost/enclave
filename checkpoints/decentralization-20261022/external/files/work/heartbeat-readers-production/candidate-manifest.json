@@ -1,0 +1,37 @@
+{
+  "scope": "Readers-first API liveness patch; original live runtime plus six selected files. Existing custody routes and the live network runtime bundle retained. DNS needs only the shared fleet change for this phase.",
+  "files": {
+    "api-relay.js": {
+      "before": "27e2aa55f258165527cff487bfebcdf95422e35d5768cc8ab12165b7302c4029",
+      "candidate": "27f71ad333a268c4370ff96cf703a07e936c1f20287c38ce0cb9effe1724a001",
+      "main": "509c5793ecac5186775ed6bbdfd00281f355cd9fcc4fb629bd89e3363143053e"
+    },
+    "fleet.mjs": {
+      "before": "050eb60486dc90f2d50d82c394bc97ef48d6809a5880b8d32e521fddde83c6e0",
+      "candidate": "65f930d56459dedc72d83f4d88d49e641a52aed420b090d56d888245e62999c0",
+      "main": "65f930d56459dedc72d83f4d88d49e641a52aed420b090d56d888245e62999c0"
+    },
+    "registry-liveness.mjs": {
+      "before": null,
+      "candidate": "b4b602f24928e3ac85bade6bf69f9b100f309f91184f592a2ca29499bdf6c883",
+      "main": "b4b602f24928e3ac85bade6bf69f9b100f309f91184f592a2ca29499bdf6c883"
+    },
+    "host-liveness.mjs": {
+      "before": null,
+      "candidate": "b856e5628c50185cb87813378f9e9a22d48257e876d0757dbbcb19e3261affa5",
+      "main": "b856e5628c50185cb87813378f9e9a22d48257e876d0757dbbcb19e3261affa5"
+    },
+    "host-capacity-record.mjs": {
+      "before": null,
+      "candidate": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+      "main": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551"
+    },
+    "canonical.mjs": {
+      "before": null,
+      "candidate": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+      "main": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3"
+    }
+  },
+  "preservedRuntimeBundle": "55544ec1c9fd2576cad885f8356967e25420a013828383d3bbc7276b3132215b",
+  "verification": "Pending actual API host-liveness fixture; no production mutation."
+}

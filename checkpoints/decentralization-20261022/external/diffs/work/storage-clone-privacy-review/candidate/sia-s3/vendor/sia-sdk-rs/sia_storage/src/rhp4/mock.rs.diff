@@ -1,0 +1,24 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/rhp4/mock.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/rhp4/mock.rs
+@@ -305,6 +305,21 @@
+         self.sectors.write().unwrap().clear();
+     }
+ 
++    /// PATCH (clone privacy review), TEST ONLY: the exact bytes `host` stored
++    /// for `root`, i.e. what that host received.
++    pub fn raw_sector(&self, host: &PublicKey, root: &Hash256) -> Option<Bytes> {
++        let len = sia_core::rhp4::SECTOR_SIZE;
++        self.sectors.read().unwrap().get(host, root, 0..len).ok()
++    }
++
++    /// PATCH (clone privacy review), TEST ONLY: stores `sector` on `host` as
++    /// if it had been uploaded there; returns its root.
++    pub fn put_raw_sector(&self, host: PublicKey, sector: Bytes) -> Hash256 {
++        let root = sia_core::rhp4::sector_root(&sector);
++        self.sectors.write().unwrap().put(host, root, sector).unwrap();
++        root
++    }
++
+     /// Sets the given hosts as "slow" - they will sleep for the specified duration
+     /// before completing any write_sector or read_sector operation.
+     pub fn set_slow_hosts(&self, hosts: impl IntoIterator<Item = PublicKey>, delay: Duration) {

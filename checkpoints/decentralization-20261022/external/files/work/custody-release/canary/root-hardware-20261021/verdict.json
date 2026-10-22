@@ -1,0 +1,38 @@
+{
+ "ok": true,
+ "reasons": [],
+ "expected": {
+  "measurement": "7f0333126bf5d483a7841326720ff54df1762959d5409e6bbbc601fc797bd7101a7a0614b629c14da322615fe696101d",
+  "measurementSha256": "0x97b1efbb811740f5ea8c0af96c59fca6c7e31410dfe20084f0133fdd81e47292",
+  "commit": "c635fd68515b46c53935ef344e3b4c4779d8067c"
+ },
+ "verifier": {
+  "ok": true,
+  "reasons": [
+   "report is from VMPL0 (full privilege inside the CVM)",
+   "guest policy 0x30000: DEBUG off, MIGRATE_MA off",
+   "measurement on Metal release allowlist",
+   "report_data binds the caller's expected binding (transport key + fresh challenge + runtime identity)",
+   "AMD signature chain verified (VCEK KDS/Turin → ASK → ARK, Turin)",
+   "VCEK chip ID and TCB extensions match the report",
+   "reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)"
+  ]
+ },
+ "observed": {
+  "measurement": "7f0333126bf5d483a7841326720ff54df1762959d5409e6bbbc601fc797bd7101a7a0614b629c14da322615fe696101d",
+  "hostData": "0000000000000000000000000000000000000000000000000000000000000000",
+  "policy": "0x30000",
+  "vmpl": 0,
+  "chipIdSha256": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
+  "machine": {
+   "identity": "0x8f330e93007666e9b6f1bc796b369892aa5be47a",
+   "encKey": "0xc7288fed2a99ff51bcfba227fdcded98f0d533e4f7e3c9a1eec35e91bc75c92f",
+   "endpoint": "https://custody-release-canary.invalid",
+   "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
+   "registryId": "0x0fcd528cd5feab2ff62ea9489203a28075cc90b194ec041d2d676bbc47d8f2f0",
+   "measurement": "0x97b1efbb811740f5ea8c0af96c59fca6c7e31410dfe20084f0133fdd81e47292"
+  }
+ },
+ "nonce": "308944cb65c3147d99207bfcdbf5d3d4700e8ca747516e4c3b51525e52a5a266",
+ "checkedAt": "2026-10-21T21:37:24.150Z"
+}

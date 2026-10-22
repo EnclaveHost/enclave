@@ -1,0 +1,11 @@
+--- v2-pathfix/root-run-acl-fixture.py
++++ fixture-v3/root-run-acl-fixture.py
+@@ -15,7 +15,7 @@
+ import argparse, hashlib, importlib.util, json, os, pathlib, re, subprocess, sys, time, uuid
+ H = pathlib.Path(__file__).resolve().parent; W = H.parent.parent; OUT = H / "runs"
+ T = (W / "nucbox-tls-20261021/root-activate-reviewed.py", "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f")
+-FIX = (H / "acl-fixture.ps1", "21d2bcf1705c4b49536882f29151ef74b7cf0417e09740d4fad397274e154b3c")
++FIX = (H / "acl-fixture.ps1", "b3110f8b668d82ffa45b64375edc135f840d7ee3a4204c45c0db47ce04f2bbad")
+ FUNCS = "38dc1a39d90576d94e5e903079db8c4e00742499f9819995e703d5d4a699b618"     # functions.ps1 (extract.py, helper e369c5e2)
+ CFG = r"C:\ProgramData\Enclave\network\privacy-config.json"; ROOTDIR = r"C:\ProgramData\Enclave\staging"
+ # the node.exe root's native writer proof hashed on minipc (outputs/decentralization-audit/native-wallet-writer-proof.json, 21:29Z)

@@ -1,0 +1,6 @@
+bf0c55df997b7268e850710eac77c960fc03ec9f0608191dbd5aa7f9c37373ec    site/js/core/upload-auth.js
+56418be7af8caec021601bd22fd5506eea2bcf3aeb47f9ce5cb0b95f53d1cd04  ??  site/js/core/storage-plan.js
+e8ddb1dc7979803d5bc4da98861b3f097ac645f6ddb9d8e377f119d9a2efe9e8  M  site/components/deployments/deployments.js
+86c9de90ae7bc84a7eaece7aa8349f58b8820e8224a569de4013c25a7774ea90  ??  site/js/core/passkey-account.js
+dc4c0fa1068c7fd557ee38c67d018e1a54758ccd5a3b8f80ea60a305e51b4de1  ??  test/site-independent-storage.test.mjs
+47c78feb44b075386b9bef730db6d4574b1bfda36bd77e84c7892bffa99ec97c  ??  test/helpers/independent-browser-rig.mjs

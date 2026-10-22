@@ -1,0 +1,173 @@
+--- a/api/app/app.go
++++ b/api/app/app.go
+@@ -49,6 +49,17 @@
+ 		ListObjectsWithoutSlabs(ctx context.Context, account proto.Account, cursor slabs.Cursor, limit int) ([]slabs.ObjectEventWithoutSlabs, error)
+ 		ObjectSlabs(ctx context.Context, account proto.Account, key types.Hash256, cursor int64, limit int) ([]slabs.SlabSlice, error)
+ 		SharedObject(ctx context.Context, key types.Hash256) (slabs.SharedObject, error)
++
++		// FENCING PATCH
++		PinObjectFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, obj slabs.PinObjectRequest) error
++		DeleteObjectFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, objectKey types.Hash256) error
++		PinSlabsFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, nextIntegrityCheck time.Time, toPin ...slabs.SlabPinParams) ([]slabs.SlabID, error)
++		PruneSlabsFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, cutoff time.Time) error
++		UnpinSlabFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, slabID slabs.SlabID) error
++		AccountFence(ctx context.Context, account proto.Account) (accounts.FenceState, error)
++		ListCurrentObjects(ctx context.Context, account proto.Account, after types.Hash256, limit int, includeBlocked bool) ([]slabs.CurrentObjectEvent, error)
++		RaiseFence(ctx context.Context, account proto.Account, fence accounts.Fence, mode string) (accounts.Receipt, uint64, error)
++		ListObjectsSeq(ctx context.Context, account proto.Account, after uint64, limit int) (slabs.SeqListing, error)
+ 	}
+ 
+ 	// Sharing defines the sharing key management interface for the application
+@@ -65,6 +76,12 @@
+ 		SharedObjects(sharingKey types.PublicKey, offset, limit int) ([]slabs.SealedObject, error)
+ 		SharedObject(sharingKey types.PublicKey, objectKey types.Hash256) (slabs.SealedObject, error)
+ 		AccountTokens(sharingKey types.PublicKey, hostKeys []types.PublicKey) ([]proto.AccountToken, error)
++
++		// FENCING PATCH
++		AddSharingKeyFenced(account proto.Account, sf *accounts.Credential, req sharing.KeyRequest) (sharing.Key, error)
++		DeleteSharingKeyFenced(account proto.Account, sf *accounts.Credential, publicKey types.PublicKey) error
++		AddSharedObjectFenced(account proto.Account, sf *accounts.Credential, sharingKey types.PublicKey, req sharing.SharedObjectRequest) error
++		DeleteSharedObjectFenced(account proto.Account, sf *accounts.Credential, sharingKey types.PublicKey, objectKey types.Hash256) error
+ 	}
+ 
+ 	// Hosts defines the hosts interface for the application API.
+@@ -416,7 +433,10 @@
+ 		return
+ 	}
+ 
+-	err := a.slabs.PinObject(jc.Request.Context(), proto.Account(pk), obj)
++	err := a.slabs.PinObjectFenced(jc.Request.Context(), proto.Account(pk), requestFence(jc.Request), obj)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, slabs.ErrObjectMetadataLimitExceeded) || errors.Is(err, slabs.ErrObjectMinimumSlabs) || errors.Is(err, slabs.ErrObjectUnpinnedSlab) || errors.Is(err, slabs.ErrInvalidObjectSignature) {
+ 		jc.Error(err, http.StatusBadRequest)
+ 		return
+@@ -427,7 +447,7 @@
+ 		jc.Error(err, http.StatusInternalServerError)
+ 		return
+ 	}
+-	jc.Encode(nil)
++	writeMutationOK(jc)
+ }
+ 
+ func (a *app) handleDELETEObjects(jc jape.Context, pk types.PublicKey) {
+@@ -436,7 +456,10 @@
+ 		return
+ 	}
+ 
+-	err := a.slabs.DeleteObject(jc.Request.Context(), proto.Account(pk), key)
++	err := a.slabs.DeleteObjectFenced(jc.Request.Context(), proto.Account(pk), requestFence(jc.Request), key)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, slabs.ErrObjectNotFound) {
+ 		jc.Error(err, http.StatusNotFound)
+ 		return
+@@ -444,7 +467,7 @@
+ 		jc.Error(err, http.StatusInternalServerError)
+ 		return
+ 	}
+-	jc.Encode(nil)
++	writeMutationOK(jc)
+ }
+ 
+ func (a *app) handlePOSTSharing(jc jape.Context, pk types.PublicKey) {
+@@ -453,7 +476,10 @@
+ 		return
+ 	}
+ 
+-	key, err := a.sharing.AddSharingKey(proto.Account(pk), req)
++	key, err := a.sharing.AddSharingKeyFenced(proto.Account(pk), requestFence(jc.Request), req)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, sharing.ErrInvalidRequest) {
+ 		jc.Error(err, http.StatusBadRequest)
+ 		return
+@@ -503,7 +529,10 @@
+ 		return
+ 	}
+ 
+-	err := a.sharing.DeleteSharingKey(proto.Account(pk), key)
++	err := a.sharing.DeleteSharingKeyFenced(proto.Account(pk), requestFence(jc.Request), key)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, sharing.ErrSharingKeyNotFound) {
+ 		jc.Error(err, http.StatusNotFound)
+ 		return
+@@ -525,7 +554,10 @@
+ 		return
+ 	}
+ 
+-	err := a.sharing.AddSharedObject(proto.Account(pk), key, req)
++	err := a.sharing.AddSharedObjectFenced(proto.Account(pk), requestFence(jc.Request), key, req)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, sharing.ErrInvalidRequest) {
+ 		jc.Error(err, http.StatusBadRequest)
+ 		return
+@@ -577,7 +609,10 @@
+ 		return
+ 	}
+ 
+-	err := a.sharing.DeleteSharedObject(proto.Account(pk), key, objectKey)
++	err := a.sharing.DeleteSharedObjectFenced(proto.Account(pk), requestFence(jc.Request), key, objectKey)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, sharing.ErrSharedObjectNotFound) {
+ 		jc.Error(err, http.StatusNotFound)
+ 		return
+@@ -593,7 +628,10 @@
+ 	if !ok {
+ 		return
+ 	}
+-	slabIDs, err := a.slabs.PinSlabs(jc.Request.Context(), proto.Account(pk), time.Now().Add(6*time.Hour), params...)
++	slabIDs, err := a.slabs.PinSlabsFenced(jc.Request.Context(), proto.Account(pk), requestFence(jc.Request), time.Now().Add(6*time.Hour), params...)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, slabs.ErrInvalidPinParams) || errors.Is(err, slabs.ErrBadHosts) || errors.Is(err, slabs.ErrMinShards) {
+ 		jc.Error(err, http.StatusBadRequest)
+ 		return
+@@ -614,7 +652,10 @@
+ 			return
+ 		}
+ 	}
+-	err := a.slabs.PruneSlabs(jc.Request.Context(), proto.Account(pk), cutoff)
++	err := a.slabs.PruneSlabsFenced(jc.Request.Context(), proto.Account(pk), requestFence(jc.Request), cutoff)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if jc.Check("failed to prune slabs", err) != nil {
+ 		return
+ 	}
+@@ -711,7 +752,10 @@
+ 		return
+ 	}
+ 
+-	err := a.slabs.UnpinSlab(jc.Request.Context(), proto.Account(pk), slabID)
++	err := a.slabs.UnpinSlabFenced(jc.Request.Context(), proto.Account(pk), requestFence(jc.Request), slabID)
++	if writeFenced(jc, err) {
++		return
++	}
+ 	if errors.Is(err, slabs.ErrSlabNotFound) {
+ 		jc.Error(fmt.Errorf("slab %s not found", slabID), http.StatusNotFound)
+ 		return
+@@ -1166,6 +1210,13 @@
+ 		"POST /slabs/prune":     wrapSignedAuth(a.handlePOSTSlabsPrune),
+ 		"GET /slabs/:slabid":    wrapSignedAuth(a.handleGETSlab),
+ 		"DELETE /slabs/:slabid": wrapSignedAuth(a.handleDELETESlab),
++
++		// FENCING PATCH: writer fence and commit-ordered sequence listing. The listing is not under /objects/: the
++		// router refuses a static segment beside the existing /objects/:key wildcard.
++		"GET /fence":           wrapSignedAuth(a.handleGETFence),
++		"POST /fence":          wrapSignedAuth(a.handlePOSTFence),
++		"GET /current/objects": wrapSignedAuth(a.handleGETCurrentObjects), // PATCH U1
++		"GET /seq/objects":     wrapSignedAuth(a.handleGETSeqObjects),
+ 	}, map[string]jape.Handler{
+ 		// CORS is disabled on these routes because we don't want to encourage programmatic access. It can't be
+ 		// blocked entirely, but it's less convenient without CORS support.

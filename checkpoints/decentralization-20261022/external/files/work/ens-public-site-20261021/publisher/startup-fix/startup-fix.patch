@@ -1,0 +1,232 @@
+--- a/ipns-publisher/src/main.rs
++++ b/ipns-publisher/src/main.rs
+@@ -211,6 +211,14 @@
+     delegate_results: Vec<DelegateResult>,
+     last_error: Option<String>,
+     next_publish: Instant,
++    /// this round got a DEFINITIVE answer about the name's sequence: a verified record, a delegate's 404 (no record:
++    /// a fresh name) or a concluded DHT walk. A transport failure, a 5xx or an unverifiable record is NOT one.
++    round_seq_answered: bool,
++    /// the current retry delay after a failed round (0 = the last round succeeded); see next_backoff
++    retry_backoff_secs: u64,
++    /// delegate PUTs of the current record still queued, and how many of them were accepted
++    puts_pending: usize,
++    puts_ok: usize,
+     durable_state: bool,
+     dht: Option<p2p::Dht>,
+     provider: Option<provider::Provider>,
+@@ -267,6 +275,10 @@
+             delegate_results: Vec::new(),
+             last_error: None,
+             next_publish: Instant::now(),
++            round_seq_answered: false,
++            retry_backoff_secs: 0,
++            puts_pending: 0,
++            puts_ok: 0,
+             durable_state: false,
+             dht: None,
+             provider,
+@@ -361,6 +373,7 @@
+         if self.tasks.iter().any(|t| matches!(t, Task::Sign | Task::RecoverDht { .. })) {
+             return; // a round is already queued; don't stack another
+         }
++        self.round_seq_answered = false;
+         for d in &self.cfg.delegates {
+             self.tasks.push_back(Task::Recover(d.clone()));
+         }
+@@ -482,8 +495,12 @@
+             Some(Some((seq, value))) => {
+                 eprintln!("[ipns-publisher] DHT recovery: sequence {seq}");
+                 self.note_recovered(seq, value, "dht");
++                self.round_seq_answered = true;
++            }
++            Some(None) => {
++                eprintln!("[ipns-publisher] DHT recovery: no existing record (fresh name)");
++                self.round_seq_answered = true;
+             }
+-            Some(None) => eprintln!("[ipns-publisher] DHT recovery: no existing record (fresh name)"),
+             None => {
+                 // still walking: yield, retry next tick, keep it before Sign
+                 self.tasks.push_front(Task::RecoverDht { started: true });
+@@ -514,10 +531,14 @@
+                         body.len()
+                     );
+                     self.note_recovered(rec.sequence, rec.value, delegate);
++                    self.round_seq_answered = true;
+                 }
+                 Err(e) => eprintln!("[ipns-publisher] {delegate}: record failed verification: {e}"),
+             },
+-            Ok((404, _, _)) => eprintln!("[ipns-publisher] {delegate}: no record yet"),
++            Ok((404, _, _)) => {
++                eprintln!("[ipns-publisher] {delegate}: no record yet");
++                self.round_seq_answered = true;
++            }
+             Ok((status, _, _)) => eprintln!("[ipns-publisher] {delegate}: GET answered {status}"),
+             Err(e) => eprintln!("[ipns-publisher] {delegate}: GET failed: {e}"),
+         }
+@@ -562,27 +583,40 @@
+             Err(e) => {
+                 eprintln!("[ipns-publisher] publish aborted: {e}");
+                 self.last_error = Some(e);
++                self.schedule_retry();
+                 return;
+             }
+         };
+-        // Sequence: strictly increase on value change; an unchanged value
+-        // keeps its sequence and extends the EOL (the resolver tie-break
+-        // prefers the longer validity), which is kubo's behavior too.
+-        let (base_seq, base_value) = match &self.recovered_seq {
+-            Some((seq, val, _)) => (*seq, val.clone()),
+-            None => (0, Vec::new()),
+-        };
+-        let seq = if self.record.is_some() && self.value == value && self.sequence >= base_seq {
+-            self.sequence
+-        } else if base_value == value && (self.record.is_some() || self.recovered_seq.is_some()) {
+-            base_seq
+-        } else if self.recovered_seq.is_some() || self.record.is_some() {
+-            base_seq.max(self.sequence) + 1
+-        } else {
+-            0
++        // Sequence: strictly increase on value change; an unchanged value keeps its sequence and extends the EOL
++        // (the resolver tie-break prefers the longer validity), which is kubo's behavior too. See sign_sequence.
++        let own = self.record.as_ref().map(|_| (self.sequence, self.value.as_slice()));
++        let recovered = self.recovered_seq.as_ref().map(|(s, v, _)| (*s, v.as_slice()));
++        let seq = match sign_sequence(own, recovered, &value, self.round_seq_answered) {
++            Ok(s) => s,
++            Err(e) => {
++                eprintln!("[ipns-publisher] publish deferred: {e}");
++                self.last_error = Some(e);
++                self.schedule_retry();
++                return;
++            }
+         };
+         let validity_unix = now_unix() + self.cfg.lifetime_secs as i64;
+-        self.sign_and_push(value, seq, validity_unix, self.cfg.ttl_secs);
++        if !self.sign_and_push(value, seq, validity_unix, self.cfg.ttl_secs) {
++            self.schedule_retry();
++        }
++    }
++
++    /// A failed round is retried after a bounded backoff (30 s doubling to 15 min, never later than the normal
++    /// republish) instead of only at the next republish: a publisher that starts before its egress is admitted, or
++    /// whose delegates are briefly down, publishes within minutes. Only `next_publish` moves; nothing blocks.
++    fn schedule_retry(&mut self) {
++        if self.cfg.anchor.is_some() {
++            return; // anchor mode polls on its own schedule
++        }
++        self.retry_backoff_secs = next_backoff(self.retry_backoff_secs);
++        let wait = self.retry_backoff_secs.min(self.cfg.republish_secs);
++        eprintln!("[ipns-publisher] next attempt in {wait}s");
++        self.next_publish = Instant::now() + Duration::from_secs(wait);
+     }
+ 
+     /// Anchor mode: the value and sequence come only from the quorum-read authority, the EOL and TTL are capped
+@@ -629,6 +663,9 @@
+                 self.last_error = None;
+                 self.note_recovered(seq, self.value.clone(), "self");
+                 self.save_state();
++                self.retry_backoff_secs = 0;
++                self.puts_pending = self.cfg.delegates.len();
++                self.puts_ok = 0;
+                 for d in self.cfg.delegates.clone() {
+                     self.tasks.push_back(Task::Put(d));
+                 }
+@@ -677,8 +714,20 @@
+                 e
+             }
+         };
++        let accepted = outcome == "ok";
+         self.delegate_results.retain(|r| r.url != delegate);
+         self.delegate_results.push(DelegateResult { url: delegate.into(), outcome, at: now_unix() });
++        // every PUT of this record failed: retry the round (same value, so the same sequence and a longer EOL)
++        if self.puts_pending > 0 {
++            self.puts_pending -= 1;
++            if accepted {
++                self.puts_ok += 1;
++            }
++            if self.puts_pending == 0 && self.puts_ok == 0 {
++                eprintln!("[ipns-publisher] no delegate accepted the record");
++                self.schedule_retry();
++            }
++        }
+     }
+ 
+     fn do_dht_publish(&mut self) {
+@@ -697,6 +746,77 @@
+     }
+ }
+ 
++/// The sequence to sign `value` at (fixed-value mode), or why not to sign now.
++///   own:       the record this process already signed (sequence, value)
++///   recovered: the highest sequence seen anywhere (delegates, DHT, state file, self)
++///   answered:  this round got a definitive answer (a verified record, a 404, a concluded DHT walk)
++/// An unchanged value keeps its sequence (the EOL is extended), a new value takes max + 1. Sequence 0 is signed ONLY
++/// for a name nobody has a record for: never when every lookup FAILED (a refused, timed-out or 5xx lookup may hide the
++/// live record, and a lower sequence would never replace it - 2026-10-21, the S3 reproduction).
++fn sign_sequence(own: Option<(u64, &[u8])>, recovered: Option<(u64, &[u8])>, value: &[u8], answered: bool) -> Result<u64, String> {
++    let (base_seq, base_value) = recovered.unwrap_or((0, &[]));
++    if let Some((seq, v)) = own {
++        if v == value && seq >= base_seq {
++            return Ok(seq);
++        }
++    }
++    if recovered.is_some() || own.is_some() {
++        if base_value == value && recovered.is_some() {
++            return Ok(base_seq);
++        }
++        return Ok(base_seq.max(own.map(|o| o.0).unwrap_or(0)) + 1);
++    }
++    if answered {
++        return Ok(0); // a verified fresh name
++    }
++    Err("sequence unknown: no delegate or DHT lookup answered this round; not signing sequence 0".into())
++}
++
++/// The retry delay after one more failed round: 30 s, then doubling, at most 15 min.
++fn next_backoff(prev_secs: u64) -> u64 {
++    if prev_secs == 0 { 30 } else { (prev_secs * 2).min(900) }
++}
++
++#[cfg(test)]
++mod startup_tests {
++    use super::*;
++    const A: &[u8] = b"/ipfs/bafyA";
++    const B: &[u8] = b"/ipfs/bafyB";
++
++    #[test]
++    fn unknown_sequence_is_never_signed_as_zero() {
++        assert!(sign_sequence(None, None, A, false).is_err());
++    }
++    #[test]
++    fn a_verified_fresh_name_signs_zero() {
++        assert_eq!(sign_sequence(None, None, A, true), Ok(0));
++    }
++    #[test]
++    fn a_recovered_same_value_keeps_its_sequence() {
++        assert_eq!(sign_sequence(None, Some((1026, A)), A, true), Ok(1026));
++        assert_eq!(sign_sequence(None, Some((1026, A)), A, false), Ok(1026)); // e.g. from the state file
++    }
++    #[test]
++    fn a_new_value_takes_max_plus_one() {
++        assert_eq!(sign_sequence(None, Some((1026, A)), B, true), Ok(1027));
++        assert_eq!(sign_sequence(Some((1026, A)), Some((1026, A)), B, false), Ok(1027));
++    }
++    #[test]
++    fn the_own_record_republishes_unchanged() {
++        assert_eq!(sign_sequence(Some((1026, A)), Some((1026, A)), A, false), Ok(1026));
++    }
++    #[test]
++    fn a_higher_sequence_seen_elsewhere_wins() {
++        assert_eq!(sign_sequence(Some((5, A)), Some((1026, B)), A, true), Ok(1027));
++    }
++    #[test]
++    fn backoff_is_bounded() {
++        let mut b = 0;
++        let seq: Vec<u64> = (0..8).map(|_| { b = next_backoff(b); b }).collect();
++        assert_eq!(seq, vec![30, 60, 120, 240, 480, 900, 900, 900]);
++    }
++}
++
+ // ---- HTTP routes -----------------------------------------------------------
+ 
+ fn authorized(cfg: &Config, req: &Request) -> bool {

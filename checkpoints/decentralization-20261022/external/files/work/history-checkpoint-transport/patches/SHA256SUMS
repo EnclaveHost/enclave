@@ -1,0 +1,4 @@
+ce161147d85f253f24c3e5da25129c7bef7bd0082e36642d39e49c98ce10849e  07-checkpoint-transport-guest.patch
+e34e0ec4be5f2b09c831e21d347fde47525a7f4dcfd081664ad040fbc9df2c4c  08-checkpoint-transport-tests.patch
+40a6899a9feefce67c86740b5381aef0fb9bc95f9fed379d0f430dacd21aacc7  09-checkpoint-owner-tools.patch
+8ecf49e1fc0963614fc25ecacecb13dd7dde4c897201a28db2ce967418603e0c  INVENTORY.txt

@@ -1,0 +1,135 @@
+--- a/docs/network/default-independence.md
++++ b/docs/network/default-independence.md
+@@ -0,0 +1,132 @@
++# The default independent dashboard
++
++A build of the site can ship a **reviewed, content-digest-identified network profile as its default**. That build runs
++independently from its first page load: it never asks Enclave's API, relay, upload service or address book for anything,
++and it never switches to the hosted service on its own. Without such a build input the site keeps today's hosted default,
++byte for byte (`site/js/gen/default-profile.js` is `null` in source).
++
++This is a client mode. It does not make any operator independent. The pinned contracts keep their governance, and the RPCs,
++directories, storage adapters and hosts the page uses are only as independent as their actual operators.
++
++## What the build carries
++
++`scripts/build-site.mjs --default-profile <module>` bundles one generated module. It holds:
++
++- the browser profile text (docs/network/independent-dashboard.md format, plus the optional `serviceIndex` and
++  `hostPolicyOrigins` fields) and its SHA-256;
++- the reviewed authority profile bytes (`enclave.authority-profile`, docs/network/authority-profile.md), canonically
++  encoded, and their SHA-256;
++- the digest of the activation-gate report, and whether the module is provisional.
++
++The build also writes `dist/default-profile.json` (the three digests) and the two texts under `dist/profiles/<sha256>.json`,
++so anyone can compare them with the announced values. A provisional module needs `--provisional-ok`, and such a page
++starts only on a loopback origin.
++
++## What the page checks
++
++**At load**, synchronously and before any binding exists (`js/core/independent.js` `checkPackagedDefault`):
++
++- both texts hash to their digests: a substituted or damaged text is **invalid**, never used;
++- the authority profile is canonical and has the reviewed v1 layout. This is the `network/authority-profile.mjs` rule set,
++  ported to `js/core/authority-profile.js` and parity-tested;
++- the browser profile names that authority (`source.authorityProfileDigest`);
++- its eight contract pins, payment token and reviewed ETH/USD feed are exactly the authority's;
++- only a provisional profile may use loopback RPCs.
++
++**On chain** (`js/core/default-authority.js`): at one block the profile's RPCs agree on, every authority contract must carry
++exactly its reviewed runtime code (hash and size) and its pinned immutable bindings.
++
++- Every agreed decision (the reader in `js/core/independent-chain.js`) and every wallet send waits for a verified result no
++  older than 10 minutes. Without one, it refuses with the reason.
++- A reviewed mutable value that changed (an owner, a pending owner, a payout, the ledger's retirement) is shown as
++  governance drift, but does not stop the page. Otherwise a pinned contract's owner could switch off every default frontend
++  by moving `pendingOwner`.
++
++**Votes**: one public RPC host is one vote, whatever its port or path (`network/rpc-identity.mjs`). Aliases of one loopback
++port are accepted only as marked local test fixtures.
++
++## Choices the owner keeps
++
++- **Their own profile.** "Use your own network profile instead": import, check against the chain, the publisher's
++  fingerprint, then per-tab confirmation. A saved profile takes precedence; "Return to the built-in default profile" removes
++  it.
++- **The hosted service, explicitly.** "Use Enclave's hosted service instead (not independent)" is remembered per browser
++  and honoured only in a tab that confirms it. A planted value never moves anyone; a failure never moves anyone.
++- **Service providers.** The service index (`serviceIndex` pin: address plus runtime code hash) is read at an agreed block
++  (`js/core/service-discovery.js`).
++  - Each ad is an untrusted candidate. One operator key is one participant, however many endpoints it lists.
++  - A plain-HTTP endpoint is "not reachable from this page" when the page is HTTPS.
++  - Nothing is used until the user chooses an operator. Choices are kept per profile.
++  - Expired ads, unknown versions and kinds, and non-public endpoints are dropped with a reason.
++  - An RPC disagreement is a refusal, never an empty list.
++
++## Where discovery is used
++
++- **Directories:** the profile's own plus the chosen operators' reachable ones, for management records
++  (`js/core/independent-management.js`) and owner network settings (`js/core/enclave-network.js`). Answers count once per
++  operator.
++- **Capacity:** each host's own signed record (`js/core/host-capacity.js`, `network/host-capacity.mjs` rules), read from the
++  host's registered endpoint and the chosen directories. It is used in the deploy dialog, the Host & price tab, the fleet
++  panels, and the Models and Resources tabs.
++  - It must be signed by the host's current registry operator at the agreed block and be at most 15 minutes old.
++  - It is host-reported: never a reservation.
++  - A host without a record reads "no capacity report", never "full". Two different records with one sequence show
++    nothing.
++- **Host owners' admission policies:** `EnclaveHostOwnership.authority(hostId)` at the agreed block. A committed policy is
++  fetched by its hash from `hostPolicyOrigins` and hash-checked (`js/core/host-policy.js`, `network/host-admission-policy.mjs`
++  rules).
++  - A host whose owner declines the app or deployment is not offered, with the reason.
++  - A host whose committed policy cannot be fetched is not offered either.
++  - **Every other host is unaffected.**
++
++## Existing owners
++
++- **Wallet owners:** wallet rows, rows of their session vault on the pinned factory, and rows their **relay-era session
++  vault** holds (the authority's reviewed `legacySessionVaultFactory`, owner checked at an agreed block).
++  - Relay-era rows are listed read-only with the holder named.
++  - **Release to my wallet** sends the vault's own owner operation (`release`). The page first checks the method is in the
++    agreed runtime and simulates the call from the wallet. After that the record is fully manageable here.
++- **Hosted (relay) passkey accounts:** a hosted account held in the browser is named, never silently dropped. Its
++  credit-vault records need the hosted service today (see the feature audit).
++
++## Activation (nothing here is activated by this candidate)
++
++```sh
++node scripts/network/default-profile.mjs generate --authority <reviewed authority profile> --expect-digest sha256:<announced> \
++  --expect-pins <pins> --service-index-pin contracts/deployments/service-index-pin-base.json \
++  --rpc https://mainnet.base.org --rpc https://base-rpc.publicnode.com --rpc https://base.drpc.org \
++  --rpc https://base.public.blockpi.network/v1/rpc/public --quorum 3 [--storage-plan plan.json] [--directory https://…] \
++  [--host-policy-origin https://…] --out-dir DIR
++node scripts/network/default-profile.mjs verify --dir DIR                # read-only, agreeing RPCs
++node scripts/network/default-profile.mjs gate --dir DIR --evidence capabilities.json [--ledger-migration result.json]
++node scripts/network/default-profile.mjs module --dir DIR --out default-profile.module.js   # refuses unless publishable
++node scripts/build-site.mjs --default-profile default-profile.module.js
++```
++
++`gate` is publishable only when every gate passes with evidence:
++
++| Gate | Requirement |
++| --- | --- |
++| G1 | The reviewed authority was verified on chain within 24 h, for exactly this digest. |
++| G2 | The pinned ledger is the activated one. A supplied ledger migration result must be complete and pin the profile's ledger. Without one, the publisher must explicitly accept the ledger (`--accept-ledger <address>@<schema>`). |
++| G3 | Every storage adapter in the plan supports ERC-1271 v2 uploads and gateway CORS. |
++| G4 | An HTTPS directory is reachable, and hosts rolled out the browser management transport. |
++| G5 | An independent custody committee is active (the Secrets path). |
++| G6 | At least three distinct RPC endpoints, quorum at least two. |
++| G7 | The site sources equal the closure recorded at gate time. |
++
++Today (live rev 16) G2–G5 fail: no ledger migration result, no v2 storage adapters, plain-HTTP directories and no browser
++management rollout, and a single-machine custody committee. The candidate therefore ships no publishable module.
++
++## Tests
++
++```sh
++node --test test/site-default-authority.test.mjs test/site-default-discovery.test.mjs
++node test/helpers/default-site-fixture.mjs --out-dir <dir>     # builds site/dist with a PROVISIONAL default
++DEFAULT_SITE_SUMMARY=<dir>/summary.json node test/helpers/memory-guard.mjs --max-rss-mib 1408 --floor-available-mib 16384 -- \
++  node --max-old-space-size=256 test/site-default-independence.test.mjs
++```
++
++The browser test serves the built site over HTTPS on localhost, in fresh Chromium profiles. It runs against an anvil fork of
++Base with the real pinned contracts, the real service index and real ledger records, and labels every fixture. It refuses
++and records every off-machine request that is not a fixture.

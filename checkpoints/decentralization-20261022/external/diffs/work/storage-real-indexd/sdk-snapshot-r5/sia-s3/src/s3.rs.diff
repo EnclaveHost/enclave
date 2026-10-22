@@ -1,0 +1,47 @@
+--- a/sia-s3/src/s3.rs
++++ b/sia-s3/src/s3.rs
+@@ -146,9 +146,19 @@
+     }
+     let store = app.cluster.clone();
+     if !store.ready() {
+-        let msg = app.boot_error.borrow().clone().unwrap_or_else(|| "index is loading".into());
++        let msg = store
++            .superseded()
++            .map(|w| format!("writer fencing stopped this instance: {w}"))
++            .or_else(|| app.boot_error.borrow().clone())
++            .unwrap_or_else(|| "index is loading".into());
+         return send(w, err(503, "SlowDown", &msg, &resource), ka).await;
+     }
++    // writer fencing: whatever this request is answered with (data, a listing, a 412, a 404, a DELETE of an absent key)
++    // must reflect every write acknowledged before it arrived, by any writer. A confirmation round started after
++    // this point must find our exact fence on W voters (Cluster::fresh); otherwise 503. No-op when unfenced.
++    if let Err(e) = store.fresh().await {
++        return send(w, err(503, "SlowDown", &e, &resource), ka).await;
++    }
+ 
+     let q = sigv4::parse_query(&req.query);
+     let qv = |k: &str| q.iter().find(|(a, _)| a == k).map(|(_, v)| v.as_str());
+@@ -571,6 +581,7 @@
+                 "bootError": *app.boot_error.borrow(),
+                 "writeQuorum": c.write_quorum,
+                 "readQuorum": c.read_quorum(),
++                "writerFence": c.fence_status(),
+                 "replicas": c.replica_status().await,
+             });
+             if ready {
+@@ -612,6 +623,7 @@
+             "app": concat!("sia-s3/", env!("CARGO_PKG_VERSION")),
+             "ready": false,
+             "error": *app.boot_error.borrow(),
++            "writerFence": c.fence_status(),
+             "replicas": c.replica_status().await,
+         })
+         .to_string();
+@@ -628,6 +640,7 @@
+     };
+     let compactor = c.loaded().first().map(|(_, s)| serde_json::json!(*s.stats.borrow()));
+     serde_json::json!({
++        "writerFence": c.fence_status(),
+         "app": concat!("sia-s3/", env!("CARGO_PKG_VERSION")),
+         "ready": true,
+         "keys": keys,

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# TEST-ONLY: /v1/info answers while the mock unit is active, as $FSROOT/mock/info (default: the eu-central payee, chain 8453,
+# the reviewed reserve and executor); $FSROOT/mock/front-still-serves keeps an https FRONT answering after the unit stopped
+url=${!#}
+info=$FSROOT/mock/info
+if [ -e "$FSROOT/mock/active" ] || { [[ "$url" == https://* ]] && [ -e "$FSROOT/mock/front-still-serves" ]; }; then
+  [ -e "$FSROOT/mock/silent" ] && exit 7
+  if [ -f "$info" ]; then cat "$info"; else echo '{"chainId":8453,"reserve":"0x12A3f873041Dec436DaA0085B766a399A6fA3639","executor":"0x8900BACA2167873BA2F8a8bAE8b4876E6396d343","payee":"0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a"}'; fi; exit 0; fi
+exit 7

@@ -1,0 +1,11 @@
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -24,6 +24,8 @@
+ COPY egress.js ./
+ COPY addressbook.js ./
+ COPY net-guard.mjs ./
++# the host's own signed capacity record (GET /v1/host/capacity): the producer and the record core, no packages
++COPY network/canonical.mjs network/host-capacity-record.mjs network/host-capacity-producer.mjs network/registry-reconcile.mjs ./network/
+ # If you add the spawn implementation in its own files, COPY them here too.
+ ENV PORT=8080
+ EXPOSE 8080

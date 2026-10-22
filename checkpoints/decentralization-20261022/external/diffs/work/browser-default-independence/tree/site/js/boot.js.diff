@@ -1,0 +1,10 @@
+--- a/site/js/boot.js
++++ b/site/js/boot.js
+@@ -20,6 +20,7 @@
+    ============================================================ */
+ 
+ import "./core/addressbook.js";   // resolve contract addresses from the on-chain book (no-op until one is configured)
++import "./core/default-startup.js";   // the packaged independent default: authority check + discovery at load (no-op without one)
+ 
+ const PAGES = {
+   overview:  () => import("./pages/overview.js"),

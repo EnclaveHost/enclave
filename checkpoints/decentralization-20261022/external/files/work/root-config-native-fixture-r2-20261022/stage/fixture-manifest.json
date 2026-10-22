@@ -1,0 +1,20 @@
+{
+ "format": "config-native-fixture-manifest/v1",
+ "files": {
+  "expected.json": "50d490c23929b10485498865190bf35f76a60e8596fe76c6ea024f17e7108d07",
+  "link-target.cmd": "7f24fb106d1ba4a4abf32cfc5cd67fdb38a6e9f19a0df0529d702a01c0991156",
+  "migrate-local-config.ps1": "d2ae8f6965176045186f1da9373778ee3daeb0b6d5144d3c46b2b2c2ad54739f",
+  "node-config.cmd": "d685d085a41c91eec904b49993a0014b27594fcc3ce61be95605746daf1786d9",
+  "node-config.local.cmd": "b7b23185a5b4fca4fa9bbcc86a7a07099434b5b42dfc9c8ba52e48e68d25c791",
+  "pins-badpin.json": "dae5548f0458e2c2a2b1c8327fe36d85a44d134eb5317606c9ba15f7ce3384bc",
+  "pins-main.json": "e36a90caa4b420a0e70bebc1caa77dfa1555cfb6f1ce7ad2006e1045ee443281",
+  "pins-plain.json": "34f790a41a4f571ec8d86b90cca462cf27f83f95af6428115699c38ce219482e",
+  "run-node.cmd": "35913fa9f7228f447f9235911a022d7b7da8b0e9506216ac2d1024be63239ffe",
+  "run-node.plain.cmd": "691b4064162dc900d12209af123196772aa4f47c2ec0614527caf3658b2bd177",
+  "run-node.rewritten.cmd": "691b4064162dc900d12209af123196772aa4f47c2ec0614527caf3658b2bd177",
+  "run-shield.cmd": "0dbf8c146fca4e8cf821280dd1b6505b07a0c8e9655e5ebd75fdfd347038ac77",
+  "run-shield.plain.cmd": "575ac1faa541187cc96eb6f86f08308f3608915c8c043f4ff9353d926d153042",
+  "run-shield.rewritten.cmd": "575ac1faa541187cc96eb6f86f08308f3608915c8c043f4ff9353d926d153042",
+  "shield-config.cmd": "9aa251ab0b59d5af56dc470d4597c8091d9503c5a189f82a1bbbe5930966f4c5"
+ }
+}

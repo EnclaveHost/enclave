@@ -1,0 +1,1057 @@
+--- /dev/null
++++ b/isolation/m2/bootstrap/snpverify.go
+@@ -0,0 +1,420 @@
++package bootstrap
++
++// AMD SEV-SNP evidence for history checkpoints (checkpoint.go; work/history-owner-tools-interface.txt section 6): a port
++// of verifier/snp.mjs and the relay/snp-verify.mjs primitives it uses, check for check and in the same order, standard
++// library only. Layout: AMD 56860 (SEV-SNP Firmware ABI) Table 27 ATTESTATION_REPORT, Tables 4/5 TCB_VERSION, Table 148
++// signature; AMD 57230 VCEK extensions 1.3.6.1.4.1.3704.1.*. Only report versions 2..5 are judged (as the JS verifier);
++// only VCEK-signed reports (AMD's public roots); the ASK must be on a FRESH ARK-signed CRL (policy "required"); the
++// reported AND committed TCB must meet the floor; DEBUG and MIGRATE_MA off; VMPL0; an explicit measurement, HOST_DATA
++// and REPORT_DATA. Anything else is a refusal: there is no "limited" verdict here.
++
++import (
++	"bytes"
++	"crypto/ecdsa"
++	"crypto/elliptic"
++	"crypto/rsa"
++	"crypto/sha256"
++	"crypto/sha512"
++	"crypto/x509"
++	"encoding/asn1"
++	"encoding/binary"
++	"encoding/hex"
++	"errors"
++	"fmt"
++	"math/big"
++	"time"
++)
++
++const (
++	snpReportSize      = 0x4a0
++	snpSigOffset       = 0x2a0
++	snpJudgedMaxReport = 5
++)
++
++// amdArkSHA256: AMD's ARK per product line, pinned by the sha256 of its DER (relay/snp-verify.mjs AMD_ARK_SHA256, the
++// relay's and the buyer verifier's pins). A variable only so tests can pin a synthetic root.
++var amdArkSHA256 = map[string]string{
++	"Milan": "69d063b45344d26a2e94e1f4210de49ef555308287d4c174445c95639a540bcd",
++	"Genoa": "4c6598d19c18719c5dfd4a7d335f674e5bfe1d8f800cea2cf270c10d103db2f1",
++	"Turin": "1f084161a44bb6d93778a904877d4819cafa5d05ef4193b2ded9dd9c73dd3f6a",
++}
++
++// GUIDs of the extended report's certificate table (AMD 56860 Table 23 / configfs-tsm auxblob).
++const (
++	guidVCEK = "63da758de6644564adc5f4b93be8accd"
++	guidASK  = "4ab7b379bbac4fe4a02f05aef327c782"
++	guidARK  = "c0b406a4a803495297433fb6014cd0ae"
++)
++
++var p384N, _ = new(big.Int).SetString("ffffffffffffffffffffffffffffffffffffffffffffffffc7634d81f4372ddf581a0db248b0a77aecec196accc52973", 16)
++
++type snpReport struct {
++	raw                                     []byte
++	version, vmpl, signatureAlgo, signerInf uint32
++	policy                                  uint64
++	reportData                              []byte // 64
++	measurement                             []byte // 48
++	hostData                                []byte // 32
++	reportedTCB, committedTCB               []byte // 8 each
++	cpuidFam, cpuidMod                      byte
++	chipID                                  []byte // 64
++}
++
++func parseSNPReport(r []byte) (*snpReport, error) {
++	if len(r) != snpReportSize {
++		return nil, fmt.Errorf("report is %d bytes; the ABI fixes ATTESTATION_REPORT at %d", len(r), snpReportSize)
++	}
++	u32 := func(o int) uint32 { return binary.LittleEndian.Uint32(r[o:]) }
++	p := &snpReport{raw: r, version: u32(0), policy: binary.LittleEndian.Uint64(r[8:]), vmpl: u32(0x30), signatureAlgo: u32(0x34),
++		signerInf: u32(0x48), reportData: r[0x50:0x90], measurement: r[0x90:0xc0], hostData: r[0xc0:0xe0],
++		reportedTCB: r[0x180:0x188], cpuidFam: r[0x188], cpuidMod: r[0x189], chipID: r[0x1a0:0x1e0], committedTCB: r[0x1e0:0x1e8]}
++	if p.version < 2 {
++		return nil, fmt.Errorf("report version %d < 2", p.version)
++	}
++	if p.version > snpJudgedMaxReport {
++		return nil, fmt.Errorf("report version %d is outside the judged range 2..%d (its extended TCB fields are not implemented)", p.version, snpJudgedMaxReport)
++	}
++	if p.policy&(1<<17) == 0 {
++		return nil, errors.New("guest policy reserved bit 17 is not 1")
++	}
++	if p.policy>>26 != 0 {
++		return nil, errors.New("guest policy bits 63:26 are not zero")
++	}
++	if p.signatureAlgo != 1 {
++		return nil, fmt.Errorf("signature algorithm %d is not ECDSA P-384 with SHA-384 (1)", p.signatureAlgo)
++	}
++	if p.signerInf>>5 != 0 {
++		return nil, errors.New("signer_info bits 31:5 are not zero")
++	}
++	if key := (p.signerInf >> 2) & 7; key != 0 {
++		return nil, fmt.Errorf("report signed by key type %d (1 = VLEK, 7 = none); only VCEK-signed reports chain to AMD's public roots", key)
++	}
++	mbz := func(lo, hi int, what string) error {
++		for i := lo; i < hi; i++ {
++			if r[i] != 0 {
++				return fmt.Errorf("reserved bytes (%s) are not zero", what)
++			}
++		}
++		return nil
++	}
++	after := 0x188
++	if p.version >= 3 {
++		after = 0x18b
++	}
++	for _, c := range []struct {
++		lo, hi int
++		what   string
++	}{{0x4c, 0x50, "0x4c..0x50"}, {after, 0x1a0, "after CPUID"}, {0x1eb, 0x1ec, "0x1eb"}, {0x1ef, 0x1f0, "0x1ef"}, {0x208, snpSigOffset, "0x208..0x2a0"},
++		{snpSigOffset + 0x30, snpSigOffset + 0x48, "signature R zero-extension"}, {snpSigOffset + 0x78, snpSigOffset + 0x90, "signature S zero-extension"},
++		{snpSigOffset + 0x90, snpReportSize, "signature tail"}} {
++		if e := mbz(c.lo, c.hi, c.what); e != nil {
++			return nil, e
++		}
++	}
++	return p, nil
++}
++
++func (p *snpReport) debug() bool     { return p.policy&(1<<19) != 0 }
++func (p *snpReport) migrateMA() bool { return p.policy&(1<<18) != 0 }
++
++// snpProduct: the product line from the report's CPUID (versions 3+); version 2 carries none and is refused here.
++func snpProduct(p *snpReport) (string, error) {
++	if p.version < 3 {
++		return "", errors.New("report version 2 carries no CPUID: the product line is unknown")
++	}
++	f, m := p.cpuidFam, p.cpuidMod
++	switch {
++	case f == 0x19 && m < 0x10:
++		return "Milan", nil
++	case f == 0x19 && (m >= 0x10 && m < 0x20 || m >= 0xa0 && m < 0xb0):
++		return "Genoa", nil
++	case f == 0x1a && m < 0x20:
++		return "Turin", nil
++	}
++	return "", fmt.Errorf("CPUID family 0x%x model 0x%x is not a known product line", f, m)
++}
++
++var tcbFields = map[string][]string{
++	"Milan": {"bootloader", "tee", "snp", "microcode"},
++	"Genoa": {"bootloader", "tee", "snp", "microcode"},
++	"Turin": {"fmc", "bootloader", "tee", "snp", "microcode"},
++}
++
++func decodeTCB(product string, b []byte) map[string]int {
++	if product == "Turin" {
++		return map[string]int{"fmc": int(b[0]), "bootloader": int(b[1]), "tee": int(b[2]), "snp": int(b[3]), "microcode": int(b[7])}
++	}
++	return map[string]int{"bootloader": int(b[0]), "tee": int(b[1]), "snp": int(b[6]), "microcode": int(b[7])}
++}
++
++// certFromAuxblob: the entry for guid in an extended report's certificate table ({guid(16), offset(4), length(4)}*,
++// zero-terminated).
++func certFromAuxblob(aux []byte, guid string) []byte {
++	if len(aux) > 64*1024 {
++		return nil
++	}
++	for o := 0; o+24 <= len(aux); o += 24 {
++		g := hex.EncodeToString(aux[o : o+16])
++		if g == strings32zero {
++			break
++		}
++		off, n := binary.LittleEndian.Uint32(aux[o+16:]), binary.LittleEndian.Uint32(aux[o+20:])
++		if g == guid {
++			if n == 0 || uint64(off)+uint64(n) > uint64(len(aux)) {
++				return nil
++			}
++			return aux[off : off+n]
++		}
++	}
++	return nil
++}
++
++const strings32zero = "00000000000000000000000000000000"
++
++// checkAMDChain: VCEK -> ASK -> ARK, the ARK pinned by sha256 for the product, every subject as AMD issues it, every
++// certificate valid now, ARK and ASK RSA-4096, the ARK self-signed, the ASK signed by it, the VCEK signed by the ASK.
++func checkAMDChain(vcekDER, askDER, arkDER []byte, product string, now time.Time) (vcek, ask, ark *x509.Certificate, err error) {
++	want, ok := amdArkSHA256[product]
++	if !ok {
++		return nil, nil, nil, fmt.Errorf("no pinned AMD root for product line %q (fail closed)", product)
++	}
++	if ark, err = x509.ParseCertificate(arkDER); err != nil {
++		return nil, nil, nil, fmt.Errorf("ARK unparseable: %v", err)
++	}
++	if ask, err = x509.ParseCertificate(askDER); err != nil {
++		return nil, nil, nil, fmt.Errorf("ASK unparseable: %v", err)
++	}
++	if vcek, err = x509.ParseCertificate(vcekDER); err != nil {
++		return nil, nil, nil, fmt.Errorf("VCEK unparseable: %v", err)
++	}
++	if fp := sha256.Sum256(ark.Raw); hex.EncodeToString(fp[:]) != want {
++		return nil, nil, nil, fmt.Errorf("the served ARK is not AMD's pinned %s root", product)
++	}
++	if ark.Subject.CommonName != "ARK-"+product || ask.Subject.CommonName != "SEV-"+product || vcek.Subject.CommonName != "SEV-VCEK" || vcek.Issuer.CommonName != "SEV-"+product {
++		return nil, nil, nil, fmt.Errorf("AMD chain subjects are not ARK-%[1]s / SEV-%[1]s / SEV-VCEK", product)
++	}
++	for _, c := range []struct {
++		c    *x509.Certificate
++		what string
++	}{{ark, "ARK"}, {ask, "ASK"}, {vcek, "VCEK"}} {
++		if now.Before(c.c.NotBefore) || now.After(c.c.NotAfter) {
++			return nil, nil, nil, fmt.Errorf("%s certificate is not valid at %s", c.what, now.UTC().Format(time.RFC3339))
++		}
++	}
++	for _, c := range []*x509.Certificate{ark, ask} {
++		if k, ok := c.PublicKey.(*rsa.PublicKey); !ok || k.N.BitLen() != 4096 {
++			return nil, nil, nil, errors.New("ARK and ASK keys must be RSA-4096")
++		}
++	}
++	if e := ark.CheckSignature(ark.SignatureAlgorithm, ark.RawTBSCertificate, ark.Signature); e != nil {
++		return nil, nil, nil, errors.New("ARK is not self-signed")
++	}
++	if !bytes.Equal(ask.RawIssuer, ark.RawSubject) || ark.CheckSignature(ask.SignatureAlgorithm, ask.RawTBSCertificate, ask.Signature) != nil {
++		return nil, nil, nil, errors.New("ASK is not signed by the ARK")
++	}
++	if !bytes.Equal(vcek.RawIssuer, ask.RawSubject) || ask.CheckSignature(vcek.SignatureAlgorithm, vcek.RawTBSCertificate, vcek.Signature) != nil {
++		return nil, nil, nil, errors.New("VCEK is not signed by the ASK")
++	}
++	return vcek, ask, ark, nil
++}
++
++// checkAMDCRL: the ARK-signed CRL (RSASSA-PSS), issued by the pinned ARK, not from the future, NOT stale (policy
++// "required": no stale-ok here), and the ASK's serial not revoked.
++func checkAMDCRL(crlDER []byte, ask, ark *x509.Certificate, now time.Time) error {
++	if len(crlDER) == 0 {
++		return errors.New("CRL: required but none was supplied")
++	}
++	crl, err := x509.ParseRevocationList(crlDER)
++	if err != nil {
++		return fmt.Errorf("CRL unparseable: %v", err)
++	}
++	if crl.SignatureAlgorithm != x509.SHA384WithRSAPSS {
++		return fmt.Errorf("CRL signature algorithm %v is not RSASSA-PSS SHA-384", crl.SignatureAlgorithm)
++	}
++	if !bytes.Equal(crl.RawIssuer, ark.RawSubject) {
++		return errors.New("CRL issuer is not the pinned ARK")
++	}
++	if ark.CheckSignature(crl.SignatureAlgorithm, crl.RawTBSRevocationList, crl.Signature) != nil {
++		return errors.New("CRL signature does not verify with the pinned ARK")
++	}
++	if now.Before(crl.ThisUpdate) {
++		return errors.New("CRL thisUpdate is in the future")
++	}
++	if crl.NextUpdate.IsZero() || now.After(crl.NextUpdate) {
++		return fmt.Errorf("CRL is stale (nextUpdate %s)", crl.NextUpdate.UTC().Format(time.RFC3339))
++	}
++	for _, e := range crl.RevokedCertificateEntries {
++		if e.SerialNumber.Cmp(ask.SerialNumber) == 0 {
++			return fmt.Errorf("the ASK (serial %x) is REVOKED", ask.SerialNumber)
++		}
++	}
++	return nil
++}
++
++func verifySNPSignature(p *snpReport, vcek *x509.Certificate) error {
++	pub, ok := vcek.PublicKey.(*ecdsa.PublicKey)
++	if !ok || pub.Curve != elliptic.P384() {
++		return errors.New("VCEK public key is not EC P-384")
++	}
++	rev := func(b []byte) []byte {
++		o := make([]byte, len(b))
++		for i := range b {
++			o[i] = b[len(b)-1-i]
++		}
++		return o
++	}
++	sig := p.raw[snpSigOffset:]
++	r, s := new(big.Int).SetBytes(rev(sig[0:48])), new(big.Int).SetBytes(rev(sig[0x48:0x48+48]))
++	if r.Sign() == 0 || r.Cmp(p384N) >= 0 || s.Sign() == 0 || s.Cmp(p384N) >= 0 {
++		return errors.New("signature r or s is out of range for P-384")
++	}
++	h := sha512.Sum384(p.raw[:snpSigOffset])
++	if !ecdsa.Verify(pub, h[:], r, s) {
++		return errors.New("VCEK signature over the report is invalid")
++	}
++	return nil
++}
++
++var (
++	oidAMD    = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 3704, 1}
++	splSuffix = map[string]int{"bootloader": 1, "tee": 2, "snp": 3, "microcode": 8, "fmc": 9}
++)
++
++func amdExt(c *x509.Certificate, sub ...int) []byte {
++	want := append(append(asn1.ObjectIdentifier{}, oidAMD...), sub...)
++	for _, e := range c.Extensions {
++		if e.Id.Equal(want) {
++			return e.Value
++		}
++	}
++	return nil
++}
++
++// vcekMatchesReport: a VCEK is issued for ONE chip at ONE TCB; its extensions must name the report's chip and REPORTED
++// TCB exactly. Missing extensions are a mismatch.
++func vcekMatchesReport(vcek *x509.Certificate, product string, p *snpReport) error {
++	want := decodeTCB(product, p.reportedTCB)
++	for _, f := range tcbFields[product] {
++		raw := amdExt(vcek, 3, splSuffix[f])
++		if raw == nil {
++			return fmt.Errorf("VCEK has no %s SPL extension", f)
++		}
++		var v int
++		if rest, e := asn1.Unmarshal(raw, &v); e != nil || len(rest) != 0 || v != want[f] {
++			return fmt.Errorf("VCEK %s SPL does not match the report's reported TCB %d", f, want[f])
++		}
++	}
++	hwLen := 64
++	if product == "Turin" {
++		hwLen = 8
++	}
++	hw := amdExt(vcek, 4)
++	if hw == nil {
++		return errors.New("VCEK has no hardware-ID extension")
++	}
++	if len(hw) != hwLen {
++		var inner []byte
++		if rest, e := asn1.Unmarshal(hw, &inner); e == nil && len(rest) == 0 {
++			hw = inner
++		}
++	}
++	if len(hw) != hwLen || !bytes.Equal(hw, p.chipID[:hwLen]) {
++		return errors.New("VCEK hardware ID does not match the report's CHIP_ID")
++	}
++	return nil
++}
++
++// snpPolicy: everything a checkpoint's evidence must satisfy, explicit (no defaults that relax a check).
++type snpPolicy struct {
++	Product      string         // the product line the evidence must be from (the verifying guest's own)
++	MinTCB       map[string]int // every field of tcbFields[Product]; applied to the reported AND committed TCB
++	Measurements [][]byte       // allowed launch measurements (48 bytes each); empty refuses
++	HostData     []byte         // 32 bytes, non-zero: the deployment id
++	ReportData   []byte         // 64 bytes: the statement binding
++	Now          time.Time
++}
++
++// verifySNPEvidence: report + its certificate table + an ARK-signed CRL under pol. nil only when every check passed.
++func verifySNPEvidence(report, auxblob, crlDER []byte, pol snpPolicy) error {
++	p, err := parseSNPReport(report)
++	if err != nil {
++		return fmt.Errorf("report shape: %v", err)
++	}
++	product, err := snpProduct(p)
++	if err != nil {
++		return fmt.Errorf("product line: %v", err)
++	}
++	if product != pol.Product {
++		return fmt.Errorf("product line: the report is from %s, the policy requires %s", product, pol.Product)
++	}
++	if p.debug() {
++		return errors.New("guest policy allows DEBUG: the host can read guest memory")
++	}
++	if p.migrateMA() {
++		return errors.New("guest policy allows MIGRATE_MA")
++	}
++	if p.vmpl != 0 {
++		return fmt.Errorf("report is from VMPL%d, policy expects VMPL0", p.vmpl)
++	}
++	vcekDER, askDER, arkDER := certFromAuxblob(auxblob, guidVCEK), certFromAuxblob(auxblob, guidASK), certFromAuxblob(auxblob, guidARK)
++	if vcekDER == nil || askDER == nil || arkDER == nil {
++		return errors.New("collateral: the certificate table lacks the VCEK, ASK or ARK")
++	}
++	vcek, ask, ark, err := checkAMDChain(vcekDER, askDER, arkDER, product, pol.Now)
++	if err != nil {
++		return fmt.Errorf("chain: %v", err)
++	}
++	if err = checkAMDCRL(crlDER, ask, ark, pol.Now); err != nil {
++		return err
++	}
++	if err = verifySNPSignature(p, vcek); err != nil {
++		return fmt.Errorf("signature: %v", err)
++	}
++	if err = vcekMatchesReport(vcek, product, p); err != nil {
++		return fmt.Errorf("vcek identity: %v", err)
++	}
++	fields := tcbFields[product]
++	if len(pol.MinTCB) != len(fields) {
++		return errors.New("tcb policy: the floor must name every TCB field of the product line")
++	}
++	for _, which := range []struct {
++		b    []byte
++		what string
++	}{{p.reportedTCB, "reported"}, {p.committedTCB, "committed"}} {
++		got := decodeTCB(product, which.b)
++		for _, f := range fields {
++			floor, ok := pol.MinTCB[f]
++			if !ok {
++				return fmt.Errorf("tcb policy: no floor for %s", f)
++			}
++			if got[f] < floor {
++				return fmt.Errorf("tcb policy: %s TCB %s %d < %d", which.what, f, got[f], floor)
++			}
++		}
++	}
++	allowed := false
++	for _, m := range pol.Measurements {
++		if len(m) == 48 && bytes.Equal(m, p.measurement) {
++			allowed = true
++		}
++	}
++	if !allowed {
++		return errors.New("measurement: the launch measurement is not an allowed one")
++	}
++	if len(pol.ReportData) != 64 || !bytes.Equal(p.reportData, pol.ReportData) {
++		return errors.New("binding: REPORT_DATA is not this statement's binding")
++	}
++	if len(pol.HostData) != 32 || allZero(pol.HostData) || !bytes.Equal(p.hostData, pol.HostData) {
++		return errors.New("host data: HOST_DATA is not the expected deployment")
++	}
++	return nil
++}
++
++func allZero(b []byte) bool {
++	for _, x := range b {
++		if x != 0 {
++			return false
++		}
++	}
++	return true
++}
+--- /dev/null
++++ b/isolation/m2/bootstrap/checkpoint.go
+@@ -0,0 +1,271 @@
++package bootstrap
++
++// Attested history checkpoints (work/history-owner-tools-interface.txt section 6). A guest that has VERIFIED a lease's
++// finalized history (its coverage: every lease log of [lo, hi], from two independent operators, finalized, replayed)
++// can state it and bind the statement into its own SEV-SNP report. Another guest of the SAME measured build, for the
++// SAME deployment, on a chip at or above its own TCB, with AMD's chain to the pinned ARK and a fresh ARK-signed CRL,
++// may then adopt [lo, hi] as its own coverage and read only the blocks after hi, under the unchanged quorum, finality
++// and replay rules. Nothing else is trusted: a host cache or one provider's transcript is NOT a checkpoint.
++//
++// Threat binding:
++//   - forged or altered statement: REPORT_DATA[0:32] = sha256("enclave-history-checkpoint-v1\0" || statement bytes),
++//     [32:64] zero; the statement must be in its canonical form;
++//   - another deployment's checkpoint: HOST_DATA (PSP-signed launch word) must equal this deployment, and so must the
++//     statement;
++//   - another image (a build that would state anything): MEASUREMENT must equal this guest's own;
++//   - a weaker or revoked platform: reported AND committed TCB >= this guest's own, ASK not on a FRESH CRL, VCEK chain to
++//     the pinned ARK, DEBUG/MIGRATE_MA off, VMPL0;
++//   - an OLD checkpoint (withheld newer ones): finalized history never changes, so it is still true; the tail after hi
++//     is read under quorum, so a later same-runner release + reclaim is still found;
++//   - a checkpoint past this guest's finalized view: not adopted until its hi is finalized here.
++
++import (
++	"bytes"
++	"crypto/sha256"
++	"encoding/base64"
++	"encoding/hex"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"strings"
++	"sync"
++)
++
++const checkpointDomain = "enclave-history-checkpoint-v1\x00"
++
++type checkpointLog struct {
++	Block     uint64   `json:"block"`
++	Index     uint64   `json:"index"`
++	BlockHash string   `json:"blockHash"`
++	Topics    []string `json:"topics"`
++	Data      string   `json:"data"`
++}
++type checkpointStatement struct {
++	V          int             `json:"v"`
++	ChainID    uint64          `json:"chainId"`
++	Ledger     string          `json:"ledger"`
++	Deployment string          `json:"deployment"`
++	Lo         uint64          `json:"lo"`
++	Hi         uint64          `json:"hi"`
++	Logs       []checkpointLog `json:"logs"`
++}
++
++// Checkpoint is the portable envelope: the statement's exact bytes, the producing guest's report and certificate table,
++// and an ARK-signed CRL (anyone may attach a fresher one: it is authenticated by the ARK, not by who carries it).
++type Checkpoint struct {
++	Statement json.RawMessage `json:"statement"`
++	Report    string          `json:"report"`
++	Certs     string          `json:"certs"`
++	CRL       string          `json:"crl,omitempty"`
++}
++
++const maxCheckpointLogs = 100000
++
++// CheckpointStatement: this guest's verified coverage of id, as canonical bytes. Only coverage this process verified
++// (r.keep: complete, finalized, quorum-agreed) can be stated.
++func (r *Reader) CheckpointStatement(id [32]byte) ([]byte, error) {
++	cov, ok := r.coverage(id)
++	if !ok || cov.lo == 0 || cov.lo > cov.hi {
++		return nil, errors.New("no verified coverage to state")
++	}
++	st := checkpointStatement{V: 1, ChainID: r.chainID, Ledger: r.ledger, Deployment: "0x" + hex.EncodeToString(id[:]), Lo: cov.lo, Hi: cov.hi, Logs: []checkpointLog{}}
++	for _, l := range cov.logs {
++		st.Logs = append(st.Logs, checkpointLog{l.block, l.index, l.blockHash, l.topics, l.data})
++	}
++	return json.Marshal(st)
++}
++
++// CheckpointReportData: the REPORT_DATA a statement is bound with.
++func CheckpointReportData(statement []byte) [64]byte {
++	var rd [64]byte
++	h := sha256.Sum256(append([]byte(checkpointDomain), statement...))
++	copy(rd[:32], h[:])
++	return rd
++}
++
++// EncodeCheckpoint: the envelope for a statement, the report over CheckpointReportData(statement) and its certificate
++// table (and a CRL when the producer has one).
++func EncodeCheckpoint(statement, report, certs, crl []byte) ([]byte, error) {
++	c := Checkpoint{Statement: statement, Report: base64.StdEncoding.EncodeToString(report), Certs: base64.StdEncoding.EncodeToString(certs)}
++	if len(crl) > 0 {
++		c.CRL = base64.StdEncoding.EncodeToString(crl)
++	}
++	return json.Marshal(c)
++}
++
++// checkpointTrust: the verifying guest's own identity, from its OWN report (read from its PSP): what a checkpoint's
++// producer must match or exceed.
++type checkpointTrust struct {
++	product     string
++	measurement []byte
++	minTCB      map[string]int
++}
++
++type verifiedCheckpoint struct {
++	lo, hi uint64
++	logs   []leaseLog
++}
++
++var checkpointMu sync.Mutex
++
++// TrustCheckpointsFrom enables checkpoints, with this guest's own SNP report as the reference (its measurement, product
++// line and reported TCB). Without it no checkpoint is ever adopted.
++func (r *Reader) TrustCheckpointsFrom(ownReport []byte) error {
++	p, err := parseSNPReport(ownReport)
++	if err != nil {
++		return fmt.Errorf("own report: %v", err)
++	}
++	product, err := snpProduct(p)
++	if err != nil {
++		return fmt.Errorf("own report: %v", err)
++	}
++	checkpointMu.Lock()
++	defer checkpointMu.Unlock()
++	r.cpTrust = &checkpointTrust{product: product, measurement: append([]byte(nil), p.measurement...), minTCB: decodeTCB(product, p.reportedTCB)}
++	return nil
++}
++
++// AdoptCheckpoint verifies a checkpoint for id and keeps it for writerAuthority, which seeds coverage from it once its
++// hi is finalized in this guest's own view. A refusal says why; the read itself is unaffected (it scans as before).
++func (r *Reader) AdoptCheckpoint(id [32]byte, raw []byte) error {
++	checkpointMu.Lock()
++	trust := r.cpTrust
++	checkpointMu.Unlock()
++	if trust == nil {
++		return errors.New("checkpoints are not enabled (no own report)")
++	}
++	if len(raw) == 0 || len(raw) > 32<<20 {
++		return errors.New("checkpoint size")
++	}
++	// the envelope: unique keys, exactly its members (the statement kept as its own bytes: the binding covers them)
++	var c Checkpoint
++	var members map[string]json.RawMessage
++	if e := uniqueJSON(raw); e != nil || json.Unmarshal(raw, &members) != nil {
++		return errors.New("checkpoint envelope: not an unambiguous JSON object")
++	}
++	for k := range members {
++		if k != "statement" && k != "report" && k != "certs" && k != "crl" {
++			return fmt.Errorf("checkpoint envelope: unknown member %q", k)
++		}
++	}
++	str := func(k string, out *string, required bool) error {
++		v, ok := members[k]
++		if !ok {
++			if required {
++				return fmt.Errorf("checkpoint envelope: %s missing", k)
++			}
++			return nil
++		}
++		if json.Unmarshal(v, out) != nil {
++			return fmt.Errorf("checkpoint envelope: %s is not a string", k)
++		}
++		return nil
++	}
++	if e := str("report", &c.Report, true); e != nil {
++		return e
++	}
++	if e := str("certs", &c.Certs, true); e != nil {
++		return e
++	}
++	if e := str("crl", &c.CRL, false); e != nil {
++		return e
++	}
++	if c.Statement = members["statement"]; len(c.Statement) == 0 {
++		return errors.New("checkpoint envelope: statement missing")
++	}
++	var st checkpointStatement
++	if e := strictJSON(c.Statement, &st); e != nil {
++		return fmt.Errorf("checkpoint statement: %v", e)
++	}
++	if canon, _ := json.Marshal(st); !bytes.Equal(canon, c.Statement) {
++		return errors.New("checkpoint statement is not in canonical form")
++	}
++	idHex := "0x" + hex.EncodeToString(id[:])
++	if st.V != 1 || st.ChainID != r.chainID || st.Ledger != r.ledger || st.Deployment != idHex {
++		return errors.New("checkpoint statement names another chain, ledger or deployment")
++	}
++	if st.Lo < 1 || st.Lo < leaseFromBlock || st.Lo > st.Hi || len(st.Logs) > maxCheckpointLogs {
++		return errors.New("checkpoint statement range is invalid")
++	}
++	logs := make([]leaseLog, 0, len(st.Logs))
++	var prevB, prevI uint64
++	for i, l := range st.Logs {
++		if l.Block < st.Lo || l.Block > st.Hi || (i > 0 && (l.Block < prevB || l.Block == prevB && l.Index <= prevI)) {
++			return errors.New("checkpoint logs are outside the range or out of order")
++		}
++		if len(l.Topics) < 2 || l.Topics[1] != idHex || !(l.Topics[0] == topicClaimed || l.Topics[0] == topicRenewed || l.Topics[0] == topicReleased) {
++			return errors.New("checkpoint holds a log that is not this deployment's lease log")
++		}
++		if !lowerHexWord(l.BlockHash) || l.Data != strings.ToLower(l.Data) || !strings.HasPrefix(l.Data, "0x") {
++			return errors.New("checkpoint log is not canonical")
++		}
++		for _, t := range l.Topics {
++			if !lowerHexWord(t) {
++				return errors.New("checkpoint log topic is not canonical")
++			}
++		}
++		prevB, prevI = l.Block, l.Index
++		logs = append(logs, leaseLog{block: l.Block, index: l.Index, blockHash: l.BlockHash, topics: l.Topics, data: l.Data})
++	}
++	report, e1 := base64.StdEncoding.DecodeString(c.Report)
++	certs, e2 := base64.StdEncoding.DecodeString(c.Certs)
++	crl, e3 := base64.StdEncoding.DecodeString(c.CRL)
++	if e1 != nil || e2 != nil || e3 != nil {
++		return errors.New("checkpoint evidence is not base64")
++	}
++	rd := CheckpointReportData(c.Statement)
++	if e := verifySNPEvidence(report, certs, crl, snpPolicy{Product: trust.product, MinTCB: trust.minTCB, Measurements: [][]byte{trust.measurement},
++		HostData: id[:], ReportData: rd[:], Now: r.now()}); e != nil {
++		return fmt.Errorf("checkpoint evidence: %v", e)
++	}
++	checkpointMu.Lock()
++	defer checkpointMu.Unlock()
++	if r.cps == nil {
++		r.cps = map[[32]byte]*verifiedCheckpoint{}
++	}
++	if old, ok := r.cps[id]; !ok || old.hi < st.Hi {
++		r.cps[id] = &verifiedCheckpoint{lo: st.Lo, hi: st.Hi, logs: logs}
++	}
++	return nil
++}
++
++func lowerHexWord(s string) bool {
++	if len(s) != 66 || !strings.HasPrefix(s, "0x") || s != strings.ToLower(s) {
++		return false
++	}
++	_, e := hex.DecodeString(s[2:])
++	return e == nil
++}
++
++// seedFromCheckpoint (writerAuthority): an adopted checkpoint becomes coverage once its hi is finalized in THIS view and
++// it reaches further than what is already covered. -> the checkpoint's hi when seeded (its claim needs no re-check of
++// canonicality: the producing guest checked it, and it is final), else 0.
++func (r *Reader) seedFromCheckpoint(id [32]byte, finalized, agreed uint64) uint64 {
++	checkpointMu.Lock()
++	cp := r.cps[id]
++	checkpointMu.Unlock()
++	if cp == nil || cp.hi > finalized || cp.hi > agreed {
++		return 0
++	}
++	if cov, ok := r.coverage(id); ok && cov.hi >= cp.hi {
++		return 0
++	}
++	r.keep(id, coverage{cp.lo, cp.hi, append([]leaseLog(nil), cp.logs...)})
++	return cp.hi
++}
++
++// checkpointAttests: is c exactly one of an adopted checkpoint's logs (same block, index, hash, topics, data)?
++func (r *Reader) checkpointAttests(id [32]byte, c leaseLog) bool {
++	checkpointMu.Lock()
++	defer checkpointMu.Unlock()
++	cp := r.cps[id]
++	if cp == nil || c.block > cp.hi || c.block < cp.lo {
++		return false
++	}
++	for _, l := range cp.logs {
++		if l.block == c.block && l.index == c.index && l.blockHash == c.blockHash && l.data == c.data && strings.Join(l.topics, ",") == strings.Join(c.topics, ",") {
++			return true
++		}
++	}
++	return false
++}
+--- /dev/null
++++ b/isolation/m2/bootstrap/checkpoint_test.go
+@@ -0,0 +1,357 @@
++package bootstrap
++
++import (
++	"bytes"
++	"crypto"
++	"crypto/ecdsa"
++	"crypto/elliptic"
++	"crypto/rand"
++	"crypto/rsa"
++	"crypto/sha256"
++	"crypto/sha512"
++	"crypto/x509"
++	"crypto/x509/pkix"
++	"encoding/asn1"
++	"encoding/binary"
++	"encoding/hex"
++	"encoding/json"
++	"math/big"
++	"strings"
++	"sync"
++	"testing"
++	"time"
++)
++
++// A synthetic AMD-shaped Genoa chain (the real pins are swapped for its root in these tests only): ARK and ASK RSA-4096
++// with RSA-PSS SHA-384, a P-384 VCEK carrying AMD's SPL and hardware-ID extensions, an ARK-signed CRL, and reports
++// laid out and signed as the PSP does (AMD 56860 Table 27). Generated once: RSA-4096 keys are slow.
++type synthAMD struct {
++	ark, ask         *x509.Certificate
++	arkKey, askKey   *rsa.PrivateKey
++	vcek             *x509.Certificate
++	vcekKey          *ecdsa.PrivateKey
++	chip             []byte
++	tcb              [8]byte // bootloader, tee, 0, 0, 0, 0, snp, microcode
++	notBefore, notAt time.Time
++}
++
++var (
++	synthOnce sync.Once
++	synth     *synthAMD
++)
++
++func pssSign(key *rsa.PrivateKey) crypto.Signer { return key }
++
++func newSynthAMD(t testing.TB) *synthAMD {
++	synthOnce.Do(func() {
++		s := &synthAMD{chip: bytes.Repeat([]byte{0xc7}, 64), tcb: [8]byte{10, 0, 0, 0, 0, 0, 23, 84}, notBefore: time.Now().Add(-24 * time.Hour), notAt: time.Now().Add(365 * 24 * time.Hour)}
++		var err error
++		if s.arkKey, err = rsa.GenerateKey(rand.Reader, 4096); err != nil {
++			panic(err)
++		}
++		if s.askKey, err = rsa.GenerateKey(rand.Reader, 4096); err != nil {
++			panic(err)
++		}
++		if s.vcekKey, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader); err != nil {
++			panic(err)
++		}
++		ca := func(cn string, serial int64) *x509.Certificate {
++			return &x509.Certificate{SerialNumber: big.NewInt(serial), Subject: pkix.Name{CommonName: cn}, NotBefore: s.notBefore, NotAfter: s.notAt,
++				IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageCRLSign, SignatureAlgorithm: x509.SHA384WithRSAPSS}
++		}
++		arkT := ca("ARK-Genoa", 1)
++		der, err := x509.CreateCertificate(rand.Reader, arkT, arkT, &s.arkKey.PublicKey, s.arkKey)
++		if err != nil {
++			panic(err)
++		}
++		s.ark, _ = x509.ParseCertificate(der)
++		askT := ca("SEV-Genoa", 2)
++		der, _ = x509.CreateCertificate(rand.Reader, askT, s.ark, &s.askKey.PublicKey, s.arkKey)
++		s.ask, _ = x509.ParseCertificate(der)
++		s.vcek = s.issueVCEK(s.vcekKey, s.tcb, s.chip, s.notAt)
++		synth = s
++	})
++	sum := sha256.Sum256(synth.ark.Raw)
++	old := amdArkSHA256["Genoa"]
++	amdArkSHA256["Genoa"] = hex.EncodeToString(sum[:])
++	t.Cleanup(func() { amdArkSHA256["Genoa"] = old })
++	return synth
++}
++
++func intExt(sub []int, v int) pkix.Extension {
++	b, _ := asn1.Marshal(v)
++	return pkix.Extension{Id: append(append(asn1.ObjectIdentifier{}, oidAMD...), sub...), Value: b}
++}
++
++func (s *synthAMD) issueVCEK(key *ecdsa.PrivateKey, tcb [8]byte, chip []byte, notAfter time.Time) *x509.Certificate {
++	hw, _ := asn1.Marshal(chip)
++	ext := []pkix.Extension{intExt([]int{3, 1}, int(tcb[0])), intExt([]int{3, 2}, int(tcb[1])), intExt([]int{3, 3}, int(tcb[6])), intExt([]int{3, 8}, int(tcb[7])),
++		{Id: append(append(asn1.ObjectIdentifier{}, oidAMD...), 4), Value: hw}}
++	tmpl := &x509.Certificate{SerialNumber: big.NewInt(3), Subject: pkix.Name{CommonName: "SEV-VCEK"}, NotBefore: s.notBefore, NotAfter: notAfter,
++		ExtraExtensions: ext, SignatureAlgorithm: x509.SHA384WithRSAPSS}
++	der, err := x509.CreateCertificate(rand.Reader, tmpl, s.ask, &key.PublicKey, s.askKey)
++	if err != nil {
++		panic(err)
++	}
++	c, _ := x509.ParseCertificate(der)
++	return c
++}
++
++func (s *synthAMD) crl(t testing.TB, revoke []*big.Int, this, next time.Time, signer *rsa.PrivateKey) []byte {
++	var entries []x509.RevocationListEntry
++	for _, n := range revoke {
++		entries = append(entries, x509.RevocationListEntry{SerialNumber: n, RevocationTime: this})
++	}
++	der, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{Number: big.NewInt(1), ThisUpdate: this, NextUpdate: next,
++		RevokedCertificateEntries: entries, SignatureAlgorithm: x509.SHA384WithRSAPSS}, s.ark, signer)
++	if err != nil {
++		t.Fatal(err)
++	}
++	return der
++}
++
++// auxblob: the extended report's certificate table for vcek, ask and ark.
++func auxblob(vcek, ask, ark []byte) []byte {
++	ents := []struct {
++		guid string
++		der  []byte
++	}{{guidVCEK, vcek}, {guidASK, ask}, {guidARK, ark}}
++	off := uint32(24 * (len(ents) + 1))
++	var tab, data []byte
++	for _, e := range ents {
++		g, _ := hex.DecodeString(e.guid)
++		var w [8]byte
++		binary.LittleEndian.PutUint32(w[:4], off+uint32(len(data)))
++		binary.LittleEndian.PutUint32(w[4:], uint32(len(e.der)))
++		tab = append(append(tab, g...), w[:]...)
++		data = append(data, e.der...)
++	}
++	return append(append(tab, make([]byte, 24)...), data...)
++}
++
++type reportFields struct {
++	version            uint32
++	policy             uint64
++	vmpl, signer       uint32
++	reportData         [64]byte
++	measurement        [48]byte
++	hostData           [32]byte
++	reported, committd [8]byte
++	fam, mod           byte
++	chip               []byte
++}
++
++func (s *synthAMD) fields(rd [64]byte, measurement [48]byte, host [32]byte) reportFields {
++	return reportFields{version: 5, policy: 1<<17 | 1<<16, reportData: rd, measurement: measurement, hostData: host, reported: s.tcb, committd: s.tcb, fam: 0x19, mod: 0x11, chip: s.chip}
++}
++
++func (s *synthAMD) report(f reportFields, key *ecdsa.PrivateKey) []byte {
++	r := make([]byte, snpReportSize)
++	binary.LittleEndian.PutUint32(r[0:], f.version)
++	binary.LittleEndian.PutUint64(r[8:], f.policy)
++	binary.LittleEndian.PutUint32(r[0x30:], f.vmpl)
++	binary.LittleEndian.PutUint32(r[0x34:], 1)
++	binary.LittleEndian.PutUint32(r[0x48:], f.signer)
++	copy(r[0x50:], f.reportData[:])
++	copy(r[0x90:], f.measurement[:])
++	copy(r[0xc0:], f.hostData[:])
++	copy(r[0x180:], f.reported[:])
++	r[0x188], r[0x189] = f.fam, f.mod
++	copy(r[0x1a0:], f.chip)
++	copy(r[0x1e0:], f.committd[:])
++	h := sha512.Sum384(r[:snpSigOffset])
++	rr, ss, err := ecdsa.Sign(rand.Reader, key, h[:])
++	if err != nil {
++		panic(err)
++	}
++	le := func(n *big.Int) []byte {
++		b := n.FillBytes(make([]byte, 48))
++		for i, j := 0, len(b)-1; i < j; i, j = i+1, j-1 {
++			b[i], b[j] = b[j], b[i]
++		}
++		return b
++	}
++	copy(r[snpSigOffset:], le(rr))
++	copy(r[snpSigOffset+0x48:], le(ss))
++	return r
++}
++
++func (s *synthAMD) freshCRL(t testing.TB) []byte {
++	return s.crl(t, nil, time.Now().Add(-time.Hour), time.Now().Add(24*time.Hour), s.arkKey)
++}
++
++func (s *synthAMD) policy(rd [64]byte, m [48]byte, host [32]byte) snpPolicy {
++	return snpPolicy{Product: "Genoa", MinTCB: decodeTCB("Genoa", s.tcb[:]), Measurements: [][]byte{m[:]}, HostData: host[:], ReportData: rd[:], Now: time.Now()}
++}
++
++func TestSNPEvidenceAcceptsGenuineAndRefusesEveryBrokenCheck(t *testing.T) {
++	s := newSynthAMD(t)
++	var rd [64]byte
++	copy(rd[:], bytes.Repeat([]byte{0x5e}, 32))
++	m, host := [48]byte{1, 2, 3}, [32]byte{0x11, 0x22}
++	aux, crl := auxblob(s.vcek.Raw, s.ask.Raw, s.ark.Raw), s.freshCRL(t)
++	good := s.fields(rd, m, host)
++	if e := verifySNPEvidence(s.report(good, s.vcekKey), aux, crl, s.policy(rd, m, host)); e != nil {
++		t.Fatalf("genuine evidence refused: %v", e)
++	}
++	otherKey, _ := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
++	mut := func(f func(*reportFields)) []byte { g := good; f(&g); return s.report(g, s.vcekKey) }
++	tamper := s.report(good, s.vcekKey)
++	tamper[0x91] ^= 1
++	lowTCB := s.policy(rd, m, host)
++	lowTCB.MinTCB = map[string]int{"bootloader": 10, "tee": 0, "snp": 24, "microcode": 84}
++	cases := []struct {
++		name, want       string
++		report, aux, crl []byte
++		pol              *snpPolicy
++	}{
++		{"debug allowed", "DEBUG", mut(func(f *reportFields) { f.policy |= 1 << 19 }), aux, crl, nil},
++		{"MIGRATE_MA allowed", "MIGRATE_MA", mut(func(f *reportFields) { f.policy |= 1 << 18 }), aux, crl, nil},
++		{"VMPL1", "VMPL1", mut(func(f *reportFields) { f.vmpl = 1 }), aux, crl, nil},
++		{"report version 6", "judged range", mut(func(f *reportFields) { f.version = 6 }), aux, crl, nil},
++		{"report version 2 (no CPUID)", "product line", mut(func(f *reportFields) { f.version = 2; f.fam, f.mod = 0, 0 }), aux, crl, nil},
++		{"VLEK signer", "VLEK", mut(func(f *reportFields) { f.signer = 1 << 2 }), aux, crl, nil},
++		{"Milan CPUID", "product line", mut(func(f *reportFields) { f.mod = 0x01 }), aux, crl, nil},
++		{"tampered byte", "signature", tamper, aux, crl, nil},
++		{"signed by another key", "signature", s.report(good, otherKey), aux, crl, nil},
++		{"VCEK of another TCB", "vcek identity", mut(func(f *reportFields) { f.reported[6], f.committd[6] = 24, 24 }), aux, crl, nil},
++		{"VCEK of another chip", "vcek identity", mut(func(f *reportFields) { f.chip = bytes.Repeat([]byte{0xc8}, 64) }), aux, crl, nil},
++		{"TCB below the floor", "tcb policy", s.report(good, s.vcekKey), aux, crl, &lowTCB},
++		{"committed TCB below the floor", "committed", mut(func(f *reportFields) { f.committd[6] = 22 }), aux, crl, nil},
++		{"another measurement", "measurement", mut(func(f *reportFields) { f.measurement[0] = 9 }), aux, crl, nil},
++		{"another statement", "binding", mut(func(f *reportFields) { f.reportData[0] ^= 1 }), aux, crl, nil},
++		{"another deployment", "host data", mut(func(f *reportFields) { f.hostData[0] = 0x12 }), aux, crl, nil},
++		{"no ASK in the table", "collateral", s.report(good, s.vcekKey), auxblob(s.vcek.Raw, nil, s.ark.Raw), crl, nil},
++		{"an unpinned root", "pinned", s.report(good, s.vcekKey), auxblob(s.vcek.Raw, s.ask.Raw, s.ask.Raw), crl, nil},
++		{"no CRL", "CRL", s.report(good, s.vcekKey), aux, nil, nil},
++		{"stale CRL", "stale", s.report(good, s.vcekKey), aux, s.crl(t, nil, time.Now().Add(-48*time.Hour), time.Now().Add(-time.Hour), s.arkKey), nil},
++		{"ASK revoked", "REVOKED", s.report(good, s.vcekKey), aux, s.crl(t, []*big.Int{s.ask.SerialNumber}, time.Now().Add(-time.Hour), time.Now().Add(24*time.Hour), s.arkKey), nil},
++		{"CRL signature broken", "CRL", s.report(good, s.vcekKey), aux, func() []byte {
++			c := s.freshCRL(t)
++			c[len(c)-5] ^= 1 // inside the signature
++			return c
++		}(), nil},
++	}
++	for _, c := range cases {
++		t.Run(c.name, func(t *testing.T) {
++			pol := s.policy(rd, m, host)
++			if c.pol != nil {
++				pol = *c.pol
++			}
++			e := verifySNPEvidence(c.report, c.aux, c.crl, pol)
++			if e == nil || !strings.Contains(e.Error(), c.want) {
++				t.Fatalf("want a refusal mentioning %q, got %v", c.want, e)
++			}
++		})
++	}
++	// an expired VCEK
++	expired := s.issueVCEK(s.vcekKey, s.tcb, s.chip, time.Now().Add(-time.Minute))
++	if e := verifySNPEvidence(s.report(good, s.vcekKey), auxblob(expired.Raw, s.ask.Raw, s.ark.Raw), crl, s.policy(rd, m, host)); e == nil || !strings.Contains(e.Error(), "not valid") {
++		t.Fatalf("an expired VCEK: %v", e)
++	}
++	// the real pins refuse the synthetic root
++	amdArkSHA256["Genoa"] = "4c6598d19c18719c5dfd4a7d335f674e5bfe1d8f800cea2cf270c10d103db2f1"
++	if e := verifySNPEvidence(s.report(good, s.vcekKey), aux, crl, s.policy(rd, m, host)); e == nil || !strings.Contains(e.Error(), "pinned") {
++		t.Fatalf("the real AMD pin accepted a synthetic root: %v", e)
++	}
++}
++
++// A checkpoint from one guest's verified coverage, adopted by another guest of the same build for the same deployment.
++func TestCheckpointRoundTripAndEveryBinding(t *testing.T) {
++	s := newSynthAMD(t)
++	from := leaseFromBlock
++	leaseFromBlock = 1
++	defer func() { leaseFromBlock = from }()
++	id := [32]byte{0x0d, 0xe9}
++	idHex := "0x" + hex.EncodeToString(id[:])
++	measurement := [48]byte{0xab, 0xcd}
++	mk := func() *Reader {
++		return &Reader{chainID: 8453, ledger: "0x" + strings.Repeat("ab", 20), now: time.Now}
++	}
++	claim := leaseLog{block: 120, index: 3, blockHash: "0x" + strings.Repeat("44", 32), topics: []string{topicClaimed, idHex, "0x" + strings.Repeat("22", 32), "0x" + strings.Repeat("0", 24) + strings.Repeat("33", 20)}, data: "0x" + strings.Repeat("0", 128)}
++	renew := leaseLog{block: 900, index: 0, blockHash: "0x" + strings.Repeat("55", 32), topics: []string{topicRenewed, idHex, "0x" + strings.Repeat("22", 32)}, data: "0x" + strings.Repeat("0", 128)}
++	producer := mk()
++	producer.keep(id, coverage{120, 5000, []leaseLog{claim, renew}})
++	stmt, err := producer.CheckpointStatement(id)
++	if err != nil {
++		t.Fatal(err)
++	}
++	evidence := func(st []byte, f func(*reportFields)) []byte {
++		g := s.fields(CheckpointReportData(st), measurement, id)
++		if f != nil {
++			f(&g)
++		}
++		cp, err := EncodeCheckpoint(st, s.report(g, s.vcekKey), auxblob(s.vcek.Raw, s.ask.Raw, s.ark.Raw), s.freshCRL(t))
++		if err != nil {
++			t.Fatal(err)
++		}
++		return cp
++	}
++	own := s.report(s.fields([64]byte{}, measurement, id), s.vcekKey) // the consumer's own report: same build, same chip TCB
++	consumer := mk()
++	if consumer.AdoptCheckpoint(id, evidence(stmt, nil)) == nil {
++		t.Fatal("adopted without an own report")
++	}
++	if e := consumer.TrustCheckpointsFrom(own); e != nil {
++		t.Fatal(e)
++	}
++	if e := consumer.AdoptCheckpoint(id, evidence(stmt, nil)); e != nil {
++		t.Fatalf("a genuine checkpoint refused: %v", e)
++	}
++	if consumer.seedFromCheckpoint(id, 4999, 6000) != 0 {
++		t.Fatal("seeded past this guest's finalized view")
++	}
++	if hi := consumer.seedFromCheckpoint(id, 5000, 6000); hi != 5000 {
++		t.Fatalf("not seeded at its finalized hi: %d", hi)
++	}
++	if cov, ok := consumer.coverage(id); !ok || cov.lo != 120 || cov.hi != 5000 || len(cov.logs) != 2 {
++		t.Fatalf("coverage %+v", cov)
++	}
++	// every binding refuses
++	var st checkpointStatement
++	json.Unmarshal(stmt, &st)
++	alter := func(f func(*checkpointStatement)) []byte {
++		c := st
++		c.Logs = append([]checkpointLog(nil), st.Logs...)
++		f(&c)
++		b, _ := json.Marshal(c)
++		return b
++	}
++	dropped := alter(func(c *checkpointStatement) { c.Logs = c.Logs[:1] })
++	otherDep := alter(func(c *checkpointStatement) { c.Deployment = "0x" + strings.Repeat("99", 32) })
++	// the same content with "v" moved last: valid JSON, not the canonical form
++	reordered := []byte(`{` + strings.TrimPrefix(string(stmt), `{"v":1,`)[:len(stmt)-len(`{"v":1,`)-1] + `,"v":1}`)
++	var swapped Checkpoint
++	json.Unmarshal(evidence(stmt, nil), &swapped)
++	swapped.Statement = dropped // the producer's evidence, another statement
++	swappedRaw, _ := json.Marshal(swapped)
++	higher := s.report(s.fields([64]byte{}, measurement, id), s.vcekKey)
++	binary.LittleEndian.PutUint32(higher[0:], 5)
++	for _, c := range []struct {
++		name, want string
++		raw        []byte
++		id         [32]byte
++	}{
++		{"a log dropped, evidence redone over it by another image", "measurement", evidence(dropped, func(f *reportFields) { f.measurement[0] ^= 1 }), id},
++		{"the producer's evidence over another statement", "binding", swappedRaw, id},
++		{"another deployment's statement", "deployment", evidence(otherDep, nil), id},
++		{"another deployment's HOST_DATA", "host data", evidence(stmt, func(f *reportFields) { f.hostData[0] ^= 1 }), id},
++		{"the statement for another id", "deployment", evidence(stmt, nil), [32]byte{0x77}},
++		{"a non-canonical statement", "canonical", func() []byte {
++			var c Checkpoint
++			json.Unmarshal(evidence(stmt, nil), &c)
++			r, _ := json.Marshal(map[string]any{"statement": json.RawMessage(reordered), "report": c.Report, "certs": c.Certs, "crl": c.CRL})
++			return r
++		}(), id},
++		{"a producer below this guest's TCB", "tcb policy", evidence(stmt, func(f *reportFields) { f.committd[7] = 83 }), id},
++	} {
++		t.Run(c.name, func(t *testing.T) {
++			r := mk()
++			r.TrustCheckpointsFrom(own)
++			if e := r.AdoptCheckpoint(c.id, c.raw); e == nil || !strings.Contains(e.Error(), c.want) {
++				t.Fatalf("want a refusal mentioning %q, got %v", c.want, e)
++			}
++		})
++	}
++	_ = higher
++}

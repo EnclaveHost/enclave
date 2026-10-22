@@ -1,0 +1,178 @@
+--- a/site/js/core/api.js
++++ b/site/js/core/api.js
+@@ -3,7 +3,18 @@
+    the published HTTP API. Base URL persists across pages via
+    localStorage (the Deploy page exposes the field).
+    ============================================================ */
+-import { DEFAULT_API_BASE } from "./config.js";
++import { DEFAULT_API_BASE, INDEPENDENT } from "./config.js";
++import { INDEPENDENT_API_BASE } from "./independent.js";
++
++/* Independent mode (js/core/independent.js): no Enclave API at all. `base` is a
++   scheme fetch() refuses, so even a stray raw fetch(Enclave.base + ...) fails
++   without touching the network; _fetch names the reason. Ledger reads that the
++   API used to serve come from the pinned chain instead (js/core/independent-chain.js). */
++export const INDEPENDENT_MODE = INDEPENDENT.state !== "off";
++export const independentRefusal = (what) => Object.assign(new EnclaveError(
++  (what ? what + " needs" : "This needs") + " the Enclave API, which this dashboard does not use in independent mode."
++  + " Use the on-chain controls, or switch independent mode off in Settings to use the hosted service.", 0),
++  { independent: true });
+ import { lsGet, lsSet, emit } from "./util.js";
+ import { adoptServerSpec, adoptFleetPrice } from "./pricing.js";
+ 
+@@ -25,14 +36,16 @@
+      closed. A token is scoped to its issuer anyway (each enclave signs with
+      its own in-enclave key; the relay with its own), so refusing to send it
+      elsewhere costs nothing and is simply the truth about what it means. */
+-  base: (lsGet("enclave_api_base") || DEFAULT_API_BASE).replace(/\/+$/, ""),
++  base: INDEPENDENT_MODE ? INDEPENDENT_API_BASE : (lsGet("enclave_api_base") || DEFAULT_API_BASE).replace(/\/+$/, ""),
+   token: null, tokenBase: null, address: null, chainId: null, provider: null, walletRdns: null,
+   /* relay ACCOUNT session (passkey or SIWE; account.js owns the lifecycle).
+      A separate trust domain from `token` (the enclave-minted session for
+      deployment-private reads): account tokens gate billing/orders only, and
+      the two are never interchangeable. */
+   accountToken: null, accountTokenBase: null, accountId: null, accountMethod: null,
+-  setBase(u){ this.base = String(u || "").trim().replace(/\/+$/, "") || DEFAULT_API_BASE; lsSet("enclave_api_base", this.base); },
++  setBase(u){
++    if (INDEPENDENT_MODE) throw independentRefusal("Pointing the dashboard at an API");
++    this.base = String(u || "").trim().replace(/\/+$/, "") || DEFAULT_API_BASE; lsSet("enclave_api_base", this.base); },
+   /* Is `tok`, minted against `mintedAt`, allowed to travel to the current
+      base? Sessions minted before this binding existed carry no base and are
+      honored only at the default endpoint. */
+@@ -136,6 +149,7 @@
+      caller should go on as it would without one. Any other failure throws, exactly like _req. */
+   async _sessionReq(method, path, opts){
+     opts = opts || {};
++    if (INDEPENDENT_MODE) return null;                // host session calls ride the API, which is not used here
+     if (!this.address || !opts.scope) return null;
+     // no session in this browser: never load the sessions client just to find that out
+     if (!this.sessionHooks && !lsGet(WALLET_SESSION_KEY)) return null;
+@@ -165,6 +179,7 @@
+     throw this._httpError(res, data);
+   },
+   async _fetch(method, url, headers, body){
++    if (INDEPENDENT_MODE) throw independentRefusal();
+     let res;
+     try {
+       res = await fetch(url, { method, headers, mode: "cors", body });
+@@ -183,6 +198,7 @@
+     return new EnclaveError(msg, res.status, data);
+   },
+   async _req(method, path, opts){
++    if (INDEPENDENT_MODE) throw independentRefusal();   // before any token check: one plain reason for every API route
+     opts = opts || {};
+     // a call a host serves to its owner (`scope` names the session scope it needs): the wallet session first
+     if (opts.auth && opts.scope){
+@@ -244,6 +260,8 @@
+   /* Pricing (public) */
+   getPricing(){ return this._req("GET", "/pricing"); },
+   getAvailability(){
++    // independent: the cheapest live host posted in the pinned registry, at an agreed block
++    if (INDEPENDENT_MODE) return import("./independent-chain.js").then((m) => m.independentAvailability()).then((a) => { adoptFleetPrice(a); return a; });
+     // served at the ROOT origin, not under /v1 (the spec's own servers note) -
+     // calling BASE/v1/availability 404s and spams the console
+     const url = (this.base || "").replace(/\/v1\/?$/, "") + "/availability";
+@@ -266,6 +284,7 @@
+   // names one box - the quick-deploy modal's target, a deployment's lease holder -
+   // reads its hardware from here, never from the aggregate.
+   getEnclaves(){
++    if (INDEPENDENT_MODE) return import("./independent-chain.js").then((m) => m.independentEnclaves());
+     const url = (this.base || "").replace(/\/v1\/?$/, "") + "/enclaves";
+     return fetch(url, { headers: { "Accept": "application/json" } }).then(r => {
+       if (!r.ok) throw new EnclaveError("enclaves: HTTP " + r.status, r.status);
+@@ -274,6 +293,7 @@
+   },
+   // The relay's expiring per-app routes (deployment -> provider addresses).
+   async getNetworkRoutes(){
++    if (INDEPENDENT_MODE) throw independentRefusal("The live route map");
+     const r = await fetch((this.base || "").replace(/\/v1\/?$/, "") + "/v1/network/routes", {headers: {Accept: "application/json"}});
+     if (!r.ok) throw new EnclaveError("network: HTTP " + r.status, r.status);
+     return r.json();
+@@ -284,6 +304,25 @@
+      records are public data; logs, attestation and private apps stay owner-only). */
+   createDeployment(body){ return this._req("POST", "/deployments", { auth: true, body }); },
+   async listDeployments(query){
++    // independent: the pinned ledger at an agreed block, the wallet's rows plus its session vault's; a failed or
++    // disagreeing read throws (never an empty list)
++    if (INDEPENDENT_MODE){
++      // a selected passkey account: ITS rows and its vault's, only once it verifies on this page - a pending or refused
++      // account lists nothing (no fallback to the wallet), and a failed vault read fails the list
++      const ID = await import("./identity.js");
++      if (ID.currentIdentity().kind === "account"){
++        const idn = await ID.ensureIdentity();
++        if (idn.state !== "verified") throw new ID.IdentityError("your passkey account " + idn.safe + " is not verified: " + (idn.reason || "still checking") + ". Its rows are shown once it verifies; or switch to your wallet", { code: "identity" });
++        const m = await import("./independent-chain.js");
++        const vault = await (await import("./sessions.js")).independentVaultOf(idn.safe);
++        return m.independentList([idn.safe, vault]);
++      }
++      if (!this.address) throw new EnclaveError("Connect your wallet first.", 401);
++      const m = await import("./independent-chain.js");
++      let vault = null;
++      try { vault = await (await import("./sessions.js")).independentVaultOf(this.address); } catch(e){ vault = null; }
++      return m.independentList([this.address, vault]);
++    }
+     // the wallet session: the relay verifies it (api.status) for the ledger merge and the hosts it fans out to
+     // answer their live rows to it. ?owner= rides along (signed like the rest of the URL) so a relay that
+     // predates sessions still scopes the ledger. Refused or unusable: the paths below, unchanged.
+@@ -298,6 +337,7 @@
+     return this._req("GET", "/deployments", { query: { ...(query || {}), owner: this.address } });
+   },
+   async getDeployment(id){
++    if (INDEPENDENT_MODE) return (await import("./independent-chain.js")).independentDeployment(id);
+     const path = "/deployments/" + encodeURIComponent(id);
+     // the host's live view through the session; the relay answers the ledger view when the host can't. No
+     // ?owner= here: a record the session's VAULT holds is not the wallet's, and an owner-scoped fallback would
+@@ -316,7 +356,10 @@
+      control-plane route, which is what makes it safe to hand to a page on the
+      tenant's own origin. `enclave` names the box hosting it - sessions are
+      per-box, and only the host can mint for its own deployments. */
+-  appToken(id, enclave){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/app-token", { auth: true, enclave, scope: "api.appAccess" }); },
++  appToken(id, enclave){
++    // independent mode: the host's own management gateway, over the operator-signed browser origin (core/independent-management.js)
++    if (INDEPENDENT_MODE) return import("./independent-management.js").then((m) => m.hostAppToken(id)).then((r) => r.result.json);
++    return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/app-token", { auth: true, enclave, scope: "api.appAccess" }); },
+   /* `evacuate` = the owner is MOVING off this box: the enclave hands the lease
+      back AND stands down from re-claiming it for a short window. Without it the
+      source re-claims its own release within seconds (it still has the app
+@@ -329,9 +372,38 @@
+   claimHint(id, enclave, options = {}){ return this._req("POST", "/claim-hint", { body: { id, ...(enclave ? { enclave } : {}), ...(['cheapest', 'preferred'].includes(options.strategy) ? { strategy: options.strategy } : {}) } }); },
+   getPlacement(id){ return this._req('GET', '/placement/' + encodeURIComponent(id)); },
+   savePlacement(id, body, viaAccount = false){ return this._req('POST', '/placement/' + encodeURIComponent(id), { body, accountAuth: viaAccount }); },
+-  restartDeployment(id, enclave){ return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/restart", { auth: true, enclave, scope: "api.restart" }); },
+-  logs(id, query, enclave){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/logs", { auth: true, query, enclave, scope: "api.logs" }); },
+-  attestation(id, enclave){ return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/attestation", { auth: true, enclave, scope: "api.status" }); },
++  /* In independent mode these four, and the host status and CPU profile below, go to the deployment's CURRENT host's
++     management gateway (core/independent-management.js): an agreed lease, the operator-signed record and origin, one
++     session-signed request, never retried. The answers are host-reported. */
++  restartDeployment(id, enclave){
++    if (INDEPENDENT_MODE) return import("./independent-management.js").then((m) => m.hostRestart(id)).then((r) => r.result.json);
++    return this._req("POST", "/deployments/" + encodeURIComponent(id) + "/restart", { auth: true, enclave, scope: "api.restart" });
++  },
++  logs(id, query, enclave){
++    if (INDEPENDENT_MODE) return import("./independent-management.js").then((m) => m.hostLogs(id, query && query.tail)).then((r) => r.result.text);
++    return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/logs", { auth: true, query, enclave, scope: "api.logs" });
++  },
++  attestation(id, enclave){
++    if (INDEPENDENT_MODE) return import("./independent-management.js").then((m) => m.hostAttestation(id)).then((r) => r.result.json);
++    return this._req("GET", "/deployments/" + encodeURIComponent(id) + "/attestation", { auth: true, enclave, scope: "api.status" });
++  },
++  hostStatus(id){
++    if (!INDEPENDENT_MODE) return this.getDeployment(id);
++    return import("./independent-management.js").then((m) => m.hostStatus(id)).then((r) => r.result.json);
++  },
++  /* The host's GPU state (independent mode: the current runner's management gateway; host-reported, never attestation) */
++  hostGpu(id){
++    if (!INDEPENDENT_MODE) return Promise.reject(new EnclaveError("GPU state is read through a host's own management endpoint (independent mode).", 0));
++    return import("./independent-management.js").then((m) => m.hostGpu(id)).then((r) => r.result.json);
++  },
++  cpuProfile(id){
++    if (!INDEPENDENT_MODE) return Promise.reject(new EnclaveError("CPU profiles are read through a host's own management endpoint (independent mode, or the CLI's enclave cpu-profile).", 0));
++    return import("./independent-management.js").then((m) => m.hostCpuProfile(id)).then((r) => r.result.json);
++  },
++  cpuProfileControl(id, body){
++    if (!INDEPENDENT_MODE) return Promise.reject(new EnclaveError("CPU profiles are read through a host's own management endpoint (independent mode, or the CLI's enclave cpu-profile).", 0));
++    return import("./independent-management.js").then((m) => m.hostCpuProfileControl(id, body)).then((r) => r.result.json);
++  },
+   /* System (public) */
+   health(){ return this._req("GET", "/health"); },
+   version(){ return this._req("GET", "/version"); },

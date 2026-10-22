@@ -1,0 +1,1236 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index d404c2227114b7312a4fb91909170b1c65d6fb56..efdf9eb62c886b694a755ba8453b5a61615a9111 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -522,39 +522,40 @@ jobs:
+           ref: main
+           persist-credentials: false
+ 
++      # The operator selects every target (repository variables; nothing is discovered or defaulted, and there is no
++      # alias fallback). relay/deploy.sh refuses, naming the missing role and variable, before any secret is written.
++      #   RELAY_DEPLOY_ROLES  api | dns | api,dns
++      #   RELAY_API_TARGET / RELAY_API_DIR   user@host of the API host / the installed enclave-api-relay WorkingDirectory
++      #   RELAY_DNS_TARGET / RELAY_DNS_DIR   user@host of the DNS host / the installed enclave-dns WorkingDirectory
++      #   DEPLOY_KNOWN_HOSTS                 those hosts' keys (strict host-key checking; no trust on first use)
++      - name: Check relay targets
++        env:
++          RELAY_DEPLOY_ROLES: ${{ vars.RELAY_DEPLOY_ROLES }}
++          RELAY_API_TARGET: ${{ vars.RELAY_API_TARGET }}
++          RELAY_API_DIR: ${{ vars.RELAY_API_DIR }}
++          RELAY_DNS_TARGET: ${{ vars.RELAY_DNS_TARGET }}
++          RELAY_DNS_DIR: ${{ vars.RELAY_DNS_DIR }}
++        run: bash relay/deploy.sh --check-config
++
+       - name: Set up SSH
+         env:
+           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+           DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+-          RELAY_SSH_HOST: ${{ vars.RELAY_SSH_HOST }}
+-          SITE_SSH_HOST: ${{ vars.SITE_SSH_HOST }}
+-          EXTRA_RELAY_SSH_HOSTS: ${{ vars.EXTRA_RELAY_SSH_HOSTS }}
+         run: |
+           set -euo pipefail
+           [ -n "$DEPLOY_SSH_KEY" ] || { echo "::error::DEPLOY_SSH_KEY secret is not set (run scripts/ci-setup.sh)"; exit 1; }
++          [ -n "$DEPLOY_KNOWN_HOSTS" ] || { echo "::error::DEPLOY_KNOWN_HOSTS is not set: the relay targets' host keys are required (strict host-key checking)"; exit 1; }
+           mkdir -p ~/.ssh && chmod 700 ~/.ssh
+           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+-          # The api relay lives on the site box (ssh alias `nan`); every
+-          # DATA-PLANE relay gets a Host block of its own. EXTRA_RELAY_SSH_HOSTS
+-          # is "alias=host,alias=host" for the boxes beyond the first - us-west
+-          # existed for weeks without one, so relay/** pushes updated every box
+-          # except the one carrying the app zone. Unset = the historical single
+-          # relay, which is exactly what this did before.
+-          printf 'Host nan-relay\n  HostName %s\n  User root\nHost nan\n  HostName %s\n  User root\n' \
+-            "$RELAY_SSH_HOST" "$SITE_SSH_HOST" > ~/.ssh/config
+-          RELAY_HOSTS=nan-relay
+-          IFS=',' read -ra EXTRA <<< "${EXTRA_RELAY_SSH_HOSTS:-}"
+-          for e in "${EXTRA[@]}"; do
+-            a="${e%%=*}"; h="${e##*=}"
+-            [ -n "$a" ] && [ -n "$h" ] && [ "$a" != "$h" ] || continue
+-            printf 'Host %s\n  HostName %s\n  User root\n' "$a" "$h" >> ~/.ssh/config
+-            RELAY_HOSTS="$RELAY_HOSTS $a"
+-          done
+-          echo "RELAY_HOSTS=$RELAY_HOSTS" >> "$GITHUB_ENV"
+-          chmod 600 ~/.ssh/config
+ 
+       - name: Deploy relay
++        env:
++          RELAY_DEPLOY_ROLES: ${{ vars.RELAY_DEPLOY_ROLES }}
++          RELAY_API_TARGET: ${{ vars.RELAY_API_TARGET }}
++          RELAY_API_DIR: ${{ vars.RELAY_API_DIR }}
++          RELAY_DNS_TARGET: ${{ vars.RELAY_DNS_TARGET }}
++          RELAY_DNS_DIR: ${{ vars.RELAY_DNS_DIR }}
+         run: bash relay/deploy.sh
+ 
+   # Builds the wasm-manager image when wasm/** changed and repins its digest
+diff --git a/relay/README.md b/relay/README.md
+index 172a15521c87ccb3be118e240830507c99f13930..4f04d338a8b0059c878bf3042426dc0ea772f316 100644
+--- a/relay/README.md
++++ b/relay/README.md
+@@ -43,8 +43,69 @@ expired allocations produce no address, with no fallback to old relay IPs.
+ DNS-01 TXT challenges and box control names remain supported. See the file's
+ configuration comments and [TUNA operations](../network/README.md).
+ 
+-`deploy.sh` ships the API to Nan and DNS to `DNS_HOST` (default nan-relay). It
+-requires a successful TUNA cutover preflight before updating the service files.
++### Deploying (`deploy.sh`)
++
++`deploy.sh` deploys two separate roles, the control API (`enclave-api-relay`) and the authoritative DNS
++(`enclave-dns`). Each goes to a target the operator names; there is no default host and no built-in alias:
++
++```sh
++RELAY_DEPLOY_ROLES=api,dns \
++RELAY_API_TARGET=api-box RELAY_API_DIR=/opt/nan-relay \
++RELAY_DNS_TARGET=dns-box RELAY_DNS_DIR=/opt/enclave-dns \
++  bash relay/deploy.sh                    # preflight arguments, if any, follow
++bash relay/deploy.sh --check-config      # validate only: no ssh, no build, no preflight
++```
++
++- **Targets.** A target is an alias from your own `~/.ssh/config` or `user@host`. Options, ports, paths and spaces are
++  refused. Every connection uses `BatchMode=yes` and `StrictHostKeyChecking=yes`, so the host keys must already be in
++  `known_hosts`.
++- **Directories.** A directory must be one directory directly under `/opt`. It must also equal the `WorkingDirectory`
++  of the unit **already installed** on that host, running `<dir>/api-relay.js` or `<dir>/dns-relay.js`.
++  - The deployed installs today are the API in `/opt/nan-relay` and the DNS in `/opt/enclave-dns`.
++  - The old script copied DNS into `/opt/nan-relay` on `nan-relay`, which is no longer the DNS install.
++  - A directory that does not agree with the installed unit is refused before anything is copied.
++- **Roles.** API and DNS stay separate even on one host: their own directory, unit, staging and checks.
++  - Name only the roles you mean to deploy. A role you leave out is reported as not deployed.
++  - A selected role that cannot be reached, or whose unit disagrees, fails the whole run before anything is copied.
++
++The order of a run:
++
++1. Configuration is validated. Nothing runs before this.
++2. The TUNA cutover preflight (`network/preflight.mjs`) runs.
++3. Read-only checks, for every selected role: reachability, and unit agreement.
++4. The measurement-prediction gap on the API host, which fails closed. An unreadable predictor (ssh failure, pgrep
++   error) refuses; an active one is waited out for up to `PREDICTION_WAIT_SEC`.
++5. The env-file permission report: modes only, contents are never read.
++6. The local locked build (`npm ci --ignore-scripts`, `build-network.mjs`).
++7. Staging. Each role's payload is copied into `<dir>.deploy-<id>`, checked against its sha256 manifest (exact file
++   set), given its locked dependencies (`npm ci --omit=dev --ignore-scripts`) and bundle-loaded there. A failure stops
++   here, and the running services are untouched.
++8. Apply, one role at a time. Exactly the shipped files and `node_modules` are replaced, after being saved to
++   `<dir>.rollback-<id>`; then the unit restarts. A unit that does not stay up gets its previous release restored and
++   restarted, and the run fails.
++
++Untouched by the deploy:
++- files in the install directory that the deploy does not ship;
++- the state directories;
++- `/etc/nan-relay/*.env`;
++- the installed units, which the script never writes. Install or change a unit by hand (`systemd/*.service` assume
++  `/opt/nan-relay`). The old one-time removal of `nan-api-relay.service` is no longer performed.
++
++**Migrating from the old invocation:**
++- `DNS_HOST` and the hardcoded `nan`/`nan-relay` aliases are gone. Locally, put the hosts in your ssh config (or use
++  `user@host`) and pass the variables above.
++- In CI, the relay job reads the repository variables:
++  - `RELAY_DEPLOY_ROLES`;
++  - `RELAY_API_TARGET` and `RELAY_API_DIR`;
++  - `RELAY_DNS_TARGET` and `RELAY_DNS_DIR`;
++  - `DEPLOY_KNOWN_HOSTS` (those hosts' keys), with the `DEPLOY_SSH_KEY` secret.
++- In CI, `RELAY_SSH_HOST`, `SITE_SSH_HOST` and `EXTRA_RELAY_SSH_HOSTS` are no longer read. An unset variable fails the
++  job, naming the role and variable.
++- To keep today's layout, use `RELAY_API_DIR=/opt/nan-relay` and `RELAY_DNS_DIR=/opt/enclave-dns`, with the targets
++  of the hosts that run them.
++
++This change only edits the tooling; it deployed no services and changed no host.
++
+ Host configuration and secret-bearing environment files are not overwritten.
+ Deploy host adapters separately, fund their native NKN wallets, verify every
+ running app through its provider, then change DNS and retire old data services.
+diff --git a/relay/deploy.sh b/relay/deploy.sh
+index 8421ee82b067f92c277dea3e89193b78bfb9a268..95ec7f10d4105b7c52d680a1c4dcfb7ae6d9a794 100755
+--- a/relay/deploy.sh
++++ b/relay/deploy.sh
+@@ -1,56 +1,116 @@
+ #!/usr/bin/env bash
+-# Deploy Nan's control API and authoritative DNS. Hosts' privacy agents and the
+-# Enclave-network providers are deployed separately. Keep /etc/nan-relay/*.env as host-owned state.
++# Deploy Enclave's control API and authoritative DNS to the targets the operator names. Hosts' privacy agents and the
++# Enclave-network providers are deployed separately. Host-owned state (env files, state directories, installed units,
++# anything else in the install directory) is never replaced; only the files this script ships are.
++#
++#   RELAY_DEPLOY_ROLES=api,dns \
++#   RELAY_API_TARGET=<ssh alias or user@host> RELAY_API_DIR=/opt/nan-relay \
++#   RELAY_DNS_TARGET=<ssh alias or user@host> RELAY_DNS_DIR=/opt/enclave-dns \
++#     bash relay/deploy.sh [preflight args]
++#   bash relay/deploy.sh --check-config     validate the configuration only (no ssh, no build, no preflight)
++#
++# There is no default host: a target comes from the operator (an alias in their own ssh config, or user@host) and a
++# directory must equal the WorkingDirectory of the unit already installed there. API and DNS are separate roles even on
++# one host: separate directory, unit, staging and checks. A selected role that cannot be reached or does not agree
++# fails the whole deploy before anything is copied; nothing is skipped while reporting success.
+ set -euo pipefail
+ cd "$(dirname "$0")"
+ 
++# ---- configuration: explicit and validated before ANY side effect ----------
++die() { echo "::error::$*" >&2; exit 2; }
++TARGET_RE='^([a-z_][a-z0-9_-]{0,31}@)?[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$'   # no options, ports, paths or shell
++DIR_RE='^/opt/[a-z0-9][a-z0-9_-]*(\.[a-z0-9_-]+)*$'                                       # one /opt component, no ".."
++[ -n "${RELAY_DEPLOY_ROLES:-}" ] || die "RELAY_DEPLOY_ROLES is not set: name the roles to deploy (api, dns or api,dns); there is no default target"
++ROLES=()
++set -f; read -ra REQUESTED <<<"${RELAY_DEPLOY_ROLES//,/ }"; set +f
++for r in "${REQUESTED[@]}"; do
++  case "$r" in api|dns) [[ " ${ROLES[*]-} " == *" $r "* ]] || ROLES+=("$r") ;; *) die "RELAY_DEPLOY_ROLES: unknown role '$r' (api, dns)" ;; esac
++done
++[ ${#ROLES[@]} -gt 0 ] || die "RELAY_DEPLOY_ROLES names no role (api, dns)"
++has() { [[ " ${ROLES[*]} " == *" $1 "* ]]; }
++declare -A TARGET DIR UNIT ENTRY
++UNIT[api]=enclave-api-relay; ENTRY[api]=api-relay.js
++UNIT[dns]=enclave-dns;       ENTRY[dns]=dns-relay.js
++for r in "${ROLES[@]}"; do
++  R=${r^^}; t="RELAY_${R}_TARGET"; d="RELAY_${R}_DIR"
++  [ -n "${!t:-}" ] || die "role $r: $t is not set (the ssh alias from your ssh config, or user@host, of the $r host)"
++  [ -n "${!d:-}" ] || die "role $r: $d is not set (the installed ${UNIT[$r]} unit's WorkingDirectory, e.g. $( [ "$r" = api ] && echo /opt/nan-relay || echo /opt/enclave-dns ))"
++  [[ "${!t}" =~ $TARGET_RE ]] || die "role $r: $t must be an ssh alias or user@host (letters, digits, '.', '-'; no options, port, path or spaces)"
++  [[ "${!d}" =~ $DIR_RE ]] || die "role $r: $d must be one directory directly under /opt (e.g. /opt/nan-relay)"
++  TARGET[$r]=${!t}; DIR[$r]=${!d}
++done
++if has api && has dns && [ "${TARGET[api]}" = "${TARGET[dns]}" ] && [ "${DIR[api]}" = "${DIR[dns]}" ]; then
++  die "the api and dns roles name the same directory ${DIR[api]} on ${TARGET[api]}: they are separate installs"
++fi
++int() { [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -ge "$3" ] && [ "$2" -le "$4" ] || die "$1 must be an integer $3..$4"; }
++WAIT_LIMIT="${PREDICTION_WAIT_SEC:-600}"; int PREDICTION_WAIT_SEC "$WAIT_LIMIT" 0 3600
++POLL="${PREDICTION_POLL_SEC:-5}"; int PREDICTION_POLL_SEC "$POLL" 1 60
++SETTLE="${RELAY_RESTART_SETTLE_SEC:-4}"; int RELAY_RESTART_SETTLE_SEC "$SETTLE" 0 60
++if [ "${1:-}" = --check-config ]; then
++  for r in "${ROLES[@]}"; do echo "role $r: ${TARGET[$r]}:${DIR[$r]} (unit ${UNIT[$r]})"; done
++  for r in api dns; do has "$r" || echo "role $r: not selected"; done
++  exit 0
++fi
++ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
++# Every connection: the operator's known_hosts only (no trust on first use), no prompts, bounded connect.
++SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4)
++ssh() { command ssh "${SSH_OPTS[@]}" "$@"; }
++# A copy into a role's staging directory is also recorded, with its sha256, in that role's manifest: the box verifies
++# exactly what these scp lines shipped (path relative to the install directory, as the service will resolve it).
++declare -A STAGE MANIFEST
++scp() {
++  local dest=${*: -1} r sub f
++  command scp -q "${SSH_OPTS[@]}" "$@" || return
++  for r in "${!STAGE[@]}"; do
++    case "$dest" in "${TARGET[$r]}:${STAGE[$r]}/"*) sub=${dest#"${TARGET[$r]}:${STAGE[$r]}/"}
++      for f in "${@:1:$#-1}"; do printf '%s  %s\n' "$(sha256sum < "$f" | cut -d' ' -f1)" "$sub$(basename "$f")" >> "${MANIFEST[$r]}"; done ;;
++    esac
++  done
++}
++
+ # This branch removes the public data plane. Refuse to publish that change
+ # while any admitted application lacks a working replacement endpoint.
+ node ../network/preflight.mjs "$@"
+ 
++# ---- read-only checks of every selected role, before anything is copied ----
++for r in "${ROLES[@]}"; do
++  ssh "${TARGET[$r]}" true || { echo "::error::role $r: ${TARGET[$r]} does not answer ssh (batch mode, strict host key): nothing was copied or restarted" >&2; exit 1; }
++  # The installed unit decides where the service runs. Its directory must be the one named here: shipping to any other
++  # directory would restart the old code (or the wrong service). Units are never replaced by this script.
++  show=$(ssh "${TARGET[$r]}" "systemctl show ${UNIT[$r]} -p LoadState -p WorkingDirectory -p ExecStart && { test -d ${DIR[$r]} && echo DIR_PRESENT || echo DIR_ABSENT; }") \
++    || { echo "::error::role $r: cannot read the ${UNIT[$r]} unit or ${DIR[$r]} on ${TARGET[$r]}: nothing was copied or restarted" >&2; exit 1; }
++  grep -qx 'LoadState=loaded' <<<"$show" && grep -qx "WorkingDirectory=${DIR[$r]}" <<<"$show" && grep -q "^ExecStart=.*argv\[\]=[^;]* ${DIR[$r]}/${ENTRY[$r]} " <<<"$show" && grep -qx DIR_PRESENT <<<"$show" || {
++    echo "::error::role $r: the ${UNIT[$r]} unit on ${TARGET[$r]} does not run ${DIR[$r]}/${ENTRY[$r]} from WorkingDirectory=${DIR[$r]} (found: $(grep -E '^(LoadState|WorkingDirectory)=' <<<"$show" | tr '\n' ' ')): set RELAY_${r^^}_DIR to the installed directory, or install the unit first (relay/README.md); nothing was copied or restarted" >&2
++    exit 1; }
++done
++
+ # A relay restart kills a running measurement prediction (isolation/m4/expected-measurement.sh, ~30 min for a big app),
+ # and every guest of that app release then dies at boot until it is predicted again (2026-10-14: two restarts tonight,
+ # eyesoff /85's guests powering down ~140 s into boot). Refuse before anything is copied; rerun when it has finished.
+ # WAIT for a gap first: after a relay restart the predictor works through a queue of short predictions back to back
+ # (2026-10-17 05:44-06:40Z: busy at every look for an hour, a fresh pin every few seconds), so a single look refused every
+-# deploy. Look every 5 s for up to PREDICTION_WAIT_SEC (default 600, inside the CI job's 15-min timeout) and go at the first moment none is running; a
+-# prediction that starts after that is the queue's next one and is predicted again after the restart.
+-waited=0; limit="${PREDICTION_WAIT_SEC:-600}"
+-while ssh -o ConnectTimeout=15 -o BatchMode=yes nan 'pgrep -f "isolation/m4/[e]xpected-measurement[.]sh" >/dev/null'; do
+-  if [ "$waited" -ge "$limit" ]; then
+-    echo "::error::a measurement prediction has been running on nan at every look for ${limit}s: not restarting the relay now (rerun this deploy)"
+-    exit 1
+-  fi
+-  [ $((waited % 60)) -eq 0 ] && echo "a measurement prediction is running on nan; waiting for a gap (${waited}s of ${limit}s)"
+-  sleep 5; waited=$((waited + 5))
+-done
+-
+-# DEPENDENCIES: `npm ci` against a SHIPPED package-lock.json, never `npm install`
+-# against package.json alone. Every dependency here is a caret range, so
+-# resolving them on the box means whatever the registry serves that morning —
+-# on the host that holds the Stripe webhook secret, the accounts store, the
+-# vault relayer key and the payment indexer. The Dockerfile and cli/install.sh
+-# both already say this in their own words; this path was the one that drifted.
+-# A registry failure aborts before any restart (set -e, && chaining): the
+-# running processes keep serving from their already-loaded module graph, and
+-# the next deploy repairs the tree.
+-# DNS remains a control-plane service. Enclave-network providers and host agents have
+-# separate deployments; this script never starts retired Enclave data relays.
+-DNS_HOST="${DNS_HOST:-nan-relay}"
+-# The DNS host must answer before anything is copied there. Since 2026-10-12 the authoritative DNS runs on nan from
+-# /opt/enclave-dns (a separate install) and the old nan-relay box (RELAY_SSH_HOST) no longer answers, which failed every
+-# relay deploy at its first scp. An unreachable DNS host is skipped loudly; the api relay below still deploys.
+-if ssh -o ConnectTimeout=15 -o BatchMode=yes "$DNS_HOST" true 2>/dev/null; then
+-  # Bundle DNS authorization dependencies before shipping the flat service directory.
+-  [ -d ../node_modules/esbuild ] || (cd .. && npm ci --no-audit --no-fund --ignore-scripts)
+-  [ -d node_modules/viem ] || npm ci --no-audit --no-fund --ignore-scripts
+-  node build-network.mjs
+-  scp dns-relay.js fleet.mjs net-guard.mjs fleet-auth.js boxhost.js network-runtime.bundle.mjs network-runtime.bundle.mjs.manifest.json package.json package-lock.json "$DNS_HOST":/opt/nan-relay/
+-  scp systemd/enclave-dns.service "$DNS_HOST":/etc/systemd/system/
+-  ssh "$DNS_HOST" 'cd /opt/nan-relay && npm ci --omit=dev --no-audit --no-fund && systemctl daemon-reload && systemctl restart enclave-dns && systemctl is-active enclave-dns'
+-else
+-  echo "::warning::DNS host $DNS_HOST does not answer ssh: the DNS service was NOT deployed (the api relay still is)"
+-fi
++# deploy. Look every PREDICTION_POLL_SEC (5 s) for up to PREDICTION_WAIT_SEC (default 600, inside the CI job's timeout)
++# and go at the first moment none is running. The answer must be KNOWN: pgrep's 1 is idle, 0 is running, and anything
++# else (ssh failure 255, a pgrep error) refuses - an unreadable predictor is never treated as idle.
++waited=0
++prediction_gap() {
++  [ "${ROLES[*]}" != dns ] || return 0
++  while :; do
++    set +e; ssh "${TARGET[api]}" 'pgrep -f "isolation/m4/[e]xpected-measurement[.]sh" >/dev/null'; rc=$?; set -e
++    case "$rc" in
++      1) return 0 ;;
++      0) ;;
++      *) echo "::error::cannot tell whether a measurement prediction is running on ${TARGET[api]} (exit $rc): not restarting the relay" >&2; return 1 ;;
++    esac
++    if [ "$waited" -ge "$WAIT_LIMIT" ]; then
++      echo "::error::a measurement prediction has been running on ${TARGET[api]} at every look for ${WAIT_LIMIT}s: not restarting the relay now (rerun this deploy)" >&2
++      return 1
++    fi
++    [ $((waited % 60)) -eq 0 ] && echo "a measurement prediction is running on ${TARGET[api]}; waiting for a gap (${waited}s of ${WAIT_LIMIT}s)"
++    sleep "$POLL"; waited=$((waited + POLL))
++  done
++}
++prediction_gap || exit 1
+ 
+ # --- secret-bearing env files: check, never touch ---------------------------
+ # /etc/nan-relay/*.env hold real secrets — PROVISIONER_PRIVATE_KEY is a funded
+@@ -59,29 +119,25 @@ fi
+ # nothing needs them group- or world-readable. Nothing in this repo has ever
+ # checked, and a key you cannot rule out as leaked is a key you have to rotate.
+ # Reported, not modified: this script promises not to touch host env state, and
+-# a loud line the operator acts on beats a silent chmod they never see.
++# a loud line the operator acts on beats a silent chmod they never see. Only
++# modes and owners are read, never contents.
+ check_env_perms() {
+-  ssh -o ConnectTimeout=15 "$1" 'for f in /etc/nan-relay/*.env; do [ -e "$f" ] || continue;
++  ssh "$1" 'for f in /etc/nan-relay/*.env; do [ -e "$f" ] || continue;
+     m=$(stat -c %a "$f"); o=$(stat -c %U "$f");
+     case "$m" in *[1-7]|*[1-7]?) echo "  !! $f is mode $m (owner $o) — readable beyond its owner; run: sudo chmod 600 $f" ;;
+                  *) echo "  ok $f mode $m ($o)" ;; esac; done' || true
+ }
+ echo "== env-file permissions (secrets live here)"
+-check_env_perms "$DNS_HOST"
+-check_env_perms nan
++for r in "${ROLES[@]}"; do echo " ${TARGET[$r]} ($r)"; check_env_perms "${TARGET[$r]}"; done
+ 
+-echo "== api relay (site box)"
+-# api-relay.js imports ./fleet.mjs (shared discovery: registry read + TRUSTED_OPERATORS
+-# filter + on-chain runner routing), ./net-guard.mjs (SSRF classifier for discovered
+-# origins), ./tunnel.js (fleet tunnel for CGNAT self-hosted enclaves) AND ./mcp.js
+-# (the MCP coding-agent endpoint, mcp.enclave.host); fleet.mjs imports ./net-guard.mjs
+-# too. ALL of them MUST ship alongside or the service crash-loops with ERR_MODULE_NOT_FOUND.
+-# auth/billing modules (account sessions, orders, Stripe webhook, PaymentRouter
+-# indexer, OFAC screen, provisioner) ship alongside; they self-disable without
+-# StateDirectory/env, so shipping them is always safe. npm ci below installs
+-# their deps (@simplewebauthn/server, jose) from the SHIPPED lockfile.
+-# Build the entire import graph; a hand-maintained file list can miss modules
+-# while still passing scp, leaving the API unable to start after a restart.
++# DEPENDENCIES: `npm ci` against a SHIPPED package-lock.json, never `npm install`
++# against package.json alone. Every dependency here is a caret range, so
++# resolving them on the box means whatever the registry serves that morning —
++# on the host that holds the Stripe webhook secret, the accounts store, the
++# vault relayer key and the payment indexer. The Dockerfile and cli/install.sh
++# both already say this in their own words; this path was the one that drifted.
++# Install scripts stay off on the box too (the relay lockfile has none), so no
++# package code runs as root beside the host's secrets.
+ # The bundle is built HERE, so this checkout needs the packages of both
+ # lockfiles (the graph uses the root's and relay/'s). CI's runner checks out
+ # with no node_modules at all: the first CI relay deploy after fe2067efc
+@@ -90,26 +146,203 @@ echo "== api relay (site box)"
+ [ -d ../node_modules/esbuild ] || (cd .. && npm ci --no-audit --no-fund --ignore-scripts)
+ [ -d node_modules/viem ] || npm ci --no-audit --no-fund --ignore-scripts
+ node build-network.mjs
+-scp network-runtime.bundle.mjs network-runtime.bundle.mjs.manifest.json nan:/opt/nan-relay/
+-ssh nan 'node /opt/nan-relay/network-runtime.bundle.mjs'
+-scp api-relay.js registry-liveness.mjs host-liveness.mjs host-capacity-record.mjs canonical.mjs guest-prediction-row.mjs mcp.js auth.js sso.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js secrets-release.mjs custody-state.mjs measurement-predict.mjs host-delegation.mjs fleet-auth.js certs.js domains.js store.js fleet.mjs net-guard.mjs tunnel.js pvm-cpu-tier.mjs pvm-market.mjs pvm-secrets.mjs pvm-app-attest.mjs pvm-evidence-core.mjs snp-verify.mjs avf-verify.mjs avf-policy.mjs avf-binding.mjs vbs-verify.mjs vbs-policy.mjs vbs-credential.mjs vbs-tcglog.mjs vbs-tcglog-core.mjs vbs-tpm.mjs hvnode-verify.mjs hvnode-core.mjs vbs-app-verify.mjs vbs-vm-report.mjs vbs-runtime.mjs shield-app-policy.mjs shield-app-verifier.mjs shield-marketplace.mjs shield-market-evidence.mjs shield-app-fresh.mjs snp-app-fresh.mjs pvm-app-fresh.mjs shield-derive.mjs pads.mjs host-sponsor.mjs host-names.mjs referrals.mjs route-grace.mjs pad-grant.mjs pad-state.mjs pad-shipment-store.mjs pad-ack.mjs boxhost.js package.json package-lock.json shield-secrets.mjs placement.mjs cheapest-claim.mjs contract-owner-signature.mjs sessions.mjs sessions-abi.mjs vbs-app-core.mjs vbs-vm-report-core.mjs nan:/opt/nan-relay/
+-# hvnode-verify.mjs is the NucBox node's attach (tunnel mode hv-node), built on the vbs-*.mjs TPM
+-# and measured-boot primitives (the VBS-enclave attach itself is retired). api-relay.js reads the
+-# pinned AMD fTPM roots from ./fixtures/tpm-roots.pem (vbs-policy.mjs VBS_DEFAULT_EK_ROOTS) at
+-# startup when RELAY_HVNODE_ATTACH is set, so the bundle ships with the modules.
+-ssh nan 'mkdir -p /opt/nan-relay/fixtures'
+-# the repository's own verifier, vendored for the relay (the release-document judgement loads it; verifier/node/build.mjs writes it)
+-ssh nan 'mkdir -p /opt/nan-relay/vendor'
+-scp vendor/enclave-verifier-node.mjs vendor/enclave-verifier-node.MANIFEST.json nan:/opt/nan-relay/vendor/
+-scp fixtures/tpm-roots.pem nan:/opt/nan-relay/fixtures/
+-scp systemd/enclave-api-relay.service nan:/etc/systemd/system/
+-ssh nan 'if [ -f /etc/systemd/system/nan-api-relay.service ]; then \
+-    systemctl disable --now nan-api-relay || true; rm /etc/systemd/system/nan-api-relay.service; fi \
+-  && cd /opt/nan-relay && npm ci --omit=dev --no-audit --no-fund \
+-  && systemctl daemon-reload \
+-  && systemctl enable enclave-api-relay \
+-  && systemctl restart enclave-api-relay \
+-  && sleep 4 \
+-  && if systemctl is-active --quiet enclave-api-relay; then echo "enclave-api-relay: active"; \
+-     else echo "enclave-api-relay FAILED to stay up after restart (crash loop?) — last logs:"; \
+-          journalctl -u enclave-api-relay -n 25 --no-pager; exit 1; fi'
++
++# ---- staging: every file lands in a fresh sibling directory first ----------
++# <dir>.deploy-<id> receives the payload and the sha256 manifest; the box then verifies the exact file set, installs the
++# locked dependencies into the staging directory and loads the network bundle there. A copy, registry or load failure
++# stops here: the running service keeps serving from the untouched install directory.
++STAGE_VERIFY='set -euo pipefail; cd "$1"
++sha256sum -c --quiet --strict .deploy-manifest
++diff <(find . -type f ! -name .deploy-manifest | sed "s|^\./||" | sort) <(awk "{print \$2}" .deploy-manifest | sort) >/dev/null || { echo "staging holds files outside the manifest" >&2; exit 1; }
++npm ci --omit=dev --ignore-scripts --no-audit --no-fund
++node network-runtime.bundle.mjs'
++PHASE=staging
++cleanup_stages() { for r in "${!STAGE[@]}"; do ssh "${TARGET[$r]}" "rm -rf ${STAGE[$r]}" || true; done; }
++on_exit() { local rc=$?; rm -f "${MANIFEST[@]}"; if [ "$rc" -ne 0 ] && [ "$PHASE" = staging ]; then cleanup_stages
++  echo "::error::staging failed (copy, manifest, locked dependencies or bundle load): nothing was restarted; every service keeps its running release" >&2; fi; }
++trap on_exit EXIT
++stage_open() {  # role -> a fresh remote staging directory and an empty local manifest
++  STAGE[$1]="${DIR[$1]}.deploy-$ID"; MANIFEST[$1]=$(mktemp)
++  ssh "${TARGET[$1]}" "mkdir -m 700 ${STAGE[$1]}"
++}
++stage_finish() {  # role -> ships the manifest, verifies the exact file set, installs locked dependencies, loads the bundle
++  command scp -q "${SSH_OPTS[@]}" "${MANIFEST[$1]}" "${TARGET[$1]}:${STAGE[$1]}/.deploy-manifest"
++  ssh "${TARGET[$1]}" bash -s -- "${STAGE[$1]}" <<<"$STAGE_VERIFY"
++}
++
++if has dns; then
++  echo "== dns (${TARGET[dns]}:${DIR[dns]})"
++  # DNS remains a control-plane service; its authorization dependencies are in the flat network bundle.
++  stage_open dns; DNS_TARGET=${TARGET[dns]} DNS_STAGE=${STAGE[dns]}
++scp dns-relay.js fleet.mjs net-guard.mjs fleet-auth.js boxhost.js network-runtime.bundle.mjs network-runtime.bundle.mjs.manifest.json package.json package-lock.json "$DNS_TARGET":"$DNS_STAGE"/
++  stage_finish dns
++fi
++
++if has api; then
++  echo "== api relay (${TARGET[api]}:${DIR[api]})"
++  stage_open api; API_TARGET=${TARGET[api]} API_STAGE=${STAGE[api]}
++  ssh "$API_TARGET" "mkdir ${API_STAGE}/vendor ${API_STAGE}/fixtures"
++scp network-runtime.bundle.mjs network-runtime.bundle.mjs.manifest.json "$API_TARGET":"$API_STAGE"/
++  # api-relay.js imports ./fleet.mjs (shared discovery: registry read + TRUSTED_OPERATORS
++  # filter + on-chain runner routing), ./net-guard.mjs (SSRF classifier for discovered
++  # origins), ./tunnel.js (fleet tunnel for CGNAT self-hosted enclaves) AND ./mcp.js
++  # (the MCP coding-agent endpoint, mcp.enclave.host); fleet.mjs imports ./net-guard.mjs
++  # too. ALL of them MUST ship alongside or the service crash-loops with ERR_MODULE_NOT_FOUND.
++  # auth/billing modules (account sessions, orders, Stripe webhook, PaymentRouter
++  # indexer, OFAC screen, provisioner) ship alongside; they self-disable without
++  # StateDirectory/env, so shipping them is always safe. npm ci installs
++  # their deps (@simplewebauthn/server, jose) from the SHIPPED lockfile.
++  # A hand-maintained file list can miss modules while still passing scp
++  # (test/relay-deploy-closure.test.mjs walks the import graph of every line below).
++scp api-relay.js registry-liveness.mjs host-liveness.mjs host-capacity-record.mjs canonical.mjs guest-prediction-row.mjs mcp.js auth.js sso.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js secrets-release.mjs custody-state.mjs measurement-predict.mjs host-delegation.mjs fleet-auth.js certs.js domains.js store.js fleet.mjs net-guard.mjs tunnel.js pvm-cpu-tier.mjs pvm-market.mjs pvm-secrets.mjs pvm-app-attest.mjs pvm-evidence-core.mjs snp-verify.mjs avf-verify.mjs avf-policy.mjs avf-binding.mjs vbs-verify.mjs vbs-policy.mjs vbs-credential.mjs vbs-tcglog.mjs vbs-tcglog-core.mjs vbs-tpm.mjs hvnode-verify.mjs hvnode-core.mjs vbs-app-verify.mjs vbs-vm-report.mjs vbs-runtime.mjs shield-app-policy.mjs shield-app-verifier.mjs shield-marketplace.mjs shield-market-evidence.mjs shield-app-fresh.mjs snp-app-fresh.mjs pvm-app-fresh.mjs shield-derive.mjs pads.mjs host-sponsor.mjs host-names.mjs referrals.mjs route-grace.mjs pad-grant.mjs pad-state.mjs pad-shipment-store.mjs pad-ack.mjs boxhost.js package.json package-lock.json shield-secrets.mjs placement.mjs cheapest-claim.mjs contract-owner-signature.mjs sessions.mjs sessions-abi.mjs vbs-app-core.mjs vbs-vm-report-core.mjs "$API_TARGET":"$API_STAGE"/
++  # hvnode-verify.mjs is the NucBox node's attach (tunnel mode hv-node), built on the vbs-*.mjs TPM
++  # and measured-boot primitives (the VBS-enclave attach itself is retired). api-relay.js reads the
++  # pinned AMD fTPM roots from ./fixtures/tpm-roots.pem (vbs-policy.mjs VBS_DEFAULT_EK_ROOTS) at
++  # startup when RELAY_HVNODE_ATTACH is set, so the bundle ships with the modules.
++  # the repository's own verifier, vendored for the relay (the release-document judgement loads it; verifier/node/build.mjs writes it)
++scp vendor/enclave-verifier-node.mjs vendor/enclave-verifier-node.MANIFEST.json "$API_TARGET":"$API_STAGE"/vendor/
++scp fixtures/tpm-roots.pem "$API_TARGET":"$API_STAGE"/fixtures/
++  stage_finish api
++fi
++PHASE=apply
++
++# ---- apply: replace exactly the shipped files, restart, roll back on ANY failure
++# One role at a time, under a lock beside the install directory (a held lock changes nothing).
++#  1. save (no live change): every manifest file that exists is copied to <dir>.rollback-<id>/files; files new in this
++#     release are listed. Manifest paths are checked (one optional subdirectory, no "..").
++#  2. live changes, each JOURNALED BEFORE it is made: a missing subdirectory, each file (temp copy + rename), the new
++#     node_modules moved beside the install, the old node_modules moved to the rollback directory, the new one moved in.
++#  3. restart (bounded) and require the unit active.
++# From the first live change until the commit, an EXIT trap (signals HUP/INT/TERM exit through it; a dropped connection
++# cannot kill it via SIGPIPE) undoes exactly the journaled changes, newest first, and keeps the original exit code. If
++# the unit had been restarted it is restarted on the restored files; if not, it never stopped serving the previous
++# release. The last line is the truthful outcome, also written to <dir>.rollback-<id>/STATUS on the box:
++#   APPLY-RESULT status=committed | restored-active | restored-unrestarted | restored-inactive | rollback-failed |
++#                       not-changed | not-started
++# When the undo itself fails nothing is deleted: the saved files, the old dependencies, the journal and the new release
++# stay on the box for manual recovery. Files the manifest does not name, env files, state and units are never touched.
++APPLY='set -euo pipefail
++dir=$1 stage=$2 unit=$3 id=$4 settle=$5 back="$1.rollback-$4" state=none
++say() { printf "%s\n" "$*" 2>/dev/null || true; }
++result() { say "APPLY-RESULT status=$1 rc=$2 backup=$back stage=$stage"; if [ -d "$back" ]; then printf "status=%s rc=%s\n" "$1" "$2" > "$back/STATUS" 2>/dev/null || true; fi; }
++j() { printf "%s %s\n" "$1" "$2" >> "$back/.journal"; }
++undo() {
++  local bad=0 kind f
++  tac "$back/.journal" > "$back/.undo" || return 1
++  while read -r kind f; do
++    case "$kind" in
++      file) rm -f "$dir/$f.deploy-tmp" || bad=1
++        if grep -qxF "$f" "$back/.new"; then rm -f "$dir/$f" || bad=1
++        elif cp -a "$back/files/$f" "$dir/$f.rollback-tmp" && mv -f "$dir/$f.rollback-tmp" "$dir/$f"; then :
++        else rm -f "$dir/$f.rollback-tmp"; bad=1; fi ;;
++      mkdir) if [ -d "$dir/$f" ]; then rmdir "$dir/$f" || bad=1; fi ;;
++      deps-live) if [ -e "$dir/node_modules" ] && [ ! -e "$dir/node_modules.deploy-$id" ]; then mv "$dir/node_modules" "$dir/node_modules.deploy-$id" || bad=1; fi ;;
++      deps-saved) if [ -e "$back/node_modules" ]; then if [ -e "$dir/node_modules" ]; then bad=1; else mv "$back/node_modules" "$dir/node_modules" || bad=1; fi; fi ;;
++      deps-staged) if [ -e "$dir/node_modules.deploy-$id" ]; then mv "$dir/node_modules.deploy-$id" "$stage/node_modules" || bad=1; fi ;;
++      *) bad=1 ;;
++    esac
++  done < "$back/.undo"
++  return "$bad"
++}
++recover() {
++  local rc=$1
++  say "apply failed (exit $rc) after live changes began: restoring the previous release of $dir"
++  if ! undo; then
++    result rollback-failed "$rc"
++    say "ROLLBACK FAILED: $dir is NOT fully restored. Nothing was deleted: saved files and old dependencies in $back (journal $back/.journal), the new release in $stage"
++    return
++  fi
++  rm -rf "$stage" 2>/dev/null || true
++  if [ "$state" = restarting ]; then
++    timeout 120 systemctl restart "$unit"; sleep "$settle"
++    if timeout 30 systemctl is-active --quiet "$unit"; then result restored-active "$rc"
++    else timeout 30 journalctl -u "$unit" -n 25 --no-pager 2>/dev/null; result restored-inactive "$rc"; fi
++  elif timeout 30 systemctl is-active --quiet "$unit"; then result restored-unrestarted "$rc"
++  else result restored-inactive "$rc"; fi
++}
++on_exit() {
++  local rc=$?
++  trap "" HUP INT TERM
++  set +e
++  case "$state" in
++    mutating|restarting) [ "$rc" -ne 0 ] || rc=70; recover "$rc" ;;
++    saving) rm -rf "$back"; result not-changed "$rc" ;;
++  esac
++  exit "$rc"
++}
++trap "" PIPE
++exec 9>"$dir.deploy.lock"
++if ! flock -n 9; then say "another deploy holds $dir.deploy.lock"; result not-started 75; exit 75; fi
++trap on_exit EXIT
++trap "exit 129" HUP; trap "exit 130" INT; trap "exit 143" TERM
++state=saving
++mkdir -m 700 "$back" "$back/files"; : > "$back/.new"; : > "$back/.journal"
++while read -r _ f; do
++  [[ "$f" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)?$ && "$f" != *..* ]] || { say "manifest path refused: $f"; exit 65; }
++  if [ -e "$dir/$f" ]; then mkdir -p "$back/files/$(dirname "$f")"; cp -a "$dir/$f" "$back/files/$f"; else printf "%s\n" "$f" >> "$back/.new"; fi
++done < "$stage/.deploy-manifest"
++[ -d "$stage/node_modules" ] || { say "staging has no node_modules"; exit 66; }
++state=mutating
++while read -r _ f; do
++  d=$(dirname "$f")
++  if [ "$d" != . ] && [ ! -d "$dir/$d" ]; then j mkdir "$d"; mkdir "$dir/$d"; fi
++  j file "$f"
++  cp "$stage/$f" "$dir/$f.deploy-tmp"
++  mv -f "$dir/$f.deploy-tmp" "$dir/$f"
++done < "$stage/.deploy-manifest"
++j deps-staged -; mv "$stage/node_modules" "$dir/node_modules.deploy-$id"
++if [ -e "$dir/node_modules" ]; then j deps-saved -; mv "$dir/node_modules" "$back/node_modules"; fi
++j deps-live -; mv "$dir/node_modules.deploy-$id" "$dir/node_modules"
++state=restarting
++timeout 120 systemctl restart "$unit"
++sleep "$settle"
++if ! timeout 30 systemctl is-active --quiet "$unit"; then
++  say "$unit FAILED to stay up after restart (crash loop?) - last logs:"; timeout 30 journalctl -u "$unit" -n 25 --no-pager || true; exit 70
++fi
++state=committed
++result committed 0
++for old in "$dir".rollback-*; do [ "$old" = "$back" ] || rm -rf "$old" || say "warning: could not remove $old"; done
++rm -rf "$stage" || say "warning: could not remove $stage"
++exit 0'
++declare -A OUTCOME
++apply() {  # role -> 0 only when the box reports the commit; otherwise the box's own outcome, verbatim
++  local out rc st where msg
++  set +e
++  out=$(ssh "${TARGET[$1]}" bash -s -- "${DIR[$1]}" "${STAGE[$1]}" "${UNIT[$1]}" "$ID" "$SETTLE" <<<"$APPLY" 2>&1); rc=$?
++  set -e
++  printf '%s\n' "$out"
++  st=$(sed -n 's/^APPLY-RESULT status=\([a-z-]*\) .*/\1/p' <<<"$out" | tail -n 1)
++  where="${TARGET[$1]}:${DIR[$1]}.rollback-$ID"
++  case "$st:$rc" in
++    committed:0) OUTCOME[$1]=committed; return 0 ;;
++    restored-active:*) msg="the new release failed (exit $rc); the previous release was restored and is active" ;;
++    restored-unrestarted:*) msg="applying failed (exit $rc) before any restart; the previous release's files were restored and the unit, never restarted, still runs it" ;;
++    restored-inactive:*) msg="the new release failed (exit $rc); the previous release's files were restored but ${UNIT[$1]} is NOT active - needs attention" ;;
++    rollback-failed:*) msg="the new release failed (exit $rc) and ROLLBACK FAILED: the install may be mixed; nothing was deleted - recover from $where (journal) and ${TARGET[$1]}:${STAGE[$1]}" ;;
++    not-started:*) msg="another deploy holds the lock on ${DIR[$1]}; nothing on the host was changed" ;;
++    not-changed:*) msg="the apply failed (exit $rc) before any live change; nothing on the host was changed" ;;
++    *) st=unknown; msg="no final status (ssh exit $rc): the outcome is UNKNOWN; the box records it in $where/STATUS" ;;
++  esac
++  OUTCOME[$1]=$st
++  echo "::error::role $1: ${UNIT[$1]} on ${TARGET[$1]}: $msg" >&2
++  return 1
++}
++apply_failed() {  # stages never applied are removed; a failed role's artifacts stay as its apply left them
++  local r
++  for r in "${!STAGE[@]}"; do [ -n "${OUTCOME[$r]:-}" ] || ssh "${TARGET[$r]}" "rm -rf ${STAGE[$r]}" || true; done
++  if [ "${OUTCOME[dns]:-}" = committed ]; then
++    echo "::warning::MIXED STATE: the dns role was deployed on ${TARGET[dns]} and keeps serving the new release; the api role was not. The previous DNS release is saved in ${TARGET[dns]}:${DIR[dns]}.rollback-$ID (restore it by hand, or fix and redeploy)" >&2
++  fi
++  for r in "${ROLES[@]}"; do echo "role $r: ${OUTCOME[$r]:-not applied}"; done
++  exit 1
++}
++if has dns; then apply dns || apply_failed; fi
++if has api; then
++  # the copy and install took time: look again (same budget) right before the restart that would kill a prediction
++  prediction_gap || { echo "::error::role api: not restarted; nothing on ${TARGET[api]} was changed" >&2; apply_failed; }
++  apply api || apply_failed
++fi
++PHASE=done
++for r in api dns; do has "$r" || echo "note: the $r role was not selected (RELAY_DEPLOY_ROLES=$RELAY_DEPLOY_ROLES): it was not deployed"; done
++for r in "${ROLES[@]}"; do echo "role $r: ${OUTCOME[$r]}"; done
++echo "deployed: ${ROLES[*]}"
+diff --git a/test/fixtures/relay-deploy-apply-6019b92b.sh b/test/fixtures/relay-deploy-apply-6019b92b.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..9ce104e5f7163fd42dd5a1500b06795f93363835
+--- /dev/null
++++ b/test/fixtures/relay-deploy-apply-6019b92b.sh
+@@ -0,0 +1,22 @@
++set -euo pipefail; dir=$1 stage=$2 unit=$3 id=$4 settle=$5 back="$1.rollback-$4"
++exec 9>"$dir.deploy.lock"; flock -n 9 || { echo "another deploy holds $dir.deploy.lock" >&2; exit 1; }
++mkdir -m 700 "$back"; : > "$back/.new"
++while read -r _ f; do
++  if [ -e "$dir/$f" ]; then mkdir -p "$back/$(dirname "$f")"; cp -a "$dir/$f" "$back/$f"; else echo "$f" >> "$back/.new"; fi
++done < "$stage/.deploy-manifest"
++[ ! -e "$dir/node_modules" ] || mv "$dir/node_modules" "$back/node_modules"
++restore() {
++  while read -r _ f; do if grep -qxF "$f" "$back/.new"; then rm -f "$dir/$f"; elif [ -e "$back/$f" ]; then cp -a "$back/$f" "$dir/$f"; fi; done < "$stage/.deploy-manifest"
++  rm -rf "$dir/node_modules"; [ ! -e "$back/node_modules" ] || mv "$back/node_modules" "$dir/node_modules"
++}
++while read -r _ f; do mkdir -p "$dir/$(dirname "$f")"; cp "$stage/$f" "$dir/$f.deploy-tmp"; mv -f "$dir/$f.deploy-tmp" "$dir/$f"; done < "$stage/.deploy-manifest"
++mv "$stage/node_modules" "$dir/node_modules"
++if systemctl restart "$unit" && sleep "$settle" && systemctl is-active --quiet "$unit"; then
++  echo "$unit: active"
++  for old in "$dir".rollback-*; do [ "$old" = "$back" ] || rm -rf "$old"; done
++  rm -rf "$stage"; exit 0
++fi
++echo "$unit FAILED to stay up after restart (crash loop?) — last logs:"; journalctl -u "$unit" -n 25 --no-pager || true
++restore; systemctl restart "$unit" || true; sleep "$settle"
++if systemctl is-active --quiet "$unit"; then echo "$unit: previous release restored and active"; else echo "$unit: previous release restored but NOT active"; fi
++rm -rf "$stage"; exit 1
+\ No newline at end of file
+diff --git a/test/relay-deploy-apply.test.mjs b/test/relay-deploy-apply.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..95613a494733695f233f03af44fd049032461bda
+--- /dev/null
++++ b/test/relay-deploy-apply.test.mjs
+@@ -0,0 +1,203 @@
++// The remote half of relay/deploy.sh (APPLY), executed for real exactly as the box receives it (`bash -s -- dir stage
++// unit id settle` with the script on stdin), in a temp directory, against fake systemctl/journalctl and cp/mv wrappers
++// that inject failures (or a signal to the running APPLY) at a chosen file operation. Every case compares the whole
++// install - contents AND modes - with the original, checks what the service ran, and checks the reported outcome.
++// The frozen original APPLY (test/fixtures/relay-deploy-apply-6019b92b.sh) is the negative control: it must still show
++// the defect these cases guard against.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import crypto from "node:crypto";
++import { spawnSync, spawn } from "node:child_process";
++import { fileURLToPath } from "node:url";
++
++const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
++const extract = (script) => { const a = script.indexOf("APPLY='") + 7; return script.slice(a, script.indexOf("'\n", a)); };
++const APPLY = extract(fs.readFileSync(path.join(REPO, "relay/deploy.sh"), "utf8"));
++const ORIGINAL = fs.readFileSync(path.join(REPO, "test/fixtures/relay-deploy-apply-6019b92b.sh"), "utf8");
++const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
++const exe = (f, body) => { fs.writeFileSync(f, "#!/usr/bin/env bash\n" + body); fs.chmodSync(f, 0o755); };
++const ID = "20261020T120000Z-4242";
++
++// fakes: a match on the joined arguments fails the call (exit 61) or signals the APPLY shell (the caller's parent)
++const FAULTY = (real) => `
++args="$*"; n="$FAKE/count-$(basename "$0")"; c=$(( $(cat "$n" 2>/dev/null || echo 0) + 1 )); echo $c > "$n"
++if [ -n "\${FAULT_SIGNAL:-}" ] && [[ "$args" =~ \${FAULT_SIGNAL_MATCH} ]] && [ ! -e "$FAKE/signalled" ]; then : > "$FAKE/signalled"; kill -s "$FAULT_SIGNAL" "$PPID"; fi
++if [ -n "\${FAULT_${real.toUpperCase()}:-}" ] && [[ "$args" =~ \${FAULT_${real.toUpperCase()}} ]]; then echo "injected $(basename "$0") failure: $args" >&2; exit 61; fi
++exec /usr/bin/${real} "$@"`;
++const SYSTEMCTL = `
++printf '%s\\n' "$*" >> "$FAKE/systemctl.log"
++case "$1" in
++  restart)
++    n=$(( $(cat "$FAKE/restarts" 2>/dev/null || echo 0) + 1 )); echo $n > "$FAKE/restarts"
++    if [ "\${FAULT_RESTART_CALL:-}" = "$n" ]; then echo "injected restart failure" >&2; exit 1; fi
++    # signal the APPLY shell (our parent is \`timeout\`; its parent is the shell) once, during the first restart
++    if [ -n "\${FAULT_SIGNAL_RESTART:-}" ] && [ "$n" = 1 ]; then kill -s "$FAULT_SIGNAL_RESTART" "$(ps -o ppid= -p "$PPID" | tr -d ' ')"; fi
++    if grep -q FAIL_START "$LIVE/a.mjs" || [ -n "\${FAULT_ALWAYS_DOWN:-}" ]; then echo failed > "$FAKE/state"; else echo active > "$FAKE/state"; fi
++    sha256sum "$LIVE/a.mjs" | cut -d' ' -f1 > "$FAKE/running" ;;
++  is-active) [ "$(cat "$FAKE/state")" = active ] ;;
++  *) exit 90 ;;
++esac`;
++
++function fixture(t, { newA = "export const a = 'new';\n" } = {}) {
++  const root = fs.mkdtempSync(path.join(os.tmpdir(), "relay-apply-"));
++  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
++  const live = path.join(root, "opt/app"), stage = `${live}.deploy-${ID}`, bin = path.join(root, "bin");
++  const w = (f, s, mode) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, s); if (mode) fs.chmodSync(f, mode); };
++  // the running install: old releases of three shipped files (one with an unusual mode), its dependencies, and
++  // host-owned files the manifest does not name; beside it an env file, a unit and an older rollback directory
++  w(path.join(live, "a.mjs"), "export const a = 'old';\n", 0o640); w(path.join(live, "b.mjs"), "old b\n"); w(path.join(live, "c.mjs"), "old c\n");
++  w(path.join(live, "operator.txt"), "host-owned\n"); w(path.join(live, "state/db.json"), "{\"owned\":1}\n", 0o600);
++  w(path.join(live, "node_modules/old-dep/index.js"), "old dependency\n");
++  w(path.join(root, "etc/app/app.env"), "SECRET=never-touched\n", 0o600); w(path.join(root, "etc/systemd/system/app.service"), "[Service]\nWorkingDirectory=/opt/app\n");
++  w(path.join(root, "opt/app.rollback-older/files/a.mjs"), "older\n");
++  // the staged release: new versions, one new file, one file in a new subdirectory, new dependencies, the manifest
++  const ship = { "a.mjs": newA, "b.mjs": "new b\n", "c.mjs": "new c\n", "n.mjs": "new file\n", "vendor/v.mjs": "vendored\n" };
++  for (const [f, s] of Object.entries(ship)) w(path.join(stage, f), s);
++  w(path.join(stage, "node_modules/new-dep/index.js"), "new dependency\n");
++  w(path.join(stage, ".deploy-manifest"), Object.entries(ship).map(([f, s]) => `${sha(s)}  ${f}\n`).join(""));
++  fs.mkdirSync(bin); exe(path.join(bin, "cp"), FAULTY("cp")); exe(path.join(bin, "mv"), FAULTY("mv"));
++  exe(path.join(bin, "systemctl"), SYSTEMCTL); exe(path.join(bin, "journalctl"), `echo "-- fake journal: $* --"`);
++  fs.writeFileSync(path.join(root, "state"), "active\n"); fs.writeFileSync(path.join(root, "running"), sha("export const a = 'old';\n") + "\n");
++  // everything except the staging and rollback directories (and the fakes' own bookkeeping)
++  const snapshot = () => { const out = {}; const walk = (d, rel) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) {
++    const r = rel + e.name, p = path.join(d, e.name);
++    if (rel === "opt/" && /\.(deploy-|rollback-)|\.deploy\.lock$/.test(e.name)) continue;
++    if (e.isDirectory()) { out[r + "/"] = (fs.statSync(p).mode & 0o7777).toString(8); walk(p, r + "/"); }
++    else out[r] = `${(fs.statSync(p).mode & 0o7777).toString(8)} ${sha(fs.readFileSync(p))}`; } };
++    for (const top of ["opt", "etc"]) walk(path.join(root, top), top + "/"); return out; };
++  const run = (env = {}, script = APPLY, args = [live, stage, "app", ID, "0"]) => {
++    const r = spawnSync("bash", ["-s", "--", ...args], { input: script, encoding: "utf8", timeout: 30000,
++      env: { PATH: `${bin}:/usr/bin:/bin`, FAKE: root, LIVE: live, ...env } });
++    const results = [...(r.stdout || "").matchAll(/^APPLY-RESULT status=(\S+) rc=(\d+)/gm)];
++    return { ...r, result: results.length ? { status: results.at(-1)[1], rc: Number(results.at(-1)[2]) } : null };
++  };
++  const read = (f) => fs.existsSync(path.join(root, f)) ? fs.readFileSync(path.join(root, f), "utf8").trim() : null;
++  return { root, live, stage, back: `${live}.rollback-${ID}`, snapshot, run, read, running: () => read("running"), restarts: () => Number(read("restarts") || 0) };
++}
++// a failure after which the install must be EXACTLY the original and the unit, never restarted, still serving it
++function assertRestoredUnrestarted(f, before, r, rc) {
++  assert.equal(r.status, rc, r.stdout + r.stderr); assert.deepEqual(r.result, { status: "restored-unrestarted", rc });
++  assert.deepEqual(f.snapshot(), before, "the install, its modes, dependencies, host files, env and unit are exactly the original");
++  assert.equal(f.restarts(), 0, "a failure before the restart does not restart anything");
++  assert.equal(f.running(), sha("export const a = 'old';\n"), "the previous release kept serving");
++  assert.match(f.read(`opt/app.rollback-${ID}/STATUS`), /^status=restored-unrestarted rc=\d+$/);
++}
++
++test("success: exactly the manifest files and dependencies change, host state stays, older rollbacks go", (t) => {
++  const f = fixture(t); const before = f.snapshot();
++  const r = f.run();
++  assert.equal(r.status, 0, r.stdout + r.stderr); assert.deepEqual(r.result, { status: "committed", rc: 0 });
++  const after = f.snapshot();
++  const changed = Object.keys({ ...before, ...after }).filter((k) => before[k] !== after[k]).sort();
++  assert.deepEqual(changed, ["opt/app/a.mjs", "opt/app/b.mjs", "opt/app/c.mjs", "opt/app/n.mjs", "opt/app/node_modules/new-dep/", "opt/app/node_modules/new-dep/index.js",
++    "opt/app/node_modules/old-dep/", "opt/app/node_modules/old-dep/index.js", "opt/app/vendor/", "opt/app/vendor/v.mjs"]);
++  assert.equal(f.restarts(), 1); assert.equal(f.running(), sha("export const a = 'new';\n"));
++  assert.equal(fs.existsSync(f.stage), false); assert.equal(fs.existsSync(path.join(f.root, "opt/app.rollback-older")), false);
++  assert.equal(fs.readFileSync(path.join(f.back, "files/a.mjs"), "utf8"), "export const a = 'old';\n", "this release's rollback copy is kept");
++});
++
++test("a copy failure at the first file or midway restores the exact original; the unit is never restarted", (t) => {
++  for (const [where, fault] of [["first file", "a\\.mjs\\.deploy-tmp"], ["midway", "c\\.mjs\\.deploy-tmp"], ["the new file", "n\\.mjs\\.deploy-tmp"], ["the new subdirectory", "v\\.mjs\\.deploy-tmp"]]) {
++    const f = fixture(t); const before = f.snapshot();
++    const r = f.run({ FAULT_CP: `app\\.deploy-.* .*${fault}` });
++    assertRestoredUnrestarted(f, before, r, 61);
++    assert.equal(fs.existsSync(path.join(f.live, "vendor")), false, `${where}: a directory this release created is removed again`);
++  }
++});
++
++test("a failed rename of a copied file (mv) is undone too, leaving no temporary files", (t) => {
++  const f = fixture(t); const before = f.snapshot();
++  const r = f.run({ FAULT_MV: "b\\.mjs\\.deploy-tmp" });
++  assertRestoredUnrestarted(f, before, r, 61);
++  assert.deepEqual(fs.readdirSync(f.live).filter((x) => /deploy-tmp|rollback-tmp/.test(x)), []);
++});
++
++test("each dependency move failing is undone: the old node_modules is back in place", (t) => {
++  for (const fault of [`app\\.deploy-${ID}/node_modules .*app/node_modules\\.deploy-`, "app/node_modules .*rollback-.*/node_modules", `app/node_modules\\.deploy-${ID} .*app/node_modules$`]) {
++    const f = fixture(t); const before = f.snapshot();
++    const r = f.run({ FAULT_MV: fault });
++    assertRestoredUnrestarted(f, before, r, 61);
++    assert.equal(fs.readFileSync(path.join(f.live, "node_modules/old-dep/index.js"), "utf8"), "old dependency\n", fault);
++  }
++});
++
++test("a release that does not stay up, or a failing restart command, is rolled back and the old release restarted", (t) => {
++  const crash = fixture(t, { newA: "export const a = 'new'; // FAIL_START\n" }); const before = crash.snapshot();
++  const r = crash.run();
++  assert.equal(r.status, 70); assert.deepEqual(r.result, { status: "restored-active", rc: 70 });
++  assert.match(r.stdout, /app FAILED to stay up after restart/);
++  assert.deepEqual(crash.snapshot(), before); assert.equal(crash.restarts(), 2, "the new release, then the restored one");
++  assert.equal(crash.running(), sha("export const a = 'old';\n"));
++  const cmd = fixture(t); const before2 = cmd.snapshot();
++  const r2 = cmd.run({ FAULT_RESTART_CALL: "1" });
++  assert.equal(r2.status, 1); assert.deepEqual(r2.result, { status: "restored-active", rc: 1 });
++  assert.deepEqual(cmd.snapshot(), before2); assert.equal(cmd.running(), sha("export const a = 'old';\n"));
++  // the restored release does not come up either: reported as such, never as restored-and-active
++  const down = fixture(t); const before3 = down.snapshot();
++  const r3 = down.run({ FAULT_ALWAYS_DOWN: "1" });
++  assert.equal(r3.status, 70); assert.deepEqual(r3.result, { status: "restored-inactive", rc: 70 });
++  assert.deepEqual(down.snapshot(), before3, "the files are restored even though the unit is down");
++});
++
++test("a failing rollback is reported as such and deletes nothing: saved files, old dependencies, journal and new release stay", (t) => {
++  const f = fixture(t);
++  // the release fails midway (c.mjs) AND restoring a.mjs from its saved copy fails
++  const r = f.run({ FAULT_CP: `(app\\.deploy-.* .*c\\.mjs\\.deploy-tmp|rollback-${ID}/files/a\\.mjs .*a\\.mjs\\.rollback-tmp)` });
++  assert.equal(r.status, 61); assert.deepEqual(r.result, { status: "rollback-failed", rc: 61 });
++  assert.match(r.stdout, /ROLLBACK FAILED: \S+ is NOT fully restored\. Nothing was deleted/);
++  assert.equal(f.read(`opt/app.rollback-${ID}/STATUS`), "status=rollback-failed rc=61");
++  assert.equal(fs.readFileSync(path.join(f.back, "files/a.mjs"), "utf8"), "export const a = 'old';\n", "the saved copy is still there");
++  assert.match(fs.readFileSync(path.join(f.back, ".journal"), "utf8"), /^file a\.mjs\nfile b\.mjs\nfile c\.mjs\n$/);
++  assert.ok(fs.existsSync(f.stage), "the new release is kept"); assert.equal(f.restarts(), 0);
++  // what could be undone was: b.mjs is old again; a.mjs is the one that could not be restored
++  assert.equal(fs.readFileSync(path.join(f.live, "b.mjs"), "utf8"), "old b\n");
++  assert.equal(fs.readFileSync(path.join(f.live, "a.mjs"), "utf8"), "export const a = 'new';\n");
++  assert.equal(fs.readFileSync(path.join(f.live, "node_modules/old-dep/index.js"), "utf8"), "old dependency\n");
++});
++
++test("a signal during the apply (TERM, HUP, INT) rolls back and keeps the signal's exit status", (t) => {
++  for (const [sig, rc] of [["TERM", 143], ["HUP", 129], ["INT", 130]]) {
++    const f = fixture(t); const before = f.snapshot();
++    const r = f.run({ FAULT_SIGNAL: sig, FAULT_SIGNAL_MATCH: "c\\.mjs\\.deploy-tmp" });
++    assertRestoredUnrestarted(f, before, r, rc);
++  }
++  // a signal during the last dependency move (before any restart)
++  const g = fixture(t); const before = g.snapshot();
++  assertRestoredUnrestarted(g, before, g.run({ FAULT_SIGNAL: "TERM", FAULT_SIGNAL_MATCH: `app/node_modules\\.deploy-${ID} .*app/node_modules$` }), 143);
++  // a signal while the new release is being started: the files are restored and the previous release restarted
++  const h = fixture(t); const before2 = h.snapshot();
++  const r = h.run({ FAULT_SIGNAL_RESTART: "TERM" });
++  assert.equal(r.status, 143, r.stdout + r.stderr); assert.deepEqual(r.result, { status: "restored-active", rc: 143 });
++  assert.deepEqual(h.snapshot(), before2); assert.equal(h.restarts(), 2); assert.equal(h.running(), sha("export const a = 'old';\n"));
++});
++
++test("failures before any live change, and a held lock, change nothing and say so", (t) => {
++  const save = fixture(t); const before = save.snapshot();
++  const r = save.run({ FAULT_CP: "^-a .*app/b\\.mjs" });   // saving the old b.mjs fails
++  assert.equal(r.status, 61); assert.deepEqual(r.result, { status: "not-changed", rc: 61 });
++  assert.deepEqual(save.snapshot(), before); assert.equal(fs.existsSync(save.back), false); assert.equal(save.restarts(), 0);
++  const bad = fixture(t); fs.appendFileSync(path.join(bad.stage, ".deploy-manifest"), `${sha("x")}  ../escape.mjs\n`); const before2 = bad.snapshot();
++  const r2 = bad.run();
++  assert.equal(r2.status, 65); assert.deepEqual(r2.result, { status: "not-changed", rc: 65 }); assert.deepEqual(bad.snapshot(), before2);
++  const locked = fixture(t); const before3 = locked.snapshot();
++  const holder = spawn("flock", [locked.live + ".deploy.lock", "sleep", "20"], { stdio: "ignore" });
++  t.after(() => holder.kill("SIGKILL"));
++  for (let i = 0; i < 100 && spawnSync("flock", ["-n", locked.live + ".deploy.lock", "true"]).status === 0; i++) spawnSync("sleep", ["0.05"]);
++  const r3 = locked.run();
++  assert.equal(r3.status, 75); assert.deepEqual(r3.result, { status: "not-started", rc: 75 });
++  assert.deepEqual(locked.snapshot(), before3); assert.equal(fs.existsSync(locked.back), false);
++});
++
++test("negative control: the frozen original APPLY leaves the install without its dependencies on the same failures", (t) => {
++  assert.equal(sha(ORIGINAL), "d09822a431c504606d453269f01af548d2656be9166a3163acdcc8ad8132090a", "the APPLY of relay/deploy.sh 6019b92b, verbatim");
++  for (const fault of ["a\\.mjs\\.deploy-tmp", "c\\.mjs\\.deploy-tmp"]) {
++    const f = fixture(t);
++    const r = f.run({ FAULT_CP: `app\\.deploy-.* .*${fault}` }, ORIGINAL);
++    assert.equal(r.status, 61, fault); assert.equal(r.result, null, "it reports no outcome");
++    assert.equal(fs.existsSync(path.join(f.live, "node_modules")), false, `${fault}: the old APPLY moved the live dependencies away and never put them back`);
++    assert.equal(f.restarts(), 0);
++  }
++});
+diff --git a/test/relay-deploy-closure.test.mjs b/test/relay-deploy-closure.test.mjs
+index 545da621f35c922a968834f7f202c9aa71b7b943..a6e297775baacd57152b340af8683eb2993be896 100644
+--- a/test/relay-deploy-closure.test.mjs
++++ b/test/relay-deploy-closure.test.mjs
+@@ -25,22 +25,21 @@ import { setTimeout as delay } from "node:timers/promises";
+ const RELAY = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "relay");
+ const deploySh = fs.readFileSync(path.join(RELAY, "deploy.sh"), "utf8");
+ 
+-// Every `scp <files…> <host>:<dir>` line, as { host, files }. Only .js/.mjs
+-// entries matter here; package.json and the systemd units are not modules.
++// Every `scp <files…> "$<ROLE>_TARGET":"$<ROLE>_STAGE"/<subdir>` line, as { host, dest, files, all }. Only .js/.mjs
++// entries are modules; `all` keeps every shipped file (package.json, the lockfile, fixtures).
+ //
+-// The host is either a literal alias (`nan:`) or the data-plane loop's
+-// variable (`"$RH":`), which stands for EVERY relay the operator runs. Both
+-// must be matched: the loop is exactly where a missing module would land on
+-// several boxes at once, so it is the last line that should escape this check
+-// by being written differently.
++// Targets are explicit per role (API, DNS) - never a literal host alias. EVERY scp command line in the script must be
++// one of these: a payload line written any other way would otherwise escape the closure check silently.
+ function scpTargets() {
+-  const out = [];
++  const out = [], unmatched = [];
+   for (const line of deploySh.split("\n")) {
+-    const m = line.match(/^\s*scp\s+(.+?)\s+("?\$?[A-Za-z0-9_{}-]+"?):(\S+)\s*$/);
+-    if (!m) continue;
+-    const files = m[1].split(/\s+/).filter((f) => /\.(mjs|js)$/.test(f));
+-    if (files.length) out.push({ host: m[2], dest: m[3], files });
++    if (!/^\s*scp\s/.test(line)) continue;
++    const m = line.match(/^scp\s+(.+?)\s+"\$(API|DNS)_TARGET":"\$(API|DNS)_STAGE"\/(\S*)$/);
++    if (!m || m[2] !== m[3]) { unmatched.push(line.slice(0, 120)); continue; }
++    const all = m[1].split(/\s+/);
++    out.push({ host: m[2], dest: "/" + m[4], all, files: all.filter((f) => /\.(mjs|js)$/.test(f)) });
+   }
++  assert.deepEqual(unmatched, [], "scp lines this check does not recognise (ship through a role's staging directory):\n" + unmatched.join("\n"));
+   return out;
+ }
+ 
+@@ -56,11 +55,15 @@ function relativeImports(file) {
+ 
+ test("relay/deploy.sh ships every module its entrypoints import, transitively", () => {
+   const targets = scpTargets();
+-  assert.ok(targets.length >= 2, "expected at least the data-plane relay and api-relay scp lines");
+-  // the data-plane payload goes out inside the host loop; if that line stops
+-  // being recognised, this check silently covers only the api relay
+-  assert.ok(targets.some((t) => /\$DNS_HOST/.test(t.host)),
+-    "the DNS control-plane payload must be included in dependency checks");
++  // both roles' payloads must be recognised, or this check silently covers only one of them
++  assert.deepEqual([...new Set(targets.map((t) => t.host))].sort(), ["API", "DNS"], "both the API and the DNS payloads must be included in dependency checks");
++  for (const [role, entry] of [["API", "api-relay.js"], ["DNS", "dns-relay.js"]]) {
++    const shippedHere = targets.filter((t) => t.host === role).flatMap((t) => t.all);
++    for (const f of [entry, "package.json", "package-lock.json", "network-runtime.bundle.mjs"])
++      assert.ok(shippedHere.includes(f), `${role}: ${f} must ship (entrypoint, locked dependencies, network bundle)`);
++    for (const f of shippedHere) if (f !== "network-runtime.bundle.mjs" && f !== "network-runtime.bundle.mjs.manifest.json")
++      assert.ok(fs.existsSync(path.join(RELAY, f)), `${role}: deployment lists missing source relay/${f}`);
++  }
+ 
+   // Per host, the box's tree: each scp line lands its files FLAT in its destination directory (scp keeps basenames,
+   // not source layout), and a host may have several lines into different directories under one install root
+@@ -106,7 +109,7 @@ test("the DNS payload boots in a flat directory without the repository, includin
+   });
+   let child, exited;
+   try {
+-    const target = scpTargets().find((t) => /\$DNS_HOST/.test(t.host));
++    const target = scpTargets().find((t) => t.host === "DNS");
+     assert.ok(target, "DNS deployment must have a payload");
+     for (const f of [...target.files, "package.json"]) fs.copyFileSync(path.join(RELAY, f), path.join(dir, path.basename(f)));
+     assert.equal(fs.existsSync(path.join(dir, "../network/contract-pins.mjs")), false, "no source tree beside the payload");
+diff --git a/test/relay-deploy-targets.test.mjs b/test/relay-deploy-targets.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..1759a606be7f26b6b5ba7c8d563da8f309fcaeef
+--- /dev/null
++++ b/test/relay-deploy-targets.test.mjs
+@@ -0,0 +1,352 @@
++// relay/deploy.sh run for real against fake hosts: no network, no real ssh/scp/npm/node registry access. The script's
++// own bash executes; ssh/scp/node/npm on PATH are fakes that log every call. A fake "remote" command really runs (bash)
++// inside that host's own root directory, where /opt and /etc are mapped, with fake systemctl/journalctl/pgrep/npm/node
++// that model a unit (its installed WorkingDirectory/ExecStart, restart, is-active, the code it is running). So the
++// assertions are about effects - which host was contacted, which files landed where, which unit restarted, what the
++// host is serving afterwards - not about the script's wording.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import crypto from "node:crypto";
++import { spawnSync } from "node:child_process";
++import { fileURLToPath } from "node:url";
++
++const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
++const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
++const exe = (file, body) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, "#!/usr/bin/env bash\n" + body); fs.chmodSync(file, 0o755); };
++
++// ---- fakes -------------------------------------------------------------------------------------------------------
++const SSH_COMMON = `
++args=("$@"); i=0; opts=()
++while [ $i -lt \${#args[@]} ]; do case "\${args[$i]}" in -o) opts+=("\${args[$((i+1))]}"); i=$((i+2));; -q) i=$((i+1));; -*) echo "fake: unexpected option \${args[$i]}" >&2; exit 96;; *) break;; esac; done
++for o in BatchMode=yes StrictHostKeyChecking=yes ConnectTimeout=15; do [[ " \${opts[*]} " == *" $o "* ]] || { echo "fake: missing -o $o" >&2; exit 97; }; done
++rest=("\${args[@]:$i}")
++`;
++const LOCAL_SSH = SSH_COMMON + `
++host="\${rest[0]}"; cmd="\${rest[*]:1}"
++printf 'ssh %s :: %s\\n' "$host" "$cmd" >> "$FAKE/log"
++H="$FAKE/hosts/\${host#*@}"
++[ -d "$H" ] && [ ! -e "$H/unreachable" ] || exit 255
++[[ "$cmd" != *pgrep* ]] || [ ! -e "$H/ssh-fail-pgrep" ] || exit 255
++# the connection drops at the API apply: nothing runs, nothing comes back
++[[ "$cmd" != "bash -s -- "*" enclave-api-relay "* ]] || [ ! -e "$H/drop-api-apply" ] || exit 255
++cmd=$(printf '%s' "$cmd" | sed -e "s#/opt/#$H/root/opt/#g" -e "s#/etc/#$H/root/etc/#g")
++export FAKE_HOST_DIR="$H"
++PATH="$FAKE/remotebin:/usr/bin:/bin" exec bash -c "$cmd"
++`;
++const LOCAL_SCP = SSH_COMMON + `
++dest="\${rest[\${#rest[@]}-1]}"; files=("\${rest[@]:0:\${#rest[@]}-1}")
++printf 'scp %s :: %s\\n' "$dest" "\${files[*]}" >> "$FAKE/log"
++host="\${dest%%:*}"; p="\${dest#*:}"; H="$FAKE/hosts/\${host#*@}"
++[ -d "$H" ] && [ ! -e "$H/unreachable" ] || exit 255
++case "$p" in /opt/*|/etc/*) ;; *) echo "fake scp: unmapped path $p" >&2; exit 98;; esac
++t="$H/root$p"
++cp "\${files[@]}" "$t" || exit 1
++if [ -e "$H/corrupt-copy" ] && [[ "$t" == */ ]]; then printf 'tampered' >> "$t$(basename "\${files[0]}")"; fi
++`;
++const LOCAL_NODE = `
++printf 'node %s\\n' "$*" >> "$FAKE/log"
++case "$1" in
++  */preflight.mjs) exit "\${FAKE_PREFLIGHT_RC:-0}" ;;
++  build-network.mjs) [ -z "\${FAKE_BUILD_FAIL:-}" ] || exit 1; printf 'export {};\\n// %s\\n' "$FAKE_BUILD_ID" > network-runtime.bundle.mjs; printf '{"inputs":{}}\\n' > network-runtime.bundle.mjs.manifest.json ;;
++  *) echo "fake node: unexpected $*" >&2; exit 99 ;;
++esac`;
++const LOCAL_NPM = `
++printf 'npm %s (cwd %s)\\n' "$*" "$(basename "$PWD")" >> "$FAKE/log"
++[ -z "\${FAKE_LOCAL_NPM_FAIL:-}" ] || exit 1
++[[ " $* " == *" ci "* && " $* " == *" --ignore-scripts "* ]] || { echo "fake npm: only locked, script-free installs" >&2; exit 95; }
++mkdir -p node_modules/esbuild node_modules/viem`;
++// remote side: $FAKE_HOST_DIR is the host; $FAKE_HOST_DIR/units/<unit> holds what systemctl show prints
++const R_SYSTEMCTL = `
++H="$FAKE_HOST_DIR"; printf 'remote %s systemctl %s\\n' "$(basename "$H")" "$*" >> "$FAKE/log"
++unitfile() { echo "$H/units/$1"; }
++case "$1" in
++  show) u="$2"; if [ -f "$(unitfile "$u")" ]; then cat "$(unitfile "$u")"; else printf 'LoadState=not-found\\nWorkingDirectory=\\nExecStart=\\n'; fi ;;
++  restart)
++    u="$2"; f="$(unitfile "$u")"; [ -f "$f" ] || exit 5
++    wd=$(sed -n 's/^WorkingDirectory=//p' "$f"); entry=$(sed -n 's/^ExecStart=.*argv\\[\\]=[^ ]* \\([^ ]*\\) ;.*/\\1/p' "$f")
++    d="$H/root$wd"; e="$H/root$entry"
++    echo "$(date +%s%N) $u" >> "$H/restarts"
++    if [ -f "$e" ] && [ -f "$d/node_modules/.ok" ] && ! grep -q __FAIL_START__ "$e"; then echo active > "$H/state-$u"; sha256sum "$e" | cut -d' ' -f1 > "$H/running-$u"
++    else echo failed > "$H/state-$u"; : > "$H/running-$u"; fi ;;
++  is-active) u="\${@: -1}"; [ "$(cat "$H/state-$u" 2>/dev/null)" = active ] ;;
++  *) echo "fake systemctl: unexpected $*" >&2; exit 90 ;;
++esac`;
++const R_JOURNAL = `echo "-- fake journal for $* --"`;
++const R_PGREP = `
++H="$FAKE_HOST_DIR"; printf 'remote %s pgrep %s\\n' "$(basename "$H")" "$*" >> "$FAKE/log"
++[ ! -e "$H/pgrep-error" ] || exit 2
++n=$(cat "$H/predicting" 2>/dev/null || echo 0)
++if [ "$n" = forever ]; then exit 0; fi
++if [ "$n" -gt 0 ]; then echo $((n - 1)) > "$H/predicting"; exit 0; fi
++exit 1`;
++const R_NPM = `
++H="$FAKE_HOST_DIR"; printf 'remote %s npm %s (in %s)\\n' "$(basename "$H")" "$*" "\${PWD#$H/root}" >> "$FAKE/log"
++[[ " $* " == *" ci "* && " $* " == *" --omit=dev "* && " $* " == *" --ignore-scripts "* ]] || { echo "fake remote npm: locked, script-free, production-only installs only" >&2; exit 95; }
++[ -f package-lock.json ] || exit 94
++[ ! -e "$H/fail-npm" ] || { echo "registry unavailable" >&2; exit 1; }
++mkdir -p node_modules && touch node_modules/.ok`;
++const R_NODE = `
++H="$FAKE_HOST_DIR"; printf 'remote %s node %s (in %s)\\n' "$(basename "$H")" "$*" "\${PWD#$H/root}" >> "$FAKE/log"
++[ -f "$1" ] && [ ! -e "$H/fail-bundle" ]`;
++
++// ---- a sandbox: the relay source tree (real files, real lists) + fakes + hosts -----------------------------------------
++const API_UNIT = (dir) => `LoadState=loaded\nWorkingDirectory=${dir}\nExecStart={ path=/usr/bin/node ; argv[]=/usr/bin/node ${dir}/api-relay.js ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }\n`;
++const DNS_UNIT = (dir) => `LoadState=loaded\nWorkingDirectory=${dir}\nExecStart={ path=/usr/bin/node ; argv[]=/usr/bin/node ${dir}/dns-relay.js ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }\n`;
++function sandbox(t) {
++  const root = fs.mkdtempSync(path.join(os.tmpdir(), "relay-deploy-"));
++  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
++  const repo = path.join(root, "repo"), relay = path.join(repo, "relay");
++  // real copies (dereference): a test that edits a sandbox file must never write through a symlink into the source tree
++  fs.cpSync(path.join(REPO, "relay"), relay, { recursive: true, dereference: true, filter: (s) => !/\/node_modules(\/|$)|network-runtime\.bundle\.mjs/.test(s) });
++  fs.mkdirSync(path.join(repo, "network"), { recursive: true }); fs.writeFileSync(path.join(repo, "network/preflight.mjs"), "// not executed: the fake node answers\n");
++  for (const f of fs.readdirSync(relay, { recursive: true })) assert.equal(fs.lstatSync(path.join(relay, f)).isSymbolicLink(), false, `sandbox ${f} is a real file`);
++  const bin = path.join(root, "bin"), rbin = path.join(root, "remotebin");
++  exe(path.join(bin, "ssh"), LOCAL_SSH); exe(path.join(bin, "scp"), LOCAL_SCP); exe(path.join(bin, "node"), LOCAL_NODE); exe(path.join(bin, "npm"), LOCAL_NPM);
++  exe(path.join(rbin, "systemctl"), R_SYSTEMCTL); exe(path.join(rbin, "journalctl"), R_JOURNAL); exe(path.join(rbin, "pgrep"), R_PGREP);
++  exe(path.join(rbin, "npm"), R_NPM); exe(path.join(rbin, "node"), R_NODE);
++  fs.mkdirSync(path.join(root, "hosts")); fs.mkdirSync(path.join(root, "home"));
++  const host = (name, { api = null, dns = null } = {}) => {
++    const H = path.join(root, "hosts", name);
++    fs.mkdirSync(path.join(H, "units"), { recursive: true });
++    fs.mkdirSync(path.join(H, "root/etc/nan-relay"), { recursive: true });
++    fs.writeFileSync(path.join(H, "root/etc/nan-relay/api-relay.env"), "PROVISIONER_PRIVATE_KEY=0xSECRET-NEVER-READ\n", { mode: 0o600 });
++    fs.writeFileSync(path.join(H, "root/etc/nan-relay/dns.env"), "UPLOAD_KEY=SECRET-NEVER-READ\n", { mode: 0o644 });
++    // an existing install: the old release of a few shipped files, its dependencies, and host-owned files the deploy must keep
++    const install = (unit, unitText, dir, entry) => {
++      const d = path.join(H, "root", dir);
++      fs.mkdirSync(path.join(d, "node_modules"), { recursive: true }); fs.writeFileSync(path.join(d, "node_modules/.ok"), "old deps\n");
++      fs.writeFileSync(path.join(d, entry), `// old ${entry}\n`); fs.writeFileSync(path.join(d, "fleet.mjs"), "// old fleet\n");
++      fs.writeFileSync(path.join(d, "operator-notes.txt"), "host-owned\n"); fs.mkdirSync(path.join(d, "state"), { recursive: true });
++      fs.writeFileSync(path.join(d, "state/accounts.json"), "{\"host\":\"owned\"}\n");
++      fs.writeFileSync(path.join(H, "units", unit), unitText(dir));
++      fs.writeFileSync(path.join(H, `state-${unit}`), "active\n"); fs.writeFileSync(path.join(H, `running-${unit}`), sha(path.join(d, entry)) + "\n");
++    };
++    if (api) install("enclave-api-relay", API_UNIT, api, "api-relay.js");
++    if (dns) install("enclave-dns", DNS_UNIT, dns, "dns-relay.js");
++    return H;
++  };
++  const run = (env = {}, args = []) => {
++    const r = spawnSync("bash", [path.join(relay, "deploy.sh"), ...args], { encoding: "utf8", timeout: 60000,
++      env: { PATH: `${bin}:/usr/bin:/bin`, HOME: path.join(root, "home"), FAKE: root, FAKE_BUILD_ID: "build-1",
++        PREDICTION_POLL_SEC: "1", RELAY_RESTART_SETTLE_SEC: "0", ...env } });
++    const log = fs.existsSync(path.join(root, "log")) ? fs.readFileSync(path.join(root, "log"), "utf8") : "";
++    return { ...r, log, lines: log.split("\n").filter(Boolean) };
++  };
++  return { root, relay, host, run, H: (n) => path.join(root, "hosts", n) };
++}
++const BOTH = (apiHost, dnsHost, apiDir = "/opt/nan-relay", dnsDir = "/opt/enclave-dns") => ({ RELAY_DEPLOY_ROLES: "api,dns",
++  RELAY_API_TARGET: `root@${apiHost}`, RELAY_API_DIR: apiDir, RELAY_DNS_TARGET: `root@${dnsHost}`, RELAY_DNS_DIR: dnsDir });
++// a tree as { relative path: sha256 } (node_modules collapsed to its marker)
++const tree = (dir) => { const out = {}; const walk = (d, rel = "") => { for (const e of fs.readdirSync(d, { withFileTypes: true })) {
++  const r = rel + e.name; if (e.isDirectory()) walk(path.join(d, e.name), r + "/"); else out[r] = sha(path.join(d, e.name)); } }; if (fs.existsSync(dir)) walk(dir); return out; };
++const restarts = (H) => fs.existsSync(path.join(H, "restarts")) ? fs.readFileSync(path.join(H, "restarts"), "utf8").trim().split("\n").map((l) => l.split(" ")[1]) : [];
++const running = (H, u) => fs.readFileSync(path.join(H, `running-${u}`), "utf8").trim();
++// the payload lists, read from the script's own scp lines (the same lines test/relay-deploy-closure.test.mjs walks)
++function payload(relay, role) {
++  const files = [];
++  for (const line of fs.readFileSync(path.join(relay, "deploy.sh"), "utf8").split("\n")) {
++    const m = line.match(/^scp\s+(.+?)\s+"\$(API|DNS)_TARGET":"\$(API|DNS)_STAGE"\/(\S*)$/);
++    if (m && m[2] === role) for (const f of m[1].split(/\s+/)) files.push(m[4] + path.basename(f));
++  }
++  return files.sort();
++}
++
++// ---- configuration refusals: no external action at all ---------------------------------------------------------------
++test("missing configuration names the exact role and variable, and nothing is contacted, built or run", (t) => {
++  const s = sandbox(t);
++  for (const [env, want] of [
++    [{}, /RELAY_DEPLOY_ROLES is not set/],
++    [{ RELAY_DEPLOY_ROLES: "api" }, /role api: RELAY_API_TARGET is not set/],
++    [{ RELAY_DEPLOY_ROLES: "api", RELAY_API_TARGET: "root@a.example" }, /role api: RELAY_API_DIR is not set/],
++    [{ RELAY_DEPLOY_ROLES: "api,dns", RELAY_API_TARGET: "root@a.example", RELAY_API_DIR: "/opt/nan-relay" }, /role dns: RELAY_DNS_TARGET is not set/],
++    [{ RELAY_DEPLOY_ROLES: "dns", RELAY_DNS_TARGET: "root@a.example" }, /role dns: RELAY_DNS_DIR is not set/]]) {
++    const r = s.run(env);
++    assert.equal(r.status, 2, JSON.stringify(env)); assert.match(r.stderr, want);
++    assert.equal(r.log, "", "no ssh, scp, node or npm ran");
++  }
++  // the legacy aliases and variables select nothing
++  const legacy = s.run({ DNS_HOST: "nan-relay", RELAY_SSH_HOST: "203.0.113.1", SITE_SSH_HOST: "203.0.113.2" });
++  assert.equal(legacy.status, 2); assert.equal(legacy.log, "");
++});
++
++test("malicious or malformed targets, directories and roles are refused before any side effect", (t) => {
++  const s = sandbox(t); const pwn = path.join(s.root, "pwned");
++  const ok = { RELAY_DEPLOY_ROLES: "api", RELAY_API_TARGET: "root@a.example", RELAY_API_DIR: "/opt/nan-relay" };
++  for (const target of [`-oProxyCommand=touch ${pwn}`, `a.example;touch ${pwn}`, "a.example:22", "a example", `$(touch ${pwn})`, "`id`", "a.example/x", "root@-x", "-x", "ROOT@a.example", "a..b.", "user@@a.example"])
++    { const r = s.run({ ...ok, RELAY_API_TARGET: target }); assert.equal(r.status, 2, target); assert.match(r.stderr, /RELAY_API_TARGET must be/); assert.equal(r.log, "", target); }
++  for (const dir of ["/opt/../etc", "/opt/..", "/etc/nan-relay", "opt/nan-relay", `/opt/x;touch ${pwn}`, "/opt/a/b", "/opt/.hidden", "/opt/x y", "/opt/$(id)", "/opt/", "/opt/nan-relay/", "/opt/a..b"])
++    { const r = s.run({ ...ok, RELAY_API_DIR: dir }); assert.equal(r.status, 2, dir); assert.match(r.stderr, /RELAY_API_DIR must be/); assert.equal(r.log, "", dir); }
++  for (const roles of ["api,web", "web", " , ", "api;dns", "API"])
++    { const r = s.run({ ...ok, RELAY_DEPLOY_ROLES: roles }); assert.equal(r.status, 2, roles); assert.equal(r.log, "", roles); }
++  for (const [k, v] of [["PREDICTION_WAIT_SEC", "1e9"], ["PREDICTION_POLL_SEC", "0"], ["RELAY_RESTART_SETTLE_SEC", "-1"]])
++    { const r = s.run({ ...ok, [k]: v }); assert.equal(r.status, 2, k); assert.equal(r.log, "", k); }
++  const same = s.run({ ...BOTH("a.example", "a.example", "/opt/nan-relay", "/opt/nan-relay") });
++  assert.equal(same.status, 2); assert.match(same.stderr, /same directory/); assert.equal(same.log, "");
++  assert.equal(fs.existsSync(pwn), false, "nothing was executed from a value");
++  const check = s.run({ ...BOTH("a.example", "b.example") }, ["--check-config"]);
++  assert.equal(check.status, 0); assert.match(check.stdout, /role api: root@a\.example:\/opt\/nan-relay \(unit enclave-api-relay\)/); assert.match(check.stdout, /role dns: root@b\.example:\/opt\/enclave-dns/);
++  assert.equal(check.log, "", "--check-config contacts nothing");
++});
++
++// ---- refusals after configuration: preflight, reachability, unit agreement, predictor ---------------------------------
++test("a preflight refusal stops the deploy before any host is contacted", (t) => {
++  const s = sandbox(t); s.host("box", { api: "/opt/nan-relay", dns: "/opt/enclave-dns" });
++  const before = tree(s.H("box"));
++  const r = s.run({ ...BOTH("box", "box"), FAKE_PREFLIGHT_RC: "1" }, ["--require", "0xabc"]);
++  assert.notEqual(r.status, 0);
++  assert.deepEqual(r.lines, ["node ../network/preflight.mjs --require 0xabc"], "preflight ran (with its arguments) and nothing else");
++  assert.deepEqual(tree(s.H("box")), before);
++});
++
++test("an unreachable selected DNS host fails the whole deploy: nothing is copied or restarted anywhere", (t) => {
++  const s = sandbox(t); const api = s.host("api", { api: "/opt/nan-relay" }); const dns = s.host("dns", { dns: "/opt/enclave-dns" });
++  fs.writeFileSync(path.join(dns, "unreachable"), "");
++  const before = tree(api);
++  const r = s.run(BOTH("api", "dns"));
++  assert.equal(r.status, 1); assert.match(r.stderr, /role dns: root@dns does not answer ssh.*nothing was copied or restarted/);
++  assert.ok(!r.lines.some((l) => l.startsWith("scp ")), "no copy"); assert.deepEqual(restarts(api), []);
++  assert.ok(!r.lines.some((l) => /mkdir/.test(l)), "no staging directory");
++  assert.deepEqual(tree(api), before, "the reachable API host is untouched too");
++  assert.doesNotMatch(r.stdout, /deployed:/);
++});
++
++test("the predictor check fails closed: ssh failure (255) or a pgrep error refuses; nothing is copied or restarted", (t) => {
++  for (const flag of ["ssh-fail-pgrep", "pgrep-error"]) {
++    const s = sandbox(t); const H = s.host("box", { api: "/opt/nan-relay", dns: "/opt/enclave-dns" }); fs.writeFileSync(path.join(H, flag), "");
++    const before = tree(path.join(H, "root"));
++    const r = s.run(BOTH("box", "box"));
++    assert.equal(r.status, 1, flag); assert.match(r.stderr, /cannot tell whether a measurement prediction is running on root@box \(exit (255|2)\)/);
++    assert.ok(!r.lines.some((l) => l.startsWith("scp ")), flag); assert.deepEqual(restarts(H), [], flag);
++    assert.deepEqual(tree(path.join(H, "root")), before, flag);
++  }
++});
++
++test("an active prediction: bounded wait then refusal; a gap within the budget proceeds", (t) => {
++  const s = sandbox(t); const H = s.host("box", { api: "/opt/nan-relay" });
++  fs.writeFileSync(path.join(H, "predicting"), "forever");
++  const t0 = Date.now(), r = s.run({ RELAY_DEPLOY_ROLES: "api", RELAY_API_TARGET: "root@box", RELAY_API_DIR: "/opt/nan-relay", PREDICTION_WAIT_SEC: "3" });
++  const took = Date.now() - t0;
++  assert.equal(r.status, 1); assert.match(r.stderr, /running on root@box at every look for 3s/);
++  assert.ok(took >= 3000 && took < 15000, `bounded wait: ${took} ms`);
++  assert.equal(r.lines.filter((l) => /pgrep/.test(l) && l.startsWith("remote")).length, 4, "looks at 0,1,2,3 s");
++  assert.ok(!r.lines.some((l) => l.startsWith("scp ")) && restarts(H).length === 0);
++  fs.writeFileSync(path.join(H, "predicting"), "2");   // busy for two looks, then a gap
++  const ok = s.run({ RELAY_DEPLOY_ROLES: "api", RELAY_API_TARGET: "root@box", RELAY_API_DIR: "/opt/nan-relay", PREDICTION_WAIT_SEC: "10" });
++  assert.equal(ok.status, 0, ok.stderr); assert.deepEqual(restarts(H), ["enclave-api-relay"]);
++});
++
++test("the installed unit must agree with the named directory: the old blind /opt/nan-relay DNS target is refused", (t) => {
++  const s = sandbox(t); const H = s.host("box", { api: "/opt/nan-relay", dns: "/opt/enclave-dns" });
++  const before = tree(path.join(H, "root"));
++  // the previous script shipped DNS into /opt/nan-relay; the installed enclave-dns runs from /opt/enclave-dns
++  const wrong = s.run({ RELAY_DEPLOY_ROLES: "dns", RELAY_DNS_TARGET: "root@box", RELAY_DNS_DIR: "/opt/nan-relay" });
++  assert.equal(wrong.status, 1); assert.match(wrong.stderr, /role dns: the enclave-dns unit on root@box does not run \/opt\/nan-relay\/dns-relay\.js from WorkingDirectory=\/opt\/nan-relay \(found: LoadState=loaded WorkingDirectory=\/opt\/enclave-dns/);
++  // a directory that is not the installed one (here: does not even exist) is refused with what was found
++  const stale = s.run({ RELAY_DEPLOY_ROLES: "api", RELAY_API_TARGET: "root@box", RELAY_API_DIR: "/opt/enclave-api" });
++  assert.equal(stale.status, 1); assert.match(stale.stderr, /role api: the enclave-api-relay unit on root@box does not run \/opt\/enclave-api\/api-relay\.js .*WorkingDirectory=\/opt\/nan-relay/);
++  fs.rmSync(path.join(H, "units/enclave-dns"));
++  const missing = s.run(BOTH("box", "box"));
++  assert.equal(missing.status, 1); assert.match(missing.stderr, /role dns: the enclave-dns unit .*LoadState=not-found/);
++  for (const r of [wrong, stale, missing]) { assert.ok(!r.lines.some((l) => l.startsWith("scp ")), "no copy"); }
++  assert.deepEqual(restarts(H), []); assert.deepEqual(tree(path.join(H, "root")), before);
++});
++
++// ---- staging failures: the old processes keep serving -----------------------------------------------------------------
++test("source, copy, dependency and bundle staging failures restart nothing and leave the installs unchanged", (t) => {
++  for (const [why, arrange, env] of [
++    ["remote locked install fails", (H) => fs.writeFileSync(path.join(H, "fail-npm"), ""), {}],
++    ["bundle does not load on the box", (H) => fs.writeFileSync(path.join(H, "fail-bundle"), ""), {}],
++    ["a copied file does not match the manifest", (H) => fs.writeFileSync(path.join(H, "corrupt-copy"), ""), {}],
++    ["local locked install fails", () => {}, { FAKE_LOCAL_NPM_FAIL: "1" }],
++    ["local bundle build fails", () => {}, { FAKE_BUILD_FAIL: "1" }]]) {
++    const s = sandbox(t); const H = s.host("box", { api: "/opt/nan-relay", dns: "/opt/enclave-dns" }); arrange(H);
++    const installs = { api: tree(path.join(H, "root/opt/nan-relay")), dns: tree(path.join(H, "root/opt/enclave-dns")) };
++    const served = { api: running(H, "enclave-api-relay"), dns: running(H, "enclave-dns") };
++    const r = s.run({ ...BOTH("box", "box"), ...env });
++    assert.notEqual(r.status, 0, why);
++    assert.deepEqual(restarts(H), [], `${why}: nothing restarted`);
++    assert.deepEqual({ api: tree(path.join(H, "root/opt/nan-relay")), dns: tree(path.join(H, "root/opt/enclave-dns")) }, installs, `${why}: installs unchanged`);
++    assert.deepEqual({ api: running(H, "enclave-api-relay"), dns: running(H, "enclave-dns") }, served, `${why}: old releases still serving`);
++    assert.deepEqual(fs.readdirSync(path.join(H, "root/opt")).sort(), ["enclave-dns", "nan-relay"], `${why}: staging removed`);
++    if (env.FAKE_LOCAL_NPM_FAIL || env.FAKE_BUILD_FAIL) assert.ok(!r.lines.some((l) => l.startsWith("scp ")), `${why}: nothing copied`);
++  }
++});
++
++// ---- success ------------------------------------------------------------------------------------------------------------
++test("a successful deploy ships each role's exact closure to its own directory, keeps host state, and restarts each unit once", (t) => {
++  const s = sandbox(t); const H = s.host("box", { api: "/opt/nan-relay", dns: "/opt/enclave-dns" });
++  const keep = ["etc/nan-relay/api-relay.env", "etc/nan-relay/dns.env", "opt/nan-relay/operator-notes.txt", "opt/nan-relay/state/accounts.json", "opt/enclave-dns/operator-notes.txt", "opt/enclave-dns/state/accounts.json"];
++  const kept = Object.fromEntries(keep.map((f) => [f, sha(path.join(H, "root", f))]));
++  const r = s.run(BOTH("box", "box"));
++  assert.equal(r.status, 0, r.stderr); assert.match(r.stdout, /deployed: api dns/);
++  assert.deepEqual(restarts(H), ["enclave-dns", "enclave-api-relay"], "each unit restarted exactly once, DNS first");
++  for (const [dir, role, unit, entry] of [["opt/nan-relay", "API", "enclave-api-relay", "api-relay.js"], ["opt/enclave-dns", "DNS", "enclave-dns", "dns-relay.js"]]) {
++    const got = tree(path.join(H, "root", dir));
++    const shipped = payload(s.relay, role);
++    assert.ok(shipped.length >= (role === "API" ? 70 : 9), `${role} payload parsed (${shipped.length})`);
++    // exactly the payload (byte-identical to the source), plus node_modules and the host's own files
++    assert.deepEqual(Object.keys(got).filter((f) => !f.startsWith("node_modules/") && !["operator-notes.txt", "state/accounts.json"].includes(f)).sort(), shipped, role);
++    for (const f of shipped) assert.equal(got[f], sha(path.join(s.relay, f.startsWith("vendor/") || f.startsWith("fixtures/") ? f : path.basename(f))), `${role} ${f}`);
++    assert.equal(running(H, unit), got[entry], `${unit} now runs the shipped ${entry}`);
++    assert.ok(fs.readdirSync(path.join(H, "root/opt")).some((d) => d.startsWith(path.basename(dir) + ".rollback-")), `${role}: previous release kept for rollback`);
++  }
++  assert.ok(!Object.keys(tree(path.join(H, "root/opt/enclave-dns"))).includes("api-relay.js"), "roles stay separate on one host");
++  for (const [f, h] of Object.entries(kept)) assert.equal(sha(path.join(H, "root", f)), h, `host state kept: ${f}`);
++  assert.ok(!fs.readdirSync(path.join(H, "root/opt")).some((d) => d.includes(".deploy-")), "staging removed");
++  // contacted: only the selected target; copies: only into the roles' staging directories; no unit files written
++  for (const l of r.lines.filter((x) => x.startsWith("ssh ") || x.startsWith("scp "))) assert.match(l, /^(ssh root@box ::|scp root@box:\/opt\/(nan-relay|enclave-dns)\.deploy-[0-9TZ]+-[0-9]+\/)/, l);
++  assert.ok(!fs.existsSync(path.join(H, "root/etc/systemd")), "no unit was installed or replaced");
++  assert.ok(r.lines.some((l) => /^remote box npm ci --omit=dev --ignore-scripts --no-audit --no-fund \(in \/opt\/nan-relay\.deploy-/.test(l)), "locked install in the API staging directory");
++  assert.ok(r.lines.some((l) => /^remote box npm ci .*\(in \/opt\/enclave-dns\.deploy-/.test(l)), "locked install in the DNS staging directory");
++  assert.ok(r.lines.some((l) => /^remote box node network-runtime\.bundle\.mjs \(in \/opt\/nan-relay\.deploy-/.test(l)), "bundle load check");
++  // preflight, then the read-only checks, then copies: the order the safety gates promise
++  const first = (re) => r.lines.findIndex((l) => re.test(l));
++  assert.ok(first(/^node .*preflight/) === 0 && first(/pgrep/) < first(/^scp /) && first(/systemctl show/) < first(/^scp /));
++  // env files: modes reported, contents never read
++  assert.match(r.stdout, /!! \S+dns\.env is mode 644/); assert.match(r.stdout, /ok \S+api-relay\.env mode 600/);
++  assert.doesNotMatch(r.stdout + r.stderr + r.log, /SECRET-NEVER-READ/);
++});
++
++test("only the selected role is touched; separate hosts get only their own payload", (t) => {
++  const s = sandbox(t); const api = s.host("api", { api: "/opt/nan-relay", dns: "/opt/enclave-dns" }); const dns = s.host("dns", { dns: "/opt/enclave-dns" });
++  const dnsBefore = tree(path.join(api, "root/opt/enclave-dns"));
++  const one = s.run({ RELAY_DEPLOY_ROLES: "api", RELAY_API_TARGET: "root@api", RELAY_API_DIR: "/opt/nan-relay" });
++  assert.equal(one.status, 0, one.stderr); assert.match(one.stdout, /the dns role was not selected/);
++  assert.deepEqual(restarts(api), ["enclave-api-relay"]); assert.deepEqual(tree(path.join(api, "root/opt/enclave-dns")), dnsBefore);
++  assert.equal(one.lines.some((l) => l.includes("root@dns")), false);
++  const two = s.run(BOTH("api", "dns"));
++  assert.equal(two.status, 0, two.stderr);
++  assert.deepEqual(restarts(dns), ["enclave-dns"]); assert.deepEqual(restarts(api), ["enclave-api-relay", "enclave-api-relay"]);
++  assert.ok(two.lines.filter((l) => l.startsWith("scp root@dns:")).every((l) => !/api-relay\.js/.test(l)));
++  assert.equal(two.lines.filter((l) => /pgrep/.test(l) && l.startsWith("ssh root@dns")).length, 0, "the predictor is checked on the API host");
++});
++
++test("a release that does not stay up is rolled back; the DNS-deployed/API-failed mixed state is reported as such", (t) => {
++  const s = sandbox(t); const H = s.host("box", { api: "/opt/nan-relay", dns: "/opt/enclave-dns" });
++  fs.appendFileSync(path.join(s.relay, "api-relay.js"), "\n// __FAIL_START__\n");
++  const before = tree(path.join(H, "root/opt/nan-relay")), served = running(H, "enclave-api-relay");
++  const r = s.run(BOTH("box", "box"));
++  assert.equal(r.status, 1); assert.match(r.stdout, /enclave-api-relay FAILED to stay up/);
++  assert.match(r.stdout, /^APPLY-RESULT status=committed rc=0 .*enclave-dns\.rollback-/m, "the box reported the DNS commit");
++  assert.match(r.stdout, /^APPLY-RESULT status=restored-active rc=70 .*nan-relay\.rollback-/m, "and the API rollback, as it happened");
++  assert.match(r.stderr, /role api: enclave-api-relay on root@box: the new release failed \(exit 70\); the previous release was restored and is active/);
++  assert.match(r.stderr, /MIXED STATE: the dns role was deployed on root@box and keeps serving the new release; the api role was not\. The previous DNS release is saved in root@box:\/opt\/enclave-dns\.rollback-/);
++  assert.match(r.stdout, /^role api: restored-active$/m); assert.match(r.stdout, /^role dns: committed$/m);
++  assert.deepEqual(tree(path.join(H, "root/opt/nan-relay")), before, "the API install is exactly the old one (new-only files removed)");
++  assert.equal(running(H, "enclave-api-relay"), served, "and the old code serves again");
++  assert.deepEqual(restarts(H), ["enclave-dns", "enclave-api-relay", "enclave-api-relay"]);
++  assert.match(fs.readFileSync(path.join(H, "root/opt", fs.readdirSync(path.join(H, "root/opt")).find((d) => d.startsWith("nan-relay.rollback-")), "STATUS"), "utf8"), /^status=restored-active rc=70$/m);
++  assert.doesNotMatch(r.stdout, /deployed:/);
++});
++
++test("a connection lost during the API apply is reported as an UNKNOWN outcome, never as restored", (t) => {
++  const s = sandbox(t); const H = s.host("box", { api: "/opt/nan-relay", dns: "/opt/enclave-dns" });
++  fs.writeFileSync(path.join(H, "drop-api-apply"), "");
++  const r = s.run(BOTH("box", "box"));
++  assert.equal(r.status, 1);
++  assert.match(r.stderr, /role api: enclave-api-relay on root@box: no final status \(ssh exit 255\): the outcome is UNKNOWN; the box records it in root@box:\/opt\/nan-relay\.rollback-\S+\/STATUS/);
++  assert.doesNotMatch(r.stderr, /restored/); assert.match(r.stdout, /^role api: unknown$/m); assert.match(r.stderr, /MIXED STATE/);
++});

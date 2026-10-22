@@ -1,0 +1,12 @@
+--- a/isolation/m4/guestd/main.go
++++ b/isolation/m4/guestd/main.go
+@@ -508,6 +508,9 @@
+ 		s.RuntimeSET = e == nil && string(set) == "1\n"
+ 		mem, e := os.ReadFile(filepath.Join(*cpuTemplate, "rt/mem64.enabled"))
+ 		s.RuntimeMem64 = e == nil && string(mem) == "1\n"
++		// only a PINNED template states this: an image built from the tree at launch is a lab path and claims nothing
++		enc, e := os.ReadFile(filepath.Join(*cpuTemplate, "rt/encvol.enabled"))
++		s.RuntimeEncvol = e == nil && string(enc) == "1\n"
+ 	}
+ 	if why := releaseNamingRefusal(*releaseOn, *isoRelease, *legacyIso, *legacyIsoRelease); why != "" {
+ 		log.Fatal(why)

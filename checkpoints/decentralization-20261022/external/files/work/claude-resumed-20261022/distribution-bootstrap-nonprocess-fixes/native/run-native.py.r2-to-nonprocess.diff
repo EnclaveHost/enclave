@@ -1,0 +1,55 @@
+--- r2-ref/run-native.r2.py	2026-10-21 22:05:39.684614786 -0700
++++ native/run-native.py	2026-10-21 22:05:54.941401108 -0700
+@@ -1,5 +1,6 @@
+ #!/usr/bin/env python3
+-"""ROOT-ONLY native Windows PowerShell 5.1 + in-box csc fixture for distribution-bootstrap r2 (EnclaveSetup.cs bounded policy
++"""NOT NATIVE-READY (B1 BLOCKED): r2 + non-process corrections M1/L4 only; --execute is refused. Root decides B1 separately.
++ROOT-ONLY native Windows PowerShell 5.1 + in-box csc fixture for distribution-bootstrap r2 (EnclaveSetup.cs bounded policy
+ pinning + relaunch quoting; the repo's own native verifier harness). Prepared by Claude; never run by it. Pattern: updater-first-hop-r4
+ native/run-native.py (root-executed 93383).
+ 
+@@ -104,7 +105,7 @@
+     r = {'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'stage': stage, 'files': FILES,
+          'manifestSha': manifest_sha(), 'transportSha': TRANSPORT_SHA}
+     with (rec / ATTEMPT).open('x') as f: json.dump(r, f, indent=2)          # O_EXCL BEFORE any remote call
+-    attempted = validating = False
++    attempted = validating = False; interrupt = None
+     try:
+         attempted = True
+         r['created'] = m.ps(t['create'], 40)
+@@ -112,15 +113,25 @@
+         for f in FILES: scp(d / f, 'minipc:/' + stage.replace('\\', '/') + '/' + f)
+         validating = True
+         r['validation'] = m.ps(t['validate'], VALIDATE_SECS)
+-    except Exception as e: r['error'] = str(e)
++    except BaseException as e:                       # M1: incl. SystemExit/KeyboardInterrupt from the transport: recorded, never silent
++        r['error'] = f'{type(e).__name__}: {e}'
++        if isinstance(e, KeyboardInterrupt): interrupt = e
+     finally:
+         rep = report(r.get('validation'))
+         r['status'] = rep.get('status') if rep else ('NO-REPORT' if validating else 'NOT-VALIDATED')
+         if validating and (rep is None or rep.get('childExitUnknown') or rep.get('status') not in CLEAN):
+             # the fixture may still have a running child: remove NOTHING; root inspects (read-only) before any cleanup
+             r['cleanup'] = {'skipped': 'fixture child exit unknown or no terminal report', 'recovery': {'stage': stage, 'left': rep.get('leftForRecovery') if rep else None}}
+-        elif attempted: r['cleanup'] = m.ps(t['cleanup'], 40)
++        elif attempted:
++            r['cleanup'] = {'gone': 'unknown', 'why': 'the cleanup call did not complete'}   # M1: never assumed gone
++            try: r['cleanup'] = m.ps(t['cleanup'], 40)
++            except BaseException as e:
++                r['cleanup'] = {'gone': 'unknown', 'why': f'the cleanup call raised {type(e).__name__}: {e}'}
++                if isinstance(e, KeyboardInterrupt): interrupt = interrupt or e
++            if not isinstance(r['cleanup'], dict): r['cleanup'] = {'gone': 'unknown', 'raw': r['cleanup']}
++        if rep and rep.get('leftForRecovery'): r['cleanup']['leftForRecovery'] = rep.get('leftForRecovery')   # L4: every branch
+         (rec / RESULT).write_text(json.dumps(r, indent=2) + '\n')
++    if interrupt: raise interrupt
+     ok = bool(rep) and rep.get('status') == 'PASS' and rep.get('pass') is True and isinstance(r.get('cleanup'), dict) and r['cleanup'].get('gone') is True
+     return r, ok
+ 
+@@ -138,6 +149,7 @@
+ def main(argv):
+     ap = argparse.ArgumentParser(); ap.add_argument('--execute', action='store_true'); ap.add_argument('--root-reviewed')
+     a = ap.parse_args(argv); bad = check_local()
++    if a.execute: print(json.dumps({'refused': 'NOT NATIVE-READY: B1 (own-process cleanup) is BLOCKED; this copy carries only M1/L2/L3/L4'})); return 2
+     if not a.execute:
+         print(json.dumps(plan(bad), indent=2)); return 0 if not bad else 2
+     if bad: print(json.dumps({'refused': 'local bytes or transport are not pinned', 'mismatches': bad})); return 2

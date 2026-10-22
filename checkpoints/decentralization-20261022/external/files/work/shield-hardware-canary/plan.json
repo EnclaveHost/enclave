@@ -1,0 +1,198 @@
+{
+  "format": "enclave-shield-hardware-canary-plan/2",
+  "status": "Corrected native stage complete. Real scoped manager proof passed, then own manager stopped:0foreign/0canaryVMs;12productionVMs preserved. Hardware guest phases remain pending.",
+  "host": "minipc (nucbox-k11)",
+  "artifacts": {
+    "shieldDirectGuest": {
+      "path": "C:\\ProgramData\\Enclave\\staging\\shield-direct-c7084346\\vbs-linux-candidate.bin",
+      "bytes": 77056796,
+      "sha256": "c7084346a908465404fdf6de332a76b3c2ca844101eb9e8071aa8a1468f197ec",
+      "verifiedReadOnly": true,
+      "note": "a GUEST (Hyper-V partition) image; unactivated. NOT the custodian image."
+    },
+    "custodianCandidate": {
+      "commit": "ee8beb38",
+      "evidence": "outputs/custodian-shield-candidate.json",
+      "note": "SEV-SNP custodian image; built, reproduced, SNP-compatible; NOT activated and not used by phases 1-5"
+    },
+    "bridge": {
+      "source": "windows/vbslike/host/src/bin/shielded-bridge.rs (with --worker-auth-stdin)",
+      "stagingBuild": "C:\\Users\\claude\\vbs-like\\releases\\bridge-auth-45801c22\\shielded-bridge.exe",
+      "stagingBuildSha256": "03bf48b04218ceba55d53a63b4285a26f9232aa7cc8af22150138e1412f7e11b",
+      "installedSha256": "87caf7e9486eb4c55c141982f5858936ff56070bbcaec7d019876ece0208824a",
+      "note": "the canary uses the bridge from a bundle built at the committed source (its pin in build-bundle.ps1 must be updated for that build); the installed (old) bridge rejects the 6th argument",
+      "committedSource": "45801c22be3a317d687f30efe92b6f0b47124a86",
+      "pinCommit": "abe86262",
+      "nativeLoopbackPass": 5
+    }
+  },
+  "baseline": {
+    "file": "outputs/windows-canary-preflight.json",
+    "productionVms": 12,
+    "allRunning": true,
+    "gcsRegistered": [
+      "00002329 (9001 report signing)",
+      "000024e3 (9443 egress)",
+      "00004c8b (19595 GPU)",
+      "999E53D4 / A5201C21 (VM Session Service)"
+    ],
+    "gcsAbsent": [
+      "000024e5 (9445 custody)",
+      "000024e6 (9446 package)"
+    ],
+    "installedRelease": "2026.10.12.47",
+    "note": "Fresh native baseline captured 2026-10-20T05:00:50.9678360Z; production invariant checks passed before/after actual staging and encoding correction."
+  },
+  "invariants": [
+    "every production VM (name not starting enclave-canary-) keeps its id, name, state and Notes hash - invariants.ps1 against the baseline, before and after EVERY phase; exit 1 stops the canary",
+    "pre-existing GuestCommunicationServices entries unchanged; only the two canary entries may be added, and only by gcs.ps1 -Apply, reverted by gcs.ps1 -Revert",
+    "the production manager (8091), node, data plane (8092) and installed files are never touched; the canary driver refuses port 8091",
+    "the canary manager runs with ENCLAVE_VM_PREFIX=enclave-canary-: it surveys, recovers, sweeps and deletes only enclave-canary-* VMs (test/windows-manager-vm-scope.test.mjs)",
+    "Production Update remains enabled and unchanged. Canary VMs use both enclave-canary- names and enclave-canary-vbslike-domain Notes; the installed production manager rejects that marker.",
+    "no real operator or custodian key is read; the custody callback uses a scratch key (installer-created ACL) and a throwaway signer",
+    "every state change is a gated step: -Apply AND a line 'approved: <step>' in <CanaryDir>\\approved-steps.txt (guard-selftest.ps1)"
+  ],
+  "inputsRequired": {
+    "windowsClosureCommit": "Use final bundle source abe86262, whose native bridge is built from45801c22 and pinned by windows/installer/builds/bridge-auth-45801c22.json.",
+    "bundle": "Unpacked bundle from final committed source with full commit/control manifest provenance, all required executable pins, and independently reviewed manifest SHA256.",
+    "directRuntimeIdentity": "Verified initrd extraction: work/shield-direct-build-0ed5a8ba/runtime.json; fileSHA c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0; RuntimeID297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8; outputs/shield-direct-runtime-verification.json.",
+    "testDeployments": "two TEST deployments on Base (owner test wallet; owner-committed public V1/V5 packages in storage; chain writes by the owner, coordinator-approved) for phases 3-4; one custody-v2 V6 test deployment for phase 5",
+    "contractPins/rpcs/gateways": "the node's pinned contracts, 2+ agreeing RPCs, storage replicas and IPFS gateways for canary.mjs body (read-only)",
+    "testLeaseAuthority": "Each real direct guest needs a current live ledger lease, not just an owner-committed package. isolation/m2/bootstrap/chain.go leaseCurrent rejects missing runner/operator, inactive or expired leases. materialize(needLease:false) only relaxes host preflight and does not relax guest verification. Prepare a correctly registered, authorized canary operator/host with isolated placement and bounded funding/cleanup; do not borrow a production runner identity or misrepresent another physical host.",
+    "availableSession": "Read-only quorum snapshot52843349: existing SessionVault0xB794C4DD0e1C5E6B72281799F282BfdE7654345D grant live, scoped to enclavedns only, balance91139 microUSDC. It cannot authorize hello-world V1 creation; do not silently broaden grant. Current snapshot is informational and must be refreshed before any signing."
+  },
+  "canaryDir": "C:\\ProgramData\\Enclave\\staging\\canary-abe86262",
+  "phases": [
+    {
+      "n": 0,
+      "name": "baseline (read-only)",
+      "run": "baseline.ps1 -CanaryDir <dir>; invariants.ps1 -Baseline <baseline>",
+      "changes": "none",
+      "status": "Passed: actual current baseline,12 production VMs preserved."
+    },
+    {
+      "n": 1,
+      "name": "stage (no system change)",
+      "run": "stage.ps1 -CanaryDir <dir> -Bundle <bundle> -Commit <fullsha> -ManifestSha256 <sha> -DirectRuntimeIdentity <runtime.json> -DirectRuntimeSha256 <sha> -CustodyTransport -ValidateOnly; after validation repeat without -ValidateOnly",
+      "changes": "Creates files only under canonical canary directory, verifies bundle/image/runtime pins, copies production blank VMGS read-only, creates scratch callback key using exact installer block, and hashes generated manager command. CustodyTransport is fixed at staging; never manually edit command.",
+      "status": "Passed on corrected source:78353terminal0; exact bundle reverified,UTF8metadata and canary-local egress route path."
+    },
+    {
+      "n": 2,
+      "name": "scoped manager start, survey only",
+      "approve": [
+        "manager-start"
+      ],
+      "run": "run-manager.ps1 -CanaryDir <dir> -Apply; node canary.mjs scope --canary-dir <dir> --port 18091",
+      "proves": "on REAL Hyper-V the canary manager (SYSTEM, enclave-canary- scope) sees 0 of the 12 production VMs, and /health states the pinned direct image",
+      "changes": "Creates only exact SYSTEM task Enclave-Canary/Manager-<commit8> and listener18091. Production tasks unchanged.",
+      "status": "Passed:43870terminal0; manager inventory ready,0records/foreign, exactdirectimage/runtime identity.3productioninvariant checks passed; own task/listener removed."
+    },
+    {
+      "n": 3,
+      "name": "hv_sock service registration",
+      "approve": [
+        "gcs-apply"
+      ],
+      "run": "gcs.ps1 -CanaryDir <dir> -Apply",
+      "changes": "Creates only absent required canary registrations with per-run ownership marker and durable journal; existing registrations preserved; revert requires unchanged exact ownership.",
+      "note": "needed only if a WMI type-1 partition's 9445/9446 binds fail without them (9443 egress is registered on this host); try phase 4 first without it ONLY if the coordinator prefers proving the need"
+    },
+    {
+      "n": 4,
+      "name": "two direct partitions: package path and VmId routing",
+      "approve": [
+        "spawn"
+      ],
+      "run": "node canary.mjs body ... --deployment A --out a.json; repeat for B; node canary.mjs spawn --canary-dir <dir> --port 18091 --body a.json --apply; repeat B; observe ids recorded in created-vms.json",
+      "proves": [
+        "each partition runs the direct image (imageRole shield-direct, igvmSha256 c708...) under a fresh per-run VMGS copy of the pinned master",
+        "each guest reads ITS OWN package over 9446 through its own bridge (bootstrapSha256 matches; the guest front verifies it against its own RPC quorum and the console head says so)",
+        "per-VmId routing on real hardware: A's bridge serves only A (its package names A's deployment; B's names B) - the hypervisor-filled VmId, not the fixture's VM line",
+        "readiness: the manager judges each guest's real VBS report with the direct runtime identity (status running only on a valid report)"
+      ],
+      "notProven": "cross-partition refusal by the bridge's peer check is exercised only if a guest dials another's service; routing makes that unreachable by construction"
+    },
+    {
+      "n": 5,
+      "name": "custody transport under SYSTEM",
+      "approve": [
+        "spawn",
+        "answer"
+      ],
+      "run": "Use bundle staged with -CustodyTransport. Spawn owner-committed V6 test deployment using driver with --canary-dir <dir> --apply; run one-shot SYSTEM answer with same stage and exact answer approval.",
+      "proves": "the guest's real custody-auth-v2 request reaches the manager over 9445 (listed with its deployment and vault), the SYSTEM-run caller reads the scratch key through the ACL check, its HMAC callback is accepted, and the guest receives the answer line",
+      "notProven": "Throwaway signature tests transport only. Real custodian release still requires activated reviewed measured custody code and registered operator. Existing ee8beb38 image does not include newer owner-read changes."
+    },
+    {
+      "n": 6,
+      "name": "restart and per-boot state",
+      "run": "Use driver with --canary-dir <dir> --port 18091 --apply to delete journal-owned A then respawn. Restart only exact staged manager task; verify recovered native VM identity.",
+      "proves": "a respawn gets a NEW per-run VMGS (the old one archived and verified), the package is served again to the new partition only, and a manager restart recovers A as never-served (enclave-canary- scope only)",
+      "approve": [
+        "delete",
+        "spawn",
+        "manager-stop",
+        "manager-start"
+      ]
+    },
+    {
+      "n": 7,
+      "name": "cleanup",
+      "approve": [
+        "cleanup",
+        "delete",
+        "manager-stop",
+        "gcs-revert"
+      ],
+      "run": "cleanup.ps1 -CanaryDir <dir> -Baseline <baseline> -Apply",
+      "result": "Only journal-owned, native-identity-verified VMs deleted; own task removed after listener exits; unchanged owned registrations reverted; scratch callback key removed only after all canary VMs gone. Preserve logs, VMGS and journals. Production Update unchanged; final invariants must pass."
+    }
+  ],
+  "rollback": "On failed invariant stop progression. Cleanup uses exact journal ownership and native identity; unknown spawn/deletion outcome leaves resources intact for reconciliation. Never remove VMs by prefix or kill processes by command substring.",
+  "incident": {
+    "at": "2026-10-20T03:56Z",
+    "what": "while validating these scripts read-only, gcs.ps1 and update-pause.ps1 were run WITHOUT -Apply and APPLIED: they added the two canary GuestCommunicationServices entries and disabled \\Enclave\\Update for under a minute",
+    "cause": "Require-Approval wrote a message AND returned $false; PowerShell returned both as an array and -not <array> is $false",
+    "remediation": "both entries removed and Update re-enabled within the minute; verified: 5 registrations as in the baseline, Update Ready, no missed run (last 03:13Z, next 04:13Z), 12 production VMs unchanged, no canary VM existed",
+    "fix": "Require-Approval now writes nothing to the pipeline and returns a strict bool; every caller tests '-ne $true'; guard-selftest.ps1 (5 checks, scratch only) passes on the host"
+  },
+  "scripts": {
+    "assert-vm.ps1": "3f65b66f0b03a80cb27084b5638c430fcd3421c413254ee4c706d1a4ce35ba69",
+    "baseline.ps1": "a113c9be78bed973bb7390f37bd003496dafc6659ad6a05add3212aa3b2d088c",
+    "canary.mjs": "73e73082c4d2ca65975aa998debba349767a0efa2cbb5f9ffd49bd9186111e4c",
+    "cleanup.ps1": "249bf72296465259e1c559d3792f29921f3fb544443246f5e0f95019980c9343",
+    "gcs.ps1": "39883f0feb7bacf078eefbe78bd7d628eb700a59231e6971e473233365577161",
+    "guard-selftest.ps1": "d2b1fe127535052cc5fe2ffd43b4f1a0111b8bc0c09d722e36ec4d170ccbfa4d",
+    "guard.mjs": "372d2976e9992a075c0bfee37e784eb8e9530c68149c4cb1331b2d5d8ea32a7d",
+    "guard.test.mjs": "def1768a10679ff1f20db3eebc4b4f12229eb2718e8e276b9d9f39ecdafcd87f",
+    "installer-key-block.ps1": "897a733c4835cda2131c254ab8c1ee622279897a348babe1e97382278416b7c2",
+    "invariants.ps1": "9e75c42f333d6a6fa5dbe140121f8f03f80baa5cc023f4ac80c7727d7a424b92",
+    "lib.ps1": "6965f70902dea26b36e42d76e2a3cbe6e96afdc6b4bdab96051cd3706ea149b4",
+    "registration-fixtures.ps1": "0c64c93685d59f56254207d620855f204a15ddbb02abf2aed5b0cdce4a5971a6",
+    "run-manager.ps1": "a4acd669fbd76485c2cec3644882f7440ef6b0eec531d2e4e631744eae42bb6c",
+    "stage-fixtures.ps1": "544c083450de919030215cfcf12f9465f4722bad4d2168233a32f714c475acb7",
+    "stage.ps1": "3950845d143f7e724c52cd70c569c9590e55e5152e314b7a780cb50e1ef99607",
+    "update-pause.ps1": "7068bdef05b745d1c12aec3f97ce80410d81f84309beb7b8fc176e4c84bebdb7"
+  },
+  "reviewAt": "2026-10-20T05:35:19.698023+00:00",
+  "reviewOpen": [
+    "Owner-committed public V1/V5 and V6 test deployments",
+    "Actual hardware startup, routing, readiness, restart and cleanup proof",
+    "Reconcile unknown creation/deletion outcomes conservatively before further lifecycle actions"
+  ],
+  "reviewResolved": [
+    "Full commit and required pins validated before staging writes",
+    "Exact task ownership and occupied-port refusal",
+    "Distinct Notes marker prevents production manager adoption",
+    "Durable VM creation intent and native identity before deletion",
+    "GCS per-run ownership retained across repeat apply/revert",
+    "Exact approval lines and strict plan-only bool",
+    "Production update pause retired",
+    "Driver only imports staged control directory, only reads scratch callback key, and validates native VM identity for observation;8 Node fixture tests pass.",
+    "Actual committed native bundle fully verified and staged with unchanged production; stage JSON explicitly UTF-8 and decoded by the native Node driver."
+  ],
+  "nativeFixtureEvidence": "work/canary-native-review/evidence.json",
+  "nativeScopeEvidence": "outputs/windows-canary-manager-scope.json",
+  "ownerPreflight": "outputs/windows-canary-owner-preflight.json"
+}

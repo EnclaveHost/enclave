@@ -1,0 +1,75 @@
+// POLICY CARRIERS for the HOST runtimes' platform host policy gate (Linux supervisor.js and the Windows node host.mjs both
+// call createHostServiceGate({ env: process.env, ... }) from windows/node/host-admission.bundle.mjs and pass no fetch).
+// Without a carrier their gate can load an ANCHORED policy only from a mirror, and the production bundle carries none (the
+// fleet's DigitalOcean mirrors are not used): once the administrator anchors, such a host stays "behind" and refuses itself
+// after the grace. This wrapper gives those runtimes the SAME carriers the hosted runner (network/host-services/runner.mjs
+// policyCarrierFetch) and the challenge replica already use (network/policy-carriers.mjs), configured by ONE JSON value:
+//   ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS = { "importDir"?: <abs dir of <digest>.json documents the operator imported>,
+//     "policyMirrorStateDir"?: <abs state dir of a policy-mirror role>, "peers"?: ["http(s)://<host>/platform-policy"],
+//     "serviceIndex"?: { chainId, address, codeHash } }   (the runner's platformHostPolicyCarriers / replica carriers shape)
+// Carriers are untrusted transport and admit nothing. A candidate is served only when its OWN digest is the one asked for
+// and the book's CURRENT owner signs it at a fresh agreed block of THIS gate's own RPC quorum (freshVerifier, the same
+// snapshot object the gate reads through: no second client set, no lowered quorum); the unchanged gate then verifies it
+// again (anchored digest, owner signature, persisted sequence high-water, expiry/staleness, bans, persisted refusals).
+// They reach the gate as ONE reserved mirror origin (CARRIER_MIRROR), exactly as the runner's policyEnv shows them.
+//
+// UNSET: createHostServiceGate here IS network/host-service-gate.mjs's, called with the same arguments (byte-identical
+// behaviour). A caller with its own fetch keeps it; combining one with this setting is refused, never silently merged.
+// A malformed value throws, as a malformed ENCLAVE_PLATFORM_HOST_POLICY does (supervisor.js turns that into refusing work;
+// the Windows node does not start) - never a silently ignored transport.
+import path from "node:path";
+import { createHostServiceGate as baseGate, hostIdOfEndpoint } from "./host-service-gate.mjs";
+import { createHostPolicyRuntime, resolveHostPolicyConfig, fileStore, quorumSnapshot } from "./host-policy-runtime.mjs";
+import { CARRIER_MIRROR, validateCarrierBases, fileCarrier, httpCarriers, indexCarriers, freshVerifier, carrierFetch } from "./policy-carriers.mjs";
+import { validateIndexPin } from "./service-index.mjs";
+export { hostIdOfEndpoint };
+
+const KEYS = ["importDir", "policyMirrorStateDir", "peers", "serviceIndex"];
+/** ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS -> null (unset) or the validated carrier settings; a malformed value throws. */
+export function hostPolicyCarriersFromEnv(env = process.env) {
+  const raw = String(env?.ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS ?? "").trim();
+  if (!raw) return null;
+  const shape = "ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS: JSON { importDir?, policyMirrorStateDir?, peers?, serviceIndex? }";
+  let c; try { c = JSON.parse(raw); } catch { throw Error(shape); }
+  if (!c || typeof c !== "object" || Array.isArray(c) || Object.keys(c).some((k) => !KEYS.includes(k))) throw Error(shape);
+  for (const k of ["importDir", "policyMirrorStateDir"])
+    if (c[k] !== undefined && (typeof c[k] !== "string" || !path.isAbsolute(c[k]))) throw Error(`ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS.${k} must be an absolute path`);
+  const out = { importDir: c.importDir ?? null, policyMirrorStateDir: c.policyMirrorStateDir ?? null,
+    peers: validateCarrierBases(c.peers ?? [], "ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS.peers"),
+    serviceIndex: c.serviceIndex === undefined ? null : validateIndexPin(c.serviceIndex) };
+  if (!out.importDir && !out.policyMirrorStateDir && !out.peers.length && !out.serviceIndex) throw Error("ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS names no carrier");
+  return Object.freeze(out);
+}
+
+/** network/host-service-gate.mjs createHostServiceGate, plus ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS (see the header). */
+export function createHostServiceGate(opts = {}) {
+  const env = opts.env ?? process.env;
+  if (opts.runtime) return baseGate(opts);                              // an injected runtime: nothing here applies
+  const carriers = hostPolicyCarriersFromEnv(env);
+  if (!carriers) return baseGate(opts);                                // unset: the base gate, unchanged
+  if (opts.fetch !== undefined) throw Error("platform host policy: ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS together with a caller's own fetch (one transport only)");
+  const log = opts.log ?? console.log;
+  // the carrier set is ONE more mirror origin (as the runner's policyEnv); any operator mirrors stay as they are
+  const gateEnv = { ...env, ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS: [...String(env.ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS || "").split(",").map((s) => s.trim()).filter(Boolean), CARRIER_MIRROR].join(",") };
+  const resolved = resolveHostPolicyConfig({ env: gateEnv, chainId: opts.chainId ?? null, book: opts.book ?? null });
+  if (!resolved.on) throw Error("ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS is set but the platform host policy is off: nothing would use them");
+  const c = resolved.config;
+  if (!Array.isArray(c.rpcs) || !c.rpcs.length) throw Error("platform host policy carriers need the policy's own RPC quorum");
+  // ONE agreed-block reader for the gate AND the carriers' fresh verification
+  const snapshot = quorumSnapshot({ rpcs: c.rpcs, minAgree: c.minAgree ?? null });
+  const net = globalThis.fetch;
+  const sources = [
+    ...(carriers.importDir ? [fileCarrier(carriers.importDir)] : []),
+    ...(carriers.policyMirrorStateDir ? [fileCarrier(path.join(carriers.policyMirrorStateDir, "documents"))] : []),
+    ...httpCarriers(carriers.peers, { fetch: net }),
+    ...(carriers.serviceIndex ? [indexCarriers({ pin: carriers.serviceIndex, peers: c.rpcs, fetch: net, log })] : []),
+  ];
+  const verify = freshVerifier({ snapshot, book: c.book, hostOwnership: c.hostOwnership });
+  const runtime = createHostPolicyRuntime(resolved, { snapshot, store: opts.stateDir ? fileStore(`${opts.stateDir}/platform-host-policy.json`) : null,
+    fetch: carrierFetch({ carriers: sources, verify, fetch: net, log }), log });
+  const summary = { importDir: !!carriers.importDir, policyMirrorStateDir: !!carriers.policyMirrorStateDir, peers: carriers.peers.length, serviceIndex: !!carriers.serviceIndex };
+  // the base gate with this runtime: the same host id rule, measured gate, persisted refusal file, interval and grace
+  const g = baseGate({ ...opts, env: gateEnv, runtime });
+  log(`[host-policy] policy carriers: ${Object.entries(summary).filter(([, v]) => v).map(([k, v]) => (v === true ? k : `${k} ${v}`)).join(", ")} (each candidate verified at the gate's own quorum)`);
+  return { ...g, status: () => ({ ...g.status(), carriers: summary }) };
+}

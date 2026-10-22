@@ -1,0 +1,59 @@
+--- a/test/cli.test.mjs
++++ b/test/cli.test.mjs
+@@ -1357,6 +1357,56 @@
+   const again=await run(args);assert.notEqual(again.code,0);assert.match(again.err,/EEXIST/);
+  }finally{S.depRev=prev;fs.rmSync(out,{force:true});}
+ });
++test('bootstrap prepare commits owner names and an explicit ACME selection, printing the owner-bound CNAMEs',async()=>{
++ const prev=S.depRev;S.depRev=16n;S.txs.length=0;S.apiCalls.length=0;
++ const cfg=path.join(confDir,'bootstrap-names-config.json'),out=path.join(confDir,'owner-names-startup.json');fs.writeFileSync(cfg,'{}');
++ const base=['bootstrap','prepare',ID,'--contract-pins',writeAuthorityPins(),'--config-file',cfg,'--app-id','44'.repeat(32),'--runtime-id','55'.repeat(32),'--public','--out',out,'--json'];
++ const acme=['--acme-directory','https://acme-v02.api.letsencrypt.org/directory','--acme-challenge','https://challenge.example.net','--acme-zone','acme.example.net'];
++ try{
++  const r=await run([...base,'--names','www.example.com,shop.example.com',...acme]);assert.equal(r.code,0,r.err);
++  const m=JSON.parse(fs.readFileSync(out));assert.deepEqual(m.names,{hosts:['shop.example.com','www.example.com'],acme:{directory:acme[1],challenge:acme[3],zone:acme[5]}});
++  const o=JSON.parse(r.out);assert.equal(o.dns.length,2);assert.match(o.dns[0],/^_acme-challenge\.shop\.example\.com\. CNAME _acme-challenge\.[0-9a-f]{32}\.acme\.example\.net\.$/);
++  assert.equal(S.apiCalls.length,0);assert.equal(S.txs.length,0);fs.rmSync(out);
++  for(const [extra,why] of [[['--names','x.app.enclave.host'],/outside enclave\.host/],[['--names','shop.example.com','--acme-directory',acme[1]],/explicit/],
++    [acme,/need --names/],[['--names','shop.example.com',...acme,'--acme-eab-kid-secret','ACME_EAB_KID','--acme-eab-hmac-secret','ACME_EAB_HMAC'],/custody-v2/],
++    [['--names','shop.example.com',...acme,'--acme-eab-kid-secret','ACME_EAB_KID'],/both/]]){
++   const bad=await run([...base,...extra]);assert.notEqual(bad.code,0);assert.match(bad.err,why);assert.equal(fs.existsSync(out),false);
++  }
++ }finally{S.depRev=prev;fs.rmSync(out,{force:true});}
++});
++
++test('bootstrap prepare commits owner history sources exactly, warns honestly, and never publishes a credential silently',async()=>{
++ const prev=S.depRev;S.depRev=16n;S.txs.length=0;S.apiCalls.length=0;
++ const cfg=path.join(confDir,'bootstrap-history-config.json'),out=path.join(confDir,'owner-history-startup.json');fs.writeFileSync(cfg,'{}');
++ const base=['bootstrap','prepare',ID,'--contract-pins',writeAuthorityPins(),'--config-file',cfg,'--app-id','44'.repeat(32),'--runtime-id','55'.repeat(32),'--public','--out',out,'--json'];
++ const {verifyPackage,historyFromList}=await import('../sdk/bootstrap/package.mjs');
++ try{
++  const r=await run([...base,'--history-rpcs','https://gateway.tenderly.co/public/base,https://base-rpc.polkachu.com']);assert.equal(r.code,0,r.err);
++  const bytes=fs.readFileSync(out),m=JSON.parse(bytes);
++  assert.deepEqual(m.history,{rpcs:['https://base-rpc.polkachu.com','https://gateway.tenderly.co/public/base']});
++  assert.equal(Object.keys(m).at(-1),'history');
++  const o=JSON.parse(r.out);assert.deepEqual(o.history,m.history.rpcs);assert.deepEqual(o.historyWarnings,[]);
++  verifyPackage(bytes,{version:1,sha256:o.sha256});
++  assert.equal(S.apiCalls.length,0);assert.equal(S.txs.length,0);fs.rmSync(out);
++  // one operator: committed, with the warning
++  const one=await run([...base,'--history-rpcs','https://gateway.tenderly.co/public/base']);assert.equal(one.code,0,one.err);
++  assert.match(JSON.parse(one.out).historyWarnings[0],/only 1 independent operator/);fs.rmSync(out);
++  // none: the package is exactly an older tool's (no member), and the output says what that means
++  const none=await run(base);assert.equal(none.code,0,none.err);
++  assert.equal(Object.hasOwn(JSON.parse(fs.readFileSync(out)),'history'),false);assert.match(JSON.parse(none.out).historyWarnings[0],/no history sources/);fs.rmSync(out);
++  // a key-like path only with the explicit confirmation
++  const keyed='https://base-mainnet.example-provider.com/v2/Ab3dE5gH7jK9mN1pQ3sT';
++  const refused=await run([...base,'--history-rpcs',keyed]);assert.notEqual(refused.code,0);assert.match(refused.err,/looks like a provider key/);assert.equal(fs.existsSync(out),false);
++  const confirmed=await run([...base,'--history-rpcs',keyed,'--history-path-is-public']);assert.equal(confirmed.code,0,confirmed.err);
++  assert.deepEqual(JSON.parse(fs.readFileSync(out)).history,historyFromList(keyed,{pathIsPublic:true}));fs.rmSync(out);
++  for(const [extra,why] of [[['--history-rpcs','https://user:pw@node.example.org'],/credentials/],[['--history-rpcs','https://node.example.org/rpc?key=1'],/query/],
++    [['--history-rpcs','http://node.example.org'],/https/],[['--history-rpcs','https://node.example.org:8545'],/no port/],[['--history-path-is-public'],/applies to --history-rpcs/],
++    [['--history-rpcs',['a','b','c','d','e','f','g'].map(x=>`https://${x}.example`).join(',')],/1 to 6/]]){
++   const bad=await run([...base,...extra]);assert.notEqual(bad.code,0);assert.match(bad.err,why);assert.equal(fs.existsSync(out),false);
++  }
++  assert.equal(S.txs.length,0);
++ }finally{S.depRev=prev;fs.rmSync(out,{force:true});}
++});
+ 
+ test('owner startup packages prevent legacy config edits and preserve WAF-only changes',async()=>{
+  const prev=S.depRev,old=S.envelope;S.depRev=16n;

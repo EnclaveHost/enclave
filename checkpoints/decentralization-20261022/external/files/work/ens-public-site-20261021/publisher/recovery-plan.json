@@ -1,0 +1,74 @@
+{
+ "schema": "ens-public-site-publisher-recovery/1",
+ "by": "claude 9d6a7d6f",
+ "at": "2026-10-21",
+ "deployment": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+ "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+ "deployedBuild": "catalog v5 wasm bafybeiesjak... sha256 59a1cec5 (enclave-apps HEAD fca1fea era)",
+ "findings": {
+  "allBlocksBlocked": {
+   "observed": "the exact deployed wasm, announceAllBlocks=true, 128 MiB cap, local mock adapter serving the verified 35,127,042-byte site CAR: 'IPNI enumerate ...: response too large'; it signs seq 1026 but builds NO advertisement (ipni.root null, 0 blocks). Root-only (the live config) builds the 1-block ad.",
+   "cause": "webreq caps EVERY response at 8 MiB (ipns-publisher/src/webreq.rs:161 at HEAD; the same check in the working tree, line 177). The site CAR is 35 MB.",
+   "consequence": "setting announceAllBlocks=true on ANY existing build REMOVES the root advertisement too: do NOT apply it until a build can enumerate this DAG",
+   "frontOk": {
+    "url": "https://ipfs.enclave.host/ipfs/bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou?format=car&dag-scope=all",
+    "at": "2026-10-21T12:17:06.792Z",
+    "status": 200,
+    "contentType": "application/vnd.ipld.car",
+    "contentLength": "35127042",
+    "server": "Caddy",
+    "carHeaderRoot": "bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou",
+    "rootMatches": true,
+    "bytesRead": 65536
+   }
+  },
+  "configChangePath": "For this Hyper-V (V6) deployment the host measures the LEDGER envelope's unresolved config (windows/node/host.mjs:1009, appConfig strictCid); the operator ENCLAVE_APP_CONFIG_PATCH (#patchConfig) is NOT applied on that path. So the only authorized change is the owner's `enclave config set` (cli/enclave.mjs cmdConfig: owner key; a session is refused for a wallet-held deployment) = an owner-signed setConfig TRANSACTION on Base. The config file holds only $NAME references; the relay-held secret values are not part of it and stay as they are.",
+  "rebuildOnToggle": "Provider::announce_root returns early only when current_root == root AND head is set; that state is loaded from /data/ipni-chain.json. This partition has no /data (live ipni.durable false, durableState false), so every relaunch starts empty and the first signed value builds a fresh ad. No state deletion is needed. A config change itself relaunches the app (startup race again).",
+  "startupRace": "egress-RESULT: the first publish round runs at start, before the host admits the app's egress; next round republishSecs (4 h) later. A failed round signs nothing; seq-0 risk only if the delegate GET fails while the value fetch succeeds (S3)."
+ },
+ "steps": {
+  "A (no wallet, no restart; recommended first)": [
+   "Wait for 6b's recovery: network.log shows 'app 0xd9798e4c egress back' AFTER the manager restart; the public /api/status answers.",
+   "Do nothing else: the publisher's own 4-hourly round (relaunch time + 4 h) recovers seq 1026 from delegated-ipfs.dev, re-signs seq 1026 with the same value (EOL +7 d), PUTs it, starts the DHT publish and re-announces the root-only IPNI ad. The record deadline is 2026-10-28T05:15:51Z: many rounds before then.",
+   "Verify (public): GET https://d9798e4c.app.enclave.host/api/status -> peerId 12D3KooWSHxfM6L5zdmTkMh5ho8yPBB2292ug6T46BnkpCwYzoZP (identity kept), sequence 1026, value /ipfs/bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou, recovered {sequence:1026}, delegates[].outcome ok; delegated-ipfs.dev validity later than 2026-10-28. If sequence 0 ever appears: stop the deployment (do not let it republish)."
+  ],
+  "B (optional, faster: ONE authenticated POST /publish; owner key for an OFF-CHAIN relay auth, no transaction)": {
+   "preconditions": [
+    "'egress back' for 0xd9798e4c after the restart (step A)",
+    "delegated-ipfs.dev reachable (it is from minipc: 200 at 11:45Z)",
+    "no restart of the publisher"
+   ],
+   "command (root, owner wallet configured for the CLI; the key never reaches argv, a file or the terminal)": "enclave --json secrets ls 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a --show | python3 -c 'import json,sys; print(\"x-api-key: \" + json.load(sys.stdin)[\"env\"][\"API_KEY\"])' | curl -sS --max-time 30 -X POST -H @- https://d9798e4c.app.enclave.host/publish",
+   "then": "the step A checks after ~30-60 s",
+   "notes": [
+    "`secrets ls --show` signs the relay request with the owner key (loadKey): a wallet AUTH, not a transaction",
+    "POST /publish republishes the configured value; it cannot change the CID"
+   ]
+  },
+  "C (all-blocks advertisement): BLOCKED; needs a new build": {
+   "why": "8 MiB response cap (above): the config toggle alone breaks the root ad",
+   "minimal source change (not built: Rust + catalog work, no speculative redesign here)": "let enumerate() read the CAR under its own larger limit (e.g. 64 MiB, pre-sized from content-length) or parse it as a stream; then re-run test-allblocks.mjs with the new wasm under the 128 MiB cap",
+   "then (all wallet steps by the owner/catalog admin)": [
+    "publish the new wasm as a catalog version (catalog approval)",
+    "owner `enclave upgrade` of 0xd979... to it",
+    "owner `enclave config set 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a --file publisher-config-allblocks.HOLD.json` (the ONLY change: ipni.announceAllBlocks false->true; or its unsigned form for an external wallet, see scripts/site-release/publish.mjs operations; check `enclave config set` flags before use)",
+    "after the relaunch: step A/B again (startup race), and ipni.blocks == 487"
+   ],
+   "alternative outside this deployment": "child-block provider records from the serving side (front/adapter) - worker e49's area"
+  }
+ },
+ "walletRequired": {
+  "A": "no",
+  "B": "owner key for an off-chain relay authentication only (no transaction)",
+  "C": "yes: catalog version + owner upgrade + owner setConfig transactions"
+ },
+ "notDone": "no config change, POST, restart, signature, transaction, ENS write or key/secret read; the only network use: one bounded public GET of the enumerate URL (64 KiB read)",
+ "files": {
+  "publisher-config-current.json": "568473310efdec7ae168dc4ca68177bab622f6a8952846cc4e3de99276e60f68",
+  "publisher-config-allblocks.HOLD.json": "58b6e8b248c96233e9bd912d2e6481d298cfc58217aef9040ac1b987cff6d205",
+  "test-allblocks.mjs": "dbdda7fe54f3e733c07664ffe589e5758ec63769fe937131cc2fc50d8be8e762",
+  "test-allblocks.json": "ab8684abc59c7a9089c3cf8738421f5d02ecf439493ea80d38a344d1b6a8b558",
+  "live-car-head.mjs": "e28f653ef0018890b9d65a6ae7a45a7421fa76e06eff2bdf0ad66e6b5ee3c56a",
+  "live-car-head.json": "06e49a6b26e320aca02ca7d398bab6621230d09c38e2744578e5653da05eb224"
+ }
+}

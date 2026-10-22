@@ -1,0 +1,21 @@
+--- a/relay/dns-relay.js
++++ b/relay/dns-relay.js
+@@ -36,6 +36,7 @@
+ import http from "node:http";
+ import { createHmac, timingSafeEqual } from "node:crypto";
+ import { createFleet, fleetConfig, fetchJson, installProcessGuards } from "./fleet.mjs";
++import { createHostPolicyRuntime, resolveHostPolicyConfig, endpointAdmissions } from "./network-runtime.bundle.mjs";
+ import { isBoxHost } from "./boxhost.js";
+ import { authorizePush, parseMeasurements } from "./dns-challenge-attested.mjs";
+ import { createShieldChallengeAuth, isShieldPush, shieldRegistryBinding, shieldRegistryEntry } from "./dns-challenge-shield.mjs";
+@@ -61,6 +62,10 @@
+   console.error("fatal: set REGISTRY_ADDRESS (on-chain discovery) or ENCLAVES (static list)");
+   process.exit(1);
+ }
++// platform host policy (network/platform-host-policy-config.mjs): production chain + book => on, activated by the admin's anchor
++const HOST_POLICY = READ_ONLY || ATTESTED ? null : createHostPolicyRuntime(resolveHostPolicyConfig({ env: process.env, chainId: 8453, book: CFG.addressBook || null }),
++  { log: (m) => console.log("[dns-relay]", m) });
++if (HOST_POLICY) { CFG.hostAdmission = endpointAdmissions(HOST_POLICY.admissions); const r = () => HOST_POLICY.gate.refresh().catch((e) => console.error(`[dns-relay] host policy: ${e.message}`)); r(); setInterval(r, 5 * 60_000).unref(); }
+ const fleet     = READ_ONLY || ATTESTED ? null : createFleet(CFG, (m) => console.log("[dns-relay]", m));
+ const IP_ZONE   = ATTESTED ? null : fqdn(need("IP_ZONE"));
+ const APP_ZONE  = ATTESTED ? null : fqdn(need("APP_ZONE"));

@@ -1,0 +1,39 @@
+# Storage-indexer HOST ROLE, replica %i: the Enclave host software's supervisor (network/host-services/
+# storage-indexer-host.mjs) runs PostgreSQL 18 (socket only) and indexd G-C2 from this package ONLY while the platform
+# host policy admits this host (the administrator's anchored policy: bans, allowlist, an active registry entry) and the
+# replica descriptor is signed by this host's registry operator. A refusal stops both processes and keeps the data.
+# No other unit starts PostgreSQL or indexd. Secrets: encrypted systemd credentials, never plaintext on disk.
+[Unit]
+Description=Enclave storage-indexer host role, replica %i
+After=network-online.target
+Wants=network-online.target
+[Service]
+User=enclave-storage-indexer
+Group=enclave-storage-indexer
+EnvironmentFile=/etc/enclave-storage-indexer/%i/replica.env
+LoadCredentialEncrypted=recovery-phrase:/etc/enclave-storage-indexer/%i/recovery-phrase.cred
+LoadCredentialEncrypted=admin-password:/etc/enclave-storage-indexer/%i/admin-password.cred
+StateDirectory=enclave-storage-indexer/%i
+StateDirectoryMode=0700
+RuntimeDirectory=enclave-storage-indexer/%i
+RuntimeDirectoryMode=0700
+ExecStartPre=/opt/enclave-storage-indexer/current/libexec/preflight %i
+ExecStart=/usr/bin/node ${ENCLAVE_HOST_SOFTWARE}/network/host-services/storage-indexer-host.mjs run /etc/enclave-storage-indexer/%i/host.json
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=360
+Restart=on-failure
+RestartSec=10
+# indexd (1 GiB, GOMEMLIMIT 512 MiB) + PostgreSQL (shared_buffers 128 MB) + the supervisor: the live primary's caps
+MemoryMax=2304M
+MemorySwapMax=0
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ReadWritePaths=/var/lib/enclave-storage-indexer/%i
+[Install]
+WantedBy=multi-user.target

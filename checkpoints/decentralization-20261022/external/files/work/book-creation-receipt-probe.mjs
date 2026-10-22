@@ -1,0 +1,9 @@
+import fs from 'node:fs/promises';
+const p=JSON.parse(await fs.readFile('outputs/browser-platform-book-integration/book-creation-probe.json','utf8'));
+if(!p.candidateCreationBlock)throw Error('no candidate block');
+const peers=['https://mainnet.base.org','https://base.public.blockpi.network/v1/rpc/public'];
+const block='0x'+BigInt(p.candidateCreationBlock).toString(16);
+async function rpc(url,method,params){const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params}),signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error('HTTP '+r.status);const b=await r.json();if(b.error)throw Error(b.error.message);return b.result;}
+const results=await Promise.all(peers.map(async url=>{try{const logs=await rpc(url,'eth_getLogs',[{address:p.book,fromBlock:block,toBlock:block}]);const hashes=[...new Set(logs.map(x=>x.transactionHash))];const receipts=[];for(const hash of hashes.slice(0,8)){const r=await rpc(url,'eth_getTransactionReceipt',[hash]);if(r?.contractAddress?.toLowerCase()===p.book)receipts.push({transactionHash:r.transactionHash,contractAddress:r.contractAddress.toLowerCase(),blockNumber:r.blockNumber,blockHash:r.blockHash,status:r.status});}return {url,logCount:logs.length,creationReceipts:receipts};}catch(e){return{url,error:e.message};}}));
+const canonical=results.map(r=>JSON.stringify(r.creationReceipts));const verified=results.every(r=>r.creationReceipts?.length===1&&r.creationReceipts[0].status==='0x1')&&new Set(canonical).size===1;
+const out={at:new Date().toISOString(),book:p.book,candidateCreationBlock:p.candidateCreationBlock,creationReceiptQuorumVerified:verified,historyComplete:false,results};await fs.writeFile('outputs/browser-platform-book-integration/book-creation-receipts.json',JSON.stringify(out,null,2)+'\n');console.log(JSON.stringify(out));

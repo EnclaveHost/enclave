@@ -1,0 +1,14 @@
+--- a/slabs/objects.go
++++ b/slabs/objects.go
+@@ -360,6 +360,11 @@
+ 	return m.store.PinObject(account, obj)
+ }
+ 
++// ListCurrentObjects lists the account's current objects in key order after the given key (PATCH U1).
++func (m *SlabManager) ListCurrentObjects(ctx context.Context, account proto.Account, after types.Hash256, limit int) ([]ObjectEvent, error) {
++	return m.store.ListCurrentObjects(account, after, limit)
++}
++
+ // ListObjects lists objects for the given account that were updated after the
+ // the given 'after' time.
+ func (m *SlabManager) ListObjects(ctx context.Context, account proto.Account, cursor Cursor, limit int) ([]ObjectEvent, error) {

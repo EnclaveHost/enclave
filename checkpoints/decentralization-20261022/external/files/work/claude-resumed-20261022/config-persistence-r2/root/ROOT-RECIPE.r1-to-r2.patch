@@ -1,0 +1,59 @@
+--- ../config-persistence/root/ROOT-RECIPE.txt	2026-10-21 22:05:57.448264174 -0700
++++ root/ROOT-RECIPE.txt	2026-10-21 22:36:41.764189173 -0700
+@@ -1,4 +1,11 @@
+-ROOT-ONLY RECIPE: move the operator's hand-made launcher settings into the update-proof local hooks, then allow installer r6.
++ROOT-ONLY RECIPE (r2): move the operator's hand-made launcher settings into the update-proof local hooks, then allow installer r6.
++r2 = the r1 recipe with migrate-local-config.ps1's write path fixed (see REVIEW.txt section 1) and NO execution-policy override.
++
++EXECUTION POLICY: the host's PowerShell execution policy is Restricted, so migrate-local-config.ps1 cannot run there as it
++stands. This recipe gives NO policy override (no -ExecutionPolicy argument, no encoded command, no dot-sourcing or pasting the
++script text). Whether and how a reviewed script may run on the host is root's authorization decision. Until then, steps 4-5
++and every native validation of this script are PENDING. The script targets Windows PowerShell 5.1 (.NET Framework
++FileStream/FileSecurity overload).
+ Nothing here was run on a host by Claude. Every step outputs names, forms, line numbers and hashes only, never a value.
+ 
+ WHY (evidence: root's live read 2026-10-22, live-config-names.json 1be68148; offline value-hash compare compare-live-r6.json)
+@@ -42,7 +49,7 @@
+   python3 root/make-pins.py live-config-names.r2.json pins.json           # unpinned must be [] (else the plan refuses)
+ 
+ STEP 4. Plan on the host (administrator, read-only)
+-  powershell -NoProfile -ExecutionPolicy Bypass -File migrate-local-config.ps1 -Pins pins.json -Mode plan
++  (as authorized by root, see EXECUTION POLICY)  migrate-local-config.ps1 -Pins pins.json -Mode plan
+   Review, from names/hashes:
+   - refused = [];
+   - hooks.node-config.local.cmd.before = the read's sha;
+@@ -54,9 +61,17 @@
+   Note planSha.
+ 
+ STEP 5. Execute
+-  powershell ... -File migrate-local-config.ps1 -Pins pins.json -Mode execute -PlanSha <planSha>
+-  -> result MIGRATED: before/after hash per hook, and the protected backup path
+-     (ProgramData\Enclave\backup\local-config-migration-<UTC>\node-config.local.cmd).
++  (as authorized by root)  migrate-local-config.ps1 -Pins pins.json -Mode execute -PlanSha <planSha>
++  -> result MIGRATED: before/after hash per hook, and the backup path
++     (ProgramData\Enclave\backup\local-config-migration-<UTC>-<12 hex>\node-config.local.cmd: always a NEW private directory;
++     an existing backup\ parent is used only if it is a safe directory).
++  r2 write path:
++  - temp beside the hook (.<hook>.migrate-<guid>.tmp), created EXCLUSIVELY with its protected SYSTEM/Administrators DACL
++    before any byte is written;
++  - ReplaceFile keeps the hook's own DACL and puts the old bytes in the new backup, which is hash-checked;
++  - a hook to be created is created EXCLUSIVELY (never over a file that appeared meanwhile);
++  - any reparse point (link/junction/mount point) on the root, a hook, a source, backup\ or any ancestor, or a
++    non-SYSTEM/Administrators owner or writer, REFUSES.
+   Any CAS, value-hash, line-form, value-character or hook-shape mismatch -> REFUSED, nothing written.
+ 
+ STEP 6. Post-check
+@@ -78,5 +93,11 @@
+   hand-made line there is still lost on update. Neither the installer guard nor the migration covers them (by design: no evidence).
+ - Values with % or ! expansion, & | < > ^ " or non-ASCII, and "if" forms other than "if [not] defined NAME set ...", are REFUSED.
+   Root handles such a line by hand.
+-- Windows ACL calls (New-PrivateFile, New-PrivateDir, Copy-FileAcl) were NOT executed in tests (Linux). One native plan+execute on
+-  a scratch copy of the directory is advised before the live run.
++- NOT natively verified (Linux tests stub them):
++  - the two Windows-ACL primitives (Open-NewPrivateFile, New-DirWithPrivateAcl) and Test-PrivateAcl;
++  - ReplaceFile's DACL preservation;
++  - junction/mount-point detection.
++  When root authorizes script execution, one native plan+execute on a scratch copy (-Root <copy>) is advised before the
++  live run.
++- The installer's own launch strings (EnclaveSetup, \Enclave\Update, the uninstall entry) keep their existing
++  -ExecutionPolicy Bypass: existing product behaviour, unchanged by this package and not an instruction of this recipe.

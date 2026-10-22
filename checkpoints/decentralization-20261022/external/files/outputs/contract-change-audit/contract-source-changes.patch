@@ -1,0 +1,2425 @@
+diff --git a/contracts/EnclaveHostOwnership.sol b/contracts/EnclaveHostOwnership.sol
+new file mode 100644
+index 00000000..b62b5155
+--- /dev/null
++++ b/contracts/EnclaveHostOwnership.sol
+@@ -0,0 +1,76 @@
++// SPDX-License-Identifier: MIT
++pragma solidity ^0.8.35;
++
++interface IHostOwnershipRegistry {
++    struct Entry {
++        string endpoint;
++        string repo;
++        bytes32 measurement;
++        address operator;
++        uint64 registeredAt;
++        uint64 lastSeen;
++        bool active;
++    }
++    function get(bytes32 id) external view returns (Entry memory);
++}
++
++/// @notice Wallet authority over one host's local admission policy. No global
++/// deployment veto or administrator. This does not use payout declarations.
++/// The registered operator nominates the initial owner; that wallet accepts.
++/// Subsequent transfers require the existing owner and the new owner.
++contract EnclaveHostOwnership {
++    IHostOwnershipRegistry public immutable registry;
++    struct Authority {
++        address owner;
++        address pendingOwner;
++        uint64 revision;
++        bytes32 policyHash;
++    }
++    mapping(bytes32 => Authority) public authority;
++    event OwnerProposed(bytes32 indexed hostId, address indexed owner);
++    event OwnerAccepted(bytes32 indexed hostId, address indexed owner, uint64 revision);
++    event PolicySet(bytes32 indexed hostId, uint64 revision, bytes32 policyHash);
++
++    constructor(address registry_) {
++        require(registry_.code.length != 0, "registry required");
++        registry = IHostOwnershipRegistry(registry_);
++    }
++    function proposeOwner(bytes32 hostId, address next) external {
++        require(next != address(0), "owner required");
++        Authority storage a = authority[hostId];
++        if (a.owner == address(0)) {
++            IHostOwnershipRegistry.Entry memory e = registry.get(hostId);
++            require(e.active && e.operator == msg.sender, "not active operator");
++        } else {
++            require(a.owner == msg.sender, "not owner");
++        }
++        a.pendingOwner = next;
++        emit OwnerProposed(hostId, next);
++    }
++    function cancelProposal(bytes32 hostId) external {
++        Authority storage a = authority[hostId];
++        if (a.owner == address(0)) {
++            IHostOwnershipRegistry.Entry memory e = registry.get(hostId);
++            require(e.operator == msg.sender, "not operator");
++        } else require(a.owner == msg.sender, "not owner");
++        a.pendingOwner = address(0);
++        emit OwnerProposed(hostId, address(0));
++    }
++    function acceptOwner(bytes32 hostId) external {
++        Authority storage a = authority[hostId];
++        require(a.pendingOwner == msg.sender, "not proposed owner");
++        a.owner = msg.sender;
++        a.pendingOwner = address(0);
++        // A former owner's policy cannot constrain the new owner's host.
++        a.policyHash = bytes32(0);
++        a.revision++;
++        emit OwnerAccepted(hostId, msg.sender, a.revision);
++    }
++    function setPolicy(bytes32 hostId, bytes32 policyHash) external {
++        Authority storage a = authority[hostId];
++        require(a.owner == msg.sender, "not owner");
++        a.policyHash = policyHash;
++        a.revision++;
++        emit PolicySet(hostId, a.revision, policyHash);
++    }
++}
+diff --git a/contracts/EnclaveSecretVaultV2.sol b/contracts/EnclaveSecretVaultV2.sol
+index 7a385bbc..2806854b 100644
+--- a/contracts/EnclaveSecretVaultV2.sol
++++ b/contracts/EnclaveSecretVaultV2.sol
+@@ -35,6 +35,10 @@ interface IVaultV2Ledger {
+     function get(bytes32 id) external view returns (Deployment memory);
+ }
+ interface IVaultV2Registry { function get(bytes32 id) external view; }   // decoded by hand: only the schema-4 prefix
++interface IVaultV2HostOwnership {
++    function registry() external view returns (address);
++    function authority(bytes32 hostId) external view returns (address owner, address pendingOwner, uint64 revision, bytes32 policyHash);
++}
+ interface IVaultV2Factory { function isVault(address v) external view returns (bool); }
+ interface IVaultV2Session { function owner() external view returns (address); }
+ interface IVaultV21271 { function isValidSignature(bytes32 hash, bytes calldata sig) external view returns (bytes4); }
+@@ -42,7 +46,6 @@ interface IVaultV21271 { function isValidSignature(bytes32 hash, bytes calldata
+ contract EnclaveSecretVaultV2 {
+     bytes32 private constant BOOK_DEPLOYMENTS = "deployments";
+     bytes32 private constant BOOK_SESSION_FACTORY = "sessionVaultFactory";
+-    bytes32 private constant BOOK_REGISTRY = "registry";
+     uint256 public constant MAX_SEATS = 64;
+     uint256 public constant MAX_MACHINES = 96;
+     uint256 public constant MAX_ENDPOINT = 190;
+@@ -57,6 +60,10 @@ contract EnclaveSecretVaultV2 {
+ 
+     IVaultV2Book public immutable book;
+     address public immutable enclaveOwner;
++    IVaultV2HostOwnership public immutable hostOwnership;
++    address public immutable hostRegistry;
++    address public immutable deploymentLedger;
++    address public immutable sessionVaultFactory;
+ 
+     // ---------------------------------------------------------------- committees
+     struct Machine {
+@@ -150,9 +157,20 @@ contract EnclaveSecretVaultV2 {
+     error BadDeal();
+     error BadAck();
+ 
+-    constructor(address book_, address enclaveOwner_) {
++    constructor(address book_, address enclaveOwner_, address hostOwnership_) {
+         if (book_ == address(0) || enclaveOwner_ == address(0)) revert();
++        if (hostOwnership_.code.length == 0) revert BadHost();
++        hostOwnership = IVaultV2HostOwnership(hostOwnership_);
++        address registry_ = IVaultV2HostOwnership(hostOwnership_).registry();
++        if (registry_.code.length == 0) revert NoRegistry();
++        hostRegistry = registry_;
+         book = IVaultV2Book(book_);
++        address ledger_ = IVaultV2Book(book_).addr(BOOK_DEPLOYMENTS);
++        if (ledger_.code.length == 0) revert NoLedger();
++        deploymentLedger = ledger_;
++        address factory_ = IVaultV2Book(book_).addr(BOOK_SESSION_FACTORY);
++        if (factory_ != address(0) && factory_.code.length == 0) revert();
++        sessionVaultFactory = factory_;
+         enclaveOwner = enclaveOwner_;
+     }
+ 
+@@ -184,36 +202,36 @@ contract EnclaveSecretVaultV2 {
+     }
+ 
+     // ================================================================= machines and seats
+-    /// the host's registry entry, schema-4 prefix: (endpoint, repo, measurement, operator, registeredAt, lastSeen, active,
+-    /// cpu, gpu, proofKey, payoutWallet). Later schemas append fields, so only the head words 3, 6 and 10 are read.
+-    function _hostOf(bytes32 registryId) private view returns (address operator, bool active, address payout) {
+-        address reg = book.addr(BOOK_REGISTRY);
+-        if (reg == address(0)) revert NoRegistry();
+-        (bool ok, bytes memory ret) = reg.staticcall(abi.encodeCall(IVaultV2Registry.get, (registryId)));
++    /// The ownership contract pins the registry. A mutable address-book entry
++    /// cannot reclassify a host. Only operator and active from its stable prefix
++    /// are read here; payout declarations never confer custody authority.
++    function _hostOf(bytes32 registryId) private view returns (address operator, bool active) {
++        (bool ok, bytes memory ret) = hostRegistry.staticcall(abi.encodeCall(IVaultV2Registry.get, (registryId)));
+         if (!ok || ret.length < 32) revert BadHost();
+         uint256 base;
+         assembly ("memory-safe") { base := mload(add(ret, 32)) }
+-        if (base > ret.length || ret.length - base < 11 * 32) revert BadHost();
+-        uint256 wOp; uint256 wActive; uint256 wPayout;
++        if (base > ret.length || ret.length - base < 7 * 32) revert BadHost();
++        uint256 wOp; uint256 wActive;
+         assembly ("memory-safe") {
+             let p := add(add(ret, 32), base)
+             wOp := mload(add(p, 96))
+             wActive := mload(add(p, 192))
+-            wPayout := mload(add(p, 320))
+         }
+-        if (wOp >> 160 != 0 || wActive > 1 || wPayout >> 160 != 0) revert BadHost();
+-        return (address(uint160(wOp)), wActive == 1, address(uint160(wPayout)));
++        if (wOp >> 160 != 0 || wActive > 1) revert BadHost();
++        return (address(uint160(wOp)), wActive == 1);
+     }
+ 
+     /// shape checks, the host binding, and the computed Enclave flag (spec §1.1)
+     function _admit(Machine calldata m, bytes calldata hostSig) private view returns (bool enclave) {
+         uint256 len = bytes(m.endpoint).length;
+         if (m.identity == address(0) || m.encKey == bytes32(0) || m.chipId == bytes32(0) || len == 0 || len > MAX_ENDPOINT) revert BadMachine();
+-        (address operator, bool active, address payout) = _hostOf(m.registryId);
++        (address operator, bool active) = _hostOf(m.registryId);
+         if (!active || operator == address(0)) revert BadHost();
+         address got = _recover(_hostDigest(machineHash(m)), hostSig);
+         if (got == address(0) || got != operator) revert BadHost();
+-        return payout == enclaveOwner;
++        (address owner,,,) = hostOwnership.authority(m.registryId);
++        if (owner == address(0)) revert BadHost();
++        return owner == enclaveOwner;
+     }
+ 
+     /// protocol.mjs seatLayout: -> (seats n, threshold t, share count W, Enclave seat weight wE (0 = no Enclave seat))
+@@ -293,6 +311,59 @@ contract EnclaveSecretVaultV2 {
+         emit EpochActivated(committeeId, 1);
+     }
+ 
++    /// An independent committee starts at its full threshold, without an Enclave
++    /// founder. Each measured member must verify distributed key generation and
++    /// persist its own share before signing this exact roster/code/commitment set.
++    /// Anyone may submit the signatures; no caller gains authority over the key.
++    function createIndependentCommittee(bytes32 salt, Machine[] calldata machines, bytes calldata commitments,
++                                        bytes32[] calldata codeSet, bytes[] calldata identitySigs,
++                                        bytes[] calldata hostSigs) external returns (bytes32 cid) {
++        uint256 n = machines.length;
++        if (n < 3 || n > MAX_SEATS || identitySigs.length != n || hostSigs.length != n) revert BadSeats();
++        uint256 t = (2 * n + 2) / 3;
++        if (commitments.length != t * POINT) revert BadCommittee();
++        for (uint256 i = 0; i < t; i++) {
++            if (commitments[i * POINT] != 0x02 && commitments[i * POINT] != 0x03) revert BadCommittee();
++        }
++        if (codeSet.length == 0 || codeSet.length > MAX_CODESET) revert BadCode();
++        for (uint256 i = 0; i < codeSet.length; i++) if (codeSet[i] == bytes32(0)) revert BadCode();
++        bytes32[] memory hashes = new bytes32[](n);
++        address[] memory owners = new address[](n);
++        for (uint256 i = 0; i < n; i++) {
++            Machine calldata m = machines[i];
++            if (_admit(m, hostSigs[i])) revert BadSeats();
++            (owners[i],,,) = hostOwnership.authority(m.registryId);
++            bool admittedCode;
++            for (uint256 j = 0; j < codeSet.length; j++) if (m.measurement == codeSet[j]) admittedCode = true;
++            if (!admittedCode) revert BadCode();
++            for (uint256 j = 0; j < i; j++) {
++                if (machines[j].identity == m.identity || machines[j].encKey == m.encKey ||
++                    machines[j].chipId == m.chipId || machines[j].registryId == m.registryId ||
++                    owners[j] == owners[i]) revert BadMachine();
++            }
++            hashes[i] = machineHash(m);
++        }
++        bytes memory Y = commitments[0:POINT];
++        cid = keccak256(abi.encode(block.chainid, address(this), salt, keccak256(Y)));
++        Committee storage c = _committees[cid];
++        if (c.epoch != 0) revert BadCommittee();
++        bytes32 digest = keccak256(abi.encode("enclave-custody-v2 independent genesis", block.chainid,
++            address(this), cid, keccak256(commitments), keccak256(abi.encode(hashes)), keccak256(abi.encode(codeSet))));
++        for (uint256 i = 0; i < n; i++) _checkSig(machines[i].identity, digest, identitySigs[i]);
++        c.Y = Y;
++        c.epoch = 1;
++        c.lastEpoch = 1;
++        c.activatedAt = uint64(block.timestamp);
++        Epoch storage e = _epochs[cid][1];
++        e.t = uint8(t);
++        e.W = uint8(n);
++        e.commitments = commitments;
++        for (uint256 i = 0; i < n; i++) { e.machines.push(machines[i]); e.enclave.push(false); }
++        for (uint256 i = 0; i < codeSet.length; i++) _codeActiveAt[cid][codeSet[i]] = uint64(block.timestamp);
++        emit CommitteeCreated(cid, machines[0].identity, Y);
++        emit EpochActivated(cid, 1);
++    }
++
+     function proposeHandover(bytes32 cid, Machine[] calldata next, bytes[] calldata hostSigs, uint32[] calldata dealerIndices,
+                              address[] calldata approvers, bytes[] calldata approvals) external {
+         Committee storage c = _committees[cid];
+@@ -457,16 +528,14 @@ contract EnclaveSecretVaultV2 {
+ 
+     // ================================================================= ownership (as v1)
+     function _ledger() private view returns (IVaultV2Ledger) {
+-        address a = book.addr(BOOK_DEPLOYMENTS);
+-        if (a == address(0)) revert NoLedger();
+-        return IVaultV2Ledger(a);
++        return IVaultV2Ledger(deploymentLedger);
+     }
+     /// the ledger's owner of `id`, or, for a SessionVault-held record, that vault's owner (who alone may set secrets: a
+     /// session key never can). address(0) for no such deployment.
+     function beneficialOwnerOf(bytes32 id) public view returns (address o) {
+         o = _ledger().get(id).owner;
+         if (o == address(0) || o.code.length == 0) return o;
+-        address f = book.addr(BOOK_SESSION_FACTORY);
++        address f = sessionVaultFactory;
+         if (f != address(0)) {
+             try IVaultV2Factory(f).isVault(o) returns (bool v) {
+                 if (v) return IVaultV2Session(o).owner();
+diff --git a/contracts/EnclaveServiceIndex.sol b/contracts/EnclaveServiceIndex.sol
+new file mode 100644
+index 00000000..5c592b1b
+--- /dev/null
++++ b/contracts/EnclaveServiceIndex.sol
+@@ -0,0 +1,217 @@
++// SPDX-License-Identifier: MIT
++pragma solidity ^0.8.35;
++
++/// @notice An ownerless index of service ADVERTISEMENTS: where an operator says its directory, checker, storage adapter,
++/// DNS replica or release/artifact replica can be reached. It exists so a first user who knows only this contract's
++/// address (and some RPCs) can find candidate services without anyone's approval, name reservation or mutable list.
++///
++/// What it is NOT. An ad is a self-description by whoever holds the operator key. It proves nothing about honest content,
++/// organizational independence, an accepted host owner or a checker's authority; readers return ads as untrusted
++/// candidates, and every existing cryptographic policy (signed provider records, owner policies, pinned checkers) still
++/// decides what is used. Nothing here is consulted for admission.
++///
++/// Rules. Every ad belongs to (operator, slot), at most MAX_SLOTS per operator. Only the operator - directly (an EOA or a
++/// smart-contract wallet calling from its own address), or by an EIP-712 signature bound to this chain id and this
++/// contract (an EOA's secp256k1 signature, or an ERC-1271 wallet's isValidSignature) - can publish, replace or withdraw it. Each change uses a
++/// strictly higher per-slot sequence, which survives withdrawal, so an old signature can never be replayed. Every ad
++/// expires within MAX_TTL; anyone may remove an ad that has ALREADY expired (it is void either way), nobody may remove a
++/// live one. There is no owner, administrator, pause, upgrade or global delete. Storage per ad is bounded (MAX_ENDPOINTS
++/// endpoints of at most MAX_ENDPOINT_BYTES printable ASCII bytes, plus a 32-byte content hash of an optional descriptor),
++/// and enumeration is by kind in pages of at most MAX_PAGE.
++contract EnclaveServiceIndex {
++    uint8 public constant MAX_SLOTS = 8;
++    uint256 public constant MAX_ENDPOINTS = 4;
++    uint256 public constant MAX_ENDPOINT_BYTES = 256;
++    uint64 public constant MAX_TTL = 90 days;
++    uint256 public constant MAX_PAGE = 64;
++
++    struct Ad {
++        address operator;
++        uint8 slot;
++        uint16 kind;          // what the service is (readers name the kinds they understand; 0 is invalid)
++        uint16 version;       // the ad's format version (readers skip versions they do not understand; 0 is invalid)
++        uint64 sequence;
++        uint64 expiresAt;
++        uint64 updatedAt;
++        bytes32 descriptor;   // sha256 of a bounded descriptor document, or zero
++        string[] endpoints;
++    }
++
++    bytes32 public constant PUBLISH_TYPEHASH = keccak256(
++        "Publish(address operator,uint8 slot,uint16 kind,uint16 version,uint64 sequence,uint64 expiresAt,bytes32 descriptor,string[] endpoints)");
++    bytes32 public constant WITHDRAW_TYPEHASH = keccak256("Withdraw(address operator,uint8 slot,uint64 sequence)");
++    bytes32 private constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
++    bytes32 private constant NAME_HASH = keccak256("EnclaveServiceIndex");
++    bytes32 private constant VERSION_HASH = keccak256("1");
++    uint256 private constant HALF_N = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
++    bytes4 private constant ERC1271_MAGIC = 0x1626ba7e; // isValidSignature(bytes32,bytes)
++    uint256 public constant MAX_SIGNATURE_BYTES = 2048;
++    uint256 public constant ERC1271_GAS = 500_000;
++
++    mapping(bytes32 => Ad) private ads;
++    /// @notice The last sequence used for (operator, slot): a publish or withdraw must exceed it. Kept after withdrawal.
++    mapping(address => mapping(uint8 => uint64)) public sequenceOf;
++    mapping(uint16 => bytes32[]) private byKind;
++    mapping(bytes32 => uint256) private position; // 1-based index into byKind[ads[key].kind]; 0 = not listed
++
++    event Published(address indexed operator, uint8 slot, uint16 indexed kind, uint64 sequence, uint64 expiresAt, bytes32 descriptor);
++    event Withdrawn(address indexed operator, uint8 slot, uint64 sequence);
++    event Pruned(address indexed operator, uint8 slot, uint64 sequence);
++
++    function publish(uint8 slot, uint16 kind, uint16 version, uint64 sequence, uint64 expiresAt, bytes32 descriptor,
++                     string[] calldata endpoints) external {
++        _publish(msg.sender, slot, kind, version, sequence, expiresAt, descriptor, endpoints);
++    }
++
++    /// @notice Publish for `operator` with its EIP-712 signature; anyone may submit (and pay for) it.
++    function publishFor(address operator, uint8 slot, uint16 kind, uint16 version, uint64 sequence, uint64 expiresAt,
++                        bytes32 descriptor, string[] calldata endpoints, bytes calldata signature) external {
++        require(_validSignature(operator, publishDigest(operator, slot, kind, version, sequence, expiresAt, descriptor, endpoints), signature),
++                "not signed by operator");
++        _publish(operator, slot, kind, version, sequence, expiresAt, descriptor, endpoints);
++    }
++
++    /// @notice Remove your own ad (or only burn the sequence, revoking a signed publish not yet submitted).
++    function withdraw(uint8 slot, uint64 sequence) external {
++        _withdraw(msg.sender, slot, sequence);
++    }
++
++    function withdrawFor(address operator, uint8 slot, uint64 sequence, bytes calldata signature) external {
++        require(_validSignature(operator, withdrawDigest(operator, slot, sequence), signature), "not signed by operator");
++        _withdraw(operator, slot, sequence);
++    }
++
++    /// @notice Remove an ad that has already expired. A live ad cannot be removed by anyone but its operator.
++    function prune(address operator, uint8 slot) external {
++        bytes32 key = _key(operator, slot);
++        Ad storage a = ads[key];
++        require(a.operator != address(0), "no ad");
++        require(a.expiresAt <= block.timestamp, "ad is live");
++        emit Pruned(operator, slot, a.sequence);
++        _unlist(key);
++        delete ads[key];
++    }
++
++    function get(address operator, uint8 slot) external view returns (Ad memory) {
++        return ads[_key(operator, slot)];
++    }
++
++    function count(uint16 kind) external view returns (uint256) {
++        return byKind[kind].length;
++    }
++
++    /// @notice Up to `limit` (at most MAX_PAGE) ads of `kind` from index `start`, expired ones included (readers filter by
++    /// the block's timestamp), and the total listed. Read every page at ONE block: order changes as ads come and go.
++    function page(uint16 kind, uint256 start, uint256 limit) external view returns (Ad[] memory out, uint256 total) {
++        bytes32[] storage keys = byKind[kind];
++        total = keys.length;
++        if (limit > MAX_PAGE) limit = MAX_PAGE;
++        if (start >= total) return (new Ad[](0), total);
++        uint256 n = total - start < limit ? total - start : limit;
++        out = new Ad[](n);
++        for (uint256 i = 0; i < n; i++) out[i] = ads[keys[start + i]];
++    }
++
++    function domainSeparator() public view returns (bytes32) {
++        return keccak256(abi.encode(DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this)));
++    }
++
++    function publishDigest(address operator, uint8 slot, uint16 kind, uint16 version, uint64 sequence, uint64 expiresAt,
++                           bytes32 descriptor, string[] calldata endpoints) public view returns (bytes32) {
++        bytes32[] memory h = new bytes32[](endpoints.length);
++        for (uint256 i = 0; i < endpoints.length; i++) h[i] = keccak256(bytes(endpoints[i]));
++        bytes32 structHash = keccak256(abi.encode(PUBLISH_TYPEHASH, operator, slot, kind, version, sequence, expiresAt, descriptor,
++                                                  keccak256(abi.encodePacked(h))));
++        return keccak256(abi.encodePacked("\x19\x01", domainSeparator(), structHash));
++    }
++
++    function withdrawDigest(address operator, uint8 slot, uint64 sequence) public view returns (bytes32) {
++        return keccak256(abi.encodePacked("\x19\x01", domainSeparator(), keccak256(abi.encode(WITHDRAW_TYPEHASH, operator, slot, sequence))));
++    }
++
++    function _publish(address operator, uint8 slot, uint16 kind, uint16 version, uint64 sequence, uint64 expiresAt,
++                      bytes32 descriptor, string[] calldata endpoints) private {
++        require(operator != address(0), "operator required");
++        require(slot < MAX_SLOTS, "slot out of range");
++        require(kind != 0 && version != 0, "kind and version required");
++        require(sequence > sequenceOf[operator][slot], "stale sequence");
++        require(expiresAt > block.timestamp && expiresAt <= block.timestamp + MAX_TTL, "expiry out of range");
++        require(endpoints.length > 0 && endpoints.length <= MAX_ENDPOINTS, "1 to 4 endpoints");
++        for (uint256 i = 0; i < endpoints.length; i++) {
++            bytes calldata e = bytes(endpoints[i]);
++            require(e.length > 0 && e.length <= MAX_ENDPOINT_BYTES, "endpoint length");
++            for (uint256 j = 0; j < e.length; j++) require(uint8(e[j]) > 0x20 && uint8(e[j]) < 0x7f, "endpoint must be printable ASCII");
++        }
++        bytes32 key = _key(operator, slot);
++        Ad storage a = ads[key];
++        if (a.operator != address(0) && a.kind != kind) _unlist(key);
++        if (position[key] == 0) { byKind[kind].push(key); position[key] = byKind[kind].length; }
++        sequenceOf[operator][slot] = sequence;
++        a.operator = operator;
++        a.slot = slot;
++        a.kind = kind;
++        a.version = version;
++        a.sequence = sequence;
++        a.expiresAt = expiresAt;
++        a.updatedAt = uint64(block.timestamp);
++        a.descriptor = descriptor;
++        delete a.endpoints;
++        for (uint256 i = 0; i < endpoints.length; i++) a.endpoints.push(endpoints[i]);
++        emit Published(operator, slot, kind, sequence, expiresAt, descriptor);
++    }
++
++    function _withdraw(address operator, uint8 slot, uint64 sequence) private {
++        require(slot < MAX_SLOTS, "slot out of range");
++        require(sequence > sequenceOf[operator][slot], "stale sequence");
++        sequenceOf[operator][slot] = sequence;
++        bytes32 key = _key(operator, slot);
++        if (ads[key].operator != address(0)) { _unlist(key); delete ads[key]; }
++        emit Withdrawn(operator, slot, sequence);
++    }
++
++    function _unlist(bytes32 key) private {
++        uint256 p = position[key];
++        if (p == 0) return;
++        bytes32[] storage keys = byKind[ads[key].kind];
++        bytes32 last = keys[keys.length - 1];
++        keys[p - 1] = last;
++        position[last] = p;
++        keys.pop();
++        position[key] = 0;
++    }
++
++    function _key(address operator, uint8 slot) private pure returns (bytes32) {
++        return keccak256(abi.encode(operator, slot));
++    }
++
++    /// @dev The operator's signature over `digest`: a low-s 65-byte secp256k1 signature by the operator's key, or - for an
++    /// operator with code (a smart-contract wallet) - its ERC-1271 isValidSignature answer, asked by a STATICCALL with a
++    /// fixed gas budget, reading at most 32 bytes back. The digest already binds chain id, this contract and the sequence,
++    /// so a wallet's approval cannot be replayed elsewhere or later.
++    function _validSignature(address operator, bytes32 digest, bytes calldata sig) private view returns (bool) {
++        if (operator == address(0) || sig.length > MAX_SIGNATURE_BYTES) return false;
++        if (_signer(digest, sig) == operator) return true;
++        if (operator.code.length == 0) return false;
++        bytes memory data = abi.encodeWithSelector(ERC1271_MAGIC, digest, sig);
++        bool ok;
++        uint256 size;
++        bytes32 word;
++        uint256 budget = ERC1271_GAS;
++        assembly ("memory-safe") {
++            ok := staticcall(budget, operator, add(data, 0x20), mload(data), 0x00, 0x20)
++            size := returndatasize()
++            word := mload(0x00)
++        }
++        return ok && size >= 32 && word == bytes32(ERC1271_MAGIC);
++    }
++
++    /// @dev A 65-byte (r, s, v) secp256k1 signature, low s only; address(0) on anything else.
++    function _signer(bytes32 digest, bytes calldata sig) private pure returns (address) {
++        if (sig.length != 65) return address(0);
++        bytes32 r = bytes32(sig[0:32]);
++        bytes32 s = bytes32(sig[32:64]);
++        uint8 v = uint8(sig[64]);
++        if (uint256(s) > HALF_N || (v != 27 && v != 28)) return address(0);
++        return ecrecover(digest, v, r, s);
++    }
++}
+diff --git a/contracts/GovernanceSeal.sol b/contracts/GovernanceSeal.sol
+new file mode 100644
+index 00000000..acbaed05
+--- /dev/null
++++ b/contracts/GovernanceSeal.sol
+@@ -0,0 +1,65 @@
++// SPDX-License-Identifier: MIT
++pragma solidity ^0.8.20;
++
++interface ISealableGovernance {
++    function owner() external view returns (address);
++    function pendingOwner() external view returns (address);
++    function acceptOwnership() external;
++}
++
++/// Irreversibly holds a reviewed contract's administrative ownership. There is
++/// no forwarding, upgrade, owner, recovery or withdrawal function. Deployment
++/// alone changes nothing: the target's current owner must explicitly nominate
++/// this address, after which anyone can finalize the exact reviewed configuration.
++///
++/// This does NOT remove authority in proxy implementations or dependencies.
++/// Use only for reviewed immutable target bytecode, with a complete getter set.
++/// Token holders and deployment owners retain their target-contract permissions.
++contract GovernanceSeal {
++    address public immutable target;
++    bytes32 public immutable targetCodeHash;
++    bytes32 public immutable configurationHash;
++    bytes4[] private _selectors;
++    bool public isSealed;
++
++    event GovernanceSealed(address indexed target, bytes32 codeHash, bytes32 configurationHash);
++
++    constructor(address target_, bytes4[] memory selectors, bytes32 expectedConfigurationHash) {
++        require(target_.code.length != 0, "target code missing");
++        require(selectors.length != 0 && selectors.length <= 64, "getter count");
++        target = target_;
++        targetCodeHash = target_.codehash;
++        for (uint256 i; i < selectors.length; ++i) {
++            require(selectors[i] != ISealableGovernance.owner.selector &&
++                selectors[i] != ISealableGovernance.pendingOwner.selector, "ownership is not configuration");
++            for (uint256 j; j < i; ++j) require(selectors[i] != selectors[j], "duplicate getter");
++            _selectors.push(selectors[i]);
++        }
++        configurationHash = expectedConfigurationHash;
++        require(currentConfigurationHash() == expectedConfigurationHash, "configuration changed");
++    }
++
++    function selectors() external view returns (bytes4[] memory) { return _selectors; }
++
++    /// Commit to chain, address, bytecode, ordered getter selectors and their ABI
++    /// encoded responses. Rechecked immediately before accepting ownership.
++    function currentConfigurationHash() public view returns (bytes32 hash) {
++        hash = keccak256(abi.encode(block.chainid, target, targetCodeHash));
++        for (uint256 i; i < _selectors.length; ++i) {
++            (bool ok, bytes memory value) = target.staticcall(abi.encodePacked(_selectors[i]));
++            require(ok && value.length != 0 && value.length <= 1024, "getter failed");
++            hash = keccak256(abi.encode(hash, _selectors[i], keccak256(value)));
++        }
++    }
++
++    function seal() external {
++        require(!isSealed, "already sealed");
++        require(target.codehash == targetCodeHash, "target code changed");
++        require(currentConfigurationHash() == configurationHash, "configuration changed");
++        require(ISealableGovernance(target).pendingOwner() == address(this), "not nominated");
++        isSealed = true;
++        ISealableGovernance(target).acceptOwnership();
++        require(ISealableGovernance(target).owner() == address(this), "ownership not accepted");
++        emit GovernanceSealed(target, targetCodeHash, configurationHash);
++    }
++}
+diff --git a/contracts/PinnedSessionVaultFactory.sol b/contracts/PinnedSessionVaultFactory.sol
+new file mode 100644
+index 00000000..2fb64a39
+--- /dev/null
++++ b/contracts/PinnedSessionVaultFactory.sol
+@@ -0,0 +1,45 @@
++// SPDX-License-Identifier: MIT
++pragma solidity ^0.8.20;
++
++import { SessionVaultFactory, ISVToken, ISVBook, ISVRouter, ISVKeyAttestations } from "./SessionVault.sol";
++
++/// Fixed bindings for a session deployment. There is no owner, setter, proxy,
++/// delegatecall or mutable discovery fallback. The factory pins itself so the
++/// legacy vault interface remains usable without a privileged directory.
++contract PinnedSessionAuthority is ISVBook {
++    address public immutable deployments;
++    address public immutable appCatalog;
++    address public immutable sessionVaultFactory;
++
++    constructor(address ledger, address catalog, address factory) {
++        require(ledger.code.length != 0 && catalog.code.length != 0, "authority code missing");
++        require(factory != address(0), "factory missing");
++        deployments = ledger;
++        appCatalog = catalog;
++        sessionVaultFactory = factory;
++    }
++
++    function addr(bytes32 name) external view returns (address) {
++        if (name == bytes32("deployments")) return deployments;
++        if (name == bytes32("appCatalog")) return appCatalog;
++        if (name == bytes32("sessionVaultFactory")) return sessionVaultFactory;
++        return address(0);
++    }
++}
++
++/// Same session/clone protocol as SessionVaultFactory, with a private immutable
++/// authority directory created in this constructor. Existing vaults are not
++/// upgraded or moved; their owners must explicitly authorize any migration.
++/// Pinning addresses does not remove governance inside the selected contracts.
++contract PinnedSessionVaultFactory is SessionVaultFactory {
++    constructor(ISVToken usdc, address ledger, address catalog, ISVRouter router,
++        ISVKeyAttestations keyAttestations, uint256 maxVault6)
++        SessionVaultFactory(usdc,
++            ISVBook(address(new PinnedSessionAuthority(ledger, catalog, address(this)))),
++            router, keyAttestations, maxVault6) {}
++
++    function authorityPins() external view returns (address ledger, address catalog, address authority) {
++        PinnedSessionAuthority pins = PinnedSessionAuthority(address(implementation.book()));
++        return (pins.deployments(), pins.appCatalog(), address(pins));
++    }
++}
+diff --git a/contracts/deployments/contract-pins-base.json b/contracts/deployments/contract-pins-base.json
+new file mode 100644
+index 00000000..ac30ce8f
+--- /dev/null
++++ b/contracts/deployments/contract-pins-base.json
+@@ -0,0 +1,14 @@
++{
++  "version": 1,
++  "chainId": 8453,
++  "contracts": {
++    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++    "deployments": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++    "appCatalog": "0x18419ca2b502d423a8de6269aeee171a378626e3",
++    "proofOfTime": "0x6f462d77727f10f05a3e660650e7dcc9cc60e6b2",
++    "enclavePay": "0x580270e88e5df35dad59e7fe3d907ebea96673a6",
++    "verificationFees": "0x87c7266543ff5839b2c20226bd9b3cd511a23641",
++    "sessionVaultFactory": "0xec9277a32f98ad3108747fe3da78c35e1bee097b",
++    "secretVaultV2": "0x56b81b3970a8ac2c52f9874bd2758ede30758228"
++  }
++}
+diff --git a/contracts/deployments/independent-authorities-base.json b/contracts/deployments/independent-authorities-base.json
+new file mode 100644
+index 00000000..02c138e7
+--- /dev/null
++++ b/contracts/deployments/independent-authorities-base.json
+@@ -0,0 +1,177 @@
++{
++  "chainId": 8453,
++  "deployer": "0xE388a05b025583951F41aF05171440d4FE53aA8A",
++  "inputs": {
++    "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
++    "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
++    "catalog": "0x18419CA2b502D423A8de6269AEeE171a378626e3",
++    "registry": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC",
++    "router": "0xf17157b42ebbd65E33dD592878A8f1769C69d56A",
++    "enclaveOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++    "keyAttestations": "0xB49241eFE5AF6078BE6aa84850ae45eed34dF61b",
++    "maxVault6": "250000000"
++  },
++  "addresses": {
++    "SessionVaultLib": "0xcc2824CdD4be8AD2656B5201662E60E025BF12b4",
++    "PinnedSessionVaultFactory": "0xEc9277a32f98Ad3108747FE3Da78c35E1BeE097b",
++    "EnclaveHostOwnership": "0xF5E9E6C02449001f6E8e95E5d87413f2cb6790ea",
++    "EnclaveSecretVaultV2": "0x56b81b3970a8ac2c52f9874Bd2758eDE30758228",
++    "PinnedSessionAuthority": "0xF76A138cEb162Aa4bAB47D4787793C569759CAc8",
++    "SessionVault": "0x87bc7Bfc8cA8b857FB43eBc6F4E49c807351Ff5c"
++  },
++  "transactions": {
++    "funding": {
++      "transactionHash": "0xde9b98a248966bcbbe6a300261946915cb2f15c9d484b8eb306f61408469c604",
++      "blockNumber": "52823596",
++      "contractAddress": null,
++      "gasUsed": "21000",
++      "effectiveGasPrice": "6000000",
++      "l1Fee": "0x42bf2d3c"
++    },
++    "SessionVaultLib": {
++      "transactionHash": "0x25d40e69834f75c85299fb85e258d0a7cb05eb03b638e56972dcddc22525f5f1",
++      "blockNumber": "52823625",
++      "contractAddress": "0xcc2824cdd4be8ad2656b5201662e60e025bf12b4",
++      "gasUsed": "2362868",
++      "effectiveGasPrice": "6049395",
++      "l1Fee": "0x108a339070"
++    },
++    "PinnedSessionVaultFactory": {
++      "transactionHash": "0x987081338fba079f21e072406807792af74c43b85a5f0bafb795930179403263",
++      "blockNumber": "52823640",
++      "contractAddress": "0xec9277a32f98ad3108747fe3da78c35e1bee097b",
++      "gasUsed": "5964407",
++      "effectiveGasPrice": "6000000",
++      "l1Fee": "0x4a30e0ea"
++    },
++    "EnclaveHostOwnership": {
++      "transactionHash": "0x1b28c32d4d503153066d8532d9f31dead181d715b6859f113a019bf88f92ea5a",
++      "blockNumber": "52823640",
++      "contractAddress": "0xf5e9e6c02449001f6e8e95e5d87413f2cb6790ea",
++      "gasUsed": "490333",
++      "effectiveGasPrice": "6000000",
++      "l1Fee": "0x595e688d"
++    },
++    "EnclaveSecretVaultV2": {
++      "transactionHash": "0xcda78f4d6ccfc0115d364bd4cce0f10d351ed887d3af55b69aca81fa779259e8",
++      "blockNumber": "52823641",
++      "contractAddress": "0x56b81b3970a8ac2c52f9874bd2758ede30758228",
++      "gasUsed": "4825359",
++      "effectiveGasPrice": "6003183",
++      "l1Fee": "0x8b928ba8"
++    }
++  },
++  "verified": {
++    "contracts": {
++      "SessionVaultLib": {
++        "address": "0xcc2824CdD4be8AD2656B5201662E60E025BF12b4",
++        "runtimeBytes": 10681,
++        "codeHash": "0x26117a09e75f60c5aa2449339b32110ee05a07268088636c061e90b6bc5a9b06"
++      },
++      "PinnedSessionVaultFactory": {
++        "address": "0xEc9277a32f98Ad3108747FE3Da78c35E1BeE097b",
++        "runtimeBytes": 2610,
++        "codeHash": "0xf985ee527a6ae282a8ca8a67adcc0034faabe3d0317c6b989d7a95aa523a694c",
++        "bindings": {
++          "implementation": "0x87bc7Bfc8cA8b857FB43eBc6F4E49c807351Ff5c"
++        }
++      },
++      "EnclaveHostOwnership": {
++        "address": "0xF5E9E6C02449001f6E8e95E5d87413f2cb6790ea",
++        "runtimeBytes": 1999,
++        "codeHash": "0xe38a0e160dd929c366bccd30636285458c288ada475f1b74ffc3289febf1d5dd",
++        "bindings": {
++          "registry": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC"
++        }
++      },
++      "EnclaveSecretVaultV2": {
++        "address": "0x56b81b3970a8ac2c52f9874Bd2758eDE30758228",
++        "runtimeBytes": 21956,
++        "codeHash": "0xb27f04b1bc81e2db3e6913c84016f1f2b75083abe5a87dcc65afafcc207a48c5",
++        "bindings": {
++          "book": "0xF76A138cEb162Aa4bAB47D4787793C569759CAc8",
++          "enclaveOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++          "hostOwnership": "0xF5E9E6C02449001f6E8e95E5d87413f2cb6790ea",
++          "hostRegistry": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC",
++          "deploymentLedger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
++          "sessionVaultFactory": "0xEc9277a32f98Ad3108747FE3Da78c35E1BeE097b"
++        }
++      },
++      "PinnedSessionAuthority": {
++        "address": "0xF76A138cEb162Aa4bAB47D4787793C569759CAc8",
++        "runtimeBytes": 562,
++        "codeHash": "0x81b24e366984840a2f94a5f92a6704f755a172b9d0ac46bc6cfe3ad6106bd557",
++        "bindings": {
++          "deployments": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
++          "appCatalog": "0x18419CA2b502D423A8de6269AEeE171a378626e3",
++          "sessionVaultFactory": "0xEc9277a32f98Ad3108747FE3Da78c35E1BeE097b"
++        }
++      },
++      "SessionVault": {
++        "address": "0x87bc7Bfc8cA8b857FB43eBc6F4E49c807351Ff5c",
++        "runtimeBytes": 23664,
++        "codeHash": "0xbd05cd680b27bd879809787189430fa3dd3789064004aff6347a3af53b9f9f31",
++        "bindings": {
++          "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
++          "book": "0xF76A138cEb162Aa4bAB47D4787793C569759CAc8",
++          "router": "0xf17157b42ebbd65E33dD592878A8f1769C69d56A",
++          "keyAttestations": "0xB49241eFE5AF6078BE6aa84850ae45eed34dF61b",
++          "maxVault6": "250000000",
++          "factory": "0xEc9277a32f98Ad3108747FE3Da78c35E1BeE097b",
++          "owner": "0x0000000000000000000000000000000000000001"
++        }
++      }
++    },
++    "blockNumber": "52823641",
++    "blockHash": "0xe7a5b52ba50e0688bf8e812e1e0462f22bb6f5433339702df575b38fe569b8a7",
++    "blockTimestamp": 1792436629,
++    "checkedAt": "2026-10-19T19:04:00.617Z"
++  },
++  "activation": {
++    "bookChanged": false,
++    "hostOwnersAssigned": false,
++    "sessionGrantsMoved": false,
++    "secretBundlesMoved": false,
++    "productionRuntimeChanged": false
++  },
++  "sourceCommit": "d8fac3c44b32115e80501c45ee0fb919ca2df56c",
++  "deployedAt": "2026-10-19T19:05:36.096880+00:00",
++  "compiler": "0.8.35+commit.47b9dedd.Emscripten.clang",
++  "sourceSha256": {
++    "SessionVault.sol": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c",
++    "PinnedSessionVaultFactory.sol": "fe071b7178476ae0938b3f8f94e6b40d6468ee327bbb0c8568ce3b7dec1a6d16",
++    "EnclaveHostOwnership.sol": "20c1485fc5682038fbd881106de23bfa5ac5bf1b5baa9a57c88470a3db228224",
++    "EnclaveSecretVaultV2.sol": "fc43ab52da0bca1fb62e0289a254332b49faea0990322ab39dbd03d4d8e2ef9b"
++  },
++  "verificationScope": "Compiled runtimes and immutable bindings, majority-agreed on Base; no runtime, bundle, session or owner-policy cutover.",
++  "rehearsal": {
++    "block": "52823514",
++    "localChainId": 31337,
++    "liveRegistryOwnerAcceptance": true,
++    "foreignOperatorRejected": true,
++    "bindingsSurviveMutableBookDeletion": true
++  },
++  "costs": {
++    "fundedETH": "0.00025",
++    "deploymentFeesETH": "0.000082405485674447",
++    "refundETH": "0.000166594514325553",
++    "refundTransaction": "0x8cf2d568aff94bcadf294e8d6180cd894d9c612a519c081009a1667cd7e14365",
++    "remainingFeeReserveETH": "0.0000008727526662",
++    "deployer": "0xE388a05b025583951F41aF05171440d4FE53aA8A",
++    "funder": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
++    "refundVerification": [
++      {
++        "rpc": "https://mainnet.base.org",
++        "refundStatus": "success",
++        "refundBlock": "52823695",
++        "balanceWei": "872752666200"
++      },
++      {
++        "rpc": "https://base.public.blockpi.network/v1/rpc/public",
++        "refundStatus": "success",
++        "refundBlock": "52823695",
++        "balanceWei": "872752666200"
++      }
++    ]
++  }
++}
+diff --git a/contracts/deployments/network-profile-base.json b/contracts/deployments/network-profile-base.json
+new file mode 100644
+index 00000000..1a1a6ab2
+--- /dev/null
++++ b/contracts/deployments/network-profile-base.json
+@@ -0,0 +1,367 @@
++{
++  "builds": {
++    "independent-authorities": {
++      "compiler": "0.8.35+commit.47b9dedd.Emscripten.clang",
++      "record": "contracts/deployments/independent-authorities-base.json",
++      "sourceCommit": "d8fac3c44b32115e80501c45ee0fb919ca2df56c",
++      "sourceSha256": {
++        "EnclaveHostOwnership.sol": "20c1485fc5682038fbd881106de23bfa5ac5bf1b5baa9a57c88470a3db228224",
++        "EnclaveSecretVaultV2.sol": "fc43ab52da0bca1fb62e0289a254332b49faea0990322ab39dbd03d4d8e2ef9b",
++        "PinnedSessionVaultFactory.sol": "fe071b7178476ae0938b3f8f94e6b40d6468ee327bbb0c8568ce3b7dec1a6d16",
++        "SessionVault.sol": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c"
++      }
++    }
++  },
++  "chainId": 8453,
++  "contracts": {
++    "appCatalog": {
++      "address": "0x18419ca2b502d423a8de6269aeee171a378626e3",
++      "codeHash": "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f",
++      "codeProvenance": "observed",
++      "immutable": {},
++      "ownerPowers": [
++        "owner can setApproval and setVerified on any version, grantCid (bind any CID to an app id), transferApp (move a publisher lineage to another address) and setMaxFee.",
++        "Versions the owner publishes start Approved; everyone else's start Pending. importsSealed=true closes owner imports.",
++        "Runtime pinned by observed hash; powers per contracts/EnclaveAppCatalog.sol."
++      ],
++      "reviewedState": {
++        "importsSealed": true,
++        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++        "pendingOwner": "0x0000000000000000000000000000000000000000"
++      },
++      "role": "host-pin",
++      "runtimeBytes": 22733
++    },
++    "connectivity": {
++      "address": "0x5f8b636e0768e84bd47b736652030b65db615111",
++      "codeHash": "0xf353785902b40e59bf67f655ed58fb9fbc72150e1812c40ae9703aadee8fe550",
++      "codeProvenance": "observed",
++      "immutable": {
++        "ledger": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++        "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac"
++      },
++      "ownerPowers": [
++        "No global owner in source; per-app bootstrap trust and payment policy are set by that deployment's ledger owner.",
++        "Runtime pinned by observed hash."
++      ],
++      "reviewedState": {},
++      "role": "network",
++      "runtimeBytes": 17778
++    },
++    "deployments": {
++      "address": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++      "codeHash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
++      "codeProvenance": "observed",
++      "immutable": {
++        "deploymentsSchema": "16",
++        "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++        "usdc": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
++      },
++      "ownerPowers": [
++        "owner (two-step setOwner/acceptOwnership) can slashBond an operator bond (up to its amount) to payout, and sweepEscrow a lapsed, unfundable deployment's escrow to payout.",
++        "owner can setClaimBond, setMaxGpuMilli, setMaxFee, setRunnerBps, setLeaseSec, setProofRequiredFrom and setEthUsdFeed (0 disables ETH funding); these future-create parameters are not pinned here.",
++        "owner can setPayout and retire the ledger (one-way: closes claims, renewals and funding and opens refund to every record owner).",
++        "One-shot owner bindings bandwidthRouter, feeRouter and prover are already set and pinned; importsSealed=true closes owner record imports.",
++        "Runtime pinned by observed hash; owner powers are as written in contracts/EnclaveDeployments.sol, not proven for these bytes."
++      ],
++      "reviewedState": {
++        "bandwidthRouter": "0x5f8b636e0768e84bd47b736652030b65db615111",
++        "ethUsdFeed": "0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70",
++        "feeRouter": "0x87c7266543ff5839b2c20226bd9b3cd511a23641",
++        "importsSealed": true,
++        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++        "payout": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++        "pendingOwner": "0x0000000000000000000000000000000000000000",
++        "prover": "0x6f462d77727f10f05a3e660650e7dcc9cc60e6b2",
++        "retired": false
++      },
++      "role": "host-pin",
++      "runtimeBytes": 24368
++    },
++    "enclavePay": {
++      "address": "0x580270e88e5df35dad59e7fe3d907ebea96673a6",
++      "codeHash": "0xf902e3481a78768e93e7f1c0eacdc730ba110581f39c540fa6f50291d714f025",
++      "codeProvenance": "observed",
++      "immutable": {
++        "usdc": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
++      },
++      "ownerPowers": [
++        "owner can setPayout (where USDC and ETH payments are forwarded); two-step ownership transfer.",
++        "Runtime pinned by observed hash; powers per contracts/EnclavePay.sol."
++      ],
++      "reviewedState": {
++        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++        "payout": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++        "pendingOwner": "0x0000000000000000000000000000000000000000"
++      },
++      "role": "host-pin",
++      "runtimeBytes": 2376
++    },
++    "hostOwnership": {
++      "address": "0xf5e9e6c02449001f6e8e95e5d87413f2cb6790ea",
++      "artifact": "EnclaveHostOwnership",
++      "build": "independent-authorities",
++      "codeHash": "0xe38a0e160dd929c366bccd30636285458c288ada475f1b74ffc3289febf1d5dd",
++      "codeProvenance": "compiled-runtime",
++      "immutable": {
++        "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac"
++      },
++      "ownerPowers": [
++        "No global admin. Per host: the registry's active operator nominates the first owner, that wallet accepts, and only the current owner sets policy or nominates a successor."
++      ],
++      "reviewedState": {},
++      "role": "new-path",
++      "runtimeBytes": 1999
++    },
++    "keyAttestations": {
++      "address": "0xb49241efe5af6078be6aa84850ae45eed34df61b",
++      "codeHash": "0x1a2032764e44a056267bb3585e2179b6bf2e7f7b9248e9810c61cee3cb8233c1",
++      "codeProvenance": "observed",
++      "immutable": {},
++      "ownerPowers": [
++        "owner can setAttestor (removal voids that attestor's bindings) and revoke any key binding; two-step ownership. Measurement-bound session grants depend on it.",
++        "Runtime pinned by observed hash; powers per contracts/EnclaveKeyAttestations.sol."
++      ],
++      "reviewedState": {
++        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++        "pendingOwner": "0x0000000000000000000000000000000000000000"
++      },
++      "role": "dependency",
++      "runtimeBytes": 2000
++    },
++    "legacySessionVaultFactory": {
++      "address": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
++      "codeHash": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
++      "codeProvenance": "observed",
++      "immutable": {
++        "implementation": "0x66c76a47209f44612343dbeab98b8ef77ad01f65"
++      },
++      "ownerPowers": [
++        "Not part of the new path. Production network sessions use this factory; its vaults resolve deployments through the mutable EnclaveAddressBook (book binding), and pinned-mode CLI refuses it. Pinned only to make the difference reviewable."
++      ],
++      "reviewedState": {},
++      "role": "legacy-compatibility",
++      "runtimeBytes": 2208
++    },
++    "legacySessionVaultImplementation": {
++      "address": "0x66c76a47209f44612343dbeab98b8ef77ad01f65",
++      "codeHash": "0x3dd35d4c4bdf112e2ded90da36a16510bfe938a0c9b8b9ed4414698323efb76e",
++      "codeProvenance": "observed",
++      "immutable": {
++        "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
++        "factory": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
++        "keyAttestations": "0xb49241efe5af6078be6aa84850ae45eed34df61b",
++        "router": "0xf17157b42ebbd65e33dd592878a8f1769c69d56a",
++        "usdc": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
++      },
++      "ownerPowers": [
++        "Not part of the new path. Production network sessions use this factory; its vaults resolve deployments through the mutable EnclaveAddressBook (book binding), and pinned-mode CLI refuses it. Pinned only to make the difference reviewable.",
++        "Its immutable book is the mutable EnclaveAddressBook; whoever controls the book chooses which ledger these vaults act on."
++      ],
++      "reviewedState": {
++        "owner": "0x0000000000000000000000000000000000000001"
++      },
++      "role": "legacy-compatibility",
++      "runtimeBytes": 23664
++    },
++    "paymentRouter": {
++      "address": "0xf17157b42ebbd65e33dd592878a8f1769c69d56a",
++      "codeHash": "0x3497b4ce1a0a8b7018627a3a3862096a013e42283901909a5054f1989fdb3b75",
++      "codeProvenance": "observed",
++      "immutable": {
++        "treasury": "0x271a59b4b1ee756e0e46d84aa4c9c26a8d48f44d",
++        "usdc": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
++      },
++      "ownerPowers": [
++        "No owner, setter, pause, rescue or upgrade; every payment lands at the immutable treasury (per contracts/PaymentRouter.sol). Runtime pinned by observed hash."
++      ],
++      "reviewedState": {},
++      "role": "dependency",
++      "runtimeBytes": 1229
++    },
++    "pinnedSessionAuthority": {
++      "address": "0xf76a138ceb162aa4bab47d4787793c569759cac8",
++      "artifact": "PinnedSessionAuthority",
++      "build": "independent-authorities",
++      "codeHash": "0x81b24e366984840a2f94a5f92a6704f755a172b9d0ac46bc6cfe3ad6106bd557",
++      "codeProvenance": "compiled-runtime",
++      "immutable": {
++        "appCatalog": "0x18419ca2b502d423a8de6269aeee171a378626e3",
++        "deployments": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++        "sessionVaultFactory": "0xec9277a32f98ad3108747fe3da78c35e1bee097b"
++      },
++      "ownerPowers": [
++        "No owner or setter; addr() answers only deployments, appCatalog and sessionVaultFactory."
++      ],
++      "reviewedState": {},
++      "role": "new-path",
++      "runtimeBytes": 562
++    },
++    "proofOfTime": {
++      "address": "0x6f462d77727f10f05a3e660650e7dcc9cc60e6b2",
++      "codeHash": "0x6b2eff59ba3f32f2d56515ec1b625dfabea05d2dbe8c7edd63a72e4bb20b0f72",
++      "codeProvenance": "observed",
++      "immutable": {
++        "deployments": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++        "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac"
++      },
++      "ownerPowers": [
++        "owner can setProofWindow within [60 s, ledger leaseSec); two-step ownership transfer.",
++        "Runtime pinned by observed hash; powers per contracts/EnclaveProofOfTime.sol."
++      ],
++      "reviewedState": {
++        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++        "pendingOwner": "0x0000000000000000000000000000000000000000"
++      },
++      "role": "host-pin",
++      "runtimeBytes": 6503
++    },
++    "registry": {
++      "address": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++      "codeHash": "0x39911d6f53959c610b9108bb906fc36ea8f57016c4b2571b5cd52c9c32a6f518",
++      "codeProvenance": "observed",
++      "immutable": {
++        "registrySchema": "4"
++      },
++      "ownerPowers": [
++        "No owner or admin in EnclaveRegistry source; register and registerRelay are permissionless.",
++        "The deployed registry reports registrySchema 4 while source HEAD declares 5; its runtime is pinned by observed hash, not source-verified."
++      ],
++      "reviewedState": {},
++      "role": "host-pin",
++      "runtimeBytes": 5892
++    },
++    "secretVaultV2": {
++      "address": "0x56b81b3970a8ac2c52f9874bd2758ede30758228",
++      "artifact": "EnclaveSecretVaultV2",
++      "build": "independent-authorities",
++      "codeHash": "0xb27f04b1bc81e2db3e6913c84016f1f2b75083abe5a87dcc65afafcc207a48c5",
++      "codeProvenance": "compiled-runtime",
++      "immutable": {
++        "book": "0xf76a138ceb162aa4bab47d4787793c569759cac8",
++        "deploymentLedger": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++        "enclaveOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++        "hostOwnership": "0xf5e9e6c02449001f6e8e95e5d87413f2cb6790ea",
++        "hostRegistry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++        "sessionVaultFactory": "0xec9277a32f98ad3108747fe3da78c35e1bee097b"
++      },
++      "ownerPowers": [
++        "No setter. The immutable enclaveOwner decides which hosts count as Enclave-owned seats (hosts whose hostOwnership owner equals it)."
++      ],
++      "reviewedState": {},
++      "role": "new-path",
++      "runtimeBytes": 21956
++    },
++    "sessionVaultFactory": {
++      "address": "0xec9277a32f98ad3108747fe3da78c35e1bee097b",
++      "artifact": "PinnedSessionVaultFactory",
++      "build": "independent-authorities",
++      "codeHash": "0xf985ee527a6ae282a8ca8a67adcc0034faabe3d0317c6b989d7a95aa523a694c",
++      "codeProvenance": "compiled-runtime",
++      "immutable": {
++        "authorityPins": [
++          "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++          "0x18419ca2b502d423a8de6269aeee171a378626e3",
++          "0xf76a138ceb162aa4bab47d4787793c569759cac8"
++        ],
++        "implementation": "0x87bc7bfc8ca8b857fb43ebc6f4e49c807351ff5c"
++      },
++      "ownerPowers": [
++        "No owner, setter, proxy or delegatecall; compiled-runtime verified. Acts on the deployments ledger and appCatalog, whose owner powers apply."
++      ],
++      "reviewedState": {},
++      "role": "new-path",
++      "runtimeBytes": 2610
++    },
++    "sessionVaultImplementation": {
++      "address": "0x87bc7bfc8ca8b857fb43ebc6f4e49c807351ff5c",
++      "artifact": "SessionVault",
++      "build": "independent-authorities",
++      "codeHash": "0xbd05cd680b27bd879809787189430fa3dd3789064004aff6347a3af53b9f9f31",
++      "codeProvenance": "compiled-runtime",
++      "immutable": {
++        "book": "0xf76a138ceb162aa4bab47d4787793c569759cac8",
++        "factory": "0xec9277a32f98ad3108747fe3da78c35e1bee097b",
++        "keyAttestations": "0xb49241efe5af6078be6aa84850ae45eed34df61b",
++        "maxVault6": "250000000",
++        "router": "0xf17157b42ebbd65e33dd592878a8f1769c69d56a",
++        "usdc": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
++      },
++      "ownerPowers": [
++        "No admin; the implementation is initialized to owner 0x…01. Each clone has only its own wallet owner and sessions. Calls the ledger, catalog, PaymentRouter and KeyAttestations, whose powers apply."
++      ],
++      "reviewedState": {
++        "owner": "0x0000000000000000000000000000000000000001"
++      },
++      "role": "new-path",
++      "runtimeBytes": 23664
++    },
++    "sessionVaultLib": {
++      "address": "0xcc2824cdd4be8ad2656b5201662e60e025bf12b4",
++      "artifact": "SessionVaultLib",
++      "build": "independent-authorities",
++      "codeHash": "0x26117a09e75f60c5aa2449339b32110ee05a07268088636c061e90b6bc5a9b06",
++      "codeProvenance": "compiled-runtime",
++      "immutable": {},
++      "ownerPowers": [
++        "Linked library; no state or owner."
++      ],
++      "reviewedState": {},
++      "role": "new-path",
++      "runtimeBytes": 10681
++    },
++    "usdc": {
++      "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
++      "codeHash": "0xa6705a10bb756b5dea144591118be77d7af0c3eee3bf2dfe2583dcb0364fefab",
++      "codeProvenance": "observed",
++      "immutable": {},
++      "ownerPowers": [
++        "External: Circle-administered upgradeable proxy with pause and blacklist roles. Only the proxy bytes are pinned; the implementation can change without changing this hash."
++      ],
++      "reviewedState": {},
++      "role": "external",
++      "runtimeBytes": 1852
++    },
++    "verificationFees": {
++      "address": "0x87c7266543ff5839b2c20226bd9b3cd511a23641",
++      "codeHash": "0xf649e393d201db4cd3a0377384381a95bf32e33d53bab290a6824067d7f66ab9",
++      "codeProvenance": "observed",
++      "immutable": {
++        "ledger": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++        "proof": "0x6f462d77727f10f05a3e660650e7dcc9cc60e6b2",
++        "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
++      },
++      "ownerPowers": [
++        "No owner, rescue or treasury function in source; fee wallets are controller-only per source deployment and payer.",
++        "Runtime pinned by observed hash."
++      ],
++      "reviewedState": {},
++      "role": "host-pin",
++      "runtimeBytes": 17257
++    }
++  },
++  "kind": "enclave.authority-profile",
++  "review": {
++    "blockHash": "0x40ec8c624a852b899cebddf9e5c00dc5a4ccfc31e666855472e3a643af9dd4ce",
++    "blockNumber": "52830935",
++    "blockTimestamp": 1792451217,
++    "capturedAt": "2026-10-19T23:07:08Z",
++    "inputs": {
++      "deploymentRecord": {
++        "description": "contracts/deployments/independent-authorities-base.json (compiled-runtime verification of the independent authorities)",
++        "sha256": "92dda05e210e5e7b1bd0de58513f874f9ba3ccab80b015b438673fd620d8c0f5"
++      },
++      "publicHostPins": {
++        "description": "Public host contract-pins.json (registry, deployments, appCatalog, proofOfTime, enclavePay, verificationFees)",
++        "sha256": "b687a8da232c3984b2e6eeb4b1d3f46be36ab1fe2044f1deed197cffb8d21336"
++      }
++    },
++    "rpcHosts": [
++      "base-rpc.publicnode.com",
++      "base.drpc.org",
++      "mainnet.base.org"
++    ]
++  },
++  "scope": "New-path trust choice for owner-committed deployments on Base: the pinned session factory and authority, SecretVaultV2 and EnclaveHostOwnership from the independent-authorities deployment, plus the existing host contract pins. It is not evidence that production migrated, that governance is sealed, that an independent custody committee is active, or that any service is independently operated. Base, its sequencer, USDC (Circle) and the chosen RPCs remain trusted. Code hashes do not remove owner powers inside or behind the pinned contracts; see ownerPowers.",
++  "version": 1
++}
+diff --git a/contracts/deployments/service-index-activation-base.json b/contracts/deployments/service-index-activation-base.json
+new file mode 100644
+index 00000000..0909cfd1
+--- /dev/null
++++ b/contracts/deployments/service-index-activation-base.json
+@@ -0,0 +1,88 @@
++{
++  "at": "2026-10-20T00:41:17.987703+00:00",
++  "indexPin": {
++    "chainId": 8453,
++    "address": "0x54dEcb43DE6f9Cc953Ba582B190b56C5a60B5941",
++    "codeHash": "0x696944fed82d8b312e4db3ab89069240f8063a6a49b47e8a322804cdfd127898"
++  },
++  "readerSourceCommit": "48d9efb1",
++  "advertisement": {
++    "at": "2026-10-20T00:35:14.121Z",
++    "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
++    "index": "0x54dEcb43DE6f9Cc953Ba582B190b56C5a60B5941",
++    "slot": 0,
++    "kind": "directory",
++    "sequence": "1",
++    "expiresAt": "1795048468",
++    "endpoints": [
++      "http://134.199.235.187:8188/",
++      "http://134.209.248.172:8188/",
++      "http://165.245.191.129:8188/",
++      "http://146.190.246.39:8188/"
++    ],
++    "transaction": "0x0553d9f8495e48af5472eb1952d1680264a378c3e9e0a7ef84f105cf3c16eab4",
++    "receipt": {
++      "hash": "0x0553d9f8495e48af5472eb1952d1680264a378c3e9e0a7ef84f105cf3c16eab4",
++      "blockNumber": "52833570",
++      "status": "success",
++      "gasUsed": "309440",
++      "effectiveGasPrice": "6000000"
++    },
++    "executionFeeETH": "0.00000185664",
++    "notice": "These are existing Enclave-operated directories, advertised as untrusted candidates. This does not establish independent operators or authorize their contents."
++  },
++  "discovery": {
++    "blockNumber": "52833587",
++    "blockHash": "0xe2ea3b3004da768fe54d3dafe1c77375beff2d384a21b2dffe451fb1ec891c23",
++    "candidateCount": 1,
++    "agreeingRPCs": [
++      "https://base.drpc.org",
++      "https://mainnet.base.org"
++    ]
++  },
++  "coldDiscovery": {
++    "at": "2026-10-20T00:37:58.251Z",
++    "coldState": true,
++    "indexPin": {
++      "chainId": 8453,
++      "address": "0x54dEcb43DE6f9Cc953Ba582B190b56C5a60B5941",
++      "codeHash": "0x696944fed82d8b312e4db3ab89069240f8063a6a49b47e8a322804cdfd127898"
++    },
++    "explicitlySelectedOperator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++    "lookupBlock": "52833663",
++    "lookupBlockHash": "0x621152650a223a1a460cf24279633db3dd0890f4aa4c1ddaf1bbe94216bfbeb7",
++    "discoveredDirectoryOrigins": [
++      "http://134.199.235.187:8188",
++      "http://134.209.248.172:8188",
++      "http://165.245.191.129:8188",
++      "http://146.190.246.39:8188"
++    ],
++    "verifiedSignedProviderCount": 4,
++    "providerIds": [
++      "6332f4fac85df4c6a81216a8b86af1e3",
++      "4ffeb0241847858ae891694f58d03d53",
++      "50e9d7b6aff4c5cd4416321f214e31b6",
++      "c4c7888e4741dcbe2c092dd81e888bf7"
++    ],
++    "contactedOrigins": [
++      "https://base-rpc.publicnode.com",
++      "https://base.drpc.org",
++      "https://base.public.blockpi.network",
++      "https://mainnet.base.org",
++      "http://134.199.235.187:8188",
++      "http://134.209.248.172:8188",
++      "http://165.245.191.129:8188",
++      "http://146.190.246.39:8188"
++    ],
++    "unexpectedForbiddenAttempts": 0,
++    "guardPositiveControlPassed": true,
++    "limits": "Cold discovery and operator-signature validation only. No lease admission, checker eligibility, independent organization, whole-host recovery or full Enclave-refusal claim. All advertised directories remain Enclave-operated."
++  },
++  "activation": {
++    "contractDeployed": true,
++    "operatorAdvertisementPublished": true,
++    "cliDiscoveryVerified": true,
++    "browserHostRollout": false,
++    "authorityProfileChanged": false
++  }
++}
+diff --git a/contracts/deployments/service-index-base.json b/contracts/deployments/service-index-base.json
+new file mode 100644
+index 00000000..90e085f8
+--- /dev/null
++++ b/contracts/deployments/service-index-base.json
+@@ -0,0 +1,42 @@
++{
++  "at": "2026-10-20T00:25:51.449Z",
++  "chainId": 8453,
++  "address": "0x54dEcb43DE6f9Cc953Ba582B190b56C5a60B5941",
++  "sourceCommit": "61c16967",
++  "sourceSha256": "a84444c4eedc805c18759b717ced022dbd29eeb661697607c9a0d660cbb37129",
++  "compiler": "0.8.35+commit.47b9dedd.Emscripten.clang",
++  "compilerSha256": "ecabf2b0bf0c3ab0c6bb9cebd309900bd3b5e80c833d2bc68a330fa5508398f5",
++  "settings": {
++    "viaIR": true,
++    "optimizer": {
++      "enabled": true,
++      "runs": 200
++    },
++    "outputSelection": {
++      "*": {
++        "*": [
++          "abi",
++          "evm.bytecode.object",
++          "evm.deployedBytecode.object"
++        ]
++      }
++    }
++  },
++  "codeHash": "0x696944fed82d8b312e4db3ab89069240f8063a6a49b47e8a322804cdfd127898",
++  "deployTransaction": "0x6d38bf54c1dd2671be7985c84aa95a0d6185fc5dfca37b37c168ebfd3afe6e63",
++  "deployBlock": "52833297",
++  "verification": {
++    "codeHash": "0x696944fed82d8b312e4db3ab89069240f8063a6a49b47e8a322804cdfd127898",
++    "blockNumber": "52833299",
++    "blockHash": "0x6d3b860ec245c734c4370adb3afa2f3ca5cc7a611198f7b1417184b6f562c30d",
++    "blockTimestamp": 1792455945
++  },
++  "operatorAuthority": "no owner, admin, pause, upgrade or global deletion",
++  "activation": {
++    "contractDeployed": true,
++    "advertisementsPublished": false,
++    "profileUpdated": false,
++    "clientRollout": false
++  },
++  "fundedETH": "0.00005"
++}
+diff --git a/contracts/deployments/service-index-pin-base.json b/contracts/deployments/service-index-pin-base.json
+new file mode 100644
+index 00000000..4c777023
+--- /dev/null
++++ b/contracts/deployments/service-index-pin-base.json
+@@ -0,0 +1,5 @@
++{
++  "chainId": 8453,
++  "address": "0x54dEcb43DE6f9Cc953Ba582B190b56C5a60B5941",
++  "codeHash": "0x696944fed82d8b312e4db3ab89069240f8063a6a49b47e8a322804cdfd127898"
++}
+diff --git a/contracts/deployments/source-verification-base.json b/contracts/deployments/source-verification-base.json
+new file mode 100644
+index 00000000..9063833f
+--- /dev/null
++++ b/contracts/deployments/source-verification-base.json
+@@ -0,0 +1,427 @@
++{
++  "kind": "enclave.deployed-source-verification",
++  "version": 1,
++  "chainId": 8453,
++  "repository": "https://github.com/EnclaveHost/enclave.git",
++  "compiler": {
++    "version": "0.8.35+commit.47b9dedd.Emscripten.clang",
++    "package": "solc@0.8.35",
++    "soljsonSha256": "fa4345d648d9a09c6601ffc978e78e9f5267b54e6d91e8f8c473f44c0c16323b"
++  },
++  "review": {
++    "blockNumber": "52831588",
++    "blockHash": "0x0b2960197b399a529d6e720c99bacc33fd85eb8b31c2fc800c85fe92d5221354",
++    "rpcHosts": [
++      "base-rpc.publicnode.com",
++      "mainnet.base.org",
++      "base.drpc.org"
++    ]
++  },
++  "builds": {
++    "registry-schema4": {
++      "commit": "b17db9a33b3500783a67774f4e47ec648e833699",
++      "sources": {
++        "EnclaveRegistry.sol": {
++          "path": "contracts/EnclaveRegistry.sol",
++          "gitBlob": "d7fb9740a29cc3d6dc7c197ddf62937112b22a6c",
++          "sha256": "e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360"
++        }
++      },
++      "settings": {
++        "optimizer": {
++          "enabled": true,
++          "runs": 200
++        }
++      }
++    },
++    "ledger-rev16d": {
++      "commit": "4b7419bb0955ffd02a6ce8d75809dac0a18f302f",
++      "sources": {
++        "EnclaveDeployments.sol": {
++          "path": "contracts/EnclaveDeployments.sol",
++          "gitBlob": "3f3d2c3ac155be4c108531b247b3f95a5c9ccdd4",
++          "sha256": "2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1"
++        }
++      },
++      "settings": {
++        "optimizer": {
++          "enabled": true,
++          "runs": 1
++        },
++        "viaIR": true
++      }
++    },
++    "catalog": {
++      "commit": "f2e9a71d0fb25b67a774be76b29081f6cb6f8ec3",
++      "sources": {
++        "EnclaveAppCatalog.sol": {
++          "path": "contracts/EnclaveAppCatalog.sol",
++          "gitBlob": "018e4bffc6ac99f87b7b6087a6c4628a53e7a1e9",
++          "sha256": "b31744361efbb43fcf60152a5eaaa185d1af07bdc27f077af0a2b48e7de3b191"
++        }
++      },
++      "settings": {
++        "optimizer": {
++          "enabled": true,
++          "runs": 200
++        },
++        "viaIR": true
++      }
++    },
++    "proof-of-time": {
++      "commit": "44d5b928b9afe7d207bed0f1d8d4ae6976dd6401",
++      "sources": {
++        "EnclaveProofOfTime.sol": {
++          "path": "contracts/EnclaveProofOfTime.sol",
++          "gitBlob": "a2affef0f4c6083f04f5c1167602f17c7c02ef71",
++          "sha256": "6ec89dc59bd58f7ff4f6b60d0477c3b5166066255c1b808f184213e5b866f019"
++        }
++      },
++      "settings": {
++        "optimizer": {
++          "enabled": true,
++          "runs": 200
++        },
++        "viaIR": true
++      }
++    },
++    "pay": {
++      "commit": "cf6022cce34034455f7d28a98b2059ac35525857",
++      "sources": {
++        "EnclavePay.sol": {
++          "path": "contracts/EnclavePay.sol",
++          "gitBlob": "68cb3ec3e55458b6424d93253f992f5ef116019f",
++          "sha256": "a0411962c8286a7655dbe6691e028dbf00ebeea42c1183dad323944e67a130f6"
++        }
++      },
++      "settings": {
++        "optimizer": {
++          "enabled": true,
++          "runs": 200
++        }
++      }
++    },
++    "verification-fees": {
++      "commit": "28dd23c2e289413232553f54be939b618fd576d3",
++      "sources": {
++        "EnclaveVerificationFees.sol": {
++          "path": "contracts/EnclaveVerificationFees.sol",
++          "gitBlob": "cd38195c3289926a6e4a812a264a7dc69b950093",
++          "sha256": "a0db02fd901cd27b7646fa4312a387c5eb1079b654308a1c87a95cbebcc07d22"
++        }
++      },
++      "settings": {
++        "optimizer": {
++          "enabled": true,
++          "runs": 200
++        },
++        "viaIR": true
++      }
++    },
++    "connectivity": {
++      "commit": "4b7419bb0955ffd02a6ce8d75809dac0a18f302f",
++      "sources": {
++        "contracts/EnclaveConnectivity.sol": {
++          "path": "contracts/EnclaveConnectivity.sol",
++          "gitBlob": "c0fb0bed725c7eba45eb4a6abc44ba9ee96f3b3e",
++          "sha256": "da607b8a38546b8f535f28fb622344ebedf9e9ac908a8777e0fea53dc9d2615f"
++        },
++        "contracts/EnclaveDeployments.sol": {
++          "path": "contracts/EnclaveDeployments.sol",
++          "gitBlob": "3f3d2c3ac155be4c108531b247b3f95a5c9ccdd4",
++          "sha256": "2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1"
++        }
++      },
++      "settings": {
++        "optimizer": {
++          "enabled": true,
++          "runs": 200
++        },
++        "viaIR": true
++      }
++    },
++    "payment-router": {
++      "commit": "09ccf9cdb7624c9ef96584c00db95dd21fb9de92",
++      "sources": {
++        "PaymentRouter.sol": {
++          "path": "contracts/PaymentRouter.sol",
++          "gitBlob": "b1211335f8fe77ac99f1a02391b31ae1f75a2626",
++          "sha256": "8f28d3e4a313ea66a2dda511fca1194933c845a81756806f9f011ebe3e912ed0"
++        }
++      },
++      "settings": {
++        "optimizer": {
++          "enabled": true,
++          "runs": 200
++        }
++      }
++    },
++    "key-attestations": {
++      "commit": "ee28c686f8361f9e883776112a742217398c7340",
++      "sources": {
++        "EnclaveKeyAttestations.sol": {
++          "path": "contracts/EnclaveKeyAttestations.sol",
++          "gitBlob": "c294ea829317184aa6224ec7a9631bb08c186bce",
++          "sha256": "4afb43a58e4b44de1fc0aae81bfa6acb019011fefc22d0cd3930247970621d8a"
++        }
++      },
++      "settings": {
++        "optimizer": {
++          "enabled": true,
++          "runs": 200
++        }
++      }
++    },
++    "legacy-sessions-v2": {
++      "commit": "4aea7d8986681bb7ccfef27067e7222a8eafbcdf",
++      "sources": {
++        "SessionVault.sol": {
++          "path": "contracts/SessionVault.sol",
++          "gitBlob": "46ac1ed0ebc824ac4e1aa9819c15baa713c63480",
++          "sha256": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c"
++        }
++      },
++      "settings": {
++        "optimizer": {
++          "enabled": true,
++          "runs": 1
++        },
++        "viaIR": true
++      }
++    }
++  },
++  "contracts": {
++    "registry": {
++      "address": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++      "kind": "contract",
++      "build": "registry-schema4",
++      "unit": "EnclaveRegistry.sol",
++      "contract": "EnclaveRegistry",
++      "runtimeBytes": 5892,
++      "codeHash": "0x39911d6f53959c610b9108bb906fc36ea8f57016c4b2571b5cd52c9c32a6f518",
++      "metadataIpfs": "12206901e8b2ebad7b2a3a61231367d9bb1f025dcdd9fd0553dba9289ea4047c26f9",
++      "immutables": {},
++      "links": {},
++      "profileName": "registry",
++      "basis": "Full match (runtime and CBOR metadata) with b17db9a3 (2026-08-09, \"registry schema 4\"). No immutables. Source HEAD (blob b7064f3e since 9895865c, 2026-08-11) is schema 5 and adds CAP_* capability bits, registerRelay, setCaps and CapsSet; their selectors are absent from this runtime, so the deployed registry has no relay or capability registration."
++    },
++    "deployments": {
++      "address": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++      "kind": "contract",
++      "build": "ledger-rev16d",
++      "unit": "EnclaveDeployments.sol",
++      "contract": "EnclaveDeployments",
++      "runtimeBytes": 24368,
++      "codeHash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
++      "metadataIpfs": "12206a87065e7217aaac9c0780a8b68fb16674bc34fd3fae901a8f6febc3f64ffb2a",
++      "immutables": {
++        "EnclaveDeployments.usdc": "0x000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913",
++        "EnclaveDeployments.registry": "0x000000000000000000000000868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac"
++      },
++      "links": {
++        "EnclaveDeployments.sol:EnclaveLedgerBandwidth": "0x3dfee18b44b7ecd389eca78da10b6ad032802215"
++      },
++      "profileName": "deployments",
++      "basis": "Full match with 4b7419bb0 (2026-10-12, \"ledger rev 16d\"), runs 1, viaIR. Address immutables equal the authority profile getter bindings (usdc, registry). Its one linked library is ledgerBandwidthLibrary, verified from the same build."
++    },
++    "ledgerBandwidthLibrary": {
++      "address": "0x3dfee18b44b7ecd389eca78da10b6ad032802215",
++      "kind": "library",
++      "build": "ledger-rev16d",
++      "unit": "EnclaveDeployments.sol",
++      "contract": "EnclaveLedgerBandwidth",
++      "runtimeBytes": 3710,
++      "codeHash": "0x28a6f46100f911eee9e151b7813cc7362f425bf607877766b20386a7d7373cc7",
++      "metadataIpfs": "1220cf78d915740c33340ce27b078a4159780259c0481bb63da119544569f2101f03",
++      "immutables": {
++        "library_deploy_address": "0x0000000000000000000000003dfee18b44b7ecd389eca78da10b6ad032802215"
++      },
++      "links": {},
++      "profileName": null,
++      "basis": "EnclaveLedgerBandwidth from the ledger rev 16d build; library_deploy_address (the viaIR call guard) holds its own address. Not listed in the authority profile; pinned transitively because the ledger runtime the profile pins embeds this address."
++    },
++    "appCatalog": {
++      "address": "0x18419ca2b502d423a8de6269aeee171a378626e3",
++      "kind": "contract",
++      "build": "catalog",
++      "unit": "EnclaveAppCatalog.sol",
++      "contract": "EnclaveAppCatalog",
++      "runtimeBytes": 22733,
++      "codeHash": "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f",
++      "metadataIpfs": "122051c05e06f8243cc43629e7b9f69375aa4bf6d216d338fce625c8252642e4f5ad",
++      "immutables": {},
++      "links": {},
++      "profileName": "appCatalog",
++      "basis": "Full match with f2e9a71d0 (2026-08-18), runs 200, viaIR. No immutables; owner, approvals and imports are storage."
++    },
++    "proofOfTime": {
++      "address": "0x6f462d77727f10f05a3e660650e7dcc9cc60e6b2",
++      "kind": "contract",
++      "build": "proof-of-time",
++      "unit": "EnclaveProofOfTime.sol",
++      "contract": "EnclaveProofOfTime",
++      "runtimeBytes": 6503,
++      "codeHash": "0x6b2eff59ba3f32f2d56515ec1b625dfabea05d2dbe8c7edd63a72e4bb20b0f72",
++      "metadataIpfs": "1220b6f68d12e4ca137f50043272aec0cefea36b07fefa471e10429062b7057da48c",
++      "immutables": {
++        "EnclaveProofOfTime.deployments": "0x000000000000000000000000b1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++        "EnclaveProofOfTime.registry": "0x000000000000000000000000868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac"
++      },
++      "links": {},
++      "profileName": "proofOfTime",
++      "basis": "Full match with 44d5b928 (2026-07-28 source, unchanged until deployment), runs 200, viaIR. Address immutables equal the authority profile getter bindings (deployments, registry)."
++    },
++    "enclavePay": {
++      "address": "0x580270e88e5df35dad59e7fe3d907ebea96673a6",
++      "kind": "contract",
++      "build": "pay",
++      "unit": "EnclavePay.sol",
++      "contract": "EnclavePay",
++      "runtimeBytes": 2376,
++      "codeHash": "0xf902e3481a78768e93e7f1c0eacdc730ba110581f39c540fa6f50291d714f025",
++      "metadataIpfs": "12207afbc9420cdc4a9971fb6a007c8f1a2f1546d041f18e525a0b0581c99596d360",
++      "immutables": {
++        "EnclavePay.usdc": "0x000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913"
++      },
++      "links": {},
++      "profileName": "enclavePay",
++      "basis": "Full match with cf6022cc (2026-07-14), runs 200. Address immutables equal the authority profile getter bindings (usdc). owner and payout are storage."
++    },
++    "verificationFees": {
++      "address": "0x87c7266543ff5839b2c20226bd9b3cd511a23641",
++      "kind": "contract",
++      "build": "verification-fees",
++      "unit": "EnclaveVerificationFees.sol",
++      "contract": "EnclaveVerificationFees",
++      "runtimeBytes": 17257,
++      "codeHash": "0xf649e393d201db4cd3a0377384381a95bf32e33d53bab290a6824067d7f66ab9",
++      "metadataIpfs": "12204a52e774046f183f5112c0e8f075fd5bcf9fcfacbcfda7fca4f98ea61e61ba25",
++      "immutables": {
++        "EnclaveVerificationFees.token": "0x000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913",
++        "EnclaveVerificationFees.proof": "0x0000000000000000000000006f462d77727f10f05a3e660650e7dcc9cc60e6b2",
++        "EnclaveVerificationFees.ledger": "0x000000000000000000000000b1783b61e1fdee6a6163dc3cdac27bf32e7d117b"
++      },
++      "links": {},
++      "profileName": "verificationFees",
++      "basis": "Full match with 28dd23c2 (2026-09-30), runs 200, viaIR. Address immutables equal the authority profile getter bindings (ledger, proof, token)."
++    },
++    "connectivity": {
++      "address": "0x5f8b636e0768e84bd47b736652030b65db615111",
++      "kind": "contract",
++      "build": "connectivity",
++      "unit": "contracts/EnclaveConnectivity.sol",
++      "contract": "EnclaveConnectivity",
++      "runtimeBytes": 17778,
++      "codeHash": "0xf353785902b40e59bf67f655ed58fb9fbc72150e1812c40ae9703aadee8fe550",
++      "metadataIpfs": "1220dfe232484856e0836bcbd3262294684a073bc5ab96eda458aba25c87279d7112",
++      "immutables": {
++        "EnclaveConnectivity.ledger": "0x000000000000000000000000b1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++        "EnclaveConnectivity.registry": "0x000000000000000000000000868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac"
++      },
++      "links": {},
++      "profileName": "connectivity",
++      "basis": "Full match only with unit names contracts/EnclaveConnectivity.sol and contracts/EnclaveDeployments.sol at runs 200, viaIR (not the build-contract-artifacts.mjs naming; no committed artifact held this metadata). Sources as of 4b7419bb0: connectivity blob c0fb0bed (unchanged 3ac18fcc..b28a9b2e^) with the live ledger rev 16d blob 3f3d2c3a. The live interface is the pre-v2 \"tuna\" one; b28a9b2e later renamed it. Address immutables equal the authority profile getter bindings (ledger, registry)."
++    },
++    "paymentRouter": {
++      "address": "0xf17157b42ebbd65e33dd592878a8f1769c69d56a",
++      "kind": "contract",
++      "build": "payment-router",
++      "unit": "PaymentRouter.sol",
++      "contract": "PaymentRouter",
++      "runtimeBytes": 1229,
++      "codeHash": "0x3497b4ce1a0a8b7018627a3a3862096a013e42283901909a5054f1989fdb3b75",
++      "metadataIpfs": "12209cf67dad3c56b8b39f7b8f4df192b5b5250260deefd5615123319685292e09c4",
++      "immutables": {
++        "PaymentRouter.usdc": "0x000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913",
++        "PaymentRouter.treasury": "0x000000000000000000000000271a59b4b1ee756e0e46d84aa4c9c26a8d48f44d"
++      },
++      "links": {},
++      "profileName": "paymentRouter",
++      "basis": "Full match with 09ccf9cd (2026-07-20), runs 200. Address immutables equal the authority profile getter bindings (usdc, treasury)."
++    },
++    "keyAttestations": {
++      "address": "0xb49241efe5af6078be6aa84850ae45eed34df61b",
++      "kind": "contract",
++      "build": "key-attestations",
++      "unit": "EnclaveKeyAttestations.sol",
++      "contract": "EnclaveKeyAttestations",
++      "runtimeBytes": 2000,
++      "codeHash": "0x1a2032764e44a056267bb3585e2179b6bf2e7f7b9248e9810c61cee3cb8233c1",
++      "metadataIpfs": "12207d7288ea476a0f6b1e71d443b78c3c9e9a8432952850d6159e529a94b3b894ab",
++      "immutables": {},
++      "links": {},
++      "profileName": "keyAttestations",
++      "basis": "Full match with ee28c686 (2026-10-06), runs 200. No immutables; owner, pendingOwner and attestors are storage."
++    },
++    "legacySessionVaultFactory": {
++      "address": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
++      "kind": "contract",
++      "build": "legacy-sessions-v2",
++      "unit": "SessionVault.sol",
++      "contract": "SessionVaultFactory",
++      "runtimeBytes": 2208,
++      "codeHash": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
++      "metadataIpfs": "122029ea91547e01d48106258036858bf6fda8708d1479eb17115b0a1d8c55d9a625",
++      "immutables": {
++        "SessionVaultFactory.implementation": "0x00000000000000000000000066c76a47209f44612343dbeab98b8ef77ad01f65"
++      },
++      "links": {},
++      "profileName": "legacySessionVaultFactory",
++      "basis": "Full match with 4aea7d89 (2026-10-07), runs 1, viaIR. implementation equals the profile binding and the legacy implementation below."
++    },
++    "legacySessionVaultImplementation": {
++      "address": "0x66c76a47209f44612343dbeab98b8ef77ad01f65",
++      "kind": "contract",
++      "build": "legacy-sessions-v2",
++      "unit": "SessionVault.sol",
++      "contract": "SessionVault",
++      "runtimeBytes": 23664,
++      "codeHash": "0x3dd35d4c4bdf112e2ded90da36a16510bfe938a0c9b8b9ed4414698323efb76e",
++      "metadataIpfs": "1220122628b6c665727481ca1735bf2494e1bb9aac65aa29decd5671d0498fc47c14",
++      "immutables": {
++        "SessionVault.router": "0x000000000000000000000000f17157b42ebbd65e33dd592878a8f1769c69d56a",
++        "SessionVault.usdc": "0x000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913",
++        "SessionVault.book": "0x000000000000000000000000ab214342d5a490150a4a977063a2f88e21f80907",
++        "SessionVault.maxVault6": "0x000000000000000000000000000000000000000000000000000000000ee6b280",
++        "SessionVault.factory": "0x0000000000000000000000001f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
++        "SessionVault.keyAttestations": "0x000000000000000000000000b49241efe5af6078be6aa84850ae45eed34df61b"
++      },
++      "links": {
++        "SessionVault.sol:SessionVaultLib": "0x5510ae9fed97577d75c69545384af7d8bad05027"
++      },
++      "profileName": "legacySessionVaultImplementation",
++      "basis": "Full match with 4aea7d89, runs 1, viaIR. usdc, book, router, keyAttestations and maxVault6 equal the ledger-15d-base.json sessionVaultV2 factory args; book is the mutable EnclaveAddressBook. Linked SessionVaultLib equals that record."
++    },
++    "legacySessionVaultLib": {
++      "address": "0x5510ae9fed97577d75c69545384af7d8bad05027",
++      "kind": "library",
++      "build": "legacy-sessions-v2",
++      "unit": "SessionVault.sol",
++      "contract": "SessionVaultLib",
++      "runtimeBytes": 10681,
++      "codeHash": "0xe1535a3f96d34230e84afa199f2f2eab3a1c2f412be64d531d34d4a566680bc7",
++      "metadataIpfs": "12202ca7b08e7ea0ffd4ea4d7a92f5c3210eb43ef0533ffe4abc9d36958cdc58670b",
++      "immutables": {
++        "library_deploy_address": "0x0000000000000000000000005510ae9fed97577d75c69545384af7d8bad05027"
++      },
++      "links": {},
++      "profileName": null,
++      "basis": "SessionVaultLib from the same build; library_deploy_address holds its own address, which equals ledger-15d-base.json sessionVaultV2.SessionVaultLib."
++    }
++  },
++  "external": {
++    "usdc": {
++      "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
++      "kind": "upgradeable-proxy",
++      "codeHash": "0xa6705a10bb756b5dea144591118be77d7af0c3eee3bf2dfe2583dcb0364fefab",
++      "runtimeBytes": 1852,
++      "metadataSolc": "0.6.12",
++      "slots": {
++        "implementation": "0x7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3",
++        "admin": "0x10d6a54a4754c8869d6886b5f5d7fbfa5b4522237ea5c60d11bc4e7a1ff9390b"
++      },
++      "profileName": "usdc",
++      "basis": "External Circle upgradeable proxy (CBOR solc 0.6.12). Only the proxy runtime hash is pinned and its source is not verified here. Implementation and admin live in the ZeppelinOS slots named below; they are observed on every run but deliberately not pinned, because the admin can replace the implementation without changing the proxy hash. Verifying this proxy says nothing about future USDC behavior."
++    }
++  }
++}
+diff --git a/contracts/foundry/test/EnclaveHostOwnership.t.sol b/contracts/foundry/test/EnclaveHostOwnership.t.sol
+new file mode 100644
+index 00000000..b99819b6
+--- /dev/null
++++ b/contracts/foundry/test/EnclaveHostOwnership.t.sol
+@@ -0,0 +1,54 @@
++// SPDX-License-Identifier: MIT
++pragma solidity ^0.8.35;
++import "forge-std/Test.sol";
++import "../../EnclaveHostOwnership.sol";
++import "../../EnclaveRegistry.sol";
++contract HostOwnershipTest is Test {
++    EnclaveRegistry registry;
++    EnclaveHostOwnership ownership;
++    address operator = address(0x1234);
++    address owner = address(0x2345);
++    address buyer = address(0x3456);
++    bytes32 host;
++    function setUp() public {
++        registry = new EnclaveRegistry();
++        ownership = new EnclaveHostOwnership(address(registry));
++        vm.prank(operator);
++        host = registry.register("https://host.example", "source", bytes32(0), 1, 0, address(0));
++    }
++    function claim() internal {
++        vm.prank(operator); ownership.proposeOwner(host, owner);
++        vm.prank(owner); ownership.acceptOwner(host);
++    }
++    function testBothOperatorAndWalletMustConsent() public {
++        vm.expectRevert("not active operator"); vm.prank(owner); ownership.proposeOwner(host, owner);
++        vm.prank(operator); ownership.proposeOwner(host, owner);
++        vm.expectRevert("not proposed owner"); vm.prank(operator); ownership.acceptOwner(host);
++        vm.prank(owner); ownership.acceptOwner(host);
++        (address current,,uint64 revision,)=ownership.authority(host);
++        assertEq(current,owner);assertEq(revision,1);
++    }
++    function testPayoutDeclarationCannotGrantVetoOrTransfer() public {
++        claim();
++        vm.prank(buyer);registry.setPayoutWallet(host);
++        vm.expectRevert("not owner");vm.prank(buyer);ownership.setPolicy(host,bytes32(uint256(1)));
++        vm.expectRevert("not owner");vm.prank(operator);ownership.proposeOwner(host,buyer);
++        (address current,,,)=ownership.authority(host);assertEq(current,owner);
++    }
++    function testTransferRevokesOldOwnerAndPolicy() public {
++        claim();vm.prank(owner);ownership.setPolicy(host,bytes32(uint256(1)));
++        vm.prank(owner);ownership.proposeOwner(host,buyer);
++        (address current,,,bytes32 policy)=ownership.authority(host);assertEq(current,owner);assertEq(policy,bytes32(uint256(1)));
++        vm.prank(buyer);ownership.acceptOwner(host);
++        uint64 revision;
++        (current,,revision,policy)=ownership.authority(host);
++        assertEq(current,buyer);assertEq(revision,3);assertEq(policy,bytes32(0));
++        vm.expectRevert("not owner");vm.prank(owner);ownership.setPolicy(host,bytes32(uint256(2)));
++    }
++    function testPolicyCannotAffectAnotherHost() public {
++        claim();bytes32 other=keccak256("other");
++        vm.expectRevert("not owner");vm.prank(owner);ownership.setPolicy(other,bytes32(uint256(1)));
++        vm.prank(owner);ownership.setPolicy(host,bytes32(uint256(1)));
++        (,,,bytes32 policy)=ownership.authority(other);assertEq(policy,bytes32(0));
++    }
++}
+diff --git a/contracts/foundry/test/EnclaveSecretVaultV2.t.sol b/contracts/foundry/test/EnclaveSecretVaultV2.t.sol
+index c715db98..011f8efa 100644
+--- a/contracts/foundry/test/EnclaveSecretVaultV2.t.sol
++++ b/contracts/foundry/test/EnclaveSecretVaultV2.t.sol
+@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
+ 
+ import { Test } from "forge-std/Test.sol";
+ import { EnclaveSecretVaultV2, IVaultV2Ledger } from "../../EnclaveSecretVaultV2.sol";
++import { EnclaveHostOwnership } from "../../EnclaveHostOwnership.sol";
+ import { EnclaveRegistry } from "../../EnclaveRegistry.sol";
+ 
+ contract V2Book {
+@@ -38,6 +39,7 @@ contract EnclaveSecretVaultV2Test is Test {
+     EnclaveSecretVaultV2 vault;
+     V2Book book;
+     EnclaveRegistry registry;
++    EnclaveHostOwnership ownership;
+     V2Ledger ledger;
+     V2Factory factory;
+     address enclaveOwner = makeAddr("enclaveOwner");
+@@ -63,7 +65,8 @@ contract EnclaveSecretVaultV2Test is Test {
+         book.set("registry", address(registry));
+         book.set("deployments", address(ledger));
+         book.set("sessionVaultFactory", address(factory));
+-        vault = new EnclaveSecretVaultV2(address(book), enclaveOwner);
++        ownership = new EnclaveHostOwnership(address(registry));
++        vault = new EnclaveSecretVaultV2(address(book), enclaveOwner, address(ownership));
+         Y = abi.encodePacked(bytes1(0x02), keccak256("committee-key"));
+         owner = vm.addr(ownerKey);
+         ledger.setOwner(D, owner);
+@@ -90,7 +93,14 @@ contract EnclaveSecretVaultV2Test is Test {
+         vm.prank(vm.addr(k));
+         rid = registry.register(string.concat("https://host", vm.toString(seed), ".example"), "EnclaveHost/enclave", bytes32(0), 1, 0, address(0));
+         opKey[rid] = k;
+-        if (payout != address(0)) { vm.prank(payout); registry.setPayoutWallet(rid); }
++        if (payout != address(0)) {
++            vm.prank(payout); registry.setPayoutWallet(rid);
++            (address accepted,,,) = ownership.authority(rid);
++            if (accepted == address(0)) {
++                vm.prank(vm.addr(k)); ownership.proposeOwner(rid,payout);
++                vm.prank(payout); ownership.acceptOwner(rid);
++            }
++        }
+     }
+     /// a custodian machine on its own host; Enclave-owned iff `enclave`
+     function _machine(uint256 seed, bool enclave) internal returns (EnclaveSecretVaultV2.Machine memory m) {
+@@ -105,6 +115,77 @@ contract EnclaveSecretVaultV2Test is Test {
+     }
+ 
+     function _codeSet() internal pure returns (bytes32[] memory cs) { cs = new bytes32[](1); cs[0] = M; }
++    function _independentMachines() internal returns (EnclaveSecretVaultV2.Machine[] memory ms) {
++        ms = new EnclaveSecretVaultV2.Machine[](3);
++        for (uint256 i; i < 3; i++) ms[i] = _machineOn(800+i, _host(800+i, vm.addr(900+i)));
++    }
++    function _independentSigs(EnclaveSecretVaultV2.Machine[] memory ms, bytes memory cs, bytes32[] memory codes)
++        internal view returns (bytes[] memory sigs) {
++        bytes32[] memory hashes = new bytes32[](ms.length);
++        for (uint256 i; i < ms.length; i++) hashes[i] = _mh(ms[i]);
++        bytes32 digest = keccak256(abi.encode("enclave-custody-v2 independent genesis", block.chainid,
++            address(vault), _cid("independent"), keccak256(cs), keccak256(abi.encode(hashes)), keccak256(abi.encode(codes))));
++        sigs = new bytes[](ms.length);
++        for (uint256 i; i < ms.length; i++) sigs[i] = _psign(idKey[ms[i].identity], digest);
++    }
++    function test_independentGenesisAndCodeQuorumWithoutEnclave() public {
++        EnclaveSecretVaultV2.Machine[] memory ms = _independentMachines();
++        bytes memory cs = bytes.concat(Y,Y);
++        bytes[] memory sigs = _independentSigs(ms,cs,_codeSet());
++        // Delete mutable discovery before submission; the vault keeps its pins.
++        book.set("registry", address(0)); book.set("deployments", address(0));
++        vm.prank(stranger);
++        bytes32 cid = vault.createIndependentCommittee("independent",ms,cs,_codeSet(),sigs,_hostSigs(ms));
++        (bytes memory key, uint32 epoch, uint8 t, uint8 W,) = vault.committeeOf(cid);
++        assertEq(key,Y); assertEq(epoch,1); assertEq(t,2); assertEq(W,3);
++        (,bool[] memory enc) = vault.machinesOf(cid,1);
++        assertFalse(enc[0]); assertFalse(enc[1]); assertFalse(enc[2]);
++        address[] memory ap = new address[](2); ap[0]=ms[0].identity; ap[1]=ms[1].identity;
++        vault.proposeCode(cid,M2,ap,_codeSigs(cid,M2,true,ap));
++        assertGt(vault.codeActiveAt(cid,M2), block.timestamp);
++        vm.expectRevert(EnclaveSecretVaultV2.BadCommittee.selector);
++        vault.createIndependentCommittee("independent",ms,cs,_codeSet(),sigs,_hostSigs(ms));
++    }
++    function test_independentGenesisRejectsRosterCodeAndCommitmentSubstitution() public {
++        EnclaveSecretVaultV2.Machine[] memory ms = _independentMachines();
++        bytes memory cs = bytes.concat(Y,Y);
++        bytes[] memory sigs = _independentSigs(ms,cs,_codeSet());
++        bytes[] memory hosts = _hostSigs(ms);
++        bytes memory changed = bytes.concat(Y, abi.encodePacked(bytes1(0x03), bytes32(uint256(99))));
++        vm.expectRevert(EnclaveSecretVaultV2.BadSignature.selector);
++        vault.createIndependentCommittee("independent",ms,changed,_codeSet(),sigs,hosts);
++        bytes32[] memory codes = new bytes32[](2); codes[0]=M; codes[1]=M2;
++        vm.expectRevert(EnclaveSecretVaultV2.BadSignature.selector);
++        vault.createIndependentCommittee("independent",ms,cs,codes,sigs,hosts);
++        sigs[2]=sigs[1];
++        vm.expectRevert(EnclaveSecretVaultV2.BadSignature.selector);
++        vault.createIndependentCommittee("independent",ms,cs,_codeSet(),sigs,hosts);
++    }
++    function test_independentGenesisRequiresDistinctOwnersAndChips() public {
++        EnclaveSecretVaultV2.Machine[] memory ms = _independentMachines();
++        bytes memory cs = bytes.concat(Y,Y);
++        ms[1].chipId=ms[0].chipId;
++        bytes[] memory hosts = _hostSigs(ms);
++        bytes[] memory sigs = _independentSigs(ms,cs,_codeSet());
++        vm.expectRevert(EnclaveSecretVaultV2.BadMachine.selector);
++        vault.createIndependentCommittee("independent",ms,cs,_codeSet(),sigs,hosts);
++        ms[1] = _machineOn(810,_host(810,vm.addr(900)));
++        hosts=_hostSigs(ms); sigs=_independentSigs(ms,cs,_codeSet());
++        vm.expectRevert(EnclaveSecretVaultV2.BadMachine.selector);
++        vault.createIndependentCommittee("independent",ms,cs,_codeSet(),sigs,hosts);
++    }
++    function test_independentGenesisRejectsEnclaveFounderAndWrongThreshold() public {
++        EnclaveSecretVaultV2.Machine[] memory ms = _independentMachines();
++        bytes memory cs=bytes.concat(Y,Y);
++        bytes[] memory sigs=_independentSigs(ms,cs,_codeSet());
++        bytes[] memory hosts=_hostSigs(ms);
++        vm.expectRevert(EnclaveSecretVaultV2.BadCommittee.selector);
++        vault.createIndependentCommittee("independent",ms,Y,_codeSet(),sigs,hosts);
++        ms[1]=_machine(820,true);
++        hosts=_hostSigs(ms); sigs=_independentSigs(ms,cs,_codeSet());
++        vm.expectRevert(EnclaveSecretVaultV2.BadSeats.selector);
++        vault.createIndependentCommittee("independent",ms,cs,_codeSet(),sigs,hosts);
++    }
+     function _genesisDigest(bytes32 cid, EnclaveSecretVaultV2.Machine memory m, bytes32[] memory cs) internal view returns (bytes32) {
+         return keccak256(abi.encode("enclave-custody-v2 genesis", block.chainid, address(vault), cid, keccak256(Y), _mh(m), keccak256(abi.encode(cs))));
+     }
+@@ -229,15 +310,16 @@ contract EnclaveSecretVaultV2Test is Test {
+         bytes memory hSig = _hostSig(a);
+         vm.expectRevert(EnclaveSecretVaultV2.NotEnclave.selector);
+         vault.createCommittee("salt", a, Y, cs, idSig, hSig);
+-        // no payout wallet declared at all
++        // no accepted ownership at all
+         EnclaveSecretVaultV2.Machine memory b = _machineOn(3, _host(3, address(0)));
+         idSig = _psign(idKey[b.identity], _genesisDigest(_cid("salt"), b, cs));
+         hSig = _hostSig(b);
+-        vm.expectRevert(EnclaveSecretVaultV2.NotEnclave.selector);
++        vm.expectRevert(EnclaveSecretVaultV2.BadHost.selector);
+         vault.createCommittee("salt", b, Y, cs, idSig, hSig);
+-        // the Enclave wallet clears its declaration: no longer Enclave-owned
++        // ownership transfers: the former owner no longer classifies this host
+         EnclaveSecretVaultV2.Machine memory e = _machine(4, true);
+-        vm.prank(enclaveOwner); registry.clearPayoutWallet(e.registryId);
++        vm.prank(enclaveOwner); ownership.proposeOwner(e.registryId,otherWallet);
++        vm.prank(otherWallet); ownership.acceptOwner(e.registryId);
+         idSig = _psign(idKey[e.identity], _genesisDigest(_cid("salt"), e, cs));
+         hSig = _hostSig(e);
+         vm.expectRevert(EnclaveSecretVaultV2.NotEnclave.selector);
+@@ -272,9 +354,9 @@ contract EnclaveSecretVaultV2Test is Test {
+         bytes memory hs = _hostSig(u);
+         vm.expectRevert(EnclaveSecretVaultV2.BadHost.selector);
+         vault.createCommittee("salt", u, Y, cs, idSig, hs);
+-        // no registry in the book
++        // an address-book edit cannot change the pinned host registry
+         book.set("registry", address(0));
+-        vm.expectRevert(EnclaveSecretVaultV2.NoRegistry.selector);
++        vm.expectRevert(EnclaveSecretVaultV2.BadHost.selector);
+         vault.createCommittee("salt", u, Y, cs, idSig, hs);
+     }
+     function _highS(bytes memory sig) internal pure returns (bytes memory) {
+@@ -1041,12 +1123,67 @@ contract EnclaveSecretVaultV2Test is Test {
+         assertEq(pr, 3); assertEq(sr, 3); assertFalse(paused);
+     }
+ 
++    function testPayoutSpoofDoesNotGrantEnclaveSeat() public {
++        EnclaveSecretVaultV2.Machine memory m = _machine(51,false);
++        vm.prank(enclaveOwner); registry.setPayoutWallet(m.registryId);
++        bytes32[] memory cs = _codeSet();
++        bytes memory sig = _psign(idKey[m.identity],_genesisDigest(_cid("salt"),m,cs));
++        bytes memory hs = _hostSig(m);
++        vm.expectRevert(EnclaveSecretVaultV2.NotEnclave.selector);
++        vault.createCommittee("salt",m,Y,cs,sig,hs);
++    }
++    function testPayoutChangeAndBookEditCannotRemoveAcceptedOwnership() public {
++        EnclaveSecretVaultV2.Machine memory m = _machine(52,true);
++        vm.prank(stranger); registry.setPayoutWallet(m.registryId);
++        book.set("registry",address(0));
++        bytes32 cid = _genesis(m);
++        (,bool[] memory enc) = vault.machinesOf(cid,1);
++        assertTrue(enc[0]);
++    }
+     function test_constructorAndImmutables() public {
++        assertEq(address(vault.hostOwnership()), address(ownership));
++        assertEq(vault.hostRegistry(), address(registry));
++        assertEq(vault.deploymentLedger(), address(ledger));
++        assertEq(vault.sessionVaultFactory(), address(factory));
+         assertEq(address(vault.book()), address(book));
+         assertEq(vault.enclaveOwner(), enclaveOwner);
+         vm.expectRevert();
+-        new EnclaveSecretVaultV2(address(0), enclaveOwner);
++        new EnclaveSecretVaultV2(address(0), enclaveOwner, address(ownership));
++        vm.expectRevert();
++        new EnclaveSecretVaultV2(address(book), address(0), address(ownership));
++    }
++
++    function testBookCannotRedirectDeploymentOwnership() public {
++        V2Ledger substitute = new V2Ledger();
++        substitute.setOwner(D, stranger);
++        book.set("deployments", address(substitute));
++        assertEq(vault.beneficialOwnerOf(D), owner);
++        ledger.setOwner(D, otherWallet);
++        assertEq(vault.beneficialOwnerOf(D), otherWallet);
++        book.set("deployments", address(0));
++        assertEq(vault.beneficialOwnerOf(D), otherWallet);
++    }
++
++    function testBookCannotDisableSessionOwnershipResolution() public {
++        V2SessionVault session = new V2SessionVault(owner);
++        factory.add(address(session));
++        ledger.setOwner(D, address(session));
++        book.set("sessionVaultFactory", address(new V2Factory()));
++        assertEq(vault.beneficialOwnerOf(D), owner);
++        book.set("sessionVaultFactory", address(0));
++        assertEq(vault.beneficialOwnerOf(D), owner);
++    }
++
++    function testConstructorRequiresARealLedgerAndOptionalRealFactory() public {
++        book.set("deployments", address(0));
++        vm.expectRevert(EnclaveSecretVaultV2.NoLedger.selector);
++        new EnclaveSecretVaultV2(address(book), enclaveOwner, address(ownership));
++        book.set("deployments", address(ledger));
++        book.set("sessionVaultFactory", stranger);
+         vm.expectRevert();
+-        new EnclaveSecretVaultV2(address(book), address(0));
++        new EnclaveSecretVaultV2(address(book), enclaveOwner, address(ownership));
++        book.set("sessionVaultFactory", address(0));
++        EnclaveSecretVaultV2 noSessions = new EnclaveSecretVaultV2(address(book), enclaveOwner, address(ownership));
++        assertEq(noSessions.sessionVaultFactory(), address(0));
+     }
+ }
+diff --git a/contracts/foundry/test/GovernanceSeal.hosting.t.sol b/contracts/foundry/test/GovernanceSeal.hosting.t.sol
+new file mode 100644
+index 00000000..f338c3c4
+--- /dev/null
++++ b/contracts/foundry/test/GovernanceSeal.hosting.t.sol
+@@ -0,0 +1,118 @@
++// SPDX-License-Identifier: MIT
++pragma solidity ^0.8.20;
++
++import {Test} from "forge-std/Test.sol";
++import {EnclaveDeployments} from "../../EnclaveDeployments.sol";
++import {EnclaveRegistry} from "../../EnclaveRegistry.sol";
++import {EnclaveProofOfTime} from "../../EnclaveProofOfTime.sol";
++import {GovernanceSeal} from "../../GovernanceSeal.sol";
++import {MockUSDC} from "./mocks/MockUSDC.sol";
++
++/// Real ledger, registry and proof verifier. Only the token and attested key
++/// are test fixtures: this proves contract behavior, not a live independent TEE.
++contract GovernanceSealHostingTest is Test {
++    uint256 constant T0 = 1_800_000_000;
++    uint256 constant PROOF_KEY = 0xB0B;
++    EnclaveDeployments ledger;
++    EnclaveRegistry registry;
++    EnclaveProofOfTime proof;
++    MockUSDC usdc;
++    address tenant = makeAddr("new independent tenant");
++    address operator = makeAddr("independent runner");
++    address gasPayer = makeAddr("independent proof submitter");
++    address treasury = makeAddr("treasury");
++    address formerGovernor;
++
++    function _seal(address target, string[] memory names) internal returns(GovernanceSeal s) {
++        bytes4[] memory selectors = new bytes4[](names.length);
++        bytes32 hash = keccak256(abi.encode(block.chainid,target,target.codehash));
++        for(uint256 i; i < names.length; ++i) {
++            selectors[i] = bytes4(keccak256(bytes(names[i])));
++            (bool ok,bytes memory result) = target.staticcall(abi.encodePacked(selectors[i]));
++            require(ok);
++            hash = keccak256(abi.encode(hash,selectors[i],keccak256(result)));
++        }
++        s = new GovernanceSeal(target,selectors,hash);
++    }
++
++    function setUp() public virtual {
++        vm.warp(T0); vm.roll(1000);
++        usdc = new MockUSDC(); registry = new EnclaveRegistry();
++        ledger = new EnclaveDeployments(address(usdc),treasury,address(registry),address(0));
++        formerGovernor = ledger.owner();
++        proof = new EnclaveProofOfTime(address(ledger),address(registry));
++        ledger.setProver(address(proof)); ledger.setProofRequiredFrom(uint64(T0)); ledger.sealImports();
++        _sealLedgerAndProof();
++        usdc.mint(tenant,100e6);
++        vm.prank(tenant); usdc.approve(address(ledger),type(uint256).max);
++    }
++
++    function _sealLedgerAndProof() internal {
++        string[] memory getters = new string[](17);
++        getters[0]="deploymentsSchema()"; getters[1]="retired()"; getters[2]="importsSealed()";
++        getters[3]="usdc()"; getters[4]="registry()"; getters[5]="payout()"; getters[6]="ethUsdFeed()";
++        getters[7]="leaseSec()"; getters[8]="maxGpuMilli()"; getters[9]="maxFeePerSec6()";
++        getters[10]="runnerBps()"; getters[11]="claimBond6()"; getters[12]="bondExitDelay()";
++        getters[13]="prover()"; getters[14]="proofRequiredFrom()"; getters[15]="feeRouter()";
++        getters[16]="bandwidthRouter()";
++        GovernanceSeal ledgerSeal = _seal(address(ledger),getters);
++        ledger.setOwner(address(ledgerSeal)); ledgerSeal.seal();
++        getters = new string[](4);
++        getters[0]="proofSchema()"; getters[1]="deployments()"; getters[2]="registry()"; getters[3]="proofWindowSec()";
++        GovernanceSeal proofSeal = _seal(address(proof),getters);
++        proof.transferOwnership(address(proofSeal)); proofSeal.seal();
++    }
++
++    function test_independentRegistrationClaimProofRenewAndOwnerStopSurviveSealing() public {
++        // All role registration and work creation happen AFTER the former
++        // governance wallet has lost authority, with no catalog approval/API.
++        vm.prank(operator);
++        bytes32 host = registry.register("https://independent.example","publisher/runtime",bytes32(uint256(42)),1000,0,vm.addr(PROOF_KEY));
++        vm.startPrank(tenant);
++        bytes32 id = ledger.create("catalog://explicit-release/0",0,100,8080,"",true,"",address(0),0,1000);
++        ledger.fund(id,10e6); usdc.transfer(operator,1e6); vm.stopPrank();
++        vm.startPrank(operator);
++        usdc.approve(address(ledger),1e6); ledger.postBond(1e6);
++        vm.stopPrank();
++        vm.prank(operator); ledger.claim(id,host);
++        uint64 originalLease = ledger.get(id).leaseUntil;
++        assertTrue(ledger.proofRequired());
++
++        vm.startPrank(formerGovernor);
++        vm.expectRevert(); ledger.retire();
++        vm.expectRevert(); ledger.setMaxGpuMilli(0);
++        vm.expectRevert(); ledger.setClaimBond(1_000_000e6,1 days);
++        vm.expectRevert(); ledger.slashBond(operator,1,"refuses Enclave policy");
++        vm.expectRevert(); proof.setProofWindow(60);
++        vm.expectRevert(); registry.deregister(host);
++        vm.stopPrank();
++
++        vm.warp(T0+300); vm.roll(1150);
++        bytes32 anchor = keccak256("independent chain block"); vm.setBlockhash(1149,anchor);
++        bytes32 digest = proof.proofDigest(id,host,operator,uint64(T0+300),1149,anchor);
++        (uint8 v,bytes32 r,bytes32 s) = vm.sign(PROOF_KEY,digest);
++        vm.prank(gasPayer); proof.checkpoint(id,host,uint64(T0+300),1149,anchor,abi.encodePacked(r,s,v));
++        vm.prank(operator); ledger.renew(id);
++        assertGt(ledger.get(id).leaseUntil,originalLease);
++        assertGt(ledger.earned6(operator),0);
++        vm.prank(operator); ledger.withdrawEarnings(operator);
++        assertGt(usdc.balanceOf(operator),0);
++
++        // Governance removal must not remove the tenant's authority.
++        vm.prank(tenant); ledger.setActive(id,false);
++        vm.prank(operator); vm.expectRevert(); ledger.renew(id);
++        vm.prank(operator); ledger.release(id);
++        uint256 before = usdc.balanceOf(tenant);
++        vm.prank(tenant); ledger.refund(id);
++        assertGt(usdc.balanceOf(tenant),before);
++        vm.prank(tenant); ledger.transferDeployment(id,gasPayer);
++        vm.prank(tenant); vm.expectRevert(); ledger.setActive(id,true);
++        vm.prank(gasPayer); ledger.setActive(id,true);
++        assertEq(ledger.get(id).owner,gasPayer);
++        vm.prank(operator); ledger.requestBondExit();
++        vm.warp(T0+300+1 days);
++        uint256 operatorBefore = usdc.balanceOf(operator);
++        vm.prank(operator); ledger.withdrawBond(operator);
++        assertEq(usdc.balanceOf(operator),operatorBefore+1e6);
++    }
++}
+diff --git a/contracts/foundry/test/GovernanceSeal.liveFork.t.sol b/contracts/foundry/test/GovernanceSeal.liveFork.t.sol
+new file mode 100644
+index 00000000..7b81b5b1
+--- /dev/null
++++ b/contracts/foundry/test/GovernanceSeal.liveFork.t.sol
+@@ -0,0 +1,29 @@
++// SPDX-License-Identifier: MIT
++pragma solidity ^0.8.20;
++
++import {GovernanceSealHostingTest} from "./GovernanceSeal.hosting.t.sol";
++import {EnclaveDeployments} from "../../EnclaveDeployments.sol";
++import {EnclaveRegistry} from "../../EnclaveRegistry.sol";
++import {EnclaveProofOfTime} from "../../EnclaveProofOfTime.sol";
++import {MockUSDC} from "./mocks/MockUSDC.sol";
++
++/// Opt-in Base fork. No broadcast/wallet; writes exist only in Forge's local
++/// simulation. Skip on the default test chain rather than claiming a live test.
++contract GovernanceSealLiveForkTest is GovernanceSealHostingTest {
++    function setUp() public override {
++        vm.skip(block.chainid != 8453);
++        ledger = EnclaveDeployments(0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B);
++        registry = EnclaveRegistry(address(ledger.registry()));
++        proof = EnclaveProofOfTime(ledger.prover());
++        usdc = MockUSDC(address(ledger.usdc())); // ERC20 surface only; no mock mint
++        assertEq(ledger.deploymentsSchema(),16);
++        assertTrue(ledger.importsSealed()); assertFalse(ledger.retired());
++        assertEq(proof.owner(),ledger.owner());
++        assertEq(address(proof.deployments()),address(ledger));
++        formerGovernor = ledger.owner();
++        vm.startPrank(formerGovernor); _sealLedgerAndProof(); vm.stopPrank();
++        deal(address(usdc),tenant,100e6);
++        vm.prank(tenant); usdc.approve(address(ledger),type(uint256).max);
++        vm.warp(T0); vm.roll(1000);
++    }
++}
+diff --git a/contracts/foundry/test/GovernanceSeal.t.sol b/contracts/foundry/test/GovernanceSeal.t.sol
+new file mode 100644
+index 00000000..91651b56
+--- /dev/null
++++ b/contracts/foundry/test/GovernanceSeal.t.sol
+@@ -0,0 +1,93 @@
++// SPDX-License-Identifier: MIT
++pragma solidity ^0.8.20;
++
++import { SessionRig } from "./SessionVault.t.sol";
++import { GovernanceSeal } from "../../GovernanceSeal.sol";
++
++contract GovernanceSealTest is SessionRig {
++    function snapshot(address target, bytes4[] memory selectors) internal view returns (bytes32 h) {
++        h = keccak256(abi.encode(block.chainid, target, target.codehash));
++        for (uint256 i; i < selectors.length; ++i) {
++            (bool ok, bytes memory value) = target.staticcall(abi.encodePacked(selectors[i]));
++            require(ok);
++            h = keccak256(abi.encode(h, selectors[i], keccak256(value)));
++        }
++    }
++
++    // Test profile, not a production review manifest. Production must cover all
++    // admin-mutable settings and dependency bindings of the deployed revision.
++    function makeSeal() internal returns (GovernanceSeal s) {
++        bytes4[] memory getters = new bytes4[](5);
++        getters[0] = bytes4(keccak256("retired()"));
++        getters[1] = bytes4(keccak256("importsSealed()"));
++        getters[2] = bytes4(keccak256("leaseSec()"));
++        getters[3] = bytes4(keccak256("claimBond6()"));
++        getters[4] = bytes4(keccak256("proofRequiredFrom()"));
++        ledger.sealImports();
++        s = new GovernanceSeal(address(ledger), getters, snapshot(address(ledger), getters));
++    }
++
++    function test_deploymentAloneCannotAcquireAuthority() public {
++        GovernanceSeal s = makeSeal();
++        assertEq(ledger.owner(), address(this));
++        vm.expectRevert(bytes("not nominated")); s.seal();
++        assertFalse(s.isSealed());
++    }
++
++    function test_nominationCanBeCancelledBeforeAcceptance() public {
++        GovernanceSeal s = makeSeal();
++        ledger.setOwner(address(s));
++        ledger.setOwner(relayer);
++        vm.expectRevert(bytes("not nominated")); s.seal();
++        assertEq(ledger.owner(), address(this));
++    }
++
++    function test_configurationDriftRefusesOwnershipTransfer() public {
++        GovernanceSeal s = makeSeal();
++        ledger.setOwner(address(s));
++        ledger.setLeaseSec(3600);
++        vm.expectRevert(bytes("configuration changed")); s.seal();
++        assertEq(ledger.owner(), address(this));
++        assertFalse(s.isSealed());
++    }
++
++    function test_codeReplacementRefusesOwnershipTransfer() public {
++        GovernanceSeal s = makeSeal();
++        ledger.setOwner(address(s));
++        vm.etch(address(ledger), hex"00");
++        vm.expectRevert(bytes("target code changed")); s.seal();
++    }
++
++    function test_sealedLedgerAcceptsFundedDeploymentsAndOwnerRefunds() public {
++        GovernanceSeal s = makeSeal();
++        ledger.setOwner(address(s));
++        vm.prank(relayer); s.seal(); // no privileged finalizer
++        assertEq(ledger.owner(), address(s));
++        assertTrue(s.isSealed());
++        vm.expectRevert(); ledger.retire();
++        vm.expectRevert(); ledger.setClaimBond(1000e6, 1 days);
++        vm.expectRevert(); ledger.setOwner(address(this));
++        (bool ok,) = address(s).call(abi.encodeWithSignature("execute(address,bytes)", address(ledger), abi.encodeWithSignature("retire()")));
++        assertFalse(ok);
++        vm.expectRevert(bytes("already sealed")); s.seal();
++        bytes32 sid = _openWithDeposit(_grant(keyHash, 2e6));
++        bytes32 id = abi.decode(_exec(sid, 0, 0, _createArgs(freeRef, 1, 1e6), 0), (bytes32));
++        assertEq(ledger.get(id).balance6, 1e6);
++        assertFalse(ledger.retired());
++        uint256 before = usdc.balanceOf(address(vault));
++        uint256 refundable = ledger.refundableOf(id);
++        assertGt(refundable, 0);
++        vm.prank(address(vault)); ledger.refund(id);
++        assertEq(usdc.balanceOf(address(vault)), before + refundable);
++    }
++
++    function test_badManifestCannotCreateSeal() public {
++        bytes4[] memory selectors = new bytes4[](1);
++        selectors[0] = bytes4(keccak256("retired()"));
++        vm.expectRevert(bytes("configuration changed"));
++        new GovernanceSeal(address(ledger), selectors, bytes32(0));
++        selectors[0] = bytes4(keccak256("owner()"));
++        vm.expectRevert(bytes("ownership is not configuration"));
++        new GovernanceSeal(address(ledger), selectors, bytes32(0));
++    }
++}
+diff --git a/contracts/foundry/test/PinnedSessionVault.t.sol b/contracts/foundry/test/PinnedSessionVault.t.sol
+new file mode 100644
+index 00000000..6a03cb30
+--- /dev/null
++++ b/contracts/foundry/test/PinnedSessionVault.t.sol
+@@ -0,0 +1,100 @@
++// SPDX-License-Identifier: MIT
++pragma solidity ^0.8.20;
++
++import { SessionRig } from "./SessionVault.t.sol";
++import { SessionVault, SessionVaultFactory, ISVToken, ISVRouter, ISVKeyAttestations } from "../../SessionVault.sol";
++import { PinnedSessionVaultFactory, PinnedSessionAuthority } from "../../PinnedSessionVaultFactory.sol";
++
++contract PinnedSessionVaultTest is SessionRig {
++    PinnedSessionVaultFactory pinned;
++
++    function setUp() public override {
++        super.setUp();
++        pinned = new PinnedSessionVaultFactory(ISVToken(address(usdc)), address(ledger), address(catalog),
++            ISVRouter(address(router)), ISVKeyAttestations(address(0)), 1_000e6);
++        factory = SessionVaultFactory(address(pinned));
++        vault = SessionVault(factory.vaultFor(owner));
++    }
++
++    function test_fixedBindingsAndDeterministicOwnerVault() public {
++        (address l, address c, address a) = pinned.authorityPins();
++        assertEq(l, address(ledger)); assertEq(c, address(catalog));
++        assertEq(PinnedSessionAuthority(a).sessionVaultFactory(), address(pinned));
++        assertEq(PinnedSessionAuthority(a).addr(bytes32("unconfigured")), address(0));
++        address expected = factory.vaultFor(owner);
++        vm.prank(relayer); assertEq(factory.createVault(owner), expected);
++        assertEq(factory.createVault(owner), expected);
++        assertEq(vault.owner(), owner);
++        assertEq(address(vault.book()), a);
++        assertTrue(factory.isVault(expected));
++        assertLe(address(factory.implementation()).code.length, 24_576);
++        assertLe(address(factory).code.length, 24_576);
++    }
++
++    function test_oldBookRemovalDoesNotStopNewSessionOrDeployment() public {
++        book.set("deployments", address(0));
++        book.set("appCatalog", address(0));
++        book.set("sessionVaultFactory", address(0));
++        bytes32 sid = _openWithDeposit(_grant(keyHash, 10e6));
++        bytes32 id = abi.decode(_exec(sid, 0, 0, _createArgs(freeRef, 1, 1e6), 0), (bytes32));
++        assertEq(ledger.get(id).owner, address(vault));
++        assertEq(ledger.get(id).balance6, 1e6);
++    }
++
++    function test_oldBookRedirectionCannotRedirectSessionFunds() public {
++        address hostile = makeAddr("hostile-ledger");
++        book.set("deployments", hostile);
++        book.set("appCatalog", hostile);
++        book.set("sessionVaultFactory", hostile);
++        bytes32 sid = _openWithDeposit(_grant(keyHash, 10e6));
++        bytes32 id = abi.decode(_exec(sid, 0, 0, _createArgs(freeRef, 1, 1e6), 0), (bytes32));
++        assertEq(ledger.get(id).balance6, 1e6);
++        assertEq(usdc.balanceOf(hostile), 0);
++        assertEq(usdc.allowance(address(vault), hostile), 0);
++    }
++
++    function test_catalogModerationDoesNotVetoExplicitSessionRelease() public {
++        catalog.setApproval(freeAppId, 0, 2);
++        bytes32 sid = _openWithDeposit(_grant(keyHash, 10e6));
++        bytes32 id = abi.decode(_exec(sid, 0, 0, _createArgs(freeRef, 1, 1e6), 0), (bytes32));
++        assertEq(ledger.get(id).appRef, freeRef);
++    }
++
++    function test_noAuthoritySetterOrAdministrator() public {
++        (, , address authority) = pinned.authorityPins();
++        (bool ok,) = authority.call(abi.encodeWithSignature("set(bytes32,address)", bytes32("deployments"), address(this)));
++        assertFalse(ok);
++        (ok,) = authority.call(abi.encodeWithSignature("setOwner(address)", address(this)));
++        assertFalse(ok);
++        (address l,,) = pinned.authorityPins(); assertEq(l, address(ledger));
++    }
++
++    function test_ownerRevocationAndBudgetSurviveDirectoryLoss() public {
++        bytes32 sid = _openWithDeposit(_grant(keyHash, 1e6));
++        book.set("deployments", address(0));
++        _execExpectRevert(sid, 0, 0, _createArgs(freeRef, 1, 2e6), 0,
++            abi.encodeWithSelector(SessionVault.BudgetExceeded.selector, uint256(2e6), uint256(1e6)));
++        assertEq(ledger.count(), 0, "over-budget create must roll back");
++        uint256 before = usdc.balanceOf(owner);
++        vm.prank(owner); vault.revokeAll(true, bytes32(0), 0, "");
++        assertEq(usdc.balanceOf(owner), before + 1e6);
++        assertFalse(vault.isLive(sid));
++        _execExpectRevert(sid, 0, 0, _createArgs(freeRef, 1, 0), 0,
++            abi.encodeWithSelector(SessionVault.NotLive.selector));
++    }
++
++    function test_unauthorizedCallerCannotRevokeOrOpenOwnerSession() public {
++        bytes32 sid = _openWithDeposit(_grant(keyHash, 1e6));
++        vm.prank(relayer); vm.expectRevert(); vault.revokeAll(true, bytes32(0), 0, "");
++        assertTrue(vault.isLive(sid));
++        SessionVault.Grant memory grant = _grant(keccak256("other-session-key"), 0);
++        vm.expectRevert(SessionVault.BadSignature.selector);
++        factory.openFor(owner, grant, hex"01");
++    }
++
++    function test_refusesMissingAuthorityCode() public {
++        vm.expectRevert(bytes("authority code missing"));
++        new PinnedSessionVaultFactory(ISVToken(address(usdc)), address(0), address(catalog),
++            ISVRouter(address(router)), ISVKeyAttestations(address(0)), 1_000e6);
++    }
++}

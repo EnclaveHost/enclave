@@ -1,0 +1,31 @@
+--- a/isolation/m3/monitor/main.go
++++ b/isolation/m3/monitor/main.go
+@@ -119,6 +119,9 @@
+ 	ln      *vsock.Listener
+ 	appHash [32]byte
+ 
++	// the encrypted volumes' tmpfs mounts (encvol.go), unmounted at reclaim
++	encMounts []string
++
+ 	// Probe: this domain runs the measured adversary probe (/plat/domprobe) instead of the app, for the isolation tests.
+ 	// It is stated in the load answer, so a host knows which workload ran without reading the console (enclave-d1: a
+ 	// probe domain's `mode` still says "serve", because the mode describes the bundle, not the workload).
+@@ -578,6 +581,9 @@
+ 	if err := writeAppConfig(d.dir, d.AppConfig); err != nil {
+ 		return fail(err)
+ 	}
++	if err := stageEncVolumes(d, tmpfsVolume); err != nil {
++		return fail(err)
++	}
+ 	if len(d.Ports) != 0 {
+ 		if err := os.WriteFile(filepath.Join(d.dir, "app.ports"), []byte(strings.Join(d.Ports, "\n")+"\n"), 0444); err != nil {
+ 			return fail(err)
+@@ -845,7 +851,7 @@
+ 				fmt.Printf("MON WARN domain %d did not exit within %s; reclaiming anyway\n", d.ID, exitGrace)
+ 			}
+ 		}
+-		for _, mp := range []string{d.frontPath("monitor.sock"), filepath.Join(d.dir, "plat")} {
++		for _, mp := range append([]string{d.frontPath("monitor.sock"), filepath.Join(d.dir, "plat")}, d.encMounts...) {
+ 			if err := syscall.Unmount(mp, syscall.MNT_DETACH); err != nil &&
+ 				!errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.ENOENT) {
+ 				fmt.Printf("MON WARN domain %d unmount %s: %v\n", d.ID, mp, err)

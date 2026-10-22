@@ -1,0 +1,50 @@
+--- a/metal/overlay-control-image.py
++++ b/metal/overlay-control-image.py
+@@ -3,7 +3,7 @@
+ Usage: overlay-control-image.py BASE OUT COMMIT. Never modifies BASE or starts a VM.
+ Preserves untouched cpio entries, adds missing directories, and records exact inputs.
+ """
+-import gzip, hashlib, json, shutil, stat, subprocess, sys
++import gzip, hashlib, json, posixpath, re, shutil, stat, subprocess, sys
+ from pathlib import Path
+ 
+ APP_FILES = [
+@@ -19,6 +19,29 @@
+ ]
+ GUEST_FILES = ['gsup.mjs', 'agent.mjs', 'host-policy.bundle.mjs', 'shielded.mjs',
+                'shielded-probe.mjs', 'shielded-shm.mjs']
++# Guest modules a committed gsup.mjs may import: installed exactly when that commit's gsup imports them (its closure),
++# so an overlay of an older commit is unchanged and a newer one never ships a gsup without its helper.
++OPTIONAL_GUEST_FILES = ['measured-control.mjs']
++def guest_files(commit, repo):
++    gsup = subprocess.check_output(['git', 'show', commit+':metal/guest/gsup.mjs'], cwd=repo).decode()
++    return GUEST_FILES + [f for f in OPTIONAL_GUEST_FILES if ("'./"+f+"'") in gsup or ('"./'+f+'"') in gsup]
++# The supervisor's independent direct-mode chain reader and its import closure, installed exactly when that commit's
++# supervisor.js imports it (an overlay of an older commit is unchanged; a newer one never ships the import without it).
++DIRECT_CHAIN_ENTRY = 'network/direct-chain.mjs'
++IMPORT_RE = re.compile(r'''(?:from\s*|import\s*\()\s*(['"])(\.\.?/[^'"]+)\1''')
++def app_files(commit, repo):
++    show = lambda f: subprocess.check_output(['git', 'show', commit+':'+f], cwd=repo).decode()
++    if '"./'+DIRECT_CHAIN_ENTRY+'"' not in show('supervisor.js'):
++        return list(APP_FILES)
++    seen, queue = [], [DIRECT_CHAIN_ENTRY]
++    while queue:
++        f = posixpath.normpath(queue.pop())
++        if f in seen:
++            continue
++        seen.append(f)
++        for m in IMPORT_RE.finditer(show(f)):
++            queue.append(posixpath.join(posixpath.dirname(f), m.group(2)))
++    return list(APP_FILES) + [f for f in seen if f not in APP_FILES]
+ REQUIRED = {'app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/agent.mjs', 'opt/metal/manifest.json'}
+ sha = lambda b: hashlib.sha256(b).hexdigest()
+ def file_sha(file):
+@@ -82,7 +105,7 @@
+     if file_sha(base/'vmlinuz') != m['kernel']['sha256']:
+         raise ValueError('base kernel hash mismatch')
+     commit = subprocess.check_output(['git', 'rev-parse', commit+'^{commit}'], cwd=repo, text=True).strip()
+-    paths = {**{'app/'+p: p for p in APP_FILES}, **{'opt/metal/'+p: 'metal/guest/'+p for p in GUEST_FILES}}
++    paths = {**{'app/'+p: p for p in app_files(commit, repo)}, **{'opt/metal/'+p: 'metal/guest/'+p for p in guest_files(commit, repo)}}
+     replacements = {k: subprocess.check_output(['git', 'show', commit+':'+v], cwd=repo) for k,v in paths.items()}
+     m.pop('expectedMeasurement', None)
+     m.pop('initramfs', None)

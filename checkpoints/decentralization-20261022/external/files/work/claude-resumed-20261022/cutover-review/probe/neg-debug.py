@@ -1,0 +1,12 @@
+import importlib.util, json, pathlib, re, shutil, sys, os
+spec = importlib.util.spec_from_file_location('t', 'tools/challenge-test.py'); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+r = m.world(); orig = m.cfg(r)
+t = m.SCRIPT.read_text(); t2, n = re.subn(r"function StopOrphans\(\$oldAgentPid\) \{.*?return ,\$done \}", "function StopOrphans($oldAgentPid) { return ,@() }", t, count=1, flags=re.S); print('subs', n)
+neg = r / 'neg.ps1'; neg.write_text(t2)
+lines, c = m.run(r, m.params(r, 'rb')); print('apply', m.final(lines)[:40]); rs = m.restarts(lines)[0]; bk = m.step(lines, 'backup'); cf = m.step(lines, 'config')
+procs = json.loads((r / 'procs.json').read_text()); procs[2] = dict(procs[2], pid=rs['newPid'], start=rs['newStart']); (r / 'procs.json').write_text(json.dumps(procs))
+p = m.params(r, 'rb2', privacy={'pid': rs['newPid'], 'start': rs['newStart']}, before={'cfg': {'before': m.sha(orig.encode()), 'after': cf['after'], 'backup': bk['backup']}})
+l2, c2 = m.run(r, p, mode='rollback', scenario='prior-orphan', script=neg)
+print('stage script has StopOrphans no-op:', 'return ,@() }' in (r / 'stage/challenge-activate.ps1').read_text())
+for l in l2: print(json.dumps({k: l.get(k) for k in ('step', 'final', 'orphansStopped', 'ports', 'privacy')})[:400])
+print(c2.stderr[-600:]); print(m.listen(r)); shutil.rmtree(r)

@@ -1,0 +1,34 @@
+--- a/testutils/consensusnode.go
++++ b/testutils/consensusnode.go
+@@ -1,4 +1,4 @@
+-package testutils
++package rtu
+ 
+ import (
+ 	"testing"
+@@ -65,8 +65,21 @@
+ 	return c.network
+ }
+ 
+-// AddSyncFn adds a function to call whenever blocks are mined
+-func (c *ConsensusNode) addSyncFn(fn func()) {
+-	c.syncFns = append(c.syncFns, fn)
+-	fn()
++// AddSyncFn adds a function to call whenever blocks are mined. HARNESS CHANGE: a component created under a
++// Lifecycle that has been stopped (an indexer outage) is skipped instead of syncing a closed store.
++func (c *ConsensusNode) addSyncFn(t testing.TB, fn func()) {
++	guarded := func() {
++		if l, ok := t.(interface{ Stopped() bool }); ok && l.Stopped() {
++			return
++		}
++		fn()
++	}
++	c.syncFns = append(c.syncFns, guarded)
++	guarded()
+ }
++
++// CM returns the chain manager (HARNESS ADDITION).
++func (c *ConsensusNode) CM() *chain.Manager { return c.cm }
++
++// GenesisID returns the genesis block ID (HARNESS ADDITION).
++func (c *ConsensusNode) GenesisID() types.BlockID { return c.genesis.ID() }

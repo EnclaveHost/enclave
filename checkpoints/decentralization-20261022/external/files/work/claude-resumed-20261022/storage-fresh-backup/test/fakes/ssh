@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+# fake ssh for the local tests: the LAST argument is the remote command; remote paths map under $FAKE_REMOTE
+import os, shlex, subprocess, sys
+cmd = sys.argv[-1]; R = os.environ["FAKE_REMOTE"]; mode = os.environ.get("FAKE_SSH_MODE", "ok")
+with open(os.path.join(os.environ["FAKE_DIR"], "ssh.log"), "a") as f: f.write(cmd + "\n")
+w = shlex.split(cmd); assert w[0] == "sudo"
+if w[1] == "cat":
+    p = R + w[2]
+    if not os.path.exists(p): sys.exit(1)
+    sys.stdout.buffer.write(open(p, "rb").read()); sys.exit(0)
+if w[1] == "tar":
+    assert w[2] == "-C"
+    p = subprocess.Popen(["tar", "-C", R + w[3], *w[4:]], stdout=subprocess.PIPE)
+    if mode == "die-mid-stream":
+        sys.stdout.buffer.write(p.stdout.read(65536)); sys.stdout.flush(); p.kill(); os._exit(255)
+    sys.stdout.buffer.write(p.stdout.read()); sys.exit(p.wait())
+sys.exit(2)

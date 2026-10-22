@@ -1,0 +1,159 @@
+{
+ "at": "2026-10-21T12:54:21.256690+00:00",
+ "mode": "--plan",
+ "oldTree": "cf00054aa76ddabf97af0c955d89d79bfa4caeab",
+ "upstream": "7752a4239b3bec2cf452491cd1b95164a8c2bdb8",
+ "apiRelayPatchProof": {
+  "patch": "/home/steven/Documents/Codex/2026-10-18/wo/work/ens-public-site-20261021/native-origin/fix/cors-ens-origins.patch",
+  "patchSha256": "e62979a1dc110647d34857895ade8271da50beaa8af5f2baa8b8676d83b50342",
+  "rc": 0,
+  "out": "patching file api-relay.js\nHunk #2 succeeded at 364 (offset 22 lines).\nHunk #3 succeeded at 1113 (offset 26 lines).",
+  "oldCandidatePlusPatch": "1f30ccc16697952d3b655f21a274ea7dac7d0a0c29c1343a21a92a5720b1716d",
+  "newCandidate": "1f30ccc16697952d3b655f21a274ea7dac7d0a0c29c1343a21a92a5720b1716d",
+  "equal": true
+ },
+ "authorized": [
+  {
+   "path": "relay/api-relay.js",
+   "receipt": "native-origin/root-source-integration.json",
+   "localSha256": "ece620bd5fa0e51d025761516fcb4e86b06406865915f92ce341c4fa6e2ec915",
+   "expected": "ece620bd5fa0e51d025761516fcb4e86b06406865915f92ce341c4fa6e2ec915",
+   "mode": "100644",
+   "candidateNowSha256": "15288ead9d0a0f492087a81d3a2a80df8a25d5460ccef7fd0a65ea9864ba6745",
+   "newSha256": "1f30ccc16697952d3b655f21a274ea7dac7d0a0c29c1343a21a92a5720b1716d",
+   "tChanged": true,
+   "action": "update",
+   "candidateWasReceiptBefore": null
+  },
+  {
+   "path": "test/cors-ens-origins.test.mjs",
+   "receipt": "native-origin/root-source-integration.json",
+   "localSha256": "f9fc9c037c6224ebd9bdb990ae6b26224adc6d4bdd180d2e1123927bf48ada8d",
+   "expected": "f9fc9c037c6224ebd9bdb990ae6b26224adc6d4bdd180d2e1123927bf48ada8d",
+   "mode": "100644",
+   "candidateNowSha256": null,
+   "newSha256": "f9fc9c037c6224ebd9bdb990ae6b26224adc6d4bdd180d2e1123927bf48ada8d",
+   "tChanged": false,
+   "action": "add",
+   "candidateWasReceiptBefore": null
+  },
+  {
+   "path": "relay/secrets.js",
+   "receipt": "nucbox-tls-20261021/relay-exists/root-source-integration.json",
+   "localSha256": "4c49127164e716a7431b1e2d62cd703f82b7a849641205e5bdf28d3bd17a198b",
+   "expected": "4c49127164e716a7431b1e2d62cd703f82b7a849641205e5bdf28d3bd17a198b",
+   "mode": "100644",
+   "candidateNowSha256": "6f3d8c7633510b5a0c6e4a230aa8b0dad78eff585ad59f8b1fc381f3ef138ea5",
+   "newSha256": "4c49127164e716a7431b1e2d62cd703f82b7a849641205e5bdf28d3bd17a198b",
+   "tChanged": false,
+   "action": "update",
+   "candidateWasReceiptBefore": true
+  },
+  {
+   "path": "test/custody-relay.test.mjs",
+   "receipt": "nucbox-tls-20261021/relay-exists/root-source-integration.json",
+   "localSha256": "936b7a2bdbbdd9aefe1af96d985db0088a05e2bcd62a740f323fe734b80ae3cd",
+   "expected": "936b7a2bdbbdd9aefe1af96d985db0088a05e2bcd62a740f323fe734b80ae3cd",
+   "mode": "100644",
+   "candidateNowSha256": "abc30193724b83af88b9399e456ebf89a9d92cdb417ff5709b6987e3ac4f2b4b",
+   "newSha256": "936b7a2bdbbdd9aefe1af96d985db0088a05e2bcd62a740f323fe734b80ae3cd",
+   "tChanged": false,
+   "action": "update",
+   "candidateWasReceiptBefore": true
+  },
+  {
+   "path": "test/relay-exists-fastpath.test.mjs",
+   "receipt": "nucbox-tls-20261021/relay-exists/root-source-integration.json",
+   "localSha256": "cc2157833a6ac43e4224b79fcebd7f5351edcef270965aa6213b39af6f7f3a99",
+   "expected": "cc2157833a6ac43e4224b79fcebd7f5351edcef270965aa6213b39af6f7f3a99",
+   "mode": "100644",
+   "candidateNowSha256": null,
+   "newSha256": "cc2157833a6ac43e4224b79fcebd7f5351edcef270965aa6213b39af6f7f3a99",
+   "tChanged": false,
+   "action": "add",
+   "candidateWasReceiptBefore": null
+  },
+  {
+   "path": "windows/vbslike/manager/wmiserve-run.mjs",
+   "receipt": "nucbox-tls-20261021/root-source-integration.json",
+   "localSha256": "8107f272741c40a3d6ea51c0054d5fdc0904cd277346265cd01ca9de1c74ed17",
+   "expected": "8107f272741c40a3d6ea51c0054d5fdc0904cd277346265cd01ca9de1c74ed17",
+   "mode": "100644",
+   "candidateNowSha256": "c0154d17372a09fa08d9c4c8675496668fa927774da5245bb2d6892410feddde",
+   "newSha256": "8107f272741c40a3d6ea51c0054d5fdc0904cd277346265cd01ca9de1c74ed17",
+   "tChanged": false,
+   "action": "update",
+   "candidateWasReceiptBefore": true
+  },
+  {
+   "path": "windows/vbslike/manager/wmiserve-run.test.mjs",
+   "receipt": "nucbox-tls-20261021/root-source-integration.json",
+   "localSha256": "83b201f0d541586a161759f20ecb7ffffc776fd8d542af9c0598fe8d8974055c",
+   "expected": "83b201f0d541586a161759f20ecb7ffffc776fd8d542af9c0598fe8d8974055c",
+   "mode": "100644",
+   "candidateNowSha256": "def33c780fa16ee30890bde7c9059194888bf68bab30a67d5b9bec97d77702d6",
+   "newSha256": "83b201f0d541586a161759f20ecb7ffffc776fd8d542af9c0598fe8d8974055c",
+   "tChanged": false,
+   "action": "update",
+   "candidateWasReceiptBefore": true
+  },
+  {
+   "path": "windows/vbslike/manager/testdata/fake-wmiserve.mjs",
+   "receipt": "nucbox-tls-20261021/root-source-integration.json",
+   "localSha256": "5b7b9f9c7176ec002ddfb8d63897eb274d3fce8bf1e5ac1c2cac66a47874c210",
+   "expected": "5b7b9f9c7176ec002ddfb8d63897eb274d3fce8bf1e5ac1c2cac66a47874c210",
+   "mode": "100644",
+   "candidateNowSha256": "1a91f363ed76c168ea7d2a27463cb2c4ce0c6d0067485ad7d52bc1639dd07694",
+   "newSha256": "5b7b9f9c7176ec002ddfb8d63897eb274d3fce8bf1e5ac1c2cac66a47874c210",
+   "tChanged": false,
+   "action": "update",
+   "candidateWasReceiptBefore": true
+  },
+  {
+   "path": "windows/vbslike/manager/server.mjs",
+   "receipt": "enclavedns-startup-incident/root-source-integration/inventory.json",
+   "localSha256": "6e4cca130926539f658905f31b25c855d8cd763d3cce1047e08384085268437f",
+   "expected": "6e4cca130926539f658905f31b25c855d8cd763d3cce1047e08384085268437f",
+   "mode": "100644",
+   "candidateNowSha256": "6e4cca130926539f658905f31b25c855d8cd763d3cce1047e08384085268437f",
+   "newSha256": "6e4cca130926539f658905f31b25c855d8cd763d3cce1047e08384085268437f",
+   "tChanged": false,
+   "action": "already current",
+   "candidateWasReceiptBefore": false
+  },
+  {
+   "path": "windows/vbslike/manager/liveness.test.mjs",
+   "receipt": "enclavedns-startup-incident/root-source-integration/inventory.json",
+   "localSha256": "c904182d854756e3f0651e84d4778e910ad0a7ab86293e0265bbd354261c881c",
+   "expected": "c904182d854756e3f0651e84d4778e910ad0a7ab86293e0265bbd354261c881c",
+   "mode": "100644",
+   "candidateNowSha256": "c904182d854756e3f0651e84d4778e910ad0a7ab86293e0265bbd354261c881c",
+   "newSha256": "c904182d854756e3f0651e84d4778e910ad0a7ab86293e0265bbd354261c881c",
+   "tChanged": false,
+   "action": "already current",
+   "candidateWasReceiptBefore": false
+  }
+ ],
+ "driftSinceCandidate": {
+  "snapshot": "main-now.sha256 (2026-10-21T11:15Z)",
+  "paths": 9,
+  "authorized": [
+   "relay/api-relay.js",
+   "relay/secrets.js",
+   "test/cors-ens-origins.test.mjs",
+   "test/custody-relay.test.mjs",
+   "test/relay-exists-fastpath.test.mjs",
+   "windows/vbslike/manager/testdata/fake-wmiserve.mjs",
+   "windows/vbslike/manager/wmiserve-run.mjs",
+   "windows/vbslike/manager/wmiserve-run.test.mjs"
+  ],
+  "notApplied": [
+   {
+    "path": "relay/api-relay.js.orig",
+    "snapshot": null,
+    "now": "3cc03d1d0ab3489cbf9327ef9b8df1f64c561acdf2cf5137265be69f3929a881"
+   }
+  ]
+ },
+ "stop": []
+}

@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""Reviewed recomposition of work/hs2-parallel-txt-package-20261022 (root original cccae712, read-only).
+Local and deterministic: reads already-tested artifacts and evidence, writes ONLY <this dir>/package/. Nothing remote.
+
+Changes vs the root original compose.py (see REVIEW.txt):
+  * WORK is the 'work' ancestor (the original used parent-of-script, which breaks once the package is moved/copied);
+  * every evidence file is cross-checked: native-final all 7 checks + live pins == G4 baseline post pins, the paired
+    config's release/declaration == the native challenge proof, root's fresh 01:50Z live read == the manifest old pins;
+  * the exact config delta is asserted (route-dns pin + challengeTxtUpstreams, service-tls declarationFile move);
+  * STAGE-SHA256SUMS is rebuilt line by line (exactly 4 lines change, all others identical);
+  * manifest config metadata describes the real delta (the original said only the route-dns pin changed);
+  * the driver additionally pins the task XML sha and binds preflight/stage receipts to this manifest.
+"""
+from pathlib import Path
+import hashlib, json, shutil, sys
+
+HERE = Path(__file__).resolve().parent
+W = next(p for p in HERE.parents if p.name == 'work' and (p / 'nucbox-tls-20261021').is_dir())
+OUT = HERE / 'package'
+sha = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def need(cond, msg):
+    if not cond: raise SystemExit('REFUSED: ' + msg)
+
+# ---------------------------------------------------------------- inputs (all read-only)
+G4 = W / 'challenge-host-tls-20261021/g4'; OLD = G4 / 'upgrade-bundle-g4'
+SRC = W / 'g4-config-independent-review-20261021/revision2'
+NATIVE = W / 'challenge-prerequisites-20261022/native-final'
+CONFIG = W / 'challenge-declaration-native-20261022/config/host-services.parallel-txt.draft.json'
+LIVE = W / 'hs2-parallel-txt-package-20261022/live-read.json'
+ROOT_DRIVER = W / 'hs2-parallel-txt-package-20261022/root-hs2-parallel.py'
+PINS = {  # exact reviewed inputs; any drift refuses
+    G4 / 'root-hs2-g4.py': '9be6ac271ade26669cb72585450b4523b80175f394f98c78240c3ffc4b9066e8',
+    OLD / 'upgrade-manifest.json': 'afe3efb59b01cfa5fceef6411353c05d0e005fae48a86df8dcddf3612cecdb66',
+    OLD / 'config/host-services.json': 'a02e9ecd8ae1739eed8d324b4db33fe9b6d5643b5d781780949f61a1385c7cfa',
+    OLD / 'files/STAGE-SHA256SUMS': '1fd2bda64de77e744220ac488cc760e3508b5d4ebcec110d0c2de12b5f356e6f',
+    CONFIG: '5f75562c970c715e3be44d02992207001438b9ab0831687a90b3c2aebfcebf43',
+    LIVE: '28ef38ba6358ab6f4fc675ab9bd88b1747c687452e3339395f36c86d2d934655',
+    ROOT_DRIVER: '01dcb1f9e31538a0dfe9ae8b49acb1e6255ef6ab59a7ecb51eeab0cb1d32d637',
+}
+for p, h in PINS.items(): need(sha(p) == h, f'{p} is not {h}')
+NEW = {
+    'bin/host-services-runner.mjs': SRC / 'root-txt-runner/artifacts/host-services-runner.mjs',
+    'bin/stage-tool.mjs': SRC / 'root-txt-runner/artifacts/stage-tool.mjs',
+    'packages/route-dns.mjs': SRC / 'root-txt-merge/artifacts/route-dns.mjs',
+    'packages/route-dns.package.json': SRC / 'root-txt-merge/artifacts/route-dns.package.json'}
+WANT_NEW = {'bin/host-services-runner.mjs': 'aca07ce30666304b87e3dc82380e7b28e4c26c2599bda0b06bc9cddd15393da8',
+            'bin/stage-tool.mjs': '3adc1ee17e4d03565b944d8d1b94e88ec0575c4eeaaad0ceb37a444c897333e8',
+            'packages/route-dns.mjs': '23051f3377465335d0f00edbdf007f8aa486eafafd6e8f6332b33a08c0458f71',
+            'packages/route-dns.package.json': '8a654c0da8ddf3e377db5a564195cb1638a31597ef9bf261c5508a6b1d389b6b'}
+for k, p in NEW.items(): need(sha(p) == WANT_NEW[k], f'{p} is not the tested {WANT_NEW[k]}')
+
+# ---------------------------------------------------------------- baseline: G4 manifest + G4 production post facts
+oldman = json.loads((OLD / 'upgrade-manifest.json').read_text())
+g4res = json.loads((G4 / 'root-g4/result-upgrade-20261021T223430Z.json').read_text())
+need(g4res['helperResult']['exit'] == 0 and g4res['helperResult']['manifest'] == PINS[OLD / 'upgrade-manifest.json'], 'G4 run did not complete with its manifest')
+post = g4res['post']['facts']
+oldmap = {x['path']: x['new'] for x in oldman['replace']}; oldmap.update({x['path']: x['sha'] for x in oldman['unchanged']})
+need(not oldman['add'] and len(oldmap) == 23, 'G4 file set is not the expected 23 program files')
+need(post['files'] == oldmap, 'G4 post files differ from the G4 manifest new/unchanged pins')
+need(post['config'] == oldman['config']['new'] == PINS[OLD / 'config/host-services.json'], 'G4 post config is not a02e9ecd')
+need(post['journal']['journal']['phase'] == 'complete' and post['journal']['journal']['receiptNew'] == post['receipt'], 'G4 post receipt is not its run receipt')
+TASK_XML = post['taskXmlSha']
+for k in NEW: need(oldmap[k] != WANT_NEW[k], f'{k} does not change')
+
+# ---------------------------------------------------------------- native-final evidence (exact candidate, read-only native)
+ev = json.loads((NATIVE / 'result.json').read_text()); npins = json.loads((NATIVE / 'pins.json').read_text())
+need(ev['ok'] is True and ev['cleanup'] == {'gone': True}, 'native evidence not ok/cleaned')
+v = ev['validation']
+need(v['checks'] == {'parse:host-services-runner.mjs': True, 'parse:stage-tool.mjs': True, 'parse:packages\\route-dns.mjs': True,
+                     'candidatePlan': True, 'oldRunnerRefusesPlural': True, 'badPinRefused': True, 'installedChallengeProof': True},
+     'native checks are not exactly the 7 passing checks')
+need(v['liveHashesUnchanged'] is True and v['taskState'] == 'Running', 'native run changed live state or task not running')
+need(v['roles'] == ['directory-replica', 'bootstrap-replica', 'route-dns', 'policy-mirror', 'service-tls'], 'native plan roles differ')
+need(ev['upload'] == npins['upload'] and ev['livePins'] == npins['live'], 'native result is not its own pins.json')
+for k in NEW: need(ev['upload'][k.removeprefix('bin/').replace('/', '\\')] == WANT_NEW[k], f'native evidence did not test {k}')
+need(ev['upload']['config.json'] == PINS[CONFIG], 'native evidence did not test config 5f75562c')
+need(all(oldmap[k] == h for k, h in ev['livePins'].items()) and len(ev['livePins']) == 13, 'native live pins are not the G4 baseline')
+cp = v['challengeProof']
+need(cp['ok'] is True and cp['orders'] == 'held' and cp['shieldOnly'] is True and cp['adminControlsUnchanged'] is True, 'challenge proof flags')
+need(cp['declarationAcl'] == {'platform': 'win32', 'dirOwner': 'S-1-5-32-544', 'file': None}, 'declaration dir must be owner BA with NO declaration file yet')
+need(cp['profileSha256'] == 'ee957827032cf7208434e4c73f9e859a27e4fc5c6cab5f4a2153308c09eb4cb8'
+     and cp['shieldPolicySha256'] == 'efee77a65fe904ac1d315effecf7fa3a62dd147a9be83fbe5fe944572f3dea41', 'profile/Shield policy pins')
+
+# ---------------------------------------------------------------- root's fresh live read (01:50Z) == every old pin
+live = json.loads(LIVE.read_text()); lf = live['facts']
+need(live['ok'] is True and live['productionChanges'] is False and all(live['checks'].values()), 'live read not ok')
+need(lf['files'] == oldmap and lf['config'] == post['config'] and lf['receipt'] == post['receipt'], 'live read differs from baseline pins')
+need(lf['taskState'] == 'Running' and lf['taskXmlSha'] == TASK_XML and lf['lock'] is None and lf['helpers'] == 0, 'live task/lock/helper state')
+
+# ---------------------------------------------------------------- config: exactly the reviewed delta
+oc = json.loads((OLD / 'config/host-services.json').read_text()); nc = json.loads(CONFIG.read_text())
+need({k: v for k, v in oc.items() if k != 'services'} == {k: v for k, v in nc.items() if k != 'services'}, 'top-level config changed')
+need([s['role'] for s in oc['services']] == [s['role'] for s in nc['services']], 'service set/order changed')
+o = {s['role']: s for s in oc['services']}; n = {s['role']: s for s in nc['services']}
+for r in ('directory-replica', 'bootstrap-replica', 'policy-mirror'): need(o[r] == n[r], f'{r} changed')
+pin = lambda rel: 'sha256:' + rel
+need(o['route-dns']['package'] == pin(oldmap['packages/route-dns.package.json']) and n['route-dns']['package'] == pin(WANT_NEW['packages/route-dns.package.json']), 'route-dns pin')
+need({k: v for k, v in o['route-dns'].items() if k not in ('package', 'config')} == {k: v for k, v in n['route-dns'].items() if k not in ('package', 'config')}, 'route-dns service fields')
+UPSTREAMS = ['127.0.0.1:18353', '127.0.0.1:31053']
+need('challengeTxtUpstream' not in o['route-dns']['config'] and 'challengeTxtUpstreams' not in o['route-dns']['config'], 'old route-dns already merges TXT')
+need(n['route-dns']['config'] == {**o['route-dns']['config'], 'challengeTxtUpstreams': UPSTREAMS}, 'route-dns config delta is not exactly challengeTxtUpstreams')
+need(str(o['route-dns']['config']['dnsPort']) not in {u.split(':')[1] for u in UPSTREAMS}, 'route-dns would query itself')
+ot, nt = o['service-tls'], n['service-tls']
+need({k: v for k, v in ot.items() if k != 'config'} == {k: v for k, v in nt.items() if k != 'config'}, 'service-tls pin/fields changed')
+need(ot['config']['orders'] == nt['config']['orders'] == 'held', 'orders must remain held')
+need({k: v for k, v in ot['config'].items() if k != 'challenge'} == {k: v for k, v in nt['config'].items() if k != 'challenge'}, 'service-tls config outside challenge changed')
+DECL_OLD, DECL_NEW = ot['config']['challenge']['declarationFile'], nt['config']['challenge']['declarationFile']
+need(DECL_NEW == 'C:\\ProgramData\\Enclave\\challenge-replica\\challenge-front.json', 'declaration is not ProgramData\\Enclave\\challenge-replica')
+need({**ot['config']['challenge'], 'declarationFile': DECL_NEW} == nt['config']['challenge'], 'challenge block changes more than declarationFile')
+need(nt['config']['challenge']['release'] == {'dnsSha256': cp['release']['dnsSha256'], 'runtimeBundleSha256': cp['release']['runtimeBundleSha256']}, 'release pins != installed release proof')
+need(cp['release']['entry'].startswith('C:\\Program Files\\Enclave\\challenge-replica\\release-3e1560f94542\\'), 'release not at the installed top-level path')
+
+# ---------------------------------------------------------------- bundle
+if OUT.exists(): shutil.rmtree(OUT)
+B = OUT / 'bundle'
+for k, p in NEW.items(): d = B / 'files' / k; d.parent.mkdir(parents=True, exist_ok=True); shutil.copyfile(p, d)
+(B / 'config').mkdir(parents=True); shutil.copyfile(CONFIG, B / 'config/host-services.json')
+lines = (OLD / 'files/STAGE-SHA256SUMS').read_text().splitlines(); out, hit = [], set()
+for line in lines:
+    h, rel = line.split('  ', 1); need(len(h) == 64, f'bad sums line {line!r}')
+    if rel in NEW: need(h == oldmap[rel], f'{rel} old sum'); out.append(WANT_NEW[rel] + '  ' + rel); hit.add(rel)
+    else: need(rel not in oldmap or oldmap[rel] == h, f'{rel} sum differs from its installed pin'); out.append(line)
+need(hit == set(NEW) and len(out) == len(lines) == 26, 'sums rewrite did not touch exactly the 4 replaced files')
+(B / 'files/STAGE-SHA256SUMS').write_text('\n'.join(out) + '\n')
+changed = ['STAGE-SHA256SUMS', *NEW]
+manifest = {'format': 'enclave-hs2-upgrade/v1', 'label': 'hs2', 'id': 'hs2-parallel-txt-' + sha(B / 'files/STAGE-SHA256SUMS')[:8], 'scripts': oldman['scripts'],
+            'replace': [{'path': k, 'old': oldmap[k], 'new': sha(B / 'files' / k)} for k in changed], 'add': [],
+            'unchanged': [{'path': k, 'sha': h} for k, h in oldmap.items() if k not in changed],
+            'config': {'old': post['config'], 'new': PINS[CONFIG],
+                       'changedPins': {pin(oldmap['packages/route-dns.package.json']): pin(WANT_NEW['packages/route-dns.package.json'])},
+                       'challengeAdded': False,
+                       'changes': {'route-dns.config.challengeTxtUpstreams': {'old': None, 'new': UPSTREAMS},
+                                   'service-tls.config.challenge.declarationFile': {'old': DECL_OLD, 'new': DECL_NEW}},
+                       'orders': 'held'},
+            'receipt': {'old': post['receipt']}}
+(B / 'upgrade-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+MSHA = sha(B / 'upgrade-manifest.json')
+files = {str(p.relative_to(B)): sha(p) for p in sorted(B.rglob('*')) if p.is_file()}
+
+# ---------------------------------------------------------------- driver: the G4 driver + exact, counted substitutions
+s = (G4 / 'root-hs2-g4.py').read_text(); s = s[s.index('import argparse,'):]
+def sub(old, new, count=1):
+    global s; need(s.count(old) == count, f'driver anchor {old[:60]!r} occurs {s.count(old)}x, not {count}'); s = s.replace(old, new)
+sub('WORK = HERE.parent.parent          # g4 -> challenge-host-tls-20261021 -> work',
+    'WORK = next((p for p in HERE.parents if p.name == "work" and (p / "nucbox-tls-20261021").is_dir()), None)  # the package may be moved under work/\n'
+    'if WORK is None: raise SystemExit("no work/ ancestor holding nucbox-tls-20261021")')
+sub('BUNDLE = WORK / "challenge-host-tls-20261021/g4/upgrade-bundle-g4"', 'BUNDLE = HERE / "bundle"')
+a = s.index('MSHA = '); z = s.index('OPT = ', a)
+s = (s[:a] + 'MSHA = ' + repr(MSHA) + '\nBUNDLE_FILES = {  # bundle-relative path -> sha256 (manifest + config + the 5 replaced files; adds none)\n'
+     + ''.join(f'    {k!r}: {h!r},\n' for k, h in files.items()) + '}\n'
+     + 'TASK_XML = ' + repr(TASK_XML) + '  # exported task XML at the G4 post evidence AND root\'s fresh 01:50Z read; the helper never changes it\n' + s[z:])
+sub('OUT = HERE / "root-g4"', 'OUT = HERE / "runs"')
+sub('hs2up-g4-', 'hs2up-txt-', 4)
+sub('''    if f.get("taskState") != "Running": bad.append(f"task {f.get('taskState')}")\n''',
+    '''    if f.get("taskState") != "Running": bad.append(f"task {f.get('taskState')}")\n'''
+    '''    if f.get("taskXmlSha") != TASK_XML: bad.append(f"task XML {f.get('taskXmlSha')} != pinned {TASK_XML}")\n''')
+sub('is not a completed G4 upgrade', 'is not a completed upgrade with this manifest')
+sub('''    if o.get("what") != what: raise SystemExit(f"{path} is not a {what} receipt")\n''',
+    '''    if o.get("what") != what: raise SystemExit(f"{path} is not a {what} receipt")\n'''
+    '''    if o.get("manifest") != MSHA: raise SystemExit(f"{path} was not made by this driver for manifest {MSHA}")\n''')
+sub('''rec = {"what": "preflight", "at": now(), "runId": o.run_id,''', '''rec = {"what": "preflight", "at": now(), "manifest": MSHA, "runId": o.run_id,''')
+sub('''rec = {"what": "stage", "at": now(), "stage": d,''', '''rec = {"what": "stage", "at": now(), "manifest": MSHA, "stage": d,''')
+sub('''    if age > FRESH_S: raise SystemExit(f"preflight receipt is {int(age)} s old (> {FRESH_S}): run a new preflight")''',
+    '''    if not -120 <= age <= FRESH_S: raise SystemExit(f"preflight receipt is {int(age)} s old (allowed -120..{FRESH_S}): run a new preflight")''')
+header = '''#!/usr/bin/env python3
+"""ROOT-ONLY driver: hs2 G4 -> parallel challenge TXT, in-place on minipc. PREPARED, NOT ACTIVATED; never run remotely by Claude.
+Generated by claude-resumed-20261022/dns-package-review/compose.py from the root-reviewed G4 driver root-hs2-g4.py 9be6ac27
+(executed by root 22:34Z): helper hs2-upgrade.ps1 b17360b2 and transport c50aac8e unchanged; no swap/rollback logic of its own.
+Changes vs G4: package pins, WORK = the work/ ancestor, runs/ receipts, hs2up-txt- staging, the pinned task XML gate, and
+preflight/stage receipts bound to this manifest (a receipt from another driver/manifest refuses).
+Replaces runner aca07ce3, stage-tool 3adc1ee1, route-dns 23051f33 + manifest 8a654c0d and STAGE-SHA256SUMS. Config 5f75562c
+(native-validated): route-dns challengeTxtUpstreams [127.0.0.1:18353, 127.0.0.1:31053]; service-tls declaration moved to
+C:\\\\ProgramData\\\\Enclave\\\\challenge-replica\\\\challenge-front.json; orders stay HELD. Shield-only; this is NOT provider independence.
+
+  root-hs2-parallel.py [--run-id R]        read-only preflight -> runs/preflight-*.json (exit 0 = upgrade gate passes)
+  root-hs2-parallel.py --stage --preflight P
+  root-hs2-parallel.py --execute --stage-receipt S --preflight P --manifest-sha <MSHA> --helper-sha b17360b2..
+  root-hs2-parallel.py --revert R --stage-receipt S --preflight P(--run-id R) --manifest-sha .. --helper-sha ..
+  root-hs2-parallel.py --recover LOCKID|EMPTY --stage-receipt S --preflight P --manifest-sha .. --helper-sha ..
+  root-hs2-parallel.py --selfcheck         LOCAL only
+Exit: 0 verified; 1 refused (no change); 2 helper failed + restored; 3 ROOT; 4 local refusal. See the G4 driver header.
+"""
+'''
+(OUT / 'root-hs2-parallel.py').write_text(header + s)
+inventory = {'status': 'prepared; not activated; root-only activation',
+             'composer': {'path': str(HERE / 'compose.py'), 'sha256': sha(HERE / 'compose.py')},
+             'manifestSha256': MSHA, 'driverSha256': sha(OUT / 'root-hs2-parallel.py'), 'taskXmlSha256': TASK_XML,
+             'helper': 'b17360b2bb77b6bce393064022dfd7ce1a8d399e96693d91dc53aea420dc935c', 'transport': 'c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f',
+             'files': files, 'inputs': {str(p.relative_to(W)): h for p, h in PINS.items()},
+             'evidence': {'native': str((NATIVE / 'result.json').relative_to(W)), 'nativeSha256': sha(NATIVE / 'result.json'),
+                          'g4Post': 'challenge-host-tls-20261021/g4/root-g4/result-upgrade-20261021T223430Z.json',
+                          'liveRead': str(LIVE.relative_to(W)), 'liveReadAt': live['at']}}
+(OUT / 'inventory.json').write_text(json.dumps(inventory, indent=2) + '\n')
+print(json.dumps({'manifest': MSHA, 'driver': inventory['driverSha256'], 'files': len(files), 'taskXml': TASK_XML}))

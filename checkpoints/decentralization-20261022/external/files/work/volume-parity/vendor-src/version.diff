@@ -1,0 +1,7 @@
+--- version.go	2026-10-20 16:06:39.053496917 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/volume-parity/tree/isolation/m2/encvol/rclonecrypt/version/version.go	2026-10-20 16:07:06.764015718 -0700
+@@ -1,3 +1,4 @@
++// Verbatim from rclone v1.67.0 lib/version/version.go (MIT); see ../NOTICE.
+ // Package version provides machinery for versioning file names
+ // with a timestamp-based version string
+ package version

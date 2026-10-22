@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import {NativeClient} from '../enclave/network/native-client.mjs';
+const client=new NativeClient(JSON.parse(fs.readFileSync(process.argv[2],'utf8')));
+const post=await client.request({path:'/ping',method:'POST',headers:{'content-type':'text/plain'},body:'native-transport-probe',maxBytes:65536});
+if(![404,405].includes(post.status))throw Error('unexpected no-op POST status '+post.status);
+const stream=await client.stream({path:'/ping',maxBytes:4096,maxDurationMs:30000});
+const chunks=[];for await(const chunk of stream.body)chunks.push(chunk);
+const payload=JSON.parse(Buffer.concat(chunks).toString());const closed=await stream.closed;
+if(stream.status!==200||payload.pong!==true||closed.error)throw Error('streamed ping failed');
+console.log(JSON.stringify({checkedAt:new Date().toISOString(),post:{status:post.status,method:'POST',path:'/ping',requestBodyBytes:22,responseBytes:post.body.length,route:post.route,proof:post.proof,leaseBlock:post.leaseBlock,applicationMutation:false},stream:{status:stream.status,payload,chunks:chunks.length,closed,route:stream.route,proof:stream.proof,leaseBlock:stream.leaseBlock},realSNP:true,authenticationSent:false,scope:'No-op POST to unsupported /ping method and streamed GET /ping; no chat or application data written.'}));

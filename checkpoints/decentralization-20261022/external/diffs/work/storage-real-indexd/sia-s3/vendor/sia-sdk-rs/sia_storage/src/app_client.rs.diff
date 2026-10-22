@@ -1,0 +1,23 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client.rs
+@@ -526,6 +526,20 @@
+         }
+     }
+ 
++    /// PATCH U1: the account's current objects in ID order after `after` (see the HTTP client).
++    pub(crate) async fn current_objects(
++        &self,
++        app_key: &PrivateKey,
++        after: Option<Hash256>,
++        limit: Option<usize>,
++    ) -> Result<Vec<SealedObjectEvent>, Error> {
++        match self {
++            Self::Http(c) => c.current_objects(app_key, after, limit).await,
++            #[cfg(any(test, feature = "mock"))]
++            Self::Mock(c) => c.current_objects(app_key, after, limit).await,
++        }
++    }
++
+     /// Pins an object to the indexer. If an object with the same ID already
+     /// exists for the account, it is overwritten.
+     pub(crate) async fn pin_object(

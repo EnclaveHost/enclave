@@ -1,0 +1,69 @@
+--- a/network/app-zone-challenge.mjs
++++ b/network/app-zone-challenge.mjs
+@@ -20,6 +20,7 @@
+ import { createHash, createPublicKey, verify as verifySig } from "node:crypto";
+ import { parseAbi } from "viem";
+ import { catalogAdmissionRefusal } from "../site/js/core/catalog-policy.js";
++const SHIELD_DOC_FORMAT = "hyperv-partition-domain/v1";   // relay/dns-challenge-shield.mjs SHIELD_DOC_FORMAT
+ 
+ export const APP_PUSH_NONCE_PREFIX = "enclave-app-acme-push-v2\n";
+ export const APP_PUSH_SIG_PREFIX = "enclave-app-acme-push-sig-v2\n";
+@@ -202,11 +203,17 @@
+ //   zone          this replica's app zone; measurements a Set of pinned 96-hex launch measurements
+ //   judge         isolation/m2/judge.mjs judge; mode "trusted" (production) or "lab-unsigned" (explicit lab diagnostic)
+ //   reader        a LeaseReader (agreeing quorum); pins {deployments, registry, catalog}; ledger a createLedgerIndex
+-export function createAppZoneAuthority({ zone, measurements, judge, mode = "trusted", minTcb, kds = true, reader, pins, ledger, pushes = createPushLedger(), now = Date.now }) {
++//   shield        OPTIONAL network/app-zone-shield.mjs createAppZoneShield: Enclave Shield documents are judged by it (the
++//                 lease's runner's own TPM-attested host session); without it a Shield document is refused. A replica runs
++//                 SEV-SNP (measurements + judge), Shield, or both; each format is judged only by its own verifier.
++export function createAppZoneAuthority({ zone, measurements, judge, mode = "trusted", minTcb, kds = true, reader, pins, ledger, pushes = createPushLedger(), now = Date.now,
++                                         shield = null }) {
+   if (!ACCEPT[mode]) throw new Error("unknown judge mode");
+-  if (!(measurements instanceof Set) || !measurements.size) throw new Error("pinned measurements required");
++  const snpOn = measurements instanceof Set && measurements.size > 0;
++  if (!snpOn && !shield) throw new Error("pinned measurements required");
++  if (shield && typeof shield.verify !== "function") throw new Error("the Shield verifier must be network/app-zone-shield.mjs createAppZoneShield");
+   if (!pins || !["deployments", "registry", "catalog"].every((k) => ADDR.test(lc(pins[k] || "")) && !ZERO40.test(lc(pins[k])))) throw new Error("deployments, registry and catalog pins required");
+-  if (typeof judge !== "function" || !reader || !ledger) throw new Error("judge, quorum reader and ledger index required");
++  if ((snpOn && typeof judge !== "function") || !reader || !ledger) throw new Error("judge, quorum reader and ledger index required");
+   const p0 = { deployments: lc(pins.deployments), registry: lc(pins.registry), catalog: lc(pins.catalog) };
+   return {
+     pushes,
+@@ -217,12 +224,21 @@
+         const { p, spki, doc, nonce } = pre;
+         const digest = pushDigest(raw);
+         if (p.op === "set" && pushes.seen(digest)) return deny(409, "this push was already used (one-shot)");
+-        const report = Buffer.from(doc.report, "base64");
+-        const measurement = report.length >= 0xc0 ? report.subarray(0x90, 0xc0).toString("hex") : "";
+-        if (!measurements.has(measurement)) return deny(403, "the launch measurement is not pinned by this replica");
+-        const v = await judge(doc, spki, nonce, { measurement, appSha: doc.appSha256, mode, kds, hostData: p.deploymentId, ...(minTcb !== undefined ? { minTcb } : {}) });
+-        if (!ACCEPT[mode].includes(v.verdict) || (minTcb !== undefined && v.verdict !== "attested"))
+-          return deny(403, `attestation ${v.verdict}: ${String(v.reasons?.at(-1) || "").slice(0, 160)}`);
++        let v;
++        if (doc.format === SHIELD_DOC_FORMAT) {
++          // Enclave Shield: the lease's runner's own TPM-attested host session, the operator's pinned image/platform pairs
++          if (!shield) return deny(403, "this replica accepts no Enclave Shield evidence");
++          v = await shield.verify({ doc, spki, nonce, lease: p.lease });
++          if (!v.ok) return deny(v.status || 403, v.why);
++        } else {
++          if (!snpOn) return deny(403, "this replica accepts no SEV-SNP evidence");
++          const report = Buffer.from(doc.report, "base64");
++          const measurement = report.length >= 0xc0 ? report.subarray(0x90, 0xc0).toString("hex") : "";
++          if (!measurements.has(measurement)) return deny(403, "the launch measurement is not pinned by this replica");
++          v = await judge(doc, spki, nonce, { measurement, appSha: doc.appSha256, mode, kds, hostData: p.deploymentId, ...(minTcb !== undefined ? { minTcb } : {}) });
++          if (!ACCEPT[mode].includes(v.verdict) || (minTcb !== undefined && v.verdict !== "attested"))
++            return deny(403, `attestation ${v.verdict}: ${String(v.reasons?.at(-1) || "").slice(0, 160)}`);
++        }
+         await ledger.sync().catch(() => {});
+         const unique = ledger.uniqueRefusal(p.deploymentId);
+         if (unique) return deny(unique.includes("not complete") ? 503 : 403, unique);
+@@ -233,7 +249,8 @@
+         const untilMs = Math.min(p.ts * 1000 + 300000, p.order.expires * 1000);
+         const ttlSec = Math.max(1, Math.min(APP_TXT_MAX_TTL_S, Math.floor((p.order.expires * 1000 - now()) / 1000)));
+         if (p.op === "set") pushes.consume(digest, untilMs);
+-        return { ok: true, op: p.op, name: p.name, value: p.value, ttlSec, digest, deploymentId: p.deploymentId, verdict: v.verdict, block: String(facts.blockNumber) };
++        return { ok: true, op: p.op, name: p.name, value: p.value, ttlSec, digest, deploymentId: p.deploymentId, verdict: v.verdict, block: String(facts.blockNumber),
++                 ...(v.tier ? { tier: v.tier, hostExcluded: v.hostExcluded } : {}) };
+       } catch {
+         return deny(500, "verification error");
+       }

@@ -1,0 +1,3 @@
+{"at":"2026-10-21T03:15:56Z","ledger":"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b","selector":"0x5d1b72b6","reads":[
+{"rpc":"https://mainnet.base.org","block":"52881604","deploymentsSchema":"16","runtimeBytes":"24368"},
+{"rpc":"https://base-rpc.publicnode.com","block":"52881604","deploymentsSchema":"16","runtimeBytes":"24368"}]}

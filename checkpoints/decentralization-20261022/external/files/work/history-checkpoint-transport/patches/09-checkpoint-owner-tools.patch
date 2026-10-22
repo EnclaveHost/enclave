@@ -1,0 +1,853 @@
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -51,7 +51,9 @@
+ import {loadContractPins} from "../network/contract-pins.mjs";
+ import {readSessionAuthority} from "../network/session-authority.mjs";
+ import {bootstrapIntent,preparePackage,verifyPackage,fetchPackage,readBoundedResponse,parseUniqueJSON,challengeAlias,MAX_PACKAGE_BYTES,
+-  historyFromList,historyWarnings,HISTORY_PUBLIC_OPTIONS,HISTORY_KEYLESS_LIMIT} from "../sdk/bootstrap/package.mjs";
++  historyFromList,historyWarnings,HISTORY_PUBLIC_OPTIONS,HISTORY_KEYLESS_LIMIT,CHECKPOINT_SCOPE,historyHost} from "../sdk/bootstrap/package.mjs";
++import {CHECKPOINT_PATH,MAX_CHECKPOINT_BYTES,parseCheckpoint,completeCollateral,verifyCheckpoint} from "../verifier/history-checkpoint.mjs";
++import {httpCollateral,AMD_KDS} from "../verifier/collateral.mjs";
+ 
+ const VERSION = "1.6.0";
+ 
+@@ -3265,9 +3267,9 @@
+   if(!CONTRACT_PINS)throw new Error("bootstrap requires --contract-pins");
+   const sub=rest.shift(), f=flags(rest,{val:["--file","--config-file","--custody-file","--app-id","--runtime-id","--out","--upload","--audience","--gateways","--storage-plan",
+     "--names","--acme-directory","--acme-challenge","--acme-zone","--acme-eab-kid-secret","--acme-eab-hmac-secret",
+-    "--target","--shield-manager","--component-file","--history-rpcs"],bool:["--public","--history-path-is-public"]});
++    "--target","--shield-manager","--component-file","--history-rpcs","--history-checkpoints"],bool:["--public","--history-path-is-public"]});
+   const backend=startupBackend(f.target), shield=backend===STARTUP_BACKENDS.shield;
+-  if(!["prepare","publish","activate"].includes(sub)||!f._[0])throw new Error("usage: enclave bootstrap prepare <id> --config-file FILE --app-id HEX --runtime-id HEX --public|--custody-file FILE --out FILE [--names HOST,… [--acme-directory HTTPS --acme-challenge HTTPS --acme-zone ZONE [--acme-eab-kid-secret NAME --acme-eab-hmac-secret NAME]]] [--history-rpcs HTTPS,… [--history-path-is-public]] | publish <id> --file FILE --storage-plan FILE (or --upload HTTPS/add-json --audience ID) | activate <id> --file FILE --storage-plan FILE (or --gateways HTTPS/ipfs,…)");
++  if(!["prepare","publish","activate"].includes(sub)||!f._[0])throw new Error("usage: enclave bootstrap prepare <id> --config-file FILE --app-id HEX --runtime-id HEX --public|--custody-file FILE --out FILE [--names HOST,… [--acme-directory HTTPS --acme-challenge HTTPS --acme-zone ZONE [--acme-eab-kid-secret NAME --acme-eab-hmac-secret NAME]]] [--history-rpcs HTTPS,… [--history-checkpoints HTTPS,…] [--history-path-is-public]] | publish <id> --file FILE --storage-plan FILE (or --upload HTTPS/add-json --audience ID) | activate <id> --file FILE --storage-plan FILE (or --gateways HTTPS/ipfs,…)");
+   const id=f._[0].toLowerCase();if(!isB32(id))throw new Error("bootstrap requires a full deployment id");
+   const {rev,abi}=await depAbi();if(rev!==16)throw new Error("bootstrap requires the measured schema-16 ledger");
+   const d=await read(DEFAULTS.DEPLOYMENTS_ADDRESS,abi,"get",[id]);
+@@ -3310,9 +3312,12 @@
+     // Owner-named log history sources (optional): what a cold-starting guest reads its lease's history from, verified
+     // by two independent operators and the measured quorum (work/history-owner-tools-interface.txt). The package is
+     // published: no credential may be in a URL, and a key-like path needs --history-path-is-public.
+-    if(f["history-path-is-public"]&&!f["history-rpcs"])throw new Error("--history-path-is-public applies to --history-rpcs");
+-    const history=f["history-rpcs"]?historyFromList(String(f["history-rpcs"]),{pathIsPublic:Boolean(f["history-path-is-public"])}):null;
+-    if(history&&shield)say("history: only a Shield-direct partition reads history sources; a legacy-public Shield host ignores them");
++    // Checkpoint mirrors (optional): owner-committed URLs a cold-starting SEV-SNP guest loads attested history checkpoints
++    // from (work/history-checkpoint-transport-interface.txt; `enclave history checkpoint export|mirror` fills them).
++    if(f["history-path-is-public"]&&!f["history-rpcs"]&&!f["history-checkpoints"])throw new Error("--history-path-is-public applies to --history-rpcs or --history-checkpoints");
++    const history=f["history-rpcs"]||f["history-checkpoints"]?historyFromList(String(f["history-rpcs"]||""),{pathIsPublic:Boolean(f["history-path-is-public"]),checkpoints:String(f["history-checkpoints"]||"")}):null;
++    if(history?.rpcs&&shield)say("history: only a Shield-direct partition reads history sources; a legacy-public Shield host ignores them");
++    if(history?.checkpoints&&shield)say("history: a Shield partition reads no checkpoints (they are SEV-SNP evidence); it uses the history sources alone");
+     const hosts=f.names?[...new Set(String(f.names).split(",").map(s=>s.trim()).filter(Boolean))].sort():null;
+     const names=hosts?{hosts,...(f["acme-directory"]?{acme:{directory:f["acme-directory"],challenge:f["acme-challenge"],zone:f["acme-zone"],
+       ...(f["acme-eab-kid-secret"]?{eab:{kid:f["acme-eab-kid-secret"],hmac:f["acme-eab-hmac-secret"]}}:{})}}:{})}:null;
+@@ -3325,7 +3330,7 @@
+     if(!f.public)say(`custody: seal the custody-v2 bundle with configSha256 ${configSha256} (sha256 of the exact committed configText)`);
+     const out={id,file:path.resolve(f.out),cid:pkg.cid,sha256:pkg.sha256,bytes:pkg.bytes.length,committed:false,configSha256,
+       ...(names?{names:names.hosts,...(names.acme?{dns:names.hosts.map(h=>`_acme-challenge.${h}. CNAME ${challengeAlias(id,d.owner,names.acme.zone)}.`)}:{})}:{}),
+-      history:history?history.rpcs:[],historyWarnings:historyWarnings(history)};
++      history:history?.rpcs||[],checkpointMirrors:history?.checkpoints||[],historyWarnings:historyWarnings(history)};
+     return opt.json?jout(out):say(JSON.stringify(out,null,2));
+   }
+   const bytes=limited(f.file),intent={version:1,sha256:crypto.createHash('sha256').update(bytes).digest('hex')};
+@@ -3368,6 +3373,84 @@
+   const out={id,cid:pkg.cid,sha256:pkg.sha256,committed:true,fundingChanged:false,readinessVerified:false,...(storage?{storage}:{})};return opt.json?jout(out):say(JSON.stringify(out,null,2));
+ }
+ 
++// ---- attested history checkpoints (work/history-checkpoint-transport-interface.txt) ----------------------------------
++// A measured SEV-SNP guest that verified its lease's history serves a checkpoint of it (CHECKPOINT_PATH). These commands
++// carry it to the mirrors the owner commits in the startup package (bootstrap prepare --history-checkpoints), completing
++// its AMD collateral and refreshing its CRL from AMD's KDS (or --kds: any source; AMD's chain authenticates it). The guest
++// that adopts it verifies it again against its OWN measurement and TCB: nothing here is trusted by a guest.
++const CP_USAGE="usage: enclave history checkpoint export <id> --front HTTPS [--out FILE] [--expect MEASUREMENT]\n"
++  +"     | enclave history checkpoint import <id> HTTPS|FILE [--out FILE] [--expect MEASUREMENT]\n"
++  +"     | enclave history checkpoint verify <id> FILE --expect MEASUREMENT\n"
++  +"     | enclave history checkpoint refresh-crl <id> FILE [--out FILE] [--expect MEASUREMENT]\n"
++  +"     | enclave history checkpoint mirror <id> FILE --put URL [--check HTTPS] [--expect MEASUREMENT]\n"
++  +"   (each also takes --kds HTTPS and --ledger ADDRESS; --expect and --min-tcb as for enclave attest)";
++const loopbackHttp=(u)=>u.protocol==="http:"&&["127.0.0.1","localhost","[::1]"].includes(u.hostname);
++function checkpointUrl(raw,what,{endpoint=false}={}){
++  let u;try{u=new URL(String(raw));}catch{throw new Error(`${what}: not a URL`);}
++  if(u.protocol!=="https:"&&!loopbackHttp(u))throw new Error(`${what}: https only`);
++  if(u.username||u.password)throw new Error(`${what}: no credentials in the URL`);
++  if(endpoint&&(u.pathname===""||u.pathname==="/"))u.pathname=CHECKPOINT_PATH;
++  return u;
++}
++async function getCheckpoint(u){
++  const res=await fetch(u,{redirect:"error",signal:AbortSignal.timeout(60000)});
++  if(!res.ok)throw new Error(`${u.origin}${u.pathname}: HTTP ${res.status}`);
++  return readBoundedResponse(res,MAX_CHECKPOINT_BYTES);
++}
++async function cmdHistory(rest){
++  if(rest.shift()!=="checkpoint")throw new Error(CP_USAGE);
++  const sub=rest.shift(),f=flags(rest,{val:["--front","--out","--kds","--ledger","--put","--check"]});
++  if(!["export","import","verify","refresh-crl","mirror"].includes(sub)||!f._[0])throw new Error(CP_USAGE);
++  const id=f._[0].toLowerCase();if(!isB32(id))throw new Error("history checkpoint needs a full deployment id (0x + 64 hex)");
++  const ledger=String(f.ledger||DEFAULTS.DEPLOYMENTS_ADDRESS).toLowerCase();if(!/^0x[0-9a-f]{40}$/.test(ledger))throw new Error("--ledger must be an address");
++  const scope={chainId:DEFAULTS.chainId,ledger,deployment:id};
++  // --expect and --min-tcb are the global flags enclave attest uses: the launch measurement this build has, and a TCB floor
++  const measurement=opt.expect?String(opt.expect).toLowerCase().replace(/^0x/,""):null;
++  if(measurement&&!/^[0-9a-f]{96}$/.test(measurement))throw new Error("--expect must be ONE 48-byte launch measurement in hex (the build that produced the checkpoint)");
++  let minTcb;if(opt.minTcb){try{minTcb=parseUniqueJSON(opt.minTcb);}catch{throw new Error("--min-tcb must be JSON: {\"<Product>\":{\"<field>\":n,…}}");}}
++  const kds=httpCollateral({base:checkpointUrl(f.kds||AMD_KDS,"--kds").origin});
++  const readFile=(file)=>{if(!file||!fs.existsSync(file)||fs.statSync(file).size>MAX_CHECKPOINT_BYTES)throw new Error("checkpoint file missing or oversized");return fs.readFileSync(file);};
++  const judge=(bytes)=>verifyCheckpoint(bytes,{...scope,measurement,...(minTcb?{minTcb}:{})});
++  const sha=(b)=>crypto.createHash("sha256").update(b).digest("hex");
++  const done=(o)=>opt.json?jout(o):say(JSON.stringify(o,null,2));
++  const accept=(v)=>{if(v.status==="rejected")throw new Error(`checkpoint refused: ${v.reasons.at(-1).replace(/^REJECT: /,"")}`);return v;};
++  if(sub==="export"||sub==="import"){
++    let bytes,from;
++    if(sub==="export"){if(!f.front)throw new Error("export needs --front HTTPS (the running deployment; its checkpoint path is added)");const u=checkpointUrl(f.front,"--front",{endpoint:true});from=u.origin+u.pathname;bytes=await getCheckpoint(u);}
++    else if(!f._[1])throw new Error(CP_USAGE);
++    else if(/^[a-z]+:\/\//i.test(f._[1])){const u=checkpointUrl(f._[1],"source");from=u.origin+u.pathname;bytes=await getCheckpoint(u);}
++    else{from=path.resolve(f._[1]);bytes=readFile(f._[1]);}
++    parseCheckpoint(bytes,scope);   // the guest's own refusals first: nothing else is fetched for a wrong or malformed one
++    const c=await completeCollateral(bytes,scope,kds),v=accept(await judge(c.bytes));
++    if(f.out)fs.writeFileSync(f.out,c.bytes);
++    return done({id,from,out:f.out?path.resolve(f.out):null,sha256:sha(c.bytes),status:v.status,claims:v.claims,collateral:c.sources,reasons:v.reasons});
++  }
++  const file=f._[1];if(!file)throw new Error(CP_USAGE);
++  const bytes=readFile(file);
++  if(sub==="verify"){
++    if(!measurement)throw new Error("verify needs --expect MEASUREMENT: without the expected launch measurement the AMD evidence is not judged");
++    const v=accept(await judge(bytes));return done({id,file:path.resolve(file),sha256:sha(bytes),status:v.status,claims:v.claims,reasons:v.reasons});
++  }
++  if(sub==="refresh-crl"){
++    const c=await completeCollateral(bytes,scope,kds,{refreshCrl:true}),v=accept(await judge(c.bytes));
++    const out=f.out||file;fs.writeFileSync(out,c.bytes);
++    return done({id,out:path.resolve(out),sha256:sha(c.bytes),status:v.status,crlNextUpdate:v.claims.crlNextUpdate??null,collateral:c.sources,reasons:v.reasons});
++  }
++  // mirror: one PUT of the exact bytes (the URL may hold a presigned credential: used for this request only, never printed
++  // or stored), then a public read-back of the URL the owner commits
++  const v=accept(await judge(bytes));
++  if(!f.put)throw new Error("mirror needs --put URL (where to upload; the committed mirror URL is --check, default the same URL without its query)");
++  const put=checkpointUrl(f.put,"--put"),check=checkpointUrl(f.check||put.origin+put.pathname,"--check");
++  const res=await fetch(put,{method:"PUT",redirect:"error",signal:AbortSignal.timeout(60000),headers:{"content-type":"application/json"},body:bytes});
++  if(!res.ok)throw new Error(`upload to ${put.origin}${put.pathname} failed (HTTP ${res.status})`);
++  await res.body?.cancel();
++  const back=await getCheckpoint(check);
++  if(!back.equals(bytes))throw new Error(`${check.origin}${check.pathname} does not serve the uploaded bytes`);
++  const committable=!!historyHost(check.origin+check.pathname)&&!check.search;
++  return done({id,uploaded:put.origin+put.pathname,mirror:check.origin+check.pathname,readBack:true,committable,sha256:sha(bytes),status:v.status,claims:v.claims,
++    ...(committable?{}:{note:"this URL cannot be committed as a mirror (https://<lowercase DNS name>[/path], no port or query): the guest refuses it"})});
++}
++
+ async function cmdConfig(rest) {
+   const sub = rest.shift();
+   const usage = "usage: enclave config show <id>\n"
+@@ -4486,6 +4569,23 @@
+                              2026-10-20, offered as-is (choose and check them yourself):
+ ${HISTORY_PUBLIC_OPTIONS.map(o=>`                               ${o.url} (${o.operator}): ${o.limits}`).join("\n")}
+                              ${HISTORY_KEYLESS_LIMIT}
++         [--history-checkpoints HTTPS,…]
++                             owner-committed mirrors of the guest's attested history
++                             checkpoint (fill them with history checkpoint export|mirror);
++                             ${CHECKPOINT_SCOPE}
++  history checkpoint export <id> --front HTTPS [--out FILE] [--expect MEASUREMENT]
++                             fetch a running SEV-SNP guest's attested history checkpoint
++                             (/.well-known/enclave-history-checkpoint), complete its AMD
++                             collateral and CRL from AMD's KDS (--kds: any mirror), and
++                             verify it (with --expect: the AMD evidence too)
++  history checkpoint import <id> HTTPS|FILE [--out FILE] [--expect MEASUREMENT]
++                             the same from a mirror or a file (moving between mirrors)
++  history checkpoint verify <id> FILE --expect MEASUREMENT
++  history checkpoint refresh-crl <id> FILE [--out FILE]
++                             replace its CRL with AMD's current one (a stale CRL is refused)
++  history checkpoint mirror <id> FILE --put URL [--check HTTPS]
++                             upload it (PUT; a presigned URL is used once, never printed)
++                             and read it back from the URL you commit as a mirror
+   bootstrap publish <id> --file FILE --storage-plan FILE
+                              upload and verify the required number of adapter copies
+   bootstrap publish <id> --file FILE --upload HTTPS/add-json --audience ID
+@@ -5092,7 +5192,7 @@
+ const INDEPENDENT_COMMANDS = new Set(["key", "whoami", "ls", "list", "status", "hosts", "pricing", "availability", "apps",
+   "deploy", "fund", "stop", "suspend", "resume", "rate-cap", "cap", "refund", "cancel", "transfer", "upgrade", "set-version",
+   "resize", "bootstrap", "artifact", "session", "logs", "restart", "attest", "publish", "app-token", "cpu-profile",
+-  "config", "encvol", "host", "gpu", "move", "login", "logout", "account", "signer", "custody", "lease-gas"]);
++  "config", "encvol", "host", "gpu", "move", "login", "logout", "account", "signer", "custody", "lease-gas", "history"]);
+ // Why each remaining command has no independent path (work/cli-remaining-interface.txt has the exact missing pieces).
+ const INDEPENDENT_REFUSALS = {
+   secrets: "relay-held secrets are a hosted service. Independently, `custody status|set|migrate|pause|resume|clear|claim` "
+@@ -5777,7 +5877,7 @@
+   publish: cmdPublish, apps: cmdApps, artifact: cmdArtifact,
+   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,
+   encvol: cmdEncvol, host: cmdHost, session: cmdSession, hosts: cmdHosts,
+-  "app-token": cmdAppToken, "cpu-profile": cmdCpuProfile, signer: cmdSigner, "lease-gas": cmdLeaseGas,
++  "app-token": cmdAppToken, "cpu-profile": cmdCpuProfile, signer: cmdSigner, "lease-gas": cmdLeaseGas, history: cmdHistory,
+ };
+ 
+ // Resolve the platform's contract addresses from the on-chain address book
+--- a/scripts/history-vectors.mjs
++++ b/scripts/history-vectors.mjs
+@@ -1,5 +1,6 @@
+ // Writes isolation/m2/bootstrap/testdata/history-vectors.json: owner-history startup packages that the measured guest
+-// (Go Reader.Authorize), the SDK and the browser must accept or refuse identically (work/history-owner-tools-interface.txt).
++// (Go Reader.Authorize), the SDK and the browser must accept or refuse identically (work/history-owner-tools-interface.txt;
++// the optional "checkpoints" member: work/history-checkpoint-transport-interface.txt).
+ // Valid cases are built by the SDK's own preparePackage, so they are the exact bytes the CLI and site produce; invalid
+ // cases are the same base with one rule broken. Deterministic.
+ //   run: node scripts/history-vectors.mjs
+@@ -16,6 +17,8 @@
+ const valid = (name, history, extra = {}) => ({ name, valid: true, manifest: preparePackage({ ...base, ...extra, history }).bytes.toString() });
+ const raw = (name, member) => ({ name, valid: false, manifest: JSON.stringify(base).slice(0, -1) + ',"history":' + member + "}" });
+ const bad = (name, rpcs) => raw(name, JSON.stringify({ rpcs }));
++const badMirror = (name, checkpoints) => raw(name, JSON.stringify({ rpcs: [P], checkpoints }));
++const M1 = "https://mirror.example.org/checkpoints/d1.json", M2 = "https://owner.example.net/cp";
+ const cases = [
+   valid("one source", { rpcs: [P] }),
+   valid("two operators", { rpcs: [P, T] }),
+@@ -55,6 +58,26 @@
+   raw("case alias", '{"RPCs":["https://node.example.org"]}'),
+   raw("duplicate key", '{"rpcs":["https://a.example"],"rpcs":["https://b.example"]}'),
+   raw("a list, not an object", '["https://node.example.org"]'),
++  // attested checkpoint mirrors (optional, after "rpcs")
++  valid("sources and checkpoint mirrors", { rpcs: [P, T], checkpoints: [M1, M2] }),
++  valid("checkpoint mirrors only", { checkpoints: [M2] }),
++  valid("four mirrors", { rpcs: [P], checkpoints: ["https://a.example/cp", "https://b.example/cp", "https://c.example/cp", "https://d.example/cp"] }),
++  valid("a mirror on a source's host", { rpcs: ["https://node.example.org/rpc"], checkpoints: ["https://node.example.org/cp.json"] }),
++  raw("empty object", "{}"),
++  raw("checkpoints null", '{"rpcs":["https://node.example.org"],"checkpoints":null}'),
++  raw("checkpoints not a list", '{"rpcs":["https://node.example.org"],"checkpoints":"' + M1 + '"}'),
++  raw("checkpoints case alias", '{"rpcs":["https://node.example.org"],"Checkpoints":["' + M1 + '"]}'),
++  raw("rpcs empty beside mirrors", '{"rpcs":[],"checkpoints":["' + M1 + '"]}'),
++  badMirror("checkpoints empty", []),
++  badMirror("five mirrors", ["https://a.example/cp", "https://b.example/cp", "https://c.example/cp", "https://d.example/cp", "https://e.example/cp"]),
++  badMirror("mirror over plain http", ["http://mirror.example.org/cp"]),
++  badMirror("mirror with a query", ["https://mirror.example.org/cp?sig=abc"]),
++  badMirror("mirror with userinfo", ["https://u:p@mirror.example.org/cp"]),
++  badMirror("mirror with a port", ["https://mirror.example.org:8443/cp"]),
++  badMirror("mirror IP literal", ["https://192.0.2.9/cp"]),
++  badMirror("mirrors not ascending", [M2, M1]),
++  badMirror("mirror host twice", ["https://mirror.example.org/a", "https://mirror.example.org/b"]),
++  badMirror("mirror null entry", [null]),
+ ];
+ const out = path.join(REPO, "isolation/m2/bootstrap/testdata/history-vectors.json");
+ fs.writeFileSync(out, JSON.stringify({ generator: "scripts/history-vectors.mjs", cases }, null, 1) + "\n");
+--- a/sdk/bootstrap/package.mjs
++++ b/sdk/bootstrap/package.mjs
+@@ -76,7 +76,9 @@
+ // log from its lease's claim to the finalized head (rev 16d keeps no claim marker in state); public measured RPCs serve
+ // recent logs only, so an owner names log-capable sources here. The package is PUBLISHED: a URL may never carry a
+ // credential (no userinfo, no query; a key-like path needs the owner's explicit confirmation in the tools).
+-export const MAX_HISTORY_RPCS=6;
++// "checkpoints" (optional, after "rpcs"): owner-committed mirror URLs of attested history checkpoints, the same URL rule
++// (work/history-checkpoint-transport-interface.txt; a checkpoint authenticates itself, the URL only says where to look).
++export const MAX_HISTORY_RPCS=6, MAX_CHECKPOINT_MIRRORS=4;
+ const historyRe=/^https:\/\/([a-z0-9.-]+)(\/[A-Za-z0-9._~\/-]*)?$/;
+ export function historyHost(url){
+   if(typeof url!=='string'||url.length<1||url.length>512)return null;
+@@ -85,41 +87,49 @@
+ }
+ export function validateHistory(h){
+   if(!object(h)||!noNull(h))throw Error('owner history must be an object without nulls');
+-  keys(h,['rpcs']);
+-  if(!Array.isArray(h.rpcs)||h.rpcs.length<1||h.rpcs.length>MAX_HISTORY_RPCS)throw Error(`owner history needs 1 to ${MAX_HISTORY_RPCS} RPCs`);
+-  const hosts=new Set();
+-  h.rpcs.forEach((u,i)=>{
+-    const host=historyHost(u);
+-    if(!host)throw Error('owner history RPC must be https://<lowercase DNS name>[/path] with no port, query, fragment or credentials');
+-    if(i>0&&!(h.rpcs[i-1]<u))throw Error('owner history RPCs must be strictly ascending and unique');
+-    if(hosts.has(host))throw Error('owner history RPC hosts must be distinct');
+-    hosts.add(host);
+-  });
++  keys(h,['rpcs','checkpoints']);
++  const has=k=>Object.hasOwn(h,k);
++  if(!has('rpcs')&&!has('checkpoints'))throw Error(`owner history needs 1 to ${MAX_HISTORY_RPCS} RPCs`);
++  if(has('rpcs')&&(!Array.isArray(h.rpcs)||h.rpcs.length<1||h.rpcs.length>MAX_HISTORY_RPCS))throw Error(`owner history needs 1 to ${MAX_HISTORY_RPCS} RPCs`);
++  if(has('checkpoints')&&(!Array.isArray(h.checkpoints)||h.checkpoints.length<1||h.checkpoints.length>MAX_CHECKPOINT_MIRRORS))throw Error(`owner history needs 1 to ${MAX_CHECKPOINT_MIRRORS} checkpoint mirrors`);
++  for(const [list,what] of [[h.rpcs||[],'RPC'],[h.checkpoints||[],'checkpoint mirror']]){
++    const hosts=new Set();
++    list.forEach((u,i)=>{
++      const host=historyHost(u);
++      if(!host)throw Error(`owner history ${what} must be https://<lowercase DNS name>[/path] with no port, query, fragment or credentials`);
++      if(i>0&&!(list[i-1]<u))throw Error(`owner history ${what}s must be strictly ascending and unique`);
++      if(hosts.has(host))throw Error(`owner history ${what} hosts must be distinct`);
++      hosts.add(host);
++    });
++  }
+   return h;
+ }
+ // who runs a source, for counting independent answers: the guest's operatorOf (last two DNS labels; errs strict)
+ export const historyOperator=url=>{const h=historyHost(url);return h?h.split('.').slice(-2).join('.'):null;};
+ // a path segment that looks like a provider key: refused by the tools unless the owner confirms it is public
+ export const credentialLike=url=>{const m=historyRe.exec(String(url));return !!m&&String(m[2]||'').split('/').some(seg=>/^[A-Za-z0-9_-]+$/.test(seg)&&(seg.length>=24||seg.length>=16&&/[A-Za-z]/.test(seg)&&/[0-9]/.test(seg)));};
+-/** Owner input -> the canonical member (sorted, deduplicated, checked) or null for none. */
+-export function historyFromList(list,{pathIsPublic=false}={}){
+-  const rpcs=[...new Set((Array.isArray(list)?list:String(list||'').split(/[\s,]+/)).map(x=>String(x).trim()).filter(Boolean))].sort();
+-  if(!rpcs.length)return null;
+-  for(const u of rpcs){
+-    if(/^[a-z]+:\/\/[^/]*@/i.test(u))throw Error(`history RPC ${u}: credentials in a URL would be published with the package`);
+-    if(/[?#]/.test(u))throw Error(`history RPC ${u}: a query or fragment would be published with the package (and the guest refuses it)`);
+-    if(!historyHost(u))throw Error(`history RPC ${u}: must be https://<lowercase DNS name>[/path], no port`);
+-    if(credentialLike(u)&&!pathIsPublic)throw Error(`history RPC ${u}: its path looks like a provider key, and the package is published for anyone to read; use a public endpoint or your own node, or confirm the path is public`);
++/** Owner input -> the canonical member (sorted, deduplicated, checked) or null for none. `checkpoints`: mirror URLs. */
++export function historyFromList(list,{pathIsPublic=false,checkpoints=null}={}){
++  const norm=l=>[...new Set((Array.isArray(l)?l:String(l||'').split(/[\s,]+/)).map(x=>String(x).trim()).filter(Boolean))].sort();
++  const rpcs=norm(list),mirrors=norm(checkpoints);
++  if(!rpcs.length&&!mirrors.length)return null;
++  for(const [what,u] of [...rpcs.map(u=>['history RPC',u]),...mirrors.map(u=>['checkpoint mirror',u])]){
++    if(/^[a-z]+:\/\/[^/]*@/i.test(u))throw Error(`${what} ${u}: credentials in a URL would be published with the package`);
++    if(/[?#]/.test(u))throw Error(`${what} ${u}: a query or fragment would be published with the package (and the guest refuses it)`);
++    if(!historyHost(u))throw Error(`${what} ${u}: must be https://<lowercase DNS name>[/path], no port`);
++    if(credentialLike(u)&&!pathIsPublic)throw Error(`${what} ${u}: its path looks like a provider key, and the package is published for anyone to read; use a public endpoint or your own node, or confirm the path is public`);
+   }
+-  return validateHistory({rpcs});
++  return validateHistory({...(rpcs.length?{rpcs}:{}),...(mirrors.length?{checkpoints:mirrors}:{})});
+ }
+ /** What the owner should know about a history member (never a refusal: those are thrown above). */
+ export function historyWarnings(h){
+   if(!h)return ['no history sources: a fresh guest cannot prove a lease whose claim is older than its measured RPCs serve (about 5,000 blocks, under 3 hours)'];
+-  const w=[],ops=new Set(h.rpcs.map(historyOperator));
++  const w=[],rpcs=h.rpcs||[],mirrors=h.checkpoints||[],ops=new Set(rpcs.map(historyOperator));
+   if(ops.size<2)w.push(`only ${ops.size} independent operator: a claim older than the measured RPCs' horizon needs two operators that both serve its history`);
+-  const enclave=h.rpcs.filter(u=>/(^|\.)enclave\.host$/.test(historyHost(u)));
++  const enclave=[...rpcs,...mirrors].filter(u=>/(^|\.)enclave\.host$/.test(historyHost(u)));
+   if(enclave.length)w.push(`${enclave.join(', ')} is run by Enclave; it works only while Enclave runs it`);
++  if(mirrors.length)w.push(CHECKPOINT_SCOPE);
++  if(mirrors.length&&!rpcs.length)w.push('checkpoint mirrors without history sources: the blocks after a checkpoint are read from the measured RPCs alone, which serve recent logs only; keep the mirrors refreshed');
+   return w;
+ }
+ // Bounded public options, offered for the owner to choose and edit, never pre-selected. Provenance: the read-only probes
+@@ -132,6 +142,8 @@
+     served:'Base logs 35 and 120 days back in 1000-block ranges (~7,000 blocks/s)',
+     limits:'rate-limits bursts (HTTP 429); no availability guarantee; not run by Enclave; one operator even under two of its hostnames'}),
+ ]);
++// What a checkpoint mirror is and is not (shown with every mirror list; work/history-checkpoint-transport-interface.txt).
++export const CHECKPOINT_SCOPE='checkpoint mirrors are read only by SEV-SNP direct guests of the SAME measured build, for this deployment: a Shield partition, or a new build, still needs history sources';
+ export const HISTORY_KEYLESS_LIMIT='No keyless second operator was found for history older than about 31 days: for older leases name your own node or a provider you choose.';
+ // The DNS-01 alias label commits to the deployment AND its owner, so a
+ // delegation published for one owner stops working when the deployment moves.
+--- a/site/components/deployments/deployments.js
++++ b/site/components/deployments/deployments.js
+@@ -1089,6 +1089,7 @@
+     box.innerHTML = '<div class="ap-attbar">startup settings · ' + esc(id) + '</div><div class="term enc-start-status" role="status" aria-live="polite"></div>';
+     const st = box.querySelector(".enc-start-status"), paint = (cls, t) => paintLine(st, cls, t);
+     const SP = await import("../../js/core/startup-package.js");
++    const CP = await import("../../js/core/history-checkpoint.js");
+     const IC = await import("../../js/core/independent-chain.js");
+     const { STORAGE_PLAN } = await import("../../js/core/config.js");
+     let at;
+@@ -1107,7 +1108,8 @@
+         const rc = await SP.readCommitted(intent, scope, gateways).catch((e) => ({ verified: [], failed: gateways, error: e }));
+         current = rc.manifest;
+         if (current && current.names) paint("info", "custom names in these settings: " + current.names.hosts.join(", "));
+-        if (current && current.history) paint("info", "history sources in these settings: " + current.history.rpcs.join(", "));
++        if (current && current.history && current.history.rpcs) paint("info", "history sources in these settings: " + current.history.rpcs.join(", "));
++        if (current && current.history && current.history.checkpoints) paint("info", "checkpoint mirrors in these settings: " + current.history.checkpoints.join(", "));
+         paint(rc.verified.length ? "ok" : "warn", (rc.verified.length ? "[✓] " : "[!] ") + rc.verified.length + " of " + gateways.length + " storage adapters return the exact committed bytes");
+       }
+     } else paint("info", "no startup settings are committed: this deployment uses its catalog version’s settings");
+@@ -1141,13 +1143,23 @@
+       + '<fieldset class="es-history"><legend>History sources for cold starts (optional)</legend>'
+       + '<p class="dim">A freshly started app guest proves which lease it runs under by reading that lease’s history from the chain. Its own RPCs serve only recent history (under about 3 hours), so for a lease held longer name log-capable Base RPCs here: two run by different operators. These settings are published for anyone to read, so never put an API key in a URL.</p>'
+       + '<label for="' + fid + 'y">HTTPS RPC URLs, one per line (empty = none)</label>'
+-      + '<textarea id="' + fid + 'y" class="es-hist" rows="2" spellcheck="false" autocapitalize="off">' + esc(ch ? ch.rpcs.join("\n") : "") + '</textarea>'
++      + '<textarea id="' + fid + 'y" class="es-hist" rows="2" spellcheck="false" autocapitalize="off">' + esc(ch && ch.rpcs ? ch.rpcs.join("\n") : "") + '</textarea>'
++      // attested history checkpoints: mirrors committed with the package (work/history-checkpoint-transport-interface.txt)
++      + '<label for="' + fid + 'm">Checkpoint mirrors: HTTPS URLs where you keep copies of this app’s history checkpoint, one per line (empty = none)</label>'
++      + '<textarea id="' + fid + 'm" class="es-hist-cp" rows="2" spellcheck="false" autocapitalize="off">' + esc(ch && ch.checkpoints ? ch.checkpoints.join("\n") : "") + '</textarea>'
+       + '<label><input type="checkbox" class="es-hist-public"> These URLs hold no private key (a path that looks like a key is otherwise refused)</label>'
+       + '<details class="es-hist-options"><summary>Public endpoints others have used (check them yourself)</summary>'
+       + '<ul class="dim">' + SP.HISTORY_PUBLIC_OPTIONS.map((o) => '<li><code>' + esc(o.url) + '</code> · ' + esc(o.operator) + ' · probed ' + esc(o.probed) + ': ' + esc(o.served) + '. Limits: ' + esc(o.limits) + '.</li>').join("") + '</ul>'
+       + '<p class="dim">' + esc(SP.HISTORY_KEYLESS_LIMIT) + '</p>'
+       + '<button class="btn btn-sm es-hist-fill" type="button">Fill these in (you can edit them)</button></details>'
+-      + '<div class="term es-hist-preview" role="status" aria-live="polite"></div></fieldset>'
++      + '<div class="term es-hist-preview" role="status" aria-live="polite"></div>'
++      + '<details class="es-cp"><summary>History checkpoint: save a copy for your mirrors</summary>'
++      + '<p class="dim">A running SEV-SNP guest that verified this lease’s history serves an attested checkpoint of it. Keep copies where the URLs above point (any web space you control): a guest started after its host is gone loads them instead of the full history. A copy proves itself, so wherever you keep it only decides whether it can be found. Refresh it now and then (the newer, the less history a new guest reads) and before its revocation list goes stale: <code>enclave history checkpoint refresh-crl</code>.</p>'
++      + '<label for="' + fid + 'f">Running deployment’s address</label><input id="' + fid + 'f" class="es-cp-from" spellcheck="false" value="' + esc(CP.defaultFront(id)) + '">'
++      + '<button class="btn btn-sm es-cp-fetch" type="button">Fetch and check</button> '
++      + '<label class="btn btn-sm">Open a file<input type="file" class="es-cp-file" accept="application/json,.json" hidden></label> '
++      + '<button class="btn btn-sm es-cp-save" type="button" disabled>Save a copy</button>'
++      + '<div class="term es-cp-out" role="status" aria-live="polite"></div></details></fieldset>'
+       + (committed && !current ? '<label class="warn"><input type="checkbox" class="es-blind"> The committed settings could not be read back. Replace them anyway (their names and settings will be what you enter here).</label>' : '')
+       // the isolation tier that starts it: SEV-SNP by default (the CLI's choice); an Enclave Shield partition only when chosen
+       + '<label for="' + fid + 'b">Isolation tier that starts it</label><select id="' + fid + 'b" class="es-backend">'
+@@ -1192,17 +1204,17 @@
+     form.querySelectorAll(".es-hosts, .es-acme-dir, .es-acme-ch, .es-acme-zone, .es-eab-kid, .es-eab-hmac, .es-cust").forEach((el) => el.addEventListener("input", () => { showNames(); }));
+     showNames();
+     // history preview: validated exactly as the guest validates it, with what the owner should know
+-    const historyInput = () => ({ rpcsText: form.querySelector(".es-hist").value, pathIsPublic: form.querySelector(".es-hist-public").checked });
++    const historyInput = () => ({ rpcsText: form.querySelector(".es-hist").value, checkpointsText: form.querySelector(".es-hist-cp").value, pathIsPublic: form.querySelector(".es-hist-public").checked });
+     const histPreview = form.querySelector(".es-hist-preview");
+     const showHistory = () => {
+       let h;
+       try { h = SP.historyFromForm(historyInput()); }
+       catch(e){ histPreview.innerHTML = '<div class="warn">✗ ' + esc(e.message || String(e)) + '</div>'; return; }
+-      const ops = h ? [...new Set(h.rpcs.map(SP.historyOperator))] : [];
+-      histPreview.innerHTML = (h ? '<div>' + h.rpcs.length + ' source(s) · operators: ' + esc(ops.join(", ")) + '</div>' : '')
++      const rpcs = h && h.rpcs ? h.rpcs : [], ops = [...new Set(rpcs.map(SP.historyOperator))];
++      histPreview.innerHTML = (h ? '<div>' + rpcs.length + ' source(s) · operators: ' + esc(ops.join(", ") || "none") + (h.checkpoints ? ' · ' + h.checkpoints.length + ' checkpoint mirror(s)' : '') + '</div>' : '')
+         + SP.historyWarnings(h).map((w) => '<div class="warn">' + esc(w) + '</div>').join("");
+     };
+-    form.querySelectorAll(".es-hist, .es-hist-public").forEach((el) => el.addEventListener("input", showHistory));
++    form.querySelectorAll(".es-hist, .es-hist-cp, .es-hist-public").forEach((el) => el.addEventListener("input", showHistory));
+     form.querySelector(".es-hist-public").addEventListener("change", showHistory);
+     form.querySelector(".es-hist-fill").addEventListener("click", () => {
+       const area = form.querySelector(".es-hist"), have = area.value.split(/[\s,]+/).filter(Boolean);
+@@ -1210,6 +1222,38 @@
+       showHistory();
+     });
+     showHistory();
++    // checkpoint copies: fetched from the running guest (it serves any origin) or opened from a file, checked here the way
++    // the guest reads them (CP.checkCheckpoint), saved for the owner's mirrors; the AMD evidence is judged by the guest
++    const cpOut = form.querySelector(".es-cp-out"), cpSave = form.querySelector(".es-cp-save");
++    let cpText = null;
++    const showCheckpoint = async (text, from) => {
++      cpText = null; cpSave.disabled = true;
++      try {
++        const c = await CP.checkCheckpoint(text, { chainId: scope.chainId, ledger: scope.ledger, deployment: id.toLowerCase() });
++        cpText = text; cpSave.disabled = false;
++        cpOut.innerHTML = '<div>[✓] ' + esc(from) + ': blocks ' + c.lo + '–' + c.hi + ' · ' + c.logs + ' lease log(s), ' + c.claims + ' claim(s) · the report binds exactly this statement and this deployment</div>'
++          + '<div class="dim">measurement ' + esc(c.measurement.slice(0, 16)) + '… · ' + (c.hasCertificates ? 'AMD certificates attached' : 'no AMD certificates attached yet (enclave history checkpoint import adds them)') + ' · ' + (c.hasCrl ? 'a revocation list attached' : 'no revocation list attached yet (enclave history checkpoint refresh-crl adds one)') + '</div>'
++          + '<div class="warn">' + esc(c.notJudged) + '</div>';
++      } catch(e){ cpOut.innerHTML = '<div class="warn">✗ ' + esc(from) + ': ' + esc(e.message || String(e)) + '</div>'; }
++    };
++    form.querySelector(".es-cp-fetch").addEventListener("click", async () => {
++      const from = form.querySelector(".es-cp-from").value.trim();
++      try { await showCheckpoint(await CP.fetchCheckpoint(from), from); }
++      catch(e){ cpText = null; cpSave.disabled = true; cpOut.innerHTML = '<div class="warn">✗ ' + esc(e.message || String(e)) + '</div>'; }
++    });
++    form.querySelector(".es-cp-file").addEventListener("change", async (ev) => {
++      const file = ev.target.files && ev.target.files[0];
++      if (!file) return;
++      if (file.size > CP.MAX_CHECKPOINT_BYTES){ cpOut.innerHTML = '<div class="warn">✗ checkpoint size</div>'; return; }
++      await showCheckpoint(await file.text(), file.name);
++    });
++    cpSave.addEventListener("click", () => {
++      if (!cpText) return;
++      const a = document.createElement("a");
++      a.href = URL.createObjectURL(new Blob([cpText], { type: "application/json" }));
++      a.download = "history-checkpoint-" + id.slice(2, 10).toLowerCase() + ".json";
++      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
++    });
+     const go = form.querySelector(".es-go");
+     go.addEventListener("click", async () => {
+       go.disabled = true;
+--- /dev/null
++++ b/site/js/core/history-checkpoint.js
+@@ -0,0 +1,124 @@
++/* Attested history checkpoints in the browser (work/history-checkpoint-transport-interface.txt): the owner's Startup tab
++   fetches the envelope a running SEV-SNP guest serves (CHECKPOINT_PATH) or opens a file, checks it here the way the
++   guest's checkpoint.go and verifier/history-checkpoint.mjs read it (exact members, the statement canonical, this
++   chain/ledger/deployment, every log inside the range and this deployment's, REPORT_DATA binding exactly this statement,
++   HOST_DATA = this deployment), and saves it for the owner's mirror. The AMD evidence itself (the chain to AMD's pinned
++   root, a fresh CRL, the measurement and TCB) is NOT judged on this page: the guest that adopts a checkpoint judges it
++   against its own measurement and TCB, and `enclave history checkpoint verify` judges it on the owner's machine. The
++   result says so every time. */
++export const CHECKPOINT_PATH = "/.well-known/enclave-history-checkpoint";
++export const MAX_CHECKPOINT_BYTES = 32 << 20;
++const TOPICS = new Set([
++  "0xa8cc21eb0ec0b0b7328426babbe37866c627edfd2ae57aeaed4f54abc0534bc0", // Claimed
++  "0xc3f167f2092d6942fb4264b1759de5eda7eedc20287375c9eddd62e98a560b3e", // Renewed
++  "0x0e334fd11ab7bea6d2bda89338c0f25674e099b70dd28aaaee262fbecba48882", // Released
++]);
++const word = (s) => typeof s === "string" && /^0x[0-9a-f]{64}$/.test(s);
++const uint = (n) => Number.isSafeInteger(n) && n >= 0;
++const b64 = /^[A-Za-z0-9+/]*={0,2}$/;
++export const NOT_JUDGED_HERE = "The AMD evidence (its chain to AMD's root, a fresh revocation list, the measurement and TCB) is not judged on this page: the guest that adopts the checkpoint judges it against its own, and `enclave history checkpoint verify` judges it on your machine.";
++
++// JSON.parse, refusing a duplicated key at any depth (the guest refuses one).
++function uniqueParse(text){
++  const out = JSON.parse(text);
++  let i = 0;
++  const ws = () => { while (i < text.length && /\s/.test(text[i])) i++; };
++  const str = () => { const s = i++; while (i < text.length){ if (text[i] === "\\") { i += 2; continue; } if (text[i++] === '"') break; } return JSON.parse(text.slice(s, i)); };
++  const walk = (d) => {
++    if (d > 64) throw new Error("nesting");
++    ws(); const c = text[i];
++    if (c === "{"){ i++; const seen = new Set(); ws(); if (text[i] === "}"){ i++; return; }
++      for (;;){ ws(); const k = str(); if (seen.has(k)) throw new Error("duplicate key"); seen.add(k); ws(); i++; walk(d + 1); ws(); if (text[i++] === "}") return; } }
++    if (c === "["){ i++; ws(); if (text[i] === "]"){ i++; return; } for (;;){ walk(d + 1); ws(); if (text[i++] === "]") return; } }
++    if (c === '"'){ str(); return; }
++    while (i < text.length && !/[\s,}\]]/.test(text[i])) i++;
++  };
++  walk(0);
++  return out;
++}
++// the top-level member `key` as its exact text (the binding covers those bytes)
++function rawMember(text, key){
++  let i = 0, depth = 0;
++  while (i < text.length){
++    const c = text[i];
++    if (c === '"'){
++      let j = i + 1; while (j < text.length && text[j] !== '"') j += text[j] === "\\" ? 2 : 1;
++      const s = text.slice(i, j + 1); i = j + 1;
++      if (depth === 1 && JSON.parse(s) === key){
++        let k = i; while (/\s/.test(text[k])) k++;
++        if (text[k] !== ":") continue;
++        i = k + 1; while (/\s/.test(text[i])) i++;
++        const start = i; let d = 0;
++        for (; i < text.length; i++){
++          const ch = text[i];
++          if (ch === '"'){ i++; while (i < text.length && text[i] !== '"') i += text[i] === "\\" ? 2 : 1; continue; }
++          if (ch === "{" || ch === "[") d++;
++          else if (ch === "}" || ch === "]"){ d--; if (d === 0) return text.slice(start, i + 1); }
++        }
++        return null;
++      }
++      continue;
++    }
++    if (c === "{" || c === "[") depth++; else if (c === "}" || c === "]") depth--;
++    i++;
++  }
++  return null;
++}
++export const canonicalStatement = (st) => JSON.stringify({ v: st.v, chainId: st.chainId, ledger: st.ledger, deployment: st.deployment, lo: st.lo, hi: st.hi,
++  logs: st.logs.map((l) => ({ block: l.block, index: l.index, blockHash: l.blockHash, topics: l.topics, data: l.data })) });
++const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
++const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
++
++/* checkCheckpoint(text, { chainId, ledger, deployment }) -> { lo, hi, logs, claims, measurement, product line hint, ... };
++   throws the guest's refusal. */
++export async function checkCheckpoint(text, { chainId, ledger, deployment }){
++  if (typeof text !== "string" || !text.length || text.length > MAX_CHECKPOINT_BYTES) throw new Error("checkpoint size");
++  let env;
++  try { env = uniqueParse(text); } catch { throw new Error("checkpoint envelope: not an unambiguous JSON object"); }
++  if (!env || typeof env !== "object" || Array.isArray(env)) throw new Error("checkpoint envelope: not an unambiguous JSON object");
++  for (const k of Object.keys(env)) if (!["statement", "report", "certs", "crl"].includes(k)) throw new Error('checkpoint envelope: unknown member "' + k + '"');
++  for (const k of ["report", "certs"]) if (typeof env[k] !== "string") throw new Error("checkpoint envelope: " + k + " missing");
++  for (const k of ["report", "certs", "crl"]) if (env[k] !== undefined && (typeof env[k] !== "string" || !b64.test(env[k]))) throw new Error("checkpoint evidence is not base64");
++  const statementText = rawMember(text, "statement");
++  const st = env.statement;
++  if (!statementText || !st || typeof st !== "object" || Array.isArray(st) || !Array.isArray(st.logs)) throw new Error("checkpoint envelope: statement missing");
++  if (canonicalStatement(st) !== statementText) throw new Error("checkpoint statement is not in canonical form");
++  if (st.v !== 1 || st.chainId !== chainId || st.ledger !== String(ledger).toLowerCase() || st.deployment !== String(deployment).toLowerCase())
++    throw new Error("checkpoint statement names another chain, ledger or deployment");
++  if (!uint(st.lo) || !uint(st.hi) || st.lo < 1 || st.lo > st.hi || st.logs.length > 100000) throw new Error("checkpoint statement range is invalid");
++  let prev = null;
++  for (const l of st.logs){
++    if (!uint(l.block) || !uint(l.index) || l.block < st.lo || l.block > st.hi || (prev && (l.block < prev.block || (l.block === prev.block && l.index <= prev.index))))
++      throw new Error("checkpoint logs are outside the range or out of order");
++    if (!Array.isArray(l.topics) || l.topics.length < 2 || l.topics[1] !== st.deployment || !TOPICS.has(l.topics[0])) throw new Error("checkpoint holds a log that is not this deployment's lease log");
++    if (!word(l.blockHash) || typeof l.data !== "string" || !/^0x[0-9a-f]*$/.test(l.data) || !l.topics.every(word)) throw new Error("checkpoint log is not canonical");
++    prev = l;
++  }
++  const report = fromB64(env.report);
++  if (report.length !== 0x4a0) throw new Error("checkpoint report is not an SEV-SNP attestation report");
++  const pre = new TextEncoder().encode("enclave-history-checkpoint-v1\0"), body = new TextEncoder().encode(statementText);
++  const msg = new Uint8Array(pre.length + body.length); msg.set(pre); msg.set(body, pre.length);
++  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", msg));
++  const rd = report.subarray(0x50, 0x90);
++  if (hex(rd) !== hex(digest) + "00".repeat(32)) throw new Error("binding: REPORT_DATA is not this statement's binding");
++  if ("0x" + hex(report.subarray(0xc0, 0xe0)) !== st.deployment) throw new Error("host data: HOST_DATA is not the expected deployment");
++  return { lo: st.lo, hi: st.hi, logs: st.logs.length, claims: st.logs.filter((l) => l.topics[0] === "0xa8cc21eb0ec0b0b7328426babbe37866c627edfd2ae57aeaed4f54abc0534bc0").length,
++    measurement: hex(report.subarray(0x90, 0xc0)), hasCertificates: fromB64(env.certs).length > 0, hasCrl: !!env.crl, notJudged: NOT_JUDGED_HERE };
++}
++
++/* The deployment's own name (front/certs.go: the first 4 bytes of its id under the app zone), the default place to fetch. */
++export const defaultFront = (deployment) => "https://" + String(deployment).slice(2, 10).toLowerCase() + ".app.enclave.host";
++
++/* fetchCheckpoint(origin) -> text: the running guest's checkpoint (the guest serves it to any origin), bounded. */
++export async function fetchCheckpoint(origin, { fetchImpl = globalThis.fetch, timeoutMs = 30000 } = {}){
++  const u = new URL(String(origin));
++  if (u.protocol !== "https:" || u.username || u.password) throw new Error("the deployment's address must be https, without credentials");
++  if (u.pathname === "/" || u.pathname === "") u.pathname = CHECKPOINT_PATH;
++  const res = await fetchImpl(u.href, { redirect: "error", signal: AbortSignal.timeout(timeoutMs) });
++  if (!res.ok) throw new Error(u.origin + ": HTTP " + res.status + (res.status === 404 ? " (no checkpoint yet: the guest serves one only once it verified its lease's history)" : ""));
++  const len = Number(res.headers.get("content-length"));
++  if (len > MAX_CHECKPOINT_BYTES) throw new Error("checkpoint size");
++  const text = await res.text();
++  if (text.length > MAX_CHECKPOINT_BYTES) throw new Error("checkpoint size");
++  return text;
++}
+--- a/site/js/core/startup-package.js
++++ b/site/js/core/startup-package.js
+@@ -75,8 +75,10 @@
+    isolation/m2/bootstrap/testdata/history-vectors.json; work/history-owner-tools-interface.txt). A cold-starting guest
+    must read every lease log from its claim on; the guest's own RPCs serve recent logs only. The package is PUBLISHED, so
+    a URL never carries a credential: no userinfo or query (refused), and a key-like path only with the owner's explicit
+-   confirmation. Nothing is pre-selected: the public options below are offered, with their provenance and limits. */
+-export const MAX_HISTORY_RPCS = 6;
++   confirmation. Nothing is pre-selected: the public options below are offered, with their provenance and limits.
++   "checkpoints" (optional, after "rpcs"): owner-committed mirror URLs of attested history checkpoints, the same URL rule
++   (work/history-checkpoint-transport-interface.txt). */
++export const MAX_HISTORY_RPCS = 6, MAX_CHECKPOINT_MIRRORS = 4;
+ const historyRe = /^https:\/\/([a-z0-9.-]+)(\/[A-Za-z0-9._~\/-]*)?$/;
+ export function historyHost(url){
+   if (typeof url !== "string" || url.length < 1 || url.length > 512) return null;
+@@ -85,38 +87,47 @@
+ }
+ export function validateHistory(h){
+   if (!plain(h) || !noNull(h)) throw new Error("owner history must be an object without nulls");
+-  onlyKeys(h, ["rpcs"]);
+-  if (!Array.isArray(h.rpcs) || h.rpcs.length < 1 || h.rpcs.length > MAX_HISTORY_RPCS) throw new Error("owner history needs 1 to " + MAX_HISTORY_RPCS + " RPCs");
+-  const hosts = new Set();
+-  h.rpcs.forEach((u, i) => {
+-    const host = historyHost(u);
+-    if (!host) throw new Error("owner history RPC must be https://<lowercase DNS name>[/path] with no port, query, fragment or credentials");
+-    if (i > 0 && !(h.rpcs[i - 1] < u)) throw new Error("owner history RPCs must be strictly ascending and unique");
+-    if (hosts.has(host)) throw new Error("owner history RPC hosts must be distinct");
+-    hosts.add(host);
+-  });
++  onlyKeys(h, ["rpcs", "checkpoints"]);
++  const has = (k) => Object.hasOwn(h, k);
++  if (!has("rpcs") && !has("checkpoints")) throw new Error("owner history needs 1 to " + MAX_HISTORY_RPCS + " RPCs");
++  if (has("rpcs") && (!Array.isArray(h.rpcs) || h.rpcs.length < 1 || h.rpcs.length > MAX_HISTORY_RPCS)) throw new Error("owner history needs 1 to " + MAX_HISTORY_RPCS + " RPCs");
++  if (has("checkpoints") && (!Array.isArray(h.checkpoints) || h.checkpoints.length < 1 || h.checkpoints.length > MAX_CHECKPOINT_MIRRORS)) throw new Error("owner history needs 1 to " + MAX_CHECKPOINT_MIRRORS + " checkpoint mirrors");
++  for (const [list, what] of [[h.rpcs || [], "RPC"], [h.checkpoints || [], "checkpoint mirror"]]){
++    const hosts = new Set();
++    list.forEach((u, i) => {
++      const host = historyHost(u);
++      if (!host) throw new Error("owner history " + what + " must be https://<lowercase DNS name>[/path] with no port, query, fragment or credentials");
++      if (i > 0 && !(list[i - 1] < u)) throw new Error("owner history " + what + "s must be strictly ascending and unique");
++      if (hosts.has(host)) throw new Error("owner history " + what + " hosts must be distinct");
++      hosts.add(host);
++    });
++  }
+   return h;
+ }
+ export const historyOperator = (url) => { const h = historyHost(url); return h ? h.split(".").slice(-2).join(".") : null; };
+ export const credentialLike = (url) => { const m = historyRe.exec(String(url)); return !!m && String(m[2] || "").split("/").some((seg) => /^[A-Za-z0-9_-]+$/.test(seg) && (seg.length >= 24 || seg.length >= 16 && /[A-Za-z]/.test(seg) && /[0-9]/.test(seg))); };
+ /* The form's lines -> the canonical member (sorted, deduplicated, checked) or null for none; the guest's words on refusal. */
+-export function historyFromForm({ rpcsText, pathIsPublic = false }){
+-  const rpcs = [...new Set(String(rpcsText || "").split(/[\s,]+/).map((x) => x.trim()).filter(Boolean))].sort();
+-  if (!rpcs.length) return null;
+-  for (const u of rpcs){
++export function historyFromForm({ rpcsText, pathIsPublic = false, checkpointsText = "" }){
++  const norm = (t) => [...new Set(String(t || "").split(/[\s,]+/).map((x) => x.trim()).filter(Boolean))].sort();
++  const rpcs = norm(rpcsText), mirrors = norm(checkpointsText);
++  if (!rpcs.length && !mirrors.length) return null;
++  for (const u of [...rpcs, ...mirrors]){
+     if (/^[a-z]+:\/\/[^/]*@/i.test(u)) throw new Error(u + ": credentials in a URL would be published with your settings");
+     if (/[?#]/.test(u)) throw new Error(u + ": a query or fragment would be published with your settings (and the guest refuses it)");
+     if (!historyHost(u)) throw new Error(u + ": must be https://<lowercase DNS name>[/path], no port");
+     if (credentialLike(u) && !pathIsPublic) throw new Error(u + ": its path looks like a provider key, and your settings are published for anyone to read; use a public endpoint or your own node, or confirm the path is public");
+   }
+-  return validateHistory({ rpcs });
++  return validateHistory({ ...(rpcs.length ? { rpcs } : {}), ...(mirrors.length ? { checkpoints: mirrors } : {}) });
+ }
++export const CHECKPOINT_SCOPE = "Checkpoint mirrors are read only by SEV-SNP direct guests of the same measured build, for this deployment: a Shield partition, or a new build, still needs history sources.";
+ export function historyWarnings(h){
+   if (!h) return ["No history sources: a fresh app guest cannot prove a lease whose claim is older than its own RPCs serve (about 5,000 blocks, under 3 hours)."];
+-  const w = [], ops = new Set(h.rpcs.map(historyOperator));
++  const w = [], rpcs = h.rpcs || [], mirrors = h.checkpoints || [], ops = new Set(rpcs.map(historyOperator));
+   if (ops.size < 2) w.push("Only " + ops.size + " independent operator: a claim older than the guest's own RPCs serve needs two operators that both serve its history.");
+-  const enclave = h.rpcs.filter((u) => /(^|\.)enclave\.host$/.test(historyHost(u)));
++  const enclave = [...rpcs, ...mirrors].filter((u) => /(^|\.)enclave\.host$/.test(historyHost(u)));
+   if (enclave.length) w.push(enclave.join(", ") + " is run by Enclave; it works only while Enclave runs it.");
++  if (mirrors.length) w.push(CHECKPOINT_SCOPE);
++  if (mirrors.length && !rpcs.length) w.push("Checkpoint mirrors without history sources: the blocks after a checkpoint are read from the guest's own RPCs alone, which serve recent logs only; keep the mirrors refreshed.");
+   return w;
+ }
+ /* sdk/bootstrap/package.mjs HISTORY_PUBLIC_OPTIONS (provenance: read-only probes of 2026-10-20). Offered, never selected. */
+--- /dev/null
++++ b/verifier/history-checkpoint.mjs
+@@ -0,0 +1,219 @@
++// verifier/history-checkpoint.mjs: attested history checkpoints for the owner's tools (cli: enclave history checkpoint;
++// work/history-checkpoint-transport-interface.txt). The envelope a measured SEV-SNP guest serves at
++// /.well-known/enclave-history-checkpoint (isolation/m2/bootstrap/checkpoint_producer.go) is read here as strictly as a
++// consuming guest reads it (checkpoint.go AdoptCheckpoint: exact members, the statement in its canonical form, this
++// chain/ledger/deployment, every log inside the range, ordered, a lease log of this deployment), and its evidence is judged
++// with this repository's SNP primitives (verifier/snp.mjs, relay/snp-verify.mjs): VCEK -> ASK -> the PINNED ARK, an
++// ARK-signed CRL that is REQUIRED and fresh, DEBUG/MIGRATE_MA off, VMPL0, the VCEK naming the report's chip and TCB, a
++// TCB floor on the reported AND committed TCB, the expected measurement, HOST_DATA = the deployment, and REPORT_DATA =
++// sha256("enclave-history-checkpoint-v1\0" || statement) || 32 zero bytes.
++//
++// The tools only help an owner carry and refresh checkpoints: the guest that adopts one verifies it again, against its
++// OWN measurement and TCB. Collateral (the certificate table, the CRL) may come from anywhere (AMD's KDS by default):
++// AMD's chain authenticates it, not its carrier. No verdict here is weaker than "rejected" on a failed check; without an
++// expected measurement the evidence is NOT judged and the result says so ("unverified").
++import { createHash, X509Certificate } from "node:crypto";
++import { parseReportStrict, checkChain, checkCrl, verifyReportSignature, JUDGED_MAX_REPORT_VERSION } from "./snp.mjs";
++import { AMD_ARK_SHA256, decodeTcb, TCB_FIELDS, snpProductHint, kdsVcekUrl, vcekMatchesReport, checkMinTcb } from "../relay/snp-verify.mjs";
++import { TCB_FLOORS } from "./metal-box.mjs";
++import { parseUniqueJSON } from "../sdk/bootstrap/package.mjs";
++
++export const CHECKPOINT_PATH = "/.well-known/enclave-history-checkpoint";
++export const MAX_CHECKPOINT_BYTES = 32 << 20;
++const DOMAIN = Buffer.from("enclave-history-checkpoint-v1\0");
++const TOPICS = new Set([
++  "0xa8cc21eb0ec0b0b7328426babbe37866c627edfd2ae57aeaed4f54abc0534bc0", // Claimed
++  "0xc3f167f2092d6942fb4264b1759de5eda7eedc20287375c9eddd62e98a560b3e", // Renewed
++  "0x0e334fd11ab7bea6d2bda89338c0f25674e099b70dd28aaaee262fbecba48882", // Released
++]);
++const GUID = { vcek: "63da758de6644564adc5f4b93be8accd", ask: "4ab7b379bbac4fe4a02f05aef327c782", ark: "c0b406a4a803495297433fb6014cd0ae" };
++const word = (s) => typeof s === "string" && /^0x[0-9a-f]{64}$/.test(s);
++const uint = (n) => Number.isSafeInteger(n) && n >= 0;
++const b64 = /^[A-Za-z0-9+/]*={0,2}$/;
++
++// The top-level member `key` of a JSON object text, as its exact bytes (the statement binding covers them).
++function rawMember(text, key) {
++  let i = 0, depth = 0, found = null;
++  const n = text.length;
++  while (i < n) {
++    const c = text[i];
++    if (c === '"') {
++      let j = i + 1;
++      while (j < n && text[j] !== '"') j += text[j] === "\\" ? 2 : 1;
++      const s = text.slice(i, j + 1);
++      i = j + 1;
++      if (depth === 1 && JSON.parse(s) === key) {
++        let k = i;
++        while (/\s/.test(text[k])) k++;
++        if (text[k] !== ":") continue; // a value that spells the key, not the key
++        i = k + 1;
++        while (/\s/.test(text[i])) i++;
++        const start = i;
++        let d = 0;
++        for (; i < n; i++) {
++          const ch = text[i];
++          if (ch === '"') { i++; while (i < n && text[i] !== '"') i += text[i] === "\\" ? 2 : 1; continue; }
++          if (ch === "{" || ch === "[") d++;
++          else if (ch === "}" || ch === "]") { d--; if (d === 0) { found = text.slice(start, i + 1); break; } }
++        }
++        return found;
++      }
++      continue;
++    }
++    if (c === "{" || c === "[") depth++;
++    else if (c === "}" || c === "]") depth--;
++    i++;
++  }
++  return null;
++}
++
++// The canonical statement text, exactly as the guest's json.Marshal writes it.
++export function canonicalStatement(st) {
++  return JSON.stringify({ v: st.v, chainId: st.chainId, ledger: st.ledger, deployment: st.deployment, lo: st.lo, hi: st.hi,
++    logs: st.logs.map((l) => ({ block: l.block, index: l.index, blockHash: l.blockHash, topics: l.topics, data: l.data })) });
++}
++
++export function checkpointReportData(statementText) {
++  return Buffer.concat([createHash("sha256").update(DOMAIN).update(Buffer.from(statementText, "utf8")).digest(), Buffer.alloc(32)]);
++}
++
++// parseCheckpoint(bytes, scope) -> { statement, statementText, report, certs, crl }; throws the guest's refusal otherwise.
++// scope: { chainId, ledger, deployment } the statement must name (lowercase hex).
++export function parseCheckpoint(bytes, { chainId, ledger, deployment }) {
++  bytes = Buffer.from(bytes);
++  if (!bytes.length || bytes.length > MAX_CHECKPOINT_BYTES) throw Error("checkpoint size");
++  let text, env;
++  try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); env = parseUniqueJSON(text); } catch { throw Error("checkpoint envelope: not an unambiguous JSON object"); }
++  if (!env || typeof env !== "object" || Array.isArray(env)) throw Error("checkpoint envelope: not an unambiguous JSON object");
++  for (const k of Object.keys(env)) if (!["statement", "report", "certs", "crl"].includes(k)) throw Error(`checkpoint envelope: unknown member "${k}"`);
++  for (const k of ["report", "certs"]) if (typeof env[k] !== "string") throw Error(`checkpoint envelope: ${k} missing`);
++  if (env.crl !== undefined && typeof env.crl !== "string") throw Error("checkpoint envelope: crl is not a string");
++  for (const k of ["report", "certs", "crl"]) if (env[k] !== undefined && !b64.test(env[k])) throw Error("checkpoint evidence is not base64");
++  const statementText = rawMember(text, "statement");
++  if (!statementText) throw Error("checkpoint envelope: statement missing");
++  const st = env.statement;
++  if (!st || typeof st !== "object" || Array.isArray(st) || !Array.isArray(st.logs)) throw Error("checkpoint statement: not an object");
++  if (canonicalStatement(st) !== statementText) throw Error("checkpoint statement is not in canonical form");
++  if (st.v !== 1 || st.chainId !== chainId || st.ledger !== String(ledger).toLowerCase() || st.deployment !== String(deployment).toLowerCase())
++    throw Error("checkpoint statement names another chain, ledger or deployment");
++  if (!uint(st.lo) || !uint(st.hi) || st.lo < 1 || st.lo > st.hi || st.logs.length > 100000) throw Error("checkpoint statement range is invalid");
++  let prev = null;
++  for (const l of st.logs) {
++    if (!uint(l.block) || !uint(l.index) || l.block < st.lo || l.block > st.hi || (prev && (l.block < prev.block || (l.block === prev.block && l.index <= prev.index))))
++      throw Error("checkpoint logs are outside the range or out of order");
++    if (!Array.isArray(l.topics) || l.topics.length < 2 || l.topics[1] !== st.deployment || !TOPICS.has(l.topics[0])) throw Error("checkpoint holds a log that is not this deployment's lease log");
++    if (!word(l.blockHash) || typeof l.data !== "string" || !/^0x[0-9a-f]*$/.test(l.data)) throw Error("checkpoint log is not canonical");
++    if (!l.topics.every(word)) throw Error("checkpoint log topic is not canonical");
++    prev = l;
++  }
++  const dec = (s) => (s === undefined ? null : Buffer.from(s, "base64"));
++  return { statement: st, statementText, report: dec(env.report), certs: dec(env.certs), crl: dec(env.crl) };
++}
++
++// The extended report's certificate table ({guid(16), offset(4), length(4)}*, zero-terminated).
++export function auxblobEntry(aux, guid) {
++  if (!aux || aux.length > 64 * 1024) return null;
++  for (let o = 0; o + 24 <= aux.length; o += 24) {
++    const g = aux.subarray(o, o + 16).toString("hex");
++    if (/^0+$/.test(g)) break;
++    const off = aux.readUInt32LE(o + 16), len = aux.readUInt32LE(o + 20);
++    if (g === guid) return len > 0 && off + len <= aux.length ? aux.subarray(off, off + len) : null;
++  }
++  return null;
++}
++export function buildAuxblob({ vcek, ask, ark }) {
++  const ents = [[GUID.vcek, vcek], [GUID.ask, ask], [GUID.ark, ark]];
++  let off = 24 * (ents.length + 1);
++  const tab = [], data = [];
++  for (const [g, der] of ents) {
++    const w = Buffer.alloc(8);
++    w.writeUInt32LE(off, 0); w.writeUInt32LE(der.length, 4); off += der.length;
++    tab.push(Buffer.from(g, "hex"), w); data.push(der);
++  }
++  return Buffer.concat([...tab, Buffer.alloc(24), ...data]);
++}
++const pem = (der) => `-----BEGIN CERTIFICATE-----\n${der.toString("base64").replace(/(.{64})/g, "$1\n").replace(/\n$/, "")}\n-----END CERTIFICATE-----\n`;
++
++// The envelope again, the statement's exact bytes kept, with this certificate table and CRL (as the guest's EncodeCheckpoint
++// orders it).
++export function encodeCheckpoint({ statementText, report, certs, crl }) {
++  return Buffer.from(`{"statement":${statementText},"report":${JSON.stringify(report.toString("base64"))},"certs":${JSON.stringify(certs.toString("base64"))}`
++    + (crl && crl.length ? `,"crl":${JSON.stringify(crl.toString("base64"))}` : "") + "}");
++}
++
++// completeCollateral(bytes, scope, collateral, { refreshCrl }) -> { bytes, sources }: the certificate table filled from
++// `collateral` (verifier/collateral.mjs: AMD KDS by default in the CLI) where the producer's host attached none, and the CRL
++// taken from it when the envelope has none or refreshCrl is set. Nothing is judged here (verifyCheckpoint does).
++export async function completeCollateral(bytes, scope, collateral, { refreshCrl = false } = {}) {
++  const cp = parseCheckpoint(bytes, scope);
++  const p = parseReportStrict(cp.report);
++  const product = snpProductHint(p);
++  if (!product) throw Error("checkpoint report: the product line is unknown (report version 2 or an unknown CPUID)");
++  const sources = {};
++  let vcek = auxblobEntry(cp.certs, GUID.vcek), ask = auxblobEntry(cp.certs, GUID.ask), ark = auxblobEntry(cp.certs, GUID.ark);
++  if (!vcek) {
++    const tcb = p.reportedTcb.toString("hex"), chip = p.chipId.toString("hex");
++    const v = await collateral.vcek(product, chip, tcb, kdsVcekUrl(product, p).replace(/^https:\/\/[^/]+\//, ""));
++    if (!v) throw Error("no VCEK for this chip and TCB from the collateral source");
++    vcek = Buffer.from(v.der); sources.vcek = v.source;
++  }
++  if (!ask || !ark) {
++    const c = await collateral.chain(product);
++    const certs = String(c.pem).split(/(?=-----BEGIN CERTIFICATE-----)/).filter((s) => s.includes("CERTIFICATE")).map((s) => new X509Certificate(s).raw);
++    if (certs.length !== 2) throw Error("the collateral source's AMD chain is not ASK then ARK");
++    [ask, ark] = certs; sources.chain = c.source;
++  }
++  let crl = cp.crl;
++  if (!crl || !crl.length || refreshCrl) {
++    const c = await collateral.crl(product);
++    if (!c) throw Error("no CRL from the collateral source");
++    crl = Buffer.from(c.der); sources.crl = c.source;
++  }
++  return { bytes: encodeCheckpoint({ statementText: cp.statementText, report: cp.report, certs: buildAuxblob({ vcek, ask, ark }), crl }), sources };
++}
++
++// verifyCheckpoint(bytes, { chainId, ledger, deployment, measurement?, minTcb?, now?, roots? })
++//   -> { status: "verified" | "unverified" | "rejected", reasons, claims }
++// "unverified": the envelope, the statement, its scope, the binding and HOST_DATA were checked, the AMD evidence was NOT
++// (no expected measurement given): never something to rely on. minTcb defaults to this repository's published floors.
++export async function verifyCheckpoint(bytes, { chainId, ledger, deployment, measurement = null, minTcb = TCB_FLOORS, now = new Date(), roots = AMD_ARK_SHA256 }) {
++  const reasons = [], claims = {};
++  const reject = (why) => ({ status: "rejected", reasons: [...reasons, `REJECT: ${why}`], claims });
++  let cp;
++  try { cp = parseCheckpoint(bytes, { chainId, ledger, deployment }); } catch (e) { return reject(e.message); }
++  const st = cp.statement;
++  Object.assign(claims, { lo: st.lo, hi: st.hi, logs: st.logs.length, claims: st.logs.filter((l) => l.topics[0].startsWith("0xa8cc")).length });
++  reasons.push(`statement: canonical, chain ${st.chainId}, ledger ${st.ledger}, deployment ${st.deployment}, blocks ${st.lo}-${st.hi}, ${st.logs.length} lease log(s), each inside the range and this deployment's`);
++  let p;
++  try { p = parseReportStrict(cp.report); } catch (e) { return reject(`report shape: ${e.message}`); }
++  if (p.version > JUDGED_MAX_REPORT_VERSION) return reject(`report version ${p.version} is outside the judged range 2..${JUDGED_MAX_REPORT_VERSION}`);
++  const product = snpProductHint(p);
++  if (!product) return reject("product line: report version 2 carries no CPUID, or an unknown CPUID");
++  Object.assign(claims, { product, measurement: p.measurement.toString("hex"), tcb: decodeTcb(product, p.reportedTcb), chipId: p.chipId.toString("hex") });
++  if (!p.reportData.equals(checkpointReportData(cp.statementText))) return reject("binding: REPORT_DATA is not this statement's binding");
++  if (!p.hostData.equals(Buffer.from(String(deployment).slice(2), "hex"))) return reject("host data: HOST_DATA is not the expected deployment");
++  reasons.push("REPORT_DATA binds exactly this statement; HOST_DATA is this deployment");
++  if (!measurement) return { status: "unverified", reasons: [...reasons, "NOT VERIFIED: no expected measurement was given, so the AMD evidence was not judged (the adopting guest judges it against its own)"], claims };
++  if (p.policyBits.debug) return reject("guest policy allows DEBUG: the host can read guest memory");
++  if (p.policyBits.migrateMa) return reject("guest policy allows MIGRATE_MA");
++  if (p.vmpl !== 0) return reject(`report is from VMPL${p.vmpl}, policy expects VMPL0`);
++  const vcekDer = auxblobEntry(cp.certs, GUID.vcek), askDer = auxblobEntry(cp.certs, GUID.ask), arkDer = auxblobEntry(cp.certs, GUID.ark);
++  if (!vcekDer || !askDer || !arkDer) return reject("collateral: the certificate table lacks the VCEK, ASK or ARK (complete it: enclave history checkpoint export/import)");
++  const ch = checkChain({ vcekDer, chainPem: pem(askDer) + pem(arkDer), product, now, roots });
++  if (!ch.ok) return reject(`chain: ${ch.why}`);
++  reasons.push(...ch.reasons);
++  const crl = checkCrl({ crlDer: cp.crl, ark: ch.ark, ask: ch.ask, now, mode: "required" });
++  if (!crl.ok) return reject(crl.reasons.join("; "));
++  reasons.push(...crl.reasons); claims.crlNextUpdate = crl.nextUpdate?.toISOString() ?? null;
++  const sig = verifyReportSignature(p, ch.vcek);
++  if (!sig.ok) return reject(`signature: ${sig.why}`);
++  const mm = vcekMatchesReport(ch.vcek.raw, product, p);
++  if (mm) return reject(`vcek identity: ${mm}`);
++  const t = checkMinTcb(minTcb, product, p);
++  if (!t.ok || !t.checked) return reject(`tcb policy: ${t.reason}`);
++  const committed = decodeTcb(product, p.committedTcb), low = TCB_FIELDS[product].filter((k) => committed[k] < minTcb[product][k]);
++  if (low.length) return reject(`tcb policy: committed TCB below the floor: ${low.map((k) => `${k} ${committed[k]} < ${minTcb[product][k]}`).join(", ")}`);
++  if (p.measurement.toString("hex") !== String(measurement).toLowerCase()) return reject("measurement: the launch measurement is not the expected one");
++  reasons.push(`PSP signature verifies with the VCEK of this chip and TCB; ${t.reason}; committed TCB meets it; the launch measurement is the expected one`);
++  return { status: "verified", reasons, claims };
++}

@@ -1,0 +1,12 @@
+--- frozen/src/update-host.r4.ps1	2026-10-21 18:50:59.730881052 -0700
++++ src/update-host.r5.ps1	2026-10-21 19:20:56.051167866 -0700
+@@ -120,6 +120,9 @@
+ function Install($dir, $name, $owner, $setup, [switch] $Delta) {
+   # ENCLAVE_UPDATING: install-host.ps1 leaves the \Enclave\Update task (this script's own) running and registered as is
+   $env:ENCLAVE_UPDATING = "1"
++  # as in Channel: the installer's stderr under "Stop" would throw here in Windows PowerShell 5.1, mid-install, and skip the
++  # exit-code handling below (rollback or RECOVERY REQUIRED); relaxed for this call only, the exit code is what is judged
++  $ErrorActionPreference = "Continue"
+   $extra = @(); if ($Delta) { $extra += "-Delta" }
+   $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dir "install-host.ps1") -Name $name -Owner $owner -SetupExe $setup @extra 2>&1
+   $code = $LASTEXITCODE

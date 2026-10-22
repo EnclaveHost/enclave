@@ -1,0 +1,161 @@
+--- root-a1-provider.orig.py
++++ root-a1-provider.py
+@@ -16,7 +16,7 @@
+ import argparse, base64, calendar, hashlib, json, os, pathlib, subprocess, sys, time
+ 
+ HERE = pathlib.Path(__file__).resolve().parent
+-WORK = HERE.parent.parent
++WORK = next(d for d in HERE.parents if (d / "host-service-transport-20261021").is_dir())   # work/, wherever this copy sits
+ OUT = HERE / "root-runs"
+ BUNDLE = (WORK / "host-service-transport-20261021/stage/network/wg-provider.mjs", "39d1513b8a884317fcc9b82f4057aeee34414b1902fe06e53af0b74d3a1b6563")
+ NUCBOX = "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a"   # keccak256("https://api.enclave.host/t/nucbox-k11-4")
+@@ -42,11 +42,17 @@
+ 
+ REMOTE = r'''
+ import json, hashlib, os, re, shutil, subprocess, sys, time
+-D = "/etc/systemd/system/enclave-network-provider.service.d"
++D = P.get("dropinDir", "/etc/systemd/system/enclave-network-provider.service.d")
++S = P.get("sleepScale", 1)   # fixtures only (0); production waits are unchanged
+ def sha(p):
+     try: return hashlib.sha256(open(p, "rb").read()).hexdigest()
+     except FileNotFoundError: return "absent"
+-def run(*a, inp=None, t=60): return subprocess.run(list(a), input=inp, capture_output=True, text=True, timeout=t)
++TS = P.get("timeoutScale", 1)   # fixtures only (<1 simulates a timeout quickly); production timeouts are unchanged
++def run(*a, inp=None, t=60): return subprocess.run(list(a), input=inp, capture_output=True, text=True, timeout=t * TS)
++def checked(*a, t=60):   # a state-changing systemctl call: a non-zero exit is a failure, not a shrug
++    r = run(*a, t=t)
++    if r.returncode != 0: raise RuntimeError("%s exited %d: %s" % (" ".join(a[:3]), r.returncode, (r.stderr or r.stdout)[-200:]))
++    return r
+ def argv():
+     m = re.search(r"argv\[\]=([^;]*)", run("systemctl", "show", "enclave-network-provider", "-p", "ExecStart", "--value").stdout)
+     return m.group(1).split() if m else []
+@@ -63,23 +69,38 @@
+             "dropins": {f: sha(os.path.join(D, f)) for f in sorted(os.listdir(D))}, "files": {p: sha(p) for p in P["files"]},
+             "conntrack": shutil.which("conntrack"), "memAvailMiB": int(mem) // 1024, "nftRulesSha": hashlib.sha256("\n".join(n).encode()).hexdigest(), "nftLines": len(n)}
+ def dropin_text(step): return "[Service]\nExecStart=\nExecStart=%s %s/wg-provider.mjs %s\n" % (P["node"], P["rel"], P["cfg"][step])
++def derived(step):   # the stage's config bytes, re-derived from the PINNED live config: live + exactly this hostServices
++    return (json.dumps({**json.load(open(P["liveCfg"])), "hostServices": P["hs"][step]}, indent=1) + "\n").encode()
++def target_ok(step):   # the release this step runs: the pinned bundle + its derived config, byte for byte
++    if sha(P["rel"] + "/wg-provider.mjs") != P["bundleSha"]: raise SystemExit("PIN: the release bundle is not 39d1513b")
++    c = P["cfg"][step]
++    if not os.path.exists(c) or open(c, "rb").read() != derived(step): raise SystemExit("PIN: %s is not the config derived from the pinned live config" % c)
++    return sha(c)
++def pre_mutation(want_names):   # everything the restart depends on, re-read NOW (nothing is trusted from the stage time)
++    if sha(P["liveBundle"]) != P["liveBundleSha"]: raise SystemExit("PIN: the original bundle is not 464cad34 (no rollback target)")
++    if sha(P["liveCfg"]) != P["liveConfigSha"]: raise SystemExit("PIN: the live config is not 7df6eba5")
++    names = sorted(os.listdir(D))
++    if names != sorted(want_names): raise SystemExit("CAS: the drop-in set is %s, not exactly %s (no other override may exist)" % (names, sorted(want_names)))
++    for f, h in P["dropins"].items():
++        if sha(os.path.join(D, f)) != h: raise SystemExit("CAS: the existing drop-in %s changed" % f)
+ def logs(since):   # pattern-limited lines only, never a log dump
+     t = run("journalctl", "-u", "enclave-network-provider", "--since", "@%d" % since, "-o", "cat", "--no-pager", t=30).stdout
+     return [l[:300] for l in t.splitlines() if re.search(r"restored \d+ peer|provider [0-9a-f]{32} up|dns role of host|DNS 53|hostServices|HOST SERVICES|platform host policy", l)][-25:]
+ def set_dropin(text):
+     p = os.path.join(D, P["dropin"])
+-    if text is None: os.unlink(p)
++    if text is None:
++        if os.path.exists(p): os.unlink(p)
+     else:
+         tmp = p + ".tmp"; open(tmp, "w").write(text); os.chmod(tmp, 0o644); os.replace(tmp, p)
+-    run("systemctl", "daemon-reload")
++    checked("systemctl", "daemon-reload")
+ def restart_and_wait(want_argv):
+-    t0 = int(time.time()); run("systemctl", "restart", "enclave-network-provider", t=90)
++    t0 = int(time.time()); checked("systemctl", "restart", "enclave-network-provider", t=90)
+     ok = False
+     for _ in range(15):
+-        time.sleep(2)
++        time.sleep(2 * S)
+         if unit().get("ActiveState") == "active" and argv() == want_argv: ok = True; break
+     if ok:
+-        n0 = unit().get("NRestarts"); time.sleep(15); u = unit()
++        n0 = unit().get("NRestarts"); time.sleep(15 * S); u = unit()
+         ok = u.get("ActiveState") == "active" and u.get("NRestarts") == n0 and argv() == want_argv
+     return ok, t0
+ out = {"mode": P["mode"], "before": facts()}
+@@ -112,16 +133,39 @@
+         if cur != want_cur: raise SystemExit("CAS: %s is not the expected state" % P["dropin"])
+         if argv() != P["argvBefore"]: raise SystemExit("CAS: the running argv is not the expected one")
+         if any(sha(os.path.join(D, f)) != h for f, h in P["dropins"].items()): raise SystemExit("CAS: an existing drop-in changed")
+-        rules0 = nftnorm(); set_dropin(new_text); ok, t0 = restart_and_wait(P["argvAfter"]); rules1 = nftnorm()
+-        out["diff"] = {"added": [l for l in rules1 if l not in rules0], "removed": [l for l in rules0 if l not in rules1]}
+-        out["logs"] = logs(t0); out["active"] = ok
+-        good = ok and (P["mode"] == "rollback" or P["expectAdded"] is None or (out["diff"]["added"] == P["expectAdded"] and out["diff"]["removed"] == P["expectRemoved"]))
+-        if P["mode"] == "execute" and st == "a5": good = ok and any("dns_target4" in l for l in out["diff"]["added"]) and any("dnat ip to" in l for l in out["diff"]["added"])
+-        if not good:
+-            set_dropin(cur); okb, tb = restart_and_wait(P["argvBefore"])
+-            out["autoRollback"] = {"active": okb, "argv": argv(), "logs": logs(tb)}
+-            out["verdict"] = "FAILED, rolled back" if okb else "ROOT: failed AND the rollback did not verify"
+-        else: out["verdict"] = "OK"
++        # ALL of this BEFORE set_dropin: a refusal here changes nothing and restarts nothing
++        pre_mutation(list(P["dropins"]) + ([] if cur is None else [P["dropin"]]))
++        if P["mode"] == "execute":
++            if target_ok(st) != P["stageConfigSha"]: raise SystemExit("PIN: the %s config is not the one the stage receipt approved" % st)
++            if st == "a5": target_ok("a1")                     # the running A1 release is intact (a5 rolls back to it)
++        elif st == "a5": target_ok("a1")                       # rollback a5 -> a1: its target is the pinned a1 release
++        out["prechecked"] = True
++        rules0 = nftnorm()                                     # still pre-mutation: an error here changes nothing
++        def back(why):   # ONE attempt back to the verified prior state (pre_mutation/target_ok above); never retried
++            try:
++                if os.path.exists(p + ".tmp"): os.unlink(p + ".tmp")   # a write that died midway leaves no stray file
++                set_dropin(cur); okb, tb = restart_and_wait(P["argvBefore"])
++                out["autoRollback"] = {"why": why, "active": okb, "argv": argv()}
++                try: out["autoRollback"]["logs"] = logs(tb)
++                except Exception as le: out["autoRollback"]["logsError"] = repr(le)[:200]
++                out["verdict"] = ("FAILED (%s), rolled back" % why) if okb else "ROOT: failed (%s) AND the rollback did not verify" % why
++            except Exception as re_:
++                out["autoRollback"] = {"why": why, "error": repr(re_)[:400]}
++                out["verdict"] = "UNKNOWN: ROOT attention: failed (%s) and the rollback raised; state not verified" % why
++        try:
++            out["mutated"] = True                                # from here on the unit may be changed
++            set_dropin(new_text); ok, t0 = restart_and_wait(P["argvAfter"]); rules1 = nftnorm()
++            out["diff"] = {"added": [l for l in rules1 if l not in rules0], "removed": [l for l in rules0 if l not in rules1]}
++            out["logs"] = logs(t0); out["active"] = ok
++            good = ok and (P["mode"] == "rollback" or P["expectAdded"] is None or (out["diff"]["added"] == P["expectAdded"] and out["diff"]["removed"] == P["expectRemoved"]))
++            if P["mode"] == "execute" and st == "a5": good = ok and any("dns_target4" in l for l in out["diff"]["added"]) and any("dnat ip to" in l for l in out["diff"]["added"])
++        except Exception as e:
++            out["error"] = repr(e)[:400]
++            if P["mode"] == "execute": back("exception after the drop-in write")
++            else: out["verdict"] = "UNKNOWN: ROOT attention: the rollback step raised after its write; not reversed automatically"
++        else:
++            if not good: back("verdict")
++            else: out["verdict"] = "OK"
+ except SystemExit as e: out["refused"] = str(e)
+ except Exception as e: out["error"] = repr(e)[:400]
+ out["after"] = facts()
+@@ -131,7 +175,7 @@
+ def sha(p): return hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
+ def now(): return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+ 
+-def params(front, mode, step=None):
++def params(front, mode, step=None, stage_cfg_sha=None):
+     f = FRONTS[front]
+     live_argv = [NODE, LIVE_BUNDLE[0], LIVE_CFG]
+     a1_argv, a5_argv = [NODE, REL + "/wg-provider.mjs", CFG["a1"]], [NODE, REL + "/wg-provider.mjs", CFG["a5"]]
+@@ -139,6 +183,7 @@
+     after = {("execute", "a1"): a1_argv, ("execute", "a5"): a5_argv, ("rollback", "a5"): a1_argv, ("rollback", "a1"): live_argv}.get((mode, step))
+     gate = f'iifname "{f["uplink"]}" oifname "wg-exit" ct status dnat udp dport 53 drop'
+     return {"mode": mode, "step": step, "node": NODE, "rel": REL, "cfg": CFG, "hs": HS, "dropin": DROPIN, "dropins": DROPINS,
++            "liveBundle": LIVE_BUNDLE[0], "liveBundleSha": LIVE_BUNDLE[1], "stageConfigSha": stage_cfg_sha,
+             "liveCfg": LIVE_CFG, "liveConfigSha": f["liveConfigSha"], "bundleSha": BUNDLE[1], "upload": "/root/hs-canary-upload/wg-provider.mjs",
+             "files": [LIVE_BUNDLE[0], LIVE_CFG, REL + "/wg-provider.mjs", CFG["a1"], CFG["a5"]],
+             "argvBefore": before, "argvAfter": after,
+@@ -205,14 +250,16 @@
+     if mode == "execute":
+         st = fresh(o.stage_receipt, "stage") if o.stage_receipt else None
+         if not st or not st["ok"] or st["front"] != o.front or st["step"] != step: raise SystemExit("--stage-receipt: a passing stage of this front and step")
++        stage_cfg = (st.get("result") or {}).get("stage", {}).get("configSha", "")
++        if not (len(stage_cfg) == 64 and all(c in "0123456789abcdef" for c in stage_cfg)): raise SystemExit("--stage-receipt carries no config sha")
+     name = f"attempt-a1-{o.front}-{mode}-{step}.json"
+     try: save(name, {"what": "attempt", "at": now(), "front": o.front, "mode": mode, "step": step, "helper": sha(__file__)})
+     except FileExistsError: print(f"REFUSED: {OUT / name} exists; an attempt is never retried automatically (root inspects, then moves it aside)"); return 4
+-    r = remote(o.front, params(o.front, mode, step), 300)
++    r = remote(o.front, params(o.front, mode, step, stage_cfg if mode == "execute" else None), 300)
+     save(f"a1-{o.front}-{mode}-{step}-result-{ts}.json", {"what": "result", "at": now(), "attempt": name, "result": r})
+     print(json.dumps(r, indent=1)); v = r.get("verdict")
+     print(v or "UNKNOWN: no verdict. ROOT: read the result; do not retry")
+-    return 0 if v == "OK" else 2 if v == "FAILED, rolled back" else 3
++    return 0 if v == "OK" else 2 if (v or "").startswith("FAILED (") and v.endswith("), rolled back") else 3
+ 
+ if __name__ == "__main__":
+     sys.exit(main(sys.argv[1:]))

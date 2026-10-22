@@ -1,0 +1,173 @@
+{
+  "status": "PREPARED, NOT EXECUTED. ROOT-ONLY. No remote call, upload or live mutation was made by the preparer.",
+  "frozenCandidate": {
+    "helper": "../candidate/helper/node-hold-cutover.ps1",
+    "sha256": "943a5f0173a291c8ed2a3d160552dd5ab8633069cc331ba9c39b6806460e2093",
+    "result": "../RESULT.json b14e060f (unchanged; all frozen file hashes re-verified)",
+    "rootDecision": "R2 one-pass recovery trade-off accepted by root"
+  },
+  "rootReview": {
+    "reviewBeforeExecute": [
+      "run-native.py",
+      "native-test.ps1",
+      "sim-guard.ps1"
+    ],
+    "driverSha256": "76904d053e882ce860c51fbba8e36b29dca76faeadb2aa75115fc68a6442de80",
+    "manifestSha": "831f8bc9d99cd2f6fd2c4fd666e355a272f8dd5f4d3002476c2a105cd2d75f35",
+    "planOnly": "python3 run-native.py",
+    "execute": "python3 run-native.py --execute --root-reviewed 831f8bc9d99cd2f6fd2c4fd666e355a272f8dd5f4d3002476c2a105cd2d75f35",
+    "executeGates": [
+      "--execute AND --root-reviewed <manifestSha>",
+      "5 local pins + transport c50aac8e",
+      "no native-attempt.json (O_EXCL before the first remote call)",
+      "encoded commands < 7900"
+    ]
+  },
+  "transport": {
+    "path": "work/nucbox-tls-20261021/root-activate-reviewed.py",
+    "sha256": "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f",
+    "pattern": "predecessor work/node-bounded-queries-20261022/native/run-native.py"
+  },
+  "uploadedExactBytes": {
+    "cutover.ps1": {
+      "sha256": "943a5f0173a291c8ed2a3d160552dd5ab8633069cc331ba9c39b6806460e2093"
+    },
+    "native-test.ps1": {
+      "sha256": "b231396f4bb699e681db8f4666e9766bbfa21a270b366df67b4d36ad78ca85af"
+    },
+    "sim-guard.ps1": {
+      "sha256": "f98cfbaf7802e2f6fb5be001748c2fecd5c82a17096c668e348364f8a0770973"
+    },
+    "native-path-test.ps1": {
+      "sha256": "acf28de25471dc912538bbcce546a1c32aece89d4f7ccd32af6c927e220f56a6"
+    },
+    "readiness-cadence-test.ps1": {
+      "sha256": "e150efa594100bd6ce9cfe4fa8a23a1c4b397c7d9420d0f905a549fa1d107054"
+    }
+  },
+  "uploadedRoles": {
+    "cutover.ps1": "frozen candidate 943a5f01 (parsed whole; only read-only functions extracted)",
+    "native-test.ps1": "the fixture (read-only live + bounded simulated children)",
+    "sim-guard.ps1": "tripwire wrapper for the simulated tests",
+    "native-path-test.ps1": "frozen simulated test acf28de2 (6 checks)",
+    "readiness-cadence-test.ps1": "frozen simulator e150efa5"
+  },
+  "remoteEffects": {
+    "writes": "ONLY C:\\ProgramData\\Enclave\\staging\\cutover-review-native-<uuid4 hex 12>: created, 5 files, removed + verified gone (cleanup always after a create attempt)",
+    "liveEntities": "read-only: node cmd+agent, privacy agent, manager, \\Enclave\\ tasks, manager VMs, Hyper-V VMs, 5 file hashes",
+    "taskCreation": false,
+    "neverRunOnLive": [
+      "StopNode",
+      "StartNode",
+      "RestartPrivacy",
+      "Revert",
+      "NodeTask",
+      "Invoke-TaskCommand",
+      "CasWrite"
+    ]
+  },
+  "scope": {
+    "nativeReadOnly": [
+      "Windows PowerShell 5.1 parse of all 5 scripts (0 errors)",
+      "static: 26 extracted candidate functions call no mutating cmdlet/helper; fixture tripwires every mutating cmdlet",
+      "NodeProcs current cmd+agent identity; Same genuine true, stale start false, wrong pid false",
+      "OwnsAgentPort genuine agent true, wrong real PID (cmd.exe) false",
+      "HostState: old node has no leaseReadiness; LeaseReady rejects actual state",
+      "AgentUp(old genuine agent, 25 s) refuses within bound after >=2 host-state polls; readiness still absent afterwards; AgentUp(wrong PID, 15 s) refuses",
+      "before/after preservation of identities, tasks, VMs (count+digest), file hashes"
+    ],
+    "simulated": "native-path 6/6 and cadence 60/60 at 9.7/10.5/13/15 s in child powershell.exe behind tripwires: mocked clock/processes/tasks/queries, CONTROL FLOW ONLY, not native operation proof",
+    "notProven": [
+      "native full revert",
+      "new-node readiness (live agent c223c043 has no leaseReadiness)",
+      "end-to-end timing of the 550 s recovery budget",
+      "native Task Scheduler child termination"
+    ]
+  },
+  "bounds": {
+    "fixtureSec": 870,
+    "composition": "30 static + 5 x 120 s children + 240 s live",
+    "perQuerySec": 15,
+    "agentUpSec": 25,
+    "agentUpAllowanceMs": 5000,
+    "agentUpWrongPidSec": 15,
+    "transportValidateSec": 930,
+    "transportCreateCleanupSec": 40,
+    "directReadsBoundedOnlyByWatchdog": [
+      "Get-ScheduledTask",
+      "Get-ScheduledTaskInfo",
+      "Get-VM",
+      "Get-FileHash"
+    ],
+    "productionLoad": "~6 listener queries (~10 s each), ~12-15 GETs of 127.0.0.1:9600/v1/host/state"
+  },
+  "passCriteria": "native-result.json validation.pass === true (simulatedOk AND liveOk AND within 870 s) AND cleanup.gone === true; exit 4 = refused live part because \\Enclave\\Update runs/is due (nothing read)",
+  "preconditions": [
+    "root reviewed sources and manifest",
+    "outside the \\Enclave\\Update window (hourly :13:36 per snapshot)",
+    "no concurrent root native run on the node"
+  ],
+  "rootUpdateIncorporated": {
+    "snapshotAt": "2026-10-22T01:44:55.177445+00:00",
+    "pinnedAsDriftReport": {
+      "runNode": "3366a005",
+      "localConfig": "85698d20",
+      "privacyConfig": "d5810879",
+      "privacyAgent": "7ef4e230",
+      "nodeAgent": "c223c043"
+    },
+    "minLeaseAtSnapshotSec": 480,
+    "activation": "NOT permitted: 480 < 910 required; this package never authorizes activation",
+    "expectation": "live agent c223c043 is not lease-readiness candidate 76cac355, so AgentUp must refuse; a present leaseReadiness fails the precondition check and root decides"
+  },
+  "localEvidence": {
+    "fixture": {
+      "log": "fixture5.out / fixture5.guard.log",
+      "queueExit": 0,
+      "checks": "static-only pass, sim native-path 6/6, cadence 10.5 60/60, 4 negative controls ok"
+    },
+    "driver": {
+      "log": "driver1.out / driver1.guard.log",
+      "queueExit": 0,
+      "tests": "8/8"
+    },
+    "plan": {
+      "log": "plan.out / plan.guard.log",
+      "encodedSizes": {
+        "create": 1876,
+        "validate": 4188,
+        "cleanup": 2224
+      },
+      "limit": 7900
+    },
+    "defectFoundWhilePreparing": "sim-guard did not propagate 'exit N' from dot-sourced tests (history/fixture1.out); fixed",
+    "scope": "Linux pwsh 7 and python only; NOT Windows evidence; Windows PowerShell 5.1 behaviour of the simulated tests is untested until the native run"
+  },
+  "ifCleanupUnverified": "confirm no fixture powershell.exe remains, then remove only the cutover-review-native-<hex> stage; nothing else to roll back",
+  "files": {
+    "NATIVE-README.txt": "e1585cd1c3232028ee91c6dd24fc7e4904a18efc6d857ac8f495fb7d1be73091",
+    "cutover.ps1": "943a5f0173a291c8ed2a3d160552dd5ab8633069cc331ba9c39b6806460e2093",
+    "driver1.guard.log": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+    "driver1.out": "dbd2e9fd802073ec23514b4e232a73060bd39d7c188b0c52c23b57037b278646",
+    "fixture5.guard.log": "8bf5be91b703c732700dea982aff062b00499a55de48a7fea67b9b2bc0556e6f",
+    "fixture5.out": "a9f0161c57cdd866675e398940002aed902e1b271b9b4c3d24616495c789664c",
+    "history/fixture1.guard.log": "9783615f5192d250507ad586803111df1e4f0e296cf0d40452d4a28b0b180f38",
+    "history/fixture1.out": "f4c155ba8c2c6811192aaa3c93236da071b18e72fbde284ce509c540a206adb7",
+    "history/fixture2.guard.log": "f98ede74acab40f383d931793f96332115c0c9686cf9c31547349ff29e8b3220",
+    "history/fixture2.out": "0482a00e96f01fddcef46a22b4ba77fc0980957ebfa2173e18a711d83068ce7f",
+    "history/fixture3.guard.log": "86977eb4bab58f72db3b617661c6481023a0fd310f0596f1c43ac82408e61f8f",
+    "history/fixture3.out": "a86d0ac20b5c9107b08fa668d5b0aa2462e0bbc49cb587bdef0541a481dc76e5",
+    "history/fixture4.guard.log": "7dac8a63230e1d4e49958e09e91b9a662ff6bf7ded1c4692b124ef8902a63c25",
+    "history/fixture4.out": "b3696de82826bf16397cc8b243099c106c65ea1df7c803a78764858086ce5008",
+    "native-path-test.ps1": "acf28de25471dc912538bbcce546a1c32aece89d4f7ccd32af6c927e220f56a6",
+    "native-test.ps1": "b231396f4bb699e681db8f4666e9766bbfa21a270b366df67b4d36ad78ca85af",
+    "plan.guard.log": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+    "plan.json": "bc046ece22a4d9cc47027791c7c3d43536e627de26820124d3c1b3975f3f7ef7",
+    "plan.out": "704ae66aa56d020447fe6e8874d82056842052d5513632e5e35dca80f7f58518",
+    "readiness-cadence-test.ps1": "e150efa594100bd6ce9cfe4fa8a23a1c4b397c7d9420d0f905a549fa1d107054",
+    "run-native.py": "76904d053e882ce860c51fbba8e36b29dca76faeadb2aa75115fc68a6442de80",
+    "sim-guard.ps1": "f98cfbaf7802e2f6fb5be001748c2fecd5c82a17096c668e348364f8a0770973",
+    "tools/driver-test.py": "3567455444221ee87881b593f88f888f1155ef00fea890698a4d2d0f175e0303",
+    "tools/fixture-test.sh": "2837a1c7d3d8519101dc704c207813f8f30fa0c45319c15d239f20b5e25077e3"
+  }
+}

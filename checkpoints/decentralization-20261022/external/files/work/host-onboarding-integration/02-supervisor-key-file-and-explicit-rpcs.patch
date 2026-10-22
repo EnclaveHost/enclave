@@ -1,0 +1,45 @@
+--- a/supervisor.js	2026-10-19 21:06:01.303842656 -0700
++++ b/supervisor.js	2026-10-19 21:07:04.813854329 -0700
+@@ -35,7 +35,7 @@
+ import { execFileSync, execFile } from "node:child_process";
+ import { promisify } from "node:util";
+ const pexec = promisify(execFile);
+-import { openSync, readSync, closeSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, chmodSync, statfsSync, readdirSync, unlinkSync, statSync } from "node:fs";
++import { openSync, readSync, closeSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, chmodSync, statfsSync, readdirSync, unlinkSync, statSync, lstatSync } from "node:fs";
+ import { tmpdir } from "node:os";
+ import { join, dirname } from "node:path";
+ import { WebSocketServer, createWebSocketStream } from "ws";
+@@ -303,7 +303,11 @@
+ // 2026-07-17 on mainnet.base.org). BASE_RPC stays FIRST so an explicit
+ // override is authoritative; the rest are fallbacks (mirrors cli/enclave.mjs
+ // and the relay's publicnode lesson).
+-const RPC_POOL = [...new Set([BASE_RPC,
++// BASE_RPCS (comma-separated): the operator's chosen RPCs, EXACTLY - no public defaults are appended. An independent
++// host (cli/host-independent-lifecycle.mjs) names its quorum here so its reads never reach an RPC it did not choose.
++const RPC_POOL = process.env.BASE_RPCS
++  ? [...new Set(process.env.BASE_RPCS.split(",").map((s) => s.trim()).filter(Boolean))]
++  : [...new Set([BASE_RPC,
+   "https://base-rpc.publicnode.com", "https://base.drpc.org",
+   "https://1rpc.io/base", "https://mainnet.base.org"])];
+ const rpcTransport = () => viemFallback(RPC_POOL.map((u) => viemHttp(u, { retryCount: 2, retryDelay: 500 })));
+@@ -471,7 +475,19 @@
+ // opt-in: if REGISTRY_ENABLED isn't set, the enclave just doesn't advertise.
+ const REGISTRY_ENABLED  = /^(1|true|on)$/i.test(process.env.REGISTRY_ENABLED || "");
+ // (REGISTRY_ADDRESS is a live binding from ./addressbook.js)
+-const REGISTRY_PK       = process.env.REGISTRY_PRIVATE_KEY || "";        // operator key (enclave secret); needs a little Base ETH for gas
++// operator key (enclave secret); needs a little Base ETH for gas. REGISTRY_PRIVATE_KEY_FILE keeps it out of the
++// environment: a regular file of this user's, mode 0600/0400 (cli/host-independent-lifecycle.mjs operator.key).
++// A problem is FATAL like need(): the fatal guard above would swallow a throw and leave a host that never registers.
++function registryKeyFile(file) {
++  const bad = (why) => { console.error(`FATAL: REGISTRY_PRIVATE_KEY_FILE ${why}`); process.exit(1); };
++  let st; try { st = lstatSync(file); } catch { bad("does not exist"); }
++  if (!st.isFile() || (st.mode & 0o077) || (process.getuid && st.uid !== process.getuid())) bad("must be this user's regular 0600 file");
++  const k = readFileSync(file, "utf8").trim();
++  if (!/^(0x)?[0-9a-fA-F]{64}$/.test(k)) bad("does not hold a private key");
++  return k.startsWith("0x") ? k : "0x" + k;
++}
++if (process.env.REGISTRY_PRIVATE_KEY && process.env.REGISTRY_PRIVATE_KEY_FILE) { console.error("FATAL: set REGISTRY_PRIVATE_KEY or REGISTRY_PRIVATE_KEY_FILE, not both"); process.exit(1); }
++const REGISTRY_PK       = process.env.REGISTRY_PRIVATE_KEY || (process.env.REGISTRY_PRIVATE_KEY_FILE ? registryKeyFile(process.env.REGISTRY_PRIVATE_KEY_FILE) : "");
+ const ENCLAVE_REPO      = process.env.ENCLAVE_REPO || "";                // e.g. "EnclaveHost/enclave" - what callers attest against; MUST match GitHub's canonical casing (Sigstore compares it verbatim)
+ const ENCLAVE_MEASUREMENT = process.env.ENCLAVE_MEASUREMENT || ("0x" + "0".repeat(64)); // optional cross-check
+ const HEARTBEAT_SEC     = parseInt(process.env.REGISTRY_HEARTBEAT_SEC || "900", 10);

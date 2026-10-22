@@ -1,0 +1,117 @@
+--- hs2lib.py	2026-10-21 06:36:30.768342007 -0700
++++ review-fix/hs2lib.py	2026-10-21 06:46:56.094771850 -0700
+@@ -26,6 +26,40 @@
+ STAGING = r"C:\ProgramData\Enclave\staging\hs2-artifacts-20261021"           # created by `transfer`, removed by `cleanup`
+ MARKER = ".hs2-artifacts-snapshot"                                            # its content: the manifest sha256
+ PORTS = (18188, 18189, 18153, 18154, 18190)
++OPT = r"C:\Program Files\Enclave\host-services\hs2"
++TASK_EXE = OPT + r"\bin\hostsvc-supervisor.exe"
++# Embedded (not read from local files at run time, so an emergency stop needs no local stage or snapshot). Equal to
++# STAGE-SHA256SUMS of archive d0218596... (test_hs2 and the changing phases re-check that equality).
++SCRIPT_PINS = {
++    "windows/common.ps1": "779498ac137d417c472f324c2f1e5ed3789792d4e62b9bfcb60b88ddd76feb2b",
++    "windows/fill-data.ps1": "c327e2f1a272f3b0d2a84bdfd0c4d57ee669bbee37c8252657c71ffb89ac947d",
++    "windows/start.ps1": "21167adf3ee4a8b7a25697f3d71ba8c0154f3fadddf998ee607d42d6a86e84bd",
++    "windows/health.ps1": "e203ce1cd52d923d8d7492305c9851dea53b4c14af3d195d3c0ba37180333d93",
++    "windows/stop.ps1": "4efd8647e134b6663681bf274be8b39056b725798aba673f6608882446f9376e",
++    "windows/rollback.ps1": "75e9536392085bc3e502df14132f2bc4057cbc35c38729c1d1a1c8dff2daa8d3",
++}
++BIN_PINS = {"bin/stage-tool.mjs": "9edddf920c36d8a2a8330258869655e2041c84e531138e36f20793ea49e6cf23",
++            "bin/hostsvc-supervisor.exe": "42be59ff5fef8bbc35654ac4240b09fbb71ed0c735ae0bd4da1154c170da37b1"}
++# what each remote action executes: verified IN THE SAME SESSION right before it runs (staged scripts + installed binaries)
++RUNS = {"fill": ("windows/common.ps1", "windows/fill-data.ps1", "bin/stage-tool.mjs"),
++        "start": ("windows/common.ps1", "windows/start.ps1", "windows/health.ps1", "bin/stage-tool.mjs", "bin/hostsvc-supervisor.exe"),
++        "stop": ("windows/common.ps1", "windows/stop.ps1", "bin/hostsvc-supervisor.exe"),
++        "rollback": ("windows/common.ps1", "windows/rollback.ps1", "windows/stop.ps1", "bin/hostsvc-supervisor.exe")}
++def remote_path(rel):
++    """windows/* run from the extracted stage; bin/* are the INSTALLED binaries those scripts call."""
++    return (STAGE_DIR + "\\" + rel.replace("/", "\\")) if rel.startswith("windows/") else (OPT + "\\" + rel.replace("/", "\\"))
++def pins_for(action):
++    return [(remote_path(r), {**SCRIPT_PINS, **BIN_PINS}[r]) for r in RUNS[action]]
++# stage-1 health (stage-tool health, sample mode) for this exact configuration: zone app.enclave.host, 4 static labels,
++# 936 manifest objects. Each must appear exactly once, as PASS; nothing else may appear.
++EXPECTED_HEALTH = (
++    "gate: platform host policy admits this host now",
++    "directory-replica /health",
++    "bootstrap-replica serves the manifest (1 verified by sha256, 936 by HEAD size)",
++    "route-dns answers SOA and NS for app.enclave.host (authoritative, NOERROR)",
++    "route-dns answers 4 static platform label(s) with their configured addresses",
++    "policy-mirror /health (agrees with the book's anchor; serves the anchored document)",
++)
+ SCRIPTS = ("windows/common.ps1", "windows/fill-data.ps1", "windows/start.ps1", "windows/health.ps1", "windows/stop.ps1", "windows/rollback.ps1")
+ GiB = 1 << 30
+ DISK_FLOOR = 16 * GiB          # the installer's own headroom rule, kept after this phase's writes
+@@ -71,7 +105,7 @@
+             and not (set(remote_listing) - set(local_sizes) - {MARKER}))
+ 
+ 
+-def evaluate(probe, phase, *, local_sizes=None, script_sums=None, fill_done=False):
++def evaluate(probe, phase, *, local_sizes=None, fill_done=False):
+     """The remote preflight for `phase`. probe: the read-only probe result. -> refusals[] (empty = proceed)."""
+     assert phase in PHASES, phase
+     r = []
+@@ -85,11 +119,10 @@
+         need(probe.get("taskPrincipal") == "LOCAL SERVICE" and probe.get("taskRealTriggers") == 0, "the task is not the installed manual LOCAL SERVICE task")
+         m = re.fullmatch(r"v(\d+)\.\d+\.\d+", str(probe.get("node", "")))
+         need(bool(m) and int(m.group(1)) >= 22, "node >= 22 is required")
+-        sums = script_sums or {}
+         for s in SCRIPTS:
+-            need((probe.get("scripts") or {}).get(s) == sums.get(s), f"the staged {s} is not the reviewed one")
++            need((probe.get("scripts") or {}).get(s) == SCRIPT_PINS[s], f"the staged {s} is not the reviewed one")
+     running = probe.get("taskState") == "Running"
+-    quiet = probe.get("taskState") == "Ready" and probe.get("hs2NodeProcesses") == 0 and probe.get("supervisorProcesses") == 0
++    quiet = probe.get("taskState") == "Ready" and probe.get("hs2NodeProcesses") == 0 and probe.get("supervisorProcesses") == 0 and probe.get("stageToolProcesses", 0) == 0
+     free_disk = int(probe.get("freeDiskMiB", 0)) * (1 << 20)
+     total_bin = sum(s for s in (local_sizes or {}).values())
+     if phase in ("dry-run", "transfer"):
+@@ -140,15 +173,30 @@
+     return r
+ 
+ 
+-def validate_start(start_rc, health_lines, listeners, task_state):
+-    """start.ps1 exit, the re-run health.ps1 lines, the stage-port listeners [(proto, address, port)] and the task state
+-    -> refusals[]. Loopback-only is a hard guard: stage 1 must not be reachable from the network."""
++def check_health(lines):
++    """health.ps1 output lines ('PASS|FAIL  <name>  <detail>') -> refusals[]: exactly EXPECTED_HEALTH, each once, all PASS."""
++    r, seen = [], {}
++    for l in lines:
++        st, _, rest = l.partition("  ")
++        name = rest.split("  ", 1)[0]
++        if st not in ("PASS", "FAIL"): r.append(f"unparseable health line {l[:80]!r}"); continue
++        if name not in EXPECTED_HEALTH: r.append(f"unexpected health check {name[:100]!r}"); continue
++        if name in seen: r.append(f"duplicate health check {name!r}")
++        seen[name] = st
++        if st != "PASS": r.append(f"FAIL {name}: {rest[len(name):].strip()[:160]}")
++    for name in EXPECTED_HEALTH:
++        if name not in seen: r.append(f"missing health check {name!r}")
++    return r
++
++
++def validate_start(start_rc, health_rc, health_lines, listeners, task_state):
++    """start.ps1 exit, the re-run health.ps1 exit and lines, the stage-port listeners [(proto, address, port)] and the
++    task state -> refusals[]. Loopback-only is a hard guard: stage 1 must not be reachable from the network."""
+     r = []
+     if start_rc != 0: r.append(f"start.ps1 exit {start_rc} (stage-1 health did not pass in time)")
++    if health_rc != 0: r.append(f"health.ps1 exit {health_rc}")
+     if task_state != "Running": r.append(f"the task is {task_state}, not Running")
+-    fails = [l for l in health_lines if l.startswith("FAIL")]
+-    passes = [l for l in health_lines if l.startswith("PASS")]
+-    if fails or len(passes) < 6: r.append(f"health: {len(passes)} PASS, {len(fails)} FAIL" + (f" (first: {fails[0][:160]})" if fails else ""))
++    r.extend(check_health(health_lines or []))
+     seen = {(p, port) for p, _, port in listeners}
+     for need in [("tcp", 18188), ("tcp", 18189), ("udp", 18153), ("tcp", 18153), ("tcp", 18154), ("tcp", 18190)]:
+         if need not in seen: r.append(f"{need[0]}/{need[1]} is not listening")
+@@ -157,6 +205,13 @@
+     return r
+ 
+ 
++def quiet(probe):
++    """The stage is provably stopped: task not Running, no stage port listening, no hs2 node / supervisor / stage tool."""
++    return (probe is not None and probe.get("taskState") in ("Ready", "Disabled", "absent") and not probe.get("listeners")
++            and probe.get("tcpListenOnStagePorts", 0) == 0 and probe.get("udpOnStagePorts", 0) == 0
++            and probe.get("hs2NodeProcesses") == 0 and probe.get("supervisorProcesses") == 0 and probe.get("stageToolProcesses", 0) == 0)
++
++
+ def parse_tool_json(text):
+     """The stage tool prints its result as indented JSON after any progress lines: the LAST top-level object."""
+     import json

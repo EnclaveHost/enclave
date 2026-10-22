@@ -1,0 +1,125 @@
+--- a/site/credit/index.html
++++ b/site/credit/index.html
+@@ -0,0 +1,122 @@
++<!doctype html>
++<!-- Your Enclave credit without the Enclave service. A static page at the credit vault's pinned origin (production:
++     https://enclave.host), like /recover/: it talks only to the chain endpoints you choose, and your passkey signs here.
++     Shipped as /credit/ by scripts/build-site.mjs; credit-config.json (pins + default endpoints) is served beside it. -->
++<html lang="en">
++<head>
++<meta charset="utf-8">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++<title>Your Enclave credit, directly on chain</title>
++<style>
++  body { font: 15px/1.55 system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 18px; color: #1a1a1a; }
++  h2 { font-size: 17px; margin: 28px 0 6px; }
++  textarea, select, input:not([type=checkbox]) { width: 100%; box-sizing: border-box; font: 13px/1.45 ui-monospace, monospace; margin: 4px 0 10px; padding: 7px; }
++  button { font: 600 14px system-ui; padding: 8px 14px; cursor: pointer; margin: 2px 6px 8px 0; }
++  .bad { color: #a12; } .ok { color: #165; } .mono { font-family: ui-monospace, monospace; word-break: break-all; }
++  .limits li { margin: 3px 0; } fieldset { border: 1px solid #ccc; margin: 8px 0; } [hidden] { display: none !important; }
++  #vaults li { margin: 6px 0; }
++</style>
++</head>
++<body>
++<h1>Your Enclave credit, directly on chain</h1>
++<p>Your credit lives in a vault contract that only your passkey can spend from. This page reads that vault from chain
++endpoints you choose and has your passkey sign each operation here. No Enclave account, server or API is used.
++Enclave's hosted checkout and dashboard keep working as before.</p>
++<ul class="limits" id="limits">
++  <li>Your passkey works only on this site (<span id="origin-pin" class="mono"></span>). That is how passkeys work, and the vault accepts no other site.</li>
++  <li>Credit pays for Enclave runtime only. It cannot pay transaction fees: you choose who pays the gas, in ETH (your wallet, or a relay that offers to).</li>
++  <li>To add credit by card you still need Enclave's checkout, since a card payment needs a processor. Nothing here sells or moves credit on its own.</li>
++  <li>Prepaid lease gas is not available for apps your vault owns. The gas reserve only accepts settings from the owner's own transaction, which a vault cannot send.</li>
++</ul>
++<p id="origin-note" class="bad" hidden></p>
++
++<h2>1. Chain endpoints</h2>
++<label for="rpcs">At least two independent Base RPC URLs, one per line. A read counts only when enough of them agree on it.</label>
++<textarea id="rpcs" rows="4" spellcheck="false"></textarea>
++<label for="quorum">How many must agree</label>
++<input id="quorum" type="number" min="2" max="8">
++<button id="save-rpcs">Use these endpoints</button>
++
++<h2>2. Find your vault</h2>
++<button id="find-passkey">Use my passkey</button> (you'll be asked to tap twice: two signatures are enough to recover your passkey's public key)
++<p><label for="profile-file">…or load a saved vault profile or Enclave account migration file</label>
++<input type="file" id="profile-file" accept=".json,application/json"></p>
++<p><label for="vault-address">If your passkey was added to the vault later, also enter the vault address</label>
++<input id="vault-address" placeholder="0x…" spellcheck="false"></p>
++<button id="load-saved">Load the profile saved in this browser</button>
++<ul id="vaults"></ul>
++
++<div id="vault-panel" hidden>
++  <h2>3. Your vault</h2>
++  <p id="vault-info" class="mono"></p>
++  <button id="refresh">Refresh</button><button id="save-profile">Save profile in this browser</button><button id="download-profile">Download profile</button>
++
++  <h2>Who pays the gas</h2>
++  <p>Gas is paid in ETH by an account you choose. It gets no say over your vault.</p>
++  <p><button id="payer-wallet">Pay gas with my wallet</button> <span id="payer" class="mono"></span></p>
++  <label for="relay-url">…or a relay URL. The relay can only submit your exact signed request, or refuse to.</label>
++  <input id="relay-url" placeholder="https://…" spellcheck="false">
++
++  <h2>4. An operation</h2>
++  <select id="op">
++    <option value="deploy">Deploy an app and fund it from credit</option>
++    <option value="fund">Add runtime to a deployment</option>
++    <option value="control">Change a deployment (suspend, resume, version, size, options, rate cap, cancel)</option>
++    <option value="refund">Return credit to Enclave for a card refund</option>
++    <option value="addKey">Add another passkey</option>
++    <option value="removeKey">Remove a passkey</option>
++  </select>
++  <fieldset data-op="deploy">
++    <label>App (catalog ref)<input id="deploy-appref" value="" spellcheck="false"></label>
++    <label>CPU share (millis, 1-1000)<input id="deploy-cpu" type="number" value="500"></label>
++    <label>GPU share (millis, 0-1000)<input id="deploy-gpu" type="number" value="0"></label>
++    <label>App port<input id="deploy-port" type="number" value="8080"></label>
++    <label>Declared ports<input id="deploy-ports" value=""></label>
++    <label>Config CID<input id="deploy-config" value=""></label>
++    <label><input id="deploy-public" type="checkbox" checked> Public</label>
++    <label>Rate cap (µUSDC per second; what any host may charge)<input id="deploy-maxrate" value=""></label>
++    <label>Fund with ($)<input id="deploy-fund" value=""></label>
++  </fieldset>
++  <fieldset data-op="fund" hidden>
++    <label>Deployment id<input id="fund-id" spellcheck="false"></label>
++    <label>Amount ($)<input id="fund-amount"></label>
++  </fieldset>
++  <fieldset data-op="control" hidden>
++    <label>Deployment id<input id="control-id" spellcheck="false"></label>
++    <label>Change<select id="control-action"><option>suspend</option><option>resume</option><option>version</option><option>resize</option><option>options</option><option>maxrate</option><option>cancel</option></select></label>
++    <label>Version ref (version; optional for resize)<input id="control-ref"></label>
++    <label>CPU / GPU millis (resize)<input id="control-cpu" type="number"><input id="control-gpu" type="number" value="0"></label>
++    <label>Options envelope JSON (options)<input id="control-envelope"></label>
++    <label>Rate cap µUSDC/s (maxrate)<input id="control-maxrate"></label>
++  </fieldset>
++  <fieldset data-op="refund" hidden>
++    <label>Amount ($)<input id="refund-amount"></label>
++    <label><input id="refund-ack" type="checkbox"> I understand the credit goes to Enclave's treasury, and that Enclave refunds my card separately (off-chain).</label>
++  </fieldset>
++  <fieldset data-op="addKey" hidden>
++    <button id="addkey-create">Create the new passkey</button> <span id="addkey-new" class="mono"></span>
++  </fieldset>
++  <fieldset data-op="removeKey" hidden>
++    <label>Key hash to remove<input id="removekey-hash" spellcheck="false"></label>
++  </fieldset>
++  <button id="review">Review</button>
++  <div id="review-panel" hidden>
++    <ul id="summary"></ul>
++    <button id="sign">Sign with my passkey</button>
++  </div>
++
++  <div id="send-panel" hidden>
++    <h2>5. Send it</h2>
++    <label for="request">The signed request. It holds nothing secret and is valid only until its deadline. You can give it to any sender (the CLI, a relay), or send it with the payer chosen above.</label>
++    <textarea id="request" rows="5" readonly spellcheck="false"></textarea>
++    <button id="download-request">Download request</button>
++    <button id="send">Send</button>
++  </div>
++  <h2>Pending</h2>
++  <p id="pending">Nothing is pending.</p>
++  <button id="reconcile">Check the chain</button><button id="rebroadcast">Resend the same signed request</button>
++</div>
++<p id="note" aria-live="polite"></p>
++<script type="module" src="credit.js"></script>
++</body>
++</html>

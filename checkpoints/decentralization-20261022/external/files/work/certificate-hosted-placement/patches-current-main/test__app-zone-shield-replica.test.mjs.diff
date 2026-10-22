@@ -1,0 +1,153 @@
+--- a/test/app-zone-shield-replica.test.mjs
++++ b/test/app-zone-shield-replica.test.mjs
+@@ -0,0 +1,150 @@
++// The Shield app-zone write path as SEPARATE processes (test/app-zone-shield-fleet.mjs): the Windows host's real session
++// keeper attests its (synthetic) TPM boot at each replica the package names, a Shield-direct guest's push is verified by
++// each replica on its own (host session + VBS report + agreed chain) and answered in DNS over UDP and TCP; forwarded pushes
++// are re-verified by peers with their own sessions; one replica down; refusals of invalid evidence, wrong namespace,
++// cross-deployment, another host, and a banned host at EVERY replica. No relay is configured. SYNTHETIC TPM/VBS/chain -
++// not Windows hardware, not a public CA. Run inside an unshared network namespace (test/run-shield-certificates.sh).
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import net from 'node:net';
++import dgram from 'node:dgram';
++import path from 'node:path';
++import readline from 'node:readline';
++import {spawn} from 'node:child_process';
++import {once} from 'node:events';
++import {createHash, randomBytes, sign} from 'node:crypto';
++import {fileURLToPath} from 'node:url';
++import {appPushNonce, APP_PUSH_SIG_PREFIX, appChallengeName} from '../network/app-zone-challenge.mjs';
++import * as F from './app-zone-fixture.mjs';
++import * as S from './app-zone-shield-fixture.mjs';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const options = {skip: !S.haveOpenssl && 'openssl absent'};
++const delay = (ms) => new Promise((r) => setTimeout(r, ms));
++let fleet, info;
++test.before(async () => {
++  if (!S.haveOpenssl) return;
++  fleet = spawn(process.execPath, [path.join(ROOT, 'test', 'app-zone-shield-fleet.mjs')], {stdio: ['pipe', 'pipe', 'inherit']});
++  const rl = readline.createInterface({input: fleet.stdout});
++  const [line] = await Promise.race([once(rl, 'line'), delay(90000).then(() => { throw Error('fleet did not start'); })]);
++  info = JSON.parse(line);
++  console.log('replica entry:', info.entry, '|', info.fixture);
++});
++test.after(async () => { if (fleet) { fleet.stdin.end(); await once(fleet, 'exit'); } });
++
++function query(name, type = 16) {
++  const h = Buffer.alloc(12); h.writeUInt16BE(0x4242, 0); h.writeUInt16BE(0x0000, 2); h.writeUInt16BE(1, 4);
++  return Buffer.concat([h, ...name.split('.').map((v) => Buffer.concat([Buffer.from([v.length]), Buffer.from(v)])), Buffer.from([0, 0, type, 0, 1])]);
++}
++async function ask(server, name, tcp = false) {
++  const [host, port] = server.split(':'), q = query(name);
++  if (!tcp) { const s = dgram.createSocket('udp4'); try { const a = once(s, 'message'); s.send(q, Number(port), host); return (await Promise.race([a, delay(2000).then(() => { throw Error('UDP timeout'); })]))[0]; } finally { s.close(); } }
++  return new Promise((resolve, reject) => { const s = net.connect(Number(port), host, () => { const n = Buffer.alloc(2); n.writeUInt16BE(q.length); s.write(Buffer.concat([n, q])); });
++    let d = Buffer.alloc(0); s.on('data', (c) => { d = Buffer.concat([d, c]); if (d.length >= 2 && d.length >= 2 + d.readUInt16BE(0)) { s.end(); resolve(d.subarray(2)); } }); s.on('error', reject); });
++}
++const answers = (msg) => msg.readUInt16BE(6);
++const ctl = (p, body = {}) => fetch(info.control + p, {method: 'POST', body: JSON.stringify(body)}).then(async (r) => { const j = await r.json(); if (r.status !== 200) throw Error(`${p}: ${r.status} ${JSON.stringify(j)}`); return j; });
++const post = (i, p, method = 'POST') => fetch(`${info.replicas[i].api}/v1/app-challenge`, {method, body: p.body, headers: {'content-type': 'application/json', 'x-attested-sig': p.sig}})
++  .then(async (r) => ({status: r.status, body: await r.json().catch(() => null)}));
++const health = (i) => fetch(`${info.replicas[i].api}/health`).then((r) => r.json());
++async function txtAt(i, name, value, {tries = 30} = {}) {
++  for (let k = 0; k < tries; k++) {
++    const m = await ask(info.replicas[i].dns, name);
++    if (answers(m) > 0 && (!value || m.includes(Buffer.from(value)))) return m;
++    await delay(100);
++  }
++  return null;
++}
++// a v2 push exactly as appzone.go sends it; the attestation is the fleet guest's Shield document for this push's nonce
++async function shieldPush({op = 'set', value = createHash('sha256').update(randomBytes(8)).digest('base64url'), deploymentId = info.deployment, owner = info.owner,
++  lease = {runner: info.runner, operator: info.operator, appRef: info.appRef, envelope: info.envelope}, name, attest = {}, doc: rawDoc} = {}) {
++  const key = F.guestKey();
++  const order = {url: 'https://ca.example/order/7', expires: Math.floor(Date.now() / 1000) + 3600};
++  const p = {v: 2, op, name: name || appChallengeName(deploymentId, info.zone), value, deploymentId, owner, lease, order, ts: Math.floor(Date.now() / 1000), spki: key.spki.toString('base64')};
++  const doc = rawDoc ? rawDoc(key.spki, appPushNonce(p)) : await ctl('/attest', {spki: p.spki, nonce: appPushNonce(p).toString('hex'), ...attest});
++  const body = Buffer.from(JSON.stringify({...p, attestation: doc}));
++  return {body, sig: sign('sha256', Buffer.concat([Buffer.from(APP_PUSH_SIG_PREFIX), body]), {key: key.priv, dsaEncoding: 'der'}).toString('base64'), name: p.name, value};
++}
++
++if (process.env.INJECT_FAILURE) test('INJECTED FAILURE (negative control: the suite must exit nonzero)', () => assert.fail('injected'));
++
++test('separate Shield replica processes: host sessions, verified pushes answered in DNS, peers re-verify, refusals, failover', options, async () => {
++  // 0. no relay: the replicas run with no relay, CERTS_API or Enclave API configuration; each states its Shield opt-in
++  for (const i of [0, 1, 2]) {
++    const h = await health(i);
++    assert.equal(h.readOnly, true); assert.equal(h.appChallenge.mode, 'attested-lease');
++    assert.equal(h.appChallenge.shield.tier, 'hv-node'); assert.equal(h.appChallenge.shield.hostExcluded, false);
++    assert.equal(h.appChallenge.shield.registry.profileDigest, info.profileDigest);
++    assert.equal(h.appChallenge.shield.liveHostSessions, 0);
++    assert.equal(h.appChallenge.measurements, info.replicas[i].snp ? 1 : 0, 'replica 2 is Shield-only');
++  }
++  // 1. before the runner attests here: refused
++  const early = await post(0, await shieldPush());
++  assert.equal(early.status, 403); assert.match(early.body.message, /no live Shield host session for this lease's runner/);
++  // 2. the Windows host's real session keeper attests at every replica the package names
++  const s = await ctl('/sessions');
++  assert.deepEqual(s.failed, []); assert.equal(s.done.length, 3, JSON.stringify(s));
++  for (const i of [0, 1, 2]) assert.equal((await health(i)).appChallenge.shield.liveHostSessions, 1);
++  // 3. the guest's push to replica 0: verified, answered over UDP and TCP; replicas 1 and 2 verify the forwarded push themselves
++  const p = await shieldPush();
++  const ok = await post(0, p);
++  assert.equal(ok.status, 200, JSON.stringify(ok.body));
++  for (const tcp of [false, true]) assert.ok((await ask(info.replicas[0].dns, p.name, tcp)).includes(Buffer.from(p.value)), `replica 0 ${tcp ? 'TCP' : 'UDP'}`);
++  for (const i of [1, 2]) assert.ok(await txtAt(i, p.name, p.value), `replica ${i} answers the forwarded push`);
++  const logs = await ctl('/logs');
++  for (const i of [1, 2]) assert.match(logs[i], /app-zone txt set _acme-challenge\.7ae476a3\.app\.enclave\.host .*shield-attested.*\[forwarded\]/, `replica ${i} log`);
++  // delete with the same proof clears it
++  assert.equal((await post(0, await shieldPush({op: 'delete', value: p.value}), 'DELETE')).status, 200);
++  assert.equal(await txtAt(0, p.name, p.value, {tries: 1}), null);
++
++  // 4. invalid evidence and namespace, refused by the process
++  const refusals = {
++    "another TPM's report (other IDKS)": [await shieldPush({attest: {signer: 'other'}}), /Shield attestation refused/],
++    'launcher-only document (no VBS report)': [await shieldPush({attest: {launcherOnly: true}}), /guest VBS report missing/],
++    'image not admitted': [await shieldPush({attest: {image: 'ef'.repeat(32)}}), /Shield attestation refused/],
++    'another zone': [await shieldPush({name: '_acme-challenge.7ae476a3.example.org'}), /not this deployment/],
++    'zone apex': [await shieldPush({name: `_acme-challenge.${info.zone}`}), /not this deployment/],
++    'cross-deployment (another owner on the same host)': [await shieldPush({deploymentId: info.otherDeployment}), /owner/],
++  };
++  for (const [what, [x, re]] of Object.entries(refusals)) {
++    const r = await post(0, x); assert.equal(r.status, 403, `${what}: ${JSON.stringify(r.body)}`); assert.match(r.body.message, re, what);
++  }
++  // synthetic SNP on the Shield-only replica: refused outright (never judged as Shield, never lab-accepted)
++  const snpLease = {runner: F.RUNNER, operator: F.OPERATOR, appRef: info.appRef, envelope: info.envelope};
++  const snp = await shieldPush({lease: snpLease, doc: (spki, nonce) => F.attestDoc(spki, nonce, {hostData: info.deployment})});
++  const r2 = await post(2, snp); assert.equal(r2.status, 403); assert.match(r2.body.message, /accepts no SEV-SNP evidence/);
++  // and on an SNP+Shield replica an SNP host's lease is not this deployment's (it is leased to the Shield host)
++  const r0 = await post(0, snp); assert.equal(r0.status, 403); assert.match(r0.body.message, /stale/);
++
++  // 5. another registered Shield host attests too, and its genuine guest claims this deployment's lease: refused everywhere
++  assert.deepEqual((await ctl('/sessions', {host: 'other'})).failed, []);
++  const claim = await shieldPush({attest: {signer: 'other'}, lease: {runner: info.otherRunner, operator: info.operator, appRef: info.appRef, envelope: info.envelope}});
++  for (const i of [0, 1, 2]) { const r = await post(i, claim); assert.equal(r.status, 403); assert.match(r.body.message, /stale/, `replica ${i}`); }
++
++  // 6. platform moderation: a banned host, a delisted app, a released lease - refused at EVERY replica, nothing answered
++  for (const [op, undo, re] of [['ban-host', 'unban-host', /not an active registry host/], ['delist', 'relist', /catalog policy/], ['release', 'restore', /no current lease/]]) {
++    await ctl('/chain', {op});
++    for (const i of [0, 1, 2]) {
++      const x = await shieldPush(), r = await post(i, x);
++      assert.equal(r.status, 403, `${op} at ${i}`); assert.match(r.body.message, re, `${op} at ${i}`);
++      assert.equal(await txtAt(i, x.name, x.value, {tries: 1}), null);
++    }
++    await ctl('/chain', {op: undo});
++  }
++  // a private deployment on a pending catalog version: allowed exactly as admission allows it
++  await ctl('/chain', {op: 'private-pending'});
++  assert.equal((await post(2, await shieldPush())).status, 200, 'private + pending');
++  await ctl('/chain', {op: 'restore'});
++
++  // 7. failover: replica 1 is stopped; the guest's push to the others still verifies and is answered
++  await ctl('/kill', {i: 1});
++  const f = await shieldPush(), r7 = await post(0, f);
++  assert.equal(r7.status, 200, `replica 0 after failover: ${JSON.stringify(r7.body)}`);
++  for (const i of [0, 2]) assert.ok(await txtAt(i, f.name, f.value), `replica ${i} answers (2: forwarded, re-verified)`);
++  const g = await shieldPush(), r8 = await post(2, g);
++  assert.equal(r8.status, 200, `replica 2 directly: ${JSON.stringify(r8.body)}`);
++  assert.ok(await txtAt(2, g.name, g.value));
++  await assert.rejects(post(1, g), 'replica 1 is down');
++  const logsAfter = await ctl('/logs');
++  assert.doesNotMatch(logsAfter.join('\n'), /unhandledRejection|uncaughtException/);
++});

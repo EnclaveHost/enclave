@@ -1,0 +1,30 @@
+--- a/site/components/live-verify/live-verify.js
++++ b/site/components/live-verify/live-verify.js
+@@ -10,6 +10,11 @@
+ import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
+ import { esc } from "../../js/core/util.js";
+ import { liveBoxes, boxVerifiable, verifyBoxInBrowser, verificationHtml, TIER_NAMES } from "../../js/core/verify.js";
++import { INDEPENDENT_MODE } from "../../js/core/api.js";
++// Independent mode: this check reaches each host through Enclave's API (the relay's host table and its /t/<box> tunnel),
++// which an independent dashboard never asks. Say so, and name the path that does not need it.
++const INDEPENDENT_NOTE = "In-browser host verification reaches each host through Enclave’s API, which this independent dashboard does not use. "
++  + "Verify a host or an app with the attestation-checking native client instead: each deployment’s Connect tab gives the exact command.";
+ 
+ const TIERS = ["snp", "avf", "hv-node"];   // the order the chips read in
+ 
+@@ -26,6 +31,7 @@
+ 
+   // the chips: only kinds with at least one verifiable host now; a failed read leaves them hidden (the button still works)
+   async loadTiers() {
++    if (INDEPENDENT_MODE) return;
+     try {
+       const rows = (await liveBoxes()).filter(boxVerifiable);
+       this._by = new Map(TIERS.map((m) => [m, rows.filter((e) => e.mode === m)]).filter(([, l]) => l.length));
+@@ -46,6 +52,7 @@
+     const body = this.querySelector(".lv-body");
+     body.hidden = false; body.setAttribute("aria-busy", "true"); btn.disabled = true;
+     const status = (cls, t) => { body.innerHTML = '<div class="lv-verdict ' + cls + '" role="status">' + esc(t) + "</div>"; };
++    if (INDEPENDENT_MODE){ status("", INDEPENDENT_NOTE); btn.disabled = false; body.setAttribute("aria-busy", "false"); return; }
+     try {
+       status("", "finding a live host …");
+       if (!this._by) await this.loadTiers();

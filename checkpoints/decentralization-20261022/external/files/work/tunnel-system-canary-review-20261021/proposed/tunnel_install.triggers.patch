@@ -1,0 +1,11 @@
+--- ../host-service-transport-20261021/public-canary-resume/a5-authority/final/tunnel-install/tunnel_install.py	2026-10-21 14:56:54.458528171 -0700
++++ proposed/ctl/tunnel_install.py	2026-10-21 15:10:13.967016809 -0700
+@@ -131,7 +131,7 @@
+            "$pr=New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest;"
+            "$st=New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -StartWhenAvailable;"
+            "Register-ScheduledTask -TaskName '" + name + "' -Action $a" + (" -Trigger $tr" if at_expr else "") + " -Principal $pr -Settings $st|Out-Null;"
+-           "$k=Get-ScheduledTask -TaskName '" + name + "';$o=[ordered]@{state=[string]$k.State;user=[string]$k.Principal.UserId;triggers=@($k.Triggers).Count;"
++           "$k=Get-ScheduledTask -TaskName '" + name + "';$o=[ordered]@{state=[string]$k.State;user=[string]$k.Principal.UserId;triggers=@($k.Triggers|?{$_}).Count;"
+            "argSha=-join([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes([string]$k.Actions[0].Arguments))|%{$_.ToString('x2')})}")
+     r["argsMatch"] = (r.get("argSha") == sha(task_args(d, mode, hashes)) and r.get("state") == "Ready" and r.get("user") == "SYSTEM"
+                       and r.get("triggers") == (1 if at_expr else 0))

@@ -1,0 +1,308 @@
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -31,7 +31,7 @@
+ //       ENCLAVE_VISIBLE_WAIT  seconds deploy waits for a new record to reach every reader (default 60)
+ //       ENCLAVE_SESSION   an exported session (enclave session new --env): the session-aware commands act through it
+ //       ENCLAVE_SESSION_DIR  where session keys live (default ~/.config/enclave/sessions)
+-import {catalogAdmissionNotice} from "../site/js/core/catalog-policy.js";
++import {catalogAdmissionNotice,catalogAdmissionRefusal} from "../site/js/core/catalog-policy.js";
+ import fs from "node:fs";
+ import { spawn, spawnSync } from "node:child_process";
+ import path from "node:path";
+@@ -799,19 +799,18 @@
+ 
+ // [publisher/]slug[:version] -> { ref: catalog://<appId>/<idx>, ver, app } with
+ // an exact immutable version. Default selection prefers approved releases;
+-// an explicit version leaves admission to each host. The ref names the
++// explicit versions still obey platform moderation. The ref names the
+ // on-chain VERSION RECORD — the authority for the wasm, config, and ports the
+ // publisher recorded. CIDs are refused: a CID names bytes, not a version
+ // (several versions can share bytes and differ entirely in approved config).
+-// An explicit version selects the immutable release regardless of catalog moderation.
+-// Hosts enforce their owning wallets' admission policy; the CLI reports status.
+-async function resolveAppRef(input) {
++// Hosts enforce platform moderation plus their owning wallets' additional restrictions.
++async function resolveAppRef(input, {forPrivate=false}={}) {
+   if (/^ipfs:\/\//i.test(input) || /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z0-9]{20,})$/.test(input))
+     throw new Error(`CIDs can't deploy: a CID names bytes, not a version. Deploy a [publisher/]slug:version from the catalog (enclave apps)`);
+   const m = input.match(/^(?:([0-9a-zA-Z.]+|0x[0-9a-fA-F]{40})\/)?([a-z0-9][a-z0-9-]*)(?::(.+))?$/);
+   if (!m) throw new Error(`"${input}" is not an app reference ([publisher/]slug[:version])`);
+   const [, pubFilter, slug, verLabel] = m;
+-  let apps = (await catalogApps()).filter((a) => a.slug === slug && (verLabel !== undefined || a.active));
++  let apps = (await catalogApps()).filter((a) => a.slug === slug && a.active);
+   if (pubFilter) apps = apps.filter((a) => a.publisher.toLowerCase() === pubFilter.toLowerCase());
+   if (!apps.length) throw new Error(`no active catalog app with slug "${slug}"${pubFilter ? ` by ${pubFilter}` : ""}`);
+   if (apps.length > 1 && !pubFilter)
+@@ -827,6 +826,8 @@
+     if (vi < 0) throw new Error(`app "${slug}" has no approved version yet`);
+   }
+   const ver = versions[vi];
++  const refusal = catalogAdmissionRefusal(app, ver, {forPrivate});
++  if (refusal) throw new Error(refusal);
+   return { ref: `catalog://${app.appId}/${vi}`, ver, app, notice: catalogAdmissionNotice(app, ver) };
+ }
+ let _appsCache = null;
+@@ -1830,6 +1831,8 @@
+   }
+   const ver = versions[vi];
+   if (vi === curIdx && !wantShares) return say(`${short(id)} already runs ${app.slug}:${ver.version} (version index ${vi}); nothing to do`);
++  const refusal = catalogAdmissionRefusal(app, ver, {forPrivate: d.isPublic === false});
++  if (refusal) throw new Error(refusal);
+   const notice = catalogAdmissionNotice(app, ver);
+   if (notice) say(`! ${notice}`);
+   // the record's shares (bought at create, or re-bought here) must cover the
+@@ -1998,7 +2001,7 @@
+     say("chain-only: hosts decide admission; this submits your resource request and spend ceiling without API discovery or a readiness claim");
+   }
+   if (sess) await sessionDeployPreflight(sess, f);
+-  const { ref, ver, app, notice } = await resolveAppRef(sess ? sessionAppInput(sess, f._[0]) : f._[0]);
++  const { ref, ver, app, notice } = await resolveAppRef(sess ? sessionAppInput(sess, f._[0]) : f._[0], {forPrivate: !!f.private});
+   if (sess) sessionRequireApp(sess, app.appId, "deploy.create", app.slug);
+   if (notice) say(`! ${notice}`);
+ 
+@@ -2770,7 +2773,7 @@
+     say(`  enclave deploy ${f.slug}:${version} --fund 2`);
+     return;
+   }
+-  say(`approval is pending. Each host decides whether to run this release. For owner-only access:`);
++  say(`approval is pending. Only PRIVATE deployments are allowed for testing. For owner-only access:`);
+   say(`  enclave deploy ${f.slug}:${version} --private --fund 2`);
+   say(`for public access on a host that accepts this release:`);
+   say(`  enclave deploy ${f.slug}:${version} --fund 2`);
+--- a/site/js/core/catalog.js
++++ b/site/js/core/catalog.js
+@@ -1,4 +1,4 @@
+-import {catalogAdmissionNotice} from "./catalog-policy.js";
++import {catalogAdmissionNotice,catalogAdmissionRefusal} from "./catalog-policy.js";
+ import {directUploadHeaders} from "./upload-auth.js";
+ /* ============================================================
+    App store · on-chain catalog (EnclaveAppCatalog on Base) + IPFS CIDs
+@@ -197,20 +197,20 @@
+ }
+ 
+ /* ---- version selection helpers ---- */
+-// All immutable releases remain inspectable. Moderation controls still require
+-// the publisher or catalog owner, and hosts decide which releases to accept.
++// Publishers and the catalog owner retain moderation history; public listings
++// respect delisting, publisher yanks and catalog rejection.
+ export const appPrivileged = (app) => {
+   const me = (Enclave.address || "").toLowerCase();
+   return !!me && (app.publisher.toLowerCase() === me || me === STORE.owner);
+ };
+-export const verVisible = (_app, v) => !!v;
++export const verVisible = (app, v) => !!v && (appPrivileged(app) || (app.active === true && !v.yanked && Number(v.approval) !== APPROVAL.rejected));
+ // indices into app.versions the viewer may see - callers keep the REAL index
+ // (catalog:// refs and card-action idx are positions in the on-chain list)
+ export const visibleVerIdxs = (app) =>
+   app.versions.reduce((idxs, v, i) => (verVisible(app, v) && idxs.push(i), idxs), []);
+ export function defaultIdx(app){         // prefer approved releases; explicit selection can name every version
+   const vs = app.versions;
+-  for (let i = vs.length - 1; i >= 0; i--) if (!vs[i].yanked && Number(vs[i].approval) === APPROVAL.approved) return i;
++  for (let i = vs.length - 1; i >= 0; i--) if (verVisible(app, vs[i]) && !vs[i].yanked && Number(vs[i].approval) === APPROVAL.approved) return i;
+   for (let i = vs.length - 1; i >= 0; i--) if (!vs[i].yanked && verVisible(app, vs[i])) return i;
+   for (let i = vs.length - 1; i >= 0; i--) if (verVisible(app, vs[i])) return i;
+   return -1;
+@@ -440,8 +440,8 @@
+ }
+ 
+ export function looksFriendly(s){ return s.includes(":") && !s.startsWith("ipfs://"); }
+-// Resolve explicit releases; catalog moderation remains visible and host-local.
+-export function resolveAppRef(input){
++// Resolve catalog releases subject to mandatory platform moderation.
++export function resolveAppRef(input, opts = {}){
+   input = (input || "").trim();
+   if (!input) return { reference: "", error: "Pick an app: slug:version from the Apps catalog." };
+   if (input.startsWith("ipfs://") || /^(baf[a-z0-9]{10,}|Qm[1-9A-HJ-NP-Za-km-z]{20,})$/.test(input))
+@@ -463,7 +463,10 @@
+   const vi = apps[0].versions.findIndex(x => x.version === version);
+   const v = vi >= 0 ? apps[0].versions[vi] : null;
+   if (!v) return { reference: input, label: input, error: "'" + slug + "' has no live version '" + version + "'." };
+-  REF_CACHE[input] = catalogRef(apps[0].appId, vi);
++  // Selection may include pending development releases; execution checks visibility.
++  const refusal = catalogAdmissionRefusal(apps[0], v, {forPrivate:opts.allowPending===true});
++  if (refusal) return { reference: input, label: input, error: refusal };
++  if (Number(v.approval) === APPROVAL.approved) REF_CACHE[input] = catalogRef(apps[0].appId, vi);
+   PORTS_CACHE[input] = v.ports || "";
+   SPECS_CACHE[input] = specOf(v);         // raw specs; floors are computed at read time
+   // The version's default config template (store media stripped: _media never
+--- a/site/js/core/chain.js
++++ b/site/js/core/chain.js
+@@ -84,7 +84,7 @@
+ 
+ /* ---- EnclaveAppCatalog ---- */
+ export const CAT_SEL = {
+-  appCount:"b55ca2c3", getAppsPage:"a0483de1", getVersionsPage:"2eb7c1f0", owner:"8da5cb5b",
++  getApp:"42c71f1d", appCount:"b55ca2c3", getAppsPage:"a0483de1", getVersionsPage:"2eb7c1f0", owner:"8da5cb5b",
+   publishVersion:"47910c23",   // rev >= 5: publishVersion(...,uint32[4] res,string ports,string config,uint256 feePerSec6)
+   publishVersionV4:"ffd9de8f", // rev-4 catalogs: same without the fee arg (kept until the cutover)
+   publishVersionV2:"adbf439a", // rev-2 catalogs: same without the config arg (kept until the cutover)
+@@ -559,6 +559,9 @@
+   if ((await catSchemaRev()) < 5) return 0n;
+   return hexBig(await ethCall("0x" + CAT_SEL.maxFeePerSec6));
+ }
++export async function catGetApp(appId){
++  return decodeStruct(await ethCall(encCall(CAT_SEL.getApp, [{t:"bytes32",v:appId}])), APP_SCHEMA);
++}
+ export async function catGetAppsPage(start, n){
+   return decodeStructArray(await ethCall(encCall(CAT_SEL.getAppsPage, [{t:"uint",v:start},{t:"uint",v:n}])), APP_SCHEMA);
+ }
+--- a/site/js/pages/deploy.js
++++ b/site/js/pages/deploy.js
+@@ -1,3 +1,4 @@
++import { catalogAdmissionRefusal } from "../core/catalog-policy.js";
+ /* ============================================================
+    Deploy flow - the on-chain create+fund+watch sequence behind
+    the store's quick-deploy modal (apps.js imports it lazily) and
+@@ -20,7 +21,7 @@
+ import { Enclave, EnclaveError } from "../core/api.js";
+ import { vaultOp } from "../core/vault.js";
+ import { freeEnclavesFor } from "../core/pricing.js";
+-import { encCall, DEP_SEL, DEP_CREATED_TOPIC, depGet, depRate6, depSchemaRev, depMaxGpuMilli, waitReceipt, catVersionFee } from "../core/chain.js";
++import { encCall, DEP_SEL, DEP_CREATED_TOPIC, depGet, depRate6, depSchemaRev, depMaxGpuMilli, waitReceipt, catVersionFee, catGetApp, catGetVersion } from "../core/chain.js";
+ import { connectWallet, refreshWallet, ensureBaseChain, sendTx } from "../core/wallet.js";
+ import { parseCatalogRef, publisherOfRef } from "../core/catalog.js";
+ 
+@@ -69,6 +70,13 @@
+   // store's quick-deploy modal) - not narrated into a run log they were just
+   // navigated to. The caller re-checks earlier for richer UI; this is the
+   // shared backstop for the races it can't see.
++  const catalogRef = parseCatalogRef(spec.reference);
++  if (!catalogRef) return showToast("Deploy refused: a catalog version is required.");
++  try {
++    const [app, version] = await Promise.all([catGetApp(catalogRef.appId), catGetVersion(catalogRef.appId,catalogRef.index)]);
++    const refusal = catalogAdmissionRefusal(app,version,{forPrivate:spec.isPublic===false});
++    if (refusal) return showToast("Deploy refused: " + refusal);
++  } catch { return showToast("Deploy refused: could not verify current catalog moderation. Please retry."); }
+   const capMsg = await gpuCapRefusal(spec.gpuMilli);
+   if (capMsg) return showToast("Deploy refused: " + capMsg);
+   // The version's publisher fee is snapshotted INTO the record by create():
+--- a/site/js/pages/apps.js
++++ b/site/js/pages/apps.js
+@@ -80,9 +80,7 @@
+   const myApp = (a) => !!me && a.publisher.toLowerCase() === me;
+   syncModTabs(me, isOwner);
+   let apps;
+-  if (STORE.filter === "all"){
+-    apps = STORE.apps.filter(a => a.versions.length);
+-  } else if (STORE.filter === "delisted"){
++  if (STORE.filter === "delisted"){
+     // moderation view: the catalog owner sees EVERY delisted app; a publisher
+     // sees only their own - their one path back (relist, or republish the slug).
+     apps = STORE.apps.filter(a => a.versions.length && !a.active && (isOwner || myApp(a)));
+@@ -1686,8 +1684,8 @@
+   if (!catConfigured()){ host.innerHTML = '<div class="store-note">The on-chain catalog isn’t wired up on this deployment yet.</div>'; return; }
+   if (!STORE.loaded){ host.innerHTML = '<div class="loading" role="status">reading catalog from Base…</div>'; return; }
+   const app = STORE.byId[appId] || (STORE.apps || []).find(a => a.appId === appId);
+-  // Direct links retain access to every published release, including delisted apps.
+-  if (!app || !visibleVerIdxs(app).length){ host.innerHTML = '<div class="store-note">That app isn’t in the catalog. <a href="apps">← all apps</a></div>'; document.title = "Apps · Enclave"; return; }
++  // Moderated history remains visible to its publisher and the catalog administrator.
++  if (!app || !visibleVerIdxs(app).length || !(appApproved(app) || appVerified(app) || appPrivileged(app))){ host.innerHTML = '<div class="store-note">That app isn’t in the catalog. <a href="apps">← all apps</a></div>'; document.title = "Apps · Enclave"; return; }
+   document.title = app.name + " · Enclave";
+   let el = host.querySelector("c-app-detail");
+   if (!el){ host.innerHTML = ""; el = document.createElement("c-app-detail"); host.appendChild(el); }
+--- a/site/components/deployments/deployments.js
++++ b/site/components/deployments/deployments.js
+@@ -1,4 +1,4 @@
+-import {catalogStatus} from "../../js/core/catalog-policy.js";
++import {catalogStatus,catalogAdmissionRefusal} from "../../js/core/catalog-policy.js";
+ /* ============================================================
+    <c-deployments> - the "My Apps" panel: the signed-in
+    customer's deployments, each with status, spend, its app origin,
+@@ -21,7 +21,7 @@
+ import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
+ import { Enclave } from "../../js/core/api.js";
+ import { openStateOf, probeAppTls } from "../../js/core/app-tls.js";
+-import { pad32, encUint, encCall, hexBig, DEP_SEL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, catGetVersion, waitReceipt } from "../../js/core/chain.js";
++import { pad32, encUint, encCall, hexBig, DEP_SEL, depPrices6, rate6Of, depMaxGpuMilli, depGet, depSchemaRev, depFeeOf, depCapOf, depRefundableOf, depCall, catVersionFee, catGetApp, catGetVersion, waitReceipt } from "../../js/core/chain.js";
+ import { authenticate, asHostOwner, connectWallet, refreshWallet, saveSession, ensureBaseChain, sendTx as walletSendTx, personalSign } from "../../js/core/wallet.js";
+ // Every ledger call this panel sends goes through here. A row the wallet's SessionVault holds is acted on by this
+ // browser's session (no wallet prompt; a prod version/config change becomes the owner's Promote signature); every
+@@ -1249,7 +1249,10 @@
+     if (!d) return fail("[x] couldn’t read this deployment from the ledger - try again shortly");
+     const cr = parseCatalogRef(d.appRef);
+     if (!cr) return fail("[x] this deployment doesn’t reference a catalog version (" + (d.appRef || "no appRef") + ") - only catalog deployments can switch versions");
+-    const app = STORE.byId[cr.appId] || (sharesOnly ? { slug: 'app', versions: [] } : null);
++    let app = STORE.byId[cr.appId] || (sharesOnly ? { slug: 'app', versions: [] } : null);
++    try { const current = await catGetApp(cr.appId); if (app) app = {...app,active:current?.active}; }
++    catch { return fail('[x] Could not verify current app moderation. Close and reopen to retry.'); }
++
+     if (!app || !app.versions) return fail("[x] the catalog doesn’t list this deployment’s app (delisted?) - nothing to switch to");
+     let currentVersion = null;
+     if (sharesOnly) {
+@@ -1349,7 +1352,7 @@
+       .map(r => ({ ...r,
+         shareFit: r.mins.gpuPct * 10 <= bought.gpuMilli && cpuNeedOf(r) * 10 <= bought.cpuMilli,
+         feeFit: (verFees[r.i] || 0n) <= snapFee }))
+-      .map(r => ({ ...r, fits: (r.shareFit || resizable) && r.feeFit }))
++      .map(r => ({ ...r, fits: (r.shareFit || resizable) && r.feeFit && !catalogAdmissionRefusal(app,r.v,{forPrivate:d.isPublic===false}) }))
+       .reverse();
+     const others = rows.filter(r => r.i !== cr.index);
+     // Version may suggest a newer fitting release. Shares always keeps the
+@@ -1373,7 +1376,7 @@
+                                                  + (hw ? " on " + hw.name : "") : "")
+       +       (r.shareFit && !r.feeFit && r.i !== cr.index ? " · charges $" + (Number(verFees[r.i]) * 3600 / 1e6).toFixed(2) + "/hr publisher fee (above this deployment’s snapshot)" : "")
+       +     '</option>').join("")
+-      +   '</select><p class="enc-shares-note">Each host decides which releases it accepts. Catalog status does not guarantee a host will run the selected release.</p>')
++      +   '</select><p class="enc-shares-note">Platform moderation and host admission apply to the selected release.</p>')
+       +   (sharesOnly ? '' : '<button class="btn btn-sm btn-primary eu-go" type="button">Change version</button>')
+       + '</div>'
+       + (capEditable
+--- a/test/cli.test.mjs
++++ b/test/cli.test.mjs
+@@ -1217,29 +1217,26 @@
+ });
+ 
+ 
+-test("explicit deploy and upgrade leave rejected, yanked and delisted admission to the host", async () => {
+-  S.versionCount = 2; S.catalogActive = false;
++test("explicit deploy and upgrade enforce platform moderation before spending", async () => {
++  S.versionCount = 2;
+   try {
+-    for (const status of [{approval:0}, {approval:2}, {approval:1,yanked:true}]) {
+-      S.v2 = {memMb:64,cpuGflops:2,...status}; S.txs.length = 0;
+-      const deployed = await run(["deploy", "hello-world:2", "--fund", "2", "--no-wait"]);
+-      assert.equal(deployed.code,0,deployed.err);
+-      assert.equal(S.txs.find(t=>t.functionName==="create").args[0],`catalog://${APP_ID}/1`);
+-      assert.match(deployed.out,/Catalog status: delisted/);
+-      assert.match(deployed.out,/Each host decides/);
+-      S.txs.length = 0;
+-      const upgraded = await run(["upgrade",ID,"2"]);
+-      assert.equal(upgraded.code,0,upgraded.err);
+-      assert.equal(S.txs.find(t=>t.functionName==="setAppRef").args[1],`catalog://${APP_ID}/1`);
++    for (const status of [{active:false,approval:1}, {approval:2}, {approval:1,yanked:true}, {approval:0}]) {
++      S.catalogActive=status.active!==false;S.v2={memMb:64,cpuGflops:2,...status};
++      for (const args of [["deploy","hello-world:2","--fund","2","--no-wait"],["upgrade",ID,"2"]]) {
++        S.txs.length=0;const r=await run(args);assert.notEqual(r.code,0,r.out);assert.equal(S.txs.length,0);
++      }
++      if(status.approval!==0){
++        S.txs.length=0;const r=await run(["deploy","hello-world:2","--private","--fund","2","--no-wait"]);
++        assert.notEqual(r.code,0);assert.equal(S.txs.length,0);
++      }
+     }
+-    S.catalogActive = true; S.txs.length = 0;
+-    const implicit = await run(["deploy","hello-world","--fund","2","--no-wait"]);
+-    assert.equal(implicit.code,0,implicit.err);
+-    assert.equal(S.txs.find(t=>t.functionName==="create").args[0],`catalog://${APP_ID}/0`,"implicit selection remains an approved recommendation");
+-    S.txs.length = 0;
+-    const missing = await run(["deploy","hello-world:missing","--fund","2","--no-wait"]);
+-    assert.notEqual(missing.code,0); assert.equal(S.txs.length,0);
+-  } finally {S.catalogActive = true; S.versionCount = 1; S.v2 = null; S.txs.length = 0;}
++    S.catalogActive=true;S.v2={memMb:64,cpuGflops:2,approval:0};S.txs.length=0;
++    const dev=await run(["deploy","hello-world:2","--private","--fund","2","--no-wait"]);
++    assert.equal(dev.code,0,dev.err);assert.equal(S.txs.find(t=>t.functionName==="create").args[5],false);
++    S.txs.length=0;
++    const implicit=await run(["deploy","hello-world","--fund","2","--no-wait"]);
++    assert.equal(implicit.code,0,implicit.err);assert.equal(S.txs.find(t=>t.functionName==="create").args[0],`catalog://${APP_ID}/0`);
++  } finally {S.catalogActive=true;S.versionCount=1;S.v2=null;S.txs.length=0;}
+ });
+ 
+ /* Explicit authority pins: mutable discovery cannot redirect an operation. */
+@@ -1310,7 +1307,7 @@
+   S.rpcCalls.length = 0; S.apiCalls.length = 0; S.txs.length = 0; S.pinnedWasm = 0; S.pinnedJson.length = 0;
+   const previous = { depRev: S.depRev, catRev: S.catRev, versionCount: S.versionCount, v2: S.v2, book: S.book };
+   S.depRev = 15n; S.catRev = 5n; S.versionCount = 2;
+-  S.v2 = { approval: 2, yanked: true, config: '{"wasi":"0.3"}' }; S.book = 'fail';
++  S.v2 = { approval: 1, yanked: false, config: '{"wasi":"0.3"}' }; S.book = 'fail';
+   try {
+     const r = await run(['deploy', 'hello-world:2', '--chain-only', '--contract-pins', writeAuthorityPins(),
+       '--cpu', '0.1', '--gpu', '0', '--max-rate', '1', '--fund', '2', '--isolation', 'snp-guest-per-app', '--config', '{"hello":"world"}', '--json'],

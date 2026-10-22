@@ -1,0 +1,33 @@
+--- contracts/form.go
++++ contracts/form.go
+@@ -19,8 +19,8 @@
+ 	// minContractGrowthRate is the minimum expected growth rate
+ 	// for contracts used when calculating funding. Lowering
+ 	// this value will mean contracts will need to be refreshed
+-	// more frequently. 256 GiB is a good trade off between initial
+-	// cost to both parties and the frequency of refreshes.
++	// more frequently. enclave.host uses 8 GiB (stock: 256 GiB, which locked
++	// ~500x the funds a small indexer needs); contracts refresh more often.
+ 	minContractGrowthRate = 8 << 30 // enclave.host: sized for a small indexer (was 256 GiB)
+ 
+ 	// maxContractGrowthRate is the maximum additional data
+@@ -473,7 +473,7 @@
+ // that go into forming, refreshing or renewing a contract.
+ func contractFunding(settings proto.HostSettings, existingData uint64, minAllowance types.Currency, duration uint64) (allowance, collateral types.Currency) {
+ 	multiplier := 1 + (existingData / minContractGrowthRate)
+-	contractGrowth := min(minContractGrowthRate*multiplier, maxContractGrowthRate) / proto.SectorSize // 100% growth clamped to [256GiB, 1TiB]
++	contractGrowth := min(minContractGrowthRate*multiplier, maxContractGrowthRate) / proto.SectorSize // the next 8 GiB step above the existing data, clamped to [8 GiB, 1 TiB]
+ 	uploadCost := settings.Prices.RPCWriteSectorCost(proto.SectorSize).RenterCost().Mul64(contractGrowth)
+ 	downloadCost := settings.Prices.RPCReadSectorCost(proto.SectorSize).RenterCost().Mul64(contractGrowth)
+ 	storeCost := settings.Prices.RPCAppendSectorsCost(contractGrowth, duration).RenterCost()
+--- contracts/funding.go
++++ contracts/funding.go
+@@ -20,7 +20,7 @@
+ 	// serviceAccountFundTargetBytes is the number of bytes used to calculate
+ 	// the fund target for a host's service account. We fund accounts to cover
+ 	// this amount of read and write usage. It roughly comes down to uploading
+-	// and downloading to and from a host at ~1Gbps for a period of 2 minutes.
++	// and downloading to and from a host at ~1Gbps for ~8.6 s (stock 16 GiB: ~2 min).
+ 	// With 30 good hosts, this results in about 30Gbps of maximum theoretical
+ 	// throughput.
+ 	serviceAccountFundTargetBytes = uint64(1 << 30) // enclave.host: 1 GiB (was 16 GiB)

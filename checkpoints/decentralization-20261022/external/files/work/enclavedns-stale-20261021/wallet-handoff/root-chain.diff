@@ -1,0 +1,193 @@
+--- work/ens-public-site-20261021/publisher-wallet-handoff/chain.mjs	2026-10-21 06:06:04.085182500 -0700
++++ work/enclavedns-stale-20261021/wallet-handoff/chain.mjs	2026-10-21 10:17:24.668688609 -0700
+@@ -1,12 +1,13 @@
+-// Read-only chain side of the IPNS Publisher release: steps 2 (publishVersion), 3 (setAppRef) and 4 (setConfig). It never
+-// signs or broadcasts. The rules of the reviewed site activation (site-host-live-publish/handoff/site-chain.mjs, whose
+-// opIdOf/norm/releaseSiteCheck are reused unchanged) applied to these three steps. Before each wallet request it re-reads,
+-// at one anchor (head - confirmations) whose hash both providers agree on:
++// Read-only chain side of the EnclaveDNS 0.1.5 release: steps 2 (publishVersion) and 3 (SessionVault.ownerCall ->
++// ledger.setAppRef). It never signs or broadcasts. Adapted from the reviewed IPNS Publisher handoff chain.mjs (the rules of
++// the reviewed site activation; site-chain.mjs opIdOf/norm/releaseSiteCheck reused unchanged). Before each wallet request it
++// re-reads, at one anchor (head - confirmations) whose hash both providers agree on:
+ //   - chain id; the owner's code (must be empty: no EIP-7702), nonce at the anchor = pending nonce, balance;
+-//   - catalog and ledger runtime code hashes against the pins; the address book's owner and its two entries;
++//   - catalog, ledger and VAULT runtime code hashes against the pins; the address book's owner and its two entries;
++//   - the vault's owner (= the admin) and factory, and its hold on the deployment (STAGING, unchanged by every step);
+ //   - the catalog owner (= the publisher, so the publish is owner-approved), schemas, the app record (publisher, slug,
+-//     name, description, active) and the frozen version 1.0.5;
+-//   - the step's own PRE-state (version count, version 6, the deployment's owner/appRef/config envelope);
++//     name, description, active) and the frozen version 0.1.4;
++//   - the step's own PRE-state (version count, version 5, the deployment's owner (the vault)/appRef/config envelope);
+ // then simulates the exact transaction plus its POST-state reads in one eth_simulateV1 bundle on both providers.
+ // Verification re-checks the landed transaction against the exact request and its exact events, two blocks deep, on
+ // both providers, and that nothing else of the deployment (owner, shares, ports, visibility, active) moved.
+@@ -15,7 +16,7 @@
+ import { encodeFunctionData, decodeFunctionResult, decodeEventLog, parseAbi, serializeTransaction, toHex, keccak256 } from "../../enclave/node_modules/viem/_esm/index.js";
+ import { pair } from "../../lease-gas-wallet-signing/stages.mjs";
+ import { opIdOf, norm, releaseSiteCheck } from "../../site-host-live-publish/handoff/site-chain.mjs";
+-import { CATALOG_ABI, LEDGER_ABI } from "./trust.mjs";
++import { CATALOG_ABI, LEDGER_ABI, VAULT_ABI } from "./trust.mjs";
+ 
+ export { opIdOf };
+ const lc = (a) => String(a ?? "").toLowerCase();
+@@ -27,7 +28,7 @@
+ const BOOK_ABI = parseAbi(["function owner() view returns (address)", "function all() view returns (bytes32[], address[])"]);
+ const ORACLE_ABI = parseAbi(["function getL1Fee(bytes) view returns (uint256)"]);
+ const bookKey = (kh) => { let k = ""; for (let b = 2; b < kh.length; b += 2) { const c = parseInt(kh.slice(b, b + 2), 16); if (!c) break; k += String.fromCharCode(c); } return k; };
+-export const TX_STEPS = ["publish", "upgrade", "config"];
++export const TX_STEPS = ["publish", "upgrade"];
+ // the deployment fields no step may change (balance, lease and rate move with renewals; they are compared in simulation only)
+ const STABLE = ["id", "owner", "ports", "gpuMilli", "cpuMilli", "appPort", "isPublic", "active", "createdAt"];
+ 
+@@ -45,10 +46,15 @@
+   const [chainId, adminCode, nonce, pending, balance, catalogCode, ledgerCode] = await Promise.all([
+     c.getChainId(), c.getCode({ address: t.admin, blockNumber }), c.getTransactionCount({ address: t.admin, blockNumber }), c.getTransactionCount({ address: t.admin, blockTag: "pending" }),
+     c.getBalance({ address: t.admin, blockNumber }), c.getCode({ address: t.catalog, blockNumber }), c.getCode({ address: t.ledger, blockNumber })]);
++  const vaultCode = await c.getCode({ address: t.vault.address, blockNumber });
++  assert.equal(codeHash(vaultCode), t.codeHashes.vault, "the deployment's SessionVault runtime code is not the pinned clone");
+   assert.equal(Number(chainId), t.chainId, "wrong chain");
+   assert.equal(codeHash(adminCode), null, "the owner account has code (EIP-7702 delegation or a contract); refused");
+   assert.equal(codeHash(catalogCode), t.codeHashes.catalog, "the catalog's runtime code is not the pinned one");
+   assert.equal(codeHash(ledgerCode), t.codeHashes.ledger, "the ledger's runtime code is not the pinned one");
++  const [vaultOwner, vaultFactory] = await Promise.all([call(c, t.admin, t.vault.address, VAULT_ABI, "owner", [], blockNumber), call(c, t.admin, t.vault.address, VAULT_ABI, "factory", [], blockNumber)]);
++  eq(vaultOwner, t.admin, "the SessionVault's owner is not the admin: its ownerCall would revert; refused");
++  eq(vaultFactory, t.vault.factory, "the SessionVault's factory is not the pinned one");
+   const [bookOwner, [keys, values], catalogOwner, catalogSchema, ledgerSchema, appId, app] = await Promise.all([
+     call(c, t.admin, t.book, BOOK_ABI, "owner", [], blockNumber), call(c, t.admin, t.book, BOOK_ABI, "all", [], blockNumber),
+     call(c, t.admin, t.catalog, CATALOG_ABI, "owner", [], blockNumber), call(c, t.admin, t.catalog, CATALOG_ABI, "catalogSchema", [], blockNumber),
+@@ -59,7 +65,7 @@
+   eq(book.appCatalog, t.catalog, "the address book names another catalog"); eq(book.deployments, t.ledger, "the address book names another ledger");
+   eq(catalogOwner, t.admin, "the catalog owner is not the publisher: the publish would land Pending, not owner-approved; refused");
+   assert.equal(BigInt(catalogSchema), t.catalogSchema, "catalog schema changed"); assert.equal(BigInt(ledgerSchema), t.ledgerSchema, "ledger schema changed");
+-  eq(appId, plan.appId, "the catalog's appId for ipns-publisher differs from the plan");
++  eq(appId, plan.appId, "the catalog's appId for enclavedns differs from the plan");
+   checkApp(t, plan, app);
+   return { nonce: Number(nonce), pending: Number(pending), balance: BigInt(balance) };
+ }
+@@ -69,56 +75,63 @@
+   assert.equal(a.name, t.app.name, "the app's name changed (a publish would overwrite it)"); assert.equal(a.description, t.app.description, "the app's description changed (a publish would overwrite it)");
+   assert.equal(a.active, true, "the app is not active");
+ }
+-/** The frozen previous version (index 5) the deployment runs today, whose resources/ports/config are re-listed verbatim. */
++/** The frozen previous version (index 4) the deployment runs today, whose resources/ports/config are re-listed verbatim. */
+ function checkPrev(t, v) {
+-  assert.equal(v.version, t.prev.version, "version 5's label changed"); assert.equal(v.cid, t.prev.cid, "version 5's CID changed");
+-  assert.equal(sha256(v.config), t.prev.configSha256, "version 5's config is not the frozen one");
+-  assert.equal(v.config, t.publish.config, "the publish config is not version 5's verbatim");
+-  assert.deepEqual([v.vramMb, v.gpuGflops, v.memMb, v.cpuGflops].map(Number), [...t.publish.res], "the publish resources are not version 5's"); assert.equal(v.ports, t.publish.ports, "the publish ports are not version 5's");
+-  assert.equal(Number(v.approval), 1, "version 5 is not Approved"); assert.equal(v.yanked, false, "version 5 is yanked");
++  assert.equal(v.version, t.prev.version, "version 4's label changed"); assert.equal(v.cid, t.prev.cid, "version 4's CID changed");
++  assert.equal(sha256(v.config), t.prev.configSha256, "version 4's config is not the frozen one");
++  assert.equal(v.config, t.publish.config, "the publish config is not version 4's verbatim");
++  assert.deepEqual([v.vramMb, v.gpuGflops, v.memMb, v.cpuGflops].map(Number), [...t.publish.res], "the publish resources are not version 4's"); assert.equal(v.ports, t.publish.ports, "the publish ports are not version 4's");
++  assert.equal(Number(v.approval), 1, "version 4 is not Approved"); assert.equal(v.yanked, false, "version 4 is yanked");
+ }
+-/** The published version 6: exactly the plan's, owner-approved, live. */
++/** The published version 5: exactly the plan's, owner-approved, live. */
+ export function checkVersion(t, v) {
+   const p = t.publish;
+   assert.equal(v.cid, t.expectedCid, "the published version's CID differs"); assert.equal(v.version, p.version, "version label");
+   assert.deepEqual([v.vramMb, v.gpuGflops, v.memMb, v.cpuGflops].map(Number), [...p.res], "version resources");
+-  assert.equal(v.ports, p.ports, "version ports"); assert.equal(v.config, p.config, "version config (version 1.0.5's, verbatim)");
++  assert.equal(v.ports, p.ports, "version ports"); assert.equal(v.config, p.config, "version config (version 0.1.4's, verbatim)");
+   assert.equal(Number(v.approval), 1, "the version is not Approved"); assert.equal(v.yanked, false, "the version is yanked");
+ }
+ const depView = (d) => Object.fromEntries(STABLE.map((k) => [k, typeof d[k] === "bigint" ? String(d[k]) : typeof d[k] === "string" ? lc(d[k]) : d[k]]));
+ function checkDeployment(t, plan, d, { appRef, envelope }) {
+-  eq(d.id, t.deployment.id, "deployment id"); eq(d.owner, t.admin, "the deployment's owner is not the admin");
++  eq(d.id, t.deployment.id, "deployment id"); eq(d.owner, t.vault.address, "the deployment's owner is not the pinned SessionVault");
+   assert.equal(d.appRef, appRef, `the deployment's version reference is not ${appRef}`);
+   assert.equal(d.configCid, envelope, "the deployment's public config envelope is not the expected one");
+ }
+-const STATE = { publish: { n: 6, appRef: "prev", envelope: "envelopeCurrent" }, upgrade: { n: 7, appRef: "prev", envelope: "envelopeCurrent" },
+-  config: { n: 7, appRef: "next", envelope: "envelopeCurrent" }, done: { n: 7, appRef: "next", envelope: "envelopeNew" } };
+-const expectOf = (t, plan, k) => ({ n: BigInt(STATE[k].n), appRef: STATE[k].appRef === "prev" ? plan.appRefPrev : plan.appRefNext, envelope: t.deployment[STATE[k].envelope] });
+-const AFTER = { publish: "upgrade", upgrade: "config", config: "done" };
++const STATE = { publish: { n: 5, appRef: "prev" }, upgrade: { n: 6, appRef: "prev" }, done: { n: 6, appRef: "next" } };
++const expectOf = (t, plan, k) => ({ n: BigInt(STATE[k].n), appRef: STATE[k].appRef === "prev" ? plan.appRefPrev : plan.appRefNext, envelope: t.deployment.envelope });
++const AFTER = { publish: "upgrade", upgrade: "done" };
++/** The vault's hold on the deployment: exactly the pinned STAGING hold (no step promotes, adopts or releases it). */
++function checkHeld(t, h) {
++  const [env, promoted, createdBy] = h;
++  assert.equal(Number(env), t.vault.held.env, "the vault no longer holds the deployment as STAGING; refused");
++  eq(promoted, t.vault.held.promoted, "the vault's promoted hash changed"); eq(createdBy, t.vault.held.createdBy, "the vault's hold was re-created");
++}
+ 
+ /** The step's PRE-state (nothing of it done; everything before it done), one provider. Throws (refuse) on any drift. */
+ async function preOf(c, t, plan, step, blockNumber) {
+   const w = expectOf(t, plan, step);
+   const n = BigInt(await call(c, t.admin, t.catalog, CATALOG_ABI, "numVersions", [plan.appId], blockNumber));
+-  assert.equal(n, w.n, step === "publish" ? `the catalog lists ${n} versions of ipns-publisher, not ${w.n}: 1.0.6 would not be index ${t.publish.index}; refused, replan`
++  assert.equal(n, w.n, step === "publish" ? `the catalog lists ${n} versions of enclavedns, not ${w.n}: 0.1.5 would not be index ${t.publish.index}; refused, replan`
+     : `the catalog lists ${n} versions, not the ${w.n} expected after the publish; refused`);
+   checkPrev(t, await call(c, t.admin, t.catalog, CATALOG_ABI, "getVersion", [plan.appId, BigInt(t.prev.index)], blockNumber));
+   if (step !== "publish") checkVersion(t, await call(c, t.admin, t.catalog, CATALOG_ABI, "getVersion", [plan.appId, BigInt(t.publish.index)], blockNumber));
+   const d = await call(c, t.admin, t.ledger, LEDGER_ABI, "get", [t.deployment.id], blockNumber);
+   checkDeployment(t, plan, d, w);
++  checkHeld(t, await call(c, t.admin, t.vault.address, VAULT_ABI, "held", [t.deployment.id], blockNumber));
+   return { numVersions: n, deployment: d };
+ }
+ 
+ /** The step's POST-state reads for the simulation bundle and for verification. */
+ const postReads = (t, plan, step) => step === "publish"
+   ? [["numVersions", t.catalog, CATALOG_ABI, "numVersions", [plan.appId]], ["version", t.catalog, CATALOG_ABI, "getVersion", [plan.appId, BigInt(t.publish.index)]],
+-     ["app", t.catalog, CATALOG_ABI, "getApp", [plan.appId]], ["deployment", t.ledger, LEDGER_ABI, "get", [t.deployment.id]]]
+-  : [["deployment", t.ledger, LEDGER_ABI, "get", [t.deployment.id]], ["numVersions", t.catalog, CATALOG_ABI, "numVersions", [plan.appId]]];
++     ["app", t.catalog, CATALOG_ABI, "getApp", [plan.appId]], ["deployment", t.ledger, LEDGER_ABI, "get", [t.deployment.id]], ["held", t.vault.address, VAULT_ABI, "held", [t.deployment.id]]]
++  : [["deployment", t.ledger, LEDGER_ABI, "get", [t.deployment.id]], ["numVersions", t.catalog, CATALOG_ABI, "numVersions", [plan.appId]], ["held", t.vault.address, VAULT_ABI, "held", [t.deployment.id]]];
+ function checkPost(t, plan, step, v, before, { simulated }) {
+   const w = expectOf(t, plan, AFTER[step]);
+   assert.equal(BigInt(v.numVersions), w.n, `expected ${w.n} versions after ${step}`);
+   if (step === "publish") { checkVersion(t, v.version); checkApp(t, plan, v.app); }
+   checkDeployment(t, plan, v.deployment, w);
++  checkHeld(t, v.held);
+   // nothing else of the deployment moved: in a simulation (same block) the whole record; on chain, the stable fields
+   if (simulated) assert.deepEqual(norm({ ...v.deployment, appRef: 0, configCid: 0 }), norm({ ...before.deployment, appRef: 0, configCid: 0 }), `${step} changed another field of the deployment`);
+   else assert.deepEqual(depView(v.deployment), depView(before.deployment), `${step} changed another field of the deployment`);
+@@ -163,13 +176,14 @@
+   assert.ok(views[0].balance >= feeLimit, "the owner's ETH balance does not cover this step's maximum fee");
+   for (const c of clients) eq((await c.getBlock({ blockNumber: anchor.blockNumber })).hash, anchor.blockHash, "preparation anchor changed");
+   assert.ok(Date.now() - now < t.maxAgeMs, "preparation expired; prepare again");
+-  return { format: "ipns-publisher-release-operation/v1", status: "prepared; wallet approval required; nothing sent", step, n: s.n, opId: opIdOf(s), title: s.title, destination: s.destination,
++  return { format: "enclavedns-release-operation/v1", status: "prepared; wallet approval required; nothing sent", step, n: s.n, opId: opIdOf(s), title: s.title, destination: s.destination,
+     amountWei: "0", preparedAt: new Date(now).toISOString(), expiresAt: new Date(now + t.maxAgeMs).toISOString(),
+     transaction: { from: lc(t.admin), to: lc(s.to), chainId: hex(t.chainId), type: "0x2", nonce: hex(nonce), data: s.data, value: "0x0", gas: hex(gas), maxFeePerGas: hex(maxFeePerGas), maxPriorityFeePerGas: hex(tip) },
+     anchor: { blockNumber: String(anchor.blockNumber), blockHash: anchor.blockHash }, simulatedGasUsed: String(views[0].gasUsed), estimatedFeeLimitWei: String(feeLimit) };
+ }
+ 
+-const WANT_EVENTS = { publish: ["VersionPublished", "VersionApprovalSet"], upgrade: ["AppRefSet"], config: ["ConfigSet"] };
++// the upgrade goes through SessionVault.ownerCall, which emits nothing itself: exactly the ledger's AppRefSet
++const WANT_EVENTS = { publish: ["VersionPublished", "VersionApprovalSet"], upgrade: ["AppRefSet"] };
+ /** The landed transaction is exactly the request, with exactly the step's events. -> { outcome: "success" | "reverted" } (throws otherwise). */
+ export function checkLanding(t, plan, step, request, { transaction: tx, receipt }) {
+   const w = request.transaction, s = plan.steps.find((x) => x.step === step);
+@@ -194,8 +208,7 @@
+     eq(ev[1].args.appId, plan.appId); assert.equal(BigInt(ev[1].args.index), BigInt(t.publish.index)); assert.equal(Number(ev[1].args.status), 1, "not owner-approved");
+   } else {
+     eq(ev[0].args.id, t.deployment.id, `${want[0]} is for another deployment`);
+-    if (step === "upgrade") assert.equal(ev[0].args.appRef, plan.appRefNext, "AppRefSet reference");
+-    else assert.equal(ev[0].args.configCid, t.deployment.envelopeNew, "ConfigSet envelope");
++    assert.equal(ev[0].args.appRef, plan.appRefNext, "AppRefSet reference");
+   }
+   return { outcome: "success" };
+ }
+@@ -249,8 +262,8 @@
+ }
+ 
+ /**
+- * The whole sequence, read-only: publish -> upgrade -> config simulated as ONE eth_simulateV1 bundle at the anchor on both
+- * providers, each followed by its post reads and checks (the preflight evidence that steps 3 and 4 will hold after 2).
++ * The whole sequence, read-only: publish -> upgrade simulated as ONE eth_simulateV1 bundle at the anchor on both providers,
++ * each followed by its post reads and checks (the preflight evidence that step 3 will hold after 2).
+  */
+ export async function simulateSequence({ t, plan, clients }) {
+   pair(clients);
+@@ -264,7 +277,7 @@
+     const got = await simulate(c, anchor.blockNumber, calls);
+     let before = pre; const gas = {};
+     for (const [k, at, reads] of spans) { const post = decodeReads(reads, got, at + 1); checkPost(t, plan, k, post, before, { simulated: true }); before = post; gas[k] = String(BigInt(got[at].gasUsed)); }
+-    return { nonce: pins.nonce, pending: pins.pending, balance: String(pins.balance), gas, final: norm({ appRef: before.deployment.appRef, configSha256: sha256(before.deployment.configCid) }) };
++    return { nonce: pins.nonce, pending: pins.pending, balance: String(pins.balance), gas, final: norm({ appRef: before.deployment.appRef, owner: before.deployment.owner, configSha256: sha256(before.deployment.configCid), held: before.held }) };
+   }));
+   assert.deepEqual({ ...views[0], pending: 0 }, { ...views[1], pending: 0 }, "providers disagree on the simulated sequence");
+   return { anchor: { blockNumber: String(anchor.blockNumber), blockHash: anchor.blockHash }, ...views[0] };

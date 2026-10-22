@@ -1,0 +1,6 @@
+fbd95535bb4485e4568cd1012cbb0f4ba8e4d01010132774dda3a734fdf1b70b  windows/node/lease-gas-runtime.bundle.mjs
+64a8f4e9ca995bd6f2ba7211616aead5ec24b2f59e40020bc3024f6fd37503f9  windows/node/lease-gas-runtime.bundle.mjs.manifest.json
+e6c2c67412801fc9f5f706f98bf9ae17d5767453def817f72e36ec68fdfb4d62  metal/guest/lease-gas-conduit.bundle.mjs
+f56c4db9af41787d1513d1c0eb7f6f8f65a7e149f70b208832f73ee3cc2c1706  metal/guest/lease-gas-conduit.bundle.mjs.manifest.json
+2dbdde0ef3c6210f4524eeefb9de586c3b9e80c520cd3d7ef7fe839d239c879e  metal/guest/platform-api.bundle.mjs
+8ce7c9a5a10534408ab3958c1f0b618c530df1edf4abe047f34826f13bc79615  metal/guest/platform-api.bundle.mjs.manifest.json

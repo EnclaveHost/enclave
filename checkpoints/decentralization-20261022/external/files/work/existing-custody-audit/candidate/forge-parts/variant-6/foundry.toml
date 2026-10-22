@@ -1,0 +1,12 @@
+# Isolated Foundry run with the repository's settings (solc 0.8.35, via_ir, optimizer runs 200) through a solc-js shim (same release, manifest-pinned soljson digest).
+[profile.default]
+src = "contracts"
+test = "contracts/foundry/test"
+out = "out"
+cache_path = "cache"
+libs = ["contracts/foundry/lib"]
+solc = "/home/steven/Documents/Codex/2026-10-18/wo/work/existing-custody-audit/candidate/solcjs-bin/solc-0.8.35"
+offline = true
+optimizer = true
+optimizer_runs = 200
+via_ir = true

@@ -1,0 +1,16 @@
+--- a/relay/network-runtime.bundle.mjs.manifest.json
++++ b/relay/network-runtime.bundle.mjs.manifest.json
+@@ -1,11 +1,12 @@
+ {
+-  "sha256": "8745998ac6ea3f049c977612c96be18efa9218732c31b71d817f437000402320",
++  "sha256": "6f267659818b01eab1241eb3a185d530de57d9ec79ae815a58bb9a31a31a2d59",
+   "inputs": [
+     "custody/v2/quorum.mjs",
+     "isolation/contract/runtime.mjs",
+     "isolation/m2/judge.mjs",
+     "net-guard.mjs",
+     "network/app-zone-challenge.mjs",
++    "network/app-zone-shield.mjs",
+     "network/authority-profile.mjs",
+     "network/canonical.mjs",
+     "network/connectivity-chain.mjs",

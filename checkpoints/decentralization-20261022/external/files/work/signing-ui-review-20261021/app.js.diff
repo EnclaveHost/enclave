@@ -1,0 +1,45 @@
+--- app.js.orig-2ccf3512
++++ app.js
+@@ -3,7 +3,9 @@
+ // upgrade the existing deployment through its SessionVault), each prepared and verified by the local process. Adapted from
+ // the reviewed IPNS Publisher handoff page (ens-public-site-20261021/publisher-wallet-handoff/app.js) for these three
+ // steps: only the step count, the storage key prefix and the upload size text differ; no other page is linked.
+-const el=id=>document.getElementById(id);let provider,q,running=false;
++// pending: THIS page's own open eth_sendTransaction ({step, at}); display only. While it is set the page shows the request
++// the server journaled, hides Release for it and sends nothing again; it is cleared whenever that wallet call settles.
++const el=id=>document.getElementById(id);let provider,q,running=false,pending=null;
+ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+ const eth=w=>{const s=BigInt(w).toString().padStart(19,'0');const f=s.slice(-18).replace(/0+$/,'');return s.slice(0,-18)+(f?'.'+f:'')+' ETH';};
+ const key=s=>'enclave-enclavedns-release:'+s;
+@@ -27,9 +29,11 @@
+  if(q.blocked)el('status').textContent=q.blocked;
+  const n=q.steps.find(s=>s.step===q.next);
+  if(n&&n.step!=='upload'&&(['awaiting-wallet','submitted'].includes(n.status)||n.recoverable)){
+-  el('recovery').hidden=false;el('release').hidden=n.status!=='awaiting-wallet';if(n.hash)el('hash').value=n.hash;else{const h=localStorage.getItem(key(n.step));if(h)el('hash').value=h;}
++  el('recovery').hidden=false;el('release').hidden=n.status!=='awaiting-wallet'||!!pending;if(n.hash)el('hash').value=n.hash;else{const h=localStorage.getItem(key(n.step));if(h)el('hash').value=h;}
+   if(n.transaction)el('transaction').textContent=JSON.stringify(n.transaction,null,2);
+-  el('recovery-text').textContent='Step '+n.n+' ('+n.title+') has a wallet request with an unknown outcome. Do not send it again. If MetaMask sent it, verify its hash. If MetaMask never sent it, release the request; the retry reuses the same nonce, so only one can land.';}
++  if(pending?.step===n.step)el('recovery-text').textContent='Step '+n.n+' ('+n.title+') is waiting for your decision in MetaMask (opened '+new Date(pending.at).toISOString().slice(11,19)+' UTC, nonce '+n.nonce+'). Approve or reject it there; this page reports the answer and sends nothing again. If MetaMask shows no request, reload this page: it then offers Verify and the chain-checked Release.';
++  else if(n.status!=='awaiting-wallet'&&!n.hash)el('recovery-text').textContent='Step '+n.n+' ('+n.title+') was released after an unknown outcome. If MetaMask did send it, verify its hash. Otherwise Start opens a new request with the same nonce '+n.nonce+', so only one can land.';
++  else el('recovery-text').textContent='Step '+n.n+' ('+n.title+') has a wallet request with an unknown outcome. Do not send it again. If MetaMask sent it, verify its hash. If MetaMask never sent it, release the request; the retry reuses the same nonce, so only one can land.';}
+ }
+ load().catch(e=>el('status').textContent=e.message);
+ async function account(){const a=(await provider.request({method:'eth_accounts'}))[0];if(a?.toLowerCase()!==q.owner)throw Error('Select the owner account shown above in MetaMask.');
+@@ -58,10 +62,14 @@
+  el('status').textContent='Rechecking chain state and simulating step '+s.n+' on two providers…';
+  const p=await api('/tx/prepare',{step});el('transaction').textContent=JSON.stringify(p.transaction,null,2);
+  if(Date.now()>Date.parse(p.expiresAt))throw Error('the prepared request expired before it reached MetaMask; release it and start again');
+- el('status').textContent='Review step '+s.n+' in MetaMask: to '+p.transaction.to+', value 0, maximum fee '+eth(p.estimatedFeeLimitWei)+'. Do not edit gas or fees: an edited transaction is refused.';
+- let hash;try{hash=await provider.request({method:'eth_sendTransaction',params:[p.transaction]});}
+- catch(e){if(e.code===4001){await api('/tx/rejected',{step,code:4001});await load();el('status').textContent='You rejected step '+s.n+'. Paused; press Start to request it again.';return false;}
++ // the server journaled this request as awaiting-wallet: show that (one read-only GET) before the fee review text
++ pending={step,at:Date.now()};let hash;
++ try{await load().catch(()=>{});
++  el('status').textContent='Review step '+s.n+' in MetaMask: to '+p.transaction.to+', value 0, maximum fee '+eth(p.estimatedFeeLimitWei)+'. Do not edit gas or fees: an edited transaction is refused.';
++  hash=await provider.request({method:'eth_sendTransaction',params:[p.transaction]});}
++ catch(e){pending=null;if(e.code===4001){await api('/tx/rejected',{step,code:4001});await load();el('status').textContent='You rejected step '+s.n+'. Paused; press Start to request it again.';return false;}
+   await load();el('status').textContent='MetaMask returned no transaction hash ('+e.message+'). Do not resend. Check MetaMask activity, then verify the hash or release the request.';return false;}
++ finally{pending=null;}
+  localStorage.setItem(key(step),hash);return await verify(step,hash);}
+ async function run(){
+  if(running)return;running=true;el('start').disabled=true;

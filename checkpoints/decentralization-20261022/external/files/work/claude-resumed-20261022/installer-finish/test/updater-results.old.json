@@ -1,0 +1,61 @@
+{
+ "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-resumed-20261022/installer-finish/ref/update-host.96f19838.ps1",
+ "results": {
+  "A-roles-preserving-release-installs": {
+   "exit": 0,
+   "installs": [
+    "2026.10.22"
+   ],
+   "log": "2026-10-22T01:56:39Z update 2026.10.12.47 -> 2026.10.22 for 'nucbox-k11-4': UNSIGNED legacy channel https://get.enclave.host/windows/ (hashes from the same unsigned latest.json)\n2026-10-22T01:56:39Z installing 2026.10.22 (only the changed files)\n2026-10-22T01:56:39Z updated to 2026.10.22\n",
+   "stderr": ""
+  },
+  "B-roles-legacy-release-refused": {
+   "exit": 0,
+   "installs": [
+    "2026.10.22"
+   ],
+   "log": "2026-10-22T01:56:40Z update 2026.10.12.47 -> 2026.10.22 for 'nucbox-k11-4': UNSIGNED legacy channel https://get.enclave.host/windows/ (hashes from the same unsigned latest.json)\n2026-10-22T01:56:40Z installing 2026.10.22 (only the changed files)\n2026-10-22T01:56:40Z updated to 2026.10.22\n",
+   "stderr": ""
+  },
+  "C-roles-failed-install-no-legacy-rollback": {
+   "exit": 1,
+   "installs": [
+    "2026.10.22",
+    "2026.10.12.47"
+   ],
+   "log": "2026-10-22T01:56:40Z update 2026.10.12.47 -> 2026.10.22 for 'nucbox-k11-4': UNSIGNED legacy channel https://get.enclave.host/windows/ (hashes from the same unsigned latest.json)\n2026-10-22T01:56:40Z installing 2026.10.22 (only the changed files)\n2026-10-22T01:56:40Z install of 2026.10.22 FAILED (exit 1): reinstalling 2026.10.12.47\n2026-10-22T01:56:40Z rollback to 2026.10.12.47: exit 1\n",
+   "stderr": ""
+  },
+  "D-roles-failed-install-preserving-rollback": {
+   "exit": 1,
+   "installs": [
+    "2026.10.22",
+    "2026.10.12.47"
+   ],
+   "log": "2026-10-22T01:56:41Z update 2026.10.12.47 -> 2026.10.22 for 'nucbox-k11-4': UNSIGNED legacy channel https://get.enclave.host/windows/ (hashes from the same unsigned latest.json)\n2026-10-22T01:56:41Z installing 2026.10.22 (only the changed files)\n2026-10-22T01:56:41Z install of 2026.10.22 FAILED (exit 1): reinstalling 2026.10.12.47\n2026-10-22T01:56:41Z rollback to 2026.10.12.47: exit 0\n",
+   "stderr": ""
+  },
+  "E-plain-host-unchanged-behaviour": {
+   "exit": 1,
+   "installs": [
+    "2026.10.22",
+    "2026.10.12.47"
+   ],
+   "log": "2026-10-22T01:56:41Z update 2026.10.12.47 -> 2026.10.22 for 'nucbox-k11-4': UNSIGNED legacy channel https://get.enclave.host/windows/ (hashes from the same unsigned latest.json)\n2026-10-22T01:56:41Z installing 2026.10.22 (only the changed files)\n2026-10-22T01:56:41Z install of 2026.10.22 FAILED (exit 1): reinstalling 2026.10.12.47\n2026-10-22T01:56:41Z rollback to 2026.10.12.47: exit 0\n",
+   "stderr": ""
+  },
+  "F-only-a-role-task-counts": {
+   "exit": 0,
+   "installs": [
+    "2026.10.22"
+   ],
+   "log": "2026-10-22T01:56:42Z update 2026.10.12.47 -> 2026.10.22 for 'nucbox-k11-4': UNSIGNED legacy channel https://get.enclave.host/windows/ (hashes from the same unsigned latest.json)\n2026-10-22T01:56:42Z installing 2026.10.22 (only the changed files)\n2026-10-22T01:56:42Z updated to 2026.10.22\n",
+   "stderr": ""
+  }
+ },
+ "failures": [
+  "B-roles-legacy-release-refused",
+  "C-roles-failed-install-no-legacy-rollback",
+  "F-only-a-role-task-counts"
+ ]
+}

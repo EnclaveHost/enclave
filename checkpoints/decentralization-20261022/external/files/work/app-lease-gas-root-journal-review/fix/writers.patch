@@ -1,0 +1,45 @@
+--- a/shadow-b/supervisor.js
++++ b/shadow-b/supervisor.js
+@@ -3629,25 +3629,33 @@
+ const LEASE_FLOOR_KEEP_MS = 24 * 3600_000;
+ function saveStateNow() {
+   if (!_statePersistable || _stateCorrupt) return;   // never overwrite a journal that failed to load
+-  try {
+-    const tmp = STATE_FILE + ".tmp";
+-    writeFileSync(tmp, serializeState());
+-    renameSync(tmp, STATE_FILE);                 // atomic: a crash never leaves a torn file
+-    _stateDirty = false;
+-  } catch (e) { console.warn(`[state] save failed: ${e.message}`); }
++  // Accounting and shutdown replace the SAME file as the release journal. Every replacement must retain its
++  // durability, even when this caller handles a persistence error as best-effort rather than propagating it.
++  try { saveStateStrict("state checkpoint"); }
++  catch (e) { console.warn(`[state] save failed: ${e.message}`); }
+ }
+ function saveStateSoon() { _stateDirty = true; }
+ // STRICT persistence, for a decision that must be durable BEFORE an external effect (a sponsored release lease reaching
+ // a relay): write a separate temp file, fsync it, rename it over the state file, fsync the directory - and THROW on any
+ // failure, including a state file that cannot be persisted at all and a directory fsync that fails after the rename
+-// (the caller then sends nothing). The best-effort saveStateNow above stays what it was for accounting. A real power
+-// loss cannot be simulated by killing a process; the order of these calls is what this guarantees.
++// (the caller then sends nothing). Accounting and shutdown use this SAME writer; they may log an error but must never
++// replace an already durable journal with an unsynced inode. Killing a process does not simulate physical power loss.
+ function saveStateStrict(what) {
+   if (!_statePersistable) throw new Error(`the state file is unavailable: ${what} cannot be made durable`);
+   if (_stateCorrupt) throw new Error(`the state file failed to load (${_stateCorrupt}): ${what} is refused until it is resolved`);
+   const tmp = STATE_FILE + ".strict.tmp";
+   const fd = openSync(tmp, "w", 0o600);
+-  try { writeSync(fd, serializeState()); fsyncSync(fd); } finally { closeSync(fd); }
++  try {
++    const bytes = Buffer.from(serializeState(), "utf8");
++    let offset = 0;
++    while (offset < bytes.length) {
++      const wrote = writeSync(fd, bytes, offset, bytes.length - offset);
++      if (!Number.isInteger(wrote) || wrote <= 0 || wrote > bytes.length - offset)
++        throw new Error(`state write made invalid progress (${wrote})`);
++      offset += wrote;
++    }
++    fsyncSync(fd);
++  } finally { closeSync(fd); }
+   renameSync(tmp, STATE_FILE);
+   const dir = openSync(dirname(STATE_FILE), "r");
+   try { fsyncSync(dir); } finally { closeSync(dir); }

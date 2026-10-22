@@ -1,0 +1,796 @@
+--- a/client/lease-executor-client.mjs
++++ b/client/lease-executor-client.mjs
+@@ -13,7 +13,7 @@
+ //     a simulation of the exact transaction. Payment is atomic by the verified code: finish() pays or everything
+ //     reverts. It is never a call-anything service: no other target, no other function, bounded body, time and
+ //     concurrency, one send at a time per relay key.
+-//   - A HOST never takes a relay's word. A landed lease is verified against its OWN RPCs (all must agree): the
++//   - A HOST never takes a relay's word. A landed lease is verified against its OWN RPC quorum: the
+ //     transaction's target and exact calldata, the receipt's status, a LeaseGasPaid log emitted by the reserve with
+ //     this deployment, operator, kind and the signed payee, the operator's nonce lane past this lease, and the ledger's
+ //     effect. Relays are tried in turn with per-request and overall timeouts; an untrusted refusal never stops the
+@@ -21,9 +21,11 @@
+ //     recovered from the chain (the nonce lane and the reserve's logs); a nonce consumed by anything else is NOT
+ //     taken as this operation's success.
+ import http from "node:http";
+-import { getAddress, concat, encodeFunctionData, decodeFunctionData, decodeEventLog, decodeErrorResult, keccak256, hashTypedData,
++import { getAddress, concat, encodeFunctionData, decodeFunctionData, decodeFunctionResult, decodeEventLog, decodeErrorResult, keccak256, hashTypedData,
+          recoverAddress, isAddress, isHex, encodeAbiParameters } from "viem";
+ import { recoverAuthorizationAddress } from "viem/utils";
++import { leaseDeploymentPins, leaseRpcSet, verifiedLeaseAuthority } from "./lease-executor-authority.mjs";
++export { leaseDeploymentPins, verifiedLeaseAuthority } from "./lease-executor-authority.mjs";
+ 
+ export const KIND = Object.freeze({ claim: 1, renew: 2, release: 3 });
+ const KIND_NAME = ["", "claim", "renew", "release"];
+@@ -96,7 +98,11 @@
+ export const designator = (impl) => concat(["0xef0100", getAddress(impl)]).toLowerCase();
+ const lc = (a) => String(a).toLowerCase();
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+-const withTimeout = (p, ms, what) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error(`${what}: no answer within ${ms} ms`)), ms).unref?.())]);
++async function withTimeout(p, ms, what) {
++  let timer;
++  try { return await Promise.race([p, new Promise((_, no) => { timer = setTimeout(() => no(new Error(`${what}: no answer within ${ms} ms`)), ms); })]); }
++  finally { clearTimeout(timer); }
++}
+ 
+ /** The Lease typed-data digest exactly as the executor computes it (verifyingContract = the operator's own address). */
+ export function leaseDigest({ chainId, operator, reserve, lease }) {
+@@ -118,14 +124,6 @@
+     }
+   }
+   return (e?.shortMessage || e?.message || String(e)).split("\n")[0].slice(0, 300);
+-}
+-
+-/** Every client must give the same answer (the host's own RPCs, never a relay's). */
+-async function agreed(clients, f, what) {
+-  const xs = await Promise.all(clients.map(f));
+-  const key = (x) => JSON.stringify(x, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
+-  if (xs.some((x) => key(x) !== key(xs[0]))) throw new Error(`the host's RPCs disagree on ${what}`);
+-  return xs[0];
+ }
+ 
+ /** POLICY eligibility (the reserve's statusOf) - not a promise the money suffices; see preflight(). */
+@@ -324,88 +322,119 @@
+ }
+ 
+ /**
+- * The host client. clients: the host's OWN RPC clients (every one must agree on what verifies a landing).
+- *   const lc = createLeaseClient({ clients, account, reserve, relays });
++ * The host client. clients: the host's OWN distinct RPC clients, with a strict majority quorum. deployment: locally
++ * reviewed chain/address/runtime pins (the owner's digest-verified deployment record), never a relay's advertised data.
++ *   const lc = createLeaseClient({ clients, account, reserve, deployment, relays });
+  *   await lc.claim(id, enclaveId) / lc.renew(id) / lc.release(id)  -> { hash, receipt }   (verified; throws LeaseRefusal)
+  *   lc.asClaimTx(fn, args) -> a hash promise with .receipt (supervisor.js sendClaimTx's shape)
+  */
+-export function createLeaseClient({ client, clients = [client], account, reserve, relays, allowLoopbackHttp = false, fetchImpl = fetch,
++export function createLeaseClient({ client, clients = [client], account, reserve, deployment, relays, allowLoopbackHttp = false, fetchImpl = fetch,
++                                    quorum, confirmations, maxBlockAgeSecs, rpcTimeoutMs, now,
+                                     requestTimeoutMs = 20_000, overallTimeoutMs = 180_000, ttlSec = 300, log = () => {}, onSigned = null }) {
+   if (!relays?.length) throw new Error("lease-gas: at least one relay URL is required");
+   const urls = relays.map((u) => validateRelayUrl(u, { allowLoopbackHttp }));
+   reserve = getAddress(reserve);
+-  const c0 = clients[0];
+-  let executorP = null;
+-  const executor = () => (executorP ||= c0.readContract({ address: reserve, abi: RESERVE_ABI, functionName: "executor" }).then(getAddress));
+-
+-  async function nonceOf(id, blockNumber) {
+-    const ex = await executor();
+-    return agreed(clients, async (c) => {
+-      const code = lc((await c.getCode({ address: account.address, blockNumber })) || "0x");
+-      if (code !== designator(ex)) return 0n;
+-      return BigInt(await c.readContract({ address: account.address, abi: EXECUTOR_ABI, functionName: "nonceOf", args: [id], blockNumber }));
+-    }, "the lease nonce");
+-  }
++  const pins = leaseDeploymentPins(deployment);
++  if (reserve !== pins.reserve) throw new Error("lease-gas reserve differs from the reviewed deployment record");
++  const rpc = leaseRpcSet(clients, { quorum, allowLoopbackHttp, timeoutMs: rpcTimeoutMs });
++  const authority = () => verifiedLeaseAuthority({ clients, deployment: pins, quorum, confirmations, maxBlockAgeSecs,
++    allowLoopbackHttp, timeoutMs: rpcTimeoutMs, now });
++  const executor = async () => (await authority()).pins.executor;
++
++  async function nonceAt(id, verified) {
++    const c = verified.client;
++    const code = lc((await c.getCode({ address: account.address })) || "0x");
++    if (code !== designator(pins.executor)) return 0n;
++    return BigInt(await c.readContract({ address: account.address, abi: EXECUTOR_ABI, functionName: "nonceOf", args: [id] }));
++  }
++  const nonceOf = async (id) => nonceAt(id, await authority());
+ 
+   /** Verify on the host's own RPCs that `hash` is THIS operator's lease `want` (id, kind, enclaveId, nonce) landing. */
+   async function verifyLanded(hash, want, payees) {
+-    return agreed(clients, async (c) => {
++    return rpc.agree(rpc.peers, async ({ client: c }) => {
+       const [tx, rc] = await Promise.all([c.getTransaction({ hash }), c.getTransactionReceipt({ hash })]);
++      if (lc(tx.hash) !== lc(hash) || lc(rc.transactionHash) !== lc(hash) || !HEX32.test(rc.blockHash || "") ||
++          lc(tx.blockHash) !== lc(rc.blockHash) || tx.blockNumber !== rc.blockNumber)
++        throw new Error("the transaction and receipt do not identify the same block");
+       if (!tx.to || getAddress(tx.to) !== getAddress(account.address)) throw new Error("the transaction does not call this operator");
++      if (Number(tx.chainId) !== pins.chainId || BigInt(tx.value) !== 0n) throw new Error("wrong lease chain or value");
+       const call = decodeFunctionData({ abi: EXECUTOR_ABI, data: tx.input });
+       if (call.functionName !== "lease" || (tx.input.length - 2) / 2 !== CANONICAL_LENGTH) throw new Error("not a canonical lease call");
+       const l = call.args[0];
+       if (l.id !== want.id || Number(l.kind) !== want.kind || l.enclaveId !== want.enclaveId || BigInt(l.nonce) !== want.nonce) throw new Error("another lease than the one signed");
++      if (BigInt(l.deadline) !== want.deadline || BigInt(l.maxChargeWei) !== want.maxChargeWei)
++        throw new Error("the lease deadline or maximum charge differs from the signed intent");
+       if (payees && !payees.some((p) => lc(p) === lc(l.payee))) throw new Error("a payee this host never signed");
+       if (rc.status !== "success") throw new Error(`the lease transaction reverted (${hash})`);
+       const paid = rc.logs.filter((g) => lc(g.address) === lc(reserve)).map((g) => { try { return decodeEventLog({ abi: RESERVE_ABI, data: g.data, topics: g.topics }); } catch { return null; } })
+         .find((ev) => ev?.eventName === "LeaseGasPaid" && ev.args.id === want.id && lc(ev.args.operator) === lc(account.address) && Number(ev.args.kind) === want.kind && lc(ev.args.payee) === lc(l.payee));
+       if (!paid) throw new Error("no LeaseGasPaid from the reserve for this lease");
+-      const ledger = await c.readContract({ address: reserve, abi: RESERVE_ABI, functionName: "ledger" });
+-      const d = await c.readContract({ address: ledger, abi: LEDGER_ABI, functionName: "get", args: [want.id], blockNumber: rc.blockNumber });
++      const ledger = pins.ledger;
++      const at = { blockHash: rc.blockHash, requireCanonical: true };
++      const [rcCode, exCode, opCode, data, nonceData] = await Promise.all([
++        rpc.request(c, "eth_getCode", [reserve, at]), rpc.request(c, "eth_getCode", [pins.executor, at]),
++        rpc.request(c, "eth_getCode", [account.address, at]),
++        rpc.request(c, "eth_call", [{ to: ledger, data: encodeFunctionData({ abi: LEDGER_ABI, functionName: "get", args: [want.id] }) }, at]),
++        rpc.request(c, "eth_call", [{ to: account.address,
++          data: encodeFunctionData({ abi: EXECUTOR_ABI, functionName: "nonceOf", args: [want.id] }) }, at]),
++      ]);
++      if (keccak256(rcCode) !== pins.reserveCodeHash || keccak256(exCode) !== pins.executorCodeHash ||
++          lc(opCode) !== designator(pins.executor)) throw new Error("unreviewed lease code at the receipt block");
++      const d = decodeFunctionResult({ abi: LEDGER_ABI, functionName: "get", data });
++      const landedNonce = BigInt(decodeFunctionResult({ abi: EXECUTOR_ABI, functionName: "nonceOf", data: nonceData }));
++      if (landedNonce <= want.nonce) throw new Error("the executor did not consume this lease nonce");
++      if (paid.args.chargedWei > want.maxChargeWei) throw new Error("the charge exceeds the signed maximum");
+       if (want.kind === 1 && (lc(d.runnerOperator) !== lc(account.address) || d.runner !== want.enclaveId)) throw new Error("the ledger does not show this claim");
+       if (want.kind === 3 && !/^0x0{40}$/i.test(d.runnerOperator)) throw new Error("the ledger does not show the release");
+       if (want.kind === 2 && lc(d.runnerOperator) !== lc(account.address)) throw new Error("the ledger does not show this renewal");
+-      return { hash, blockNumber: rc.blockNumber, chargedWei: paid.args.chargedWei, payee: paid.args.payee };
+-    }, "the landed lease").then((v) => ({ ...v, receiptP: c0.getTransactionReceipt({ hash }) }));
++      return { hash, blockNumber: rc.blockNumber, blockHash: lc(rc.blockHash), chargedWei: paid.args.chargedWei, payee: paid.args.payee, receipt: rc };
++    }, "the landed lease").then(({ value: v }) => ({ ...v, receiptP: Promise.resolve(v.receipt) }));
+   }
+ 
+   /** The chain's own record: a LeaseGasPaid by this operator for `id` from `fromBlock` whose transaction is THIS lease. */
+   async function findLanded(want, fromBlock, payees) {
+-    const logs = await c0.getContractEvents({ address: reserve, abi: RESERVE_ABI, eventName: "LeaseGasPaid", args: { id: want.id, operator: account.address }, fromBlock });
+-    for (const g of logs) { try { return await verifyLanded(g.transactionHash, want, payees); } catch {} }
++    const answers = await Promise.allSettled(clients.map((c) => withTimeout(
++      c.getContractEvents({ address: reserve, abi: RESERVE_ABI, eventName: "LeaseGasPaid", args: { id: want.id, operator: account.address }, fromBlock }),
++      requestTimeoutMs, "lease logs")));
++    const hashes = [...new Set(answers.filter((a) => a.status === "fulfilled")
++      .flatMap((a) => a.value.slice(-32).map((g) => g.transactionHash)))];
++    for (const hash of hashes) { try { return await verifyLanded(hash, want, payees); } catch {} }
+     return null;
+   }
+ 
+   async function run(kindName, id, enclaveId = ZERO32) {
+     const kind = KIND[kindName];
+-    const ex = await executor();
+-    const pol = await policy({ client: c0, reserve, id, kind: kindName, enclaveId, operator: account.address });
++    const verified = await authority(), c = verified.client, ex = pins.executor;
++    const pol = await policy({ client: c, reserve, id, kind: kindName, enclaveId, operator: account.address });
+     if (pol.status !== "Ready") throw new LeaseRefusal(pol.status, `${kindName} ${id} refused: ${WHY[pol.status] || pol.status}`);
+-    const nonce = await nonceOf(id);
+-    const head = await c0.getBlock();
++    const nonce = await nonceAt(id, verified);
++    const head = verified.block;
+     const fromBlock = head.number;
+-    const fees = await currentFees(c0);
+-    const r = await c0.readContract({ address: reserve, abi: RESERVE_ABI, functionName: "reserveOf",
+-      args: [id, (await c0.readContract({ address: await c0.readContract({ address: reserve, abi: RESERVE_ABI, functionName: "ledger" }), abi: LEDGER_ABI, functionName: "get", args: [id] })).owner] });
++    const fees = await currentFees(c);
++    const r = await c.readContract({ address: reserve, abi: RESERVE_ABI, functionName: "reserveOf",
++      args: [id, (await c.readContract({ address: pins.ledger, abi: LEDGER_ABI, functionName: "get", args: [id] })).owner] });
+     // the host's own maximum: the upper quote at min(the owner's cap, 2x the current fee)
+     const priceCap = BigInt(r.maxGasPrice) < fees.effective * 2n ? BigInt(r.maxGasPrice) : fees.effective * 2n;
+-    const maxChargeWei = await quote({ client: c0, reserve, kind: kindName, gasPrice: priceCap });
+-    const want = { id, kind, enclaveId, nonce };
++    const maxChargeWei = await quote({ client: c, reserve, kind: kindName, gasPrice: priceCap });
+     const deadline = head.timestamp + BigInt(ttlSec);
+-    const code = lc((await c0.getCode({ address: account.address })) || "0x");
++    const want = { id, kind, enclaveId, nonce, deadline, maxChargeWei };
++    const code = lc((await c.getCode({ address: account.address })) || "0x");
++    const authorizationNonce = await c.getTransactionCount({ address: account.address });
++    verified.assertFresh();
+     const authorization = code === designator(ex) ? null
+-      : await account.signAuthorization({ contractAddress: ex, chainId: c0.chain.id, nonce: await c0.getTransactionCount({ address: account.address }) });
++      : await account.signAuthorization({ contractAddress: ex, chainId: pins.chainId, nonce: authorizationNonce });
+     const payees = [], errors = [];
+     const started = Date.now();
+     for (const url of urls) {
+       if (Date.now() - started > overallTimeoutMs) break;
+       try {
+         const info = await boundedFetchJson(fetchImpl, `${url}/v1/info`, {}, requestTimeoutMs);
+-        if (info.status !== 200 || Number(info.body.chainId) !== c0.chain.id || !isAddress(info.body.reserve || "") || getAddress(info.body.reserve) !== reserve
++        if (info.status !== 200 || Number(info.body.chainId) !== pins.chainId || !isAddress(info.body.reserve || "") || getAddress(info.body.reserve) !== reserve
++            || !isAddress(info.body.executor || "") || getAddress(info.body.executor) !== ex
+             || !isAddress(info.body.payee || "")) { errors.push(`${url}: does not serve this chain and reserve`); continue; }
+         const lease = { id, kind, enclaveId, nonce, deadline, payee: getAddress(info.body.payee), maxChargeWei };
+-        const signature = await account.signTypedData({ domain: { name: "EnclaveLeaseExecutor", version: "1", chainId: c0.chain.id, verifyingContract: account.address },
++        verified.assertFresh();
++        const signature = await account.signTypedData({ domain: { name: "EnclaveLeaseExecutor", version: "1", chainId: pins.chainId, verifyingContract: account.address },
+           types: TYPES, primaryType: "Lease", message: { reserve, ...lease } });
+         payees.push(lease.payee);
+         if (onSigned) await onSigned({ nonce, deadline, payee: lease.payee, kind: kindName });   // durable record BEFORE the relay sees it
+@@ -425,7 +454,7 @@
+       const landed = await findLanded(want, fromBlock, payees).catch(() => null);
+       if (landed) { log(`[lease-gas] ${kindName} ${id} landed in ${landed.hash} (found on chain)`); return { hash: landed.hash, receipt: await landed.receiptP, verified: landed }; }
+       if (await nonceOf(id) !== nonce) throw new LeaseRefusal("NonceConsumed", `${kindName} ${id}: the lease nonce ${nonce} was consumed by another operation; not this one's success`);
+-      const again = await policy({ client: c0, reserve, id, kind: kindName, enclaveId, operator: account.address });
++      const again = await policy({ client: (await authority()).client, reserve, id, kind: kindName, enclaveId, operator: account.address });
+       if (again.status !== "Ready") throw new LeaseRefusal(again.status, `${kindName} ${id} refused: ${WHY[again.status] || again.status}`);
+     }
+     throw new LeaseRefusal("NotRelayed", `no relay landed the ${kindName}: ${errors.slice(0, 6).join("; ")}`);
+@@ -450,21 +479,33 @@
+ 
+ /** An executable PREFLIGHT for an owner / host: simulate a lease of `kind` exactly as a relay would send it, signed by
+  *  `account` (a host key) for a placeholder payee `from`. Returns {ok, reason}. Policy eligibility alone is not enough. */
+-export async function preflight({ client, account, reserve, id, kind, enclaveId = ZERO32, from }) {
+-  const ex = getAddress(await client.readContract({ address: reserve, abi: RESERVE_ABI, functionName: "executor" }));
++export async function preflight({ client: singleClient, clients = [singleClient], account, reserve, deployment, id, kind, enclaveId = ZERO32, from,
++  quorum, confirmations, maxBlockAgeSecs, allowLoopbackHttp = false, rpcTimeoutMs, now }) {
++  const verified = await verifiedLeaseAuthority({ clients, deployment, quorum, confirmations, maxBlockAgeSecs,
++    allowLoopbackHttp, timeoutMs: rpcTimeoutMs, now });
++  if (getAddress(reserve) !== verified.pins.reserve) throw new Error("lease-gas reserve differs from reviewed pins");
++  const client = verified.client, ex = verified.pins.executor;
+   const code = lc((await client.getCode({ address: account.address })) || "0x");
+   const nonce = code === designator(ex) ? BigInt(await client.readContract({ address: account.address, abi: EXECUTOR_ABI, functionName: "nonceOf", args: [id] })) : 0n;
+   const head = await client.getBlock();
+   const fees = await currentFees(client);
+   const maxChargeWei = await quote({ client, reserve, kind, gasPrice: fees.effective * 2n });
+   const lease = { id, kind: KIND[kind], enclaveId, nonce, deadline: head.timestamp + 300n, payee: getAddress(from), maxChargeWei };
++  const authorizationNonce = await client.getTransactionCount({ address: account.address });
++  verified.assertFresh();
+   const signature = await account.signTypedData({ domain: { name: "EnclaveLeaseExecutor", version: "1", chainId: client.chain.id, verifyingContract: account.address },
+     types: TYPES, primaryType: "Lease", message: { reserve: getAddress(reserve), ...lease } });
++  verified.assertFresh();
+   const authorization = code === designator(ex) ? null
+-    : await account.signAuthorization({ contractAddress: ex, chainId: client.chain.id, nonce: await client.getTransactionCount({ address: account.address }) });
++    : await account.signAuthorization({ contractAddress: ex, chainId: client.chain.id, nonce: authorizationNonce });
+   try {
+-    await client.call({ account: getAddress(from), to: account.address, data: leaseCalldata(lease, signature), gas: 600_000n,
+-                        authorizationList: authorization ? [authorization] : undefined, maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.priorityFee });
++    const rpc = leaseRpcSet(clients, { quorum, allowLoopbackHttp, timeoutMs: rpcTimeoutMs });
++    await rpc.agree(rpc.peers, async ({ client: peer }) => {
++      await withTimeout(peer.call({ account: getAddress(from), to: account.address, data: leaseCalldata(lease, signature), gas: 600_000n,
++        authorizationList: authorization ? [authorization] : undefined, maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.priorityFee }),
++      rpcTimeoutMs ?? 15_000, "preflight");
++      return true;
++    }, "preflight success");
+     return { ok: true, maxChargeWei };
+   } catch (e) { return { ok: false, reason: reasonOf(e), maxChargeWei }; }
+ }
+--- /dev/null
++++ b/client/lease-executor-authority.mjs
+@@ -0,0 +1,157 @@
++// Authority checks BEFORE an operator signs any EIP-7702 delegation. The deployment record comes from reviewed local
++// configuration, never an RPC or relay response. All authority reads use one fresh, quorum-agreed canonical block hash.
++// Admin migrations remain possible: distribute a reviewed replacement record and reauthorize deliberately.
++import { getAddress, keccak256, encodeFunctionData, decodeFunctionResult, parseAbi } from "viem";
++import { rpcEndpoint } from "../network/rpc-identity.mjs";
++
++const HASH = /^0x[0-9a-f]{64}$/i;
++const ZERO = /^0x0{40}$/i;
++const EMPTY_HASH = keccak256("0x");
++const ABI = parseAbi([
++  "function executor() view returns (address)",
++  "function reserve() view returns (address)",
++  "function ledger() view returns (address)",
++  "function registry() view returns (address)",
++  "function delegationCodeHash() view returns (bytes32)",
++]);
++const keyOf = (v) => JSON.stringify(v, (_k, x) => typeof x === "bigint" ? x.toString() : x);
++const lower = (v) => String(v).toLowerCase();
++
++export function leaseDeploymentPins(record) {
++  if (!record || !Number.isSafeInteger(record.chainId) || record.chainId <= 0)
++    throw new Error("lease-gas needs a reviewed deployment record with a nonzero chain ID");
++  const out = { chainId: record.chainId };
++  for (const k of ["reserve", "executor", "ledger", "registry"]) {
++    try { out[k] = getAddress(record[k]); } catch { throw new Error(`lease-gas deployment pin: invalid ${k}`); }
++    if (ZERO.test(out[k])) throw new Error(`lease-gas deployment pin: zero ${k}`);
++  }
++  for (const k of ["reserveCodeHash", "executorCodeHash"]) {
++    if (!HASH.test(record[k] || "") || lower(record[k]) === EMPTY_HASH)
++      throw new Error(`lease-gas deployment pin: invalid ${k}`);
++    out[k] = lower(record[k]);
++  }
++  return Object.freeze(out);
++}
++
++// Distinct configured endpoints are not proof of independent organizations. This uses the repository's shared URL
++// identity rule to prevent counting one public host's paths or ports as several votes. A single local fixture node is
++// allowed only with explicit loopback permission AND an actual loopback transport URL.
++export function leaseRpcSet(clients, { quorum, allowLoopbackHttp = false, timeoutMs = 15_000 } = {}) {
++  if (!Array.isArray(clients) || !clients.length || clients.length > 16)
++    throw new Error("lease-gas requires 1..16 explicit RPC clients");
++  const peers = clients.map((client) => {
++    const endpoint = rpcEndpoint(client?.transport?.url);
++    if (endpoint.url.protocol === "http:" && !allowLoopbackHttp)
++      throw new Error("lease-gas plain HTTP RPC needs explicit loopback permission");
++    return { client, endpoint };
++  });
++  if (new Set(peers.map((p) => p.endpoint.identity)).size !== peers.length)
++    throw new Error("lease-gas RPCs repeat a provider");
++  const localFixture = peers.length === 1 && peers[0].endpoint.loopback && allowLoopbackHttp;
++  const required = quorum ?? Math.floor(peers.length / 2) + 1;
++  if (!Number.isInteger(required) || required > peers.length || required <= peers.length / 2 || (required < 2 && !localFixture))
++    throw new Error("lease-gas RPC quorum must be a strict majority of at least two peers");
++  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000)
++    throw new Error("lease-gas RPC timeout must be 1..60000 ms");
++  async function request(client, method, params) {
++    let timer;
++    try {
++      return await Promise.race([
++        client.request({ method, params }),
++        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("lease-gas RPC timeout")), timeoutMs); }),
++      ]);
++    } finally { clearTimeout(timer); }
++  }
++  async function agree(members, read, what) {
++    const results = await Promise.allSettled(members.map(async (member) => {
++      let timer;
++      try {
++        return await Promise.race([
++          Promise.resolve().then(() => read(member)),
++          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("lease-gas read timeout")), timeoutMs); }),
++        ]);
++      } finally { clearTimeout(timer); }
++    }));
++    const groups = new Map();
++    for (let i = 0; i < results.length; i++) {
++      if (results[i].status !== "fulfilled") continue;
++      const value = results[i].value, key = keyOf(value);
++      if (!groups.has(key)) groups.set(key, { value, members: [] });
++      groups.get(key).members.push(members[i]);
++    }
++    const winner = [...groups.values()].find((g) => g.members.length >= required);
++    if (!winner) throw new Error(`lease-gas RPC quorum did not agree on ${what}`);
++    return winner;
++  }
++  return { peers, required, localFixture, request, agree };
++}
++
++/** A fresh, hash-bound read client, backed ONLY by peers that verified the pinned deployment at that same hash. */
++export async function verifiedLeaseAuthority({ clients, deployment, quorum, allowLoopbackHttp = false,
++  confirmations, maxBlockAgeSecs = 120, timeoutMs = 15_000, now = Date.now }) {
++  const pins = leaseDeploymentPins(deployment);
++  const rpc = leaseRpcSet(clients, { quorum, allowLoopbackHttp, timeoutMs });
++  const depth = confirmations ?? (rpc.localFixture ? 0 : 2);
++  if (!Number.isInteger(depth) || depth < 0 || depth > 1024) throw new Error("lease-gas invalid confirmation depth");
++  if (!Number.isInteger(maxBlockAgeSecs) || maxBlockAgeSecs < 1 || maxBlockAgeSecs > 300)
++    throw new Error("lease-gas freshness bound must be 1..300 seconds");
++  const heads = await Promise.allSettled(rpc.peers.map(async (p) => {
++    if (BigInt(await rpc.request(p.client, "eth_chainId", [])) !== BigInt(pins.chainId))
++      throw new Error("wrong chain");
++    return { ...p, head: BigInt(await rpc.request(p.client, "eth_blockNumber", [])) };
++  }));
++  const answering = heads.filter((x) => x.status === "fulfilled").map((x) => x.value);
++  if (answering.length < rpc.required) throw new Error("lease-gas RPC quorum cannot read the configured chain");
++  const heights = answering.map((p) => p.head).sort((a, b) => a > b ? -1 : a < b ? 1 : 0);
++  const target = heights[rpc.required - 1] - BigInt(depth);
++  if (target < 0n) throw new Error("lease-gas confirmation depth exceeds chain height");
++  const agreed = await rpc.agree(answering, async (p) => {
++    const b = await rpc.request(p.client, "eth_getBlockByNumber", ["0x" + target.toString(16), false]);
++    if (!b || BigInt(b.number) !== target || !HASH.test(b.hash || "")) throw new Error("invalid block");
++    return { number: target, hash: lower(b.hash), timestamp: BigInt(b.timestamp), baseFeePerGas: BigInt(b.baseFeePerGas ?? 0) };
++  }, "the authority block");
++  const block = Object.freeze(agreed.value), at = Object.freeze({ blockHash: block.hash, requireCanonical: true });
++  function assertFresh() {
++    const seconds = BigInt(Math.floor(now() / 1000));
++    if (block.timestamp > seconds + 30n || seconds - block.timestamp > BigInt(maxBlockAgeSecs))
++      throw new Error("lease-gas authority block is stale or ahead of the local clock");
++  }
++  assertFresh();
++  const rawCall = (p, args) => rpc.request(p.client, "eth_call", [
++    { to: args.address, data: encodeFunctionData({ abi: args.abi, functionName: args.functionName, args: args.args ?? [] }) }, at,
++  ]).then((data) => decodeFunctionResult({ abi: args.abi, functionName: args.functionName, data }));
++  const authorized = await rpc.agree(agreed.members, async (p) => {
++    const read = (address, functionName) => rawCall(p, { address, abi: ABI, functionName });
++    const [rc, ec, executor, ledger, registry, back, dch] = await Promise.all([
++      rpc.request(p.client, "eth_getCode", [pins.reserve, at]), rpc.request(p.client, "eth_getCode", [pins.executor, at]),
++      read(pins.reserve, "executor"), read(pins.reserve, "ledger"), read(pins.reserve, "registry"),
++      read(pins.executor, "reserve"), read(pins.reserve, "delegationCodeHash"),
++    ]);
++    if (keccak256(rc) !== pins.reserveCodeHash || keccak256(ec) !== pins.executorCodeHash)
++      throw new Error("unreviewed runtime code");
++    if (getAddress(executor) !== pins.executor || getAddress(ledger) !== pins.ledger ||
++        getAddress(registry) !== pins.registry || getAddress(back) !== pins.reserve ||
++        lower(dch) !== keccak256(`0xef0100${pins.executor.slice(2)}`))
++      throw new Error("deployment bindings differ from reviewed pins");
++    return true;
++  }, "the pinned reserve, executor and ledger bindings");
++  assertFresh();
++  const read = async (fn, what) => {
++    assertFresh();
++    const result = await rpc.agree(authorized.members, fn, what);
++    assertFresh();
++    return result.value;
++  };
++  const client = {
++    chain: { id: pins.chainId },
++    getBlock: async () => { assertFresh(); return block; },
++    readContract: (args) => read((p) => rawCall(p, args), args.functionName),
++    getCode: ({ address }) => read((p) => rpc.request(p.client, "eth_getCode", [address, at]), "account code"),
++    getTransactionCount: ({ address }) => read(async (p) => {
++      const n = BigInt(await rpc.request(p.client, "eth_getTransactionCount", [address, at]));
++      if (n < 0n || n > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("invalid account nonce");
++      return Number(n);
++    }, "account nonce"),
++  };
++  return { pins, block, client, assertFresh, agreeing: authorized.members.length, quorum: rpc.required };
++}
+--- /dev/null
++++ b/network/lease-executor-authority.mjs
+@@ -0,0 +1,157 @@
++// Authority checks BEFORE an operator signs any EIP-7702 delegation. The deployment record comes from reviewed local
++// configuration, never an RPC or relay response. All authority reads use one fresh, quorum-agreed canonical block hash.
++// Admin migrations remain possible: distribute a reviewed replacement record and reauthorize deliberately.
++import { getAddress, keccak256, encodeFunctionData, decodeFunctionResult, parseAbi } from "viem";
++import { rpcEndpoint } from "../network/rpc-identity.mjs";
++
++const HASH = /^0x[0-9a-f]{64}$/i;
++const ZERO = /^0x0{40}$/i;
++const EMPTY_HASH = keccak256("0x");
++const ABI = parseAbi([
++  "function executor() view returns (address)",
++  "function reserve() view returns (address)",
++  "function ledger() view returns (address)",
++  "function registry() view returns (address)",
++  "function delegationCodeHash() view returns (bytes32)",
++]);
++const keyOf = (v) => JSON.stringify(v, (_k, x) => typeof x === "bigint" ? x.toString() : x);
++const lower = (v) => String(v).toLowerCase();
++
++export function leaseDeploymentPins(record) {
++  if (!record || !Number.isSafeInteger(record.chainId) || record.chainId <= 0)
++    throw new Error("lease-gas needs a reviewed deployment record with a nonzero chain ID");
++  const out = { chainId: record.chainId };
++  for (const k of ["reserve", "executor", "ledger", "registry"]) {
++    try { out[k] = getAddress(record[k]); } catch { throw new Error(`lease-gas deployment pin: invalid ${k}`); }
++    if (ZERO.test(out[k])) throw new Error(`lease-gas deployment pin: zero ${k}`);
++  }
++  for (const k of ["reserveCodeHash", "executorCodeHash"]) {
++    if (!HASH.test(record[k] || "") || lower(record[k]) === EMPTY_HASH)
++      throw new Error(`lease-gas deployment pin: invalid ${k}`);
++    out[k] = lower(record[k]);
++  }
++  return Object.freeze(out);
++}
++
++// Distinct configured endpoints are not proof of independent organizations. This uses the repository's shared URL
++// identity rule to prevent counting one public host's paths or ports as several votes. A single local fixture node is
++// allowed only with explicit loopback permission AND an actual loopback transport URL.
++export function leaseRpcSet(clients, { quorum, allowLoopbackHttp = false, timeoutMs = 15_000 } = {}) {
++  if (!Array.isArray(clients) || !clients.length || clients.length > 16)
++    throw new Error("lease-gas requires 1..16 explicit RPC clients");
++  const peers = clients.map((client) => {
++    const endpoint = rpcEndpoint(client?.transport?.url);
++    if (endpoint.url.protocol === "http:" && !allowLoopbackHttp)
++      throw new Error("lease-gas plain HTTP RPC needs explicit loopback permission");
++    return { client, endpoint };
++  });
++  if (new Set(peers.map((p) => p.endpoint.identity)).size !== peers.length)
++    throw new Error("lease-gas RPCs repeat a provider");
++  const localFixture = peers.length === 1 && peers[0].endpoint.loopback && allowLoopbackHttp;
++  const required = quorum ?? Math.floor(peers.length / 2) + 1;
++  if (!Number.isInteger(required) || required > peers.length || required <= peers.length / 2 || (required < 2 && !localFixture))
++    throw new Error("lease-gas RPC quorum must be a strict majority of at least two peers");
++  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000)
++    throw new Error("lease-gas RPC timeout must be 1..60000 ms");
++  async function request(client, method, params) {
++    let timer;
++    try {
++      return await Promise.race([
++        client.request({ method, params }),
++        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("lease-gas RPC timeout")), timeoutMs); }),
++      ]);
++    } finally { clearTimeout(timer); }
++  }
++  async function agree(members, read, what) {
++    const results = await Promise.allSettled(members.map(async (member) => {
++      let timer;
++      try {
++        return await Promise.race([
++          Promise.resolve().then(() => read(member)),
++          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("lease-gas read timeout")), timeoutMs); }),
++        ]);
++      } finally { clearTimeout(timer); }
++    }));
++    const groups = new Map();
++    for (let i = 0; i < results.length; i++) {
++      if (results[i].status !== "fulfilled") continue;
++      const value = results[i].value, key = keyOf(value);
++      if (!groups.has(key)) groups.set(key, { value, members: [] });
++      groups.get(key).members.push(members[i]);
++    }
++    const winner = [...groups.values()].find((g) => g.members.length >= required);
++    if (!winner) throw new Error(`lease-gas RPC quorum did not agree on ${what}`);
++    return winner;
++  }
++  return { peers, required, localFixture, request, agree };
++}
++
++/** A fresh, hash-bound read client, backed ONLY by peers that verified the pinned deployment at that same hash. */
++export async function verifiedLeaseAuthority({ clients, deployment, quorum, allowLoopbackHttp = false,
++  confirmations, maxBlockAgeSecs = 120, timeoutMs = 15_000, now = Date.now }) {
++  const pins = leaseDeploymentPins(deployment);
++  const rpc = leaseRpcSet(clients, { quorum, allowLoopbackHttp, timeoutMs });
++  const depth = confirmations ?? (rpc.localFixture ? 0 : 2);
++  if (!Number.isInteger(depth) || depth < 0 || depth > 1024) throw new Error("lease-gas invalid confirmation depth");
++  if (!Number.isInteger(maxBlockAgeSecs) || maxBlockAgeSecs < 1 || maxBlockAgeSecs > 300)
++    throw new Error("lease-gas freshness bound must be 1..300 seconds");
++  const heads = await Promise.allSettled(rpc.peers.map(async (p) => {
++    if (BigInt(await rpc.request(p.client, "eth_chainId", [])) !== BigInt(pins.chainId))
++      throw new Error("wrong chain");
++    return { ...p, head: BigInt(await rpc.request(p.client, "eth_blockNumber", [])) };
++  }));
++  const answering = heads.filter((x) => x.status === "fulfilled").map((x) => x.value);
++  if (answering.length < rpc.required) throw new Error("lease-gas RPC quorum cannot read the configured chain");
++  const heights = answering.map((p) => p.head).sort((a, b) => a > b ? -1 : a < b ? 1 : 0);
++  const target = heights[rpc.required - 1] - BigInt(depth);
++  if (target < 0n) throw new Error("lease-gas confirmation depth exceeds chain height");
++  const agreed = await rpc.agree(answering, async (p) => {
++    const b = await rpc.request(p.client, "eth_getBlockByNumber", ["0x" + target.toString(16), false]);
++    if (!b || BigInt(b.number) !== target || !HASH.test(b.hash || "")) throw new Error("invalid block");
++    return { number: target, hash: lower(b.hash), timestamp: BigInt(b.timestamp), baseFeePerGas: BigInt(b.baseFeePerGas ?? 0) };
++  }, "the authority block");
++  const block = Object.freeze(agreed.value), at = Object.freeze({ blockHash: block.hash, requireCanonical: true });
++  function assertFresh() {
++    const seconds = BigInt(Math.floor(now() / 1000));
++    if (block.timestamp > seconds + 30n || seconds - block.timestamp > BigInt(maxBlockAgeSecs))
++      throw new Error("lease-gas authority block is stale or ahead of the local clock");
++  }
++  assertFresh();
++  const rawCall = (p, args) => rpc.request(p.client, "eth_call", [
++    { to: args.address, data: encodeFunctionData({ abi: args.abi, functionName: args.functionName, args: args.args ?? [] }) }, at,
++  ]).then((data) => decodeFunctionResult({ abi: args.abi, functionName: args.functionName, data }));
++  const authorized = await rpc.agree(agreed.members, async (p) => {
++    const read = (address, functionName) => rawCall(p, { address, abi: ABI, functionName });
++    const [rc, ec, executor, ledger, registry, back, dch] = await Promise.all([
++      rpc.request(p.client, "eth_getCode", [pins.reserve, at]), rpc.request(p.client, "eth_getCode", [pins.executor, at]),
++      read(pins.reserve, "executor"), read(pins.reserve, "ledger"), read(pins.reserve, "registry"),
++      read(pins.executor, "reserve"), read(pins.reserve, "delegationCodeHash"),
++    ]);
++    if (keccak256(rc) !== pins.reserveCodeHash || keccak256(ec) !== pins.executorCodeHash)
++      throw new Error("unreviewed runtime code");
++    if (getAddress(executor) !== pins.executor || getAddress(ledger) !== pins.ledger ||
++        getAddress(registry) !== pins.registry || getAddress(back) !== pins.reserve ||
++        lower(dch) !== keccak256(`0xef0100${pins.executor.slice(2)}`))
++      throw new Error("deployment bindings differ from reviewed pins");
++    return true;
++  }, "the pinned reserve, executor and ledger bindings");
++  assertFresh();
++  const read = async (fn, what) => {
++    assertFresh();
++    const result = await rpc.agree(authorized.members, fn, what);
++    assertFresh();
++    return result.value;
++  };
++  const client = {
++    chain: { id: pins.chainId },
++    getBlock: async () => { assertFresh(); return block; },
++    readContract: (args) => read((p) => rawCall(p, args), args.functionName),
++    getCode: ({ address }) => read((p) => rpc.request(p.client, "eth_getCode", [address, at]), "account code"),
++    getTransactionCount: ({ address }) => read(async (p) => {
++      const n = BigInt(await rpc.request(p.client, "eth_getTransactionCount", [address, at]));
++      if (n < 0n || n > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("invalid account nonce");
++      return Number(n);
++    }, "account nonce"),
++  };
++  return { pins, block, client, assertFresh, agreeing: authorized.members.length, quorum: rpc.required };
++}
+--- /dev/null
++++ b/test/lease-authority.test.mjs
+@@ -0,0 +1,190 @@
++// Actual local EVM plus independently addressed RPC proxies. The first proxy can lie about authority; assertions
++// observe real signer calls and on-chain zero-ETH claims/renewals, not just helper return values.
++import { test, before, after } from "node:test";
++import assert from "node:assert/strict";
++import http from "node:http";
++import * as viem from "viem";
++import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
++const B = await import(process.env.LEASE_AUTHORITY_CLIENT || new URL("../client/lease-executor-client.mjs", import.meta.url).href);
++import { startWorld, haveAnvil } from "./helpers/b-world.mjs";
++
++const T = { skip: !haveAnvil && "needs anvil", timeout: 120_000 };
++const ATTACKER = "0x9999999999999999999999999999999999999999";
++const reserveGetters = viem.parseAbi(["function executor() view returns(address)", "function ledger() view returns(address)"]);
++let W, relay, dep;
++const proxies = [];
++before(async () => {
++  if (!haveAnvil) return;
++  W = await startWorld();
++  dep = { chainId: 8453, ...W.addr };
++  const key = generatePrivateKey();
++  await W.fund(privateKeyToAccount(key).address);
++  relay = await B.startLeaseRelay({ client: W.pc, wallet: W.wc(key), reserve: dep.reserve,
++    reserveCodeHash: dep.reserveCodeHash, executorCodeHash: dep.executorCodeHash });
++});
++after(async () => {
++  for (const p of proxies) await p.close();
++  await relay?.close();
++  W?.stop();
++});
++
++async function proxy(mode = "honest") {
++  const observations = [];
++  const state = { mode };
++  const server = http.createServer(async (req, res) => {
++    try {
++      const chunks = []; for await (const c of req) chunks.push(c);
++      const q = JSON.parse(Buffer.concat(chunks));
++      observations.push(q);
++      if (state.mode === "down") { res.writeHead(503); return res.end(); }
++      let result = await W.rpc(q.method, q.params);
++      if (state.mode === "chain" && q.method === "eth_chainId") result = "0x1";
++      if (state.mode === "stale" && q.method === "eth_getBlockByNumber")
++        result = { ...result, timestamp: viem.toHex(Math.floor(Date.now() / 1000) - 1000) };
++      if (state.mode === "height" && q.method === "eth_getBlockByNumber")
++        result = { ...result, number: viem.toHex(BigInt(result.number) + 1n) };
++      if (state.mode === "receipt" && q.method === "eth_getTransactionReceipt")
++        result = { ...result, blockHash: "0x" + "99".repeat(32) };
++      if (state.mode === "code" && q.method === "eth_getCode" && q.params[0].toLowerCase() === dep.reserve.toLowerCase())
++        result = "0x60006000";
++      if (["executor", "ledger"].includes(state.mode) && q.method === "eth_call" &&
++          q.params[0].to.toLowerCase() === dep.reserve.toLowerCase() &&
++          q.params[0].data === viem.encodeFunctionData({ abi: reserveGetters, functionName: state.mode }))
++        result = viem.encodeFunctionResult({ abi: reserveGetters, functionName: state.mode, result: ATTACKER });
++      res.writeHead(200, { "content-type": "application/json" });
++      res.end(JSON.stringify({ jsonrpc: "2.0", id: q.id, result }));
++    } catch (e) {
++      res.writeHead(200, { "content-type": "application/json" });
++      res.end(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32000, message: e.message } }));
++    }
++  });
++  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
++  const url = `http://127.0.0.1:${server.address().port}`;
++  const client = viem.createPublicClient({ chain: W.chain, transport: viem.http(url, { retryCount: 0, timeout: 1500 }) });
++  const p = { client, state, observations, close: () => new Promise((resolve) => {
++    server.closeAllConnections(); server.close(resolve);
++  }) };
++  proxies.push(p);
++  return p;
++}
++function spy(account) {
++  const calls = { authorization: [], lease: [] };
++  return { calls, account: { ...account,
++    signAuthorization: (a) => { calls.authorization.push(a); return account.signAuthorization(a); },
++    signTypedData: (a) => { calls.lease.push(a); return account.signTypedData(a); },
++  } };
++}
++const opts = (clients, account) => ({ clients, account, reserve: dep.reserve, deployment: dep, relays: [relay.url],
++  allowLoopbackHttp: true, confirmations: 0, requestTimeoutMs: 2000, rpcTimeoutMs: 2000 });
++
++test("reviewed pins and distinct RPC identities are required before signing", T, async () => {
++  const s = spy(privateKeyToAccount(generatePrivateKey()));
++  assert.throws(() => B.createLeaseClient({ client: W.pc, account: s.account, reserve: dep.reserve,
++    relays: [relay.url], allowLoopbackHttp: true }), /reviewed deployment/);
++  const clients = ["/one", "/two"].map((suffix) => viem.createPublicClient({
++    chain: W.chain, transport: viem.http("https://rpc.example" + suffix),
++  }));
++  assert.throws(() => B.createLeaseClient(opts(clients, s.account)), /repeat a provider/);
++  assert.throws(() => B.createLeaseClient(opts([clients[0]], s.account)), /at least two/);
++  assert.equal(s.calls.authorization.length + s.calls.lease.length, 0);
++});
++
++for (const mode of ["executor", "ledger", "code", "chain", "height"]) {
++  test(`a lying first RPC (${mode}) cannot obtain an authorization without an honest quorum, including preflight`, T, async () => {
++    const [bad, good] = await Promise.all([proxy(mode), proxy()]);
++    const owner = await W.owner(), op = await W.operator(`https://bad-authority-${mode}.test`);
++    const id = await W.create(owner);
++    await W.enable(owner, id);
++    const s = spy(op.account);
++    const o = opts([bad.client, good.client], s.account);
++    let leaked = false;
++    o.fetchImpl = () => { leaked = true; throw new Error("must not reach a relay"); };
++    const host = B.createLeaseClient(o);
++    const claimError = await host.claim(id, op.enclaveId).then(() => null, (e) => e);
++    assert.equal(s.calls.authorization.length, 0, "the first RPC obtained a 7702 authorization for an eligible real app");
++    assert.match(String(claimError?.message), /quorum/);
++    const preflightError = await B.preflight({ ...o, id, kind: "claim", enclaveId: op.enclaveId, from: ATTACKER })
++      .then(() => null, (e) => e);
++    assert.equal(s.calls.authorization.length, 0, "no 7702 capability was signed");
++    assert.match(String(preflightError?.message), /quorum/);
++    assert.equal(s.calls.lease.length, 0, "no lease intent was signed");
++    assert.equal(leaked, false);
++  });
++}
++
++test("authority is rechecked at a fresh block on every call; stale unanimous answers are refused", T, async () => {
++  const [a, b] = await Promise.all([proxy(), proxy()]);
++  const s = spy(privateKeyToAccount(generatePrivateKey()));
++  const host = B.createLeaseClient(opts([a.client, b.client], s.account));
++  assert.equal(await host.executor(), viem.getAddress(dep.executor));
++  a.state.mode = b.state.mode = "code";
++  await assert.rejects(host.executor(), /quorum/);
++  a.state.mode = b.state.mode = "stale";
++  await assert.rejects(host.executor(), /stale/);
++  assert.equal(s.calls.authorization.length, 0);
++});
++
++test("all authority calls bind the same canonical block hash", T, async () => {
++  const [a, b] = await Promise.all([proxy(), proxy()]);
++  const v = await B.verifiedLeaseAuthority({ ...opts([a.client, b.client], privateKeyToAccount(generatePrivateKey())) });
++  for (const p of [a, b]) {
++    const calls = p.observations.filter((q) => ["eth_getCode", "eth_call"].includes(q.method));
++    assert.ok(calls.length >= 7);
++    for (const q of calls) assert.deepEqual(q.params[1], { blockHash: v.block.hash, requireCanonical: true });
++  }
++});
++
++test("preflight accepts a covered lease and refuses a one-wei reserve, without applying its delegation", T, async () => {
++  const [a, b] = await Promise.all([proxy(), proxy()]);
++  const owner = await W.owner(), op = await W.operator("https://preflight-authority.test");
++  const info = await fetch(relay.url + "/v1/info").then((r) => r.json());
++  for (const [deposit, expected] of [[10n ** 16n, true], [1n, false]]) {
++    const id = await W.create(owner);
++    await W.enable(owner, id, { deposit });
++    const result = await B.preflight({ ...opts([a.client, b.client], op.account), id, kind: "claim",
++      enclaveId: op.enclaveId, from: info.payee });
++    assert.equal(result.ok, expected, JSON.stringify(result, (_k, v) => typeof v === "bigint" ? String(v) : v));
++    assert.equal((await W.reserveOf(id, owner.address)).balanceWei, deposit);
++    assert.ok([undefined, "0x"].includes(await W.pc.getCode({ address: op.address })), "eth_call must not persist the delegation");
++    assert.equal(await W.pc.getBalance({ address: op.address }), 0n);
++  }
++});
++
++test("two honest RPCs tolerate a liar or outage; a zero-ETH self-hosted app claims and renews from its reserve", T, async () => {
++  const [a, b, c] = await Promise.all([proxy("executor"), proxy(), proxy()]);
++  const owner = await W.owner();
++  const op = await W.operator("https://authority-zero-eth.test");
++  await W.write(owner.key, dep.registry, W.A.registry.abi, "setPayoutWallet", [op.enclaveId]);
++  const id = await W.create(owner, { fund6: 0n });
++  await W.enable(owner, id, { p: { claimPolicy: 1 } });
++  const s = spy(op.account);
++  let clockOffset = 0;
++  const host = B.createLeaseClient({ ...opts([a.client, b.client, c.client], s.account), now: () => Date.now() + clockOffset });
++  const before = (await W.reserveOf(id, owner.address)).balanceWei;
++  const claim = await host.claim(id, op.enclaveId);
++  assert.equal(claim.receipt.status, "success");
++  let d = await W.row(id);
++  assert.equal(d.rate, 0n);
++  assert.equal(d.runnerOperator, op.address);
++  assert.equal(await W.pc.getBalance({ address: op.address }), 0n);
++  assert.ok((await W.reserveOf(id, owner.address)).balanceWei < before);
++  assert.equal(s.calls.authorization.length, 1);
++  assert.equal(viem.getAddress(s.calls.authorization[0].contractAddress), viem.getAddress(dep.executor));
++  assert.equal(s.calls.authorization[0].chainId, 8453);
++  const lease = s.calls.lease[0].message;
++  for (const field of ["deadline", "maxChargeWei"]) {
++    await assert.rejects(host.verifyLanded(claim.hash, { ...lease, [field]: lease[field] + 1n }, [lease.payee]), /quorum/);
++  }
++  a.state.mode = "receipt";
++  const split = B.createLeaseClient(opts([a.client, b.client], s.account));
++  await assert.rejects(split.verifyLanded(claim.hash, lease, [lease.payee]), /quorum/,
++    "a receipt on another block cannot count as confirmation");
++  await W.warpTo(d.leaseUntil - 200n);
++  clockOffset = Number((await W.pc.getBlock()).timestamp) * 1000 - Date.now();
++  a.state.mode = "down";
++  const renew = await host.renew(id);
++  assert.equal(renew.receipt.status, "success");
++  assert.ok((await W.row(id)).leaseUntil > d.leaseUntil);
++  assert.equal(await W.pc.getBalance({ address: op.address }), 0n);
++  assert.equal(s.calls.authorization.length, 1, "existing delegation needs no second authorization");
++});
+--- a/test/relay-security.test.mjs
++++ b/test/relay-security.test.mjs
+@@ -11,9 +11,15 @@
+ 
+ const T = { skip: !haveAnvil && "needs anvil", timeout: 300_000 };
+ let W, honest, honestKey, closers = [];
++let clockOffset = 0;
+ before(async () => {
+   if (!haveAnvil) return;
+   W = await startWorld();
++  const warp = W.warpTo;
++  W.warpTo = async (ts) => {
++    await warp(ts);
++    clockOffset = Number((await W.pc.getBlock()).timestamp) * 1000 - Date.now();
++  };
+   honestKey = generatePrivateKey();
+   await W.fund(privateKeyToAccount(honestKey).address);
+   honest = await B.startLeaseRelay({ client: W.pc, wallet: W.wc(honestKey), reserve: W.addr.reserve, reserveCodeHash: W.addr.reserveCodeHash,
+@@ -141,7 +147,8 @@
+   return { url: `http://127.0.0.1:${server.address().port}`, hits, payee: acct.address };
+ }
+ const hostClient = (op, relays, extra = {}) => B.createLeaseClient({ client: W.pc, account: op.account, reserve: W.addr.reserve, relays,
+-                                                                      allowLoopbackHttp: true, requestTimeoutMs: 3000, ...extra });
++  deployment: { chainId: 8453, ...W.addr }, now: () => Date.now() + clockOffset,
++  allowLoopbackHttp: true, requestTimeoutMs: 3000, ...extra });
+ 
+ for (const mode of ["refuse", "hang", "unrelated", "reverted", "spoof"]) {
+   test(`host: a '${mode}' relay first never yields a false success; the honest relay behind it lands the claim`, T, async () => {

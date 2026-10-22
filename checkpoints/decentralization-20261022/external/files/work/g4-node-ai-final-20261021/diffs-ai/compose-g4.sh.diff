@@ -1,0 +1,15 @@
+--- frozen/control/compose-g4.sh
++++ ai-final/control/compose-g4.sh
+@@ -1,10 +1,10 @@
+ #!/usr/bin/env bash
+-# G4 control set (work/g4-node-final-package-20261021): 605's FROZEN composed set (node-hold-package-20261021/control/new,
++# G4 control set (work/g4-node-ai-final-20261021, copied from g4-node-final-package-20261021; P points HERE, never at the frozen original): 605's FROZEN composed set (node-hold-package-20261021/control/new,
+ # verified by its SHA256SUMS 3b2c1906 entries) + EXACTLY three G4 files from g4-network-composition-20261021/control-delta/new.
+ # Writes only into THIS package. (compose.sh beside this is 605's original, kept for provenance: it targets 605's package and
+ # must not be run from here.)
+ set -euo pipefail
+-W=/home/steven/Documents/Codex/2026-10-18/wo/work; P=$W/g4-node-final-package-20261021; F=$W/node-hold-package-20261021/control; D=$W/g4-network-composition-20261021/control-delta/new
++W=/home/steven/Documents/Codex/2026-10-18/wo/work; P=$W/g4-node-ai-final-20261021; F=$W/node-hold-package-20261021/control; D=$W/g4-network-composition-20261021/control-delta/new
+ pin(){ [ "$(sha256sum "$1" | cut -d' ' -f1)" = "$2" ] || { echo "PIN MISMATCH $1 (want $2)"; exit 1; }; }
+ pin $F/SHA256SUMS.txt 3b2c1906bc9f011d89613efe2759151dbc1d66fbc7fa699fb4d2f6d7310fdef2
+ ( cd $F && sha256sum -c --quiet SHA256SUMS.txt ) || { echo "605's control set does not verify"; exit 1; }

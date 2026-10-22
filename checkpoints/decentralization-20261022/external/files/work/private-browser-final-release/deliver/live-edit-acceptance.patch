@@ -1,0 +1,98 @@
+diff --git a/test/private-app-live-edit.test.mjs b/test/private-app-live-edit.test.mjs
+new file mode 100644
+index 0000000..8e261dd
+--- /dev/null
++++ b/test/private-app-live-edit.test.mjs
+@@ -0,0 +1,92 @@
++// The owner's sign-in frontends, edited ON CHAIN while the private app serves (work/private-browser-final-release).
++//
++// Everything that decides the outcome is real:
++//   - anvil with the REAL schema-16 ledger, catalog and schema-4 registry (test/helpers/cli-independent-rig.mjs);
++//   - the owner WALLET creates a PRIVATE, funded deployment, and the host's operator claims it on that ledger;
++//   - the ACTUAL supervisor.js (unmodified, no self-test seam) runs its real claim loop, registration, ledger reads and
++//     audit (auditClaims -> envelopeEditVerdict -> applyEnvelopeEdit), resumes the app, and serves /x/<id>;
++//   - the owner's own setConfig transactions are what change the envelope.
++// What this proves: an owner edit of `access` reaches the RUNNING app with no restart (no relaunch, the same process);
++// a further edit replaces it; an edit this build cannot parse is surfaced and the previous choice keeps serving (never a
++// silent drop); removing the namespace returns the app to the host default. The owner gate itself never opens: every
++// navigation without the owner's session still gets the sign-in page.
++// Fixtures: the app manager (a stub that counts launches), a loopback attestation document (format only) for teeOk().
++import test, { before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { haveTools, startRig, startActualHost, KEYS } from "./helpers/cli-independent-rig.mjs";
++import { ownerAddress, servableAppRef, getRow } from "./helpers/move-release-rig.mjs";
++
++const skip = haveTools();
++const T = skip ? { skip, timeout: 240000 } : { timeout: 240000 };
++let r, tmp;
++before(async () => { if (skip) return; r = await startRig(); tmp = fs.mkdtempSync(path.join(os.tmpdir(), "private-live-edit-")); });
++after(async () => { if (r) await r.stop(); if (tmp) fs.rmSync(tmp, { recursive: true, force: true }); });
++
++const until = async (fn, ms = 60000, every = 250) => { const end = Date.now() + ms; let last; while (Date.now() < end) { last = await fn(); if (last) return last; await new Promise((ok) => setTimeout(ok, every)); } return last; };
++
++test("ACTUAL supervisor + real ledger: the owner's setConfig changes a SERVING private app's sign-in frontends live, with no restart", T, async () => {
++  // the owner's private deployment, funded, leased by the rig's host
++  const appRef = await servableAppRef(r);
++  const id = r.createdId(await r.write(r.wc(KEYS.owner), r.addresses.ledger, r.A.ledger.abi, "create",
++    [appRef, 0, 100, 3000, "http:3000", false, "", "0x0000000000000000000000000000000000000000", 0n, 100000n]));
++  await r.write(r.wc(KEYS.owner), r.addresses.usdc, r.A.usdc.abi, "approve", [r.addresses.ledger, 10_000_000n]);
++  await r.write(r.wc(KEYS.owner), r.addresses.ledger, r.A.ledger.abi, "fund", [id, 5_000_000n]);
++  await r.write(r.wc(KEYS.operator), r.addresses.ledger, r.A.ledger.abi, "claim", [id, r.runner]);
++  const row = await getRow(r, id);
++  assert.equal(row.isPublic, false);
++
++  const h = await startActualHost(r, { id, owner: ownerAddress, dir: fs.mkdtempSync(path.join(tmp, "h-")), token: "t".repeat(40),
++    leaseUntil: row.leaseUntil, appRef, claim: true });
++  await h.waitLog(/\[registry\] registered/, 30000);
++  await h.waitLog(/\[ledger\] full pass/, 30000);
++  const bounce = async () => {
++    const res = await fetch(`${h.upstream}/x/${id}/inbox`, { headers: { "sec-fetch-dest": "document" }, redirect: "manual" });
++    return { status: res.status, page: await res.text() };
++  };
++  const launches = () => h.effects.filter((e) => e.launched).length;
++  // before any choice: the host default, and the owner gate holds
++  const d0 = await bounce();
++  assert.equal(d0.status, 401);
++  assert.ok(d0.page.includes(`/authorize?d=${id}`) && d0.page.includes("Continue to enclave.host"), "host default bounce");
++  const l0 = launches();
++
++  const setConfig = (envelope) => r.write(r.wc(KEYS.owner), r.addresses.ledger, r.A.ledger.abi, "setConfig", [id, envelope]);
++  const FIRST = ["https://dash.owner.example"], SECOND = ["https://alt.owner.example", "http://127.0.0.1:5173"];
++  const offers = (page, list) => list.every((f) => page.includes(`href="${f}/authorize?d=${id}"`)) && !/enclave\.host/.test(page);
++
++  // 1. the owner chooses frontends: applied by the audit on a LIVE record
++  let from = h.stdout().length;
++  await setConfig(JSON.stringify({ access: { frontends: FIRST } }));
++  await h.waitLog(new RegExp(`\\[claim\\] ${id} owner updated the waf/access envelope; applied live`), 60000, from);
++  const b1 = await until(async () => { const b = await bounce(); return offers(b.page, FIRST) ? b : null; });
++  assert.ok(b1, "the bounce offers exactly the owner's chosen frontend after the on-chain edit");
++  assert.equal(b1.status, 401, "the owner gate never opens");
++
++  // 2. the owner changes them: replaced, still live
++  from = h.stdout().length;
++  await setConfig(JSON.stringify({ access: { frontends: SECOND } }));
++  await h.waitLog(new RegExp(`\\[claim\\] ${id} owner updated the waf/access envelope; applied live`), 60000, from);
++  const b2 = await until(async () => { const b = await bounce(); return offers(b.page, SECOND) ? b : null; });
++  assert.ok(b2 && !b2.page.includes(FIRST[0]), "the new choice replaced the old one");
++
++  // 3. an edit this build cannot parse: surfaced, and the owner's previous choice keeps serving (never a silent drop)
++  from = h.stdout().length;
++  await setConfig(JSON.stringify({ access: { frontends: ["https://dash.owner.example/authorize"] } }));
++  await h.waitLog(new RegExp(`\\[claim\\] ${id} config change deferred/refused: access\\.frontends entry`), 60000, from);
++  assert.ok(offers((await bounce()).page, SECOND), "the last valid choice keeps serving");
++
++  // 4. the owner removes the namespace: back to the host default
++  from = h.stdout().length;
++  await setConfig("");
++  await h.waitLog(new RegExp(`\\[claim\\] ${id} owner updated the waf/access envelope; applied live`), 60000, from);
++  const b4 = await until(async () => { const b = await bounce(); return b.page.includes("Continue to enclave.host") ? b : null; });
++  assert.ok(b4 && !b4.page.includes(SECOND[0]), "the host default is back");
++
++  // no restart for any of it: no new launch, the same process, the record still running and private
++  assert.equal(launches(), l0, "no relaunch: access edits apply live");
++  assert.doesNotMatch(h.stdout(), new RegExp(`\\[claim\\] ${id} owner changed the deployment config on-chain; restarting`));
++  await h.kill();
++});

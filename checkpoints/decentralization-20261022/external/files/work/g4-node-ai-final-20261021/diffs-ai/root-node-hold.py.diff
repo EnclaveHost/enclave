@@ -1,0 +1,46 @@
+--- frozen/helper/root-node-hold.py
++++ ai-final/helper/root-node-hold.py
+@@ -1,6 +1,7 @@
+ #!/usr/bin/env python3
+ """ROOT-ONLY: activate the non-destructive wallet hold on minipc. PREPARED by Claude 60543494; NEVER run by its author.
+-G4 FINAL PACKAGE (work/g4-node-final-package-20261021, reviewer 9d; never run by it): the same controller with the G4 network
++G4 + AI FINAL PACKAGE (work/g4-node-ai-final-20261021 = 9d's frozen g4-node-final-package-20261021 76705b38 + the fail-closed
++AI-DACL precondition of node-hold-acl-normalization-20261021/apply-ai-precondition.py f9a97362; ACLS read): the same controller with the G4 network
+ (privacy-agent 7ef4e230 + NEW host-service-ingress c952dce4; worker 13ce44f1 unchanged), the control delta (network-enroll
+ a9729786, host-service-names a46123cb, host-service-transport de5bb98a), root review G-UPD/N2/N3 in the cutover (re-pinned), the
+ config-edit node.exe pinned to root's native writer proof, and the matching preflight gates. Everything else is 605's f80d5b57.
+@@ -26,7 +27,7 @@
+ HERE = pathlib.Path(__file__).resolve().parent; PKG = HERE.parent; W = PKG.parent; OUT = HERE / "runs"
+ T = (W / "nucbox-tls-20261021/root-activate-reviewed.py", "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f")
+ SCRIPTS = {"bundle-swap.ps1": (W / "cron-startup-20261021/respawn-activation/bundle-swap.ps1", "21d85c69b2b70564cc04f7ea7d72e9f763ef8ae65059fdb9972f0413f042b103"),
+-           "node-hold-cutover.ps1": (HERE / "node-hold-cutover.ps1", "2984c6f2d651d56c5a12ce022dddd4d84a3f3871389e7f170687643f3e8b9d06")}
++           "node-hold-cutover.ps1": (HERE / "node-hold-cutover.ps1", "255002c524255c6e8c0bc052150dd6579197da980e2b888b68b38e068763f548")}
+ RUN_NODE = "3366a005f8530903c83a334053280f41ed904df09133e92505c44f558acb6686"
+ LOCAL_CFG = "85698d20b4f8fb494c8620aeb80d5b4fbd2ec637ef40c7fa02693ba41ee2aa73"      # node-config.local.cmd (probe 21:20Z)
+ PF = r"C:\Program Files\Enclave"; CN = PF + r"\control\windows\node"; CNET = PF + r"\control\network"; BIN = PF + r"\network"
+@@ -75,6 +76,7 @@
+     r"$o.cfg=FileSha 'CFGX';$o.enKeys=@(([IO.File]::ReadAllText('CFGX')|ConvertFrom-Json).enclaveNetwork.PSObject.Properties.Name);$o.wallet=FileSha ($pd+'\network\wallet-admission.json');"
+     r"try{$s=[IO.File]::ReadAllText($pd+'\network\state\status.json')|ConvertFrom-Json;$o.statusAgeMs=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()-[int64]$s.updatedAt;$o.statusWallet=$s.walletAdmission}catch{$o.statusAgeMs=-1};"
+     r"try{$o.egressApps=@(([IO.File]::ReadAllText($pd+'\network\state\egress-routes.json')|ConvertFrom-Json).apps.PSObject.Properties).Count}catch{$o.egressApps=-1};$o|ConvertTo-Json -Compress -Depth 5").replace("CFGX", CFG)
++ACLS = U + r"$pd='C:\ProgramData\Enclave';[ordered]@{cfgAcl=(Get-Acl -LiteralPath ($pd+'\network\privacy-config.json')).Sddl;localAcl=(Get-Acl -LiteralPath ($pd+'\node-config.local.cmd')).Sddl}|ConvertTo-Json -Compress"   # security descriptors only, never bytes
+ FIL = U + r"$o=[ordered]@{};foreach($x in @(TARGETS)){$o[$x]=FileSha $x};$o|ConvertTo-Json -Compress"
+ COV = U + (r"$o=[ordered]@{};$c=[IO.File]::ReadAllText('CFGX')|ConvertFrom-Json;"
+     r"$o.apps=@($c.apps|ForEach-Object{$e=$null;try{$e=[IO.File]::ReadAllText([string]$_.expectedFile)|ConvertFrom-Json}catch{};[ordered]@{id=[string]$_.deploymentId;appRef=[string]$e.appRef;configCidString=($e.configCid -is [string]);configCidLen=$(if($e.configCid -is [string]){([string]$e.configCid).Length}else{-1})}});"
+@@ -170,6 +172,7 @@
+ def preflight():
+     """read-only: identities, the VM set, file states, configs (shas/key names), the network status, coverage, the P0 gate"""
+     idn = m.ps(IDN, 120); cfgs = m.ps(CFGS, 90)
++    acls = m.ps(ACLS, 60); cfgs = {**cfgs, **{k: acls.get(k) for k in ("cfgAcl", "localAcl")}}   # missing -> refused (unreadable)
+     idn = {**idn, **{k: v for k, v in cfgs.items() if k != "error"}} if "error" not in idn else idn
+     if "error" in cfgs: idn["error"] = "configs: " + str(cfgs["error"])
+     fil = m.ps(FIL.replace("TARGETS", ",".join(q(v[1]) for v in FILES.values()) + "," + ",".join(q(k) for k in KEEP)), 90)
+@@ -207,6 +210,9 @@
+     if not (0 <= int(i.get("statusAgeMs", -1)) < 5000): r.append("the privacy agent's status is not fresh")
+     if i.get("vms") in (None, "", "unavailable"): r.append("the manager's VM list is unavailable (never compared as unchanged)")
+     if i.get("hyperv") in (None, "", "unavailable"): r.append("Hyper-V's VM list (Get-VM) is unavailable (never compared as unchanged)")
++    for k in ("cfgAcl", "localAcl"):     # an auto-inherited DACL (D:AI / D:PAI): the form the exact ACL round-trip is proven for
++        mm = re.search(r"D:([A-Z]*)\(", str(i.get(k) or ""))
++        if not mm or "AI" not in mm.group(1): r.append(f"{k}: the DACL is not auto-inherited ({(mm.group(0)[:-1] if mm else 'unreadable')}); the exact ACL round-trip would refuse - root fixes that ACL first")
+     if [w for w in (i.get("netWriters") or ["unknown"]) if w not in ("S-1-5-18", "S-1-5-32-544")]: r.append(f"the network directory is writable by more than SYSTEM/Administrators: {i.get('netWriters')}")
+     if pre["coverage"]["blockers"]: r.append(f"coverage blockers {pre['coverage']['blockers']}")
+     if not pre["coverage"]["expectedIds"]: r.append("no VM-backed deployment found (refusing to infer coverage)")

@@ -1,0 +1,33 @@
+--- a/relay/dns-relay.js
++++ b/relay/dns-relay.js
+@@ -37,8 +37,8 @@
+ import { createHmac, timingSafeEqual } from "node:crypto";
+ import { createFleet, fleetConfig, fetchJson, installProcessGuards } from "./fleet.mjs";
+ import { isBoxHost } from "./boxhost.js";
+-import { authorizePush, parseMeasurements } from "./dns-challenge-attested.mjs";
+-import { createShieldChallengeAuth, isShieldPush, shieldRegistryBinding, shieldRegistryEntry } from "./dns-challenge-shield.mjs";
++import { authorizePush, parseMeasurements, createShieldChallengeAuth, isShieldPush, shieldRegistryBinding,
++  shieldRegistryEntry } from "./network-runtime.bundle.mjs";
+ installProcessGuards("dns-relay");
+ 
+ const need = (k) => { const v = (process.env[k] || "").trim(); if (!v) { console.error(`fatal: ${k} is required`); process.exit(1); } return v; };
+@@ -79,7 +79,7 @@
+     const shieldFile = (process.env.ATTESTED_SHIELD_POLICY || "").trim();
+     ATTEST = { mode, measurements: process.env.ATTESTED_MEASUREMENTS || !shieldFile ? parseMeasurements(process.env.ATTESTED_MEASUREMENTS) : new Set(),
+                kds: process.env.ATTESTED_KDS !== "0",
+-               ...(minTcb ? { minTcb: JSON.parse(minTcb) } : {}), judge: (await import("../isolation/m2/judge.mjs")).judge };
++               ...(minTcb ? { minTcb: JSON.parse(minTcb) } : {}), judge: (await import("./network-runtime.bundle.mjs")).judge };
+     if (shieldFile) Object.assign(ATTEST, await shieldAuthFromEnv(shieldFile));
+     const pushRead = Number(process.env.ATTESTED_PUSH_READ_MS || 10_000);
+     if (!Number.isSafeInteger(pushRead) || pushRead < 1000 || pushRead > 60_000) throw new Error("ATTESTED_PUSH_READ_MS must be an integer in 1000..60000");
+@@ -95,9 +95,7 @@
+ // registry. No address book, fleet, relay or default RPC is consulted.
+ async function shieldAuthFromEnv(file) {
+   const fs = await import("node:fs");
+-  const { validateContractPins } = await import("../network/contract-pins.mjs");
+-  const { parseProfile } = await import("../network/authority-profile.mjs");
+-  const { quorumReader, rpcClients } = await import("../windows/node/host-identity.mjs");
++  const { validateContractPins, parseProfile, quorumReader, rpcClients } = await import("./network-runtime.bundle.mjs");
+   const { recoverMessageAddress } = await import("viem");
+   const policy = JSON.parse(fs.readFileSync(file, "utf8"));
+   const profileFile = (process.env.ATTESTED_SHIELD_PROFILE || "").trim(), digest = (process.env.ATTESTED_SHIELD_PROFILE_DIGEST || "").trim();

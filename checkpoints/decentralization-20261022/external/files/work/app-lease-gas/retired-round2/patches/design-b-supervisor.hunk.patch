@@ -1,0 +1,163 @@
+diff --git a/supervisor.js b/supervisor.js
+index 777bff3..a733308 100644
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -9463,6 +9463,94 @@ function sendOperatorTx(address, abi, functionName, args) {
+ }
+ const sendClaimTx = (functionName, args) => sendOperatorTx(DEPLOYMENTS_ADDRESS, CLAIM_TX_ABI, functionName, args);
+ 
++// ---- app-funded lease gas, design B (work/app-lease-gas; PROTOTYPE, off unless configured) ----
++// The user's direction: lease claims and renewals are paid by the APP, not the host's wallet. With
++// LEASE_GAS_RESERVE set, claim / renew / re-claim AND release are not sent from the operator key's ETH: the key
++// (EIP-7702-delegated to EnclaveLeaseExecutor; the authorization rides in a relay's transaction) signs a Lease
++// locally, any of LEASE_GAS_RELAYS sends it, and the app's ETH reserve (EnclaveLeaseGasReserve) pays that relay in
++// the same transaction. A refusal (owner never enabled a reserve, empty reserve, outside the renew window, ...) is
++// logged in the reserve's own words and NEVER falls back to spending this host's ETH. Unset: exactly today's path.
++// Registry, bond and proof transactions are unchanged (still the operator key's own).
++const LEASE_GAS = (() => {
++  if (!process.env.LEASE_GAS_RESERVE) return null;
++  const relays = String(process.env.LEASE_GAS_RELAYS || "").split(",").map((s) => s.trim()).filter(Boolean);
++  if (!relays.length) { console.error("[lease-gas] LEASE_GAS_RESERVE needs LEASE_GAS_RELAYS: app-funded lease gas is OFF"); return null; }
++  return Object.freeze({ reserve: getAddress(process.env.LEASE_GAS_RESERVE), relays });
++})();
++let _leaseGasLib = null, _leaseSender = null;
++const leaseGasLib = () => (_leaseGasLib ||= import("./network/lease-executor-client.mjs"));
++async function leaseSender() {
++  if (!_leaseSender) {
++    const L = await leaseGasLib();
++    _leaseSender = L.createLeaseSender({ client: chainClient, account: claimSigner().account, reserve: LEASE_GAS.reserve,
++                                        relays: LEASE_GAS.relays, log: (m) => console.log(m) });
++  }
++  return _leaseSender;
++}
++/** sendClaimTx's shape (a hash promise with .receipt) for claim/renew, paid by the app's reserve through a relay. */
++function sendLeaseTx(functionName, args) {
++  if (!LEASE_GAS) return sendClaimTx(functionName, args);
++  const started = (async () => {
++    const s = await leaseSender();
++    const sent = s.asClaimTx(functionName, args);
++    const hash = await sent;
++    return { hash, receipt: await sent.receipt };
++  })();
++  started.catch((e) => console.warn(`[lease-gas] ${functionName} ${args[0]} refused: ${e.message}`));
++  const p = started.then((x) => x.hash);
++  p.receipt = started.then((x) => x.receipt);
++  p.receipt.catch(() => {});   // callers await p first; its rejection is the one they see
++  return p;
++}
++const RESERVE_VIEW_ABI = [{ type: "function", name: "reserveOf", stateMutability: "view", inputs: [{ type: "bytes32" }, { type: "address" }],
++  outputs: [{ type: "tuple", components: [{ name: "balanceWei", type: "uint128" }, { name: "maxPerOpWei", type: "uint64" },
++    { name: "epochCapWei", type: "uint64" }, { name: "enabled", type: "bool" }, { name: "claimPolicy", type: "uint8" }, { name: "sponsorRelease", type: "bool" },
++    { name: "renewWindow", type: "uint32" }, { name: "minExtension", type: "uint32" }, { name: "claimCooldown", type: "uint32" },
++    { name: "epochSec", type: "uint32" }, { name: "maxGasPrice", type: "uint64" }, { name: "maxClaimsPerEpoch", type: "uint8" },
++    { name: "epochIndex", type: "uint32" }, { name: "epochSpentWei", type: "uint96" }, { name: "epochClaims", type: "uint8" },
++    { name: "lastClaimAt", type: "uint64" }, { name: "lastClaimOperator", type: "address" }] }] }];
++/** A sponsored renew is valid only inside the owner's window before leaseUntil (the reserve enforces it): wait for the
++ *  window minus an inclusion margin. Reserve unreadable or not enabled: the ordinary margin (the send then refuses). */
++async function leaseGasRenewDue(rec) {
++  const now = Date.now();
++  if (!rec._leaseGasWindow || rec._leaseGasWindow.at < now - 300000) {
++    try {
++      const d = await readLedgerContract("get", [rec.id]).catch(() => null);
++      const r = await chainClient.readContract({ address: LEASE_GAS.reserve, abi: RESERVE_VIEW_ABI, functionName: "reserveOf", args: [rec.id, d?.owner || rec.owner] });
++      rec._leaseGasWindow = { at: now, sec: r.enabled ? Number(r.renewWindow) : null };
++    } catch { rec._leaseGasWindow = { at: now, sec: null }; }
++  }
++  const w = rec._leaseGasWindow.sec;
++  return w == null || rec._leaseUntil * 1000 - now <= Math.max(5, w - 15) * 1000;
++}
++/** The durable release intent's transaction, SPONSORED: the Lease is signed and recorded (its executor nonce and
++ *  deadline) before any relay sees it. It is spent once the key's executor nonce for this deployment moves past it,
++ *  and can never land after its deadline: that deadline is the fence (no transaction of this host is ever needed). */
++async function sponsoredRelease(it) {
++  const L = await leaseGasLib();
++  const account = claimSigner().account;
++  await L.status({ client: chainClient, reserve: LEASE_GAS.reserve, id: it.id, kind: "release", operator: account.address });
++  const { executor, lease } = await L.buildLease({ client: chainClient, reserve: LEASE_GAS.reserve, operator: account.address, id: it.id, kind: "release" });
++  const signed = await L.signLease({ client: chainClient, account, reserve: LEASE_GAS.reserve, executor, lease });
++  const tx = { sponsored: true, hash: null, leaseNonce: Number(lease.nonce), deadline: Number(lease.deadline), signedAt: Date.now(), state: "pending" };
++  it.attempts++; it.txs.push(tx);
++  saveStateNow();                                       // durable before any relay has it
++  let why = "";
++  try { const r = await L.submitToRelays({ urls: LEASE_GAS.relays, signed }); tx.hash = r.hash; tx.broadcast = "accepted"; }
++  catch (e) { tx.broadcast = "unconfirmed"; why = `: ${String(e.code || "relay")}`; }   // fixed words only in the state file
++  saveStateNow();
++  console.log(`[release] ${it.id} sponsored release ${it.attempts}/${RELEASE_ATTEMPTS} lease nonce ${tx.leaseNonce} (${it.why}; relay ${tx.broadcast}${why}${tx.hash ? ` ${tx.hash}` : ""}); the app's reserve pays`);
++  return tx;
++}
++async function resolveSponsoredUnmined(it, tx, head) {
++  const L = await leaseGasLib();
++  const n = await chainClient.readContract({ address: getAddress(it.operator), abi: L.EXECUTOR_ABI, functionName: "nonceOf", args: [it.id],
++                                            blockNumber: BigInt(head) }).catch(() => 0n);
++  if (Number(n) > tx.leaseNonce) { tx.state = "consumed"; tx.block = head; saveStateNow(); return; }
++  const b = await chainClient.getBlock({ blockNumber: BigInt(head) });
++  if (Number(b.timestamp) > tx.deadline) { tx.state = "consumed"; tx.expired = true; tx.block = head; saveStateNow(); }   // past its deadline: can never land
++}
++
+ // ---- claim bond (anti-sybil, EnclaveDeployments rev 7) ----------------------
+ // The ledger can require an operator to lock USDC before it may claim. That
+ // gate is the only on-chain cost of a SYBIL claim: registration is open and the
+@@ -9735,6 +9823,7 @@ function closeRelease(it, outcome, block) {
+ // Sign locally, persist {hash, nonce}, then broadcast, inside the one operator queue (sendOperatorTx): the next operator
+ // transaction still waits for this one's receipt (bounded), and its nonce comes after this one's.
+ function signAndSendRelease(it) {
++  if (LEASE_GAS) return sponsoredRelease(it);
+   const signed = _txChain.then(async () => {
+     const { account, wallet } = claimSigner();
+     const request = await wallet.prepareTransactionRequest({ account, to: getAddress(DEPLOYMENTS_ADDRESS),
+@@ -9769,8 +9858,10 @@ function fenceNonce(it, tx) {
+ }
+ async function resolveReleaseTx(it, tx) {
+   let r = null;
+-  try { r = await chainClient.getTransactionReceipt({ hash: tx.hash }); }
+-  catch (e) { if (!/TransactionReceiptNotFound|could not be found/i.test(`${e.name} ${e.message}`)) throw e; }
++  if (tx.hash) {
++    try { r = await chainClient.getTransactionReceipt({ hash: tx.hash }); }
++    catch (e) { if (!/TransactionReceiptNotFound|could not be found/i.test(`${e.name} ${e.message}`)) throw e; }
++  }
+   const head = Number(await chainClient.getBlockNumber({ cacheTime: 0 }));
+   if (r) {
+     const block = Number(r.blockNumber);
+@@ -9783,6 +9874,7 @@ async function resolveReleaseTx(it, tx) {
+     saveStateNow();
+     return;
+   }
++  if (tx.sponsored) return resolveSponsoredUnmined(it, tx, head);
+   // no receipt: resolved only once the nonce is consumed at a block we can name (by ours or by any other transaction)
+   const operator = getAddress(it.operator);
+   const mined = await chainClient.getTransactionCount({ address: operator, blockNumber: BigInt(head) });
+@@ -9899,6 +9991,7 @@ async function renewLeases() {
+     if (rec._leaseUntil * 1000 - Date.now() > RENEW_MARGIN_SEC * 1000) continue;
+     if ((rec._renewBackoffUntil || 0) > Date.now()) continue;   // a reverting tx must not re-fire every pass
+     const lapsed = rec._leaseUntil * 1000 <= Date.now();
++    if (LEASE_GAS && !lapsed && !(await leaseGasRenewDue(rec))) continue;   // a sponsored renew waits for the app's window
+     rec._renewing = true;
+     try {
+       const fresh = await readLedgerContract("get", [rec.id]);
+@@ -9906,7 +9999,7 @@ async function renewLeases() {
+       if (pinRefusal) { await retireForPlacement(rec, pinRefusal); continue; }
+       const walletRefusal = await hostWalletRefusal(rec.id,fresh.appRef,fresh.isPublic===false);
+       if(walletRefusal) { await retireForPlacement(rec,walletRefusal); continue; }
+-      const sent = lapsed ? sendClaimTx("claim", [rec.id, _enclaveId]) : sendClaimTx("renew", [rec.id]);
++      const sent = lapsed ? sendLeaseTx("claim", [rec.id, _enclaveId]) : sendLeaseTx("renew", [rec.id]);
+       await sent;
+       const rcpt = await sent.receipt;
+       if (rcpt.status !== "success") throw new Error(`${lapsed ? "re-claim" : "renew"} tx reverted`);
+@@ -10319,7 +10412,7 @@ async function auditClaims(ledgerById) {
+       // helps nobody and burns the user's lease.
+       if (opMine && !leaseLive && rec.status === "running") {
+         try {
+-          const sent = sendClaimTx("claim", [rec.id, _enclaveId]);
++          const sent = sendLeaseTx("claim", [rec.id, _enclaveId]);
+           await sent;
+           const rcpt = await sent.receipt;
+           const until = rcpt.status === "success" ? leaseFromReceipt(rcpt, "Claimed", rec.id) : null;
+@@ -11253,7 +11346,7 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false
+   if (releaseHold(d.id)) return releaseHold(d.id);
+   let rcpt;
+   try {
+-    const sent = sendClaimTx("claim", [d.id, _enclaveId]);
++    const sent = sendLeaseTx("claim", [d.id, _enclaveId]);
+     await sent;
+     rcpt = await sent.receipt;
+   } catch (e) { console.log(`[claim] ${d.id} claim tx failed (${e.shortMessage || e.message})`); return; }

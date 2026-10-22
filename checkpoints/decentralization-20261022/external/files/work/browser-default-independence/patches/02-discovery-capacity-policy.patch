@@ -1,0 +1,941 @@
+--- a/site/js/core/service-discovery.js
++++ b/site/js/core/service-discovery.js
+@@ -0,0 +1,247 @@
++/* ============================================================
++   Service-index discovery in the browser (docs/network/open-participation.md).
++
++   A port of network/service-index.mjs readServiceIndex onto the page's
++   own agreed reader (js/core/quorum.js): ONE block the profile's RPCs
++   agree on, the index's runtime code hash equal to the profile's pin
++   (never weakened), bounded page() windows and get(operator, slot)
++   lookups for operators the user already chose, so no amount of spam in
++   the listing can hide them. An ad is an UNTRUSTED CANDIDATE: "the
++   holder of this operator key claims a <kind> at these endpoints until
++   <expiry>". It proves nothing about honesty or about who runs it, and
++   nothing here is admitted automatically.
++
++   Counting: one operator key is one participant, however many endpoints
++   its ad lists (they are alternatives, never votes). Distinct keys are
++   not distinct organizations, and the page says so.
++
++   Reachability: an http: endpoint cannot be fetched by a page served
++   over https (mixed content). It is listed as "not reachable from this
++   page" instead of being silently dropped or treated as reachable.
++   ============================================================ */
++import { keccak256Hex, keccak256Utf8 } from "./keccak.js";
++
++export const SERVICE_KINDS = Object.freeze({ directory: 1, checker: 2, storage: 3, dns: 4, replica: 5 });
++export const KIND_NAMES = Object.freeze(Object.fromEntries(Object.entries(SERVICE_KINDS).map(([k, v]) => [v, k])));
++export const AD_VERSION = 1;
++export const LIMITS = Object.freeze({ slots: 8, endpoints: 4, endpointBytes: 256, ttlSec: 90 * 86400, page: 64, perKind: 1024 });
++export const CANDIDATE_NOTICE = "Untrusted candidates: an advertisement is a self-description by its operator key. It does not prove honest "
++  + "content, independence (distinct keys are not distinct organizations), an accepted host owner or checker authority. "
++  + "Nothing here is admitted automatically.";
++export const DISCOVERY_MAX_AGE_MS = 10 * 60 * 1000;
++
++const ADDR = /^0x[0-9a-f]{40}$/, HASH = /^0x[0-9a-f]{64}$/;
++const lc = (s) => String(s).toLowerCase();
++const sel = (sig) => keccak256Utf8(sig).slice(2, 10);
++const SEL = { page: sel("page(uint16,uint256,uint256)"), get: sel("get(address,uint8)") };
++const w32 = (n) => BigInt(n).toString(16).padStart(64, "0");
++
++export function validateIndexPin(pin, chainId){
++  if (!pin || typeof pin !== "object") throw new Error("service index pin required");
++  if (!ADDR.test(lc(pin.address || "")) || /^0x0{40}$/.test(lc(pin.address))) throw new Error("service index address required");
++  if (!HASH.test(lc(pin.codeHash || ""))) throw new Error("service index codeHash required");
++  return Object.freeze({ chainId, address: lc(pin.address), codeHash: lc(pin.codeHash) });
++}
++
++/* ---- endpoints: network/service-index.mjs validateEndpoint, verbatim rules ---- */
++const v4 = (h) => { const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/); return m && m.slice(1).every((x) => Number(x) <= 255) ? m.slice(1).map(Number) : null; };
++export function publicIPv4(h){
++  const a = v4(h); if (!a) return false;
++  const [x, y] = a;
++  return !(x === 0 || x === 10 || x === 127 || x >= 224 || (x === 100 && y >= 64 && y <= 127) || (x === 169 && y === 254) || (x === 172 && y >= 16 && y <= 31)
++    || (x === 192 && y === 168) || (x === 192 && y === 0 && (a[2] === 0 || a[2] === 2)) || (x === 198 && (y === 18 || y === 19))
++    || (x === 198 && y === 51 && a[2] === 100) || (x === 203 && y === 0 && a[2] === 113));
++}
++const BAD_SUFFIX = /(^|\.)(localhost|local|internal|intranet|lan|home|corp|private|home\.arpa|in-addr\.arpa|ip6\.arpa|onion|test|invalid|example)$/i;
++export function validateEndpoint(value){
++  if (typeof value !== "string" || !value.length || new TextEncoder().encode(value).length > LIMITS.endpointBytes || !/^[\x21-\x7e]+$/.test(value)) throw new Error("endpoint must be 1-256 printable ASCII bytes");
++  let u; try { u = new URL(value); } catch { throw new Error("endpoint is not a URL"); }
++  if (!["https:", "http:"].includes(u.protocol)) throw new Error("endpoint must be http(s)");
++  if (u.username || u.password || u.search || u.hash) throw new Error("endpoint must not carry credentials, a query or a fragment");
++  const h = u.hostname.toLowerCase();
++  if (h.startsWith("[")) throw new Error("IPv6 literal endpoints are not accepted");
++  if (v4(h)){ if (!publicIPv4(h)) throw new Error("endpoint names a non-public IPv4 address"); }
++  else {
++    if (!/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$/.test(h)) throw new Error("endpoint host must be a DNS name with two or more labels");
++    if (BAD_SUFFIX.test(h)) throw new Error("endpoint host is a special-use or internal name");
++  }
++  return u.href;
++}
++
++/* Can THIS page fetch it? A page served over https cannot reach http: (mixed content). */
++const LOOPBACK_NAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
++function currentProtocol(){
++  try { const l = globalThis.location; if (!l) return ""; if (l.protocol) return l.protocol; return l.origin ? new URL(l.origin).protocol : ""; } catch { return ""; }
++}
++export function reachability(endpoint, pageProtocol = currentProtocol()){
++  const u = new URL(endpoint);
++  // a browser blocks plain-HTTP fetches from an HTTPS page (mixed content), except to loopback, which it treats as
++  // potentially trustworthy; an unknown page protocol is not guessed
++  if (pageProtocol === "https:" && u.protocol === "http:" && !LOOPBACK_NAMES.has(u.hostname)) return { reachable: false, reason: "plain HTTP: a page served over HTTPS cannot reach it" };
++  return { reachable: true, reason: "" };
++}
++
++/* ---- ABI: the Ad tuple (operator, slot, kind, version, sequence, expiresAt, updatedAt, descriptor, string[] endpoints) ---- */
++const MAX_RETURN = 2 * 1024 * 1024;
++function cursor(hex){
++  const h = String(hex).replace(/^0x/, "");
++  if (h.length % 2 || h.length > MAX_RETURN * 2 || !/^[0-9a-f]*$/i.test(h)) throw new Error("malformed index answer");
++  const nbytes = h.length / 2;
++  const word = (at) => { if (at < 0 || at + 32 > nbytes || at % 1) throw new Error("index answer out of bounds"); return h.slice(at * 2, at * 2 + 64); };
++  const uint = (at) => BigInt("0x" + word(at));
++  const num = (at, max) => { const v = uint(at); if (v > BigInt(max)) throw new Error("index answer value out of range"); return Number(v); };
++  const bytes = (at, n) => { if (at + n > nbytes) throw new Error("index answer out of bounds"); return h.slice(at * 2, (at + n) * 2); };
++  return { word, uint, num, bytes, nbytes };
++}
++function decodeString(c, at){
++  const n = c.num(at, LIMITS.endpointBytes * 4);
++  const hex = c.bytes(at + 32, n);
++  const b = new Uint8Array(n); for (let i = 0; i < n; i++) b[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
++  return new TextDecoder("utf-8", { fatal: true }).decode(b);
++}
++function decodeAd(c, at){
++  const addrWord = c.word(at);
++  if (!/^0{24}/.test(addrWord)) throw new Error("malformed operator");
++  const ad = { operator: "0x" + addrWord.slice(24), slot: c.num(at + 32, 255), kind: c.num(at + 64, 65535), version: c.num(at + 96, 65535),
++    sequence: c.uint(at + 128).toString(), expiresAt: c.uint(at + 160), updatedAt: c.uint(at + 192), descriptor: "0x" + c.word(at + 224) };
++  const eAt = at + c.num(at + 256, MAX_RETURN);
++  const n = c.num(eAt, 64);                                  // the contract bounds this to 4; refuse absurd answers outright
++  const endpoints = [];
++  for (let i = 0; i < n; i++) endpoints.push(decodeString(c, eAt + 32 + c.num(eAt + 32 + i * 32, MAX_RETURN)));
++  return { ...ad, endpoints };
++}
++export function decodePage(hex){
++  const c = cursor(hex);
++  const arr = c.num(0, MAX_RETURN), total = c.uint(32);
++  const n = c.num(arr, LIMITS.page);
++  const out = [];
++  for (let i = 0; i < n; i++) out.push(decodeAd(c, arr + 32 + c.num(arr + 32 + i * 32, MAX_RETURN)));
++  return { ads: out, total };
++}
++export function decodeGet(hex){ const c = cursor(hex); return decodeAd(c, c.num(0, MAX_RETURN)); }
++
++/* ---- judging one ad at the agreed block's time (network/service-index.mjs judge) ---- */
++export function judge(a, ts){
++  const base = { operator: lc(a.operator), slot: Number(a.slot), kind: Number(a.kind), kindName: KIND_NAMES[Number(a.kind)] || null, sequence: String(a.sequence) };
++  if (BigInt(a.expiresAt) <= BigInt(ts)) return { state: "expired", ...base, expiresAt: Number(a.expiresAt) };
++  if (Number(a.version) !== AD_VERSION) return { state: "rejected", ...base, reason: `ad format version ${a.version} is not understood` };
++  if (!base.kindName) return { state: "rejected", ...base, reason: `kind ${a.kind} is not understood` };
++  try {
++    if (!Array.isArray(a.endpoints) || !a.endpoints.length || a.endpoints.length > LIMITS.endpoints) throw new Error("1 to 4 endpoints");
++    return { state: "listed", candidate: { ...base, version: Number(a.version), expiresAt: Number(a.expiresAt), updatedAt: Number(a.updatedAt),
++      descriptor: lc(a.descriptor), endpoints: a.endpoints.map((e) => validateEndpoint(e)), trust: "untrusted-candidate" } };
++  } catch (e){ return { state: "rejected", ...base, reason: e.message }; }
++}
++
++/* Read the index at ONE agreed block of `reader` -> { status, block, blockHash, blockTime, windows, candidates, rejected,
++   expired, lookups, notice }. A disagreement or a code mismatch throws (never an empty list). */
++export async function readServiceIndex({ reader, pin, kinds = Object.keys(SERVICE_KINDS), window = 256, lookups = [] }){
++  if (!reader) throw new Error("an agreed reader is required");
++  if (!Number.isSafeInteger(window) || window < 1 || window > LIMITS.perKind) throw new Error("window must be 1..1024");
++  if (!Array.isArray(lookups) || lookups.length > 32) throw new Error("at most 32 operator lookups");
++  const snap = await reader.snapshot();
++  const code = await reader.code(snap, pin.address);
++  const codeHash = code && code !== "0x" ? keccak256Hex(code) : null;
++  if (codeHash !== pin.codeHash) throw new Error(`the agreed code at the service index ${pin.address} is ${codeHash || "absent"}, not the pinned ${pin.codeHash}`);
++  const windows = {}, candidates = [], rejected = [];
++  let expired = 0;
++  for (const k of kinds){
++    const kind = SERVICE_KINDS[k]; if (!kind) throw new Error("unknown kind " + k);
++    const ads = []; let total = 0n;
++    for (let at = 0; ads.length < window; at += LIMITS.page){
++      const limit = Math.min(LIMITS.page, window - ads.length);
++      const page = decodePage(await reader.call(snap, pin.address, "0x" + SEL.page + w32(kind) + w32(at) + w32(limit)));
++      total = page.total; ads.push(...page.ads);
++      if (page.ads.length < limit || BigInt(at + page.ads.length) >= total) break;
++    }
++    windows[k] = { total: Number(total), examined: ads.length, complete: BigInt(ads.length) >= total };
++    for (const a of ads){
++      const j = judge(a, snap.timestamp);
++      if (j.state === "listed") candidates.push(j.candidate); else if (j.state === "expired") expired++; else rejected.push(j);
++    }
++  }
++  const found = [];
++  for (const l of lookups){
++    if (!ADDR.test(lc(l.operator || ""))) throw new Error("lookup operator must be an address");
++    const slots = l.slot == null ? [...Array(LIMITS.slots).keys()] : [Number(l.slot)];
++    for (const slot of slots){
++      const a = decodeGet(await reader.call(snap, pin.address, "0x" + SEL.get + w32(BigInt(lc(l.operator)) ) + w32(slot)));
++      if (lc(a.operator) !== lc(l.operator)){ found.push({ operator: lc(l.operator), slot, state: "absent" }); continue; }
++      const j = judge(a, snap.timestamp);
++      found.push(j.state === "listed" ? { operator: lc(l.operator), slot, state: "listed", candidate: j.candidate } : { operator: lc(l.operator), slot, state: j.state, reason: j.reason || "" });
++    }
++  }
++  const complete = Object.values(windows).every((w) => w.complete);
++  return { status: complete ? "complete" : "incomplete", index: pin.address, block: snap.number, blockHash: snap.hash, blockTime: snap.timestamp,
++    agreeing: snap.rpcs.length, windows, candidates, rejected, expired, lookups: found, notice: CANDIDATE_NOTICE };
++}
++
++/* One participant per operator key: { operator, kinds: {kind: [candidate]}, endpoints (every advertised endpoint once, with
++   its reachability from this page) }. */
++export function operatorsOf(candidates, pageProtocol){
++  const by = new Map();
++  for (const c of candidates){
++    const o = by.get(c.operator) || { operator: c.operator, kinds: {}, endpoints: [] };
++    (o.kinds[c.kindName] ||= []).push(c);
++    for (const e of c.endpoints) if (!o.endpoints.some((x) => x.url === e && x.kind === c.kindName))
++      o.endpoints.push({ url: e, kind: c.kindName, slot: c.slot, expiresAt: c.expiresAt, ...reachability(e, pageProtocol) });
++    by.set(c.operator, o);
++  }
++  return [...by.values()].sort((a, b) => (a.operator < b.operator ? -1 : 1));
++}
++
++/* ---- the user's provider choices (per profile), and the page's directory set ---- */
++const choiceKey = (profileId) => "enclave_service_choices:" + profileId;
++export function profileId(profile){ return keccak256Utf8(JSON.stringify({ i: profile.serviceIndex, c: profile.contracts, r: profile.rpcs })).slice(2, 18); }
++export function loadChoices(profile, store = globalThis.localStorage){
++  try { const v = JSON.parse(store.getItem(choiceKey(profileId(profile))) || "null");
++    if (v && Array.isArray(v.directoryOperators)) return { directoryOperators: v.directoryOperators.filter((a) => ADDR.test(a)).slice(0, 16) }; } catch {}
++  return { directoryOperators: [] };
++}
++export function saveChoices(profile, choices, store = globalThis.localStorage){
++  const ops = [...new Set((choices.directoryOperators || []).map(lc).filter((a) => ADDR.test(a)))].slice(0, 16);
++  store.setItem(choiceKey(profileId(profile)), JSON.stringify({ directoryOperators: ops }));
++  return { directoryOperators: ops };
++}
++
++/* Per-tab cache of the last agreed read (it only nominates; a cold empty cache is a normal start). */
++const CACHE_KEY = "enclave_service_index";
++let _mem = null;
++export async function discover({ profile, reader, force = false, now = Date.now, tab = globalThis.sessionStorage } = {}){
++  if (!profile || !profile.serviceIndex) return { off: true, reason: "the network profile pins no service index" };
++  const pin = validateIndexPin(profile.serviceIndex, profile.chainId);
++  const fresh = (r) => r && r.index === pin.address && now() - r.at < DISCOVERY_MAX_AGE_MS;
++  if (!force && fresh(_mem)) return _mem;
++  if (!force){ try { const c = JSON.parse(tab.getItem(CACHE_KEY) || "null"); if (fresh(c)) return (_mem = c); } catch {} }
++  const choices = loadChoices(profile);
++  const res = await readServiceIndex({ reader, pin, kinds: ["directory", "storage", "replica"], window: 256,
++    lookups: choices.directoryOperators.map((operator) => ({ operator })) });
++  const out = { ...res, at: now() };
++  _mem = out; try { tab.setItem(CACHE_KEY, JSON.stringify(out)); } catch {}
++  return out;
++}
++
++/* The directories this page uses: the profile's own (explicit choices) plus the reachable directory endpoints of the
++   operators the user chose. Each entry names its operator (null for a profile directory), so answers can be counted once
++   per operator. Unchosen candidates are never used. */
++export function pageDirectories(profile, discovery, { pageProtocol, choices = loadChoices(profile) } = {}){
++  const out = [], seen = new Set();
++  // the profile's own directories are the owner's explicit choice: always attempted (the browser decides), with a warning
++  // when this page's protocol makes one unreachable
++  for (const d of profile.directories || []) if (!seen.has(d)){
++    seen.add(d); const r = reachability(d + "/", pageProtocol);
++    out.push({ origin: d, operator: null, source: "profile", reachable: true, reason: "", ...(r.reachable ? {} : { warning: r.reason }) });
++  }
++  if (discovery && !discovery.off){
++    const chosen = new Set(choices.directoryOperators);
++    const ads = [...(discovery.candidates || []), ...(discovery.lookups || []).filter((l) => l.state === "listed").map((l) => l.candidate)];
++    for (const c of ads) if (c.kindName === "directory" && chosen.has(c.operator)) for (const e of c.endpoints){
++      const origin = new URL(e).origin;
++      if (seen.has(origin)) continue;
++      seen.add(origin); out.push({ origin, operator: c.operator, source: "index", expiresAt: c.expiresAt, ...reachability(e, pageProtocol) });
++    }
++  }
++  return out;
++}
++/* How many distinct participants a set of answering directories represents: one per operator, one per profile origin. */
++export const participantsOf = (answered) => new Set(answered.map((d) => d.operator ? "op:" + d.operator : "origin:" + d.origin)).size;
+--- a/site/js/core/host-capacity.js
++++ b/site/js/core/host-capacity.js
+@@ -0,0 +1,181 @@
++/* ============================================================
++   Signed host capacity in the browser (docs/network/independent-capacity.md).
++
++   A port of network/host-capacity-record.mjs checkCapacityRecordShape /
++   parseAvailability and network/host-capacity.mjs verifyHostCapacity /
++   chooseRecord for the deploy dialog's host list: a record is read from
++   the host's own registered endpoint and from the directories this page
++   uses, and counts only when:
++     - its shape and bounds are exactly v1, it lives at most 15 minutes,
++       is unexpired now, and was not issued in the future;
++     - hostId = keccak256(endpoint), and chain/registry are the profile's;
++     - its EIP-191 signature recovers to its operator, who is the host's
++       CURRENT registry operator at the page's agreed block, and the host
++       is active there.
++   It is the host's own word: never a reservation, never attestation. A
++   missing or invalid record is "no capacity report", never "full", and
++   an equivocating host (two records, one sequence) shows nothing.
++   ============================================================ */
++import { canonical } from "../../../network/canonical.mjs";
++import { keccak256Utf8 } from "./keccak.js";
++import { sha256Hex } from "./sha256.js";
++
++export const HOST_CAPACITY_KIND = "enclave-host-capacity";
++export const HOST_CAPACITY_MAX_MS = 15 * 60_000;
++export const HOST_CAPACITY_MAX_JSON = 32 * 1024;
++export const HOST_CAPACITY_PATH = "/v1/host/capacity";
++export const DIRECTORY_CAPACITY_PATH = "/v1/host-capacity";
++const CLOCK_SKEW_MS = 60_000, ENVELOPE_MAX = 64 * 1024;
++const ADDRESS = /^0x[0-9a-f]{40}$/, ID = /^0x[0-9a-f]{64}$/;
++const KEYS = ["version", "kind", "chainId", "registry", "hostId", "endpoint", "operator", "sequence", "issuedAt", "expiresAt", "availabilityJson"];
++const SHARES = ["gpuShareFree", "cpuShareFree", "usedGpuShare", "usedCpuShare", "maxShare", "sharePoolFree", "gpuEnclaveCpuShareFree"];
++const NONNEG = ["vcpusFree", "ramGbFree", "cpuGflopsFree", "nodeVcpus", "nodeRamGb", "nodeGflops", "machineRamGb", "smFree", "smTotal",
++  "vramFreeGb", "gpuTflopsFree", "cardVramGb", "cardTflops", "cards", "physicalGpuCount"];
++const PRICES = ["askCpuPricePerSec6", "askGpuPricePerSec6", "askShieldedPricePerSec6"];
++const BOOLS = ["gpu", "claimEnabled", "fullService", "networkOptions", "waf", "configOverride", "configCidOverride", "configEdit", "shareResize",
++  "cpuFallback", "gpuOptional", "secrets", "secretsInConfig", "customDomains", "devDeploy", "rateCap", "selfHostFree", "proofOfTime"];
++const MAX_DEPTH = 8, MAX_KEYS = 256, MAX_ITEMS = 256, MAX_STRING = 4096, BAD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
++
++export const hostCapacityMessage = (r) => `enclave-network:host-capacity:v${r.version}\n${canonical(r)}`;
++export const hostCapacityHash = (r) => sha256Hex(canonical(r));
++export const hostIdOf = (endpoint) => keccak256Utf8(String(endpoint));
++
++function walk(v, depth, where){
++  if (depth > MAX_DEPTH) throw new Error(`availability nests deeper than ${MAX_DEPTH} at ${where}`);
++  if (v === null || typeof v === "boolean") return;
++  if (typeof v === "number"){ if (!Number.isFinite(v) || Math.abs(v) > Number.MAX_SAFE_INTEGER) throw new Error(`availability number out of range at ${where}`); return; }
++  if (typeof v === "string"){ if (v.length > MAX_STRING) throw new Error(`availability string too long at ${where}`); return; }
++  if (Array.isArray(v)){ if (v.length > MAX_ITEMS) throw new Error(`availability array too long at ${where}`); v.forEach((x, i) => walk(x, depth + 1, `${where}[${i}]`)); return; }
++  if (typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype){
++    const keys = Object.keys(v);
++    if (keys.length > MAX_KEYS) throw new Error(`availability object too wide at ${where}`);
++    for (const k of keys){ if (!/^[\x21-\x7e]{1,128}$/.test(k) || BAD_KEYS.has(k)) throw new Error(`availability key not allowed at ${where}`); walk(v[k], depth + 1, `${where}.${k}`); }
++    return;
++  }
++  throw new Error(`availability holds a non-JSON value at ${where}`);
++}
++export function parseAvailability(text, window = null){
++  if (typeof text !== "string" || !text.length || new TextEncoder().encode(text).length > HOST_CAPACITY_MAX_JSON) throw new Error(`availability must be JSON text of at most ${HOST_CAPACITY_MAX_JSON} bytes`);
++  let a; try { a = JSON.parse(text); } catch { throw new Error("availability is not JSON"); }
++  if (!a || typeof a !== "object" || Array.isArray(a)) throw new Error("availability must be a JSON object");
++  walk(a, 0, "availability");
++  for (const k of SHARES) if (k in a && !(typeof a[k] === "number" && a[k] >= 0 && a[k] <= 1)) throw new Error(`availability.${k} must be a share in 0..1`);
++  for (const k of NONNEG) if (k in a && a[k] !== null && !(typeof a[k] === "number" && a[k] >= 0)) throw new Error(`availability.${k} must be a non-negative number`);
++  for (const k of PRICES) if (k in a && !(Number.isSafeInteger(a[k]) && a[k] >= 0)) throw new Error(`availability.${k} must be a non-negative integer`);
++  for (const k of BOOLS) if (k in a && typeof a[k] !== "boolean") throw new Error(`availability.${k} must be a boolean`);
++  if ("type" in a && !["gpu", "cpu"].includes(a.type)) throw new Error("availability.type must be gpu or cpu");
++  if ("updatedAt" in a){
++    const t = typeof a.updatedAt === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,3})?Z$/.test(a.updatedAt) ? Date.parse(a.updatedAt) : NaN;
++    if (!Number.isFinite(t)) throw new Error("availability.updatedAt must be an ISO time");
++    if (window && (t > window.issuedAt + CLOCK_SKEW_MS || t < window.issuedAt - HOST_CAPACITY_MAX_MS))
++      throw new Error("availability.updatedAt is outside the record's lifetime: a stale document cannot be re-signed as fresh");
++  }
++  return a;
++}
++export function checkCapacityRecord(r, now = Date.now()){
++  if (!r || typeof r !== "object" || Array.isArray(r) || Object.keys(r).length !== KEYS.length || KEYS.some((k) => !Object.hasOwn(r, k)))
++    throw new Error("a host capacity record has exactly its fields");
++  if (r.version !== 1 || r.kind !== HOST_CAPACITY_KIND) throw new Error("unsupported host capacity record");
++  if (!Number.isSafeInteger(r.chainId) || r.chainId <= 0 || !ADDRESS.test(r.registry || "") || !ADDRESS.test(r.operator || "") || /^0x0{40}$/.test(r.operator))
++    throw new Error("a host capacity record names its chain, registry and operator (lowercase)");
++  if (typeof r.endpoint !== "string" || !/^https:\/\/[^\s/?#@]+(\/[^\s?#]*)?$/.test(r.endpoint) || r.endpoint.length > 512 || !ID.test(r.hostId || ""))
++    throw new Error("a host capacity record names its registered https endpoint and hostId = keccak256(endpoint)");
++  if (![r.sequence, r.issuedAt, r.expiresAt].every(Number.isSafeInteger) || r.sequence < 1 || r.sequence > r.issuedAt
++    || r.expiresAt <= r.issuedAt || r.expiresAt - r.issuedAt > HOST_CAPACITY_MAX_MS)
++    throw new Error(`a host capacity record lives at most ${HOST_CAPACITY_MAX_MS / 60000} minutes, and its sequence never runs ahead of its issue time`);
++  if (r.issuedAt > now + CLOCK_SKEW_MS) throw new Error("a host capacity record issued in the future");
++  if (r.expiresAt <= now) throw Object.assign(new Error("host capacity record expired"), { expired: true });
++  if (r.hostId !== hostIdOf(r.endpoint)) throw new Error("a host capacity record names its registered https endpoint and hostId = keccak256(endpoint)");
++  return { record: r, availability: parseAvailability(r.availabilityJson, r) };
++}
++
++let _recover = null;
++const recover = async (message, signature) => {
++  _recover ||= (await import(/* @vite-ignore */ "/vendor/discovery.js")).recoverMessageAddress;
++  return (await _recover({ message, signature })).toLowerCase();
++};
++export const _setRecoverForTests = (f) => { _recover = f; };
++
++/* pins = { chainId, registry }; entry = the AGREED registry row for record.hostId: { endpoint, operator, active } or null. */
++export async function verifyHostCapacity(envelope, { pins, entry, now = Date.now() }){
++  if (!envelope || typeof envelope !== "object" || Object.keys(envelope).sort().join(",") !== "record,signature") throw new Error("a host capacity envelope is exactly { record, signature }");
++  const { record, availability } = checkCapacityRecord(envelope.record, now);
++  if (record.chainId !== pins.chainId || record.registry !== String(pins.registry).toLowerCase()) throw new Error("the record is for another chain or registry");
++  if (typeof envelope.signature !== "string" || !/^0x[0-9a-fA-F]{130}$/.test(envelope.signature)) throw new Error("the record carries no signature");
++  let signer;
++  try { signer = await recover(hostCapacityMessage(record), envelope.signature); } catch { throw new Error("the signature does not recover"); }
++  if (signer !== record.operator) throw new Error("the record is not signed by its operator");
++  if (!entry) throw new Error("the host is not in the pinned registry");
++  if (entry.endpoint !== record.endpoint) throw new Error("the registry names another endpoint for this host");
++  if (String(entry.operator).toLowerCase() !== signer) throw new Error("the signer is not the host's current registry operator");
++  if (entry.active !== true) throw new Error("the host is not active in the registry");
++  return { record, availability, signer };
++}
++export function chooseRecord(candidates){
++  let best = null, conflict = false;
++  for (const c of candidates){
++    const r = c.verified.record;
++    if (!best || r.sequence > best.verified.record.sequence){ best = c; conflict = false; continue; }
++    if (r.sequence === best.verified.record.sequence && hostCapacityHash(r) !== hostCapacityHash(best.verified.record)) conflict = true;
++  }
++  return conflict ? { equivocation: true } : best;
++}
++
++async function boundedJson(url, fetchImpl, timeoutMs){
++  const r = await fetchImpl(url, { credentials: "omit", redirect: "error", cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
++  if (!r.ok){ await r.body?.cancel(); throw new Error("HTTP " + r.status); }
++  if (Number(r.headers.get("content-length")) > ENVELOPE_MAX * 64){ await r.body?.cancel(); throw new Error("answer too large"); }
++  const t = await r.text();
++  if (t.length > ENVELOPE_MAX * 64) throw new Error("answer too large");
++  return JSON.parse(t);
++}
++
++/* Capacity for the agreed registry rows `hosts` ({endpoint, operator, active, hostId}): each host's own endpoint, plus the
++   directories this page uses (js/core/service-discovery.js pageDirectories; unreachable ones are skipped and named).
++   -> Map(hostId -> { availability, record, source, expiresInMs } | { error } | { equivocation: true }) and sources[] */
++export async function readHostCapacity({ hosts, directories = [], pins, fetchImpl = (...a) => globalThis.fetch(...a), now = Date.now, timeoutMs = 6000 }){
++  const byHost = new Map(hosts.filter((h) => h.active).map((h) => [hostIdOf(h.endpoint), { entry: h, found: [], errors: [] }]));
++  const sources = [];
++  const take = async (envelope, source) => {
++    const hid = envelope && envelope.record && envelope.record.hostId;
++    const slot = byHost.get(hid);
++    if (!slot) return;
++    try { slot.found.push({ envelope, source, verified: await verifyHostCapacity(envelope, { pins, entry: slot.entry, now: now() }) }); }
++    catch (e){ slot.errors.push(source + ": " + e.message); }
++  };
++  await Promise.all([
++    ...[...byHost.values()].map(async ({ entry }) => {
++      if (!/^https:\/\//.test(entry.endpoint)){ sources.push({ source: entry.endpoint, ok: false, error: "not an https endpoint" }); return; }
++      try { await take(await boundedJson(entry.endpoint.replace(/\/$/, "") + HOST_CAPACITY_PATH, fetchImpl, timeoutMs), entry.endpoint); sources.push({ source: entry.endpoint, ok: true }); }
++      catch (e){ sources.push({ source: entry.endpoint, ok: false, error: e.message }); }
++    }),
++    ...directories.filter((d) => d.reachable !== false).map(async (d) => {
++      try {
++        const j = await boundedJson(d.origin + DIRECTORY_CAPACITY_PATH, fetchImpl, timeoutMs);
++        const records = Array.isArray(j && j.records) ? j.records.slice(0, 1024) : [];
++        for (const env of records) await take(env, d.origin);
++        sources.push({ source: d.origin, operator: d.operator || null, ok: true, records: records.length });
++      } catch (e){ sources.push({ source: d.origin, operator: d.operator || null, ok: false, error: e.message }); }
++    }),
++  ]);
++  const out = new Map();
++  for (const [hid, slot] of byHost){
++    if (!slot.found.length){ out.set(hid, { error: slot.errors[0] || "no capacity report" }); continue; }
++    const best = chooseRecord(slot.found);
++    if (best.equivocation){ out.set(hid, { equivocation: true, error: "the host signed two different records with one sequence" }); continue; }
++    out.set(hid, { availability: best.verified.availability, record: best.verified.record, source: best.source, expiresInMs: best.verified.record.expiresAt - now() });
++  }
++  return { capacity: out, sources };
++}
++
++/* One plain line for a host row. */
++export function capacityLine(c){
++  if (!c) return "no capacity report";
++  if (c.error) return c.equivocation ? "capacity report refused: " + c.error : "no capacity report (" + c.error + ")";
++  const a = c.availability, mins = Math.max(0, Math.round(c.expiresInMs / 60000));
++  const parts = [];
++  if (a.gpu === true) parts.push("GPU share free " + Math.round((a.gpuShareFree ?? a.maxShare ?? 0) * 100) + "%");
++  if ("cpuShareFree" in a || a.gpu !== true) parts.push("CPU share free " + Math.round((a.cpuShareFree ?? a.maxShare ?? 0) * 100) + "%");
++  if (a.claimEnabled === false) parts.push("not claiming new work");
++  return "host-reported, signed by its operator, expires in " + mins + " min: " + (parts.join(", ") || "no figures");
++}
+--- a/site/js/core/host-policy.js
++++ b/site/js/core/host-policy.js
+@@ -0,0 +1,106 @@
++/* ============================================================
++   Host-owner admission policy in the browser: a host owner's veto,
++   scoped to the hosts it owns.
++
++   A host's accepted owner commits a policy through
++   EnclaveHostOwnership.setPolicy (network/host-admission-policy.mjs):
++   the contract stores keccak256("enclave-host-admission:v1\n" +
++   canonical(policy)); the document itself is public and mirrored by
++   anyone (bytes, never authority). This module reads the commitment at
++   the page's agreed block, resolves a nonzero hash from the profile's
++   policy mirrors (each document hash-checked), and applies the same
++   refusal rule the host applies (hostAdmissionRefusal, ported).
++
++   Scope: a refusal marks ONLY that host ("its owner declines this
++   deployment"). Every other host stays eligible, so an owner (Enclave's
++   wallet included) can refuse service on hosts it owns and cannot stop
++   another consenting host. A policy that cannot be fetched marks THAT
++   host "owner policy unavailable"; nothing else changes, and a missing
++   document is never read as "allow".
++   ============================================================ */
++import { canonical } from "../../../network/canonical.mjs";
++import { keccak256Utf8 } from "./keccak.js";
++
++const ID = /^0x[0-9a-f]{64}$/, ADDRESS = /^0x[0-9a-f]{40}$/, ZERO32 = "0x" + "0".repeat(64);
++const SEL_AUTHORITY = keccak256Utf8("authority(bytes32)").slice(2, 10);
++const POLICY_MAX = 2 * 1024 * 1024;
++
++export function validateHostAdmissionPolicy(p){
++  if (!p || p.version !== 1 || p.chainId !== 8453 || !ADDRESS.test(p.ownershipContract) || !ID.test(p.hostId)
++    || typeof p.requireCatalogApproval !== "boolean" || Object.keys(p).some((k) => !["version", "chainId", "ownershipContract", "hostId", "requireCatalogApproval", "denyDeployments", "denyAppRefs"].includes(k)))
++    throw Error("invalid host policy");
++  for (const k of ["denyDeployments", "denyAppRefs"]){
++    if (!Array.isArray(p[k]) || p[k].length > 4096 || new Set(p[k]).size !== p[k].length) throw Error("invalid host deny list");
++    for (const v of p[k]) if (typeof v !== "string" || (k === "denyDeployments" ? !ID.test(v) : !/^catalog:\/\/0x[0-9a-f]{64}\/(?:0|[1-9][0-9]{0,8})$/.test(v))) throw Error("invalid host deny entry");
++  }
++  return structuredClone(p);
++}
++export const hostAdmissionPolicyHash = (p) => keccak256Utf8("enclave-host-admission:v1\n" + canonical(validateHostAdmissionPolicy(p)));
++
++/* The host's own rule (network/host-admission-policy.mjs hostAdmissionRefusal). deploymentId may be null for a record
++   not created yet (only the app and catalog-approval rules can apply then). -> reason | null */
++export function hostAdmissionRefusal(p, { hostId, deploymentId = null, appRef, version }){
++  p = validateHostAdmissionPolicy(p);
++  if (p.hostId !== hostId) throw Error("host policy cannot apply to another host");
++  const ref = typeof appRef === "string" && appRef.match(/^catalog:\/\/(0x[0-9a-fA-F]{64})\/([0-9]{1,9})$/);
++  if (!ref) return "this host owner admits catalog apps only";   // the host's rule throws for a non-catalog reference: it declines
++  const canonicalRef = `catalog://${ref[1].toLowerCase()}/${Number(ref[2])}`;
++  if ((deploymentId && p.denyDeployments.includes(String(deploymentId).toLowerCase())) || p.denyAppRefs.includes(canonicalRef)) return "this host owner declines this deployment";
++  if (p.requireCatalogApproval && (!version || version.active !== true || version.yanked !== false || Number(version.approval) !== 1)) return "this host owner requires current catalog approval";
++  return null;
++}
++
++/* EnclaveHostOwnership.authority(hostId) at the snapshot: { owner, pendingOwner, revision, policyHash }. */
++export async function hostAuthority(reader, snap, ownership, hostId){
++  const out = String(await reader.call(snap, ownership, "0x" + SEL_AUTHORITY + hostId.replace(/^0x/, ""))).replace(/^0x/, "");
++  const w = (i) => out.slice(i * 64, i * 64 + 64);
++  if (out.length < 256) throw new Error("malformed host authority");
++  return { owner: "0x" + w(0).slice(24), pendingOwner: "0x" + w(1).slice(24), revision: BigInt("0x" + w(2)).toString(), policyHash: "0x" + w(3) };
++}
++
++/* A document by hash from the mirrors; the first hash-matching one wins (a withholding or lying mirror cannot hide it). */
++export async function fetchPolicy(hash, mirrors, { fetchImpl = (...a) => globalThis.fetch(...a), timeoutMs = 8000 } = {}){
++  if (!ID.test(hash)) throw new Error("policy hash required");
++  if (!mirrors.length) throw new Error("no host policy mirror is configured");
++  const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), timeoutMs);
++  try {
++    return await Promise.any(mirrors.map(async (origin) => {
++      const r = await fetchImpl(origin + "/" + hash + ".json", { credentials: "omit", redirect: "error", cache: "no-store", signal: ctrl.signal });
++      if (!r.ok){ await r.body?.cancel(); throw new Error("HTTP " + r.status); }
++      const text = await r.text();
++      if (text.length > POLICY_MAX) throw new Error("policy too large");
++      const p = JSON.parse(text);
++      if (hostAdmissionPolicyHash(p) !== hash) throw new Error("policy does not match its commitment");
++      return p;
++    }));
++  } catch { throw new Error("no hash-matching host policy available"); }
++  finally { clearTimeout(t); ctrl.abort(); }
++}
++
++/* For each host id: { owner, revision, state: "unowned" | "open" | "policy", policy?, error? } at ONE snapshot. */
++export async function readHostPolicies({ reader, snap, ownership, hostIds, mirrors = [], fetchImpl }){
++  const out = new Map();
++  if (!ownership || !ADDRESS.test(String(ownership).toLowerCase())){ for (const h of hostIds) out.set(h, { state: "unknown", error: "this profile pins no host-ownership contract" }); return out; }
++  const cache = new Map();
++  await Promise.all(hostIds.map(async (hostId) => {
++    try {
++      const a = await hostAuthority(reader, snap, ownership, hostId);
++      if (/^0x0{40}$/.test(a.owner)) return out.set(hostId, { state: "unowned", owner: null, revision: a.revision });
++      if (a.policyHash === ZERO32) return out.set(hostId, { state: "open", owner: a.owner, revision: a.revision });
++      if (!cache.has(a.policyHash)) cache.set(a.policyHash, fetchPolicy(a.policyHash, mirrors, { fetchImpl }));
++      const policy = await cache.get(a.policyHash);
++      if (policy.hostId !== hostId || policy.ownershipContract !== String(ownership).toLowerCase()) throw new Error("the committed policy names another host");
++      out.set(hostId, { state: "policy", owner: a.owner, revision: a.revision, policy });
++    } catch (e){ out.set(hostId, { state: "unavailable", error: String(e.message || e).slice(0, 200) }); }
++  }));
++  return out;
++}
++
++/* The verdict for one host row: { eligible, reason } — a refusal or an unknown policy blocks ONLY this host. */
++export function ownerVerdict(entry, { hostId, deploymentId = null, appRef, version }){
++  if (!entry) return { eligible: true, reason: "" };
++  if (entry.state === "unavailable") return { eligible: false, reason: "its owner's policy is unavailable (" + entry.error + ")" };
++  if (entry.state !== "policy") return { eligible: true, reason: "" };
++  const why = hostAdmissionRefusal(entry.policy, { hostId, deploymentId, appRef, version });
++  return why ? { eligible: false, reason: why.replace("this host owner", "its owner " + entry.owner.slice(0, 8) + "…") } : { eligible: true, reason: "" };
++}
+--- a/site/js/core/independent-chain.js
++++ b/site/js/core/independent-chain.js
+@@ -29,15 +29,26 @@
+ const HOST_LIVE_SECONDS = 3600;
+ const ZERO32 = /^0x0{64}$/;
+ 
+-let _reader = null;
++let _reader = null, _base = null;
++/* The page's agreed reader. Under the packaged default profile every snapshot (so every decision) first requires the
++   reviewed authority check (js/core/default-authority.js): code and bindings verified at an agreed block within the last
++   10 minutes, else the decision refuses with the reason. An owner-chosen profile is unaffected. */
+ export function reader(){
+   if (INDEPENDENT.state !== "on") throw new QuorumError(INDEPENDENT.state === "off"
+     ? "independent mode is off" : "the independent profile is not active in this tab");
++  return (_reader ||= gated(baseReader()));
++}
++/* The ungated reader (the authority check itself, and display reads that label themselves). */
++export function baseReader(){
++  if (INDEPENDENT.state !== "on") throw new QuorumError("the independent profile is not active in this tab");
+   const p = INDEPENDENT.profile;
+-  return (_reader ||= createQuorumReader({ rpcs: [...p.rpcs], quorum: p.quorum, confirmations: p.confirmations,
++  return (_base ||= createQuorumReader({ rpcs: [...p.rpcs], quorum: p.quorum, confirmations: p.confirmations,
+     maxBlockAgeSeconds: p.maxBlockAgeSeconds, chainId: p.chainId }));
+ }
+-export const _setReaderForTests = (r) => { _reader = r; _implements.clear(); };
++function gated(r){
++  return { ...r, snapshot: async () => { const A = await import("./default-authority.js"); await A.requireAuthority(r); return r.snapshot(); } };
++}
++export const _setReaderForTests = (r) => { _reader = r; _base = r; _implements.clear(); };
+ 
+ const word = (hex, i = 0) => BigInt("0x" + (hex.replace(/^0x/, "").slice(i * 64, i * 64 + 64) || "0"));
+ const addrOf = (hex) => "0x" + hex.replace(/^0x/, "").slice(24, 64);
+@@ -142,6 +153,7 @@
+ }
+ 
+ /* A host's total rate for one request, exactly as create()/claim price it: ceil((gpu*gpuMilli + cpu*cpuMilli)/1000). */
++export const hostIdOfEndpoint = (endpoint) => keccak256Utf8(endpoint);
+ export const hostRate6 = (h, gpuMilli, cpuMilli) =>
+   (BigInt(h.gpuPricePerSec6 || 0) * BigInt(gpuMilli) + BigInt(h.cpuPricePerSec6 || 0) * BigInt(cpuMilli) + 999n) / 1000n;
+ 
+@@ -168,10 +180,77 @@
+     eligibleCount: eligible.length };
+ }
+ 
+-export async function independentQuotes({ gpuMilli, cpuMilli, owner }){
++/* Per-host quotes, plus - when the caller names the app - each host OWNER's admission policy (js/core/host-policy.js):
++   a host whose accepted owner declines this deployment or app, or whose committed policy cannot be fetched, becomes
++   ineligible with that reason; every other host is untouched, so one owner's refusal (Enclave's wallet included) only
++   ever removes the hosts it owns. With `capacity: true`, each host's signed capacity record (js/core/host-capacity.js)
++   is attached as host-reported text; it never changes eligibility or the ceiling. */
++export async function independentQuotes({ gpuMilli, cpuMilli, owner, appRef = null, deploymentId = null, capacity = false }){
+   const { snap, hosts } = await registryHosts();
+   const r = reader(), rev = await ledgerRev(r, snap);
+-  return { block: snap.number, chainNow: snap.timestamp, registeredHosts: hosts.length, ...quoteHosts(hosts, { chainNow: snap.timestamp, gpuMilli, cpuMilli, owner, rev }) };
++  const q = quoteHosts(hosts, { chainNow: snap.timestamp, gpuMilli, cpuMilli, owner, rev });
++  const verdicts = appRef ? await hostOwnerVerdicts({ r, snap, hostIds: q.hosts.map((h) => h.hostId), appRef, deploymentId }) : null;
++  if (verdicts) applyOwnerVerdicts(q, verdicts);
++  if (capacity){
++    try { const c = await hostCapacityTexts(hosts, r); attachCapacity(q, c); }
++    catch (e){ q.capacityError = String(e && e.message || e); }
++  }
++  return { block: snap.number, chainNow: snap.timestamp, registeredHosts: hosts.length, ...q };
++}
++
++/* Each host owner's verdict on this app/deployment at the snapshot -> { byHost: Map(hostId -> {eligible, reason, policy}),
++   note }. Without a host-ownership pin (an owner-chosen profile) nothing is judged, and the note says so. */
++export async function hostOwnerVerdicts({ r = reader(), snap, hostIds, appRef, deploymentId = null }){
++  const ownership = INDEPENDENT.authority && INDEPENDENT.authority.contracts.hostOwnership ? INDEPENDENT.authority.contracts.hostOwnership.address : null;
++  if (!ownership) return { byHost: new Map(), note: "host owners' admission policies were not checked: this profile pins no host-ownership contract" };
++  snap ||= await r.snapshot();
++  const HP = await import("./host-policy.js");
++  const policies = await HP.readHostPolicies({ reader: r, snap, ownership, hostIds, mirrors: [...(INDEPENDENT.profile.hostPolicyOrigins || [])] });
++  let version = null;
++  if ([...policies.values()].some((p) => p.state === "policy" && p.policy.requireCatalogApproval)) version = await agreedCatalogVersion(r, snap, appRef).catch(() => null);
++  const byHost = new Map();
++  for (const hostId of hostIds) byHost.set(hostId, { ...HP.ownerVerdict(policies.get(hostId), { hostId, deploymentId, appRef, version }), policy: policies.get(hostId) || null });
++  return { byHost, note: "" };
++}
++/* A refused or unknowable owner policy removes ONLY that host; the suggestion is recomputed from the hosts left. */
++export function applyOwnerVerdicts(q, verdicts){
++  for (const h of q.hosts){
++    const v = verdicts.byHost.get(h.hostId);
++    h.ownerPolicy = v ? v.policy : null;
++    if (v && !v.eligible && h.eligible){ h.eligible = false; h.reason = v.reason; h.ownerDeclines = true; }
++  }
++  const eligible = q.hosts.filter((h) => h.eligible).sort((a, b) => (a.rate6 < b.rate6 ? -1 : a.rate6 > b.rate6 ? 1 : 0));
++  const charging = eligible.filter((h) => !h.free);
++  q.hosts = [...eligible, ...q.hosts.filter((h) => !h.eligible)];
++  q.defaultCap6 = charging.length ? charging[0].rate6 : null;
++  q.eligibleCount = eligible.length;
++  if (verdicts.note) q.policyNote = verdicts.note;
++  return q;
++}
++/* Signed capacity records for the registry rows, from each host's endpoint and the directories this page uses. */
++export async function hostCapacityTexts(hosts, r = reader()){
++  const HC = await import("./host-capacity.js");
++  const SD = await import("./service-discovery.js");
++  const disc = await SD.discover({ profile: INDEPENDENT.profile, reader: r }).catch(() => null);
++  const res = await HC.readHostCapacity({ hosts: hosts.filter((h) => h.active), directories: SD.pageDirectories(INDEPENDENT.profile, disc),
++    pins: { chainId: INDEPENDENT.profile.chainId, registry: REGISTRY_ADDRESS } });
++  return { byHost: res.capacity, sources: res.sources, line: HC.capacityLine };
++}
++export function attachCapacity(q, c){
++  for (const h of q.hosts){ const x = c.byHost.get(h.hostId) || null; h.capacity = x; h.capacityText = c.line(x); }
++  q.capacitySources = c.sources;
++  return q;
++}
++
++/* A catalog version's approval facts at the snapshot (EnclaveAppCatalog getApp / getVersion). */
++export async function agreedCatalogVersion(r, snap, appRef){
++  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/([0-9]{1,9})$/.exec(String(appRef || ""));
++  if (!m) return null;
++  const { APP_CATALOG_ADDRESS } = await import("./config.js");
++  const { APP_SCHEMA, VER_SCHEMA } = await import("./chain.js");
++  const app = decodeStruct(await r.call(snap, APP_CATALOG_ADDRESS, "0x" + sel("getApp(bytes32)") + pad32(m[1].slice(2))), APP_SCHEMA);
++  const ver = decodeStruct(await r.call(snap, APP_CATALOG_ADDRESS, "0x" + sel("getVersion(bytes32,uint256)") + pad32(m[1].slice(2)) + pad32(Number(m[2]).toString(16))), VER_SCHEMA);
++  return { active: app.active === true, yanked: ver.yanked === true, approval: Number(ver.approval) };
+ }
+ 
+ /* /availability-shaped summary for panels that read one price pair. Both prices come from ONE host - the live host
+--- a/site/js/core/fleet-read.js
++++ b/site/js/core/fleet-read.js
+@@ -14,10 +14,50 @@
+   ((b.availability && b.availability.gpu) === true) - ((a.availability && a.availability.gpu) === true)
+   || String(a.endpoint || "").localeCompare(String(b.endpoint || "")));
+ 
+-export function createFleetReader(fetchImpl) {
++/* Independent mode: no relay table. The hosts are the pinned registry's rows at a block the profile's RPCs agree on, and
++   each row's `availability` is that host's OWN signed capacity record (js/core/host-capacity.js: signature by its current
++   registry operator, at most 15 minutes old), the same document the relay table carried, verified here instead of
++   trusted. A host without a valid record is listed with no availability ("no capacity report"), never as full. */
++let _indRows = null, _indAt = 0;
++export async function independentFleetRows({ maxAgeMs = 60000 } = {}){
++  if (_indRows && Date.now() - _indAt < maxAgeMs) return _indRows;
++  _indRows = await readIndependentFleet(); _indAt = Date.now();
++  return _indRows;
++}
++async function readIndependentFleet(){
++  const IC = await import("./independent-chain.js");
++  const { snap, hosts } = await IC.registryHosts();
++  const live = new Set(IC.liveHosts(hosts, snap.timestamp));
++  let cap = null;
++  try { cap = await IC.hostCapacityTexts(hosts); } catch (e){ cap = null; }
++  // every registry row goes to the component, which owns visibility (fleet-list appHostVisible: serving === true);
++  // an inactive row is simply not serving
++  return hosts.map((h) => {
++    const hostId = IC.hostIdOfEndpoint(h.endpoint), c = cap ? cap.byHost.get(hostId) : null;
++    const availability = c && c.availability ? c.availability : null;
++    return { name: h.endpoint, endpoint: h.endpoint, hostId, operator: h.operator, payoutWallet: h.payoutWallet || null,
++      cpuPricePerSec6: Number(h.cpuPricePerSec6), gpuPricePerSec6: Number(h.gpuPricePerSec6 || 0), lastSeen: Number(h.lastSeen),
++      active: h.active === true, serving: h.active === true && live.has(h) && !!(availability && availability.claimEnabled !== false), availability, selfReported: true,
++      capacityText: cap ? cap.line(c) : "capacity reports could not be read", independent: true, block: snap.number };
++  });
++}
++
++export function createFleetReader(fetchImpl, independentImpl) {
+   const good = new LastGood();
+   return async function refreshInto(fl, base) {
+     if (!fl) return;
++    const { INDEPENDENT } = await import("./config.js");
++    if (INDEPENDENT.state !== "off"){
++      try {
++        if (INDEPENDENT.state !== "on") throw Object.assign(new Error("the network profile is not active in this tab"), { status: 0 });
++        const v = good.ok("fleet", sortFleet(await (independentImpl || independentFleetRows)()));
++        fl.error = null; fl.staleAt = 0; fl.rows = v.rows;
++      } catch (e) {
++        const v = good.failed("fleet", e);
++        fl.error = failureReason(e); fl.staleAt = v.kind === "stale" ? v.at : 0; fl.rows = v.kind === "stale" ? v.rows : [];
++      }
++      return;
++    }
+     try {
+       let r;
+       try { r = await (fetchImpl || fetch)(String(base).replace(/\/v1\/?$/, "") + "/enclaves", { headers: { "Accept": "application/json" } }); }
+--- a/site/js/core/enclave-network.js
++++ b/site/js/core/enclave-network.js
+@@ -82,13 +82,17 @@
+ }
+ async function renderIndependentNetwork(box,id,{owner}){
+   const wrap=document.createElement("div");wrap.className="enc-net-body";box.append(wrap);
+-  const dirs=INDEPENDENT.state==="on"?INDEPENDENT.profile.directories:[];
+-  if(!dirs.length){wrap.innerHTML=`<p class="en-intro">Network settings are published to public directories, and your network profile names none. Add directories to the profile to change this app's network from here.</p>`;return;}
++  // the profile's directories plus the directory operators the user chose from the service index; answers count once per operator
++  let pd={reachable:[],unreachable:[],all:[]};
++  if(INDEPENDENT.state==="on"){try{pd=await (await import("./independent-management.js")).pageDirectoryOrigins();}catch{pd={reachable:[...INDEPENDENT.profile.directories],unreachable:[],all:INDEPENDENT.profile.directories.map(o=>({origin:o,operator:null,reachable:true}))};}}
++  const dirs=pd.reachable;
++  if(!dirs.length){wrap.innerHTML=`<p class="en-intro">Network settings are published to public directories, and this page has none it can reach${pd.unreachable.length?` (${esc(pd.unreachable.map(d=>d.origin+": "+d.reason).join("; "))})`:""}. Add directories to the profile, or choose a directory operator from the service index in the network profile panel.</p>`;return;}
++  const opOf=o=>{const d=pd.all.find(x=>x.origin===o);return d&&d.operator?"op:"+d.operator:"origin:"+o;};
+   let read;try{read=await directoryPolicies(id,[...dirs]);}catch(e){read={answers:[],failed:dirs};}
+   const best=read.answers.map(a=>a.policy).filter(Boolean).sort((a,b)=>b.nonce-a.nonce)[0]||null;
+   const policy=best||{version:5,deploymentId:id,nonce:0,issuedAt:0,mode:"enclave-network",fallback:"none",enclaveNetwork:{routes:2,guard:true,maxPricePerGiB6:0,budget6:0}};
+   const modes=["enclave-network","direct","host"];
+-  wrap.innerHTML=`<div class="en-list"><div><b>${esc(MODE_TEXT[policy.mode]?.title||policy.mode)}</b> <span class="en-sub">${best?`owner setting #${best.nonce}, as ${read.answers.filter(a=>a.policy&&a.policy.nonce===best.nonce).length} of ${dirs.length} directories report it`:"default (no owner setting found)"}</span></div>`
++  wrap.innerHTML=`<div class="en-list"><div><b>${esc(MODE_TEXT[policy.mode]?.title||policy.mode)}</b> <span class="en-sub">${best?`owner setting #${best.nonce}, as ${new Set(read.answers.filter(a=>a.policy&&a.policy.nonce===best.nonce).map(a=>opOf(a.origin))).size} of ${new Set(dirs.map(opOf)).size} directory participants report it`:"default (no owner setting found)"}</span></div>`
+     +(read.failed.length?`<div class="en-sub warn">${read.failed.length} director${read.failed.length===1?"y":"ies"} did not answer</div>`:"")
+     +`<div class="en-sub dim">Live route health is reported by the host through the hosted service and is not shown here.</div></div><p class="en-intro">${esc(PRIVACY[policy.mode]||"")}</p>`;
+   const form=document.createElement("form");form.className="enc-network-controls";
+--- a/site/js/core/independent-management.js
++++ b/site/js/core/independent-management.js
+@@ -104,6 +104,17 @@
+   ls.setItem(FLOOR_PREFIX + key, text);
+ }
+ 
++/* The directories this page uses (profile + chosen index operators), split by whether this page can reach them. */
++export async function pageDirectoryOrigins(){
++  const SD = await import("./service-discovery.js");
++  let disc = null;
++  if (INDEPENDENT.profile.serviceIndex){
++    try { disc = await SD.discover({ profile: INDEPENDENT.profile, reader: (await import("./independent-chain.js")).reader() }); } catch { disc = null; }
++  }
++  const all = SD.pageDirectories(INDEPENDENT.profile, disc);
++  return { reachable: all.filter((d) => d.reachable).map((d) => d.origin), unreachable: all.filter((d) => !d.reachable), all };
++}
++
+ /* ---- records: every directory's copy, untrusted ---- */
+ async function directoryRecords(directories, fetchImpl){
+   const got = await Promise.allSettled(directories.map(async (d) => {
+@@ -186,8 +197,13 @@
+   if (/^0x0{64}$/.test(lease.runner) || !(lease.leaseUntil > Date.now()))
+     throw fail("No host holds a current lease for this deployment, so there is no host to manage. Nothing was sent.", { native });
+   if (!lr.current) throw fail("The runner's registry entry is inactive or names another operator, so its management records are not trusted. Nothing was sent.", { native });
+-  const dirs = (INDEPENDENT.profile.directories || []);
+-  if (!dirs.length) throw fail("The network profile names no directories, so the host's management record cannot be found from this page.", { kind: "no-transport", native });
++  // the profile's directories plus the directory operators the user chose from the service index (js/core/service-discovery.js);
++  // a directory this page cannot reach (plain HTTP from an HTTPS page) is named, never silently treated as answering
++  const page = await pageDirectoryOrigins();
++  const dirs = page.reachable;
++  if (!dirs.length) throw fail(page.unreachable.length
++    ? "No directory this page can reach holds management records: " + page.unreachable.map((d) => d.origin + " (" + d.reason + ")").join("; ") + "."
++    : "The network profile names no directories and none was chosen from the service index, so the host's management record cannot be found from this page.", { kind: "no-transport", native });
+   const M = await transport();
+   const rec = await directoryRecords(dirs, D.fetch);
+   if (!rec.answered) throw fail("None of the profile's directories answered, so the host's management record cannot be read from this page.", { kind: "no-transport", native });
+--- a/site/js/pages/apps.js
++++ b/site/js/pages/apps.js
+@@ -722,7 +722,10 @@
+       tEl.hidden = false;
+       tEl.innerHTML = "⤷ host: <select class=\"qd-indhost\"><option value=\"\">Any host at or under your ceiling</option>"
+         + elig.map((h) => "<option value=\"" + esc(h.hostId) + "\">" + esc(h.endpoint) + " · " + (h.free ? "free for you" : usdHr(h.rate6) + " for this size")
+-          + " · heartbeat " + ago(h.lastSeen) + "</option>").join("") + "</select>"
++          + " · heartbeat " + ago(h.lastSeen) + (h.capacityText ? " · " + esc(h.capacityText) : "") + "</option>").join("") + "</select>"
++        + (indQuotes.hosts.some((h) => h.ownerDeclines) ? "<br><span class=\"qd-declined warn\">Not offered: " + indQuotes.hosts.filter((h) => h.ownerDeclines)
++          .map((h) => esc(h.endpoint) + " (" + esc(h.reason) + ")").join("; ") + ". Every other host is unaffected.</span>" : "")
++        + (indQuotes.policyNote ? "<br><span class=\"dim\">" + esc(indQuotes.policyNote) + "</span>" : "")
+         + "<br><label>Price ceiling, $/hr (the most this deployment will pay) <input class=\"qd-cap\" type=\"number\" min=\"0.0001\" step=\"any\" inputmode=\"decimal\"></label>"
+         + "<br><span class=\"qd-capnote dim\"></span>"
+         + "<br><span class=\"dim\">Prices come from the host registry; a posted price is not reserved capacity - a host may be full or decline. "
+@@ -747,8 +750,18 @@
+     import("../core/independent-chain.js").then(async (IC) => {
+       const reg = await IC.registryHosts();
+       const rev = await depSchemaRev();
+-      raw = { quote: (q) => IC.quoteHosts(reg.hosts, { chainNow: reg.snap.timestamp, rev, owner: actingOwner(Enclave.address) || Enclave.address, ...q }) };
++      let verdicts = null, capacity = null;
++      raw = { quote: (q) => {
++        const out = IC.quoteHosts(reg.hosts, { chainNow: reg.snap.timestamp, rev, owner: actingOwner(Enclave.address) || Enclave.address, ...q });
++        if (verdicts) IC.applyOwnerVerdicts(out, verdicts);       // a host whose owner declines this app: that host only
++        if (capacity) IC.attachCapacity(out, capacity);           // signed, host-reported, never a reservation
++        return out;
++      } };
+       indRefresh();
++      // each host owner's admission policy for THIS app, and signed capacity reports: both refine the list once read
++      IC.hostOwnerVerdicts({ snap: reg.snap, hostIds: reg.hosts.map((h) => IC.hostIdOfEndpoint(h.endpoint)), appRef: catalogRef(app.appId, idx) })
++        .then((v) => { verdicts = v; indRefresh(); }).catch((e) => { verdicts = { byHost: new Map(reg.hosts.map((h) => [IC.hostIdOfEndpoint(h.endpoint), { eligible: false, reason: "its owner's policy could not be read (" + (e.message || e) + ")" }])), note: "" }; indRefresh(); });
++      IC.hostCapacityTexts(reg.hosts).then((c) => { capacity = c; indRefresh(); }).catch(() => {});
+     }).catch((e) => { if (tEl){ tEl.hidden = false; tEl.textContent = "Couldn’t read registered hosts: " + (e.message || e); } });
+   }
+   fleetRowsNow().then(rows => { qdRows = rows; applyTarget(computeTarget()); }).catch(() => {});
+--- a/site/js/pages/deploy.js
++++ b/site/js/pages/deploy.js
+@@ -179,10 +179,14 @@
+       const { independentQuotes } = await import("../core/independent-chain.js");
+       // "free for this owner" is about the record's owner: a selected passkey account, not the wallet paying gas
+       const quoteOwner = (await import("../core/identity.js")).actingOwner(Enclave.address) || Enclave.address;
+-      try { quotes = await independentQuotes({ gpuMilli: spec.gpuMilli, cpuMilli: spec.cpuMilli, owner: quoteOwner }); }
++      // host owners' admission policies are applied per host (js/core/host-policy.js): a host whose owner declines this
++      // app is not offered, and only that host
++      try { quotes = await independentQuotes({ gpuMilli: spec.gpuMilli, cpuMilli: spec.cpuMilli, owner: quoteOwner, appRef: spec.reference }); }
+       catch(e){ w.line("warn", "[x] couldn't read host prices from the pinned registry: " + (e.message || e) + " - nothing was sent"); return; }
+       w.line("dimln", "    independent mode · ledger " + DEPLOYMENTS_ADDRESS + " · " + quotes.eligibleCount + " of " + quotes.registeredHosts
+         + " registered hosts can quote this size (heartbeat within the hour) at block " + quotes.block);
++      for (const h of quotes.hosts.filter((x) => x.ownerDeclines)) w.line("dimln", "    not offered: " + h.endpoint + " - " + h.reason + " (every other host is unaffected)");
++      if (quotes.policyNote) w.line("dimln", "    " + quotes.policyNote);
+     } else try {
+       adoptFreePct(await Enclave.getAvailability());
+       if (queuedVerdict(spec.gpuMilli / 10, spec.cpuMilli / 10))
+--- a/site/js/pages/dashboard.js
++++ b/site/js/pages/dashboard.js
+@@ -42,9 +42,11 @@
+ 
+ /* the fleet capacity panel: the relay's /enclaves table (GPU boxes first);
+    polled only while this page's <main> is mounted */
+-let _fleetPoll = null;
+-async function refreshFleet(){
+-  if (INDEPENDENT_MODE) return;          // the relay's host table is not used in independent mode
++let _fleetPoll = null, _indFleetAt = 0;
++async function refreshFleet(force){
++  // independent mode: the pinned registry at an agreed block plus each host's own signed capacity (js/core/fleet-read.js),
++  // read at most every two minutes (public chain endpoints), or on the panel's own refresh
++  if (INDEPENDENT_MODE){ if (force !== true && Date.now() - _indFleetAt < 120000) return; _indFleetAt = Date.now(); }
+   // a failed read shows the last good table marked stale, or an error state -
+   // never the component's "no app hosts" empty state (js/core/fleet-read.js)
+   await refreshFleetInto(document.querySelector(".dash-fleet c-fleet-list"), Enclave.base);
+@@ -70,8 +72,7 @@
+     if (!idb){ idb = document.createElement("div"); idb.className = "id-bar-mount"; list.before(idb); }
+     import("../core/account-ui.js").then((m) => m.mountIdentityBar(idb)).catch(() => {});
+   }
+-  const fleet = document.querySelector(".dash-fleet");
+-  if (fleet && INDEPENDENT_MODE) fleet.hidden = true;
++
+ }
+ 
+ export function boot() {
+@@ -79,7 +80,7 @@
+   refreshFleet();
+   // the component's ↻ button: re-fetch on demand (named ref = idempotent re-boot)
+   const fl = document.querySelector(".dash-fleet c-fleet-list");
+-  if (fl) fl.addEventListener("refresh", refreshFleet);
++  if (fl) fl.addEventListener("refresh", () => refreshFleet(true));
+   if (!_fleetPoll) _fleetPoll = setInterval(() => {
+     if (!document.querySelector('section[data-view="dashboard"]')) return;
+     refreshFleet();
+--- a/scripts/vendor/discovery-entry.mjs
++++ b/scripts/vendor/discovery-entry.mjs
+@@ -0,0 +1,5 @@
++// The reviewed library primitives the default independent dashboard uses to check operator-signed statements in the
++// browser: host capacity records (network/host-capacity.mjs verifyHostCapacity: an EIP-191 signature by the registry
++// operator). Re-exported from the repository's own viem (no new dependency). Built into site/vendor/discovery.js by
++// scripts/build-discovery-vendor.mjs; nothing here implements cryptography itself.
++export { recoverMessageAddress, keccak256, toHex, getAddress } from "viem";
+--- a/scripts/build-discovery-vendor.mjs
++++ b/scripts/build-discovery-vendor.mjs
+@@ -0,0 +1,45 @@
++#!/usr/bin/env node
++// site/vendor/discovery.js: viem's EIP-191 signature recovery (recoverMessageAddress) and keccak helpers, from this
++// repository's own node_modules (viem), as ONE same-origin ESM bundle for the operator-signed statements the default
++// independent dashboard checks (site/js/core/host-capacity.js). scripts/build-vendor.mjs has the policy: no CDN bytes.
++// The bundle and its manifest are committed with the site; test/site-default-discovery.test.mjs requires them to equal a
++// fresh build of the recorded entry.
++//   node scripts/build-discovery-vendor.mjs [--check]
++import { build } from "esbuild";
++import { createHash } from "node:crypto";
++import fs from "node:fs";
++import path from "node:path";
++
++const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
++export const ENTRY = "scripts/vendor/discovery-entry.mjs";
++export const OUT = path.join(ROOT, "site", "vendor", "discovery.js");
++export const MANIFEST = path.join(ROOT, "site", "vendor", "discovery.MANIFEST.json");
++export const EXPORTS = ["recoverMessageAddress", "keccak256", "toHex", "getAddress"];
++
++export async function buildDiscoveryVendor() {
++  const r = await build({ entryPoints: [path.join(ROOT, ENTRY)], bundle: true, format: "esm", platform: "browser", target: "es2022",
++                          minify: true, legalComments: "eof", write: false, logLevel: "warning", metafile: true, absWorkingDir: ROOT });
++  const js = Buffer.from(r.outputFiles[0].contents);
++  const inputs = Object.keys(r.metafile.inputs);
++  const node = inputs.filter((p) => /^(node:|\(disabled\))/.test(p));
++  if (node.length) throw new Error("discovery bundle pulls Node-only inputs: " + node.join(", "));
++  const local = inputs.filter((p) => !p.includes("node_modules/"));
++  if (local.length !== 1 || path.relative(ROOT, path.resolve(ROOT, local[0])) !== ENTRY) throw new Error("discovery bundle pulls repository files other than its entry: " + local.join(", "));
++  const pkg = (n) => JSON.parse(fs.readFileSync(path.join(ROOT, "node_modules", n, "package.json"), "utf8")).version;
++  const sha = (b) => createHash("sha256").update(b).digest("hex");
++  const manifest = { file: "site/vendor/discovery.js", sha256: sha(js), bytes: js.length, entry: ENTRY, entrySha256: sha(fs.readFileSync(path.join(ROOT, ENTRY))),
++                     esbuild: pkg("esbuild"), deps: { viem: pkg("viem") }, exports: EXPORTS };
++  return { js, manifest };
++}
++
++if (import.meta.url === `file://${process.argv[1]}`) {
++  const { js, manifest } = await buildDiscoveryVendor();
++  if (process.argv.includes("--check")) {
++    const same = fs.existsSync(OUT) && Buffer.compare(fs.readFileSync(OUT), js) === 0;
++    console.log(same ? "site/vendor/discovery.js matches a fresh build" : "site/vendor/discovery.js DIFFERS from a fresh build");
++    process.exit(same ? 0 : 1);
++  }
++  fs.writeFileSync(OUT, js);
++  fs.writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + "\n");
++  console.log(`wrote ${path.relative(ROOT, OUT)} (${js.length} bytes, sha256 ${manifest.sha256.slice(0, 16)}…)`);
++}
+Binary-equivalent vendor bundle site/vendor/discovery.js: sha256 0c19425b51c8dae9c7ff64ade2e157fda4ed413e3c1b9aabf4b602c4c80f63a4 (rebuild with its builder; not inlined)
+--- a/site/vendor/discovery.MANIFEST.json
++++ b/site/vendor/discovery.MANIFEST.json
+@@ -0,0 +1,17 @@
++{
++  "file": "site/vendor/discovery.js",
++  "sha256": "0c19425b51c8dae9c7ff64ade2e157fda4ed413e3c1b9aabf4b602c4c80f63a4",
++  "bytes": 52659,
++  "entry": "scripts/vendor/discovery-entry.mjs",
++  "entrySha256": "523a4ecca8772e326fa688070a5cfd76077f3670da0157ccff19d8da954d7d5c",
++  "esbuild": "0.28.1",
++  "deps": {
++    "viem": "2.53.1"
++  },
++  "exports": [
++    "recoverMessageAddress",
++    "keccak256",
++    "toHex",
++    "getAddress"
++  ]
++}

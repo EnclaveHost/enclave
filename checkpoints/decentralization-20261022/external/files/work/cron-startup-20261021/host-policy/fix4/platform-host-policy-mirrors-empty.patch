@@ -1,0 +1,16 @@
+--- a/network/platform-host-policy-config.mjs
++++ b/network/platform-host-policy-config.mjs
+@@ -18,12 +18,7 @@
+ // Public HTTPS transports verified on 2026-10-20; clients still verify the administrator signature and chain anchor.
+ // Publish a reviewed signed document to these routes BEFORE anchoring it. Extra operator-chosen mirrors are supported.
+ // These four regional endpoints share an infrastructure operator; they do not establish independent operation.
+-export const PRODUCTION_MIRRORS = Object.freeze([
+-  "https://134.199.235.187/platform-policy",
+-  "https://134.209.248.172/platform-policy",
+-  "https://165.245.191.129/platform-policy",
+-  "https://146.190.246.39/platform-policy",
+-]);
++export const PRODUCTION_MIRRORS = Object.freeze([]);
+ // The policy's own read quorum (distinct public Base RPCs; majority 3 of 4), independent of a component's single RPC.
+ export const PRODUCTION_RPCS = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"]);
+ export const PRODUCTION_HOST_POLICY = Object.freeze({ chainId: 8453, book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP,

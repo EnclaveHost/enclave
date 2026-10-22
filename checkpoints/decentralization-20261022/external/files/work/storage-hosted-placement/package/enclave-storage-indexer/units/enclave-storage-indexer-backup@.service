@@ -1,0 +1,17 @@
+# Optional encrypted logical backup of replica %i (only when /etc/enclave-storage-indexer/%i/owner-backup.pem exists).
+[Unit]
+Description=Encrypted backup of Enclave storage indexer replica %i
+Requires=enclave-storage-indexer-pg@%i.service
+After=enclave-storage-indexer-pg@%i.service
+ConditionPathExists=/etc/enclave-storage-indexer/%i/owner-backup.pem
+[Service]
+Type=oneshot
+User=enclave-storage-indexer
+Group=enclave-storage-indexer
+ExecStart=/opt/enclave-storage-indexer/current/libexec/backup %i
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/enclave-storage-indexer/%i/outbox
+MemoryMax=512M

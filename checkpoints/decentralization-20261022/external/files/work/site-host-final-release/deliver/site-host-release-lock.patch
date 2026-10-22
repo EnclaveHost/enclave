@@ -1,0 +1,18 @@
+diff --git a/site-host/release.lock.json b/site-host/release.lock.json
+index 25b582c..c5d368d 100644
+--- a/site-host/release.lock.json
++++ b/site-host/release.lock.json
+@@ -1,9 +1,9 @@
+ {
+   "schema": "site-host-release-lock/1",
+-  "cid": "bafybeiex25avvxryg6vzw7d57npdliy5qtfuss3c5lrbk5i5o7tx4kzgdi",
++  "cid": "bafybeibs6ouoiqwsr632yvb4ffvmpee4bvxhiaqdg64khrijnt6lgbt3na",
+   "car": {
+-    "sha256": "9ff91d2805eb3d2d2489ea8b6042a55433684c9e0558ada9c7270290651cd4e4",
+-    "bytes": 45381289
++    "sha256": "60f038842aa718b23efd5f1412119f854d0d8faef27c330a41b1de7a54da47a2",
++    "bytes": 45774054
+   },
+-  "provenance": "enclave site release prepared by `site/deploy.sh prepare` from enclave main e762a9c5 + uncommitted integrations + the private-browser patch (work/claude-private-browser-final-release-result.txt); base bafybeig3rai3tyoimbhb32vo6hkkw3o336wluht7owbs7mefhtiridwp6y"
++  "provenance": "enclave site release prepared by `site/deploy.sh prepare` from enclave main e762a9c5 + its uncommitted integrations (private-browser, credit-vault final, recovery; work/site-host-final-release/MAIN-SNAPSHOT.txt); base bafybeig3rai3tyoimbhb32vo6hkkw3o336wluht7owbs7mefhtiridwp6y"
+ }

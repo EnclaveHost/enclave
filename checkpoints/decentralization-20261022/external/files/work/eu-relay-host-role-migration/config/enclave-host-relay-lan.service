@@ -1,0 +1,19 @@
+# TEMPLATE (not installed): the forwarder behind enclave-host-relay-lan.socket. systemd-socket-proxyd relays bytes only; it
+# adds nothing and reads nothing. Its own sockets may talk only to the relay's loopback listener and minipc's addresses.
+[Unit]
+Description=Enclave lease relay: LAN forwarder for the minipc fallback
+Requires=enclave-host-relay-lan.socket enclave-host-relay.service
+After=enclave-host-relay.service
+
+[Service]
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd --connections-max=16 127.0.0.1:8549
+DynamicUser=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+RestrictAddressFamilies=AF_INET AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/32 192.168.8.238/32 192.168.8.148/32
+MemoryMax=32M
+TasksMax=8

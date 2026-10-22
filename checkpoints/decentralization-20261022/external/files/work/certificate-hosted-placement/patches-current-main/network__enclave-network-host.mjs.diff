@@ -1,0 +1,40 @@
+--- a/network/enclave-network-host.mjs
++++ b/network/enclave-network-host.mjs
+@@ -27,6 +27,7 @@
+ import {DirectoryClient} from './directory-client.mjs';
+ import {validateNetworkAuthorities} from './network-authorities.mjs';
+ import {egressProbeUrls,probeEgressUrls} from './egress-probes.mjs';
++import {challengeReplicaConfig,startChallengeReplica} from './challenge-replica-host.mjs';
+ 
+ 
+ // cfg.enclaveNetwork.direct.probe -> the provider canary's configuration (provider-canary.mjs), checked before anything is
+@@ -69,6 +70,8 @@
+  if(pins&&c.registry&&c.registry.toLowerCase()!==pins.registry)throw Error('Enclave network: registry conflicts with authority pin');
+  if(pins&&typeof leaseReader?.agreed!=='function')throw Error('Enclave network: pinned authority requires a quorum reader');
+  const probeUrls=egressProbeUrls(c.egressProbeUrls,rpc);
++ // the host's DNS/challenge service (challenge-replica-host.mjs), judged now - before anything binds - and started last
++ const challengeCfg=c.challengeReplica===undefined?null:challengeReplicaConfig(c.challengeReplica);
+  const onNetwork=id=>c.apps==='all'||c.apps.includes(id);
+  const relay=async(p,init)=>{if(!c.relay)throw new Error('BYO requires an operator-local config directory or an explicit relay');const r=await fetch(new URL(p,c.relay),{...init,signal:AbortSignal.timeout(10000)});if(r.status===404)return null;const b=await r.json().catch(()=>null);if(!r.ok)throw new Error(`relay ${p.split('/').slice(0,4).join('/')}: ${b?.error||r.status}`);return b;};
+  const directories=new DirectoryClient({origins:c.directories||(c.relay?[c.relay]:[]),fetch});
+@@ -200,10 +203,18 @@
+   }
+   direct={runtime:runtimeD,qualification:direct.qualification,envelope:direct.envelope};
+  }
++ // The challenge service starts after everything else; a refused start (release hash, configuration the replica itself
++ // refuses, no readiness) releases what direct hosting bound, as a failed canary does.
++ let challenge=null;
++ if(challengeCfg){
++  try{challenge=await startChallengeReplica(challengeCfg,{log});}
++  catch(e){await direct?.runtime?.close().catch(()=>{});throw e;}
++ }
+  // localRoutes: apps on this host reach each other's websites here (local-app-router.mjs); false turns it off
+  return {onNetwork,policyFor,providers,byoConfig,runtime,probeEgress,grants,direct,hostEgress,localRoutes:c.localRoutes!==false,
+-  // releases what this host bound itself: the direct runtime's listeners and its canary (the circuit runtime and host
++  // releases what this host bound itself: the direct runtime's listeners, its canary and the challenge service (the circuit runtime and host
+   // egress keep their own lifecycles)
+   // (idempotent: the agent's shutdown and a failed start may both ask)
+-  close(){return closing||=Promise.resolve(direct?.runtime?.close());}};
++  challengeReplica:challenge,
++  close(){return closing||=Promise.all([direct?.runtime?.close(),challenge?.close()]);}};
+ }

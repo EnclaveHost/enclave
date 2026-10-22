@@ -1,0 +1,76 @@
+--- proposed/make-upgrade-bundle-g3.py.orig	2026-10-21 14:40:53.141634425 -0700
++++ proposed/make-upgrade-bundle-g3-upstream.py	2026-10-21 14:40:53.151205464 -0700
+@@ -54,6 +54,29 @@
+ 
+ def strip(svc): return {k: v for k, v in svc.items() if k != 'package'}
+ 
++def check_upstream(cfg, new_cfg, a, b, upstream):
++    """UPSTREAM shape (7d, tunnel v2 review): no file change; the ONLY config difference is route-dns
++    config.challengeTxtUpstream set to exactly `upstream` (an IPv4 literal:port, never this replica's own DNS port)."""
++    import re as _re
++    m = _re.fullmatch(r'(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})', upstream or '')
++    if not m or not all(0 <= int(x) <= 255 for x in m.group(1).split('.')) or not 1 <= int(m.group(2)) <= 65535: raise Refused('--set-upstream must be IPv4:port')
++    if any(a.get(k) != b.get(k) for k in set(a) | set(b)): raise Refused('upstream: the stages must be identical (config-only change)')
++    if json.dumps({k: v for k, v in cfg.items() if k != 'services'}, sort_keys=True) != json.dumps({k: v for k, v in new_cfg.items() if k != 'services'}, sort_keys=True):
++        raise Refused('upstream: the new config changes something outside services')
++    if len(cfg['services']) != len(new_cfg['services']): raise Refused('upstream: a service was added or removed')
++    found = False
++    for o, n in zip(cfg['services'], new_cfg['services']):
++        if o != n and o.get('role') == 'route-dns' and n.get('role') == 'route-dns':
++            oc, nc = dict(o['config']), dict(n['config'])
++            if nc.get('challengeTxtUpstream') != upstream: raise Refused('upstream: route-dns challengeTxtUpstream is not the requested value')
++            if int(m.group(2)) == nc.get('dnsPort') and m.group(1) in ('127.0.0.1', '0.0.0.0', nc.get('bind')): raise Refused('upstream: that is this replica itself')
++            oc.pop('challengeTxtUpstream', None); nc.pop('challengeTxtUpstream', None)
++            if oc != nc or {k: v for k, v in o.items() if k != 'config'} != {k: v for k, v in n.items() if k != 'config'}: raise Refused('upstream: route-dns changes more than challengeTxtUpstream')
++            found = True
++        elif o != n: raise Refused(f"upstream: {o.get('role')} changed")
++    if not found: raise Refused('upstream: no route-dns challengeTxtUpstream change found')
++    return True
++
+ def check_new_config(cfg, new_cfg, a, b, add_roles, approve_orders):
+     """The G3 shapes (see the module doc). Returns (changed pins, added roles, orders approved)."""
+     if json.dumps({k: v for k, v in cfg.items() if k != 'services'}, sort_keys=True) != json.dumps({k: v for k, v in new_cfg.items() if k != 'services'}, sort_keys=True):
+@@ -90,7 +113,7 @@
+     if approve_orders and not approved: raise Refused('approve: no service-tls orders "held" -> "approved" change found')
+     return pins, added, approved
+ 
+-def build(old_stage, new_stage, old_config, old_config_sha, old_receipt_sha, out, new_config=None, add_roles=(), approve_orders=False):
++def build(old_stage, new_stage, old_config, old_config_sha, old_receipt_sha, out, new_config=None, add_roles=(), approve_orders=False, set_upstream=None):
+     if sha_file(old_config) != old_config_sha.lower(): raise Refused('the old config copy is not the pinned sha')
+     if not re.fullmatch(r'[0-9a-f]{64}', old_receipt_sha.lower()): raise Refused('old receipt sha must be 64 hex')
+     a, b = sums(old_stage), sums(new_stage)
+@@ -104,7 +127,12 @@
+     add = [{'path': r, 'new': b[r]} for r in sorted(b) if PROGRAM.match(r) and r not in a]
+     unchanged = [{'path': r, 'sha': a[r]} for r in sorted(a) if PROGRAM.match(r) and b.get(r) == a[r]]
+     added, approved = [], False
+-    if new_config is not None:
++    if set_upstream is not None:
++        if new_config is None or add_roles or approve_orders: raise Refused('--set-upstream needs --new-config and no other mode')
++        cfg = json.loads(read(old_config).decode('utf-8')); new_bytes_g3 = read(new_config)
++        check_upstream(cfg, json.loads(new_bytes_g3.decode('utf-8')), a, b, set_upstream)
++        pins = {}; text = new_bytes_g3.decode('utf-8')
++    elif new_config is not None:
+         cfg = json.loads(read(old_config).decode('utf-8'))
+         new_bytes_g3 = read(new_config)
+         pins, added, approved = check_new_config(cfg, json.loads(new_bytes_g3.decode('utf-8')), a, b, tuple(add_roles), approve_orders)
+@@ -150,7 +178,7 @@
+         'scripts': {s: a[s] for s in PINNED_SCRIPTS if s in a},
+         'replace': replace, 'add': add, 'unchanged': unchanged,
+         'config': {'old': old_config_sha.lower(), 'new': hashlib.sha256(new_bytes).hexdigest(), 'changedPins': pins,
+-                   **({'addedServices': added} if added else {}), **({'ordersApproved': True} if approved else {})},
++                   **({'addedServices': added} if added else {}), **({'ordersApproved': True} if approved else {}), **({'challengeTxtUpstream': set_upstream} if set_upstream else {})},
+         'receipt': {'old': old_receipt_sha.lower()},
+     }
+     mpath = os.path.join(out, 'upgrade-manifest.json')
+@@ -161,9 +189,10 @@
+     ap = argparse.ArgumentParser()
+     for k in ('old-stage', 'new-stage', 'old-config', 'old-config-sha', 'old-receipt-sha', 'out'): ap.add_argument('--' + k, required=True)
+     ap.add_argument('--new-config'); ap.add_argument('--add-role', action='append', default=[]); ap.add_argument('--approve-orders', action='store_true')
++    ap.add_argument('--set-upstream')
+     o = ap.parse_args()
+     try:
+-        m, h = build(o.old_stage, o.new_stage, o.old_config, o.old_config_sha, o.old_receipt_sha, o.out, o.new_config, o.add_role, o.approve_orders)
++        m, h = build(o.old_stage, o.new_stage, o.old_config, o.old_config_sha, o.old_receipt_sha, o.out, o.new_config, o.add_role, o.approve_orders, o.set_upstream)
+     except Refused as e:
+         print(f'REFUSED: {e}', file=sys.stderr); sys.exit(1)
+     print(json.dumps({'manifestSha256': h, 'id': m['id'], 'replace': [e['path'] for e in m['replace']], 'add': [e['path'] for e in m['add']],

@@ -1,0 +1,708 @@
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -19,7 +19,10 @@
+ // >>> The ONLY thing left to implement for your CVM is spawn/stop/measure below.
+ 
+ import express from "express";
+-import { planCheckpoints } from "./windows/node/verification-checkpoints.mjs";
++// Opted-in verification fee routing (docs/design/paid-capacity-verification.md "Host proof routing"). metal images carry
++// the module beside supervisor.js (metal/overlay-control-image.py adds /app/verification-checkpoints.mjs from
++// windows/node/verification-checkpoints.mjs); in a checkout ./verification-checkpoints.mjs re-exports that one file.
++import { planCheckpoints } from "./verification-checkpoints.mjs";
+ import cors from "cors";
+ import http from "node:http";
+ import https from "node:https";
+@@ -39,7 +42,7 @@
+ import { privateKeyToAccount } from "viem/accounts";
+ import { base } from "viem/chains";
+ import { SignJWT, jwtVerify } from "jose";
+-// Per-tenant SOCKS credentials and destination policy in front of the host's egress upstream.
++// dedicated-IP egress: the outbound half of the per-deployment address (see egress.js)
+ import { createEgress } from "./egress.js";
+ // contract addresses: LIVE BINDINGS owned by addressbook.js — seeded from the
+ // baked env, overridden from the on-chain EnclaveAddressBook when
+@@ -49,7 +52,7 @@
+          FORWARDER_ADDRESS, PROOF_OF_TIME_ADDRESS } from "./addressbook.js";
+ // Wallet sessions (SessionVault) as owner credentials, verified on chain: shared with the Windows node.
+ import { createSessionApiAuth, isSessionHeader, hasScope, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES }
+-  from "./windows/node/session-api-auth.mjs";
++  from "./session-api-auth.mjs";
+ 
+ // Process-wide crash guards. This is Express 4: a rejected async route (or any
+ // stray background rejection) would otherwise take the whole process down —
+@@ -2089,16 +2092,32 @@
+     opts.isolation = iso.require ?? ISOLATION_BACKEND;
+   }
+   if ("network" in o) {
++    // WHICH RELAY carries this deployment's traffic. Unlike every other
++    // namespace here, nothing in this CVM acts on it: the choice is consumed at
++    // the DNS layer, which answers <label>.app.enclave.host with the chosen
++    // relay's address instead of the zone-wide default. It is validated here
++    // anyway, and refused rather than ignored, for the reason the whole
++    // envelope is fail-closed — an owner who typo'd their relay would otherwise
++    // be told nothing and quietly keep the default, which is exactly the class
++    // of silence this field exists to avoid.
++    //
++    // A NAME, not an address: the relay set moves (a box is replaced, an
++    // address changes) and a deployment should follow the relay it chose rather
++    // than pin the machine it happened to be on. Resolution name -> address is
++    // the fleet's job, not this record's.
+     const n = o.network;
+-    if (!n || Array.isArray(n) || typeof n !== "object") throw new Error("network must be a JSON object");
+-    const bad = Object.keys(n).filter(k => k !== "transport" && k !== "relay");
+-    if (bad.length) throw new Error(`unknown network option ${JSON.stringify(bad[0])}`);
+-    if ("transport" in n && n.transport !== "enclave-network") throw new Error("network.transport must be enclave-network");
+-    // Existing ledger envelopes can still contain a relay preference. It no
+-    // longer selects a route and is not copied into runtime configuration.
+-    if ("relay" in n && n.relay !== null && n.relay !== "" &&
+-        (typeof n.relay !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(n.relay)))
+-      throw new Error("invalid retired network.relay metadata");
++    if (!n || Array.isArray(n) || typeof n !== "object")
++      throw new Error("network must be a JSON object like {\"relay\":\"us-west\"}");
++    const badN = Object.keys(n).filter((k) => k !== "relay");
++    if (badN.length) throw new Error(`unknown network option ${JSON.stringify(badN[0])} (this runner knows: relay)`);
++    if ("relay" in n) {
++      const r = n.relay;
++      // "" / null is a deliberate, expressible choice: back to the zone default.
++      if (r === null || r === "") opts.relay = "";
++      else if (typeof r !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(r))
++        throw new Error("network.relay must be a relay name: lowercase letters, digits and dashes, up to 63 characters (or \"\" for the fleet default)");
++      else opts.relay = r;
++    }
+   }
+   if ("gpu" in o) {
+     // The card requirement, softened. `optional: true` says the deployment
+@@ -2288,11 +2307,37 @@
+ // The derivation record guestd needs to turn a catalog version into the exact bundle it runs
+ // (enclave-catalog-bundle/1): the catalog ref, the component CID, the policy above, and the runtime the host's
+ // images carry (guestd's own /health states it; guestd refuses a record pinned to any other).
++// The measured Shield models (isolation/contract/inference.go shieldProfiles) and what each guest is given:
++// a minimum whole-percent GPU share, and a fixed guest shape where the model needs one. The relay's predictor
++// (relay/measurement-predict.mjs derivationRecord) derives the same policy; the two must agree byte for byte.
++const SHIELD_MODELS = {
++  "qwen2.5-0.5b-q8-gguf": { minMilli: 70, floorMiB: 8192 },
++  "qwen3.8-27b-mtp-q4-vl-gguf": { minMilli: 500, floorMiB: 51200, cpuPercent: 1600, vcpus: 16 },
++  // Z-Image-Turbo (stable-diffusion.cpp): 8 vCPUs; its offloaded DiT needs 89 milli per card (100 with headroom).
++  "z-image-turbo-q4km-sd": { minMilli: 100, floorMiB: 6144, cpuPercent: 800, vcpus: 8 },
++};
++// On SHIELDED cards a measured Shield model's card need is its contract minimum (only the masked layer weights live
++// there; isolation/contract/inference.go, and guestd admits exactly that), not the publisher's plain-card VRAM figure
++// or the volume size: Z-Image needs 89 milli per card (100 floor) where its catalog spec reads as 0.52. Mutates mins.
++function shieldMins(mins, vols, health) {
++  const inf = health && health.inference;
++  const model = _shieldedPool && ISOLATION_BACKEND && Array.isArray(vols) && vols.length === 1 ? vols[0] : null;
++  if (!model || !SHIELD_MODELS[model] || !inf || !(inf.models || [inf.model]).includes(model) || !(mins.gpuShare > 0)) return mins;
++  const s = SHIELD_MODELS[model].minMilli / 1000;
++  mins.gpuShare = s;
++  if (mins.gpuFloor > 0) mins.gpuFloor = s;
++  return mins;
++}
++function shieldGuestPolicy(model, policy) {
++  const p = SHIELD_MODELS[model];
++  return { ...policy, ...(p?.vcpus ? { cpuPercent: p.cpuPercent, vcpus: p.vcpus } : {}), memMiB: Math.max(Number(policy?.memMiB) || 0, (p?.floorMiB || 8192) - 384) };
++}
+ function isolatedInference(gpuMilli, volumes) {
+   const g = Number(gpuMilli || 0);
+   if (!g && !(volumes || []).length) return null;
+-  if (!Number.isInteger(g) || g < 70 || g > 1000 || g % 10 !== 0 || !Array.isArray(volumes) || volumes.length !== 1 || !["qwen2.5-0.5b-q8-gguf", "qwen3.8-27b-mtp-q4-vl-gguf"].includes(volumes[0]) || (volumes?.[0] === "qwen3.8-27b-mtp-q4-vl-gguf" && g < 500))
+-    throw new Error("isolated inference requires a supported model and whole-percent GPU shares: at least 7% for 0.5B or 50% for 27B");
++  const p = Array.isArray(volumes) && volumes.length === 1 ? SHIELD_MODELS[volumes[0]] : undefined;
++  if (!Number.isInteger(g) || g < 70 || g > 1000 || g % 10 !== 0 || !p || g < p.minMilli)
++    throw new Error("isolated inference requires a supported model and whole-percent GPU shares: at least 7% for 0.5B, 10% for Z-Image or 50% for 27B");
+   return { model: volumes[0], gpuMilli: g };
+ }
+ function isolationDerivation(catalogRef, wasmRef, policy, runtimeId, httpPort = 0, tunnelPorts = [], inference = null) {
+@@ -2301,6 +2346,7 @@
+   if (!m || !c) throw new Error(`per-app isolation needs a catalog version and its component CID (got ${catalogRef} / ${wasmRef})`);
+   if (!/^[0-9a-f]{64}$/.test(String(runtimeId || ""))) throw new Error("the per-app manager states no runtime identity");
+   if (inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf") policy = {...policy, cpuPercent:1600, vcpus:16, memMiB:Math.max(policy.memMiB,51200-384)};
++  else if (inference?.model === "z-image-turbo-q4km-sd") policy = {...policy, cpuPercent:800, vcpus:8, memMiB:Math.max(policy.memMiB,6144-384)};
+   // a command that declares its HTTP port is enclave-catalog-bundle/2: the bundle states world wasi:cli and the port
+   return { ...(inference ? { inference } : {}), derivation: inference ? "enclave-catalog-bundle/4" : tunnelPorts.length ? "enclave-catalog-bundle/3" : httpPort ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
+            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: c[1], policy, runtimeId,
+@@ -2376,7 +2422,7 @@
+ //     is a leak, a dropped config is a wrong app. guestd refuses the same things at launch; refusing here keeps
+ //     the lease from being taken for work that could only fail.
+ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, appConfigCid, hasSecrets,
+-                                 firewall, volumes, isPublic, waf, policy, held, heldSameRecord, listed, cpuMilli }) {
++                                 firewall, volumes, isPublic, waf, policy, held, heldSameRecord, listed }) {
+   if (!backend) return null;
+   if (!ISOLATION_BACKENDS.includes(backend))
+     return `ISOLATION_BACKEND=${JSON.stringify(backend)} is not a backend this build knows; taking no tenant work`;
+@@ -2418,18 +2464,15 @@
+   // (d1's rollout option (i)), and without one it cannot run here at all.
+   if (sup.release === true && !released && sup.legacyImage !== true)
+     return "this box's per-app guests need the attested release, and this deployment is not a release guest here (not listed by the relay, or this box has not opted in), and its manager has no legacy image to run it on";
++  let shieldModel = null;
+   if (Number(gpuMilli)>0 || (volumes || []).length) {
+     let inf; try { inf=isolatedInference(gpuMilli,volumes); } catch(e) { return e.message; }
++    shieldModel = inf.model;
+     if (!released || !manager.inference || !(manager.inference.models || [manager.inference.model]).includes(inf.model) || sup.gpu!==true)
+       return "the measured Shield model release is not ready for this deployment";
+     const needs = Math.floor(31*2**30*inf.gpuMilli/1000);
+     if (!heldSameRecord && needs > Number(manager.inference.cardFreeBytes || 0)) return "the isolated GPU reservation pool is full";
+-    const floor = Number(manager.inference.modelFloorsMiB?.[inf.model]);
+-    if (!Number.isSafeInteger(floor) || floor <= 0)
+-      return "the inference manager reports no model RAM requirement; refusing an unbudgeted launch";
+-    policy = { ...policy, ...(inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {cpuPercent:1600,vcpus:16} : {}), memMiB: Math.max(Number(policy?.memMiB)||0, floor-384) };
+-    if (manager.inference.shareBoundedMemory === true && Number.isInteger(cpuMilli) && cpuMilli > 0 && cpuMilli <= 1000 && manager.pool?.budget?.memMiB > 0)
+-      policy = { ...policy, memMiB: Math.min(policy.memMiB, Math.floor(manager.pool.budget.memMiB * cpuMilli / 1000)) };
++    policy = shieldGuestPolicy(inf.model, policy);
+   }
+   // The next two are enforced in THIS process on every other backend, on the plaintext of each request. Here the
+   // plaintext exists only inside the guest (the session is spliced unopened), so neither could be applied: an
+@@ -2440,12 +2483,10 @@
+   if (waf && Object.keys(waf).length)
+     return "the deployment sets protection rules (waf), which need the request's plaintext, which exists only inside the guest on this backend";
+   // Last, the guest pool (TASK 4c): this version's guest must fit what guestd has free, by the reservation guestd
+-  // admits it at (its unit's ceilings), as well as the app's share allowance. guestd refuses the same at create (507
++  // admits it at (its unit's ceilings), never by the share bought. guestd refuses the same at create (507
+   // pool_full); refusing here keeps a lease from being taken for work that could only be refused. A create that still
+   // meets a 507 (a race between two claims) is a failed provision like any other: noted, backed off, released once.
+-  const shareWhy = guestMemoryShareRefusal(manager.pool, policy, cpuMilli, held);
+-  if (shareWhy) return shareWhy;
+-  return guestPoolRefusal(manager.pool || null, policy, held || null, heldSameRecord === true);
++  return guestPoolRefusal(manager.pool || null, policy, held || null, heldSameRecord === true, shieldModel);
+ }
+ 
+ // ---- the attested release: this box's half (docs/security/attested-release.md) ------------------------------------
+@@ -2903,11 +2944,13 @@
+ // admitted by guestd into a budget the operator set. So on that tier "the node" a share is a fraction of is guestd's
+ // GUEST POOL (its /health.pool budget), not this CVM's NODE_RAM_GB / NODE_VCPUS, and what is free is the pool's free
+ // room, never this CVM's. Everywhere else nothing changes: nodeSpec() is the NODE_* constants.
+-//   - CPU share prices the pool fraction and caps app RAM to that fraction of the pool budget.
+-//     Model minimums are requirements, never exemptions from the RAM allowance.
+-//   - The pool separately reserves guest ceilings, including runtime, minimum boot and QEMU overhead.
+-//   - guestd rejects an insufficient RAM share (422) or insufficient free pool (507). The claim gate mirrors
+-//     both checks before claiming and when adopting an existing guest.
++//   - A share stays a PRICE unit: a fraction of the pool at SELL_CPU_PRICE6, which is unchanged, and app minimums are
++//     unchanged (the declared memMb against the pool, so a 128 MB app still needs 1%).
++//   - The pool is a separate RESERVATION ledger, and it decides fit: an app's guest reserves its unit's ceilings
++//     (guestReservationFor), whatever share it bought. A 128 MB app's 1% share is priced at 1% of the pool while its
++//     guest reserves ~1792 MiB. That gap is a pricing question for the operator; admission never uses the share.
++//   - guestd is the authority: it refuses a guest that does not fit (507 pool_full). This process mirrors it only so
++//     it never CLAIMS work guestd must refuse (isolationClaimVerdict) and never advertises room there is not.
+ let _guestPool = null;   // guestd's last /health.pool, checked; null = not heard (the tier then offers and claims nothing)
+ // A {memMiB, cpuPct} of non-negative numbers, or null.
+ function readRoom(x) {
+@@ -2933,7 +2976,10 @@
+              // is not a number (null = guestd could not read it) makes the host UNKNOWN, never "0 available" or
+              // "nothing pending"
+              memAvailableMiB: num(p.host.memAvailableMiB) && num(p.host.pendingMiB) ? p.host.memAvailableMiB : null,
+-             pendingMiB: num(p.host.pendingMiB) ? p.host.pendingMiB : 0 };
++             pendingMiB: num(p.host.pendingMiB) ? p.host.pendingMiB : 0,
++             // the lower floor guestd admits PREEMPTIBLE Shield guests against (pool.go), and which models those are
++             preemptibleFloorMiB: num(p.host.preemptibleFloorMiB) && p.host.preemptibleFloorMiB < p.host.floorMiB ? p.host.preemptibleFloorMiB : null,
++             preemptibleModels: Array.isArray(p.host.preemptibleModels) ? p.host.preemptibleModels.map(String) : [] };
+   return { budget, allocated, free, guests: Number(p.guests) || 0, overcommitted: p.overcommitted === true, host,
+     perGuest: { floorMiB: +g.floorMiB, runtimeMiB: +g.runtimeMiB, unitOverheadMiB: +g.unitOverheadMiB } };
+ }
+@@ -2960,32 +3006,6 @@
+   const mem = Math.max(perGuest.floorMiB, Number(policy.memMiB) + perGuest.runtimeMiB) + perGuest.unitOverheadMiB;
+   return { memMiB: mem, cpuPct: Number(policy.cpuPercent) };
+ }
+-// RAM entitlement is independent of free pool space and applies on adoption too.
+-function guestMemoryShareRefusal(rawPool, policy, cpuMilli, held = null) {
+-  const pool = readGuestPool(rawPool);
+-  if (!Number.isInteger(cpuMilli) || cpuMilli <= 0 || cpuMilli > 1000)
+-    return "the deployment has no valid CPU share to enforce its RAM limit";
+-  if (!pool?.budget) return "the manager reports no readable guest pool or RAM budget to enforce the deployment's share";
+-  const mem = Number(policy?.memMiB);
+-  if (!Number.isSafeInteger(mem) || mem <= 0) return "the version has no valid RAM requirement";
+-  let need = mem;
+-  // An already-running guest cannot bypass the limit through adoption. The
+-  // immutable guest policy may be smaller than a later model runtime floor.
+-  if (held && (held.status === "running" || held.status === "starting")) {
+-    const r = readRoom(held.reserved);
+-    if (!r) return "the held guest reports no RAM reservation to check against its share";
+-    const guest = r.memMiB - pool.perGuest.unitOverheadMiB;
+-    if (guest > pool.perGuest.floorMiB) need = Math.max(need, guest - pool.perGuest.runtimeMiB);
+-  }
+-  const allowance = Math.floor(pool.budget.memMiB * cpuMilli / 1000);
+-  if (need > allowance) {
+-    const pct = Math.ceil(need * 100 / pool.budget.memMiB);
+-    return `CPU share allows ${allowance} MiB RAM, but this isolated app requires ${need} MiB; `
+-      + (pct > 100 ? "it cannot fit this host even at 100% CPU share" : `resize to at least ${pct}% CPU share on this host`)
+-      + " (fixed VM overhead is accounted separately)";
+-  }
+-  return null;
+-}
+ // The pool's free room as a fraction of its budget: 0 unless one smallest guest still fits (and never while it is
+ // unheard, unconfigured or overcommitted), so a full pool is never advertised as a sliver of free share.
+ function guestPoolFreeFraction(pool = _guestPool) {
+@@ -3003,10 +3023,15 @@
+   return Math.max(0, frac);
+ }
+ // The host's live room above guestd's floor, net of starting guests: undefined without a floor, -1 when unreadable.
+-function hostRoom(pool) {
++function hostRoom(pool, floorMiB) {
+   if (!pool || !pool.host) return undefined;
+   if (pool.host.memAvailableMiB === null) return -1;
+-  return pool.host.memAvailableMiB - pool.host.pendingMiB - pool.host.floorMiB;
++  return pool.host.memAvailableMiB - pool.host.pendingMiB - (floorMiB ?? pool.host.floorMiB);
++}
++// The floor guestd admits this model's guest against: the preemptible floor for a preemptible Shield model.
++function hostFloorFor(pool, model) {
++  const h = pool && pool.host;
++  return h && model && h.preemptibleFloorMiB != null && h.preemptibleModels.includes(model) ? h.preemptibleFloorMiB : h && h.floorMiB;
+ }
+ // Why this version's guest cannot be admitted by the pool guestd reported, or null (PURE; isolationClaimVerdict).
+ // `held` is the guest guestd ALREADY runs under this deployment's name (its GET /vms entry, starting or running): on a
+@@ -3015,7 +3040,7 @@
+ // is judged against free PLUS the room it holds, and never refused for the room it is itself using. A resume whose
+ // guest guestd no longer holds is a new guest and needs real room. (enclave-99's review of 829ea21b: judged against
+ // free alone, every canary's resume after the release's own reboot was refused.)
+-function guestPoolRefusal(rawPool, policy, held = null, heldSameRecord = false) {
++function guestPoolRefusal(rawPool, policy, held = null, heldSameRecord = false, model = null) {
+   const pool = readGuestPool(rawPool);
+   const holds = !!held && (held.status === "running" || held.status === "starting");
+   const heldRoom = holds ? readRoom(held.reserved) : null;
+@@ -3040,7 +3065,8 @@
+   // needs the host's room, crediting only what the replaced guest actually frees: its RAM, not the 768 allowance it
+   // never used (enclave-99). Refused here too, so no lease is taken, and no running guest is deleted, for a create
+   // guestd would refuse.
+-  const hr = hostRoom(pool);
++  const floor = hostFloorFor(pool, model);
++  const hr = hostRoom(pool, floor);
+   if (hr !== undefined && !(holds && heldSameRecord)) {
+     if (hr < 0 && pool.host.memAvailableMiB === null) return "the host's available memory is unknown, and guestd admits no guest while it is";
+     // the credit for the held guest the replacement deletes: a STARTING one is wholly in guestd's pending, so all of its
+@@ -3052,7 +3078,7 @@
+     // no live number in the reason: it is returned by the public claim-hint and logged by the sweep on every change,
+     // so MemAvailable must not be reconstructable from it (enclave-e3). The floor is configuration.
+     if (after < 0)
+-      return `the host is too low on memory: admitting this app's guest would take the host under guestd's ${pool.host.floorMiB} MiB floor`;
++      return `the host is too low on memory: admitting this app's guest would take the host under guestd's ${floor} MiB floor`;
+   }
+   return null;
+ }
+@@ -3073,7 +3099,7 @@
+     // the floor's VERDICT, never the host's live MemAvailable (published availability must not carry, or jitter with, it)
+     host: host ? { floorMiB: host.floorMiB, admitsSmallestGuest: room !== undefined && room >= g.floorMiB + g.unitOverheadMiB } : null,
+     basis: "allocated = the reservations of the guests guestd holds (each unit's MemoryMax and CPUQuota), not observed use",
+-    pricing: "CPU share bounds app RAM as a fraction of this pool; platform overhead is reserved separately" };
++    pricing: "a share is priced as a fraction of this pool's budget; an app's guest reserves its own reservation, which admission uses" };
+ }
+ // An app's catalog specs -> the minimum shares a deployment must buy here.
+ // Zero-guarded: axes the app didn't declare add no minimum. Each axis floors on
+@@ -3227,9 +3253,9 @@
+ }
+ // On the per-app isolation tier the share ledger is capped by the guest pool's own free room (guestPoolFreeFraction).
+ const maxFreeCpu = () => Math.max(0, Math.min(1, cpuPool.shareFree, ISOLATION_BACKEND ? guestPoolFreeFraction() : 1));
+-// Isolated guests are sized by their catalog policy and model requirements.
+-// Check the share ledger here; isolationClaimVerdict below checks the RAM share
+-// allowance, exact pool reservation and live host floor. Applying the pool's
++// Isolated guests are sized by their catalog policy, not by the pricing share.
++// Check the share ledger here; isolationClaimVerdict below checks the exact
++// reservation against guestd's pool and live host floor. Applying the pool's
+ // free fraction here double-counts resumed guests and wrongly refuses a small
+ // new guest whose owner bought a larger share.
+ function claimFreeCpu() {
+@@ -3659,7 +3685,7 @@
+     node: nodeSpec(), claimFreeCpu: (c.claimHeld || []).map(claimFreeCpu), maxFreeCpu: round3(maxFreeCpu()), guestPool: guestPoolReport(), sellCpuPrice6: SELL_CPU_PRICE6,
+     ...(c.viaHealth ? { healthError, healthVerdict: health && isolationClaimVerdict({ backend: ISOLATION_BACKEND,
+       require: ISOLATION_BACKEND, manager: health, gpuMilli: 0, config: "", appConfigCid: "", hasSecrets: false, firewall: [],
+-      volumes: [], isPublic: true, waf: null, cpuMilli: c.viaHealth.cpuMilli ?? 1000, policy: isolationPolicyFor({ memMb: c.viaHealth.memMb }), held }), held } : {}),
++      volumes: [], isPublic: true, waf: null, policy: isolationPolicyFor({ memMb: c.viaHealth.memMb }), held }), held } : {}),
+     shares: (c.shares || []).map((m) => minSharesOf(m)),
+     reservations: (c.reservations || []).map((v) => _guestPool && guestReservationFor(isolationPolicyFor(v), _guestPool.perGuest)),
+     verdicts: (c.verdicts || []).map((v) => isolationClaimVerdict({ backend: ISOLATION_BACKEND, ...v })),
+@@ -4099,17 +4125,7 @@
+     const derive = isolationSpawnDerivation({ catalogRef, wasmRef: image && image.reference, versionMemMb,
+       runtimeId: h && h.catalog && h.catalog.runtimeId, ports,
+       inference: isolatedInference(Math.round((gpuShare || 0)*1000),volumesInConfig(config)) });
+-    let requiredPolicy = derive.policy;
+-    if (derive.inference) {
+-      const floor = Number(h?.inference?.modelFloorsMiB?.[derive.inference.model]);
+-      if (!Number.isSafeInteger(floor) || floor <= 0) throw new Error("manager has no model RAM floor");
+-      requiredPolicy = { ...requiredPolicy, memMiB: Math.max(requiredPolicy.memMiB, floor - 384) };
+-      if (h.inference.shareBoundedMemory === true && Number(cpuShare) > 0 && Number(cpuShare) <= 1 && h.pool?.budget?.memMiB > 0)
+-        requiredPolicy = { ...requiredPolicy, memMiB: Math.min(requiredPolicy.memMiB, Math.floor(h.pool.budget.memMiB * Math.round(Number(cpuShare)*1000)/1000)) };
+-    }
+-    const shareWhy = guestMemoryShareRefusal(h?.pool, requiredPolicy, Math.round(Number(cpuShare) * 1000));
+-    if (shareWhy) throw new Error(shareWhy);
+-    const body = { image: image.reference, name: deploymentId, cpuShare,
++    const body = { image: image.reference, name: deploymentId, cpuShare: cpuShare ?? 0.05,
+       gpuShare: gpuShare || 0, appPort: appPort || 8080, ports: [], config: "", configCid: "", egress: "", derive,
+       ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}),
+       // sent only when true: a guestd that predates the release refuses unknown fields, and it is never asked for one
+@@ -4174,7 +4190,7 @@
+         // predates the field ignores it — which is why the claim path gates on
+         // the fleet advertising config_cid before taking such a deployment.
+         configCid: configCid || "",
+-        // App egress: a per-deployment SOCKS URL the manager forwards
++        // dedicated-IP egress: a per-deployment SOCKS URL the manager forwards
+         // verbatim as the guest's ENCLAVE_EGRESS (empty when egress is off). The
+         // token in it is minted from the enclave SECRET, so the manager never
+         // needs the secret and the value never touches a log line.
+@@ -4586,19 +4602,94 @@
+ const fwTcpPorts = (rec) => (rec.firewall || []).filter((x) => x.startsWith("tcp:")).map((x) => +x.slice(4));
+ const fwUdpPorts = (rec) => (rec.firewall || []).filter((x) => x.startsWith("udp:")).map((x) => +x.slice(4));
+ 
+-// Public raw-port inventory for the host's network agent. Addresses and public
+-// ports exist only after the provider assigns them; the control API publishes those.
+-// An isolation box publishes no raw ports: a tenant's ports are reachable only through its protected tunnel.
++// ---------------------------------------------------------------------------
++// Per-deployment addressing — each deployment gets its OWN IPv6 out of the
++// relay box's routed /64, and the relays route by destination IP. This is the
++// deployment's dedicated address: the udp-relay serves its udp:N ports there,
++// and the tcp6-relay serves its tcp:N ports there (at the LOGICAL port, no SNI,
++// no remapping — clients use the port the app declared). The address is
++// DETERMINISTIC from the deployment id (sha256 → low 64 host bits), so the
++// supervisor and every relay derive the identical value with no shared state.
++// DEP_ADDR_PREFIX (or the legacy UDP_ADDR_PREFIX) is the relay box's routed /64
++// (e.g. "2a01:4f9:c013:9b52::/64", the live fleet's); unset = dedicated addressing off (the
++// /x/:id/(tcp|udp) bridges still work for direct callers, but no address is
++// advertised). See relay/README.md.
++const DEP_ADDR_PREFIX = (process.env.DEP_ADDR_PREFIX || process.env.UDP_ADDR_PREFIX || "").trim();
++function v6ToBig(s) {                                       // parse an IPv6 (incl. "::") to a 128-bit BigInt
++  const [head, tail] = s.split("::");
++  const hi = head ? head.split(":").filter(Boolean) : [];
++  const lo = tail ? tail.split(":").filter(Boolean) : [];
++  const mid = Array(8 - hi.length - lo.length).fill("0");
++  const groups = s.includes("::") ? [...hi, ...mid, ...lo] : s.split(":");
++  if (groups.length !== 8) throw new Error(`bad IPv6 "${s}"`);
++  return groups.reduce((a, g) => (a << 16n) | BigInt(parseInt(g || "0", 16)), 0n);
++}
++function bigToV6(n) {                                       // 128-bit BigInt → compressed IPv6 string
++  const g = [];
++  for (let i = 0; i < 8; i++) g[i] = Number((n >> BigInt((7 - i) * 16)) & 0xffffn);  // g[0] = most significant group
++  let best = { i: -1, len: 0 }, cur = { i: -1, len: 0 };    // longest zero-run for "::"
++  g.forEach((v, i) => {
++    if (v === 0) { if (cur.i < 0) cur = { i, len: 0 }; cur.len++; if (cur.len > best.len) best = { ...cur }; }
++    else cur = { i: -1, len: 0 };
++  });
++  const hex = g.map((v) => v.toString(16));
++  if (best.len > 1) { hex.splice(best.i, best.len, ""); if (best.i === 0) hex.unshift(""); if (best.i + best.len === 8) hex.push(""); }
++  return hex.join(":").replace(/:{3,}/, "::");
++}
++// Deterministic host part: sha256(id) low 64 bits, kept clear of the low range
++// so it never lands on the box's own ::1 / infrastructure addresses.
++function depAddrFor(id) {
++  if (!DEP_ADDR_PREFIX) return null;
++  const [prefix] = DEP_ADDR_PREFIX.split("/");
++  const net128 = v6ToBig(prefix) & (~0n << 64n);            // zero the low 64 (host) bits
++  let host = BigInt("0x" + createHash("sha256").update(id).digest("hex").slice(0, 16)) & ((1n << 64n) - 1n);
++  if (host < 0x10000n) host += 0x10000n;                    // reserve the low range for infra
++  return bigToV6(net128 | host);
++}
++// public deployments exposing udp ports, with their address + logical ports —
++// the udp-relay reads this to know what to bind and where to route.
++const udpMap = () => [...deployments.values()]
++  .filter((r) => !ISOLATION_BACKEND && r.public && r.status === "running" && fwUdpPorts(r).length)
++  .map((r) => ({ id: r.id, address: depAddrFor(r.id), ports: fwUdpPorts(r) }));
++// public deployments with tcp OR udp ports, each with its dedicated address and
++// per-protocol logical ports — the tcp6-relay (tcp) and udp-relay (udp) poll
++// this to bind [address]:port and route into /x/:id/(tcp|udp)/:port.
+ const netMap = () => [...deployments.values()]
+-  .filter(r => !ISOLATION_BACKEND && r.public && r.status === "running" && (fwTcpPorts(r).length || fwUdpPorts(r).length))
+-  .map(r => ({id: r.id, tcp: fwTcpPorts(r), udp: fwUdpPorts(r)}));
+-// The host's SOCKS5 egress upstream (an Enclave-network circuit's SOCKS entry); unset = no app egress.
+-const EGRESS_SOCKS_UPSTREAM = (process.env.EGRESS_SOCKS_UPSTREAM || "").trim();
+-const EGRESS_SOCKS_PORT = Number(process.env.EGRESS_SOCKS_PORT || 1080);
++  .filter((r) => !ISOLATION_BACKEND && r.public && r.status === "running" && (fwTcpPorts(r).length || fwUdpPorts(r).length))
++  .map((r) => ({ id: r.id, address: depAddrFor(r.id), tcp: fwTcpPorts(r), udp: fwUdpPorts(r) }));
+ 
+-const egress = EGRESS_SOCKS_UPSTREAM
++// --- dedicated-IP EGRESS (the outbound half of depAddrFor) ------------------
++// A deployment's OUTBOUND connections leave from its own IPv6, mirroring the
++// inbound tcp6/udp relays. Guests opt in via ENCLAVE_EGRESS (a per-deployment SOCKS
++// URL); the enclave front is here (egress.js), the source-binding dialer is
++// relay/egress-relay.js. Enabled only when dedicated addressing is on AND a
++// shared relay token is configured (EGRESS_RELAY_TOKEN — proves the control/
++// data channels are the real relay, not a random client hitting the shim).
++const EGRESS_RELAY_TOKEN = (process.env.EGRESS_RELAY_TOKEN || "").trim();
++const EGRESS_SOCKS_PORT  = parseInt(process.env.EGRESS_SOCKS_PORT || "1080", 10);
++// The relay name the DEFAULT egress relay attaches as (it owns DEP_ADDR_PREFIX's
++// /64 and source-binds). A deployment with no network.relay choice, or one whose
++// chosen relay isn't attached, egresses through it. Must match that relay's
++// RELAY_NAME. Unset preserves the pre-multi-relay default ("default").
++const EGRESS_DEFAULT_RELAY = (process.env.EGRESS_DEFAULT_RELAY || "").trim();
++// The relay that owns DEP_ADDR_PREFIX's /64 and can source-bind a dedicated IP.
++// Defaults to the default relay (today they're the same box). Set this when the
++// default egress relay is a NEARBY plain relay but dedicated-IP egress should
++// still be reachable on the /64 owner by explicit network.relay choice.
++const EGRESS_DEDICATED_RELAY = (process.env.EGRESS_DEDICATED_RELAY || "").trim();
++// A deployment's chosen relay (network.relay), so its OUTBOUND follows the same
++// relay as its inbound. "" / unset / unparseable => the default relay.
++function egressRelayFor(id) {
++  const r = deployments.get(id);
++  if (!r) return null;
++  try { return parseDepOptions(r._envelope, r.gpuMilli).relay || null; }
++  catch { return null; }
++}
++const egress = (DEP_ADDR_PREFIX && EGRESS_RELAY_TOKEN)
+   ? createEgress({
+-      secret: SECRET, socksPort: EGRESS_SOCKS_PORT, upstream: EGRESS_SOCKS_UPSTREAM,
++      secret: SECRET, socksPort: EGRESS_SOCKS_PORT, relayToken: EGRESS_RELAY_TOKEN,
++      sourceAddrFor: depAddrFor, relayFor: egressRelayFor,
++      defaultRelay: EGRESS_DEFAULT_RELAY, dedicatedRelay: EGRESS_DEDICATED_RELAY,
+       // "claimed" is mid-provision on THIS enclave: the app process starts
+       // (and may dial out — its very first S3 fetch) fractionally before the
+       // provision path flips the record to "running", and the egress token in
+@@ -5396,6 +5487,46 @@
+   } finally { _hintBusy.delete(id); }
+ });
+ 
++// --- relay services: the NETWORK this box carries, beside the compute it sells --
++// Any host may also relay; the two are independent, and a box with no capacity
++// at all is simply one that ONLY relays (which is what the console renders as a
++// "relay" row — the badge is read from having no resources, not from this
++// block). What differs between relays is which of the fleet's network services
++// they actually offer, and that is a per-BOX fact about which daemons run
++// alongside this supervisor and how the machine is wired — a routed /64, a
++// bindable port range, a public address that CGNAT boxes can dial in to. None
++// of it is discoverable from in here, so it is declared, and broadcast on
++// /availability like every other capability the fleet ANDs or routes on.
++// Absent entirely = this box carries nothing for anyone but itself.
++const RELAY_SERVICES = (() => {
++  const on = (k) => /^(1|true|yes|on)$/i.test((process.env[k] || "").trim());
++  const svc = {
++    sni:       on("RELAY_SNI"),        // app-zone 443 passthrough (relay/relay.js) — the data path every app subdomain crosses
++    tcp:       on("RELAY_TCP"),        // per-deployment dedicated-IPv6 raw TCP (relay/tcp6-relay.js)
++    udp:       on("RELAY_UDP"),        // per-deployment dedicated-IPv6 datagrams (relay/udp-relay.js)
++    egress:    on("RELAY_EGRESS"),     // per-deployment outbound source address (relay/egress-relay.js)
++    tunnelHub: on("RELAY_TUNNEL_HUB"), // accepts reverse tunnels — the only way onto the network for a seller behind CGNAT
++  };
++  const region = (process.env.RELAY_REGION || "").trim();
++  const prefix = (process.env.RELAY_V6_PREFIX || "").trim();   // the routed /64 the dedicated-IP features hand out of
++  const ports  = (process.env.RELAY_PORTS || "").trim();       // the public port range this box will bind, as configured
++  // What the app zone answers with for a deployment that CHOOSES this box as
++  // its relay ({"network":{"relay":"…"}}). Without it the box still relays for
++  // the fleet default, but it cannot be picked: there is no address to point a
++  // name at. Declare the v6 half only if the passthrough listener really binds
++  // one — a chosen relay answers only from its own addresses, so an unbacked
++  // AAAA here is a black hole for every v6-preferring client.
++  const addr   = (process.env.RELAY_PUBLIC_ADDRESS  || "").trim();
++  const addr6  = (process.env.RELAY_PUBLIC_ADDRESS6 || "").trim();
++  if (!Object.values(svc).some(Boolean)) return null;          // declares no service = not a relay, say nothing
++  return { ...svc, ...(addr ? { address: addr } : {}), ...(addr6 ? { address6: addr6 } : {}),
++           ...(region ? { region } : {}), ...(prefix ? { v6Prefix: prefix } : {}),
++           ...(ports ? { ports } : {}) };
++})();
++if (RELAY_SERVICES)
++  console.log(`[relay-services] carrying ${Object.entries(RELAY_SERVICES)
++    .filter(([, v]) => v === true).map(([k]) => k).join(", ")}`
++    + (RELAY_SERVICES.region ? ` · ${RELAY_SERVICES.region}` : ""));
+ 
+ // ---- shielded GPU: a card this enclave uses but does NOT trust ---------------
+ //
+@@ -5714,7 +5845,8 @@
+                    cardFreeVram(gpuCards[v.id]) / cardVram(gpuCards[v.id])))) })),
+                ...(sh.pricePerSec6 > 0 ? { askShieldedPricePerSec6: sh.pricePerSec6 } : {}) };
+     })(),   // a card on the UNTRUSTED host, reached by masked offload; NOT `gpu` — see shieldedCapacity()
+-    networkOptions: true,   // accepts the network options envelope; fleet capability checks keep older runners from claiming unsupported options
++    ...(RELAY_SERVICES ? { relay: RELAY_SERVICES } : {}),   // network this box carries for the fleet; see the block above
++    networkOptions: true,   // this build accepts the envelope's `network` namespace (per-deployment relay choice). SAME FLEET-AND RULE as waf/config/gpuOptional and for the sharpest reason: the envelope is fail-closed, so a deployment carrying {"network":…} that lands on a runner which predates this is REFUSED OUTRIGHT, not degraded. The console must keep the Network tab hidden until every live runner reports true
+     waf: true,   // this build accepts + enforces the deployment-options envelope (waf); the relay ANDs this across the fleet and the console shows the Protection controls only then
+     configOverride: true,   // this build accepts the envelope's `config` namespace (per-deployment app-config override); same fleet-AND rule — the console unlocks the App config box only when every live runner honors it
+     configEdit: true,   // this build's audit re-applies an owner's setConfig to LIVE deployments (waf live-swapped, config = restart in place); without it an edit only lands at the next re-claim — same fleet-AND rule
+@@ -6153,10 +6285,23 @@
+     provenUntil: new Date(rec._provenUntil * 1000).toISOString(),
+     lastProofAt: rec._provenAt ? new Date(rec._provenAt).toISOString() : null,
+     verify: "EnclaveDeployments.provenUntil(id) is authoritative; the runner meter never pays past it." };
+-  o.network = { transport: "enclave-network", dedicatedIP: false,
+-    requested: { tcp: fwTcpPorts(rec), udp: fwUdpPorts(rec) }, egress: !!egress };
+-  if (ISOLATION_BACKEND && (fwTcpPorts(rec).length || fwUdpPorts(rec).length)) {
+-    o.network = { ...o.network, protectedTunnel: { protocol: "enclave-port/1", endpoint: APP_CERT_DOMAIN ? `https://${appCertName(rec.id)}` : null, tcp: fwTcpPorts(rec), udp: fwUdpPorts(rec), requiresLocalConnector: true } };
++  // Dedicated per-deployment IPv6: declared tcp/udp ports are reachable at
++  // [address]:<logical port> (tcp via the tcp6-relay, udp via the udp-relay).
++  // Surface it so the dashboard/clients get a ready-to-use endpoint at the
++  // real port the app declared, e.g. [addr]:5432, [addr]:443, [addr]:53.
++  // With dedicated-IP egress on, the SAME address is also every deployment's
++  // outbound identity - so it's surfaced even with no inbound ports declared
++  // (network.egress marks the outbound half so clients can label it).
++  const tcpPorts = fwTcpPorts(rec), udpPorts = fwUdpPorts(rec);
++  const depAddr = depAddrFor(rec.id);
++  if (ISOLATION_BACKEND && (tcpPorts.length || udpPorts.length)) {
++    o.network = { ...o.network, protectedTunnel: { protocol: "enclave-port/1", endpoint: APP_CERT_DOMAIN ? `https://${appCertName(rec.id)}` : null, tcp: tcpPorts, udp: udpPorts, requiresLocalConnector: true } };
++  }
++  if (!ISOLATION_BACKEND && depAddr && (tcpPorts.length || udpPorts.length || egress)) {
++    o.network = { ...o.network, address: depAddr };
++    if (egress) o.network.egress = true;
++    if (tcpPorts.length) o.network.tcp = { address: depAddr, ports: tcpPorts };
++    if (udpPorts.length) o.network.udp = { address: depAddr, ports: udpPorts };
+   }
+   return o;
+ };
+@@ -7112,6 +7257,12 @@
+   if (ISOLATION_BACKEND && r.status === 200 && r.body && r.body.status === "starting") return true;
+   return r.status === 200 && r.body && r.body.status === "running";
+ }
++// guestd ended this instance to admit another guest (pool.go preemption): it reads "failed" with preempted: true.
++async function instancePreempted(rec) {
++  if (isMock() || PROVISION_BACKEND !== "vm" || !ISOLATION_BACKEND || !rec._vmId) return false;
++  const r = await vmReq("GET", `/vms/${encodeURIComponent(rec._vmId)}`, null, 5000).catch(() => null);
++  return !!(r && r.status === 200 && r.body && r.body.status === "failed" && r.body.preempted === true);
++}
+ function pauseRec(rec, reason) {
+   if (!rec.paused || rec.pauseReason !== reason) {
+     console.warn(`[bill] ${rec.id} clock FROZEN (${reason})`);
+@@ -7144,6 +7295,7 @@
+     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; rec._vmAppId = sp.appId; }
+     if (sp.portMap) rec.portMap = sp.portMap;
+     rec._respawnAt = 0; rec._respawnBackoffMs = 0;
++    if (rec._preemptedAt) { delete rec._preemptedAt; saveStateSoon(); }
+     console.log(`[bill] ${rec.id} instance respawned after outage`);
+     return true;
+   } catch (e) {
+@@ -7608,9 +7760,19 @@
+   } catch (e) { fail(res, 502, "sign_failed", e.shortMessage || e.message); }
+ });
+ 
+-// Provider-independent local inventory. The host adapter validates each dial
+-// again through /x/:id/(tcp|udp)/:port before reaching a tenant.
+-app.get("/v1/net-map", (_req, res) => res.json({transport: "enclave-network", deployments: netMap()}));
++// UDP routing map, PUBLIC: the udp-relay (relay/udp-relay.js) polls this to learn
++// which per-deployment IPv6 to bind and which logical ports to route into the
++// /x/:id/udp/:port bridge. Only public+running deployments with udp ports; the
++// addresses are the deterministic ones the relay also derives from the id.
++app.get("/v1/udp-map", (_req, res) =>
++  res.json({ enabled: !!DEP_ADDR_PREFIX, prefix: DEP_ADDR_PREFIX || null, deployments: udpMap() }));
++
++// Dedicated-IP routing map, PUBLIC: the tcp6-relay (and udp-relay) poll this to
++// learn each public+running deployment's dedicated IPv6 and its per-protocol
++// logical ports, then bind [address]:port and route into /x/:id/(tcp|udp)/:port.
++// Same deterministic addresses the relays also derive from the id.
++app.get("/v1/net-map", (_req, res) =>
++  res.json({ enabled: !!DEP_ADDR_PREFIX, prefix: DEP_ADDR_PREFIX || null, deployments: netMap() }));
+ 
+ // Tail the worker's stdout/stderr (owner only). ?tail=N (default 200, max 2000).
+ app.get("/v1/deployments/:id/logs", ownerAuth("api.logs"), async (req, res) => {
+@@ -7728,7 +7890,7 @@
+ }
+ 
+ // --- platform-terminated TLS for app TCP ports (/x/:id/tls/:port) -----------
+-// The network provider and local host adapter forward a client's
++// The public relay (relay/relay.js, on any untrusted box) forwards a client's
+ // raw TLS bytes into this bridge; the session terminates HERE, inside the
+ // attested enclave. The key pair is MINTED IN-ENCLAVE at boot — never
+ // provisioned as a secret, so no operator, ACME account, or
+@@ -8513,6 +8675,11 @@
+ server.on("upgrade", async (req, socket, head) => {
+   const deny = (line) => { socket.write(`HTTP/1.1 ${line}\r\n\r\n`); socket.destroy(); };
+ 
++  // dedicated-IP egress: the relay's control channel (/v1/egress-control) and
++  // per-connection data streams (/x/egress/<cid>). Both are relay-token gated
++  // inside handleUpgrade; it returns true once it owns the path.
++  if (egress && egress.handleUpgrade(req, socket, head)) return;
++
+   // ---- app HTTPS: /x/:id/https — the browser's TLS, terminated IN-ENCLAVE ----
+   // The passthrough relay tunnels the raw TLS bytes of <label>.APP_CERT_DOMAIN
+   // sessions here. Prefix ids resolve like the HTTP path (the subdomain label
+@@ -9424,14 +9591,15 @@
+   // version's weights would land in node RAM and the volume-inclusive floor is
+   // the one it has to clear.
+   const onGpu = Number(rec.resources?.gpuShare || 0) > 0;
+-  const mins = minSharesOf(g.min,
+-    { volGb: volumeGb(neededVolumes(d, g), await vmHealth().catch(() => null)) });
+-  // derived, not required (as at claim): the shares this deployment takes are its dial or the new version's floors on
+-  // this hardware, whichever is more; a larger floor is a bigger slice below (resize), not a refusal
++  const switchHealth = await vmHealth().catch(() => null);
++  const mins = shieldMins(minSharesOf(g.min, { volGb: volumeGb(neededVolumes(d, g), switchHealth) }), neededVolumes(d, g), switchHealth);
++  const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
+   const needGpu = onGpu ? mins.gpuFloor : 0;
+-  const gpuShare = Number(d.gpuMilli) > 0 ? Math.max(Number(d.gpuMilli) / 1000, needGpu) : 0;
+-  const cpuShare = Math.max(Number(d.cpuMilli) / 1000, cpuFloorFor(mins, onGpu));
+-  const grows = gpuShare > Number(rec.resources?.gpuShare || 0) + 1e-9 || cpuShare > Number(rec.resources?.cpuShare || 0) + 1e-9;
++  const needCpu = cpuFloorFor(mins, onGpu);
++  if (gpuShare < needGpu - 1e-9 || cpuShare < needCpu - 1e-9)
++    return refuse(`the new version needs more than this deployment's shares on this hardware `
++                + `(needs gpuShare ${round3(needGpu)} / cpuShare ${round3(needCpu)}`
++                + (onGpu ? "" : ", serving on cores") + ")");
+   let firewall;
+   try { firewall = parseFirewall({ ports: g.ports ? String(g.ports).split(",") : [] }); }
+   catch (e) { return refuse("the new version's port spec is not servable here: " + e.message); }
+@@ -9460,7 +9628,7 @@
+     return refuse("the old instance could not be verifiably stopped; it keeps serving until teardown succeeds", true);
+   }
+   delete rec._switchStopping; delete rec._switchHeldLogged;
+-  if (resize || grows) {
++  if (resize) {
+     // swap the held slice for one at the row's new size. Synchronous release +
+     // realloc (no await between): the freed capacity of the OLD slice counts
+     // toward fitting the new one, which is what lets in-place grows work at
+@@ -9789,6 +9957,18 @@
+       // app that keeps dying (crash-on-first-request) gets handed back after
+       // 3 deaths instead of flapping forever on the owner's dime.
+       if (rec.status === "running" && !(await instanceAlive(rec))) {
++        // guestd PREEMPTED it (pool.go: a preemptible Shield guest gives its room to a non-preemptible create, e.g.
++        // eyesoff's 27B relaunch on metal0). That is no death and never a reason to hand the lease back: the billing
++        // ticker's respawn relaunches it, with backoff, once guestd admits it again.
++        if (rec._preemptedAt || await instancePreempted(rec)) {
++          if (!rec._preemptedAt) {
++            console.warn(`[claim] ${rec.id} instance preempted by guestd; relaunching when there is room`);
++            rec._preemptedAt = Date.now();
++            try { if (rec._vmId) await vmReq("DELETE", `/vms/${encodeURIComponent(rec._vmId)}`, null, 15000).catch(() => {}); } catch {}
++            saveStateSoon();
++          }
++          continue;
++        }
+         rec._deaths = (rec._deaths || 0) + 1;
+         if (rec._deaths > 3) {
+           console.warn(`[claim] ${rec.id} app died ${rec._deaths}x; giving it back`);
+@@ -10311,7 +10491,7 @@
+   // as well stranded the obvious case: a soft-GPU app that bought a slice for a
+   // GPU box could never move back to a CPU one ("GPU work on a CPU-only
+   // enclave"), even though its publisher had already said cores are fine.
+-  let gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
++  const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
+   // The VERSION now comes before the routing decision, because what the app
+   // needs is what decides whether this box can serve the card ask at all. It
+   // also removes the second gateAppReference the CPU-only branch used to make.
+@@ -10325,6 +10505,7 @@
+   const wantVols = neededVolumes(d, g);
+   const health = (wantVols.length || gpuShare > 0) ? await vmHealth().catch(() => null) : undefined;
+   const mins = minSharesOf(g.min, { volGb: wantVols.length ? volumeGb(wantVols, health) : 0 });
++  shieldMins(mins, wantVols, health);
+   const resumeHeld = resume && ISOLATION_BACKEND ? await isolationHeldGuest(d.id) : null;
+   // Existing isolated guests already reserve their GPU/CPU room. Credit only
+   // a live-lease resume whose derivation matches exactly; replacements still
+@@ -10353,12 +10534,6 @@
+       console.log(`[claim] ${d.id}: GPU requirement unmet here - ${r.unmet}; serving on cores instead`);
+     }
+   }
+-  // A version's requirement is absolute (VRAM, GFLOPS, node RAM); a share exists only relative to THIS hardware, so it
+-  // is derived here, never required of the record: the deployment takes what its owner dialed, or what the version
+-  // needs on this box if that is more. The card is lifted only on the card path the owner chose (a 0% GPU dial stays
+-  // coreless). The ledger still bills the dialed shares (its rate is set at claim from the record).
+-  if (gpuShare > 0 && !asCpuFallback) gpuShare = Math.max(gpuShare, mins.gpuFloor);
+-  cpuShare = Math.max(cpuShare, cpuFloorFor(mins, gpuShare > 0 && !asCpuFallback));
+   if (gpuShare > 0 && !asCpuFallback) {
+     // Don't claim GPU work the manager would 503: right after a boot the CUDA
+     // readiness probe is still running, and a claim during that window burns
+@@ -10423,7 +10598,15 @@
+   // fallback simply isn't available at that dial, which is the honest answer
+   // and the one the owner can act on. Before this it was accepted and the
+   // tenant died at weight-load instead.
+-  // (shares below the version's floors on this hardware were lifted to them above: there is no "below minimum" refusal)
++  const onGpu = gpuShare > 0 && !asCpuFallback;
++  const needGpu = onGpu ? mins.gpuFloor : 0;
++  const needCpu = cpuFloorFor(mins, onGpu);
++  if (gpuShare < needGpu - 1e-9 || cpuShare < needCpu - 1e-9)
++    return `below the app's minimum shares on this hardware (needs gpuShare ${round3(needGpu)} / cpuShare ${round3(needCpu)}`
++         + (asCpuFallback ? ", serving on cores" : "")
++         + (!onGpu && needCpu > mins.cpuShare + 1e-9
++            ? ` - without a card this app's weights live in node RAM, so it needs cpuShare ${round3(needCpu)} here against ${round3(mins.cpuShare)} on a GPU enclave`
++            : "") + ")";
+   // WASIp3 is a RUNTIME capability, gated like the card and the volumes: the
+   // version's config declares `wasi: "0.3"` (stamped from the binary by the
+   // publish path) and a box whose wasmtime cannot serve p3 could only
+@@ -10518,7 +10701,7 @@
+     const isoAsk = claimOpts.isolation === ISOLATION_BACKEND && isoMgr && isoMgr.backend === ISOLATION_BACKEND && isolationReleaseOn(isoMgr);
+     const isoWhy = isolationClaimVerdict({ backend: ISOLATION_BACKEND, require: claimOpts.isolation,
+       manager: isoMgr, listed: isoAsk ? await releaseListedFor(d.id) : "unlisted",
+-      cpuMilli: d.cpuMilli, gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
++      gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
+       policy: isolationPolicyFor(g.min),
+       held: isoHeld, heldSameRecord,
+       hasSecrets: await depHasSecrets(d.id), firewall, volumes: neededVolumes(d, g), isPublic: d.isPublic === true,
+@@ -11224,7 +11407,7 @@
+ // warm the CPU-TEE detection (shim loopback) so the first deployment record
+ // created after boot already reports the real silicon, not null
+ fetchEnclaveRad().then(() => console.log(`[attest] CPU TEE detected: ${vmTech()}`)).catch(() => {});
+-if (egress) { egress.start(); console.log(`[egress] app egress on (authenticated SOCKS 127.0.0.1:${EGRESS_SOCKS_PORT})`); }
++if (egress) { egress.start(); console.log(`[egress] dedicated-IP egress on (SOCKS 127.0.0.1:${EGRESS_SOCKS_PORT}); awaiting relay control channel`); }
+ 
+ // advertise this enclave on-chain (opt-in, non-blocking, never fatal)
+ // Register eagerly at boot under the pinned origin (PUBLIC_URL); advertise() retries

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# TEST-ONLY ssh: runs the remote command HERE as that host (FSROOT=$MOCK_ROOT_<alias>, MOCK_DIR=<root>/mock, mocks on PATH)
+set -u
+while [ $# -gt 0 ]; do case "$1" in -n|-q) shift ;; -o) shift 2 ;; *) break ;; esac; done
+alias=$1; shift; a=${alias//-/_}; root=MOCK_ROOT_$a
+[ -n "${!root:-}" ] || { echo "mock ssh: unknown host $alias" >&2; exit 255; }
+[ -e "${!root}/mock/unreachable" ] && { echo "ssh: connect to host $alias port 22: Connection timed out" >&2; exit 255; }
+FSROOT=${!root} MOCK_DIR=${!root}/mock TEST_UNIT_DIR= bash -c "$*"

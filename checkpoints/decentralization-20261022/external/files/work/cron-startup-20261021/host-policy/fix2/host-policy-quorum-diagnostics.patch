@@ -1,0 +1,100 @@
+diff -ru a/network/host-admission-runtime.mjs b/network/host-admission-runtime.mjs
+--- a/network/host-admission-runtime.mjs	2026-10-21 07:28:17.225551756 -0700
++++ b/network/host-admission-runtime.mjs	2026-10-21 07:28:17.236693363 -0700
+@@ -21,6 +21,14 @@
+   'function getVersion(bytes32,uint256) view returns ((string cid,string version,uint32 vramMb,uint32 gpuGflops,uint32 memMb,uint32 cpuGflops,uint64 createdAt,bool verified,bool yanked,string ports,uint8 approval,string config))',
+ ]);
+ const nonzero=a=>address.test(a||'')&&!/^0x0{40}$/.test(a);
++// The per-RPC reasons LeaseReader.agreed() collected (label, step, HTTP status; URL-redacted there), appended to a quorum
++// failure, so a hold says WHICH providers failed and how (e.g. 429 rate limits), not only "chain quorum unavailable".
++// Text only: the decision is unchanged (a failure is still unknown, never allow), and nothing is cached.
++const withReasons=(e,failures)=>{
++  if(!failures.length)return e;
++  const seen=[...new Set(failures.map(f=>String(f).replace(/\s+/g,' ').slice(0,120)))].slice(0,5);
++  return Object.assign(new Error(`${e.message} (${failures.length} RPC failure${failures.length===1?'':'s'}: ${seen.join('; ')})`.slice(0,600)),{cause:e});
++};
+ 
+ // Documents are public, addressed by their on-chain commitment, and may be
+ // distributed by any peer. A local verified cache makes admission independent
+@@ -76,6 +84,7 @@
+     if(pending)return pending;
+     pending=(async()=>{
+       const at=now();
++      const failures=[];
+       const snapshot=await reader.agreed(async(client,blockNumber)=>{
+         const [bound,a]=await Promise.all([
+           client.readContract({address:ownershipContract,abi:ownershipABI,functionName:'registry',blockNumber}),
+@@ -83,7 +92,7 @@
+         ]);
+         if(String(bound).toLowerCase()!==registry)throw Error('host authority registry pin mismatch');
+         return {owner:String(a[0]).toLowerCase(),revision:String(a[2]),policyHash:String(a[3]).toLowerCase()};
+-      });
++      },failures).catch(e=>{throw withReasons(e,failures);});
+       const resolved=await readHostAdmissionPolicy({hostId,ownershipContract,loadPolicy,readAuthority:async()=>snapshot});
+       const validUntil=snapshot.timestamp+90000,reuseUntil=Math.min(at+cacheMs,validUntil);
+       if(!Number.isSafeInteger(snapshot.timestamp)||snapshot.timestamp>now()+5000||snapshot.timestamp+90000<=now())throw Error('host authority snapshot expired');
+@@ -100,6 +109,7 @@
+       {
+         const m=String(appRef||'').match(/^catalog:\/\/(0x[0-9a-fA-F]{64})\/([0-9]{1,9})$/);
+         if(!m)throw Error('catalog app reference required');
++        const failures=[];
+         version=await reader.agreed(async(client,blockNumber)=>{
+           const [app,v]=await Promise.all([
+             client.readContract({address:catalog,abi:catalogABI,functionName:'getApp',args:[m[1]],blockNumber}),
+@@ -107,7 +117,7 @@
+           ]);
+           return {active:app.appId.toLowerCase()===m[1].toLowerCase()&&BigInt(app.versionCount)>BigInt(m[2])&&app.active===true,
+             yanked:v.yanked,approval:Number(v.approval)};
+-        });
++        },failures).catch(e=>{throw withReasons(e,failures);});
+       }
+       if(a.validUntil<=now())throw Error('host policy expired during admission');
+       return hostAdmissionRefusal(a.policy,{hostId,deploymentId,appRef,version,forPrivate});
+diff -ru a/network/lease-reader.mjs b/network/lease-reader.mjs
+--- a/network/lease-reader.mjs	2026-10-21 07:28:17.224048697 -0700
++++ b/network/lease-reader.mjs	2026-10-21 07:28:23.244547827 -0700
+@@ -6,7 +6,7 @@
+ import {readConnectivity} from './connectivity-chain.mjs';
+ import {guardedFetch} from './guarded-fetch.mjs';
+ import {validateNetworkAuthorities} from './network-authorities.mjs';
+-import {rpcEndpoint,redactUrls} from './rpc-identity.mjs';
++import {rpcEndpoint,redactUrls,rpcLabel} from './rpc-identity.mjs';
+ const fields=[['id','bytes32'],['owner','address'],['appRef','string'],['ports','string'],['configCid','string'],['gpuMilli','uint16'],['cpuMilli','uint16'],['appPort','uint32'],['isPublic','bool'],['active','bool'],['createdAt','uint64'],['rate','uint256'],['balance6','uint256'],['spent6','uint256'],['runner','bytes32'],['runnerOperator','address'],['leaseUntil','uint64']];
+ const bookABI=[{type:'function',name:'addr',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'address'}]}];
+ const deploymentABI=[{type:'function',name:'get',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'tuple',components:fields.map(([name,type])=>({name,type}))}]}];
+@@ -23,6 +23,9 @@
+ }
+ // an RPC library's error can name the URL it called, API key and all: only a safe label of it is kept
+ const errText=e=>redactUrls(String(e?.shortMessage||e?.message||e)).slice(0,400);
++// One per-RPC failure line for agreed()'s `failures`: WHICH RPC (its safe label, never the URL), which step, the HTTP
++// status when there is one (viem's shortMessage drops it: a 429 rate limit read only "HTTP request failed."). Text only.
++const failureText=(label,step,e)=>`${label}: ${step} ${Number.isInteger(e?.status)?'HTTP '+e.status+' ':''}${errText(e)}`.slice(0,200);
+ // The vote identity of an RPC URL: network/rpc-identity.mjs, the rule every quorum reader shares (one public host is
+ // one vote however its URL is spelled; loopback by port; IPv4 written as IPv6 folded; https, plain http only on
+ // loopback; no credentials or fragment; no DNS, and distinct hosts are not proof of independent operators). Throws an
+@@ -89,6 +92,7 @@
+     this.clients=clients||rpc.map(url=>createPublicClient({chain:base,batch:{multicall:{wait:0}},
+       transport:http(url,{timeout:14000,retryCount:0,...(proxy?{fetchFn:guardedFetch(proxy,{timeoutMs:6000})}:{})})}));
+     this.lastBlock=0n;this.cache=new Map();
++    this.labels=clients?this.clients.map((_,i)=>`rpc${i+1}`):rpc.map(u=>rpcLabel(u));
+   }
+   // Requests that arrive while a snapshot is queued join it: a burst of
+   // publications costs one chain read, not one per app.
+@@ -200,7 +204,7 @@
+           finish(null,snap);
+         },e=>{
+           if(e?.readerBug)return finish(e);               // the caller's read is wrong: say so, do not dress it as a quorum failure
+-          if(!closed&&r===round)failures.push(errText(e));
++          if(!closed&&r===round)failures.push(failureText(this.labels[this.clients.indexOf(c)]||'rpc','read',e));
+         }).finally(()=>{if(r===round){pending--;settle();}});
+       };
+       const startRound=b=>{
+@@ -235,7 +239,7 @@
+         heads.set(c,number);
+         if(block!==null)addReader(c);                  // a late head still reads at the chosen block
+         else if(heads.size>=2&&grace===null)grace=setTimeout(()=>{grace='fired';headsSettled();},this.headGraceMs);
+-      },()=>{}).finally(()=>{headsOutstanding--;headsSettled();});
++      },e=>{if(!closed)failures.push(failureText(this.labels[this.clients.indexOf(c)]||'rpc','head',e));}).finally(()=>{headsOutstanding--;headsSettled();});
+     });
+   }
+   async readSnapshot(ids) {

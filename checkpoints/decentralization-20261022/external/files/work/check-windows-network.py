@@ -1,0 +1,4 @@
+import subprocess,base64,json,pathlib
+s=r'''$ProgressPreference='SilentlyContinue'; $s=Get-Content 'C:\ProgramData\Enclave\network\state\status.json' -Raw|ConvertFrom-Json; [pscustomobject]@{updatedAt=$s.updatedAt;apps=@($s.apps|ForEach-Object {[pscustomobject]@{deploymentId=$_.deploymentId;ready=$_.ready;healthyCircuits=@($_.circuits|Where-Object {$_.healthy}).Count;circuits=@($_.circuits).Count;fallbackActive=$_.fallbackActive}})}|ConvertTo-Json -Depth 4'''
+r=subprocess.run(['ssh','-o','BatchMode=yes','minipc-zt','powershell','-NoProfile','-EncodedCommand',base64.b64encode(s.encode('utf-16-le')).decode()],capture_output=True,text=True,check=True)
+d=json.loads(r.stdout);pathlib.Path('work/windows-network-final-check.json').write_text(json.dumps(d,indent=2)+'\n');print(json.dumps({'updatedAt':d['updatedAt'],'apps':len(d['apps']),'ready':sum(a['ready'] is True for a in d['apps']),'fallbackActive':sum(a['fallbackActive'] is True for a in d['apps'])}))

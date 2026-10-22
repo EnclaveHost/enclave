@@ -1,0 +1,15 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/slabs.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/slabs.rs
+@@ -395,8 +395,11 @@
+     pub deleted: bool,
+     /// The time the event occurred.
+     pub updated_at: DateTime<Utc>,
+-    /// The object, if it was not deleted.
++    /// The object, if it was not deleted (and not blocked).
+     pub object: Option<Object>,
++    /// PATCH U1-B (blocked listing): the indexer's operator blocked this object. Only the current listing
++    /// ([crate::Sdk::current_objects]) reports it; the object and its metadata are withheld.
++    pub blocked: bool,
+ }
+ 
+ /// A file stored on the Sia network, consisting of erasure-coded slabs and

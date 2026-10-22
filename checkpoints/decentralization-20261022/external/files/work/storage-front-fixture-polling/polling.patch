@@ -1,0 +1,21 @@
+--- a/test/helpers/lease16d-rig.mjs
++++ b/test/helpers/lease16d-rig.mjs
+@@ -44,15 +44,15 @@
+     const kill = () => { try { anvil.kill("SIGKILL"); } catch {} };
+     process.once("exit", kill); stops.push(() => { process.removeListener("exit", kill); kill(); });
+     const rpc = `http://127.0.0.1:${port}`;
+-    const pc = createPublicClient({ chain, transport: viemHttp(rpc) });
++    const pc = createPublicClient({ chain, cacheTime: 0, pollingInterval: 20, transport: viemHttp(rpc) });
+     for (let i = 0; i < 100; i++) { try { await pc.getChainId(); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
+     const raw = (method, params = []) => fetch(rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) })
+       .then((r) => r.json()).then((j) => { if (j.error) throw new Error(j.error.message); return j.result; });
+-    const wc = (key) => createWalletClient({ chain, account: privateKeyToAccount(key), transport: viemHttp(rpc) });
++    const wc = (key) => createWalletClient({ chain, cacheTime: 0, pollingInterval: 20, account: privateKeyToAccount(key), transport: viemHttp(rpc) });
+     const dep = wc(KEYS.deployer);
+     const write = async (who, address, abi, functionName, args) => {
+       const hash = await who.writeContract({ address, abi, functionName, args });
+-      const rc = await pc.waitForTransactionReceipt({ hash });
++      const rc = await pc.waitForTransactionReceipt({ hash, pollingInterval: 20, timeout: 30_000 });
+       if (rc.status !== "success") throw new Error(functionName + " reverted");
+       return rc;
+     };

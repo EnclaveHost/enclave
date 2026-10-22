@@ -1,0 +1,15 @@
+{
+  "runner": "process",
+  "pg_container": "enclave-c2-fixture-pg",
+  "database": "indexd",
+  "state_dir": "/home/steven/Documents/Codex/2026-10-18/wo/work/indexd-c2-implementation/package/fixture/node/state",
+  "config_file": "/home/steven/Documents/Codex/2026-10-18/wo/work/indexd-c2-implementation/package/fixture/secrets/indexd.yml",
+  "admin_url": "http://127.0.0.1:59990/api",
+  "admin_password_file": "/home/steven/Documents/Codex/2026-10-18/wo/work/indexd-c2-implementation/package/fixture/secrets/admin-password",
+  "app_url": "http://127.0.0.1:59992",
+  "release_dir": "/home/steven/Documents/Codex/2026-10-18/wo/work/indexd-c2-implementation/package/fixture/node/releases",
+  "backup_dir": "/home/steven/Documents/Codex/2026-10-18/wo/work/indexd-c2-implementation/package/fixture/node/backups",
+  "migration_dir": "/home/steven/Documents/Codex/2026-10-18/wo/work/indexd-c2-implementation/package/migration",
+  "geoip_sha256": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+  "gomemlimit": "320MiB"
+}

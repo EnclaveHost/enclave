@@ -1,0 +1,13 @@
+--- a/isolation/m4/app-image-template.sh
++++ b/isolation/m4/app-image-template.sh
+@@ -55,6 +55,10 @@
+ # Capability is part of the pinned release, checked by the predictor before
+ # admitting a V3 port bundle to this front. Older releases carry no marker.
+ printf '1\n' > "$t/rt/protected-ports.enabled"
++# Encrypted volumes (isolation/m2/encvol): the engine is compiled into /front (rclone v1.67.0's crypt cipher, vendored,
++# and a native S3 sync); this marker states that the init and front in this image carry the volume trailer and plane.
++# guestd reports it as supports.encVolumes and the supervisor admits encVolumes configs only where it is set.
++printf '1\n' > "$t/rt/encvol.enabled"
+ if [ "${ISOLATION_DIRECT_BOOTSTRAP:-}" = 1 ]; then printf '1\n' > "$t/rt/direct-bootstrap.enabled"; fi
+ if [ "${ISOLATION_BOOTSTRAP_PORT_LAB:-}" = 1 ]; then printf '19443 19445 19446\n' > "$t/rt/bootstrap-lab-ports"; fi
+ # The guest kernel's module tree is named after the GUEST kernel, not the host's: see ../m1/domain.env.

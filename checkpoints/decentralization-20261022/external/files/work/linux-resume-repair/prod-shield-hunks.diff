@@ -1,0 +1,195 @@
+diff --git a/supervisor.js b/supervisor.js
+index 81ecf57fe..18a4e2514 100644
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -2307,11 +2307,37 @@ function isolationPolicyFor(version) {
+ // The derivation record guestd needs to turn a catalog version into the exact bundle it runs
+ // (enclave-catalog-bundle/1): the catalog ref, the component CID, the policy above, and the runtime the host's
+ // images carry (guestd's own /health states it; guestd refuses a record pinned to any other).
++// The measured Shield models (isolation/contract/inference.go shieldProfiles) and what each guest is given:
++// a minimum whole-percent GPU share, and a fixed guest shape where the model needs one. The relay's predictor
++// (relay/measurement-predict.mjs derivationRecord) derives the same policy; the two must agree byte for byte.
++const SHIELD_MODELS = {
++  "qwen2.5-0.5b-q8-gguf": { minMilli: 70, floorMiB: 8192 },
++  "qwen3.8-27b-mtp-q4-vl-gguf": { minMilli: 500, floorMiB: 51200, cpuPercent: 1600, vcpus: 16 },
++  // Z-Image-Turbo (stable-diffusion.cpp): 8 vCPUs; its offloaded DiT needs 89 milli per card (100 with headroom).
++  "z-image-turbo-q4km-sd": { minMilli: 100, floorMiB: 6144, cpuPercent: 800, vcpus: 8 },
++};
++// On SHIELDED cards a measured Shield model's card need is its contract minimum (only the masked layer weights live
++// there; isolation/contract/inference.go, and guestd admits exactly that), not the publisher's plain-card VRAM figure
++// or the volume size: Z-Image needs 89 milli per card (100 floor) where its catalog spec reads as 0.52. Mutates mins.
++function shieldMins(mins, vols, health) {
++  const inf = health && health.inference;
++  const model = _shieldedPool && ISOLATION_BACKEND && Array.isArray(vols) && vols.length === 1 ? vols[0] : null;
++  if (!model || !SHIELD_MODELS[model] || !inf || !(inf.models || [inf.model]).includes(model) || !(mins.gpuShare > 0)) return mins;
++  const s = SHIELD_MODELS[model].minMilli / 1000;
++  mins.gpuShare = s;
++  if (mins.gpuFloor > 0) mins.gpuFloor = s;
++  return mins;
++}
++function shieldGuestPolicy(model, policy) {
++  const p = SHIELD_MODELS[model];
++  return { ...policy, ...(p?.vcpus ? { cpuPercent: p.cpuPercent, vcpus: p.vcpus } : {}), memMiB: Math.max(Number(policy?.memMiB) || 0, (p?.floorMiB || 8192) - 384) };
++}
+ function isolatedInference(gpuMilli, volumes) {
+   const g = Number(gpuMilli || 0);
+   if (!g && !(volumes || []).length) return null;
+-  if (!Number.isInteger(g) || g < 70 || g > 1000 || g % 10 !== 0 || !Array.isArray(volumes) || volumes.length !== 1 || !["qwen2.5-0.5b-q8-gguf", "qwen3.8-27b-mtp-q4-vl-gguf"].includes(volumes[0]) || (volumes?.[0] === "qwen3.8-27b-mtp-q4-vl-gguf" && g < 500))
+-    throw new Error("isolated inference requires a supported model and whole-percent GPU shares: at least 7% for 0.5B or 50% for 27B");
++  const p = Array.isArray(volumes) && volumes.length === 1 ? SHIELD_MODELS[volumes[0]] : undefined;
++  if (!Number.isInteger(g) || g < 70 || g > 1000 || g % 10 !== 0 || !p || g < p.minMilli)
++    throw new Error("isolated inference requires a supported model and whole-percent GPU shares: at least 7% for 0.5B, 10% for Z-Image or 50% for 27B");
+   return { model: volumes[0], gpuMilli: g };
+ }
+ function isolationDerivation(catalogRef, wasmRef, policy, runtimeId, httpPort = 0, tunnelPorts = [], inference = null) {
+@@ -2320,6 +2346,7 @@ function isolationDerivation(catalogRef, wasmRef, policy, runtimeId, httpPort =
+   if (!m || !c) throw new Error(`per-app isolation needs a catalog version and its component CID (got ${catalogRef} / ${wasmRef})`);
+   if (!/^[0-9a-f]{64}$/.test(String(runtimeId || ""))) throw new Error("the per-app manager states no runtime identity");
+   if (inference?.model === "qwen3.8-27b-mtp-q4-vl-gguf") policy = {...policy, cpuPercent:1600, vcpus:16, memMiB:Math.max(policy.memMiB,51200-384)};
++  else if (inference?.model === "z-image-turbo-q4km-sd") policy = {...policy, cpuPercent:800, vcpus:8, memMiB:Math.max(policy.memMiB,6144-384)};
+   // a command that declares its HTTP port is enclave-catalog-bundle/2: the bundle states world wasi:cli and the port
+   return { ...(inference ? { inference } : {}), derivation: inference ? "enclave-catalog-bundle/4" : tunnelPorts.length ? "enclave-catalog-bundle/3" : httpPort ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
+            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: c[1], policy, runtimeId,
+@@ -2437,13 +2464,15 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
+   // (d1's rollout option (i)), and without one it cannot run here at all.
+   if (sup.release === true && !released && sup.legacyImage !== true)
+     return "this box's per-app guests need the attested release, and this deployment is not a release guest here (not listed by the relay, or this box has not opted in), and its manager has no legacy image to run it on";
++  let shieldModel = null;
+   if (Number(gpuMilli)>0 || (volumes || []).length) {
+     let inf; try { inf=isolatedInference(gpuMilli,volumes); } catch(e) { return e.message; }
++    shieldModel = inf.model;
+     if (!released || !manager.inference || !(manager.inference.models || [manager.inference.model]).includes(inf.model) || sup.gpu!==true)
+       return "the measured Shield model release is not ready for this deployment";
+     const needs = Math.floor(31*2**30*inf.gpuMilli/1000);
+     if (!heldSameRecord && needs > Number(manager.inference.cardFreeBytes || 0)) return "the isolated GPU reservation pool is full";
+-    policy = { ...policy, ...(inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? {cpuPercent:1600,vcpus:16} : {}), memMiB: Math.max(Number(policy?.memMiB)||0, (inf.model === "qwen3.8-27b-mtp-q4-vl-gguf" ? 51200 : 8192)-384) };
++    policy = shieldGuestPolicy(inf.model, policy);
+   }
+   // The next two are enforced in THIS process on every other backend, on the plaintext of each request. Here the
+   // plaintext exists only inside the guest (the session is spliced unopened), so neither could be applied: an
+@@ -2457,7 +2486,7 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
+   // admits it at (its unit's ceilings), never by the share bought. guestd refuses the same at create (507
+   // pool_full); refusing here keeps a lease from being taken for work that could only be refused. A create that still
+   // meets a 507 (a race between two claims) is a failed provision like any other: noted, backed off, released once.
+-  return guestPoolRefusal(manager.pool || null, policy, held || null, heldSameRecord === true);
++  return guestPoolRefusal(manager.pool || null, policy, held || null, heldSameRecord === true, shieldModel);
+ }
+ 
+ // ---- the attested release: this box's half (docs/security/attested-release.md) ------------------------------------
+@@ -2947,7 +2976,10 @@ function readGuestPool(p) {
+              // is not a number (null = guestd could not read it) makes the host UNKNOWN, never "0 available" or
+              // "nothing pending"
+              memAvailableMiB: num(p.host.memAvailableMiB) && num(p.host.pendingMiB) ? p.host.memAvailableMiB : null,
+-             pendingMiB: num(p.host.pendingMiB) ? p.host.pendingMiB : 0 };
++             pendingMiB: num(p.host.pendingMiB) ? p.host.pendingMiB : 0,
++             // the lower floor guestd admits PREEMPTIBLE Shield guests against (pool.go), and which models those are
++             preemptibleFloorMiB: num(p.host.preemptibleFloorMiB) && p.host.preemptibleFloorMiB < p.host.floorMiB ? p.host.preemptibleFloorMiB : null,
++             preemptibleModels: Array.isArray(p.host.preemptibleModels) ? p.host.preemptibleModels.map(String) : [] };
+   return { budget, allocated, free, guests: Number(p.guests) || 0, overcommitted: p.overcommitted === true, host,
+     perGuest: { floorMiB: +g.floorMiB, runtimeMiB: +g.runtimeMiB, unitOverheadMiB: +g.unitOverheadMiB } };
+ }
+@@ -2991,10 +3023,15 @@ function guestPoolFreeFraction(pool = _guestPool) {
+   return Math.max(0, frac);
+ }
+ // The host's live room above guestd's floor, net of starting guests: undefined without a floor, -1 when unreadable.
+-function hostRoom(pool) {
++function hostRoom(pool, floorMiB) {
+   if (!pool || !pool.host) return undefined;
+   if (pool.host.memAvailableMiB === null) return -1;
+-  return pool.host.memAvailableMiB - pool.host.pendingMiB - pool.host.floorMiB;
++  return pool.host.memAvailableMiB - pool.host.pendingMiB - (floorMiB ?? pool.host.floorMiB);
++}
++// The floor guestd admits this model's guest against: the preemptible floor for a preemptible Shield model.
++function hostFloorFor(pool, model) {
++  const h = pool && pool.host;
++  return h && model && h.preemptibleFloorMiB != null && h.preemptibleModels.includes(model) ? h.preemptibleFloorMiB : h && h.floorMiB;
+ }
+ // Why this version's guest cannot be admitted by the pool guestd reported, or null (PURE; isolationClaimVerdict).
+ // `held` is the guest guestd ALREADY runs under this deployment's name (its GET /vms entry, starting or running): on a
+@@ -3003,7 +3040,7 @@ function hostRoom(pool) {
+ // is judged against free PLUS the room it holds, and never refused for the room it is itself using. A resume whose
+ // guest guestd no longer holds is a new guest and needs real room. (enclave-99's review of 829ea21b: judged against
+ // free alone, every canary's resume after the release's own reboot was refused.)
+-function guestPoolRefusal(rawPool, policy, held = null, heldSameRecord = false) {
++function guestPoolRefusal(rawPool, policy, held = null, heldSameRecord = false, model = null) {
+   const pool = readGuestPool(rawPool);
+   const holds = !!held && (held.status === "running" || held.status === "starting");
+   const heldRoom = holds ? readRoom(held.reserved) : null;
+@@ -3028,7 +3065,8 @@ function guestPoolRefusal(rawPool, policy, held = null, heldSameRecord = false)
+   // needs the host's room, crediting only what the replaced guest actually frees: its RAM, not the 768 allowance it
+   // never used (enclave-99). Refused here too, so no lease is taken, and no running guest is deleted, for a create
+   // guestd would refuse.
+-  const hr = hostRoom(pool);
++  const floor = hostFloorFor(pool, model);
++  const hr = hostRoom(pool, floor);
+   if (hr !== undefined && !(holds && heldSameRecord)) {
+     if (hr < 0 && pool.host.memAvailableMiB === null) return "the host's available memory is unknown, and guestd admits no guest while it is";
+     // the credit for the held guest the replacement deletes: a STARTING one is wholly in guestd's pending, so all of its
+@@ -3040,7 +3078,7 @@ function guestPoolRefusal(rawPool, policy, held = null, heldSameRecord = false)
+     // no live number in the reason: it is returned by the public claim-hint and logged by the sweep on every change,
+     // so MemAvailable must not be reconstructable from it (enclave-e3). The floor is configuration.
+     if (after < 0)
+-      return `the host is too low on memory: admitting this app's guest would take the host under guestd's ${pool.host.floorMiB} MiB floor`;
++      return `the host is too low on memory: admitting this app's guest would take the host under guestd's ${floor} MiB floor`;
+   }
+   return null;
+ }
+@@ -7219,6 +7257,12 @@ async function instanceAlive(rec) {
+   if (ISOLATION_BACKEND && r.status === 200 && r.body && r.body.status === "starting") return true;
+   return r.status === 200 && r.body && r.body.status === "running";
+ }
++// guestd ended this instance to admit another guest (pool.go preemption): it reads "failed" with preempted: true.
++async function instancePreempted(rec) {
++  if (isMock() || PROVISION_BACKEND !== "vm" || !ISOLATION_BACKEND || !rec._vmId) return false;
++  const r = await vmReq("GET", `/vms/${encodeURIComponent(rec._vmId)}`, null, 5000).catch(() => null);
++  return !!(r && r.status === 200 && r.body && r.body.status === "failed" && r.body.preempted === true);
++}
+ function pauseRec(rec, reason) {
+   if (!rec.paused || rec.pauseReason !== reason) {
+     console.warn(`[bill] ${rec.id} clock FROZEN (${reason})`);
+@@ -7251,6 +7295,7 @@ async function respawnTenant(rec) {
+     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; rec._vmAppId = sp.appId; }
+     if (sp.portMap) rec.portMap = sp.portMap;
+     rec._respawnAt = 0; rec._respawnBackoffMs = 0;
++    if (rec._preemptedAt) { delete rec._preemptedAt; saveStateSoon(); }
+     console.log(`[bill] ${rec.id} instance respawned after outage`);
+     return true;
+   } catch (e) {
+@@ -9546,8 +9591,8 @@ async function switchTenantVersion(rec, d) {
+   // version's weights would land in node RAM and the volume-inclusive floor is
+   // the one it has to clear.
+   const onGpu = Number(rec.resources?.gpuShare || 0) > 0;
+-  const mins = minSharesOf(g.min,
+-    { volGb: volumeGb(neededVolumes(d, g), await vmHealth().catch(() => null)) });
++  const switchHealth = await vmHealth().catch(() => null);
++  const mins = shieldMins(minSharesOf(g.min, { volGb: volumeGb(neededVolumes(d, g), switchHealth) }), neededVolumes(d, g), switchHealth);
+   const gpuShare = Number(d.gpuMilli) / 1000, cpuShare = Number(d.cpuMilli) / 1000;
+   const needGpu = onGpu ? mins.gpuFloor : 0;
+   const needCpu = cpuFloorFor(mins, onGpu);
+@@ -9912,6 +9957,18 @@ async function auditClaims(ledgerById) {
+       // app that keeps dying (crash-on-first-request) gets handed back after
+       // 3 deaths instead of flapping forever on the owner's dime.
+       if (rec.status === "running" && !(await instanceAlive(rec))) {
++        // guestd PREEMPTED it (pool.go: a preemptible Shield guest gives its room to a non-preemptible create, e.g.
++        // eyesoff's 27B relaunch on metal0). That is no death and never a reason to hand the lease back: the billing
++        // ticker's respawn relaunches it, with backoff, once guestd admits it again.
++        if (rec._preemptedAt || await instancePreempted(rec)) {
++          if (!rec._preemptedAt) {
++            console.warn(`[claim] ${rec.id} instance preempted by guestd; relaunching when there is room`);
++            rec._preemptedAt = Date.now();
++            try { if (rec._vmId) await vmReq("DELETE", `/vms/${encodeURIComponent(rec._vmId)}`, null, 15000).catch(() => {}); } catch {}
++            saveStateSoon();
++          }
++          continue;
++        }
+         rec._deaths = (rec._deaths || 0) + 1;
+         if (rec._deaths > 3) {
+           console.warn(`[claim] ${rec.id} app died ${rec._deaths}x; giving it back`);
+@@ -10448,6 +10505,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
+   const wantVols = neededVolumes(d, g);
+   const health = (wantVols.length || gpuShare > 0) ? await vmHealth().catch(() => null) : undefined;
+   const mins = minSharesOf(g.min, { volGb: wantVols.length ? volumeGb(wantVols, health) : 0 });
++  shieldMins(mins, wantVols, health);
+   const resumeHeld = resume && ISOLATION_BACKEND ? await isolationHeldGuest(d.id) : null;
+   // Existing isolated guests already reserve their GPU/CPU room. Credit only
+   // a live-lease resume whose derivation matches exactly; replacements still

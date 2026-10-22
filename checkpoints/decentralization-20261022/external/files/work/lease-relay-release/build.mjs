@@ -1,0 +1,15 @@
+import { build } from '../enclave/node_modules/esbuild/lib/main.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
+const here=path.dirname(fileURLToPath(import.meta.url)), root=path.resolve(here,'../enclave');
+const out=path.join(here,'stage/lease-relay.mjs');
+const r=await build({absWorkingDir:root,entryPoints:['network/lease-relay-service.mjs'],outfile:out,platform:'node',format:'esm',target:'node20',bundle:true,minify:true,write:false,metafile:true});
+await fs.mkdir(path.dirname(out),{recursive:true});
+const sha=b=>createHash('sha256').update(b).digest('hex');
+await fs.writeFile(out,r.outputFiles[0].contents);
+const inputs={};for(const rel of Object.keys(r.metafile.inputs).sort())inputs[rel]=sha(await fs.readFile(path.resolve(root,rel)));
+const report={format:'enclave-lease-relay-build/v1',nodeTarget:'node20',artifact:'lease-relay.mjs',sha256:sha(r.outputFiles[0].contents),bytes:r.outputFiles[0].contents.length,inputs};
+await fs.writeFile(path.join(here,'stage/manifest.json'),JSON.stringify(report,null,2)+'\n');
+console.log(JSON.stringify({artifact:out,bytes:report.bytes,sha256:report.sha256,inputs:Object.keys(inputs).length}));

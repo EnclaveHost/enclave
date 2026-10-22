@@ -1,0 +1,41 @@
+# enclave-host-relay-eu.service - main's lease-relay HOST ROLE (network/host-services/lease-relay-host.mjs, unchanged) as a
+# USER service of the host operator (systemctl --user, like this machine's enclave-metal.service), holding the MOVED
+# eu-central relay key. Rendered by user-stage.sh (@TARGET@ = the target root, @RELEASE@ = the release id); installed only
+# by user-activate.sh, after the moved journal passed the migration gate and the ever-started marker was written.
+#   - every start first verifies every release file (verify-release.mjs), then `check` (the configuration, the pinned
+#     package, and a key that MUST already exist: there is no `init`, so this unit can never generate a key);
+#   - `run`: the role's own supervisor and platform host policy gate (a ban stops the relay, the admin's admit restarts it);
+#   - the relay listens on 127.0.0.1:8549 only (configuration); the control CVM reaches it as http://10.0.2.2:8549.
+[Unit]
+Description=Enclave lease relay host role (moved eu-central key; user service)
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=@TARGET@/state
+UnsetEnvironment=NODE_OPTIONS NODE_PATH NODE_EXTRA_CA_CERTS NODE_TLS_REJECT_UNAUTHORIZED
+ExecStartPre=/usr/bin/node @TARGET@/releases/@RELEASE@/verify-release.mjs
+ExecStartPre=/usr/bin/node @TARGET@/releases/@RELEASE@/app/network/host-services/lease-relay-host.mjs check @TARGET@/etc/host-relay.json
+ExecStart=/usr/bin/node @TARGET@/releases/@RELEASE@/app/network/host-services/lease-relay-host.mjs run @TARGET@/etc/host-relay.json
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=20
+UMask=0077
+MemoryMax=512M
+MemorySwapMax=0
+TasksMax=64
+LimitNOFILE=4096
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=@TARGET@/state
+
+[Install]
+WantedBy=default.target

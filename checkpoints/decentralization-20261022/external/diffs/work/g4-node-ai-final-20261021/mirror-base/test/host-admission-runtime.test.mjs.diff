@@ -1,0 +1,32 @@
+--- a/test/host-admission-runtime.test.mjs
++++ b/test/host-admission-runtime.test.mjs
+@@ -21,7 +21,7 @@
+    if(q.functionName==='getVersion')return state.catalog;
+    throw Error('unexpected read');
+  }};
+- const reader={agreed:async fn=>{if(state.failure)throw Error('chain quorum unavailable');return {timestamp:state.now,...await fn(client,100n)};}};
++ const reader={agreed:async fn=>{if(state.failure)throw Error('chain quorum unavailable');const value=await fn(client,100n);return {timestamp:state.now-(value.owner?state.authorityAge||0:state.catalogAge||0),...value};}};
+  const config={hostId:host,ownershipContract:ownership,registry,catalog,reader,loadPolicy:async()=>state.doc,now:()=>state.now};
+  return {state,config,admission:createHostAdmission(config)};
+ }
+@@ -70,3 +70,20 @@
+  assert.equal(hostAdmissionFromEnv({env:{}}),null);
+  assert.throws(()=>hostAdmissionFromEnv({env:{ENCLAVE_HOST_OWNERSHIP:ownership}}),/incomplete/);
+ });
++test('decision lifetime is bounded by BOTH original agreeing snapshots; cached authority is never renewed locally',async()=>{
++ const {state,admission}=setup();state.authorityAge=40000;
++ const first=await admission.decision(request);assert.equal(first.refusal,null);assert.equal(first.validUntil,1050000);
++ state.now+=10000;state.authorityAge=0;
++ assert.equal((await admission.decision(request)).validUntil,first.validUntil,'cache reuse cannot extend authority');
++ state.now+=10000;state.catalogAge=80000;
++ const next=await admission.decision(request);assert.equal(next.validUntil,state.now+10000,'catalog deadline is also binding');
++ state.catalog.yanked=true;assert.ok((await admission.decision(request)).refusal,'administrator yank remains effective');
++});
++test('decision refuses stale or future catalog data and never adds a fresh grace period',async()=>{
++ for(const age of [90000,100000,-5001]){
++  const {state,admission}=setup();state.catalogAge=age;
++  await assert.rejects(admission.decision(request),/catalog snapshot expired/);
++ }
++ const {state,admission}=setup();state.authorityAge=89999;
++ assert.equal((await admission.decision(request)).validUntil,state.now+1);
++});

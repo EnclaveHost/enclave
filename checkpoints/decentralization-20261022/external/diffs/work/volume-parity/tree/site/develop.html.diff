@@ -1,0 +1,13 @@
+--- a/site/develop.html
++++ b/site/develop.html
+@@ -739,6 +739,10 @@
+             <span class="nt">Trust fine print</span>
+             <p>rclone crypt authenticates file <i>contents</i>, not the <i>tree</i>: a malicious bucket can serve a stale or partial file set, though never forged bytes. The <code>credsEnvelope</code> is exactly as sensitive as the volume - the wallet that signs for the key opens the credentials, so guard that wallet accordingly. Wallet unlock needs a deterministic (RFC&nbsp;6979) EOA signer - MetaMask, Ledger, and the CLI wallet qualify; smart-contract and randomized MPC wallets don't, so give those users password mode.</p>
+           </div>
++          <div class="doc-note">
++            <span class="nt">On per-app isolated hosts</span>
++            <p>A deployment that runs in its own measured guest (an SEV-SNP guest per app, or a secret deployment in a Shield partition) gets the same volumes, config, environment variables, plane and format. The guest's own front runs the unlock, pull and push. It uses rclone's crypt code inside the measured image, so neither the key nor the plaintext reaches the host. The differences: the <code>endpoint</code> must be an <code>https://</code> DNS name on port 443, which is the only way out of the guest (the host still refuses private and metadata addresses). Each volume is held in the guest's own memory, so the version's <code>memMb</code> must cover every volume at its <code>maxMb</code> (plus about 1.6% headroom) and 128 MiB for the app; a host refuses a deployment that does not fit rather than starting it without its mounts. On a Shield partition, volumes need a deployment with secrets, the only kind with outbound egress there.</p>
++          </div>
+         </article>
+ 
+         <!-- 14 ------------------------------------------------------------ -->

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# TEST-ONLY: systemctl show -p X --value U -> $MOCK_<X>
+case "$3" in ActiveState) echo "${MOCK_ActiveState:-}";; LoadState) echo "${MOCK_LoadState:-}";; UnitFileState) echo "${MOCK_UnitFileState:-}";; esac

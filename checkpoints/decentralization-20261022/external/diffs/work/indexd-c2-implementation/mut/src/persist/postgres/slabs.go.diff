@@ -1,0 +1,40 @@
+--- a/persist/postgres/slabs.go
++++ b/persist/postgres/slabs.go
+@@ -11,6 +11,7 @@
+ 	"github.com/jackc/pgx/v5"
+ 	proto "go.sia.tech/core/rhp/v4"
+ 	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
+ 	"go.sia.tech/indexd/slabs"
+ )
+ 
+@@ -235,10 +236,16 @@
+ // and their sectors are queued for deletion by PruneDeletedSlabs rather than
+ // removed inline.
+ func (s *Store) PruneSlabs(account proto.Account, cutoff time.Time) error {
++	return s.PruneSlabsFenced(account, nil, cutoff)
++}
++
++// PruneSlabsFenced is PruneSlabs under the writer fence sf (FENCING PATCH). PruneSlabs runs as several
++// transactions; EVERY one locks the account row and checks the fence, so no batch commits after a raise.
++func (s *Store) PruneSlabsFenced(account proto.Account, sf *accounts.Credential, cutoff time.Time) error {
+ 	var id int64
+ 	err := s.transaction(func(ctx context.Context, tx *txn) error {
+-		var err error
+-		id, _, err = accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		id = la.id
+ 		if err != nil {
+ 			return fmt.Errorf("failed to get account ID: %w", err)
+ 		}
+@@ -280,6 +287,10 @@
+ 			nextCursor = cursor
+ 			exhausted = false
+ 
++			if _, err := lockAccount(ctx, tx, account, sf); err != nil {
++				return err
++			}
++
+ 			candidates, err := getSlabs(ctx, tx, cursor, batchSize)
+ 			if err != nil {
+ 				return fmt.Errorf("failed to get slabs to unpin: %w", err)

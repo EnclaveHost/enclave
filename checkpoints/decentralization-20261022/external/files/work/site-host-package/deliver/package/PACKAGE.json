@@ -1,0 +1,62 @@
+{
+  "schema": "site-host-package/1",
+  "app": "site-host",
+  "version": "0.1.0",
+  "wasm": {
+    "file": "site_host.wasm",
+    "sha256": "70d2728438738417383d4b78546617ecd2f1241047b35c9a2269c5bf392e52a1",
+    "bytes": 45611522
+  },
+  "release": {
+    "cid": "bafybeiex25avvxryg6vzw7d57npdliy5qtfuss3c5lrbk5i5o7tx4kzgdi",
+    "car": {
+      "sha256": "9ff91d2805eb3d2d2489ea8b6042a55433684c9e0558ada9c7270290651cd4e4",
+      "bytes": 45381289,
+      "blocks": 763
+    }
+  },
+  "toolchain": {
+    "rustc": "rustc 1.99.0-nightly (da86f4d07 2026-07-24)",
+    "cargo": "cargo 1.99.0-nightly (3efb1f477 2026-07-17)",
+    "target": "wasm32-wasip2",
+    "profile": "release (lto, opt-level s, strip)",
+    "rustflags": "--remap-path-prefix=<src>=/site-host --remap-path-prefix=<CARGO_HOME>=/cargo",
+    "locked": true
+  },
+  "source": {
+    "files": 20,
+    "sha256": "622674be75d35e2d43ebfc8f25191ec5325722ac79dd97e97042edc3d6775711"
+  },
+  "imports": [
+    "import wasi:io/poll@0.2.12",
+    "import wasi:clocks/monotonic-clock@0.2.12",
+    "import wasi:io/error@0.2.12",
+    "import wasi:io/streams@0.2.12",
+    "import wasi:http/types@0.2.9",
+    "import wasi:cli/environment@0.2.12",
+    "import wasi:cli/exit@0.2.12",
+    "import wasi:cli/stdin@0.2.12",
+    "import wasi:cli/stdout@0.2.12",
+    "import wasi:cli/stderr@0.2.12",
+    "import wasi:cli/terminal-input@0.2.12",
+    "import wasi:cli/terminal-output@0.2.12",
+    "import wasi:cli/terminal-stdin@0.2.12",
+    "import wasi:cli/terminal-stdout@0.2.12",
+    "import wasi:cli/terminal-stderr@0.2.12",
+    "import wasi:clocks/wall-clock@0.2.12",
+    "import wasi:filesystem/types@0.2.12",
+    "import wasi:filesystem/preopens@0.2.12",
+    "import wasi:random/insecure-seed@0.2.12",
+    "export wasi:http/incoming-handler@0.2.6"
+  ],
+  "catalog": {
+    "ports": "",
+    "mem": 256,
+    "cpuGflops": 10,
+    "vram": 0,
+    "gpuGflops": 0,
+    "config": {
+      "release": "bafybeiex25avvxryg6vzw7d57npdliy5qtfuss3c5lrbk5i5o7tx4kzgdi"
+    }
+  }
+}

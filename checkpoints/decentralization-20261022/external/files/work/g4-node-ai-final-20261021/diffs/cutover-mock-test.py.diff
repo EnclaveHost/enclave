@@ -1,0 +1,81 @@
+--- ../node-hold-package-20261021/tools/cutover-mock-test.py	2026-10-21 15:07:34.142616415 -0700
++++ tools/cutover-mock-test.py	2026-10-21 15:32:26.205781646 -0700
+@@ -1,7 +1,9 @@
+ #!/usr/bin/env python3
+ """Scenario tests of node-hold-cutover.ps1 (the package's bytes) under tools/cutover-mock.ps1 on Linux pwsh 7.
+ Proves the DECISIONS (order, the single revert coordinator, exact restores, RECOVERY_REQUIRED on every refusal, temp ACL
+-ordering, identity enforcement, refusals, lock, crash trap) - NOT native Windows behaviour."""
++ordering, identity enforcement, refusals, lock, crash trap) - NOT native Windows behaviour.
++G4 final package: + G-UPD (\\Enclave\\Update running / due inside the bound refuses), N3 (read principals), N2 (a throw before
++the old '$phase = pins' line never reaches Revert; negative control: N2_BASELINE = the original e369c5e2 script)."""
+ import hashlib, json, os, pathlib, shutil, stat, subprocess, tempfile, unittest
+ T = pathlib.Path(__file__).resolve().parent; H = T.parent / "helper"; PWSH = str(T / "pwsh/pwsh")
+ SCRIPT = pathlib.Path(os.environ.get("CUTOVER_SCRIPT", H / "node-hold-cutover.ps1"))
+@@ -52,7 +54,8 @@
+ def flag(r): return b"ENCLAVE_NETWORK_WALLET_HOLD=1" in (r / "node-config.local.cmd").read_bytes()
+ def block(r): return "walletAdmission" in json.loads((r / "network/privacy-config.json").read_text())["enclaveNetwork"]
+ def temps(r): return [p.name for p in (r / "network").iterdir() if ".nh-" in p.name] + [p.name for p in r.iterdir() if ".nh-" in p.name]
+-def node_running(r): return any("node\\agent.mjs" in x["cmd"] for x in json.loads((r / "procs-state.json").read_text()))
++def node_running(r): return any("node\\agent.mjs" in x["cmd"] for x in json.loads((r / ("procs-state.json" if (r / "procs-state.json").exists() else "procs.json")).read_text()))
++def pins(lines): return next((l for l in lines if "updateTask" in l), {})
+ 
+ class Cutover(unittest.TestCase):
+     def setUp(self): self.r = world()
+@@ -151,6 +154,57 @@
+         r = self.r; lines, c = run(r, params(r, "nacl"), scenario="netdir-acl-bad"); self.ok(lines, c, "REFUSED")
+         self.assertIn("network directory", final(lines))
+ 
++    # ---------------------------------------------------------------- G4 final: G-UPD, N3, N2
++    def test_update_task_running_or_due_refuses_and_changes_nothing(self):
++        for sc in ("update-running", "update-due"):
++            r = world(); before = (r / "network/privacy-config.json").read_bytes()
++            try:
++                lines, c = run(r, params(r, "u-" + sc), scenario=sc); self.ok(lines, c, "REFUSED")
++                self.assertIn("Update task runs or is due", final(lines))
++                self.assertEqual((starts(r), flag(r), (r / "network/privacy-config.json").read_bytes()), (0, False, before)); self.assertTrue(node_running(r), "the node was never stopped")
++            finally: shutil.rmtree(r, ignore_errors=True)
++    def test_update_task_ready_and_not_due_is_recorded_and_passes(self):
++        r = self.r; lines, c = run(r, params(r, "u-ok")); self.ok(lines, c, "DONE:")
++        p = pins(lines); self.assertEqual(p["updateTask"]["state"], "Ready"); self.assertTrue(p["updateTask"]["next"].startswith("2026-10-21T22:50"))
++        self.assertEqual(sorted(p["networkDirReaders"]), ["S-1-5-18", "S-1-5-32-544"])
++        self.assertEqual(sorted(p["programDataFileInheritReaders"]), ["S-1-5-18", "S-1-5-32-544"], "the live NON-inheritable BU read on the data dir passes")
++    def test_n3_read_principals_refuse(self):
++        for sc, why in (("netdir-read-bad", "network directory is readable"), ("pd-inherit-read-bad", "inherit READ")):
++            r = world()
++            try:
++                lines, c = run(r, params(r, "n3-" + sc), scenario=sc); self.ok(lines, c, "REFUSED"); self.assertIn(why, final(lines))
++                self.assertEqual((starts(r), flag(r), block(r), temps(r)), (0, False, False, [])); self.assertTrue(node_running(r))
++            finally: shutil.rmtree(r, ignore_errors=True)
++    def test_n2_a_throw_before_the_pins_never_stops_the_node(self):
++        r = self.r; lines, c = run(r, params(r, "n2", stage=""))            # the only throwing statement root found (Join-Path $Stage)
++        self.assertEqual((starts(r), flag(r), block(r)), (0, False, False)); self.assertTrue(node_running(r), ("node stopped", c.stderr[-600:]))
++        # every function defined, the original's '$phase = pins' line not yet reached: a throw injected before the comment that
++        # precedes it in BOTH scripts (a COPY in the scratch root; the package bytes are untouched)
++        def injected(src, r):
++            t = pathlib.Path(src).read_text(); k = t.index("\n# a terminating error still goes through the SAME coordinator"); dst = r / "injected.ps1"
++            dst.write_text(t[:k] + "\nthrow 'N2-injected'" + t[k:]); return str(dst)
++        def go(src, r, run_id):
++            p = params(r, run_id); pf = r / "stage" / f"params-{run_id}-cutover.json"; pf.write_text(json.dumps(p))
++            c = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-File", str(T / "cutover-mock.ps1"), "-Script", injected(src, r), "-Root", str(r), "-ParamsFile", str(pf),
++                                "-ParamsSha", sha(pf.read_bytes()), "-Mode", "cutover", "-Scenario", "ok"], capture_output=True, text=True, timeout=240)
++            j = r / "stage" / f"cutover-{run_id}.jsonl"
++            return [json.loads(l) for l in j.read_text().splitlines()] if j.exists() else [], c
++        r1 = world()
++        try:
++            lines, c = go(SCRIPT, r1, "n2i"); self.ok(lines, c, "CRASHED in phase pins")
++            self.assertEqual((starts(r1), flag(r1), block(r1)), (0, False, False)); self.assertTrue(node_running(r1), "the node was never stopped")
++            self.assertFalse(any(l.get("step") == "stop-node" for l in lines))
++        finally: shutil.rmtree(r1, ignore_errors=True)
++        base = pathlib.Path(os.environ.get("N2_BASELINE", T.parent.parent / "node-hold-package-20261021/helper/node-hold-cutover.ps1"))
++        if base.exists():                                   # negative control: the ORIGINAL e369c5e2 under the same injection
++            r2 = world()
++            try:
++                lines2, c2 = go(base, r2, "n2b")
++                print("\nN2 baseline (original):", sha(base.read_bytes())[:8], "rc", c2.returncode, "final", final(lines2)[:160], "| node running", node_running(r2), "| starts", starts(r2))
++                self.assertFalse(final(lines2).startswith("CRASHED in phase pins"), "the original does NOT see phase pins")
++                self.assertFalse(node_running(r2), "root's N2 hazard reproduced on the original: its fallback stopped the live node")
++            finally: shutil.rmtree(r2, ignore_errors=True)
++
+     # ---------------------------------------------------------------- crash trap, refusals, lock, rollback refusal
+     def test_crash_with_working_fallback_is_a_verified_revert(self):
+         r = self.r; lines, c = run(r, params(r, "crash1"), scenario="crash-once"); self.ok(lines, c, "ROLLED_BACK_AFTER_CRASH")

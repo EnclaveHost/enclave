@@ -1,0 +1,16 @@
+--- a/network/public-directory.mjs
++++ b/network/public-directory.mjs
+@@ -9,7 +9,12 @@
+ 
+ const ID=/^0x[0-9a-f]{64}$/;
+ const READ_CONTEXT=Symbol('verified directory context');
+-const routeContext=(state,id)=>({publication:state.publications[id]??null,policy:state.policies[id]??null,providers:state.providers});
++// What one app's route verification reads from the directory state: its publication, its policy, and the provider entries
++// (records and verdicts) at the addresses its SIGNED route names - every one of them, served or not. Other providers'
++// updates cannot change its verification, so they must not invalidate it (2026-10-21: a verdict for an unrelated provider
++// landing during a slow read withheld every app).
++const routeContext=(state,id)=>{const publication=state.publications[id]??null,at=new Set((publication?.bundle?.record?.routes||[]).map(r=>r?.address));
++  return {publication,policy:state.policies[id]??null,providers:Object.entries(state.providers).filter(([,e])=>at.has(e?.record?.record?.address)).sort(([a],[b])=>a<b?-1:a>b?1:0)};};
+ const equal=(a,b)=>recordHash(a)===recordHash(b);
+ const empty=()=>({version:1,providers:{},policies:{},publications:{},management:{}});
+ export class PublicDirectory {

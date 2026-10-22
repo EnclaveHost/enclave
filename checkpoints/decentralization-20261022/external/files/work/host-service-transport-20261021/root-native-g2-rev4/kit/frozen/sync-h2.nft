@@ -1,0 +1,7 @@
+flush set inet enclave_net egress4
+flush set inet enclave_net targets_udp
+flush set inet enclave_net targets_tcp
+flush map inet enclave_net dns_dnat
+flush set inet enclave_net dns_target4
+add element inet enclave_net dns_dnat { 53 : 10.77.0.6 }
+add element inet enclave_net dns_target4 { 10.77.0.6 }

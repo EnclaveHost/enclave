@@ -1,0 +1,38 @@
+{
+ "at": "2026-10-21T13:28:20.597541+00:00",
+ "mode": "--plan",
+ "oldTree": "6163e2e73667a84f8f93e5870e2f8c923675abdc",
+ "paths": [
+  {
+   "path": "metal/guest/platform-api-entry.mjs",
+   "reviewedBefore": null,
+   "reviewedAfter": "b704d6ced7b8922179366cf76733e67899937696170b964018655824b2257638",
+   "local": "b704d6ced7b8922179366cf76733e67899937696170b964018655824b2257638",
+   "candidateBefore": null,
+   "candidateAfter": "b704d6ced7b8922179366cf76733e67899937696170b964018655824b2257638",
+   "tChanged": false,
+   "mode": "100644"
+  },
+  {
+   "path": "metal/guest/platform-api-role.mjs",
+   "reviewedBefore": "9fd9c3cb41d4ccd53340406e0f9d89c191d7820fe74a50469909b0254d0f0f8b",
+   "reviewedAfter": "3bcee3dfe3da8bcb4cdbdc98412f1aca426a8c1a020ab99f4bea7991e3f64812",
+   "local": "3bcee3dfe3da8bcb4cdbdc98412f1aca426a8c1a020ab99f4bea7991e3f64812",
+   "candidateBefore": "9fd9c3cb41d4ccd53340406e0f9d89c191d7820fe74a50469909b0254d0f0f8b",
+   "candidateAfter": "3bcee3dfe3da8bcb4cdbdc98412f1aca426a8c1a020ab99f4bea7991e3f64812",
+   "tChanged": false,
+   "mode": "100644"
+  },
+  {
+   "path": "scripts/build-platform-api-guest-bundle.mjs",
+   "reviewedBefore": "8fab5821db38346dd4245f9e1ed5ed2f10e0094e98b29f22fe41a806948387d6",
+   "reviewedAfter": "d985712862a666c7ddd8a835b262db7a7da16933d26797daf81f43e70529290e",
+   "local": "d985712862a666c7ddd8a835b262db7a7da16933d26797daf81f43e70529290e",
+   "candidateBefore": "8fab5821db38346dd4245f9e1ed5ed2f10e0094e98b29f22fe41a806948387d6",
+   "candidateAfter": "d985712862a666c7ddd8a835b262db7a7da16933d26797daf81f43e70529290e",
+   "tChanged": false,
+   "mode": "100644"
+  }
+ ],
+ "stop": []
+}

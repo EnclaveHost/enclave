@@ -1,0 +1,454 @@
+--- a/client/lease-executor-client.mjs
++++ b/client/lease-executor-client.mjs
+@@ -526,7 +526,8 @@
+ export function createLeaseClient({ client, clients = [client], account, reserve, deployment, relays = [], localRelays = [], allowLoopbackHttp = false, fetchImpl = fetch,
+                                     quorum, confirmations, maxBlockAgeSecs, rpcTimeoutMs, now,
+                                     requestTimeoutMs = 20_000, overallTimeoutMs = 180_000, ttlSec = 300, log = () => {}, onSigned = null,
+-                                    consumedRecheckMs = [2_000, 4_000, 8_000, 16_000], discoverRelays = null, admitDiscoveredRelay = null }) {
++                                    consumedRecheckMs = [2_000, 4_000, 8_000, 16_000], discoverRelays = null, admitDiscoveredRelay = null,
++                                    nonceSettleMs = 60_000, nonceSettlePollMs = 2_000 }) {
+   if (!relays?.length && !localRelays?.length && typeof discoverRelays !== "function") throw new Error("lease-gas: at least one relay URL (or relay discovery) is required");
+   if (admitDiscoveredRelay !== null && typeof admitDiscoveredRelay !== "function") throw new Error("lease-gas: admitDiscoveredRelay must be a function");
+   // the host's own relay first (no network path outside this machine), then the others as alternates
+@@ -571,9 +572,32 @@
+     return null;
+   }
+ 
++  // An EIP-7702 authorization names the operator ACCOUNT's nonce, which a relay checks at the chain head
++  // (checkRelayRequest, its confirmations 0), while this client reads at its verified block, `confirmations` behind.
++  // Right after a transaction of this key (proveAndRelease: the final proof, then the release) that block may not hold it
++  // yet: the authorization is stale on arrival and the signed lease is held to its deadline (metal0 2026-10-21: 23591 vs
++  // 23592). So while the operator is not delegated, the verified block is refreshed until its account nonce is the quorum's
++  // head nonce, bounded; past the bound nothing is signed (NonceUnsettled). The head reads only decide whether to WAIT
++  // (unread by a quorum: no wait, as before): the signed nonce is always the verified block's.
++  async function settledAuthority() {
++    const until = Date.now() + nonceSettleMs;
++    for (;;) {
++      const v = await authority();
++      if (lc((await v.client.getCode({ address: account.address })) || "0x") === designator(pins.executor)) return v;
++      const at = await v.client.getTransactionCount({ address: account.address });
++      const heads = (await Promise.allSettled(rpc.peers.map((p) => rpc.request(p.client, "eth_getTransactionCount", [account.address, "latest"]))))
++        .filter((x) => x.status === "fulfilled").map((x) => Number(BigInt(x.value))).sort((a, b) => b - a);
++      if (heads.length < rpc.required || heads[rpc.required - 1] <= at) return v;
++      if (Date.now() >= until)
++        throw new LeaseRefusal("NonceUnsettled", `the operator's account nonce at the verified block ${v.block.number} is ${at}, the RPC quorum's head says `
++          + `${heads[rpc.required - 1]}: a transaction of this key is not in a verified block yet; nothing was signed`);
++      await sleep(nonceSettlePollMs);
++    }
++  }
++
+   async function run(kindName, id, enclaveId = ZERO32) {
+     const kind = KIND[kindName];
+-    const verified = await authority(), c = verified.client, ex = pins.executor;
++    const verified = await settledAuthority(), c = verified.client, ex = pins.executor;
+     const pol = await policy({ client: c, reserve, id, kind: kindName, enclaveId, operator: account.address });
+     if (pol.status !== "Ready") throw new LeaseRefusal(pol.status, `${kindName} ${id} refused: ${WHY[pol.status] || pol.status}`);
+     const nonce = await nonceAt(id, verified);
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -4229,7 +4229,16 @@
+ async function vouchTenants() {
+   if (PROVISION_BACKEND !== "vm") return;   // worker backend has no lease route
+   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return;
+-  const ids = [...deployments.values()].filter(vouchesForLease).map((r) => String(r.id));
++  // Per-app guest tier: no beat until the claim sweep has read which live leases are this host's (_ownLeases). guestd reaps
++  // only while it hears from us (leaseExpired: Silence), so silence keeps every guest the previous control vouched for,
++  // while a beat naming only local records arms its dead-man against this host's own paid guests (a cold boot whose
++  // ledger read fails).
++  if (ISOLATION_BACKEND && CLAIM_ENABLED && !_ownLeases) {
++    _lastVouch = { at: new Date().toISOString(), ok: null, vouched: 0, reason: "withheld until the claim sweep has read this host's own leases" };
++    return;
++  }
++  const ids = [...new Set([...[...deployments.values()].filter(vouchesForLease).map((r) => String(r.id)),
++                           ...(ISOLATION_BACKEND && CLAIM_ENABLED ? unresumedOwnLeases() : [])])];
+   try {
+     const r = await vmReq("POST", "/vms/lease", { ids }, 15_000);
+     const ok = r.status === 200;
+@@ -4262,6 +4271,25 @@
+ 
+ // Set once the claim loop has finished its first pass, i.e. once this node has resumed the leases it holds on chain.
+ let _firstClaimSweepAt = 0;
++// Live leases the chain says are THIS host's but that no local record serves yet (sweepPartition's `own`, as the claim
++// sweep last read them): id -> leaseUntil (s); null until the first sweep since boot. Their guests outlive this node on
++// the host, and until the claim loop resumes them no record owns them. While the reason is transient (a policy read, a
++// provisioning back-off, the boot fence) they are vouched for and never reaped as orphans, bounded by the chain lease:
++// metal0 2026-10-21, a resume held by an unreadable policy let the reaper DELETE both paid guests, and the resume then
++// adopted them while guestd was still stopping them. Not on an explicit platform refusal (the host must stop serving),
++// and not while a release of the id from this host is unresolved (the guest is being handed back).
++let _ownLeases = null;
++const HOST_POLICY_EXPLICIT = new Set(["current", "stale-grace", "stale", "inactive", "authority", "refused-undecided", "refused-unreadable"]);
++function hostPolicyRefusedExplicitly() {
++  if (!HOST_POLICY_GATE.enabled) return false;
++  const s = HOST_POLICY_GATE.status() || {};
++  if (s.serving === true) return false;
++  return s.banned === true || HOST_POLICY_EXPLICIT.has(s.status) || s.status === undefined;   // an unusable gate fails closed
++}
++function unresumedOwnLeases(nowMs = Date.now()) {
++  if (!_ownLeases || hostPolicyRefusedExplicitly()) return [];
++  return [..._ownLeases].filter(([id, until]) => until * 1000 > nowMs && !releaseHold(id)).map(([id]) => id);
++}
+ async function reconcileInstances() {
+   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return [];
+   const stamp = (o) => { _instanceSweep = { at: new Date().toISOString(), ...o }; };
+@@ -4289,14 +4317,20 @@
+   // lease to launch it again (seen on the production canary, 2026-09-24). So reap nothing on this tier before the
+   // claim loop's first pass; the vouch above has already run, and guestd's own dead-man lease still ends
+   // anything nobody claims.
+-  if (ISOLATION_BACKEND && CLAIM_ENABLED && !_firstClaimSweepAt) {
++  if (ISOLATION_BACKEND && CLAIM_ENABLED && (!_firstClaimSweepAt || !_ownLeases)) {
+     stamp({ ok: true, reason: "per-app guest tier: no reaping before the claim loop's first pass", seen: instances.length, orphans: 0, reaped: 0 });
+     return [];
+   }
+-  const plan = orphanInstancePlan(instances, [...deployments.values()],
++  // this host's own unresumed live leases own their guests too (_ownLeases)
++  const ownOf = () => (ISOLATION_BACKEND && CLAIM_ENABLED ? unresumedOwnLeases() : []);
++  const plan = orphanInstancePlan(instances, [...deployments.values(), ...ownOf().map((id) => ({ id, status: "resuming" }))],
+                                   { nowMs: Date.now(), minAgeSec: INSTANCE_REAP_MIN_AGE_SEC });
+-  const reaped = [];
++  const reaped = [], kept = [];
+   for (const o of plan) {
++    // Owned again by now? A DELETE returns only once guestd has stopped the guest, which reads "running" and holds its
++    // name meanwhile, so a resume can adopt a planned orphan while an earlier DELETE waits: re-checked before each one.
++    const cur = deployments.get(o.id);
++    if ((cur && !TERMINAL_STATUSES.has(cur.status)) || ownOf().includes(o.id)) { kept.push(o.vmId); continue; }
+     const path = PROVISION_BACKEND === "vm"
+       ? `/vms/${encodeURIComponent(o.vmId)}` : `/tenants/${encodeURIComponent(o.vmId)}`;
+     try {
+@@ -4315,17 +4349,18 @@
+   }
+   // A pass that found orphans it could not delete is NOT ok - that is the leak
+   // still leaking, and it must not read as a clean sweep.
+-  stamp({ ok: reaped.length === plan.length, seen: instances.length,
+-          orphans: plan.length, reaped: reaped.length,
+-          reason: plan.length === 0 ? "clean"
+-                : reaped.length === plan.length ? `reaped ${reaped.length}`
+-                : `${plan.length - reaped.length} orphan(s) survived DELETE`,
++  const due = plan.length - kept.length;
++  stamp({ ok: reaped.length === due, seen: instances.length,
++          orphans: due, reaped: reaped.length,
++          reason: due === 0 ? "clean"
++                : reaped.length === due ? `reaped ${reaped.length}`
++                : `${due - reaped.length} orphan(s) survived DELETE`,
+           // WHICH instances the backend is running and who we think owns them:
+           // the single fact that would have ended the 2026-08-03 recurrence in
+           // one request instead of an evening of inference.
+           held: instances.slice(0, 20).map((v) => ({
+             id: String(v.name || v.id || ""), vm: String(v.id ?? ""), status: v.status || null,
+-            owned: !plan.some((o) => o.vmId === String(v.id ?? "")) })) });
++            owned: !plan.some((o) => o.vmId === String(v.id ?? "") && !kept.includes(o.vmId)) })) });
+   return reaped;
+ }
+ 
+@@ -11174,6 +11209,10 @@
+ // outside the enclave, and it took chain forensics to tell them apart once.
+ const _sweepDeclines = new Map();             // id -> last logged reason
+ let _resumeHoldLogged = "";                   // last logged hold reason (log on change)
++// the claim loop's sweep stage: the tier's reaper waits for its first pass (reconcileInstances), stamped even when it threw
++async function claimSweepStage(ledger) {
++  try { await claimSweep(ledger); } finally { if (!_firstClaimSweepAt) _firstClaimSweepAt = Date.now(); }
++}
+ async function claimSweep(ledger) {
+   if (!(await backendHealthy())) return;      // don't take work we'd immediately fail
+   const sweepOne = async (d, opts) => {
+@@ -11193,6 +11232,7 @@
+     const ex = deployments.get(id);
+     return !!ex && !CLAIM_TERMINAL.has(ex.status);
+   });
++  _ownLeases = new Map(own.map((d) => [String(d.id), Number(d.leaseUntil)]));   // vouched and not reaped meanwhile (_ownLeases)
+   let hold = null;
+   for (const d of own) { const r = await sweepOne(d); if (r) hold ??= `${d.id}: ${r}`; }
+   if (hold) {
+@@ -11947,6 +11987,84 @@
+   };
+   _vmTech = "amd-sev-snp"; _enclaveId = c.enclaveId; _advertisedEndpoint = c.endpoint; _firstClaimSweepAt = Date.now();
+   _bootTxFence = { state: "clear" };   // the scripted chain has no operator nonce to read
++  // c.lifecycle (test/isolation-post-adoption-lease.test.mjs): a control cutover on a time scale, against guestd's OWN
++  // dead-man rules (isolation/m4/guestd/server.go lease, leaseExpired, tick, destroy): guests the previous control left
++  // running (each with the lease it vouched, and guestd's last beat), the platform host policy's state over time, and this
++  // process's real claim sweep stage and instance reconcile passes at their production cadence, scaled. guestd's DELETE
++  // and lapse return only after the guest's unit stopped (Reclaim runs inside them), and meanwhile the guest still reads
++  // "running" and holds its name - as there. Prints the timeline: beats, lapses, deletes, creates and the end state.
++  if (c.lifecycle) {
++    const L = c.lifecycle, t0 = Date.now(), at = () => Date.now() - t0, events = [], vms = new Map();
++    let lastBeat = L.lastBeatAgoMs == null ? 0 : t0 - L.lastBeatAgoMs;
++    for (const g of L.guests) vms.set(g.id, { ...g, status: "running", leaseUntil: t0 + g.leaseLeftMs, ending: false });
++    for (const id of L.releaseHeld || [])
++      _releaseIntents.set(id, { id, why: "test", openedAt: t0, txs: [{ state: "pending", sponsored: true, leaseNonce: 0, deadline: Math.floor(t0 / 1000) + 300 }] });
++    const gate = { ...L.gate[0][1] };
++    HOST_POLICY_GATE.enabled = true;
++    HOST_POLICY_GATE.status = () => ({ platformHostPolicy: "on", ...gate });
++    HOST_POLICY_GATE.newWorkRefusal = HOST_POLICY_GATE.serviceRefusal = () => (gate.serving ? null : `platform host policy: ${gate.reason}`);
++    const end = async (v, why) => {   // RequestEnd + Reclaim + remove: the caller waits out the unit's stop
++      if (v.ending) return false;
++      v.ending = true; events.push({ t: at(), [why]: v.id, name: v.name });
++      await new Promise((r) => setTimeout(r, L.reclaimMs));
++      vms.delete(v.id); events.push({ t: at(), gone: v.id });
++      return true;
++    };
++    const tick = () => {
++      if (!lastBeat || Date.now() - lastBeat > L.silenceMs) return;   // nothing before a beat, nothing while silent
++      for (const v of vms.values()) if (v.leaseUntil < Date.now()) end(v, "lapsed");
++    };
++    vmReq = async (method, path, body) => {
++      if (method === "GET" && path === "/health") return { status: 200, body: c.health };
++      if (method === "POST" && path === "/prefetch") { prefetched.push(body); return { status: 200, body: { appId: c.appId, bytes: 1, seconds: 0 } }; }
++      if (method === "GET" && path === "/vms") return { status: 200, body: { vms: [...vms.values()].map(({ leaseUntil, ending, ...v }) => v) } };
++      if (method === "POST" && path === "/vms/lease") {
++        const want = new Set(body.ids), extended = [], unvouched = [];
++        lastBeat = Date.now();
++        for (const v of vms.values()) {
++          if (want.has(v.name)) { v.leaseUntil = Date.now() + L.ttlMs; extended.push(v.name); }
++          else unvouched.push({ id: v.name, expiresIn: Math.round((v.leaseUntil - Date.now()) / 100) / 10 });
++        }
++        events.push({ t: at(), beat: [...want].sort(), extended: extended.sort() });
++        return { status: 200, body: { extended, unvouched, ttlSec: L.ttlMs / 1000 } };
++      }
++      if (method === "POST" && path === "/vms") {
++        posted.push(body);
++        const held = [...vms.values()].find((v) => v.name === body.name);
++        if (held) { events.push({ t: at(), conflict: held.id, ending: held.ending }); return { status: 409, body: { id: held.id } }; }
++        const id = "gn" + String(posted.length).padStart(8, "0");
++        vms.set(id, { id, name: body.name, status: "running", appId: c.appId, runtimeId: body.derive.runtimeId, recordSha256: derivationDigest(body.derive),
++          directBootstrap: !!body.bootstrap, bootstrapSha256: body.bootstrap ? createHash("sha256").update(Buffer.from(body.bootstrap, "base64")).digest("hex") : undefined,
++          createdAt: Math.floor(Date.now() / 1000), leaseUntil: Date.now() + L.ttlMs, ending: false });
++        events.push({ t: at(), created: id, name: body.name });
++        return { status: 201, body: { id, appId: c.appId, recordSha256: derivationDigest(body.derive) } };
++      }
++      const m = /^\/vms\/([A-Za-z0-9-]+)$/.exec(path);
++      if (m && method === "GET") { const v = vms.get(m[1]); return v ? { status: 200, body: (({ leaseUntil, ending, ...p }) => p)(v) } : { status: 404, body: {} }; }
++      if (m && method === "DELETE") { deleted.push(m[1]); const v = vms.get(m[1]); if (v) await end(v, "deleted"); return { status: 200, body: {} }; }
++      return { status: 404, body: {} };
++    };
++    _firstClaimSweepAt = 0;   // a cold boot of this process
++    const timers = [setInterval(tick, 25), setInterval(() => reconcileInstances().catch(() => {}), L.reconcileMs)];
++    let busy = false;
++    const claimPass = async () => {   // the claim loop's pass: its ledger read (scripted as failing until ledgerFromMs), then the sweep stage
++      if (busy || at() < (L.ledgerFromMs || 0)) return;
++      busy = true;
++      try { await claimSweepStage(c.rows); } finally { busy = false; }
++    };
++    timers.push(setTimeout(() => timers.push(setInterval(claimPass, L.claimMs)), L.claimOffsetMs || 0));
++    for (const [from, state] of L.gate.slice(1)) {
++      await new Promise((r) => setTimeout(r, Math.max(0, t0 + from - Date.now())));
++      Object.keys(gate).forEach((k) => delete gate[k]); Object.assign(gate, state); events.push({ t: at(), gate: state.status });
++    }
++    await new Promise((r) => setTimeout(r, Math.max(0, t0 + L.endMs - Date.now())));
++    timers.forEach((t) => { clearTimeout(t); clearInterval(t); });
++    await new Promise((r) => setTimeout(r, L.reclaimMs + 50));
++    const records = Object.fromEntries(c.rows.map((d) => { const r = deployments.get(d.id); return [d.id, r ? { status: r.status, vmId: r._vmId || null } : null]; }));
++    console.log(JSON.stringify({ events, vms: [...vms.values()].map((v) => ({ id: v.id, name: v.name })), records, txs, deleted, lastVouch: _lastVouch,
++      declines: Object.fromEntries(c.rows.map((d) => [d.id, _sweepDeclines.get(d.id) || null])) }));
++    process.exit(0);
++  }
+   const hold = setInterval(() => {}, 250);
+   const settled = (id) => { const r = deployments.get(id); return !r ? _sweepDeclines.has(id) : ["running", "failed"].includes(r.status); };
+   // a hint awaits its own claim; a sweep starts new claims in the background, so wait for each row to settle
+@@ -12389,8 +12507,7 @@
+       if (ledger) {
+         const byId = new Map(ledger.map(d => [String(d.id).toLowerCase(), d]));
+         await stage("audit", () => auditClaims(byId));
+-        await stage("sweep", () => claimSweep(ledger));
+-        if (!_firstClaimSweepAt) _firstClaimSweepAt = Date.now();   // the tier's reaper waits for this (reconcileInstances)
++        await stage("sweep", () => claimSweepStage(ledger));
+       }
+     } finally { _claimBusy = false; }
+   }, CLAIM_POLL_SEC * 1000);
+--- /dev/null
++++ b/test/isolation-post-adoption-lease.test.mjs
+@@ -0,0 +1,107 @@
++// A control cutover on the per-app guest tier (metal0 2026-10-21): the new control boots while guestd still runs the
++// guests the previous control launched and vouched for. The REAL supervisor (DIRECT_CLAIM_SELFTEST's lifecycle mode: its
++// claim sweep stage, considerClaim -> adopt -> provisionTenant, vouchTenants and reconcileInstances at their production
++// cadence) against guestd's own dead-man rules (server.go lease/leaseExpired/tick/destroy, scaled 1:100: TTL 300 s,
++// Silence 180 s, passes every 60 s, a guest's stop taking 40 s, during which it still reads "running" and holds its name).
++// SUPERVISOR_UNDER_TEST names the file (default supervisor.js), so the same timelines run against the unrepaired one.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import {execFile} from 'node:child_process';
++import {promisify} from 'node:util';
++import {createHash} from 'node:crypto';
++import {preparePackage} from '../sdk/bootstrap/package.mjs';
++const exec=promisify(execFile),tier='snp-guest-per-app',SUP=process.env.SUPERVISOR_UNDER_TEST||'supervisor.js';
++
++const pins={registry:'0x'+'a1'.repeat(20),deployments:'0x'+'a2'.repeat(20),appCatalog:'0x'+'a3'.repeat(20),proofOfTime:'0x'+'a4'.repeat(20),
++  enclavePay:'0x'+'00'.repeat(20),verificationFees:'0x'+'00'.repeat(20),sessionVaultFactory:'0x'+'00'.repeat(20),secretVaultV2:'0x'+'00'.repeat(20)};
++const app='0x'+'ab'.repeat(32),enclaveId='0x'+'e1'.repeat(32),other='0x'+'e2'.repeat(32),owner='0x'+'33'.repeat(20);
++const catalog={app,publisher:'0x'+'44'.repeat(20),slug:'direct-app',version:'1.0.0',cid:'bafybeigdirectcomponent',memMb:256};
++const manifest={version:1,chainId:8453,ledger:pins.deployments,deployment:'0x'+'11'.repeat(32),owner,appRef:`catalog://${app}/0`,
++  appId:'45'.repeat(32),runtimeId:'55'.repeat(32),configText:'{"endpoint":"https://owner-chosen.example"}',secretsMode:'public'};
++const pkg=preparePackage(manifest);
++const health={backend:tier,catalog:{runtimeId:manifest.runtimeId,derivations:['enclave-catalog-bundle/1']},supports:{directBootstrap:true,gpu:false,protectedPorts:true},
++  pool:{budget:{memMiB:32768,cpuPct:800},allocated:{memMiB:0,cpuPct:0},free:{memMiB:32768,cpuPct:800},guests:0,overcommitted:false,perGuest:{floorMiB:1024,runtimeMiB:384,unitOverheadMiB:768},hostAvailableMiB:65536,hostFloorMiB:16384}};
++const now=Math.floor(Date.now()/1000);
++const row=(o={})=>({id:manifest.deployment,owner,appRef:manifest.appRef,configCid:JSON.stringify({guestBootstrap:pkg.intent}),active:true,isPublic:true,
++  gpuMilli:0,cpuMilli:100,leaseUntil:now+3600,runner:enclaveId,balance6:10_000_000,rate:1,spent6:0,createdAt:now-86400,...o});
++const A='http://192.0.2.10:8189/ipfs';
++const expectedDerive={derivation:'enclave-catalog-bundle/1',catalog:{app,version:0},cid:catalog.cid,policy:{cpuPercent:100,memMiB:256,vcpus:1},runtimeId:manifest.runtimeId};
++const canon=v=>Array.isArray(v)?`[${v.map(canon).join(',')}]`:v&&typeof v==='object'?`{${Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')}}`:JSON.stringify(v);
++const recordSha=createHash('sha256').update(canon(expectedDerive)).digest('hex');
++
++// the paid guest the previous control launched for this host's live lease, and guests no lease of this host backs
++const OWN=manifest.deployment, ORPHAN='0x'+'99'.repeat(32), HELD='0x'+'77'.repeat(32);
++const guest=(id,name,extra={})=>({id,name,appId:manifest.appId,runtimeId:manifest.runtimeId,recordSha256:recordSha,directBootstrap:true,
++  bootstrapSha256:pkg.sha256,createdAt:now-86400,leaseLeftMs:1840,reserved:{memMiB:1792,cpuPct:100},...extra});
++const own=guest('gdown00001',OWN), orphan=guest('gdorph0001',ORPHAN,{recordSha256:'cc'.repeat(32)}), held=guest('gdheld0001',HELD);
++const rows=[row(),row({id:ORPHAN,runner:other}),row({id:HELD})];   // ORPHAN: another host's lease; HELD: ours, release unresolved
++const unreadable={serving:false,status:'unreadable',reason:'policy unreadable: RPCs disagree or only 2 RPCs could read block 52887497 (need 3; rpc_refused)'};
++const admitted={serving:true,status:'current-admit',reason:'admitted'};
++const banned={serving:false,banned:true,status:'current',reason:'this host is refused by the platform'};
++// 1:100 - guestd's lease/silence and the passes; the previous control last beat 116 s before, its lease 183.9 s left
++const scale={ttlMs:3000,silenceMs:1800,reconcileMs:600,claimMs:600,claimOffsetMs:300,reclaimMs:400,lastBeatAgoMs:1160};
++
++function env(t){
++  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'post-adoption-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
++  const file=path.join(dir,'pins.json');fs.writeFileSync(file,JSON.stringify({version:1,chainId:8453,contracts:pins}));
++  return {PATH:process.env.PATH,SECRET:'direct-test-secret',ENABLE_MPS:'0',STATE_FILE:path.join(dir,'state.json'),
++    ISOLATION_DIRECT_ONLY:'1',ISOLATION_BACKEND:tier,PROVISION_BACKEND:'vm',ENCLAVE_CONTRACT_PINS_FILE:file,ADDRESS_BOOK_ADDRESS:'',
++    SECRETS_API:'',DOMAINS_API:'',CERTS_API:'',DNS_API:'',APP_CERT_DOMAIN:'',
++    GUEST_BOOTSTRAP_GATEWAYS:A,IPFS_GATEWAY:JSON.stringify([new URL(A).origin]),
++    REGISTRY_ENABLED:'1',REGISTRY_PRIVATE_KEY:'0x'+'01'.repeat(32),ENCLAVE_REPO:'independent/host',CLAIM_ENABLED:'1'};
++}
++async function cutover(t,lifecycle){
++  const config={catalog,health,appId:manifest.appId,bytes:pkg.bytes.toString('base64'),enclaveId,endpoint:'https://host.independent.example',
++    leaseUntil:now+3600,rows,replicas:{[A]:'serve'},lifecycle:{...scale,...lifecycle}};
++  const {stdout}=await exec(process.execPath,[SUP],{cwd:new URL('..',import.meta.url),timeout:60000,
++    env:{...env(t),DIRECT_CLAIM_SELFTEST:JSON.stringify(config)},maxBuffer:8<<20}).catch(e=>{throw Error(e.stderr||e.message);});
++  return JSON.parse(stdout.trim().split('\n').at(-1));
++}
++const alive=(out,id)=>out.vms.some(v=>v.id===id);
++const ended=(out,id)=>out.events.filter(e=>e.deleted===id||e.lapsed===id);
++const show=out=>JSON.stringify({events:out.events,vms:out.vms,records:out.records,declines:out.declines});
++
++// The incident's shape: the first sweep holds (policy unreadable), the policy reads again ~70 s later and the sweep resumes
++// the lease - while the reaper pass in between treats the unresumed guest as an orphan. Both orders of guestd's listing:
++// the own guest's DELETE in flight when the resume adopts it, or queued behind the orphan's and sent after the adoption.
++for (const [order,guests] of [['own guest listed first',[own,orphan,held]],['own guest listed after the orphan',[orphan,own,held]]])
++  test(`an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (${order})`,async t=>{
++    const out=await cutover(t,{guests,releaseHeld:[HELD],gate:[[0,unreadable],[1100,admitted]],endMs:6500});
++    assert.equal(out.records[OWN]?.status,'running',show(out));
++    assert.equal(out.records[OWN].vmId,own.id,'the resume adopted the guest the previous control launched: '+show(out));
++    assert.deepEqual(ended(out,own.id),[],'the paid guest was neither deleted nor let lapse: '+show(out));
++    assert(alive(out,own.id),'it is still running at the end, past one more full lease TTL: '+show(out));
++    assert(!out.events.some(e=>e.created),'nothing was launched again: '+show(out));
++    // a guest no lease of this host backs still ends (its lease lapses or the reaper deletes it)
++    assert(!alive(out,orphan.id)&&ended(out,orphan.id).length>0,show(out));
++    // a lease whose release from this host is unresolved is not vouched for: its guest is handed back, never resumed
++    assert(!alive(out,held.id)&&out.records[HELD]==null,show(out));
++    assert.match(out.declines[HELD]||'',/release of this deployment from this host is unresolved/);
++    assert.deepEqual(out.txs,[],'a resume sends no transaction');
++  });
++
++test('a cold boot whose ledger read fails for ~4 minutes, then an unreadable policy past a whole lease TTL: the paid guest survives and is adopted',async t=>{
++  const out=await cutover(t,{guests:[own,orphan],gate:[[0,unreadable],[4500,admitted]],ledgerFromMs:2500,endMs:8500});
++  assert.equal(out.records[OWN]?.status,'running',show(out));
++  assert.equal(out.records[OWN].vmId,own.id,show(out));
++  assert.deepEqual(ended(out,own.id),[],show(out));
++  assert(alive(out,own.id),show(out));
++  // no heartbeat before this host knew its own leases: guestd's silence rule kept every guest, the orphan included...
++  const first=out.events.find(e=>e.beat);
++  assert(first&&first.t>=2500&&first.beat.includes(OWN),'the first beat came after the first ledger read and named the own lease: '+show(out));
++  // ...and once it beat, the orphan (its lease long past) ended
++  assert(!alive(out,orphan.id)&&ended(out,orphan.id).length>0,show(out));
++});
++
++test('an explicit platform refusal: the host stops vouching, its guests end and nothing is resumed',async t=>{
++  const out=await cutover(t,{guests:[own,orphan],gate:[[0,banned]],endMs:6000});
++  assert(!alive(out,own.id)&&ended(out,own.id).length>0,show(out));
++  assert(!alive(out,orphan.id),show(out));
++  assert.equal(out.records[OWN],null,show(out));
++  assert.match(out.declines[OWN]||'',/platform host policy: this host is refused/);
++  assert(out.events.filter(e=>e.beat).every(e=>!e.beat.includes(OWN)),'never vouched: '+show(out));
++  assert.deepEqual(out.txs,[]);
++});
+--- /dev/null
++++ b/test/lease-authorization-nonce.test.mjs
+@@ -0,0 +1,86 @@
++// The sponsored release right after the host's own final proof (proveAndRelease), metal0 2026-10-21: the operator key had
++// never been delegated (its lease was claimed operator-paid, lease nonce 0), so the release carries an EIP-7702
++// authorization at the account's nonce. The host's client reads that nonce at its verified block, two confirmations
++// behind; the relay checks it at the head, where the proof transaction already counts - "StaleAuthorization 23591 is not
++// the account's 23592" - and the signed release is held to its deadline. Local anvil, the real contracts, the real relay
++// service, fixture keys only. LEASE_CLIENT_UNDER_TEST names the client module (default ../client/lease-executor-client.mjs).
++import { test, before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import crypto from "node:crypto";
++import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
++import { startRelayService } from "../network/lease-relay-service.mjs";
++import { startWorld, haveAnvil } from "./helpers/lease-gas-world.mjs";
++const B = await import(process.env.LEASE_CLIENT_UNDER_TEST || "../client/lease-executor-client.mjs");
++
++const T = { skip: !haveAnvil && "needs anvil", timeout: 180_000 };
++let W, dir, rec, digest, svc; const closers = [];
++before(async () => {
++  if (!haveAnvil) return;
++  W = await startWorld();
++  dir = fs.mkdtempSync(path.join(os.tmpdir(), "auth-nonce-"));
++  const bytes = Buffer.from(JSON.stringify({ format: "enclave-lease-gas-deployment/v1", chainId: 8453,
++    ...Object.fromEntries(["reserve", "executor", "ledger", "registry", "reserveCodeHash", "executorCodeHash"].map((k) => [k, W.addr[k]])) }));
++  rec = path.join(dir, "record.json"); fs.writeFileSync(rec, bytes);
++  digest = "sha256:" + crypto.createHash("sha256").update(bytes).digest("hex");
++  const k = generatePrivateKey(); await W.fund(privateKeyToAccount(k).address, 10n ** 16n);
++  const keyFile = path.join(dir, "relay.key"); fs.writeFileSync(keyFile, k + "\n", { mode: 0o600 });
++  // the relay checks at the head (its default: confirmations 0), as the production relays do
++  svc = await startRelayService({ recordFile: rec, digest, rpcs: [W.rpcUrl], quorum: 1, keyFile, allowLoopbackHttp: true, maxFloatEth: "0.02",
++    log: () => {}, relayOptions: { requestTimeoutMs: 20_000, receiptTimeoutMs: 4000 } });
++  closers.push(() => svc.close());
++});
++after(async () => { for (const c of closers.reverse()) { try { await c(); } catch {} } W?.stop(); if (dir) fs.rmSync(dir, { recursive: true, force: true }); });
++
++/** an undelegated runner (claimed operator-paid, like the production lease) whose last act is its own final proof */
++async function runnerAfterOwnTx(endpoint) {
++  const owner = await W.owner(), id = await W.create(owner); await W.enable(owner, id);
++  const op = await W.operator(endpoint);
++  await W.fund(op.address, 10n ** 17n);
++  await W.write(op.key, W.addr.ledger, W.A.ledger.abi, "claim", [id, op.enclaveId]);
++  await W.rpc("anvil_mine", ["0x4"]);
++  await W.send(op.key, { to: op.address, value: 0n, label: "the final proof (an operator transaction)" });   // receipt awaited
++  await W.fund(op.address, 0n);
++  return { id, op, nonceAfterProof: await W.pc.getTransactionCount({ address: op.address }) };
++}
++const client = (op, rpc, o = {}) => B.createLeaseClient({ clients: [rpc], account: op.account, reserve: W.addr.reserve,
++  deployment: { chainId: 8453, ...W.addr }, relays: [svc.url], allowLoopbackHttp: true, confirmations: 2, requestTimeoutMs: 20_000,
++  consumedRecheckMs: [500], ...o });
++/** the chain keeps producing blocks while the host works (Base: every 2 s) */
++function miner(t) { const m = setInterval(() => W.rpc("evm_mine", []).catch(() => {}), 300); t.after(() => clearInterval(m)); }
++
++test("a sponsored release right after the host's own transaction: the authorization names the account's CURRENT nonce and lands", T, async (t) => {
++  const { id, op, nonceAfterProof } = await runnerAfterOwnTx("https://auth-nonce-a.test");
++  const signed = [];
++  miner(t);
++  const r = await client(op, W.pc, { onSigned: (s) => { signed.push(s); } }).release(id);
++  assert.equal(r.receipt.status, "success");
++  assert.equal((await W.row(id)).runnerOperator.toLowerCase(), "0x0000000000000000000000000000000000000000", "the lease is released");
++  assert.equal(await W.pc.getBalance({ address: op.address }), 0n, "the app's reserve paid, never the host");
++  assert.equal(signed.length, 1, "exactly one signed lease, the one that landed");
++  const tx = await W.pc.getTransaction({ hash: r.hash });
++  assert.equal(tx.authorizationList?.[0]?.nonce, nonceAfterProof, "authorized at the nonce after the proof");
++});
++
++test("a key transaction that never reaches a verified block: nothing is signed, nothing is sent, the refusal says why", T, async (t) => {
++  const { id, op } = await runnerAfterOwnTx("https://auth-nonce-b.test");
++  // a provider whose head keeps counting one more transaction of this key than any block holds (a stuck/pending send)
++  const s = http.createServer((req, res) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", async () => {
++    const j = JSON.parse(b);
++    const r = await fetch(W.rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: b }).then((x) => x.json());
++    if (j.method === "eth_getTransactionCount" && j.params[1] === "latest") r.result = "0x" + (BigInt(r.result) + 1n).toString(16);
++    res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(r)); }); });
++  await new Promise((ok) => s.listen(0, "127.0.0.1", ok)); t.after(() => { s.closeAllConnections(); s.close(); });
++  const { createPublicClient, http: viemHttp } = await import("viem");
++  const rpc = createPublicClient({ chain: W.chain, transport: viemHttp(`http://127.0.0.1:${s.address().port}`) });
++  const signed = [], posted = [];
++  const fetchImpl = (u, i) => { if (String(u).endsWith("/v1/lease")) posted.push(u); return fetch(u, i); };
++  miner(t);
++  await assert.rejects(client(op, rpc, { onSigned: (x) => { signed.push(x); }, fetchImpl, nonceSettleMs: 3000, nonceSettlePollMs: 300 }).release(id),
++    (e) => e.code === "NonceUnsettled" && /nothing was signed/.test(e.message));
++  assert.deepEqual(signed, []); assert.deepEqual(posted, []);
++  assert.equal((await W.row(id)).runnerOperator, op.address, "the lease is untouched");
++});

@@ -1,0 +1,38 @@
+--- a/isolation/m2/front/main.go
++++ b/isolation/m2/front/main.go
+@@ -110,9 +110,10 @@
+ 	boundary         string      // the self-test init produced; relayed verbatim, never composed here
+ 	tunnels          *portTunnels
+ 	app              http.Handler
+-	certs            *certState  // a CA certificate for this domain's own key and deployment name (certs.go)
+-	names            *ownerNames // direct startup: the owner-committed names (names.go); nil = none
+-	ready            *readiness  // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
++	certs            *certState                    // a CA certificate for this domain's own key and deployment name (certs.go)
++	names            *ownerNames                   // direct startup: the owner-committed names (names.go); nil = none
++	checkpoints      *bootstrap.CheckpointProducer // direct SEV-SNP startup: the attested history checkpoint; nil = none
++	ready            *readiness                    // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
+ 	tsmMu            sync.Mutex
+ }
+ 
+@@ -296,6 +297,9 @@
+ 				if f.names, err = f.startOwnerNames(prov.owner, p.egress, p.roots); err != nil {
+ 					return "", err
+ 				}
++				if prov.writerAuthority != nil { // this path is the M2 SEV-SNP guest (releaseForInit): its own PSP reports
++					f.checkpoints = startCheckpointProducer(context.Background(), prov.writerAuthority, f.report, p.logf)
++				}
+ 			}
+ 			warmupPath = configuredWarmup(prov.config)
+ 			return prov.config, nil
+@@ -398,6 +402,11 @@
+ 	case readyPath:
+ 		f.ready.serve(w, r)
+ 		return
++	case bootstrap.CheckpointPath:
++		if f.checkpoints != nil { // otherwise the path stays the app's, as before
++			f.checkpoints.ServeHTTP(w, r)
++			return
++		}
+ 	}
+ 	f.app.ServeHTTP(w, r)
+ }

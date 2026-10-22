@@ -1,0 +1,70 @@
+--- ../config-persistence-r2/root/migrate-local-config.ps1	2026-10-21 22:35:29.807808768 -0700
++++ root/migrate-local-config.ps1	2026-10-21 22:42:26.967986434 -0700
+@@ -167,13 +167,16 @@
+   if ($kind -eq "dir" -and -not [IO.Directory]::Exists($path)) { return "not a directory" }
+   return Test-PrivateAcl $path
+ }
+-# Windows ACL primitive 1: a NEW file (FileMode.CreateNew: fails if the name exists), protected DACL SYSTEM + Administrators,
+-# owner Administrators, applied by the same call that creates it (Windows PowerShell 5.1 / .NET Framework FileStream overload)
+-function Open-NewPrivateFile([string]$path) {
++# Windows ACL primitive 1: a NEW file (FileMode.CreateNew: fails if the name exists), protected DACL SYSTEM + Administrators and
++# the given OWNER (SYSTEM or Administrators only), applied by the same call that creates it (Windows PowerShell 5.1 / .NET
++# Framework FileStream overload). If this token may not assign that owner, the create fails and no file exists: no privilege is
++# enabled or adjusted to make it succeed.
++function Open-NewPrivateFile([string]$path, [string]$ownerSid) {
++  if (@($script:SY, $script:BA) -notcontains $ownerSid) { throw "refusing to create a file owned by $ownerSid (only SYSTEM or Administrators)" }
+   $sec = New-Object System.Security.AccessControl.FileSecurity
+   $sec.SetAccessRuleProtection($true, $false)
+   foreach ($s in $script:SY, $script:BA) { $sec.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule((New-Object System.Security.Principal.SecurityIdentifier $s), "FullControl", "Allow"))) }
+-  $sec.SetOwner((New-Object System.Security.Principal.SecurityIdentifier $script:BA))
++  $sec.SetOwner((New-Object System.Security.Principal.SecurityIdentifier $ownerSid))
+   New-Object IO.FileStream($path, [IO.FileMode]::CreateNew, [Security.AccessControl.FileSystemRights]::FullControl, [IO.FileShare]::None, 4096, [IO.FileOptions]::WriteThrough, $sec)
+ }
+ # Windows ACL primitive 2: a directory created WITH its protected descriptor
+@@ -181,9 +184,15 @@
+   $ds = New-Object System.Security.AccessControl.DirectorySecurity; $ds.SetSecurityDescriptorSddlForm("O:BAD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)")
+   [void][IO.Directory]::CreateDirectory($path, $ds)
+ }
+-function New-ExclusivePrivateFile([string]$path, [byte[]]$bytes) {
+-  $f = Open-NewPrivateFile $path
+-  try { $f.Write($bytes, 0, $bytes.Length); $f.Flush($true) } finally { $f.Dispose() }
++# the owner SID of a file (Windows ACL read)
++function Get-OwnerSid([string]$path) { (Get-Acl -LiteralPath $path).GetOwner([Security.Principal.SecurityIdentifier]).Value }
++# ReplaceFile (r3, root's native finding 2026-10-22): the destination keeps its DACL but takes the REPLACEMENT file's OWNER; the
++# backup keeps the original owner. So the replacement is created with the destination's owner and the owner is verified after.
++function Invoke-FileReplace([string]$replacement, [string]$destination, [string]$backup) { [IO.File]::Replace($replacement, $destination, $backup) }
++function New-ExclusivePrivateFile([string]$path, [byte[]]$bytes, [string]$ownerSid = $script:BA) {
++  $f = Open-NewPrivateFile $path $ownerSid                                 # throws, creating nothing, if the name exists or the owner is refused
++  $ok = $false
++  try { $f.Write($bytes, 0, $bytes.Length); $f.Flush($true); $ok = $true } finally { $f.Dispose(); if (-not $ok) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue } }
+ }
+ # a NEW private directory: an existing one is never reused (it could carry another principal's ACL or contents)
+ function New-ExclusivePrivateDir([string]$path) {
+@@ -215,14 +224,23 @@
+         New-ExclusivePrivateFile $p $script:Content[$h]                  # fails, writing nothing, if the file appeared meanwhile
+         $backup = $null
+       } else {
++        # the replacement carries the hook's OWN owner (validated SYSTEM/Administrators) from creation, before any content: it
++        # is created FIRST, so a token that cannot assign that owner fails here with nothing replaced and no backup made
++        $owner = Get-OwnerSid $p
++        if (@($script:SY, $script:BA) -notcontains $owner) { throw "$h owner $owner is not SYSTEM or Administrators" }
++        $tmp = Join-Path $root (".$h.migrate-$tag.tmp")                   # same directory as the hook: an atomic same-volume replace
++        try { New-ExclusivePrivateFile $tmp $script:Content[$h] $owner }
++        catch { $tmp = $null                                              # never delete what is at that name: it may not be ours
++                throw "$h replacement could not be created with the hook's owner $owner (nothing replaced): $($_.Exception.Message)" }
++        if ((Get-OwnerSid $tmp) -ne $owner) { throw "$h replacement owner is not the hook's owner $owner (nothing replaced)" }
+         $bak = Join-Path (Get-BackupParent $root) ("local-config-migration-" + (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + "-" + $tag.Substring(0, 12))
+         New-ExclusivePrivateDir $bak
+-        $tmp = Join-Path $root (".$h.migrate-$tag.tmp")                   # same directory as the hook: an atomic same-volume replace
+-        New-ExclusivePrivateFile $tmp $script:Content[$h]
+         $backup = Join-Path $bak $h
+-        # ReplaceFile: the hook keeps its own DACL, owner and identity; its old bytes become the (new, private-dir) backup
+-        [IO.File]::Replace($tmp, $p, $backup); $tmp = $null
++        # ReplaceFile: the hook keeps its DACL and takes the replacement's owner (= its own); its old bytes and owner go to the backup
++        Invoke-FileReplace $tmp $p $backup; $tmp = $null
+         if ((FileSha $backup) -ne $hp.before) { throw "$h backup hash differs from the replaced file" }
++        $nowOwner = Get-OwnerSid $p
++        if ($nowOwner -ne $owner) { throw "$h owner changed by the replace ($owner -> $nowOwner); its original bytes and owner are in $backup" }
+       }
+       $why = Get-PathProblem $p "file"; if ($why) { throw "$h after the write: $why" }
+       $after = FileSha $p

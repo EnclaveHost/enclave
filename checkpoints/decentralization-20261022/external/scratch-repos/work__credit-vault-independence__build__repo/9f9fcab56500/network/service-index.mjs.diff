@@ -1,0 +1,29 @@
+--- a/network/service-index.mjs
++++ b/network/service-index.mjs
+@@ -506,3 +506,26 @@
+   return { directories: dirs, pins: authority, rpc: [...rpc], chainId, outbound: o.href, dns: resolvers, smtp: smtp || null, smtpDomain: smtpDomain || null,
+            connectivity: authority.connectivity === ZERO ? null : authority.connectivity };
+ }
++
++/**
++ * Platform host policy over service-index discovery candidates. The index lists SERVICE operators (directory, checker,
++ * storage, dns, replica) - not compute hosts - so a compute-host ALLOWLIST never applies here: only the administrator's
++ * explicit BAN of an operator key removes its advertisements. decide(operators) -> { [operator]: decision } at one agreed
++ * block (network/host-policy-adapters.mjs operatorDecider). A banned operator's ads move to `refusedByPolicy`; every other
++ * ad stays a candidate, annotated with the policy's answer (an allowlist miss, not activated, or an unreadable policy is a
++ * note, not a removal). The hosts these services lead to are judged again where they are used (routes, custody, relay,
++ * management, measured host gates).
++ */
++export async function applyHostPolicy(result, decide) {
++  const ops = [...new Set((result?.candidates || []).map((c) => String(c.operator).toLowerCase()))];
++  let d = {}, note = null;
++  try { d = ops.length ? await decide(ops) : {}; } catch (e) { note = `platform host policy unreadable: ${e.message}`; }
++  const BAN = /^banned by platform policy #\d+ \(operator\): /;    // judgeHost's explicit-denial reason (network/platform-host-policy.mjs)
++  const candidates = [], refused = [];
++  for (const c of result?.candidates || []) {
++    const x = d[String(c.operator).toLowerCase()];
++    if (x && x.admit !== true && BAN.test(String(x.reason || ""))) refused.push({ candidate: c, reason: x.reason });
++    else candidates.push({ ...c, platformPolicy: x ? { admit: x.admit === true, status: x.status, reason: x.reason || null } : { admit: null, status: "unchecked", reason: note } });
++  }
++  return { ...result, candidates, refusedByPolicy: refused, ...(note ? { platformPolicyNote: note } : {}) };
++}

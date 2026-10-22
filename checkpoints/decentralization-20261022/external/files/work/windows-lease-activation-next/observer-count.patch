@@ -1,0 +1,58 @@
+--- ../../windows-lease-activation-final/stage/20-activate.ps1	2026-10-20 16:48:18.750197761 -0700
++++ 20-activate.ps1	2026-10-20 17:40:21.532840011 -0700
+@@ -53,11 +53,11 @@
+ # ---- 1. the node agent only: disable + stop its task; neither the loop nor the agent may be left
+ Disable-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node' | Out-Null
+ Stop-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node' -ErrorAction SilentlyContinue
+-for ($i = 0; $i -lt 30 -and ((LoopProcs).Count -or (AgentProcs).Count); $i++) { Start-Sleep 1 }
++for ($i = 0; $i -lt 30 -and (@(LoopProcs).Count -or @(AgentProcs).Count); $i++) { Start-Sleep 1 }
+ foreach ($p in (LoopProcs)) { Say "stopping run-node.cmd loop pid $($p.ProcessId)"; Stop-Process -Id $p.ProcessId -Force }
+ foreach ($p in (AgentProcs)) { Say "stopping node agent pid $($p.ProcessId)"; Stop-Process -Id $p.ProcessId -Force }
+ Start-Sleep 2
+-if ((LoopProcs).Count -or (AgentProcs).Count) { Say "error: the node agent could not be stopped; nothing was changed. Re-enabling and starting the Node task."; StartNode; exit 1 }
++if (@(LoopProcs).Count -or @(AgentProcs).Count) { Say "error: the node agent could not be stopped; nothing was changed. Re-enabling and starting the Node task."; StartNode; exit 1 }
+ Say "node agent stopped; Node task disabled"
+ 
+ # ---- 2. private record of the previous bytes, then the settings and the call line
+@@ -113,7 +113,7 @@
+ $mode = $null
+ for ($i = 0; $i -lt 180; $i++) {
+   Start-Sleep 1
+-  if ((AgentProcs).Count -ne 1) { continue }
++  if (@(AgentProcs).Count -ne 1) { continue }
+   try { $h = (Invoke-RestMethod -TimeoutSec 3 'http://127.0.0.1:9600/v1/health').ok } catch { $h = $false }
+   if (-not $h) { continue }
+   $mode = (LeaseMode).leaseGas
+@@ -129,6 +129,6 @@
+   Say "STOPPED: the new agent reports operator-paid (the settings did not load); the Node task is disabled. Check node.log for operator-paid lease sends since the start; then 90-rollback.ps1"; exit 4
+ }
+ if ($mode -ne 'app-funded') { Say "UNOBSERVED within 180 s (lease mode '$mode'): run 30-verify.ps1"; exit 3 }
+-Say "ACTIVATED: new agent pid $((AgentProcs)[0].ProcessId) healthy, leaseGas app-funded; operator $((LeaseMode).operator)"
++Say "ACTIVATED: new agent pid $(@(AgentProcs)[0].ProcessId) healthy, leaseGas app-funded; operator $((LeaseMode).operator)"
+ & $Node $Tool status --plan $Plan
+ exit 0
+--- ../../windows-lease-activation-final/stage/90-rollback.ps1	2026-10-20 16:46:28.495071672 -0700
++++ 90-rollback.ps1	2026-10-20 17:40:21.533027469 -0700
+@@ -18,11 +18,11 @@
+ if (-not $ConfigOnly) {
+   Disable-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node' | Out-Null
+   Stop-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node' -ErrorAction SilentlyContinue
+-  for ($i = 0; $i -lt 30 -and ((LoopProcs).Count -or (AgentProcs).Count); $i++) { Start-Sleep 1 }
++  for ($i = 0; $i -lt 30 -and (@(LoopProcs).Count -or @(AgentProcs).Count); $i++) { Start-Sleep 1 }
+   foreach ($p in (LoopProcs)) { Stop-Process -Id $p.ProcessId -Force }
+   foreach ($p in (AgentProcs)) { Stop-Process -Id $p.ProcessId -Force }
+   Start-Sleep 2
+-  if ((LoopProcs).Count -or (AgentProcs).Count) { Stay "the node agent could not be stopped" }
++  if (@(LoopProcs).Count -or @(AgentProcs).Count) { Stay "the node agent could not be stopped" }
+   & $Node $Tool rollback --plan $Plan --observe-sec 5
+   $code = $LASTEXITCODE
+   Say "activate-control-source rollback exit $code"
+@@ -60,7 +60,7 @@
+ if ($ConfigOnly) { exit 0 }
+ Enable-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node' | Out-Null
+ Start-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node'
+-for ($i = 0; $i -lt 120; $i++) { Start-Sleep 1; if ((AgentProcs).Count -eq 1) { try { if ((Invoke-RestMethod -TimeoutSec 3 'http://127.0.0.1:9600/v1/health').ok) { break } } catch {} } }
++for ($i = 0; $i -lt 120; $i++) { Start-Sleep 1; if (@(AgentProcs).Count -eq 1) { try { if ((Invoke-RestMethod -TimeoutSec 3 'http://127.0.0.1:9600/v1/health').ok) { break } } catch {} } }
+ Say "ROLLED BACK: lease mode now '$((LeaseMode).leaseGas)' (the previous code and settings)"
+ & $Node $Tool status --plan $Plan
+ exit 0

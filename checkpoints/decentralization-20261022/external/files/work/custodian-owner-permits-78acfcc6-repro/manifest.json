@@ -1,0 +1,39 @@
+{
+  "role": "enclave-custodian-v2",
+  "commit": "78acfcc6d9753eace7bc8dbc423f5d432291a8b6",
+  "vault": "0x56b81b3970a8ac2c52f9874bd2758ede30758228",
+  "hostOwnership": "0xf5e9e6c02449001f6e8e95e5d87413f2cb6790ea",
+  "base": {
+    "dir": "metal-wallet-control-image",
+    "initramfsSha256": "1fbfd960b5cc12bb94c565fb9abf95458e31ed5f3fb5917709b5a786497b8df5",
+    "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "independentOwners": null,
+  "independentAdmission": "owner-permits",
+  "independentPolicy": "owner-permits",
+  "transport": "direct",
+  "dkgBuild": {
+    "rustc": "rustc 1.99.0-nightly (84b36a78a 2026-08-06)",
+    "cargo": "cargo 1.99.0-nightly (c79e8f894 2026-08-04)",
+    "target": "x86_64-unknown-linux-musl",
+    "lockSha256": "da2a8d3b8bb5d89d82fabb01d29a58aad38ec82ff35ca4063e22d6082d628ce2"
+  },
+  "files": {
+    "/opt/metal/gsup.mjs": "db136b4d8d71fbc425d0fb8c7f12a92bba89bdcff592a270a1f99ff627e1b0b8",
+    "/opt/custodian/custodian.mjs": "c7a0e05536a41e89cb64c496773eb1f7b2c68f853de2e9afbfd6ee92fc13c1a7",
+    "/opt/custodian/snpkey": "1d0541fe2514298466ca602df527c89be0caac8c7cb9811b324127872a4c9bf2",
+    "/opt/custodian/dkg": "806bef3be486dd28d05ac5e364ec75e68e6b071a927fab226ea4e2d6b1cd2d09"
+  },
+  "kernel": {
+    "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "initramfs": {
+    "sha256": "ced2e0841639ece47280251d530e49033c14d41af848bcdcc28e51cd1b59709e",
+    "bytes": 280608680
+  },
+  "cmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app",
+  "vcpus": 2,
+  "measurement": "c3f7f01dabb3597ef47b0f48008e75beadb12ffbb612f60edff338b3c046a74aeb78866b7c385a76ca894f44afea99f0",
+  "measurementSha256": "0xe3ebfa289b9d8e31a0e7d7a9a7cba8cd903edf27fc335b5147ec8687d0b05d68",
+  "ovmfSha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9"
+}

@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+for h in ap-southeast us-west; do echo "=== $h"; timeout 40 ssh -o BatchMode=yes -o ConnectTimeout=8 $h 'for u in enclave-network-provider enclave-dns-front enclave-public-directory enclave-route-dns; do echo "--- $u"; journalctl -u $u --since "-100 min" --no-pager -o short-iso 2>/dev/null | grep -iE "38f368d6" | tail -25 | cut -c1-260; echo "(lines total: $(journalctl -u $u --since "-100 min" --no-pager 2>/dev/null | wc -l))"; done'; done

@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Enclave · Lease-gas enrollment</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head><body><main>
+<p class="eyebrow">ENCLAVE · LOCAL WALLET HANDOFF · LEASE-GAS ENROLLMENT</p>
+<h1>Fund and enable app-paid lease gas</h1>
+<p>Approved plan: 11 app deposits of 0.0001 ETH into the verified lease-gas reserve, 11 sponsorship policies, permission for the existing DNS operator, and 0.0001 ETH working balances for the us-west and eu-central lease relays. Total 0.0013 ETH, plus the network fee of each transaction.</p>
+<dl><dt>Network</dt><dd>Base · chain 8453</dd><dt>Administrator</dt><dd id="owner"></dd><dt>Plan</dt><dd id="plan"></dd><dt>Progress</dt><dd id="progress"></dd><dt>Remaining</dt><dd id="remaining"></dd></dl>
+<p>Press <b>Start signing sequence</b> once. Each operation is then rechecked on two RPC providers and opened in MetaMask, one at a time. Confirm or reject each one in MetaMask. A rejection pauses the sequence.</p>
+<p id="wallet">Detecting MetaMask…</p>
+<div class="actions"><button id="connect" disabled>Connect MetaMask</button><button id="start" disabled>Start signing sequence</button><button id="pause" hidden>Pause after this operation</button></div>
+<section id="current" hidden><h2 id="current-title"></h2><p id="current-detail"></p></section>
+<p id="status" role="status">Loading…</p>
+<div id="recovery" hidden><p id="recovery-text"></p><div class="actions"><input id="hash" placeholder="0x… transaction hash from MetaMask activity" size="70" spellcheck="false"><button id="check">Verify this hash</button><button id="release" hidden>Release unanswered request</button></div></div>
+<table><thead><tr><th>#</th><th>App</th><th>Action</th><th>Amount</th><th>Status</th></tr></thead><tbody id="ops"></tbody></table>
+<details><summary>Inspect the current transaction</summary><pre id="transaction"></pre></details>
+<p class="fine">This page cannot sign. Your signing key stays in MetaMask, and each transaction needs your confirmation there. Every receipt is checked on two providers for the exact recipient, calldata, value, nonce and events.</p>
+</main></body></html>

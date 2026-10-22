@@ -1,0 +1,64 @@
+--- a/isolation/m2/front/bootstrap.go
++++ b/isolation/m2/front/bootstrap.go
+@@ -10,9 +10,11 @@
+ 	"enclave.host/isolation/m2/bootstrap"
+ 	"enclave.host/isolation/m2/egress"
+ 	"errors"
++	"fmt"
+ 	"net"
+ 	"net/http"
+ 	"net/url"
++	"strings"
+ 	"time"
+ 
+ 	"enclave.host/isolation/m2/release"
+@@ -113,6 +115,13 @@
+ 			return nil, err
+ 		}
+ 	}
++	// Release facts (storage writer fencing): this build's isolation, and the lease's writer authority from the guest's
++	// OWN measured RPC quorum when the owner's config refers to it (relay-free). Waiting for a just-made claim to finalize
++	// happens here, before the Revalidate below, so the lease is re-checked after any wait.
++	facts, err := directFacts(ctx, auth, text, snpIsolation)
++	if err != nil {
++		return nil, err
++	}
+ 	// Quorum retrieval may take minutes. Owner/lease/config changes during it
+ 	// must prevent app start even if a previous custody operation succeeded.
+ 	if err = auth.Revalidate(ctx); err != nil {
+@@ -132,7 +141,7 @@
+ 		out.owner.eabKID, out.owner.eabKey, out.owner.eabErr = eabFrom(secrets, g.ACME.EAB)
+ 	}
+ 	if text != "" {
+-		resolved, e := appconfig.Resolve(text, secrets)
++		resolved, e := appconfig.ResolveWithFacts(text, secrets, facts)
+ 		if e != nil {
+ 			return nil, e
+ 		}
+@@ -145,3 +154,26 @@
+ 	secrets = nil
+ 	return p.startForwarders(ctx, id, out, pol)
+ }
++
++// How long a direct front waits for a just-made claim to reach Base's finalized block (L1 finality: typically 15-30
++// minutes), and how often it asks. Past the window the front does not start: an app that needs the fact never runs
++// without it.
++var writerAuthorityWindow, writerAuthorityInterval = 45 * time.Minute, 30 * time.Second
++
++// directFacts: the facts a direct front hands the app. The writer authority only when the config refers to it.
++func directFacts(ctx context.Context, auth *bootstrap.Authorization, configText, isolation string) (map[string]string, error) {
++	facts := map[string]string{appconfig.FactInstanceIsolation: isolation}
++	if !strings.Contains(configText, appconfig.FactWriterAuthority) {
++		return facts, nil
++	}
++	w, err := auth.WriterAuthorityWhenFinal(ctx, writerAuthorityWindow, writerAuthorityInterval)
++	if err != nil {
++		return nil, fmt.Errorf("the lease's writer authority: %w", err)
++	}
++	j, err := w.JSON()
++	if err != nil {
++		return nil, err
++	}
++	facts[appconfig.FactWriterAuthority] = j
++	return facts, nil
++}

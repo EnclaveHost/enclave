@@ -1,0 +1,2118 @@
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/accounts/cas.go indexd-c2-implementation/src/accounts/cas.go
+--- indexd-replica-rollout/src/accounts/cas.go	1969-12-31 17:00:00.000000000 -0700
++++ indexd-c2-implementation/src/accounts/cas.go	2026-10-20 05:19:56.642866979 -0700
+@@ -0,0 +1,131 @@
++package accounts
++
++// G-C2 (work/indexd-c2-implementation-interface.txt): per-account conditional head (CAS) with an operation digest
++// that binds the exact mutation, and a durable, sticky enrolment ("cas" mode).
++
++import (
++	"encoding/hex"
++	"errors"
++	"fmt"
++	"strconv"
++)
++
++const (
++	// RequestHashDomainV4 is the domain of the v4 signed request hash.
++	RequestHashDomainV4 = "indexd/fence/v4"
++	// OpDigestDomain is the domain of the server-computed operation digest.
++	OpDigestDomain = "indexd/fence/v4/op"
++	// ModeCAS is the enrolment mode that makes v4 mandatory for an account.
++	ModeCAS = "cas"
++	// CASFlagSeq is flags bit 0: the request carries an expected head sq.
++	CASFlagSeq = 1
++)
++
++// ErrCASSeqRequired is returned for a head-advancing mutation sent in v4 form without an expected head.
++var ErrCASSeqRequired = errors.New("this mutation advances the account head: the v4 form requires sq")
++
++// An OpID is the writer-chosen operation id of a v4 request (16 bytes).
++type OpID [16]byte
++
++// An OpDigest binds the exact operation: method, host, path, body, credential, flags, sq and op (not the expiry).
++type OpDigest [32]byte
++
++// A CASRequest is the v4 part of an authenticated fenced request. Result is filled in by the store when the request
++// succeeds (the new head, and whether this was an identical replay that was not applied again).
++type CASRequest struct {
++	HasSq  bool
++	Sq     uint64
++	Op     OpID
++	Digest OpDigest
++	Result struct {
++		Seq      uint64
++		Replayed bool
++	}
++}
++
++// Flags returns the request's flags word.
++func (c *CASRequest) Flags() uint64 {
++	if c.HasSq {
++		return CASFlagSeq
++	}
++	return 0
++}
++
++// String forms (lowercase hex).
++func (o OpID) String() string     { return hex.EncodeToString(o[:]) }
++func (d OpDigest) String() string { return hex.EncodeToString(d[:]) }
++
++// MarshalText implements encoding.TextMarshaler.
++func (o OpID) MarshalText() ([]byte, error) { return []byte(o.String()), nil }
++
++// MarshalText implements encoding.TextMarshaler.
++func (d OpDigest) MarshalText() ([]byte, error) { return []byte(d.String()), nil }
++
++// UnmarshalText implements encoding.TextUnmarshaler (exactly 32 lowercase hex characters).
++func (o *OpID) UnmarshalText(b []byte) error {
++	p, err := ParseOpID(string(b))
++	*o = p
++	return err
++}
++
++// UnmarshalText implements encoding.TextUnmarshaler (exactly 64 lowercase hex characters).
++func (d *OpDigest) UnmarshalText(b []byte) error {
++	if len(b) != 64 || !isLowerHex(string(b)) {
++		return ErrNonCanonicalFence
++	}
++	_, err := hex.Decode(d[:], b)
++	return err
++}
++
++// ParseOpID parses exactly 32 lowercase hex characters.
++func ParseOpID(s string) (OpID, error) {
++	var o OpID
++	if len(s) != 32 || !isLowerHex(s) {
++		return o, errors.New("op must be exactly 32 lowercase hex characters")
++	}
++	_, err := hex.Decode(o[:], []byte(s))
++	return o, err
++}
++
++// ParseSeq parses a canonical decimal u64 below 2^63: no sign, no leading zeros ("0" is allowed).
++func ParseSeq(s string) (uint64, error) {
++	if s == "" || len(s) > 19 || (len(s) > 1 && s[0] == '0') {
++		return 0, errors.New("sq must be a canonical decimal integer")
++	}
++	for i := 0; i < len(s); i++ {
++		if s[i] < '0' || s[i] > '9' {
++			return 0, errors.New("sq must be a canonical decimal integer")
++		}
++	}
++	n, err := strconv.ParseUint(s, 10, 63)
++	if err != nil {
++		return 0, errors.New("sq must be below 2^63")
++	}
++	return n, nil
++}
++
++// A CASConflictError is a G-C2 refusal (HTTP 412). Nothing was applied.
++//
++//	Kind "seq":  the account head is not the expected one (Seq: the actual head; nil when the sequence is not enabled)
++//	Kind "op":   the head is sq+1 and the last operation has this op id, but a DIFFERENT digest (altered replay)
++//	Kind "mode": the account is enrolled in "cas" mode and the request (or raise) is not v4/cas
++type CASConflictError struct {
++	Kind    string
++	Seq     *uint64
++	Mode    string
++	Current *Fence
++}
++
++func (e *CASConflictError) Error() string {
++	switch e.Kind {
++	case "seq":
++		if e.Seq == nil {
++			return "conditional head: the account sequence is not enabled"
++		}
++		return fmt.Sprintf("conditional head: the account head is %d", *e.Seq)
++	case "op":
++		return "conditional head: this operation id was already used for a different operation"
++	default:
++		return fmt.Sprintf("the account is enrolled in %q mode: this request form is refused", e.Mode)
++	}
++}
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/accounts/fence.go indexd-c2-implementation/src/accounts/fence.go
+--- indexd-replica-rollout/src/accounts/fence.go	2026-10-19 22:28:07.974621556 -0700
++++ indexd-c2-implementation/src/accounts/fence.go	2026-10-20 07:33:19.712522206 -0700
+@@ -86,6 +86,8 @@
+ type Credential struct {
+ 	Fence   Fence
+ 	Receipt Receipt
++	// CAS is the v4 part of the request (G-C2), nil for a v3 request. It is not part of Bytes().
++	CAS *CASRequest
+ }
+ 
+ // Bytes returns fence || receipt (48 bytes), as covered by the request signature.
+@@ -165,4 +167,19 @@
+ 	Fence         *Fence         `json:"fence"`
+ 	ReceiptSHA256 *ReceiptDigest `json:"receiptSha256"`
+ 	Seq           uint64         `json:"seq"`
++	// G-C2: the last applied head-advancing v4 operation of the CURRENT generation (cleared by every raise), the
++	// enrolment mode ("cas" or null) and the server's capabilities, so a writer can resolve an unknown outcome and
++	// fail closed on an indexd without cas-v4.
++	LastOp       *OpID     `json:"lastOp"`
++	LastOpDigest *OpDigest `json:"lastOpDigest"`
++	Mode         *string   `json:"mode"`
++	Capabilities []string  `json:"capabilities"`
++	// G-C2 R2: 16 fresh random bytes from the indexer, new in EVERY GET /fence answer and never stored. A writer takes
++	// the op id of a NEW mutation from it (fetched after the invocation starts), so two post-raise copies with copied
++	// RNG state and clocks still send different operations for two different invocations; a retry of ONE invocation
++	// keeps its op. Not part of any hash.
++	OpNonce *OpID `json:"opNonce"`
+ }
++
++// Capabilities is what GET /fence advertises ("op-nonce": the answer carries opNonce, G-C2 R2).
++var Capabilities = []string{"fence-v3", "cas-v4", "op-nonce"}
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/api/app/app.go indexd-c2-implementation/src/api/app/app.go
+--- indexd-replica-rollout/src/api/app/app.go	2026-10-19 22:38:08.769820433 -0700
++++ indexd-c2-implementation/src/api/app/app.go	2026-10-20 05:21:38.446429286 -0700
+@@ -58,7 +58,7 @@
+ 		UnpinSlabFenced(ctx context.Context, account proto.Account, sf *accounts.Credential, slabID slabs.SlabID) error
+ 		AccountFence(ctx context.Context, account proto.Account) (accounts.FenceState, error)
+ 		ListCurrentObjects(ctx context.Context, account proto.Account, after types.Hash256, limit int, includeBlocked bool) ([]slabs.CurrentObjectEvent, error)
+-		RaiseFence(ctx context.Context, account proto.Account, fence accounts.Fence) (accounts.Receipt, uint64, error)
++		RaiseFence(ctx context.Context, account proto.Account, fence accounts.Fence, mode string) (accounts.Receipt, uint64, error)
+ 		ListObjectsSeq(ctx context.Context, account proto.Account, after uint64, limit int) (slabs.SeqListing, error)
+ 	}
+ 
+@@ -447,7 +447,7 @@
+ 		jc.Error(err, http.StatusInternalServerError)
+ 		return
+ 	}
+-	jc.Encode(nil)
++	writeMutationOK(jc)
+ }
+ 
+ func (a *app) handleDELETEObjects(jc jape.Context, pk types.PublicKey) {
+@@ -467,7 +467,7 @@
+ 		jc.Error(err, http.StatusInternalServerError)
+ 		return
+ 	}
+-	jc.Encode(nil)
++	writeMutationOK(jc)
+ }
+ 
+ func (a *app) handlePOSTSharing(jc jape.Context, pk types.PublicKey) {
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/api/app/auth.go indexd-c2-implementation/src/api/app/auth.go
+--- indexd-replica-rollout/src/api/app/auth.go	2026-10-19 22:56:30.696476222 -0700
++++ indexd-c2-implementation/src/api/app/auth.go	2026-10-20 05:22:20.295776769 -0700
+@@ -2,6 +2,7 @@
+ 
+ import (
+ 	"bytes"
++	"context"
+ 	"encoding/base64"
+ 	"errors"
+ 	"fmt"
+@@ -41,6 +42,9 @@
+ 	queryParamValidUntil = "sv"
+ 	// queryParamFence is the writer fence a mutation runs under (FENCING PATCH)
+ 	queryParamFence = "sf"
++	// G-C2 (v4): the operation id and the expected account head
++	queryParamOp  = "op"
++	queryParamSeq = "sq"
+ )
+ 
+ // fenceHashDomain separates fenced request hashes from 0.6.0 request hashes (FENCING PATCH).
+@@ -101,8 +105,15 @@
+ 		http.Error(w, fmt.Sprintf("invalid %q parameter: %v", queryParamFence, err), http.StatusBadRequest)
+ 		return types.PublicKey{}, false
+ 	}
++	cas, err := parseCASParams(r, sf != nil)
++	if err != nil {
++		http.Error(w, fmt.Sprintf("invalid v4 parameters: %v", err), http.StatusBadRequest)
++		return types.PublicKey{}, false
++	}
+ 	hash := requestHash(r.Method, hostname, r.URL.Path, ts, buf)
+-	if sf != nil {
++	if sf != nil && cas != nil {
++		hash = v4RequestHash(r.Method, hostname, r.URL.Path, ts, buf, *sf, cas)
++	} else if sf != nil {
+ 		hash = fencedRequestHash(r.Method, hostname, r.URL.Path, ts, buf, *sf)
+ 	}
+ 
+@@ -111,6 +122,12 @@
+ 		http.Error(w, fmt.Sprintf("invalid signature for %q host %q", r.Method, filepath.Join(hostname, r.URL.Path)), http.StatusUnauthorized)
+ 		return types.PublicKey{}, false
+ 	}
++	if cas != nil {
++		// the server computes the operation digest from the AUTHENTICATED request; the store compares it under the
++		// account lock (G-C2 interface section 3)
++		cas.Digest = opDigest(r.Method, hostname, r.URL.Path, buf, *sf, cas)
++		*r = *r.WithContext(context.WithValue(r.Context(), casContextKey{}, cas))
++	}
+ 	return pk, true
+ }
+ 
+@@ -223,15 +240,91 @@
+ 	return &c, nil
+ }
+ 
+-// requestFence returns the (already validated) fence credential of an authenticated request.
++// requestFence returns the (already validated) fence credential of an authenticated request, with its v4 part
++// (G-C2) attached when the request carried one.
+ func requestFence(req *http.Request) *accounts.Credential {
+ 	c, err := parseFenceParam(req)
+-	if err != nil {
+-		return nil // unreachable: the signature check refused it
++	if err != nil || c == nil {
++		return nil // nil: no sf (an error is unreachable: the signature check refused it)
++	}
++	if cas, ok := req.Context().Value(casContextKey{}).(*accounts.CASRequest); ok {
++		c.CAS = cas
+ 	}
+ 	return c
+ }
+ 
++type casContextKey struct{}
++
++// parseCASParams parses the G-C2 v4 parameters: op (exactly once, 32 lowercase hex) and optional sq (at most once,
++// canonical decimal below 2^63). It returns nil when op is absent; sq without op, or op without sf, is an error.
++func parseCASParams(req *http.Request, hasFence bool) (*accounts.CASRequest, error) {
++	q := req.URL.Query()
++	ops, hasOp := q[queryParamOp]
++	sqs, hasSq := q[queryParamSeq]
++	switch {
++	case !hasOp && !hasSq:
++		return nil, nil
++	case !hasOp:
++		return nil, fmt.Errorf("%q requires %q", queryParamSeq, queryParamOp)
++	case !hasFence:
++		return nil, fmt.Errorf("%q requires %q", queryParamOp, queryParamFence)
++	case len(ops) != 1:
++		return nil, fmt.Errorf("%q must appear exactly once", queryParamOp)
++	case hasSq && len(sqs) != 1:
++		return nil, fmt.Errorf("%q must appear at most once", queryParamSeq)
++	}
++	op, err := accounts.ParseOpID(ops[0])
++	if err != nil {
++		return nil, err
++	}
++	cas := &accounts.CASRequest{Op: op}
++	if hasSq {
++		if cas.Sq, err = accounts.ParseSeq(sqs[0]); err != nil {
++			return nil, err
++		}
++		cas.HasSq = true
++	}
++	return cas, nil
++}
++
++// v4RequestHash is the hash a v4 request is signed over (G-C2 interface section 2):
++//
++//	WriteString("indexd/fence/v4") WriteString(method) WriteString(host) WriteString(path) WriteUint64(sv)
++//	Write(credential 48) WriteUint64(flags) WriteUint64(sq) Write(op 16) WriteBytes(body)
++func v4RequestHash(method, hostname, path string, validUntil time.Time, body []byte, sf accounts.Credential, cas *accounts.CASRequest) types.Hash256 {
++	h := types.NewHasher()
++	h.E.WriteString(accounts.RequestHashDomainV4)
++	h.E.WriteString(method)
++	h.E.WriteString(hostname)
++	h.E.WriteString(path)
++	h.E.WriteUint64(uint64(validUntil.Unix()))
++	cred := sf.Bytes()
++	h.E.Write(cred[:])
++	h.E.WriteUint64(cas.Flags())
++	h.E.WriteUint64(cas.Sq)
++	h.E.Write(cas.Op[:])
++	h.E.WriteBytes(body)
++	return h.Sum()
++}
++
++// opDigest binds the EXACT operation (G-C2 interface section 3): everything the v4 hash covers except the expiry,
++// under its own domain. A retry of the identical operation re-signed with a new expiry has the same digest; the same
++// op id with any other method, path (object key), body, credential, flags or sq has a different one.
++func opDigest(method, hostname, path string, body []byte, sf accounts.Credential, cas *accounts.CASRequest) accounts.OpDigest {
++	h := types.NewHasher()
++	h.E.WriteString(accounts.OpDigestDomain)
++	h.E.WriteString(method)
++	h.E.WriteString(hostname)
++	h.E.WriteString(path)
++	cred := sf.Bytes()
++	h.E.Write(cred[:])
++	h.E.WriteUint64(cas.Flags())
++	h.E.WriteUint64(cas.Sq)
++	h.E.Write(cas.Op[:])
++	h.E.WriteBytes(body)
++	return accounts.OpDigest(h.Sum())
++}
++
+ // fencedRequestHash is the hash a request carrying the credential sf is signed over (FENCING PATCH, interface
+ // REVISION R5): the sia types.Encoder stream
+ //
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/api/app/c2_test.go indexd-c2-implementation/src/api/app/c2_test.go
+--- indexd-replica-rollout/src/api/app/c2_test.go	1969-12-31 17:00:00.000000000 -0700
++++ indexd-c2-implementation/src/api/app/c2_test.go	2026-10-20 07:39:52.595220082 -0700
+@@ -0,0 +1,657 @@
++package app_test
++
++// G-C2 tests (work/indexd-c2-implementation-interface.txt) over real HTTP against a real store (PostgreSQL).
++
++import (
++	"bytes"
++	"crypto/sha256"
++	"encoding/hex"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"net/http"
++	"net/url"
++	"regexp"
++	"strings"
++	"sync"
++	"testing"
++	"time"
++
++	proto "go.sia.tech/core/rhp/v4"
++	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
++	"go.sia.tech/indexd/api/app"
++	"go.sia.tech/indexd/sharing"
++	"go.sia.tech/indexd/slabs"
++	"lukechampine.com/frand"
++)
++
++func opID(i int) accounts.OpID {
++	var o accounts.OpID
++	copy(o[:], fmt.Sprintf("http-op-%08d", i))
++	return o
++}
++
++// casConflict asserts a 412 C2 refusal of the given kind (and head, when want is not nil).
++func casConflict(t *testing.T, r rawResp, kind string, head *uint64) map[string]any {
++	t.Helper()
++	if r.status != http.StatusPreconditionFailed || !strings.HasPrefix(r.ctype, "application/json") {
++		t.Fatalf("expected a 412 %q conflict, got %d %q %q", kind, r.status, r.ctype, r.body)
++	}
++	var body map[string]any
++	if err := json.Unmarshal([]byte(r.body), &body); err != nil || body["conflict"] != kind {
++		t.Fatalf("expected conflict %q, got %q (%v)", kind, r.body, err)
++	}
++	if head != nil && body["seq"] != float64(*head) {
++		t.Fatalf("expected head %d in %q", *head, r.body)
++	}
++	if _, ok := body["fence"]; !ok {
++		t.Fatalf("conflict without the installed fence: %q", r.body)
++	}
++	return body
++}
++
++func clientCAS(t *testing.T, err error, kind string, head *uint64) {
++	t.Helper()
++	var he *app.HTTPError
++	if !errors.As(err, &he) {
++		t.Fatalf("expected an HTTP error, got %v", err)
++	}
++	casConflict(t, rawResp{status: he.StatusCode, ctype: "application/json", body: he.Body}, kind, head)
++}
++
++func casQuery(c accounts.Credential, sq *uint64, op accounts.OpID) string {
++	q := "?sf=" + c.String() + "&op=" + op.String()
++	if sq != nil {
++		q += "&sq=" + fmt.Sprint(*sq)
++	}
++	return q
++}
++
++func (f *fenceAPI) raiseCAS(fence accounts.Fence) accounts.Credential {
++	f.t.Helper()
++	resp, err := f.client.RaiseFenceMode(f.t.Context(), f.sk, fence, accounts.ModeCAS)
++	if err != nil {
++		f.t.Fatal(err)
++	} else if resp.Mode == nil || *resp.Mode != accounts.ModeCAS {
++		f.t.Fatalf("raise did not report cas mode: %+v", resp)
++	}
++	return resp.Credential()
++}
++
++func casResult(t *testing.T, r rawResp) app.CASResult {
++	t.Helper()
++	var res app.CASResult
++	if r.status != http.StatusOK || json.Unmarshal([]byte(r.body), &res) != nil {
++		t.Fatalf("expected 200 {seq, replayed}, got %d %q", r.status, r.body)
++	}
++	return res
++}
++
++func TestC2HashVectors(t *testing.T) {
++	cred, err := accounts.ParseCredential("00110000000000010000000000000002abababababababababababababababab000102030405060708090a0b0c0d0e0f")
++	if err != nil {
++		t.Fatal(err)
++	}
++	op, _ := accounts.ParseOpID("101112131415161718191a1b1c1d1e1f")
++	sv := time.Unix(1800000000, 0)
++	host := "127.0.0.1:9980"
++	del := "/objects/" + strings.Repeat("00", 32)
++	// computed independently by work/indexd-c2-implementation/tools/vectors.py (hashlib.blake2b)
++	for _, v := range []struct {
++		method, path string
++		hasSq        bool
++		sq           uint64
++		body         []byte
++		wantV4       string
++		wantOp       string
++	}{
++		{http.MethodPost, "/objects", true, 41, []byte(`{"x":1}`), "dc6b660aaa1163b63d7f3d3f8697fcff1b7e5fe74ee77e661a04426561fad8d2", "1d7e160c6610909852c630a1aef41de62927601db836b3a2d8ef27804af36264"},
++		{http.MethodDelete, del, true, 42, nil, "149020203d366e381cefa3cf7ca5e72c46334d9932de2d4d79b62bb62d3b4e4f", "5c3514f3e8bdc77fea7ac0972aa3de561398c3e4bd3592dbe3f1f69c37afea62"},
++		{http.MethodDelete, del, true, 42, []byte{}, "149020203d366e381cefa3cf7ca5e72c46334d9932de2d4d79b62bb62d3b4e4f", "5c3514f3e8bdc77fea7ac0972aa3de561398c3e4bd3592dbe3f1f69c37afea62"},
++		{http.MethodPost, "/slabs/prune", false, 0, nil, "c51004cb21861d9477f9b5a60dcec7e6bab5f0aa13ef710a7049326c8c763b16", "5db9ea6d259cae1e235b893d983ad257c490874c1415a4e835f38223941cf2af"},
++		{http.MethodDelete, del, true, 7, nil, "014ac4dd4b53d67e425aaf063cdde35973a2950c49cc7cebac3db67b689d01ba", "397c0d3d4ae9f9f95cebefbd6ea42ed2977d5f1c679e1e287ac17e168d8aee45"},
++		{http.MethodPost, "/objects", true, 7, []byte(`{"fence":"x"}`), "8d5dee780de4161d16d00a5de566ea494f60110239b7c9fca4ef6738add077b5", "171bc850811b469d66585b4b515c78e5948d85cee0b4c69ddfe792a9f158f3bf"},
++	} {
++		cas := &accounts.CASRequest{HasSq: v.hasSq, Sq: v.sq, Op: op}
++		got := app.V4RequestHash(v.method, host, v.path, sv, v.body, cred, cas)
++		if hex.EncodeToString(got[:]) != v.wantV4 {
++			t.Fatalf("v4 %s %s sq %d: got %x, want %s", v.method, v.path, v.sq, got, v.wantV4)
++		}
++		d := app.OpDigest(v.method, host, v.path, v.body, cred, cas)
++		if d.String() != v.wantOp {
++			t.Fatalf("op digest %s %s sq %d: got %s, want %s", v.method, v.path, v.sq, d, v.wantOp)
++		}
++		// the expiry is not part of the operation; it is part of the signature
++		if app.OpDigest(v.method, host, v.path, v.body, cred, cas) != d || app.V4RequestHash(v.method, host, v.path, sv.Add(time.Second), v.body, cred, cas) == got {
++			t.Fatal("sv binding")
++		}
++		t.Logf("vector %s %s %s flags %d sq %d body %q -> v4 %s op %s", v.method, host, v.path, cas.Flags(), v.sq, v.body, hex.EncodeToString(got[:]), d)
++	}
++	// every operation field changes the digest (no aliasing)
++	base := &accounts.CASRequest{HasSq: true, Sq: 7, Op: op}
++	ref := app.OpDigest(http.MethodPost, host, "/objects", []byte("b"), cred, base)
++	otherOp := *base
++	otherOp.Op[15] ^= 1
++	noSq := &accounts.CASRequest{Op: op}
++	otherCred := cred
++	otherCred.Receipt[0] ^= 1
++	for name, d := range map[string]accounts.OpDigest{
++		"method": app.OpDigest(http.MethodDelete, host, "/objects", []byte("b"), cred, base),
++		"host":   app.OpDigest(http.MethodPost, "127.0.0.1:9981", "/objects", []byte("b"), cred, base),
++		"path":   app.OpDigest(http.MethodPost, host, "/objectz", []byte("b"), cred, base),
++		"body":   app.OpDigest(http.MethodPost, host, "/objects", []byte("c"), cred, base),
++		"cred":   app.OpDigest(http.MethodPost, host, "/objects", []byte("b"), otherCred, base),
++		"sq":     app.OpDigest(http.MethodPost, host, "/objects", []byte("b"), cred, &accounts.CASRequest{HasSq: true, Sq: 8, Op: op}),
++		"op":     app.OpDigest(http.MethodPost, host, "/objects", []byte("b"), cred, &otherOp),
++		"flags":  app.OpDigest(http.MethodPost, host, "/objects", []byte("b"), cred, noSq),
++	} {
++		if d == ref {
++			t.Fatalf("the op digest ignores the %s", name)
++		}
++	}
++}
++
++func TestC2APIEnrolAndState(t *testing.T) {
++	f := newFenceAPI(t)
++	ctx := t.Context()
++	st, err := f.client.Fence(ctx, f.sk)
++	if err != nil || st.Mode != nil || st.LastOp != nil || strings.Join(st.Capabilities, ",") != "fence-v3,cas-v4,op-nonce" || st.OpNonce == nil {
++		t.Fatalf("fresh: %+v %v", st, err)
++	}
++	if r := f.do(http.MethodGet, "/fence", nil, ""); !regexp.MustCompile(`^\{"fence":null,"receiptSha256":null,"seq":0,"lastOp":null,"lastOpDigest":null,"mode":null,"capabilities":\["fence-v3","cas-v4","op-nonce"\],"opNonce":"[0-9a-f]{32}"\}$`).MatchString(r.body) {
++		t.Fatalf("fresh GET /fence body %q", r.body)
++	}
++	// an unknown mode is a request error, and installs nothing
++	f1 := apiFence(1, 1, 1)
++	for _, body := range []string{`{"fence":"` + f1.String() + `","mode":"CAS"}`, `{"fence":"` + f1.String() + `","mode":""}`, `{"fence":"` + f1.String() + `","mode":null}`, `{"fence":"` + f1.String() + `","mode":1}`} {
++		r := f.do(http.MethodPost, "/fence", []byte(body), "")
++		if body == `{"fence":"`+f1.String()+`","mode":null}` {
++			// null is "absent" in JSON; it must behave exactly like a raise without mode -- check below instead
++			if r.status != http.StatusOK {
++				t.Fatalf("mode null: %d %q", r.status, r.body)
++			}
++			continue
++		}
++		if r.status != http.StatusBadRequest {
++			t.Fatalf("%s: expected 400, got %d %q", body, r.status, r.body)
++		}
++	}
++	if st, _ := f.client.Fence(ctx, f.sk); st.Mode != nil || st.Fence == nil || *st.Fence != f1 {
++		t.Fatalf("after the null-mode raise: %+v", st)
++	}
++	// enrol on a raise of an already fenced account
++	f2 := apiFence(1, 2, 1)
++	c2 := f.raiseCAS(f2)
++	st, _ = f.client.Fence(ctx, f.sk)
++	if st.Mode == nil || *st.Mode != "cas" || *st.Fence != f2 || st.LastOp != nil {
++		t.Fatalf("enrolled: %+v", st)
++	}
++	// raises without mode are refused 412 mode (no downgrade) naming the installed fence; nothing changes
++	body := casConflict(t, f.do(http.MethodPost, "/fence", []byte(`{"fence":"`+apiFence(1, 3, 1).String()+`"}`), ""), "mode", nil)
++	if body["mode"] != "cas" || body["fence"] != f2.String() {
++		t.Fatalf("mode refusal body %v", body)
++	}
++	_, err = f.client.RaiseFence(ctx, f.sk, apiFence(2, 0, 1))
++	clientCAS(t, err, "mode", nil)
++	// a lower raise is a FENCE refusal (409), whatever the mode
++	assertRefusal(t, f.do(http.MethodPost, "/fence", []byte(`{"fence":"`+f1.String()+`","mode":"cas"}`), ""), &f2)
++	if st, _ := f.client.Fence(ctx, f.sk); *st.Fence != f2 {
++		t.Fatal("a refused raise changed the fence")
++	}
++	// a pin under CAS, then GET /fence shows the exact operation
++	obj := f.object(1)
++	res, err := f.client.WithFence(&c2).PinObjectCAS(ctx, f.sk, obj, 0, opID(1))
++	if err != nil || res.Seq != 1 || res.Replayed {
++		t.Fatalf("CAS pin: %+v %v", res, err)
++	}
++	st, _ = f.client.Fence(ctx, f.sk)
++	if st.Seq != 1 || st.LastOp == nil || *st.LastOp != opID(1) || st.LastOpDigest == nil {
++		t.Fatalf("after the CAS pin: %+v", st)
++	}
++	host := strings.TrimPrefix(f.cluster.Indexer.AppURL, "http://")
++	pin, _ := json.Marshal(obj.PinRequest())
++	want := app.OpDigest(http.MethodPost, host, "/objects", pin, c2, &accounts.CASRequest{HasSq: true, Sq: 0, Op: opID(1)})
++	if *st.LastOpDigest != want {
++		t.Fatalf("lastOpDigest %s, the writer computes %s", st.LastOpDigest, want)
++	}
++	if rd := sha256.Sum256(c2.Receipt[:]); *st.ReceiptSHA256 != accounts.ReceiptDigest(rd) {
++		t.Fatal("receipt digest")
++	}
++}
++
++func TestC2APIReplayAndConflicts(t *testing.T) {
++	f := newFenceAPI(t)
++	ctx := t.Context()
++	c := f.raiseCAS(apiFence(1, 1, 1))
++	host := strings.TrimPrefix(f.cluster.Indexer.AppURL, "http://")
++	obj := f.object(1)
++	pin, _ := json.Marshal(obj.PinRequest())
++	cas0 := &accounts.CASRequest{HasSq: true, Sq: 0, Op: opID(1)}
++	q := url.Values{"sf": {c.String()}, "op": {opID(1).String()}, "sq": {"0"}}
++	sv := time.Now().Add(time.Minute)
++	signed := f.signRaw(http.MethodPost, "/objects", sv, app.V4RequestHash(http.MethodPost, host, "/objects", sv, pin, c, cas0), q)
++
++	if res := casResult(t, f.send(http.MethodPost, signed, bytes.NewReader(pin))); res.Seq != 1 || res.Replayed {
++		t.Fatalf("first: %+v", res)
++	}
++	// the IDENTICAL bytes again (the lost-answer retry): 200, replayed, not applied again
++	if res := casResult(t, f.send(http.MethodPost, signed, bytes.NewReader(pin))); res.Seq != 1 || !res.Replayed {
++		t.Fatalf("raw replay: %+v", res)
++	}
++	// re-signed later with a new expiry: still the same operation
++	sv2 := sv.Add(30 * time.Second)
++	resigned := f.signRaw(http.MethodPost, "/objects", sv2, app.V4RequestHash(http.MethodPost, host, "/objects", sv2, pin, c, cas0), q)
++	if res := casResult(t, f.send(http.MethodPost, resigned, bytes.NewReader(pin))); res.Seq != 1 || !res.Replayed {
++		t.Fatalf("re-signed replay: %+v", res)
++	}
++	// the client API agrees
++	if res, err := f.client.WithFence(&c).PinObjectCAS(ctx, f.sk, obj, 0, opID(1)); err != nil || !res.Replayed || res.Seq != 1 {
++		t.Fatalf("client replay: %+v %v", res, err)
++	}
++	// the same op id and sq with ANY other operation: 412 op, nothing applied
++	other := obj
++	other.EncryptedMetadata = []byte("altered")
++	other.Sign(f.sk)
++	_, err := f.client.WithFence(&c).PinObjectCAS(ctx, f.sk, other, 0, opID(1))
++	clientCAS(t, err, "op", ptr(uint64(1)))
++	_, err = f.client.WithFence(&c).PinObjectCAS(ctx, f.sk, f.object(2), 0, opID(1))
++	clientCAS(t, err, "op", ptr(uint64(1)))
++	_, err = f.client.WithFence(&c).DeleteObjectCAS(ctx, f.sk, obj.ID(), 0, opID(1))
++	clientCAS(t, err, "op", ptr(uint64(1)))
++	// another op at the stale head: 412 seq
++	_, err = f.client.WithFence(&c).PinObjectCAS(ctx, f.sk, f.object(3), 0, opID(2))
++	clientCAS(t, err, "seq", ptr(uint64(1)))
++	// a head in the future: 412 seq
++	_, err = f.client.WithFence(&c).PinObjectCAS(ctx, f.sk, f.object(3), 5, opID(2))
++	clientCAS(t, err, "seq", ptr(uint64(1)))
++	if got, err := f.client.Object(ctx, f.sk, obj.ID()); err != nil || !bytes.Equal(got.EncryptedMetadata, obj.EncryptedMetadata) {
++		t.Fatalf("the original object changed: %v", err)
++	}
++	if _, err := f.client.Object(ctx, f.sk, ptr(f.object(2)).ID()); err == nil {
++		t.Fatal("a refused CAS pin was applied")
++	}
++	// delete at the right head; then its replay
++	res, err := f.client.WithFence(&c).DeleteObjectCAS(ctx, f.sk, obj.ID(), 1, opID(3))
++	if err != nil || res.Seq != 2 || res.Replayed {
++		t.Fatalf("delete: %+v %v", res, err)
++	}
++	if res, err := f.client.WithFence(&c).DeleteObjectCAS(ctx, f.sk, obj.ID(), 1, opID(3)); err != nil || !res.Replayed || res.Seq != 2 {
++		t.Fatalf("delete replay: %+v %v", res, err)
++	}
++	// a delete of a missing key under CAS: 404 after the CAS check, the head does not move
++	if _, err := f.client.WithFence(&c).DeleteObjectCAS(ctx, f.sk, types.Hash256(frand.Entropy256()), 2, opID(4)); err == nil {
++		t.Fatal("delete of a missing key")
++	}
++	if st, _ := f.client.Fence(ctx, f.sk); st.Seq != 2 || *st.LastOp != opID(3) {
++		t.Fatalf("a refused delete moved the head: %+v", st)
++	}
++	// a stale credential is a FENCE refusal (409), never a 412
++	f2 := apiFence(1, 2, 1)
++	c2 := f.raiseCAS(f2)
++	_, err = f.client.WithFence(&c).PinObjectCAS(ctx, f.sk, f.object(4), 2, opID(5))
++	clientRefusal(t, err, &f2)
++	// the raise cleared the record: the last op of the previous generation does not replay under the new credential
++	_, err = f.client.WithFence(&c2).DeleteObjectCAS(ctx, f.sk, obj.ID(), 1, opID(3))
++	clientCAS(t, err, "seq", ptr(uint64(2)))
++	if st, _ := f.client.Fence(ctx, f.sk); st.LastOp != nil || st.LastOpDigest != nil || st.Seq != 2 {
++		t.Fatalf("after the raise: %+v", st)
++	}
++}
++
++func TestC2APIRequestForm(t *testing.T) {
++	f := newFenceAPI(t)
++	c := f.raiseCAS(apiFence(1, 1, 1))
++	host := strings.TrimPrefix(f.cluster.Indexer.AppURL, "http://")
++	route := "/objects/" + types.Hash256(frand.Entropy256()).String()
++	op := opID(1).String()
++	cred := c.String()
++	// malformed v4 parameters: 400
++	for name, q := range map[string]string{
++		"op-upper":      "?sf=" + cred + "&op=" + strings.ToUpper(op) + "&sq=0",
++		"op-short":      "?sf=" + cred + "&op=" + op[:30] + "&sq=0",
++		"op-long":       "?sf=" + cred + "&op=" + op + "00&sq=0",
++		"op-empty":      "?sf=" + cred + "&op=&sq=0",
++		"op-dup":        "?sf=" + cred + "&op=" + op + "&op=" + op + "&sq=0",
++		"sq-dup":        "?sf=" + cred + "&op=" + op + "&sq=0&sq=0",
++		"sq-lead0":      "?sf=" + cred + "&op=" + op + "&sq=00",
++		"sq-plus":       "?sf=" + cred + "&op=" + op + "&sq=%2B1",
++		"sq-neg":        "?sf=" + cred + "&op=" + op + "&sq=-1",
++		"sq-2^63":       "?sf=" + cred + "&op=" + op + "&sq=9223372036854775808",
++		"sq-empty":      "?sf=" + cred + "&op=" + op + "&sq=",
++		"sq-hex":        "?sf=" + cred + "&op=" + op + "&sq=0x1",
++		"sq-without-op": "?sf=" + cred + "&sq=0",
++		"op-without-sf": "?op=" + op + "&sq=0",
++		"advance-no-sq": "?sf=" + cred + "&op=" + op,
++	} {
++		if r := f.do(http.MethodDelete, route, nil, q); r.status != http.StatusBadRequest {
++			t.Fatalf("%s: expected 400, got %d %q", name, r.status, r.body)
++		}
++	}
++	// the largest canonical sq is accepted (and is a seq conflict)
++	casConflict(t, f.do(http.MethodDelete, route, nil, "?sf="+cred+"&op="+op+"&sq=9223372036854775807"), "seq", ptr(uint64(0)))
++
++	// signature tampering: the v4 hash binds sq, op and flags
++	sv := time.Now().Add(time.Minute)
++	cas := &accounts.CASRequest{HasSq: true, Sq: 0, Op: opID(1)}
++	good := app.V4RequestHash(http.MethodDelete, host, route, sv, nil, c, cas)
++	base := url.Values{"sf": {cred}, "op": {op}, "sq": {"0"}}
++	if r := f.send(http.MethodDelete, f.signRaw(http.MethodDelete, route, sv, good, base), nil); r.status != http.StatusNotFound {
++		t.Fatalf("well-signed v4: %d %q", r.status, r.body)
++	}
++	for name, q := range map[string]url.Values{
++		"sq-changed": {"sf": {cred}, "op": {op}, "sq": {"1"}},
++		"op-changed": {"sf": {cred}, "op": {opID(2).String()}, "sq": {"0"}},
++		"sq-dropped": {"sf": {cred}, "op": {op}},
++		"op+sq-dropped (v3 form under a v4 signature)": {"sf": {cred}},
++	} {
++		if r := f.send(http.MethodDelete, f.signRaw(http.MethodDelete, route, sv, good, q), nil); r.status != http.StatusUnauthorized {
++			t.Fatalf("%s: expected 401, got %d %q", name, r.status, r.body)
++		}
++	}
++	// a v3 signature with op/sq added is not a v4 signature
++	v3 := app.FencedRequestHash(http.MethodDelete, host, route, sv, nil, c)
++	if r := f.send(http.MethodDelete, f.signRaw(http.MethodDelete, route, sv, v3, base), nil); r.status != http.StatusUnauthorized {
++		t.Fatalf("v3 signature with v4 params: %d %q", r.status, r.body)
++	}
++	// and the v3 form itself, correctly signed, is refused on the enrolled account (412 mode)
++	casConflict(t, f.send(http.MethodDelete, f.signRaw(http.MethodDelete, route, sv, v3, url.Values{"sf": {cred}}), nil), "mode", nil)
++}
++
++func TestC2APIEnrolledRefusesV3AndOldClients(t *testing.T) {
++	f := newFenceAPI(t)
++	ctx := t.Context()
++	c := f.raiseCAS(apiFence(1, 1, 1))
++	obj := f.object(1)
++	if _, err := f.client.WithFence(&c).PinObjectCAS(ctx, f.sk, obj, 0, opID(1)); err != nil {
++		t.Fatal(err)
++	}
++	nonce := sharing.Nonce(frand.Bytes(32))
++	sharePriv := sharing.DeriveSharingKey(f.sk, nonce)
++	sk := sharing.KeyRequest{PublicKey: sharePriv.PublicKey(), Nonce: nonce}
++	sk.Sign(sharePriv)
++	sharedReq := sharing.SharedObjectRequest{ObjectID: obj.ID(), EncryptedDataKey: frand.Bytes(sharing.EncryptionKeySize)}
++	sharedReq.Sign(sharePriv)
++	// valid params: validation precedes the fence and mode checks (400 for invalid params is unchanged)
++	valid := slabs.SlabPinParams{EncryptionKey: frand.Entropy256(), MinShards: 10}
++	for range 30 {
++		valid.Sectors = append(valid.Sectors, slabs.PinnedSector{Root: frand.Entropy256(), HostKey: types.GeneratePrivateKey().PublicKey()})
++	}
++
++	// a v3 (fence-only) client with the EXACT credential: 412 mode on all 9 routes
++	v3 := f.client.WithFence(&c)
++	mode := func(name string, err error) {
++		t.Helper()
++		var he *app.HTTPError
++		if !errors.As(err, &he) || he.StatusCode != http.StatusPreconditionFailed || !strings.Contains(he.Body, `"conflict":"mode"`) || !strings.Contains(he.Body, `"mode":"cas"`) {
++			t.Fatalf("%s: expected 412 mode, got %v", name, err)
++		}
++	}
++	mode("PinObject", v3.PinObject(ctx, f.sk, f.object(2)))
++	mode("DeleteObject", v3.DeleteObject(ctx, f.sk, obj.ID()))
++	_, err := v3.PinSlabs(ctx, f.sk, valid)
++	mode("PinSlabs", err)
++	mode("UnpinSlab", v3.UnpinSlab(ctx, f.sk, f.slab.Digest()))
++	mode("PruneSlabs", v3.PruneSlabs(ctx, f.sk))
++	_, err = v3.AddSharingKey(ctx, f.sk, sk)
++	mode("AddSharingKey", err)
++	mode("DeleteSharingKey", v3.DeleteSharingKey(ctx, f.sk, sk.PublicKey))
++	mode("AddSharedObject", v3.AddSharedObject(ctx, f.sk, sk.PublicKey, sharedReq))
++	mode("DeleteSharedObject", v3.DeleteSharedObject(ctx, f.sk, sk.PublicKey, obj.ID()))
++	// a stock (0.6.0) client: 409 fence refusal, unchanged
++	clientRefusal(t, f.client.PinObject(ctx, f.sk, f.object(3)), &c.Fence)
++	clientRefusal(t, f.client.DeleteObject(ctx, f.sk, obj.ID()), &c.Fence)
++	if st, _ := f.client.Fence(ctx, f.sk); st.Seq != 1 || *st.LastOp != opID(1) {
++		t.Fatalf("a refused request changed the head or record: %+v", st)
++	}
++	if _, err := f.client.Object(ctx, f.sk, obj.ID()); err != nil {
++		t.Fatal("a refused delete was applied")
++	}
++
++	// the non-advancing routes in v4 form, with and without sq (a precondition: the head does not advance)
++	op := opID(10)
++	r := f.do(http.MethodPost, "/sharing", mustJSON(t, sk), "?sf="+c.String()+"&op="+op.String())
++	if r.status != http.StatusOK && r.status != http.StatusNoContent && r.status != http.StatusCreated {
++		t.Fatalf("v4 add sharing key: %d %q", r.status, r.body)
++	}
++	casConflict(t, f.do(http.MethodPost, "/slabs/prune", nil, casQuery(c, ptr(uint64(0)), opID(11))), "seq", ptr(uint64(1)))
++	if r := f.do(http.MethodPost, "/slabs/prune", nil, casQuery(c, ptr(uint64(1)), opID(12))); r.status/100 != 2 {
++		t.Fatalf("v4 prune at the head: %d %q", r.status, r.body)
++	}
++	if st, _ := f.client.Fence(ctx, f.sk); st.Seq != 1 || *st.LastOp != opID(1) {
++		t.Fatalf("non-advancing routes changed the head or the record: %+v", st)
++	}
++}
++
++func mustJSON(t *testing.T, v any) []byte {
++	t.Helper()
++	b, err := json.Marshal(v)
++	if err != nil {
++		t.Fatal(err)
++	}
++	return b
++}
++
++func TestC2APILegacyAndMixedAccounts(t *testing.T) {
++	f := newFenceAPI(t)
++	ctx := t.Context()
++	// unfenced: stock behaviour, including the empty 204 answer
++	if r := f.do(http.MethodPost, "/objects", mustJSON(t, ptr(f.object(1)).PinRequest()), ""); r.status != http.StatusNoContent || r.body != "" {
++		t.Fatalf("stock pin answer %d %q", r.status, r.body)
++	}
++	// fenced, NOT enrolled: v3 and v4 both work, mixed in any order; v3 answers stay 204 as before
++	c := f.raise(apiFence(1, 1, 1))
++	if r := f.do(http.MethodPost, "/objects", mustJSON(t, ptr(f.object(2)).PinRequest()), "?sf="+c.String()); r.status != http.StatusNoContent || r.body != "" {
++		t.Fatalf("v3 pin answer %d %q", r.status, r.body)
++	}
++	st, _ := f.client.Fence(ctx, f.sk)
++	res, err := f.client.WithFence(&c).PinObjectCAS(ctx, f.sk, f.object(3), st.Seq, opID(1))
++	if err != nil || res.Seq != st.Seq+1 {
++		t.Fatalf("v4 on an unenrolled account: %+v %v", res, err)
++	}
++	if err := f.client.WithFence(&c).DeleteObject(ctx, f.sk, ptr(f.object(2)).ID()); err != nil {
++		t.Fatalf("v3 after v4: %v", err)
++	}
++	if st2, _ := f.client.Fence(ctx, f.sk); st2.Mode != nil || st2.Seq != st.Seq+2 {
++		t.Fatalf("unenrolled: %+v", st2)
++	}
++	// a second, unfenced account on the same indexer is untouched by all of this
++	other := f.cluster.AddAccount(t)
++	if _, err := f.cluster.Indexer.Store().PinSlabs(proto.Account(other.PublicKey()), time.Time{}, f.slab); err != nil {
++		t.Fatal(err)
++	}
++	o := f.object(4)
++	o.Sign(other)
++	if err := f.client.PinObject(ctx, other, o); err != nil {
++		t.Fatal(err)
++	}
++	if st, _ := f.client.Fence(ctx, other); st.Fence != nil || st.Mode != nil {
++		t.Fatalf("other account: %+v", st)
++	}
++}
++
++func TestC2APIConcurrentOneWinner(t *testing.T) {
++	f := newFenceAPI(t)
++	ctx := t.Context()
++	c := f.raiseCAS(apiFence(1, 1, 1))
++	cl := f.client.WithFence(&c)
++	var wg sync.WaitGroup
++	var mu sync.Mutex
++	wins, conflicts := 0, 0
++	for i := range 8 {
++		wg.Add(1)
++		go func() {
++			defer wg.Done()
++			_, err := cl.PinObjectCAS(ctx, f.sk, f.object(i), 0, opID(i))
++			mu.Lock()
++			defer mu.Unlock()
++			var he *app.HTTPError
++			switch {
++			case err == nil:
++				wins++
++			case errors.As(err, &he) && he.StatusCode == http.StatusPreconditionFailed && strings.Contains(he.Body, `"conflict":"seq"`):
++				conflicts++
++			default:
++				t.Errorf("unexpected: %v", err)
++			}
++		}()
++	}
++	wg.Wait()
++	if wins != 1 || conflicts != 7 {
++		t.Fatalf("%d winners, %d seq conflicts", wins, conflicts)
++	}
++	if st, _ := f.client.Fence(ctx, f.sk); st.Seq != 1 {
++		t.Fatalf("head %d", st.Seq)
++	}
++}
++
++func TestC2APIBlockUnblock(t *testing.T) {
++	f := newFenceAPI(t)
++	ctx := t.Context()
++	admin := f.cluster.Indexer.Admin
++	c := f.raiseCAS(apiFence(1, 1, 1))
++	cl := f.client.WithFence(&c)
++	a, b := f.object(1), f.object(2)
++	if _, err := cl.PinObjectCAS(ctx, f.sk, a, 0, opID(1)); err != nil {
++		t.Fatal(err)
++	}
++	// admin blocks a's key (an existing object) and b's key (not yet pinned): the head and the record do not move
++	if err := admin.ObjectBlocklistAdd(ctx, a.ID(), "c2-test"); err != nil {
++		t.Fatal(err)
++	} else if err := admin.ObjectBlocklistAdd(ctx, b.ID(), "c2-test"); err != nil {
++		t.Fatal(err)
++	}
++	if st, _ := f.client.Fence(ctx, f.sk); st.Seq != 1 || *st.LastOp != opID(1) {
++		t.Fatalf("block moved the head: %+v", st)
++	}
++	// a CAS pin of the blocked key at the right head: 451, nothing applied
++	_, err := cl.PinObjectCAS(ctx, f.sk, b, 1, opID(2))
++	var he *app.HTTPError
++	if !errors.As(err, &he) || he.StatusCode != http.StatusUnavailableForLegalReasons {
++		t.Fatalf("expected 451, got %v", err)
++	}
++	// the current listing (blocked=true) flags a; the sequence listing keeps the event
++	publishEvents(t, f.cluster.Indexer)
++	if r := f.do(http.MethodGet, "/current/objects", nil, "?limit=10&blocked=true"); !strings.Contains(r.body, `"blocked":true`) {
++		t.Fatalf("blocked listing %q", r.body)
++	}
++	if err := admin.ObjectBlocklistRemove(ctx, a.ID()); err != nil {
++		t.Fatal(err)
++	} else if err := admin.ObjectBlocklistRemove(ctx, b.ID()); err != nil {
++		t.Fatal(err)
++	}
++	st, _ := f.client.Fence(ctx, f.sk)
++	if st.Seq != 1 || *st.LastOp != opID(1) {
++		t.Fatalf("unblock moved the head: %+v", st)
++	}
++	// the writer continues at the same head (no resync); a is listed as it was (no resurrection of anything deleted)
++	if res, err := cl.PinObjectCAS(ctx, f.sk, b, 1, opID(3)); err != nil || res.Seq != 2 {
++		t.Fatalf("pin after unblock: %+v %v", res, err)
++	}
++	listing, err := f.client.ListObjectsSeq(ctx, f.sk, 0, 10)
++	if err != nil || len(listing.Events) != 2 || listing.Events[0].Key != a.ID() || listing.Events[1].Key != b.ID() {
++		t.Fatalf("seq listing %+v %v", listing, err)
++	}
++}
++
++// TestC2APIClonedInvocations is root's C2 review case at the wire level. Two post-raise copies with copied RNG state
++// and identical clocks receive two DIFFERENT invocations with identical input (a create-if-absent of the same key):
++// they build byte-identical sealed objects and, with a copied-RNG op id, byte-identical requests.
++//   - NEGATIVE CONTROL: with the copied op id the indexer cannot tell the second invocation from a retry of the
++//     first: it answers 200 replayed, so both copies would report "created". No server can separate them.
++//   - G-C2 R2: with each invocation's op taken from its OWN GET /fence opNonce (indexer randomness, never stored),
++//     the second invocation is a different operation at a stale head: 412 seq. Exactly one copy succeeds.
++//   - ONE invocation duplicated by a snapshot taken after it fetched its nonce (same op, same bytes) is a retry of
++//     that single invocation: answered once applied, once replayed (legitimately both "its" success).
++func TestC2APIClonedInvocations(t *testing.T) {
++	f := newFenceAPI(t)
++	ctx := t.Context()
++	c := f.raiseCAS(apiFence(1, 1, 1))
++	cl := f.client.WithFence(&c)
++
++	// nonces: fresh per answer, well-formed, never stored (lastOp unaffected)
++	seen := map[accounts.OpID]bool{}
++	for range 20 {
++		st, err := f.client.Fence(ctx, f.sk)
++		if err != nil || st.OpNonce == nil || seen[*st.OpNonce] || st.LastOp != nil {
++			t.Fatalf("nonce %+v %v", st, err)
++		}
++		seen[*st.OpNonce] = true
++	}
++
++	// NEGATIVE CONTROL: copied op id, identical bytes -> both copies get 200
++	same := f.object(1)
++	copied := opID(77)
++	r1, err1 := cl.PinObjectCAS(ctx, f.sk, same, 0, copied)
++	r2, err2 := cl.PinObjectCAS(ctx, f.sk, same, 0, copied)
++	if err1 != nil || err2 != nil || r1.Replayed || !r2.Replayed || r1.Seq != 1 || r2.Seq != 1 {
++		t.Fatalf("negative control: %+v %v / %+v %v", r1, err1, r2, err2)
++	}
++	t.Log("negative control: a copied op id makes a second invocation indistinguishable from a retry (200 replayed)")
++
++	// R2: each invocation takes its op from its own nonce; both build the identical object at head 1
++	same2 := f.object(2)
++	opA, opB := opNonce(t, f, 1), opNonce(t, f, 1) // both copies fetch after their invocation started, before either sends
++	ra, errA := cl.PinObjectCAS(ctx, f.sk, same2, 1, opA)
++	_, errB := cl.PinObjectCAS(ctx, f.sk, same2, 1, opB)
++	if errA != nil || ra.Replayed || ra.Seq != 2 {
++		t.Fatalf("first copy: %+v %v", ra, errA)
++	}
++	clientCAS(t, errB, "seq", ptr(uint64(2)))
++
++	// one invocation duplicated after it fetched its nonce: the same operation, applied once, replayed once
++	same3 := f.object(3)
++	op := opNonce(t, f, 2)
++	x, errX := cl.PinObjectCAS(ctx, f.sk, same3, 2, op)
++	y, errY := cl.PinObjectCAS(ctx, f.sk, same3, 2, op)
++	if errX != nil || errY != nil || x.Replayed || !y.Replayed || x.Seq != 3 || y.Seq != 3 {
++		t.Fatalf("duplicated single invocation: %+v %v / %+v %v", x, errX, y, errY)
++	}
++
++	// root's case: BOTH first replies are lost (delivered, answer dropped), then both copies settle their unknown
++	// outcome by replaying their own operation. "Refuse replayed on a first send" cannot help: neither saw one.
++	// NEGATIVE CONTROL (copied op): both settlements answer replayed -> both copies would report "created"
++	same4, copied4 := f.object(4), opID(78)
++	cl.PinObjectCAS(ctx, f.sk, same4, 3, copied4) // copy A: applied, reply dropped
++	cl.PinObjectCAS(ctx, f.sk, same4, 3, copied4) // copy B: replayed, reply dropped
++	sa, ea := cl.PinObjectCAS(ctx, f.sk, same4, 3, copied4)
++	sb, eb := cl.PinObjectCAS(ctx, f.sk, same4, 3, copied4)
++	if ea != nil || eb != nil || !sa.Replayed || !sb.Replayed {
++		t.Fatalf("negative control (both replies lost): %+v %v / %+v %v", sa, ea, sb, eb)
++	}
++	// R2 (own nonces): copy A's settlement is its replay; copy B's settlement is refused 412 seq -> exactly one success
++	same5 := f.object(5)
++	nA, nB := opNonce(t, f, 4), opNonce(t, f, 4)
++	cl.PinObjectCAS(ctx, f.sk, same5, 4, nA) // copy A: applied, reply dropped
++	cl.PinObjectCAS(ctx, f.sk, same5, 4, nB) // copy B: 412, reply dropped
++	sa, ea = cl.PinObjectCAS(ctx, f.sk, same5, 4, nA)
++	_, eb = cl.PinObjectCAS(ctx, f.sk, same5, 4, nB)
++	if ea != nil || !sa.Replayed || sa.Seq != 5 {
++		t.Fatalf("copy A settlement: %+v %v", sa, ea)
++	}
++	clientCAS(t, eb, "seq", ptr(uint64(5)))
++
++	// GET /fence answers must never be cached (the nonce and the head are per answer)
++	u, _, err := app.Sign(f.sk, time.Now().Add(time.Minute), http.MethodGet, f.cluster.Indexer.AppURL+"/fence", nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	resp, err := http.Get(u.String())
++	if err != nil {
++		t.Fatal(err)
++	}
++	resp.Body.Close()
++	if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "no-store" {
++		t.Fatalf("GET /fence: %d Cache-Control %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
++	}
++}
++
++// opNonce fetches a fresh op nonce, asserting the head the caller expects.
++func opNonce(t *testing.T, f *fenceAPI, head uint64) accounts.OpID {
++	t.Helper()
++	st, err := f.client.Fence(t.Context(), f.sk)
++	if err != nil || st.Seq != head {
++		t.Fatalf("fence %+v %v", st, err)
++	}
++	return *st.OpNonce
++}
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/api/app/client.go indexd-c2-implementation/src/api/app/client.go
+--- indexd-replica-rollout/src/api/app/client.go	2026-10-19 22:28:38.786901199 -0700
++++ indexd-c2-implementation/src/api/app/client.go	2026-10-20 05:22:20.305847083 -0700
+@@ -101,6 +101,11 @@
+ 	if vals := u.Query()[queryParamFence]; len(vals) == 1 {
+ 		if cred, err := accounts.ParseCredential(vals[0]); err == nil {
+ 			sigHash = fencedRequestHash(method, u.Host, u.Path, validUntil, requestBuf, cred)
++			// G-C2: with op (and optional sq) the request is v4
++			r := &http.Request{URL: u}
++			if cas, err := parseCASParams(r, true); err == nil && cas != nil {
++				sigHash = v4RequestHash(method, u.Host, u.Path, validUntil, requestBuf, cred, cas)
++			}
+ 		}
+ 	}
+ 
+@@ -640,6 +645,44 @@
+ 	Fence   accounts.Fence   `json:"fence"`
+ 	Receipt accounts.Receipt `json:"receipt"`
+ 	Seq     uint64           `json:"seq"`
++	Mode    *string          `json:"mode,omitempty"` // G-C2: "cas" when the raise enrolled (or kept) cas mode
++}
++
++// CASResult is the answer to a successful v4 head-advancing mutation (G-C2).
++type CASResult struct {
++	Seq      uint64 `json:"seq"`
++	Replayed bool   `json:"replayed"`
++}
++
++// CASConflictResponse is the body of a G-C2 refusal (HTTP 412).
++type CASConflictResponse struct {
++	Conflict string          `json:"conflict"` // "seq" | "op" | "mode"
++	Seq      *uint64         `json:"seq"`
++	Mode     *string         `json:"mode,omitempty"`
++	Fence    *accounts.Fence `json:"fence"`
++}
++
++// RaiseFenceMode installs the writer fence f with an enrolment mode ("cas", or "" for none) (G-C2).
++func (c *Client) RaiseFenceMode(ctx context.Context, appKey types.PrivateKey, f accounts.Fence, mode string) (resp RaiseFenceResponse, err error) {
++	req := map[string]string{"fence": f.String()}
++	if mode != "" {
++		req["mode"] = mode
++	}
++	err = c.signedRequest(ctx, appKey, http.MethodPost, "/fence", req, &resp)
++	return
++}
++
++// PinObjectCAS pins obj as a v4 request with the expected head sq and the operation id op (G-C2). The client must
++// carry the fence credential (WithFence).
++func (c *Client) PinObjectCAS(ctx context.Context, appKey types.PrivateKey, obj slabs.SealedObject, sq uint64, op accounts.OpID) (resp CASResult, err error) {
++	err = c.signedRequest(ctx, appKey, http.MethodPost, fmt.Sprintf("/objects?sq=%d&op=%s", sq, op), obj.PinRequest(), &resp)
++	return
++}
++
++// DeleteObjectCAS deletes the object as a v4 request with the expected head sq and the operation id op (G-C2).
++func (c *Client) DeleteObjectCAS(ctx context.Context, appKey types.PrivateKey, key types.Hash256, sq uint64, op accounts.OpID) (resp CASResult, err error) {
++	err = c.signedRequest(ctx, appKey, http.MethodDelete, fmt.Sprintf("/objects/%s?sq=%d&op=%s", key, sq, op), nil, &resp)
++	return
+ }
+ 
+ // Credential returns the credential the raise issued.
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/api/app/export_test.go indexd-c2-implementation/src/api/app/export_test.go
+--- indexd-replica-rollout/src/api/app/export_test.go	2026-10-19 22:36:07.562752803 -0700
++++ indexd-c2-implementation/src/api/app/export_test.go	2026-10-20 05:39:16.420657828 -0700
+@@ -9,4 +9,8 @@
+ 	RequestHash = requestHash
+ 	// FencedRequestHash is the fenced request hash.
+ 	FencedRequestHash = fencedRequestHash
++	// V4RequestHash is the G-C2 v4 request hash.
++	V4RequestHash = v4RequestHash
++	// OpDigest is the G-C2 operation digest.
++	OpDigest = opDigest
+ )
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/api/app/fence.go indexd-c2-implementation/src/api/app/fence.go
+--- indexd-replica-rollout/src/api/app/fence.go	2026-10-19 22:29:25.875329394 -0700
++++ indexd-c2-implementation/src/api/app/fence.go	2026-10-20 07:39:35.719944711 -0700
+@@ -4,6 +4,7 @@
+ // sequence listing.
+ 
+ import (
++	"crypto/rand"
+ 	"encoding/json"
+ 	"errors"
+ 	"io"
+@@ -22,13 +23,35 @@
+ // was one.
+ func writeFenced(jc jape.Context, err error) bool {
+ 	var fe *accounts.FencedError
+-	if !errors.As(err, &fe) {
++	var ce *accounts.CASConflictError
++	switch {
++	case errors.As(err, &fe):
++		writeJSONStatus(jc, http.StatusConflict, FencedResponse{Fence: fe.Current})
++	case errors.As(err, &ce):
++		// G-C2 refusals are 412 and always carry "conflict": never confusable with a fence refusal (409)
++		r := CASConflictResponse{Conflict: ce.Kind, Seq: ce.Seq, Fence: ce.Current}
++		if ce.Mode != "" {
++			r.Mode = &ce.Mode
++		}
++		writeJSONStatus(jc, http.StatusPreconditionFailed, r)
++	case errors.Is(err, accounts.ErrCASSeqRequired):
++		jc.Error(err, http.StatusBadRequest)
++	default:
+ 		return false
+ 	}
+-	writeJSONStatus(jc, http.StatusConflict, FencedResponse{Fence: fe.Current})
+ 	return true
+ }
+ 
++// writeMutationOK answers a successful mutation: a v4 request gets the new head and whether it was an identical
++// replay (not applied again); anything else keeps the 0.6.0 empty answer.
++func writeMutationOK(jc jape.Context) {
++	if cred := requestFence(jc.Request); cred != nil && cred.CAS != nil {
++		jc.Encode(CASResult{Seq: cred.CAS.Result.Seq, Replayed: cred.CAS.Result.Replayed})
++		return
++	}
++	jc.Encode(nil)
++}
++
+ func writeJSONStatus(jc jape.Context, status int, v any) {
+ 	buf, err := json.Marshal(v)
+ 	if err != nil {
+@@ -49,6 +72,15 @@
+ 		jc.Error(err, http.StatusInternalServerError)
+ 		return
+ 	}
++	// G-C2 R2: a fresh per-answer op nonce (indexer randomness; a cloned writer's copied RNG cannot reproduce it)
++	var nonce accounts.OpID
++	if _, err := rand.Read(nonce[:]); err != nil {
++		jc.Error(err, http.StatusInternalServerError)
++		return
++	}
++	st.OpNonce = &nonce
++	// every answer is fresh (the nonce, the head): no cache may store or reuse it
++	jc.ResponseWriter.Header().Set("Cache-Control", "no-store")
+ 	jc.Encode(st)
+ }
+ 
+@@ -60,6 +92,7 @@
+ 	}
+ 	var req struct {
+ 		Fence *string `json:"fence"`
++		Mode  *string `json:"mode"` // G-C2: "cas" enrols the account (sticky)
+ 	}
+ 	if err := json.Unmarshal(buf, &req); err != nil || req.Fence == nil {
+ 		http.Error(jc.ResponseWriter, "body must be {\"fence\": \"<64 lowercase hex>\"}", http.StatusBadRequest)
+@@ -70,7 +103,15 @@
+ 		jc.Error(err, http.StatusBadRequest)
+ 		return
+ 	}
+-	receipt, head, err := a.slabs.RaiseFence(jc.Request.Context(), proto.Account(pk), f)
++	var mode string
++	if req.Mode != nil {
++		if *req.Mode != accounts.ModeCAS {
++			http.Error(jc.ResponseWriter, "mode must be \"cas\" or absent", http.StatusBadRequest)
++			return
++		}
++		mode = accounts.ModeCAS
++	}
++	receipt, head, err := a.slabs.RaiseFence(jc.Request.Context(), proto.Account(pk), f, mode)
+ 	if writeFenced(jc, err) {
+ 		return
+ 	} else if errors.Is(err, accounts.ErrNotFound) {
+@@ -83,7 +124,11 @@
+ 		jc.Error(err, http.StatusInternalServerError)
+ 		return
+ 	}
+-	jc.Encode(RaiseFenceResponse{Fence: f, Receipt: receipt, Seq: head})
++	resp := RaiseFenceResponse{Fence: f, Receipt: receipt, Seq: head}
++	if mode != "" {
++		resp.Mode = &mode
++	}
++	jc.Encode(resp)
+ }
+ 
+ func (a *app) handleGETSeqObjects(jc jape.Context, pk types.PublicKey) {
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/api/app/fence_test.go indexd-c2-implementation/src/api/app/fence_test.go
+--- indexd-replica-rollout/src/api/app/fence_test.go	2026-10-19 22:57:31.941376873 -0700
++++ indexd-c2-implementation/src/api/app/fence_test.go	2026-10-20 07:33:36.289338803 -0700
+@@ -15,6 +15,7 @@
+ 	"io"
+ 	"net/http"
+ 	"net/url"
++	"regexp"
+ 	"strings"
+ 	"testing"
+ 	"time"
+@@ -184,7 +185,7 @@
+ 	if err != nil || st.Fence != nil || st.ReceiptSHA256 != nil || st.Seq != 0 {
+ 		t.Fatalf("fresh: %+v %v", st, err)
+ 	}
+-	if r := f.do(http.MethodGet, "/fence", nil, ""); r.body != `{"fence":null,"receiptSha256":null,"seq":0}` {
++	if r := f.do(http.MethodGet, "/fence", nil, ""); !regexp.MustCompile(`^\{"fence":null,"receiptSha256":null,"seq":0,"lastOp":null,"lastOpDigest":null,"mode":null,"capabilities":\["fence-v3","cas-v4","op-nonce"\],"opNonce":"[0-9a-f]{32}"\}$`).MatchString(r.body) /* G-C2: additive */ {
+ 		t.Fatalf("fresh GET /fence body %q", r.body)
+ 	}
+ 
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/build/meta.go indexd-c2-implementation/src/build/meta.go
+--- indexd-replica-rollout/src/build/meta.go	2026-10-20 02:46:29.576800849 -0700
++++ indexd-c2-implementation/src/build/meta.go	2026-10-20 05:22:45.623185407 -0700
+@@ -3,7 +3,7 @@
+ // ROLLOUT BUILD METADATA (work/indexd-replica-rollout): upstream generates this file with 'go generate' from git; the
+ // frozen indexd-fence tree has no .git, so it is written deterministically: stock v0.6.0 commit plus the fencing patch.
+ const (
+-	commit    = "ddaf24b999800651af5aee7575a68ae543506fd9+indexd-fence.patch.3353bbf722f48580"
+-	version   = "v0.6.0-fence.1"
++	commit    = "ddaf24b999800651af5aee7575a68ae543506fd9+indexd-fence.patch.3353bbf722f48580+g-c2"
++	version   = "v0.6.0-fence.2-c2"
+ 	buildTime = 1790669669
+ )
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/persist/postgres/c2_test.go indexd-c2-implementation/src/persist/postgres/c2_test.go
+--- indexd-replica-rollout/src/persist/postgres/c2_test.go	1969-12-31 17:00:00.000000000 -0700
++++ indexd-c2-implementation/src/persist/postgres/c2_test.go	2026-10-20 07:33:36.289702731 -0700
+@@ -0,0 +1,447 @@
++package postgres
++
++// G-C2 store tests (work/indexd-c2-implementation-interface.txt) against real PostgreSQL. The operation digest is
++// computed by the HTTP layer from the authenticated request; here a digest stands for "the exact operation", so
++// equal digests mean an identical operation and different digests mean any change of body, key, method or sq.
++
++import (
++	"context"
++	"crypto/sha256"
++	"errors"
++	"fmt"
++	"os"
++	"sync"
++	"testing"
++	"time"
++
++	"go.sia.tech/core/types"
++	"go.sia.tech/indexd/accounts"
++	"go.sia.tech/indexd/contracts"
++	"go.sia.tech/indexd/hosts"
++	"go.sia.tech/indexd/sharing"
++	"go.sia.tech/indexd/slabs"
++	"go.uber.org/zap"
++	"lukechampine.com/frand"
++)
++
++func c2op(i int) accounts.OpID {
++	var o accounts.OpID
++	copy(o[:], fmt.Sprintf("op-%013d", i))
++	return o
++}
++
++func c2digest(what string) accounts.OpDigest { return accounts.OpDigest(sha256.Sum256([]byte(what))) }
++
++// v4 returns the credential c carrying a v4 part (expected head sq, op id, digest of the exact operation).
++func v4(c accounts.Credential, sq uint64, op accounts.OpID, digest string) *accounts.Credential {
++	c.CAS = &accounts.CASRequest{HasSq: true, Sq: sq, Op: op, Digest: c2digest(digest)}
++	return &c
++}
++
++func (e *fenceEnv) raiseMode(t *testing.T, f accounts.Fence, mode string) accounts.Credential {
++	t.Helper()
++	r, _, err := e.store.RaiseFence(e.acc, f, mode)
++	if err != nil {
++		t.Fatalf("raise %v mode %q: %v", f, mode, err)
++	}
++	return accounts.Credential{Fence: f, Receipt: r}
++}
++
++func assertCAS(t *testing.T, err error, kind string, seq *uint64) {
++	t.Helper()
++	var ce *accounts.CASConflictError
++	if !errors.As(err, &ce) {
++		t.Fatalf("expected a CAS %q conflict, got %v", kind, err)
++	} else if ce.Kind != kind {
++		t.Fatalf("expected a CAS %q conflict, got %q (%v)", kind, ce.Kind, err)
++	} else if seq != nil && (ce.Seq == nil || *ce.Seq != *seq) {
++		t.Fatalf("expected the conflict to report head %d, got %v", *seq, ce.Seq)
++	}
++}
++
++func u(n uint64) *uint64 { return &n }
++
++func TestC2CASApplyAndRecord(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	c := e.raiseMode(t, testFence(1, 1, 1), accounts.ModeCAS)
++	st, _ := store.AccountFence(e.acc)
++	if st.Mode == nil || *st.Mode != accounts.ModeCAS || st.LastOp != nil || len(st.Capabilities) != 3 || st.OpNonce != nil {
++		t.Fatalf("after enrolment: %+v", st)
++	}
++	sf := v4(c, 0, c2op(1), "pin o1")
++	if err := store.PinObjectFenced(e.acc, sf, ptr(e.object(1)).PinRequest()); err != nil {
++		t.Fatal(err)
++	} else if sf.CAS.Result.Seq != 1 || sf.CAS.Result.Replayed {
++		t.Fatalf("result %+v", sf.CAS.Result)
++	}
++	st, _ = store.AccountFence(e.acc)
++	if st.Seq != 1 || st.LastOp == nil || *st.LastOp != c2op(1) || *st.LastOpDigest != c2digest("pin o1") {
++		t.Fatalf("recorded state %+v", st)
++	}
++	del := v4(c, 1, c2op(2), "delete o1")
++	if err := store.DeleteObjectFenced(e.acc, del, ptr(e.object(1)).ID()); err != nil {
++		t.Fatal(err)
++	} else if del.CAS.Result.Seq != 2 {
++		t.Fatalf("delete result %+v", del.CAS.Result)
++	}
++}
++
++func TestC2CASConflictHasNoSideEffects(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	c := e.raiseMode(t, testFence(1, 1, 1), accounts.ModeCAS)
++	for i := range 3 {
++		if err := store.PinObjectFenced(e.acc, v4(c, uint64(i), c2op(i), fmt.Sprint("pin", i)), ptr(e.object(i)).PinRequest()); err != nil {
++			t.Fatal(err)
++		}
++	}
++	before := e.accountState(t)
++	stBefore, _ := store.AccountFence(e.acc)
++	for _, sq := range []uint64{0, 1, 2, 4, 1 << 40} {
++		assertCAS(t, store.PinObjectFenced(e.acc, v4(c, sq, c2op(100+int(sq%97)), "pin new"), ptr(e.object(50)).PinRequest()), "seq", u(3))
++		assertCAS(t, store.DeleteObjectFenced(e.acc, v4(c, sq, c2op(200+int(sq%97)), "del o0"), ptr(e.object(0)).ID()), "seq", u(3))
++	}
++	if after := e.accountState(t); after != before {
++		t.Fatalf("a refused CAS mutation changed state: %s -> %s", before, after)
++	}
++	stAfter, _ := store.AccountFence(e.acc)
++	if *stAfter.LastOp != *stBefore.LastOp || *stAfter.LastOpDigest != *stBefore.LastOpDigest || stAfter.Seq != 3 {
++		t.Fatal("a refused CAS mutation changed the operation record")
++	}
++}
++
++func TestC2IdenticalReplayAppliesOnce(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	c := e.raiseMode(t, testFence(1, 1, 1), accounts.ModeCAS)
++	o := e.object(1)
++	if err := store.PinObjectFenced(e.acc, v4(c, 0, c2op(1), "pin o1 v1"), o.PinRequest()); err != nil {
++		t.Fatal(err)
++	}
++	before := e.accountState(t)
++	for range 3 { // the lost-answer retry, possibly several times
++		sf := v4(c, 0, c2op(1), "pin o1 v1")
++		if err := store.PinObjectFenced(e.acc, sf, o.PinRequest()); err != nil {
++			t.Fatalf("identical replay: %v", err)
++		} else if !sf.CAS.Result.Replayed || sf.CAS.Result.Seq != 1 {
++			t.Fatalf("identical replay result %+v", sf.CAS.Result)
++		}
++	}
++	if after := e.accountState(t); after != before {
++		t.Fatalf("a replay was applied again: %s -> %s", before, after)
++	}
++	// once the head has moved on, the old operation is no longer the last one: a replay of it is a seq conflict
++	if err := store.PinObjectFenced(e.acc, v4(c, 1, c2op(2), "pin o2"), ptr(e.object(2)).PinRequest()); err != nil {
++		t.Fatal(err)
++	}
++	assertCAS(t, store.PinObjectFenced(e.acc, v4(c, 0, c2op(1), "pin o1 v1"), o.PinRequest()), "seq", u(2))
++	// a delete replay works the same way
++	del := v4(c, 2, c2op(3), "delete o1")
++	if err := store.DeleteObjectFenced(e.acc, del, o.ID()); err != nil {
++		t.Fatal(err)
++	}
++	again := v4(c, 2, c2op(3), "delete o1")
++	if err := store.DeleteObjectFenced(e.acc, again, o.ID()); err != nil || !again.CAS.Result.Replayed || again.CAS.Result.Seq != 3 {
++		t.Fatalf("delete replay: %v %+v", err, again.CAS.Result)
++	}
++}
++
++func TestC2AlteredReplayRefused(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	c := e.raiseMode(t, testFence(1, 1, 1), accounts.ModeCAS)
++	o := e.object(1)
++	if err := store.PinObjectFenced(e.acc, v4(c, 0, c2op(1), "pin o1 v1"), o.PinRequest()); err != nil {
++		t.Fatal(err)
++	}
++	before := e.accountState(t)
++	// the same op id and sq, but a different operation: other body (metadata), other key, a delete instead of a pin
++	o2 := o
++	o2.EncryptedMetadata = []byte("altered")
++	assertCAS(t, store.PinObjectFenced(e.acc, v4(c, 0, c2op(1), "pin o1 v2"), o2.PinRequest()), "op", u(1))
++	assertCAS(t, store.PinObjectFenced(e.acc, v4(c, 0, c2op(1), "pin o9"), ptr(e.object(9)).PinRequest()), "op", u(1))
++	assertCAS(t, store.DeleteObjectFenced(e.acc, v4(c, 0, c2op(1), "delete o1"), o.ID()), "op", u(1))
++	if after := e.accountState(t); after != before {
++		t.Fatalf("an altered replay changed state: %s -> %s", before, after)
++	}
++	if obj, err := store.Object(e.acc, o.ID()); err != nil || string(obj.EncryptedMetadata) == "altered" {
++		t.Fatalf("the original operation's object changed: %v", err)
++	}
++}
++
++func TestC2ConcurrentSameHeadOneWinner(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	c := e.raiseMode(t, testFence(1, 1, 1), accounts.ModeCAS)
++	for round := range 5 {
++		head := uint64(round * 2)
++		// 12 writers race with the same expected head and DIFFERENT operations: exactly one applies
++		var wg sync.WaitGroup
++		var mu sync.Mutex
++		wins, seqConflicts := 0, 0
++		for w := range 12 {
++			wg.Add(1)
++			go func() {
++				defer wg.Done()
++				err := store.PinObjectFenced(e.acc, v4(c, head, c2op(round*100+w), fmt.Sprint("r", round, "w", w)), ptr(e.object(round*100+w)).PinRequest())
++				mu.Lock()
++				defer mu.Unlock()
++				var ce *accounts.CASConflictError
++				switch {
++				case err == nil:
++					wins++
++				case errors.As(err, &ce) && ce.Kind == "seq" && ce.Seq != nil && *ce.Seq == head+1:
++					seqConflicts++
++				default:
++					t.Errorf("unexpected: %v", err)
++				}
++			}()
++		}
++		wg.Wait()
++		if wins != 1 || seqConflicts != 11 {
++			t.Fatalf("round %d: %d winners, %d seq conflicts", round, wins, seqConflicts)
++		}
++		// two IDENTICAL copies (a clone with copied RNG sending the identical operation): one applies, one replays
++		var replays, applied int
++		for range 2 {
++			wg.Add(1)
++			go func() {
++				defer wg.Done()
++				sf := v4(c, head+1, c2op(9000+round), fmt.Sprint("identical ", round))
++				err := store.PinObjectFenced(e.acc, sf, ptr(e.object(5000+round)).PinRequest())
++				mu.Lock()
++				defer mu.Unlock()
++				switch {
++				case err != nil:
++					t.Errorf("identical copy: %v", err)
++				case sf.CAS.Result.Replayed:
++					replays++
++				default:
++					applied++
++				}
++			}()
++		}
++		wg.Wait()
++		if applied != 1 || replays != 1 {
++			t.Fatalf("round %d: identical copies applied %d, replayed %d", round, applied, replays)
++		}
++	}
++	head, all := e.listAll(t, 1000)
++	if head != 10 || len(all) != 10 {
++		t.Fatalf("head %d, %d events: each head value was taken by exactly one operation", head, len(all))
++	}
++}
++
++func TestC2EnrolledRefusesV3OnEveryRoute(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	c := e.raiseMode(t, testFence(1, 1, 1), accounts.ModeCAS)
++	if err := store.PinObjectFenced(e.acc, v4(c, 0, c2op(1), "pin o1"), ptr(e.object(1)).PinRequest()); err != nil {
++		t.Fatal(err)
++	}
++	slab := e.newSlabParams()
++	sk := sharing.KeyRequest{PublicKey: types.GeneratePrivateKey().PublicKey(), Nonce: sharing.Nonce(frand.Bytes(32))}
++	v3 := c // the exact credential, v3 form (no CAS part)
++	before := e.accountState(t)
++	refusals := map[string]error{
++		"PinObject":          store.PinObjectFenced(e.acc, &v3, ptr(e.object(2)).PinRequest()),
++		"DeleteObject":       store.DeleteObjectFenced(e.acc, &v3, ptr(e.object(1)).ID()),
++		"PinSlabs":           func() error { _, err := store.PinSlabsFenced(e.acc, &v3, time.Time{}, slab); return err }(),
++		"UnpinSlab":          store.UnpinSlabFenced(e.acc, &v3, e.slab.Digest()),
++		"PruneSlabs":         store.PruneSlabsFenced(e.acc, &v3, time.Now()),
++		"AddSharingKey":      func() error { _, err := store.AddSharingKeyFenced(e.acc, &v3, sk); return err }(),
++		"DeleteSharingKey":   store.DeleteSharingKeyFenced(e.acc, &v3, sk.PublicKey),
++		"AddSharedObject":    store.AddSharedObjectFenced(e.acc, &v3, sk.PublicKey, sharing.SharedObjectRequest{ObjectID: ptr(e.object(1)).ID()}),
++		"DeleteSharedObject": store.DeleteSharedObjectFenced(e.acc, &v3, sk.PublicKey, ptr(e.object(1)).ID()),
++	}
++	for name, err := range refusals {
++		var ce *accounts.CASConflictError
++		if !errors.As(err, &ce) || ce.Kind != "mode" || ce.Mode != accounts.ModeCAS {
++			t.Fatalf("%s: expected a mode refusal, got %v", name, err)
++		}
++	}
++	if after := e.accountState(t); after != before {
++		t.Fatalf("a v3 mutation changed an enrolled account: %s -> %s", before, after)
++	}
++	// a stranger (wrong credential) still gets the FENCE refusal first, unchanged
++	assertFenced(t, store.PinObjectFenced(e.acc, nil, ptr(e.object(3)).PinRequest()), &c.Fence)
++	// non-advancing routes accept v4 without sq; with sq it is a precondition
++	nonAdv := c
++	nonAdv.CAS = &accounts.CASRequest{Op: c2op(7), Digest: c2digest("pin slab")}
++	if _, err := store.PinSlabsFenced(e.acc, &nonAdv, time.Time{}, slab); err != nil {
++		t.Fatalf("v4 pin slabs without sq: %v", err)
++	}
++	assertCAS(t, store.PruneSlabsFenced(e.acc, v4(c, 0, c2op(8), "prune"), time.Now()), "seq", u(1))
++	if err := store.PruneSlabsFenced(e.acc, v4(c, 1, c2op(9), "prune"), time.Now()); err != nil {
++		t.Fatalf("prune with the right head: %v", err)
++	}
++	// a head-advancing route in v4 form without sq is a request error
++	noSq := c
++	noSq.CAS = &accounts.CASRequest{Op: c2op(10), Digest: c2digest("x")}
++	if err := store.PinObjectFenced(e.acc, &noSq, ptr(e.object(4)).PinRequest()); !errors.Is(err, accounts.ErrCASSeqRequired) {
++		t.Fatalf("v4 pin without sq: %v", err)
++	}
++}
++
++func TestC2UnenrolledAndLegacyUnchanged(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	// unfenced account: stock behaviour
++	u0 := newFenceEnv(t, store)
++	if err := store.PinObject(u0.acc, ptr(u0.object(1)).PinRequest()); err != nil {
++		t.Fatal(err)
++	}
++	if st, _ := store.AccountFence(u0.acc); st.Mode != nil || st.Fence != nil {
++		t.Fatalf("unfenced account state %+v", st)
++	}
++	// fenced, NOT enrolled: v3 works, and v4 (optional) works too; mixing them is fine
++	e := newFenceEnv(t, store)
++	c := e.raise(t, testFence(1, 1, 1))
++	if err := store.PinObjectFenced(e.acc, &c, ptr(e.object(1)).PinRequest()); err != nil {
++		t.Fatalf("v3 on a fenced, unenrolled account: %v", err)
++	}
++	if err := store.PinObjectFenced(e.acc, v4(c, 1, c2op(1), "v4 pin"), ptr(e.object(2)).PinRequest()); err != nil {
++		t.Fatalf("v4 on an unenrolled account: %v", err)
++	}
++	if err := store.DeleteObjectFenced(e.acc, &c, ptr(e.object(1)).ID()); err != nil {
++		t.Fatalf("v3 after v4: %v", err)
++	}
++	if st, _ := store.AccountFence(e.acc); st.Mode != nil || st.Seq != 3 {
++		t.Fatalf("unenrolled state %+v", st)
++	}
++}
++
++func TestC2RaiseModeStickyAndClearsLastOp(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	f1 := testFence(1, 1, 1)
++	c1 := e.raiseMode(t, f1, accounts.ModeCAS)
++	if err := store.PinObjectFenced(e.acc, v4(c1, 0, c2op(1), "pin o1"), ptr(e.object(1)).PinRequest()); err != nil {
++		t.Fatal(err)
++	}
++	// a raise WITHOUT mode on an enrolled account is refused, and installs nothing
++	_, _, err := store.RaiseFence(e.acc, testFence(1, 2, 1), "")
++	assertCAS(t, err, "mode", nil)
++	if st, _ := store.AccountFence(e.acc); *st.Fence != f1 || st.LastOp == nil {
++		t.Fatal("a refused downgrade raise changed the fence or the operation record")
++	}
++	// a higher raise WITH mode: the new generation starts with NO operation record
++	f2 := testFence(1, 2, 1)
++	c2 := e.raiseMode(t, f2, accounts.ModeCAS)
++	st, _ := store.AccountFence(e.acc)
++	if st.LastOp != nil || st.LastOpDigest != nil || st.Seq != 1 || st.Mode == nil {
++		t.Fatalf("after the raise: %+v", st)
++	}
++	// the previous generation's operation, replayed under the NEW credential with the same head/op/digest: refused
++	assertCAS(t, store.PinObjectFenced(e.acc, v4(c2, 0, c2op(1), "pin o1"), ptr(e.object(1)).PinRequest()), "seq", u(1))
++	// and under the OLD credential: the fence refuses it
++	assertFenced(t, store.PinObjectFenced(e.acc, v4(c1, 0, c2op(1), "pin o1"), ptr(e.object(1)).PinRequest()), &f2)
++	// enrolment survives a restart (a fresh Store on the same database)
++	s2, err := NewStore(context.Background(), connectionInfoFromEnv(), contracts.DefaultMaintenanceSettings, hosts.DefaultUsabilitySettings, zap.NewNop())
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer s2.Close()
++	if st, _ := s2.AccountFence(e.acc); st.Mode == nil || *st.Mode != accounts.ModeCAS {
++		t.Fatal("enrolment did not survive a restart")
++	}
++	_, _, err = s2.RaiseFence(e.acc, testFence(1, 3, 1), "")
++	assertCAS(t, err, "mode", nil)
++	if err := s2.PinObjectFenced(e.acc, &c2, ptr(e.object(2)).PinRequest()); err == nil {
++		t.Fatal("v3 accepted after a restart")
++	}
++}
++
++func TestC2BlockUnblockRepairAndRollback(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	c := e.raiseMode(t, testFence(1, 1, 1), accounts.ModeCAS)
++	a, b := e.object(1), e.object(2)
++	if err := store.PinObjectFenced(e.acc, v4(c, 0, c2op(1), "pin a"), a.PinRequest()); err != nil {
++		t.Fatal(err)
++	}
++	st0, _ := store.AccountFence(e.acc)
++	// admin block/unblock and slab repair do not move the head or the operation record
++	if err := store.BlockObject(b.ID(), "admin"); err != nil {
++		t.Fatal(err)
++	}
++	if err := store.RecordSlabMigrated(e.slab.Digest()); err != nil {
++		t.Fatal(err)
++	}
++	// a CAS pin of the blocked key with the right head: 451, nothing applied, head and record unchanged
++	if err := store.PinObjectFenced(e.acc, v4(c, 1, c2op(2), "pin b"), b.PinRequest()); !errors.Is(err, slabs.ErrObjectBlocked) {
++		t.Fatalf("expected ErrObjectBlocked, got %v", err)
++	}
++	// a CAS pin whose slab is not pinned: refused AFTER the CAS check; the transaction rolls back completely
++	unpinned := e.newSlabParams()
++	bad := slabs.SealedObject{EncryptedDataKey: frand.Bytes(72), DataSignature: types.Signature(frand.Bytes(64)), MetadataSignature: types.Signature(frand.Bytes(64)),
++		Slabs: []slabs.SlabSlice{unpinned.Slice(0, 1)}}
++	if err := store.PinObjectFenced(e.acc, v4(c, 1, c2op(3), "pin bad"), bad.PinRequest()); !errors.Is(err, slabs.ErrObjectUnpinnedSlab) {
++		t.Fatalf("expected ErrObjectUnpinnedSlab, got %v", err)
++	}
++	if err := store.UnblockObject(b.ID()); err != nil {
++		t.Fatal(err)
++	}
++	st1, _ := store.AccountFence(e.acc)
++	if st1.Seq != st0.Seq || *st1.LastOp != *st0.LastOp || *st1.LastOpDigest != *st0.LastOpDigest {
++		t.Fatalf("admin actions or refused mutations moved the head or the record: %+v -> %+v", st0, st1)
++	}
++	// after the unblock the same head is still expected: the writer continues without any resync
++	if err := store.PinObjectFenced(e.acc, v4(c, 1, c2op(4), "pin b"), b.PinRequest()); err != nil {
++		t.Fatalf("pin after unblock: %v", err)
++	}
++	if head, all := e.listAll(t, 10); head != 2 || len(all) != 2 || all[0].Blocked || all[1].Blocked {
++		t.Fatalf("listing after unblock: head %d %+v", head, all)
++	}
++}
++
++// TestC2DownMigration applies migration/down-28-to-27.sql: refused while an account is enrolled, unless the operator
++// acknowledges in the session; then only the G-C2 columns go and db_version is 27.
++func TestC2DownMigration(t *testing.T) {
++	store := initPostgres(t, zap.NewNop())
++	e := newFenceEnv(t, store)
++	e.raiseMode(t, testFence(1, 1, 1), accounts.ModeCAS)
++	down, err := os.ReadFile("../../../migration/down-28-to-27.sql")
++	if err != nil {
++		t.Fatal(err)
++	}
++	ctx := context.Background()
++	conn, err := store.pool.Acquire(ctx)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer conn.Release()
++	run := func() error {
++		tx, err := conn.Begin(ctx)
++		if err != nil {
++			return err
++		}
++		if _, err := tx.Exec(ctx, string(down)); err != nil {
++			tx.Rollback(ctx)
++			return err
++		}
++		return tx.Commit(ctx)
++	}
++	if err := run(); err == nil {
++		t.Fatal("the down migration ran while an account is enrolled, without acknowledgement")
++	}
++	var v int
++	store.pool.QueryRow(ctx, `SELECT db_version FROM global_settings`).Scan(&v)
++	if v != 28 {
++		t.Fatalf("a refused down migration changed db_version to %d", v)
++	}
++	if _, err := conn.Exec(ctx, `SET indexd.allow_cas_downgrade = 'on'`); err != nil {
++		t.Fatal(err)
++	}
++	if err := run(); err != nil {
++		t.Fatalf("acknowledged down migration: %v", err)
++	}
++	var cols int
++	store.pool.QueryRow(ctx, `SELECT db_version FROM global_settings`).Scan(&v)
++	store.pool.QueryRow(ctx, `SELECT count(*) FROM information_schema.columns WHERE table_name='accounts' AND column_name IN ('last_op','last_op_digest','cas_mode')`).Scan(&cols)
++	var fenceCols int
++	store.pool.QueryRow(ctx, `SELECT count(*) FROM information_schema.columns WHERE table_name='accounts' AND column_name IN ('fence','fence_receipt','event_seq','seq_enabled','fence_pending')`).Scan(&fenceCols)
++	if v != 27 || cols != 0 || fenceCols != 5 {
++		t.Fatalf("after down: db_version %d, %d C2 columns, %d fence columns", v, cols, fenceCols)
++	}
++}
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/persist/postgres/fence.go indexd-c2-implementation/src/persist/postgres/fence.go
+--- indexd-replica-rollout/src/persist/postgres/fence.go	2026-10-19 23:34:04.122142142 -0700
++++ indexd-c2-implementation/src/persist/postgres/fence.go	2026-10-20 05:20:58.227279427 -0700
+@@ -27,6 +27,12 @@
+ 	id         int64
+ 	deleted    bool
+ 	seqEnabled bool
++	// G-C2
++	eventSeq     int64
++	casMode      bool
++	lastOp       []byte
++	lastOpDigest []byte
++	cas          *accounts.CASRequest // set when this mutation is a CAS-applied head advance: nextSeq records it
+ }
+ 
+ // lockAccount is the FIRST statement of every account mutation: it locks the account row (held to commit) and checks
+@@ -49,6 +55,12 @@
+ // compatible with KEY SHARE holders); from then on mutations lock FOR UPDATE and queue behind the raise, which only
+ // waits for the mutations already in flight.
+ func lockAccount(ctx context.Context, tx *txn, account proto.Account, sf *accounts.Credential) (lockedAccount, error) {
++	return lockAccountKind(ctx, tx, account, sf, false)
++}
++
++// lockAccountKind is lockAccount; advancing skips the non-advancing sq precondition (lockAccountAdvancing applies
++// the full CAS rules instead).
++func lockAccountKind(ctx context.Context, tx *txn, account proto.Account, sf *accounts.Credential, advancing bool) (lockedAccount, error) {
+ 	var fenced bool
+ 	err := tx.QueryRow(ctx, `SELECT fence IS NOT NULL OR fence_pending FROM accounts WHERE public_key = $1`, sqlPublicKey(account)).Scan(&fenced)
+ 	if errors.Is(err, sql.ErrNoRows) {
+@@ -56,13 +68,15 @@
+ 	} else if err != nil {
+ 		return lockedAccount{}, fmt.Errorf("failed to get account: %w", err)
+ 	}
+-	query := `SELECT id, deleted_at IS NOT NULL, fence, fence_receipt, seq_enabled FROM accounts WHERE public_key = $1 FOR KEY SHARE`
++	const cols = `id, deleted_at IS NOT NULL, fence, fence_receipt, seq_enabled, event_seq, cas_mode, last_op, last_op_digest`
++	query := `SELECT ` + cols + ` FROM accounts WHERE public_key = $1 FOR KEY SHARE`
+ 	if fenced {
+-		query = `SELECT id, deleted_at IS NOT NULL, fence, fence_receipt, seq_enabled FROM accounts WHERE public_key = $1 FOR UPDATE`
++		query = `SELECT ` + cols + ` FROM accounts WHERE public_key = $1 FOR UPDATE`
+ 	}
+ 	var la lockedAccount
+ 	var fence, receipt []byte
+-	err = tx.QueryRow(ctx, query, sqlPublicKey(account)).Scan(&la.id, &la.deleted, &fence, &receipt, &la.seqEnabled)
++	err = tx.QueryRow(ctx, query, sqlPublicKey(account)).Scan(&la.id, &la.deleted, &fence, &receipt, &la.seqEnabled,
++		&la.eventSeq, &la.casMode, &la.lastOp, &la.lastOpDigest)
+ 	if errors.Is(err, sql.ErrNoRows) {
+ 		return lockedAccount{}, accounts.ErrNotFound
+ 	} else if err != nil {
+@@ -74,9 +88,77 @@
+ 	if err := checkFence(fence, receipt, sf); err != nil {
+ 		return lockedAccount{}, err
+ 	}
++	// G-C2: an enrolled account accepts ONLY v4 requests (after the fence check: a stranger still gets 409)
++	var cas *accounts.CASRequest
++	if sf != nil {
++		cas = sf.CAS
++	}
++	if la.casMode && cas == nil {
++		cur := currentFence(fence)
++		return lockedAccount{}, &accounts.CASConflictError{Kind: "mode", Mode: accounts.ModeCAS, Current: cur}
++	}
++	// a v4 request with sq on a non-advancing route: a precondition only (the head does not move)
++	if !advancing && cas != nil && cas.HasSq {
++		if !la.seqEnabled {
++			return lockedAccount{}, &accounts.CASConflictError{Kind: "seq", Current: currentFence(fence)}
++		} else if uint64(la.eventSeq) != cas.Sq {
++			n := uint64(la.eventSeq)
++			return lockedAccount{}, &accounts.CASConflictError{Kind: "seq", Seq: &n, Current: currentFence(fence)}
++		}
++	}
+ 	return la, nil
+ }
+ 
++// lockAccountAdvancing is lockAccount for the two mutations that advance the account head (POST /objects and
++// DELETE /objects/:key). With a v4 request it applies the CAS rules (interface section 4) BEFORE any side effect:
++//
++//	event_seq == sq                                   -> proceed; nextSeq records op and digest with the new head
++//	event_seq == sq+1, last_op == op, digest equal    -> replay: return replay=true, apply nothing
++//	event_seq == sq+1, last_op == op, digest differs  -> CASConflictError{"op"}
++//	otherwise                                         -> CASConflictError{"seq"}
++func lockAccountAdvancing(ctx context.Context, tx *txn, account proto.Account, sf *accounts.Credential) (la lockedAccount, replay bool, err error) {
++	var cas *accounts.CASRequest
++	if sf != nil {
++		cas = sf.CAS
++	}
++	if cas != nil && !cas.HasSq {
++		return lockedAccount{}, false, accounts.ErrCASSeqRequired
++	}
++	la, err = lockAccountKind(ctx, tx, account, sf, true)
++	if err != nil {
++		return lockedAccount{}, false, err
++	}
++	if cas == nil {
++		return la, false, nil
++	}
++	cur := func() *accounts.Fence { f := sf.Fence; return &f }
++	head := uint64(la.eventSeq)
++	switch {
++	case !la.seqEnabled:
++		return lockedAccount{}, false, &accounts.CASConflictError{Kind: "seq", Current: cur()}
++	case head == cas.Sq:
++		la.cas = cas
++		return la, false, nil
++	case head == cas.Sq+1 && la.lastOp != nil && subtle.ConstantTimeCompare(la.lastOp, cas.Op[:]) == 1:
++		if subtle.ConstantTimeCompare(la.lastOpDigest, cas.Digest[:]) == 1 {
++			cas.Result.Seq, cas.Result.Replayed = head, true
++			return la, true, nil
++		}
++		return lockedAccount{}, false, &accounts.CASConflictError{Kind: "op", Seq: &head, Current: cur()}
++	default:
++		return lockedAccount{}, false, &accounts.CASConflictError{Kind: "seq", Seq: &head, Current: cur()}
++	}
++}
++
++func currentFence(installed []byte) *accounts.Fence {
++	if installed == nil {
++		return nil
++	}
++	var f accounts.Fence
++	copy(f[:], installed)
++	return &f
++}
++
+ // checkFence compares the installed fence and receipt (nil: none) with the request's credential (nil: absent):
+ // exact equality of both only.
+ func checkFence(installed, receipt []byte, sf *accounts.Credential) error {
+@@ -103,6 +185,15 @@
+ 		return nil, nil
+ 	}
+ 	var n int64
++	if la.cas != nil {
++		// G-C2: the head advance and the operation record commit in the same transaction as the mutation
++		if err := tx.QueryRow(ctx, `UPDATE accounts SET event_seq = event_seq + 1, last_op = $2, last_op_digest = $3 WHERE id = $1 RETURNING event_seq`,
++			la.id, la.cas.Op[:], la.cas.Digest[:]).Scan(&n); err != nil {
++			return nil, fmt.Errorf("failed to advance event sequence: %w", err)
++		}
++		la.cas.Result.Seq, la.cas.Result.Replayed = uint64(n), false
++		return &n, nil
++	}
+ 	if err := tx.QueryRow(ctx, `UPDATE accounts SET event_seq = event_seq + 1 WHERE id = $1 RETURNING event_seq`, la.id).Scan(&n); err != nil {
+ 		return nil, fmt.Errorf("failed to advance event sequence: %w", err)
+ 	}
+@@ -113,15 +204,28 @@
+ // sequence head.
+ func (s *Store) AccountFence(account proto.Account) (st accounts.FenceState, err error) {
+ 	err = s.transaction(func(ctx context.Context, tx *txn) error {
+-		var raw, receipt []byte
++		var raw, receipt, lastOp, lastDigest []byte
+ 		var seq int64
+-		err := tx.QueryRow(ctx, `SELECT fence, fence_receipt, event_seq FROM accounts WHERE public_key = $1 AND deleted_at IS NULL`, sqlPublicKey(account)).Scan(&raw, &receipt, &seq)
++		var casMode bool
++		err := tx.QueryRow(ctx, `SELECT fence, fence_receipt, event_seq, last_op, last_op_digest, cas_mode FROM accounts WHERE public_key = $1 AND deleted_at IS NULL`,
++			sqlPublicKey(account)).Scan(&raw, &receipt, &seq, &lastOp, &lastDigest, &casMode)
+ 		if errors.Is(err, sql.ErrNoRows) {
+ 			return accounts.ErrNotFound
+ 		} else if err != nil {
+ 			return fmt.Errorf("failed to get fence: %w", err)
+ 		}
+-		st = accounts.FenceState{Seq: uint64(seq)}
++		st = accounts.FenceState{Seq: uint64(seq), Capabilities: accounts.Capabilities}
++		if lastOp != nil {
++			var o accounts.OpID
++			var d accounts.OpDigest
++			copy(o[:], lastOp)
++			copy(d[:], lastDigest)
++			st.LastOp, st.LastOpDigest = &o, &d
++		}
++		if casMode {
++			m := accounts.ModeCAS
++			st.Mode = &m
++		}
+ 		if raw != nil {
+ 			var f accounts.Fence
+ 			copy(f[:], raw)
+@@ -138,7 +242,14 @@
+ // equal raise may come from a second process holding the same ballot, so it must not obtain a receipt (a raise whose
+ // response was lost is retried with a higher counter). On the first install the account's existing object events
+ // are numbered (backfill) and the sequence is enabled. It returns the receipt and the event sequence head.
+-func (s *Store) RaiseFence(account proto.Account, fence accounts.Fence) (receipt accounts.Receipt, head uint64, err error) {
++//
++// G-C2: mode "cas" enrols the account (sticky: cas_mode is never cleared). On an enrolled account a raise without
++// mode "cas" is refused (CASConflictError{"mode"}). Every install clears last_op/last_op_digest, so no operation of an
++// earlier generation can be replayed under the new one.
++func (s *Store) RaiseFence(account proto.Account, fence accounts.Fence, mode string) (receipt accounts.Receipt, head uint64, err error) {
++	if mode != "" && mode != accounts.ModeCAS {
++		return accounts.Receipt{}, 0, fmt.Errorf("unknown fence mode %q", mode)
++	}
+ 	if err := fence.Validate(); err != nil {
+ 		return accounts.Receipt{}, 0, err
+ 	}
+@@ -152,11 +263,11 @@
+ 	}
+ 	err = s.transaction(func(ctx context.Context, tx *txn) error {
+ 		var id int64
+-		var deleted, seqEnabled bool
++		var deleted, seqEnabled, casMode bool
+ 		var raw []byte
+ 		var seq int64
+-		err := tx.QueryRow(ctx, `SELECT id, deleted_at IS NOT NULL, fence, event_seq, seq_enabled FROM accounts WHERE public_key = $1 FOR UPDATE`,
+-			sqlPublicKey(account)).Scan(&id, &deleted, &raw, &seq, &seqEnabled)
++		err := tx.QueryRow(ctx, `SELECT id, deleted_at IS NOT NULL, fence, event_seq, seq_enabled, cas_mode FROM accounts WHERE public_key = $1 FOR UPDATE`,
++			sqlPublicKey(account)).Scan(&id, &deleted, &raw, &seq, &seqEnabled, &casMode)
+ 		if errors.Is(err, sql.ErrNoRows) {
+ 			return accounts.ErrNotFound
+ 		} else if err != nil {
+@@ -171,6 +282,9 @@
+ 				return &accounts.FencedError{Current: &cur}
+ 			}
+ 		}
++		if casMode && mode != accounts.ModeCAS {
++			return &accounts.CASConflictError{Kind: "mode", Mode: accounts.ModeCAS, Current: currentFence(raw)} // no downgrade
++		}
+ 		if !seqEnabled {
+ 			// number every existing event of the account (no mutation can run concurrently: they all wait for the
+ 			// account row this transaction holds)
+@@ -194,7 +308,8 @@
+ 		if _, err := rand.Read(receipt[:]); err != nil {
+ 			return fmt.Errorf("failed to generate receipt: %w", err)
+ 		}
+-		if _, err := tx.Exec(ctx, `UPDATE accounts SET fence = $1, fence_receipt = $2, event_seq = $3, seq_enabled = TRUE, fence_pending = FALSE WHERE id = $4`, fence[:], receipt[:], seq, id); err != nil {
++		if _, err := tx.Exec(ctx, `UPDATE accounts SET fence = $1, fence_receipt = $2, event_seq = $3, seq_enabled = TRUE, fence_pending = FALSE,
++			last_op = NULL, last_op_digest = NULL, cas_mode = cas_mode OR $5 WHERE id = $4`, fence[:], receipt[:], seq, id, mode == accounts.ModeCAS); err != nil {
+ 			return fmt.Errorf("failed to install fence: %w", err)
+ 		}
+ 		head = uint64(seq)
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/persist/postgres/fence_test.go indexd-c2-implementation/src/persist/postgres/fence_test.go
+--- indexd-replica-rollout/src/persist/postgres/fence_test.go	2026-10-19 23:43:53.062062992 -0700
++++ indexd-c2-implementation/src/persist/postgres/fence_test.go	2026-10-20 05:22:37.933999634 -0700
+@@ -96,7 +96,7 @@
+ 
+ func (e *fenceEnv) raise(t *testing.T, f accounts.Fence) accounts.Credential {
+ 	t.Helper()
+-	r, _, err := e.store.RaiseFence(e.acc, f)
++	r, _, err := e.store.RaiseFence(e.acc, f, "")
+ 	if err != nil {
+ 		t.Fatalf("raise %v: %v", f, err)
+ 	}
+@@ -177,12 +177,12 @@
+ 	}
+ 	// non-canonical: top bit of gen, top bit of counter
+ 	for _, f := range []accounts.Fence{testFence(1<<63, 0, 1), testFence(1, 1<<63, 1)} {
+-		if _, _, err := store.RaiseFence(e.acc, f); !errors.Is(err, accounts.ErrNonCanonicalFence) {
++		if _, _, err := store.RaiseFence(e.acc, f, ""); !errors.Is(err, accounts.ErrNonCanonicalFence) {
+ 			t.Fatalf("expected ErrNonCanonicalFence, got %v", err)
+ 		}
+ 	}
+ 	// unknown account
+-	if _, _, err := store.RaiseFence(proto.Account{9, 9}, testFence(1, 1, 1)); !errors.Is(err, accounts.ErrNotFound) {
++	if _, _, err := store.RaiseFence(proto.Account{9, 9}, testFence(1, 1, 1), ""); !errors.Is(err, accounts.ErrNotFound) {
+ 		t.Fatalf("expected ErrNotFound, got %v", err)
+ 	}
+ 
+@@ -193,14 +193,14 @@
+ 		t.Fatalf("after raise: %+v %v", st, err)
+ 	}
+ 	// equal raise is refused and issues no receipt (the lost-response / clone case)
+-	if r, _, err := store.RaiseFence(e.acc, f1); err == nil {
++	if r, _, err := store.RaiseFence(e.acc, f1, ""); err == nil {
+ 		t.Fatalf("equal raise accepted, receipt %x", r)
+ 	} else {
+ 		assertFenced(t, err, &f1)
+ 	}
+ 	// every lower token is refused: lower gen, lower counter, lower iid
+ 	for _, f := range []accounts.Fence{testFence(15<<48, 99, 0xff), testFence(16<<48, 4, 0xff), testFence(16<<48, 5, 0x0f)} {
+-		_, _, err := store.RaiseFence(e.acc, f)
++		_, _, err := store.RaiseFence(e.acc, f, "")
+ 		assertFenced(t, err, &f1)
+ 	}
+ 	if st2, _ := store.AccountFence(e.acc); *st2.ReceiptSHA256 != *st.ReceiptSHA256 {
+@@ -228,7 +228,7 @@
+ 	if err := store.DeleteAccount(other.acc); err != nil {
+ 		t.Fatal(err)
+ 	}
+-	if _, _, err := store.RaiseFence(other.acc, testFence(17<<48, 0, 0)); !errors.Is(err, accounts.ErrNotFound) {
++	if _, _, err := store.RaiseFence(other.acc, testFence(17<<48, 0, 0), ""); !errors.Is(err, accounts.ErrNotFound) {
+ 		t.Fatalf("expected ErrNotFound for a deleted account, got %v", err)
+ 	}
+ }
+@@ -251,7 +251,7 @@
+ 			wg.Add(1)
+ 			go func() {
+ 				defer wg.Done()
+-				r, _, err := store.RaiseFence(e.acc, f)
++				r, _, err := store.RaiseFence(e.acc, f, "")
+ 				if err == nil {
+ 					creds[i] = &accounts.Credential{Fence: f, Receipt: r}
+ 				}
+@@ -437,7 +437,7 @@
+ 	}
+ 
+ 	f := testFence(16<<48, 1, 7)
+-	_, head, err := store.RaiseFence(e.acc, f)
++	_, head, err := store.RaiseFence(e.acc, f, "")
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	} else if head != 6 {
+@@ -686,7 +686,7 @@
+ 			}()
+ 		}
+ 		time.Sleep(time.Duration(20+round*15) * time.Millisecond)
+-		_, head, err := store.RaiseFence(e.acc, newF)
++		_, head, err := store.RaiseFence(e.acc, newF, "")
+ 		if err != nil {
+ 			t.Fatal(err)
+ 		}
+@@ -757,7 +757,7 @@
+ 		}
+ 		time.Sleep(time.Duration(10+round*10) * time.Millisecond)
+ 		start := time.Now()
+-		_, head, err := store.RaiseFence(e.acc, f)
++		_, head, err := store.RaiseFence(e.acc, f, "")
+ 		if err != nil {
+ 			t.Fatal(err)
+ 		} else if took := time.Since(start); took > 2*time.Second {
+@@ -999,7 +999,7 @@
+ 	for countPins() == start && time.Now().Before(deadline) {
+ 		time.Sleep(time.Millisecond)
+ 	}
+-	if _, _, err := store.RaiseFence(e.acc, newF); err != nil {
++	if _, _, err := store.RaiseFence(e.acc, newF, ""); err != nil {
+ 		t.Fatal(err)
+ 	}
+ 	atRaise := countPins()
+@@ -1115,10 +1115,10 @@
+ 	}
+ 
+ 	lost := testFence(17<<48, 2, 9)
+-	if _, head, err := store.RaiseFence(e.acc, lost); err != nil || head != 1 {
++	if _, head, err := store.RaiseFence(e.acc, lost, ""); err != nil || head != 1 {
+ 		t.Fatalf("raise: head %d err %v", head, err)
+ 	} // the answer is dropped here: the writer never learns the receipt
+-	_, _, err := store.RaiseFence(e.acc, lost)
++	_, _, err := store.RaiseFence(e.acc, lost, "")
+ 	assertFenced(t, err, &lost)
+ 	for _, guess := range []accounts.Credential{{Fence: lost}, {Fence: lost, Receipt: c0.Receipt}} {
+ 		assertFenced(t, store.PinObjectFenced(e.acc, &guess, ptr(e.object(2)).PinRequest()), &lost)
+@@ -1126,7 +1126,7 @@
+ 	assertFenced(t, store.PinObjectFenced(e.acc, &c0, ptr(e.object(2)).PinRequest()), &lost)
+ 
+ 	next := testFence(17<<48, 3, 9)
+-	r, head, err := store.RaiseFence(e.acc, next)
++	r, head, err := store.RaiseFence(e.acc, next, "")
+ 	if err != nil || head != 1 {
+ 		t.Fatalf("recovery raise: head %d err %v", head, err)
+ 	}
+@@ -1184,7 +1184,7 @@
+ 	raiseDone := make(chan raised, 1)
+ 	f := testFence(1, 1, 1)
+ 	go func() {
+-		_, head, err := store.RaiseFence(e.acc, f)
++		_, head, err := store.RaiseFence(e.acc, f, "")
+ 		raiseDone <- raised{head, err}
+ 	}()
+ 	select {
+@@ -1256,7 +1256,7 @@
+ 	}
+ 	raiseDone := make(chan raised, 1)
+ 	go func() {
+-		_, head, err := store.RaiseFence(e.acc, testFence(1, 1, 1))
++		_, head, err := store.RaiseFence(e.acc, testFence(1, 1, 1), "")
+ 		raiseDone <- raised{head, err}
+ 	}()
+ 	select {
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/persist/postgres/init.sql indexd-c2-implementation/src/persist/postgres/init.sql
+--- indexd-replica-rollout/src/persist/postgres/init.sql	2026-10-19 23:34:04.121863133 -0700
++++ indexd-c2-implementation/src/persist/postgres/init.sql	2026-10-20 05:22:28.557713950 -0700
+@@ -686,3 +686,11 @@
+ ALTER TABLE object_events ADD COLUMN seq BIGINT CHECK (seq IS NULL OR seq > 0);
+ -- one position per account and seq: a seq can never be handed out twice
+ CREATE UNIQUE INDEX object_events_account_id_seq_idx ON object_events(account_id, seq) WHERE seq IS NOT NULL;
++
++-- G-C2 (work/indexd-c2-implementation-interface.txt): conditional head with an exact-operation record, and a sticky
++-- enrolment. Accounts that never enrol keep cas_mode FALSE and last_op NULL, and behave exactly as before.
++ALTER TABLE accounts ADD COLUMN last_op BYTEA CHECK (last_op IS NULL OR LENGTH(last_op) = 16);
++ALTER TABLE accounts ADD COLUMN last_op_digest BYTEA CHECK (last_op_digest IS NULL OR LENGTH(last_op_digest) = 32);
++ALTER TABLE accounts ADD CONSTRAINT accounts_last_op_pair CHECK ((last_op IS NULL) = (last_op_digest IS NULL));
++ALTER TABLE accounts ADD COLUMN cas_mode BOOLEAN NOT NULL DEFAULT FALSE;
++ALTER TABLE accounts ADD CONSTRAINT accounts_cas_needs_fence CHECK (fence IS NOT NULL OR NOT cas_mode);
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/persist/postgres/migrations.go indexd-c2-implementation/src/persist/postgres/migrations.go
+--- indexd-replica-rollout/src/persist/postgres/migrations.go	2026-10-19 23:34:04.122032473 -0700
++++ indexd-c2-implementation/src/persist/postgres/migrations.go	2026-10-20 05:22:28.566716171 -0700
+@@ -530,4 +530,15 @@
+ CREATE UNIQUE INDEX object_events_account_id_seq_idx ON object_events(account_id, seq) WHERE seq IS NOT NULL;`)
+ 		return err
+ 	},
++	// G-C2: conditional head + exact-operation record + sticky enrolment (see init.sql)
++	func(ctx context.Context, tx *txn, log *zap.Logger) error {
++		_, err := tx.Exec(ctx, `-- G-C2 (work/indexd-c2-implementation-interface.txt): conditional head with an exact-operation record, and a sticky
++-- enrolment. Accounts that never enrol keep cas_mode FALSE and last_op NULL, and behave exactly as before.
++ALTER TABLE accounts ADD COLUMN last_op BYTEA CHECK (last_op IS NULL OR LENGTH(last_op) = 16);
++ALTER TABLE accounts ADD COLUMN last_op_digest BYTEA CHECK (last_op_digest IS NULL OR LENGTH(last_op_digest) = 32);
++ALTER TABLE accounts ADD CONSTRAINT accounts_last_op_pair CHECK ((last_op IS NULL) = (last_op_digest IS NULL));
++ALTER TABLE accounts ADD COLUMN cas_mode BOOLEAN NOT NULL DEFAULT FALSE;
++ALTER TABLE accounts ADD CONSTRAINT accounts_cas_needs_fence CHECK (fence IS NOT NULL OR NOT cas_mode);`)
++		return err
++	},
+ }
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/persist/postgres/objects.go indexd-c2-implementation/src/persist/postgres/objects.go
+--- indexd-replica-rollout/src/persist/postgres/objects.go	2026-10-19 22:27:59.240639118 -0700
++++ indexd-c2-implementation/src/persist/postgres/objects.go	2026-10-20 05:21:14.879595060 -0700
+@@ -324,9 +324,11 @@
+ // fence checked first; with the sequence enabled the deletion gets the next seq.
+ func (s *Store) DeleteObjectFenced(account proto.Account, sf *accounts.Credential, objectKey types.Hash256) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		la, err := lockAccount(ctx, tx, account, sf)
++		la, replay, err := lockAccountAdvancing(ctx, tx, account, sf)
+ 		if err != nil {
+ 			return err
++		} else if replay {
++			return nil // G-C2: the identical operation was already applied; apply nothing
+ 		}
+ 		accountID := la.id
+ 
+@@ -420,12 +422,14 @@
+ // checked first; with the sequence enabled the object's event gets the next seq.
+ func (s *Store) PinObjectFenced(account proto.Account, sf *accounts.Credential, obj slabs.PinObjectRequest) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		la, err := lockAccount(ctx, tx, account, sf)
++		la, replay, err := lockAccountAdvancing(ctx, tx, account, sf)
+ 		accountID, deleted := la.id, la.deleted
+ 		if err != nil {
+ 			return err
+ 		} else if deleted {
+ 			return accounts.ErrNotFound
++		} else if replay {
++			return nil // G-C2: the identical operation was already applied; apply nothing
+ 		}
+ 
+ 		if err := assertObjectNotBlocked(ctx, tx, obj.ID); err != nil {
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/slabs/manager.go indexd-c2-implementation/src/slabs/manager.go
+--- indexd-replica-rollout/src/slabs/manager.go	2026-10-20 00:09:42.876125389 -0700
++++ indexd-c2-implementation/src/slabs/manager.go	2026-10-20 05:21:21.274664642 -0700
+@@ -147,7 +147,7 @@
+ 		DeleteObjectFenced(account proto.Account, sf *accounts.Credential, objectKey types.Hash256) error
+ 		AccountFence(account proto.Account) (accounts.FenceState, error)
+ 		ListCurrentObjects(account proto.Account, after types.Hash256, limit int, includeBlocked bool) ([]CurrentObjectEvent, error)
+-		RaiseFence(account proto.Account, fence accounts.Fence) (accounts.Receipt, uint64, error)
++		RaiseFence(account proto.Account, fence accounts.Fence, mode string) (accounts.Receipt, uint64, error)
+ 		ListObjectsSeq(account proto.Account, after uint64, limit int) (uint64, []SeqObjectEvent, error)
+ 
+ 		// Object methods
+diff -ruN '--exclude=GeoLite2-City.mmdb' indexd-replica-rollout/src/slabs/seq.go indexd-c2-implementation/src/slabs/seq.go
+--- indexd-replica-rollout/src/slabs/seq.go	2026-10-19 22:29:25.875078256 -0700
++++ indexd-c2-implementation/src/slabs/seq.go	2026-10-20 05:21:21.276573058 -0700
+@@ -47,8 +47,8 @@
+ 
+ // RaiseFence installs a writer fence that is strictly greater than the installed one (equal or lower: FencedError)
+ // and returns its fresh receipt and the event sequence head.
+-func (m *SlabManager) RaiseFence(ctx context.Context, account proto.Account, fence accounts.Fence) (accounts.Receipt, uint64, error) {
+-	return m.store.RaiseFence(account, fence)
++func (m *SlabManager) RaiseFence(ctx context.Context, account proto.Account, fence accounts.Fence, mode string) (accounts.Receipt, uint64, error) {
++	return m.store.RaiseFence(account, fence, mode)
+ }
+ 
+ // ListObjectsSeq returns one page of the account's commit-ordered object sequence after `after`, with the head.

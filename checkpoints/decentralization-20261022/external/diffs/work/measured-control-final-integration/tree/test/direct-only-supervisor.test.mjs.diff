@@ -1,0 +1,14 @@
+--- a/test/direct-only-supervisor.test.mjs
++++ b/test/direct-only-supervisor.test.mjs
+@@ -38,7 +38,10 @@
+     ISOLATION_DIRECT_ONLY:'1',ISOLATION_BACKEND:tier,PROVISION_BACKEND:'vm',ENCLAVE_CONTRACT_PINS_FILE:file,ADDRESS_BOOK_ADDRESS:'',
+     SECRETS_API:'',DOMAINS_API:'',CERTS_API:'',DNS_API:'',APP_CERT_DOMAIN:'',
+     GUEST_BOOTSTRAP_GATEWAYS:`${A},${B}`,IPFS_GATEWAY:JSON.stringify([A,B].map(g=>new URL(g).origin)),
+-    REGISTRY_ENABLED:'1',REGISTRY_PRIVATE_KEY:'0x'+'01'.repeat(32),ENCLAVE_REPO:'independent/host',CLAIM_ENABLED:'1',...extra};
++    REGISTRY_ENABLED:'1',REGISTRY_PRIVATE_KEY:'0x'+'01'.repeat(32),ENCLAVE_REPO:'independent/host',CLAIM_ENABLED:'1',
++    // direct mode reads only through a quorum of the operator's RPCs (network/direct-chain.mjs); this suite scripts every
++    // read, so these two loopback origins are never asked (test/direct-chain-quorum-supervisor.test.mjs reads for real)
++    BASE_RPCS:'http://127.0.0.1:9,http://127.0.0.1:10',CHAIN_QUORUM:'2',...extra};
+ }
+ async function run(t,config,extra){
+   const {stdout}=await exec(process.execPath,['supervisor.js'],{cwd:new URL('..',import.meta.url),timeout:60000,

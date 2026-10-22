@@ -1,0 +1,22 @@
+# main-branch GovernanceSeal suites (sealing compatibility) against the candidate ledger. One profile, runs 1.
+
+[profile.default]
+src = "contracts/foundry/test/mocks"   # only what each test imports is compiled (memory: see ../out-guard.log)
+test = "contracts/foundry/test"
+out = "out"
+cache_path = "cache"
+libs = ["contracts/foundry/lib"]
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 1
+via_ir = true
+offline = true
+fs_permissions = [{ access = "read", path = "contracts/foundry/test/fixtures" }]
+
+[fuzz]
+runs = 256
+
+[invariant]
+runs = 32
+depth = 32
+fail_on_revert = false

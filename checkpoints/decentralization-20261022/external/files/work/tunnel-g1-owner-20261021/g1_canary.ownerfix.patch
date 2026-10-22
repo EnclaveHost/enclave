@@ -1,0 +1,87 @@
+--- evidence/g1_canary.68e313f0.py	2026-10-21 15:29:42.352063412 -0700
++++ g1_canary.py	2026-10-21 15:32:22.165892274 -0700
+@@ -120,7 +120,8 @@
+ 
+ def s_watch(want, seconds):
+     """want: {sha256(encoded command): role}. Only processes whose -EncodedCommand hashes to one of these are recorded.
+-    PowerShell variables are case-insensitive: the hex result is $hx, never $h, which IS $H (the SHA256 object)."""
++    PowerShell variables are case-insensitive: the hex result is $hx, never $h, which IS $H (the SHA256 object).
++    GetOwner is never swallowed: ReturnValue (orc), error id|type (oerr), alive-at-call and ppid are kept per hit."""
+     return ("$G1='watch';$want=@{" + ";".join(f"'{h}'='{r}'" for h, r in want.items()) + "};$end=(Get-Date).AddSeconds(" + str(int(seconds)) + ");"
+             "$H=[Security.Cryptography.SHA256]::Create();$done=@{};"
+             "$o=[ordered]@{from=[DateTime]::UtcNow.ToString('o');polls=0;checked=0;hits=@()};$seen=@{};$gone=@{};"
+@@ -130,15 +131,31 @@
+             "$c=Get-CimInstance Win32_Process -Filter \"ProcessId=$($p.Id)\" -OperationTimeoutSec 5 -ErrorAction SilentlyContinue;if(-not $c){continue};"
+             "$m=[regex]::Match([string]$c.CommandLine,'-EncodedCommand\\s+(\\S+)');if(-not $m.Success){continue};"
+             "$hx=-join($H.ComputeHash([Text.Encoding]::ASCII.GetBytes($m.Groups[1].Value))|%{$_.ToString('x2')});if(-not $want.ContainsKey($hx)){continue};"
+-            "$w=$null;try{$w=Invoke-CimMethod -InputObject $c -MethodName GetOwner -OperationTimeoutSec 5}catch{};"
++            "$w=$null;$x=$null;$al=$(try{-not $p.HasExited}catch{$null});"
++            "try{$w=Invoke-CimMethod -InputObject $c -MethodName GetOwner -OperationTimeoutSec 5}catch{$x=[string]$_.FullyQualifiedErrorId+'|'+$_.Exception.GetType().Name};"
+             "$pp=Get-CimInstance Win32_Process -Filter \"ProcessId=$($c.ParentProcessId)\" -OperationTimeoutSec 5 -ErrorAction SilentlyContinue;$seen[$want[$hx]]=$p;"
+             "$o.hits+=[ordered]@{role=$want[$hx];pid=[int]$c.ProcessId;created=$c.CreationDate.ToUniversalTime().ToString('o');session=[int]$c.SessionId;"
+             "exe=[string]$c.ExecutablePath;owner=$(if($w -and $w.User){[string]$w.Domain+'\\'+[string]$w.User}else{$null});"
++            "orc=$(if($w){[int]$w.ReturnValue}else{$null});otype=$(if($w){$w.GetType().Name}else{$null});oerr=$x;alive=$al;ppid=[int]$c.ParentProcessId;"
+             "parent=[string]$pp.Name;parentSchedule=([string]$pp.CommandLine -match '\\s-s\\s+Schedule(\\s|$)')}};"
+             "foreach($r in @($seen.Keys)){try{if($seen[$r].HasExited){$gone[$r]=1}}catch{$gone[$r]=1}};if($gone.Count -ge $want.Count){break};Start-Sleep -Milliseconds 100};"
+             "$o.to=[DateTime]::UtcNow.ToString('o')")
+ 
+ 
++def s_trace(seconds):
++    """race-free token proof, its own session (the watcher is at the transport limit): the kernel's Win32_ProcessStartTrace
++    SID - the token user captured AT CREATION - for powershell.exe started by the Schedule service's svchost ONLY (pid,
++    ppid, sid; no command line). A temporary subscription bound to this session, unregistered at the end."""
++    return ("$G1='trace';$end=(Get-Date).AddSeconds(" + str(int(seconds)) + ");$o=[ordered]@{from=[DateTime]::UtcNow.ToString('o');sched=$null;on=$null;starts=@()};"
++            "$o.sched=[int](Get-CimInstance Win32_Service -Filter \"Name='Schedule'\" -OperationTimeoutSec 10).ProcessId;"
++            "try{Register-CimIndicationEvent -Query \"SELECT * FROM Win32_ProcessStartTrace WHERE ProcessName='powershell.exe'\" -SourceIdentifier G1T -OperationTimeoutSec 10;$o.on=$true}"
++            "catch{$o.on=[string]$_.FullyQualifiedErrorId};"
++            "while((Get-Date) -lt $end){foreach($e in @(Get-Event -SourceIdentifier G1T -ErrorAction SilentlyContinue)){$n=$e.SourceEventArgs.NewEvent;"
++            "Remove-Event -EventIdentifier $e.EventIdentifier;if([int]$n.ParentProcessID -ne $o.sched){continue};"
++            "$o.starts+=[ordered]@{pid=[int]$n.ProcessID;ppid=[int]$n.ParentProcessID;sid=$(try{(New-Object Security.Principal.SecurityIdentifier([byte[]]$n.Sid,0)).Value}catch{$null})}};"
++            "Start-Sleep -Milliseconds 250};try{Unregister-Event -SourceIdentifier G1T}catch{};$o.to=[DateTime]::UtcNow.ToString('o')")
++
++
+ def s_collect(name, d):
+     rp = ("$x=[ordered]@{owner=(Get-Acl -LiteralPath $f).GetOwner($S).Value;created=(Get-Item -LiteralPath $f).CreationTimeUtc.ToString('o')};")
+     return ("$G1='collect';$n='" + q(name) + "';$d='" + q(d) + "';$S=[Security.Principal.SecurityIdentifier];"
+@@ -231,7 +248,7 @@
+     R = P["roles"]; out = {"pre": s_pre(P["stageRoot"], P["outer"], P["prefix"], P["winUser"]),
+                            "stage": s_stage([P["outer"]] + [p for r in R.values() for p in (r["dir"], r["dir"] + "\\params.json", r["dir"] + "\\tunnel-receiver.ps1")]),
+                            "tamper": s_tamper(R["n"]["dir"] + "\\params.json", base64.b64decode(R["n"]["tamperedB64"])),
+-                           "watch": s_watch({r["encSha"]: k for k, r in R.items()}, P["watchSec"]),
++                           "watch": s_watch({r["encSha"]: k for k, r in R.items()}, P["watchSec"]), "trace": s_trace(P["watchSec"]),
+                            "events": s_events(P["prefix"], "2026-01-01T00:00:00Z"), "verify": s_verify(P["prefix"], P["outer"], P["winUser"])}
+     for k, r in R.items():
+         out[f"inspect-{k}"] = s_inspect(r["task"]); out[f"collect-{k}"] = s_collect(r["task"], r["dir"]); out[f"stop-{k}"] = s_stop(r["task"])
+@@ -414,12 +431,14 @@
+     ev["window"] = {"triggerLatestUtc": utc(trig)}
+     ev["window"]["watcherCoversUntilLocal"] = utc(CLOCK["now"]() + P["watchSec"]); ev["window"]["triggerLatestLocal"] = utc(trig - skew)
+     if trig - skew < CLOCK["now"]() + P["leadSec"]: ev["window"]["late"] = "the triggers may fire before the watcher polls (slow steps)"
+-    box = {}; ready = threading.Event()
++    box = {}; ready = threading.Event(); tready = threading.Event()
++    def trace(): tready.set(); box.update(t=c.ps("trace", S["trace"], secs=P["watchSec"] + 60))
+     def watch(): ready.set(); box.update(r=c.ps("watch", S["watch"], secs=P["watchSec"] + 60))
++    tt = threading.Thread(target=trace); tt.start(); tready.wait()
+     w = threading.Thread(target=watch); w.start(); ready.wait()
+     CLOCK["sleep"](P["leadSec"])          # the watcher's SSH + PowerShell start-up (2-5 s seen) before s may run
+     if not ev["tasks"]["s"].get("controllerWouldNotStart"): ev["start"] = c.call("start-s", m.start_task, R["s"]["task"], detail={"task": R["s"]["task"]})
+-    w.join(); ev["watch"] = box.get("r")
++    w.join(); ev["watch"] = box.get("r"); tt.join(); ev["trace"] = box.get("t")
+     ev["collect"] = {}
+     end = CLOCK["mono"]() + P["collectSec"]
+     while True:
+@@ -492,7 +511,14 @@
+     ident = {}
+     for k in R:
+         h = hits.get(k); e100 = [e for e in events if e.get("id") == 100 and str(e.get("task", "")).endswith(R[k]["task"])]
+-        ident[k] = {"process": bool(h and h.get("owner") == "NT AUTHORITY\\SYSTEM" and h.get("session") == 0 and (h.get("exe") or "").lower() == PS_EXE.lower() and h.get("parentSchedule")),
++        # the process TOKEN, observed directly: GetOwner while alive, OR the kernel start-trace SID of the SAME pid whose
++        # parent is the same Schedule svchost (pid + ppid + sched). The stored task principal and receipt owners never count.
++        tr = ev.get("trace") or {}
++        sid = next((x.get("sid") for x in (tr.get("starts") or []) if h and x.get("pid") == h.get("pid") and x.get("ppid") == h.get("ppid")
++                    and x.get("ppid") == tr.get("sched")), None)
++        via = [] if not h else [v for v, ok in (("getOwner", h.get("owner") == "NT AUTHORITY\\SYSTEM"), ("startTraceSid", sid == "S-1-5-18")) if ok]
++        ident[k] = {"process": bool(via and h.get("session") == 0 and (h.get("exe") or "").lower() == PS_EXE.lower() and h.get("parentSchedule")),
++                    "via": via, "traceSid": sid, "ownerRc": (h or {}).get("orc"), "ownerErr": (h or {}).get("oerr"), "ownerType": (h or {}).get("otype"), "aliveAtOwner": (h or {}).get("alive"),
+                     "event100": bool(e100 and all(str(e.get("user", "")).upper().endswith("SYSTEM") for e in e100))}
+     ident_ok = all(v["process"] or v["event100"] for v in ident.values())
+     hard = all(ck.values())

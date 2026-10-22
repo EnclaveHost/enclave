@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+import json, os, signal, subprocess, sys, time
+ST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.json")
+st = json.load(open(ST))
+def alive(p):
+    if not p: return False
+    try:
+        os.kill(p, 0)
+        with open(f"/proc/{p}/stat") as f: return f.read().split(")")[-1].split()[0] != "Z"
+    except Exception: return False
+cmd = sys.argv[1]
+if cmd == "show":
+    a = alive(st.get("pid"))
+    print(f"MainPID={st['pid'] if a else 0}\nActiveState={'active' if a else 'failed'}\nSubState={'running' if a else 'failed'}\n"
+          f"ExecMainStartTimestamp={st.get('start','')}\nNRestarts={st.get('restarts',0)}")
+elif cmd == "restart":
+    if alive(st.get("pid")):
+        os.kill(st["pid"], signal.SIGTERM)
+        for _ in range(50):
+            if not alive(st["pid"]): break
+            time.sleep(0.2)
+        else: os.kill(st["pid"], signal.SIGKILL)
+    st["restarts"] = st.get("restarts", 0) + 1
+    if st.get("brokenStart"): st["pid"] = 0; json.dump(st, open(ST, "w")); sys.exit(1)
+    env = json.load(open(os.path.join(os.path.dirname(ST), "env.json")))
+    log = open(os.path.join(os.path.dirname(ST), "relay.log"), "ab")
+    p = subprocess.Popen(["node", "api-relay.js"], cwd=st["dir"], env=env, stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
+    st["pid"] = p.pid; st["start"] = time.strftime("%a %Y-%m-%d %H:%M:%S UTC", time.gmtime())
+    json.dump(st, open(ST, "w"))

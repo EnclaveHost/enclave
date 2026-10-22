@@ -1,0 +1,24 @@
+--- a/network/local-app-router.mjs
++++ b/network/local-app-router.mjs
+@@ -40,8 +40,11 @@
+  // target(name) -> deploymentId of a local app whose website may be reached now, or null; forward(stream, id) hands a
+  // raw connection to that app (the host's ingress forwarder)
+  constructor({target,forward,connect=net.connect,log=()=>{}}){
+-  Object.assign(this,{target,forward,connect,log});this.fronts=new Map();this.closed=false;this.seen=new Set();
++  Object.assign(this,{target,forward,connect,log});this.fronts=new Map();this.closed=false;this.seen=new Set();this.into=new Map();
+  }
++ // established connections into an app that may no longer be reached here (its lease, guest proof or host-wallet allow
++ // withdrawn) close now: target() is asked only when a connection starts
++ revoke(allowed){for(const [id,set] of this.into)if(!allowed(id))for(const s of set)s.destroy();}
+  // the front for one upstream egress address (created once, kept while the address is in use)
+  async front(source,upstream){
+   const key=source+' '+upstream;let f=this.fronts.get(key);
+@@ -90,6 +93,8 @@
+   if(!this.seen.has(source+local)){this.seen.add(source+local);this.log(`local route: app ${source.slice(0,10)} -> app ${local.slice(0,10)} on this host`);}
+   // the forwarder starts reading: resuming here first would let the first bytes go by unread
+   c.setTimeout(0);if(rest.length)c.unshift(rest);
++  let into=this.into.get(local);if(!into)this.into.set(local,into=new Set());into.add(c);
++  c.once('close',()=>{into.delete(c);if(!into.size&&this.into.get(local)===into)this.into.delete(local);});
+   await this.forward(c,local);
+  }
+  // the connection goes to the real egress as it came: the same SOCKS request; an already answered one (after a peek)

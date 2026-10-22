@@ -1,0 +1,23 @@
+--- a/site/js/pages/authorize.js
++++ b/site/js/pages/authorize.js
+@@ -29,7 +29,7 @@
+ import "../../components/footer/footer.js";
+ import "../../components/toast/toast.js";
+ import "../../components/section-head/section-head.js";
+-import { Enclave } from "../core/api.js";
++import { Enclave, INDEPENDENT_MODE } from "../core/api.js";
+ import { $, esc, showToast } from "../core/util.js";
+ import { connectWallet, authenticate } from "../core/wallet.js";
+ import { appEndpoint } from "../../components/deployments/deployments.js";
+@@ -128,7 +128,10 @@
+     }
+     if (!dep) return fatal(body, "No such deployment.");
+     const origin = appOrigin(dep);
+-    if (!origin) return fatal(body, "This app has no browser-reachable address yet.");
++    // independent mode has no Enclave app names (appEndpoint yields no https origin), so no token is ever minted for one
++    if (!origin) return fatal(body, INDEPENDENT_MODE
++      ? "Independent mode does not use Enclave's app names. Open this app with the native client (its Connect tab), or at a name you committed for it; for a private app, take its app token from the dashboard's Manage tab."
++      : "This app has no browser-reachable address yet.");
+     if (dep.public){
+       // Nothing to authorize - send them straight in rather than mint a token
+       // the enclave would refuse (the mint endpoint 400s on a public row).

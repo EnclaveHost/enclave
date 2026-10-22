@@ -1,0 +1,17 @@
+# G3 files (tree = what the patch produces on main)
+575f157b7c8e396d17a9f3cc79df2d9bbc2ef4fdaa266ce15ce04c4b518a265c  network/host-services/acme-http01.mjs   (ADDENDUM: CSR CN <= 64)
+d05656802cf0519bfa2940353c567c1b4e838cf0d7532e4d870ccc81288d29ef  network/host-services/service-tls.mjs
+1d7035ebaa71006a7c3943be1288ebe6f34c66ce6f6c53a60519a74b95eeb4a9  network/host-services/entries/service-tls.mjs
+199df8c6818196b3f47ed28323c9beba2d600b92c7a1188c47ae22457176eb44  network/host-services/roles.mjs
+afdbbbc486ece56fe378d0fff28b80940515cc3cec7c8de4bbc08f2753ba7aef  network/host-services/runner.mjs
+a9b507c336da726a8ff16ec07d2a4f29b7f1feb028aa5928689ee9c0e4ecd70a  test/service-tls.test.mjs   (ADDENDUM: csr test + Boulder-like CSR check)
+f3670468a115c3b087da003d383f4ebc9a81d200848f009f460ce208f6b8778e  test/hosted-service-placement.test.mjs
+08bda1e6dab058cbad50eed9c4f03997dd3ae9fdfd5c021ab6fdefe785f62b80  network/host-service-names.mjs
+# patch
+ebad17962dd465fa838e1fa8a8816118e298b03fc65ca0b49ec8702eaf0b9b97  host-service-tls-20261021/patch/service-tls.patch   (ADDENDUM; was 93a65a7d)
+# e49 patch the composition used
+0d244d73a16222caea8e652565db259e4bd32962be358626914e08a1e03b817a  host-service-transport-20261021/patch/host-service-transport.patch
+# composition = main + e49 patch 0d244d73 + this patch (compose/; file list vs main: patch/composition-files.txt, 36 entries)
+8e5eb661c766642a8bb3d16b10fa47bdaa8c626d949138fca8ddcba9726d0ceb  network/host-services/roles.mjs   (e49 appStatic hunks + G3 registration)
+# NOT final: compose/network/host-services/packages/service-tls.* were built in job t10, BEFORE the one-word `export` of ACL_PS;
+# root rebuilds the reviewed package (scripts/build-host-service-packages.mjs) and pins its manifest digest.

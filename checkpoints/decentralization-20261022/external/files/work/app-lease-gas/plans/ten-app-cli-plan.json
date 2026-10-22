@@ -1,0 +1,711 @@
+{
+ "title": "lease-gas plan for the ten self-hosted inventory records - ACTUAL CLI output on a Base FORK (UNSIGNED; nothing sent to Base)",
+ "command": "enclave --independent --contract-pins contracts/deployments/contract-pins-base.json --rpc <fork A>,<fork B> lease-gas plan --inventory outputs/storage-adapter-incident/self-hosted-inventory.json --lease-gas <fork-local record> --lease-gas-digest sha256:c468094db04a238362a3b25d195e873e88f1a588137d05b2e5437e23ce26d775 --max-gas-price-gwei 0.05 --days 30",
+ "ownerChoice": {
+  "amount": "--days 30",
+  "maxGasPriceGwei": "0.05",
+  "note": "chosen on this command line for the demonstration; the CLI has NO default and refused the same command without it"
+ },
+ "refusedWithoutAmount": "error: name the budget per app: exactly one of --per-app-eth AMOUNT, --per-app-wei AMOUNT or --days N (there is no default amount)",
+ "reserveIsForkLocal": "the reserve/executor addresses below exist only on the fork: re-run against the real deployment's reviewed record (and fresh RPCs) right before signing",
+ "fork": {
+  "block": 52865317,
+  "hash": "0xc88c3bf73dc801e8203f1da1cfd8fbdeb254204d6e82f5f1bd7214d78e526af1",
+  "timestamp": 1792519981,
+  "baseFeePerGas": "5000000",
+  "liveMaxPriorityFeePerGasByRpc": {
+   "https://base-rpc.publicnode.com": "1000000",
+   "https://mainnet.base.org": "1000000"
+  },
+  "stateFetchedFrom": "https://mainnet.base.org",
+  "clockAlignedToWallTimeAtStart": true,
+  "ledger": {
+   "address": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+   "codeHash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
+   "matchesReviewedProfile": true
+  },
+  "registry": {
+   "address": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC",
+   "codeHash": "0x39911d6f53959c610b9108bb906fc36ea8f57016c4b2571b5cd52c9c32a6f518",
+   "matchesReviewedProfile": true
+  },
+  "gasPriceOracle": {
+   "address": "0x420000000000000000000000000000000000000F",
+   "codeHash": "0x1f958654ab06a152993e7a0ae7b6dbb0d4b19265cc9337b8789fe1353bd9dc35",
+   "note": "the forked proxy's code; its L1 parameters are the fork block's L1Block state"
+  }
+ },
+ "cli": {
+  "reserve": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+  "executor": "0xDC4fF920a346bfdC925A928612278d2Fbfe1D5A2",
+  "record": "sha256:c468094db04a238362a3b25d195e873e88f1a588137d05b2e5437e23ce26d775",
+  "verifiedAt": "52865361",
+  "agreeing": "2/2",
+  "title": "lease-gas enrollment plan - UNSIGNED, nothing sent",
+  "fee": {
+   "base": "5000000",
+   "priority": "1000000",
+   "effective": "6000000"
+  },
+  "apps": [
+   {
+    "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+    "appRef": "catalog://0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6/42",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "ownerKind": {
+     "kind": "eoa",
+     "address": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+     "detail": ""
+    },
+    "rate6": "0",
+    "leaseLive": true,
+    "leaseUntil": 1792521085,
+    "runnerOperator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
+    "inventoryOperator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
+    "reserveNow": "0",
+    "configuredNow": false,
+    "amount": {
+     "wei": "3228216612172489",
+     "eth": "0.003228216612172489",
+     "basis": "30 days of renewals + one claim + one release at 6000000 wei/gas (ILLUSTRATIVE: today's fee)"
+    },
+    "lastsDaysAtTodaysFee": 30,
+    "policy": {
+     "enabled": true,
+     "claimPolicy": 1,
+     "sponsorRelease": true,
+     "maxClaimsPerEpoch": 4,
+     "maxPerOpWei": "31092172031561",
+     "epochCapWei": "310921720315610",
+     "epochSec": 3600,
+     "renewWindow": 300,
+     "minExtension": 600,
+     "claimCooldown": 1800,
+     "maxGasPrice": "50000000"
+    },
+    "steps": [
+     {
+      "step": "deposit",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "3228216612172489",
+      "data": "0xb214faa5da09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "what": "deposit(0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9) 0.003228216612172489 ETH",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     },
+     {
+      "step": "configure",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "0",
+      "data": "0x128a3849da09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000001c4735de864900000000000000000000000000000000000000000000000000011ac81ab13eda0000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000012c000000000000000000000000000000000000000000000000000000000000025800000000000000000000000000000000000000000000000000000000000007080000000000000000000000000000000000000000000000000000000002faf080",
+      "what": "configure(0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9)",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     }
+    ]
+   },
+   {
+    "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+    "appRef": "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/85",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "ownerKind": {
+     "kind": "eoa",
+     "address": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+     "detail": ""
+    },
+    "rate6": "0",
+    "leaseLive": true,
+    "leaseUntil": 1792520665,
+    "runnerOperator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
+    "inventoryOperator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
+    "reserveNow": "0",
+    "configuredNow": false,
+    "amount": {
+     "wei": "3228216612172489",
+     "eth": "0.003228216612172489",
+     "basis": "30 days of renewals + one claim + one release at 6000000 wei/gas (ILLUSTRATIVE: today's fee)"
+    },
+    "lastsDaysAtTodaysFee": 30,
+    "policy": {
+     "enabled": true,
+     "claimPolicy": 1,
+     "sponsorRelease": true,
+     "maxClaimsPerEpoch": 4,
+     "maxPerOpWei": "31092172031561",
+     "epochCapWei": "310921720315610",
+     "epochSec": 3600,
+     "renewWindow": 300,
+     "minExtension": 600,
+     "claimCooldown": 1800,
+     "maxGasPrice": "50000000"
+    },
+    "steps": [
+     {
+      "step": "deposit",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "3228216612172489",
+      "data": "0xb214faa59eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "what": "deposit(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c) 0.003228216612172489 ETH",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     },
+     {
+      "step": "configure",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "0",
+      "data": "0x128a38499eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000001c4735de864900000000000000000000000000000000000000000000000000011ac81ab13eda0000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000012c000000000000000000000000000000000000000000000000000000000000025800000000000000000000000000000000000000000000000000000000000007080000000000000000000000000000000000000000000000000000000002faf080",
+      "what": "configure(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c)",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     }
+    ]
+   },
+   {
+    "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+    "appRef": "catalog://0xa856a26bd6ab39807baa0b6d9a54eaa7b29eeda18be71cd6b75e4d1b65922094/69",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "ownerKind": {
+     "kind": "eoa",
+     "address": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+     "detail": ""
+    },
+    "rate6": "0",
+    "leaseLive": false,
+    "leaseUntil": 1792488537,
+    "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "inventoryOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "reserveNow": "0",
+    "configuredNow": false,
+    "amount": {
+     "wei": "3228216612172489",
+     "eth": "0.003228216612172489",
+     "basis": "30 days of renewals + one claim + one release at 6000000 wei/gas (ILLUSTRATIVE: today's fee)"
+    },
+    "lastsDaysAtTodaysFee": 30,
+    "policy": {
+     "enabled": true,
+     "claimPolicy": 1,
+     "sponsorRelease": true,
+     "maxClaimsPerEpoch": 4,
+     "maxPerOpWei": "31092172031561",
+     "epochCapWei": "310921720315610",
+     "epochSec": 3600,
+     "renewWindow": 300,
+     "minExtension": 600,
+     "claimCooldown": 1800,
+     "maxGasPrice": "50000000"
+    },
+    "steps": [
+     {
+      "step": "deposit",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "3228216612172489",
+      "data": "0xb214faa5e64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "what": "deposit(0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b) 0.003228216612172489 ETH",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     },
+     {
+      "step": "configure",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "0",
+      "data": "0x128a3849e64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000001c4735de864900000000000000000000000000000000000000000000000000011ac81ab13eda0000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000012c000000000000000000000000000000000000000000000000000000000000025800000000000000000000000000000000000000000000000000000000000007080000000000000000000000000000000000000000000000000000000002faf080",
+      "what": "configure(0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b)",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     }
+    ]
+   },
+   {
+    "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+    "appRef": "catalog://0x4306e588755347dbb30b5e2090cacbc7e20b00afedff750fe352fe99d6d77a7c/17",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "ownerKind": {
+     "kind": "eoa",
+     "address": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+     "detail": ""
+    },
+    "rate6": "0",
+    "leaseLive": false,
+    "leaseUntil": 1792488527,
+    "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "inventoryOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "reserveNow": "0",
+    "configuredNow": false,
+    "amount": {
+     "wei": "3228216612172489",
+     "eth": "0.003228216612172489",
+     "basis": "30 days of renewals + one claim + one release at 6000000 wei/gas (ILLUSTRATIVE: today's fee)"
+    },
+    "lastsDaysAtTodaysFee": 30,
+    "policy": {
+     "enabled": true,
+     "claimPolicy": 1,
+     "sponsorRelease": true,
+     "maxClaimsPerEpoch": 4,
+     "maxPerOpWei": "31092172031561",
+     "epochCapWei": "310921720315610",
+     "epochSec": 3600,
+     "renewWindow": 300,
+     "minExtension": 600,
+     "claimCooldown": 1800,
+     "maxGasPrice": "50000000"
+    },
+    "steps": [
+     {
+      "step": "deposit",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "3228216612172489",
+      "data": "0xb214faa57ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "what": "deposit(0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33) 0.003228216612172489 ETH",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     },
+     {
+      "step": "configure",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "0",
+      "data": "0x128a38497ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000001c4735de864900000000000000000000000000000000000000000000000000011ac81ab13eda0000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000012c000000000000000000000000000000000000000000000000000000000000025800000000000000000000000000000000000000000000000000000000000007080000000000000000000000000000000000000000000000000000000002faf080",
+      "what": "configure(0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33)",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     }
+    ]
+   },
+   {
+    "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+    "appRef": "catalog://0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef/5",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "ownerKind": {
+     "kind": "eoa",
+     "address": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+     "detail": ""
+    },
+    "rate6": "0",
+    "leaseLive": false,
+    "leaseUntil": 1792488541,
+    "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "inventoryOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "reserveNow": "0",
+    "configuredNow": false,
+    "amount": {
+     "wei": "3228216612172489",
+     "eth": "0.003228216612172489",
+     "basis": "30 days of renewals + one claim + one release at 6000000 wei/gas (ILLUSTRATIVE: today's fee)"
+    },
+    "lastsDaysAtTodaysFee": 30,
+    "policy": {
+     "enabled": true,
+     "claimPolicy": 1,
+     "sponsorRelease": true,
+     "maxClaimsPerEpoch": 4,
+     "maxPerOpWei": "31092172031561",
+     "epochCapWei": "310921720315610",
+     "epochSec": 3600,
+     "renewWindow": 300,
+     "minExtension": 600,
+     "claimCooldown": 1800,
+     "maxGasPrice": "50000000"
+    },
+    "steps": [
+     {
+      "step": "deposit",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "3228216612172489",
+      "data": "0xb214faa5d9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "what": "deposit(0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a) 0.003228216612172489 ETH",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     },
+     {
+      "step": "configure",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "0",
+      "data": "0x128a3849d9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000001c4735de864900000000000000000000000000000000000000000000000000011ac81ab13eda0000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000012c000000000000000000000000000000000000000000000000000000000000025800000000000000000000000000000000000000000000000000000000000007080000000000000000000000000000000000000000000000000000000002faf080",
+      "what": "configure(0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a)",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     }
+    ]
+   },
+   {
+    "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+    "appRef": "catalog://0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7/4",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "ownerKind": {
+     "kind": "eoa",
+     "address": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+     "detail": ""
+    },
+    "rate6": "0",
+    "leaseLive": false,
+    "leaseUntil": 1792489357,
+    "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "inventoryOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "reserveNow": "0",
+    "configuredNow": false,
+    "amount": {
+     "wei": "3228216612172489",
+     "eth": "0.003228216612172489",
+     "basis": "30 days of renewals + one claim + one release at 6000000 wei/gas (ILLUSTRATIVE: today's fee)"
+    },
+    "lastsDaysAtTodaysFee": 30,
+    "policy": {
+     "enabled": true,
+     "claimPolicy": 1,
+     "sponsorRelease": true,
+     "maxClaimsPerEpoch": 4,
+     "maxPerOpWei": "31092172031561",
+     "epochCapWei": "310921720315610",
+     "epochSec": 3600,
+     "renewWindow": 300,
+     "minExtension": 600,
+     "claimCooldown": 1800,
+     "maxGasPrice": "50000000"
+    },
+    "steps": [
+     {
+      "step": "deposit",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "3228216612172489",
+      "data": "0xb214faa5a77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "what": "deposit(0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371) 0.003228216612172489 ETH",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     },
+     {
+      "step": "configure",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "0",
+      "data": "0x128a3849a77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000001c4735de864900000000000000000000000000000000000000000000000000011ac81ab13eda0000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000012c000000000000000000000000000000000000000000000000000000000000025800000000000000000000000000000000000000000000000000000000000007080000000000000000000000000000000000000000000000000000000002faf080",
+      "what": "configure(0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371)",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     }
+    ]
+   },
+   {
+    "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+    "appRef": "catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "ownerKind": {
+     "kind": "eoa",
+     "address": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+     "detail": ""
+    },
+    "rate6": "0",
+    "leaseLive": false,
+    "leaseUntil": 1792489299,
+    "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "inventoryOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "reserveNow": "0",
+    "configuredNow": false,
+    "amount": {
+     "wei": "3228216612172489",
+     "eth": "0.003228216612172489",
+     "basis": "30 days of renewals + one claim + one release at 6000000 wei/gas (ILLUSTRATIVE: today's fee)"
+    },
+    "lastsDaysAtTodaysFee": 30,
+    "policy": {
+     "enabled": true,
+     "claimPolicy": 1,
+     "sponsorRelease": true,
+     "maxClaimsPerEpoch": 4,
+     "maxPerOpWei": "31092172031561",
+     "epochCapWei": "310921720315610",
+     "epochSec": 3600,
+     "renewWindow": 300,
+     "minExtension": 600,
+     "claimCooldown": 1800,
+     "maxGasPrice": "50000000"
+    },
+    "steps": [
+     {
+      "step": "deposit",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "3228216612172489",
+      "data": "0xb214faa5a69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "what": "deposit(0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77) 0.003228216612172489 ETH",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     },
+     {
+      "step": "configure",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "0",
+      "data": "0x128a3849a69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000001c4735de864900000000000000000000000000000000000000000000000000011ac81ab13eda0000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000012c000000000000000000000000000000000000000000000000000000000000025800000000000000000000000000000000000000000000000000000000000007080000000000000000000000000000000000000000000000000000000002faf080",
+      "what": "configure(0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77)",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     }
+    ]
+   },
+   {
+    "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+    "appRef": "catalog://0xf1897f065ed94bc096d351b831514311e08b30702148c639cbaf8d0deb74d03a/3",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "ownerKind": {
+     "kind": "eoa",
+     "address": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+     "detail": ""
+    },
+    "rate6": "0",
+    "leaseLive": false,
+    "leaseUntil": 1792488495,
+    "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "inventoryOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "reserveNow": "0",
+    "configuredNow": false,
+    "amount": {
+     "wei": "3228216612172489",
+     "eth": "0.003228216612172489",
+     "basis": "30 days of renewals + one claim + one release at 6000000 wei/gas (ILLUSTRATIVE: today's fee)"
+    },
+    "lastsDaysAtTodaysFee": 30,
+    "policy": {
+     "enabled": true,
+     "claimPolicy": 1,
+     "sponsorRelease": true,
+     "maxClaimsPerEpoch": 4,
+     "maxPerOpWei": "31092172031561",
+     "epochCapWei": "310921720315610",
+     "epochSec": 3600,
+     "renewWindow": 300,
+     "minExtension": 600,
+     "claimCooldown": 1800,
+     "maxGasPrice": "50000000"
+    },
+    "steps": [
+     {
+      "step": "deposit",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "3228216612172489",
+      "data": "0xb214faa538f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "what": "deposit(0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c) 0.003228216612172489 ETH",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     },
+     {
+      "step": "configure",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "0",
+      "data": "0x128a384938f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000001c4735de864900000000000000000000000000000000000000000000000000011ac81ab13eda0000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000012c000000000000000000000000000000000000000000000000000000000000025800000000000000000000000000000000000000000000000000000000000007080000000000000000000000000000000000000000000000000000000002faf080",
+      "what": "configure(0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c)",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     }
+    ]
+   },
+   {
+    "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+    "appRef": "catalog://0xfd420627abb04e52e7d12e3a535e2df94a048ba51c0b0fec173e9e7de2e24b28/5",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "ownerKind": {
+     "kind": "eoa",
+     "address": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+     "detail": ""
+    },
+    "rate6": "0",
+    "leaseLive": false,
+    "leaseUntil": 1792491853,
+    "runnerOperator": "0x8179213E3054A29D26011403739A3AB94CdcE84e",
+    "inventoryOperator": "0x8179213E3054A29D26011403739A3AB94CdcE84e",
+    "reserveNow": "0",
+    "configuredNow": false,
+    "amount": {
+     "wei": "3228216612172489",
+     "eth": "0.003228216612172489",
+     "basis": "30 days of renewals + one claim + one release at 6000000 wei/gas (ILLUSTRATIVE: today's fee)"
+    },
+    "lastsDaysAtTodaysFee": 30,
+    "policy": {
+     "enabled": true,
+     "claimPolicy": 1,
+     "sponsorRelease": true,
+     "maxClaimsPerEpoch": 4,
+     "maxPerOpWei": "31092172031561",
+     "epochCapWei": "310921720315610",
+     "epochSec": 3600,
+     "renewWindow": 300,
+     "minExtension": 600,
+     "claimCooldown": 1800,
+     "maxGasPrice": "50000000"
+    },
+    "steps": [
+     {
+      "step": "deposit",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "3228216612172489",
+      "data": "0xb214faa5c13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "what": "deposit(0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681) 0.003228216612172489 ETH",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     },
+     {
+      "step": "configure",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "0",
+      "data": "0x128a3849c13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000001c4735de864900000000000000000000000000000000000000000000000000011ac81ab13eda0000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000012c000000000000000000000000000000000000000000000000000000000000025800000000000000000000000000000000000000000000000000000000000007080000000000000000000000000000000000000000000000000000000002faf080",
+      "what": "configure(0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681)",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     }
+    ]
+   },
+   {
+    "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+    "appRef": "catalog://0x093fa91736c2639e93867b76074c6c4dbc5e49150faf4e8618bdf45e30d275c6/7",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "ownerKind": {
+     "kind": "eoa",
+     "address": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+     "detail": ""
+    },
+    "rate6": "0",
+    "leaseLive": false,
+    "leaseUntil": 1792488533,
+    "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "inventoryOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+    "reserveNow": "0",
+    "configuredNow": false,
+    "amount": {
+     "wei": "3228216612172489",
+     "eth": "0.003228216612172489",
+     "basis": "30 days of renewals + one claim + one release at 6000000 wei/gas (ILLUSTRATIVE: today's fee)"
+    },
+    "lastsDaysAtTodaysFee": 30,
+    "policy": {
+     "enabled": true,
+     "claimPolicy": 1,
+     "sponsorRelease": true,
+     "maxClaimsPerEpoch": 4,
+     "maxPerOpWei": "31092172031561",
+     "epochCapWei": "310921720315610",
+     "epochSec": 3600,
+     "renewWindow": 300,
+     "minExtension": 600,
+     "claimCooldown": 1800,
+     "maxGasPrice": "50000000"
+    },
+    "steps": [
+     {
+      "step": "deposit",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "3228216612172489",
+      "data": "0xb214faa5ef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "what": "deposit(0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238) 0.003228216612172489 ETH",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     },
+     {
+      "step": "configure",
+      "via": "direct",
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0x99f3C3315f366c47036bE970675D5688bc792fef",
+      "value": "0",
+      "data": "0x128a3849ef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000001c4735de864900000000000000000000000000000000000000000000000000011ac81ab13eda0000000000000000000000000000000000000000000000000000000000000e10000000000000000000000000000000000000000000000000000000000000012c000000000000000000000000000000000000000000000000000000000000025800000000000000000000000000000000000000000000000000000000000007080000000000000000000000000000000000000000000000000000000002faf080",
+      "what": "configure(0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238)",
+      "notes": [],
+      "simulated": true,
+      "simBlock": "52865361"
+     }
+    ]
+   }
+  ],
+  "senders": [
+   {
+    "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "via": [
+     "direct"
+    ],
+    "requests": 20,
+    "valueWei": "32282166121724890",
+    "balanceWei": "4200638454756122",
+    "enough": false
+   }
+  ],
+  "totalWei": "32282166121724890",
+  "costModel": {
+   "price": "6000000",
+   "effectiveFee": "6000000",
+   "ownerCap": "50000000",
+   "ceiling": "1000000000",
+   "priceLimitedBy": "market fee",
+   "perOp": {
+    "claim": "2996585625249",
+    "renew": "1884251893750",
+    "release": "1470251893750"
+   },
+   "atOwnerCap": {
+    "claim": "24873737625249",
+    "renew": "15621403893750",
+    "release": "12171403893750"
+   },
+   "renewsPerDay": 57.03,
+   "renewPerDayWei": "107458325821783",
+   "formula": "(measured gas + 21000 + 16 x 388 + overhead[kind]) x min(tx gas price, owner cap, ceiling) + l1Bps/10000 x L1 upper bound"
+  },
+  "notes": [
+   "every request was simulated from its sender at an agreed block; re-run the plan right before signing (owners, leases and fees move)",
+   "the ledger rows are not touched: ids, storage and rates stay as they are; this only funds and enables the separate gas reserve",
+   "the claim bond (USDC collateral) and proof-of-time checkpoints are not lease gas and are not paid from this reserve"
+  ]
+ }
+}

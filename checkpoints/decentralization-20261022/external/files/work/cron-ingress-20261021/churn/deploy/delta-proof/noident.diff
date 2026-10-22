@@ -1,0 +1,7 @@
+14199c14199,14202
+< var ID2 = /^0x[0-9a-f]{64}$/, READ_CONTEXT = /* @__PURE__ */ Symbol("verified directory context"), routeContext = (state, id) => ({ publication: state.publications[id] ?? null, policy: state.policies[id] ?? null, providers: state.providers }), equal = (a, b) => recordHash(a) === recordHash(b), empty = () => ({ version: 1, providers: {}, policies: {}, publications: {}, management: {} }), PublicDirectory = class {
+---
+> var ID2 = /^0x[0-9a-f]{64}$/, READ_CONTEXT = /* @__PURE__ */ Symbol("verified directory context"), routeContext = (state, id) => {
+>   let publication = state.publications[id] ?? null, at = new Set((publication?.bundle?.record?.routes || []).map((r) => r?.address));
+>   return { publication, policy: state.policies[id] ?? null, providers: Object.entries(state.providers).filter(([, e]) => at.has(e?.record?.record?.address)).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0) };
+> }, equal = (a, b) => recordHash(a) === recordHash(b), empty = () => ({ version: 1, providers: {}, policies: {}, publications: {}, management: {} }), PublicDirectory = class {

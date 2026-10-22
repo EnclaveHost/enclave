@@ -1,0 +1,16 @@
+{
+ "mode": "PLAN ONLY (no network)",
+ "files": [
+  "run-node.cmd",
+  "node-config.cmd",
+  "node-config.local.cmd",
+  "run-network.cmd",
+  "shield-config.cmd",
+  "run-card.cmd"
+ ],
+ "encodedSize": 3444,
+ "limit": 7900,
+ "planSha": "cccb6b6a28b2f036f595d931f29879c277d09e769d8bdba272c12972afe59c5a",
+ "text": "function TS($t){-join([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes([string]$t))|%{$_.ToString('x2')})};$o=[ordered]@{};foreach($f in 'run-node.cmd|node-config.cmd|node-config.local.cmd|run-network.cmd|shield-config.cmd|run-card.cmd'.Split('|')){$p='C:\\ProgramData\\Enclave\\'+$f;$e=[ordered]@{present=(Test-Path -LiteralPath $p)};if($e.present){$e.sha256=FileSha $p;$sets=@();$other=@();foreach($l in [IO.File]::ReadAllLines($p)){$m=[regex]::Match($l,'(?i)^\\s*(?:if [^\\r\\n]*?\\s)?set\\s+?([A-Za-z_][A-Za-z0-9_]*)=(.*?)?\\s*$');if($m.Success){$sets+=,[ordered]@{name=$m.Groups[1].Value;valueSha256=(TS $m.Groups[2].Value)}}else{$other+=(TS $l)}};$e.sets=$sets;$e.otherLines=$other.Count;$e.otherLineSha256=$other};$o[$f]=$e};$o|ConvertTo-Json -Depth 5 -Compress",
+ "execute": "python3 config-names-read.py --execute --root-reviewed cccb6b6a28b2f036f595d931f29879c277d09e769d8bdba272c12972afe59c5a"
+}

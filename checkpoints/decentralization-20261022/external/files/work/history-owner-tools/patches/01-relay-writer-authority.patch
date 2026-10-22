@@ -1,0 +1,58 @@
+--- a/relay/lease-generation.mjs
++++ b/relay/lease-generation.mjs
+@@ -100,7 +100,11 @@
+ 
+ /**
+  * createLeaseGenerationReader({ rpcs, ledger, chainId, confirmations, maxBlockAgeSec, fromBlock, windowBlocks, minWindowBlocks,
+- *                               maxRequests, retries, timeoutMs, store, fetch, now, sleep })
++ *                               maxRequests, retries, cooldownMs, cooldownMaxMs, timeoutMs, store, fetch, now, sleep })
++ *   retries: in-place retries of an EXPLICIT rate refusal (429, -32005, -32011, ...); then that RPC cools down for
++ *   cooldownMs (doubling per consecutive refusal, up to cooldownMaxMs) and is probed again afterwards. While cooling it is
++ *   an RPC that may answer later (quorum_unavailable), never empty history, and it costs the other RPCs no backoff
++ *   (the measured guest's rule, isolation/m2/bootstrap/cooldown.go). Every answering RPC is still awaited and compared.
+  *   rpcs: two to eight JSON-RPC URLs on DISTINCT hosts; ledger: the address, or an async thunk (the relay's own confirmed
+  *   ledger binding).
+  *   windowBlocks: the first eth_getLogs range (1,000 fits BlockPI's public 1,024; it halves down to minWindowBlocks on a
+@@ -114,7 +118,7 @@
+  *   coverage is saved after it fires.
+  */
+ export function createLeaseGenerationReader({ rpcs, ledger, chainId = CHAIN_BASE, confirmations = 2, maxBlockAgeSec = 120, fromBlock = LEDGER16D_FROM_BLOCK,
+-                                               windowBlocks = 1_000, minWindowBlocks = 8, maxRequests = 400, retries = 4, timeoutMs = 8_000, store = memoryStore(),
++                                               windowBlocks = 1_000, minWindowBlocks = 8, maxRequests = 400, retries = 1, cooldownMs = 30_000, cooldownMaxMs = 300_000, timeoutMs = 8_000, store = memoryStore(),
+                                                fetch: fetchFn = globalThis.fetch, now = () => Date.now(), sleep = abortableSleep } = {}) {
+   const urls = [...new Set((rpcs || []).map(String))];
+   const hosts = new Set(urls.map((u) => { try { return new URL(u).host.toLowerCase(); } catch { return ""; } }));
+@@ -123,6 +127,9 @@
+   let floor = 0;                                          // the highest agreed block accepted so far: never read below it
+   let seq = 0;
+   const window = new Map();                               // per RPC: the range its own refusals shrank it to
++  const cool = new Map();                                 // per RPC: { until, next } after its own explicit rate refusals
++  const cooling = (u) => { const c = cool.get(u); return c && now() < c.until ? c.until : 0; };
++  const rateRefused = (u) => { const c = cool.get(u) || { next: cooldownMs }; c.until = now() + c.next; c.next = Math.min(c.next * 2, cooldownMaxMs); cool.set(u, c); };
+   async function call(url, method, params, signal) {
+     if (signal?.aborted) throw aborted(signal);
+     const timeout = AbortSignal.timeout(timeoutMs);
+@@ -145,6 +152,8 @@
+       let w = Math.min(window.get(u) || windowBlocks, hi - a + 1), tries = 0;
+       for (;;) {
+         if (signal?.aborted) throw aborted(signal);
++        const until = cooling(u);
++        if (until) throw Object.assign(new Error(`cooling down after a rate refusal until ${new Date(until).toISOString()}`), { cooling: true });
+         if (budget.used >= budget.max) throw Object.assign(new Error("request budget spent"), { budget: true });
+         budget.used++;
+         try {
+@@ -155,12 +164,14 @@
+             if (l.removed || l.address !== ledgerAddr || l.topics[1] !== id || l.blockNumber < a || l.blockNumber > b) throw new Error("a log outside the query");
+             out.push(l);
+           }
++          cool.delete(u);
+           a = b + 1;
+           break;
+         } catch (e) {
+           if (signal?.aborted) throw aborted(signal);
+           const m = String(e?.message || e);
+           if (RATE_RE.test(m) && tries < retries) { await sleep(500 * 2 ** tries++, signal); if (signal?.aborted) throw aborted(signal); continue; }
++          if (RATE_RE.test(m)) { rateRefused(u); throw e; }   // this RPC sits out its cooldown; the step goes on with the others
+           // only a provider's refusal teaches its window; a window clipped at the end of a short range does not
+           if (RANGE_RE.test(m) && !RATE_RE.test(m) && w > minWindowBlocks) { w = Math.max(minWindowBlocks, Math.floor(w / 2)); window.set(u, w); continue; }
+           if (HISTORY_RE.test(m)) throw Object.assign(new Error(`history unavailable: ${m.slice(0, 120)}`), { history: true });

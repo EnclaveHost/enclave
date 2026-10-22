@@ -1,0 +1,46 @@
+--- a/contracts/README.md
++++ b/contracts/README.md
+@@ -54,23 +54,25 @@
+   REGISTRY_ADDRESS: ""       # written by scripts/deploy-registry.mjs
+   ENCLAVE_ENDPOINT: ""       # per enclave, e.g. "https://enclave1.enclave.host"; empty = don't advertise
+   ENCLAVE_REPO: "EnclaveHost/enclave"          # the source repository the enclave says it runs (its release tags); exact GitHub casing
+-  # REGISTRY_HEARTBEAT_SEC: "900"           # optional, default 15 min
++  # REGISTRY_RECONCILE_SEC: "900"           # optional, default 15 min: how often the entry is READ and reconciled (no heartbeat)
+ ```
+ 
+ And the operator key as an **enclave secret** (not plaintext env — already listed
+-under `secrets:`), one EOA **per enclave** so concurrent heartbeats never fight
++under `secrets:`), one EOA **per enclave** so concurrent registry updates never fight
+ over an account nonce:
+ ```
+ REGISTRY_PRIVATE_KEY = 0x...   # an EOA that owns this enclave's registry entry
+ ```
+ 
+ > The key needs a little ETH on **Base** for gas: register is one tx at boot,
+-> then one cheap heartbeat every 15 min (~a few cents/month on Base). Fund the
++> and after that a transaction only when the entry actually changes (price,
++> proof key after a relaunch). There is **no periodic heartbeat transaction**:
++> liveness is off-chain (docs/network/host-liveness.md). Fund the
+ > address before first boot or registration silently fails (non-fatal — the
+ > enclave still serves, it just won't advertise until it can pay gas).
+ 
+ On boot you'll see: `[registry] registered https://... repo=... id=0x... tx=0x...`
+-then periodic `[registry] heartbeat tx=0x...`.
++then, only on a change, `[registry] price published …` or `[proof] proof key published …`.
+ 
+ `ENCLAVE_MEASUREMENT` is optional (a cross-check digest); leave unset (0x0) and
+ let the live attestation be authoritative, which it is regardless.
+@@ -103,8 +105,11 @@
+ - **Trust is gated by attestation at connect**, done by the caller's verifier
+   — not by registration. A malicious operator can register an enclave, but its
+   live quote won't carry a measurement the caller expects, so callers reject it.
+-- **Liveness is advisory**: heartbeats set `lastSeen`; readers drop entries
+-  staler than their window (the helper uses 1h).
++- **Liveness is off-chain** (docs/network/host-liveness.md): `active` is
++  admission; whether an active host is up is its operator-signed capacity
++  record at `/v1/host/capacity` (at most 15 minutes old), or an operator
++  registry write within the reader's window. `lastSeen` only moves when the
++  operator changes the entry; the contract's `heartbeat()` is no longer sent.
+ - **Open registration for now.** Sybil resistance via stake-to-register +
+   slashing is a future add (see the note at the bottom of the .sol); it isn't
+   needed for correctness because attestation, not registration, gates trust.

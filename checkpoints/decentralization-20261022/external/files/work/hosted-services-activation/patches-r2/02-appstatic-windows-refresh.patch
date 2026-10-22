@@ -1,0 +1,1251 @@
+--- a/network/host-services/roles.mjs
++++ b/network/host-services/roles.mjs
+@@ -19,6 +19,7 @@
+ import path from 'node:path';
+ import { validateNetworkAuthorities } from '../network-authorities.mjs';
+ import { rpcEndpoint } from '../rpc-identity.mjs';
++import { publicIPv4 } from '../service-index.mjs';
+ import { validateCarrierBases } from '../policy-carriers.mjs';
+ import { CREDIT_VAULT_SUBMITTER_ROLE } from './credit-vault-submitter.mjs';
+ 
+@@ -55,6 +56,23 @@
+   });
+ };
+ 
++// APP_STATIC (relay/dns-relay.js): fixed A records for PLATFORM services sharing the app zone, answered before the route
++// map. Every other single label there is a deployment's: an on-chain id (8-64 hex, optionally 0x / dep- / dep_) or a
++// legacy dep_<[a-z0-9]+> id (relay/api-relay.js depFromHost), so a static label must not be readable as either - it MUST
++// contain a hyphen and must not start with dep-, dep_, 0x or xn--. Malformed, deployment-shaped or non-public entries are
++// REFUSED (the relay would silently drop them). -> { label: ipv4 } sorted by label.
++function appStatic(m) {
++  if (!m || typeof m !== 'object' || Array.isArray(m)) fail('route-dns', 'appStatic must map labels to IPv4 addresses');
++  const entries = Object.entries(m);
++  if (entries.length > 32) fail('route-dns', 'appStatic: at most 32 labels');
++  for (const [l, a] of entries) {
++    if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(l)) fail('route-dns', `appStatic label ${JSON.stringify(l)} is not a lowercase DNS label`);
++    if (!l.includes('-') || /^(dep[-_]|0x|xn--)/.test(l)) fail('route-dns', `appStatic label ${JSON.stringify(l)} could name a deployment (a static label needs a hyphen and no dep-/0x/xn-- prefix)`);
++    if (typeof a !== 'string' || !publicIPv4(a)) fail('route-dns', `appStatic.${l}: a public IPv4 address`);
++  }
++  return Object.fromEntries(entries.sort(([x], [y]) => (x < y ? -1 : 1)));
++}
++
+ /**
+  * role -> { entry (repo-relative module bundled), kind (service-index kind), runtime, state, cold, launch(config, paths) }.
+  * launch -> { args: [...], env: {...}, configFile: object|null } for the child process; only validated, public fields.
+@@ -105,7 +123,7 @@
+     cold: ['a route source: this host\'s own directory replica (loopback) or another directory origin the operator names'],
+     notCold: ['the fleet relay', 'api.enclave.host', 'storage adapters', 'lease relays', 'any app'],
+     validate(c) {
+-      only('route-dns', c, ['dnsPort', 'bind', 'apiPort', 'apiBind', 'zone', 'ipZone', 'nsName', 'nsNames', 'routeMapUrl', 'rateLimitPerSec', 'rateLimitCap'],
++      only('route-dns', c, ['dnsPort', 'bind', 'apiPort', 'apiBind', 'zone', 'ipZone', 'nsName', 'nsNames', 'routeMapUrl', 'rateLimitPerSec', 'rateLimitCap', 'appStatic'],
+         ['dnsPort', 'bind', 'apiPort', 'zone', 'ipZone', 'nsName', 'nsNames', 'routeMapUrl']);
+       port('route-dns', c.dnsPort, 'dnsPort'); bind('route-dns', c.bind); port('route-dns', c.apiPort, 'apiPort');
+       if (c.apiBind !== undefined) bind('route-dns', c.apiBind);
+@@ -117,7 +135,7 @@
+       let u; try { u = new URL(c.routeMapUrl); } catch { fail('route-dns', 'routeMapUrl is not a URL'); }
+       if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password || u.search || u.hash || u.pathname !== '/v1/network/routes') fail('route-dns', 'routeMapUrl must be a directory\'s /v1/network/routes (no credentials or query)');
+       for (const k of ['rateLimitPerSec', 'rateLimitCap']) if (c[k] !== undefined && (!Number.isInteger(c[k]) || c[k] < 1 || c[k] > 1e6)) fail('route-dns', `${k}: 1 to 1000000`);
+-      return { ...c };
++      return { ...c, ...(c.appStatic !== undefined ? { appStatic: appStatic(c.appStatic) } : {}) };
+     },
+     // dns-relay reads its configuration from the environment: exactly these names, every one explicit (NO_FALLBACK there
+     // refuses an absent name instead of an enclave.host default)
+@@ -125,7 +143,8 @@
+       // the push API answers 503 without a TXT key (read-only); it listens on loopback unless the operator says otherwise
+       return { configFile: null, env: { DNS_READ_ONLY: '1', APP_ZONE: c.zone, IP_ZONE: c.ipZone, NS_NAME: c.nsName, NS_NAMES: c.nsNames.join(','), ROUTE_MAP_URL: c.routeMapUrl,
+         DNS_PORT: String(c.dnsPort), DNS_BIND: c.bind, DNS_API_PORT: String(c.apiPort), DNS_API_BIND: c.apiBind || '127.0.0.1',
+-        ...(c.rateLimitPerSec ? { DNS_RL_PER_SEC: String(c.rateLimitPerSec) } : {}), ...(c.rateLimitCap ? { DNS_RL_CAP: String(c.rateLimitCap) } : {}) } };
++        ...(c.rateLimitPerSec ? { DNS_RL_PER_SEC: String(c.rateLimitPerSec) } : {}), ...(c.rateLimitCap ? { DNS_RL_CAP: String(c.rateLimitCap) } : {}),
++        ...(c.appStatic && Object.keys(c.appStatic).length ? { APP_STATIC: Object.entries(c.appStatic).map(([l, a]) => `${l}=${a}`).join(',') } : {}) } };
+     },
+   }),
+   'policy-mirror': Object.freeze({
+--- a/network/host-services/runner.mjs
++++ b/network/host-services/runner.mjs
+@@ -64,6 +64,15 @@
+   return { manifest: m, bundle, pin };
+ }
+ 
++// The only environment a role inherits besides its own names. On Windows a process without SystemRoot cannot initialise
++// Winsock or the system crypto provider (sockets and randomness fail), so the two OS directory names (not secrets) are
++// carried there, and PATH is the system directory; elsewhere a fixed PATH only.
++function baseEnv() {
++  if (process.platform !== 'win32') return { PATH: '/usr/local/bin:/usr/bin:/bin' };
++  const root = process.env.SystemRoot || process.env.SYSTEMROOT || 'C:\\Windows';
++  return { SystemRoot: root, WINDIR: process.env.WINDIR || root, PATH: `${root}\\System32` };
++}
++
+ /** -> the normalized configuration (throws on anything else). */
+ export function validateHostServicesConfig(cfg) {
+   if (!plain(cfg)) fail('configuration must be an object');
+@@ -196,7 +205,7 @@
+     }
+     // no inherited environment: the role's own public names and a PATH, nothing of the host's
+     let child;
+-    try { child = spawn(process.execPath, argv, { cwd: dir, env: { PATH: '/usr/local/bin:/usr/bin:/bin', ...u.launch.env }, stdio: ['ignore', 'pipe', 'pipe'] }); }
++    try { child = spawn(process.execPath, argv, { cwd: dir, env: { ...baseEnv(), ...u.launch.env }, stdio: ['ignore', 'pipe', 'pipe'] }); }
+     catch (e) { u.startedAt = Date.now(); return ended(u, null, { error: e }); }
+     u.child = child; u.startedAt = Date.now();
+     const relay = (stream) => stream?.on('data', (d) => { for (const line of String(d).split('\n').filter(Boolean)) log(`[${u.role}] ${line.slice(0, 500)}`); });
+@@ -283,7 +292,8 @@
+       // fresh host not yet admitted, or a sticky platform-policy refusal - or it would exit 0, systemd would not restart a
+       // clean exit, and the admin's later authenticated admit (unban) would never restart the roles. Until SIGTERM/SIGINT.
+       const alive = setInterval(() => {}, 1 << 30);
+-      for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { clearInterval(alive); running.stop().then(() => process.exit(0)); });
++      // SIGBREAK: how a Windows supervisor (windows-supervisor: CTRL_BREAK to the runner's process group) asks it to stop
++      for (const sig of ['SIGTERM', 'SIGINT', 'SIGBREAK']) process.on(sig, () => { clearInterval(alive); running.stop().then(() => process.exit(0)); });
+     }
+   } catch (e) { console.error(e.message); process.exit(1); }
+ }
+--- a/network/host-services/stage-tool.mjs
++++ b/network/host-services/stage-tool.mjs
+@@ -15,6 +15,9 @@
+ //   node stage-tool.mjs gen-config --spec <spec.json> --listeners <ss capture: text, or JSON {listeners:[...]}> --out <file>
+ //        the exact host-services.json from a public spec; refuses a port that the capture shows in use
+ //   node stage-tool.mjs health --config <host-services.json> [--artifacts sample|all] [--json]
++//   node stage-tool.mjs capture-app-static --zone app.enclave.host --label <label> ... --server <authoritative IPv4> ...
++//        PUBLIC-ONLY: each label's A record from every authoritative server (no recursion, AA required); kept only when all
++//        agree on one public address and the label passes the route-dns role's validation; disagreements are reported
+ //        stage-1 health: a FRESH decision of the unchanged gate for this host (admission/ban/anchor), each role's own
+ //        health, served artifacts against the manifest, real DNS answers, and the policy mirror's anchored document
+ // Exit: 0 ok, 1 usage/config error, 2 unhealthy, 3 refused (torn anchor, unverifiable document, port in use, digest mismatch).
+@@ -153,40 +156,55 @@
+   for (const [proto, port] of need) { const c = conflicts(rows, proto, b, port); if (c.length) throw fail(3, `refused: ${proto} port ${port} is in use in the capture (${c.map((r) => r.address).join(', ')})`); }
+   // S: the service's WRITABLE state (systemd StateDirectory); D: root-filled PUBLIC data the service only reads
+   const S = spec.stateRoot, D = spec.dataRoot, rpcFleet = spec.directoryRpc, polRpc = [...PRODUCTION_RPCS];
++  const J = spec.platform === 'win32' ? path.win32.join : path.posix.join;      // the TARGET host's paths, not this one's
+   return {
+     format: 'enclave-host-services/v1',
+     host: { endpoint: spec.endpoint, publicEndpoints: {} },        // stage 1: NOT advertised (no publicEndpoints)
+     platformHostPolicy: 'production',
+-    platformHostPolicyCarriers: { importDir: path.join(D, 'policy-import'), serviceIndex: true },
++    platformHostPolicyCarriers: { importDir: J(D, 'policy-import'), serviceIndex: true },
+     serviceIndex: spec.serviceIndex,
+     packagesDir: spec.packagesDir, stateRoot: S,
+     services: [
+       { role: 'directory-replica', package: spec.pins['directory-replica'], heapMiB: 192,
+-        config: { port: p.directory, bind: b, stateDir: path.join(S, 'directory-replica-state'), rpc: rpcFleet, addressBook: PRODUCTION_BOOK,
++        config: { port: p.directory, bind: b, stateDir: J(S, 'directory-replica-state'), rpc: rpcFleet, addressBook: PRODUCTION_BOOK,
+           authorityPins: spec.authorityPins, checkers: spec.checkers, peers: spec.directoryPeers } },
+       { role: 'bootstrap-replica', package: spec.pins['bootstrap-replica'], heapMiB: 128,
+-        config: { port: p.bootstrap, bind: b, directory: path.join(D, 'artifacts'), manifest: path.join(D, 'bootstrap-manifest.json'), maxObjectBytes: 1 << 30 } },
++        config: { port: p.bootstrap, bind: b, directory: J(D, 'artifacts'), manifest: J(D, 'bootstrap-manifest.json'), maxObjectBytes: 1 << 30 } },
+       { role: 'route-dns', package: spec.pins['route-dns'], heapMiB: 160,
+         config: { dnsPort: p.dns, bind: b, apiPort: p.dnsApi, apiBind: '127.0.0.1', zone: spec.dns.zone, ipZone: spec.dns.ipZone, nsName: spec.dns.nsName,
+-          nsNames: spec.dns.nsNames, routeMapUrl: `http://127.0.0.1:${p.directory}/v1/network/routes` } },
++          nsNames: spec.dns.nsNames, routeMapUrl: `http://127.0.0.1:${p.directory}/v1/network/routes`,
++          // only mappings captured from public authoritative answers (capture-app-static.sh); never inferred
++          ...(spec.dns.appStatic && Object.keys(spec.dns.appStatic).length ? { appStatic: spec.dns.appStatic } : {}) } },
+       { role: 'policy-mirror', package: spec.pins['policy-mirror'], heapMiB: 128,
+-        config: { port: p.policy, bind: b, stateDir: path.join(S, 'policy-mirror-state'), rpc: polRpc, minAgree: PRODUCTION_HOST_POLICY.minAgree,
+-          book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP, peers: [...PRODUCTION_MIRRORS], importDir: path.join(D, 'policy-import'), syncSec: 60 } },
++        config: { port: p.policy, bind: b, stateDir: J(S, 'policy-mirror-state'), rpc: polRpc, minAgree: PRODUCTION_HOST_POLICY.minAgree,
++          book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP, peers: [...PRODUCTION_MIRRORS], importDir: J(D, 'policy-import'), syncSec: 60 } },
+     ],
+   };
+ }
+ 
+ // ---------------------------------------------------------------- health
+-function dnsQuery(port, address, name, qtype, timeoutMs = 3000) {
++function dnsQuery(port, address, name, qtype, { recursion = false, timeoutMs = 3000 } = {}) {
+   const id = Math.floor(Math.random() * 65535);
+-  const q = Buffer.concat([Buffer.from([id >> 8, id & 255, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]),
++  const q = Buffer.concat([Buffer.from([id >> 8, id & 255, recursion ? 1 : 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]),
+     ...name.split('.').filter(Boolean).map((l) => Buffer.concat([Buffer.from([l.length]), Buffer.from(l)])), Buffer.from([0, 0, qtype, 0, 1])]);
+   return new Promise((ok) => {
+     const s = dgram.createSocket(address.includes(':') ? 'udp6' : 'udp4');
+     const t = setTimeout(() => { s.close(); ok(null); }, timeoutMs);
+     s.on('error', () => { clearTimeout(t); s.close(); ok(null); });
+     s.on('message', (m) => { if (m.readUInt16BE(0) !== id) return; clearTimeout(t); s.close();
+-      ok({ rcode: m[3] & 0x0f, authoritative: !!(m[2] & 0x04), answers: m.readUInt16BE(6) }); });
++      const answers = m.readUInt16BE(6);
++      // every A record in the answer section (the question is echoed: skip it; then name, type, class, ttl, rdlength, rdata)
++      const addresses = [];
++      try {
++        let o = 12; while (m[o]) o += m[o] + 1; o += 5;
++        for (let i = 0; i < answers; i++) {
++          if ((m[o] & 0xc0) === 0xc0) o += 2; else { while (m[o]) o += m[o] + 1; o++; }
++          const type = m.readUInt16BE(o), len = m.readUInt16BE(o + 8);
++          if (type === 1 && len === 4) addresses.push([...m.subarray(o + 10, o + 14)].join('.'));
++          o += 10 + len;
++        }
++      } catch {}
++      ok({ rcode: m[3] & 0x0f, authoritative: !!(m[2] & 0x04), answers, address: addresses[0] ?? null, addresses }); });
+     s.send(q, port, address);
+   });
+ }
+@@ -232,6 +250,13 @@
+   if (dn) {
+     const soa = await dnsQuery(dn.dnsPort, local(dn.bind), dn.zone, 6), ns = await dnsQuery(dn.dnsPort, local(dn.bind), dn.zone, 2);
+     add(`route-dns answers SOA and NS for ${dn.zone} (authoritative, NOERROR)`, soa && soa.rcode === 0 && soa.authoritative && soa.answers >= 1 && ns && ns.rcode === 0 && ns.answers === dn.nsNames.length, { soa, ns });
++    // every configured static platform label answers exactly its configured address
++    const statics = Object.entries(dn.appStatic || {}), wrong = [];
++    for (const [label, address] of statics) {
++      const a = await dnsQuery(dn.dnsPort, local(dn.bind), `${label}.${dn.zone}`, 1);
++      if (!a || a.rcode !== 0 || !a.authoritative || a.addresses.length !== 1 || a.address !== address) wrong.push({ label, want: address, got: a });
++    }
++    if (statics.length) add(`route-dns answers ${statics.length} static platform label(s) with their configured addresses`, !wrong.length, { wrong });
+   }
+   const pm = role('policy-mirror');
+   if (pm) {
+@@ -248,12 +273,38 @@
+   return { at: new Date().toISOString(), config, hostEndpoint: cfg.host.endpoint, ok: checks.every((c) => c.ok), checks };
+ }
+ 
++// ---------------------------------------------------------------- capture-app-static
++/**
++ * PUBLIC-ONLY capture of APP_STATIC mappings: ask each AUTHORITATIVE server (recursion off; the answer must carry AA) for
++ * each candidate label's A records. A label is kept only when EVERY server answers NOERROR + AA with exactly one and the
++ * same address, and that mapping passes the route-dns role's own validation (a hyphenated non-deployment label, a public
++ * IPv4). Anything else is reported, never resolved by choice. -> { zone, servers, labels: {label: ipv4}, refused: [...] }
++ */
++export async function captureAppStatic({ zone, labels, servers, port = 53, query = dnsQuery }) {
++  const { ROLES } = await import('./roles.mjs');
++  const validate = (m) => ROLES['route-dns'].validate({ dnsPort: 53, bind: '127.0.0.1', apiPort: 8154, zone, ipZone: 'ip.' + zone.split('.').slice(1).join('.'),
++    nsName: 'ns-capture.' + zone, nsNames: ['ns-capture.' + zone], routeMapUrl: 'http://127.0.0.1:1/v1/network/routes', appStatic: m }).appStatic;
++  const out = { at: new Date().toISOString(), zone, servers, labels: {}, answers: {}, refused: [] };
++  for (const label of labels) {
++    const per = {};
++    for (const server of servers) per[server] = await query(port, server, `${label}.${zone}`, 1, { recursion: false });
++    out.answers[label] = per;
++    const sets = Object.values(per).map((a) => (a && a.rcode === 0 && a.authoritative ? [...a.addresses].sort().join(',') : null));
++    if (sets.some((x) => x === null)) { out.refused.push({ label, reason: 'a server did not answer authoritatively (NOERROR + AA)' }); continue; }
++    if (new Set(sets).size !== 1) { out.refused.push({ label, reason: `the servers disagree: ${[...new Set(sets)].join(' | ')}` }); continue; }
++    const addrs = sets[0] ? sets[0].split(',') : [];
++    if (addrs.length !== 1) { out.refused.push({ label, reason: `${addrs.length} A records (a static label answers exactly one)` }); continue; }
++    try { validate({ [label]: addrs[0] }); out.labels[label] = addrs[0]; } catch (e) { out.refused.push({ label, reason: e.message }); }
++  }
++  return out;
++}
++
+ // ---------------------------------------------------------------- CLI
+ // The staged bundle runs this through entries/stage-tool.mjs (behind argv-guard.mjs: the runner bundled with it has its own
+ // "am I main?" check, which must not fire inside the tool).
+ export function main(argv) {
+   const [cmd, ...rest] = argv;
+-  const o = (() => { try { return args(rest, ['rpc', 'carrier', 'from-dir', 'from-origin']); } catch (e) { console.error(e.message); process.exit(1); } })();
++  const o = (() => { try { return args(rest, ['rpc', 'carrier', 'from-dir', 'from-origin', 'label', 'server']); } catch (e) { console.error(e.message); process.exit(1); } })();
+   const print = (v) => console.log(JSON.stringify(v, (k, x) => (typeof x === 'bigint' ? x.toString() : x), 2));
+   (async () => {
+     if (cmd === 'capture-public') {
+@@ -280,7 +331,11 @@
+       const r = await health({ config: o.config, artifacts: o.artifacts || 'sample', rpcs: o.rpc });
+       if (o.json) print(r); else for (const c of r.checks) console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name}  ${JSON.stringify(c.detail).slice(0, 400)}`);
+       if (!r.ok) process.exitCode = 2;
+-    } else throw fail(1, 'usage: stage-tool.mjs capture-public|policy-import|fill-artifacts|gen-config|health ... (see the header)');
++    } else if (cmd === 'capture-app-static') {
++      if (!o.zone || !o.label?.length || !o.server?.length) throw fail(1, 'capture-app-static needs --zone, --label ... and --server <authoritative IPv4> ...');
++      const r = await captureAppStatic({ zone: o.zone, labels: o.label, servers: o.server });
++      print(r); if (r.refused.length) process.exitCode = 3;
++    } else throw fail(1, 'usage: stage-tool.mjs capture-public|policy-import|fill-artifacts|gen-config|health|capture-app-static ... (see the header)');
+   })().catch((e) => { console.error(e.message); process.exit(e.exit || 1); });
+ }
+ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main(process.argv.slice(2));
+--- a/test/hosted-services-stage.test.mjs
++++ b/test/hosted-services-stage.test.mjs
+@@ -47,6 +47,9 @@
+ const sha = (b) => createHash('sha256').update(b).digest('hex');
+ const Z32 = '0x' + '00'.repeat(32);
+ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hostsvc-stage-'));
++// the archive's own record: its label, its pins and whether its packages were current with its tree (a TEST build is
++// installable only with ALLOW_TEST_STAGE=1, which this test passes and asserts is required)
++let LABEL = null, PINS = null, TEST_STAGE = '0';
+ const wait = async (f, ms, what) => { const end = Date.now() + ms; for (;;) { try { const v = await f(); if (v) return v; } catch {} if (Date.now() > end) throw new Error(`timed out: ${what}`); await new Promise((r) => setTimeout(r, 300)); } };
+ const listening = (port) => new Promise((ok) => { const s = http.get({ host: '127.0.0.1', port, path: '/health', timeout: 1500 }, (r) => { r.resume(); ok(true); }); s.on('error', () => ok(false)); s.on('timeout', () => { s.destroy(); ok(false); }); });
+ 
+@@ -54,6 +57,8 @@
+   fs.mkdirSync(dir, { recursive: true });
+   execFileSync('tar', ['-xf', TAR, '-C', dir]);
+   const stage = path.join(dir, fs.readdirSync(dir)[0]);
++  const inputs = JSON.parse(fs.readFileSync(path.join(stage, 'STAGE-INPUTS.json'), 'utf8'));
++  LABEL = inputs.label; PINS = inputs.pins; TEST_STAGE = inputs.packagesCurrent === false ? '1' : '0';
+   for (let d = stage; d !== path.dirname(d); d = path.dirname(d)) assert.equal(fs.existsSync(path.join(d, 'node_modules')), false, `node_modules above the stage at ${d}`);
+   return stage;
+ }
+@@ -92,7 +97,7 @@
+ function sh(stage, script, args, { destdir, systemctl, live = false, log, extraEnv = {} }) {
+   return new Promise((ok) => {
+     const c = spawn('bash', [path.join(stage, 'scripts', script), ...args], { stdio: ['ignore', 'pipe', 'pipe'],
+-      env: { PATH: '/usr/bin:/bin', HOME: tmp, DESTDIR: destdir, SYSTEMCTL: systemctl, NODE, FAKE_SYSTEMCTL_LOG: log, FAKE_LIVE: live ? '1' : '0', ...extraEnv } });
++      env: { PATH: '/usr/bin:/bin', HOME: tmp, DESTDIR: destdir, SYSTEMCTL: systemctl, NODE, FAKE_SYSTEMCTL_LOG: log, FAKE_LIVE: live ? '1' : '0', ALLOW_TEST_STAGE: TEST_STAGE, ...extraEnv } });
+     let stdout = '', stderr = '';
+     c.stdout.on('data', (d) => { stdout += d; }); c.stderr.on('data', (d) => { stderr += d; });
+     const t = setTimeout(() => c.kill('SIGKILL'), 900_000);
+@@ -122,14 +127,17 @@
+   const sc = fakeSystemctl(tmp), o = { destdir: root, systemctl: sc, log };
+   const cfg = JSON.parse(fs.readFileSync(path.join(stage, 'config/host-services.json'), 'utf8'));
+   assert.equal(cfg.platformHostPolicy, 'production'); assert.equal(cfg.host.endpoint, WARDEN); assert.deepEqual(cfg.host.publicEndpoints, {}, 'stage 1 advertises nothing');
+-  assert.deepEqual(cfg.services.map((s) => s.package).sort(), ['sha256:2d69a8be882bea9fc107208a3828e25a773ce0c988eac6347d377904e9e78668', 'sha256:350c276f17a0ea15fc0451c614146554c2b08cf89c9b3258013ac188950d3cf8',
+-    'sha256:7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc', 'sha256:a031723ee86c9bf3a2489936a3c7449a6c72ff9b999902e57644c9fbc773eb41']);
++  assert.deepEqual(cfg.services.map((s) => s.package).sort(), Object.values(PINS).sort(), 'the configuration pins exactly the archive\'s recorded packages');
++  if (TEST_STAGE === '1') {   // a test build must not install by accident
++    const refused = await sh(stage, 'install.sh', [], { destdir: path.join(tmp, 'root0'), systemctl: fakeSystemctl(tmp), log: path.join(tmp, 'sc0.log'), extraEnv: { ALLOW_TEST_STAGE: '0' } });
++    assert.equal(refused.status, 3, refused.out); assert.match(refused.out, /TEST stage/);
++  }
+   for (const s of cfg.services) for (const k of ['bind', 'apiBind']) if (s.config[k]) assert.equal(s.config[k], '127.0.0.1');
+   let r = await sh(stage, 'install.sh', [], o);
+-  assert.equal(r.status, 0, r.out); assert.match(r.out, /installed stage hs1 \(first install\)/); assert.match(r.out, /NOT started and NOT enabled/);
++  assert.equal(r.status, 0, r.out); assert.match(r.out, new RegExp(`installed stage ${LABEL} \\(first install\\)`)); assert.match(r.out, /NOT started and NOT enabled/);
+   assert.doesNotMatch(fs.readFileSync(log, 'utf8'), /^(start|enable|restart)/m, 'install starts and enables nothing');
+   r = await sh(stage, 'install.sh', [], o); assert.equal(r.status, 0, r.out); assert.match(r.out, /re-run, unchanged/);
+-  const tool = path.join(root, 'opt/enclave-host-services/hs1/bin/stage-tool.mjs');
++  const tool = path.join(root, `opt/enclave-host-services/${LABEL}/bin/stage-tool.mjs`);
+   fs.appendFileSync(tool, '\n// changed');
+   r = await sh(stage, 'install.sh', [], o); assert.equal(r.status, 3); assert.match(r.out, /differs from this stage/);
+   // a fresh root that already has an enclave-host-services unit of someone else's: refused, nothing written
+@@ -139,7 +147,7 @@
+   assert.deepEqual(filesUnder(other), ['etc/systemd/system/enclave-host-services.service']);
+   // rollback keeps the changed file (exit 4) and removes everything else install wrote
+   r = await sh(stage, 'rollback.sh', [], o); assert.equal(r.status, 4, r.out); assert.match(r.out, /KEPT \(changed since install\): .*stage-tool\.mjs/);
+-  assert.deepEqual(filesUnder(root), ['etc/enclave-host-services/hs1/install-receipt.txt', 'etc/systemd/system/existing-app.service', 'opt/enclave-host-services/hs1/bin/stage-tool.mjs']);
++  assert.deepEqual(filesUnder(root), [`etc/enclave-host-services/${LABEL}/install-receipt.txt`, 'etc/systemd/system/existing-app.service', `opt/enclave-host-services/${LABEL}/bin/stage-tool.mjs`]);
+   fs.rmSync(tool);
+   r = await sh(stage, 'rollback.sh', [], o); assert.equal(r.status, 0, r.out);
+   assert.deepEqual(filesUnder(root), ['etc/systemd/system/existing-app.service'], 'exactly the pre-install state');
+@@ -216,7 +224,7 @@
+   // UNANCHORED: explicit, nothing written
+   r = await sh(stage, 'fill-data.sh', ['policy', ...chain], o); assert.equal(r.status, 0, r.out);
+   const un = JSON.parse(r.stdout); assert.equal(un.state, 'unanchored'); assert.equal(un.wrote, null); assert.match(un.meaning, /not-activated/);
+-  assert.deepEqual(fs.readdirSync(path.join(root, 'var/lib/enclave-host-services-data/hs1/policy-import')), []);
++  assert.deepEqual(fs.readdirSync(path.join(root, `var/lib/enclave-host-services-data/${LABEL}/policy-import`)), []);
+   // start: the unit's ExecStart (the bundled runner) in an empty environment, then stage-1 health
+   r = await sh(stage, 'start.sh', [], { ...o, extraEnv: { HEALTH_WAIT: '180' } });
+   assert.equal(r.status, 0, r.out + '\n--- unit log\n' + (fs.existsSync(path.join(root, 'fake-unit.log')) ? fs.readFileSync(path.join(root, 'fake-unit.log'), 'utf8').slice(-4000) : ''));
+@@ -233,7 +241,7 @@
+     const p1 = await sign([{ kind: 'operator', value: '0x' + '5a'.repeat(20), reason: 'unrelated' }]); docsServed.set(p1.digest, p1); await anchor(p1.digest);
+     r = await sh(stage, 'fill-data.sh', ['policy', '--carrier', carrierUrl, ...chain], o); assert.equal(r.status, 0, r.out);
+     const imp = JSON.parse(r.stdout); assert.equal(imp.state, 'anchored'); assert.equal(imp.digest, p1.digest);
+-    assert.ok(fs.existsSync(path.join(root, `var/lib/enclave-host-services-data/hs1/policy-import/${p1.digest}.json`)));
++    assert.ok(fs.existsSync(path.join(root, `var/lib/enclave-host-services-data/${LABEL}/policy-import/${p1.digest}.json`)));
+     r = await sh(stage, 'health.sh', ['--wait', '120'], o); assert.equal(r.status, 0, r.out);
+     assert.match(r.out, /"status":"current"/); assert.match(r.out, new RegExp(`"anchor":"${p1.digest}","anchoredAvailable":true`));
+     // a substituted document under the real signature is refused and nothing is written
+@@ -241,7 +249,7 @@
+     const p2 = await sign([...p1.policy.deny, { kind: 'operator', value: privateKeyToAccount(KEYS.other).address.toLowerCase(), reason: 'abuse report' }]);
+     docsServed.set(p2.digest, { ...fake }); await anchor(p2.digest);
+     r = await sh(stage, 'fill-data.sh', ['policy', '--carrier', carrierUrl, ...chain], o); assert.equal(r.status, 3, r.out); assert.match(r.out, /refused: no carrier/);
+-    assert.equal(fs.existsSync(path.join(root, `var/lib/enclave-host-services-data/hs1/policy-import/${p2.digest}.json`)), false);
++    assert.equal(fs.existsSync(path.join(root, `var/lib/enclave-host-services-data/${LABEL}/policy-import/${p2.digest}.json`)), false);
+     // BAN: the real document; the runner stops every role, health fails on the gate
+     docsServed.set(p2.digest, p2);
+     r = await sh(stage, 'fill-data.sh', ['policy', '--carrier', carrierUrl, ...chain], o); assert.equal(r.status, 0, r.out);
+--- a/test/hosted-services-appstatic.test.mjs
++++ b/test/hosted-services-appstatic.test.mjs
+@@ -0,0 +1,151 @@
++// APP_STATIC parity for the route-dns host role (work/hosted-services-activation): the fleet DNS front answers fixed A
++// records for platform services sharing the app zone (relay/dns-relay.js APP_STATIC). The role now carries ONLY validated
++// explicit public label -> IPv4 mappings through its configuration into the sanitized environment, and:
++//   - a static label answers exactly its address over real DNS (from the PINNED route-dns package, started by the real
++//     runner with its real child environment); AAAA is NODATA;
++//   - deployment names keep their authority: a route-map deployment label answers from the route map, an unknown
++//     deployment-shaped (hex) label is SERVFAIL, an unconfigured static-style label is NODATA;
++//   - malformed, deployment-shaped (hex, dep-/dep_/0x, legacy [a-z0-9]+), uppercase, non-public or oversized mappings are
++//     REFUSED before anything starts (the relay itself would silently drop them);
++//   - gen-config carries captured mappings (and Windows paths for a win32 target); stage-1 health checks every static label.
++import { test, after } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import http from 'node:http';
++import dgram from 'node:dgram';
++import { spawn as realSpawn } from 'node:child_process';
++import { createHash } from 'node:crypto';
++import { fileURLToPath } from 'node:url';
++import { runHostServices, validateHostServicesConfig } from '../network/host-services/runner.mjs';
++import { ROLES } from '../network/host-services/roles.mjs';
++import { genConfig, health, captureAppStatic } from '../network/host-services/stage-tool.mjs';
++import { freePort } from './helpers/cli-independent-rig.mjs';
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const PKG = path.join(REPO, 'network/host-services/packages');
++const pin = (role) => 'sha256:' + createHash('sha256').update(fs.readFileSync(path.join(PKG, `${role}.package.json`))).digest('hex');
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'appstatic-'));
++const STATIC = { 'custody-us-west': '134.199.235.187', 'custody-eu-central': '134.209.248.172' };
++const wait = async (f, ms, what) => { const end = Date.now() + ms; for (;;) { try { const v = await f(); if (v) return v; } catch {} if (Date.now() > end) throw new Error(`timed out: ${what}`); await new Promise((r) => setTimeout(r, 200)); } };
++function query(port, name, qtype) {
++  const id = Math.floor(Math.random() * 65535);
++  const q = Buffer.concat([Buffer.from([id >> 8, id & 255, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]),
++    ...name.split('.').map((l) => Buffer.concat([Buffer.from([l.length]), Buffer.from(l)])), Buffer.from([0, 0, qtype, 0, 1])]);
++  return new Promise((ok) => {
++    const s = dgram.createSocket('udp4'); const t = setTimeout(() => { s.close(); ok(null); }, 1500);
++    s.on('message', (m) => { if (m.readUInt16BE(0) !== id) return; clearTimeout(t); s.close();
++      const ans = m.readUInt16BE(6), addrs = [];
++      let o = 12; while (m[o]) o += m[o] + 1; o += 5;
++      for (let i = 0; i < ans; i++) { if ((m[o] & 0xc0) === 0xc0) o += 2; else { while (m[o]) o += m[o] + 1; o++; }
++        const type = m.readUInt16BE(o), len = m.readUInt16BE(o + 8); if (type === 1 && len === 4) addrs.push([...m.subarray(o + 10, o + 14)].join('.')); o += 10 + len; }
++      ok({ rcode: m[3] & 0x0f, aa: !!(m[2] & 0x04), answers: ans, addrs }); });
++    s.send(q, port, '127.0.0.1');
++  });
++}
++const base = (ports) => ({ dnsPort: ports.dns, bind: '127.0.0.1', apiPort: ports.api, zone: 'app.enclave.host', ipZone: 'ip.enclave.host',
++  nsName: 'ns-metal0.enclave.host', nsNames: ['ns-us-west.enclave.host', 'ns-metal0.enclave.host'], routeMapUrl: `http://127.0.0.1:${ports.map}/v1/network/routes` });
++const cfgOf = (dns) => ({ format: 'enclave-host-services/v1', host: { publicEndpoints: {} }, platformHostPolicy: 'off', packagesDir: PKG, stateRoot: path.join(tmp, 'state'),
++  services: [{ role: 'route-dns', package: pin('route-dns'), heapMiB: 128, config: dns }] });
++
++let running = null, mapServer = null;
++after(async () => { await running?.stop().catch(() => {}); mapServer?.close(); fs.rmSync(tmp, { recursive: true, force: true }); });
++
++test('malformed, deployment-shaped, non-public and oversized static mappings are refused before anything starts', () => {
++  const b = base({ dns: 1, api: 2, map: 3 });
++  for (const [m, re] of [
++    [{ deadbeef: '8.8.8.8' }, /could name a deployment/],                   // on-chain label shape
++    [{ abc123: '8.8.8.8' }, /could name a deployment/],                     // legacy dep_<label> shape (no hyphen)
++    [{ 'dep-abc12345': '8.8.8.8' }, /could name a deployment/], [{ 'dep_x-y': '8.8.8.8' }, /not a lowercase DNS label/],
++    [{ '0xab-cd': '8.8.8.8' }, /could name a deployment/], [{ 'xn--bcher-kva': '8.8.8.8' }, /could name a deployment/],
++    [{ 'Custody-us-west': '8.8.8.8' }, /not a lowercase DNS label/], [{ 'a.b-c': '8.8.8.8' }, /not a lowercase DNS label/],
++    [{ '-ab': '8.8.8.8' }, /not a lowercase DNS label/], [{ ['a-' + 'b'.repeat(62)]: '8.8.8.8' }, /not a lowercase DNS label/],
++    [{ 'custody-x': '10.0.0.5' }, /public IPv4/], [{ 'custody-x': '127.0.0.1' }, /public IPv4/], [{ 'custody-x': '::1' }, /public IPv4/],
++    [{ 'custody-x': '1.2.3.4,evil-x=5.6.7.8' }, /public IPv4/], [{ 'custody-x': 5 }, /public IPv4/],
++    [Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`svc-${i}`, '8.8.8.8'])), /at most 32/], [['custody-x=8.8.8.8'], /must map labels/],
++  ]) assert.throws(() => validateHostServicesConfig(cfgOf({ ...b, appStatic: m })), re, JSON.stringify(m).slice(0, 80));
++  // the sanitized environment: exactly the relay's names, APP_STATIC sorted and joined
++  const env = ROLES['route-dns'].launch(ROLES['route-dns'].validate({ ...b, appStatic: { 'custody-us-west': '134.199.235.187', 'alpha-svc': '8.8.8.8' } })).env;
++  assert.equal(env.APP_STATIC, 'alpha-svc=8.8.8.8,custody-us-west=134.199.235.187');
++  assert.deepEqual(Object.keys(env).sort(), ['APP_STATIC', 'APP_ZONE', 'DNS_API_BIND', 'DNS_API_PORT', 'DNS_BIND', 'DNS_PORT', 'DNS_READ_ONLY', 'IP_ZONE', 'NS_NAME', 'NS_NAMES', 'ROUTE_MAP_URL']);
++  assert.equal('APP_STATIC' in ROLES['route-dns'].launch(ROLES['route-dns'].validate(b)).env, false, 'no mapping: no APP_STATIC at all');
++});
++
++test('real DNS from the pinned route-dns package: static labels answer, deployment names keep their authority', async () => {
++  const ports = { dns: await freePort(), api: await freePort(), map: await freePort() };
++  // the route map (a directory's /v1/network/routes): one current deployment label
++  mapServer = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'application/json' });
++    res.end(JSON.stringify({ labels: { abcd1234: { addresses: ['203.0.114.9'], expiresAt: Date.now() + 3600e3 } } })); });
++  await new Promise((ok) => mapServer.listen(ports.map, '127.0.0.1', ok));
++  const envs = [];
++  const spawn = (exe, argv, opts) => { envs.push(opts.env); return realSpawn(exe, argv, opts); };
++  const logs = [];
++  running = await runHostServices(cfgOf({ ...base(ports), appStatic: STATIC }), { spawn, log: (m) => logs.push(m), intervalMs: 200 });
++  const zone = 'app.enclave.host';
++  const a = await wait(() => query(ports.dns, `custody-us-west.${zone}`, 1), 20000, 'route-dns answers\n' + logs.join('\n'));
++  assert.equal(a.rcode, 0); assert.equal(a.aa, true); assert.deepEqual(a.addrs, ['134.199.235.187']);
++  assert.deepEqual((await query(ports.dns, `custody-eu-central.${zone}`, 1)).addrs, ['134.209.248.172']);
++  assert.deepEqual((await query(ports.dns, `CUSTODY-US-WEST.${zone}`, 1)).addrs, ['134.199.235.187'], 'names are case-insensitive');
++  const aaaa = await query(ports.dns, `custody-us-west.${zone}`, 28); assert.equal(aaaa.rcode, 0); assert.equal(aaaa.answers, 0, 'static is A only: AAAA NODATA');
++  // deployment names keep their authority
++  const dep = await wait(async () => { const r = await query(ports.dns, `abcd1234.${zone}`, 1); return r?.addrs.length ? r : null; }, 20000, 'route map label');
++  assert.deepEqual(dep.addrs, ['203.0.114.9']);
++  assert.equal((await query(ports.dns, `deadbeef.${zone}`, 1)).rcode, 2, 'an unknown deployment-shaped label is SERVFAIL, never a static answer');
++  const none = await query(ports.dns, `custody-ca-east.${zone}`, 1); assert.equal(none.rcode, 0); assert.equal(none.answers, 0, 'an unconfigured static-style label is NODATA');
++  // the child got the sanitized environment and nothing of this process's
++  assert.equal(envs.length, 1);
++  assert.equal(envs[0].APP_STATIC, 'custody-eu-central=134.209.248.172,custody-us-west=134.199.235.187');
++  assert.deepEqual(Object.keys(envs[0]).filter((k) => !['PATH', 'SystemRoot', 'WINDIR'].includes(k)).sort(),
++    ['APP_STATIC', 'APP_ZONE', 'DNS_API_BIND', 'DNS_API_PORT', 'DNS_BIND', 'DNS_PORT', 'DNS_READ_ONLY', 'IP_ZONE', 'NS_NAME', 'NS_NAMES', 'ROUTE_MAP_URL']);
++  // stage-1 health checks every static label against the configured address (the gate line fails: policy is "off" here)
++  const cfgFile = path.join(tmp, 'host-services.json'); fs.writeFileSync(cfgFile, JSON.stringify(cfgOf({ ...base(ports), appStatic: STATIC })));
++  const h = await health({ config: cfgFile });
++  assert.equal(h.checks.find((c) => /static platform label/.test(c.name))?.ok, true, JSON.stringify(h.checks));
++  assert.equal(h.checks.find((c) => /^gate:/.test(c.name)).ok, false, 'policy off never passes stage-1 health');
++  const wrong = path.join(tmp, 'wrong.json'); fs.writeFileSync(wrong, JSON.stringify(cfgOf({ ...base(ports), appStatic: { ...STATIC, 'custody-us-west': '8.8.8.8' } })));
++  assert.equal((await health({ config: wrong })).checks.find((c) => /static platform label/.test(c.name)).ok, false, 'a served address that differs from the config fails');
++  // the public-only capture, against this authoritative server: kept only what it answers authoritatively and uniquely
++  const cap = await captureAppStatic({ zone, labels: ['custody-us-west', 'custody-ca-east', 'deadbeef', 'abcd1234'], servers: ['127.0.0.1'], port: ports.dns });
++  assert.deepEqual(cap.labels, { 'custody-us-west': '134.199.235.187' });
++  assert.deepEqual(cap.refused.map((r) => r.label).sort(), ['abcd1234', 'custody-ca-east', 'deadbeef']);
++  assert.match(cap.refused.find((r) => r.label === 'abcd1234').reason, /could name a deployment/, 'a deployment label is never captured as static');
++});
++
++test('capture-app-static refuses disagreement, non-authoritative answers and multiple records; never chooses', async () => {
++  const answer = (addresses, extra = {}) => ({ rcode: 0, authoritative: true, answers: addresses.length, address: addresses[0] ?? null, addresses, ...extra });
++  const scripted = { 'ns1|custody-a': answer(['198.51.100.7']), 'ns2|custody-a': answer(['198.51.100.7']),
++    'ns1|custody-b': answer(['198.51.100.7']), 'ns2|custody-b': answer(['198.51.100.8']),
++    'ns1|custody-c': answer(['198.51.100.7']), 'ns2|custody-c': answer(['198.51.100.7'], { authoritative: false }),
++    'ns1|custody-d': answer(['198.51.100.7', '198.51.100.9']), 'ns2|custody-d': answer(['198.51.100.9', '198.51.100.7']),
++    'ns1|custody-e': answer(['192.168.1.1']), 'ns2|custody-e': answer(['192.168.1.1']),
++    'ns1|custody-f': null, 'ns2|custody-f': answer(['198.51.100.7']) };
++  const query = async (_port, server, name) => scripted[`${server}|${name.split('.')[0]}`];
++  const r = await captureAppStatic({ zone: 'app.enclave.host', labels: ['custody-a', 'custody-b', 'custody-c', 'custody-d', 'custody-e', 'custody-f'], servers: ['ns1', 'ns2'], query });
++  // 198.51.100.0/24 is documentation space: refused as non-public by the role's own rule, like a private address
++  assert.deepEqual(r.labels, {});
++  const why = Object.fromEntries(r.refused.map((x) => [x.label, x.reason]));
++  assert.match(why['custody-a'], /public IPv4/); assert.match(why['custody-b'], /disagree/); assert.match(why['custody-c'], /authoritatively/);
++  assert.match(why['custody-d'], /2 A records/); assert.match(why['custody-e'], /public IPv4/); assert.match(why['custody-f'], /authoritatively/);
++  const ok = await captureAppStatic({ zone: 'app.enclave.host', labels: ['custody-a'], servers: ['ns1', 'ns2'],
++    query: async () => answer(['134.199.235.187']) });
++  assert.deepEqual(ok.labels, { 'custody-a': '134.199.235.187' });
++});
++
++test('gen-config carries captured mappings, and uses the TARGET platform\'s paths', () => {
++  const spec = { endpoint: 'https://api.enclave.host/t/nucbox-k11', bind: '127.0.0.1', ports: { directory: 18188, bootstrap: 18189, dns: 18153, dnsApi: 18154, policy: 18190 },
++    serviceIndex: { chainId: 8453, address: '0x54dEcb43DE6f9Cc953Ba582B190b56C5a60B5941', codeHash: '0x' + '11'.repeat(32) },
++    pins: { 'directory-replica': 'sha256:' + 'a'.repeat(64), 'bootstrap-replica': 'sha256:' + 'b'.repeat(64), 'route-dns': 'sha256:' + 'c'.repeat(64), 'policy-mirror': 'sha256:' + 'd'.repeat(64) },
++    directoryRpc: ['https://mainnet.base.org', 'https://base.drpc.org'], authorityPins: {}, checkers: [], directoryPeers: [],
++    dns: { zone: 'app.enclave.host', ipZone: 'ip.enclave.host', nsName: 'ns-metal0.enclave.host', nsNames: ['ns-metal0.enclave.host'], appStatic: STATIC } };
++  const lin = genConfig({ ...spec, stateRoot: '/var/lib/x/hs1', dataRoot: '/var/lib/x-data/hs1', packagesDir: '/opt/x/packages' }, 'tcp LISTEN 0 128 127.0.0.1:22 0.0.0.0:*');
++  assert.deepEqual(lin.services.find((s) => s.role === 'route-dns').config.appStatic, STATIC);
++  assert.equal(lin.services.find((s) => s.role === 'bootstrap-replica').config.directory, '/var/lib/x-data/hs1/artifacts');
++  const win = genConfig({ ...spec, platform: 'win32', stateRoot: 'C:\\ProgramData\\Enclave\\host-services\\hs1\\state', dataRoot: 'C:\\ProgramData\\Enclave\\host-services\\hs1\\data',
++    packagesDir: 'C:\\Program Files\\Enclave\\host-services\\hs1\\packages' }, 'tcp LISTEN 0 128 127.0.0.1:22 0.0.0.0:*');
++  assert.equal(win.services.find((s) => s.role === 'bootstrap-replica').config.directory, 'C:\\ProgramData\\Enclave\\host-services\\hs1\\data\\artifacts');
++  assert.equal(win.platformHostPolicyCarriers.importDir, 'C:\\ProgramData\\Enclave\\host-services\\hs1\\data\\policy-import');
++  assert.equal(win.platformHostPolicy, 'production');
++  const noStatic = genConfig({ ...spec, dns: { ...spec.dns, appStatic: undefined }, stateRoot: '/s', dataRoot: '/d', packagesDir: '/p' }, 'tcp LISTEN 0 128 127.0.0.1:22 0.0.0.0:*');
++  assert.equal('appStatic' in noStatic.services.find((s) => s.role === 'route-dns').config, false, 'nothing captured: no static labels');
++});
+--- a/network/host-services/windows-supervisor/go.mod
++++ b/network/host-services/windows-supervisor/go.mod
+@@ -0,0 +1,5 @@
++module github.com/EnclaveHost/enclave/network/host-services/windows-supervisor
++
++go 1.26.0
++
++require golang.org/x/sys v0.48.0
+--- a/network/host-services/windows-supervisor/go.sum
++++ b/network/host-services/windows-supervisor/go.sum
+@@ -0,0 +1,2 @@
++golang.org/x/sys v0.48.0 h1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=
++golang.org/x/sys v0.48.0/go.mod h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=
+--- a/network/host-services/windows-supervisor/supervise.go
++++ b/network/host-services/windows-supervisor/supervise.go
+@@ -0,0 +1,205 @@
++// Windows supervisor for the Enclave host-service runner (work/hosted-services-activation): the systemd unit's semantics
++// on Windows. This file is platform-neutral (tested on any OS); job_windows.go supplies the real launcher.
++//
++//   - the runner and every role it starts run inside ONE Job Object (job_windows.go): a job-wide committed-memory limit
++//     (JOB_OBJECT_LIMIT_JOB_MEMORY - the cgroup MemoryMax equivalent; the roles' heapMiB stays a V8 heap cap only), an
++//     active-process limit, a hard CPU-rate cap, and KILL_ON_JOB_CLOSE (if this supervisor dies, the whole tree dies);
++//   - Restart=on-failure: a clean exit (0) is final; any other exit restarts after RestartSec, at most StartLimitBurst
++//     starts per StartLimitIntervalSec, after which the supervisor gives up (exit 3), like systemd's start limit;
++//   - stop: a graceful request (CTRL_BREAK -> the runner's SIGBREAK: it stops every role and exits 0), then after
++//     StopTimeoutSec the whole job is terminated (KillMode=mixed + TimeoutStopSec).
++//
++// A platform-policy refusal is NOT a failure: the runner keeps running with every role stopped (sticky until the admin's
++// authenticated admit), exactly as under systemd.
++package main
++
++import (
++	"encoding/json"
++	"errors"
++	"fmt"
++	"os"
++	"path/filepath"
++	"regexp"
++	"strings"
++	"time"
++)
++
++// Config is supervisor.json. Every path is absolute; nothing here is secret.
++type Config struct {
++	Node                  string   `json:"node"`            // node.exe (>= 22)
++	NodeArgs              []string `json:"nodeArgs"`        // e.g. ["--max-old-space-size=128"]: the RUNNER's V8 heap cap
++	Runner                string   `json:"runner"`          // bin\host-services-runner.mjs
++	Config                string   `json:"config"`          // host-services.json
++	WorkDir               string   `json:"workDir"`         // the writable state directory
++	JobMemoryMiB          int      `json:"jobMemoryMiB"`    // job-wide committed memory (runner + roles)
++	CPUPercent            int      `json:"cpuPercent"`      // of ONE logical CPU (150 = CPUQuota=150%)
++	ActiveProcesses       int      `json:"activeProcesses"` // runner + roles + headroom
++	RestartSec            int      `json:"restartSec"`
++	StartLimitBurst       int      `json:"startLimitBurst"`
++	StartLimitIntervalSec int      `json:"startLimitIntervalSec"`
++	StopTimeoutSec        int      `json:"stopTimeoutSec"`
++	StopEvent             string   `json:"stopEvent"` // Global\... named event an administrator sets to stop
++	Log                   string   `json:"log"`
++}
++
++var heapArg = regexp.MustCompile(`^--max-old-space-size=[0-9]{2,5}$`)
++var eventName = regexp.MustCompile(`^Global\\Enclave-host-services-[A-Za-z0-9-]{1,32}-stop$`)
++
++func isAbs(p string) bool {
++	return filepath.IsAbs(p) || regexp.MustCompile(`^[A-Za-z]:\\`).MatchString(p)
++}
++
++// Validate refuses anything outside the reviewed shape (no extra node flags, no relative paths, sane limits).
++func (c *Config) Validate() error {
++	for name, p := range map[string]string{"node": c.Node, "runner": c.Runner, "config": c.Config, "workDir": c.WorkDir, "log": c.Log} {
++		if p == "" || !isAbs(p) || strings.ContainsAny(p, "\"\x00\r\n") {
++			return fmt.Errorf("%s must be an absolute path", name)
++		}
++	}
++	for _, a := range c.NodeArgs {
++		if !heapArg.MatchString(a) {
++			return fmt.Errorf("nodeArgs: only --max-old-space-size=N (a V8 heap cap) is allowed, got %q", a)
++		}
++	}
++	switch {
++	case c.JobMemoryMiB < 256 || c.JobMemoryMiB > 16384:
++		return errors.New("jobMemoryMiB: 256 to 16384")
++	case c.CPUPercent < 10 || c.CPUPercent > 6400:
++		return errors.New("cpuPercent: 10 to 6400 (percent of one logical CPU)")
++	case c.ActiveProcesses < 2 || c.ActiveProcesses > 64:
++		return errors.New("activeProcesses: 2 to 64")
++	case c.RestartSec < 1 || c.RestartSec > 600:
++		return errors.New("restartSec: 1 to 600")
++	case c.StartLimitBurst < 1 || c.StartLimitBurst > 100 || c.StartLimitIntervalSec < 1 || c.StartLimitIntervalSec > 86400:
++		return errors.New("startLimitBurst 1-100, startLimitIntervalSec 1-86400")
++	case c.StopTimeoutSec < 1 || c.StopTimeoutSec > 600:
++		return errors.New("stopTimeoutSec: 1 to 600")
++	case !eventName.MatchString(c.StopEvent):
++		return errors.New(`stopEvent: Global\Enclave-host-services-<label>-stop`)
++	}
++	return nil
++}
++
++func LoadConfig(file string) (*Config, error) {
++	raw, err := os.ReadFile(file)
++	if err != nil {
++		return nil, err
++	}
++	dec := json.NewDecoder(strings.NewReader(string(raw)))
++	dec.DisallowUnknownFields()
++	var c Config
++	if err := dec.Decode(&c); err != nil {
++		return nil, fmt.Errorf("supervisor.json: %w", err)
++	}
++	return &c, c.Validate()
++}
++
++// CPURate is JOBOBJECT_CPU_RATE_CONTROL_INFORMATION.CpuRate: hundredths of a percent of ALL logical CPUs.
++func CPURate(percentOfOneCPU, logicalCPUs int) uint32 {
++	if logicalCPUs < 1 {
++		logicalCPUs = 1
++	}
++	r := percentOfOneCPU * 100 / logicalCPUs
++	if r < 1 {
++		r = 1
++	}
++	if r > 10000 {
++		r = 10000
++	}
++	return uint32(r)
++}
++
++// Process is one started runner (inside its own job on Windows).
++type Process interface {
++	Wait() (exitCode int, err error) // blocks until the runner exits
++	Interrupt() error                // graceful stop request (CTRL_BREAK)
++	Kill() error                     // terminate the whole job (runner + every role)
++	Close()                          // release the job (KILL_ON_JOB_CLOSE ends anything left)
++}
++
++// Launcher starts the runner; Clock lets the tests run the restart policy without real time.
++type Launcher interface {
++	Start(c *Config) (Process, error)
++}
++type Clock interface {
++	Now() time.Time
++	After(d time.Duration) <-chan time.Time
++}
++type realClock struct{}
++
++func (realClock) Now() time.Time                         { return time.Now() }
++func (realClock) After(d time.Duration) <-chan time.Time { return time.After(d) }
++
++const (
++	ExitStopped    = 0 // stopped on request, or the runner exited cleanly
++	ExitStartLimit = 3 // too many failed starts (systemd's start-limit-hit)
++)
++
++// Supervise runs the restart policy until a clean exit, a stop request or the start limit. logf records every decision.
++func Supervise(c *Config, l Launcher, stop <-chan struct{}, clk Clock, logf func(string, ...any)) int {
++	var starts []time.Time
++	for {
++		now := clk.Now()
++		window := time.Duration(c.StartLimitIntervalSec) * time.Second
++		kept := starts[:0]
++		for _, t := range starts {
++			if now.Sub(t) < window {
++				kept = append(kept, t)
++			}
++		}
++		starts = kept
++		if len(starts) >= c.StartLimitBurst {
++			logf("start limit hit: %d starts within %ds; giving up (no restart until an administrator starts it again)", len(starts), c.StartLimitIntervalSec)
++			return ExitStartLimit
++		}
++		starts = append(starts, now)
++		p, err := l.Start(c)
++		if err != nil {
++			logf("runner could not start: %v", err)
++		} else {
++			done := make(chan int, 1)
++			go func() {
++				code, werr := p.Wait()
++				if werr != nil {
++					logf("wait: %v", werr)
++					code = -1
++				}
++				done <- code
++			}()
++			select {
++			case code := <-done:
++				p.Close()
++				if code == 0 {
++					logf("runner exited cleanly (0): not restarted (Restart=on-failure)")
++					return ExitStopped
++				}
++				logf("runner exited with %d", code)
++			case <-stop:
++				logf("stop requested: CTRL_BREAK to the runner, %ds before the job is terminated", c.StopTimeoutSec)
++				if err := p.Interrupt(); err != nil {
++					logf("interrupt failed (%v): terminating the job now", err)
++					_ = p.Kill()
++					<-done
++				} else {
++					select {
++					case code := <-done:
++						logf("runner stopped (%d)", code)
++					case <-clk.After(time.Duration(c.StopTimeoutSec) * time.Second):
++						logf("runner still running after %ds: terminating the job", c.StopTimeoutSec)
++						_ = p.Kill()
++						<-done
++					}
++				}
++				p.Close()
++				return ExitStopped
++			}
++		}
++		logf("restarting in %ds", c.RestartSec)
++		select {
++		case <-clk.After(time.Duration(c.RestartSec) * time.Second):
++		case <-stop:
++			logf("stop requested while waiting to restart: not started again")
++			return ExitStopped
++		}
++	}
++}
+--- a/network/host-services/windows-supervisor/main.go
++++ b/network/host-services/windows-supervisor/main.go
+@@ -0,0 +1,48 @@
++package main
++
++import (
++	"fmt"
++	"log"
++	"os"
++)
++
++// hostsvc-supervisor run <supervisor.json>    run the runner under the job until a clean exit, a stop or the start limit
++// hostsvc-supervisor check <supervisor.json>  validate the configuration only
++// hostsvc-supervisor stop <supervisor.json>   set the configured stop event (an administrator's graceful stop)
++func main() {
++	if len(os.Args) != 3 {
++		fmt.Fprintln(os.Stderr, "usage: hostsvc-supervisor run|check|stop <supervisor.json>")
++		os.Exit(2)
++	}
++	c, err := LoadConfig(os.Args[2])
++	if err != nil {
++		fmt.Fprintln(os.Stderr, err)
++		os.Exit(2)
++	}
++	switch os.Args[1] {
++	case "check":
++		fmt.Println("ok")
++	case "stop":
++		if err := signalStop(c.StopEvent); err != nil {
++			fmt.Fprintln(os.Stderr, err)
++			os.Exit(1)
++		}
++		fmt.Println("stop requested")
++	case "run":
++		f, err := os.OpenFile(c.Log, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o640)
++		if err != nil {
++			fmt.Fprintln(os.Stderr, err)
++			os.Exit(1)
++		}
++		lg := log.New(f, "", log.LstdFlags|log.LUTC)
++		stop, err := stopChannel(c.StopEvent)
++		if err != nil {
++			lg.Printf("stop event: %v", err)
++			os.Exit(1)
++		}
++		os.Exit(Supervise(c, newLauncher(lg), stop, realClock{}, lg.Printf))
++	default:
++		fmt.Fprintln(os.Stderr, "usage: hostsvc-supervisor run|check|stop <supervisor.json>")
++		os.Exit(2)
++	}
++}
+--- a/network/host-services/windows-supervisor/launcher_other.go
++++ b/network/host-services/windows-supervisor/launcher_other.go
+@@ -0,0 +1,20 @@
++//go:build !windows
++
++package main
++
++import (
++	"errors"
++	"log"
++)
++
++// Only Windows has the Job Object launcher; elsewhere the systemd unit is the supervisor.
++type unsupported struct{}
++
++func (unsupported) Start(*Config) (Process, error) {
++	return nil, errors.New("hostsvc-supervisor runs only on Windows")
++}
++func newLauncher(*log.Logger) Launcher { return unsupported{} }
++func stopChannel(string) (<-chan struct{}, error) {
++	return nil, errors.New("hostsvc-supervisor runs only on Windows")
++}
++func signalStop(string) error { return errors.New("hostsvc-supervisor runs only on Windows") }
+--- a/network/host-services/windows-supervisor/job_windows.go
++++ b/network/host-services/windows-supervisor/job_windows.go
+@@ -0,0 +1,192 @@
++//go:build windows
++
++package main
++
++// The Job Object launcher (the same CreateProcess(SUSPENDED) -> job -> resume pattern as
++// network/windows-firewall/sandbox_windows.go, with JOB-wide limits instead of a per-process one):
++//   - the runner starts SUSPENDED, is assigned to a fresh job, then resumed: it and every role it ever spawns are in the
++//     job before a single instruction runs (no breakaway is permitted);
++//   - JOB_OBJECT_LIMIT_JOB_MEMORY: committed memory of the WHOLE tree (runner + roles) - allocation beyond it fails, the
++//     runner or role dies, and the restart policy applies (the cgroup MemoryMax equivalent);
++//   - JOB_OBJECT_LIMIT_ACTIVE_PROCESS, a hard CPU-rate cap, JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION (no WER hang);
++//   - JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: when this supervisor exits or is killed, the whole tree ends;
++//   - a new process group, so CTRL_BREAK reaches the runner's group only (the runner's SIGBREAK: graceful stop).
++import (
++	"errors"
++	"fmt"
++	"log"
++	"os"
++	"runtime"
++	"strings"
++	"unsafe"
++
++	"golang.org/x/sys/windows"
++)
++
++const (
++	jobObjectCPURateControlInformation = 15 // JOBOBJECTINFOCLASS
++	cpuRateControlEnable               = 0x1
++	cpuRateControlHardCap              = 0x4
++)
++
++type cpuRateControl struct {
++	ControlFlags uint32
++	CPURate      uint32
++}
++
++type jobProcess struct {
++	job     windows.Handle
++	process windows.Handle
++	pid     uint32
++	logf    func(string, ...any)
++}
++
++type jobLauncher struct{ lg *log.Logger }
++
++func newLauncher(lg *log.Logger) Launcher { return jobLauncher{lg} }
++
++func wide(s string) *uint16 { p, _ := windows.UTF16PtrFromString(s); return p }
++
++// the runner's whole environment: the two OS directory names Winsock and the crypto provider need, and the system PATH
++func runnerEnv() []uint16 {
++	root := os.Getenv("SystemRoot")
++	if root == "" {
++		root = `C:\Windows`
++	}
++	var b []uint16
++	for _, kv := range []string{"PATH=" + root + `\System32`, "SystemRoot=" + root, "WINDIR=" + root} {
++		u, _ := windows.UTF16FromString(kv)
++		b = append(b, u...)
++	}
++	return append(b, 0)
++}
++
++func (l jobLauncher) Start(c *Config) (Process, error) {
++	job, err := windows.CreateJobObject(nil, nil)
++	if err != nil {
++		return nil, fmt.Errorf("CreateJobObject: %w", err)
++	}
++	fail := func(e error) (Process, error) { windows.CloseHandle(job); return nil, e }
++	limits := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{}
++	limits.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | windows.JOB_OBJECT_LIMIT_JOB_MEMORY |
++		windows.JOB_OBJECT_LIMIT_ACTIVE_PROCESS | windows.JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION
++	limits.BasicLimitInformation.ActiveProcessLimit = uint32(c.ActiveProcesses)
++	limits.JobMemoryLimit = uintptr(c.JobMemoryMiB) << 20
++	if _, err := windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&limits)), uint32(unsafe.Sizeof(limits))); err != nil {
++		return fail(fmt.Errorf("job limits: %w", err))
++	}
++	rate := cpuRateControl{ControlFlags: cpuRateControlEnable | cpuRateControlHardCap, CPURate: CPURate(c.CPUPercent, runtime.NumCPU())}
++	if _, err := windows.SetInformationJobObject(job, jobObjectCPURateControlInformation, uintptr(unsafe.Pointer(&rate)), uint32(unsafe.Sizeof(rate))); err != nil {
++		return fail(fmt.Errorf("job CPU rate: %w", err))
++	}
++	// stdout/stderr -> the log file; stdin -> NUL. Only these handles are inherited (PROC_THREAD_ATTRIBUTE_HANDLE_LIST).
++	sa := &windows.SecurityAttributes{InheritHandle: 1}
++	sa.Length = uint32(unsafe.Sizeof(*sa))
++	out, err := windows.CreateFile(wide(c.Log), windows.FILE_APPEND_DATA, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, sa, windows.OPEN_ALWAYS, windows.FILE_ATTRIBUTE_NORMAL, 0)
++	if err != nil {
++		return fail(fmt.Errorf("log: %w", err))
++	}
++	defer windows.CloseHandle(out)
++	null, err := windows.CreateFile(wide("NUL"), windows.GENERIC_READ, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, sa, windows.OPEN_EXISTING, 0, 0)
++	if err != nil {
++		return fail(fmt.Errorf("NUL: %w", err))
++	}
++	defer windows.CloseHandle(null)
++	attrs, err := windows.NewProcThreadAttributeList(1)
++	if err != nil {
++		return fail(err)
++	}
++	defer attrs.Delete()
++	handles := []windows.Handle{null, out}
++	if err := attrs.Update(windows.PROC_THREAD_ATTRIBUTE_HANDLE_LIST, unsafe.Pointer(&handles[0]), uintptr(len(handles))*unsafe.Sizeof(handles[0])); err != nil {
++		return fail(err)
++	}
++	si := windows.StartupInfoEx{ProcThreadAttributeList: attrs.List()}
++	si.Cb = uint32(unsafe.Sizeof(si))
++	si.Flags = windows.STARTF_USESTDHANDLES
++	si.StdInput, si.StdOutput, si.StdErr = null, out, out
++	args := append([]string{c.Node}, c.NodeArgs...)
++	args = append(args, c.Runner, "run", c.Config)
++	for i := range args {
++		args[i] = windows.EscapeArg(args[i])
++	}
++	env := runnerEnv()
++	var pi windows.ProcessInformation
++	flags := uint32(windows.CREATE_SUSPENDED | windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_UNICODE_ENVIRONMENT | windows.EXTENDED_STARTUPINFO_PRESENT)
++	if err := windows.CreateProcess(wide(c.Node), wide(strings.Join(args, " ")), nil, nil, true, flags, &env[0], wide(c.WorkDir), &si.StartupInfo, &pi); err != nil {
++		return fail(fmt.Errorf("CreateProcess: %w", err))
++	}
++	defer windows.CloseHandle(pi.Thread)
++	if err := windows.AssignProcessToJobObject(job, pi.Process); err != nil {
++		_ = windows.TerminateProcess(pi.Process, 1)
++		windows.CloseHandle(pi.Process)
++		return fail(fmt.Errorf("AssignProcessToJobObject: %w", err))
++	}
++	if _, err := windows.ResumeThread(pi.Thread); err != nil {
++		_ = windows.TerminateJobObject(job, 1)
++		windows.CloseHandle(pi.Process)
++		return fail(fmt.Errorf("ResumeThread: %w", err))
++	}
++	l.lg.Printf("runner started (pid %d) in a job: %d MiB job memory, %d%% of one CPU (hard cap), %d processes, kill-on-close",
++		pi.ProcessId, c.JobMemoryMiB, c.CPUPercent, c.ActiveProcesses)
++	return &jobProcess{job: job, process: pi.Process, pid: pi.ProcessId, logf: l.lg.Printf}, nil
++}
++
++func (p *jobProcess) Wait() (int, error) {
++	if _, err := windows.WaitForSingleObject(p.process, windows.INFINITE); err != nil {
++		return -1, err
++	}
++	var code uint32
++	if err := windows.GetExitCodeProcess(p.process, &code); err != nil {
++		return -1, err
++	}
++	return int(int32(code)), nil
++}
++
++// CTRL_BREAK to the runner's process group (the runner's SIGBREAK). The group shares this supervisor's console.
++func (p *jobProcess) Interrupt() error {
++	return windows.GenerateConsoleCtrlEvent(windows.CTRL_BREAK_EVENT, p.pid)
++}
++func (p *jobProcess) Kill() error { return windows.TerminateJobObject(p.job, 1) }
++func (p *jobProcess) Close() {
++	var info windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION
++	if err := windows.QueryInformationJobObject(p.job, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info)), nil); err == nil {
++		p.logf("job peak committed memory %d MiB", info.PeakJobMemoryUsed>>20)
++	}
++	windows.CloseHandle(p.process)
++	windows.CloseHandle(p.job) // KILL_ON_JOB_CLOSE: nothing of the tree outlives this
++}
++
++// Only SYSTEM, Administrators and LOCAL SERVICE (the task's account) may open or set the stop event.
++const stopEventSDDL = "D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;LS)"
++
++func stopChannel(name string) (<-chan struct{}, error) {
++	sd, err := windows.SecurityDescriptorFromString(stopEventSDDL)
++	if err != nil {
++		return nil, err
++	}
++	sa := &windows.SecurityAttributes{SecurityDescriptor: sd}
++	sa.Length = uint32(unsafe.Sizeof(*sa))
++	ev, err := windows.CreateEvent(sa, 1, 0, wide(name))
++	if errors.Is(err, windows.ERROR_ALREADY_EXISTS) { // x/sys returns the handle AND this error
++		windows.CloseHandle(ev)
++		return nil, fmt.Errorf("%s already exists: another supervisor of this stage is running", name)
++	}
++	if err != nil {
++		return nil, fmt.Errorf("CreateEvent %s: %w", name, err)
++	}
++	// the console the runner's group shares, for CTRL_BREAK (no-op if this process already has one)
++	_, _, _ = windows.NewLazySystemDLL("kernel32.dll").NewProc("AllocConsole").Call()
++	ch := make(chan struct{})
++	go func() { _, _ = windows.WaitForSingleObject(ev, windows.INFINITE); close(ch) }()
++	return ch, nil
++}
++
++func signalStop(name string) error {
++	ev, err := windows.OpenEvent(windows.EVENT_MODIFY_STATE, false, wide(name))
++	if err != nil {
++		return fmt.Errorf("OpenEvent %s (is the supervisor running?): %w", name, err)
++	}
++	defer windows.CloseHandle(ev)
++	return windows.SetEvent(ev)
++}
+--- a/network/host-services/windows-supervisor/supervise_test.go
++++ b/network/host-services/windows-supervisor/supervise_test.go
+@@ -0,0 +1,254 @@
++package main
++
++import (
++	"errors"
++	"os"
++	"path/filepath"
++	"strings"
++	"sync"
++	"testing"
++	"time"
++)
++
++func goodConfig() *Config {
++	return &Config{Node: `C:\Program Files\nodejs\node.exe`, NodeArgs: []string{"--max-old-space-size=128"},
++		Runner: `C:\Program Files\Enclave\host-services\hs1\bin\host-services-runner.mjs`, Config: `C:\ProgramData\Enclave\host-services\hs1\config\host-services.json`,
++		WorkDir: `C:\ProgramData\Enclave\host-services\hs1\state`, JobMemoryMiB: 1024, CPUPercent: 150, ActiveProcesses: 16, RestartSec: 10,
++		StartLimitBurst: 5, StartLimitIntervalSec: 600, StopTimeoutSec: 30, StopEvent: `Global\Enclave-host-services-hs1-stop`, Log: `C:\ProgramData\Enclave\host-services\hs1\state\supervisor.log`}
++}
++
++// a clock whose restart delays elapse at once (advancing Now) and whose stop timeout fires only when the test says so
++type fakeClock struct {
++	mu      sync.Mutex
++	now     time.Time
++	delays  []time.Duration
++	stopFor time.Duration
++	stopCh  chan time.Time
++}
++
++func newClock(stopTimeout int) *fakeClock {
++	return &fakeClock{now: time.Unix(1_800_000_000, 0), stopFor: time.Duration(stopTimeout) * time.Second, stopCh: make(chan time.Time, 1)}
++}
++func (c *fakeClock) Now() time.Time { c.mu.Lock(); defer c.mu.Unlock(); return c.now }
++func (c *fakeClock) After(d time.Duration) <-chan time.Time {
++	c.mu.Lock()
++	defer c.mu.Unlock()
++	if d == c.stopFor {
++		return c.stopCh
++	}
++	c.delays = append(c.delays, d)
++	c.now = c.now.Add(d)
++	ch := make(chan time.Time, 1)
++	ch <- c.now
++	return ch
++}
++
++type fakeProc struct {
++	exit        chan int
++	interrupted bool
++	killed      bool
++	closed      bool
++	onInterrupt func(p *fakeProc) error
++	mu          sync.Mutex
++}
++
++func (p *fakeProc) Wait() (int, error) { return <-p.exit, nil }
++func (p *fakeProc) Interrupt() error {
++	p.mu.Lock()
++	p.interrupted = true
++	p.mu.Unlock()
++	if p.onInterrupt != nil {
++		return p.onInterrupt(p)
++	}
++	return nil
++}
++func (p *fakeProc) Kill() error { p.mu.Lock(); p.killed = true; p.mu.Unlock(); p.exit <- 1; return nil }
++func (p *fakeProc) Close()      { p.closed = true }
++
++// each start pops the next scripted outcome: an exit code (the process exits at once), "run" (it keeps running), or an error
++type fakeLauncher struct {
++	script []any
++	procs  []*fakeProc
++	starts int
++	tweak  func(p *fakeProc)
++}
++
++func (l *fakeLauncher) Start(*Config) (Process, error) {
++	l.starts++
++	if len(l.script) == 0 {
++		return nil, errors.New("script exhausted")
++	}
++	next := l.script[0]
++	l.script = l.script[1:]
++	if e, ok := next.(error); ok {
++		return nil, e
++	}
++	p := &fakeProc{exit: make(chan int, 2)}
++	if l.tweak != nil {
++		l.tweak(p)
++	}
++	if code, ok := next.(int); ok {
++		p.exit <- code
++	}
++	l.procs = append(l.procs, p)
++	return p, nil
++}
++
++func run(t *testing.T, l *fakeLauncher, stop chan struct{}, clk *fakeClock) (int, []string) {
++	t.Helper()
++	var logs []string
++	var mu sync.Mutex
++	code := Supervise(goodConfig(), l, stop, clk, func(f string, a ...any) { mu.Lock(); logs = append(logs, f); mu.Unlock() })
++	return code, logs
++}
++
++func TestCleanExitIsFinal(t *testing.T) {
++	l := &fakeLauncher{script: []any{0}}
++	code, _ := run(t, l, make(chan struct{}), newClock(30))
++	if code != ExitStopped || l.starts != 1 || !l.procs[0].closed {
++		t.Fatalf("code %d starts %d", code, l.starts)
++	}
++}
++
++func TestFailureRestartsAfterRestartSec(t *testing.T) {
++	l := &fakeLauncher{script: []any{1, errors.New("CreateProcess: access denied"), 137, 0}}
++	clk := newClock(30)
++	code, _ := run(t, l, make(chan struct{}), clk)
++	if code != ExitStopped || l.starts != 4 {
++		t.Fatalf("code %d starts %d", code, l.starts)
++	}
++	for _, d := range clk.delays {
++		if d != 10*time.Second {
++			t.Fatalf("restart delay %v, want 10s", d)
++		}
++	}
++	if len(clk.delays) != 3 {
++		t.Fatalf("%d restart delays, want 3", len(clk.delays))
++	}
++}
++
++func TestStartLimitGivesUp(t *testing.T) {
++	l := &fakeLauncher{script: []any{1, 1, 1, 1, 1, 1, 1, 1}}
++	code, logs := run(t, l, make(chan struct{}), newClock(30))
++	if code != ExitStartLimit || l.starts != 5 {
++		t.Fatalf("code %d starts %d, want start-limit after exactly 5 starts", code, l.starts)
++	}
++	if !strings.Contains(logs[len(logs)-1], "start limit hit") {
++		t.Fatalf("last log %q", logs[len(logs)-1])
++	}
++}
++
++func TestStartLimitWindowSlides(t *testing.T) {
++	c := goodConfig()
++	c.RestartSec, c.StartLimitBurst, c.StartLimitIntervalSec = 200, 3, 600
++	l := &fakeLauncher{script: []any{1, 1, 1, 1, 1, 0}}
++	clk := newClock(30)
++	code := Supervise(c, l, make(chan struct{}), clk, func(string, ...any) {})
++	if code != ExitStopped || l.starts != 6 {
++		t.Fatalf("failures spaced beyond the window must keep restarting: code %d starts %d", code, l.starts)
++	}
++}
++
++func TestStopIsGracefulWithinTimeout(t *testing.T) {
++	l := &fakeLauncher{script: []any{"run"}, tweak: func(p *fakeProc) { p.onInterrupt = func(p *fakeProc) error { p.exit <- 0; return nil } }}
++	stop := make(chan struct{})
++	go func() { time.Sleep(20 * time.Millisecond); close(stop) }()
++	code, _ := run(t, l, stop, newClock(30))
++	p := l.procs[0]
++	if code != ExitStopped || !p.interrupted || p.killed || !p.closed || l.starts != 1 {
++		t.Fatalf("code %d interrupted %v killed %v closed %v starts %d", code, p.interrupted, p.killed, p.closed, l.starts)
++	}
++}
++
++func TestStopKillsTheJobAfterTimeout(t *testing.T) {
++	l := &fakeLauncher{script: []any{"run"}}
++	stop := make(chan struct{})
++	clk := newClock(30)
++	go func() {
++		time.Sleep(20 * time.Millisecond)
++		close(stop)
++		time.Sleep(20 * time.Millisecond)
++		clk.stopCh <- time.Now()
++	}()
++	code, _ := run(t, l, stop, clk)
++	p := l.procs[0]
++	if code != ExitStopped || !p.interrupted || !p.killed || l.starts != 1 {
++		t.Fatalf("code %d interrupted %v killed %v starts %d", code, p.interrupted, p.killed, l.starts)
++	}
++}
++
++func TestFailedInterruptKillsAtOnce(t *testing.T) {
++	l := &fakeLauncher{script: []any{"run"}, tweak: func(p *fakeProc) { p.onInterrupt = func(*fakeProc) error { return errors.New("no console") } }}
++	stop := make(chan struct{})
++	go func() { time.Sleep(20 * time.Millisecond); close(stop) }()
++	code, _ := run(t, l, stop, newClock(30))
++	if code != ExitStopped || !l.procs[0].killed {
++		t.Fatalf("code %d killed %v", code, l.procs[0].killed)
++	}
++}
++
++func TestStopWhileWaitingToRestartStartsNothing(t *testing.T) {
++	l := &fakeLauncher{script: []any{1, 0}}
++	clk := newClock(30)
++	clk.stopFor = 10 * time.Second // the restart delay never elapses here: only the stop can end the wait
++	stop := make(chan struct{})
++	go func() { time.Sleep(50 * time.Millisecond); close(stop) }()
++	code, _ := run(t, l, stop, clk)
++	if code != ExitStopped || l.starts != 1 {
++		t.Fatalf("code %d starts %d, want no second start", code, l.starts)
++	}
++}
++
++func TestConfigValidation(t *testing.T) {
++	if err := goodConfig().Validate(); err != nil {
++		t.Fatal(err)
++	}
++	for name, mut := range map[string]func(c *Config){
++		"relative node":      func(c *Config) { c.Node = `node.exe` },
++		"quote in path":      func(c *Config) { c.Config = `C:\x" --inspect "y.json` },
++		"extra node flag":    func(c *Config) { c.NodeArgs = []string{"--inspect=0.0.0.0:9229"} },
++		"tiny job memory":    func(c *Config) { c.JobMemoryMiB = 64 },
++		"no cpu":             func(c *Config) { c.CPUPercent = 0 },
++		"one process":        func(c *Config) { c.ActiveProcesses = 1 },
++		"zero restart":       func(c *Config) { c.RestartSec = 0 },
++		"bad event":          func(c *Config) { c.StopEvent = `Global\anything` },
++		"local event":        func(c *Config) { c.StopEvent = `Local\Enclave-host-services-hs1-stop` },
++		"no stop timeout":    func(c *Config) { c.StopTimeoutSec = 0 },
++		"relative log":       func(c *Config) { c.Log = `supervisor.log` },
++		"burst out of range": func(c *Config) { c.StartLimitBurst = 0 },
++	} {
++		c := goodConfig()
++		mut(c)
++		if c.Validate() == nil {
++			t.Errorf("%s: accepted", name)
++		}
++	}
++	dir := t.TempDir()
++	f := filepath.Join(dir, "s.json")
++	_ = os.WriteFile(f, []byte(`{"node":"C:\\n.exe","unexpected":1}`), 0o600)
++	if _, err := LoadConfig(f); err == nil || !strings.Contains(err.Error(), "unknown field") {
++		t.Fatalf("unknown fields must be refused: %v", err)
++	}
++}
++
++func TestCPURate(t *testing.T) {
++	for _, c := range []struct {
++		pct, cpus int
++		want      uint32
++	}{{150, 8, 1875}, {150, 1, 10000}, {150, 64, 234}, {10, 6400, 1}, {100, 0, 10000}} {
++		if got := CPURate(c.pct, c.cpus); got != c.want {
++			t.Errorf("CPURate(%d,%d)=%d want %d", c.pct, c.cpus, got, c.want)
++		}
++	}
++}
++
++// the template the Windows stage ships (install.ps1 replaces only "node") passes validation, with the Linux unit's limits
++func TestShippedTemplate(t *testing.T) {
++	c, err := LoadConfig("supervisor.template.json")
++	if err != nil {
++		t.Fatal(err)
++	}
++	if c.JobMemoryMiB != 1024 || c.CPUPercent != 150 || c.RestartSec != 10 || c.StartLimitBurst != 5 || c.StartLimitIntervalSec != 600 || c.StopTimeoutSec != 30 {
++		t.Fatalf("limits differ from the Linux unit (MemoryMax=1024M, CPUQuota=150%%, RestartSec=10s, 5 starts/600s, TimeoutStopSec=30s): %+v", c)
++	}
++}
+--- a/network/host-services/windows-supervisor/supervisor.template.json
++++ b/network/host-services/windows-supervisor/supervisor.template.json
+@@ -0,0 +1,16 @@
++{
++  "node": "C:\\Program Files\\nodejs\\node.exe",
++  "nodeArgs": ["--max-old-space-size=128"],
++  "runner": "C:\\Program Files\\Enclave\\host-services\\hs2\\bin\\host-services-runner.mjs",
++  "config": "C:\\ProgramData\\Enclave\\host-services\\hs2\\config\\host-services.json",
++  "workDir": "C:\\ProgramData\\Enclave\\host-services\\hs2\\state",
++  "jobMemoryMiB": 1024,
++  "cpuPercent": 150,
++  "activeProcesses": 16,
++  "restartSec": 10,
++  "startLimitBurst": 5,
++  "startLimitIntervalSec": 600,
++  "stopTimeoutSec": 30,
++  "stopEvent": "Global\\Enclave-host-services-hs2-stop",
++  "log": "C:\\ProgramData\\Enclave\\host-services\\hs2\\state\\supervisor.log"
++}

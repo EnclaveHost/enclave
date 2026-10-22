@@ -1,0 +1,14 @@
+e66789caa0143f56f4f3ec23906784694ed78c63defc11e012a816360f5a0052  ./TEST-ONLY.patch
+480558f1cbc052578a70690be92fd607fb8bba8c228a8d3ddcd50e4c503ec81c  ./logs/c2-acceptance.guard.log
+74b1ba05585094ceb52263b431130f833cb6a1597f08b6748056b7be7f0db6ad  ./logs/c2-acceptance.out
+b04f62a4b7db8d4cf2d4c6e3d79451e52ad31c9e54fdce695fa362d9d86f381a  ./logs/g8-final.guard.log
+ac1c71ac7f46e2820ec6a450e2618fc7caac43f460f0d9924d2808875e2a3ede  ./logs/g8-final.out
+3b9f6ccc9ea8f6b1931f19c0a081d340c17bd148613972ff375b34bca20c829b  ./logs/g8.guard.log
+ac1c71ac7f46e2820ec6a450e2618fc7caac43f460f0d9924d2808875e2a3ede  ./logs/g8.out
+b8fdc38ecb88ca16cc349ff42471f4f1453226950434058cccbdb311f012256c  ./logs/model.guard.log
+174d0cdcec8e06bb57e535e5a88ffaf9105de6726d4b0313919d249824627d2b  ./model/clone_model.out.json
+4d009feaa42e0f420ca31bab7685b0a7f1b35fc2edd833b3c63eca34d81d9b40  ./model/clone_model.py
+94405cb1b3c1f0561e4226427d6e28868f94c4d9fea47ad3885e37fb62966914  ./model/clone_model.summary.txt
+4694dab955d7c844c131bad6fe4a81428688b5e8bd73c25c2ddfe6b8c12ade68  ./run-c2-acceptance.sh
+8341f0fa4484b15c140c391242af35bc5d48407cf2aeaf27574ffbfde4b3bad2  ./run-g8.sh
+26ed0458e434d2f9fae553449a506be4859a90d61168b0dd7d6090a3aa553433  sia-s3-copy/src/replica.rs

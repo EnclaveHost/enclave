@@ -1,0 +1,1142 @@
+diff --git a/docs/network/native-client.md b/docs/network/native-client.md
+index 3c37b6b229554dbae0219b32c85a33463c095b97..c32ef2ada2fee06e5abc397f0896fb6d8fb9fbc6 100644
+--- a/docs/network/native-client.md
++++ b/docs/network/native-client.md
+@@ -1,8 +1,10 @@
+ # Connect without Enclave discovery or a website CA
+ 
+-`network/native-client.mjs` is a native HTTP client library for application APIs:
+-ordinary methods, bounded request bodies, and buffered or streamed responses.
+-`scripts/network/native-get.mjs` is its GET command-line wrapper. The client
++`network/native-client.mjs` is a native HTTP and WebSocket client library for
++application APIs: ordinary methods, bounded or streamed request bodies, buffered or
++streamed responses, and WebSockets. `scripts/network/native-get.mjs` is its GET
++command-line wrapper, `scripts/network/native-request.mjs` its upload and streaming
++wrapper, and `scripts/network/native-ws.mjs` its WebSocket bridge. The client
+ resolves signed public records itself, checks an agreeing Base RPC quorum against
+ explicit contract addresses, and verifies a fresh hardware attestation before it
+ sends any application path, header, credential or body.
+@@ -14,8 +16,23 @@ node scripts/network/native-get.mjs /absolute/path/trust-profile.json /ping
+ Response bytes go to stdout. Status, selected route, verified identities, TLS key
+ digest, lease block and authorization deadline go to stderr. Non-2xx responses
+ produce a nonzero exit code. Redirects are returned, never followed. The wrapper
+-is GET only; writes and streams use the library API below. It is not a browser
+-proxy.
++is GET only; the other two wrappers are below. None of them is a browser proxy.
++
++```sh
++# A streamed upload (file length declared; stdin with --body-stdin is sent chunked),
++# with the response (for example server-sent events) streamed to stdout.
++NATIVE_AUTHORIZATION='Bearer …' node scripts/network/native-request.mjs profile.json /v1/files/a \
++  --method PUT --body-file ./a.bin --content-type application/octet-stream --stream
++
++# A WebSocket on stdin/stdout, or a websocat-style loopback bridge for a TCP app's
++# /x/<id>/tcp/<port> path (IRC, Minecraft): each local connection is one fresh,
++# separately attested WebSocket.
++node scripts/network/native-ws.mjs profile.json /x/<deployment-id>/tcp/6667 --listen 127.0.0.1:6667
++irssi -c 127.0.0.1 -p 6667
++```
++
++Credentials are read from `NATIVE_AUTHORIZATION`, never from the command line.
++`--listen` accepts only loopback addresses.
+ 
+ ## Library API: requests, writes and streams
+ 
+@@ -35,6 +52,17 @@ const s = await client.stream({method: 'POST', path: '/v1/chat/stream', headers,
+ for await (const chunk of s.body) render(chunk);   // a Node Readable: iterate or pipe it
+ s.cancel();                                        // or controller.abort(); both close the connection
+ const {bytes, error} = await s.closed;             // always resolves
++
++// Streamed upload: a Node Readable, a web ReadableStream or an async iterable of bytes.
++const up = await client.request({method: 'PUT', path: '/v1/files/a', headers,
++  body: fs.createReadStream(file), bodyLength: fs.statSync(file).size});
++
++// WebSocket: one attested upgrade; resolves after a valid 101.
++const ws = await client.websocket({path: '/x/' + id + '/tcp/6667', headers, protocols: ['irc']});
++await ws.send('NICK me\r\n');                     // resolves once written; a string is a text frame
++for await (const {data, binary} of ws.messages) handle(data);   // one reader; break closes normally
++await ws.ping();                                   // resolves on the pong
++const {code, reason, error, bytesIn, bytesOut} = await ws.close(1000, 'bye');
+ ```
+ 
+ | Option | Meaning | Default | Allowed |
+@@ -42,13 +70,14 @@ const {bytes, error} = await s.closed;             // always resolves
+ | `method` | `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS` | `GET` | `CONNECT`/`TRACE` refused |
+ | `path` | Origin-form path and query | `/` | starts with one `/`; no controls, spaces or `#`; up to 8192 characters |
+ | `headers` | Application headers, including credentials | `{}` | up to 100 names and 64 KiB; no CR/LF/NUL; one spelling per name |
+-| `body` | String, Buffer, typed array or ArrayBuffer, copied when called | none | not with GET/HEAD; up to `maxRequestBytes` |
+-| `maxRequestBytes` | Upload limit | 8 MiB | 0 to 64 MiB |
++| `body` | String, Buffer, typed array or ArrayBuffer, copied when called; or a Readable, web `ReadableStream` or async iterable of bytes, streamed | none | not with GET/HEAD; up to `maxRequestBytes` |
++| `bodyLength` | Streamed body only: exact length, sent as `Content-Length` (otherwise chunked) | none | 0 to `maxRequestBytes` |
++| `maxRequestBytes` | Upload limit | 8 MiB (bytes), 64 MiB (streamed) | 0 to 64 MiB / 1 GiB |
+ | `maxBytes` | Response limit | 8 MiB (`request`), 64 MiB (`stream`) | up to 64 MiB / 1 GiB |
+-| `timeoutMs` | `request`: the whole exchange. `stream`: until response headers | 30 s | 1 s to 120 s |
+-| `idleTimeoutMs` | `stream`: longest gap between delivered chunks | 60 s | 1 s to 10 min |
+-| `maxDurationMs` | `stream`: total lifetime | 10 min | 1 s to 1 h |
+-| `recheckMs` | `stream`: how often chain state is checked again | 30 s | 1 s to 5 min |
++| `timeoutMs` | `request`: the whole exchange. `stream`: until response headers. A streamed upload restarts it when the upload ends | 30 s | 1 s to 120 s |
++| `idleTimeoutMs` | `stream`: longest gap between delivered chunks. Streamed upload: longest gap in source progress or guest acceptance | 60 s | 1 s to 10 min |
++| `maxDurationMs` | `stream`: total lifetime. Streamed upload: upload lifetime | 10 min | 1 s to 1 h |
++| `recheckMs` | `stream` and streamed uploads: how often chain state and route records are checked again | 30 s | 1 s to 5 min |
+ | `signal` | `AbortSignal`, cancels at any stage | none | must be a real `AbortSignal` |
+ 
+ Unknown options are refused. So are the framing and hop-by-hop headers `Host`,
+@@ -70,10 +99,21 @@ Unknown options are refused. So are the framing and hop-by-hop headers `Host`,
+   Node writes the request only after that last check passes. A refusal at any
+   step sends nothing; the tests confirm the guest stand-in decrypts zero
+   application bytes.
+-- **Snapshot.** Options, headers and body are copied synchronously when
++- **Snapshot.** Options, headers and byte bodies are copied synchronously when
+   `request` or `stream` is called, so later caller mutation changes nothing.
+-  The signal is deliberately kept by reference. Streamed (unbounded) uploads are
+-  not supported.
++  The signal is deliberately kept by reference.
++- **Streamed uploads.** A streamed body cannot be copied; it belongs to the client
++  once passed. It is not read until the agent hands over the socket whose key
++  matched the attestation. It is then pulled one chunk at a time: the next chunk
++  is read only after the previous one drained into the connection, so memory
++  stays bounded however slowly the guest reads. Exceeding `maxRequestBytes` or
++  `bodyLength`, a short body, a non-byte chunk, a source error, an upload stall,
++  cancellation, lease or route loss, or a transport error ends the request and
++  destroys the source. So does any refusal before sending, including invalid
++  options and the concurrency limit. A failure before the first chunk was written
++  leaves the guest with nothing, not even headers. The guest may answer before
++  the upload ends: `stream()` then delivers the response while the upload
++  continues (full duplex), and `request()` gives the answer its own timeout.
+ - **One send.** Each call attests once and sends at most once. Route failover
+   happens only during attestation, before any application byte. After the
+   request is written, a reset, timeout or partial response is reported as an
+@@ -89,15 +129,17 @@ Unknown options are refused. So are the framing and hop-by-hop headers `Host`,
+     does not crash the process.
+ - **Concurrency.** Authorization and connection setup are serialized per client.
+   The queue is released when response headers arrive. At most `maxConcurrent`
+-  requests or streams (1–32, default 4) may be open per client; beyond that the
+-  call is refused at once.
++  requests, streams or WebSockets together (1–32, default 4) may be open per
++  client; beyond that the call is refused at once.
+ - **What authorization covers.** `validUntil` is the latest moment a new send
+   may start: the earliest of route expiry, lease snapshot expiry, and 60 s after
+   the proof began. An established stream is not proof of continuing ownership.
+   The client re-reads the lease every `recheckMs` and cuts the stream (`native
+   authorization ended`) if the owner, runner, app, configuration or lease
+-  changed, or if current state can no longer be confirmed. A route withdrawal
+-  alone does not cut an open stream; `maxDurationMs` bounds it.
++  changed, or if current state can no longer be confirmed. The same check also
++  re-imports the signed route records. A newer record that withdraws or replaces
++  the attested route ends the connection, and so does expiry of the stored
++  record when no directory answers. The check runs in the per-client queue.
+ - **Logging.** Errors carry fixed messages and never include request header
+   values or bodies.
+ 
+@@ -108,11 +150,80 @@ Unknown options are refused. So are the framing and hop-by-hop headers `Host`,
+ - **Authentication.** Credentials are whatever the application expects. The
+   client passes them through only after the checks above and adds no
+   Enclave-issued session.
+-- **Other transports.** Streamed request uploads, WebSocket/`Upgrade`,
+-  `100-continue` and HTTP/2 are not supported.
++- **Other transports.** `100-continue`, HTTP/2 and WebSocket compression
++  (`permessage-deflate`) are not supported. Arbitrary `Upgrade` protocols other
++  than WebSocket are not supported.
+ - **Proof scope.** The guest-side TLS key is attested once per request. Later
+   requests attest again; no proof is cached across requests.
+ 
++## WebSockets
++
++`websocket()` runs the same discovery, proof, revalidation and TLS-key check as
++`request()`. Only then does it send ONE upgrade request, with the caller's headers,
++over the verified connection. The upgrade is built with the repository's `ws`
++library, the same one the broker and local transports use. Until the handshake
++check passes, no request line, header, credential or frame is written.
++
++- **Handshake.**
++  - The upgrade goes to exactly the requested path. A path that URL
++    normalization would change is refused.
++  - `Host` and SNI name the profile's virtual app at the attested literal
++    address.
++  - The guest must answer `101` with `Upgrade: websocket` and the correct
++    `Sec-WebSocket-Accept`.
++  - When protocols are requested, the guest must choose one of them; when none
++    are requested, it must choose none.
++  - It must not send unrequested extensions.
++  - Any other answer, redirects included, rejects with `error.status` and is
++    never followed. Credentials therefore never reach a redirect target, and
++    discovery peers never see application headers.
++- **Headers.** The HTTP refusals above all apply. In addition, the
++  `Sec-WebSocket-*` fields belong to the library; requested subprotocols go in
++  `protocols`.
++- **One upgrade.**
++  - A socket is never reconnected.
++  - A reconnect is a new `websocket()` call, with fresh discovery, a new proof
++    and the credentials passed to that call.
++  - A send whose delivery is uncertain rejects (`delivery of this message is
++    unknown`) and is never repeated. No message is replayed on a new socket.
++- **Bounds.** All of these are per socket, beyond the shared `maxConcurrent`.
++
++| Option | Meaning | Default | Allowed |
++| --- | --- | --- | --- |
++| `path`, `headers`, `signal` | As for requests | `/`, `{}` | as for requests, plus the rules above |
++| `protocols` | Requested subprotocols | none | up to 16 distinct tokens |
++| `maxMessageBytes` | Largest frame/message, in and out (inbound: close 1009) | 1 MiB | 1 B to 64 MiB |
++| `maxBufferedBytes` | Unflushed outgoing bytes; a send beyond it rejects at once | 4 MiB | `maxMessageBytes` to 256 MiB |
++| `maxQueuedBytes` | Received but unread bytes; beyond it the socket pauses, and backpressure reaches the guest | 4 MiB | 1 B to 256 MiB |
++| `maxBytes`, `maxSentBytes` | Lifetime totals in and out | 256 MiB | up to 16 GiB |
++| `timeoutMs` | Handshake | 30 s | 1 s to 120 s |
++| `idleTimeoutMs` | No frame in either direction, including pings | 5 min | 1 s to 1 h |
++| `maxDurationMs` | Total lifetime | 1 h | 1 s to 24 h |
++| `recheckMs` | Lease and route re-check, as for streams | 30 s | 1 s to 5 min |
++
++- **Ending a socket.** Any of the following terminates the connection, frees the
++  slot, and rejects pending pings and sends:
++  - cancellation (`signal`, `cancel()`);
++  - a lost owner, runner, app, configuration or lease;
++  - lease or route expiry, or a route withdrawal;
++  - a limit or timer;
++  - a TLS or transport error.
++
++  `close()` performs the closing handshake. `closed` always resolves to
++  `{code, reason, error, bytesIn, bytesOut}`.
++- **Application authentication.** The client adds nothing. A private app's bridge
++  takes its credential per connection, as the app documents: a header, or the
++  `?token=` query that the TCP bridges accept.
++
++## Native client versus browsers
++
++Everything above is a Node client that verifies the guest itself. Ordinary
++browsers cannot pin an attested key, and they cannot open a WebSocket or `fetch`
++to a self-signed literal address. For browsers, the route is still an
++owner-controlled name with a WebPKI certificate. This library does not provide
++browser integration, and the local fixtures behind it are not public hardware
++proof.
++
+ ## The caller's trust profile
+ 
+ Supply a JSON object with these fields. No discovery service supplies missing
+diff --git a/network/native-client.mjs b/network/native-client.mjs
+index c9b210820f179c54b7a7f22b494bee9acc0fcec6..47b356fde114a27669fd3be14b4229dd68a01bb7 100644
+--- a/network/native-client.mjs
++++ b/network/native-client.mjs
+@@ -5,7 +5,8 @@ import https from 'node:https';
+ import {isIP} from 'node:net';
+ import {createHash} from 'node:crypto';
+ import path from 'node:path';
+-import {PassThrough,Transform,pipeline} from 'node:stream';
++import {PassThrough,Readable,Transform,pipeline} from 'node:stream';
++import WebSocket from 'ws';
+ import {LeaseReader} from './lease-reader.mjs';
+ import {PublicDirectory} from './public-directory.mjs';
+ import {DirectoryClient} from './directory-client.mjs';
+@@ -73,7 +74,14 @@ export class NativeClient {
+       const derived=await startupExpectation(startLease,{runtime:p.linux.runtime,gateways:p.startup.gateways,bytes:this.startupBytes??cached,fetchImpl:this.fetch});
+       expected=derived.expected;provenance=derived.provenance;this.startupCache={sha256:provenance.sha256,bytes:derived.bytes};
+     }
+-    const answers=await this.transport.read('/v1/network/records');
++    if(!await this._importRecords())throw Error('no public record snapshot available');
++    const routes=(await this.directory.routes()).deployments[p.deploymentId],lease=this.currentLease();
++    if(!routes?.httpsRoutes?.length||routes.expiresAt<=this.now())throw Error('no current verified route');
++    if(identity(startLease)!==identity(lease))throw Error('deployment changed during expectation verification');
++    return {routes,lease,expected,provenance};
++  }
++  async _importRecords(){
++    const p=this.profile,answers=await this.transport.read('/v1/network/records');
+     let validSnapshots=0;
+     for(const {value} of answers){
+       if(value?.version!==1||!['providers','policies','publications'].every(k=>Array.isArray(value[k])&&value[k].length<=4096))continue;
+@@ -85,16 +93,12 @@ export class NativeClient {
+         publications:value.publications.filter(e=>e?.bundle?.record?.deploymentId===p.deploymentId)});
+       validSnapshots++;
+     }
+-    if(!validSnapshots)throw Error('no public record snapshot available');
+-    const routes=(await this.directory.routes()).deployments[p.deploymentId],lease=this.currentLease();
+-    if(!routes?.httpsRoutes?.length||routes.expiresAt<=this.now())throw Error('no current verified route');
+-    if(identity(startLease)!==identity(lease))throw Error('deployment changed during expectation verification');
+-    return {routes,lease,expected,provenance};
++    return validSnapshots;
+   }
+   // One application request: discovery, fresh proof, revalidation, then ONE send.
+   // Buffered; resolves after the whole bounded response (the GET/HEAD result shape).
+   request(options={}){
+-    return this._enqueue(options,false).then(async handle=>{
++    return this._enqueue(()=>ownRequest(options,false),(input,release)=>this._open(input,release)).then(async handle=>{
+       if(!handle.body)return {...handle.result,body:Buffer.alloc(0)};
+       const chunks=[];
+       try{for await(const chunk of handle.body)chunks.push(chunk);}
+@@ -106,21 +110,30 @@ export class NativeClient {
+   // arrive. `body` is a Readable delivering bytes as they come (SSE, incremental
+   // chat): async-iterate or pipe it; it applies backpressure to the guest.
+   stream(options={}){
+-    return this._enqueue(options,true).then(handle=>({...handle.result,body:handle.body,cancel:handle.cancel,closed:handle.closed}));
++    return this._enqueue(()=>ownRequest(options,true),(input,release)=>this._open(input,release))
++      .then(handle=>({...handle.result,body:handle.body,cancel:handle.cancel,closed:handle.closed}));
++  }
++  // One WebSocket: the same discovery, proof, revalidation and handshake check, then
++  // ONE upgrade request on the verified connection. It never reconnects; a new
++  // connection is a new call, with fresh discovery, proof and credentials.
++  websocket(options={}){
++    return this._enqueue(()=>snapshotSocket(options),(input,release)=>this._openSocket(input,release));
+   }
+   // Discovery, proof and connection setup are serialized per client, so a second
+   // request cannot replace the lease context while the first attests. The queue is
+   // released once response headers arrive; open responses are bounded separately.
+-  _enqueue(options,streaming){
++  // A streamed upload body belongs to the client once passed: it is read only after
++  // the guest key is verified, and destroyed unless it was sent to its end.
++  _enqueue(snapshot,open){
+     let input;
+-    try{input=snapshotRequest(options,streaming);}catch(e){return Promise.reject(e);}
+-    if(this.open>=this.maxConcurrent)return Promise.reject(Error('too many open native requests'));
++    try{input=snapshot();}catch(e){return Promise.reject(e);}
++    if(this.open>=this.maxConcurrent){input.source?.destroy();return Promise.reject(Error('too many open native requests'));}
+     this.open++;let released=false;const release=()=>{if(!released){released=true;this.open--;}};
+-    const run=this.tail.then(()=>this._open(input,release));
++    const run=this.tail.then(()=>open(input,release));
+     this.tail=run.then(()=>{},()=>{});
+-    return run.catch(e=>{release();throw e;});
++    return run.catch(e=>{release();input.source?.destroy();throw e;});
+   }
+-  async _open({path:requestPath,method,headers,body,signal,maxBytes,timeoutMs,idleTimeoutMs,maxDurationMs,recheckMs,streaming},release){
++  async _authorize(signal){
+     const cancelled=()=>{if(signal?.aborted)throw Error('native request cancelled before sending');};
+     cancelled();
+     const p=this.profile,initial=await this.resolve(),fingerprint=identity(initial.lease);
+@@ -147,20 +160,52 @@ export class NativeClient {
+     const validUntil=Math.min(current.routes.expiresAt,current.lease.validUntil,proofStarted+60000);
+     // Checked on the handshake, before Node may write the request line, headers,
+     // credentials or body: the agent hands over the socket only after this returns.
++    const verified=new WeakSet();
+     const agent=new DirectHttpsAgent({tlsOptions:{rejectUnauthorized:false},verifyPeer:connection=>{
+       if(signal?.aborted)throw Error('native request cancelled before sending');
+       if(validUntil<=this.now()||identity(this.currentLease())!==fingerprint)throw Error('native authorization expired');
+       const key=connection.getPeerX509Certificate()?.publicKey.export({format:'der',type:'spki'});
+       if(!key||createHash('sha256').update(key).digest('hex')!==proof.spkiSha256)throw Error('guest TLS key changed');
++      verified.add(connection);
+     }});
+-    const result={route:chosen,proof,expectation:current.provenance,leaseBlock:current.lease.blockNumber,validUntil};
++    return {agent,verified,fingerprint,chosen,result:{route:chosen,proof,expectation:current.provenance,leaseBlock:current.lease.blockNumber,validUntil}};
++  }
++  // Long-lived transfers (streamed responses and uploads, WebSockets) are cut once the
++  // chain no longer shows the same current deployment (owner, runner, app,
++  // configuration, lease), once the signed records no longer publish the attested
++  // route, or once either can no longer be confirmed. A check never extends the send
++  // authorization, and runs in the per-client queue so it cannot race a new proof.
++  _watch(fingerprint,route,recheckMs,cut){
++    let stopped=false,pending=false;
++    const timer=setInterval(()=>{
++      if(pending)return;pending=true;
++      const check=this.tail.then(()=>stopped||this._stillCurrent(fingerprint,route));
++      this.tail=check.then(()=>{},()=>{});
++      check.then(()=>{pending=false;},e=>{pending=false;if(!stopped)cut(e);});
++    },recheckMs);
++    return ()=>{stopped=true;clearInterval(timer);};
++  }
++  async _stillCurrent(fingerprint,route){
++    const id=this.profile.deploymentId;
++    await this.reader.refresh([id]).catch(()=>{});
++    try{if(identity(this.currentLease())!==fingerprint)throw Error();}
++    catch{throw Error('native authorization ended: deployment is not confirmed current');}
++    // An unreachable directory leaves the stored signed records, which expire on their own.
++    await this._importRecords().catch(()=>{});
++    const routes=(await this.directory.routes()).deployments[id];
++    if(!routes||routes.expiresAt<=this.now()||!routes.httpsRoutes?.some(r=>recordHash(r)===recordHash(route)))
++      throw Error('native authorization ended: the attested route is no longer published');
++  }
++  async _open({path:requestPath,method,headers,body,source,bodyLength,maxRequestBytes,signal,maxBytes,timeoutMs,idleTimeoutMs,maxDurationMs,recheckMs,streaming},release){
++    const p=this.profile,{agent,verified,fingerprint,chosen,result}=await this._authorize(signal);
+     return new Promise((resolve,reject)=>{
+-      let settled=false,out=null,idle=null,recheck=null,finished=false,closedResolve;
++      let settled=false,out=null,idle=null,unwatch=null,finished=false,uploaded=!source,uploadIdle=null,headerTimer=null,closedResolve;
+       const closed=new Promise(r=>closedResolve=r),timers=[];
+       const finish=error=>{
+         if(finished)return;finished=true;
+-        for(const t of timers)clearTimeout(t);clearTimeout(idle);clearInterval(recheck);
++        for(const t of timers)clearTimeout(t);clearTimeout(idle);clearTimeout(uploadIdle);clearTimeout(headerTimer);unwatch?.();
+         signal?.removeEventListener('abort',onAbort);req.destroy();agent.destroy();release();
++        if(!uploaded)source.destroy();
+         closedResolve({bytes:size,error:error?error.message:null});
+       };
+       const fail=error=>{
+@@ -169,13 +214,17 @@ export class NativeClient {
+         else finish(error);
+       };
+       const onAbort=()=>fail(Error(settled?'native stream cancelled':'native request cancelled'));
+-      let size=0;
++      let size=0,deadline=Date.now()+timeoutMs;
++      const armHeaders=()=>{clearTimeout(headerTimer);deadline=Date.now()+timeoutMs;headerTimer=setTimeout(()=>fail(Error('native request timeout')),timeoutMs);};
+       // host is a literal address. servername/Host only select a virtual app;
+       // they are never resolved and are never accepted as proof of identity.
+       const req=https.request({host:chosen.address,port:chosen.port,servername:p.hostname,path:requestPath,method,
+-        headers:{...headers,host:p.hostname,...(body?{'content-length':String(body.length)}:{})},agent},res=>{
++        headers:{...headers,host:p.hostname,...(body?{'content-length':String(body.length)}:bodyLength!==undefined?{'content-length':String(bodyLength)}:{})},agent},res=>{
++        clearTimeout(headerTimer);
++        // A guest may answer before a streamed upload ends; a buffered answer then
++        // gets its own full timeout.
++        if(!uploaded)deadline=Date.now()+timeoutMs;
+         if(!streaming)timers.push(setTimeout(()=>fail(Error('native request timeout')),Math.max(0,deadline-Date.now())));
+-        clearTimeout(timers.shift());
+         const empty=method==='HEAD'||res.statusCode===204||res.statusCode===304;
+         const limiter=new Transform({transform(chunk,_encoding,callback){
+           size+=chunk.length;if(size>maxBytes)return callback(Error('native response too large'));
+@@ -188,14 +237,7 @@ export class NativeClient {
+         const armIdle=()=>{clearTimeout(idle);idle=setTimeout(()=>out.destroy(Error('native stream idle timeout')),idleTimeoutMs);};
+         if(streaming){
+           armIdle();timers.push(setTimeout(()=>out.destroy(Error('native stream duration limit')),maxDurationMs));
+-          // An open stream is cut once the chain no longer shows the same current
+-          // deployment (owner, runner, app, configuration, lease), or once that can
+-          // no longer be confirmed. It never extends the send authorization.
+-          recheck=setInterval(async()=>{
+-            await this.reader.refresh([p.deploymentId]).catch(()=>{});
+-            try{if(identity(this.currentLease())!==fingerprint)throw Error();}
+-            catch{out.destroy(Error('native authorization ended: deployment is not confirmed current'));}
+-          },recheckMs);
++          unwatch??=this._watch(fingerprint,chosen,recheckMs,fail);
+         }
+         pipeline(res,limiter,out,error=>finish(error));
+         if(empty&&!streaming)out.resume();
+@@ -203,61 +245,248 @@ export class NativeClient {
+         resolve({result:{...result,status:res.statusCode,headers:res.headers},body:empty&&!streaming?null:out,
+           cancel:reason=>{if(!out.destroyed)out.destroy(Error(typeof reason==='string'?reason.slice(0,200):'native stream cancelled'));},closed});
+       });
+-      const deadline=Date.now()+timeoutMs;
+-      timers.push(setTimeout(()=>fail(Error('native request timeout')),timeoutMs));
++      armHeaders();
+       req.once('error',error=>fail(error));
+       signal?.addEventListener('abort',onAbort,{once:true});
+       // One send. A transport failure after this point is reported, never retried:
+       // the guest may already have acted on the request.
+-      req.end(body||undefined);
++      if(!source)return req.end(body||undefined);
++      // A streamed body is pulled only once the agent hands over the verified
++      // socket, one chunk at a time: a chunk is read after the previous one drained.
++      req.once('socket',socket=>{
++        if(!verified.has(socket))return fail(Error('native transport not verified'));
++        clearTimeout(headerTimer);
++        timers.push(setTimeout(()=>fail(Error('native upload duration limit')),maxDurationMs));
++        unwatch=this._watch(fingerprint,chosen,recheckMs,fail);
++        pump().catch(e=>{if(!finished)fail(/^native /.test(e?.message)?e:Error('native upload source failed: '+String(e?.message).slice(0,200)));});
++      });
++      const armUpload=()=>{clearTimeout(uploadIdle);uploadIdle=setTimeout(()=>fail(Error('native upload idle timeout')),idleTimeoutMs);};
++      const drained=()=>new Promise(r=>{const done=()=>{req.off('drain',done);req.off('close',done);r();};req.on('drain',done);req.on('close',done);});
++      const pump=async()=>{
++        let sent=0;armUpload();
++        for await(const chunk of source){
++          if(finished)return;
++          const bytes=bytesOf(chunk,'native upload chunks must be bytes or strings');
++          sent+=bytes.length;
++          if(sent>maxRequestBytes||bodyLength!==undefined&&sent>bodyLength)throw Error('native request body too large');
++          armUpload();
++          if(!req.write(bytes))await drained();
++          if(finished)return;
++          armUpload();
++        }
++        if(finished)return;
++        if(bodyLength!==undefined&&sent!==bodyLength)throw Error('native upload ended before its declared length');
++        clearTimeout(uploadIdle);uploaded=true;
++        if(!settled)armHeaders();
++        req.end();
++      };
++    });
++  }
++  async _openSocket({path:socketPath,headers,protocols,signal,timeoutMs,idleTimeoutMs,maxDurationMs,recheckMs,maxMessageBytes,maxBufferedBytes,maxQueuedBytes,maxBytes,maxSentBytes},release){
++    const p=this.profile,{agent,verified,fingerprint,chosen,result}=await this._authorize(signal);
++    const host=isIP(chosen.address)===6?'['+chosen.address+']':chosen.address;
++    return new Promise((resolve,reject)=>{
++      let settled=false,finished=false,failure=null,idle=null,unwatch=null,wake=null,reading=false,bytesIn=0,bytesOut=0,queued=0,ws,closedResolve;
++      const queue=[],pongs=[],timers=[],closed=new Promise(r=>closedResolve=r);
++      const finish=(error,code=1006,reason='')=>{
++        if(finished)return;finished=true;failure??=error||null;
++        for(const t of timers)clearTimeout(t);clearTimeout(idle);unwatch?.();
++        signal?.removeEventListener('abort',onAbort);
++        try{ws?.terminate();}catch{}
++        agent.destroy();release();
++        for(const x of pongs.splice(0))x.reject(Error('native websocket closed'));
++        wake?.();
++        if(!settled){settled=true;reject(failure||Error('native websocket closed before opening'));}
++        closedResolve({code,reason,error:failure?failure.message:null,bytesIn,bytesOut});
++      };
++      const fail=error=>finish(error);
++      const onAbort=()=>fail(Error(settled?'native websocket cancelled':'native request cancelled'));
++      const armIdle=()=>{clearTimeout(idle);idle=setTimeout(()=>fail(Error('native websocket idle timeout')),idleTimeoutMs);};
++      const open=()=>!finished&&ws.readyState===WebSocket.OPEN;
++      const send=(data,{binary}={})=>{
++        try{
++          if(!open())throw Error('native websocket is not open');
++          const text=typeof data==='string',bytes=bytesOf(data,'native websocket messages must be bytes or strings'),asBinary=binary===undefined?!text:binary;
++          if(typeof asBinary!=='boolean')throw Error('native websocket binary flag must be boolean');
++          if(bytes.length>maxMessageBytes)throw Error('native websocket message too large');
++          if(bytesOut+bytes.length>maxSentBytes)throw Error('native websocket send limit reached');
++          if(ws.bufferedAmount+bytes.length>maxBufferedBytes)throw Error('native websocket send buffer full; await earlier sends');
++          bytesOut+=bytes.length;armIdle();
++          // Resolves once the frame is written to the verified connection; that is
++          // not an application acknowledgement. A failed send is never repeated.
++          return new Promise((ok,no)=>ws.send(bytes,{binary:asBinary},e=>e?no(Error('native websocket closed; delivery of this message is unknown')):ok()));
++        }catch(e){return Promise.reject(e);}
++      };
++      const ping=(data='')=>{
++        try{
++          if(!open())throw Error('native websocket is not open');
++          const bytes=bytesOf(data,'native websocket ping data must be bytes or a string');
++          if(bytes.length>125)throw Error('native websocket ping too large');
++          return new Promise((ok,no)=>{pongs.push({resolve:ok,reject:no});armIdle();ws.ping(bytes,undefined,()=>{});});
++        }catch(e){return Promise.reject(e);}
++      };
++      const close=(code=1000,reason='')=>{
++        if(open()){
++          if(!(code===1000||Number.isInteger(code)&&code>=3000&&code<=4999)||typeof reason!=='string'||Buffer.byteLength(reason)>123)return Promise.reject(Error('invalid native websocket close'));
++          ws.close(code,reason);   // ws terminates the connection if the guest never answers the close
++        }else if(!finished&&ws.readyState!==WebSocket.CLOSING)fail(Error('native websocket cancelled'));
++        return closed;
++      };
++      const next=async()=>{
++        if(reading)throw Error('native websocket messages have one reader');
++        reading=true;
++        try{
++          for(;;){
++            if(queue.length){
++              const m=queue.shift();queued-=m.data.length;
++              if(ws.isPaused&&queued<=maxQueuedBytes&&!finished)ws.resume();
++              return {value:m,done:false};
++            }
++            if(finished){if(failure)throw failure;return {value:undefined,done:true};}
++            await new Promise(r=>wake=r);wake=null;
++          }
++        }finally{reading=false;}
++      };
++      const iterator={next,return:async()=>{if(!finished)close();return {value:undefined,done:true};},[Symbol.asyncIterator](){return this;}};
++      const handle={...result,status:101,headers:null,protocol:'',send,ping,close,closed,
++        cancel:reason=>fail(Error(typeof reason==='string'?reason.slice(0,200):'native websocket cancelled')),
++        messages:{[Symbol.asyncIterator]:()=>iterator},
++        get queuedBytes(){return queued;},get bufferedAmount(){return finished?0:ws.bufferedAmount;}};
++      try{
++        // host is a literal address; servername/Host only select the virtual app. No
++        // compression (bounded memory per frame), no redirects (credentials stay here).
++        ws=new WebSocket('wss://'+host+':'+chosen.port+socketPath,protocols,{agent,servername:p.hostname,headers:{...headers,host:p.hostname},
++          perMessageDeflate:false,followRedirects:false,maxPayload:maxMessageBytes,handshakeTimeout:timeoutMs,autoPong:true,skipUTF8Validation:false});
++      }catch(e){return fail(Error('native websocket refused: '+String(e.message).slice(0,200)));}
++      timers.push(setTimeout(()=>fail(Error('native websocket handshake timeout')),timeoutMs));
++      signal?.addEventListener('abort',onAbort,{once:true});
++      ws.on('error',e=>fail(/^native /.test(e?.message)?e:Error('native websocket error: '+String(e?.message).slice(0,200))));
++      ws.on('unexpected-response',(_request,res)=>{
++        const e=Error('native websocket refused: HTTP '+res.statusCode);e.status=res.statusCode;
++        res.destroy();fail(e);   // redirects are not followed; the body is not read
++      });
++      // ws validates the 101 status, Upgrade, Sec-WebSocket-Accept, the chosen
++      // subprotocol and the absence of unrequested extensions before 'open'.
++      ws.once('upgrade',res=>{if(!verified.has(res.socket))fail(Error('native transport not verified'));else handle.headers=res.headers;});
++      ws.once('open',()=>{
++        if(finished)return;
++        clearTimeout(timers.shift());settled=true;handle.protocol=ws.protocol;
++        armIdle();timers.push(setTimeout(()=>fail(Error('native websocket duration limit')),maxDurationMs));
++        unwatch=this._watch(fingerprint,chosen,recheckMs,fail);
++        resolve(handle);
++      });
++      ws.on('message',(data,binary)=>{
++        if(finished)return;
++        bytesIn+=data.length;if(bytesIn>maxBytes)return fail(Error('native websocket received too much'));
++        armIdle();queue.push({data,binary});queued+=data.length;
++        // A reader that falls behind pauses the connection: backpressure reaches the guest.
++        if(queued>maxQueuedBytes&&!ws.isPaused)ws.pause();
++        wake?.();
++      });
++      ws.on('ping',armIdle);
++      ws.on('pong',()=>{armIdle();pongs.shift()?.resolve();});
++      ws.on('close',(code,reason)=>finish(null,code,reason.toString().slice(0,123)));
+     });
+   }
+ }
+ 
+ const METHODS=['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS'];
+ const FORBIDDEN=['host','connection','upgrade','content-length','transfer-encoding','proxy-authorization','proxy-connection','keep-alive','te','trailer','expect'];
++// The handshake fields are the WebSocket library's, after the same HTTP refusals.
++const SOCKET_FORBIDDEN=[...FORBIDDEN,'sec-websocket-key','sec-websocket-version','sec-websocket-extensions','sec-websocket-protocol','sec-websocket-accept'];
+ const TOKEN=/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+ const bounded=(v,fallback,min,max)=>{const x=v===undefined?fallback:v;if(!Number.isSafeInteger(x)||x<min||x>max)throw Error('native request limit out of range');return x;};
+-// Copy everything the caller supplied, synchronously: later mutation of their
+-// headers or body buffer cannot change what is sent. The signal is kept by
+-// reference on purpose; it is the caller's live cancellation channel.
+-function snapshotRequest(options,streaming){
+-  if(!options||typeof options!=='object'||Array.isArray(options))throw Error('native request options required');
+-  const {body:rawBody,signal,...plain}=options;
+-  if(signal!==undefined&&!(signal instanceof AbortSignal))throw Error('signal must be an AbortSignal');
+-  const o=structuredClone(plain);
+-  const known=['path','method','headers','maxBytes','maxRequestBytes','timeoutMs','idleTimeoutMs','maxDurationMs','recheckMs'];
+-  if(Object.keys(o).some(k=>!known.includes(k)))throw Error('unknown native request option');
+-  const method=o.method===undefined?'GET':o.method,requestPath=o.path===undefined?'/':o.path;
+-  if(!METHODS.includes(method))throw Error('unsupported native request method');
++function bytesOf(value,message){
++  if(typeof value==='string')return Buffer.from(value,'utf8');
++  if(value instanceof ArrayBuffer)return Buffer.from(new Uint8Array(value.slice(0)));
++  if(ArrayBuffer.isView(value))return Buffer.from(new Uint8Array(value.buffer,value.byteOffset,value.byteLength));
++  throw Error(message);
++}
++const isStreamBody=b=>b instanceof Readable||typeof ReadableStream!=='undefined'&&b instanceof ReadableStream||typeof b?.[Symbol.asyncIterator]==='function';
++function checkPath(value){
++  const requestPath=value===undefined?'/':value;
+   if(typeof requestPath!=='string'||requestPath.length>8192||!requestPath.startsWith('/')||requestPath.startsWith('//')||/[\x00-\x20\x7f#]/.test(requestPath))throw Error('invalid native request path');
+-  const headers=o.headers===undefined?{}:o.headers;
++  return requestPath;
++}
++function checkHeaders(value,forbidden){
++  const headers=value===undefined?{}:value;
+   if(!headers||Array.isArray(headers)||typeof headers!=='object'||Object.keys(headers).length>100)throw Error('invalid native request headers');
+   const seen=new Set();let headerBytes=0;
+-  for(const [name,value]of Object.entries(headers)){
++  for(const [name,v0]of Object.entries(headers)){
+     const lower=name.toLowerCase();
+-    if(!TOKEN.test(name)||FORBIDDEN.includes(lower)||seen.has(lower))throw Error('forbidden or duplicate native request header');
++    if(!TOKEN.test(name)||forbidden.includes(lower)||seen.has(lower))throw Error('forbidden or duplicate native request header');
+     seen.add(lower);
+-    for(const v of Array.isArray(value)?value:[value]){
++    for(const v of Array.isArray(v0)?v0:[v0]){
+       if(typeof v!=='string'||/[\x00\r\n]/.test(v))throw Error('invalid native request header value');
+       headerBytes+=name.length+v.length;
+     }
+   }
+   if(headerBytes>64*1024)throw Error('native request headers too large');
+-  const maxRequestBytes=bounded(o.maxRequestBytes,8*1024*1024,0,64*1024*1024);
+-  let body=null;
+-  if(rawBody!==undefined&&rawBody!==null){
++  return headers;
++}
++// Refused input still ends a streamed body the caller handed over.
++function ownRequest(options,streaming){
++  try{return snapshotRequest(options,streaming);}
++  catch(e){
++    const b=options?.body;
++    try{if(b instanceof Readable)b.destroy();else if(typeof ReadableStream!=='undefined'&&b instanceof ReadableStream)b.cancel().catch(()=>{});else if(typeof b?.return==='function')Promise.resolve(b.return()).catch(()=>{});}catch{}
++    throw e;
++  }
++}
++// Copy everything the caller supplied, synchronously: later mutation of their
++// headers or body buffer cannot change what is sent. The signal is kept by
++// reference on purpose; it is the caller's live cancellation channel. So is a
++// streamed body, which cannot be copied: it is read once, after verification.
++function snapshotRequest(options,streaming){
++  if(!options||typeof options!=='object'||Array.isArray(options))throw Error('native request options required');
++  const {body:rawBody,signal,...plain}=options;
++  if(signal!==undefined&&!(signal instanceof AbortSignal))throw Error('signal must be an AbortSignal');
++  const o=structuredClone(plain);
++  const known=['path','method','headers','maxBytes','maxRequestBytes','bodyLength','timeoutMs','idleTimeoutMs','maxDurationMs','recheckMs'];
++  if(Object.keys(o).some(k=>!known.includes(k)))throw Error('unknown native request option');
++  const method=o.method===undefined?'GET':o.method,requestPath=checkPath(o.path);
++  if(!METHODS.includes(method))throw Error('unsupported native request method');
++  const headers=checkHeaders(o.headers,FORBIDDEN);
++  const present=rawBody!==undefined&&rawBody!==null,streamed=present&&typeof rawBody!=='string'&&!ArrayBuffer.isView(rawBody)&&!(rawBody instanceof ArrayBuffer)&&isStreamBody(rawBody);
++  const maxRequestBytes=streamed?bounded(o.maxRequestBytes,64*1024*1024,0,1024*1024*1024):bounded(o.maxRequestBytes,8*1024*1024,0,64*1024*1024);
++  if(o.bodyLength!==undefined&&!streamed)throw Error('native bodyLength applies only to a streamed body');
++  const bodyLength=o.bodyLength===undefined?undefined:bounded(o.bodyLength,0,0,maxRequestBytes);
++  let body=null,source=null;
++  if(present){
+     if(method==='GET'||method==='HEAD')throw Error('GET and HEAD carry no native request body');
+-    if(typeof rawBody==='string')body=Buffer.from(rawBody,'utf8');
+-    else if(rawBody instanceof ArrayBuffer)body=Buffer.from(new Uint8Array(rawBody.slice(0)));
+-    else if(ArrayBuffer.isView(rawBody))body=Buffer.from(new Uint8Array(rawBody.buffer,rawBody.byteOffset,rawBody.byteLength));
+-    else throw Error('native request body must be bytes or a string (streamed uploads are not supported)');
+-    if(body.length>maxRequestBytes)throw Error('native request body too large');
++    if(streamed)source=rawBody instanceof Readable?rawBody:rawBody instanceof ReadableStream?Readable.fromWeb(rawBody):Readable.from(rawBody);
++    else{
++      body=bytesOf(rawBody,'native request body must be bytes, a string or a readable stream');
++      if(body.length>maxRequestBytes)throw Error('native request body too large');
++    }
+   }
+-  return {path:requestPath,method,headers,body,signal,streaming,
++  return {path:requestPath,method,headers,body,source,bodyLength,maxRequestBytes,signal,streaming,
+     maxBytes:bounded(o.maxBytes,streaming?64*1024*1024:8*1024*1024,1,streaming?1024*1024*1024:64*1024*1024),
+     timeoutMs:bounded(o.timeoutMs,30000,1000,120000),
+     idleTimeoutMs:bounded(o.idleTimeoutMs,60000,1000,600000),
+     maxDurationMs:bounded(o.maxDurationMs,600000,1000,3600000),
+     recheckMs:bounded(o.recheckMs,30000,1000,300000)};
+ }
++function snapshotSocket(options){
++  if(!options||typeof options!=='object'||Array.isArray(options))throw Error('native websocket options required');
++  const {signal,...plain}=options;
++  if(signal!==undefined&&!(signal instanceof AbortSignal))throw Error('signal must be an AbortSignal');
++  const o=structuredClone(plain);
++  const known=['path','headers','protocols','timeoutMs','idleTimeoutMs','maxDurationMs','recheckMs','maxMessageBytes','maxBufferedBytes','maxQueuedBytes','maxBytes','maxSentBytes'];
++  if(Object.keys(o).some(k=>!known.includes(k)))throw Error('unknown native websocket option');
++  const socketPath=checkPath(o.path),parsed=new URL(socketPath,'wss://native.invalid');
++  // The upgrade goes to exactly the path requested, not a URL-normalized variant.
++  if(parsed.pathname+parsed.search!==socketPath)throw Error('native websocket path must be in normalized form');
++  const headers=checkHeaders(o.headers,SOCKET_FORBIDDEN),protocols=o.protocols===undefined?[]:o.protocols;
++  if(!Array.isArray(protocols)||protocols.length>16||protocols.some(x=>typeof x!=='string'||x.length>256||!TOKEN.test(x))||new Set(protocols).size!==protocols.length)throw Error('invalid native websocket subprotocols');
++  const maxMessageBytes=bounded(o.maxMessageBytes,1024*1024,1,64*1024*1024);
++  return {path:socketPath,headers,protocols,signal,maxMessageBytes,
++    maxBufferedBytes:bounded(o.maxBufferedBytes,Math.max(4*1024*1024,maxMessageBytes),maxMessageBytes,256*1024*1024),
++    maxQueuedBytes:bounded(o.maxQueuedBytes,4*1024*1024,1,256*1024*1024),
++    maxBytes:bounded(o.maxBytes,256*1024*1024,1,16*1024*1024*1024),
++    maxSentBytes:bounded(o.maxSentBytes,256*1024*1024,1,16*1024*1024*1024),
++    timeoutMs:bounded(o.timeoutMs,30000,1000,120000),
++    idleTimeoutMs:bounded(o.idleTimeoutMs,300000,1000,3600000),
++    maxDurationMs:bounded(o.maxDurationMs,3600000,1000,86400000),
++    recheckMs:bounded(o.recheckMs,30000,1000,300000)};
++}
+diff --git a/scripts/network/native-request.mjs b/scripts/network/native-request.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..8920bf138a2cb74ab104144cfc1ae886837d6250
+--- /dev/null
++++ b/scripts/network/native-request.mjs
+@@ -0,0 +1,45 @@
++#!/usr/bin/env node
++// One verified request with an optional streamed upload (a file or stdin) and an
++// optionally streamed response (SSE, chat) to stdout. Same checks as native-get.mjs;
++// a credential comes from NATIVE_AUTHORIZATION (sent as Authorization), never argv.
++import fs from 'node:fs';
++import {pipeline} from 'node:stream/promises';
++import {pathToFileURL} from 'node:url';
++import {NativeClient} from '../../network/native-client.mjs';
++
++const USAGE='Usage: node scripts/network/native-request.mjs TRUST-PROFILE.json /path [--method M] [--body-file FILE | --body-stdin] [--content-type T] [--stream]';
++export function parseArgs(argv){
++  const [profileFile,path,...rest]=argv,o={profileFile,path,method:'GET',stream:false,stdinBody:false,bodyFile:null,contentType:null};
++  if(!profileFile||!path?.startsWith('/'))throw Error(USAGE);
++  for(let i=0;i<rest.length;i++){
++    const flag=rest[i],value=rest[i+1];
++    if(flag==='--stream')o.stream=true;
++    else if(flag==='--body-stdin')o.stdinBody=true;
++    else if(flag==='--method'&&value){o.method=value.toUpperCase();i++;}
++    else if(flag==='--body-file'&&value){o.bodyFile=value;i++;}
++    else if(flag==='--content-type'&&value){o.contentType=value;i++;}
++    else throw Error(USAGE);
++  }
++  if(o.stdinBody&&o.bodyFile)throw Error(USAGE);
++  if((o.stdinBody||o.bodyFile)&&o.method==='GET')o.method='POST';
++  return o;
++}
++// A file is sent with its length; stdin is sent chunked. The body is read only after
++// the guest key is verified. Returns the result metadata; the body goes to stdout.
++export async function run(client,o,{stdin=process.stdin,stdout=process.stdout,env=process.env}={}){
++  const headers={...(env.NATIVE_AUTHORIZATION?{authorization:env.NATIVE_AUTHORIZATION}:{}),...(o.contentType?{'content-type':o.contentType}:{})};
++  const upload=o.bodyFile?{body:fs.createReadStream(o.bodyFile),bodyLength:fs.statSync(o.bodyFile).size}:o.stdinBody?{body:stdin}:{};
++  const request={method:o.method,path:o.path,headers,...upload,...(upload.body?{maxRequestBytes:1024*1024*1024}:{})};
++  if(!o.stream){const r=await client.request(request);stdout.write(r.body);return r;}
++  const r=await client.stream(request);
++  await pipeline(r.body,stdout,{end:false});
++  return {...r,closed:await r.closed};
++}
++async function main(){
++  const o=parseArgs(process.argv.slice(2));
++  const client=new NativeClient(JSON.parse(fs.readFileSync(o.profileFile,'utf8')));
++  const r=await run(client,o);
++  console.error(JSON.stringify({status:r.status,route:r.route,proof:r.proof,expectation:r.expectation,leaseBlock:r.leaseBlock,validUntil:r.validUntil,...(r.closed?{closed:r.closed}:{})}));
++  if(r.status<200||r.status>=300)process.exitCode=1;
++}
++if(import.meta.url===pathToFileURL(process.argv[1]||'').href)main().catch(e=>{console.error(e.message);process.exitCode=e.message===USAGE?2:1;});
+diff --git a/scripts/network/native-ws.mjs b/scripts/network/native-ws.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..dec030aaece6ec483ac9b89a8e71dbb862516c1f
+--- /dev/null
++++ b/scripts/network/native-ws.mjs
+@@ -0,0 +1,54 @@
++#!/usr/bin/env node
++// One verified WebSocket per connection, websocat-style: stdin to binary frames and
++// frames to stdout, or --listen on a loopback port, where every accepted local
++// connection gets its own discovery, hardware proof and upgrade (no reuse, no
++// reconnect). Reaches the TCP apps' /x/<id>/tcp/<port> bridges and any app WebSocket.
++// A credential comes from NATIVE_AUTHORIZATION (sent as Authorization), never argv.
++import fs from 'node:fs/promises';
++import net from 'node:net';
++import {once} from 'node:events';
++import {pathToFileURL} from 'node:url';
++import {NativeClient} from '../../network/native-client.mjs';
++
++const USAGE='Usage: node scripts/network/native-ws.mjs TRUST-PROFILE.json /path [--protocol NAME]... [--listen 127.0.0.1:PORT]';
++export function parseArgs(argv){
++  const [profileFile,path,...rest]=argv,protocols=[];let listen=null;
++  if(!profileFile||!path?.startsWith('/'))throw Error(USAGE);
++  for(let i=0;i<rest.length;i++){
++    if(rest[i]==='--protocol'&&rest[i+1])protocols.push(rest[++i]);
++    else if(rest[i]==='--listen'&&rest[i+1]){
++      const m=/^(127\.\d{1,3}\.\d{1,3}\.\d{1,3}|\[::1\]):(\d{1,5})$/.exec(rest[++i]);
++      // A bridge carries the caller's credential: never offer it beyond this machine.
++      if(!m||+m[2]>65535)throw Error('--listen takes a loopback address and port, e.g. 127.0.0.1:6667');
++      listen={host:m[1].replace(/^\[|\]$/g,''),port:+m[2]};
++    }else throw Error(USAGE);
++  }
++  return {profileFile,path,protocols,listen};
++}
++// Bytes in become binary messages (awaiting each send: bounded buffering); messages
++// out are written with backpressure. Input EOF closes the socket normally.
++export async function bridge(socket,input,output){
++  const upstream=(async()=>{
++    for await(const chunk of input)for(let i=0;i<chunk.length;i+=64*1024)await socket.send(chunk.subarray(i,i+64*1024),{binary:true});
++    await socket.close(1000);
++  })().catch(e=>socket.cancel(e.message));
++  try{for await(const m of socket.messages)if(!output.write(m.data))await once(output,'drain');}
++  finally{input.destroy?.();await upstream;}
++  return socket.closed;
++}
++async function main(){
++  const args=parseArgs(process.argv.slice(2));
++  const client=new NativeClient(JSON.parse(await fs.readFile(args.profileFile,'utf8')));
++  const headers=process.env.NATIVE_AUTHORIZATION?{authorization:process.env.NATIVE_AUTHORIZATION}:{};
++  const open=()=>client.websocket({path:args.path,headers,protocols:args.protocols});
++  const report=(s,closed)=>console.error(JSON.stringify({route:s.route,proof:s.proof,expectation:s.expectation,leaseBlock:s.leaseBlock,protocol:s.protocol,closed}));
++  if(!args.listen){const s=await open();const closed=await bridge(s,process.stdin,process.stdout);report(s,closed);if(closed.error)process.exitCode=1;return;}
++  const server=net.createServer(async local=>{
++    local.on('error',()=>{});
++    try{const s=await open();report(s,await bridge(s,local,local));}
++    catch(e){console.error(e.message);}
++    finally{local.destroy();}
++  });
++  server.listen(args.listen.port,args.listen.host,()=>console.error('listening on '+args.listen.host+':'+server.address().port));
++}
++if(import.meta.url===pathToFileURL(process.argv[1]||'').href)main().catch(e=>{console.error(e.message);process.exitCode=e.message===USAGE?2:1;});
+diff --git a/test/native-access.test.mjs b/test/native-access.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..8a602114122799b9a3cb3c34d665435dbe6a90bf
+--- /dev/null
++++ b/test/native-access.test.mjs
+@@ -0,0 +1,355 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import https from 'node:https';
++import tls from 'node:tls';
++import {Readable} from 'node:stream';
++import {execFileSync} from 'node:child_process';
++import {generateKeyPairSync,X509Certificate,createHash} from 'node:crypto';
++import {privateKeyToAccount} from 'viem/accounts';
++import {WebSocketServer} from 'ws';
++import {NativeClient} from '../network/native-client.mjs';
++import {signProviderRecord,signQualification,providerIdFor,CHECKS} from '../network/provider-directory.mjs';
++import {defaultNetworkPolicy} from '../network/network-policy.mjs';
++import {signDelegation,signRoute,recordHash} from '../network/route-record.mjs';
++import {runtimeId} from '../isolation/contract/runtime.mjs';
++import {bridge,parseArgs as wsArgs} from '../scripts/network/native-ws.mjs';
++import {run as runRequest} from '../scripts/network/native-request.mjs';
++
++// The current native transport path end to end: signed directory records, real TLS
++// with a self-signed (non-WebPKI) guest key, a real WebSocket server and real HTTP
++// streaming. The hardware verdict and chain reads are test doubles, as in
++// native-client.test.mjs; this proves the client's transport, not SNP hardware.
++const account=n=>privateKeyToAccount('0x'+n.repeat(64));
++const owner=account('1'),operator=account('2'),checker=account('3');
++const id='0x'+'ab'.repeat(32),runner='0x'+'cd'.repeat(32),address='8.8.4.4';
++const runtime={name:'wasmtime',version:'test',execution:'jit',hostIsa:'x86_64',targetIsa:'x86_64',cpuFeatures:'baseline',wx:'enforced',cache:'none'};
++const AUTH={Authorization:'Bearer private-test-only'};
++const sleep=ms=>new Promise(r=>setTimeout(r,ms));
++const until=async(f,ms=3000)=>{for(const end=Date.now()+ms;!f();){if(Date.now()>end)throw Error('condition not reached');await sleep(10);}};
++const keypair=dir=>{
++  execFileSync('openssl',['req','-x509','-newkey','ec','-pkeyopt','ec_paramgen_curve:P-256','-nodes','-subj','/CN=not-a-trusted-ca','-days','1','-keyout',dir+'/key','-out',dir+'/cert'],{stdio:'ignore'});
++  const cert=fs.readFileSync(dir+'/cert'),key=fs.readFileSync(dir+'/key');
++  return {cert,key,spki:createHash('sha256').update(new X509Certificate(cert).publicKey.export({format:'der',type:'spki'})).digest('hex')};
++};
++
++async function rig(t,{onSocket=null,onUpgrade=null,onRequest=null,clientOptions={}}={}){
++  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'native-access-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
++  fs.mkdirSync(dir+'/guest');fs.mkdirSync(dir+'/forged');
++  const guest=keypair(dir+'/guest'),forged=keypair(dir+'/forged');
++  // probe: 'ok' | 'refuse' | 'wrong app'; forged: the server presents a different key than the attested one.
++  const state={probe:'ok',forged:false,withdraw:false,onRefresh:null};
++  let now=Date.now(),reads=0,dirReads=0,probes=0,requests=0,upgrades=0,appBytes=0;const policy=defaultNetworkPolicy(id);
++  const expected={appRef:'test-app',configCid:'test-config',appSha256:'ef'.repeat(32),runtimeId:runtimeId(runtime).toString('hex')};
++  const pins={deployments:'0x'+'05'.repeat(20),registry:'0x'+'06'.repeat(20),connectivity:'0x'+'00'.repeat(20),sessionVaultFactory:'0x'+'00'.repeat(20)};
++  const lease={id,owner:owner.address,runner,chainId:8453,deployments:pins.deployments,runnerOperator:operator.address,active:true,isPublic:true,leaseUntil:now+600000,validUntil:now+90000,appRef:expected.appRef,configCid:expected.configCid,blockNumber:'1234'};
++  const record={version:1,providerId:providerIdFor(operator.address,address),operator:operator.address.toLowerCase(),address,
++    wgExitKey:Buffer.alloc(32,1).toString('base64'),wgGuardKey:Buffer.alloc(32,2).toString('base64'),ports:{exit:51820,guard:51821,control:51822},
++    roles:['guard','ingress','egress'],pricePerGiB6:0,region:'test',kind:'community',hostId:runner,issuedAt:now,expiresAt:now+1800000};
++  const pr=await signProviderRecord(operator,record),q={version:1,providerId:record.providerId,operator:record.operator,address,wgExitKey:record.wgExitKey,wgGuardKey:record.wgGuardKey,roles:record.roles,
++    checks:Object.fromEntries(CHECKS.map(k=>[k,true])),issuedAt:now,expiresAt:now+600000};
++  const qualification=await signQualification(checker,q),keys=generateKeyPairSync('ed25519');
++  const delegation={version:2,deploymentId:id,runner,chainId:8453,deployments:pins.deployments,policyHash:recordHash(policy),epoch:now,notBefore:now,expiresAt:now+3600000,
++    publicKey:keys.publicKey.export({format:'der',type:'spki'}).toString('base64'),ipns:'k51'+'a'.repeat(50)};
++  const authorization=await signDelegation(operator,delegation,now);
++  const publication=(sequence,withdraw=false)=>({version:2,policy,bundle:{authorization,...signRoute(keys.privateKey,{version:2,deploymentId:id,delegationHash:recordHash(delegation),sequence,issuedAt:now,expiresAt:now+60000,
++    routes:withdraw?[]:[{circuit:'f'.repeat(32),address,port:443,transport:'enclave-network'}]})}});
++  const live={version:1,providers:[{record:pr,qualifications:[qualification]}],policies:[],publications:[publication(1)]};
++  const withdrawn={...live,publications:[publication(2,true)]};
++  const profile={version:1,deploymentId:id,hostname:'never-resolve.invalid',stateDir:dir+'/state',chainId:8453,expected,linux:{},authorityPins:pins,checkers:[checker.address],directories:['http://192.0.2.2:8188']};
++  const reader={refresh:async()=>{reads++;state.onRefresh?.(reads,lease);},get:()=>structuredClone(lease),registryEntries:async()=>[{active:true,operator:operator.address}]};
++  const fetch=async url=>{dirReads++;assert.ok(url.startsWith('http://192.0.2.2:8188/v1/network/records'));return Response.json(state.withdraw?withdrawn:live);};
++  const probe=async options=>{
++    probes++;assert.equal(options.address,address);assert.equal(options.hostname,profile.hostname);assert.equal(options.attestationBootstrap,true);
++    if(state.probe==='refuse')throw Error('hardware refused');
++    return {verified:true,ready:true,deploymentId:id,appSha256:state.probe==='wrong app'?'00'.repeat(32):expected.appSha256,runtimeId:expected.runtimeId,spkiSha256:guest.spki};
++  };
++  const contexts={guest:tls.createSecureContext({key:guest.key,cert:guest.cert}),forged:tls.createSecureContext({key:forged.key,cert:forged.cert})};
++  const server=https.createServer({key:guest.key,cert:guest.cert,SNICallback:(_name,cb)=>cb(null,state.forged?contexts.forged:contexts.guest)},(req,res)=>{
++    requests++;assert.equal(req.socket.servername,profile.hostname);assert.equal(req.headers.host,profile.hostname);
++    if(onRequest)return onRequest(req,res);res.end('pong');
++  });
++  const wss=new WebSocketServer({noServer:true,perMessageDeflate:false,handleProtocols:set=>set.has('irc')?'irc':set.values().next().value??false});
++  const seen=[];
++  server.on('upgrade',(req,socket,head)=>{
++    upgrades++;seen.push({url:req.url,host:req.headers.host,servername:req.socket.servername,authorization:req.headers.authorization,headers:req.headers});
++    if(onUpgrade)return onUpgrade(req,socket,head);
++    wss.handleUpgrade(req,socket,head,ws=>onSocket?onSocket(ws,req):ws.close());
++  });
++  // Decrypted bytes the guest stand-in received on any connection: a refusal must leave this at zero.
++  server.on('secureConnection',socket=>socket.on('data',b=>{appBytes+=b.length;}));
++  await new Promise(r=>server.listen(0,'127.0.0.1',r));
++  t.after(()=>{for(const c of wss.clients)c.terminate();server.closeAllConnections();return new Promise(r=>server.close(r));});
++  const realRequest=https.request;
++  // ws and the HTTP path both go through https.request with the client's verifying agent.
++  t.mock.method(https,'request',(options,callback)=>{
++    assert.equal(options.host,address,'production transport must select a signed literal IP');assert.equal(options.port,443);
++    return realRequest({...options,host:'127.0.0.1',port:server.address().port},callback);
++  });
++  const client=new NativeClient(profile,{reader,fetch,probe,now:()=>now,...clientOptions});
++  return {client,state,lease,seen,wss,counts:()=>({requests,upgrades,probes,appBytes,reads,dirReads}),advance:n=>now+=n};
++}
++const echo=ws=>ws.on('message',(d,binary)=>ws.send(binary?Buffer.concat([Buffer.from('echo:'),d]):'echo:'+d,{binary}));
++const drain=async s=>{const got=[];for await(const m of s.messages)got.push(m);return got;};
++
++test('websocket: bidirectional text and binary frames, subprotocol, ping and close on the verified connection',async t=>{
++  const server={pong:false,close:null,messages:[]};
++  const r=await rig(t,{onSocket:ws=>{echo(ws);ws.on('message',d=>server.messages.push(Buffer.from(d)));ws.on('pong',d=>server.pong=d.toString());ws.ping('from-guest');
++    ws.on('close',(code,reason)=>server.close={code,reason:reason.toString()});}});
++  const s=await r.client.websocket({path:'/x/'+id+'/tcp/6667?mode=1',headers:AUTH,protocols:['irc','chat']});
++  assert.equal(s.status,101);assert.equal(s.protocol,'irc');assert.equal(s.headers['sec-websocket-protocol'],'irc');assert.equal(s.route.address,address);assert.equal(s.proof.spkiSha256.length,64);
++  assert.deepEqual(r.seen.map(x=>[x.url,x.host,x.servername,x.authorization]),[['/x/'+id+'/tcp/6667?mode=1','never-resolve.invalid','never-resolve.invalid',AUTH.Authorization]]);
++  assert.equal(r.seen[0].headers['sec-websocket-protocol'],'irc,chat');assert.equal(r.seen[0].headers['sec-websocket-extensions'],undefined,'no compression offered');
++  await s.send('NICK native');await s.send(new Uint8Array([0,1,2,255]));
++  const it=s.messages[Symbol.asyncIterator]();
++  const a=(await it.next()).value,b=(await it.next()).value;
++  assert.deepEqual([a.binary,a.data.toString()],[false,'echo:NICK native']);
++  assert.deepEqual([b.binary,[...b.data]],[true,[...Buffer.from('echo:'),0,1,2,255]]);
++  await s.ping('from-client');            // resolves on the guest's pong
++  await until(()=>server.pong==='from-guest');   // the guest's ping was answered
++  const closed=await s.close(1000,'bye');
++  assert.deepEqual({...closed,bytesIn:closed.bytesIn>0},{code:1000,reason:'bye',error:null,bytesIn:true,bytesOut:15});
++  await until(()=>server.close);assert.deepEqual(server.close,{code:1000,reason:'bye'});
++  assert.deepEqual(server.messages.map(x=>x.toString('hex')),[Buffer.from('NICK native').toString('hex'),'000102ff']);
++  assert.equal((await it.next()).done,true);assert.equal(r.client.open,0);assert.equal(r.counts().probes,1);
++});
++
++test('a forged key, wrong attestation, refused hardware or changed lease refuses before any upgrade, credential or upload byte',async t=>{
++  const cases={
++    'forged certificate':r=>{r.state.forged=true;},
++    'wrong attestation':r=>{r.state.probe='wrong app';},
++    'hardware refused':r=>{r.state.probe='refuse';},
++    'lease changed during attestation':r=>{r.state.onRefresh=(n,l)=>{if(n>1)l.configCid='other';};},
++    'owner changed during attestation':r=>{r.state.onRefresh=(n,l)=>{if(n>1)l.owner=account(n%2?'9':'8').address;};},
++    'route withdrawn':r=>{r.state.withdraw=true;},
++    'lease expired':r=>{r.lease.validUntil=0;}};
++  for(const [name,arrange] of Object.entries(cases))await t.test(name,async t=>{
++    const r=await rig(t,{onSocket:()=>assert.fail('upgraded'),onRequest:()=>assert.fail('request reached the guest')});arrange(r);
++    await assert.rejects(r.client.websocket({path:'/x/'+id+'/tcp/6667',headers:AUTH,protocols:['irc']}),/TLS key changed|fresh bound guest proof|hardware refused|changed during|verified route|current lease/);
++    let pulled=0;const source=new Readable({read(){pulled++;this.push(Buffer.alloc(1024,7));}});
++    await assert.rejects(r.client.stream({method:'POST',path:'/v1/upload',headers:AUTH,body:source}),/TLS key changed|fresh bound guest proof|hardware refused|changed during|verified route|current lease/);
++    assert.equal(pulled,0,'the upload source is not read before verification');assert.equal(source.destroyed,true,'and it is closed');
++    assert.deepEqual([r.counts().upgrades,r.counts().requests,r.counts().appBytes],[0,0,0],'the guest stand-in decrypted nothing');
++    assert.equal(r.client.open,0);
++  });
++});
++
++test('handshake validation: 101 status, Upgrade, Sec-WebSocket-Accept, subprotocol and extensions; no redirect, no retry',async t=>{
++  const accept=key=>createHash('sha1').update(key+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
++  const answers={
++    '/redirect':()=>'HTTP/1.1 302 Found\r\nLocation: https://must-not-follow.invalid/x\r\nContent-Length: 0\r\n\r\n',
++    '/plain':()=>'HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok',
++    '/bad-accept':()=>'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: AAAA\r\n\r\n',
++    '/not-websocket':k=>'HTTP/1.1 101 Switching Protocols\r\nUpgrade: h2c\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept(k)+'\r\n\r\n',
++    '/wrong-protocol':k=>'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept(k)+'\r\nSec-WebSocket-Protocol: other\r\n\r\n',
++    '/no-protocol':k=>'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept(k)+'\r\n\r\n',
++    '/extension':k=>'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept(k)+'\r\nSec-WebSocket-Protocol: irc\r\nSec-WebSocket-Extensions: permessage-deflate\r\n\r\n'};
++  const r=await rig(t,{onUpgrade:(req,socket)=>socket.end(answers[req.url](req.headers['sec-websocket-key']))});
++  const want={'/redirect':/HTTP 302/,'/plain':/HTTP 200/,'/bad-accept':/Sec-WebSocket-Accept/,'/not-websocket':/Invalid Upgrade/,'/wrong-protocol':/invalid subprotocol/,'/no-protocol':/no subprotocol/,'/extension':/Extensions/};
++  for(const [p,pattern] of Object.entries(want)){
++    const e=await r.client.websocket({path:p,headers:AUTH,protocols:['irc']}).then(()=>assert.fail('opened '+p),e=>e);
++    assert.match(e.message,pattern,p);if(p==='/redirect')assert.equal(e.status,302);
++  }
++  const n=Object.keys(want).length;
++  await sleep(100);
++  assert.deepEqual([r.counts().upgrades,r.counts().probes],[n,n],'each call attests once and sends one upgrade; nothing is retried or redirected');
++  assert.ok(r.seen.every(x=>x.authorization===AUTH.Authorization));assert.equal(r.client.open,0);
++});
++
++test('websocket limits: frame size, send buffer, totals, idle and absolute timers, validation and concurrency',async t=>{
++  const got=[];
++  const r=await rig(t,{clientOptions:{maxConcurrent:2},onSocket:(ws,req)=>{
++    ws.on('message',d=>got.push(req.url+':'+d.length));
++    if(req.url==='/big')ws.send(Buffer.alloc(2048));
++    if(req.url==='/flood')for(let i=0;i<3;i++)ws.send(Buffer.alloc(400));
++    if(req.url==='/keepalive'){const iv=setInterval(()=>ws.ping(),200);ws.on('close',()=>clearInterval(iv));}
++  }});
++  const big=await r.client.websocket({path:'/big',maxMessageBytes:1024});
++  await assert.rejects(drain(big),/Max payload/);assert.match((await big.closed).error,/Max payload/);
++  const small=await r.client.websocket({path:'/small',maxMessageBytes:1024,maxBufferedBytes:1500,maxSentBytes:3000});
++  await assert.rejects(small.send(Buffer.alloc(1025)),/message too large/);
++  const first=small.send(Buffer.alloc(1024));
++  await assert.rejects(small.send(Buffer.alloc(1024)),/send buffer full/);await first;
++  await small.send(Buffer.alloc(1024));await assert.rejects(small.send(Buffer.alloc(1000)),/send limit reached/);
++  await until(()=>got.filter(x=>x.startsWith('/small')).length===2);assert.deepEqual(got,['/small:1024','/small:1024'],'refused sends wrote nothing');
++  small.cancel();await small.closed;
++  const flood=await r.client.websocket({path:'/flood',maxBytes:1000});
++  await assert.rejects(drain(flood),/received too much/);
++  const idle=await r.client.websocket({path:'/idle',idleTimeoutMs:1000});
++  assert.match((await idle.closed).error,/idle timeout/);
++  const long=await r.client.websocket({path:'/keepalive',idleTimeoutMs:1000,maxDurationMs:1500});
++  assert.match((await long.closed).error,/duration limit/);
++  // concurrency: sockets and streams share the per-client bound
++  const a=await r.client.websocket({path:'/a'}),b=await r.client.websocket({path:'/b'});
++  await assert.rejects(r.client.websocket({path:'/c'}),/too many open/);await assert.rejects(r.client.stream({path:'/c'}),/too many open/);
++  a.cancel();b.cancel();await Promise.all([a.closed,b.closed]);assert.equal(r.client.open,0);
++  const probes=r.counts().probes;
++  for(const bad of [{headers:{Upgrade:'websocket'}},{headers:{Connection:'Upgrade'}},{headers:{'Sec-WebSocket-Key':'x'}},{headers:{'sec-websocket-protocol':'irc'}},
++    {headers:{'Sec-WebSocket-Extensions':'permessage-deflate'}},{headers:{'Sec-WebSocket-Version':'8'}},{headers:{Host:'elsewhere'}},{headers:{'Transfer-Encoding':'chunked'}},
++    {headers:{'X-A':'1\r\nX-B: 2'}},{protocols:['irc','irc']},{protocols:['a b']},{protocols:'irc'},{path:'/a/../b'},{path:'/café'},{path:'/a\\b'},{path:'//x'},{path:'/a#b'},
++    {maxMessageBytes:0},{maxMessageBytes:2048,maxBufferedBytes:1024},{timeoutMs:10},{unknown:1},{signal:{aborted:false}},{method:'POST'}])
++    await assert.rejects(r.client.websocket({path:'/x',...bad}),/native|signal/,JSON.stringify(bad));
++  assert.equal(r.counts().probes,probes,'invalid options fail before discovery or proof');
++});
++
++test('inbound backpressure: a slow reader pauses the guest connection and nothing is dropped',async t=>{
++  let guest;const N=512,SIZE=64*1024;
++  const r=await rig(t,{onSocket:ws=>{guest=ws;for(let i=0;i<N;i++){const m=Buffer.alloc(SIZE,i&255);m.writeUInt32BE(i);ws.send(m);}}});
++  const s=await r.client.websocket({path:'/firehose',maxQueuedBytes:256*1024,maxBytes:N*SIZE});
++  await sleep(500);
++  assert.ok(s.queuedBytes<=256*1024+4*SIZE,'client queue stays bounded: '+s.queuedBytes);
++  assert.ok(guest.bufferedAmount>8*1024*1024,'the guest is held back: '+guest.bufferedAmount);
++  let i=0;
++  for await(const m of s.messages){assert.equal(m.data.readUInt32BE(0),i);assert.equal(m.data.length,SIZE);if(++i===N)break;}
++  assert.equal(i,N);await s.closed;assert.equal(r.client.open,0);
++});
++
++test('an open websocket closes on cancellation, authority loss, route withdrawal or a transport reset; nothing reconnects',async t=>{
++  const serverClosed=[];
++  const r=await rig(t,{onSocket:(ws,req)=>{ws.on('close',()=>serverClosed.push(req.url));
++    const iv=setInterval(()=>ws.ping(),200);ws.on('close',()=>clearInterval(iv));
++    if(req.url==='/reset')setTimeout(()=>req.socket.destroy(),300);}});
++  const controller=new AbortController(),aborted=await r.client.websocket({path:'/abort',signal:controller.signal});
++  controller.abort();assert.match((await aborted.closed).error,/cancelled/);
++  const cancelled=await r.client.websocket({path:'/cancel'});cancelled.cancel('user stopped');assert.equal((await cancelled.closed).error,'user stopped');
++  const owner=await r.client.websocket({path:'/owner',recheckMs:1000});
++  r.lease.owner=account('9').address;   // ownership transferred while the socket is open
++  await assert.rejects(drain(owner),/not confirmed current/);await assert.rejects(owner.send('after'),/not open/);
++  r.lease.owner=account('1').address;
++  const reset=await r.client.websocket({path:'/reset'});
++  const done=await reset.closed;assert.equal(done.code,1006);
++  await assert.rejects(reset.send('x'),/not open/);
++  // last on this rig: the stored withdrawal outranks the older record from then on
++  const withdrawn=await r.client.websocket({path:'/withdrawn',recheckMs:1000});
++  r.state.withdraw=true;   // a newer signed route record withdraws the attested route
++  assert.match((await withdrawn.closed).error,/no longer published/);
++  await sleep(1200);
++  // each of the 5 sockets attested once
++  assert.deepEqual([r.counts().upgrades,r.counts().probes],[5,5],'no silent reconnect after any close');
++  await until(()=>serverClosed.length===5);assert.deepEqual(serverClosed.sort(),['/abort','/cancel','/owner','/reset','/withdrawn']);
++  assert.equal(r.client.open,0);
++});
++
++test('an open websocket closes when the lease snapshot expires',async t=>{
++  const r=await rig(t,{onSocket:ws=>{const iv=setInterval(()=>ws.ping(),200);ws.on('close',()=>clearInterval(iv));}});
++  const s=await r.client.websocket({path:'/expiring',recheckMs:1000});r.advance(100000);
++  assert.match((await s.closed).error,/not confirmed current/);assert.equal(r.counts().upgrades,1);
++});
++
++test('reconnecting needs a fresh authorization and fresh credentials; nothing is replayed',async t=>{
++  const log=[];
++  const r=await rig(t,{onSocket:(ws,req)=>ws.on('message',d=>log.push(req.headers.authorization+' '+d))});
++  const first=await r.client.websocket({path:'/chat',headers:{Authorization:'Bearer first'}});
++  await first.send('one');await until(()=>log.length===1);await first.close();
++  const before=r.counts();
++  r.state.probe='refuse';
++  await assert.rejects(r.client.websocket({path:'/chat',headers:{Authorization:'Bearer second'}}),/hardware refused/);
++  assert.equal(r.counts().upgrades,before.upgrades,'a refused reconnect sends no upgrade');
++  r.state.probe='ok';
++  const third=await r.client.websocket({path:'/chat',headers:{Authorization:'Bearer third'}});
++  const after=r.counts();
++  assert.equal(after.probes,before.probes+2,'each connection attempt runs its own proof');
++  assert.ok(after.dirReads>=before.dirReads+3&&after.reads>=before.reads+3,'and its own discovery and chain reads');
++  assert.deepEqual(r.seen.map(x=>x.authorization),['Bearer first','Bearer third'],'each upgrade carries only its own call\'s credential');
++  await sleep(100);assert.deepEqual(log,['Bearer first one'],'no earlier message is replayed on the new socket');
++  await third.close();
++});
++
++test('streamed upload: chunks reach the guest as they are produced while an SSE response streams back',async t=>{
++  let sawHeaders;
++  const r=await rig(t,{onRequest:(req,res)=>{
++    sawHeaders={te:req.headers['transfer-encoding'],length:req.headers['content-length'],auth:req.headers.authorization};
++    res.writeHead(200,{'content-type':'text/event-stream'});res.flushHeaders();let total=0;
++    req.on('data',d=>{total+=d.length;res.write('data: got '+total+'\n\n');});req.on('end',()=>res.end('data: done '+total+'\n\n'));
++  }});
++  const acks=[];
++  async function* produce(){for(let i=1;i<=4;i++){yield Buffer.alloc(1000*i,i);await until(()=>acks.length>=i);}}
++  const s=await r.client.stream({method:'POST',path:'/v1/chat/stream',headers:{...AUTH,'Content-Type':'application/octet-stream'},body:produce()});
++  assert.equal(s.status,200);
++  for await(const chunk of s.body){acks.push(...chunk.toString().split('\n\n').filter(Boolean));}
++  // each 'got' arrived before the next chunk existed: the upload and the response were both streaming
++  assert.deepEqual(acks,['data: got 1000','data: got 3000','data: got 6000','data: got 10000','data: done 10000']);
++  assert.deepEqual(sawHeaders,{te:'chunked',length:undefined,auth:AUTH.Authorization});
++  assert.deepEqual(await s.closed,{bytes:acks.join('\n\n').length+2,error:null});assert.equal(r.client.open,0);
++});
++
++test('streamed upload with a declared length, from a file and from a web stream, through request()',async t=>{
++  let seen=[];
++  const r=await rig(t,{onRequest:(req,res)=>{const h=createHash('sha256');let n=0;req.on('data',d=>{h.update(d);n+=d.length;});
++    req.on('end',()=>{seen.push({method:req.method,length:req.headers['content-length'],te:req.headers['transfer-encoding'],n,sha:h.digest('hex')});res.writeHead(201);res.end('stored');});}});
++  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'native-upload-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
++  const file=dir+'/blob',bytes=Buffer.alloc(3*1024*1024);for(let i=0;i<bytes.length;i+=4)bytes.writeUInt32LE(i,i);fs.writeFileSync(file,bytes);
++  const x=await r.client.request({method:'PUT',path:'/v1/files/blob',headers:AUTH,body:fs.createReadStream(file),bodyLength:bytes.length});
++  assert.equal(x.status,201);assert.equal(x.body.toString(),'stored');
++  assert.deepEqual(seen[0],{method:'PUT',length:String(bytes.length),te:undefined,n:bytes.length,sha:createHash('sha256').update(bytes).digest('hex')});
++  const web=new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('hello '));c.enqueue(new TextEncoder().encode('web'));c.close();}});
++  const y=await r.client.request({method:'POST',path:'/v1/notes',headers:AUTH,body:web});
++  assert.equal(y.status,201);assert.equal(seen[1].n,9);assert.equal(seen[1].te,'chunked');
++  assert.equal(r.counts().probes,2);
++});
++
++test('streamed upload limits, source errors, stalls, cancellation and authority loss close the source and the transport',async t=>{
++  const serverEnds=[];
++  const r=await rig(t,{onRequest:(req,res)=>{req.on('data',()=>{});req.on('close',()=>serverEnds.push(req.url));
++    if(req.url==='/early'){res.writeHead(200);res.write('ok');}}});
++  const endless=()=>{const s={returned:false};s.it=(async function*(){try{for(;;){yield Buffer.alloc(64*1024);await sleep(1);}}finally{s.returned=true;}})();return s;};
++  const tooMuch=endless();
++  await assert.rejects(r.client.request({method:'POST',path:'/too-much',headers:AUTH,body:tooMuch.it,maxRequestBytes:256*1024}),/body too large/);
++  await until(()=>tooMuch.returned);
++  await assert.rejects(r.client.request({method:'POST',path:'/short',headers:AUTH,body:Readable.from([Buffer.alloc(5)]),bodyLength:10}),/before its declared length/);
++  await assert.rejects(r.client.request({method:'POST',path:'/long',headers:AUTH,body:Readable.from([Buffer.alloc(5)]),bodyLength:3}),/body too large/);
++  // fails after its first chunk was written (an immediate error would discard that chunk and send nothing)
++  const failing=new Readable({read(){if(!this.sent){this.sent=true;this.push(Buffer.alloc(100));}else setTimeout(()=>this.destroy(Error('disk gone')),50);}});
++  await assert.rejects(r.client.request({method:'POST',path:'/source-error',headers:AUTH,body:failing}),/native upload source failed: disk gone/);
++  const stalled=new Readable({read(){if(!this.sent){this.sent=true;this.push(Buffer.alloc(100));}}});
++  await assert.rejects(r.client.request({method:'POST',path:'/stall',headers:AUTH,body:stalled,idleTimeoutMs:1000}),/upload idle timeout/);
++  assert.equal(stalled.destroyed,true);
++  await assert.rejects(r.client.request({method:'POST',path:'/bad-chunk',headers:AUTH,body:Readable.from([{not:'bytes'}])}),/must be bytes/);
++  const reached=r.counts().requests,controller=new AbortController(),cancelled=endless();
++  const pending=r.client.request({method:'POST',path:'/cancel',headers:AUTH,body:cancelled.it,signal:controller.signal,maxRequestBytes:1024*1024*1024});
++  await until(()=>r.counts().requests===reached+1);controller.abort();
++  await assert.rejects(pending,/cancel/);await until(()=>cancelled.returned);
++  // a response that started before the upload ended is cut as well when authority changes
++  const owned=endless();
++  const s=await r.client.stream({method:'POST',path:'/early',headers:AUTH,body:owned.it,recheckMs:1000,maxRequestBytes:1024*1024*1024});
++  r.lease.owner=account('9').address;
++  await assert.rejects((async()=>{for await(const _ of s.body);})(),/not confirmed current/);await until(()=>owned.returned);
++  r.lease.owner=account('1').address;
++  // refused input closes the source too, before any discovery
++  const probes=r.counts().probes,get=Readable.from([Buffer.alloc(1)]);
++  await assert.rejects(r.client.request({method:'GET',path:'/x',body:get}),/GET and HEAD/);assert.equal(get.destroyed,true);
++  await assert.rejects(r.client.request({method:'PUT',path:'/x',body:'x',bodyLength:1}),/bodyLength/);
++  assert.equal(r.counts().probes,probes);
++  // /long and /bad-chunk failed before their first write, so not even their headers left the client
++  await until(()=>serverEnds.length===6);
++  assert.deepEqual(serverEnds.sort(),['/cancel','/early','/short','/source-error','/stall','/too-much']);
++  assert.equal(r.counts().requests,6,'every failure is final: no request was sent twice');assert.equal(r.client.open,0);
++});
++
++test('upload backpressure: the source is read only as fast as the guest accepts it',async t=>{
++  let paused,received=0;const TOTAL=48*1024*1024;
++  const r=await rig(t,{onRequest:(req,res)=>{req.pause();paused=req;req.on('data',d=>received+=d.length);req.on('end',()=>res.end(String(received)));}});
++  let produced=0;
++  const source=new Readable({highWaterMark:64*1024,read(){if(produced>=TOTAL)return this.push(null);produced+=64*1024;this.push(Buffer.alloc(64*1024,1));}});
++  const pending=r.client.request({method:'POST',path:'/slow',headers:AUTH,body:source,bodyLength:TOTAL,timeoutMs:60000});
++  await until(()=>paused);await sleep(500);
++  assert.ok(produced<24*1024*1024,'the client stopped pulling while the guest was not reading: '+produced);
++  paused.resume();
++  const x=await pending;assert.equal(x.status,200);assert.equal(x.body.toString(),String(TOTAL));assert.equal(produced,TOTAL);
++});
++
++test('command-line wrappers: a websocat-style bridge and a streamed request, credentials from the environment',async t=>{
++  const r=await rig(t,{onSocket:echo,onRequest:(req,res)=>{let n=0;req.on('data',d=>n+=d.length);req.on('end',()=>{res.writeHead(200,{'content-type':'text/plain'});res.end(req.headers.authorization+' '+n);});}});
++  assert.deepEqual(wsArgs(['p.json','/x/a/tcp/6667','--protocol','irc','--listen','127.0.0.1:0']),{profileFile:'p.json',path:'/x/a/tcp/6667',protocols:['irc'],listen:{host:'127.0.0.1',port:0}});
++  assert.throws(()=>wsArgs(['p.json','/x','--listen','0.0.0.0:6667']),/loopback/);
++  const s=await r.client.websocket({path:'/x/'+id+'/tcp/6667',headers:AUTH});
++  const out=[];const stdout=new (await import('node:stream')).Writable({write(c,_e,cb){out.push(c);cb();}});
++  const ended=bridge(s,Readable.from([Buffer.from('PING :a\r\n')]),stdout);
++  await until(()=>Buffer.concat(out).toString().includes('echo:'));await ended;
++  assert.equal(Buffer.concat(out).toString(),'echo:PING :a\r\n');assert.equal(r.client.open,0);
++  const chunks=[];const sink=new (await import('node:stream')).Writable({write(c,_e,cb){chunks.push(c);cb();}});
++  const status=await runRequest(r.client,{path:'/v1/upload',method:'POST',stdinBody:true,stream:true},{stdin:Readable.from([Buffer.alloc(70000)]),stdout:sink,env:{NATIVE_AUTHORIZATION:'Bearer from-env'}});
++  assert.equal(status.status,200);assert.equal(Buffer.concat(chunks).toString(),'Bearer from-env 70000');
++});

@@ -1,0 +1,127 @@
+{
+ "format": "enclave-hs2-upgrade/v1",
+ "label": "hs2",
+ "id": "hs2-a93a5663-to-f54c2e0f",
+ "scripts": {
+  "windows/stop.ps1": "4efd8647e134b6663681bf274be8b39056b725798aba673f6608882446f9376e",
+  "windows/start.ps1": "21167adf3ee4a8b7a25697f3d71ba8c0154f3fadddf998ee607d42d6a86e84bd",
+  "windows/health.ps1": "e203ce1cd52d923d8d7492305c9851dea53b4c14af3d195d3c0ba37180333d93",
+  "windows/common.ps1": "779498ac137d417c472f324c2f1e5ed3789792d4e62b9bfcb60b88ddd76feb2b"
+ },
+ "replace": [
+  {
+   "path": "STAGE-SHA256SUMS",
+   "old": "a93a566389adba6584dc17bf3dac52f0c0a7239a982661bde798f1b8df1f239f",
+   "new": "f54c2e0f82b23624c65d9ae37577e377719b4e751bc6769a1ef01aaf052bf95b"
+  },
+  {
+   "path": "bin/host-services-runner.mjs",
+   "old": "071b4506c346eea3033ce3ca2d03a33cd23527b2a7d003fe83a131cefbb0b6b8",
+   "new": "c3c7d9f6cd3d075572a22f2da8e8a9c25d842b304929943f3306a6ff1cf5c0d3"
+  },
+  {
+   "path": "bin/stage-tool.mjs",
+   "old": "fdd42acd12e0f77c06081456cd14187c621e9d50e0666ffe72b8eb92dd894aaf",
+   "new": "91cc88686f63e5d987145ad7a6ba0295ad1bb2b1510fc4c643041620842a7204"
+  },
+  {
+   "path": "packages/route-dns.mjs",
+   "old": "98448a1a09cdbf24764438d3587b3dda133ca32ca515f3df7c65496a6a6153a4",
+   "new": "eb3c9c434766c68268620f2c594fdc335251765c87b0fd73ba37475d4d93bde0"
+  },
+  {
+   "path": "packages/route-dns.package.json",
+   "old": "38ef3af394c5daad22bc769248810453beb5c49d9f898893be656a597e0a7c8c",
+   "new": "1ad58e1d6998d21be853994df4df2875a92f02cab013c19764a826799fd3e5cb"
+  }
+ ],
+ "add": [
+  {
+   "path": "packages/service-tls.mjs",
+   "new": "7de2a5140f00c2ec0a4c4bc3c247666b2c5d16a1846bc06863366e0896f2991c"
+  },
+  {
+   "path": "packages/service-tls.package.json",
+   "new": "0da2366739edc23109fecffaf9d84d7abd16e75916eeff76a0e8e511b498b0df"
+  }
+ ],
+ "unchanged": [
+  {
+   "path": "ACTIVATION-WINDOWS.txt",
+   "sha": "4c5bdb1170c2c31492f75d2c1b010af995ba3477e3a562cdbb5e6bcb620751a3"
+  },
+  {
+   "path": "bin/hostsvc-supervisor.exe",
+   "sha": "42be59ff5fef8bbc35654ac4240b09fbb71ed0c735ae0bd4da1154c170da37b1"
+  },
+  {
+   "path": "packages/bootstrap-replica.mjs",
+   "sha": "1e45e75f1f4a7d2b74ebac22f0e292d76323c9a11bf80203a20d289c9577f467"
+  },
+  {
+   "path": "packages/bootstrap-replica.package.json",
+   "sha": "7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc"
+  },
+  {
+   "path": "packages/directory-replica.mjs",
+   "sha": "903b15157fc117c2b563e0e0303ca92f0b2ccdb4ea0d1af2ce1fe9eeb4fd7e66"
+  },
+  {
+   "path": "packages/directory-replica.package.json",
+   "sha": "4aa032fad7b3867e5cc2a85e8a82ea2a8627606e2a8f742cd2829017ccab82d6"
+  },
+  {
+   "path": "packages/policy-mirror.mjs",
+   "sha": "b816265b3ea4fc783019f2d54796cd6b05d497b9d4e770e752fa70be93da569c"
+  },
+  {
+   "path": "packages/policy-mirror.package.json",
+   "sha": "56bf5c46ef156cb842b94b41c15fb2f3ec81deb9c5034a7ba766668c05ad32d6"
+  },
+  {
+   "path": "windows/capture-public-inputs.ps1",
+   "sha": "ac6ef038101715bf74d530071e16c22499cd23cb623bab90c96edb11b5dfee93"
+  },
+  {
+   "path": "windows/common.ps1",
+   "sha": "779498ac137d417c472f324c2f1e5ed3789792d4e62b9bfcb60b88ddd76feb2b"
+  },
+  {
+   "path": "windows/fill-data.ps1",
+   "sha": "c327e2f1a272f3b0d2a84bdfd0c4d57ee669bbee37c8252657c71ffb89ac947d"
+  },
+  {
+   "path": "windows/health.ps1",
+   "sha": "e203ce1cd52d923d8d7492305c9851dea53b4c14af3d195d3c0ba37180333d93"
+  },
+  {
+   "path": "windows/install.ps1",
+   "sha": "33531ad824fe625a1bf0ffee78db11af2c80f826a5bb0a3b07cc07aa48f827a1"
+  },
+  {
+   "path": "windows/rollback.ps1",
+   "sha": "75e9536392085bc3e502df14132f2bc4057cbc35c38729c1d1a1c8dff2daa8d3"
+  },
+  {
+   "path": "windows/start.ps1",
+   "sha": "21167adf3ee4a8b7a25697f3d71ba8c0154f3fadddf998ee607d42d6a86e84bd"
+  },
+  {
+   "path": "windows/stop.ps1",
+   "sha": "4efd8647e134b6663681bf274be8b39056b725798aba673f6608882446f9376e"
+  }
+ ],
+ "config": {
+  "old": "5768866dc1804435673174f673abfcd2aaf7da15f8fef18886c645ab9c94b87d",
+  "new": "47f3e1f56a4e232283b10641c03066616841d0da1286110961320c2e1e807518",
+  "changedPins": {
+   "sha256:38ef3af394c5daad22bc769248810453beb5c49d9f898893be656a597e0a7c8c": "sha256:1ad58e1d6998d21be853994df4df2875a92f02cab013c19764a826799fd3e5cb"
+  },
+  "addedServices": [
+   "service-tls"
+  ]
+ },
+ "receipt": {
+  "old": "2ea7d28e67eb0913e4c2a5a18d05dcc7e8a88a16c908ca07ed2fb1e7da9ef369"
+ }
+}

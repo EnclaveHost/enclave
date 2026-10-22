@@ -1,0 +1,2049 @@
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -23,7 +23,7 @@
+ import {validateStoragePlan} from "./sdk/bootstrap/storage.mjs";
+ import {bootstrapIntent,fetchPackage,verifyPackage,parseUniqueJSON} from "./sdk/bootstrap/package.mjs";
+ import { planCheckpoints } from "./windows/node/verification-checkpoints.mjs";
+-import {hostAdmissionFromEnv,hostAdmissionConfigured} from './windows/node/host-admission.bundle.mjs';
++import {hostAdmissionFromEnv,hostAdmissionConfigured,createHostAdmission} from './windows/node/host-admission.bundle.mjs';
+ import cors from "cors";
+ import http from "node:http";
+ import https from "node:https";
+@@ -349,6 +349,15 @@
+ // (directOnlyProblems, docs/network/direct-host-control.md); a legacy or uncommitted deployment is refused, never
+ // launched by a fallback.
+ const ISOLATION_DIRECT_ONLY = /^(1|true|on)$/i.test(process.env.ISOLATION_DIRECT_ONLY || "");
++// Direct mode reads the chain ONLY through a quorum of the operator's own RPCs (BASE_RPCS, CHAIN_QUORUM,
++// CHAIN_CONFIRMATIONS, CHAIN_MAX_BLOCK_AGE_SEC; network/direct-chain.mjs): every read that decides a claim, a payment, the
++// owner veto, this host's identity or proof key, a deployment's owner/config, a lease or a release is agreed at one fresh
++// confirmed block. No first answer, no public fallback; a read that cannot agree throws and its caller fails closed.
++// Problems refuse startup with the other direct-only rules (directOnlyProblems). Legacy hosts are unchanged.
++const DIRECT_CHAIN = ISOLATION_DIRECT_ONLY ? await import("./network/direct-chain.mjs").then((m) => ({ m, ...m.createDirectChain(process.env) })) : null;
++// A revert is a fact about a contract only when the quorum agreed on it; any other failure is an outage (never "absent").
++const revertSeen = (e) => DIRECT_CHAIN ? e?.agreedRevert === true && /revert/i.test(e?.shortMessage || e?.message || "")
++  : /revert/i.test(e?.shortMessage || e?.message || "");
+ const VMMGR_URL = (process.env.VMMGR_URL || "http://127.0.0.1:8091").replace(/\/+$/, "");
+ function mgrReq(method, path, body, timeoutMs = 120000) {
+   return new Promise((resolve, reject) => {
+@@ -553,7 +562,7 @@
+     // schema-2/3 registry, so every attempt reverts and no retry can heal it.
+     // Cost a live box its registration entirely (metal0, 2026-07-28: sniffed
+     // one second after boot, RPC not warm, wrong ABI from then on).
+-    if (/revert/i.test(e?.shortMessage || e?.message || "")) {
++    if (revertSeen(e)) {
+       _registryRev = 1; _registryRevOf = on;
+       return 1;
+     }
+@@ -576,10 +585,33 @@
+   try {
+     if(!_enclaveId)throw new Error('registered host identity unavailable');
+     if(!_hostWalletAdmission || _hostWalletAdmission.hostId!==_enclaveId)
+-      _hostWalletAdmission=hostAdmissionFromEnv({hostId:_enclaveId,rpc:RPC_POOL,addressBook:process.env.ADDRESS_BOOK_ADDRESS});
++      _hostWalletAdmission=DIRECT_CHAIN ? directHostWalletAdmission(_enclaveId)
++        : hostAdmissionFromEnv({hostId:_enclaveId,rpc:RPC_POOL,addressBook:process.env.ADDRESS_BOOK_ADDRESS});
+     return await _hostWalletAdmission.refusal({deploymentId,appRef});
+   }catch(e){return 'host wallet policy unavailable: '+String(e.message).slice(0,240);}
+ }
++// Direct mode: the host owner's veto through the SAME quorum as every other decision, on the ownership contract the
++// operator pinned (ENCLAVE_HOST_OWNERSHIP) and only while it carries the reviewed code (ENCLAVE_HOST_OWNERSHIP_CODEHASH),
++// all read at one agreed block with the authority and policy commitment. The policy documents are bytes: one counts only
++// when its hash is the CURRENT on-chain commitment for THIS host id and contract (network/host-admission-policy.mjs), so
++// a local file can never supply another wallet's veto, and an older revision's document is never used.
++// No owner on chain = every deployment refused (this operator opted into wallet ownership that nobody holds); any
++// unavailable, disagreeing or mismatched read = refused. A host without this configuration is untouched by any wallet.
++function directHostWalletAdmission(hostId) {
++  const env=process.env, names=['ENCLAVE_HOST_OWNERSHIP','ENCLAVE_HOST_REGISTRY_PIN','ENCLAVE_HOST_CATALOG_PIN','ENCLAVE_HOST_POLICY_DIR'];
++  if(names.some(k=>!env[k]))throw new Error('incomplete wallet host admission configuration');
++  if(env.ENCLAVE_HOST_ID&&env.ENCLAVE_HOST_ID.toLowerCase()!==String(hostId).toLowerCase())throw new Error('wallet policy config belongs to another host');
++  if(!CONTRACT_PINS||CONTRACT_PINS.registry!==env.ENCLAVE_HOST_REGISTRY_PIN.toLowerCase()||CONTRACT_PINS.appCatalog!==env.ENCLAVE_HOST_CATALOG_PIN.toLowerCase())
++    throw new Error('wallet host admission requires the immutable contract pins this host runs on');
++  const ownership=env.ENCLAVE_HOST_OWNERSHIP.toLowerCase(), codeHash=String(env.ENCLAVE_HOST_OWNERSHIP_CODEHASH||'').toLowerCase(), chain=DIRECT_CHAIN.chain;
++  const reader={agreed:async(read)=>{
++    const s=await chain.snapshot(async(c,blockNumber)=>({codeHash:keccak256((await c.getCode({address:ownership,blockNumber}))||'0x'),out:await read(c,blockNumber)}));
++    if(s.value.codeHash!==codeHash)throw new Error(`the host-ownership contract ${ownership} does not carry the reviewed code at block ${s.blockNumber}`);
++    return {...s.value.out,hash:s.blockHash,blockNumber:String(s.blockNumber),timestamp:s.timestamp};
++  }};
++  return createHostAdmission({hostId:String(hostId).toLowerCase(),ownershipContract:ownership,registry:CONTRACT_PINS.registry,catalog:CONTRACT_PINS.appCatalog,
++    policyDirectory:env.ENCLAVE_HOST_POLICY_DIR,policyOrigins:env.ENCLAVE_HOST_POLICY_ORIGINS?JSON.parse(env.ENCLAVE_HOST_POLICY_ORIGINS):[],reader});
++}
+ const hostCatalogAddress=()=>process.env.ENCLAVE_HOST_CATALOG_PIN || APP_CATALOG_ADDRESS;
+ let _advertisedEndpoint = null;   // the endpoint we registered under; adopted deployments build their URL from it
+ /// Has the address book moved the registry out from under our registration?
+@@ -3494,7 +3526,13 @@
+ // (observed live 2026-07-05: "over rate limit" from mainnet.base.org killed
+ // whole claim passes). Longer exponential retry absorbs a burst cap; the
+ // per-tick call budget is kept low by deriving post-tx state from receipts.
+-const chainClient = createPublicClient({ chain: base, transport: rpcTransport() });
++const chainClient = DIRECT_CHAIN
++  ? (DIRECT_CHAIN.chain ? DIRECT_CHAIN.m.directChainClient(DIRECT_CHAIN.chain)
++    // misconfigured direct mode: nothing is read (startup refuses below, with every problem listed)
++    : new Proxy({}, { get: (_t, k) => k === "then" ? undefined : async () => { throw new Error("direct-mode chain quorum is not configured"); } }))
++  : createPublicClient({ chain: base, transport: rpcTransport() });
++// Legacy: no snapshot binding exists (each read is the pool's first answer), so a scope is just the client.
++if (!chainClient.snapshotScope) chainClient.snapshotScope = (fn) => fn(chainClient);
+ 
+ // ---- wallet sessions as owner credentials (windows/node/session-api-auth.mjs) ----------------------------------------
+ // `Authorization: EnclaveSession v1 …` is accepted wherever the SIWE session token is (ownerAuth below), so the site and
+@@ -6402,7 +6440,7 @@
+     _catRev = { addr: catalogAddress, rev };
+     console.log(`[approval] catalog ${catalogAddress} schema rev ${rev}`);
+   } catch (e) {
+-    if (sniffCachePolicy(e.shortMessage || e.message || "") === "cache-rev1") {
++    if (sniffCachePolicy(e.shortMessage || e.message || "") === "cache-rev1" && revertSeen(e)) {
+       _catRev = { addr: catalogAddress, rev: 2 };   // pre-catalogSchema catalog
+       console.log(`[approval] catalog ${catalogAddress} schema rev 2 (pre-catalogSchema contract)`);
+     } else {
+@@ -6423,7 +6461,17 @@
+ // also keeps bare paths under the manager's APPS_DIR (e.g. a cached
+ // ipfs-<cid>.wasm) from dodging the approval check.
+ const NO_MIN = { vramMb: 0, gpuGflops: 0, memMb: 0, cpuGflops: 0 };
++// The version record, its fee and its config reference come from ONE agreed block in direct mode (snapshotScope); a
++// legacy client has no such binding and the scope is the client itself.
+ async function gateAppReference(reference, opts = {}) {
++  // a scope that cannot be opened (no agreeing quorum) is the same fail-closed answer as an unreadable catalog
++  try { return await chainClient.snapshotScope((cc) => gateAppReferenceAt(cc, reference, opts)); }
++  catch (e) {
++    console.warn(`[approval] catalog snapshot unavailable: ${e.shortMessage || e.message}`);
++    return { error: { status: 503, code: "catalog_unreachable", msg: "Could not verify this app's approval against the on-chain catalog; try again shortly." } };
++  }
++}
++async function gateAppReferenceAt(cc, reference, opts) {
+   const catalogAddress=hostCatalogAddress();
+   const deny = (status, code, msg) => ({ error: { status, code, msg } });
+   const ref = String(reference || "").trim();
+@@ -6437,9 +6485,9 @@
+     return deny(503, "approval_unavailable", "Catalog apps are disabled on this enclave: catalogAddress is not configured, so approval cannot be verified.");
+   const [appId, index] = [m[1], Number(m[2])];
+   const [ar, vr] = await Promise.allSettled([
+-    chainClient.readContract({ address: getAddress(catalogAddress),
++    cc.readContract({ address: getAddress(catalogAddress),
+       abi: CATALOG_ABI, functionName: "getApp", args: [appId] }),
+-    chainClient.readContract({ address: getAddress(catalogAddress),
++    cc.readContract({ address: getAddress(catalogAddress),
+       abi: CATALOG_ABI, functionName: "getVersion", args: [appId, BigInt(index)] }),
+   ]);
+   if (ar.status === "rejected") {
+@@ -6469,7 +6517,7 @@
+     return deny(503, "catalog_unreachable", "Could not determine the catalog's schema revision; try again shortly.");
+   if (catRev >= 5) {
+     try {
+-      feePerSec6 = await chainClient.readContract({ address: getAddress(catalogAddress),
++      feePerSec6 = await cc.readContract({ address: getAddress(catalogAddress),
+         abi: CATALOG_ABI, functionName: "versionFee", args: [appId, BigInt(index)] });
+     } catch (e) {
+       console.warn(`[approval] versionFee(${appId}, ${index}) failed: ${e.shortMessage || e.message}`);
+@@ -6484,7 +6532,7 @@
+   let configCid = "";
+   if (catRev >= 7) {
+     try {
+-      configCid = await chainClient.readContract({ address: getAddress(catalogAddress),
++      configCid = await cc.readContract({ address: getAddress(catalogAddress),
+         abi: CATALOG_ABI, functionName: "versionConfigCid", args: [appId, BigInt(index)] }) || "";
+     } catch (e) {
+       console.warn(`[approval] versionConfigCid(${appId}, ${index}) failed: ${e.shortMessage || e.message}`);
+@@ -6993,9 +7041,12 @@
+   if (/^(1|true|on)$/i.test(env.ISOLATION_RELEASE || "")) out.push("ISOLATION_RELEASE must be off: direct startup takes no relay ticket");
+   return out;
+ }
+-const DIRECT_ONLY_PROBLEMS = ISOLATION_DIRECT_ONLY ? directOnlyProblems(process.env, {
++const DIRECT_ONLY_PROBLEMS = ISOLATION_DIRECT_ONLY ? [...(DIRECT_CHAIN.problems || []),
++  ...(HOST_WALLET_POLICY && !/^0x[0-9a-f]{64}$/.test(process.env.ENCLAVE_HOST_OWNERSHIP_CODEHASH || "")
++    ? ["ENCLAVE_HOST_OWNERSHIP_CODEHASH must pin the reviewed host-ownership contract code (0x + 64 lowercase hex) when a wallet policy is configured"] : []),
++  ...directOnlyProblems(process.env, {
+   isolationBackend: ISOLATION_BACKEND, provisionBackend: PROVISION_BACKEND, contractPins: CONTRACT_PINS,
+-  secretsApi: SECRETS_API, domainsApi: DOMAINS_API, certsApi: CERTS_API, dnsApi: DNS_API, appCertDomain: APP_CERT_DOMAIN }) : [];
++  secretsApi: SECRETS_API, domainsApi: DOMAINS_API, certsApi: CERTS_API, dnsApi: DNS_API, appCertDomain: APP_CERT_DOMAIN })] : [];
+ if (DIRECT_ONLY_PROBLEMS.length) {
+   console.error(`[direct] ISOLATION_DIRECT_ONLY refused: ${DIRECT_ONLY_PROBLEMS.join("; ")}`);
+   process.exit(2);
+@@ -9220,7 +9271,7 @@
+                   abi: depsAbiFor(rev >= 2 ? DEPLOYMENT_COMPONENTS : DEPLOYMENT_COMPONENTS_V1) };
+     console.log(`[claim] ledger ${DEPLOYMENTS_ADDRESS} struct schema rev ${rev}`);
+   } catch (e) {
+-    if (sniffCachePolicy(e.shortMessage || e.message || "") === "cache-rev1") {
++    if (sniffCachePolicy(e.shortMessage || e.message || "") === "cache-rev1" && revertSeen(e)) {
+       _depShape = { addr: DEPLOYMENTS_ADDRESS, rev: 1, abi: depsAbiFor(DEPLOYMENT_COMPONENTS_V1) };
+       console.log(`[claim] ledger ${DEPLOYMENTS_ADDRESS} struct schema rev 1 (pre-deploymentsSchema contract)`);
+     }
+@@ -9264,7 +9315,10 @@
+ function claimSigner() {
+   if (!_claimWallet) {
+     _claimAccount = privateKeyToAccount(REGISTRY_PK.startsWith("0x") ? REGISTRY_PK : `0x${REGISTRY_PK}`);
+-    _claimWallet  = createWalletClient({ account: _claimAccount, chain: base, transport: rpcTransport() });
++    // direct mode: the same bytes to every quorum RPC, the agreed pending nonce, the configured chain id; gas and fee
++    // suggestions are the only first answers (network/direct-chain.mjs quorumWalletTransport) and authorize nothing
++    _claimWallet  = createWalletClient({ account: _claimAccount, chain: base, transport: DIRECT_CHAIN?.chain
++      ? DIRECT_CHAIN.m.quorumWalletTransport(DIRECT_CHAIN.chain, { log: (m) => console.warn(`[chain] ${m}`) }) : rpcTransport() });
+   }
+   return { account: _claimAccount, wallet: _claimWallet };
+ }
+@@ -11129,6 +11183,7 @@
+     return await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
+       abi: CLAIM_TX_ABI, functionName: "claimableBy", args: [id, _enclaveId] });
+   } catch (e) {
++    if (DIRECT_CHAIN && !revertSeen(e)) throw e;
+     return await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS),
+       abi: CLAIM_TX_ABI, functionName: "claimable", args: [id] });
+   }
+@@ -11322,8 +11377,13 @@
+ // a recorder in which ONLY the configured replicas answer (how: "serve" | "refuse" | "throw" | "corrupt" | "redirect" |
+ // {"bytes":"<b64>"}); every other origin throws. The seam only replaces bindings, as the seams above do. Prints
+ // {calls, reads, txs, prefetched, posted, deleted, records, declines} and exits.
++// "chain":"quorum" (direct mode with BASE_RPCS): NO chain read is scripted. The rows are `ids` read from the pinned ledger
++// and every gate reads through the operator's RPC quorum (network/direct-chain.mjs), the boot fence included; only
++// guestd, the replicas and the final send of the operator's transactions are scripted (recorded, never broadcast).
+ if (process.env.DIRECT_CLAIM_SELFTEST) {
+   const c = JSON.parse(process.env.DIRECT_CLAIM_SELFTEST);
++  const quorum = c.chain === "quorum";
++  if (quorum && !DIRECT_CHAIN?.chain) { console.log(JSON.stringify({ error: "chain:quorum needs direct mode with BASE_RPCS" })); process.exit(3); }
+   const calls = [], reads = [], txs = [], prefetched = [], posted = [], deleted = [];
+   const bytes = Buffer.from(c.bytes, "base64"), lower = (a) => String(a).toLowerCase();
+   globalThis.fetch = async (url, init = {}) => {
+@@ -11340,6 +11400,8 @@
+     return new Response(how && how.bytes ? Buffer.from(how.bytes, "base64") : bytes);
+   };
+   const rowOf = (id) => c.rows.find((r) => lower(r.id) === lower(id));
++  if (!quorum) {
++  chainClient.snapshotScope = (fn) => fn(chainClient);   // scripted reads: the scope is the scripted client itself
+   readLedgerContract = async (functionName, args) => {
+     reads.push({ address: lower(DEPLOYMENTS_ADDRESS), functionName });
+     if (functionName === "get" && rowOf(args[0])) return (c.latest && c.latest[lower(args[0])]) || rowOf(args[0]);
+@@ -11363,6 +11425,7 @@
+     }
+     throw new Error("unscripted chain read " + functionName);
+   };
++  }
+   sendOperatorTx = (address, _abi, functionName, args) => {
+     txs.push({ address: lower(address), functionName, args: args.map(String) });
+     const p = Promise.resolve("0x" + "ab".repeat(32));
+@@ -11392,21 +11455,34 @@
+     return { status: 404, body: {} };
+   };
+   _vmTech = "amd-sev-snp"; _enclaveId = c.enclaveId; _advertisedEndpoint = c.endpoint; _firstClaimSweepAt = Date.now();
+-  _bootTxFence = { state: "clear" };   // the scripted chain has no operator nonce to read
++  if (quorum) {
++    await checkBootTxFence();          // the real fence, through the quorum: unknown unless the RPCs agree on the nonces
++    const declinesEarly = {};
++    c.rows = [];
++    for (const id of c.ids || []) {
++      try { c.rows.push({ ...(await readOnchainDeployment(id)), id }); }
++      catch (e) { declinesEarly[id] = "ledger row unavailable: " + (e.shortMessage || e.message); _sweepDeclines.set(id, declinesEarly[id]); }
++    }
++  } else _bootTxFence = { state: "clear" };   // the scripted chain has no operator nonce to read
+   const hold = setInterval(() => {}, 250);
+   const settled = (id) => { const r = deployments.get(id); return !r ? _sweepDeclines.has(id) : ["running", "failed"].includes(r.status); };
+   // a hint awaits its own claim; a sweep starts new claims in the background, so wait for each row to settle
+-  if (c.hint) for (const d of c.rows) { const why = await considerClaim(d, { hinted: true }); if (why) _sweepDeclines.set(d.id, why); }
++  // as claimSweep does: a thrown gate (an unavailable or disagreeing read) is this item's reason, never the pass's end
++  if (c.hint) for (const d of c.rows) {
++    let why; try { why = await considerClaim(d, { hinted: true }); } catch (e) { why = "error: " + (e.shortMessage || e.message); }
++    if (why) _sweepDeclines.set(d.id, why);
++  }
+   else {
+     await claimSweep(c.rows);
+     for (const t0 = Date.now(); Date.now() - t0 < 15_000 && !c.rows.every((d) => settled(d.id));) await new Promise((r) => setTimeout(r, 50));
+   }
+   await new Promise((r) => setTimeout(r, 100));   // the pump's first poll
+   clearInterval(hold);
+-  const records = Object.fromEntries(c.rows.map((d) => { const r = deployments.get(d.id);
+-    return [d.id, r ? { status: r.status, error: r.error || null, vmId: r._vmId || null, config: r.config } : null]; }));
+-  console.log(JSON.stringify({ calls, reads, txs, prefetched, posted, deleted, records,
+-    declines: Object.fromEntries(c.rows.map((d) => [d.id, _sweepDeclines.get(d.id) || null])) }));
++  const ids = quorum ? (c.ids || []) : c.rows.map((d) => d.id);
++  const records = Object.fromEntries(ids.map((id) => { const r = deployments.get(id);
++    return [id, r ? { status: r.status, error: r.error || null, vmId: r._vmId || null, config: r.config } : null]; }));
++  console.log(JSON.stringify({ calls, reads, txs, prefetched, posted, deleted, records, fence: _bootTxFence.state,
++    declines: Object.fromEntries(ids.map((id) => [id, _sweepDeclines.get(id) || null])) }, (_k, v) => typeof v === "bigint" ? String(v) : v));
+   process.exit(0);
+ }
+ 
+--- a/metal/guest/measured-control.mjs
++++ b/metal/guest/measured-control.mjs
+@@ -76,8 +76,8 @@
+ 
+ /** The owner's config, strictly validated and canonical. Nothing is defaulted except controlPort. -> frozen object */
+ export function canonicalDirectConfig(raw) {
+-  only(raw, ['format', 'chainId', 'contracts', 'profileDigest', 'rpcs', 'quorum', 'releaseId', 'replicas', 'identity', 'selling', 'isolation',
+-    'hostAdmissionSha256', 'controlPort'], 'direct config');
++  only(raw, ['format', 'chainId', 'contracts', 'profileDigest', 'rpcs', 'quorum', 'confirmations', 'maxBlockAgeSec', 'releaseId', 'replicas', 'identity',
++    'selling', 'isolation', 'hostOwnership', 'hostAdmissionSha256', 'controlPort'], 'direct config');
+   if (raw.format !== CONFIG_FORMAT) bad(`direct config format must be ${CONFIG_FORMAT}`);
+   if (raw.chainId !== CHAIN_ID) bad(`direct config chainId must be ${CHAIN_ID}`);
+   only(raw.contracts, [...REQUIRED_CONTRACTS, ...OPTIONAL_CONTRACTS], 'direct config contracts');
+@@ -102,6 +102,8 @@
+     return canonical;
+   });
+   const quorum = intIn(raw.quorum, 2, rpcs.length, 'quorum');
++  // the supervisor's chain policy (network/direct-chain.mjs): agreement of `quorum` RPCs at a block this deep and this fresh
++  const confirmations = intIn(raw.confirmations, 0, 64, 'confirmations'), maxBlockAgeSec = intIn(raw.maxBlockAgeSec, 10, 86400, 'maxBlockAgeSec');
+   if (typeof raw.releaseId !== 'string' || !HEX64.test(raw.releaseId)) bad('releaseId must be the 64-hex release pin');
+   only(raw.replicas, ['gateways', 'storagePlan'], 'replicas');
+   if (!Array.isArray(raw.replicas.gateways) || raw.replicas.gateways.length < 1 || raw.replicas.gateways.length > 8) bad('replicas.gateways: 1 to 8 origins');
+@@ -129,15 +131,26 @@
+   const da = /^([0-9.]+):(\d{1,5})$/.exec(String(raw.isolation.dataAddr));
+   if (!da || !IPV4.test(da[1]) || Number(da[2]) < 1 || Number(da[2]) > 65535) bad('isolation.dataAddr must be <IPv4>:<port>');
+   if (raw.hostAdmissionSha256 !== null && !(typeof raw.hostAdmissionSha256 === 'string' && HEX64.test(raw.hostAdmissionSha256))) bad('hostAdmissionSha256 must be null or 64 hex');
++  // the host owner's wallet veto: the reviewed profile's EnclaveHostOwnership and its code hash, bound together with the
++  // delivered policy wire (hostAdmissionSha256). One without the other is refused: a policy with no pinned authority, or
++  // an authority with nothing delivered, is a configuration error, never a silent "no veto".
++  let hostOwnership = null;
++  if (raw.hostOwnership !== null) {
++    only(raw.hostOwnership, ['contract', 'codeHash'], 'hostOwnership');
++    if (typeof raw.hostOwnership.contract !== 'string' || !ADDR.test(raw.hostOwnership.contract) || ZERO_ADDR.test(raw.hostOwnership.contract)) bad('hostOwnership.contract: the reviewed EnclaveHostOwnership address');
++    if (typeof raw.hostOwnership.codeHash !== 'string' || !/^0x[0-9a-f]{64}$/.test(raw.hostOwnership.codeHash)) bad('hostOwnership.codeHash: 0x + 64 lowercase hex (keccak256 of its runtime code)');
++    hostOwnership = { contract: raw.hostOwnership.contract.toLowerCase(), codeHash: raw.hostOwnership.codeHash };
++  }
++  if ((hostOwnership === null) !== (raw.hostAdmissionSha256 === null)) bad('hostOwnership and hostAdmissionSha256 go together: both set (a wallet policy) or both null');
+   const controlPort = intIn(raw.controlPort, 1, 65535, 'controlPort');
+   if ([8080, 8091, 8443].includes(controlPort)) bad('controlPort must not be a port another guest service listens on');
+   return deepFreeze({
+-    format: CONFIG_FORMAT, chainId: CHAIN_ID, contracts, profileDigest: raw.profileDigest, rpcs, quorum, releaseId: raw.releaseId,
++    format: CONFIG_FORMAT, chainId: CHAIN_ID, contracts, profileDigest: raw.profileDigest, rpcs, quorum, confirmations, maxBlockAgeSec, releaseId: raw.releaseId,
+     replicas: { gateways, storagePlan: storagePlan === null ? null : JSON.parse(canonicalJson(storagePlan)) },
+     identity: { publicUrl: raw.identity.publicUrl, repo: raw.identity.repo, operator: raw.identity.operator.toLowerCase() },
+     selling: { cpuPrice6: raw.selling.cpuPrice6, payout: raw.selling.payout === null ? null : raw.selling.payout.toLowerCase() },
+     isolation: { managerUrl: raw.isolation.managerUrl, dataAddr: raw.isolation.dataAddr },
+-    hostAdmissionSha256: raw.hostAdmissionSha256, controlPort,
++    hostOwnership, hostAdmissionSha256: raw.hostAdmissionSha256, controlPort,
+   });
+ }
+ export const configDigest = (cfg) => sha256Hex(canonicalJson(cfg));
+@@ -146,6 +159,22 @@
+ /** The digest of the existing fw_cfg hostAdmission object (null when there is none). */
+ export const hostAdmissionDigest = (obj) => (obj === undefined || obj === null ? null : sha256Hex(canonicalJson(obj)));
+ export const contractPinsDoc = (cfg) => ({ version: 1, chainId: CHAIN_ID, contracts: { ...cfg.contracts } });
++/** The registry id of an endpoint (EnclaveRegistry.idOf): keccak256 of its UTF-8 bytes. */
++export const registryIdOf = (publicUrl, keccak256) => String(keccak256(Buffer.from(String(publicUrl).replace(/\/+$/, '')))).toLowerCase();
++/** Why a delivered hostAdmission wire (network/metal-host-policy.mjs) does not belong to this bound config, or []:
++ *  its digest, THIS endpoint's host id, the bound ownership contract and exactly the bound contract pins. */
++export function hostAdmissionProblems(cfg, wire, keccak256) {
++  const out = [], had = hostAdmissionDigest(wire);
++  if (had !== cfg.hostAdmissionSha256) out.push(`hostAdmission digest ${had ? had.slice(0, 16) + '…' : 'none'} is not the bound ${cfg.hostAdmissionSha256 ? cfg.hostAdmissionSha256.slice(0, 16) + '…' : 'none'}`);
++  if (wire === undefined || wire === null) return out;
++  if (!cfg.hostOwnership) { out.push('a hostAdmission policy was delivered but the bound config pins no host-ownership contract'); return out; }
++  if (String(wire.ownershipContract).toLowerCase() !== cfg.hostOwnership.contract) out.push('the hostAdmission policy names another ownership contract than the bound one');
++  if (String(wire.hostId).toLowerCase() !== registryIdOf(cfg.identity.publicUrl, keccak256)) out.push("the hostAdmission policy is for another host id than this endpoint's");
++  const c = wire.pins && wire.pins.contracts;
++  if (!c || canonicalJson(Object.fromEntries(Object.entries(c).map(([k, v]) => [k, String(v).toLowerCase()]))) !== canonicalJson(cfg.contracts))
++    out.push('the hostAdmission policy carries other contract pins than the bound ones');
++  return out;
++}
+ 
+ // ---- the direct-only supervisor ------------------------------------------------------------------------------------------
+ export const GUEST_PATHS = Object.freeze({
+@@ -170,6 +199,8 @@
+     VMMGR_URL: cfg.isolation.managerUrl, GUESTD_KEY_FILE: paths.pairKey, GUESTD_DATA_ADDR: cfg.isolation.dataAddr,
+     // chain authorities: the owner's pins and RPCs; no address book
+     ENCLAVE_CONTRACT_PINS_FILE: paths.pins, ADDRESS_BOOK_ADDRESS: '', BASE_RPC: cfg.rpcs[0], BASE_RPCS: cfg.rpcs.join(','),
++    CHAIN_QUORUM: String(cfg.quorum), CHAIN_CONFIRMATIONS: String(cfg.confirmations), CHAIN_MAX_BLOCK_AGE_SEC: String(cfg.maxBlockAgeSec),
++    ...(cfg.hostOwnership && hostPolicyEnv.ENCLAVE_HOST_OWNERSHIP ? { ENCLAVE_HOST_OWNERSHIP_CODEHASH: cfg.hostOwnership.codeHash } : {}),
+     // package and component replicas the owner chose
+     ...(cfg.replicas.storagePlan ? { GUEST_BOOTSTRAP_STORAGE_PLAN_FILE: paths.storagePlan } : { GUEST_BOOTSTRAP_GATEWAYS: cfg.replicas.gateways.map((g) => g + '/ipfs').join(',') }),
+     IPFS_GATEWAY: JSON.stringify(cfg.replicas.gateways),
+@@ -197,6 +228,8 @@
+   if (v('ISOLATION_BACKEND') !== 'snp-guest-per-app') out.push('ISOLATION_BACKEND must be snp-guest-per-app');
+   if (v('PROVISION_BACKEND') !== 'vm') out.push('PROVISION_BACKEND must be vm');
+   if (!v('ENCLAVE_CONTRACT_PINS_FILE')) out.push('ENCLAVE_CONTRACT_PINS_FILE must pin the contracts');
++  if (v('BASE_RPCS').split(',').filter(Boolean).length < 2) out.push('BASE_RPCS must name the 2-8 quorum RPCs');
++  if (v('ENCLAVE_HOST_OWNERSHIP') && !/^0x[0-9a-f]{64}$/.test(v('ENCLAVE_HOST_OWNERSHIP_CODEHASH'))) out.push('ENCLAVE_HOST_OWNERSHIP_CODEHASH must pin the ownership contract code');
+   if (v('ADDRESS_BOOK_ADDRESS')) out.push('ADDRESS_BOOK_ADDRESS must be empty');
+   if (!v('GUEST_BOOTSTRAP_STORAGE_PLAN_FILE') && !v('GUEST_BOOTSTRAP_GATEWAYS')) out.push('package replicas must be named');
+   if (!v('GUEST_BOOTSTRAP_STORAGE_PLAN_FILE') && !v('IPFS_GATEWAY')) out.push('IPFS_GATEWAY must name the component replicas');
+@@ -250,10 +283,12 @@
+   let config = null, digest = null, hostData = null;
+   try { config = canonicalDirectConfig(fw.direct); digest = configDigest(config); hostData = hostDataHex(digest); }
+   catch (e) { reasons.push(`fw_cfg direct: ${e.message}`); }
++  let v = viem;
++  if (config && (fw.registryKey || fw.hostAdmission)) { try { v = v || await loadViem(); } catch (e) { reasons.push(e.message); } }
+   if (config) {
+     if (fw.publicUrl && fw.publicUrl !== config.identity.publicUrl) reasons.push('fw_cfg publicUrl differs from the bound direct config');
+-    const had = hostAdmissionDigest(fw.hostAdmission);
+-    if (had !== config.hostAdmissionSha256) reasons.push(`fw_cfg hostAdmission digest ${had ? had.slice(0, 16) + '…' : 'none'} is not the bound ${config.hostAdmissionSha256 ? config.hostAdmissionSha256.slice(0, 16) + '…' : 'none'}`);
++    if (fw.hostAdmission && !v) reasons.push('fw_cfg hostAdmission cannot be checked without keccak');
++    else for (const p of hostAdmissionProblems(config, fw.hostAdmission, v ? keccakOf(v) : null)) reasons.push(`fw_cfg ${p}`);
+     const fi = fw.isolation || {};
+     if (fi.managerUrl !== config.isolation.managerUrl || fi.dataAddr !== config.isolation.dataAddr) reasons.push('fw_cfg isolation endpoints differ from the bound direct config');
+     if (!/^[0-9a-f]{64}$/.test(String(fi.pairingKey || ''))) reasons.push('fw_cfg isolation.pairingKey (the guestd pairing key) is missing');
+@@ -265,9 +300,8 @@
+     reasons.push(`HOST_DATA ${reportHostData ? String(reportHostData).slice(0, 16) + '…' : '(unreadable)'} does not bind this config (expected ${hostData.slice(0, 16)}…): the host handed over a config the hardware is not attesting to`);
+   // the operator key, when the host sells: it must be the operator the owner named
+   let operator = null;
+-  if (fw.registryKey) {
++  if (fw.registryKey && v) {
+     try {
+-      const v = viem || await loadViem();
+       operator = addressOfPublicKey(secp256k1PublicKey(fw.registryKey), keccakOf(v));
+       if (config && operator !== config.identity.operator) reasons.push(`the operator key is ${operator}, not the bound operator ${config.identity.operator}`);
+     } catch (e) { reasons.push(`registryKey: ${e.message}`); }
+--- a/metal/enclave-metal.mjs
++++ b/metal/enclave-metal.mjs
+@@ -189,11 +189,14 @@
+       throw new Error(`control: "direct" refuses ${k}: ${k === 'publicUrl' ? 'the identity comes from the bound direct config' : k === 'registryKey' ? 'give the operator key as registryKeyFile (0600)' : 'a direct control guest uses no relay, fleet, certificate or ACME service'}`);
+   if (Array.isArray(cfg.volumes) ? cfg.volumes.length : cfg.volumes) throw new Error('control: "direct" attaches no model volumes (the control guest runs no apps)');
+   const MC = await import('./guest/measured-control.mjs');
+-  const viem = cfg.registryKeyFile ? await MC.loadViem() : null;
++  const viem = cfg.registryKeyFile || HOST_ADMISSION ? await MC.loadViem() : null;
+   const config = MC.canonicalDirectConfig(JSON.parse(fs.readFileSync(String(cfg.direct || ''), 'utf8')));
+   if (config.isolation.managerUrl !== ISO_RUNTIME.managerUrl || config.isolation.dataAddr !== ISO_RUNTIME.dataAddr)
+     throw new Error('the direct config names other guestd endpoints than isolation.managerUrl / dataAddr');
+-  if (config.hostAdmissionSha256 !== MC.hostAdmissionDigest(HOST_ADMISSION)) throw new Error('the direct config does not bind this hostAdmission policy (hostAdmissionSha256)');
++  // the wallet policy wire must be the one the config binds: its digest, THIS endpoint's host id, the bound ownership
++  // contract (the reviewed profile's) and exactly the bound contract pins
++  const hp = MC.hostAdmissionProblems(config, HOST_ADMISSION ?? undefined, viem ? (b) => viem.keccak256(b) : null);
++  if (hp.length) throw new Error(`the direct config does not bind this hostAdmission policy: ${hp.join('; ')}`);
+   const fwds = Array.isArray(cfg.hostfwd) ? cfg.hostfwd : [];
+   for (const f of fwds) if (Number(f.guest) !== config.controlPort)
+     throw new Error(`control: "direct" forwards only the control front (guest port ${config.controlPort}); guest port ${f.guest} would bypass the attested channel`);
+--- a/metal/build-image.mjs
++++ b/metal/build-image.mjs
+@@ -34,6 +34,18 @@
+ const sha256File = (p) => { const h = createHash('sha256'); h.update(fs.readFileSync(p)); return h.digest('hex'); };
+ 
+ function arg(name, dflt) { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : dflt; }
++/** Every repository file a module statically or dynamically imports by relative path, transitively (itself included). */
++export function importClosure(src, entry) {
++  const seen = new Set(), queue = [entry];
++  while (queue.length) {
++    const f = path.normalize(queue.pop());
++    if (seen.has(f)) continue;
++    seen.add(f);
++    const code = fs.readFileSync(path.join(src, f), 'utf8');
++    for (const m of code.matchAll(/(?:from\s*|import\s*\()\s*(['"])(\.\.?\/[^'"]+)\1/g)) queue.push(path.join(path.dirname(f), m[2]));
++  }
++  return [...seen];
++}
+ 
+ const KERNEL = arg('kernel', '/boot/vmlinuz-linux');
+ // The modules must match the kernel we PACK, not the one this host happens to
+@@ -193,6 +205,10 @@
+                  // the guest-certificate relay and the judge it verifies each guest with (and the judge's imports)
+                  'isolation/m4/guestd/supervisor-guestcert.mjs', 'isolation/m2/judge.mjs',
+                  'isolation/contract/runtime.mjs', 'relay/snp-verify.mjs'];
++  // The supervisor's independent direct-mode chain reader and its whole static import closure, exactly when this
++  // supervisor imports it (network/direct-chain.mjs: the RPC quorum every direct-mode decision reads through).
++  if (fs.readFileSync(path.join(src, 'supervisor.js'), 'utf8').includes('"./network/direct-chain.mjs"'))
++    for (const f of importClosure(src, 'network/direct-chain.mjs')) if (!files.includes(f)) files.push(f);
+   const git = (...a) => spawnSync('git', ['-C', src, ...a], { encoding: 'utf8' }).stdout.trim();
+   const dirty = git('status', '--porcelain', '--', ...files) !== '';
+   supervisorOverlay = { commit: git('rev-parse', 'HEAD'), dirty, files: [] };
+--- a/metal/overlay-control-image.py
++++ b/metal/overlay-control-image.py
+@@ -3,7 +3,7 @@
+ Usage: overlay-control-image.py BASE OUT COMMIT. Never modifies BASE or starts a VM.
+ Preserves untouched cpio entries, adds missing directories, and records exact inputs.
+ """
+-import gzip, hashlib, json, shutil, stat, subprocess, sys
++import gzip, hashlib, json, posixpath, re, shutil, stat, subprocess, sys
+ from pathlib import Path
+ 
+ APP_FILES = [
+@@ -25,6 +25,23 @@
+ def guest_files(commit, repo):
+     gsup = subprocess.check_output(['git', 'show', commit+':metal/guest/gsup.mjs'], cwd=repo).decode()
+     return GUEST_FILES + [f for f in OPTIONAL_GUEST_FILES if ("'./"+f+"'") in gsup or ('"./'+f+'"') in gsup]
++# The supervisor's independent direct-mode chain reader and its import closure, installed exactly when that commit's
++# supervisor.js imports it (an overlay of an older commit is unchanged; a newer one never ships the import without it).
++DIRECT_CHAIN_ENTRY = 'network/direct-chain.mjs'
++IMPORT_RE = re.compile(r'''(?:from\s*|import\s*\()\s*(['"])(\.\.?/[^'"]+)\1''')
++def app_files(commit, repo):
++    show = lambda f: subprocess.check_output(['git', 'show', commit+':'+f], cwd=repo).decode()
++    if '"./'+DIRECT_CHAIN_ENTRY+'"' not in show('supervisor.js'):
++        return list(APP_FILES)
++    seen, queue = [], [DIRECT_CHAIN_ENTRY]
++    while queue:
++        f = posixpath.normpath(queue.pop())
++        if f in seen:
++            continue
++        seen.append(f)
++        for m in IMPORT_RE.finditer(show(f)):
++            queue.append(posixpath.join(posixpath.dirname(f), m.group(2)))
++    return list(APP_FILES) + [f for f in seen if f not in APP_FILES]
+ REQUIRED = {'app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/agent.mjs', 'opt/metal/manifest.json'}
+ sha = lambda b: hashlib.sha256(b).hexdigest()
+ def file_sha(file):
+@@ -88,7 +105,7 @@
+     if file_sha(base/'vmlinuz') != m['kernel']['sha256']:
+         raise ValueError('base kernel hash mismatch')
+     commit = subprocess.check_output(['git', 'rev-parse', commit+'^{commit}'], cwd=repo, text=True).strip()
+-    paths = {**{'app/'+p: p for p in APP_FILES}, **{'opt/metal/'+p: 'metal/guest/'+p for p in guest_files(commit, repo)}}
++    paths = {**{'app/'+p: p for p in app_files(commit, repo)}, **{'opt/metal/'+p: 'metal/guest/'+p for p in guest_files(commit, repo)}}
+     replacements = {k: subprocess.check_output(['git', 'show', commit+':'+v], cwd=repo) for k,v in paths.items()}
+     m.pop('expectedMeasurement', None)
+     m.pop('initramfs', None)
+--- a/cli/host-independent-lifecycle.mjs
++++ b/cli/host-independent-lifecycle.mjs
+@@ -35,6 +35,11 @@
+ import { verifiedReleaseManifest } from "../sdk/storage/raw-artifacts.mjs";
+ import { publicHostPolicyLoader, hostPolicyOrigins } from "../network/host-admission-runtime.mjs";
+ import { readHostAdmissionPolicy } from "../network/host-admission-policy.mjs";
++import { memoryCollateral } from "../verifier/collateral.mjs";
++import { canonicalDirectConfig, configDigest, hostAdmissionDigest, CONFIG_FORMAT, DEFAULT_CONTROL_PORT } from "../metal/guest/measured-control.mjs";
++import { prepareMetalHostPolicy } from "../network/metal-host-policy.mjs";
++import { validateHostAdmissionPolicy, hostAdmissionPolicyHash } from "../network/host-admission-policy.mjs";
++import { verifyMeasuredControl } from "../metal/measured-control-verify.mjs";
+ 
+ // The checkout holding supervisor.js and isolation/: this file's parent, or (bundled into cli/dist/enclave.mjs) its
+ // grandparent. Without one, the defaults name paths that `run` refuses; pass --supervisor and --isolation.
+@@ -94,7 +99,7 @@
+ export function validatePlan(p) {
+   const keys = (o, allowed, what) => { if (!o || typeof o !== "object" || Array.isArray(o)) fail(`${what} must be an object`);
+     const extra = Object.keys(o).filter((k) => !allowed.includes(k)); if (extra.length) fail(`${what} has unknown field(s): ${extra.join(", ")}`); };
+-  keys(p, ["format", "authorities", "identity", "runtime", "guestd", "supervisor", "selling", "walletPolicy", "referral"], "plan");
++  keys(p, ["format", "authorities", "identity", "runtime", "guestd", "supervisor", "selling", "walletPolicy", "referral", "control"], "plan");
+   if (p.format !== PLAN_FORMAT) fail(`plan format must be ${PLAN_FORMAT}`);
+   const a = p.authorities; keys(a, ["profile", "contractPins", "rpcs", "quorum", "confirmations", "maxBlockAgeSec"], "authorities");
+   if (!!a.profile === !!a.contractPins) fail("authorities: exactly one of profile {file, digest} or contractPins FILE");
+@@ -131,6 +136,20 @@
+     p.walletPolicy.origins.forEach((o) => httpUrl(o, "walletPolicy.origins", { https: true }));
+     try { hostPolicyOrigins(p.walletPolicy.origins); } catch (e) { fail(`walletPolicy.origins: ${e.message}`); } }
+   if (p.referral !== null && !REFERRAL_RE.test(p.referral || "")) fail("referral: 1-64 letters, digits, '.', '_' or '-' (or null)");
++  // control: absent/null = the supervisor runs on this host (no measured control; `check` never reports it attested).
++  // measured-guest = the supervisor runs in the MEASURED control CVM (metal/enclave-metal.mjs control "direct"), verified by
++  // metal/measured-control-verify.mjs against the owner's measurements, TCB floor and this plan's direct config.
++  if (p.control !== undefined && p.control !== null) {
++    const c = p.control; keys(c, ["mode", "endpoint", "measurements", "minTcb", "image", "ovmf", "cpus", "memMiB", "hostPort"], "control");
++    if (c.mode !== "measured-guest") fail("control.mode must be measured-guest");
++    intIn(c.hostPort, 1, 65535, "control.hostPort");
++    if (c.endpoint !== `https://127.0.0.1:${c.hostPort}`) fail("control.endpoint is the forwarded control front: https://127.0.0.1:<control.hostPort>");
++    if (!Array.isArray(c.measurements) || c.measurements.length < 1 || c.measurements.length > 16 || !c.measurements.every((m) => /^[0-9a-f]{96}$/.test(m)))
++      fail("control.measurements: 1-16 launch digests (96 lowercase hex) you recomputed from the reviewed control image (sev-snp-measure)");
++    for (const k of ["minTcb", "image", "ovmf"]) if (!isAbs(c[k])) fail(`control.${k} must be an absolute path`);
++    intIn(c.cpus, 1, 256, "control.cpus"); intIn(c.memMiB, 1024, 1 << 20, "control.memMiB");
++    if (s.attestationUrl !== null) fail("control measured-guest: supervisor.attestationUrl does not apply (the guest's own agent serves it)");
++  }
+   return p;
+ }
+ 
+@@ -155,7 +174,8 @@
+   return { plan: path.join(dir, "host-plan.json"), pins: path.join(dir, "contract-pins.json"), operator: path.join(dir, "operator.key"),
+     secret: path.join(dir, "supervisor.secret"), pair: path.join(dir, "pair.key"), env: path.join(dir, "supervisor.env"),
+     release: path.join(dir, `release-${plan.runtime.releaseId}`), guests: path.join(dir, "guests"), guestd: path.join(dir, "bin", "guestd"),
+-    vcek: path.join(c, "vcek.der"), chain: path.join(c, "cert_chain.pem"), minTcb: path.join(c, "min-tcb.json"), referral: path.join(dir, "referral.json") };
++    vcek: path.join(c, "vcek.der"), chain: path.join(c, "cert_chain.pem"), minTcb: path.join(c, "min-tcb.json"), crl: path.join(c, "crl.der"), referral: path.join(dir, "referral.json"),
++    direct: path.join(dir, "direct-control.json"), launcher: path.join(dir, "control-launcher.json") };
+ }
+ /** guestd's argv and environment (docs/network/cold-host.md, step 2). */
+ export function guestdCommand(dir, plan) {
+@@ -174,6 +194,8 @@
+     ISOLATION_DIRECT_ONLY: "1", ISOLATION_BACKEND: "snp-guest-per-app", PROVISION_BACKEND: "vm",
+     VMMGR_URL: "http://" + plan.guestd.listen, GUESTD_KEY_FILE: L.pair, GUESTD_DATA_ADDR: plan.guestd.dataListen,
+     ENCLAVE_CONTRACT_PINS_FILE: L.pins, ADDRESS_BOOK_ADDRESS: "", BASE_RPC: plan.authorities.rpcs[0], BASE_RPCS: plan.authorities.rpcs.join(","),
++    // the supervisor decides only on what this plan's quorum agrees at one fresh confirmed block (network/direct-chain.mjs)
++    CHAIN_QUORUM: String(plan.authorities.quorum), CHAIN_CONFIRMATIONS: String(plan.authorities.confirmations), CHAIN_MAX_BLOCK_AGE_SEC: String(plan.authorities.maxBlockAgeSec),
+     ...(r.storagePlan ? { GUEST_BOOTSTRAP_STORAGE_PLAN_FILE: r.storagePlan } : { GUEST_BOOTSTRAP_GATEWAYS: r.gateways.map((g) => g + "/ipfs").join(",") }),
+     IPFS_GATEWAY: JSON.stringify(r.gateways),
+     SECRETS_API: "", DOMAINS_API: "", CERTS_API: "", DNS_API: "", APP_CERT_DOMAIN: "", ISOLATION_RELEASE: "",
+@@ -186,15 +208,59 @@
+   };
+   if (plan.walletPolicy) Object.assign(env, { ENCLAVE_HOST_OWNERSHIP: ctx.ownership.address.toLowerCase(), ENCLAVE_HOST_REGISTRY_PIN: ctx.pinsDoc.contracts.registry.toLowerCase(),
+     ENCLAVE_HOST_CATALOG_PIN: ctx.pinsDoc.contracts.appCatalog.toLowerCase(), ENCLAVE_HOST_POLICY_DIR: plan.walletPolicy.policyDir,
+-    ENCLAVE_HOST_ID: hostIdOf(plan.identity.publicUrl), ...(plan.walletPolicy.origins.length ? { ENCLAVE_HOST_POLICY_ORIGINS: JSON.stringify(plan.walletPolicy.origins) } : {}) });
++    ENCLAVE_HOST_ID: hostIdOf(plan.identity.publicUrl), ENCLAVE_HOST_OWNERSHIP_CODEHASH: String(ctx.ownership.codeHash).toLowerCase(),
++    ...(plan.walletPolicy.origins.length ? { ENCLAVE_HOST_POLICY_ORIGINS: JSON.stringify(plan.walletPolicy.origins) } : {}) });
+   return env;
+ }
++const measured = (plan) => plan.control?.mode === "measured-guest";
++const portOf = (hp) => Number(String(hp).split(":")[1]);
++/** The host owner's committed policy documents in walletPolicy.policyDir that belong to THIS host and the reviewed
++ *  ownership contract, each named by its commitment (sorted; at most 8, the delivery limit). Documents are bytes: the guest
++ *  uses one only when its hash is the current on-chain commitment. */
++export function walletPolicyFiles(plan, ctx) {
++  const dir = plan.walletPolicy.policyDir, hid = hostIdOf(plan.identity.publicUrl).toLowerCase(), own = ctx.ownership.address.toLowerCase();
++  let names = []; try { names = fs.readdirSync(dir); } catch (e) { fail(`walletPolicy.policyDir ${dir}: ${e.message}`); }
++  const files = names.filter((n) => /^0x[0-9a-f]{64}\.json$/.test(n)).sort().filter((n) => {
++    try { const p = validateHostAdmissionPolicy(readJson(path.join(dir, n), "host policy"));
++      return p.hostId === hid && p.ownershipContract === own && hostAdmissionPolicyHash(p) === n.slice(0, -5); } catch { return false; }
++  }).map((n) => path.join(dir, n));
++  if (files.length > 8) fail(`walletPolicy.policyDir holds ${files.length} policies for this host; the measured guest takes at most 8 (keep the current one)`);
++  return files;
++}
++const launcherHostAdmission = (dir, plan, ctx) => plan.walletPolicy ? { hostId: hostIdOf(plan.identity.publicUrl).toLowerCase(), ownershipContract: ctx.ownership.address.toLowerCase(),
++  pinsFile: layout(dir, plan).pins, policyFiles: walletPolicyFiles(plan, ctx), policyOrigins: plan.walletPolicy.origins } : null;
++/** The owner's direct control config (metal/guest/measured-control.mjs) for a measured control guest: everything the guest's
++ *  supervisor will be configured with, bound by the launch's HOST_DATA. The guest reaches this host's guestd at 10.0.2.2.
++ *  With a wallet policy: the reviewed profile's ownership contract and code hash, and the digest of the exact policy wire
++ *  the launcher delivers (prepareMetalHostPolicy, the same function the launcher runs). */
++export function directControlConfig(plan, ctx, operator, dir) {
++  const sel = plan.selling, ha = launcherHostAdmission(dir, plan, ctx);
++  return canonicalDirectConfig({ format: CONFIG_FORMAT, chainId: 8453, contracts: { ...ctx.pinsDoc.contracts }, profileDigest: plan.authorities.profile ? plan.authorities.profile.digest : null,
++    rpcs: plan.authorities.rpcs, quorum: plan.authorities.quorum, confirmations: plan.authorities.confirmations, maxBlockAgeSec: plan.authorities.maxBlockAgeSec,
++    releaseId: plan.runtime.releaseId,
++    replicas: { gateways: plan.runtime.gateways, storagePlan: plan.runtime.storagePlan ? readJson(plan.runtime.storagePlan, "storage plan") : null },
++    identity: { publicUrl: plan.identity.publicUrl, repo: plan.identity.repo, operator: operator.toLowerCase() },
++    selling: { cpuPrice6: sel.cpuUsdHr !== null ? Math.max(1, Math.round(sel.cpuUsdHr * 1e6 / 3600)) : null, payout: sel.payout ? sel.payout.toLowerCase() : null },
++    isolation: { managerUrl: `http://10.0.2.2:${portOf(plan.guestd.listen)}`, dataAddr: `10.0.2.2:${portOf(plan.guestd.dataListen)}` },
++    hostOwnership: ha ? { contract: ha.ownershipContract, codeHash: String(ctx.ownership.codeHash).toLowerCase() } : null,
++    hostAdmissionSha256: ha ? hostAdmissionDigest(prepareMetalHostPolicy(ha)) : null, controlPort: DEFAULT_CONTROL_PORT });
++}
++/** metal/enclave-metal.mjs's config for the measured control guest (no secret in it: the operator key is named by path). */
++export function controlLauncherConfig(dir, plan, ctx) {
++  const L = layout(dir, plan), c = plan.control, ha = launcherHostAdmission(dir, plan, ctx);
++  return { mode: "snp", name: plan.identity.name, cpus: c.cpus, memMiB: c.memMiB, dist: c.image, ovmf: c.ovmf, control: "direct", direct: L.direct,
++    registryKeyFile: L.operator, vcekFile: L.vcek, measureGflops: false, hostfwd: [{ host: c.hostPort, guest: DEFAULT_CONTROL_PORT }],
++    isolation: { backend: "snp-guest-per-app", managerUrl: `http://10.0.2.2:${portOf(plan.guestd.listen)}`, dataAddr: `10.0.2.2:${portOf(plan.guestd.dataListen)}`, pairingKeyFile: L.pair },
++    ...(ha ? { hostAdmission: ha } : {}) };
++}
+ /** The rules supervisor.js directOnlyProblems applies at startup, against an environment this tool produced. [] = startable. */
+ export function directOnlyEnvProblems(env) {
+   const out = [], v = (k) => String(env[k] ?? "").trim();
+   if (v("ISOLATION_BACKEND") !== "snp-guest-per-app") out.push("ISOLATION_BACKEND must be snp-guest-per-app");
+   if (v("PROVISION_BACKEND") !== "vm") out.push("PROVISION_BACKEND must be vm");
+   if (!v("ENCLAVE_CONTRACT_PINS_FILE")) out.push("ENCLAVE_CONTRACT_PINS_FILE must pin the contracts");
++  if (v("BASE_RPCS").split(",").filter(Boolean).length < 2) out.push("BASE_RPCS must name the 2-8 quorum RPCs");
++  if (v("ENCLAVE_HOST_OWNERSHIP") && !/^0x[0-9a-f]{64}$/.test(v("ENCLAVE_HOST_OWNERSHIP_CODEHASH"))) out.push("ENCLAVE_HOST_OWNERSHIP_CODEHASH must pin the ownership contract code");
+   if (v("ADDRESS_BOOK_ADDRESS")) out.push("ADDRESS_BOOK_ADDRESS must be empty");
+   if (!v("GUEST_BOOTSTRAP_STORAGE_PLAN_FILE") && !v("GUEST_BOOTSTRAP_GATEWAYS")) out.push("package replicas must be named");
+   if (!v("GUEST_BOOTSTRAP_STORAGE_PLAN_FILE") && !v("IPFS_GATEWAY")) out.push("IPFS_GATEWAY must name the component replicas");
+@@ -212,9 +278,18 @@
+ };
+ const shArg = (a) => /^[A-Za-z0-9_./:=,+@-]+$/.test(String(a)) ? String(a) : `'${String(a).replace(/'/g, `'\\''`)}'`;
+ const unitArg = (a) => { const s = String(a).replace(/%/g, "%%").replace(/\$/g, "$$$$"); return /^[A-Za-z0-9_./:=,+@-]+$/.test(s) ? s : `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`; };
+-const unitNames = (plan) => ({ guestd: `enclave-independent-${plan.identity.name}-guestd.service`, supervisor: `enclave-independent-${plan.identity.name}-supervisor.service` });
++const unitNames = (plan) => measured(plan)
++  ? { guestd: `enclave-independent-${plan.identity.name}-guestd.service`, control: `enclave-independent-${plan.identity.name}-control.service` }
++  : { guestd: `enclave-independent-${plan.identity.name}-guestd.service`, supervisor: `enclave-independent-${plan.identity.name}-supervisor.service` };
+ export function units(dir, plan) {
+   const g = guestdCommand(dir, plan), L = layout(dir, plan), n = unitNames(plan);
++  if (measured(plan)) return {
++    [n.guestd]: `[Unit]\nDescription=Enclave independent host "${plan.identity.name}": per-app SEV-SNP guest manager (guestd)\nAfter=network-online.target\n\n`
++      + `[Service]\nType=simple\nEnvironment=GUESTD_ENABLE=1\nExecStart=${g.argv.map(unitArg).join(" ")}\nRestart=always\nRestartSec=3\nLimitMEMLOCK=infinity\n\n[Install]\nWantedBy=default.target\n`,
++    // the VMM needs /dev/kvm and /dev/sev: this user must be in their groups (or run the unit as a system service)
++    [n.control]: `[Unit]\nDescription=Enclave independent host "${plan.identity.name}": MEASURED control guest (direct-only supervisor inside SEV-SNP)\nAfter=${n.guestd}\nRequires=${n.guestd}\n\n`
++      + `[Service]\nType=simple\nExecStart=${[plan.supervisor.node, path.join(REPO, "metal", "enclave-metal.mjs"), "--config", L.launcher].map(unitArg).join(" ")}\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n`,
++  };
+   return {
+     [n.guestd]: `[Unit]\nDescription=Enclave independent host "${plan.identity.name}": per-app SEV-SNP guest manager (guestd)\nAfter=network-online.target\n\n`
+       + `[Service]\nType=simple\nEnvironment=GUESTD_ENABLE=1\nExecStart=${g.argv.map(unitArg).join(" ")}\nRestart=always\nRestartSec=3\nLimitMEMLOCK=infinity\n\n[Install]\nWantedBy=default.target\n`,
+@@ -266,6 +341,10 @@
+       hostFloorMiB: Number(o["host-floor-mib"] ?? 16384), collateralDir: abs(o.collateral ?? path.join(dir, "collateral")), product: o.product ?? "Turin", instancePrefix: o["instance-prefix"] ?? "gi" },
+     supervisor: { port: Number(o["supervisor-port"] ?? 8080), path: abs(o.supervisor ?? path.join(REPO, "supervisor.js")), node: abs(o.node ?? process.execPath),
+       attestationUrl: o["attestation-url"] ?? null },
++    ...(o["control-image"] ? { control: { mode: "measured-guest", endpoint: `https://127.0.0.1:${Number(o["control-port"] ?? 18444)}`, hostPort: Number(o["control-port"] ?? 18444),
++      measurements: list(need("control-measurements", "the launch digest(s) you recomputed from the reviewed control image")).map((m) => m.toLowerCase()),
++      minTcb: abs(need("control-min-tcb", "your TCB floor for the control guest's report (JSON, per product line)")), image: abs(o["control-image"]),
++      ovmf: abs(need("control-ovmf", "the OVMF firmware you pinned (part of the measurement)")), cpus: Number(o["control-cpus"] ?? 4), memMiB: Number(o["control-mem-mib"] ?? 8192) } } : {}),
+     selling: { cpuUsdHr: o["price-cpu"] !== undefined ? Number(o["price-cpu"]) : null, payout: o.payout ?? null },
+     walletPolicy: o["policy-dir"] ? { policyDir: abs(o["policy-dir"]), origins: list(o["policy-origins"]) } : null,
+     referral: o.referral ?? null,
+@@ -371,6 +450,7 @@
+ function unitDir(o, env) { return path.resolve(o["unit-dir"] ?? path.join(env.XDG_CONFIG_HOME || path.join(env.HOME || os.homedir(), ".config"), "systemd", "user")); }
+ async function cmdInstall(dir, o, out, env) {
+   const plan = loadPlan(dir), ctx = planTrust(plan), L = layout(dir, plan), ud = unitDir(o, env);
++  if (measured(plan)) return cmdInstallMeasured(dir, o, out, plan, ctx, L, ud);
+   const problems = directOnlyEnvProblems(supervisorEnv(dir, plan, ctx));
+   if (problems.length) fail(`the derived supervisor environment would be refused: ${problems.join("; ")}`);
+   const files = { ...Object.fromEntries(Object.entries(units(dir, plan)).map(([n, t]) => [path.join(ud, n), t])) };
+@@ -399,9 +479,36 @@
+   return 0;
+ }
+ 
++async function cmdInstallMeasured(dir, o, out, plan, ctx, L, ud) {
++  const operator = privateKeyToAccount(readSecrets(L).operatorKey).address;
++  const files = { ...Object.fromEntries(Object.entries(units(dir, plan)).map(([n, t]) => [path.join(ud, n), t])),
++    [L.direct]: JSON.stringify(directControlConfig(plan, ctx, operator, dir), null, 2) + "\n", [L.launcher]: JSON.stringify(controlLauncherConfig(dir, plan, ctx), null, 2) + "\n" };
++  if (!o.apply) {
++    out(`dry run (pass --apply to write; --enable to start): ${Object.keys(files).join(", ")}`);
++    for (const [f, t] of Object.entries(files)) out(`--- ${f}\n${t}`);
++    out(`the guest's config digest (bound by its HOST_DATA): ${configDigest(directControlConfig(plan, ctx, operator, dir))}`);
++    return 0;
++  }
++  const differ = Object.entries(files).filter(([f, t]) => fs.existsSync(f) && fs.readFileSync(f, "utf8") !== t).map(([f]) => f);
++  if (differ.length) fail(`refusing to replace existing file(s) with different content: ${differ.join(", ")} (review and move them aside deliberately)`);
++  fs.mkdirSync(ud, { recursive: true });
++  for (const [f, t] of Object.entries(files)) if (!fs.existsSync(f)) writeNew(f, t, f === L.launcher ? 0o600 : 0o644);
++  out(`installed: ${Object.keys(files).join(", ")}`);
++  const n = unitNames(plan);
++  if (o.enable) {
++    for (const args of [["--user", "daemon-reload"], ["--user", "enable", "--now", n.guestd, n.control]]) {
++      const r = spawnSync("systemctl", args, { stdio: "inherit" });
++      if (r.status !== 0) fail(`systemctl ${args.join(" ")} failed (${r.status ?? r.signal})`);
++    }
++  } else out(`start with: systemctl --user daemon-reload && systemctl --user enable --now ${Object.values(n).join(" ")}`);
++  out(`then: node cli/host-independent-lifecycle.mjs check --dir ${dir}`);
++  return 0;
++}
++
+ async function cmdRun(dir, o, out) {
+   const plan = loadPlan(dir), ctx = planTrust(plan), L = layout(dir, plan), which = o.component;
+   if (!["guestd", "supervisor"].includes(which)) fail("--component guestd | supervisor");
++  if (which === "supervisor" && measured(plan)) fail("this plan runs the supervisor inside the measured control guest: start its control unit (install), not a host supervisor");
+   const cmd = which === "guestd" ? guestdCommand(dir, plan) : { argv: [plan.supervisor.node, plan.supervisor.path], env: supervisorEnv(dir, plan, ctx) };
+   if (which === "supervisor") { const p = directOnlyEnvProblems(cmd.env); if (p.length) fail(`the derived environment would be refused: ${p.join("; ")}`); }
+   if (o["dry-run"]) { out(`${Object.entries(cmd.env).map(([k, v]) => `${k}=${SECRET_ENV.has(k) ? "'<redacted>'" : shArg(v)}`).join(" \\\n  ")} \\\n  ${cmd.argv.map(shArg).join(" ")}`); return 0; }
+@@ -426,7 +533,7 @@
+ const OWNERSHIP_ABI = parseAbi(["function authority(bytes32) view returns (address owner,address pendingOwner,uint64 revision,bytes32 policyHash)",
+   "function registry() view returns (address)"]);
+ const MIN_GAS_WEI = 20_000_000_000_000n;   // 0.00002 ETH: a few register/heartbeat/claim transactions on Base
+-export async function readinessRows(dir, o, { fetchImpl = globalThis.fetch, now = Date.now, chainFactory, env = process.env } = {}) {
++export async function readinessRows(dir, o, { fetchImpl = globalThis.fetch, now = Date.now, chainFactory, env = process.env, verifyControl = verifyMeasuredControl } = {}) {
+   const rows = [], add = (item, status, detail, required = true) => rows.push({ item, status, detail, required });
+   let plan, ctx, L;
+   try { plan = loadPlan(dir); L = layout(dir, plan); add("plan", "ready", `${L.plan} (${PLAN_FORMAT})`); }
+@@ -451,24 +558,50 @@
+   add("guestd binary", fs.existsSync(L.guestd) ? "ready" : "missing", fs.existsSync(L.guestd) ? L.guestd : "build --only guestd");
+   const pp = privateFileProblem(L.pair);
+   add("pairing key", pp ? (pp === "absent" ? "missing" : "failed") : "ready", pp ? `${L.pair}: ${pp}` : L.pair);
++  let directCfg = null;
++  if (measured(plan)) {
++    try { if (!operator) throw new Error("no operator key"); directCfg = directControlConfig(plan, ctx, operator, dir); add("direct control config", "ready", `${CONFIG_FORMAT} digest ${configDigest(directCfg)} (the guest's HOST_DATA binds it)`); }
++    catch (e) { add("direct control config", "failed", e.message); }
++  } else {
+   const envProblems = directOnlyEnvProblems(supervisorEnv(dir, plan, ctx));
+   add("direct-only environment", envProblems.length ? "failed" : "ready", envProblems.length ? envProblems.join("; ") : "relay, secrets, domain, certificate and DNS services off; pins and replicas named");
++  }
+   const ud = unitDir(o, env), want = units(dir, plan);
+   const unitState = Object.entries(want).map(([n, t]) => { const f = path.join(ud, n); return !fs.existsSync(f) ? "absent" : fs.readFileSync(f, "utf8") === t ? "match" : "DIFFERS"; });
+   // A private file can still hold an old plan, another operator's key or an enabled relay.
+   // Compare the complete expected environment without ever printing either secret-bearing value.
+-  const envState = !fs.existsSync(L.env) ? "absent" : privateFileProblem(L.env) ? "UNSAFE MODE"
++  const envState = measured(plan)
++    ? (!directCfg ? "UNVERIFIED" : !fs.existsSync(L.direct) || !fs.existsSync(L.launcher) ? "absent"
++      : fs.readFileSync(L.direct, "utf8") === JSON.stringify(directCfg, null, 2) + "\n" && fs.readFileSync(L.launcher, "utf8") === JSON.stringify(controlLauncherConfig(dir, plan, ctx), null, 2) + "\n" ? "match" : "DIFFERS")
++    : !fs.existsSync(L.env) ? "absent" : privateFileProblem(L.env) ? "UNSAFE MODE"
+     : !localSecrets ? "UNVERIFIED"
+     : fs.readFileSync(L.env, "utf8") === envFileText(supervisorEnv(dir, plan, ctx, localSecrets)) ? "match" : "DIFFERS";
+   add("installed units", unitState.every((s) => s === "match") && envState === "match" ? "ready"
+     : unitState.includes("DIFFERS") || ["UNSAFE MODE", "DIFFERS"].includes(envState) ? "failed" : "missing",
+-    `units ${unitState.join(", ")}; supervisor.env ${envState}`);
+-  add("control attestation", plan.supervisor.attestationUrl ? "unknown" : "missing", plan.supervisor.attestationUrl
++    `units ${unitState.join(", ")}; ${measured(plan) ? "direct-control.json + control-launcher.json" : "supervisor.env"} ${envState}`);
++  if (!measured(plan)) add("control attestation", plan.supervisor.attestationUrl ? "unknown" : "missing", plan.supervisor.attestationUrl
+     ? `configured ${plan.supervisor.attestationUrl}; this check has not verified that the running supervisor and its proof key belong to that measured control guest`
+-    : "no ATTESTATION_URL: a measured control guest and verification of its running supervisor are still required");
++    : "no measured control guest: the supervisor runs on this host, so its proof key and sessions are not bound to a measured guest (init --control-image … runs it in one)");
+   // chain: every read through the agreeing quorum; a read that fails is UNKNOWN, never ready
+   const chain = chainFactory ? chainFactory(ctx.trust) : new QuorumChain({ rpcs: ctx.trust.rpcs, quorum: ctx.trust.quorum, confirmations: ctx.trust.confirmations, maxBlockAgeMs: ctx.trust.maxBlockAgeMs, now });
+   const hid = hostIdOf(plan.identity.publicUrl), registry = ctx.pinsDoc.contracts.registry;
++  if (measured(plan)) {
++    // the measured control guest, verified end to end (metal/measured-control-verify.mjs): READY only when verified
++    const WORD = { verified: "ready", pending: "missing", unknown: "unknown", rejected: "failed" };
++    try {
++      if (!directCfg) throw new Error("no direct control config to compare the guest with");
++      const read = (f) => fs.readFileSync(f);
++      const product = plan.guestd.product;
++      const collateral = memoryCollateral({ chains: { [product]: read(L.chain).toString() }, vceks: { [product]: read(L.vcek) }, ...(fs.existsSync(L.crl) ? { crls: { [product]: read(L.crl) } } : {}) });
++      const registryReader = async (id) => { const snap = await chain.snapshot((c, b) => readHost(c, registry, id, b)); requireSchema4(snap.value.schema);
++        const h = snap.value.host; return h ? { operator: h.operator, proofKey: h.proofKey, active: h.active } : null; };
++      const v = await verifyControl({ url: plan.control.endpoint, expect: { config: directCfg, measurements: plan.control.measurements, minTcb: readJson(plan.control.minTcb, "control TCB floor"), crl: "required" },
++        collateral, registry: registryReader });
++      add("control attestation", WORD[v.status] ?? "failed", v.status === "verified"
++        ? `measured control guest ${v.identity.measurement.slice(0, 16)}… at ${plan.control.endpoint}: TLS key, config, report, running supervisor (proof key ${v.identity.proofKey}) and registry entry all verified`
++        : `${v.status}: ${v.reasons.filter((r) => /^(REJECT|UNKNOWN|PENDING)/.test(r)).slice(-1)[0] || v.reasons.slice(-1)[0] || "no reason"}`);
++    } catch (e) { add("control attestation", "failed", e.message); }
++  }
+   try {
+     if (ctx.trust.profile) { await assertReviewedCode(chain, ctx.trust.profile, ["registry", "deployments", "appCatalog", ...(plan.walletPolicy ? ["hostOwnership"] : [])]); add("reviewed code", "ready", "registry, deployments, appCatalog" + (plan.walletPolicy ? ", hostOwnership" : "") + " carry the reviewed code"); }
+     else add("reviewed code", "ready", "contract pins only (no profile to compare code hashes against)", false);
+@@ -517,7 +650,7 @@
+     const r = await t.request("GET", "/health", null, 4000);
+     add("guestd running", r.status === 200 ? "ready" : "failed", r.status === 200 ? `${plan.guestd.listen} answered over guestd-control/1` : `HTTP ${r.status}`);
+   } catch (e) { add("guestd running", "failed", `${plan.guestd.listen}: ${String(e.message).slice(0, 160)}`); }
+-  try {
++  if (!measured(plan)) try {
+     const r = await fetchImpl(`http://127.0.0.1:${plan.supervisor.port}/v1/health`, { signal: AbortSignal.timeout(4000) });
+     const body = r.ok ? await r.json().catch(() => null) : null;   // {status:"ok", deployments:N, ...}: no identity in it
+     const isSup = body?.status === "ok" && Number.isSafeInteger(body.deployments);
+@@ -592,6 +725,8 @@
+             [--name L] [--quorum N] [--storage-plan FILE] [--isolation DIR] [--collateral DIR] [--product Turin]
+             [--price-cpu USD_PER_HOUR] [--payout 0x…] [--policy-dir DIR [--policy-origins https://…]] [--referral CODE]
+             [--attestation-url http://127.0.0.1:…] [--dry-run] [--replace-plan]
++            [--control-image DIR --control-measurements HEX[,HEX] --control-min-tcb FILE --control-ovmf FILE [--control-port N] [--control-cpus N] [--control-mem-mib N]]
++                                                    run the supervisor inside the MEASURED control guest (docs/network/measured-control-guest.md)
+   build     [--only release,guestd,pair-key,collateral] [--dry-run]
+   install   [--apply [--enable]] [--unit-dir DIR]
+   run       --component guestd|supervisor [--dry-run]
+--- a/test/metal-measured-control.test.mjs
++++ b/test/metal-measured-control.test.mjs
+@@ -41,11 +41,11 @@
+ const RAW = () => ({
+   format: MC.CONFIG_FORMAT, chainId: 8453,
+   contracts: { registry: a(0x11), deployments: a(0x12), appCatalog: a(0x13), proofOfTime: a(0x14), enclavePay: a(0), verificationFees: a(0), sessionVaultFactory: a(0), secretVaultV2: a(0) },
+-  profileDigest: null, rpcs: ["https://rpc-a.example/v1", "https://rpc-b.example"], quorum: 2, releaseId: "ab".repeat(32),
++  profileDigest: null, rpcs: ["https://rpc-a.example/v1", "https://rpc-b.example"], quorum: 2, confirmations: 2, maxBlockAgeSec: 120, releaseId: "ab".repeat(32),
+   replicas: { gateways: ["http://192.0.2.10:8189", "https://replica.example"], storagePlan: null },
+   identity: { publicUrl: "https://host.example.org", repo: "owner/enclave", operator: OPERATOR },
+   selling: { cpuPrice6: 14, payout: null }, isolation: { managerUrl: "http://10.0.2.2:8095", dataAddr: "10.0.2.2:8096" },
+-  hostAdmissionSha256: null, controlPort: 8444,
++  hostOwnership: null, hostAdmissionSha256: null, controlPort: 8444,
+ });
+ const CMDLINE = "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct";
+ const CONFIG = MC.canonicalDirectConfig(RAW()), DIGEST = MC.configDigest(CONFIG), HOST_DATA = MC.hostDataHex(DIGEST);
+@@ -170,10 +170,10 @@
+   for (const [f, text] of Object.entries(plan.files)) fs.writeFileSync(f, text, { mode: 0o600 });
+   // the plan's environment, with every network target moved to a CLOSED loopback port so this test reaches nothing
+   // outside 127.0.0.1 (http.request is not covered by the fetch hook); the mode, pins, keys and services stay as derived
+-  const dead = `127.0.0.1:${closed}`;
++  const dead = `127.0.0.1:${closed}`, dead2 = `127.0.0.1:${await freePort()}`;
+   const env = { ...plan.env, PORT: String(port), STATE_FILE: path.join(P.runDir, "state.json"), HOME: P.runDir, NODE_EXTRA_CA_CERTS: "",
+     PATH: process.env.PATH, ATTESTATION_URL: `http://${dead}/.well-known/enclave-attestation`, VMMGR_URL: `http://${dead}`, GUESTD_DATA_ADDR: dead,
+-    BASE_RPC: `http://${dead}`, BASE_RPCS: `http://${dead}`, GUEST_BOOTSTRAP_GATEWAYS: `http://${dead}/ipfs`, IPFS_GATEWAY: JSON.stringify([`http://${dead}`]) };
++    BASE_RPC: `http://${dead}`, BASE_RPCS: `http://${dead},http://${dead2}`, GUEST_BOOTSTRAP_GATEWAYS: `http://${dead}/ipfs`, IPFS_GATEWAY: JSON.stringify([`http://${dead}`]) };
+   assert.deepEqual(MC.directEnvProblems(env), [], "still the direct-only environment");
+   const c = spawn(process.execPath, ["--max-old-space-size=160", "--import", path.join(REPO, "test/helpers/loopback-only-fetch.mjs"), path.join(REPO, "supervisor.js")],
+     { cwd: REPO, env, stdio: ["ignore", "pipe", "pipe"] });
+@@ -366,3 +366,78 @@
+   const o = fs.readFileSync(path.join(REPO, "metal/overlay-control-image.py"), "utf8");
+   assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs'\]/);
+ });
++
++// ---- 5. the host owner's wallet policy inside the measured guest ------------------------------------------------------------
++const { validateMetalHostPolicy, installMetalHostPolicy } = await import("../network/metal-host-policy.mjs");
++const { hostAdmissionPolicyHash } = await import("../network/host-admission-policy.mjs");
++const OWN = a(0x99), OWN_CODE = "0x" + "ab".repeat(32);
++const HOST_ID = MC.registryIdOf("https://host.example.org", viem.keccak256);
++const pol = (o = {}) => ({ version: 1, chainId: 8453, ownershipContract: OWN, hostId: HOST_ID, requireCatalogApproval: false, denyDeployments: [], denyAppRefs: [], ...o });
++const wireFor = (o = {}) => validateMetalHostPolicy({ version: 1, hostId: HOST_ID, ownershipContract: OWN, pins: { version: 1, chainId: 8453, contracts: { ...CONFIG.contracts } },
++  policies: [pol()], policyOrigins: [], ...o });
++const walletRaw = (wire, own = { contract: OWN, codeHash: OWN_CODE }) => { const r = RAW(); r.hostOwnership = own; r.hostAdmissionSha256 = wire ? MC.hostAdmissionDigest(wire) : null; return r; };
++const hdOf = (raw) => MC.hostDataHex(MC.configDigest(MC.canonicalDirectConfig(raw)));
++
++test("measured wallet policy: the bound wire installs the owner's documents and the code-pinned authority; the real supervisor starts with it", async () => {
++  const wire = wireFor(), raw = walletRaw(wire), P = guestPaths();
++  const hostPolicyEnv = installMetalHostPolicy(wire, { directory: path.join(P.runDir, "admission") });
++  const p = await MC.planDirectBoot({ cmdline: CMDLINE, fw: fwFor({ direct: raw, hostAdmission: wire, registryKey: "" }), reportHostData: hdOf(raw), viem, hostPolicyEnv, paths: P });
++  assert.equal(p.ok, true, p.reasons?.join("; "));
++  assert.equal(p.env.ENCLAVE_HOST_OWNERSHIP, OWN); assert.equal(p.env.ENCLAVE_HOST_ID, HOST_ID); assert.equal(p.env.ENCLAVE_HOST_OWNERSHIP_CODEHASH, OWN_CODE);
++  assert.equal(p.env.ENCLAVE_CONTRACT_PINS_FILE, P.pins, "the bound config's pins, which equal the policy wire's");
++  assert.ok(fs.existsSync(path.join(p.env.ENCLAVE_HOST_POLICY_DIR, hostAdmissionPolicyHash(pol()) + ".json")), "the owner's document, named by its commitment");
++  assert.deepEqual(MC.directEnvProblems(p.env), []);
++  fs.writeFileSync(P.pairKey, PAIR + "\n", { mode: 0o600 });
++  const sup = await realSupervisor(p, P);   // starts: direct mode accepts the quorum and the ownership code pin
++  assert.match(sup.log(), /\[direct\] direct-only host control/); sup.child.kill("SIGKILL");
++});
++
++test("measured wallet policy: another host's, another contract's, other pins, a replayed older wire, or an unpinned authority are refused", async () => {
++  const reasons = async (raw, wire) => { const r = await MC.planDirectBoot({ cmdline: CMDLINE, fw: fwFor({ direct: raw, hostAdmission: wire }), reportHostData: hdOf(raw), viem });
++    assert.equal(r.ok, false); return r.reasons.join("\n"); };
++  const otherHost = MC.registryIdOf("https://other.example.org", viem.keccak256);
++  const w1 = wireFor({ hostId: otherHost, policies: [pol({ hostId: otherHost })] });
++  assert.match(await reasons(walletRaw(w1), w1), /another host id/);
++  const w2 = wireFor({ ownershipContract: a(0x98), policies: [pol({ ownershipContract: a(0x98) })] });
++  assert.match(await reasons(walletRaw(w2), w2), /another ownership contract/);
++  const w3 = wireFor({ pins: { version: 1, chainId: 8453, contracts: { ...CONFIG.contracts, registry: a(0x55) } } });
++  assert.match(await reasons(walletRaw(w3), w3), /other contract pins/);
++  const older = wireFor({ policies: [pol({ denyDeployments: ["0x" + "12".repeat(32)] })] }), current = wireFor();
++  assert.match(await reasons(walletRaw(current), older), /hostAdmission digest .* is not the bound/, "a replayed older policy set is not the bound one");
++  assert.match(await reasons(RAW(), current), /hostAdmission digest .* is not the bound none/, "a config without a wallet policy takes none");
++  const half = RAW(); half.hostOwnership = { contract: OWN, codeHash: OWN_CODE };
++  assert.throws(() => MC.canonicalDirectConfig(half), /go together/);
++});
++
++test("the real launcher delivers exactly the bound wallet policy, and refuses one the config does not bind", async () => {
++  const d = fs.mkdtempSync(path.join(tmp, "launch-policy-"));
++  const pinsFile = path.join(d, "pins.json"), polFile = path.join(d, "policy.json");
++  fs.writeFileSync(pinsFile, JSON.stringify({ version: 1, chainId: 8453, contracts: CONFIG.contracts })); fs.writeFileSync(polFile, JSON.stringify(pol()));
++  const hostAdmission = { hostId: HOST_ID, ownershipContract: OWN, pinsFile, policyFiles: [polFile], policyOrigins: [] };
++  const wire = wireFor();
++  const r = await launched({ hostAdmission }, { configFile: walletRaw(wire) });
++  assert.ok(!r.refused, r.log);
++  assert.deepEqual(r.fw.hostAdmission, JSON.parse(JSON.stringify(wire)));
++  const hd = hdOf(walletRaw(wire));
++  assert.ok(r.args.some((x) => x.startsWith("sev-snp-guest,") && x.includes(`host-data=${Buffer.from(hd, "hex").toString("base64")}`)));
++  const p = await MC.planDirectBoot({ cmdline: r.args[r.args.indexOf("-append") + 1], fw: r.fw, reportHostData: hd, viem });
++  assert.equal(p.ok, true, p.reasons?.join("; "));
++  fs.writeFileSync(polFile, JSON.stringify(pol({ requireCatalogApproval: true })));   // the host hands over another policy than the config binds
++  const bad = await launched({ hostAdmission }, { configFile: walletRaw(wire) });
++  assert.equal(bad.refused, true); assert.match(bad.log, /does not bind this hostAdmission policy/);
++});
++
++test("the image carries the supervisor's direct-mode chain reader and its whole import closure", () => {
++  const b = fs.readFileSync(path.join(REPO, "metal/build-image.mjs"), "utf8");
++  const start = b.indexOf("export function importClosure("), end = b.indexOf("\n}\n", start) + 2;
++  const importClosure = new Function("fs", "path", b.slice(start, end).replace("export ", "") + "\nreturn importClosure;")(fs, path);
++  const closure = importClosure(REPO, "network/direct-chain.mjs").sort();
++  // an independent walk of the same tree: every relative import, static or dynamic
++  const seen = new Set(), queue = ["network/direct-chain.mjs"];
++  while (queue.length) { const f = path.normalize(queue.pop()); if (seen.has(f)) continue; seen.add(f);
++    for (const m of fs.readFileSync(path.join(REPO, f), "utf8").matchAll(/(?:from\s*|import\s*\()\s*(['"])(\.\.?\/[^'"]+)\1/g)) queue.push(path.join(path.dirname(f), m[2])); }
++  assert.deepEqual(closure, [...seen].sort());
++  for (const f of ["network/direct-chain.mjs", "cli/independent.mjs", "network/rpc-identity.mjs", "network/authority-profile.mjs"]) assert.ok(closure.includes(f), f);
++  assert.match(b, /if \(fs\.readFileSync\(path\.join\(src, 'supervisor\.js'\), 'utf8'\)\.includes\('"\.\/network\/direct-chain\.mjs"'\)\)/);
++  assert.match(fs.readFileSync(path.join(REPO, "supervisor.js"), "utf8"), /await import\("\.\/network\/direct-chain\.mjs"\)/, "the supervisor's import the builder keys on");
++});
+--- a/test/direct-only-supervisor.test.mjs
++++ b/test/direct-only-supervisor.test.mjs
+@@ -38,7 +38,10 @@
+     ISOLATION_DIRECT_ONLY:'1',ISOLATION_BACKEND:tier,PROVISION_BACKEND:'vm',ENCLAVE_CONTRACT_PINS_FILE:file,ADDRESS_BOOK_ADDRESS:'',
+     SECRETS_API:'',DOMAINS_API:'',CERTS_API:'',DNS_API:'',APP_CERT_DOMAIN:'',
+     GUEST_BOOTSTRAP_GATEWAYS:`${A},${B}`,IPFS_GATEWAY:JSON.stringify([A,B].map(g=>new URL(g).origin)),
+-    REGISTRY_ENABLED:'1',REGISTRY_PRIVATE_KEY:'0x'+'01'.repeat(32),ENCLAVE_REPO:'independent/host',CLAIM_ENABLED:'1',...extra};
++    REGISTRY_ENABLED:'1',REGISTRY_PRIVATE_KEY:'0x'+'01'.repeat(32),ENCLAVE_REPO:'independent/host',CLAIM_ENABLED:'1',
++    // direct mode reads only through a quorum of the operator's RPCs (network/direct-chain.mjs); this suite scripts every
++    // read, so these two loopback origins are never asked (test/direct-chain-quorum-supervisor.test.mjs reads for real)
++    BASE_RPCS:'http://127.0.0.1:9,http://127.0.0.1:10',CHAIN_QUORUM:'2',...extra};
+ }
+ async function run(t,config,extra){
+   const {stdout}=await exec(process.execPath,['supervisor.js'],{cwd:new URL('..',import.meta.url),timeout:60000,
+--- a/test/metal-control-overlay.test.py
++++ b/test/metal-control-overlay.test.py
+@@ -1,4 +1,4 @@
+-import gzip, hashlib, importlib.util, io, json, stat, subprocess, tempfile, unittest
++import gzip, hashlib, importlib.util, io, json, os, stat, subprocess, tempfile, unittest
+ from pathlib import Path
+ REPO=Path(__file__).resolve().parent.parent
+ spec=importlib.util.spec_from_file_location('overlay_control_image', REPO/'metal/overlay-control-image.py')
+@@ -71,4 +71,23 @@
+         self.base_image([('app/addressbook.js',0o100644,b'aliased',2)])
+         with self.assertRaisesRegex(ValueError,'hardlinked replacement'):mod.overlay(self.base,self.root/'out',COMMIT,REPO)
+ 
++    def test_direct_chain_closure_follows_the_commits_supervisor(self):
++        # a disposable repository: the overlay installs network/direct-chain.mjs and its import closure exactly when that
++        # commit's supervisor.js imports it, and nothing more when it does not
++        r=self.root/'repo';(r/'network').mkdir(parents=True);(r/'cli').mkdir();(r/'relay').mkdir()
++        (r/'network/direct-chain.mjs').write_text('import { QuorumChain } from "../cli/independent.mjs";\nimport { a } from "./rpc-identity.mjs";\n')
++        (r/'cli/independent.mjs').write_text("import x from '../network/rpc-identity.mjs';\nconst y = await import('../relay/net-guard.mjs');\n")
++        (r/'network/rpc-identity.mjs').write_text('export const a = 1;\n');(r/'relay/net-guard.mjs').write_text('export default 1;\n')
++        # never inherit GIT_DIR/GIT_WORK_TREE (or any GIT_*): every command must act on this disposable repository only
++        clean={k:v for k,v in os.environ.items() if not k.startswith('GIT_')}
++        g=lambda *a:subprocess.check_output(['git','-C',str(r),*a],text=True,env=clean).strip()
++        g('init','-q');g('config','user.email','t@t');g('config','user.name','t')
++        (r/'supervisor.js').write_text('const x = 1;\n');g('add','-A');g('commit','-qm','before')
++        before=g('rev-parse','HEAD')
++        (r/'supervisor.js').write_text('const D = await import("./network/direct-chain.mjs");\n');g('add','-A');g('commit','-qm','after')
++        after=g('rev-parse','HEAD')
++        self.assertEqual(mod.app_files(before,r),list(mod.APP_FILES))
++        extra=[f for f in mod.app_files(after,r) if f not in mod.APP_FILES]
++        self.assertEqual(sorted(extra),['cli/independent.mjs','network/direct-chain.mjs','network/rpc-identity.mjs','relay/net-guard.mjs'])
++
+ if __name__=='__main__':unittest.main()
+--- a/docs/network/measured-control-guest.md
++++ b/docs/network/measured-control-guest.md
+@@ -127,10 +127,18 @@
+ - **No browser access.** Direct mode has no WebPKI certificate (no certificate service or ACME). The control endpoint is
+   for pinned native verifiers (CLI, SDK); browsers cannot use it as is.
+ - **Keys rotate every boot.** Verifiers re-verify, and the supervisor republishes its proof key on chain.
+-- **The supervisor's own chain reads** are still first-answer `BASE_RPC` until the supervisor's quorum work lands.
+-  `BASE_RPCS` is set for integration patch 02. The owner's `check` always reads through the quorum.
+-- **Host-owner wallet policy** in a measured guest must arrive through the launcher's bound `hostAdmission`. The
+-  lifecycle tool refuses to combine `--policy-dir` with a measured control plan until it derives that.
++- **The supervisor's chain reads are quorum-agreed.** In direct mode `supervisor.js` reads ONLY through
++  `network/direct-chain.mjs`: `quorum` of the bound RPCs agreeing at one fresh, confirmed block (`confirmations`,
++  `maxBlockAgeSec` are bound in the config). That covers claims, payments, the owner veto, identity and proof key,
++  ownership/config, leases, releases and sessions.
++  - The operator's transactions go to every RPC with the agreed nonce.
++  - Gas estimates and fee suggestions are the only single-RPC answers, and they authorize nothing.
++- **Host-owner wallet policy works in the guest.**
++  - The config binds `hostOwnership` (the reviewed profile's contract and code hash) and the digest of the delivered
++    policy wire.
++  - The guest refuses a wire for another host id, another contract or other pins.
++  - The supervisor checks the code hash, the registry and the owner's CURRENT commitment at one agreed block. See
++    "Wallet policy" below.
+ 
+ ## Activation on real hardware (not yet performed)
+ 
+@@ -160,3 +168,32 @@
+ 8. **Run `check`.** The `control attestation` row must be READY.
+ 9. **Accept a new deployment.** Commit a new owner startup deployment and confirm the guest claims and launches it.
+    Only this step shows the onboarding works on real hardware.
++
++## Wallet policy (the host owner's veto) in the measured guest
++
++- **Delivery.** `host init … --policy-dir DIR` with a reviewed profile and a measured plan:
++  - `install` puts the documents in DIR that belong to THIS host and the profile's `hostOwnership` (at most 8) into the
++    launcher's `hostAdmission`;
++  - the config binds that wire's digest and `hostOwnership {contract, codeHash}`;
++  - the launcher refuses any other wire, and so does the guest (`hostAdmissionProblems`).
++- **Use.** The supervisor (`directHostWalletAdmission`) reads, at one agreed block:
++  - the ownership contract's code hash, which must equal the bound one;
++  - `registry()`, which must equal the pinned registry;
++  - `authority(hostId)`: owner, revision and policy hash.
++
++  A document counts only when its hash is the current on-chain commitment for this host id and contract. A local file
++  can never carry another wallet's veto, and an older revision's document is never used.
++
++| state | outcome |
++|---|---|
++| no wallet policy configured | Enclave catalog approval decides, as before |
++| owner set, no policy committed | accept |
++| owner's policy | that policy decides (`denyDeployments`, `denyAppRefs`, `requireCatalogApproval`) |
++| configured but no owner on chain | every deployment refused, with that reason |
++| a newer commitment whose document is not available | refused until it is |
++| wrong code, a registry mismatch, a disagreeing quorum, another host's config | refused |
++
++  A host without wallet configuration is never affected by any wallet. An owner who does not require catalog approval
++  may accept what Enclave's catalog has not approved.
++- Evidence: `test/direct-chain-quorum-supervisor.test.mjs` (real supervisor, real contracts, lying peers) and
++  `test/metal-measured-control.test.mjs` / `test/cli-host-measured-control.test.mjs` (delivery and binding).
+--- a/docs/network/direct-host-control.md
++++ b/docs/network/direct-host-control.md
+@@ -25,7 +25,10 @@
+ # chain authorities: immutable pins, no address book
+ ENCLAVE_CONTRACT_PINS_FILE=/srv/enclave/contract-pins.json
+ ADDRESS_BOOK_ADDRESS=
+-BASE_RPC=https://<rpc you trust first>
++BASE_RPCS=https://<rpc a>,https://<rpc b>[,…]   # 2-8 distinct hosts: every decision is agreed by a quorum of them
++CHAIN_QUORUM=2                                   # how many must agree (2..n)
++CHAIN_CONFIRMATIONS=2                            # agreed block depth
++CHAIN_MAX_BLOCK_AGE_SEC=120                      # an older agreed block is refused
+ 
+ # owner package and component replicas (the same component list as guestd -gateway)
+ GUEST_BOOTSTRAP_GATEWAYS=http://<replica-a>:8189/ipfs,http://<replica-b>:8189/ipfs
+@@ -70,6 +73,24 @@
+ (both must equal the contract pins), `ENCLAVE_HOST_POLICY_DIR` and optionally
+ `ENCLAVE_HOST_POLICY_ORIGINS`. That policy is unchanged by this mode.
+ 
++## Chain reads in this mode
++
++Every chain read that decides anything goes through `network/direct-chain.mjs`: `CHAIN_QUORUM` of the `BASE_RPCS`
++must return the same answer at one fresh, confirmed block (`cli/independent.mjs` `QuorumChain`, the reader the owner's
++CLI uses). That covers claims, payments, the owner veto, this host's identity and proof key, ownership and config,
++leases, releases and sessions.
++- There is no first answer and no public fallback. A read that cannot agree fails closed.
++- Dependent catalog reads share one block.
++- The operator's transactions go to every RPC with the agreed pending nonce. A lost answer is a pending transaction
++  decided by quorum receipt, never resent.
++- Gas estimates and fee suggestions are the only single-RPC calls, and they authorize nothing.
++- With a wallet policy, `ENCLAVE_HOST_OWNERSHIP_CODEHASH` must pin the reviewed ownership contract's code.
++
++Startup also refuses (exit 2):
++- fewer than two `BASE_RPCS`;
++- a quorum above their count;
++- a wallet policy without the code pin.
++
+ ## What the mode does
+ 
+ - **Claim.** A deployment without a `guestBootstrap` commitment is refused with a
+--- a/docs/network/independent-host-onboarding.md
++++ b/docs/network/independent-host-onboarding.md
+@@ -215,12 +215,21 @@
+   operator nominates the owner; `scripts/network/prepare-host-policy.mjs`
+   prepares that nomination unsigned. Until then, a host with `--policy-dir`
+   refuses every deployment.
+-- **The measured control guest**: the generated unit currently launches the
+-  supervisor on the host. Measured control guest boot and verification that
+-  the running supervisor and proof key belong to that guest still require
+-  integration. `check` reports a missing attestation URL as missing and a
+-  configured URL as unknown. Setting `--attestation-url http://127.0.0.1:…`
+-  alone does not establish readiness.
++- **The measured control guest**: by default the generated unit launches the
++  supervisor on the host, and `check` never reports that as attested (a
++  configured `--attestation-url` alone stays unknown). With `--control-image DIR
++  --control-measurements HEX --control-min-tcb FILE --control-ovmf FILE`, the
++  supervisor instead runs inside the MEASURED control CVM
++  ([measured-control-guest.md](measured-control-guest.md)):
++  - `install` writes `direct-control.json`, the config the guest's HOST_DATA
++    binds, and `control-launcher.json`, and a control unit running
++    `metal/enclave-metal.mjs` in place of a host supervisor;
++  - `check` verifies the guest end to end (report, measurement, config, TLS
++    key, the running supervisor's keys, the registry through your quorum), and
++    reports READY only when every check passes.
++  This still needs SEV-SNP hardware, a reviewed control image whose measurement
++  you recomputed, and a new deployment accepted on it before the host is
++  proven.
+ - **Replica operators**: they serve the release and packages you pinned. A
+   replica operated by Enclave is still a single organisation, not independence.
+ 
+@@ -228,11 +237,10 @@
+ 
+ These are listed in `work/host-onboarding-integration/`:
+ 
+-- **RPCs**: `supervisor.js` reads through `BASE_RPC` followed by built-in public
+-  fallback RPCs. Its own reads are therefore not limited to your quorum. Patch
+-  02 adds `BASE_RPCS`, which names exactly your RPCs. This tool's `check` and
+-  `referral` always use your quorum. Patch 02 alone does not make the
+-  supervisor's own fallback reads require quorum agreement.
++- **RPCs**: closed by the measured-control final integration. In direct-only
++  mode, the supervisor reads only through `CHAIN_QUORUM` of your `BASE_RPCS`,
++  agreeing at one fresh confirmed block (`network/direct-chain.mjs`). This tool
++  sets them from your plan's quorum, confirmations and maximum block age.
+ - **Operator key**: the supervisor takes the operator key only from the
+   environment, so `supervisor.env` (0600) holds it. Patch 02 adds
+   `REGISTRY_PRIVATE_KEY_FILE`, and patch 03 switches this tool to it so the key
+--- a/docs/network/independent-cli.md
++++ b/docs/network/independent-cli.md
+@@ -118,9 +118,8 @@
+ **`host init|build|install|run|check|referral`** (`docs/network/independent-host-onboarding.md`). The plan-driven
+ onboarding with no relay, tunnel or Enclave control:
+ - `init` records the `--profile`/`--contract-pins` and `--rpc` quorum of this invocation;
+-- the supervisor reads the operator key from `operator.key` (0600) and only the plan's RPCs (`BASE_RPCS`). Those
+-  supervisor reads are still FIRST-ANSWER (viem fallback), not this CLI's quorum; closing that belongs to the measured
+-  control integration.
++- the supervisor reads the operator key from `operator.key` (0600) and decides only on what `CHAIN_QUORUM` of the
++  plan's RPCs (`BASE_RPCS`) agree at one fresh confirmed block (`network/direct-chain.mjs`), the same rule as this CLI.
+ `check` is not a readiness proof: the control guest's attestation is reported UNKNOWN until a measured control guest
+ boots it.
+ 
+--- a/test/supervisor-wallet-policy.test.mjs
++++ b/test/supervisor-wallet-policy.test.mjs
+@@ -8,14 +8,15 @@
+ function between(start,end){const a=source.indexOf(start),b=source.indexOf(end,a+start.length);assert.ok(a>=0&&b>a);return source.slice(a,b);}
+ const host='0x'+'ab'.repeat(32),dep='0x'+'cd'.repeat(32),app='0x'+'ef'.repeat(32),catalog='0x'+'12'.repeat(20),ref=`catalog://${app}/1`;
+ function fixture(){
+- const state={reason:null,reads:[],requests:[],events:[],fail:false};
++ const state={reason:null,reads:[],requests:[],events:[],fail:false,scopes:0};
+  const ctx=vm.createContext({console,Date,Number,BigInt,Set,Map,Error,String,
+    HOST_WALLET_POLICY:true,_enclaveId:host,
+    _hostWalletAdmission:{hostId:host,refusal:async q=>{state.requests.push(q);if(state.fail)throw Error('quorum unavailable');if(q.deploymentId!==dep)throw Error('exact deployment id required');return state.reason;}},
+    hostCatalogAddress:()=>catalog,CATALOG_REF_RE:/^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/,ZERO32:'0x'+'00'.repeat(32),CATALOG_ABI:[],
+    getAddress:a=>a,catSchemaRev:async()=>7,gpuOptionalOfConfig:()=>false,cpuFallbackOfConfig:()=>null,
+    approvalVerdict:()=>{throw Error('global approval must not be consulted');},
+-   chainClient:{readContract:async q=>{state.reads.push(q);assert.equal(q.address,catalog);
++   // the legacy client's snapshot scope is the client itself (supervisor.js); count the scopes opened
++   chainClient:{snapshotScope(fn){state.scopes++;return fn(this);},readContract:async q=>{state.reads.push(q);assert.equal(q.address,catalog);
+      if(q.functionName==='getApp')return {appId:app,versionCount:2,active:false,publisher:catalog,slug:'test'};
+      if(q.functionName==='getVersion')return {cid:'verified-cid',version:'1',active:false,yanked:true,approval:2,config:'{}'};
+      if(q.functionName==='versionFee')return 0n;if(q.functionName==='versionConfigCid')return '';throw Error('unexpected read');}},
+@@ -35,7 +36,7 @@
+ test('Linux admission permits rejected, delisted and yanked catalog metadata when the host wallet allows it',async()=>{
+  const {state,ctx}=fixture();const result=await ctx.gateAppReference(ref,{deploymentId:dep});
+  assert.equal(result.error,undefined);assert.equal(result.wasmRef,'ipfs://verified-cid');assert.equal(state.requests[0].deploymentId,dep);
+- assert.equal(state.reads.length,4);
++ assert.equal(state.reads.length,4);assert.equal(state.scopes,1,'every catalog read of one admission in ONE snapshot scope');
+ });
+ test('Linux admission rejects host denial, missing identity and unreadable authority without global fallback',async()=>{
+  const {state,ctx}=fixture();state.reason='this host owner declines this deployment';
+--- /dev/null
++++ b/network/direct-chain.mjs
+@@ -0,0 +1,223 @@
++// network/direct-chain.mjs -- the supervisor's chain access in independent DIRECT mode (ISOLATION_DIRECT_ONLY=1): every
++// read that decides anything is answered by `quorum` of the operator's own RPCs agreeing at ONE fresh, confirmed block,
++// through cli/independent.mjs QuorumChain (the reader the owner's CLI and `check` use). There is no first-answer read and
++// no fallback: a read that cannot reach agreement throws, and every supervisor caller already treats a throw as
++// "unavailable" and fails closed. Legacy (hosted) supervisors never load this file.
++//
++//   directChainClient(chain)      a viem-PublicClient-shaped object: the methods supervisor.js and its session verifier
++//                                 call (readContract, simulateContract, multicall, getLogs, getBlock, getBlockNumber,
++//                                 getTransactionReceipt, getTransactionCount, getBalance, getCode, getStorageAt, call),
++//                                 plus snapshotScope(fn): every read inside fn is agreed at the SAME block.
++//   quorumWalletTransport(chain)  the wallet client's transport. The signed bytes go to EVERY peer; the nonce is the
++//                                 AGREED pending nonce; the chain id is the configured one. Gas estimates and fee
++//                                 suggestions are the only first-answer calls (among the operator's own RPCs): they can
++//                                 make a transaction fail or cost more, never authorize one, and every outcome is read
++//                                 back through the quorum.
++//   createDirectChain(env)        QuorumChain from BASE_RPCS / CHAIN_QUORUM / CHAIN_CONFIRMATIONS / CHAIN_MAX_BLOCK_AGE_SEC.
++import { custom, keccak256, toHex } from "viem";
++import { QuorumChain, validateRpcOrigins, agreementKey } from "../cli/independent.mjs";
++import { redactUrls } from "./rpc-identity.mjs";
++
++const short = (e) => redactUrls(String(e?.shortMessage || e?.message || e).split("\n")[0]).slice(0, 200);
++const isRevert = (e) => { for (let x = e, i = 0; x && i < 8; x = x.cause, i++) if (x.name === "ContractFunctionRevertedError" || x.name === "ExecutionRevertedError" || x.name === "CallExecutionError" && /revert/i.test(x.shortMessage || "")) return true; return false; };
++const isZeroData = (e) => { for (let x = e, i = 0; x && i < 8; x = x.cause, i++) if (x.name === "ContractFunctionZeroDataError") return true; return false; };
++const reasonOf = (e) => { for (let x = e, i = 0; x && i < 8; x = x.cause, i++) if (x.reason) return String(x.reason).slice(0, 200); return ""; };
++const notFound = (e) => e?.name === "TransactionReceiptNotFoundError" || e?.name === "TransactionNotFoundError" || /not.?found|could not be found/i.test(short(e));
++
++/** A fact all agreeing peers reported: rethrown with viem's wording, so message-based callers (sniffCachePolicy) are unchanged. */
++function agreedRevert(functionName, reason, block) {
++  const m = `The contract function "${functionName}" reverted${reason ? ` with the following reason:\n${reason}` : "."}`;
++  return Object.assign(new Error(m), { name: "ContractFunctionExecutionError", shortMessage: m, agreedRevert: true, agreedBlock: block,
++    cause: { name: "ContractFunctionRevertedError", reason } });
++}
++function agreedZeroData(functionName, block) {
++  const m = `The contract function "${functionName}" returned no data ("0x").`;
++  return Object.assign(new Error(m), { name: "ContractFunctionZeroDataError", shortMessage: m, agreedRevert: true, agreedBlock: block });
++}
++// A read whose revert is an agreed fact, not a peer failure
++const guarded = (op) => async (c, b) => {
++  try { return { ok: await op(c, b) }; }
++  catch (e) { if (isZeroData(e)) return { noData: true }; if (isRevert(e)) return { revert: reasonOf(e) }; throw e; }
++};
++const unwrap = (s, functionName) => {
++  if (s.value.noData) throw agreedZeroData(functionName, s.blockNumber);
++  if (s.value.revert !== undefined) throw agreedRevert(functionName, s.value.revert, s.blockNumber);
++  return s.value.ok;
++};
++
++/** The same agreement rule as QuorumChain.snapshot, at a block the caller names (a pinned read): every answering peer reads
++ *  that block, it must be fresh, unchanged across the read, and `quorum` peers must return the same hash and value. */
++export async function agreeAt(chain, block, fn) {
++  const failures = [];
++  block = BigInt(block);
++  if (block < 0n) throw new Error("negative block");
++  const results = await Promise.allSettled(chain.peers.map(async ({ client }) => {
++    const b = await client.getBlock({ blockNumber: block });
++    const t = Number(b.timestamp) * 1000;
++    if (!Number.isSafeInteger(t) || t > chain.now() + 15000 || t + chain.maxBlockAgeMs < chain.now()) throw new Error(`stale or future block ${block}`);
++    const value = await fn(client, block);
++    if ((await client.getBlock({ blockNumber: block })).hash !== b.hash) throw new Error("block replaced during the read");
++    return { hash: b.hash, timestamp: t, value, key: b.hash + agreementKey(value) };
++  }));
++  const groups = new Map();
++  results.forEach((r, i) => {
++    if (r.status !== "fulfilled") return failures.push(`${chain.host(i)}: ${short(r.reason)}`);
++    const g = groups.get(r.value.key) || []; g.push(r.value); groups.set(r.value.key, g);
++  });
++  const best = [...groups.values()].sort((a, b) => b.length - a.length)[0];
++  if (!best || best.length < chain.quorum) {
++    const e = new Error(`no ${chain.quorum} RPCs agreed at block ${block}${groups.size > 1 ? ` (${groups.size} different answers)` : ""}${failures.length ? ` (${failures.slice(0, 4).join("; ")})` : ""}`);
++    e.name = "QuorumError"; throw e;
++  }
++  if (block > chain.lastBlock) chain.lastBlock = block;
++  return { value: best[0].value, blockNumber: block, blockHash: best[0].hash, timestamp: best[0].timestamp, agreeing: best.length, peers: chain.peers.length, failures };
++}
++
++// the fields every provider returns identically (optional provider extras would make honest peers disagree)
++const logView = (l) => ({ address: String(l.address).toLowerCase(), topics: l.topics, data: l.data, blockNumber: l.blockNumber,
++  blockHash: l.blockHash, logIndex: l.logIndex, transactionHash: l.transactionHash, transactionIndex: l.transactionIndex,
++  ...(l.eventName !== undefined ? { eventName: l.eventName, args: l.args } : {}) });
++
++const view = (r) => r && ({ status: r.status, blockNumber: r.blockNumber, blockHash: r.blockHash, transactionHash: r.transactionHash, from: r.from, to: r.to,
++  contractAddress: r.contractAddress ?? null, gasUsed: r.gasUsed,
++  logs: (r.logs || []).map(logView) });
++/** The supervisor's public client in direct mode. `pin` = {block, hash}: a scoped client whose every read is that block. */
++export function directChainClient(chain, pin = null) {
++  const read = async (fn, blockNumber) => {
++    if (pin) {
++      if (blockNumber != null && BigInt(blockNumber) !== pin.block) throw new Error(`a snapshot-scoped read asked for block ${blockNumber}, not the scope's ${pin.block}`);
++      const s = await agreeAt(chain, pin.block, fn);
++      if (s.blockHash !== pin.hash) throw new Error(`block ${pin.block} changed inside one snapshot scope`);
++      return s;
++    }
++    return blockNumber != null ? agreeAt(chain, blockNumber, fn) : chain.snapshot(fn);
++  };
++  const client = {
++    chain: { id: chain.chainId }, transport: { type: "quorum" }, direct: true, quorum: chain.quorum, peers: chain.peers.length,
++    getChainId: async () => chain.chainId,
++    async getBlockNumber() { return pin ? pin.block : (await chain.snapshot(async () => ({}))).blockNumber; },
++    async getBlock({ blockNumber } = {}) {
++      const s = await read(async (c, b) => { const x = await c.getBlock({ blockNumber: b }); return { number: x.number, hash: x.hash, timestamp: x.timestamp, parentHash: x.parentHash }; }, blockNumber);
++      return { ...s.value, number: s.blockNumber, hash: s.blockHash };
++    },
++    async readContract({ address, abi, functionName, args = [], blockNumber }) {
++      return unwrap(await read(guarded((c, b) => c.readContract({ address, abi, functionName, args, blockNumber: b })), blockNumber), functionName);
++    },
++    async simulateContract(params) {
++      const { blockNumber, ...rest } = params;
++      const result = unwrap(await read(guarded(async (c, b) => (await c.simulateContract({ ...rest, blockNumber: b })).result), blockNumber), params.functionName);
++      return { result, request: { ...rest } };
++    },
++    // per-contract reads at ONE block (no Multicall3 dependency); with allowFailure only an AGREED revert is a failure
++    async multicall({ contracts, allowFailure = true, blockNumber }) {
++      const s = await read(async (c, b) => ({ list: await Promise.all(contracts.map(async (k) => {
++        try { return { ok: await c.readContract({ ...k, blockNumber: b }) }; }
++        catch (e) { if (isRevert(e) || isZeroData(e)) return { revert: reasonOf(e) }; throw e; }
++      })) }), blockNumber);
++      return s.value.list.map((x, i) => {
++        if (x.revert === undefined) return allowFailure ? { status: "success", result: x.ok } : x.ok;
++        const err = agreedRevert(contracts[i].functionName, x.revert, s.blockNumber);
++        if (!allowFailure) throw err;
++        return { status: "failure", error: err };
++      });
++    },
++    async getLogs(params) {
++      const s = await read(async (c, b) => {
++        const to = params.toBlock === undefined || params.toBlock === "latest" || BigInt(params.toBlock) > b ? b : BigInt(params.toBlock);
++        return { logs: (await c.getLogs({ ...params, toBlock: to })).map(logView) };
++      }, null);
++      return s.value.logs;
++    },
++    async getTransactionReceipt({ hash }) {
++      const s = await read(async (c, b) => {
++        let r; try { r = await c.getTransactionReceipt({ hash }); } catch (e) { if (notFound(e)) return { pending: true }; throw e; }
++        if (!r || r.blockNumber > b || (await c.getBlock({ blockNumber: r.blockNumber })).hash !== r.blockHash) return { pending: true };
++        return { receipt: view(r) };
++      }, null);
++      if (s.value.pending) throw Object.assign(new Error(`Transaction receipt with hash "${hash}" could not be found (not mined in an agreed, confirmed block).`), { name: "TransactionReceiptNotFoundError" });
++      return s.value.receipt;
++    },
++    async getTransactionCount({ address, blockNumber, blockTag }) {
++      if (blockTag === "pending") return pendingNonce(chain, address);
++      return (await read(async (c, b) => ({ n: await c.getTransactionCount({ address, blockNumber: b }) }), blockNumber)).value.n;
++    },
++    async getBalance({ address, blockNumber }) { return (await read(async (c, b) => ({ v: await c.getBalance({ address, blockNumber: b }) }), blockNumber)).value.v; },
++    async getCode({ address, blockNumber }) { return (await read(async (c, b) => ({ v: (await c.getCode({ address, blockNumber: b })) ?? null }), blockNumber)).value.v ?? undefined; },
++    async getStorageAt({ address, slot, blockNumber }) { return (await read(async (c, b) => ({ v: (await c.getStorageAt({ address, slot, blockNumber: b })) ?? null }), blockNumber)).value.v ?? undefined; },
++    async call({ blockNumber, ...rest }) { return unwrap(await read(guarded(async (c, b) => (await c.call({ ...rest, blockNumber: b })).data ?? null), blockNumber), "call"); },
++    /** Every read inside fn(client) comes from ONE agreed block (dependent reads that must not straddle blocks). */
++    async snapshotScope(fn) {
++      if (pin) return fn(client);
++      const s = await chain.snapshot(async () => ({}));
++      return fn(directChainClient(chain, { block: s.blockNumber, hash: s.blockHash }));
++    },
++  };
++  return client;
++}
++
++/** Each peer's own pending nonce for `address`: at least `quorum` answers, all the same, or it throws (a transaction may
++ *  be in flight that some peers see and others do not: never pick one). */
++export async function pendingNonce(chain, address) {
++  const ns = await chain.each((c) => c.getTransactionCount({ address, blockTag: "pending" }), "pending nonce");
++  const distinct = [...new Set(ns.map(String))];
++  if (distinct.length !== 1) { const e = new Error(`the RPCs disagree on the pending nonce (${distinct.join(", ")}); a transaction may be in flight`); e.name = "QuorumError"; throw e; }
++  return Number(ns[0]);
++}
++
++const DEFINITE = /insufficient funds|intrinsic gas|exceeds block gas|invalid sender|invalid signature|transaction type not supported|max fee per gas less than block base fee|fee cap|gas limit reached/i;
++/** The signed bytes to EVERY peer. -> hash: some peer accepted (or already knew it), or the outcome is ambiguous (then the
++ *  locally computed hash, a PENDING transaction the receipt/intent logic resolves by quorum; never re-signed or resent).
++ *  Throws only when every peer definitely refused it: nothing is pending. */
++export async function broadcastSigned(chain, raw, { log = () => {} } = {}) {
++  const hash = keccak256(raw);
++  const sent = await Promise.allSettled(chain.peers.map(({ client }) => client.request({ method: "eth_sendRawTransaction", params: [raw] })));
++  let accepted = 0, refused = 0; const reasons = [];
++  sent.forEach((r, i) => {
++    if (r.status === "fulfilled" && String(r.value).toLowerCase() === hash.toLowerCase()) return accepted++;
++    // viem keeps the node's own words in `details` (its shortMessage is generic): classify on all of it
++    const m = r.status === "fulfilled" ? `answered ${String(r.value).slice(0, 20)}`
++      : redactUrls([r.reason?.shortMessage, r.reason?.details, r.reason?.cause?.message].filter(Boolean).join(" | ")).slice(0, 300);
++    if (/already known|known transaction/i.test(m)) return accepted++;
++    if (r.status === "rejected" && DEFINITE.test(m)) refused++;
++    reasons.push(`${chain.host(i)}: ${m}`);
++  });
++  if (accepted) return hash;
++  if (refused === chain.peers.length) throw new Error(`every RPC refused the transaction; nothing is pending (${reasons.slice(0, 4).join("; ")})`);
++  log(`broadcast of ${hash} is ambiguous (${reasons.slice(0, 4).join("; ")}): treated as PENDING, resolved by quorum receipt, never resent`);
++  return hash;
++}
++
++/** viem transport for the operator's wallet client in direct mode. */
++export function quorumWalletTransport(chain, { log = () => {} } = {}) {
++  return custom({
++    async request({ method, params = [] }) {
++      if (method === "eth_chainId") return toHex(chain.chainId);
++      if (method === "eth_sendRawTransaction") return broadcastSigned(chain, params[0], { log });
++      // one RPC filling nonce, gas and fees in one answer would make that RPC choose the nonce: refused, so viem falls back
++      // to the separate calls (the nonce below is agreed; gas and fees stay estimates)
++      if (method === "eth_fillTransaction") throw Object.assign(new Error("eth_fillTransaction is not available through the direct-mode quorum transport"), { code: -32601 });
++      if (method === "eth_getTransactionCount") {
++        if (params[1] === "pending") return toHex(await pendingNonce(chain, params[0]));
++        const s = await chain.snapshot(async (c, b) => ({ n: await c.getTransactionCount({ address: params[0], blockNumber: b }) }));
++        return toHex(s.value.n);
++      }
++      // estimates and fee suggestions only: the first of the operator's own RPCs that answers (documented; not an authority)
++      let last;
++      for (const { client } of chain.peers) { try { return await client.request({ method, params }); } catch (e) { last = e; } }
++      throw last || new Error(`no RPC answered ${method}`);
++    },
++  }, { retryCount: 0 });
++}
++
++/** The supervisor's direct-mode chain from its environment. -> {chain, problems[]} (problems non-empty: refuse to start). */
++export function createDirectChain(env = process.env, { now = Date.now } = {}) {
++  const problems = [];
++  const list = String(env.BASE_RPCS || "").split(",").map((s) => s.trim()).filter(Boolean);
++  let rpcs = null;
++  try { rpcs = validateRpcOrigins(list); } catch (e) { problems.push(`BASE_RPCS: ${e.message}`); }
++  const int = (k, lo, hi, d) => { const raw = env[k]; if (raw === undefined || raw === "") return d; const n = Number(raw); if (!Number.isSafeInteger(n) || n < lo || n > hi) { problems.push(`${k} must be an integer ${lo}-${hi}`); return d; } return n; };
++  const quorum = int("CHAIN_QUORUM", 2, 8, 2), confirmations = int("CHAIN_CONFIRMATIONS", 0, 64, 2), age = int("CHAIN_MAX_BLOCK_AGE_SEC", 10, 86400, 120);
++  if (rpcs && quorum > rpcs.length) problems.push(`CHAIN_QUORUM ${quorum} exceeds the ${rpcs.length} RPCs in BASE_RPCS`);
++  if (problems.length) return { chain: null, problems };
++  return { chain: new QuorumChain({ rpcs, quorum, confirmations, maxBlockAgeMs: age * 1000, now }), problems };
++}
+--- /dev/null
++++ b/test/direct-chain-quorum-supervisor.test.mjs
+@@ -0,0 +1,255 @@
++// The REAL supervisor.js (candidate) in independent direct mode, deciding from REAL contracts on anvil (chain 8453, the
++// shared rig: schema-16 ledger, schema-4 registry, catalog) through the operator's RPC quorum (network/direct-chain.mjs),
++// behind three JSON-RPC proxies this test controls: any of them can lie about one contract call (by selector and target),
++// about the pending nonce, or about contract code. Only guestd, the package replicas and the final send of the operator's
++// transactions are scripted (DIRECT_CLAIM_SELFTEST "chain":"quorum"); every chain READ is real and agreed.
++//   * honest quorum: the direct deployment is claimed and launched;
++//   * a liar listed FIRST beside an honest majority (2 of 3): the same outcome, which no first-answer fallback would give;
++//   * for EVERY contract call the claim path reads (found from the honest run, not hand-listed): one liar with a
++//     unanimous quorum (3 of 3) refuses the claim, before any transaction;
++//   * pending-nonce disagreement: the boot fence stays unknown and a live lease is not resumed;
++//   * the host owner's wallet veto (EnclaveHostOwnership, deployed here): deny, owner choice over Enclave catalog refusal,
++//     no owner, stale revision / replayed old policy, wrong code, another host's config, disagreeing peers, and an
++//     independent host without a wallet policy that keeps accepting.
++// Only anvil's published dev keys are used. Nothing leaves 127.0.0.1.
++import test, { before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import { execFile } from "node:child_process";
++import { promisify } from "node:util";
++import { fileURLToPath } from "node:url";
++import { keccak256, toFunctionSelector, parseUnits, encodeDeployData, getAddress, toHex } from "viem";
++import { privateKeyToAccount } from "viem/accounts";
++import { startRig, haveTools, KEYS, freePort } from "./helpers/cli-independent-rig.mjs";
++import { startLyingPeers } from "./helpers/lying-peers.mjs";
++import { preparePackage } from "../sdk/bootstrap/package.mjs";
++import { hostAdmissionPolicyHash } from "../network/host-admission-policy.mjs";
++import { artifactIdentity } from "../sdk/storage/unixfs.mjs";
++const cidOf = (text) => artifactIdentity(new Uint8Array(Buffer.from(text))).cid;
++
++const exec = promisify(execFile);
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const skip = haveTools();
++const T = skip ? { skip } : { timeout: 600000 };
++const OUT = path.join(REPO, "contracts", "foundry", "out");
++const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, name + ".json"), "utf8")); return { abi: j.abi, bytecode: j.bytecode.object, runtime: j.deployedBytecode.object }; };
++const ZERO = "0x" + "00".repeat(20), tier = "snp-guest-per-app", RUNTIME = "55".repeat(32);
++const A = "http://192.0.2.10:8189/ipfs", B = "http://192.0.2.11:8189/ipfs";
++const health = { backend: tier, catalog: { runtimeId: RUNTIME, derivations: ["enclave-catalog-bundle/1"] }, supports: { directBootstrap: true, gpu: false, protectedPorts: true },
++  pool: { budget: { memMiB: 32768, cpuPct: 800 }, allocated: { memMiB: 0, cpuPct: 0 }, free: { memMiB: 32768, cpuPct: 800 }, guests: 0, overcommitted: false,
++    perGuest: { floorMiB: 1024, runtimeMiB: 384, unitOverheadMiB: 768 }, hostAvailableMiB: 65536, hostFloorMiB: 16384 } };
++
++let rig, tmp, peers, ownership, ownershipCode;
++const sel = (sig) => toFunctionSelector(sig).toLowerCase();
++
++// ---- a funded, owner-committed direct deployment on the real ledger ----------------------------------------------------
++async function directDeployment({ appRef = rig.directRef } = {}) {
++  const L = rig.addresses.ledger, abi = rig.A.ledger.abi, ownerW = rig.wc(KEYS.owner);
++  const rc = await rig.write(ownerW, L, abi, "create", [appRef, 0, 100, 8080, "http:8080", true, "", ZERO, 0n, 100000n]);
++  const id = rig.createdId(rc);
++  const manifest = { version: 1, chainId: 8453, ledger: L.toLowerCase(), deployment: id.toLowerCase(), owner: rig.owner, appRef,
++    appId: "45".repeat(32), runtimeId: RUNTIME, configText: '{"endpoint":"https://owner-chosen.example"}', secretsMode: "public" };
++  const pkg = preparePackage(manifest);
++  await rig.write(ownerW, L, abi, "setConfig", [id, JSON.stringify({ guestBootstrap: pkg.intent })]);
++  await rig.write(ownerW, rig.addresses.usdc, rig.A.usdc.abi, "approve", [L, parseUnits("1", 6)]);
++  await rig.write(ownerW, L, abi, "fund", [id, parseUnits("1", 6)]);
++  return { id, pkg };
++}
++
++function env(extra = {}) {
++  const dir = fs.mkdtempSync(path.join(tmp, "sup-"));
++  const pins = path.join(dir, "pins.json"); fs.writeFileSync(pins, JSON.stringify(rig.pins));
++  return { PATH: process.env.PATH, HOME: dir, SECRET: "ab".repeat(32), ENABLE_MPS: "0", STATE_FILE: path.join(dir, "state.json"), SESSION_KEY_DIR: path.join(dir, "session"),
++    ISOLATION_DIRECT_ONLY: "1", ISOLATION_BACKEND: tier, PROVISION_BACKEND: "vm", ENCLAVE_CONTRACT_PINS_FILE: pins, ADDRESS_BOOK_ADDRESS: "",
++    SECRETS_API: "", DOMAINS_API: "", CERTS_API: "", DNS_API: "", APP_CERT_DOMAIN: "", ISOLATION_RELEASE: "",
++    GUEST_BOOTSTRAP_GATEWAYS: `${A},${B}`, IPFS_GATEWAY: JSON.stringify([A, B].map((g) => new URL(g).origin)),
++    REGISTRY_ENABLED: "1", REGISTRY_PRIVATE_KEY: KEYS.operator, ENCLAVE_REPO: "independent/host", CLAIM_ENABLED: "1", SELL_CPU_PRICE6: "1000",
++    BASE_RPCS: peers.map((p) => p.url).join(","), CHAIN_QUORUM: "2", CHAIN_CONFIRMATIONS: "0", CHAIN_MAX_BLOCK_AGE_SEC: "60", ...extra };
++}
++async function sweep(ids, { extra = {}, bytes } = {}) {
++  const config = { chain: "quorum", hint: true, ids, health, appId: "45".repeat(32), bytes, enclaveId: rig.runner, endpoint: rig.endpoint,
++    leaseUntil: Math.floor(Date.now() / 1000) + 3600, replicas: { [A]: "serve", [B]: "serve" } };
++  const e = env(extra); for (const k of Object.keys(e)) if (e[k] === undefined) delete e[k];
++  const { stdout, stderr } = await exec(process.execPath, ["supervisor.js"], { cwd: REPO, timeout: 120000, maxBuffer: 8 << 20,
++    env: { ...e, DIRECT_CLAIM_SELFTEST: JSON.stringify(config) } }).catch((x) => { throw new Error((x.stderr || x.message).slice(-4000)); });
++  const line = stdout.trim().split("\n").reverse().find((l) => l.startsWith('{"calls"'));
++  if (!line) throw new Error("the supervisor printed no result:\n" + (stdout + stderr).slice(-3000));
++  return { ...JSON.parse(line), log: stdout + stderr };
++}
++const claimed = (out, id) => out.txs.some((t) => t.functionName === "claim" && t.args[0].toLowerCase() === id.toLowerCase());
++
++before(async () => {
++  if (skip) return;
++  tmp = fs.mkdtempSync(path.join(os.tmpdir(), "direct-quorum-"));
++  rig = await startRig();
++  peers = await startLyingPeers(rig.rpc, { stops: rig.stops });
++  // the host-ownership contract, on the rig's registry; its code hash is what an operator pins from the reviewed profile
++  const O = art("EnclaveHostOwnership.sol", "EnclaveHostOwnership");
++  ownership = await rig.deploy({ abi: O.abi, bytecode: O.bytecode, linkReferences: {} }, [rig.addresses.registry]);
++  ownershipCode = keccak256(await rig.pc.getCode({ address: ownership }));
++  rig.O = O;
++  // the direct app: published by the catalog owner (approved on publish), on a port this supervisor serves
++  await rig.write(rig.wc(KEYS.deployer), rig.addresses.catalog, rig.A.catalog.abi, "publishVersion", ["directapp", "Direct app", "a direct test app", "1",
++    cidOf("direct app component"), [0, 0, 64, 1], "", "{}", 0n]);
++  const directId = await rig.pc.readContract({ address: rig.addresses.catalog, abi: rig.A.catalog.abi, functionName: "appIdOf", args: [privateKeyToAccount(KEYS.deployer).address, "directapp"] });
++  rig.directRef = `catalog://${directId}/0`;
++});
++after(async () => { await rig?.stop(); if (tmp) fs.rmSync(tmp, { recursive: true, force: true }); });
++
++let authoritySelectors = null;
++test("honest quorum: the direct deployment is claimed and launched; every read is agreed, only pinned contracts are read", T, async () => {
++  peers.honest();
++  const { id, pkg } = await directDeployment();
++  const out = await sweep([id], { bytes: pkg.bytes.toString("base64"), extra: { CHAIN_QUORUM: "3" } });
++  assert.equal(out.fence, "clear", JSON.stringify(out));
++  assert.ok(claimed(out, id), JSON.stringify(out.declines));
++  assert.equal(out.records[id]?.status, "running", JSON.stringify(out));
++  assert.ok(out.calls.every((u) => u.startsWith(A + "/") || u.startsWith(B + "/")), "no fetch but the operator's replicas: " + JSON.stringify(out.calls));
++  const pinned = new Set([rig.addresses.ledger, rig.addresses.catalog, rig.addresses.registry].map((x) => x.toLowerCase()));
++  const calls = peers.flatMap((p) => p.ctl.calls.filter((c) => c.method === "eth_call"));
++  assert.ok(calls.length > 0 && calls.every((c) => pinned.has(c.to)), JSON.stringify([...new Set(calls.map((c) => c.to))]));
++  // every peer answered the same calls: three votes per read, nothing asked of one RPC alone
++  const per = peers.map((p) => p.ctl.calls.filter((c) => c.method === "eth_call").length);
++  assert.ok(per.every((n) => n > 0), JSON.stringify(per));
++  authoritySelectors = [...new Map(calls.map((c) => [c.to + c.sel, c])).values()];
++});
++
++test("a liar listed FIRST beside an honest majority (2 of 3) cannot change the outcome: no first-answer read", T, async () => {
++  peers.honest(); peers[0].ctl.lies = [{}];            // peer 0 lies on EVERY eth_call
++  const { id, pkg } = await directDeployment();
++  const out = await sweep([id], { bytes: pkg.bytes.toString("base64"), extra: { CHAIN_QUORUM: "2" } });
++  assert.ok(claimed(out, id), JSON.stringify(out.declines));
++  assert.equal(out.records[id]?.status, "running");
++});
++
++test("every contract call the claim path makes, contradicted by one peer under a unanimous quorum, refuses the claim before any transaction", T, async () => {
++  assert.ok(authoritySelectors?.length >= 5, "the honest run found the claim path's reads");
++  const failures = [];
++  for (const call of authoritySelectors) {
++    peers.honest(); peers[1].ctl.lies = [{ to: call.to, sel: call.sel }];
++    const { id, pkg } = await directDeployment();
++    const out = await sweep([id], { bytes: pkg.bytes.toString("base64"), extra: { CHAIN_QUORUM: "3" } });
++    if (claimed(out, id) || out.posted.length) failures.push(`${call.to}:${call.sel} still claimed`);
++    // the reason is the sweep's decline, or (the claim-bond gate, which refuses inside tryClaim) the supervisor's log line
++    else assert.ok(out.declines[id] || /\[bond\] cannot satisfy the claim bond .*not claiming/.test(out.log), `${call.to}:${call.sel} has a stated reason`);
++  }
++  assert.deepEqual(failures, [], `authority reads covered: ${authoritySelectors.map((c) => c.sel).join(",")}`);
++});
++
++test("pending-nonce disagreement: the boot fence stays unknown and this host's live lease is not resumed", T, async () => {
++  peers.honest();
++  const { id, pkg } = await directDeployment();
++  // this operator holds a live lease on chain (a previous life of the host)
++  await rig.write(rig.wc(KEYS.operator), rig.addresses.ledger, rig.A.ledger.abi, "claim", [id, rig.runner]);
++  peers[2].ctl.nonce = true;
++  const out = await sweep([id], { bytes: pkg.bytes.toString("base64"), extra: { CHAIN_QUORUM: "3" } });
++  assert.equal(out.fence, "unknown");
++  assert.match(out.declines[id] || "", /not resolved yet \(unknown\); not resuming/);
++  assert.equal(out.posted.length, 0); assert.equal(out.txs.length, 0);
++  // with agreement the same lease IS resumed (no transaction: it is already this host's)
++  peers.honest();
++  const ok = await sweep([id], { bytes: pkg.bytes.toString("base64"), extra: { CHAIN_QUORUM: "3" } });
++  assert.equal(ok.fence, "clear"); assert.equal(ok.records[id]?.status, "running", JSON.stringify(ok)); assert.equal(ok.txs.length, 0);
++});
++
++// ---- the host owner's wallet veto --------------------------------------------------------------------------------------
++const policy = (o = {}) => ({ version: 1, chainId: 8453, ownershipContract: ownership.toLowerCase(), hostId: rig.runner.toLowerCase(),
++  requireCatalogApproval: false, denyDeployments: [], denyAppRefs: [], ...o });
++function policyDir(docs) {
++  const d = fs.mkdtempSync(path.join(tmp, "pol-"));
++  for (const p of docs) fs.writeFileSync(path.join(d, hostAdmissionPolicyHash(p) + ".json"), JSON.stringify(p));
++  return d;
++}
++const walletEnv = (dir, o = {}) => ({ ENCLAVE_HOST_OWNERSHIP: ownership.toLowerCase(), ENCLAVE_HOST_REGISTRY_PIN: rig.pins.contracts.registry,
++  ENCLAVE_HOST_CATALOG_PIN: rig.pins.contracts.appCatalog, ENCLAVE_HOST_POLICY_DIR: dir, ENCLAVE_HOST_ID: rig.runner.toLowerCase(),
++  ENCLAVE_HOST_OWNERSHIP_CODEHASH: ownershipCode, CHAIN_QUORUM: "3", ...o });
++const ownWrite = (who, fn, args) => rig.write(rig.wc(who), ownership, rig.O.abi, fn, args);
++
++test("wallet veto: no owner refuses everything; the owner's committed policy decides; the CURRENT revision only", T, async () => {
++  peers.honest();
++  const { id, pkg } = await directDeployment();
++  const deny = policy({ denyDeployments: [id.toLowerCase()] }), open = policy();
++  const run = (dir, o) => sweep([id], { bytes: pkg.bytes.toString("base64"), extra: walletEnv(dir, o) });
++  // nominated but not accepted: no owner on chain -> every deployment refused, stated
++  await ownWrite(KEYS.operator, "proposeOwner", [rig.runner, privateKeyToAccount(KEYS.other).address]);
++  let out = await run(policyDir([deny, open]));
++  assert.ok(!claimed(out, id)); assert.match(out.declines[id], /host wallet policy unavailable/);
++  // the wallet accepts; no policy committed (hash 0): accepted, nothing denied
++  await ownWrite(KEYS.other, "acceptOwner", [rig.runner]);
++  out = await run(policyDir([]));
++  assert.ok(claimed(out, id), JSON.stringify(out.declines));
++  // the owner commits the deny policy: refused by the owner's word
++  await ownWrite(KEYS.other, "setPolicy", [rig.runner, hostAdmissionPolicyHash(deny)]);
++  out = await run(policyDir([deny]));
++  assert.ok(!claimed(out, id)); assert.match(out.declines[id], /this host owner declines this deployment/);
++  // a new revision (the open policy) while the guest still holds only the OLD document: refused until the current one is there
++  await ownWrite(KEYS.other, "setPolicy", [rig.runner, hostAdmissionPolicyHash(open)]);
++  out = await run(policyDir([deny]));
++  assert.ok(!claimed(out, id)); assert.match(out.declines[id], /host wallet policy unavailable/);
++  out = await run(policyDir([deny, open]));
++  assert.ok(claimed(out, id), "the current revision's document applies, the replayed old one is ignored: " + JSON.stringify(out.declines));
++});
++
++test("wallet veto fails closed on wrong code, another host's config and disagreeing peers; Enclave catalog refusal is the owner's to override", T, async () => {
++  peers.honest();
++  const { id, pkg } = await directDeployment();
++  const dir = policyDir([policy()]);
++  const run = (o, ids = [id], b = pkg) => sweep(ids, { bytes: b.bytes.toString("base64"), extra: walletEnv(dir, o) });
++  assert.ok(claimed(await run({}), id), "baseline: the open policy accepts");
++  let out = await run({ ENCLAVE_HOST_OWNERSHIP_CODEHASH: keccak256("0x00") });
++  assert.ok(!claimed(out, id)); assert.match(out.declines[id], /does not carry the reviewed code/);
++  out = await run({ ENCLAVE_HOST_ID: "0x" + "77".repeat(32) });
++  assert.ok(!claimed(out, id)); assert.match(out.declines[id], /belongs to another host/);
++  peers[0].ctl.lies = [{ to: ownership.toLowerCase() }];
++  out = await run({});
++  assert.ok(!claimed(out, id)); assert.match(out.declines[id], /host wallet policy unavailable/);
++  peers.honest(); peers[2].ctl.code = true;
++  out = await run({});
++  assert.ok(!claimed(out, id), "a peer reporting other code is a disagreement, refused");
++  peers.honest();
++  // an app the Enclave catalog has NOT approved (published by someone other than the catalog owner: pending)
++  await rig.write(rig.wc(KEYS.other), rig.addresses.catalog, rig.A.catalog.abi, "publishVersion", ["pendingapp", "Pending", "unapproved", "1",
++    cidOf("pending app component"), [0, 0, 64, 1], "", "{}", 0n]);
++  const pendingId = await rig.pc.readContract({ address: rig.addresses.catalog, abi: rig.A.catalog.abi, functionName: "appIdOf", args: [privateKeyToAccount(KEYS.other).address, "pendingapp"] });
++  const pend = await directDeployment({ appRef: `catalog://${pendingId}/0` });
++  out = await run({}, [pend.id], pend.pkg);
++  assert.ok(claimed(out, pend.id), "the owner's policy (no catalog requirement) accepts what Enclave's catalog has not approved: " + JSON.stringify(out.declines));
++  const strict = policyDir([policy({ requireCatalogApproval: true })]);
++  await ownWrite(KEYS.other, "setPolicy", [rig.runner, hostAdmissionPolicyHash(policy({ requireCatalogApproval: true }))]);
++  out = await sweep([pend.id], { bytes: pend.pkg.bytes.toString("base64"), extra: walletEnv(strict) });
++  assert.ok(!claimed(out, pend.id)); assert.match(out.declines[pend.id], /requires current catalog approval/);
++  // without any wallet policy, catalog approval governs as it always has
++  out = await sweep([pend.id], { bytes: pend.pkg.bytes.toString("base64"), extra: { CHAIN_QUORUM: "3" } });
++  assert.ok(!claimed(out, pend.id)); assert.match(out.declines[pend.id], /not_approved|approv/i);
++  await ownWrite(KEYS.other, "setPolicy", [rig.runner, hostAdmissionPolicyHash(policy())]);
++});
++
++test("an independent host with no wallet policy keeps accepting what another host's owner denies", T, async () => {
++  peers.honest();
++  const { id, pkg } = await directDeployment();
++  // a SECOND host, with its own owner who denies this deployment there
++  const other = "https://second.independent.test", otherId = keccak256(toHex(other));
++  await rig.write(rig.wc(KEYS.deployer), rig.addresses.registry, rig.A.registry4.abi, "register", [other, "independent/host", "0x" + "00".repeat(32), 1000n, 0n, ZERO]);
++  await ownWrite(KEYS.deployer, "proposeOwner", [otherId, privateKeyToAccount(KEYS.owner).address]);
++  await ownWrite(KEYS.owner, "acceptOwner", [otherId]);
++  const theirs = { ...policy({ denyDeployments: [id.toLowerCase()] }), hostId: otherId.toLowerCase() };
++  await ownWrite(KEYS.owner, "setPolicy", [otherId, hostAdmissionPolicyHash(theirs)]);
++  // this host: no wallet configuration at all -> unaffected by any wallet
++  const out = await sweep([id], { bytes: pkg.bytes.toString("base64"), extra: { CHAIN_QUORUM: "3" } });
++  assert.ok(claimed(out, id), JSON.stringify(out.declines));
++  // and a local file cannot import that policy into this host: it is committed for another host id
++  const out2 = await sweep([id], { bytes: pkg.bytes.toString("base64"), extra: walletEnv(policyDir([theirs, policy()])) });
++  assert.ok(claimed(out2, id), "this host's own owner commitment decides, not a file naming another host: " + JSON.stringify(out2.declines));
++});
++
++test("direct mode refuses to start without a quorum of the operator's RPCs or an ownership code pin", T, async () => {
++  for (const [extra, why] of [[{ BASE_RPCS: "" }, /BASE_RPCS/], [{ BASE_RPCS: peers[0].url }, /BASE_RPCS/], [{ CHAIN_QUORUM: "4" }, /CHAIN_QUORUM 4 exceeds/],
++    [{ ENCLAVE_HOST_OWNERSHIP: ownership.toLowerCase(), ENCLAVE_HOST_REGISTRY_PIN: rig.pins.contracts.registry, ENCLAVE_HOST_CATALOG_PIN: rig.pins.contracts.appCatalog, ENCLAVE_HOST_POLICY_DIR: tmp }, /ENCLAVE_HOST_OWNERSHIP_CODEHASH must pin/]]) {
++    const e = env(extra);
++    const r = await exec(process.execPath, ["supervisor.js"], { cwd: REPO, env: { ...e, DIRECT_CLAIM_SELFTEST: "{}" }, timeout: 60000 }).then(() => null, (x) => x);
++    assert.equal(r?.code, 2, why.source); assert.match(r.stderr, why);
++  }
++});
+--- /dev/null
++++ b/test/direct-chain-transport.test.mjs
+@@ -0,0 +1,118 @@
++// network/direct-chain.mjs against a REAL chain (anvil, chain 8453, one block per second) behind three proxies that can
++// lose answers, refuse, or lie (test/helpers/lying-peers.mjs). The supervisor's write path in direct mode:
++//   * the signed bytes go to every peer exactly once; a lost answer is a PENDING transaction (the local hash), never an
++//     error that invites a second signature, and the agreed receipt then decides;
++//   * every peer definitely refusing is a definite failure: nothing is pending, the nonce does not move;
++//   * the nonce is the AGREED pending nonce: one peer disagreeing stops the transaction before it is signed or sent;
++//   * reads: logs agreed or refused, a snapshot scope reads ONE block, an agreed revert is a fact.
++// Only anvil's published dev keys are used.
++import test, { before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import { spawn, execFileSync } from "node:child_process";
++import { fileURLToPath } from "node:url";
++import { createPublicClient, createWalletClient, http, encodeDeployData, keccak256, parseAbi, getAddress } from "viem";
++import { privateKeyToAccount } from "viem/accounts";
++import { startLyingPeers } from "./helpers/lying-peers.mjs";
++import { freePort } from "./helpers/cli-independent-rig.mjs";
++import { createDirectChain, directChainClient, quorumWalletTransport, broadcastSigned, pendingNonce } from "../network/direct-chain.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const OUT = path.join(REPO, "contracts", "foundry", "out");
++const skip = (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); } catch { return "needs anvil"; }
++  return fs.existsSync(path.join(OUT, "SessionMocks.sol", "MockUSDC3009.json")) ? null : "needs the Foundry build"; })();
++const T = skip ? { skip } : { timeout: 120000 };
++const KEY = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a";   // anvil #2 (published)
++const ME = privateKeyToAccount(KEY);
++const local = { id: 8453, name: "local", nativeCurrency: { name: "E", symbol: "E", decimals: 18 }, rpcUrls: { default: { http: [] } } };
++let anvil, rpc, pc, usdc, peers, stops = [];
++const art = JSON.parse(fs.readFileSync(path.join(OUT, "SessionMocks.sol", "MockUSDC3009.json"), "utf8"));
++const ERC20 = parseAbi(["function mint(address,uint256)", "function balanceOf(address) view returns (uint256)", "function transfer(address,uint256) returns (bool)",
++  "event Transfer(address indexed from, address indexed to, uint256 value)"]);
++
++const chainOf = (q) => createDirectChain({ BASE_RPCS: peers.map((p) => p.url).join(","), CHAIN_QUORUM: String(q), CHAIN_CONFIRMATIONS: "0", CHAIN_MAX_BLOCK_AGE_SEC: "60" });
++const sendRaw = (p) => p.ctl.calls.filter((c) => c.method === "eth_sendRawTransaction").length;
++async function signedTransfer(n) {
++  const nonce = await pc.getTransactionCount({ address: ME.address });
++  return ME.signTransaction({ chainId: 8453, type: "eip1559", to: ME.address, value: BigInt(n), nonce, gas: 21000n, maxFeePerGas: 10n ** 10n, maxPriorityFeePerGas: 1n });
++}
++async function mined(hash, ms = 15000) { for (const t0 = Date.now(); Date.now() - t0 < ms;) { const r = await pc.getTransactionReceipt({ hash }).catch(() => null); if (r) return r; await new Promise((ok) => setTimeout(ok, 200)); } return null; }
++
++before(async () => {
++  if (skip) return;
++  const port = await freePort();
++  anvil = spawn("anvil", ["--port", String(port), "--chain-id", "8453", "--block-time", "1", "--silent"], { stdio: "ignore" });
++  rpc = `http://127.0.0.1:${port}`;
++  pc = createPublicClient({ chain: local, transport: http(rpc) });
++  for (let i = 0; i < 100; i++) { try { await pc.getChainId(); break; } catch { await new Promise((ok) => setTimeout(ok, 100)); } }
++  const w = createWalletClient({ chain: local, account: privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"), transport: http(rpc) });
++  const rc = await pc.waitForTransactionReceipt({ hash: await w.sendTransaction({ data: encodeDeployData({ abi: art.abi, bytecode: art.bytecode.object }) }) });
++  usdc = getAddress(rc.contractAddress);
++  peers = await startLyingPeers(rpc, { stops });
++});
++after(async () => { for (const s of stops) await s(); anvil?.kill("SIGKILL"); });
++
++test("a lost broadcast answer is a PENDING transaction: the same bytes once per peer, never an error, and the agreed receipt decides", T, async () => {
++  peers.honest(); for (const p of peers) p.ctl.send = "lost";
++  const { chain } = chainOf(3);
++  const raw = await signedTransfer(1), logs = [];
++  const hash = await broadcastSigned(chain, raw, { log: (m) => logs.push(m) });
++  assert.equal(hash, keccak256(raw)); assert.match(logs[0], /ambiguous.*PENDING.*never resent/);
++  assert.deepEqual(peers.map(sendRaw), [1, 1, 1], "each peer got the bytes exactly once");
++  assert.ok(await mined(hash), "it did reach the chain");
++  const c = directChainClient(chain);
++  let r = null; for (let i = 0; i < 40 && !r; i++) { r = await c.getTransactionReceipt({ hash }).catch(() => null); if (!r) await new Promise((ok) => setTimeout(ok, 250)); }
++  assert.equal(r?.status, "success"); assert.equal(r.transactionHash, hash);
++});
++
++test("every peer definitely refusing is definite: it throws, nothing is pending, the nonce does not move", T, async () => {
++  peers.honest(); for (const p of peers) p.ctl.send = "refuse";
++  const { chain } = chainOf(2);
++  const before = await pc.getTransactionCount({ address: ME.address });
++  await assert.rejects(broadcastSigned(chain, await signedTransfer(2)), /every RPC refused the transaction; nothing is pending/);
++  await new Promise((ok) => setTimeout(ok, 1500));
++  assert.equal(await pc.getTransactionCount({ address: ME.address }), before);
++  peers.honest(); peers[0].ctl.send = "refuse"; peers[1].ctl.send = "lost";
++  const hash = await broadcastSigned(chain, await signedTransfer(3));
++  assert.ok(await mined(hash), "one accepting peer is enough to know it is in flight");
++});
++
++test("the operator wallet's nonce is the AGREED pending nonce: one disagreeing peer stops the transaction before it is signed or sent", T, async () => {
++  peers.honest();
++  const { chain } = chainOf(3);
++  const wallet = createWalletClient({ chain: local, account: ME, transport: quorumWalletTransport(chain) });
++  const hash = await wallet.writeContract({ address: usdc, abi: ERC20, functionName: "mint", args: [ME.address, 5n] });
++  assert.ok((await mined(hash))?.status === "success");
++  assert.equal(await pendingNonce(chain, ME.address), await pc.getTransactionCount({ address: ME.address, blockTag: "pending" }));
++  peers.honest(); peers[1].ctl.nonce = true;
++  const before = await pc.getTransactionCount({ address: ME.address });
++  await assert.rejects(wallet.writeContract({ address: usdc, abi: ERC20, functionName: "mint", args: [ME.address, 6n] }), /disagree on the pending nonce/);
++  assert.deepEqual(peers.map(sendRaw), [0, 0, 0], "nothing was broadcast");
++  assert.equal(await pc.getTransactionCount({ address: ME.address }), before);
++});
++
++test("reads: logs agree or refuse; a snapshot scope reads ONE block; an agreed revert is a fact with viem's wording", T, async () => {
++  peers.honest();
++  const w = createWalletClient({ chain: local, account: ME, transport: http(rpc) });
++  for (const n of [7n, 8n]) await mined(await w.writeContract({ address: usdc, abi: ERC20, functionName: "mint", args: [ME.address, n] }));
++  await new Promise((ok) => setTimeout(ok, 1500));
++  const event = ERC20.find((x) => x.name === "Transfer");
++  peers[2].ctl.logs = true;
++  await assert.rejects(directChainClient(chainOf(3).chain).getLogs({ address: usdc, event, fromBlock: 0n }), /no 3 RPCs agreed/);
++  const agreed = await directChainClient(chainOf(2).chain).getLogs({ address: usdc, event, fromBlock: 0n });
++  const truth = await pc.getLogs({ address: usdc, event, fromBlock: 0n, toBlock: BigInt(agreed.at(-1).blockNumber) });
++  assert.equal(agreed.length, truth.length, "the honest two agree; the dropping peer is outvoted");
++  peers.honest();
++  const c = directChainClient(chainOf(3).chain);
++  await c.snapshotScope(async (s) => {
++    await s.readContract({ address: usdc, abi: ERC20, functionName: "balanceOf", args: [ME.address] });
++    await new Promise((ok) => setTimeout(ok, 1500));   // a new block arrives in between
++    await s.readContract({ address: usdc, abi: ERC20, functionName: "balanceOf", args: [usdc] });
++  });
++  const blocks = new Set(peers.flatMap((p) => p.ctl.calls.filter((x) => x.method === "eth_call").map((x) => JSON.stringify(x.params[1]))));
++  assert.equal(blocks.size, 1, "both reads, on every peer, at the scope's block: " + [...blocks].join(","));
++  const revertAbi = parseAbi(["function transfer(address,uint256) returns (bool)"]);
++  const e = await c.simulateContract({ address: usdc, abi: revertAbi, functionName: "transfer", args: [ME.address, 10n ** 30n], account: privateKeyToAccount(KEY) }).catch((x) => x);
++  assert.equal(e.agreedRevert, true); assert.match(e.shortMessage, /reverted/);
++});
+--- /dev/null
++++ b/test/helpers/lying-peers.mjs
+@@ -0,0 +1,52 @@
++// test/helpers/lying-peers.mjs: JSON-RPC proxies in front of one anvil, each able to lie, for quorum tests
++// (test/direct-chain-quorum-supervisor.test.mjs, test/direct-chain-transport.test.mjs). Per proxy, `ctl`:
++//   lies:   [{to?, sel?}]  eth_call answers to that target/selector come back changed (the last nibble of the FIRST word:
++//                          a bool or number changes; a dynamic tuple's offset breaks its decoding)
++//   nonce:  true           eth_getTransactionCount "pending" answers one more than the chain says
++//   code:   true           eth_getCode answers the code with a byte appended
++//   logs:   true           eth_getLogs answers drop their last log
++//   send:   "ok" | "lost" | "refuse"   eth_sendRawTransaction: forwarded; "lost" forwards and then answers 502;
++//                          "refuse" never forwards and answers a definite refusal (insufficient funds)
++//   calls:  [{method, to, sel, params}]  every request this proxy saw
++import http from "node:http";
++import { toHex } from "viem";
++
++export async function startLyingPeers(upstream, { n = 3, stops = [] } = {}) {
++  const out = [];
++  for (let i = 0; i < n; i++) {
++    const ctl = { lies: [], nonce: false, code: false, logs: false, send: "ok", calls: [] };
++    const srv = http.createServer(async (req, res) => {
++      const chunks = []; for await (const c of req) chunks.push(c);
++      const raw = Buffer.concat(chunks).toString(), q = JSON.parse(raw), qs = [q].flat();
++      for (const m of qs) { const p0 = m.params?.[0] || {}; ctl.calls.push({ method: m.method, to: String(p0.to || "").toLowerCase() || null, sel: String(p0.data || p0.input || "").slice(0, 10).toLowerCase() || null, params: m.params }); }
++      if (qs.some((m) => m.method === "eth_sendRawTransaction")) {
++        if (ctl.send === "refuse") {
++          const refused = (m) => ({ jsonrpc: "2.0", id: m.id, error: { code: -32000, message: "insufficient funds for gas * price + value" } });
++          res.writeHead(200, { "content-type": "application/json" });
++          return res.end(JSON.stringify(Array.isArray(q) ? qs.map(refused) : refused(q)));
++        }
++        if (ctl.send === "lost") { await fetch(upstream, { method: "POST", headers: { "content-type": "application/json" }, body: raw }); res.writeHead(502); return res.end(); }
++      }
++      const r = await fetch(upstream, { method: "POST", headers: { "content-type": "application/json" }, body: raw });
++      const answers = [await r.json()].flat();
++      answers.forEach((j, k) => {
++        const m = qs[k], p0 = m.params?.[0] || {};
++        if (m.method === "eth_call") {
++          const to = String(p0.to || "").toLowerCase(), s4 = String(p0.data || p0.input || "").slice(0, 10).toLowerCase();
++          const lie = ctl.lies.find((l) => (!l.to || l.to === to) && (!l.sel || l.sel === s4));
++          if (lie && typeof j.result === "string" && j.result.length >= 66) j.result = j.result.slice(0, 65) + (j.result[65] === "0" ? "1" : "0") + j.result.slice(66);
++        }
++        if (ctl.nonce && m.method === "eth_getTransactionCount" && m.params?.[1] === "pending" && typeof j.result === "string") j.result = toHex(BigInt(j.result) + 1n);
++        if (ctl.code && m.method === "eth_getCode" && typeof j.result === "string") j.result = j.result + "00";
++        if (ctl.logs && m.method === "eth_getLogs" && Array.isArray(j.result) && j.result.length) j.result = j.result.slice(0, -1);
++      });
++      res.writeHead(200, { "content-type": "application/json" });
++      res.end(JSON.stringify(Array.isArray(q) ? answers : answers[0]));
++    });
++    await new Promise((ok) => srv.listen(0, "127.0.0.1", ok));
++    stops.push(() => new Promise((ok) => { srv.closeAllConnections?.(); srv.close(() => ok()); }));
++    out.push({ url: `http://127.0.0.1:${srv.address().port}`, ctl });
++  }
++  out.honest = () => { for (const p of out) Object.assign(p.ctl, { lies: [], nonce: false, code: false, logs: false, send: "ok", calls: [] }); };
++  return out;
++}
+--- /dev/null
++++ b/test/cli-host-measured-control.test.mjs
+@@ -0,0 +1,175 @@
++// cli/host-independent-lifecycle.mjs with work/measured-control-integration/lifecycle.patch applied: a plan whose supervisor
++// runs in the MEASURED control guest. Belongs at test/cli-host-measured-control.test.mjs once the patch lands; until then it
++// runs in a scratch copy of the tree with the patch applied. Disposable keys only; nothing leaves 127.0.0.1.
++//   * init records the owner's measurements, TCB floor, image and OVMF; refuses combinations it cannot derive honestly;
++//   * install writes the guest's direct config and the launcher config, and the REAL metal/enclave-metal.mjs (fake QEMU)
++//     accepts them: the measured cmdline token, the config in fw_cfg and HOST_DATA binding exactly that config;
++//   * check reports the control row from metal/measured-control-verify.mjs: READY only for "verified".
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import net from "node:net";
++import path from "node:path";
++import { spawn } from "node:child_process";
++import { fileURLToPath } from "node:url";
++import * as viem from "viem";
++import { privateKeyToAccount } from "viem/accounts";
++import { hostLifecycle, loadPlan, planTrust, directControlConfig, controlLauncherConfig, readinessRows } from "../cli/host-independent-lifecycle.mjs";
++import * as MC from "../metal/guest/measured-control.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const PROFILE = path.join(REPO, "contracts/deployments/network-profile-base.json");
++const PROFILE_DIGEST = "sha256:ee957827032cf7208434e4c73f9e859a27e4fc5c6cab5f4a2153308c09eb4cb8";
++const MEAS = "77".repeat(48);
++function scratch(t) { const d = fs.mkdtempSync(path.join(os.tmpdir(), "host-measured-")); t.after(() => fs.rmSync(d, { recursive: true, force: true })); return d; }
++async function cli(argv, opts = {}) {
++  const out = [], err = [];
++  const code = await hostLifecycle(argv, { out: (s) => out.push(s), err: (s) => err.push(s), env: { HOME: "/nonexistent", ...opts.env }, ...opts.deps });
++  return { code, out: out.join("\n"), err: err.join("\n") };
++}
++function setup(d) {
++  const img = path.join(d, "image"); fs.mkdirSync(img); fs.writeFileSync(path.join(img, "vmlinuz"), "k"); fs.writeFileSync(path.join(img, "initramfs.cpio.gz"), "i");
++  fs.writeFileSync(path.join(d, "ovmf.fd"), "firmware");
++  fs.writeFileSync(path.join(d, "min-tcb.json"), JSON.stringify({ Turin: { fmc: 1, bootloader: 3, tee: 2, snp: 5, microcode: 117 } }));
++  return { img, ovmf: path.join(d, "ovmf.fd"), minTcb: path.join(d, "min-tcb.json") };
++}
++const initArgs = (dir, s, extra = []) => ["init", "--dir", dir, "--profile", PROFILE, "--profile-digest", PROFILE_DIGEST, "--rpc", "https://rpc-a.example,https://rpc-b.example",
++  "--public-url", "https://host.example.org", "--repo", "example/enclave", "--release-id", "a".repeat(64), "--gateways", "http://203.0.113.5:8189",
++  "--guest-mem-mib", "4096", "--guest-cpus", "2", "--price-cpu", "0.05",
++  "--control-image", s.img, "--control-measurements", MEAS, "--control-min-tcb", s.minTcb, "--control-ovmf", s.ovmf, "--control-port", "18444", ...extra];
++
++test("init records the measured control plan, and refuses what it cannot derive honestly", async (t) => {
++  const d = scratch(t), s = setup(d), dir = path.join(d, "h");
++  const r = await cli(initArgs(dir, s));
++  assert.equal(r.code, 0, r.err);
++  const plan = loadPlan(dir);
++  assert.deepEqual(plan.control, { mode: "measured-guest", endpoint: "https://127.0.0.1:18444", hostPort: 18444, measurements: [MEAS], minTcb: s.minTcb, image: s.img, ovmf: s.ovmf, cpus: 4, memMiB: 8192 });
++  for (const [extra, re] of [[["--control-measurements", "abc"], /control\.measurements/],
++    [["--attestation-url", "http://127.0.0.1:1/x"], /attestationUrl does not apply/]]) {
++    const args = initArgs(path.join(d, "x" + Math.random().toString(36).slice(2)), s);
++    const i = args.indexOf(extra[0]); if (i >= 0) args.splice(i, 2);
++    const bad = await cli([...args, ...extra]);
++    assert.equal(bad.code, 1, `${extra[0]} must refuse`); assert.match(bad.err, re);
++  }
++  const run = await cli(["run", "--dir", dir, "--component", "supervisor", "--dry-run"]);
++  assert.equal(run.code, 1); assert.match(run.err, /inside the measured control guest/);
++});
++
++test("install writes the guest's bound config and the launcher config; the REAL launcher accepts them and binds HOST_DATA", async (t) => {
++  const d = scratch(t), s = setup(d), dir = path.join(d, "h"), ud = path.join(d, "units");
++  assert.equal((await cli(initArgs(dir, s))).code, 0);
++  const plan = loadPlan(dir), ctx = planTrust(plan);
++  fs.writeFileSync(path.join(dir, "pair.key"), "cd".repeat(32) + "\n", { mode: 0o600 });
++  fs.mkdirSync(plan.guestd.collateralDir, { recursive: true }); fs.writeFileSync(path.join(plan.guestd.collateralDir, "vcek.der"), "vcek");
++  const dry = await cli(["install", "--dir", dir, "--unit-dir", ud]);
++  assert.equal(dry.code, 0, dry.err);
++  assert.match(dry.out, /enclave-independent-host-control\.service/); assert.doesNotMatch(dry.out, /-supervisor\.service/);
++  assert.match(dry.out, /metal\/enclave-metal\.mjs/);
++  const operator = privateKeyToAccount(fs.readFileSync(path.join(dir, "operator.key"), "utf8").trim()).address;
++  assert.doesNotMatch(dry.out, new RegExp(fs.readFileSync(path.join(dir, "operator.key"), "utf8").trim().slice(2)), "the key is named, never printed");
++  const applied = await cli(["install", "--dir", dir, "--unit-dir", ud, "--apply"]);
++  assert.equal(applied.code, 0, applied.err);
++  const direct = JSON.parse(fs.readFileSync(path.join(dir, "direct-control.json"), "utf8"));
++  assert.deepEqual(direct, JSON.parse(JSON.stringify(directControlConfig(plan, ctx, operator, dir))));
++  assert.equal(direct.identity.operator, operator.toLowerCase()); assert.equal(direct.isolation.managerUrl, "http://10.0.2.2:8095"); assert.equal(direct.selling.cpuPrice6, 14);
++  assert.equal(fs.statSync(path.join(dir, "control-launcher.json")).mode & 0o777, 0o600);
++  // the REAL launcher with that config (QEMU swapped for a recorder)
++  const launcherCfg = { ...JSON.parse(fs.readFileSync(path.join(dir, "control-launcher.json"), "utf8")), qemu: path.join(d, "fake-qemu") };
++  assert.deepEqual({ ...launcherCfg, qemu: undefined }, { ...JSON.parse(JSON.stringify(controlLauncherConfig(dir, plan, ctx))), qemu: undefined });
++  fs.writeFileSync(path.join(d, "fake-qemu"), ["#!/bin/sh", 'printf "%s\\n" "$@" > "$FAKE_ARGS"', "while [ $# -gt 0 ]; do",
++    '  if [ "$1" = -fw_cfg ]; then case "$2" in name=opt/org.enclave.metal,file=*) cp "${2#name=opt/org.enclave.metal,file=}" "$FAKE_OUT";; esac; fi', "  shift", "done", "exec sleep 30"].join("\n") + "\n", { mode: 0o755 });
++  const cfgFile = path.join(d, "launch.json"); fs.writeFileSync(cfgFile, JSON.stringify(launcherCfg));
++  fs.mkdirSync(path.join(d, "tmp"));
++  const out = path.join(d, "fw.json"), args = path.join(d, "args.txt");
++  const p = spawn(process.execPath, [path.join(REPO, "metal/enclave-metal.mjs"), "--config", cfgFile], { env: { ...process.env, TMPDIR: path.join(d, "tmp"), FAKE_OUT: out, FAKE_ARGS: args }, stdio: ["ignore", "pipe", "pipe"] });
++  let log = ""; p.stdout.on("data", (b) => { log += b; }); p.stderr.on("data", (b) => { log += b; });
++  const exited = new Promise((r) => p.on("exit", r));
++  try {
++    for (let i = 0; i < 200 && !fs.existsSync(out) && p.exitCode === null; i++) await new Promise((r) => setTimeout(r, 50));
++    assert.ok(fs.existsSync(out), `the launcher did not start the guest:\n${log}`);
++    await new Promise((r) => setTimeout(r, 100));
++    const fw = JSON.parse(fs.readFileSync(out, "utf8")), argv = fs.readFileSync(args, "utf8").split("\n");
++    assert.deepEqual(fw.direct, direct);
++    const hd = MC.hostDataHex(MC.configDigest(MC.canonicalDirectConfig(direct)));
++    assert.ok(argv.some((x) => x.startsWith("sev-snp-guest,") && x.includes(`host-data=${Buffer.from(hd, "hex").toString("base64")}`)), "HOST_DATA binds the installed config");
++    assert.equal(argv[argv.indexOf("-append") + 1], "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct");
++    const plan2 = await MC.planDirectBoot({ cmdline: argv[argv.indexOf("-append") + 1], fw, reportHostData: hd, viem });
++    assert.equal(plan2.ok, true, plan2.reasons?.join("; "));
++    assert.equal(plan2.operator, operator.toLowerCase());
++  } finally { p.kill("SIGTERM"); await exited; }
++});
++
++test("check: the control row is READY only for a verified guest; pending, unknown and rejected never are", async (t) => {
++  const d = scratch(t), s = setup(d), dir = path.join(d, "h");
++  assert.equal((await cli(initArgs(dir, s))).code, 0);
++  const plan = loadPlan(dir);
++  fs.mkdirSync(plan.guestd.collateralDir, { recursive: true });
++  for (const f of ["vcek.der", "cert_chain.pem"]) fs.writeFileSync(path.join(plan.guestd.collateralDir, f), "x");
++  const chainFactory = () => ({ snapshot: async () => { throw new Error("no agreeing quorum (test)"); }, balance: async () => { throw new Error("no agreeing quorum (test)"); } });
++  const rowFor = async (verifyControl) => (await readinessRows(dir, {}, { chainFactory, verifyControl, env: { HOME: d } })).find((r) => r.item === "control attestation");
++  const seen = [];
++  const fake = (status) => async (args) => { seen.push(args); return { status, identity: { measurement: MEAS, proofKey: "0x" + "12".repeat(20) }, reasons: [`${status.toUpperCase()} (x): because`] }; };
++  assert.equal((await rowFor(fake("verified"))).status, "ready");
++  assert.equal((await rowFor(fake("pending"))).status, "missing");
++  assert.equal((await rowFor(fake("unknown"))).status, "unknown");
++  assert.equal((await rowFor(fake("rejected"))).status, "failed");
++  const a = seen[0];
++  assert.equal(a.url, "https://127.0.0.1:18444"); assert.deepEqual(a.expect.measurements, [MEAS]); assert.equal(a.expect.crl, "required");
++  assert.equal(a.expect.config.identity.publicUrl, "https://host.example.org"); assert.equal(typeof a.registry, "function");
++  await assert.rejects(a.registry(MC.sha256Hex("x")), /no agreeing quorum/, "the registry is read through the owner's quorum (here: failing)");
++  // the real verifier, nothing listening: UNKNOWN, and the whole check is not ready
++  const port = await new Promise((ok) => { const sv = net.createServer(); sv.listen(0, "127.0.0.1", () => { const p = sv.address().port; sv.close(() => ok(p)); }); });
++  const real = await readinessRows(dir, {}, { chainFactory, env: { HOME: d } });
++  assert.equal(real.find((r) => r.item === "control attestation").status, "unknown");
++  assert.ok(!real.some((r) => r.item === "supervisor running"), "no host supervisor is probed for a measured plan");
++  void port;
++});
++
++test("a measured guest with the host owner's wallet policy: install binds the reviewed ownership pin and the exact policy wire; the REAL launcher and the guest accept it", async (t) => {
++  const { validateHostAdmissionPolicy, hostAdmissionPolicyHash } = await import("../network/host-admission-policy.mjs");
++  const { installMetalHostPolicy } = await import("../network/metal-host-policy.mjs");
++  const d = scratch(t), s = setup(d), dir = path.join(d, "h"), pol = path.join(d, "policies"); fs.mkdirSync(pol);
++  const profile = JSON.parse(fs.readFileSync(PROFILE, "utf8")), own = profile.contracts.hostOwnership;
++  const hostId = viem.keccak256(viem.toHex("https://host.example.org"));
++  const doc = (o) => validateHostAdmissionPolicy({ version: 1, chainId: 8453, ownershipContract: own.address.toLowerCase(), hostId, requireCatalogApproval: false, denyDeployments: [], denyAppRefs: [], ...o });
++  const mine = doc({ denyDeployments: ["0x" + "21".repeat(32)] }), another = doc({ hostId: "0x" + "77".repeat(32) });
++  for (const p of [mine, another]) fs.writeFileSync(path.join(pol, hostAdmissionPolicyHash(p) + ".json"), JSON.stringify(p));
++  fs.writeFileSync(path.join(pol, "notes.txt"), "not a policy");
++  const r = await cli([...initArgs(dir, s), "--policy-dir", pol]);
++  assert.equal(r.code, 0, r.err);
++  fs.writeFileSync(path.join(dir, "pair.key"), "cd".repeat(32) + "\n", { mode: 0o600 });
++  const plan = loadPlan(dir); fs.mkdirSync(plan.guestd.collateralDir, { recursive: true }); fs.writeFileSync(path.join(plan.guestd.collateralDir, "vcek.der"), "vcek");
++  assert.equal((await cli(["install", "--dir", dir, "--unit-dir", path.join(d, "units"), "--apply"])).code, 0);
++  const direct = JSON.parse(fs.readFileSync(path.join(dir, "direct-control.json"), "utf8")), launcher = JSON.parse(fs.readFileSync(path.join(dir, "control-launcher.json"), "utf8"));
++  assert.deepEqual(direct.hostOwnership, { contract: own.address.toLowerCase(), codeHash: own.codeHash });
++  assert.deepEqual(launcher.hostAdmission.policyFiles, [path.join(pol, hostAdmissionPolicyHash(mine) + ".json")], "only THIS host's committed documents are delivered");
++  assert.equal(launcher.hostAdmission.hostId, hostId); assert.equal(launcher.hostAdmission.ownershipContract, own.address.toLowerCase());
++  // the REAL launcher (QEMU recorded) with exactly that config
++  fs.writeFileSync(path.join(d, "fake-qemu"), ["#!/bin/sh", 'printf "%s\\n" "$@" > "$FAKE_ARGS"', "while [ $# -gt 0 ]; do",
++    '  if [ "$1" = -fw_cfg ]; then case "$2" in name=opt/org.enclave.metal,file=*) cp "${2#name=opt/org.enclave.metal,file=}" "$FAKE_OUT";; esac; fi', "  shift", "done", "exec sleep 30"].join("\n") + "\n", { mode: 0o755 });
++  const cfgFile = path.join(d, "launch.json"); fs.writeFileSync(cfgFile, JSON.stringify({ ...launcher, qemu: path.join(d, "fake-qemu") }));
++  fs.mkdirSync(path.join(d, "tmp"));
++  const out = path.join(d, "fw.json"), args = path.join(d, "args.txt");
++  const p = spawn(process.execPath, [path.join(REPO, "metal/enclave-metal.mjs"), "--config", cfgFile], { env: { ...process.env, TMPDIR: path.join(d, "tmp"), FAKE_OUT: out, FAKE_ARGS: args }, stdio: ["ignore", "pipe", "pipe"] });
++  let log = ""; p.stdout.on("data", (b) => { log += b; }); p.stderr.on("data", (b) => { log += b; });
++  const exited = new Promise((ok) => p.on("exit", ok));
++  try {
++    for (let i = 0; i < 200 && !fs.existsSync(out) && p.exitCode === null; i++) await new Promise((ok) => setTimeout(ok, 50));
++    assert.ok(fs.existsSync(out), `the launcher did not start the guest:\n${log}`);
++    await new Promise((ok) => setTimeout(ok, 100));
++    const fw = JSON.parse(fs.readFileSync(out, "utf8")), argv = fs.readFileSync(args, "utf8").split("\n");
++    assert.equal(MC.hostAdmissionDigest(fw.hostAdmission), direct.hostAdmissionSha256, "the delivered wire is the bound one");
++    const hd = MC.hostDataHex(MC.configDigest(MC.canonicalDirectConfig(direct)));
++    const hostPolicyEnv = installMetalHostPolicy(fw.hostAdmission, { directory: path.join(d, "guest-admission") });
++    const plan2 = await MC.planDirectBoot({ cmdline: argv[argv.indexOf("-append") + 1], fw, reportHostData: hd, viem, hostPolicyEnv });
++    assert.equal(plan2.ok, true, plan2.reasons?.join("; "));
++    assert.equal(plan2.env.ENCLAVE_HOST_OWNERSHIP_CODEHASH, own.codeHash); assert.equal(plan2.env.ENCLAVE_HOST_ID, hostId);
++  } finally { p.kill("SIGTERM"); await exited; }
++  // the host-run (non-measured) supervisor environment carries the same pin
++  const { supervisorEnv } = await import("../cli/host-independent-lifecycle.mjs");
++  const hostMode = await cli([...initArgs(path.join(d, "h2"), s).filter((a, i, all) => !a.startsWith("--control") && !all[i - 1]?.startsWith("--control")), "--policy-dir", pol]);
++  assert.equal(hostMode.code, 0, hostMode.err);
++  const env = supervisorEnv(path.join(d, "h2"), loadPlan(path.join(d, "h2")), planTrust(loadPlan(path.join(d, "h2"))));
++  assert.equal(env.ENCLAVE_HOST_OWNERSHIP_CODEHASH, own.codeHash); assert.equal(env.CHAIN_QUORUM, "2");
++});
+--- /dev/null
++++ b/test/cli-combined-measured.test.mjs
+@@ -0,0 +1,114 @@
++// The integrated independent CLI (work/cli-combined-integration closure) WITH the measured-control final patch
++// (work/measured-control-final-integration/patches/measured-control-final.patch), driven through ONE real cli/enclave.mjs
++// (or the built bundle: ENCLAVE_CLI_ENTRY) as a subprocess, on the cli-independent rig (anvil, chain 8453, real
++// contracts, three JSON-RPC origins), under the CLI network guard (no non-loopback connection, the Enclave stand-in API
++// never hit).
++//   * measured mode through `enclave host`: a plan on this host's plain-HTTP loopback RPCs is refused at install (the
++//     guest cannot reach them); with https RPCs, init records the control plan; install writes the guest's bound config with
++//     the plan's chain policy (quorum, confirmations, maximum block age) and the launcher config; check reports the
++//     control attestation as NOT ready (nothing attested is listening), never READY;
++//   * host mode: the supervisor environment the CLI installs carries the plan's quorum; the REAL candidate supervisor
++//     boots with exactly that file and reads the rig chain through the quorum (its boot fence clears by agreement).
++import test, { before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { spawn, execFile } from "node:child_process";
++import { promisify } from "node:util";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { haveTools, startRig, KEYS } from "./helpers/cli-independent-rig.mjs";
++import * as MC from "../metal/guest/measured-control.mjs";
++
++const exec = promisify(execFile);
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const CLI = process.env.ENCLAVE_CLI_ENTRY ? path.resolve(process.env.ENCLAVE_CLI_ENTRY) : path.join(REPO, "cli", "enclave.mjs");
++const GUARD = pathToFileURL(path.join(REPO, "test/helpers/cli-network-guard.mjs")).href;
++const skip = haveTools();
++const T = skip ? { skip, timeout: 240000 } : { timeout: 240000 };
++let r, tmp, pinsFile, netLog;
++
++before(async () => {
++  if (skip) return;
++  r = await startRig();
++  tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cli-combined-measured-"));
++  pinsFile = path.join(tmp, "pins.json"); fs.writeFileSync(pinsFile, JSON.stringify(r.pins));
++  netLog = path.join(tmp, "net.log"); fs.writeFileSync(netLog, "");
++});
++after(async () => { if (r) await r.stop(); if (tmp) fs.rmSync(tmp, { recursive: true, force: true }); });
++
++const independent = () => ["--independent", "--contract-pins", pinsFile, "--usdc-token", r.addresses.usdc, "--rpc", r.rpcs.join(","), "--quorum", "2", "--confirmations", "1"];
++async function cli(args, { rpcs = null } = {}) {
++  await r.mine(); await r.mine();
++  return new Promise((resolve) => {
++    const ind = rpcs ? independent().map((a, i, all) => all[i - 1] === "--rpc" ? rpcs.join(",") : a) : independent();
++    const p = spawn(process.execPath, [CLI, ...ind, ...args], { cwd: tmp, env: {
++      PATH: process.env.PATH, HOME: tmp, XDG_CONFIG_HOME: path.join(tmp, "conf"), ENCLAVE_KEY: KEYS.owner, ENCLAVE_API_BASE: r.apiOrigin,
++      ENCLAVE_ADDRESS_BOOK: "0x" + "ab".repeat(20), NODE_OPTIONS: `--import=${GUARD}`, ENCLAVE_TEST_NET_LOG: netLog, ENCLAVE_TEST_DENY_PORT: String(r.apiPort) } });
++    let out = "", err = "";
++    const killer = setTimeout(() => { err += "\n[test: CLI killed after 180 s]"; p.kill("SIGKILL"); }, 180000);
++    p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));
++    p.on("close", (code) => { clearTimeout(killer); resolve({ code, out, err, all: out + err }); });
++  });
++}
++const noEnclave = () => {
++  assert.equal(r.apiHits.length, 0, "the stand-in Enclave API was never called");
++  assert.equal(fs.readFileSync(netLog, "utf8").trim(), "", "no non-loopback connection was attempted");
++};
++const initArgs = (dir, extra = []) => ["host", "init", "--dir", dir, "--public-url", "https://host.example.org", "--repo", "example/enclave", "--release-id", "a".repeat(64),
++  "--gateways", "http://203.0.113.5:8189", "--guest-mem-mib", "4096", "--guest-cpus", "2", "--price-cpu", "0.05", ...extra];
++
++test("measured mode through `enclave host`: the guest's config binds the plan's chain policy; check never reports an unattested guest ready", T, async () => {
++  const dir = path.join(tmp, "measured"), units = path.join(tmp, "units-m");
++  const img = path.join(tmp, "image"); fs.mkdirSync(img); for (const f of ["vmlinuz", "initramfs.cpio.gz"]) fs.writeFileSync(path.join(img, f), f);
++  fs.writeFileSync(path.join(tmp, "ovmf.fd"), "firmware"); fs.writeFileSync(path.join(tmp, "floor.json"), JSON.stringify({ Turin: { fmc: 1, bootloader: 3, tee: 2, snp: 5, microcode: 117 } }));
++  const control = ["--control-image", img, "--control-measurements", "77".repeat(48), "--control-min-tcb", path.join(tmp, "floor.json"),
++    "--control-ovmf", path.join(tmp, "ovmf.fd"), "--control-port", "18555"];
++  // the rig's plain-HTTP loopback RPCs are THIS host's loopback: inside the control CVM 127.0.0.1 is the guest itself, so
++  // a measured plan on them is refused at install, precisely (the guest needs https RPCs it can reach)
++  const lo = path.join(tmp, "measured-loopback");
++  assert.equal((await cli(initArgs(lo, control))).code, 0);
++  fs.writeFileSync(path.join(lo, "pair.key"), "cd".repeat(32) + "\n", { mode: 0o600 });
++  const refused = await cli(["host", "install", "--dir", lo, "--unit-dir", path.join(tmp, "units-lo")]);
++  assert.notEqual(refused.code, 0); assert.match(refused.all, /rpcs\[0\] must be https \(the control guest has no loopback chain\)/);
++  // https RPC origins (distinct loopback hosts nothing listens on: every chain read stays UNKNOWN, nothing leaves the box)
++  const RPCS = ["https://127.0.0.2:1", "https://127.0.0.3:1"];
++  const i = await cli(initArgs(dir, control), { rpcs: RPCS });
++  assert.equal(i.code, 0, i.all);
++  fs.writeFileSync(path.join(dir, "pair.key"), "cd".repeat(32) + "\n", { mode: 0o600 });
++  const plan = JSON.parse(fs.readFileSync(path.join(dir, "host-plan.json"), "utf8"));
++  fs.mkdirSync(plan.guestd.collateralDir, { recursive: true });
++  for (const f of ["vcek.der", "cert_chain.pem"]) fs.writeFileSync(path.join(plan.guestd.collateralDir, f), "x");
++  const ap = await cli(["host", "install", "--dir", dir, "--unit-dir", units, "--apply"], { rpcs: RPCS });
++  assert.equal(ap.code, 0, ap.all);
++  const direct = MC.canonicalDirectConfig(JSON.parse(fs.readFileSync(path.join(dir, "direct-control.json"), "utf8")));
++  assert.deepEqual(direct.rpcs, RPCS); assert.equal(direct.quorum, 2); assert.equal(direct.confirmations, 1); assert.equal(direct.maxBlockAgeSec, 120);
++  assert.equal(direct.hostOwnership, null); assert.equal(direct.hostAdmissionSha256, null);
++  assert.ok(fs.existsSync(path.join(units, "enclave-independent-host-control.service")));
++  const chk = await cli(["host", "check", "--dir", dir, "--unit-dir", units, "--json"], { rpcs: RPCS });
++  assert.notEqual(chk.code, 0);
++  const rows = JSON.parse(chk.out.trim().split("\n").filter((l) => l.startsWith("{")).at(-1)).rows;
++  const ctl = rows.find((x) => x.item === "control attestation");
++  assert.ok(ctl && ctl.status !== "ready", JSON.stringify(ctl));
++  assert.ok(!rows.some((x) => x.item === "supervisor running"), "no host supervisor is probed for a measured plan");
++  noEnclave();
++});
++
++test("host mode through `enclave host`: the installed environment carries the plan's quorum, and the REAL supervisor boots on it reading through the quorum", T, async () => {
++  const dir = path.join(tmp, "hosted"), units = path.join(tmp, "units-h");
++  assert.equal((await cli(initArgs(dir))).code, 0);
++  const ap = await cli(["host", "install", "--dir", dir, "--unit-dir", units, "--apply"]);
++  assert.equal(ap.code, 0, ap.all);
++  const envText = fs.readFileSync(path.join(dir, "supervisor.env"), "utf8");
++  const env = Object.fromEntries(envText.split("\n").filter((l) => /^[A-Z_]+=/.test(l)).map((l) => { const k = l.slice(0, l.indexOf("=")); let v = l.slice(k.length + 1); if (v.startsWith("'")) v = v.slice(1, -1); return [k, v]; }));
++  assert.equal(env.BASE_RPCS, r.rpcs.join(",")); assert.equal(env.CHAIN_QUORUM, "2"); assert.equal(env.CHAIN_CONFIRMATIONS, "1"); assert.equal(env.CHAIN_MAX_BLOCK_AGE_SEC, "120");
++  // the real candidate supervisor with exactly that environment (plus a scratch state file), the quorum seam reading the
++  // rig chain for its boot fence: the operator key FILE from the plan, agreement across the plan's RPCs
++  const seam = { chain: "quorum", hint: true, ids: [], health: {}, appId: "45".repeat(32), bytes: "", enclaveId: r.runner, endpoint: r.endpoint, replicas: {} };
++  const { stdout } = await exec(process.execPath, ["supervisor.js"], { cwd: REPO, timeout: 120000, maxBuffer: 8 << 20,
++    env: { PATH: process.env.PATH, HOME: tmp, ...env, PORT: "0", STATE_FILE: path.join(tmp, "state-h.json"), SESSION_KEY_DIR: path.join(tmp, "sess-h"),
++      DIRECT_CLAIM_SELFTEST: JSON.stringify(seam) } }).catch((x) => { throw new Error((x.stderr || x.message).slice(-3000)); });
++  const out = JSON.parse(stdout.trim().split("\n").reverse().find((l) => l.startsWith('{"calls"')));
++  assert.equal(out.fence, "clear", "the boot fence was decided by the plan's quorum");
++  noEnclave();
++});

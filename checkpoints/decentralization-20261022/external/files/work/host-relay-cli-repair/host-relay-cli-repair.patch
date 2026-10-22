@@ -1,0 +1,143 @@
+--- a/network/host-services/lease-relay-host.mjs
++++ b/network/host-services/lease-relay-host.mjs
+@@ -52,6 +52,7 @@
+ const plain = (o) => !!o && typeof o === "object" && !Array.isArray(o);
+ const fail = (m) => { throw new Error(`host relay: ${m}`); };
+ const DECIMAL = /^(0|[1-9][0-9]{0,6})(\.[0-9]{1,18})?$/;
++const REGISTERED_ENDPOINT = /^https:\/\/[^\s/?#@]+(\/[^\s?#]*)?$/;
+ const absPath = (v, what) => { if (typeof v !== "string" || !path.isAbsolute(v) || v.includes("\0")) fail(`${what} must be an absolute path`); return v; };
+ 
+ /** -> the normalized configuration (throws on anything else; no field may name a secret). */
+@@ -83,7 +84,9 @@
+   }
+   if (!plain(cfg.host)) fail("host is required");
+   for (const k of Object.keys(cfg.host)) if (!["endpoint", "publicEndpoints"].includes(k)) fail(`host has an unknown field ${JSON.stringify(k)}`);
+-  if (cfg.platformHostPolicy !== "off" && !/^https:\/\/[^\s/?#@]+$/.test(String(cfg.host.endpoint || "").replace(/\/+$/, ""))) fail("host.endpoint: this host's registry endpoint (its PUBLIC_URL) is required to enforce the platform host policy");
++  // the runner's rule (runner.mjs validateHostServicesConfig): the EXACT registered endpoint, which may carry a path (e.g.
++  // https://api.enclave.host/t/metal0); https only, no credentials, query, fragment or whitespace
++  if (cfg.platformHostPolicy !== "off" && !REGISTERED_ENDPOINT.test(String(cfg.host.endpoint || "").replace(/\/+$/, ""))) fail("host.endpoint: this host's registry endpoint (its PUBLIC_URL) is required to enforce the platform host policy");
+   const pe = cfg.host.publicEndpoints ?? [];
+   if (!Array.isArray(pe) || pe.length > 4) fail("host.publicEndpoints: 0 to 4 endpoints (where compute hosts reach this relay)");
+   const r = cfg.relay;
+@@ -303,7 +306,12 @@
+     }
+     else {
+       const running = await runHostRelay(cfg);
+-      for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => { running.stop().then(() => process.exit(0)); });
++      // the supervision timers are unref'd (library use). As a service the supervisor must STAY UP while no relay runs - a
++      // fresh host not yet admitted, or a sticky platform-policy refusal - or it would exit 0, systemd (Restart=on-failure)
++      // would not restart a clean exit, and the admin's later authenticated admit (unban) would never start the relay. As
++      // runner.mjs: until SIGTERM/SIGINT.
++      const alive = setInterval(() => {}, 1 << 30);
++      for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => { clearInterval(alive); running.stop().then(() => process.exit(0)); });
+     }
+   } catch (e) { console.error(e.message); process.exit(1); }
+ }
+--- a/test/lease-relay-host-policy.test.mjs
++++ b/test/lease-relay-host-policy.test.mjs
+@@ -22,7 +22,8 @@
+ import path from "node:path";
+ import { EventEmitter } from "node:events";
+ import { createHash } from "node:crypto";
+-import { fileURLToPath } from "node:url";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { spawn as spawnProcess } from "node:child_process";
+ import { stringToHex } from "viem";
+ import { privateKeyToAccount } from "viem/accounts";
+ import { startRig, haveTools, KEYS, freePort } from "./helpers/cli-independent-rig.mjs";
+@@ -31,6 +32,10 @@
+ import { runHostRelay, initRelayKey, validateHostRelayConfig, planHostRelay } from "../network/host-services/lease-relay-host.mjs";
+ 
+ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++// the module the endpoint and CLI tests exercise: this tree's, or (negative control only) another copy beside it, e.g. main's
++// pre-repair lease-relay-host.mjs, which those two tests must FAIL against
++const UNDER_TEST = process.env.LEASE_RELAY_HOST_UNDER_TEST ? path.resolve(process.env.LEASE_RELAY_HOST_UNDER_TEST) : path.join(REPO, "network/host-services/lease-relay-host.mjs");
++const underTest = () => import(pathToFileURL(UNDER_TEST).href);
+ const OUT = path.join(REPO, "contracts/foundry/out");
+ const sha = (b) => createHash("sha256").update(b).digest("hex");
+ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lease-relay-host-policy-"));
+@@ -154,13 +159,29 @@
+   assert.throws(() => validateHostRelayConfig(relayCfg("x", { platformHostPolicyCarriers: { peers: ["ftp://x"] } })), /distinct http\(s\) base URLs/);
+ });
+ 
++test("host.endpoint is the EXACT registered endpoint (the runner's rule): a path such as /t/metal0 is accepted; http, credentials, query, fragment and whitespace are refused", async () => {
++  const { validateHostRelayConfig: validate } = await underTest();
++  const at = (endpoint) => validate(relayCfg("ep", { host: { endpoint, publicEndpoints: [] } }));
++  assert.equal(at("https://api.enclave.host/t/metal0").host.endpoint, "https://api.enclave.host/t/metal0", "the real registered metal0 endpoint");
++  assert.equal(at("https://api.enclave.host/t/metal0/").host.endpoint, "https://api.enclave.host/t/metal0", "trailing slashes trimmed, as the runner and the gate's host id");
++  assert.equal(at("https://relay-a.policy-placement.net").host.endpoint, "https://relay-a.policy-placement.net");
++  for (const bad of ["http://api.enclave.host/t/metal0", "https://user:pw@api.enclave.host/t/metal0", "https://user@api.enclave.host/t/metal0",
++    "https://api.enclave.host/t/metal0?x=1", "https://api.enclave.host/t/metal0#f", "https://api.enclave.host/t/metal 0", "https://api.enclave.host/t/\tmetal0",
++    " https://api.enclave.host/t/metal0", "https:///t/metal0", "", undefined])
++    assert.throws(() => at(bad), /host\.endpoint: this host's registry endpoint/, JSON.stringify(bad));
++});
++
+ // ---- 2. the real gate and carriers, cold, with the fleet down ---------------------------------------------------------
+ const skip = haveTools() || false;                                    // node:test skips on any non-false value, null included
+ const DO = ["134.199.235.187", "134.209.248.172", "165.245.191.129", "146.190.246.39"];
+ const Z32 = "0x" + "00".repeat(32);
+ const KEY4 = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a";   // anvil #4
+ const admin = privateKeyToAccount(KEYS.deployer);                                       // the book's owner: the admin
+-const OP = { a: privateKeyToAccount(KEYS.other), c: privateKeyToAccount(KEY4) }, OP_KEY = { a: KEYS.other, c: KEY4 };
++const KEY5 = "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba";   // anvil #5
++const OP = { a: privateKeyToAccount(KEYS.other), c: privateKeyToAccount(KEY4), p: privateKeyToAccount(KEY5) }, OP_KEY = { a: KEYS.other, c: KEY4, p: KEY5 };
++// relay host P is registered at an endpoint WITH A PATH, the shape of the real https://api.enclave.host/t/metal0
++const P_ENDPOINT = "https://api.policy-placement.net/t/relay-p";
++let cli = null;
+ const denied = [];
+ const netFetch = (url, opts) => {
+   const u = new URL(url);
+@@ -205,12 +226,14 @@
+   ownership = await rig.deploy(art("EnclaveHostOwnership.sol", "EnclaveHostOwnership"), [registryAddr]);
+   for (const n of ["a", "c"])
+     await rig.write(rig.wc(OP_KEY[n]), registryAddr, rig.A.registry4.abi, "register", [`https://relay-${n}.policy-placement.net`, "independent/host", Z32, 1000n, 0n, "0x" + "00".repeat(20)]);
++  await rig.write(rig.wc(OP_KEY.p), registryAddr, rig.A.registry4.abi, "register", [P_ENDPOINT, "independent/host", Z32, 1000n, 0n, "0x" + "00".repeat(20)]);
+   // ACTIVATED before any relay host exists: the admin's first policy (it bans an unrelated operator), signed and anchored
+   await sign([{ kind: "operator", value: "0x" + "5a".repeat(20), reason: "unrelated abuse" }]);
+   await anchor(docs[0].digest);
+   for (let i = 0; i < 3; i++) await rig.mine();
+ });
+ after(async () => {
++  if (cli && cli.exitCode === null && cli.signalCode === null) { cli.kill("SIGKILL"); }
+   for (const h of Object.values(hosts)) await h.running?.stop().catch(() => {});
+   await rig?.stop();
+   fs.rmSync(tmp, { recursive: true, force: true });
+@@ -259,3 +282,38 @@
+   await sleep(1500);
+   assert.equal(await up(a.port), false); assert.equal(a.running.status().running, false); assert.equal(a.running.status().restartPending, false);
+ });
++
++test("REAL gate, ACTUAL `run` CLI process at a registered PATH endpoint: it stays up while the admin's ban refuses the relay, the admin's unban starts it, SIGTERM exits 0", { skip, timeout: 240_000 }, async () => {
++  // the admin bans P's operator BEFORE P's supervisor ever starts: a fresh host under a sticky refusal, no relay child
++  const importDir = path.join(tmp, "import-p");
++  const ban = await sign([...docs[docs.length - 1].policy.deny, { kind: "operator", value: OP.p.address.toLowerCase(), reason: "abuse report 11" }]);
++  importDoc(importDir, ban);
++  await anchor(ban.digest);
++  const port = await freePort(), downFleet = await freePort();       // nothing listens on downFleet: the fleet's mirrors are down
++  const cfg = relayCfg("p", { port, host: { endpoint: P_ENDPOINT + "/", publicEndpoints: [] },
++    platformHostPolicy: { ...POLICY(), mirrors: [`https://127.0.0.1:${downFleet}/platform-policy`] }, platformHostPolicyRpcs: rig.rpcs,
++    platformHostPolicyCarriers: { importDir } });
++  await initRelayKey(cfg);
++  const cfgFile = path.join(tmp, "host-relay-p.json"); fs.writeFileSync(cfgFile, JSON.stringify(cfg));
++  const out = [];
++  cli = spawnProcess(process.execPath, [UNDER_TEST, "run", cfgFile], { env: { PATH: process.env.PATH }, stdio: ["ignore", "pipe", "pipe"] });
++  for (const s of [cli.stdout, cli.stderr]) s.on("data", (d) => out.push(String(d)));
++  const exited = new Promise((ok) => cli.once("exit", (code, signal) => ok({ code, signal })));
++  const log = () => out.join("").slice(-3000);
++  await until(() => /STOPPING the relay: platform host policy: .*banned by platform policy #\d+ \(operator\): abuse report 11/.test(out.join("")), 60000, "the CLI's gate loaded the anchored ban").catch((e) => { throw new Error(`${e.message}\n${log()}`); });
++  await sleep(8000);
++  assert.equal(cli.exitCode, null, `the supervisor must stay up under the refusal (exited ${cli.exitCode}/${cli.signalCode})\n${log()}`);
++  assert.equal(await up(port), false, "no relay while banned");
++
++  const unban = await sign(docs[docs.length - 2].policy.deny);       // the policy before the ban: P admitted again
++  importDoc(importDir, unban);
++  await anchor(unban.digest);
++  await until(() => up(port), 60000, "the admin's unban starts the relay in the SAME supervisor process").catch((e) => { throw new Error(`${e.message}\n${log()}`); });
++  assert.match(out.join(""), /admitted again: starting the relay/);
++
++  cli.kill("SIGTERM");
++  const end = await Promise.race([exited, sleep(15000).then(() => null)]);
++  assert.deepEqual(end, { code: 0, signal: null }, `clean exit on SIGTERM\n${log()}`);
++  await sleep(500);
++  assert.equal(await up(port), false, "the relay child ended with its supervisor");
++});

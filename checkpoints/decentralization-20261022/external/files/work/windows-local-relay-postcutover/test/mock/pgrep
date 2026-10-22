@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+echo "${MOCK_PROCS:-0}"; [ "${MOCK_PROCS:-0}" -gt 0 ]

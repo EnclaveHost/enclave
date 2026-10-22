@@ -1,0 +1,42 @@
+# current main (read only): bases of patches/record-main-delta.patch
+8ebfb3fced41a1e5f84930742e5179cddd17241b4e88aadf95836434376a2b73  ../enclave/client/lease-executor-client.mjs
+6e66db7b2efe76cf711e4e57d05d3dfeec2c0bb802a4afa74f6d2bd09ce7f5a2  ../enclave/network/lease-gas-owner.mjs
+2510f9ecd021ef822c989f9c8b94cb023365538eced235cbbffc760f291123f2  ../enclave/cli/lease-gas.mjs
+4404b8cc154a18c6155753b6430d326fd34ac990bc843994aa1d595cf472be41  ../enclave/docs/network/lease-relay-release.md
+3a4f77de4b97d42c757c3cc90b91994ea3d74c69dd087de76e24d4ee077f9d4a  ../enclave/network/lease-relay-check.mjs
+0ee7ac31fb66973abf9634b3b047a6202fd78226c00b77204d4a4225f733b5e6  ../enclave/relay/systemd/enclave-lease-relay.service
+74709dfd2adc6dc9cbb2ac27e05ee0fa5f787fea29eef95b3a1c17581e3d1227  ../enclave/test/lease-gas-owner-cli.test.mjs
+2994c8f063349131805c762bce9576d102b8a903f124f146b22da4ef02aaac3d  ../enclave/test/lease-relay-release.test.mjs
+d45f7b54b723442c6be15fad21f3a691afc2a778b5556a5b89743bef64ebb956  ../enclave/test/lease-relay-resilience.test.mjs
+# candidate files (main paths) and the tested overlay listing
+4890b0543a0206f7069518595dc58b3daa7d9f7141469e9bbec1ef30896e310f  client/lease-executor-client.mjs
+a3163e386c2718dd31cdbf91ecc0eab3865c2c34d46b33809bbede6ab340cde9  network/lease-gas-owner.mjs
+e7fd4d9c61120d48036ec56a854b5b293fa70a1ace6096e6d1e2e17342ae388f  cli/lease-gas.mjs
+3e4d2964476ba7ee61105aa068ed9fcbf1498a97e457307a219fc846d1f985c8  port-main/docs/network/lease-relay-release.md
+fe81d1581960b4c68694e140f20f2ff6b77755b105c32ca1d38e130db04c6f38  port-main/network/lease-relay-check.mjs
+4eecc5827bc4d16060b399f642c345c739da622ffb76d063a9dcb7a568f57c96  port-main/relay/systemd/enclave-lease-relay.service
+c2f0c2f911cddd5a9a3cc67e29ef8e693c9e79cdb0fafb5a5ac2e6ff3f9ade4f  port-main/test/lease-gas-owner-cli.test.mjs
+df024a4a3650e20d67a7459fb38d3ea0a96194c374edf59585b951eeec8b8636  port-main/test/lease-relay-release.test.mjs
+2432d23135a39103810e019ababcd2fe13e044319e95fd676fe2d4d6b1d5be48  port-main/test/lease-relay-resilience.test.mjs
+9ef736a6f15335b335efd0b6ab13fdbb8537dacd94e789541e3bf1e9f33beb0e  overlay-main.files
+# delta against current main
+915000db2dab388bb72dd54a06d3fef2212c5cd934e125199bf28d6fc09d09ec  patches/record-main-delta.patch
+35faaf1bdb4044256034dd50f1d993b164c926940dffaebbba9a77d644de50ac  patches/record-main-inventory.txt
+# Windows bundle (main's builder over overlay-main) and the lease relay release, built twice
+b92cf908717a9dc18155190eb3a1246800e11c22263e5942339d6cc61351ce7b  overlay-main/windows/node/lease-gas-runtime.bundle.mjs
+f130218589797a07927c6016edd3607e78c14fd2f6547effc5bb0d0359745d1c  overlay-main/windows/node/lease-gas-runtime.bundle.mjs.manifest.json
+94f4ebdf93d727ed21c1b3aa6ae25114a40f5add40e9b708d4b60f2db7cbc322  relay-release-1/lease-relay.mjs
+fe81d1581960b4c68694e140f20f2ff6b77755b105c32ca1d38e130db04c6f38  relay-release-1/lease-relay-check.mjs
+d4307352585ea6a5ea775ad39b71498f4c8988f986097eb4de2b115c8f0e3528  relay-release-1/manifest.json
+94f4ebdf93d727ed21c1b3aa6ae25114a40f5add40e9b708d4b60f2db7cbc322  relay-release-2/lease-relay.mjs
+d4307352585ea6a5ea775ad39b71498f4c8988f986097eb4de2b115c8f0e3528  relay-release-2/manifest.json
+# tests (candidate layout) and runners
+a6f8d35705fad5dbeff04d5d2f0de7f6be7c2cffbba27874de892e3775710d2b  test/lease-relay-resilience.test.mjs
+aa81c37f6679f1e40f98b35e92dd35936dcdfd45e34ee51e2ec31fc916c2a7e4  test/lease-gas-owner-cli.test.mjs
+879b7079e8072ed4038ebbce4f840f4492edde500b5195bb777c01e743fa081c  scripts/run-record-batch.sh
+88f784bb57017cbb0ddddbf7038e0b5d57a6831a0565f7e30b993c94d225a717  scripts/build-main-overlay.sh
+4013aaebaecf128327e01b6fb9051f054017f0a71797519ab0d2e336bdfba23a  scripts/delta-against-main.sh
+f7450ff60f900460dd09c84a4d9dd0c2447254631ec2970117e801182d0b8f56  scripts/record-manifest.sh
+# logs
+1e2c93ad10b401f8fa697adb52ec7519f69f9a12ce19d7c389224cbb3c812b47  logs/r3/record-before.out
+6839a6be1f711b04fa12441f7bbbb194bd4127cb8f27cb5a37d0b77512f2b19b  logs/r3/record-after.out

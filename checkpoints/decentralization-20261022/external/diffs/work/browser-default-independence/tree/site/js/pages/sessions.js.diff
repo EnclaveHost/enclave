@@ -1,0 +1,23 @@
+--- a/site/js/pages/sessions.js
++++ b/site/js/pages/sessions.js
+@@ -236,4 +236,19 @@
+ on("enclave:wallet", () => { if ($("#ssBody")) mount(); });
+ on("enclave:session", () => { if ($("#ssBody")) mount(); });
+ 
+-export function boot(){ mount(); }
++/* Independent mode (a network profile, including the packaged default): this page's relay listing is not used. The
++   sessions that can act for the wallet or passkey account are the pinned factory's vault sessions, managed with the
++   same owner operations on the dashboard's session controls (js/core/independent-ui.js mountSessionControls), shown
++   here too. Sessions of the relay-era factory stay in their own vault and are listed with their records on the
++   dashboard; their per-device list is the hosted service's and is not read here. */
++async function mountIndependent(){
++  const body = $("#ssBody"); if (!body) return;
++  body.innerHTML = '<p class="dim ss-ind-note">This dashboard runs independently: sessions are read from your session vault on the pinned factory, '
++    + 'and every owner action is a transaction you send. Agents and other devices ask for a session through <a href="grant">/grant</a>. '
++    + 'The hosted service’s per-device list is not used here.</p><div class="ss-ind-controls"></div>';
++  const ui = await import("../core/independent-ui.js");
++  await ui.mountSessionControls(body.querySelector(".ss-ind-controls"));
++}
++export function boot(){
++  import("../core/config.js").then(({ INDEPENDENT }) => (INDEPENDENT.state !== "off" ? mountIndependent() : mount())).catch(() => mount());
++}

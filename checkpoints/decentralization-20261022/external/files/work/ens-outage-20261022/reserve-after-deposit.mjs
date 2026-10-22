@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import {createPublicClient,http,keccak256} from '../enclave/node_modules/viem/_esm/index.js';
+import {base} from '../enclave/node_modules/viem/_esm/chains/index.js';
+import {OWNER_ABI,LEDGER_ABI} from '../enclave/network/lease-gas-owner.mjs';
+const dep=JSON.parse(fs.readFileSync('outputs/app-lease-gas-review/lease-gas-deployment.json'));
+const id='0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33',owner='0x0b2d009c0c9Af05b12100D77F3c815fea822eE61';
+const urls=['https://mainnet.base.org','https://base-rpc.polkachu.com','https://base-rpc.publicnode.com'];
+const clients=urls.map(u=>createPublicClient({chain:base,transport:http(u,{retryCount:0,timeout:10000})}));
+const heads=await Promise.allSettled(clients.map(async c=>{if(await c.getChainId()!==8453)throw Error('chain mismatch');return await c.getBlockNumber()}));
+const live=heads.flatMap((h,i)=>h.status==='fulfilled'?[{i,head:h.value}]:[]);if(live.length<2)throw Error('need2independentRPC');
+const blockNumber=live.reduce((n,x)=>x.head<n?x.head:n,live[0].head)-2n;
+const xs=await Promise.allSettled(live.map(async({i})=>{const c=clients[i];const b=await c.getBlock({blockNumber});const a=await c.multicall({blockNumber,allowFailure:false,contracts:[{address:dep.reserve,abi:OWNER_ABI,functionName:'reserveOf',args:[id,owner]},{address:dep.reserve,abi:OWNER_ABI,functionName:'limits',args:[]},{address:dep.ledger,abi:LEDGER_ABI,functionName:'get',args:[id]}]});const code=await c.getCode({address:dep.reserve,blockNumber});if(keccak256(code)!==dep.reserveCodeHash)throw Error('reserve code changed');const [r,limits,d]=a;let opts;try{opts=JSON.parse(d.configCid)}catch{}const spent=BigInt(r.epochSec)>0n&&b.timestamp/BigInt(r.epochSec)===BigInt(r.epochIndex)?BigInt(r.epochSpentWei):0n;return {url:urls[i],blockHash:b.hash,timestamp:b.timestamp,reserve:r,epochSpentNow:spent,epochLeftNow:BigInt(r.epochCapWei)-spent,limits,ledger:{id:d.id,owner:d.owner,active:d.active,appRef:d.appRef,leaseUntil:d.leaseUntil,runner:d.runner,runnerOperator:d.runnerOperator,rate:d.rate,balance6:d.balance6,configKeys:opts&&Object.keys(opts.config||{}),hasReservedMedia:!!opts?.config&&Object.hasOwn(opts.config,'_media')}}}));
+const stringify=x=>JSON.stringify(x,(_,v)=>typeof v==='bigint'?String(v):v);
+const out={at:new Date().toISOString(),block:String(blockNumber),results:xs.map((x,i)=>x.status==='fulfilled'?x.value:{url:urls[live[i].i],error:String(x.reason.message).slice(0,250)})};const groups=new Map();for(const x of out.results){if(x.error)continue;const {url,...v}=x;const k=stringify(v);groups.set(k,[...(groups.get(k)||[]),url])}out.agreeing=Math.max(0,...[...groups.values()].map(v=>v.length));fs.writeFileSync('work/ens-outage-20261022/reserve-after-deposit.json',stringify(out)+'\n');console.log(stringify(out));if(out.agreeing<2)process.exitCode=2;

@@ -1,0 +1,34 @@
+--- a/api-relay.js
++++ b/api-relay.js
+@@ -61,6 +61,8 @@
+ //                                  follow every registered enclave (+ loud warning).
+ //   CORS_ORIGINS       optional    comma-separated allowed browser origins
+ //                                  (default https://enclave.host,https://www.enclave.host)
++//   CORS_PUBLIC_ORIGINS optional   comma-separated EXACT origins answered with Allow-Origin but never Allow-Credentials
++//                                  (default: the site's ENS origins https://enclavehost.eth, .eth.link, .eth.limo)
+ //   SSO_SIGNER_KEY     optional    secp256k1 private key (0x-hex) for minting
+ //                                  Sign-in-with-Enclave (EST1) tokens - a
+ //                                  DEDICATED key, never one that signs
+@@ -340,6 +342,13 @@
+ // CORS (fix 5): allowlist instead of reflecting any Origin with credentials.
+ const CORS_ORIGINS = (process.env.CORS_ORIGINS || "https://enclave.host,https://www.enclave.host")
+   .split(",").map((s) => s.trim()).filter(Boolean);
++// The same site published under its ENS name: the native https://enclavehost.eth and the eth.link / eth.limo gateway
++// hosts (those two are a third party's servers). Its pages call this API with fetch() that sends no browser credentials
++// (a session rides in the Authorization header the page itself sets), so an exact Allow-Origin is all they need; they
++// never get Allow-Credentials, so no cookie a proxied app may have set on this origin is ever readable from them.
++// Exact https origins only: no wildcard, no reflection.
++const CORS_PUBLIC_ORIGINS = (process.env.CORS_PUBLIC_ORIGINS ?? "https://enclavehost.eth,https://enclavehost.eth.link,https://enclavehost.eth.limo")
++  .split(",").map((s) => s.trim()).filter((s) => /^https:\/\/[a-z0-9.-]+$/.test(s));
+ // Trusted-proxy switch (fix 6): Caddy fronts the relay in production and sets
+ // x-forwarded-host / x-forwarded-for. Default trusts those (current behavior).
+ // Set TRUSTED_PROXY to an off value (0/false/off/no/none) when the relay is
+@@ -1078,6 +1087,8 @@
+   if (corsAllowed(origin)) {
+     h["Access-Control-Allow-Origin"] = origin;
+     h["Access-Control-Allow-Credentials"] = "true";
++  } else if (origin && CORS_PUBLIC_ORIGINS.includes(origin)) {
++    h["Access-Control-Allow-Origin"] = origin;                 // exact, no credentials
+   } else if (CORS_ORIGINS.includes("*")) {
+     h["Access-Control-Allow-Origin"] = "*";                    // wildcard, no credentials
+   }

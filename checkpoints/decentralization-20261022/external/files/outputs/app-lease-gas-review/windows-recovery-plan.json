@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-20T23:28:25.266850+00:00",
+  "status": "Prepared from current reviewed main; not applied. Recheck after final relay delta integration.",
+  "planSha256": "8677352d5384fcd2dd252f14992a5e9e6bae83f062a1ecfb4ae6880f1596824d",
+  "changedFiles": 32,
+  "unchangedFiles": 48,
+  "managerShared": [
+    "windows/vbslike/datapath/node-bridge.mjs",
+    "windows/vbslike/manager/bridge-auth.mjs",
+    "windows/vbslike/manager/custody-key-file.mjs",
+    "windows/vbslike/manager/custody-transport.mjs"
+  ],
+  "sourcePlan": "work/windows-lease-activation/control-plan.json",
+  "restartScope": "Only node agent; preserve Shield manager and running VMs",
+  "fundingApprovalReceived": false,
+  "productionMutation": false
+}

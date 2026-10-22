@@ -1,0 +1,77 @@
+--- a/network/wg-provider/main.mjs
++++ b/network/wg-provider/main.mjs
+@@ -5,8 +5,10 @@
+ //          bootstrap: "explicit" | "legacy" (default), authorityPins, directories:[...],
+ //          rpc:[two or more https], addressBook, relay, checkers:[...], zone, probeZone, stateDir,
+ //          budget:{monthlyBytes, stopAt},   (budget: outbound bytes this month; at stopAt the provider stops accepting)
+-//          proofKeyFile}                    (a paid provider, pricePerGiB6 > 0: a community provider, i.e. a registry host
++//          proofKeyFile,                    (a paid provider, pricePerGiB6 > 0: a community provider, i.e. a registry host
+ //                                            [kind community, hostId], co-signs receipts with that host's proof key)
++//          hostServices}                    (optional: registered hosts' own public service names and DNS 53, as raw
++//                                            packets; wg-provider/host-services-config.mjs)
+ import fs from 'node:fs/promises';
+ import path from 'node:path';
+ import {privateKeyToAccount} from 'viem/accounts';
+@@ -24,6 +26,9 @@
+ import {connectivityAddress,submitAttestations,ensureHost} from '../onchain-qualification.mjs';
+ import {createWalletClient} from 'viem';
+ import {resolveProviderBootstrap} from '../service-index.mjs';
++import {providerHostServices,hostServicesPolicyEnv} from './host-services-config.mjs';
++import {resolveHostPolicyConfig} from '../platform-host-policy-config.mjs';
++import {createHostPolicyRuntime} from '../host-policy-runtime.mjs';
+ 
+ const log=m=>console.log(new Date().toISOString(),m);
+ const checkOnly=process.argv[2]==='--check-config';
+@@ -32,10 +37,12 @@
+ // pins, RPCs, directories, checkers and zones; no address book, no relay fallback, no enclave.host default. "legacy" (an
+ // installed provider's config, unchanged): Enclave's defaults exactly as before.
+ const boot=resolveProviderBootstrap(cfg);
++const hostServices=providerHostServices(cfg.hostServices,{zone:boot.zone,probeZone:boot.probeZone,roles:cfg.roles||[]});
+ if(checkOnly){
+  if(!Array.isArray(cfg.rpc)||cfg.rpc.length<2)throw new Error('two or more RPC endpoints required');
+  console.log(JSON.stringify({ok:true,mode:boot.mode,directories:boot.directories,zone:boot.zone,probeZone:boot.probeZone,relay:boot.relay,
+-  pinned:!!boot.authorityPins,checkers:(cfg.checkers||[]).length,notes:boot.notes}));process.exit(0);
++  pinned:!!boot.authorityPins,checkers:(cfg.checkers||[]).length,notes:boot.notes,
++  hostServices:hostServices&&{zone:hostServices.zone,platformHostPolicy:typeof hostServices.platformHostPolicy==='string'?hostServices.platformHostPolicy:'explicit',maxHosts:hostServices.maxHosts,dnsHosts:hostServices.dns?.hosts.length||0}}));process.exit(0);
+ }
+ const account=privateKeyToAccount((await fs.readFile(cfg.operatorKeyFile,'utf8')).trim());
+ log(`bootstrap: ${boot.mode}; directories ${boot.directories.join(',')}; ${boot.authorityPins?'pinned contracts':'address book '+boot.addressBook}`);
+@@ -53,7 +60,7 @@
+ const clients=cfg.rpc.map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
+ // Owner signatures use the same fresh chain quorum and explicit factory binding.
+ const verifyOwner=(owner,message,signature)=>verifyOwnerSignature({reader:leases,owner,message,signature,addressBook:boot.addressBook,sessionVaultFactory:leases.authorityPins?.sessionVaultFactory});
+-const kernel=new Kernel({publicAddress:cfg.publicAddress,uplink:cfg.uplink||'eth0',ports,log});
++const kernel=new Kernel({publicAddress:cfg.publicAddress,uplink:cfg.uplink||'eth0',ports,dns:hostServices?.dns?.limits||null,log});
+ const keys=await kernel.ensure();
+ const policyFile=path.join(stateDir,'policy-nonces.json');
+ let nonces={};try{nonces=JSON.parse(await fs.readFile(policyFile,'utf8'));}catch{}
+@@ -75,7 +82,19 @@
+  return targetCache.list;
+ };
+ const config={providerId,hostId:cfg.hostId||null,roles:cfg.roles,pricePerGiB6:cfg.pricePerGiB6||0,publicAddress:cfg.publicAddress,exitKey:keys['wg-exit'],guardKey:keys['wg-guard'],
+- ports,zone:boot.zone,probeZone:boot.probeZone,checkers:cfg.checkers||[]};
++ ports,zone:boot.zone,probeZone:boot.probeZone,checkers:cfg.checkers||[],
++ ...(hostServices?{hostServices:{zone:hostServices.zone,platformHostPolicy:hostServices.platformHostPolicy==='off'?'off':'on',maxHosts:hostServices.maxHosts,
++  ...(hostServices.dns?{dns:{hosts:hostServices.dns.hosts,staleMs:hostServices.dns.staleMs}}:{})}}:{})};
++// Host services obey the platform host policy exactly as every other enforcement point: the admin's bans and allowlist,
++// at agreed blocks, only an explicit admit grants (host-policy-adapters.mjs hostAdmissions). "off" is explicit and loud.
++let hostAdmission=null;
++if(hostServices){
++ const env=hostServicesPolicyEnv(hostServices);
++ if(!env)log('host services: platform host policy is EXPLICITLY OFF (development only; not a production transport profile)');
++ else{const resolved=resolveHostPolicyConfig({env,chainId:8453});const rt=createHostPolicyRuntime(resolved,{log});
++  if(!rt)throw new Error('host services: the platform host policy did not resolve');hostAdmission=rt.admissions;}
++ log(`host services: zone ${hostServices.zone}, at most ${hostServices.maxHosts} hosts; DNS 53 ${hostServices.dns?'to one of '+hostServices.dns.hosts.length+' pinned host(s)':'not forwarded'}`);
++}
+ // a host's own (control) peers: an active registry entry whose operator signed, read with the same two-RPC agreement
+ const registryAddress=()=>leases.bookAddress('registry');
+ let registry;const hosts=async id=>{registry||=await registryAddress();const [h]=await leases.registryEntries(registry,[id]);return h||null;};
+@@ -86,7 +105,7 @@
+ const store={load:async()=>{try{return JSON.parse(await fs.readFile(peerFile,'utf8'));}catch{return null;}},
+  save:v=>(saving=saving.catch(()=>{}).then(async()=>{const tmp=`${peerFile}.${process.pid}.${++seq}.tmp`;await fs.writeFile(tmp,JSON.stringify(v),{mode:0o600});await fs.rename(tmp,peerFile);}))};
+ const lastLease=new Map();
+-const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,hosts,store,
++const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,hosts,hostAdmission,store,
+  leases:async(id,{renewal=false}={})=>{
+   try{const l=(await leases.readSnapshot([id]))[0]||null;if(l)lastLease.set(id,{l,at:Date.now()});return l;}
+   catch(e){

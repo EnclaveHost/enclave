@@ -1,0 +1,22 @@
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -14,7 +14,9 @@
+ COPY package.json package-lock.json ./
+ RUN npm ci --omit=dev
+ COPY supervisor.js ./
+-COPY sdk/bootstrap/package.mjs ./sdk/bootstrap/
++COPY sdk/bootstrap/package.mjs sdk/bootstrap/storage.mjs ./sdk/bootstrap/
++COPY sdk/storage/replicas.mjs sdk/storage/upload-auth.mjs sdk/storage/gateways.mjs ./sdk/storage/
++COPY site/js/core/upload-auth.js ./site/js/core/
+ COPY windows/node/verification-checkpoints.mjs ./windows/node/
+ COPY windows/node/host-admission.bundle.mjs ./windows/node/
+ # wallet sessions as owner credentials (shared with the Windows node, which ships it through deploy-files.mjs)
+@@ -24,6 +26,8 @@
+ COPY egress.js ./
+ COPY addressbook.js ./
+ COPY net-guard.mjs ./
++# the host's own signed capacity record (GET /v1/host/capacity): the producer and the record core, no packages
++COPY network/canonical.mjs network/host-capacity-record.mjs network/host-capacity-producer.mjs network/registry-reconcile.mjs ./network/
+ # If you add the spawn implementation in its own files, COPY them here too.
+ ENV PORT=8080
+ EXPOSE 8080

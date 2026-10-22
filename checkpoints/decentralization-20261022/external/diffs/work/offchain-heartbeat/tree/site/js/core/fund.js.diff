@@ -1,0 +1,60 @@
+--- a/site/js/core/fund.js
++++ b/site/js/core/fund.js
+@@ -4,12 +4,31 @@
+    payForRuntime() pays for OR tops up a deployment; the deploy flow
+    (js/pages/deploy.js) and the dashboard's per-row Top up both use it.
+    ============================================================ */
+-import { Enclave, EnclaveError } from "./api.js";
+-import { BASE_CHAIN } from "./config.js";
++import { Enclave, EnclaveError, INDEPENDENT_MODE } from "./api.js";
++import { BASE_CHAIN, USDC_BASE } from "./config.js";
+ import { encUint, encAddr, encBytes32, encBytesTail, randHex, usdc6, DEP_SEL, baseRpc, waitReceipt } from "./chain.js";
+ import { ensureBaseChain, sendTx } from "./wallet.js";
+ import { runlog } from "./runlog.js";
+ 
++/* What a funding signature is made against. Hosted: the API's /pricing (the
++   token's EIP-712 domain and an ETH quote). Independent mode: the profile's
++   token, its domain read from the chain at an agreed block, and no ETH quote
++   (fund in USDC) - never the API. payForRuntime pins chainId and
++   verifyingContract either way. */
++export async function fundingTerms(){
++  if (INDEPENDENT_MODE){
++    const { tokenDomain, ethFundingQuote } = await import("./independent-chain.js");
++    // the ETH price fundEth will credit at: the ledger's own feed, read at a block the profile's RPCs agree on
++    let ethUsd = null, ethUsdError = null, ethQuote = null;
++    try { ethQuote = await ethFundingQuote(); ethUsd = ethQuote.ethUsd; } catch(e){ ethUsdError = e.message || String(e); }
++    return { usdc: USDC_BASE, usdcDomain: await tokenDomain(USDC_BASE), ethUsd, ethUsdError, ethQuote };
++  }
++  let pricing = null;
++  try { pricing = await (await fetch(Enclave.base + "/pricing", { signal: AbortSignal.timeout(8000) })).json(); } catch(e){}
++  return { usdc: (pricing && pricing.usdc) || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
++           usdcDomain: pricing && pricing.usdcDomain, ethUsd: pricing && pricing.ethUsd };
++}
++
+ const SEL_PAY_AUTH = "7d368d83";  // payWithAuthorization(bytes32,address,uint256,uint256,uint256,bytes32,bytes); verified vs viem
+ const SEL_PAYETH   = "00bd4dee";  // payEth(bytes32) payable; verified vs viem
+ // payWithAuthorization: 7 head words; `signature` is dynamic, so its head slot
+@@ -86,12 +105,22 @@
+   const amt6 = usdc6(fundUsdc);                       // cent-rounded 6dp USDC
+   if (amt6 <= 0n) throw new EnclaveError("Fund at least $0.01 (USDC).", 0);
+   const usd = (Number(amt6) / 1e6).toFixed(2);        // e.g. "10.00", what actually gets signed/paid
++  // a passkey account as the dashboard identity (independent mode): the ACCOUNT pays - its session budget or its own
++  // USDC/ETH - and the connected wallet only submits; the wallet's money never funds the account's record
++  if (INDEPENDENT_MODE && ledger && (await import("./identity.js")).currentIdentity().kind === "account"){
++    const S = await import("./sessions.js");
++    const wei = asset === "ETH" ? usdToWei(Number(amt6) / 1e6, pay.ethUsd || (() => { throw new EnclaveError("No ETH/USD quote from the ledger's feed right now" + (pay.ethUsdError ? " (" + pay.ethUsdError + ")" : "") + "; fund in USDC instead.", 0); })()) : 0n;
++    const ph = await S.accountFund({ id: pay.deploymentRef, amount6: amt6, asset, wei, log });
++    log("ok", "[✓] payment sent " + ph);
++    return ph;
++  }
+   if (asset === "ETH"){
+     if (!ledger && !pay.payEthMethod) throw new EnclaveError("This enclave doesn't accept ETH yet (older release); pay in USDC.", 0);
+-    if (!pay.ethUsd) throw new EnclaveError("No ETH/USD quote available right now; fund in USDC instead.", 0);
++    if (!pay.ethUsd) throw new EnclaveError("No ETH/USD quote available right now" + (pay.ethUsdError ? " (" + pay.ethUsdError + ")" : "") + "; fund in USDC instead.", 0);
+     const wei = usdToWei(Number(amt6) / 1e6, pay.ethUsd);
+     const eth = (Number(wei) / 1e18).toFixed(6);
+     log("info", "[*] " + (ledger ? "fundEth" : "payEth") + " ≈ " + eth + " ETH (≈ $" + usd + " @ $" + pay.ethUsd + "/ETH)… (wallet · one tx)");
++    if (pay.ethQuote) log("dimln", "    price from the ledger's feed " + pay.ethQuote.feed + ", round " + pay.ethQuote.roundId + ", " + pay.ethQuote.ageSeconds + "s old at block " + pay.ethQuote.block + " (the ledger credits at its own read when the transaction lands)");
+     const ph = await sendTx(to, (ledger ? dataFundEth : dataPayEth)(pay.deploymentRef), "0x" + wei.toString(16));
+     log("ok", "[✓] payment sent " + ph);
+     log("dimln", ledger

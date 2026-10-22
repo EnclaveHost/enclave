@@ -1,0 +1,7 @@
+
+table{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.9rem}
+th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid rgba(127,127,127,.25);vertical-align:top}
+tr.next td{font-weight:600}
+td.st-confirmed{color:#2e7d32}td.st-reverted,td.st-submitted,td.st-awaiting-wallet{color:#c62828}
+#current{border:1px solid rgba(127,127,127,.4);border-radius:8px;padding:.75rem 1rem;margin:1rem 0}
+#hash{font-family:monospace;min-width:0;flex:1}

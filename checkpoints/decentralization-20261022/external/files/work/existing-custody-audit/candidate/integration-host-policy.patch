@@ -1,0 +1,160 @@
+--- a/relay/api-relay.js
++++ b/relay/api-relay.js
+@@ -84,6 +84,7 @@
+ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+ import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mjs";
+ import { isBlockedHost } from "./net-guard.mjs";
++import { createHostPolicyRuntime } from "../network/host-policy-runtime.mjs";
+ import { isMcpHost, handleMcp } from "./mcp.js";
+ import { handleAccount, initAccounts, verifyAccountSession, vaultKeyOf, setSessionHooks } from "./auth.js";
+ import { vaultAddressFor } from "./vaultsvc.js";
+@@ -196,6 +197,22 @@
+       ? _rawOperators.toLowerCase().split(",").map((s) => s.trim()).filter(Boolean)
+       : DEFAULT_TRUSTED_OPERATORS.slice());
+ 
++// Platform host policy (network/platform-host-policy.mjs): the admin's anchored ban/admission decision, enforced on
++// discovery, dial and tunnel attach IN ADDITION to TRUSTED_OPERATORS. Off unless ENCLAVE_PLATFORM_HOST_POLICY is set
++// ({book, hostOwnership, mirrors}); its quorum is ENCLAVE_PLATFORM_HOST_POLICY_RPCS (distinct HTTPS RPCs). A malformed
++// value refuses to start; an undecided host (policy unreadable, node behind the anchor) is not listed and cannot attach.
++const HOST_POLICY = createHostPolicyRuntime(process.env.ENCLAVE_PLATFORM_HOST_POLICY, {
++  rpcs: (process.env.ENCLAVE_PLATFORM_HOST_POLICY_RPCS || "").split(",").map((s) => s.trim()).filter(Boolean), log: (m) => console.log(m) });
++if (HOST_POLICY) {
++  const refresh = () => HOST_POLICY.gate.refresh().then((p) => console.log(`[host-policy] platform policy #${p.policy.sequence} ${p.digest.slice(0, 18)}...`),
++    (e) => console.error(`[host-policy] refresh failed (${e.code || "error"}): ${e.message}`));
++  refresh(); setInterval(refresh, 5 * 60_000).unref();
++}
++const hostPolicyAdmission = HOST_POLICY ? async (name) => {
++  const id = String(await endpointId(boxOrigin(name) || `${TUNNEL_ORIGIN}/t/${name}`)).toLowerCase();
++  return (await HOST_POLICY.admissions([id]))[id] || { admit: false, reason: "no decision" };
++} : null;
++
+ async function tunnelNameOwner(name) {
+   if (!REGISTRY_ADDRESS) return null;
+   // A minted box name (boxhost.js) registers under its OWN host, so its id is
+@@ -273,7 +290,7 @@
+   operatorAttach: /^(1|true|yes|on)$/i.test((process.env.TUNNEL_OPERATOR_ATTACH || "").trim()),
+   // and the owner still has to clear the same operator bar the dial path uses —
+   // a tunnel row bypasses that filter, so it is enforced at attach instead
+-  trustedOperators: TRUSTED_OPERATORS, operatorsUnrestricted: OPERATORS_UNRESTRICTED,
++  trustedOperators: TRUSTED_OPERATORS, operatorsUnrestricted: OPERATORS_UNRESTRICTED, hostAdmission: hostPolicyAdmission,
+   // this relay's own public origin: a tunnel's self-routed /t/<name> URL must name it (selfRoutedUrl form 2, enclave-bf);
+   // and what an hv-node's hosting delegation must name (relay/host-delegation.mjs): Base, and this relay's registry
+   tunnelOrigin: TUNNEL_ORIGIN, ownerOnly: { chainId: 8453, registry: () => REGISTRY_ADDRESS },
+@@ -708,10 +725,14 @@
+   declaredById = new Map(await Promise.all(fresh.map(async (e) =>
+     [String(await endpointId(String(e.endpoint || "").replace(/\/+$/, ""))).toLowerCase(),
+      { payoutWallet: e.payoutWallet || null, caps: Number(capsOf(e)), region: e.region || null }])));
++  // platform host policy: one agreed decision for every fresh row; a missing decision never lists or dials the host
++  const policyIds = HOST_POLICY ? (await Promise.all(fresh.map((e) => endpointId(String(e.endpoint || "").replace(/\/+$/, ""))))).map((x) => String(x).toLowerCase()) : null;
++  const policyDecisions = HOST_POLICY ? await HOST_POLICY.admissions(policyIds).catch((e) => { console.error(`[host-policy] ${e.message}`); return {}; }) : null;
+   return Promise.all(fresh
+     // B2: only vetted operators (baked default, or the env allowlist). Pass-all
+     // ONLY under the explicit TRUSTED_OPERATORS=* opt-in — never by omission.
+-    .filter((e) => OPERATORS_UNRESTRICTED || TRUSTED_OPERATORS.includes(String(e.operator || "").toLowerCase()))
++    .filter((e, i) => (OPERATORS_UNRESTRICTED || TRUSTED_OPERATORS.includes(String(e.operator || "").toLowerCase()))
++                      && (!policyDecisions || policyDecisions[policyIds[i]]?.admit === true))
+     .map((e) => ({ e, endpoint: e.endpoint.replace(/\/+$/, "") }))
+     // B1/B3: never route to a non-https discovered endpoint (real enclaves are https)
+     .filter(({ endpoint }) => { const ok = isHttpsEndpoint(endpoint); if (!ok) console.error(`[api-relay] skipping non-https registry endpoint: ${endpoint}`); return ok; })
+--- a/relay/tunnel.js
++++ b/relay/tunnel.js
+@@ -177,6 +177,8 @@
+                                   onReferral = () => {},
+                                   operatorFor = null, operatorAttach = false,
+                                   trustedOperators = [], operatorsUnrestricted = false,
++                                  // hostAdmission(name) -> { admit, reason }: the platform host policy (relay/api-relay.js); null = off
++                                  hostAdmission = null,
+                                   // this relay's public origin (selfRoutedUrl form 2) and, for an hv-node's owner-only
+                                   // serving, what a hosting delegation must name: { chainId, registry: () => address }
+                                   tunnelOrigin = "https://api.enclave.host", ownerOnly = null,
+@@ -515,6 +517,11 @@
+             // filters on this set, applied here because a tunnel row skips it.
+             if (!operatorsUnrestricted && !trusted.has(owner))
+               return deny(`${owner} owns ${name} on chain but is not a trusted operator of this relay`);
++            if (hostAdmission) {
++              const pd = await hostAdmission(name).catch((e) => ({ admit: false, reason: e.message }));
++              if (settled) return;
++              if (!pd || pd.admit !== true) return deny(`${name} is refused by the platform host policy: ${pd?.reason || "no decision"}`);
++            }
+             // A live holder is only displaceable by the same on-chain owner —
+             // which this signature just proved. Two boxes sharing one operator
+             // key is the operator's own business; a stranger cannot get here.
+@@ -667,6 +674,11 @@
+             // name would be held by a tunnel that answers nothing, forever.
+             if (settled) return;
+             if (!res.ok) return deny(res.reasons[res.reasons.length - 1] || "quote invalid");
++            if (hostAdmission) {                          // attested attach: the same platform decision for this name's host
++              const pd = await hostAdmission(name).catch((e) => ({ admit: false, reason: e.message }));
++              if (settled) return;
++              if (!pd || pd.admit !== true) return deny(`${name} is refused by the platform host policy: ${pd?.reason || "no decision"}`);
++            }
+             // WHOSE NAME IS THIS? A quote proves the image, not the box, so a
+             // name that is REGISTERED ON CHAIN belongs to whoever registered it
+             // — and only that operator's key can take it, whether the real box
+--- a/metal/guest/measured-control.mjs
++++ b/metal/guest/measured-control.mjs
+@@ -76,7 +76,9 @@
+ 
+ /** The owner's config, strictly validated and canonical. Nothing is defaulted except controlPort. -> frozen object */
+ export function canonicalDirectConfig(raw) {
+-  only(raw, ['format', 'chainId', 'contracts', 'profileDigest', 'rpcs', 'quorum', 'releaseId', 'replicas', 'identity', 'selling', 'isolation',
++  // platformHostPolicy is OPTIONAL (absent in every existing config); every other key is required exactly as before
++  const { platformHostPolicy: _platformHostPolicy, ...required } = raw && typeof raw === 'object' ? raw : {};
++  only(raw && typeof raw === 'object' ? required : raw, ['format', 'chainId', 'contracts', 'profileDigest', 'rpcs', 'quorum', 'releaseId', 'replicas', 'identity', 'selling', 'isolation',
+     'hostAdmissionSha256', 'controlPort'], 'direct config');
+   if (raw.format !== CONFIG_FORMAT) bad(`direct config format must be ${CONFIG_FORMAT}`);
+   if (raw.chainId !== CHAIN_ID) bad(`direct config chainId must be ${CHAIN_ID}`);
+@@ -138,6 +140,9 @@
+     selling: { cpuPrice6: raw.selling.cpuPrice6, payout: raw.selling.payout === null ? null : raw.selling.payout.toLowerCase() },
+     isolation: { managerUrl: raw.isolation.managerUrl, dataAddr: raw.isolation.dataAddr },
+     hostAdmissionSha256: raw.hostAdmissionSha256, controlPort,
++    // the admin's anchored platform host policy authority (network/host-policy-runtime.mjs); present only when set, so
++    // every existing config keeps its digest. The book here is the policy AUTHORITY, not a contract resolver.
++    ...(raw.platformHostPolicy === undefined || raw.platformHostPolicy === null ? {} : { platformHostPolicy: platformPolicySection(raw.platformHostPolicy) }),
+   });
+ }
+ export const configDigest = (cfg) => sha256Hex(canonicalJson(cfg));
+@@ -158,6 +163,13 @@
+ // payout wallet, SIWE/CORS origins at enclave.host. A direct guest inherits only these authority-free tunables from it.
+ export const DIRECT_FLAVOR_KEYS = Object.freeze(['CHAIN_ID', 'USDC_ADDRESS', 'PAYMENT_WINDOW_SEC', 'GRACE_SEC', 'PAY_POLL_SEC', 'SESSION_TTL']);
+ /** The supervisor environment for a measured direct-only control guest. Secrets come in `secrets`, never from config. */
++function platformPolicySection(p) {
++  only(p, ['book', 'hostOwnership', 'mirrors'], 'platformHostPolicy');
++  for (const k of ['book', 'hostOwnership']) if (typeof p[k] !== 'string' || !ADDR.test(p[k]) || ZERO_ADDR.test(p[k])) bad(`platformHostPolicy.${k} must be a nonzero address`);
++  if (!Array.isArray(p.mirrors) || p.mirrors.length < 1 || p.mirrors.length > 8) bad('platformHostPolicy.mirrors: 1 to 8 https URLs');
++  const mirrors = p.mirrors.map((m, i) => { const u = url(m, `platformHostPolicy.mirrors[${i}]`); if (u.protocol !== 'https:' || u.search || u.hash) bad(`platformHostPolicy.mirrors[${i}] must be https`); return u.href.replace(/\/+$/, ''); });
++  return { book: p.book.toLowerCase(), hostOwnership: p.hostOwnership.toLowerCase(), mirrors };
++}
+ export function directSupervisorEnv(cfg, { paths = GUEST_PATHS, capacity = {}, secrets = {}, hostPolicyEnv = {}, flavorEnv = {} } = {}) {
+   const selling = !!secrets.operatorKey;
+   const env = {
+@@ -187,6 +199,9 @@
+     SECRETS_CAPABLE: '0', FLEET_SECRET_PRESENT: '0',
+     SECRET: secrets.secret || '', ADMIN_TOKEN: secrets.adminToken || '',
+     NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
++    // measured platform host policy: the supervisor's measured host gate (network/host-policy-adapters.mjs measuredHostGate)
++    // checks THIS host (keccak256(PUBLIC_URL)) at agreed blocks over the measured RPC quorum before claiming or serving
++    ...(cfg.platformHostPolicy ? { ENCLAVE_PLATFORM_HOST_POLICY: JSON.stringify(cfg.platformHostPolicy), ENCLAVE_PLATFORM_HOST_POLICY_RPCS: cfg.rpcs.join(',') } : {}),
+   };
+   return env;
+ }
+--- a/test/metal-measured-control.test.mjs
++++ b/test/metal-measured-control.test.mjs
+@@ -366,3 +366,17 @@
+   const o = fs.readFileSync(path.join(REPO, "metal/overlay-control-image.py"), "utf8");
+   assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs'\]/);
+ });
++
++test("platform host policy section: absent keeps every existing digest; present is measured, validated and passed to the supervisor", () => {
++  assert.equal(MC.configDigest(MC.canonicalDirectConfig({ ...RAW(), platformHostPolicy: null })), DIGEST, "null is absent");
++  const p = { book: "0xab214342d5a490150a4a977063a2f88e21f80907", hostOwnership: "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7", mirrors: ["https://policy.example/v1/"] };
++  const cfg = MC.canonicalDirectConfig({ ...RAW(), platformHostPolicy: p });
++  assert.notEqual(MC.configDigest(cfg), DIGEST, "the policy authority is bound into the measured config");
++  assert.deepEqual(cfg.platformHostPolicy.mirrors, ["https://policy.example/v1"]);
++  const env = MC.directSupervisorEnv(cfg);
++  assert.deepEqual(JSON.parse(env.ENCLAVE_PLATFORM_HOST_POLICY), cfg.platformHostPolicy);
++  assert.equal(env.ENCLAVE_PLATFORM_HOST_POLICY_RPCS, cfg.rpcs.join(","));
++  assert.equal("ENCLAVE_PLATFORM_HOST_POLICY" in MC.directSupervisorEnv(MC.canonicalDirectConfig(RAW())), false);
++  for (const bad of [{ ...p, book: "0x" + "00".repeat(20) }, { ...p, mirrors: ["http://policy.example"] }, { ...p, extra: 1 }, { ...p, mirrors: [] }])
++    assert.throws(() => MC.canonicalDirectConfig({ ...RAW(), platformHostPolicy: bad }), /platformHostPolicy/);
++});

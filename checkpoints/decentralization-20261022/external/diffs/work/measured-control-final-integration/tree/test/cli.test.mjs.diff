@@ -1,0 +1,83 @@
+--- a/test/cli.test.mjs
++++ b/test/cli.test.mjs
+@@ -1217,26 +1217,29 @@
+ });
+ 
+ 
+-test("explicit deploy and upgrade enforce platform moderation before spending", async () => {
+-  S.versionCount = 2;
++test("explicit deploy and upgrade leave rejected, yanked and delisted admission to the host", async () => {
++  S.versionCount = 2; S.catalogActive = false;
+   try {
+-    for (const status of [{active:false,approval:1}, {approval:2}, {approval:1,yanked:true}, {approval:0}]) {
+-      S.catalogActive=status.active!==false;S.v2={memMb:64,cpuGflops:2,...status};
+-      for (const args of [["deploy","hello-world:2","--fund","2","--no-wait"],["upgrade",ID,"2"]]) {
+-        S.txs.length=0;const r=await run(args);assert.notEqual(r.code,0,r.out);assert.equal(S.txs.length,0);
+-      }
+-      if(status.approval!==0){
+-        S.txs.length=0;const r=await run(["deploy","hello-world:2","--private","--fund","2","--no-wait"]);
+-        assert.notEqual(r.code,0);assert.equal(S.txs.length,0);
+-      }
++    for (const status of [{approval:0}, {approval:2}, {approval:1,yanked:true}]) {
++      S.v2 = {memMb:64,cpuGflops:2,...status}; S.txs.length = 0;
++      const deployed = await run(["deploy", "hello-world:2", "--fund", "2", "--no-wait"]);
++      assert.equal(deployed.code,0,deployed.err);
++      assert.equal(S.txs.find(t=>t.functionName==="create").args[0],`catalog://${APP_ID}/1`);
++      assert.match(deployed.out,/Catalog status: delisted/);
++      assert.match(deployed.out,/Each host decides/);
++      S.txs.length = 0;
++      const upgraded = await run(["upgrade",ID,"2"]);
++      assert.equal(upgraded.code,0,upgraded.err);
++      assert.equal(S.txs.find(t=>t.functionName==="setAppRef").args[1],`catalog://${APP_ID}/1`);
+     }
+-    S.catalogActive=true;S.v2={memMb:64,cpuGflops:2,approval:0};S.txs.length=0;
+-    const dev=await run(["deploy","hello-world:2","--private","--fund","2","--no-wait"]);
+-    assert.equal(dev.code,0,dev.err);assert.equal(S.txs.find(t=>t.functionName==="create").args[5],false);
+-    S.txs.length=0;
+-    const implicit=await run(["deploy","hello-world","--fund","2","--no-wait"]);
+-    assert.equal(implicit.code,0,implicit.err);assert.equal(S.txs.find(t=>t.functionName==="create").args[0],`catalog://${APP_ID}/0`);
+-  } finally {S.catalogActive=true;S.versionCount=1;S.v2=null;S.txs.length=0;}
++    S.catalogActive = true; S.txs.length = 0;
++    const implicit = await run(["deploy","hello-world","--fund","2","--no-wait"]);
++    assert.equal(implicit.code,0,implicit.err);
++    assert.equal(S.txs.find(t=>t.functionName==="create").args[0],`catalog://${APP_ID}/0`,"implicit selection remains an approved recommendation");
++    S.txs.length = 0;
++    const missing = await run(["deploy","hello-world:missing","--fund","2","--no-wait"]);
++    assert.notEqual(missing.code,0); assert.equal(S.txs.length,0);
++  } finally {S.catalogActive = true; S.versionCount = 1; S.v2 = null; S.txs.length = 0;}
+ });
+ 
+ /* Explicit authority pins: mutable discovery cannot redirect an operation. */
+@@ -1307,7 +1310,7 @@
+   S.rpcCalls.length = 0; S.apiCalls.length = 0; S.txs.length = 0; S.pinnedWasm = 0; S.pinnedJson.length = 0;
+   const previous = { depRev: S.depRev, catRev: S.catRev, versionCount: S.versionCount, v2: S.v2, book: S.book };
+   S.depRev = 15n; S.catRev = 5n; S.versionCount = 2;
+-  S.v2 = { approval: 1, yanked: false, config: '{"wasi":"0.3"}' }; S.book = 'fail';
++  S.v2 = { approval: 2, yanked: true, config: '{"wasi":"0.3"}' }; S.book = 'fail';
+   try {
+     const r = await run(['deploy', 'hello-world:2', '--chain-only', '--contract-pins', writeAuthorityPins(),
+       '--cpu', '0.1', '--gpu', '0', '--max-rate', '1', '--fund', '2', '--isolation', 'snp-guest-per-app', '--config', '{"hello":"world"}', '--json'],
+@@ -1357,6 +1360,23 @@
+   const again=await run(args);assert.notEqual(again.code,0);assert.match(again.err,/EEXIST/);
+  }finally{S.depRev=prev;fs.rmSync(out,{force:true});}
+ });
++test('bootstrap prepare commits owner names and an explicit ACME selection, printing the owner-bound CNAMEs',async()=>{
++ const prev=S.depRev;S.depRev=16n;S.txs.length=0;S.apiCalls.length=0;
++ const cfg=path.join(confDir,'bootstrap-names-config.json'),out=path.join(confDir,'owner-names-startup.json');fs.writeFileSync(cfg,'{}');
++ const base=['bootstrap','prepare',ID,'--contract-pins',writeAuthorityPins(),'--config-file',cfg,'--app-id','44'.repeat(32),'--runtime-id','55'.repeat(32),'--public','--out',out,'--json'];
++ const acme=['--acme-directory','https://acme-v02.api.letsencrypt.org/directory','--acme-challenge','https://challenge.example.net','--acme-zone','acme.example.net'];
++ try{
++  const r=await run([...base,'--names','www.example.com,shop.example.com',...acme]);assert.equal(r.code,0,r.err);
++  const m=JSON.parse(fs.readFileSync(out));assert.deepEqual(m.names,{hosts:['shop.example.com','www.example.com'],acme:{directory:acme[1],challenge:acme[3],zone:acme[5]}});
++  const o=JSON.parse(r.out);assert.equal(o.dns.length,2);assert.match(o.dns[0],/^_acme-challenge\.shop\.example\.com\. CNAME _acme-challenge\.[0-9a-f]{32}\.acme\.example\.net\.$/);
++  assert.equal(S.apiCalls.length,0);assert.equal(S.txs.length,0);fs.rmSync(out);
++  for(const [extra,why] of [[['--names','x.app.enclave.host'],/outside enclave\.host/],[['--names','shop.example.com','--acme-directory',acme[1]],/explicit/],
++    [acme,/need --names/],[['--names','shop.example.com',...acme,'--acme-eab-kid-secret','ACME_EAB_KID','--acme-eab-hmac-secret','ACME_EAB_HMAC'],/custody-v2/],
++    [['--names','shop.example.com',...acme,'--acme-eab-kid-secret','ACME_EAB_KID'],/both/]]){
++   const bad=await run([...base,...extra]);assert.notEqual(bad.code,0);assert.match(bad.err,why);assert.equal(fs.existsSync(out),false);
++  }
++ }finally{S.depRev=prev;fs.rmSync(out,{force:true});}
++});
+ 
+ test('owner startup packages prevent legacy config edits and preserve WAF-only changes',async()=>{
+  const prev=S.depRev,old=S.envelope;S.depRev=16n;

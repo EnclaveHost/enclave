@@ -1,0 +1,42 @@
+--- a/metal/build-image.mjs
++++ b/metal/build-image.mjs
+@@ -208,6 +208,12 @@
+ // metal.isolation=<backend> to the measured cmdline; the expected measurement below uses the same cmdline.
+ const ISOLATION = arg('isolation', '');
+ if (ISOLATION && ISOLATION !== 'snp-guest-per-app') throw new Error('--isolation must be snp-guest-per-app');
++// --control direct: the MEASURED independent control guest (docs/network/measured-control-guest.md). The launcher adds
++// metal.control=direct to the measured cmdline, so a direct control image has its own launch measurement; gsup then runs
++// the direct-only supervisor from the owner's HOST_DATA-bound config. It is a per-app tier node by construction.
++const CONTROL = arg('control', '');
++if (CONTROL && CONTROL !== 'direct') throw new Error('--control must be direct');
++if (CONTROL && ISOLATION !== 'snp-guest-per-app') throw new Error('--control direct needs --isolation snp-guest-per-app (the control guest runs no apps itself)');
+ // --isolation-min-tcb <json file>: the firmware floor a per-app guest's report must meet before this node asks a CA
+ // to certify the guest's key. INSIDE the measured image, so the host cannot lower it without changing the node's
+ // measurement (the relay's allowlist pins that).
+@@ -269,7 +275,7 @@
+ // the guest half of the shielded tier is trusted code and must be attested. The
+ // worker it talks to is not, and is not shipped here: it runs on the host, is
+ // assumed hostile, and its address arrives unmeasured over fw_cfg.
+-for (const f of ['gsup.mjs', 'host-policy.bundle.mjs', 'agent.mjs', 'shielded.mjs', 'shielded-probe.mjs', 'shielded-shm.mjs'])
++for (const f of ['gsup.mjs', 'host-policy.bundle.mjs', 'agent.mjs', 'shielded.mjs', 'shielded-probe.mjs', 'shielded-shm.mjs', 'measured-control.mjs'])
+   fs.copyFileSync(path.join(HERE, 'guest', f), path.join(md, f));
+ // init (PID1), with the kernel version substituted in
+ let init = fs.readFileSync(path.join(HERE, 'guest', 'init'), 'utf8').replaceAll('__KVER__', KVER);
+@@ -603,7 +609,8 @@
+ // the agent report exactly what it was built from) ---------------------------
+ // The MEASURED cmdline carries only the mode; everything else is fw_cfg (unmeasured).
+ const cmdlineTemplate = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE}'
+-  + (ISOLATION ? ` metal.isolation=${ISOLATION}` : '');
++  + (ISOLATION ? ` metal.isolation=${ISOLATION}` : '')
++  + (CONTROL ? ` metal.control=${CONTROL}` : '');
+ const manifest = {
+   builtWith: 'metal/build-image.mjs',
+   flavor: 'cpu',
+@@ -627,6 +634,7 @@
+                 && !(supervisorOverlay && supervisorOverlay.dirty),
+   ...(supervisorOverlay ? { supervisorOverlay } : {}),
+   ...(ISOLATION ? { isolation: ISOLATION } : {}),
++  ...(CONTROL ? { control: CONTROL } : {}),
+   ...(isolationMinTcb ? { isolationMinTcb: { path: '/opt/metal/isolation-min-tcb.json', sha256: createHash('sha256').update(isolationMinTcb).digest('hex'),
+                                              policy: JSON.parse(isolationMinTcb.toString()) } } : {}),
+   kernel: { path: KERNEL, kver: KVER, sha256: kernelSha },

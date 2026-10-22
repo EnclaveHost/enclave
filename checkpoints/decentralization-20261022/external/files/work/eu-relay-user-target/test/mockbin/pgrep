@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# TEST-ONLY: a relay process runs while a relay unit of this host is active
+M=${MOCK_DIR:-$FSROOT/mock}; { [ -e "$M/active-enclave-host-relay-eu.service" ] || [ -e "$M/active-enclave-lease-relay.service" ]; }

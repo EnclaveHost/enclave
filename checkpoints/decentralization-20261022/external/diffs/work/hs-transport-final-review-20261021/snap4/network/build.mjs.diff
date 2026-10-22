@@ -1,0 +1,10 @@
+--- a/network/build.mjs
++++ b/network/build.mjs
+@@ -13,6 +13,7 @@
+ await bundle('privacy-agent.mjs', 'privacy-agent.mjs');
+ await bundle('reconcile-apps.mjs', 'reconcile-apps.mjs');
+ await bundle('windows-circuit-worker.mjs', 'windows-circuit-worker.mjs');
++await bundle('host-service-ingress.mjs', 'host-service-ingress.mjs');
+ // the Enclave network (docs/design/enclave-network.md): the provider daemon and the checker, one file each
+ await bundle('wg-provider/main.mjs', 'wg-provider.mjs');
+ await bundle('../scripts/network/wg-qualify.mjs', 'wg-qualify.mjs');

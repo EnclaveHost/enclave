@@ -1,0 +1,127 @@
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -339,7 +339,7 @@
+ // ---- global flags + config ---------------------------------------------------
+ // Parsed once, up front; command args are whatever remains.
+ const opt = { json: false, trace: false, base: null, rpc: null, yes: false,
+-              unsigned: false, signer: null, from: null, contractPins: null,
++              unsigned: false, signer: null, signerMode: null, from: null, contractPins: null,
+               // --wallet: act with the wallet key even when a session is active (see "sessions" below)
+               wallet: false,
+               // `enclave attest` (verifier/metal-box.mjs, this repository's own verifier): --expect pins the launch measurement(s)
+@@ -376,6 +376,8 @@
+     // node-hid is a native module with per-platform binaries.
+     else if (a[i] === "--unsigned") opt.unsigned = true;
+     else if (a[i] === "--signer") opt.signer = a[++i];
++    // independent mode: auto | sign | wallet-send | handoff (cli/independent-signer.mjs)
++    else if (a[i] === "--signer-mode") opt.signerMode = a[++i];
+     else if (a[i] === "--from") opt.from = a[++i];
+     else if (a[i] === "--wallet") opt.wallet = true;
+     else if (a[i] === "--independent") opt.independent = true;
+@@ -495,6 +497,9 @@
+   "this command needs a SIGNED MESSAGE, not a transaction, so --unsigned cannot express it. "
+   + "Use --signer <url> (Frame/Clef sign messages too), or run it with a local key";
+ function loadKey({ required = true } = {}) {
++  // independent mode with --signer (or --signer-mode handoff): the external signer, whose transactions, messages and
++  // typed data are each checked against what was asked (cli/independent-signer.mjs)
++  if (INDEPENDENT?.signer) return INDEPENDENT.signer;
+   // an address is enough when something else holds the key
+   if (opt.unsigned || opt.signer) {
+     if (opt.from) {
+@@ -3484,7 +3489,7 @@
+ }
+ // Independent mode: `--unsigned` WITHOUT --from, while a session is active, prints the session-signed call for any gas
+ // payer (the session still authorizes it); `--unsigned --from ADDR` stays the wallet path, signed elsewhere, as hosted.
+-const walletChosen = () => opt.wallet || (opt.unsigned && (!INDEPENDENT || !!opt.from)) || !!opt.signer;
++const walletChosen = () => opt.wallet || (opt.unsigned && (!INDEPENDENT || !!opt.from)) || !!opt.signer || opt.signerMode === "handoff";
+ async function sessionStore() { return new (await sessionsSdk()).FileStore(SESSION_DIR); }
+ const explicitRpc = () => !!(opt.rpc || env.ENCLAVE_RPC);
+ const sessionAccount = (s) => ({ address: s.vault });
+@@ -4577,6 +4582,17 @@
+                              holds the key - Frame (http://127.0.0.1:1248) or
+                              Clef - which drives the Ledger/Trezor itself and
+                              pops the approval. Reads still use --rpc.
++                             With --independent the signer only SIGNS: the
++                             quorum prepares nonce/gas/fees, every field of the
++                             signed bytes is checked, and the quorum broadcasts
++                             them (Clef's account_* API is spoken natively).
++  --signer-mode M            independent only: auto (sign; a wallet that can
++                             only send gets the prepared transaction, checked
++                             on chain afterwards), sign, wallet-send, or
++                             handoff (no endpoint, e.g. MetaMask: print the
++                             exact transaction; then enclave signer attach).
++  enclave --independent … signer probe|list|show|resolve|attach|rebroadcast|abandon
++                             inspect and settle the signer's journaled intents.
+   Both need --from: a signer may hold several accounts, and every ownership
+   gate here keys on the address, so guessing would act as the wrong wallet.
+   Message-signing commands (login, upload, encvol) need --signer; --unsigned
+@@ -4971,7 +4987,7 @@
+ const INDEPENDENT_COMMANDS = new Set(["key", "whoami", "ls", "list", "status", "hosts", "pricing", "availability", "apps",
+   "deploy", "fund", "stop", "suspend", "resume", "rate-cap", "cap", "refund", "cancel", "transfer", "upgrade", "set-version",
+   "resize", "bootstrap", "artifact", "session", "logs", "restart", "attest", "publish", "app-token", "cpu-profile",
+-  "config", "encvol", "host", "gpu", "move"]);
++  "config", "encvol", "host", "gpu", "move", "signer"]);
+ // Why each remaining command has no independent path (work/cli-remaining-interface.txt has the exact missing pieces).
+ const INDEPENDENT_REFUSALS = {
+   secrets: "relay-held secrets are a hosted service; the independent path is custody v2 inside an owner-committed startup "
+@@ -4985,12 +5001,15 @@
+ };
+ async function configureIndependent() {
+   const asked = opt.independent || opt.profile || opt.profileDigest;
+-  const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei"].filter((k) => opt[k] !== null);
++  const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei", "signerMode"].filter((k) => opt[k] !== null);
+   if (!asked) {
+-    if (strays.length) throw new Error("--quorum, --confirmations, --max-block-age, --usdc-token and --max-fee-gwei apply to independent mode: add --independent");
++    if (strays.length) throw new Error("--quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei and --signer-mode apply to independent mode: add --independent");
+     return;
+   }
+-  if (opt.signer) throw new Error("independent mode signs locally and broadcasts the same bytes to every RPC; --signer (an external node that broadcasts itself) is not supported here - use --unsigned to sign elsewhere");
++  const external = !!opt.signer || opt.signerMode === "handoff";
++  if (external && opt.unsigned) throw new Error("--signer / --signer-mode handoff and --unsigned are different ways to sign elsewhere; use one");
++  if (opt.signerMode && !external) throw new Error("--signer-mode needs --signer URL (handoff alone needs no endpoint: --signer-mode handoff)");
++  if (external && !opt.from) throw new Error(`${opt.signer ? "--signer" : "--signer-mode handoff"} needs --from 0x… — the wallet this is for`);
+   if (!(opt.rpc || env.ENCLAVE_RPC)) throw new Error("independent mode needs explicit RPCs: --rpc https://a,https://b[,…] (at least two; there is no default set)");
+   const I = await import("./independent.mjs");
+   const trust = I.loadIndependentTrust({ profileFile: opt.profile, profileDigest: opt.profileDigest, contractPins: CONTRACT_PINS,
+@@ -5003,9 +5022,32 @@
+   const chain = new I.QuorumChain({ rpcs: trust.rpcs, quorum: trust.quorum, confirmations: trust.confirmations, maxBlockAgeMs: trust.maxBlockAgeMs });
+   const maxFeeGwei = opt.maxFeeGwei !== null ? numFlag(opt.maxFeeGwei, "--max-fee-gwei") : 5;
+   INDEPENDENT = { trust, chain, I, maxFeeGwei, pc: I.quorumPublicClient(chain), send: I.quorumWriter(chain, { maxFeeGwei, log: (m) => trace(m) }) };
++  if (external) {
++    // the user's wallet is the signing authority, never a chain-state oracle: sendQuorumTx hands it the prepared
++    // transaction through account.sendQuorumTx (cli/independent.mjs), and every outcome is a journaled intent
++    const X = await import("./independent-signer.mjs");
++    INDEPENDENT.signer = X.createExternalSigner({ url: opt.signer, from: opt.from, chainId: chain.chainId, mode: opt.signerMode || "auto",
++      journalDir: signerJournalDir(), log: (m) => stderr.write(`signer: ${m}\n`), onHandoff: signerHandoff });
++  }
+   stderr.write(`independent: ${trust.profile ? `reviewed profile ${trust.digest}` : "explicit contract pins"}; ${trust.quorum} of ${trust.rpcs.length} RPCs must agree `
+     + `at one block ${trust.confirmations} deep; no Enclave API, address book or first-answer read\n`);
+ }
++const signerJournalDir = () => path.resolve(opt.stateDir ? path.join(opt.stateDir, "signer") : path.join(CONF_DIR, "independent-signer"));
++// --signer-mode handoff: the exact transaction for the user's own wallet (MetaMask, a hardware wallet app), then stop
++function signerHandoff(rec, params) {
++  if (opt.json) { jout({ handoff: rec.id, transaction: params }); exit(0); }
++  say(`\nNOT SENT by this CLI. Send exactly this transaction from ${rec.from} with your own wallet (its nonce, gas and fees are part of it),`);
++  say(`then: enclave --independent … signer attach ${rec.id} <0xhash>   (the quorum checks the mined transaction against it)\n`);
++  say(JSON.stringify(params, null, 2));
++  exit(0);
++}
++async function cmdSigner(rest) {
++  requireIndependent("signer");
++  const X = await import("./independent-signer.mjs");
++  const [sub, ...r] = rest;
++  return X.signerCommand(sub, r, { chain: INDEPENDENT.chain, signer: INDEPENDENT.signer || null, journal: X.intentJournal(signerJournalDir()),
++    say, jout, json: opt.json, waitOpts: { timeoutMs: 180000, pollMs: 1000 } });
++}
+ const quorumLine = (s) => `block ${s.blockNumber} (${s.blockHash.slice(0, 10)}…): ${s.agreeing} of ${s.peers} RPCs agreed`;
+ const quorumJson = (s) => ({ blockNumber: String(s.blockNumber), blockHash: s.blockHash, agreeing: s.agreeing, peers: s.peers, quorum: INDEPENDENT.trust.quorum });
+ let _indRegistry = null;
+@@ -5583,7 +5625,7 @@
+   publish: cmdPublish, apps: cmdApps, artifact: cmdArtifact,
+   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,
+   encvol: cmdEncvol, host: cmdHost, session: cmdSession, hosts: cmdHosts,
+-  "app-token": cmdAppToken, "cpu-profile": cmdCpuProfile,
++  "app-token": cmdAppToken, "cpu-profile": cmdCpuProfile, signer: cmdSigner,
+ };
+ 
+ // Resolve the platform's contract addresses from the on-chain address book

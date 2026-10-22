@@ -1,0 +1,36 @@
+--- /tmp/app_client.rs.orig	2026-10-20 00:08:11.195220085 -0700
++++ app_client.rs	2026-10-20 00:08:11.204289327 -0700
+@@ -903,6 +903,22 @@
+             format!("{}:{}", url.host_str().unwrap_or("localhost"), port)
+         });
+     let mut state = Params::new().hash_length(32).to_state();
++    // INDEXD-FENCE R5 (snapshot experiment by the indexd owner, NOT the SDK worker's candidate): with a credential the
++    // hash is the length-bound sia Encoder stream "indexd/fence/v3"; without one it is byte-identical to 0.6.0.
++    if let Some(cred) = fence {
++        let ws = |state: &mut blake2b_simd::State, b: &[u8]| {
++            state.update(&(b.len() as u64).to_le_bytes());
++            state.update(b);
++        };
++        ws(&mut state, b"indexd/fence/v3");
++        ws(&mut state, method.as_str().as_bytes());
++        ws(&mut state, host_port.as_bytes());
++        ws(&mut state, url.path().as_bytes());
++        state.update(&(valid_until.timestamp() as u64).to_le_bytes());
++        state.update(cred);
++        ws(&mut state, body.unwrap_or(&[]));
++        return state.finalize().into();
++    }
+     state.update(method.as_str().as_bytes());
+     state.update(host_port.as_bytes());
+     state.update(url.path().as_bytes());
+@@ -910,10 +926,6 @@
+     if let Some(body) = body {
+         state.update(body);
+     }
+-    if let Some(cred) = fence {
+-        state.update(crate::fence::FENCE_HASH_DOMAIN);
+-        state.update(cred);
+-    }
+     state.finalize().into()
+ }
+ 

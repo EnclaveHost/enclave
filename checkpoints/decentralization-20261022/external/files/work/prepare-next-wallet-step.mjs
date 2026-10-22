@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {createPublicClient,http} from './enclave/node_modules/viem/_esm/index.js';
+const p=JSON.parse(fs.readFileSync('outputs/adapter-release/transactions.json'));
+const receipt=JSON.parse(fs.readFileSync('outputs/adapter-release/publication-receipt.json'));
+assert.equal(receipt.observation.approval,1);assert.equal(receipt.calldataExactMatch,true);
+const tx=p.transactions[1];const c=createPublicClient({transport:http('https://base.drpc.org')});
+const la=JSON.parse(fs.readFileSync('work/enclave/contracts/EnclaveDeployments.abi.json'));
+const d=await c.readContract({address:tx.to,abi:la,functionName:'get',args:[p.deployment]});
+assert.equal(d.appRef,p.oldAppRef);assert.equal(d.owner.toLowerCase(),tx.from.toLowerCase());
+const old=JSON.parse(d.configCid);const next=structuredClone(p.deploymentConfig);delete next.config;assert.deepEqual(old,next);
+const request={account:tx.from,to:tx.to,data:tx.data,value:0n};await c.call(request);const gas=await c.estimateGas(request);
+const out={status:'ready-for-owner-signature',checkedAt:new Date().toISOString(),publicationTransaction:receipt.transactionHash,purpose:'Atomically upgrade the existing adapter to 1.0.16 and enable deployment-bound wallet uploads',transaction:{chainId:tx.chainId,from:tx.from,to:tx.to,value:tx.value,data:tx.data},estimatedGas:gas.toString(),notes:['Only the adapter deployment is updated.','Existing placement, routing and secret placeholders are retained.','Signature and broadcast are still required.']};
+fs.writeFileSync('outputs/adapter-release/upgrade-request.json',JSON.stringify(out,null,2)+'\n');console.log(JSON.stringify({status:out.status,estimatedGas:out.estimatedGas,to:tx.to}));
+p.status='published-upgrade-unsigned';p.publicationTransaction=receipt.transactionHash;fs.writeFileSync('outputs/adapter-release/transactions.json',JSON.stringify(p,null,2)+'\n');

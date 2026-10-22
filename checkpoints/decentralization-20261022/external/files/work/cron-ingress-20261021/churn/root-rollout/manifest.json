@@ -1,0 +1,70 @@
+{
+  "baseDropin": "[Service]\nExecStart=\nExecStart=/usr/local/bin/node /opt/enclave-directory/runtime-2467cea/enclave-directory.mjs /etc/enclave-directory/config-f6959cb.json\n",
+  "common": {
+    "active_timeout_s": 30,
+    "backup": "/etc/systemd/system/enclave-public-directory.service.d/rollback-before-runtime-30cee0a.txt",
+    "base_dropin_sha256": "b0ed1895250affdc0e27f51e85398073011d0749c31047bd1b3aaf52153aea74",
+    "bundle_path": "/opt/enclave-directory/runtime-30cee0a/enclave-directory.mjs",
+    "bundle_sha256": "30cee0a962b72322ad45f14f82ccbeff8ba10c4b3916706e91eb43bbe266cd10",
+    "config_path": "/etc/enclave-directory/config-f6959cb.json",
+    "critical_labels": [
+      "7ae476a3",
+      "9eb4e600",
+      "38f368d6"
+    ],
+    "dropin": "/etc/systemd/system/enclave-public-directory.service.d/zz-authority-pins.conf",
+    "health_timeout_s": 30,
+    "journal": "/var/log/enclave-directory-runtime-30cee0a.journal.jsonl",
+    "lock": "/run/lock/enclave-public-directory-runtime.lock",
+    "minimum_routes": 10,
+    "new_dropin_sha256": "2bd4962b9ea00f476980e16b90314213372ccbfd835ef87e11077c23775c564b",
+    "node": "/usr/local/bin/node",
+    "old_bundle_path": "/opt/enclave-directory/runtime-2467cea/enclave-directory.mjs",
+    "old_bundle_sha256": "2467cea0a26ab6c4f468a0e02594bb0af033e2abb598f4c490cefa54a5e433d4",
+    "port": 8188,
+    "restart_cap": 2,
+    "routes_needed": 3,
+    "routes_timeout_s": 120,
+    "state_dir": "/var/lib/private/enclave-public-directory",
+    "systemctl": [
+      "systemctl"
+    ],
+    "unit": "enclave-public-directory"
+  },
+  "hosts": {
+    "ap-southeast": {
+      "config_sha256": "56886b4a17d0083eac22dc67ff9713dd7e8cc8ca62e51e17f1c081a6bed73810",
+      "ip": "165.245.191.129"
+    },
+    "ca-east": {
+      "config_sha256": "6efeddb0bff78bb3ac50f77361407e67ff1093743caa19b30b5e2ee1354d4e6b",
+      "ip": "146.190.246.39"
+    },
+    "eu-central": {
+      "config_sha256": "7af67ba65163fa96259e639c38546b22eb4dab97b911b5301f276d64cbd862bb",
+      "ip": "134.209.248.172"
+    },
+    "us-west": {
+      "config_sha256": "e1fa0ccf8369d5aa17b4228309c978a750726d3d4338a78994c173ac95e523cb",
+      "ip": "134.199.235.187"
+    }
+  },
+  "newDropin": "[Service]\nExecStart=\nExecStart=/usr/local/bin/node /opt/enclave-directory/runtime-30cee0a/enclave-directory.mjs /etc/enclave-directory/config-f6959cb.json\n",
+  "remoteSha256": "3783223350fc0374d15b27df1ccc14757f6b15625ed2dd6989cb24684ee2fdd9",
+  "schema": "enclave-directory-runtime-activation/1",
+  "sourceCommit": "abe862628e5d6cef1d64b08bd3d7ffdfd473eab3",
+  "sourcePatch": [
+    {
+      "file": "network/route-record.mjs",
+      "from": "8f5f5367b775caaaac23b7555ed1bc6bbba91c0456f3fdd25e5d46ef58e5d18b",
+      "since": "runtime-2467cea",
+      "to": "1ab8eb3eb1d321b79b984736854c208dbccc0c486e3464f12f2d823826274f8c"
+    },
+    {
+      "file": "network/public-directory.mjs",
+      "from": "07ee19d6237c01c28dbae3762a300fc79db0d22bacbeda91680b72a1bbf2d94e",
+      "since": "runtime-30cee0a",
+      "to": "14e545875992329d7f16c2e3ee793f8bd6749ff9be12315655e05c01ebaad767"
+    }
+  ]
+}

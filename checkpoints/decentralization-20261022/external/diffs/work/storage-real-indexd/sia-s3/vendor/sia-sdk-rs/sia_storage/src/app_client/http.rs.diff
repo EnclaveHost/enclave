@@ -1,0 +1,28 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/http.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/http.rs
+@@ -216,6 +216,25 @@
+         self.get_list("objects", app_key, Some(&query_params)).await
+     }
+ 
++    /// PATCH U1 (sia-s3 harness; needs the U1 indexd endpoint): lists the account's current objects in ID order
++    /// after `after`, read from the indexer's object table rather than its event feed, so an acknowledged pin is
++    /// listed at once.
++    pub(crate) async fn current_objects(
++        &self,
++        app_key: &PrivateKey,
++        after: Option<Hash256>,
++        limit: Option<usize>,
++    ) -> Result<Vec<SealedObjectEvent>, Error> {
++        let mut query_params = Vec::new();
++        if let Some(limit) = limit {
++            query_params.push(("limit", limit.to_string()));
++        }
++        if let Some(after) = after {
++            query_params.push(("after", after.to_string()));
++        }
++        self.get_list("current/objects", app_key, Some(&query_params)).await
++    }
++
+     /// Pins an object to the indexer. If an object with the same ID already
+     /// exists for the account, it is overwritten.
+     pub(crate) async fn pin_object(

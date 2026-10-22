@@ -1,0 +1,103 @@
+--- app-auth/passkey/recover/index.html
++++ site/recover/index.html
+@@ -1,6 +1,6 @@
+ <!doctype html>
+ <!-- Passkey account recovery signer (EAB1 PROTOCOL §3a). A static page for Enclave's own site at the credit-vault
+-     factory's pinned origin (production: https://enclave.host). Candidate - served by the site owner, not by this repo. -->
++     factory's pinned origin (production: https://enclave.host). Shipped as /recover/ by scripts/build-site.mjs. -->
+ <html lang="en">
+ <head>
+ <meta charset="utf-8">
+--- app-auth/passkey/recover/recover.js
++++ site/recover/recover.js
+@@ -18,10 +18,37 @@
+ 
+    Reuses the site's vendored, reviewed primitives (/vendor/aa.js: viem's
+    ABI/keccak and ox's WebAuthnP256 - the same passkey signer the
+-   dashboard's passkey account uses). Nothing here implements a curve.
++   dashboard's passkey account uses) and the site's shared EIP-191 hash
++   (js/core/eip191.js). Nothing here implements a curve.
++
++   It signs only AT the configured origin: anywhere else it refuses
++   before any passkey prompt (the vault would refuse the assertion
++   anyway). Shipped by scripts/build-site.mjs as /recover/ with the
++   production recover-config.json beside it.
+    ============================================================ */
+-const cfg = await (await fetch(new URL("recover-config.json", import.meta.url), { cache: "no-store" })).json();
++import { eip191Hash } from "../js/core/eip191.js";
++
++const ADDR = /^0x[0-9a-f]{40}$/;
++/** The page's pins, checked: exactly one origin (whose host is the RP), the original factory and its implementation. */
++export function readConfig(c) {
++  const known = ["_note", "origin", "rpId", "factory", "implementation"];
++  if (!c || typeof c !== "object" || Array.isArray(c) || Object.keys(c).some((k) => !known.includes(k))) throw new Error("recover-config.json is malformed");
++  let u; try { u = new URL(c.origin); } catch { throw new Error("recover-config.json names no origin"); }
++  if (u.origin !== c.origin) throw new Error("recover-config.json origin must be a bare origin");
++  if (c.rpId !== u.hostname) throw new Error("recover-config.json rpId must be the origin's host");
++  if (!ADDR.test(c.factory) || !ADDR.test(c.implementation)) throw new Error("recover-config.json needs the factory and implementation addresses");
++  return Object.freeze({ origin: c.origin, rpId: c.rpId, factory: c.factory, implementation: c.implementation });
++}
++let cfg = null, cfgError = null;
++try { cfg = readConfig(await (await fetch(new URL("recover-config.json", import.meta.url), { cache: "no-store" })).json()); }
++catch (e) { cfgError = e && e.message && e.message.startsWith("recover-config.json") ? e.message : "recover-config.json could not be loaded"; }
+ const L = await import("/vendor/aa.js");
++const here = () => globalThis.location && globalThis.location.origin;
++/** Refuses unless this page runs at exactly the configured origin - the only origin the vault accepts. */
++function assertOrigin() {
++  if (!cfg) throw new Error(cfgError);
++  if (here() !== cfg.origin) throw new Error(`This page only works at ${cfg.origin}: a passkey signature made anywhere else is refused by the account. Nothing was signed.`);
++}
+ 
+ const CLONE_HEAD = "0x3d602d80600a3d3981f3363d3d373d3d3d363d73", CLONE_TAIL = "0x5af43d82803e903d91602b57fd5bf3";
+ const MAGIC_6492 = "0x" + "6492".repeat(16);
+@@ -42,7 +69,9 @@
+   if (!bundle || bundle.kind !== "EAB1-bundle" || !Array.isArray(bundle.credentials)) throw new Error("that is not an Enclave account migration file");
+   return bundle.credentials.filter((c) => c.kind === "passkey").map((c) => {
+     const [, x, y, credId] = String(c.value).split(":");
+-    return { credId, x: "0x" + x, y: "0x" + y, vault: vaultFor("0x" + x, "0x" + y) };
++    if (!/^[0-9a-fA-F]{64}$/.test(x || "") || !/^[0-9a-fA-F]{64}$/.test(y || "") || !/^[A-Za-z0-9_-]{1,1366}$/.test(credId || ""))
++      throw new Error("that migration file carries a malformed passkey");
++    return { credId, x: "0x" + x.toLowerCase(), y: "0x" + y.toLowerCase(), vault: vaultFor("0x" + x, "0x" + y) };
+   });
+ }
+ /** A Sign-In-with-Ethereum message, read for display; refuses anything else. */
+@@ -55,13 +84,11 @@
+   return { site: m[1], address: lines[1].toLowerCase(), statement: lines[3] || "", resources,
+            link: resources.some((r) => r.startsWith("urn:enclave:link:account:")) };
+ }
+-/** EIP-191 personal-message hash of the exact text. */
+-export function messageHash(text) {
+-  const b = new TextEncoder().encode(text);
+-  return L.keccak256(L.concat([L.toHex(new TextEncoder().encode(`\x19Ethereum Signed Message:\n${b.length}`)), L.toHex(b)]));
+-}
++/** EIP-191 personal-message hash of the exact text (the site's shared helper). */
++export const messageHash = eip191Hash;
+ /** The vault's signature over `text` by passkey {credId, x, y}: ERC-6492( factory, createVault(x, y), ERC-1271 sig ). */
+ export async function signAsVault(text, key, { getFn } = {}) {
++  assertOrigin();
+   const msg = readMessage(text);
+   if (msg.address !== vaultFor(key.x, key.y)) throw new Error("this message is for another address than this passkey's account address");
+   const challenge = messageHash(text);
+@@ -76,14 +103,19 @@
+ const $ = (id) => document.getElementById(id);
+ let keys = [];
+ function note(t, bad) { const n = $("note"); n.textContent = t || ""; n.className = bad ? "bad" : ""; }
+-if (location.origin !== cfg.origin) note(`This page only works at ${cfg.origin}: a passkey signature made anywhere else is refused by the account.`, true);
++let refusal = null;
++try { assertOrigin(); } catch (e) { refusal = e.message; }
++if (refusal) { note(refusal, true); $("file").disabled = true; $("sign").disabled = true; }
+ $("file").addEventListener("change", async () => {
+   try {
++    assertOrigin();
+     const f = $("file").files && $("file").files[0];
+     if (!f) return;
++    if (f.size > 1 << 20) throw new Error("that file is too large to be an Enclave account migration file");
+     keys = passkeysOf(JSON.parse(await f.text()));
+     if (!keys.length) throw new Error("this migration file commits no passkey: sign with a wallet the account had instead");
+-    $("key").innerHTML = keys.map((k, i) => `<option value="${i}">passkey ${k.credId.slice(0, 12)}… - account address ${k.vault}</option>`).join("");
++    $("key").replaceChildren(...keys.map((k, i) => Object.assign(document.createElement("option"),
++      { value: String(i), textContent: `passkey ${k.credId.slice(0, 12)}… - account address ${k.vault}` })));
+     $("vault").textContent = keys[0].vault;
+     $("step2").hidden = false;
+     note("");
+# recover-config.json == recover-config.production.json (byte-identical)

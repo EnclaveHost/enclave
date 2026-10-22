@@ -1,0 +1,334 @@
+{
+  "kind": "ipns-release-anchor-cutover-plan",
+  "version": 1,
+  "createdAt": "2026-10-20T13:21:00.681Z",
+  "config": {
+    "file": "cutover/production-cutover.json",
+    "sha256": "766f050476e09a3398a1de6a1d2e998383c4a9274e49b20cb51521d09dde0a7e",
+    "pinsFrom": {
+      "file": "outputs/authority-profile/network-profile-base.json",
+      "sha256": "ee957827032cf7208434e4c73f9e859a27e4fc5c6cab5f4a2153308c09eb4cb8",
+      "reviewBlock": "52830935",
+      "rpcHosts": [
+        "base-rpc.publicnode.com",
+        "base.drpc.org",
+        "mainnet.base.org"
+      ]
+    }
+  },
+  "chain": {
+    "chainId": 8453,
+    "rpcs": [
+      "https://base-rpc.publicnode.com",
+      "https://base.drpc.org",
+      "https://mainnet.base.org"
+    ],
+    "quorum": 2,
+    "confirmations": 6,
+    "readAt": {
+      "number": 52856530,
+      "hash": "0x91a936b9f41019eba5d4b283995c306c9ec47e0650f68cf8a1e0acf71a44a541",
+      "timestamp": 1792502407,
+      "ageAtEndSecs": 14,
+      "readEndedAt": "2026-10-20T13:20:21.000Z",
+      "agreeing": [
+        "https://base-rpc.publicnode.com",
+        "https://base.drpc.org",
+        "https://mainnet.base.org"
+      ],
+      "outcomes": {
+        "https://base-rpc.publicnode.com": {
+          "eth_chainId": "ok",
+          "eth_blockNumber": "ok",
+          "eth_getBlockByNumber": "ok",
+          "eth_getCode 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b": "ok",
+          "eth_getCode 0x18419ca2b502d423a8de6269aeee171a378626e3": "ok",
+          "eth_getCode 0x4e59b44847b379578588920ca78fbf26c0b4956c": "ok",
+          "get@0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b": "ok",
+          "numVersions@0x18419ca2b502d423a8de6269aeee171a378626e3": "ok",
+          "getVersionsPage@0x18419ca2b502d423a8de6269aeee171a378626e3": "ok",
+          "nonce 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61": "ok",
+          "balance 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61": "ok"
+        },
+        "https://base.drpc.org": {
+          "eth_chainId": "ok",
+          "eth_blockNumber": "ok",
+          "eth_getBlockByNumber": "ok",
+          "eth_getCode 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b": "ok",
+          "eth_getCode 0x18419ca2b502d423a8de6269aeee171a378626e3": "15: You reached Public endpoint rate limit, please upgrade to paid plan",
+          "eth_getCode 0x4e59b44847b379578588920ca78fbf26c0b4956c": "15: You reached Public endpoint rate limit, please upgrade to paid plan",
+          "get@0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b": "15: You reached Public endpoint rate limit, please upgrade to paid plan",
+          "numVersions@0x18419ca2b502d423a8de6269aeee171a378626e3": "15: You reached Public endpoint rate limit, please upgrade to paid plan",
+          "getVersionsPage@0x18419ca2b502d423a8de6269aeee171a378626e3": "15: You reached Public endpoint rate limit, please upgrade to paid plan",
+          "nonce 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61": "15: You reached Public endpoint rate limit, please upgrade to paid plan",
+          "balance 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61": "15: You reached Public endpoint rate limit, please upgrade to paid plan"
+        },
+        "https://mainnet.base.org": {
+          "eth_chainId": "ok",
+          "eth_blockNumber": "ok",
+          "eth_getBlockByNumber": "ok",
+          "eth_getCode 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b": "ok",
+          "eth_getCode 0x18419ca2b502d423a8de6269aeee171a378626e3": "ok",
+          "eth_getCode 0x4e59b44847b379578588920ca78fbf26c0b4956c": "ok",
+          "get@0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b": "ok",
+          "numVersions@0x18419ca2b502d423a8de6269aeee171a378626e3": "ok",
+          "getVersionsPage@0x18419ca2b502d423a8de6269aeee171a378626e3": "ok",
+          "nonce 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61": "ok",
+          "balance 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61": "ok"
+        }
+      }
+    }
+  },
+  "pins": {
+    "deployments": {
+      "address": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+      "codeHash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
+      "observed": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682"
+    },
+    "appCatalog": {
+      "address": "0x18419ca2b502d423a8de6269aeee171a378626e3",
+      "codeHash": "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f",
+      "observed": "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f"
+    },
+    "create2Deployer": {
+      "address": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+      "codeHash": "0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989",
+      "observed": "0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989"
+    }
+  },
+  "preconditions": [
+    {
+      "check": "deployment owner is 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "ok": true
+    },
+    {
+      "check": "deployment runs catalog://0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef/5",
+      "ok": true
+    },
+    {
+      "check": "deployment envelope commitment is d59dc724df6a1784e9bb55eead51ffe991526260a1db6a89bd6ef15ddf7510c8",
+      "ok": true
+    },
+    {
+      "check": "deployment is active",
+      "ok": true
+    },
+    {
+      "check": "the running version's component is bafybeiesjakstv3lnkgkbcrj3itenwubnk6wuwpkcrgmjbh64wfkr4j6ii",
+      "ok": true
+    },
+    {
+      "check": "the publisher component is the reviewed 227876b8a02bf571008a2e6d703e6b0ce2c5f14b326ab598d6dfd1330f67699e",
+      "ok": true
+    },
+    {
+      "check": "at least one IPNS record source answered a valid record",
+      "ok": true
+    },
+    {
+      "check": "the publisher's rpcs are 3 distinct providers (host:base-rpc.publicnode.com, host:base.drpc.org, host:mainnet.base.org), quorum 2",
+      "ok": true
+    },
+    {
+      "check": "sequenceOffset 1000000 >= observed max 1026 + margin 10000",
+      "ok": true
+    },
+    {
+      "check": "sequenceOffset is a safe integer",
+      "ok": true
+    },
+    {
+      "check": "the anchor's initial CID is what the name points at now (/ipfs/bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou)",
+      "ok": true
+    },
+    {
+      "check": "initial CID's complete DAG (verified CAR) at >= 2 gateways (1 now)",
+      "ok": false,
+      "blocking": "activation"
+    },
+    {
+      "check": "authorityTtlSecs within the publisher's bounds",
+      "ok": true
+    },
+    {
+      "check": "the new envelope fits the ledger's 4096 bytes",
+      "ok": true
+    }
+  ],
+  "production": {
+    "deployment": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+    "publisherUrl": "https://d9798e4c.app.enclave.host",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "ownerNonceAtPlan": 1113,
+    "ownerBalanceWei": "4200638454756122",
+    "appRef": "catalog://0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef/5",
+    "appId": "0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef",
+    "runningIndex": 5,
+    "runningVersion": "1.0.5",
+    "runningCid": "bafybeiesjakstv3lnkgkbcrj3itenwubnk6wuwpkcrgmjbh64wfkr4j6ii",
+    "envelopeSha256": "d59dc724df6a1784e9bb55eead51ffe991526260a1db6a89bd6ef15ddf7510c8",
+    "envelopeBytes": 518,
+    "configRedacted": {
+      "ipnsKey": {
+        "envReference": "$IPNS_ED25519_SK"
+      },
+      "value": "https://ipfs.enclave.host/site-root",
+      "lifetimeSecs": 604800,
+      "republishSecs": 14400,
+      "ttlSecs": 300,
+      "delegates": [
+        "https://delegated-ipfs.dev"
+      ],
+      "ipni": {
+        "gatewayUrl": "https://ipfs.enclave.host",
+        "publisherUrl": "https://d9798e4c.app.enclave.host",
+        "indexers": [
+          "https://cid.contact"
+        ],
+        "announceAllBlocks": false
+      },
+      "dht": true,
+      "api_key": {
+        "envReference": "$API_KEY"
+      }
+    },
+    "oldValue": "https://ipfs.enclave.host/site-root"
+  },
+  "ipns": {
+    "name": "k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52",
+    "nameHash": "0xb5ddefeba0358b6dd1a14369b110977b6a683af034e963f9c8f25b0d1dba1518",
+    "recordSources": [
+      "https://d9798e4c.app.enclave.host",
+      "https://delegated-ipfs.dev"
+    ],
+    "records": {
+      "https://d9798e4c.app.enclave.host": {
+        "error": "fetch failed"
+      },
+      "https://delegated-ipfs.dev": {
+        "valid": true,
+        "sequence": 1026,
+        "value": "/ipfs/bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou",
+        "validity": "2026-10-27T05:41:18Z"
+      }
+    },
+    "maxObservedSequence": 1026,
+    "valueAtMax": "/ipfs/bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou",
+    "note": "the observed maximum is a floor: a key holder may have signed records these sources do not hold"
+  },
+  "availability": {
+    "cid": "bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou",
+    "check": "complete DAG: ?format=car verified by scripts/site-release/car.mjs readCar",
+    "maxCarBytes": 536870912,
+    "gateways": {
+      "https://ipfs.enclave.host": "ok",
+      "https://ipfs.io": "fetch failed",
+      "https://dweb.link": "fetch failed",
+      "https://trustless-gateway.link": "HTTP 522",
+      "https://w3s.link": "fetch failed"
+    },
+    "required": 2
+  },
+  "release": {
+    "wasm": "../../enclave-apps/ipns-publisher/target/wasm32-wasip2/release/ipns-publisher.wasm",
+    "wasmSha256": "227876b8a02bf571008a2e6d703e6b0ce2c5f14b326ab598d6dfd1330f67699e",
+    "cid": "bafybeiauhy7ydrb4dapvyoltj5ikr4myatrpmo4m2viwgbs66w23z4y4la",
+    "version": "1.0.6",
+    "template": {
+      "memMb": 128,
+      "ports": "http:8000",
+      "cpuGflops": 1,
+      "gpuGflops": 0,
+      "vramMb": 0,
+      "config": "{\"ipnsKey\":\"$IPNS_ED25519_SK\",\"value\":\"/ipfs/<CID>\",\"lifetimeSecs\":172800,\"republishSecs\":14400,\"ttlSecs\":3600,\"delegates\":[\"https://delegated-ipfs.dev\"],\"ipni\":{\"gatewayUrl\":\"https://ipfs.enclave.host\",\"publisherUrl\":\"https://<this-app's-public-https-url>\",\"indexers\":[\"https://cid.contact\"],\"announceAllBlocks\":true},\"dht\":true,\"api_key\":\"$API_KEY\",\"wasi\":\"0.2\",\"_media\":{\"thumbnail\":\"bafkreifvqozjx45dsmikegrd5lvuqb75r4uhjq5s2f5iqxrgqlm4ib3e5a\",\"thumbnailSvg\":true,\"banner\":\"bafkreid6r7vuvyt3ov323nyigdjqjf3de3aevn7redvq3svhagsqmsqzhy\",\"bannerSvg\":true}}"
+    }
+  },
+  "anchor": {
+    "address": "0xDE896c485d794361465121EEa8A1951AAfDdB310",
+    "salt": "0x854c4e37614e749641974c12cb20c33c8f5cb577bcc52ebc6810c6242f51cf01",
+    "initcodeHash": "0x2f67c98ab06bb1ab6d8e3ee5ed04e69312692ebf985bb9cdf51dbb2a7ebaa017",
+    "codeHash": "0xd706b95039884fb51d10c40339c685d4af5d44246c9fb449c01835f2eb22b0d8",
+    "runtimeBytes": 4046,
+    "build": {
+      "sourceSha256": "50f9710f8166e89f762d03eb869a06c303e5af8c270e2b975fafffc11776012c",
+      "artifactSha256": "f592eb23ad60d6b21b7a449b350f4d987f828237ba2cf5d941631b307a56d3b2",
+      "compiler": "0.8.35+commit.47b9dedd"
+    },
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "initialCid": "bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou",
+    "generation": 1,
+    "deployCalldataSha256": "c04c410f4eb56af02e9b8b4aaa67f8704ef3637134dd4df9fc5065cc1dcd24f2"
+  },
+  "delegate": {
+    "address": null,
+    "days": 180,
+    "fundReleases": 200,
+    "minReleases": 20,
+    "codeAtPlan": null
+  },
+  "publisher": {
+    "newConfig": {
+      "ipnsKey": "$IPNS_ED25519_SK",
+      "lifetimeSecs": 604800,
+      "republishSecs": 14400,
+      "ttlSecs": 300,
+      "delegates": [
+        "https://delegated-ipfs.dev"
+      ],
+      "ipni": {
+        "gatewayUrl": "https://ipfs.enclave.host",
+        "publisherUrl": "https://d9798e4c.app.enclave.host",
+        "indexers": [
+          "https://cid.contact"
+        ],
+        "announceAllBlocks": false
+      },
+      "dht": true,
+      "api_key": "$API_KEY",
+      "releaseAnchor": {
+        "chainId": 8453,
+        "contract": "0xde896c485d794361465121eea8a1951aafddb310",
+        "codeHash": "0xd706b95039884fb51d10c40339c685d4af5d44246c9fb449c01835f2eb22b0d8",
+        "rpcs": [
+          "https://base-rpc.publicnode.com",
+          "https://base.drpc.org",
+          "https://mainnet.base.org"
+        ],
+        "quorum": 2,
+        "confirmations": 6,
+        "maxBlockAgeSecs": 120,
+        "authorityTtlSecs": 86400,
+        "pollSecs": 120,
+        "sequenceOffset": 1000000,
+        "rpcTimeoutSecs": 10
+      }
+    },
+    "newEnvelope": "{\"config\":{\"ipnsKey\":\"$IPNS_ED25519_SK\",\"lifetimeSecs\":604800,\"republishSecs\":14400,\"ttlSecs\":300,\"delegates\":[\"https://delegated-ipfs.dev\"],\"ipni\":{\"gatewayUrl\":\"https://ipfs.enclave.host\",\"publisherUrl\":\"https://d9798e4c.app.enclave.host\",\"indexers\":[\"https://cid.contact\"],\"announceAllBlocks\":false},\"dht\":true,\"api_key\":\"$API_KEY\",\"releaseAnchor\":{\"chainId\":8453,\"contract\":\"0xde896c485d794361465121eea8a1951aafddb310\",\"codeHash\":\"0xd706b95039884fb51d10c40339c685d4af5d44246c9fb449c01835f2eb22b0d8\",\"rpcs\":[\"https://base-rpc.publicnode.com\",\"https://base.drpc.org\",\"https://mainnet.base.org\"],\"quorum\":2,\"confirmations\":6,\"maxBlockAgeSecs\":120,\"authorityTtlSecs\":86400,\"pollSecs\":120,\"sequenceOffset\":1000000,\"rpcTimeoutSecs\":10}},\"isolation\":{\"cpuTee\":false,\"gpuTee\":false},\"placement\":{\"hostId\":\"0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a\"}}",
+    "newEnvelopeSha256": "dde23ebd06b41e72030ec2751edbd6a631a4ffb2c1878c71ed2775d1b1ade3c9",
+    "oldEnvelope": "{\"config\":{\"ipnsKey\":\"$IPNS_ED25519_SK\",\"value\":\"https://ipfs.enclave.host/site-root\",\"lifetimeSecs\":604800,\"republishSecs\":14400,\"ttlSecs\":300,\"delegates\":[\"https://delegated-ipfs.dev\"],\"ipni\":{\"gatewayUrl\":\"https://ipfs.enclave.host\",\"publisherUrl\":\"https://d9798e4c.app.enclave.host\",\"indexers\":[\"https://cid.contact\"],\"announceAllBlocks\":false},\"dht\":true,\"api_key\":\"$API_KEY\"},\"isolation\":{\"cpuTee\":false,\"gpuTee\":false},\"placement\":{\"hostId\":\"0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a\"}}",
+    "mappedFirstSequence": 1000001
+  },
+  "fees": {
+    "source": "fork-measured at Base block 52856279 (snapshots/fork-gas.json)",
+    "gas": {
+      "deployAnchor": 1082031,
+      "setDelegate": 50324,
+      "fund": 21000,
+      "activate": 409004,
+      "publishRelease": 62681
+    },
+    "gasPriceWei": "6000000",
+    "baseFeeWei": "5000000",
+    "maxFeePerGasWei": "11000000",
+    "l1FeeUpperBoundPer200BytesWei": "2448987456",
+    "estimatesWei": {
+      "deployAnchor": "11975810623680",
+      "setDelegate": "556012987456",
+      "fund": "233448987456",
+      "activate": "4516186912192",
+      "perRelease": "691939987456",
+      "delegateFunding": "138387997491200",
+      "ownerTotal": "155669457001984"
+    }
+  }
+}

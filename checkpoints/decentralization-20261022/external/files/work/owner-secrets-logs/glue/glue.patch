@@ -1,0 +1,45 @@
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -3031,6 +3031,10 @@
+   } catch {}
+ }
+ async function cmdSecrets(rest) {
++  if (INDEPENDENT) {
++    const { cmdSecretsIndependent } = await import("./custody-independent.mjs");
++    return cmdSecretsIndependent(rest, independentCustodyHandles());
++  }
+   const sub = rest.shift();
+   const usage = "usage: enclave secrets set <id> KEY=VALUE… [--file .env] [--restart]\n"
+               + "     | enclave secrets ls <id> [--show]\n"
+@@ -3098,7 +3102,16 @@
+ }
+ 
+ // ---- secret custody (cli/custody.mjs; docs/security/secret-custody.md): the CLI's own helpers, handed in ----------
++// independent custody and secrets: custody v2 only, every read a quorum of the operator's RPCs, every write the independent
++// writer, the vault the reviewed pin, owner reads through the committee itself; no Enclave API, relay or first-answer RPC
++// (cli/custody-independent.mjs; work/custody-cli-interface.txt, work/owner-secrets-interface.txt)
++const independentCustodyHandles = () => ({ flags, loadKey, say, jout, short, secretsKv, env, json: !!opt.json, warn: (m) => console.error(m),
++  readFile: (p) => fs.readFileSync(p, "utf8"), chain: INDEPENDENT.chain, trust: INDEPENDENT.trust, send: INDEPENDENT.send });
+ async function cmdCustodyHere(rest) {
++  if (INDEPENDENT) {
++    const { cmdCustodyIndependent } = await import("./custody-independent.mjs");
++    return cmdCustodyIndependent(rest, independentCustodyHandles());
++  }
+   // loaded on use: the custody code imports ../custody (and viem from the repo root), which a bare `cli/` install lacks
+   const { cmdCustody } = await import("./custody.mjs");
+   return cmdCustody(rest, {
+@@ -4971,13 +4984,9 @@
+ const INDEPENDENT_COMMANDS = new Set(["key", "whoami", "ls", "list", "status", "hosts", "pricing", "availability", "apps",
+   "deploy", "fund", "stop", "suspend", "resume", "rate-cap", "cap", "refund", "cancel", "transfer", "upgrade", "set-version",
+   "resize", "bootstrap", "artifact", "session", "logs", "restart", "attest", "publish", "app-token", "cpu-profile",
+-  "config", "encvol", "host", "gpu", "move"]);
++  "config", "encvol", "host", "gpu", "move", "custody", "secrets"]);
+ // Why each remaining command has no independent path (work/cli-remaining-interface.txt has the exact missing pieces).
+ const INDEPENDENT_REFUSALS = {
+-  secrets: "relay-held secrets are a hosted service; the independent path is custody v2 inside an owner-committed startup "
+-    + "package (bootstrap prepare --custody-file, SEV-SNP), owned by the custody workstream",
+-  custody: "the custody CLI (cli/custody.mjs) still reads through first-answer RPC clients and relay hooks; it is refused "
+-    + "here until the custody workstream accepts quorum clients",
+   account: "Enclave accounts (passkey sign-in, orders, credit) are the hosted account service; independently, your wallet "
+     + "is the account (ls, whoami, fund)",
+   login: "account sign-in is the hosted account service; independent mode acts with your wallet key",

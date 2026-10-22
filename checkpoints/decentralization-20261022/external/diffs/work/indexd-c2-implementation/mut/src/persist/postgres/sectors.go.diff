@@ -1,0 +1,39 @@
+--- a/persist/postgres/sectors.go
++++ b/persist/postgres/sectors.go
+@@ -271,10 +271,20 @@
+ // with the provided account. A sector's reported upload time, capped at now,
+ // becomes its uploaded_at.
+ func (s *Store) PinSlabs(account proto.Account, nextIntegrityCheck time.Time, toPin ...slabs.SlabPinParams) ([]slabs.SlabID, error) {
++	return s.PinSlabsFenced(account, nil, nextIntegrityCheck, toPin...)
++}
++
++// PinSlabsFenced is PinSlabs under the writer fence sf (FENCING PATCH): the account row is locked and the fence
++// checked first.
++func (s *Store) PinSlabsFenced(account proto.Account, sf *accounts.Credential, nextIntegrityCheck time.Time, toPin ...slabs.SlabPinParams) ([]slabs.SlabID, error) {
+ 	var digests []slabs.SlabID
+ 	err := s.transaction(func(ctx context.Context, tx *txn) error {
+ 		digests = digests[:0] // reuse same slice if transaction retries
+ 
++		if _, err := lockAccount(ctx, tx, account, sf); err != nil {
++			return err
++		}
++
+ 		var accountID int64
+ 		var connectKeyID int64
+ 		err := tx.QueryRow(ctx, "SELECT id, connect_key_id FROM accounts WHERE public_key = $1", sqlPublicKey(account)).Scan(&accountID, &connectKeyID)
+@@ -728,8 +738,14 @@
+ // account, it and its sectors are queued for deletion by PruneDeletedSlabs in
+ // a background loop.
+ func (s *Store) UnpinSlab(account proto.Account, slabID slabs.SlabID) error {
++	return s.UnpinSlabFenced(account, nil, slabID)
++}
++
++// UnpinSlabFenced is UnpinSlab under the writer fence sf (FENCING PATCH).
++func (s *Store) UnpinSlabFenced(account proto.Account, sf *accounts.Credential, slabID slabs.SlabID) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		id, _, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		id := la.id
+ 		if err != nil {
+ 			return fmt.Errorf("failed to get account ID: %w", err)
+ 		}

@@ -1,0 +1,12 @@
+{
+  "basePath": "work/app-lease-gas/shadow-b/supervisor.js",
+  "baseSha256": "0aded610e65832253db7c013d699904e73e4a6626e3b53a58aeae2462afd8447",
+  "candidateSha256": "4aaa0f4ecef7ce399af6498d0398d1570377ebc5d82070ea20260dc1e71e9f05",
+  "patchSha256": "99c0e053ecb975e32044e457a673c2c9881eb439b4507aa1c709542f065a15f4",
+  "status": "isolated correction, not applied to worker source; awaiting regression tests and actual-host integration",
+  "tests": {
+    "status": "8/8 passed including original-code negative control",
+    "log": "work/heartbeat-readers-production/integration-expanded.log",
+    "logSha256": "60776d77faa61c0c8499d7ca71034abaa1a3f3b8e35cf18c917726435172e974"
+  }
+}

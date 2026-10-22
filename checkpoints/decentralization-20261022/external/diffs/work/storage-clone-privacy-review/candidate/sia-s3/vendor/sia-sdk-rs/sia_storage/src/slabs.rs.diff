@@ -1,0 +1,36 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/slabs.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/slabs.rs
+@@ -13,8 +13,8 @@
+ use thiserror::Error;
+ 
+ use crate::object_encryption::{
+-    DecryptError, open_data_key, open_metadata, open_metadata_key, seal_data_key, seal_metadata,
+-    seal_metadata_key,
++    DecryptError, new_metadata_key, open_data_key, open_metadata, open_metadata_key, seal_data_key,
++    seal_metadata, seal_metadata_key,
+ };
+ 
+ #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, SiaEncode, SiaDecode)]
+@@ -395,8 +395,11 @@
+     pub deleted: bool,
+     /// The time the event occurred.
+     pub updated_at: DateTime<Utc>,
+-    /// The object, if it was not deleted.
++    /// The object, if it was not deleted (and not blocked).
+     pub object: Option<Object>,
++    /// PATCH U1-B (blocked listing): the indexer's operator blocked this object. Only the current listing
++    /// ([crate::Sdk::current_objects]) reports it; the object and its metadata are withheld.
++    pub blocked: bool,
+ }
+ 
+ /// A file stored on the Sia network, consisting of erasure-coded slabs and
+@@ -560,7 +563,8 @@
+         };
+ 
+         let (encrypted_metadata_key, encrypted_metadata) = if !self.metadata.is_empty() {
+-            let metadata_key = EncryptionKey::from(rand::random::<[u8; 32]>());
++            // PATCH (clone privacy): hedged, see `new_metadata_key`
++            let metadata_key = new_metadata_key(&object_id, &self.metadata);
+             let encrypted_metadata_key = seal_metadata_key(key, &object_id, &metadata_key);
+             let encrypted_metadata = seal_metadata(&metadata_key, &self.metadata);
+             (encrypted_metadata_key, encrypted_metadata)

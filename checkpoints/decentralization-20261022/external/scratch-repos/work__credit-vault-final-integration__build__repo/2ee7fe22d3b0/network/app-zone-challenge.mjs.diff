@@ -1,0 +1,245 @@
+--- a/network/app-zone-challenge.mjs
++++ b/network/app-zone-challenge.mjs
+@@ -0,0 +1,242 @@
++// App-zone DNS-01 authorization: what a provider's route replica (relay/dns-relay.js APP_CHALLENGE_AUTH=attested-lease)
++// checks before it answers `_acme-challenge.<label>.<appZone>` for a measured direct guest's in-guest ACME
++// (isolation/m2/front/appzone.go). It replaces, for guests that opt in, the central challenge store / CERTS_API: every
++// replica verifies on its own, from the push and the chain, and none trusts another replica or Enclave's API.
++//
++// A push (v2, domain-separated from the v1 owner-name pushes of dns-challenge-attested.mjs) is authorized only when ALL hold:
++//   1. it is signed (ECDSA P-256, SHA-256, DER) over a domain-separated hash of the exact body by the key it names, and its
++//      attestation document's report binds that key and a nonce over EVERY other field (name, value, order url/expiry,
++//      lease identity, ts), comes from a launch measurement this replica's operator pinned (the platform's released direct
++//      front images), and its HOST_DATA is the deployment the push names;
++//   2. the name is exactly _acme-challenge.<deploymentId[2:10]>.<appZone> (never an apex, wildcard, deeper or other label),
++//      and that 8-hex label names exactly ONE deployment in the ledger (an ambiguous or ground prefix refuses both);
++//   3. at ONE agreeing chain block: the deployment's lease is active and unexpired, and its runner, runner operator, owner,
++//      app reference and config envelope equal the push's (any re-lease, owner or app change makes an older push stale);
++//      the runner's EnclaveRegistry entry is active and names that operator (a host the platform deactivated refuses);
++//      the EnclaveAppCatalog app/version pass the platform's catalogAdmissionRefusal (delisted, yanked, rejected, or a
++//      pending version on a public deployment refuses) - platform moderation stops issuance, exactly as admission;
++//   4. ts within 300 s, the ACME authorization still unexpired; each accepted push is ONE-SHOT until it expires.
++// What the replica cannot judge is how the CA validates: that is the CA following the zone's NS delegation to replicas.
++import { createHash, createPublicKey, verify as verifySig } from "node:crypto";
++import { parseAbi } from "viem";
++import { catalogAdmissionRefusal } from "../site/js/core/catalog-policy.js";
++
++export const APP_PUSH_NONCE_PREFIX = "enclave-app-acme-push-v2\n";
++export const APP_PUSH_SIG_PREFIX = "enclave-app-acme-push-sig-v2\n";
++export const APP_PUSH_MAX_BYTES = 32768;
++export const APP_TXT_MAX_TTL_S = 120;
++const FIELDS = ["v", "op", "name", "value", "deploymentId", "owner", "lease", "order", "ts", "spki", "attestation"];
++const LEASE_FIELDS = ["runner", "operator", "appRef", "envelope"];
++const ORDER_FIELDS = ["url", "expires"];
++const ACCEPT = { trusted: ["attested"], "lab-unsigned": ["attested", "no-tcb-policy", "unauthenticated"] };
++const HEX64 = /^0x[0-9a-f]{64}$/, ADDR = /^0x[0-9a-f]{40}$/, ZERO64 = /^0x0{64}$/, ZERO40 = /^0x0{40}$/;
++const CATALOG_REF = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/([0-9]{1,9})$/;
++
++export const appLabel = (deploymentId) => deploymentId.slice(2, 10);
++export const appChallengeName = (deploymentId, zone) => `_acme-challenge.${appLabel(deploymentId)}.${zone}`;
++
++// The nonce the report must carry: every field but the attestation itself, in a fixed order (appzone.go computes the same).
++export function appPushNonce(p) {
++  return createHash("sha256").update(APP_PUSH_NONCE_PREFIX + [p.v, p.op, p.name, p.value, p.deploymentId, p.owner,
++    p.lease.runner, p.lease.operator, p.lease.appRef, p.lease.envelope, p.order.url, p.order.expires, p.ts, p.spki].join("\n")).digest();
++}
++export const pushDigest = (raw) => createHash("sha256").update(raw).digest("hex");
++
++const deny = (status, why) => ({ ok: false, status, why });
++const exact = (o, keys) => o && typeof o === "object" && !Array.isArray(o) && Object.keys(o).length === keys.length && keys.every((k) => Object.hasOwn(o, k));
++
++// appPushPreconditions -> { ok: true, p, spki, doc, nonce } | deny(...). Never throws. Shape, window, name, key possession and
++// an attestation document bound to this very push; no chain, no judge.
++export function appPushPreconditions({ raw, sig, method, zone, now = Date.now }) {
++  try {
++    if (!Buffer.isBuffer(raw) || raw.length > APP_PUSH_MAX_BYTES) return deny(413, "push too large");
++    let p;
++    try { p = JSON.parse(raw.toString("utf8")); } catch { return deny(400, "bad_json"); }
++    if (!exact(p, FIELDS) || !exact(p.lease, LEASE_FIELDS) || !exact(p.order, ORDER_FIELDS)) return deny(400, "the push must carry exactly the app-zone push fields");
++    if (p.v !== 2 || !["set", "delete"].includes(p.op) || (p.op === "set") !== (method === "POST") || !["POST", "DELETE"].includes(method))
++      return deny(400, "version, op and HTTP method must agree");
++    const t = now() / 1000;
++    if (!Number.isSafeInteger(p.ts) || Math.abs(t - p.ts) > 300) return deny(401, "push timestamp outside the ±300s window");
++    if (typeof p.value !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(p.value)) return deny(400, "value is not a dns-01 digest");
++    if (typeof p.deploymentId !== "string" || !HEX64.test(p.deploymentId) || ZERO64.test(p.deploymentId)) return deny(400, "exact deployment id required");
++    if (typeof p.owner !== "string" || !ADDR.test(p.owner) || ZERO40.test(p.owner)) return deny(400, "lowercase owner address required");
++    const l = p.lease;
++    if (typeof l.runner !== "string" || !HEX64.test(l.runner) || ZERO64.test(l.runner) || typeof l.operator !== "string" || !ADDR.test(l.operator) ||
++        ZERO40.test(l.operator) || typeof l.appRef !== "string" || l.appRef.length > 256 || typeof l.envelope !== "string" || l.envelope.length > 256)
++      return deny(400, "exact lease binding required");
++    const o = p.order;
++    if (typeof o.url !== "string" || o.url.length > 512 || !/^https:\/\/[^\s]+$/.test(o.url) || !Number.isSafeInteger(o.expires))
++      return deny(400, "the ACME order url and authorization expiry are required");
++    if (o.expires <= t) return deny(401, "the ACME authorization has expired");
++    if (o.expires > t + 31 * 86400) return deny(400, "authorization expiry too far ahead");
++    if (p.name !== appChallengeName(p.deploymentId, zone)) return deny(403, "the name is not this deployment's app-zone challenge name");
++    if (typeof p.spki !== "string" || typeof sig !== "string" || p.spki.length > 512 || sig.length > 256) return deny(401, "key and signature required");
++    const spki = Buffer.from(p.spki, "base64");
++    let key;
++    try { key = createPublicKey({ key: spki, format: "der", type: "spki" }); } catch { return deny(401, "the named key does not parse"); }
++    if (key.asymmetricKeyType !== "ec" || key.asymmetricKeyDetails?.namedCurve !== "prime256v1" || spki.toString("base64") !== p.spki)
++      return deny(401, "the named key is not a canonical P-256 SPKI");
++    if (!verifySig("sha256", Buffer.concat([Buffer.from(APP_PUSH_SIG_PREFIX), raw]), { key, dsaEncoding: "der" }, Buffer.from(sig, "base64")))
++      return deny(401, "the push is not signed by the named key");
++    const doc = p.attestation;
++    if (!doc || typeof doc !== "object" || typeof doc.report !== "string" || doc.transportKey !== p.spki) return deny(403, "no hardware attestation for the named key");
++    const nonce = appPushNonce(p);
++    if (doc.nonce !== nonce.toString("hex")) return deny(403, "the attestation does not bind this push");
++    if (typeof doc.appSha256 !== "string" || !/^[0-9a-f]{64}$/.test(doc.appSha256)) return deny(403, "the attestation names no app");
++    return { ok: true, p, spki, doc, nonce };
++  } catch {
++    return deny(500, "verification error");
++  }
++}
++
++// ---- the chain ------------------------------------------------------------------------------------------------------
++const deploymentFields = [["id", "bytes32"], ["owner", "address"], ["appRef", "string"], ["ports", "string"], ["configCid", "string"], ["gpuMilli", "uint16"],
++  ["cpuMilli", "uint16"], ["appPort", "uint32"], ["isPublic", "bool"], ["active", "bool"], ["createdAt", "uint64"], ["rate", "uint256"], ["balance6", "uint256"],
++  ["spent6", "uint256"], ["runner", "bytes32"], ["runnerOperator", "address"], ["leaseUntil", "uint64"]];
++export const DEPLOYMENTS_ABI = [
++  { type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: deploymentFields.map(([name, type]) => ({ name, type })) }] },
++  { type: "function", name: "count", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
++  { type: "function", name: "idAt", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "bytes32" }] }];
++export const REGISTRY_ABI = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components:
++  [["endpoint", "string"], ["repo", "string"], ["measurement", "bytes32"], ["operator", "address"], ["registeredAt", "uint64"], ["lastSeen", "uint64"], ["active", "bool"]]
++    .map(([name, type]) => ({ name, type })) }] }];
++export const CATALOG_ABI = parseAbi([
++  "function getApp(bytes32) view returns ((bytes32 appId,address publisher,string slug,string name,string description,uint32 versionCount,uint64 createdAt,uint64 updatedAt,bool active))",
++  "function getVersion(bytes32,uint256) view returns ((string cid,string version,uint32 vramMb,uint32 gpuGflops,uint32 memMb,uint32 cpuGflops,uint64 createdAt,bool verified,bool yanked,string ports,uint8 approval,string config))"]);
++const lc = (s) => String(s).toLowerCase();
++
++// The ledger's 8-hex label index: ids are append-only (count/idAt), so the index grows by new ids only. Each sync reads at
++// most maxPagesPerSync*pageSize ids at agreeing blocks and is rate-limited; an incomplete index refuses (never assumes unique).
++export function createLedgerIndex({ reader, deployments, pageSize = 128, maxPagesPerSync = 16, cooldownMs = 5000, now = Date.now }) {
++  if (!reader || typeof reader.agreed !== "function" || !ADDR.test(lc(deployments))) throw new Error("ledger index needs a quorum reader and the deployments pin");
++  // read = ledger positions read so far; every position counts toward its label, so an id a quorum reports twice makes
++  // its label ambiguous (refused) instead of being silently merged.
++  const counts = new Map(), known = new Set();
++  let read = 0, total = -1, last = -Infinity, pending = null;
++  const add = (id) => { id = lc(id); known.add(id); read++; const l = appLabel(id); counts.set(l, (counts.get(l) || 0) + 1); };
++  async function syncOnce() {
++    const head = await reader.agreed(async (c, blockNumber) => ({ count: String(await c.readContract({ address: deployments, abi: DEPLOYMENTS_ABI, functionName: "count", blockNumber })) }));
++    total = Number(head.count);
++    if (!Number.isSafeInteger(total) || total < 0) throw new Error("invalid ledger count");
++    for (let page = 0; page < maxPagesPerSync && read < total; page++) {
++      const start = read, n = Math.min(pageSize, total - start);
++      const got = await reader.agreed(async (c, blockNumber) => ({ ids: await Promise.all(Array.from({ length: n }, (_, k) =>
++        c.readContract({ address: deployments, abi: DEPLOYMENTS_ABI, functionName: "idAt", args: [BigInt(start + k)], blockNumber }).then(lc))) }));
++      if (got.ids.length !== n || got.ids.some((x) => !HEX64.test(x))) throw new Error("invalid ledger page");
++      if (read !== start) continue; // a concurrent sync advanced; re-read from the new end next round
++      got.ids.forEach(add);
++    }
++  }
++  return {
++    async sync({ force = false } = {}) {
++      if (pending) return pending;
++      if (!force && now() - last < cooldownMs) return;
++      last = now();
++      pending = syncOnce().finally(() => { pending = null; });
++      return pending;
++    },
++    complete: () => total >= 0 && read >= total,
++    // -> null when the label names exactly this one deployment in a complete index, else why not
++    uniqueRefusal(id) {
++      if (!this.complete()) return "the ledger label index is not complete yet";
++      if (!known.has(lc(id))) return "the deployment is not in the ledger index";
++      return counts.get(appLabel(lc(id))) === 1 ? null : "the app-zone label names more than one deployment";
++    },
++    size: () => read,
++  };
++}
++
++// One agreeing block: lease, runner registry entry, catalog app/version. -> the facts (no decision).
++async function chainFacts(reader, { deployments, registry, catalog }, deploymentId) {
++  return reader.agreed(async (c, blockNumber) => {
++    const row = await c.readContract({ address: deployments, abi: DEPLOYMENTS_ABI, functionName: "get", args: [deploymentId], blockNumber });
++    const out = { id: lc(row.id), owner: lc(row.owner), appRef: row.appRef, configCid: row.configCid, isPublic: !!row.isPublic, active: !!row.active,
++      runner: lc(row.runner), runnerOperator: lc(row.runnerOperator), leaseUntil: String(row.leaseUntil), host: null, app: null, version: null };
++    if (!ZERO64.test(out.runner)) {
++      const h = await c.readContract({ address: registry, abi: REGISTRY_ABI, functionName: "get", args: [out.runner], blockNumber });
++      out.host = { operator: lc(h.operator), active: !!h.active };
++    }
++    const ref = CATALOG_REF.exec(out.appRef || "");
++    if (ref) {
++      const [app, version] = await Promise.all([
++        c.readContract({ address: catalog, abi: CATALOG_ABI, functionName: "getApp", args: [ref[1]], blockNumber }),
++        c.readContract({ address: catalog, abi: CATALOG_ABI, functionName: "getVersion", args: [ref[1], BigInt(ref[2])], blockNumber })]);
++      out.app = { active: !!app.active, appId: lc(app.appId) };
++      out.version = { yanked: !!version.yanked, approval: Number(version.approval) };
++    }
++    return out;
++  });
++}
++
++// The platform's decision on the facts: the lease is this push's and current; the host is admitted; moderation allows.
++export function leaseRefusal(f, p, nowMs) {
++  if (f.id !== p.deploymentId) return "deployment not found";
++  if (!f.active) return "the deployment is not active (suspended or cancelled)";
++  if (ZERO64.test(f.runner) || ZERO40.test(f.runnerOperator) || !(Number(f.leaseUntil) * 1000 > nowMs)) return "the deployment has no current lease";
++  if (f.owner !== p.owner) return "the push's owner is not the deployment's current owner";
++  if (f.runner !== p.lease.runner || f.runnerOperator !== p.lease.operator || f.appRef !== p.lease.appRef || f.configCid !== p.lease.envelope)
++    return "the push's lease binding is stale: the current lease differs";
++  if (!f.host || !f.host.active || f.host.operator !== f.runnerOperator) return "the lease holder is not an active registry host (platform host policy)";
++  if (!f.app || !f.version) return "the deployment's catalog reference is unreadable";
++  if (f.app.appId !== lc(CATALOG_REF.exec(f.appRef)[1])) return "the catalog returned another app";
++  const why = catalogAdmissionRefusal(f.app, f.version, { forPrivate: f.isPublic === false });
++  return why ? "catalog policy: " + why : null;
++}
++
++// Accepted pushes, one-shot until they expire; bounded (oldest-expiring entries go first when full).
++export function createPushLedger({ max = 4096, now = Date.now } = {}) {
++  const used = new Map();
++  const sweep = () => { const t = now(); for (const [k, exp] of used) if (exp <= t) used.delete(k); };
++  return {
++    seen(digest) { sweep(); return used.has(digest); },
++    consume(digest, untilMs) {
++      sweep();
++      if (used.size >= max) { let oldK = null, at = Infinity; for (const [k, exp] of used) if (exp < at) { at = exp; oldK = k; } used.delete(oldK); }
++      used.set(digest, untilMs);
++    },
++    size: () => used.size,
++  };
++}
++
++// createAppZoneAuthority -> { authorize({raw, sig, method}) -> {ok, name, value, ttlSec, digest, op, deploymentId} | deny }.
++//   zone          this replica's app zone; measurements a Set of pinned 96-hex launch measurements
++//   judge         isolation/m2/judge.mjs judge; mode "trusted" (production) or "lab-unsigned" (explicit lab diagnostic)
++//   reader        a LeaseReader (agreeing quorum); pins {deployments, registry, catalog}; ledger a createLedgerIndex
++export function createAppZoneAuthority({ zone, measurements, judge, mode = "trusted", minTcb, kds = true, reader, pins, ledger, pushes = createPushLedger(), now = Date.now }) {
++  if (!ACCEPT[mode]) throw new Error("unknown judge mode");
++  if (!(measurements instanceof Set) || !measurements.size) throw new Error("pinned measurements required");
++  if (!pins || !["deployments", "registry", "catalog"].every((k) => ADDR.test(lc(pins[k] || "")) && !ZERO40.test(lc(pins[k])))) throw new Error("deployments, registry and catalog pins required");
++  if (typeof judge !== "function" || !reader || !ledger) throw new Error("judge, quorum reader and ledger index required");
++  const p0 = { deployments: lc(pins.deployments), registry: lc(pins.registry), catalog: lc(pins.catalog) };
++  return {
++    pushes,
++    async authorize({ raw, sig, method }) {
++      try {
++        const pre = appPushPreconditions({ raw, sig, method, zone, now });
++        if (!pre.ok) return pre;
++        const { p, spki, doc, nonce } = pre;
++        const digest = pushDigest(raw);
++        if (p.op === "set" && pushes.seen(digest)) return deny(409, "this push was already used (one-shot)");
++        const report = Buffer.from(doc.report, "base64");
++        const measurement = report.length >= 0xc0 ? report.subarray(0x90, 0xc0).toString("hex") : "";
++        if (!measurements.has(measurement)) return deny(403, "the launch measurement is not pinned by this replica");
++        const v = await judge(doc, spki, nonce, { measurement, appSha: doc.appSha256, mode, kds, hostData: p.deploymentId, ...(minTcb !== undefined ? { minTcb } : {}) });
++        if (!ACCEPT[mode].includes(v.verdict) || (minTcb !== undefined && v.verdict !== "attested"))
++          return deny(403, `attestation ${v.verdict}: ${String(v.reasons?.at(-1) || "").slice(0, 160)}`);
++        await ledger.sync().catch(() => {});
++        const unique = ledger.uniqueRefusal(p.deploymentId);
++        if (unique) return deny(unique.includes("not complete") ? 503 : 403, unique);
++        let facts;
++        try { facts = await chainFacts(reader, p0, p.deploymentId); } catch (e) { return deny(503, "no agreeing chain read: " + String(e.message).slice(0, 120)); }
++        const why = leaseRefusal(facts, p, now());
++        if (why) return deny(403, why);
++        const untilMs = Math.min(p.ts * 1000 + 300000, p.order.expires * 1000);
++        const ttlSec = Math.max(1, Math.min(APP_TXT_MAX_TTL_S, Math.floor((p.order.expires * 1000 - now()) / 1000)));
++        if (p.op === "set") pushes.consume(digest, untilMs);
++        return { ok: true, op: p.op, name: p.name, value: p.value, ttlSec, digest, deploymentId: p.deploymentId, verdict: v.verdict, block: String(facts.blockNumber) };
++      } catch {
++        return deny(500, "verification error");
++      }
++    },
++  };
++}

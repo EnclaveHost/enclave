@@ -1,0 +1,27 @@
+--- a/network/host-policy-mirrors.mjs
++++ b/network/host-policy-mirrors.mjs
+@@ -0,0 +1,24 @@
++// Platform host policy mirrors (network/platform-host-policy.mjs): any HTTPS origins that serve
++//   <base>/<digest>.json   the document the book anchors (content-addressed by its EIP-712 digest)
++//   <base>/latest.json     the newest one (used only by an explicitly unanchored gate)
++// as { document, signature }. Mirrors are UNTRUSTED transport: the gate verifies the book owner's signature and the exact
++// anchored digest at an agreed block; a missing, slow or lying mirror can delay, never admit a banned host.
++const HTTPS = /^https:\/\/[a-z0-9.-]{1,200}(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~-]{1,64}){0,8}$/;
++export const MAX_POLICY_RESPONSE = 256 * 1024;
++export function validateMirrors(list) {
++  if (!Array.isArray(list) || !list.length || list.length > 8) throw Error("host policy mirrors: 1-8 HTTPS origins");
++  const out = list.map((u) => String(u).replace(/\/+$/, ""));
++  if (out.some((u) => !HTTPS.test(u)) || new Set(out).size !== out.length) throw Error("host policy mirrors: distinct HTTPS URLs without query, credentials or fragment");
++  return out;
++}
++export function httpPolicyMirrors(list, { fetch = globalThis.fetch, timeoutMs = 8000 } = {}) {
++  return validateMirrors(list).map((base) => async (digest) => {
++    if (digest !== null && !/^0x[0-9a-f]{64}$/.test(digest)) return [];
++    const r = await fetch(`${base}/${digest || "latest"}.json`, { redirect: "error", signal: AbortSignal.timeout(timeoutMs), headers: { accept: "application/json" } });
++    if (!r.ok) return [];
++    const text = await r.text();
++    if (text.length > MAX_POLICY_RESPONSE) return [];
++    const j = JSON.parse(text);
++    return [j].filter((x) => x && typeof x.signature === "string" && (typeof x.document === "string" || typeof x.document === "object"));
++  });
++}

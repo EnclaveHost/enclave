@@ -1,0 +1,37 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/mock.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/mock.rs
+@@ -116,6 +116,12 @@
+         self.api.set_offline(offline);
+     }
+ 
++    /// PATCH U1: hold object-event publication (pins and deletes leave the event feed until released), as indexd
++    /// does between publisher ticks or during a publication stall. Releasing publishes everything held.
++    pub fn hold_publication(&self, hold: bool) {
++        self.api.hold_publication(hold);
++    }
++
+     /// Queues `fault` for the next call of `op` on the mock indexer:
+     /// `"pin_object"` (also object metadata updates), `"delete_object"`, or
+     /// `"pin_slabs"` (the upload path; only [`Fault::Hang`] applies there).
+@@ -145,10 +151,20 @@
+         self.api.pin_slabs_calls()
+     }
+ 
++    /// PATCH (writer fencing): the fence installed on this mock indexer's account.
++    pub fn installed_fence(&self) -> Option<crate::fence::FenceToken> {
++        self.api.installed_fence()
++    }
++
++    /// PATCH (writer fencing): raises this mock indexer installed.
++    pub fn fence_raises(&self) -> usize {
++        self.api.fence_raises()
++    }
++
+     /// Builds an [`Sdk`] backed by this network.
+     pub async fn sdk(&self, app_key: AppKey) -> Result<Sdk, BuilderError> {
+         Sdk::with_backends(
+-            app_client::Client::Mock(self.api.clone()),
++            app_client::Client::Mock(self.api.for_new_client()), // PATCH (writer fencing): its own credential slot
+             Client::Mock(self.transport.clone()),
+             Arc::new(app_key),
+         )

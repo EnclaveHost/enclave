@@ -1,0 +1,64 @@
+--- a/testutils/host.go
++++ b/testutils/host.go
+@@ -1,4 +1,4 @@
+-package testutils
++package rtu
+ 
+ import (
+ 	"context"
+@@ -58,7 +58,7 @@
+ 		pk       types.PrivateKey
+ 
+ 		c  *testutil.EphemeralContractor
+-		ss *testutil.EphemeralSectorStore
++		ss *DiskSectorStore
+ 		sr *testutil.EphemeralSettingsReporter
+ 
+ 		cm *chain.Manager
+@@ -87,7 +87,7 @@
+ 	ha := chain.V2HostAnnouncement{
+ 		{
+ 			Protocol: siamux.Protocol,
+-			Address:  h.l.Addr().String(),
++			Address:  fmt.Sprintf("[::]:%d", h.l.Addr().(*net.TCPAddr).Port), // HARNESS CHANGE: see NewHost
+ 		},
+ 		{
+ 			Protocol: quic.Protocol,
+@@ -147,7 +147,7 @@
+ }
+ 
+ // NewHost creates a new host.
+-func (c *ConsensusNode) NewHost(t testing.TB, pk types.PrivateKey, log *zap.Logger) *Host {
++func (c *ConsensusNode) NewHost(t testing.TB, pk types.PrivateKey, log *zap.Logger, sectorDir string) *Host {
+ 	s := NewSyncer(t, c.genesis.ID(), c.cm)
+ 
+ 	ws := testutil.NewEphemeralWalletStore()
+@@ -174,7 +174,10 @@
+ 			Collateral:    types.Siacoins(150).Div64(oneTB).Div64(blocksPerMonth).Mul64(2), // 2x storage
+ 		},
+ 	})
+-	ss := testutil.NewEphemeralSectorStore()
++	ss, err := NewDiskSectorStore(sectorDir) // HARNESS CHANGE: sectors on the work disk, not RAM
++	if err != nil {
++		t.Fatal(err)
++	}
+ 	contractor := testutil.NewEphemeralContractor(c.cm)
+ 	t.Cleanup(func() { contractor.Close() })
+ 
+@@ -199,10 +202,14 @@
+ 			t.Fatal(err)
+ 		}
+ 	}
+-	c.addSyncFn(syncFn)
++	c.addSyncFn(t, syncFn)
+ 
+ 	rs := rhp4.NewServer(pk, c.cm, contractor, w, sr, ss, rhp4.WithPriceTableValidity(30*time.Minute))
+-	rhp4Listener, err := net.Listen("tcp", ":0")
++	// HARNESS CHANGE: loopback only. indexd refuses hosts announcing a loopback or private address
++	// (hosts/manager.go isPrivateIP) but not the unspecified address; upstream binds every interface and announces
++	// "[::]:port". Here the listener binds [::1] only and the announcement is "[::]:port": a dial to the unspecified
++	// address reaches the IPv6 loopback, so nothing listens beyond the host itself.
++	rhp4Listener, err := net.Listen("tcp6", "[::1]:0")
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}

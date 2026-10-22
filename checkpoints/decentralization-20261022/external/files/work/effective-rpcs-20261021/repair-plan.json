@@ -1,0 +1,25 @@
+{
+ "at": "2026-10-21T18:04:29.6551469Z",
+ "oldSha": "3366a005f8530903c83a334053280f41ed904df09133e92505c44f558acb6686",
+ "casOk": true,
+ "bytes": 1226,
+ "match3": 1,
+ "match5": 1,
+ "line3": 12,
+ "line5": 5,
+ "nextIsLaunch": true,
+ "removedBytes": 96,
+ "newBytes": 1130,
+ "newSha": "0fdc3699228c9d7a4c2e971d05804b49f978a56a4c1d9f7a06f3546f3ced09fd",
+ "newLines": 16,
+ "newLaunchLine": 12,
+ "newLastAssignLine": 5,
+ "newEffectiveHosts": [
+  "base-rpc.publicnode.com",
+  "base.gateway.tenderly.co",
+  "base-public.nodies.app",
+  "base.drpc.org",
+  "mainnet.base.org"
+ ],
+ "planOk": true
+}

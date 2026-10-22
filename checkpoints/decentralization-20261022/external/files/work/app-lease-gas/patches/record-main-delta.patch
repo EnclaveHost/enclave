@@ -1,0 +1,467 @@
+--- a/client/lease-executor-client.mjs
++++ b/client/lease-executor-client.mjs
+@@ -351,6 +351,22 @@
+   }
+ }
+ 
++/** The relay's persisted send state is EXACTLY {} (nothing unresolved) or {nonce, raw, hash} with hash = keccak256(raw).
++ *  -> null (empty) | the record. Anything else throws: it is never read as empty, so it is never cleared or overwritten. */
++export function parseRelaySendRecord(text, where) {
++  const bad = (why) => { throw new Error(`${where}: not a relay send record (${why}); settle it by hand`); };
++  let j; try { j = JSON.parse(text); } catch { bad("not JSON"); }
++  if (!j || typeof j !== "object" || Array.isArray(j)) bad("not an object");
++  const keys = Object.keys(j).sort().join(",");
++  if (keys === "") return null;
++  if (keys !== "hash,nonce,raw") bad(`fields ${keys.slice(0, 80)}; expected exactly nonce, raw, hash or none`);
++  if (!Number.isSafeInteger(j.nonce) || j.nonce < 0) bad("nonce");
++  if (typeof j.raw !== "string" || !/^0x(?:[0-9a-fA-F]{2})+$/.test(j.raw)) bad("raw");
++  if (typeof j.hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(j.hash) || keccak256(j.raw) !== j.hash.toLowerCase()) bad("hash");
++  return j;
++}
++export const RELAY_SEND_RECORD_MAX_BYTES = 64 * 1024;
++
+ /**
+  * A minimal open relay over HTTP. GET /v1/info -> {chainId, reserve, executor, payee, canonicalLength}; POST /v1/lease.
+  * Bounded: body <= 4 KiB, request time, concurrency (excess -> 503), and ONE send at a time from this relay's key.
+@@ -364,15 +380,19 @@
+   const pinned = await pinRelayContracts(options);
+   if (wallet.chain?.id !== pinned.chainId) throw new Error("relay wallet chain differs from reviewed deployment");
+   let sent = null;
+-  if (stateFile && fs.existsSync(stateFile)) {
+-    const j = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+-    if (j && j.raw) {
++  let st = null;
++  if (stateFile) try { st = fs.lstatSync(stateFile); } catch (e) { if (e.code !== "ENOENT") throw e; }   // none yet: nothing unresolved
++  if (st) {
++    if (!st.isFile() || st.size > RELAY_SEND_RECORD_MAX_BYTES)
++      throw new Error(`${stateFile}: not a relay send record (a regular file of at most ${RELAY_SEND_RECORD_MAX_BYTES} bytes is required); settle it by hand`);
++    const j = parseRelaySendRecord(fs.readFileSync(stateFile, "utf8"), stateFile);
++    if (j) {
+       // only THIS key's own transaction on this chain at the recorded nonce: another key's record is refused, not re-broadcast
+       const bad = (why) => { throw new Error(`${stateFile}: not this relay's send record (${why}); settle it by hand`); };
+-      if (!/^0x[0-9a-f]+$/i.test(j.raw) || keccak256(j.raw) !== j.hash || !Number.isSafeInteger(j.nonce)) bad("malformed");
+-      const tx = parseTransaction(j.raw);
++      let tx; try { tx = parseTransaction(j.raw); } catch { bad("not a signed transaction"); }
+       if (tx.chainId !== pinned.chainId || tx.nonce !== j.nonce) bad(`chain ${tx.chainId}, nonce ${tx.nonce}`);
+-      if (getAddress(await recoverTransactionAddress({ serializedTransaction: j.raw })) !== getAddress(wallet.account.address)) bad("signed by another key");
++      const signer = await recoverTransactionAddress({ serializedTransaction: j.raw }).catch(() => bad("no recoverable signature"));
++      if (getAddress(signer) !== getAddress(wallet.account.address)) bad("signed by another key");
+       sent = j;
+     }
+   }
+--- a/network/lease-gas-owner.mjs
++++ b/network/lease-gas-owner.mjs
+@@ -88,6 +88,22 @@
+   { type: "function", name: "VERSION", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
+ ];
+ 
++// The reviewed EnclaveCreditVault factories: per chain, the factory and the implementation its clones delegate to. Production
++// (Base): the live factory and implementation are byte-identical to source d36100ae (test/fixtures/credit-vault-d36100ae.json;
++// root's read-only check, block 52856571, two RPCs). No caller can add to this list: an owner counts as a credit vault only
++// when its code IS the EIP-1167 clone of a listed implementation and, at the same agreed block, the clone's factory() and
++// the factory's implementation() are that binding.
++export const CREDIT_VAULT_FACTORIES = Object.freeze([Object.freeze({ chainId: 8453, factory: "0xa891e4396e3eb11f364554043bc18e86da834e91",
++  implementation: "0xeca6644333d3a069001203ce5416914a4d830beb", label: "EnclaveCreditVault (production factory, source d36100ae)" })]);
++/** the exact runtime of an EIP-1167 minimal proxy (what the credit-vault factory's CREATE2 deploys) for `implementation` */
++export const eip1167Runtime = (implementation) => `0x363d3d373d3d3d363d73${getAddress(implementation).slice(2).toLowerCase()}5af43d82803e903d91602b57fd5bf3`;
++/** why a credit-vault-owned deployment cannot use the current reserve (EnclaveLeaseGasReserve 1d173473) */
++export const CREDIT_VAULT_UNSUPPORTED = "a credit vault is controlled by passkey signatures and can only make the ledger calls on its allowlist: "
++  + "it has no reserve configure/setClaimant/withdraw entry point and no ownerCall, and the reserve has no signature-based entry point, "
++  + "so its reserve could never be enabled and ETH deposited to it could never be withdrawn - app-funded lease gas is not available for this owner";
++const CREDIT_FACTORY_ABI = [{ type: "function", name: "implementation", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] }];
++const CREDIT_VAULT_ABI = [{ type: "function", name: "factory", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] }];
++
+ export class OwnerRefusal extends Error { constructor(message, extra = {}) { super(message); this.name = "OwnerRefusal"; Object.assign(this, extra); } }
+ 
+ // =====================================================================================================================
+@@ -145,7 +161,8 @@
+ /**
+  * The owner of record's kind at one agreed block. vaultFactories: [{address, codeHash?, name}] - the reviewed factories
+  * (the pinned v2 one, the original legacy one); a vault counts only when the factory, by its own isVault(), made it.
+- * -> {kind: "eoa" | "eoa-7702" | "session-vault" | "safe" | "contract", address, ...}
++ * A clone of a reviewed credit-vault implementation (CREDIT_VAULT_FACTORIES) is kind "credit-vault": a known UNSUPPORTED owner.
++ * -> {kind: "eoa" | "eoa-7702" | "credit-vault" | "session-vault" | "safe" | "contract", address, ...}
+  */
+ export async function ownerKind(chain, address, { vaultFactories = [] } = {}) {
+   address = getAddress(address);
+@@ -153,6 +170,14 @@
+     const code = await c.getCode({ address, blockNumber });
+     if (!code || code === "0x") return { kind: "eoa" };
+     if (/^0xef0100[0-9a-f]{40}$/i.test(code)) return { kind: "eoa-7702", delegate: getAddress("0x" + code.slice(8)) };
++    for (const b of CREDIT_VAULT_FACTORIES) {
++      if (b.chainId !== chain.chainId || lc(code) !== eip1167Runtime(b.implementation)) continue;
++      const read = (a, abi, fn) => c.readContract({ address: a, abi, functionName: fn, blockNumber }).then(lc, () => null);
++      const [vf, fi] = await Promise.all([read(address, CREDIT_VAULT_ABI, "factory"), read(b.factory, CREDIT_FACTORY_ABI, "implementation")]);
++      // an exact clone of the reviewed implementation is refused either way; bindingVerified says whether the binding held
++      return { kind: "credit-vault", factory: getAddress(b.factory), implementation: getAddress(b.implementation), label: b.label,
++        bindingVerified: vf === lc(b.factory) && fi === lc(b.implementation) };
++    }
+     for (const f of vaultFactories) {
+       const fcode = await c.getCode({ address: f.address, blockNumber });
+       if (!fcode || fcode === "0x") continue;
+@@ -217,11 +242,19 @@
+       notes.push(`the owner of record is a Safe (${kind.threshold} of ${kind.owners.length}${kind.version ? `, v${kind.version}` : ""}); its signers execute this as a Safe transaction (operation 0 = CALL), e.g. in the Safe app's Transaction Builder`);
+       return { via: "safe", from: kind.address, to: reserve, value: call.value, data: call.data, what: call.what, notes,
+         safe: { safe: kind.address, to: reserve, value: call.value, data: call.data, operation: 0, safeNonce: kind.safeNonce, threshold: kind.threshold, owners: kind.owners } };
++    case "credit-vault":
++      throw creditVaultRefusal(kind, call.what);
+     default:
+       throw new OwnerRefusal(`the owner of record ${kind.address} is a contract that is neither an EOA, a SessionVault of a pinned factory nor a Safe; no reviewed path can act for it`);
+   }
+ }
+ 
++/** The refusal for a credit-vault owner of record (deposit, plan, configure, claimant, withdraw): nothing is prepared. */
++export function creditVaultRefusal(kind, what = "a lease-gas request") {
++  return new OwnerRefusal(`refusing to prepare ${what}: the owner of record ${kind.address} is a credit vault of ${kind.label} ${kind.factory}`
++    + `${kind.bindingVerified ? "" : " (its factory binding did not verify at this block)"}; ${CREDIT_VAULT_UNSUPPORTED}`, { ownerKind: "credit-vault" });
++}
++
+ /** A deposit (anyone may pay; the reserve credits the CURRENT owner of record). computeWei > 0 splits one payment. */
+ export function depositRequest({ reserve, id, amountWei, computeWei = 0n, from = null }) {
+   amountWei = BigInt(amountWei); computeWei = BigInt(computeWei);
+--- a/cli/lease-gas.mjs
++++ b/cli/lease-gas.mjs
+@@ -103,7 +103,9 @@
+     if (st.unknown) { rows.push({ id, unknown: true }); continue; }
+     const kind = await O.ownerKind(chain, st.ledger.owner, { vaultFactories: H.vaultFactories });
+     const cost = await costFor(H, st);
+-    const advice = O.advise(st, { cost, minDays: Number(f["min-days"] || 3) });
++    let advice = O.advise(st, { cost, minDays: Number(f["min-days"] || 3) });
++    // a known unsupported owner: never advise a deposit or a configuration it could not use (only the facts remain)
++    if (kind.kind === "credit-vault") advice = [{ level: "unsupported", text: `the owner of record is a credit vault: ${O.CREDIT_VAULT_UNSUPPORTED}; do not deposit` }, ...advice.filter((x) => x.level === "info")];
+     rows.push({ ...st, ownerKind: kindView(kind), cost: costView(cost), advice, inventoryOperator: inventory?.operator });
+   }
+   const res = { ...out, fee: H.fee, paused: H.live.paused, limits: H.live.limits, apps: rows,
+@@ -122,12 +124,12 @@
+     ctx.say(`  L1: upper bound ${eth(a.l1.upperBoundWei)}, charged share ${eth(a.l1.chargedShareWei)}; proof cutover ${a.gates.proofRequiredFrom ? new Date(a.gates.proofRequiredFrom * 1000).toISOString() + (a.gates.proofCutoverPassed ? " (passed)" : "") : "not set"}; ${a.gates.claimBondNote}`);
+     if (a.runner) ctx.say(`  runner ${a.runner.operator}: renew ${a.runner.renew.status}, release ${a.runner.release.status}; ${a.runner.delegatedToExecutor ? "delegated to the executor" : "not yet delegated"}; operator ETH ${eth(a.runner.operatorEthWei)}; payout${a.runner.registry?.payoutIsOwner ? " = owner" : " ≠ owner"}`);
+     if (a.candidate) ctx.say(`  candidate ${a.candidate.operator}: claim ${a.candidate.claim.status}`);
+-    for (const x of a.advice) ctx.say(`  ${x.level === "action" ? "→" : x.level === "warn" ? "!" : "·"} ${x.text}`);
++    for (const x of a.advice) ctx.say(`  ${x.level === "unsupported" ? "✗" : x.level === "action" ? "→" : x.level === "warn" ? "!" : "·"} ${x.text}`);
+   }
+   ctx.say(`\ncost formula: ${rows.find((x) => x.cost)?.cost.formula || ""}`);
+ }
+ const kindView = (k) => ({ kind: k.kind, address: k.address,
+-  detail: k.kind === "session-vault" ? `vault of ${k.factoryName}, owner ${k.vaultOwner}` : k.kind === "safe" ? `${k.threshold} of ${k.owners.length}` : k.kind === "eoa-7702" ? `delegated to ${k.delegate}` : "" });
++  detail: k.kind === "credit-vault" ? `UNSUPPORTED: ${k.label} ${k.factory}${k.bindingVerified ? "" : " (binding not verified)"}` : k.kind === "session-vault" ? `vault of ${k.factoryName}, owner ${k.vaultOwner}` : k.kind === "safe" ? `${k.threshold} of ${k.owners.length}` : k.kind === "eoa-7702" ? `delegated to ${k.delegate}` : "" });
+ const costView = (c) => ({ price: c.price, effectiveFee: c.effectiveFee, ownerCap: c.ownerCap, ceiling: c.ceiling, priceLimitedBy: c.priceLimitedBy,
+   perOp: Object.fromEntries(Object.entries(c.perOp).map(([k, v]) => [k, v.wei])), atOwnerCap: Object.fromEntries(Object.entries(c.atOwnerCap).map(([k, v]) => [k, v.wei])),
+   renewsPerDay: Number(c.renewsPerDay.toFixed(2)), renewPerDayWei: c.renewPerDayWei, formula: c.formula });
+@@ -213,6 +215,7 @@
+   const amount = amountOf(f);
+   const computeWei = f["compute-eth"] !== undefined ? O.parseEthAmount(f["compute-eth"]) : 0n;
+   const { st, kind } = await ownerOf(H, id);
++  if (kind.kind === "credit-vault") throw O.creditVaultRefusal(kind, `a deposit for ${id}`);   // it would be stranded
+   const req = O.depositRequest({ reserve: dep.reserve, id, amountWei: amount + computeWei, computeWei, from: ctx.from || (kind.kind.startsWith("eoa") ? kind.address : kind.kind === "session-vault" ? kind.vaultOwner : null) });
+   req.notes.push(`credited to the reserve of the owner of record ${st.ledger.owner} (${kind.kind}); the payer gets nothing back from it except through that owner`);
+   if (kind.kind === "safe" && !ctx.from) return deliver(H, { ...req, via: "safe", from: kind.address, safe: { safe: kind.address, to: req.to, value: req.value, data: req.data, operation: 0, safeNonce: kind.safeNonce, threshold: kind.threshold, owners: kind.owners } });
+@@ -275,6 +278,11 @@
+     const st = await O.appStatus(chain, dep, id);
+     if (st.unknown) { apps.push({ id, unknown: true }); continue; }
+     const kind = await O.ownerKind(chain, st.ledger.owner, { vaultFactories: H.vaultFactories });
++    if (kind.kind === "credit-vault") {   // a known unsupported owner: listed with the reason, nothing prepared, no amount
++      apps.push({ id, appRef: st.ledger.appRef, owner: st.ledger.owner, ownerKind: kindView(kind), rate6: st.ledger.rate6, leaseLive: st.ledger.leaseLive,
++        leaseUntil: st.ledger.leaseUntil, runnerOperator: st.ledger.runnerOperator, inventoryOperator: inventory?.operator, refused: O.creditVaultRefusal(kind, "a deposit or configuration").message, steps: [] });
++      continue;
++    }
+     const p = policyFrom(H, st.reserve, st.l1.upperBoundAuthWei);
+     const cost = await costFor(H, st, p);
+     refCost = refCost || cost;
+@@ -312,6 +320,7 @@
+   ctx.say(`lease-gas plan for ${apps.length} apps (UNSIGNED; nothing is sent). Fee now ${formatGwei(H.fee.effective)} gwei.`);
+   for (const a of apps) {
+     if (a.unknown) { ctx.say(`${a.id}: not a deployment on this ledger`); continue; }
++    if (a.refused) { ctx.say(`\n${a.id} ${a.appRef} - owner ${a.owner} (${a.ownerKind.kind}): REFUSED - ${a.refused}`); continue; }
+     ctx.say(`\n${a.id} ${a.appRef} - owner ${a.owner} (${a.ownerKind.kind}); rate ${a.rate6}; lease ${a.leaseLive ? "live" : "expired"}; deposit ${a.amount.eth} ETH (${a.amount.basis}); lasts ~${a.lastsDaysAtTodaysFee} days at today's fee`);
+     for (const s of a.steps) ctx.say(s.step === "note" ? `  · ${s.text}` : `  ${s.step}: ${s.via} from ${s.from} to ${s.to} value ${s.value} ${s.simulated ? "(simulated ok)" : `(NOT simulated: ${s.simError})`}\n    data ${s.data}`);
+   }
+--- a/docs/network/lease-relay-release.md
++++ b/docs/network/lease-relay-release.md
+@@ -35,7 +35,7 @@
+ | `/etc/enclave-lease-relay/deployment.json` | The reviewed deployment record. |
+ | `/etc/enclave-lease-relay/relay.key` | The hot key: 0600, root. |
+ | `/etc/systemd/system/enclave-lease-relay.service` | From `relay/systemd/enclave-lease-relay.service`. |
+-| `/var/lib/enclave-lease-relay/relay-send.json` | The key's last signed transaction while its outcome is unknown (the unit's `StateDirectory`). |
++| `/var/lib/enclave-lease-relay-state/relay-send.json` | The key's last signed transaction while its outcome is unknown (the unit's own `StateDirectory`; never a directory that holds a key, since `DynamicUser` chowns it recursively). |
+ 
+ The unit hands the key to the service only as a systemd credential (`LoadCredential`). The service runs as a dynamic
+ user with a read-only system and loopback-only listening.
+@@ -57,7 +57,7 @@
+ | `LEASE_RELAY_LISTEN` | `127.0.0.1:<port>` or `[::1]:<port>`, with an explicit port. |
+ | `LEASE_RELAY_KEY_FILE` | Set by the unit to the credential path. It must be owner-only. The check never reads its content. |
+ | `LEASE_RELAY_ARTIFACT_SHA256` | The reviewed `lease-relay.mjs`, which `current/` must hold. |
+-| `LEASE_RELAY_STATE` | Set by the unit to a file in its `StateDirectory`: an absolute path in an existing directory. The relay writes the signed transaction there (fsync, rename) BEFORE any provider has it. |
++| `LEASE_RELAY_STATE` | Set by the unit to a file in its `StateDirectory`: an absolute path in an existing directory. The relay writes the signed transaction there (fsync, rename) BEFORE any provider has it. The file is exactly `{}` (nothing unresolved) or `{nonce, raw, hash}`; anything else (an empty, partial or foreign record, another key's transaction) stops the relay from starting, and is left as it is for an operator to settle. |
+ 
+ **RPC failure.** Name three independent providers with a quorum of two. Every read, the simulation, the balance, the
+ broadcast and the receipt go through the quorum, so the relay starts and serves with any one provider down or answering
+--- a/network/lease-relay-check.mjs
++++ b/network/lease-relay-check.mjs
+@@ -20,6 +20,19 @@
+ const DECIMAL = /^(0|[1-9][0-9]{0,6})(\.[0-9]{1,18})?$/;
+ const wei = (s) => { const [i, f = ""] = s.split("."); return BigInt(i) * 10n ** 18n + BigInt((f + "0".repeat(18)).slice(0, 18)); };
+ 
++/** The relay's persisted send state: null when it is exactly {} or one {nonce, raw, hash}; otherwise what is wrong. */
++function sendRecordProblem(text) {
++  let j; try { j = JSON.parse(text); } catch { return "not JSON"; }
++  if (!j || typeof j !== "object" || Array.isArray(j)) return "not an object";
++  const keys = Object.keys(j).sort().join(",");
++  if (keys === "") return null;
++  if (keys !== "hash,nonce,raw") return `fields ${keys.slice(0, 80)}; expected exactly nonce, raw, hash or none`;
++  if (!Number.isSafeInteger(j.nonce) || j.nonce < 0) return "nonce";
++  if (typeof j.raw !== "string" || !/^0x(?:[0-9a-fA-F]{2})+$/.test(j.raw)) return "raw";
++  if (typeof j.hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(j.hash)) return "hash";
++  return null;
++}
++
+ /** -> { ok, problems[], summary } for an environment object and the release directory holding lease-relay.mjs */
+ export function checkRelayConfig(env, { releaseDir, nodeVersion = process.versions.node } = {}) {
+   const problems = [], need = (k) => { const v = String(env[k] ?? "").trim(); if (!v) problems.push(`${k} is not set (there is no default)`); return v; };
+@@ -82,8 +95,11 @@
+         const st = fs.lstatSync(stateFile);
+         if (!st.isFile() || st.size > 64 * 1024) problems.push(`${stateFile} must be a regular file of at most 64 KiB`);
+         else {
+-          let j = null; try { j = JSON.parse(fs.readFileSync(stateFile, "utf8")); } catch { problems.push(`${stateFile} is not JSON: settle it by hand`); }
+-          if (j && j.raw) pendingSend = j.hash ? `${String(j.hash).slice(0, 18)}... at nonce ${j.nonce}` : "an incomplete record";
++          // exactly {} or {nonce, raw, hash} (the shapes the relay writes); the service also checks keccak256(raw) = hash, and
++          // that the transaction is its own key's on this chain at that nonce - this check has no keccak and reads no key
++          const why = sendRecordProblem(fs.readFileSync(stateFile, "utf8"));
++          if (why) problems.push(`${stateFile} is not a relay send record (${why}): settle it by hand`);
++          else { const j = JSON.parse(fs.readFileSync(stateFile, "utf8")); if (j.raw) pendingSend = `${j.hash.slice(0, 18)}... at nonce ${j.nonce}`; }
+         }
+       } catch (e) { if (e.code !== "ENOENT") problems.push(`${stateFile}: ${e.code || e.message}`); }
+     }
+--- a/relay/systemd/enclave-lease-relay.service
++++ b/relay/systemd/enclave-lease-relay.service
+@@ -5,7 +5,7 @@
+ #   /opt/enclave-lease-relay/current -> releases/<sha256>   the release this unit runs (switch it to stage or roll back)
+ #   /etc/enclave-lease-relay/relay.env                      every setting, explicit (relay.env.example)
+ #   /etc/enclave-lease-relay/relay.key                      the hot key (0600 root): handed to the service as a credential
+-#   /var/lib/enclave-lease-relay/relay-send.json            the key's unresolved signed send (StateDirectory; survives restarts)
++#   /var/lib/enclave-lease-relay-state/relay-send.json      the key's unresolved signed send (StateDirectory; survives restarts)
+ [Unit]
+ Description=Enclave app-funded lease relay
+ After=network-online.target
+@@ -19,9 +19,10 @@
+ LoadCredential=relay-key:/etc/enclave-lease-relay/relay.key
+ Environment=LEASE_RELAY_KEY_FILE=%d/relay-key
+ # a send whose outcome is unknown is re-broadcast from here as the SAME signed bytes after a restart, never re-signed
+-StateDirectory=enclave-lease-relay
++# its OWN directory, never one holding a key: with DynamicUser, systemd chowns a StateDirectory recursively at every start
++StateDirectory=enclave-lease-relay-state
+ StateDirectoryMode=0700
+-Environment=LEASE_RELAY_STATE=%S/enclave-lease-relay/relay-send.json
++Environment=LEASE_RELAY_STATE=%S/enclave-lease-relay-state/relay-send.json
+ WorkingDirectory=/opt/enclave-lease-relay/current
+ # refuses to start unless every setting is explicit and valid and the directory holds the reviewed artifact
+ ExecStartPre=/usr/bin/node /opt/enclave-lease-relay/current/lease-relay-check.mjs
+--- a/test/lease-gas-owner-cli.test.mjs
++++ b/test/lease-gas-owner-cli.test.mjs
+@@ -269,3 +269,104 @@
+   const wrong = await cli(["lease-gas", "status", ids[0], "--lease-gas", recFile, "--lease-gas-digest", "sha256:" + "0".repeat(64)], { expectFail: true });
+   assert.match(wrong.err, /not the reviewed/);
+ });
++
++// A CREDIT VAULT owner of record (root review 2026-10-20, work/credit-vault-independence-interface.txt section 1). The
++// fixture is the production configuration on the local chain: the d36100ae factory (test/fixtures/credit-vault-d36100ae.json,
++// byte-identical to the live one) is deployed, then its runtime and its implementation's runtime are placed at the
++// PRODUCTION addresses with only their immutable cross-references rewritten to those addresses; the vault is made by that
++// factory's own createVault (an EIP-1167 CREATE2 clone) for a real P-256 key, and a deployment is transferred to it.
++const CREDIT_VAULT_FIXTURE = path.join(ROOT, "test/fixtures/credit-vault-d36100ae.json");
++// the reviewed production binding, stated here independently of the module under test (it is compared at the end)
++const CREDIT_VAULT = { factory: "0xa891e4396e3eb11f364554043bc18e86da834e91", implementation: "0xeca6644333d3a069001203ce5416914a4d830beb" };
++const clone1167 = (impl) => `0x363d3d373d3d3d363d73${impl.slice(2).toLowerCase()}5af43d82803e903d91602b57fd5bf3`;
++async function productionCreditVault() {
++  const B = CREDIT_VAULT, cv = JSON.parse(fs.readFileSync(CREDIT_VAULT_FIXTURE, "utf8"));
++  const local = await W.deploy({ abi: cv.factory.abi, bytecode: cv.factory.bytecode, links: {} },
++    [W.addr.usdc, W.addr.registry, privateKeyToAccount(DEPLOYER).address, "https://enclave.host", ""]);
++  const impl = await W.pc.readContract({ address: local, abi: cv.factory.abi, functionName: "implementation" });
++  const word = (a) => a.slice(2).toLowerCase().padStart(64, "0");
++  for (const [at, from, refs] of [[B.factory, local, [[impl, B.implementation]]], [B.implementation, impl, [[local, B.factory], [impl, B.implementation]]]]) {
++    let code = (await W.pc.getCode({ address: from })).slice(2).toLowerCase();
++    for (const [a, b] of refs) code = code.split(word(a)).join(word(b));
++    assert.ok(code.includes(word(refs[0][1])), "the immutable cross-reference was rewritten");
++    await W.rpc("anvil_setCode", [at, "0x" + code]);
++  }
++  const jwk = crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" }).publicKey.export({ format: "jwk" });
++  const [x, y] = [jwk.x, jwk.y].map((v) => BigInt("0x" + Buffer.from(v, "base64url").toString("hex")));
++  await W.write(DEPLOYER, B.factory, cv.factory.abi, "createVault", [x, y]);
++  const vault = await W.pc.readContract({ address: B.factory, abi: cv.factory.abi, functionName: "vaultFor", args: [x, y] });
++  assert.equal((await W.pc.getCode({ address: vault })).toLowerCase(), clone1167(B.implementation), "the factory's own CREATE2 clone of the production implementation");
++  assert.equal((await W.pc.readContract({ address: vault, abi: cv.vault.abi, functionName: "factory" })).toLowerCase(), B.factory);
++  assert.equal(await W.pc.readContract({ address: vault, abi: cv.vault.abi, functionName: "keyCount" }), 1n);
++  return vault;
++}
++const UNSUPPORTED = /credit vault of EnclaveCreditVault \(production factory, source d36100ae\) 0x[0-9a-fA-F]{40}; a credit vault is controlled by passkey signatures .*no reserve configure\/setClaimant\/withdraw entry point and no ownerCall/;
++
++test("credit-vault owner (the production factory's clone): deposit, configure and claimant are refused, plan lists it refused; supported owners proceed", T, async () => {
++  const vault = await productionCreditVault();
++  const o = await W.owner();
++  const idV = await W.create(o, { fund6: 0n });
++  await W.write(o.key, W.addr.ledger, W.A.ledger.abi, "transferDeployment", [idV, vault]);
++  assert.equal((await W.row(idV)).owner, vault);
++  // status: the kind is named, the only advice is the refusal (never "deposit" or "configure")
++  const s = (await cli(lg("status", idV))).json.apps[0];
++  assert.equal(s.ownerKind.kind, "credit-vault"); assert.match(s.ownerKind.detail, /^UNSUPPORTED: EnclaveCreditVault \(production factory/);
++  assert.equal(s.advice[0].level, "unsupported");
++  assert.ok(!s.advice.some((x) => x.level === "action" || /lease-gas (deposit|configure)/.test(x.text)), JSON.stringify(s.advice));
++  // deposit (from any payer), configure and claimant: refused before anything is prepared; nothing reaches the reserve
++  for (const args of [[...lg("deposit", idV, "--eth", "0.01"), "--from", o.address], lg("deposit", idV, "--eth", "0.01"),
++    lg("configure", idV, "--max-gas-price-gwei", "0.05"), lg("claimant", idV, o.address, "--allow")]) {
++    const r = await cli(args, { expectFail: true });
++    assert.match(r.err, UNSUPPORTED, args.slice(0, 3).join(" "));
++    assert.equal(r.json, null, "no request was printed");
++  }
++  assert.equal((await R(idV, vault)).balanceWei, 0n);
++  // plan: the credit-vault app is listed REFUSED (no steps, no amount); an EOA app and an ORIGINAL SessionVault app proceed
++  const idE = await W.create(o);
++  const vo = await W.owner();
++  const F = art("SessionVault.sol", "SessionVaultFactory"), V = art("SessionVault.sol", "SessionVault");
++  await W.write(vo.key, W.addr.vaultFactory, F.abi, "createVault", [vo.address]);
++  const sv = await W.pc.readContract({ address: W.addr.vaultFactory, abi: F.abi, functionName: "vaultFor", args: [vo.address] });
++  const createData = viem.encodeFunctionData({ abi: W.A.ledger.abi, functionName: "create", args: ["catalog://app/0", 0, 500, 8080, "", true, "", viem.zeroAddress, 0n, 1000n] });
++  const { result } = await W.pc.simulateContract({ account: vo.address, address: sv, abi: V.abi, functionName: "ownerCall", args: [W.addr.ledger, createData] });
++  await W.write(vo.key, sv, V.abi, "ownerCall", [W.addr.ledger, createData]);
++  const idS = viem.decodeAbiParameters([{ type: "bytes32" }], result)[0];
++  const p = (await cli(lg("plan", "--ids", [idE, idV, idS].join(","), "--max-gas-price-gwei", "0.05", "--per-app-eth", "0.002"))).json;
++  const byId = Object.fromEntries(p.apps.map((a) => [a.id, a]));
++  assert.equal(byId[idV].ownerKind.kind, "credit-vault"); assert.match(byId[idV].refused, UNSUPPORTED);
++  assert.deepEqual(byId[idV].steps, []); assert.equal(byId[idV].amount, undefined);
++  for (const [id, kind] of [[idE, "eoa"], [idS, "session-vault"]]) {
++    assert.equal(byId[id].ownerKind.kind, kind);
++    assert.deepEqual(byId[id].steps.map((x) => x.step), ["deposit", "configure"]);
++    assert.ok(byId[id].steps.every((x) => x.simulated), JSON.stringify(byId[id].steps.map((x) => x.simError)));
++  }
++  assert.equal(BigInt(p.totalWei), 4n * 10n ** 15n, "only the two supported apps are funded");
++  assert.ok(p.senders.every((x) => [o.address, vo.address].map((a) => a.toLowerCase()).includes(x.from.toLowerCase())), "no request from or for the credit vault");
++  // the text plan says so too
++  const t = await cli(lg("plan", "--ids", idV, "--max-gas-price-gwei", "0.05", "--per-app-eth", "0.002"), { json: false });
++  assert.match(t.out, /\(credit-vault\): REFUSED - refusing to prepare a deposit or configuration/);
++  // the module recognizes exactly the reviewed binding (no caller-supplied factory or implementation)
++  assert.deepEqual(O.CREDIT_VAULT_FACTORIES?.map((b) => [b.chainId, b.factory, b.implementation]), [[8453, CREDIT_VAULT.factory, CREDIT_VAULT.implementation]]);
++  assert.equal(O.eip1167Runtime?.(CREDIT_VAULT.implementation), clone1167(CREDIT_VAULT.implementation));
++});
++
++test("not every contract is a credit vault: a minimal proxy of ANOTHER implementation, and a 7702 EOA, keep their kinds", T, async () => {
++  const B = CREDIT_VAULT;
++  const o = await W.owner();
++  const id = await W.create(o, { fund6: 0n });
++  const lookalike = privateKeyToAccount(generatePrivateKey()).address;
++  await W.rpc("anvil_setCode", [lookalike, clone1167(W.addr.usdc)]);   // the same proxy, another implementation
++  await W.write(o.key, W.addr.ledger, W.A.ledger.abi, "transferDeployment", [id, lookalike]);
++  const s = (await cli(lg("status", id))).json.apps[0];
++  assert.equal(s.ownerKind.kind, "contract");
++  const r = await cli(lg("configure", id, "--max-gas-price-gwei", "0.05"), { expectFail: true });
++  assert.match(r.err, /neither an EOA, a SessionVault of a pinned factory nor a Safe/);
++  assert.doesNotMatch(r.err, /credit vault/);
++  // an EOA delegated (EIP-7702) to the credit-vault IMPLEMENTATION is still an EOA, not a vault
++  const e = await W.owner(); const idE = await W.create(e);
++  await W.rpc("anvil_setCode", [e.address, "0xef0100" + B.implementation.slice(2)]);
++  try {
++    const k = (await cli(lg("status", idE))).json.apps[0].ownerKind;
++    assert.equal(k.kind, "eoa-7702");
++  } finally { await W.rpc("anvil_setCode", [e.address, "0x"]); }
++});
+--- a/test/lease-relay-release.test.mjs
++++ b/test/lease-relay-release.test.mjs
+@@ -15,6 +15,7 @@
+ import { spawn, spawnSync, execFileSync } from "node:child_process";
+ import { createHash } from "node:crypto";
+ import { fileURLToPath } from "node:url";
++import { keccak256 } from "viem";
+ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+ import * as B from "../client/lease-executor-client.mjs";
+ import { startWorld, haveAnvil } from "./helpers/lease-gas-world.mjs";
+@@ -109,6 +110,31 @@
+   }
+ });
+ 
++test("the configuration check reads the send record: exactly {} or one {nonce, raw, hash}; anything else fails clearly", T, async () => {
++  const k = generatePrivateKey(), kf = keyFile(k), acct = privateKeyToAccount(k);
++  const raw = await acct.signTransaction({ chainId: 8453, type: "eip1559", nonce: 7, to: acct.address, value: 0n, gas: 21_000n, maxFeePerGas: 10n ** 9n, maxPriorityFeePerGas: 1n });
++  const hash = keccak256(raw);
++  const at = (text) => { const f = path.join(dir, `state-${createHash("sha256").update(String(text) + Math.random()).digest("hex").slice(0, 8)}.json`); fs.writeFileSync(f, text); return f; };
++  const empty = check({ ...env, LEASE_RELAY_KEY_FILE: kf, LEASE_RELAY_STATE: at("{}") });
++  assert.equal(empty.status, 0, empty.stderr); assert.doesNotMatch(empty.stdout, /unresolved send/);
++  const pending = check({ ...env, LEASE_RELAY_KEY_FILE: kf, LEASE_RELAY_STATE: at(JSON.stringify({ nonce: 7, raw, hash })) });
++  assert.equal(pending.status, 0, pending.stderr); assert.match(pending.stdout, new RegExp(`unresolved send ${hash.slice(0, 18)}\\.\\.\\. at nonce 7 \\(re-broadcast before any new one\\)`));
++  const accepted = [];
++  for (const [what, text] of [["null", "null"], ["an array", "[]"], ["a string", '"x"'], ["a nonce only", '{"nonce":123}'], ["an empty raw", '{"raw":""}'],
++    ["an arbitrary object", '{"foo":1}'], ["raw without hash", JSON.stringify({ nonce: 7, raw })], ["no nonce", JSON.stringify({ raw, hash })],
++    ["a string nonce", JSON.stringify({ nonce: "7", raw, hash })], ["an extra field", JSON.stringify({ nonce: 7, raw, hash, note: 1 })], ["a short hash", JSON.stringify({ nonce: 7, raw, hash: hash.slice(0, 20) })],
++    ["an empty file", ""], ["not JSON", "{not json"]]) {
++    const r = check({ ...env, LEASE_RELAY_KEY_FILE: kf, LEASE_RELAY_STATE: at(text) });
++    if (r.status !== 1) accepted.push(`${what}: ACCEPTED (${r.stdout.trim().slice(0, 60)}...)`);
++    else if (!/is not a relay send record .*settle it by hand/.test(r.stderr)) accepted.push(`${what}: refused unclearly: ${r.stderr.trim().slice(0, 120)}`);
++  }
++  assert.deepEqual(accepted, [], "every malformed record fails the check, clearly");
++  // the unit keeps the record in a StateDirectory of its own (DynamicUser chowns it recursively): never a key's directory
++  const unit = fs.readFileSync(path.join(REPO, "relay/systemd/enclave-lease-relay.service"), "utf8");
++  assert.match(unit, /^StateDirectory=enclave-lease-relay-state$/m);
++  assert.match(unit, /^Environment=LEASE_RELAY_STATE=%S\/enclave-lease-relay-state\/relay-send\.json$/m);
++});
++
+ function serve(extraEnv = {}, args = ["--preserve-symlinks-main"]) {
+   const child = spawn(process.execPath, [...args, path.join(rel, "current/lease-relay.mjs")], { cwd: path.join(rel, "current"),
+     env: { PATH: process.env.PATH, NODE_EXTRA_CA_CERTS: ca, ...env, ...extraEnv }, stdio: ["ignore", "pipe", "pipe"] });
+--- a/test/lease-relay-resilience.test.mjs
++++ b/test/lease-relay-resilience.test.mjs
+@@ -171,3 +171,58 @@
+   await assert.rejects(service(other, { stateFile: (fs.writeFileSync(stateFile, JSON.stringify({ nonce: 1, raw, hash: viem.keccak256(raw) })), stateFile) }),
+     /not this relay's send record \(chain 8453, nonce 0\)/, "a record whose nonce is not its transaction's");
+ });
++
++// root review (2026-10-20): the persisted state is EXACTLY {} (nothing unresolved) or this key's {nonce, raw, hash}.
++// Anything else - null, an array, a string, a partial or foreign object, non-JSON, an empty, oversized or non-regular
++// file - refuses startup: the file is not cleared or overwritten, nothing is signed and nothing is broadcast.
++test("a malformed or partial send record refuses startup: never read as empty, never overwritten, nothing signed or broadcast", T, async () => {
++  reset();
++  const k = await relayKey(), payee = privateKeyToAccount(k).address, acct = privateKeyToAccount(k);
++  const raw = await acct.signTransaction({ chainId: 8453, type: "eip1559", nonce: 0, to: acct.address, value: 0n, gas: 21_000n, maxFeePerGas: 10n ** 9n, maxPriorityFeePerGas: 1n });
++  const hash = viem.keccak256(raw);
++  const cases = [["null", "null"], ["an array", "[]"], ["a string", '"x"'], ["a number", "0"], ["a nonce only", '{"nonce":123}'], ["an empty raw", '{"raw":""}'],
++    ["an arbitrary object", '{"foo":1}'], ["raw without hash", JSON.stringify({ nonce: 0, raw })], ["raw and hash without nonce", JSON.stringify({ raw, hash })],
++    ["a nonce as a string", JSON.stringify({ nonce: "0", raw, hash })], ["an extra field", JSON.stringify({ nonce: 0, raw, hash, note: 1 })],
++    ["{} with a field", '{"pending":false}'], ["not JSON", "{not json"], ["an empty file", ""], ["over 64 KiB", "{}" + " ".repeat(64 * 1024)]];
++  const from = await W.pc.getBlockNumber({ cacheTime: 0 });
++  const started = [];
++  for (const [what, text] of cases) {
++    const stateFile = path.join(dir, `bad-${crypto.randomBytes(4).toString("hex")}.json`);
++    fs.writeFileSync(stateFile, text);
++    const svc = await service(k, { stateFile }).catch((e) => e);
++    if (!(svc instanceof Error)) {   // what a relay that read it as empty then does with a real request
++      const id = await enrolled(), op = await W.operator(`https://resilience-bad-${crypto.randomBytes(3).toString("hex")}.test`);
++      const r = await post(svc.url, await signedClaim(op, id, payee));
++      started.push(`${what}: STARTED, a claim answered ${r.status}, the file became ${JSON.stringify(fs.readFileSync(stateFile, "utf8").slice(0, 60))}`);
++      await svc.close();
++      continue;
++    }
++    if (!/send record/.test(svc.message)) started.push(`${what}: refused, but not as a send record: ${svc.message.slice(0, 120)}`);
++    if (fs.readFileSync(stateFile, "utf8") !== text) started.push(`${what}: the file was changed`);
++  }
++  for (const [what, make] of [["a directory", (f) => fs.mkdirSync(f)], ["a symlink to {}", (f) => { fs.writeFileSync(f + ".target", "{}"); fs.symlinkSync(f + ".target", f); }]]) {
++    const stateFile = path.join(dir, `bad-${crypto.randomBytes(4).toString("hex")}.json`);
++    make(stateFile);
++    const svc = await service(k, { stateFile }).catch((e) => e);
++    if (!(svc instanceof Error)) { started.push(`${what}: STARTED`); await svc.close(); continue; }
++    if (!/send record/.test(svc.message)) started.push(`${what}: refused, but not as a send record: ${svc.message.slice(0, 120)}`);
++  }
++  assert.deepEqual(started, [], "every malformed record must refuse startup, as a send record, leaving the file as it was");
++  assert.deepEqual(await sentBy(payee, from), [], "nothing was signed and sent");
++  assert.deepEqual(P.flatMap((p) => p.mode.raws), [], "nothing was broadcast");
++});
++
++test("the empty state is exactly {} (or no file yet): the relay starts, serves, and leaves exactly {}", T, async () => {
++  reset();
++  const k = await relayKey(), payee = privateKeyToAccount(k).address;
++  for (const initial of ["{}", null]) {
++    const stateFile = path.join(dir, `empty-${crypto.randomBytes(4).toString("hex")}.json`);
++    if (initial !== null) fs.writeFileSync(stateFile, initial);
++    const svc = await service(k, { stateFile });
++    const id = await enrolled(), op = await W.operator(`https://resilience-empty-${crypto.randomBytes(3).toString("hex")}.test`);
++    const r = await post(svc.url, await signedClaim(op, id, payee));
++    assert.equal(r.status, 200, JSON.stringify(r.body));
++    assert.equal(fs.readFileSync(stateFile, "utf8"), "{}", "resolved: exactly {}");
++    await svc.close();
++  }
++});

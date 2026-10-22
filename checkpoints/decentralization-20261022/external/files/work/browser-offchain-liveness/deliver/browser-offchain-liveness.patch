@@ -1,0 +1,1329 @@
+--- /dev/null
++++ b/scripts/build-host-capacity-vendor.mjs
+@@ -0,0 +1,81 @@
++#!/usr/bin/env node
++// site/vendor/host-capacity.js: the host capacity record READER (network/host-capacity.mjs and what it imports: the record
++// shape, bounds and message, canonical JSON, viem's keccak and signature recovery, replay/equivocation floors) as ONE
++// same-origin ESM bundle, so the independent dashboard verifies operator-signed capacity records with exactly the code the
++// relay and the CLI run - no copied or re-implemented verifier, no CDN bytes (scripts/build-vendor.mjs has the policy).
++// The sources are bundled UNMODIFIED. Their two Node-only uses are replaced by reviewed shims in
++// scripts/host-capacity-vendor/: node:crypto (sha256 hex of UTF-8 text, for the floors) and Buffer.byteLength (UTF-8
++// length, for the 32 KiB bound); any other Node built-in or unlisted repository file refuses the build.
++// The bundle and its manifest are COMMITTED; test/site-host-liveness.test.mjs rebuilds it and requires the committed bytes
++// to equal the fresh build, and compares the shims with Node.
++// The liveness RULE itself (network/host-liveness.mjs) has no imports and is imported by the site directly, not bundled here.
++//   node scripts/build-host-capacity-vendor.mjs [--check] [--allow-uncommitted]
++import { build } from "esbuild";
++import { createHash } from "node:crypto";
++import { execFileSync } from "node:child_process";
++import fs from "node:fs";
++import path from "node:path";
++
++const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
++export const OUT = path.join(ROOT, "site", "vendor", "host-capacity.js");
++export const MANIFEST = path.join(ROOT, "site", "vendor", "host-capacity.MANIFEST.json");
++const SHIMS = { crypto: "scripts/host-capacity-vendor/node-crypto-shim.mjs", buffer: "scripts/host-capacity-vendor/buffer-shim.mjs" };
++// the READER only: the host side (network/host-capacity-producer.mjs) is not bundled; the two request paths the site
++// uses are pinned to the producer's exports by test/site-host-liveness.test.mjs
++export const ENTRY = 'export { verifyHostCapacity, validateHostCapacityRecord, CapacityFloors, chooseRecord, aggregateCapacity, hostIdOf, hostCapacityHash, HOST_CAPACITY_MAX_MS } from "./network/host-capacity.mjs";\n';
++// every repository file the bundle may be built from, hashed into the manifest
++const SOURCES = ["network/host-capacity.mjs", "network/host-capacity-record.mjs", "network/canonical.mjs", SHIMS.crypto, SHIMS.buffer];
++
++const shims = {
++  name: "host-capacity-browser-shims",
++  setup(b) {
++    b.onResolve({ filter: /^(node:)?crypto$/ }, () => ({ path: path.join(ROOT, SHIMS.crypto) }));
++  },
++};
++
++export async function buildHostCapacityVendor() {
++  const r = await build({ stdin: { contents: ENTRY, resolveDir: ROOT, sourcefile: "host-capacity-vendor-entry.mjs", loader: "js" },
++                          bundle: true, format: "esm", platform: "browser", target: "es2022", minify: true, legalComments: "eof", write: false,
++                          logLevel: "warning", metafile: true, absWorkingDir: ROOT, plugins: [shims], inject: [path.join(ROOT, SHIMS.buffer)] });
++  const js = Buffer.from(r.outputFiles[0].contents);
++  const inputs = Object.keys(r.metafile.inputs).filter((p) => p !== "host-capacity-vendor-entry.mjs");
++  const node = inputs.filter((p) => /^(node:|\(disabled\))/.test(p));
++  if (node.length) throw new Error("host-capacity bundle pulls Node-only inputs: " + node.join(", "));
++  const local = inputs.filter((p) => !p.includes("node_modules/")).map((p) => path.relative(ROOT, path.resolve(ROOT, p))).sort();
++  const unexpected = local.filter((p) => !SOURCES.includes(p));
++  if (unexpected.length) throw new Error("host-capacity bundle pulls unreviewed repository files: " + unexpected.join(", "));
++  for (const s of SOURCES) if (!local.includes(s)) throw new Error("host-capacity bundle no longer contains " + s + " (update SOURCES deliberately)");
++  const pkg = (n) => JSON.parse(fs.readFileSync(path.join(ROOT, "node_modules", n, "package.json"), "utf8")).version;
++  const sha = (b) => createHash("sha256").update(b).digest("hex");
++  const manifest = { file: "site/vendor/host-capacity.js", sha256: sha(js), bytes: js.length, entry: ENTRY, esbuild: pkg("esbuild"),
++                     deps: { viem: pkg("viem") },
++                     sources: Object.fromEntries(local.map((p) => [p, { sha256: sha(fs.readFileSync(path.join(ROOT, p))), ...provenance(p) }])) };
++  return { js, manifest };
++}
++
++/* the last commit touching a source, and whether the working tree still equals it (null outside a git checkout) */
++function provenance(p){
++  const git = (...a) => execFileSync("git", a, { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
++  try {
++    const commit = git("log", "-1", "--format=%H", "--", p) || null;
++    let clean = true;
++    try { git("diff", "--quiet", "HEAD", "--", p); } catch { clean = false; }
++    if (!git("ls-files", "--", p)) clean = false;
++    return { commit, committedClean: clean };
++  } catch { return { commit: null, committedClean: null }; }
++}
++
++if (import.meta.url === `file://${process.argv[1]}`) {
++  const { js, manifest } = await buildHostCapacityVendor();
++  if (process.argv.includes("--check")) {
++    const same = fs.existsSync(OUT) && Buffer.compare(fs.readFileSync(OUT), js) === 0;
++    console.log(same ? "site/vendor/host-capacity.js matches a fresh build" : "site/vendor/host-capacity.js DIFFERS from a fresh build");
++    process.exit(same ? 0 : 1);
++  }
++  const dirty = Object.entries(manifest.sources).filter(([, v]) => v.committedClean !== true).map(([k]) => k);
++  if (dirty.length && !process.argv.includes("--allow-uncommitted"))
++    throw new Error("refusing to vendor uncommitted sources (review and commit them first, or pass --allow-uncommitted): " + dirty.join(", "));
++  fs.writeFileSync(OUT, js);
++  fs.writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + "\n");
++  console.log(`wrote ${path.relative(ROOT, OUT)} (${js.length} bytes, sha256 ${manifest.sha256.slice(0, 16)}…)`);
++}
+--- /dev/null
++++ b/scripts/host-capacity-vendor/buffer-shim.mjs
+@@ -0,0 +1,9 @@
++// The ONE Buffer use the host-capacity record module makes, for the browser bundle (scripts/build-host-capacity-vendor.mjs):
++// Buffer.byteLength(text) of a string in network/host-capacity-record.mjs parseAvailability (the 32 KiB bound), i.e. its
++// UTF-8 length. Anything other than a string throws rather than guess. Tested against Node's Buffer.byteLength.
++export const Buffer = {
++  byteLength(value){
++    if (typeof value !== "string") throw new Error("the browser bundle measures UTF-8 text only");
++    return new TextEncoder().encode(value).length;
++  },
++};
+--- /dev/null
++++ b/scripts/host-capacity-vendor/node-crypto-shim.mjs
+@@ -0,0 +1,21 @@
++// The ONE node:crypto use the host-capacity reader modules make, for the browser bundle (scripts/build-host-capacity-vendor.mjs):
++// createHash("sha256").update(text, "utf8").digest("hex") in network/host-capacity-record.mjs hostCapacityHash (replay and
++// equivocation floors). Same bytes in, same hex out: viem's SHA-256 (@noble/hashes) over the UTF-8 encoding. Anything else
++// throws rather than guess. test/site-host-liveness.test.mjs compares it with Node's createHash.
++import { sha256, toBytes } from "viem";
++
++export function createHash(algorithm){
++  if (algorithm !== "sha256") throw new Error("the browser bundle provides sha256 only");
++  const parts = [];
++  return {
++    update(data, encoding = "utf8"){
++      if (typeof data !== "string" || encoding !== "utf8") throw new Error("the browser bundle hashes UTF-8 text only");
++      parts.push(data);
++      return this;
++    },
++    digest(encoding){
++      if (encoding !== "hex") throw new Error("the browser bundle returns hex digests only");
++      return sha256(toBytes(parts.join(""))).slice(2);
++    },
++  };
++}
+--- a/scripts/network/browser-profile.mjs
++++ b/scripts/network/browser-profile.mjs
+@@ -10,7 +10,10 @@
+ //     --expect-digest sha256:<64 hex> --expect-pins contracts/deployments/contract-pins-base.json \
+ //     --rpc https://base-rpc.publicnode.com --rpc https://mainnet.base.org --rpc https://base.drpc.org \
+ //     [--quorum 2] [--confirmations 2] [--max-block-age 600] [--storage-plan storage.json] \
+-//     [--directory https://dir-a.example ...] [--name "..."] [--address-book 0x...] [--verify-chain] --out browser-profile.json
++//     [--directory https://dir-a.example ...] [--capacity-directory https://mirror.example ...] [--name "..."] [--address-book 0x...]
++//     [--verify-chain] --out browser-profile.json
++// --capacity-directory: optional mirrors of operator-signed host capacity records (GET /v1/host-capacity); the dashboard also
++// reads each host's own record and verifies every record itself, so no mirror is required or trusted.
+ // --address-book selects administrator-directed following and with it the ORIGINAL session factory (legacySessionVaultFactory);
+ // with --verify-chain the binding (factory -> implementation -> book, USDC, core entries) is checked at the verified block.
+ // --ledger-history-from <block> (with both; the book's deployment block) records every ledger the book named for
+@@ -35,7 +38,7 @@
+ const int=(v,name,def)=>{if(v==null)return def;if(!/^[0-9]+$/.test(v))throw Error('--'+name+' must be an integer');return Number(v);};
+ 
+ /* Pure conversion (tests call this): reviewed authority bytes + out-of-band digest and pins + operator choices. */
+-export function convert({authorityBytes,expectDigest,expectPins,rpcs,quorum=2,confirmations=2,maxBlockAgeSeconds=600,storage=null,directories=[],name='',addressBook=null,ledgerHistory=null}){
++export function convert({authorityBytes,expectDigest,expectPins,rpcs,quorum=2,confirmations=2,maxBlockAgeSeconds=600,storage=null,directories=[],name='',addressBook=null,ledgerHistory=null,capacityDirectories=[]}){
+   const {digest,profile}=parseProfile(authorityBytes,{expectedDigest:expectDigest});
+   const pins=contractPinsFromProfile(profile);
+   const expected=validateContractPins(expectPins);
+@@ -55,6 +58,7 @@
+     contracts.sessionVaultFactory=original.toLowerCase();
+   }
+   for(const d of directories)if(!/^https:\/\//.test(d))throw Error('directories must be HTTPS origins: a dashboard served over HTTPS cannot reach '+d);
++  for(const d of capacityDirectories)if(!/^https:\/\//.test(d))throw Error('capacity directories must be HTTPS origins: a dashboard served over HTTPS cannot reach '+d);
+   const out={format:PROFILE_FORMAT,version:1,name:name||'Base · authority profile '+digest.slice(7,19),chainId:profile.chainId,
+     rpcs,quorum,confirmations,maxBlockAgeSeconds,
+     contractPins:{version:1,chainId:pins.chainId,contracts},
+@@ -64,6 +68,7 @@
+     ...(feed&&!/^0x0{40}$/i.test(feed)?{ethUsdFeed:feed.toLowerCase()}:{}),
+     ...(storage?{storage}:{}),
+     ...(directories.length?{directories}:{}),
++    ...(capacityDirectories.length?{capacityDirectories}:{}),
+     source:{authorityProfileDigest:digest,reviewBlock:String(profile.review.blockNumber)}};
+   validateBrowserProfile(out);                         // exactly what the dashboard will accept
+   for(const u of rpcs)if(!/^https:\/\//.test(u))throw Error('RPCs must be HTTPS for a published browser profile: '+u);
+@@ -137,7 +142,7 @@
+ async function main(){
+   const {values}=parseArgs({options:{authority:{type:'string'},'expect-digest':{type:'string'},'expect-pins':{type:'string'},
+     rpc:{type:'string',multiple:true},quorum:{type:'string'},confirmations:{type:'string'},'max-block-age':{type:'string'},
+-    'storage-plan':{type:'string'},directory:{type:'string',multiple:true},name:{type:'string'},'address-book':{type:'string'},'ledger-history-from':{type:'string'},'log-span':{type:'string'},'verify-chain':{type:'boolean'},out:{type:'string'}},strict:true});
++    'storage-plan':{type:'string'},directory:{type:'string',multiple:true},'capacity-directory':{type:'string',multiple:true},name:{type:'string'},'address-book':{type:'string'},'ledger-history-from':{type:'string'},'log-span':{type:'string'},'verify-chain':{type:'boolean'},out:{type:'string'}},strict:true});
+   for(const k of ['authority','expect-digest','expect-pins','out'])if(!values[k])throw Error('--'+k+' is required');
+   const authorityBytes=await readBounded(values.authority,MAX_PROFILE_BYTES,'authority profile');
+   const expectPins=parseUniqueJSON((await readBounded(values['expect-pins'],16384,'expected pins')).toString('utf8'));
+@@ -146,7 +151,7 @@
+     throw Error('--ledger-history-from needs --address-book and --verify-chain (the history is read from the chain)');
+   const args={authorityBytes,expectDigest:values['expect-digest'],expectPins,rpcs:values.rpc||[],quorum:int(values.quorum,'quorum',2),
+     confirmations:int(values.confirmations,'confirmations',2),maxBlockAgeSeconds:int(values['max-block-age'],'max-block-age',600),
+-    storage,directories:values.directory||[],name:values.name||'',addressBook:values['address-book']??null};
++    storage,directories:values.directory||[],capacityDirectories:values['capacity-directory']||[],name:values.name||'',addressBook:values['address-book']??null};
+   let r=convert(args);
+   if(values['verify-chain']){
+     const clients=rpcClients(values.rpc);
+--- a/site/components/admin-console/admin-console.js
++++ b/site/components/admin-console/admin-console.js
+@@ -386,7 +386,7 @@
+           ? `Prices are µUSDC per second for a FULL card / node; existing deployments keep the rate they were created at. Owner ${mono(d.owner)}.`
+           : `This ledger (schema ${d.schema}) sets no prices: every enclave publishes its own per-machine rate in its EnclaveRegistry entry, `
+             + `a deployment is charged its shares of whichever enclave claims it, and each deployment's own maxRate6 caps that. `
+-            + `Re-price the fleet by changing an enclave's SELL_CPU_PRICE6 / SELL_GPU_PRICE6 (it republishes on its next heartbeat). Owner ${mono(d.owner)}.`,
++            + `Re-price the fleet by changing an enclave's SELL_CPU_PRICE6 / SELL_GPU_PRICE6 (its registry reconcile posts the new price on mismatch). Owner ${mono(d.owner)}.`,
+         (priced
+           ? this._row("GPU price <code>setPrice</code>", `${d.gpu} <span class="dim">(≈ ${perHr(d.gpu)})</span>`, "dep-gpu", { owner: d.owner, placeholder: String(d.gpu), hint: "µUSDC/s" }) +
+             this._row("CPU price <code>setCpuPrice</code>", `${d.cpu} <span class="dim">(≈ ${perHr(d.cpu)})</span>`, "dep-cpu", { owner: d.owner, placeholder: String(d.cpu), hint: "µUSDC/s" })
+--- a/site/components/deployments/deployments.js
++++ b/site/components/deployments/deployments.js
+@@ -796,6 +796,8 @@
+       st.textContent = "";
+       paint("info", "ceiling " + usdHr(cap.cap6) + " · " + (pin ? "pinned to " + ((q.hosts.find((h) => h.hostId === pin) || {}).endpoint || pin) : "any host at or under the ceiling")
+         + " · read at block " + q.block);
++      // hosts whose liveness could not be checked are an outage, not "no capacity"
++      if (q.liveness && q.liveness.note) paint("warn", "[!] " + q.liveness.note);
+       const table = document.createElement("div");
+       table.className = "enc-host-list";
+       table.innerHTML = q.hosts.map((h) => '<div class="' + (h.eligible ? "" : "dim") + '">' + esc(h.endpoint) + ' · '
+--- /dev/null
++++ b/site/js/core/host-liveness.js
+@@ -0,0 +1,219 @@
++/* ============================================================
++   Off-chain host liveness for the independent dashboard - the
++   SAME rule the relay, the CLI and the host agents use
++   (network/host-liveness.mjs; docs/network/host-liveness.md):
++
++     ADMISSION  the registry at ONE agreed block (active; the
++                caller's own filters: runs code, posts a price).
++                Nothing here relaxes it.
++     LIVENESS   evidence THIS page verified for that exact row:
++                an operator-signed host capacity record
++                (network/host-capacity.mjs verifyHostCapacity,
++                bundled unmodified as /vendor/host-capacity.js),
++                or the operator's own registry write within the
++                rule's window (the transition evidence).
++
++   A record counts only when it verifies against the agreed row
++   for its hostId at the snapshot the prices come from: signer =
++   that row's operator, the exact registered endpoint, the
++   profile's chain, the registry the (address-book) binding names
++   at that snapshot, the row active, not expired, at most 15
++   minutes long, and not older than (or in conflict with) one
++   this tab already accepted for that host and operator. Records
++   are fetched from each admitted host's own endpoint
++   (GET <endpoint>/v1/host/capacity) and from any capacity
++   mirrors the profile names (GET <origin>/v1/host-capacity);
++   no single source is required, and whatever a source returns
++   is only a candidate - a mirror cannot vouch for anything.
++   An HTTP 200 without a verified record is not liveness.
++
++   Bounded: at most MAX_HOSTS hosts read, CONCURRENCY requests in
++   flight, REQUEST_TIMEOUT_MS each, TOTAL_MS per call, size-capped
++   bodies. Raw envelopes are kept in tab memory for REFRESH_MS
++   and re-verified on every call; nothing is stored.
++   ============================================================ */
++import { hostLiveness, REGISTRY_UPDATE_WINDOW_SEC } from "../../../network/host-liveness.mjs";
++import { INDEPENDENT, REGISTRY_ADDRESS } from "./config.js";
++import { keccak256Utf8 } from "./keccak.js";
++
++export const LIMITS = Object.freeze({ MAX_HOSTS: 48, CONCURRENCY: 6, REQUEST_TIMEOUT_MS: 4000, TOTAL_MS: 10000,
++  HOST_BODY_BYTES: 64 * 1024, DIRECTORY_BODY_BYTES: 1024 * 1024, DIRECTORY_RECORDS: 256, REFRESH_MS: 60000 });
++let L = LIMITS;
++// where records are read (network/host-capacity-producer.mjs HOST_CAPACITY_PATH / DIRECTORY_CAPACITY_PATH; equality is
++// pinned by test/site-host-liveness.test.mjs - the host side is not part of the browser bundle)
++export const HOST_CAPACITY_PATH = "/v1/host/capacity", DIRECTORY_CAPACITY_PATH = "/v1/host-capacity";
++
++let _vendor = null, _fetch = null, _floors = null;
++const hostCache = new Map();        // hostId|endpoint -> { at, envelope | null, error | null }
++const dirCache = new Map();         // origin -> { at, envelopes, error }
++const vendor = () => (_vendor ||= import("/vendor/host-capacity.js").catch((e) => { _vendor = null; throw e; }));
++const doFetch = (...a) => (_fetch || globalThis.fetch)(...a);
++/* tests: the bundle as a module object, a fetch, a fresh tab */
++export function _setForTests({ vendorModule, fetchImpl, limits } = {}){
++  if (vendorModule) _vendor = Promise.resolve(vendorModule);
++  if (fetchImpl) _fetch = fetchImpl;
++  L = Object.freeze({ ...LIMITS, ...(limits || {}) });
++  _floors = null; hostCache.clear(); dirCache.clear();
++}
++
++const runsCode = (h) => !h.caps || (Number(h.caps) & 1) === 1;
++/* the registry's admission for listing and pricing (unchanged): active, runs code, posts a CPU price */
++export const admitted = (h) => !!h && h.active === true && runsCode(h) && Number(h.cpuPricePerSec6) > 0;
++const httpsEndpoint = (e) => { try { const u = new URL(e); return u.protocol === "https:" && !u.username && !u.password && !u.search && !u.hash; } catch { return false; } };
++
++/* One bounded GET: a deadline, no credentials, no redirects, at most `max` bytes. -> parsed JSON; throws with a reason. */
++async function getJson(url, { max, deadline }){
++  const left = deadline - Date.now();
++  if (left <= 0) throw Object.assign(new Error("not checked: the page's time budget ran out"), { budget: true });
++  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), Math.min(L.REQUEST_TIMEOUT_MS, left));
++  try {
++    const r = await doFetch(url, { method: "GET", signal: ctl.signal, credentials: "omit", redirect: "error", cache: "no-store", mode: "cors",
++      headers: { accept: "application/json" } });
++    if (!r.ok) throw new Error("HTTP " + r.status);
++    const text = await boundedText(r, max);
++    try { return JSON.parse(text); } catch { throw new Error("not JSON"); }
++  } catch (e){
++    if (e && e.name === "AbortError") throw new Error("timed out");
++    throw e;
++  } finally { clearTimeout(timer); }
++}
++async function boundedText(r, max){
++  const declared = Number(r.headers?.get?.("content-length"));
++  if (Number.isFinite(declared) && declared > max) throw new Error("answer larger than " + max + " bytes");
++  if (!r.body || !r.body.getReader){ const t = await r.text(); if (new TextEncoder().encode(t).length > max) throw new Error("answer larger than " + max + " bytes"); return t; }
++  const rd = r.body.getReader(), parts = []; let n = 0;
++  for (;;){
++    const { done, value } = await rd.read();
++    if (done) break;
++    n += value.length;
++    if (n > max){ try { await rd.cancel(); } catch {} throw new Error("answer larger than " + max + " bytes"); }
++    parts.push(value);
++  }
++  const all = new Uint8Array(n); let o = 0; for (const p of parts){ all.set(p, o); o += p.length; }
++  return new TextDecoder("utf-8", { fatal: true }).decode(all);
++}
++async function pool(items, n, fn){
++  let i = 0;
++  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length){ const x = items[i++]; await fn(x); } }));
++}
++
++/* capacity mirrors the profile names (optional; validated by js/core/independent.js) */
++const mirrors = () => (INDEPENDENT.state === "on" && INDEPENDENT.profile.capacityDirectories) || [];
++
++/**
++ * capacityEvidence(snap, hosts, opts) -> {
++ *   signedUntil: Map(hostId -> expiresAt ms) of records verified for THIS snapshot's rows,
++ *   byHost: Map(hostId -> { status: "verified"|"refused"|"unreachable"|"none"|"equivocation"|"unchecked", reason, expiresAt, issuedAt, sequence }),
++ *   sources: [{ source, ok, error?, kind? }], checked, limited, complete }
++ *   hosts: the registry rows of `snap` (one agreed read); opts.ids: only these host ids (e.g. the owner's own hosts);
++ *   opts.registry / opts.chainId: the binding at that snapshot (defaults: the bound registry and the profile's chain).
++ */
++export async function capacityEvidence(snap, hosts, { ids = null, registry = REGISTRY_ADDRESS, chainId = INDEPENDENT.profile?.chainId, now = () => Date.now() } = {}){
++  const t0 = Date.now(), deadline = t0 + L.TOTAL_MS;
++  const binding = { chainId: Number(chainId), registry: String(registry || "").toLowerCase() };
++  const out = { signedUntil: new Map(), byHost: new Map(), sources: [], checked: 0, limited: 0, complete: true, block: snap?.number ?? null };
++  if (!/^0x[0-9a-f]{40}$/.test(binding.registry)){ out.complete = false; out.sources.push({ source: "registry", ok: false, error: "no registry is bound" }); return out; }
++  // admitted rows of this snapshot, by hostId (the record names keccak256(endpoint)); cheapest first so a bounded read
++  // reaches the hosts a buyer is likeliest to pick
++  const rows = new Map();
++  for (const h of hosts.filter(admitted).filter((h) => httpsEndpoint(h.endpoint))
++                       .sort((a, b) => Number(a.cpuPricePerSec6) - Number(b.cpuPricePerSec6))){
++    const id = keccak256Utf8(h.endpoint);
++    if (ids && !ids.includes(id)) continue;
++    rows.set(id, { host: h, entry: { endpoint: h.endpoint, operator: String(h.operator).toLowerCase(), active: h.active === true } });
++  }
++  const targets = [...rows.keys()].slice(0, L.MAX_HOSTS);
++  out.limited = rows.size - targets.length;
++  if (out.limited > 0){ out.complete = false; out.sources.push({ source: "registry", kind: "limit", ok: false, error: out.limited + " admitted host(s) beyond " + L.MAX_HOSTS + " were not read" }); }
++  if (!targets.length) return out;
++  let V;
++  try { V = await vendor(); }
++  catch (e){ out.complete = false; out.sources.push({ source: "verifier", ok: false, error: "the record verifier did not load: " + (e.message || e) }); return out; }
++  _floors ||= new V.CapacityFloors();
++  const candidates = new Map(targets.map((id) => [id, []]));
++  const fresh = (c) => c && Date.now() - c.at < L.REFRESH_MS;
++  // 1. mirrors: whatever they list is only a candidate for a host this snapshot admits
++  await pool(mirrors(), L.CONCURRENCY, async (origin) => {
++    let c = dirCache.get(origin);
++    if (!fresh(c)){
++      try {
++        const body = await getJson(origin + DIRECTORY_CAPACITY_PATH, { max: L.DIRECTORY_BODY_BYTES, deadline });
++        const list = Array.isArray(body?.records) ? body.records.slice(0, L.DIRECTORY_RECORDS) : null;
++        if (!list) throw new Error("no records list");
++        c = { at: Date.now(), envelopes: list, error: null };
++      } catch (e){ c = { at: Date.now(), envelopes: [], error: String(e.message || e) }; if (e.budget) out.complete = false; }
++      dirCache.set(origin, c);
++    }
++    out.sources.push({ source: origin, kind: "mirror", ok: !c.error, ...(c.error ? { error: c.error } : { records: c.envelopes.length }) });
++    for (const env of c.envelopes){
++      const id = String(env?.record?.hostId || "").toLowerCase();
++      if (candidates.has(id)) candidates.get(id).push({ env, from: origin });
++    }
++  });
++  // 2. each admitted host's own endpoint
++  const unreachable = new Map();
++  await pool(targets, L.CONCURRENCY, async (id) => {
++    const { entry } = rows.get(id), key = id + "|" + entry.endpoint;
++    let c = hostCache.get(key);
++    if (!fresh(c)){
++      try { c = { at: Date.now(), envelope: await getJson(entry.endpoint.replace(/\/$/, "") + HOST_CAPACITY_PATH, { max: L.HOST_BODY_BYTES, deadline }), error: null }; }
++      catch (e){ c = { at: e.budget ? 0 : Date.now(), envelope: null, error: String(e.message || e), budget: !!e.budget }; }
++      if (!c.budget) hostCache.set(key, c);
++    }
++    out.checked++;
++    if (c.envelope) candidates.get(id).push({ env: c.envelope, from: "host" });
++    else { unreachable.set(id, c.error); if (c.budget) out.complete = false; }
++  });
++  // 3. verify every candidate against THIS snapshot's row and binding; floors; one record per host
++  for (const id of targets){
++    const { entry } = rows.get(id), good = [], refused = [];
++    for (const { env, from } of candidates.get(id)){
++      try {
++        const v = await V.verifyHostCapacity(env, { pins: binding, entry, now: now() });
++        _floors.check(v.record);
++        good.push({ envelope: env, verified: v, from });
++      } catch (e){ refused.push(from + ": " + String(e.message || e)); }
++    }
++    if (good.length){
++      const best = V.chooseRecord(good);
++      if (best.equivocation){ out.byHost.set(id, { status: "equivocation", reason: "two different records with one sequence from this host's operator" }); continue; }
++      const r = best.verified.record;
++      _floors.record(r);
++      out.signedUntil.set(id, r.expiresAt);
++      out.byHost.set(id, { status: "verified", reason: null, expiresAt: r.expiresAt, issuedAt: r.issuedAt, sequence: r.sequence, from: best.from });
++    } else if (refused.length) out.byHost.set(id, { status: "refused", reason: "signed capacity record refused (" + refused.slice(0, 2).join("; ") + ")" });
++    else if (unreachable.has(id)) out.byHost.set(id, { status: unreachable.get(id).startsWith("not checked") ? "unchecked" : "unreachable",
++      reason: "capacity record unavailable: " + unreachable.get(id) });
++    else out.byHost.set(id, { status: "none", reason: "no signed capacity record" });
++  }
++  const hostsDown = [...out.byHost.values()].filter((b) => b.status === "unreachable").length;
++  out.sources.push({ source: "hosts", kind: "direct", ok: hostsDown === 0, checked: out.checked, ...(hostsDown ? { error: hostsDown + " host endpoint(s) did not answer" } : {}) });
++  return out;
++}
++
++/**
++ * The shared rule for one registry row of the snapshot, with this page's verified evidence. Admission first (the rule
++ * itself refuses inactive and unregistered rows); a refused or unreachable record leaves only the registry-write
++ * evidence, with its reason attached. -> network/host-liveness.mjs result + { capacity }
++ */
++export function livenessOf(h, { chainNowSec, evidence = null, nowMs = Date.now(), registryUpdateWindowSec = REGISTRY_UPDATE_WINDOW_SEC } = {}){
++  const id = h && h.endpoint ? keccak256Utf8(h.endpoint) : null;
++  const signedUntilMs = evidence && id ? evidence.signedUntil.get(id) ?? null : null;
++  const v = hostLiveness(h ? { operator: h.operator, active: h.active === true, lastSeen: Number(h.lastSeen) } : null,
++    { nowMs, chainNowSec, signedUntilMs, registryUpdateWindowSec });
++  const capacity = evidence && id ? evidence.byHost.get(id) || null : null;
++  if (!v.live && capacity && capacity.status !== "verified" && capacity.reason) return { ...v, reason: v.reason + "; " + capacity.reason, capacity };
++  return { ...v, capacity };
++}
++
++/* When the liveness was last AUTHENTICATED, in chain seconds (the relay publishes the same as lastSeen): the verified
++   record's issue time, else the operator's registry write. */
++export const authenticatedSeen = (h, live) => live && live.evidence === "signed-record" && live.capacity?.issuedAt
++  ? Math.floor(live.capacity.issuedAt / 1000) : Number(h.lastSeen);
++
++/* One plain sentence for the panels: outages are not "no capacity". */
++export function evidenceNote(ev){
++  if (!ev) return "";
++  const down = ev.sources.filter((s) => !s.ok).map((s) => s.source === "hosts" ? s.error : s.source + ": " + s.error);
++  return down.length ? "Liveness evidence incomplete - " + down.join("; ") + "." : "";
++}
+--- a/site/js/core/independent-chain.js
++++ b/site/js/core/independent-chain.js
+@@ -5,8 +5,11 @@
+      at one agreed block (js/core/quorum.js), filtered to the wallet and
+      its session vault - the CLI's chainDeployments, under RPC agreement.
+      A failed or disagreeing read THROWS; it is never an empty list.
+-   - Host prices: per-host quotes from the pinned registry (heartbeat
+-     within the last hour). The owner chooses the spend ceiling and,
++   - Host prices: per-host quotes from the pinned registry, among ACTIVE
++     hosts that are LIVE by the shared rule (js/core/host-liveness.js:
++     an operator-signed capacity record verified for that row at the
++     same agreed block, or the operator's own registry write within the
++     rule's window). The owner chooses the spend ceiling and,
+      optionally, one host; a suggestion is never raised automatically.
+      Every registered host counts, not only ones an API chooses to follow.
+    Rows use the relay's ledger-view shape (relay/api-relay.js ledgerView)
+@@ -17,6 +20,7 @@
+ import { INDEPENDENT, DEPLOYMENTS_ADDRESS, REGISTRY_ADDRESS, APP_CATALOG_ADDRESS, SESSION_FACTORY_ADDRESS, USDC_BASE } from "./config.js";
+ import { createQuorumReader, QuorumError } from "./quorum.js";
+ import { platformBookEnabled, platformBookReader, resolvePlatformAddresses } from "./platform-addresses.js";
++import { capacityEvidence, livenessOf, authenticatedSeen, admitted, evidenceNote } from "./host-liveness.js";
+ import { keccak256Utf8 } from "./keccak.js";
+ import { DEP_SCHEMA, DEP_SCHEMA_V1, decodeStructArray, decodeStruct, pad32 } from "./chain.js";
+ 
+@@ -27,7 +31,6 @@
+   vaultFor: sel("vaultFor(address)"),
+ };
+ const PAGE = 100;
+-const HOST_LIVE_SECONDS = 3600;
+ const ZERO32 = /^0x0{64}$/;
+ 
+ let _reader = null;
+@@ -176,9 +179,21 @@
+     if (page.length !== Math.min(PAGE, n - start)) throw new QuorumError("registry page did not match the count");
+     out.push(...page);
+   }
+-  return { snap, schema, hosts: out };
++  // `registry`: the registry these rows came from at this snapshot (an address book may repoint it later); capacity
++  // records are verified against exactly this binding, never a newer one
++  return { snap, schema, hosts: out, registry: String(REGISTRY_ADDRESS).toLowerCase() };
+ }
+ 
++/* Verified liveness evidence for the rows of ONE registry read (js/core/host-liveness.js capacityEvidence), bounded.
++   A failure to gather evidence is reported, never fatal: the registry-write evidence still applies. */
++export async function hostEvidence(reg, opts = {}){
++  try { return await capacityEvidence(reg.snap, reg.hosts, { registry: reg.registry, ...opts }); }
++  catch (e){ return { signedUntil: new Map(), byHost: new Map(), checked: 0, limited: 0, complete: false, block: reg.snap?.number ?? null,
++    sources: [{ source: "liveness", ok: false, error: String(e && e.message || e) }] }; }
++}
++export const evidenceSummary = (ev) => ev && ({ complete: ev.complete, checked: ev.checked, verified: ev.signedUntil.size, limited: ev.limited,
++  sources: ev.sources, note: evidenceNote(ev) });
++
+ /* The lease host management is judged against (js/core/independent-management.js): the deployment's row and its runner's
+    registry entry, read at ONE block the profile's RPCs agree on - never one RPC and never a directory's word. The shape is
+    the management helper's (network/management-browser.mjs): times in ms; validUntil bounds how long this read may be
+@@ -211,29 +226,36 @@
+ }
+ 
+ const runsCode = (h) => !h.caps || (Number(h.caps) & 1) === 1;   // pre-schema-5 rows read as hosts
+-export function liveHosts(hosts, chainNow){
+-  return hosts.filter((h) => h.active && runsCode(h) && Number(h.cpuPricePerSec6) > 0 && chainNow - Number(h.lastSeen) <= HOST_LIVE_SECONDS);
++/* Admitted (active, runs code, posts a CPU price) AND live by the shared rule (network/host-liveness.mjs) with the
++   evidence this page verified for these rows (hostEvidence). Without evidence only an operator registry write counts. */
++export function liveHosts(hosts, chainNow, { evidence = null, nowMs = Date.now() } = {}){
++  return hosts.filter((h) => admitted(h) && livenessOf(h, { chainNowSec: chainNow, evidence, nowMs }).live);
+ }
+ 
+ /* A host's total rate for one request, exactly as create()/claim price it: ceil((gpu*gpuMilli + cpu*cpuMilli)/1000). */
+ export const hostRate6 = (h, gpuMilli, cpuMilli) =>
+   (BigInt(h.gpuPricePerSec6 || 0) * BigInt(gpuMilli) + BigInt(h.cpuPricePerSec6 || 0) * BigInt(cpuMilli) + 999n) / 1000n;
+ 
+-/* Per-HOST quotes for one request: every live registered host (heartbeat within the hour) that can serve it (a GPU
++/* Per-HOST quotes for one request: every live registered host (shared liveness rule, above) that can serve it (a GPU
+    request needs a posted card price), with that host's own total rate. Never a mix of one host's CPU price and
+    another's GPU price - that is a price nobody offers. A host whose declared payout wallet is the owner charges that
+    owner nothing (ledger rev 12). `defaultCap6` is the cheapest CHARGING eligible host's total: only a suggestion the
+    owner sees and may change, never raised automatically. Posted prices are not capacity: a listed host may be full or
+    decline the work. */
+-export function quoteHosts(hosts, { chainNow, gpuMilli, cpuMilli, owner = "", rev = 16 }){
++export function quoteHosts(hosts, { chainNow, gpuMilli, cpuMilli, owner = "", rev = 16, evidence = null, nowMs = Date.now() }){
+   const me = String(owner || "").toLowerCase();
+-  const live = new Set(liveHosts(hosts, chainNow));
+   const rows = hosts.filter((h) => h.active).map((h) => {
+     const free = rev >= 12 && /^0x[0-9a-f]{40}$/.test(me) && String(h.payoutWallet || "").toLowerCase() === me;
+-    const reason = !live.has(h) ? "no heartbeat in the last hour"
++    const lv = livenessOf(h, { chainNowSec: chainNow, evidence, nowMs });
++    const reason = !runsCode(h) ? "does not run app code (registry capabilities)"
++      : !(Number(h.cpuPricePerSec6) > 0) ? "posts no CPU price"
++      : !lv.live ? lv.reason
+       : gpuMilli > 0 && !(Number(h.gpuPricePerSec6) > 0) ? "posts no GPU price" : "";
+     return { endpoint: h.endpoint, hostId: keccak256Utf8(h.endpoint), operator: h.operator, payoutWallet: h.payoutWallet || null,
+-      cpuPricePerSec6: Number(h.cpuPricePerSec6), gpuPricePerSec6: Number(h.gpuPricePerSec6 || 0), lastSeen: Number(h.lastSeen),
++      cpuPricePerSec6: Number(h.cpuPricePerSec6), gpuPricePerSec6: Number(h.gpuPricePerSec6 || 0),
++      lastSeen: authenticatedSeen(h, lv), registryLastSeen: Number(h.lastSeen),
++      liveness: { live: lv.live, evidence: lv.evidence, until: lv.untilMs, capacity: lv.capacity ? lv.capacity.status : null,
++        source: lv.capacity && lv.capacity.status === "verified" ? lv.capacity.from : null },
+       eligible: !reason, reason, free, rate6: hostRate6(h, gpuMilli, cpuMilli) };
+   });
+   const eligible = rows.filter((r) => r.eligible).sort((a, b) => (a.rate6 < b.rate6 ? -1 : a.rate6 > b.rate6 ? 1 : 0));
+@@ -243,38 +265,48 @@
+ }
+ 
+ export async function independentQuotes({ gpuMilli, cpuMilli, owner }){
+-  const { snap, hosts } = await registryHosts();
++  const reg = await registryHosts(), { snap, hosts } = reg;
+   const r = reader(), rev = await ledgerRev(r, snap);
+-  return { block: snap.number, chainNow: snap.timestamp, registeredHosts: hosts.length, ...quoteHosts(hosts, { chainNow: snap.timestamp, gpuMilli, cpuMilli, owner, rev }) };
++  const evidence = await hostEvidence(reg);
++  return { block: snap.number, chainNow: snap.timestamp, registeredHosts: hosts.length, liveness: evidenceSummary(evidence),
++    ...quoteHosts(hosts, { chainNow: snap.timestamp, gpuMilli, cpuMilli, owner, rev, evidence }) };
+ }
+ 
+ /* /availability-shaped summary for panels that read one price pair. Both prices come from ONE host - the live host
+    with the lowest whole-node price - never the per-field minima of different hosts. Deploy and the Host & price tab
+    quote per host (independentQuotes) instead of using this pair. */
+ export async function independentAvailability(){
+-  const { snap, hosts } = await registryHosts();
+-  const live = liveHosts(hosts, snap.timestamp).sort((a, b) => Number(a.cpuPricePerSec6) - Number(b.cpuPricePerSec6));
++  const reg = await registryHosts(), { snap, hosts } = reg;
++  const evidence = await hostEvidence(reg);
++  const live = liveHosts(hosts, snap.timestamp, { evidence }).sort((a, b) => Number(a.cpuPricePerSec6) - Number(b.cpuPricePerSec6));
+   const ref = live[0];
+-  return { independent: true, block: snap.number, liveHosts: live.length, registeredHosts: hosts.length,
++  return { independent: true, block: snap.number, liveHosts: live.length, registeredHosts: hosts.length, liveness: evidenceSummary(evidence),
+     ...(ref ? { cheapestCpuPricePerSec6: Number(ref.cpuPricePerSec6), referenceHost: ref.endpoint } : {}),
+     ...(ref && Number(ref.gpuPricePerSec6) > 0 ? { cheapestGpuPricePerSec6: Number(ref.gpuPricePerSec6) } : {}) };
+ }
+ 
+-/* Registry rows in the /enclaves shape the panels read (name, endpoint,
+-   payoutWallet, serving). `serving` here means "heartbeat within an hour",
+-   the ledger-visible proxy; nothing here asked the host. */
++/* Registry rows in the /enclaves shape the panels read (name, endpoint, payoutWallet, serving), as the relay publishes
++   them: `serving` = admitted and live by the shared rule; `lastSeen` = when that liveness was last AUTHENTICATED (a
++   verified record's issue time, else the operator's registry write); `registryLastSeen` = the raw chain value;
++   `liveness` = { evidence, until }. A signed record says the host's operator reported it up; it is not attestation. */
+ export async function independentEnclaves(){
+-  const { snap, hosts } = await registryHosts();
+-  const live = new Set(liveHosts(hosts, snap.timestamp));
+-  return hosts.filter((h) => h.active).map((h) => ({ name: h.endpoint, endpoint: h.endpoint, hostId: keccak256Utf8(h.endpoint), operator: h.operator,
+-    payoutWallet: h.payoutWallet || null, cpuPricePerSec6: Number(h.cpuPricePerSec6), gpuPricePerSec6: Number(h.gpuPricePerSec6 || 0),
+-    lastSeen: Number(h.lastSeen), serving: live.has(h), independent: true }));
++  const reg = await registryHosts(), { snap, hosts } = reg;
++  const evidence = await hostEvidence(reg), nowMs = Date.now();
++  const rows = hosts.filter((h) => h.active).map((h) => {
++    const lv = livenessOf(h, { chainNowSec: snap.timestamp, evidence, nowMs });
++    return { name: h.endpoint, endpoint: h.endpoint, hostId: keccak256Utf8(h.endpoint), operator: h.operator,
++      payoutWallet: h.payoutWallet || null, cpuPricePerSec6: Number(h.cpuPricePerSec6), gpuPricePerSec6: Number(h.gpuPricePerSec6 || 0),
++      lastSeen: authenticatedSeen(h, lv), registryLastSeen: Number(h.lastSeen), liveness: { evidence: lv.evidence, until: lv.untilMs, reason: lv.reason },
++      serving: admitted(h) && lv.live, independent: true };
++  });
++  rows.liveness = evidenceSummary(evidence);
++  return rows;
+ }
+ 
+ /* relay/api-relay.js ledgerView, from chain facts only. */
+-export function ledgerView(d, { chainNow, rev, hosts = [] }){
++export function ledgerView(d, { chainNow, rev, hosts = [], evidence = null }){
+   const owner = String(d.owner).toLowerCase();
+-  const free = rev >= 12 && liveHosts(hosts, chainNow).some((h) => String(h.payoutWallet || "").toLowerCase() === owner);
++  const free = rev >= 12 && liveHosts(hosts, chainNow, { evidence }).some((h) => String(h.payoutWallet || "").toLowerCase() === owner);
+   const leased = !ZERO32.test(d.runner) && Number(d.leaseUntil) > chainNow;
+   const status = !d.active ? "stopped"
+     : (!free && !(d.balance6 > 0 || d.spent6 > 0)) ? "awaiting_payment"
+@@ -299,11 +331,15 @@
+   };
+ }
+ 
+-async function hostsOrEmpty(snap){
++async function hostsOrEmpty(snap, owners = []){
+   // Host names and free-hosting are display niceties: a registry failure must
+-  // not hide the owner's rows, but it is reported on the rows.
+-  try { return { hosts: (await registryHosts(snap)).hosts, hostsError: null }; }
+-  catch (e){ return { hosts: [], hostsError: String(e && e.message || e) }; }
++  // not hide the owner's rows, but it is reported on the rows. Liveness evidence
++  // is gathered only for the owners' own hosts (free self-hosting), bounded.
++  try {
++    const reg = await registryHosts(snap), mine = new Set(owners.filter(Boolean).map((o) => String(o).toLowerCase()));
++    const ids = reg.hosts.filter((h) => mine.has(String(h.payoutWallet || "").toLowerCase())).map((h) => keccak256Utf8(h.endpoint));
++    return { hosts: reg.hosts, evidence: ids.length ? await hostEvidence(reg, { ids }) : null, hostsError: null };
++  } catch (e){ return { hosts: [], evidence: null, hostsError: String(e && e.message || e) }; }
+ }
+ 
+ /* The wallet's (and its vault's) rows: a bounded, resumable step of js/core/independent-list.js. The array carries
+@@ -315,8 +351,8 @@
+   await assertImplements(snap0, DEPLOYMENTS_ADDRESS, "the pinned ledger", ["count()", "getPage(uint256,uint256)", "get(bytes32)"]);
+   const { listOwned } = await import("./independent-list.js");
+   const res = await listOwned(owners, { reader: r, ledgerRev, ...opts });
+-  const { hosts, hostsError } = await hostsOrEmpty(res.snap);
+-  const out = res.rows.map((d) => ({ ...ledgerView(d, { chainNow: res.snap.timestamp, rev: res.rev, hosts }), block: res.snap.number,
++  const { hosts, evidence, hostsError } = await hostsOrEmpty(res.snap, res.rows.map((d) => d.owner));
++  const out = res.rows.map((d) => ({ ...ledgerView(d, { chainNow: res.snap.timestamp, rev: res.rev, hosts, evidence }), block: res.snap.number,
+     ...(hostsError ? { hostsError } : {}) }));
+   out.independentScan = { complete: res.complete, scanned: res.scanned, total: res.total, block: res.snap.number, mode: res.mode,
+     reason: res.reason, notMine: res.notMine };
+@@ -325,8 +361,8 @@
+ export async function independentDeployment(id){
+   const { snap, rev, row } = await deploymentAt(id);
+   if (!row){ const e = new Error("No such deployment on the pinned ledger."); e.status = 404; throw e; }
+-  const { hosts } = await hostsOrEmpty(snap);
+-  return { ...ledgerView(row, { chainNow: snap.timestamp, rev, hosts }), block: snap.number };
++  const { hosts, evidence } = await hostsOrEmpty(snap, [row.owner]);
++  return { ...ledgerView(row, { chainNow: snap.timestamp, rev, hosts, evidence }), block: snap.number };
+ }
+ 
+ /* The session vault a factory assigns `owner`, read at an agreed block. */
+--- a/site/js/core/independent.js
++++ b/site/js/core/independent.js
+@@ -116,7 +116,7 @@
+ 
+ export function validateProfile(value){
+   exactKeys(value, ["format", "version", "name", "chainId", "rpcs", "quorum", "confirmations", "maxBlockAgeSeconds",
+-    "contractPins", "addressBook", "ledgerHistory", "usdc", "ethUsdFeed", "storage", "directories", "source"], "profile");
++    "contractPins", "addressBook", "ledgerHistory", "usdc", "ethUsdFeed", "storage", "directories", "capacityDirectories", "source"], "profile");
+   if (value.format !== PROFILE_FORMAT || value.version !== 1) throw new Error("not an " + PROFILE_FORMAT + " version 1 document");
+   if (value.chainId !== BASE_CHAIN_ID) throw new Error("profile chainId must be 8453 (Base)");
+   const name = value.name == null ? "" : value.name;
+@@ -184,11 +184,21 @@
+       throw new Error("directory must be a bare http(s) origin: " + raw);
+     return u.origin;
+   }))];
++  // optional: mirrors of operator-signed host capacity records (network/host-capacity-http.mjs createHostCapacityDirectory,
++  // GET /v1/host-capacity). A mirror only relays candidates; js/core/host-liveness.js verifies each one against the agreed
++  // registry row, so a mirror can neither vouch for a host nor is one required.
++  const capDirs = value.capacityDirectories == null ? [] : value.capacityDirectories;
++  if (!Array.isArray(capDirs) || capDirs.length > 8) throw new Error("capacityDirectories must be a list of at most 8 origins");
++  const capacityDirectories = [...new Set(capDirs.map((raw) => {
++    const u = origin(raw, "capacity directory");
++    if (u.pathname !== "/") throw new Error("capacity directory must be a bare origin: " + raw);
++    return u.origin;
++  }))];
+   return Object.freeze({ format: PROFILE_FORMAT, version: 1, name, chainId: BASE_CHAIN_ID, rpcs: Object.freeze(rpcs), quorum,
+     confirmations, maxBlockAgeSeconds, contracts: Object.freeze(contracts), usdc: value.usdc.toLowerCase(),
+     addressBook: addressBook && addressBook.toLowerCase(), ledgerHistory,
+     ethUsdFeed: ethUsdFeed && ethUsdFeed.toLowerCase(), source,
+-    storage: storage && Object.freeze(storage), directories: Object.freeze(directories) });
++    storage: storage && Object.freeze(storage), directories: Object.freeze(directories), capacityDirectories: Object.freeze(capacityDirectories) });
+ }
+ 
+ export function parseProfile(text){
+--- a/site/js/pages/apps.js
++++ b/site/js/pages/apps.js
+@@ -631,7 +631,8 @@
+   // app pins Deploy off with the reason instead.
+   let qdRows = null, qdPick = "";
+   const fleetRowsNow = async () => {
+-    // independent mode has no hosted fleet table: hosts, their prices and heartbeats come from the pinned registry (indQuotes
++    // independent mode has no hosted fleet table: hosts and their prices come from the pinned registry, their liveness from
++    // verified operator-signed records or registry writes (indQuotes
+     // below), and the page never contacts the hosted API
+     if (INDEPENDENT_MODE) return [];
+     const r = await fetch(Enclave.base.replace(/\/v1\/?$/, "") + "/enclaves", { headers: { "Accept": "application/json" } });
+@@ -698,7 +699,8 @@
+     }
+     capCheck(); recalc();
+   };
+-  // independent mode: choose among hosts in the pinned registry. Their posted prices and heartbeats are chain facts;
++  // independent mode: choose among hosts in the pinned registry. Their posted prices are chain facts and their liveness is
++  // verified evidence (js/core/host-liveness.js);
+   // free capacity is not (only the hosted service's fleet view knows it), so a pinned host that is full leaves the
+   // deployment queued. The pin rides the record and is honored by hosts that follow placement pins.
+   // independent mode: each registered host's OWN total for the shares being bought (never one host's CPU price mixed
+@@ -710,7 +712,9 @@
+     const tEl = host.querySelector(".qd-target");
+     const usdHr = (p6) => "$" + (Number(p6) * 3600 / 1e6).toFixed(2) + "/hr";
+     const ago = (t) => Math.max(0, Math.round((Date.now() / 1000 - t) / 60)) + " min ago";
+-    let raw = null;
++    // which authenticated evidence makes the host live, and when it was issued (a signed record is the operator's report)
++    const liveLabel = (h) => (h.liveness && h.liveness.evidence === "signed-record" ? "signed record " : "registry write ") + ago(h.lastSeen);
++    let raw = null, evNote = "";
+     indRefresh = () => {
+       if (!raw || !tEl) return;
+       const prevHost = (tEl.querySelector(".qd-indhost") || {}).value || "";
+@@ -720,7 +724,9 @@
+       tEl.hidden = false;
+       tEl.innerHTML = "⤷ host: <select class=\"qd-indhost\"><option value=\"\">Any host at or under your ceiling</option>"
+         + elig.map((h) => "<option value=\"" + esc(h.hostId) + "\">" + esc(h.endpoint) + " · " + (h.free ? "free for you" : usdHr(h.rate6) + " for this size")
+-          + " · heartbeat " + ago(h.lastSeen) + "</option>").join("") + "</select>"
++          + " · live: " + liveLabel(h) + "</option>").join("") + "</select>"
++        + (elig.length ? "" : "<br><span class=\"qd-indnone warn\">" + (evNote ? "No host could be confirmed live for this size." : "No registered host is live for this size.") + "</span>")
++        + (evNote ? "<br><span class=\"qd-indev warn\">" + esc(evNote) + "</span>" : "")
+         + "<br><label>Price ceiling, $/hr (the most this deployment will pay) <input class=\"qd-cap\" type=\"number\" min=\"0.0001\" step=\"any\" inputmode=\"decimal\"></label>"
+         + "<br><span class=\"qd-capnote dim\"></span>"
+         + "<br><span class=\"dim\">Prices come from the host registry; a posted price is not reserved capacity - a host may be full or decline. "
+@@ -744,8 +750,9 @@
+     };
+     import("../core/independent-chain.js").then(async (IC) => {
+       const reg = await IC.registryHosts();
+-      const rev = await depSchemaRev();
+-      raw = { quote: (q) => IC.quoteHosts(reg.hosts, { chainNow: reg.snap.timestamp, rev, owner: actingOwner(Enclave.address) || Enclave.address, ...q }) };
++      const [rev, evidence] = await Promise.all([depSchemaRev(), IC.hostEvidence(reg)]);
++      evNote = (IC.evidenceSummary(evidence) || {}).note || "";
++      raw = { quote: (q) => IC.quoteHosts(reg.hosts, { chainNow: reg.snap.timestamp, rev, owner: actingOwner(Enclave.address) || Enclave.address, evidence, ...q }) };
+       indRefresh();
+     }).catch((e) => { if (tEl){ tEl.hidden = false; tEl.textContent = "Couldn’t read registered hosts: " + (e.message || e); } });
+   }
+--- a/site/js/pages/deploy.js
++++ b/site/js/pages/deploy.js
+@@ -190,7 +190,9 @@
+       try { quotes = await independentQuotes({ gpuMilli: spec.gpuMilli, cpuMilli: spec.cpuMilli, owner: quoteOwner }); }
+       catch(e){ w.line("warn", "[x] couldn't read host prices from the pinned registry: " + (e.message || e) + " - nothing was sent"); return; }
+       w.line("dimln", "    independent mode · ledger " + DEPLOYMENTS_ADDRESS + " · " + quotes.eligibleCount + " of " + quotes.registeredHosts
+-        + " registered hosts can quote this size (heartbeat within the hour) at block " + quotes.block);
++        + " registered hosts can quote this size (live: a verified signed capacity record or a recent operator registry write) at block " + quotes.block);
++      // an outage is not "no capacity": say which evidence could not be checked
++      if (quotes.liveness && quotes.liveness.note) w.line("warn", "[!] " + quotes.liveness.note);
+     } else try {
+       adoptFreePct(await Enclave.getAvailability());
+       if (queuedVerdict(spec.gpuMilli / 10, spec.cpuMilli / 10))
+--- /dev/null
++++ b/site/vendor/host-capacity.MANIFEST.json
+@@ -0,0 +1,37 @@
++{
++  "file": "site/vendor/host-capacity.js",
++  "sha256": "1df342ef4ae23893b5280d43a047199fcb7de4918565e2eebbd5998c1e08e29d",
++  "bytes": 62022,
++  "entry": "export { verifyHostCapacity, validateHostCapacityRecord, CapacityFloors, chooseRecord, aggregateCapacity, hostIdOf, hostCapacityHash, HOST_CAPACITY_MAX_MS } from \"./network/host-capacity.mjs\";\n",
++  "esbuild": "0.28.1",
++  "deps": {
++    "viem": "2.53.1"
++  },
++  "sources": {
++    "network/canonical.mjs": {
++      "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
++      "commit": null,
++      "committedClean": null
++    },
++    "network/host-capacity-record.mjs": {
++      "sha256": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
++      "commit": null,
++      "committedClean": null
++    },
++    "network/host-capacity.mjs": {
++      "sha256": "ef92bba48fe197b81e7d7aa59b0daf44dedde849c2a05a79121d1ae42ccc8e72",
++      "commit": null,
++      "committedClean": null
++    },
++    "scripts/host-capacity-vendor/buffer-shim.mjs": {
++      "sha256": "d27be974a41738c96c10035cac7ae1df1459eb62b28e798ca1b0c6fc6402005d",
++      "commit": null,
++      "committedClean": null
++    },
++    "scripts/host-capacity-vendor/node-crypto-shim.mjs": {
++      "sha256": "2afcadc702d29dc6bcfbf969357eaaf5965d958358f7edc5ed0b33ea0daba748",
++      "commit": null,
++      "committedClean": null
++    }
++  }
++}
+--- /dev/null
++++ b/site/vendor/host-capacity.js
+@@ -0,0 +1,17 @@
++var xn=Object.defineProperty;var z=(t,e,r)=>()=>{if(r)throw r[0];try{return t&&(e=t(t=0)),e}catch(o){throw r=[o],o}};var mn=(t,e)=>{for(var r in e)xn(t,r,{get:e[r],enumerable:!0})};var v,h=z(()=>{v={byteLength(t){if(typeof t!="string")throw new Error("the browser bundle measures UTF-8 text only");return new TextEncoder().encode(t).length}}});function Q(t,{strict:e=!0}={}){return!t||typeof t!="string"?!1:e?/^0x[0-9a-fA-F]*$/.test(t):t.startsWith("0x")}var Pt=z(()=>{h()});function Ht(t){return Q(t,{strict:!1})?Math.ceil((t.length-2)/2):t.length}var xe=z(()=>{h();Pt()});var $e,Or=z(()=>{h();$e="2.53.1"});function _r(t,e){return e?.(t)?t:t&&typeof t=="object"&&"cause"in t&&t.cause!==void 0?_r(t.cause,e):e?null:t}var De,st,me=z(()=>{h();Or();De={getDocsUrl:({docsBaseUrl:t,docsPath:e="",docsSlug:r})=>e?`${t??"https://viem.sh"}${e}${r?`#${r}`:""}`:void 0,version:`viem@${$e}`},st=class t extends Error{constructor(e,r={}){let o=r.cause instanceof t?r.cause.details:r.cause?.message?r.cause.message:r.details,n=r.cause instanceof t&&r.cause.docsPath||r.docsPath,i=De.getDocsUrl?.({...r,docsPath:n}),s=[e||"An error occurred.","",...r.metaMessages?[...r.metaMessages,""]:[],...i?[`Docs: ${i}`]:[],...o?[`Details: ${o}`]:[],...De.version?[`Version: ${De.version}`]:[]].join(`
++`);super(s,r.cause?{cause:r.cause}:void 0),Object.defineProperty(this,"details",{enumerable:!0,configurable:!0,writable:!0,value:void 0}),Object.defineProperty(this,"docsPath",{enumerable:!0,configurable:!0,writable:!0,value:void 0}),Object.defineProperty(this,"metaMessages",{enumerable:!0,configurable:!0,writable:!0,value:void 0}),Object.defineProperty(this,"shortMessage",{enumerable:!0,configurable:!0,writable:!0,value:void 0}),Object.defineProperty(this,"version",{enumerable:!0,configurable:!0,writable:!0,value:void 0}),Object.defineProperty(this,"name",{enumerable:!0,configurable:!0,writable:!0,value:"BaseError"}),this.details=o,this.docsPath=n,this.metaMessages=r.metaMessages,this.name=r.name??this.name,this.shortMessage=e,this.version=$e}walk(e){return _r(this,e)}}});var Jt,Ur=z(()=>{h();me();Jt=class extends st{constructor({size:e,targetSize:r,type:o}){super(`${o.charAt(0).toUpperCase()}${o.slice(1).toLowerCase()} size (${e}) exceeds padding size (${r}).`,{name:"SizeExceedsPaddingSizeError"})}}});function gt(t,{dir:e,size:r=32}={}){return typeof t=="string"?bn(t,{dir:e,size:r}):gn(t,{dir:e,size:r})}function bn(t,{dir:e,size:r=32}={}){if(r===null)return t;let o=t.replace("0x","");if(o.length>r*2)throw new Jt({size:Math.ceil(o.length/2),targetSize:r,type:"hex"});return`0x${o[e==="right"?"padEnd":"padStart"](r*2,"0")}`}function gn(t,{dir:e,size:r=32}={}){if(r===null)return t;if(t.length>r)throw new Jt({size:t.length,targetSize:r,type:"bytes"});let o=new Uint8Array(r);for(let n=0;n<r;n++){let i=e==="right";o[i?n:r-n-1]=t[i?n:t.length-n-1]}return o}var je=z(()=>{h();Ur()});var $t,be,Ve=z(()=>{h();me();$t=class extends st{constructor({max:e,min:r,signed:o,size:n,value:i}){super(`Number "${i}" is not in safe ${n?`${n*8}-bit ${o?"signed":"unsigned"} `:""}integer range ${e?`(${r} to ${e})`:`(above ${r})`}`,{name:"IntegerOutOfRangeError"})}},be=class extends st{constructor({givenSize:e,maxSize:r}){super(`Size cannot exceed ${r} bytes. Given size: ${e} bytes.`,{name:"SizeOverflowError"})}}});function yt(t,{size:e}){if(Ht(t)>e)throw new be({givenSize:Ht(t),maxSize:e})}function ge(t,e={}){let{signed:r}=e;e.size&&yt(t,{size:e.size});let o=BigInt(t);if(!r)return o;let n=(t.length-2)/2,i=(1n<<BigInt(n)*8n-1n)-1n;return o<=i?o:o-BigInt(`0x${"f".padStart(n*2,"f")}`)-1n}function Nr(t,e={}){let r=ge(t,e),o=Number(r);if(!Number.isSafeInteger(o))throw new $t({max:`${Number.MAX_SAFE_INTEGER}`,min:`${Number.MIN_SAFE_INTEGER}`,signed:e.signed,size:e.size,value:`${r}n`});return o}var ye=z(()=>{h();Ve();xe()});function Ct(t,e={}){return typeof t=="number"||typeof t=="bigint"?Ge(t,e):typeof t=="string"?Ee(t,e):typeof t=="boolean"?wn(t,e):we(t,e)}function wn(t,e={}){let r=`0x${Number(t)}`;return typeof e.size=="number"?(yt(r,{size:e.size}),gt(r,{size:e.size})):r}function we(t,e={}){let r="";for(let n=0;n<t.length;n++)r+=yn[t[n]];let o=`0x${r}`;return typeof e.size=="number"?(yt(o,{size:e.size}),gt(o,{dir:"right",size:e.size})):o}function Ge(t,e={}){let{signed:r,size:o}=e,n=BigInt(t),i;o?r?i=(1n<<BigInt(o)*8n-1n)-1n:i=2n**(BigInt(o)*8n)-1n:typeof t=="number"&&(i=BigInt(Number.MAX_SAFE_INTEGER));let s=typeof i=="bigint"&&r?-i-1n:0;if(i&&n>i||n<s){let a=typeof t=="bigint"?"n":"";throw new $t({max:i?`${i}${a}`:void 0,min:`${s}${a}`,signed:r,size:o,value:`${t}${a}`})}let c=`0x${(r&&n<0?(1n<<BigInt(o*8))+BigInt(n):n).toString(16)}`;return o?gt(c,{size:o}):c}function Ee(t,e={}){let r=En.encode(t);return we(r,e)}var yn,En,Dt=z(()=>{h();Ve();je();ye();yn=Array.from({length:256},(t,e)=>e.toString(16).padStart(2,"0"));En=new TextEncoder});function ct(t,e={}){return typeof t=="number"||typeof t=="bigint"?Lr(t,e):typeof t=="boolean"?kr(t,e):Q(t)?Fe(t,e):Se(t,e)}function kr(t,e={}){let r=new Uint8Array(1);return r[0]=Number(t),typeof e.size=="number"?(yt(r,{size:e.size}),gt(r,{size:e.size})):r}function Rr(t){if(t>=at.zero&&t<=at.nine)return t-at.zero;if(t>=at.A&&t<=at.F)return t-(at.A-10);if(t>=at.a&&t<=at.f)return t-(at.a-10)}function Fe(t,e={}){let r=t;e.size&&(yt(r,{size:e.size}),r=gt(r,{dir:"right",size:e.size}));let o=r.slice(2);o.length%2&&(o=`0${o}`);let n=o.length/2,i=new Uint8Array(n);for(let s=0,c=0;s<n;s++){let a=Rr(o.charCodeAt(c++)),f=Rr(o.charCodeAt(c++));if(a===void 0||f===void 0)throw new st(`Invalid byte sequence ("${o[c-2]}${o[c-1]}" in "${o}").`);i[s]=a*16+f}return i}function Lr(t,e){let r=Ge(t,e);return Fe(r)}function Se(t,e={}){let r=Sn.encode(t);return typeof e.size=="number"?(yt(r,{size:e.size}),gt(r,{dir:"right",size:e.size})):r}var Sn,at,Qt=z(()=>{h();me();Pt();je();ye();Dt();Sn=new TextEncoder;at={zero:48,nine:57,A:65,F:70,a:97,f:102}});function An(t,e=!1){return e?{h:Number(t&Ae),l:Number(t>>zr&Ae)}:{h:Number(t>>zr&Ae)|0,l:Number(t&Ae)|0}}function qr(t,e=!1){let r=t.length,o=new Uint32Array(r),n=new Uint32Array(r);for(let i=0;i<r;i++){let{h:s,l:c}=An(t[i],e);[o[i],n[i]]=[s,c]}return[o,n]}var Ae,zr,Mr,Pr,$r,Dr,jr=z(()=>{h();Ae=BigInt(4294967295),zr=BigInt(32);Mr=(t,e,r)=>t<<r|e>>>32-r,Pr=(t,e,r)=>e<<r|t>>>32-r,$r=(t,e,r)=>e<<r-32|t>>>64-r,Dr=(t,e,r)=>t<<r-32|e>>>64-r});var Ot,Vr=z(()=>{h();Ot=typeof globalThis=="object"&&"crypto"in globalThis?globalThis.crypto:void 0});function vn(t){return t instanceof Uint8Array||ArrayBuffer.isView(t)&&t.constructor.name==="Uint8Array"}function _t(t){if(!Number.isSafeInteger(t)||t<0)throw new Error("positive integer expected, got "+t)}function rt(t,...e){if(!vn(t))throw new Error("Uint8Array expected");if(e.length>0&&!e.includes(t.length))throw new Error("Uint8Array expected of length "+e+", got length="+t.length)}function Gr(t){if(typeof t!="function"||typeof t.create!="function")throw new Error("Hash should be wrapped by utils.createHasher");_t(t.outputLen),_t(t.blockLen)}function ft(t,e=!0){if(t.destroyed)throw new Error("Hash instance has been destroyed");if(e&&t.finished)throw new Error("Hash#digest() has already been called")}function ve(t,e){rt(t);let r=e.outputLen;if(t.length<r)throw new Error("digestInto() expects output buffer of length at least "+r)}function Fr(t){return new Uint32Array(t.buffer,t.byteOffset,Math.floor(t.byteLength/4))}function ot(...t){for(let e=0;e<t.length;e++)t[e].fill(0)}function Be(t){return new DataView(t.buffer,t.byteOffset,t.byteLength)}function tt(t,e){return t<<32-e|t>>>e}function In(t){return t<<24&4278190080|t<<8&16711680|t>>>8&65280|t>>>24&255}function Tn(t){for(let e=0;e<t.length;e++)t[e]=In(t[e]);return t}function Hn(t){if(typeof t!="string")throw new Error("string expected");return new Uint8Array(new TextEncoder().encode(t))}function Ut(t){return typeof t=="string"&&(t=Hn(t)),rt(t),t}function Zr(...t){let e=0;for(let o=0;o<t.length;o++){let n=t[o];rt(n),e+=n.length}let r=new Uint8Array(e);for(let o=0,n=0;o<t.length;o++){let i=t[o];r.set(i,n),n+=i.length}return r}function Ie(t){let e=o=>t().update(Ut(o)).digest(),r=t();return e.outputLen=r.outputLen,e.blockLen=r.blockLen,e.create=()=>t(),e}function Te(t=32){if(Ot&&typeof Ot.getRandomValues=="function")return Ot.getRandomValues(new Uint8Array(t));if(Ot&&typeof Ot.randomBytes=="function")return Uint8Array.from(Ot.randomBytes(t));throw new Error("crypto.getRandomValues must be defined")}var Bn,Ze,wt,Et=z(()=>{h();Vr();Bn=new Uint8Array(new Uint32Array([287454020]).buffer)[0]===68;Ze=Bn?t=>t:Tn;wt=class{}});function Ln(t,e=24){let r=new Uint32Array(10);for(let o=24-e;o<24;o++){for(let s=0;s<10;s++)r[s]=t[s]^t[s+10]^t[s+20]^t[s+30]^t[s+40];for(let s=0;s<10;s+=2){let c=(s+8)%10,a=(s+2)%10,f=r[a],u=r[a+1],l=Kr(f,u,1)^r[c],y=Yr(f,u,1)^r[c+1];for(let b=0;b<50;b+=10)t[s+b]^=l,t[s+b+1]^=y}let n=t[2],i=t[3];for(let s=0;s<24;s++){let c=Xr[s],a=Kr(n,i,c),f=Yr(n,i,c),u=Wr[s];n=t[u],i=t[u+1],t[u]=a,t[u+1]=f}for(let s=0;s<50;s+=10){for(let c=0;c<10;c++)r[c]=t[s+c];for(let c=0;c<10;c++)t[s+c]^=~r[(c+2)%10]&r[(c+4)%10]}t[0]^=Rn[o],t[1]^=kn[o]}ot(r)}var Cn,te,On,_n,Un,Nn,Wr,Xr,Jr,Qr,Rn,kn,Kr,Yr,Ke,zn,to,eo=z(()=>{h();jr();Et();Cn=BigInt(0),te=BigInt(1),On=BigInt(2),_n=BigInt(7),Un=BigInt(256),Nn=BigInt(113),Wr=[],Xr=[],Jr=[];for(let t=0,e=te,r=1,o=0;t<24;t++){[r,o]=[o,(2*r+3*o)%5],Wr.push(2*(5*o+r)),Xr.push((t+1)*(t+2)/2%64);let n=Cn;for(let i=0;i<7;i++)e=(e<<te^(e>>_n)*Nn)%Un,e&On&&(n^=te<<(te<<BigInt(i))-te);Jr.push(n)}Qr=qr(Jr,!0),Rn=Qr[0],kn=Qr[1],Kr=(t,e,r)=>r>32?$r(t,e,r):Mr(t,e,r),Yr=(t,e,r)=>r>32?Dr(t,e,r):Pr(t,e,r);Ke=class t extends wt{constructor(e,r,o,n=!1,i=24){if(super(),this.pos=0,this.posOut=0,this.finished=!1,this.destroyed=!1,this.enableXOF=!1,this.blockLen=e,this.suffix=r,this.outputLen=o,this.enableXOF=n,this.rounds=i,_t(o),!(0<e&&e<200))throw new Error("only keccak-f1600 function is supported");this.state=new Uint8Array(200),this.state32=Fr(this.state)}clone(){return this._cloneInto()}keccak(){Ze(this.state32),Ln(this.state32,this.rounds),Ze(this.state32),this.posOut=0,this.pos=0}update(e){ft(this),e=Ut(e),rt(e);let{blockLen:r,state:o}=this,n=e.length;for(let i=0;i<n;){let s=Math.min(r-this.pos,n-i);for(let c=0;c<s;c++)o[this.pos++]^=e[i++];this.pos===r&&this.keccak()}return this}finish(){if(this.finished)return;this.finished=!0;let{state:e,suffix:r,pos:o,blockLen:n}=this;e[o]^=r,(r&128)!==0&&o===n-1&&this.keccak(),e[n-1]^=128,this.keccak()}writeInto(e){ft(this,!1),rt(e),this.finish();let r=this.state,{blockLen:o}=this;for(let n=0,i=e.length;n<i;){this.posOut>=o&&this.keccak();let s=Math.min(o-this.posOut,i-n);e.set(r.subarray(this.posOut,this.posOut+s),n),this.posOut+=s,n+=s}return e}xofInto(e){if(!this.enableXOF)throw new Error("XOF is not possible for this instance");return this.writeInto(e)}xof(e){return _t(e),this.xofInto(new Uint8Array(e))}digestInto(e){if(ve(e,this),this.finished)throw new Error("digest() was already called");return this.writeInto(e),this.destroy(),e}digest(){return this.digestInto(new Uint8Array(this.outputLen))}destroy(){this.destroyed=!0,ot(this.state)}_cloneInto(e){let{blockLen:r,suffix:o,outputLen:n,rounds:i,enableXOF:s}=this;return e||(e=new t(r,o,n,s,i)),e.state32.set(this.state32),e.pos=this.pos,e.posOut=this.posOut,e.finished=this.finished,e.rounds=i,e.suffix=o,e.outputLen=n,e.enableXOF=s,e.destroyed=this.destroyed,e}},zn=(t,e,r)=>Ie(()=>new Ke(e,t,r)),to=zn(1,136,256/8)});function ut(t,e){let r=e||"hex",o=to(Q(t,{strict:!1})?ct(t):t);return r==="bytes"?o:Ct(o)}var ee=z(()=>{h();eo();Pt();Qt();Dt()});var He,ro=z(()=>{h();He=class extends Map{constructor(e){super(),Object.defineProperty(this,"maxSize",{enumerable:!0,configurable:!0,writable:!0,value:void 0}),this.maxSize=e}get(e){let r=super.get(e);return super.has(e)&&(super.delete(e),super.set(e,r)),r}set(e,r){if(super.has(e)&&super.delete(e),super.set(e,r),this.maxSize&&this.size>this.maxSize){let o=super.keys().next().value;o!==void 0&&super.delete(o)}return this}}});function oo(t,e){if(Ye.has(`${t}.${e}`))return Ye.get(`${t}.${e}`);let r=e?`${e}${t.toLowerCase()}`:t.substring(2).toLowerCase(),o=ut(Se(r),"bytes"),n=(e?r.substring(`${e}0x`.length):r).split("");for(let s=0;s<40;s+=2)o[s>>1]>>4>=8&&n[s]&&(n[s]=n[s].toUpperCase()),(o[s>>1]&15)>=8&&n[s+1]&&(n[s+1]=n[s+1].toUpperCase());let i=`0x${n.join("")}`;return Ye.set(`${t}.${e}`,i),i}var Ye,no=z(()=>{h();Qt();ee();ro();Ye=new He(8192)});function io(t){return typeof t[0]=="string"?Mn(t):qn(t)}function qn(t){let e=0;for(let n of t)e+=n.length;let r=new Uint8Array(e),o=0;for(let n of t)r.set(n,o),o+=n.length;return r}function Mn(t){return`0x${t.reduce((e,r)=>e+r.replace("0x",""),"")}`}var so=z(()=>{h()});function Pn(t,e,r,o){if(typeof t.setBigUint64=="function")return t.setBigUint64(e,r,o);let n=BigInt(32),i=BigInt(4294967295),s=Number(r>>n&i),c=Number(r&i),a=o?4:0,f=o?0:4;t.setUint32(e+a,s,o),t.setUint32(e+f,c,o)}function co(t,e,r){return t&e^~t&r}function fo(t,e,r){return t&e^t&r^e&r}var Ce,dt,uo=z(()=>{h();Et();Ce=class extends wt{constructor(e,r,o,n){super(),this.finished=!1,this.length=0,this.pos=0,this.destroyed=!1,this.blockLen=e,this.outputLen=r,this.padOffset=o,this.isLE=n,this.buffer=new Uint8Array(e),this.view=Be(this.buffer)}update(e){ft(this),e=Ut(e),rt(e);let{view:r,buffer:o,blockLen:n}=this,i=e.length;for(let s=0;s<i;){let c=Math.min(n-this.pos,i-s);if(c===n){let a=Be(e);for(;n<=i-s;s+=n)this.process(a,s);continue}o.set(e.subarray(s,s+c),this.pos),this.pos+=c,s+=c,this.pos===n&&(this.process(r,0),this.pos=0)}return this.length+=e.length,this.roundClean(),this}digestInto(e){ft(this),ve(e,this),this.finished=!0;let{buffer:r,view:o,blockLen:n,isLE:i}=this,{pos:s}=this;r[s++]=128,ot(this.buffer.subarray(s)),this.padOffset>n-s&&(this.process(o,0),s=0);for(let l=s;l<n;l++)r[l]=0;Pn(o,n-8,BigInt(this.length*8),i),this.process(o,0);let c=Be(e),a=this.outputLen;if(a%4)throw new Error("_sha2: outputLen should be aligned to 32bit");let f=a/4,u=this.get();if(f>u.length)throw new Error("_sha2: outputLen bigger than state");for(let l=0;l<f;l++)c.setUint32(4*l,u[l],i)}digest(){let{buffer:e,outputLen:r}=this;this.digestInto(e);let o=e.slice(0,r);return this.destroy(),o}_cloneInto(e){e||(e=new this.constructor),e.set(...this.get());let{blockLen:r,buffer:o,length:n,finished:i,destroyed:s,pos:c}=this;return e.destroyed=s,e.finished=i,e.length=n,e.pos=c,n%r&&e.buffer.set(o),e}clone(){return this._cloneInto()}},dt=Uint32Array.from([1779033703,3144134277,1013904242,2773480762,1359893119,2600822924,528734635,1541459225])});var $n,St,Oe,Nt,We=z(()=>{h();uo();Et();$n=Uint32Array.from([1116352408,1899447441,3049323471,3921009573,961987163,1508970993,2453635748,2870763221,3624381080,310598401,607225278,1426881987,1925078388,2162078206,2614888103,3248222580,3835390401,4022224774,264347078,604807628,770255983,1249150122,1555081692,1996064986,2554220882,2821834349,2952996808,3210313671,3336571891,3584528711,113926993,338241895,666307205,773529912,1294757372,1396182291,1695183700,1986661051,2177026350,2456956037,2730485921,2820302411,3259730800,3345764771,3516065817,3600352804,4094571909,275423344,430227734,506948616,659060556,883997877,958139571,1322822218,1537002063,1747873779,1955562222,2024104815,2227730452,2361852424,2428436474,2756734187,3204031479,3329325298]),St=new Uint32Array(64),Oe=class extends Ce{constructor(e=32){super(64,e,8,!1),this.A=dt[0]|0,this.B=dt[1]|0,this.C=dt[2]|0,this.D=dt[3]|0,this.E=dt[4]|0,this.F=dt[5]|0,this.G=dt[6]|0,this.H=dt[7]|0}get(){let{A:e,B:r,C:o,D:n,E:i,F:s,G:c,H:a}=this;return[e,r,o,n,i,s,c,a]}set(e,r,o,n,i,s,c,a){this.A=e|0,this.B=r|0,this.C=o|0,this.D=n|0,this.E=i|0,this.F=s|0,this.G=c|0,this.H=a|0}process(e,r){for(let l=0;l<16;l++,r+=4)St[l]=e.getUint32(r,!1);for(let l=16;l<64;l++){let y=St[l-15],b=St[l-2],I=tt(y,7)^tt(y,18)^y>>>3,m=tt(b,17)^tt(b,19)^b>>>10;St[l]=m+St[l-7]+I+St[l-16]|0}let{A:o,B:n,C:i,D:s,E:c,F:a,G:f,H:u}=this;for(let l=0;l<64;l++){let y=tt(c,6)^tt(c,11)^tt(c,25),b=u+y+co(c,a,f)+$n[l]+St[l]|0,m=(tt(o,2)^tt(o,13)^tt(o,22))+fo(o,n,i)|0;u=f,f=a,a=c,c=s+b|0,s=i,i=n,n=o,o=b+m|0}o=o+this.A|0,n=n+this.B|0,i=i+this.C|0,s=s+this.D|0,c=c+this.E|0,a=a+this.F|0,f=f+this.G|0,u=u+this.H|0,this.set(o,n,i,s,c,a,f,u)}roundClean(){ot(St)}destroy(){this.set(0,0,0,0,0,0,0,0),ot(this.buffer)}},Nt=Ie(()=>new Oe)});var _e,Xe,lo=z(()=>{h();Et();_e=class extends wt{constructor(e,r){super(),this.finished=!1,this.destroyed=!1,Gr(e);let o=Ut(r);if(this.iHash=e.create(),typeof this.iHash.update!="function")throw new Error("Expected instance of class which extends utils.Hash");this.blockLen=this.iHash.blockLen,this.outputLen=this.iHash.outputLen;let n=this.blockLen,i=new Uint8Array(n);i.set(o.length>n?e.create().update(o).digest():o);for(let s=0;s<i.length;s++)i[s]^=54;this.iHash.update(i),this.oHash=e.create();for(let s=0;s<i.length;s++)i[s]^=106;this.oHash.update(i),ot(i)}update(e){return ft(this),this.iHash.update(e),this}digestInto(e){ft(this),rt(e,this.outputLen),this.finished=!0,this.iHash.digestInto(e),this.oHash.update(e),this.oHash.digestInto(e),this.destroy()}digest(){let e=new Uint8Array(this.oHash.outputLen);return this.digestInto(e),e}_cloneInto(e){e||(e=Object.create(Object.getPrototypeOf(this),{}));let{oHash:r,iHash:o,finished:n,destroyed:i,blockLen:s,outputLen:c}=this;return e=e,e.finished=n,e.destroyed=i,e.blockLen=s,e.outputLen=c,e.oHash=r._cloneInto(e.oHash),e.iHash=o._cloneInto(e.iHash),e}clone(){return this._cloneInto()}destroy(){this.destroyed=!0,this.oHash.destroy(),this.iHash.destroy()}},Xe=(t,e,r)=>new _e(t,e).update(r).digest();Xe.create=(t,e)=>new _e(t,e)});function jt(t){return t instanceof Uint8Array||ArrayBuffer.isView(t)&&t.constructor.name==="Uint8Array"}function ht(t){if(!jt(t))throw new Error("Uint8Array expected")}function Vt(t,e){if(typeof e!="boolean")throw new Error(t+" boolean expected, got "+e)}function re(t){let e=t.toString(16);return e.length&1?"0"+e:e}function xo(t){if(typeof t!="string")throw new Error("hex string expected, got "+typeof t);return t===""?er:BigInt("0x"+t)}function Gt(t){if(ht(t),mo)return t.toHex();let e="";for(let r=0;r<t.length;r++)e+=Dn[t[r]];return e}function ho(t){if(t>=lt._0&&t<=lt._9)return t-lt._0;if(t>=lt.A&&t<=lt.F)return t-(lt.A-10);if(t>=lt.a&&t<=lt.f)return t-(lt.a-10)}function oe(t){if(typeof t!="string")throw new Error("hex string expected, got "+typeof t);if(mo)return Uint8Array.fromHex(t);let e=t.length,r=e/2;if(e%2)throw new Error("hex string expected, got unpadded hex of length "+e);let o=new Uint8Array(r);for(let n=0,i=0;n<r;n++,i+=2){let s=ho(t.charCodeAt(i)),c=ho(t.charCodeAt(i+1));if(s===void 0||c===void 0){let a=t[i]+t[i+1];throw new Error('hex string expected, got non-hex character "'+a+'" at index '+i)}o[n]=s*16+c}return o}function W(t){return xo(Gt(t))}function rr(t){return ht(t),xo(Gt(Uint8Array.from(t).reverse()))}function nt(t,e){return oe(t.toString(16).padStart(e*2,"0"))}function or(t,e){return nt(t,e).reverse()}function D(t,e,r){let o;if(typeof e=="string")try{o=oe(e)}catch(i){throw new Error(t+" must be hex string or Uint8Array, cause: "+i)}else if(jt(e))o=Uint8Array.from(e);else throw new Error(t+" must be hex string or Uint8Array");let n=o.length;if(typeof r=="number"&&n!==r)throw new Error(t+" of length "+r+" expected, got "+n);return o}function Z(...t){let e=0;for(let o=0;o<t.length;o++){let n=t[o];ht(n),e+=n.length}let r=new Uint8Array(e);for(let o=0,n=0;o<t.length;o++){let i=t[o];r.set(i,n),n+=i.length}return r}function Ue(t){if(typeof t!="string")throw new Error("string expected");return new Uint8Array(new TextEncoder().encode(t))}function Rt(t,e,r){return Je(t)&&Je(e)&&Je(r)&&e<=t&&t<r}function pt(t,e,r,o){if(!Rt(e,r,o))throw new Error("expected valid "+t+": "+r+" <= n < "+o+", got "+e)}function bo(t){let e;for(e=0;t>er;t>>=tr,e+=1);return e}function go(t,e,r){if(typeof t!="number"||t<2)throw new Error("hashLen must be a number");if(typeof e!="number"||e<2)throw new Error("qByteLen must be a number");if(typeof r!="function")throw new Error("hmacFn must be a function");let o=Qe(t),n=Qe(t),i=0,s=()=>{o.fill(1),n.fill(0),i=0},c=(...l)=>r(n,o,...l),a=(l=Qe(0))=>{n=c(po([0]),l),o=c(),l.length!==0&&(n=c(po([1]),l),o=c())},f=()=>{if(i++>=1e3)throw new Error("drbg: tried 1000 values");let l=0,y=[];for(;l<e;){o=c();let b=o.slice();y.push(b),l+=o.length}return Z(...y)};return(l,y)=>{s(),a(l);let b;for(;!(b=y(f()));)a();return s(),b}}function xt(t,e,r={}){let o=(n,i,s)=>{let c=jn[i];if(typeof c!="function")throw new Error("invalid validator function");let a=t[n];if(!(s&&a===void 0)&&!c(a,t))throw new Error("param "+String(n)+" is invalid. Expected "+i+", got "+a)};for(let[n,i]of Object.entries(e))o(n,i,!1);for(let[n,i]of Object.entries(r))o(n,i,!0);return t}function nr(t){let e=new WeakMap;return(r,...o)=>{let n=e.get(r);if(n!==void 0)return n;let i=t(r,...o);return e.set(r,i),i}}var er,tr,mo,Dn,lt,Je,kt,Qe,po,jn,Ft=z(()=>{h();er=BigInt(0),tr=BigInt(1);mo=typeof Uint8Array.from([]).toHex=="function"&&typeof Uint8Array.fromHex=="function",Dn=Array.from({length:256},(t,e)=>e.toString(16).padStart(2,"0"));lt={_0:48,_9:57,A:65,F:70,a:97,f:102};Je=t=>typeof t=="bigint"&&er<=t;kt=t=>(tr<<BigInt(t))-tr,Qe=t=>new Uint8Array(t),po=t=>Uint8Array.from(t);jn={bigint:t=>typeof t=="bigint",function:t=>typeof t=="function",boolean:t=>typeof t=="boolean",string:t=>typeof t=="string",stringOrUint8Array:t=>typeof t=="string"||jt(t),isSafeInteger:t=>Number.isSafeInteger(t),array:t=>Array.isArray(t),field:(t,e)=>e.Fp.isValid(t),hash:t=>typeof t=="function"&&Number.isSafeInteger(t.outputLen)}});function $(t,e){let r=t%e;return r>=K?r:e+r}function X(t,e,r){let o=t;for(;e-- >K;)o*=o,o%=r;return o}function Ne(t,e){if(t===K)throw new Error("invert: expected non-zero number");if(e<=K)throw new Error("invert: expected positive modulus, got "+e);let r=$(t,e),o=e,n=K,i=G,s=G,c=K;for(;r!==K;){let f=o/r,u=o%r,l=n-s*f,y=i-c*f;o=r,r=u,n=s,i=c,s=l,c=y}if(o!==G)throw new Error("invert: does not exist");return $(n,e)}function Ao(t,e){let r=(t.ORDER+G)/wo,o=t.pow(e,r);if(!t.eql(t.sqr(o),e))throw new Error("Cannot find square root");return o}function Gn(t,e){let r=(t.ORDER-Eo)/So,o=t.mul(e,Lt),n=t.pow(o,r),i=t.mul(e,n),s=t.mul(t.mul(i,Lt),n),c=t.mul(i,t.sub(s,t.ONE));if(!t.eql(t.sqr(c),e))throw new Error("Cannot find square root");return c}function Fn(t){if(t<BigInt(3))throw new Error("sqrt is not defined for small field");let e=t-G,r=0;for(;e%Lt===K;)e/=Lt,r++;let o=Lt,n=ne(t);for(;yo(n,o)===1;)if(o++>1e3)throw new Error("Cannot find square root: probably non-prime P");if(r===1)return Ao;let i=n.pow(o,e),s=(e+G)/Lt;return function(a,f){if(a.is0(f))return f;if(yo(a,f)!==1)throw new Error("Cannot find square root");let u=r,l=a.mul(a.ONE,i),y=a.pow(f,e),b=a.pow(f,s);for(;!a.eql(y,a.ONE);){if(a.is0(y))return a.ZERO;let I=1,m=a.sqr(y);for(;!a.eql(m,a.ONE);)if(I++,m=a.sqr(m),I===u)throw new Error("Cannot find square root");let q=G<<BigInt(u-I-1),C=a.pow(l,q);u=I,l=a.sqr(C),y=a.mul(y,l),b=a.mul(b,C)}return b}}function Zn(t){return t%wo===Vn?Ao:t%So===Eo?Gn:Fn(t)}function Re(t){let e={ORDER:"bigint",MASK:"bigint",BYTES:"isSafeInteger",BITS:"isSafeInteger"},r=Kn.reduce((o,n)=>(o[n]="function",o),e);return xt(t,r)}function Yn(t,e,r){if(r<K)throw new Error("invalid exponent, negatives unsupported");if(r===K)return t.ONE;if(r===G)return e;let o=t.ONE,n=e;for(;r>K;)r&G&&(o=t.mul(o,n)),n=t.sqr(n),r>>=G;return o}function Zt(t,e,r=!1){let o=new Array(e.length).fill(r?t.ZERO:void 0),n=e.reduce((s,c,a)=>t.is0(c)?s:(o[a]=s,t.mul(s,c)),t.ONE),i=t.inv(n);return e.reduceRight((s,c,a)=>t.is0(c)?s:(o[a]=t.mul(s,o[a]),t.mul(s,c)),i),o}function yo(t,e){let r=(t.ORDER-G)/Lt,o=t.pow(e,r),n=t.eql(o,t.ONE),i=t.eql(o,t.ZERO),s=t.eql(o,t.neg(t.ONE));if(!n&&!i&&!s)throw new Error("invalid Legendre symbol result");return n?1:i?0:-1}function ir(t,e){e!==void 0&&_t(e);let r=e!==void 0?e:t.toString(2).length,o=Math.ceil(r/8);return{nBitLength:r,nByteLength:o}}function ne(t,e,r=!1,o={}){if(t<=K)throw new Error("invalid field: expected ORDER > 0, got "+t);let{nBitLength:n,nByteLength:i}=ir(t,e);if(i>2048)throw new Error("invalid field: expected ORDER of <= 2048 bytes");let s,c=Object.freeze({ORDER:t,isLE:r,BITS:n,BYTES:i,MASK:kt(n),ZERO:K,ONE:G,create:a=>$(a,t),isValid:a=>{if(typeof a!="bigint")throw new Error("invalid field element: expected bigint, got "+typeof a);return K<=a&&a<t},is0:a=>a===K,isOdd:a=>(a&G)===G,neg:a=>$(-a,t),eql:(a,f)=>a===f,sqr:a=>$(a*a,t),add:(a,f)=>$(a+f,t),sub:(a,f)=>$(a-f,t),mul:(a,f)=>$(a*f,t),pow:(a,f)=>Yn(c,a,f),div:(a,f)=>$(a*Ne(f,t),t),sqrN:a=>a*a,addN:(a,f)=>a+f,subN:(a,f)=>a-f,mulN:(a,f)=>a*f,inv:a=>Ne(a,t),sqrt:o.sqrt||(a=>(s||(s=Zn(t)),s(c,a))),toBytes:a=>r?or(a,i):nt(a,i),fromBytes:a=>{if(a.length!==i)throw new Error("Field.fromBytes: expected "+i+" bytes, got "+a.length);return r?rr(a):W(a)},invertBatch:a=>Zt(c,a),cmov:(a,f,u)=>u?f:a});return Object.freeze(c)}function vo(t){if(typeof t!="bigint")throw new Error("field order must be bigint");let e=t.toString(2).length;return Math.ceil(e/8)}function sr(t){let e=vo(t);return e+Math.ceil(e/2)}function Bo(t,e,r=!1){let o=t.length,n=vo(e),i=sr(e);if(o<16||o<i||o>1024)throw new Error("expected "+i+"-1024 bytes of input, got "+o);let s=r?rr(t):W(t),c=$(s,e-G)+G;return r?or(c,n):nt(c,n)}var K,G,Lt,Vn,wo,Eo,So,Kn,ie=z(()=>{h();Et();Ft();K=BigInt(0),G=BigInt(1),Lt=BigInt(2),Vn=BigInt(3),wo=BigInt(4),Eo=BigInt(5),So=BigInt(8);Kn=["create","isValid","is0","neg","inv","sqrt","sqr","eql","add","sub","mul","pow","div","addN","subN","mulN","sqrN"]});function ar(t,e){let r=e.negate();return t?r:e}function Ho(t,e){if(!Number.isSafeInteger(t)||t<=0||t>e)throw new Error("invalid window size, expected [1.."+e+"], got W="+t)}function cr(t,e){Ho(t,e);let r=Math.ceil(e/t)+1,o=2**(t-1),n=2**t,i=kt(t),s=BigInt(t);return{windows:r,windowSize:o,mask:i,maxNumber:n,shiftBy:s}}function To(t,e,r){let{windowSize:o,mask:n,maxNumber:i,shiftBy:s}=r,c=Number(t&n),a=t>>s;c>o&&(c-=i,a+=dr);let f=e*o,u=f+Math.abs(c)-1,l=c===0,y=c<0,b=e%2!==0;return{nextN:a,offset:u,isZero:l,isNeg:y,isNegF:b,offsetF:f}}function Wn(t,e){if(!Array.isArray(t))throw new Error("array expected");t.forEach((r,o)=>{if(!(r instanceof e))throw new Error("invalid point at index "+o)})}function Xn(t,e){if(!Array.isArray(t))throw new Error("array of scalars expected");t.forEach((r,o)=>{if(!e.isValid(r))throw new Error("invalid scalar at index "+o)})}function ur(t){return Co.get(t)||1}function Oo(t,e){return{constTimeNegate:ar,hasPrecomputes(r){return ur(r)!==1},unsafeLadder(r,o,n=t.ZERO){let i=r;for(;o>Io;)o&dr&&(n=n.add(i)),i=i.double(),o>>=dr;return n},precomputeWindow(r,o){let{windows:n,windowSize:i}=cr(o,e),s=[],c=r,a=c;for(let f=0;f<n;f++){a=c,s.push(a);for(let u=1;u<i;u++)a=a.add(c),s.push(a);c=a.double()}return s},wNAF(r,o,n){let i=t.ZERO,s=t.BASE,c=cr(r,e);for(let a=0;a<c.windows;a++){let{nextN:f,offset:u,isZero:l,isNeg:y,isNegF:b,offsetF:I}=To(n,a,c);n=f,l?s=s.add(ar(b,o[I])):i=i.add(ar(y,o[u]))}return{p:i,f:s}},wNAFUnsafe(r,o,n,i=t.ZERO){let s=cr(r,e);for(let c=0;c<s.windows&&n!==Io;c++){let{nextN:a,offset:f,isZero:u,isNeg:l}=To(n,c,s);if(n=a,!u){let y=o[f];i=i.add(l?y.negate():y)}}return i},getPrecomputes(r,o,n){let i=fr.get(o);return i||(i=this.precomputeWindow(o,r),r!==1&&fr.set(o,n(i))),i},wNAFCached(r,o,n){let i=ur(r);return this.wNAF(i,this.getPrecomputes(i,r,n),o)},wNAFCachedUnsafe(r,o,n,i){let s=ur(r);return s===1?this.unsafeLadder(r,o,i):this.wNAFUnsafe(s,this.getPrecomputes(s,r,n),o,i)},setWindowSize(r,o){Ho(o,e),Co.set(r,o),fr.delete(r)}}}function _o(t,e,r,o){Wn(r,t),Xn(o,e);let n=r.length,i=o.length;if(n!==i)throw new Error("arrays of points and scalars must have equal length");let s=t.ZERO,c=bo(BigInt(n)),a=1;c>12?a=c-3:c>4?a=c-2:c>0&&(a=2);let f=kt(a),u=new Array(Number(f)+1).fill(s),l=Math.floor((e.BITS-1)/a)*a,y=s;for(let b=l;b>=0;b-=a){u.fill(s);for(let m=0;m<i;m++){let q=o[m],C=Number(q>>BigInt(b)&f);u[C]=u[C].add(r[m])}let I=s;for(let m=u.length-1,q=s;m>0;m--)q=q.add(u[m]),I=I.add(q);if(y=y.add(I),b!==0)for(let m=0;m<a;m++)y=y.double()}return y}function lr(t){return Re(t.Fp),xt(t,{n:"bigint",h:"bigint",Gx:"field",Gy:"field"},{nBitLength:"isSafeInteger",nByteLength:"isSafeInteger"}),Object.freeze({...ir(t.n,t.nBitLength),...t,p:t.Fp.ORDER})}var Io,dr,fr,Co,Uo=z(()=>{h();ie();Ft();Io=BigInt(0),dr=BigInt(1);fr=new WeakMap,Co=new WeakMap});function No(t){t.lowS!==void 0&&Vt("lowS",t.lowS),t.prehash!==void 0&&Vt("prehash",t.prehash)}function Jn(t){let e=lr(t);xt(e,{a:"field",b:"field"},{allowInfinityPoint:"boolean",allowedPrivateKeyLengths:"array",clearCofactor:"function",fromBytes:"function",isTorsionFree:"function",toBytes:"function",wrapPrivateKey:"boolean"});let{endo:r,Fp:o,a:n}=e;if(r){if(!o.eql(n,o.ZERO))throw new Error("invalid endo: CURVE.a must be 0");if(typeof r!="object"||typeof r.beta!="bigint"||typeof r.splitScalar!="function")throw new Error('invalid endo: expected "beta": bigint and "splitScalar": function')}return Object.freeze({...e})}function hr(t,e){return Gt(nt(t,e))}function Qn(t){let e=Jn(t),{Fp:r}=e,o=ne(e.n,e.nBitLength),n=e.toBytes||((w,d,g)=>{let E=d.toAffine();return Z(Uint8Array.from([4]),r.toBytes(E.x),r.toBytes(E.y))}),i=e.fromBytes||(w=>{let d=w.subarray(1),g=r.fromBytes(d.subarray(0,r.BYTES)),E=r.fromBytes(d.subarray(r.BYTES,2*r.BYTES));return{x:g,y:E}});function s(w){let{a:d,b:g}=e,E=r.sqr(w),A=r.mul(E,w);return r.add(r.add(A,r.mul(w,d)),g)}function c(w,d){let g=r.sqr(d),E=s(w);return r.eql(g,E)}if(!c(e.Gx,e.Gy))throw new Error("bad curve params: generator point");let a=r.mul(r.pow(e.a,se),xr),f=r.mul(r.sqr(e.b),BigInt(27));if(r.is0(r.add(a,f)))throw new Error("bad curve params: a or b");function u(w){return Rt(w,M,e.n)}function l(w){let{allowedPrivateKeyLengths:d,nByteLength:g,wrapPrivateKey:E,n:A}=e;if(d&&typeof w!="bigint"){if(jt(w)&&(w=Gt(w)),typeof w!="string"||!d.includes(w.length))throw new Error("invalid private key");w=w.padStart(g*2,"0")}let O;try{O=typeof w=="bigint"?w:W(D("private key",w,g))}catch{throw new Error("invalid private key, expected hex or "+g+" bytes, got "+typeof w)}return E&&(O=$(O,A)),pt("private key",O,M,A),O}function y(w){if(!(w instanceof m))throw new Error("ProjectivePoint expected")}let b=nr((w,d)=>{let{px:g,py:E,pz:A}=w;if(r.eql(A,r.ONE))return{x:g,y:E};let O=w.is0();d==null&&(d=O?r.ONE:r.inv(A));let k=r.mul(g,d),L=r.mul(E,d),B=r.mul(A,d);if(O)return{x:r.ZERO,y:r.ZERO};if(!r.eql(B,r.ONE))throw new Error("invZ was invalid");return{x:k,y:L}}),I=nr(w=>{if(w.is0()){if(e.allowInfinityPoint&&!r.is0(w.py))return;throw new Error("bad point: ZERO")}let{x:d,y:g}=w.toAffine();if(!r.isValid(d)||!r.isValid(g))throw new Error("bad point: x or y not FE");if(!c(d,g))throw new Error("bad point: equation left != right");if(!w.isTorsionFree())throw new Error("bad point: not in prime-order subgroup");return!0});class m{constructor(d,g,E){if(d==null||!r.isValid(d))throw new Error("x required");if(g==null||!r.isValid(g)||r.is0(g))throw new Error("y required");if(E==null||!r.isValid(E))throw new Error("z required");this.px=d,this.py=g,this.pz=E,Object.freeze(this)}static fromAffine(d){let{x:g,y:E}=d||{};if(!d||!r.isValid(g)||!r.isValid(E))throw new Error("invalid affine point");if(d instanceof m)throw new Error("projective point not allowed");let A=O=>r.eql(O,r.ZERO);return A(g)&&A(E)?m.ZERO:new m(g,E,r.ONE)}get x(){return this.toAffine().x}get y(){return this.toAffine().y}static normalizeZ(d){let g=Zt(r,d.map(E=>E.pz));return d.map((E,A)=>E.toAffine(g[A])).map(m.fromAffine)}static fromHex(d){let g=m.fromAffine(i(D("pointHex",d)));return g.assertValidity(),g}static fromPrivateKey(d){return m.BASE.multiply(l(d))}static msm(d,g){return _o(m,o,d,g)}_setWindowSize(d){R.setWindowSize(this,d)}assertValidity(){I(this)}hasEvenY(){let{y:d}=this.toAffine();if(r.isOdd)return!r.isOdd(d);throw new Error("Field doesn't support isOdd")}equals(d){y(d);let{px:g,py:E,pz:A}=this,{px:O,py:k,pz:L}=d,B=r.eql(r.mul(g,L),r.mul(O,A)),N=r.eql(r.mul(E,L),r.mul(k,A));return B&&N}negate(){return new m(this.px,r.neg(this.py),this.pz)}double(){let{a:d,b:g}=e,E=r.mul(g,se),{px:A,py:O,pz:k}=this,L=r.ZERO,B=r.ZERO,N=r.ZERO,T=r.mul(A,A),V=r.mul(O,O),x=r.mul(k,k),p=r.mul(A,O);return p=r.add(p,p),N=r.mul(A,k),N=r.add(N,N),L=r.mul(d,N),B=r.mul(E,x),B=r.add(L,B),L=r.sub(V,B),B=r.add(V,B),B=r.mul(L,B),L=r.mul(p,L),N=r.mul(E,N),x=r.mul(d,x),p=r.sub(T,x),p=r.mul(d,p),p=r.add(p,N),N=r.add(T,T),T=r.add(N,T),T=r.add(T,x),T=r.mul(T,p),B=r.add(B,T),x=r.mul(O,k),x=r.add(x,x),T=r.mul(x,p),L=r.sub(L,T),N=r.mul(x,V),N=r.add(N,N),N=r.add(N,N),new m(L,B,N)}add(d){y(d);let{px:g,py:E,pz:A}=this,{px:O,py:k,pz:L}=d,B=r.ZERO,N=r.ZERO,T=r.ZERO,V=e.a,x=r.mul(e.b,se),p=r.mul(g,O),S=r.mul(E,k),U=r.mul(A,L),H=r.add(g,E),_=r.add(O,k);H=r.mul(H,_),_=r.add(p,S),H=r.sub(H,_),_=r.add(g,A);let P=r.add(O,L);return _=r.mul(_,P),P=r.add(p,U),_=r.sub(_,P),P=r.add(E,A),B=r.add(k,L),P=r.mul(P,B),B=r.add(S,U),P=r.sub(P,B),T=r.mul(V,_),B=r.mul(x,U),T=r.add(B,T),B=r.sub(S,T),T=r.add(S,T),N=r.mul(B,T),S=r.add(p,p),S=r.add(S,p),U=r.mul(V,U),_=r.mul(x,_),S=r.add(S,U),U=r.sub(p,U),U=r.mul(V,U),_=r.add(_,U),p=r.mul(S,_),N=r.add(N,p),p=r.mul(P,_),B=r.mul(H,B),B=r.sub(B,p),p=r.mul(H,S),T=r.mul(P,T),T=r.add(T,p),new m(B,N,T)}subtract(d){return this.add(d.negate())}is0(){return this.equals(m.ZERO)}wNAF(d){return R.wNAFCached(this,d,m.normalizeZ)}multiplyUnsafe(d){let{endo:g,n:E}=e;pt("scalar",d,et,E);let A=m.ZERO;if(d===et)return A;if(this.is0()||d===M)return this;if(!g||R.hasPrecomputes(this))return R.wNAFCachedUnsafe(this,d,m.normalizeZ);let{k1neg:O,k1:k,k2neg:L,k2:B}=g.splitScalar(d),N=A,T=A,V=this;for(;k>et||B>et;)k&M&&(N=N.add(V)),B&M&&(T=T.add(V)),V=V.double(),k>>=M,B>>=M;return O&&(N=N.negate()),L&&(T=T.negate()),T=new m(r.mul(T.px,g.beta),T.py,T.pz),N.add(T)}multiply(d){let{endo:g,n:E}=e;pt("scalar",d,M,E);let A,O;if(g){let{k1neg:k,k1:L,k2neg:B,k2:N}=g.splitScalar(d),{p:T,f:V}=this.wNAF(L),{p:x,f:p}=this.wNAF(N);T=R.constTimeNegate(k,T),x=R.constTimeNegate(B,x),x=new m(r.mul(x.px,g.beta),x.py,x.pz),A=T.add(x),O=V.add(p)}else{let{p:k,f:L}=this.wNAF(d);A=k,O=L}return m.normalizeZ([A,O])[0]}multiplyAndAddUnsafe(d,g,E){let A=m.BASE,O=(L,B)=>B===et||B===M||!L.equals(A)?L.multiplyUnsafe(B):L.multiply(B),k=O(this,g).add(O(d,E));return k.is0()?void 0:k}toAffine(d){return b(this,d)}isTorsionFree(){let{h:d,isTorsionFree:g}=e;if(d===M)return!0;if(g)return g(m,this);throw new Error("isTorsionFree() has not been declared for the elliptic curve")}clearCofactor(){let{h:d,clearCofactor:g}=e;return d===M?this:g?g(m,this):this.multiplyUnsafe(e.h)}toRawBytes(d=!0){return Vt("isCompressed",d),this.assertValidity(),n(m,this,d)}toHex(d=!0){return Vt("isCompressed",d),Gt(this.toRawBytes(d))}}m.BASE=new m(e.Gx,e.Gy,r.ONE),m.ZERO=new m(r.ZERO,r.ONE,r.ZERO);let{endo:q,nBitLength:C}=e,R=Oo(m,q?Math.ceil(C/2):C);return{CURVE:e,ProjectivePoint:m,normPrivateKeyToScalar:l,weierstrassEquation:s,isWithinCurveOrder:u}}function ti(t){let e=lr(t);return xt(e,{hash:"hash",hmac:"function",randomBytes:"function"},{bits2int:"function",bits2int_modN:"function",lowS:"boolean"}),Object.freeze({lowS:!0,...e})}function Ro(t){let e=ti(t),{Fp:r,n:o,nByteLength:n,nBitLength:i}=e,s=r.BYTES+1,c=2*r.BYTES+1;function a(x){return $(x,o)}function f(x){return Ne(x,o)}let{ProjectivePoint:u,normPrivateKeyToScalar:l,weierstrassEquation:y,isWithinCurveOrder:b}=Qn({...e,toBytes(x,p,S){let U=p.toAffine(),H=r.toBytes(U.x),_=Z;return Vt("isCompressed",S),S?_(Uint8Array.from([p.hasEvenY()?2:3]),H):_(Uint8Array.from([4]),H,r.toBytes(U.y))},fromBytes(x){let p=x.length,S=x[0],U=x.subarray(1);if(p===s&&(S===2||S===3)){let H=W(U);if(!Rt(H,M,r.ORDER))throw new Error("Point is not on curve");let _=y(H),P;try{P=r.sqrt(_)}catch(J){let Y=J instanceof Error?": "+J.message:"";throw new Error("Point is not on curve"+Y)}let F=(P&M)===M;return(S&1)===1!==F&&(P=r.neg(P)),{x:H,y:P}}else if(p===c&&S===4){let H=r.fromBytes(U.subarray(0,r.BYTES)),_=r.fromBytes(U.subarray(r.BYTES,2*r.BYTES));return{x:H,y:_}}else{let H=s,_=c;throw new Error("invalid Point, expected length of "+H+", or uncompressed "+_+", got "+p)}}});function I(x){let p=o>>M;return x>p}function m(x){return I(x)?a(-x):x}let q=(x,p,S)=>W(x.slice(p,S));class C{constructor(p,S,U){pt("r",p,M,o),pt("s",S,M,o),this.r=p,this.s=S,U!=null&&(this.recovery=U),Object.freeze(this)}static fromCompact(p){let S=n;return p=D("compactSignature",p,S*2),new C(q(p,0,S),q(p,S,2*S))}static fromDER(p){let{r:S,s:U}=mt.toSig(D("DER",p));return new C(S,U)}assertValidity(){}addRecoveryBit(p){return new C(this.r,this.s,p)}recoverPublicKey(p){let{r:S,s:U,recovery:H}=this,_=A(D("msgHash",p));if(H==null||![0,1,2,3].includes(H))throw new Error("recovery id invalid");let P=H===2||H===3?S+e.n:S;if(P>=r.ORDER)throw new Error("recovery id 2 or 3 invalid");let F=(H&1)===0?"02":"03",it=u.fromHex(F+hr(P,r.BYTES)),J=f(P),Y=a(-_*J),zt=a(U*J),bt=u.BASE.multiplyAndAddUnsafe(it,Y,zt);if(!bt)throw new Error("point at infinify");return bt.assertValidity(),bt}hasHighS(){return I(this.s)}normalizeS(){return this.hasHighS()?new C(this.r,a(-this.s),this.recovery):this}toDERRawBytes(){return oe(this.toDERHex())}toDERHex(){return mt.hexFromSig(this)}toCompactRawBytes(){return oe(this.toCompactHex())}toCompactHex(){let p=n;return hr(this.r,p)+hr(this.s,p)}}let R={isValidPrivateKey(x){try{return l(x),!0}catch{return!1}},normPrivateKeyToScalar:l,randomPrivateKey:()=>{let x=sr(e.n);return Bo(e.randomBytes(x),e.n)},precompute(x=8,p=u.BASE){return p._setWindowSize(x),p.multiply(BigInt(3)),p}};function w(x,p=!0){return u.fromPrivateKey(x).toRawBytes(p)}function d(x){if(typeof x=="bigint")return!1;if(x instanceof u)return!0;let S=D("key",x).length,U=r.BYTES,H=U+1,_=2*U+1;if(!(e.allowedPrivateKeyLengths||n===H))return S===H||S===_}function g(x,p,S=!0){if(d(x)===!0)throw new Error("first arg must be private key");if(d(p)===!1)throw new Error("second arg must be public key");return u.fromHex(p).multiply(l(x)).toRawBytes(S)}let E=e.bits2int||function(x){if(x.length>8192)throw new Error("input is too large");let p=W(x),S=x.length*8-i;return S>0?p>>BigInt(S):p},A=e.bits2int_modN||function(x){return a(E(x))},O=kt(i);function k(x){return pt("num < 2^"+i,x,et,O),nt(x,n)}function L(x,p,S=B){if(["recovered","canonical"].some(It=>It in S))throw new Error("sign() legacy options not supported");let{hash:U,randomBytes:H}=e,{lowS:_,prehash:P,extraEntropy:F}=S;_==null&&(_=!0),x=D("msgHash",x),No(S),P&&(x=D("prehashed msgHash",U(x)));let it=A(x),J=l(p),Y=[k(J),k(it)];if(F!=null&&F!==!1){let It=F===!0?H(r.BYTES):F;Y.push(D("extraEntropy",It))}let zt=Z(...Y),bt=it;function Me(It){let qt=E(It);if(!b(qt))return;let Pe=f(qt),Wt=u.BASE.multiply(qt).toAffine(),Tt=a(Wt.x);if(Tt===et)return;let Xt=a(Pe*a(bt+Tt*J));if(Xt===et)return;let Mt=(Wt.x===Tt?0:2)|Number(Wt.y&M),Cr=Xt;return _&&I(Xt)&&(Cr=m(Xt),Mt^=1),new C(Tt,Cr,Mt)}return{seed:zt,k2sig:Me}}let B={lowS:e.lowS,prehash:!1},N={lowS:e.lowS,prehash:!1};function T(x,p,S=B){let{seed:U,k2sig:H}=L(x,p,S),_=e;return go(_.hash.outputLen,_.nByteLength,_.hmac)(U,H)}u.BASE._setWindowSize(8);function V(x,p,S,U=N){let H=x;p=D("msgHash",p),S=D("publicKey",S);let{lowS:_,prehash:P,format:F}=U;if(No(U),"strict"in U)throw new Error("options.strict was renamed to lowS");if(F!==void 0&&F!=="compact"&&F!=="der")throw new Error("format must be compact or der");let it=typeof H=="string"||jt(H),J=!it&&!F&&typeof H=="object"&&H!==null&&typeof H.r=="bigint"&&typeof H.s=="bigint";if(!it&&!J)throw new Error("invalid signature, expected Uint8Array, hex string or Signature instance");let Y,zt;try{if(J&&(Y=new C(H.r,H.s)),it){try{F!=="compact"&&(Y=C.fromDER(H))}catch(Mt){if(!(Mt instanceof mt.Err))throw Mt}!Y&&F!=="der"&&(Y=C.fromCompact(H))}zt=u.fromHex(S)}catch{return!1}if(!Y||_&&Y.hasHighS())return!1;P&&(p=e.hash(p));let{r:bt,s:Me}=Y,It=A(p),qt=f(Me),Pe=a(It*qt),Wt=a(bt*qt),Tt=u.BASE.multiplyAndAddUnsafe(zt,Pe,Wt)?.toAffine();return Tt?a(Tt.x)===bt:!1}return{CURVE:e,getPublicKey:w,getSharedSecret:g,sign:T,verify:V,ProjectivePoint:u,Signature:C,utils:R}}function ei(t,e){let r=t.ORDER,o=et;for(let I=r-M;I%At===et;I/=At)o+=M;let n=o,i=At<<n-M-M,s=i*At,c=(r-M)/s,a=(c-M)/At,f=s-M,u=i,l=t.pow(e,c),y=t.pow(e,(c+M)/At),b=(I,m)=>{let q=l,C=t.pow(m,f),R=t.sqr(C);R=t.mul(R,m);let w=t.mul(I,R);w=t.pow(w,a),w=t.mul(w,C),C=t.mul(w,m),R=t.mul(w,I);let d=t.mul(R,C);w=t.pow(d,u);let g=t.eql(w,t.ONE);C=t.mul(R,y),w=t.mul(d,q),R=t.cmov(C,R,g),d=t.cmov(w,d,g);for(let E=n;E>M;E--){let A=E-At;A=At<<A-M;let O=t.pow(d,A),k=t.eql(O,t.ONE);C=t.mul(R,q),q=t.mul(q,q),O=t.mul(d,q),R=t.cmov(C,R,k),d=t.cmov(O,d,k)}return{isValid:g,value:R}};if(t.ORDER%xr===se){let I=(t.ORDER-se)/xr,m=t.sqrt(t.neg(e));b=(q,C)=>{let R=t.sqr(C),w=t.mul(q,C);R=t.mul(R,w);let d=t.pow(R,I);d=t.mul(d,w);let g=t.mul(d,m),E=t.mul(t.sqr(d),C),A=t.eql(E,q),O=t.cmov(g,d,A);return{isValid:A,value:O}}}return b}function ko(t,e){if(Re(t),!t.isValid(e.A)||!t.isValid(e.B)||!t.isValid(e.Z))throw new Error("mapToCurveSimpleSWU: invalid opts");let r=ei(t,e.Z);if(!t.isOdd)throw new Error("Fp.isOdd is not implemented!");return o=>{let n,i,s,c,a,f,u,l;n=t.sqr(o),n=t.mul(n,e.Z),i=t.sqr(n),i=t.add(i,n),s=t.add(i,t.ONE),s=t.mul(s,e.B),c=t.cmov(e.Z,t.neg(i),!t.eql(i,t.ZERO)),c=t.mul(c,e.A),i=t.sqr(s),f=t.sqr(c),a=t.mul(f,e.A),i=t.add(i,a),i=t.mul(i,s),f=t.mul(f,c),a=t.mul(f,e.B),i=t.add(i,a),u=t.mul(n,s);let{isValid:y,value:b}=r(i,f);l=t.mul(n,o),l=t.mul(l,b),u=t.cmov(u,s,y),l=t.cmov(l,b,y);let I=t.isOdd(o)===t.isOdd(l);l=t.cmov(t.neg(l),l,I);let m=Zt(t,[c],!0)[0];return u=t.mul(u,m),{x:u,y:l}}}var pr,mt,et,M,At,se,xr,mr=z(()=>{h();Uo();ie();Ft();pr=class extends Error{constructor(e=""){super(e)}},mt={Err:pr,_tlv:{encode:(t,e)=>{let{Err:r}=mt;if(t<0||t>256)throw new r("tlv.encode: wrong tag");if(e.length&1)throw new r("tlv.encode: unpadded data");let o=e.length/2,n=re(o);if(n.length/2&128)throw new r("tlv.encode: long form length too big");let i=o>127?re(n.length/2|128):"";return re(t)+i+n+e},decode(t,e){let{Err:r}=mt,o=0;if(t<0||t>256)throw new r("tlv.encode: wrong tag");if(e.length<2||e[o++]!==t)throw new r("tlv.decode: wrong tlv");let n=e[o++],i=!!(n&128),s=0;if(!i)s=n;else{let a=n&127;if(!a)throw new r("tlv.decode(long): indefinite length not supported");if(a>4)throw new r("tlv.decode(long): byte length is too big");let f=e.subarray(o,o+a);if(f.length!==a)throw new r("tlv.decode: length bytes not complete");if(f[0]===0)throw new r("tlv.decode(long): zero leftmost byte");for(let u of f)s=s<<8|u;if(o+=a,s<128)throw new r("tlv.decode(long): not minimal encoding")}let c=e.subarray(o,o+s);if(c.length!==s)throw new r("tlv.decode: wrong value length");return{v:c,l:e.subarray(o+s)}}},_int:{encode(t){let{Err:e}=mt;if(t<et)throw new e("integer: negative integers are not allowed");let r=re(t);if(Number.parseInt(r[0],16)&8&&(r="00"+r),r.length&1)throw new e("unexpected DER parsing assertion: unpadded hex");return r},decode(t){let{Err:e}=mt;if(t[0]&128)throw new e("invalid signature integer: negative");if(t[0]===0&&!(t[1]&128))throw new e("invalid signature integer: unnecessary leading zero");return W(t)}},toSig(t){let{Err:e,_int:r,_tlv:o}=mt,n=D("signature",t),{v:i,l:s}=o.decode(48,n);if(s.length)throw new e("invalid signature: left bytes after parsing");let{v:c,l:a}=o.decode(2,i),{v:f,l:u}=o.decode(2,a);if(u.length)throw new e("invalid signature: left bytes after parsing");return{r:r.decode(c),s:r.decode(f)}},hexFromSig(t){let{_tlv:e,_int:r}=mt,o=e.encode(2,r.encode(t.r)),n=e.encode(2,r.encode(t.s)),i=o+n;return e.encode(48,i)}};et=BigInt(0),M=BigInt(1),At=BigInt(2),se=BigInt(3),xr=BigInt(4)});function ri(t){return{hash:t,hmac:(e,...r)=>Xe(t,e,Zr(...r)),randomBytes:Te}}function Lo(t,e){let r=o=>Ro({...t,...ri(o)});return{...r(e),create:r}}var zo=z(()=>{h();lo();Et();mr();});function vt(t,e){if(ae(t),ae(e),t<0||t>=1<<8*e)throw new Error("invalid I2OSP input: "+t);let r=Array.from({length:e}).fill(0);for(let o=e-1;o>=0;o--)r[o]=t&255,t>>>=8;return new Uint8Array(r)}function ni(t,e){let r=new Uint8Array(t.length);for(let o=0;o<t.length;o++)r[o]=t[o]^e[o];return r}function ae(t){if(!Number.isSafeInteger(t))throw new Error("number expected")}function ii(t,e,r,o){ht(t),ht(e),ae(r),e.length>255&&(e=o(Z(Ue("H2C-OVERSIZE-DST-"),e)));let{outputLen:n,blockLen:i}=o,s=Math.ceil(r/n);if(r>65535||s>255)throw new Error("expand_message_xmd: invalid lenInBytes");let c=Z(e,vt(e.length,1)),a=vt(0,i),f=vt(r,2),u=new Array(s),l=o(Z(a,t,f,vt(0,1),c));u[0]=o(Z(l,vt(1,1),c));for(let b=1;b<=s;b++){let I=[ni(l,u[b-1]),vt(b+1,1),c];u[b]=o(Z(...I))}return Z(...u).slice(0,r)}function si(t,e,r,o,n){if(ht(t),ht(e),ae(r),e.length>255){let i=Math.ceil(2*o/8);e=n.create({dkLen:i}).update(Ue("H2C-OVERSIZE-DST-")).update(e).digest()}if(r>65535||e.length>255)throw new Error("expand_message_xof: invalid lenInBytes");return n.create({dkLen:r}).update(t).update(vt(r,2)).update(e).update(vt(e.length,1)).digest()}function qo(t,e,r){xt(r,{DST:"stringOrUint8Array",p:"bigint",m:"isSafeInteger",k:"isSafeInteger",hash:"hash"});let{p:o,k:n,m:i,hash:s,expand:c,DST:a}=r;ht(t),ae(e);let f=typeof a=="string"?Ue(a):a,u=o.toString(2).length,l=Math.ceil((u+n)/8),y=e*i*l,b;if(c==="xmd")b=ii(t,f,y,s);else if(c==="xof")b=si(t,f,y,n,s);else if(c==="_internal_pass")b=t;else throw new Error('expand must be "xmd" or "xof"');let I=new Array(e);for(let m=0;m<e;m++){let q=new Array(i);for(let C=0;C<i;C++){let R=l*(C+m*i),w=b.subarray(R,R+l);q[C]=$(oi(w),o)}I[m]=q}return I}function Mo(t,e){let r=e.map(o=>Array.from(o).reverse());return(o,n)=>{let[i,s,c,a]=r.map(l=>l.reduce((y,b)=>t.add(t.mul(y,o),b))),[f,u]=Zt(t,[s,a],!0);return o=t.mul(i,f),n=t.mul(n,t.mul(c,u)),{x:o,y:n}}}function Po(t,e,r){if(typeof e!="function")throw new Error("mapToCurve() must be defined");function o(i){return t.fromAffine(e(i))}function n(i){let s=i.clearCofactor();return s.equals(t.ZERO)?t.ZERO:(s.assertValidity(),s)}return{defaults:r,hashToCurve(i,s){let c=qo(i,2,{...r,DST:r.DST,...s}),a=o(c[0]),f=o(c[1]);return n(a.add(f))},encodeToCurve(i,s){let c=qo(i,1,{...r,DST:r.encodeDST,...s});return n(o(c[0]))},mapToCurve(i){if(!Array.isArray(i))throw new Error("expected array of bigints");for(let s of i)if(typeof s!="bigint")throw new Error("expected array of bigints");return n(o(i))}}}var oi,$o=z(()=>{h();ie();Ft();oi=W});var Ko={};mn(Ko,{encodeToCurve:()=>pi,hashToCurve:()=>hi,schnorr:()=>ui,secp256k1:()=>de,secp256k1_hasher:()=>Ar});function Vo(t){let e=ue,r=BigInt(3),o=BigInt(6),n=BigInt(11),i=BigInt(22),s=BigInt(23),c=BigInt(44),a=BigInt(88),f=t*t*t%e,u=f*f*t%e,l=X(u,r,e)*u%e,y=X(l,r,e)*u%e,b=X(y,Le,e)*f%e,I=X(b,n,e)*b%e,m=X(I,i,e)*I%e,q=X(m,c,e)*m%e,C=X(q,a,e)*q%e,R=X(C,c,e)*m%e,w=X(R,r,e)*u%e,d=X(w,s,e)*I%e,g=X(d,o,e)*f%e,E=X(g,Le,e);if(!Bt.eql(Bt.sqr(E),t))throw new Error("Cannot find square root");return E}function ze(t,...e){let r=jo[t];if(r===void 0){let o=Nt(Uint8Array.from(t,n=>n.charCodeAt(0)));r=Z(o,o),jo[t]=r}return Nt(Z(r,...e))}function yr(t){let e=de.utils.normPrivateKeyToScalar(t),r=Sr.fromPrivateKey(e);return{scalar:r.hasEvenY()?e:fe(-e),bytes:Er(r)}}function Go(t){pt("x",t,ce,ue);let e=br(t*t),r=br(e*t+BigInt(7)),o=Vo(r);o%Le!==wr&&(o=br(-o));let n=new Sr(t,o,ce);return n.assertValidity(),n}function Fo(...t){return fe(Kt(ze("BIP0340/challenge",...t)))}function ci(t){return yr(t).bytes}function fi(t,e,r=Te(32)){let o=D("message",t),{bytes:n,scalar:i}=yr(e),s=D("auxRand",r,32),c=gr(i^Kt(ze("BIP0340/aux",s))),a=ze("BIP0340/nonce",c,n,o),f=fe(Kt(a));if(f===wr)throw new Error("sign failed: k is zero");let{bytes:u,scalar:l}=yr(f),y=Fo(u,n,o),b=new Uint8Array(64);if(b.set(u,0),b.set(gr(fe(l+y*i)),32),!Zo(b,o,n))throw new Error("sign: Invalid signature produced");return b}function Zo(t,e,r){let o=D("signature",t,64),n=D("message",e),i=D("publicKey",r,32);try{let s=Go(Kt(i)),c=Kt(o.subarray(0,32));if(!Rt(c,ce,ue))return!1;let a=Kt(o.subarray(32,64));if(!Rt(a,ce,ke))return!1;let f=Fo(gr(c),Er(s),n),u=ai(s,a,fe(-f));return!(!u||!u.hasEvenY()||u.toAffine().x!==c)}catch{return!1}}var ue,ke,wr,ce,Le,Do,Bt,de,jo,Er,gr,br,fe,Sr,ai,Kt,ui,di,li,Ar,hi,pi,Yo=z(()=>{h();We();Et();zo();$o();ie();Ft();mr();ue=BigInt("0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f"),ke=BigInt("0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"),wr=BigInt(0),ce=BigInt(1),Le=BigInt(2),Do=(t,e)=>(t+e/Le)/e;Bt=ne(ue,void 0,void 0,{sqrt:Vo}),de=Lo({a:wr,b:BigInt(7),Fp:Bt,n:ke,Gx:BigInt("55066263022277343669578718895168534326250603453777594175500187360389116729240"),Gy:BigInt("32670510020758816978083085130507043184471273380659243275938904335757337482424"),h:BigInt(1),lowS:!0,endo:{beta:BigInt("0x7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee"),splitScalar:t=>{let e=ke,r=BigInt("0x3086d221a7d46bcde86c90e49284eb15"),o=-ce*BigInt("0xe4437ed6010e88286f547fa90abfe4c3"),n=BigInt("0x114ca50f7a8e2f3f657c1108d9d44cfd8"),i=r,s=BigInt("0x100000000000000000000000000000000"),c=Do(i*t,e),a=Do(-o*t,e),f=$(t-c*r-a*n,e),u=$(-c*o-a*i,e),l=f>s,y=u>s;if(l&&(f=e-f),y&&(u=e-u),f>s||u>s)throw new Error("splitScalar: Endomorphism failed, k="+t);return{k1neg:l,k1:f,k2neg:y,k2:u}}}},Nt),jo={};Er=t=>t.toRawBytes(!0).slice(1),gr=t=>nt(t,32),br=t=>$(t,ue),fe=t=>$(t,ke),Sr=de.ProjectivePoint,ai=(t,e,r)=>Sr.BASE.multiplyAndAddUnsafe(t,e,r);Kt=W;ui={getPublicKey:ci,sign:fi,verify:Zo,utils:{randomPrivateKey:de.utils.randomPrivateKey,lift_x:Go,pointToBytes:Er,numberToBytesBE:nt,bytesToNumberBE:W,taggedHash:ze,mod:$}},di=Mo(Bt,[["0x8e38e38e38e38e38e38e38e38e38e38e38e38e38e38e38e38e38e38daaaaa8c7","0x7d3d4c80bc321d5b9f315cea7fd44c5d595d2fc0bf63b92dfff1044f17c6581","0x534c328d23f234e6e2a413deca25caece4506144037c40314ecbd0b53d9dd262","0x8e38e38e38e38e38e38e38e38e38e38e38e38e38e38e38e38e38e38daaaaa88c"],["0xd35771193d94918a9ca34ccbb7b640dd86cd409542f8487d9fe6b745781eb49b","0xedadc6f64383dc1df7c4b2d51b54225406d36b641f5e41bbc52a56612a8c6d14","0x0000000000000000000000000000000000000000000000000000000000000001"],["0x4bda12f684bda12f684bda12f684bda12f684bda12f684bda12f684b8e38e23c","0xc75e0c32d5cb7c0fa9d0a54b12a0a6d5647ab046d686da6fdffc90fc201d71a3","0x29a6194691f91a73715209ef6512e576722830a201be2018a765e85a9ecee931","0x2f684bda12f684bda12f684bda12f684bda12f684bda12f684bda12f38e38d84"],["0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffff93b","0x7a06534bb8bdb49fd5e9e6632722c2989467c1bfc8e8d978dfb425d2685c2573","0x6484aa716545ca2cf3a70c3fa8fe337e0a3d21162f0d6299a7bf8192bfd2a76f","0x0000000000000000000000000000000000000000000000000000000000000001"]].map(t=>t.map(e=>BigInt(e)))),li=ko(Bt,{A:BigInt("0x3f8731abdd661adca08a5558f0f5d272e953d363cb6f0e5d405447c01a444533"),B:BigInt("1771"),Z:Bt.create(BigInt("-11"))}),Ar=Po(de.ProjectivePoint,t=>{let{x:e,y:r}=li(Bt.create(t[0]));return di(e,r)},{DST:"secp256k1_XMD:SHA-256_SSWU_RO_",encodeDST:"secp256k1_XMD:SHA-256_SSWU_NU_",p:Bt.ORDER,m:1,k:128,expand:"xmd",hash:Nt}),hi=Ar.hashToCurve,pi=Ar.encodeToCurve});h();h();h();h();h();no();ee();function ao(t){let e=ut(`0x${t.substring(4)}`).substring(26);return oo(`0x${e}`)}h();Pt();xe();ye();Dt();async function Xo({hash:t,signature:e}){let r=Q(t)?t:Ct(t),{secp256k1:o}=await Promise.resolve().then(()=>(Yo(),Ko));return`0x${(()=>{if(typeof e=="object"&&"r"in e&&"s"in e){let{r:f,s:u,v:l,yParity:y}=e,b=Number(y??l),I=Wo(b);return new o.Signature(ge(f),ge(u)).addRecoveryBit(I)}let s=Q(e)?e:Ct(e);if(Ht(s)!==65)throw new Error("invalid signature length");let c=Nr(`0x${s.slice(130)}`),a=Wo(c);return o.Signature.fromCompact(s.substring(2,130)).addRecoveryBit(a)})().recoverPublicKey(r.substring(2)).toHex(!1)}`}function Wo(t){if(t===0||t===1)return t;if(t===27)return 0;if(t===28)return 1;throw new Error("Invalid yParityOrV value")}async function Jo({hash:t,signature:e}){return ao(await Xo({hash:t,signature:e}))}h();h();We();var Qo=Nt;Pt();Qt();Dt();function vr(t,e){let r=e||"hex",o=Qo(Q(t,{strict:!1})?ct(t):t);return r==="bytes"?o:Ct(o)}h();ee();h();h();var tn=`Ethereum Signed Message:
++`;so();xe();Dt();function en(t){let e=typeof t=="string"?Ee(t):typeof t.raw=="string"?t.raw:we(t.raw),r=Ee(`${tn}${Ht(e)}`);return io([r,e])}function rn(t,e){return ut(en(t),e)}h();async function Br({message:t,signature:e}){return Jo({hash:rn(t),signature:e})}Qt();ee();h();h();function on(t){if(t!=="sha256")throw new Error("the browser bundle provides sha256 only");let e=[];return{update(r,o="utf8"){if(typeof r!="string"||o!=="utf8")throw new Error("the browser bundle hashes UTF-8 text only");return e.push(r),this},digest(r){if(r!=="hex")throw new Error("the browser bundle returns hex digests only");return vr(ct(e.join(""))).slice(2)}}}h();function le(t){if(t===null||typeof t=="boolean"||typeof t=="string")return JSON.stringify(t);if(typeof t=="number"&&Number.isSafeInteger(t))return String(t);if(Array.isArray(t))return"["+t.map(le).join(",")+"]";if(t&&Object.getPrototypeOf(t)===Object.prototype)return"{"+Object.keys(t).sort().map(e=>JSON.stringify(e)+":"+le(t[e])).join(",")+"}";throw new Error("record must contain only bounded JSON values")}var cn="enclave-host-capacity",he=15*6e4,Ir=32*1024,fn=6e4,nn=/^0x[0-9a-f]{40}$/,xi=/^0x[0-9a-f]{64}$/,sn=["version","kind","chainId","registry","hostId","endpoint","operator","sequence","issuedAt","expiresAt","availabilityJson"],un=t=>`enclave-network:host-capacity:v${t.version}
++${le(t)}`,Yt=t=>on("sha256").update(le(t),"utf8").digest("hex"),mi=["gpuShareFree","cpuShareFree","usedGpuShare","usedCpuShare","maxShare","sharePoolFree","gpuEnclaveCpuShareFree"],bi=["vcpusFree","ramGbFree","cpuGflopsFree","nodeVcpus","nodeRamGb","nodeGflops","machineRamGb","smFree","smTotal","vramFreeGb","gpuTflopsFree","cardVramGb","cardTflops","cards","physicalGpuCount"],gi=["askCpuPricePerSec6","askGpuPricePerSec6","askShieldedPricePerSec6"],yi=["gpu","claimEnabled","fullService","networkOptions","waf","configOverride","configCidOverride","configEdit","shareResize","cpuFallback","gpuOptional","secrets","secretsInConfig","customDomains","devDeploy","rateCap","selfHostFree","proofOfTime"],an=8,wi=256,Ei=256,Si=4096,Ai=new Set(["__proto__","constructor","prototype"]);function Tr(t,e,r){if(e>an)throw new Error(`availability nests deeper than ${an} at ${r}`);if(!(t===null||typeof t=="boolean")){if(typeof t=="number"){if(!Number.isFinite(t)||Math.abs(t)>Number.MAX_SAFE_INTEGER)throw new Error(`availability number out of range at ${r}`);return}if(typeof t=="string"){if(t.length>Si)throw new Error(`availability string too long at ${r}`);return}if(Array.isArray(t)){if(t.length>Ei)throw new Error(`availability array too long at ${r}`);t.forEach((o,n)=>Tr(o,e+1,`${r}[${n}]`));return}if(typeof t=="object"&&Object.getPrototypeOf(t)===Object.prototype){let o=Object.keys(t);if(o.length>wi)throw new Error(`availability object too wide at ${r}`);for(let n of o){if(!/^[\x21-\x7e]{1,128}$/.test(n)||Ai.has(n))throw new Error(`availability key not allowed at ${r}`);Tr(t[n],e+1,`${r}.${n}`)}return}throw new Error(`availability holds a non-JSON value at ${r}`)}}function dn(t,e=null){if(typeof t!="string"||!t.length||v.byteLength(t)>Ir)throw new Error(`availability must be JSON text of at most ${Ir} bytes`);let r;try{r=JSON.parse(t)}catch{throw new Error("availability is not JSON")}if(!r||typeof r!="object"||Array.isArray(r))throw new Error("availability must be a JSON object");Tr(r,0,"availability");for(let o of mi)if(o in r&&!(typeof r[o]=="number"&&r[o]>=0&&r[o]<=1))throw new Error(`availability.${o} must be a share in 0..1`);for(let o of bi)if(o in r&&r[o]!==null&&!(typeof r[o]=="number"&&r[o]>=0))throw new Error(`availability.${o} must be a non-negative number`);for(let o of gi)if(o in r&&!(Number.isSafeInteger(r[o])&&r[o]>=0))throw new Error(`availability.${o} must be a non-negative integer`);for(let o of yi)if(o in r&&typeof r[o]!="boolean")throw new Error(`availability.${o} must be a boolean`);if("type"in r&&!["gpu","cpu"].includes(r.type))throw new Error("availability.type must be gpu or cpu");if("updatedAt"in r){let o=typeof r.updatedAt=="string"&&/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,3})?Z$/.test(r.updatedAt)?Date.parse(r.updatedAt):NaN;if(!Number.isFinite(o))throw new Error("availability.updatedAt must be an ISO time");if(e&&(o>e.issuedAt+fn||o<e.issuedAt-he))throw new Error("availability.updatedAt is outside the record's lifetime: a stale document cannot be re-signed as fresh")}return r}function ln(t,e=Date.now()){if(!t||typeof t!="object"||Array.isArray(t)||Object.keys(t).length!==sn.length||sn.some(r=>!Object.hasOwn(t,r)))throw new Error("a host capacity record has exactly its fields");if(t.version!==1||t.kind!==cn)throw new Error("unsupported host capacity record");if(!Number.isSafeInteger(t.chainId)||t.chainId<=0||!nn.test(t.registry||"")||!nn.test(t.operator||"")||/^0x0{40}$/.test(t.operator))throw new Error("a host capacity record names its chain, registry and operator (lowercase)");if(typeof t.endpoint!="string"||!/^https:\/\/[^\s/?#@]+(\/[^\s?#]*)?$/.test(t.endpoint)||t.endpoint.length>512||!xi.test(t.hostId||""))throw new Error("a host capacity record names its registered https endpoint and hostId = keccak256(endpoint)");if(![t.sequence,t.issuedAt,t.expiresAt].every(Number.isSafeInteger)||t.sequence<1||t.sequence>t.issuedAt||t.expiresAt<=t.issuedAt||t.expiresAt-t.issuedAt>he)throw new Error(`a host capacity record lives at most ${he/6e4} minutes, and its sequence never runs ahead of its issue time`);if(t.issuedAt>e+fn)throw new Error("a host capacity record issued in the future");if(t.expiresAt<=e)throw Object.assign(new Error("host capacity record expired"),{expired:!0});return{record:t,availability:dn(t.availabilityJson,t)}}var hn=t=>ut(ct(String(t)));function pn(t,e=Date.now()){let r=ln(t,e);if(t.hostId!==hn(t.endpoint))throw new Error("a host capacity record names its registered https endpoint and hostId = keccak256(endpoint)");return r}async function vi(t,{pins:e,entry:r,now:o=Date.now()}){if(!t||typeof t!="object"||Object.keys(t).sort().join(",")!=="record,signature")throw new Error("a host capacity envelope is exactly { record, signature }");let{record:n,availability:i}=pn(t.record,o);if(n.chainId!==e.chainId||n.registry!==String(e.registry).toLowerCase())throw new Error("the record is for another chain or registry");if(typeof t.signature!="string"||!/^0x[0-9a-fA-F]{130}$/.test(t.signature))throw new Error("the record carries no signature");let s;try{s=(await Br({message:un(n),signature:t.signature})).toLowerCase()}catch{throw new Error("the signature does not recover")}if(s!==n.operator)throw new Error("the record is not signed by its operator");if(!r)throw new Error("the host is not in the pinned registry");if(r.endpoint!==n.endpoint)throw new Error("the registry names another endpoint for this host");if(String(r.operator).toLowerCase()!==s)throw new Error("the signer is not the host's current registry operator");if(r.active!==!0)throw new Error("the host is not active in the registry");return{record:n,availability:i,signer:s}}var Hr=class t{constructor(){this.floors=new Map}check(e){let r=this.floors.get(`${e.hostId}|${e.operator}`);if(!r)return"accept";if(e.sequence<r.sequence)throw Object.assign(new Error("an older host capacity record than one already seen (replay)"),{stale:!0});if(e.sequence===r.sequence){if(r.hash!==Yt(e))throw Object.assign(new Error("two different records with one sequence (equivocation)"),{equivocation:!0});return"same"}return"accept"}record(e){let r=`${e.hostId}|${e.operator}`,o=this.floors.get(r);for((!o||e.sequence>o.sequence)&&this.floors.set(r,{sequence:e.sequence,hash:Yt(e)});this.floors.size>65536;)this.floors.delete(this.floors.keys().next().value)}toJSON(){return Object.fromEntries(this.floors)}static from(e){let r=new t;for(let[o,n]of Object.entries(e||{}))Number.isSafeInteger(n?.sequence)&&/^[0-9a-f]{64}$/.test(n?.hash||"")&&r.floors.set(o,n);return r}};function Bi(t){let e=null,r=!1;for(let o of t){let n=o.verified.record;if(!e||n.sequence>e.verified.record.sequence){e=o,r=!1;continue}n.sequence===e.verified.record.sequence&&Yt(n)!==Yt(e.verified.record)&&(r=!0)}return r?{equivocation:!0}:e}var j=t=>typeof t=="number"&&Number.isFinite(t)?t:0,pe=t=>j(t.gpuShareFree??(t.gpu?t.maxShare??0:0)),qe=t=>j(t.cpuShareFree??(t.gpu?0:t.maxShare??0));function Ii(t,{unknown:e=0}={}){let r=t.filter(u=>u.availability.claimEnabled===!0),o=(u,l)=>u.slice().sort((y,b)=>l(b.availability)-l(y.availability))[0]||null,n=o(r.filter(u=>u.availability.gpu===!0),pe),i=o(r,qe),s=o(r.filter(u=>u.availability.gpu!==!0&&u.availability.shielded&&typeof u.availability.shielded=="object"),pe),c=n?.availability||null,a=i?.availability||null,f=(u,l)=>Math.round(u.reduce((y,b)=>y+j(b.availability[l]),0)*10)/10;return{aggregate:!0,selfReported:!0,enclaves:t.length,claiming:r.length,unknown:e,gpu:!!c,type:c?"gpu":"cpu",gpuShareFree:c?pe(c):0,cpuShareFree:a?qe(a):0,gpuEnclaveCpuShareFree:c?qe(c):0,maxShare:c?pe(c):a?qe(a):0,vramFreeGb:c?j(c.vramFreeGb):0,gpuTflopsFree:c?j(c.gpuTflopsFree):0,smFree:c?j(c.smFree):0,smTotal:c?j(c.smTotal):0,cardVramGb:c?j(c.cardVramGb):0,cardTflops:c?j(c.cardTflops):0,cards:c?j(c.cards):0,vcpusFree:a?j(a.vcpusFree):0,ramGbFree:a?j(a.ramGbFree):0,cpuGflopsFree:a?j(a.cpuGflopsFree):0,nodeVcpus:a?j(a.nodeVcpus):0,nodeRamGb:a?j(a.nodeRamGb):0,nodeGflops:a?j(a.nodeGflops):0,shielded:s?{gpuShareFree:pe(s.availability),host:s.hostId,tier:s.availability.tier??null,vramGb:j(s.availability.shielded.vramGb),hostExcluded:!1}:null,totals:{vcpusFree:f(r,"vcpusFree"),ramGbFree:f(r,"ramGbFree"),vramFreeGb:f(r.filter(u=>u.availability.gpu===!0),"vramFreeGb")},bestGpuHost:n?.hostId??null,bestCpuHost:i?.hostId??null}}export{Hr as CapacityFloors,he as HOST_CAPACITY_MAX_MS,Ii as aggregateCapacity,Bi as chooseRecord,Yt as hostCapacityHash,hn as hostIdOf,pn as validateHostCapacityRecord,vi as verifyHostCapacity};
++/*! Bundled license information:
++
++@noble/hashes/esm/utils.js:
++  (*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) *)
++
++@noble/curves/esm/abstract/utils.js:
++@noble/curves/esm/abstract/modular.js:
++@noble/curves/esm/abstract/curve.js:
++@noble/curves/esm/abstract/weierstrass.js:
++@noble/curves/esm/_shortw_utils.js:
++@noble/curves/esm/secp256k1.js:
++  (*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) *)
++*/
+--- a/test/browser-profile.test.mjs
++++ b/test/browser-profile.test.mjs
+@@ -99,6 +99,14 @@
+     await assert.rejects(bookLedgerHistory({clients,book,fromBlock:1000n,toBlock:4200n,current,span:1000n}),re);
+ });
+ 
++test("--capacity-directory: optional HTTPS mirrors of signed capacity records, carried into the profile", () => {
++  const args={authorityBytes,expectDigest:digest,expectPins:pins,rpcs};
++  assert.equal(parseBrowserProfile(convert(args).text).capacityDirectories.length,0);
++  const p=parseBrowserProfile(convert({...args,capacityDirectories:["https://mirror-a.example","https://mirror-b.example"]}).text);
++  assert.deepEqual([...p.capacityDirectories],["https://mirror-a.example","https://mirror-b.example"]);
++  assert.throws(()=>convert({...args,capacityDirectories:["http://mirror.example"]}),/HTTPS/);
++});
++
+ test("--verify-chain in address-book mode: every RPC must bind the original factory to this book, USDC and the pinned entries", async () => {
+   const addressBook="0xab214342d5a490150a4a977063a2f88e21f80907";
+   const browser=convert({authorityBytes,expectDigest:digest,expectPins:pins,rpcs,addressBook}).browser,c=browser.contractPins.contracts;
+--- a/test/helpers/independent-browser-rig.mjs
++++ b/test/helpers/independent-browser-rig.mjs
+@@ -62,13 +62,16 @@
+   "access-control-allow-headers": "content-type, range, cache-control, x-upload-address, x-upload-expiry, x-upload-sha256, x-upload-signature, x-upload-scheme, x-upload-nonce",
+   "access-control-expose-headers": "content-range, content-length" };
+ 
+-export async function startRig({ log = () => {}, legacySessionFactory = false } = {}){
++// pastSec > 0: the chain starts that many seconds in the past (everything the rig registers has an OLD registry lastSeen);
++// call jumpToNow() before a page reads it, so the agreed block is current again
++export async function startRig({ log = () => {}, legacySessionFactory = false, pastSec = 0 } = {}){
+   const stops = [];
+   const stop = async () => { for (const f of stops.reverse()) { try { await f(); } catch {} } };
+   try {
+     // ---- chain + contracts ----
+     const anvilPort = await freePort();
+-    const anvil = spawn("anvil", ["--port", String(anvilPort), "--chain-id", "8453", "--silent", "--base-fee", "0", "--gas-price", "0"], { stdio: "ignore" });
++    const anvil = spawn("anvil", ["--port", String(anvilPort), "--chain-id", "8453", "--silent", "--base-fee", "0", "--gas-price", "0",
++      ...(pastSec > 0 ? ["--timestamp", String(Math.floor(Date.now() / 1000) - pastSec)] : [])], { stdio: "ignore" });
+     stops.push(() => anvil.kill("SIGKILL"));
+     const rpc = `http://127.0.0.1:${anvilPort}`;
+     const pc = createPublicClient({ chain, transport: viemHttp(rpc) });
+@@ -268,7 +271,11 @@
+       await write(dep, next, A.ledger.abi, "importEarn", [records.map((r) => r.id), rates]);
+       return next;
+     };
+-    return { stop, rpc, pc, wc, write, deployCatalog: () => deploy(A.catalog), deployLedger, migrateLedger,
++    const jumpToNow = async () => {
++      await pc.request({ method: "evm_setNextBlockTimestamp", params: [Math.floor(Date.now() / 1000)] });
++      await pc.request({ method: "evm_mine", params: [] });
++    };
++    return { stop, rpc, pc, wc, write, deployCatalog: () => deploy(A.catalog), deployLedger, migrateLedger, jumpToNow,
+       abi: { ledger: ledgerAbi, registry: A.registry.abi, catalog: A.catalog.abi, usdc: A.usdc.abi, factory: A.factory.abi, feed: A.feed.abi, book: A.book?.abi },
+       addresses: { usdc, registry, ledger, catalog, router, factory, feed, book }, owner, operator, endpoint, endpoint2,
+       site: `http://localhost:${sport}`, profile, rpcModes, adapterModes, held, uploads, directory, directoryUrl: `http://127.0.0.1:${dport}` };
+--- /dev/null
++++ b/test/site-host-liveness.test.mjs
+@@ -0,0 +1,249 @@
++// The independent dashboard's off-chain host liveness (site/js/core/host-liveness.js): the SHARED rule
++// (network/host-liveness.mjs, imported by the site itself) over operator-signed host capacity records verified in the page
++// by the COMMITTED same-origin bundle (site/vendor/host-capacity.js = network/host-capacity.mjs and its imports, unmodified,
++// with two reviewed shims). Records are signed here by throwaway keys generated for the test. Scripted fetch, no browser.
++//   run: node --test test/site-host-liveness.test.mjs
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import { createHash } from "node:crypto";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
++import * as NodeCap from "../network/host-capacity.mjs";
++import { hostLiveness } from "../network/host-liveness.mjs";
++import { canonical } from "../network/canonical.mjs";
++import { buildHostCapacityVendor } from "../scripts/build-host-capacity-vendor.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const REGISTRY = "0x" + "11".repeat(20), OTHER_REGISTRY = "0x" + "12".repeat(20);
++const profile = { format: "enclave-browser-profile", version: 1, chainId: 8453, rpcs: ["https://a.example", "https://b.example"], quorum: 2,
++  capacityDirectories: ["https://mirror.example"],
++  contractPins: { version: 1, chainId: 8453, contracts: { registry: REGISTRY, deployments: "0x" + "22".repeat(20), appCatalog: "0x" + "33".repeat(20),
++    proofOfTime: "0x" + "44".repeat(20), enclavePay: "0x" + "00".repeat(20), verificationFees: "0x" + "00".repeat(20),
++    sessionVaultFactory: "0x" + "00".repeat(20), secretVaultV2: "0x" + "00".repeat(20) } }, usdc: "0x" + "66".repeat(20) };
++const mem = (m = new Map()) => ({ getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) });
++const text = JSON.stringify(profile);
++globalThis.localStorage = mem(new Map([["enclave_independent_profile", text]]));
++globalThis.sessionStorage = mem(new Map([["enclave_independent_ack", text]]));
++globalThis.location = { hostname: "localhost" };
++
++const HL = await import(pathToFileURL(path.join(REPO, "site/js/core/host-liveness.js")).href);
++const IC = await import(pathToFileURL(path.join(REPO, "site/js/core/independent-chain.js")).href);
++const V = await import(pathToFileURL(path.join(REPO, "site/vendor/host-capacity.js")).href);   // what the page loads
++
++const NOW = Date.now(), CHAIN_NOW = Math.floor(NOW / 1000), OLD = CHAIN_NOW - 7200;
++const key = () => privateKeyToAccount(generatePrivateKey());
++const ops = { a: key(), b: key(), c: key(), d: key(), e: key(), f: key(), g: key(), h: key(), i: key(), j: key(), m: key() };
++const ep = (n) => `https://${n}.host.test`;
++const row = (n, { operator = ops[n].address, active = true, lastSeen = OLD, cpu = 100, gpu = 0, caps } = {}) =>
++  ({ endpoint: ep(n), operator: operator.toLowerCase(), active, lastSeen, cpuPricePerSec6: cpu, gpuPricePerSec6: gpu, payoutWallet: "0x" + "00".repeat(20), ...(caps !== undefined ? { caps } : {}) });
++const avail = JSON.stringify({ gpu: false, maxShare: 0.5, cpuShareFree: 0.5, claimEnabled: true });
++async function signed(n, { by = ops[n], endpoint = ep(n), registry = REGISTRY, chainId = 8453, operator = ops[n].address, sequence, issuedAt = NOW - 1000, lifetimeMs = 5 * 60_000 } = {}){
++  const record = NodeCap.buildHostCapacityRecord({ availability: avail, chainId, registry, endpoint, operator, sequence: sequence ?? issuedAt, now: issuedAt, lifetimeMs });
++  // sign with `by` (a forger signs with its own key over a record naming the real operator)
++  return { record, signature: await by.signMessage({ message: NodeCap.hostCapacityMessage(record) }) };
++}
++const ok = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
++/* a scripted network: url -> body | Error | "hang" */
++function net(map){
++  const asked = [];
++  const fetchImpl = async (url, init) => {
++    asked.push(url);
++    const v = map[url];
++    if (v === "hang") return new Promise((_, no) => init.signal.addEventListener("abort", () => no(Object.assign(new Error("aborted"), { name: "AbortError" }))));
++    if (v instanceof Error) throw v;
++    if (v === undefined) throw new TypeError("Failed to fetch");
++    return typeof v === "function" ? v() : ok(v);
++  };
++  return { fetchImpl, asked };
++}
++const snap = { number: 100, timestamp: CHAIN_NOW };
++const capUrl = (n) => ep(n) + "/v1/host/capacity";
++const MIRROR = "https://mirror.example/v1/host-capacity";
++
++test("the committed bundle is a fresh build of the unmodified reader sources; its shims equal Node", async () => {
++  const { js, manifest } = await buildHostCapacityVendor();
++  assert.equal(Buffer.compare(fs.readFileSync(path.join(REPO, "site/vendor/host-capacity.js")), js), 0, "site/vendor/host-capacity.js is stale: run node scripts/build-host-capacity-vendor.mjs");
++  const committed = JSON.parse(fs.readFileSync(path.join(REPO, "site/vendor/host-capacity.MANIFEST.json"), "utf8"));
++  assert.equal(committed.sha256, manifest.sha256);
++  for (const [p, v] of Object.entries(manifest.sources)) assert.equal(committed.sources[p]?.sha256, v.sha256, p);
++  assert.deepEqual(Object.keys(manifest.sources).sort(), ["network/canonical.mjs", "network/host-capacity-record.mjs",
++    "network/host-capacity.mjs", "scripts/host-capacity-vendor/buffer-shim.mjs", "scripts/host-capacity-vendor/node-crypto-shim.mjs"]);
++  // the request paths are the producer's own
++  const P = await import("../network/host-capacity-producer.mjs");
++  assert.equal(HL.HOST_CAPACITY_PATH, P.HOST_CAPACITY_PATH);
++  assert.equal(HL.DIRECTORY_CAPACITY_PATH, P.DIRECTORY_CAPACITY_PATH);
++  // sha256 floors hash: the bundle's equals Node's, including non-ASCII text
++  const env = await signed("a");
++  const r2 = { ...env.record, availabilityJson: JSON.stringify({ note: "ünïcode ☃ ✓", gpu: false }) };
++  for (const r of [env.record, r2]) assert.equal(V.hostCapacityHash(r), NodeCap.hostCapacityHash(r));
++  for (const r of [env.record, r2]) assert.equal(V.hostCapacityHash(r), createHash("sha256").update(canonical(r), "utf8").digest("hex"));
++  // the 32 KiB bound counts UTF-8 bytes in the bundle exactly as Buffer.byteLength does: 11000 snowmen = 33000 bytes
++  const big = { ...env.record, availabilityJson: JSON.stringify({ note: "☃".repeat(11000) }) };
++  assert.throws(() => NodeCap.validateHostCapacityRecord(big, NOW), /at most 32768 bytes/);
++  assert.throws(() => V.validateHostCapacityRecord(big, NOW), /at most 32768 bytes/);
++  // and the site imports the shared rule itself, not a copy
++  assert.match(fs.readFileSync(path.join(REPO, "site/js/core/host-liveness.js"), "utf8"), /from "\.\.\/\.\.\/\.\.\/network\/host-liveness\.mjs"/);
++  assert.doesNotMatch(fs.readFileSync(path.join(REPO, "site/js/core/host-liveness.js"), "utf8"), /node:crypto|from "crypto"/);
++});
++
++test("a healthy host with an OLD registry lastSeen and a fresh verified record is live and quotable; HTTP 200 alone is not", async () => {
++  const hosts = [row("a"), row("g")];
++  const n = net({ [capUrl("a")]: await signed("a"), [capUrl("g")]: { gpu: false, maxShare: 1 }, [MIRROR]: { records: [] } });
++  HL._setForTests({ vendorModule: V, fetchImpl: n.fetchImpl });
++  const ev = await HL.capacityEvidence(snap, hosts, { registry: REGISTRY, chainId: 8453 });
++  const idA = NodeCap.hostIdOf(ep("a")), idG = NodeCap.hostIdOf(ep("g"));
++  assert.equal(ev.byHost.get(idA).status, "verified");
++  assert.match(ev.byHost.get(idG).reason, /exactly \{ record, signature \}/, "an unsigned availability answer is refused");
++  const q = IC.quoteHosts(hosts, { chainNow: CHAIN_NOW, gpuMilli: 0, cpuMilli: 100, rev: 16, evidence: ev });
++  const a = q.hosts.find((h) => h.endpoint === ep("a")), g = q.hosts.find((h) => h.endpoint === ep("g"));
++  assert.equal(a.eligible, true);
++  assert.equal(a.liveness.evidence, "signed-record");
++  assert.equal(a.registryLastSeen, OLD);
++  assert.equal(a.lastSeen, Math.floor((NOW - 1000) / 1000), "lastSeen is when liveness was last authenticated");
++  assert.equal(g.eligible, false);
++  assert.match(g.reason, /no fresh authenticated liveness.*signed capacity record refused/);
++  // without the evidence only the (old) registry write counts: not live
++  assert.equal(IC.quoteHosts(hosts, { chainNow: CHAIN_NOW, gpuMilli: 0, cpuMilli: 100, rev: 16 }).eligibleCount, 0);
++  // the browser's liveHosts is the shared rule
++  assert.deepEqual(IC.liveHosts(hosts, CHAIN_NOW, { evidence: ev }).map((h) => h.endpoint), [ep("a")]);
++  assert.equal(hostLiveness({ operator: a.operator, active: true, lastSeen: OLD }, { nowMs: Date.now(), chainNowSec: CHAIN_NOW, signedUntilMs: ev.signedUntil.get(idA) }).evidence, "signed-record");
++});
++
++test("forged, wrong-operator, wrong-endpoint, stale, other-chain and other-registry records are refused; inactive rows never become eligible", async () => {
++  const hosts = [row("b"), row("c", { operator: ops.h.address }), row("d"), row("e"), row("f", { active: false }), row("i"), row("j")];
++  const n = net({
++    [capUrl("b")]: await signed("b", { by: ops.m }),                                          // forged: signed by another key
++    [capUrl("c")]: await signed("c"),                                                         // the registry names another operator
++    [capUrl("d")]: await signed("d", { endpoint: "https://elsewhere.host.test" }),            // a record for another endpoint
++    [capUrl("e")]: await signed("e", { issuedAt: NOW - 20 * 60_000, lifetimeMs: 10 * 60_000 }),   // expired
++    [capUrl("f")]: await signed("f"),                                                         // valid, but the row is inactive
++    [capUrl("i")]: await signed("i", { chainId: 1 }),
++    [capUrl("j")]: await signed("j", { registry: OTHER_REGISTRY }),
++    [MIRROR]: { records: [await signed("f")] },
++  });
++  HL._setForTests({ vendorModule: V, fetchImpl: n.fetchImpl });
++  const ev = await HL.capacityEvidence(snap, hosts, { registry: REGISTRY, chainId: 8453 });
++  const why = (k) => ev.byHost.get(NodeCap.hostIdOf(ep(k)))?.reason || "";
++  assert.match(why("b"), /not signed by its operator/);
++  assert.match(why("c"), /not the host's current registry operator/);
++  assert.match(why("d"), /another endpoint|hostId/);
++  assert.match(why("e"), /expired/);
++  assert.match(why("i"), /another chain or registry/);
++  assert.match(why("j"), /another chain or registry/);
++  assert.equal(ev.byHost.has(NodeCap.hostIdOf(ep("f"))), false, "an inactive row is not even read");
++  assert.ok(!n.asked.includes(capUrl("f")));
++  assert.equal(ev.signedUntil.size, 0);
++  const q = IC.quoteHosts(hosts, { chainNow: CHAIN_NOW, gpuMilli: 0, cpuMilli: 100, rev: 16, evidence: ev });
++  assert.equal(q.eligibleCount, 0);
++  assert.ok(!q.hosts.some((h) => h.endpoint === ep("f")), "inactive registrations are not offered");
++  // admission is never relaxed by evidence: an inactive row with a recent registry write AND a verified record stays out
++  const fake = { signedUntil: new Map([[NodeCap.hostIdOf(ep("f")), NOW + 60_000]]), byHost: new Map() };
++  assert.equal(IC.liveHosts([row("f", { active: false, lastSeen: CHAIN_NOW })], CHAIN_NOW, { evidence: fake }).length, 0);
++  assert.equal(IC.liveHosts([row("f", { caps: 2, lastSeen: CHAIN_NOW })], CHAIN_NOW, { evidence: fake }).length, 0, "the capability filter stays");
++});
++
++test("an address-book repoint or a re-registration under another operator invalidates a cached record at the next snapshot", async () => {
++  const env = await signed("a", { issuedAt: NOW - 500 });
++  const n = net({ [capUrl("a")]: env, [MIRROR]: { records: [] } });
++  HL._setForTests({ vendorModule: V, fetchImpl: n.fetchImpl });
++  const id = NodeCap.hostIdOf(ep("a"));
++  assert.equal((await HL.capacityEvidence(snap, [row("a")], { registry: REGISTRY, chainId: 8453 })).byHost.get(id).status, "verified");
++  // the book now names another registry: the same (cached) record is for the old binding
++  const moved = await HL.capacityEvidence({ ...snap, number: 101 }, [row("a")], { registry: OTHER_REGISTRY, chainId: 8453 });
++  assert.match(moved.byHost.get(id).reason, /another chain or registry/);
++  assert.equal(moved.signedUntil.size, 0);
++  // the host re-registered under another operator
++  const reop = await HL.capacityEvidence({ ...snap, number: 102 }, [row("a", { operator: ops.h.address })], { registry: REGISTRY, chainId: 8453 });
++  assert.match(reop.byHost.get(id).reason, /not the host's current registry operator/);
++  // and deactivated: not read, not live
++  const off = await HL.capacityEvidence({ ...snap, number: 103 }, [row("a", { active: false })], { registry: REGISTRY, chainId: 8453 });
++  assert.equal(off.byHost.size, 0);
++  assert.equal(IC.liveHosts([row("a", { active: false })], CHAIN_NOW, { evidence: off }).length, 0);
++});
++
++test("replay of an older record and equivocation (two records, one sequence) are refused per host and operator", async () => {
++  const newer = await signed("a", { sequence: NOW - 100, issuedAt: NOW - 100 }), older = await signed("a", { sequence: NOW - 2000, issuedAt: NOW - 2000 });
++  let serve = newer;
++  const n = net({ [capUrl("a")]: () => ok(serve), [MIRROR]: { records: [] } });
++  HL._setForTests({ vendorModule: V, fetchImpl: n.fetchImpl, limits: { REFRESH_MS: 0 } });
++  const id = NodeCap.hostIdOf(ep("a"));
++  assert.equal((await HL.capacityEvidence(snap, [row("a")])).byHost.get(id).status, "verified");
++  serve = older;
++  const replay = await HL.capacityEvidence(snap, [row("a")]);
++  assert.match(replay.byHost.get(id).reason, /older host capacity record than one already seen \(replay\)/);
++  // equivocation: the host and a mirror present different records with one sequence
++  const s = NOW - 50;
++  const one = await signed("a", { sequence: s, issuedAt: s }), two = { ...(await signed("a", { sequence: s, issuedAt: s })) };
++  const twoRec = NodeCap.buildHostCapacityRecord({ availability: JSON.stringify({ gpu: false, maxShare: 0.1, claimEnabled: true }), chainId: 8453, registry: REGISTRY,
++    endpoint: ep("a"), operator: ops.a.address, sequence: s, now: s });
++  two.record = twoRec; two.signature = await ops.a.signMessage({ message: NodeCap.hostCapacityMessage(twoRec) });
++  const n2 = net({ [capUrl("a")]: one, [MIRROR]: { records: [two] } });
++  HL._setForTests({ vendorModule: V, fetchImpl: n2.fetchImpl, limits: { REFRESH_MS: 0 } });
++  const eq = await HL.capacityEvidence(snap, [row("a")]);
++  assert.equal(eq.byHost.get(id).status, "equivocation");
++  assert.equal(eq.signedUntil.size, 0);
++});
++
++test("independent sources: a host outage is reported (not 'no capacity'); a mirror's verified copy keeps the host live; no mirror is required", async () => {
++  const id = NodeCap.hostIdOf(ep("a")), idB = NodeCap.hostIdOf(ep("b"));
++  // host a is down, the mirror has its record; host b is down with no record anywhere but a recent registry write
++  const n = net({ [capUrl("a")]: new TypeError("Failed to fetch"), [capUrl("b")]: new TypeError("Failed to fetch"),
++    [MIRROR]: { records: [await signed("a"), await signed("f")] } });
++  HL._setForTests({ vendorModule: V, fetchImpl: n.fetchImpl });
++  const hosts = [row("a"), row("b", { lastSeen: CHAIN_NOW - 60 })];
++  const ev = await HL.capacityEvidence(snap, hosts);
++  assert.equal(ev.byHost.get(id).status, "verified");
++  assert.equal(ev.byHost.get(id).from, "https://mirror.example");
++  assert.equal(ev.byHost.get(idB).status, "unreachable");
++  assert.match(HL.evidenceNote(ev), /1 host endpoint\(s\) did not answer/);
++  const q = IC.quoteHosts(hosts, { chainNow: CHAIN_NOW, gpuMilli: 0, cpuMilli: 100, rev: 16, evidence: ev });
++  assert.deepEqual(q.hosts.filter((h) => h.eligible).map((h) => [h.endpoint, h.liveness.evidence]).sort(),
++    [[ep("a"), "signed-record"], [ep("b"), "registry-update"]], "the registry write still counts while records are unreachable");
++  // the mirror down too: hosts with records only from the mirror lose signed evidence, and it says so
++  const n2 = net({ [capUrl("a")]: new TypeError("Failed to fetch"), [MIRROR]: new TypeError("Failed to fetch") });
++  HL._setForTests({ vendorModule: V, fetchImpl: n2.fetchImpl });
++  const ev2 = await HL.capacityEvidence(snap, [row("a")]);
++  assert.equal(ev2.byHost.get(id).status, "unreachable");
++  assert.match(HL.evidenceNote(ev2), /mirror\.example.*Failed to fetch/);
++  const q2 = IC.quoteHosts([row("a")], { chainNow: CHAIN_NOW, gpuMilli: 0, cpuMilli: 100, rev: 16, evidence: ev2 });
++  assert.match(q2.hosts[0].reason, /capacity record unavailable: Failed to fetch/);
++});
++
++test("bounded: a hanging host times out, the call ends within its total budget, overflow beyond MAX_HOSTS is reported", async () => {
++  const names = Array.from({ length: 12 }, (_, i) => "h" + i);
++  for (const nm of names) ops[nm] = key();
++  const map = { [MIRROR]: "hang" };
++  for (const nm of names) map[capUrl(nm)] = "hang";
++  const n = net(map);
++  HL._setForTests({ vendorModule: V, fetchImpl: n.fetchImpl, limits: { MAX_HOSTS: 8, CONCURRENCY: 3, REQUEST_TIMEOUT_MS: 200, TOTAL_MS: 500 } });
++  const t0 = Date.now();
++  const ev = await HL.capacityEvidence(snap, names.map((nm) => row(nm)));
++  const took = Date.now() - t0;
++  assert.ok(took < 1500, "finished in " + took + " ms");
++  assert.equal(ev.limited, 4);
++  assert.equal(ev.complete, false);
++  assert.ok(n.asked.filter((u) => u.endsWith("/v1/host/capacity")).length <= 8, "at most MAX_HOSTS host reads");
++  const st = [...ev.byHost.values()].map((b) => b.status);
++  assert.ok(st.every((s) => s === "unreachable" || s === "unchecked"), JSON.stringify(st));
++  assert.ok(st.includes("unchecked"), "the budget, not each request's timeout, ended the call");
++  assert.match(HL.evidenceNote(ev), /beyond 8 were not read/);
++});
++
++test("the profile names capacity mirrors as bare origins (at most 8); none is required", async () => {
++  const { validateProfile } = await import(pathToFileURL(path.join(REPO, "site/js/core/independent.js")).href);
++  assert.deepEqual([...validateProfile(profile).capacityDirectories], ["https://mirror.example"]);
++  assert.deepEqual([...validateProfile({ ...profile, capacityDirectories: undefined }).capacityDirectories], []);
++  for (const bad of [["http://mirror.example"], ["https://mirror.example/v1"], ["https://u:p@mirror.example"], "https://mirror.example",
++    Array.from({ length: 9 }, (_, i) => "https://m" + i + ".example")])
++    assert.throws(() => validateProfile({ ...profile, capacityDirectories: bad }), /capacity ?director/i, JSON.stringify(bad));
++});
++
++test("an oversized answer is refused without reading it all", async () => {
++  const huge = "x".repeat(70 * 1024);
++  const n = net({ [capUrl("a")]: () => new Response(huge, { status: 200 }), [MIRROR]: { records: [] } });
++  HL._setForTests({ vendorModule: V, fetchImpl: n.fetchImpl });
++  const ev = await HL.capacityEvidence(snap, [row("a")]);
++  assert.match(ev.byHost.get(NodeCap.hostIdOf(ep("a"))).reason, /larger than 65536 bytes/);
++});
+--- a/test/site-independent-bundle.test.mjs
++++ b/test/site-independent-bundle.test.mjs
+@@ -21,8 +21,11 @@
+       external: ["https://*", "/vendor/*"], platform: "browser", logLevel: "silent", metafile: true });
+     assert.deepEqual(result.errors, []);
+     const inputs = Object.keys(result.metafile.inputs);
+-    for (const m of ["independent.js", "quorum.js", "independent-chain.js", "storage-plan.js", "unixfs.js", "startup-package.js", "independent-ui.js"])
++    for (const m of ["independent.js", "quorum.js", "independent-chain.js", "storage-plan.js", "unixfs.js", "startup-package.js", "independent-ui.js", "host-liveness.js"])
+       assert.ok(inputs.some((i) => i.endsWith("site/js/core/" + m)), m + " is part of the bundle graph");
++    // the shared liveness rule itself (not a copy) is bundled; the record verifier stays the same-origin /vendor bundle
++    assert.ok(inputs.some((i) => i.endsWith("network/host-liveness.mjs")), "network/host-liveness.mjs is part of the bundle graph");
++    assert.ok(!inputs.some((i) => /network\/host-capacity(-record)?\.mjs$/.test(i)), "the record reader is loaded from /vendor/host-capacity.js, not bundled into the pages");
+     assert.ok(!inputs.some((i) => /^node:|sdk\/(storage|bootstrap)\//.test(i)), "no Node-only SDK module reaches the browser bundle");
+     const text = fs.readdirSync(out, { recursive: true }).filter((f) => f.endsWith(".js"))
+       .map((f) => fs.readFileSync(path.join(out, f), "utf8")).join("\n");
+--- /dev/null
++++ b/test/site-independent-offchain-liveness.test.mjs
+@@ -0,0 +1,185 @@
++// Off-chain host liveness in the real dashboard (Chromium): the original-style factory and address-book profile on a local
++// chain whose hosts all registered two hours ago (old registry lastSeen; nothing heartbeats). Each host's own
++// GET <endpoint>/v1/host/capacity and one capacity mirror are answered by the test (Playwright routes; the endpoints are
++// the registered names), with records signed by the hosts' anvil fixture keys - never production keys.
++//   A  fresh record from the host itself                     -> live, listed and selectable (old lastSeen notwithstanding)
++//   B  host unreachable, its record from the mirror           -> live (no single source required)
++//   C  signed by a key that is not the registered operator  -> refused
++//   D  forged (names the operator, another key signed)       -> refused
++//   E  a record for another endpoint                          -> refused
++//   F  expired                                                -> refused
++//   G  fresh record, then the operator deregisters on chain  -> listed, then gone (status change)
++// Then the mirror goes down (B is reported as an outage, not "no capacity") and finally A hangs: the dialog still completes
++// within its bound and says the hosts could not be confirmed live.
++//   node test/helpers/memory-guard.mjs --max-rss-mib 1408 --floor-available-mib 16384 -- node --test test/site-independent-offchain-liveness.test.mjs
++import test from "node:test";
++import assert from "node:assert/strict";
++import { createRequire } from "node:module";
++import { stringToHex } from "viem";
++import { privateKeyToAccount } from "viem/accounts";
++import { startRig, haveTools, walletScript, KEYS } from "./helpers/independent-browser-rig.mjs";
++import { buildHostCapacityRecord, signHostCapacity, hostCapacityMessage } from "../network/host-capacity.mjs";
++
++const require = createRequire(new URL("../e2e/package.json", import.meta.url));
++let chromium; try { ({ chromium } = require("playwright")); } catch {}
++const skip = haveTools() || (!chromium && "Playwright unavailable");
++const ADMIN = KEYS.deployer;   // anvil #0: the platform administrator of this local chain
++// public anvil fixture accounts #5..#9 (never production keys): the extra hosts' operators
++const FIX = ["0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba", "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
++  "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356", "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
++  "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6"];
++const MIRROR = "https://mirror.liveness.test";
++const PAST = 7200;
++
++test("signed off-chain liveness in the dashboard: verified records list old-lastSeen hosts; every bad record, inactive row and outage is told apart", { skip: skip || false, timeout: 420000 }, async () => {
++  let rig, browser;
++  const forbidden = [], asked = [];
++  try {
++    rig = await startRig({ legacySessionFactory: true, pastSec: PAST });
++    rig.profile.addressBook = rig.addresses.book;
++    rig.profile.capacityDirectories = [MIRROR];
++    const admin = rig.wc(ADMIN), reg = rig.addresses.registry.toLowerCase();
++    // the extra hosts register now - still two hours ago on this chain
++    const [kC, kD, kE, kF, kG] = FIX.map((k) => privateKeyToAccount(k));
++    const ep = { A: rig.endpoint, B: rig.endpoint2, C: "https://wrong-operator.liveness.test", D: "https://forged.liveness.test",
++      E: "https://wrong-endpoint.liveness.test", F: "https://stale.liveness.test", G: "https://leaving.liveness.test" };
++    for (const [k, e, price] of [[FIX[0], ep.C, 900n], [FIX[1], ep.D, 950n], [FIX[2], ep.E, 980n], [FIX[3], ep.F, 990n], [FIX[4], ep.G, 2000n]])
++      await rig.write(rig.wc(k), rig.addresses.registry, rig.abi.registry, "register", [e, "independent/host", "0x" + "00".repeat(32), price, 0n,
++        "0x0000000000000000000000000000000000000000"]);
++    // an app to open the quick-deploy dialog for (published and approved by the platform administrator)
++    await rig.write(admin, rig.addresses.catalog, rig.abi.catalog, "publishVersion", ["liveapp", "Live app", "Liveness fixture", "1",
++      "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy", [0, 0, 64, 1], "http:8080", "{}", 0n]);
++    const appId = await rig.pc.readContract({ address: rig.addresses.catalog, abi: rig.abi.catalog, functionName: "appIdOf", args: [admin.account.address, "liveapp"] });
++    await rig.write(admin, rig.addresses.catalog, rig.abi.catalog, "setApproval", [appId, 0n, 1]);
++    const lastSeenAtRegistration = Number((await rig.pc.getBlock()).timestamp);
++    await rig.jumpToNow();
++    assert.ok(Math.floor(Date.now() / 1000) - lastSeenAtRegistration > 3600, "every host's registry write is over an hour old");
++
++    // records, signed now by the hosts' fixture keys
++    const opA = privateKeyToAccount(KEYS.operator), opB = privateKeyToAccount(KEYS.operator2);
++    const avail = JSON.stringify({ gpu: false, maxShare: 1, cpuShareFree: 1, claimEnabled: true, vcpusFree: 4 });
++    const rec = (endpoint, operator, { issuedAt = Date.now(), lifetimeMs = 5 * 60_000 } = {}) =>
++      buildHostCapacityRecord({ availability: avail, chainId: 8453, registry: reg, endpoint, operator: operator.address, now: issuedAt, lifetimeMs });
++    const sign = (account, record) => signHostCapacity(account, record);
++    const forge = async (by, record) => ({ record, signature: await by.signMessage({ message: hostCapacityMessage(record) }) });
++    const served = new Map([
++      [ep.A + "/v1/host/capacity", await sign(opA, rec(ep.A, opA))],
++      [ep.B + "/v1/host/capacity", "abort"],
++      [MIRROR + "/v1/host-capacity", { records: [await sign(opB, rec(ep.B, opB))] }],
++      [ep.C + "/v1/host/capacity", await sign(kD, rec(ep.C, kD))],                         // signed by D's key; the registry names C's
++      [ep.D + "/v1/host/capacity", await forge(kE, rec(ep.D, kD))],                        // names D's operator, E signed
++      [ep.E + "/v1/host/capacity", await sign(kE, rec("https://elsewhere.liveness.test", kE))],
++      [ep.F + "/v1/host/capacity", await sign(kF, rec(ep.F, kF, { issuedAt: Date.now() - 20 * 60_000, lifetimeMs: 10 * 60_000 }))],
++      [ep.G + "/v1/host/capacity", await sign(kG, rec(ep.G, kG))],
++    ]);
++
++    browser = await chromium.launch({ args: ["--disable-gpu", "--disable-dev-shm-usage", "--renderer-process-limit=1", "--disable-extensions",
++      "--disable-features=site-per-process,IsolateOrigins,Translate,OptimizationHints,MediaRouter,AudioServiceOutOfProcess",
++      "--enable-features=NetworkServiceInProcess,NetworkServiceInProcess2", "--js-flags=--max-old-space-size=192"] });
++    const context = await browser.newContext({ ignoreHTTPSErrors: true, reducedMotion: "reduce" });
++    await context.route("**/*", (route) => {
++      const u = new URL(route.request().url());
++      if (["localhost", "127.0.0.1", "[::1]"].includes(u.hostname)) return route.continue();
++      const k = u.origin + u.pathname, v = served.get(k);
++      asked.push(k);
++      if (v === undefined){ forbidden.push(u.href); return route.abort(); }
++      if (v === "abort") return route.abort("connectionrefused");
++      if (v === "hang") return;                                   // never answered: only the page's own timeout ends it
++      return route.fulfill({ status: 200, headers: { "content-type": "application/json", "access-control-allow-origin": "*" }, body: JSON.stringify(v) });
++    });
++    await context.addInitScript(({ profile, address }) => {
++      const text = JSON.stringify(profile);
++      localStorage.setItem("enclave_independent_profile", text);
++      sessionStorage.setItem("enclave_independent_ack", text);
++      localStorage.setItem("enclave_session", JSON.stringify({ address, rdns: "test.local.wallet" }));
++    }, { profile: rig.profile, address: rig.owner });
++    await context.addInitScript({ content: walletScript({ rpc: rig.rpc, address: rig.owner }) });
++    const page = await context.newPage();
++    page.setDefaultTimeout(60000);
++    const pageErrors = []; page.on("pageerror", (e) => pageErrors.push(String(e && e.message || e)));
++
++    const quotes = () => page.evaluate(async () => {
++      const q = await (await import("/js/core/independent-chain.js")).independentQuotes({ gpuMilli: 0, cpuMilli: 100, owner: "" });
++      return { block: q.block, note: q.liveness.note, verified: q.liveness.verified, complete: q.liveness.complete,
++        hosts: q.hosts.map((h) => ({ endpoint: h.endpoint, eligible: h.eligible, reason: h.reason, evidence: h.liveness.evidence, source: h.liveness.source,
++          lastSeen: h.lastSeen, registryLastSeen: h.registryLastSeen })) };
++    });
++    const dialog = async () => {
++      const t0 = Date.now();
++      await page.goto(rig.site + "/apps?app=" + appId);
++      await page.locator('#appDetailView [data-act="deploy"]').first().click({ timeout: 60000 });
++      await page.waitForSelector(".qd-indhost", { timeout: 60000 });
++      const options = await page.locator(".qd-indhost option").allTextContents();
++      const warn = await page.locator(".qd-indev").textContent().catch(() => "");
++      const none = await page.locator(".qd-indnone").textContent().catch(() => "");
++      return { options, warn, none, ms: Date.now() - t0 };
++    };
++    const by = (q) => Object.fromEntries(q.hosts.map((h) => [h.endpoint, h]));
++    await page.goto(rig.site + "/dashboard");
++
++    // ---- 1. fresh records ----
++    let q = await quotes(), h = by(q);
++    for (const k of ["A", "B", "G"]){
++      assert.equal(h[ep[k]].eligible, true, k + ": " + h[ep[k]].reason);
++      assert.equal(h[ep[k]].evidence, "signed-record", k);
++      assert.ok(h[ep[k]].registryLastSeen <= lastSeenAtRegistration, k + " has the old registry lastSeen");
++      assert.ok(h[ep[k]].lastSeen > lastSeenAtRegistration + 3600, k + "'s lastSeen is the record's issue time");
++    }
++    assert.match(h[ep.C].reason, /not the host's current registry operator/);
++    assert.match(h[ep.D].reason, /not signed by its operator/);
++    assert.match(h[ep.E].reason, /another endpoint/);
++    assert.match(h[ep.F].reason, /expired/);
++    for (const k of ["C", "D", "E", "F"]) assert.equal(h[ep[k]].eligible, false, k);
++    assert.equal(h[ep.A].source, "host");
++    assert.equal(h[ep.B].source, MIRROR, "B's own endpoint is down; its record came from the mirror");
++    assert.equal(q.note, "", "nothing is missing: every admitted host's liveness was decided");
++    // the real dialog: exactly the live hosts, labelled by their evidence; host A selected
++    let d = await dialog();
++    const listed = (e) => d.options.some((o) => o.includes(e));
++    for (const k of ["A", "B", "G"]) assert.ok(listed(ep[k]), k + " listed: " + JSON.stringify(d.options));
++    for (const k of ["C", "D", "E", "F"]) assert.ok(!listed(ep[k]), k + " not listed");
++    assert.ok(d.options.filter((o) => o.includes("http")).every((o) => /live: signed record/.test(o)), JSON.stringify(d.options));
++    const idA = await page.locator(".qd-indhost option", { hasText: ep.A }).getAttribute("value");
++    await page.locator(".qd-indhost").selectOption(idA);
++    assert.equal(await page.locator(".qd-indhost").inputValue(), idA, "host A is selectable");
++    assert.match(await page.locator(".qd-capnote").textContent(), /live host\(s\) post a price at or under this ceiling/);
++    // direct-chain discovery (/enclaves shape) agrees
++    const rows = await page.evaluate(async () => (await (await import("/js/core/api.js")).Enclave.getEnclaves())
++      .map((r) => ({ endpoint: r.endpoint, serving: r.serving, evidence: r.liveness.evidence })));
++    const serving = rows.filter((r) => r.serving).map((r) => r.endpoint).sort();
++    assert.deepEqual(serving, [ep.A, ep.B, ep.G].sort());
++
++    // ---- 2. status change: G's operator deregisters (an on-chain status write); its still-valid record no longer counts ----
++    const gId = await rig.pc.readContract({ address: rig.addresses.registry, abi: rig.abi.registry, functionName: "idOf", args: [ep.G] });
++    await rig.write(rig.wc(FIX[4]), rig.addresses.registry, rig.abi.registry, "deregister", [gId]);
++    await rig.pc.request({ method: "evm_mine", params: [] });
++    q = await quotes(); h = by(q);
++    assert.equal(h[ep.G], undefined, "an inactive registration is not offered");
++    d = await dialog();
++    assert.ok(!d.options.some((o) => o.includes(ep.G)), "G is gone from the dialog");
++    assert.ok(d.options.some((o) => o.includes(ep.A)));
++
++    // ---- 3. the mirror goes down too: B is an outage, not "no capacity"; A is unaffected ----
++    served.set(MIRROR + "/v1/host-capacity", "abort");
++    d = await dialog();
++    assert.ok(!d.options.some((o) => o.includes(ep.B)), "B cannot be confirmed live");
++    assert.ok(d.options.some((o) => o.includes(ep.A)));
++    assert.match(d.warn, /Liveness evidence incomplete/);
++    assert.match(d.warn, /mirror\.liveness\.test/);
++    assert.match(d.warn, /did not answer/);
++    q = await quotes();
++    assert.match(by(q)[ep.B].reason, /capacity record unavailable/);
++
++    // ---- 4. A hangs: the page still completes within its bound and says why nothing is confirmed ----
++    served.set(ep.A + "/v1/host/capacity", "hang");
++    d = await dialog();
++    assert.ok(d.ms < 45000, "the dialog completed in " + d.ms + " ms");
++    assert.ok(!d.options.some((o) => o.includes("http")), "no host is confirmed live: " + JSON.stringify(d.options));
++    assert.match(d.none, /No host could be confirmed live/);
++    assert.match(d.warn, /did not answer/);
++
++    assert.deepEqual(pageErrors.filter((e) => !/ResizeObserver/.test(e)), []);
++    assert.deepEqual(forbidden, [], "only the registered hosts and the profile's mirror were contacted");
++    assert.ok(!asked.some((u) => /elsewhere\.liveness\.test/.test(u)), "a record's own claims never pick what is fetched");
++  } finally { await browser?.close(); await rig?.stop(); }
++});
+--- a/test/site-independent-review.test.mjs
++++ b/test/site-independent-review.test.mjs
+@@ -36,7 +36,7 @@
+ 
+ test("quotes are per host: a CPU-cheap/GPU-dear host and a GPU-cheap/CPU-dear host never combine into a price nobody offers", () => {
+   const hosts = [host("https://a.example", 100, 5000), host("https://b.example", 3000, 1000)];
+-  const q = IC.quoteHosts(hosts, { chainNow: 1000, gpuMilli: 500, cpuMilli: 100, rev: 16 });
++  const q = IC.quoteHosts(hosts, { chainNow: 1000, nowMs: 1000 * 1000, gpuMilli: 500, cpuMilli: 100, rev: 16 });
+   const totals = q.hosts.map((h) => h.rate6);
+   assert.deepEqual(totals, [800n, 2510n], "B: 1000*0.5 + 3000*0.1 = 800; A: 5000*0.5 + 100*0.1 = 2510");
+   assert.equal(q.defaultCap6, 800n);
+@@ -45,18 +45,18 @@
+   assert.equal(q.hosts[0].endpoint, "https://b.example");
+ });
+ 
+-test("eligibility: a GPU request needs a posted card price and a recent heartbeat; free-for-you hosts never set the default ceiling", () => {
++test("eligibility: a GPU request needs a posted card price and fresh authenticated liveness; free-for-you hosts never set the default ceiling", () => {
+   const owner = "0x" + "ab".repeat(20);
+   const hosts = [host("https://cpu-only.example", 50, 0), host("https://stale.example", 10, 10, { lastSeen: 1000 - 4000 }),
+     host("https://mine.example", 1, 1, { payoutWallet: owner }), host("https://gpu.example", 200, 2000), host("https://off.example", 5, 5, { active: false })];
+-  const q = IC.quoteHosts(hosts, { chainNow: 1000, gpuMilli: 100, cpuMilli: 100, owner, rev: 16 });
++  const q = IC.quoteHosts(hosts, { chainNow: 1000, nowMs: 1000 * 1000, gpuMilli: 100, cpuMilli: 100, owner, rev: 16 });
+   const by = Object.fromEntries(q.hosts.map((h) => [h.endpoint, h]));
+   assert.equal(by["https://cpu-only.example"].eligible, false); assert.match(by["https://cpu-only.example"].reason, /GPU/);
+-  assert.equal(by["https://stale.example"].eligible, false); assert.match(by["https://stale.example"].reason, /heartbeat/);
++  assert.equal(by["https://stale.example"].eligible, false); assert.match(by["https://stale.example"].reason, /no fresh authenticated liveness/);
+   assert.equal(by["https://mine.example"].free, true);
+   assert.ok(!("https://off.example" in by), "inactive registrations are not offered");
+   assert.equal(q.defaultCap6, (2000n * 100n + 200n * 100n + 999n) / 1000n, "the cheapest CHARGING eligible host");
+-  assert.equal(IC.quoteHosts(hosts, { chainNow: 1000, gpuMilli: 100, cpuMilli: 100, owner, rev: 11 }).hosts.some((h) => h.free), false, "pre-rev-12 ledgers never waive");
++  assert.equal(IC.quoteHosts(hosts, { chainNow: 1000, nowMs: 1000 * 1000, gpuMilli: 100, cpuMilli: 100, owner, rev: 11 }).hosts.some((h) => h.free), false, "pre-rev-12 ledgers never waive");
+ });
+ 
+ // ---- 2. resumable listing over a scripted ledger, ABI-encoded from the real artifact ----

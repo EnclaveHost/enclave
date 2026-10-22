@@ -1,0 +1,208 @@
+{
+  "results": [
+    {
+      "stage": "1-stock-v0.6.0-baseline",
+      "ok": true,
+      "seconds": 0.8,
+      "detail": {
+        "preflight": {
+          "checks": {
+            "secretModes": "ok",
+            "geoip": "ok",
+            "release": "42c77f3623cc953b69b94e4e7c936d92c30e35e2a69a46f2ce8284c79ae54e76",
+            "memAvailableMiB": 17421,
+            "swapMiB": 4095,
+            "diskFreeMiB": 448769
+          },
+          "ok": true,
+          "failures": []
+        },
+        "readiness": {
+          "adminState": 200,
+          "version": "2.0.0",
+          "network": "mainnet",
+          "dbVersion": 26,
+          "fenceRoute": 404,
+          "seqRoute": 404,
+          "ok": true
+        },
+        "identity": {
+          "accountKeyMatches": true,
+          "step": "identity"
+        },
+        "digestEqualsSeed": true
+      }
+    },
+    {
+      "stage": "2-quiesced-backup-and-restore-verify",
+      "ok": true,
+      "seconds": 1.0,
+      "detail": {
+        "backup": {
+          "ok": true,
+          "backup": "/home/steven/Documents/Codex/2026-10-18/wo/work/indexd-replica-rollout/fixture/node/backups/20261020T100530Z",
+          "dbVersion": 26
+        },
+        "verify": {
+          "ok": true,
+          "backup": "/home/steven/Documents/Codex/2026-10-18/wo/work/indexd-replica-rollout/fixture/node/backups/20261020T100530Z",
+          "restoredDbVersion": 26,
+          "digestMatches": true
+        }
+      }
+    },
+    {
+      "stage": "3-upgrade-to-fence-release",
+      "ok": true,
+      "seconds": 1.8,
+      "detail": {
+        "ok": true,
+        "backup": "/home/steven/Documents/Codex/2026-10-18/wo/work/indexd-replica-rollout/fixture/node/backups/20261020T100531Z",
+        "previousRelease": "42c77f3623cc953b69b94e4e7c936d92c30e35e2a69a46f2ce8284c79ae54e76",
+        "dbVersion": 27,
+        "digestPreserved": true,
+        "fenceRouteStatusUnauthenticated": 401
+      }
+    },
+    {
+      "stage": "4-existing-identity-fenced-writes",
+      "ok": true,
+      "seconds": 0.4,
+      "detail": {
+        "identity": {
+          "accountKeyMatches": true,
+          "step": "identity"
+        },
+        "raise": {
+          "head": 12,
+          "step": "raise"
+        },
+        "seqAfterRaise": {
+          "events": 12,
+          "head": 12,
+          "step": "seq"
+        },
+        "stockRefused": {
+          "body": "{\"fence\":\"00110000000000010000000000000001ae7411fdcbb088980069a871df8ed187\"}",
+          "refused409": true,
+          "step": "stock-refused"
+        },
+        "fencedPin": {
+          "pinned": "34059db0ffe0b7f4a1181d3472e14e4371be07b0b0e77ffd8c13aa1e81ef7bdf",
+          "step": "fenced-pin"
+        },
+        "seqAfterPin": {
+          "events": 13,
+          "head": 13,
+          "step": "seq"
+        },
+        "objects": {
+          "known": 11,
+          "readable": 11,
+          "step": "objects"
+        }
+      }
+    },
+    {
+      "stage": "5-indexd-sigkill-restart",
+      "ok": true,
+      "seconds": 0.6,
+      "detail": {
+        "readiness": {
+          "adminState": 200,
+          "version": "v0.6.0-fence.1",
+          "network": "mainnet",
+          "dbVersion": 27,
+          "fenceRoute": 401,
+          "seqRoute": 401,
+          "ok": true
+        },
+        "objects": {
+          "known": 11,
+          "readable": 11,
+          "step": "objects"
+        },
+        "seq": {
+          "events": 13,
+          "head": 13,
+          "step": "seq"
+        }
+      }
+    },
+    {
+      "stage": "6-postgres-sigkill-restart",
+      "ok": true,
+      "seconds": 4.1,
+      "detail": {
+        "readiness": {
+          "adminState": 200,
+          "version": "v0.6.0-fence.1",
+          "network": "mainnet",
+          "dbVersion": 27,
+          "fenceRoute": 401,
+          "seqRoute": 401,
+          "ok": true
+        },
+        "fencedPinAfterRecovery": {
+          "pinned": "ca770ed210ee790600de001cd7cd4c39a899a1ca460ecdff59f1e8b15eb92bae",
+          "step": "fenced-pin"
+        },
+        "objects": {
+          "known": 12,
+          "readable": 12,
+          "step": "objects"
+        },
+        "seq": {
+          "events": 14,
+          "head": 14,
+          "step": "seq"
+        }
+      }
+    },
+    {
+      "stage": "7-rollback-to-stock",
+      "ok": true,
+      "seconds": 2.5,
+      "detail": {
+        "rollback": {
+          "ok": true,
+          "preRollbackBackup": "/home/steven/Documents/Codex/2026-10-18/wo/work/indexd-replica-rollout/fixture/node/backups/20261020T100538Z",
+          "dbVersion": 26,
+          "digestPreserved": true,
+          "fenceRouteStatusUnauthenticated": 404
+        },
+        "objects": {
+          "known": 12,
+          "readable": 12,
+          "step": "objects"
+        },
+        "unfencedPinAccepted": {
+          "pinned": "4ccae34e72c1b67b3fc232db89a2fc2b940f4209a4df8c5aa0d63090d5b6f2b5",
+          "step": "unfenced-pin"
+        },
+        "schemaEqualsStockV26": true
+      }
+    },
+    {
+      "stage": "8-re-upgrade-after-rollback",
+      "ok": true,
+      "seconds": 1.8,
+      "detail": {
+        "upgrade": {
+          "ok": true,
+          "backup": "/home/steven/Documents/Codex/2026-10-18/wo/work/indexd-replica-rollout/fixture/node/backups/20261020T100540Z",
+          "previousRelease": "42c77f3623cc953b69b94e4e7c936d92c30e35e2a69a46f2ce8284c79ae54e76",
+          "dbVersion": 27,
+          "digestPreserved": true,
+          "fenceRouteStatusUnauthenticated": 401
+        },
+        "objects": {
+          "known": 13,
+          "readable": 13,
+          "step": "objects"
+        }
+      }
+    }
+  ],
+  "passed": true
+}

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>(function(){
+var heal=function(){try{
+  var k="enclave_skew_reload",last=+sessionStorage.getItem(k)||0;
+  if(Date.now()-last<240000)return;
+  sessionStorage.setItem(k,String(Date.now()));
+  setTimeout(function(){location.reload();},8000);
+}catch(e){}};
+addEventListener("error",function(e){
+  var t=e.target;
+  if(t&&(t.tagName==="SCRIPT"||(t.tagName==="LINK"&&t.rel==="modulepreload")))heal();
+},true);
+addEventListener("unhandledrejection",function(e){
+  if(/dynamically imported module|Failed to fetch|error loading/i.test(String(e.reason)))heal();
+});
+})();</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070A0F" />
+<title>Privacy Policy · Enclave</title>
+<meta name="description" content="The Enclave privacy policy: crypto-native and non-custodial. We collect as little as the service allows, never sell data, and confidential compute keeps your workload's contents hidden even from us." />
+<link rel="canonical" href="https://enclave.host/privacy" />
+<meta name="robots" content="index,follow,max-image-preview:large" />
+<meta property="og:site_name" content="Enclave" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://enclave.host/privacy" />
+<meta property="og:title" content="Privacy Policy · Enclave" />
+<meta property="og:description" content="The Enclave privacy policy: crypto-native and non-custodial. We collect as little as the service allows, never sell data, and confidential compute keeps your workload's contents hidden even from us." />
+<meta property="og:image" content="https://enclave.host/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Enclave: compute that cannot see your data. WebAssembly on attested GPU enclaves, paid per second." />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://enclave.host/assets/og.png" />
+<script type="application/ld+json" data-breadcrumb>
+{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+{"@type":"ListItem","position":1,"name":"Enclave","item":"https://enclave.host/"},
+{"@type":"ListItem","position":2,"name":"Privacy Policy","item":"https://enclave.host/privacy"}]}
+</script>
+<link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<script>
+/* Cross-document view transitions are skipped by Chromium when extensions
+   inject content scripts (MetaMask et al): the old page sees pageswap with
+   no viewTransition. Flag it, and the NEXT page (this script runs pre-paint)
+   plays the same settle-in itself (html.soft-enter, see base.css) - content
+   only, the static header stays put. */
+(function(){
+  try { if (sessionStorage.getItem("enclave_novt")) { sessionStorage.removeItem("enclave_novt"); document.documentElement.classList.add("soft-enter"); } } catch(e){}
+  addEventListener("pageswap", function(e){
+    try { if (!e.viewTransition && e.activation) sessionStorage.setItem("enclave_novt", "1"); } catch(e){}
+  });
+})();
+</script>
+<link rel="stylesheet" href="css/site.css" />
+<script type="module" src="js/boot.js"></script>
+</head>
+<body>
+<c-header current="privacy" data-ssr><header class="nav">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="wrap nav-inner">
+    <a href="./" class="brand" aria-label="Enclave home">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+        <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkH"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkH)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="./" data-view="overview">Overview</a>
+      <a href="apps" data-view="apps">Apps</a>
+      <a href="develop" data-view="develop">Develop</a>
+      <a href="host" data-view="host">Host</a>
+      <a href="dashboard" data-view="dashboard" hidden>Dashboard</a>
+    </nav>
+    <c-wallet-button data-ssr><div class="wallet-mount" id="walletMount">
+  <button class="btn btn-primary btn-sm" id="walletBtn" type="button" aria-controls="walletPop">Sign in <span class="arr" aria-hidden="true">→</span></button>
+  <div class="wallet-pop" id="walletPop" hidden></div>
+</div></c-wallet-button>
+  </div>
+</header></c-header>
+<script>(function(){try{
+var s=JSON.parse(localStorage.getItem("enclave_session")||"null");
+var a=JSON.parse(localStorage.getItem("enclave_account")||"null");
+var wallet=s&&s.address,acct=a&&a.token;
+if(!wallet&&!acct)return;
+var dt=document.querySelector('.nav-links a[data-view="dashboard"]');if(dt)dt.hidden=false;
+var b=document.getElementById("walletBtn");if(!b)return;
+b.classList.add("connected");b.textContent="";
+var d=document.createElement("span");d.className="wdot";b.appendChild(d);
+b.appendChild(document.createTextNode(wallet?s.address.slice(0,6)+"…"+s.address.slice(-4):"Signed in"));
+b.dataset.painted="1";
+}catch(e){}})();</script>
+<main id="main" tabindex="-1">
+<h1 class="sr-only">Enclave Privacy Policy</h1>
+<section id="privacy" data-view="privacy" aria-label="Privacy Policy" style="padding:84px 0 0;">
+  <div class="wrap">
+    <c-section-head eyebrow="Legal" heading="Privacy Policy." data-ssr><div class="sec-head">
+  <span class="eyebrow">Legal</span>
+  <h2>Privacy Policy.</h2>
+  <p>Enclave is crypto-native and non-custodial, so there is very little about you for us to hold. This policy is written to be read: it says plainly what we collect, who else touches it, and what confidential computing keeps even us from seeing. If you do not agree with it, do not deploy.</p>
+</div></c-section-head>
+
+    <div class="terms-doc">
+      <p class="terms-updated">Last updated: July 12, 2026 · applies to <code>enclave.host</code> and the Enclave public API</p>
+
+      <h3>1 · Who we are</h3>
+      <p>Enclave is operated by Enclave Host, Inc. (&ldquo;we&rdquo;). You reach us at <a href="mailto:support@enclave.host">support@enclave.host</a>, and for security matters at <a href="mailto:security@enclave.host">security@enclave.host</a>. This policy covers the website, the CLI, and the public API. It sits alongside our <a href="terms">Terms of Service</a>.</p>
+
+      <h3>2 · The short version</h3>
+      <p><b>Your wallet is your account</b>. You use Enclave with a crypto wallet, and paying is an on-chain transaction. We do not run ad trackers, we do not build advertising profiles, and <b>we never sell your data</b>. Most of what the service touches is either already public on a blockchain or kept in your own browser. The parts a third party handles - card payments, sign-in wallets, bot checks - are described below by name.</p>
+
+      <h3>3 · What we collect</h3>
+      <p>We collect only what running the service needs.</p>
+      <p><b>Wallet addresses and public on-chain data.</b> Deployments, payments, and app listings are records on public smart contracts on the Base network. Your wallet address and those transactions are public by the nature of a blockchain - anyone can read them, including us. This is inherent to a non-custodial, on-chain service, not something we choose to store about you.</p>
+      <p><b>Passkeys - public keys only, nothing to steal.</b> If you sign in with a passkey, the private key is created and stored on your own device (your phone, laptop, or security key) and never leaves it. We store only the public key, a random credential identifier, and a signature counter - enough to recognize your passkey, never enough to impersonate it. No password, no email address.</p>
+      <p><b>Card details - handled entirely by Stripe, never by us.</b> If you pay by card, checkout happens on a Stripe-hosted page. Your card number and payment details go to Stripe, not to Enclave; we never receive, see, or store them. We keep only the order and its payment status.</p>
+            <p><b>Kept in your own browser.</b> A session token (proving you signed a wallet challenge) and your deploy narratives - the running log of what you deployed and its output - live in your browser's <code>localStorage</code> on your device. They are not uploaded to us as a profile; they stay client-side and you can clear them at any time.</p>
+      <p><b>Ordinary server logs.</b> Like any web service, our infrastructure and the IPFS gateway/relay may briefly log request metadata (such as IP address and timestamps) to serve traffic, defend against abuse, and keep the system healthy. We keep these short and do not use them to build a profile of you.</p>
+
+      <h3>4 · What we don't collect</h3>
+      <p>We don't ask for your name, we don't run KYC on deployers, and we don't require an account to use the service. We don't hold your funds or your keys (see the <a href="terms">Terms</a>), and we don't sell, rent, or trade any data about you to anyone.</p>
+
+      <h3>5 · Your workload's contents are not visible to us</h3>
+      <p>Enclave runs your app on <b>confidential-computing hardware</b>. The app's memory and the data it processes are encrypted and isolated from the machine's operator - that is the point of the platform, and attestation lets you verify it. So the <em>contents</em> of what your app does (the data it handles, the requests it serves) are not visible to us as the operator, by design. What is public is the on-chain record that a deployment exists and what code it runs, and the metadata needed to route and bill it.</p>
+
+      <h3>6 · Sub-processors</h3>
+      <p>A few third parties process limited data on our behalf so the service can work, each under its own privacy policy: <b>Stripe</b> for card payments on its hosted checkout page (all card and payment data); and the <b>IPFS gateway and relay infrastructure</b> that serves the content-addressed site and app bytes and routes deployment traffic (ordinary request metadata as above).</p>
+      <p>Public blockchain networks (Base) and the RPC endpoints used to read and write chain state are not our sub-processors - they are public infrastructure your wallet talks to directly.</p>
+
+      <h3>7 · How we use what we collect</h3>
+      <p>We use the little we have only to <b>run the service</b>: authenticate you, place and bill deployments, process the payments you initiate, keep abuse off the platform, and answer your support requests. We do not use it for advertising or profiling, and we do not sell it.</p>
+
+      <h3>8 · Retention</h3>
+      <p>On-chain data is permanent and public - it lives on the blockchain, not on our servers, and cannot be deleted by us or anyone. Browser-side data (your session token and deploy narratives) stays until you clear it or it expires. Server and gateway logs are kept only as long as needed to operate and secure the service, then discarded. Payment data held by Stripe is retained under its own policies.</p>
+
+      <h3>9 · Your choices</h3>
+      <p>You can use a fresh wallet, sign in with a passkey or a wallet (never an email), pay from a wallet instead of by card, and clear your browser storage at any time to remove the client-side session and narratives. Because the service is non-custodial and account-free, there is little personal data for us to hold in the first place. For any privacy question or request, write to <a href="mailto:support@enclave.host">support@enclave.host</a> and we will help.</p>
+
+      <h3>10 · Changes and contact</h3>
+      <p>We may update this policy; the date above changes when we do. Continuing to use Enclave after a change means you accept it. Questions or requests: <a href="mailto:support@enclave.host">support@enclave.host</a>.</p>
+    </div>
+  </div>
+</section>
+</main>
+<c-footer data-ssr><footer aria-label="Footer">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="./" class="brand" aria-label="Enclave home">
+          <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+            <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkF"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkF)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+        </a>
+        <p>Compute that cannot see your data. Paid per second, for anything that holds a key.</p>
+        <div class="foot-meta">
+          <span>built + operated by Enclave Host, Inc.</span>
+          <span>front-end: static, pinned to IPFS · <code>enclave.host</code></span>
+        </div>
+      </div>
+      <nav aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          <li><a href="./#why">What you get</a></li>
+          <li><a href="./#how">How it works</a></li>
+          <li><a href="apps">App store</a></li>
+          <li><a href="./#pricing">Pricing</a></li>
+          <li><a href="develop#architecture">Architecture</a></li>
+          <li><a href="develop#progress">Engineering evidence</a></li>
+          <li><a href="./#about">About the company</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Developers">
+        <h2>Developers</h2>
+        <ul>
+          <li><a href="develop#docs">App development guide</a></li>
+          <li><a href="develop#api">API reference</a></li>
+          <li><a href="openapi.json" id="dlSpec2">OpenAPI spec</a></li>
+          <li><a href="./#attest">Attestation guide</a></li>
+          <li><a href="develop#api">Error codes</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Trust">
+        <h2>Trust</h2>
+        <ul>
+          <li><a href="develop#contract">The isolation contract</a></li>
+          <li><a href="develop#shield">Enclave Shield</a></li>
+          <li><a href="./#attest">Verify an enclave</a></li>
+          <li><a href="develop#verify">What is measured</a></li>
+          <li><a href="develop#independent">What runs on our servers</a></li>
+          <li><a href="https://github.com/EnclaveHost/enclave" target="_blank" rel="noopener">Source on GitHub</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Contact and legal">
+        <h2>Contact</h2>
+        <ul>
+          <li><a class="foot-mail" href="mailto:support@enclave.host">Support<code>support@enclave.host</code></a></li>
+          <li><a class="foot-mail" href="mailto:security@enclave.host">Security disclosures<code>security@enclave.host</code></a></li>
+          <li><a href=".well-known/security.txt">security.txt</a></li>
+          <li><a href="terms">Terms of Service</a></li>
+          <li><a href="privacy">Privacy Policy</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Enclave Host, Inc. · content-addressed on IPFS · build <span data-build>166bf9d3 · 2026-10-19</span></span>
+      <span>designed to outlive any one operator</span>
+    </div>
+  </div>
+</footer></c-footer>
+<c-toast data-ssr><div id="toast" role="status" aria-live="polite" aria-atomic="true"></div></c-toast>
+</body>
+</html>

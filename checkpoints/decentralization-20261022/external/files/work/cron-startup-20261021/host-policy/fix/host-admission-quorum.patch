@@ -1,0 +1,90 @@
+--- a/network/host-admission-runtime.mjs	2026-10-21 07:21:04.128233419 -0700
++++ b/network/host-admission-runtime.mjs	2026-10-21 07:21:04.138408584 -0700
+@@ -21,6 +21,15 @@
+   'function getVersion(bytes32,uint256) view returns ((string cid,string version,uint32 vramMb,uint32 gpuGflops,uint32 memMb,uint32 cpuGflops,uint64 createdAt,bool verified,bool yanked,string ports,uint8 approval,string config))',
+ ]);
+ const nonzero=a=>address.test(a||'')&&!/^0x0{40}$/.test(a);
++// The per-RPC reasons LeaseReader.agreed() collected (already URL-redacted there: errText -> redactUrls), appended to a
++// quorum failure so a hold says WHICH providers failed and how (e.g. 429 rate limits) instead of only "chain quorum
++// unavailable". Text only: the decision is unchanged (a failure is still unknown, never allow).
++const withReasons=(e,failures)=>{
++  if(!failures.length)return e;
++  const seen=[...new Set(failures.map(f=>String(f).replace(/\s+/g,' ').slice(0,120)))].slice(0,5);
++  return Object.assign(new Error(`${e.message} (${failures.length} RPC failure${failures.length===1?'':'s'}: ${seen.join('; ')})`.slice(0,600)),{cause:e});
++};
++const CATALOG_CACHE_MAX=512;
+ 
+ // Documents are public, addressed by their on-chain commitment, and may be
+ // distributed by any peer. A local verified cache makes admission independent
+@@ -76,6 +85,7 @@
+     if(pending)return pending;
+     pending=(async()=>{
+       const at=now();
++      const failures=[];
+       const snapshot=await reader.agreed(async(client,blockNumber)=>{
+         const [bound,a]=await Promise.all([
+           client.readContract({address:ownershipContract,abi:ownershipABI,functionName:'registry',blockNumber}),
+@@ -83,7 +93,7 @@
+         ]);
+         if(String(bound).toLowerCase()!==registry)throw Error('host authority registry pin mismatch');
+         return {owner:String(a[0]).toLowerCase(),revision:String(a[2]),policyHash:String(a[3]).toLowerCase()};
+-      });
++      },failures).catch(e=>{throw withReasons(e,failures);});
+       const resolved=await readHostAdmissionPolicy({hostId,ownershipContract,loadPolicy,readAuthority:async()=>snapshot});
+       const validUntil=snapshot.timestamp+90000,reuseUntil=Math.min(at+cacheMs,validUntil);
+       if(!Number.isSafeInteger(snapshot.timestamp)||snapshot.timestamp>now()+5000||snapshot.timestamp+90000<=now())throw Error('host authority snapshot expired');
+@@ -91,6 +101,38 @@
+     })().catch(e=>{cached=null;throw e;}).finally(()=>{pending=null;});
+     return pending;
+   };
++  // Platform moderation (catalog app active / version yanked / approval) for one exact catalog://app/version: a FRESH
++  // agreeing read, reused under EXACTLY the authority snapshot's rule above - at most cacheMs (<= 15 s) after it was read
++  // and never past its block's freshness (timestamp + 90 s) - and shared by concurrent callers. Before, every refusal()
++  // made its own full quorum read (about 25 RPC requests: every RPC's chain id and head, then header, call and header per
++  // reader), so a 30 s node tick over N deployments sent N of them from one egress IP, and the public RPCs' rate limits
++  // (base.drpc.org answers 429 to this site already) turned the quorum into "unavailable". A failed read is never cached
++  // and never falls back to an older answer.
++  const catalogCache=new Map(),catalogPending=new Map();
++  const catalogVersion=async(app,index)=>{
++    const key=app.toLowerCase()+'/'+index;
++    const hit=catalogCache.get(key);
++    if(hit&&hit.reuseUntil>now()&&hit.value.timestamp+90000>now())return hit.value;
++    if(hit)catalogCache.delete(key);
++    if(catalogPending.has(key))return catalogPending.get(key);
++    const run=(async()=>{
++      const at=now(),failures=[];
++      const value=await reader.agreed(async(client,blockNumber)=>{
++        const [app_,v]=await Promise.all([
++          client.readContract({address:catalog,abi:catalogABI,functionName:'getApp',args:[app],blockNumber}),
++          client.readContract({address:catalog,abi:catalogABI,functionName:'getVersion',args:[app,BigInt(index)],blockNumber}),
++        ]);
++        return {active:app_.appId.toLowerCase()===app.toLowerCase()&&BigInt(app_.versionCount)>BigInt(index)&&app_.active===true,
++          yanked:v.yanked,approval:Number(v.approval)};
++      },failures).catch(e=>{throw withReasons(e,failures);});
++      if(!Number.isSafeInteger(value.timestamp)||value.timestamp>now()+5000||value.timestamp+90000<=now())throw Error('catalog snapshot expired');
++      if(catalogCache.size>=CATALOG_CACHE_MAX)catalogCache.delete(catalogCache.keys().next().value);
++      catalogCache.set(key,{value,reuseUntil:Math.min(at+cacheMs,value.timestamp+90000)});
++      return value;
++    })().finally(()=>catalogPending.delete(key));
++    catalogPending.set(key,run);
++    return run;
++  };
+   return {hostId,ownershipContract,registry,catalog,
+     async refusal({deploymentId,appRef,forPrivate=false}) {
+       const a=await policy();
+@@ -100,14 +142,7 @@
+       {
+         const m=String(appRef||'').match(/^catalog:\/\/(0x[0-9a-fA-F]{64})\/([0-9]{1,9})$/);
+         if(!m)throw Error('catalog app reference required');
+-        version=await reader.agreed(async(client,blockNumber)=>{
+-          const [app,v]=await Promise.all([
+-            client.readContract({address:catalog,abi:catalogABI,functionName:'getApp',args:[m[1]],blockNumber}),
+-            client.readContract({address:catalog,abi:catalogABI,functionName:'getVersion',args:[m[1],BigInt(m[2])],blockNumber}),
+-          ]);
+-          return {active:app.appId.toLowerCase()===m[1].toLowerCase()&&BigInt(app.versionCount)>BigInt(m[2])&&app.active===true,
+-            yanked:v.yanked,approval:Number(v.approval)};
+-        });
++        version=await catalogVersion(m[1],Number(m[2]));
+       }
+       if(a.validUntil<=now())throw Error('host policy expired during admission');
+       return hostAdmissionRefusal(a.policy,{hostId,deploymentId,appRef,version,forPrivate});

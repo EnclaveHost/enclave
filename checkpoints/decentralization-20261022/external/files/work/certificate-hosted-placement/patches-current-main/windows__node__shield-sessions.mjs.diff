@@ -1,0 +1,53 @@
+--- a/windows/node/shield-sessions.mjs
++++ b/windows/node/shield-sessions.mjs
+@@ -11,7 +11,7 @@
+ // the one the package committed (its party id is bound to the zone) is refused before the TPM is asked anything.
+ import { createHash, randomBytes } from "node:crypto";
+ import { buildHvNodeFrame } from "./hvnode-evidence.mjs";
+-import { attachMessage, postJson, shieldResponderId } from "./shield-verdict.mjs";
++import { attachMessage, postJson, shieldResponderId, appZoneShieldParty } from "./shield-verdict.mjs";
+ 
+ const sha256hex = (b) => createHash("sha256").update(b).digest("hex");
+ export const RENEW_AFTER_MS = 6 * 60_000;
+@@ -52,10 +52,27 @@
+   }
+   return custodianTargets(machines);
+ }
+-/** Every session this node keeps: the responders' and the custodians', in ONE refresh (which forgets what it is not given). */
+-export function sessionTargets(records) {
++/** The app-zone challenge replicas the running owner-committed records name (names.appZone.challenges): each serves the
++ *  exchange under /v1/app-zone/shield-session with a party id bound to THIS node's app zone (network/app-zone-shield.mjs),
++ *  so a replica answering for another zone, or as an owner-name responder, is refused before the TPM is asked. At most 16. */
++export function appZoneTargets(records, zone) {
++  if (typeof zone !== "string" || !zone) return [];
++  const out = new Map(), party = appZoneShieldParty(zone);
++  for (const r of records) {
++    const a = r?.startup?.direct ? r.startup.appZone : null;
++    if (!a || !Array.isArray(a.challenges) || !["running", "provisioning"].includes(r.status)) continue;
++    for (const c of a.challenges) {
++      const url = String(c || "").replace(/\/+$/, "");
++      if (/^https:\/\/[^\s]+$/.test(url)) out.set(`${url} ${party}`, { url, party, path: "/v1/app-zone/shield-session" });
++    }
++  }
++  return [...out.values()].slice(0, 16);
++}
++/** Every session this node keeps: the responders', the app-zone replicas' and the custodians', in ONE refresh (which forgets
++ *  what it is not given). appZone: this node's app zone (agent.mjs cfg.appZone); without it no app-zone session is kept. */
++export function sessionTargets(records, { appZone = null } = {}) {
+   const all = [...records];
+-  return [...responderTargets(all), ...custodianSessionTargets(all)];
++  return [...responderTargets(all), ...appZoneTargets(all, appZone), ...custodianSessionTargets(all)];
+ }
+ 
+ export function createResponderSessions({ hostId, endpoint, nodeKey, tpm, keysFrame, managerHealth = async () => null, platform = async () => ({}),
+@@ -66,7 +83,9 @@
+   async function one({ url, zone, party: given, path = "/v1/shield-session" }) {
+     const party = given ?? shieldResponderId(zone), hostChallenge = randomBytes(32).toString("hex"), keys = await keysFrame();
+     const ch = await postJson(fetchImpl, `${url}${path}/challenge`, { hostId, endpoint, hostChallenge, keys }, timeoutMs);
+-    if (ch?.party !== party) throw new Error(given ? "the custodian answers as another party than its committee key" : `the responder answers for another zone than the committed ${zone}`);
++    if (ch?.party !== party) throw new Error(given ? (path === "/v2/custody/shield-session" ? "the custodian answers as another party than its committee key"
++                                                     : "the app-zone replica answers as another party than this node's app zone")
++                                           : `the responder answers for another zone than the committed ${zone}`);
+     if (typeof ch.session !== "string") throw new Error("malformed responder challenge");
+     const nonce = Buffer.from(String(ch.nonce || ""), "base64");
+     if (nonce.length !== 32) throw new Error("responder nonce must be 32 bytes");

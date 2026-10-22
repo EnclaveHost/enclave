@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import {GuestdControl,parseKey} from '../enclave/isolation/m4/guestd/control-client.mjs';
+const root=new URL('./',import.meta.url),read=n=>JSON.parse(fs.readFileSync(new URL(n,root)));
+const ctl=new GuestdControl('http://127.0.0.1:18096',parseKey(fs.readFileSync(new URL('pair.key',root),'utf8')),{requestTimeoutMs:120000});
+const h=await ctl.request('GET','/health');if(h.status!==200)throw Error('manager health failed');
+const prior=JSON.parse(fs.readFileSync(new URL('../bootstrap-hardware/derived.json',root)));
+const result=await ctl.request('POST','/prefetch',{image:prior.image,derive:prior.derive});
+if(result.status!==200||result.body.appId!==prior.appId)throw Error(JSON.stringify(result));
+fs.writeFileSync(new URL('manager-proof.json',root),JSON.stringify({verifiedAt:new Date().toISOString(),health:h.body,prefetch:result.body,actualGuestBoot:false},null,2)+'\n');
+console.log(JSON.stringify({status:result.status,appId:result.body.appId,bytes:result.body.bytes,guestBoot:false}));

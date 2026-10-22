@@ -1,0 +1,84 @@
+--- a/network/wg-manager.mjs
++++ b/network/wg-manager.mjs
+@@ -42,7 +42,7 @@
+  // hostEgress: {allows(id), start({deploymentId})} (host-egress.mjs) on a host whose operator lets apps use its own connection
+  constructor({runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct=null,paid=null,hostEgress=null,now=Date.now,log=()=>{}}){
+   super();Object.assign(this,{runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct,paid,hostEgress,now,log});
+-  this.apps=new Map();this.cooldown=new Map();this.drops=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconciling=new Map();
++  this.apps=new Map();this.cooldown=new Map();this.drops=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconciling=new Map();this.retiring=new Map();
+  }
+  handles(policy){return policy?.version===5;}
+  async configure(apps){
+@@ -59,16 +59,30 @@
+  }
+  authorizationUntil(id){
+   if(!this.admission.allows(id))return 0;
+-  const e=Math.min(this.admission.leases.get(id).validUntil,this.admission.proofs.get(id).validUntil);return e>this.now()?e:0;
++  // the host wallet's allow (wallet-admission.mjs), where the gate carries one, caps it like the lease and the proof
++  const e=Math.min(this.admission.leases.get(id).validUntil,this.admission.proofs.get(id).validUntil,this.admission.walletUntil?.(id)??Infinity);return e>this.now()?e:0;
+  }
+  enforceAdmission(){
+   for(const app of this.apps.values()){const e=this.authorizationUntil(app.id);for(const c of app.circuits)c.admit(e);if(!e&&app.circuits.length)void this.withdraw(app,'authorization expired').catch(err=>this.log(err.message));}
+  }
++ // A removed circuit can still have a live child process. Keep it in the barrier until close actually succeeds;
++ // a rejected close stays unacknowledged. An allocation already in flight must settle before a hold is acknowledged.
++ admissionSettled(){return this.retiring.size===0&&this.reconciling.size===0&&[...this.apps.values()].every(app=>this.authorizationUntil(app.id)||app.circuits.length===0);}
++ retireCircuit(c,reason){
++  const old=this.retiring.get(c);if(old)return old;
++  // Defer close until after registration: synchronous 'down' events must not hide this outstanding withdrawal.
++  const op=Promise.resolve().then(()=>c.close(reason));this.retiring.set(c,op);
++  void op.then(()=>{if(this.retiring.get(c)===op)this.retiring.delete(c);},()=>{});
++  return op;
++ }
+  async withdraw(app,reason){
+   const old=app.circuits.splice(0);app.error=reason;
+   for(const c of old){c.healthy=false;c.admit(0);}
+-  await this.publishApp(app).catch(e=>this.log('route withdrawal: '+e.message));
+-  await Promise.all(old.map(c=>c.close(reason)));
++  // Local traffic stops independently of a slow/unreachable route distributor.
++  const closing=Promise.all(old.map(c=>this.retireCircuit(c,reason)));
++  const publication=this.publishApp(app).catch(e=>this.log('route withdrawal: '+e.message));
++  await closing;
++  await publication;
+  }
+  // strike:false - the circuit closes for a reason that is not the providers' fault (a refused paid debit)
+  async fail(app,circuit,reason,{strike=true}={}){
+@@ -80,8 +94,9 @@
+    if(early)this.strike(p);else{this.drops.delete(p.providerId);this.strike(p);}
+   }
+   app.error=reason;app.lastFailure={at:this.now(),circuit:circuit.id,reason};this.log(`app ${app.id.slice(0,10)} circuit ${circuit.id}: ${reason}`);
+-  await this.publishApp(app).catch(e=>this.log('route withdrawal: '+e.message));
+-  await circuit.close(reason);
++  const closing=this.retireCircuit(circuit,reason);
++  const publication=this.publishApp(app).catch(e=>this.log('route withdrawal: '+e.message));
++  await closing;await publication;
+  }
+  async publishApp(app){
+   const op=(this.publications.get(app.id)||Promise.resolve()).catch(()=>{}).then(async()=>{
+@@ -139,7 +154,7 @@
+     Object.assign(c,{kind:'direct',ingress:true,egressReady:true,qualifiedUntil:q.expiresAt,providers:{direct:{address:c.address}}});
+     this.adopt(app,c);await this.probe(app,c);if(c.closed)throw new Error('direct route failed during verification');
+     c.healthy=true;c.checkedAt=this.now();c.upAt=this.now();app.error=null;await this.publishApp(app);
+-   }catch(e){if(c&&app.circuits.includes(c))await this.fail(app,c,e.message);else await c?.close?.(e.message);app.error='direct hosting: '+e.message;}
++   }catch(e){if(c&&app.circuits.includes(c))await this.fail(app,c,e.message);else if(c)await this.retireCircuit(c,e.message);app.error='direct hosting: '+e.message;}
+    return;
+   }
+   // revocation: a provider that is no longer eligible (qualification lapsed, record changed, role or price) loses its circuits now
+@@ -169,7 +184,7 @@
+     }
+     c.healthy=true;app.ownFailedAt=undefined;app.fallbackActive=false;
+    }catch(e){
+-    if(c&&app.circuits.includes(c))await this.fail(app,c,e.message);else await c?.close?.(e.message);
++    if(c&&app.circuits.includes(c))await this.fail(app,c,e.message);else if(c)await this.retireCircuit(c,e.message);
+     app.ownFailedAt=this.now();app.error=(plan.byo?'BYO WireGuard: ':'host egress: ')+e.message;this.log(`app ${app.id.slice(0,10)}: ${app.error}`);
+    }
+   }
+@@ -203,7 +218,7 @@
+     }catch(e){
+      const role=e.providerRole||c?.failureRole||'public',p=role==='guard'?guard:exit;
+      this.strike(p);
+-     if(c&&app.circuits.includes(c))await this.fail(app,c,e.message);else await c?.close(e.message);
++     if(c&&app.circuits.includes(c))await this.fail(app,c,e.message);else if(c)await this.retireCircuit(c,e.message);
+      this.log(`app ${app.id.slice(0,10)}: ${e.message}`);
+     }
+    }

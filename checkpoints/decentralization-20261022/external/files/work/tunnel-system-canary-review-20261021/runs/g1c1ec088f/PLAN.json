@@ -1,0 +1,235 @@
+{
+ "collectSec": 150,
+ "createdAt": "2026-10-21T22:05:41Z",
+ "encoded": {
+  "collect-n": 5956,
+  "collect-o": 5956,
+  "collect-s": 5956,
+  "drop-n": 2316,
+  "drop-o": 2316,
+  "drop-s": 2316,
+  "events": 3560,
+  "fresh-n": 5704,
+  "fresh-o": 5704,
+  "fresh-s": 5704,
+  "inspect-n": 5368,
+  "inspect-o": 5368,
+  "inspect-s": 5368,
+  "mkdir-n": 3796,
+  "mkdir-o": 3796,
+  "mkdir-outer": 3792,
+  "mkdir-s": 3796,
+  "parse:collect-n": 6448,
+  "parse:collect-o": 6448,
+  "parse:collect-s": 6448,
+  "parse:events": 4056,
+  "parse:inspect-n": 5840,
+  "parse:inspect-o": 5840,
+  "parse:inspect-s": 5840,
+  "parse:pre": 6304,
+  "parse:stage": 5800,
+  "parse:stop-n": 2532,
+  "parse:stop-o": 2532,
+  "parse:stop-s": 2532,
+  "parse:tamper": 4240,
+  "parse:verify": 2744,
+  "parse:watch": 7072,
+  "pre": 5796,
+  "register-n": 7852,
+  "register-o": 7852,
+  "register-s": 7640,
+  "remove-outer": 2212,
+  "seal-n": 6416,
+  "seal-o": 6416,
+  "seal-s": 6416,
+  "stage": 5288,
+  "start-n": 2164,
+  "start-o": 2164,
+  "start-s": 2164,
+  "stop-n": 2088,
+  "stop-o": 2088,
+  "stop-s": 2088,
+  "tamper": 3776,
+  "verify": 2296,
+  "watch": 6552
+ },
+ "leadSec": 15,
+ "limit": 7900,
+ "offsetMin": 2,
+ "outer": "C:\\ProgramData\\Enclave\\staging\\tunnel-g1c1ec088f",
+ "pollSec": 10,
+ "prefix": "EnclaveTunnelCanary-g1c1ec088f",
+ "productionRegisterEncoded": {
+  "6": {
+   "apply": 7572,
+   "guard": 7784,
+   "rollback": 7604
+  },
+  "7": {
+   "apply": 7580,
+   "guard": 7792,
+   "rollback": 7612
+  },
+  "8": {
+   "apply": 7588,
+   "guard": 7800,
+   "rollback": 7620
+  },
+  "9": {
+   "apply": 7596,
+   "guard": 7808,
+   "rollback": 7628
+  },
+  "10": {
+   "apply": 7604,
+   "guard": 7816,
+   "rollback": 7636
+  },
+  "11": {
+   "apply": 7612,
+   "guard": 7824,
+   "rollback": 7644
+  },
+  "12": {
+   "apply": 7620,
+   "guard": 7832,
+   "rollback": 7652
+  },
+  "13": {
+   "apply": 7628,
+   "guard": 7840,
+   "rollback": 7660
+  },
+  "14": {
+   "apply": 7636,
+   "guard": 7848,
+   "rollback": 7668
+  },
+  "15": {
+   "apply": 7644,
+   "guard": 7856,
+   "rollback": 7676
+  },
+  "16": {
+   "apply": 7652,
+   "guard": 7864,
+   "rollback": 7684
+  },
+  "17": {
+   "apply": 7660,
+   "guard": 7872,
+   "rollback": 7692
+  },
+  "18": {
+   "apply": 7668,
+   "guard": 7880,
+   "rollback": 7700
+  },
+  "19": {
+   "apply": 7676,
+   "guard": 7888,
+   "rollback": 7708
+  },
+  "20": {
+   "apply": 7684,
+   "guard": 7896,
+   "rollback": 7716
+  },
+  "21": {
+   "apply": 7692,
+   "guard": 7904,
+   "rollback": 7724
+  },
+  "22": {
+   "apply": 7700,
+   "guard": 7912,
+   "rollback": 7732
+  },
+  "23": {
+   "apply": 7708,
+   "guard": 7920,
+   "rollback": 7740
+  },
+  "24": {
+   "apply": 7716,
+   "guard": 7928,
+   "rollback": 7748
+  }
+ },
+ "productionRunLenFits": [
+  6,
+  20
+ ],
+ "roles": {
+  "n": {
+   "dir": "C:\\ProgramData\\Enclave\\staging\\tunnel-g1c1ec088f\\n",
+   "encSha": "bee69a2c1f4574b31118e893316a9f57cdee55d756bad17c710356032f6f4f52",
+   "paramsSha": "260e79e240cb91b248330946c29a78dabf62be4454ebbb22611c63c15d20eda7",
+   "receiverSha": "ec077c1103bc86a0b263e40776b06913e5f6c566cd94ecedb4b39aff6e0d2873",
+   "tamperedB64": "ewogInJ1bklkIjogImcxYzFlYzA4OGZ0YW1wZXJlZCIsCiAid2luVXNlciI6ICJlbmMtY3RsLXR1bm5lbCIsCiAic2FuZGJveCI6IHRydWUsCiAic2FuZGJveFJvb3QiOiAiQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxzdGFnaW5nXFx0dW5uZWwtZzFjMWVjMDg4ZiIsCiAiY2FuYXJ5IjogIkcxIHByZWZsaWdodCBvbmx5OiBubyBrZXksIGNvbmZpZyBvciBhY2NvdW50Igp9",
+   "tamperedSha": "2a9b0310f62200ad6d2c27ba53fc4e680b0efe7a37a8fcc4896e40af144d4bf0",
+   "task": "EnclaveTunnelCanary-g1c1ec088fn",
+   "taskArgsSha": "89d9cd9db4b8adac74e1a706e7535f1aa533cdf84ebee5d49b19c58f44fe2d24",
+   "trigger": "(Get-Date).AddMinutes(2)",
+   "what": "negative: params.json tampered after registration (Once trigger)"
+  },
+  "o": {
+   "dir": "C:\\ProgramData\\Enclave\\staging\\tunnel-g1c1ec088f\\o",
+   "encSha": "ba8c406ac1847f31e608da6e0106eb5bce686adb9e01a8b6fe17bacfb8e027a7",
+   "paramsSha": "068476b1401d37d9e813d432cf4f88c6cdb1a5c673a0712e4eee8c3010bda3af",
+   "receiverSha": "ec077c1103bc86a0b263e40776b06913e5f6c566cd94ecedb4b39aff6e0d2873",
+   "task": "EnclaveTunnelCanary-g1c1ec088fo",
+   "taskArgsSha": "b80f7cb4b6ed2a38324cf9c0fd80890ad01bee1d71882237fe9541d93719ae77",
+   "trigger": "(Get-Date).AddMinutes(2)",
+   "what": "positive: Once trigger (the guard's path)"
+  },
+  "s": {
+   "dir": "C:\\ProgramData\\Enclave\\staging\\tunnel-g1c1ec088f\\s",
+   "encSha": "5eb988afb8e6fd990ec88120a14c8d28418c6867e7e7893bf9440f99c7ce32ba",
+   "paramsSha": "5ad15252037767a19ec7a27a097af82a8bab8d96c0d24aa0fe8acc74b36ed397",
+   "receiverSha": "ec077c1103bc86a0b263e40776b06913e5f6c566cd94ecedb4b39aff6e0d2873",
+   "task": "EnclaveTunnelCanary-g1c1ec088fs",
+   "taskArgsSha": "0ed3fe248927dd5213f8ec72e75bc68e59fc54a1b94f8b0a21b2c6b5f198ef53",
+   "trigger": null,
+   "what": "positive: no trigger + Start-ScheduledTask (the apply/rollback path)"
+  }
+ },
+ "run": "g1c1ec088f",
+ "runningWaitSec": 60,
+ "scriptShas": {
+  "collect-n": "9205534393690a6623c2f27766f8b5c75fde667440e7919c549aae3755ab3056",
+  "collect-o": "d68ad5a1dc64930209385ff99952feb1ad437591510736a092ac5eb9bf861750",
+  "collect-s": "a4b61b5baf5469c857ff4c1af789c7b3bf2282609aee7e21b33a96db3cf1fd55",
+  "events": "301eb090a3cb0b6c5adc4c890194bdc514da87d82ed8c6e336d508bf3a626707",
+  "inspect-n": "fc8dc09fc9efeb63e2401f00ffac63296e8f851cd103d77e7fb230987ceedf68",
+  "inspect-o": "139b40d94f79732685c650ee9c07cab1c57fadc12b128262e75e6f8e35376336",
+  "inspect-s": "5aa33334b172f0466ce129c4799528baa29d6b43b42e7e751b5999f960834e6c",
+  "pre": "8e954e2928747f3f6f8987e1504b04bea9c36cb48be41999e78923ef1bac0643",
+  "stage": "24be66774769881fcf39482a6a9aa162209043d5922b3fa9ddd59b8fffbb0fd5",
+  "stop-n": "93f07d83adad78c832fd99422ed1ac05e6180e7fa6e8fb386259363d7c020eab",
+  "stop-o": "b15b5283306582c1b8b585aeb880f2a8d3e5474d219d9964a0caccfaaef1428d",
+  "stop-s": "917430a90365a1b39c17f9294158f18533219032740597b8e677c6b6ce9e3644",
+  "tamper": "bf0d506162b6c2ebeb3f58e843135498614be83079c755e8a41e9e73fc28ac96",
+  "verify": "055ba31e2f17c223acaf6a3941186d11507e7cb7801ff3475a8ffc706a415dd0",
+  "watch": "cc3a26f607307ef588689b61319155b7629b74bac6f7eb9e32ff150675f1d9eb"
+ },
+ "sources": {
+  "controller": {
+   "frozen": "src/ctl/tunnel_install.py",
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/host-service-transport-20261021/public-canary-resume/a5-authority/final/tunnel-install/tunnel_install.py",
+   "sha256": "3aaa0d0b9c75c7a5019cd631d17088481cbf5835ae524e6731e49f445a3a2f28"
+  },
+  "receiver": {
+   "frozen": "src/tunnel-receiver.ps1",
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/host-service-transport-20261021/public-canary-resume/a5-authority/final/tunnel-install/minipc/tunnel-receiver.ps1",
+   "sha256": "ec077c1103bc86a0b263e40776b06913e5f6c566cd94ecedb4b39aff6e0d2873"
+  },
+  "transport": {
+   "frozen": "src/root-activate-reviewed.py",
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/nucbox-tls-20261021/root-activate-reviewed.py",
+   "sha256": "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f"
+  }
+ },
+ "stageRoot": "C:\\ProgramData\\Enclave\\staging",
+ "watchSec": 180
+}

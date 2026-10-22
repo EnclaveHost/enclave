@@ -1,0 +1,529 @@
+diff --git a/s3-ipfs-adapter/Cargo.lock b/s3-ipfs-adapter/Cargo.lock
+index 636c3cb..f0be20b 100644
+--- a/s3-ipfs-adapter/Cargo.lock
++++ b/s3-ipfs-adapter/Cargo.lock
+@@ -368,6 +368,27 @@ version = "1.0.18"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+ 
++[[package]]
++name = "k256"
++version = "0.13.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f6e3919bbaa2945715f0bb6d3934a173d1e9a59ac23767fbaaef277265a7411b"
++dependencies = [
++ "cfg-if",
++ "ecdsa",
++ "elliptic-curve",
++ "sha2",
++]
++
++[[package]]
++name = "keccak"
++version = "0.1.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "cb26cec98cce3a3d96cbb7bced3c4b16e3d13f27ec56dbd62cbc8f39cfb9d653"
++dependencies = [
++ "cpufeatures",
++]
++
+ [[package]]
+ name = "lazy_static"
+ version = "1.5.0"
+@@ -744,10 +765,12 @@ name = "s3-ipfs-adapter"
+ version = "0.5.0"
+ dependencies = [
+  "hmac",
++ "k256",
+  "rustls",
+  "rustls-rustcrypto",
+  "serde_json",
+  "sha2",
++ "sha3",
+  "webpki-roots 0.26.11",
+ ]
+ 
+@@ -824,6 +847,16 @@ dependencies = [
+  "digest",
+ ]
+ 
++[[package]]
++name = "sha3"
++version = "0.10.9"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "77fd7028345d415a4034cf8777cd4f8ab1851274233b45f84e3d955502d93874"
++dependencies = [
++ "digest",
++ "keccak",
++]
++
+ [[package]]
+ name = "shlex"
+ version = "2.0.1"
+diff --git a/s3-ipfs-adapter/Cargo.toml b/s3-ipfs-adapter/Cargo.toml
+index cda10cb..a7708f9 100644
+--- a/s3-ipfs-adapter/Cargo.toml
++++ b/s3-ipfs-adapter/Cargo.toml
+@@ -20,6 +20,8 @@ rustls-rustcrypto = "0.0.2-alpha"
+ webpki-roots = "0.26"
+ sha2 = "0.10"
+ hmac = "0.12"
++sha3 = { version = "0.10", default-features = false }
++k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
+ 
+ [profile.release]
+ opt-level = "s"
+diff --git a/s3-ipfs-adapter/README.md b/s3-ipfs-adapter/README.md
+index 49361a6..3d5fd5b 100644
+--- a/s3-ipfs-adapter/README.md
++++ b/s3-ipfs-adapter/README.md
+@@ -73,10 +73,9 @@ client keeps working unchanged:
+ | `POST /add-image` | an app thumbnail/banner: raster by magic bytes, or SVG through the strict fail-closed validator (reject, never sanitize). Answers `{cid, svg}` |
+ | `GET /healthz` | `{"ok":true}` — the gateway liveness contract deploy tooling waits on |
+ 
+-All three pin routes require the platform's wallet-signed upload token
+-(`x-upload-address` / `x-upload-expiry` / `x-upload-token`, minted by the
+-api-relay as `HMAC-SHA256(uploadKey, "<address>:<sha256(bytes)>:<expiry>")`),
+-enforce per-wallet and global daily byte budgets, and echo CORS for the
++All three pin routes accept direct EOA wallet signatures when `walletAudience`
++is configured, or legacy relay HMAC tokens when `uploadKey` is configured.
++Both paths enforce per-wallet and global daily byte budgets, and echo CORS for the
+ configured origins. Pins land in the bucket at `pins/<cid>` — the CID is
+ computed by the same code that serves it, and a freshly pinned CID resolves
+ immediately (the snapshot is patched without waiting for a LIST). Gateway
+@@ -124,8 +123,10 @@ resolve from the environment, which is how deployment secrets arrive:
+ ```
+ 
+ The `upload` block is optional; without it the pin routes answer 503.
+-`uploadKey` is the HMAC secret shared with the api-relay (reference a
+-deployment secret, never inline it). All other keys default to the values
++`walletAudience` is this adapter’s full 32-byte deployment ID on Base. Set it
++to enable uploads without a relay or shared authorization secret.
++`uploadKey` is an optional compatibility secret shared with the api-relay
++(reference a deployment secret, never inline it). All other keys default to the values
+ shown. `allowUnsigned: true` opens the routes with no token — dev/e2e only,
+ never on a public deployment.
+ 
+@@ -139,6 +140,39 @@ on the fleet the TLS proxy strips `Authorization`, so Bearer only works
+ locally. A public deployment without an `api_key` leaves the bucket
+ writable by anyone: set one.
+ 
++## Direct wallet upload protocol
++
++Set `upload.walletAudience` to the full adapter deployment ID, for example
++`0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33`.
++The client personal-signs this exact UTF-8 message (LF separators, no trailing
++newline); address, service and SHA-256 are lowercase. `bytes` and `expiry`
++are unsigned decimal integers. The hash is 64 hex digits without `0x`.
++
++```text
++enclave-storage-upload:v1
++chainId:8453
++service:<full deployment ID>
++method:POST
++path:</add-json, /add-image or /add-wasm>
++address:<wallet address>
++sha256:<SHA-256 of the upload body>
++bytes:<Content-Length>
++expiry:<Unix seconds, at most 900 seconds ahead>
++```
++
++Send `x-upload-address`, `x-upload-expiry`, `x-upload-sha256`, and
++`x-upload-signature` (65-byte Ethereum signature as `0x` hex). The guest
++verifies the signature before accepting a streaming body, then checks the
++actual hash and length before committing it. Bad direct signatures never
++fall back to HMAC or unsigned mode. The configured service ID prevents a
++signature being reused at another adapter; route binding prevents using
++JSON authorization for a WASM or image upload. Repeating the same request
++within its validity window is possible and still consumes upload quotas.
++
++This path supports EOA signatures. Contract wallets and platform sessions
++still use the legacy path until independent contract/session verification
++is implemented. Enabling this feature alone does not retire the relay.
++
+ ## Limits, by design
+ 
+ - **This is the HTTP shape of an IPFS node, not a libp2p peer.** wasip2 is
+diff --git a/s3-ipfs-adapter/examples/test-upload-signature.rs b/s3-ipfs-adapter/examples/test-upload-signature.rs
+new file mode 100644
+index 0000000..c1d1a5d
+--- /dev/null
++++ b/s3-ipfs-adapter/examples/test-upload-signature.rs
+@@ -0,0 +1,18 @@
++//! Local e2e fixture signer. The fixed PUBLIC test key must never hold assets.
++use k256::ecdsa::SigningKey;
++use sha2::{Digest, Sha256};
++use sha3::Keccak256;
++fn hex(b: &[u8]) -> String { b.iter().map(|b| format!("{b:02x}")).collect() }
++fn main() {
++    let a: Vec<String> = std::env::args().collect();
++    assert_eq!(a.len(),4,"file route service-deployment-id");
++    let body=std::fs::read(&a[1]).unwrap();
++    let expiry=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()+300;
++    let key=SigningKey::from_bytes(&[0x42u8;32].into()).unwrap();
++    let address=format!("0x{}",hex(&Keccak256::digest(&key.verifying_key().to_encoded_point(false).as_bytes()[1..])[12..]));
++    let hash=hex(&Sha256::digest(&body));
++    let message=format!("enclave-storage-upload:v1\nchainId:8453\nservice:{}\nmethod:POST\npath:{}\naddress:{address}\nsha256:{hash}\nbytes:{}\nexpiry:{expiry}",a[3],a[2],body.len());
++    let mut h=Keccak256::new();h.update(format!("\x19Ethereum Signed Message:\n{}",message.len()));h.update(message.as_bytes());
++    let (sig,rec)=key.sign_prehash_recoverable(&h.finalize()).unwrap();
++    println!("x-upload-address: {address}\nx-upload-expiry: {expiry}\nx-upload-sha256: {hash}\nx-upload-signature: 0x{}{:02x}",hex(&sig.to_bytes()),rec.to_byte()+27);
++}
+diff --git a/s3-ipfs-adapter/scripts/e2e.sh b/s3-ipfs-adapter/scripts/e2e.sh
+index e68e83d..f353152 100755
+--- a/s3-ipfs-adapter/scripts/e2e.sh
++++ b/s3-ipfs-adapter/scripts/e2e.sh
+@@ -432,6 +432,42 @@ code=$(printf 'POST /add-json HTTP/1.1\r\nHost: x\r\nContent-Length: 4\r\nConten
+ [ "$code" = 400 ] || fail "duplicate Content-Length -> '$code' (want 400)"
+ pass "duplicate Content-Length refused (400)"
+ 
++# A separate instance has NO shared relay secret. Authorize directly using
++# the public test wallet; exercise buffered and multipart WASM paths.
++APP3_PORT=18402
++BASE3="http://127.0.0.1:$APP3_PORT"
++AUDIENCE=0xabababababababababababababababababababababababababababababababab
++CONFIG3=$(python3 - "$CONFIG2" "$AUDIENCE" <<'PYCONFIG'
++import json,sys
++c=json.loads(sys.argv[1]);del c['upload']['uploadKey'];c['upload']['walletAudience']=sys.argv[2];print(json.dumps(c))
++PYCONFIG
++)
++wasmtime run -Scli -Stcp -Sinherit-network -Sallow-ip-name-lookup \
++  --env "ENCLAVE_PORTS=http:8000=$APP3_PORT" --env "ENCLAVE_CONFIG=$CONFIG3" \
++  target/wasm32-wasip2/release/s3-ipfs-adapter.wasm >"$WORK/app3.log" 2>&1 &
++PIDS+=($!)
++for i in $(seq 1 600); do
++  [ "$(curl -sf "$BASE3/api/status" | jget state 2>/dev/null)" = ready ] && break
++  sleep 0.5
++  [ "$i" = 600 ] && fail "direct-wallet app index never became ready"
++done
++cargo build --example test-upload-signature >/dev/null 2>&1
++SIGN=target/debug/examples/test-upload-signature
++printf '{"direct":true}' > "$WORK/direct.json"
++"$SIGN" "$WORK/direct.json" /add-json "$AUDIENCE" > "$WORK/wallet-headers"
++CID=$(curl -sf -H @"$WORK/wallet-headers" --data-binary @"$WORK/direct.json" "$BASE3/add-json" | jget cid)
++[ "$CID" = "$(ipfs add --cid-version 1 -Q --only-hash "$WORK/direct.json" 2>/dev/null)" ] || fail "direct wallet JSON CID mismatch"
++curl -sf "$BASE3/ipfs/$CID" | cmp - "$WORK/direct.json" || fail "direct wallet JSON bytes differ"
++code=$(curl -s -o /dev/null -w '%{http_code}' -H @"$WORK/wallet-headers" --data-binary '{"direct":null}' "$BASE3/add-json")
++[ "$code" = 403 ] || fail "direct wrong bytes accepted ($code)"
++code=$(curl -s -o /dev/null -w '%{http_code}' --data-binary @"$WORK/direct.json" "$BASE3/add-json")
++[ "$code" = 401 ] || fail "unsigned direct upload accepted ($code)"
++"$SIGN" "$WORK/big.wasm" /add-wasm "$AUDIENCE" > "$WORK/wallet-headers"
++CID=$(curl -sf -H @"$WORK/wallet-headers" --data-binary @"$WORK/big.wasm" "$BASE3/add-wasm" | jget cid)
++[ "$CID" = "$BIG_EXPECT" ] || fail "direct wallet WASM CID mismatch"
++curl -sf "$BASE3/ipfs/$CID" | cmp - "$WORK/big.wasm" || fail "direct wallet WASM bytes differ"
++pass "relay-free wallet uploads pin and serve JSON/WASM, refuse unsigned or changed bytes"
++
+ echo
+ OK=1
+ echo "ALL PASS"
+diff --git a/s3-ipfs-adapter/src/main.rs b/s3-ipfs-adapter/src/main.rs
+index a911f0e..6f168da 100644
+--- a/s3-ipfs-adapter/src/main.rs
++++ b/s3-ipfs-adapter/src/main.rs
+@@ -41,6 +41,7 @@ mod leavescache;
+ mod redirects;
+ mod s3;
+ mod upload;
++mod wallet_upload;
+ mod wasmscan;
+ 
+ use std::cell::RefCell;
+@@ -182,6 +183,7 @@ fn load_config() -> Config {
+         let un = |k: &str, d: u64| u.get(k).and_then(|x| x.as_u64()).unwrap_or(d);
+         Some(upload::UploadCfg {
+             upload_key: us("uploadKey").unwrap_or_default().to_string(),
++            wallet_audience: us("walletAudience").unwrap_or_default().to_lowercase(),
+             allow_unsigned: u.get("allowUnsigned").and_then(|x| x.as_bool()).unwrap_or(false),
+             allow_origins: match u.get("allowOrigins").and_then(|x| x.as_array()) {
+                 Some(a) => a
+@@ -854,10 +856,10 @@ fn main() {
+     match &cfg.upload {
+         Some(u) if u.enabled() => eprintln!(
+             "[s3-ipfs-adapter] pin routes ON (/add-wasm /add-json /add-image), {}",
+-            if u.upload_key.is_empty() { "UNSIGNED (dev)" } else { "wallet-signed" }
++            if u.allow_unsigned && u.upload_key.is_empty() { "UNSIGNED (dev)" } else { "authenticated" }
+         ),
+         Some(_) => eprintln!(
+-            "[s3-ipfs-adapter] pin routes configured but uploadKey unresolved - they answer 503 until the secret is set"
++            "[s3-ipfs-adapter] pin routes configured without valid walletAudience or uploadKey - they answer 503"
+         ),
+         None => {}
+     }
+diff --git a/s3-ipfs-adapter/src/upload.rs b/s3-ipfs-adapter/src/upload.rs
+index a3a2653..9d79d78 100644
+--- a/s3-ipfs-adapter/src/upload.rs
++++ b/s3-ipfs-adapter/src/upload.rs
+@@ -3,7 +3,7 @@
+ //! inside the enclave so ipfs.enclave.host can be served entirely by this
+ //! app. Wire compatibility is the contract: same routes, same
+ //! x-upload-address / x-upload-expiry / x-upload-token wallet-HMAC auth
+-//! (minted by the api-relay, which is unchanged), same response shapes
++//! for legacy clients, plus deployment-bound EIP-191 signatures, same response shapes
+ //! ({"cid", ...}), same refusal codes (401/403/413/415/429), same CORS echo.
+ //!
+ //! What replaces Kubo: bytes are PUT into the configured S3 bucket under
+@@ -48,6 +48,7 @@ const UPLOAD_SLOTS: u32 = 4;
+ 
+ pub struct UploadCfg {
+     pub upload_key: String, // shared HMAC secret with the api-relay
++    pub wallet_audience: String, // full deployment ID, signed by direct wallet clients
+     pub allow_unsigned: bool, // dev/e2e only: no key, uploads open
+     pub allow_origins: Vec<String>,
+     pub max_wasm: u64,
+@@ -60,7 +61,7 @@ pub struct UploadCfg {
+ 
+ impl UploadCfg {
+     pub fn enabled(&self) -> bool {
+-        !self.upload_key.is_empty() || self.allow_unsigned
++        !self.upload_key.is_empty() || crate::wallet_upload::canonical_hex(&self.wallet_audience, 32, true) || self.allow_unsigned
+     }
+ }
+ 
+@@ -192,15 +193,23 @@ pub struct AuthHdrs {
+     address: String,
+     expiry: u64,
+     token: String,
++    wallet_body: Option<(String, u64)>,
+ }
+ 
+ /// Header-shape gate, decidable before any body byte: presence, address and
+ /// expiry formats, freshness. Returns Ok(None) when auth is disabled
+ /// (allow_unsigned dev mode). The HMAC itself binds to sha256(body), so it
+-/// is checked in `verify_hmac` once the body is complete.
++/// is checked in `verify_body` once the body is complete. Direct signatures
++/// are checked here, and their declared body hash is checked at completion.
+ fn precheck(cfg: &UploadCfg, req: &Request) -> Result<Option<AuthHdrs>, (u16, String)> {
+-    if cfg.upload_key.is_empty() {
+-        return Ok(None); // allow_unsigned checked by enabled()
++    for name in ["x-upload-address", "x-upload-expiry", "x-upload-token", "x-upload-signature", "x-upload-sha256"] {
++        if req.headers.iter().filter(|(k,_)| k == name).count() > 1 {
++            return Err((401, "duplicate upload authorization header".into()));
++        }
++    }
++    let wallet_attempt = req.header("x-upload-signature").is_some() || req.header("x-upload-sha256").is_some();
++    if !wallet_attempt && cfg.upload_key.is_empty() && cfg.allow_unsigned {
++        return Ok(None);
+     }
+     let address = req
+         .header("x-upload-address")
+@@ -213,7 +222,7 @@ fn precheck(cfg: &UploadCfg, req: &Request) -> Result<Option<AuthHdrs>, (u16, St
+         .unwrap_or("")
+         .trim()
+         .to_lowercase();
+-    if address.is_empty() || expiry.is_empty() || token.is_empty() {
++    if address.is_empty() || expiry.is_empty() || (!wallet_attempt && token.is_empty()) {
+         return Err((401, "signed upload required: connect your wallet and retry (the console/CLI signs the upload)".into()));
+     }
+     if !(address.len() == 42
+@@ -232,11 +241,36 @@ fn precheck(cfg: &UploadCfg, req: &Request) -> Result<Option<AuthHdrs>, (u16, St
+     if exp > now + 900 {
+         return Err((401, "upload authorization expiry too far in the future".into()));
+     }
+-    Ok(Some(AuthHdrs { address, expiry: exp, token }))
++    let wallet_body = if wallet_attempt {
++        use crate::wallet_upload::{canonical_hex, message, verify};
++        if !canonical_hex(&cfg.wallet_audience, 32, true) {
++            return Err((401, "direct wallet uploads are not configured".into()));
++        }
++        let hash = req.header("x-upload-sha256").unwrap_or("");
++        let size = req.header("content-length").and_then(|s| s.parse::<u64>().ok());
++        if !canonical_hex(hash, 32, false) || size.is_none() || req.method != "POST"
++            || !matches!(req.path.as_str(), "/add-json" | "/add-image" | "/add-wasm") {
++            return Err((401, "bad wallet upload scope".into()));
++        }
++        let size = size.unwrap();
++        let msg = message(&cfg.wallet_audience, &req.path, &address, hash, size, exp);
++        if !verify(&address, &msg, req.header("x-upload-signature").unwrap_or("")) {
++            return Err((403, "invalid wallet upload signature".into()));
++        }
++        Some((hash.to_string(), size))
++    } else {
++        if cfg.upload_key.is_empty() { return Err((401, "direct wallet signature required".into())); }
++        None
++    };
++    Ok(Some(AuthHdrs { address, expiry: exp, token, wallet_body }))
+ }
+ 
+ /// The api-relay's exact mint: HMAC-SHA256(UPLOAD_KEY, "addr:sha256hex:exp").
+-fn verify_hmac(auth: &AuthHdrs, upload_key: &str, body_sha256_hex: &str) -> Result<(), (u16, String)> {
++fn verify_body(auth: &AuthHdrs, upload_key: &str, body_sha256_hex: &str, size: u64) -> Result<(), (u16, String)> {
++    if let Some((hash, expected_size)) = &auth.wallet_body {
++        return if hash == body_sha256_hex && *expected_size == size { Ok(()) }
++            else { Err((403, "upload signature does not cover these bytes".into())) };
++    }
+     let msg = format!("{}:{}:{}", auth.address, body_sha256_hex, auth.expiry);
+     let mut mac = Hmac::<Sha256>::new_from_slice(upload_key.as_bytes()).expect("hmac key");
+     mac.update(msg.as_bytes());
+@@ -279,7 +313,7 @@ pub fn cors(resp: Response, req: &Request, cfg: &UploadCfg) -> Response {
+         .with("access-control-allow-methods", "POST, OPTIONS")
+         .with(
+             "access-control-allow-headers",
+-            "content-type, x-upload-address, x-upload-expiry, x-upload-token",
++            "content-type, x-upload-address, x-upload-expiry, x-upload-token, x-upload-signature, x-upload-sha256",
+         )
+ }
+ 
+@@ -352,7 +386,7 @@ fn gate_buffered<'a>(
+     let auth = precheck(cfg, req)?;
+     if let Some(a) = &auth {
+         let hash = hex_of(&Sha256::digest(&req.body));
+-        verify_hmac(a, &cfg.upload_key, &hash)?;
++        verify_body(a, &cfg.upload_key, &hash, req.body.len() as u64)?;
+         reserve_bytes(
+             &mut app.upload_shared.borrow_mut(),
+             cfg.per_addr_daily,
+@@ -657,7 +691,7 @@ impl Sink for WasmSink {
+         // The HMAC binds the minted token to these exact bytes.
+         let hash = hex_of(&std::mem::take(&mut self.body_hash).finalize());
+         if let Some(a) = self.auth.take() {
+-            if let Err((code, msg)) = verify_hmac(&a, &self.upload_key, &hash) {
++            if let Err((code, msg)) = verify_body(&a, &self.upload_key, &hash, self.fed) {
+                 let reason = if code == 401 { "Unauthorized" } else { "Forbidden" };
+                 return self.fail(code, reason, &msg);
+             }
+@@ -756,3 +790,60 @@ impl Drop for WasmSink {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod auth_tests {
++    use super::*;
++    use k256::ecdsa::SigningKey;
++    use sha3::Keccak256;
++    fn cfg() -> UploadCfg {
++        UploadCfg { upload_key: String::new(), wallet_audience: format!("0x{}", "ab".repeat(32)), allow_unsigned: false, allow_origins: vec![], max_wasm: 1024, max_image: 1024, max_json: 1024, per_addr_daily: 1024, global_daily: 4096, json_per_ip_hourly: 60.0 }
++    }
++    fn request(c: &UploadCfg, expiry: u64) -> Request {
++        let v: serde_json::Value = serde_json::from_str(include_str!("wallet-upload-vector.json")).unwrap();
++        let address = v["address"].as_str().unwrap();
++        let hash = hex_of(&Sha256::digest(b"{}"));
++        let m = crate::wallet_upload::message(&c.wallet_audience,"/add-json",address,&hash,2,expiry);
++        let mut h = Keccak256::new(); h.update(format!("\x19Ethereum Signed Message:\n{}",m.len())); h.update(m.as_bytes());
++        let key = SigningKey::from_bytes(&[0x42u8;32].into()).unwrap();
++        let (sig, rec) = key.sign_prehash_recoverable(&h.finalize()).unwrap();
++        let signature = format!("0x{}{:02x}",hex_of(&sig.to_bytes()),rec.to_byte()+27);
++        Request { method:"POST".into(),path:"/add-json".into(),query:String::new(),body:b"{}".to_vec(),stream_len:None,headers:vec![("content-length".into(),"2".into()),("x-upload-address".into(),address.into()),("x-upload-expiry".into(),expiry.to_string()),("x-upload-sha256".into(),hash),("x-upload-signature".into(),signature)] }
++    }
++    #[test]
++    fn direct_upload_needs_no_relay_secret_and_binds_final_bytes() {
++        let c=cfg(); assert!(c.enabled());
++        let req=request(&c,now_secs()+300); let a=precheck(&c,&req).unwrap().unwrap();
++        assert!(verify_body(&a,"",&hex_of(&Sha256::digest(b"{}")),2).is_ok());
++        assert!(verify_body(&a,"",&hex_of(&Sha256::digest(b"[]")),2).is_err());
++        assert!(verify_body(&a,"",&hex_of(&Sha256::digest(b"{}")),3).is_err());
++        let mut unsigned=req; unsigned.headers.clear(); assert!(precheck(&c,&unsigned).is_err());
++    }
++    #[test]
++    fn invalid_wallet_auth_cannot_fall_through_to_legacy_or_dev() {
++        let mut c=cfg(); c.allow_unsigned=true; c.upload_key="legacy".into();
++        let mut req=request(&c,now_secs()+300);
++        req.headers.retain(|(k,_)|k!="x-upload-signature");
++        req.headers.push(("x-upload-token".into(),"0".repeat(64)));
++        assert!(precheck(&c,&req).is_err());
++        c.upload_key.clear(); assert!(precheck(&c,&req).is_err());
++        req.headers.clear(); assert!(precheck(&c,&req).unwrap().is_none());
++    }
++    #[test]
++    fn rejects_expiry_scope_and_header_ambiguity() {
++        let c=cfg();
++        assert!(precheck(&c,&request(&c,now_secs()-1)).is_err());
++        assert!(precheck(&c,&request(&c,now_secs()+1000)).is_err());
++        let mut req=request(&c,now_secs()+300); req.path="/add-wasm".into(); assert!(precheck(&c,&req).is_err());
++        let mut req=request(&c,now_secs()+300);req.headers.push(("x-upload-address".into(),"0x00".into()));assert!(precheck(&c,&req).is_err());
++        let req=request(&c,now_secs()+300);let mut other=cfg();other.wallet_audience=format!("0x{}","cd".repeat(32));assert!(precheck(&other,&req).is_err());
++    }
++    #[test]
++    fn legacy_hmac_stays_compatible() {
++        let mut c=cfg();c.upload_key="legacy".into();let mut req=request(&c,now_secs()+300);
++        let addr=req.header("x-upload-address").unwrap();let expiry=req.header("x-upload-expiry").unwrap();let hash=hex_of(&Sha256::digest(b"{}"));
++        let mut mac=Hmac::<Sha256>::new_from_slice(c.upload_key.as_bytes()).unwrap();mac.update(format!("{addr}:{hash}:{expiry}").as_bytes());let token=hex_of(&mac.finalize().into_bytes());
++        req.headers.retain(|(k,_)|k!="x-upload-signature"&&k!="x-upload-sha256");req.headers.push(("x-upload-token".into(),token));
++        let a=precheck(&c,&req).unwrap().unwrap();assert!(verify_body(&a,&c.upload_key,&hash,2).is_ok());assert!(verify_body(&a,"wrong",&hash,2).is_err());
++    }
++}
+diff --git a/s3-ipfs-adapter/src/wallet-upload-vector.json b/s3-ipfs-adapter/src/wallet-upload-vector.json
+new file mode 100644
+index 0000000..3a6522d
+--- /dev/null
++++ b/s3-ipfs-adapter/src/wallet-upload-vector.json
+@@ -0,0 +1,10 @@
++{
++  "address": "0x17c5185167401ed00cf5f5b2fc97d9bbfdb7d025",
++  "service": "0xabababababababababababababababababababababababababababababababab",
++  "path": "/add-json",
++  "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
++  "bytes": 2,
++  "expiry": 1792346000,
++  "message": "enclave-storage-upload:v1\nchainId:8453\nservice:0xabababababababababababababababababababababababababababababababab\nmethod:POST\npath:/add-json\naddress:0x17c5185167401ed00cf5f5b2fc97d9bbfdb7d025\nsha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\nbytes:2\nexpiry:1792346000",
++  "signature": "0x2c06c7cfd2afc19845bd7ef048a8dc841a8d29bb907b0f17dbd4182069346ea15cd2a3939ae3962019981f19bd11c04b193775e12c6ae2e9f640663b691f8b971b"
++}
+diff --git a/s3-ipfs-adapter/src/wallet_upload.rs b/s3-ipfs-adapter/src/wallet_upload.rs
+new file mode 100644
+index 0000000..f8c2089
+--- /dev/null
++++ b/s3-ipfs-adapter/src/wallet_upload.rs
+@@ -0,0 +1,64 @@
++//! Relay-independent, deployment-bound EIP-191 upload authorization.
++use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
++use sha3::{Digest, Keccak256};
++
++pub fn canonical_hex(s: &str, bytes: usize, prefix: bool) -> bool {
++    let raw = if prefix { s.strip_prefix("0x").unwrap_or("") } else { s };
++    raw.len() == bytes * 2 && raw.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
++}
++
++pub fn message(service: &str, path: &str, address: &str, hash: &str, bytes: u64, expiry: u64) -> String {
++    format!("enclave-storage-upload:v1\nchainId:8453\nservice:{service}\nmethod:POST\npath:{path}\naddress:{address}\nsha256:{hash}\nbytes:{bytes}\nexpiry:{expiry}")
++}
++
++fn digest(message: &str) -> [u8; 32] {
++    let mut h = Keccak256::new();
++    h.update(format!("\x19Ethereum Signed Message:\n{}", message.len()));
++    h.update(message.as_bytes());
++    h.finalize().into()
++}
++
++pub fn verify(address: &str, message: &str, signature: &str) -> bool {
++    if !canonical_hex(address, 20, true) { return false; }
++    let Some(raw) = signature.strip_prefix("0x") else { return false; };
++    if raw.len() != 130 || !raw.bytes().all(|c| c.is_ascii_hexdigit()) { return false; }
++    let bytes: Vec<u8> = (0..65).map(|i| u8::from_str_radix(&raw[i*2..i*2+2], 16).unwrap()).collect();
++    let Ok(sig) = Signature::from_slice(&bytes[..64]) else { return false; };
++    let v = match bytes[64] { 0 | 1 => bytes[64], 27 | 28 => bytes[64] - 27, _ => return false };
++    let Some(recovery) = RecoveryId::from_byte(v) else { return false; };
++    let Ok(key) = VerifyingKey::recover_from_prehash(&digest(message), &sig, recovery) else { return false; };
++    let hash = Keccak256::digest(&key.to_encoded_point(false).as_bytes()[1..]);
++    let recovered = format!("0x{}", hash[12..].iter().map(|b| format!("{b:02x}")).collect::<String>());
++    recovered == address
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use k256::ecdsa::SigningKey;
++    #[test]
++    fn viem_personal_sign_vector() {
++        let v: serde_json::Value = serde_json::from_str(include_str!("wallet-upload-vector.json")).unwrap();
++        let m = message(v["service"].as_str().unwrap(), v["path"].as_str().unwrap(), v["address"].as_str().unwrap(), v["sha256"].as_str().unwrap(), v["bytes"].as_u64().unwrap(), v["expiry"].as_u64().unwrap());
++        assert_eq!(m, v["message"].as_str().unwrap());
++        assert!(verify(v["address"].as_str().unwrap(), &m, v["signature"].as_str().unwrap()));
++    }
++    #[test]
++    fn signed_scope_cannot_be_changed() {
++        let key = SigningKey::from_bytes(&[0x42u8;32].into()).unwrap();
++        let h = Keccak256::digest(&key.verifying_key().to_encoded_point(false).as_bytes()[1..]);
++        let address = format!("0x{}", h[12..].iter().map(|b| format!("{b:02x}")).collect::<String>());
++        let service = format!("0x{}", "ab".repeat(32));
++        let hash = "cd".repeat(32);
++        let original = message(&service, "/add-json", &address, &hash, 2, 1000);
++        let (sig, rec) = key.sign_prehash_recoverable(&digest(&original)).unwrap();
++        let signature = format!("0x{}{:02x}", sig.to_bytes().iter().map(|b| format!("{b:02x}")).collect::<String>(), rec.to_byte()+27);
++        assert!(verify(&address, &original, &signature));
++        for altered in [message(&format!("0x{}", "ef".repeat(32)), "/add-json", &address, &hash, 2, 1000), message(&service,"/add-wasm",&address,&hash,2,1000), message(&service,"/add-json",&address,&"00".repeat(32),2,1000), message(&service,"/add-json",&address,&hash,3,1000), message(&service,"/add-json",&address,&hash,2,1001)] {
++            assert!(!verify(&address, &altered, &signature));
++        }
++        assert!(!verify(&format!("0x{}", "00".repeat(20)), &original, &signature));
++        assert!(!verify(&address, &original, "0x00"));
++        assert!(!verify(&address, &original, &format!("{}ff", &signature[..130])));
++    }
++}

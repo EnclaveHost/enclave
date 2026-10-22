@@ -1,0 +1,218 @@
+--- a/isolation/m2/bootstrap/history_test.go
++++ b/isolation/m2/bootstrap/history_test.go
+@@ -13,8 +13,8 @@
+ func TestHistoryFieldIsOptionalAndStrict(t *testing.T) {
+ 	ok := []string{
+ 		`{"rpcs":["https://base-mainnet.public.blastapi.io"]}`,
+-		`{"rpcs":["https://gateway.tenderly.co/public/base","https://base-public.nodies.app","https://x.example/v2/read-only-key?x=1"]}`,
+-		`{"rpcs":["https://rpc.example:443/base"]}`,
++		`{"rpcs":["https://base-public.nodies.app","https://gateway.tenderly.co/public/base","https://x.example/v2/node-1"]}`,
++		`{"rpcs":["https://rpc.example/base"]}`,
+ 	}
+ 	for _, h := range ok {
+ 		raw := []byte(`{"history":` + h + `}`)
+@@ -39,6 +39,10 @@
+ 		`{"rpcs":["https://RPC.example","https://rpc.example./other"]}`, // one host twice
+ 		`{"rpcs":["https://a.example","https://b.example","https://c.example","https://d.example","https://e.example","https://f.example","https://g.example"]}`,
+ 		`{"rpcs":["https://rpc.example/` + strings.Repeat("a", 512) + `"]}`,
++		`{"rpcs":["https://x.example/v2/read-only-key?x=1"]}`,             // a query would be published
++		`{"rpcs":["https://rpc.example:443/base"]}`,                       // no port
++		`{"rpcs":["https://gateway.tenderly.co","https://base.example"]}`, // not ascending
++		`{"rpcs":["https://192.0.2.7/rpc"]}`,                              // no IP literal
+ 		`{"rpcs":null}`,
+ 	}
+ 	for _, h := range bad {
+--- a/isolation/m2/bootstrap/cold_history_rig_test.go
++++ b/isolation/m2/bootstrap/cold_history_rig_test.go
+@@ -51,6 +51,12 @@
+ 			AuthFails string          `json:"authorizeFails"`
+ 			MaxReq    int             `json:"maxRequests"`
+ 			AttemptMs int             `json:"attemptTimeoutMs"`
++			// an attested checkpoint from an earlier guest of the same build that had these history sources
++			Checkpoint *struct {
++				History []string `json:"history"`
++				Tamper  bool     `json:"tamper"`
++			} `json:"checkpoint"`
++			PauseBefore bool `json:"pauseBefore"` // pause before Authorize (after the checkpoint), not after it
+ 		} `json:"checks"`
+ 	}
+ 	if err := json.Unmarshal([]byte(raw), &in); err != nil {
+@@ -115,6 +121,61 @@
+ 		copy(rt[:], b)
+ 		pkg, _ := base64.StdEncoding.DecodeString(c.Package)
+ 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
++		var checkpointRaw, ownReport []byte
++		if c.Checkpoint != nil {
++			everything := &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
++				to, known := in.Routes[r.URL.Hostname()]
++				if !known {
++					return nil, errors.New("unrouted")
++				}
++				u, _ := url.Parse(to)
++				r = r.Clone(r.Context())
++				r.URL.Scheme, r.URL.Host, r.Host = u.Scheme, u.Host, u.Host
++				return http.DefaultTransport.RoundTrip(r)
++			})}
++			producer, err := NewReader(Config{ChainID: 8453, Ledger: in.Ledger, RPCs: in.Measured, Confirmations: 2, MaxAge: 2 * time.Minute, Client: everything})
++			if err != nil {
++				t.Fatal(err)
++			}
++			producer.now = reader.now
++			hist := producer.historySources(&History{RPCs: c.Checkpoint.History})
++			if _, err := WhenFinal(ctx, 2*time.Minute, 200*time.Millisecond, func(x context.Context) (appconfig.WriterAuthority, error) {
++				return producer.writerAuthority(x, id, func(snapshot) error { return nil }, hist)
++			}); err != nil {
++				cancel()
++				t.Errorf("%s: the producing guest could not verify the lease: %v", c.Name, err)
++				continue
++			}
++			st, err := producer.CheckpointStatement(id)
++			if err != nil {
++				t.Fatal(err)
++			}
++			s := newSynthAMD(t)
++			measurement := [48]byte{0xab, 0xcd}
++			rep := s.report(s.fields(CheckpointReportData(st), measurement, id), s.vcekKey)
++			if c.Checkpoint.Tamper { // altered after it was signed: still canonical, no longer what the evidence binds
++				cov, _ := producer.coverage(id)
++				st = []byte(strings.Replace(string(st), fmt.Sprintf(`"hi":%d`, cov.hi), fmt.Sprintf(`"hi":%d`, cov.hi-1), 1))
++			}
++			// the CRL fresh by THIS guest's clock (the rig's chain clock runs a month ahead: a wall-clock CRL is stale here)
++			at := reader.now()
++			crl := s.crl(t, nil, at.Add(-time.Hour), at.Add(24*time.Hour), s.arkKey)
++			if checkpointRaw, err = EncodeCheckpoint(st, rep, auxblob(s.vcek.Raw, s.ask.Raw, s.ark.Raw), crl); err != nil {
++				t.Fatal(err)
++			}
++			ownReport = s.report(s.fields([64]byte{}, measurement, id), s.vcekKey)
++			cov, _ := producer.coverage(id)
++			fmt.Printf("CHECKPOINT %s %d-%d %d logs\n", c.Name, cov.lo, cov.hi, len(cov.logs))
++		}
++		if c.PauseBefore && c.Pause != "" { // the driver changes the chain before this guest starts
++			os.WriteFile(filepath.Join(c.Pause, "authorized"), []byte("1"), 0o644)
++			for i := 0; i < 600; i++ {
++				if _, e := os.Stat(filepath.Join(c.Pause, "proceed")); e == nil {
++					break
++				}
++				time.Sleep(100 * time.Millisecond)
++			}
++		}
+ 		auth, err := reader.AuthorizeWhenConfirmed(ctx, id, pkg, Identity{AppID: app, RuntimeID: rt})
+ 		if c.AuthFails != "" {
+ 			cancel()
+@@ -134,7 +195,13 @@
+ 		mu.Lock()
+ 		fmt.Printf("ADMITTED %s %s\n", c.Name, strings.Join(admitted, ","))
+ 		mu.Unlock()
+-		if c.Pause != "" { // the driver changes the chain between authorization and the writer authority
++		if checkpointRaw != nil {
++			if e := reader.TrustCheckpointsFrom(ownReport); e != nil {
++				t.Fatal(e)
++			}
++			fmt.Printf("ADOPT %s %v\n", c.Name, reader.AdoptCheckpoint(id, checkpointRaw))
++		}
++		if c.Pause != "" && !c.PauseBefore { // the driver changes the chain between authorization and the writer authority
+ 			os.WriteFile(filepath.Join(c.Pause, "authorized"), []byte("1"), 0o644)
+ 			for i := 0; i < 600; i++ {
+ 				if _, e := os.Stat(filepath.Join(c.Pause, "proceed")); e == nil {
+@@ -161,6 +228,9 @@
+ 			if err == nil || !strings.Contains(err.Error(), c.Contains) {
+ 				t.Errorf("%s: want an error containing %q, got %v", c.Name, c.Contains, err)
+ 			}
++		case len(c.Fact) == 0: // the driver compares the fact itself (it changed the chain during the run)
++			j, _ := w.JSON()
++			fmt.Printf("FACT %s %s %v\n", c.Name, j, err)
+ 		default:
+ 			if err != nil {
+ 				t.Errorf("%s: %v", c.Name, err)
+--- a/test/storage-front-binding.test.mjs
++++ b/test/storage-front-binding.test.mjs
+@@ -76,7 +76,8 @@
+   rig.peers[0].mode.rateLimit = 2;
+   let R = reader({ windowBlocks: 1000 });
+   assert.deepEqual((await R.writerAuthority(id)).fact, factOf(id, c));
+-  assert.ok(rig.peers[0].mode.calls.filter((m) => m === "eth_getLogs").length > 1, "the range was split");
++  // the 429ing RPC sits out its cooldown after one retry; the others split the range to 200 blocks
++  assert.ok(rig.peers[1].mode.calls.filter((m) => m === "eth_getLogs").length > 1, "the range was split");
+   // an unserved history on every provider: an error, not an empty history
+   rig.honest(10); for (const p of rig.peers) p.mode.historyBelow = c.block + 1;
+   const e = await err(reader({ windowBlocks: 8 }).writerAuthority(id));
+--- a/test/storage-front-cold-history.test.mjs
++++ b/test/storage-front-cold-history.test.mjs
+@@ -23,7 +23,7 @@
+ const M2 = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../isolation/m2");
+ const skip = (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); execFileSync("go", ["version"], { stdio: "ignore" }); return false; } catch { return "needs anvil and go"; } })();
+ const NAMES = ["rpc.measured-a.test", "rpc.measured-b.test", "rpc.measured-c.test", "rpc.hist-a.test", "rpc.hist-b.test"];
+-const H1 = "https://rpc.hist-a.test/base", H2 = "https://rpc.hist-b.test/v1/base?key=synthetic-read-only", H1ALIAS = "https://rpc2.hist-a.test/base";
++const H1 = "https://rpc.hist-a.test/base", H2 = "https://rpc.hist-b.test/v1/base", H1ALIAS = "https://rpc2.hist-a.test/base";
+ const APP = "a1".repeat(32), RUNTIME = "b2".repeat(32), DAY = 86400, STEP = 1700;
+ let rig, ticker, offset = 0;
+ const D = {};   // name -> { id, pkg, claims: [{block, logIndex, time}] }
+@@ -132,7 +132,14 @@
+       assert.equal(r, 0n, "the ownership-transfer fixture is self-hosted with no refundable backing");
+       assert.equal((await rig.row(D[name].id)).balance6, 0n);
+     } else await rig.fundMore(D[name].id, String((r * 1800n * 12n) / 10n ** 6n + 2n));
+-    for (let k = 0; k < 8; k++) await rig.renew(D[name].id, host);   // current through every check
++    for (let k = 0; k < 8; k++) {                                       // current through every check
++      try { await rig.renew(D[name].id, host); }
++      catch (e) {                                                       // diagnose, never retry: a revert here is a finding
++        const row = await rig.row(D[name].id), blk = await rig.pc.getBlock();
++        console.log(`# renew ${name} round ${k} reverted: leaseUntil ${row.leaseUntil} rate ${row.rate} balance6 ${row.balance6} active ${row.active} runner ${row.runner} chain time ${blk.timestamp}`);
++        throw e;
++      }
++    }
+   }
+   await rig.mine(30);
+   const latest = await rig.pc.getBlock();
+@@ -211,7 +218,7 @@
+     { onAuthorized: async () => { throw new Error("synthetic fixture callback failure"); } }), /synthetic fixture callback failure/);
+   assert.ok(Date.now() - t0 < 120000, `the paused child was released and reaped promptly (${Date.now() - t0} ms)`);
+   // a package that does not match the owner's commitment: refused, and no history host ever joins the allowlist
+-  await go([{ name: "D1-uncommitted", d: "D1", package: manifest(D.D1.id, [H2, H1]), authorizeFails: "differs from owner commitment" }]);
++  await go([{ name: "D1-uncommitted", d: "D1", package: manifest(D.D1.id, [H1]), authorizeFails: "differs from owner commitment" }]);
+ });
+ 
+ test("external endpoint loss: a history source down for the whole window gives no fact; one back within it gives the fact", { skip, timeout: 900000 }, async () => {
+@@ -222,3 +229,26 @@
+     { during: () => setTimeout(() => { rig.peers[HB].mode.down = false; }, 4000) });
+   assert.ok(attempts(out, "D1-h2-back") > 1, "it waited through the outage");
+ });
++
++test("attested checkpoint: with every history source down, a fresh guest proves the month-old lease from a checkpoint; a tampered one gives nothing; a later same-runner reclaim is still found", { skip, timeout: 900000 }, async () => {
++  // the producer (an earlier guest of the same build) verifies D1 with its history sources; then they go down
++  await shape();
++  const historyDown = async () => { rig.peers[HA].mode.down = true; rig.peers[HB].mode.down = true; };
++  const ok = await go([{ name: "D1-from-checkpoint", d: "D1", pause: true, pauseBefore: true, checkpoint: { history: [H1, H2] }, fact: factOf(D.D1) }],
++    { onAuthorized: historyDown });
++  assert.match(ok, /^ADOPT D1-from-checkpoint <nil>$/m, "the checkpoint was verified and adopted");
++  // the same, the statement altered after it was signed: refused; its history sources down (an outage the guest retries
++  // through), the startup window ends with no fact
++  await shape();
++  const bad = await go([{ name: "D1-tampered-checkpoint", d: "D1", pause: true, pauseBefore: true, checkpoint: { history: [H1, H2], tamper: true }, windowMs: 4000, contains: "quorum_unavailable" }],
++    { onAuthorized: historyDown });
++  assert.match(bad, /^ADOPT D1-tampered-checkpoint checkpoint evidence: binding/m, "the altered statement was refused");
++  // after the checkpoint, the SAME runner releases and claims again: the tail is read under quorum, the NEW claim is the fact
++  await shape();
++  let reclaimed;
++  const out = await go([{ name: "D1-reclaim-after-checkpoint", d: "D1", pause: true, pauseBefore: true, checkpoint: { history: [H1, H2] } }],
++    { onAuthorized: async () => { await rig.release(D.D1.id, rig.hosts.a); await claim(D.D1); reclaimed = D.D1.claims.at(-1); await rig.mine(15); await historyDown(); } });
++  assert.match(out, /^ADOPT D1-reclaim-after-checkpoint <nil>$/m);
++  const fact = JSON.parse((out.match(/^FACT D1-reclaim-after-checkpoint (\{.*?\}) <nil>$/m) || [])[1] || "null");
++  assert.deepEqual(fact, factOf(D.D1, reclaimed), "the reclaim after the checkpoint, never the checkpoint's older claim");
++});
+--- a/test/storage-front-resource-bounds.test.mjs
++++ b/test/storage-front-resource-bounds.test.mjs
+@@ -91,12 +91,12 @@
+   try {
+     rig.honest(10);
+     const id = await rig.create(); await rig.claim(id, rig.hosts.a); await rig.mine(20);
+-    for (const p of rig.peers) p.mode.rateLimit = 1_000_000;          // every eth_getLogs: HTTP 429 (backoff 0.5, 1, 2, 4 s)
++    for (const p of rig.peers) p.mode.rateLimit = 1_000_000;          // every eth_getLogs: HTTP 429 (one 0.5 s retry, then cooldown)
+     const sets = []; const base = memoryStore();
+     const store = { ...base, set: (k, v) => { sets.push(Date.now()); return base.set(k, v); } };
+     const R = createLeaseGenerationReader({ rpcs: rig.peers.map((p) => p.url), ledger: rig.ledger, fromBlock: 0, store });
+     const ac = new AbortController(), t0 = Date.now();
+-    setTimeout(() => ac.abort(new Error("release deadline")), 700);
++    setTimeout(() => ac.abort(new Error("release deadline")), 250);   // inside the retry's backoff sleep
+     await assert.rejects(R.writerAuthority(id, { signal: ac.signal }), (e) => e.code === "aborted");
+     const took = Date.now() - t0;
+     assert.ok(took < 1500, `the backoff sleep was cancelled (took ${took} ms)`);

@@ -1,0 +1,848 @@
+--- a/sdk/bootstrap/package.mjs
++++ b/sdk/bootstrap/package.mjs
+@@ -71,6 +71,68 @@
+   }
+   return n;
+ }
++// Owner-named log history sources (optional; isolation/m2/bootstrap/history.go is the guest's identical check,
++// cross-tested by history-vectors.json; work/history-owner-tools-interface.txt). A cold-starting guest reads EVERY lease
++// log from its lease's claim to the finalized head (rev 16d keeps no claim marker in state); public measured RPCs serve
++// recent logs only, so an owner names log-capable sources here. The package is PUBLISHED: a URL may never carry a
++// credential (no userinfo, no query; a key-like path needs the owner's explicit confirmation in the tools).
++export const MAX_HISTORY_RPCS=6;
++const historyRe=/^https:\/\/([a-z0-9.-]+)(\/[A-Za-z0-9._~\/-]*)?$/;
++export function historyHost(url){
++  if(typeof url!=='string'||url.length<1||url.length>512)return null;
++  const m=historyRe.exec(url);
++  return m&&dnsName(m[1])?m[1]:null;
++}
++export function validateHistory(h){
++  if(!object(h)||!noNull(h))throw Error('owner history must be an object without nulls');
++  keys(h,['rpcs']);
++  if(!Array.isArray(h.rpcs)||h.rpcs.length<1||h.rpcs.length>MAX_HISTORY_RPCS)throw Error(`owner history needs 1 to ${MAX_HISTORY_RPCS} RPCs`);
++  const hosts=new Set();
++  h.rpcs.forEach((u,i)=>{
++    const host=historyHost(u);
++    if(!host)throw Error('owner history RPC must be https://<lowercase DNS name>[/path] with no port, query, fragment or credentials');
++    if(i>0&&!(h.rpcs[i-1]<u))throw Error('owner history RPCs must be strictly ascending and unique');
++    if(hosts.has(host))throw Error('owner history RPC hosts must be distinct');
++    hosts.add(host);
++  });
++  return h;
++}
++// who runs a source, for counting independent answers: the guest's operatorOf (last two DNS labels; errs strict)
++export const historyOperator=url=>{const h=historyHost(url);return h?h.split('.').slice(-2).join('.'):null;};
++// a path segment that looks like a provider key: refused by the tools unless the owner confirms it is public
++export const credentialLike=url=>{const m=historyRe.exec(String(url));return !!m&&String(m[2]||'').split('/').some(seg=>/^[A-Za-z0-9_-]+$/.test(seg)&&(seg.length>=24||seg.length>=16&&/[A-Za-z]/.test(seg)&&/[0-9]/.test(seg)));};
++/** Owner input -> the canonical member (sorted, deduplicated, checked) or null for none. */
++export function historyFromList(list,{pathIsPublic=false}={}){
++  const rpcs=[...new Set((Array.isArray(list)?list:String(list||'').split(/[\s,]+/)).map(x=>String(x).trim()).filter(Boolean))].sort();
++  if(!rpcs.length)return null;
++  for(const u of rpcs){
++    if(/^[a-z]+:\/\/[^/]*@/i.test(u))throw Error(`history RPC ${u}: credentials in a URL would be published with the package`);
++    if(/[?#]/.test(u))throw Error(`history RPC ${u}: a query or fragment would be published with the package (and the guest refuses it)`);
++    if(!historyHost(u))throw Error(`history RPC ${u}: must be https://<lowercase DNS name>[/path], no port`);
++    if(credentialLike(u)&&!pathIsPublic)throw Error(`history RPC ${u}: its path looks like a provider key, and the package is published for anyone to read; use a public endpoint or your own node, or confirm the path is public`);
++  }
++  return validateHistory({rpcs});
++}
++/** What the owner should know about a history member (never a refusal: those are thrown above). */
++export function historyWarnings(h){
++  if(!h)return ['no history sources: a fresh guest cannot prove a lease whose claim is older than its measured RPCs serve (about 5,000 blocks, under 3 hours)'];
++  const w=[],ops=new Set(h.rpcs.map(historyOperator));
++  if(ops.size<2)w.push(`only ${ops.size} independent operator: a claim older than the measured RPCs' horizon needs two operators that both serve its history`);
++  const enclave=h.rpcs.filter(u=>/(^|\.)enclave\.host$/.test(historyHost(u)));
++  if(enclave.length)w.push(`${enclave.join(', ')} is run by Enclave; it works only while Enclave runs it`);
++  return w;
++}
++// Bounded public options, offered for the owner to choose and edit, never pre-selected. Provenance: the read-only probes
++// in work/storage-front-cold-history/logs (probe-throughput.json, probe-operators.run2.log), 2026-10-20.
++export const HISTORY_PUBLIC_OPTIONS=Object.freeze([
++  Object.freeze({url:'https://base-rpc.polkachu.com',operator:'Polkachu',probed:'2026-10-20',
++    served:'Base logs ~28 days back in 1000-block ranges (~3,000 blocks/s, no refusals in 30 requests)',
++    limits:'prunes history: earliest block 51,500,000 at the probe (~31.7 days), a rolling window; no availability guarantee; not run by Enclave'}),
++  Object.freeze({url:'https://gateway.tenderly.co/public/base',operator:'Tenderly',probed:'2026-10-20',
++    served:'Base logs 35 and 120 days back in 1000-block ranges (~7,000 blocks/s)',
++    limits:'rate-limits bursts (HTTP 429); no availability guarantee; not run by Enclave; one operator even under two of its hostnames'}),
++]);
++export const HISTORY_KEYLESS_LIMIT='No keyless second operator was found for history older than about 31 days: for older leases name your own node or a provider you choose.';
+ // The DNS-01 alias label commits to the deployment AND its owner, so a
+ // delegation published for one owner stops working when the deployment moves.
+ export function challengeLabel(deployment,owner){
+@@ -86,13 +148,14 @@
+   const hash=createHash('sha256').update(bytes).digest('hex');
+   if(intent?.version!==1||intent.sha256!==hash)throw Error('startup package hash mismatch');
+   const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes),m=parseUniqueJSON(text);
+-  keys(m,['version','chainId','ledger','deployment','owner','appRef','appId','runtimeId','configText','secretsMode','custody','names']);
++  keys(m,['version','chainId','ledger','deployment','owner','appRef','appId','runtimeId','configText','secretsMode','custody','names','history']);
+   if(m.version!==1||!Number.isSafeInteger(m.chainId)||m.chainId<=0||!addr.test(m.ledger)||!nonzero(m.ledger)||!addr.test(m.owner)||!nonzero(m.owner)||!id32.test(m.deployment)||!nonzero(m.deployment)||!hex32.test(m.appId)||!nonzero(m.appId)||!hex32.test(m.runtimeId)||!nonzero(m.runtimeId)||typeof m.appRef!=='string'||!m.appRef||typeof m.configText!=='string'||Buffer.byteLength(m.configText)>32768)throw Error('invalid startup package');
+   if(m.configText){const c=parseUniqueJSON(m.configText);if(!c||typeof c!=='object')throw Error('startup config must be an object or array');}
+   if(m.secretsMode==='public'){if(m.custody!=null)throw Error('public package cannot carry custody');}
+   else if(m.secretsMode==='custody-v2'){if(!object(m.custody)||m.custody.v!==2||m.custody.chainId!==m.chainId)throw Error('custody-v2 pointer required');}
+   else throw Error('explicit startup secrets mode required');
+   if(Object.hasOwn(m,'names'))validateNames(m.names,m.secretsMode);
++  if(Object.hasOwn(m,'history'))validateHistory(m.history);
+   for(const [k,v]of Object.entries(scope)){if(v==null)continue;const fold=['ledger','owner'].includes(k);if((fold?m[k]?.toLowerCase():m[k])!==(fold?String(v).toLowerCase():v))throw Error(`startup ${k} mismatch`);}
+   return {manifest:m,bytes,sha256:hash,cid:packageCID(hash)};
+ }
+--- a/site/js/core/startup-package.js
++++ b/site/js/core/startup-package.js
+@@ -6,7 +6,7 @@
+    without changing their schema:
+      package  = UTF-8 of JSON.stringify({version:1, chainId, ledger,
+                 deployment, owner, appRef, appId, runtimeId, configText,
+-                secretsMode, [custody]}) - the CLI's exact key order;
++                secretsMode, [custody], [names], [history]}) - the CLI's exact key order;
+      intent   = {version:1, sha256:<hex of those bytes>};
+      envelope = the record's current options with config/configCid
+                 removed, guestBootstrap = intent and
+@@ -70,15 +70,75 @@
+   return n;
+ }
+ 
++/* Owner-named log history sources (optional, appended after names): the same check as sdk/bootstrap/package.mjs
++   validateHistory and the measured guest's isolation/m2/bootstrap/history.go (shared vectors:
++   isolation/m2/bootstrap/testdata/history-vectors.json; work/history-owner-tools-interface.txt). A cold-starting guest
++   must read every lease log from its claim on; the guest's own RPCs serve recent logs only. The package is PUBLISHED, so
++   a URL never carries a credential: no userinfo or query (refused), and a key-like path only with the owner's explicit
++   confirmation. Nothing is pre-selected: the public options below are offered, with their provenance and limits. */
++export const MAX_HISTORY_RPCS = 6;
++const historyRe = /^https:\/\/([a-z0-9.-]+)(\/[A-Za-z0-9._~\/-]*)?$/;
++export function historyHost(url){
++  if (typeof url !== "string" || url.length < 1 || url.length > 512) return null;
++  const m = historyRe.exec(url);
++  return m && dnsName(m[1]) ? m[1] : null;
++}
++export function validateHistory(h){
++  if (!plain(h) || !noNull(h)) throw new Error("owner history must be an object without nulls");
++  onlyKeys(h, ["rpcs"]);
++  if (!Array.isArray(h.rpcs) || h.rpcs.length < 1 || h.rpcs.length > MAX_HISTORY_RPCS) throw new Error("owner history needs 1 to " + MAX_HISTORY_RPCS + " RPCs");
++  const hosts = new Set();
++  h.rpcs.forEach((u, i) => {
++    const host = historyHost(u);
++    if (!host) throw new Error("owner history RPC must be https://<lowercase DNS name>[/path] with no port, query, fragment or credentials");
++    if (i > 0 && !(h.rpcs[i - 1] < u)) throw new Error("owner history RPCs must be strictly ascending and unique");
++    if (hosts.has(host)) throw new Error("owner history RPC hosts must be distinct");
++    hosts.add(host);
++  });
++  return h;
++}
++export const historyOperator = (url) => { const h = historyHost(url); return h ? h.split(".").slice(-2).join(".") : null; };
++export const credentialLike = (url) => { const m = historyRe.exec(String(url)); return !!m && String(m[2] || "").split("/").some((seg) => /^[A-Za-z0-9_-]+$/.test(seg) && (seg.length >= 24 || seg.length >= 16 && /[A-Za-z]/.test(seg) && /[0-9]/.test(seg))); };
++/* The form's lines -> the canonical member (sorted, deduplicated, checked) or null for none; the guest's words on refusal. */
++export function historyFromForm({ rpcsText, pathIsPublic = false }){
++  const rpcs = [...new Set(String(rpcsText || "").split(/[\s,]+/).map((x) => x.trim()).filter(Boolean))].sort();
++  if (!rpcs.length) return null;
++  for (const u of rpcs){
++    if (/^[a-z]+:\/\/[^/]*@/i.test(u)) throw new Error(u + ": credentials in a URL would be published with your settings");
++    if (/[?#]/.test(u)) throw new Error(u + ": a query or fragment would be published with your settings (and the guest refuses it)");
++    if (!historyHost(u)) throw new Error(u + ": must be https://<lowercase DNS name>[/path], no port");
++    if (credentialLike(u) && !pathIsPublic) throw new Error(u + ": its path looks like a provider key, and your settings are published for anyone to read; use a public endpoint or your own node, or confirm the path is public");
++  }
++  return validateHistory({ rpcs });
++}
++export function historyWarnings(h){
++  if (!h) return ["No history sources: a fresh app guest cannot prove a lease whose claim is older than its own RPCs serve (about 5,000 blocks, under 3 hours)."];
++  const w = [], ops = new Set(h.rpcs.map(historyOperator));
++  if (ops.size < 2) w.push("Only " + ops.size + " independent operator: a claim older than the guest's own RPCs serve needs two operators that both serve its history.");
++  const enclave = h.rpcs.filter((u) => /(^|\.)enclave\.host$/.test(historyHost(u)));
++  if (enclave.length) w.push(enclave.join(", ") + " is run by Enclave; it works only while Enclave runs it.");
++  return w;
++}
++/* sdk/bootstrap/package.mjs HISTORY_PUBLIC_OPTIONS (provenance: read-only probes of 2026-10-20). Offered, never selected. */
++export const HISTORY_PUBLIC_OPTIONS = Object.freeze([
++  Object.freeze({ url: "https://base-rpc.polkachu.com", operator: "Polkachu", probed: "2026-10-20",
++    served: "Base logs ~28 days back in 1000-block ranges (~3,000 blocks/s, no refusals in 30 requests)",
++    limits: "prunes history: earliest block 51,500,000 at the probe (~31.7 days), a rolling window; no availability guarantee; not run by Enclave" }),
++  Object.freeze({ url: "https://gateway.tenderly.co/public/base", operator: "Tenderly", probed: "2026-10-20",
++    served: "Base logs 35 and 120 days back in 1000-block ranges (~7,000 blocks/s)",
++    limits: "rate-limits bursts (HTTP 429); no availability guarantee; not run by Enclave; one operator even under two of its hostnames" }),
++]);
++export const HISTORY_KEYLESS_LIMIT = "No keyless second operator was found for history older than about 31 days: for older leases name your own node or a provider you choose.";
++
+ /* Build the exact package bytes. scope: {chainId, ledger, deployment, owner, appRef}. */
+-export async function preparePackage(scope, { appId, runtimeId, configText, custody = null, names = null }){
++export async function preparePackage(scope, { appId, runtimeId, configText, custody = null, names = null, history = null }){
+   appId = String(appId || "").trim().toLowerCase().replace(/^0x/, "");
+   runtimeId = String(runtimeId || "").trim().toLowerCase().replace(/^0x/, "");
+   if (!HEX32.test(appId) || !nonzero(appId)) throw new Error("App ID must be 64 hex characters (from the host's direct runtime)");
+   if (!HEX32.test(runtimeId) || !nonzero(runtimeId)) throw new Error("Runtime ID must be 64 hex characters (from the host's direct runtime)");
+   const manifest = { version: 1, chainId: scope.chainId, ledger: scope.ledger, deployment: scope.deployment, owner: scope.owner,
+     appRef: scope.appRef, appId, runtimeId, configText: String(configText),
+-    secretsMode: custody ? "custody-v2" : "public", ...(custody ? { custody } : {}), ...(names ? { names } : {}) };
++    secretsMode: custody ? "custody-v2" : "public", ...(custody ? { custody } : {}), ...(names ? { names } : {}), ...(history ? { history } : {}) };
+   const bytes = utf8(JSON.stringify(manifest));
+   const intent = { version: 1, sha256: await sha256Hex(bytes) };
+   return { ...(await verifyPackage(bytes, intent, scope)), intent };
+@@ -90,7 +150,7 @@
+   const sha256 = await sha256Hex(bytes);
+   if (!intent || intent.version !== 1 || intent.sha256 !== sha256) throw new Error("startup package hash mismatch");
+   const m = parseUniqueJSON(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+-  const allowed = ["version", "chainId", "ledger", "deployment", "owner", "appRef", "appId", "runtimeId", "configText", "secretsMode", "custody", "names"];
++  const allowed = ["version", "chainId", "ledger", "deployment", "owner", "appRef", "appId", "runtimeId", "configText", "secretsMode", "custody", "names", "history"];
+   if (!plain(m) || Object.keys(m).some((k) => !allowed.includes(k))) throw new Error("unknown or invalid startup fields");
+   if (m.version !== 1 || !Number.isSafeInteger(m.chainId) || m.chainId <= 0 || !ADDR.test(m.ledger || "") || !nonzero(m.ledger)
+     || !ADDR.test(m.owner || "") || !nonzero(m.owner) || !ID32.test(m.deployment || "") || !nonzero(m.deployment)
+@@ -101,6 +161,7 @@
+   else if (m.secretsMode === "custody-v2"){ if (!plain(m.custody) || m.custody.v !== 2 || m.custody.chainId !== m.chainId) throw new Error("custody-v2 pointer required"); }
+   else throw new Error("explicit startup secrets mode required");
+   if (Object.hasOwn(m, "names")) validateNames(m.names, m.secretsMode);
++  if (Object.hasOwn(m, "history")) validateHistory(m.history);
+   for (const [k, v] of Object.entries(scope)){
+     if (v == null) continue;
+     const fold = k === "ledger" || k === "owner";
+--- a/site/components/deployments/deployments.js
++++ b/site/components/deployments/deployments.js
+@@ -1107,6 +1107,7 @@
+         const rc = await SP.readCommitted(intent, scope, gateways).catch((e) => ({ verified: [], failed: gateways, error: e }));
+         current = rc.manifest;
+         if (current && current.names) paint("info", "custom names in these settings: " + current.names.hosts.join(", "));
++        if (current && current.history) paint("info", "history sources in these settings: " + current.history.rpcs.join(", "));
+         paint(rc.verified.length ? "ok" : "warn", (rc.verified.length ? "[✓] " : "[!] ") + rc.verified.length + " of " + gateways.length + " storage adapters return the exact committed bytes");
+       }
+     } else paint("info", "no startup settings are committed: this deployment uses its catalog version’s settings");
+@@ -1114,6 +1115,7 @@
+     if (!STORAGE_PLAN){ paint("warn", "[!] the independent profile names no storage adapters, so startup settings cannot be published from here"); return; }
+     const fid = "es" + appLabel(id);
+     const cn = current && current.names ? current.names : null;
++    const ch = current && current.history ? current.history : null;
+     const committed = !!(intent && !intent.disabled);
+     const form = document.createElement("div");
+     form.className = "enc-start-body";
+@@ -1135,6 +1137,17 @@
+       + '<label for="' + fid + 'ek">CA account key id: name of a custodian-held secret (optional)</label><input id="' + fid + 'ek" class="es-eab-kid" spellcheck="false" value="' + esc(cn && cn.acme && cn.acme.eab ? cn.acme.eab.kid : "") + '">'
+       + '<label for="' + fid + 'eh">CA account HMAC: name of a custodian-held secret (optional)</label><input id="' + fid + 'eh" class="es-eab-hmac" spellcheck="false" value="' + esc(cn && cn.acme && cn.acme.eab ? cn.acme.eab.hmac : "") + '">'
+       + '</details><div class="term es-names-preview" role="status" aria-live="polite"></div></fieldset>'
++      // history sources for cold starts: part of the committed package (work/history-owner-tools-interface.txt)
++      + '<fieldset class="es-history"><legend>History sources for cold starts (optional)</legend>'
++      + '<p class="dim">A freshly started app guest proves which lease it runs under by reading that lease’s history from the chain. Its own RPCs serve only recent history (under about 3 hours), so for a lease held longer name log-capable Base RPCs here: two run by different operators. These settings are published for anyone to read, so never put an API key in a URL.</p>'
++      + '<label for="' + fid + 'y">HTTPS RPC URLs, one per line (empty = none)</label>'
++      + '<textarea id="' + fid + 'y" class="es-hist" rows="2" spellcheck="false" autocapitalize="off">' + esc(ch ? ch.rpcs.join("\n") : "") + '</textarea>'
++      + '<label><input type="checkbox" class="es-hist-public"> These URLs hold no private key (a path that looks like a key is otherwise refused)</label>'
++      + '<details class="es-hist-options"><summary>Public endpoints others have used (check them yourself)</summary>'
++      + '<ul class="dim">' + SP.HISTORY_PUBLIC_OPTIONS.map((o) => '<li><code>' + esc(o.url) + '</code> · ' + esc(o.operator) + ' · probed ' + esc(o.probed) + ': ' + esc(o.served) + '. Limits: ' + esc(o.limits) + '.</li>').join("") + '</ul>'
++      + '<p class="dim">' + esc(SP.HISTORY_KEYLESS_LIMIT) + '</p>'
++      + '<button class="btn btn-sm es-hist-fill" type="button">Fill these in (you can edit them)</button></details>'
++      + '<div class="term es-hist-preview" role="status" aria-live="polite"></div></fieldset>'
+       + (committed && !current ? '<label class="warn"><input type="checkbox" class="es-blind"> The committed settings could not be read back. Replace them anyway (their names and settings will be what you enter here).</label>' : '')
+       // the isolation tier that starts it: SEV-SNP by default (the CLI's choice); an Enclave Shield partition only when chosen
+       + '<label for="' + fid + 'b">Isolation tier that starts it</label><select id="' + fid + 'b" class="es-backend">'
+@@ -1178,6 +1191,25 @@
+     };
+     form.querySelectorAll(".es-hosts, .es-acme-dir, .es-acme-ch, .es-acme-zone, .es-eab-kid, .es-eab-hmac, .es-cust").forEach((el) => el.addEventListener("input", () => { showNames(); }));
+     showNames();
++    // history preview: validated exactly as the guest validates it, with what the owner should know
++    const historyInput = () => ({ rpcsText: form.querySelector(".es-hist").value, pathIsPublic: form.querySelector(".es-hist-public").checked });
++    const histPreview = form.querySelector(".es-hist-preview");
++    const showHistory = () => {
++      let h;
++      try { h = SP.historyFromForm(historyInput()); }
++      catch(e){ histPreview.innerHTML = '<div class="warn">✗ ' + esc(e.message || String(e)) + '</div>'; return; }
++      const ops = h ? [...new Set(h.rpcs.map(SP.historyOperator))] : [];
++      histPreview.innerHTML = (h ? '<div>' + h.rpcs.length + ' source(s) · operators: ' + esc(ops.join(", ")) + '</div>' : '')
++        + SP.historyWarnings(h).map((w) => '<div class="warn">' + esc(w) + '</div>').join("");
++    };
++    form.querySelectorAll(".es-hist, .es-hist-public").forEach((el) => el.addEventListener("input", showHistory));
++    form.querySelector(".es-hist-public").addEventListener("change", showHistory);
++    form.querySelector(".es-hist-fill").addEventListener("click", () => {
++      const area = form.querySelector(".es-hist"), have = area.value.split(/[\s,]+/).filter(Boolean);
++      area.value = [...new Set([...have, ...SP.HISTORY_PUBLIC_OPTIONS.map((o) => o.url)])].join("\n");
++      showHistory();
++    });
++    showHistory();
+     const go = form.querySelector(".es-go");
+     go.addEventListener("click", async () => {
+       go.disabled = true;
+@@ -1192,7 +1224,8 @@
+         if (committed && !current && !(form.querySelector(".es-blind") || {}).checked)
+           throw new Error("the committed settings could not be read back from storage; confirm that you want to replace them");
+         const names = SP.namesFromForm(namesInput(), custody ? "custody-v2" : "public");
+-        const pkg = await SP.preparePackage(scope, { appId: form.querySelector(".es-app").value, runtimeId: form.querySelector(".es-rt").value, configText: cfgText, custody, names });
++        const history = SP.historyFromForm(historyInput());
++        const pkg = await SP.preparePackage(scope, { appId: form.querySelector(".es-app").value, runtimeId: form.querySelector(".es-rt").value, configText: cfgText, custody, names, history });
+         paint("info", "[*] startup package " + pkg.sha256.slice(0, 16) + "… (" + pkg.bytes.length + " bytes) · sign once per storage adapter…");
+         const { publishPackageToPlan } = await import("../../js/core/storage-plan.js");
+         // who authorizes each storage upload: a wallet key by EIP-191 (upload v1), or - under a passkey account identity -
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -50,7 +50,8 @@
+ import {directUploadHeaders} from "../sdk/storage/upload-auth.mjs";
+ import {loadContractPins} from "../network/contract-pins.mjs";
+ import {readSessionAuthority} from "../network/session-authority.mjs";
+-import {bootstrapIntent,preparePackage,verifyPackage,fetchPackage,readBoundedResponse,parseUniqueJSON,challengeAlias,MAX_PACKAGE_BYTES} from "../sdk/bootstrap/package.mjs";
++import {bootstrapIntent,preparePackage,verifyPackage,fetchPackage,readBoundedResponse,parseUniqueJSON,challengeAlias,MAX_PACKAGE_BYTES,
++  historyFromList,historyWarnings,HISTORY_PUBLIC_OPTIONS,HISTORY_KEYLESS_LIMIT} from "../sdk/bootstrap/package.mjs";
+ 
+ const VERSION = "1.6.0";
+ 
+@@ -3264,9 +3265,9 @@
+   if(!CONTRACT_PINS)throw new Error("bootstrap requires --contract-pins");
+   const sub=rest.shift(), f=flags(rest,{val:["--file","--config-file","--custody-file","--app-id","--runtime-id","--out","--upload","--audience","--gateways","--storage-plan",
+     "--names","--acme-directory","--acme-challenge","--acme-zone","--acme-eab-kid-secret","--acme-eab-hmac-secret",
+-    "--target","--shield-manager","--component-file"],bool:["--public"]});
++    "--target","--shield-manager","--component-file","--history-rpcs"],bool:["--public","--history-path-is-public"]});
+   const backend=startupBackend(f.target), shield=backend===STARTUP_BACKENDS.shield;
+-  if(!["prepare","publish","activate"].includes(sub)||!f._[0])throw new Error("usage: enclave bootstrap prepare <id> --config-file FILE --app-id HEX --runtime-id HEX --public|--custody-file FILE --out FILE [--names HOST,… [--acme-directory HTTPS --acme-challenge HTTPS --acme-zone ZONE [--acme-eab-kid-secret NAME --acme-eab-hmac-secret NAME]]] | publish <id> --file FILE --storage-plan FILE (or --upload HTTPS/add-json --audience ID) | activate <id> --file FILE --storage-plan FILE (or --gateways HTTPS/ipfs,…)");
++  if(!["prepare","publish","activate"].includes(sub)||!f._[0])throw new Error("usage: enclave bootstrap prepare <id> --config-file FILE --app-id HEX --runtime-id HEX --public|--custody-file FILE --out FILE [--names HOST,… [--acme-directory HTTPS --acme-challenge HTTPS --acme-zone ZONE [--acme-eab-kid-secret NAME --acme-eab-hmac-secret NAME]]] [--history-rpcs HTTPS,… [--history-path-is-public]] | publish <id> --file FILE --storage-plan FILE (or --upload HTTPS/add-json --audience ID) | activate <id> --file FILE --storage-plan FILE (or --gateways HTTPS/ipfs,…)");
+   const id=f._[0].toLowerCase();if(!isB32(id))throw new Error("bootstrap requires a full deployment id");
+   const {rev,abi}=await depAbi();if(rev!==16)throw new Error("bootstrap requires the measured schema-16 ledger");
+   const d=await read(DEFAULTS.DEPLOYMENTS_ADDRESS,abi,"get",[id]);
+@@ -3306,18 +3307,25 @@
+     if(acmeFlags.length&&!f.names)throw new Error("ACME flags need --names");
+     if(acmeFlags.length&&!(f["acme-directory"]&&f["acme-challenge"]&&f["acme-zone"]))throw new Error("ACME needs explicit --acme-directory, --acme-challenge and --acme-zone; there is no default CA or responder");
+     if(Boolean(f["acme-eab-kid-secret"])!==Boolean(f["acme-eab-hmac-secret"]))throw new Error("EAB needs both --acme-eab-kid-secret and --acme-eab-hmac-secret");
++    // Owner-named log history sources (optional): what a cold-starting guest reads its lease's history from, verified
++    // by two independent operators and the measured quorum (work/history-owner-tools-interface.txt). The package is
++    // published: no credential may be in a URL, and a key-like path needs --history-path-is-public.
++    if(f["history-path-is-public"]&&!f["history-rpcs"])throw new Error("--history-path-is-public applies to --history-rpcs");
++    const history=f["history-rpcs"]?historyFromList(String(f["history-rpcs"]),{pathIsPublic:Boolean(f["history-path-is-public"])}):null;
++    if(history&&shield)say("history: only a Shield-direct partition reads history sources; a legacy-public Shield host ignores them");
+     const hosts=f.names?[...new Set(String(f.names).split(",").map(s=>s.trim()).filter(Boolean))].sort():null;
+     const names=hosts?{hosts,...(f["acme-directory"]?{acme:{directory:f["acme-directory"],challenge:f["acme-challenge"],zone:f["acme-zone"],
+       ...(f["acme-eab-kid-secret"]?{eab:{kid:f["acme-eab-kid-secret"],hmac:f["acme-eab-hmac-secret"]}}:{})}}:{})}:null;
+     pkg=preparePackage({version:1,...scope,appId:f["app-id"],runtimeId:f["runtime-id"],configText,
+       secretsMode:f.public?"public":"custody-v2",...(f["custody-file"]?{custody:parseUniqueJSON(limited(f["custody-file"]).toString('utf8'))}:{}),
+-      ...(names?{names}:{})});
++      ...(names?{names}:{}),...(history?{history}:{})});
+     fs.writeFileSync(f.out,pkg.bytes,{flag:"wx",mode:0o600});
+     // a custody bundle must be sealed over EXACTLY this configText (custody configSha256 = sha256(utf8(configText)))
+     const configSha256=crypto.createHash("sha256").update(configText,"utf8").digest("hex");
+     if(!f.public)say(`custody: seal the custody-v2 bundle with configSha256 ${configSha256} (sha256 of the exact committed configText)`);
+     const out={id,file:path.resolve(f.out),cid:pkg.cid,sha256:pkg.sha256,bytes:pkg.bytes.length,committed:false,configSha256,
+-      ...(names?{names:names.hosts,...(names.acme?{dns:names.hosts.map(h=>`_acme-challenge.${h}. CNAME ${challengeAlias(id,d.owner,names.acme.zone)}.`)}:{})}:{})};
++      ...(names?{names:names.hosts,...(names.acme?{dns:names.hosts.map(h=>`_acme-challenge.${h}. CNAME ${challengeAlias(id,d.owner,names.acme.zone)}.`)}:{})}:{}),
++      history:history?history.rpcs:[],historyWarnings:historyWarnings(history)};
+     return opt.json?jout(out):say(JSON.stringify(out,null,2));
+   }
+   const bytes=limited(f.file),intent={version:1,sha256:crypto.createHash('sha256').update(bytes).digest('hex')};
+@@ -4470,6 +4478,14 @@
+                              owner-committed custom names the direct guest certifies
+                              for its own key (docs/network/independent-names.md);
+                              prints the _acme-challenge CNAMEs to publish
++         [--history-rpcs HTTPS,… [--history-path-is-public]]
++                             owner-named log history sources a cold-starting guest
++                             reads its lease's history from (two independent operators
++                             needed for a claim older than ~3 h); the package is PUBLIC:
++                             no credentials or query in a URL. Public options, probed
++                             2026-10-20, offered as-is (choose and check them yourself):
++${HISTORY_PUBLIC_OPTIONS.map(o=>`                               ${o.url} (${o.operator}): ${o.limits}`).join("\n")}
++                             ${HISTORY_KEYLESS_LIMIT}
+   bootstrap publish <id> --file FILE --storage-plan FILE
+                              upload and verify the required number of adapter copies
+   bootstrap publish <id> --file FILE --upload HTTPS/add-json --audience ID
+--- /dev/null
++++ b/scripts/history-vectors.mjs
+@@ -0,0 +1,61 @@
++// Writes isolation/m2/bootstrap/testdata/history-vectors.json: owner-history startup packages that the measured guest
++// (Go Reader.Authorize), the SDK and the browser must accept or refuse identically (work/history-owner-tools-interface.txt).
++// Valid cases are built by the SDK's own preparePackage, so they are the exact bytes the CLI and site produce; invalid
++// cases are the same base with one rule broken. Deterministic.
++//   run: node scripts/history-vectors.mjs
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { preparePackage } from "../sdk/bootstrap/package.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const names = JSON.parse(fs.readFileSync(path.join(REPO, "isolation/m2/bootstrap/testdata/names-vectors.json"), "utf8"));
++const base = JSON.parse(names.cases.find((c) => c.valid && !c.manifest.includes('"custody-v2"')).manifest);
++delete base.names;
++const P = "https://base-rpc.polkachu.com", T = "https://gateway.tenderly.co/public/base";
++const valid = (name, history, extra = {}) => ({ name, valid: true, manifest: preparePackage({ ...base, ...extra, history }).bytes.toString() });
++const raw = (name, member) => ({ name, valid: false, manifest: JSON.stringify(base).slice(0, -1) + ',"history":' + member + "}" });
++const bad = (name, rpcs) => raw(name, JSON.stringify({ rpcs }));
++const cases = [
++  valid("one source", { rpcs: [P] }),
++  valid("two operators", { rpcs: [P, T] }),
++  valid("six sources", { rpcs: ["https://a.example", "https://b.example", "https://c.example", "https://d.example", "https://e.example", "https://f.example"] }),
++  valid("path characters", { rpcs: ["https://node.example.org/a.b_c~d/e-f/1"] }),
++  valid("with owner names", { rpcs: [P] }, { names: { hosts: ["shop.example.com"] } }),
++  { name: "no history member (an older package)", valid: true, manifest: preparePackage({ ...base }).bytes.toString() },
++  bad("empty list", []),
++  bad("seven sources", ["https://a.example", "https://b.example", "https://c.example", "https://d.example", "https://e.example", "https://f.example", "https://g.example"]),
++  bad("plain http", ["http://node.example.org"]),
++  bad("userinfo", ["https://user:secret@node.example.org"]),
++  bad("query (a key would be published)", ["https://node.example.org/rpc?apikey=abc"]),
++  bad("empty query", ["https://node.example.org/?"]),
++  bad("fragment", ["https://node.example.org/#x"]),
++  bad("explicit port 443", ["https://node.example.org:443"]),
++  bad("other port", ["https://node.example.org:8545"]),
++  bad("uppercase host", ["https://Node.example.org"]),
++  bad("trailing dot", ["https://node.example.org."]),
++  bad("IP literal", ["https://192.0.2.7"]),
++  bad("IPv6 literal", ["https://[2001:db8::1]"]),
++  bad("single-label host", ["https://localhost"]),
++  bad("numeric last label", ["https://node.example.123"]),
++  bad("label starting with a hyphen", ["https://-node.example.org"]),
++  bad("percent escape", ["https://node.example.org/a%2Fb"]),
++  bad("space", ["https://node.example.org/a b"]),
++  bad("backslash", ["https://node.example.org\\rpc"]),
++  bad("not ascending", [T, P]),
++  bad("duplicate URL", [P, P]),
++  bad("same host twice", ["https://node.example.org/a", "https://node.example.org/b"]),
++  bad("513 bytes", ["https://node.example.org/" + "a".repeat(513 - "https://node.example.org/".length)]),
++  bad("not a string", [7]),
++  bad("null entry", [null]),
++  raw("null member", "null"),
++  raw("rpcs null", '{"rpcs":null}'),
++  raw("rpcs not a list", '{"rpcs":"https://node.example.org"}'),
++  raw("extra key", '{"rpcs":["https://node.example.org"],"window":1000}'),
++  raw("case alias", '{"RPCs":["https://node.example.org"]}'),
++  raw("duplicate key", '{"rpcs":["https://a.example"],"rpcs":["https://b.example"]}'),
++  raw("a list, not an object", '["https://node.example.org"]'),
++];
++const out = path.join(REPO, "isolation/m2/bootstrap/testdata/history-vectors.json");
++fs.writeFileSync(out, JSON.stringify({ generator: "scripts/history-vectors.mjs", cases }, null, 1) + "\n");
++console.log(`wrote ${cases.length} cases (${cases.filter((c) => c.valid).length} valid) to ${path.relative(REPO, out)}`);
+--- /dev/null
++++ b/isolation/m2/bootstrap/testdata/history-vectors.json
+@@ -0,0 +1,195 @@
++{
++ "generator": "scripts/history-vectors.mjs",
++ "cases": [
++  {
++   "name": "one source",
++   "valid": true,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"]}}"
++  },
++  {
++   "name": "two operators",
++   "valid": true,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\",\"https://gateway.tenderly.co/public/base\"]}}"
++  },
++  {
++   "name": "six sources",
++   "valid": true,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://a.example\",\"https://b.example\",\"https://c.example\",\"https://d.example\",\"https://e.example\",\"https://f.example\"]}}"
++  },
++  {
++   "name": "path characters",
++   "valid": true,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/a.b_c~d/e-f/1\"]}}"
++  },
++  {
++   "name": "with owner names",
++   "valid": true,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"hosts\":[\"shop.example.com\"]},\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"]}}"
++  },
++  {
++   "name": "no history member (an older package)",
++   "valid": true,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\"}"
++  },
++  {
++   "name": "empty list",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[]}}"
++  },
++  {
++   "name": "seven sources",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://a.example\",\"https://b.example\",\"https://c.example\",\"https://d.example\",\"https://e.example\",\"https://f.example\",\"https://g.example\"]}}"
++  },
++  {
++   "name": "plain http",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"http://node.example.org\"]}}"
++  },
++  {
++   "name": "userinfo",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://user:secret@node.example.org\"]}}"
++  },
++  {
++   "name": "query (a key would be published)",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/rpc?apikey=abc\"]}}"
++  },
++  {
++   "name": "empty query",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/?\"]}}"
++  },
++  {
++   "name": "fragment",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/#x\"]}}"
++  },
++  {
++   "name": "explicit port 443",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org:443\"]}}"
++  },
++  {
++   "name": "other port",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org:8545\"]}}"
++  },
++  {
++   "name": "uppercase host",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://Node.example.org\"]}}"
++  },
++  {
++   "name": "trailing dot",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org.\"]}}"
++  },
++  {
++   "name": "IP literal",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://192.0.2.7\"]}}"
++  },
++  {
++   "name": "IPv6 literal",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://[2001:db8::1]\"]}}"
++  },
++  {
++   "name": "single-label host",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://localhost\"]}}"
++  },
++  {
++   "name": "numeric last label",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.123\"]}}"
++  },
++  {
++   "name": "label starting with a hyphen",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://-node.example.org\"]}}"
++  },
++  {
++   "name": "percent escape",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/a%2Fb\"]}}"
++  },
++  {
++   "name": "space",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/a b\"]}}"
++  },
++  {
++   "name": "backslash",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org\\\\rpc\"]}}"
++  },
++  {
++   "name": "not ascending",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://gateway.tenderly.co/public/base\",\"https://base-rpc.polkachu.com\"]}}"
++  },
++  {
++   "name": "duplicate URL",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\",\"https://base-rpc.polkachu.com\"]}}"
++  },
++  {
++   "name": "same host twice",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/a\",\"https://node.example.org/b\"]}}"
++  },
++  {
++   "name": "513 bytes",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]}}"
++  },
++  {
++   "name": "not a string",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[7]}}"
++  },
++  {
++   "name": "null entry",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[null]}}"
++  },
++  {
++   "name": "null member",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":null}"
++  },
++  {
++   "name": "rpcs null",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":null}}"
++  },
++  {
++   "name": "rpcs not a list",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":\"https://node.example.org\"}}"
++  },
++  {
++   "name": "extra key",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org\"],\"window\":1000}}"
++  },
++  {
++   "name": "case alias",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"RPCs\":[\"https://node.example.org\"]}}"
++  },
++  {
++   "name": "duplicate key",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://a.example\"],\"rpcs\":[\"https://b.example\"]}}"
++  },
++  {
++   "name": "a list, not an object",
++   "valid": false,
++   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":[\"https://node.example.org\"]}"
++  }
++ ]
++}
+--- /dev/null
++++ b/isolation/m2/bootstrap/history_vectors_test.go
+@@ -0,0 +1,69 @@
++package bootstrap
++
++import (
++	"context"
++	"encoding/json"
++	"net"
++	"os"
++	"sort"
++	"strings"
++	"testing"
++)
++
++// Owner-history packages (testdata/history-vectors.json, built by scripts/history-vectors.mjs with the SDK's own
++// preparePackage) through the REAL Reader.Authorize: the guest accepts and refuses exactly what the SDK and the browser
++// do. An accepted package admits exactly its history hosts to the dial allowlist (AllowOrigin), and only once the
++// owner's on-chain commitment matched; a refused one admits nothing.
++func TestOwnerHistoryAgreesWithJavaScriptVectors(t *testing.T) {
++	b, e := os.ReadFile("testdata/history-vectors.json")
++	if e != nil {
++		t.Fatal(e)
++	}
++	var hv struct {
++		Cases []struct {
++			Name, Manifest string
++			Valid          bool
++		}
++	}
++	if e = json.Unmarshal(b, &hv); e != nil {
++		t.Fatal(e)
++	}
++	if len(hv.Cases) < 30 {
++		t.Fatalf("only %d history vectors", len(hv.Cases))
++	}
++	for _, c := range hv.Cases {
++		t.Run(c.Name, func(t *testing.T) {
++			r, peers, v, id, loaded := rig(t)
++			for _, p := range peers {
++				p.row.Store(commit(t, v.Row, v.Manifest, c.Manifest))
++			}
++			var admitted []string
++			r.allow = func(hostport string) {
++				h, _, _ := net.SplitHostPort(hostport)
++				admitted = append(admitted, h)
++			}
++			a, e := r.Authorize(context.Background(), id, []byte(c.Manifest), loaded)
++			if c.Valid != (e == nil) {
++				t.Fatalf("valid=%v but Authorize: %v", c.Valid, e)
++			}
++			if !c.Valid {
++				if len(admitted) != 0 {
++					t.Fatalf("a refused package admitted %v", admitted)
++				}
++				return
++			}
++			var want []string
++			if a.manifest.History != nil {
++				for _, u := range a.manifest.History.RPCs {
++					h, _ := historyURL(u)
++					want = append(want, h)
++				}
++			}
++			sort.Strings(admitted)
++			sort.Strings(want)
++			if strings.Join(admitted, ",") != strings.Join(want, ",") || len(a.history) != len(want) {
++				t.Fatalf("admitted %v, sources %d; want %v", admitted, len(a.history), want)
++			}
++		})
++	}
++}
+--- /dev/null
++++ b/test/history-owner-tools.test.mjs
+@@ -0,0 +1,137 @@
++// Owner-named history sources (work/history-owner-tools-interface.txt):
++//   - one strict schema: the SDK (hosts, CLI) and the browser accept and refuse exactly the shared vectors the measured
++//     guest runs through its real Authorize (isolation/m2/bootstrap/testdata/history-vectors.json; Go:
++//     TestOwnerHistoryAgreesWithJavaScriptVectors); older packages keep their meaning;
++//   - the SDK and the browser build the SAME bytes from the same owner input;
++//   - credentials are never silent: userinfo/query refused, a key-like path only with explicit confirmation;
++//   - the public options are offered with provenance and limits, never as a >31-day keyless promise;
++//   - the relay reader's explicit-refusal cooldown (relay/lease-generation.mjs) on the live rev-16d bytecode rig: a 429ing
++//     RPC sits out its cooldown without slowing the others, a slow HONEST contradiction is still seen, two refusing RPCs
++//     never yield a fact, and a cooled RPC is probed again after its cooldown.
++import test, { before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import { createHash } from "node:crypto";
++import { execFileSync } from "node:child_process";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import * as SDK from "../sdk/bootstrap/package.mjs";
++import { startLease16dRig } from "./helpers/lease16d-rig.mjs";
++import { createLeaseGenerationReader } from "../relay/lease-generation.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const hv = JSON.parse(fs.readFileSync(path.join(REPO, "isolation/m2/bootstrap/testdata/history-vectors.json"), "utf8"));
++const intentOf = (s) => ({ version: 1, sha256: createHash("sha256").update(s).digest("hex") });
++const anvil = (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); return false; } catch { return "needs anvil"; } })();
++let SP;
++before(async () => {
++  globalThis.localStorage ??= { getItem: () => null, setItem(){}, removeItem(){} };
++  globalThis.sessionStorage ??= globalThis.localStorage;
++  globalThis.location ??= { hostname: "localhost" };
++  SP = await import(pathToFileURL(path.join(REPO, "site/js/core/startup-package.js")).href);
++});
++
++test("the SDK and the browser accept and refuse exactly the shared Go/JS history vectors", async () => {
++  assert.ok(hv.cases.length >= 30 && hv.cases.filter((c) => c.valid).length >= 5);
++  assert.ok(hv.cases.some((c) => c.valid && !c.manifest.includes('"history"')), "an older package without history is among the valid cases");
++  for (const c of hv.cases){
++    let sdk = null, browser = null;
++    try { SDK.verifyPackage(Buffer.from(c.manifest), intentOf(c.manifest)); } catch (e){ sdk = e; }
++    try { await SP.verifyPackage(new TextEncoder().encode(c.manifest), intentOf(c.manifest)); } catch (e){ browser = e; }
++    assert.equal(sdk === null, c.valid, `${c.name}: SDK ${sdk ? sdk.message : "accepted"}`);
++    assert.equal(browser === null, c.valid, `${c.name}: browser ${browser ? browser.message : "accepted"}`);
++  }
++});
++
++test("the SDK (CLI) and the browser build the same bytes from the same owner input; history is appended last", async () => {
++  const base = JSON.parse(hv.cases.find((c) => c.name === "no history member (an older package)").manifest);
++  const scope = { chainId: base.chainId, ledger: base.ledger, deployment: base.deployment, owner: base.owner, appRef: base.appRef };
++  const input = " https://gateway.tenderly.co/public/base\nhttps://base-rpc.polkachu.com ,https://base-rpc.polkachu.com";
++  const fromSdk = SDK.historyFromList(input), fromSite = SP.historyFromForm({ rpcsText: input });
++  assert.deepEqual(fromSdk, fromSite);
++  assert.deepEqual(fromSdk.rpcs, ["https://base-rpc.polkachu.com", "https://gateway.tenderly.co/public/base"], "sorted, deduplicated");
++  const names = { hosts: ["shop.example.com"] };
++  const sdkPkg = SDK.preparePackage({ version: 1, ...scope, appId: base.appId, runtimeId: base.runtimeId, configText: base.configText, secretsMode: "public", names, history: fromSdk });
++  const sitePkg = await SP.preparePackage(scope, { appId: base.appId, runtimeId: base.runtimeId, configText: base.configText, names, history: fromSite });
++  assert.equal(Buffer.from(sitePkg.bytes).toString(), sdkPkg.bytes.toString());
++  assert.deepEqual(Object.keys(JSON.parse(sdkPkg.bytes)).slice(-2), ["names", "history"]);
++  // no history: exactly the bytes an older tool wrote
++  const plainSdk = SDK.preparePackage({ version: 1, ...scope, appId: base.appId, runtimeId: base.runtimeId, configText: base.configText, secretsMode: "public" });
++  const plainSite = await SP.preparePackage(scope, { appId: base.appId, runtimeId: base.runtimeId, configText: base.configText, history: SP.historyFromForm({ rpcsText: " " }) });
++  assert.equal(Buffer.from(plainSite.bytes).toString(), plainSdk.bytes.toString());
++  assert.equal(plainSdk.bytes.toString().includes("history"), false);
++});
++
++test("credentials are never silent: userinfo and query refused, a key-like path only when the owner confirms it is public", () => {
++  for (const build of [(x, o) => SDK.historyFromList(x, o), (x, o) => SP.historyFromForm({ rpcsText: x, pathIsPublic: o?.pathIsPublic })]){
++    assert.throws(() => build("https://user:pass@node.example.org"), /credentials/);
++    assert.throws(() => build("https://node.example.org/rpc?apikey=abc"), /query/);
++    assert.throws(() => build("https://node.example.org/#x"), /query or fragment/);
++    assert.throws(() => build("http://node.example.org"), /https/);
++    assert.throws(() => build("https://node.example.org:8545"), /no port/);
++    const keyed = "https://base-mainnet.example-provider.com/v2/Ab3dE5gH7jK9mN1pQ3sT";
++    assert.throws(() => build(keyed), /looks like a provider key/);
++    assert.deepEqual(build(keyed, { pathIsPublic: true }).rpcs, [keyed], "the owner's explicit confirmation");
++    assert.deepEqual(build("https://node.example.org/v2/node-1").rpcs, ["https://node.example.org/v2/node-1"], "an ordinary path is fine");
++    assert.equal(build(""), null);
++  }
++  assert.equal(SDK.credentialLike("https://gateway.tenderly.co/public/base"), false);
++});
++
++test("warnings name what the owner should know; the public options carry provenance and limits and pass the schema", () => {
++  for (const M of [SDK, SP]){
++    assert.match(M.historyWarnings(null)[0], /no history sources/i);
++    assert.match(M.historyWarnings({ rpcs: ["https://base.gateway.tenderly.co", "https://gateway.tenderly.co/public/base"] })[0], /only 1 independent operator/i);
++    assert.equal(M.historyWarnings({ rpcs: ["https://base-rpc.polkachu.com", "https://gateway.tenderly.co/public/base"] }).length, 0);
++    assert.match(M.historyWarnings({ rpcs: ["https://base-rpc.polkachu.com", "https://history.enclave.host"] }).join(" "), /run by Enclave/);
++    assert.equal(M.HISTORY_PUBLIC_OPTIONS.length, 2);
++    for (const o of M.HISTORY_PUBLIC_OPTIONS){
++      assert.ok(o.url && o.operator && o.probed && o.served && o.limits, "provenance and limits shown");
++      assert.ok(M.historyHost(o.url), `${o.url} passes the schema`);
++      assert.match(o.limits, /not run by Enclave/);
++    }
++    assert.match(M.HISTORY_KEYLESS_LIMIT, /31 days/);
++  }
++  assert.deepEqual(JSON.parse(JSON.stringify(SP.HISTORY_PUBLIC_OPTIONS)), JSON.parse(JSON.stringify(SDK.HISTORY_PUBLIC_OPTIONS)), "the browser shows the SDK's options");
++  assert.ok(SDK.HISTORY_PUBLIC_OPTIONS.some((o) => /31\.7 days/.test(o.limits)), "the ~31-day pruning is stated, not hidden");
++});
++
++// ---- the relay reader's cooldown, on the live rev-16d bytecode rig ----
++let rig;
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const reader = (o = {}) => createLeaseGenerationReader({ rpcs: rig.peers.map((p) => p.url), ledger: rig.ledger, fromBlock: 0, windowBlocks: 50,
++  sleep: (ms, signal) => new Promise((ok) => { const t = setTimeout(ok, Math.min(ms, 20)); signal?.addEventListener("abort", () => clearTimeout(t), { once: true }); }), ...o });
++const logCalls = (p) => p.mode.calls.filter((m) => m === "eth_getLogs").length;
++after(async () => { if (rig) await rig.stop(); });
++
++test("relay reader: a 429ing RPC sits out its cooldown and costs the others nothing; it is probed again afterwards", { skip: anvil, timeout: 120000 }, async () => {
++  rig = await startLease16dRig();
++  rig.honest(10);
++  const id = await rig.create(), c = await rig.claim(id, rig.hosts.a);
++  await rig.mine(400);                                                  // a search of ~8 steps of 50 blocks
++  rig.peers[0].mode.rateLimit = 1_000_000;                              // every eth_getLogs refused with HTTP 429
++  let clock = Date.now();
++  const R = reader({ now: () => clock });
++  const t0 = Date.now(), r = await R.writerAuthority(id);
++  assert.equal(r.fact.claimBlock, c.block);
++  assert.equal(logCalls(rig.peers[0]), 2, "one request and one retry, then the cooldown: not asked again for the other steps");
++  assert.ok(logCalls(rig.peers[1]) >= 8, "the other two read every step");
++  assert.ok(Date.now() - t0 < 10000, "no per-step backoff");
++  // its cooldown over, it is asked again (and, still refusing, cools down for longer)
++  rig.peers[0].mode.calls.length = 0; clock += 31_000;
++  await rig.mine(60);
++  await R.writerAuthority(id);
++  assert.ok(logCalls(rig.peers[0]) >= 1, "probed again after its cooldown");
++});
++
++test("relay reader: a slow HONEST contradiction is still seen; two refusing RPCs give no fact", { skip: anvil, timeout: 120000 }, async () => {
++  rig.honest(10);
++  const id = await rig.create(); await rig.claim(id, rig.hosts.a); await rig.mine(30);
++  Object.assign(rig.peers[2].mode, { delayMs: 400, dropLastLog: true });   // slower, answers, omits a log: no 429
++  await assert.rejects(reader().writerAuthority(id), (e) => e.code === "disagree", "the slow answer was awaited and compared");
++  rig.honest(10);
++  rig.peers[0].mode.rateLimit = rig.peers[1].mode.rateLimit = 1_000_000;  // two of three refuse: one operator left
++  await assert.rejects(reader().writerAuthority(id), (e) => e.code === "quorum_unavailable" && e.retry === true,
++    "refusals are an RPC that may answer later: never empty history, never a fact");
++  rig.honest(10);
++});
+--- a/test/cli.test.mjs
++++ b/test/cli.test.mjs
+@@ -1375,6 +1375,39 @@
+  }finally{S.depRev=prev;fs.rmSync(out,{force:true});}
+ });
+ 
++test('bootstrap prepare commits owner history sources exactly, warns honestly, and never publishes a credential silently',async()=>{
++ const prev=S.depRev;S.depRev=16n;S.txs.length=0;S.apiCalls.length=0;
++ const cfg=path.join(confDir,'bootstrap-history-config.json'),out=path.join(confDir,'owner-history-startup.json');fs.writeFileSync(cfg,'{}');
++ const base=['bootstrap','prepare',ID,'--contract-pins',writeAuthorityPins(),'--config-file',cfg,'--app-id','44'.repeat(32),'--runtime-id','55'.repeat(32),'--public','--out',out,'--json'];
++ const {verifyPackage,historyFromList}=await import('../sdk/bootstrap/package.mjs');
++ try{
++  const r=await run([...base,'--history-rpcs','https://gateway.tenderly.co/public/base,https://base-rpc.polkachu.com']);assert.equal(r.code,0,r.err);
++  const bytes=fs.readFileSync(out),m=JSON.parse(bytes);
++  assert.deepEqual(m.history,{rpcs:['https://base-rpc.polkachu.com','https://gateway.tenderly.co/public/base']});
++  assert.equal(Object.keys(m).at(-1),'history');
++  const o=JSON.parse(r.out);assert.deepEqual(o.history,m.history.rpcs);assert.deepEqual(o.historyWarnings,[]);
++  verifyPackage(bytes,{version:1,sha256:o.sha256});
++  assert.equal(S.apiCalls.length,0);assert.equal(S.txs.length,0);fs.rmSync(out);
++  // one operator: committed, with the warning
++  const one=await run([...base,'--history-rpcs','https://gateway.tenderly.co/public/base']);assert.equal(one.code,0,one.err);
++  assert.match(JSON.parse(one.out).historyWarnings[0],/only 1 independent operator/);fs.rmSync(out);
++  // none: the package is exactly an older tool's (no member), and the output says what that means
++  const none=await run(base);assert.equal(none.code,0,none.err);
++  assert.equal(Object.hasOwn(JSON.parse(fs.readFileSync(out)),'history'),false);assert.match(JSON.parse(none.out).historyWarnings[0],/no history sources/);fs.rmSync(out);
++  // a key-like path only with the explicit confirmation
++  const keyed='https://base-mainnet.example-provider.com/v2/Ab3dE5gH7jK9mN1pQ3sT';
++  const refused=await run([...base,'--history-rpcs',keyed]);assert.notEqual(refused.code,0);assert.match(refused.err,/looks like a provider key/);assert.equal(fs.existsSync(out),false);
++  const confirmed=await run([...base,'--history-rpcs',keyed,'--history-path-is-public']);assert.equal(confirmed.code,0,confirmed.err);
++  assert.deepEqual(JSON.parse(fs.readFileSync(out)).history,historyFromList(keyed,{pathIsPublic:true}));fs.rmSync(out);
++  for(const [extra,why] of [[['--history-rpcs','https://user:pw@node.example.org'],/credentials/],[['--history-rpcs','https://node.example.org/rpc?key=1'],/query/],
++    [['--history-rpcs','http://node.example.org'],/https/],[['--history-rpcs','https://node.example.org:8545'],/no port/],[['--history-path-is-public'],/applies to --history-rpcs/],
++    [['--history-rpcs',['a','b','c','d','e','f','g'].map(x=>`https://${x}.example`).join(',')],/1 to 6/]]){
++   const bad=await run([...base,...extra]);assert.notEqual(bad.code,0);assert.match(bad.err,why);assert.equal(fs.existsSync(out),false);
++  }
++  assert.equal(S.txs.length,0);
++ }finally{S.depRev=prev;fs.rmSync(out,{force:true});}
++});
++
+ test('owner startup packages prevent legacy config edits and preserve WAF-only changes',async()=>{
+  const prev=S.depRev,old=S.envelope;S.depRev=16n;
+  const guestBootstrap={version:1,sha256:'ab'.repeat(32)};

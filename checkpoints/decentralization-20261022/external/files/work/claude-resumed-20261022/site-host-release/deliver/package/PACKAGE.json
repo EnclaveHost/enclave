@@ -1,0 +1,62 @@
+{
+  "schema": "site-host-package/1",
+  "app": "site-host",
+  "version": "0.1.0",
+  "wasm": {
+    "file": "site_host.wasm",
+    "sha256": "e9751b25f0b7790498afeff63c571e1f2bd7a96b39c26aaa246996b18d7948a0",
+    "bytes": 46312706
+  },
+  "release": {
+    "cid": "bafybeifkfgxsjz6gnj234fvdkxa37pc4fcevydu6tb55wtidjejfsuxake",
+    "car": {
+      "sha256": "1cb0fb90b85095220eb88d673f474b476e14bbb6317da7adbd672d0134d8e69b",
+      "bytes": 46082472,
+      "blocks": 773
+    }
+  },
+  "toolchain": {
+    "rustc": "rustc 1.99.0-nightly (da86f4d07 2026-07-24)",
+    "cargo": "cargo 1.99.0-nightly (3efb1f477 2026-07-17)",
+    "target": "wasm32-wasip2",
+    "profile": "release (lto, opt-level s, strip)",
+    "rustflags": "--remap-path-prefix=<src>=/site-host --remap-path-prefix=<CARGO_HOME>=/cargo",
+    "locked": true
+  },
+  "source": {
+    "files": 20,
+    "sha256": "b3f465dbc82b1d2df0bbe914d8c574559305cc59da96eafa4685c24128b960b3"
+  },
+  "imports": [
+    "import wasi:io/poll@0.2.12",
+    "import wasi:clocks/monotonic-clock@0.2.12",
+    "import wasi:io/error@0.2.12",
+    "import wasi:io/streams@0.2.12",
+    "import wasi:http/types@0.2.9",
+    "import wasi:cli/environment@0.2.12",
+    "import wasi:cli/exit@0.2.12",
+    "import wasi:cli/stdin@0.2.12",
+    "import wasi:cli/stdout@0.2.12",
+    "import wasi:cli/stderr@0.2.12",
+    "import wasi:cli/terminal-input@0.2.12",
+    "import wasi:cli/terminal-output@0.2.12",
+    "import wasi:cli/terminal-stdin@0.2.12",
+    "import wasi:cli/terminal-stdout@0.2.12",
+    "import wasi:cli/terminal-stderr@0.2.12",
+    "import wasi:clocks/wall-clock@0.2.12",
+    "import wasi:filesystem/types@0.2.12",
+    "import wasi:filesystem/preopens@0.2.12",
+    "import wasi:random/insecure-seed@0.2.12",
+    "export wasi:http/incoming-handler@0.2.6"
+  ],
+  "catalog": {
+    "ports": "",
+    "mem": 256,
+    "cpuGflops": 10,
+    "vram": 0,
+    "gpuGflops": 0,
+    "config": {
+      "release": "bafybeifkfgxsjz6gnj234fvdkxa37pc4fcevydu6tb55wtidjejfsuxake"
+    }
+  }
+}

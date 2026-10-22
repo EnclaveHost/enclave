@@ -1,0 +1,23 @@
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/lib.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/lib.rs
+@@ -54,6 +54,7 @@
+ use sia_core::signing::PrivateKey;
+ 
+ mod app_client;
++pub mod fence; // PATCH (writer fencing)
+ mod builder;
+ mod congestion;
+ mod download;
+@@ -101,6 +102,12 @@
+ };
+ pub use download::{Download, DownloadError};
+ pub use encryption::EncryptionKey;
++
++/// PATCH (clone privacy): the clone-safe encryption this SDK applies to new uploads and seals: slab keys, metadata
++/// keys and seal nonces are hedged, i.e. derived from fresh randomness AND the complete input they protect (see
++/// `object_encryption::hedged`). Copies of a running process that repeat every RNG then never reuse a keystream for
++/// different input; equal input gives equal ciphertext. Writers that tolerate copies of themselves require it.
++pub const CLONE_PRIVACY: &str = "hedged-v1";
+ pub use hosts::{QueueError, RPCError};
+ pub use slabs::{
+     Object, ObjectEvent, ObjectSummary, SealedObject, SealedObjectError, Sector, Slab, SlabVersion,

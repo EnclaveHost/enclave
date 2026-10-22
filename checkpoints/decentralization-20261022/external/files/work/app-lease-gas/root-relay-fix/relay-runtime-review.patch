@@ -1,0 +1,450 @@
+--- a/client/lease-executor-client.mjs
++++ b/client/lease-executor-client.mjs
+@@ -22,7 +22,7 @@
+ //     taken as this operation's success.
+ import http from "node:http";
+ import { getAddress, concat, encodeFunctionData, decodeFunctionData, decodeFunctionResult, decodeEventLog, decodeErrorResult, keccak256, hashTypedData,
+-         recoverAddress, isAddress, isHex, encodeAbiParameters } from "viem";
++         recoverAddress, isAddress, isHex, encodeAbiParameters, formatTransactionRequest } from "viem";
+ import { recoverAuthorizationAddress } from "viem/utils";
+ import { leaseDeploymentPins, leaseRpcSet, verifiedLeaseAuthority } from "./lease-executor-authority.mjs";
+ export { leaseDeploymentPins, verifiedLeaseAuthority } from "./lease-executor-authority.mjs";
+@@ -150,20 +150,55 @@
+   return { base, priorityFee, maxFeePerGas: base * 2n + priorityFee, effective: base + priorityFee };
+ }
+ 
++/** Verify the exact lease intent and its canonical receipt through the caller's RPC quorum. */
++export async function verifyLeaseReceipt({ rpc, pins, operator, hash, want, payees }) {
++    return rpc.agree(rpc.peers, async ({ client: c }) => {
++      const [tx, rc] = await Promise.all([c.getTransaction({ hash }), c.getTransactionReceipt({ hash })]);
++      if (lc(tx.hash) !== lc(hash) || lc(rc.transactionHash) !== lc(hash) || !HEX32.test(rc.blockHash || "") ||
++          lc(tx.blockHash) !== lc(rc.blockHash) || tx.blockNumber !== rc.blockNumber)
++        throw new Error("the transaction and receipt do not identify the same block");
++      if (!tx.to || getAddress(tx.to) !== getAddress(operator)) throw new Error("the transaction does not call this operator");
++      if (Number(tx.chainId) !== pins.chainId || BigInt(tx.value) !== 0n) throw new Error("wrong lease chain or value");
++      const call = decodeFunctionData({ abi: EXECUTOR_ABI, data: tx.input });
++      if (call.functionName !== "lease" || (tx.input.length - 2) / 2 !== CANONICAL_LENGTH) throw new Error("not a canonical lease call");
++      const l = call.args[0];
++      if (l.id !== want.id || Number(l.kind) !== want.kind || l.enclaveId !== want.enclaveId || BigInt(l.nonce) !== want.nonce) throw new Error("another lease than the one signed");
++      if (BigInt(l.deadline) !== want.deadline || BigInt(l.maxChargeWei) !== want.maxChargeWei)
++        throw new Error("the lease deadline or maximum charge differs from the signed intent");
++      if (payees && !payees.some((p) => lc(p) === lc(l.payee))) throw new Error("a payee this host never signed");
++      if (rc.status !== "success") throw new Error(`the lease transaction reverted (${hash})`);
++      const paid = rc.logs.filter((g) => lc(g.address) === lc(pins.reserve)).map((g) => { try { return decodeEventLog({ abi: RESERVE_ABI, data: g.data, topics: g.topics }); } catch { return null; } })
++        .find((ev) => ev?.eventName === "LeaseGasPaid" && ev.args.id === want.id && lc(ev.args.operator) === lc(operator) && Number(ev.args.kind) === want.kind && lc(ev.args.payee) === lc(l.payee));
++      if (!paid) throw new Error("no LeaseGasPaid from the reserve for this lease");
++      const ledger = pins.ledger;
++      const at = { blockHash: rc.blockHash, requireCanonical: true };
++      const [rcCode, exCode, opCode, data, nonceData] = await Promise.all([
++        rpc.request(c, "eth_getCode", [pins.reserve, at]), rpc.request(c, "eth_getCode", [pins.executor, at]),
++        rpc.request(c, "eth_getCode", [operator, at]),
++        rpc.request(c, "eth_call", [{ to: ledger, data: encodeFunctionData({ abi: LEDGER_ABI, functionName: "get", args: [want.id] }) }, at]),
++        rpc.request(c, "eth_call", [{ to: operator,
++          data: encodeFunctionData({ abi: EXECUTOR_ABI, functionName: "nonceOf", args: [want.id] }) }, at]),
++      ]);
++      if (keccak256(rcCode) !== pins.reserveCodeHash || keccak256(exCode) !== pins.executorCodeHash ||
++          lc(opCode) !== designator(pins.executor)) throw new Error("unreviewed lease code at the receipt block");
++      const d = decodeFunctionResult({ abi: LEDGER_ABI, functionName: "get", data });
++      const landedNonce = BigInt(decodeFunctionResult({ abi: EXECUTOR_ABI, functionName: "nonceOf", data: nonceData }));
++      if (landedNonce <= want.nonce) throw new Error("the executor did not consume this lease nonce");
++      if (paid.args.chargedWei > want.maxChargeWei) throw new Error("the charge exceeds the signed maximum");
++      if (want.kind === 1 && (lc(d.runnerOperator) !== lc(operator) || d.runner !== want.enclaveId)) throw new Error("the ledger does not show this claim");
++      if (want.kind === 3 && !/^0x0{40}$/i.test(d.runnerOperator)) throw new Error("the ledger does not show the release");
++      if (want.kind === 2 && lc(d.runnerOperator) !== lc(operator)) throw new Error("the ledger does not show this renewal");
++      return { hash, blockNumber: rc.blockNumber, blockHash: lc(rc.blockHash), chargedWei: paid.args.chargedWei, payee: paid.args.payee, receipt: rc };
++    }, "the landed lease").then(({ value: v }) => ({ ...v, receiptP: Promise.resolve(v.receipt) }));
++}
++
+ // =====================================================================================================================
+ // RELAY
+ // =====================================================================================================================
+ 
+ /** A relay's pinned configuration: the reserve and executor it serves, by address AND code hash. */
+-export async function pinRelayContracts({ client, reserve, reserveCodeHash, executorCodeHash }) {
+-  reserve = getAddress(reserve);
+-  const executor = getAddress(await client.readContract({ address: reserve, abi: RESERVE_ABI, functionName: "executor" }));
+-  const [rc, ec, back] = await Promise.all([client.getCode({ address: reserve }), client.getCode({ address: executor }),
+-    client.readContract({ address: executor, abi: EXECUTOR_ABI, functionName: "reserve" })]);
+-  if (!rc || keccak256(rc) !== lc(reserveCodeHash)) throw new Error(`reserve ${reserve} is not the pinned code`);
+-  if (!ec || keccak256(ec) !== lc(executorCodeHash)) throw new Error(`executor ${executor} is not the pinned code`);
+-  if (getAddress(back) !== reserve) throw new Error("the executor serves another reserve");
+-  return { chainId: client.chain.id, reserve, executor };
++export async function pinRelayContracts({ client, clients = [client], deployment, ...options }) {
++  return (await verifiedLeaseAuthority({ ...options, clients, deployment })).pins;
+ }
+ 
+ const HEX32 = /^0x[0-9a-fA-F]{64}$/;
+@@ -236,31 +271,56 @@
+ }
+ 
+ /** RELAY: check, simulate, send, and confirm the payment from the receipt (the event emitted by the PINNED reserve). */
+-export async function relayLease({ client, wallet, pinned, signed, gas = 600_000n, receiptTimeoutMs = 120_000 }) {
++export async function relayLease({ client: singleClient, clients = [singleClient], wallet, pinned, signed,
++  quorum, confirmations = 0, maxBlockAgeSecs, allowLoopbackHttp = false, rpcTimeoutMs, now,
++  gas = 600_000n, receiptTimeoutMs = 120_000 }) {
++  const verified = await verifiedLeaseAuthority({ clients, deployment: pinned, quorum, confirmations, maxBlockAgeSecs,
++    allowLoopbackHttp, timeoutMs: rpcTimeoutMs, now });
++  pinned = verified.pins;
++  if (wallet.chain?.id !== pinned.chainId) throw new Error("relay wallet chain differs from reviewed deployment");
++  const client = verified.client;
++  const rpc = leaseRpcSet(clients, { quorum, allowLoopbackHttp, timeoutMs: rpcTimeoutMs });
+   const payee = wallet.account.address;
+   const c = await checkRelayRequest({ client, pinned, payee, signed });
++  const nonce = await client.getTransactionCount({ address: payee });
+   const tx = { account: wallet.account, to: signed.operator, data: c.data, authorizationList: c.authorizationList, gas,
+-               maxPriorityFeePerGas: c.fees.priorityFee, maxFeePerGas: c.fees.maxFeePerGas };
+-  try { await client.call(tx); } catch (e) { throw new LeaseRefusal("Simulation", `simulation: ${reasonOf(e)}`); }
++               nonce, maxPriorityFeePerGas: c.fees.priorityFee, maxFeePerGas: c.fees.maxFeePerGas };
++  try {
++    await rpc.agree(rpc.peers, async ({ client: peer }) => {
++      await rpc.request(peer, "eth_call", [formatTransactionRequest(tx),
++        { blockHash: verified.block.hash, requireCanonical: true }]);
++      return true;
++    }, "relay simulation");
++  } catch (e) { throw new LeaseRefusal("Simulation", `simulation: ${reasonOf(e)}`); }
++  verified.assertFresh();
+   const hash = await wallet.sendTransaction(tx);
+-  const receipt = await withTimeout(client.waitForTransactionReceipt({ hash }), receiptTimeoutMs, "receipt");
+-  let paid = null;
+-  for (const l of receipt.logs) {
+-    if (lc(l.address) !== lc(pinned.reserve)) continue;   // only the pinned reserve's own events count
+-    try { const ev = decodeEventLog({ abi: RESERVE_ABI, data: l.data, topics: l.topics });
+-      if (ev.eventName === "LeaseGasPaid" && lc(ev.args.payee) === lc(payee) && lc(ev.args.operator) === lc(signed.operator) && ev.args.id === signed.lease.id) paid = ev.args;
+-    } catch {}
+-  }
+-  return { hash, receipt, paid, expectedCharge: c.expectedCharge };
++  const deadline = Date.now() + receiptTimeoutMs;
++  for (;;) {
++    try {
++      const landed = await verifyLeaseReceipt({ rpc, pins: pinned, operator: signed.operator, hash, want: signed.lease, payees: [payee] });
++      const receipt = landed.receipt;
++      const paid = receipt.logs.filter((l) => lc(l.address) === lc(pinned.reserve))
++        .map((l) => { try { return decodeEventLog({ abi: RESERVE_ABI, data: l.data, topics: l.topics }); } catch { return null; } })
++        .find((ev) => ev?.eventName === "LeaseGasPaid" && ev.args.id === signed.lease.id &&
++          lc(ev.args.operator) === lc(signed.operator) && lc(ev.args.payee) === lc(payee) && Number(ev.args.kind) === signed.lease.kind)?.args;
++      return { hash, receipt, paid, expectedCharge: c.expectedCharge };
++    } catch (e) {
++      if (Date.now() >= deadline) throw new Error(`lease ${hash} is not quorum-confirmed: ${reasonOf(e)}`);
++      await sleep(500);
++    }
++  }
+ }
+ 
+ /**
+  * A minimal open relay over HTTP. GET /v1/info -> {chainId, reserve, executor, payee, canonicalLength}; POST /v1/lease.
+  * Bounded: body <= 4 KiB, request time, concurrency (excess -> 503), and ONE send at a time from this relay's key.
+  */
+-export async function startLeaseRelay({ client, wallet, reserve, reserveCodeHash, executorCodeHash, host = "127.0.0.1", port = 0,
++export async function startLeaseRelay({ client, clients = [client], wallet, deployment, quorum, confirmations = 0,
++  maxBlockAgeSecs, allowLoopbackHttp = false, rpcTimeoutMs, now, host = "127.0.0.1", port = 0,
+                                         maxBody = 4096, maxConcurrent = 4, requestTimeoutMs = 60_000, log = () => {} }) {
+-  const pinned = await pinRelayContracts({ client, reserve, reserveCodeHash, executorCodeHash });
++  const options = { clients, deployment, quorum, confirmations, maxBlockAgeSecs, allowLoopbackHttp, timeoutMs: rpcTimeoutMs, now };
++  const pinned = await pinRelayContracts(options);
++  if (wallet.chain?.id !== pinned.chainId) throw new Error("relay wallet chain differs from reviewed deployment");
+   let inflight = 0, sendQueue = Promise.resolve();
+   const server = http.createServer(async (req, res) => {
+     const reply = (status, body) => { if (res.writableEnded) return; res.writeHead(status, { "content-type": "application/json" });
+@@ -271,25 +331,33 @@
+     if (req.method !== "POST" || req.url !== "/v1/lease") return reply(404, { error: "not_found" });
+     if (inflight >= maxConcurrent) return reply(503, { error: "busy" });
+     inflight++;
++    let pendingJob = null;
+     try {
+       const chunks = []; let size = 0;
+       for await (const c of req) { size += c.length; if (size > maxBody) return reply(413, { error: "too_large" }); chunks.push(c); }
+       let signed;
+       try { signed = parseRelayRequest(JSON.parse(Buffer.concat(chunks).toString())); } catch (e) { return reply(400, { error: e.code || "bad_json", message: String(e.message).slice(0, 200) }); }
+       // one send at a time from this key (its account nonce), and therefore per operator too
+-      const job = sendQueue.then(() => withTimeout(relayLease({ client, wallet, pinned, signed }), requestTimeoutMs, "relay"));
+-      sendQueue = job.catch(() => {});
+-      const r = await job;
++      // A timed-out HTTP response must not unlock this key while the original job can still broadcast.
++      pendingJob = sendQueue.then(() => relayLease({ ...options, rpcTimeoutMs, wallet, pinned, signed }));
++      sendQueue = pendingJob.catch(() => {});
++      const r = await withTimeout(pendingJob, requestTimeoutMs, "relay");
+       log(`[relay] ${r.receipt.status} ${r.hash} paid ${r.paid?.chargedWei ?? "none"}`);
+       reply(200, { hash: r.hash, status: r.receipt.status, paid: r.paid });
+     } catch (e) {
+       reply(e instanceof LeaseRefusal ? 422 : 502, { error: e.code || "relay_failed", message: String(e.message).slice(0, 300) });
+-    } finally { inflight--; }
++    } finally {
++      if (pendingJob) pendingJob.then(() => { inflight--; }, () => { inflight--; });
++      else inflight--;
++    }
+   });
+   server.headersTimeout = 10_000; server.requestTimeout = requestTimeoutMs + 5_000;
+   await new Promise((ok) => server.listen(port, host, ok));
+   return { url: `http://${host}:${server.address().port}`, pinned,
+-           close: () => new Promise((ok) => { server.closeAllConnections?.(); server.close(() => ok()); }) };
++    close: async () => {
++      await new Promise((ok) => { server.closeAllConnections?.(); server.close(() => ok()); });
++      await sendQueue;
++    } };
+ }
+ 
+ // =====================================================================================================================
+@@ -349,47 +417,15 @@
+   }
+   const nonceOf = async (id) => nonceAt(id, await authority());
+ 
+-  /** Verify on the host's own RPCs that `hash` is THIS operator's lease `want` (id, kind, enclaveId, nonce) landing. */
+-  async function verifyLanded(hash, want, payees) {
+-    return rpc.agree(rpc.peers, async ({ client: c }) => {
+-      const [tx, rc] = await Promise.all([c.getTransaction({ hash }), c.getTransactionReceipt({ hash })]);
+-      if (lc(tx.hash) !== lc(hash) || lc(rc.transactionHash) !== lc(hash) || !HEX32.test(rc.blockHash || "") ||
+-          lc(tx.blockHash) !== lc(rc.blockHash) || tx.blockNumber !== rc.blockNumber)
+-        throw new Error("the transaction and receipt do not identify the same block");
+-      if (!tx.to || getAddress(tx.to) !== getAddress(account.address)) throw new Error("the transaction does not call this operator");
+-      if (Number(tx.chainId) !== pins.chainId || BigInt(tx.value) !== 0n) throw new Error("wrong lease chain or value");
+-      const call = decodeFunctionData({ abi: EXECUTOR_ABI, data: tx.input });
+-      if (call.functionName !== "lease" || (tx.input.length - 2) / 2 !== CANONICAL_LENGTH) throw new Error("not a canonical lease call");
+-      const l = call.args[0];
+-      if (l.id !== want.id || Number(l.kind) !== want.kind || l.enclaveId !== want.enclaveId || BigInt(l.nonce) !== want.nonce) throw new Error("another lease than the one signed");
+-      if (BigInt(l.deadline) !== want.deadline || BigInt(l.maxChargeWei) !== want.maxChargeWei)
+-        throw new Error("the lease deadline or maximum charge differs from the signed intent");
+-      if (payees && !payees.some((p) => lc(p) === lc(l.payee))) throw new Error("a payee this host never signed");
+-      if (rc.status !== "success") throw new Error(`the lease transaction reverted (${hash})`);
+-      const paid = rc.logs.filter((g) => lc(g.address) === lc(reserve)).map((g) => { try { return decodeEventLog({ abi: RESERVE_ABI, data: g.data, topics: g.topics }); } catch { return null; } })
+-        .find((ev) => ev?.eventName === "LeaseGasPaid" && ev.args.id === want.id && lc(ev.args.operator) === lc(account.address) && Number(ev.args.kind) === want.kind && lc(ev.args.payee) === lc(l.payee));
+-      if (!paid) throw new Error("no LeaseGasPaid from the reserve for this lease");
+-      const ledger = pins.ledger;
+-      const at = { blockHash: rc.blockHash, requireCanonical: true };
+-      const [rcCode, exCode, opCode, data, nonceData] = await Promise.all([
+-        rpc.request(c, "eth_getCode", [reserve, at]), rpc.request(c, "eth_getCode", [pins.executor, at]),
+-        rpc.request(c, "eth_getCode", [account.address, at]),
+-        rpc.request(c, "eth_call", [{ to: ledger, data: encodeFunctionData({ abi: LEDGER_ABI, functionName: "get", args: [want.id] }) }, at]),
+-        rpc.request(c, "eth_call", [{ to: account.address,
+-          data: encodeFunctionData({ abi: EXECUTOR_ABI, functionName: "nonceOf", args: [want.id] }) }, at]),
+-      ]);
+-      if (keccak256(rcCode) !== pins.reserveCodeHash || keccak256(exCode) !== pins.executorCodeHash ||
+-          lc(opCode) !== designator(pins.executor)) throw new Error("unreviewed lease code at the receipt block");
+-      const d = decodeFunctionResult({ abi: LEDGER_ABI, functionName: "get", data });
+-      const landedNonce = BigInt(decodeFunctionResult({ abi: EXECUTOR_ABI, functionName: "nonceOf", data: nonceData }));
+-      if (landedNonce <= want.nonce) throw new Error("the executor did not consume this lease nonce");
+-      if (paid.args.chargedWei > want.maxChargeWei) throw new Error("the charge exceeds the signed maximum");
+-      if (want.kind === 1 && (lc(d.runnerOperator) !== lc(account.address) || d.runner !== want.enclaveId)) throw new Error("the ledger does not show this claim");
+-      if (want.kind === 3 && !/^0x0{40}$/i.test(d.runnerOperator)) throw new Error("the ledger does not show the release");
+-      if (want.kind === 2 && lc(d.runnerOperator) !== lc(account.address)) throw new Error("the ledger does not show this renewal");
+-      return { hash, blockNumber: rc.blockNumber, blockHash: lc(rc.blockHash), chargedWei: paid.args.chargedWei, payee: paid.args.payee, receipt: rc };
+-    }, "the landed lease").then(({ value: v }) => ({ ...v, receiptP: Promise.resolve(v.receipt) }));
+-  }
++  async function renewLeadMs(id, fallbackMs) {
++    const c = (await authority()).client;
++    const d = await c.readContract({ address: pins.ledger, abi: LEDGER_ABI, functionName: "get", args: [id] });
++    const r = await c.readContract({ address: reserve, abi: RESERVE_ABI, functionName: "reserveOf", args: [id, d.owner] });
++    if (!r.enabled) return fallbackMs; // the actual send refuses Disabled; no operator-paid fallback
++    return Math.min(fallbackMs, Math.max(5, Number(r.renewWindow) - 15) * 1000);
++  }
++
++  const verifyLanded = (hash, want, payees) => verifyLeaseReceipt({ rpc, pins, operator: account.address, hash, want, payees });
+ 
+   /** The chain's own record: a LeaseGasPaid by this operator for `id` from `fromBlock` whose transaction is THIS lease. */
+   async function findLanded(want, fromBlock, payees) {
+@@ -437,7 +473,9 @@
+         const signature = await account.signTypedData({ domain: { name: "EnclaveLeaseExecutor", version: "1", chainId: pins.chainId, verifyingContract: account.address },
+           types: TYPES, primaryType: "Lease", message: { reserve, ...lease } });
+         payees.push(lease.payee);
+-        if (onSigned) await onSigned({ nonce, deadline, payee: lease.payee, kind: kindName });   // durable record BEFORE the relay sees it
++        if (onSigned) await onSigned({ nonce, deadline, payee: lease.payee, kind: kindName,
++          lease: { ...lease }, fromBlock, operator: account.address, reserve, executor: ex });
++        // The complete intent is durable BEFORE the relay sees it, allowing exact receipt recovery after restart.
+         const body = JSON.stringify({ operator: account.address, lease, signature, authorization }, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
+         const ans = await boundedFetchJson(fetchImpl, `${url}/v1/lease`, { method: "POST", headers: { "content-type": "application/json" }, body }, requestTimeoutMs);
+         if (ans.status === 200 && HEX32.test(ans.body.hash || "")) {
+@@ -464,7 +502,7 @@
+     claim: (id, enclaveId) => run("claim", id, enclaveId),
+     renew: (id) => run("renew", id),
+     release: (id) => run("release", id),
+-    nonceOf, findLanded, verifyLanded, executor,
++    nonceOf, findLanded, verifyLanded, executor, renewLeadMs,
+     asClaimTx(functionName, args) {
+       const started = run(functionName, args[0], args[1]);
+       const p = started.then((x) => x.hash);
+--- a/test/lease-authority.test.mjs
++++ b/test/lease-authority.test.mjs
+@@ -3,15 +3,18 @@
+ import { test, before, after } from "node:test";
+ import assert from "node:assert/strict";
+ import http from "node:http";
++import { createHash } from "node:crypto";
+ import * as viem from "viem";
+ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+ const B = await import(process.env.LEASE_AUTHORITY_CLIENT || new URL("../client/lease-executor-client.mjs", import.meta.url).href);
+ import { startWorld, haveAnvil } from "./helpers/b-world.mjs";
++import { loadLeaseGasConfig, configuredLeaseSender } from "../network/lease-gas-runtime.mjs";
+ 
+ const T = { skip: !haveAnvil && "needs anvil", timeout: 120_000 };
+ const ATTACKER = "0x9999999999999999999999999999999999999999";
+ const reserveGetters = viem.parseAbi(["function executor() view returns(address)", "function ledger() view returns(address)"]);
+ let W, relay, dep;
++let clockOffset = 0;
+ const proxies = [];
+ before(async () => {
+   if (!haveAnvil) return;
+@@ -20,7 +23,8 @@
+   const key = generatePrivateKey();
+   await W.fund(privateKeyToAccount(key).address);
+   relay = await B.startLeaseRelay({ client: W.pc, wallet: W.wc(key), reserve: dep.reserve,
+-    reserveCodeHash: dep.reserveCodeHash, executorCodeHash: dep.executorCodeHash });
++    reserveCodeHash: dep.reserveCodeHash, executorCodeHash: dep.executorCodeHash,
++    deployment: dep, allowLoopbackHttp: true, now: () => Date.now() + clockOffset });
+ });
+ after(async () => {
+   for (const p of proxies) await p.close();
+@@ -76,6 +80,104 @@
+ }
+ const opts = (clients, account) => ({ clients, account, reserve: dep.reserve, deployment: dep, relays: [relay.url],
+   allowLoopbackHttp: true, confirmations: 0, requestTimeoutMs: 2000, rpcTimeoutMs: 2000 });
++function configuredHost(clients, account, prefix) {
++  const record = { format: "enclave-lease-gas-deployment/v1", chainId: dep.chainId,
++    ...Object.fromEntries(["reserve", "executor", "ledger", "registry", "reserveCodeHash", "executorCodeHash"].map((k) => [k, dep[k]])) };
++  const bytes = Buffer.from(JSON.stringify(record));
++  const values = { FILE: "reviewed.json", DIGEST: "sha256:" + createHash("sha256").update(bytes).digest("hex"),
++    RPCS: clients.map((c) => c.transport.url).join(","), RELAYS: relay.url };
++  const env = Object.fromEntries(Object.entries(values).map(([k, v]) => [prefix + k, v]));
++  const bindings = { chain: W.chain, ledger: dep.ledger, registry: dep.registry };
++  const config = loadLeaseGasConfig({ env, ...bindings, readFile: () => bytes, allowLoopbackHttp: true, rpcTimeoutMs: 2000 });
++  return configuredLeaseSender({ config, account, getBindings: () => bindings, confirmations: 0,
++    requestTimeoutMs: 2000, now: () => Date.now() + clockOffset });
++}
++async function requestFor(op, id, payee) {
++  const code = await W.pc.getCode({ address: op.address });
++  const delegated = code?.toLowerCase() === B.designator(dep.executor);
++  const nonce = delegated ? await W.pc.readContract({ address: op.address, abi: B.EXECUTOR_ABI, functionName: "nonceOf", args: [id] }) : 0n;
++  const lease = { id, kind: 1, enclaveId: op.enclaveId, nonce, deadline: (await W.pc.getBlock()).timestamp + 300n,
++    payee, maxChargeWei: 10n ** 15n };
++  const signature = await op.account.sign({ hash: B.leaseDigest({ chainId: 8453, operator: op.address, reserve: dep.reserve, lease }) });
++  const authorization = delegated ? null : await op.account.signAuthorization({ contractAddress: dep.executor, chainId: 8453,
++    nonce: await W.pc.getTransactionCount({ address: op.address }) });
++  return { operator: op.address, lease, signature, authorization };
++}
++const postLease = async (url, body) => {
++  const r = await fetch(url + "/v1/lease", { method: "POST", headers: { "content-type": "application/json" },
++    body: JSON.stringify(body, (_k, v) => typeof v === "bigint" ? String(v) : v), signal: AbortSignal.timeout(15_000) });
++  return { status: r.status, body: await r.json() };
++};
++
++test("relay revalidates authority after startup and spends nothing without an honest quorum", T, async () => {
++  const [a, b] = await Promise.all([proxy(), proxy()]);
++  const key = generatePrivateKey(), wallet = W.wc(key);
++  await W.fund(wallet.account.address);
++  let sends = 0;
++  const r = await B.startLeaseRelay({ ...opts([a.client, b.client], null),
++    wallet: { ...wallet, sendTransaction: (tx) => { sends++; return wallet.sendTransaction(tx); } } });
++  try {
++    const o = await W.owner(), op = await W.operator("https://relay-revalidate.test");
++    const id = await W.create(o); await W.enable(o, id);
++    const body = await requestFor(op, id, wallet.account.address);
++    const balance = await W.pc.getBalance({ address: wallet.account.address });
++    for (const mode of ["executor", "ledger", "code", "chain"]) {
++      a.state.mode = mode;
++      const answer = await postLease(r.url, body);
++      assert.equal(answer.status, 502, JSON.stringify(answer));
++      assert.equal(sends, 0, mode);
++      assert.equal(await W.pc.getBalance({ address: wallet.account.address }), balance);
++    }
++  } finally { await r.close(); }
++});
++
++test("a funded relay works through one lying or down RPC and confirms payment through the honest quorum", T, async () => {
++  const [a, b, c] = await Promise.all([proxy("executor"), proxy(), proxy()]);
++  const key = generatePrivateKey(), wallet = W.wc(key);
++  await W.fund(wallet.account.address);
++  const r = await B.startLeaseRelay({ ...opts([a.client, b.client, c.client], null), wallet });
++  try {
++    for (const mode of ["executor", "down"]) {
++      a.state.mode = mode;
++      const o = await W.owner(), op = await W.operator(`https://relay-majority-${mode}.test`);
++      const id = await W.create(o); await W.enable(o, id);
++      const answer = await postLease(r.url, await requestFor(op, id, wallet.account.address));
++      assert.equal(answer.status, 200, JSON.stringify(answer));
++      assert.equal(answer.body.status, "success");
++      assert.equal(viem.getAddress(answer.body.paid.payee), wallet.account.address);
++      assert.equal((await W.row(id)).runnerOperator, op.address);
++      assert.equal(await W.pc.getBalance({ address: op.address }), 0n);
++    }
++  } finally { await r.close(); }
++});
++
++test("an HTTP timeout does not release the relay queue or its capacity while a send remains pending", T, async () => {
++  const key = generatePrivateKey(), wallet = W.wc(key);
++  await W.fund(wallet.account.address);
++  let open, sends = 0;
++  const gate = new Promise((resolve) => { open = resolve; });
++  const r = await B.startLeaseRelay({ client: W.pc, deployment: dep, allowLoopbackHttp: true,
++    wallet: { ...wallet, sendTransaction: async (tx) => { sends++; await gate; return wallet.sendTransaction(tx); } },
++    requestTimeoutMs: 500, maxConcurrent: 1 });
++  let id, op;
++  try {
++    const o = await W.owner(); op = await W.operator("https://relay-timeout-queue.test");
++    id = await W.create(o); await W.enable(o, id);
++    const body = await requestFor(op, id, wallet.account.address);
++    const first = await postLease(r.url, body);
++    assert.equal(first.status, 502, JSON.stringify(first));
++    assert.equal(sends, 1);
++    const second = await postLease(r.url, body);
++    assert.equal(second.status, 503, "the timed-out job still occupies the queue");
++    assert.equal(sends, 1, "no overlapping send from the same funded key");
++  } finally {
++    open();
++    await r.close();
++  }
++  assert.equal((await W.row(id)).runnerOperator, op.address, "the original send is allowed to finish once");
++  const events = await W.pc.getContractEvents({ address: dep.reserve, abi: W.A.reserve.abi, eventName: "LeaseGasPaid", args: { id }, fromBlock: 0n });
++  assert.equal(events.length, 1);
++});
+ 
+ test("reviewed pins and distinct RPC identities are required before signing", T, async () => {
+   const s = spy(privateKeyToAccount(generatePrivateKey()));
+@@ -158,8 +260,7 @@
+   const id = await W.create(owner, { fund6: 0n });
+   await W.enable(owner, id, { p: { claimPolicy: 1 } });
+   const s = spy(op.account);
+-  let clockOffset = 0;
+-  const host = B.createLeaseClient({ ...opts([a.client, b.client, c.client], s.account), now: () => Date.now() + clockOffset });
++  const host = configuredHost([a.client, b.client, c.client], s.account, "LEASE_GAS_");
+   const before = (await W.reserveOf(id, owner.address)).balanceWei;
+   const claim = await host.claim(id, op.enclaveId);
+   assert.equal(claim.receipt.status, "success");
+@@ -182,7 +283,8 @@
+   await W.warpTo(d.leaseUntil - 200n);
+   clockOffset = Number((await W.pc.getBlock()).timestamp) * 1000 - Date.now();
+   a.state.mode = "down";
+-  const renew = await host.renew(id);
++  const windows = configuredHost([a.client, b.client, c.client], s.account, "ENCLAVE_LEASE_GAS_");
++  const renew = await windows.renew(id);
+   assert.equal(renew.receipt.status, "success");
+   assert.ok((await W.row(id)).leaseUntil > d.leaseUntil);
+   assert.equal(await W.pc.getBalance({ address: op.address }), 0n);
+--- a/test/relay-security.test.mjs
++++ b/test/relay-security.test.mjs
+@@ -23,7 +23,8 @@
+   honestKey = generatePrivateKey();
+   await W.fund(privateKeyToAccount(honestKey).address);
+   honest = await B.startLeaseRelay({ client: W.pc, wallet: W.wc(honestKey), reserve: W.addr.reserve, reserveCodeHash: W.addr.reserveCodeHash,
+-                                     executorCodeHash: W.addr.executorCodeHash });
++    executorCodeHash: W.addr.executorCodeHash, deployment: { chainId: 8453, ...W.addr },
++    allowLoopbackHttp: true, now: () => Date.now() + clockOffset });
+   closers.push(() => honest.close());
+ });
+ after(async () => { for (const c of closers) await c(); W?.stop(); });
+@@ -116,7 +117,8 @@
+ async function lyingRelay(mode) {
+   const key = generatePrivateKey(); const acct = privateKeyToAccount(key);
+   await W.fund(acct.address);
+-  const pinned = await B.pinRelayContracts({ client: W.pc, reserve: W.addr.reserve, reserveCodeHash: W.addr.reserveCodeHash, executorCodeHash: W.addr.executorCodeHash });
++  const pinned = await B.pinRelayContracts({ client: W.pc, deployment: { chainId: 8453, ...W.addr },
++    allowLoopbackHttp: true, now: () => Date.now() + clockOffset });
+   const hits = { info: 0, lease: 0 };
+   hits.gate = new Promise((ok) => { hits.open = ok; });   // "hold" answers only when the test opens the gate
+   const server = http.createServer(async (req, res) => {
+@@ -136,7 +138,7 @@
+       const h = await wallet.sendTransaction({ to: s, data: B.leaseCalldata(signed.lease, signed.signature), gas: 300_000n });
+       await W.pc.waitForTransactionReceipt({ hash: h }); return reply(200, { hash: h, status: "success" }); }
+     if (mode === "lost" || mode === "delayed") {
+-      const r = await B.relayLease({ client: W.pc, wallet, pinned, signed });
++      const r = await B.relayLease({ client: W.pc, wallet, pinned, signed, allowLoopbackHttp: true, now: () => Date.now() + clockOffset });
+       if (mode === "lost") return reply(500, { error: "oops" });
+       await new Promise((ok) => setTimeout(ok, 6000)); return reply(200, { hash: r.hash, status: "success" });
+     }

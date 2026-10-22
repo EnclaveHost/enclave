@@ -1,0 +1,18 @@
+--- a/sia-s3/src/recovery.rs
++++ b/sia-s3/src/recovery.rs
+@@ -587,13 +587,13 @@
+         }
+         let c = store.stage_complete("u1", &want).await.unwrap();
+         assert!(matches!(c.placement, Placement::Manifest { .. }));
+-        store.commit_complete("u1", c, 1, 1_000, "w1").await.unwrap();
++        store.commit_complete("u1", c, 1, 1_000, "w1", None).await.unwrap();
+         // a key too long for metadata
+         let long = format!("site/{}", "n".repeat(1000));
+         let data = store.upload(Rc::from(&b"long-named"[..])).await.unwrap();
+         let entry = Entry { b: "ipfs".into(), k: long.clone(), s: 10, t: "t".into(), m: 2, c: None, x: vec![], h: 2_000, i: "w2".into() };
+         let p = store.stage_put(&data, &entry).await.unwrap();
+-        store.commit_put(data, p, entry, false).await.unwrap();
++        store.commit_put(data, p, entry, false, None).await.unwrap();
+ 
+         let hosts = sdk.hosts(HostQuery::default()).await.unwrap();
+         let raw = snapshot_bytes(&store, hosts, &key).await.unwrap();

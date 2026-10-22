@@ -1,0 +1,45 @@
+--- ../g4-live-config-prep-20261021/root-steps/M1-acl.ps1	2026-10-21 15:40:24.278689478 -0700
++++ root-steps/M1-acl.ps1	2026-10-21 16:18:22.273926982 -0700
+@@ -16,12 +16,13 @@
+   [Security.AccessControl.InheritanceFlags]::None, [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow)
+ $o = [ordered]@{ mode = $Mode; at = [DateTime]::UtcNow.ToString('o') }
+ if ($Mode -eq 'apply') {
++  # (review 9d) every refusal BEFORE the first write: a refused apply changes nothing
++  if (Test-Path -LiteralPath $CH) { $o.decision = 'REFUSED: the challenge dir exists'; $o | ConvertTo-Json -Compress; exit 0 }
++  foreach ($x in 'C:\ProgramData', 'C:\ProgramData\Enclave', $NET) { if ((Get-Item -LiteralPath $x -Force).Attributes -band 1024) { $o.decision = "REFUSED: $x is a reparse point"; $o | ConvertTo-Json -Compress; exit 0 } }
+   $a = Get-Acl -LiteralPath $NET; $o.networkSddlBefore = $a.Sddl
+   if ($AddNetworkAce) {
+     if ($a.Sddl -ne $NetworkSddl) { $o.decision = 'REFUSED: the network dir ACL is not the one R-reads saw (CAS)'; $o | ConvertTo-Json -Compress; exit 0 }
+     $a.AddAccessRule($rule); Set-Acl -LiteralPath $NET -AclObject $a; $o.networkSddlAfter = (Get-Acl -LiteralPath $NET).Sddl }
+-  if (Test-Path -LiteralPath $CH) { $o.decision = 'REFUSED: the challenge dir exists'; $o | ConvertTo-Json -Compress; exit 0 }
+-  if ((Get-Item -LiteralPath $NET -Force).Attributes -band 1024) { $o.decision = 'REFUSED: the network dir is a reparse point'; $o | ConvertTo-Json -Compress; exit 0 }
+   $ds = New-Object Security.AccessControl.DirectorySecurity; $ds.SetAccessRuleProtection($true, $false)
+   $ds.SetOwner((New-Object Security.Principal.SecurityIdentifier 'S-1-5-32-544'))
+   foreach ($x in @(@('S-1-5-18', 'FullControl'), @('S-1-5-32-544', 'FullControl'), @('S-1-5-19', 'ReadAndExecute'))) {
+@@ -30,6 +31,9 @@
+   $c = Get-Acl -LiteralPath $CH; $o.challengeSddl = $c.Sddl; $o.challengeOwner = $c.GetOwner([Security.Principal.SecurityIdentifier]).Value
+   $o.decision = 'applied'
+ } else {
++  # (review 9d) ORDER: E1 rollback (challengeReplica out of privacy-config.json + one agent restart) comes first; key NAMES only
++  $pc = Get-Content -Raw -LiteralPath (Join-Path $NET 'privacy-config.json') | ConvertFrom-Json
++  if ($pc.enclaveNetwork.PSObject.Properties.Name -contains 'challengeReplica') { $o.decision = 'REFUSED: privacy-config.json still names challengeReplica: roll back E1 first'; $o | ConvertTo-Json -Compress; exit 0 }
+   $a = Get-Acl -LiteralPath $NET; $o.networkSddlBefore = $a.Sddl
+   # only when apply added it (root passes -RemoveNetworkAce from apply's own receipt): never a pre-existing identical entry
+   if ($RemoveNetworkAce) { $a.RemoveAccessRuleSpecific($rule); Set-Acl -LiteralPath $NET -AclObject $a; $o.networkSddlAfter = (Get-Acl -LiteralPath $NET).Sddl }
+--- ../g4-live-config-prep-20261021/root-steps/M2-deliver.ps1	2026-10-21 15:40:44.576354819 -0700
++++ root-steps/M2-deliver.ps1	2026-10-21 16:18:22.274028682 -0700
+@@ -20,8 +20,12 @@
+ if ($Mode -eq 'apply') {
+   if (Test-Path -LiteralPath $T) { $o.decision = 'REFUSED: the target exists'; $o | ConvertTo-Json -Compress; exit 0 }
+   foreach ($n in $FILES.Keys) { if ((Sha (Join-Path $Staging $n)) -ne $FILES[$n][1]) { $o.decision = "REFUSED: staged $n is not the pinned sha"; $o | ConvertTo-Json -Compress; exit 0 } }
+-  [void][IO.Directory]::CreateDirectory($R)
+-  foreach ($n in $FILES.Keys) { Copy-Item -LiteralPath (Join-Path $Staging $n) -Destination (Join-Path $FILES[$n][0] $n) }
++  # (review 9d) no ancestor may be a junction/symlink (a redirected target would be written elsewhere) - checked before any write
++  foreach ($x in 'C:\Program Files', 'C:\Program Files\Enclave', 'C:\Program Files\Enclave\network') { if ((Get-Item -LiteralPath $x -Force).Attributes -band 1024) { $o.decision = "REFUSED: $x is a reparse point"; $o | ConvertTo-Json -Compress; exit 0 } }
++  [void][IO.Directory]::CreateDirectory($T); [void][IO.Directory]::CreateDirectory($R)
++  foreach ($x in $T, $R) { if ((Get-Item -LiteralPath $x -Force).Attributes -band 1024) { $o.decision = "CHECK: $x is a reparse point after creation: root inspects, then -Mode rollback"; $o | ConvertTo-Json -Compress; exit 0 } }
++  # never overwrite: a file that appeared at a target path since the existence check makes Copy fail (exception), not replace
++  foreach ($n in $FILES.Keys) { [IO.File]::Copy((Join-Path $Staging $n), (Join-Path $FILES[$n][0] $n), $false) }
+   $o.files = [ordered]@{}; foreach ($n in $FILES.Keys) { $o.files[$n] = (Sha (Join-Path $FILES[$n][0] $n)) -eq $FILES[$n][1] }
+   $o.writers = [ordered]@{ target = (Writers $T); release = (Writers $R) }
+   $o.writersOk = -not @(@($o.writers.target) + @($o.writers.release) | Where-Object { $_ -notin @('S-1-5-18', 'S-1-5-32-544', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464') }).Count

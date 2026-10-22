@@ -1,0 +1,171 @@
+--- a/site/js/core/catalog.js
++++ b/site/js/core/catalog.js
+@@ -16,6 +16,7 @@
+ import { catConfigured, appCount, catGetAppsPage, catGetVersions, catOwner, APPROVAL, CAT_MAX } from "./chain.js";
+ import { lsGet, lsSet, emit, on, esc } from "./util.js";
+ import { minPctsOf } from "./pricing.js";
++import { parseCid, artifactIdentity, hex } from "./unixfs.js";
+ import { Enclave, EnclaveError } from "./api.js";
+ import { connectWallet, personalSign } from "./wallet.js";
+ 
+@@ -253,11 +254,12 @@
+ const _media = new Map();   // "s:"/"r:" + cid -> { url: string|null, at } last answer, + { pending: Promise } while (re)checking
+ const mediaKey = (cid, svg) => (svg ? "s:" : "r:") + cid;
+ const mediaFresh = (e) => !!e && "url" in e && Date.now() - e.at < (e.url ? MEDIA_HIT_TTL_MS : MEDIA_MISS_TTL_MS);
++// The public read gateways, preferred first: config.js IPFS_IMG_GATEWAY + IPFS_IMG_FALLBACKS (media and pinned configs share them)
++const ipfsReadGateways = () => [...new Set([IPFS_IMG_GATEWAY, ...(IPFS_IMG_FALLBACKS || [])].filter((g) => /^https?:\/\/[^\s'"()]+\/$/.test(g)))];
+ export function mediaUrls(cid, svg){
+   const c = cleanCid(cid); if (!c) return [];
+   const q = svg ? "?filename=enclave-logo.svg" : "";
+-  return [...new Set([IPFS_IMG_GATEWAY, ...(IPFS_IMG_FALLBACKS || [])].filter((g) => /^https?:\/\/[^\s'"()]+\/$/.test(g)))]
+-    .slice(0, MEDIA_MAX_TRIES).map((g) => g + encodeURIComponent(c) + q);
++  return ipfsReadGateways().slice(0, MEDIA_MAX_TRIES).map((g) => g + encodeURIComponent(c) + q);
+ }
+ function mediaLoads(url, ms){
+   return new Promise((done) => {
+@@ -421,32 +423,60 @@
+    lands, which would silently turn a hard placement refusal into a pass. */
+ export const MANIFEST_CACHE = {};
+ 
+-/* A rev-7 version keeps its config at an IPFS CID; this reads it for DISPLAY
+-   (the dashboard's Config tab prefill and its override diff). Display only — nothing
+-   here is a trust boundary: the enclave re-fetches the same CID and verifies
+-   the content hashes back to it before any of it reaches a guest, so the worst
+-   a lying gateway does to this path is show the operator the wrong text.
+-   Returns null when unreadable, which callers render as empty rather than
+-   wrong. Cached by CID: it is content-addressed, so it can never go stale. */
+-const _cfgCidCache = {};
+-export async function fetchConfigCid(cid){
+-  if (cid in _cfgCidCache) return _cfgCidCache[cid];
+-  let out = null;
++/* A rev-7 version (and a SPLIT per-deployment override) keeps its config at an IPFS CID; this reads it for the dashboard's
++   Config/Models panels (prefill + override diff) and the publish form's "add version" prefill. That text is EDITABLE and
++   can be submitted again (a setConfig, a new version), so it is offered ONLY when its bytes reproduce the CID - from every
++   gateway, the preferred one included; the enclave re-verifying at launch does not cover what an operator republishes.
++   The CIDs come from public ledger records (the version's configCid, the deployment envelope's configCid) and name configs
++   pinned on the public, unauthenticated read gateways; requests carry no credentials or tokens. Secrets never travel here.
++   The CID string is decoded (js/core/unixfs.js parseCid: CIDv0, CIDv1 base32/base58btc, sha2-256, raw or dag-pb) and the
++   bytes are checked against THAT multihash: raw = sha2-256 of the bytes; dag-pb = the root artifactIdentity(bytes) builds
++   under the pin paths' import profile (Kubo `add --cid-version=1` behind /add-json, the storage adapters, the CLI - 256 KiB
++   raw leaves, balanced, 174 links). A dag-pb CID of any other layout (e.g. Kubo's CIDv0 default with dag-pb leaves, other
++   chunkers, trickle) cannot be proven here and reads as unreadable, as does anything that fails the check.
++   Verified text is cached for the page under the canonical CIDv1 (equivalent spellings share it). Gateways:
++   ipfsReadGateways(), preferred first, each tried at most once per round, each attempt bounded by CONFIG_TRY_MS and
++   CAT_MAX.configMax bytes, the round by CONFIG_ROUND_MS; concurrent callers share one round, and a failed round answers
++   null for CONFIG_MISS_TTL_MS, then the next use retries. A malformed / unsupported CID is not requested at all.
++   Returns the verified JSON text, or null (callers render null as "could not load", never as the inline manifest). */
++export const CONFIG_TRY_MS = 10000, CONFIG_ROUND_MS = 30000, CONFIG_MAX_TRIES = 4, CONFIG_MISS_TTL_MS = 30 * 1000;
++const _cfgCidCache = new Map();                       // canonical CIDv1 -> its verified JSON text
++const _cfgPending = new Map(), _cfgMiss = new Map();  // canonical CIDv1 -> the round in flight; -> when its last round failed
++// "raw" | "dag-pb" for a CID string this page can verify content against, else null
++export function configCidForm(cid){ const p = parseCid(cid); return p ? (p.codec === 0x55 ? "raw" : "dag-pb") : null; }
++async function configFrom(url, want, until){
++  const ms = Math.min(CONFIG_TRY_MS, until - Date.now()); if (ms <= 0) return null;
+   try {
+-    // A cached immutable gateway response may predate its CORS repair. Fetch
+-    // fresh headers once per page; successful content remains memoized by CID.
+-    const r = await fetch(IPFS_IMG_GATEWAY + encodeURIComponent(cid), { cache: "reload", signal: AbortSignal.timeout(15000) });
+-    if (r.ok) {
+-      const text = await r.text();
+-      JSON.parse(text);                     // must parse, or it is not a config
+-      out = text;
++    // A cached immutable gateway response may predate its CORS repair: fresh headers per read; verified text is memoized.
++    const r = await fetch(url, { cache: "reload", credentials: "omit", signal: AbortSignal.timeout(ms) });
++    if (!r.ok){ await r.body?.cancel(); return null; }
++    const { boundedBytes } = await import("./storage-plan.js");
++    const bytes = await boundedBytes(r, CAT_MAX.configMax);
++    if (bytes.length > CAT_MAX.configMax) return null;
++    const ok = want.codec === 0x55 ? hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))) === hex(want.digest)
++                                   : (await artifactIdentity(bytes)).cid === want.cid;
++    if (!ok) return null;
++    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
++    JSON.parse(text);                       // must parse, or it is not a config
++    return text;
++  } catch(e){ return null; }
++}
++export function fetchConfigCid(cid){
++  const want = parseCid(cid); if (!want) return Promise.resolve(null);
++  const k = want.cid;
++  if (_cfgCidCache.has(k)) return Promise.resolve(_cfgCidCache.get(k));
++  if (_cfgPending.has(k)) return _cfgPending.get(k);
++  if (Date.now() - (_cfgMiss.get(k) ?? -Infinity) < CONFIG_MISS_TTL_MS) return Promise.resolve(null);
++  const round = (async () => {
++    const until = Date.now() + CONFIG_ROUND_MS;
++    for (const g of ipfsReadGateways().slice(0, CONFIG_MAX_TRIES)){
++      const text = await configFrom(g + encodeURIComponent(cid), want, until);
++      if (text !== null){ _cfgCidCache.set(k, text); _cfgMiss.delete(k); return text; }
+     }
+-  } catch(e){ out = null; }
+-  // only a SUCCESS is memoized: content addressing makes a hit permanently
+-  // valid, but a gateway hiccup is transient and caching it would kill the
+-  // prefill for the rest of the page session
+-  if (out !== null) _cfgCidCache[cid] = out;
+-  return out;
++    _cfgMiss.set(k, Date.now()); return null;
++  })().finally(() => _cfgPending.delete(k));
++  _cfgPending.set(k, round);
++  return round;
+ }
+ /* Wallet-authorize a pin: sign enclave-upload:<sha256(bytes)>:<expiry>, trade it
+    at the API for a one-time HMAC token bound to exactly these bytes. Shared by
+--- a/site/js/core/storage-plan.js
++++ b/site/js/core/storage-plan.js
+@@ -29,7 +29,7 @@
+   image: { path: "/add-image", type: "application/octet-stream", max: 4 * 1024 * 1024 },
+ };
+ 
+-async function boundedBytes(res, limit){
++export async function boundedBytes(res, limit){
+   if (Number(res.headers.get("content-length")) > limit){ await res.body?.cancel(); throw new Error("response too large"); }
+   if (!res.body) return new Uint8Array(await res.arrayBuffer()).slice(0, limit + 1);
+   const reader = res.body.getReader(); const parts = []; let size = 0;
+--- a/site/js/core/unixfs.js
++++ b/site/js/core/unixfs.js
+@@ -29,6 +29,47 @@
+ }
+ export const hex = (u8) => [...u8].map((b) => b.toString(16).padStart(2, "0")).join("");
+ 
++/* The inverse for a CID STRING naming sha2-256 content: { codec: 0x55 raw | 0x70 dag-pb, digest, cid } where `cid` is the
++   canonical CIDv1 base32 of the same multihash, or null. Accepts exactly the spellings the enclave's verifier parses
++   (wasm/ipfs_fetch.py): CIDv0 "Qm..." (dag-pb implied), and CIDv1 in base32 ("b", or "B" upper) or base58btc ("z"),
++   each only in its canonical encoding. Other codecs, hashes, versions or trailing bytes -> null. */
++const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
++function b58(s){
++  let n = 0n; for (const ch of s){ const d = B58.indexOf(ch); if (d < 0) return null; n = n * 58n + BigInt(d); }
++  const out = []; while (n > 0n){ out.unshift(Number(n % 256n)); n /= 256n; }
++  for (let i = 0; i < s.length && s[i] === "1"; i++) out.unshift(0);
++  return Uint8Array.from(out);
++}
++function b32(s){
++  const out = []; let acc = 0, bits = 0;
++  for (const ch of s){ const d = "abcdefghijklmnopqrstuvwxyz234567".indexOf(ch); if (d < 0) return null;
++    acc = ((acc << 5) | d) & 0xffff; bits += 5; if (bits >= 8){ bits -= 8; out.push((acc >>> bits) & 255); } }
++  return Uint8Array.from(out);
++}
++export function parseCid(str){
++  if (typeof str !== "string" || str.length < 46 || str.length > 100) return null;
++  let bytes, v0 = false;
++  if (/^Qm/.test(str)){ bytes = b58(str); v0 = true; }
++  else if (str[0] === "z") bytes = b58(str.slice(1));
++  else if (str[0] === "b" || str[0] === "B") bytes = b32(str.slice(1).toLowerCase());
++  else return null;
++  if (!bytes) return null;
++  const digest = v0 ? (bytes.length === 34 && bytes[0] === 0x12 && bytes[1] === 0x20 ? bytes.subarray(2) : null)
++                    : (bytes.length === 36 && bytes[0] === 1 && (bytes[1] === 0x55 || bytes[1] === 0x70) && bytes[2] === 0x12 && bytes[3] === 0x20 ? bytes.subarray(4) : null);
++  if (!digest) return null;
++  const codec = v0 ? 0x70 : bytes[1], cid = base32Cid(cidBytes(codec, digest));
++  // canonical spelling only: the string must be exactly what its own bytes re-encode to
++  const ok = str[0] === "b" ? str === cid : str[0] === "B" ? str === "B" + cid.slice(1).toUpperCase() : b58canonical(str, bytes, v0);
++  if (!ok) return null;
++  return { codec, digest: Uint8Array.from(digest), cid };
++}
++function b58canonical(str, bytes, v0){
++  let n = 0n; for (const b of bytes) n = n * 256n + BigInt(b);
++  let out = ""; while (n > 0n){ out = B58[Number(n % 58n)] + out; n /= 58n; }
++  for (let i = 0; i < bytes.length && bytes[i] === 0; i++) out = "1" + out;
++  return (v0 ? out : "z" + out) === str;
++}
++
+ /* { cid, sha256 (hex of the whole file), bytes } for a Uint8Array. */
+ export async function artifactIdentity(bytes){
+   if (!(bytes instanceof Uint8Array) || bytes.byteLength > MAX_ARTIFACT_BYTES) throw new Error("artifact must be bytes, at most 2 GiB");

@@ -1,0 +1,136 @@
+diff -ru -x .git -x BASE_COMMIT -x go.sum ../../indexd/api/app/app.go ./api/app/app.go
+--- ../../indexd/api/app/app.go	2026-10-18 11:00:02.778461136 -0700
++++ ./api/app/app.go	2026-10-19 21:41:37.283259984 -0700
+@@ -46,6 +46,7 @@
+ 		DeleteObject(ctx context.Context, account proto.Account, objectKey types.Hash256) error
+ 		PinObject(ctx context.Context, account proto.Account, obj slabs.PinObjectRequest) error
+ 		ListObjects(ctx context.Context, account proto.Account, cursor slabs.Cursor, limit int) ([]slabs.ObjectEvent, error)
++		ListCurrentObjects(ctx context.Context, account proto.Account, after types.Hash256, limit int) ([]slabs.ObjectEvent, error)
+ 		ListObjectsWithoutSlabs(ctx context.Context, account proto.Account, cursor slabs.Cursor, limit int) ([]slabs.ObjectEventWithoutSlabs, error)
+ 		ObjectSlabs(ctx context.Context, account proto.Account, key types.Hash256, cursor int64, limit int) ([]slabs.SlabSlice, error)
+ 		SharedObject(ctx context.Context, key types.Hash256) (slabs.SharedObject, error)
+@@ -430,6 +431,25 @@
+ 	jc.Encode(nil)
+ }
+ 
++// handleGETCurrentObjects lists the account's current objects in key order (PATCH U1): unlike the object feed,
++// an acknowledged pin is listed at once, before its event is published.
++func (a *app) handleGETCurrentObjects(jc jape.Context, pk types.PublicKey) {
++	_, limit, ok := api.ParseOffsetLimit(jc)
++	if !ok {
++		return
++	}
++	var after types.Hash256
++	if jc.DecodeForm("after", &after) != nil {
++		return
++	}
++	objs, err := a.slabs.ListCurrentObjects(jc.Request.Context(), proto.Account(pk), after, limit)
++	if err != nil {
++		jc.Error(err, http.StatusInternalServerError)
++		return
++	}
++	encodeResponse(jc, objs)
++}
++
+ func (a *app) handleDELETEObjects(jc jape.Context, pk types.PublicKey) {
+ 	var key types.Hash256
+ 	if jc.DecodeParam("key", &key) != nil {
+@@ -1145,6 +1165,7 @@
+ 		"GET /objects/:key/shared": wrapSignedAuth(a.handleGETObjectShared),
+ 		"GET /objects/:key/slabs":  wrapSignedAuth(a.handleGETObjectSlabs),
+ 		"POST /objects":            wrapSignedAuth(a.handlePOSTObjects),
++		"GET /current/objects":     wrapSignedAuth(a.handleGETCurrentObjects), // PATCH U1
+ 		"DELETE /objects/:key":     wrapSignedAuth(a.handleDELETEObjects),
+ 
+ 		"POST /sharing":                           wrapSignedAuth(a.handlePOSTSharing),
+diff -ru -x .git -x BASE_COMMIT -x go.sum ../../indexd/persist/postgres/objects.go ./persist/postgres/objects.go
+--- ../../indexd/persist/postgres/objects.go	2026-10-18 11:00:02.781557217 -0700
++++ ./persist/postgres/objects.go	2026-10-19 21:41:37.282953118 -0700
+@@ -161,6 +161,61 @@
+ 	return
+ }
+ 
++// ListCurrentObjects lists the account's current objects in object key order, starting after the given key: a
++// listing of the objects table itself, independent of when object events are published (PATCH U1, sia-s3).
++//
++// Guarantee: the pages read with consecutive `after` cursors return every object whose pin committed before
++// the first page was read and that was not deleted before the page covering its key, exactly once, with its
++// metadata as committed when that page was read. Object keys never change, and each page covers a strictly
++// higher key range. Blocked objects are left out, as in the object feed.
++func (s *Store) ListCurrentObjects(account proto.Account, after types.Hash256, limit int) (events []slabs.ObjectEvent, err error) {
++	err = s.transaction(func(ctx context.Context, tx *txn) error {
++		accountID, _, err := accountID(ctx, tx, account)
++		if err != nil {
++			return err
++		}
++		rows, err := tx.Query(ctx, `
++			SELECT o.id, o.object_key, o.encrypted_data_key, o.encrypted_meta_key, o.encrypted_metadata, o.data_signature, o.meta_signature, o.created_at, o.updated_at
++			FROM objects o
++			WHERE o.account_id = $1 AND o.object_key > $2
++			  AND NOT EXISTS (SELECT 1 FROM blocked_objects b WHERE b.object_key = o.object_key)
++			ORDER BY o.object_key ASC
++			LIMIT $3`, accountID, sqlHash256(after), limit)
++		if err != nil {
++			return fmt.Errorf("failed to query current objects: %w", err)
++		}
++		objectsByID := make(map[int64]*slabs.SealedObject)
++		var keys []types.Hash256
++		var objs []*slabs.SealedObject
++		err = forEachRow(rows, func(row pgx.CollectableRow) error {
++			id, key, obj, err := scanObject(row)
++			if err != nil {
++				return err
++			}
++			o := obj
++			objectsByID[id] = &o
++			keys = append(keys, key)
++			objs = append(objs, &o)
++			return nil
++		})
++		if err != nil {
++			return fmt.Errorf("failed to scan current objects: %w", err)
++		} else if err := loadObjectSlabs(ctx, tx, objectsByID); err != nil {
++			return err
++		}
++		events = make([]slabs.ObjectEvent, 0, len(objs))
++		for i, obj := range objs {
++			// an object always has at least one slab: one without slab rows was deleted after its row was read
++			if len(obj.Slabs) == 0 {
++				continue
++			}
++			events = append(events, slabs.ObjectEvent{Key: keys[i], UpdatedAt: obj.UpdatedAt, Object: obj})
++		}
++		return nil
++	})
++	return
++}
++
+ // ListObjectsWithoutSlabs lists object events without their slabs, which are
+ // paginated separately with ObjectSlabs.
+ func (s *Store) ListObjectsWithoutSlabs(account proto.Account, cursor slabs.Cursor, limit int) (events []slabs.ObjectEventWithoutSlabs, err error) {
+diff -ru -x .git -x BASE_COMMIT -x go.sum ../../indexd/slabs/manager.go ./slabs/manager.go
+--- ../../indexd/slabs/manager.go	2026-10-18 11:00:02.783374409 -0700
++++ ./slabs/manager.go	2026-10-19 21:41:37.283076576 -0700
+@@ -142,6 +142,7 @@
+ 		DeleteObject(account proto.Account, objectKey types.Hash256) error
+ 		PinObject(account proto.Account, obj PinObjectRequest) error
+ 		ListObjects(account proto.Account, cursor Cursor, limit int) ([]ObjectEvent, error)
++		ListCurrentObjects(account proto.Account, after types.Hash256, limit int) ([]ObjectEvent, error)
+ 		ListObjectsWithoutSlabs(account proto.Account, cursor Cursor, limit int) ([]ObjectEventWithoutSlabs, error)
+ 		ObjectSlabs(account proto.Account, key types.Hash256, cursor int64, limit int) ([]SlabSlice, error)
+ 		ObjectStats() (ObjectStats, error)
+diff -ru -x .git -x BASE_COMMIT -x go.sum ../../indexd/slabs/objects.go ./slabs/objects.go
+--- ../../indexd/slabs/objects.go	2026-10-18 11:00:02.783374409 -0700
++++ ./slabs/objects.go	2026-10-19 21:41:37.283146075 -0700
+@@ -360,6 +360,11 @@
+ 	return m.store.PinObject(account, obj)
+ }
+ 
++// ListCurrentObjects lists the account's current objects in key order after the given key (PATCH U1).
++func (m *SlabManager) ListCurrentObjects(ctx context.Context, account proto.Account, after types.Hash256, limit int) ([]ObjectEvent, error) {
++	return m.store.ListCurrentObjects(account, after, limit)
++}
++
+ // ListObjects lists objects for the given account that were updated after the
+ // the given 'after' time.
+ func (m *SlabManager) ListObjects(ctx context.Context, account proto.Account, cursor Cursor, limit int) ([]ObjectEvent, error) {

@@ -1,0 +1,250 @@
+{
+  "generatedAt": "2026-10-20T13:32:24.139988+00:00",
+  "patches": {
+    "enclave-apps.patch": {
+      "repo": "work/enclave-apps",
+      "base": "50f93d74c5a41acb8df73c8ae094d8c9fb05e666",
+      "sha256": "3329613eb607c1acfad681b26a46a2d0bc82e0b8e57699e83b4bb6a79c72d72f",
+      "files": {
+        "ipns-publisher/Cargo.toml": {
+          "sha256": "968fe3735ccac332c574c9279f2ecd3be03a997c8b94a2fe688f41cad9aaed60",
+          "bytes": 1542,
+          "change": "modified",
+          "baseSha256": "bb16fc0d3101029b57084ec314881d19ce094adc71c2809f2641ef6965c90e33"
+        },
+        "ipns-publisher/Cargo.lock": {
+          "sha256": "31de889aa15de31579da23c4dff8593f54d5215075a3e80c1b7047bb02efadb1",
+          "bytes": 27018,
+          "change": "modified",
+          "baseSha256": "4fe14ab11dc81c860250213c19d86cca791ec3381cc21eda2327e5715bc3b33d"
+        },
+        "ipns-publisher/README.md": {
+          "sha256": "f11a00fd49a3ebee60b8dc83dea4859f4373318a5d0928228e620bc9fbf2174b",
+          "bytes": 15192,
+          "change": "modified",
+          "baseSha256": "744d9ee45dff925a19ac901eade71cd5f6fa7cd51e83ced974d89829dd3b4aeb"
+        },
+        "ipns-publisher/src/main.rs": {
+          "sha256": "a24b87b6d6a214af0782e39173d1f0d041eebd1fa734c7a30cedd6a3d9c6a73c",
+          "bytes": 48166,
+          "change": "modified",
+          "baseSha256": "a22b76890b774b0b13c5ee90f55dd4954b44aada137dce697b222531deba7253"
+        },
+        "ipns-publisher/src/webreq.rs": {
+          "sha256": "1c6c3bed78b3e8c8ba3c9a55a5624ceec92a30a956bb107e380cda46819048ff",
+          "bytes": 15731,
+          "change": "modified",
+          "baseSha256": "076d603f62fc03c8963698220a1b054e78d4ff82ae1c028addaebab4f21f20f0"
+        },
+        "ipns-publisher/src/anchor.rs": {
+          "sha256": "cf0e60be770913ac2e0b7dac6c57b94900a1117ed6d1c71e4510723aa2c292d3",
+          "bytes": 60577,
+          "change": "added",
+          "baseSha256": null
+        }
+      },
+      "otherWorkersDirtyNotCaptured": [
+        "api-mcp-adapter/README.md",
+        "api-mcp-adapter/scripts/contract-wallet-evm.e2e.test.mjs",
+        "api-mcp-adapter/scripts/contract-wallet.e2e.test.mjs",
+        "api-mcp-adapter/src/lib.rs",
+        "api-mcp-adapter/src/wallet.rs",
+        "depot/README.md",
+        "depot/src/api.rs",
+        "depot/src/config.rs",
+        "depot/src/main.rs",
+        "depot/src/routes.rs",
+        "depot/src/ui.html",
+        "depot/src/ui.js",
+        "depot/src/wallet.rs",
+        "depot/tests/wallet-evm.e2e.test.mjs",
+        "eyesoff-ai/PLATFORM-sso.md",
+        "eyesoff-ai/src/apikey.rs",
+        "eyesoff-ai/src/attest-verify.js",
+        "eyesoff-ai/src/attest.rs",
+        "eyesoff-ai/src/chat.html",
+        "eyesoff-ai/src/config.rs",
+        "eyesoff-ai/src/lib.rs",
+        "eyesoff-ai/src/sso.rs",
+        "eyesoff-ai/src/wallet.rs",
+        "eyesoff-ai/tests/attest-verify.test.mjs",
+        "eyesoff-ai/tests/continuity.e2e.test.mjs",
+        "eyesoff-ai/tests/contract-wallet-evm.e2e.test.mjs",
+        "eyesoff-ai/tests/fixtures/",
+        "eyesoff-ai/tests/helpers/",
+        "eyesoff-ai/tests/sign-in.e2e.test.mjs",
+        "jot/README.md",
+        "jot/scripts/link-minio.test.mjs",
+        "jot/scripts/wallet-evm.e2e.test.mjs",
+        "jot/src/index.html",
+        "jot/src/lib.rs",
+        "jot/src/link.rs",
+        "jot/src/s3.rs",
+        "jot/src/sso.rs",
+        "jot/src/wallet.rs"
+      ]
+    },
+    "enclave.patch": {
+      "dependsOn": {
+        "network/rpc-identity.mjs": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+        "scripts/site-release/car.mjs": "41ef40923a0f3b13080bb8ee9bb805fb47bd99e213ccadf35936abae18b0886a",
+        "scripts/site-release/unixfs.mjs": "9f6a15811abbbde6b99bcd496a8e811f3cecaeed3290c619b93f3ecd3068313c",
+        "sdk/storage/unixfs.mjs": "38cea9720cf48c1a8f87e75c38cbef80be1f69b76086a67504b55c6acd541e10"
+      },
+      "dependsOnNote": "rpc-identity.mjs and sdk/storage/unixfs.mjs are committed; scripts/site-release/*.mjs belong to the uncommitted site-release closure (work/site-release-coordinator-source-inventory.json), as do the two hunk bases",
+      "repo": "work/enclave",
+      "base": "fd1cc627e6d82cf4388c370220f82537666d72fe + the site-release closure (work/site-release-coordinator-source-inventory.json)",
+      "sha256": "916689be35215498932cda4399983b5c483567890db671718a3f1f4ee591a329",
+      "files": {
+        "tools/ipns-release-anchor/foundry.toml": {
+          "sha256": "ae622522ff9ee54f816a49bc255841b2d654ce642c96284f785cb789ea509892",
+          "bytes": 564,
+          "change": "added",
+          "from": "ipns-release-anchor/foundry.toml"
+        },
+        "tools/ipns-release-anchor/src/ReleaseAnchor.sol": {
+          "sha256": "50f9710f8166e89f762d03eb869a06c303e5af8c270e2b975fafffc11776012c",
+          "bytes": 6230,
+          "change": "added",
+          "from": "ipns-release-anchor/src/ReleaseAnchor.sol"
+        },
+        "tools/ipns-release-anchor/test/ReleaseAnchor.t.sol": {
+          "sha256": "ea5068ab6f82cf2c4b1a7b92a65b6c1af2aeeb63550a33964e30206eec767814",
+          "bytes": 13114,
+          "change": "added",
+          "from": "ipns-release-anchor/test/ReleaseAnchor.t.sol"
+        },
+        "tools/ipns-release-anchor/test/MiniTest.sol": {
+          "sha256": "3ddfe1aac8332c25778bec155ff2bce76ab8064ef34c1ae1a8247952f6a3b09f",
+          "bytes": 1969,
+          "change": "added",
+          "from": "ipns-release-anchor/test/MiniTest.sol"
+        },
+        "tools/ipns-release-anchor/test/anchor-e2e.test.mjs": {
+          "sha256": "761471f3ac6cdbe92c6e258526c2edbefa448537c6d422aa70c96fbe76a3ee24",
+          "bytes": 26729,
+          "change": "added",
+          "from": "ipns-release-anchor/test/anchor-e2e.test.mjs"
+        },
+        "tools/ipns-release-anchor/scripts/guard.sh": {
+          "sha256": "71257ee7a2bb1aa7a5d9974b74abb2454806d8a0394bc7ae43fa9ad8c5a51317",
+          "bytes": 1529,
+          "change": "added",
+          "from": "ipns-release-anchor/scripts/guard.sh"
+        },
+        "tools/ipns-release-anchor/scripts/expected-codehash.mjs": {
+          "sha256": "a72fd8fd02214e3f889caecc466fe1626dc9662bc3c59565cb12de462baec89f",
+          "bytes": 3295,
+          "change": "added",
+          "from": "ipns-release-anchor/scripts/expected-codehash.mjs"
+        },
+        "tools/ipns-release-anchor/scripts/anchor-release.mjs": {
+          "sha256": "bdb8dc5065ac4a0cb214d60839ffb7ae115285a1bddbc561b6f0e85fb4a6ccf2",
+          "bytes": 7222,
+          "change": "added",
+          "from": "ipns-release-anchor/scripts/anchor-release.mjs"
+        },
+        "tools/ipns-release-anchor/docs/ipns-release-anchor.md": {
+          "sha256": "104d733f4f75295cecaa87378d0986cff446e33b73f0fccba05bfc46d2c0cef8",
+          "bytes": 13495,
+          "change": "added",
+          "from": "ipns-release-anchor/docs/ipns-release-anchor.md"
+        },
+        "tools/ipns-release-anchor/out/ReleaseAnchor.sol/ReleaseAnchor.json": {
+          "sha256": "f592eb23ad60d6b21b7a449b350f4d987f828237ba2cf5d941631b307a56d3b2",
+          "bytes": 54646,
+          "change": "added",
+          "from": "ipns-release-anchor/out/ReleaseAnchor.sol/ReleaseAnchor.json"
+        },
+        "tools/ipns-cutover/README.md": {
+          "sha256": "b447de7a37c5d4ffe0c9b70689489f86ee7a2b8ceb58ca75cfcc17c505cd8974",
+          "bytes": 6140,
+          "change": "added",
+          "from": "ipns-production-cutover/README.md"
+        },
+        "tools/ipns-cutover/lib/chain.mjs": {
+          "sha256": "b3e2102329d4414114e15b1689a6df86c0c6ccca8c22ce378de5de5dcfaa2e2a",
+          "bytes": 9271,
+          "change": "added",
+          "from": "ipns-production-cutover/lib/chain.mjs"
+        },
+        "tools/ipns-cutover/lib/paths.mjs": {
+          "sha256": "7c108adc95475929b2bc1230a6172a0727483761dd2d99250f852c4ad254e5c5",
+          "bytes": 1089,
+          "change": "added",
+          "from": "ipns-production-cutover/lib/paths.mjs"
+        },
+        "tools/ipns-cutover/lib/production.mjs": {
+          "sha256": "e4c7fc650b8311d5789727c64bc6a2894d5d224583df5746e21c4e4f71868588",
+          "bytes": 2952,
+          "change": "added",
+          "from": "ipns-production-cutover/lib/production.mjs"
+        },
+        "tools/ipns-cutover/lib/anchor-build.mjs": {
+          "sha256": "da84783d7f95b26bdec8ae855fd30a2a545265ab288df6d8cf9eb33e7037a8ac",
+          "bytes": 3974,
+          "change": "added",
+          "from": "ipns-production-cutover/lib/anchor-build.mjs"
+        },
+        "tools/ipns-cutover/probe/rpc-probe.mjs": {
+          "sha256": "26a2e2a92fb0b2bb3dea91b3d7b91ae59660896c0b543287053aa134b34e80a1",
+          "bytes": 6484,
+          "change": "added",
+          "from": "ipns-production-cutover/probe/rpc-probe.mjs"
+        },
+        "tools/ipns-cutover/probe/wasm-probe.mjs": {
+          "sha256": "67440330bb73457ca843692bde4b4dc997163b885bb97937118e2f81b65362e8",
+          "bytes": 7251,
+          "change": "added",
+          "from": "ipns-production-cutover/probe/wasm-probe.mjs"
+        },
+        "tools/ipns-cutover/probe/production-read.mjs": {
+          "sha256": "cae2c8d857b60f0e5e363bcabc10b15d17ce18788555b2a36880e5851676c7fe",
+          "bytes": 10788,
+          "change": "added",
+          "from": "ipns-production-cutover/probe/production-read.mjs"
+        },
+        "tools/ipns-cutover/probe/book-evaluation.mjs": {
+          "sha256": "525b81bd9347ae263b7d119fb1808b9e563b24da2de99e8e225f8baef4f34dc0",
+          "bytes": 5855,
+          "change": "added",
+          "from": "ipns-production-cutover/probe/book-evaluation.mjs"
+        },
+        "tools/ipns-cutover/cutover/cutover.mjs": {
+          "sha256": "b1bcc5f387c4cc66ff603b1136c173f0183a26def3d5dd2753718e061c085a3c",
+          "bytes": 34191,
+          "change": "added",
+          "from": "ipns-production-cutover/cutover/cutover.mjs"
+        },
+        "tools/ipns-cutover/cutover/production-cutover.json": {
+          "sha256": "766f050476e09a3398a1de6a1d2e998383c4a9274e49b20cb51521d09dde0a7e",
+          "bytes": 2716,
+          "change": "added",
+          "from": "ipns-production-cutover/cutover/production-cutover.json"
+        },
+        "tools/ipns-cutover/test/cutover-fork.test.mjs": {
+          "sha256": "c17f9784ca789c517ebf575c6b01ce60f2e3d8cc800a98f3e99be231589ef5bf",
+          "bytes": 30124,
+          "change": "added",
+          "from": "ipns-production-cutover/test/cutover-fork.test.mjs"
+        },
+        "tools/ipns-cutover/snapshots/fork-gas.json": {
+          "sha256": "a0c1dc9a9e896f2e5e8e431dc79c456847fe806d383cd9a22f7eb6723b357c7b",
+          "bytes": 460,
+          "change": "added",
+          "from": "ipns-production-cutover/snapshots/fork-gas.json"
+        },
+        ".github/workflows/deploy.yml": {
+          "baseSha256": "0f6361b557cc56f7816509186c2b099bd3182a01c9c9b619051f3e65f17c410c",
+          "change": "modified (one hunk)",
+          "sha256": "90b4ec82949577c30c966fe7ff765018b410f347eb23586978613eff5ee59685"
+        },
+        "docs/site-release.md": {
+          "baseSha256": "91df569302fcb93f2926defff7f0b4a3d674a032c58a76266e671b9dc5ac6b76",
+          "change": "modified (one hunk)",
+          "sha256": "64f89379c524b07d57d5de56417f65552a8dfc87dfbb1f28f2462e177c1bfa26"
+        }
+      }
+    }
+  }
+}

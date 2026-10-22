@@ -1,0 +1,72 @@
+--- a/isolation/m2/bootstrap/history_vectors_test.go
++++ b/isolation/m2/bootstrap/history_vectors_test.go
+@@ -0,0 +1,69 @@
++package bootstrap
++
++import (
++	"context"
++	"encoding/json"
++	"net"
++	"os"
++	"sort"
++	"strings"
++	"testing"
++)
++
++// Owner-history packages (testdata/history-vectors.json, built by scripts/history-vectors.mjs with the SDK's own
++// preparePackage) through the REAL Reader.Authorize: the guest accepts and refuses exactly what the SDK and the browser
++// do. An accepted package admits exactly its history hosts to the dial allowlist (AllowOrigin), and only once the
++// owner's on-chain commitment matched; a refused one admits nothing.
++func TestOwnerHistoryAgreesWithJavaScriptVectors(t *testing.T) {
++	b, e := os.ReadFile("testdata/history-vectors.json")
++	if e != nil {
++		t.Fatal(e)
++	}
++	var hv struct {
++		Cases []struct {
++			Name, Manifest string
++			Valid          bool
++		}
++	}
++	if e = json.Unmarshal(b, &hv); e != nil {
++		t.Fatal(e)
++	}
++	if len(hv.Cases) < 30 {
++		t.Fatalf("only %d history vectors", len(hv.Cases))
++	}
++	for _, c := range hv.Cases {
++		t.Run(c.Name, func(t *testing.T) {
++			r, peers, v, id, loaded := rig(t)
++			for _, p := range peers {
++				p.row.Store(commit(t, v.Row, v.Manifest, c.Manifest))
++			}
++			var admitted []string
++			r.allow = func(hostport string) {
++				h, _, _ := net.SplitHostPort(hostport)
++				admitted = append(admitted, h)
++			}
++			a, e := r.Authorize(context.Background(), id, []byte(c.Manifest), loaded)
++			if c.Valid != (e == nil) {
++				t.Fatalf("valid=%v but Authorize: %v", c.Valid, e)
++			}
++			if !c.Valid {
++				if len(admitted) != 0 {
++					t.Fatalf("a refused package admitted %v", admitted)
++				}
++				return
++			}
++			var want []string
++			if a.manifest.History != nil {
++				for _, u := range a.manifest.History.RPCs {
++					h, _ := historyURL(u)
++					want = append(want, h)
++				}
++			}
++			sort.Strings(admitted)
++			sort.Strings(want)
++			if strings.Join(admitted, ",") != strings.Join(want, ",") || len(a.history) != len(want) {
++				t.Fatalf("admitted %v, sources %d; want %v", admitted, len(a.history), want)
++			}
++		})
++	}
++}

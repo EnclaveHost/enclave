@@ -1,0 +1,61 @@
+{
+ "platform-api": {
+  "old": {
+   "sha256": "efebdc19257d4f1b6d5af8d7d6ce1a82c89c3d08f9c37bc826ee0a4626538121",
+   "bytes": 8460922,
+   "inputs": 2193
+  },
+  "new": {
+   "sha256": "e7a4fc1d72801810daa326756c768b2aa1055ca962bf569dfffc3c029a0a8dc3",
+   "bytes": 8461902,
+   "inputs": 2193
+  },
+  "depChanged": [],
+  "srcChanged": [
+   "relay/api-relay.js",
+   "relay/boxhost.js",
+   "relay/network-runtime.bundle.mjs",
+   "relay/secrets.js",
+   "relay/snp-verify.mjs"
+  ],
+  "srcAdded": [],
+  "srcRemoved": [],
+  "sidecars": {
+   "old": {
+    "fixtures/tpm-roots.pem": {
+     "source": "relay/fixtures/tpm-roots.pem",
+     "sha256": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+    }
+   },
+   "new": {
+    "fixtures/tpm-roots.pem": {
+     "source": "relay/fixtures/tpm-roots.pem",
+     "sha256": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+    }
+   }
+  }
+ },
+ "mcp-server": {
+  "old": {
+   "sha256": "a026ec651cecda69f084652d89406101f85a5f35c6da5effd3c251861d1af2bc",
+   "bytes": 4926409,
+   "inputs": 2970
+  },
+  "new": {
+   "sha256": "bf33fee0ff91b7c6b8807e8eac105b8ec0cd47cfd8d2350c93c8b1230cc2ae70",
+   "bytes": 4926578,
+   "inputs": 2970
+  },
+  "depChanged": [],
+  "srcChanged": [
+   "relay/snp-verify.mjs",
+   "windows/node/host-admission.bundle.mjs"
+  ],
+  "srcAdded": [],
+  "srcRemoved": [],
+  "sidecars": {
+   "old": null,
+   "new": null
+  }
+ }
+}

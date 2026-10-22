@@ -1,0 +1,190 @@
+--- replicactl.py (storage-migration-r4 1b189bab)
++++ replicactl.py (storage-enclave-fixture)
+@@ -33,6 +33,18 @@
+       sticky directory is allowed.
+   The r4 preflight reads the same two facts: config.acl and config.path_components.
+ 
++storage-enclave-fixture copy = r4 (1b189bab) plus ONE change, for runner "process" only (the fixture; runner "systemd" and
++every database/backup/upgrade/rollback path are byte-identical):
++  the indexd pid file records the process IDENTITY, not just a pid: "<pid> <starttime> <boot_id>" (starttime = field 22
++  of /proc/<pid>/stat, written at Popen time while the child cannot yet be reaped, so the triple is exact). A pid whose
++  live process has another starttime/boot is a reused pid: it is never signalled and our indexd counts as exited. A
++  zombie counts as exited. stop/crash-indexd bind a pidfd, RE-VERIFY the identity through it, and signal and wait on
++  that pidfd only, so a pid reused between check and signal cannot be hit. start refuses while the identified indexd
++  still runs (it would orphan it). A pid file that cannot be parsed, or a /proc read that fails for any reason other
++  than "no such process", is an UNKNOWN state: an error, never "stopped". Before signalling, the identified process
++  must also be in the controller's OWN cgroup (the fixture's queue scope) and must not be one of its ancestors;
++  otherwise the controller refuses (an error), never signals.
++
+ Nothing here activates anything by itself: every mutating command needs an explicit --confirm flag naming the
+ action, and production profiles additionally refuse to run unless the node's ALLOW file exists (the same pattern as
+ work/storage-vm/enclave-indexd.service ConditionPathExists=/etc/enclave-indexd/ALLOW_LIVE_START).
+@@ -68,6 +80,7 @@
+ import pwd
+ import stat
+ import shutil
++import select
+ import signal
+ import subprocess
+ import sys
+@@ -91,6 +104,55 @@
+     return h.hexdigest()
+ 
+ 
++BOOT_ID_FILE = "/proc/sys/kernel/random/boot_id"
++
++
++def boot_id():
++    return Path(BOOT_ID_FILE).read_text().strip()
++
++
++def proc_start(pid):
++    """starttime (field 22 of /proc/<pid>/stat) of a live, non-zombie pid; None if no such process or a zombie.
++    Any other read failure raises (unknown state)."""
++    try:
++        raw = Path(f"/proc/{pid}/stat").read_bytes()
++    except (FileNotFoundError, ProcessLookupError):
++        return None
++    rest = raw[raw.rindex(b")") + 2:].split()   # fields 3.. (comm may contain spaces and parentheses)
++    if rest[0] in (b"Z", b"X"):
++        return None
++    return rest[19].decode()
++
++
++def proc_cgroup(pid):
++    """cgroup v2 path of pid ("self" allowed); None if no such process. Any other read failure raises (unknown)."""
++    try:
++        line = Path(f"/proc/{pid}/cgroup").read_text().strip()
++    except (FileNotFoundError, ProcessLookupError):
++        return None
++    return line.split("::", 1)[1] if "::" in line else None
++
++
++def ancestor_pids():
++    """this controller and all its ancestors: never a signal target"""
++    out, pid = set(), os.getpid()
++    while pid and pid > 1:
++        try:
++            st = Path(f"/proc/{pid}/stat").read_bytes()
++        except (FileNotFoundError, ProcessLookupError):
++            break
++        out.add(pid)
++        pid = int(st[st.rindex(b")") + 2:].split()[1])
++    return out
++
++
++def pidfd_wait(fd, seconds):
++    """True once the process behind the pidfd has exited (the pidfd becomes readable)."""
++    po = select.poll()
++    po.register(fd, select.POLLIN)
++    return bool(po.poll(int(seconds * 1000)))
++
++
+ def die(msg, code=2):
+     print(json.dumps({"ok": False, "error": msg}))
+     sys.exit(code)
+@@ -135,41 +197,75 @@
+         return pid is not None
+ 
+     def pid(self):
++        """the pid of OUR indexd if it still runs (identity-checked), else None (and the stale pid file is removed)"""
+         pf = Path(self["state_dir"]) / "indexd.pid"
+         if not pf.exists():
+             return None
+-        pid = int(pf.read_text())
+-        try:
+-            os.kill(pid, 0)
++        parts = pf.read_text().split()
++        if len(parts) != 3 or not parts[0].isdigit() or not parts[1].isdigit():
++            raise RuntimeError(f"unrecognized pid file {pf}: identity unknown, refusing to treat indexd as stopped")
++        pid, start, boot = int(parts[0]), parts[1], parts[2]
++        if boot == boot_id() and proc_start(pid) == start:
+             return pid
++        pf.unlink()   # exited (or the pid now belongs to another process, which is never touched)
++        return None
++
++    def signal_ours(self, sig, timeout):
++        """send sig to OUR indexd through an identity-verified pidfd and wait for its exit. True if it exited (or was
++        already gone), False if it still runs after timeout."""
++        pid = self.pid()
++        if pid is None:
++            return True
++        try:
++            fd = os.pidfd_open(pid)
+         except ProcessLookupError:
+-            pf.unlink()
+-            return None
++            self.pid()
++            return True
++        try:
++            if self.pid() != pid:   # re-verified through the bound pidfd: the fd now names our process or we stop here
++                return True
++            # the indexd this controller started lives in the controller's own cgroup (the fixture's queue scope) and is
++            # never one of its ancestors; anything else named by the pid file is refused, not signalled
++            member = proc_cgroup(pid) == proc_cgroup("self") and pid not in ancestor_pids()
++            if self.pid() != pid:   # the cgroup read named the same process
++                return True
++            if not member:
++                raise RuntimeError(f"pid {pid} named by the pid file is outside this controller's cgroup or is an ancestor: refusing to signal")
++            signal.pidfd_send_signal(fd, sig)
++            exited = pidfd_wait(fd, timeout)
++        finally:
++            os.close(fd)
++        return exited and self.pid() is None
+ 
+     def start(self):
+         if self["runner"] == "systemd":
+             subprocess.run(["systemctl", "start", self["unit"]], check=True)
+             return
++        if self.pid() is not None:
++            raise RuntimeError("indexd already running: refusing to start a second one")
+         binary = Path(self["release_dir"]) / "current" / "indexd"
+         log = open(Path(self["state_dir"]) / "indexd.out", "ab")
+         env = dict(os.environ, INDEXD_CONFIG_FILE=self["config_file"], INDEXD_DATA_DIR=self["state_dir"], GOMEMLIMIT=self.p.get("gomemlimit", "512MiB"))
+         flags = ["-instant"] if self.p.get("instant") else []  # -instant needs the explorer when consensus.db is absent
+         proc = subprocess.Popen([str(binary), *flags], stdout=log, stderr=subprocess.STDOUT, env=env, cwd=self["state_dir"], start_new_session=True)
+-        (Path(self["state_dir"]) / "indexd.pid").write_text(str(proc.pid))
++        # the child is not reaped while this process lives, so (pid, starttime, boot) is exactly that child
++        start = proc_start(proc.pid)
++        if start is None:
++            raise RuntimeError(f"indexd exited immediately (rc {proc.wait()}); see {Path(self['state_dir']) / 'indexd.out'}")
++        pf, tmp = Path(self["state_dir"]) / "indexd.pid", Path(self["state_dir"]) / ".indexd.pid.tmp"
++        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
++        with os.fdopen(fd, "w") as f:
++            f.write(f"{proc.pid} {start} {boot_id()}\n")
++            f.flush()
++            os.fsync(f.fileno())
++        os.replace(tmp, pf)
+ 
+     def stop(self, timeout=180):
+         if self["runner"] == "systemd":
+             subprocess.run(["systemctl", "stop", self["unit"]], check=True)
+             return
+-        pid = self.pid()
+-        if pid is None:
+-            return
+-        os.kill(pid, signal.SIGTERM)
+-        for _ in range(timeout * 10):
+-            if self.pid() is None:
+-                return
+-            time.sleep(0.1)
+-        raise RuntimeError("indexd did not stop")
++        if not self.signal_ours(signal.SIGTERM, timeout):
++            raise RuntimeError("indexd did not stop")
+ 
+     # ---- HTTP readiness ----
+     def admin(self, path):
+@@ -546,11 +642,8 @@
+     pid = node.pid()
+     if pid is None:
+         die("not running")
+-    os.kill(pid, signal.SIGKILL)
+-    for _ in range(100):
+-        if node.pid() is None:
+-            break
+-        time.sleep(0.1)
++    if not node.signal_ours(signal.SIGKILL, 10):
++        die(f"indexd {pid} still running 10 s after SIGKILL")
+     print(json.dumps({"ok": True, "killed": pid}))
+ 
+ 

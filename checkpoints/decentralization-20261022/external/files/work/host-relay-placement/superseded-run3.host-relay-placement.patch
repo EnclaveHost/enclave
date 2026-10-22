@@ -1,0 +1,1375 @@
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -31,6 +31,9 @@
+ # app-funded lease gas (claim/renew/release paid by the app's reserve): the runtime shared with the Windows node
+ COPY network/lease-gas-runtime.mjs network/lease-gas-owner.mjs network/lease-executor-client.mjs network/lease-executor-authority.mjs network/lease-release-journal.mjs network/rpc-identity.mjs ./network/
+ COPY client/lease-executor-client.mjs client/lease-executor-authority.mjs ./client/
++# designated lease relays from the pinned service index (network/lease-relay-discovery.mjs) and the index client's own graph
++COPY network/lease-relay-discovery.mjs network/service-index.mjs network/directory-client.mjs network/network-authorities.mjs network/network-policy-core.mjs network/network-policy.mjs network/provider-directory.mjs network/provider-qualification.mjs network/route-record.mjs ./network/
++COPY relay/net-guard.mjs ./relay/
+ # If you add the spawn implementation in its own files, COPY them here too.
+ ENV PORT=8080
+ EXPOSE 8080
+--- a/client/lease-executor-client.mjs
++++ b/client/lease-executor-client.mjs
+@@ -24,7 +24,7 @@
+ import fs from "node:fs";
+ import { strictWriteFile } from "../network/lease-release-journal.mjs";
+ import { getAddress, concat, encodeFunctionData, decodeFunctionData, decodeFunctionResult, decodeEventLog, decodeErrorResult, keccak256, hashTypedData,
+-         recoverAddress, isAddress, isHex, encodeAbiParameters, formatTransactionRequest, parseTransaction, recoverTransactionAddress } from "viem";
++         recoverAddress, isAddress, isHex, encodeAbiParameters, formatTransactionRequest, parseTransaction, recoverTransactionAddress, recoverMessageAddress } from "viem";
+ import { recoverAuthorizationAddress } from "viem/utils";
+ import { leaseDeploymentPins, leaseRpcSet, verifiedLeaseAuthority } from "./lease-executor-authority.mjs";
+ export { leaseDeploymentPins, verifiedLeaseAuthority } from "./lease-executor-authority.mjs";
+@@ -373,7 +373,8 @@
+  */
+ export async function startLeaseRelay({ client, clients = [client], wallet, deployment, quorum, confirmations = 0,
+   maxBlockAgeSecs, allowLoopbackHttp = false, rpcTimeoutMs, now, host = "127.0.0.1", port = 0,
+-                                        maxBody = 4096, maxConcurrent = 4, requestTimeoutMs = 60_000, receiptTimeoutMs = 120_000, log = () => {}, stateFile = null }) {
++                                        maxBody = 4096, maxConcurrent = 4, requestTimeoutMs = 60_000, receiptTimeoutMs = 120_000, log = () => {}, stateFile = null,
++                                        descriptor = null }) {
+   const options = { clients, deployment, quorum, confirmations, maxBlockAgeSecs, allowLoopbackHttp, timeoutMs: rpcTimeoutMs, now };
+   // this key's last signed, not-yet-resolved transaction: persisted strictly (temp, fsync, rename, dir fsync) BEFORE its
+   // broadcast when a stateFile is configured, so a restarted relay re-broadcasts those bytes instead of signing anew
+@@ -398,12 +399,28 @@
+   }
+   const sentState = { get: () => sent, set: (x) => { if (stateFile) strictWriteFile(stateFile, JSON.stringify(x || {})); sent = x; } };
+   let inflight = 0, sendQueue = Promise.resolve();
++  // the signed statement /v1/info carries (verifyRelayStatement): renewed each minute, signed by this relay's own key
++  let statement = null;
++  const signedStatement = async () => {
++    const issuedAt = Math.floor(Date.now() / 1000);
++    if (statement && issuedAt - statement.issuedAt < 60) return statement.value;
++    const message = relayStatementMessage({ chainId: pinned.chainId, reserve: pinned.reserve, executor: pinned.executor, payee: wallet.account.address, issuedAt });
++    statement = { issuedAt, value: { message, signature: await wallet.account.signMessage({ message }) } };
++    return statement.value;
++  };
++  if (descriptor !== null && (!Buffer.isBuffer(descriptor) || descriptor.length > 4096)) throw new Error("the relay descriptor must be at most 4096 bytes");
+   const server = http.createServer(async (req, res) => {
+     const reply = (status, body) => { if (res.writableEnded) return; res.writeHead(status, { "content-type": "application/json" });
+       res.end(JSON.stringify(body, (_k, v) => (typeof v === "bigint" ? v.toString() : v))); };
+     req.setTimeout(10_000, () => { reply(408, { error: "timeout" }); req.destroy(); });
+     if (req.method === "GET" && req.url === "/v1/info")
+-      return reply(200, { chainId: pinned.chainId, reserve: pinned.reserve, executor: pinned.executor, payee: wallet.account.address, canonicalLength: CANONICAL_LENGTH });
++      return reply(200, { chainId: pinned.chainId, reserve: pinned.reserve, executor: pinned.executor, payee: wallet.account.address, canonicalLength: CANONICAL_LENGTH,
++        statement: await signedStatement() });
++    // the exact descriptor bytes this relay's service-index advertisement commits to (its sha256), when it has one
++    if (req.method === "GET" && req.url === "/v1/descriptor") {
++      if (!descriptor) return reply(404, { error: "not_found" });
++      res.writeHead(200, { "content-type": "application/json" }); return res.end(descriptor);
++    }
+     if (req.method !== "POST" || req.url !== "/v1/lease") return reply(404, { error: "not_found" });
+     if (inflight >= maxConcurrent) return reply(503, { error: "busy" });
+     inflight++;
+@@ -449,6 +466,40 @@
+   throw new Error(`relay URL must be https (got ${u.protocol}//${u.hostname})`);
+ }
+ 
++/** The host's OWN relay service on this machine (ENCLAVE_LEASE_GAS_LOCAL_RELAY): http is accepted only for an exact
++ *  loopback origin with an explicit port - 127.0.0.1 or [::1], never a name that DNS could answer - and nothing else. */
++export function validateLocalRelayUrl(url) {
++  let u; try { u = new URL(url); } catch { throw new Error(`not a URL: ${String(url).slice(0, 80)}`); }
++  if (u.username || u.password || u.pathname !== "/" || u.search || u.hash) throw new Error("a local relay is a bare loopback origin (no credentials, path or query)");
++  if (!["http:", "https:"].includes(u.protocol) || !["127.0.0.1", "[::1]"].includes(u.hostname) || !u.port)
++    throw new Error(`a local relay must be http://127.0.0.1:<port> or http://[::1]:<port> on this machine (got ${u.protocol}//${u.host})`);
++  return u.origin;
++}
++
++/**
++ * A relay's SIGNED self-statement (GET /v1/info .statement): the relay KEY states the chain, reserve, executor and payee it
++ * serves, at a time. A host that found a relay through the service index (lease-relay-discovery.mjs) uses it only when
++ * the statement recovers to the payee the relay's committed descriptor named: the endpoint then answers AS that relay,
++ * whatever the transport (a plain-http public endpoint included). It proves nothing more: relays stay untrusted and every
++ * landed lease is still verified on the host's own RPC quorum.
++ */
++export const RELAY_STATEMENT_FORMAT = "enclave-lease-relay-statement/v1";
++export const relayStatementMessage = ({ chainId, reserve, executor, payee, issuedAt }) =>
++  JSON.stringify({ format: RELAY_STATEMENT_FORMAT, chainId, reserve: lc(reserve), executor: lc(executor), payee: lc(payee), issuedAt });
++/** -> the statement's payee (checksummed); throws unless it is exactly `expectedPayee`'s signature over THIS deployment, fresh. */
++export async function verifyRelayStatement(info, { expectedPayee, pins, now = Date.now(), maxAgeSec = 600 }) {
++  const st = info?.statement;
++  if (!st || typeof st.message !== "string" || st.message.length > 1024 || !/^0x[0-9a-fA-F]{130}$/.test(String(st.signature || ""))) throw new Error("no signed relay statement");
++  let m; try { m = JSON.parse(st.message); } catch { throw new Error("the relay statement is not JSON"); }
++  if (m.format !== RELAY_STATEMENT_FORMAT || m.chainId !== pins.chainId || lc(m.reserve) !== lc(pins.reserve) || lc(m.executor) !== lc(pins.executor))
++    throw new Error("the relay statement names another chain, reserve or executor");
++  if (!isAddress(String(m.payee || "")) || lc(m.payee) !== lc(expectedPayee) || lc(info.payee) !== lc(expectedPayee)) throw new Error("the relay statement names another payee than its advertisement");
++  if (!Number.isSafeInteger(m.issuedAt) || Math.abs(Math.floor(now / 1000) - m.issuedAt) > maxAgeSec) throw new Error("the relay statement is stale or from the future");
++  const signer = await recoverMessageAddress({ message: st.message, signature: st.signature });
++  if (lc(signer) !== lc(expectedPayee)) throw new Error("the relay statement is not signed by the advertised relay key");
++  return getAddress(expectedPayee);
++}
++
+ async function boundedFetchJson(fetchImpl, url, init, timeoutMs, maxBytes = 16_384) {
+   const ctl = new AbortController();
+   const t = setTimeout(() => ctl.abort(), timeoutMs);
+@@ -472,12 +523,14 @@
+  *   await lc.claim(id, enclaveId) / lc.renew(id) / lc.release(id)  -> { hash, receipt }   (verified; throws LeaseRefusal)
+  *   lc.asClaimTx(fn, args) -> a hash promise with .receipt (supervisor.js sendClaimTx's shape)
+  */
+-export function createLeaseClient({ client, clients = [client], account, reserve, deployment, relays, allowLoopbackHttp = false, fetchImpl = fetch,
++export function createLeaseClient({ client, clients = [client], account, reserve, deployment, relays = [], localRelays = [], allowLoopbackHttp = false, fetchImpl = fetch,
+                                     quorum, confirmations, maxBlockAgeSecs, rpcTimeoutMs, now,
+                                     requestTimeoutMs = 20_000, overallTimeoutMs = 180_000, ttlSec = 300, log = () => {}, onSigned = null,
+-                                    consumedRecheckMs = [2_000, 4_000, 8_000, 16_000] }) {
+-  if (!relays?.length) throw new Error("lease-gas: at least one relay URL is required");
+-  const urls = relays.map((u) => validateRelayUrl(u, { allowLoopbackHttp }));
++                                    consumedRecheckMs = [2_000, 4_000, 8_000, 16_000], discoverRelays = null }) {
++  if (!relays?.length && !localRelays?.length && typeof discoverRelays !== "function") throw new Error("lease-gas: at least one relay URL (or relay discovery) is required");
++  // the host's own relay first (no network path outside this machine), then the others as alternates
++  const urls = [...localRelays.map((u) => validateLocalRelayUrl(u)), ...relays.map((u) => validateRelayUrl(u, { allowLoopbackHttp }))];
++  if (new Set(urls).size !== urls.length) throw new Error("lease-gas relays repeat an origin");
+   reserve = getAddress(reserve);
+   const pins = leaseDeploymentPins(deployment);
+   if (reserve !== pins.reserve) throw new Error("lease-gas reserve differs from the reviewed deployment record");
+@@ -540,13 +593,24 @@
+       : await account.signAuthorization({ contractAddress: ex, chainId: pins.chainId, nonce: authorizationNonce });
+     const payees = [], errors = [], answered = [];
+     const started = Date.now();
+-    for (const url of urls) {
++    // this machine's relay, then configured relays, then relays found in the service index (each AUTHENTICATED below:
++    // its signed statement must recover to the payee its committed descriptor named). Discovery failing is not fatal
++    // while another relay is configured; with none left the operation ends NotRelayed (never operator-paid).
++    let found = [];
++    if (discoverRelays) { try { found = await discoverRelays(); } catch (e) { errors.push(`relay discovery: ${String(e.message).slice(0, 200)}`); } }
++    const entries = [...urls.map((url) => ({ url, payee: null })),
++      ...found.filter((r) => r && !urls.includes(r.origin)).map((r) => ({ url: r.origin, payee: r.payee, discovered: true }))];
++    for (const { url, payee: advertised, discovered } of entries) {
+       if (Date.now() - started > overallTimeoutMs) break;
+       try {
+         const info = await boundedFetchJson(fetchImpl, `${url}/v1/info`, {}, requestTimeoutMs);
+         if (info.status !== 200 || Number(info.body.chainId) !== pins.chainId || !isAddress(info.body.reserve || "") || getAddress(info.body.reserve) !== reserve
+             || !isAddress(info.body.executor || "") || getAddress(info.body.executor) !== ex
+             || !isAddress(info.body.payee || "")) { errors.push(`${url}: does not serve this chain and reserve`); continue; }
++        if (discovered) {
++          try { await verifyRelayStatement(info.body, { expectedPayee: advertised, pins, now: Date.now() }); }
++          catch (e) { errors.push(`${url}: ${e.message}`); continue; }
++        }
+         const lease = { id, kind, enclaveId, nonce, deadline, payee: getAddress(info.body.payee), maxChargeWei };
+         verified.assertFresh();
+         const signature = await account.signTypedData({ domain: { name: "EnclaveLeaseExecutor", version: "1", chainId: pins.chainId, verifyingContract: account.address },
+--- a/network/lease-gas-runtime.mjs
++++ b/network/lease-gas-runtime.mjs
+@@ -3,10 +3,17 @@
+ import fs from "node:fs";
+ import { createPublicClient, getAddress, http } from "viem";
+ import { parseDeploymentRecord } from "./lease-gas-owner.mjs";
+-import { createLeaseClient, validateRelayUrl } from "./lease-executor-client.mjs";
++import { createLeaseClient, validateRelayUrl, validateLocalRelayUrl } from "./lease-executor-client.mjs";
+ import { leaseRpcSet } from "./lease-executor-authority.mjs";
++import { discoverLeaseRelays, cachedRelayDiscovery } from "./lease-relay-discovery.mjs";
++import { validateIndexPin } from "./service-index.mjs";
+ 
+-const FIELDS = ["FILE", "DIGEST", "RPCS", "RELAYS", "RESERVE", "QUORUM"];
++// Where a host's lease operations are submitted (at least one): LOCAL_RELAY, an OPTIONAL relay of the host's own on this
++// machine (loopback only); RELAYS, configured relays; SERVICE_INDEX (<index address>@<runtime code hash>), DESIGNATED relays
++// found in the pinned EnclaveServiceIndex and authenticated before use (lease-relay-discovery.mjs), with RELAY_EXCLUDE
++// naming the failure-domain addresses/names never to use (e.g. the DigitalOcean fleet). A zero-ETH host with no relay of
++// its own uses designated relays and holds no float.
++const FIELDS = ["FILE", "DIGEST", "RPCS", "RELAYS", "LOCAL_RELAY", "SERVICE_INDEX", "RELAY_EXCLUDE", "RESERVE", "QUORUM"];
+ const names = (field) => [`ENCLAVE_LEASE_GAS_${field}`, `LEASE_GAS_${field}`];
+ const nonempty = (value) => typeof value === "string" && value.trim().length > 0;
+ 
+@@ -42,10 +49,28 @@
+   if (!leaseGasConfigured(env)) return null;
+   const file = required(env, "FILE"), digest = required(env, "DIGEST");
+   const rpcs = list(required(env, "RPCS"));
+-  const relays = list(required(env, "RELAYS")).map((url) => validateRelayUrl(url, { allowLoopbackHttp }));
+-  if (!rpcs.length || !relays.length) throw new Error("app-funded leases require nonempty RPC and relay lists");
+-  if (new Set(relays).size !== relays.length) throw new Error("lease-gas relays repeat an origin");
++  const localRaw = setting(env, "LOCAL_RELAY");
++  const localRelays = localRaw ? [validateLocalRelayUrl(localRaw)] : [];
++  const indexRaw = setting(env, "SERVICE_INDEX");
++  const relays = list(localRelays.length || indexRaw ? setting(env, "RELAYS") : required(env, "RELAYS")).map((url) => validateRelayUrl(url, { allowLoopbackHttp }));
++  if (!rpcs.length || !(relays.length + localRelays.length) && !indexRaw) throw new Error("app-funded leases require nonempty RPC and relay lists");
++  const excludeRaw = list(setting(env, "RELAY_EXCLUDE"));
++  if (excludeRaw.length && !indexRaw) throw new Error("RELAY_EXCLUDE applies to relays found in the service index: set SERVICE_INDEX too");
++  if (new Set([...localRelays, ...relays]).size !== relays.length + localRelays.length) throw new Error("lease-gas relays repeat an origin");
+   const deployment = parseDeploymentRecord(readFile(file), { expectedDigest: digest });
++  let relayDiscovery = null;
++  if (indexRaw) {
++    const m = /^(0x[0-9a-fA-F]{40})@(0x[0-9a-fA-F]{64})$/.exec(indexRaw);
++    if (!m) throw new Error("SERVICE_INDEX must be <index address>@<runtime code hash> (the pinned EnclaveServiceIndex)");
++    const indexPin = validateIndexPin({ chainId: deployment.chainId, address: m[1], codeHash: m[2].toLowerCase() });
++    const addresses = [], names = [];
++    for (const x of excludeRaw) {
++      if (/^(\d{1,3}\.){3}\d{1,3}$/.test(x)) addresses.push(x);
++      else if (/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,62}$/i.test(x)) names.push(x.toLowerCase());
++      else throw new Error(`RELAY_EXCLUDE: ${x.slice(0, 80)} is neither an IPv4 address nor a DNS name`);
++    }
++    relayDiscovery = Object.freeze({ indexPin, failureDomains: Object.freeze(excludeRaw.length ? [Object.freeze({ name: "excluded", addresses, names })] : []) });
++  }
+   const config = { deployment };
+   assertLeaseGasBindings(config, { chain, ledger, registry });
+   const legacyReserve = setting(env, "RESERVE");
+@@ -58,15 +83,20 @@
+   // Validate identities and the threshold now, before a caller can mistake configuration failure for feature-off.
+   const peers = leaseRpcSet(clients, { quorum, allowLoopbackHttp, timeoutMs: rpcTimeoutMs });
+   return Object.freeze({ deployment, reserve: deployment.reserve, clients: Object.freeze(clients),
+-    relays: Object.freeze(relays), quorum: peers.required, allowLoopbackHttp, rpcTimeoutMs });
++    relays: Object.freeze(relays), localRelays: Object.freeze(localRelays), relayDiscovery, quorum: peers.required, allowLoopbackHttp, rpcTimeoutMs });
+ }
+ 
+ /** Both hosts use this factory. Supply getBindings so a running host cannot keep sending to a previous ledger after
+  * an administrator migrates its current binding. A reviewed replacement configuration can then be loaded normally. */
+-export function configuredLeaseSender({ config, account, getBindings, ...options }) {
++export function configuredLeaseSender({ config, account, getBindings, decideOperators = null, discoveryOptions = {}, ...options }) {
+   if (!config) throw new Error("app-funded lease sender needs a complete reviewed configuration");
+   if (typeof getBindings !== "function") throw new Error("app-funded lease sender needs the host's current bindings");
+-  const sender = createLeaseClient({ ...options, ...config, account });
++  // designated relays from the pinned service index, with the host's own operator decider (the administrator's bans)
++  const { relayDiscovery, ...clientConfig } = config;
++  const discoverRelays = relayDiscovery ? cachedRelayDiscovery(() => discoverLeaseRelays({ clients: config.clients, indexPin: relayDiscovery.indexPin,
++    pins: config.deployment, decide: decideOperators, failureDomains: relayDiscovery.failureDomains, fetch: options.fetchImpl ?? globalThis.fetch, ...discoveryOptions }),
++    { log: options.log }) : null;
++  const sender = createLeaseClient({ ...options, ...clientConfig, account, discoverRelays });
+   const verifyBinding = () => assertLeaseGasBindings(config, getBindings());
+   return {
+     ...sender,
+--- a/network/lease-relay-service.mjs
++++ b/network/lease-relay-service.mjs
+@@ -12,13 +12,15 @@
+ //
+ //   LEASE_RELAY_RECORD=FILE LEASE_RELAY_DIGEST=sha256:… LEASE_RELAY_RPCS=https://a,https://b[,…]
+ //   LEASE_RELAY_KEY_FILE=/path/0600 LEASE_RELAY_LISTEN=127.0.0.1:8545x LEASE_RELAY_MAX_FLOAT_ETH=0.02
+-//   LEASE_RELAY_STATE=/var/lib/…/relay-send.json [LEASE_RELAY_MIN_FLOAT_ETH=0.001] [LEASE_RELAY_QUORUM=n]   node network/lease-relay-service.mjs
++//   LEASE_RELAY_STATE=/var/lib/…/relay-send.json [LEASE_RELAY_MIN_FLOAT_ETH=0.001] [LEASE_RELAY_QUORUM=n]
++//   [LEASE_RELAY_DESCRIPTOR=<its service-index descriptor file>]   node network/lease-relay-service.mjs
+ // RPCs: name three independent providers with a quorum of two - any one may be down or wrong. Nothing depends on the
+ // first one: reads, simulation, broadcast and receipts all go through the quorum; a send whose reply is lost is
+ // re-broadcast as the SAME signed bytes, never re-signed. LEASE_RELAY_STATE (required by the CLI: a writable file on
+ // durable storage, the unit's StateDirectory) keeps those bytes across a restart; it holds only this key's own send.
+ // Put it behind TLS (hosts accept only https relays, except loopback fixtures).
+ import fs from "node:fs";
++import { pathToFileURL } from "node:url";
+ import { createPublicClient, http, parseEther, formatEther, defineChain } from "viem";
+ import { privateKeyToAccount } from "viem/accounts";
+ import { parseDeploymentRecord } from "./lease-gas-owner.mjs";
+@@ -35,7 +37,7 @@
+ 
+ /** Start the relay service from explicit settings (the CLI entry below maps the environment onto these). */
+ export async function startRelayService({ recordFile, digest, rpcs, keyFile, listen = "127.0.0.1:0", maxFloatEth, minFloatEth = "0.001", quorum,
+-  allowLoopbackHttp = false, readFile = fs.readFileSync, log = (m) => console.log(m), checkEveryMs = 60_000, stateFile = null, relayOptions = {} }) {
++  allowLoopbackHttp = false, readFile = fs.readFileSync, log = (m) => console.log(m), checkEveryMs = 60_000, stateFile = null, descriptorFile = null, relayOptions = {} }) {
+   if (!recordFile || !digest) throw new Error("the relay needs the reviewed deployment record and its digest (LEASE_RELAY_RECORD, LEASE_RELAY_DIGEST)");
+   if (!maxFloatEth) throw new Error("the relay needs LEASE_RELAY_MAX_FLOAT_ETH: the most this hot key may hold (a small float)");
+   const deployment = parseDeploymentRecord(readFile(recordFile), { expectedDigest: digest });
+@@ -59,7 +61,11 @@
+   // the key and the chain only, with no transport: every read, the simulation, the broadcast (the same signed bytes to
+   // EVERY provider) and the receipt go through the quorum (client/lease-executor-client.mjs relayLease)
+   const wallet = { account, chain };
+-  const relay = await startLeaseRelay({ client: clients[0], clients, wallet, deployment, quorum, allowLoopbackHttp, host, port: Number(port || 0), log, stateFile, ...relayOptions });
++  // a designated relay's service-index descriptor (served at /v1/descriptor; the advertisement commits to its sha256)
++  const descriptor = descriptorFile ? readFile(descriptorFile) : null;
++  if (descriptor && (descriptor.length > 4096 || JSON.parse(descriptor.toString("utf8")).payee?.toLowerCase() !== account.address.toLowerCase()))
++    throw new Error("LEASE_RELAY_DESCRIPTOR must be this relay's own descriptor (at most 4096 bytes, naming this key's address as payee)");
++  const relay = await startLeaseRelay({ client: clients[0], clients, wallet, deployment, quorum, allowLoopbackHttp, host, port: Number(port || 0), log, stateFile, descriptor, ...relayOptions });
+   let low = b0 < minFloat;
+   const check = async () => { try { const b = await balance(); low = b < minFloat; if (b > maxFloat) log(`[relay] WARNING: ${formatEther(b)} ETH above the float cap`);
+     if (low) log(`[relay] WARNING: ${formatEther(b)} ETH is below the ${minFloatEth} ETH minimum float: refill`); } catch {} };
+@@ -68,11 +74,13 @@
+   return { url: relay.url, payee: account.address, deployment, isLow: () => low, close: async () => { clearInterval(timer); await relay.close(); } };
+ }
+ 
+-if (import.meta.url === `file://${process.argv[1]}`) {
++// the CLI entry: this module's URL is exactly the path it was started by (a Windows drive path too, once encoded as a
++// file URL; on Linux a release run through a symlink still needs --preserve-symlinks-main, as the unit does)
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+   const e = process.env;
+   if (!e.LEASE_RELAY_STATE) { console.error("[relay] not started: LEASE_RELAY_STATE is not set (the durable record of this key's unresolved send; there is no default)"); process.exit(1); }
+   startRelayService({ recordFile: e.LEASE_RELAY_RECORD, digest: e.LEASE_RELAY_DIGEST, rpcs: String(e.LEASE_RELAY_RPCS || "").split(",").map((s) => s.trim()).filter(Boolean),
+     keyFile: e.LEASE_RELAY_KEY_FILE, listen: e.LEASE_RELAY_LISTEN || "127.0.0.1:0", maxFloatEth: e.LEASE_RELAY_MAX_FLOAT_ETH, minFloatEth: e.LEASE_RELAY_MIN_FLOAT_ETH || "0.001",
+-    quorum: e.LEASE_RELAY_QUORUM ? Number(e.LEASE_RELAY_QUORUM) : undefined, stateFile: e.LEASE_RELAY_STATE })
++    quorum: e.LEASE_RELAY_QUORUM ? Number(e.LEASE_RELAY_QUORUM) : undefined, stateFile: e.LEASE_RELAY_STATE, descriptorFile: e.LEASE_RELAY_DESCRIPTOR || null })
+     .catch((err) => { console.error(`[relay] not started: ${err.message}`); process.exit(1); });
+ }
+--- a/network/service-index.mjs
++++ b/network/service-index.mjs
+@@ -19,7 +19,10 @@
+ import { validateNetworkAuthorities } from './network-authorities.mjs';
+ import { rpcEndpoint, rpcLabel as safeRpcLabel, redactUrls } from './rpc-identity.mjs';
+ 
+-export const SERVICE_KINDS = Object.freeze({ directory: 1, checker: 2, storage: 3, dns: 4, replica: 5 });
++// relay (7): an app-funded LEASE relay a designated host operator runs (network/host-services/lease-relay-host.mjs); its
++// descriptor names the relay's payee key, which signs the relay's /v1/info statement (lease-relay-discovery.mjs).
++// 6 is reserved for `policy` (the platform host policy mirror, work/hosted-service-placement/policy-tree).
++export const SERVICE_KINDS = Object.freeze({ directory: 1, checker: 2, storage: 3, dns: 4, replica: 5, relay: 7 });
+ export const KIND_NAMES = Object.freeze(Object.fromEntries(Object.entries(SERVICE_KINDS).map(([k, v]) => [v, k])));
+ export const AD_VERSION = 1;
+ export const LIMITS = Object.freeze({ slots: 8, endpoints: 4, endpointBytes: 256, ttlSec: 90 * 86400, page: 64, perKind: 1024, descriptor: 4096 });
+--- /dev/null
++++ b/network/lease-relay-discovery.mjs
+@@ -0,0 +1,116 @@
++// Designated lease relays, found from the pinned EnclaveServiceIndex (network/service-index.mjs) by a compute host that
++// has no relay of its own and no ETH: the host's claim, renewal and release are submitted by a relay a DESIGNATED relay
++// operator runs on an Enclave host (network/host-services/lease-relay-host.mjs), funded with that operator's capped
++// float and reimbursed by each app's reserve in the same transaction. The compute host pays nothing and holds no float.
++//
++// What a relay must prove before a host signs a lease to it (each step refuses that endpoint, never the operation):
++//   1. it is ADVERTISED: a `relay` ad in the index, read at ONE block on which two of the host's own RPCs agree, from the
++//      contract whose runtime code hash the host pinned - an untrusted candidate, nothing more;
++//   2. its operator is NOT REFUSED by the platform host policy (the administrator's operator bans: applyHostPolicy, and in
++//      allowlist mode an operator outside the allowlist, when the host supplies its decider), so Enclave administration
++//      governs relays as it governs hosts;
++//   3. its endpoint is OUTSIDE every failure domain the host names (e.g. the DigitalOcean fleet's addresses): an address
++//      in it, a name in it, a name that resolves into it, and a name that does not resolve are all excluded, and named;
++//   4. its DESCRIPTOR (GET /v1/descriptor) is exactly the bytes the ad committed to (sha256), names that operator, the
++//      `relay` kind, this deployment's chain and reserve, and a payee address;
++//   5. its STATEMENT (GET /v1/info) is signed by that payee key over this chain, reserve and executor, fresh
++//      (verifyRelayStatement) - the endpoint answers AS the advertised relay, over https or plain http alike.
++// None of this trusts the relay with anything: the lease client still verifies every landed lease on the host's own RPC
++// quorum, a relay can only fail or refuse, and its reimbursement is bounded by the lease's signed maximum.
++import dns from "node:dns/promises";
++import { getAddress, isAddress } from "viem";
++import { readServiceIndex, applyHostPolicy, verifyDescriptor } from "./service-index.mjs";
++import { verifyRelayStatement } from "./lease-executor-client.mjs";
++
++export const RELAY_DESCRIPTOR_FORMAT = "enclave-service-descriptor/v1";
++const lc = (s) => String(s || "").toLowerCase();
++// a relay is paid from app reserves, so beyond applyHostPolicy's bans an administrator's ALLOWLIST also binds: in allowlist
++// mode an operator the policy does not admit serves no relay (directory candidates stay merely untrusted). judgeHost's reason.
++const ALLOWLIST_MISS = /^not admitted by platform allowlist #\d+/;
++const isV4 = (h) => /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(h);
++
++/** The descriptor a designated relay publishes (its ad commits to sha256 of these exact bytes). */
++export function relayDescriptor({ operator, payee, chainId, reserve, packagePin = null, bundleSha256 = null }) {
++  if (!isAddress(String(operator)) || !isAddress(String(payee)) || !isAddress(String(reserve)) || !Number.isSafeInteger(chainId)) throw new Error("relay descriptor: operator, payee, chainId and reserve required");
++  return Buffer.from(JSON.stringify({ format: RELAY_DESCRIPTOR_FORMAT, operator: lc(operator), kind: "relay", role: "lease-relay", payee: lc(payee),
++    chainId, reserve: lc(reserve), ...(packagePin ? { package: packagePin } : {}), ...(bundleSha256 ? { bundleSha256 } : {}) }));
++}
++
++/** The same failure-domain rule as network/cold-bootstrap.mjs classifyEndpoint (work/hosted-service-placement). */
++export async function classifyEndpoint(endpoint, failureDomains, resolve) {
++  const h = new URL(endpoint).hostname.toLowerCase();
++  for (const d of failureDomains) if ((d.names || []).some((n) => h === n || h.endsWith("." + n))) return { excluded: true, domain: d.name, reason: `name ${h} is in ${d.name}` };
++  let addresses = [h];
++  if (!isV4(h)) {
++    try { addresses = await resolve(h); } catch (e) { return { excluded: true, domain: "unknown", reason: `name ${h} did not resolve (${e.message})` }; }
++    if (!Array.isArray(addresses) || !addresses.length) return { excluded: true, domain: "unknown", reason: `name ${h} resolved to nothing` };
++  }
++  for (const d of failureDomains) {
++    const hit = addresses.find((a) => (d.addresses || []).includes(a));
++    if (hit) return { excluded: true, domain: d.name, reason: `${h === hit ? "address" : `${h} -> ${hit}`} is in ${d.name}` };
++  }
++  return { excluded: false, addresses };
++}
++const defaultResolve = async (name) => (await dns.lookup(name, { all: true, family: 4 })).map((a) => a.address);
++
++async function boundedGet(fetchImpl, url, timeoutMs, maxBytes) {
++  const r = await fetchImpl(url, { redirect: "error", credentials: "omit", signal: AbortSignal.timeout(timeoutMs) });
++  if (r.status !== 200) throw new Error(`${url}: HTTP ${r.status}`);
++  const b = Buffer.from(await r.arrayBuffer());
++  if (b.length > maxBytes) throw new Error(`${url}: answer larger than ${maxBytes} bytes`);
++  return b;
++}
++
++/**
++ * -> { relays: [{ origin, payee, operator }], excluded, rejected, refusedByPolicy, index: { blockNumber, blockHash } }.
++ * pins: the lease deployment's { chainId, reserve, executor }. decide: the host's operator decider (host-policy-adapters
++ * operatorDecider) - without it no ban is applied, and `policy: "not applied"` says so. Throws when the index cannot be
++ * read completely by an agreeing quorum (a partial list proves nothing about the rest).
++ */
++export async function discoverLeaseRelays({ peers, clients, indexPin, pins, decide = null, failureDomains = [], resolve = defaultResolve,
++  fetch = globalThis.fetch, timeoutMs = 5000, maxRelays = 8, now = Date.now, readOptions = {} }) {
++  const read = await readServiceIndex({ peers, clients, pin: indexPin, kinds: ["relay"], ...readOptions });
++  if (read.status !== "complete") throw new Error("service index read incomplete: relays not discovered");
++  const judged = decide ? await applyHostPolicy(read, decide) : { ...read, refusedByPolicy: [] };
++  const refusedByPolicy = [...(judged.refusedByPolicy || [])];
++  const relays = [], excluded = [], rejected = [];
++  for (const c of judged.candidates) {
++    if (c.kindName !== "relay" || relays.length >= maxRelays) continue;
++    if (c.platformPolicy?.admit === false && ALLOWLIST_MISS.test(String(c.platformPolicy.reason || ""))) { refusedByPolicy.push({ candidate: c, reason: c.platformPolicy.reason }); continue; }
++    for (const endpoint of c.endpoints) {
++      const k = await classifyEndpoint(endpoint, failureDomains, resolve);
++      if (k.excluded) { excluded.push({ endpoint, operator: c.operator, domain: k.domain, reason: k.reason }); continue; }
++      const origin = new URL(endpoint).origin;
++      try {
++        const d = verifyDescriptor(await boundedGet(fetch, `${origin}/v1/descriptor`, timeoutMs, 4096), c);
++        if (d.role !== "lease-relay" || !isAddress(String(d.payee || "")) || d.chainId !== pins.chainId || lc(d.reserve) !== lc(pins.reserve))
++          throw new Error("the descriptor is not a lease relay for this chain and reserve");
++        const info = JSON.parse((await boundedGet(fetch, `${origin}/v1/info`, timeoutMs, 16384)).toString("utf8"));
++        const payee = await verifyRelayStatement(info, { expectedPayee: d.payee, pins, now: now() });
++        if (!relays.some((r) => r.origin === origin)) relays.push({ origin, payee, operator: getAddress(c.operator) });
++        break;                                                      // one verified endpoint per advertised relay
++      } catch (e) { rejected.push({ endpoint, operator: c.operator, reason: String(e.message).slice(0, 200) }); }
++    }
++  }
++  return { relays, excluded, rejected, refusedByPolicy, policy: decide ? "applied" : "not applied",
++    index: { blockNumber: read.blockNumber, blockHash: read.blockHash } };
++}
++
++/**
++ * A bounded cache for a lease client's `discoverRelays`: re-read every `ttlMs`; when a refresh fails, the last verified
++ * list is used for at most `staleMs` (each relay is still re-authenticated before every lease), then the failure is
++ * reported (the client then ends NotRelayed unless another relay is configured - never operator-paid).
++ */
++export function cachedRelayDiscovery(discover, { ttlMs = 10 * 60_000, staleMs = 60 * 60_000, log = () => {}, now = Date.now } = {}) {
++  let last = null, inflight = null;
++  return async () => {
++    if (last && now() - last.at < ttlMs) return last.relays;
++    if (!inflight) inflight = discover().then((r) => { last = { at: now(), relays: r.relays }; log(`[lease-gas] ${r.relays.length} designated relay(s) from the service index at block ${r.index.blockNumber} (${r.excluded.length} excluded, ${r.rejected.length} rejected, policy ${r.policy})`); return r.relays; })
++      .finally(() => { inflight = null; });
++    try { return await inflight; }
++    catch (e) {
++      if (last && now() - last.at < staleMs) { log(`[lease-gas] relay discovery failed (${e.message}); using the list verified ${Math.round((now() - last.at) / 1000)} s ago`); return last.relays; }
++      throw e;
++    }
++  };
++}
+--- /dev/null
++++ b/network/host-services/lease-relay-host.mjs
+@@ -0,0 +1,238 @@
++// A DESIGNATED app-funded lease relay, run by a relay operator on an Enclave host (Linux), found by compute hosts through
++// the pinned EnclaveServiceIndex (network/lease-relay-discovery.mjs). Compute hosts then need no ETH and no relay of their
++// own: the relay operator's capped float pays each claim/renew/release and the app's reserve reimburses it in the same
++// transaction.
++//
++//   node network/host-services/lease-relay-host.mjs init <host-relay.json>             generate the relay key (create-only)
++//   node network/host-services/lease-relay-host.mjs descriptor <host-relay.json> --operator 0x…
++//                                                              write the descriptor the advertisement commits to
++//   node network/host-services/lease-relay-host.mjs advertise <host-relay.json> --operator 0x… --slot N --sequence N [--ttl-days D]
++//                                                              the UNSIGNED service-index publication (the operator signs)
++//   node network/host-services/lease-relay-host.mjs check <host-relay.json>             validate, verify the package
++//   node network/host-services/lease-relay-host.mjs run <host-relay.json>               ...then run and supervise the relay
++//
++// host-relay.json (format enclave-host-relay/v1): { host: { endpoint, publicEndpoints: ["http(s)://<public address>:<port>/"] },
++//   platformHostPolicy: "production" | "off" | {...}, platformHostPolicyMirrors?, platformHostPolicyRpcs?, serviceIndex: {chainId,
++//   address, codeHash}, packagesDir, stateRoot, relay: { package: "sha256:<manifest digest>", memoryMiB?, port, bind, record, digest,
++//   rpc: [2..8 https], quorum, maxFloatEth, minFloatEth, extraCaFile? } }
++//
++// Unlike the discovery roles (roles.mjs: no secret at all), this role HOLDS ONE SECRET: its relay key. It is generated HERE
++// (init), written create-only (0600) in this role's own 0700 state directory beside its public address, never imported,
++// printed, copied or placed in the configuration (no configuration field may name a key), and handed to the relay only as a
++// file path. The key's float is the relay operator's capital, capped (the relay refuses to start above maxFloatEth); funding
++// it is the operator's decision. Everything else is the runner's discipline (runner.mjs): only the pinned reviewed bytes
++// run, the process gets no inherited environment, a memory cap and a restart backoff, and the platform host policy gates it
++// (a ban, an allowlist miss or a deregistration STOPS the relay; sticky until the administrator's admit).
++import fs from "node:fs";
++import path from "node:path";
++import crypto, { createHash } from "node:crypto";
++import { spawn as spawnChild } from "node:child_process";
++import { pathToFileURL } from "node:url";
++import { rpcEndpoint } from "../rpc-identity.mjs";
++// a field whose name looks like a credential is refused (the same rule as the discovery roles, roles.mjs SECRETISH)
++const SECRETISH = /(secret|token|password|passwd|private|mnemonic|seed|apikey|api_key|auth|hmac|credential|key$|keyfile)/i;
++
++export const RELAY_HOST_FORMAT = "enclave-host-relay/v1";
++export const PACKAGE_FORMAT = "enclave-host-service-package/v1";
++export const ROLE = Object.freeze({ role: "lease-relay", entry: "network/lease-relay-service.mjs", kind: "relay" });
++const sha = (b) => createHash("sha256").update(b).digest("hex");
++const plain = (o) => !!o && typeof o === "object" && !Array.isArray(o);
++const fail = (m) => { throw new Error(`host relay: ${m}`); };
++const DECIMAL = /^(0|[1-9][0-9]{0,6})(\.[0-9]{1,18})?$/;
++const absPath = (v, what) => { if (typeof v !== "string" || !path.isAbsolute(v) || v.includes("\0")) fail(`${what} must be an absolute path`); return v; };
++
++/** -> the normalized configuration (throws on anything else; no field may name a secret). */
++export function validateHostRelayConfig(cfg) {
++  if (!plain(cfg)) fail("configuration must be an object");
++  const top = ["format", "host", "platformHostPolicy", "platformHostPolicyMirrors", "platformHostPolicyRpcs", "serviceIndex", "packagesDir", "stateRoot", "relay"];
++  for (const k of Object.keys(cfg)) if (!top.includes(k)) fail(`unknown field ${JSON.stringify(k)}${SECRETISH.test(k) ? " (the key is generated by init, never configured)" : ""}`);
++  if (cfg.format !== RELAY_HOST_FORMAT) fail(`format must be ${RELAY_HOST_FORMAT}`);
++  absPath(cfg.packagesDir, "packagesDir"); absPath(cfg.stateRoot, "stateRoot");
++  if (!(cfg.platformHostPolicy === "production" || cfg.platformHostPolicy === "off" || plain(cfg.platformHostPolicy)))
++    fail('platformHostPolicy is required: "production", an explicit platform JSON, or "off" (explicit; not a production configuration)');
++  for (const k of ["platformHostPolicyMirrors", "platformHostPolicyRpcs"])
++    if (cfg[k] !== undefined && (!Array.isArray(cfg[k]) || cfg[k].some((u) => typeof u !== "string" || !/^https:\/\/[^\s/?#@]+(\/[^\s?#]*)?$/.test(u)))) fail(`${k}: https URLs`);
++  if (!plain(cfg.host)) fail("host is required");
++  for (const k of Object.keys(cfg.host)) if (!["endpoint", "publicEndpoints"].includes(k)) fail(`host has an unknown field ${JSON.stringify(k)}`);
++  if (cfg.platformHostPolicy !== "off" && !/^https:\/\/[^\s/?#@]+$/.test(String(cfg.host.endpoint || "").replace(/\/+$/, ""))) fail("host.endpoint: this host's registry endpoint (its PUBLIC_URL) is required to enforce the platform host policy");
++  const pe = cfg.host.publicEndpoints ?? [];
++  if (!Array.isArray(pe) || pe.length > 4) fail("host.publicEndpoints: 0 to 4 endpoints (where compute hosts reach this relay)");
++  const r = cfg.relay;
++  if (!plain(r)) fail("relay is required");
++  const allowed = ["package", "memoryMiB", "port", "bind", "record", "digest", "rpc", "quorum", "maxFloatEth", "minFloatEth", "extraCaFile"];
++  for (const k of Object.keys(r)) if (!allowed.includes(k)) fail(`relay has an unknown field ${JSON.stringify(k)}${SECRETISH.test(k) ? " (the key is generated by init, never configured)" : ""}`);
++  if (!/^sha256:[0-9a-f]{64}$/.test(String(r.package))) fail("relay.package must pin the reviewed manifest digest (sha256:<64 hex>)");
++  const memoryMiB = r.memoryMiB ?? 256;
++  if (!Number.isInteger(memoryMiB) || memoryMiB < 128 || memoryMiB > 1024) fail("relay.memoryMiB: 128 to 1024");
++  if (!Number.isInteger(r.port) || r.port < 1 || r.port > 65535) fail("relay.port must be a port");
++  if (typeof r.bind !== "string" || !/^(127\.0\.0\.1|0\.0\.0\.0|::|::1|(\d{1,3}\.){3}\d{1,3})$/.test(r.bind)) fail("relay.bind must be an IP literal");
++  absPath(r.record, "relay.record");
++  if (!/^sha256:[0-9a-f]{64}$/.test(String(r.digest))) fail("relay.digest must be the reviewed record's sha256:<64 hex>");
++  if (!Array.isArray(r.rpc) || r.rpc.length < 2 || r.rpc.length > 8) fail("relay.rpc: 2 to 8 https Base RPCs of distinct providers");
++  const ids = new Set();
++  for (const [i, u] of r.rpc.entries()) {
++    let e; try { e = rpcEndpoint(u); } catch (x) { fail(`relay.rpc[${i}]: ${x.message}`); }
++    if (!String(u).startsWith("https://")) fail(`relay.rpc[${i}] must be https`);
++    if (ids.has(e.identity)) fail(`relay.rpc[${i}] repeats a provider`); ids.add(e.identity);
++  }
++  if (!Number.isInteger(r.quorum) || r.quorum < 2 || r.quorum > r.rpc.length || r.quorum <= r.rpc.length / 2) fail("relay.quorum: a strict majority of relay.rpc, at least 2");
++  for (const k of ["maxFloatEth", "minFloatEth"]) if (typeof r[k] !== "string" || !DECIMAL.test(r[k]) || Number(r[k]) <= 0) fail(`relay.${k} must be a positive decimal ETH amount`);
++  if (Number(r.minFloatEth) >= Number(r.maxFloatEth)) fail("relay.minFloatEth must be below relay.maxFloatEth");
++  if (r.extraCaFile !== undefined) absPath(r.extraCaFile, "relay.extraCaFile");
++  return { ...cfg, host: { endpoint: cfg.host.endpoint ? String(cfg.host.endpoint).replace(/\/+$/, "") : null, publicEndpoints: pe }, relay: { ...r, memoryMiB } };
++}
++
++/** The reviewed package: its manifest must hash to the pin, its bundle to the manifest. */
++export function loadRelayPackage(packagesDir, pin) {
++  const file = path.join(packagesDir, `${ROLE.role}.package.json`);
++  const raw = fs.readFileSync(file);
++  if ("sha256:" + sha(raw) !== pin) fail(`package manifest ${file} is not the pinned ${pin}`);
++  const m = JSON.parse(raw);
++  if (m.format !== PACKAGE_FORMAT || m.role !== ROLE.role || m.entry !== ROLE.entry || m.kind !== ROLE.kind) fail("the manifest is not the lease-relay role's package");
++  const bundle = path.join(packagesDir, path.basename(m.bundle));
++  const bytes = fs.readFileSync(bundle);
++  if (sha(bytes) !== m.bundleSha256 || bytes.length !== m.bytes) fail(`bundle ${bundle} does not match its manifest`);
++  return { manifest: m, bundle, pin };
++}
++
++const stateDir = (cfg) => path.join(cfg.stateRoot, ROLE.role);
++const files = (cfg) => ({ dir: stateDir(cfg), key: path.join(stateDir(cfg), "relay.key"), address: path.join(stateDir(cfg), "relay.address"),
++  state: path.join(stateDir(cfg), "relay-send.json"), descriptor: path.join(stateDir(cfg), "descriptor.json") });
++
++/** Generate the relay key ONCE (create-only, 0600, in a 0700 directory); write its public address beside it. */
++export async function initRelayKey(rawCfg) {
++  const cfg = validateHostRelayConfig(rawCfg), f = files(cfg);
++  fs.mkdirSync(f.dir, { recursive: true, mode: 0o700 }); fs.chmodSync(f.dir, 0o700);
++  if (fs.existsSync(f.key)) {
++    if (!fs.existsSync(f.address)) fail(`${f.key} exists without its public address file: settle by hand (this tool never reads the key)`);
++    return { created: false, address: fs.readFileSync(f.address, "utf8").trim() };
++  }
++  const { privateKeyToAccount } = await import("viem/accounts");
++  const d = Buffer.from(crypto.generateKeyPairSync("ec", { namedCurve: "secp256k1" }).privateKey.export({ format: "jwk" }).d, "base64url");
++  if (d.length !== 32) fail("generated key has the wrong length");
++  const address = privateKeyToAccount("0x" + d.toString("hex")).address;
++  fs.writeFileSync(f.key, d.toString("hex") + "\n", { flag: "wx", mode: 0o600 });
++  fs.writeFileSync(f.address, address + "\n", { flag: "wx", mode: 0o644 });
++  d.fill(0);
++  return { created: true, address };
++}
++
++/** The descriptor the service-index advertisement commits to (the relay serves it at /v1/descriptor). */
++export async function writeRelayDescriptor(rawCfg, { operator }) {
++  const cfg = validateHostRelayConfig(rawCfg), f = files(cfg);
++  if (!/^0x[0-9a-fA-F]{40}$/.test(String(operator))) fail("--operator 0x… (the address that signs the advertisement) is required");
++  const { relayDescriptor } = await import("../lease-relay-discovery.mjs");
++  const { parseDeploymentRecord } = await import("../lease-gas-owner.mjs");
++  const dep = parseDeploymentRecord(fs.readFileSync(cfg.relay.record), { expectedDigest: cfg.relay.digest });
++  const pkg = loadRelayPackage(cfg.packagesDir, cfg.relay.package);
++  const payee = fs.readFileSync(f.address, "utf8").trim();
++  const bytes = relayDescriptor({ operator, payee, chainId: dep.chainId, reserve: dep.reserve, packagePin: cfg.relay.package, bundleSha256: pkg.manifest.bundleSha256 });
++  fs.writeFileSync(f.descriptor, bytes, { mode: 0o644 });
++  return { file: f.descriptor, sha256: "0x" + sha(bytes), payee };
++}
++
++/** The UNSIGNED service-index publication for this relay (kind relay; the operator signs and sends it). */
++export async function relayAdvertisement(rawCfg, { operator, slot, sequence, ttlSec = 30 * 86400, now = Math.floor(Date.now() / 1000) }) {
++  const cfg = validateHostRelayConfig(rawCfg), f = files(cfg);
++  const si = await import("../service-index.mjs");
++  if (!cfg.serviceIndex) fail("serviceIndex (the pinned index) is required to prepare an advertisement");
++  if (!cfg.host.publicEndpoints.length) fail("host.publicEndpoints: where compute hosts reach this relay (a public address; not a DigitalOcean one)");
++  const pin = si.validateIndexPin(cfg.serviceIndex);
++  const bytes = fs.readFileSync(f.descriptor);
++  const d = JSON.parse(bytes.toString("utf8"));
++  if (d.operator !== String(operator).toLowerCase()) fail("the descriptor names another operator: run `descriptor` for this operator first");
++  if (!Number.isInteger(slot) || !/^[1-9][0-9]*$/.test(String(sequence))) fail("advertise needs --slot N and --sequence N (> 0)");
++  const input = si.validateAdInput({ slot, kind: "relay", endpoints: cfg.host.publicEndpoints, ttlSec, descriptor: si.descriptorHash(bytes) });
++  const typed = si.publishTypedData({ chainId: pin.chainId, index: pin.address, operator, slot: input.slot, kind: input.kind, sequence: BigInt(sequence),
++    expiresAt: BigInt(now + ttlSec), descriptor: input.descriptor, endpoints: input.endpoints });
++  return { role: ROLE.role, kind: "relay", endpoints: input.endpoints, descriptor: bytes.toString(), descriptorHash: input.descriptor, typedData: typed, signed: false };
++}
++
++/** The plan: the verified package, the launch environment (public names, and the key only as a path). No process started. */
++export function planHostRelay(rawCfg) {
++  const cfg = validateHostRelayConfig(rawCfg), f = files(cfg);
++  const pkg = loadRelayPackage(cfg.packagesDir, cfg.relay.package);
++  if (!fs.existsSync(f.key) || !fs.existsSync(f.address)) fail(`no relay key yet: run \`init\` (it is generated on this host; nothing is imported)`);
++  const r = cfg.relay;
++  const env = { LEASE_RELAY_RECORD: r.record, LEASE_RELAY_DIGEST: r.digest, LEASE_RELAY_RPCS: r.rpc.join(","), LEASE_RELAY_QUORUM: String(r.quorum),
++    LEASE_RELAY_MAX_FLOAT_ETH: r.maxFloatEth, LEASE_RELAY_MIN_FLOAT_ETH: r.minFloatEth, LEASE_RELAY_LISTEN: `${r.bind.includes(":") ? `[${r.bind}]` : r.bind}:${r.port}`,
++    LEASE_RELAY_KEY_FILE: f.key, LEASE_RELAY_STATE: f.state, ...(fs.existsSync(f.descriptor) ? { LEASE_RELAY_DESCRIPTOR: f.descriptor } : {}),
++    ...(r.extraCaFile ? { NODE_EXTRA_CA_CERTS: r.extraCaFile } : {}) };
++  return { cfg, files: f, bundle: pkg.bundle, bundleSha256: pkg.manifest.bundleSha256, env, payee: fs.readFileSync(f.address, "utf8").trim() };
++}
++
++/**
++ * Run and supervise the relay. gate: { start(), stop(), check(), serviceRefusal(), status() } (default: this host's platform
++ * host policy, network/host-service-gate.mjs, as runner.mjs). -> { status(), stop() }.
++ */
++export async function runHostRelay(rawCfg, { gate = null, spawn = spawnChild, log = (m) => console.log(new Date().toISOString(), m), intervalMs = 5000,
++  backoffMs = 1000, maxBackoffMs = 60000 } = {}) {
++  const plan = planHostRelay(rawCfg), { cfg } = plan;
++  if (!gate) {
++    const { createHostServiceGate } = await import("../host-service-gate.mjs");
++    const env = { ENCLAVE_PLATFORM_HOST_POLICY: typeof cfg.platformHostPolicy === "string" ? cfg.platformHostPolicy : JSON.stringify(cfg.platformHostPolicy),
++      ...(cfg.platformHostPolicyMirrors ? { ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS: cfg.platformHostPolicyMirrors.join(",") } : {}),
++      ...(cfg.platformHostPolicyRpcs ? { ENCLAVE_PLATFORM_HOST_POLICY_RPCS: cfg.platformHostPolicyRpcs.join(",") } : {}) };
++    gate = createHostServiceGate({ env, chainId: 8453, endpoint: cfg.host.endpoint, stateDir: path.join(cfg.stateRoot, "host-policy"), log });
++  }
++  if (cfg.platformHostPolicy === "off") log("[host-relay] platform host policy is EXPLICITLY OFF for this relay: not a production configuration");
++  const u = { child: null, restarts: 0, wait: backoffMs, lastExit: null, timer: null, startedAt: 0 };
++  let stopping = false, refusal = null;
++  const start = () => {
++    if (stopping || refusal || u.child || u.timer) return;
++    // no inherited environment: the relay's own public names, the key as a PATH, and a PATH
++    const child = spawn(process.execPath, [`--max-old-space-size=${cfg.relay.memoryMiB}`, plan.bundle], { cwd: plan.files.dir,
++      env: { PATH: "/usr/local/bin:/usr/bin:/bin", ...plan.env }, stdio: ["ignore", "pipe", "pipe"] });
++    u.child = child; u.startedAt = Date.now();
++    const relay = (stream) => stream?.on("data", (d) => { for (const line of String(d).split("\n").filter(Boolean)) log(`[lease-relay] ${line.slice(0, 500)}`); });
++    relay(child.stdout); relay(child.stderr);
++    child.on("error", (e) => log(`[host-relay] the relay could not be started: ${e.message}`));
++    child.on("exit", (code, signal) => {
++      u.child = null; u.lastExit = { code, signal, at: Date.now() };
++      if (stopping || refusal) return;
++      if (Date.now() - u.startedAt > 60000) u.wait = backoffMs;
++      u.restarts++; log(`[host-relay] the relay exited (${signal || code}); restarting in ${u.wait} ms`);
++      u.timer = setTimeout(() => { u.timer = null; start(); }, u.wait); u.timer.unref?.();
++      u.wait = Math.min(maxBackoffMs, u.wait * 2);
++    });
++    log(`[host-relay] relay started (pid ${child.pid}, package ${cfg.relay.package.slice(0, 19)}…, payee ${plan.payee}, ${cfg.relay.memoryMiB} MiB)`);
++  };
++  const halt = () => { if (u.timer) { clearTimeout(u.timer); u.timer = null; } u.child?.kill("SIGTERM"); };
++  const apply = async () => {
++    await gate.check().catch(() => {});
++    const r = gate.serviceRefusal();
++    if (r && !refusal) { refusal = r; log(`[host-relay] STOPPING the relay: ${r}`); halt(); }
++    else if (!r && refusal) { log(`[host-relay] admitted again: starting the relay (${refusal} cleared)`); refusal = null; }
++    if (!refusal) start();
++  };
++  gate.start?.();
++  await apply();
++  const timer = setInterval(() => void apply(), intervalMs); timer.unref?.();
++  return {
++    payee: plan.payee,
++    status: () => ({ platformHostPolicy: gate.status?.() ?? null, refusal, running: !!u.child, pid: u.child?.pid ?? null, restarts: u.restarts, lastExit: u.lastExit, payee: plan.payee }),
++    async stop() {
++      stopping = true; clearInterval(timer); gate.stop?.();
++      await new Promise((ok) => { if (!u.child) return ok(); u.child.once("exit", ok); halt(); setTimeout(() => { u.child?.kill("SIGKILL"); ok(); }, 5000).unref?.(); });
++    },
++  };
++}
++
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
++  const [cmd, file, ...rest] = process.argv.slice(2);
++  const usage = "usage: lease-relay-host.mjs init|descriptor|advertise|check|run <host-relay.json> [--operator 0x.. --slot N --sequence N --ttl-days D]";
++  if (!["init", "descriptor", "advertise", "check", "run"].includes(cmd) || !file) { console.error(usage); process.exit(2); }
++  const cfg = JSON.parse(fs.readFileSync(file, "utf8"));
++  const flag = (n) => { const i = rest.indexOf(n); return i >= 0 ? rest[i + 1] : undefined; };
++  try {
++    if (cmd === "init") console.log(JSON.stringify(await initRelayKey(cfg)));
++    else if (cmd === "descriptor") console.log(JSON.stringify(await writeRelayDescriptor(cfg, { operator: flag("--operator") })));
++    else if (cmd === "advertise") console.log(JSON.stringify(await relayAdvertisement(cfg, { operator: flag("--operator"), slot: Number(flag("--slot") ?? 0),
++      sequence: flag("--sequence") ?? "1", ttlSec: Number(flag("--ttl-days") ?? 30) * 86400 }), (k, v) => (typeof v === "bigint" ? v.toString() : v), 2));
++    else if (cmd === "check") { const p = planHostRelay(cfg); console.log(JSON.stringify({ ok: true, payee: p.payee, bundleSha256: p.bundleSha256, env: Object.keys(p.env) }, null, 2)); }
++    else {
++      const running = await runHostRelay(cfg);
++      for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => { running.stop().then(() => process.exit(0)); });
++    }
++  } catch (e) { console.error(e.message); process.exit(1); }
++}
+--- /dev/null
++++ b/relay/systemd/enclave-host-relay.service
+@@ -0,0 +1,51 @@
++# A DESIGNATED app-funded lease relay as an Enclave HOST ROLE (network/host-services/lease-relay-host.mjs), for a Linux
++# Enclave host whose operator chose to serve relays for zero-ETH compute hosts. Template: review every value. NOT for the
++# DigitalOcean transport machines (they stay bare-minimum WireGuard transport): a relay there would keep the shared-provider
++# failure domain this role exists to remove.
++#   /opt/enclave                          a reviewed checkout of this repository (the role supervisor and its modules)
++#   /etc/enclave/host-relay.json          enclave-host-relay/v1 (stateRoot MUST be /var/lib/enclave-host-relay; packagesDir
++#                                         holds lease-relay.mjs + lease-relay.package.json from build-lease-relay-host-package.mjs,
++#                                         pinned by relay.package)
++#   /var/lib/enclave-host-relay/lease-relay/relay.key       generated by `init` on first start, create-only 0600, in this
++#                                         service's own state directory (never imported, never in the configuration)
++# The relay key holds the operator's capped float (relay.maxFloatEth; the relay refuses to start above it). Fund it only
++# after review: `cat /var/lib/enclave-host-relay/lease-relay/relay.address` is its address. Then publish the advertisement
++# (`lease-relay-host.mjs descriptor` + `advertise`, signed by the operator) so compute hosts find it in the service index.
++[Unit]
++Description=Enclave designated lease relay (host role)
++After=network-online.target
++Wants=network-online.target
++StartLimitIntervalSec=600
++StartLimitBurst=5
++
++[Service]
++DynamicUser=yes
++StateDirectory=enclave-host-relay
++StateDirectoryMode=0700
++WorkingDirectory=/var/lib/enclave-host-relay
++# the key is created once, by this service's own identity, inside its own state directory (idempotent: an existing key is kept)
++ExecStartPre=/usr/bin/node /opt/enclave/network/host-services/lease-relay-host.mjs init /etc/enclave/host-relay.json
++ExecStartPre=/usr/bin/node /opt/enclave/network/host-services/lease-relay-host.mjs check /etc/enclave/host-relay.json
++# the supervisor: pinned package, platform host policy gate (a ban stops the relay), no inherited environment, restart backoff
++ExecStart=/usr/bin/node /opt/enclave/network/host-services/lease-relay-host.mjs run /etc/enclave/host-relay.json
++Restart=on-failure
++RestartSec=10
++NoNewPrivileges=yes
++ProtectSystem=strict
++ProtectHome=yes
++PrivateTmp=yes
++PrivateDevices=yes
++ProtectKernelTunables=yes
++ProtectKernelModules=yes
++ProtectControlGroups=yes
++RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
++RestrictNamespaces=yes
++LockPersonality=yes
++SystemCallArchitectures=native
++# the supervisor plus one relay child (its own --max-old-space-size from relay.memoryMiB); measured peak with margin
++MemoryMax=512M
++TasksMax=64
++LimitNOFILE=4096
++
++[Install]
++WantedBy=multi-user.target
+--- /dev/null
++++ b/scripts/build-lease-relay-host-package.mjs
+@@ -0,0 +1,41 @@
++// The lease-relay HOST ROLE package (network/host-services/lease-relay-host.mjs), in the host-service package format
++// (enclave-host-service-package/v1): the reviewed relay release artifact (scripts/build-lease-relay-release.mjs, one esbuild
++// bundle of network/lease-relay-service.mjs) and a manifest naming it. A host pins the manifest's sha256.
++//   node scripts/build-lease-relay-host-package.mjs OUTDIR            writes OUTDIR/lease-relay.mjs and lease-relay.package.json
++//   node scripts/build-lease-relay-host-package.mjs OUTDIR --check    rebuilds and refuses unless OUTDIR holds exactly those bytes
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { createHash } from "node:crypto";
++import { execFileSync } from "node:child_process";
++import { fileURLToPath } from "node:url";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const [out, flag] = process.argv.slice(2);
++if (!out || (flag && flag !== "--check")) { console.error("usage: build-lease-relay-host-package.mjs OUTDIR [--check]"); process.exit(2); }
++const sha = (b) => createHash("sha256").update(b).digest("hex");
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lease-relay-host-package-"));
++try {
++  execFileSync(process.execPath, [path.join(ROOT, "scripts/build-lease-relay-release.mjs"), tmp], { stdio: ["ignore", "ignore", "inherit"] });
++  const release = JSON.parse(fs.readFileSync(path.join(tmp, "manifest.json"), "utf8"));
++  const bundle = fs.readFileSync(path.join(tmp, "lease-relay.mjs"));
++  if (sha(bundle) !== release.artifact.sha256) throw new Error("the release artifact does not match its manifest");
++  const manifest = Buffer.from(JSON.stringify({
++    format: "enclave-host-service-package/v1", role: "lease-relay", entry: "network/lease-relay-service.mjs", kind: "relay",
++    runtime: "node>=22 (host role; not a wasm component)", bundle: "lease-relay.mjs", bundleSha256: sha(bundle), bytes: bundle.length,
++    serves: "app-funded lease relaying for the ONE reviewed reserve/executor: GET /v1/info (with the relay key's signed statement), GET /v1/descriptor, POST /v1/lease",
++    secrets: "one: the relay float key, generated on the host by `lease-relay-host.mjs init` (create-only, 0600), never imported, configured or printed",
++    state: { durable: true, what: "the relay key and its unresolved signed send (relay-send.json; same bytes re-broadcast after a restart)", rebuild: "none: the key is not recoverable from elsewhere; a lost key loses only its capped float" },
++    cold: ["two or more https Base RPC providers (the relay's quorum)", "the reviewed deployment record and its digest", "the relay key (its float, funded by the relay operator)"],
++    notCold: ["discovery", "directories", "storage adapters", "other relays", "a lease", "any app", "any DigitalOcean endpoint"],
++    release: { artifact: release.artifact, check: release.check }, inputs: release.inputs }, null, 1) + "\n");
++  if (flag === "--check") {
++    for (const [f, b] of [["lease-relay.mjs", bundle], ["lease-relay.package.json", manifest]])
++      if (!fs.existsSync(path.join(out, f)) || !fs.readFileSync(path.join(out, f)).equals(b)) throw new Error(`${path.join(out, f)} is not the reproducible build`);
++  } else {
++    fs.mkdirSync(out, { recursive: true });
++    fs.writeFileSync(path.join(out, "lease-relay.mjs"), bundle);
++    fs.writeFileSync(path.join(out, "lease-relay.package.json"), manifest);
++  }
++  console.log(JSON.stringify({ out, package: "sha256:" + sha(manifest), bundleSha256: sha(bundle), bytes: bundle.length, inputs: Object.keys(release.inputs).length, checked: flag === "--check" }));
++} finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -9556,10 +9556,16 @@
+ // the host's CURRENT bindings (the address book may move them): a record for another ledger or registry refuses
+ const leaseBindings = () => ({ chain: base, ledger: DEPLOYMENTS_ADDRESS, registry: REGISTRY_ADDRESS });
+ let _leaseGas = null, _onLeaseSigned = null;
++// designated relays found in the service index are judged by THIS host's platform host policy (the administrator's
++// operator bans); a policy that is on but unusable refuses every discovered relay rather than admitting them unjudged
++function leaseRelayDecider(gate) {
++  if (gate?.runtime?.decideOperators) return (operators) => gate.runtime.decideOperators(operators);
++  return gate?.enabled ? async () => { throw new Error("the platform host policy is on but unusable: no discovered relay is admitted"); } : null;
++}
+ function leaseGasSender() {
+   if (!_leaseGas) {
+     const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
+-    _leaseGas = configuredLeaseSender({ config, account: claimSigner().account, getBindings: leaseBindings,
++    _leaseGas = configuredLeaseSender({ config, account: claimSigner().account, getBindings: leaseBindings, decideOperators: leaseRelayDecider(HOST_POLICY_GATE),
+       log: (m) => console.log(m), onSigned: (s) => (_onLeaseSigned ? _onLeaseSigned(s) : undefined) });
+   }
+   return _leaseGas;
+--- a/windows/node/chain.mjs
++++ b/windows/node/chain.mjs
+@@ -257,7 +257,9 @@
+ // once configured, no refusal can route a lease operation to the operator-paid sender.
+ const leaseGasEnv = Object.freeze(Object.fromEntries(Object.entries(process.env)
+   .filter(([key]) => /^(ENCLAVE_)?LEASE_GAS_/.test(key))));
+-let leaseGas = null, leaseJournal = null, onLeaseSigned = null;
++let leaseGas = null, leaseJournal = null, onLeaseSigned = null, leaseRelayDecide = null;
++/** The host's platform host policy decides designated relays' operators (host.mjs passes it; the sender is rebuilt). */
++export function setLeaseRelayPolicy(decide) { leaseRelayDecide = decide; leaseGas = null; }
+ const leaseBindings = () => ({ chain: base, ledger: addresses.deployments, registry: addresses.registry });
+ export const leaseGasActive = () => leaseGasConfigured(leaseGasEnv);
+ function leaseSender() {
+@@ -265,7 +267,7 @@
+   if (!acct) throw new Error("no operator key on this box");
+   if (!leaseGas) {
+     const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
+-    leaseGas = configuredLeaseSender({ config, account: acct, getBindings: leaseBindings,
++    leaseGas = configuredLeaseSender({ config, account: acct, getBindings: leaseBindings, decideOperators: leaseRelayDecide,
+       onSigned: (s) => (onLeaseSigned ? onLeaseSigned(s) : undefined) });
+   }
+   return leaseGas;
+--- a/windows/node/host.mjs
++++ b/windows/node/host.mjs
+@@ -131,6 +131,9 @@
+     // discovery/attach, routes, custody, management and CLI clients) refuse a banned host regardless of what it runs.
+     this.platformPolicy = cfg.platformPolicy ?? createHostServiceGate({ env: process.env, chainId: 8453, book: null,
+       hostId: this.enclaveId, stateDir: cfg.dir || null, log: (m) => this.log(m) });
++    // designated lease relays (service index) are judged by this host's platform host policy; on-but-unusable refuses them
++    chain.setLeaseRelayPolicy?.(this.platformPolicy?.runtime?.decideOperators ? (ops) => this.platformPolicy.runtime.decideOperators(ops)
++      : this.platformPolicy?.enabled ? async () => { throw new Error("the platform host policy is on but unusable: no discovered relay is admitted"); } : null);
+     this.registered = null;                          // the registry entry as last read
+     this.chainReady = false; this.lastError = "";
+     this.statePath = path.join(cfg.dir, "host-state.json");
+--- /dev/null
++++ b/windows/installer/install-lease-relay.ps1
+@@ -0,0 +1,142 @@
++# install-lease-relay.ps1 - this host's OWN app-funded lease relay, as a host service beside Shield, Node and Network.
++#
++# Why a host service: an app-funded claim, renewal or release must be submitted by SOME relay, which pays the gas and is
++# reimbursed by the app's reserve in the same transaction. A relay that ran as a leased Enclave app would need a relay
++# for its own lease (circular on a cold start), and relays on shared cloud machines are a single provider. Each host
++# therefore relays its own lease operations: the node agent posts to this loopback relay FIRST
++# (ENCLAVE_LEASE_GAS_LOCAL_RELAY=http://127.0.0.1:<port>) and to other relays only as alternates. Nothing it needs runs
++# outside this machine except the public chain RPCs it names.
++#
++# The bootstrap capital is the host operator's: the relay key holds a small float (between -MinFloatEth and
++# -MaxFloatEth; the relay refuses to start above the cap). Every relayed operation is reimbursed from the app's reserve
++# atomically, so the float is not spent on apps' behalf. Reverted or raced transactions can still cost it gas (bounded by
++# the cap). The key is generated HERE, written create-only into a SYSTEM + Administrators directory, and never printed,
++# copied or read by this script. Fund the relay address (printed from /v1/info) only after review.
++#
++# From a reviewed release directory (scripts/build-lease-relay-release.mjs: lease-relay.mjs, lease-relay-check.mjs,
++# manifest.json). Idempotent: an existing key or send record is kept; a different release is installed beside the old.
++#
++#   powershell -NoProfile -ExecutionPolicy Bypass -File install-lease-relay.ps1 -Release <dir> -ArtifactSha256 <hex> `
++#     -Record C:\ProgramData\Enclave\lease-gas\deployment.json -Digest sha256:<hex> `
++#     -Rpcs https://a,https://b,https://c -Quorum 2 -MaxFloatEth 0.0002 -MinFloatEth 0.00005 [-Port 8549] [-NoTask]
++# -NoTask installs files only (no scheduled task registered or started), for a scratch verification under other roots.
++param(
++  [Parameter(Mandatory = $true)][string]$Release,
++  [Parameter(Mandatory = $true)][string]$ArtifactSha256,
++  [Parameter(Mandatory = $true)][string]$Record,
++  [Parameter(Mandatory = $true)][string]$Digest,
++  [Parameter(Mandatory = $true)][string]$Rpcs,
++  [Parameter(Mandatory = $true)][int]$Quorum,
++  [Parameter(Mandatory = $true)][string]$MaxFloatEth,
++  [Parameter(Mandatory = $true)][string]$MinFloatEth,
++  [int]$Port = 8549,
++  [string]$ProgramRoot = (Join-Path $env:ProgramFiles 'Enclave'),
++  [string]$DataRoot = (Join-Path $env:ProgramData 'Enclave'),
++  [string]$Node = (Join-Path (Join-Path $env:ProgramFiles 'Enclave') 'runtime\node\node.exe'),
++  [switch]$NoTask
++)
++$ErrorActionPreference = 'Stop'
++function Sha([string]$p) { if (Test-Path -LiteralPath $p -PathType Leaf) { (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower() } else { $null } }
++function Say([string]$m) { Write-Output ("[lease-relay] " + $m) }
++
++# ---- 1. the reviewed release: every file is its manifest's, and the artifact is the reviewed one
++$ArtifactSha256 = $ArtifactSha256.ToLower()
++if ($ArtifactSha256 -notmatch '^[0-9a-f]{64}$') { throw "-ArtifactSha256 must be 64 hex" }
++$manifest = Get-Content -LiteralPath (Join-Path $Release 'manifest.json') -Raw | ConvertFrom-Json
++if ($manifest.format -ne 'enclave-lease-relay-release/v1') { throw "$Release\manifest.json is not a lease relay release manifest" }
++if ($manifest.artifact.sha256 -ne $ArtifactSha256) { throw "the release manifest names artifact $($manifest.artifact.sha256), not the reviewed $ArtifactSha256" }
++if ((Sha (Join-Path $Release 'lease-relay.mjs')) -ne $ArtifactSha256) { throw "lease-relay.mjs is not the reviewed artifact" }
++if ((Sha (Join-Path $Release 'lease-relay-check.mjs')) -ne $manifest.check.sha256) { throw "lease-relay-check.mjs is not the manifest's" }
++if (-not (Test-Path -LiteralPath $Node -PathType Leaf)) { throw "no node runtime at $Node" }
++if ($Port -lt 1 -or $Port -gt 65535) { throw "-Port must be 1..65535" }
++if ($Quorum -lt 2) { throw "-Quorum must be at least 2" }
++
++# ---- 2. the program files: releases\<sha>\ (read-only data; the run loop starts exactly this directory's files)
++$relDir = Join-Path $ProgramRoot "lease-relay\releases\$ArtifactSha256"
++New-Item -ItemType Directory -Force -Path $relDir | Out-Null
++foreach ($f in 'lease-relay.mjs', 'lease-relay-check.mjs', 'manifest.json') {
++  $src = Join-Path $Release $f; $dst = Join-Path $relDir $f
++  if ((Sha $dst) -ne (Sha $src)) { Copy-Item -LiteralPath $src -Destination "$dst.tmp" -Force; Move-Item -LiteralPath "$dst.tmp" -Destination $dst -Force }
++  if ((Sha $dst) -ne (Sha $src)) { throw "$dst did not install intact" }
++}
++Say "release $ArtifactSha256 installed in $relDir"
++
++# ---- 3. the private data directory: SYSTEM + Administrators only, made before anything goes into it
++$dataDir = Join-Path $DataRoot 'lease-relay'
++if (-not (Test-Path -LiteralPath $dataDir)) {
++  New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
++  & icacls.exe $dataDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
++  if ($LASTEXITCODE -ne 0) { throw "could not restrict $dataDir" }
++}
++$acl = Get-Acl -LiteralPath $dataDir
++$ids = @($acl.Access | ForEach-Object { $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value } | Sort-Object -Unique)
++if (-not $acl.AreAccessRulesProtected -or ($ids -join ',') -ne 'S-1-5-18,S-1-5-32-544') { throw "$dataDir is not SYSTEM + Administrators only ($($ids -join ',')); fix it before installing a key there" }
++
++# ---- 4. the key: generated HERE, create-only, never printed or read back by this script
++$keyFile = Join-Path $dataDir 'relay.key'
++if (Test-Path -LiteralPath $keyFile) { Say "the existing relay key is kept ($keyFile)" }
++else {
++  & $Node -e "const c=require('crypto'),fs=require('fs');const d=Buffer.from(c.generateKeyPairSync('ec',{namedCurve:'secp256k1'}).privateKey.export({format:'jwk'}).d,'base64url');if(d.length!==32)throw new Error('bad key length');fs.writeFileSync(process.argv[1],d.toString('hex')+'\n',{flag:'wx'});" $keyFile
++  if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $keyFile)) { throw "the relay key could not be created" }
++  Say "a new relay key was generated in $keyFile (not displayed)"
++}
++
++# ---- 5. the public settings and the run loop (no key or secret in either)
++$record = (Resolve-Path -LiteralPath $Record).Path
++$stateFile = Join-Path $dataDir 'relay-send.json'
++$cfg = Join-Path $dataDir 'relay-config.cmd'
++$listen = "127.0.0.1:$Port"
++@(
++  '@echo off',
++  'rem The host lease relay settings. Written by install-lease-relay.ps1; public values only (the key stays in relay.key).',
++  "set `"LEASE_RELAY_RECORD=$record`"",
++  "set `"LEASE_RELAY_DIGEST=$Digest`"",
++  "set `"LEASE_RELAY_RPCS=$Rpcs`"",
++  "set `"LEASE_RELAY_QUORUM=$Quorum`"",
++  "set `"LEASE_RELAY_MAX_FLOAT_ETH=$MaxFloatEth`"",
++  "set `"LEASE_RELAY_MIN_FLOAT_ETH=$MinFloatEth`"",
++  "set `"LEASE_RELAY_LISTEN=$listen`"",
++  "set `"LEASE_RELAY_KEY_FILE=$keyFile`"",
++  "set `"LEASE_RELAY_STATE=$stateFile`"",
++  "set `"LEASE_RELAY_ARTIFACT_SHA256=$ArtifactSha256`""
++) | Set-Content -Encoding ASCII -LiteralPath $cfg
++$log = Join-Path $DataRoot 'logs\lease-relay.log'
++New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null
++$run = Join-Path $DataRoot 'run-relay.cmd'
++@(
++  '@echo off',
++  'rem The host lease relay. Written by install-lease-relay.ps1. The check refuses unless every setting is explicit and valid',
++  'rem and this directory holds the reviewed artifact; the relay itself refuses a key above its float cap.',
++  "call `"$cfg`"",
++  "cd /d `"$relDir`"",
++  ':loop',
++  "`"$Node`" `"$relDir\lease-relay-check.mjs`" >> `"$log`" 2>&1",
++  'if errorlevel 1 (',
++  "  echo %date% %time% [run] configuration check failed; retrying in 60 s >> `"$log`"",
++  '  ping -n 61 127.0.0.1 >nul',
++  '  goto loop',
++  ')',
++  "`"$Node`" `"$relDir\lease-relay.mjs`" >> `"$log`" 2>&1",
++  "echo %date% %time% [run] relay exited %errorlevel%; restarting in 10 s >> `"$log`"",
++  'ping -n 11 127.0.0.1 >nul',
++  'goto loop'
++) | Set-Content -Encoding ASCII -LiteralPath $run
++Say "settings $cfg, run loop $run, log $log"
++
++# ---- 6. the scheduled task, like Shield, Node and Network (SYSTEM, at startup)
++if ($NoTask) { Say "-NoTask: no scheduled task registered or started"; exit 0 }
++$a = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/c `"$run`""
++$t = New-ScheduledTaskTrigger -AtStartup; $t.Delay = 'PT60S'
++$p = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
++$s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
++$existing = Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Relay' -ErrorAction SilentlyContinue
++if ($existing) { Stop-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Relay' -ErrorAction SilentlyContinue }
++Register-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Relay' -Action $a -Trigger $t -Principal $p -Settings $s -Force | Out-Null
++Start-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Relay'
++Say "task \Enclave\Relay registered and started"
++for ($i = 0; $i -lt 90; $i++) {
++  Start-Sleep 1
++  try { $info = Invoke-RestMethod -TimeoutSec 3 "http://$listen/v1/info"; Say "serving: payee (fund this relay address with its float) $($info.payee); reserve $($info.reserve)"; exit 0 } catch {}
++}
++Say "the relay did not answer on $listen within 90 s: see $log (an unfunded key still serves; a key above its cap refuses to start)"
++exit 3
+--- /dev/null
++++ b/test/lease-designated-relays.test.mjs
+@@ -0,0 +1,252 @@
++// DESIGNATED lease relays on Enclave hosts, found through the pinned EnclaveServiceIndex by a compute host that has NO ETH
++// and NO relay of its own (no LOCAL_RELAY, no configured RELAYS), with every DigitalOcean endpoint down. On a real local
++// chain (anvil; the reserve/executor/ledger world; the ownerless index compiled from the reviewed source):
++//   - two relay operators each run the PACKAGED lease-relay host role (scripts/build-lease-relay-host-package.mjs, pinned
++//     manifest) under network/host-services/lease-relay-host.mjs: `init` generates the key on the host, `descriptor` +
++//     a `relay` advertisement publish it, `run` supervises the relay; each operator funds its own capped float;
++//   - the index also holds a relay ad at a DigitalOcean address (refused at the transport, and excluded by RELAY_EXCLUDE),
++//     and an IMPOSTOR ad that points at relay A's endpoint under another operator's descriptor;
++//   - main's ACTUAL Windows chain module claims, renews and releases an app-funded deployment through the designated relays:
++//     cold (empty caches), relay A lost before the renewal, and with both lost it fails NotRelayed within a bound, sending
++//     nothing; an administrator's operator ban removes a relay; package and configuration integrity refuse tampering.
++import { before, after, test } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import https from "node:https";
++import { execFileSync } from "node:child_process";
++import { registerHooks } from "node:module";
++import { createHash } from "node:crypto";
++import { fileURLToPath } from "node:url";
++import * as viem from "viem";
++import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
++import { startWorld, haveAnvil, DEPLOYER } from "./helpers/lease-gas-world.mjs";
++import { compileServiceIndex } from "../scripts/network/service-index.mjs";
++import * as si from "../network/service-index.mjs";
++import { discoverLeaseRelays } from "../network/lease-relay-discovery.mjs";
++import { initRelayKey, writeRelayDescriptor, relayAdvertisement, runHostRelay, planHostRelay, validateHostRelayConfig } from "../network/host-services/lease-relay-host.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const hostUrl = new URL("../windows/node/chain.mjs", import.meta.url).href;
++const fixtureUrl = new URL("./helpers/windows-lease-runtime-fixture.mjs", import.meta.url).href;
++const hooks = registerHooks({ resolve(specifier, context, nextResolve) {
++  if (context.parentURL?.startsWith(hostUrl) && specifier === "./lease-gas-runtime.bundle.mjs") return { url: fixtureUrl, shortCircuit: true };
++  return nextResolve(specifier, context);
++} });
++const T = { skip: !haveAnvil && "needs anvil", timeout: 300_000 };
++const sha = (b) => createHash("sha256").update(b).digest("hex");
++const DO = ["134.199.235.187", "134.209.248.172", "165.245.191.129", "146.190.246.39"];
++// stand-in PUBLIC addresses for the relay hosts (mapped to their loopback listeners); the fleet's are refused, as in a
++// whole-provider outage
++const PUBLIC = { a: "9.9.9.9", b: "149.112.112.112", impostor: "1.1.1.1" };
++const savedEnv = { ...process.env }, realFetch = globalThis.fetch;
++let W, dir, ca, pkgDir, pkgPin, index, indexPin, record, digest, hostRpcs, relayRpcs, relays = {}, ports = {}, op, owner, chain, policyState = { banned: [], allow: null };
++// an operator decider answering exactly as network/platform-host-policy.mjs judgeHost does (bans, then allowlist mode)
++const decideOperators = async (operators) => Object.fromEntries(operators.map((o) => [o.toLowerCase(),
++  policyState.banned.includes(o.toLowerCase()) ? { admit: false, status: "current", reason: "banned by platform policy #1 (operator): test ban" }
++    : policyState.allow && !policyState.allow.includes(o.toLowerCase()) ? { admit: false, status: "current", reason: "not admitted by platform allowlist #2" }
++      : { admit: true, status: "current", reason: null }]));
++const fetchLog = [];
++const servers = [];
++
++async function tlsProxy() {
++  const s = https.createServer({ key: fs.readFileSync(path.join(dir, "leaf.key")), cert: fs.readFileSync(path.join(dir, "leaf.pem")) }, (req, res) => {
++    const chunks = []; req.on("data", (c) => chunks.push(c)); req.on("end", () => {
++      const up = http.request(W.rpcUrl, { method: "POST", headers: { "content-type": "application/json" } }, (r) => { res.writeHead(r.statusCode, { "content-type": "application/json" }); r.pipe(res); });
++      up.on("error", () => { res.writeHead(502); res.end(); }); up.end(Buffer.concat(chunks)); }); });
++  await new Promise((ok) => s.listen(0, "127.0.0.1", ok)); servers.push(s);
++  return `https://127.0.0.1:${s.address().port}`;
++}
++async function httpProxy() {
++  const s = http.createServer((req, res) => { const chunks = []; req.on("data", (c) => chunks.push(c)); req.on("end", async () => {
++    const r = await realFetch(W.rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: Buffer.concat(chunks) });
++    res.writeHead(r.status, { "content-type": "application/json" }); res.end(await r.text()); }); });
++  await new Promise((ok) => s.listen(0, "127.0.0.1", ok)); servers.push(s);
++  return `http://127.0.0.1:${s.address().port}`;
++}
++const freePort = () => new Promise((ok) => { const s = http.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
++const gateOf = (state) => ({ check: async () => {}, start() {}, stop() {}, serviceRefusal: () => state.refusal, status: () => ({ platformHostPolicy: "test", refusal: state.refusal }) });
++
++function relayHostConfig(name, port) {
++  return { format: "enclave-host-relay/v1", host: { endpoint: `https://relay-${name}.placement-test.net`, publicEndpoints: [`http://${PUBLIC[name]}:${port}/`] },
++    platformHostPolicy: "production", serviceIndex: indexPin, packagesDir: pkgDir, stateRoot: path.join(dir, `relay-host-${name}`),
++    relay: { package: pkgPin, memoryMiB: 192, port, bind: "127.0.0.1", record, digest, rpc: relayRpcs, quorum: 2, maxFloatEth: "0.02", minFloatEth: "0.001", extraCaFile: ca } };
++}
++/** a designated relay operator: init the host's key, fund its float, write and publish its advertisement, run the role */
++async function designatedRelay(name) {
++  const port = ports[name] = await freePort();
++  const cfg = relayHostConfig(name, port), operatorKey = generatePrivateKey(), operator = privateKeyToAccount(operatorKey);
++  const k = await initRelayKey(cfg);
++  assert.equal(k.created, true);
++  await W.fund(k.address, 10n ** 16n);                     // the relay operator's capped float (fixture money)
++  await W.fund(operator.address, 10n ** 16n);              // gas for the operator's own advertisement transaction
++  const d = await writeRelayDescriptor(cfg, { operator: operator.address });
++  const ad = await relayAdvertisement(cfg, { operator: operator.address, slot: 0, sequence: "1" });
++  const m = ad.typedData.message;
++  await W.write(operatorKey, index, si.SERVICE_INDEX_ABI, "publish", [m.slot, m.kind, m.version, m.sequence, m.expiresAt, m.descriptor, m.endpoints]);
++  const state = { refusal: null }, logs = [];
++  const running = await runHostRelay(cfg, { gate: gateOf(state), log: (x) => logs.push(x), intervalMs: 300 });
++  const end = Date.now() + 60_000;
++  while (!(await realFetch(`http://127.0.0.1:${port}/v1/info`).then((r) => r.ok, () => false))) { if (Date.now() > end) throw new Error(`relay ${name} did not start: ${logs.join("\n")}`); await new Promise((ok) => setTimeout(ok, 200)); }
++  return { name, cfg, payee: k.address, operator: operator.address, operatorKey, descriptor: d, running, state, logs };
++}
++async function loadHost(settings) {
++  for (const key of Object.keys(process.env)) if (/^(ENCLAVE_)?LEASE_GAS_/.test(key)) delete process.env[key];
++  Object.assign(process.env, settings, { BASE_RPCS: W.rpcUrl, NODE_OPERATOR_KEY: op.key });
++  const c = await import(hostUrl + "?designated=" + Math.random());
++  c.loadOperator(); c.setLeaseJournal(path.join(dir, `journal-${Math.random()}.json`));
++  c.addresses.deployments = W.addr.ledger; c.addresses.registry = W.addr.registry;
++  // the host's platform host policy decides relay operators (test policy: policyState, judged as judgeHost does)
++  c.setLeaseRelayPolicy(decideOperators);
++  return c;
++}
++
++before(async () => {
++  dir = fs.mkdtempSync(path.join(os.tmpdir(), "designated-relays-"));
++  pkgDir = path.join(dir, "packages");
++  const built = JSON.parse(execFileSync(process.execPath, [path.join(REPO, "scripts/build-lease-relay-host-package.mjs"), pkgDir], { encoding: "utf8", timeout: 120_000 }).trim().split("\n").at(-1));
++  pkgPin = built.package;
++  if (!haveAnvil) return;
++  W = await startWorld();
++  await W.write(DEPLOYER, W.addr.ledger, W.A.ledger.abi, "setLeaseSec", [120n]);
++  for (const args of [["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-keyout", path.join(dir, "ca.key"), "-out", path.join(dir, "ca.pem"), "-days", "2", "-subj", "/CN=designated-relays-test-ca"],
++    ["req", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-keyout", path.join(dir, "leaf.key"), "-out", path.join(dir, "leaf.csr"), "-subj", "/CN=127.0.0.1"]])
++    execFileSync("openssl", args, { stdio: "ignore" });
++  fs.writeFileSync(path.join(dir, "ext.cnf"), "subjectAltName=IP:127.0.0.1\nbasicConstraints=CA:FALSE\n");
++  execFileSync("openssl", ["x509", "-req", "-in", path.join(dir, "leaf.csr"), "-CA", path.join(dir, "ca.pem"), "-CAkey", path.join(dir, "ca.key"), "-CAcreateserial", "-out", path.join(dir, "leaf.pem"), "-days", "2", "-extfile", path.join(dir, "ext.cnf")], { stdio: "ignore" });
++  ca = path.join(dir, "ca.pem");
++  relayRpcs = [await tlsProxy(), await tlsProxy(), await tlsProxy()];
++  hostRpcs = [await httpProxy(), await httpProxy()];
++  const bytes = Buffer.from(JSON.stringify({ format: "enclave-lease-gas-deployment/v1", chainId: 8453,
++    ...Object.fromEntries(["reserve", "executor", "ledger", "registry", "reserveCodeHash", "executorCodeHash"].map((k) => [k, W.addr[k]])) }));
++  record = path.join(dir, "deployment.json"); fs.writeFileSync(record, bytes); digest = "sha256:" + sha(bytes);
++  const c = compileServiceIndex();
++  index = await W.deploy({ abi: c.abi, bytecode: c.bytecode, links: {} });
++  indexPin = si.validateIndexPin({ chainId: 8453, address: index, codeHash: c.codeHash });
++  // the network as the compute host sees it: fleet addresses refused, stand-in public addresses reach the relay hosts
++  globalThis.fetch = (url, opts) => {
++    const u = new URL(url); fetchLog.push(u.hostname);
++    if (DO.includes(u.hostname)) return Promise.reject(new TypeError("connect ECONNREFUSED (DigitalOcean down)"));
++    if (Object.values(PUBLIC).includes(u.hostname)) { u.hostname = "127.0.0.1"; return realFetch(u, opts); }
++    return realFetch(url, opts);
++  };
++  relays.a = await designatedRelay("a");
++  relays.b = await designatedRelay("b");
++  // a relay ad at a fleet address, and an impostor: another operator's ad whose endpoint reaches relay A
++  const fleetKey = generatePrivateKey(), impostorKey = generatePrivateKey();
++  await W.fund(privateKeyToAccount(fleetKey).address, 10n ** 16n); await W.fund(privateKeyToAccount(impostorKey).address, 10n ** 16n);
++  const until = (await W.pc.getBlock()).timestamp + 30n * 86400n;
++  await W.write(fleetKey, index, si.SERVICE_INDEX_ABI, "publish", [0, si.SERVICE_KINDS.relay, si.AD_VERSION, 1n, until, "0x" + "11".repeat(32), DO.map((ip) => `http://${ip}:8549/`)]);
++  await W.write(impostorKey, index, si.SERVICE_INDEX_ABI, "publish", [0, si.SERVICE_KINDS.relay, si.AD_VERSION, 1n, until, "0x" + "22".repeat(32), [`http://${PUBLIC.impostor}:${ports.a}/`]]);
++  for (let i = 0; i < 3; i++) await W.rpc("evm_mine", []);           // the index is read two blocks below the head
++  op = await W.operator("https://designated-relays.test");
++  owner = await W.owner();
++  await W.write(owner.key, W.addr.registry, W.A.registry.abi, "setPayoutWallet", [op.enclaveId]);
++  // the compute host: no ETH, no relay of its own, no configured relay - only the pinned index and the excluded fleet
++  chain = await loadHost({ ENCLAVE_LEASE_GAS_FILE: record, ENCLAVE_LEASE_GAS_DIGEST: digest, ENCLAVE_LEASE_GAS_RPCS: hostRpcs.join(","),
++    ENCLAVE_LEASE_GAS_SERVICE_INDEX: `${index}@${indexPin.codeHash}`, ENCLAVE_LEASE_GAS_RELAY_EXCLUDE: DO.join(",") });
++});
++after(async () => {
++  for (const r of Object.values(relays)) await r.running?.stop().catch(() => {});
++  for (const s of servers) { s.closeAllConnections?.(); s.close(); }
++  W?.stop(); hooks.deregister(); globalThis.fetch = realFetch;
++  for (const key of Object.keys(process.env)) if (!(key in savedEnv)) delete process.env[key];
++  Object.assign(process.env, savedEnv);
++  if (dir) fs.rmSync(dir, { recursive: true, force: true });
++});
++
++test("discovery: two designated relays verified; the fleet's ad excluded, the impostor rejected, an administrator's ban honoured", T, async () => {
++  const clients = hostRpcs.map((u) => viem.createPublicClient({ chain: W.chain, transport: viem.http(u, { retryCount: 0, timeout: 4000 }) }));
++  const pins = { chainId: 8453, reserve: W.addr.reserve, executor: W.addr.executor };
++  const failureDomains = [{ name: "digitalocean", addresses: DO }];
++  const decide = decideOperators;
++  await W.rpc("evm_mine", []);
++  const r = await discoverLeaseRelays({ clients, indexPin, pins, decide, failureDomains, fetch: globalThis.fetch });
++  assert.deepEqual(r.relays.map((x) => x.payee), [relays.a.payee, relays.b.payee]);
++  assert.deepEqual(r.relays.map((x) => x.origin), [`http://${PUBLIC.a}:${ports.a}`, `http://${PUBLIC.b}:${ports.b}`]);
++  assert.equal(r.excluded.length, DO.length); assert.ok(r.excluded.every((e) => e.domain === "digitalocean"));
++  assert.equal(r.rejected.length, 1); assert.match(r.rejected[0].reason, /descriptor does not match the advertisement/);
++  assert.equal(r.policy, "applied");
++  policyState.banned = [relays.b.operator.toLowerCase()];
++  try {
++    const banned = await discoverLeaseRelays({ clients, indexPin, pins, decide, failureDomains, fetch: globalThis.fetch });
++    assert.deepEqual(banned.relays.map((x) => x.payee), [relays.a.payee], "the banned operator's relay is not used");
++    assert.equal(banned.refusedByPolicy.length, 1); assert.match(banned.refusedByPolicy[0].reason, /^banned by platform policy/);
++  } finally { policyState.banned = []; }
++  policyState.allow = [relays.a.operator.toLowerCase()];
++  try {
++    const listed = await discoverLeaseRelays({ clients, indexPin, pins, decide, failureDomains, fetch: globalThis.fetch });
++    assert.deepEqual(listed.relays.map((x) => x.payee), [relays.a.payee], "in allowlist mode an unlisted operator serves no relay");
++    assert.ok(listed.refusedByPolicy.some((x) => x.candidate.operator.toLowerCase() === relays.b.operator.toLowerCase()));
++    assert.ok(listed.refusedByPolicy.every((x) => /^not admitted by platform allowlist/.test(x.reason)));
++  } finally { policyState.allow = null; }
++  assert.ok(!fetchLog.some((h) => DO.includes(h)), "no fleet address was ever contacted");
++});
++
++test("a ZERO-ETH host with no relay of its own: cold claim, relay A LOST, renew and release through relay B - each paid by the app's reserve", T, async () => {
++  const id = await W.create(owner, { fund6: 0n });
++  await W.enable(owner, id, { p: { claimPolicy: 1, renewWindow: 60, minExtension: 60 } });
++  const from = await W.pc.getBlockNumber();
++  const floats0 = { a: await W.pc.getBalance({ address: relays.a.payee }), b: await W.pc.getBalance({ address: relays.b.payee }) };
++  await chain.claimDeployment(id, op.enclaveId);
++  const row = await W.row(id);
++  assert.equal(row.runnerOperator, op.address);
++  // relay A is lost (its host stops the role); the next operations must go through relay B
++  await relays.a.running.stop();
++  const waitMs = Number(row.leaseUntil) * 1000 - 55_000 - Date.now();
++  if (waitMs > 0) await new Promise((ok) => setTimeout(ok, waitMs));
++  await W.rpc("evm_mine", []);                                         // a fresh head for the relay's own authority read
++  await chain.renewDeployment(id);
++  assert.ok((await W.row(id)).leaseUntil > row.leaseUntil, "renewed");
++  await chain.releaseDeployment(id);
++  assert.match((await W.row(id)).runnerOperator, /^0x0{40}$/);
++  assert.equal(await W.pc.getBalance({ address: op.address }), 0n, "the compute host never held ETH");
++  const paid = await W.pc.getContractEvents({ address: W.addr.reserve, abi: W.A.reserve.abi, eventName: "LeaseGasPaid", args: { id }, fromBlock: from });
++  assert.deepEqual(paid.map((e) => Number(e.args.kind)), [1, 2, 3]);
++  assert.equal(paid[0].args.payee, relays.a.payee, "the cold claim went through the first designated relay");
++  assert.ok(paid.slice(1).every((e) => e.args.payee === relays.b.payee), "renew and release through relay B after A was lost");
++  for (const e of paid) {
++    const rc = await W.pc.getTransactionReceipt({ hash: e.transactionHash });
++    assert.equal(rc.status, "success");
++    console.log(`# ${["", "claim", "renew", "release"][Number(e.args.kind)]} ${e.transactionHash} block ${rc.blockNumber} paid ${e.args.chargedWei} wei to ${e.args.payee}`);
++  }
++  const floats1 = { a: await W.pc.getBalance({ address: relays.a.payee }), b: await W.pc.getBalance({ address: relays.b.payee }) };
++  console.log(`# relay floats a ${floats0.a} -> ${floats1.a}, b ${floats0.b} -> ${floats1.b} (reimbursed in each transaction)`);
++  assert.ok(floats1.a >= floats0.a * 99n / 100n && floats1.b >= floats0.b * 99n / 100n, "the operators' floats are reimbursed, not spent");
++  assert.ok(!fetchLog.some((h) => DO.includes(h)), "no fleet address was ever contacted");
++});
++
++test("both designated relays lost: the operation fails NotRelayed within a bound, nothing is sent, the host still holds no ETH", T, async () => {
++  await relays.b.running.stop();
++  const id = await W.create(owner, { fund6: 0n });
++  await W.enable(owner, id, { p: { claimPolicy: 1, renewWindow: 60, minExtension: 60 } });
++  const before = await W.pc.getBlockNumber(), t0 = Date.now();
++  await assert.rejects(chain.claimDeployment(id, op.enclaveId), (e) => e.code === "NotRelayed" || /NotRelayed|no relay landed/.test(e.message));
++  const took = Date.now() - t0;
++  console.log(`# with every designated relay down the claim failed in ${took} ms`);
++  assert.ok(took < 60_000, `bounded: ${took} ms`);
++  assert.match((await W.row(id)).runnerOperator, /^0x0{40}$/, "not claimed");
++  const paid = await W.pc.getContractEvents({ address: W.addr.reserve, abi: W.A.reserve.abi, eventName: "LeaseGasPaid", args: { id }, fromBlock: before });
++  assert.equal(paid.length, 0);
++  assert.equal(await W.pc.getBalance({ address: op.address }), 0n, "never operator-paid");
++});
++
++test("the packaged role: only the pinned bytes run, no key in configuration, the key is created once and never replaced", T, () => {
++  const cfg = relays.a.cfg;
++  assert.throws(() => planHostRelay({ ...cfg, relay: { ...cfg.relay, package: "sha256:" + "0".repeat(64) } }), /not the pinned/);
++  assert.throws(() => validateHostRelayConfig({ ...cfg, relay: { ...cfg.relay, privateKey: "0x01" } }), /unknown field "privateKey" \(the key is generated by init, never configured\)/);
++  assert.throws(() => validateHostRelayConfig({ ...cfg, relay: { ...cfg.relay, keyFile: "/tmp/k" } }), /never configured/);
++  assert.throws(() => validateHostRelayConfig({ ...cfg, relay: { ...cfg.relay, rpc: [relayRpcs[0]] } }), /2 to 8 https/);
++  assert.throws(() => validateHostRelayConfig({ ...cfg, platformHostPolicy: undefined }), /platformHostPolicy is required/);
++  const plan = planHostRelay(cfg);
++  assert.deepEqual(Object.keys(plan.env).sort(), ["LEASE_RELAY_DESCRIPTOR", "LEASE_RELAY_DIGEST", "LEASE_RELAY_KEY_FILE", "LEASE_RELAY_LISTEN", "LEASE_RELAY_MAX_FLOAT_ETH",
++    "LEASE_RELAY_MIN_FLOAT_ETH", "LEASE_RELAY_QUORUM", "LEASE_RELAY_RECORD", "LEASE_RELAY_RPCS", "LEASE_RELAY_STATE", "NODE_EXTRA_CA_CERTS"]);
++  const keyFile = plan.env.LEASE_RELAY_KEY_FILE, before = fs.readFileSync(keyFile);
++  assert.equal(fs.statSync(keyFile).mode & 0o777, 0o600); assert.equal(fs.statSync(path.dirname(keyFile)).mode & 0o777, 0o700);
++  return initRelayKey(cfg).then((again) => {
++    assert.equal(again.created, false); assert.equal(again.address, relays.a.payee);
++    assert.ok(fs.readFileSync(keyFile).equals(before), "init never replaces an existing key");
++  });
++});
+--- /dev/null
++++ b/test/lease-host-relay.test.mjs
+@@ -0,0 +1,162 @@
++// A host's OWN lease relay (windows/installer/install-lease-relay.ps1; ENCLAVE_LEASE_GAS_LOCAL_RELAY): the actual
++// Windows chain module, with a ZERO-ETH operator, claims, renews and releases an app-funded deployment through the
++// relay running on its own machine - the reviewed release artifact (scripts/build-lease-relay-release.mjs) started as a
++// separate process exactly as its run loop starts it - while every OTHER configured relay is unreachable (standing in for
++// all shared-provider relays being down). Each operation's gas is paid by that relay and reimbursed from the app's
++// reserve in the same transaction (LeaseGasPaid to the relay). Local anvil behind https RPC proxies; fixture keys only.
++import { before, after, test } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import https from "node:https";
++import { spawn, execFileSync } from "node:child_process";
++import { registerHooks } from "node:module";
++import { createHash } from "node:crypto";
++import { fileURLToPath } from "node:url";
++import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
++import { startWorld, haveAnvil, DEPLOYER } from "./helpers/lease-gas-world.mjs";
++import { loadLeaseGasConfig } from "../network/lease-gas-runtime.mjs";
++import { validateLocalRelayUrl } from "../client/lease-executor-client.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const hostUrl = new URL("../windows/node/chain.mjs", import.meta.url).href;
++const fixtureUrl = new URL("./helpers/windows-lease-runtime-fixture.mjs", import.meta.url).href;
++const hooks = registerHooks({ resolve(specifier, context, nextResolve) {
++  if (context.parentURL?.startsWith(hostUrl) && specifier === "./lease-gas-runtime.bundle.mjs") return { url: fixtureUrl, shortCircuit: true };
++  return nextResolve(specifier, context);
++} });
++const T = { skip: !haveAnvil && "needs anvil", timeout: 300_000 };
++const sha = (b) => createHash("sha256").update(b).digest("hex");
++const UNREACHABLE = "https://192.0.2.1";   // TEST-NET-1: never answers
++let W, dir, rel, ca, relayEnv, relayProc, relayUrl, relayAddr, op, owner, chain, hostEnv;
++const savedEnv = { ...process.env };
++const servers = [];
++
++async function tlsProxy(target) {
++  const server = https.createServer({ key: fs.readFileSync(path.join(dir, "leaf.key")), cert: fs.readFileSync(path.join(dir, "leaf.pem")) }, (req, res) => {
++    const chunks = []; req.on("data", (c) => chunks.push(c)); req.on("end", () => {
++      const up = http.request(target, { method: "POST", headers: { "content-type": "application/json" } }, (r) => { res.writeHead(r.statusCode, { "content-type": "application/json" }); r.pipe(res); });
++      up.on("error", () => { res.writeHead(502); res.end(); }); up.end(Buffer.concat(chunks)); }); });
++  await new Promise((ok) => server.listen(0, "127.0.0.1", ok)); servers.push(server);
++  return `https://127.0.0.1:${server.address().port}`;
++}
++const freePort = () => new Promise((ok) => { const s = http.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
++/** the relay as its run loop starts it: `node <release dir>\lease-relay.mjs`, settings from the environment */
++function startRelay() {
++  const child = spawn(process.execPath, [path.join(rel, "lease-relay.mjs")], { cwd: rel, env: { PATH: process.env.PATH, NODE_EXTRA_CA_CERTS: ca, ...relayEnv }, stdio: ["ignore", "pipe", "pipe"] });
++  let out = ""; child.stdout.on("data", (b) => { out += b; }); child.stderr.on("data", (b) => { out += b; });
++  const exited = new Promise((ok) => child.once("exit", (code, signal) => ok({ code, signal })));
++  const url = new Promise((ok, no) => { const t = setInterval(() => { const m = /\[relay\] serving .* on (http:\/\/127\.0\.0\.1:\d+);/.exec(out); if (m) { clearInterval(t); ok(m[1]); } }, 20);
++    exited.then((e) => { clearInterval(t); no(new Error(`relay exited ${JSON.stringify(e)} before serving: ${out}`)); }); });
++  return { child, url, exited, log: () => out };
++}
++async function loadHost(settings) {
++  for (const key of Object.keys(process.env)) if (/^(ENCLAVE_)?LEASE_GAS_/.test(key)) delete process.env[key];
++  Object.assign(process.env, settings, { BASE_RPCS: W.rpcUrl, NODE_OPERATOR_KEY: op.key });
++  const c = await import(hostUrl + "?host-relay=" + Math.random());
++  c.loadOperator(); c.setLeaseJournal(path.join(dir, `journal-${Math.random()}.json`));
++  c.addresses.deployments = W.addr.ledger; c.addresses.registry = W.addr.registry;
++  return c;
++}
++
++before(async () => {
++  dir = fs.mkdtempSync(path.join(os.tmpdir(), "lease-host-relay-"));
++  // the reviewed release, as install-lease-relay.ps1 installs it: releases\<sha>\ with the manifest's three files
++  const out = path.join(dir, "build");
++  const built = JSON.parse(execFileSync(process.execPath, [path.join(REPO, "scripts/build-lease-relay-release.mjs"), out], { encoding: "utf8", timeout: 120_000 }).trim().split("\n").at(-1));
++  rel = path.join(dir, "Enclave", "lease-relay", "releases", built.artifact.sha256);
++  fs.mkdirSync(rel, { recursive: true }); for (const f of fs.readdirSync(out)) fs.copyFileSync(path.join(out, f), path.join(rel, f));
++  if (!haveAnvil) return;
++  W = await startWorld();
++  await W.write(DEPLOYER, W.addr.ledger, W.A.ledger.abi, "setLeaseSec", [120n]);   // a renewal window reached on the real clock
++  for (const [args] of [[["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-keyout", path.join(dir, "ca.key"), "-out", path.join(dir, "ca.pem"), "-days", "2", "-subj", "/CN=host-relay-test-ca"]],
++    [["req", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-keyout", path.join(dir, "leaf.key"), "-out", path.join(dir, "leaf.csr"), "-subj", "/CN=127.0.0.1"]]])
++    execFileSync("openssl", args, { stdio: "ignore" });
++  fs.writeFileSync(path.join(dir, "ext.cnf"), "subjectAltName=IP:127.0.0.1\nbasicConstraints=CA:FALSE\n");
++  execFileSync("openssl", ["x509", "-req", "-in", path.join(dir, "leaf.csr"), "-CA", path.join(dir, "ca.pem"), "-CAkey", path.join(dir, "ca.key"), "-CAcreateserial", "-out", path.join(dir, "leaf.pem"), "-days", "2", "-extfile", path.join(dir, "ext.cnf")], { stdio: "ignore" });
++  ca = path.join(dir, "ca.pem");
++  const rpcs = [await tlsProxy(W.rpcUrl), await tlsProxy(W.rpcUrl), await tlsProxy(W.rpcUrl)];
++  const bytes = Buffer.from(JSON.stringify({ format: "enclave-lease-gas-deployment/v1", chainId: 8453,
++    ...Object.fromEntries(["reserve", "executor", "ledger", "registry", "reserveCodeHash", "executorCodeHash"].map((k) => [k, W.addr[k]])) }));
++  const record = path.join(dir, "deployment.json"); fs.writeFileSync(record, bytes);
++  const digest = "sha256:" + sha(bytes);
++  // the host's relay key: generated the way the installer does (node crypto, secp256k1), funded with a small float
++  const key = "0x" + Buffer.from((await import("node:crypto")).generateKeyPairSync("ec", { namedCurve: "secp256k1" }).privateKey.export({ format: "jwk" }).d, "base64url").toString("hex");
++  const keyFile = path.join(dir, "relay.key"); fs.writeFileSync(keyFile, key.slice(2) + "\n", { mode: 0o600 });
++  relayAddr = privateKeyToAccount(key).address;
++  await W.fund(relayAddr, 10n ** 16n);
++  const port = await freePort();
++  relayEnv = { LEASE_RELAY_RECORD: record, LEASE_RELAY_DIGEST: digest, LEASE_RELAY_RPCS: rpcs.join(","), LEASE_RELAY_QUORUM: "2",
++    LEASE_RELAY_MAX_FLOAT_ETH: "0.02", LEASE_RELAY_MIN_FLOAT_ETH: "0.001", LEASE_RELAY_LISTEN: `127.0.0.1:${port}`, LEASE_RELAY_KEY_FILE: keyFile,
++    LEASE_RELAY_STATE: path.join(dir, "relay-send.json"), LEASE_RELAY_ARTIFACT_SHA256: built.artifact.sha256 };
++  relayProc = startRelay(); relayUrl = await relayProc.url;
++  op = await W.operator("https://host-relay.test");
++  owner = await W.owner();
++  await W.write(owner.key, W.addr.registry, W.A.registry.abi, "setPayoutWallet", [op.enclaveId]);
++  hostEnv = { ENCLAVE_LEASE_GAS_FILE: record, ENCLAVE_LEASE_GAS_DIGEST: digest, ENCLAVE_LEASE_GAS_RPCS: W.rpcUrl,
++    ENCLAVE_LEASE_GAS_LOCAL_RELAY: relayUrl, ENCLAVE_LEASE_GAS_RELAYS: UNREACHABLE };
++  chain = await loadHost(hostEnv);
++});
++after(async () => {
++  try { relayProc?.child.kill("SIGTERM"); await relayProc?.exited; } catch {}
++  for (const s of servers) { s.closeAllConnections?.(); s.close(); }
++  W?.stop(); hooks.deregister();
++  for (const key of Object.keys(process.env)) if (!(key in savedEnv)) delete process.env[key];
++  Object.assign(process.env, savedEnv);
++  if (dir) fs.rmSync(dir, { recursive: true, force: true });
++});
++
++test("the local relay setting is loopback-only, explicit, and the host's own relay comes FIRST; remote relays become optional", () => {
++  for (const ok of ["http://127.0.0.1:8549", "http://[::1]:8549", "https://127.0.0.1:8549"]) assert.equal(validateLocalRelayUrl(ok), new URL(ok).origin);
++  for (const bad of ["http://localhost:8549", "http://127.0.0.1", "http://10.0.0.2:8549", "https://relay.example", "http://127.0.0.1:8549/v1", "http://u:p@127.0.0.1:8549", "ftp://127.0.0.1:21"])
++    assert.throws(() => validateLocalRelayUrl(bad), /local relay/, bad);
++  if (!haveAnvil) return;
++  const base = { ENCLAVE_LEASE_GAS_FILE: hostEnv.ENCLAVE_LEASE_GAS_FILE, ENCLAVE_LEASE_GAS_DIGEST: hostEnv.ENCLAVE_LEASE_GAS_DIGEST, ENCLAVE_LEASE_GAS_RPCS: "https://a.example,https://b.example" };
++  const bind = { chain: { id: 8453 }, ledger: W.addr.ledger, registry: W.addr.registry };
++  const only = loadLeaseGasConfig({ env: { ...base, ENCLAVE_LEASE_GAS_LOCAL_RELAY: "http://127.0.0.1:8549" }, ...bind });
++  assert.deepEqual([...only.localRelays], ["http://127.0.0.1:8549"]); assert.deepEqual([...only.relays], []);
++  const both = loadLeaseGasConfig({ env: { ...base, LEASE_GAS_LOCAL_RELAY: "http://127.0.0.1:8549", ENCLAVE_LEASE_GAS_RELAYS: "https://relay-b.example" }, ...bind });
++  assert.deepEqual([[...both.localRelays], [...both.relays]], [["http://127.0.0.1:8549"], ["https://relay-b.example"]]);
++  assert.throws(() => loadLeaseGasConfig({ env: { ...base, ENCLAVE_LEASE_GAS_LOCAL_RELAY: "http://10.1.2.3:8549" }, ...bind }), /local relay/);
++  assert.throws(() => loadLeaseGasConfig({ env: base, ...bind }), /require ENCLAVE_LEASE_GAS_RELAYS/, "neither: refused, never operator-paid");
++  assert.throws(() => loadLeaseGasConfig({ env: { ENCLAVE_LEASE_GAS_LOCAL_RELAY: "http://127.0.0.1:8549" }, ...bind }), /require ENCLAVE_LEASE_GAS_FILE/, "a local relay alone is a PARTIAL configuration");
++});
++
++test("a ZERO-ETH host claims, renews and releases through its OWN relay (the release artifact), with every other relay unreachable", T, async () => {
++  const info = await (await fetch(`${relayUrl}/v1/info`)).json();
++  assert.equal(info.payee, relayAddr); assert.equal(info.reserve, W.addr.reserve);
++  const id = await W.create(owner, { fund6: 0n });
++  await W.enable(owner, id, { p: { claimPolicy: 1, renewWindow: 60, minExtension: 60 } });
++  const from = await W.pc.getBlockNumber();
++  const float0 = await W.pc.getBalance({ address: relayAddr });
++  await chain.claimDeployment(id, op.enclaveId);
++  const row = await W.row(id);
++  assert.equal(row.runnerOperator, op.address);
++  // into the owner's renew window on the REAL clock (no warp: the relay's own freshness guard runs on the wall clock)
++  const waitMs = Number(row.leaseUntil) * 1000 - 55_000 - Date.now();
++  if (waitMs > 0) await new Promise((ok) => setTimeout(ok, waitMs));
++  await W.rpc("evm_mine", []);
++  await chain.renewDeployment(id);
++  assert.ok((await W.row(id)).leaseUntil > row.leaseUntil, "renewed");
++  await chain.releaseDeployment(id);
++  assert.match((await W.row(id)).runnerOperator, /^0x0{40}$/);
++  assert.equal(await W.pc.getBalance({ address: op.address }), 0n, "the host never held ETH");
++  const paid = await W.pc.getContractEvents({ address: W.addr.reserve, abi: W.A.reserve.abi, eventName: "LeaseGasPaid", args: { id }, fromBlock: from });
++  assert.deepEqual(paid.map((e) => Number(e.args.kind)), [1, 2, 3], "claim, renew, release - each paid by the app's reserve");
++  assert.ok(paid.every((e) => e.args.payee === relayAddr), "to THIS host's relay");
++  const float1 = await W.pc.getBalance({ address: relayAddr });
++  console.log(`# host relay float ${float0} -> ${float1} wei across claim+renew+release (reimbursed in each transaction)`);
++  assert.ok(float1 >= float0 * 99n / 100n, "the float is reimbursed, not spent (within 1%)");
++  assert.match(relayProc.log(), /serving reserve/);
++});
++
++test("the host relay restarts on its own send record and key: same payee, nothing unresolved, serving again", T, async () => {
++  relayProc.child.kill("SIGTERM"); await relayProc.exited;
++  assert.deepEqual(JSON.parse(fs.readFileSync(relayEnv.LEASE_RELAY_STATE, "utf8")), {}, "every send resolved before the stop");
++  relayProc = startRelay();
++  const url = await relayProc.url;
++  assert.equal(url, relayUrl, "the same loopback origin the host's setting names");
++  assert.equal((await (await fetch(`${url}/v1/info`)).json()).payee, relayAddr);
++});

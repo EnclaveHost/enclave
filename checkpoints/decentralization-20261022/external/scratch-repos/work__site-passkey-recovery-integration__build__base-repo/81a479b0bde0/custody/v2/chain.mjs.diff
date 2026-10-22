@@ -1,0 +1,33 @@
+--- a/custody/v2/chain.mjs
++++ b/custody/v2/chain.mjs
+@@ -114,6 +114,22 @@
+     endpointOperator: reg && reg.active ? lc(reg.operator) : null,
+   };
+ }
++// ---- owner read (custody/v2/custodian.mjs ownerRead): the release state, the policy owner's code and, for a contract
++// owner, its ERC-1271 verdict on THIS digest and signature, all at ONE agreed block (one fingerprint, the same high-water)
++async function readOwnerReadAt(client, vault, { id, digest, sig }, block) {
++  const s = await readReleaseAt(client, vault, { id, endpoint: null }, block);
++  const owner = s.policy.owner;
++  let ownerIsContract = false, erc1271 = null;
++  if (owner && owner !== ZERO) {
++    const code = await client.request({ method: "eth_getCode", params: [owner, { blockHash: block.blockHash, requireCanonical: true }] });
++    ownerIsContract = typeof code === "string" && code !== "0x" && code.length > 2;
++    if (ownerIsContract) {
++      try { erc1271 = String(await rdOf(client, block)(owner, ERC1271_ABI, "isValidSignature", [digest, sig])).toLowerCase(); }
++      catch (e) { if (!/revert/i.test(String(e?.message || e) + String(e?.cause?.message || ""))) throw e; erc1271 = "revert"; }
++    }
++  }
++  return { ...s, ownerIsContract, erc1271 };
++}
+ export function createChainReaderV2({ rpcs, vault, hostOwnership = null, chainId=null, minAgree, confirmations=0,
+   clients: given=null, timeoutMs=10000, maxAgeSec=120, maxFutureSec=10, now=()=>Date.now(), checkpoint=null }) {
+   if (!given) checkRpcUrls(rpcs);                       // one host is one vote: case, trailing dot, port and path aliases count once
+@@ -132,6 +148,7 @@
+   return {
+     vault, clients,
+     readRelease: ({ id, endpoint }) => agreed((c, n) => readReleaseAt(c, vault, { id, endpoint }, n)),
++    readOwnerRead: ({ id, digest, sig }) => agreed((c, n) => readOwnerReadAt(c, vault, { id, digest, sig }, n)),
+     // the committee's current epoch, its machines (with on-chain Enclave flags) and commitments; plus any pending handover
+     readCommittee: ({ committeeId }) => agreed(async (c, n) => {
+       const rd = rdOf(c, n);

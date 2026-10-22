@@ -1,0 +1,70 @@
+diff --git a/windows/node/chain.mjs b/windows/node/chain.mjs
+index 19e5a04..31751cf 100644
+--- a/windows/node/chain.mjs
++++ b/windows/node/chain.mjs
+@@ -252,11 +252,62 @@ export async function registerBox({ endpoint, repo, measurement, cpuPricePerSec6
+  *  lives in a config file is not a price: it is a hope. */
+ export const setPrices = (id, cpuPricePerSec6, gpuPricePerSec6) =>
+   send(addresses.registry, REGISTRY_ABI, "setPrices", [id, BigInt(cpuPricePerSec6), BigInt(gpuPricePerSec6)]);
+-export const claimDeployment = (id, enclaveId) => send(addresses.deployments, DEP_ABI, "claim", [id, enclaveId]);
+-export const renewDeployment = (id) => send(addresses.deployments, DEP_ABI, "renew", [id]);
++// ---- app-funded lease gas, design B (work/app-lease-gas; PROTOTYPE, off unless configured) ----
++// The user's direction: lease claims and renewals (and the release that ends one) are paid by the APP, not this box's
++// wallet. With ENCLAVE_LEASE_GAS_RESERVE set, claim / renew / release are signed LOCALLY by the operator key (EIP-7702
++// delegated to EnclaveLeaseExecutor; the authorization rides in a relay's transaction), sent by any of
++// ENCLAVE_LEASE_GAS_RELAYS, and paid from the app's ETH reserve. A refusal (no reserve, empty, outside the renew
++// window, ...) throws in the reserve's own words with .code; this box never falls back to spending its own ETH.
++// The same module as the Linux supervisor (network/lease-executor-client.mjs). Unset: exactly the sends above.
++const LEASE_GAS_RESERVE = (process.env.ENCLAVE_LEASE_GAS_RESERVE || "").trim();
++const LEASE_GAS_RELAYS = (process.env.ENCLAVE_LEASE_GAS_RELAYS || "").split(",").map((s) => s.trim()).filter(Boolean);
++let leaseGas = null;
++async function leaseSender() {
++  if (!LEASE_GAS_RESERVE) return null;
++  if (!LEASE_GAS_RELAYS.length) throw new Error("ENCLAVE_LEASE_GAS_RESERVE needs ENCLAVE_LEASE_GAS_RELAYS");
++  if (!acct) throw new Error("no operator key on this box");
++  if (!leaseGas) {
++    const L = await import("../../network/lease-executor-client.mjs");
++    leaseGas = L.createLeaseSender({ client: publicClient(), account: acct, reserve: getAddress(LEASE_GAS_RESERVE), relays: LEASE_GAS_RELAYS });
++  }
++  return leaseGas;
++}
++/** claim / renew / release: app-funded when configured, serialized with this key's other sends (its one-time 7702
++ *  authorization consumes an account nonce); otherwise the operator's own transaction. */
++async function leaseSend(fn, args) {
++  const s = await leaseSender();
++  if (!s) return send(addresses.deployments, DEP_ABI, fn, args);
++  const job = async () => {
++    const r = await s[fn](...args);
++    if (r.receipt.status !== "success") throw new Error(`${fn} reverted (${r.hash})`);
++    return r.hash;
++  };
++  return (chainTx = chainTx.then(job, job));
++}
++export const leaseGasActive = () => !!LEASE_GAS_RESERVE;
++const RESERVE_WINDOW_ABI = [{ type: "function", name: "reserveOf", stateMutability: "view", inputs: [{ type: "bytes32" }, { type: "address" }],
++  outputs: [{ type: "tuple", components: [{ name: "balanceWei", type: "uint128" }, { name: "maxPerOpWei", type: "uint64" },
++    { name: "epochCapWei", type: "uint64" }, { name: "enabled", type: "bool" }, { name: "claimPolicy", type: "uint8" }, { name: "sponsorRelease", type: "bool" },
++    { name: "renewWindow", type: "uint32" }, { name: "minExtension", type: "uint32" }, { name: "claimCooldown", type: "uint32" },
++    { name: "epochSec", type: "uint32" }, { name: "maxGasPrice", type: "uint64" }, { name: "maxClaimsPerEpoch", type: "uint8" },
++    { name: "epochIndex", type: "uint32" }, { name: "epochSpentWei", type: "uint96" }, { name: "epochClaims", type: "uint8" },
++    { name: "lastClaimAt", type: "uint64" }, { name: "lastClaimOperator", type: "address" }] }] }];
++/** How long before leaseUntil this box should renew: `fallbackMs` normally; when app-funded, inside the app's renew
++ *  window (the reserve refuses earlier), minus 15 s for inclusion. */
++export async function renewLeadMs(id, fallbackMs) {
++  if (!LEASE_GAS_RESERVE) return fallbackMs;
++  try {
++    const d = await readDeployment(id);
++    const r = await publicClient().readContract({ address: getAddress(LEASE_GAS_RESERVE), abi: RESERVE_WINDOW_ABI, functionName: "reserveOf", args: [id, d.owner] });
++    if (!r.enabled) return fallbackMs;
++    return Math.min(fallbackMs, Math.max(5, Number(r.renewWindow) - 15) * 1000);
++  } catch { return fallbackMs; }
++}
++export const claimDeployment = (id, enclaveId) => leaseSend("claim", [id, enclaveId]);
++export const renewDeployment = (id) => leaseSend("renew", [id]);
+ /** Any operator transaction through the same serialized sender (audit-jobs.mjs: offerJobRate). */
+ export const sendOperatorTx = (address, abi, functionName, args) => send(address, abi, functionName, args);
+-export const releaseDeployment = (id) => send(addresses.deployments, DEP_ABI, "release", [id]);
++export const releaseDeployment = (id) => leaseSend("release", [id]);
+ // The runner's earnings: what this OPERATOR may withdraw from the live ledger (USDC, 6 dp), and the withdrawal, which
+ // pays them to whatever address the caller names (payout.mjs decides which, and when).
+ const EARN_ABI = [

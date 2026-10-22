@@ -1,0 +1,116 @@
+{
+ "format": "enclave-hs2-upgrade/v1",
+ "label": "hs2",
+ "id": "hs2-f54c2e0f-to-f54c2e0f",
+ "scripts": {
+  "windows/stop.ps1": "4efd8647e134b6663681bf274be8b39056b725798aba673f6608882446f9376e",
+  "windows/start.ps1": "21167adf3ee4a8b7a25697f3d71ba8c0154f3fadddf998ee607d42d6a86e84bd",
+  "windows/health.ps1": "e203ce1cd52d923d8d7492305c9851dea53b4c14af3d195d3c0ba37180333d93",
+  "windows/common.ps1": "779498ac137d417c472f324c2f1e5ed3789792d4e62b9bfcb60b88ddd76feb2b"
+ },
+ "replace": [],
+ "add": [],
+ "unchanged": [
+  {
+   "path": "ACTIVATION-WINDOWS.txt",
+   "sha": "4c5bdb1170c2c31492f75d2c1b010af995ba3477e3a562cdbb5e6bcb620751a3"
+  },
+  {
+   "path": "STAGE-SHA256SUMS",
+   "sha": "f54c2e0f82b23624c65d9ae37577e377719b4e751bc6769a1ef01aaf052bf95b"
+  },
+  {
+   "path": "bin/host-services-runner.mjs",
+   "sha": "c3c7d9f6cd3d075572a22f2da8e8a9c25d842b304929943f3306a6ff1cf5c0d3"
+  },
+  {
+   "path": "bin/hostsvc-supervisor.exe",
+   "sha": "42be59ff5fef8bbc35654ac4240b09fbb71ed0c735ae0bd4da1154c170da37b1"
+  },
+  {
+   "path": "bin/stage-tool.mjs",
+   "sha": "91cc88686f63e5d987145ad7a6ba0295ad1bb2b1510fc4c643041620842a7204"
+  },
+  {
+   "path": "packages/bootstrap-replica.mjs",
+   "sha": "1e45e75f1f4a7d2b74ebac22f0e292d76323c9a11bf80203a20d289c9577f467"
+  },
+  {
+   "path": "packages/bootstrap-replica.package.json",
+   "sha": "7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc"
+  },
+  {
+   "path": "packages/directory-replica.mjs",
+   "sha": "903b15157fc117c2b563e0e0303ca92f0b2ccdb4ea0d1af2ce1fe9eeb4fd7e66"
+  },
+  {
+   "path": "packages/directory-replica.package.json",
+   "sha": "4aa032fad7b3867e5cc2a85e8a82ea2a8627606e2a8f742cd2829017ccab82d6"
+  },
+  {
+   "path": "packages/policy-mirror.mjs",
+   "sha": "b816265b3ea4fc783019f2d54796cd6b05d497b9d4e770e752fa70be93da569c"
+  },
+  {
+   "path": "packages/policy-mirror.package.json",
+   "sha": "56bf5c46ef156cb842b94b41c15fb2f3ec81deb9c5034a7ba766668c05ad32d6"
+  },
+  {
+   "path": "packages/route-dns.mjs",
+   "sha": "eb3c9c434766c68268620f2c594fdc335251765c87b0fd73ba37475d4d93bde0"
+  },
+  {
+   "path": "packages/route-dns.package.json",
+   "sha": "1ad58e1d6998d21be853994df4df2875a92f02cab013c19764a826799fd3e5cb"
+  },
+  {
+   "path": "packages/service-tls.mjs",
+   "sha": "7de2a5140f00c2ec0a4c4bc3c247666b2c5d16a1846bc06863366e0896f2991c"
+  },
+  {
+   "path": "packages/service-tls.package.json",
+   "sha": "0da2366739edc23109fecffaf9d84d7abd16e75916eeff76a0e8e511b498b0df"
+  },
+  {
+   "path": "windows/capture-public-inputs.ps1",
+   "sha": "ac6ef038101715bf74d530071e16c22499cd23cb623bab90c96edb11b5dfee93"
+  },
+  {
+   "path": "windows/common.ps1",
+   "sha": "779498ac137d417c472f324c2f1e5ed3789792d4e62b9bfcb60b88ddd76feb2b"
+  },
+  {
+   "path": "windows/fill-data.ps1",
+   "sha": "c327e2f1a272f3b0d2a84bdfd0c4d57ee669bbee37c8252657c71ffb89ac947d"
+  },
+  {
+   "path": "windows/health.ps1",
+   "sha": "e203ce1cd52d923d8d7492305c9851dea53b4c14af3d195d3c0ba37180333d93"
+  },
+  {
+   "path": "windows/install.ps1",
+   "sha": "33531ad824fe625a1bf0ffee78db11af2c80f826a5bb0a3b07cc07aa48f827a1"
+  },
+  {
+   "path": "windows/rollback.ps1",
+   "sha": "75e9536392085bc3e502df14132f2bc4057cbc35c38729c1d1a1c8dff2daa8d3"
+  },
+  {
+   "path": "windows/start.ps1",
+   "sha": "21167adf3ee4a8b7a25697f3d71ba8c0154f3fadddf998ee607d42d6a86e84bd"
+  },
+  {
+   "path": "windows/stop.ps1",
+   "sha": "4efd8647e134b6663681bf274be8b39056b725798aba673f6608882446f9376e"
+  }
+ ],
+ "config": {
+  "old": "47f3e1f56a4e232283b10641c03066616841d0da1286110961320c2e1e807518",
+  "new": "f7c7db750c80ead642071b88c9df8ed457bd4cc2964d47d744bed256374dbcee",
+  "changedPins": {},
+  "challengeTxtUpstream": "127.0.0.1:31053"
+ },
+ "receipt": {
+  "old": "3db1205de02b0b5ac50ed5e9104c6a2d6bf06d44a6a756eff460ff068e4e1765"
+ }
+}

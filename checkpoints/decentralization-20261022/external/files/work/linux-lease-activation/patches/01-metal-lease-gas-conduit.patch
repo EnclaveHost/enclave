@@ -1,0 +1,651 @@
+--- a/metal/build-image.mjs
++++ b/metal/build-image.mjs
+@@ -19,6 +19,7 @@
+ import os from 'node:os';
+ import path from 'node:path';
+ import { fileURLToPath } from 'node:url';
++import { supervisorClosure, checkPackages, SUPERVISOR_ROOTS } from './supervisor-closure.mjs';
+ 
+ const HERE = path.dirname(fileURLToPath(import.meta.url));
+ const BUILD = path.join(HERE, 'build');
+@@ -181,6 +182,8 @@
+ // git checkout and recorded by commit and hash (the per-app isolation tier's first builds: supervisor.js plus the
+ // guestd client modules it imports). Reproducible only from a CLEAN tree at the recorded commit, and the manifest
+ // says which it was rather than letting a dirty tree pass as a release.
++// The files copied are the supervisor's whole local import closure at that checkout (metal/supervisor-closure.mjs), with
++// the list below as a floor; every npm package the closure names must be in the pulled image (checked below, recorded).
+ const OVERLAY_SRC = arg('supervisor-overlay', '');
+ let supervisorOverlay = null;
+ if (OVERLAY_SRC) {
+@@ -193,16 +196,20 @@
+                  // the guest-certificate relay and the judge it verifies each guest with (and the judge's imports)
+                  'isolation/m4/guestd/supervisor-guestcert.mjs', 'isolation/m2/judge.mjs',
+                  'isolation/contract/runtime.mjs', 'relay/snp-verify.mjs'];
++  const closure = supervisorClosure(src, [...SUPERVISOR_ROOTS, ...files]);
++  const overlayFiles = [...new Set([...files, ...closure.files])];
+   const git = (...a) => spawnSync('git', ['-C', src, ...a], { encoding: 'utf8' }).stdout.trim();
+-  const dirty = git('status', '--porcelain', '--', ...files) !== '';
+-  supervisorOverlay = { commit: git('rev-parse', 'HEAD'), dirty, files: [] };
+-  for (const f of files) {
++  const dirty = git('status', '--porcelain', '--', ...overlayFiles) !== '';
++  const packages = checkPackages(closure.packages, (name) => { try { return fs.readFileSync(path.join(ROOT, 'app/node_modules', name, 'package.json'), 'utf8'); } catch { return null; } });
++  supervisorOverlay = { commit: git('rev-parse', 'HEAD'), dirty, closure: 'metal/supervisor-closure.mjs', packages, files: [] };
++  for (const f of overlayFiles) {
+     const to = path.join(ROOT, 'app', f);
+     fs.mkdirSync(path.dirname(to), { recursive: true });
+     fs.copyFileSync(path.join(src, f), to);
+     supervisorOverlay.files.push({ path: '/app/' + f, sha256: sha256File(to) });
+   }
+-  console.log(`[build] supervisor overlay from ${supervisorOverlay.commit.slice(0, 12)}${dirty ? ' (DIRTY tree: not reproducible)' : ''}: ${files.join(', ')}`);
++  console.log(`[build] supervisor overlay from ${supervisorOverlay.commit.slice(0, 12)}${dirty ? ' (DIRTY tree: not reproducible)' : ''}: ${overlayFiles.length} files `
++    + `(its import closure), packages from the image ${packages.map((p) => `${p.name}@${p.version}`).join(', ')}`);
+ }
+ // --isolation <backend>: this image is for a per-app isolation tier node, whose launcher adds
+ // metal.isolation=<backend> to the measured cmdline; the expected measurement below uses the same cmdline.
+@@ -275,7 +282,7 @@
+ // the guest half of the shielded tier is trusted code and must be attested. The
+ // worker it talks to is not, and is not shipped here: it runs on the host, is
+ // assumed hostile, and its address arrives unmeasured over fw_cfg.
+-for (const f of ['gsup.mjs', 'host-policy.bundle.mjs', 'agent.mjs', 'shielded.mjs', 'shielded-probe.mjs', 'shielded-shm.mjs', 'measured-control.mjs'])
++for (const f of ['gsup.mjs', 'host-policy.bundle.mjs', 'lease-gas-conduit.bundle.mjs', 'agent.mjs', 'shielded.mjs', 'shielded-probe.mjs', 'shielded-shm.mjs', 'measured-control.mjs'])
+   fs.copyFileSync(path.join(HERE, 'guest', f), path.join(md, f));
+ // init (PID1), with the kernel version substituted in
+ let init = fs.readFileSync(path.join(HERE, 'guest', 'init'), 'utf8').replaceAll('__KVER__', KVER);
+--- a/metal/enclave-metal.mjs
++++ b/metal/enclave-metal.mjs
+@@ -21,6 +21,7 @@
+ import { fileURLToPath } from 'node:url';
+ import { measureGflops } from './compute-measure.mjs';
+ import {prepareMetalHostPolicy} from './guest/host-policy.bundle.mjs';
++import { leaseGasTransit } from './guest/lease-gas-conduit.bundle.mjs';
+ 
+ const HERE = path.dirname(fileURLToPath(import.meta.url));
+ function arg(name, dflt) { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : dflt; }
+@@ -209,6 +210,19 @@
+   DIRECT = { config, digest, hostData: MC.hostDataHex(digest), registryKey };
+   console.log(`[enclave-metal] direct control: config ${digest.slice(0, 16)}… -> HOST_DATA ${DIRECT.hostData.slice(0, 16)}…; operator ${config.identity.operator}${registryKey ? '' : ' (no registryKeyFile: not selling)'}; control front on guest port ${config.controlPort}`);
+ }
++// App-funded lease gas (network/lease-gas-conduit.mjs; work/linux-lease-activation). The operator's REVIEWED configuration:
++//   "leaseGas": { "recordFile": "<the lease-gas deployment record>", "digest": "sha256:<its reviewed digest>",
++//                 "rpcs": ["https://…", "https://…"], "relays": ["https://…"], "reserve"?: "0x…", "quorum"?: n }
++// Everything in it is public and checked here with the shared rules (the record against the digest, relay and RPC
++// origins, reserve, quorum); only the checked result crosses to the guest (fw_cfg `leaseGas`: the record's exact bytes,
++// never the host path). Absent = off, exactly as before. Present and incomplete or invalid REFUSES the launch: a partial
++// configuration never runs with the operator's own wallet paying. A direct control guest takes it only inside its
++// HOST_DATA-bound direct config.
++if (DIRECT && cfg.leaseGas !== undefined && cfg.leaseGas !== null)
++  throw new Error('control: "direct" takes leaseGas only inside the bound direct config (HOST_DATA binds it there), not from the host config');
++const LEASE_GAS = DIRECT ? null : leaseGasTransit(cfg.leaseGas, { readFile: (f) => fs.readFileSync(f) });
++if (LEASE_GAS) console.log(`[enclave-metal] app-funded lease gas: record ${LEASE_GAS.digest.slice(0, 19)}…, reserve ${LEASE_GAS.reserve}, `
++  + `${LEASE_GAS.relays.length} relay(s), ${LEASE_GAS.rpcs.length} RPC(s)${LEASE_GAS.quorum ? `, quorum ${LEASE_GAS.quorum}` : ''}`);
+ const cmdline = [
+   'console=ttyS0', 'root=/dev/ram0', 'rootfstype=ramfs', 'quiet',
+   `metal.mode=${MODE}`,
+@@ -231,6 +245,8 @@
+   // the owner's direct config (bound by HOST_DATA below; the guest checks it against its own report)
+   ...(DIRECT ? { direct: DIRECT.config } : {}),
+   ...(HOST_ADMISSION?{hostAdmission:HOST_ADMISSION}:{}),
++  // the reviewed app-funded lease-gas configuration (LEASE_GAS above): public, checked again in the guest
++  ...(LEASE_GAS ? { leaseGas: LEASE_GAS } : {}),
+   // the referral code this machine was set up with (`enclave host init --referral`): attribution only; the guest agent
+   // says it when it attaches (x-metal-referral, relay/referrals.mjs). fw_cfg, so it never changes the measurement
+   referral: cfg.referral || '',
+--- a/metal/guest/gsup.mjs
++++ b/metal/guest/gsup.mjs
+@@ -17,6 +17,7 @@
+ import os from 'node:os';
+ import { prepareShieldedShm } from './shielded-shm.mjs';
+ import {installMetalHostPolicy} from './host-policy.bundle.mjs';
++import { leaseGasGuest, withLeaseGasEnv } from './lease-gas-conduit.bundle.mjs';
+ 
+ const log = (...a) => { try { fs.writeSync(1, `[gsup] ${a.join(' ')}\n`); } catch {} };
+ const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return d; } };
+@@ -441,6 +442,26 @@
+ if (CONTROL === 'direct') await startDirectControl().catch((e) => log(`direct control FAILED: ${e.message}; no control service started`));
+ else if (CONTROL) log(`metal.control=${CONTROL} is not a known control mode; no control service started`);
+ 
++// --- app-funded lease gas (network/lease-gas-conduit.mjs; work/linux-lease-activation) ----------------------------------
++// The host's reviewed lease-gas configuration rides fw_cfg `leaseGas` (public data: the deployment record and the digest the
++// operator reviewed, RPC and relay origins, the reserve, the quorum) and is checked again here. It becomes the record file
++// and the six lease-gas environment names for the supervisor, which loads it with the shared runtime (network/lease-gas-runtime.mjs) and
++// checks it a third time against its own chain/ledger/registry binding. Absent: off, exactly as before. Present but
++// invalid: the supervisor gets a configuration that cannot load, so every claim, renewal and release REFUSES and the
++// operator's own ETH is never spent on them. These names come ONLY from here (withLeaseGasEnv drops any other source).
++// A direct control guest takes it only from its HOST_DATA-bound config (measured-control.mjs).
++const LEASE_GAS = CONTROL ? null : leaseGasGuest(fw.leaseGas);
++if (LEASE_GAS?.configured && LEASE_GAS.ok) {
++  try {
++    for (const [file, bytes] of Object.entries(LEASE_GAS.files)) {
++      fs.mkdirSync(file.slice(0, file.lastIndexOf('/')), { recursive: true, mode: 0o755 });
++      fs.writeFileSync(file, bytes, { mode: 0o644 });
++    }
++    log(`app-funded lease gas: ${LEASE_GAS.summary}`);
++  } catch (e) { log(`app-funded lease gas: the record could not be written (${e.code || e.message}); every claim, renewal and release refuses`); }
++} else if (LEASE_GAS?.configured)
++  log(`app-funded lease gas REFUSED (${LEASE_GAS.reason}): every claim, renewal and release refuses; the operator's ETH is never used for them`);
++
+ // --- supervisor (base root) --------------------------------------------------
+ if (!CONTROL) {
+ const supEnv = {
+@@ -530,7 +551,7 @@
+   ADMIN_TOKEN,
+   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
+ };
+-start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], supEnv, { cwd: '/app' });
++start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], withLeaseGasEnv(supEnv, LEASE_GAS), { cwd: '/app' });
+ 
+ // --- metal-agent -------------------------------------------------------------
+ start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
+--- a/metal/guest/measured-control.mjs
++++ b/metal/guest/measured-control.mjs
+@@ -21,7 +21,11 @@
+ //       - Every other path is proxied, path and query only, to the in-guest supervisor on loopback.
+ //     A verifier that pins the attested key therefore talks to the measured supervisor end to end, through a host that
+ //     only forwards a TCP port.
+-// Node builtins only, plus viem resolved from the supervisor image (/app) for keccak where an address must be derived.
++//   * leaseGas (optional): the owner's reviewed app-funded lease-gas configuration (network/lease-gas-conduit.mjs), inside
++//     the config, so HOST_DATA binds it like every other field; it becomes the supervisor's ENCLAVE_LEASE_GAS_* and record
++//     file. Absent: the config, its digest and the supervisor's environment are exactly what they were.
++// Node builtins only, plus viem resolved from the supervisor image (/app) for keccak where an address must be derived, and
++// the dependency-free lease-gas conduit bundle shipped beside this file.
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import http from 'node:http';
+@@ -29,6 +33,7 @@
+ import { createHash, createPublicKey, generateKeyPairSync, randomBytes, sign as cryptoSign } from 'node:crypto';
+ import { createRequire } from 'node:module';
+ import { fileURLToPath, pathToFileURL } from 'node:url';
++import { checkTransit, leaseGasGuest, withLeaseGasEnv } from './lease-gas-conduit.bundle.mjs';
+ 
+ export const CONFIG_FORMAT = 'enclave-direct-control-config/v1';
+ export const STATEMENT_FORMAT = 'enclave-measured-control-statement/v1';
+@@ -76,7 +81,10 @@
+ 
+ /** The owner's config, strictly validated and canonical. Nothing is defaulted except controlPort. -> frozen object */
+ export function canonicalDirectConfig(raw) {
+-  only(raw, ['format', 'chainId', 'contracts', 'profileDigest', 'rpcs', 'quorum', 'releaseId', 'replicas', 'identity', 'selling', 'isolation',
++  // every field is required except the optional leaseGas (checked below when present)
++  const fields = raw && typeof raw === 'object' && !Array.isArray(raw) && Object.hasOwn(raw, 'leaseGas')
++    ? Object.fromEntries(Object.entries(raw).filter(([k]) => k !== 'leaseGas')) : raw;
++  only(fields, ['format', 'chainId', 'contracts', 'profileDigest', 'rpcs', 'quorum', 'releaseId', 'replicas', 'identity', 'selling', 'isolation',
+     'hostAdmissionSha256', 'controlPort'], 'direct config');
+   if (raw.format !== CONFIG_FORMAT) bad(`direct config format must be ${CONFIG_FORMAT}`);
+   if (raw.chainId !== CHAIN_ID) bad(`direct config chainId must be ${CHAIN_ID}`);
+@@ -138,8 +146,21 @@
+     selling: { cpuPrice6: raw.selling.cpuPrice6, payout: raw.selling.payout === null ? null : raw.selling.payout.toLowerCase() },
+     isolation: { managerUrl: raw.isolation.managerUrl, dataAddr: raw.isolation.dataAddr },
+     hostAdmissionSha256: raw.hostAdmissionSha256, controlPort,
++    // optional and absent from every config written before it: those keep their exact canonical bytes and digest
++    ...(raw.leaseGas !== undefined ? { leaseGas: directLeaseGas(raw.leaseGas) } : {}),
+   });
+ }
++// The bound lease-gas member: exactly a conduit transit (lease-gas-conduit.mjs leaseGasTransit makes one from the host form),
++// re-checked as PUBLISHED (an owner document a verifier recomputes: no RPC query, which could hold a key), chain 8453.
++function directLeaseGas(raw) {
++  let t;
++  try { t = checkTransit(raw, { published: true }); } catch (e) { bad(`leaseGas: ${e.message}`); }
++  if (t.chainId !== CHAIN_ID) bad(`leaseGas: the deployment record is for chain ${t.chainId}, not ${CHAIN_ID}`);
++  if (canonicalJson(t) !== canonicalJson(raw)) bad('leaseGas must be written in its checked form (lease-gas-conduit.mjs leaseGasTransit)');
++  return JSON.parse(canonicalJson(t));
++}
++/** Where the direct guest installs the bound deployment record (GUEST_PATHS.leaseGasRecord). */
++export const LEASE_GAS_RECORD = '/run/measured-control/lease-gas-deployment.json';
+ export const configDigest = (cfg) => sha256Hex(canonicalJson(cfg));
+ /** The 32-byte HOST_DATA the launcher sets and the guest requires, as hex. */
+ export const hostDataHex = (digestHex) => { if (!HEX64.test(String(digestHex))) bad('config digest must be 64 hex'); return sha256Hex(`${DOMAIN}\nconfig ${digestHex}\n`); };
+@@ -153,6 +174,7 @@
+   pairKey: '/run/guestd-pair.key', sessionDir: '/mnt/ramdisk/enclave-session', acmeDir: '/mnt/ramdisk/enclave-acme',
+   statement: '/run/measured-control/statement.json', tlsKey: '/run/measured-control/tls-key.pem', tlsCert: '/run/measured-control/tls-cert.pem',
+   serveConfig: '/run/measured-control/serve.json', status: '/run/measured-control.json',
++  leaseGasRecord: '/run/measured-control/lease-gas-deployment.json',
+ });
+ // The baked flavor env (enclaves/cpu/config.yml) is the HOSTED fleet's: it names the Enclave address book, Enclave's own
+ // payout wallet, SIWE/CORS origins at enclave.host. A direct guest inherits only these authority-free tunables from it.
+@@ -191,7 +213,8 @@
+     // supervisor.js), over the owner's measured RPC quorum - the activation is part of the measured image, not an opt-in.
+     ENCLAVE_PLATFORM_HOST_POLICY: 'production', ENCLAVE_PLATFORM_HOST_POLICY_RPCS: cfg.rpcs.join(','),
+   };
+-  return env;
++  // app-funded lease gas: only from the bound config (never flavor or host policy), absent = none of these names at all
++  return withLeaseGasEnv(env, cfg.leaseGas ? leaseGasGuest(cfg.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null);
+ }
+ /** The rules supervisor.js directOnlyProblems applies at startup, plus this guest's own (no Enclave origin, keys present). */
+ export function directEnvProblems(env) {
+@@ -280,8 +303,11 @@
+   const env = directSupervisorEnv(config, { paths, capacity, hostPolicyEnv, flavorEnv, secrets: { operatorKey: fw.registryKey || null, secret: s, adminToken: a } });
+   const problems = directEnvProblems(env);
+   if (problems.length) return { ok: false, reasons: problems.map((p) => `derived environment: ${p}`), mode, digest, hostData };
++  const leaseGas = config.leaseGas ? leaseGasGuest(config.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null;
++  if (leaseGas && !leaseGas.ok) return { ok: false, reasons: [`leaseGas: ${leaseGas.reason}`], mode, digest, hostData };
+   const files = { [paths.pins]: JSON.stringify(contractPinsDoc(config)), [paths.pairKey]: fw.isolation.pairingKey + '\n',
+-    ...(config.replicas.storagePlan ? { [paths.storagePlan]: JSON.stringify(config.replicas.storagePlan) } : {}) };
++    ...(config.replicas.storagePlan ? { [paths.storagePlan]: JSON.stringify(config.replicas.storagePlan) } : {}),
++    ...(leaseGas ? leaseGas.files : {}) };
+   return { ok: true, config, digest, hostData, bound, mode, env, files, operator, selling: !!fw.registryKey };
+ }
+ 
+--- a/metal/overlay-control-image.py
++++ b/metal/overlay-control-image.py
+@@ -3,7 +3,7 @@
+ Usage: overlay-control-image.py BASE OUT COMMIT. Never modifies BASE or starts a VM.
+ Preserves untouched cpio entries, adds missing directories, and records exact inputs.
+ """
+-import gzip, hashlib, json, shutil, stat, subprocess, sys
++import gzip, hashlib, io, json, posixpath, re, shutil, stat, subprocess, sys
+ from pathlib import Path
+ 
+ APP_FILES = [
+@@ -17,14 +17,95 @@
+     'isolation/m4/guestd/supervisor-splice.mjs', 'isolation/m4/guestd/supervisor-guestcert.mjs',
+     'isolation/m2/judge.mjs', 'isolation/contract/runtime.mjs', 'relay/snp-verify.mjs',
+ ]
++# APP_FILES is a FLOOR: the installed set is it plus supervisor.js's whole local import closure at the commit
++# (supervisor_closure: the rules of metal/supervisor-closure.mjs), and every npm package that closure names must be in
++# the base image with every subpath it imports exported (check_packages). A fixed list once omitted the app-funded
++# lease-gas runtime (network/lease-gas-runtime.mjs and its imports): a newer supervisor.js would not have started.
+ GUEST_FILES = ['gsup.mjs', 'agent.mjs', 'host-policy.bundle.mjs', 'shielded.mjs',
+                'shielded-probe.mjs', 'shielded-shm.mjs']
+ # Guest modules a committed gsup.mjs may import: installed exactly when that commit's gsup imports them (its closure),
+ # so an overlay of an older commit is unchanged and a newer one never ships a gsup without its helper.
+-OPTIONAL_GUEST_FILES = ['measured-control.mjs']
++OPTIONAL_GUEST_FILES = ['measured-control.mjs', 'lease-gas-conduit.bundle.mjs']
+ def guest_files(commit, repo):
+-    gsup = subprocess.check_output(['git', 'show', commit+':metal/guest/gsup.mjs'], cwd=repo).decode()
+-    return GUEST_FILES + [f for f in OPTIONAL_GUEST_FILES if ("'./"+f+"'") in gsup or ('"./'+f+'"') in gsup]
++    show = lambda f: subprocess.check_output(['git', 'show', commit+':metal/guest/'+f], cwd=repo).decode()
++    files, texts = list(GUEST_FILES), {f: show(f) for f in GUEST_FILES}
++    changed = True
++    while changed:                      # transitive: an optional helper installed brings the optional helpers it imports
++        changed = False
++        for f in OPTIONAL_GUEST_FILES:
++            if f not in files and any(("'./"+f+"'") in t or ('"./'+f+'"') in t for t in texts.values()):
++                files.append(f); texts[f] = show(f); changed = True
++    return files
++
++NODE_BUILTINS = {'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'crypto', 'dgram', 'dns', 'events',
++  'fs', 'fs/promises', 'http', 'http2', 'https', 'inspector', 'module', 'net', 'os', 'path', 'perf_hooks', 'process', 'punycode',
++  'querystring', 'readline', 'stream', 'stream/promises', 'string_decoder', 'timers', 'timers/promises', 'tls', 'tty', 'url', 'util',
++  'v8', 'vm', 'worker_threads', 'zlib'}
++SUPERVISOR_ROOTS = ['supervisor.js', 'addressbook.js']
++_Q = r'''(['"])([^'"\n]+)\1'''
++_LINE_START = [re.compile(r'^(?:import|export)\b.*?\bfrom\s*'+_Q), re.compile(r'^\}.*?\bfrom\s*'+_Q), re.compile(r'^import\s*'+_Q)]
++_ANYWHERE = [re.compile(r'\bimport\s*\(\s*'+_Q), re.compile(r'\bimport\s*\(\s*new URL\(\s*'+_Q),
++             re.compile(r'''\bnew URL\(\s*(['"])(\.\.?/[^'"\n]+)\1\s*,\s*import\.meta\.url''')]
++def specifiers_of(text, bundle=False):
++    out = []
++    for raw in text.split('\n'):
++        line = raw.lstrip()
++        if line.startswith('//') or line.startswith('/*') or line.startswith('*'):
++            continue
++        for rx in _LINE_START:
++            m = rx.search(line)
++            if m: out.append(m.group(2))
++        if bundle:
++            continue
++        for rx in _ANYWHERE:
++            out.extend(m.group(2) for m in rx.finditer(line))
++    return list(dict.fromkeys(out))
++def package_of(spec):
++    parts = spec.split('/'); n = 2 if spec.startswith('@') else 1
++    rest = '/'.join(parts[n:])
++    return '/'.join(parts[:n]), ('./'+rest if rest else '.')
++def supervisor_closure(read, roots):
++    """read(rel) -> text or None. -> (sorted files, {package: sorted subpaths}); raises on a named module that is absent."""
++    seen, packages, queue = set(), {}, list(roots)
++    while queue:
++        rel = posixpath.normpath(queue.pop(0))
++        if rel in seen:
++            continue
++        text = read(rel)
++        if text is None:
++            raise ValueError('the supervisor closure names '+rel+', which is not in the commit')
++        seen.add(rel)
++        if not re.search(r'\.(m?js|cjs)$', rel):
++            continue
++        for spec in specifiers_of(text, rel.endswith('.bundle.mjs')):
++            if spec.startswith('./') or spec.startswith('../'):
++                queue.append(posixpath.join(posixpath.dirname(rel), spec))
++            elif spec.startswith('node:') or spec in NODE_BUILTINS:
++                continue
++            else:
++                name, sub = package_of(spec); packages.setdefault(name, set()).add(sub)
++    return sorted(seen), {k: sorted(v) for k, v in sorted(packages.items())}
++def app_files(commit, repo):
++    def read(rel):
++        r = subprocess.run(['git', 'show', commit+':'+rel], cwd=repo, capture_output=True)
++        return r.stdout.decode() if r.returncode == 0 else None
++    files, packages = supervisor_closure(read, SUPERVISOR_ROOTS + APP_FILES)
++    return list(dict.fromkeys(APP_FILES + files)), packages
++def check_packages(packages, package_json):
++    """package_json(name) -> bytes or None (the base image's app/node_modules/<name>/package.json)."""
++    out = []
++    for name, subpaths in packages.items():
++        raw = package_json(name)
++        if raw is None:
++            raise ValueError('the base image has no '+name+' package, which the overlaid supervisor needs')
++        pkg = json.loads(raw)
++        ex = pkg.get('exports')
++        if isinstance(ex, dict) and any(k.startswith('.') for k in ex):
++            for sp in subpaths:
++                if sp not in ex and not any(k.endswith('*') and sp.startswith(k[:-1]) for k in ex):
++                    raise ValueError('the base image\'s '+name+'@'+str(pkg.get('version'))+' exports no '+sp+', which the overlaid supervisor imports')
++        out.append({'name': name, 'version': str(pkg.get('version', ''))})
++    return out
+ REQUIRED = {'app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/agent.mjs', 'opt/metal/manifest.json'}
+ sha = lambda b: hashlib.sha256(b).hexdigest()
+ def file_sha(file):
+@@ -88,7 +169,8 @@
+     if file_sha(base/'vmlinuz') != m['kernel']['sha256']:
+         raise ValueError('base kernel hash mismatch')
+     commit = subprocess.check_output(['git', 'rev-parse', commit+'^{commit}'], cwd=repo, text=True).strip()
+-    paths = {**{'app/'+p: p for p in APP_FILES}, **{'opt/metal/'+p: 'metal/guest/'+p for p in guest_files(commit, repo)}}
++    installed_app, packages = app_files(commit, repo)
++    paths = {**{'app/'+p: p for p in installed_app}, **{'opt/metal/'+p: 'metal/guest/'+p for p in guest_files(commit, repo)}}
+     replacements = {k: subprocess.check_output(['git', 'show', commit+':'+v], cwd=repo) for k,v in paths.items()}
+     m.pop('expectedMeasurement', None)
+     m.pop('initramfs', None)
+@@ -101,13 +183,18 @@
+     replacements['opt/metal/manifest.json'] = b''  # filled after namespace validation
+     # Validate the whole namespace before emitting output. A symlink in a parent
+     # must not redirect newly installed trusted runtime files elsewhere.
+-    metadata, digests, duplicates = {}, {}, {}
++    metadata, digests, duplicates, package_jsons = {}, {}, {}, {}
++    wanted = {'app/node_modules/'+n+'/package.json' for n in packages}
+     prefix = ''
+     maxino = 0
+     with gzip.open(base/'initramfs.cpio.gz', 'rb') as f:
+         for key, name, fields, header in entries(f):
+             digest = hashlib.sha256()
+-            body(f, fields[6], digest=digest)
++            if key in wanted and stat.S_ISREG(fields[1]) and fields[6] <= 1 << 20:
++                buf = io.BytesIO(); body(f, fields[6], target=buf, digest=digest)
++                package_jsons[key] = buf.getvalue()[:fields[6]]
++            else:
++                body(f, fields[6], digest=digest)
+             if key in metadata:
+                 # Earlier overlay builders appended identical helper entries on
+                 # every run. Collapse only unchanged, singly-linked regular files
+@@ -125,6 +212,8 @@
+                 raise ValueError('nonregular or hardlinked replacement: '+key)
+     if not REQUIRED <= metadata.keys():
+         raise ValueError('base image missing required entries')
++    m['controlOverlay']['supervisorClosure'] = {'rules': 'metal/supervisor-closure.mjs',
++        'packages': check_packages(packages, lambda n: package_jsons.get('app/node_modules/'+n+'/package.json'))}
+     directories = set()
+     for key in replacements:
+         for parent in Path(key).parents:
+--- /dev/null
++++ b/metal/supervisor-closure.mjs
+@@ -0,0 +1,90 @@
++// The supervisor's runtime closure for a metal image overlay (work/linux-lease-activation). A pinned supervisor image is
++// overlaid with supervisor.js from a commit; that file is only correct with EVERY local module it loads at that commit
++// (a fixed list once omitted the app-funded lease-gas runtime and its imports, so a newer supervisor.js would not start),
++// and with every npm package those modules name present in the image. metal/build-image.mjs uses this; the Python
++// overlay builder (metal/overlay-control-image.py supervisor_closure) applies the same rules, and
++// test/metal-lease-gas-conduit.test.mjs checks the two agree on this repository.
++//
++// The rules (statements, not a parser; generated *.bundle.mjs files are self-contained leaves):
++//   - a line that starts a comment (//, /*, *) is skipped;
++//   - at the start of a line: import … from 'x', export … from 'x', import 'x', and a multi-line import's closing } … from 'x';
++//   - anywhere in a line (not in a bundle): import('x'), import(new URL('x', import.meta.url)) and new URL('./x', import.meta.url);
++//   - './' and '../' are files of the closure (each one must exist, and is scanned in turn); 'node:*' and Node's
++//     builtin names are the runtime's; anything else is an npm package the image must carry.
++import fs from 'node:fs';
++import path from 'node:path';
++
++export const NODE_BUILTINS = Object.freeze(['assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'crypto', 'dgram', 'dns', 'events',
++  'fs', 'fs/promises', 'http', 'http2', 'https', 'inspector', 'module', 'net', 'os', 'path', 'perf_hooks', 'process', 'punycode',
++  'querystring', 'readline', 'stream', 'stream/promises', 'string_decoder', 'timers', 'timers/promises', 'tls', 'tty', 'url', 'util',
++  'v8', 'vm', 'worker_threads', 'zlib']);
++export const SUPERVISOR_ROOTS = Object.freeze(['supervisor.js', 'addressbook.js']);
++
++const Q = `(['"])([^'"\\n]+)\\1`;
++const LINE_START = [new RegExp(`^(?:import|export)\\b.*?\\bfrom\\s*${Q}`), new RegExp(`^\\}.*?\\bfrom\\s*${Q}`), new RegExp(`^import\\s*${Q}`)];
++const ANYWHERE = [new RegExp(`\\bimport\\s*\\(\\s*${Q}`, 'g'), new RegExp(`\\bimport\\s*\\(\\s*new URL\\(\\s*${Q}`, 'g'),
++  new RegExp(`\\bnew URL\\(\\s*(['"])(\\.\\.?/[^'"\\n]+)\\1\\s*,\\s*import\\.meta\\.url`, 'g')];
++
++/** The module specifiers one file's text names, by the rules above. */
++export function specifiersOf(text, { bundle = false } = {}) {
++  const out = [];
++  for (const raw of String(text).split('\n')) {
++    const line = raw.trimStart();
++    if (line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) continue;
++    for (const re of LINE_START) { const m = re.exec(line); if (m) out.push(m[2]); }
++    if (bundle) continue;
++    for (const re of ANYWHERE) for (const m of line.matchAll(re)) out.push(m[2]);
++  }
++  return [...new Set(out)];
++}
++/** 'viem/accounts' -> { name: 'viem', subpath: './accounts' }; '@a/b/c' -> { name: '@a/b', subpath: './c' }. */
++export function packageOf(spec) {
++  const parts = spec.split('/'), n = spec.startsWith('@') ? 2 : 1;
++  const name = parts.slice(0, n).join('/'), rest = parts.slice(n).join('/');
++  return { name, subpath: rest ? './' + rest : '.' };
++}
++
++/**
++ * read(rel) -> text | null (null = absent). -> { files: sorted relative paths, packages: { name: [subpaths] } }.
++ * Throws when a local module named by the closure is absent.
++ */
++export function closureOf(read, roots = SUPERVISOR_ROOTS) {
++  const seen = new Set(), packages = {}, queue = [...roots];
++  while (queue.length) {
++    const rel = path.posix.normalize(queue.shift());
++    if (seen.has(rel)) continue;
++    const text = read(rel);
++    if (text === null || text === undefined) throw new Error(`the supervisor closure names ${rel}, which is not in the source`);
++    seen.add(rel);
++    if (!/\.(m?js|cjs)$/.test(rel)) continue;                          // data loaded by URL: part of the closure, not scanned
++    for (const spec of specifiersOf(text, { bundle: /\.bundle\.mjs$/.test(rel) })) {
++      if (spec.startsWith('./') || spec.startsWith('../')) queue.push(path.posix.join(path.posix.dirname(rel), spec));
++      else if (spec.startsWith('node:') || NODE_BUILTINS.includes(spec)) continue;
++      else { const p = packageOf(spec); (packages[p.name] ||= new Set()).add(p.subpath); }
++    }
++  }
++  return { files: [...seen].sort(), packages: Object.fromEntries(Object.keys(packages).sort().map((k) => [k, [...packages[k]].sort()])) };
++}
++
++/** The closure of a source checkout's working files. */
++export const supervisorClosure = (root, roots = SUPERVISOR_ROOTS) =>
++  closureOf((rel) => { try { return fs.readFileSync(path.join(root, rel), 'utf8'); } catch { return null; } }, roots);
++
++// an exports map entry for subpath: exact, or a "./prefix*" pattern
++const exported = (exportsMap, sp) => sp in exportsMap || Object.keys(exportsMap).some((k) => k.endsWith('*') && sp.startsWith(k.slice(0, -1)));
++/**
++ * Every package the closure names must be in the image, with every subpath it uses exported. readPackageJson(name) -> the
++ * package.json text in the image, or null. -> [{ name, version }] (throws, naming what is missing).
++ */
++export function checkPackages(packages, readPackageJson) {
++  const out = [];
++  for (const [name, subpaths] of Object.entries(packages)) {
++    const text = readPackageJson(name);
++    if (!text) throw new Error(`the supervisor image has no ${name} package, which the overlaid supervisor needs`);
++    let pkg; try { pkg = JSON.parse(text); } catch { throw new Error(`the supervisor image's ${name}/package.json is not JSON`); }
++    if (pkg.exports && typeof pkg.exports === 'object' && !Array.isArray(pkg.exports) && Object.keys(pkg.exports).some((k) => k.startsWith('.')))
++      for (const sp of subpaths) if (!exported(pkg.exports, sp)) throw new Error(`the supervisor image's ${name}@${pkg.version} exports no ${sp}, which the overlaid supervisor imports`);
++    out.push({ name, version: String(pkg.version || '') });
++  }
++  return out;
++}
+--- /dev/null
++++ b/network/lease-gas-conduit.mjs
+@@ -0,0 +1,140 @@
++// The app-funded lease-gas conduit of a metal node (work/linux-lease-activation): how the supervisor INSIDE the control
++// CVM receives the same reviewed lease-gas configuration a Windows node reads from its environment
++// (network/lease-gas-runtime.mjs loadLeaseGasConfig: ENCLAVE_LEASE_GAS_FILE/DIGEST/RPCS/RELAYS/RESERVE/QUORUM).
++//
++//   host config `leaseGas`  --(launcher: leaseGasTransit)-->  fw_cfg `leaseGas` (legacy control)
++//                                                             or the HOST_DATA-bound direct config `leaseGas` (direct control)
++//   fw_cfg / direct config  --(gsup / measured-control: leaseGasGuest)-->  /run/lease-gas/deployment.json + those six
++//                                                             environment names, and NOTHING else
++//
++// Everything that crosses is public: the deployment record (addresses and code hashes) with the digest the operator
++// reviewed, the RPC and relay origins, the reserve and the quorum. No key, no wallet and no arbitrary environment name
++// crosses. Every check here is the reviewed one (lease-gas-owner.mjs parseDeploymentRecord, the relay rule of
++// lease-executor-client.mjs, the RPC rule of rpc-identity.mjs); the supervisor checks it all again when it loads.
++// Partial or invalid configuration REFUSES: on the host the launch stops before QEMU; in the guest the supervisor is
++// handed a configuration that is "configured but unloadable", so every claim, renewal and release refuses
++// (supervisor.js leaseGasError) and the operator's own ETH is never used for them.
++import { parseDeploymentRecord } from "./lease-gas-owner.mjs";
++import { validateRelayUrl } from "./lease-executor-client.mjs";
++import { rpcEndpoint, rpcLabel } from "./rpc-identity.mjs";
++
++export const TRANSIT_VERSION = 1;
++export const GUEST_RECORD_FILE = "/run/lease-gas/deployment.json";
++/** A path that never exists: the "configured but unloadable" marker for a refused transit. */
++export const REFUSED_RECORD_FILE = "/run/lease-gas/REFUSED-see-gsup-log";
++export const ENV_NAMES = Object.freeze(["ENCLAVE_LEASE_GAS_FILE", "ENCLAVE_LEASE_GAS_DIGEST", "ENCLAVE_LEASE_GAS_RPCS",
++  "ENCLAVE_LEASE_GAS_RELAYS", "ENCLAVE_LEASE_GAS_RESERVE", "ENCLAVE_LEASE_GAS_QUORUM"]);
++/** Every name the supervisor reads as lease-gas configuration (supervisor.js leaseGasEnv). */
++export const isLeaseGasName = (k) => /^(ENCLAVE_)?LEASE_GAS_/.test(k);
++
++const MAX_RPCS = 8, MAX_RELAYS = 8;
++const fail = (m) => { throw new Error(`lease-gas: ${m}`); };
++const plain = (o) => !!o && typeof o === "object" && !Array.isArray(o);
++function only(o, allowed, what) {
++  if (!plain(o)) fail(`${what} must be an object`);
++  for (const k of Object.keys(o)) if (!allowed.includes(k)) fail(`${what} has an unknown field ${JSON.stringify(k)}`);
++}
++const DIGEST = /^sha256:[0-9a-f]{64}$/;
++
++function rpcList(list, { published }) {
++  // at least two: the supervisor's reader requires a strict-majority quorum of two or more distinct providers
++  if (!Array.isArray(list) || list.length < 2 || list.length > MAX_RPCS) fail(`rpcs: 2 to ${MAX_RPCS} https RPC URLs of distinct providers`);
++  const seen = new Set();
++  return list.map((raw, i) => {
++    if (typeof raw !== "string") fail(`rpcs[${i}] must be a string`);
++    let e;
++    try { e = rpcEndpoint(raw); } catch (x) { fail(`rpcs[${i}]: ${x.message}`); }
++    if (e.url.protocol !== "https:") fail(`rpcs[${i}] (${e.label}) must be https`);
++    // a direct config is the owner's document a verifier recomputes: it may not carry a key in a query
++    if (published && e.url.search) fail(`rpcs[${i}] (${e.label}): a bound direct config carries no query (it would publish a key)`);
++    if (seen.has(e.identity)) fail(`rpcs[${i}] (${e.label}) repeats a provider`);
++    seen.add(e.identity);
++    return raw;
++  });
++}
++function relayList(list) {
++  if (!Array.isArray(list) || list.length < 1 || list.length > MAX_RELAYS) fail(`relays: 1 to ${MAX_RELAYS} https relay origins`);
++  const out = list.map((raw, i) => {
++    if (typeof raw !== "string") fail(`relays[${i}] must be a string`);
++    let o;
++    try { o = validateRelayUrl(raw); } catch (x) { fail(`relays[${i}]: ${x.message}`); }
++    if (o !== raw) fail(`relays[${i}] must be written as its origin (${o})`);
++    return o;
++  });
++  if (new Set(out).size !== out.length) fail("relays repeat an origin");
++  return out;
++}
++function quorumOf(q, rpcs) {
++  if (q === undefined || q === null) return null;
++  if (!Number.isInteger(q) || q < 2 || q > rpcs.length || q <= rpcs.length / 2) fail("quorum must be a strict majority of at least two of the rpcs");
++  return q;
++}
++
++/**
++ * The transit object, from its parts, every part checked. `record` is the exact record bytes. -> frozen
++ * { version, record (base64), digest, chainId, reserve, rpcs, relays, quorum }.
++ */
++function transitOf({ record, digest, rpcs, relays, reserve, quorum }, { published = false } = {}) {
++  if (typeof digest !== "string" || !DIGEST.test(digest)) fail("digest must be the reviewed sha256:<64 hex> of the deployment record");
++  const dep = parseDeploymentRecord(record, { expectedDigest: digest });
++  const r = rpcList(rpcs, { published }), rl = relayList(relays);
++  if (reserve !== undefined && reserve !== null && (typeof reserve !== "string" || reserve.toLowerCase() !== dep.reserve.toLowerCase()))
++    fail("reserve differs from the reviewed deployment record");
++  return Object.freeze({ version: TRANSIT_VERSION, record: Buffer.from(record).toString("base64"), digest, chainId: dep.chainId,
++    reserve: dep.reserve, rpcs: Object.freeze(r), relays: Object.freeze(rl), quorum: quorumOf(quorum, r) });
++}
++
++/**
++ * HOST (metal/enclave-metal.mjs): the operator's `leaseGas` config -> the transit for fw_cfg, or null when absent.
++ *   { recordFile, digest, rpcs: [...], relays: [...], reserve?, quorum? }
++ * Absent (undefined/null) is the only "off". Anything else must be complete and valid, or this throws (the launch stops).
++ */
++export function leaseGasTransit(cfg, { readFile, chainId = null } = {}) {
++  if (cfg === undefined || cfg === null) return null;
++  only(cfg, ["recordFile", "digest", "rpcs", "relays", "reserve", "quorum"], "leaseGas");
++  for (const k of ["recordFile", "digest", "rpcs", "relays"]) if (cfg[k] === undefined || cfg[k] === null || cfg[k] === "")
++    fail(`leaseGas.${k} is required: a partial configuration never falls back to the operator's wallet`);
++  if (typeof cfg.recordFile !== "string") fail("leaseGas.recordFile must be a path");
++  if (typeof readFile !== "function") fail("no file reader");
++  const t = transitOf({ ...cfg, record: readFile(cfg.recordFile) });
++  if (chainId !== null && t.chainId !== chainId) fail(`the deployment record is for chain ${t.chainId}, this host runs chain ${chainId}`);
++  return t;
++}
++
++/** Re-check a transit as received (fw_cfg is the host's word; a direct config's is bound). -> the transit (frozen). */
++export function checkTransit(t, { published = false } = {}) {
++  only(t, ["version", "record", "digest", "chainId", "reserve", "rpcs", "relays", "quorum"], "leaseGas transit");
++  if (t.version !== TRANSIT_VERSION) fail(`transit version must be ${TRANSIT_VERSION}`);
++  if (typeof t.record !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(t.record)) fail("transit record must be base64");
++  const record = Buffer.from(t.record, "base64");
++  if (record.toString("base64") !== t.record) fail("transit record is not canonical base64");
++  const again = transitOf({ record, digest: t.digest, rpcs: t.rpcs, relays: t.relays, reserve: t.reserve, quorum: t.quorum }, { published });
++  if (again.chainId !== t.chainId) fail("transit chainId differs from its record");
++  return again;
++}
++
++/**
++ * GUEST (metal/guest/gsup.mjs legacy path, measured-control.mjs direct path): a transit -> what to install.
++ *   -> { configured: false }                              (absent: the feature is off, nothing is set)
++ *   -> { configured: true, ok: true, env, files, summary } (the six names, the record file; nothing else)
++ *   -> { configured: true, ok: false, env, files: {}, reason } (refused: "configured but unloadable", fail closed)
++ */
++export function leaseGasGuest(transit, { recordFile = GUEST_RECORD_FILE, published = false } = {}) {
++  if (transit === undefined || transit === null) return { configured: false, env: {}, files: {} };
++  let t;
++  try { t = checkTransit(transit, { published }); }
++  catch (e) { return { configured: true, ok: false, env: { ENCLAVE_LEASE_GAS_FILE: REFUSED_RECORD_FILE }, files: {}, reason: e.message }; }
++  const env = { ENCLAVE_LEASE_GAS_FILE: recordFile, ENCLAVE_LEASE_GAS_DIGEST: t.digest, ENCLAVE_LEASE_GAS_RPCS: t.rpcs.join(","),
++    ENCLAVE_LEASE_GAS_RELAYS: t.relays.join(","), ENCLAVE_LEASE_GAS_RESERVE: t.reserve, ...(t.quorum ? { ENCLAVE_LEASE_GAS_QUORUM: String(t.quorum) } : {}) };
++  return { configured: true, ok: true, env, files: { [recordFile]: Buffer.from(t.record, "base64") },
++    summary: `reserve ${t.reserve}, record ${t.digest.slice(0, 19)}…, ${t.relays.length} relay(s), RPCs ${t.rpcs.map(rpcLabel).join(", ")}${t.quorum ? ` (quorum ${t.quorum})` : ""}` };
++}
++
++/**
++ * An environment without any lease-gas name, then exactly `leaseGas.env` on top: the conduit is the ONLY source of
++ * these names (a baked flavor file or a host policy can never add, change or drop one).
++ */
++export function withLeaseGasEnv(env, leaseGas) {
++  const out = Object.fromEntries(Object.entries(env).filter(([k]) => !isLeaseGasName(k)));
++  return { ...out, ...(leaseGas?.env || {}) };
++}
+--- /dev/null
++++ b/scripts/build-metal-lease-gas.mjs
+@@ -0,0 +1,36 @@
++// The metal node's lease-gas conduit (network/lease-gas-conduit.mjs) as ONE dependency-free file, for the host launcher
++// (metal/enclave-metal.mjs, run from a release checkout without node_modules) and the measured guest (gsup.mjs and
++// measured-control.mjs under /opt/metal, beside host-policy.bundle.mjs). The same pattern as the Windows node's shared
++// lease runtime (scripts/build-windows-lease-runtime.mjs): exact inputs recorded in a manifest; --check refuses a stale one.
++import { build } from "esbuild";
++import fs from "node:fs/promises";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { createHash } from "node:crypto";
++const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const entry = "network/lease-gas-conduit.mjs", output = path.join(root, "metal/guest/lease-gas-conduit.bundle.mjs");
++const args = process.argv.slice(2);
++if (args.length && !(args.length === 1 && args[0] === "--check")) throw new Error("usage: build-metal-lease-gas.mjs [--check]");
++const result = await build({
++  absWorkingDir: root, entryPoints: [entry], outfile: output,
++  platform: "node", format: "esm", target: "node20", bundle: true, minify: true, write: false, metafile: true,
++  banner: { js: "// Generated by scripts/build-metal-lease-gas.mjs from network/lease-gas-conduit.mjs; do not edit." },
++});
++const bytes = Buffer.from(result.outputFiles[0].contents);
++const sha = (b) => createHash("sha256").update(b).digest("hex");
++const inputs = {};
++for (const rel of Object.keys(result.metafile.inputs).sort()) {
++  const normalized = rel.includes("node_modules/") ? "node_modules/" + rel.split("node_modules/").pop() : rel;
++  const digest = sha(await fs.readFile(path.resolve(root, rel)));
++  if (inputs[normalized] && inputs[normalized] !== digest) throw new Error(`ambiguous bundle input ${normalized}`);
++  inputs[normalized] = digest;
++}
++const manifest = JSON.stringify({ bundle: "metal/guest/lease-gas-conduit.bundle.mjs", entry, sha256: sha(bytes), bytes: bytes.length, inputs }, null, 2) + "\n";
++if (args.includes("--check")) {
++  if (!bytes.equals(await fs.readFile(output))) throw new Error("metal lease-gas conduit bundle is stale; run node scripts/build-metal-lease-gas.mjs");
++  if (manifest !== await fs.readFile(output + ".manifest.json", "utf8")) throw new Error("metal lease-gas conduit bundle manifest is stale");
++} else {
++  await fs.writeFile(output, bytes);
++  await fs.writeFile(output + ".manifest.json", manifest);
++}
++console.log(`metal lease-gas conduit bundle: ${bytes.length} bytes, sha256:${sha(bytes)}${args.includes("--check") ? " (verified)" : ""}`);

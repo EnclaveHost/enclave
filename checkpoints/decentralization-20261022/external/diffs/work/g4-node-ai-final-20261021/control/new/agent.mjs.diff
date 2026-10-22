@@ -1,0 +1,77 @@
+--- a/windows/node/agent.mjs
++++ b/windows/node/agent.mjs
+@@ -47,10 +47,12 @@
+ import { sponsoredRegister } from './sponsor.mjs';
+ import { finishHvAttach, reattachMode, relayTakesV2, shouldReattach } from './hvnode-attach.mjs';
+ import { tunnelHandover } from './tunnel-handover.mjs';
+-import { CONTRACT_PINS, addressBook, addresses as chainAddresses, publicClient } from './chain.mjs';
++import { CONTRACT_PINS, addressBook, addresses as chainAddresses, publicClient, operatorAccount, operatorAddress, enclaveIdOf } from './chain.mjs';
+ import { createSessionApiAuth, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES } from './session-api-auth.mjs';
+ import { measureGflops } from './compute-measure.mjs';
+ import { resolveIdentity } from './host-identity.mjs';
++// this box's own signed capacity record for independent readers (docs/network/independent-capacity.md); no packages
++import { createHostCapacityProducer, HOST_CAPACITY_PATH } from '../../network/host-capacity-producer.mjs';
+ const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
+ // SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
+ // and posts it back unchanged. The session it mints is for THIS box only (session.mjs).
+@@ -487,6 +489,21 @@
+ let shieldEvidenceReads = 0;
+ let shieldWitness = null;
+ let shieldSecrets = null;
++// GET /v1/host/capacity: the /availability below, signed by this box's registry operator key for the endpoint the
++// registry lists it under (network/host-capacity-producer.mjs), so a reader with no relay can use it. It says who
++// reported the numbers, not that the card or the cores are free. Made once the operator key is loaded; signs only while
++// the registry row read at start (host.registered) is active and this key's.
++let capacity = null;
++function capacityProducer() {
++  if (capacity || !operatorAccount()) return capacity;
++  // the registry row this box read for its own endpoint: signed for only while it is active and names this key
++  const identity = () => { const e = host.registered;
++    return e && e.active === true && e.endpoint && chainAddresses.registry && String(e.operator).toLowerCase() === String(operatorAddress()).toLowerCase()
++      ? { endpoint: e.endpoint, registry: chainAddresses.registry } : null; };
++  capacity = createHostCapacityProducer({ account: operatorAccount(), hostIdOf: enclaveIdOf, chainId: 8453, identity,
++    availability: async () => { const r = await handle({ path: '/availability', method: 'GET' }); if (r.status !== 200) throw new Error(`/availability answered ${r.status}`); return JSON.parse(r.body); } });
++  return capacity;
++}
+ async function handle(frame) {
+   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
+   const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
+@@ -560,6 +577,10 @@
+     shielded: card && host.sellsCard() ? { ...card, ...(cardProof ? { proof:cardProof } : {}),
+       ...(host.managerInference?.ready ? { model:host.managerInference.model, minimumGpuMilli:host.managerInference.minimumGpuMilli, runtimeId:host.managerInference.runtimeId } : {}) } : null,
+     model: MODEL ? path.basename(MODEL) : null, attachedAt, ...(APPS ? host.availability() : {}) });
++  if (p === HOST_CAPACITY_PATH && method === 'GET') {
++    const c = capacityProducer();
++    return c ? c.frame() : json(503, { error: 'capacity_not_signed', reason: 'no operator key on this box: it signs no capacity record' });
++  }
+   // ---- who is asking ---------------------------------------------------------------------
+   // The public half of this box's session key. Anyone can verify a token it minted - and confirm
+   // the operator did not mint it - holding no secret. On a confidential VM that last part is a
+@@ -1038,6 +1059,9 @@
+           enroll ||= createNetworkEnroll({ agentDir: NET.agentDir, binDir: NET.binDir,
+             runner: host.enclaveId, relayBase,
+             config: { agentDir: NET.agentDir, binDir: NET.binDir, nodeBinary: process.execPath,
++                      // the wallet hold channel the node writes (host.mjs walletChannelStart): the network agent enforces it
++                      // only while this node actually runs one; otherwise the block is dropped (and the agent restarted once)
++                      walletAdmission: host.walletChannel ? { file: host.walletAdmission.file } : null,
+                       operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
+                       policyFile: NET.policy, tpmBinary: process.env.TPMATTEST_EXE,
+                       tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
+@@ -1129,6 +1153,8 @@
+     zone = appZone({
+       isolationSplicer,
+       resolve: (id) => host.appZoneTarget(id),
++      // re-asked after the resolve, at the moment of splicing: a wallet hold between the two is not served
++      admitted: (id) => host.appZoneAdmitted(id),
+       // A gate-served app (wasi:http, enclave:app) has no socket: its own hostname is served by
+       // terminating TLS here and carrying the request through the gate, the same frame the /x/
+       // path uses.
+@@ -1139,6 +1165,8 @@
+       maxBodyBytes: Math.round((Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64) * 1048576),
+       log: (m) => log(`[app-zone] ${m}`),
+     });
++    // a wallet hold cuts what the app zone already splices or serves for that deployment (host.mjs #walletHold)
++    host.servingWithdrawn = (id) => zone.closeDeployment(id);
+     try {
+       const { loadOperator } = await import('./chain.mjs');
+       const acct = loadOperator(path.join(DIR, 'operator.key'));

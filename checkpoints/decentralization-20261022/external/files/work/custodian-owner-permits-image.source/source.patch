@@ -1,0 +1,750 @@
+diff --git a/custody/v2/chain.mjs b/custody/v2/chain.mjs
+index 32eb61f7..6c72154f 100644
+--- a/custody/v2/chain.mjs
++++ b/custody/v2/chain.mjs
+@@ -62,6 +62,9 @@ export const REGISTRY_V4_ABI = [{ type: "function", name: "get", stateMutability
+   { name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" }, { name: "operator", type: "address" },
+   { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" }, { name: "active", type: "bool" },
+   { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }, { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" }] }] }];
++export const ERC1271_ABI = [{ type: "function", name: "isValidSignature", stateMutability: "view", inputs: [{ name: "hash", type: "bytes32" }, { name: "signature", type: "bytes" }], outputs: [{ type: "bytes4" }] }];
++const ERC1271_MAGIC = "0x1626ba7e";
++const MAX_AUTH_HOSTS = 160, MAX_AUTH_CHECKS = 512;
+ const key = (s) => stringToHex(s, { size: 32 });
+ export const BOOK_KEYS = { deployments: key("deployments"), registry: key("registry") };
+ export const endpointIdOf = (endpoint) => keccak256(toBytes(endpoint));
+@@ -117,6 +120,16 @@ export function createChainReaderV2({ rpcs, vault, hostOwnership = null, chainId
+     throw Error('chain: distinct RPC hostnames required');
+   const clients = given || (rpcs || []).map(url=>createPublicClient({transport:http(url,{timeout:timeoutMs,retryCount:0})}));
+   const agreed=createQuorumReader({clients,minAgree,chainId,confirmations,timeoutMs,maxAgeSec,maxFutureSec,now,checkpoint});
++  async function hostAuthorities(rd) {
++    const [registry, ownership] = await Promise.all([rd(vault, VAULT_V2_ABI, "hostRegistry"), rd(vault, VAULT_V2_ABI, "hostOwnership")]);
++    if (hostOwnership && lc(ownership) !== lc(hostOwnership)) throw err("host_authority_mismatch", "vault host authority differs from the measured pin");
++    if (registry === ZERO || ownership === ZERO) throw err("host_authority_missing", "wallet host authority required");
++    return { registry, ownership };
++  }
++  async function entryAt(rd, { registry, ownership }, registryId) {
++    const [e, authority] = await Promise.all([rd(registry, REGISTRY_V4_ABI, "get", [registryId]), rd(ownership, HOST_OWNERSHIP_ABI, "authority", [registryId])]);
++    return { endpoint: e.endpoint, active: e.active, operator: lc(e.operator), payoutWallet: lc(e.payoutWallet), owner: lc(authority[0]) };
++  }
+   return {
+     vault, clients,
+     readRelease: ({ id, endpoint }) => agreed((c, n) => readReleaseAt(c, vault, { id, endpoint }, n)),
+@@ -135,16 +148,46 @@ export function createChainReaderV2({ rpcs, vault, hostOwnership = null, chainId
+       return { dealCommitments: b(dc), sealed: sealed.map(b) };
+     }),
+     readCodeActiveAt: ({ committeeId, measurement }) => agreed(async (c, n) => ({ activeAt: Number(await rdOf(c, n)(vault, VAULT_V2_ABI, "codeActiveAt", [committeeId, measurement])) })),
++    // A contract-wallet owner's ERC-1271 answer at the agreed block. A revert fails that RPC's read; it never votes "valid".
++    readIsValidSignature: ({ account, hash, signature }) => agreed(async (c, n) => {
++      const code = await c.request({ method: "eth_getCode", params: [account, { blockHash: n.blockHash, requireCanonical: true }] });
++      if (!code || code === "0x") return { valid: false };
++      return { valid: lc(await rdOf(c, n)(account, ERC1271_ABI, "isValidSignature", [hash, signature])) === ERC1271_MAGIC };
++    }),
+     // Membership is only supported on the wallet-authority vault release.
+     // No fallback to payoutWallet or a mutable book registry. Old vaults must
+     // keep their old measured membership runtime until a controlled handover.
+     readRegistryEntry: ({ registryId }) => agreed(async (c, n) => {
+-      const rd = rdOf(c, n);
+-      const [reg, ownership] = await Promise.all([rd(vault, VAULT_V2_ABI, "hostRegistry"), rd(vault, VAULT_V2_ABI, "hostOwnership")]);
+-      if (hostOwnership && lc(ownership) !== lc(hostOwnership)) throw err("host_authority_mismatch", "vault host authority differs from the measured pin");
+-      if (reg === ZERO || ownership === ZERO) throw err("host_authority_missing", "wallet host authority required");
+-      const [e, authority] = await Promise.all([rd(reg, REGISTRY_V4_ABI, "get", [registryId]), rd(ownership, HOST_OWNERSHIP_ABI, "authority", [registryId])]);
+-      return { entry: { endpoint: e.endpoint, active: e.active, operator: lc(e.operator), payoutWallet: lc(e.payoutWallet), owner: lc(authority[0]) } };
++      const rd = rdOf(c, n), hosts = await hostAuthorities(rd);
++      return { entry: await entryAt(rd, hosts, registryId) };
+     }),
++    // ONE agreed block for an authorization decision (governance.mjs): the committee, the registry entry (operator and
++    // accepted owner) of every seat and of every extra host, code activation and ERC-1271 answers. Owner consent,
++    // operator binding and owner distinctness are then judged together; separate reads could mix an owner authorized
++    // at one block with a different owner or operator at another. A check names an account, or a host whose owner AT
++    // THIS BLOCK is asked. A wallet that reverts or has no code answers false here; the RPC majority still decides.
++    readAuthorization: ({ committeeId = null, registryIds = [], measurements = [], checks = [] }) => {
++      if (registryIds.length > MAX_AUTH_HOSTS || measurements.length > 64 || checks.length > MAX_AUTH_CHECKS) return Promise.reject(err("bad_request", "authorization read too large", 400));
++      return agreed(async (c, n) => {
++        const rd = rdOf(c, n), hosts = await hostAuthorities(rd);
++        const committee = committeeId ? await readCommitteeAt(rd, vault, committeeId) : null;
++        const ids = [...new Set([...(committee ? committee.machines.map((m) => m.registryId) : []), ...registryIds.map(lc)])];
++        const entries = {};
++        for (const id of ids) entries[id] = await entryAt(rd, hosts, id);
++        const codeActiveAt = {};
++        if (committee) for (const m of new Set(measurements.map(lc))) codeActiveAt[m] = Number(await rd(vault, VAULT_V2_ABI, "codeActiveAt", [committeeId, m]));
++        const valid = [];
++        for (const ch of checks) {
++          const account = ch.account ? lc(ch.account) : entries[lc(ch.registryId)]?.owner;
++          let ok = false;
++          if (account && account !== ZERO) {
++            const code = await c.request({ method: "eth_getCode", params: [account, { blockHash: n.blockHash, requireCanonical: true }] });
++            if (code && code !== "0x") { try { ok = lc(await rd(account, ERC1271_ABI, "isValidSignature", [ch.hash, ch.signature])) === ERC1271_MAGIC; } catch { ok = false; } }
++          }
++          valid.push(ok);
++        }
++        return { committee, entries, codeActiveAt, valid, enclaveOwner: lc(await rd(vault, VAULT_V2_ABI, "enclaveOwner")) };
++      });
++    },
+   };
+ }
+diff --git a/custody/v2/coordinate-genesis.mjs b/custody/v2/coordinate-genesis.mjs
+index eb05af3f..bae9570e 100644
+--- a/custody/v2/coordinate-genesis.mjs
++++ b/custody/v2/coordinate-genesis.mjs
+@@ -1,21 +1,25 @@
+ // Public, untrusted coordination only. Secret packages stay inside the measured
+ // custodians. Every broadcast/HPKE message is authenticated by those custodians.
++import { encodeFunctionData } from 'viem';
+ import * as D from './digests.mjs';
+ import * as v2 from './protocol.mjs';
+-export async function coordinateIndependentGenesis(plan,{post,activate=false}={}) {
++import { VAULT_V2_ABI } from './chain.mjs';
++const SIG=/^0x[0-9a-fA-F]{130}$/;
++async function boundedJson(r,what){
++  const chunks=[];let size=0;
++  for await(const c of r.body){size+=c.length;if(size>1048576)throw Error('oversized custodian response');chunks.push(c);}
++  if(!r.ok)throw Error(`custodian refused ${what}: HTTP ${r.status}`);
++  return JSON.parse(Buffer.concat(chunks));
++}
++export async function coordinateIndependentGenesis(plan,{post,get,activate=false}={}) {
+   if(!Array.isArray(plan?.machines)||plan.machines.length<3||plan.machines.length>64)throw Error('3..64 genesis machines required');
+   const urls=plan.machines.map(m=>{
+     const u=new URL(m.endpoint);
+     if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||(u.port&&u.port!=='443')||u.pathname.split('/').some(s=>s==='.'||s==='..'))throw Error('invalid custodian HTTPS endpoint');
+     return m.endpoint.replace(/\/$/,'')+'/v2/custody/independent-genesis';
+   });
+-  post ||= async(url,body)=>{
+-    const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(120000),redirect:'error'});
+-    const chunks=[];let size=0;
+-    for await(const c of r.body){size+=c.length;if(size>1048576)throw Error('oversized custodian response');chunks.push(c);}
+-    if(!r.ok)throw Error(`custodian refused ${body.action}: HTTP ${r.status}`);
+-    return JSON.parse(Buffer.concat(chunks));
+-  };
++  post ||= async(url,body)=>boundedJson(await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(120000),redirect:'error'}),body.action);
++  get ||= async url=>boundedJson(await fetch(url,{signal:AbortSignal.timeout(30000),redirect:'error'}),'info');
+   const stage=body=>Promise.all(urls.map((url,i)=>post(url,typeof body==='function'?body(i):body)));
+   const round1=await stage({action:'start',plan});
+   const acks=await stage({action:'agree',round1});
+@@ -31,9 +35,33 @@ export async function coordinateIndependentGenesis(plan,{post,activate=false}={}
+     const r=results[i];
+     if(r.id!==i+1||r.committeeId!==expected||await D.recoverDigest(D.independentGenesisDigest({...plan,committeeId:r.committeeId,commitments:packed}),r.signature)!==plan.machines[i].identity.toLowerCase())throw Error('invalid founder signature or committee scope');
+   }
+-  const activated=[];
++  // Public host bindings let ANY wallet submit the creation (the vault checks every signature) and spare the paying
++  // host from reaching every peer. A peer that does not answer only removes this convenience.
++  const hostSigs=await Promise.all(plan.machines.map(async m=>{
++    try{const info=await get(m.endpoint.replace(/\/$/,'')+'/v2/custody/info');return SIG.test(String(info?.hostSig))?info.hostSig:null;}catch{return null;}
++  }));
++  const complete=hostSigs.every(Boolean);
++  const transaction=complete?{to:plan.vault,value:'0',data:encodeFunctionData({abi:VAULT_V2_ABI,functionName:'createIndependentCommittee',
++    args:[plan.salt,plan.machines.map(({identity,encKey,endpoint,chipId,registryId,measurement})=>({identity,encKey,endpoint,chipId,registryId,measurement})),
++      packed,plan.codeSet,results.map(r=>r.signature),hostSigs]})}:null;
++  const activated=[],unadopted=[];
+   // One gas payer creates the committee. Later members observe it and adopt;
+   // concurrent creation would needlessly spend gas on duplicate transactions.
+-  if(activate)for(const url of urls)activated.push(await post(url,{action:'activate',results}));
+-  return {committeeId:results[0].committeeId,commitments:results[0].commitments,results,activated,chainVerified:false};
++  // A member whose host refuses to pay or is down does not stop the others; it is retried once after another
++  // member's activation, when it only has to adopt from the chain.
++  if(activate){
++    const body={action:'activate',results,...(complete?{hostSigs}:{})};
++    let pending=urls.map((_,i)=>i);const reasons={};
++    for(let round=0;round<2&&pending.length;round++){
++      const left=[];
++      for(const i of pending){
++        try{activated.push({id:i+1,...await post(urls[i],body)});}
++        catch(e){left.push(i);reasons[i]=String(e?.message||'refused').slice(0,200);}
++      }
++      if(left.length===pending.length&&!activated.length)break;
++      pending=left;
++    }
++    for(const i of pending)unadopted.push({id:i+1,reason:reasons[i]});
++  }
++  return {committeeId:results[0].committeeId,commitments:results[0].commitments,results,hostSigs,transaction,activated,unadopted,chainVerified:false};
+ }
+diff --git a/custody/v2/daemon.mjs b/custody/v2/daemon.mjs
+index 9a98cdc4..586bc153 100644
+--- a/custody/v2/daemon.mjs
++++ b/custody/v2/daemon.mjs
+@@ -26,9 +26,10 @@ import { cachedCollateral, httpCollateral } from "../../verifier/consumer.mjs";
+ import { verifyQuote, parseSnpReport } from "../../relay/snp-verify.mjs";
+ import { MEASURED } from "./measured.mjs";
+ import { receiptCapacityCheck } from "./capacity.mjs";
+-import { independentOwners, ownerAdmissionCheck } from "./admission.mjs";
+-import { createIndependentGenesis, dkgHelper } from "./independent-genesis.mjs";
+-import * as D from "./digests.mjs";
++import { ownerAdmissionCheck } from "./admission.mjs";
++import { dkgHelper } from "./independent-genesis.mjs";
++import { independentPolicy, ownerPermitAdmission } from "./governance.mjs";
++import { createIndependentService } from "./independent-runtime.mjs";
+ 
+ const log = (...a) => console.log(new Date().toISOString(), ...a);
+ const FW = "/sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.custody/raw";
+@@ -132,57 +133,26 @@ async function main() {
+     if (!v.ok) return { ok: false, reason: v.reasons.slice(-1)[0] };
+     return { ok: true, measurement: p.measurement.toString("hex"), chipId: p.chipId.toString("hex") };
+   };
+-  const owners=MEASURED.independentOwners ? independentOwners(MEASURED.independentOwners,MEASURED.enclaveOwner) : null;
++  // The measured independent policy: an explicit owner list, or owner permits (any distinct non-Enclave owners that sign);
++  // with neither, the legacy Enclave-founded admission (capacity receipts) applies.
++  const policy = independentPolicy(MEASURED);
++  const admissionCheck = policy?.mode === "owner-list" ? ownerAdmissionCheck(policy.owners)
++    : policy?.mode === "owner-permits" ? ownerPermitAdmission({ enclaveOwner: MEASURED.enclaveOwner })
++    : null;
+   const member = createMember({ chainId: MEASURED.chainId, vault: MEASURED.vault, identity, encPrivateKey, machine, chain, store, submit, fetchJson,
+                                 attestSelf: async (b) => tsmReport(b, hc.vcek), verifyPeerQuote, enclaveOwner: MEASURED.enclaveOwner, log,
+                                 // a non-Enclave candidate proves capacity with the audit witness's receipt for its chip (§5 item 2)
+-                                admissionCheck: owners ? ownerAdmissionCheck(owners) : null,
++                                admissionCheck,
+                                 capacityCheck: receiptCapacityCheck({ chainId: MEASURED.chainId, contract: MEASURED.capacityContract, witnesses: MEASURED.witnesses }),
+                                 // this machine's own receipts, which its host fetches from the witness (unverified here: every member checks them)
+                                 capacityReceipts: async () => { const r = await fetch(hc.hostUrl + "/receipts"); return r.ok ? (await r.json()).slice(0, 8) : []; } });
+   const custodian = createCustodianV2({ chainId: MEASURED.chainId, vault: MEASURED.vault, encPrivateKey, shares: member.shares, chain,
+                                         verifiers: productionVerifiers({ collateral: cachedCollateral({ dir: "/tmp/amd-collateral", upstream: httpCollateral({ timeoutMs: 8000 }) }) }), log });
+ 
+-  let dkg=null;
+-  async function independent(body) {
+-    if(!owners)throw Error('independent genesis not enabled in this measured image');
+-    if(!dkg){
+-      const plan=state.independentPlan||body.plan;
+-      if(!plan||!await member.verifyGenesisRoster(plan,owners))throw Error('independent roster not verified');
+-      // One sealed session per machine; replacing its salt/transcript requires
+-      // an explicit new identity, not a host-controlled reset endpoint.
+-      const candidate=createIndependentGenesis({plan,identity,encPrivateKey,invoke:dkgHelper('/opt/custodian/dkg'),
+-        verifyRoster:p=>member.verifyGenesisRoster(p,owners),
+-        store:{load:()=>state.independentDkg,save:async s=>{state.independentDkg=s;await saveNow();}}});
+-      state.independentPlan=plan;await saveNow();dkg=candidate;
+-    }
+-    if(body.action==='start')return dkg.start();
+-    if(body.action==='agree')return dkg.agree(body.round1);
+-    if(body.action==='exchange')return dkg.exchange(body.acks);
+-    if(body.action==='finish')return dkg.finish(body.messages);
+-    if(body.action==='activate'){
+-      const s=state.independentDkg,plan=state.independentPlan;
+-      if(s?.phase!==3||!s.result)throw Error('independent DKG has not finished');
+-      if(!await member.verifyGenesisRoster(plan,owners))throw Error('independent roster changed');
+-      if(!Array.isArray(body.results)||body.results.length!==plan.machines.length)throw Error('all founder signatures required');
+-      const results=[...body.results].sort((a,b)=>a.id-b.id);
+-      for(let i=0;i<results.length;i++){
+-        const r=results[i];
+-        if(r.id!==i+1||r.committeeId!==s.committeeId||r.commitments!==s.commitments||
+-           await D.recoverDigest(D.independentGenesisDigest({...plan,committeeId:r.committeeId,commitments:r.commitments}),r.signature)!==plan.machines[i].identity.toLowerCase())throw Error('founder agreement mismatch');
+-      }
+-      const current=await chain.readCommittee({committeeId:s.committeeId});
+-      if(!current.committee){
+-        const hostSigs=[];
+-        for(const m of plan.machines){const ev=await fetchJson(`${m.endpoint}/v2/custody/info`);hostSigs.push(ev.hostSig);}
+-        await submit('createIndependentCommittee',[plan.salt,plan.machines,s.commitments,plan.codeSet,results.map(r=>r.signature),hostSigs]);
+-      }
+-      const adopted=await member.adoptIndependentGenesis(s);await saveNow();return adopted;
+-    }
+-    throw Error('unknown independent genesis action');
+-  }
+-  let independentTail=Promise.resolve();
+-  const runIndependent=body=>{const next=independentTail.then(()=>independent(body));independentTail=next.catch(()=>{});return next;};
++  const runIndependent = createIndependentService({ policy, member, chain, identity, encPrivateKey, invoke: dkgHelper("/opt/custodian/dkg"),
++    state, persist: saveNow, fetchJson, submit, log });
++  // the committee this custodian serves: the host's choice, else the one it adopted (an independent genesis sets none)
++  const servedCommittee = () => hc.committeeId || member.committees()[0] || null;
+ 
+   // 3. HTTP (the tunnel agent forwards the relay's /t/<name>/... here)
+   const rate = rateLimiter();
+@@ -192,7 +162,8 @@ async function main() {
+     const client = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "-").split(",")[0].trim().slice(0, 64);
+     try {
+       if (req.method === "GET" && (u.pathname === "/health" || u.pathname === "/")) return json(res, 200, { ok: true, role: "custodian-v2" });
+-      if (req.method === "GET" && u.pathname === "/v2/custody/info") return json(res, 200, { ...member.info(hc.committeeId), chainId: MEASURED.chainId, vault: MEASURED.vault });
++      if (req.method === "GET" && u.pathname === "/v2/custody/info") return json(res, 200, { ...member.info(servedCommittee()), chainId: MEASURED.chainId, vault: MEASURED.vault,
++                                                                                         independentAdmission: policy?.mode || null });
+       if (req.method !== "POST") return json(res, 405, { error: "method_not_allowed", message: "POST only." });
+       if (!rate(client)) return json(res, 429, { error: "rate_limited", message: "Too many requests; retry shortly." });
+       const chunks = []; let n = 0;
+@@ -202,10 +173,12 @@ async function main() {
+         case "/v2/custody/challenge": return json(res, 200, custodian.challenge({ client }));
+         case "/v2/custody/release": return json(res, 200, await custodian.release(body));
+         case "/v2/custody/evidence": return json(res, 200, await member.evidence(String(body.nonce || "")));
+-        case "/v2/custody/join": return json(res, 200, await member.join(body, hc.committeeId));
++        case "/v2/custody/join": return json(res, 200, await member.join(body, servedCommittee()));
+         case "/v2/custody/approve": return json(res, 200, await member.approve({ ...body, next: body.next || [] }));
+         case "/v2/custody/host-binding": return json(res, 200, await member.setHostSig(String(body.sig || "")));
+         case "/v2/custody/independent-genesis": return json(res, 200, await runIndependent(body));
++        case "/v2/custody/code-approve": return json(res, 200, await member.approveCode({ committeeId: String(body.committeeId || servedCommittee() || ""),
++                                                                                         measurement: String(body.measurement || ""), add: body.add, permit: body.permit }));
+         default: return json(res, 404, { error: "not_found", message: "Unknown custody route." });
+       }
+     } catch (e) {
+@@ -227,7 +200,8 @@ async function main() {
+     log(`GENESIS ${g.committeeId}: set committeeId in the host config`);
+   }
+   const loop = async () => {
+-    const cid = hc.committeeId || Object.keys(member._state().epochs || {}).map((k) => k.split(":")[0])[0];
++    try { await runIndependent.adoptIfCreated(); } catch (e) { log(`[independent] ${e.message}`); }
++    const cid = servedCommittee();
+     if (cid) { try { const r = await member.tick(cid); if (r.state !== "steady" && r.state !== "idle") log(`[engine] ${JSON.stringify(r)}`); } catch (e) { log(`[engine] ${e.message}`); } }
+     setTimeout(loop, 60_000);
+   };
+diff --git a/custody/v2/independent-genesis.mjs b/custody/v2/independent-genesis.mjs
+index f54f47e8..173b18aa 100644
+--- a/custody/v2/independent-genesis.mjs
++++ b/custody/v2/independent-genesis.mjs
+@@ -37,6 +37,10 @@ export function dkgHelper(path) {
+   });
+ }
+ 
++// The sealed DKG session a plan names: chain, vault, salt, ordered machine records and code set.
++export const independentSession = ({chainId,vault,salt,machines,codeSet}) =>
++  digest('enclave-custody independent DKG v1',chainId,String(vault).toLowerCase(),salt,machines.map(D.machineHash),codeSet);
++
+ export function createIndependentGenesis({ plan, identity, encPrivateKey, store, invoke, verifyRoster }) {
+   // Freeze exact scope; caller must verify every peer's fresh quote, accepted
+   // host ownership and local admission policy. There is no permissive default.
+@@ -51,7 +55,7 @@ export function createIndependentGenesis({ plan, identity, encPrivateKey, store,
+   if(machines.some(m=>m.enclave||!codeSet.includes(m.measurement)))throw Error('independent genesis requires admitted non-Enclave machines');
+   const at=machines.findIndex(m=>m.identity.toLowerCase()===identity.address.toLowerCase()),id=at+1,n=machines.length,t=Math.ceil(2*n/3);
+   if(at<0||hx(hpke.publicKeyOf(encPrivateKey))!==machines[at].encKey.slice(2).toLowerCase())throw Error('genesis identity/key mismatch');
+-  const session=digest('enclave-custody independent DKG v1',chainId,vault.toLowerCase(),salt,machines.map(D.machineHash),codeSet);
++  const session=independentSession(plan);
+   let st=store.load()||{session,phase:0};
+   if(st.session!==session)throw Error('sealed DKG state belongs to another session');
+   const save=async next=>{await store.save(next);st=next;};
+@@ -128,11 +132,19 @@ export function createIndependentGenesis({ plan, identity, encPrivateKey, store,
+   }
+   async function completeResult(){
+     if(st.result)return st.result;
++    if(!st.share)throw Error('DKG share was already handed to the committee');
+     const signature=await D.signDigest(identity,D.independentGenesisDigest({chainId,vault,committeeId:st.committeeId,commitments:st.commitments,machines,codeSet}));
+     await save({...st,result:{id,committeeId:st.committeeId,commitments:st.commitments,signature}});return st.result;
+   }
+   // HTTP handlers can overlap. Serialize transitions through the sealed state.
+   let tail=Promise.resolve();
+   const serial=fn=>(...args)=>{const next=tail.then(()=>fn(...args));tail=next.catch(()=>{});return next;};
+-  return {session,start:serial(start),agree:serial(agree),exchange:serial(exchange),finish:serial(finish)};
++  // After the member engine holds the share for the on-chain committee, erase this copy: later handovers erase epoch
++  // shares, and a retained genesis share would outlive them. The public result stays for idempotent replies.
++  async function forgetShare(){
++    if(st.phase!==3||!st.result)throw Error('independent DKG has not finished');
++    if(st.share){const {share,...rest}=st;await save({...rest,adopted:true});}
++    return st.result;
++  }
++  return {session,start:serial(start),agree:serial(agree),exchange:serial(exchange),finish:serial(finish),forgetShare:serial(forgetShare)};
+ }
+diff --git a/custody/v2/ingress.mjs b/custody/v2/ingress.mjs
+index 23e7782c..de57e959 100644
+--- a/custody/v2/ingress.mjs
++++ b/custody/v2/ingress.mjs
+@@ -12,7 +12,7 @@ export function directCustodyIngress({endpoint,mgmtPort}) {
+   }
+   @public_protocol {
+     method POST
+-    path /v2/custody/evidence /v2/custody/challenge /v2/custody/release /v2/custody/join /v2/custody/approve /v2/custody/independent-genesis
++    path /v2/custody/evidence /v2/custody/challenge /v2/custody/release /v2/custody/join /v2/custody/approve /v2/custody/independent-genesis /v2/custody/code-approve
+   }
+   handle @public_info {
+     reverse_proxy 127.0.0.1:${mgmtPort}
+diff --git a/custody/v2/measured.mjs b/custody/v2/measured.mjs
+index 82f3e95f..d12c7c04 100644
+--- a/custody/v2/measured.mjs
++++ b/custody/v2/measured.mjs
+@@ -10,6 +10,8 @@ export const MEASURED = Object.freeze({
+   maxAgeSec: 120,
+   enclaveOwner: "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+   independentOwners: null, // explicit measured wallet set enables independent genesis; no host override
++  // "owner-permits": any distinct non-Enclave accepted owners may form (all sign the plan) and admit (t seat owners sign)
++  independentAdmission: null,
+   // the capacity audit's witnesses and receipt domain (availability/witness.mjs; the EnclaveVerificationFees contract)
+   capacityContract: "0x87c7266543ff5839b2c20226bd9b3cd511a23641",
+   witnesses: { "0xd80bf435467df887f1031743c2a2125a130fe225": "enclave-bootstrap" },
+diff --git a/custody/v2/member.mjs b/custody/v2/member.mjs
+index 019db7f1..dc1313df 100644
+--- a/custody/v2/member.mjs
++++ b/custody/v2/member.mjs
+@@ -17,6 +17,7 @@ import { createHash, randomBytes } from "node:crypto";
+ import * as v2 from "./protocol.mjs";
+ import * as D from "./digests.mjs";
+ import { DEFAULT_MIN_TCB } from "../rules.mjs";
++import { admissionDigest, admissionClaims, codePermitDigest, signatureBatch, judgePlan, planOwnerChecks, judgeCodePermit } from "./governance.mjs";
+ 
+ export const HEARTBEAT_MS = 60_000, SILENT_MS = 30 * 60_000, BATCH_MS = 10 * 60_000;
+ const sha256 = (...p) => createHash("sha256").update(Buffer.concat(p.map((x) => Buffer.from(x)))).digest();
+@@ -79,15 +80,25 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
+     return { committeeId, Y: hex0x(Y), tx };
+   }
+ 
++  // ---- authorization snapshot: ONE agreed block for every owner/operator/code fact a decision uses ----
++  // newcomers: [{ machine, admission }] whose admission signatures are checked at that block; extra.digests: other
++  // signatures by key (claims name an account or a host whose owner at that block is asked).
++  async function readSnapshot(committeeId, newcomers = [], extra = {}) {
++    const batch = signatureBatch(), handles = new Map();
++    for (const n of newcomers) if (committeeId && Number.isSafeInteger(n.admission?.expiresAt))
++      handles.set(lc(n.machine.identity), await batch.add(admissionDigest({ chainId, vault: vaultL, committeeId, machine: n.machine, expiresAt: n.admission.expiresAt }), admissionClaims(n.admission)));
++    for (const [key, { digest, claims }] of Object.entries(extra.digests || {})) handles.set(key, await batch.add(digest, claims));
++    const planHandles = extra.plan ? await planOwnerChecks(batch, extra.plan) : [];
++    const snap = await chain.readAuthorization({ committeeId: committeeId || null,
++      registryIds: [...newcomers.map((n) => n.machine.registryId), ...(extra.registryIds || [])],
++      measurements: committeeId ? newcomers.map((n) => n.machine.measurement) : [], checks: batch.checks });
++    return { ...snap, signersOf: (key) => (handles.has(key) ? batch.signers(handles.get(key), snap) : new Set()),
++             planSigners: (i) => (planHandles[i] === undefined ? new Set() : batch.signers(planHandles[i], snap)) };
++  }
++
+   // ---- candidate verification (§5): run by EVERY member for itself ----
+-  async function verifyCandidate({ machine: m, hostSig, endpoint }, committeeId, genesisOwners = null) {
+-    if (genesisOwners) {
+-      // Before contacting a proposed endpoint, bind its host to a wallet this
+-      // image explicitly admits. Genesis peers must run this same measured code.
+-      const reg = await chain.readRegistryEntry({registryId:m.registryId});
+-      if (!reg.entry?.active || !genesisOwners.includes(reg.entry.owner) || m.measurement !== me.measurement)
+-        return {ok:false,reason:'genesis owner or measured code is outside policy'};
+-    }
++  // attest: fresh evidence for this EXACT record (a different record under the same identity fails the machine hash).
++  async function attest(m) {
+     const nonce = randomBytes(32).toString("hex");
+     const ev = await fetchJson(`${m.endpoint}/v2/custody/evidence`, { nonce });
+     if (!ev || lc(D.machineHash(ev.machine)) !== lc(D.machineHash(m))) return { ok: false, reason: "evidence names another machine" };
+@@ -96,42 +107,63 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
+     if (!v.ok) return { ok: false, reason: `attestation: ${v.reason}` };
+     if (hex0x(sha256(Buffer.from(v.measurement, "hex"))) !== lc(m.measurement)) return { ok: false, reason: "measurement does not match the machine record" };
+     if (hex0x(sha256(Buffer.from(v.chipId, "hex"))) !== lc(m.chipId)) return { ok: false, reason: "chip id does not match the machine record" };
+-    if (!genesisOwners) {
+-      const code = await chain.readCodeActiveAt({ committeeId, measurement: m.measurement });
+-      if (!code.activeAt || code.activeAt * 1000 > now()) return { ok: false, reason: "custodian code not active in the committee's code set" };
++    return { ok: true, ev, v };
++  }
++  // genesisAllows: the founder owner rule (a predicate, or a measured owner list); null for a join to a live committee.
++  // snap: the decision's authorization snapshot; without one (a join), one is read for this candidate alone.
++  async function verifyCandidate({ machine: m, hostSig, endpoint, admission }, committeeId, genesisAllows = null, snap = null) {
++    const allows = !genesisAllows ? null : typeof genesisAllows === "function" ? genesisAllows : (o) => genesisAllows.includes(o);
++    if (allows) {
++      // Before contacting a proposed endpoint, bind its host to a wallet this
++      // image explicitly admits. Genesis peers must run this same measured code.
++      snap ||= await readSnapshot(null, [], { registryIds: [m.registryId] });
++      const e = snap.entries[lc(m.registryId)];
++      if (!e?.active || !allows(lc(e.owner)) || m.measurement !== me.measurement) return {ok:false,reason:'genesis owner or measured code is outside policy'};
++    }
++    const a = await attest(m);
++    if (!a.ok) return a;
++    snap ||= await readSnapshot(committeeId, [{ machine: m, admission }], { registryIds: [m.registryId] });
++    if (!allows) {
++      const at = snap.codeActiveAt?.[lc(m.measurement)];
++      if (!at || at > snap.blockTimestamp) return { ok: false, reason: "custodian code not active in the committee's code set" };
+     }
+-    const reg = await chain.readRegistryEntry({ registryId: m.registryId });
+-    if (!reg.entry || !reg.entry.active) return { ok: false, reason: "host registry entry not active" };
+-    const who = await D.recoverDigest(D.hostDigest({ chainId, vault: vaultL, machine: m }), hostSig || ev.hostSig);
+-    if (!who || who !== reg.entry.operator) return { ok: false, reason: "host binding not signed by the host's registry operator" };
+-    if (!reg.entry.owner || /^0x0{40}$/.test(reg.entry.owner)) return { ok: false, reason: "host wallet ownership has not been accepted" };
+-    const enclave = reg.entry.owner === lc(enclaveOwner);
+-    if (!genesisOwners && (admissionCheck || !enclave)) {
+-      const c = await (admissionCheck || capacityCheck)({ machine: m, chipIdRaw: v.chipId, registry: reg.entry, receipts: Array.isArray(ev.receipts) ? ev.receipts : [] });
++    const entry = snap.entries[lc(m.registryId)];
++    if (!entry || !entry.active) return { ok: false, reason: "host registry entry not active" };
++    const sig = hostSig || a.ev.hostSig;
++    const who = await D.recoverDigest(D.hostDigest({ chainId, vault: vaultL, machine: m }), sig);
++    if (!who || who !== entry.operator) return { ok: false, reason: "host binding not signed by the host's registry operator" };
++    if (!entry.owner || /^0x0{40}$/.test(entry.owner)) return { ok: false, reason: "host wallet ownership has not been accepted" };
++    const enclave = entry.owner === lc(enclaveOwner);
++    if (!allows && (admissionCheck || !enclave)) {
++      const c = await (admissionCheck || capacityCheck)({ machine: m, chipIdRaw: a.v.chipId, registry: entry, receipts: Array.isArray(a.ev.receipts) ? a.ev.receipts : [],
++                                                          committeeId, admission, snapshot: snap, signers: snap.signersOf(lc(m.identity)) });
+       if (!c || !c.ok) return { ok: false, reason: `${admissionCheck ? "membership policy" : "proof of capacity"}: ${(c && c.reason) || "refused"}` };
+     }
+-    return { ok: true, enclave, hostSig: hostSig || ev.hostSig };
++    return { ok: true, enclave, hostSig: sig, owner: entry.owner };
+   }
+-  async function verifyGenesisRoster(plan, owners) {
++  // policy: the measured independent policy ({ mode: "owner-list", owners } | { mode: "owner-permits" }), or an owner list.
++  // owner-permits: every founder's accepted owner wallet also signs the exact plan; any distinct non-Enclave owners may form.
++  // Every operator permit, owner permit, owner rule and owner distinctness is judged at ONE block: the same operators and
++  // owners authorize the same roster. Then each founder is attested; its host binding is checked against that block.
++  async function verifyGenesisRoster(plan, policy) {
++    if (Array.isArray(policy)) policy = { mode: "owner-list", owners: policy };
++    const permits = policy?.mode === "owner-permits";
++    if (!permits && policy?.mode !== "owner-list") return false;
++    const allows = (o) => /^0x[0-9a-f]{40}$/.test(o) && !/^0x0{40}$/.test(o) && o !== lc(enclaveOwner) && (permits || policy.owners.includes(o));
+     if (plan.chainId !== chainId || lc(plan.vault) !== vaultL || plan.machines.length < 3 || plan.machines.length > 64 ||
+         plan.codeSet.length !== 1 || plan.codeSet[0] !== me.measurement ||
+-        !Array.isArray(plan.operatorPermits)||plan.operatorPermits.length!==plan.machines.length) return false;
++        !Array.isArray(plan.operatorPermits)||plan.operatorPermits.length!==plan.machines.length||
++        (permits && (!Array.isArray(plan.ownerPermits)||plan.ownerPermits.length!==plan.machines.length))) return false;
+     if (!plan.machines.some(m=>lc(D.machineHash(m))===lc(D.machineHash(me)))) return false;
+-    const accepted=new Set(), chips=new Set();
+-    const permitDigest=D.independentPlanDigest(plan);
+-    // All operators consent before any remote evidence call or sealed session
++    // All operators (and, with owner permits, all owners) consent before any remote evidence call or sealed session
+     // allocation. A public caller cannot consume a machine with a chosen salt.
+-    for(let i=0;i<plan.machines.length;i++){
+-      const reg=await chain.readRegistryEntry({registryId:plan.machines[i].registryId});
+-      if(!reg.entry?.active||!owners.includes(reg.entry.owner)||
+-         await D.recoverDigest(permitDigest,plan.operatorPermits[i])!==reg.entry.operator)return false;
+-    }
++    const snap = await readSnapshot(null, [], { registryIds: plan.machines.map((m) => m.registryId), ...(permits ? { plan } : {}) });
++    if ((await judgePlan({ plan, snapshot: snap, policy, enclaveOwner, ownerSigners: snap.planSigners })).length) return false;
++    const chips = new Set();
+     for (const m of plan.machines) {
+-      const r=await verifyCandidate({machine:m},null,owners);
+-      if(!r.ok||r.enclave||chips.has(m.chipId))return false;
+-      const reg=await chain.readRegistryEntry({registryId:m.registryId});
+-      if(!reg.entry?.active||!owners.includes(reg.entry.owner)||accepted.has(reg.entry.owner))return false;
+-      accepted.add(reg.entry.owner);chips.add(m.chipId);
++      const r = await verifyCandidate({ machine: m }, null, allows, snap);
++      if (!r.ok || r.enclave || chips.has(m.chipId)) return false;
++      chips.add(m.chipId);
+     }
+     return true;
+   }
+@@ -147,14 +179,18 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
+     putShares('epochs',lc(committeeId),1,[{k,x}]);save();
+     return {committeeId,epoch:1};
+   }
++  // the committees this machine holds shares for (the daemon serves the adopted one when the host names none)
++  const committees = () => [...new Set(Object.keys(st.epochs).map((k) => k.split(":")[0]))];
+   async function join(body, committeeId) {
+     const m = body && body.machine;
+     if (!m || !/^0x[0-9a-f]{40}$/.test(lc(m.identity))) throw new Error("join: a machine record is required");
+     const r = await verifyCandidate(body, committeeId);
+     if (!r.ok) throw new Error(`join refused: ${r.reason}`);
+-    st.candidates[lc(m.identity)] = { machine: { ...m, identity: lc(m.identity) }, hostSig: r.hostSig, enclave: r.enclave, verifiedAt: now() };
++    st.candidates[lc(m.identity)] = { machine: { ...m, identity: lc(m.identity) }, hostSig: r.hostSig, enclave: r.enclave, owner: lc(r.owner), verifiedAt: now(),
++                                       ...(Array.isArray(body.admission?.signatures) ? { admission: { expiresAt: body.admission.expiresAt,
++                                         signatures: body.admission.signatures.slice(0, 64).map((x) => ({ owner: String(x?.owner), signature: String(x?.signature) })) } } : {}) };
+     save();
+-    log(`[member] candidate ${lc(m.identity).slice(0, 10)} verified (${r.enclave ? "Enclave-owned" : "capacity-proven"})`);
++    log(`[member] candidate ${lc(m.identity).slice(0, 10)} verified (${r.enclave ? "Enclave-owned" : admissionCheck ? "admitted by measured policy" : "capacity-proven"})`);
+     return { ok: true, enclave: r.enclave };
+   }
+ 
+@@ -167,9 +203,34 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
+     // one seat per chip among non-Enclave machines: a second candidate on a chip already seated is left out
+     const chips = new Set(alive.filter((m) => !m.enclave).map((m) => m.chipId));
+     const add = [];
+-    for (const c of fresh) { if (!c.enclave && chips.has(c.machine.chipId)) continue; if (!c.enclave) chips.add(c.machine.chipId); add.push({ ...c.machine, enclave: c.enclave, hostSig: c.hostSig }); }
++    for (const c of fresh) { if (!c.enclave && chips.has(c.machine.chipId)) continue; if (!c.enclave) chips.add(c.machine.chipId); add.push({ ...c.machine, enclave: c.enclave, hostSig: c.hostSig, admission: c.admission }); }
+     return [...alive, ...add];
+   }
++  // An INDEPENDENT committee (no Enclave machine) stays independent: no Enclave-owned or unowned newcomer, and a
++  // newcomer's owner is distinct from every continuing seat's owner and every other newcomer's, all at the snapshot's
++  // block. The vault only enforces one seat per chip, so every member enforces this when it coordinates and approves.
++  // Continuing seats are NOT evicted when their ownership later converges (a transfer): they keep serving, and
++  // governance.mjs counts their owner once. That is the line between service and governance.
++  const isIndependent = (com) => !com.machines.some((m) => m.enclave);
++  const ownerAt = (snap, m) => { const e = snap.entries[lc(m.registryId)], o = lc(e?.owner); return e?.active && /^0x[0-9a-f]{40}$/.test(o) && !/^0x0{40}$/.test(o) ? o : null; };
++  // -> { next } when every newcomer keeps the committee independent, else { reason }; `drop` filters instead of refusing
++  function independentNext(snap, next, { drop = false } = {}) {
++    const com = snap.committee;
++    if (!isIndependent(com)) return { next };
++    const known = new Set(com.machines.map((m) => m.identity));
++    const owners = new Set();
++    for (const m of next) if (known.has(lc(m.identity))) { const o = ownerAt(snap, m); if (o) owners.add(o); }
++    const out = [];
++    for (const m of next) {
++      if (known.has(lc(m.identity))) { out.push(m); continue; }
++      const o = ownerAt(snap, m);
++      const reason = m.enclave || !o || o === lc(enclaveOwner) ? "an Enclave-owned or unowned newcomer" : owners.has(o) ? "a second seat for one owner" : null;
++      if (reason && !drop) return { reason: `${lc(m.identity).slice(0, 10)} would add ${reason} to an independent committee` };
++      if (reason) continue;
++      owners.add(o); out.push(m);
++    }
++    return { next: out };
++  }
+   const setKey = (ms) => ms.map((m) => m.identity).sort().join(",");
+   function dealersFor(com, aliveIds) {
+     // exactly t_old indices from ALIVE machines; the Enclave seat's indices from one Enclave machine
+@@ -183,25 +244,31 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
+   }
+ 
+   // ---- approvals: another member asks this one to sign a proposal ----
++  // The authorization point for a handover is this signature. EVERY newcomer - including one this member verified at
++  // join - is re-attested for the proposal's exact record and re-authorized (code, operator binding, owner, admission
++  // permit and its expiry, owner distinctness) at one snapshot taken now: a permit that expired or an owner that changed
++  // since the join refuses.
+   async function approve({ committeeId, fromEpoch, next, dealerIndices }) {
+     const { committee: com, pending } = await chain.readCommittee({ committeeId });
+     if (!com || com.epoch !== fromEpoch) throw new Error("approve: not the current epoch");
+     if (pending && pending.expires * 1000 > now()) throw new Error("approve: a handover is already pending");
+     if (!com.machines.some((m) => m.identity === me.identity)) throw new Error("approve: this machine is not a current member");
+-    const mineIds = new Set(desired(com).map((m) => m.identity));
+     const known = new Set(com.machines.map((m) => m.identity));
+-    for (const m of next) {
+-      if (known.has(lc(m.identity))) continue;
+-      if (!mineIds.has(lc(m.identity))) {           // a newcomer this member has not verified: verify it now
+-        const r = await verifyCandidate({ machine: m, hostSig: m.hostSig }, committeeId);
+-        if (!r.ok) throw new Error(`approve: candidate ${lc(m.identity).slice(0, 10)} refused: ${r.reason}`);
+-      }
+-    }
+     for (const m of com.machines) {                 // a removal this member does not see as gone
+       if (next.some((n) => lc(n.identity) === m.identity)) continue;
+       if (m.identity === me.identity) throw new Error("approve: the proposal removes this machine, which is alive");
+       if ((lastSeen.get(m.identity) || 0) > now() - SILENT_MS) throw new Error(`approve: ${m.identity.slice(0, 10)} is alive from here`);
+     }
++    const newcomers = next.filter((m) => !known.has(lc(m.identity)));
++    const snap = await readSnapshot(committeeId, newcomers.map((m) => ({ machine: strip(m), admission: m.admission })), { registryIds: next.map((m) => m.registryId) });
++    if (!snap.committee || snap.committee.epoch !== fromEpoch) throw new Error("approve: the committee changed while authorizing");
++    const indep = independentNext(snap, next);
++    if (indep.reason) throw new Error(`approve: ${indep.reason}`);
++    for (const m of newcomers) {
++      const r = await verifyCandidate({ machine: strip(m), hostSig: m.hostSig, admission: m.admission }, committeeId, null, snap);
++      if (!r.ok) throw new Error(`approve: candidate ${lc(m.identity).slice(0, 10)} refused: ${r.reason}`);
++      if (!!r.enclave !== !!m.enclave) throw new Error(`approve: candidate ${lc(m.identity).slice(0, 10)} has the wrong Enclave flag`);
++    }
+     v2.seatLayout(next.map((m) => ({ enclave: !!m.enclave })));   // throws on an invalid seat set (e.g. < 3 seats, no Enclave)
+     const digest = D.handoverDigest({ chainId, vault: vaultL, committeeId, fromEpoch, next: next.map(strip), dealerIndices });
+     return { approver: me.identity, sig: await D.signDigest(identity, digest) };
+@@ -272,8 +339,13 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
+     const aliveIds = new Set(com.machines.filter((m) => m.identity === me.identity || (lastSeen.get(m.identity) || 0) > t - SILENT_MS).map((m) => m.identity));
+     const coordinator = [...aliveIds].sort()[0];
+     if (coordinator !== me.identity) return { state: "idle" };
+-    const next = desired(com);
+-    const key = setKey(next);
++    let next = desired(com), snap = null;
++    const newcomersOf = (ms) => ms.filter((m) => !com.machines.some((c) => c.identity === m.identity));
++    if (newcomersOf(next).length) {
++      snap = await readSnapshot(cid, newcomersOf(next).map((m) => ({ machine: strip(m), admission: m.admission })), { registryIds: next.map((m) => m.registryId) });
++      next = independentNext(snap, next, { drop: true }).next;
++    }
++    let key = setKey(next);
+     if (key === setKey(com.machines)) { desiredSince = null; desiredKey = null; return { state: "steady" }; }
+     try { v2.seatLayout(next); } catch (e) { return { state: "invalid_next", reason: e.message }; }
+     if (desiredKey !== key) { desiredKey = key; desiredSince = t; }
+@@ -283,7 +355,19 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
+     if (!urgent && t - desiredSince < BATCH_MS) return { state: "batching", since: desiredSince };
+     const dealerIndices = dealersFor(com, aliveIds);
+     if (!dealerIndices) return { state: "stuck", reason: "fewer than t shares are reachable; waiting for members to return" };
+-    const proposal = { committeeId: cid, fromEpoch: com.epoch, next: next.map((m) => ({ ...strip(m), enclave: !!m.enclave, hostSig: m.hostSig })), dealerIndices };
++    // Re-verify cached candidates now, as every approver will: one whose permit expired, whose owner changed or whose
++    // evidence fails is forgotten (it may join again) instead of blocking the rest of the change.
++    for (const m of newcomersOf(next)) {
++      const r = await verifyCandidate({ machine: strip(m), hostSig: m.hostSig, admission: m.admission }, cid, null, snap);
++      if (r.ok && !!r.enclave === !!m.enclave) continue;
++      log(`[member] candidate ${m.identity.slice(0, 10)} dropped: ${r.reason || "Enclave flag changed"}`);
++      delete st.candidates[m.identity]; save();
++      next = next.filter((x) => x.identity !== m.identity);
++    }
++    key = setKey(next);
++    if (key === setKey(com.machines)) { desiredSince = null; desiredKey = null; return { state: "steady" }; }
++    try { v2.seatLayout(next); } catch (e) { return { state: "invalid_next", reason: e.message }; }
++    const proposal = { committeeId: cid, fromEpoch: com.epoch, next: next.map((m) => ({ ...strip(m), enclave: !!m.enclave, hostSig: m.hostSig, ...(m.admission ? { admission: m.admission } : {}) })), dealerIndices };
+     const approvals = [];
+     let weight = 0;
+     const seatOf = (id) => lay.seats.find((s) => s.machines.some((mi) => com.machines[mi].identity === id));
+@@ -306,5 +390,23 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
+     return { state: "proposed", tx };
+   }
+ 
+-  return { me, shares, info, evidence, setHostSig, genesis, verifyGenesisRoster, adoptIndependentGenesis, join, approve, tick, _state: () => st, _lastSeen: lastSeen };
++  // ---- code governance: this seat's OWNER authorizes, this machine signs the vault's codeDigest ----
++  // Judged at one snapshot: this machine must be its owner's canonical seat (an owner votes once however many seats it
++  // holds; governance.mjs), the owner must have signed the exact permit, and the permit must be live at that block. The
++  // permit's expiry gates only THIS signature; once signed, the vault bounds it by epoch and single-use digest.
++  async function approveCode({ committeeId, measurement, add, permit }) {
++    const cid = lc(committeeId), meas = lc(measurement);
++    if (!/^0x[0-9a-f]{64}$/.test(cid) || !/^0x[0-9a-f]{64}$/.test(meas) || /^0x0{64}$/.test(meas) || typeof add !== "boolean") throw new Error("code: committeeId, measurement and add are required");
++    if (!Number.isSafeInteger(permit?.expiresAt)) throw new Error("code: the owner permit is expired or too long-lived");
++    const digest = codePermitDigest({ chainId, vault: vaultL, committeeId: cid, measurement: meas, add, expiresAt: permit.expiresAt });
++    const snap = await readSnapshot(cid, [], { digests: { code: { digest, claims: [{ registryId: me.registryId, signature: permit.signature }] } } });
++    const com = snap.committee, index = com ? com.machines.findIndex((m) => m.identity === me.identity) : -1;
++    if (index < 0) throw new Error("code: this machine is not a current member");
++    const r = judgeCodePermit({ snapshot: snap, index, permit, signers: snap.signersOf("code"), enclaveOwner });
++    if (!r.ok) throw new Error(`code: ${r.reason}`);
++    log(`[member] ${add ? "approved" : "approved removal of"} custodian code ${meas.slice(0, 18)}... at epoch ${com.epoch}`);
++    return { approver: me.identity, epoch: com.epoch, sig: await D.signDigest(identity, D.codeDigest({ chainId, vault: vaultL, committeeId: cid, epoch: com.epoch, measurement: meas, add })) };
++  }
++
++  return { me, shares, info, evidence, setHostSig, genesis, verifyGenesisRoster, adoptIndependentGenesis, committees, join, approve, approveCode, tick, _state: () => st, _lastSeen: lastSeen };
+ }
+diff --git a/scripts/build-custodian-v2.mjs b/scripts/build-custodian-v2.mjs
+index 8251b5c5..58434aa8 100644
+--- a/scripts/build-custodian-v2.mjs
++++ b/scripts/build-custodian-v2.mjs
+@@ -7,46 +7,41 @@
+ // Every other cpio entry is copied byte for byte. The launch measurement is printed (sev-snp-measure, 2 vCPUs).
+ //
+ //   node scripts/build-custodian-v2.mjs --base <metal dist dir> --out <new dir> --vault 0x… --host-ownership 0x… [--vcpus 2] [--transport direct|tunnel]
++//        [--independent-owners owners.json | --independent-admission owner-permits]   (independent committees; see
++//        docs/security/independent-custody-activation.md; either one bundles the static DKG helper)
+ import fs from "node:fs";
+ import path from "node:path";
+ import url from "node:url";
+-import zlib from "node:zlib";
+ import { createHash } from "node:crypto";
+ import { execFileSync } from "node:child_process";
+ import { build } from "esbuild";
+-import { independentOwners } from "../custody/v2/admission.mjs";
++import { custodianMeasured, measuredModule, readGzipFile, gzipPartsToFile } from "../custody/v2/build-config.mjs";
+ 
+ const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
+ const arg = (n, d) => { const i = process.argv.indexOf("--" + n); return i > 0 ? process.argv[i + 1] : d; };
+-const BASE = path.resolve(arg("base", "")), OUT = path.resolve(arg("out", "")), VAULT = String(arg("vault", "")).toLowerCase();
+-const HOST_OWNERSHIP = String(arg("host-ownership", "")).toLowerCase();
++const BASE = path.resolve(arg("base", "")), OUT = path.resolve(arg("out", ""));
+ const VCPUS = String(arg("vcpus", "2"));
+-const TRANSPORT=arg('transport','direct');
+-if(!['direct','tunnel'].includes(TRANSPORT))throw Error('--transport must be direct or tunnel');
+-const ENCLAVE_OWNER="0x0b2d009c0c9af05b12100d77f3c815fea822ee61";
+ const ownerFile=arg("independent-owners",null);
+-const INDEPENDENT_OWNERS=ownerFile ? independentOwners(JSON.parse(fs.readFileSync(ownerFile,'utf8')),ENCLAVE_OWNER) : null;
++// Every measured pin is validated (and interpreted by the daemon's own policy code) before any build work.
++const { measured: MEASURED, policy: POLICY, needsDkg: NEEDS_DKG } = custodianMeasured({ vault: arg("vault", ""), hostOwnership: arg("host-ownership", ""),
++  transport: arg('transport','direct'), ownerList: ownerFile ? JSON.parse(fs.readFileSync(ownerFile,'utf8')) : null, admission: arg("independent-admission", null) });
++const { vault: VAULT, hostOwnership: HOST_OWNERSHIP, transport: TRANSPORT, independentOwners: INDEPENDENT_OWNERS } = MEASURED;
++const INDEPENDENT_ADMISSION = MEASURED.independentAdmission || null;
+ const sha = (b) => createHash("sha256").update(b).digest("hex");
+ if (!fs.existsSync(path.join(BASE, "manifest.json"))) throw new Error("--base must be a metal dist dir");
+ if (fs.existsSync(OUT)) throw new Error(`${OUT} exists: an image is built once`);
+-if (!/^0x[0-9a-f]{40}$/.test(VAULT) || /^0x0{40}$/.test(VAULT)) throw new Error("--vault must be the deployed EnclaveSecretVaultV2");
+-if (!/^0x[0-9a-f]{40}$/.test(HOST_OWNERSHIP) || /^0x0{40}$/.test(HOST_OWNERSHIP)) throw new Error("--host-ownership must pin the accepted wallet authority for the new vault; legacy vaults require their compatible runtime");
+ const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
+ const dirty = execFileSync("git", ["status", "--porcelain", "--", "custody", "isolation/m2/cmd/snpkey", "relay/snp-verify.mjs", "verifier", "scripts/build-custodian-v2.mjs"], { cwd: ROOT, encoding: "utf8" }).trim();
+ if (dirty && !process.argv.includes("--allow-dirty")) throw new Error(`uncommitted changes in the image's sources:\n${dirty}`);
+ 
+ // 1. base, checked against its manifest
+ const m = JSON.parse(fs.readFileSync(path.join(BASE, "manifest.json"), "utf8"));
+-const gz = fs.readFileSync(path.join(BASE, "initramfs.cpio.gz"));
+-if (m.initramfs && sha(gz) !== m.initramfs.sha256) throw new Error("base initramfs hash mismatch");
++const { raw, sha256: baseInitramfsSha256 } = await readGzipFile(path.join(BASE, "initramfs.cpio.gz"));
++if (m.initramfs && baseInitramfsSha256 !== m.initramfs.sha256) throw new Error("base initramfs hash mismatch");
+ if (sha(fs.readFileSync(path.join(BASE, "vmlinuz"))) !== m.kernel.sha256) throw new Error("base kernel hash mismatch");
+ 
+ // 2. the custodian bundle with the measured config
+-const measured = `export const MEASURED = Object.freeze(${JSON.stringify({
+-  chainId: 8453, transport:TRANSPORT, vault: VAULT, hostOwnership: HOST_OWNERSHIP,
+-  rpcs: ["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"],
+-  minAgree: 3, confirmations: 2, maxAgeSec: 120, enclaveOwner: ENCLAVE_OWNER, independentOwners: INDEPENDENT_OWNERS,
+-  capacityContract: "0x87c7266543ff5839b2c20226bd9b3cd511a23641", witnesses: { "0xd80bf435467df887f1031743c2a2125a130fe225": "enclave-bootstrap" } })});\n`;
++const measured = measuredModule(MEASURED);
+ const bundleOptions={ bundle: true, platform: "node", format: "esm", target: "node22",
+   write: false, legalComments: "none", banner: { js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url);' },
+   plugins: [{ name: "measured", setup(b) { b.onLoad({ filter: /custody[\\/]v2[\\/]measured\.mjs$/ }, () => ({ contents: measured, loader: "js" })); } }] };
+@@ -57,7 +52,7 @@ execFileSync("go", ["build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w -bu
+   { cwd: path.join(ROOT, "isolation/m2"), env: { ...process.env, GOFLAGS: "", CGO_ENABLED: "0", GOEXPERIMENT: "nodwarf5", GOTOOLCHAIN: "go1.27.0" }, stdio: "inherit" });
+ const snpkey = fs.readFileSync(tmpKey); fs.unlinkSync(tmpKey);
+ let dkg=null,dkgBuild=null;
+-if(INDEPENDENT_OWNERS){
++if(NEEDS_DKG){
+   execFileSync('cargo',['build','--locked','--release','--target','x86_64-unknown-linux-musl','--manifest-path',path.join(ROOT,'custody/dkg/Cargo.toml')],{cwd:ROOT,stdio:'inherit'});
+   const binary=path.join(ROOT,'custody/dkg/target/x86_64-unknown-linux-musl/release/enclave-custody-dkg');
+   if(/INTERP/.test(execFileSync('readelf',['-lW',binary],{encoding:'utf8'}))||/\(NEEDED\)/.test(execFileSync('readelf',['-dW',binary],{encoding:'utf8'})))throw Error('DKG helper must be static');
+@@ -67,7 +62,6 @@ if(INDEPENDENT_OWNERS){
+ const gsup=Buffer.from((await build({...bundleOptions,entryPoints:[path.join(ROOT,'custody/v2/cvm-gsup.mjs')]})).outputFiles[0].contents);
+ 
+ // 3. rewrite the newc cpio: replace gsup, append the custodian dir + files before the trailer
+-const raw = zlib.gunzipSync(gz);
+ const parts = []; let off = 0, maxino = 0, prefix = null, replaced = false;
+ const entry = (fields, name, data) => {
+   const nm = Buffer.from(name + "\0");
+@@ -101,17 +95,18 @@ while (off < raw.length) {
+ }
+ if (!replaced || prefix === null) throw new Error("the base image has no /opt/metal/gsup.mjs");
+ fs.mkdirSync(OUT);
+-const out = zlib.gzipSync(Buffer.concat(parts), { level: 9 });
+-fs.writeFileSync(path.join(OUT, "initramfs.cpio.gz"), out);
++const out = await gzipPartsToFile(parts, path.join(OUT, "initramfs.cpio.gz"));
+ fs.copyFileSync(path.join(BASE, "vmlinuz"), path.join(OUT, "vmlinuz"));
+ const cmdline = fs.readFileSync(path.join(BASE, "cmdline"), "utf8").trim().replace("${MODE}", "snp");
+ fs.writeFileSync(path.join(OUT, "cmdline"), cmdline + "\n");
+-const manifest = { role: "enclave-custodian-v2", commit, vault: VAULT, hostOwnership: HOST_OWNERSHIP, base: { dir: path.basename(BASE), initramfsSha256: sha(gz), kernelSha256: m.kernel.sha256 },
++const manifest = { role: "enclave-custodian-v2", commit, vault: VAULT, hostOwnership: HOST_OWNERSHIP, base: { dir: path.basename(BASE), initramfsSha256: baseInitramfsSha256, kernelSha256: m.kernel.sha256 },
+   independentOwners: INDEPENDENT_OWNERS,
++  ...(INDEPENDENT_ADMISSION ? { independentAdmission: INDEPENDENT_ADMISSION } : {}),
++  independentPolicy: POLICY,
+   transport:TRANSPORT,
+   dkgBuild,
+   files: { "/opt/metal/gsup.mjs": sha(gsup), "/opt/custodian/custodian.mjs": sha(custodianJs), "/opt/custodian/snpkey": sha(snpkey), ...(dkg?{'/opt/custodian/dkg':sha(dkg)}:{}) },
+-  kernel: { sha256: m.kernel.sha256 }, initramfs: { sha256: sha(out), bytes: out.length }, cmdline, vcpus: Number(VCPUS) };
++  kernel: { sha256: m.kernel.sha256 }, initramfs: { sha256: out.sha256, bytes: out.bytes }, cmdline, vcpus: Number(VCPUS) };
+ // 4. the launch measurement this image produces on this host's firmware (the verifying OVMF), Turin
+ const OVMF = process.env.OVMF || path.join(process.env.HOME, ".cache/enclave-isolation/fwbuild/OVMF.amdsev.fd");
+ try {

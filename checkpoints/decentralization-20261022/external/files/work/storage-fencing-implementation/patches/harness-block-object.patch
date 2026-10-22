@@ -1,0 +1,28 @@
+--- a/harness/cmd/harness/main.go
++++ b/harness/cmd/harness/main.go
+@@ -510,6 +510,25 @@
+ 			panic(err)
+ 		}
+ 		h.event("resume-publish", map[string]any{"indexer": s.name})
++	case "/block-object", "/unblock-object":
++		// TEST CONTROL (sia-s3 blocked-listing driver, PATCH U1-B): the indexer operator blocks (or unblocks) one
++		// object key through indexd's REAL admin API (PUT/DELETE /objects/blocklist/:key), as a takedown would
++		s := h.slot(r)
++		var key types.Hash256
++		if err := key.UnmarshalText([]byte(q.Get("key"))); err != nil {
++			panic("bad key")
++		}
++		var err error
++		if r.URL.Path == "/block-object" {
++			err = s.idx.Admin.ObjectBlocklistAdd(context.Background(), key, "sia-s3 blocked-listing driver")
++		} else {
++			err = s.idx.Admin.ObjectBlocklistRemove(context.Background(), key)
++		}
++		if err != nil {
++			panic(err)
++		}
++		reply["key"] = key.String()
++		h.event(strings.TrimPrefix(r.URL.Path, "/"), map[string]any{"indexer": s.name, "key": key.String()})
+ 	case "/query":
+ 		s := h.slot(r)
+ 		sql, ok := queries[q.Get("q")]

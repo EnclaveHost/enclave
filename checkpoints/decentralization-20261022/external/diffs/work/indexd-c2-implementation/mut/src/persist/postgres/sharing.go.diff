@@ -1,0 +1,66 @@
+--- a/persist/postgres/sharing.go
++++ b/persist/postgres/sharing.go
+@@ -49,8 +49,14 @@
+ 
+ // AddSharingKey creates a sharing key owned by the given account.
+ func (s *Store) AddSharingKey(account proto.Account, req sharing.KeyRequest) (key sharing.Key, err error) {
++	return s.AddSharingKeyFenced(account, nil, req)
++}
++
++// AddSharingKeyFenced is AddSharingKey under the writer fence sf (FENCING PATCH).
++func (s *Store) AddSharingKeyFenced(account proto.Account, sf *accounts.Credential, req sharing.KeyRequest) (key sharing.Key, err error) {
+ 	err = s.transaction(func(ctx context.Context, tx *txn) error {
+-		accountID, deleted, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		accountID, deleted := la.id, la.deleted
+ 		if err != nil {
+ 			return err
+ 		} else if deleted {
+@@ -138,8 +144,14 @@
+ // DeleteSharingKey deletes the given account's sharing key along with its
+ // attached objects.
+ func (s *Store) DeleteSharingKey(account proto.Account, publicKey types.PublicKey) error {
++	return s.DeleteSharingKeyFenced(account, nil, publicKey)
++}
++
++// DeleteSharingKeyFenced is DeleteSharingKey under the writer fence sf (FENCING PATCH).
++func (s *Store) DeleteSharingKeyFenced(account proto.Account, sf *accounts.Credential, publicKey types.PublicKey) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		accountID, _, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		accountID := la.id
+ 		if err != nil {
+ 			return err
+ 		}
+@@ -158,8 +170,14 @@
+ // keys. If the object is already attached, its re-sealed keys and signatures
+ // are overwritten.
+ func (s *Store) AddSharedObject(account proto.Account, sharingKey types.PublicKey, req sharing.SharedObjectRequest) error {
++	return s.AddSharedObjectFenced(account, nil, sharingKey, req)
++}
++
++// AddSharedObjectFenced is AddSharedObject under the writer fence sf (FENCING PATCH).
++func (s *Store) AddSharedObjectFenced(account proto.Account, sf *accounts.Credential, sharingKey types.PublicKey, req sharing.SharedObjectRequest) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		accountID, deleted, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		accountID, deleted := la.id, la.deleted
+ 		if err != nil {
+ 			return err
+ 		} else if deleted {
+@@ -372,8 +390,14 @@
+ 
+ // DeleteSharedObject detaches an object from one of the account's sharing keys.
+ func (s *Store) DeleteSharedObject(account proto.Account, sharingKey types.PublicKey, objectKey types.Hash256) error {
++	return s.DeleteSharedObjectFenced(account, nil, sharingKey, objectKey)
++}
++
++// DeleteSharedObjectFenced is DeleteSharedObject under the writer fence sf (FENCING PATCH).
++func (s *Store) DeleteSharedObjectFenced(account proto.Account, sf *accounts.Credential, sharingKey types.PublicKey, objectKey types.Hash256) error {
+ 	return s.transaction(func(ctx context.Context, tx *txn) error {
+-		accountID, _, err := accountID(ctx, tx, account)
++		la, err := lockAccount(ctx, tx, account, sf)
++		accountID := la.id
+ 		if err != nil {
+ 			return err
+ 		}

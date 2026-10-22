@@ -1,0 +1,20 @@
+--- a/windows/node/agent.mjs
++++ b/windows/node/agent.mjs
+@@ -948,7 +948,7 @@
+         const { createResponderSessions, sessionTargets } = await import('./shield-sessions.mjs');
+         const responders = createResponderSessions({ hostId: host.enclaveId, endpoint: PUBLIC_URL, nodeKey, tpm: tpmCmd, keysFrame,
+           managerHealth: isolationHealth, platform: platformInfo, sign, log: (m) => log(m) });
+-        const tickResponders = () => { const t = sessionTargets(host.records.values()); if (t.length) responders.refresh(t).catch((e) => log(`shield responder sessions: ${e.message}`)); };
++        const tickResponders = () => { const t = sessionTargets(host.records.values(), { appZone: host.cfg.appZone }); if (t.length) responders.refresh(t).catch((e) => log(`shield responder sessions: ${e.message}`)); };
+         setTimeout(tickResponders, 45_000).unref?.(); setInterval(tickResponders, 120_000).unref?.();
+         // DIRECT SHIELD CUSTODY (shield-custody.mjs): only with the manager's callback key (ENCLAVE_CUSTODY_CALLBACK_KEY_FILE,
+         // the file the manager reads too). Each request is answered only after a fresh quorum read re-verifies the startup
+@@ -970,7 +970,7 @@
+                 return authority.materialize(id, { manager, runtimeId: host.cfg.isolationRuntimeId, enclaveId: host.enclaveId, needLease: true,
+                   walletRefusal: (row) => host.walletPolicyRefusal(row) });
+               },
+-              ensureSessions: () => responders.refresh(sessionTargets(host.records.values())),
++              ensureSessions: () => responders.refresh(sessionTargets(host.records.values(), { appZone: host.cfg.appZone })),
+               log: (m) => log(m) });
+             setInterval(() => { custody.pass().catch((e) => log(`shield custody: ${e.message}`)); }, 2000).unref?.();
+             log('shield custody: answering direct custody requests through the manager callback');
