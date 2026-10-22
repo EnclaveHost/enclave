@@ -49,6 +49,10 @@ for p in (native / 'stubs').rglob('*'):
     if p.is_file() and not p.is_symlink():
         paths.add(p)
 paths.add(base / 'native-control-discovery-root-review.txt')
+# Read-only public catalog/admission evidence and reproducible probe sources.
+for p in (base / 'storage-public-read').iterdir():
+    if p.is_file() and not p.is_symlink() and p.suffix in ('.mjs', '.json'):
+        paths.add(p)
 paths.add(Path(__file__).resolve())
 entries = []
 unchanged = []

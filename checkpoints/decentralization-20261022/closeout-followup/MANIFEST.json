@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-22T20:18:36.988715+00:00",
+  "capturedAt": "2026-10-22T20:31:41.067478+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -869,8 +869,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "670f3fcd7f0f42f1d4a5fbfb0f1ae0ee45b4715e3488f233deb54db97e3b254a",
-      "bytes": 4070
+      "sha256": "6b7c634e0c28f58a32c9da16a28057fc92cf806d768ea8f4763355a696e537b9",
+      "bytes": 4297
     },
     {
       "source": "work/resume-after-checkpoint-20261022/storage-activation-next/ACTIONS.json",
@@ -889,6 +889,54 @@
       "stored": "files/storage-activation-next/SHA256SUMS",
       "sha256": "943d53f32760e263eea1933af7529fe43773e6ef268c314f2e727f04c36c8844",
       "bytes": 155
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-public-read/candidate-catalog-config.json",
+      "stored": "files/storage-public-read/candidate-catalog-config.json",
+      "sha256": "7b9e7e750521b4bb0fa5925e771a42766673ad728e02e3d8508da4ca6ea554d2",
+      "bytes": 548
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-public-read/gate-preflight.mjs",
+      "stored": "files/storage-public-read/gate-preflight.mjs",
+      "sha256": "dec289f5545e15644a802553116daf7984fceac823ccf86edf915b488ad64563",
+      "bytes": 5168
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-public-read/gate-result.json",
+      "stored": "files/storage-public-read/gate-result.json",
+      "sha256": "670e3ca253a2d632d1ffe7ad80c67da93c6e05e6c1c7b0f46fb8924a041b71eb",
+      "bytes": 1415
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-public-read/publication-inputs.json",
+      "stored": "files/storage-public-read/publication-inputs.json",
+      "sha256": "f7ff900e4364de8753090cdfbf34c868a2bbb2fa9c1415c792bc1bacfb20ff3e",
+      "bytes": 1783
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-public-read/read.mjs",
+      "stored": "files/storage-public-read/read.mjs",
+      "sha256": "5952e3780328fd46251f5f3a80b19ef35000e6371025ad8b78a9977b86ba5bbd",
+      "bytes": 3743
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-public-read/result.json",
+      "stored": "files/storage-public-read/result.json",
+      "sha256": "d9d17c669562ce74962a77e91456967fe9b53ab3fbff1ad7c24e281a9ba5d8d4",
+      "bytes": 4022
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-public-read/rpc-capabilities.json",
+      "stored": "files/storage-public-read/rpc-capabilities.json",
+      "sha256": "eb1b3e9a1a1fe00d469b7456fab85ccc4e43a387a6e2631600a63ec623566633",
+      "bytes": 1486
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/storage-public-read/rpc-capabilities.mjs",
+      "stored": "files/storage-public-read/rpc-capabilities.mjs",
+      "sha256": "0e2ed0f62047d3235522b4e77c147613293422102b2a6eb1201c7073099bc41e",
+      "bytes": 1604
     }
   ],
   "unchangedAlreadyPreserved": [

@@ -1,0 +1,49 @@
+{
+  "at": "2026-10-22T20:29:04.017Z",
+  "readOnly": true,
+  "rows": [
+    {
+      "url": "https://mainnet.base.org",
+      "chainId": "0x2105",
+      "block": "0x3280a95",
+      "hash": "0x4ebf1a7b482dcdd6e2e1a5541bcd3d6eede85b27d3a7e1b35c2caf0a69a05141",
+      "timestamp": "0x6ada720d",
+      "codeBytes": 1809,
+      "ok": true
+    },
+    {
+      "url": "https://base-rpc.publicnode.com",
+      "chainId": "0x2105",
+      "block": "0x3280a95",
+      "hash": "0x4ebf1a7b482dcdd6e2e1a5541bcd3d6eede85b27d3a7e1b35c2caf0a69a05141",
+      "timestamp": "0x6ada720d",
+      "codeBytes": 1809,
+      "ok": true
+    },
+    {
+      "url": "https://base.drpc.org",
+      "ok": false,
+      "error": "HTTP 429"
+    },
+    {
+      "url": "https://base.public.blockpi.network/v1/rpc/public",
+      "chainId": "0x2105",
+      "block": "0x3280a95",
+      "hash": "0x4ebf1a7b482dcdd6e2e1a5541bcd3d6eede85b27d3a7e1b35c2caf0a69a05141",
+      "timestamp": "0x6ada720d",
+      "codeBytes": 1809,
+      "ok": true
+    },
+    {
+      "url": "https://base.llamarpc.com",
+      "ok": false,
+      "error": "HTTP 525"
+    },
+    {
+      "url": "https://1rpc.io/base",
+      "ok": false,
+      "error": "{\"code\":-32001,\"message\":\"You've reached the usage limit for your current plan. To continue with higher limits and uninterrupted access, please upgrade here: https://www.1rpc.io/#pricing\"}"
+    }
+  ],
+  "limitations": "Capability probe only, not a quorum agreement or provider-independence audit."
+}

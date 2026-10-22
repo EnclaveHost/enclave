@@ -1,0 +1,48 @@
+{
+  "status": "Publication inputs prepared only; no transaction created or sent",
+  "blockNumber": "52955698",
+  "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+  "catalog": "0x18419CA2b502D423A8de6269AEeE171a378626e3",
+  "appId": "0x093fa91736c2639e93867b76074c6c4dbc5e49150faf4e8618bdf45e30d275c6",
+  "currentVersion": "0.1.8",
+  "currentIndex": "7",
+  "currentVersionCount": 8,
+  "resources": {
+    "vramMb": 0,
+    "gpuGflops": 0,
+    "memMb": 2048,
+    "cpuGflops": 62,
+    "ports": "http:8000"
+  },
+  "preserved": [
+    "buckets",
+    "credentials placeholders",
+    "region",
+    "egress",
+    "wasi",
+    "catalog-only _media"
+  ],
+  "removedLegacyKeys": [
+    "indexer",
+    "appKey"
+  ],
+  "added": {
+    "replicas": "$SIAS3_REPLICAS",
+    "writeQuorum": 2,
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION"
+  },
+  "candidateConfigSha256": "767b2e3c2cecabd808a27d121071f4e675c89c120e8dd75420dda751515155d2",
+  "candidateConfigFileSha256": "7b9e7e750521b4bb0fa5925e771a42766673ad728e02e3d8508da4ca6ea554d2",
+  "baseTemplateSha256": "6e31a0bc2517148e7b5f337b9fd0aa8222906eca9dcfc244dd039b06cf5c25b0",
+  "deploymentLeaseExpired": true,
+  "activationPrerequisites": [
+    "Actual replica endpoints and admitted host role instances",
+    "Each replica funded and provisioned without cloning the primary wallet",
+    "Exact final WASM vs backend integration validation",
+    "Owner-authorized version publication and deployment upgrade",
+    "Writer-authority front binding and controlled first CAS enrollment"
+  ],
+  "note": "_media belongs only in catalog config; never pass it as a deployment override. Catalog version config has no config CID indirection at this snapshot."
+}

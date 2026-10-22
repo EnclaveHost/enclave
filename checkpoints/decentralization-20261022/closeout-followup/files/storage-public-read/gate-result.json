@@ -1,0 +1,33 @@
+{
+  "at": "2026-10-22T20:30:23.495965+00:00",
+  "readOnly": true,
+  "observations": [
+    {
+      "at": "2026-10-22T20:28:03.504Z",
+      "exit": 3,
+      "verdict": "UNKNOWN",
+      "reason": "only 2 RPCs answered (need 3)"
+    },
+    {
+      "at": "2026-10-22T20:29:21.660Z",
+      "execSession": 51198,
+      "exit": 0,
+      "verdict": "ADMISSIBLE",
+      "platformPolicy": "on",
+      "gateStatus": "not-activated",
+      "registryActive": true,
+      "registryEndpointMatches": true,
+      "registryOperator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab"
+    }
+  ],
+  "observationSource": "Terminal JSON from gate-preflight.mjs captured in root tool results; guard files contain memory statistics, not stdout.",
+  "latestVerdict": "ADMISSIBLE",
+  "policyActivation": "not-activated; original anchor-mode compatibility applies, not evidence of an active published ban policy",
+  "scope": "Pinned host-role code public-chain admission preflight only; no install, role start, descriptor signature or production config change.",
+  "sourceFix": "Replaced process.exit inside try with returned exitCode so finally removes the owned temporary policy state directory.",
+  "requiredFollowup": [
+    "Publish admin-signed policy to real non-DO carriers before anchoring it",
+    "Obtain usable replica ingress and authorized independent wallet funding",
+    "Apply role deployment gates afresh before activation"
+  ]
+}
