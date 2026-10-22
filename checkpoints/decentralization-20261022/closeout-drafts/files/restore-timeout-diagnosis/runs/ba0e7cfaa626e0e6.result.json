@@ -1,0 +1,1398 @@
+{
+ "manifest": "65c1894e9907816293ca7ea7d996b5091d726729482f6ead549e2358dfadb291",
+ "pins": {
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-resumed-20261022/storage-enclave-fixture/fixture/c2fx.py": "ff1b092c54135df64b506b1683fb48679f678f21e6ec5d28ef6fb54a66534ad6",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-resumed-20261022/control-package/storage-migration-r5/integration/replicactl.fixture-r5.py": "2ab98b4d359fd0f3dcd34458ddfdf61a32b0dfb66652328418e453d4bc679151",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/fix/replicactl.fixture-r5.restorefix.py": "4e0a76a039bbc126df0d23855106f95e5dd9ea424cce7973cc65f34538b337a3",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/fix/apply_restorefix.py": "ce876925e0e5fb526ed21aaf206c36f5827bff9a0d144b54909dafca41d094e1",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/repro.py": "86c7442a794929c1949fd620bfe9acc1305c2191cd2ed381f355b9019171b786"
+ },
+ "scope": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p1699413-i31045355.scope",
+ "containers": [
+  {
+   "runId": "ba0e7cfaa626e0e6",
+   "init": false,
+   "facts": {
+    "timeout": "/usr/bin/timeout -> /usr/bin/timeout",
+    "timeoutVersion": "timeout (GNU coreutils) 9.7",
+    "sh": "/usr/bin/dash",
+    "os": "Debian GNU/Linux 13 (trixie)",
+    "postgres": "postgres (PostgreSQL) 18.6 (Debian 18.6-1.pgdg13+2)",
+    "busybox": "absent",
+    "pid1": "postgres -c listen_addresses=* -c shared_buffers=128MB -c max_connections=50 ",
+    "clientConnectionCheckInterval": "0",
+    "serverVersion": "18.6 (Debian 18.6-1.pgdg13+2)"
+   },
+   "experiments": [
+    {
+     "name": "E0a-r5-shape-timeout-KILL-on-sleep",
+     "script": "timeout -s KILL 2 sleep 30",
+     "wantCrash": true,
+     "identBefore": {
+      "pid1Comm": "postgres",
+      "pid1StartTicks": "100053900",
+      "postmasterStart": "2026-10-22 18:57:06.600324+00",
+      "auxPids": "background writer=83,checkpointer=82,walwriter=85",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "94879744",
+      "memory.current": "79400960",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "treeDuring": [
+      {
+       "pid": 1,
+       "comm": "postgres",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 1,
+       "sid": 1,
+       "argv": "postgres -c listen_addresses=* -c shared_buffers=128MB -c max_connections=50"
+      },
+      {
+       "pid": 151,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 151,
+       "sid": 151,
+       "argv": "sh -c psql -U \"${POSTGRES_USER:-postgres}\" -d \"$1\" -X -A -t -q -v ON_ERROR_STOP=1 -c \"SELECT pg_sleep($2)\" psql diagsrc 10"
+      },
+      {
+       "pid": 175,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 175,
+       "sid": 175,
+       "argv": "sh -c timeout -s KILL 2 sleep 30 sh"
+      },
+      {
+       "pid": 181,
+       "comm": "timeout",
+       "state": "S",
+       "ppid": 175,
+       "pgid": 181,
+       "sid": 175,
+       "argv": "timeout -s KILL 2 sleep 30"
+      },
+      {
+       "pid": 182,
+       "comm": "sleep",
+       "state": "S",
+       "ppid": 181,
+       "pgid": 181,
+       "sid": 175,
+       "argv": "sleep 30"
+      },
+      {
+       "pid": 183,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 183,
+       "sid": 183,
+       "argv": "sh -c for d in /proc/[0-9]*; do s=$(cat \"$d/stat\" 2>/dev/null) || continue; a=$(tr \"\\0\" \" \" < \"$d/cmdline\" 2>/dev/null); printf \"%s\\t%s\\n\" \"$s\" \"$a\"; done sh"
+      }
+     ],
+     "command": {
+      "rc": 137,
+      "stdout": "",
+      "stderr": "Killed\n",
+      "startedAt": 2.1,
+      "endedAt": 4.13
+     },
+     "sentinel": {
+      "token": "fixture-session-5",
+      "db": "diagsrc",
+      "sleep": 10,
+      "backendPid": 166,
+      "startedAt": 1.88,
+      "endedAt": 4.13,
+      "rc": 2,
+      "stderr": "WARNING:  terminating connection because of crash of another server process\nDETAIL:  The postmaster has commanded this server process to roll back the current transaction and exit, because another server process exited abnormally and possibly corrupted shared memory.\nHINT:  In a moment you should be able to reconnect to the database and repeat your command.\nserver closed the connection unexpectedly\n\tThis probably means the server terminated abnormally\n\tbefore or while processing the request.\nconnection to server was lost\n"
+     },
+     "readyAfter": true,
+     "serverLogDelta": [
+      "2026-10-22T18:57:09.297000306Z 2026-10-22 18:57:09.296 UTC [1] LOG:  untracked child process (PID 182) was terminated by signal 9: Killed",
+      "2026-10-22T18:57:09.297035996Z 2026-10-22 18:57:09.296 UTC [1] LOG:  terminating any other active server processes",
+      "2026-10-22T18:57:09.297771240Z 2026-10-22 18:57:09.297 UTC [1] LOG:  all server processes terminated; reinitializing",
+      "2026-10-22T18:57:09.307973757Z 2026-10-22 18:57:09.307 UTC [224] LOG:  database system was interrupted; last known up at 2026-10-22 18:57:06 UTC",
+      "2026-10-22T18:57:09.555385936Z 2026-10-22 18:57:09.555 UTC [234] FATAL:  the database system is in recovery mode",
+      "2026-10-22T18:57:09.688445599Z 2026-10-22 18:57:09.688 UTC [224] LOG:  database system was not properly shut down; automatic recovery in progress",
+      "2026-10-22T18:57:09.690097095Z 2026-10-22 18:57:09.690 UTC [224] LOG:  redo starts at 0/1BA1C88",
+      "2026-10-22T18:57:09.690142705Z 2026-10-22 18:57:09.690 UTC [224] LOG:  invalid record length at 0/1BA1FD0: expected at least 24, got 0",
+      "2026-10-22T18:57:09.690148865Z 2026-10-22 18:57:09.690 UTC [224] LOG:  redo done at 0/1BA1C88 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s",
+      "2026-10-22T18:57:09.692931622Z 2026-10-22 18:57:09.692 UTC [225] LOG:  checkpoint starting: end-of-recovery immediate wait",
+      "2026-10-22T18:57:09.701703351Z 2026-10-22 18:57:09.701 UTC [225] LOG:  checkpoint complete: wrote 1 buffers (0.0%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.003 s, total=0.011 s; sync files=3, longest=0.002 s, average=0.001 s; distance=0 kB, estimate=0 kB; lsn=0/1BA1FD0, redo lsn=0/1BA1FD0",
+      "2026-10-22T18:57:09.703880293Z 2026-10-22 18:57:09.703 UTC [1] LOG:  database system is ready to accept connections"
+     ],
+     "crashLines": [
+      "2026-10-22T18:57:09.297000306Z 2026-10-22 18:57:09.296 UTC [1] LOG:  untracked child process (PID 182) was terminated by signal 9: Killed",
+      "2026-10-22T18:57:09.297035996Z 2026-10-22 18:57:09.296 UTC [1] LOG:  terminating any other active server processes",
+      "2026-10-22T18:57:09.297771240Z 2026-10-22 18:57:09.297 UTC [1] LOG:  all server processes terminated; reinitializing"
+     ],
+     "identAfter": {
+      "pid1Comm": "postgres",
+      "pid1StartTicks": "100053900",
+      "postmasterStart": "2026-10-22 18:57:06.600324+00",
+      "auxPids": "background writer=226,checkpointer=225,walwriter=235",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "96698368",
+      "memory.current": "79933440",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "expectations": [
+      {
+       "what": "crash (server log)",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "unrelated sentinel rc",
+       "want": 2,
+       "got": 2,
+       "ok": true
+      },
+      {
+       "what": "PID 1 starttime unchanged (the postmaster itself survives)",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "checkpointer pid changed (reinitialized)",
+       "want": true,
+       "got": true,
+       "ok": true
+      }
+     ],
+     "ok": true
+    },
+    {
+     "name": "E0b-fixed-shape-exec-timeout-foreground",
+     "script": "exec timeout --foreground -s KILL 2 sleep 30",
+     "wantCrash": false,
+     "identBefore": {
+      "pid1Comm": "postgres",
+      "pid1StartTicks": "100053900",
+      "postmasterStart": "2026-10-22 18:57:06.600324+00",
+      "auxPids": "background writer=226,checkpointer=225,walwriter=235",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "96698368",
+      "memory.current": "79269888",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "treeDuring": [
+      {
+       "pid": 1,
+       "comm": "postgres",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 1,
+       "sid": 1,
+       "argv": "postgres -c listen_addresses=* -c shared_buffers=128MB -c max_connections=50"
+      },
+      {
+       "pid": 276,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 276,
+       "sid": 276,
+       "argv": "sh -c psql -U \"${POSTGRES_USER:-postgres}\" -d \"$1\" -X -A -t -q -v ON_ERROR_STOP=1 -c \"SELECT pg_sleep($2)\" psql diagsrc 10"
+      },
+      {
+       "pid": 292,
+       "comm": "timeout",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 292,
+       "sid": 292,
+       "argv": "timeout --foreground -s KILL 2 sleep 30"
+      },
+      {
+       "pid": 298,
+       "comm": "sleep",
+       "state": "S",
+       "ppid": 292,
+       "pgid": 292,
+       "sid": 292,
+       "argv": "sleep 30"
+      },
+      {
+       "pid": 299,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 299,
+       "sid": 299,
+       "argv": "sh -c for d in /proc/[0-9]*; do s=$(cat \"$d/stat\" 2>/dev/null) || continue; a=$(tr \"\\0\" \" \" < \"$d/cmdline\" 2>/dev/null); printf \"%s\\t%s\\n\" \"$s\" \"$a\"; done sh"
+      }
+     ],
+     "command": {
+      "rc": 137,
+      "stdout": "",
+      "stderr": "",
+      "startedAt": 5.28,
+      "endedAt": 7.32
+     },
+     "sentinel": {
+      "token": "fixture-session-8",
+      "db": "diagsrc",
+      "sleep": 10,
+      "backendPid": 290,
+      "startedAt": 5.22,
+      "endedAt": 15.29,
+      "rc": 0,
+      "stderr": ""
+     },
+     "readyAfter": true,
+     "serverLogDelta": [],
+     "crashLines": [],
+     "identAfter": {
+      "pid1Comm": "postgres",
+      "pid1StartTicks": "100053900",
+      "postmasterStart": "2026-10-22 18:57:06.600324+00",
+      "auxPids": "background writer=226,checkpointer=225,walwriter=235",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "96698368",
+      "memory.current": "80224256",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "expectations": [
+      {
+       "what": "crash (server log)",
+       "want": false,
+       "got": false,
+       "ok": true
+      },
+      {
+       "what": "unrelated sentinel rc",
+       "want": 0,
+       "got": 0,
+       "ok": true
+      },
+      {
+       "what": "PID 1 starttime unchanged (the postmaster itself survives)",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "checkpointer pid changed (reinitialized)",
+       "want": false,
+       "got": false,
+       "ok": true
+      }
+     ],
+     "ok": true
+    },
+    {
+     "name": "E1-r5-controller-verify-backup-X3b-injection",
+     "controller": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-resumed-20261022/control-package/storage-migration-r5/integration/replicactl.fixture-r5.py",
+     "controllerSha256": "2ab98b4d359fd0f3dcd34458ddfdf61a32b0dfb66652328418e453d4bc679151",
+     "wantCrash": true,
+     "restoreBound": 20,
+     "barrierSleep": 30,
+     "holderSleep": 40,
+     "identBefore": {
+      "pid1Comm": "postgres",
+      "pid1StartTicks": "100053900",
+      "postmasterStart": "2026-10-22 18:57:06.600324+00",
+      "auxPids": "background writer=226,checkpointer=225,walwriter=235",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "96698368",
+      "memory.current": "85237760",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "scratch": "diagsrc_verify_77c5d837233bb856",
+     "holderObservedAt": 0.4800000000000004,
+     "treeDuringRestore": [
+      {
+       "pid": 1,
+       "comm": "postgres",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 1,
+       "sid": 1,
+       "argv": "postgres -c listen_addresses=* -c shared_buffers=128MB -c max_connections=50"
+      },
+      {
+       "pid": 413,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 413,
+       "sid": 413,
+       "argv": "sh -c psql -U \"${POSTGRES_USER:-postgres}\" -d \"$1\" -X -A -t -q -v ON_ERROR_STOP=1 -c \"SELECT pg_sleep($2)\" psql diagsrc 60"
+      },
+      {
+       "pid": 443,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 443,
+       "sid": 443,
+       "argv": "sh -c timeout -s KILL \"$2\" pg_restore -U \"${POSTGRES_USER:-postgres}\" --no-owner --no-acl --exit-on-error -d \"$1\" pg_restore diagsrc_verify_77c5d837233bb856 20"
+      },
+      {
+       "pid": 449,
+       "comm": "timeout",
+       "state": "S",
+       "ppid": 443,
+       "pgid": 449,
+       "sid": 443,
+       "argv": "timeout -s KILL 20 pg_restore -U diag --no-owner --no-acl --exit-on-error -d diagsrc_verify_77c5d837233bb856"
+      },
+      {
+       "pid": 450,
+       "comm": "pg_restore",
+       "state": "S",
+       "ppid": 449,
+       "pgid": 449,
+       "sid": 443,
+       "argv": "/usr/lib/postgresql/18/bin/pg_restore -U diag --no-owner --no-acl --exit-on-error -d diagsrc_verify_77c5d837233bb856"
+      },
+      {
+       "pid": 452,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 452,
+       "sid": 452,
+       "argv": "sh -c psql -U \"${POSTGRES_USER:-postgres}\" -d \"$1\" -X -A -t -q -v ON_ERROR_STOP=1 -c \"SELECT pg_sleep($2)\" psql diagsrc_verify_77c5d837233bb856 40"
+      },
+      {
+       "pid": 476,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 476,
+       "sid": 476,
+       "argv": "sh -c for d in /proc/[0-9]*; do s=$(cat \"$d/stat\" 2>/dev/null) || continue; a=$(tr \"\\0\" \" \" < \"$d/cmdline\" 2>/dev/null); printf \"%s\\t%s\\n\" \"$s\" \"$a\"; done sh"
+      }
+     ],
+     "restoreBackends": "451:pg_restore:active 467:fixture-session-2:active",
+     "controllerReport": {
+      "backup": "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/runs/ba0e7cfaa626e0e6/backup-E1",
+      "ok": false,
+      "cleanupOk": true,
+      "restoredDbVersion": null,
+      "digestMatches": false,
+      "scratchState": "dropped",
+      "problems": [
+       "pg_restore failed: Killed\n"
+      ],
+      "scratch": "diagsrc_verify_77c5d837233bb856"
+     },
+     "controllerSeconds": 21.48,
+     "holder": {
+      "token": "fixture-session-2",
+      "db": "diagsrc_verify_77c5d837233bb856",
+      "sleep": 40,
+      "backendPid": 467,
+      "startedAt": 0.25,
+      "endedAt": 20.23,
+      "rc": 2,
+      "stderr": "WARNING:  terminating connection because of crash of another server process\nDETAIL:  The postmaster has commanded this server process to roll back the current transaction and exit, because another server process exited abnormally and possibly corrupted shared memory.\nHINT:  In a moment you should be able to reconnect to the database and repeat your command.\nserver closed the connection unexpectedly\n\tThis probably means the server terminated abnormally\n\tbefore or while processing the request.\nconnection to server was lost\n"
+     },
+     "sentinel": {
+      "token": "fixture-session-3",
+      "db": "diagsrc",
+      "sleep": 60,
+      "backendPid": 427,
+      "startedAt": -0.06,
+      "endedAt": 20.23,
+      "rc": 2,
+      "stderr": "WARNING:  terminating connection because of crash of another server process\nDETAIL:  The postmaster has commanded this server process to roll back the current transaction and exit, because another server process exited abnormally and possibly corrupted shared memory.\nHINT:  In a moment you should be able to reconnect to the database and repeat your command.\nserver closed the connection unexpectedly\n\tThis probably means the server terminated abnormally\n\tbefore or while processing the request.\nconnection to server was lost\n"
+     },
+     "readyAfter": true,
+     "serverLogDelta": [
+      "2026-10-22T18:57:21.565604653Z 2026-10-22 18:57:21.565 UTC [451] LOG:  diag barrier: holder seen after 1 polls",
+      "2026-10-22T18:57:21.565634803Z 2026-10-22 18:57:21.565 UTC [451] CONTEXT:  PL/pgSQL function public.diag_barrier() line 13 at RAISE",
+      "2026-10-22T18:57:21.565638213Z 2026-10-22 18:57:21.565 UTC [451] STATEMENT:  CREATE TABLE public.diag_t (",
+      "2026-10-22T18:57:21.565640193Z \t    id integer NOT NULL,",
+      "2026-10-22T18:57:21.565641513Z \t    v text NOT NULL",
+      "2026-10-22T18:57:21.565642513Z \t);",
+      "2026-10-22T18:57:21.565643293Z \t",
+      "2026-10-22T18:57:21.565644003Z \t",
+      "2026-10-22T18:57:21.565644663Z \t",
+      "2026-10-22T18:57:41.438661791Z 2026-10-22 18:57:41.438 UTC [1] LOG:  untracked child process (PID 450) was terminated by signal 9: Killed",
+      "2026-10-22T18:57:41.438689161Z 2026-10-22 18:57:41.438 UTC [1] LOG:  terminating any other active server processes",
+      "2026-10-22T18:57:41.438721730Z 2026-10-22 18:57:41.438 UTC [451] LOG:  could not send data to client: Broken pipe",
+      "2026-10-22T18:57:41.438725060Z 2026-10-22 18:57:41.438 UTC [451] STATEMENT:  CREATE TABLE public.diag_t (",
+      "2026-10-22T18:57:41.438726830Z \t    id integer NOT NULL,",
+      "2026-10-22T18:57:41.438728910Z \t    v text NOT NULL",
+      "2026-10-22T18:57:41.438730540Z \t);",
+      "2026-10-22T18:57:41.438732210Z \t",
+      "2026-10-22T18:57:41.438733170Z \t",
+      "2026-10-22T18:57:41.438734220Z \t",
+      "2026-10-22T18:57:41.440097609Z 2026-10-22 18:57:41.440 UTC [1] LOG:  all server processes terminated; reinitializing",
+      "2026-10-22T18:57:41.448760388Z 2026-10-22 18:57:41.448 UTC [534] LOG:  database system was interrupted; last known up at 2026-10-22 18:57:09 UTC",
+      "2026-10-22T18:57:41.495447897Z 2026-10-22 18:57:41.495 UTC [544] FATAL:  the database system is in recovery mode",
+      "2026-10-22T18:57:42.050748270Z 2026-10-22 18:57:42.050 UTC [534] LOG:  database system was not properly shut down; automatic recovery in progress",
+      "2026-10-22T18:57:42.052645845Z 2026-10-22 18:57:42.052 UTC [534] LOG:  redo starts at 0/1BA2060",
+      "2026-10-22T18:57:42.062851902Z 2026-10-22 18:57:42.062 UTC [534] LOG:  invalid record length at 0/2080358: expected at least 24, got 0",
+      "2026-10-22T18:57:42.062866332Z 2026-10-22 18:57:42.062 UTC [534] LOG:  redo done at 0/2080320 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.01 s",
+      "2026-10-22T18:57:42.066788260Z 2026-10-22 18:57:42.066 UTC [535] LOG:  checkpoint starting: end-of-recovery immediate wait",
+      "2026-10-22T18:57:42.184233360Z 2026-10-22 18:57:42.184 UTC [535] LOG:  checkpoint complete: wrote 1032 buffers (6.3%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.009 s, sync=0.103 s, total=0.119 s; sync files=353, longest=0.001 s, average=0.001 s; distance=4984 kB, estimate=4984 kB; lsn=0/2080358, redo lsn=0/2080358",
+      "2026-10-22T18:57:42.187742281Z 2026-10-22 18:57:42.187 UTC [1] LOG:  database system is ready to accept connections",
+      "2026-10-22T18:57:42.620076840Z 2026-10-22 18:57:42.620 UTC [535] LOG:  checkpoint starting: immediate force wait",
+      "2026-10-22T18:57:42.627512889Z 2026-10-22 18:57:42.627 UTC [535] LOG:  checkpoint complete: wrote 1 buffers (0.0%), wrote 0 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.008 s; sync files=1, longest=0.002 s, average=0.002 s; distance=1 kB, estimate=4486 kB; lsn=0/2080918, redo lsn=0/20808C0"
+     ],
+     "crashLines": [
+      "2026-10-22T18:57:41.438661791Z 2026-10-22 18:57:41.438 UTC [1] LOG:  untracked child process (PID 450) was terminated by signal 9: Killed",
+      "2026-10-22T18:57:41.438689161Z 2026-10-22 18:57:41.438 UTC [1] LOG:  terminating any other active server processes",
+      "2026-10-22T18:57:41.440097609Z 2026-10-22 18:57:41.440 UTC [1] LOG:  all server processes terminated; reinitializing"
+     ],
+     "identAfter": {
+      "pid1Comm": "postgres",
+      "pid1StartTicks": "100053900",
+      "postmasterStart": "2026-10-22 18:57:06.600324+00",
+      "auxPids": "background writer=536,checkpointer=535,walwriter=545",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "143908864",
+      "memory.current": "102301696",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "scratchLeft": 0,
+     "expectations": [
+      {
+       "what": "crash (server log)",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "the barrier saw the holder (server log)",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "the barrier never timed out",
+       "want": false,
+       "got": false,
+       "ok": true
+      },
+      {
+       "what": "holder observed active before the restore bound",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "verify ok",
+       "want": false,
+       "got": false,
+       "ok": true
+      },
+      {
+       "what": "pg_restore failed reported",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "scratchState",
+       "want": "dropped",
+       "got": "dropped",
+       "ok": true
+      },
+      {
+       "what": "cleanupOk",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "no scratch left",
+       "want": 0,
+       "got": 0,
+       "ok": true
+      },
+      {
+       "what": "unrelated sentinel rc",
+       "want": 2,
+       "got": 2,
+       "ok": true
+      },
+      {
+       "what": "holder rc",
+       "want": 2,
+       "got": 2,
+       "ok": true
+      },
+      {
+       "what": "holder ended at the restore bound (< 35 s)",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "PID 1 starttime unchanged",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "checkpointer pid changed (reinitialized)",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "no OOM kill in the container cgroup",
+       "want": true,
+       "got": true,
+       "ok": true
+      }
+     ],
+     "ok": true
+    },
+    {
+     "name": "E2-fixed-controller-verify-backup-X3b-injection",
+     "controller": "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/fix/replicactl.fixture-r5.restorefix.py",
+     "controllerSha256": "4e0a76a039bbc126df0d23855106f95e5dd9ea424cce7973cc65f34538b337a3",
+     "wantCrash": false,
+     "restoreBound": 20,
+     "barrierSleep": 30,
+     "holderSleep": 40,
+     "identBefore": {
+      "pid1Comm": "postgres",
+      "pid1StartTicks": "100053900",
+      "postmasterStart": "2026-10-22 18:57:06.600324+00",
+      "auxPids": "background writer=536,checkpointer=535,walwriter=545",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "143908864",
+      "memory.current": "102129664",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "scratch": "diagsrc_verify_57b95cf9783d815c",
+     "holderObservedAt": 0.259999999999998,
+     "treeDuringRestore": [
+      {
+       "pid": 1,
+       "comm": "postgres",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 1,
+       "sid": 1,
+       "argv": "postgres -c listen_addresses=* -c shared_buffers=128MB -c max_connections=50"
+      },
+      {
+       "pid": 659,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 659,
+       "sid": 659,
+       "argv": "sh -c psql -U \"${POSTGRES_USER:-postgres}\" -d \"$1\" -X -A -t -q -v ON_ERROR_STOP=1 -c \"SELECT pg_sleep($2)\" psql diagsrc 60"
+      },
+      {
+       "pid": 688,
+       "comm": "timeout",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 688,
+       "sid": 688,
+       "argv": "timeout --foreground -s KILL 20 pg_restore -U diag --no-owner --no-acl --exit-on-error -d diagsrc_verify_57b95cf9783d815c"
+      },
+      {
+       "pid": 694,
+       "comm": "pg_restore",
+       "state": "S",
+       "ppid": 688,
+       "pgid": 688,
+       "sid": 688,
+       "argv": "/usr/lib/postgresql/18/bin/pg_restore -U diag --no-owner --no-acl --exit-on-error -d diagsrc_verify_57b95cf9783d815c"
+      },
+      {
+       "pid": 697,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 697,
+       "sid": 697,
+       "argv": "sh -c psql -U \"${POSTGRES_USER:-postgres}\" -d \"$1\" -X -A -t -q -v ON_ERROR_STOP=1 -c \"SELECT pg_sleep($2)\" psql diagsrc_verify_57b95cf9783d815c 40"
+      },
+      {
+       "pid": 712,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 712,
+       "sid": 712,
+       "argv": "sh -c for d in /proc/[0-9]*; do s=$(cat \"$d/stat\" 2>/dev/null) || continue; a=$(tr \"\\0\" \" \" < \"$d/cmdline\" 2>/dev/null); printf \"%s\\t%s\\n\" \"$s\" \"$a\"; done sh"
+      }
+     ],
+     "restoreBackends": "695:pg_restore:active 711:fixture-session-1:active",
+     "controllerReport": {
+      "backup": "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/runs/ba0e7cfaa626e0e6/backup-E2",
+      "ok": false,
+      "cleanupOk": true,
+      "restoredDbVersion": null,
+      "digestMatches": false,
+      "scratchState": "dropped",
+      "problems": [
+       "pg_restore failed (rc 137): "
+      ],
+      "scratch": "diagsrc_verify_57b95cf9783d815c"
+     },
+     "controllerSeconds": 40.51,
+     "holder": {
+      "token": "fixture-session-1",
+      "db": "diagsrc_verify_57b95cf9783d815c",
+      "sleep": 40,
+      "backendPid": 711,
+      "startedAt": 0.2,
+      "endedAt": 40.27,
+      "rc": 0,
+      "stderr": ""
+     },
+     "sentinel": {
+      "token": "fixture-session-6",
+      "db": "diagsrc",
+      "sleep": 60,
+      "backendPid": 673,
+      "startedAt": -0.06,
+      "endedAt": 60.0,
+      "rc": 0,
+      "stderr": ""
+     },
+     "readyAfter": true,
+     "serverLogDelta": [
+      "2026-10-22T18:57:43.760324374Z 2026-10-22 18:57:43.760 UTC [695] LOG:  diag barrier: holder seen after 1 polls",
+      "2026-10-22T18:57:43.760347314Z 2026-10-22 18:57:43.760 UTC [695] CONTEXT:  PL/pgSQL function public.diag_barrier() line 13 at RAISE",
+      "2026-10-22T18:57:43.760350314Z 2026-10-22 18:57:43.760 UTC [695] STATEMENT:  CREATE TABLE public.diag_t (",
+      "2026-10-22T18:57:43.760352314Z \t    id integer NOT NULL,",
+      "2026-10-22T18:57:43.760353504Z \t    v text NOT NULL",
+      "2026-10-22T18:57:43.760354494Z \t);",
+      "2026-10-22T18:57:43.760355194Z \t",
+      "2026-10-22T18:57:43.760356004Z \t",
+      "2026-10-22T18:57:43.760356774Z \t",
+      "2026-10-22T18:58:13.771489348Z 2026-10-22 18:58:13.771 UTC [695] LOG:  diag barrier: released",
+      "2026-10-22T18:58:13.771517178Z 2026-10-22 18:58:13.771 UTC [695] CONTEXT:  PL/pgSQL function public.diag_barrier() line 15 at RAISE",
+      "2026-10-22T18:58:13.771520808Z 2026-10-22 18:58:13.771 UTC [695] STATEMENT:  CREATE TABLE public.diag_t (",
+      "2026-10-22T18:58:13.771523468Z \t    id integer NOT NULL,",
+      "2026-10-22T18:58:13.771524988Z \t    v text NOT NULL",
+      "2026-10-22T18:58:13.771526148Z \t);",
+      "2026-10-22T18:58:13.771527518Z \t",
+      "2026-10-22T18:58:13.771528518Z \t",
+      "2026-10-22T18:58:13.771529478Z \t",
+      "2026-10-22T18:58:13.776136570Z 2026-10-22 18:58:13.776 UTC [695] LOG:  could not send data to client: Broken pipe",
+      "2026-10-22T18:58:13.776151440Z 2026-10-22 18:58:13.776 UTC [695] FATAL:  connection to client lost",
+      "2026-10-22T18:58:23.899203225Z 2026-10-22 18:58:23.899 UTC [535] LOG:  checkpoint starting: immediate force wait",
+      "2026-10-22T18:58:23.914615639Z 2026-10-22 18:58:23.914 UTC [535] LOG:  checkpoint complete: wrote 42 buffers (0.3%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.008 s, total=0.016 s; sync files=22, longest=0.002 s, average=0.001 s; distance=4604 kB, estimate=4604 kB; lsn=0/24FFC08, redo lsn=0/24FFBB0"
+     ],
+     "crashLines": [],
+     "identAfter": {
+      "pid1Comm": "postgres",
+      "pid1StartTicks": "100053900",
+      "postmasterStart": "2026-10-22 18:57:06.600324+00",
+      "auxPids": "background writer=536,checkpointer=535,walwriter=545",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "143908864",
+      "memory.current": "108498944",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "scratchLeft": 0,
+     "expectations": [
+      {
+       "what": "crash (server log)",
+       "want": false,
+       "got": false,
+       "ok": true
+      },
+      {
+       "what": "the barrier saw the holder (server log)",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "the barrier never timed out",
+       "want": false,
+       "got": false,
+       "ok": true
+      },
+      {
+       "what": "holder observed active before the restore bound",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "verify ok",
+       "want": false,
+       "got": false,
+       "ok": true
+      },
+      {
+       "what": "pg_restore failed reported",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "scratchState",
+       "want": "dropped",
+       "got": "dropped",
+       "ok": true
+      },
+      {
+       "what": "cleanupOk",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "no scratch left",
+       "want": 0,
+       "got": 0,
+       "ok": true
+      },
+      {
+       "what": "unrelated sentinel rc",
+       "want": 0,
+       "got": 0,
+       "ok": true
+      },
+      {
+       "what": "holder rc",
+       "want": 0,
+       "got": 0,
+       "ok": true
+      },
+      {
+       "what": "holder ended BY ITSELF at >= 35 s",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "controller ended at or after the holder's end",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "PID 1 starttime unchanged",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "checkpointer pid changed (reinitialized)",
+       "want": false,
+       "got": false,
+       "ok": true
+      },
+      {
+       "what": "no OOM kill in the container cgroup",
+       "want": true,
+       "got": true,
+       "ok": true
+      }
+     ],
+     "ok": true
+    },
+    {
+     "name": "E4a-r5-controller-r1-X3-injection",
+     "controller": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-resumed-20261022/control-package/storage-migration-r5/integration/replicactl.fixture-r5.py",
+     "wantCrash": true,
+     "restoreBound": 2,
+     "triggerSleep": 20,
+     "identBefore": {
+      "pid1Comm": "postgres",
+      "pid1StartTicks": "100053900",
+      "postmasterStart": "2026-10-22 18:57:06.600324+00",
+      "auxPids": "background writer=536,checkpointer=535,walwriter=545",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "143908864",
+      "memory.current": "112381952",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "controllerSeconds": 3.47,
+     "controllerReport": {
+      "backup": "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/runs/ba0e7cfaa626e0e6/backup-E4a",
+      "ok": false,
+      "cleanupOk": true,
+      "restoredDbVersion": null,
+      "digestMatches": false,
+      "scratchState": "dropped",
+      "problems": [
+       "pg_restore failed: Killed\n"
+      ],
+      "scratch": "diagsrc_verify_cb93dd9ac57a046d"
+     },
+     "sentinel": {
+      "token": "fixture-session-9",
+      "db": "diagsrc",
+      "sleep": 30,
+      "backendPid": 1042,
+      "startedAt": 99.13,
+      "endedAt": 101.41,
+      "rc": 2,
+      "stderr": "WARNING:  terminating connection because of crash of another server process\nDETAIL:  The postmaster has commanded this server process to roll back the current transaction and exit, because another server process exited abnormally and possibly corrupted shared memory.\nHINT:  In a moment you should be able to reconnect to the database and repeat your command.\nserver closed the connection unexpectedly\n\tThis probably means the server terminated abnormally\n\tbefore or while processing the request.\nconnection to server was lost\n"
+     },
+     "readyAfter": true,
+     "serverLogDelta": [
+      "2026-10-22T18:58:46.569184653Z 2026-10-22 18:58:46.569 UTC [1] LOG:  untracked child process (PID 1065) was terminated by signal 9: Killed",
+      "2026-10-22T18:58:46.569220823Z 2026-10-22 18:58:46.569 UTC [1] LOG:  terminating any other active server processes",
+      "2026-10-22T18:58:46.569345732Z 2026-10-22 18:58:46.569 UTC [1066] LOG:  could not send data to client: Broken pipe",
+      "2026-10-22T18:58:46.569372272Z 2026-10-22 18:58:46.569 UTC [1066] STATEMENT:  CREATE TABLE public.diag_t (",
+      "2026-10-22T18:58:46.569376732Z \t    id integer NOT NULL,",
+      "2026-10-22T18:58:46.569379712Z \t    v text NOT NULL",
+      "2026-10-22T18:58:46.569381022Z \t);",
+      "2026-10-22T18:58:46.569382202Z \t",
+      "2026-10-22T18:58:46.569383182Z \t",
+      "2026-10-22T18:58:46.569384202Z \t",
+      "2026-10-22T18:58:46.570531852Z 2026-10-22 18:58:46.570 UTC [1] LOG:  all server processes terminated; reinitializing",
+      "2026-10-22T18:58:46.580674719Z 2026-10-22 18:58:46.580 UTC [1070] LOG:  database system was interrupted; last known up at 2026-10-22 18:58:23 UTC",
+      "2026-10-22T18:58:46.625155566Z 2026-10-22 18:58:46.625 UTC [1080] FATAL:  the database system is in recovery mode",
+      "2026-10-22T18:58:47.043032091Z 2026-10-22 18:58:47.042 UTC [1070] LOG:  database system was not properly shut down; automatic recovery in progress",
+      "2026-10-22T18:58:47.044862136Z 2026-10-22 18:58:47.044 UTC [1070] LOG:  redo starts at 0/24FFBB0",
+      "2026-10-22T18:58:47.045196673Z 2026-10-22 18:58:47.045 UTC [1070] WARNING:  could not open directory \"base/24579\": No such file or directory",
+      "2026-10-22T18:58:47.045201503Z 2026-10-22 18:58:47.045 UTC [1070] CONTEXT:  WAL redo at 0/24FFC80 for Database/DROP: dir 1663/24579",
+      "2026-10-22T18:58:47.045203883Z 2026-10-22 18:58:47.045 UTC [1070] WARNING:  some useless files may be left behind in old database directory \"base/24579\"",
+      "2026-10-22T18:58:47.045205223Z 2026-10-22 18:58:47.045 UTC [1070] CONTEXT:  WAL redo at 0/24FFC80 for Database/DROP: dir 1663/24579",
+      "2026-10-22T18:58:47.053922532Z 2026-10-22 18:58:47.053 UTC [1070] LOG:  invalid record length at 0/2955C40: expected at least 24, got 0",
+      "2026-10-22T18:58:47.053937322Z 2026-10-22 18:58:47.053 UTC [1070] LOG:  redo done at 0/2955BF8 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s",
+      "2026-10-22T18:58:47.057812900Z 2026-10-22 18:58:47.057 UTC [1071] LOG:  checkpoint starting: end-of-recovery immediate wait",
+      "2026-10-22T18:58:47.162987271Z 2026-10-22 18:58:47.162 UTC [1071] LOG:  checkpoint complete: wrote 962 buffers (5.9%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.010 s, sync=0.092 s, total=0.107 s; sync files=315, longest=0.002 s, average=0.001 s; distance=4440 kB, estimate=4440 kB; lsn=0/2955C40, redo lsn=0/2955C40",
+      "2026-10-22T18:58:47.166218504Z 2026-10-22 18:58:47.166 UTC [1] LOG:  database system is ready to accept connections",
+      "2026-10-22T18:58:47.748727174Z 2026-10-22 18:58:47.748 UTC [1071] LOG:  checkpoint starting: immediate force wait",
+      "2026-10-22T18:58:47.755850976Z 2026-10-22 18:58:47.755 UTC [1071] LOG:  checkpoint complete: wrote 1 buffers (0.0%), wrote 0 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.002 s, total=0.008 s; sync files=1, longest=0.002 s, average=0.002 s; distance=1 kB, estimate=3996 kB; lsn=0/2956360, redo lsn=0/2956308"
+     ],
+     "crashLines": [
+      "2026-10-22T18:58:46.569184653Z 2026-10-22 18:58:46.569 UTC [1] LOG:  untracked child process (PID 1065) was terminated by signal 9: Killed",
+      "2026-10-22T18:58:46.569220823Z 2026-10-22 18:58:46.569 UTC [1] LOG:  terminating any other active server processes",
+      "2026-10-22T18:58:46.570531852Z 2026-10-22 18:58:46.570 UTC [1] LOG:  all server processes terminated; reinitializing"
+     ],
+     "identAfter": {
+      "pid1Comm": "postgres",
+      "pid1StartTicks": "100053900",
+      "postmasterStart": "2026-10-22 18:57:06.600324+00",
+      "auxPids": "background writer=1072,checkpointer=1071,walwriter=1081",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "143908864",
+      "memory.current": "95604736",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "scratchLeft": 0,
+     "expectations": [
+      {
+       "what": "crash (server log)",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "verify ok",
+       "want": false,
+       "got": false,
+       "ok": true
+      },
+      {
+       "what": "pg_restore failed reported",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "scratchState",
+       "want": "dropped",
+       "got": "dropped",
+       "ok": true
+      },
+      {
+       "what": "cleanupOk",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "no scratch left",
+       "want": 0,
+       "got": 0,
+       "ok": true
+      },
+      {
+       "what": "unrelated sentinel rc",
+       "want": 2,
+       "got": 2,
+       "ok": true
+      },
+      {
+       "what": "prompt end (< 10 s) only because of the crash",
+       "want": true,
+       "got": true,
+       "ok": true
+      }
+     ],
+     "ok": true
+    },
+    {
+     "name": "E4b-fixed-controller-r1-X3-injection",
+     "controller": "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/fix/replicactl.fixture-r5.restorefix.py",
+     "wantCrash": false,
+     "restoreBound": 2,
+     "triggerSleep": 20,
+     "identBefore": {
+      "pid1Comm": "postgres",
+      "pid1StartTicks": "100053900",
+      "postmasterStart": "2026-10-22 18:57:06.600324+00",
+      "auxPids": "background writer=1072,checkpointer=1071,walwriter=1081",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "143908864",
+      "memory.current": "96534528",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "controllerSeconds": 20.38,
+     "controllerReport": {
+      "backup": "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/runs/ba0e7cfaa626e0e6/backup-E4b",
+      "ok": false,
+      "cleanupOk": true,
+      "restoredDbVersion": null,
+      "digestMatches": false,
+      "scratchState": "dropped",
+      "problems": [
+       "pg_restore failed (rc 137): "
+      ],
+      "scratch": "diagsrc_verify_b86ccc257e0afb0b"
+     },
+     "sentinel": {
+      "token": "fixture-session-7",
+      "db": "diagsrc",
+      "sleep": 30,
+      "backendPid": 1211,
+      "startedAt": 103.36,
+      "endedAt": 133.43,
+      "rc": 0,
+      "stderr": ""
+     },
+     "readyAfter": true,
+     "serverLogDelta": [
+      "2026-10-22T18:59:08.781409403Z 2026-10-22 18:59:08.781 UTC [1233] LOG:  could not send data to client: Broken pipe",
+      "2026-10-22T18:59:08.781435313Z 2026-10-22 18:59:08.781 UTC [1233] FATAL:  connection to client lost",
+      "2026-10-22T18:59:08.883189601Z 2026-10-22 18:59:08.883 UTC [1071] LOG:  checkpoint starting: immediate force wait",
+      "2026-10-22T18:59:08.899931275Z 2026-10-22 18:59:08.899 UTC [1071] LOG:  checkpoint complete: wrote 16 buffers (0.1%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.006 s, total=0.017 s; sync files=14, longest=0.002 s, average=0.001 s; distance=4438 kB, estimate=4438 kB; lsn=0/2DABDE0, redo lsn=0/2DABD88"
+     ],
+     "crashLines": [],
+     "identAfter": {
+      "pid1Comm": "postgres",
+      "pid1StartTicks": "100053900",
+      "postmasterStart": "2026-10-22 18:57:06.600324+00",
+      "auxPids": "background writer=1072,checkpointer=1071,walwriter=1081",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "143908864",
+      "memory.current": "111017984",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "scratchLeft": 0,
+     "expectations": [
+      {
+       "what": "crash (server log)",
+       "want": false,
+       "got": false,
+       "ok": true
+      },
+      {
+       "what": "verify ok",
+       "want": false,
+       "got": false,
+       "ok": true
+      },
+      {
+       "what": "pg_restore failed reported",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "scratchState",
+       "want": "dropped",
+       "got": "dropped",
+       "ok": true
+      },
+      {
+       "what": "cleanupOk",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "no scratch left",
+       "want": 0,
+       "got": 0,
+       "ok": true
+      },
+      {
+       "what": "unrelated sentinel rc",
+       "want": 0,
+       "got": 0,
+       "ok": true
+      },
+      {
+       "what": "the killed restore's backend lingers to its trigger's end and is waited out (15 s <= t < 60 s)",
+       "want": true,
+       "got": true,
+       "ok": true
+      }
+     ],
+     "ok": true
+    }
+   ],
+   "serverLogLines": 152,
+   "identFinal": {
+    "pid1Comm": "postgres",
+    "pid1StartTicks": "100053900",
+    "postmasterStart": "2026-10-22 18:57:06.600324+00",
+    "auxPids": "background writer=1072,checkpointer=1071,walwriter=1081",
+    "memoryEvents": {
+     "low": "0",
+     "high": "0",
+     "max": "0",
+     "oom": "0",
+     "oom_kill": "0",
+     "oom_group_kill": "0",
+     "sock_throttled": "0"
+    },
+    "memory.peak": "143908864",
+    "memory.current": "107868160",
+    "memory.max": "268435456",
+    "dockerState": "false running 0"
+   },
+   "cleanup": {
+    "runId": "ba0e7cfaa626e0e6",
+    "children": [],
+    "indexdPidFiles": [],
+    "scope": {
+     "scope": "drained",
+     "rounds": []
+    },
+    "container": "removed",
+    "volume": "removed",
+    "stage": "removed",
+    "certain": true
+   }
+  },
+  {
+   "runId": "6470d167633652ac",
+   "init": true,
+   "facts": {
+    "timeout": "/usr/bin/timeout -> /usr/bin/timeout",
+    "timeoutVersion": "timeout (GNU coreutils) 9.7",
+    "sh": "/usr/bin/dash",
+    "os": "Debian GNU/Linux 13 (trixie)",
+    "postgres": "postgres (PostgreSQL) 18.6 (Debian 18.6-1.pgdg13+2)",
+    "busybox": "absent",
+    "pid1": "/sbin/docker-init -- docker-entrypoint.sh postgres -c listen_addresses=* -c shared_buffers=128MB -c max_connections=50 ",
+    "clientConnectionCheckInterval": "0",
+    "serverVersion": "18.6 (Debian 18.6-1.pgdg13+2)"
+   },
+   "experiments": [
+    {
+     "name": "E3-r5-shape-under-docker-init",
+     "script": "timeout -s KILL 2 sleep 30",
+     "wantCrash": false,
+     "identBefore": {
+      "pid1Comm": "docker-init",
+      "pid1StartTicks": "100067341",
+      "postmasterStart": "2026-10-22 18:59:20.942989+00",
+      "auxPids": "background writer=87,checkpointer=86,walwriter=90",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "96346112",
+      "memory.current": "83841024",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "treeDuring": [
+      {
+       "pid": 1,
+       "comm": "docker-init",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 1,
+       "sid": 1,
+       "argv": "/sbin/docker-init -- docker-entrypoint.sh postgres -c listen_addresses=* -c shared_buffers=128MB -c max_connections=50"
+      },
+      {
+       "pid": 156,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 156,
+       "sid": 156,
+       "argv": "sh -c psql -U \"${POSTGRES_USER:-postgres}\" -d \"$1\" -X -A -t -q -v ON_ERROR_STOP=1 -c \"SELECT pg_sleep($2)\" psql diagsrc 10"
+      },
+      {
+       "pid": 179,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 179,
+       "sid": 179,
+       "argv": "sh -c timeout -s KILL 2 sleep 30 sh"
+      },
+      {
+       "pid": 185,
+       "comm": "timeout",
+       "state": "S",
+       "ppid": 179,
+       "pgid": 185,
+       "sid": 179,
+       "argv": "timeout -s KILL 2 sleep 30"
+      },
+      {
+       "pid": 186,
+       "comm": "sleep",
+       "state": "S",
+       "ppid": 185,
+       "pgid": 185,
+       "sid": 179,
+       "argv": "sleep 30"
+      },
+      {
+       "pid": 187,
+       "comm": "sh",
+       "state": "S",
+       "ppid": 0,
+       "pgid": 187,
+       "sid": 187,
+       "argv": "sh -c for d in /proc/[0-9]*; do s=$(cat \"$d/stat\" 2>/dev/null) || continue; a=$(tr \"\\0\" \" \" < \"$d/cmdline\" 2>/dev/null); printf \"%s\\t%s\\n\" \"$s\" \"$a\"; done sh"
+      }
+     ],
+     "command": {
+      "rc": 137,
+      "stdout": "",
+      "stderr": "Killed\n",
+      "startedAt": 2.99,
+      "endedAt": 5.03
+     },
+     "sentinel": {
+      "token": "fixture-session-4",
+      "db": "diagsrc",
+      "sleep": 10,
+      "backendPid": 170,
+      "startedAt": 2.77,
+      "endedAt": 12.84,
+      "rc": 0,
+      "stderr": ""
+     },
+     "readyAfter": true,
+     "serverLogDelta": [],
+     "crashLines": [],
+     "identAfter": {
+      "pid1Comm": "docker-init",
+      "pid1StartTicks": "100067341",
+      "postmasterStart": "2026-10-22 18:59:20.942989+00",
+      "auxPids": "background writer=87,checkpointer=86,walwriter=90",
+      "memoryEvents": {
+       "low": "0",
+       "high": "0",
+       "max": "0",
+       "oom": "0",
+       "oom_kill": "0",
+       "oom_group_kill": "0",
+       "sock_throttled": "0"
+      },
+      "memory.peak": "96542720",
+      "memory.current": "82059264",
+      "memory.max": "268435456",
+      "dockerState": "false running 0"
+     },
+     "expectations": [
+      {
+       "what": "crash (server log)",
+       "want": false,
+       "got": false,
+       "ok": true
+      },
+      {
+       "what": "unrelated sentinel rc",
+       "want": 0,
+       "got": 0,
+       "ok": true
+      },
+      {
+       "what": "PID 1 starttime unchanged (the postmaster itself survives)",
+       "want": true,
+       "got": true,
+       "ok": true
+      },
+      {
+       "what": "checkpointer pid changed (reinitialized)",
+       "want": false,
+       "got": false,
+       "ok": true
+      }
+     ],
+     "ok": true
+    }
+   ],
+   "serverLogLines": 58,
+   "identFinal": {
+    "pid1Comm": "docker-init",
+    "pid1StartTicks": "100067341",
+    "postmasterStart": "2026-10-22 18:59:20.942989+00",
+    "auxPids": "background writer=87,checkpointer=86,walwriter=90",
+    "memoryEvents": {
+     "low": "0",
+     "high": "0",
+     "max": "0",
+     "oom": "0",
+     "oom_kill": "0",
+     "oom_group_kill": "0",
+     "sock_throttled": "0"
+    },
+    "memory.peak": "96542720",
+    "memory.current": "85344256",
+    "memory.max": "268435456",
+    "dockerState": "false running 0"
+   },
+   "cleanup": {
+    "runId": "6470d167633652ac",
+    "children": [],
+    "indexdPidFiles": [],
+    "scope": {
+     "scope": "drained",
+     "rounds": []
+    },
+    "container": "removed",
+    "volume": "removed",
+    "stage": "removed",
+    "certain": true
+   }
+  }
+ ],
+ "summary": {
+  "E0a-r5-shape-timeout-KILL-on-sleep": "PASS",
+  "E0b-fixed-shape-exec-timeout-foreground": "PASS",
+  "E1-r5-controller-verify-backup-X3b-injection": "PASS",
+  "E2-fixed-controller-verify-backup-X3b-injection": "PASS",
+  "E4a-r5-controller-r1-X3-injection": "PASS",
+  "E4b-fixed-controller-r1-X3-injection": "PASS",
+  "E3-r5-shape-under-docker-init": "PASS"
+ },
+ "cleanupCertain": true,
+ "passed": true
+}

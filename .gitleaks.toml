@@ -411,3 +411,14 @@ regexTarget = "line"
 regexes = [
   '''^\s*const PINNED=\{operator:'0x3b0497d24b3fc8ef776a194b065118d52fb4248c',wgExitKey:'5yJS0uYW178RxnvOBa5N1uIGD1Z8iN\+rbV88A5MU9Cs=',wgGuardKey:'tBHkbI2h\+Qs6fwYw8OTlVPM862m\+Yb3jOwxvL37U9nc='\};\s*$''',
 ]
+
+[[allowlists]]
+description = "Verified SHA256 of public relay/vbs-credential.mjs source in two composition inventories; not a credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = [
+  '''^checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tree-a\.inventory\.json$''',
+  '''^checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tree-b\.inventory\.json$''',
+]
+regexTarget = "line"
+regexes = ['''^\s*"relay/vbs-credential\.mjs": "b36a2d037323b1e145c82529faffb94a1ecbdc0658c5c5c5c4d08a29c5692a77",?\s*$''']

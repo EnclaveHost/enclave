@@ -1,0 +1,54 @@
+{
+ "task": "production-migration-closeout: Phase C (26->27->28) execution/recovery recipe and gap report for the live primary",
+ "date": "2026-10-22",
+ "status": "RECIPE_READY_CONDITIONAL",
+ "conditionalOn": "the final restore-timeout fix, root-reviewed and real-PostgreSQL integration-tested (restore-timeout-diagnosis owns it). The bounds proposal, if adopted, needs the same integration.",
+ "ranNothing": "No SSH, production, network, Docker, Git or main-repo mutation. No test was run: the bounds patch is py_compile-checked only, and vm-state.sh is checked with bash -n only. No mock-pass claim is made.",
+ "deliverables": {
+  "PRODUCTION-RECIPE.md": "912b4705338a2eb3b8b5a363b0eccfe3a2db9d3c4cf16746b28046dc916ad448",
+  "vm-state.sh": "5ac71122e2c13bffd53443f040bbc19e6b3dd622162882d19567e5a90efbb616",
+  "live-primary.profile.proposed.json": "abcd361224f0ed55e693084e557da5df23bc27ebe6bd127e212daa733de7af3a",
+  "proposal/CONTROLLER-BOUNDS-PROPOSAL.patch": "561af966e550b138a1fd31d19d7255090799531279e7b8e59fd022928f2db00d",
+  "proposal/replicactl.r5-production.restorefix.bounds.py": "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83"
+ },
+ "controllerCandidates": {
+  "r5rev2_3e8a8c3f": "DO NOT USE in production (integration a7e53855 X3b: restore timeout orphaned pg_restore -> postmaster crash-restart)",
+  "restorefix_fd097a2a": {
+   "path": "../restore-timeout-diagnosis/fix/replicactl.r5-production.restorefix.py",
+   "sha256": "fd097a2a2f480e0d0aded033effb2f7992b8852f43e2f3f072bff1056fef4452",
+   "owner": "restore-timeout-diagnosis worker; unchanged here"
+  },
+  "restorefix_plus_bounds": {
+   "sha256": "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83",
+   "diff": "+34 -15",
+   "status": "PROPOSAL, NOT RUN, NOT REVIEWED; compatible with the restore fix (same exec timeout --foreground -s KILL idiom; applies to the fixture variant with fuzz 2 at start/stop)"
+  }
+ },
+ "boundsProposal": [
+  "Node.psql/psql_rc: the container command runs as `exec timeout --foreground -s KILL <t>`; PGOPTIONS sets statement_timeout=<t> and lock_timeout=30s; host timeout t+15; the default t is 300 s (profile psql_timeout_seconds). The previous default was unbounded.",
+  "cmd_backup pg_dump: `exec timeout --foreground -s KILL <t>` plus --lock-wait-timeout=30000; t = profile dump_timeout_seconds (default 1800); host timeout t+60, which dies with a clear message.",
+  "Exact per-run tag PGAPPNAME=replicactl-<RUN_ID>, printed to stderr at start and included in die(). Any manual cleanup uses only that exact tag. No pid kills and no inference by tool name.",
+  "Before anything stops (in guard, for the 4 mutating steps): a GNU coreutils timeout must exist in the container.",
+  "systemctl is-active/start/stop get host timeouts of 30, 120 and stop+60 s.",
+  "Whole seconds >= 1 (secs()): a 0 would disable both timeout(1) and statement_timeout."
+ ],
+ "safeNextAction": "Root waits for the restore-timeout-diagnosis fix to pass its real-PostgreSQL reproduction and integration. Root then decides whether to adopt proposal/CONTROLLER-BOUNDS-PROPOSAL.patch (if yes: re-derive the fixture copy and run ONE reviewed integration). With the final $CTL_SHA, execute PRODUCTION-RECIPE.md in order: section 1 gates (r4 preflight READY + vm-state.sh) -> section 2 fresh B2' via runner 1460169a (new RID; pull_encrypt + verify_archive) -> L1-L6 one-time layout (no restart; drop-in ExecStart verified; preflight + readiness v26) -> C1 upgrade 27 + post-checks + soak -> C2 upgrade-c2 28 + post-checks. On any failure, use section R only; never start a release whose version differs from db_version.",
+ "trueBlockers": [
+  "G0: the restore-timeout fix is not yet proven by real-PostgreSQL integration. r5 3e8a8c3f must not run in production.",
+  "Root decision G1: adopt the bounds patch (requires a reviewed integration) or explicitly accept unbounded in-container pg_dump/psql for this ~30 MB database."
+ ],
+ "rootDecisions": [
+  "G4: B2 runner timeout without --foreground. Accept, or a one-word runner revision (new hash).",
+  "Profile values: admin.pass/backup_dir paths, app_url loopback 127.0.0.1:9982, verify 600/1200 (H4).",
+  "--acknowledge-cas-downgrade, only if a v28 rollback is ever needed with enrolled accounts."
+ ],
+ "knownGapsNotBlocking": [
+  "G5: the archive restore onto the VM is untested; there is a single off-host workstation copy and the key is not replicated.",
+  "G7: rollback backups are not verified (r5 limit).",
+  "Phase D remains externally blocked: replicas, non-DO ingress, Sia funding, operator signature, C2 sia-s3 publish, rc3 package."
+ ],
+ "abandoned": {
+  "draft-watchdog-NOT-APPROVED-NOT-RUN/": "Preserved source only. Its appname+start-time identification is not ownership, and its timeout lacks --foreground. Never run or tested."
+ },
+ "permissions": "No user hold (effective-goal-requirements PERMISSION PROVENANCE CORRECTION). Root performs the bounded production steps after review. No funds, wallet, contract-admin change or execution-policy bypass."
+}

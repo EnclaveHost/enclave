@@ -1,0 +1,12 @@
+STATUS: NOT APPROVED. NOT RUN. ABANDONED by root redirect (2026-10-22, ROOT-REVIEW-NOTES.txt notes 2 and 3).
+- Do not execute it, and do not test it.
+- Kept only as preserved source.
+
+Why it was abandoned:
+- The watchdog's "controller-era application_name + backend_start" match does not prove a session belongs to the run.
+  A concurrent operator psql could match it.
+- Its Ctx.psql uses `timeout -k 5` without --foreground. That is the same orphan-to-postmaster hazard as r5's restore.
+
+Replacement: ../CONTROLLER-BOUNDS-PROPOSAL.patch, a minimal controller diff on top of the restore fix, plus
+../PRODUCTION-RECIPE.md.
+The test/ directory holds a mock harness that was never run (the queue was never invoked); it proves nothing.

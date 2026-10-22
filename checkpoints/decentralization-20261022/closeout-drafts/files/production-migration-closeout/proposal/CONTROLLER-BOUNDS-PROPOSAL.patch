@@ -1,0 +1,126 @@
+--- replicactl.r5-production.restorefix.py
++++ replicactl.r5-production.restorefix.bounds.py
+@@ -122,6 +122,11 @@
+ VERIFY_TIMEOUT_DEFAULT = 3600       # seconds one scratch restore may take (profile key verify_timeout_seconds)
+ VERIFY_QUERY_BUDGET_DEFAULT = 600   # seconds ALL other verification queries may take together (profile key verify_query_seconds)
+ QUERY_CAP = 120                     # seconds one verification query may take (within that budget)
++PSQL_TIMEOUT_DEFAULT = 300          # seconds one psql may take when the caller gives no bound (profile psql_timeout_seconds)
++DUMP_TIMEOUT_DEFAULT = 1800         # seconds the backup pg_dump may take (profile dump_timeout_seconds)
++secs = lambda t: max(1, -int(-t // 1))   # whole seconds >= 1: a 0 would DISABLE both timeout(1) and statement_timeout
++RUN_ID = secrets.token_hex(8)       # this invocation's exact PostgreSQL application_name tag: replicactl-<RUN_ID>
++APPNAME = "PGAPPNAME=replicactl-" + RUN_ID
+ SCRATCH_RX = re.compile(r"^[a-z0-9_]{1,63}$")
+ 
+ 
+@@ -134,7 +139,7 @@
+ 
+ 
+ def die(msg, code=2):
+-    print(json.dumps({"ok": False, "error": msg}))
++    print(json.dumps({"ok": False, "error": msg, "runId": RUN_ID}))
+     sys.exit(code)
+ 
+ 
+@@ -147,25 +152,31 @@
+         return self.p[k]
+ 
+     # ---- PostgreSQL, inside the database container (credentials never leave it) ----
++    def bounded(self, t):
++        """docker exec prefix: exact tag + server-side statement/lock bounds; the in-container command is bounded by
++        `exec timeout --foreground -s KILL "$2"` (as the restore fix), so a host-side timeout is never the only bound"""
++        return ["docker", "exec", "-i", "-e", APPNAME, "-e", f"PGOPTIONS=-c statement_timeout={secs(t) * 1000} -c lock_timeout=30000",
++                self["pg_container"], "sh", "-c"]
++
+     def psql(self, sql=None, file=None, db=None, single_tx=False, timeout=None):
+-        args = ["docker", "exec", "-i", self["pg_container"], "sh", "-c",
+-                'psql -U ' + PG_USER + ' -d "$1" -X -A -t -q -v ON_ERROR_STOP=1 ' + ("--single-transaction " if single_tx else "") + '-f -',
+-                "psql", db or self["database"]]
++        t = secs(timeout or self.p.get("psql_timeout_seconds", PSQL_TIMEOUT_DEFAULT))
++        args = self.bounded(t) + ['exec timeout --foreground -s KILL "$2" psql -U ' + PG_USER + ' -d "$1" -X -A -t -q -v ON_ERROR_STOP=1 ' +
++                                  ("--single-transaction " if single_tx else "") + '-f -', "psql", db or self["database"], str(t)]
+         data = sql if sql is not None else Path(file).read_text()
+         try:
+-            r = subprocess.run(args, input=data.encode(), capture_output=True, timeout=timeout)   # timeout None: as r4
++            r = subprocess.run(args, input=data.encode(), capture_output=True, timeout=t + 15)
+         except subprocess.TimeoutExpired:
+-            raise RuntimeError(f"psql did not answer within {timeout} s")
++            raise RuntimeError(f"psql did not answer within {t + 15} s")
+         if r.returncode != 0:
+             raise RuntimeError("psql failed: " + r.stderr.decode()[-400:])
+         return r.stdout.decode().strip()
+ 
+     def psql_rc(self, sql, db="postgres", timeout=120):
+         """one psql call that never raises for SQL errors -> (rc, stdout, stderr); rc None = the answer was lost (timeout)"""
+-        args = ["docker", "exec", "-i", self["pg_container"], "sh", "-c",
+-                'psql -U ' + PG_USER + ' -d "$1" -X -A -t -q -v ON_ERROR_STOP=1 -f -', "psql", db]
++        args = self.bounded(timeout) + ['exec timeout --foreground -s KILL "$2" psql -U ' + PG_USER + ' -d "$1" -X -A -t -q -v ON_ERROR_STOP=1 -f -',
++                                        "psql", db, str(secs(timeout))]
+         try:
+-            r = subprocess.run(args, input=sql.encode(), capture_output=True, timeout=timeout)
++            r = subprocess.run(args, input=sql.encode(), capture_output=True, timeout=timeout + 15)
+         except subprocess.TimeoutExpired:
+             return None, "", "timeout"
+         return r.returncode, r.stdout.decode().strip(), r.stderr.decode()
+@@ -185,7 +196,7 @@
+     # ---- the indexd process ----
+     def running(self):
+         if self["runner"] == "systemd":
+-            return subprocess.run(["systemctl", "is-active", "--quiet", self["unit"]]).returncode == 0
++            return subprocess.run(["systemctl", "is-active", "--quiet", self["unit"]], timeout=30).returncode == 0
+         pid = self.pid()
+         return pid is not None
+ 
+@@ -203,7 +214,7 @@
+ 
+     def start(self):
+         if self["runner"] == "systemd":
+-            subprocess.run(["systemctl", "start", self["unit"]], check=True)
++            subprocess.run(["systemctl", "start", self["unit"]], check=True, timeout=120)
+             return
+         binary = Path(self["release_dir"]) / "current" / "indexd"
+         log = open(Path(self["state_dir"]) / "indexd.out", "ab")
+@@ -214,7 +225,7 @@
+ 
+     def stop(self, timeout=180):
+         if self["runner"] == "systemd":
+-            subprocess.run(["systemctl", "stop", self["unit"]], check=True)
++            subprocess.run(["systemctl", "stop", self["unit"]], check=True, timeout=timeout + 60)
+             return
+         pid = self.pid()
+         if pid is None:
+@@ -260,6 +271,10 @@
+     allow = node.p.get("allow_file")
+     if node["runner"] == "systemd" and (not allow or not Path(allow).exists()):
+         die(f"refusing: activation guard {allow} is absent (production activation is root's decision)")
++    if action in ("upgrade", "upgrade-c2", "rollback", "rollback-c2"):
++        r = subprocess.run(["docker", "exec", node["pg_container"], "timeout", "--version"], capture_output=True, timeout=60)
++        if r.returncode != 0 or "GNU coreutils" not in r.stdout.decode(errors="replace").split("\n", 1)[0]:
++            die("refusing: no GNU coreutils `timeout` in the database container (psql/pg_dump bounds need --foreground); nothing stopped")
+ 
+ 
+ TRUSTED_ACCESS_KEYS = {"mode", "owner", "group", "group_members", "group_primary_users"}
+@@ -372,9 +387,13 @@
+     out.mkdir(parents=True, mode=0o700)
+     dump = out / "indexd.pgdump"
+     with open(dump, "wb") as f:
+-        r = subprocess.run(["docker", "exec", node["pg_container"], "sh", "-c",
+-                            'pg_dump -U ' + PG_USER + ' --format=custom --no-owner --no-acl "$1"', "pg_dump", node["database"]],
+-                           stdout=f, stderr=subprocess.PIPE)
++        t = secs(node.p.get("dump_timeout_seconds", DUMP_TIMEOUT_DEFAULT))
++        try:
++            r = subprocess.run(["docker", "exec", "-e", APPNAME, node["pg_container"], "sh", "-c",
++                                'exec timeout --foreground -s KILL "$2" pg_dump -U ' + PG_USER + ' --lock-wait-timeout=30000 --format=custom --no-owner --no-acl "$1"',
++                                "pg_dump", node["database"], str(t)], stdout=f, stderr=subprocess.PIPE, timeout=t + 60)
++        except subprocess.TimeoutExpired:
++            die(f"pg_dump did not answer within {t + 60} s; indexd stopped, nothing switched; backup {out} incomplete")
+     if r.returncode != 0:
+         die("pg_dump failed: " + r.stderr.decode()[-300:])
+     cons = Path(node["state_dir"]) / "consensus.db"
+@@ -838,6 +857,7 @@
+     sub.add_parser("crash-indexd")
+     sub.add_parser("digest")
+     args = ap.parse_args()
++    print(json.dumps({"runId": RUN_ID, "pgApplicationName": "replicactl-" + RUN_ID}), file=sys.stderr, flush=True)
+     node = Node(args.profile)
+     fn = {"preflight": cmd_preflight, "backup": cmd_backup, "verify-backup": cmd_verify_backup, "install": cmd_install,
+           "upgrade": cmd_upgrade, "readiness": cmd_readiness, "rollback": cmd_rollback, "status": cmd_status,

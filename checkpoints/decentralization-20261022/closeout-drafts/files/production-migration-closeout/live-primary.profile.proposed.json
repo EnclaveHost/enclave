@@ -1,0 +1,30 @@
+{
+ "_comment": "PROPOSED live-primary profile for Phase C (production-migration-closeout). It is the r4 profile with exactly these changes:\n- the two ROOT_DECIDES paths are filled; root creates both, see PRODUCTION-RECIPE.md L6;\n- app_url is the loopback application listener that Caddy proxies (Caddyfile: reverse_proxy 127.0.0.1:9982) instead of the public name through the fronts;\n- bound keys are added: verify_* exist in r5; psql_/dump_timeout_seconds only with the bounds proposal.\nH4: QueryBudget also counts the restore, so verify_query_seconds = verify_timeout_seconds + 600.",
+ "runner": "systemd",
+ "unit": "enclave-indexd",
+ "pg_container": "enclave-indexd-postgres",
+ "database": "indexd",
+ "state_dir": "/var/lib/enclave-indexd/state",
+ "config_file": "/etc/enclave-indexd/indexd.yml",
+ "admin_url": "http://127.0.0.1:9980/api",
+ "admin_password_file": "/root/indexd-migration/admin.pass",
+ "app_url": "http://127.0.0.1:9982",
+ "release_dir": "/opt/enclave-indexd/releases",
+ "backup_dir": "/var/lib/enclave-indexd/migration-backups",
+ "migration_dir": "/opt/enclave-indexd/migration",
+ "allow_file": "/etc/enclave-indexd/ALLOW_LIVE_START",
+ "geoip_sha256": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+ "config_file_access": {
+  "mode": "0640",
+  "owner": "root",
+  "group": "enclave-indexd",
+  "group_members": [],
+  "group_primary_users": [
+   "enclave-indexd"
+  ]
+ },
+ "verify_timeout_seconds": 600,
+ "verify_query_seconds": 1200,
+ "psql_timeout_seconds": 300,
+ "dump_timeout_seconds": 600
+}
