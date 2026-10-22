@@ -1375,6 +1375,30 @@
       "stored": "files/storage-public-read/rpc-capabilities.mjs",
       "sha256": "0e2ed0f62047d3235522b4e77c147613293422102b2a6eb1201c7073099bc41e",
       "bytes": 1604
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/source-scan-review.json",
+      "stored": "files/public-validation/source-scan-review.json",
+      "sha256": "07bb009ebfdfd7ccf3461b8604cdd7691b7bdfe7f9be8fee7aba1b7e35e0ae18",
+      "bytes": 36269
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/public-validation/gitleaks-review.json",
+      "stored": "files/public-validation/gitleaks-review.json",
+      "sha256": "350c6933ad8d9a225857de2c1b716a7e07d4b56c9e4d573879f4d05da54b7937",
+      "bytes": 8899
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/review-staged-findings.py",
+      "stored": "files/source-preservation/review-staged-findings.py",
+      "sha256": "5e8525df5e6ff33d746ee3fcfcbe7866b5f5b386bb38bc80c4462c506ea01d75",
+      "bytes": 2486
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/review-gitleaks.py",
+      "stored": "files/source-preservation/review-gitleaks.py",
+      "sha256": "a6714d516344807a11cb1d94a8609f6f0817596cf4f00431a5600238ae8e7160",
+      "bytes": 1503
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -1403,5 +1427,6 @@
     "live run directories and raw transcripts",
     "generated images/binaries and dependency caches",
     "copied base trees preserved earlier"
-  ]
+  ],
+  "scanReview": "93 custom-scanner and 20 gitleaks findings verified as BIP39 dictionary slices, AddressBook label, recomputed dependency hashes or exact public code expressions. No unclassified finding. Explicit false-positive override used for reviewed commit/push only; repository hooks unchanged."
 }
