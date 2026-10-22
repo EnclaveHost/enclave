@@ -48,3 +48,43 @@ test('direct/forced ensure cannot bypass an unavailable authority',async()=>{
  let stopped=0;h.apps.set(id,{stop:async()=>{stopped++;}});h.records.set(id,{id,isolationRequired:false});
  const rec=await h.ensureApp(id,row(h),{force:true,version});assert.equal(stopped,1);assert.match(rec.reason,/wallet policy unavailable.*quorum/);
 });
+// 2026-10-21 (nucbox): an UNAVAILABLE policy ("chain quorum unavailable") made the live tick give a running deployment up -
+// retire it AND send its release. Unknown is neither allowed nor refused: nothing is served (the gate holds) and nothing is
+// given back (no release, no renewal), the deployment stays tracked, and it is served again once the policy allows it.
+const quiet=h=>{for(const name of ['followBook','enforceOff','ensureRegistered','ensurePriced','scanLedger','retireForeignRecovered'])h[name]=async()=>{};};
+test('an UNAVAILABLE policy in the live tick holds: stopped locally, NOT released, NOT renewed, still tracked; served again once allowed',async()=>{
+ let mode='unknown';
+ const h=await box(async()=>{if(mode==='unknown')throw Error('chain quorum unavailable');return null;});
+ rpc.row.current={...row(h),leaseUntil:BigInt(Math.floor(Date.now()/1000)+60)};   // inside the renewal lead: a served lease would renew
+ rpc.catalog.current={...version,yanked:false};rpc.chainTx.mine=true;quiet(h);
+ let stopped=0,launched=0;h.apps.set(id,{stop:async()=>{stopped++;}});h.tracked.add(id);h.records.set(id,{id,status:'running',appRef:ref,isolationRequired:false});
+ h.ensureApp=async()=>{launched++;return h.records.get(id);};
+ const before=rpc.chainTx.sent.length;
+ await h.tick();
+ assert.equal(rpc.chainTx.sent.length,before,'no release and no renewal on an unknown policy');
+ assert.equal(stopped,1);assert.equal(h.apps.has(id),false,'nothing is served on it');
+ assert.equal(h.tracked.has(id),true);assert.equal(h.blocked.has(id),false);
+ const r=h.records.get(id);assert.equal(r.status,'held');assert.equal(r.walletHeld,true);assert.match(r.reason,/wallet policy unavailable \(chain quorum unavailable\).*not served, renewed or released/);
+ assert.equal(launched,0);
+ await h.tick();                                                                     // still unknown: still nothing sent, still held
+ assert.equal(rpc.chainTx.sent.length,before);assert.equal(launched,0);assert.equal(h.tracked.has(id),true);
+ mode='allowed';
+ await h.tick();
+ assert.equal(h.records.get(id).walletHeld,null,'the hold clears once the policy answers');assert.equal(launched,1,'and the deployment is launched again');
+});
+test('an UNAVAILABLE policy at the lease end is a local stop: nothing released on chain',async()=>{
+ const h=await box(async()=>{throw Error('chain quorum unavailable');});
+ rpc.row.current={...row(h),leaseUntil:BigInt(Math.floor(Date.now()/1000)-5)};rpc.catalog.current={...version,yanked:false};rpc.chainTx.mine=true;quiet(h);
+ let stopped=0;h.apps.set(id,{stop:async()=>{stopped++;}});h.tracked.add(id);h.records.set(id,{id,status:'held',walletHeld:true,appRef:ref,isolationRequired:false});
+ const before=rpc.chainTx.sent.length;await h.tick();
+ assert.equal(rpc.chainTx.sent.length,before,'no release');assert.equal(stopped,1);
+ assert.equal(h.records.get(id).status,'stopped');assert.match(h.records.get(id).reason,/lapsed while the host wallet policy was unavailable/);
+});
+test('a DEFINITE refusal of a running deployment still gives it up (released), and a malformed app reference is a refusal',async()=>{
+ const h=await box(async()=>{throw Error('catalog app reference required');});
+ rpc.row.current=row(h);rpc.catalog.current=version;rpc.chainTx.mine=true;quiet(h);
+ let stopped=0;h.apps.set(id,{stop:async()=>{stopped++;}});h.tracked.add(id);h.records.set(id,{id,status:'running',appRef:ref,isolationRequired:false});
+ const before=rpc.chainTx.sent.length;await h.tick();
+ assert.equal(stopped,1);assert.equal(h.tracked.has(id),false);assert.equal(rpc.chainTx.sent.length,before+1,'released');
+ assert.match(h.records.get(id).reason,/host wallet policy: catalog app reference required/);
+});

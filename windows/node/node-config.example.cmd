@@ -14,3 +14,5 @@ set THREADS=8
 set WORKER_VRAM_GB=2
 rem set NODE_OPERATOR_KEY=0x...   (only when the name is registered on chain; signs the attach challenge)
 rem set PUBLIC_URL=https://api.enclave.host/t/my-gaming-pc
+rem The platform host policy (admin host bans): production = on, activated by the admin's anchor. Keep it.
+set ENCLAVE_PLATFORM_HOST_POLICY=production

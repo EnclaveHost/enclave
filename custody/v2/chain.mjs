@@ -1,6 +1,10 @@
-// Custody reads use a fresh majority-agreed block hash and immutable vault authorities.
+// Custody reads use a fresh majority-agreed block hash. The vault's authorities are either immutable (vaultKind "pinned",
+// the alternate 0x56b8 release) or, for the deployed production vault 0xE486 (vaultKind "book"), the administrator's
+// EnclaveAddressBook entries AT THAT SAME BLOCK, which is exactly what the vault itself consults there. The kind is a
+// measured/configured pin, never inferred from a revert: an RPC error cannot switch a reader between the two.
 import { createPublicClient, http, keccak256, toBytes, hexToBytes, stringToHex, encodeFunctionData, decodeFunctionResult } from "viem";
 import { createQuorumReader, checkRpcUrls } from "./quorum.mjs";
+import { readPolicyFacts } from "../../network/platform-host-policy.mjs";
 
 export const MACHINE = [
   { name: "identity", type: "address" }, { name: "encKey", type: "bytes32" }, { name: "endpoint", type: "string" },
@@ -9,7 +13,10 @@ export const MACHINE = [
 const M_ARR = { type: "tuple[]", components: MACHINE };
 export const HOST_OWNERSHIP_ABI = [
   { type: "function", name: "authority", stateMutability: "view", inputs: [{type:"bytes32"}], outputs: [{type:"address"},{type:"address"},{type:"uint64"},{type:"bytes32"}] },
+  { type: "function", name: "registry", stateMutability: "view", inputs: [], outputs: [{type:"address"}] },
 ];
+export const BOOK_ABI = [{ type: "function", name: "addr", stateMutability: "view", inputs: [{ name: "key", type: "bytes32" }], outputs: [{ type: "address" }] }];
+export const VAULT_KINDS = Object.freeze(["pinned", "book"]);
 export const VAULT_V2_ABI = [
   { type: "function", name: "hostOwnership", stateMutability: "view", inputs: [], outputs: [{type:"address"}] },
   { type: "function", name: "hostRegistry", stateMutability: "view", inputs: [], outputs: [{type:"address"}] },
@@ -89,14 +96,27 @@ const rdOf = (client, block) => async (address, abi, functionName, args = []) =>
   return decodeFunctionResult({abi,functionName,data:result});
 };
 
-async function readReleaseAt(client, vault, { id, endpoint }, block) {
+// book mode: the vault's book (optionally checked against a pin) and its deployments/registry entries at this block
+async function bookAuthoritiesAt(rd, vault, bookPin) {
+  const book = await rd(vault, VAULT_V2_ABI, "book");
+  if (bookPin && lc(book) !== lc(bookPin)) throw err("book_mismatch", "vault address book differs from the configured pin");
+  const [ledger, registry] = await Promise.all([rd(book, BOOK_ABI, "addr", [BOOK_KEYS.deployments]), rd(book, BOOK_ABI, "addr", [BOOK_KEYS.registry])]);
+  return { book: lc(book), ledger, registry };
+}
+// the release authorities for one block: the pinned immutables, or the book entries the book-bound vault reads there
+async function releaseAuthoritiesAt(rd, vault, auth) {
+  if (auth.kind === "book") { const a = await bookAuthoritiesAt(rd, vault, auth.book); return [a.ledger, a.registry]; }
+  return Promise.all([rd(vault, VAULT_V2_ABI, "deploymentLedger"), rd(vault, VAULT_V2_ABI, "hostRegistry")]);
+}
+
+async function readReleaseAt(client, vault, { id, endpoint }, block, auth) {
   const rd = rdOf(client,block);
-  const [policy, bundle, ledgerAddr, registryAddr, beneficialOwner] = await Promise.all([
+  const [policy, bundle, [ledgerAddr, registryAddr], beneficialOwner] = await Promise.all([
     rd(vault, VAULT_V2_ABI, "policyOf", [id]), rd(vault, VAULT_V2_ABI, "bundleOf", [id]),
-    rd(vault, VAULT_V2_ABI, "deploymentLedger"), rd(vault, VAULT_V2_ABI, "hostRegistry"),
+    releaseAuthoritiesAt(rd, vault, auth),
     rd(vault, VAULT_V2_ABI, "beneficialOwnerOf", [id])]);
   const [owner, policyRev, secretRev, committeeId, paused, rules] = policy;
-  if (lc(ledgerAddr) === ZERO || lc(registryAddr) === ZERO) throw err("release_authority_missing", "pinned release authorities required");
+  if (lc(ledgerAddr) === ZERO || lc(registryAddr) === ZERO) throw err("release_authority_missing", auth.kind === "book" ? "address book has no deployments/registry entry" : "pinned release authorities required");
   const epId = endpoint ? endpointIdOf(endpoint) : null;
   const zeroCid = /^0x0{64}$/.test(committeeId);
   const [row, reg, committee] = await Promise.all([
@@ -112,26 +132,87 @@ async function readReleaseAt(client, vault, { id, endpoint }, block) {
     lease: row ? { owner: lc(row.owner), runner: lc(row.runner), leaseUntil: Number(row.leaseUntil), appRef: row.appRef, envelope: row.configCid } : null,
     endpointId: epId ? lc(epId) : null,
     endpointOperator: reg && reg.active ? lc(reg.operator) : null,
+    ...(auth.policy && epId ? { platform: await platformFactsAt(rd, codeAt(client, block), auth.policy, [epId]) } : {}),
   };
 }
-export function createChainReaderV2({ rpcs, vault, hostOwnership = null, chainId=null, minAgree, confirmations=0,
+// ---- platform host policy facts at THIS block (network/platform-host-policy.mjs readPolicyFacts): the book's two anchor
+// halves, its CURRENT owner (and that owner's ERC-1271 answer for the gate's accepted policy, policy.check1271()) and, for
+// each host, its registry operator/endpoint and ACCEPTED owner on the pinned ownership extension - all at one block
+const codeAt = (client, block) => (a) => client.request({ method: "eth_getCode", params: [a, { blockHash: block.blockHash, requireCanonical: true }] });
+const platformFactsAt = (rd, code, policy, registryIds) => readPolicyFacts({ call: rd, code },
+  { book: policy.book, hostOwnership: policy.hostOwnership, registryIds, check1271: typeof policy.check1271 === "function" ? policy.check1271() : [] });
+// ---- owner read (custody/v2/custodian.mjs ownerRead): the release state, the policy owner's code and, for a contract
+// owner, its ERC-1271 verdict on THIS digest and signature, all at ONE agreed block (one fingerprint, the same high-water)
+async function readOwnerReadAt(client, vault, { id, digest, sig }, block, auth) {
+  const s = await readReleaseAt(client, vault, { id, endpoint: null }, block, auth);
+  const owner = s.policy.owner;
+  let ownerIsContract = false, erc1271 = null;
+  if (owner && owner !== ZERO) {
+    const code = await client.request({ method: "eth_getCode", params: [owner, { blockHash: block.blockHash, requireCanonical: true }] });
+    ownerIsContract = typeof code === "string" && code !== "0x" && code.length > 2;
+    if (ownerIsContract) {
+      try { erc1271 = String(await rdOf(client, block)(owner, ERC1271_ABI, "isValidSignature", [digest, sig])).toLowerCase(); }
+      catch (e) { if (!/revert/i.test(String(e?.message || e) + String(e?.cause?.message || ""))) throw e; erc1271 = "revert"; }
+    }
+  }
+  return { ...s, ownerIsContract, erc1271 };
+}
+// vaultKind "book" (the deployed 0xE486 vault): membership reads REQUIRE hostOwnership - the deployed EnclaveHostOwnership
+// extension the accepted host wallet is read from - bound to the registry the book names at that block. Release reads
+// (the owner's CLI) need only the vault.
+// hostPolicy: { book, hostOwnership } - read the platform host policy anchor and host facts with every release and
+// authorization snapshot (off when null: the reads and results are unchanged)
+export function createChainReaderV2({ rpcs, vault, hostOwnership = null, vaultKind = "pinned", book: bookPin = null, hostPolicy = null, chainId=null, minAgree, confirmations=0,
   clients: given=null, timeoutMs=10000, maxAgeSec=120, maxFutureSec=10, now=()=>Date.now(), checkpoint=null }) {
+  if (!VAULT_KINDS.includes(vaultKind)) throw err("bad_config", "vaultKind must be pinned or book", 500);
+  if (hostOwnership !== null && (!/^0x[0-9a-fA-F]{40}$/.test(String(hostOwnership)) || /^0x0{40}$/.test(String(hostOwnership)))) throw err("bad_config", "host-ownership pin must be a non-zero address", 500);
+  const auth = { kind: vaultKind, book: bookPin, policy: hostPolicy ? { book: lc(hostPolicy.book), hostOwnership: lc(hostPolicy.hostOwnership), check1271: hostPolicy.check1271 || null } : null };
   if (!given) checkRpcUrls(rpcs);                       // one host is one vote: case, trailing dot, port and path aliases count once
   const clients = given || (rpcs || []).map(url=>createPublicClient({transport:http(url,{timeout:timeoutMs,retryCount:0})}));
   const agreed=createQuorumReader({clients,minAgree,chainId,confirmations,timeoutMs,maxAgeSec,maxFutureSec,now,checkpoint});
+  // pinned: the vault's own immutables. book: the book's registry at this block, and the configured ownership extension,
+  // which must name that same registry (an admin registry migration needs a re-pinned extension, never a silent mix).
   async function hostAuthorities(rd) {
+    if (auth.kind === "book") {
+      if (!hostOwnership) throw err("host_authority_missing", "a book-bound vault needs the host-ownership pin for membership reads");
+      const [{ registry }, enclave] = await Promise.all([bookAuthoritiesAt(rd, vault, auth.book), rd(vault, VAULT_V2_ABI, "enclaveOwner").then(lc)]);
+      if (lc(registry) === ZERO) throw err("host_authority_missing", "address book has no registry entry");
+      if (lc(await rd(hostOwnership, HOST_OWNERSHIP_ABI, "registry")) !== lc(registry)) throw err("host_authority_mismatch", "host-ownership extension is bound to another registry than the address book names");
+      return { registry, ownership: hostOwnership, enclave, kind: "book" };
+    }
     const [registry, ownership] = await Promise.all([rd(vault, VAULT_V2_ABI, "hostRegistry"), rd(vault, VAULT_V2_ABI, "hostOwnership")]);
     if (hostOwnership && lc(ownership) !== lc(hostOwnership)) throw err("host_authority_mismatch", "vault host authority differs from the measured pin");
     if (registry === ZERO || ownership === ZERO) throw err("host_authority_missing", "wallet host authority required");
-    return { registry, ownership };
+    return { registry, ownership, kind: "pinned" };
   }
-  async function entryAt(rd, { registry, ownership }, registryId) {
+  // owner: the accepted host wallet, always from the ownership extension. Book-bound entries also carry vaultEnclave, the
+  // flag that vault computes in _admit at this block (the registry payout declaration, which only the Enclave wallet itself
+  // can make), and ownerConflict: the vault would seat the host as Enclave while another wallet accepted ownership of it.
+  // Pinned entries carry neither; there the vault's flag is the accepted owner itself (member.mjs vaultEnclaveOf).
+  async function entryAt(rd, { registry, ownership, enclave, kind }, registryId) {
     const [e, authority] = await Promise.all([rd(registry, REGISTRY_V4_ABI, "get", [registryId]), rd(ownership, HOST_OWNERSHIP_ABI, "authority", [registryId])]);
-    return { endpoint: e.endpoint, active: e.active, operator: lc(e.operator), payoutWallet: lc(e.payoutWallet), owner: lc(authority[0]) };
+    const out = { endpoint: e.endpoint, active: e.active, operator: lc(e.operator), payoutWallet: lc(e.payoutWallet), owner: lc(authority[0]) };
+    if (kind !== "book") return out;
+    const vaultEnclave = out.payoutWallet === enclave;
+    return { ...out, vaultEnclave, ownerConflict: vaultEnclave && out.owner !== ZERO && out.owner !== enclave };
   }
   return {
     vault, clients,
-    readRelease: ({ id, endpoint }) => agreed((c, n) => readReleaseAt(c, vault, { id, endpoint }, n)),
+    vaultKind,
+    readRelease: ({ id, endpoint }) => agreed((c, n) => readReleaseAt(c, vault, { id, endpoint }, n, auth)),
+    readOwnerRead: ({ id, digest, sig }) => agreed((c, n) => readOwnerReadAt(c, vault, { id, digest, sig }, n, auth)),
+    // one agreed snapshot for network/platform-host-policy.mjs createPlatformHostGate: call/code bound to that block
+    snapshot: (fn) => agreed((c, n) => fn({ block: n.blockNumber, call: rdOf(c, n),
+      code: (a) => c.request({ method: "eth_getCode", params: [a, { blockHash: n.blockHash, requireCanonical: true }] }) })),
+    // the vault's code identity at one agreed block (network/custody-vaults.mjs checkCustodyVaultIdentity judges it)
+    readVaultIdentity: () => agreed(async (c, n) => {
+      const code = await c.request({ method: "eth_getCode", params: [vault, { blockHash: n.blockHash, requireCanonical: true }] });
+      const rd = rdOf(c, n);
+      const [book, enclaveOwner] = await Promise.all([rd(vault, VAULT_V2_ABI, "book"), rd(vault, VAULT_V2_ABI, "enclaveOwner")]);
+      const out = { codeHash: keccak256(code), runtimeBytes: (String(code).length - 2) / 2, book: lc(book), enclaveOwner: lc(enclaveOwner) };
+      if (auth.kind === "pinned") out.hostOwnership = lc(await rd(vault, VAULT_V2_ABI, "hostOwnership"));
+      return out;
+    }),
     // the committee's current epoch, its machines (with on-chain Enclave flags) and commitments; plus any pending handover
     readCommittee: ({ committeeId }) => agreed(async (c, n) => {
       const rd = rdOf(c, n);
@@ -153,9 +234,9 @@ export function createChainReaderV2({ rpcs, vault, hostOwnership = null, chainId
       if (!code || code === "0x") return { valid: false };
       return { valid: lc(await rdOf(c, n)(account, ERC1271_ABI, "isValidSignature", [hash, signature])) === ERC1271_MAGIC };
     }),
-    // Membership is only supported on the wallet-authority vault release.
-    // No fallback to payoutWallet or a mutable book registry. Old vaults must
-    // keep their old measured membership runtime until a controlled handover.
+    // Membership: the accepted host wallet is always read from an ownership extension (never inferred from payout); the
+    // Enclave flag is reported as the vault computes it. There is no fallback between kinds: a pinned reader never
+    // consults the book, and a book reader never treats payout as ownership.
     readRegistryEntry: ({ registryId }) => agreed(async (c, n) => {
       const rd = rdOf(c, n), hosts = await hostAuthorities(rd);
       return { entry: await entryAt(rd, hosts, registryId) };
@@ -185,7 +266,8 @@ export function createChainReaderV2({ rpcs, vault, hostOwnership = null, chainId
           }
           valid.push(ok);
         }
-        return { committee, entries, codeActiveAt, valid, enclaveOwner: lc(await rd(vault, VAULT_V2_ABI, "enclaveOwner")) };
+        return { committee, entries, codeActiveAt, valid, enclaveOwner: lc(await rd(vault, VAULT_V2_ABI, "enclaveOwner")),
+                 ...(auth.policy ? { platform: await platformFactsAt(rd, codeAt(c, n), auth.policy, ids) } : {}) };
       });
     },
   };

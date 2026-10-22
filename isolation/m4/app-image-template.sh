@@ -55,6 +55,10 @@ mkdir -p "$t/proc" "$t/sys" "$t/dev" "$t/tmp"
 # Capability is part of the pinned release, checked by the predictor before
 # admitting a V3 port bundle to this front. Older releases carry no marker.
 printf '1\n' > "$t/rt/protected-ports.enabled"
+# Encrypted volumes (isolation/m2/encvol): the engine is compiled into /front (rclone v1.67.0's crypt cipher, vendored,
+# and a native S3 sync); this marker states that the init and front in this image carry the volume trailer and plane.
+# guestd reports it as supports.encVolumes and the supervisor admits encVolumes configs only where it is set.
+printf '1\n' > "$t/rt/encvol.enabled"
 if [ "${ISOLATION_DIRECT_BOOTSTRAP:-}" = 1 ]; then printf '1\n' > "$t/rt/direct-bootstrap.enabled"; fi
 if [ "${ISOLATION_BOOTSTRAP_PORT_LAB:-}" = 1 ]; then printf '19443 19445 19446\n' > "$t/rt/bootstrap-lab-ports"; fi
 # The guest kernel's module tree is named after the GUEST kernel, not the host's: see ../m1/domain.env.
@@ -63,3 +67,20 @@ M=/lib/modules/$GUEST_KREL/kernel
 cp "$M/net/vmw_vsock/vsock.ko.zst" "$M/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko.zst" \
    "$M/net/vmw_vsock/vmw_vsock_virtio_transport.ko.zst" \
    "$M/drivers/virt/coco/guest/tsm_report.ko.zst" "$M/drivers/virt/coco/sev-guest/sev-guest.ko.zst" "$t/"
+# Model volumes (m2/modelvol.h): the release's PINNED table (MODEL_VOLUME_TABLE, from `metal/volumes.mjs table`: name,
+# dm-verity root, salt, geometry, image bytes, preload, graph, distribution pin) and the device-mapper modules init
+# mounts them with. Measured with the rest of the template, so adding a model is a release decision; a deployment can
+# only ever mount a name this table pins, against the root it pins. No table: no capability, nothing added.
+if [ -n "${MODEL_VOLUME_TABLE:-}" ]; then
+  awk 'BEGIN { ok = 1 }
+       { if (NF != 11 || $0 ~ /  / || $1 !~ /^[a-z0-9][a-z0-9._-]*$/ || length($1) > 64 || length($2) != 64 || $2 !~ /^[0-9a-f]+$/ ||
+             $3 !~ /^[0-9a-f]+$/ || length($3) % 2 || length($3) > 256 || $4 != 4096 || $5 != 4096 || $6 !~ /^[1-9][0-9]*$/ ||
+             $7 !~ /^[1-9][0-9]*$/ || $7 + 0 <= $6 + 0 || $8 !~ /^[1-9][0-9]*$/ || $8 % 4096 != 0 || $8 + 0 <= ($7 + 0) * 4096 ||
+             $9 !~ /^(ggml|sd|none)$/ || (($9 == "none") != ($10 == "-")) || length($11) != 64 || $11 !~ /^[0-9a-f]+$/ || seen[$1]++) ok = 0 }
+       END { exit !ok }' "$MODEL_VOLUME_TABLE" || { echo "app-image-template.sh: MODEL_VOLUME_TABLE is not a model-volume table" >&2; exit 2; }
+  [ "$(tail -c1 "$MODEL_VOLUME_TABLE" | od -An -c | tr -d ' ')" = '\n' ] || { echo "app-image-template.sh: the table must end in a newline" >&2; exit 2; }
+  cp "$MODEL_VOLUME_TABLE" "$t/rt/model-volumes.table"
+  chmod 0444 "$t/rt/model-volumes.table"
+  cp "$M/drivers/md/dm-mod.ko.zst" "$M/drivers/md/dm-bufio.ko.zst" "$M/drivers/md/dm-verity.ko.zst" \
+     "$M/lib/reed_solomon/reed_solomon.ko.zst" "$t/"
+fi

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"enclave.host/isolation/contract"
+	"enclave.host/isolation/m2/appconfig"
+	"enclave.host/isolation/m2/bootstrap"
 	"enclave.host/isolation/m2/egress"
 	"enclave.host/isolation/m2/release"
 	"enclave.host/isolation/m2/shieldconfig"
@@ -15,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -55,6 +59,7 @@ func newShieldSecrets(pipe io.WriteCloser, file string, eg *shieldEgress) (*shie
 	if e != nil {
 		return nil, e
 	}
+	eg.encID = id
 	return &shieldSecrets{id: id, text: string(b), pipe: pipe, pins: pins, egress: eg}, nil
 }
 func (f *front) serveShieldSecrets(w http.ResponseWriter, r *http.Request) {
@@ -169,11 +174,44 @@ func (f *front) serveShieldSecrets(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "release refused", 403)
 		return
 	}
-	// Only this private pipe reaches the waiting runtime. Nothing is persisted or logged.
-	payload, e := json.Marshal(plain.Secrets)
+	// Release facts (storage writer fencing): this build's isolation and, when the relay sent one, the lease's writer
+	// authority, strictly bound to THIS deployment.
+	facts, e := releaseFacts(plain, s.id, shieldIsolation)
 	if e != nil {
 		http.Error(w, "release refused", 403)
 		return
+	}
+	// which facts the app gets is decided by the MEASURED config (the domain's /app.config, the bytes the AppID binds and
+	// egress reads), never by the release: only the names it refers to. An unreadable one is egress's refusal below.
+	measured := ""
+	if s.egress != nil {
+		measured, _ = readMeasuredConfig(s.egress.config, s.egress.configUID)
+	}
+	facts = referencedFacts(facts, measured)
+	// A measured config that needs the writer authority, and a release without it (the claim not final yet, or a relay
+	// that could not establish it): the release is accepted and egress set up as always, then THIS front reads the
+	// authority from its own measured RPC quorum and only then writes the pipe; the runtime waits on it, the app does
+	// not start, and the domain stays alive so the host keeps renewing the lease. Past writerAuthorityWindow, or on a
+	// refusal, the pipe is closed EMPTY: secretrun refuses and the domain ends.
+	_, have := facts[appconfig.FactWriterAuthority]
+	pending := !have && strings.Contains(measured, appconfig.FactWriterAuthority)
+	// the authority this front would establish is bound to the lease holder the release was for; a release that does not
+	// name one (a relay predating it) is refused BEFORE it is spent
+	var runner [32]byte
+	if pending {
+		if runner, e = releaseRunner(plain); e != nil {
+			http.Error(w, "release refused", 403)
+			return
+		}
+	}
+	// Only this private pipe reaches the waiting runtime. Nothing is persisted or logged. The owner's secrets (validated
+	// above: never an ENCLAVE_ name) and the reserved facts share it; secretrun separates them again (appconfig.SplitFacts).
+	launch := make(map[string]string, len(plain.Secrets)+len(facts)+1)
+	for k, v := range plain.Secrets {
+		launch[k] = v
+	}
+	for k, v := range facts {
+		launch[k] = v
 	}
 	s.done = true
 	s.key = nil
@@ -187,11 +225,9 @@ func (f *front) serveShieldSecrets(w http.ResponseWriter, r *http.Request) {
 	} else {
 		s.fwd, e = s.egress.start(plain)
 	}
+	plain.Secrets = nil
 	if e != nil {
-		for i := range payload {
-			payload[i] = 0
-		}
-		plain.Secrets = nil
+		launch = nil
 		s.pipe.Close()
 		if es, ok := e.(egressStepError); ok {
 			fmt.Printf("DOM egress: %s; the runtime gets nothing and the domain ends\n", es.Error())
@@ -199,16 +235,80 @@ func (f *front) serveShieldSecrets(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "egress unavailable", 503)
 		return
 	}
-	_, e = s.pipe.Write(payload)
-	s.pipe.Close()
-	for i := range payload {
-		payload[i] = 0
+	s.egress.addEnc(launch)
+	if pending {
+		fmt.Printf("DOM writer authority: not in the release; reading the lease's finalized claim from the measured RPCs (pending)\n")
+		go s.launchWhenAuthority(launch, runner)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true,"writerAuthority":"pending"}`))
+		return
 	}
-	plain.Secrets = nil
-	if e != nil {
+	if e = s.launch(launch); e != nil {
 		http.Error(w, "launch channel unavailable", 503)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
+}
+
+// launch writes the runtime's one payload (the owner's secrets and the facts) to the pipe and closes it.
+func (s *shieldSecrets) launch(m map[string]string) error {
+	payload, e := json.Marshal(m)
+	for k := range m {
+		delete(m, k)
+	}
+	if e != nil || len(payload) > 65536 {
+		s.pipe.Close()
+		return errors.New("launch payload invalid")
+	}
+	_, e = s.pipe.Write(payload)
+	s.pipe.Close()
+	for i := range payload {
+		payload[i] = 0
+	}
+	return e
+}
+
+// launchWhenAuthority: the writer authority from this guest's own measured RPC quorum, then the launch. The runtime is
+// waiting on the pipe meanwhile. Any failure closes the pipe empty (secretrun refuses; the domain ends).
+func (s *shieldSecrets) launchWhenAuthority(m map[string]string, runner [32]byte) {
+	fail := func(why string) {
+		for k := range m {
+			delete(m, k)
+		}
+		s.pipe.Close()
+		fmt.Printf("DOM writer authority: %s; the runtime gets nothing and the domain ends\n", why)
+	}
+	if s.egress == nil || s.egress.upstream == nil {
+		fail("no measured egress")
+		return
+	}
+	roots, err := bootstrap.MeasuredRoots()
+	if err != nil {
+		fail("no measured roots")
+		return
+	}
+	reader, err := measuredReader(roots, s.egress.upstream)
+	if err != nil {
+		fail("no measured reader")
+		return
+	}
+	w, err := bootstrap.WhenFinal(context.Background(), writerAuthorityWindow, writerAuthorityInterval, func(c context.Context) (appconfig.WriterAuthority, error) {
+		return reader.LeaseWriterAuthorityFor(c, s.id, runner)
+	})
+	if err != nil {
+		fail("unavailable (" + strings.SplitN(err.Error(), "\n", 2)[0] + ")")
+		return
+	}
+	j, err := w.JSON()
+	if err != nil {
+		fail("invalid")
+		return
+	}
+	m[appconfig.FactWriterAuthority] = j
+	if s.launch(m) != nil {
+		fmt.Printf("DOM writer authority: established, but the launch channel failed\n")
+		return
+	}
+	fmt.Printf("DOM writer authority: established (claim block %d); the runtime is launched\n", w.ClaimBlock)
 }

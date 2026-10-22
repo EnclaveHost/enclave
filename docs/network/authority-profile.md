@@ -251,9 +251,12 @@ act on.
 The profile's contract pins name the **pinned** factory `0xec9277a3…` instead.
 As a result:
 
-- `enclave --contract-pins` already refuses a factory without fixed
-  `authorityPins()`, so legacy vaults and their session grants are not usable
-  in pinned mode.
+- A pin document selecting the legacy factory can use existing vaults and
+  grants. The CLI checks `implementation()` and that implementation's `factory`,
+  `book` and `usdc`, then the book's ledger/catalog at one block. Independent mode
+  requires quorum agreement over that complete read. It no longer requires the
+  optional `authorityPins()` getter. A changed ledger/catalog/token refuses
+  signing until the operator reviews the new selection.
 - Nothing moved: no grants, bundles, owners or book entries
   (`activation` in the deployment record is all false).
 - Consumers that check vault membership against `sessionVaultFactory` from these
@@ -264,6 +267,13 @@ As a result:
 An owner who wants to use the new path must open a vault under the pinned
 factory and authorize grants there. That is the owner's choice, made with the
 owner's own signature.
+
+Factory selection remains explicit: the profile above still names the alternate
+factory. It is not the default target for retiring Nan. Reusing the production
+factory requires selecting its address in the contract pin document; it does not
+require new session grants. A book read is an on-chain operation and does not
+contact Nan or an Enclave API. Checks describe a current block, not immutable
+future bindings: the selected factory's book administrator remains trusted.
 
 ## Browser independent mode
 

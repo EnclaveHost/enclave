@@ -243,6 +243,46 @@ export declare function ownerOperation(p: {
 }): Promise<{
     txHash: Hex;
 }>;
+/** One owner operation as calldata for the vault, with no relay. The vault, not this function, authorizes it
+ *  (SessionVault._ownerAuth) against its CURRENT owner when the transaction executes:
+ *   - "direct": the vault's owner account itself submits the call. msg.sender == owner authorizes it in that block;
+ *     opNonce and signBefore are ignored and no signature is made.
+ *   - "signed": the owner signs the typed operation (EIP-712 domain of this vault and chain, a fresh random opNonce,
+ *     signBefore = chain time + validSeconds); any gas payer may submit it once, before signBefore. A changed owner,
+ *     a reused nonce or a late submission reverts on chain.
+ *  `expectOwner`, when given, is checked against vault.owner() first so a mistaken wallet fails before signing. */
+export declare function prepareOwnerOperation(p: {
+    publicClient: PublicClient;
+    chainId: number;
+    vault: Address;
+    op: OwnerOp;
+    mode: "direct" | "signed";
+    owner?: OwnerSigner;
+    expectOwner?: Address;
+    validSeconds?: number;
+}): Promise<PreparedSessionTransaction & {
+    fn: string;
+    opNonce: Hex;
+    signBefore: bigint;
+    mode: "direct" | "signed";
+}>;
+/** Add budget to a live session straight from the owner's wallet, with no relay: one USDC EIP-3009
+ *  ReceiveWithAuthorization signed by the owner whose nonce IS the TopUp digest (vault domain, sessionId, amount,
+ *  opNonce, validBefore), so it can fund this top-up and nothing else. Any gas payer submits topUpWithAuthorization;
+ *  USDC pulls from the vault's CURRENT owner, so an authorization signed by anyone else fails on chain. */
+export declare function prepareTopUpFromWallet(p: {
+    publicClient: PublicClient;
+    chainId: number;
+    vault: Address;
+    sessionId: Hex;
+    amount: bigint;
+    usdc: UsdcDomain;
+    owner: OwnerSigner;
+    validSeconds?: number;
+}): Promise<PreparedSessionTransaction & {
+    opNonce: Hex;
+    validBefore: bigint;
+}>;
 /** Top up from the owner's WALLET with one signature (USDC authorization whose
  *  nonce is the TopUp digest). */
 export declare function topUpFromWallet(p: {

@@ -41,7 +41,8 @@ const ID = /^0x[0-9a-f]{64}$/;
 const FORWARDED = 'x-enclave-management-forwarded';
 /** The header carrying the gateway's upstream token to the supervisor (supervisor.js MANAGEMENT_GATEWAY_TOKEN). */
 export const MANAGEMENT_GATEWAY_HEADER = 'x-enclave-management-gateway';
-const LONG = new Set(['logs', 'restart', 'attestation', 'cpuProfile']);
+const LONG = new Set(['logs', 'restart', 'attestation', 'cpuProfile', 'release']);
+const opCode = op => op === 'restart' || op === 'release' ? op : 'operation';
 
 export function managementUpstream(raw) {
   const u = new URL(raw);
@@ -213,7 +214,9 @@ export function createManagementHandler({runner, pins, reader, upstream, upstrea
       const vault = parsed.vault.toLowerCase(), keyId = `${vault}:${parsed.sid}:${parsed.x.toString('base64url')}:${parsed.y.toString('base64url')}`;
       // Refuse-only memory of agreed refusals: a repeat for a deployment this runner does not hold, or from a signer that
       // is not a vault, costs no chain read. It never authorizes anything.
-      if (notOurs.has(route.deploymentId)) return send(409, 'not_current_runner', 'this host does not hold a current lease for that deployment');
+      // (a placement hint is FOR a deployment this host does not hold: that memory neither refuses nor learns from it)
+      const named = route.host === 'named';
+      if (!named && notOurs.has(route.deploymentId)) return send(409, 'not_current_runner', 'this host does not hold a current lease for that deployment');
       if (notVault.has(vault)) return send(401, 'unauthorized', 'the signer is not a session vault of the pinned factory');
       const claim = replay.claim(`${vault}:${parsed.sid}:${parsed.n}`);
       if (claim === 'replayed') return send(401, 'unauthorized', 'replayed request: this nonce was already used here');
@@ -233,13 +236,13 @@ export function createManagementHandler({runner, pins, reader, upstream, upstrea
       const endAuth = () => { if (authHeld) { authHeld = false; authorizing--; if (asKnown) authorizingKnown--; authBySource.dec(source); authByDeployment.dec(route.deploymentId); authByKey.dec(keyId); } };
       held.push(endAuth);
       const authorize = () => authorizeManagement(reader, {pins, deploymentId: route.deploymentId, runner, scope: route.scope, parsed,
-        deadline: hardUntil, now});
+        deadline: hardUntil, now, host: named ? 'named' : 'lease'});
       let auth;
       try { auth = await authorize(); }
       catch (e) { return send(e instanceof ManagementAuthError ? e.status : 503, e.code || 'chain_unavailable', String(e.message).slice(0, 200)); }
       finally { endAuth(); }
       if (!auth.ok) {
-        if (auth.cacheable === 'deployment' && L.negativeTtlMs) notOurs.add(route.deploymentId, L.negativeTtlMs);
+        if (auth.cacheable === 'deployment' && !named && L.negativeTtlMs) notOurs.add(route.deploymentId, L.negativeTtlMs);
         if (auth.cacheable === 'vault' && L.negativeTtlMs) notVault.add(vault, L.negativeTtlMs);
         return send(auth.status, auth.code, auth.reason);
       }
@@ -249,7 +252,7 @@ export function createManagementHandler({runner, pins, reader, upstream, upstrea
       if (pool[kind] >= L[kind] || fwdByDeployment.get(route.deploymentId) >= L.forwardPerDeployment)
         return send(429, 'busy', 'too many management answers in flight for this deployment or in total');
       if (route.mutation) {
-        if (mutating.has(`${route.op}:${route.deploymentId}`)) return send(409, `${route.op === 'restart' ? 'restart' : 'operation'}_in_progress`, 'this operation is already in progress for that deployment');
+        if (mutating.has(`${route.op}:${route.deploymentId}`)) return send(409, `${opCode(route.op)}_in_progress`, 'this operation is already in progress for that deployment');
         mutating.add(mutationKey = `${route.op}:${route.deploymentId}`);
       }
       // Fail closed BEFORE an upstream request exists: no zero-length timer race with a stale authorization.
@@ -264,7 +267,7 @@ export function createManagementHandler({runner, pins, reader, upstream, upstrea
           log(`[management] ${route.op} ${route.deploymentId.slice(0, 10)}: ${why}`);
           up?.destroy(Error(why));
           if (!answered) {
-            if (route.mutation) send(502, `${route.op === 'restart' ? 'restart' : 'operation'}_outcome_unknown`, 'the request was forwarded once and its outcome is unknown: check status before asking again', true);
+            if (route.mutation) send(502, `${opCode(route.op)}_outcome_unknown`, 'the request was forwarded once and its outcome is unknown: check status before asking again', true);
             else send(status, code, why, true);
           } else res.destroy();
           end();
@@ -272,6 +275,9 @@ export function createManagementHandler({runner, pins, reader, upstream, upstrea
         const onClose = () => { if (!res.writableFinished) { up?.destroy(Error('client went away')); end(); } };
         res.once('close', onClose);
         const arm = until => { clearTimeout(cut); cut = setTimeout(() => abort('management authorization or time bound reached'), Math.max(0, until - now())); timers.push(cut); };
+        // A release changes the lease its authorization stands on: once forwarded it runs to the hard bound, unrechecked
+        // (the request is already delivered; cutting the answer could only hide a confirmed release).
+        if (route.reauthorize === false) { arm(hardUntil); return void startUpstream(); }
         arm(auth.freshUntil);
         // Revalidation while an answer flows: one recheck at a time, each a fresh agreed snapshot that may extend the cut
         // (never past the hard bound) or end the answer.
@@ -286,23 +292,26 @@ export function createManagementHandler({runner, pins, reader, upstream, upstrea
           } catch { abort('the authorization could not be revalidated', 503, 'chain_unavailable'); }
           finally { rechecking = false; }
         }, recheckEvery));
-        up = http.request({host: target.host, port: target.port, method: req.method, path: req.url,
-          headers: {authorization: header, accept: req.headers.accept || '*/*', ...(upstreamToken ? {[MANAGEMENT_GATEWAY_HEADER]: upstreamToken} : {}),
-            ...(body.bytes.length ? {'content-type': 'application/json', 'content-length': body.bytes.length} : {})}});
-        up.once('response', ur => {
-          if (finished) return ur.destroy();
-          answered = true;
-          res.writeHead(ur.statusCode, {'content-type': ur.headers['content-type'] || 'application/octet-stream', 'cache-control': 'no-store',
-            'x-content-type-options': 'nosniff', [FORWARDED]: '1', ...cors});
-          let bytes = 0;
-          const limit = new Transform({transform(chunk, _e, cb) {
-            bytes += chunk.length; if (bytes > route.maxResponseBytes) return cb(Error('management response too large')); cb(null, chunk);
-          }});
-          pipeline(ur, limit, res, err => { if (err) { up.destroy(); res.destroy(); } end(); });
-        });
-        // on, not once: destroying the request in abort() emits a further error that must not go unhandled
-        up.on('error', err => abort('upstream ' + String(err.message).slice(0, 120), 502, 'upstream_unavailable'));
-        up.end(body.bytes.length ? body.bytes : undefined);
+        startUpstream();
+        function startUpstream() {
+          up = http.request({host: target.host, port: target.port, method: req.method, path: req.url,
+            headers: {authorization: header, accept: req.headers.accept || '*/*', ...(upstreamToken ? {[MANAGEMENT_GATEWAY_HEADER]: upstreamToken} : {}),
+              ...(body.bytes.length ? {'content-type': 'application/json', 'content-length': body.bytes.length} : {})}});
+          up.once('response', ur => {
+            if (finished) return ur.destroy();
+            answered = true;
+            res.writeHead(ur.statusCode, {'content-type': ur.headers['content-type'] || 'application/octet-stream', 'cache-control': 'no-store',
+              'x-content-type-options': 'nosniff', [FORWARDED]: '1', ...cors});
+            let bytes = 0;
+            const limit = new Transform({transform(chunk, _e, cb) {
+              bytes += chunk.length; if (bytes > route.maxResponseBytes) return cb(Error('management response too large')); cb(null, chunk);
+            }});
+            pipeline(ur, limit, res, err => { if (err) { up.destroy(); res.destroy(); } end(); });
+          });
+          // on, not once: destroying the request in abort() emits a further error that must not go unhandled
+          up.on('error', err => abort('upstream ' + String(err.message).slice(0, 120), 502, 'upstream_unavailable'));
+          up.end(body.bytes.length ? body.bytes : undefined);
+        }
       });
     } catch (e) {
       log('[management] refused: ' + String(e?.message || e).slice(0, 200));

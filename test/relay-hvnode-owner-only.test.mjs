@@ -109,9 +109,10 @@ const AVAILABILITY = { gpu: true, type: "cpu", teeCpu: "amd-sev-snp", cpuShareFr
 // /availability, and records every splice the hub opens to it (the replayed request line)
 async function attachHv(origin, w, { sig = "v2", signer = OPERATOR, delegations = [], keepOpen = false } = {}) {
   const ws = new WebSocket(origin.replace(/^http/, "ws") + "/v1/fleet-tunnel", { headers: { "x-metal-name": NAME, "x-metal-attest": "1" } });
-  const frames = [], splices = [];
+  const frames = [], splices = [], reqs = [];
   ws.on("message", (d) => {
     let f; try { f = JSON.parse(d); } catch { return; } frames.push(f);
+    if (f.t === "req") reqs.push(f);
     if (f.t === "req") ws.send(JSON.stringify({ t: "res", id: f.id, status: f.path.startsWith("/availability") ? 200 : 404, headers: { "content-type": "application/json" },
                                                 body: Buffer.from(JSON.stringify(f.path.startsWith("/availability") ? AVAILABILITY : {})).toString("base64") }));
     if (f.t === "s+") ws.send(JSON.stringify({ t: "s=", sid: f.sid, ok: true }));
@@ -137,7 +138,7 @@ async function attachHv(origin, w, { sig = "v2", signer = OPERATOR, delegations 
                            rad: { format: HVNODE_FORMAT, transportKey: w.transport.spki.toString("base64"), body: Buffer.from(JSON.stringify(body)).toString("base64"), delegations } }));
   const res = await waitFor(() => frames.find((f) => f.t === "attest-result"));
   if (res?.ok) ws.send(JSON.stringify({ t: "hello", mode: "snp", publicUrl: ENDPOINT }));
-  return { ok: !!res?.ok, reason: res?.reason, ws, splices, chal };
+  return { ok: !!res?.ok, reason: res?.reason, ws, splices, chal, reqs };
 }
 const delegation = async (o = {}) => {
   const message = delegationText({ owner: OWNER.address, operator: OPERATOR.address, box: NAME, chain: 8453, registry: REG, expires: Math.floor(Date.now() / 1000) + 90 * 86400, ...o });
@@ -246,6 +247,23 @@ test(`owner-only (${label}): served now + this row's lease + isolation.require h
     assert.equal((await fetch(`${origin}/t/${NAME}/v1/deployments/${d}/restart`, { method: "POST" })).status, 503);
   }
   assert.equal(a.splices.length, 0, "the control tunnel never carries application streams");
+});
+
+test("an hv-node's signed capacity record (its off-chain liveness) is reachable at /t/<name>/v1/host/capacity: GET only, without the caller's credentials",
+     { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  const { w, roots } = hvWorld(t);
+  const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR), TUNNEL_OPERATOR_ATTACH: "1" });
+  const a = await attachHv(origin, w, { delegations: [await delegation()] });
+  t.after(() => { try { a.ws.close(); } catch {} });
+  assert.equal(a.ok, true, a.reason);
+  assert.ok(await waitFor(async () => { const x = await rowOf(origin); return x && x.mode === "hv-node" && x.eligible === false ? x : null; }), "an ineligible (owner-only) hv-node row");
+  const r = await fetch(`${origin}/t/${NAME}/v1/host/capacity`, { headers: { authorization: "Bearer secret-token" } });
+  assert.equal(r.status, 404, "the box answered (this stand-in serves no record): the relay forwarded the request instead of refusing it");
+  const got = a.reqs.find((f) => String(f.path).startsWith("/v1/host/capacity"));
+  assert.ok(got, "the request reached the box over its tunnel");
+  assert.ok(!Object.keys(got.headers || {}).some((k) => /^authorization$/i.test(k)), "the caller's credentials are stripped (publicOnly)");
+  assert.equal((await fetch(`${origin}/t/${NAME}/v1/host/capacity`, { method: "POST" })).status, 503, "only a read: POST stays refused");
+  assert.equal((await fetch(`${origin}/t/${NAME}/v1/deployments`)).status, 503, "the other control paths stay refused");
 });
 
 test("owner-only needs a v2 signature by an operator in RELAY_HVNODE_OPERATORS (or \"*\" there: the open market); TRUSTED_OPERATORS (\"*\" included) never implies it: HOST-ONLY",

@@ -3,7 +3,7 @@
 Usage: overlay-control-image.py BASE OUT COMMIT. Never modifies BASE or starts a VM.
 Preserves untouched cpio entries, adds missing directories, and records exact inputs.
 """
-import gzip, hashlib, json, shutil, stat, subprocess, sys
+import gzip, hashlib, io, json, posixpath, re, shutil, stat, subprocess, sys
 from pathlib import Path
 
 APP_FILES = [
@@ -17,8 +17,123 @@ APP_FILES = [
     'isolation/m4/guestd/supervisor-splice.mjs', 'isolation/m4/guestd/supervisor-guestcert.mjs',
     'isolation/m2/judge.mjs', 'isolation/contract/runtime.mjs', 'relay/snp-verify.mjs',
 ]
+# APP_FILES is a FLOOR: the installed set is it plus supervisor.js's whole local import closure at the commit
+# (supervisor_closure: the rules of metal/supervisor-closure.mjs), and every npm package that closure names must be in
+# the base image with every subpath it imports exported (check_packages). A fixed list once omitted the app-funded
+# lease-gas runtime (network/lease-gas-runtime.mjs and its imports): a newer supervisor.js would not have started.
 GUEST_FILES = ['gsup.mjs', 'agent.mjs', 'host-policy.bundle.mjs', 'shielded.mjs',
                'shielded-probe.mjs', 'shielded-shm.mjs']
+# Guest modules a committed gsup.mjs may import: installed exactly when that commit's gsup imports them (its closure),
+# so an overlay of an older commit is unchanged and a newer one never ships a gsup without its helper.
+OPTIONAL_GUEST_FILES = ['measured-control.mjs', 'lease-gas-conduit.bundle.mjs', 'owner-nomination.mjs']
+_MODES = {}
+def committed(commit, repo, rel):
+    """The bytes the image installs for rel at commit, or None when absent. A git symlink (mode 120000) is followed
+    inside the commit, as build-image.mjs's copyFileSync and supervisor-closure.mjs's readFileSync follow it in a
+    checkout: the target's bytes at the link's path (relative imports then resolve from the link's directory, exactly
+    as they do in both). Never the link text; a link that is absolute, leaves the repository or loops is refused."""
+    key = (str(repo), commit)
+    if key not in _MODES:
+        out = subprocess.check_output(['git', 'ls-tree', '-r', '-z', commit], cwd=repo)
+        _MODES[key] = {e.split(b'\t', 1)[1].decode(): e.split(b' ', 1)[0].decode() for e in out.split(b'\0') if e}
+    modes, rel = _MODES[key], posixpath.normpath(rel)
+    for _ in range(9):
+        mode = modes.get(rel)
+        if mode is None:
+            return None
+        data = subprocess.check_output(['git', 'show', commit+':'+rel], cwd=repo)
+        if mode != '120000':
+            return data
+        target = data.decode()
+        nxt = posixpath.normpath(posixpath.join(posixpath.dirname(rel), target))
+        if target.startswith('/') or nxt == '..' or nxt.startswith('../'):
+            raise ValueError('the commit\'s symlink '+rel+' -> '+target+' leaves the repository')
+        rel = nxt
+    raise ValueError('the commit\'s symlink chain at '+rel+' does not end')
+def guest_files(commit, repo):
+    def show(f):
+        data = committed(commit, repo, 'metal/guest/'+f)
+        if data is None:
+            raise ValueError('the commit has no metal/guest/'+f)
+        return data.decode()
+    files, texts = list(GUEST_FILES), {f: show(f) for f in GUEST_FILES}
+    changed = True
+    while changed:                      # transitive: an optional helper installed brings the optional helpers it imports
+        changed = False
+        for f in OPTIONAL_GUEST_FILES:
+            if f not in files and any(("'./"+f+"'") in t or ('"./'+f+'"') in t for t in texts.values()):
+                files.append(f); texts[f] = show(f); changed = True
+    return files
+
+NODE_BUILTINS = {'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'crypto', 'dgram', 'dns', 'events',
+  'fs', 'fs/promises', 'http', 'http2', 'https', 'inspector', 'module', 'net', 'os', 'path', 'perf_hooks', 'process', 'punycode',
+  'querystring', 'readline', 'stream', 'stream/promises', 'string_decoder', 'timers', 'timers/promises', 'tls', 'tty', 'url', 'util',
+  'v8', 'vm', 'worker_threads', 'zlib'}
+SUPERVISOR_ROOTS = ['supervisor.js', 'addressbook.js']
+_Q = r'''(['"])([^'"\n]+)\1'''
+_LINE_START = [re.compile(r'^(?:import|export)\b.*?\bfrom\s*'+_Q), re.compile(r'^\}.*?\bfrom\s*'+_Q), re.compile(r'^import\s*'+_Q)]
+_ANYWHERE = [re.compile(r'\bimport\s*\(\s*'+_Q), re.compile(r'\bimport\s*\(\s*new URL\(\s*'+_Q),
+             re.compile(r'''\bnew URL\(\s*(['"])(\.\.?/[^'"\n]+)\1\s*,\s*import\.meta\.url''')]
+def specifiers_of(text, bundle=False):
+    out = []
+    for raw in text.split('\n'):
+        line = raw.lstrip()
+        if line.startswith('//') or line.startswith('/*') or line.startswith('*'):
+            continue
+        for rx in _LINE_START:
+            m = rx.search(line)
+            if m: out.append(m.group(2))
+        if bundle:
+            continue
+        for rx in _ANYWHERE:
+            out.extend(m.group(2) for m in rx.finditer(line))
+    return list(dict.fromkeys(out))
+def package_of(spec):
+    parts = spec.split('/'); n = 2 if spec.startswith('@') else 1
+    rest = '/'.join(parts[n:])
+    return '/'.join(parts[:n]), ('./'+rest if rest else '.')
+def supervisor_closure(read, roots):
+    """read(rel) -> text or None. -> (sorted files, {package: sorted subpaths}); raises on a named module that is absent."""
+    seen, packages, queue = set(), {}, list(roots)
+    while queue:
+        rel = posixpath.normpath(queue.pop(0))
+        if rel in seen:
+            continue
+        text = read(rel)
+        if text is None:
+            raise ValueError('the supervisor closure names '+rel+', which is not in the commit')
+        seen.add(rel)
+        if not re.search(r'\.(m?js|cjs)$', rel):
+            continue
+        for spec in specifiers_of(text, rel.endswith('.bundle.mjs')):
+            if spec.startswith('./') or spec.startswith('../'):
+                queue.append(posixpath.join(posixpath.dirname(rel), spec))
+            elif spec.startswith('node:') or spec in NODE_BUILTINS:
+                continue
+            else:
+                name, sub = package_of(spec); packages.setdefault(name, set()).add(sub)
+    return sorted(seen), {k: sorted(v) for k, v in sorted(packages.items())}
+def app_files(commit, repo):
+    def read(rel):
+        data = committed(commit, repo, rel)
+        return data.decode() if data is not None else None
+    files, packages = supervisor_closure(read, SUPERVISOR_ROOTS + APP_FILES)
+    return list(dict.fromkeys(APP_FILES + files)), packages
+def check_packages(packages, package_json):
+    """package_json(name) -> bytes or None (the base image's app/node_modules/<name>/package.json)."""
+    out = []
+    for name, subpaths in packages.items():
+        raw = package_json(name)
+        if raw is None:
+            raise ValueError('the base image has no '+name+' package, which the overlaid supervisor needs')
+        pkg = json.loads(raw)
+        ex = pkg.get('exports')
+        if isinstance(ex, dict) and any(k.startswith('.') for k in ex):
+            for sp in subpaths:
+                if sp not in ex and not any(k.endswith('*') and sp.startswith(k[:-1]) for k in ex):
+                    raise ValueError('the base image\'s '+name+'@'+str(pkg.get('version'))+' exports no '+sp+', which the overlaid supervisor imports')
+        out.append({'name': name, 'version': str(pkg.get('version', ''))})
+    return out
 REQUIRED = {'app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/agent.mjs', 'opt/metal/manifest.json'}
 sha = lambda b: hashlib.sha256(b).hexdigest()
 def file_sha(file):
@@ -82,8 +197,9 @@ def overlay(base, out, commit, repo):
     if file_sha(base/'vmlinuz') != m['kernel']['sha256']:
         raise ValueError('base kernel hash mismatch')
     commit = subprocess.check_output(['git', 'rev-parse', commit+'^{commit}'], cwd=repo, text=True).strip()
-    paths = {**{'app/'+p: p for p in APP_FILES}, **{'opt/metal/'+p: 'metal/guest/'+p for p in GUEST_FILES}}
-    replacements = {k: subprocess.check_output(['git', 'show', commit+':'+v], cwd=repo) for k,v in paths.items()}
+    installed_app, packages = app_files(commit, repo)
+    paths = {**{'app/'+p: p for p in installed_app}, **{'opt/metal/'+p: 'metal/guest/'+p for p in guest_files(commit, repo)}}
+    replacements = {k: committed(commit, repo, v) for k,v in paths.items()}
     m.pop('expectedMeasurement', None)
     m.pop('initramfs', None)
     previous = m.pop('controlOverlay', None)
@@ -95,13 +211,18 @@ def overlay(base, out, commit, repo):
     replacements['opt/metal/manifest.json'] = b''  # filled after namespace validation
     # Validate the whole namespace before emitting output. A symlink in a parent
     # must not redirect newly installed trusted runtime files elsewhere.
-    metadata, digests, duplicates = {}, {}, {}
+    metadata, digests, duplicates, package_jsons = {}, {}, {}, {}
+    wanted = {'app/node_modules/'+n+'/package.json' for n in packages}
     prefix = ''
     maxino = 0
     with gzip.open(base/'initramfs.cpio.gz', 'rb') as f:
         for key, name, fields, header in entries(f):
             digest = hashlib.sha256()
-            body(f, fields[6], digest=digest)
+            if key in wanted and stat.S_ISREG(fields[1]) and fields[6] <= 1 << 20:
+                buf = io.BytesIO(); body(f, fields[6], target=buf, digest=digest)
+                package_jsons[key] = buf.getvalue()[:fields[6]]
+            else:
+                body(f, fields[6], digest=digest)
             if key in metadata:
                 # Earlier overlay builders appended identical helper entries on
                 # every run. Collapse only unchanged, singly-linked regular files
@@ -119,6 +240,8 @@ def overlay(base, out, commit, repo):
                 raise ValueError('nonregular or hardlinked replacement: '+key)
     if not REQUIRED <= metadata.keys():
         raise ValueError('base image missing required entries')
+    m['controlOverlay']['supervisorClosure'] = {'rules': 'metal/supervisor-closure.mjs',
+        'packages': check_packages(packages, lambda n: package_jsons.get('app/node_modules/'+n+'/package.json'))}
     directories = set()
     for key in replacements:
         for parent in Path(key).parents:

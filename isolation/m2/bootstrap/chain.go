@@ -38,6 +38,13 @@ type Reader struct {
 	maxAge        time.Duration
 	now           func() time.Time
 	highWater     atomic.Uint64
+	cov           map[[32]byte]coverage            // verified FINALIZED lease-log coverage (leasegen.go), this process only
+	client        http.Client                      // the measured client, for owner-authorized history sources (history.go)
+	allow         func(hostport string)            // adds an authorized history origin to the guest's dial allowlist (nil: none)
+	win           map[string]uint64                // per source: the eth_getLogs range its own refusals shrank it to (leasegen.go)
+	cool          map[string]*cooldown             // per source: its cooldown after explicit rate refusals (leasegen.go)
+	cpTrust       *checkpointTrust                 // this guest's own identity for attested checkpoints (checkpoint.go)
+	cps           map[[32]byte]*verifiedCheckpoint // verified checkpoints by deployment (checkpoint.go)
 }
 
 type Config struct {
@@ -49,6 +56,9 @@ type Config struct {
 	// Client must retain certificate validation. A measured guest supplies its
 	// vsock egress transport and compiled root set, never host-controlled roots.
 	Client *http.Client
+	// AllowOrigin, when set, admits "host:443" to the Client's dial allowlist. Called only for the history sources of
+	// a VERIFIED owner-committed startup package (history.go), never for anything a host supplies.
+	AllowOrigin func(hostport string)
 }
 
 func address(s string) bool {
@@ -85,42 +95,72 @@ func NewReader(c Config) (*Reader, error) {
 			return nil, errors.New("distinct HTTPS RPC hosts required")
 		}
 		seen[host] = true
-		origin := raw
-		r.peers = append(r.peers, endpoint{name: host, call: func(ctx context.Context, method string, params any, out any) error {
-			body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
-			req, e := http.NewRequestWithContext(ctx, "POST", origin, bytes.NewReader(body))
-			if e != nil {
-				return e
-			}
-			req.Header.Set("Content-Type", "application/json")
-			res, e := base.Do(req)
-			if e != nil {
-				return errors.New("bootstrap RPC transport failed")
-			}
-			defer res.Body.Close()
-			if res.StatusCode != 200 {
-				return fmt.Errorf("bootstrap RPC HTTP %d", res.StatusCode)
-			}
-			b, e := io.ReadAll(io.LimitReader(res.Body, maxReply+1))
-			if e != nil || len(b) > maxReply {
-				return errors.New("bootstrap RPC response exceeds limit")
-			}
-			var msg struct {
-				JSONRPC string          `json:"jsonrpc"`
-				ID      int             `json:"id"`
-				Result  json.RawMessage `json:"result"`
-				Error   json.RawMessage `json:"error"`
-			}
-			if e = json.Unmarshal(b, &msg); e != nil || msg.JSONRPC != "2.0" || msg.ID != 1 || len(msg.Error) > 0 && string(msg.Error) != "null" || len(msg.Result) == 0 || string(msg.Result) == "null" {
-				return errors.New("invalid bootstrap RPC response")
-			}
-			if e := json.Unmarshal(msg.Result, out); e != nil {
-				return errors.New("invalid bootstrap RPC result")
-			}
-			return nil
-		}})
+		r.peers = append(r.peers, rpcEndpoint(host, raw, base))
 	}
+	r.client, r.allow = base, c.AllowOrigin
 	return r, nil
+}
+
+// rpcEndpoint: one JSON-RPC origin over the measured client, bounded replies, provider refusals as bounded text.
+func rpcEndpoint(host, origin string, base http.Client) endpoint {
+	return endpoint{name: host, call: func(ctx context.Context, method string, params any, out any) error {
+		body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+		req, e := http.NewRequestWithContext(ctx, "POST", origin, bytes.NewReader(body))
+		if e != nil {
+			return e
+		}
+		req.Header.Set("Content-Type", "application/json")
+		res, e := base.Do(req)
+		if e != nil {
+			return errors.New("bootstrap RPC transport failed")
+		}
+		defer res.Body.Close()
+		if res.StatusCode != 200 {
+			return fmt.Errorf("bootstrap RPC HTTP %d", res.StatusCode)
+		}
+		b, e := io.ReadAll(io.LimitReader(res.Body, maxReply+1))
+		if e != nil || len(b) > maxReply {
+			return errors.New("bootstrap RPC response exceeds limit")
+		}
+		var msg struct {
+			JSONRPC string          `json:"jsonrpc"`
+			ID      int             `json:"id"`
+			Result  json.RawMessage `json:"result"`
+			Error   json.RawMessage `json:"error"`
+		}
+		if e = json.Unmarshal(b, &msg); e != nil || msg.JSONRPC != "2.0" || msg.ID != 1 {
+			return errors.New("invalid bootstrap RPC response")
+		}
+		// the provider's own refusal, bounded: a range limit, a rate limit and an unserved history are different
+		// answers to a log reader (leasegen.go), and none of them is ever read as data
+		if len(msg.Error) > 0 && string(msg.Error) != "null" {
+			return fmt.Errorf("bootstrap RPC error: %s", rpcErrorText(msg.Error))
+		}
+		if len(msg.Result) == 0 || string(msg.Result) == "null" {
+			return errors.New("invalid bootstrap RPC response")
+		}
+		if e := json.Unmarshal(msg.Result, out); e != nil {
+			return errors.New("invalid bootstrap RPC result")
+		}
+		return nil
+	}}
+}
+
+// rpcErrorText: a JSON-RPC error object as "code: message", printable ASCII only, at most 160 bytes.
+func rpcErrorText(raw json.RawMessage) string {
+	var e struct {
+		Code    int64  `json:"code"`
+		Message string `json:"message"`
+	}
+	json.Unmarshal(raw, &e)
+	t := fmt.Sprintf("%d: %s", e.Code, e.Message)
+	out := make([]byte, 0, len(t))
+	for i := 0; i < len(t) && len(out) < 160; i++ {
+		if t[i] >= 0x20 && t[i] < 0x7f {
+			out = append(out, t[i])
+		}
+	}
+	return string(out)
 }
 
 // rpcHost is an RPC's identity for counting distinct peers: one host is one vote however it is spelled. Case and a

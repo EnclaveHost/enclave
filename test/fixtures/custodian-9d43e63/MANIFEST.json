@@ -1,0 +1,39 @@
+{
+ "what": "the exact JavaScript source closure of the RUNNING original custodian image (custodian-v2-9d43e63e8): every repository input of its /opt/custodian/custodian.mjs bundle",
+ "commit": "9d43e63e84e1799467a0202c0cf1cdc5a8aabca5",
+ "historicalRepository": "/home/steven/Projects/enclave (git archive of this commit; not in this repository's history)",
+ "runningBundleSha256": "7c2cd000f5e57d9c5bf8a9e28985b7950ad912ea0deef721bdaabc7a479715a5",
+ "rebuild": {
+  "byteExact": true,
+  "sha256": "7c2cd000f5e57d9c5bf8a9e28985b7950ad912ea0deef721bdaabc7a479715a5",
+  "esbuild": "0.28.1",
+  "script": "work/custody-owner-migration/old-image/rebuild-exact.sh"
+ },
+ "files": {
+  "custody/chain.mjs": "f0349c4f36e73e4e10e10d0a0a22da695383ec8db702e9a96246ed9adc1c689b",
+  "custody/custodian.mjs": "46563b843ba4dd0c4e753dc1da7f60a1b0146fb018fc30cee5f8426d7a85ab19",
+  "custody/hpke.mjs": "1806a74c947db89db0e410c370ad7963eac9fa30d1807d8f55846690fafc0c03",
+  "custody/protocol.mjs": "9afb78e3a313c19446539c5797ca744564b904985ca894987cc9207879a023fc",
+  "custody/rules.mjs": "9c0f6cfa6f659bbc24dedee9d8f1b091f4a11b2d0e928287a7d6356e89c23470",
+  "custody/threshold.mjs": "9c7f912e7dc38e1bf58e196bce2eaf4292219aef7dfa91b8d7813b102919844a",
+  "custody/v2/chain.mjs": "87ce4efcbdbeeaae8cf21cebc747ce01c7ddeea34cec5e401c9fb5d8e128d126",
+  "custody/v2/custodian.mjs": "be000ab881a504729d2ee73c79e3b3bffdbd19e1664cf2f7f21510d23ca7d9d2",
+  "custody/v2/daemon.mjs": "363d6858e58dd736193c3aaeffda5d112e5c5239f7bab37e37df0d39dc089eae",
+  "custody/v2/digests.mjs": "8516cf108cda9fa97583cf21d51e7f2aca48cdb51ebad061f954172b17c3621e",
+  "custody/v2/measured.mjs": "a3da3f49e90764783cf292d4b5123cfa712e2085afb695daf7e90136eb3484d4",
+  "custody/v2/member.mjs": "b7049b49e92ab9966267a812c51067e323cc92fa1cc092ec0c9f6cd5d7a998d4",
+  "custody/v2/protocol.mjs": "3e3ad53e21cfa8d14e41d86f2a70527a735a012a0b3d9c096b0a8b6b888ab495",
+  "custody/verifiers.mjs": "3c0553b58a18239213bfc43dbc8b78aa079270a0a6eaab793eb3eba3432ad873",
+  "isolation/contract/runtime.mjs": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+  "relay/snp-verify.mjs": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+  "verifier/collateral-cache.mjs": "eab07f86acc54f5411fb2e9148b155d0ccc7e12bc608453c8f73b9869181f7b6",
+  "verifier/collateral.mjs": "c2be31edf2d6a2154f5e220c5cc1bcaa16a7f9e06065fd1290e06387e55a057f",
+  "verifier/consumer.mjs": "907e40bfd42529aa907c3267b7ec0cb9652d9c250b196e00c1508a7e460608e1",
+  "verifier/der.mjs": "3606e988e4d340973c105fdc7fc0ee39db13034419561fbbe2e0ee396ade9775",
+  "verifier/envelope.mjs": "ba94f540c5e3574c5750dbf8a0d5cf24885dd0ae3ffcc8729f526700015e4b39",
+  "verifier/metal-box.mjs": "6bcbb136b320ed01add947626d7a19d44a9e6db9606744cc8c0e667bc89abef2",
+  "verifier/snp.mjs": "beb7571c9b3004da4cd8bfd87377e2dd2fcaca72884b83676325d1e150df6721",
+  "verifier/tls-binding.mjs": "f11b1ff36e43f90c20b2349a9880dc1f86821a7270b31273c612bd4a532dc8e7"
+ },
+ "use": "test-only: tests import the old custodian, member, chain reader and verifier from here, so the release the migration relies on is the deployed code, not a re-implementation. Never imported by production code."
+}

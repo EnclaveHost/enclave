@@ -166,7 +166,7 @@ last successfully deployed commit and deploys only what changed:
 
 | what changed | what happens |
 |---|---|
-| `site/**` | scp + IPFS publish to the site box (`site/deploy.sh`) |
+| `site/**`, `cli/install.*`, `cli/host.ps1` | one content-addressed site release is built and verified (`site`), then delivered to every operator target in `vars.SITE_DELIVERY_TARGETS` (SSH hosts running the release agent, kubo nodes, local roots), activated as a journalled, fenced rollout (failures compensated; unknown outcomes reported pending until `site-release resolve`), and published through an owner-approved session or left as the owner's exact plan (`site-deliver`, [docs/site-release.md](docs/site-release.md)) |
 | `relay/**` | scp + systemd restart on the relay box (`relay/deploy.sh`) |
 | `contracts/<Name>.sol` | that contract deploys to Base (`scripts/deploy-*.mjs`), **after a one-click approval** on the `contract-deploy` environment; addresses are wired into `enclaves/cpu/config.yml` + the site and committed back |
 | `Dockerfile` / `supervisor.js` / `package*.json` | a new release (`release-cpu.yml` builds the supervisor image, tags `vX.Y.Z-cpu` and publishes the GitHub Release) |
@@ -189,9 +189,11 @@ Deliberately still manual:
   of the pipeline continues on the next push. Replacing a live contract is a
   migration, not a deploy: see [Contract upgrades and refunds](#contract-upgrades-and-refunds).
 
-One-time setup on a new machine/repo: `scripts/ci-setup.sh` (SSH deploy key,
-repo secrets/vars, the `contract-deploy` environment), then set
-`DEPLOYER_PRIVATE_KEY` on that environment. The local `scripts/hooks/pre-push`
+For one-time CI setup, first select the API/DNS targets and supply verified SSH
+host keys as described in [CI setup](scripts/CI-SETUP.md), then run
+`scripts/ci-setup.sh`. Configure `DEPLOYER_PRIVATE_KEY` in the reviewed
+`contract-deploy` environment only if CI will perform contract deployments.
+The local `scripts/hooks/pre-push`
 site-deploy hook predates this pipeline and is now redundant; disable it with
 `git config --unset core.hooksPath` if you don't want pushes deploying the site
 twice.
@@ -201,7 +203,7 @@ twice.
 - `npm test` runs the supervisor/contract test suite (`test/*.test.mjs`).
 - `npm install` also points `core.hooksPath` at `.githooks/`: the pre-commit and pre-push hooks refuse cryptocurrency private keys (Ethereum/Bitcoin hex, WIF, xprv, BIP39 seed phrases, keystore JSON) and, when [gitleaks](https://github.com/gitleaks/gitleaks) is on your PATH, provider tokens too. GitHub's own push protection never sees a raw wallet key, so the hook is the real block; `.github/workflows/secret-scan.yml` is the backstop. A confirmed false positive is bypassed with `--no-verify`.
 - `npm run build:site` bundles the site into `site/dist/` (Tailwind + esbuild + build-time component prerender). `site/` itself is valid unbundled ES modules; serve it raw for dev, or `npm run watch:site` for CSS. Site URLs are extensionless (`/apps`, `/dashboard`): `site/_redirects` rewrites them on the DNSLink/subdomain IPFS gateway, and the router always fetches the real `.html` files, so soft navigation works on any dumb static server; only a HARD reload of a pretty URL needs rewrite support (use `npx serve site`, or just hit the `.html` path; the router re-prettifies the bar).
-- `site/deploy.sh` builds and publishes the site to the box and IPFS (the IPNS gateway caches ~5 min). CI does this automatically on push.
+- `site/deploy.sh prepare --out DIR --base BASE` builds the site into ONE content-addressed release, keeping the old hashed chunks and CSP hashes 48h for cached tabs. `site/deploy.sh deliver --release DIR --targets FILE --approve CID [--publish FILE]` mirrors it to the operator's own targets, activates them in a journalled, fenced rollout (`--journal DIR`; `resolve` settles any interrupted one), and publishes. CI runs the same commands; no host is built in ([docs/site-release.md](docs/site-release.md)).
 
 ## Documentation & support
 

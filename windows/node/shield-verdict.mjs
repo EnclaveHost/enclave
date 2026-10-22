@@ -146,6 +146,9 @@ export function verifyVerdicts(envelopes, { set, hostId, endpoint, transportKeyS
 /** An owner-selected DNS-01 responder's party id in a host's attach signature (relay/dns-challenge-shield.mjs): bound to its
  *  challenge zone, so a session a host made for one responder cannot be presented at another. */
 export const shieldResponderId = (zone) => createHash("sha256").update(`enclave-shield-responder-v1\n${zone}`).digest("hex");
+/** An app-zone challenge replica's party id (network/app-zone-shield.mjs): bound to its app zone and domain-separated from
+ *  every owner-name responder's, so a host session made at one can never stand for the other. */
+export const appZoneShieldParty = (zone) => createHash("sha256").update(`enclave-app-zone-shield-v1\n${zone}`).digest("hex");
 
 export async function postJson(fetchImpl, url, body, timeoutMs) {
   const r = await fetchImpl(url, { method: "POST", redirect: "error", headers: { "content-type": "application/json" }, body: JSON.stringify(body),

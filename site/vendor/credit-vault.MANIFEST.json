@@ -1,0 +1,32 @@
+{
+  "file": "site/vendor/credit-vault.js",
+  "sha256": "0deb0c22c75485eb76e3acddc8e9e8042cfb5625b5a315689cc74a3c530b1e99",
+  "bytes": 102293,
+  "entry": "scripts/vendor/credit-vault-entry.mjs",
+  "entrySha256": "7e4df781527d7f6220ec94c0d7fc1335f2aed713840f8604a0eb41861d09fb1c",
+  "esbuild": "0.28.1",
+  "deps": {
+    "viem": "2.53.1",
+    "ox": "0.14.29",
+    "@noble/curves": "1.9.1",
+    "@noble/hashes": "1.8.0"
+  },
+  "exports": [
+    "encodeFunctionData",
+    "decodeFunctionData",
+    "decodeFunctionResult",
+    "encodeAbiParameters",
+    "decodeAbiParameters",
+    "keccak256",
+    "getAddress",
+    "concat",
+    "pad",
+    "toHex",
+    "hexToBytes",
+    "bytesToHex",
+    "toFunctionSelector",
+    "WebAuthnP256",
+    "p256",
+    "sha256"
+  ]
+}

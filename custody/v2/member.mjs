@@ -32,9 +32,43 @@ export const machineBinding = (machine, nonce) => sha256(Buffer.from("enclave-cu
 // state shape: { epochs: { "<cid>:<epoch>": [{k, x (hex)}] }, pending: { "<cid>:<toEpoch>": [{k,x}] }, hostSig, candidates }
 export function createMember({ chainId, vault, identity, encPrivateKey, machine, chain, store, submit, fetchJson, attestSelf,
                                verifyPeerQuote, capacityCheck = async () => ({ ok: false, reason: "no proof-of-capacity verifier configured" }),
-                               enclaveOwner, now = () => Date.now(), log = console.log, minTcb = DEFAULT_MIN_TCB, capacityReceipts = null, admissionCheck = null }) {
+                               enclaveOwner, now = () => Date.now(), log = console.log, minTcb = DEFAULT_MIN_TCB, capacityReceipts = null, admissionCheck = null,
+                               hostGate = null }) {   // network/platform-host-policy.mjs gate; null = enforcement off (unchanged)
   const vaultL = lc(vault);
   const me = { ...machine, identity: lc(machine.identity) };
+  // The Enclave flag the vault computes for a registry entry (chain.mjs entryAt): a book-bound vault reports it as
+  // vaultEnclave (the original vault's payout rule); a pinned vault's flag is the accepted owner itself.
+  // FUTURE ADMISSION (a new machine binding, genesis, and every machine of a proposed next epoch, which the vault
+  // re-admits) needs an accepted host-wallet owner, and on a book-bound vault that owner must AGREE with the vault's seat
+  // flag: Enclave-owned exactly when the vault would seat it as Enclave. Payout and operator are never ownership.
+  // EXISTING-EPOCH COMPATIBILITY: a current seat on a book-bound vault whose host predates ownership enrollment (no
+  // accepted owner) is "grandfathered": it keeps its shares, deals and releases, but it can be neither removed while alive
+  // nor carried into a new epoch - every handover waits until that host enrolls (or the seat goes silent).
+  const vaultEnclaveOf = (e) => (typeof e?.vaultEnclave === "boolean" ? e.vaultEnclave : lc(e?.owner) === lc(enclaveOwner));
+  const bookBound = (e) => typeof e?.vaultEnclave === "boolean";
+  const unowned = (e) => !e?.owner || /^0x0{40}$/.test(e.owner);
+  const ownerIsEnclave = (e) => !unowned(e) && lc(e.owner) === lc(enclaveOwner);
+  const admissionRefusal = (e) => {
+    if (!e?.active) return "host registry entry is not active";
+    if (unowned(e)) return "host wallet ownership has not been accepted";
+    if (bookBound(e) && e.vaultEnclave && !ownerIsEnclave(e)) return "the vault would seat this host as Enclave (payout declared by the Enclave wallet) but another wallet accepted its ownership";
+    if (bookBound(e) && !e.vaultEnclave && ownerIsEnclave(e)) return "the host is owned by the Enclave wallet but the vault would seat it as an independent seat (no Enclave payout declaration)";
+    return null;
+  };
+  const grandfathered = (e) => bookBound(e) && !!e?.active && unowned(e);
+  // PLATFORM HOST POLICY (admin ban/admission, judged at the snapshot's block on the host's operator and ACCEPTED owner).
+  // A policy refusal makes a host inadmissible and a current seat removable - it outranks grandfathering. An UNDECIDED
+  // state (this node behind the book's anchor, unreadable facts) neither admits nor evicts: it blocks the change.
+  const platformOf = (snap, m) => {
+    if (!hostGate) return { admit: true, status: "off" };
+    if (!snap?.platform) return { admit: false, status: "unread", reason: "platform host policy facts were not read" };
+    const h = snap.platform.hosts?.[lc(m.registryId)];
+    return hostGate.decideHost({ ...(h || {}), chipId: lc(m.chipId) }, snap.platform);
+  };
+  const policyRefused = (d) => !d.admit && ["current", "stale-grace", "stale"].includes(d.status);
+  // binding this machine to its host: conflicts are refused; on a book-bound vault an unenrolled host may bind (it may
+  // be a current seat) but is reported as not admissible
+  const hostRefusal = (e) => (grandfathered(e) ? null : admissionRefusal(e));
   let st = store.load() || { epochs: {}, pending: {}, hostSig: null, candidates: {} };
   const save = () => store.save(st);
   const lastSeen = new Map();             // identity -> ms
@@ -62,14 +96,20 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
     if (!r.entry || !r.entry.active) throw new Error("the host's registry entry is not active");
     const who = await D.recoverDigest(D.hostDigest({ chainId, vault: vaultL, machine: me }), sig);
     if (!who || who !== r.entry.operator) throw new Error("the host binding is not signed by the host's registry operator");
-    if (!r.entry.owner || /^0x0{40}$/.test(r.entry.owner)) throw new Error("host wallet ownership has not been accepted");
+    const refusal = hostRefusal(r.entry);
+    if (refusal) throw new Error(refusal);
     st.hostSig = sig; save();
-    return { enclave: r.entry.owner === lc(enclaveOwner) };
+    const admission = admissionRefusal(r.entry);
+    return { enclave: vaultEnclaveOf(r.entry), ...(admission ? { admissible: false, reason: admission } : {}) };
   }
 
   // ---- genesis (§10: the Enclave seat creates the committee) ----
   async function genesis({ salt, codeSet }) {
     if (!st.hostSig) throw new Error("genesis: no host binding yet");
+    // a fresh committee is a future admission: the founder's host must be Enclave-owned AND seated as Enclave
+    const { entry } = await chain.readRegistryEntry({ registryId: me.registryId });
+    const refusal = admissionRefusal(entry) || (vaultEnclaveOf(entry) ? null : "genesis needs a host the vault seats as Enclave");
+    if (refusal) throw new Error(`genesis: ${refusal}`);
     const g = v2.genesis();
     const Y = g.Y;
     const committeeId = D.committeeIdOf({ chainId, vault: vaultL, salt, Y });
@@ -133,8 +173,11 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
     const sig = hostSig || a.ev.hostSig;
     const who = await D.recoverDigest(D.hostDigest({ chainId, vault: vaultL, machine: m }), sig);
     if (!who || who !== entry.operator) return { ok: false, reason: "host binding not signed by the host's registry operator" };
-    if (!entry.owner || /^0x0{40}$/.test(entry.owner)) return { ok: false, reason: "host wallet ownership has not been accepted" };
-    const enclave = entry.owner === lc(enclaveOwner);
+    const refusal = admissionRefusal(entry);
+    if (refusal) return { ok: false, reason: refusal };
+    const pd = platformOf(snap, m);
+    if (!pd.admit) return { ok: false, reason: `platform host policy: ${pd.reason}` };
+    const enclave = vaultEnclaveOf(entry);
     if (!allows && (admissionCheck || !enclave)) {
       const c = await (admissionCheck || capacityCheck)({ machine: m, chipIdRaw: a.v.chipId, registry: entry, receipts: Array.isArray(a.ev.receipts) ? a.ev.receipts : [],
                                                           committeeId, admission, snapshot: snap, signers: snap.signersOf(lc(m.identity)) });
@@ -225,7 +268,12 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
   const isIndependent = (com) => !com.machines.some((m) => m.enclave);
   const ownerAt = (snap, m) => { const e = snap.entries[lc(m.registryId)], o = lc(e?.owner); return e?.active && /^0x[0-9a-f]{40}$/.test(o) && !/^0x0{40}$/.test(o) ? o : null; };
   const sameRecord = (a, b) => lc(D.machineHash(strip(a))) === lc(D.machineHash(strip(b)));
-  const ineligible = (snap, m) => { const o = ownerAt(snap, m); return !o || (isIndependent(snap.committee) && o === lc(enclaveOwner)); };
+  const entryOf = (snap, m) => snap.entries[lc(m.registryId)];
+  // a current seat that may be left out of a next epoch (removed even while alive); a grandfathered seat never is
+  const ineligible = (snap, m) => { const e = entryOf(snap, m), o = ownerAt(snap, m), enc = vaultEnclaveOf(e);
+    if (policyRefused(platformOf(snap, m))) return true;
+    if (grandfathered(e)) return false;
+    return !!admissionRefusal(e) || (isIndependent(snap.committee) && (enc || o === lc(enclaveOwner))); };
   // -> { next (vault flags), newcomers } or { reason }; `drop` leaves out ineligible seats and newcomers instead of refusing
   function checkNext(snap, next, { drop = false } = {}) {
     const com = snap.committee, indep = isIndependent(com), ids = new Set(), owners = new Set(), out = [];
@@ -240,16 +288,21 @@ export function createMember({ chainId, vault, identity, encPrivateKey, machine,
     }
     const newcomers = [];
     for (const m of next) {
-      const cur = com.machines.some((c) => c.identity === lc(m.identity)), o = ownerAt(snap, m);
+      const cur = com.machines.some((c) => c.identity === lc(m.identity)), o = ownerAt(snap, m), e = entryOf(snap, m), enc = vaultEnclaveOf(e);
+      const pd = platformOf(snap, m);
+      if (!pd.admit && !policyRefused(pd)) return why(m, `blocked: platform host policy undecided (${pd.reason})`);
+      // never dropped: carrying it forward needs its owner enrollment first, and removing it would evict a live seat
+      if (cur && grandfathered(e) && !policyRefused(pd)) return why(m, "blocked: this current seat's host has no accepted owner; it must enroll ownership before any handover");
       let reason = null;
-      if (cur && ineligible(snap, m)) reason = "is no longer an eligible seat (inactive or unowned host, or Enclave-owned in an independent committee)";
-      else if (!cur && indep && (!o || o === lc(enclaveOwner))) reason = "would add an Enclave-owned or unowned newcomer to an independent committee";
+      if (cur && ineligible(snap, m)) reason = "is no longer an eligible seat (inactive or unowned host, owner/seat-flag mismatch, or Enclave-owned in an independent committee)";
+      else if (!cur && indep && (!o || enc || o === lc(enclaveOwner))) reason = "would add an Enclave-owned or unowned newcomer to an independent committee";
       else if (!cur && indep && owners.has(o)) reason = "would add a second seat for one owner to an independent committee";
-      else if (!cur && !o) reason = "is an unowned newcomer";
+      else if (!cur && admissionRefusal(e)) reason = `is not admissible: ${admissionRefusal(e)}`;
+      else if (!cur && policyRefused(pd)) reason = `is refused by platform host policy: ${pd.reason}`;
       if (reason && !drop) return why(m, reason);
       if (reason) continue;
       if (!cur && indep) owners.add(o);
-      const flag = o === lc(enclaveOwner);
+      const flag = enc;
       if (!drop && !!m.enclave !== flag) return why(m, "carries an Enclave flag the vault would not assign");
       out.push({ ...m, enclave: flag });
       if (!cur) newcomers.push(m);

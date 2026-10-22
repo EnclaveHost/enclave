@@ -18,15 +18,28 @@ import { independentOwners } from "./admission.mjs";
 import { independentPolicy } from "./governance.mjs";
 import { validateShieldOperator } from "./shield-operator.mjs";
 import { validateTrustedProxies } from "./http.mjs";
+import { REVIEWED_CUSTODY_VAULTS } from "../../network/custody-vaults.mjs";
+import { validateMirrors } from "../../network/host-policy-mirrors.mjs";
 
 export const ENCLAVE_OWNER = "0x0b2d009c0c9af05b12100d77f3c815fea822ee61";
 export const MEASURED_RPCS = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"]);
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 
-export function custodianMeasured({ vault, hostOwnership, transport = "direct", ownerList = null, admission = null, shieldRecipients = null, trustedProxies = null }) {
+// book: the EnclaveAddressBook of the deployed book-bound vault (0xE486...; chain.mjs vaultKind "book"). Its registry,
+// ledger and session factory then follow the administrator's book at each agreed block, as the vault itself does.
+export function custodianMeasured({ vault, hostOwnership, transport = "direct", ownerList = null, admission = null, shieldRecipients = null, trustedProxies = null, book = null, hostPolicy = null }) {
   vault = String(vault || "").toLowerCase(); hostOwnership = String(hostOwnership || "").toLowerCase();
+  if (book !== null && book !== undefined) {
+    book = String(book).toLowerCase();
+    if (!ADDRESS.test(book) || /^0x0{40}$/.test(book)) throw new Error("--book must be the vault's deployed EnclaveAddressBook");
+    // the book-bound vault has no createIndependentCommittee: its committees are Enclave-founded and change by handover
+    if (ownerList || admission) throw new Error("--book (book-bound vault) does not support independent genesis policies");
+    // a book-bound image targets a reviewed book-bound vault: its code identity and book are measured with it
+    const r = REVIEWED_CUSTODY_VAULTS[vault];
+    if (!r || r.kind !== "book" || r.immutable.book !== book) throw new Error("--book needs the reviewed book-bound vault and its own address book (network/custody-vaults.mjs)");
+  } else book = null;
   if (!ADDRESS.test(vault) || /^0x0{40}$/.test(vault)) throw new Error("--vault must be the deployed EnclaveSecretVaultV2");
-  if (!ADDRESS.test(hostOwnership) || /^0x0{40}$/.test(hostOwnership)) throw new Error("--host-ownership must pin the accepted wallet authority for the new vault; legacy vaults require their compatible runtime");
+  if (!ADDRESS.test(hostOwnership) || /^0x0{40}$/.test(hostOwnership)) throw new Error("--host-ownership must pin the accepted wallet authority (the vault's, or for --book the deployed EnclaveHostOwnership)");
   if (!["direct", "tunnel"].includes(transport)) throw new Error("--transport must be direct or tunnel");
   if (admission !== null && admission !== "owner-permits") throw new Error("--independent-admission must be owner-permits");
   if (admission && ownerList) throw new Error("--independent-admission owner-permits and --independent-owners are mutually exclusive");
@@ -36,6 +49,10 @@ export function custodianMeasured({ vault, hostOwnership, transport = "direct", 
     throw new Error("--shield-recipients needs --transport direct (operator-owned ingress): the relay tunnel does not forward the Shield session routes");
   const measured = {
     chainId: 8453, transport, vault, hostOwnership, rpcs: [...MEASURED_RPCS],
+    // present only for the book-bound vault, so pinned images stay byte-identical to their earlier builds
+    ...(book ? { vaultKind: "book", book, vaultCodeHash: REVIEWED_CUSTODY_VAULTS[vault].codeHash } : {}),
+    // present only when the image enforces the platform host policy (network/platform-host-policy.mjs)
+    ...(hostPolicy ? { hostPolicy: hostPolicySection(hostPolicy) } : {}),
     minAgree: 3, confirmations: 2, maxAgeSec: 120, enclaveOwner: ENCLAVE_OWNER,
     independentOwners: ownerList ? independentOwners(ownerList, ENCLAVE_OWNER) : null,
     // present only when set, so legacy and owner-list images stay byte-identical to their earlier builds
@@ -47,6 +64,12 @@ export function custodianMeasured({ vault, hostOwnership, transport = "direct", 
   };
   const policy = independentPolicy(measured);          // the daemon's own interpretation must accept it
   return { measured, policy: policy ? policy.mode : null, needsDkg: !!policy };
+}
+function hostPolicySection(p) {
+  const a = /^0x[0-9a-f]{40}$/;
+  const book = String(p?.book || "").toLowerCase(), hostOwnership = String(p?.hostOwnership || "").toLowerCase();
+  if (!a.test(book) || /^0x0{40}$/.test(book) || !a.test(hostOwnership) || /^0x0{40}$/.test(hostOwnership)) throw new Error("--host-policy needs the address book and the host-ownership extension");
+  return { book, hostOwnership, mirrors: validateMirrors(p.mirrors) };
 }
 function shieldSection(cfg) {
   try { const v = validateShieldOperator(cfg); return { format: v.format, acceptTier: v.acceptTier, ekRoots: v.ekRoots, ekRootPins: [...v.ekRootPins], limits: { ...v.limits } }; }

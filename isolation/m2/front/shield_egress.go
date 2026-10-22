@@ -33,6 +33,7 @@ import (
 	"enclave.host/isolation/contract"
 	"enclave.host/isolation/m2/bootstrap"
 	"enclave.host/isolation/m2/egress"
+	"enclave.host/isolation/m2/encvol"
 	"enclave.host/isolation/m2/release"
 	"enclave.host/isolation/m2/shieldconfig"
 )
@@ -52,6 +53,14 @@ type shieldEgress struct {
 	publicWebMarker string
 	publicListen    string
 	dnsListen       string
+
+	// encrypted volumes (encvol.go): the engine (nil: none staged), the deployment the plane answers for, the specs the
+	// current start resolved, and the running plane; encMarker is a test override of /enc.volumes
+	enc       *encvolHost
+	encID     [32]byte
+	encSpecsP []encvol.Spec
+	encOut    *encStarted
+	encMarker string
 }
 
 // egressStepError names WHICH step failed, and nothing of why: the reason can carry config or secret text.
@@ -68,6 +77,9 @@ func (e *shieldEgress) start(rel *release.Release) (*egress.Forwarder, error) {
 	if err != nil {
 		return nil, egressStepError{"allowlist"}
 	}
+	if e.encSpecsP, err = e.encSpecs(cfg, rel.Secrets, pol); err != nil {
+		return nil, err
+	}
 	return e.startPolicy(pol)
 }
 
@@ -83,6 +95,9 @@ func (e *shieldEgress) startDirect(auth *bootstrap.Authorization, secrets map[st
 	pol, err := egress.FromShieldBootstrap(auth, secrets)
 	if err != nil {
 		return nil, egressStepError{"allowlist"}
+	}
+	if e.encSpecsP, err = e.encSpecs(committed, secrets, pol); err != nil {
+		return nil, err
 	}
 	return e.startPolicy(pol)
 }
@@ -110,7 +125,18 @@ func (e *shieldEgress) startPolicy(pol *egress.Policy) (*egress.Forwarder, error
 		fwd.Close()
 		return nil, egressStepError{"hosts"}
 	}
-	if err := e.audit(fwd.Listeners()); err != nil {
+	// the volumes' plane (encvol.go) is a listener of this front's too: started now, and audited with the forwarders
+	want := fwd.Listeners()
+	if len(e.encSpecsP) > 0 {
+		started, err := encStart(context.Background(), e.encID, e.encSpecsP, e.enc, domLogf(e.logf))
+		if err != nil {
+			fwd.Close()
+			return nil, egressStepError{"encrypted volumes"}
+		}
+		e.encOut = started
+		want = append(want, started.addr)
+	}
+	if err := e.audit(want); err != nil {
 		fwd.Close()
 		return nil, egressStepError{"listener audit"}
 	}

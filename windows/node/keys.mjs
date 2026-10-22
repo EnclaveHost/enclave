@@ -1,6 +1,6 @@
 // windows/node/keys.mjs -- the two chain keys a hosting node needs, generated ON the box.
 //   node keys.mjs [dir] [--offline]    print the addresses, creating either key if it is missing
-// operator.key signs register / heartbeat / claim / renew / release and the tunnel attach; it needs
+// operator.key signs register / claim / renew / release and the tunnel attach; it needs
 // a few dollars of Base ETH for gas and controls nothing else (earnings go to the payout wallet).
 // proof.key signs EnclaveProofOfTime checkpoints. On a fleet enclave that key is minted inside the
 // CVM so the operator cannot forge "it was running"; here it sits beside the operator key on a

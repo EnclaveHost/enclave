@@ -3,6 +3,10 @@
 // one of these never becomes a credential for anything else on the host.
 //
 // mutation: whether a lost or malformed answer leaves the outcome unknown (the operation may have changed host state).
+// host: 'lease' (default) - only the host the deployment's CURRENT lease names; 'named' - the host the owner chose (a
+//   placement hint goes to a host that does not hold the lease yet).
+// reauthorize: false - once forwarded, the answer is not cut by the gateway's periodic re-authorization (a release ends
+//   the very lease that authorization stands on; cutting its answer would only turn a confirmed release into unknown).
 export const MANAGEMENT_OPERATIONS = Object.freeze({
   status:      {method: 'GET',  suffix: '',             scope: 'api.status',    maxBodyBytes: 0,  timeoutMs: 30000,  maxResponseBytes: 1 << 20, mutation: false},
   gpu:         {method: 'GET',  suffix: '/gpu',         scope: 'api.status',    maxBodyBytes: 0,  timeoutMs: 30000,  maxResponseBytes: 1 << 20, mutation: false},
@@ -17,8 +21,14 @@ export const MANAGEMENT_OPERATIONS = Object.freeze({
   cpuProfile:  {method: 'GET',  suffix: '/cpu-profile', scope: 'api.logs',      maxBodyBytes: 0,  timeoutMs: 60000,  maxResponseBytes: 24 << 20, mutation: false},
   // Start (1..60 s) or stop a capture. Signalling the app can leave the capture in an uncertain state.
   cpuProfileControl: {method: 'POST', suffix: '/cpu-profile', scope: 'api.logs', maxBodyBytes: 64, timeoutMs: 30000, maxResponseBytes: 1 << 16, mutation: true},
+  // Stop the app here (confirmed), then ONE ledger release(); the supervisor answers only once the ledger no longer names
+  // this host's operator (docs/network/independent-management.md, work/independent-move-interface.txt). Never DELETE.
+  release:     {method: 'POST', suffix: '/release',     scope: 'api.restart',   maxBodyBytes: 0,  timeoutMs: 300000, maxResponseBytes: 8192,    mutation: true, reauthorize: false},
+  // Ask THIS host to claim an open deployment now (the supervisor's own claim checks decide). Idempotent: the ledger
+  // allows one live lease, so a repeat never claims twice.
+  claimHint:   {method: 'POST', suffix: '/claim-hint',  scope: 'api.placement', maxBodyBytes: 0,  timeoutMs: 30000,  maxResponseBytes: 8192,    mutation: false, host: 'named'},
 });
-const TARGET = /^\/v1\/deployments\/(0x[0-9a-f]{64})(\/logs|\/attestation|\/restart|\/app-token|\/cpu-profile|\/gpu)?(?:\?([^#]*))?$/;
+const TARGET = /^\/v1\/deployments\/(0x[0-9a-f]{64})(\/logs|\/attestation|\/restart|\/app-token|\/cpu-profile|\/gpu|\/release|\/claim-hint)?(?:\?([^#]*))?$/;
 const BY_REQUEST = new Map(Object.entries(MANAGEMENT_OPERATIONS).map(([op, o]) => [`${o.method} ${o.suffix}`, op]));
 
 /** The exact request target for an operation. Throws on anything outside the table. */

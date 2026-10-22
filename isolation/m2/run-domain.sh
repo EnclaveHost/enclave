@@ -123,6 +123,25 @@ start)
       pin_shield=1
     fi
   fi
+  # Model volumes (m4/guestd/modelvol.go writes $img.volumes: "<serial> <path>" per volume): each a READ-ONLY virtio
+  # disk with that serial ("mv" + 18 hex of its pinned verity root), which is how the guest's init finds it
+  # (modelvol.h). The guest verifies every block against the root its own measured table pins; nothing here is
+  # trusted for identity, so the checks below only keep a malformed list from reaching QEMU's option parser.
+  if [ -f "$img.volumes" ]; then
+    [ ! -f "$img.shield" ] || { echo "a Shield image carries its own model, not model volumes" >&2; exit 2; }
+    nvol=0
+    while read -r serial vpath extra; do
+      nvol=$((nvol + 1))
+      [ "$nvol" -le 8 ] && [ -z "${extra:-}" ] || { echo "invalid model volume list" >&2; exit 2; }
+      case "$serial" in mv[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+        *) echo "invalid model volume serial" >&2; exit 2 ;; esac
+      case "$vpath" in /*) ;; *) echo "model volume paths must be absolute" >&2; exit 2 ;; esac
+      case "$vpath" in *,*) echo "commas are forbidden in QEMU asset paths" >&2; exit 2 ;; esac
+      [ -f "$vpath" ] && [ ! -L "$vpath" ] || { echo "missing model volume image" >&2; exit 2; }
+      set -- "$@" -drive "file=$vpath,format=raw,if=none,id=$serial,readonly=on,cache=none" \
+        -device "virtio-blk-pci,drive=$serial,serial=$serial"
+    done < "$img.volumes"
+  fi
   unit="m2-$tag-$$"
   t0=$(date +%s%3N)
   # CPU domains have only the console and vsock. Shield additionally maps two

@@ -1,0 +1,47 @@
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -2896,8 +2896,8 @@
+   }
+ }
+ 
+-async function cmdAvailability() {
+-  if (INDEPENDENT) throw new Error("free capacity is a host fact that is not on chain; independent mode lists registered hosts and their posted prices instead: enclave hosts");
++async function cmdAvailability(rest = []) {
++  if (INDEPENDENT) return cmdAvailabilityIndependent(rest);
+   const a = await api("GET", "/availability");
+   if (opt.json) return jout(a);
+   if (a.aggregate) {
+@@ -2913,6 +2913,24 @@
+   }
+ }
+ 
++// Independent mode: free capacity is each host's own signed /availability record (cli/independent-capacity.mjs), read
++// from capacity directories the user names, from named registered hosts, or from every live registered host (--cold),
++// and verified against the reviewed profile's registry at one agreed block of this quorum. Self-reported by each host's
++// registry operator, never proof of free hardware, and never a registered price.
++async function cmdAvailabilityIndependent(rest) {
++  const f = flags(rest, { bool: ["--cold"], val: ["--capacity-directories", "--hosts", "--max-hosts", "--capacity-state"] });
++  const { chain, trust } = INDEPENDENT;
++  if (!trust.profile) throw new Error("independent availability binds host records to the reviewed registry code: run it with --profile FILE --profile-digest sha256:… (explicit --contract-pins carry no code hash)");
++  const list = (v) => String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
++  const directories = list(f["capacity-directories"]), hosts = list(f.hosts);
++  if (!directories.length && !hosts.length && !f.cold)
++    throw new Error("usage: enclave availability --independent … --capacity-directories URL,… | --hosts ENDPOINT|ID,… | --cold [--max-hosts N] [--capacity-state FILE]   (name a source: there is no default directory)");
++  const C = await import("./independent-capacity.mjs");
++  const r = await C.readCapacity({ reader: chain, profile: trust.profile, directories, hosts, cold: !!f.cold, maxHosts: f["max-hosts"], state: f["capacity-state"] });
++  if (opt.json) return jout({ ...r, profileDigest: trust.digest });
++  C.renderCapacity(r, trust.digest, say);
++}
++
+ async function cmdGpu(rest = []) {
+   if (INDEPENDENT) return cmdGpuIndependent(rest);
+   const g = await api("GET", "/v1/gpu").catch((e) => {
+@@ -4596,6 +4614,8 @@
+ Transactions are signed once, broadcast unchanged and confirmed by the quorum;
+ an unconfirmed outcome is reported, never resent (--max-fee-gwei, default 5).
+   ls [--owner ADDR] · status <id> · hosts [--all] · pricing · apps · whoami
++  availability --capacity-directories URL,… | --hosts ENDPOINT,… | --cold [--max-hosts N] [--capacity-state FILE]
++      (hosts' own signed /availability, checked against the profile's registry; self-reported, not a price)
+   deploy <app> --cpu --gpu [--max-rate] (chain-only) · fund · stop · resume
+   rate-cap · refund · transfer · upgrade · resize · bootstrap · publish --storage-plan
+   session inspect [<sid> | --vault ADDR --sid SID] · session list | use

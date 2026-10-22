@@ -72,7 +72,7 @@ contract Rig1271 {
 }
 `;
 function compile() {
-  const src = fs.readFileSync(path.join(ROOT, "contracts/EnclaveSecretVaultV2.sol"), "utf8");
+  const src = fs.readFileSync(path.join(ROOT, "contracts/variants/EnclaveSecretVaultV2PinnedAuthorities.sol"), "utf8");
   const ownershipSrc = fs.readFileSync(path.join(ROOT, "contracts/EnclaveHostOwnership.sol"), "utf8");
   const key = createHash("sha256").update(src).update(ownershipSrc).update(MOCKS).digest("hex").slice(0, 16);
   const cache = path.join(process.env.TMPDIR || "/tmp", `enclave-custody-v2-independent-${key}.json`);

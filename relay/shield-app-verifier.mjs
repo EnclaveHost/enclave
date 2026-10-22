@@ -91,7 +91,7 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
   }
   const component = await fetchVerified(version.cid, 256 << 20);
   if (!component?.ok || !Buffer.isBuffer(component.bytes)) throw new Error('catalog component could not be CID-verified');
-  return { appSha256: derive({ record, component: component.bytes }).appId, runtimeId: profile.runtimeId, requiresConfigBundleV5: [DERIVATION_V5,DERIVATION_V6,DERIVATION_V7].includes(record.derivation), requiresSecretsV1: secretsRequired,
+  return { appSha256: derive({ record, component: component.bytes }).appId, runtimeId: profile.runtimeId, configText: record.config ?? null, requiresConfigBundleV5: [DERIVATION_V5,DERIVATION_V6,DERIVATION_V7].includes(record.derivation), requiresSecretsV1: secretsRequired,
     requiresConfigSocketServer: !!record.http && [DERIVATION_V5,DERIVATION_V6,DERIVATION_V7].includes(record.derivation) };
 }
 

@@ -36,6 +36,34 @@ const unknownInput = (input, what) => refused(input, `${what} is not known here,
 
 // supervisor.js isolationAppConfig: the config WITHOUT `_media` (store display metadata, never app input); "" if
 // nothing else remains.
+// Whether a delivered config names encrypted volumes: wasm_manager.py's `if not raw: return []` on its encVolumes.
+export function encVolumesNamed(config) {
+  let o; try { o = typeof config === "string" ? (config ? JSON.parse(config) : {}) : (config || {}); } catch { return false; }
+  const v = o && typeof o === "object" && !Array.isArray(o) ? o.encVolumes : undefined;
+  if (v === undefined || v === null || v === false || v === 0 || v === "") return false;
+  if (Array.isArray(v)) return v.length > 0;
+  return typeof v !== "object" || Object.keys(v).length > 0;
+}
+// The config's model volumes, as the shared runtime and the partition's monitor read them (wasm_manager.py; the manager's
+// model-volumes.mjs configVolumes; isolation/m2/modelspec ConfigVolumes): a list, each entry str()-ed and stripped,
+// empties and repeats dropped.
+export { configVolumes as modelVolumesNamed } from "../manager/model-volumes.mjs";
+import { configVolumes as modelVolumesNamed_, MODEL_VOLUMES_MAX } from "../manager/model-volumes.mjs";
+
+// The volumes' tmpfs sizes (encvol.TmpfsMiB: maxMb + 1 + maxMb/64; a malformed cap counts as the default 1024, which
+// the partition's parser then refuses at load).
+export function encVolumesMiB(config) {
+  let o; try { o = typeof config === "string" ? (config ? JSON.parse(config) : {}) : (config || {}); } catch { return 0; }
+  const v = o && typeof o === "object" ? o.encVolumes : null;
+  let need = 0;
+  for (const e of Array.isArray(v) ? v : []) {
+    let m = e && typeof e === "object" ? e.maxMb : null;
+    m = (m == null || m === false || m === 0 || m === "") ? 1024 : Math.trunc(Number(m));
+    if (!Number.isFinite(m) || m < 1 || m > 4096) m = 1024;
+    need += m + 1 + Math.floor(m / 64);
+  }
+  return need;
+}
 export function appConfigOf(config) {
   if (!config) return "";
   let o;
@@ -157,6 +185,21 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
     try { measuredConfig = appConfigText(appConfig || "{}"); }
     catch (e) { return refused("appConfig", e.message); }
   }
+  // ENCRYPTED VOLUMES (the config's encVolumes; isolation/m2/encvol): the partition's own front runs the volumes'
+  // plane and engine, and its runtime gets the /enc live preopens. Refused, never dropped: an image that does not
+  // state supports.encVolumes would start the app without its mounts. On this tier only a secret domain (V6/V7) has
+  // egress, and the volume's S3 endpoint is reached through it. (A config fetched by CID is judged in the partition.)
+  if (encVolumesNamed(deliveredConfig)) {
+    if (manager.supports?.encVolumes !== true)
+      return refused("appConfig.encVolumes", "the config mounts encrypted volumes (encVolumes), and this partition image does not carry them; the app is not run without its mounts");
+    if (hasSecrets !== true)
+      return refused("appConfig.encVolumes", "encrypted volumes need a secret (V6/V7) domain on this tier: only its front has egress to the volume's S3 endpoint");
+    // each volume is the domain's memory (the monitor's tmpfs, isolation/m3/monitor/encvol.go): the same rule the monitor
+    // applies at load (and supervisor.js on the SNP tier), so a version too small is refused before any claim
+    const need = encVolumesMiB(deliveredConfig), mem = Math.max(128, Math.floor(Number(version.memMb)));
+    if (need + 128 > mem)
+      return refused("appConfig.encVolumes", `the encrypted volumes need ${need} MiB of the partition's ${mem} MiB (each is held in its memory; 128 MiB stays for the runtime and app)`);
+  }
   if (appConfigCid === undefined || appConfigCid === null) return unknownInput("appConfigCid", "whether the deployment overrides its config by CID");
 
   if (waf === undefined || waf === null) return unknownInput("waf", "the deployment's protection rules");
@@ -164,8 +207,26 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
     return refused("waf", "the deployment sets protection rules, which need the request's plaintext, which exists only inside the partition");
   if (volumes === undefined || volumes === null) return unknownInput("volumes", "the model volumes the app needs");
   if (!Array.isArray(volumes)) return unknownInput("volumes", "the model volumes");
-  if (inf ? (volumes.length !== 1 || volumes[0] !== inf.model) : volumes.length)
+  if (inf && (volumes.length !== 1 || volumes[0] !== inf.model))
     return refused("volumes", "the deployment must select exactly the measured Shield model for GPU inference");
+  // MODEL VOLUMES on a CPU partition (isolation/m3/monitor/modelvol.go): the partition mounts exactly the names its
+  // MEASURED config carries, each verified against the image's own table. Refused, never dropped: an image that does not
+  // state supports.modelVolumes, a name this host's manager does not hold, more than a partition mounts, and a ggml
+  // volume where the runtime has no ggml preload (the standard runtime would preload it). A config fetched by CID is
+  // judged by the manager and the partition.
+  const named = inf ? [] : (deliveredConfig ? modelVolumesNamed_(deliveredConfig) : volumes.map((v) => String(v).trim()).filter(Boolean));
+  if (named.length) {
+    if (manager.supports?.modelVolumes !== true)
+      return refused("volumes", "the app runs with model volumes, and this partition image does not mount them; the app is not run without them");
+    if (named.length > MODEL_VOLUMES_MAX) return refused("volumes", `the config names ${named.length} model volumes; a partition mounts at most ${MODEL_VOLUMES_MAX}`);
+    const held = new Map((Array.isArray(manager.volumes) ? manager.volumes : []).filter((v) => v && v.kind === "model").map((v) => [v.name, v]));
+    for (const n of named) {
+      if (!held.has(n)) return refused("volumes", `the model volume ${JSON.stringify(n)} is not on this host`);
+      if (held.get(n).backend === "ggml" && manager.supports?.nnPreload !== true)
+        return refused("volumes", `the model volume ${JSON.stringify(n)} is preloaded by the standard runtime, and this partition's runtime has no ggml preload`);
+    }
+    if (!configRequested) return refused("volumes", "model volumes reach a partition only in its measured config");
+  }
 
   let httpPort, tunnelPorts;
   try { ({http:httpPort,ports:tunnelPorts} = portsOf(version.ports)); } catch (e) { return refused("version.ports", e.message); }

@@ -23,6 +23,7 @@ import { startCustodyTransport, CUSTODY_SERVICE_GUID } from "./custody-transport
 import { readCustodyCallbackKey } from "./custody-key-file.mjs";
 import { DERIVATION_V6, DERIVATION_V7 } from "./derive.mjs";
 import { PartitionConsoleLogs, consoleTargets, partitionLogDir } from "./console-log.mjs";
+import { loadModelVolumes } from "./model-volumes.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const env = (k, d = "") => (process.env[k] || d).trim();
@@ -272,6 +273,11 @@ const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer
   secretsEnabled: env("ENCLAVE_SECRETS_V1") === "1",
   configSocketServer: env("ENCLAVE_CONFIG_SOCKET_SERVER_V1") === "1",
   protectedPorts: env("ENCLAVE_PROTECTED_PORTS_V1") === "1",
+  encVolumes: env("ENCLAVE_ENC_VOLUMES_V1") === "1",
+  // MODEL VOLUMES: the partition image's measured table (the file it was built with) and this host's store of fixed VHDs
+  // (metal/volumes.mjs fetch + vhd); ENCLAVE_NN_PRELOAD_V1 states the image's runtime passed its nn-ggml probe
+  modelVolumes: env("ENCLAVE_MODEL_VOLUMES_V1") === "1"
+    ? { ...loadModelVolumes({ table: env("ENCLAVE_MODEL_VOLUME_TABLE"), store: env("ENCLAVE_MODEL_VOLUME_STORE") }), nnPreload: env("ENCLAVE_NN_PRELOAD_V1") === "1" } : null,
   wasmSet: env("ENCLAVE_WASM_SET") === "1", memory64: env("ENCLAVE_WASM_MEMORY64") === "1",
   egress: egress && launcherOptions ? { enabled: true, mode: egress.mode } : null,
   fetchConfig: cidFetcher({ script: fetcherPath, python: env("PYTHON_BIN", "python"),

@@ -20,7 +20,20 @@
    (the in-CVM SIWE token), now only the fallback for a host that
    hasn't learned sessions yet, or a wallet with no session.
    ============================================================ */
-import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID } from "./config.js";
+import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID, INDEPENDENT, APP_CATALOG_RPCS } from "./config.js";
+
+/* A read the wallet could not answer. Hosted: Base's public RPC. Independent mode: only the profile's RPCs (the
+   rotating pool; nothing else is contacted), and no profile RPC means no answer rather than a default origin. */
+async function fallbackRead(method, params){
+  if (INDEPENDENT.state !== "off") return baseRpc(method, params);
+  const r = await fetch("https://mainnet.base.org", { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
+  const j = await r.json(); return j && j.result;
+}
+// what the wallet is asked to use for Base when it does not know the chain yet
+const addChainRpcs = () => INDEPENDENT.state !== "off"
+  ? APP_CATALOG_RPCS.filter((u) => u.startsWith("https://")).slice(0, 3)
+  : ["https://mainnet.base.org"];
 import { Enclave, EnclaveError } from "./api.js";
 import { baseRpc } from "./chain.js";
 // Measured from what Base actually includes (3,569 txs / 30 blocks: largest
@@ -310,9 +323,7 @@ export async function usdcBalanceOf(addr){
     const hex = await Enclave.provider.request({ method: "eth_call", params: [call, "latest"] });
     if (hex && hex !== "0x") return parseInt(hex, 16) / 1e6;
   } catch(_){}
-  const r = await fetch("https://mainnet.base.org", { method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [call, "latest"] }) });
-  const j = await r.json(); const hex = j && j.result;
+  const hex = await fallbackRead("eth_call", [call, "latest"]);
   return (hex && hex !== "0x") ? parseInt(hex, 16) / 1e6 : 0;
 }
 export async function ethBalanceOf(addr){
@@ -321,9 +332,7 @@ export async function ethBalanceOf(addr){
     const hex = await Enclave.provider.request({ method: "eth_getBalance", params });
     if (hex && hex !== "0x") return Number(BigInt(hex)) / 1e18;
   } catch(_){}
-  const r = await fetch("https://mainnet.base.org", { method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBalance", params }) });
-  const j = await r.json(); const hex = j && j.result;
+  const hex = await fallbackRead("eth_getBalance", params);
   return (hex && hex !== "0x") ? Number(BigInt(hex)) / 1e18 : 0;
 }
 
@@ -372,7 +381,7 @@ async function ensureBaseChainOnConnect(provider){
         await provider.request({ method: "wallet_addEthereumChain", params: [{
           chainId: BASE_CHAIN_HEX, chainName: "Base",
           nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-          rpcUrls: ["https://mainnet.base.org"], blockExplorerUrls: ["https://basescan.org"]
+          rpcUrls: addChainRpcs(), blockExplorerUrls: ["https://basescan.org"]
         }] });
       } catch(_){}
     }
@@ -635,6 +644,8 @@ export async function renderWalletPop(){
       '<div class="wp-bal"><div class="bl"><span>Credit</span><span id="wpBalCredit">…</span></div></div>' +
       '<div class="wp-fund">' +
         '<button class="wp-mini" id="wpOrders">Add credit</button>' +
+        // the same vault, operated with only the passkey and chain endpoints the owner picks (site/credit/)
+        '<a class="wp-mini" href="/credit/" title="Spend or manage your credit with only your passkey, without this service">Use directly</a>' +
       '</div>' +
       '<button class="wp-disc" id="wpDisc">Sign out</button>';
     pop.hidden = false;
@@ -726,6 +737,8 @@ export async function personalSignBytes(hex){
   wcNudge();return Enclave.provider.request({method:"personal_sign",params:[hex,Enclave.address]});
 }
 export async function ensureBaseChain(){
+  // no wallet, and a passkey account that pays its own gas through its bundler (independent mode): nothing to switch
+  if (!Enclave.provider && INDEPENDENT.state === "on" && await import("./account-transport.js").then((m) => m.accountPaysOwnGas()).catch(() => false)) return;
   let cur;
   try { cur = await Enclave.provider.request({ method: "eth_chainId" }); } catch { cur = null; }
   if (cur && String(cur).toLowerCase() === BASE_CHAIN_HEX) return;
@@ -733,6 +746,7 @@ export async function ensureBaseChain(){
   catch(e){ throw new EnclaveError("Switch your wallet to Base to pay.", 0); }
 }
 export async function sendTx(to, data, value, gasLimit){
+  await (await import("./platform-addresses.js")).assertPlatformTransactionCurrent(to, data);
   const tx = { from: Enclave.address, data, value: value || "0x0" };
   if (to) tx.to = to; // omitted = contract creation
   // A caller that KNOWS the cost passes it and we skip estimation entirely.

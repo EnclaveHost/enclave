@@ -386,7 +386,7 @@ class AdminConsole extends EnclaveElement {
           ? `Prices are µUSDC per second for a FULL card / node; existing deployments keep the rate they were created at. Owner ${mono(d.owner)}.`
           : `This ledger (schema ${d.schema}) sets no prices: every enclave publishes its own per-machine rate in its EnclaveRegistry entry, `
             + `a deployment is charged its shares of whichever enclave claims it, and each deployment's own maxRate6 caps that. `
-            + `Re-price the fleet by changing an enclave's SELL_CPU_PRICE6 / SELL_GPU_PRICE6 (it republishes on its next heartbeat). Owner ${mono(d.owner)}.`,
+            + `Re-price the fleet by changing an enclave's SELL_CPU_PRICE6 / SELL_GPU_PRICE6 (its registry reconcile posts the new price on mismatch). Owner ${mono(d.owner)}.`,
         (priced
           ? this._row("GPU price <code>setPrice</code>", `${d.gpu} <span class="dim">(≈ ${perHr(d.gpu)})</span>`, "dep-gpu", { owner: d.owner, placeholder: String(d.gpu), hint: "µUSDC/s" }) +
             this._row("CPU price <code>setCpuPrice</code>", `${d.cpu} <span class="dim">(≈ ${perHr(d.cpu)})</span>`, "dep-cpu", { owner: d.owner, placeholder: String(d.cpu), hint: "µUSDC/s" })

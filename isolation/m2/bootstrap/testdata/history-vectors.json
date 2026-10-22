@@ -1,0 +1,290 @@
+{
+ "generator": "scripts/history-vectors.mjs",
+ "cases": [
+  {
+   "name": "one source",
+   "valid": true,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"]}}"
+  },
+  {
+   "name": "two operators",
+   "valid": true,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\",\"https://gateway.tenderly.co/public/base\"]}}"
+  },
+  {
+   "name": "six sources",
+   "valid": true,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://a.example\",\"https://b.example\",\"https://c.example\",\"https://d.example\",\"https://e.example\",\"https://f.example\"]}}"
+  },
+  {
+   "name": "path characters",
+   "valid": true,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/a.b_c~d/e-f/1\"]}}"
+  },
+  {
+   "name": "with owner names",
+   "valid": true,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"hosts\":[\"shop.example.com\"]},\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"]}}"
+  },
+  {
+   "name": "no history member (an older package)",
+   "valid": true,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\"}"
+  },
+  {
+   "name": "empty list",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[]}}"
+  },
+  {
+   "name": "seven sources",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://a.example\",\"https://b.example\",\"https://c.example\",\"https://d.example\",\"https://e.example\",\"https://f.example\",\"https://g.example\"]}}"
+  },
+  {
+   "name": "plain http",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"http://node.example.org\"]}}"
+  },
+  {
+   "name": "userinfo",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://user:secret@node.example.org\"]}}"
+  },
+  {
+   "name": "query (a key would be published)",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/rpc?apikey=abc\"]}}"
+  },
+  {
+   "name": "empty query",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/?\"]}}"
+  },
+  {
+   "name": "fragment",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/#x\"]}}"
+  },
+  {
+   "name": "explicit port 443",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org:443\"]}}"
+  },
+  {
+   "name": "other port",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org:8545\"]}}"
+  },
+  {
+   "name": "uppercase host",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://Node.example.org\"]}}"
+  },
+  {
+   "name": "trailing dot",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org.\"]}}"
+  },
+  {
+   "name": "IP literal",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://192.0.2.7\"]}}"
+  },
+  {
+   "name": "IPv6 literal",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://[2001:db8::1]\"]}}"
+  },
+  {
+   "name": "single-label host",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://localhost\"]}}"
+  },
+  {
+   "name": "numeric last label",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.123\"]}}"
+  },
+  {
+   "name": "label starting with a hyphen",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://-node.example.org\"]}}"
+  },
+  {
+   "name": "percent escape",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/a%2Fb\"]}}"
+  },
+  {
+   "name": "space",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/a b\"]}}"
+  },
+  {
+   "name": "backslash",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org\\\\rpc\"]}}"
+  },
+  {
+   "name": "not ascending",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://gateway.tenderly.co/public/base\",\"https://base-rpc.polkachu.com\"]}}"
+  },
+  {
+   "name": "duplicate URL",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\",\"https://base-rpc.polkachu.com\"]}}"
+  },
+  {
+   "name": "same host twice",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/a\",\"https://node.example.org/b\"]}}"
+  },
+  {
+   "name": "513 bytes",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]}}"
+  },
+  {
+   "name": "not a string",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[7]}}"
+  },
+  {
+   "name": "null entry",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[null]}}"
+  },
+  {
+   "name": "null member",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":null}"
+  },
+  {
+   "name": "rpcs null",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":null}}"
+  },
+  {
+   "name": "rpcs not a list",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":\"https://node.example.org\"}}"
+  },
+  {
+   "name": "extra key",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org\"],\"window\":1000}}"
+  },
+  {
+   "name": "case alias",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"RPCs\":[\"https://node.example.org\"]}}"
+  },
+  {
+   "name": "duplicate key",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://a.example\"],\"rpcs\":[\"https://b.example\"]}}"
+  },
+  {
+   "name": "a list, not an object",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":[\"https://node.example.org\"]}"
+  },
+  {
+   "name": "sources and checkpoint mirrors",
+   "valid": true,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\",\"https://gateway.tenderly.co/public/base\"],\"checkpoints\":[\"https://mirror.example.org/checkpoints/d1.json\",\"https://owner.example.net/cp\"]}}"
+  },
+  {
+   "name": "checkpoint mirrors only",
+   "valid": true,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"checkpoints\":[\"https://owner.example.net/cp\"]}}"
+  },
+  {
+   "name": "four mirrors",
+   "valid": true,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"],\"checkpoints\":[\"https://a.example/cp\",\"https://b.example/cp\",\"https://c.example/cp\",\"https://d.example/cp\"]}}"
+  },
+  {
+   "name": "a mirror on a source's host",
+   "valid": true,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org/rpc\"],\"checkpoints\":[\"https://node.example.org/cp.json\"]}}"
+  },
+  {
+   "name": "empty object",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{}}"
+  },
+  {
+   "name": "checkpoints null",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org\"],\"checkpoints\":null}}"
+  },
+  {
+   "name": "checkpoints not a list",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org\"],\"checkpoints\":\"https://mirror.example.org/checkpoints/d1.json\"}}"
+  },
+  {
+   "name": "checkpoints case alias",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://node.example.org\"],\"Checkpoints\":[\"https://mirror.example.org/checkpoints/d1.json\"]}}"
+  },
+  {
+   "name": "rpcs empty beside mirrors",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[],\"checkpoints\":[\"https://mirror.example.org/checkpoints/d1.json\"]}}"
+  },
+  {
+   "name": "checkpoints empty",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"],\"checkpoints\":[]}}"
+  },
+  {
+   "name": "five mirrors",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"],\"checkpoints\":[\"https://a.example/cp\",\"https://b.example/cp\",\"https://c.example/cp\",\"https://d.example/cp\",\"https://e.example/cp\"]}}"
+  },
+  {
+   "name": "mirror over plain http",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"],\"checkpoints\":[\"http://mirror.example.org/cp\"]}}"
+  },
+  {
+   "name": "mirror with a query",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"],\"checkpoints\":[\"https://mirror.example.org/cp?sig=abc\"]}}"
+  },
+  {
+   "name": "mirror with userinfo",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"],\"checkpoints\":[\"https://u:p@mirror.example.org/cp\"]}}"
+  },
+  {
+   "name": "mirror with a port",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"],\"checkpoints\":[\"https://mirror.example.org:8443/cp\"]}}"
+  },
+  {
+   "name": "mirror IP literal",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"],\"checkpoints\":[\"https://192.0.2.9/cp\"]}}"
+  },
+  {
+   "name": "mirrors not ascending",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"],\"checkpoints\":[\"https://owner.example.net/cp\",\"https://mirror.example.org/checkpoints/d1.json\"]}}"
+  },
+  {
+   "name": "mirror host twice",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"],\"checkpoints\":[\"https://mirror.example.org/a\",\"https://mirror.example.org/b\"]}}"
+  },
+  {
+   "name": "mirror null entry",
+   "valid": false,
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"history\":{\"rpcs\":[\"https://base-rpc.polkachu.com\"],\"checkpoints\":[null]}}"
+  }
+ ]
+}

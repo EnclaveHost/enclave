@@ -3,6 +3,8 @@
 // order, rate limit, 256 KiB body bound and error mapping - so tests drive the real router over real HTTP. One change: the
 // client key is the TCP peer, not a client-chosen x-forwarded-for (see clientKeyFor).
 //
+// Added: the owner-read routes (/v2/custody/owner-read/challenge, /v2/custody/owner-read) with the ordinary 256 KiB bound,
+// served only by a custodian that has them (docs/security/custody-owner-read.md).
 // Added: the Shield host-session routes (custody/v2/shield-evidence.mjs, shield-operator.mjs), ONLY when the custodian has
 // the measured Shield adapter installed; without it they are exactly an unknown route (404). Their bounds:
 //   .../challenge  the ordinary 256 KiB body bound;
@@ -141,6 +143,13 @@ export function createCustodyRouter({ custodian, member, runIndependent, servedC
       switch (u.pathname) {
         case "/v2/custody/challenge": return json(res, 200, custodian.challenge({ client }));
         case "/v2/custody/release": return json(res, 200, await custodian.release(body));
+        // the policy owner's own read (custody/v2/custodian.mjs ownerRead): present only with a custodian that serves it
+        case "/v2/custody/owner-read/challenge":
+          if (typeof custodian.ownerChallenge !== "function") break;
+          return json(res, 200, custodian.ownerChallenge({ client }));
+        case "/v2/custody/owner-read":
+          if (typeof custodian.ownerRead !== "function") break;
+          return json(res, 200, await custodian.ownerRead(body));
         case "/v2/custody/evidence": return json(res, 200, await member.evidence(String(body.nonce || "")));
         case "/v2/custody/join": return json(res, 200, await member.join(body, servedCommittee()));
         case "/v2/custody/approve": return json(res, 200, await member.approve({ ...body, next: body.next || [] }));
@@ -148,8 +157,9 @@ export function createCustodyRouter({ custodian, member, runIndependent, servedC
         case "/v2/custody/independent-genesis": return json(res, 200, await runIndependent(body));
         case "/v2/custody/code-approve": return json(res, 200, await member.approveCode({ committeeId: String(body.committeeId || servedCommittee() || ""),
                                                                                          measurement: String(body.measurement || ""), add: body.add, permit: body.permit }));
-        default: return json(res, 404, { error: "not_found", message: "Unknown custody route." });
+        default: break;
       }
+      return json(res, 404, { error: "not_found", message: "Unknown custody route." });
     } catch (e) {
       if (res.headersSent) return;
       if (e instanceof Refusal) return json(res, e.status, { error: e.code, message: e.message });

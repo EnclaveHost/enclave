@@ -435,14 +435,18 @@ net.connect = net.createConnection = function (...a) {
   return connect.apply(this, a);
 };`;
 
-test('the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked', { skip, timeout: 120_000 }, async () => {
+test('the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked', { skip, timeout: 120_000 }, async (t) => {
   const dir = tmp(), env = { ...process.env };
   const Cn = await anvil();   // a fresh chain whose clock matches this one's (the checker uses the wall clock)
+  t.after(() => Cn.stop());   // compilation/setup can fail before the later transport cleanup block
   const deploy = async (who, { abi, bytecode }, args = []) => {
     const r = await Cn.pub.waitForTransactionReceipt({ hash: await Cn.wallet(who).deployContract({ abi, bytecode, args }) }); await Cn.mine(); return r.contractAddress; };
   const A = Cn;
   // the registry exactly as deployed on Base (b17db9a3, schema 4: register(), no registerRelay or capability bits)
-  const registrySource = spawnSync('git', ['show', 'b17db9a3:contracts/EnclaveRegistry.sol'], { cwd: ROOT, encoding: 'utf8' }).stdout;
+  const registryRead = spawnSync('git', ['show', 'b17db9a3:contracts/EnclaveRegistry.sol'], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(registryRead.status, 0, `cannot read the historical registry fixture: ${registryRead.stderr}`);
+  assert.ok(registryRead.stdout?.trim(), 'the historical registry fixture is empty');
+  const registrySource = registryRead.stdout;
   const R = compileOne('EnclaveRegistry', registrySource), registry = await deploy('governor', R);
   assert.equal(await A.pub.readContract({ address: registry, abi: parseAbi(['function registrySchema() view returns (uint256)']), functionName: 'registrySchema' }), 4n);
   const C = compileOne('MockConnectivity', `// SPDX-License-Identifier: MIT

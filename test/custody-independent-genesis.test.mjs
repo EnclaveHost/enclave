@@ -120,7 +120,7 @@ test('real chain accepts the real DKG founder signatures through an unrelated ga
   function get(bytes32 id) external view returns(Entry memory){return entries[id];}
   function authority(bytes32 id) external view returns(address,address,uint64,bytes32){return(owners[id],address(0),1,bytes32(0));}
  }`;
- const output=JSON.parse(solc.compile(JSON.stringify({language:'Solidity',sources:{'V.sol':{content:fs.readFileSync(root+'contracts/EnclaveSecretVaultV2.sol','utf8')},'Mock.sol':{content:mock}},settings:{viaIR:true,optimizer:{enabled:true,runs:200},outputSelection:{'*':{'*':['abi','evm.bytecode.object','evm.deployedBytecode.object']}}}})));
+ const output=JSON.parse(solc.compile(JSON.stringify({language:'Solidity',sources:{'V.sol':{content:fs.readFileSync(root+'contracts/variants/EnclaveSecretVaultV2PinnedAuthorities.sol','utf8')},'Mock.sol':{content:mock}},settings:{viaIR:true,optimizer:{enabled:true,runs:200},outputSelection:{'*':{'*':['abi','evm.bytecode.object','evm.deployedBytecode.object']}}}})));
  assert.equal((output.errors||[]).filter(x=>x.severity==='error').length,0);
  const vaultArtifact=output.contracts['V.sol'].EnclaveSecretVaultV2;
  assert.ok(vaultArtifact.evm.deployedBytecode.object.length/2<=24576,'contract exceeds EIP-170');

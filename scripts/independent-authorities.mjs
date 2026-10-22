@@ -4,15 +4,16 @@ import {createHash} from 'node:crypto';
 import fs from 'node:fs';
 import {encodeDeployData,getContractAddress,keccak256,getAddress,encodeFunctionData,decodeFunctionResult} from 'viem';
 import {compilePinnedSessionVault} from './build-pinned-session-vault.mjs';
-import {compileHostOwnership,compileSecretVaultV2} from './deploy-secret-vault-v2.mjs';
+import {compileHostOwnership,compileSecretVaultV2,PINNED_VARIANT_SOURCE} from './deploy-secret-vault-v2.mjs';
 import {linkBytecode} from '../site/js/lib/contract-linker.js';
 
 export function compileIndependentAuthorities() {
   const sessions=compilePinnedSessionVault();
   const contracts={...sessions.contracts,EnclaveHostOwnership:compileHostOwnership(),EnclaveSecretVaultV2:compileSecretVaultV2()};
   const sourceSha256={...sessions.sourceSha256};
-  for(const name of ['EnclaveHostOwnership','EnclaveSecretVaultV2'])sourceSha256[name+'.sol']=createHash('sha256')
-    .update(fs.readFileSync(new URL('../contracts/'+name+'.sol',import.meta.url))).digest('hex');
+  // the recorded build names the variant by its historical unit name (independent-authorities-base.json sourceSha256)
+  for(const [name,file] of [['EnclaveHostOwnership','contracts/EnclaveHostOwnership.sol'],['EnclaveSecretVaultV2',PINNED_VARIANT_SOURCE]])
+    sourceSha256[name+'.sol']=createHash('sha256').update(fs.readFileSync(new URL('../'+file,import.meta.url))).digest('hex');
   return {compiler:sessions.compiler,settings:{sessions:sessions.settings,custody:{viaIR:true,optimizer:{enabled:true,runs:200}}},sourceSha256,contracts};
 }
 export function independentAuthorityPlan({artifacts,inputs,deployer,nonce}) {

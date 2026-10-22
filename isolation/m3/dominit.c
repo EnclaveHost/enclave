@@ -101,6 +101,17 @@ int main(void) {
         insmod("/tsm_report.ko.zst");
         insmod("/sev-guest.ko.zst");
     }
+    /* MODEL VOLUMES (monitor/modelvol.go): an image built with a measured table carries the disk and device-mapper
+     * modules beside vsock's - Hyper-V's SCSI (virtio's block driver is built in) and dm-verity. Without the table the
+     * image carries neither, and nothing is loaded. */
+    if (access("/plat/rt/model-volumes.table", F_OK) == 0) {
+        insmod("/scsi_transport_fc.ko.zst");
+        insmod("/hv_storvsc.ko.zst");
+        insmod("/dm-mod.ko.zst");
+        insmod("/dm-bufio.ko.zst");
+        insmod("/reed_solomon.ko.zst");
+        insmod("/dm-verity.ko.zst");
+    }
     lo_up();
     /* a domain's share is a child cgroup, so these controllers have to be available in the subtree */
     write_file("/sys/fs/cgroup/cgroup.subtree_control", "+cpu +memory +pids");

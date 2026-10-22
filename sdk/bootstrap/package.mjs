@@ -41,7 +41,7 @@ export function packageCID(hash){
 // is only a name the guest will certify for its own key; a CA's DNS validation,
 // through the owner's _acme-challenge delegation, is what proves control.
 // EAB entries name custody secrets; credential values never belong here.
-export const MAX_OWNER_NAMES=10;
+export const MAX_OWNER_NAMES=10, MAX_APP_ZONE_CHALLENGES=8;
 const dnsLabel=/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/, nameURL=/^https:\/\/([^/]+)(\/[A-Za-z0-9._~/-]*)?$/, secretName=/^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 export function dnsName(s){
   if(typeof s!=='string'||s.length<1||s.length>253)return false;
@@ -53,12 +53,15 @@ const httpsName=s=>{if(typeof s!=='string'||s.length>512)return false;const m=na
 const noNull=x=>x===null?false:Array.isArray(x)?x.every(noNull):object(x)?Object.values(x).every(noNull):true;
 export function validateNames(n,secretsMode){
   if(!object(n)||!noNull(n))throw Error('owner names must be an object without nulls');
-  keys(n,['hosts','acme']);
-  if(!Array.isArray(n.hosts)||n.hosts.length<1||n.hosts.length>MAX_OWNER_NAMES)throw Error(`owner names need 1 to ${MAX_OWNER_NAMES} hosts`);
-  n.hosts.forEach((h,i)=>{
-    if(!ownerHost(h))throw Error('owner name is not a lowercase DNS name outside enclave.host');
-    if(i>0&&!(n.hosts[i-1]<h))throw Error('owner names must be strictly ascending and unique');
-  });
+  keys(n,['hosts','acme','appZone']);
+  // hosts may be absent only when the member selects app-zone issuance alone (and then no owner ACME either)
+  if(Object.hasOwn(n,'hosts')||!Object.hasOwn(n,'appZone')){
+    if(!Array.isArray(n.hosts)||n.hosts.length<1||n.hosts.length>MAX_OWNER_NAMES)throw Error(`owner names need 1 to ${MAX_OWNER_NAMES} hosts`);
+    n.hosts.forEach((h,i)=>{
+      if(!ownerHost(h))throw Error('owner name is not a lowercase DNS name outside enclave.host');
+      if(i>0&&!(n.hosts[i-1]<h))throw Error('owner names must be strictly ascending and unique');
+    });
+  }else if(Object.hasOwn(n,'acme'))throw Error('owner ACME selection needs owner hosts');
   if(Object.hasOwn(n,'acme')){
     const a=n.acme;keys(a,['directory','challenge','zone','eab']);
     if(!httpsName(a.directory)||!httpsName(a.challenge)||!dnsName(a.zone))throw Error('owner ACME selection needs HTTPS directory and challenge URLs and a DNS zone');
@@ -69,8 +72,98 @@ export function validateNames(n,secretsMode){
       if(secretsMode!=='custody-v2')throw Error('owner ACME EAB needs custody-v2 secrets');
     }
   }
+  // App-zone issuance (isolation/m2/front/appzone.go): only WHERE the guest asks - a CA directory and 1..8 independently
+  // operated challenge replicas; the name is the guest's own HOST_DATA label in its measured zone, never chosen here.
+  if(Object.hasOwn(n,'appZone')){
+    const z=n.appZone;keys(z,['directory','challenges','eab']);
+    if(!httpsName(z.directory)||!Array.isArray(z.challenges)||z.challenges.length<1||z.challenges.length>MAX_APP_ZONE_CHALLENGES)
+      throw Error(`app-zone ACME selection needs an HTTPS directory and 1 to ${MAX_APP_ZONE_CHALLENGES} challenge replica URLs`);
+    z.challenges.forEach((c,i)=>{
+      if(!httpsName(c))throw Error('app-zone challenge replicas must be HTTPS URLs');
+      if(i>0&&!(z.challenges[i-1]<c))throw Error('app-zone challenge replicas must be strictly ascending and unique');
+    });
+    if(Object.hasOwn(z,'eab')){
+      keys(z.eab,['kid','hmac']);
+      if(!secretName.test(z.eab.kid??'')||!secretName.test(z.eab.hmac??'')||z.eab.kid===z.eab.hmac)throw Error('app-zone ACME EAB must name two distinct custody secrets');
+      if(secretsMode!=='custody-v2')throw Error('app-zone ACME EAB needs custody-v2 secrets');
+    }
+  }
   return n;
 }
+// Owner-named log history sources (optional; isolation/m2/bootstrap/history.go is the guest's identical check,
+// cross-tested by history-vectors.json; work/history-owner-tools-interface.txt). A cold-starting guest reads EVERY lease
+// log from its lease's claim to the finalized head (rev 16d keeps no claim marker in state); public measured RPCs serve
+// recent logs only, so an owner names log-capable sources here. The package is PUBLISHED: a URL may never carry a
+// credential (no userinfo, no query; a key-like path needs the owner's explicit confirmation in the tools).
+// "checkpoints" (optional, after "rpcs"): owner-committed mirror URLs of attested history checkpoints, the same URL rule
+// (work/history-checkpoint-transport-interface.txt; a checkpoint authenticates itself, the URL only says where to look).
+export const MAX_HISTORY_RPCS=6, MAX_CHECKPOINT_MIRRORS=4;
+const historyRe=/^https:\/\/([a-z0-9.-]+)(\/[A-Za-z0-9._~\/-]*)?$/;
+export function historyHost(url){
+  if(typeof url!=='string'||url.length<1||url.length>512)return null;
+  const m=historyRe.exec(url);
+  return m&&dnsName(m[1])?m[1]:null;
+}
+export function validateHistory(h){
+  if(!object(h)||!noNull(h))throw Error('owner history must be an object without nulls');
+  keys(h,['rpcs','checkpoints']);
+  const has=k=>Object.hasOwn(h,k);
+  if(!has('rpcs')&&!has('checkpoints'))throw Error(`owner history needs 1 to ${MAX_HISTORY_RPCS} RPCs`);
+  if(has('rpcs')&&(!Array.isArray(h.rpcs)||h.rpcs.length<1||h.rpcs.length>MAX_HISTORY_RPCS))throw Error(`owner history needs 1 to ${MAX_HISTORY_RPCS} RPCs`);
+  if(has('checkpoints')&&(!Array.isArray(h.checkpoints)||h.checkpoints.length<1||h.checkpoints.length>MAX_CHECKPOINT_MIRRORS))throw Error(`owner history needs 1 to ${MAX_CHECKPOINT_MIRRORS} checkpoint mirrors`);
+  for(const [list,what] of [[h.rpcs||[],'RPC'],[h.checkpoints||[],'checkpoint mirror']]){
+    const hosts=new Set();
+    list.forEach((u,i)=>{
+      const host=historyHost(u);
+      if(!host)throw Error(`owner history ${what} must be https://<lowercase DNS name>[/path] with no port, query, fragment or credentials`);
+      if(i>0&&!(list[i-1]<u))throw Error(`owner history ${what}s must be strictly ascending and unique`);
+      if(hosts.has(host))throw Error(`owner history ${what} hosts must be distinct`);
+      hosts.add(host);
+    });
+  }
+  return h;
+}
+// who runs a source, for counting independent answers: the guest's operatorOf (last two DNS labels; errs strict)
+export const historyOperator=url=>{const h=historyHost(url);return h?h.split('.').slice(-2).join('.'):null;};
+// a path segment that looks like a provider key: refused by the tools unless the owner confirms it is public
+export const credentialLike=url=>{const m=historyRe.exec(String(url));return !!m&&String(m[2]||'').split('/').some(seg=>/^[A-Za-z0-9_-]+$/.test(seg)&&(seg.length>=24||seg.length>=16&&/[A-Za-z]/.test(seg)&&/[0-9]/.test(seg)));};
+/** Owner input -> the canonical member (sorted, deduplicated, checked) or null for none. `checkpoints`: mirror URLs. */
+export function historyFromList(list,{pathIsPublic=false,checkpoints=null}={}){
+  const norm=l=>[...new Set((Array.isArray(l)?l:String(l||'').split(/[\s,]+/)).map(x=>String(x).trim()).filter(Boolean))].sort();
+  const rpcs=norm(list),mirrors=norm(checkpoints);
+  if(!rpcs.length&&!mirrors.length)return null;
+  for(const [what,u] of [...rpcs.map(u=>['history RPC',u]),...mirrors.map(u=>['checkpoint mirror',u])]){
+    if(/^[a-z]+:\/\/[^/]*@/i.test(u))throw Error(`${what} ${u}: credentials in a URL would be published with the package`);
+    if(/[?#]/.test(u))throw Error(`${what} ${u}: a query or fragment would be published with the package (and the guest refuses it)`);
+    if(!historyHost(u))throw Error(`${what} ${u}: must be https://<lowercase DNS name>[/path], no port`);
+    if(credentialLike(u)&&!pathIsPublic)throw Error(`${what} ${u}: its path looks like a provider key, and the package is published for anyone to read; use a public endpoint or your own node, or confirm the path is public`);
+  }
+  return validateHistory({...(rpcs.length?{rpcs}:{}),...(mirrors.length?{checkpoints:mirrors}:{})});
+}
+/** What the owner should know about a history member (never a refusal: those are thrown above). */
+export function historyWarnings(h){
+  if(!h)return ['no history sources: a fresh guest cannot prove a lease whose claim is older than its measured RPCs serve (about 5,000 blocks, under 3 hours)'];
+  const w=[],rpcs=h.rpcs||[],mirrors=h.checkpoints||[],ops=new Set(rpcs.map(historyOperator));
+  if(ops.size<2)w.push(`only ${ops.size} independent operator: a claim older than the measured RPCs' horizon needs two operators that both serve its history`);
+  const enclave=[...rpcs,...mirrors].filter(u=>/(^|\.)enclave\.host$/.test(historyHost(u)));
+  if(enclave.length)w.push(`${enclave.join(', ')} is run by Enclave; it works only while Enclave runs it`);
+  if(mirrors.length)w.push(CHECKPOINT_SCOPE);
+  if(mirrors.length&&!rpcs.length)w.push('checkpoint mirrors without history sources: the blocks after a checkpoint are read from the measured RPCs alone, which serve recent logs only; keep the mirrors refreshed');
+  return w;
+}
+// Bounded public options, offered for the owner to choose and edit, never pre-selected. Provenance: the read-only probes
+// in work/storage-front-cold-history/logs (probe-throughput.json, probe-operators.run2.log), 2026-10-20.
+export const HISTORY_PUBLIC_OPTIONS=Object.freeze([
+  Object.freeze({url:'https://base-rpc.polkachu.com',operator:'Polkachu',probed:'2026-10-20',
+    served:'Base logs ~28 days back in 1000-block ranges (~3,000 blocks/s, no refusals in 30 requests)',
+    limits:'prunes history: earliest block 51,500,000 at the probe (~31.7 days), a rolling window; no availability guarantee; not run by Enclave'}),
+  Object.freeze({url:'https://gateway.tenderly.co/public/base',operator:'Tenderly',probed:'2026-10-20',
+    served:'Base logs 35 and 120 days back in 1000-block ranges (~7,000 blocks/s)',
+    limits:'rate-limits bursts (HTTP 429); no availability guarantee; not run by Enclave; one operator even under two of its hostnames'}),
+]);
+// What a checkpoint mirror is and is not (shown with every mirror list; work/history-checkpoint-transport-interface.txt).
+export const CHECKPOINT_SCOPE='checkpoint mirrors are read only by SEV-SNP direct guests of the SAME measured build, for this deployment: a Shield partition, or a new build, still needs history sources';
+export const HISTORY_KEYLESS_LIMIT='No keyless second operator was found for history older than about 31 days: for older leases name your own node or a provider you choose.';
 // The DNS-01 alias label commits to the deployment AND its owner, so a
 // delegation published for one owner stops working when the deployment moves.
 export function challengeLabel(deployment,owner){
@@ -86,13 +179,14 @@ export function verifyPackage(bytes,intent,scope={}){
   const hash=createHash('sha256').update(bytes).digest('hex');
   if(intent?.version!==1||intent.sha256!==hash)throw Error('startup package hash mismatch');
   const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes),m=parseUniqueJSON(text);
-  keys(m,['version','chainId','ledger','deployment','owner','appRef','appId','runtimeId','configText','secretsMode','custody','names']);
+  keys(m,['version','chainId','ledger','deployment','owner','appRef','appId','runtimeId','configText','secretsMode','custody','names','history']);
   if(m.version!==1||!Number.isSafeInteger(m.chainId)||m.chainId<=0||!addr.test(m.ledger)||!nonzero(m.ledger)||!addr.test(m.owner)||!nonzero(m.owner)||!id32.test(m.deployment)||!nonzero(m.deployment)||!hex32.test(m.appId)||!nonzero(m.appId)||!hex32.test(m.runtimeId)||!nonzero(m.runtimeId)||typeof m.appRef!=='string'||!m.appRef||typeof m.configText!=='string'||Buffer.byteLength(m.configText)>32768)throw Error('invalid startup package');
   if(m.configText){const c=parseUniqueJSON(m.configText);if(!c||typeof c!=='object')throw Error('startup config must be an object or array');}
   if(m.secretsMode==='public'){if(m.custody!=null)throw Error('public package cannot carry custody');}
   else if(m.secretsMode==='custody-v2'){if(!object(m.custody)||m.custody.v!==2||m.custody.chainId!==m.chainId)throw Error('custody-v2 pointer required');}
   else throw Error('explicit startup secrets mode required');
   if(Object.hasOwn(m,'names'))validateNames(m.names,m.secretsMode);
+  if(Object.hasOwn(m,'history'))validateHistory(m.history);
   for(const [k,v]of Object.entries(scope)){if(v==null)continue;const fold=['ledger','owner'].includes(k);if((fold?m[k]?.toLowerCase():m[k])!==(fold?String(v).toLowerCase():v))throw Error(`startup ${k} mismatch`);}
   return {manifest:m,bytes,sha256:hash,cid:packageCID(hash)};
 }

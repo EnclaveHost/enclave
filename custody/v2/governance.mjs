@@ -159,10 +159,15 @@ export async function planOwnerChecks(batch, plan) {
 export function judgeCodePermit({ snapshot, index, permit, signers, enclaveOwner }) {
   const com = snapshot.committee, m = com.machines[index];
   const { voters, independent } = governanceVoters(snapshot, enclaveOwner);
-  const owner = lc(snapshot.entries[lc(m.registryId)]?.owner);
+  const e = snapshot.entries[lc(m.registryId)];
+  let owner = lc(e?.owner);
   if (!permitLive(permit?.expiresAt, snapshot.blockTimestamp)) return { ok: false, reason: "the owner permit is expired or too long-lived" };
   if (m.enclave && !independent) {
-    if (owner !== lc(enclaveOwner)) return { ok: false, reason: "the Enclave seat's machine is not owned by the Enclave wallet" };
+    // the Enclave seat votes as the Enclave wallet only while that wallet is the host's ACCEPTED owner (and, on a
+    // book-bound vault, the vault still seats it as Enclave): payout alone never authorizes code for the Enclave seat
+    const enclaveSeat = owner === lc(enclaveOwner) && (typeof e?.vaultEnclave === "boolean" ? e.vaultEnclave : true);
+    if (!enclaveSeat) return { ok: false, reason: "the Enclave seat's machine is not owned by the Enclave wallet" };
+    owner = lc(enclaveOwner);
   } else if (voters.get(owner) !== index) {
     return { ok: false, reason: owned(owner) && voters.has(owner) ? `this seat shares its owner with seat ${voters.get(owner) + 1}; an owner votes once, through its first seat`
                                                                    : "this seat's owner is not a governance voter" };

@@ -15,5 +15,5 @@ export const PARTITION_OFFERS = Object.freeze({
   gpu: true,             // gated again by the manager's measured Shield profile
   privateDeployments: false,   // isolationPlan: a private deployment's owner gate needs plaintext
   egress: false,         // the spawn body carries egress "" (isolationPlan): no network options reach a partition
-  volumes: false,        // isolationPlan: model volumes are not mounted into a partition
+  volumes: true,         // ANDed with manager supports.modelVolumes: the measured config's volumes, verified in the partition
 });

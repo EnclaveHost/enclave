@@ -1,0 +1,221 @@
+#!/usr/bin/env node
+// TEST FIXTURE (not a service): app-zone challenge replicas that admit Enclave Shield guests, as SEPARATE processes, plus
+// the Windows host's session keeper, for end-to-end tests of the Shield independent certificate path.
+//   node test/app-zone-shield-fleet.mjs  -> prints ONE JSON line {replicas:[{api,dns,pid,host}], control, ...}
+// It runs, all on loopback (run it inside an unshared network namespace; test/run-shield-certificates.sh does):
+//   - a deterministic Base chain over HTTPS JSON-RPC on 127.0.0.2-4 (per-run test CA): test/app-zone-fixture.mjs's ledger
+//     and catalog with the deployment leased to the Shield host, and ONE registry contract (fixture code, registrySchema 4,
+//     the deployed 11-field get() layout) that both the app-zone chain checks and the Shield host-identity reads use;
+//   - the reviewed Base authority profile with ONLY the registry's code hash and length replaced by the fixture's,
+//     re-encoded and pinned by its digest (as test/shield-dns-challenge.test.mjs's process test);
+//   - three `node relay/dns-relay.js` with DNS_READ_ONLY=1 APP_CHALLENGE_AUTH=attested-lease APP_CHALLENGE_SHIELD_POLICY:
+//     replicas 0 and 1 also pin the SEV-SNP measurement (lab-unsigned judge, synthetic); replica 2 is Shield-only.
+//     Replica 0 forwards accepted pushes to 1 and 2, which verify them again with their OWN host sessions;
+//   - the Windows host: windows/node/shield-sessions.mjs's REAL createResponderSessions over sessionTargets(records,
+//     {appZone}) for a running Shield-direct record whose package names the three replicas (https://rep-<i>.example,
+//     mapped to the loopback ports by its fetch), with a SYNTHETIC TPM (test/fixtures/vbs-synthetic.mjs);
+//   - a control API: POST /attest {spki, nonce, signer?:"other", launcherOnly?, image?} -> the guest's Shield document;
+//     POST /sessions {host?:"other"} -> one session refresh; POST /chain {op}; POST /kill {i}; POST /logs; POST /quit.
+// No relay, CERTS_API, Enclave API or public CA is configured or reachable. Exits (and stops every child) when stdin closes.
+import fs from 'node:fs';
+import os from 'node:os';
+import net from 'node:net';
+import dgram from 'node:dgram';
+import path from 'node:path';
+import http from 'node:http';
+import https from 'node:https';
+import {spawn, execFileSync} from 'node:child_process';
+import {fileURLToPath, pathToFileURL} from 'node:url';
+import {createRequire} from 'node:module';
+import {generateKeyPairSync, randomBytes} from 'node:crypto';
+import * as F from './app-zone-fixture.mjs';
+import * as S from './app-zone-shield-fixture.mjs';
+import {DEPLOYMENTS_ABI, CATALOG_ABI} from '../network/app-zone-challenge.mjs';
+import {REGISTRY_GET_LAYOUTS} from '../relay/dns-challenge-shield.mjs';
+import {encodeProfile, profileDigest} from '../network/authority-profile.mjs';
+import {createResponderSessions, sessionTargets} from '../windows/node/shield-sessions.mjs';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const req = createRequire(path.join(ROOT, 'network', 'package.json'));
+const {decodeFunctionData, encodeFunctionResult, parseAbi, toFunctionSelector, keccak256} = await import(pathToFileURL(req.resolve('viem')).href);
+const N = 3;
+const T = fs.mkdtempSync(path.join(os.tmpdir(), 'app-zone-shield-fleet-'));
+const children = [];
+let control = null;
+const {world, other} = S.worlds();
+if (!world) { process.stderr.write('openssl absent: the synthetic TPM world needs it\n'); process.exit(2); }
+const state = S.shieldChainState();
+
+// ---- per-run TLS for the RPC hosts --------------------------------------------------------------------------------
+const ossl = (args) => execFileSync('openssl', args, {cwd: T, stdio: ['ignore', 'ignore', 'pipe']});
+ossl(['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', 'ca.key', '-out', 'ca.pem', '-days', '1', '-subj', '/CN=app-zone-shield-fleet-test-ca',
+  '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign']);
+ossl(['req', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', 'rpc.key', '-out', 'rpc.csr', '-subj', '/CN=rpc']);
+fs.writeFileSync(path.join(T, 'rpc.ext'), 'subjectAltName=IP:127.0.0.2,IP:127.0.0.3,IP:127.0.0.4\nextendedKeyUsage=serverAuth\n');
+ossl(['x509', '-req', '-in', 'rpc.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key', '-CAcreateserial', '-out', 'rpc.pem', '-days', '1', '-extfile', 'rpc.ext']);
+
+// ---- the registry pin: the reviewed profile, registry code hash/length replaced by the fixture's ------------------------
+const profile = JSON.parse(fs.readFileSync(path.join(ROOT, 'contracts/deployments/network-profile-base.json'), 'utf8'));
+const REGISTRY = profile.contracts.registry.address;
+const CODE = '0x' + randomBytes(5892).toString('hex');
+profile.contracts.registry = {...profile.contracts.registry, codeHash: keccak256(CODE), runtimeBytes: 5892};
+const profileBytes = encodeProfile(profile), DIGEST = profileDigest(profileBytes);
+fs.writeFileSync(path.join(T, 'profile.json'), profileBytes);
+fs.writeFileSync(path.join(T, 'policy.json'), JSON.stringify(S.policy(world, other)));
+const PINS = {...F.PINS, registry: REGISTRY};            // the app-zone chain checks read the SAME registry contract
+
+// ---- the chain ------------------------------------------------------------------------------------------------------
+const multicallABI = parseAbi(['function aggregate3((address target,bool allowFailure,bytes callData)[] calls) payable returns ((bool success,bytes returnData)[] returnData)']);
+const MULTICALL = '0xca11bde05977b3631167028862be2a173976ca11';
+const V4 = REGISTRY_GET_LAYOUTS[4];
+const registryAbi = [{type: 'function', name: 'get', stateMutability: 'view', inputs: [{type: 'bytes32'}], outputs: [{type: 'tuple', components: V4.map(([name, type]) => ({name, type}))}]},
+  {type: 'function', name: 'registrySchema', stateMutability: 'view', inputs: [], outputs: [{type: 'uint256'}]}];
+const zero = {string: '', bytes32: '0x' + '00'.repeat(32), address: '0x' + '00'.repeat(20), uint64: 0n, bool: false};
+const start = Math.floor(Date.now() / 1000), head = 52840000;
+function contract(target, data) {
+  target = target.toLowerCase();
+  if (target === MULTICALL) {
+    const {args: [calls]} = decodeFunctionData({abi: multicallABI, data});
+    return encodeFunctionResult({abi: multicallABI, functionName: 'aggregate3', result: calls.map((c) => {
+      try { return {success: true, returnData: contract(c.target, c.callData)}; } catch (e) { if (!c.allowFailure) throw e; return {success: false, returnData: '0x'}; }
+    })});
+  }
+  if (target === REGISTRY) {
+    const {functionName, args} = decodeFunctionData({abi: registryAbi, data});
+    if (functionName === 'registrySchema') return encodeFunctionResult({abi: registryAbi, functionName, result: 4n});
+    const h = state.hosts[args[0].toLowerCase()];
+    const entry = h ? {endpoint: h.endpoint || '', operator: h.operator, active: h.active, registeredAt: 1n, lastSeen: 1n} : {};
+    return encodeFunctionResult({abi: registryAbi, functionName, result: {...Object.fromEntries(V4.map(([n, t]) => [n, zero[t]])), ...entry}});
+  }
+  const abi = target === F.PINS.deployments ? DEPLOYMENTS_ABI : target === F.PINS.catalog ? CATALOG_ABI : null;
+  if (!abi) throw Error('unexpected contract ' + target);
+  const {functionName, args} = decodeFunctionData({abi, data});
+  return encodeFunctionResult({abi, functionName, result: F.readContract(state, {address: target, functionName, args})});
+}
+function rpc(q) {
+  try {
+    let result;
+    const z32 = '0x' + '00'.repeat(32);
+    switch (q.method) {
+      case 'eth_chainId': result = '0x2105'; break;
+      case 'eth_blockNumber': result = '0x' + (head + Math.floor((Date.now() / 1000 - start) / 2)).toString(16); break;
+      case 'eth_getBlockByNumber': { const n = Number(BigInt(q.params[0]));
+        result = {number: '0x' + n.toString(16), hash: '0x' + n.toString(16).padStart(64, '0'), parentHash: z32, timestamp: '0x' + (start + (n - head) * 2).toString(16),
+          nonce: '0x0000000000000000', difficulty: '0x0', gasLimit: '0x1', gasUsed: '0x0', miner: '0x' + '00'.repeat(20), extraData: '0x', size: '0x1',
+          logsBloom: '0x' + '00'.repeat(256), transactionsRoot: z32, stateRoot: z32, receiptsRoot: z32, sha3Uncles: z32, mixHash: z32, totalDifficulty: '0x0',
+          baseFeePerGas: '0x1', transactions: [], uncles: []}; break; }
+      case 'eth_call': result = contract(q.params[0].to, q.params[0].data); break;
+      case 'eth_getCode': result = String(q.params[0]).toLowerCase() === REGISTRY ? CODE : '0x'; break;
+      default: throw Error('unexpected RPC ' + q.method);
+    }
+    return {jsonrpc: '2.0', id: q.id, result};
+  } catch (e) { return {jsonrpc: '2.0', id: q.id, error: {code: -32603, message: e.message}}; }
+}
+const rpcServers = [];
+for (let i = 0; i < 3; i++) {
+  const s = https.createServer({cert: fs.readFileSync(path.join(T, 'rpc.pem')), key: fs.readFileSync(path.join(T, 'rpc.key'))}, async (rq, rs) => {
+    const chunks = []; for await (const c of rq) chunks.push(c);
+    const q = JSON.parse(Buffer.concat(chunks).toString());
+    rs.writeHead(200, {'content-type': 'application/json'}); rs.end(JSON.stringify(Array.isArray(q) ? q.map(rpc) : rpc(q)));
+  });
+  await new Promise((ok) => s.listen(0, `127.0.0.${i + 2}`, ok));
+  rpcServers.push(s);
+}
+const rpcUrls = rpcServers.map((s) => `https://${s.address().address}:${s.address().port}`);
+const routeMap = http.createServer((rq, rs) => { rs.writeHead(200, {'content-type': 'application/json'}); rs.end(JSON.stringify({transport: 'enclave-network', labels: {}, deployments: {}, pending: []})); });
+await new Promise((ok) => routeMap.listen(0, '127.0.0.1', ok));
+
+// ---- the replicas ---------------------------------------------------------------------------------------------------
+// each probe is closed before the next, so the kernel may hand out a port twice: keep the fleet's ports distinct
+const taken = new Set();
+const probe = () => new Promise((ok) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); });
+const udpFree = (p) => new Promise((ok) => { const u = dgram.createSocket('udp4'); u.once('error', () => { u.close(); ok(false); }); u.bind(p, '127.0.0.1', () => u.close(() => ok(true))); });
+const freePort = async () => { for (;;) { const p = await probe(); if (!taken.has(p) && await udpFree(p)) { taken.add(p); return p; } } };
+const replicas = [];
+for (let i = 0; i < N; i++) replicas.push({api: await freePort(), dns: await freePort(), host: `rep-${i}.example`, snp: i < 2});
+const blank = Object.fromEntries(['TCP_ZONE', 'BOX_ZONE', 'APP_STATIC', 'DNS_TXT_KEY', 'SECRET', 'REGISTRY_ADDRESS', 'ENCLAVES', 'ENCLAVE_URL', 'ELIGIBILITY_API',
+  'DOMAINS_API', 'ADDRESS_BOOK_ADDRESS', 'BASE_RPC', 'DNS_CHALLENGE_AUTH', 'ATTESTED_SHIELD_POLICY', 'ATTESTED_SHIELD_PINS', 'APP_CHALLENGE_UPSTREAM',
+  'APP_CHALLENGE_SHIELD_PINS', 'CERTS_API', 'RELAY_URL'].map((k) => [k, '']));
+for (let i = 0; i < N; i++) {
+  const r = replicas[i];
+  const env = {...process.env, ...blank, NODE_EXTRA_CA_CERTS: path.join(T, 'ca.pem'), DNS_READ_ONLY: '1', ROUTE_MAP_URL: `http://127.0.0.1:${routeMap.address().port}/v1/network/routes`,
+    IP_ZONE: 'ip.enclave.host', APP_ZONE: F.ZONE, NS_NAME: `ns-${i}.enclave.host`, DNS_BIND: '127.0.0.1', DNS_PORT: String(r.dns), DNS_API_BIND: '127.0.0.1', DNS_API_PORT: String(r.api),
+    APP_CHALLENGE_AUTH: 'attested-lease', APP_CHALLENGE_MEASUREMENTS: r.snp ? F.MEAS : '', APP_CHALLENGE_JUDGE_MODE: 'lab-unsigned', APP_CHALLENGE_KDS: '0',
+    APP_CHALLENGE_RPCS: rpcUrls.join(','), APP_CHALLENGE_PINS: JSON.stringify(PINS),
+    APP_CHALLENGE_SHIELD_POLICY: path.join(T, 'policy.json'), APP_CHALLENGE_SHIELD_PROFILE: path.join(T, 'profile.json'),
+    APP_CHALLENGE_SHIELD_PROFILE_DIGEST: DIGEST, APP_CHALLENGE_SHIELD_RPCS: rpcUrls.join(','),
+    APP_CHALLENGE_PEERS: i === 0 ? replicas.slice(1).map((x) => `http://127.0.0.1:${x.api}`).join(',') : '', NET_POLL_SEC: '5'};
+  const entry = process.env.APPZONE_REPLICA_ENTRY ? path.resolve(process.env.APPZONE_REPLICA_ENTRY) : path.join(ROOT, 'relay', 'dns-relay.js');
+  const child = spawn(process.execPath, [entry], {cwd: path.dirname(entry), env, stdio: ['ignore', 'pipe', 'pipe']});
+  r.log = ''; child.stdout.on('data', (c) => { r.log += c; }); child.stderr.on('data', (c) => { r.log += c; });
+  r.child = child; children.push(child);
+}
+for (const r of replicas) {
+  let ok = false;
+  for (let k = 0; k < 150 && !ok; k++) {
+    const h = await fetch(`http://127.0.0.1:${r.api}/health`).then((x) => x.json()).catch(() => null);
+    ok = !!h?.appChallenge?.ledgerIndex?.complete && h.appChallenge.shield?.registry?.profileDigest === DIGEST;
+    if (!ok) await new Promise((res) => setTimeout(res, 200));
+  }
+  if (!ok) { process.stderr.write('replica did not become ready:\n' + r.log.slice(-3000)); shutdown(1); }
+}
+
+// ---- the Windows host(s): the real session keeper, a synthetic TPM -------------------------------------------------
+const byHost = new Map(replicas.map((r) => [r.host, `http://127.0.0.1:${r.api}`]));
+const hostFetch = (url, init) => { const u = new URL(url); const o = byHost.get(u.hostname); if (u.protocol !== 'https:' || !o) throw Error('unmapped ' + url);
+  return fetch(o + u.pathname + u.search, init); };
+// the running record shield-startup.mjs keeps for a Shield-direct package whose names select app-zone issuance
+const records = [{status: 'running', startup: {direct: true, appZone: {challenges: replicas.map((r) => `https://${r.host}`)}}}];
+function keeper(w, endpoint) {
+  const {privateKey, publicKey} = generateKeyPairSync('ed25519');
+  return createResponderSessions({hostId: keccak256(Buffer.from(endpoint)), endpoint,
+    nodeKey: {spki: publicKey.export({type: 'spki', format: 'der'}), privateKey}, tpm: S.fakeTpm(w), keysFrame: async () => S.keysOf(w),
+    sign: (message) => S.operator.signMessage({message}), fetchImpl: hostFetch, timeoutMs: 20_000, log: (m) => console.error('[host] ' + m)});
+}
+const hosts = {runner: keeper(world, S.ENDPOINT), other: keeper(other, S.OTHER_ENDPOINT)};
+
+// ---- control ------------------------------------------------------------------------------------------------------
+control = http.createServer(async (rq, rs) => {
+  const chunks = []; for await (const c of rq) chunks.push(c);
+  let b = {}; try { b = JSON.parse(Buffer.concat(chunks).toString() || '{}'); } catch {}
+  const send = (code, v) => { rs.writeHead(code, {'content-type': 'application/json'}); rs.end(JSON.stringify(v)); };
+  try {
+    if (rq.url === '/attest') {
+      const signer = (b.signer === 'other' ? other : world).idks.privateKey;
+      return send(200, S.shieldDoc(Buffer.from(b.spki, 'base64'), Buffer.from(b.nonce, 'hex'), {signer, launcherOnly: !!b.launcherOnly, ...(b.image ? {image: b.image} : {})}));
+    }
+    if (rq.url === '/sessions') return send(200, await hosts[b.host === 'other' ? 'other' : 'runner'].refresh(sessionTargets(records, {appZone: F.ZONE})));
+    if (rq.url === '/chain') {
+      const d = state.deployments[F.DEP];
+      if (b.op === 'ban-host') state.hosts[S.HOST_ID].active = false;
+      else if (b.op === 'unban-host') state.hosts[S.HOST_ID].active = true;
+      else if (b.op === 'delist') state.apps['0x' + '66'.repeat(32)].active = false;
+      else if (b.op === 'relist') state.apps['0x' + '66'.repeat(32)].active = true;
+      else if (b.op === 'release') { d.runner = '0x' + '0'.repeat(64); d.runnerOperator = '0x' + '0'.repeat(40); }
+      else if (b.op === 'relet') d.runner = S.OTHER_HOST_ID;
+      else if (b.op === 'private-pending') { d.isPublic = false; state.versions['0x' + '66'.repeat(32) + '/1'].approval = 0; }
+      else if (b.op === 'restore') Object.assign(state, S.shieldChainState());
+      else return send(400, {error: 'unknown op'});
+      return send(200, {ok: true});
+    }
+    if (rq.url === '/kill') { const r = replicas[b.i]; r.child.kill('SIGTERM'); await new Promise((ok) => r.child.once('exit', ok)); r.dead = true; return send(200, {ok: true}); }
+    if (rq.url === '/logs') return send(200, replicas.map((r) => r.log.slice(-6000)));
+    if (rq.url === '/quit') { send(200, {ok: true}); return shutdown(0); }
+    send(404, {error: 'not found'});
+  } catch (e) { send(500, {error: e.message}); }
+});
+await new Promise((ok) => control.listen(0, '127.0.0.1', ok));
+
+function shutdown(code) {
+  for (const c of children) { try { c.kill('SIGTERM'); } catch {} }
+  for (const s of [...rpcServers, routeMap, control].filter(Boolean)) { try { s.closeAllConnections?.(); s.close(); } catch {} }
+  try { fs.rmSync(T, {recursive: true, force: true}); } catch {}
+  setTimeout(() => { for (const c of children) { try { c.kill('SIGKILL'); } catch {} } process.exit(code); }, 500);
+}
+process.stdin.on('end', () => shutdown(0)); process.stdin.resume();
+process.on('SIGTERM', () => shutdown(0));
+process.stdout.write(JSON.stringify({entry: process.env.APPZONE_REPLICA_ENTRY ? path.resolve(process.env.APPZONE_REPLICA_ENTRY) : 'relay/dns-relay.js',
+  replicas: replicas.map((r) => ({api: `http://127.0.0.1:${r.api}`, dns: `127.0.0.1:${r.dns}`, pid: r.child.pid, host: r.host, snp: r.snp})),
+  control: `http://127.0.0.1:${control.address().port}`, zone: F.ZONE, deployment: F.DEP, otherDeployment: F.OTHER_DEP, owner: F.OWNER,
+  runner: S.HOST_ID, otherRunner: S.OTHER_HOST_ID, operator: S.OPERATOR, appRef: F.APP_REF, envelope: F.ENVELOPE, profileDigest: DIGEST,
+  fixture: 'SYNTHETIC TPM/VBS world and chain on loopback; not Windows hardware, not a public CA'}) + '\n');

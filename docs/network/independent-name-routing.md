@@ -142,11 +142,14 @@ issuance is in flight.
 - **Windows circuit worker.** `createAppIngress` accepts `admitName`. The worker
   (`network/windows-circuit-worker.mjs`, Windows stream) must pass a predicate
   backed by a host-side proof table.
-- **Browser package verifier.** `site/js/core/startup-package.js` allows a fixed
-  key list without `names`, so named packages are refused there. The browser
-  stream should add `names` to that list and validate it exactly as
-  `sdk/bootstrap/package.mjs` `validateNames` does: import it, or mirror the rules
-  and test against `isolation/m2/bootstrap/testdata/names-vectors.json`.
+- **Browser package verifier: done.** `site/js/core/startup-package.js` accepts the
+  `names` member and validates it exactly as `sdk/bootstrap/package.mjs`
+  `validateNames` does. `test/site-independent-names.test.mjs` runs it over
+  `isolation/m2/bootstrap/testdata/names-vectors.json`: every case and alias agrees
+  with the SDK and Go, and named packages built in the Startup tab are byte-identical
+  to the SDK's. This closes the browser verifier gap only; the live activation limits
+  listed here (provider ingress, the Windows worker, real SEV-SNP, CA and DNS evidence)
+  still apply.
 - **Live evidence.** The end-to-end test
   (`test/independent-name-routing.test.mjs`) uses fixtures:
   - Node TLS servers stand in for guests;

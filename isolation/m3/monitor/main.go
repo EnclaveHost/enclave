@@ -119,6 +119,11 @@ type domain struct {
 	ln      *vsock.Listener
 	appHash [32]byte
 
+	// the encrypted volumes' tmpfs mounts (encvol.go), unmounted at reclaim
+	encMounts []string
+	// the model volumes' read-only binds (modelvol.go), unmounted at reclaim
+	modelMounts []string
+
 	// Probe: this domain runs the measured adversary probe (/plat/domprobe) instead of the app, for the isolation tests.
 	// It is stated in the load answer, so a host knows which workload ran without reading the console (enclave-d1: a
 	// probe domain's `mode` still says "serve", because the mode describes the bundle, not the workload).
@@ -196,6 +201,8 @@ type monitor struct {
 	// from an earlier boot would otherwise act on whatever the new boot numbered 3. It is not a secret and not
 	// authentication: it only makes a stale reference fail as "rebooted" instead of landing on the wrong domain.
 	boot string
+	// models: the measured table's volumes this partition has verified and mounted (modelvol.go)
+	models *modelMounts
 	// noDomains, when set, is why this monitor loads no domain at all (raisePtraceScope: no Yama held at 2). main stops
 	// before `ready` on it; load checks it too, so the gate does not depend on that ordering.
 	noDomains string
@@ -323,6 +330,7 @@ func newMonitor(snp bool, plat, root string, basePort uint32, baseUID int) *moni
 		reports: make(chan struct{}, maxReportsTotal), refusals: make(chan struct{}, maxRefusals), boot: newBoot()}
 	m.report = m.tsmReport
 	m.tier, m.format = contract.TierSNP, contract.FormatSNP
+	m.models = newModelMounts(plat)
 	return m
 }
 
@@ -576,6 +584,12 @@ func (m *monitor) start(d *domain, app []byte) error {
 		}
 	}
 	if err := writeAppConfig(d.dir, d.AppConfig); err != nil {
+		return fail(err)
+	}
+	if err := stageEncVolumes(d, tmpfsVolume); err != nil {
+		return fail(err)
+	}
+	if err := stageModelVolumes(d, m.models, bindReadOnly); err != nil {
 		return fail(err)
 	}
 	if len(d.Ports) != 0 {
@@ -845,7 +859,7 @@ func (d *domain) release() {
 				fmt.Printf("MON WARN domain %d did not exit within %s; reclaiming anyway\n", d.ID, exitGrace)
 			}
 		}
-		for _, mp := range []string{d.frontPath("monitor.sock"), filepath.Join(d.dir, "plat")} {
+		for _, mp := range append([]string{d.frontPath("monitor.sock"), filepath.Join(d.dir, "plat")}, append(d.encMounts, d.modelMounts...)...) {
 			if err := syscall.Unmount(mp, syscall.MNT_DETACH); err != nil &&
 				!errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.ENOENT) {
 				fmt.Printf("MON WARN domain %d unmount %s: %v\n", d.ID, mp, err)

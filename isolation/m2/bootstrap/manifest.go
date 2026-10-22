@@ -34,6 +34,8 @@ type Manifest struct {
 	// Names is optional and absent from every package written before it
 	// existed, so those exact bytes keep their meaning (names.go).
 	Names *Names `json:"names,omitempty"`
+	// History is optional too (history.go): owner-named log-capable RPCs for a cold start under a long-held lease.
+	History *History `json:"history,omitempty"`
 }
 type Identity struct{ AppID, RuntimeID [32]byte }
 type commitment struct {
@@ -47,6 +49,10 @@ type Authorization struct {
 	snapshot snapshot
 	manifest Manifest
 	valid    bool
+	// the block of the snapshot that authorized this startup (the writer authority is bound to a claim at or below
+	// it), and the package's history sources (history.go)
+	authorizedAt uint64
+	history      []endpoint
 }
 
 func uniqueJSON(b []byte) error {
@@ -209,6 +215,9 @@ func (r *Reader) Authorize(ctx context.Context, id [32]byte, raw []byte, loaded 
 	if e := namesField(raw, m.Names, m.SecretsMode); e != nil {
 		return nil, e
 	}
+	if e := historyField(raw, m.History); e != nil {
+		return nil, e
+	}
 	st, e := r.read(ctx, id)
 	if e != nil {
 		return nil, &snapshotUnavailable{e}
@@ -242,7 +251,8 @@ func (r *Reader) Authorize(ctx context.Context, id [32]byte, raw []byte, loaded 
 	if pin.SHA256 != hex.EncodeToString(sum[:]) {
 		return nil, errors.New("startup package differs from owner commitment")
 	}
-	return &Authorization{reader: r, snapshot: st, manifest: m, valid: true}, nil
+	// only now, the owner's commitment verified: its history sources join the guest's dial allowlist
+	return &Authorization{reader: r, snapshot: st, manifest: m, valid: true, authorizedAt: st.number, history: r.historySources(m.History)}, nil
 }
 func (a *Authorization) current() bool {
 	return a != nil && a.valid && a.reader != nil && a.reader.now().Unix() < int64(a.snapshot.row.leaseUntil) && a.reader.now().Unix() <= int64(a.snapshot.timestamp)+int64(a.reader.maxAge.Seconds())

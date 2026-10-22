@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { hostsTakeConfig } from '../site/js/core/isolation-options.js';
 
 const source = readFileSync(new URL('../site/components/deployments/deployments.js', import.meta.url), 'utf8');
 const method = name => {
@@ -20,7 +21,7 @@ function fixture({ available = false, rev = 13, envelope = '', config = {volumes
     parseCatalogRef: () => ({appId:'app',index:42}),
     STORE: {byId:{app:{versions:{42:{config:stock,configCid}}}}},
     stripMedia: s => s,
-    volumesOf: o => [...new Set(o?.volumes || [])], esc,
+    volumesOf: o => [...new Set(o?.volumes || [])], esc, hostsTakeConfig,
     paintLine: (target, cls, text) => { target.textContent = text; }
   };
   const Cls = new Function(...Object.keys(deps), 'return class {' + method('_cfgRead') + method('_models') + '\n_envLearn() {}\n};')(...Object.values(deps));

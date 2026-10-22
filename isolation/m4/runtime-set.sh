@@ -27,6 +27,37 @@ compose)
     echo "runtime-set.sh: $rt is not empty; the set is every file in it, so it must start empty" >&2; exit 2
   fi
   mkdir -p "$rt"
+  if [ -n "${NN_RUNTIME_DIR:-}" ]; then
+    # A runtime built with wasi-nn and the ggml backends (the shared runtime's model-volume preloads): its OWN directory
+    # holds wasmtime, the libraries it links, its loader and backends/. The set takes the ELF, what ldd resolves from
+    # that directory, its loader and the CPU backend ONLY (never the Shield GPU backend), and every probe runs the
+    # composed set through its own loader. nn-ggml.enabled only after a graph really preloads and loads by name.
+    src=$NN_RUNTIME_DIR
+    [ -x "$src/wasmtime" ] && [ -r "$src/ld-linux-x86-64.so.2" ] && [ -r "$src/backends/libggml-cpu.so" ] || {
+      echo "runtime-set.sh: NN_RUNTIME_DIR=$src holds no wasmtime, loader and backends/libggml-cpu.so" >&2; exit 2; }
+    cp -L "$src/wasmtime" "$rt/wasmtime"
+    LD_LIBRARY_PATH="$src" ldd "$src/wasmtime" | awk '/=>/ {print $3}' | while read -r lib; do cp -L "$lib" "$rt/"; done
+    cp -L "$src/ld-linux-x86-64.so.2" "$rt/"
+    mkdir "$rt/backends"
+    cp -L "$src/backends/libggml-cpu.so" "$rt/backends/"
+    pt=$(mktemp -d)
+    trap 'rm -rf "$pt"' EXIT
+    printf '#!/bin/sh\nexec "%s/ld-linux-x86-64.so.2" --library-path "%s" "%s/wasmtime" "$@"\n' "$rt" "$rt" "$rt" > "$pt/wasmtime"
+    chmod 0755 "$pt/wasmtime"
+    "$here/../contract/runtime-identity.sh" "$pt/wasmtime" > "$rt/runtime.json"
+    for feature in set mem64; do
+      if "$here/probe-$feature.sh" "$pt/wasmtime" > "$rt/$feature.enabled.tmp"; then
+        mv "$rt/$feature.enabled.tmp" "$rt/$feature.enabled"
+      else
+        rm -f "$rt/$feature.enabled.tmp"
+      fi
+    done
+    if "$here/probe-nn-ggml.sh" "$rt" > "$pt/nn-ggml.enabled"; then
+      mv "$pt/nn-ggml.enabled" "$rt/nn-ggml.enabled"
+    else
+      echo "runtime-set.sh: NN_RUNTIME_DIR's runtime did not preload and serve a ggml graph; no nn-ggml.enabled" >&2
+    fi
+  else
   W=$(command -v wasmtime)
   cp -L "$W" "$rt/wasmtime"
   "$here/../contract/runtime-identity.sh" "$W" > "$rt/runtime.json"
@@ -42,6 +73,7 @@ compose)
   # "=> not found" makes $3 the word "not", and the cp of it fails the build, which is the right outcome.
   ldd "$W" | awk '/=>/ {print $3}' | while read -r lib; do cp -L "$lib" "$rt/"; done
   cp -L /lib64/ld-linux-x86-64.so.2 "$rt/" 2>/dev/null || cp -L /lib/ld-linux-x86-64.so.2 "$rt/"
+  fi
   ;;
 digest)
   [ -d "$rt" ] || { echo "runtime-set.sh: no directory $rt" >&2; exit 2; }

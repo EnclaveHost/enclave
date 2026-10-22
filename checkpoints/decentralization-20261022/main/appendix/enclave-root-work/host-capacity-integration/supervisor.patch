@@ -1,0 +1,84 @@
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -51,6 +51,8 @@
+ // RUNNING enclave without a new release.
+ import { CONTRACT_PINS, initAddressBook, REGISTRY_ADDRESS, DEPLOYMENTS_ADDRESS, APP_CATALOG_ADDRESS,
+          FORWARDER_ADDRESS, PROOF_OF_TIME_ADDRESS } from "./addressbook.js";
++// This host's own signed capacity record for independent readers (docs/network/independent-capacity.md).
++import { createHostCapacityProducer, capacityDirectoryOrigins, HOST_CAPACITY_PATH } from "./network/host-capacity-producer.mjs";
+ // Wallet sessions (SessionVault) as owner credentials, verified on chain: shared with the Windows node.
+ import { createSessionApiAuth, isSessionHeader, hasScope, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES }
+   from "./windows/node/session-api-auth.mjs";
+@@ -6014,6 +6016,48 @@
+   }
+ });
+ 
++// GET /v1/host/capacity: the /availability document above, byte for byte, signed by the registry operator key for the
++// endpoint this host registered, on the registry it registered on (network/host-capacity-producer.mjs), so readers
++// with no relay can use it (cli/independent-capacity.mjs). The signature says WHO reported the numbers; it is not
++// proof the hardware is free, and readers check the signer against the pinned registry at an agreed block.
++// HOST_CAPACITY_DIRECTORIES: optional explicit directory origins (comma list, 1..8) the record is also POSTed to,
++// every half lifetime. No default: nothing is published anywhere unless the operator names it.
++// It signs only for a CONFIRMED registration on the CURRENT registry, read on every request. _registered alone is not
++// that: registerOnChain sets it BEFORE its transaction lands, and it outlives a repoint of the registry by the address
++// book. So all of: the once-guard is up; it was sent to the registry REGISTRY_ADDRESS names now; and _enclaveId - set
++// only when the register transaction succeeded, cleared by a repoint - is the enclaveId of the endpoint signed for.
++// Anything else answers 503 "not registered yet" and signs nothing.
++function capacityIdentity() {
++  const registry = (REGISTRY_ADDRESS || "").toLowerCase();
++  if (!_registered || !registry || _registeredOn !== registry) return null;
++  // the landed id names the endpoint: no endpoint, or another one, matches it (registerOnChain never registers "")
++  if (_enclaveId !== keccak256(stringToBytes(String(_advertisedEndpoint)))) return null;
++  return { endpoint: _advertisedEndpoint, registry };
++}
++const _capacity = REGISTRY_READY ? createHostCapacityProducer({
++  account: privateKeyToAccount(REGISTRY_PK.startsWith("0x") ? REGISTRY_PK : `0x${REGISTRY_PK}`), chainId: CHAIN_ID,
++  hostIdOf: (endpoint) => keccak256(stringToBytes(endpoint)),   // the registry's enclaveId of an endpoint
++  identity: capacityIdentity,
++  availability: async () => {
++    const r = await fetch(`http://127.0.0.1:${server.address()?.port ?? PORT}/availability`, { signal: AbortSignal.timeout(10_000) });
++    if (!r.ok) throw new Error(`/availability answered ${r.status}`);
++    return r.json();
++  },
++}) : null;
++app.get(HOST_CAPACITY_PATH, async (_req, res) => {
++  if (!_capacity) return fail(res, 503, "not_advertised", "this host does not advertise in the registry, so it signs no capacity record");
++  const f = await _capacity.frame();
++  res.status(f.status).set(f.headers).send(f.body);
++});
++let _capacityDirs = [];
++try { const v = envList(process.env.HOST_CAPACITY_DIRECTORIES); _capacityDirs = v.length ? capacityDirectoryOrigins(v) : []; }
++catch (e) { console.warn(`[capacity] HOST_CAPACITY_DIRECTORIES ignored: ${e.message}`); }
++if (_capacity && _capacityDirs.length) setInterval(() => {
++  if (!capacityIdentity()) return;
++  _capacity.publish(_capacityDirs).then((all) => { for (const x of all) if (!x.ok) console.warn(`[capacity] ${x.origin}: ${x.error || x.status}`); })
++    .catch((e) => console.warn(`[capacity] not published: ${e.message}`));
++}, 150_000).unref();
++
+ // External proof that MPS caps are live: each running tenant's granted SM count
+ // (sanitized - no tenant ids). A 25% tenant should report ~33 of 132 SMs.
+ //
+@@ -11865,6 +11909,23 @@
+   };
+ }
+ 
++// HOST_CAPACITY_SELFTEST='{"endpoint":"https://…","registered":true,"confirmed":true,"confirmedFor":"https://…","registeredOn":"current"|"0x…"}'
++// (work/host-capacity-integration): put the registration state where registerOnChain leaves it (registered = the
++// once-guard, confirmed = the register transaction landed (_enclaveId), registeredOn = the registry it was sent to),
++// serve on an ephemeral loopback port and print this host's /availability and its /v1/host/capacity answer.
++if (process.env.HOST_CAPACITY_SELFTEST) {
++  const c = JSON.parse(process.env.HOST_CAPACITY_SELFTEST);
++  _advertisedEndpoint = c.endpoint || null; _registered = c.registered === true;
++  _registeredOn = c.registeredOn === "current" ? (REGISTRY_ADDRESS || "").toLowerCase() : c.registeredOn || null;
++  // confirmedFor: the endpoint the register transaction landed for, when not the one now known (default: that one)
++  const landed = c.confirmed === true ? c.confirmedFor || c.endpoint : null;
++  _enclaveId = landed ? keccak256(stringToBytes(landed)) : null;
++  await new Promise((r) => server.listen(0, "127.0.0.1", r));
++  const get = async (p) => { const r = await fetch(`http://127.0.0.1:${server.address().port}${p}`); return { status: r.status, body: await r.json() }; };
++  console.log(JSON.stringify({ availability: await get("/availability"), capacity: await get(HOST_CAPACITY_PATH) }));
++  process.exit(0);
++}
++
+ server.listen(PORT, () => console.log(`enclave supervisor on :${PORT} · ${IS_GPU
+   ? `${GPU_COUNT}×GPU @ ${CARD_VRAM_GB}GB (arbitrary split)`
+   : `CPU-only enclave (${NODE_VCPUS} vCPU / ${NODE_RAM_GB}GB, node-share split)`}`));

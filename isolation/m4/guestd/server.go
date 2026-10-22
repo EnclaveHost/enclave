@@ -111,6 +111,9 @@ type Request struct {
 	// Derive is the catalog derivation record (contract/catalog/DERIVE.md) an ipfs:// image needs: the CID alone names
 	// bytes, not a contract identity, and guestd will not invent one.
 	Derive *catalog.Derivation `json:"derive"`
+	// Volumes are the deployment's model volumes by name (its config's "volumes", as the supervisor reads it): each is
+	// attached read-only for the guest to mount against the root its own measured table pins (modelvol.go).
+	Volumes []string `json:"volumes"`
 }
 
 // unsupported names the first feature this backend cannot honour inside the guest, or "".
@@ -133,6 +136,7 @@ func unsupported(r *Request) string {
 type vm struct {
 	GPUCardBytes                                         int64 // one reservation on EACH of the two workers
 	InferenceModel                                       string
+	Volumes                                              []string // model volumes attached read-only (modelvol.go)
 	ID, Name, AppID, Measurement, Status, Error, Verdict string
 	RuntimeID                                            string // identity actually verified for this guest
 	RecordSha256                                         string // the catalog derivation, when the app came from one
@@ -170,6 +174,7 @@ type server struct {
 	ShieldReleases    []string
 	RuntimeSET        bool // a real worker execution probe of the runtime used by this tree
 	RuntimeMem64      bool // a real 64-bit canonical ABI execution probe
+	RuntimeEncvol     bool // the pinned template carries encrypted volumes (rt/encvol.enabled: init trailer, front plane)
 	L                 Launcher
 	Auth              *controlAuth // guestd-control/1; nil = the unauthenticated, loopback-only lab mode
 	Store             *store       // catalog mappings; nil = only file:// bundles are accepted
@@ -205,6 +210,13 @@ type server struct {
 	vms          map[string]*vm
 	lastBeat     time.Time // zero = never heard one: the lease is INERT
 	launching    sync.WaitGroup
+
+	// model volumes (modelvol.go): the pinned table's volumes this host's store holds intact, why each other one is
+	// absent, whether the template carries the table, and whether its runtime's measured probe found ggml preload
+	ModelVolumes map[string]modelVolume
+	ModelMissing map[string]string
+	ModelTable   bool
+	RuntimeNN    bool
 }
 
 func newServer(l Launcher, root string) *server {
@@ -347,14 +359,20 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 		s.json(w, 200, map[string]any{"ok": true, "backend": "snp-guest-per-app", "guests": n,
 			"set": s.RuntimeSET, "setRequiresRelease": s.RuntimeSET && s.Release,
 			"mem64": s.RuntimeMem64, "mem64RequiresRelease": s.RuntimeMem64 && s.Release,
-			"firmware": s.Firmware, "catalog": cat, "pool": pool, "inference": inference, "volumes": s.inferenceVolumes(), "shieldedPool": s.ShieldEnabled,
+			"firmware": s.Firmware, "catalog": cat, "pool": pool, "inference": inference, "volumes": append(s.inferenceVolumes(), s.modelVolumesHealth()...), "modelVolumesMissing": s.ModelMissing, "shieldedPool": s.ShieldEnabled,
 			// what a tenant here does NOT get, so a claim gate can refuse deployments that need it
 			// release: config and secrets reach a DEPLOYMENT guest only through the attested release, sealed to it, with
 			// egress to its own allowlist (release.go); nothing of them crosses this host, so config/secrets stay false
 			"supports": map[string]bool{"gpu": s.ShieldEnabled, "secrets": false, "egress": false, "config": false,
 				"ports": false, "protectedPorts": true, "configCid": false, "release": s.Release && !s.DirectBootstrap, "directBootstrap": s.Release && s.DirectBootstrap,
 				// legacyImage: a deployment that is not a release guest can still run here (on the previous image)
-				"legacyImage": s.Release && s.Legacy != nil}})
+				"legacyImage": s.Release && s.Legacy != nil,
+				// encVolumes: the image runs the config's encrypted volumes inside the guest; config reaches only a release
+				// or owner-committed guest, so it is claimed only with one (supervisor.js isolationEncVolumesRefusal)
+				"encVolumes": s.RuntimeEncvol && s.Release,
+				// modelVolumes: this image mounts config-named volumes against its measured table; names reach a release or
+				// owner-committed guest only. nnPreload: its runtime's measured probe found wasi-nn with the ggml CPU backend
+				"modelVolumes": s.ModelTable && s.Release, "nnPreload": s.RuntimeNN}})
 	case r.Method == http.MethodPost && r.URL.Path == "/vms":
 		s.create(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/prefetch":
@@ -449,6 +467,10 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		s.json(w, 422, map[string]any{"error": why})
 		return
 	}
+	if why := s.modelRefusal(req.Volumes, m.Inference != nil, legacy); why != "" {
+		s.json(w, 422, map[string]any{"error": "this backend refuses " + why})
+		return
+	}
 	if legacy && len(m.Ports) != 0 {
 		s.json(w, 422, map[string]any{"error": "protected ports require this release image, not a legacy guest"})
 		return
@@ -505,6 +527,7 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		Vcpus:    pol.Vcpus, MemMiB: mem, CPUPct: pol.CPUPercent, Created: s.Now(),
 		lc: contract.NewLifecycle(contract.Starting), leaseUntil: s.Now().Add(s.LeaseTTL), cid: cid}
 	v.legacy = legacy
+	v.Volumes = append([]string(nil), req.Volumes...)
 	if req.Bootstrap != "" {
 		v.bootstrap, _ = decodeBootstrap(req.Bootstrap) // releaseChoice validated before reservation
 		v.directBootstrap, v.release = true, true
@@ -647,6 +670,10 @@ func (s *server) launch(v *vm) {
 		return
 	}
 	s.set(v, func() { v.Measurement = meas })
+	if err := s.writeVolumeAttach(image, v.Volumes); err != nil {
+		s.fail(v, fmt.Errorf("model volumes: %w", err))
+		return
+	}
 	unit, err := l.Start(ctx, image, v.ID, v.workdir, v.Vcpus, v.MemMiB, v.CPUPct, v.HostData, v.cid)
 	cid := v.cid // chosen at create (release.go), so the ticket service knows this guest before it serves
 	s.set(v, func() { v.unit = unit })

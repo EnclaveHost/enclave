@@ -84,13 +84,18 @@ export function readAuthorization(reader, {pins, deploymentId, vault, sid}) {
 /**
  * The decision, pure. -> {ok: true, owner, freshUntil} or {ok: false, status, code, reason}. freshUntil is the earliest of
  * lease end, the snapshot's freshness and session expiry: the gateway forwards nothing at or after it.
+ * host 'lease' (every operation but a placement hint): the deployment's current lease must name this runner. host
+ * 'named' (claimHint): the owner chose this host for a deployment it does NOT hold yet, so only the record's existence and
+ * activity are required of the lease; the session, scope and holder rules are the same, and no lease bounds freshUntil.
  */
-export function decideAuthorization(f, {deploymentId, runner, scope, parsed, now = Date.now(), maxBlockAgeMs = 90000}) {
+export function decideAuthorization(f, {deploymentId, runner, scope, parsed, now = Date.now(), maxBlockAgeMs = 90000, host = 'lease'}) {
   // `cacheable` names a refusal a gateway may remember briefly to refuse repeats cheaply (never to authorize anything).
   const deny = (status, code, reason, cacheable = null) => ({ok: false, status, code, reason, cacheable});
   if (![15, 16].includes(f.schema)) return deny(503, 'chain_unavailable', 'unsupported deployments ledger');
-  const leaseUntil = Number(f.row.leaseUntil) * 1000;
-  if (f.row.id !== deploymentId || !f.row.active || f.row.runner !== runner || !(leaseUntil > now) ||
+  const named = host === 'named', leaseUntil = named ? Infinity : Number(f.row.leaseUntil) * 1000;
+  if (named) {
+    if (f.row.id !== deploymentId || !f.row.active) return deny(409, 'not_claimable', 'no active deployment with that id on the pinned ledger');
+  } else if (f.row.id !== deploymentId || !f.row.active || f.row.runner !== runner || !(leaseUntil > now) ||
       !f.host?.active || f.host.operator !== f.row.runnerOperator)
     return deny(409, 'not_current_runner', 'this host does not hold a current lease for that deployment', 'deployment');
   const s = f.session;
@@ -112,7 +117,7 @@ export function decideAuthorization(f, {deploymentId, runner, scope, parsed, now
 
 /** readAuthorization + decideAuthorization under a hard deadline: a hung or slow chain read is a refusal, and a snapshot
  *  that is no longer fresh when it arrives is a refusal too. */
-export async function authorizeManagement(reader, {pins, deploymentId, runner, scope, parsed, deadline, now = Date.now, maxBlockAgeMs}) {
+export async function authorizeManagement(reader, {pins, deploymentId, runner, scope, parsed, deadline, now = Date.now, maxBlockAgeMs, host = 'lease'}) {
   if (!ID.test(deploymentId) || !ID.test(runner)) throw Error('exact deployment and runner required');
   let timer;
   const facts = await Promise.race([
@@ -120,7 +125,7 @@ export async function authorizeManagement(reader, {pins, deploymentId, runner, s
     new Promise((_, reject) => { timer = setTimeout(() => reject(new ManagementAuthError(504, 'authorization_timeout', 'the chain authorization did not complete in time')), Math.max(0, deadline - now())); }),
   ]).catch(e => { if (e instanceof ManagementAuthError) throw e; throw new ManagementAuthError(503, 'chain_unavailable', 'no agreeing chain quorum for the authorization'); })
     .finally(() => clearTimeout(timer));
-  const d = decideAuthorization(facts, {deploymentId, runner, scope, parsed, now: now(), maxBlockAgeMs: maxBlockAgeMs ?? reader.maxBlockAgeMs ?? 90000});
+  const d = decideAuthorization(facts, {deploymentId, runner, scope, parsed, now: now(), maxBlockAgeMs: maxBlockAgeMs ?? reader.maxBlockAgeMs ?? 90000, host});
   if (d.ok && Math.min(d.freshUntil, deadline) <= now()) return {ok: false, status: 504, code: 'authorization_expired', reason: 'the authorization expired before the request could be forwarded'};
   return d.ok ? {...d, freshUntil: Math.min(d.freshUntil, deadline), blockNumber: facts.blockNumber} : d;
 }

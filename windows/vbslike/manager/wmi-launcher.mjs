@@ -752,6 +752,105 @@ export const CMD = {
   },
 };
 
+/**
+ * REMOVE a run's model-volume disks (the differencing children defineType1 made), once the VM that used them is GONE.
+ * Only *.vhd files under the run directory, never while a VM of that Id or name exists; the store's parents are never
+ * named here. A child holds no data the guest wrote that anyone keeps: the guest mounts its volumes read-only.
+ */
+CMD.removeRunDisks = ({ paths = null, runDir, vmId = null, name = null }) => {
+  if (vmId && !GUID.test(String(vmId))) throw new Error(`removeRunDisks: not a VM Id: ${vmId}`);
+  if (!vmId && !name) throw new Error("removeRunDisks: a VM Id or name is required, to establish that its VM is gone");
+  // no list (a handle recovered after a manager restart): the VM's own per-run children, <name>.mv-*.vhd, in the run
+  // directory - the names start() gives them - and nothing else
+  if (paths === null) {
+    if (!/^[A-Za-z0-9._-]+$/.test(String(name || "")) || !runDir) throw new Error("removeRunDisks: a sweep needs the VM's plain name and the run directory");
+    return ps(`
+    $ErrorActionPreference = 'Stop';
+    ${vmId ? `$still = $null; try { $still = Get-VM -Id ${q(vmId)} -EA Stop } catch { $still = $null };
+    if ($still) { throw ('VM ' + ${q(vmId)} + ' is still present: its disks are not removed while the worker may hold them') };` : ""}
+    if (@(Get-VM -Name ${q(name)} -EA SilentlyContinue).Count) { throw ('a VM named ' + ${q(name)} + ' is still present: its disks are not removed while the worker may hold them') };
+    $removed = @(); $failed = @();
+    foreach ($f in @(Get-ChildItem -LiteralPath ${q(runDir)} -File -Filter ${q(`${name}.mv-*.vhd`)} -EA SilentlyContinue)) {
+      try { Remove-Item -LiteralPath $f.FullName -Force -EA Stop; $removed += $f.FullName } catch { $failed += @{path=$f.FullName; error=[string]$_.Exception.Message} }
+    };
+    @{removed=@($removed); failed=@($failed)} | ConvertTo-Json -Compress -Depth 4`);
+  }
+  if (!Array.isArray(paths) || !paths.length || paths.length > 8) throw new Error("removeRunDisks: 1..8 disk paths");
+  for (const c of paths) checkRunDisk(c, runDir);
+  return ps(`
+    $ErrorActionPreference = 'Stop';
+    ${vmId ? `$still = $null; try { $still = Get-VM -Id ${q(vmId)} -EA Stop } catch { $still = $null };
+    if ($still) { throw ('VM ' + ${q(vmId)} + ' is still present: its disks are not removed while the worker may hold them') };` : ""}
+    ${name ? `if (@(Get-VM -Name ${q(name)} -EA SilentlyContinue).Count) { throw ('a VM named ' + ${q(name)} + ' is still present: its disks are not removed while the worker may hold them') };` : ""}
+    $removed = @(); $failed = @();
+    foreach ($c in @(${paths.map((x) => q(x)).join(", ")})) {
+      if (-not (Test-Path -LiteralPath $c)) { continue };
+      try { Remove-Item -LiteralPath $c -Force -EA Stop; $removed += $c } catch { $failed += @{path=$c; error=[string]$_.Exception.Message} }
+    };
+    @{removed=@($removed); failed=@($failed)} | ConvertTo-Json -Compress -Depth 4`);
+};
+
+/**
+ * ATTACH a run's MODEL-VOLUME DISKS to the VM the definition made (its own step, so the definition stays as it is, and
+ * well under the command-line limit), before it starts. Each is a per-run DIFFERENCING child of the store's fixed VHD,
+ * so the parent is only ever opened read-only and is shared between partitions; the VM's SID gets read on the parent.
+ * Only a VM carrying our marker, still Off, with no disk yet. Read back: exactly these children. A failure detaches and
+ * removes what it made; the caller removes the VM. The guest verifies every block against its own measured table
+ * (isolation/m3/monitor/modelvol.go), so nothing here is trusted with what the bytes are.
+ */
+CMD.attachModelDisks = ({ vmId, disks, runDir, marker = OWNER_MARKER }) => {
+  if (!GUID.test(String(vmId))) throw new Error(`attachModelDisks: not a VM Id: ${vmId}`);
+  if (!disks.length) throw new Error("attachModelDisks: no disks");
+  checkDisks(disks, { uefi: false, runDir });
+  return ps(`
+    $ErrorActionPreference = 'Stop';
+    $v = Get-VM -Id ${q(vmId)};
+    if (-not ${OWNED("$v", marker)}) { throw 'not ours: the ownership marker is absent, so no disk is attached' };
+    if ([string]$v.State -ne 'Off') { throw ('the VM is ' + [string]$v.State + ': model-volume disks attach before it starts') };
+    if (@(Get-VMHardDiskDrive -VM $v -EA SilentlyContinue).Count -ne 0) { throw 'the VM already has a hard disk: refusing to add model volumes beside it' };
+    $grant = 'NT VIRTUAL MACHINE\\' + $v.Id.Guid + ':R'; $made = @();
+    try {
+      if (-not (Get-VMScsiController -VM $v -EA SilentlyContinue)) { Add-VMScsiController -VM $v };
+      foreach ($dk in @(${disks.map((k) => `@{parent=${q(k.parent)}; child=${q(k.child)}}`).join(", ")})) {
+        if (-not (Test-Path -LiteralPath $dk.parent)) { throw ('the model volume ' + $dk.parent + ' is not in this host''s store') };
+        if (Test-Path -LiteralPath $dk.child) { throw ('a per-run model-volume disk already exists at ' + $dk.child + ': refusing to reuse another run''s disk') };
+        New-VHD -Path $dk.child -ParentPath $dk.parent -Differencing | Out-Null; $made += $dk.child;
+        & icacls $dk.parent /grant $grant | Out-Null;
+        if ($LASTEXITCODE -ne 0) { throw ('icacls could not grant the VM read access to ' + $dk.parent + ' (exit ' + $LASTEXITCODE + ')') };
+        Add-VMHardDiskDrive -VM $v -ControllerType SCSI -Path $dk.child
+      }
+    } catch {
+      $err = $_;
+      foreach ($dd in @(Get-VMHardDiskDrive -VM $v -EA SilentlyContinue)) { try { Remove-VMHardDiskDrive -VMHardDiskDrive $dd -EA Stop } catch {} };
+      foreach ($c in $made) { try { Remove-Item -LiteralPath $c -Force -EA Stop } catch {} };
+      throw $err
+    };
+    @{diskPaths=@(Get-VMHardDiskDrive -VM $v | ForEach-Object { [string]$_.Path })} | ConvertTo-Json -Compress -Depth 3`);
+};
+
+/** A run's model-volume disks: linux-direct only (a uefi-medium boot pins exactly one boot entry), at most 8, each child a
+ *  plain .vhd under the run directory and each parent a .vhd. Throws on anything else. */
+export function checkDisks(disks, { uefi, runDir }) {
+  if (!Array.isArray(disks)) throw new Error("defineType1: disks must be a list");
+  if (!disks.length) return;
+  if (uefi) throw new Error("defineType1: model-volume disks attach on the linux-direct boot form only (a uefi-medium definition pins exactly one boot entry)");
+  if (disks.length > 8) throw new Error("defineType1: at most 8 model-volume disks");
+  for (const k of disks) {
+    checkRunDisk(k?.child, runDir);
+    const parent = String(k?.parent || "");
+    if (!/^[A-Za-z]:\\[^'\r\n]+\.vhd$/i.test(parent) || path.win32.resolve(parent).toLowerCase() === path.win32.resolve(String(k.child)).toLowerCase())
+      throw new Error(`defineType1: a model volume's parent must be an absolute .vhd path (got ${JSON.stringify(parent)})`);
+  }
+}
+/** a per-run model-volume disk: a plain .vhd file directly in the run directory */
+function checkRunDisk(child, runDir) {
+  const c = String(child || "");
+  if (!runDir) throw new Error("model-volume disks need a run directory");
+  const dir = path.win32.resolve(String(runDir)).toLowerCase();
+  if (!/^[A-Za-z0-9._-]+\.vhd$/i.test(path.win32.basename(c)) || /['\r\n]/.test(c) || path.win32.dirname(path.win32.resolve(c)).toLowerCase() !== dir)
+    throw new Error(`a model-volume disk must be a .vhd directly in the run directory (got ${JSON.stringify(c)})`);
+}
+
 function parse(out) {
   const t = String(out ?? "").trim();
   if (!t) throw new Error("no output from PowerShell");
@@ -1011,7 +1110,7 @@ export class WmiHyperVLauncher {
    * the define script removes it itself if it fails before returning - both, because a leak here is a
    * VM nobody owns.
    */
-  async start(mapping, { instanceId, identity = null, guestReadySec = 25, appMemoryMiB = null, bootstrap = null, custody = null } = {}) {
+  async start(mapping, { instanceId, identity = null, guestReadySec = 25, appMemoryMiB = null, bootstrap = null, custody = null, volumes = [] } = {}) {
     if (this.imageRole === "shield-direct" && !bootstrap)
       throw new Error("the Shield-direct image starts only owner-committed packages: its front ends a domain that receives none");
     if (this.imageRole !== "shield-direct" && (bootstrap || custody))
@@ -1057,6 +1156,9 @@ export class WmiHyperVLauncher {
     const notes = identity ? notesFor({ ...identity, instanceId, imageRole: this.imageRole }, { marker: this.marker }) : this.marker;
     const guestStateRun = this.guestStateRunFor(name);
     if (!guestStateRun) throw new Error(`no per-run guest-state path can be made for ${name}`);
+    // MODEL VOLUMES (the manager admitted them from the measured config): each store VHD under a per-run child
+    const disks = (volumes || []).map((v) => ({ parent: String(v.vhd || ""), child: path.win32.join(this.guestStateRunDir, `${name}.mv-${v.name}.vhd`) }));
+    checkDisks(disks, { uefi: this.boot === BOOT_UEFI, runDir: this.guestStateRunDir });
     const vcpus = Math.max(1, Math.floor(mapping.record.policy.vcpus));
     const appMiB = appMemoryMiB ?? mapping.record.policy.memMiB;
     if (!Number.isSafeInteger(appMiB) || appMiB < mapping.record.policy.memMiB)
@@ -1075,6 +1177,12 @@ export class WmiHyperVLauncher {
       checkDefinition(created, { notes, pipe, boot: this.boot, vcpus, memMiB, firmware: this.imagePath, firmwareSha256: this.imageSha256,
                                  hypervModuleSha256: this.hypervModuleSha256, hypervUtilitiesSha256: this.hypervUtilitiesSha256,
                                  guestStateRun, guestStateMaster: this.guestStateMaster, mediumSha256: this.mediumSha256 });
+      if (disks.length) {
+        const att = await this.#ps(CMD.attachModelDisks({ vmId: created.id, disks, runDir: this.guestStateRunDir, marker: this.marker }));
+        const got = (Array.isArray(att?.diskPaths) ? att.diskPaths : []).map((x) => String(x).toLowerCase()).sort();
+        if (JSON.stringify(got) !== JSON.stringify(disks.map((k) => k.child.toLowerCase()).sort()))
+          throw new Error(`the attached disks read back as ${JSON.stringify(att?.diskPaths ?? null)}, not this run's model volumes`);
+      }
 
       // ONE process starts the VM and reads its console, the reader attaching before the guest can speak (startAndRead)
       const started = await this.#ps(CMD.startAndRead({ vmId: created.id, pipe, seconds: guestReadySec, until: GUEST_READY_LINE, marker: this.marker }));
@@ -1117,6 +1225,7 @@ export class WmiHyperVLauncher {
         ? uefiImageIdentity({ mediumSha256: created.mediumSha256, mediumPath: created.mediumPath ?? this.medium })
         : linuxDirectIdentity({ igvmSha256: created.firmwareSha256, igvmPath: this.imagePath });
       return { imageRole: this.imageRole, transport, egress, package: pkg, custody: cust, instanceId, name, vmId: created.id, pipe, state: started.state,
+               ...(disks.length ? { volumes: (volumes || []).map((v) => v.name), disks: disks.map((k) => k.child) } : {}),
                boot: this.boot, isolationType: 1,
                image: uefi ? guestIdentity.guestImageSha256 : guestIdentity.igvmSha256,
                guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
@@ -1139,7 +1248,7 @@ export class WmiHyperVLauncher {
                // report's partition.vmId against it, so a report from another partition's launcher never reads as this one
                ...(served ? { tcpPort: served.tcpPort, launcherKey: served.launcherKey, launcherVmId: served.vm, domainId: served.domainId,
                               guestPort: served.guestPort, boot: served.boot, relayNote: served.note, wmiserve: served } : {}),
-               stop: async () => await this.stop({ name, vmId: created.id, wmiserve: served, transport, egress, package: pkg, custody: cust }) };
+               stop: async () => await this.stop({ name, vmId: created.id, wmiserve: served, transport, egress, package: pkg, custody: cust, disks: disks.map((k) => k.child) }) };
     } catch (e) {
       if (transport) await transport.stop();
       if (egress) await egress.stop().catch(() => {});
@@ -1172,6 +1281,11 @@ export class WmiHyperVLauncher {
         const g = await this.#retire({ vmId, name }).catch((x) => ({ retired: false, error: x.message }));
         e.guestState = g;
         if (g && g.error) e.message += ` (its guest-state copy was NOT retired: ${g.error})`;
+        if (disks.length) {
+          e.disks = await this.#ps(CMD.removeRunDisks({ paths: disks.map((k) => k.child), runDir: this.guestStateRunDir, vmId, name }))
+            .catch((x) => ({ removed: [], failed: [{ error: x.message }] }));
+          if (e.disks.failed?.length) e.message += ` (its model-volume disks were NOT all removed: ${JSON.stringify(e.disks.failed).slice(0, 200)})`;
+        }
       }
       throw e;
     }
@@ -1224,6 +1338,11 @@ export class WmiHyperVLauncher {
       // result, not thrown - the domain has stopped, and saying otherwise would be the lie in reverse.
       if (this.#retires() && handle.name)
         out.guestState = await this.#retire({ vmId: handle.vmId, name: handle.name }).catch((x) => ({ retired: false, error: x.message }));
+      // ...and its model-volume disks (the per-run children; the store's VHDs are never touched)
+      // (a handle recovered after a restart carries no list: its children are swept by the VM's name)
+      if (handle.disks?.length || (handle.recovered === true && handle.name && this.guestStateRunDir))
+        out.disks = await this.#ps(CMD.removeRunDisks({ paths: handle.disks?.length ? handle.disks : null, runDir: this.guestStateRunDir, vmId: handle.vmId, name: handle.name ?? null }))
+          .catch((x) => ({ removed: [], failed: [{ error: x.message }] }));
       return out;
     }
     if (!handle || !handle.name) return { stopped: false, reason: "no handle" };

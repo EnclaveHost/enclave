@@ -44,6 +44,10 @@ type ownerStartup struct {
 	eabKID string
 	eabKey []byte
 	eabErr string
+	// app-zone issuance (appzone.go): its own optional EAB, resolved from the same custody secrets
+	appEabKID string
+	appEabKey []byte
+	appEabErr string
 }
 
 type nameAuthority interface {

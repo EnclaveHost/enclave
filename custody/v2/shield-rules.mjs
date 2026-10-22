@@ -15,8 +15,9 @@
 //     "platforms": "attested" | [ { "ekCertSha256": "<64 hex>", "pcr0": "<64 hex>" } ],         TPM/firmware pairs, or any
 //                                                                                              TPM chaining to the custodian's
 //                                                                                              pinned roots on an accepted boot
-//     "minimumGuestSvn": 0                                                  optional
-//   }
+//     "minimumGuestSvn": 0,                                                 optional
+//     "ownerRead": true                                                     optional: the policy owner may read the values
+//   }                                                                       back (custody/v2/custodian.mjs); missing = false
 // What the acknowledgement means: the host's physical operator and hypervisor are TRUSTED (no memory encryption against
 // them), the evidence is the host's TPM and the secure kernel's signature over the partition's report, and the host is not
 // excluded. An owner who commits these rules accepts that for these values.
@@ -34,7 +35,8 @@ function exactKeys(o, keys, optional, what) {
 }
 
 export function validateShieldRules(r) {
-  exactKeys(r, ["format", "acceptTier", "appId", "images", "platforms"], ["minimumGuestSvn"], "Shield rules");
+  exactKeys(r, ["format", "acceptTier", "appId", "images", "platforms"], ["minimumGuestSvn", "ownerRead"], "Shield rules");
+  if (r.ownerRead !== undefined && typeof r.ownerRead !== "boolean") throw new Error("Shield rules: ownerRead must be true or false");
   if (r.format !== SHIELD_RULES_FORMAT) throw new Error(`Shield rules: format must be ${SHIELD_RULES_FORMAT}`);
   if (r.acceptTier !== SHIELD_TIER_ACK) throw new Error(`Shield rules: acceptTier must be exactly "${SHIELD_TIER_ACK}" (the owner's acknowledgement of this tier)`);
   if (typeof r.appId !== "string" || !HEX64.test(r.appId)) throw new Error("Shield rules: appId must be 64 lowercase hex");

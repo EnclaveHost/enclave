@@ -48,9 +48,21 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+/* model volumes: the per-app guest's code (staging, preloads, argv, env) over the monitor's verified binds */
+#define MV_NO_MOUNT
+#define MV_TABLE "/plat/rt/model-volumes.table"
+#define MV_NN_MARKER "/plat/rt/nn-ggml.enabled"
+#define MV_BACKEND_DIR "/plat/rt/backends"
+#include "../m2/modelvol.h"
 #include "../m2/app-seccomp.h"   /* the app runtime's seccomp filter, shared with the SNP guest's m2/dominit.c */
 
 static int shield_on = 0;
+/* Encrypted volumes (m3/monitor/encvol.go): the monitor staged them (its root-owned, read-only /enc.volumes) as
+ * tmpfs mounts owned by the runtime's uid and group, 02770. The front - not root here - reaches them through that ONE
+ * group, given to it in this domain only; the runtime runs under umask 007 so what the app writes stays readable and
+ * replaceable by the front for push-back and lock. No marker: neither, exactly as before. */
+static int enc_domain = 0;
+static uid_t app_uid_g = 0, front_uid_g = 0;
 static char shield_workers[192], shield_vram[80];
 static const char *dom_id = "?";
 static volatile sig_atomic_t front_pid_g = -1;
@@ -190,6 +202,44 @@ static void config_argument(char **args) {
     args[n - 1] = "--env"; args[n] = "ENCLAVE_CONFIG";
     args[n + 1] = artifact; args[n + 2] = NULL;
 }
+/* Model volumes (m3/monitor/modelvol.go): the monitor verified each over dm-verity against this image's measured table,
+ * bound it read-only at /models/<name> and left a root-owned, read-only /model.volumes ("M1", the volumes the measured
+ * config names). Without the marker nothing changes. With it, the names are checked again against the measured table
+ * and the binds, the ggml graphs are staged and budgeted against this domain's memory, and the runtime gets the
+ * preopens, the env names and (when this runtime carries wasi-nn with ggml) the preloads; anything wrong ends the
+ * domain before it runs. */
+static void model_volumes(unsigned long app_mib) {
+    struct stat st;
+    if (lstat("/model.volumes", &st) != 0) {
+        if (errno == ENOENT) return;
+        die("model volume marker stat");
+    }
+    if (!S_ISREG(st.st_mode) || st.st_uid != 0 || (st.st_mode & 0222) || st.st_size <= 0 || st.st_size > 1024) die("model volume marker");
+    char b[1025];
+    int fd = open("/model.volumes", O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) die("open model volume marker");
+    ssize_t n = 0, got;
+    while (n < st.st_size && (got = read(fd, b + n, (size_t)(st.st_size - n))) > 0) n += got;
+    close(fd);
+    if (n != st.st_size) die("read model volume marker");
+    const char *why = model_block(b, (size_t)n);
+    if (!why) why = mv_table();
+    if (!why) why = mv_dirs();
+    if (why) {
+        printf("DOM%s ERROR model volumes: %s: not started\n", dom_id, why);
+        fflush(stdout);
+        _exit(1);
+    }
+    mv_preloads((unsigned long long)app_mib << 20);
+    printf("DOM%s model volumes: %d bound read-only\n", dom_id, mv_n);
+}
+static void model_arguments(char **args) {
+    if (!mv_n) return;
+    size_t n = 0; while (args[n]) n++;
+    char *artifact = args[n - 1];
+    int k = mv_argv(args, (int)n - 1);
+    args[k] = artifact; args[k + 1] = NULL;
+}
 #define NULL_FD 3
 /* The seccomp STATEMENT channel, fd SECCOMP_FD: a pipe the MONITOR hands this process (its read end stays with the
  * monitor). Close-on-exec from the start and closed here once the runtime is spawned, so only the runtime's child - this
@@ -223,7 +273,9 @@ static pid_t spawn(char *const argv[], uid_t uid, int quiet, int filter) {
          * monitor's groups — root's among them — so a domain workload could reach anything granted by
          * group membership. setgroups must happen while still privileged. A failure is reported on the
          * console copy (a quiet child's stdout is /dev/null), as die() would, then the child exits 1. */
-        const char *drop = setgroups(0, NULL) != 0 ? "setgroups" : setgid((gid_t)uid) != 0 ? "setgid"
+        gid_t app_gid = (gid_t)app_uid_g;
+        int groups_ok = enc_domain && uid == front_uid_g ? setgroups(1, &app_gid) == 0 : setgroups(0, NULL) == 0;
+        const char *drop = !groups_ok ? "setgroups" : setgid((gid_t)uid) != 0 ? "setgid"
                          : setuid(uid) != 0 ? "setuid" : NULL;
         if (drop) {
             if (con >= 0) dprintf(con, "DOM%s ERROR %s: %s\n", dom_id, drop, strerror(errno));
@@ -276,10 +328,15 @@ static pid_t spawn(char *const argv[], uid_t uid, int quiet, int filter) {
             for (int j=0; fixed[j]; j++) envp[i++]=(char *)fixed[j];
             envp[i++]=shield_workers; envp[i++]=shield_vram; envp[i]=NULL;
         }
+        if (filter && mv_n) {
+            size_t n = 0; while (envp[n]) n++;
+            envp[mv_env(envp, (int)n)] = NULL;
+        }
         if (filter && app_config_env[0]) {
             size_t n = 0; while (envp[n]) n++;
             envp[n] = app_config_env; envp[n + 1] = NULL;
         }
+        if (enc_domain && filter) umask(007);
         execve(argv[0], argv, envp);
         if (con >= 0) dprintf(con, "DOM%s ERROR exec %s: %s\n", dom_id, argv[0], strerror(errno));
         _exit(127);
@@ -310,6 +367,7 @@ int main(int argc, char **argv) {
         return 2;
     }
     if (front_uid == uid) { printf("DOM%s ERROR the front and the runtime must not share a uid (%u)\n", dom_id, (unsigned)uid); return 2; }
+    app_uid_g = uid; front_uid_g = front_uid;
     /* the null device the monitor opened for us (NULL_FD, above): it must BE the null device (char 1:3), or the domain
      * does not start - a quiet workload with anything else on its stdio could reach the console or a file */
     struct stat nst;
@@ -338,7 +396,7 @@ int main(int argc, char **argv) {
      * refused by the portable-runtime contract (isolation/contract/RUNTIME.md rule 5). It also matters more
      * here than in M2, because several domains share this guest's filesystem. */
     read_app_config();
-    char *rt[64] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime",
+    char *rt[112] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime",
                   "serve", "-S", "cli", "-W", "threads,shared-everything-threads,component-model-threading,shared-memory,memory64,component-model-memory64", "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
     char *front[32] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
                      "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
@@ -355,7 +413,7 @@ int main(int argc, char **argv) {
     if (app_mib < 64 || app_mib > 1048576) die("invalid app memory");
     snprintf(memory_env, sizeof memory_env, "ENCLAVE_MEM_MB=%lu", app_mib);
     snprintf(memory_limit, sizeof memory_limit, "max-memory-size=%llu", (unsigned long long)app_mib << 20);
-    char *run[64] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime", "run",
+    char *run[112] = {"/plat/rt/ld-linux-x86-64.so.2", "--library-path", "/plat/rt", "/plat/rt/wasmtime", "run",
                    "-S", "cli", "-S", "tcp", "-S", "udp", "-S", "inherit-network", "-S", "allow-ip-name-lookup",
                    "-C", "cache=n", "-W", "threads,shared-everything-threads,component-model-threading,shared-memory,memory64,component-model-memory64", "-W", memory_limit, "--dir", "/data::/data", "--env", ports_env, "--env", memory_env, "/app.wasm", NULL};
     char *run_front[32] = {"/plat/front", "-runtime-identity", "/plat/rt/runtime.json",
@@ -387,6 +445,8 @@ int main(int argc, char **argv) {
         mkdir("/data", 0700);
         if (mount("tmpfs", "/data", "tmpfs", 0, data_opts) != 0) die("mount /data");
     }
+    model_volumes(app_mib);
+    model_arguments(rt); model_arguments(run);
     config_argument(rt); config_argument(run);
     char *probe_argv[] = {"/plat/domprobe", (char *)dom_id, argc > 4 ? argv[4] : "0", NULL};
     struct sigaction sa_term = {0};
@@ -424,8 +484,9 @@ int main(int argc, char **argv) {
         run_front[4]="/run/front/front.sock"; run_front[6]="/run/front/monitor.sock";
         run_front[2]="/plat/rt-shield/runtime.json";
     } else if (errno != ENOENT) die("stat Shield profile");
+    if (shield_on && mv_n) die("model volumes in a Shield domain");
     char **base = run_port ? run : rt;
-    char *shield_app[64]; int ai=0;
+    char *shield_app[112]; int ai=0;
     for (int i=0; base[i]; i++) {
         char *v=base[i];
         if (shield_on) {
@@ -441,13 +502,19 @@ int main(int argc, char **argv) {
     }
     shield_app[ai]=NULL;
     struct stat secret_st, web_st;
-    char *secret_app[66];
+    char *secret_app[114];
     int public_web = 0;
     if (lstat("/egress.public-web", &web_st) == 0) {
         if (!S_ISREG(web_st.st_mode) || web_st.st_uid != 0 || (web_st.st_mode & 0222)) die("public web marker");
         public_web = 1;
     } else if (errno != ENOENT) die("public web marker stat");
     if (public_web && stat("/secret.id", &secret_st) != 0) die("public web needs a secret domain");
+    struct stat enc_st;
+    if (lstat("/enc.volumes", &enc_st) == 0) {
+        if (!S_ISREG(enc_st.st_mode) || enc_st.st_uid != 0 || (enc_st.st_mode & 0222)) die("encrypted volume marker");
+        if (stat("/secret.id", &secret_st) != 0) die("encrypted volumes need a secret domain");
+        enc_domain = 1;
+    } else if (errno != ENOENT) die("encrypted volume marker stat");
     if (stat("/secret.id", &secret_st) == 0) {
         if (shield_on || !S_ISREG(secret_st.st_mode) || secret_st.st_uid != 0 || (secret_st.st_mode & 0222) || secret_st.st_size != 66) die("secret deployment");
         /* 443 belongs to the front's authenticated egress listeners. A command app needs

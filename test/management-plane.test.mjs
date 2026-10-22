@@ -870,3 +870,13 @@ test('F5: a full replay guard refuses new nonces and never forgets a live one',a
   assert.equal((await r.raw('GET',target,{header:first})).status,401,'the first nonce is still spent');
   assert.equal(sourceOf('::ffff:10.1.2.3'),'10.1.2.3');assert.equal(sourceOf('2001:db8:1:2:3:4:5:6'),'2001:db8:1:2::/64');assert.equal(sourceOf('2001:db8::1'),'2001:db8:0:0::/64');
 });
+
+test('platform host policy: a runner the policy refuses receives nothing; an admitted runner is served as before',async t=>{
+  const r=await rig(t);await r.publish();const seen=[];
+  await assert.rejects(r.client({hostAdmission:async lease=>{seen.push(lease.runner);return {admit:false,status:'current',reason:'banned by platform policy #1 (operator): abuse'};}}).status(),
+    e=>e.status===403&&e.code==='host_policy_refused'&&/nothing was sent/.test(e.message));
+  assert.deepEqual(r.hits,[],'the refused host is never contacted');assert.equal(seen[0],runner);
+  await assert.rejects(r.client({hostAdmission:async()=>undefined}).status(),e=>e.code==='host_policy_refused','a missing decision refuses');
+  const ok=await r.client({hostAdmission:async()=>({admit:true,status:'current'})}).status();
+  assert.deepEqual(ok.json,{id,status:'running'});
+});

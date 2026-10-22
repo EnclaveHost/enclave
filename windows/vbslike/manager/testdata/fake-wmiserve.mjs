@@ -38,6 +38,8 @@ if (mode === "hang") { setInterval(() => {}, 1 << 30); }
 else {
   out({ step: "ready", note: "T0-hv: launcher-signed, host_excluded=no" });
   if (mode === "ignore-stdin") { process.stdin.resume(); setInterval(() => {}, 1 << 30); }
+  // close-stdin: the child closes its end of stdin and keeps serving, so a later write by the manager meets a closed pipe
+  else if (mode === "close-stdin") { process.stdin.destroy(); setInterval(() => {}, 1 << 30); }
   else {
     let done = false, pending = "";
     // FAKE_WMISERVE_CLOSED (a file): which path closed it, "line" | "eof" | "time", so a test can tell them apart

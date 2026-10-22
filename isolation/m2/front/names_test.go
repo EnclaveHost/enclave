@@ -73,6 +73,10 @@ type namesWorld struct {
 	spki    []byte // the guest key the responder accepts pushes for
 	// onFinalize runs while the CA signs (under the world lock): a revocation landing mid-order
 	onFinalize func()
+	// app-zone tests (appzone_test.go): more hosts behind the egress, and the CA's DNS view of their names
+	extraHosts map[string]http.HandlerFunc
+	validate   func(name, value string) bool
+	chalHits   int
 }
 
 type fakeOrder struct {
@@ -87,7 +91,7 @@ func newNamesWorld(t *testing.T) *namesWorld {
 	w.pool.AddCert(w.root.cert)
 	k, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	tpl := &x509.Certificate{SerialNumber: big.NewInt(7), Subject: pkix.Name{CommonName: "services"},
-		DNSNames: []string{caHost, dnsAHost, dnsBHost}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour),
+		DNSNames: []string{caHost, dnsAHost, dnsBHost, "replica-a.example", "replica-b.example", "replica-c.example", "rep-0.example", "rep-1.example", "rep-2.example"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour),
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
 	der, err := x509.CreateCertificate(rand.Reader, tpl, w.root.cert, &k.PublicKey, w.root.key)
 	if err != nil {
@@ -119,7 +123,7 @@ func (w *namesWorld) egress() (net.Conn, error) {
 		w.mu.Lock()
 		w.origins = append(w.origins, f[1])
 		w.mu.Unlock()
-		if f[1] != caHost && f[1] != dnsAHost && f[1] != dnsBHost {
+		if f[1] != caHost && f[1] != dnsAHost && f[1] != dnsBHost && w.extraHosts[f[1]] == nil {
 			io.WriteString(host, "refused\n")
 			return
 		}
@@ -148,6 +152,10 @@ func (w *namesWorld) serve(rw http.ResponseWriter, r *http.Request) {
 	case dnsAHost:
 		http.Error(rw, "this responder was never selected", http.StatusForbidden)
 	default:
+		if h := w.extraHosts[host]; h != nil {
+			h(rw, r)
+			return
+		}
 		http.Error(rw, "unknown host", http.StatusNotFound)
 	}
 }
@@ -201,6 +209,9 @@ func (w *namesWorld) responder(rw http.ResponseWriter, r *http.Request, zone str
 
 // lookupTXT is what a CA's resolver sees: follow the CNAME the name's DNS controller published, then read TXT there.
 func (w *namesWorld) validated(name, value string) bool {
+	if w.validate != nil {
+		return w.validate(name, value)
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	alias, ok := w.cname["_acme-challenge."+name]
@@ -314,6 +325,7 @@ func (w *namesWorld) ca(rw http.ResponseWriter, r *http.Request) {
 		id := strings.TrimPrefix(p, "/chal/")
 		o := w.orders[id]
 		h := sha256.Sum256([]byte(o.token + "." + w.acct.thumb))
+		w.chalHits++
 		w.mu.Unlock()
 		ok := w.validated(o.name, b64.EncodeToString(h[:]))
 		w.mu.Lock()

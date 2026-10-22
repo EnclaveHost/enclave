@@ -13,14 +13,15 @@ import "../../components/app-card/app-card.js";
 import "../../components/app-detail/app-detail.js";
 import "../../components/app-reviews/app-reviews.js";
 import { $, $$, esc, short, blen, fmtDur, showToast, on, tosAccepted, setTosAccepted } from "../core/util.js";
-import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, FEATURED_ADDRESS, REVIEWS_ADDRESS, USDC_BASE, IPFS_UPLOAD_URL, IPFS_IMAGE_UPLOAD_URL, IPFS_JSON_UPLOAD_URL, IPFS_GATEWAY, MAX_WASM_MB, MAX_WASM_BYTES, MAX_IMAGE_MB, MAX_IMAGE_BYTES, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
-import { Enclave, EnclaveError } from "../core/api.js";
+import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, FEATURED_ADDRESS, REVIEWS_ADDRESS, USDC_BASE, IPFS_UPLOAD_URL, IPFS_IMAGE_UPLOAD_URL, IPFS_JSON_UPLOAD_URL, IPFS_GATEWAY, MAX_WASM_MB, MAX_WASM_BYTES, MAX_IMAGE_MB, MAX_IMAGE_BYTES, BASE_CHAIN, ACCOUNTS_ENABLED, INDEPENDENT, STORAGE_PLAN } from "../core/config.js";
+import { Enclave, EnclaveError, INDEPENDENT_MODE } from "../core/api.js";
 import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, ROUTING_KEYS, APPROVAL, depPrices6, depMaxGpuMilli, depSchemaRev, rate6Of, waitReceipt, catSchemaRev, catMaxFeePerSec6, catVersionFee, featConfigured, featMaxBid, FEAT_SEL, revConfigured, REV_SEL } from "../core/chain.js";
 import { FEATURED, loadCampaigns, featuredList, beaconView } from "../core/featured.js";
 import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, personalSign } from "../core/wallet.js";
-import { STORE, loadCatalog, noteCatalogWrite, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, specOf, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia, signedUploadHeaders, putConfig, cpuFallbackOfConfig } from "../core/catalog.js";
+import { currentIdentity, actingOwner, ensureIdentity } from "../core/identity.js";
+import { STORE, loadCatalog, noteCatalogWrite, selIdx, defaultIdx, appVerified, appPrivileged, visibleVerIdxs, validPortsCsv, specOf, fetchConfigCid, catalogRef, mediaOf, appMedia, mediaUrl, stripMedia, withMedia, signedUploadHeaders, putConfig, cpuFallbackOfConfig, independentUpload } from "../core/catalog.js";
 import { minPctsOf, startSharesFor, shareRates, pickEnclaveFor, rankEnclavesFor, liftSharesForLedger } from "../core/pricing.js";
 import { appResources } from "../core/app-resources.js";
 import { protectionOf, PROTECTION_DOC } from "../core/protection.js";
@@ -472,7 +473,10 @@ function quickDeploy(app, v, idx){
   // passkey/card account with no wallet: the deploy spends prepaid credit
   // (deployOnChain branches to the passkey-signed vault op itself) - the
   // modal speaks in dollars and shows the credit balance instead
-  const acct = !Enclave.address && ACCOUNTS_ENABLED && Enclave.accountAuthed();
+  const acct = !INDEPENDENT_MODE && !Enclave.address && ACCOUNTS_ENABLED && Enclave.accountAuthed();
+  // independent mode with a passkey account as the dashboard identity (core/identity.js): the account owns and pays;
+  // the connected wallet only sends transactions and pays gas
+  const pk = INDEPENDENT_MODE && currentIdentity().kind === "account";
   // The least this modal deploys with. A WALLET deploy may be created EMPTY:
   // create() is a plain tx the ledger takes without a balance (the row reads
   // awaiting_payment - inert, nothing burns - until Top up funds it), and the
@@ -488,12 +492,13 @@ function quickDeploy(app, v, idx){
       '<div class="qd-h">Deploy <b>' + esc(app.name || app.slug) + '</b> <span class="qd-ver">' + esc(v.version) + '</span></div>' +
       '<p class="qd-sub">Runs in a VM of its own on <b class="qd-shares"></b> at <b class="qd-rate">$' + perHr + '/hr</b>. ' +
         (acct ? 'It runs on your credit - it runs until the time you bought is used up, and you can top up or stop it whenever you like.'
+              : pk ? 'Your passkey account owns and funds it (its session budget, or the account’s own USDC); the gas payer you chose for it only sends the transactions. It runs until the time you bought is used up.'
               : 'Fund it from your wallet - it runs until the time you bought is used up, and you can top up or stop it whenever you like.') + '</p>' +
       (catalogAdmissionNotice(app, v) ? '<p class="qd-sub qd-catalog">' + esc(catalogAdmissionNotice(app, v)) + '</p>' : '') +
       '<p class="qd-sub qd-target" hidden></p>' +
       '<p class="qd-sub qd-prot" hidden></p>' +
       '<p class="qd-sub qd-fee" hidden></p>' +
-      '<div class="qd-bal"><span>' + (acct ? 'Your credit' : 'Your wallet') + '</span><b class="qd-balv">…</b><button class="qd-connect btn btn-sm" type="button" hidden>Connect wallet</button></div>' +
+      '<div class="qd-bal"><span>' + (acct ? 'Your credit' : pk ? 'Your account' : 'Your wallet') + '</span><b class="qd-balv">…</b><button class="qd-connect btn btn-sm" type="button" hidden>Connect wallet</button></div>' +
       '<label class="qd-lbl" for="qdAmt">Amount to fund (' + (acct ? 'USD' : 'USDC · 0 = create now, fund later') + ')</label>' +
       '<input class="qd-amt" id="qdAmt" type="number" value="5" min="' + minUsd + '" step="any" inputmode="decimal" />' +
       '<div class="qd-est">buys ≈ <b class="qd-estv"></b> of runtime</div>' +
@@ -504,6 +509,9 @@ function quickDeploy(app, v, idx){
       '<label class="qd-tos"><input type="checkbox" class="qd-tosck"' + (tosAccepted() ? " checked" : "") + ' /> <span>I have read and agree to the <a href="terms" target="_blank" rel="noopener">Terms of Service</a> - ' +
         (acct ? 'deploys spend prepaid, non-transferable account credit, and uptime isn’t guaranteed.'
               : 'payments are crypto-only, non-custodial and final, and uptime isn’t guaranteed.') + '</span></label>' +
+      // independent mode: optionally create the record with startup disabled until the owner publishes and commits
+      // its own startup settings (the CLI's deploy --chain-only --prepare-only, then bootstrap prepare/publish/activate)
+      (INDEPENDENT_MODE ? '<label class="qd-tos qd-startup"><input type="checkbox" class="qd-startupck" /> <span>I will publish this app’s startup settings myself. It is created unfunded and cannot start until you commit them from its <b>Startup</b> tab; only hosts that run apps in their own SEV-SNP guest can serve it. Fund it after that.</span></label>' : '') +
       '<div class="qd-actions">' +
         '<button class="btn btn-primary qd-go" type="button">▸ Deploy</button>' +
         '<button class="btn qd-cancel" type="button">Cancel</button>' +
@@ -528,7 +536,10 @@ function quickDeploy(app, v, idx){
   // The amount the modal would deploy with. `zero` is a TYPED 0 on a wallet
   // deploy (create now, fund later - see minUsd); a blank box is not that
   // decision, so it deploys nothing.
+  const startupCk = host.querySelector(".qd-startupck");
+  if (startupCk) startupCk.addEventListener("change", () => { amt.disabled = startupCk.checked; est(); });
   const amountOf = () => {
+    if (startupCk && startupCk.checked) return { usd: 0, zero: true, ok: true };
     const raw = parseFloat(amt.value), usd = raw > 0 ? raw : 0;
     const zero = !acct && Number.isFinite(raw) && !(raw > 0);
     return { usd, zero, ok: usd > 0 ? usd >= minUsd : zero };
@@ -543,7 +554,8 @@ function quickDeploy(app, v, idx){
     else if (shortOnFunds) note.innerHTML = acct
       ? 'That’s more than your credit balance ($' + bal.toFixed(2) + '). <a href="checkout">Add credit</a> first.'
       : "That’s more than your wallet holds ($" + bal.toFixed(2) + " USDC).";
-    else if (zero) note.textContent = "Deploys with no balance: one wallet tx (gas only) creates the record, which sits inert - costing nothing - until you fund it from its row on the dashboard. An enclave that pays out to your wallet runs it for free right away.";
+    else if (zero) note.textContent = pk ? "Deploys with no balance: your account creates the record (your wallet pays gas only), and it sits inert - costing nothing - until you fund it from its row on the dashboard."
+      : "Deploys with no balance: one wallet tx (gas only) creates the record, which sits inert - costing nothing - until you fund it from its row on the dashboard. An enclave that pays out to your wallet runs it for free right away.";
     go.disabled = !ok || shortOnFunds || !tos.checked || !!capMsg;
     go.title = capMsg ? "" : tos.checked ? "" : "Agree to the Terms of Service above to deploy";
   };
@@ -578,7 +590,9 @@ function quickDeploy(app, v, idx){
   });
   amt.addEventListener("input", est);
   tos.addEventListener("change", () => { setTosAccepted(tos.checked); est(); });
+  let indRefresh = null;          // independent mode: re-quote the registry hosts for the current shares
   const paintRate = () => {
+    if (indRefresh) indRefresh();
     rate = baseRate + fee;
     const rEl = host.querySelector(".qd-rate"); if (rEl) rEl.textContent = "$" + (rate * 3600).toFixed(2) + "/hr";
     // Before launch, show the app's requirements for the selected placement.
@@ -595,7 +609,9 @@ function quickDeploy(app, v, idx){
                    : shareRates(buy.gpuPct, buy.cpuPct, target && !target.none ? target.spec : undefined).rate;
     paintRate();
   };
-  depPrices6().then(pr => { pr6 = pr; recalc(); }).catch(() => {});
+  // independent mode: adopt the pinned registry's cheapest live host price first (no API /availability)
+  (INDEPENDENT_MODE ? Enclave.getAvailability().catch(() => null) : Promise.resolve())
+    .then(() => depPrices6()).then(pr => { pr6 = pr; recalc(); }).catch(() => {});
   // the version's publisher fee (rev-5 catalogs; 0 = free) - shown up front
   // and folded into the burn rate, since create() snapshots it into the record
   catVersionFee(app.appId, idx).then(f => {
@@ -615,6 +631,10 @@ function quickDeploy(app, v, idx){
   // app pins Deploy off with the reason instead.
   let qdRows = null, qdPick = "";
   const fleetRowsNow = async () => {
+    // independent mode has no hosted fleet table: hosts and their prices come from the pinned registry, their liveness from
+    // verified operator-signed records or registry writes (indQuotes
+    // below), and the page never contacts the hosted API
+    if (INDEPENDENT_MODE) return [];
     const r = await fetch(Enclave.base.replace(/\/v1\/?$/, "") + "/enclaves", { headers: { "Accept": "application/json" } });
     if (!r.ok) throw new Error("no fleet view");
     return (await r.json()).enclaves || [];
@@ -679,8 +699,86 @@ function quickDeploy(app, v, idx){
     }
     capCheck(); recalc();
   };
+  // independent mode: choose among hosts in the pinned registry. Their posted prices are chain facts and their liveness is
+  // verified evidence (js/core/host-liveness.js);
+  // free capacity is not (only the hosted service's fleet view knows it), so a pinned host that is full leaves the
+  // deployment queued. The pin rides the record and is honored by hosts that follow placement pins.
+  // independent mode: each registered host's OWN total for the shares being bought (never one host's CPU price mixed
+  // with another's GPU price), an optional host choice and an explicit price ceiling the owner sets. The suggestion is
+  // the cheapest charging host's total; nothing raises the ceiling automatically. Posted prices are chain facts, free
+  // capacity is not: if no host claims, the deployment's Host & price tab changes the host or ceiling - no API needed.
+  let indQuotes = null, indCapTouched = false;
+  if (INDEPENDENT_MODE){
+    const tEl = host.querySelector(".qd-target");
+    const usdHr = (p6) => "$" + (Number(p6) * 3600 / 1e6).toFixed(2) + "/hr";
+    const ago = (t) => Math.max(0, Math.round((Date.now() / 1000 - t) / 60)) + " min ago";
+    // which authenticated evidence makes the host live, and when it was issued (a signed record is the operator's report)
+    const liveLabel = (h) => (h.liveness && h.liveness.evidence === "signed-record" ? "signed record " : "registry write ") + ago(h.lastSeen);
+    let raw = null, evNote = "", polNote = "", polDown = false;
+    indRefresh = () => {
+      if (!raw || !tEl) return;
+      const prevHost = (tEl.querySelector(".qd-indhost") || {}).value || "";
+      const prevCap = (tEl.querySelector(".qd-cap") || {}).value;
+      indQuotes = raw.quote({ gpuMilli: buy.gpuPct * 10, cpuMilli: buy.cpuPct * 10 });
+      const elig = indQuotes.hosts.filter((h) => h.eligible);
+      tEl.hidden = false;
+      tEl.innerHTML = "⤷ host: <select class=\"qd-indhost\"><option value=\"\">Any host at or under your ceiling</option>"
+        + elig.map((h) => "<option value=\"" + esc(h.hostId) + "\">" + esc(h.endpoint) + " · " + (h.free ? "free for you" : usdHr(h.rate6) + " for this size")
+          + " · live: " + liveLabel(h) + "</option>").join("") + "</select>"
+        + (elig.length ? "" : "<br><span class=\"qd-indnone warn\">" + (polDown ? "No host can be selected: the platform host policy is unavailable."
+            : evNote ? "No host could be confirmed live for this size." : "No registered host is admitted and live for this size.") + "</span>")
+        + (polNote ? "<br><span class=\"qd-indpol" + (polDown ? " warn" : " dim") + "\">" + esc(polNote) + "</span>" : "")
+        + (evNote ? "<br><span class=\"qd-indev warn\">" + esc(evNote) + "</span>" : "")
+        + "<br><label>Price ceiling, $/hr (the most this deployment will pay) <input class=\"qd-cap\" type=\"number\" min=\"0.0001\" step=\"any\" inputmode=\"decimal\"></label>"
+        + "<br><span class=\"qd-capnote dim\"></span>"
+        + "<br><span class=\"dim\">Prices come from the host registry; a posted price is not reserved capacity - a host may be full or decline. "
+        + "If no host takes it, change the host or ceiling on the deployment's Host &amp; price tab.</span>";
+      const sel = tEl.querySelector(".qd-indhost"), cap = tEl.querySelector(".qd-cap"), note = tEl.querySelector(".qd-capnote");
+      if (elig.some((h) => h.hostId === prevHost)) sel.value = prevHost;
+      const suggest = () => { const h = elig.find((x) => x.hostId === sel.value);
+        const s6 = h && !h.free ? h.rate6 : indQuotes.defaultCap6; return s6 ? (Number(s6) * 3600 / 1e6).toFixed(4) : ""; };
+      cap.value = indCapTouched && prevCap ? prevCap : suggest();
+      const check = () => {
+        const cap6 = BigInt(Math.ceil((parseFloat(cap.value) || 0) * 1e6 / 3600));
+        const h = elig.find((x) => x.hostId === sel.value);
+        const under = elig.filter((x) => x.free || x.rate6 <= cap6).length;
+        note.textContent = !(cap6 > 0n) ? "Set a ceiling above zero."
+          : h && !h.free && h.rate6 > cap6 ? "This host charges more than your ceiling and could never take it - raise the ceiling or pick another host."
+          : under + " of " + elig.length + " live host(s) post a price at or under this ceiling.";
+      };
+      sel.addEventListener("change", () => { if (!indCapTouched) cap.value = suggest(); check(); });
+      cap.addEventListener("input", () => { indCapTouched = true; check(); });
+      check();
+    };
+    import("../core/independent-chain.js").then(async (IC) => {
+      const reg = await IC.registryHosts();
+      // the administrator's platform host policy at this read's block; liveness evidence only for the hosts it admits
+      const policy = await IC.hostPolicy(reg), pol = IC.policySummary(policy);
+      polNote = pol.note || ""; polDown = !!pol.unavailable;
+      const ids = policy.mode === "off" ? null : reg.hosts.filter((h) => h.active && IC.policyOf(h, policy).admit).map((h) => IC.hostIdOf(h));
+      const [rev, evidence] = await Promise.all([depSchemaRev(), IC.hostEvidence(reg, ids ? { ids } : {})]);
+      evNote = (IC.evidenceSummary(evidence) || {}).note || "";
+      raw = { quote: (q) => IC.quoteHosts(reg.hosts, { chainNow: reg.snap.timestamp, rev, owner: actingOwner(Enclave.address) || Enclave.address, evidence, policy, ...q }) };
+      indRefresh();
+    }).catch((e) => { if (tEl){ tEl.hidden = false; tEl.textContent = "Couldn’t read registered hosts: " + (e.message || e); } });
+  }
   fleetRowsNow().then(rows => { qdRows = rows; applyTarget(computeTarget()); }).catch(() => {});
   const loadBal = async () => {
+    if (pk){
+      // what this deploy spends: the account session's budget (a fee-free app, USDC) or else the account's own USDC
+      conn.hidden = !!(Enclave.address && Enclave.provider);
+      const idn = await ensureIdentity();
+      if (idn.state !== "verified"){ balv.textContent = "account not verified"; capTarget = "Your passkey account is " + idn.state + (idn.reason ? " (" + idn.reason + ")" : "") + ": nothing can be deployed in its name."; est(); return; }
+      try {
+        const S = await import("../core/sessions.js");
+        const st = await S.sessionStatus().catch(() => null);
+        const own = await usdcBalanceOf(idn.safe);
+        const budget = st && st.live && !(fee > 0) ? Number(st.balance6) / 1e6 : null;
+        bal = budget != null && !(startupCk && startupCk.checked) ? budget : own;
+        balv.textContent = (budget != null ? "$" + budget.toFixed(2) + " session budget · " : "") + own.toFixed(2) + " USDC in the account";
+      } catch(e){ balv.textContent = "unreadable"; }
+      est(); return;
+    }
     if (acct){
       // credit balance instead of a wallet: the vault op draws from it
       conn.hidden = true;
@@ -743,7 +841,13 @@ function quickDeploy(app, v, idx){
     // the appRef IS the version record: the enclave applies its config,
     // volumes and ports from the chain - nothing rides the deployment
     m.deployOnChain({ reference: catalogRef(app.appId, idx), gpuMilli: m2.gpuPct * 10, cpuMilli: m2.cpuPct * 10,
-      ports: v.ports || "", isPublic: true, fundUsd: usd, asset: "USDC",
+      ports: v.ports || "", isPublic: true, fundUsd: usd, asset: "USDC", prepareOnly: !!(startupCk && startupCk.checked),
+      ...(INDEPENDENT_MODE ? (() => {
+        const hid = (host.querySelector(".qd-indhost") || {}).value || "", capUsd = parseFloat((host.querySelector(".qd-cap") || {}).value);
+        const pick = indQuotes && indQuotes.hosts.find((h) => h.hostId === hid);
+        return { pinHost: pick ? { hostId: pick.hostId, endpoint: pick.endpoint } : null,
+                 ...(capUsd > 0 ? { maxRate6: String(BigInt(Math.ceil(capUsd * 1e6 / 3600))) } : {}) };
+      })() : {}),
       targetName: t2 && !t2.none ? t2.name : "" });
   });
   paintRate(); loadBal();   // paintRate fills the shares line and calls est()
@@ -903,7 +1007,19 @@ function hasBytes(bytes, ascii){
 // it). Tracked module-wide: a new file pick aborts the old upload, and the
 // publish path refuses to run while one is active.
 let pubXhr = null, pubSeq = 0, pubWasi = null, pubThreads = false, pubSet = false, pubMem64 = false;
+// Independent mode: the profile's storage plan instead of Enclave's upload gateway (no upload token, no fallback).
+const INDEPENDENT_UPLOADS = INDEPENDENT.state !== "off";
+let pubCopies = null;       // the last independent upload's verified-copy report (shown next to the CID)
 async function putWasm(file, onProgress){
+  if (INDEPENDENT_UPLOADS){
+    if (file.size > MAX_WASM_BYTES) throw new EnclaveError("Too large: max " + MAX_WASM_MB + " MB.", 0);
+    let buf;
+    try { buf = new Uint8Array(await file.arrayBuffer()); }
+    catch(_){ throw new EnclaveError("Couldn’t read this file to sign it" + (file.size > 500*1048576 ? " (very large files: publish with the CLI instead)." : "."), 0); }
+    const { cid, report } = await independentUpload(buf, "wasm", onProgress);
+    pubCopies = report;
+    return cid;
+  }
   if (!IPFS_UPLOAD_URL) throw new EnclaveError("Direct upload isn’t configured here; paste a CID you’ve pinned (e.g. `ipfs add app.wasm`).", 0);
   if (file.size > MAX_WASM_BYTES) throw new EnclaveError("Too large: max " + MAX_WASM_MB + " MB.", 0);
   // The pin is WALLET-AUTHORIZED (closes the open-pin storage DoS): read the
@@ -946,6 +1062,15 @@ async function putWasm(file, onProgress){
    GATEWAY's verdict, not the file extension - it rides _media so renderers
    can request the svg content-type (see mediaUrl). */
 async function putImage(file){
+  if (INDEPENDENT_UPLOADS){
+    if (!/\.(png|jpe?g|webp|gif|svg)$/i.test(file.name || "") && !/^image\/(png|jpeg|webp|gif|svg\+xml)$/i.test(file.type || ""))
+      throw new EnclaveError("Pick a PNG, JPEG, WebP, GIF, or SVG image.", 0);
+    if (file.size > MAX_IMAGE_BYTES) throw new EnclaveError("Image too large: max " + MAX_IMAGE_MB + " MB.", 0);
+    const buf = new Uint8Array(await file.arrayBuffer());
+    // every adapter re-validates the image (raster magic or its strict SVG check) before it pins
+    const { cid } = await independentUpload(buf, "image");
+    return { cid, svg: /\.svg$/i.test(file.name || "") || /svg/i.test(file.type || "") };
+  }
   if (!IPFS_IMAGE_UPLOAD_URL) throw new EnclaveError("Image upload isn’t configured here.", 0);
   if (!/\.(png|jpe?g|webp|gif|svg)$/i.test(file.name || "") && !/^image\/(png|jpeg|webp|gif|svg\+xml)$/i.test(file.type || ""))
     throw new EnclaveError("Pick a PNG, JPEG, WebP, GIF, or SVG image.", 0);
@@ -1058,6 +1183,14 @@ async function onPubFile(e){
       hint.textContent = f.name + " · " + mb + " MB · " + (done >= total ? "pinning…" : pct + "%");
     });
     if (seq !== pubSeq) return;
+    if (INDEPENDENT_UPLOADS){
+      // the CID was computed HERE before upload, and every counted adapter served back the exact bytes
+      $("#pubCid").value = cid;
+      hint.textContent = f.name + " · " + mb + " MB · " + pubCopies.verifiedCopies + " verified copies";
+      pubStatus("verified · CID " + cid + " · " + pubCopies.verifiedCopies + " of " + STORAGE_PLAN.replicas.length
+        + " storage adapters returned your exact bytes" + (pubCopies.failures.length ? " (" + pubCopies.failures.length + " did not)" : ""));
+      return;
+    }
     pubStatus("pinned · verifying the CID resolves to your exact bytes…");
     const v = await verifyCid(cid, await f.arrayBuffer());
     if (seq !== pubSeq) return;
@@ -1788,12 +1921,12 @@ function initStore(){
   // the coreless sizing repaints its own note; the switch above owns whether it shows at all
   ["#pubNoGpuMem", "#pubNoGpuCpuG"].forEach((sel) => { const el = $(sel); if (el) el.addEventListener("input", syncPubNoGpu); });
   const row = $("#pubFileRow");
-  if (row && !IPFS_UPLOAD_URL){ row.classList.add("disabled"); $("#pubFileHint").textContent = "upload disabled here; paste a CID below"; }
+  if (row && !IPFS_UPLOAD_URL && !(INDEPENDENT_UPLOADS && STORAGE_PLAN)){ row.classList.add("disabled"); $("#pubFileHint").textContent = "upload disabled here; paste a CID below"; }
   const tf = $("#pubThumbFile"); if (tf) tf.addEventListener("change", (e) => onPubImage(e, "thumb"));
   const bf = $("#pubBannerFile"); if (bf) bf.addEventListener("change", (e) => onPubImage(e, "banner"));
   const tc = $("#pubThumbClear"); if (tc) tc.addEventListener("click", () => clearPubImage("thumb"));
   const bc = $("#pubBannerClear"); if (bc) bc.addEventListener("click", () => clearPubImage("banner"));
-  const pm = $(".pub-media"); if (pm && !IPFS_IMAGE_UPLOAD_URL) pm.hidden = true;   // no image gateway here
+  const pm = $(".pub-media"); if (pm && !IPFS_IMAGE_UPLOAD_URL && !(INDEPENDENT_UPLOADS && STORAGE_PLAN)) pm.hidden = true;   // no image gateway here
 
   // wallet-tx / navigation actions the cards + detail page bubble up (data
   // down, events up) - the grid tile opens the page, the page carries the rest
@@ -1852,6 +1985,14 @@ on("enclave:reviews", (d) => { if (d.type !== "error" && STORE.loaded) renderAct
 
 /* called by the router every time this page's <main> is swapped in */
 export function boot() {
+  // independent mode: a one-line summary (or the confirm/invalid notice) above the store
+  if (INDEPENDENT_MODE){
+    const main = document.querySelector('section[data-view="apps"]') || document.querySelector("main");
+    if (main && !main.querySelector(".ind-mount")){
+      const el = document.createElement("div"); el.className = "ind-mount"; main.prepend(el);
+      import("../core/independent-ui.js").then((m) => m.mountIndependentPanel(el, { compact: true })).catch(() => {});
+    }
+  }
   initStore();
   applyView();          // direct entries and soft-navs to apps.html#publish land on the publish view
   renderActiveView();   // grid, or a single app's page when apps?app=<appId>

@@ -139,6 +139,60 @@ once, at `/x/:id`, not twice. A certificate proves control of a *name*, never a
 right to the content behind it — and the name is 8 hex of an id that is already
 public on-chain, which `HEAD /x/<id>` has always confirmed to anyone.
 
+### The owner's own sign-in page (no mandatory enclave.host)
+
+The bounce above goes to `SIWE_URI/authorize`. That is a per-HOST setting
+(enclave.host by default), so an owner could not choose where they sign in. The
+deployment-options envelope now carries the owner's choice:
+
+```json
+{"access": {"frontends": ["https://dash.example.org", "http://127.0.0.1:5173"]}}
+```
+
+- **What a frontend may be.** 1-4 exact origins: `https://<lowercase DNS name>[:port]`,
+  or a frontend on the owner's own machine at `http://127.0.0.1|[::1]|localhost:<port>`.
+  No path, query, fragment or userinfo.
+- **Who can set it, and how runners treat it.**
+  - Only the owner writes it, with `setConfig` on the ledger. A host can neither
+    choose nor rewrite it.
+  - The supervisor parses it fail-closed at claim and resume, and applies an owner
+    edit live, without a restart.
+  - A runner older than this refuses the unknown namespace at claim, so it never
+    serves such an app with an enclave.host bounce.
+- **The bounce.** With `access.frontends` set, the bounce names only those origins.
+  The first is followed; each one is an explicit link. If the first does not
+  complete, coming back asks for a choice among them. There is never a silent
+  fallback to enclave.host.
+- **The hand-off.** The frontend does not need a token minted elsewhere.
+  `/__enclave/session?d=<full id>` also accepts one `EnclaveSession v1`
+  authorization: a POST with an empty body, signed by the owner's session for
+  exactly `<host base>/x/<full id>/__enclave/session?d=<full id>`.
+  - It is judged by the same `sessionApi.verify` and `sessionApi.refusal` as every
+    session route: live session, key hash, `api.appAccess` scope, a nonce used once
+    on this host, a ±60 s window, and the vault's environment or the owner's ledger
+    delegation (Safe-held deployments included).
+  - The host checks it against its own bases, never the request's `Host`.
+  - Success sets the same audience-bound cookie as the token path.
+  - The frontend delivers it in the URL fragment: no server log, no Referer. The
+    page scrubs history before leaving.
+- **What the frontend does** (`site/js/core/app-access.js`, the independent
+  dashboard's `/authorize`):
+  1. reads the lease at an agreed block;
+  2. requires the platform host policy to admit the runner;
+  3. takes the app origin from the runner's registry endpoint (its own
+    `PUBLIC_URL`, never an Enclave dashboard or API name);
+  4. signs the hand-off.
+
+  A host that registered an endpoint it does not serve gains nothing: the
+  signature names that endpoint's host, which the genuine supervisor does not
+  accept.
+- **Passkeys and wallets.** Passkeys stay enclave.host relying-party credentials,
+  and choosing another frontend does not migrate them. On another origin the owner
+  signs with a session. A plain wallet signature is never accepted on this path.
+- **Platform administration** is unchanged. A host-policy ban refuses `/x/:id`,
+  including the hand-off, before any owner check, and the frontend refuses a host
+  the policy refuses.
+
 ## No legacy path
 
 There was never a live session to migrate, so this shipped as a hard cut: the old

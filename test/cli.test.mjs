@@ -1357,6 +1357,117 @@ test('bootstrap prepare preserves exact config bytes and refuses overwrite witho
   const again=await run(args);assert.notEqual(again.code,0);assert.match(again.err,/EEXIST/);
  }finally{S.depRev=prev;fs.rmSync(out,{force:true});}
 });
+test('bootstrap prepare commits owner names and an explicit ACME selection, printing the owner-bound CNAMEs',async()=>{
+ const prev=S.depRev;S.depRev=16n;S.txs.length=0;S.apiCalls.length=0;
+ const cfg=path.join(confDir,'bootstrap-names-config.json'),out=path.join(confDir,'owner-names-startup.json');fs.writeFileSync(cfg,'{}');
+ const base=['bootstrap','prepare',ID,'--contract-pins',writeAuthorityPins(),'--config-file',cfg,'--app-id','44'.repeat(32),'--runtime-id','55'.repeat(32),'--public','--out',out,'--json'];
+ const acme=['--acme-directory','https://acme-v02.api.letsencrypt.org/directory','--acme-challenge','https://challenge.example.net','--acme-zone','acme.example.net'];
+ try{
+  const r=await run([...base,'--names','www.example.com,shop.example.com',...acme]);assert.equal(r.code,0,r.err);
+  const m=JSON.parse(fs.readFileSync(out));assert.deepEqual(m.names,{hosts:['shop.example.com','www.example.com'],acme:{directory:acme[1],challenge:acme[3],zone:acme[5]}});
+  const o=JSON.parse(r.out);assert.equal(o.dns.length,2);assert.match(o.dns[0],/^_acme-challenge\.shop\.example\.com\. CNAME _acme-challenge\.[0-9a-f]{32}\.acme\.example\.net\.$/);
+  assert.equal(S.apiCalls.length,0);assert.equal(S.txs.length,0);fs.rmSync(out);
+  for(const [extra,why] of [[['--names','x.app.enclave.host'],/outside enclave\.host/],[['--names','shop.example.com','--acme-directory',acme[1]],/explicit/],
+    [acme,/need --names/],[['--names','shop.example.com',...acme,'--acme-eab-kid-secret','ACME_EAB_KID','--acme-eab-hmac-secret','ACME_EAB_HMAC'],/custody-v2/],
+    [['--names','shop.example.com',...acme,'--acme-eab-kid-secret','ACME_EAB_KID'],/both/]]){
+   const bad=await run([...base,...extra]);assert.notEqual(bad.code,0);assert.match(bad.err,why);assert.equal(fs.existsSync(out),false);
+  }
+ }finally{S.depRev=prev;fs.rmSync(out,{force:true});}
+});
+
+test('bootstrap prepare commits owner history sources exactly, warns honestly, and never publishes a credential silently',async()=>{
+ const prev=S.depRev;S.depRev=16n;S.txs.length=0;S.apiCalls.length=0;
+ const cfg=path.join(confDir,'bootstrap-history-config.json'),out=path.join(confDir,'owner-history-startup.json');fs.writeFileSync(cfg,'{}');
+ const base=['bootstrap','prepare',ID,'--contract-pins',writeAuthorityPins(),'--config-file',cfg,'--app-id','44'.repeat(32),'--runtime-id','55'.repeat(32),'--public','--out',out,'--json'];
+ const {verifyPackage,historyFromList}=await import('../sdk/bootstrap/package.mjs');
+ try{
+  const r=await run([...base,'--history-rpcs','https://gateway.tenderly.co/public/base,https://base-rpc.polkachu.com']);assert.equal(r.code,0,r.err);
+  const bytes=fs.readFileSync(out),m=JSON.parse(bytes);
+  assert.deepEqual(m.history,{rpcs:['https://base-rpc.polkachu.com','https://gateway.tenderly.co/public/base']});
+  assert.equal(Object.keys(m).at(-1),'history');
+  const o=JSON.parse(r.out);assert.deepEqual(o.history,m.history.rpcs);assert.deepEqual(o.historyWarnings,[]);
+  verifyPackage(bytes,{version:1,sha256:o.sha256});
+  assert.equal(S.apiCalls.length,0);assert.equal(S.txs.length,0);fs.rmSync(out);
+  // one operator: committed, with the warning
+  const one=await run([...base,'--history-rpcs','https://gateway.tenderly.co/public/base']);assert.equal(one.code,0,one.err);
+  assert.match(JSON.parse(one.out).historyWarnings[0],/only 1 independent operator/);fs.rmSync(out);
+  // none: the package is exactly an older tool's (no member), and the output says what that means
+  const none=await run(base);assert.equal(none.code,0,none.err);
+  assert.equal(Object.hasOwn(JSON.parse(fs.readFileSync(out)),'history'),false);assert.match(JSON.parse(none.out).historyWarnings[0],/no history sources/);fs.rmSync(out);
+  // a key-like path only with the explicit confirmation
+  const keyed='https://base-mainnet.example-provider.com/v2/Ab3dE5gH7jK9mN1pQ3sT';
+  const refused=await run([...base,'--history-rpcs',keyed]);assert.notEqual(refused.code,0);assert.match(refused.err,/looks like a provider key/);assert.equal(fs.existsSync(out),false);
+  const confirmed=await run([...base,'--history-rpcs',keyed,'--history-path-is-public']);assert.equal(confirmed.code,0,confirmed.err);
+  assert.deepEqual(JSON.parse(fs.readFileSync(out)).history,historyFromList(keyed,{pathIsPublic:true}));fs.rmSync(out);
+  for(const [extra,why] of [[['--history-rpcs','https://user:pw@node.example.org'],/credentials/],[['--history-rpcs','https://node.example.org/rpc?key=1'],/query/],
+    [['--history-rpcs','http://node.example.org'],/https/],[['--history-rpcs','https://node.example.org:8545'],/no port/],[['--history-path-is-public'],/applies to --history-rpcs/],
+    [['--history-rpcs',['a','b','c','d','e','f','g'].map(x=>`https://${x}.example`).join(',')],/1 to 6/]]){
+   const bad=await run([...base,...extra]);assert.notEqual(bad.code,0);assert.match(bad.err,why);assert.equal(fs.existsSync(out),false);
+  }
+  assert.equal(S.txs.length,0);
+ }finally{S.depRev=prev;fs.rmSync(out,{force:true});}
+});
+
+test('history checkpoint export, import, refresh-crl, verify and mirror carry a checkpoint without trusting the carrier',async()=>{
+ // the shared synthetic vectors (isolation/m2/bootstrap/testdata/checkpoint-vectors.json): one local server stands in for the
+ // running guest's endpoint (the bare envelope it serves), AMD's KDS (chain, VCEK, CRL) and the owner's mirror (PUT/GET)
+ const cv=JSON.parse(fs.readFileSync(path.join(REPO,'isolation/m2/bootstrap/testdata/checkpoint-vectors.json'),'utf8'));
+ const bare=cv.cases.find(c=>c.bare).envelope,seen=[],stored={};
+ const srv=http.createServer(async(req,res)=>{
+  const u=new URL(req.url,'http://x');seen.push(`${req.method} ${u.pathname}${u.search}`);
+  const send=(b,type='application/octet-stream')=>{res.writeHead(200,{'content-type':type});res.end(b);};
+  if(req.method==='PUT'){const parts=[];for await(const c of req)parts.push(c);stored[u.pathname]=Buffer.concat(parts);res.writeHead(201);return res.end();}
+  if(u.pathname==='/.well-known/enclave-history-checkpoint')return send(bare,'application/json');
+  if(u.pathname==='/vcek/v1/Genoa/cert_chain')return send(cv.kds.chain,'text/plain');
+  if(u.pathname==='/vcek/v1/Genoa/crl')return send(Buffer.from(cv.kds.crl,'base64'));
+  if(u.pathname.startsWith('/vcek/v1/Genoa/'))return send(Buffer.from(cv.kds.vcek,'base64'));
+  if(stored[u.pathname])return send(stored[u.pathname],'application/json');
+  res.writeHead(404);res.end();
+ });
+ await new Promise(r=>srv.listen(0,'127.0.0.1',r));
+ const base=`http://127.0.0.1:${srv.address().port}`,common=['--kds',base,'--ledger',cv.ledger,'--json'];
+ const f1=path.join(confDir,'cp1.json'),f2=path.join(confDir,'cp2.json'),f3=path.join(confDir,'cp3.json');
+ try{
+  // export from the running guest: collateral completed from the KDS double; no expected measurement -> "unverified"
+  const ex=await run(['history','checkpoint','export',cv.deployment,'--front',base,'--out',f1,...common]);assert.equal(ex.code,0,ex.err);
+  const o=JSON.parse(ex.out);assert.equal(o.status,'unverified');assert.equal(o.claims.lo,120);assert.equal(o.claims.hi,5000);
+  assert.deepEqual(Object.keys(o.collateral).sort(),['chain','crl','vcek']);assert.match(o.reasons.at(-1),/NOT VERIFIED/);
+  const saved=JSON.parse(fs.readFileSync(f1));assert.ok(saved.certs.length>100&&saved.crl.length>100);
+  assert.ok(seen.includes('GET /.well-known/enclave-history-checkpoint'));
+  // with the expected measurement the evidence IS judged, and the real AMD pins refuse the synthetic root: nothing written
+  const pinned=await run(['history','checkpoint','export',cv.deployment,'--front',base,'--out',f2,'--expect',cv.measurement,...common]);
+  assert.notEqual(pinned.code,0);assert.match(pinned.err,/not AMD's pinned Genoa root/);assert.equal(fs.existsSync(f2),false);
+  // another deployment's checkpoint is refused before any collateral is fetched
+  const n=seen.length,wrong=await run(['history','checkpoint','export','0x'+'12'.repeat(32),'--front',base,'--out',f2,...common]);
+  assert.notEqual(wrong.code,0);assert.match(wrong.err,/another chain, ledger or deployment/);assert.deepEqual(seen.slice(n),['GET /.well-known/enclave-history-checkpoint']);
+  // import from a file (moving between mirrors), refresh its CRL, verify needs the measurement
+  const im=await run(['history','checkpoint','import',cv.deployment,f1,...common]);assert.equal(im.code,0,im.err);assert.equal(JSON.parse(im.out).status,'unverified');
+  const rc=await run(['history','checkpoint','refresh-crl',cv.deployment,f1,'--out',f3,...common]);assert.equal(rc.code,0,rc.err);
+  assert.deepEqual(Object.keys(JSON.parse(rc.out).collateral),['crl']);assert.ok(seen.filter(x=>x==='GET /vcek/v1/Genoa/crl').length>=2);
+  const blind=await run(['history','checkpoint','verify',cv.deployment,f1,...common]);assert.notEqual(blind.code,0);assert.match(blind.err,/needs --expect/);
+  const ver=await run(['history','checkpoint','verify',cv.deployment,f1,'--expect',cv.measurement,...common]);assert.notEqual(ver.code,0);assert.match(ver.err,/pinned/);
+  // mirror: one PUT (a presigned query is used, never printed), then the public read-back of the URL to commit
+  const mi=await run(['history','checkpoint','mirror',cv.deployment,f1,'--put',`${base}/m/cp.json?X-Sig=SECRET123`,...common]);assert.equal(mi.code,0,mi.err);
+  const mo=JSON.parse(mi.out);assert.equal(mo.readBack,true);assert.equal(mo.mirror,`${base}/m/cp.json`);assert.equal(mo.committable,false);assert.match(mo.note,/cannot be committed/);
+  assert.doesNotMatch(mi.out+mi.err,/SECRET123/);assert.ok(stored['/m/cp.json'].equals(fs.readFileSync(f1)));
+  // transport rules: https only (loopback http aside), no credentials in a URL
+  for(const [args,why] of [[['--front','http://example.org'],/https only/],[['--front','https://u:p@example.org'],/no credentials/]]){
+   const bad=await run(['history','checkpoint','export',cv.deployment,...args,'--out',f2,...common]);assert.notEqual(bad.code,0);assert.match(bad.err,why);
+  }
+  // the package side: the mirrors are committed with the sources, after them, and said for what they are
+  const prev=S.depRev;S.depRev=16n;
+  try{
+   const cfg=path.join(confDir,'cp-config.json'),out=path.join(confDir,'cp-startup.json');fs.writeFileSync(cfg,'{}');
+   const r=await run(['bootstrap','prepare',ID,'--contract-pins',writeAuthorityPins(),'--config-file',cfg,'--app-id','44'.repeat(32),'--runtime-id','55'.repeat(32),'--public','--out',out,'--json',
+    '--history-rpcs','https://base-rpc.polkachu.com','--history-checkpoints','https://owner.example.net/cp,https://mirror.example.org/d1.json']);assert.equal(r.code,0,r.err);
+   const m=JSON.parse(fs.readFileSync(out));assert.deepEqual(m.history,{rpcs:['https://base-rpc.polkachu.com'],checkpoints:['https://mirror.example.org/d1.json','https://owner.example.net/cp']});
+   const ro=JSON.parse(r.out);assert.deepEqual(ro.checkpointMirrors,m.history.checkpoints);assert.ok(ro.historyWarnings.some(w=>/SEV-SNP direct guests/.test(w)));
+   fs.rmSync(out);
+   const q=await run(['bootstrap','prepare',ID,'--contract-pins',writeAuthorityPins(),'--config-file',cfg,'--app-id','44'.repeat(32),'--runtime-id','55'.repeat(32),'--public','--out',out,'--json','--history-checkpoints','https://owner.example.net/cp?sig=1']);
+   assert.notEqual(q.code,0);assert.match(q.err,/query/);assert.equal(fs.existsSync(out),false);
+  }finally{S.depRev=prev;}
+ }finally{srv.close();for(const f of [f1,f2,f3])fs.rmSync(f,{force:true});}
+});
 
 test('owner startup packages prevent legacy config edits and preserve WAF-only changes',async()=>{
  const prev=S.depRev,old=S.envelope;S.depRev=16n;

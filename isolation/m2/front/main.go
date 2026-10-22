@@ -99,6 +99,8 @@ type front struct {
 	shieldFwd    *egress.Forwarder // direct Shield egress lives until the domain exits
 	secrets      *shieldSecrets    // legacy Shield release channel; independent builds never initialize relay pins
 	publicHTTPS  bool              // set only by successful attested provisioning
+	encInit      []byte            // init's encrypted-volume trailer (encvol.go); set only by successful provisioning
+	modelInit    []byte            // init's model-volume block (modelvol.go); set only by successful provisioning
 	spki, appSha []byte
 	rt           *runtimeState // ABI/2 when non-nil, ABI/1 when the image carries no runtime identity
 	// seccompStatement: where init (dominit, root) records the app runtime's seccomp filter once it is installed; read
@@ -110,9 +112,11 @@ type front struct {
 	boundary         string      // the self-test init produced; relayed verbatim, never composed here
 	tunnels          *portTunnels
 	app              http.Handler
-	certs            *certState  // a CA certificate for this domain's own key and deployment name (certs.go)
-	names            *ownerNames // direct startup: the owner-committed names (names.go); nil = none
-	ready            *readiness  // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
+	certs            *certState                    // a CA certificate for this domain's own key and deployment name (certs.go)
+	names            *ownerNames                   // direct startup: the owner-committed names (names.go); nil = none
+	appZone          *appZoneIssuer // direct startup: in-guest ACME for this deployment's app-zone name (appzone.go); nil = none
+	checkpoints      *bootstrap.CheckpointProducer // direct SEV-SNP startup: the attested history checkpoint; nil = none
+	ready            *readiness                    // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
 	tsmMu            sync.Mutex
 }
 
@@ -286,15 +290,24 @@ func main() {
 				etc:         "/etc", fwdPort: 443,
 				audit: func(want []netip.AddrPort) error { return auditListeners("/proc/net", want) },
 				logf:  func(format string, a ...any) { fmt.Printf(format+"\n", a...) },
+				enc:   guestEncvol(),
 			}
 			prov, err := p.runStartup(context.Background(), func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, packagePort) }, hd, spki, rt, appSha)
 			if err != nil {
 				return "", err
 			}
 			f.publicHTTPS = prov.fwd.Policy.PublicHTTPS
+			if prov.enc != nil {
+				f.encInit = prov.enc.block
+			}
+			f.modelInit = prov.models
 			if directBootstrap && prov.owner != nil {
 				if f.names, err = f.startOwnerNames(prov.owner, p.egress, p.roots); err != nil {
 					return "", err
+				}
+				f.appZone = f.startAppZone(prov.owner, p.egress, p.roots)
+				if prov.writerAuthority != nil { // this path is the M2 SEV-SNP guest (releaseForInit): its own PSP reports
+					f.checkpoints = startCheckpointProducer(context.Background(), prov.writerAuthority, f.report, p.logf)
 				}
 			}
 			warmupPath = configuredWarmup(prov.config)
@@ -319,7 +332,7 @@ func main() {
 			upstream:        func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, egressPort) },
 			audit:           func(want []netip.AddrPort) error { return auditListeners("/proc/net", want) },
 			logf:            func(format string, a ...any) { fmt.Printf(format+"\n", a...) },
-			publicWebMarker: shieldconfig.PublicWebMarker}
+			publicWebMarker: shieldconfig.PublicWebMarker, enc: shieldEncvol()}
 		if !directBootstrap {
 			f.secrets, err = newShieldSecrets(shieldPipe, "/secret.id", shieldEG)
 			must(err)
@@ -359,6 +372,9 @@ func main() {
 		if f.names != nil && f.names.issuer != nil {
 			go f.names.issuer.run(context.Background(), time.Minute)
 		}
+		if f.appZone != nil {
+			go f.appZone.run(context.Background(), time.Minute)
+		}
 		if warmupPath != "" {
 			fmt.Println("DOM warmup: started")
 			fmt.Printf("DOM warmup: %s\n", bootWarmup(context.Background(), *upstream, warmupPath, 15*time.Minute))
@@ -395,9 +411,17 @@ func (f *front) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case namesPath:
 		f.names.serve(w, r)
 		return
+	case appZonePath:
+		f.appZone.serve(w, r)
+		return
 	case readyPath:
 		f.ready.serve(w, r)
 		return
+	case bootstrap.CheckpointPath:
+		if f.checkpoints != nil { // otherwise the path stays the app's, as before
+			f.checkpoints.ServeHTTP(w, r)
+			return
+		}
 	}
 	f.app.ServeHTTP(w, r)
 }
@@ -668,7 +692,7 @@ func (f *front) releaseForInit(initPipe *os.File, hd []byte, hdErr error, provis
 		initPipe.Close()
 		return err
 	}
-	return handToInitMode(initPipe, config, f.publicHTTPS)
+	return handToInitBlocks(initPipe, config, f.publicHTTPS, f.encInit, f.modelInit)
 }
 
 func must(err error) {

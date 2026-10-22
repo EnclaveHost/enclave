@@ -26,24 +26,21 @@ package main
 //     until the package, bundle config, egress and fresh lease agree. No relay release is accepted.
 // The attestation every ACME push carries is the m3 monitor's: the launcher's signed document plus the guest's own
 // OpenHCL VBS report (vtpmclient) over Bind2(this key, the push hash, RuntimeID) || AppID. A responder accepts it only
-// under a Shield policy its operator pinned, with a host TPM session it challenged itself (relay/dns-challenge-shield.mjs).
+// under a Shield policy its operator pinned, with a host TPM session it challenged itself (relay/dns-challenge-shield.mjs);
+// an app-zone replica, additionally, only under the session of the lease's runner (network/app-zone-shield.mjs).
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net"
-	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	"enclave.host/isolation/m2/bootstrap"
-	"enclave.host/isolation/m2/egress"
 	"enclave.host/isolation/m2/vsock"
 )
 
@@ -133,6 +130,11 @@ func (f *front) shieldOwner(ctx context.Context, d shieldDeps) error {
 	if f.names, err = f.startOwnerNames(startup, d.egress, roots); err != nil {
 		return err
 	}
+	// app-zone issuance (appzone.go), as on the SNP direct front: this domain's own key and ACME account, its own
+	// <id8>.<zone> name only (the launcher's /cert.name, which must equal the authorized deployment), each dns-01 push
+	// carrying this domain's Shield document; a replica accepts it only under a TPM session of the lease's runner
+	// (network/app-zone-shield.mjs). A guest whose package selects no app zone keeps every existing path.
+	f.appZone = f.startAppZone(startup, d.egress, roots)
 	fmt.Printf("DOM shield direct: deployment 0x%x authorized by its owner-committed package (tier T0-hv, hostExcluded=false)\n", id[:4])
 	return nil
 }
@@ -182,28 +184,5 @@ func readShieldPackage(packages func() (net.Conn, error), launcherName string) (
 // shieldReader is runStartup's measured chain client (bootstrap.go), unchanged: only the measured RPC origins, reached
 // through the host's egress, with TLS verified against the measured roots.
 func shieldReader(roots *x509.CertPool, eg func() (net.Conn, error)) (*bootstrap.Reader, error) {
-	conf := bootstrap.MeasuredConfig(nil)
-	allowed := make(map[string]bool)
-	for _, raw := range conf.RPCs {
-		u, e := url.Parse(raw)
-		if e != nil {
-			return nil, e
-		}
-		allowed[net.JoinHostPort(u.Hostname(), "443")] = true
-	}
-	tr := &http.Transport{Proxy: nil, DisableCompression: true,
-		TLSClientConfig:     &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12},
-		TLSHandshakeTimeout: 10 * time.Second,
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			if !allowed[addr] || ctx.Err() != nil {
-				return nil, errors.New("unmeasured bootstrap RPC origin")
-			}
-			host, _, err := net.SplitHostPort(addr)
-			if err != nil {
-				return nil, err
-			}
-			return egress.DialOrigin(eg, egress.Origin{Host: host})
-		}}
-	conf.Client = &http.Client{Transport: tr}
-	return bootstrap.NewReader(conf)
+	return measuredReader(roots, eg)
 }

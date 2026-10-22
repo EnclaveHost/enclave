@@ -267,6 +267,9 @@ export function createShieldStartup({ reader, pins, gateways, fetchComponent, fe
                                  deployment: id,
                                  // the owner-selected CA responder this partition's in-guest ACME pushes to (shield-sessions.mjs)
                                  acme: direct && m.names?.acme ? { challenge: m.names.acme.challenge, zone: m.names.acme.zone } : null,
+                                 // the owner-selected app-zone challenge replicas its in-guest app-zone ACME pushes to (appzone.go;
+                                 // shield-sessions.mjs appZoneTargets): each verifies a push only under THIS host's TPM session
+                                 appZone: direct && m.names?.appZone ? { challenges: [...m.names.appZone.challenges] } : null,
                                  // the owner-committed pointer's PUBLIC part: its vault, and the machines whose TPM
                                  // sessions with this node let them judge the guest (shield-sessions.mjs custodianTargets)
                                  custody: m.custody ? { v: m.custody.v, chainId: m.custody.chainId, vault: String(m.custody.vault || "").toLowerCase(),

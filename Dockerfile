@@ -26,6 +26,14 @@ COPY windows/node/session-api-auth.mjs ./windows/node/
 COPY egress.js ./
 COPY addressbook.js ./
 COPY net-guard.mjs ./
+# the host's own signed capacity record (GET /v1/host/capacity): the producer and the record core, no packages
+COPY network/canonical.mjs network/host-capacity-record.mjs network/host-capacity-producer.mjs network/registry-reconcile.mjs ./network/
+# app-funded lease gas (claim/renew/release paid by the app's reserve): the runtime shared with the Windows node
+COPY network/lease-gas-runtime.mjs network/lease-gas-owner.mjs network/lease-executor-client.mjs network/lease-executor-authority.mjs network/lease-release-journal.mjs network/rpc-identity.mjs ./network/
+COPY client/lease-executor-client.mjs client/lease-executor-authority.mjs ./client/
+# designated lease relays from the pinned service index (network/lease-relay-discovery.mjs), the shared policy adapter, and the index client's own graph
+COPY network/lease-relay-discovery.mjs network/host-policy-adapters.mjs network/service-index.mjs network/directory-client.mjs network/network-authorities.mjs network/network-policy-core.mjs network/network-policy.mjs network/provider-directory.mjs network/provider-qualification.mjs network/route-record.mjs ./network/
+COPY relay/net-guard.mjs ./relay/
 # If you add the spawn implementation in its own files, COPY them here too.
 ENV PORT=8080
 EXPOSE 8080

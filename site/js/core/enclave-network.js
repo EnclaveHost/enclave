@@ -2,10 +2,10 @@
 // outbound traffic are working right now, what each choice exposes, and the owner-signed setting that changes it.
 // Every change is a v5 network policy signed by the app owner (wallet, or the passkey vault's ERC-1271 signature);
 // a BYO WireGuard config is checked here, sent only to the relay (which seals it) and never shown back in full.
-import {Enclave} from "./api.js";
+import {Enclave,INDEPENDENT_MODE} from "./api.js";
 import {personalSign,personalSignBytes,sendTx,ensureBaseChain} from "./wallet.js";
 import {baseRpc,encUint,encAddr,encBytes32,waitReceipt} from "./chain.js";
-import {ADDRESS_BOOK_ADDRESS,DEPLOYMENTS_ADDRESS,USDC_BASE} from "./config.js";
+import {ADDRESS_BOOK_ADDRESS,DEPLOYMENTS_ADDRESS,USDC_BASE,INDEPENDENT} from "./config.js";
 import {eip191Hash} from "./eip191.js";
 import {validateNetworkPolicy,networkPolicyMessage,networkUse,byoConfigMessage,byoOwnerMessage} from "../../../network/network-policy-core.mjs";
 import {parseWireGuardConfig,wireGuardConfigDigest} from "../../../network/wg-config.mjs";
@@ -46,8 +46,100 @@ const PRIVACY={
   "host":"Every destination the app connects to sees the host's IP address, and the host's network operator sees where it connects (its traffic stays as encrypted as the app makes it). Visitors still reach a website through the Enclave network if you keep it on. The host never needs a public address, but its operator must offer its connection to this app; private networks, SMTP and the host's own addresses stay unreachable.",
 };
 
+/* ---- independent mode: the owner's setting goes straight to the profile's public directories ----
+   No relay: the current setting is read from the directories (shown as they report it; directories and hosts check
+   the owner signature themselves), and a new one is signed by the owner's wallet and posted to every directory. A
+   bring-your-own WireGuard config is private and has no public transport here, so that mode is not offered; live
+   circuit status is the host's report through the hosted service and is not shown. */
+const MAX_DIR_BYTES=65536;
+async function dirJSON(r){
+  if(Number(r.headers.get("content-length"))>MAX_DIR_BYTES)throw new Error("directory answer too large");
+  const t=await r.text();if(t.length>MAX_DIR_BYTES)throw new Error("directory answer too large");return t?JSON.parse(t):null;
+}
+export async function directoryPolicies(id,directories,fetchImpl=(...a)=>fetch(...a)){
+  const res=await Promise.allSettled(directories.map(async d=>{
+    const r=await fetchImpl(d+"/v1/network/policy/"+id,{credentials:"omit",redirect:"error",cache:"no-store",signal:AbortSignal.timeout(8000)});
+    if(r.status===404){await r.body?.cancel();return {origin:d,policy:null};}
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const env=(await dirJSON(r))?.envelope||null,policy=env&&env.policy&&env.policy.deploymentId===id?env.policy:null;
+    return {origin:d,policy};
+  }));
+  return {answers:res.filter(x=>x.status==="fulfilled").map(x=>x.value),failed:res.map((x,i)=>x.status==="rejected"?directories[i]:null).filter(Boolean)};
+}
+// A new setting's nonce: above every nonce a directory reported, and at least the issue time, so an unreachable or
+// stale directory can never make a fresh setting look old.
+export const nextPolicyNonce=(answers,issuedAt)=>Math.max(issuedAt,...answers.map(a=>Number.isSafeInteger(a.policy?.nonce)?a.policy.nonce+1:0));
+export async function publishToDirectories(id,body,directories,fetchImpl=(...a)=>fetch(...a)){
+  const text=JSON.stringify(body);if(text.length>MAX_DIR_BYTES)throw new Error("network setting too large");
+  const res=await Promise.allSettled(directories.map(async d=>{
+    const r=await fetchImpl(d+"/v1/network/policy/"+id,{method:"POST",credentials:"omit",redirect:"error",headers:{"content-type":"application/json"},body:text,signal:AbortSignal.timeout(8000)});
+    if(!r.ok){let why="";try{why=String((await dirJSON(r))?.error||"").slice(0,160);}catch{}throw new Error(d+": HTTP "+r.status+(why?" "+why:""));}
+    await r.body?.cancel();return d;
+  }));
+  const accepted=res.filter(x=>x.status==="fulfilled").map(x=>x.value),refused=res.filter(x=>x.status==="rejected").map(x=>x.reason.message);
+  if(!accepted.length)throw new Error("no directory accepted the setting: "+refused.join("; "));
+  return {accepted,refused};
+}
+async function renderIndependentNetwork(box,id,{owner}){
+  const wrap=document.createElement("div");wrap.className="enc-net-body";box.append(wrap);
+  const dirs=INDEPENDENT.state==="on"?INDEPENDENT.profile.directories:[];
+  if(!dirs.length){wrap.innerHTML=`<p class="en-intro">Network settings are published to public directories, and your network profile names none. Add directories to the profile to change this app's network from here.</p>`;return;}
+  let read;try{read=await directoryPolicies(id,[...dirs]);}catch(e){read={answers:[],failed:dirs};}
+  const best=read.answers.map(a=>a.policy).filter(Boolean).sort((a,b)=>b.nonce-a.nonce)[0]||null;
+  const policy=best||{version:5,deploymentId:id,nonce:0,issuedAt:0,mode:"enclave-network",fallback:"none",enclaveNetwork:{routes:2,guard:true,maxPricePerGiB6:0,budget6:0}};
+  const modes=["enclave-network","direct","host"];
+  wrap.innerHTML=`<div class="en-list"><div><b>${esc(MODE_TEXT[policy.mode]?.title||policy.mode)}</b> <span class="en-sub">${best?`owner setting #${best.nonce}, as ${read.answers.filter(a=>a.policy&&a.policy.nonce===best.nonce).length} of ${dirs.length} directories report it`:"default (no owner setting found)"}</span></div>`
+    +(read.failed.length?`<div class="en-sub warn">${read.failed.length} director${read.failed.length===1?"y":"ies"} did not answer</div>`:"")
+    +`<div class="en-sub dim">Live route health is reported by the host through the hosted service and is not shown here.</div></div><p class="en-intro">${esc(PRIVACY[policy.mode]||"")}</p>`;
+  const form=document.createElement("form");form.className="enc-network-controls";
+  form.innerHTML=`<fieldset><legend>How this app reaches the internet</legend><div class="en-list">${modes.map(k=>`<label class="en-opt"><input type="radio" name="mode" value="${k}"${k===policy.mode?" checked":""}><b>${esc(MODE_TEXT[k].title)}</b><span class="en-sub">${esc(MODE_TEXT[k].sub)}</span></label>`).join("")}
+     <span class="en-sub">Bring-your-own WireGuard needs a private config delivered to the host; it is not offered from a public directory.</span></div></fieldset>
+   <div data-for="host" hidden><label>Public website <select name="hostIngress"><option value="enclave-network">Through the Enclave network</option><option value="none">None: outbound only</option></select></label></div>
+   <div data-fallback hidden><label>If it fails <select name="fallback"><option value="none">Stay offline (nothing else is used)</option><option value="enclave-network">Use the Enclave network instead</option></select></label></div>
+   <div data-network><label>Routes <select name="routes"><option value="2">2 (recommended)</option><option value="1">1</option></select></label>
+     <label>Max price, USDC per GiB <input name="price" inputmode="decimal" size="8" value="${usdc(policy.enclaveNetwork?.maxPricePerGiB6??0)}"></label>
+     <label>Budget, USDC <input name="budget" inputmode="decimal" size="8" value="${usdc(policy.enclaveNetwork?.budget6??0)}"></label></div>
+   <button type="submit">Sign and publish</button> <span class="en-sub" role="status" data-save></span>`;
+  box.append(form);
+  const f=form.elements;
+  const needsNet=m=>m==="enclave-network"||f.fallback.value==="enclave-network"||(m==="host"&&f.hostIngress.value==="enclave-network");
+  const show=()=>{const m=f.mode.value;for(const el of form.querySelectorAll("[data-for]"))el.hidden=el.dataset.for!==m;
+    form.querySelector("[data-fallback]").hidden=m==="enclave-network";form.querySelector("[data-network]").hidden=!needsNet(m);};
+  if(policy.mode==="host")f.hostIngress.value=policy.host.ingress;
+  f.fallback.value=policy.fallback;f.routes.value=String(policy.enclaveNetwork?.routes||2);
+  for(const el of [...form.querySelectorAll("input[name=mode]"),f.fallback,f.hostIngress])el.addEventListener("change",show);show();
+  const save=form.querySelector("button"),st=form.querySelector("[data-save]");
+  const ownerOk=owner&&Enclave.address&&Enclave.address.toLowerCase()===String(owner).toLowerCase();
+  if(!ownerOk){save.disabled=true;st.textContent="Connect the app owner's wallet to change this.";}
+  form.addEventListener("submit",async ev=>{
+    ev.preventDefault();save.disabled=true;
+    try{
+      const mode=f.mode.value,issuedAt=Math.floor(Date.now()/1000);
+      const fresh=await directoryPolicies(id,[...dirs]);
+      const next={version:5,deploymentId:id,nonce:nextPolicyNonce(fresh.answers,issuedAt),issuedAt,mode,fallback:mode==="enclave-network"?"none":f.fallback.value};
+      if(needsNet(mode)){const p=toU6(f.price.value),b=toU6(f.budget.value);if((p>0)!==(b>0))throw new Error("A price limit needs a budget, and a budget needs a price limit.");
+        next.enclaveNetwork={routes:Number(f.routes.value),guard:true,maxPricePerGiB6:p,budget6:b};}
+      if(mode==="direct")next.direct={maxPricePerGiB6:0};
+      if(mode==="host")next.host={ingress:f.hostIngress.value};
+      validateNetworkPolicy(next);
+      st.textContent="Sign the network setting.";
+      const signature=await personalSign(networkPolicyMessage(next));
+      const out=await publishToDirectories(id,{envelope:{policy:next,signature}},[...dirs]);
+      st.textContent=`Published to ${out.accepted.length} of ${dirs.length} directories${out.refused.length?` (${out.refused.length} refused: ${out.refused.join("; ")})`:""}. Hosts apply it within a minute.`;
+    }catch(e){st.textContent=(e.problems||[e.message]).join(" · ");}
+    finally{save.disabled=!ownerOk;}
+  });
+  const paid=document.createElement("p");paid.className="en-sub";
+  paid.textContent="Paid providers: authorizing them needs the connectivity contract, which the network profile does not pin; use the CLI with explicit pins.";
+  box.append(paid);
+}
+
 export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}){
   id=id.toLowerCase();
+  if(INDEPENDENT_MODE){
+    if(viaVault){const p=document.createElement("p");p.className="en-intro";p.textContent="Changing the network of an app your credit vault owns needs the hosted service.";box.append(p);return;}
+    return renderIndependentNetwork(box,id,{owner});
+  }
   const wrap=document.createElement("div");wrap.className="enc-net-body";box.append(wrap);
   let status;
   try{status=await relay("/v1/network/status/"+id);}

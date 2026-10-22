@@ -1,0 +1,18 @@
+--- a/docs/network/independent-cli.md
++++ b/docs/network/independent-cli.md
+@@ -92,9 +92,14 @@
+ - **Limit.** The ledger lets only the lease holder end a lease, so a dead or hostile source can only be waited out
+   (stop, then resume, which forfeits the tail).
+ 
++**`availability`.** Each host's own signed `/availability` record (`docs/network/independent-capacity.md`). Name a source:
++`--capacity-directories URL,…` (anyone's capacity directory, not the management `--directories`), `--hosts ENDPOINT|ID,…`,
++or `--cold` (every live registered host). Each record is verified against the reviewed profile's registry at one agreed
++block, so `--profile` is required. The figures are self-reported by the host's registry operator and are never a
++registered price; `hosts` still lists the posted prices.
++
+ **Refused commands.** Each refusal names its dependency; `work/cli-remaining-interface.txt` lists the exact missing
+ protocol pieces.
+-- **`availability`:** free capacity is a host fact that is neither on chain nor in the directories. Use `hosts`.
+ - **`secrets`:** relay-held. The independent path is custody v2 in an owner-committed package
+   (`bootstrap prepare --custody-file`, SNP), owned by the custody workstream.
+ - **`custody`:** `cli/custody.mjs` still uses first-answer clients and relay hooks.

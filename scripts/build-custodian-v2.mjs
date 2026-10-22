@@ -7,6 +7,8 @@
 // Every other cpio entry is copied byte for byte. The launch measurement is printed (sev-snp-measure, 2 vCPUs).
 //
 //   node scripts/build-custodian-v2.mjs --base <metal dist dir> --out <new dir> --vault 0x… --host-ownership 0x… [--vcpus 2] [--transport direct|tunnel]
+//     [--book 0x…]  the deployed book-bound vault (0xE486…): registry/ledger follow that EnclaveAddressBook at each agreed block
+//     [--host-policy FILE]  {book, hostOwnership, mirrors[]}: enforce the admin's anchored platform host policy (network/platform-host-policy.mjs)
 //        [--independent-owners owners.json | --independent-admission owner-permits]   (independent committees; see
 //        docs/security/independent-custody-activation.md; either one bundles the static DKG helper)
 //        [--shield-recipients shield.json]   (OPTIONAL Enclave Shield release recipients: this operator's TPM EK roots, their
@@ -22,8 +24,11 @@ import path from "node:path";
 import url from "node:url";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { build, version as ESBUILD_VERSION } from "esbuild";
-import { custodianMeasured, measuredModule, readGzipFile, gzipPartsToFile, bundleOptions as bundleOptionsFor, bundleSources, sourceCheck } from "../custody/v2/build-config.mjs";
+import { build, stop as stopEsbuild, version as ESBUILD_VERSION } from "esbuild";
+import zlib from "node:zlib";
+import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { custodianMeasured, measuredModule, bundleOptions as bundleOptionsFor, bundleSources, sourceCheck } from "../custody/v2/build-config.mjs";
 
 const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 const arg = (n, d) => { const i = process.argv.indexOf("--" + n); return i > 0 ? process.argv[i + 1] : d; };
@@ -35,7 +40,9 @@ const shieldFile = arg("shield-recipients", null);
 const { measured: MEASURED, policy: POLICY, needsDkg: NEEDS_DKG } = custodianMeasured({ vault: arg("vault", ""), hostOwnership: arg("host-ownership", ""),
   transport: arg('transport','direct'), ownerList: ownerFile ? JSON.parse(fs.readFileSync(ownerFile,'utf8')) : null, admission: arg("independent-admission", null),
   shieldRecipients: shieldFile ? JSON.parse(fs.readFileSync(shieldFile, "utf8")) : null,
-  trustedProxies: arg("trusted-proxy", null) === null ? null : String(arg("trusted-proxy", "")).split(",").map((x) => x.trim()).filter(Boolean) });
+  trustedProxies: arg("trusted-proxy", null) === null ? null : String(arg("trusted-proxy", "")).split(",").map((x) => x.trim()).filter(Boolean),
+  book: arg("book", null),
+  hostPolicy: arg("host-policy", null) === null ? null : JSON.parse(fs.readFileSync(arg("host-policy", ""), "utf8")) });
 const { vault: VAULT, hostOwnership: HOST_OWNERSHIP, transport: TRANSPORT, independentOwners: INDEPENDENT_OWNERS } = MEASURED;
 const INDEPENDENT_ADMISSION = MEASURED.independentAdmission || null;
 const sha = (b) => createHash("sha256").update(b).digest("hex");
@@ -49,6 +56,7 @@ const bundleOptions = bundleOptionsFor(measured, { root: ROOT });
 const bundled = await build({...bundleOptions,entryPoints:[path.join(ROOT,'custody/v2/daemon.mjs')]});
 const gsupBundle = await build({...bundleOptions,entryPoints:[path.join(ROOT,'custody/v2/cvm-gsup.mjs')]});
 const SOURCES = bundleSources([bundled.metafile, gsupBundle.metafile], { root: ROOT });
+stopEsbuild();   // the bundles are in memory: release esbuild's resident service before the cpio and measurement steps
 const git = (args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 16 << 20 });
 const { untracked, dirty } = sourceCheck(SOURCES, { git });
 if ((untracked.length || dirty) && !process.argv.includes("--allow-dirty"))
@@ -56,8 +64,6 @@ if ((untracked.length || dirty) && !process.argv.includes("--allow-dirty"))
 
 // 1. base, checked against its manifest
 const m = JSON.parse(fs.readFileSync(path.join(BASE, "manifest.json"), "utf8"));
-const { raw, sha256: baseInitramfsSha256 } = await readGzipFile(path.join(BASE, "initramfs.cpio.gz"));
-if (m.initramfs && baseInitramfsSha256 !== m.initramfs.sha256) throw new Error("base initramfs hash mismatch");
 if (sha(fs.readFileSync(path.join(BASE, "vmlinuz"))) !== m.kernel.sha256) throw new Error("base kernel hash mismatch");
 
 // 2. the custodian bundle with the measured config (built above), and the helpers
@@ -76,41 +82,59 @@ if(NEEDS_DKG){
 }
 const gsup=Buffer.from(gsupBundle.outputFiles[0].contents);
 
-// 3. rewrite the newc cpio: replace gsup, append the custodian dir + files before the trailer
-const parts = []; let off = 0, maxino = 0, prefix = null, replaced = false;
+// 3. rewrite the newc cpio as a STREAM (the inflated metal base is ~780 MiB; at most one entry is held): replace gsup,
+//    append the custodian dir + files before the trailer, copy every other entry byte for byte. The output bytes are those
+//    of the former whole-buffer rewrite (same entries, same order, same gzip level); the base's hash is checked as it is
+//    read, and a mismatch deletes the output.
 const entry = (fields, name, data) => {
   const nm = Buffer.from(name + "\0");
   const h = Buffer.from("070701" + fields.map((n) => n.toString(16).padStart(8, "0")).join(""));
   const head = Buffer.concat([h, nm]); const pad1 = Buffer.alloc((4 - (head.length % 4)) % 4);
   return Buffer.concat([head, pad1, data, Buffer.alloc((4 - (data.length % 4)) % 4)]);
 };
-while (off < raw.length) {
-  const start = off, h = raw.subarray(off, off + 110); off += 110;
-  if (h.subarray(0, 6).toString() !== "070701") throw new Error("only newc cpio is supported");
-  const f = Array.from({ length: 13 }, (_, i) => parseInt(h.subarray(6 + i * 8, 14 + i * 8).toString(), 16));
-  const size = f[6], ns = f[11];
-  const name = raw.subarray(off, off + ns - 1).toString(); off = (off + ns + 3) & ~3;
-  const data = raw.subarray(off, off + size); off = (off + size + 3) & ~3;
-  const key = name.replace(/^\.\//, "");
-  maxino = Math.max(maxino, f[0]);
-  if (key === "opt/metal/gsup.mjs") prefix = name.slice(0, name.length - key.length);
-  if (name === "TRAILER!!!") {
-    const add = (mode, k, d) => { maxino++; parts.push(entry([maxino, mode, 0, 0, mode >> 12 === 4 ? 2 : 1, 0, d.length, 0, 0, 0, 0, (prefix + k).length + 1, 0], prefix + k, d)); };
-    add(0o040755, "opt/custodian", Buffer.alloc(0));
-    add(0o100644, "opt/custodian/custodian.mjs", custodianJs);
-    add(0o100755, "opt/custodian/snpkey", snpkey);
-    if(dkg)add(0o100755,"opt/custodian/dkg",dkg);
-    parts.push(raw.subarray(start, off));
-    break;
+const inHash = createHash("sha256");
+const it = fs.createReadStream(path.join(BASE, "initramfs.cpio.gz")).pipe(new Transform({ transform(c, _, cb) { inHash.update(c); cb(null, c); } })).pipe(zlib.createGunzip())[Symbol.asyncIterator]();
+let buf = Buffer.alloc(0);
+const fill = async (n) => { while (buf.length < n) { const { value, done } = await it.next(); if (done) throw new Error("truncated cpio"); buf = buf.length ? Buffer.concat([buf, value]) : value; } };
+const take = async (n) => { await fill(n); const o = buf.subarray(0, n); buf = buf.subarray(n); return o; };
+async function* pass(n) { while (n > 0) { if (!buf.length) { const { value, done } = await it.next(); if (done) throw new Error("truncated cpio"); buf = value; } const k = Math.min(n, buf.length); yield Buffer.from(buf.subarray(0, k)); buf = buf.subarray(k); n -= k; } }
+let maxino = 0, prefix = null, replaced = false, trailer = false;
+async function* rewritten() {
+  for (;;) {
+    const h = await take(110);
+    if (h.subarray(0, 6).toString() !== "070701") throw new Error("only newc cpio is supported");
+    const f = Array.from({ length: 13 }, (_, i) => parseInt(h.subarray(6 + i * 8, 14 + i * 8).toString(), 16));
+    const size = f[6], ns = f[11];
+    const nameRaw = await take(ns + ((4 - ((110 + ns) % 4)) % 4));
+    const name = nameRaw.subarray(0, ns - 1).toString(), key = name.replace(/^\.\//, ""), dpad = (4 - (size % 4)) % 4;
+    maxino = Math.max(maxino, f[0]);
+    if (key === "opt/metal/gsup.mjs") prefix = name.slice(0, name.length - key.length);
+    if (name === "TRAILER!!!") {
+      if (prefix === null) throw new Error("the base image has no /opt/metal/gsup.mjs");
+      const add = (mode, k, d) => { maxino++; return entry([maxino, mode, 0, 0, mode >> 12 === 4 ? 2 : 1, 0, d.length, 0, 0, 0, 0, (prefix + k).length + 1, 0], prefix + k, d); };
+      yield add(0o040755, "opt/custodian", Buffer.alloc(0));
+      yield add(0o100644, "opt/custodian/custodian.mjs", custodianJs);
+      yield add(0o100755, "opt/custodian/snpkey", snpkey);
+      if (dkg) yield add(0o100755, "opt/custodian/dkg", dkg);
+      yield Buffer.concat([h, nameRaw, await take(size + dpad)]);
+      trailer = true;
+      for (;;) { const { done } = await it.next(); if (done) break; }       // nothing after the trailer, as before
+      return;
+    }
+    if (key === "opt/metal/gsup.mjs") {
+      if (f[4] !== 1) throw new Error("gsup.mjs is hardlinked");
+      await take(size + dpad); f[6] = gsup.length; yield entry(f, name, gsup); replaced = true;
+    } else { yield Buffer.concat([h, nameRaw]); yield* pass(size + dpad); }
   }
-  if (key === "opt/metal/gsup.mjs") {
-    if (f[4] !== 1) throw new Error("gsup.mjs is hardlinked");
-    f[6] = gsup.length; parts.push(entry(f, name, gsup)); replaced = true;
-  } else parts.push(raw.subarray(start, off));
 }
-if (!replaced || prefix === null) throw new Error("the base image has no /opt/metal/gsup.mjs");
 fs.mkdirSync(OUT);
-const out = await gzipPartsToFile(parts, path.join(OUT, "initramfs.cpio.gz"));
+const outHash = createHash("sha256"); let outBytes = 0;
+await pipeline(Readable.from(rewritten()), zlib.createGzip({ level: 9 }), new Transform({ transform(c, _, cb) { outHash.update(c); outBytes += c.length; cb(null, c); } }),
+  fs.createWriteStream(path.join(OUT, "initramfs.cpio.gz"), { flags: "wx", mode: 0o644 }));
+const baseInitramfsSha256 = inHash.digest("hex");
+if (m.initramfs && baseInitramfsSha256 !== m.initramfs.sha256) { fs.rmSync(OUT, { recursive: true }); throw new Error("base initramfs hash mismatch"); }
+if (!replaced || !trailer) { fs.rmSync(OUT, { recursive: true }); throw new Error("the base image has no /opt/metal/gsup.mjs or no trailer"); }
+const out = { sha256: outHash.digest("hex"), bytes: outBytes };
 fs.copyFileSync(path.join(BASE, "vmlinuz"), path.join(OUT, "vmlinuz"));
 const cmdline = fs.readFileSync(path.join(BASE, "cmdline"), "utf8").trim().replace("${MODE}", "snp");
 fs.writeFileSync(path.join(OUT, "cmdline"), cmdline + "\n");

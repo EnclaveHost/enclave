@@ -7,6 +7,9 @@ import {readHostAdmissionPolicy,hostAdmissionRefusal,hostAdmissionPolicyHash} fr
 import {loadContractPins} from './contract-pins.mjs';
 import {boundedJSON,directoryOrigins} from './directory-client.mjs';
 export {loadContractPins,validateContractPins} from './contract-pins.mjs';
+// The platform host policy for host runtimes (supervisor.js, the Windows node host), shipped in THIS bundle so both
+// platforms' existing deployment closures (Dockerfile, metal image, windows/node/deploy-files.mjs) already contain it.
+export {createHostServiceGate,hostIdOfEndpoint,resolveHostPolicyConfig} from './host-service-gate.mjs';
 
 const address=/^0x[0-9a-f]{40}$/,id=/^0x[0-9a-f]{64}$/;
 const ownershipABI=parseAbi([
@@ -18,6 +21,14 @@ const catalogABI=parseAbi([
   'function getVersion(bytes32,uint256) view returns ((string cid,string version,uint32 vramMb,uint32 gpuGflops,uint32 memMb,uint32 cpuGflops,uint64 createdAt,bool verified,bool yanked,string ports,uint8 approval,string config))',
 ]);
 const nonzero=a=>address.test(a||'')&&!/^0x0{40}$/.test(a);
+// The per-RPC reasons LeaseReader.agreed() collected (label, step, HTTP status; URL-redacted there), appended to a quorum
+// failure, so a hold says WHICH providers failed and how (e.g. 429 rate limits), not only "chain quorum unavailable".
+// Text only: the decision is unchanged (a failure is still unknown, never allow), and nothing is cached.
+const withReasons=(e,failures)=>{
+  if(!failures.length)return e;
+  const seen=[...new Set(failures.map(f=>String(f).replace(/\s+/g,' ').slice(0,120)))].slice(0,5);
+  return Object.assign(new Error(`${e.message} (${failures.length} RPC failure${failures.length===1?'':'s'}: ${seen.join('; ')})`.slice(0,600)),{cause:e});
+};
 
 // Documents are public, addressed by their on-chain commitment, and may be
 // distributed by any peer. A local verified cache makes admission independent
@@ -65,7 +76,8 @@ export function createHostAdmission({hostId,ownershipContract,registry,catalog,r
   reader,loadPolicy,now=Date.now,cacheMs=15000}) {
   if(!id.test(hostId)||![ownershipContract,registry,catalog].every(nonzero))throw Error('explicit host, ownership, registry and catalog pins required');
   if(!Number.isSafeInteger(cacheMs)||cacheMs<0||cacheMs>15000)throw Error('invalid host policy cache lifetime');
-  reader ||= new LeaseReader({rpc,addressBook,now});
+  // the wallet admission's own reader rides out short public-RPC 429 windows (10 s budget inside the 30 s deadline)
+  reader ||= new LeaseReader({rpc,addressBook,now,rateLimitRetryMs:10000});
   loadPolicy ||= publicHostPolicyLoader({directory:policyDirectory||'',origins:policyOrigins});
   let cached=null,pending=null;
   const policy=async()=>{
@@ -73,6 +85,7 @@ export function createHostAdmission({hostId,ownershipContract,registry,catalog,r
     if(pending)return pending;
     pending=(async()=>{
       const at=now();
+      const failures=[];
       const snapshot=await reader.agreed(async(client,blockNumber)=>{
         const [bound,a]=await Promise.all([
           client.readContract({address:ownershipContract,abi:ownershipABI,functionName:'registry',blockNumber}),
@@ -80,7 +93,7 @@ export function createHostAdmission({hostId,ownershipContract,registry,catalog,r
         ]);
         if(String(bound).toLowerCase()!==registry)throw Error('host authority registry pin mismatch');
         return {owner:String(a[0]).toLowerCase(),revision:String(a[2]),policyHash:String(a[3]).toLowerCase()};
-      });
+      },failures).catch(e=>{throw withReasons(e,failures);});
       const resolved=await readHostAdmissionPolicy({hostId,ownershipContract,loadPolicy,readAuthority:async()=>snapshot});
       const validUntil=snapshot.timestamp+90000,reuseUntil=Math.min(at+cacheMs,validUntil);
       if(!Number.isSafeInteger(snapshot.timestamp)||snapshot.timestamp>now()+5000||snapshot.timestamp+90000<=now())throw Error('host authority snapshot expired');
@@ -97,6 +110,7 @@ export function createHostAdmission({hostId,ownershipContract,registry,catalog,r
       {
         const m=String(appRef||'').match(/^catalog:\/\/(0x[0-9a-fA-F]{64})\/([0-9]{1,9})$/);
         if(!m)throw Error('catalog app reference required');
+        const failures=[];
         version=await reader.agreed(async(client,blockNumber)=>{
           const [app,v]=await Promise.all([
             client.readContract({address:catalog,abi:catalogABI,functionName:'getApp',args:[m[1]],blockNumber}),
@@ -104,7 +118,7 @@ export function createHostAdmission({hostId,ownershipContract,registry,catalog,r
           ]);
           return {active:app.appId.toLowerCase()===m[1].toLowerCase()&&BigInt(app.versionCount)>BigInt(m[2])&&app.active===true,
             yanked:v.yanked,approval:Number(v.approval)};
-        });
+        },failures).catch(e=>{throw withReasons(e,failures);});
       }
       if(a.validUntil<=now())throw Error('host policy expired during admission');
       return hostAdmissionRefusal(a.policy,{hostId,deploymentId,appRef,version,forPrivate});

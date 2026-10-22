@@ -338,6 +338,7 @@ func main() {
 	cpuRelease := flag.String("cpu-release", "", "complete verified CPU release directory (scripts/network/fetch-runtime.mjs); kernel, firmware, template and cmdline come from its one explicit -isolation-release pin. Needs an explicit -gateway JSON list and no competing firmware/template flag")
 	shieldTemplate := flag.String("shield-template", "", "pinned measured Shield inference release template")
 	shieldModel := flag.String("shield-model-file", "", "read-only public Q4 GGUF; hash verified inside the measured guest")
+	modelStore := flag.String("model-volumes", "", "model volume store (metal/volumes.mjs layout); offered only as the pinned template's table pins them")
 	shieldSHM := flag.String("shield-shm-dir", "", "directory with card-0 and card-1 masked transport rings")
 	shieldRelease := flag.String("shield-release", "", "64-hex release ID for the Shield template")
 	flag.Parse()
@@ -508,6 +509,22 @@ func main() {
 		s.RuntimeSET = e == nil && string(set) == "1\n"
 		mem, e := os.ReadFile(filepath.Join(*cpuTemplate, "rt/mem64.enabled"))
 		s.RuntimeMem64 = e == nil && string(mem) == "1\n"
+		// only a PINNED template states this: an image built from the tree at launch is a lab path and claims nothing
+		enc, e := os.ReadFile(filepath.Join(*cpuTemplate, "rt/encvol.enabled"))
+		s.RuntimeEncvol = e == nil && string(enc) == "1\n"
+		nn, e := os.ReadFile(filepath.Join(*cpuTemplate, "rt/nn-ggml.enabled"))
+		s.RuntimeNN = e == nil && string(nn) == "1\n"
+		// model volumes: the pinned template's measured table, against this host's store
+		table, e := parseModelTable(filepath.Join(*cpuTemplate, "rt/model-volumes.table"))
+		switch {
+		case e == nil:
+			s.ModelTable = true
+			if *modelStore != "" {
+				s.ModelVolumes, s.ModelMissing = storeVolumes(table, *modelStore)
+			}
+		case !errors.Is(e, os.ErrNotExist):
+			log.Fatalf("the pinned template's model-volume table: %v", e)
+		}
 	}
 	if why := releaseNamingRefusal(*releaseOn, *isoRelease, *legacyIso, *legacyIsoRelease); why != "" {
 		log.Fatal(why)

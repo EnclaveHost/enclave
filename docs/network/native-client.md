@@ -1,8 +1,10 @@
 # Connect without Enclave discovery or a website CA
 
-`network/native-client.mjs` is a native HTTP client library for application APIs:
-ordinary methods, bounded request bodies, and buffered or streamed responses.
-`scripts/network/native-get.mjs` is its GET command-line wrapper. The client
+`network/native-client.mjs` is a native HTTP and WebSocket client library for
+application APIs: ordinary methods, bounded or streamed request bodies, buffered or
+streamed responses, and WebSockets. `scripts/network/native-get.mjs` is its GET
+command-line wrapper, `scripts/network/native-request.mjs` its upload and streaming
+wrapper, and `scripts/network/native-ws.mjs` its WebSocket bridge. The client
 resolves signed public records itself, checks an agreeing Base RPC quorum against
 explicit contract addresses, and verifies a fresh hardware attestation before it
 sends any application path, header, credential or body.
@@ -14,8 +16,23 @@ node scripts/network/native-get.mjs /absolute/path/trust-profile.json /ping
 Response bytes go to stdout. Status, selected route, verified identities, TLS key
 digest, lease block and authorization deadline go to stderr. Non-2xx responses
 produce a nonzero exit code. Redirects are returned, never followed. The wrapper
-is GET only; writes and streams use the library API below. It is not a browser
-proxy.
+is GET only; the other two wrappers are below. None of them is a browser proxy.
+
+```sh
+# A streamed upload (file length declared; stdin with --body-stdin is sent chunked),
+# with the response (for example server-sent events) streamed to stdout.
+NATIVE_AUTHORIZATION='Bearer …' node scripts/network/native-request.mjs profile.json /v1/files/a \
+  --method PUT --body-file ./a.bin --content-type application/octet-stream --stream
+
+# A WebSocket on stdin/stdout, or a websocat-style loopback bridge for a TCP app's
+# /x/<id>/tcp/<port> path (IRC, Minecraft): each local connection is one fresh,
+# separately attested WebSocket.
+node scripts/network/native-ws.mjs profile.json /x/<deployment-id>/tcp/6667 --listen 127.0.0.1:6667
+irssi -c 127.0.0.1 -p 6667
+```
+
+Credentials are read from `NATIVE_AUTHORIZATION`, never from the command line.
+`--listen` accepts only loopback addresses.
 
 ## Library API: requests, writes and streams
 
@@ -35,6 +52,17 @@ const s = await client.stream({method: 'POST', path: '/v1/chat/stream', headers,
 for await (const chunk of s.body) render(chunk);   // a Node Readable: iterate or pipe it
 s.cancel();                                        // or controller.abort(); both close the connection
 const {bytes, error} = await s.closed;             // always resolves
+
+// Streamed upload: a Node Readable, a web ReadableStream or an async iterable of bytes.
+const up = await client.request({method: 'PUT', path: '/v1/files/a', headers,
+  body: fs.createReadStream(file), bodyLength: fs.statSync(file).size});
+
+// WebSocket: one attested upgrade; resolves after a valid 101.
+const ws = await client.websocket({path: '/x/' + id + '/tcp/6667', headers, protocols: ['irc']});
+await ws.send('NICK me\r\n');                     // resolves once written; a string is a text frame
+for await (const {data, binary} of ws.messages) handle(data);   // one reader; break closes normally
+await ws.ping();                                   // resolves on the pong
+const {code, reason, error, bytesIn, bytesOut} = await ws.close(1000, 'bye');
 ```
 
 | Option | Meaning | Default | Allowed |
@@ -42,13 +70,14 @@ const {bytes, error} = await s.closed;             // always resolves
 | `method` | `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS` | `GET` | `CONNECT`/`TRACE` refused |
 | `path` | Origin-form path and query | `/` | starts with one `/`; no controls, spaces or `#`; up to 8192 characters |
 | `headers` | Application headers, including credentials | `{}` | up to 100 names and 64 KiB; no CR/LF/NUL; one spelling per name |
-| `body` | String, Buffer, typed array or ArrayBuffer, copied when called | none | not with GET/HEAD; up to `maxRequestBytes` |
-| `maxRequestBytes` | Upload limit | 8 MiB | 0 to 64 MiB |
+| `body` | String, Buffer, typed array or ArrayBuffer, copied when called; or a Readable, web `ReadableStream` or async iterable of bytes, streamed | none | not with GET/HEAD; up to `maxRequestBytes` |
+| `bodyLength` | Streamed body only: exact length, sent as `Content-Length` (otherwise chunked) | none | 0 to `maxRequestBytes` |
+| `maxRequestBytes` | Upload limit | 8 MiB (bytes), 64 MiB (streamed) | 0 to 64 MiB / 1 GiB |
 | `maxBytes` | Response limit | 8 MiB (`request`), 64 MiB (`stream`) | up to 64 MiB / 1 GiB |
-| `timeoutMs` | `request`: the whole exchange. `stream`: until response headers | 30 s | 1 s to 120 s |
-| `idleTimeoutMs` | `stream`: longest gap between delivered chunks | 60 s | 1 s to 10 min |
-| `maxDurationMs` | `stream`: total lifetime | 10 min | 1 s to 1 h |
-| `recheckMs` | `stream`: how often chain state is checked again | 30 s | 1 s to 5 min |
+| `timeoutMs` | `request`: the whole exchange. `stream`: until response headers. A streamed upload restarts it when the upload ends | 30 s | 1 s to 120 s |
+| `idleTimeoutMs` | `stream`: longest gap between delivered chunks. Streamed upload: longest gap in source progress or guest acceptance | 60 s | 1 s to 10 min |
+| `maxDurationMs` | `stream`: total lifetime. Streamed upload: upload lifetime | 10 min | 1 s to 1 h |
+| `recheckMs` | `stream` and streamed uploads: how often chain state and route records are checked again | 30 s | 1 s to 5 min |
 | `signal` | `AbortSignal`, cancels at any stage | none | must be a real `AbortSignal` |
 
 Unknown options are refused. So are the framing and hop-by-hop headers `Host`,
@@ -70,10 +99,21 @@ Unknown options are refused. So are the framing and hop-by-hop headers `Host`,
   Node writes the request only after that last check passes. A refusal at any
   step sends nothing; the tests confirm the guest stand-in decrypts zero
   application bytes.
-- **Snapshot.** Options, headers and body are copied synchronously when
+- **Snapshot.** Options, headers and byte bodies are copied synchronously when
   `request` or `stream` is called, so later caller mutation changes nothing.
-  The signal is deliberately kept by reference. Streamed (unbounded) uploads are
-  not supported.
+  The signal is deliberately kept by reference.
+- **Streamed uploads.** A streamed body cannot be copied; it belongs to the client
+  once passed. It is not read until the agent hands over the socket whose key
+  matched the attestation. It is then pulled one chunk at a time: the next chunk
+  is read only after the previous one drained into the connection, so memory
+  stays bounded however slowly the guest reads. Exceeding `maxRequestBytes` or
+  `bodyLength`, a short body, a non-byte chunk, a source error, an upload stall,
+  cancellation, lease or route loss, or a transport error ends the request and
+  destroys the source. So does any refusal before sending, including invalid
+  options and the concurrency limit. A failure before the first chunk was written
+  leaves the guest with nothing, not even headers. The guest may answer before
+  the upload ends: `stream()` then delivers the response while the upload
+  continues (full duplex), and `request()` gives the answer its own timeout.
 - **One send.** Each call attests once and sends at most once. Route failover
   happens only during attestation, before any application byte. After the
   request is written, a reset, timeout or partial response is reported as an
@@ -89,15 +129,17 @@ Unknown options are refused. So are the framing and hop-by-hop headers `Host`,
     does not crash the process.
 - **Concurrency.** Authorization and connection setup are serialized per client.
   The queue is released when response headers arrive. At most `maxConcurrent`
-  requests or streams (1–32, default 4) may be open per client; beyond that the
-  call is refused at once.
+  requests, streams or WebSockets together (1–32, default 4) may be open per
+  client; beyond that the call is refused at once.
 - **What authorization covers.** `validUntil` is the latest moment a new send
   may start: the earliest of route expiry, lease snapshot expiry, and 60 s after
   the proof began. An established stream is not proof of continuing ownership.
   The client re-reads the lease every `recheckMs` and cuts the stream (`native
   authorization ended`) if the owner, runner, app, configuration or lease
-  changed, or if current state can no longer be confirmed. A route withdrawal
-  alone does not cut an open stream; `maxDurationMs` bounds it.
+  changed, or if current state can no longer be confirmed. The same check also
+  re-imports the signed route records. A newer record that withdraws or replaces
+  the attested route ends the connection, and so does expiry of the stored
+  record when no directory answers. The check runs in the per-client queue.
 - **Logging.** Errors carry fixed messages and never include request header
   values or bodies.
 
@@ -108,10 +150,114 @@ Unknown options are refused. So are the framing and hop-by-hop headers `Host`,
 - **Authentication.** Credentials are whatever the application expects. The
   client passes them through only after the checks above and adds no
   Enclave-issued session.
-- **Other transports.** Streamed request uploads, WebSocket/`Upgrade`,
-  `100-continue` and HTTP/2 are not supported.
+- **Other transports.** `100-continue`, HTTP/2 and WebSocket compression
+  (`permessage-deflate`) are not supported. Arbitrary `Upgrade` protocols other
+  than WebSocket are not supported.
 - **Proof scope.** The guest-side TLS key is attested once per request. Later
   requests attest again; no proof is cached across requests.
+
+## WebSockets
+
+`websocket()` runs the same discovery, proof, revalidation and TLS-key check as
+`request()`. Only then does it send ONE upgrade request, with the caller's headers,
+over the verified connection. The upgrade is built with the repository's `ws`
+library, the same one the broker and local transports use. Until the handshake
+check passes, no request line, header, credential or frame is written.
+
+- **Handshake.**
+  - The upgrade goes to exactly the requested path. A path that URL
+    normalization would change is refused.
+  - `Host` and SNI name the profile's virtual app at the attested literal
+    address.
+  - The guest must answer `101` with `Upgrade: websocket` and the correct
+    `Sec-WebSocket-Accept`.
+  - When protocols are requested, the guest must choose one of them; when none
+    are requested, it must choose none.
+  - It must not send unrequested extensions.
+  - Any other answer, redirects included, rejects with `error.status` and is
+    never followed. Credentials therefore never reach a redirect target, and
+    discovery peers never see application headers.
+- **Headers.** The HTTP refusals above all apply. In addition, the
+  `Sec-WebSocket-*` fields belong to the library; requested subprotocols go in
+  `protocols`.
+- **One upgrade.**
+  - A socket is never reconnected.
+  - A reconnect is a new `websocket()` call, with fresh discovery, a new proof
+    and the credentials passed to that call.
+  - A send whose delivery is uncertain rejects (`delivery of this message is
+    unknown`) and is never repeated. No message is replayed on a new socket.
+- **Bounds.** All of these are per socket, beyond the shared `maxConcurrent`.
+
+| Option | Meaning | Default | Allowed |
+| --- | --- | --- | --- |
+| `path`, `headers`, `signal` | As for requests | `/`, `{}` | as for requests, plus the rules above |
+| `protocols` | Requested subprotocols | none | up to 16 distinct tokens |
+| `maxMessageBytes` | Largest frame/message, in and out (inbound: close 1009) | 1 MiB | 1 B to 64 MiB |
+| `maxBufferedBytes` | Unflushed outgoing bytes; a send beyond it rejects at once | 4 MiB | `maxMessageBytes` to 256 MiB |
+| `maxQueuedBytes` | Received but unread bytes; beyond it the socket pauses, and backpressure reaches the guest | 4 MiB | 1 B to 256 MiB |
+| `maxBytes`, `maxSentBytes` | Lifetime totals in and out | 256 MiB | up to 16 GiB |
+| `timeoutMs` | Handshake | 30 s | 1 s to 120 s |
+| `idleTimeoutMs` | No frame in either direction, including pings | 5 min | 1 s to 1 h |
+| `maxDurationMs` | Total lifetime | 1 h | 1 s to 24 h |
+| `recheckMs` | Lease and route re-check, as for streams | 30 s | 1 s to 5 min |
+
+- **Ending a socket.** Any of the following terminates the connection, frees the
+  slot, and rejects pending pings and sends:
+  - cancellation (`signal`, `cancel()`);
+  - a lost owner, runner, app, configuration or lease;
+  - lease or route expiry, or a route withdrawal;
+  - a limit or timer;
+  - a TLS or transport error.
+
+  `close()` performs the closing handshake. `closed` always resolves to
+  `{code, reason, error, bytesIn, bytesOut}`.
+- **Application authentication.** The client adds nothing. A private app's bridge
+  takes its credential per connection, as the app documents: a header, or the
+  `?token=` query that the TCP bridges accept.
+
+## Platform host policy (administrator bans)
+
+The native client enforces the Enclave administrator's platform host policy. This is the signed policy, anchored in
+the EnclaveAddressBook, that bans hosts platform-wide or admits only listed hosts. It uses exactly the decision the
+CLI uses (`network/native-host-policy.mjs`, which builds the shared pieces below). It contains no policy code of its
+own.
+
+- **Which policy applies.** This is decided by the network the profile is pinned to, never by a profile field.
+  - A profile pinned to the production ledger or registry on Base is judged by the production authority: the
+    EnclaveAddressBook owner, the production host-ownership extension, and the policy's own read quorum.
+  - The operator's existing `ENCLAVE_PLATFORM_HOST_POLICY` setting keeps its shared meaning (`production`, `off`, or
+    an explicit test or private platform), as `network/platform-host-policy-config.mjs` defines it.
+  - Leaving out `hostAdmission` (or passing `null`) never turns the policy off. A caller such as the CLI may instead
+    pass its own `leaseHostAdmission` decision.
+- **When it is checked.** Each discovery pass decides once for the lease host. The decision is checked explicitly
+  right after the lease read, before records, proofs, upgrades, credentials or bodies. The signed-route verification
+  (`verifyRoute` `hostAdmission`, owned by the policy runtime) reuses it.
+  - A request decides twice, before and after attestation.
+  - Open streams, streamed uploads and WebSockets decide again at every `recheckMs`. A newly anchored ban ends them
+    with `native authorization ended: platform host policy refused the host: …`, and nothing reconnects.
+- **What counts as an admit.** Anything but an explicit admit refuses (`error.code` `host_policy_refused`, with
+  `error.status` the shared status). Refusal cases include:
+  - a ban or an allowlist miss (`current`);
+  - a node behind the anchor, a forged or older mirror copy, or an unavailable mirror (`behind`);
+  - a torn anchor (`anchor`);
+  - an unreadable policy quorum (`unreadable`);
+  - an unanchored book under `activation=required` (`unanchored`).
+
+  While the administrator has anchored nothing and activation is the default `anchor`, the policy is not activated
+  and hosts are admitted as before (`not-activated`).
+- **Mirrors.** Mirrors are untrusted transport. A body is read with the shared 256 KiB bound before it is buffered,
+  and a declared oversize length is refused unread.
+- **Limits.** This is a service refusal, like every other enforcement point. The deployed ledger has no per-host
+  admin ban, so a banned host can still hold a lease on chain. It never receives this client's traffic.
+
+## Native client versus browsers
+
+Everything above is a Node client that verifies the guest itself. Ordinary
+browsers cannot pin an attested key, and they cannot open a WebSocket or `fetch`
+to a self-signed literal address. For browsers, the route is still an
+owner-controlled name with a WebPKI certificate. This library does not provide
+browser integration, and the local fixtures behind it are not public hardware
+proof.
 
 ## The caller's trust profile
 

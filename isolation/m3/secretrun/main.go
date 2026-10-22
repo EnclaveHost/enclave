@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 	"syscall"
 )
 
@@ -27,18 +28,31 @@ func run() error {
 	if len(b) > 65536 {
 		return syscall.E2BIG
 	}
-	var env map[string]string
-	if e = json.Unmarshal(b, &env); e != nil {
+	var all map[string]string
+	if e = json.Unmarshal(b, &all); e != nil {
 		return e
 	}
+	// The front's pipe carries the owner's secrets AND the front's own release facts (storage writer fencing: the two
+	// reserved ENCLAVE_ names, appconfig.SplitFacts). Each set is validated by its own rule: an owner secret still may never
+	// use the ENCLAVE_ prefix, and a fact must be one of the two names with a strictly formed value.
+	// The encrypted volumes' plane (m2/front encvol.go): three reserved names the front adds after it started the plane,
+	// taken out BEFORE the owner's secrets and the facts are judged (an owner secret may never be an ENCLAVE_ name).
+	enc, e := takeEnc(all, encMarker, encRoot)
+	if e != nil {
+		return e
+	}
+	env, facts := appconfig.SplitFacts(all)
 	if e = shieldconfig.Validate(env); e != nil {
+		return e
+	}
+	if e = appconfig.ValidateFacts(facts); e != nil {
 		return e
 	}
 	cfg, e := os.ReadFile("/app.config")
 	if e != nil {
 		return e
 	}
-	resolved, e := appconfig.Resolve(string(cfg), env)
+	resolved, e := appconfig.ResolveWithFacts(string(cfg), env, facts)
 	if e != nil {
 		return e
 	}
@@ -56,6 +70,11 @@ func run() error {
 		return e
 	}
 	native := []string{"HOME=/tmp", "PATH=/plat", "ENCLAVE_CONFIG=" + resolved}
+	models, e := modelEnviron(modelMarker, os.LookupEnv)
+	if e != nil {
+		return e
+	}
+	native = append(native, models...)
 	names := make([]string, 0, len(env))
 	for k := range env {
 		names = append(names, k)
@@ -67,9 +86,24 @@ func run() error {
 		native = append(native, k+"="+env[k])
 		args = append(args, "--env", k)
 	}
+	// the facts are also in the app's environment (sia-s3 resolves a "$NAME" config value from its own environment)
+	for _, k := range []string{appconfig.FactInstanceIsolation, appconfig.FactWriterAuthority} {
+		if v, ok := facts[k]; ok {
+			native = append(native, k+"="+v)
+			args = append(args, "--env", k)
+		}
+	}
 	if publicWeb {
 		native = append(native, shieldconfig.PublicWebEgressEnv)
 		args = append(args, "--env", "ENCLAVE_EGRESS")
+	}
+	// live preopens of the staged volumes, and where to unlock them; values ride the environment, never argv
+	for _, n := range enc.names {
+		args = append(args, "--dir", encRoot+"/"+n+"::/enc/"+n)
+	}
+	if len(enc.names) > 0 {
+		native = append(native, "ENCLAVE_ENC="+strings.Join(enc.names, ","), "ENCLAVE_ENC_API="+enc.api, "ENCLAVE_ENC_TOKEN="+enc.token)
+		args = append(args, "--env", "ENCLAVE_ENC", "--env", "ENCLAVE_ENC_API", "--env", "ENCLAVE_ENC_TOKEN")
 	}
 	args = append(args, artifact)
 	for i := range b {

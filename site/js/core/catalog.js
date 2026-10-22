@@ -12,7 +12,7 @@ import {directUploadHeaders} from "./upload-auth.js";
    Load progress is announced with `enclave:catalog` events (detail.type:
    loading | loaded | error) - pages render, this module doesn't.
    ============================================================ */
-import { APP_CATALOG_ADDRESS, IPFS_IMG_GATEWAY, IPFS_JSON_UPLOAD_URL, IPFS_WALLET_AUDIENCE } from "./config.js";
+import { APP_CATALOG_ADDRESS, IPFS_IMG_GATEWAY, IPFS_JSON_UPLOAD_URL, IPFS_WALLET_AUDIENCE, STORAGE_PLAN, INDEPENDENT } from "./config.js";
 import { catConfigured, appCount, catGetAppsPage, catGetVersions, catOwner, APPROVAL, CAT_MAX } from "./chain.js";
 import { lsGet, lsSet, emit, on, esc } from "./util.js";
 import { minPctsOf } from "./pricing.js";
@@ -390,6 +390,8 @@ export async function fetchConfigCid(cid){
    the wasm upload, the images, and both config pins (a publisher's version
    config and a deployer's per-deployment override). */
 export async function signedUploadToken(bytes){
+  // independent mode has no token service: uploads are wallet-signed per adapter (independentUpload below)
+  if (INDEPENDENT.state !== "off") throw new EnclaveError("Uploads in independent mode go to the profile's storage adapters, never the upload-token API.", 0);
   if (!Enclave.address){ try { await connectWallet(); } catch(_){} }
   if (!Enclave.address || !Enclave.provider) throw new EnclaveError("Connect your wallet to upload; your signature authorizes the pin.", 0);
   const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(b => b.toString(16).padStart(2, "0")).join("");
@@ -424,7 +426,32 @@ export async function signedUploadHeaders(bytes,url){
    Enclaves re-fetch and hash-verify either one, so this pin is AVAILABILITY,
    never trust: a gateway that served different bytes would fail the check, not
    change what runs. */
+/* Independent mode: publish bytes to EVERY adapter in the profile's storage
+   plan (js/core/storage-plan.js) - local CID, one wallet signature per
+   adapter, exact-byte readback, minimum verified copies. Returns the CID and
+   the availability report. No profile storage plan = uploads are off. */
+export async function independentUpload(bytes, kind, onProgress){
+  if (INDEPENDENT.state !== "on") throw new EnclaveError("Confirm the independent profile in Settings before uploading.", 0);
+  if (!STORAGE_PLAN) throw new EnclaveError("The independent profile names no storage adapters, so uploads are off here. Paste a CID you have pinned, or add a storage plan to the profile.", 0);
+  if (!Enclave.address){ try { await connectWallet(); } catch(_){} }
+  if (!Enclave.address || !Enclave.provider) throw new EnclaveError("Connect your wallet: each storage adapter needs your signature for this upload.", 0);
+  const { publishToPlan } = await import("./storage-plan.js");
+  try {
+    const report = await publishToPlan(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), kind, STORAGE_PLAN,
+      { address: Enclave.address.toLowerCase(), signMessage: ({ message }) => personalSign(message) }, { onProgress });
+    return { cid: report.cid, report };
+  } catch(err){
+    if (err && (err.code === 4001 || /reject|denied|declin|cancell/i.test(err.message || ""))) throw new EnclaveError("upload canceled: you declined a wallet signature (nothing was uploaded).", 0);
+    throw (err instanceof EnclaveError) ? Object.assign(err, { report: err.report }) : Object.assign(new EnclaveError(err.message || String(err), 0), { report: err && err.report });
+  }
+}
+
 export async function putConfig(text){
+  if (INDEPENDENT.state !== "off"){
+    const buf = new TextEncoder().encode(text);
+    if (buf.byteLength > CAT_MAX.configMax) throw new EnclaveError("config too long (≤ " + CAT_MAX.configMax + " bytes)", 0);
+    return (await independentUpload(buf, "json")).cid;
+  }
   if (!IPFS_JSON_UPLOAD_URL) throw new EnclaveError("Large configs aren’t configured here (no config pin gateway).", 0);
   const buf = new TextEncoder().encode(text);
   if (buf.byteLength > CAT_MAX.configMax)

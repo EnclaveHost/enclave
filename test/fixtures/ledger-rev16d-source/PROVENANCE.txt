@@ -1,0 +1,12 @@
+EnclaveDeployments.sol here is the SOURCE of the live ledger rev 16d (Base 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b),
+verbatim: sha256 2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1, git blob 3f3d2c3ac155be4c108531b247b3f95a5c9ccdd4
+- exactly what contracts/deployments/source-verification-base.json pins as builds.ledger-rev16d (repository commit
+4b7419bb0955ffd02a6ce8d75809dac0a18f302f, path contracts/EnclaveDeployments.sol; deployed basis "Full match with 4b7419bb0
+... runs 1, viaIR"). test/lease-gas-fixtures.test.mjs re-checks both hashes against that manifest.
+
+It is a test fixture: the app-funded lease tests deploy it on a local anvil (built from this source by
+test/lease-gas/forge, test/helpers/lease-gas-forge.mjs) because the reserve and executor are written against the ledger
+that is LIVE, not against the repository's later contracts/EnclaveDeployments.sol. No compiled artifact is kept here.
+The registry it is paired with is test/fixtures/registry-schema4/EnclaveRegistry.sol (builds.registry-schema4, git blob
+d7fb9740a29cc3d6dc7c197ddf62937112b22a6c); the SessionVault is contracts/SessionVault.sol (builds.legacy-sessions-v2).
+To check a copy against the repository history: git hash-object EnclaveDeployments.sol  (must print 3f3d2c3a...).

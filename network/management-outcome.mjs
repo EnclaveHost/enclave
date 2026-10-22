@@ -9,13 +9,20 @@ import {MANAGEMENT_OPERATIONS} from './management-routes.mjs';
 
 const AUTH_REFUSALS = ['unauthorized', 'session_ended', 'chain_unavailable', 'session_check_failed', 'not_allowed', 'not_found'];
 const NOT_STARTED = {
-  restart: new Set([...AUTH_REFUSALS, 'not_running', 'restart_in_progress', 'restart_unavailable']),
+  restart: new Set([...AUTH_REFUSALS, 'not_running', 'restart_in_progress', 'restart_unavailable', 'release_in_progress']),
   cpuProfileControl: new Set([...AUTH_REFUSALS, 'profile_unavailable', 'no_instance']),
+  // stop_unconfirmed and release_unconfirmed are NOT here: the stop was attempted, so the outcome is unknown
+  // release_blocked: a restart, launch, relaunch or renewal was in flight, so nothing was stopped
+  release: new Set([...AUTH_REFUSALS, 'not_current_runner', 'not_releasable', 'release_in_progress', 'release_unavailable', 'release_blocked']),
 };
 const SUCCEEDED = {
   restart: (json, id) => json.id === id && typeof json.status === 'string',
   cpuProfileControl: json => typeof json.state === 'string' && json.format === 'gperftools',
+  // only the host's statement that its own release receipt shows the lease released; the owner still confirms that on its
+  // own quorum
+  release: (json, id) => json.id === id && json.released === true,
 };
+const WHAT = {restart: 'restart', cpuProfileControl: 'CPU profile control', release: 'release'};
 
 /**
  * -> {kind: 'ok', json} | {kind: 'refused', message, status, code} | {kind: 'unknown', message, status, code}
@@ -32,7 +39,7 @@ export function classifyManagementAnswer(op, {status, forwarded, readError = nul
     if (!object) return {kind: 'refused', message: 'the host answered with malformed JSON', status, code};
     return {kind: 'ok', json};
   }
-  const what = op === 'restart' ? 'restart' : 'CPU profile control';
+  const what = WHAT[op];
   const unknown = why => ({kind: 'unknown', message: `the ${what} may have run; its outcome is unknown (${why}): check status before asking again`, status, code});
   if (readError) return unknown('the answer was cut off');
   if (status >= 200 && status < 300) return object && SUCCEEDED[op](json, deploymentId) ? {kind: 'ok', json} : unknown('the success answer was malformed');

@@ -91,6 +91,15 @@ func (f *front) prepareShieldDirect(ctx context.Context, auth *bootstrap.Authori
 	if err = shieldconfig.Validate(values); err != nil {
 		return nil, err
 	}
+	// Release facts on the same private pipe (secretrun separates them, appconfig.SplitFacts): "vbs", and the lease's
+	// writer authority from this guest's own RPC quorum when the measured config refers to it.
+	// no checkpoints: a Shield partition has no SEV-SNP report to judge one against, and no Shield (VBS) checkpoint
+	// verifier exists (work/history-checkpoint-transport-interface.txt): it reads its owner's history sources
+	facts, err := directFacts(ctx, auth, text, shieldIsolation, nil)
+	if err != nil {
+		return nil, err
+	}
+	facts = referencedFacts(facts, text)
 	if err = auth.Revalidate(ctx); err != nil {
 		return nil, err
 	}
@@ -98,6 +107,11 @@ func (f *front) prepareShieldDirect(ctx context.Context, auth *bootstrap.Authori
 	if grant, e := auth.NameGrant(); e == nil && grant.ACME != nil && grant.ACME.EAB != nil {
 		startup.eabKID, startup.eabKey, startup.eabErr = eabFrom(values, grant.ACME.EAB)
 	}
+	// ...and app-zone issuance (appzone.go) its own selected CA's EAB, from the same bundle, exactly as the SNP direct front
+	if grant, e := auth.NameGrant(); e == nil && grant.AppZone != nil && grant.AppZone.EAB != nil {
+		startup.appEabKID, startup.appEabKey, startup.appEabErr = eabFrom(values, grant.AppZone.EAB)
+	}
+	eg.encID = id
 	fwd, err := eg.startDirect(auth, values)
 	if err != nil {
 		return nil, err
@@ -108,7 +122,16 @@ func (f *front) prepareShieldDirect(ctx context.Context, auth *bootstrap.Authori
 			fwd.Close()
 		}
 	}()
-	payload, err := json.Marshal(values)
+	launch := make(map[string]string, len(values)+len(facts))
+	for k, v := range values {
+		launch[k] = v
+	}
+	for k, v := range facts {
+		launch[k] = v
+	}
+	eg.addEnc(launch)
+	payload, err := json.Marshal(launch)
+	launch = nil
 	if err != nil || len(payload) > 65536 {
 		return nil, errors.New("Shield secret launch payload exceeds limit")
 	}

@@ -121,7 +121,9 @@ These run in order for every request; the first failure refuses it.
    an authorization; without agreement the request is refused before the supervisor sees anything.
 4. **The decision.** Lease current and naming this runner; session live with the key and the operation's scope; the
    session may act for the deployment's **current** owner (vault environment, or production plus the owner's
-   delegation).
+   delegation). The one exception is `claimHint`, a placement hint to a host the **owner named**: it needs the record to
+   exist and be active, not a lease on this runner (the point is that this host does not hold it yet). Every session
+   rule is the same, and no lease bounds its freshness.
 5. **Deadlines.** One hard total deadline per operation bounds steps 3 to 5, so a hung chain read is a refusal.
    **Nothing is forwarded at or after** the earliest of that deadline, lease end, snapshot freshness and session expiry.
    This is checked before an upstream request exists.
@@ -134,8 +136,8 @@ needs. A source is the connection's address, with IPv6 grouped by /64.
 | Before authorization (headers, body) | global `preAuth` 64; `preAuthPerSource` 4. A chunked body, or a declared length the operation cannot carry, is refused at once. The one small body (a CPU profile control, ≤64 bytes) has a 2 s deadline. |
 | Chain authorization (costs RPC reads) | global `authorizing` 8; `authorizingPerSource` 2; `authorizingPerDeployment` 4; `authorizingPerKey` 2; `authPerMinute` 30 with `authBurst` 10 per source |
 | Known-key reserve | `knownReserve` 4 extra slots, only for session keys that authorized here within `knownTtlMs` (15 min); they also skip the per-source caps |
-| Refuse-only memory | for `negativeTtlMs` (15 s): a deployment the agreed snapshot showed is not leased to this runner, or a signer it showed is not a vault, is refused without a chain read. It can only refuse, never authorize |
-| Forwarding | `long` 8 (logs, restart, attestation, CPU profile) and `short` 8; `forwardPerDeployment` 4 |
+| Refuse-only memory | for `negativeTtlMs` (15 s): a deployment the agreed snapshot showed is not leased to this runner, or a signer it showed is not a vault, is refused without a chain read. It can only refuse, never authorize. `claimHint` neither consults nor fills the deployment memory |
+| Forwarding | `long` 8 (logs, restart, attestation, CPU profile, release) and `short` 8; `forwardPerDeployment` 4 |
 | Nonces | `nonces` 100,000. A live nonce is never evicted; when full, new requests get a 503 `replay_capacity` |
 
 This bounds what any one source, key or deployment can take, and keeps recently active owners served while
@@ -149,6 +151,8 @@ shared pre-authorization and authorization pools, and behind a shared NAT or pro
   tunnel, `PUBLIC_URL`) cannot bypass the gateway's agreed-RPC authorization.
 - While an answer flows, the authorization is re-read every `recheckMs` (never two rechecks at once). The answer is cut
   if the authorization no longer holds, and the cut time follows the newest snapshot, never past the hard bound.
+  `release` is the exception (`reauthorize: false`): it ends the very lease its authorization stands on, so once
+  forwarded its answer runs to the hard bound. Cutting it would only turn a confirmed release into "unknown".
 - Every exit clears its timers and releases its slot.
 - Each request is forwarded at most once.
 - Answers say `x-enclave-management-forwarded: 0|1`.
@@ -163,6 +167,40 @@ shared pre-authorization and authorization pools, and behind a shared NAT or pro
 | `cpuProfile` | `GET …/cpu-profile` | `api.logs` | none | 24 MiB (≤16 MiB capture, base64) | no |
 | `cpuProfileControl` | `POST …/cpu-profile` | `api.logs` | exactly `{"action":"start","seconds":N}` (N 1..60) or `{"action":"stop"}` | 64 KiB | yes |
 | `restart` | `POST …/restart` | `api.restart` | none | 64 KiB | yes |
+| `release` | `POST …/release` | `api.restart` | none | 8 KiB | yes |
+| `claimHint` | `POST …/claim-hint` (to the host the owner names) | `api.placement` | none | 8 KiB | no (idempotent) |
+
+**Release and claim hint** (the independent move; `work/independent-move-interface.txt`).
+- **`release`.** The supervisor (`POST /v1/deployments/:id/release`) does three things in order:
+  1. It refuses before any effect:
+     - `not_releasable`: the ledger, read at a pinned block no older than the last block this host saw for the
+       deployment, does not show a live lease of **this host** (its enclave id **and** its operator);
+     - `release_in_progress`: an earlier release of it is still unresolved here;
+     - `release_blocked`: a restart, launch, relaunch or renewal is in flight;
+     - `release_unavailable`: the ledger cannot be read.
+  2. It stands down from re-claiming, then stops the app and requires the stop to be **confirmed**. An unconfirmed stop
+     releases nothing: 502 `stop_unconfirmed`.
+  3. It sends the final proof, then the `release()` transaction. Its hash and nonce are persisted before it is
+     broadcast; never a key, never the signed bytes.
+
+  It answers `{released: true}` only on that transaction's own success receipt, carrying `Released` for this host,
+  at the required confirmations. A later ledger read can neither invent nor deny it. Otherwise it answers 503
+  `release_unconfirmed`, naming the transaction. The app stays stopped, and the host then resolves it (receipt, or its
+  nonce consumed) before any retry; a retry is sent only if the same lease is still there. Until every release it
+  signed is resolved, the host does not resume, re-claim, renew or restart the deployment. This holds across a restart
+  of the supervisor too, and with the state file lost, through a boot-time nonce fence.
+
+  The answer is host-reported; the owner confirms the release on its own quorum. The legacy `DELETE`, which answers
+  before its release is even sent, is **not** on this plane. It now uses the same release mechanism and also refuses
+  `release_blocked`.
+- **Same operator.** On the deployed ledger `release(id)` names no lease, only the operator key. The CLI therefore
+  refuses a move to a host run by the **same operator** as the current lease holder. This is temporary, and parity is
+  open: `work/lease-epoch-proposal.txt`.
+- **`claimHint`.** The client resolves the named host from the pinned registry: its active entry and operator, then that
+  operator's signed record. The supervisor (`POST /v1/deployments/:id/claim-hint`, `api.placement`) judges the owner rule
+  against the **ledger** row, then makes the same decision as the public hint: `{accepted, status|reason}`.
+
+  An owner hint never overrides this host's provision-failure cooldown. Only the ledger says where the record landed.
 
 Refused with a 404, never forwarded: `/v1/admin/*`, listings, deletion, topups, the `/x/` data path, prefixes, encoded or
 dot segments, extra query parameters and other methods.
@@ -175,7 +213,7 @@ clients must not log it.
 
 Reads give a JSON object, or a refusal. **Mutations are not idempotent**, so only two answers are definite:
 - **Success:** a well-formed answer. For restart, the JSON names this deployment; for a profile control, a gperftools
-  state.
+  state; for a release, `{id, released: true}`.
 - **Refusal before any side effect:** a gateway answer marked "not forwarded", the supervisor's own pre-mutation refusal
   codes, or (for a profile control) the manager's 422 input refusal.
 
