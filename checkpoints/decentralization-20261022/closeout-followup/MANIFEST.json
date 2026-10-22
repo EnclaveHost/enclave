@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-22T23:43:44.152747+00:00",
+  "capturedAt": "2026-10-22T23:57:02.711757+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -343,6 +343,13 @@
       "stored": "files/controller-bounds-validation/validate.py",
       "sha256": "6c052c8c8642e5e693bb963f05fc22b8b2f73d9d56929261956a46963dd52efe",
       "bytes": 30580
+    },
+    {
+      "label": "ROOT STATUS NOTE: Cron placement wallet request pending; nothing confirmed",
+      "source": "work/resume-after-checkpoint-20261022/cron-placement/ROOT-STATUS.json",
+      "stored": "files/cron-placement/ROOT-STATUS.json",
+      "sha256": "76e87ef4e3e3ad554c18bda9d1de7193f5081e1df1e0ff6e394811cab767403f",
+      "bytes": 595
     },
     {
       "source": "work/resume-after-checkpoint-20261022/direct-hardware-canary/FROZEN-PINS.json",
@@ -3445,6 +3452,13 @@
       "bytes": 6724
     },
     {
+      "label": "SOURCE-ONLY PROPOSALS (read-only diagnosis); nothing implemented or activated",
+      "source": "work/resume-after-checkpoint-20261022/queued-rpc-diagnosis/RESULT.md",
+      "stored": "files/queued-rpc-diagnosis/RESULT.md",
+      "sha256": "4d531c279d2bf6741a4132274197d50578d125eeb1bce5418969807908472bd2",
+      "bytes": 10556
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/relay-release-list-review/INITIAL.md",
       "stored": "files/relay-release-list-review/INITIAL.md",
       "sha256": "ccb01ee59ed4c61b1699f59972692ec474c788299c49da5fa2a1c61d35279e43",
@@ -3547,6 +3561,12 @@
       "bytes": 1572
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/funding-confirmed.json",
+      "stored": "files/relay-release-live/funding-confirmed.json",
+      "sha256": "00a1821f94c68da87053e4f3e414b3c09d19fd2c1138b48e564dca4087749999",
+      "bytes": 2316
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/relay-release-live/ingress-probe.json",
       "stored": "files/relay-release-live/ingress-probe.json",
       "sha256": "eda0d4b2d62dc39cfe433a863b44d4bb5de946d258fd52bc814435e31b8e6a6c",
@@ -3561,8 +3581,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/relay-release-live/nucbox-queued-state.json",
       "stored": "files/relay-release-live/nucbox-queued-state.json",
-      "sha256": "458cdb34214a9f993702974098bf3e9761eea05513c177fa79e55ba413878f83",
-      "bytes": 7712
+      "sha256": "c298a8da15e19f8ad9717fdd5a4b0be7cd2ff42f1606ef648a2e9b766e0b9b45",
+      "bytes": 7547
     },
     {
       "source": "work/resume-after-checkpoint-20261022/relay-release-live/nucbox-queued-state.py",
@@ -3595,6 +3615,12 @@
       "bytes": 1025
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/verify-funding.mjs",
+      "stored": "files/relay-release-live/verify-funding.mjs",
+      "sha256": "7fcda413c93ef57a385c227e5d129bbff1c287075405eebc04bcce361d888147",
+      "bytes": 3144
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/relay-release-live/verify-postdeploy.py",
       "stored": "files/relay-release-live/verify-postdeploy.py",
       "sha256": "3dfaa551d31e5fab5fb7283667723f5de0c4b04ac7cfe32fe30a36a6862cdcc9",
@@ -3603,8 +3629,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "2b2f1391eba8f250d9ac69a4bc64f924c974f80ddb4f06f7dd2c498e999e4901",
-      "bytes": 18928
+      "sha256": "2ab822442b58fb2ef7480795285361073e1cde28f0d616e0469418ff36714469",
+      "bytes": 19619
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",

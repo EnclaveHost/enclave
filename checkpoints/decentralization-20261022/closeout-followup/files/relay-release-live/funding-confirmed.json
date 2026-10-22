@@ -1,0 +1,65 @@
+{
+  "at": "2026-10-22T23:48:37.531Z",
+  "status": "CONFIRMED_TEN_DEPOSITS",
+  "hash": "0x3748c0e42c3a37a1ce5d2ebfef9bc3fd8f5bd1246dc36a06a7a256bc2e2446e7",
+  "block": "52961730",
+  "verifiedAtBlock": "52961782",
+  "agreeing": 2,
+  "peers": 3,
+  "valueWei": "1000000000000000",
+  "gasUsed": "761723",
+  "effectiveGasPrice": "6000000",
+  "l2FeeWei": "4570338000000",
+  "deposits": [
+    {
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "amountWei": "100000000000000"
+    },
+    {
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "amountWei": "100000000000000"
+    },
+    {
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "amountWei": "100000000000000"
+    },
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "amountWei": "100000000000000"
+    },
+    {
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "amountWei": "100000000000000"
+    },
+    {
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "amountWei": "100000000000000"
+    },
+    {
+      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "amountWei": "100000000000000"
+    },
+    {
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "owner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+      "amountWei": "100000000000000"
+    },
+    {
+      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "amountWei": "100000000000000"
+    },
+    {
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "amountWei": "100000000000000"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-22T23:35:45.6709671Z",
+  "at": "2026-10-22T23:56:57.7371794Z",
   "deployments": [
     {
       "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
@@ -17,30 +17,30 @@
     },
     {
       "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
-      "status": "claiming",
-      "leaseUntil": 1792663729,
-      "reason": "claim failed: app-funded claim not sent: lease-gas RPC quorum cannot read the configured chain; this host's ETH is never used instead",
+      "status": "running",
+      "leaseUntil": 1792714619,
+      "reason": null,
       "error": null
     },
     {
       "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
-      "status": "failed",
-      "leaseUntil": 1792660709,
-      "reason": "claim failed: app-funded claim not sent: lease-gas RPC quorum cannot read the configured chain; this host's ETH is never used instead",
+      "status": "running",
+      "leaseUntil": 1792714699,
+      "reason": null,
       "error": null
     },
     {
       "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
-      "status": "claiming",
-      "leaseUntil": 1792649861,
-      "reason": "the lease expired; a new claim must pass the current funding and hosting policy",
+      "status": "running",
+      "leaseUntil": 1792714643,
+      "reason": null,
       "error": null
     },
     {
       "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
-      "status": "claiming",
-      "leaseUntil": 1792671243,
-      "reason": "claim failed: app-funded claim not sent: no relay landed the claim: http://127.0.0.1:8549: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; https://134.209.248.172: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; this host's ETH is never used instead",
+      "status": "running",
+      "leaseUntil": 1792714629,
+      "reason": null,
       "error": null
     },
     {
@@ -52,30 +52,30 @@
     },
     {
       "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
-      "status": "claiming",
-      "leaseUntil": 1792677359,
-      "reason": "claim failed: app-funded claim not sent: lease-gas RPC quorum cannot read the configured chain; this host's ETH is never used instead",
+      "status": "running",
+      "leaseUntil": 1792714613,
+      "reason": null,
       "error": null
     },
     {
       "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
-      "status": "failed",
-      "leaseUntil": 1792692447,
-      "reason": "claim failed: app-funded claim not sent: no relay landed the claim: http://127.0.0.1:8549: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; https://134.209.248.172: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; this host's ETH is never used instead",
+      "status": "running",
+      "leaseUntil": 1792714635,
+      "reason": null,
       "error": null
     },
     {
       "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
-      "status": "failed",
-      "leaseUntil": 1792657223,
-      "reason": "claim failed: app-funded claim not sent: lease-gas RPC quorum did not agree on the pinned reserve, executor and ledger bindings; this host's ETH is never used instead",
+      "status": "running",
+      "leaseUntil": 1792714649,
+      "reason": null,
       "error": null
     },
     {
       "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
       "status": "claiming",
-      "leaseUntil": 1792675415,
-      "reason": "claim failed: app-funded claim not sent: no relay landed the claim: http://127.0.0.1:8549: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; https://134.209.248.172: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; this host's ETH is never used instead",
+      "leaseUntil": 1792715191,
+      "reason": "another enclave holds a live lease on it",
       "error": null
     },
     {
@@ -150,29 +150,71 @@
     }
   ],
   "readiness": {
-    "sequence": 603,
-    "startedAt": 1792711792230,
+    "sequence": 609,
+    "startedAt": 1792713382641,
     "completedAt": 0,
     "inFlight": true,
     "deployments": [
       {
         "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
-        "sequence": 603,
+        "sequence": 609,
         "status": "pending"
       },
       {
         "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
-        "sequence": 603,
+        "sequence": 609,
         "status": "pending"
       },
       {
         "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
-        "sequence": 603,
+        "sequence": 609,
+        "status": "ready",
+        "observedAt": 1792713400281,
+        "checkedAt": 1792713404962,
+        "leaseUntil": 1792714613,
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a"
+      },
+      {
+        "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+        "sequence": 609,
+        "status": "ready",
+        "observedAt": 1792713405108,
+        "checkedAt": 1792713411317,
+        "leaseUntil": 1792713731,
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a"
+      },
+      {
+        "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+        "sequence": 609,
+        "status": "ready",
+        "observedAt": 1792713411483,
+        "checkedAt": 1792713415059,
+        "leaseUntil": 1792714629,
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a"
+      },
+      {
+        "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+        "sequence": 609,
         "status": "pending"
       },
       {
-        "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
-        "sequence": 603,
+        "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+        "sequence": 609,
+        "status": "pending"
+      },
+      {
+        "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+        "sequence": 609,
+        "status": "pending"
+      },
+      {
+        "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+        "sequence": 609,
+        "status": "pending"
+      },
+      {
+        "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+        "sequence": 609,
         "status": "pending"
       }
     ]

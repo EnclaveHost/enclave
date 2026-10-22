@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-22T23:56:31.974084+00:00",
+  "cron": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+  "currentHost": "metal0",
+  "targetHost": "nucbox-k11-4",
+  "reservedCpuPercent": 100,
+  "imageGeneratorNeedsCpuPercent": 800,
+  "freeCpuPercent": 700,
+  "walletStatus": "requested in existing dashboard; no confirmation yet",
+  "allowFallback": true,
+  "manualReleaseSent": false,
+  "evidence": "Live journal23:47Cronreservation100%;23:48image-generator700%free800%needed. ExistingCLI grant expired1792518596; tokenforunrelatedwallet expired. No secrets extracted."
+}

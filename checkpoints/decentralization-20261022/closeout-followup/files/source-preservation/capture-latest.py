@@ -242,10 +242,18 @@ for directory in ('source', 'helper', 'tools', 'jobs', 'stub'):
     for p in (activate / directory).rglob('*'):
         if p.is_file() and not p.is_symlink() and '__pycache__' not in p.parts and 'mutants' not in p.parts:
             paths.add(p)
+# Root's funding confirmation (the read-only quorum receipt check of the 10 deposits) and its sanitized result (covered by the
+# .json rule above); the queued-claim RPC diagnosis (source-only proposals); root's Cron placement status note. Never the
+# Cron placement probe log, a wallet journal, page token or raw log.
+paths.add(release_live / 'verify-funding.mjs')
+paths.add(base / 'queued-rpc-diagnosis/RESULT.md')
+paths.add(base / 'cron-placement/ROOT-STATUS.json')
 # what each new group IS, recorded on its manifest entries (nothing here is activated by this checkpoint)
 LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent '
                                    'tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)',
-          'node-activate-min/': 'SOURCE ONLY: not run natively, not activated'}
+          'node-activate-min/': 'SOURCE ONLY: not run natively, not activated',
+          'queued-rpc-diagnosis/': 'SOURCE-ONLY PROPOSALS (read-only diagnosis); nothing implemented or activated',
+          'cron-placement/': 'ROOT STATUS NOTE: Cron placement wallet request pending; nothing confirmed'}
 paths.add(Path(__file__).resolve())
 # Mutation tests temporarily edit the issuer's working tree. Preserve their saved
 # unmutated inputs, never an intentionally disabled security check.
