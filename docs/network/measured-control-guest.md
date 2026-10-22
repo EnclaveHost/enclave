@@ -125,8 +125,9 @@ group's shared WebPKI key is refused, and so is a leaf for any other key.
 - **Config.** `"nativeControl": { "names": [<sorted subset of the two names>], "caSha256": "<sha256 of the native CA DER>" }`.
   It needs `platformApi`, and the names must differ from `platformApi.hostname`. HOST_DATA binds it like every member. The
   statement then states `native: { names, caSha256 }`; other statements keep their exact bytes.
-- **Certificate.** The leaf is public, and the CA holder issues it OUTSIDE the guest, over the attested public key.
-  The guest's private key never leaves the guest. Run `scripts/native-control-certificate.mjs`:
+- **Certificate.** The leaf is public. The CA holder issues it over the attested PUBLIC key, never in the serving guest:
+  either the platform API primary (below), or the offline admin. The guest's private key never leaves the guest. The
+  offline admin runs `scripts/native-control-certificate.mjs`:
   - `request` verifies the boot against its trusted config, measurements and the original registry;
   - `issue` runs where the CA key is kept, reading the key only through openssl;
   - `install` sends the leaf over a connection pinned to the attested key on the secure socket.
@@ -155,8 +156,31 @@ group's shared WebPKI key is refused, and so is a leaf for any other key.
   masked or zero). It is added to that host's chain facts, never replacing them, so a `chipId` deny or allowlist entry
   matches per host. A host whose chip is not proven is refused while the policy denies any `chipId`.
 
-Issuance remains a deployment prerequisite: the native CA key is held in one place today (the minipc control VM).
-Distributed issuance or custody is not provided here.
+**Issuance by the platform API group (`metal/guest/native-issuer.mjs`).** The existing native CA can be held by the platform
+API group instead of one machine. It is NOT active until root provisions it:
+
+- **Where the CA key lives.** It is held only as the admin-signed platform credentials `NATIVE_CA_KEY` and `NATIVE_CA_CERT`.
+  - They are sealed to the primary's boot, replicated only as AEAD under the group key, and archived as ciphertext, with
+    the group key escrowed to the admin recovery keys.
+  - They never appear in a config, the relay child's environment or files, a log or an archive in plaintext.
+  - A newer admin package without them stops issuance.
+- **Who issues.** Only the current primary, in single-flight rounds. For each member of `platformApi.members` it:
+  - reads the member's bound config from its control URL (`GET /platform-api/config`; public, and trusted only after the
+    next step);
+  - verifies the serving boot against exactly that config, the group's measurements and the original registry, with
+    `verifyMeasuredControl`, unchanged;
+  - requires the identical `platformApi` member and a `nativeControl` bound to THIS CA;
+  - takes a fresh platform host policy decision with the verified chip;
+  - builds the request from evidence pinned to the attested key (its PUBLIC key only);
+  - signs a leaf with the existing profile (7 days, never past the CA; no openssl in the guest);
+  - installs it through the guest's own pinned install endpoint.
+- **When.** A member is re-verified only when the leaf it serves is not one this CA signed over its presented key, or is
+  within 2 days of expiry.
+- **The barrier before every install.** The policy decision is made again, the run must still be the current one (no stop,
+  credential change or leadership change), and the primary must be confirmed by a majority commit.
+- **The primary's own leaf** is installed over loopback to its own front, never through a public hairpin or a native name.
+- **Fallback.** `scripts/native-control-certificate.mjs` (`request` / `issue` / `install`) remains the offline admin
+  fallback, with the CA key held by the admin.
 
 ## Platform limits
 

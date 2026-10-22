@@ -28,6 +28,7 @@ import { createHash, createHmac, timingSafeEqual, X509Certificate } from "node:c
 import { fileURLToPath } from "node:url";
 import * as hpke from "../../custody/hpke.mjs";
 import { ReplicaNode, sealMessage, openArchive, replaceAll, REPLICA_FORMAT } from "../../relay/state-replica.mjs";
+import { createNativeIssuer, nativeCaCredentials, isNativeCaCredential, CONFIG_PATH } from "./native-issuer.mjs";
 
 export const ROLE_FORMAT = "enclave-platform-api-role/v1";
 export const PACKAGE_FORMAT = "enclave-platform-api-package/v1";
@@ -98,7 +99,7 @@ export function openRecovery(env, { groupId, privateKey }) {
  *   transport    { post(url, Buffer|object, {pin}) -> Buffer|object } overridable for tests; default https/http
  */
 export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayArgv = null, log = (m) => console.log(`[platform-api] ${m}`),
-                                  now = Date.now, postImpl = null, archivePut = null, forwardConnectMs = 10000 }) {
+                                  now = Date.now, postImpl = null, archivePut = null, forwardConnectMs = 10000, nativeIssuer = null }) {
   const pa = cfg.platformApi, groupId = groupIdOf(pa), self = cfg.self, members = pa.members;
   const dirs = cfg.dirs, dataDir = dirs.data;
   for (const d of [dirs.root, dataDir]) fs.mkdirSync(d, { recursive: true, mode: 0o700 });
@@ -129,13 +130,18 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
     const creds = readCredentials(path.join(dataDir, CREDENTIALS_FILE)).credentials;
     // a credential the relay reads from a FILE (NAME_FILE: e.g. the release signing seed) is written to the RAM fs, 0600
     const credEnv = {};
+    // the credential files are exactly the CURRENT set: a replaced or removed credential leaves no file behind
+    fs.rmSync(path.join(dirs.root, "creds"), { recursive: true, force: true });
     for (const [k, v] of Object.entries(creds)) {
+      if (isNativeCaCredential(k)) continue;             // the native CA is the issuer's alone: never in the relay's environment or files
       if (!k.endsWith("_FILE")) { credEnv[k] = v; continue; }
       const f = path.join(dirs.root, "creds", k);
       fs.mkdirSync(path.dirname(f), { recursive: true, mode: 0o700 }); fs.writeFileSync(f, v, { mode: 0o600 }); credEnv[k] = f;
     }
     const env = { PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin", ...(cfg.relayEnvBase || {}), ...pa.relayEnv, ...credEnv, AUTH_DATA_DIR: dataDir,
                   API_RELAY_BIND: "127.0.0.1", API_RELAY_PORT: "0", PLATFORM_API_ROLE: "relay-child", NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS || "" };
+    // the final boundary: whatever source a NATIVE_CA_* name came from (base, bound relayEnv, credentials), the relay never has it
+    for (const k of Object.keys(env)) if (isNativeCaCredential(k)) delete env[k];
     const argv = relayArgv || [process.execPath, fileURLToPath(import.meta.url), "--relay-child"];
     const c = spawn(argv[0], argv.slice(1), { env, cwd: dataDir, stdio: ["ignore", "inherit", "inherit", "ipc"] });
     child = c; childPort = 0;
@@ -160,24 +166,45 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
     child = null; childPort = 0;
   }
 
+  // ---- the native CA issuer (primary only; metal/guest/native-issuer.mjs) ----
+  // It runs while this member is the primary AND the group holds the admin's NATIVE_CA_* credentials. Leadership loss,
+  // stop, or a credentials package that removes or replaces them stops the current run (its timer and connections) at once.
+  const credentialsFile = path.join(dataDir, CREDENTIALS_FILE);
+  const issuer = nativeIssuer ? createNativeIssuer({ ...nativeIssuer, members, self, platformApi: pa, ownConfig: cfg.config,
+    selfUrl: `https://127.0.0.1:${cfg.listen?.control ?? cfg.config.controlPort}`,       // this guest's own front: no public hairpin
+    barrier: async () => !!node && node.role === "leader" && (await node.commit()) === true && node.role === "leader" && node.leaseValid(),
+    credentialsDigest: () => nativeCaCredentials(readCredentials(credentialsFile).credentials)?.digest ?? null,
+    log: (m) => log(m), now }) : null;
+  function syncIssuer(why) {
+    if (!issuer) return;
+    if (stopped || !node || node.role !== "leader") return issuer.stop(why);
+    const c = nativeCaCredentials(readCredentials(credentialsFile).credentials);
+    if (!c) return issuer.stop("the group holds no native CA credentials");
+    issuer.start(c, why);
+  }
+
   // ---- the replica member ----
   function startNode() {
     if (node) return;
     node = new ReplicaNode({ self, n: members.length, key, group: groupId, dir: dataDir, metaFile: path.join(dirs.root, "meta.json"), leaseMs: pa.leaseMs, now, info,
       log: (m) => log(m),
       send: async (i, buf) => Buffer.from(await post(members[i].controlUrl + PEER_PATH, buf, { binary: true })),
-      onLeader: () => startRelay(), onFollower: (why) => stopRelay(why),
+      onLeader: () => { startRelay(); syncIssuer("primary"); }, onFollower: (why) => { issuer?.stop(why); stopRelay(why); },
       archive: pa.archives.length ? archive : null, archiveMs: pa.archiveMs ?? 30000 });
     node.start();
   }
   const recovery = () => recoveryEnvelope({ key, groupId, recovery: pa.recovery });
+  // a sink holds a RECOVERABLE archive only with both halves of this write: the snapshot sealed under K and K escrowed to the
+  // admin recovery keys. Half of one sink and the other half of another recover nothing, so only complete pairs count.
+  let lastArchive = null;
   async function archive(blob, head) {
-    const put = archivePut || defaultPut;
-    const results = await Promise.allSettled(pa.archives.flatMap((sink) => [
-      put(`${sink}/platform-api/${groupId}/latest`, blob), put(`${sink}/platform-api/${groupId}/recovery.json`, Buffer.from(JSON.stringify(recovery())))]));
-    const okSinks = results.filter((r) => r.status === "fulfilled").length / 2;
-    if (!okSinks) throw new Error("no archive sink took the snapshot");
-    log(`archived snapshot ${head.epoch}.${head.seq} to ${Math.floor(okSinks)} of ${pa.archives.length} sink(s)`);
+    const put = archivePut || defaultPut, envelope = Buffer.from(JSON.stringify(recovery()));
+    const paired = await Promise.all(pa.archives.map((sink) => Promise.allSettled([put(`${sink}/platform-api/${groupId}/latest`, blob),
+      put(`${sink}/platform-api/${groupId}/recovery.json`, envelope)]).then((r) => r.every((x) => x.status === "fulfilled"))));
+    const okSinks = paired.filter(Boolean).length;
+    if (!okSinks) throw new Error(`no archive sink took both the snapshot and the recovery envelope (${pa.archives.length} tried)`);
+    lastArchive = { head: { ...head }, at: new Date(now()).toISOString(), sinks: okSinks, of: pa.archives.length };
+    log(`archived snapshot ${head.epoch}.${head.seq} to ${okSinks} of ${pa.archives.length} sink(s), each with its recovery envelope`);
   }
 
   // ---- the peer/control listener (the front routes /platform-api/* here) ----
@@ -193,6 +220,9 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
     try {
       if (u.pathname === STATUS_PATH && req.method === "GET")
         return send(res, 200, { format: ROLE_FORMAT, groupId, self, haveKey: !!key, ...(node ? node.status() : { role: "waiting-for-key" }), relay: !!childPort });
+      // this boot's bound config: public by construction (relayEnv refuses secret names); a reader trusts it only after
+      // verifyMeasuredControl binds it through HOST_DATA (the primary's native issuer)
+      if (u.pathname === CONFIG_PATH && req.method === "GET") return send(res, 200, { format: ROLE_FORMAT, groupId, config: cfg.config });
       if (req.method !== "POST") return send(res, 405, { error: "method" });
       if (u.pathname === PEER_PATH) {
         if (!node) return send(res, 503, { error: "no_key" });
@@ -260,6 +290,7 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
     if (!(await node.commit())) return [503, { error: "not_committed" }];
     log(`platform credentials updated by admin ${who} (${Object.keys(creds).length} names); restarting the relay`);
     stopRelay("credentials updated"); startRelay();
+    syncIssuer("credentials updated");
     return [200, { ok: true, names: Object.keys(creds).sort() }];
   }
 
@@ -340,11 +371,13 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
   log(`member ${self} of group ${groupId}: peer :${peerServer.address().port}, api :${apiServer.address().port}${key ? "" : "; waiting for the state key"}`);
   return {
     groupId, statementSha, handoffPublicKey: myPub,
-    status: () => ({ haveKey: !!key, relay: !!childPort, childPid: child ? child.pid : null, ...(node ? node.status() : { role: "waiting-for-key" }) }),
+    status: () => ({ haveKey: !!key, relay: !!childPort, childPid: child ? child.pid : null, ...(node ? node.status() : { role: "waiting-for-key" }),
+      archive: lastArchive, nativeIssuer: issuer ? issuer.status() : null }),
     node: () => node, recovery: () => (key ? recovery() : null),
     ports: { peer: peerServer.address().port, api: apiServer.address().port },
     async stop() {
       stopped = true; if (askTimer) clearInterval(askTimer);
+      issuer?.stop("stopped");
       if (node) node.stop(); stopRelay("stopped");
       for (const s of [peerServer, apiServer]) { s.closeAllConnections?.(); await new Promise((ok) => s.close(() => ok())); }
     },
@@ -462,7 +495,17 @@ export async function main(argv) {
   if (cfg.format !== ROLE_FORMAT) throw new Error(`role config format must be ${ROLE_FORMAT}`);
   const viem = await import("viem");
   const { productionVerifier } = await import("./platform-api-verify.mjs");
-  const role = await startRole({ cfg, recoverMessageAddress: viem.recoverMessageAddress, verifyPeer: productionVerifier(cfg) });
+  // the native CA issuer's dependencies, built only when this member first issues: the unchanged verifier and original
+  // registry reader, AMD collateral (KDS, cached on this boot's RAM fs), and the platform host policy resolved from the relay's
+  // own NON-credential environment (relayEnvBase + platformApi.relayEnv; the sealed credentials are never part of it)
+  const nativeIssuer = { deps: async () => {
+    const { issuerDeps } = await import("./native-issuer.mjs");
+    const { cachedCollateral } = await import("../../verifier/collateral-cache.mjs");
+    const { httpCollateral } = await import("../../verifier/collateral.mjs");
+    return issuerDeps({ platformApi: cfg.platformApi, ownConfig: cfg.config, policyEnv: { ...(cfg.relayEnvBase || {}), ...cfg.platformApi.relayEnv },
+      collateral: cachedCollateral({ dir: path.join(cfg.dirs.root, "collateral"), upstream: httpCollateral() }), log: (m) => console.log(`[platform-api] ${m}`) });
+  } };
+  const role = await startRole({ cfg, recoverMessageAddress: viem.recoverMessageAddress, verifyPeer: productionVerifier(cfg), nativeIssuer });
   for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => role.stop().finally(() => process.exit(0)));
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url))

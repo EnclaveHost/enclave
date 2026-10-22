@@ -20,46 +20,19 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import http from 'node:http';
-import net from 'node:net';
-import tls from 'node:tls';
 import { execFileSync } from 'node:child_process';
-import { X509Certificate, createPublicKey, randomBytes } from 'node:crypto';
+import { X509Certificate, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { parseStatement, sha256Hex, NATIVE_NAMES, EVIDENCE_FORMAT, EVIDENCE_PATH, NATIVE_CERT_PATH } from '../metal/guest/measured-control.mjs';
-
-export const REQUEST_FORMAT = 'enclave-native-certificate-request/v1';
-export const MAX_DAYS = 7;   // the existing native service certificate lifetime (renewed, never long-lived)
+import { sha256Hex, EVIDENCE_PATH } from '../metal/guest/measured-control.mjs';
+// the request, the pinned connection and the install live in the library the platform API primary's issuer shares
+// (metal/guest/native-issuer.mjs); this CLI keeps only its command line and the openssl `issue` of the offline CA holder
+import { REQUEST_FORMAT, MAX_DAYS, nativeCertificateRequest, checkNativeRequest, pinnedSocket, pinnedRequest, installNativeCertificate } from '../metal/guest/native-certificate.mjs';
+export { REQUEST_FORMAT, MAX_DAYS, nativeCertificateRequest, pinnedSocket, pinnedRequest, installNativeCertificate };
 const spkiOf = (pem) => new X509Certificate(pem).publicKey.export({ type: 'spki', format: 'der' });
-
-/**
- * The request for one VERIFIED boot. evidence: the evidence JSON re-read over a connection pinned to identity's key;
- * identity: verifyMeasuredControl(...).identity of a "verified" result. -> request object (public data only).
- */
-export function nativeCertificateRequest({ evidence, identity }) {
-  if (!evidence || evidence.format !== EVIDENCE_FORMAT || typeof evidence.certificate !== 'string') throw new Error('evidence: the control front\'s evidence document is required');
-  const st = parseStatement(evidence.statement);
-  if (!identity || st.bootId !== identity.bootId || st.keys.controlTls.spkiSha256 !== identity.controlTlsSpkiSha256) throw new Error('the evidence is not from the verified boot');
-  if (!st.native) throw new Error('this boot is not bound to serve native control names (no nativeControl in its config)');
-  const spki = spkiOf(evidence.certificate);
-  if (sha256Hex(spki) !== st.keys.controlTls.spkiSha256) throw new Error('the evidence certificate does not carry the attested control key');
-  return { format: REQUEST_FORMAT, names: [...st.native.names], caSha256: st.native.caSha256, spkiSha256: st.keys.controlTls.spkiSha256,
-    spkiPem: createPublicKey({ key: spki, format: 'der', type: 'spki' }).export({ type: 'spki', format: 'pem' }),
-    bootId: st.bootId, configDigest: st.configDigest, operator: st.identity.operator, publicUrl: st.identity.publicUrl, registryId: identity.registryId ?? null };
-}
-
-function checkRequest(r) {
-  if (!r || r.format !== REQUEST_FORMAT) throw new Error(`request format must be ${REQUEST_FORMAT}`);
-  if (!Array.isArray(r.names) || !r.names.length || r.names.some((n) => !NATIVE_NAMES.includes(n)) || new Set(r.names).size !== r.names.length) throw new Error('request names must be native control names');
-  if (!/^[0-9a-f]{64}$/.test(String(r.caSha256)) || !/^[0-9a-f]{64}$/.test(String(r.spkiSha256))) throw new Error('request caSha256/spkiSha256 malformed');
-  const k = createPublicKey(r.spkiPem);
-  if (sha256Hex(k.export({ type: 'spki', format: 'der' })) !== r.spkiSha256) throw new Error('request public key is not the attested key it names');
-  return k;
-}
 
 /** The CA holder's issuance -> the chain PEM (leaf, then the CA certificate). The CA key is read by openssl only. */
 export function issueNativeCertificate({ request, caCertFile, caKeyFile, days = MAX_DAYS, openssl = 'openssl', tmpRoot = os.tmpdir() }) {
-  const key = checkRequest(request);
+  const key = checkNativeRequest(request);
   if (!Number.isSafeInteger(days) || days < 1 || days > MAX_DAYS) throw new Error(`days: 1 to ${MAX_DAYS}`);
   const caPem = fs.readFileSync(caCertFile, 'utf8'), ca = new X509Certificate(caPem);
   if (sha256Hex(ca.raw) !== request.caSha256) throw new Error('this CA is not the native CA the boot is bound to');
@@ -79,46 +52,6 @@ export function issueNativeCertificate({ request, caCertFile, caKeyFile, days = 
     throw new Error(`issuance failed: ${String(e.stderr || e.message).split('\n').filter(Boolean).slice(-2).join(' ').slice(0, 300)}`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
-
-/**
- * The attested control key's TLS connection: the handshake completes, and the peer's SPKI is compared on THAT secure socket
- * before any request byte exists. (rejectUnauthorized:false with a checkServerIdentity-only pin is not a pin: Node skips
- * checkServerIdentity when chain validation already failed, so a self-signed impostor would be accepted.)
- */
-export function pinnedSocket(controlUrl, spkiSha256, { timeoutMs = 15000 } = {}) {
-  const u = new URL(controlUrl);
-  if (u.protocol !== 'https:' || !/^[0-9a-f]{64}$/.test(String(spkiSha256))) return Promise.reject(new Error('an https control URL and the attested key digest are required'));
-  const host = u.hostname.replace(/^\[|\]$/g, '');
-  return new Promise((resolve, reject) => {
-    const s = tls.connect({ host, port: Number(u.port || 443), rejectUnauthorized: false, minVersion: 'TLSv1.2', ...(net.isIP(host) ? {} : { servername: host }) });
-    const t = setTimeout(() => { s.destroy(); reject(new Error(`no TLS handshake within ${timeoutMs} ms`)); }, timeoutMs);
-    s.once('error', (e) => { clearTimeout(t); reject(e); });
-    s.once('secureConnect', () => {
-      clearTimeout(t);
-      let got = null;
-      try { got = sha256Hex(new X509Certificate(s.getPeerCertificate().raw).publicKey.export({ type: 'spki', format: 'der' })); } catch {}
-      if (got !== spkiSha256) { s.destroy(); return reject(new Error('the endpoint is not the attested key')); }
-      resolve(s);
-    });
-  });
-}
-/** One HTTP request over pinnedSocket (nothing is sent before the key matched). */
-export async function pinnedRequest(controlUrl, { method = 'GET', path: p, body = null, spkiSha256, timeoutMs = 15000 }) {
-  const sock = await pinnedSocket(controlUrl, spkiSha256, { timeoutMs });
-  const u = new URL(controlUrl);
-  return new Promise((resolve, reject) => {
-    const req = http.request({ createConnection: () => sock, host: u.hostname, port: u.port || 443, method, path: p, timeout: timeoutMs,
-      headers: { host: u.host, ...(body ? { 'content-type': 'application/x-pem-file', 'content-length': Buffer.byteLength(body) } : {}) } }, (res) => {
-      const chunks = []; let n = 0;
-      res.on('data', (c) => { n += c.length; if (n > 512 * 1024) req.destroy(new Error('answer too large')); else chunks.push(c); });
-      res.on('end', () => { sock.destroy(); resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf8') }); });
-    });
-    req.on('timeout', () => req.destroy(new Error(`no answer within ${timeoutMs} ms`)));
-    req.on('error', (e) => { sock.destroy(); reject(e); });
-    req.end(body || undefined);
-  });
-}
-export const installNativeCertificate = ({ controlUrl, chainPem, spkiSha256, timeoutMs }) => pinnedRequest(controlUrl, { method: 'PUT', path: NATIVE_CERT_PATH, body: chainPem, spkiSha256, timeoutMs });
 
 // ---- command line -----------------------------------------------------------------------------------------------------------
 function args(argv) {

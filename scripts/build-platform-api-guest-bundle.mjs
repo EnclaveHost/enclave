@@ -31,8 +31,10 @@ for (const rel of Object.keys(result.metafile.inputs).sort()) {
   if (rel.startsWith("..") || path.isAbsolute(rel)) throw new Error(`bundle input outside the tree: ${rel}`);
   inputs[rel] = sha(await fs.readFile(path.resolve(root, rel)));
 }
-for (const must of ["metal/guest/platform-api-role.mjs", "network/host-services/argv-guard.mjs", "relay/api-relay.js", "relay/state-replica.mjs", "metal/guest/platform-api-verify.mjs", "metal/measured-control-verify.mjs"])
+for (const must of ["metal/guest/platform-api-role.mjs", "network/host-services/argv-guard.mjs", "relay/api-relay.js", "relay/state-replica.mjs", "metal/guest/platform-api-verify.mjs", "metal/measured-control-verify.mjs",
+                   "metal/guest/native-issuer.mjs", "metal/guest/native-certificate.mjs", "network/native-control-routes.mjs", "verifier/collateral-cache.mjs"])
   if (!inputs[must]) throw new Error(`the bundle does not carry ${must}`);
+for (const never of ["scripts/native-control-certificate.mjs"]) if (inputs[never]) throw new Error(`the bundle must not carry ${never} (a command line with its own main check)`);
 const sidecars = {};
 for (const [beside, src] of Object.entries(SIDECARS)) sidecars[beside] = { source: src, sha256: sha(await fs.readFile(path.join(root, src))) };
 const manifest = JSON.stringify({ bundle: "metal/guest/platform-api.bundle.mjs", entry, sha256: sha(bytes), bytes: bytes.length, inputs, sidecars }, null, 2) + "\n";
