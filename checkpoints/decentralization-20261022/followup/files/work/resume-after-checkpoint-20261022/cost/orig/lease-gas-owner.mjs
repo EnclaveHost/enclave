@@ -1,0 +1,524 @@
+// network/lease-gas-owner.mjs - the APP OWNER's side of app-funded lease gas (design B: contracts/EnclaveLeaseGasReserve.sol
+// + contracts/EnclaveLeaseExecutor.sol). Shared by the CLI (cli/lease-gas.mjs) and anything else that prepares an owner's
+// requests. It never signs, never holds a key and never sends: it reads the chain through an agreeing RPC quorum
+// (cli/independent.mjs QuorumChain: `quorum` peers, one confirmed block) and returns EXACT requests for the owner's own
+// wallet, each simulated from the account that will send it at that agreed block.
+//
+// Who sends what (the reserve keys every budget to the deployment's OWNER OF RECORD on the ledger):
+//   - an EOA owner (plain, or an EIP-7702-delegated EOA, which still sends its own transactions): a transaction to the reserve;
+//   - an owner that is a SessionVault of a PINNED factory (the original legacy factory or the pinned v2 one): the vault's
+//     owner EOA sends vault.ownerCall(reserve, call) - direct only, owner only, never signable (SessionVault.sol). The vault
+//     has no receive(): a withdrawal goes to the vault owner's wallet, never to the vault;
+//   - a Safe owner: a Safe transaction (to, value, data, operation 0) for the Safe's own signers, never a direct transaction;
+//   - any other contract: refused (there is no reviewed way for it to act).
+//   A deposit is not an owner action: anyone may pay ETH into the owner of record's reserve (deposit(id)).
+//
+// Nothing here is a promise that a lease will land: statusOf is POLICY eligibility; the money is checked in finish()
+// against the measured charge. costModel() states the formula and the owner's own caps; it is a quote, not a forecast.
+import fs from "node:fs";
+import crypto from "node:crypto";
+import { getAddress, encodeFunctionData, decodeFunctionResult, keccak256, formatEther, isAddress } from "viem";
+import { KIND, STATUS, WHY, CANONICAL_LENGTH, EST_GAS, RESERVE_ABI, EXECUTOR_ABI, designator } from "./lease-executor-client.mjs";
+
+export const DEPLOYMENT_FORMAT = "enclave-lease-gas-deployment/v1";
+const ZERO = "0x0000000000000000000000000000000000000000";
+const ZERO32 = `0x${"00".repeat(32)}`;
+const lc = (a) => String(a).toLowerCase();
+// the reserve's L1 sizing (EnclaveLeaseGasReserve): the UNSIGNED transaction (the oracle adds the signature), plus the
+// EIP-7702 authorization's bytes and intrinsic gas on a key's first lease (its first claim)
+const UNSIGNED_ENVELOPE_BYTES = 72, AUTHORIZATION_BYTES = 105, AUTHORIZATION_GAS = 25_000n;
+const INTRINSIC_GAS = 21_000n, CALLDATA_GAS_PER_BYTE = 16n;
+
+/** The original SessionVault factory on Base (contracts/deployments/network-profile-base.json legacySessionVaultFactory). */
+export const LEGACY_SESSION_VAULT_FACTORY = Object.freeze({ address: "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
+  codeHash: "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c", name: "legacy SessionVault factory" });
+
+const POLICY_TUPLE = { type: "tuple", name: "p", components: [{ name: "enabled", type: "bool" }, { name: "claimPolicy", type: "uint8" },
+  { name: "sponsorRelease", type: "bool" }, { name: "maxClaimsPerEpoch", type: "uint8" }, { name: "maxPerOpWei", type: "uint64" },
+  { name: "epochCapWei", type: "uint64" }, { name: "epochSec", type: "uint32" }, { name: "renewWindow", type: "uint32" },
+  { name: "minExtension", type: "uint32" }, { name: "claimCooldown", type: "uint32" }, { name: "maxGasPrice", type: "uint64" }] };
+export const OWNER_ABI = [
+  ...RESERVE_ABI,
+  { type: "function", name: "deposit", stateMutability: "payable", inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
+  { type: "function", name: "depositAndFundCompute", stateMutability: "payable", inputs: [{ name: "id", type: "bytes32" }, { name: "computeWei", type: "uint256" }], outputs: [] },
+  { type: "function", name: "configure", stateMutability: "nonpayable", inputs: [{ name: "id", type: "bytes32" }, POLICY_TUPLE], outputs: [] },
+  { type: "function", name: "setClaimant", stateMutability: "nonpayable", inputs: [{ name: "id", type: "bytes32" }, { name: "operator", type: "address" }, { name: "allowed", type: "bool" }], outputs: [] },
+  { type: "function", name: "withdraw", stateMutability: "nonpayable", inputs: [{ name: "id", type: "bytes32" }, { name: "amountWei", type: "uint256" }, { name: "to", type: "address" }], outputs: [] },
+  { type: "function", name: "claimantAllowed", stateMutability: "view", inputs: [{ type: "bytes32" }, { type: "address" }], outputs: [{ type: "bool" }] },
+  { type: "function", name: "budgetKey", stateMutability: "pure", inputs: [{ type: "bytes32" }, { type: "address" }], outputs: [{ type: "bytes32" }] },
+  { type: "function", name: "registry", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "paused", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
+  { type: "function", name: "blockedDeployment", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "bool" }] },
+  { type: "function", name: "blockedOperator", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "bool" }] },
+  { type: "function", name: "delegationCodeHash", stateMutability: "view", inputs: [], outputs: [{ type: "bytes32" }] },
+  { type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+];
+const DEPLOYMENT_TUPLE = [{ name: "id", type: "bytes32" }, { name: "owner", type: "address" }, { name: "appRef", type: "string" }, { name: "ports", type: "string" },
+  { name: "configCid", type: "string" }, { name: "gpuMilli", type: "uint16" }, { name: "cpuMilli", type: "uint16" }, { name: "appPort", type: "uint32" },
+  { name: "isPublic", type: "bool" }, { name: "active", type: "bool" }, { name: "createdAt", type: "uint64" }, { name: "rate", type: "uint256" },
+  { name: "balance6", type: "uint256" }, { name: "spent6", type: "uint256" }, { name: "runner", type: "bytes32" }, { name: "runnerOperator", type: "address" },
+  { name: "leaseUntil", type: "uint64" }];
+export const LEDGER_ABI = [
+  { type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: DEPLOYMENT_TUPLE }] },
+  { type: "function", name: "leaseSec", stateMutability: "view", inputs: [], outputs: [{ type: "uint64" }] },
+  { type: "function", name: "retired", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
+  { type: "function", name: "capOf", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "proofRequiredFrom", stateMutability: "view", inputs: [], outputs: [{ type: "uint64" }] },
+  { type: "function", name: "claimBond6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "bondOf", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }, { type: "uint64" }] },
+];
+const ENCLAVE_TUPLE = [{ name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" },
+  { name: "operator", type: "address" }, { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" }, { name: "active", type: "bool" },
+  { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }, { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" }];
+export const REGISTRY_ABI = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: ENCLAVE_TUPLE }] }];
+const L1_ABI = [{ type: "function", name: "getL1FeeUpperBound", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] }];
+export const VAULT_ABI = [
+  { type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "factory", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "ownerCall", stateMutability: "nonpayable", inputs: [{ name: "target", type: "address" }, { name: "data", type: "bytes" }], outputs: [{ type: "bytes" }] },
+];
+const FACTORY_ABI = [
+  { type: "function", name: "isVault", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "bool" }] },
+  { type: "function", name: "implementation", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+];
+export const SAFE_ABI = [
+  { type: "function", name: "getThreshold", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "getOwners", stateMutability: "view", inputs: [], outputs: [{ type: "address[]" }] },
+  { type: "function", name: "nonce", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "VERSION", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
+];
+
+// The reviewed EnclaveCreditVault factories: per chain, the factory and the implementation its clones delegate to. Production
+// (Base): the live factory and implementation are byte-identical to source d36100ae (test/fixtures/credit-vault-d36100ae.json;
+// root's read-only check, block 52856571, two RPCs). No caller can add to this list: an owner counts as a credit vault only
+// when its code IS the EIP-1167 clone of a listed implementation and, at the same agreed block, the clone's factory() and
+// the factory's implementation() are that binding.
+// The platform book has named TWO credit-vault factories (book.addr("vaultFactory") history, read-only 2026-10-21): the
+// older one from block 48910315 (2026-07-21) and the current one from block 49500388 (2026-08-03). Vaults of the older
+// build exist and stay usable for funding and control, so a deployment can be owned by one: it is refused here the same
+// way (the older build has the same allowlist and no ownerCall; it also has no on-chain origin check, originBound false).
+export const CREDIT_VAULT_FACTORIES = Object.freeze([
+  Object.freeze({ chainId: 8453, factory: "0x848a8a89c3452ce7dc14764114a8c5886b6f0c08", implementation: "0xaf81a59492409ab717afce6e72a425bdb2fac507",
+    label: "EnclaveCreditVault (older factory, 2026-07-21; no on-chain origin check)", originBound: false }),
+  Object.freeze({ chainId: 8453, factory: "0xa891e4396e3eb11f364554043bc18e86da834e91",
+    implementation: "0xeca6644333d3a069001203ce5416914a4d830beb", label: "EnclaveCreditVault (production factory, source d36100ae)" })]);
+/** the exact runtime of an EIP-1167 minimal proxy (what the credit-vault factory's CREATE2 deploys) for `implementation` */
+export const eip1167Runtime = (implementation) => `0x363d3d373d3d3d363d73${getAddress(implementation).slice(2).toLowerCase()}5af43d82803e903d91602b57fd5bf3`;
+/** why a credit-vault-owned deployment cannot use the current reserve (EnclaveLeaseGasReserve 1d173473) */
+export const CREDIT_VAULT_UNSUPPORTED = "a credit vault is controlled by passkey signatures and can only make the ledger calls on its allowlist: "
+  + "it has no reserve configure/setClaimant/withdraw entry point and no ownerCall, and the reserve has no signature-based entry point, "
+  + "so its reserve could never be enabled and ETH deposited to it could never be withdrawn - app-funded lease gas is not available for this owner";
+const CREDIT_FACTORY_ABI = [{ type: "function", name: "implementation", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] }];
+const CREDIT_VAULT_ABI = [{ type: "function", name: "factory", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] }];
+
+/** why a deposit for an owner of record this client cannot identify is refused unless the payer says the owner can act */
+export const UNKNOWN_OWNER_DEPOSIT = "the owner of record is a contract this client cannot identify (not an EOA, a SessionVault of a pinned factory, "
+  + "a Safe or a known credit vault): only that contract itself can ever enable (configure) or withdraw its reserve, and if it cannot send those "
+  + "calls the ETH is stranded. Deposit only after confirming it can, with --owner-can-act";
+export function unknownOwnerRefusal(kind, what = "a deposit") {
+  return new OwnerRefusal(`refusing to prepare ${what}: ${UNKNOWN_OWNER_DEPOSIT} (owner ${kind.address}, code ${kind.codeHash})`, { ownerKind: "contract" });
+}
+
+export class OwnerRefusal extends Error { constructor(message, extra = {}) { super(message); this.name = "OwnerRefusal"; Object.assign(this, extra); } }
+
+// =====================================================================================================================
+// the reviewed deployment record (what the owner trusts: addresses AND runtime code hashes, by digest)
+// =====================================================================================================================
+
+/** Parse a deployment record whose sha256 the caller reviewed: a record never vouches for itself. */
+export function parseDeploymentRecord(bytes, { expectedDigest } = {}) {
+  if (!expectedDigest) throw new OwnerRefusal("a lease-gas deployment record needs its reviewed digest (sha256:…); a record never vouches for itself");
+  const buf = Buffer.isBuffer(bytes) ? bytes : Buffer.from(String(bytes));
+  if (buf.length > 16384) throw new OwnerRefusal("lease-gas deployment record too large");
+  const digest = "sha256:" + crypto.createHash("sha256").update(buf).digest("hex");
+  if (digest !== String(expectedDigest).toLowerCase()) throw new OwnerRefusal(`lease-gas deployment record digest ${digest} is not the reviewed ${expectedDigest}`);
+  let r;
+  try { r = JSON.parse(buf.toString("utf8")); } catch { throw new OwnerRefusal("lease-gas deployment record is not JSON"); }
+  const keys = ["format", "chainId", "reserve", "executor", "reserveCodeHash", "executorCodeHash", "ledger", "registry"];
+  if (!r || typeof r !== "object" || Object.keys(r).some((k) => !keys.includes(k) && k !== "note")) throw new OwnerRefusal("lease-gas deployment record has unknown fields");
+  if (r.format !== DEPLOYMENT_FORMAT) throw new OwnerRefusal(`lease-gas deployment record format must be ${DEPLOYMENT_FORMAT}`);
+  if (!Number.isSafeInteger(r.chainId)) throw new OwnerRefusal("lease-gas deployment record: chainId");
+  for (const k of ["reserve", "executor", "ledger", "registry"]) if (!isAddress(r[k] || "", { strict: false })) throw new OwnerRefusal(`lease-gas deployment record: ${k}`);
+  for (const k of ["reserveCodeHash", "executorCodeHash"]) if (!/^0x[0-9a-fA-F]{64}$/.test(r[k] || "")) throw new OwnerRefusal(`lease-gas deployment record: ${k}`);
+  return Object.freeze({ chainId: r.chainId, reserve: getAddress(r.reserve), executor: getAddress(r.executor), reserveCodeHash: lc(r.reserveCodeHash),
+    executorCodeHash: lc(r.executorCodeHash), ledger: getAddress(r.ledger), registry: getAddress(r.registry), digest });
+}
+export const readDeploymentRecord = (file, expectedDigest) => parseDeploymentRecord(fs.readFileSync(file), { expectedDigest });
+
+/** The record against the chain at ONE agreed block, and against the operator's own contract pins (ledger, registry). */
+export async function verifyDeployment(chain, dep, { pins } = {}) {
+  if (chain.chainId !== dep.chainId) throw new OwnerRefusal(`the lease-gas record is for chain ${dep.chainId}, the quorum is chain ${chain.chainId}`);
+  if (pins?.deployments && lc(pins.deployments) !== lc(dep.ledger)) throw new OwnerRefusal(`the lease-gas reserve is bound to ledger ${dep.ledger}, the pinned ledger is ${pins.deployments}`);
+  if (pins?.registry && lc(pins.registry) !== lc(dep.registry)) throw new OwnerRefusal(`the lease-gas reserve is bound to registry ${dep.registry}, the pinned registry is ${pins.registry}`);
+  const s = await chain.snapshot(async (c, blockNumber) => {
+    const r = (fn, args = []) => c.readContract({ address: dep.reserve, abi: OWNER_ABI, functionName: fn, args, blockNumber });
+    const [rc, ec, ledger, registry, executor, dch, back, limits, l1Oracle, paused, admin] = await Promise.all([
+      c.getCode({ address: dep.reserve, blockNumber }), c.getCode({ address: dep.executor, blockNumber }), r("ledger"), r("registry"), r("executor"),
+      r("delegationCodeHash"), c.readContract({ address: dep.executor, abi: EXECUTOR_ABI, functionName: "reserve", blockNumber }), r("limits"), r("l1Oracle"), r("paused"), r("owner")]);
+    return { rc: rc ? keccak256(rc) : null, ec: ec ? keccak256(ec) : null, ledger: lc(ledger), registry: lc(registry), executor: lc(executor), dch: lc(dch),
+      back: lc(back), limits: limits.map(String), l1Oracle: lc(l1Oracle), paused, admin: lc(admin) };
+  });
+  const v = s.value;
+  if (v.rc !== dep.reserveCodeHash) throw new OwnerRefusal(`reserve ${dep.reserve} is not the reviewed code (${v.rc ?? "no code"})`);
+  if (v.ec !== dep.executorCodeHash) throw new OwnerRefusal(`executor ${dep.executor} is not the reviewed code (${v.ec ?? "no code"})`);
+  if (v.ledger !== lc(dep.ledger) || v.registry !== lc(dep.registry)) throw new OwnerRefusal("the reserve is bound to another ledger or registry than its record");
+  if (v.executor !== lc(dep.executor) || v.back !== lc(dep.reserve)) throw new OwnerRefusal("the reserve and executor are not bound to each other");
+  if (v.dch !== lc(keccak256(designator(dep.executor)))) throw new OwnerRefusal("the reserve's delegation code hash is not 0xef0100||executor");
+  const [ceiling, oc, or, orel, minClaimInterval, l1Bps] = v.limits.map(BigInt);
+  return { block: s.blockNumber, agreeing: s.agreeing, peers: s.peers, paused: v.paused, admin: v.admin, l1Oracle: v.l1Oracle,
+    limits: { maxGasPriceCeiling: ceiling, overhead: { claim: oc, renew: or, release: orel }, minClaimInterval, l1Bps } };
+}
+
+// =====================================================================================================================
+// who the owner of record is, and so who must send
+// =====================================================================================================================
+
+/**
+ * The owner of record's kind at one agreed block. vaultFactories: [{address, codeHash?, name}] - the reviewed factories
+ * (the pinned v2 one, the original legacy one); a vault counts only when the factory, by its own isVault(), made it.
+ * A clone of a reviewed credit-vault implementation (CREDIT_VAULT_FACTORIES) is kind "credit-vault": a known UNSUPPORTED owner.
+ * -> {kind: "eoa" | "eoa-7702" | "credit-vault" | "session-vault" | "safe" | "contract", address, ...}
+ */
+export async function ownerKind(chain, address, { vaultFactories = [] } = {}) {
+  address = getAddress(address);
+  const s = await chain.snapshot(async (c, blockNumber) => {
+    const code = await c.getCode({ address, blockNumber });
+    if (!code || code === "0x") return { kind: "eoa" };
+    if (/^0xef0100[0-9a-f]{40}$/i.test(code)) return { kind: "eoa-7702", delegate: getAddress("0x" + code.slice(8)) };
+    for (const b of CREDIT_VAULT_FACTORIES) {
+      if (b.chainId !== chain.chainId || lc(code) !== eip1167Runtime(b.implementation)) continue;
+      const read = (a, abi, fn) => c.readContract({ address: a, abi, functionName: fn, blockNumber }).then(lc, () => null);
+      const [vf, fi] = await Promise.all([read(address, CREDIT_VAULT_ABI, "factory"), read(b.factory, CREDIT_FACTORY_ABI, "implementation")]);
+      // an exact clone of the reviewed implementation is refused either way; bindingVerified says whether the binding held
+      return { kind: "credit-vault", factory: getAddress(b.factory), implementation: getAddress(b.implementation), label: b.label,
+        bindingVerified: vf === lc(b.factory) && fi === lc(b.implementation) };
+    }
+    for (const f of vaultFactories) {
+      const fcode = await c.getCode({ address: f.address, blockNumber });
+      if (!fcode || fcode === "0x") continue;
+      if (f.codeHash && keccak256(fcode) !== lc(f.codeHash)) continue;
+      let isVault = false;
+      try { isVault = await c.readContract({ address: f.address, abi: FACTORY_ABI, functionName: "isVault", args: [address], blockNumber }); } catch { continue; }
+      if (!isVault) continue;
+      const [vo, vf] = await Promise.all(["owner", "factory"].map((fn) => c.readContract({ address, abi: VAULT_ABI, functionName: fn, blockNumber })));
+      if (lc(vf) !== lc(f.address)) continue;
+      const ocode = await c.getCode({ address: vo, blockNumber });
+      return { kind: "session-vault", factory: getAddress(f.address), factoryName: f.name || "session vault factory", vaultOwner: getAddress(vo),
+        vaultOwnerIsContract: !!ocode && ocode !== "0x" && !/^0xef0100/i.test(ocode) };
+    }
+    try {
+      const [t, owners, nonce] = await Promise.all(["getThreshold", "getOwners", "nonce"].map((fn) => c.readContract({ address, abi: SAFE_ABI, functionName: fn, blockNumber })));
+      let version = null;
+      try { version = await c.readContract({ address, abi: SAFE_ABI, functionName: "VERSION", blockNumber }); } catch {}
+      if (BigInt(t) >= 1n && owners.length >= Number(t)) return { kind: "safe", threshold: Number(t), owners: owners.map(getAddress), safeNonce: BigInt(nonce), version };
+    } catch {}
+    return { kind: "contract", codeHash: keccak256(code) };
+  });
+  return { address, ...s.value, block: s.blockNumber };
+}
+
+// =====================================================================================================================
+// requests (exact, unsigned) and their agreed simulation
+// =====================================================================================================================
+
+const enc = (functionName, args) => encodeFunctionData({ abi: OWNER_ABI, functionName, args });
+
+/** The reserve call an owner action needs (what msg.sender == owner of record must call). */
+export function ownerCall(action, { id, policy, operator, allowed, amountWei, to }) {
+  switch (action) {
+    case "configure": return { data: enc("configure", [id, policyArgs(policy)]), value: 0n, what: `configure(${id})` };
+    case "claimant": return { data: enc("setClaimant", [id, getAddress(operator), !!allowed]), value: 0n, what: `setClaimant(${id}, ${operator}, ${!!allowed})` };
+    case "withdraw": return { data: enc("withdraw", [id, BigInt(amountWei), getAddress(to)]), value: 0n, what: `withdraw(${id}, ${formatEther(BigInt(amountWei))} ETH → ${to})` };
+    default: throw new OwnerRefusal(`unknown owner action ${action}`);
+  }
+}
+
+/**
+ * The request the owner's OWN wallet sends for an owner action, given the owner of record's kind.
+ * -> {via: "direct" | "ownerCall" | "safe", from, to, value, data, inner?: {to, value, data}, safe?: {...}, notes: []}
+ */
+export function ownerRequest({ reserve, kind, call, from }) {
+  reserve = getAddress(reserve);
+  const notes = [];
+  switch (kind.kind) {
+    case "eoa":
+    case "eoa-7702":
+      if (from && lc(from) !== lc(kind.address)) throw new OwnerRefusal(`the owner of record is ${kind.address}; --from ${from} cannot act for it`);
+      if (kind.kind === "eoa-7702") notes.push(`the owner EOA is EIP-7702-delegated to ${kind.delegate}; it still sends this transaction itself`);
+      return { via: "direct", from: kind.address, to: reserve, value: call.value, data: call.data, what: call.what, notes };
+    case "session-vault":
+      if (kind.vaultOwnerIsContract) throw new OwnerRefusal(`the vault's owner ${kind.vaultOwner} is a contract; ownerCall must come from it directly and no reviewed path prepares that`);
+      if (from && lc(from) !== lc(kind.vaultOwner)) throw new OwnerRefusal(`the owner of record is SessionVault ${kind.address} (owner ${kind.vaultOwner}); only that wallet can call its ownerCall, not ${from}`);
+      notes.push(`the owner of record is SessionVault ${kind.address} (${kind.factoryName} ${kind.factory}); its owner ${kind.vaultOwner} sends ownerCall(reserve, …) directly - never signable, refused for USDC and the vault itself`);
+      return { via: "ownerCall", from: kind.vaultOwner, to: kind.address, value: 0n,
+        data: encodeFunctionData({ abi: VAULT_ABI, functionName: "ownerCall", args: [reserve, call.data] }),
+        inner: { from: kind.address, to: reserve, value: call.value, data: call.data }, what: `vault.ownerCall(reserve, ${call.what})`, notes };
+    case "safe":
+      notes.push(`the owner of record is a Safe (${kind.threshold} of ${kind.owners.length}${kind.version ? `, v${kind.version}` : ""}); its signers execute this as a Safe transaction (operation 0 = CALL), e.g. in the Safe app's Transaction Builder`);
+      return { via: "safe", from: kind.address, to: reserve, value: call.value, data: call.data, what: call.what, notes,
+        safe: { safe: kind.address, to: reserve, value: call.value, data: call.data, operation: 0, safeNonce: kind.safeNonce, threshold: kind.threshold, owners: kind.owners } };
+    case "credit-vault":
+      throw creditVaultRefusal(kind, call.what);
+    default:
+      throw new OwnerRefusal(`the owner of record ${kind.address} is a contract that is neither an EOA, a SessionVault of a pinned factory nor a Safe; no reviewed path can act for it`);
+  }
+}
+
+/** The refusal for a credit-vault owner of record (deposit, plan, configure, claimant, withdraw): nothing is prepared. */
+export function creditVaultRefusal(kind, what = "a lease-gas request") {
+  return new OwnerRefusal(`refusing to prepare ${what}: the owner of record ${kind.address} is a credit vault of ${kind.label} ${kind.factory}`
+    + `${kind.bindingVerified ? "" : " (its factory binding did not verify at this block)"}; ${CREDIT_VAULT_UNSUPPORTED}`, { ownerKind: "credit-vault" });
+}
+
+/** A deposit (anyone may pay; the reserve credits the CURRENT owner of record). computeWei > 0 splits one payment. */
+export function depositRequest({ reserve, id, amountWei, computeWei = 0n, from = null }) {
+  amountWei = BigInt(amountWei); computeWei = BigInt(computeWei);
+  if (amountWei <= 0n || amountWei >= 2n ** 96n) throw new OwnerRefusal("the deposit must be more than 0 wei (and below 2^96)");
+  if (computeWei > 0n) {
+    if (computeWei >= amountWei) throw new OwnerRefusal("the compute share must be below the whole payment (the rest is the gas reserve)");
+    return { via: "direct", from, to: getAddress(reserve), value: amountWei, data: enc("depositAndFundCompute", [id, computeWei]),
+      what: `depositAndFundCompute(${id}, ${formatEther(computeWei)} ETH to the ledger's fundEth, ${formatEther(amountWei - computeWei)} ETH to the gas reserve)`, notes: [] };
+  }
+  return { via: "direct", from, to: getAddress(reserve), value: amountWei, data: enc("deposit", [id]), what: `deposit(${id}) ${formatEther(amountWei)} ETH`, notes: [] };
+}
+
+/** Simulate the request from its sender at an agreed block (a Safe's call simulated from the Safe itself). */
+export async function simulate(chain, req) {
+  const from = req.from;
+  if (!from) return { simulated: false, why: "no sender named (--from): a deposit can come from any wallet; name it to simulate" };
+  const s = await chain.snapshot(async (c, blockNumber) => {
+    try { await c.call({ account: getAddress(from), to: req.to, data: req.data, value: req.value, blockNumber }); return { ok: true }; }
+    catch (e) {
+      const m = String(e?.shortMessage || e?.message || e);
+      if (/revert|execution reverted/i.test(m)) return { revert: m.split("\n")[0].slice(0, 240) };
+      if (/insufficient funds/i.test(m)) return { revert: "insufficient funds for the value" };
+      throw e;
+    }
+  });
+  if (s.value.revert !== undefined) throw new OwnerRefusal(`refusing to prepare: ${req.what} would revert at agreed block ${s.blockNumber} (${s.value.revert})`);
+  return { simulated: true, block: s.blockNumber, agreeing: s.agreeing };
+}
+
+/** MetaMask / EIP-1193 eth_sendTransaction params (hex quantities), without nonce or fees: the wallet adds them. */
+export function walletParams(req, chainId) {
+  return { from: req.from ? getAddress(req.from) : undefined, to: getAddress(req.to), value: "0x" + BigInt(req.value).toString(16), data: req.data,
+    chainId: "0x" + Number(chainId).toString(16) };
+}
+/** The Safe Transaction Builder batch file (one CALL). */
+export function safeBatch(reqs, chainId, { name = "Enclave lease-gas" } = {}) {
+  return { version: "1.0", chainId: String(chainId), createdAt: 0, meta: { name, description: "prepared by enclave lease-gas; check every field" },
+    transactions: reqs.map((r) => ({ to: getAddress(r.to), value: BigInt(r.value).toString(), data: r.data, contractMethod: null, contractInputsValues: null })) };
+}
+
+// =====================================================================================================================
+// the owner's policy, the cost model, and status
+// =====================================================================================================================
+
+export const POLICY_DEFAULTS = Object.freeze({ enabled: true, claimPolicy: 1, sponsorRelease: true, maxClaimsPerEpoch: 4, epochSec: 3600,
+  renewWindow: 300, minExtension: 600, claimCooldown: 1800 });
+const CLAIM_POLICY = { any: 0, "self-hosted": 1, allowlist: 2 };
+export const claimPolicyName = (n) => Object.keys(CLAIM_POLICY).find((k) => CLAIM_POLICY[k] === Number(n)) || `policy ${n}`;
+export function parseClaimPolicy(v) {
+  if (v === undefined || v === null) return undefined;
+  if (v in CLAIM_POLICY) return CLAIM_POLICY[v];
+  throw new OwnerRefusal("--claim-policy must be any, self-hosted or allowlist");
+}
+function policyArgs(p) {
+  const u = (v, bits, what) => { const x = BigInt(v); if (x < 0n || x >= 2n ** BigInt(bits)) throw new OwnerRefusal(`${what} out of range`); return x; };
+  return { enabled: !!p.enabled, claimPolicy: Number(p.claimPolicy), sponsorRelease: !!p.sponsorRelease, maxClaimsPerEpoch: Number(u(p.maxClaimsPerEpoch, 8, "max claims per epoch")),
+    maxPerOpWei: u(p.maxPerOpWei, 64, "max per op"), epochCapWei: u(p.epochCapWei, 64, "epoch cap"), epochSec: Number(u(p.epochSec, 32, "epoch")),
+    renewWindow: Number(u(p.renewWindow, 32, "renew window")), minExtension: Number(u(p.minExtension, 32, "min extension")),
+    claimCooldown: Number(u(p.claimCooldown, 32, "claim cooldown")), maxGasPrice: u(p.maxGasPrice, 64, "max gas price") };
+}
+/** The reserve's own configure() checks, locally, so a bad policy is refused before anything is prepared. */
+export function checkPolicy(p) {
+  const a = policyArgs(p);
+  if (a.claimPolicy > 2) throw new OwnerRefusal("claim policy must be any, self-hosted or allowlist");
+  if (a.maxPerOpWei > a.epochCapWei) throw new OwnerRefusal("the per-operation cap must not exceed the epoch cap");
+  if (a.epochSec < 600 || a.epochSec > 30 * 86400) throw new OwnerRefusal("the epoch must be 600 s to 30 days");
+  if (a.renewWindow < 30 || a.renewWindow > 86400 || a.minExtension < 1) throw new OwnerRefusal("the renew window must be 30 s to 1 day, the minimum extension at least 1 s");
+  if (a.maxGasPrice === 0n) throw new OwnerRefusal("a max gas price of 0 makes every sponsored operation free for no relay: nothing would land");
+  return a;
+}
+
+/**
+ * What one operation may charge (the reserve's formula: (measured gas + 21000 + 16 x 388 + overhead[kind]) x
+ * min(tx.gasprice, owner cap, ceiling) + l1Bps x L1 upper bound). measured gas: EST_GAS (receipt-measured upper estimates,
+ * which INCLUDE the intrinsic and calldata gas, so this over-states by those) unless `gasUsed` is given.
+ */
+export function chargeOf({ kind, gasPrice, limits, l1UpperWei = 0n, l1UpperAuthWei = l1UpperWei, authorization = kind === "claim", gasUsed = null }) {
+  const measured = gasUsed !== null ? BigInt(gasUsed) : EST_GAS[kind];
+  const gas = measured + INTRINSIC_GAS + CALLDATA_GAS_PER_BYTE * BigInt(CANONICAL_LENGTH) + BigInt(limits.overhead[kind]) + (authorization ? AUTHORIZATION_GAS : 0n);
+  const l1 = (authorization ? l1UpperAuthWei : l1UpperWei) * BigInt(limits.l1Bps) / 10_000n;
+  return { gas, price: gasPrice, l1, wei: gas * gasPrice + l1 };
+}
+/**
+ * Renewals a lease needs to stay up for `seconds` from its claim, by the DEPLOYED ledger's rule (rev 16d: claim() buys
+ * min(leaseSec, balance / rate); renew() extends FROM leaseUntil by min(leaseSec, balance / rate)): after the claim and n
+ * renewals the lease covers (n + 1) x extensionSec, so n = ceil(seconds / extensionSec) - 1. The renew window only moves
+ * WHEN each renewal is sent (renewWindow - 15 s before leaseUntil), never how many there are.
+ *   - rate 0 (self-hosted) or a compute balance covering every quantum: extensionSec = leaseSec (the steady state is
+ *     86400 / leaseSec renewals a day: 48 for leaseSec 1800);
+ *   - a PARTLY funded paid lease buys shorter extensions and renews more often until its balance runs out: bound it by
+ *     passing a shorter extensionSec (the owner's minExtension is the floor the reserve sponsors).
+ * Integer arithmetic only.
+ */
+export function renewalsFor(seconds, { leaseSec, extensionSec = leaseSec }) {
+  const T = BigInt(seconds), ext = BigInt(extensionSec);
+  if (ext <= 0n) throw new OwnerRefusal("a lease extension must be positive");
+  if (T <= ext) return 0n;
+  return (T + ext - 1n) / ext - 1n;
+}
+/** The steady-state renewals a day of a rate-0 / fully funded lease (display only; budgets use renewalsFor). */
+export const renewsPerDay = (leaseSec) => 86400 / Number(leaseSec);
+/**
+ * The cost model at a given price: per-op charge per kind at min(effective fee, owner cap, ceiling), what the owner's caps
+ * allow, and a per-day figure for renewals only (claims and releases are events). ILLUSTRATIVE: it is the price NOW.
+ */
+export function costModel({ limits, policy, effectiveFee, l1UpperWei, l1UpperAuthWei = l1UpperWei, leaseSec }) {
+  const cap = policy && BigInt(policy.maxGasPrice) > 0n ? BigInt(policy.maxGasPrice) : limits.maxGasPriceCeiling;
+  const price = [effectiveFee, cap, limits.maxGasPriceCeiling].reduce((m, x) => (x < m ? x : m));
+  const atCap = [cap, limits.maxGasPriceCeiling].reduce((m, x) => (x < m ? x : m));
+  const per = {}, worst = {};
+  for (const k of ["claim", "renew", "release"]) { per[k] = chargeOf({ kind: k, gasPrice: price, limits, l1UpperWei, l1UpperAuthWei }); worst[k] = chargeOf({ kind: k, gasPrice: atCap, limits, l1UpperWei, l1UpperAuthWei }); }
+  const rpd = renewsPerDay(leaseSec);
+  const perDayWei = (per.renew.wei * 86400n + BigInt(leaseSec) - 1n) / BigInt(leaseSec);   // steady state, rounded up
+  return { price, effectiveFee, ownerCap: cap, ceiling: limits.maxGasPriceCeiling, priceLimitedBy: effectiveFee > atCap ? "owner cap / ceiling (relays will refuse: they would be paid below their cost)" : "market fee",
+    perOp: per, atOwnerCap: worst, renewsPerDay: rpd, renewPerDayWei: perDayWei, leaseSec: Number(leaseSec),
+    renewalModel: "steady state of a rate-0 / fully funded lease: one renew per leaseSec (the ledger extends FROM leaseUntil); a partly funded paid lease renews more often",
+    formula: `(measured gas + ${INTRINSIC_GAS} + ${CALLDATA_GAS_PER_BYTE} x ${CANONICAL_LENGTH} + overhead[kind]) x min(tx gas price, owner cap, ceiling) + l1Bps/10000 x L1 upper bound` };
+}
+
+/** The current fee as the quorum's peers see it: the highest base fee + priority any agreeing peer reports. */
+export async function marketFee(chain) {
+  const xs = await chain.each(async (c) => {
+    const b = await c.getBlock();
+    let prio = 1_000_000n;
+    try { prio = BigInt(await c.request({ method: "eth_maxPriorityFeePerGas", params: [] })); } catch {}
+    return { base: b.baseFeePerGas ?? 0n, prio };
+  }, "fees");
+  const base = xs.reduce((m, x) => (x.base > m ? x.base : m), 0n), prio = xs.reduce((m, x) => (x.prio > m ? x.prio : m), 0n);
+  return { base, priority: prio, effective: base + prio };
+}
+
+/**
+ * One app's lease-gas state at ONE agreed block: the ledger row, the owner of record's reserve and policy, the ledger's
+ * claim gates (proof cutover, claim bond in USDC), the current runner's registry record and eligibility per kind, and
+ * the L1 bound. Every figure is what the chain says; nothing is assumed.
+ */
+export async function appStatus(chain, dep, id, { candidateOperator = null, candidateEnclave = null } = {}) {
+  const s = await chain.snapshot(async (c, blockNumber) => {
+    const L = (fn, args = []) => c.readContract({ address: dep.ledger, abi: LEDGER_ABI, functionName: fn, args, blockNumber });
+    const R = (fn, args = []) => c.readContract({ address: dep.reserve, abi: OWNER_ABI, functionName: fn, args, blockNumber });
+    const blk = await c.getBlock({ blockNumber });
+    const d = await L("get", [id]);
+    if (lc(d.id) !== lc(id)) return { unknown: true, timestamp: blk.timestamp };
+    const [leaseSec, retired, cap, prf, bond6, reserve, blockedDep, limits, l1Oracle] = await Promise.all([L("leaseSec"), L("retired"), L("capOf", [id]),
+      L("proofRequiredFrom"), L("claimBond6"), R("reserveOf", [id, d.owner]), R("blockedDeployment", [id]), R("limits"), R("l1Oracle")]);
+    const bound = (size) => c.readContract({ address: l1Oracle, abi: L1_ABI, functionName: "getL1FeeUpperBound", args: [BigInt(size)], blockNumber });
+    const l1Upper = lc(l1Oracle) === ZERO ? 0n : await bound(CANONICAL_LENGTH + UNSIGNED_ENVELOPE_BYTES);
+    const l1UpperAuth = lc(l1Oracle) === ZERO ? 0n : await bound(CANONICAL_LENGTH + UNSIGNED_ENVELOPE_BYTES + AUTHORIZATION_BYTES);
+    const hasRunner = lc(d.runnerOperator) !== ZERO;
+    const runner = hasRunner ? await c.readContract({ address: dep.registry, abi: REGISTRY_ABI, functionName: "get", args: [d.runner], blockNumber }) : null;
+    const status = async (kind, enclaveId, op) => {
+      const [st, avail, left, perOp] = await R("statusOf", [id, KIND[kind], enclaveId, op]);
+      return { status: STATUS[Number(st)] || `status ${st}`, availableWei: avail, epochLeftWei: left, maxPerOpWei: perOp };
+    };
+    const runnerOps = hasRunner ? {
+      renew: await status("renew", ZERO32, d.runnerOperator), release: await status("release", ZERO32, d.runnerOperator),
+      bond: await L("bondOf", [d.runnerOperator]), code: await c.getCode({ address: d.runnerOperator, blockNumber }),
+      blocked: await R("blockedOperator", [d.runnerOperator]), balanceWei: await c.getBalance({ address: d.runnerOperator, blockNumber }),
+    } : null;
+    let candidate = null;
+    if (candidateOperator && candidateEnclave) {
+      const e = await c.readContract({ address: dep.registry, abi: REGISTRY_ABI, functionName: "get", args: [candidateEnclave], blockNumber });
+      candidate = { operator: getAddress(candidateOperator), enclaveId: candidateEnclave, claim: await status("claim", candidateEnclave, candidateOperator),
+        registry: { operator: e.operator, active: e.active, proofKey: e.proofKey, payoutWallet: e.payoutWallet }, bond: await L("bondOf", [candidateOperator]) };
+    }
+    return { timestamp: blk.timestamp, d, leaseSec, retired, cap, prf, bond6, reserve, blockedDep, limits, l1Oracle, l1Upper, l1UpperAuth, runner, runnerOps, candidate };
+  });
+  const v = s.value;
+  if (v.unknown) return { id, unknown: true, block: s.blockNumber };
+  const now = BigInt(v.timestamp);
+  const ownerKey = v.d.owner;
+  const lim = { maxGasPriceCeiling: BigInt(v.limits[0]), overhead: { claim: BigInt(v.limits[1]), renew: BigInt(v.limits[2]), release: BigInt(v.limits[3]) },
+    minClaimInterval: BigInt(v.limits[4]), l1Bps: BigInt(v.limits[5]) };
+  const r = v.reserve;
+  const epochSpent = r.epochSec > 0 && now / BigInt(r.epochSec) === BigInt(r.epochIndex) ? BigInt(r.epochSpentWei) : 0n;
+  const delegated = v.runnerOps?.code && lc(v.runnerOps.code) === lc(designator(dep.executor));
+  return {
+    id, block: s.blockNumber, agreeing: s.agreeing, peers: s.peers, timestamp: Number(now),
+    ledger: { owner: getAddress(ownerKey), appRef: v.d.appRef, active: v.d.active, rate6: v.d.rate, balance6: v.d.balance6, capRate6: v.cap,
+      runner: v.d.runner, runnerOperator: v.d.runnerOperator, leaseUntil: Number(v.d.leaseUntil), leaseLive: now <= BigInt(v.d.leaseUntil),
+      leaseSec: Number(v.leaseSec), retired: v.retired },
+    gates: { proofRequiredFrom: Number(v.prf), proofCutoverPassed: v.prf > 0n && now >= v.prf, claimBond6: v.bond6,
+      claimBondNote: v.bond6 > 0n ? `the ledger requires a ${Number(v.bond6) / 1e6} USDC claim bond per operator (USDC collateral, not gas; this reserve does not post it)` : "no claim bond is required by the ledger now (claimBond6 = 0); a bond is USDC collateral, never paid from this reserve" },
+    reserve: { balanceWei: BigInt(r.balanceWei), enabled: r.enabled, claimPolicy: claimPolicyName(r.claimPolicy), sponsorRelease: r.sponsorRelease,
+      maxPerOpWei: BigInt(r.maxPerOpWei), epochCapWei: BigInt(r.epochCapWei), epochSec: Number(r.epochSec), epochSpentWei: epochSpent,
+      epochLeftWei: BigInt(r.epochCapWei) > epochSpent ? BigInt(r.epochCapWei) - epochSpent : 0n, epochClaims: Number(r.epochClaims), maxClaimsPerEpoch: Number(r.maxClaimsPerEpoch),
+      renewWindow: Number(r.renewWindow), minExtension: Number(r.minExtension), claimCooldown: Number(r.claimCooldown), maxGasPrice: BigInt(r.maxGasPrice),
+      lastClaimAt: Number(r.lastClaimAt) > 1 ? Number(r.lastClaimAt) : null, configured: Number(r.lastClaimAt) !== 0, blockedDeployment: v.blockedDep },
+    limits: lim, l1: { oracle: v.l1Oracle, upperBoundWei: v.l1Upper, upperBoundAuthWei: v.l1UpperAuth, chargedShareWei: v.l1Upper * lim.l1Bps / 10_000n },
+    runner: v.runnerOps ? { operator: getAddress(v.d.runnerOperator), enclaveId: v.d.runner, renew: v.runnerOps.renew, release: v.runnerOps.release,
+      delegatedToExecutor: !!delegated, operatorEthWei: v.runnerOps.balanceWei, blocked: v.runnerOps.blocked,
+      registry: v.runner ? { active: v.runner.active, proofKey: v.runner.proofKey, payoutWallet: v.runner.payoutWallet, payoutIsOwner: lc(v.runner.payoutWallet) === lc(ownerKey) } : null,
+      bond6: v.runnerOps.bond[0], bondExitAt: Number(v.runnerOps.bond[1]) } : null,
+    candidate: v.candidate,
+  };
+}
+
+/** Owner-facing actions for a status: what is wrong and the exact command that fixes it. Never "top up the host". */
+export function advise(st, { cost, minDays = 3 } = {}) {
+  const out = [];
+  const r = st.reserve;
+  if (!r.configured) out.push({ level: "action", text: "not configured: run `lease-gas configure <id> …` (the owner of record's own policy and caps)" });
+  else if (!r.enabled) out.push({ level: "action", text: "sponsorship is OFF: `lease-gas configure <id> --enable …`" });
+  if (r.balanceWei === 0n) out.push({ level: "action", text: "the reserve is empty: `lease-gas deposit <id> --eth AMOUNT` (anyone may pay; the owner of record is credited)" });
+  if (cost) {
+    if (cost.effectiveFee > r.maxGasPrice && r.configured) out.push({ level: "action", text: `the market fee ${cost.effectiveFee} wei/gas is above the owner's cap ${r.maxGasPrice}: relays refuse underpaid operations; raise --max-gas-price-gwei` });
+    for (const k of ["claim", "renew", "release"]) if (r.configured && cost.perOp[k].wei > r.maxPerOpWei)
+      out.push({ level: "action", text: `a ${k} may charge up to ${cost.perOp[k].wei} wei at the current fee, above the per-op cap ${r.maxPerOpWei}: raise --max-per-op` });
+    if (r.configured && cost.renewPerDayWei > 0n && r.balanceWei < cost.renewPerDayWei * BigInt(minDays))
+      out.push({ level: "warn", text: `the reserve covers about ${Number(r.balanceWei * 10n / (cost.renewPerDayWei || 1n)) / 10} days of renewals at the current fee (below ${minDays}): deposit more` });
+  }
+  if (st.gates.claimBond6 > 0n) out.push({ level: "info", text: st.gates.claimBondNote });
+  if (st.runner) {
+    if (st.runner.renew.status !== "Ready" && st.runner.renew.status !== "NotInRenewWindow") out.push({ level: "info", text: `renew by the current runner: ${st.runner.renew.status} - ${WHY[st.runner.renew.status] || ""}` });
+    if (st.gates.proofCutoverPassed && st.runner.registry && lc(st.runner.registry.proofKey) === ZERO)
+      out.push({ level: "warn", text: "the runner's enclave has no proof key and the ledger's proof cutover has passed: a new claim would be refused (setProofKey is the operator's own transaction; this reserve does not pay it)" });
+    if (!st.runner.delegatedToExecutor) out.push({ level: "info", text: "the runner's operator is not yet delegated to the lease executor: its first sponsored operation carries the EIP-7702 authorization (a patched host does this; nothing for the owner to send)" });
+  }
+  if (st.ledger.rate6 > 0n) out.push({ level: "info", text: "paid app (rate > 0): proof-of-time checkpoints are operator transactions this reserve does not pay" });
+  return out;
+}
+
+// =====================================================================================================================
+// the enrollment plan for many apps (all ten self-hosted ones) with an owner-chosen amount
+// =====================================================================================================================
+
+/** Parse an amount: exactly one of perAppWei / perAppEth / days (days needs a cost model's renew-per-day). */
+export function budgetAmount({ perAppWei, perAppEth, days }, cost) {
+  const given = [perAppWei, perAppEth, days].filter((x) => x !== undefined && x !== null);
+  if (given.length !== 1) throw new OwnerRefusal("name the budget per app: exactly one of --per-app-eth AMOUNT, --per-app-wei AMOUNT or --days N (there is no default amount)");
+  if (perAppWei !== undefined && perAppWei !== null) { if (!/^\d+$/.test(String(perAppWei))) throw new OwnerRefusal("--per-app-wei must be an integer"); return { wei: BigInt(perAppWei), basis: "per-app wei" }; }
+  if (perAppEth !== undefined && perAppEth !== null) return { wei: parseEthAmount(perAppEth), basis: "per-app ETH" };
+  const n = Number(days);
+  if (!Number.isFinite(n) || n <= 0 || n > 3650) throw new OwnerRefusal("--days must be a number of days from 0 to 3650");
+  if (!cost) throw new OwnerRefusal("--days needs the live fee (a quorum read)");
+  // one claim (with its authorization: the worst case) + the renewals N days need (renewalsFor) + one release, at the fee read now
+  if (!Number.isInteger(n * 86400)) throw new OwnerRefusal("--days must be a whole number of seconds");
+  const renewals = renewalsFor(n * 86400, { leaseSec: cost.leaseSec });
+  return { wei: cost.perOp.claim.wei + renewals * cost.perOp.renew.wei + cost.perOp.release.wei, renewals,
+    basis: `one claim + ${renewals} renewals (${n} days of a rate-0 / fully funded lease, leaseSec ${cost.leaseSec}) + one release at ${cost.price} wei/gas - the fee read now, not a forecast` };
+}
+export function parseEthAmount(s) {
+  const m = /^(\d{1,9})(?:\.(\d{1,18}))?$/.exec(String(s).trim());
+  if (!m) throw new OwnerRefusal(`not an ETH amount: ${s}`);
+  return BigInt(m[1]) * 10n ** 18n + BigInt((m[2] || "").padEnd(18, "0"));
+}
+/** Default per-op and epoch caps for a price cap (worst operation at the cap + the L1 bound share, with 25% headroom). */
+export function defaultCaps({ limits, maxGasPrice, l1UpperWei, l1UpperAuthWei = l1UpperWei, epochOps = 10 }) {
+  const atCap = chargeOf({ kind: "claim", gasPrice: BigInt(maxGasPrice), limits, l1UpperWei, l1UpperAuthWei }).wei;
+  const maxPerOpWei = atCap + atCap / 4n;
+  return { maxPerOpWei, epochCapWei: maxPerOpWei * BigInt(epochOps) };
+}

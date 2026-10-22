@@ -1,0 +1,181 @@
+{
+ "at": "2026-10-22T18:20:56.197Z",
+ "ledger": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+ "reserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+ "readOnly": true,
+ "rpc": "https://base-rpc.polkachu.com",
+ "apps": {
+  "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77": {
+   "rate6": "0",
+   "balance6": "0",
+   "leaseUntil": 1792663729,
+   "renewWindow": 300,
+   "minExtension": 600,
+   "enabled": true,
+   "summary": {
+    "landingLeadSec": null,
+    "cycleSec": null,
+    "leaseUntilAdvanceSec": null,
+    "newRemainingSec": null
+   }
+  },
+  "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b": {
+   "rate6": "0",
+   "balance6": "212",
+   "leaseUntil": 1792660709,
+   "renewWindow": 300,
+   "minExtension": 600,
+   "enabled": true,
+   "summary": {
+    "landingLeadSec": null,
+    "cycleSec": null,
+    "leaseUntilAdvanceSec": null,
+    "newRemainingSec": null
+   }
+  },
+  "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371": {
+   "rate6": "0",
+   "balance6": "7",
+   "leaseUntil": 1792649861,
+   "renewWindow": 300,
+   "minExtension": 600,
+   "enabled": true,
+   "summary": {
+    "landingLeadSec": null,
+    "cycleSec": null,
+    "leaseUntilAdvanceSec": null,
+    "newRemainingSec": null
+   }
+  },
+  "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238": {
+   "rate6": "0",
+   "balance6": "0",
+   "leaseUntil": 1792671243,
+   "renewWindow": 300,
+   "minExtension": 600,
+   "enabled": true,
+   "summary": {
+    "landingLeadSec": null,
+    "cycleSec": null,
+    "leaseUntilAdvanceSec": null,
+    "newRemainingSec": null
+   }
+  },
+  "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33": {
+   "rate6": "0",
+   "balance6": "10",
+   "leaseUntil": 1792694945,
+   "renewWindow": 300,
+   "minExtension": 600,
+   "enabled": true,
+   "summary": {
+    "landingLeadSec": {
+     "n": 3,
+     "min": 8,
+     "max": 56,
+     "median": 38
+    },
+    "cycleSec": {
+     "n": 3,
+     "min": 1744,
+     "max": 1792,
+     "median": 1762
+    },
+    "leaseUntilAdvanceSec": {
+     "n": 3,
+     "min": 1744,
+     "max": 1792,
+     "median": 1762
+    },
+    "newRemainingSec": {
+     "n": 3,
+     "min": 1800,
+     "max": 1800,
+     "median": 1800
+    }
+   }
+  },
+  "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681": {
+   "rate6": "0",
+   "balance6": "1000000",
+   "leaseUntil": 1792679201,
+   "renewWindow": 300,
+   "minExtension": 600,
+   "enabled": true,
+   "summary": {
+    "landingLeadSec": null,
+    "cycleSec": null,
+    "leaseUntilAdvanceSec": null,
+    "newRemainingSec": null
+   }
+  },
+  "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c": {
+   "rate6": "2",
+   "balance6": "3927130",
+   "leaseUntil": 1792692447,
+   "renewWindow": 300,
+   "minExtension": 600,
+   "enabled": true,
+   "summary": {
+    "landingLeadSec": {
+     "n": 2,
+     "min": 182,
+     "max": 204,
+     "median": 204
+    },
+    "cycleSec": {
+     "n": 2,
+     "min": 1618,
+     "max": 1626,
+     "median": 1626
+    },
+    "leaseUntilAdvanceSec": {
+     "n": 2,
+     "min": 1800,
+     "max": 1800,
+     "median": 1800
+    },
+    "newRemainingSec": {
+     "n": 3,
+     "min": 1830,
+     "max": 2004,
+     "median": 1982
+    }
+   }
+  },
+  "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a": {
+   "rate6": "0",
+   "balance6": "4",
+   "leaseUntil": 1792657223,
+   "renewWindow": 300,
+   "minExtension": 600,
+   "enabled": true,
+   "summary": {
+    "landingLeadSec": null,
+    "cycleSec": null,
+    "leaseUntilAdvanceSec": null,
+    "newRemainingSec": null
+   }
+  },
+  "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c": {
+   "rate6": "0",
+   "balance6": "0",
+   "leaseUntil": 1792675415,
+   "renewWindow": 300,
+   "minExtension": 600,
+   "enabled": true,
+   "summary": {
+    "landingLeadSec": null,
+    "cycleSec": null,
+    "leaseUntilAdvanceSec": null,
+    "newRemainingSec": null
+   }
+  }
+ },
+ "head": {
+  "number": "52951954",
+  "timestamp": 1792693255
+ },
+ "leaseSec": 1800,
+ "fromBlock": "52946554"
+}

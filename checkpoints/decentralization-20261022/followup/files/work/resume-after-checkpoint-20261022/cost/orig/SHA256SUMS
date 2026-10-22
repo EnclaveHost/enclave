@@ -1,0 +1,5 @@
+81a851805a607075f5648d67aefe886fa5d445fcd9dc1bd5764b3046fe91333e  orig/app-funded-leases.md
+48ce8ffe23b76ecadfeb14cac91875f1158ecf2f04a7555eb41208c78eb0d9b7  orig/lease-gas-cost-model.test.mjs
+ffc100c4636a89377fb144ab273e49b6b5b53eb1e04bc69d665468d7a150076b  orig/lease-gas-owner-cli.test.mjs
+ddd3ba9bb016562c9387bd7418f016c03fbcc5b9db9706bad5905da81762afe5  orig/lease-gas-owner.mjs
+27d49989da78bcf35ebc3c6db11e05dccfd8c78a9c4a0fae6ae203c3b44fc2e9  orig/lease-gas.mjs

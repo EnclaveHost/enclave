@@ -1,0 +1,18 @@
+{
+ "run": "b1",
+ "tarball": {
+  "path": "out/b1/a/enclave-storage-indexer-1.0.0-rc3.tar.zst",
+  "sha256": "dc2d018f7415cb2fc32a0f0bd937472a825ab1bfe191bee94f41533c4515de4a",
+  "secondBuild": "out/b1/b (identical)"
+ },
+ "manifestPin": "sha256:e903e94c876af0f0ea6fd243b72d5c2c35d5e6af79ad033a2e6afbfe097f33fc",
+ "packageJson": "86f2503ec486ecbfe1db38f1c4a58f67331a5ea8e3004a863736ff053d07413c",
+ "tests": {
+  "package": "22 passed, 0 failed (logs/build-1.out, out/b1/package-tests.out); peak 147 MiB @512",
+  "roleLifecycle": "1/1 pass, 0 fail, 45.4 s; peak 753 MiB @1024 (logs/role-1.out) [original test: schema asserted >= 27 only]",
+  "activation": "1/1 pass, 0 fail, 3.9 s; peak 218 MiB @512 (logs/act-1.out)",
+  "roleLifecycleExact28": "derived test storage-indexer-host-rc3.test.mjs 9d194cb6: 1/1 pass, 0 fail, 52.5 s, db_version 28 (diagnostic), 33 tables; peak 779 MiB @1024 (logs/role28-1.out)"
+ },
+ "cleanup": "no leftover processes or temp dirs",
+ "result": "../../resume-after-checkpoint-20261022/role-result.json"
+}

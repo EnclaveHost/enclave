@@ -1,0 +1,181 @@
+{
+ "at": "2026-10-22",
+ "kind": "storage rollout candidate/input inventory (prepared; NOTHING built, deployed, signed or funded)",
+ "scope": "ship c2-enclave indexd 2c0e5b06 through the storage-indexer host role (rc3) and the tested C2 client through sia-s3",
+ "inputsCheck": {
+  "file": "INPUTS-CHECK.json",
+  "sha256": "68087b3b1691e1707ed5469b9d2cd8d405d9c1923ace8fb18ac4dfc17742d9fd",
+  "result": "allOk true: 30 pinned files + 6 tree manifests (incl. 585-file host-software closure == reconciled-candidate byte-for-byte)",
+  "queue": "256, logs/inputs-17.* EXIT 0 (try 3 failed only on my wrong tree root for AFTER.sha256, fixed; tries 1,2 = 98 NOT STARTED)"
+ },
+ "hostRole": {
+  "role": {
+   "path": "network/host-services/storage-indexer-host.mjs",
+   "sha256": "20abb68136eb00b02ec76a9fbe7fbd1db2b0b41518239e204c3995e19ae8d271",
+   "inTrees": [
+    "work/enclave (old-history e762)",
+    "work/resume-20261021/reconciled-candidate",
+    "work/host-service-transport-20261021/tree",
+    "work/storage-host-role/tree"
+   ],
+   "unchanged": true
+  },
+  "hostSoftwareClosure": {
+   "tar": "83c95b4b1886cee1e8664f4fc7201c5713726e4084c4961e30cf708c2f81b3b7",
+   "manifest": "658e5a443480c65db79dbb2dc9ba74f76f53b299d759eed28e44470e52c5bf98",
+   "files": 585,
+   "note": "for hosts whose checkout lacks network/ (metal0's 04a27e8d); verified equal to reconciled-candidate files"
+  },
+  "baseline": {
+   "package": "enclave-storage-indexer-1.0.0-rc2.tar.zst",
+   "sha256": "3b78d4f10a31e23871130d8e87044be31470de62c5b08350a752d4b14a0c497d",
+   "indexd": "e6e812fd (G-C2, stock sizing)",
+   "evidence": "role14-rc2 real PG18+indexd lifecycle pass (peak 749), pkg-rc2-tests2 22/22, storage-closeout act-5/6 + neg-1"
+  },
+  "candidate": {
+   "dir": "rc3/enclave-storage-indexer",
+   "version": "1.0.0-rc3",
+   "files": {
+    "README.md": "8a0621dada363966709e92998cfaa06d0179721a519ffdf7b1b7baf9d0808e5b",
+    "build.sh": "9025e32d363b0e8c7df75b618dcc2253a7b3cf8c2062991b563d6234f412c3cd",
+    "libexec/common.sh": "32b26f4d158b4a001d3dbfe54032576a6b1846f3944d216ac2df3bc853fe6734",
+    "libexec/preflight": "51d6cdbe4090e265d26595380619ee1bbde500bbdadd0e2cdab862fc387c5086",
+    "templates/host.json.template": "4747c07b40eab78858987d3f4ee2523c976000b30f8294d6b88792910052bf3b",
+    "tests/run-tests.sh": "70a82fefb612177af8017a19efbffe6b723a9335cdce6c706de2598f4c621f20",
+    "units/enclave-storage-indexer-host@.service": "28537454f157c515cf126bfb1ed071f3df2dcf7ff78013e6508ad235b64296c1"
+   },
+   "patch": {
+    "file": "rc2-to-rc3.patch",
+    "sha256": "21cb155780ced6312f927edb690d8b86259f3cb50ab0cee0802efb0633d1acf5"
+   },
+   "payload": {
+    "bin/indexd": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7 (storage-enclave-build out/c2-enclave-a == -b; v0.6.0-fence.2-c2-enclave, db v28)",
+    "share/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933 (= production)"
+   },
+   "unchangedFromRc2": [
+    "libexec/common.sh",
+    "libexec/preflight",
+    "templates/host.json.template",
+    "units/enclave-storage-indexer-host@.service"
+   ],
+   "configCompatibility": "c2-enclave vs e6e812fd source diff = build/meta.go, cmd/indexd/run.go (app API timeouts only), contracts/form.go, contracts/funding.go; config/ unchanged, so the role-rendered indexd.yml keys are the tested ones",
+   "builtTarballSha256": "dc2d018f7415cb2fc32a0f0bd937472a825ab1bfe191bee94f41533c4515de4a",
+   "manifestPin": "sha256:e903e94c876af0f0ea6fd243b72d5c2c35d5e6af79ad033a2e6afbfe097f33fc",
+   "status": "BUILT (reproducible a == b) AND VERIFIED LOCALLY: package tests 22/22, real host-role lifecycle 1/1 (peak 753 MiB), activation 1/1; NOT deployed (see RC3-EVIDENCE.json, work/resume-after-checkpoint-20261022/role-result.json)"
+  },
+  "formats": {
+   "package": "enclave-storage-indexer-package/1 (PACKAGE.json + MANIFEST.sha256; pin = sha256 of MANIFEST.sha256)",
+   "hostConfig": "enclave-storage-indexer-host/v1 host.json (validateConfig) + replica.env (8 keys, read by libexec/preflight); rendered by storage-closeout activation/render-config.mjs",
+   "descriptor": "enclave-service-descriptor/v1 kind storage role storage-indexer {operator, hostId, replica, package pin, applicationAPI, indexd{sha256, capabilities[cas-v4,fence,op-nonce]}} EIP-191 by the host's REGISTRY OPERATOR",
+   "unit": "enclave-storage-indexer-host@<r>.service (LoadCredentialEncrypted recovery-phrase/admin-password, MemoryMax 2304M, no swap, ProtectHome)",
+   "serviceIndexKind": "storage = 3 (discovery metadata only, no authority)"
+  },
+  "preservedFeatures": [
+   "platform host policy gate: admin bans by registryId/operator/owner/endpoint, allowlist mode, sticky refusal across restarts; policy 'off' = role refuses to run (no ungated mode)",
+   "registry row must be ACTIVE with matching endpoint and operator",
+   "operator-signed descriptor bound to the exact package pin and advertised URL",
+   "pinned package manifest verified at every admission",
+   "PostgreSQL 18 socket-only, peer auth, listen_addresses=''",
+   "credentials only as systemd-encrypted creds; indexd.yml 0600 in /run",
+   "owner-encrypted backup/restore (CMS AES-256-GCM); refusal stops indexd then PG, data kept; unban restarts on same data; crash restart with backoff",
+   "indexd: G-C2 fence API (cas-v4, op-nonce, fence), U1 current-objects listing, enclave-small sizing (8 GiB growth, 1 GiB fund target), 5-min app API timeouts"
+  ]
+ },
+ "siaS3": {
+  "artifact": {
+   "path": "work/storage-clone-privacy-review/candidate/target/wasm32-wasip2/release/sia-s3.wasm (copy: storage-wasm-validation/artifacts/candidate-00e9cde0.wasm)",
+   "sha256": "00e9cde0929dc7b8726ca4b7b9c9afb51ec4bf6d952039c907c032256ec79afc",
+   "bytes": 4555871,
+   "cargoVersion": "0.2.0",
+   "sia_storage": "0.13.1",
+   "source": "candidate/AFTER.sha256 (115 files) = 54818ba + G-C2 + clone-privacy hedged keys/nonces",
+   "never": "aa15a054 (C2-FINAL without the privacy fix) in copy-tolerant mode"
+  },
+  "evidence": {
+   "nativeSuite": "115 pass / 0 fail / 19 ignored (clone-privacy-build-verification.json)",
+   "component": "storage-wasm-validation full4 124/124 under wasmtime 49.0.3 against real G-C2 indexd e6e812fd + 30 RHP4 hosts",
+   "placement": "place3 40/40 (lease16 fencing, host loss W=2, r3 backfill, indexer-free cold recovery)",
+   "sdkInteropOnC2Enclave": "repeat-r2 run 20261022T135345 (c2eidxu1 7/7, c2eidxfeed 6/6, feidxu1 7/7) + root run 074318 (c2epos, fec2neg, c2efence, c2eblock): driver d45df48e built from sia-s3 snapshot c2-4"
+  },
+  "testedClientRelation": {
+   "c2-4 -> 00e9cde0 source": "src/clone_privacy.rs (cfg(all(test,unix))), src/main.rs (that test mod line), src/replica.rs (test-only additions), sia_storage erasure_coding.rs/object_encryption.rs/slabs.rs (client-side key+nonce hedging), mock.rs, rhp4/mock.rs (mock feature)",
+   "indexdFacingFilesIdentical": "app_client*, fence.rs, store.rs, fencing.rs, config.rs, s3.rs unchanged",
+   "productionListing": "config.rs hard-codes Listing::Current = the u1 mode the accepted repeat groups test",
+   "gap": "no single run of the 00e9cde0 wasm against 2c0e5b06 (see BUILD-RECIPE optional)"
+  },
+  "lineage": "live 0.1.8 = enclave-apps-sia-recovery f72b0a7 (0.1.1 signed /?sia-diag, 0.1.2-0.1.3 wasi timeouts/pool, 0.1.4-0.1.5 browser page + file explorer, 0.1.6 buckets, 0.1.7 conditional/streamed PUT, 0.1.8 chunked bodies) <= 54818ba (replication) <= candidate: all 0.1.x features carried",
+  "versionConfig": {
+   "file": "sia-s3-app/config.template.json",
+   "sha256": "6e31a0bc2517148e7b5f337b9fd0aa8222906eca9dcfc244dd039b06cf5c25b0",
+   "base": "storage-hosted-placement/package/sia-s3-app/config.template.json (copied as config.template.rc2-placement.json)",
+   "fixes": [
+    "ADDED \"egress\":\"public-web\": DEPLOY.md B1 + Shield policy (shieldconfig PublicWeb): without it the measured config gets only https origins and every SiaMux :9984 dial is refused; the placement fixture used its own SOCKS front so it could not catch this",
+    "buckets [\"ipfs\"] -> [\"ipfs\",\"git\",\"jot\",\"machines\"]: the live set since 0.1.6 (commit 4151587 message); dropping them would lose jot/git/machines"
+   ],
+   "notNeeded": "\"wasi\" is filled by the CLI from the binary at publish (cli/enclave.mjs:2811-2816)",
+   "reservedFrontFilled": [
+    "$ENCLAVE_WRITER_AUTHORITY",
+    "$ENCLAVE_INSTANCE_ISOLATION"
+   ],
+   "ownerSecrets": [
+    "$SIAS3_REPLICAS ([{name,indexer,appKey}], one app key per replica)",
+    "$S3_ACCESS_KEY_ID",
+    "$S3_SECRET_ACCESS_KEY"
+   ]
+  },
+  "preservedFeatures": [
+   "S3 API incl. SigV4, conditional GET/PUT, streamed/chunked bodies, buckets ipfs/git/jot/machines",
+   "browser page/file explorer",
+   "signed /?sia-diag",
+   "import mode",
+   "C2 N=3/W=2 replication with membership change (retiring, one member at a time) and peer backfill",
+   "writer fencing (writerFence required; never ready without the front's authority fact; no unfenced fallback)",
+   "clone-safe encryption",
+   "indexer-free cold recovery from owner Wasm + app key + sealed snapshot",
+   "app key stays inside the guest; indexers never see plaintext"
+  ]
+ },
+ "signingNeeds": {
+  "build": "none: the package is not signed; it is pinned by its MANIFEST digest (host.json + descriptor)",
+  "perReplica": "the REGISTRY OPERATOR of each storage host personal_signs the descriptor bytes (storage-closeout activation/descriptor.mjs request/assemble); rc3 changes the pin, so the descriptor must name the rc3 manifest pin (no rc2 descriptor was ever signed)",
+  "platformPolicy": "existing admin-signed anchored policy must admit each host (admin action only if a host is not yet admitted or allowlist mode); admin ban control preserved",
+  "siaS3Publish": "catalog publishVersion of the new sia-s3 version by the sia-s3 slug owner; approved on publish only if that owner is the catalog owner (rev 9), else catalog-owner approval (admin)",
+  "siaS3Deploy": "deployment owner signatures: version switch/redeploy and every secrets put (message signatures); app-key registration on each new indexer is an indexd admin-API step on that host (admin password credential), not a wallet signature",
+  "front": "front/relay with the lease-generation writer-authority binding: new measured Shield/SNP builds through the existing release process (release owner key/signature currently absent per latest-progress)",
+  "contracts": "none: no contract, registry field or ownership change"
+ },
+ "runtimePrerequisites": [
+  "per replica host: Linux Enclave host software (role 20abb681 + gate), node, PostgreSQL 18 binaries, systemd >= 250 with systemd-creds host key or TPM2, MemAvailable >= 2304 MiB, /var/lib free >= 3584 MiB, not DigitalOcean (preflight refuses DO DMI/provider)",
+  "per replica: ACTIVE registry entry whose endpoint is the host's PUBLIC_URL; platform host policy enabled and ADMISSIBLE (storage-closeout gate-preflight)",
+  "per replica: public https advertiseURL with TLS on the indexer host and a route NOT only via the DigitalOcean fleet (ingress owned by discovery/network workers)",
+  "per replica: a NEW indexd seed phrase generated on the host; Sia funding of its wallet + host contracts",
+  "sia-s3: runner with per-app isolation (snp/tdx/vbs) and egress public-web; front + relay carrying writer authority (lease16 facts, CATALOG_RPCS >= 2 hosts); expect ~20-25 min NOT READY after a fresh claim",
+  "migration: the live single indexer (v0.6.0-enclave2, db 26) must be on c2-enclave (v28) before the documented 1->3 membership change (Phase A/C; owned by the r4/r5 controller and fresh-rehearsal workers, not changed here)"
+ ],
+ "missingInputs": [
+  "Live sia-s3 0.1.8 catalog record (public read, root): exact config JSON to diff against sia-s3-app/config.template.json (any key beyond buckets/egress), slug owner address, catalog index, ports, resources (memMb/cpu), and the deployment id(s) running it",
+  "memMb for the C2 version (immutable in the catalog version): measured 743-749 MiB for 3 replicas with sequential uploads; projected 1.4-1.5 GiB for 3x3 concurrent; DEPLOY.md 2048 is an unverified guess. Root decision",
+  "Root decision on copy-mode-guard.patch b8e135d9 (recommended: not for this ship; it changes the wasm and needs a rebuild + revalidation)",
+  "N >= 3 storage hosts in distinct failure domains with real {site, provider, power} values, endpoints, advertiseURLs, and their registry operators; only metal0 is known supported today",
+  "Non-DigitalOcean ingress per advertiseURL",
+  "Sia funding per replica wallet (spend; not authorized)",
+  "Deployment status of the front/relay writer-authority binding (source integrated in main per storage-front-main-integration; no deployment evidence found in outputs)",
+  "B7 exact-host-identity composition (root note in host-service-transport ROOT-NOTE): the role hashes the slash-stripped endpoint; fail-closed, but root's final host-service composition must settle it"
+ ],
+ "statusLegend": {
+  "deployed": "none of this",
+  "staged": "none",
+  "verified": "inputs (hashes), rc2 package/role/activation (prior runs), sia-s3 00e9cde0 (prior runs), c2-enclave SDK interop (repeat-r2); rc3 package build + package tests + real role lifecycle + activation (2026-10-22 run b1)",
+  "prepared": "sia-s3 corrected version config; rc3 descriptor/config rendering per replica",
+  "notStarted": "publish, replicas, funding, migration, cutover"
+ },
+ "effects": {
+  "production": false,
+  "ssh": false,
+  "wallet": false,
+  "network": false,
+  "builds": "rc3 package only (tar/zstd of pinned bytes; no Go/Rust/wasm build)",
+  "treesEdited": false,
+  "queueJobs": "inputs check 256; build-1 512; role-1 1024; act-1 512 (all first attempt, EXIT 0)"
+ }
+}

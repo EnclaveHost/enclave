@@ -1,0 +1,10 @@
+storage-indexer-host-rc3.test.mjs (9d194cb6) is a RECOVERY COPY. The executed file is
+work/storage-host-role/tree/test/storage-indexer-host-rc3.test.mjs (same bytes). It must run from that tree, because its
+relative imports resolve there:
+  ./helpers/platform-policy-world.mjs           (df7bde80)
+  ../network/host-services/storage-indexer-host.mjs (role 20abb681)
+  viem                                          (tree/node_modules -> work/enclave/node_modules)
+  WORK = <tree>/../.. ; PG18 = work/storage-host-role/pg18/root ; tarball from STORAGE_PACKAGE_TARBALL
+Derived from test/storage-indexer-host.test.mjs 341e6363 (unchanged); exact diff: storage-indexer-host-rc3.patch.
+Changes: rc3 package binding (version 1.0.0-rc3, PACKAGE.json and bin/indexd bytes = 2c0e5b06), db_version === 28 instead
+of >= 27, and two t.diagnostic lines. The lifecycle is otherwise unchanged.

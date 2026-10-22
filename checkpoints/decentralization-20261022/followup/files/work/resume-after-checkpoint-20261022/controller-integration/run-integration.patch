@@ -1,0 +1,184 @@
+--- run-c2-fixture.py (storage-enclave-fixture, frozen 4b09043a)
++++ run-integration.py (controller-integration, derived)
+@@ -1,31 +1,30 @@
+ #!/usr/bin/env python3
+-"""ROOT ONLY. The existing G-C2 eight-stage fixture against the NEW reproducible binaries (storage-enclave-build):
+-fence-enclave c67ffa4d... (v27) and c2-enclave 2c0e5b06... (v28), with the database seeded at v27 through the
+-MATCHING fence-enclave source tree (inventory d306f997, the tree c67ffa4d was built from). Replaces run-c2-fixture.sh;
+-fixture/c2fx.py holds the ownership/cleanup rules.
+-
+-  run-c2-fixture.py --plan                       NO side effects: verifies every pin, prints the manifest
+-  run-c2-fixture.py --execute <manifest>         one run, inside ONE shared-queue allocation (see README: 768 MiB + 256 MiB docker)
+-  run-c2-fixture.py --recover <run id>           identity-checked cleanup of an interrupted run from its journal
+-
+-Steps:
+-1. pins;
+-2. the exclusive journal and stage runs/<id>/, refusing any pre-existing name;
+-3. generated disposable secrets (0600, never printed);
+-4. a labelled volume and container from the OFFLINE pinned image (--pull never), published on 127.0.0.1:<ephemeral>,
+-   --memory 256m;
+-5. the v27 seed through the fence-enclave store code: a scratch copy of the tree in the stage, the inventory re-checked
+-   before and after, go test -mod=readonly with GOPROXY=off, GOTOOLCHAIN=local and a per-run GOCACHE;
+-6. the node, on loopback ports chosen for this run;
+-7. fixture/run_c2_fixture_test.py: the 8 stages, unchanged;
+-8. cleanup (c2fx.Run.cleanup). It ALWAYS runs: on success, on failure and on SIGTERM/SIGINT. A SIGKILL leaves the journal
+-   for --recover.
++"""ROOT ONLY. ONE derived, isolated integration run of the storage-migration-r5 rev2 controller (fixture candidate
++integration/replicactl.fixture-r5.py 2ab98b4d) on REAL PostgreSQL.
++
++It is the root-passed eight-stage C2 fixture (storage-enclave-fixture, run 32418fa137c5c05c), with exactly these
++derivations (run-integration.patch vs the frozen run-c2-fixture.py 4b09043a):
++- the controller is the r5 fixture candidate (pinned) instead of 91dc928d;
++- every frozen fixture file is used READ-ONLY from storage-enclave-fixture with a FIXED pin: c2fx.py,
++  make-fixture-node.py, run_c2_fixture_test.py (the 8 stages), rollout_seed_test.go, migration/*;
++- integration_checks.py (this directory, pinned by the manifest) runs "pre" BEFORE stage 1 and "post" AFTER the 8 stages,
++  against the same disposable container and node;
++- journals, stages and results live in THIS directory's runs/;
++- PASS requires: all 8 stages, every integration check, finalize, and a certain cleanup.
++Same ownership and isolation as the fixture:
++- the reviewed c2fx (journal, exclusive stage, labelled container and volume, PID files never signal, own-scope drain);
++- --pull never; loopback-only ports; --memory 256m container;
++- queue job <= 768 MiB;
++- no production, network, chain, funding or shared PostgreSQL.
++
++  run-integration.py --plan                    NO side effects: verifies every pin, prints the manifest
++  run-integration.py --execute <manifest>      the one run, inside ONE shared-queue allocation (768 MiB + docker 256 MiB)
++  run-integration.py --recover <run id>        identity-checked cleanup of an interrupted run from its journal
+ Exit:
+-- 0: all 8 stages passed AND cleanup is certain;
+-- 1: a stage, the seed or the setup failed, and cleanup is certain;
+-- 2: usage error or refused (nothing of this run was created beyond its journal);
+-- 3: cleanup UNCERTAIN (the stage and the names are kept and recorded in runs/<id>.result.json), whatever the stages did.
+-No production, SSH, chain, peers, UPnP, download, signing or live seed. All listeners are on 127.0.0.1."""
++- 0: everything passed AND cleanup is certain;
++- 1: a stage, a check or the setup failed (cleanup certain);
++- 2: refused;
++- 3: cleanup UNCERTAIN."""
+ import hashlib
+ import json
+ import os
+@@ -37,11 +36,36 @@
+ from pathlib import Path
+ 
+ HERE = Path(__file__).resolve().parent
+-PKG = HERE.parent
+-W = next(p for p in PKG.parents if p.name == "work")
+-sys.path.insert(0, str(HERE))
++W = next(p for p in HERE.parents if p.name == "work")
++PKG = W / "claude-resumed-20261022/storage-enclave-fixture"      # the FROZEN fixture package (read-only)
+ sys.dont_write_bytecode = True
+-import c2fx  # noqa: E402
++FROZEN = {   # frozen fixture files used read-only (relative to PKG) -> fixed sha256 (exact)
++    "fixture/c2fx.py": "ff1b092c54135df64b506b1683fb48679f678f21e6ec5d28ef6fb54a66534ad6",
++    "fixture/make-fixture-node.py": "48c3d501f39d9ecda0b9002baf2c9dfcb80972b0f0a70360202d298882fbb08d",
++    "fixture/run_c2_fixture_test.py": "6496b2d5e1b2c4178c53629996734220f9419333cbf3d6ef181864019318aa07",
++    "fixture/rollout_seed_test.go": "c0355fd87cee2a2557741a1d73a813332bd97aa49974394fe80fca963a4faf49",
++    "migration/digest.sql": "7f4b137f7049753df1cc414e89e0fa2da563b84c290cf533d8d2f11765104247",
++    "migration/down-28-to-27.sql": "629f186e28a7f48a36e9bd9ac94139e6a3d24c40784fc26c6190075d212cc873",
++    "migration/up-27-to-28.sql": "1043b6452c0279258214ee3527d80d9d2962fea7f3202505acb02b81fc35a225",
++}
++CONTROLLER = W / "claude-resumed-20261022/control-package/storage-migration-r5/integration/replicactl.fixture-r5.py"
++CONTROLLER_SHA = "2ab98b4d359fd0f3dcd34458ddfdf61a32b0dfb66652328418e453d4bc679151"
++CHECKS = HERE / "integration_checks.py"
++
++
++def _load_c2fx():
++    import importlib.util
++    h = hashlib.sha256((PKG / "fixture/c2fx.py").read_bytes()).hexdigest()
++    if h != FROZEN["fixture/c2fx.py"]:
++        raise RuntimeError(f"frozen c2fx.py differs from its pin ({h})")
++    sp = importlib.util.spec_from_file_location("c2fx", PKG / "fixture/c2fx.py")
++    m = importlib.util.module_from_spec(sp)
++    sys.modules["c2fx"] = m
++    sp.loader.exec_module(m)
++    return m
++
++
++c2fx = _load_c2fx()
+ 
+ BUILD = W / "claude-resumed-20261022/storage-enclave-build"
+ PINS = {   # path (relative to work/) -> sha256
+@@ -51,14 +75,12 @@
+     "claude-resumed-20261022/storage-enclave-build/trees/fence-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+     "indexd-c2-implementation/package/fixture/c2client": "07d43802720b810961d9846b2de9e5dd798b8152fc8954150a8f42f40105e977",
+ }
+-PKG_FILES = ["controller/replicactl.py", "fixture/c2fx.py", "fixture/make-fixture-node.py", "fixture/run_c2_fixture_test.py",
+-             "fixture/rollout_seed_test.go", "migration/digest.sql", "migration/down-28-to-27.sql", "migration/up-27-to-28.sql"]
+ GO = "/usr/lib/go/bin/go"
+ GO_SHA = "dc36303d0ab49f23ae5922d1468bb73c5a093bbec4e598888155b0dc99e0161d"
+ FENCE, C2 = W / list(PINS)[0], W / list(PINS)[1]
+ FENCE_TREE, FENCE_INV = BUILD / "trees/fence-enclave", W / list(PINS)[2]
+ GEOIP, CLIENT = W / list(PINS)[3], W / list(PINS)[4]
+-RUNS = PKG / "runs"                     # journals, stages and results of every run
++RUNS = HERE / "runs"                    # journals, stages and results of every run (THIS directory only)
+ MAX_SCOPE = 768 * 1024 * 1024          # the proposed queue allocation; the docker container has its own 256 MiB
+ PG_MEM_MIB = 256
+ 
+@@ -94,9 +116,14 @@
+ 
+ def pins():
+     got = {p: sha(W / p) for p in PINS}
+-    got.update({f"storage-enclave-fixture/{p}": sha(PKG / p) for p in PKG_FILES})
++    got.update({f"storage-enclave-fixture/{p}": sha(PKG / p) for p in FROZEN})
++    got["storage-migration-r5/integration/replicactl.fixture-r5.py"] = sha(CONTROLLER)
++    got["controller-integration/integration_checks.py"] = sha(CHECKS)
++    got["controller-integration/run-integration.py"] = sha(Path(__file__))
+     got[GO] = sha(GO)
+     bad = [p for p, h in PINS.items() if got[p] != h] + ([GO] if got[GO] != GO_SHA else [])
++    bad += [f"storage-enclave-fixture/{p}" for p, h in FROZEN.items() if got[f"storage-enclave-fixture/{p}"] != h]
++    bad += ["replicactl.fixture-r5.py"] if got["storage-migration-r5/integration/replicactl.fixture-r5.py"] != CONTROLLER_SHA else []
+     ok, why = inventory_ok(FENCE_TREE, FENCE_INV)
+     return got, bad, (ok, why)
+ 
+@@ -181,7 +208,7 @@
+     admin, syncer, app = free_ports(3)
+     nenv = dict(env0, C2FX_STAGE=str(st), C2FX_PORTS=f"{admin},{syncer},{app}", C2FX_PG_PORT=str(port), C2FX_PG_CONTAINER=run.container,
+                 C2FX_FENCE=str(FENCE), C2FX_GEOIP=str(GEOIP), C2FX_MIGRATION_DIR=str(PKG / "migration"))
+-    if child(run, [sys.executable, str(HERE / "make-fixture-node.py")], log, env=nenv, timeout=120) != 0:
++    if child(run, [sys.executable, "-B", str(PKG / "fixture/make-fixture-node.py")], log, env=nenv, timeout=120) != 0:
+         raise RuntimeError("make-fixture-node failed")
+     run.journal.add(event="node", ports={"admin": admin, "syncer": syncer, "app": app})
+     cl = st / "c2client"
+@@ -192,20 +219,27 @@
+         f.write(data)
+     if sha(cl) != PINS["indexd-c2-implementation/package/fixture/c2client"]:
+         raise RuntimeError("c2client copy differs")
+-    tenv = dict(env0, C2FX_STAGE=str(st), C2FX_CONTROLLER=str(PKG / "controller/replicactl.py"), C2FX_FENCE=str(FENCE), C2FX_C2=str(C2))
+-    rc = child(run, [sys.executable, "-u", str(HERE / "run_c2_fixture_test.py")], log, env=tenv, timeout=3600)
++    tenv = dict(env0, C2FX_STAGE=str(st), C2FX_CONTROLLER=str(CONTROLLER), C2FX_FENCE=str(FENCE), C2FX_C2=str(C2))
++    if child(run, [sys.executable, "-B", "-u", str(CHECKS), "pre"], log, env=tenv, timeout=300) != 0:
++        raise RuntimeError("integration pre-checks failed (see integration-results.json)")
++    run.journal.add(event="integration-pre", rc=0)
++    rc = child(run, [sys.executable, "-B", "-u", str(PKG / "fixture/run_c2_fixture_test.py")], log, env=tenv, timeout=3600)
+     run.journal.add(event="stages", rc=rc)
++    if rc != 0:
++        return rc
++    rc = child(run, [sys.executable, "-B", "-u", str(CHECKS), "post"], log, env=tenv, timeout=1800)
++    run.journal.add(event="integration-post", rc=rc)
+     return rc
+ 
+ 
+ def finish(run, outcome, rc_work, log):
+-    rep = run.cleanup(pid_files=[run.stage / "node" / "state" / "indexd.pid"], keep=["c2-fixture-results.json"])
+-    res = {"runId": run.id, "outcome": outcome, "stagesRc": rc_work, "cleanup": rep, "log": str(log),
+-           "results": str(run.runs / f"{run.id}.c2-fixture-results.json")}
++    rep = run.cleanup(pid_files=[run.stage / "node" / "state" / "indexd.pid"], keep=["c2-fixture-results.json", "integration-results.json"])
++    res = {"runId": run.id, "outcome": outcome, "stagesThenChecksRc": rc_work, "cleanup": rep, "log": str(log),
++           "results": str(run.runs / f"{run.id}.c2-fixture-results.json"), "integration": str(run.runs / f"{run.id}.integration-results.json")}
+     code = 3 if not rep["certain"] else (0 if rc_work == 0 else 1)
+     res["exit"], res["passed"] = code, code == 0
+     (run.runs / f"{run.id}.result.json").write_text(json.dumps(res, indent=1) + "\n")
+-    print(json.dumps({k: res[k] for k in ("runId", "outcome", "stagesRc", "exit", "passed")} | {"cleanupCertain": rep["certain"]}), flush=True)
++    print(json.dumps({k: res[k] for k in ("runId", "outcome", "stagesThenChecksRc", "exit", "passed")} | {"cleanupCertain": rep["certain"]}), flush=True)
+     return code
+ 
+ 
+@@ -252,7 +286,7 @@
+     rc_work, outcome = None, "error"
+     try:
+         rc_work = work(run, log, env0)
+-        outcome = "stages-passed" if rc_work == 0 else "stages-failed"
++        outcome = "stages-and-checks-passed" if rc_work == 0 else "stages-or-checks-failed"
+     except SystemExit as e:
+         outcome = f"interrupted (signal exit {e.code})"
+     except Exception as e:

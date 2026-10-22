@@ -1,0 +1,206 @@
+{
+ "kind": "read-only input inventory (hashes only)",
+ "work": "/home/steven/Documents/Codex/2026-10-18/wo/work",
+ "pins": {
+  "claude-resumed-20261022/storage-enclave-build/out/c2-enclave-a/indexd": {
+   "sha256": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
+   "bytes": 39370876,
+   "ok": true
+  },
+  "claude-resumed-20261022/storage-enclave-build/out/c2-enclave-b/indexd": {
+   "sha256": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
+   "bytes": 39370876,
+   "ok": true
+  },
+  "claude-resumed-20261022/storage-enclave-build/SHA256SUMS": {
+   "sha256": "647705fa2b4064e1fd364ddd84a76c1a5efafa63fadfcd087bdd0c595d5490bb",
+   "bytes": 350,
+   "ok": true
+  },
+  "claude-resumed-20261022/storage-enclave-build/inventory/c2-enclave.sha256": {
+   "sha256": "2e8faf801e088db41abba57935f0a290940ea3ed13cb6d122efdfe0d39ba9f5e",
+   "bytes": 20029,
+   "ok": true
+  },
+  "indexd-c2-implementation/src/GeoLite2-City.mmdb": {
+   "sha256": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+   "bytes": 62164308,
+   "ok": true
+  },
+  "storage-host-role/package/dist/enclave-storage-indexer-1.0.0-rc2.tar.zst": {
+   "sha256": "3b78d4f10a31e23871130d8e87044be31470de62c5b08350a752d4b14a0c497d",
+   "bytes": 40115906,
+   "ok": true
+  },
+  "storage-host-role/package/enclave-storage-indexer/build.sh": {
+   "sha256": "f9e0542879738f50ce8712bc67a09909e6f14bb0e6477982f660b1b230fa4065",
+   "bytes": 2654,
+   "ok": true
+  },
+  "storage-host-role/package/enclave-storage-indexer/README.md": {
+   "sha256": "da6b7d75eb29dec71383b3c29f69c990f8fa2db820ba3a8bbaf61cb854c8cd56",
+   "bytes": 4491,
+   "ok": true
+  },
+  "storage-host-role/package/enclave-storage-indexer/libexec/common.sh": {
+   "sha256": "32b26f4d158b4a001d3dbfe54032576a6b1846f3944d216ac2df3bc853fe6734",
+   "bytes": 1237,
+   "ok": true
+  },
+  "storage-host-role/package/enclave-storage-indexer/libexec/preflight": {
+   "sha256": "51d6cdbe4090e265d26595380619ee1bbde500bbdadd0e2cdab862fc387c5086",
+   "bytes": 3248,
+   "ok": true
+  },
+  "storage-host-role/package/enclave-storage-indexer/templates/host.json.template": {
+   "sha256": "4747c07b40eab78858987d3f4ee2523c976000b30f8294d6b88792910052bf3b",
+   "bytes": 685,
+   "ok": true
+  },
+  "storage-host-role/package/enclave-storage-indexer/tests/run-tests.sh": {
+   "sha256": "88cf42eecffab346dff0cafc643394e61b11ae0bf90a4e16764855c082ef1ae2",
+   "bytes": 6098,
+   "ok": true
+  },
+  "storage-host-role/package/enclave-storage-indexer/units/enclave-storage-indexer-host@.service": {
+   "sha256": "28537454f157c515cf126bfb1ed071f3df2dcf7ff78013e6508ad235b64296c1",
+   "bytes": 1822,
+   "ok": true
+  },
+  "resume-20261021/reconciled-candidate/network/host-services/storage-indexer-host.mjs": {
+   "sha256": "20abb68136eb00b02ec76a9fbe7fbd1db2b0b41518239e204c3995e19ae8d271",
+   "bytes": 31859,
+   "ok": true
+  },
+  "resume-20261021/reconciled-candidate/test/storage-indexer-host.test.mjs": {
+   "sha256": "341e63632d5bc85fc5b755577ea8f4e2540b2b6f162c10a4fe83e605f83aa135",
+   "bytes": 17940,
+   "ok": true
+  },
+  "resume-20261021/reconciled-candidate/test/storage-indexer-host-lifecycle.test.mjs": {
+   "sha256": "e4795da67cf29b37599f59520298b088372f42cd8a5af1b2ac6294d8ee9359ac",
+   "bytes": 18769,
+   "ok": true
+  },
+  "enclave/network/host-services/storage-indexer-host.mjs": {
+   "sha256": "20abb68136eb00b02ec76a9fbe7fbd1db2b0b41518239e204c3995e19ae8d271",
+   "bytes": 31859,
+   "ok": true
+  },
+  "claude-resumed-20261022/control-package/storage-closeout/host-software/enclave-storage-indexer-host-software.tar": {
+   "sha256": "83c95b4b1886cee1e8664f4fc7201c5713726e4084c4961e30cf708c2f81b3b7",
+   "bytes": 2099200,
+   "ok": true
+  },
+  "claude-resumed-20261022/control-package/storage-closeout/host-software/MANIFEST.sha256": {
+   "sha256": "658e5a443480c65db79dbb2dc9ba74f76f53b299d759eed28e44470e52c5bf98",
+   "bytes": 67782,
+   "ok": true
+  },
+  "storage-clone-privacy-review/candidate/target/wasm32-wasip2/release/sia-s3.wasm": {
+   "sha256": "00e9cde0929dc7b8726ca4b7b9c9afb51ec4bf6d952039c907c032256ec79afc",
+   "bytes": 4555871,
+   "ok": true
+  },
+  "storage-wasm-validation/artifacts/candidate-00e9cde0.wasm": {
+   "sha256": "00e9cde0929dc7b8726ca4b7b9c9afb51ec4bf6d952039c907c032256ec79afc",
+   "bytes": 4555871,
+   "ok": true
+  },
+  "storage-c2-implementation/C2-FINAL-full.sha256": {
+   "sha256": "f494ff4f53bfa93e555eeb6443af04306092a8e415da0c456e5b4db58800b3df",
+   "bytes": 11839,
+   "ok": true
+  },
+  "indexd-c2-implementation/sdk-snapshot-c2-4/SNAPSHOT.sha256": {
+   "sha256": "1151db780fa703242ae8312cac6dd0f16e01502f03969ae1859876492827f105",
+   "bytes": 12067,
+   "ok": true
+  },
+  "indexd-c2-implementation/bin/sdk-c2-4-driver": {
+   "sha256": "d45df48e8cc6df581b87e8e16f1417e6fdc87f8e0eb09fcf3b113d32cd38c70c",
+   "bytes": 22256112,
+   "ok": true
+  },
+  "storage-hosted-placement/package/sia-s3-app/config.template.json": {
+   "sha256": "8dc19bf9b530781fbd9ca40d386ebd1a0cd5b6404ff5a5f820c5f8486cd31363",
+   "bytes": 335
+  },
+  "storage-hosted-placement/package/sia-s3-app/README.md": {
+   "sha256": "f786134c3e46a962e52754b92574c250249c2c823f2546cb85ebcb242a42e4dc",
+   "bytes": 1672
+  },
+  "storage-wasm-validation/integration/copy-mode-guard.patch": {
+   "sha256": "b8e135d9464c18c65f6ad88788ba036b348426df4fc74a89547dc38af704a267",
+   "bytes": 2868
+  },
+  "storage-wasm-validation/integration/privacy-fix-sdk.patch": {
+   "sha256": "a5d6989440649210d364d7a93f51435809c3f6cbabad955f9a413a4b7a7cf347",
+   "bytes": 16110
+  }
+ },
+ "trees": {
+  "c2-4 SDK snapshot": {
+   "files": 114,
+   "mismatch": [],
+   "missing": [],
+   "ok": true
+  },
+  "C2-FINAL": {
+   "files": 114,
+   "mismatch": [],
+   "missing": [],
+   "ok": true
+  },
+  "clone-privacy candidate (00e9cde0 source)": {
+   "files": 115,
+   "mismatch": [],
+   "missing": [],
+   "ok": true
+  },
+  "c2-enclave assembled tree": {
+   "files": 221,
+   "mismatch": [],
+   "missing": [],
+   "ok": true
+  },
+  "host-software closure vs old-history work/enclave": {
+   "files": 585,
+   "mismatch": [],
+   "missing": [],
+   "ok": true
+  },
+  "host-software closure vs reconciled-candidate": {
+   "files": 585,
+   "mismatch": [],
+   "missing": [],
+   "ok": true
+  }
+ },
+ "sourceDiffs": {
+  "c2-4 snapshot -> C2-FINAL": [
+   "src/replica.rs"
+  ],
+  "C2-FINAL -> 00e9cde0 candidate": [
+   "src/clone_privacy.rs",
+   "src/main.rs",
+   "src/replica.rs",
+   "vendor/sia-sdk-rs/sia_storage/src/erasure_coding.rs",
+   "vendor/sia-sdk-rs/sia_storage/src/mock.rs",
+   "vendor/sia-sdk-rs/sia_storage/src/object_encryption.rs",
+   "vendor/sia-sdk-rs/sia_storage/src/rhp4/mock.rs",
+   "vendor/sia-sdk-rs/sia_storage/src/slabs.rs"
+  ],
+  "c2-4 snapshot -> 00e9cde0 candidate": [
+   "src/clone_privacy.rs",
+   "src/main.rs",
+   "src/replica.rs",
+   "vendor/sia-sdk-rs/sia_storage/src/erasure_coding.rs",
+   "vendor/sia-sdk-rs/sia_storage/src/mock.rs",
+   "vendor/sia-sdk-rs/sia_storage/src/object_encryption.rs",
+   "vendor/sia-sdk-rs/sia_storage/src/rhp4/mock.rs",
+   "vendor/sia-sdk-rs/sia_storage/src/slabs.rs"
+  ]
+ },
+ "allOk": true
+}

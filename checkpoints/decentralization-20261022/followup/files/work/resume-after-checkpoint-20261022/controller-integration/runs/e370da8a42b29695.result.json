@@ -1,0 +1,44 @@
+{
+ "runId": "e370da8a42b29695",
+ "outcome": "stages-or-checks-failed",
+ "stagesThenChecksRc": 1,
+ "cleanup": {
+  "runId": "e370da8a42b29695",
+  "children": [
+   {
+    "pid": 1628193,
+    "rc": 0
+   },
+   {
+    "pid": 1632083,
+    "rc": 0
+   },
+   {
+    "pid": 1632098,
+    "rc": 0
+   },
+   {
+    "pid": 1632419,
+    "rc": 0
+   },
+   {
+    "pid": 1635795,
+    "rc": 1
+   }
+  ],
+  "indexdPidFiles": [],
+  "scope": {
+   "scope": "drained",
+   "rounds": []
+  },
+  "container": "removed",
+  "volume": "removed",
+  "stage": "removed",
+  "certain": true
+ },
+ "log": "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/controller-integration/runs/e370da8a42b29695.log",
+ "results": "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/controller-integration/runs/e370da8a42b29695.c2-fixture-results.json",
+ "integration": "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/controller-integration/runs/e370da8a42b29695.integration-results.json",
+ "exit": 1,
+ "passed": false
+}

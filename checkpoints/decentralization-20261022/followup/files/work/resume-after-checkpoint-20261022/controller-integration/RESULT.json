@@ -1,0 +1,100 @@
+{
+ "package": "controller-integration",
+ "date": "2026-10-22",
+ "status": "PREPARED, NOT RUN: no Docker/PostgreSQL executed; static tests + --plan only; awaiting root review",
+ "effects": {
+  "production": false,
+  "network": false,
+  "sharedPostgres": false,
+  "funding": false,
+  "dockerMutation": false,
+  "gitOrMainRepo": false
+ },
+ "manifest": "a300b94a426160da21fffa65d9bc94791fef36b55cd342ed557f4884797158d5",
+ "command": "python3 work/claude-test-queue.py --mib 768 --log work/resume-after-checkpoint-20261022/controller-integration/logs/run1.guard.log -- python3 -B -u work/resume-after-checkpoint-20261022/controller-integration/run-integration.py --execute a300b94a426160da21fffa65d9bc94791fef36b55cd342ed557f4884797158d5 > work/resume-after-checkpoint-20261022/controller-integration/logs/run1.out 2>&1",
+ "recover": "python3 work/claude-test-queue.py --mib 256 --log <new> -- python3 -B -u work/resume-after-checkpoint-20261022/controller-integration/run-integration.py --recover <run id>",
+ "pins": {
+  "controllerUnderTest": "2ab98b4d359fd0f3dcd34458ddfdf61a32b0dfb66652328418e453d4bc679151 (storage-migration-r5/integration/replicactl.fixture-r5.py, r5 rev2)",
+  "frozenFixtureRunnerBase": "4b09043ac7b036d9386f8996fc464f56d88dc58fa58b66bf37f3607680bac532",
+  "frozenReadOnly": {
+   "c2fx.py": "ff1b092c",
+   "make-fixture-node.py": "48c3d501",
+   "run_c2_fixture_test.py": "6496b2d5",
+   "rollout_seed_test.go": "c0355fd8",
+   "digest.sql": "7f4b137f",
+   "down-28-to-27.sql": "629f186e",
+   "up-27-to-28.sql": "1043b645"
+  },
+  "binaries": {
+   "fence-enclave": "c67ffa4d",
+   "c2-enclave": "2c0e5b06"
+  },
+  "pgImage": "postgres@sha256:74935e72 (--pull never)",
+  "files": {
+   "run-integration.py": "0ef3d627062a6fdc453af7a8533a86487c52c85864936ba190e1930749c8b2d8",
+   "run-integration.patch": "1c125cc57ab379d9ec810f370771cc8d22d66ac00c2a067b720338747683b369",
+   "integration_checks.py": "48e4177a77c5c43314930ed34d98e6a117910c79ac823aecbc11e7086993ee87",
+   "test/test_static.py": "6ad2e5d59559ade8b46dad76732cc724f216ba787d33e76ace75f9056fcb56b9",
+   "ref/run-c2-fixture.frozen.py": "4b09043ac7b036d9386f8996fc464f56d88dc58fa58b66bf37f3607680bac532",
+   "README.md": "39260b46ca7d4b269a1f41ed6104004d54f782e4de68368b7a28da1d73bd250f"
+  }
+ },
+ "deltas": {
+  "runner": "vs frozen run-c2-fixture.py: pins/work/finish/main changed + _load_c2fx; controller swapped; frozen files read-only with exact pins; RUNS here; pre/post checks around the 8 unchanged stages; pass needs stages+checks+finalize+certain cleanup",
+  "new": "integration_checks.py (pre + X1..X8, finalize)"
+ },
+ "budget": {
+  "queueJob": "768 MiB",
+  "postgresContainer": "256 MiB (docker, outside the queue)",
+  "total": "1024 MiB",
+  "timeBounds": {
+   "pre": 300,
+   "stages": 3600,
+   "post": 1800
+  }
+ },
+ "passCriteria": {
+  "stages": "all 8 C2 fixture stages pass unchanged with the r5 controller",
+  "pre": "indexd_verify + indexd_verify_c2c2c2c2c2c2c2c2 created fresh with random marker rows",
+  "X1": "verify-backup exit 0; ok/cleanupOk/digestMatches/v28; scratch dropped; record dropped; only markers left",
+  "X2": "forced collision -> 'already existed: not ours, untouched'; marker intact",
+  "X3": "killed restore: exit 1, ok false, pg_restore failed, 15<=elapsed<140 (lingering backend waited out), dropped, cleanupOk true, 0 verify backends, only markers",
+  "X4": "budget 6 s: exit 1 within 20 s, cleanupOk false, KEPT, scratch exists and named in record; harness drops exactly that name after its backend leaves",
+  "X5": "rollback-c2 acknowledged -> v27, current fence",
+  "X6": "corrupt dump -> upgrade-c2 exit 1, hash mismatch, nothing created, current unchanged, resumed fence v27, readiness 27, digest unchanged",
+  "X7": "server-refused restore -> upgrade-c2 exit 1, verify ok false/cleanupOk true/dropped, current unchanged, resumed fence v27",
+  "X8": "markers intact, no other *_verify*, 0 backends, no c2it trigger, current fence",
+  "overall": "exit 0 = stages + all checks + finalize (own triggers absent, indexd stopped) + certain c2fx cleanup"
+ },
+ "determinism": "template1 event trigger (own container, own names c2it_delay/c2it_refuse, installed per check, removed in finally + finalize): pg_sleep 20/30 s >> 2 s restore bound, or RAISE",
+ "tests": [
+  {
+   "log": "logs/static1.out",
+   "mib": 256,
+   "result": "9/9 OK",
+   "queueExit": 0
+  },
+  {
+   "log": "logs/plan1.out",
+   "mib": 256,
+   "result": "exit 0, no mismatches",
+   "queueExit": 0
+  }
+ ],
+ "testCounts": {
+  "localStatic": 9,
+  "integrationChecks": 8,
+  "fixtureStages": 8,
+  "r5UnitSuiteUnchanged": "37/37 (r5) and 36/36 (fixture-r5), storage-migration-r5 logs rev2-verify3 / rev2-verify-fixture-r5-1"
+ },
+ "findingForRoot": "r5 rev2 QueryBudget starts before the restore, so restore time is charged to verify_query_seconds (docstring says 'except the restore'); a restore > ~600 s would fail verification safely (scratch preserved, no switch) despite a valid backup; production DB ~30 MB not affected; proposed fix: start/pause the budget around the restore (not changed: controller under test is pinned)",
+ "untouched": [
+  "storage-enclave-fixture (SHA256SUMS -c OK)",
+  "storage-migration-r5 (SHA256SUMS -c OK)",
+  "storage-fresh-restore-run",
+  "main repo / git"
+ ],
+ "notDone": [
+  "the integration run itself (root)"
+ ]
+}

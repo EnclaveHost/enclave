@@ -1,0 +1,54 @@
+{
+ "pre": {
+  "ok": true,
+  "markers": {
+   "indexd_verify": "ed9dd9dd66208fad",
+   "indexd_verify_c2c2c2c2c2c2c2c2": "7fb0baff1d9f36bf"
+  },
+  "verifyDatabases": [
+   "indexd_verify",
+   "indexd_verify_c2c2c2c2c2c2c2c2"
+  ]
+ },
+ "post": {
+  "checks": [
+   {
+    "check": "X1-verify-success-restore-digest-drop",
+    "ok": true,
+    "seconds": 1.4,
+    "detail": {
+     "scratch": "indexd_verify_19cbee0de79c3eeb",
+     "verify": {
+      "ok": true,
+      "cleanupOk": true,
+      "scratchState": "dropped",
+      "restoredDbVersion": 28,
+      "digestMatches": true
+     }
+    }
+   },
+   {
+    "check": "X2-forced-scratch-name-collision-untouched",
+    "ok": true,
+    "seconds": 0.3,
+    "detail": {
+     "scratchState": "already existed: not ours, untouched",
+     "markerIntact": true
+    }
+   },
+   {
+    "check": "X3-killed-restore-bounded-no-detached-writer",
+    "ok": false,
+    "seconds": 4.0,
+    "error": "Fail: elapsed 3.5: the lingering backend (20 s sleep) must be waited out before the drop"
+   }
+  ],
+  "finalize": {
+   "c2it_delay": "absent",
+   "c2it_refuse": "absent",
+   "indexdStop": "stopped",
+   "ok": true
+  },
+  "passed": false
+ }
+}

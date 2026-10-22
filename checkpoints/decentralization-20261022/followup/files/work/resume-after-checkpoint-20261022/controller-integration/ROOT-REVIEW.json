@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-22T18:26:01.222161+00:00",
+  "decision": "approved for one disposable real-PostgreSQL integration run",
+  "manifest": "a300b94a426160da21fffa65d9bc94791fef36b55cd342ed557f4884797158d5",
+  "hashes": {
+    "run-integration.py": "0ef3d627062a6fdc453af7a8533a86487c52c85864936ba190e1930749c8b2d8",
+    "integration_checks.py": "48e4177a77c5c43314930ed34d98e6a117910c79ac823aecbc11e7086993ee87"
+  },
+  "scope": "Frozen c2fx ownership/cleanup; dummy seed; offline pinned Docker image; loopback ports; 768MiB process allocation plus256MiB Docker; no production",
+  "checks": [
+    "8 existing stages unchanged",
+    "Existing marker DB and scratch collision untouched",
+    "Deterministic20/30s trigger delays with2s restore bound",
+    "No detached DB writer; named leftover only cleanup",
+    "Corrupt backup and server-refused restore prevent switch and safely resume v27",
+    "All scratch markers survive; helper triggers removed; c2fx cleanup must be certain"
+  ],
+  "limitations": [
+    "Tests fixture controller r5 equivalent delta, not production systemd/group configuration",
+    "Timing assertions may reveal fixture assumptions; preserve failure rather than relax assertions",
+    "Live preflight separate and read-only"
+  ]
+}

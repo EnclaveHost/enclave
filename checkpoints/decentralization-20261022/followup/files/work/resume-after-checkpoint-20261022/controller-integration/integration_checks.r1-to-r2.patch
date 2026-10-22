@@ -1,0 +1,331 @@
+--- integration_checks.py (r1, run e370da8a42b29695)
++++ integration_checks.py (r2)
+@@ -8,26 +8,36 @@
+   integration_checks.py pre     BEFORE stage 1: create the two databases that must never be touched
+   integration_checks.py post    AFTER the 8 stages (indexd stopped, db v28): X1..X8 below
+ 
+-Deterministic timing, no "restore happened to be fast/slow":
+-- An EVENT TRIGGER in this run's OWN container's template1 is installed only for the duration of one check, then
+-  removed and verified absent.
+-- Every scratch database the controller creates (CREATE DATABASE copies template1) then either sleeps in its first DDL
+-  (pg_sleep 20/30 s, far beyond the 2 s restore bound) or RAISEs.
+-- So the restore cannot finish before its bound (X3, X4), or fails for certain (X7).
++Deterministic timing (revision 2, after root run e370da8a42b29695):
++- r1 assumed the restore's own backend would linger in pg_sleep after pg_restore was KILLed. PostgreSQL cancelled it
++  promptly (X3, 3.5 s), so that path is now its own positive check (X3a) with no minimum-time claim.
++- X3b and X4 use a SEPARATELY HELD connection: this harness's own Holder, a `psql -c "SELECT pg_sleep(n)"` on the scratch
++  database, identified by application_name c2it-holder-<random> and its backend pid. It is independent of pg_restore.
++- An explicit BARRIER makes the holder attach BEFORE the restore can proceed: the template1 event trigger c2it_barrier
++  (copied into every scratch database) blocks the restore's first DDL until that exact holder is connected, then sleeps
++  600 s. So the restore cannot finish before its bound.
++- GATE: the holder must be OBSERVED active on the scratch database (pg_stat_activity: pid, application_name, state,
++  query) before the check continues; otherwise the check FAILS. No skipped or conditional pass.
++- Every trigger lives only in THIS run's container's template1, only for one check: removed in `finally`, verified
++  absent, and removed again by finalize. Every holder is closed by pid+token in finalize.
+ 
+ Checks (each asserts exact outcomes; there is no either-pass-or-fail branch):
+   X1 successful verify-backup: ok, cleanupOk, scratchState "dropped", digest and v28 match, record "dropped", and no
+      *_verify* database except the two pre-created ones
+   X2 forced scratch-name collision (in-process: the pinned controller module, token_hex fixed to the pre-created name):
+      "already existed: not ours, untouched", marker row intact, no DROP of it
+-  X3 killed restore (verify_timeout_seconds 2, delay trigger 20 s):
+-     - exit 1; ok false; "pg_restore failed" in problems;
+-     - the lingering backend is WAITED OUT (elapsed >= 15 s), then the scratch is "dropped", cleanupOk true;
+-     - afterwards no backend on any *_verify* database, and only the two markers left
+-  X4 total query budget (verify_timeout_seconds 2, verify_query_seconds 6, delay trigger 30 s):
+-     - exit 1, elapsed < 20 s, cleanupOk false, scratchState "KEPT ...";
+-     - the scratch exists AND is named in <backup>/verify-<scratch>.json with cleanupOk false;
+-     - then THIS harness waits (bounded) for its backend to leave and drops exactly that named scratch, confirmed gone
++  X3a prompt cancellation (verify_timeout_seconds 2, trigger pg_sleep 20 s): exit 1, "pg_restore failed", "dropped",
++      cleanupOk, elapsed < 60 s, 0 backends on *_verify*, only the markers left
++  X3b held connection waited out:
++      - restore bound 20 s, holder 40 s, barrier; holder observed active before 20 s;
++      - exit 1, "pg_restore failed";
++      - the holder ENDED BY ITSELF (rc 0) at >= 35 s, and the controller ended at or after that, then "dropped",
++        cleanupOk true; 0 backends, only the markers left
++  X4 total query budget with the held connection:
++      - restore bound 6 s, verify_query_seconds 12, holder 60 s, barrier; holder observed active before 6 s;
++      - exit 1 within 30 s; cleanupOk false; scratchState "KEPT ..."; the holder STILL attached at that moment;
++      - the scratch exists and is named in <backup>/verify-<scratch>.json with cleanupOk false;
++      - then this harness closes ITS holder and drops exactly that validated, named scratch
+   X5 rollback-c2 --acknowledge-cas-downgrade to v27 (the precondition for X6/X7; fence release current, running)
+   X6 CORRUPT backup (in-process seam: one byte of the fresh upgrade backup's dump flipped before verification):
+      - upgrade-c2 exits 1, "hash mismatch", nothing created;
+@@ -40,8 +50,8 @@
+      - both markers intact;
+      - no other *_verify* database, no backend on one, and no c2it trigger in template1;
+      - current = fence.
+-Every exit path removes this module's own triggers (names c2it_delay / c2it_refuse only) and stops indexd through the
+-controller.
++Every exit path removes this module's own triggers (c2it_delay / c2it_refuse / c2it_barrier only), closes its own
++holders (pid + token) and stops indexd through the controller.
+ Results: <stage>/integration-results.json. Exit 0 only if every check of the mode passed and the finalize steps succeeded."""
+ import contextlib
+ import importlib.util
+@@ -68,7 +78,7 @@
+ COLLIDE_HEX = "c2" * 8
+ COLLIDE_DB = f"indexd_verify_{COLLIDE_HEX}"                      # a valid scratch name, pre-created: must survive too
+ SCRATCH_RX = re.compile(r"^indexd_verify_[0-9a-f]{16}$")
+-TRIGGERS = ("c2it_delay", "c2it_refuse")
++TRIGGERS = ("c2it_delay", "c2it_refuse", "c2it_barrier")
+ 
+ 
+ class Fail(Exception):
+@@ -157,6 +167,132 @@
+ def record_of(backup, scratch):
+     return json.loads((Path(backup) / f"verify-{scratch}.json").read_text())
+ 
++class Holder:
++    """this harness's OWN, separately held PostgreSQL connection on a scratch database (revision 2). It is independent of
++    pg_restore, so a killed restore cannot take it down.
++    - Identity: application_name c2it-holder-<random token>; backend pid recorded when first observed.
++    - Process: `docker exec -e PGAPPNAME=<token> <this run's container> psql -d <scratch> -c "SELECT pg_sleep(<n>)"`, a
++      child of this harness (inside the job's own scope).
++    - It is only ever terminated by pid AND token (pg_terminate_backend), and is always stopped in `close()`."""
++
++    def __init__(self, seconds):
++        self.token = "c2it-holder-" + secrets.token_hex(6)
++        self.seconds, self.p, self.pid, self.ended_at = seconds, None, None, None
++
++    def start(self, scratch):
++        check(SCRATCH_RX.match(scratch), scratch)
++        self.p = subprocess.Popen(["docker", "exec", "-e", f"PGAPPNAME={self.token}", PG, "sh", "-c",
++                                   'psql -U "${POSTGRES_USER:-postgres}" -d "$1" -X -A -t -q -v ON_ERROR_STOP=1 -c "SELECT pg_sleep($2)"',
++                                   "psql", scratch, str(self.seconds)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
++
++    def observe(self, scratch, seconds=30):
++        """GATE: the holder must be seen ACTIVE on that database (pid, application_name, state, query). Raises otherwise."""
++        end = time.monotonic() + seconds
++        while time.monotonic() < end:
++            out = psql("postgres", f"SELECT pid FROM pg_stat_activity WHERE datname = '{scratch}' AND application_name = '{self.token}' "
++                                   "AND state = 'active' AND query LIKE 'SELECT pg_sleep(%';")
++            if out:
++                self.pid = int(out.split()[0])
++                return self.pid
++            check(self.p.poll() is None, f"holder exited early rc {self.p.returncode}")
++            time.sleep(0.1)
++        raise Fail(f"holder {self.token} never observed active on {scratch}")
++
++    def attached(self):
++        return int(psql("postgres", f"SELECT count(*) FROM pg_stat_activity WHERE application_name = '{self.token}';")) > 0
++
++    def close(self):
++        """stop THIS holder only: its backend by pid+token, then its docker exec client"""
++        if self.p is None:
++            return "never started"
++        ident = f"pid = {int(self.pid)} AND " if self.pid else ""          # pid + token once observed; token alone before that
++        psql("postgres", f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE {ident}application_name = '{self.token}';")
++        try:
++            self.p.wait(30)
++        except subprocess.TimeoutExpired:
++            self.p.kill()
++            self.p.wait(10)
++        check(not self.attached(), f"holder {self.token} still attached")
++        return "closed"
++
++
++def new_record_scratch(backup, before, proc, seconds=30):
++    """the scratch database the running verification just CREATED: a NEW verify-<scratch>.json in the backup directory
++    whose state is past 'created (ours)'. That is written after OUR CREATE answered success and before pg_restore."""
++    end = time.monotonic() + seconds
++    while time.monotonic() < end:
++        for f in sorted(Path(backup).glob("verify-indexd_verify_*.json")):
++            if f.name in before:
++                continue
++            try:
++                rec = json.loads(f.read_text())
++            except (json.JSONDecodeError, OSError):
++                continue
++            if rec.get("scratchState") not in (None, "none", "intent (CREATE not yet sent)"):
++                return rec["scratch"]
++        check(proc.poll() is None, f"verification ended before its scratch was created (rc {proc.returncode})")
++        time.sleep(0.05)
++    raise Fail("no new scratch record appeared")
++
++
++BARRIER = """DECLARE t0 timestamptz := clock_timestamp();
++BEGIN
++  WHILE NOT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND application_name = '{tok}'
++                    AND pid <> pg_backend_pid()) LOOP
++    IF clock_timestamp() - t0 > interval '60 seconds' THEN RAISE EXCEPTION 'c2it: holder never attached'; END IF;
++    PERFORM pg_sleep(0.1);
++  END LOOP;
++  PERFORM pg_sleep(600);
++END"""
++
++
++def install_barrier(token):
++    """template1 event trigger c2it_barrier: in every scratch database copied from template1, the restore's FIRST DDL
++    blocks until THIS harness's holder (exact token) is connected to that database, then sleeps (600 s). So the restore
++    can never finish before its bound, and the holder is attached BEFORE the restore can proceed: an explicit barrier,
++    not a timing assumption."""
++    check(re.fullmatch(r"c2it-holder-[0-9a-f]{12}", token), token)
++    psql("template1", "CREATE FUNCTION c2it_barrier() RETURNS event_trigger LANGUAGE plpgsql AS $f$ " + BARRIER.format(tok=token) + " $f$;")
++    psql("template1", "CREATE EVENT TRIGGER c2it_barrier ON ddl_command_start EXECUTE FUNCTION c2it_barrier();")
++    check(psql("template1", "SELECT count(*) FROM pg_event_trigger WHERE evtname = 'c2it_barrier';") == "1", "c2it_barrier installed")
++
++
++def verify_with_holder(prof, holder_seconds):
++    """run `verify-backup` (the real CLI, profile `prof`) while THIS harness holds its own connection on the scratch:
++    install the barrier, start the CLI, learn the scratch from its record, attach the holder, GATE on observing it active,
++    then follow the CLI and the holder to their ends. -> facts (times relative to the CLI start)."""
++    h = Holder(holder_seconds)
++    before = {f.name for f in Path(S["backup"]).glob("verify-indexd_verify_*.json")}
++    install_barrier(h.token)
++    cli = None
++    try:
++        t0 = time.monotonic()
++        cli = subprocess.Popen([sys.executable, "-B", str(CONTROLLER), "--profile", str(prof), "verify-backup", S["backup"]],
++                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
++        scratch = new_record_scratch(S["backup"], before, cli)
++        h.start(scratch)
++        pid = h.observe(scratch)
++        observed_at = round(time.monotonic() - t0, 1)
++        holder_end = None
++        while cli.poll() is None:
++            if holder_end is None and h.p.poll() is not None:
++                holder_end = round(time.monotonic() - t0, 1)
++            check(time.monotonic() - t0 < 300, "verification did not end within 300 s")
++            time.sleep(0.1)
++        cli_end = round(time.monotonic() - t0, 1)
++        if holder_end is None and h.p.poll() is not None:
++            holder_end = cli_end
++        out, err = cli.communicate()
++        v = json.loads(out.strip().splitlines()[-1])
++        return {"rc": cli.returncode, "v": v, "scratch": scratch, "holder": h, "holderPid": pid, "observedAt": observed_at,
++                "holderEnd": holder_end, "holderRc": h.p.returncode, "cliEnd": cli_end, "holderAttachedAtCliEnd": h.p.poll() is None and h.attached()}
++    finally:
++        if cli is not None and cli.poll() is None:
++            cli.kill()
++            cli.wait(10)
++        check(remove_trigger("c2it_barrier"), "c2it_barrier removed")
++        S.setdefault("holders", []).append(h)
++
+ 
+ # ---------------------------------------------------------------- pre
+ def pre():
+@@ -200,10 +336,13 @@
+     return {"scratchState": rep["scratchState"], "markerIntact": True}
+ 
+ 
+-def x3_killed_restore():
++def x3a_prompt_cancel():
++    """r1 OBSERVED that PostgreSQL ends the restore's own backend promptly when pg_restore is KILLed (the trigger's
++    pg_sleep did not linger: e370da8a42b29695 X3, 3.5 s). This distinct positive check asserts THAT path:
++    bounded restore failure, no backend left, safe drop. It makes no minimum-time claim."""
+     install_trigger("c2it_delay", "PERFORM pg_sleep(20);")
+     try:
+-        prof = profile_copy("profile-x3.json", verify_timeout_seconds=2)
++        prof = profile_copy("profile-x3a.json", verify_timeout_seconds=2)
+         t0 = time.monotonic()
+         rc, v, err = ctl("verify-backup", S["backup"], profile=prof)
+         el = round(time.monotonic() - t0, 1)
+@@ -212,36 +351,51 @@
+     check(rc == 1 and not v["ok"], f"rc {rc} {v}")
+     check(any(p.startswith("pg_restore failed") for p in v["problems"]), v["problems"])
+     check(v["scratchState"] == "dropped" and v["cleanupOk"], v)
+-    check(15 <= el < 140, f"elapsed {el}: the lingering backend (20 s sleep) must be waited out before the drop")
++    check(el < 60, f"elapsed {el}: bounded (2 s restore bound + drop)")
+     check(verify_backends() == 0 and verify_dbs() == sorted([MARKER_DB, COLLIDE_DB]), (verify_backends(), verify_dbs()))
+     return {"elapsedSeconds": el, "scratch": v["scratch"], "problems": v["problems"][:2]}
+ 
+ 
++def x3b_held_connection_waited_out():
++    """a SEPARATELY HELD connection (this harness's own holder, 40 s) is attached to the scratch BEFORE the restore can
++    proceed (barrier) and is observed ACTIVE (gate). The restore is KILLed at 20 s. The controller must WAIT for the
++    holder's own natural end before its DROP."""
++    prof = profile_copy("profile-x3b.json", verify_timeout_seconds=20)
++    f = verify_with_holder(prof, holder_seconds=40)
++    v = f["v"]
++    check(f["holderPid"] and f["observedAt"] < 20, f"holder observed active before the restore bound: {f['observedAt']}")
++    check(f["rc"] == 1 and not v["ok"] and any(p.startswith("pg_restore failed") for p in v["problems"]), f"rc {f['rc']} {v}")
++    check(f["holderRc"] == 0 and f["holderEnd"] is not None, f"holder ended by itself (pg_sleep completed): rc {f['holderRc']}")
++    check(f["cliEnd"] >= f["holderEnd"] >= 35, f"the controller ended at {f['cliEnd']} s, after the holder's end at {f['holderEnd']} s")
++    check(v["scratchState"] == "dropped" and v["cleanupOk"] and v["scratch"] == f["scratch"], v)
++    check(verify_backends() == 0 and verify_dbs() == sorted([MARKER_DB, COLLIDE_DB]), (verify_backends(), verify_dbs()))
++    return {k: f[k] for k in ("scratch", "holderPid", "observedAt", "holderEnd", "cliEnd")}
++
++
+ def x4_query_budget():
+-    install_trigger("c2it_delay", "PERFORM pg_sleep(30);")
+-    try:
+-        prof = profile_copy("profile-x4.json", verify_timeout_seconds=2, verify_query_seconds=6)
+-        t0 = time.monotonic()
+-        rc, v, err = ctl("verify-backup", S["backup"], profile=prof)
+-        el = round(time.monotonic() - t0, 1)
+-        check(rc == 1 and not v["cleanupOk"] and v["scratchState"].startswith("KEPT"), f"rc {rc} {v}")
+-        check(el < 20, f"elapsed {el}: the query budget (6 s) must bound the verification")
+-        scratch = v["scratch"]
+-        check(SCRATCH_RX.match(scratch) and scratch not in (MARKER_DB, COLLIDE_DB), scratch)
+-        check(scratch in verify_dbs(), "the KEPT scratch really remains")
+-        rec = record_of(S["backup"], scratch)
+-        check(rec["scratch"] == scratch and rec["cleanupOk"] is False and rec["scratchState"].startswith("KEPT"), rec)
+-        # harness cleanup of the NAMED leftover: wait (bounded) for its backend, then drop exactly it
+-        for _ in range(90):
+-            if int(psql("postgres", f"SELECT count(*) FROM pg_stat_activity WHERE datname = '{scratch}';")) == 0:
+-                break
+-            time.sleep(1)
+-        psql("postgres", f'DROP DATABASE "{scratch}";')
+-        check(scratch not in verify_dbs(), "named leftover dropped by the harness")
+-    finally:
+-        check(remove_trigger("c2it_delay"), "c2it_delay removed")
++    """the same held connection (60 s) with a SHORT total query budget (verify_query_seconds 12, restore bound 6 s): the
++    controller must give up within the budget, report the scratch KEPT and named, cleanupOk false, while the holder is
++    still attached. Then this harness closes ITS holder and drops exactly that named scratch."""
++    prof = profile_copy("profile-x4.json", verify_timeout_seconds=6, verify_query_seconds=12)
++    f = verify_with_holder(prof, holder_seconds=60)
++    v, scratch, h = f["v"], f["scratch"], f["holder"]
++    check(f["holderPid"] and f["observedAt"] < 6, f"holder observed active before the restore bound: {f['observedAt']}")
++    check(f["rc"] == 1 and not v["cleanupOk"] and v["scratchState"].startswith("KEPT") and v["scratch"] == scratch, f"rc {f['rc']} {v}")
++    check(f["cliEnd"] < 30, f"elapsed {f['cliEnd']}: the query budget must bound the verification")
++    check(f["holderAttachedAtCliEnd"], "the holder was still attached when the controller gave up")
++    check(scratch in verify_dbs(), "the KEPT scratch really remains")
++    rec = record_of(S["backup"], scratch)
++    check(rec["scratch"] == scratch and rec["cleanupOk"] is False and rec["scratchState"].startswith("KEPT"), rec)
++    check(h.close() == "closed", "own holder closed")
++    check(SCRATCH_RX.match(scratch) and scratch not in (MARKER_DB, COLLIDE_DB), scratch)
++    for _ in range(60):
++        if int(psql("postgres", f"SELECT count(*) FROM pg_stat_activity WHERE datname = '{scratch}';")) == 0:
++            break
++        time.sleep(1)
++    psql("postgres", f'DROP DATABASE "{scratch}";')
++    check(scratch not in verify_dbs(), "named leftover dropped by the harness")
+     check(verify_backends() == 0 and verify_dbs() == sorted([MARKER_DB, COLLIDE_DB]), (verify_backends(), verify_dbs()))
+-    return {"elapsedSeconds": el, "scratch": scratch, "scratchState": v["scratchState"][:80], "harnessDroppedNamedLeftover": True}
++    return {k: f[k] for k in ("scratch", "holderPid", "observedAt", "cliEnd")} | {"scratchState": v["scratchState"][:80], "harnessDroppedNamedLeftover": True}
+ 
+ 
+ def x5_rollback_to_v27():
+@@ -314,7 +468,9 @@
+ 
+ 
+ POST = [("X1-verify-success-restore-digest-drop", x1_success), ("X2-forced-scratch-name-collision-untouched", x2_forced_collision),
+-        ("X3-killed-restore-bounded-no-detached-writer", x3_killed_restore), ("X4-total-query-budget-named-leftover", x4_query_budget),
++        ("X3a-killed-restore-prompt-cancel-bounded-no-backend-safe-drop", x3a_prompt_cancel),
++        ("X3b-separately-held-connection-waited-out-before-drop", x3b_held_connection_waited_out),
++        ("X4-total-query-budget-held-connection-named-kept", x4_query_budget),
+         ("X5-rollback-c2-to-v27", x5_rollback_to_v27), ("X6-corrupt-backup-upgrade-refused-safe-resume", x6_corrupt_backup_upgrade),
+         ("X7-server-refused-restore-upgrade-refused-safe-resume", x7_refused_restore_upgrade), ("X8-final-invariants", x8_final)]
+ 
+@@ -322,6 +478,11 @@
+ def finalize():
+     """every exit path: this module's own triggers removed, indexd stopped through the controller"""
+     out = {}
++    for h in S.get("holders", []):                      # this harness's own holders: closed on every path
++        try:
++            out[h.token] = h.close()
++        except Exception as e:
++            out[h.token] = f"UNKNOWN: {type(e).__name__}: {str(e)[-160:]}"
+     for t in TRIGGERS:
+         try:
+             out[t] = "absent" if remove_trigger(t) else "STILL PRESENT"
+@@ -329,7 +490,8 @@
+             out[t] = f"UNKNOWN: {type(e).__name__}: {str(e)[-160:]}"
+     rc, s, err = ctl("stop")
+     out["indexdStop"] = "stopped" if rc == 0 else f"FAILED rc {rc} {s} {err}"
+-    out["ok"] = all(v == "absent" for k, v in out.items() if k in TRIGGERS) and rc == 0
++    out["ok"] = all(v == "absent" for k, v in out.items() if k in TRIGGERS) and rc == 0 and \
++        all(v in ("closed", "never started") for k, v in out.items() if k.startswith("c2it-holder-"))
+     return out
+ 
+ 

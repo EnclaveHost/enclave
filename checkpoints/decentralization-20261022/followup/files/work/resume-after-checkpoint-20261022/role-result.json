@@ -1,0 +1,173 @@
+{
+ "at": "2026-10-22",
+ "task": "resume-after-checkpoint-20261022/role-task.txt: the THREE root-approved local steps of storage-rollout-inventory/BUILD-RECIPE.md",
+ "verdict": "ALL THREE PASS + exact db_version 28 gate PASS (2b)",
+ "productionChanges": false,
+ "network": "none used by the steps (loopback policy world, port-0 servers, own extracted PG18); no SSH, wallet, shared PostgreSQL fixture, contracts or funds",
+ "preRunReview": {
+  "pinsVerified": "storage-rollout-inventory/PINS.sha256 OK (3122c9f4 before evidence update)",
+  "requirementsRead": "work/effective-goal-requirements.txt (11934 bytes, unchanged)",
+  "ownership": [
+   "build.sh/run-tests.sh: own mktemp dirs with EXIT trap; ESI_TEST_ROOT/ESI_TEST_DMI/ESI_TEST_MEMINFO fixtures; reads /sys DMI only without the override (not used); no service, unit install or PostgreSQL server",
+   "role test: own mkdtemp (t.after rm), freePort() loopback ports, PG18 from work/storage-host-role/pg18/root, pgrep/kill matched on its own unique pkgDir path, indexd syncer bootstrap false, explorer off",
+   "policy world: in-process http/https servers on 127.0.0.1:0, own temp CA dir removed in t.after",
+   "activation test: own mkdtemp, isolated closure copy, render-config DO-only check is a static name list (no DNS)"
+  ],
+  "riskNoted": "if the role test failed mid-way, t.after SIGKILLs the supervisor and its postgres/indexd children could outlive it; checked after the run: none",
+  "stopConditions": "no shared or live resource targeted; nothing to stop"
+ },
+ "package": {
+  "tarball": "claude-resumed-20261022/storage-rollout-inventory/out/b1/a/enclave-storage-indexer-1.0.0-rc3.tar.zst",
+  "sha256": "dc2d018f7415cb2fc32a0f0bd937472a825ab1bfe191bee94f41533c4515de4a",
+  "bytes": 40123840,
+  "reproducible": "a == b (cmp) and both = dc2d018f7415cb2f",
+  "manifestPin": "sha256:e903e94c876af0f0ea6fd243b72d5c2c35d5e6af79ad033a2e6afbfe097f33fc",
+  "packageJsonSha256": "86f2503ec486ecbfe1db38f1c4a58f67331a5ea8e3004a863736ff053d07413c",
+  "bin/indexd": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
+  "share/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+  "unchangedFromRc2": [
+   "libexec/common.sh 32b26f4d",
+   "libexec/preflight 51d6cdbe",
+   "templates/host.json.template 4747c07b",
+   "units/enclave-storage-indexer-host@.service 28537454"
+  ],
+  "generatedBinary": "out/ is a local build artifact: not for archive/push"
+ },
+ "steps": {
+  "1-build-and-package-tests": {
+   "command": "queue --mib 512 -- bash build-rc3.sh b1",
+   "attempts": 1,
+   "queueExit": 0,
+   "guard": {
+    "exit": 0,
+    "peakTreeRssMiB": 147
+   },
+   "inputsCheckAllOk": true,
+   "packageTests": "package tests: 22 passed, 0 failed",
+   "passLines": 22,
+   "failLines": 0,
+   "log": "logs/build-1.out"
+  },
+  "2-real-host-role-lifecycle": {
+   "command": "cd work/storage-host-role/tree && STORAGE_PACKAGE_TARBALL=<rc3> queue --mib 1024 -- node --test --test-concurrency=1 test/storage-indexer-host.test.mjs",
+   "attempts": 1,
+   "guard": {
+    "exit": 0,
+    "peakTreeRssMiB": 753
+   },
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "durationMs": 45375.190814,
+   "cases": [
+    "ok 1 - storage-indexer host role: platform-policy admission, refusals, and a real PostgreSQL 18 + indexd lifecycle"
+   ],
+   "queueExit": 0,
+   "roleAndTestBytes": {
+    "storage-indexer-host.mjs": "20abb681 (unchanged)",
+    "test/storage-indexer-host.test.mjs": "341e6363 (unchanged)"
+   },
+   "covers": "admission + 5 refusals (stranger signer, other host, other package, admin ban, inactive registry, policy off) -> init on real PostgreSQL 18.6 -> supervisor run, indexd 2c0e5b06 schema migration (asserted db_version >= 27; the value itself is not printed by the test) -> no secrets in log, 0600 config, no TCP listen -> CMS backup -> admin ban stops indexd and PostgreSQL with data kept -> unban restarts on the same database -> crash restart with backoff -> restore under another phrase refused by indexd with growing backoff -> restore with own phrase serves -> tampered backup refused -> clean PostgreSQL shutdown",
+   "rc2Comparison": "rc2 role14: pass 1/1, peak 749 MiB, 47.8 s",
+   "log": "logs/role-1.out",
+   "evidenceScope": "role-1: lifecycle PASS with the original test (341e6363); schema asserted only db_version >= 27, actual value NOT recorded"
+  },
+  "3-activation-tooling": {
+   "command": "STORAGE_PACKAGE_TARBALL=<rc3> queue --mib 512 -- node --test --test-concurrency=1 tests/activation-rc3.test.mjs",
+   "attempts": 1,
+   "guard": {
+    "exit": 0,
+    "peakTreeRssMiB": 218
+   },
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "durationMs": 3919.469575,
+   "cases": [
+    "ok 1 - storage-closeout: isolated closure + gate preflight + descriptor + render + the role check, against the policy world"
+   ],
+   "queueExit": 0,
+   "testCopy": "tests/activation-rc3.test.mjs = storage-closeout act-5/6 test with only SC/WORK path and DIST (env) changed",
+   "log": "logs/act-1.out"
+  },
+  "2b-exact-schema-28": {
+   "why": "root review: the rc3 acceptance gate says db_version 28, and role-1 asserted only >= 27 (the value was never printed). This run adds that missing invariant; it is not a repeat of an unchanged suite",
+   "test": {
+    "executed": "work/storage-host-role/tree/test/storage-indexer-host-rc3.test.mjs",
+    "sha256": "9d194cb6934685a14c4bbc0fc302830bcb261732b7c83b593449ffbfc7bbddfe",
+    "derivedFrom": "test/storage-indexer-host.test.mjs 341e63632d5bc85f (unchanged, verified after the run: 341e63632d5bc85f)",
+    "patch": {
+     "file": "claude-resumed-20261022/storage-rollout-inventory/tests/storage-indexer-host-rc3.patch",
+     "sha256": "aa2a9abfe2cf3b75423072b72e1e19a003bd7348855023ec70497890a58da842"
+    },
+    "recoveryCopy": {
+     "file": "claude-resumed-20261022/storage-rollout-inventory/tests/storage-indexer-host-rc3.test.mjs",
+     "sha256": "9d194cb6934685a14c4bbc0fc302830bcb261732b7c83b593449ffbfc7bbddfe",
+     "provenance": "claude-resumed-20261022/storage-rollout-inventory/tests/storage-indexer-host-rc3.PROVENANCE.txt"
+    },
+    "changes": [
+     "header comment (2 lines)",
+     "assert PACKAGE.json version == 1.0.0-rc3 and indexd.sha256 == 2c0e5b06, and the bin/indexd bytes hash to 2c0e5b06 (not bound before)",
+     "t.diagnostic of the package/pin/indexd",
+     "t.diagnostic of db_version and table count",
+     "db_version assertion: >= 27 -> === 28"
+    ],
+    "lifecycleChanged": false
+   },
+   "command": "cd work/storage-host-role/tree && STORAGE_PACKAGE_TARBALL=<out/b1/a rc3, dc2d018f> queue --mib 1024 -- node --test --test-concurrency=1 test/storage-indexer-host-rc3.test.mjs",
+   "attempts": 1,
+   "queueExit": 0,
+   "guard": {
+    "exit": 0,
+    "peakTreeRssMiB": 779
+   },
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "cancelled": 0,
+   "skipped": 0,
+   "durationMs": 52525.32821,
+   "cases": [
+    "ok 1 - storage-indexer host role: platform-policy admission, refusals, and a real PostgreSQL 18 + indexd lifecycle"
+   ],
+   "diagnostics": [
+    "package 1.0.0-rc3 pin sha256:e903e94c876af0f0ea6fd243b72d5c2c35d5e6af79ad033a2e6afbfe097f33fc indexd 2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
+    "db_version 28, 33 public tables"
+   ],
+   "observed": {
+    "dbVersion": 28,
+    "publicTables": 33,
+    "packageVersion": "1.0.0-rc3",
+    "manifestPin": "sha256:e903e94c876af0f0ea6fd243b72d5c2c35d5e6af79ad033a2e6afbfe097f33fc",
+    "indexd": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7"
+   },
+   "cleanup": "no leftover processes (storage-role-/policy-world-/package indexd/role CLI) and no leftover temp dirs",
+   "log": {
+    "out": "claude-resumed-20261022/storage-rollout-inventory/logs/role28-1.out",
+    "outSha256": "ab64cfbaa4da37dfb7a91ca859b8c59f4eaf6b03ba7dbbaba903fdf25eaf4641",
+    "guardSha256": "c4ad5ac38852e2a3f0745f71fada623db744ee93c67a67331c9df702597520b8"
+   }
+  }
+ },
+ "cleanup": {
+  "processes": "none left (pgrep storage-role-/storage-closeout-/policy-world-/package indexd/role CLI: empty after steps 2 and 3)",
+  "tempDirs": "none left under /tmp (storage-role-*, storage-closeout-*, policy-world-*)",
+  "buildTemps": "build.sh/run-tests.sh mktemp dirs removed by their traps"
+ },
+ "notRun": "no prior SDK/contract/placement/component suite repeated; rc3 plumbing unchanged; the only rerun is 2b (derived test, new invariant)",
+ "logs": {
+  "act-1.guard.log": "ef59e206af54f4f62843a98d67e2fd8eac794a28a4e4d4de108bb2d0f86a5b68",
+  "act-1.out": "32061a0f420c4e1d13c1656b4c1c2e1d663be1c35fbdccfa1e41ed32470bf432",
+  "build-1.guard.log": "0ba69fcdb46de574f6f32531e18424b103132e94ba794321f6bcf11c25831780",
+  "build-1.out": "deb87db83459ecf4b8144d6989c7d2e356e624256b39a8e3624f038fbb11a275",
+  "role-1.guard.log": "9f9087d29c190d6b3d5b948cf612672b82289ca33415c94bb770de5b21b70a92",
+  "role-1.out": "34c4647bb176eab7aa1e0291d43ce44edb32ec3a0ed2a9dec993d893135a2c9e",
+  "role28-1.out": "ab64cfbaa4da37dfb7a91ca859b8c59f4eaf6b03ba7dbbaba903fdf25eaf4641",
+  "role28-1.guard.log": "c4ad5ac38852e2a3f0745f71fada623db744ee93c67a67331c9df702597520b8"
+ },
+ "remaining": "Publication/deployment prerequisites unchanged (INVENTORY.json missingInputs): live sia-s3 0.1.8 catalog record, memMb, copy-mode guard decision, N>=3 hosts + non-DO ingress, Sia funding, front writer-authority deployment, B7, live indexer on c2-enclave first"
+}
