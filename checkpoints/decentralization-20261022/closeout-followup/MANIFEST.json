@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-22T23:04:55.360143+00:00",
+  "capturedAt": "2026-10-22T23:32:47.884507+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -2067,6 +2067,12 @@
       "bytes": 1152
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/native-production-next/RESULT.md",
+      "stored": "files/native-production-next/RESULT.md",
+      "sha256": "6de68a504c6f058f667a33eda8b9b1dd90edf6ce196b121dc78ccbed156d94bd",
+      "bytes": 21903
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/native-request-abort-review/EVIDENCE.sha256",
       "stored": "files/native-request-abort-review/EVIDENCE.sha256",
       "sha256": "c768d042772856872730d83558bbf1d3626782f5eebbe5b6b92913289f3f5e12",
@@ -3141,10 +3147,154 @@
       "bytes": 322
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-list-review/INITIAL.md",
+      "stored": "files/relay-release-list-review/INITIAL.md",
+      "sha256": "ccb01ee59ed4c61b1699f59972692ec474c788299c49da5fa2a1c61d35279e43",
+      "bytes": 9701
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-list-review/RESULT.md",
+      "stored": "files/relay-release-list-review/RESULT.md",
+      "sha256": "1654598ac5a7d488f27190fe81d959b9232c397bd80a67418ea8353eb3b051f7",
+      "bytes": 12018
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-list-review/ROOT-LIVE-EVIDENCE.md",
+      "stored": "files/relay-release-list-review/ROOT-LIVE-EVIDENCE.md",
+      "sha256": "8d5ad8a7446a77b9df7092fa69ee0f9e6623ec7075434024715fd04baee82a8c",
+      "bytes": 1817
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-list-review/ROOT-REVIEW.md",
+      "stored": "files/relay-release-list-review/ROOT-REVIEW.md",
+      "sha256": "157d4e438a20a26b0538b452191f8544b644ab9c19487dea0c85d9b9d992d3ec",
+      "bytes": 1342
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-list-review/candidate/test/secrets-release-status-lookup.test.mjs",
+      "stored": "files/relay-release-list-review/candidate/test/secrets-release-status-lookup.test.mjs",
+      "sha256": "36d0ce82a3231f4ef32e89624e3ffea0fb3cb8be344b0a5256d380b74bb445cb",
+      "bytes": 10078
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-list-review/job-tests.sh",
+      "stored": "files/relay-release-list-review/job-tests.sh",
+      "sha256": "ef5270b6a55d06bed6d12def4d94cdba2f31b0a116abd6d9eb330ef4b394afcb",
+      "bytes": 1196
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-list-review/relay-release-status-lookup.installed.diff",
+      "stored": "files/relay-release-list-review/relay-release-status-lookup.installed.diff",
+      "sha256": "2313c877d43fb05121a8202c2bef6c0d6688d1f713972d718077e5907113ed1e",
+      "bytes": 4061
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-list-review/relay-release-status-lookup.patch",
+      "stored": "files/relay-release-list-review/relay-release-status-lookup.patch",
+      "sha256": "af1fcaff3aabf4c8baf2ed70b9c2d5bd53350c8ef2ef4c571ff705bb8c9b7423",
+      "bytes": 14515
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-list-review/secrets-release.mjs.installed-lineage",
+      "stored": "files/relay-release-list-review/secrets-release.mjs.installed-lineage",
+      "sha256": "48cf67ee80a088f3b713eaed401273a97aecb3aeca7204f320e0f22083405715",
+      "bytes": 53149
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/backend-probe.json",
+      "stored": "files/relay-release-live/backend-probe.json",
+      "sha256": "d99df643a83eaba8458c9137c6469eb248800d58bdcb62c060a79373fbea2ba3",
+      "bytes": 1125
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/backend-probe.py",
+      "stored": "files/relay-release-live/backend-probe.py",
+      "sha256": "558b76789bb6e3ff2ff81b3703f573c85850a557e020feb4f1440a41a71798ab",
+      "bytes": 1856
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/backend-public-settings.json",
+      "stored": "files/relay-release-live/backend-public-settings.json",
+      "sha256": "1f1d5ba233dd9ff3932d18e06ee6f9149de01c4111917a385e9bde0a2d233a2d",
+      "bytes": 848
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/backend-read.py",
+      "stored": "files/relay-release-live/backend-read.py",
+      "sha256": "cf3bde3c6d6f43f394ec0327abb2f6949f51e3edec8f376021cb35875d0fec56",
+      "bytes": 1604
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/deploy-reviewed.py",
+      "stored": "files/relay-release-live/deploy-reviewed.py",
+      "sha256": "955af0fae30744773e80e488980302315ab867b5421c8fd2b5eb5c99adada82a",
+      "bytes": 5584
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/deployment-result-r2.json",
+      "stored": "files/relay-release-live/deployment-result-r2.json",
+      "sha256": "a48247a40875cc9be452d948709fdac35af7652e678fe530a766ead73ed1876e",
+      "bytes": 2083
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/deployment-result.json",
+      "stored": "files/relay-release-live/deployment-result.json",
+      "sha256": "a56e020587d185c5083051b358fd13e8cf941e3dc936c463d78197046b5f300e",
+      "bytes": 51
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/diagnose-queued.py",
+      "stored": "files/relay-release-live/diagnose-queued.py",
+      "sha256": "3d28fde10e8588772f728d47f9dbc5ba2c13c0e7d593bd899cc611849af17e9c",
+      "bytes": 1572
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/ingress-probe.json",
+      "stored": "files/relay-release-live/ingress-probe.json",
+      "sha256": "eda0d4b2d62dc39cfe433a863b44d4bb5de946d258fd52bc814435e31b8e6a6c",
+      "bytes": 1187
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/ingress-probe.py",
+      "stored": "files/relay-release-live/ingress-probe.py",
+      "sha256": "19f55cde3ea6dae12c4842e5a8ee00bc39c05277a4314d0ffe408bbe06fe7ab3",
+      "bytes": 1088
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/postdeploy-verification.json",
+      "stored": "files/relay-release-live/postdeploy-verification.json",
+      "sha256": "1ee7a8cbdd494aeebb489af304c69aac72418c59a44bf761f5f96248c7ee0407",
+      "bytes": 3472
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/probe.py",
+      "stored": "files/relay-release-live/probe.py",
+      "sha256": "10feac2be08c603393947a8f811497b8e15f395534d6f632143806e7fcdf3bb4",
+      "bytes": 1305
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/public-probe.json",
+      "stored": "files/relay-release-live/public-probe.json",
+      "sha256": "182374382c6aa25b14d4fcd7de9eef72c81dd9b7e7fe8b257d5617a18230f110",
+      "bytes": 812
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/queued-diagnosis.json",
+      "stored": "files/relay-release-live/queued-diagnosis.json",
+      "sha256": "de497c397bed53906cfa3f1e887131b0e8fe3a885a47d626e0f45fc7753a517a",
+      "bytes": 1025
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/verify-postdeploy.py",
+      "stored": "files/relay-release-live/verify-postdeploy.py",
+      "sha256": "3dfaa551d31e5fab5fb7283667723f5de0c4b04ac7cfe32fe30a36a6862cdcc9",
+      "bytes": 1589
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "b9c26841631000e70b8fe82a9a6103ef98205d348d848c0e9ab0baae778ebd7d",
-      "bytes": 15836
+      "sha256": "4fa720a8f3ffaf23fd43d83751b34132eaaa0a052de55a35970fe6e47b0bd96b",
+      "bytes": 16941
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",
@@ -3407,5 +3557,10 @@
     "live run directories and raw transcripts",
     "generated images/binaries and dependency caches",
     "copied base trees preserved earlier"
+  ],
+  "deferred": [
+    "files/public-health/ROOT-WINDOW-WATCH-STOP.json",
+    "files/public-health/node-pair-window-latest.json",
+    "files/public-health/watch-node-pair-window.py"
   ]
 }

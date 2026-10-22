@@ -211,6 +211,20 @@ for p in canary.iterdir():
 # The canary's sanitized public verdict (hashes, booleans and limits only), outside the work tree.
 outputs = [root / 'outputs/decentralization-audit/native-control-hardware-canary-20261022.json']
 paths.add(base / 'adapter-admission-review/ROOT-FAILED-REGRESSION-STOP.json')
+# The relay release-status fix (live as installed-lineage 48cf67ee): its reviewed notes, final patches, the exact
+# installed-lineage module, the bounded runner and the new test. Never its candidate/base trees, tmp/, logs/ or stubs/.
+release_review = base / 'relay-release-list-review'
+for name in ('RESULT.md', 'INITIAL.md', 'ROOT-REVIEW.md', 'ROOT-LIVE-EVIDENCE.md', 'relay-release-status-lookup.patch',
+             'relay-release-status-lookup.installed.diff', 'secrets-release.mjs.installed-lineage', 'job-tests.sh',
+             'candidate/test/secrets-release-status-lookup.test.mjs'):
+    paths.add(release_review / name)
+# Root's relay reads: the AUTHORED probe/deploy scripts and their sanitized public JSON (public ids, booleans, timings, RPC
+# host names). Never the raw installed copies (installed-api-relay.js, installed-secrets-release.mjs), guard logs or config.
+release_live = base / 'relay-release-live'
+for p in release_live.iterdir():
+    if p.is_file() and not p.is_symlink() and p.suffix in ('.py', '.json'):
+        paths.add(p)
+paths.add(base / 'native-production-next/RESULT.md')
 paths.add(Path(__file__).resolve())
 # Mutation tests temporarily edit the issuer's working tree. Preserve their saved
 # unmutated inputs, never an intentionally disabled security check.
