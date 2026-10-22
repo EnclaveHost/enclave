@@ -1,0 +1,51 @@
+--- replicactl.py
++++ replicactl.r5-production.restorefix.py
+@@ -60,6 +60,14 @@
+   - The record verify-<scratch>.json is created exclusively, and an existing one is refused. Updates go through a fresh,
+     exclusively created, random-named temp that replaces the record only while the record is still this verification's
+     own file. Only our own temp is ever removed.
++  restore-timeout fix (restore-timeout-diagnosis, after integration run a7e53855b0f9f535):
++  - PostgreSQL is PID 1 of its container (no --init), so it reaps every process orphaned inside the container, and
++    a reaped child that died from a signal is a crashed "untracked child process" to it: every session is ended and
++    the server reinitializes. Plain `timeout -s KILL` (GNU) also KILLs its own process group, itself included, so
++    the killed pg_restore was orphaned to the postmaster and the restore bound crash-restarted the whole server.
++  - the restore now runs as `exec timeout --foreground -s KILL`: timeout KILLs pg_restore only, stays alive and
++    reaps it itself (exit 137). The container's timeout must be GNU coreutils (BusyBox has no --foreground and
++    always leaves an orphaned watcher); otherwise nothing is created.
+ 
+ Nothing here activates anything by itself: every mutating command needs an explicit --confirm flag naming the
+ action, and production profiles additionally refuse to run unless the node's ALLOW file exists (the same pattern as
+@@ -495,9 +503,10 @@
+             return
+     tmo = int(node.p.get("verify_timeout_seconds", VERIFY_TIMEOUT_DEFAULT))
+     qb = QueryBudget(int(node.p.get("verify_query_seconds", VERIFY_QUERY_BUDGET_DEFAULT)))
+-    r = subprocess.run(["docker", "exec", node["pg_container"], "sh", "-c", "command -v timeout"], capture_output=True, timeout=qb.cap(60))
+-    if r.returncode != 0:
+-        rep["problems"].append("no `timeout` in the database container: the restore cannot be bounded; nothing created")
++    r = subprocess.run(["docker", "exec", node["pg_container"], "timeout", "--version"], capture_output=True, timeout=qb.cap(60))
++    if r.returncode != 0 or "GNU coreutils" not in r.stdout.decode(errors="replace").split("\n", 1)[0]:
++        rep["problems"].append("no GNU coreutils `timeout` (with --foreground) in the database container: the restore "
++                               "cannot be bounded without orphaning a killed process to the postmaster; nothing created")
+         return
+     rep["scratch"] = scratch = scratch_name(node["database"])
+     rep["scratchState"] = "intent (CREATE not yet sent)"
+@@ -524,15 +533,16 @@
+         return
+     rep["scratchState"] = "created (ours)"
+     st["record"].write(rep)
+-    # 2. restore, bounded inside the container (pg_restore is KILLed at tmo) and on the host (tmo + 60)
++    # 2. restore, bounded inside the container (pg_restore is KILLed at tmo) and on the host (tmo + 60). --foreground:
++    #    timeout signals pg_restore only and reaps it itself, so no killed process is ever orphaned to the postmaster
+     try:
+         with open(b / "indexd.pgdump", "rb") as f:
+             r = subprocess.run(["docker", "exec", "-i", node["pg_container"], "sh", "-c",
+-                                'timeout -s KILL "$2" pg_restore -U ' + PG_USER + ' --no-owner --no-acl --exit-on-error -d "$1"', "pg_restore", scratch, str(tmo)],
++                                'exec timeout --foreground -s KILL "$2" pg_restore -U ' + PG_USER + ' --no-owner --no-acl --exit-on-error -d "$1"', "pg_restore", scratch, str(tmo)],
+                                stdin=f, capture_output=True, timeout=tmo + 60)
+         restored = r.returncode == 0
+         if not restored:
+-            rep["problems"].append("pg_restore failed: " + r.stderr.decode()[-300:])
++            rep["problems"].append(f"pg_restore failed (rc {r.returncode}): " + r.stderr.decode()[-300:])
+     except subprocess.TimeoutExpired:
+         restored = False
+         rep["problems"].append(f"pg_restore did not answer within {tmo + 60} s")

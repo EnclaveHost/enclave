@@ -1,0 +1,257 @@
+{
+  "at": "2026-10-22T18:57:59.790013+00:00",
+  "status": "restore-timeout correction VERIFIED LOCALLY; no production deployment",
+  "runId": "a4cdf02552931ec3",
+  "manifest": "490a769a41289d25af2fd6deb7e7b05f3edb2afb2e0744ecee682a3314c9f9cf",
+  "stages": [
+    {
+      "stage": "1-fence-release-v27-baseline-v3-writer",
+      "ok": true,
+      "seconds": 0.8
+    },
+    {
+      "stage": "2-quiesced-backup-and-restore-verify",
+      "ok": true,
+      "seconds": 1.4
+    },
+    {
+      "stage": "3-upgrade-to-c2-v28-not-enrolled",
+      "ok": true,
+      "seconds": 2.5
+    },
+    {
+      "stage": "4-enrol-cas-replay-conflicts-refusals",
+      "ok": true,
+      "seconds": 0.3
+    },
+    {
+      "stage": "5-indexd-sigkill-restart-enrolment-durable",
+      "ok": true,
+      "seconds": 0.7
+    },
+    {
+      "stage": "6-rollback-refused-while-enrolled",
+      "ok": true,
+      "seconds": 1.8
+    },
+    {
+      "stage": "7-rollback-acknowledged-schema-equals-v27",
+      "ok": true,
+      "seconds": 2.3
+    },
+    {
+      "stage": "8-re-upgrade-not-re-enrolled-then-re-enrol",
+      "ok": true,
+      "seconds": 2.5
+    }
+  ],
+  "checks": [
+    {
+      "check": "X1-verify-success-restore-digest-drop",
+      "ok": true,
+      "seconds": 1.2,
+      "detail": {
+        "scratch": "indexd_verify_c5f969f136f5722a",
+        "verify": {
+          "ok": true,
+          "cleanupOk": true,
+          "scratchState": "dropped",
+          "restoredDbVersion": 28,
+          "digestMatches": true
+        }
+      }
+    },
+    {
+      "check": "X2-forced-scratch-name-collision-untouched",
+      "ok": true,
+      "seconds": 0.3,
+      "detail": {
+        "scratchState": "already existed: not ours, untouched",
+        "markerIntact": true
+      }
+    },
+    {
+      "check": "X3a-killed-restore-prompt-cancel-bounded-no-backend-safe-drop",
+      "ok": true,
+      "seconds": 21.2,
+      "detail": {
+        "elapsedSeconds": 20.5,
+        "scratch": "indexd_verify_0cf2af6b8101db27",
+        "problems": [
+          "pg_restore failed (rc 137): "
+        ]
+      }
+    },
+    {
+      "check": "X3b-separately-held-connection-waited-out-before-drop",
+      "ok": true,
+      "seconds": 61.5,
+      "detail": {
+        "scratch": "indexd_verify_3344c305ba7f4bf8",
+        "holderPid": 1271,
+        "observedAt": 0.3,
+        "holderEnd": 40.3,
+        "cliEnd": 60.8
+      }
+    },
+    {
+      "check": "X4-total-query-budget-held-connection-named-kept",
+      "ok": true,
+      "seconds": 61.0,
+      "detail": {
+        "scratch": "indexd_verify_be9a028cf788bf77",
+        "holderPid": 1742,
+        "observedAt": 0.4,
+        "cliEnd": 12.1,
+        "scratchState": "KEPT: 2 backend(s) still connected within the wait (a restore writer may still r",
+        "harnessDroppedNamedLeftover": true
+      }
+    },
+    {
+      "check": "X5-rollback-c2-to-v27",
+      "ok": true,
+      "seconds": 1.6,
+      "detail": {
+        "dbVersion": 27,
+        "current": "fence"
+      }
+    },
+    {
+      "check": "X6-corrupt-backup-upgrade-refused-safe-resume",
+      "ok": true,
+      "seconds": 2.2,
+      "detail": {
+        "flippedByte": 66041,
+        "resume": {
+          "resumed": true,
+          "release": "c67ffa4d76e54209dbc2a019e1447e79e1cbe7c54d9566b9bd1b491229da9568",
+          "dbVersion": 27
+        },
+        "currentUnchanged": true,
+        "digestUnchanged": true
+      }
+    },
+    {
+      "check": "X7-server-refused-restore-upgrade-refused-safe-resume",
+      "ok": true,
+      "seconds": 2.6,
+      "detail": {
+        "resume": {
+          "resumed": true,
+          "release": "c67ffa4d76e54209dbc2a019e1447e79e1cbe7c54d9566b9bd1b491229da9568",
+          "dbVersion": 27
+        },
+        "scratchState": "dropped"
+      }
+    },
+    {
+      "check": "X8-final-invariants",
+      "ok": true,
+      "seconds": 0.5,
+      "detail": {
+        "markersIntact": true,
+        "verifyDatabases": [
+          "indexd_verify",
+          "indexd_verify_c2c2c2c2c2c2c2c2"
+        ]
+      }
+    }
+  ],
+  "finalize": {
+    "c2it-holder-5f3ca584f886": "closed",
+    "c2it-holder-baf66ff1af52": "closed",
+    "c2it_delay": "absent",
+    "c2it_refuse": "absent",
+    "c2it_barrier": "absent",
+    "indexdStop": "stopped",
+    "ok": true
+  },
+  "cleanup": {
+    "runId": "a4cdf02552931ec3",
+    "children": [
+      {
+        "pid": 1681439,
+        "rc": 0
+      },
+      {
+        "pid": 1684937,
+        "rc": 0
+      },
+      {
+        "pid": 1684952,
+        "rc": 0
+      },
+      {
+        "pid": 1685277,
+        "rc": 0
+      },
+      {
+        "pid": 1688737,
+        "rc": 0
+      }
+    ],
+    "indexdPidFiles": [],
+    "scope": {
+      "scope": "drained",
+      "rounds": []
+    },
+    "container": "removed",
+    "volume": "removed",
+    "stage": "removed",
+    "certain": true
+  },
+  "sourceFiles": [
+    {
+      "source": "work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/fix/replicactl.r5-production.restorefix.py",
+      "stored": "source/restore-timeout-diagnosis/fix/replicactl.r5-production.restorefix.py",
+      "sha256": "fd097a2a2f480e0d0aded033effb2f7992b8852f43e2f3f072bff1056fef4452"
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/fix/replicactl.r5-production.restorefix.patch",
+      "stored": "source/restore-timeout-diagnosis/fix/replicactl.r5-production.restorefix.patch",
+      "sha256": "090c735ffe98fc49f474e8f870e217749180dbca5c458761d8dce61730493f66"
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/fix/replicactl.fixture-r5.restorefix.py",
+      "stored": "source/restore-timeout-diagnosis/fix/replicactl.fixture-r5.restorefix.py",
+      "sha256": "4e0a76a039bbc126df0d23855106f95e5dd9ea424cce7973cc65f34538b337a3"
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/fix/replicactl.fixture-r5.restorefix.patch",
+      "stored": "source/restore-timeout-diagnosis/fix/replicactl.fixture-r5.restorefix.patch",
+      "sha256": "ea6eb22f73bf4709a48b81cdf9f4dff410f47b4bdf77c3bfde704c131c181831"
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/restore-timeout-diagnosis/fix/apply_restorefix.py",
+      "stored": "source/restore-timeout-diagnosis/fix/apply_restorefix.py",
+      "sha256": "ce876925e0e5fb526ed21aaf206c36f5827bff9a0d144b54909dafca41d094e1"
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-integration-r3/run-integration.py",
+      "stored": "source/controller-integration-r3/run-integration.py",
+      "sha256": "8beea793ddafb3ab653840931c5293bc6174064fbbcc2d7fafde5681725fed4b"
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-integration-r3/integration_checks.py",
+      "stored": "source/controller-integration-r3/integration_checks.py",
+      "sha256": "8fa874de2d8300fe04a1a362708ece3b2f3425d57a6bb039fd87bc2c7a2a107f"
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-integration-r3/replicactl.fixture.py",
+      "stored": "source/controller-integration-r3/replicactl.fixture.py",
+      "sha256": "4e0a76a039bbc126df0d23855106f95e5dd9ea424cce7973cc65f34538b337a3"
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/controller-integration-r3/ROOT-REVIEW.json",
+      "stored": "source/controller-integration-r3/ROOT-REVIEW.json",
+      "sha256": "9bd5827ed685d1c8d76b4ed5e57b122969a8b4b992b4ada656acc71803cbb95f"
+    }
+  ],
+  "diagnosticRun": "823e30de611d21e9:5/5experiments; oldtimeout causedserverrestart, fixpreservedholderandunrelatedsentinel; noOOM",
+  "correctionToEarlierInterpretation": "r1 early backend disappearance was initially attributed to prompt cancellation/test timing. Real diagnostic logs prove the old timeout restarted PostgreSQL instead. The controlled-holder test exposed a controller bug.",
+  "limits": [
+    "Production still version26. This does not complete storage replication or provider independence.",
+    "Production pg_dump/SQL waits still require bounded execution before live migration; separately prepared bounds proposal not validated by this run.",
+    "The r3 barrier retains the r2 snapshot loop; observed X3b completed at60.8s after holder natural exit40.3s. A later deterministic harness refinement is separate; these actual observed checks are preserved."
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "at": "2026-10-22T18:53:18.933018+00:00",
+  "change": "r2 harness unchanged except pinned controller uses verified restore-timeout fix; no assertions weakened",
+  "controllerSha256": "4e0a76a039bbc126df0d23855106f95e5dd9ea424cce7973cc65f34538b337a3",
+  "diagnosticEvidence": "823e30de611d21e9: all5casespassed with unrelatedsessionsurvival andzeroOOM, cleanupcertain",
+  "productionChanges": false,
+  "authorization": "one isolated8stage+9check integration viaqueue768MiB+ownDocker256"
+}
