@@ -49,7 +49,8 @@ def main(argv):
          f"after: not a clean restart: {a.get('container.startupLine')!r}")
     need(a.get("pgUnit.ActiveState") == "active" and a.get("pgUnit.SubState") == "running" and a.get("pgUnit.NeedDaemonReload") == "no",
          "after: PostgreSQL unit not active/running, or a daemon-reload is pending")
-    need(b.get("unit.sha256") == (OLD_UNIT if mode == "init" else NEW_UNIT), f"before: unexpected unit {b.get('unit.sha256')}")
+    need(b.get("unit.sha256") == OLD_UNIT and b.get("container.init") in ("<nil>", "false") and b.get("pid1.comm") == "postgres",
+         "before: not the original state (BEFORE is always the probe taken under the old unit)")
     if mode == "init":
         need(a.get("unit.sha256") == NEW_UNIT and a.get("unit.execStartInit") == "yes", "after: the candidate unit is not installed")
         need(a.get("container.init") == "true", f"after: container.init {a.get('container.init')!r}")

@@ -37,8 +37,10 @@ for p in sorted(paths):
         continue
     out = dest / 'files' / rel
     out.parent.mkdir(parents=True, exist_ok=True)
+    if out.exists():
+        out.chmod(0o644)
     out.write_bytes(data)
-    out.chmod(p.stat().st_mode & 0o777)
+    out.chmod(0o644 | (p.stat().st_mode & 0o111))
     entries.append({'source': str(p.relative_to(root)), 'stored': str(out.relative_to(dest)),
                     'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)})
 manifest = {'capturedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
