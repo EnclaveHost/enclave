@@ -1,15 +1,15 @@
 {
   "bundle": "metal/guest/platform-api.bundle.mjs",
   "entry": "metal/guest/platform-api-entry.mjs",
-  "sha256": "3078345b9e27594d9964998a3f638ff4a9727abef0bcd8cf02abacd993162e4c",
-  "bytes": 8531780,
+  "sha256": "d2d89f0145da7c184c1e92b7d5c6314894a686dbfa81701801363125746fb06d",
+  "bytes": 8533421,
   "inputs": {
     "custody/hpke.mjs": "1806a74c947db89db0e410c370ad7963eac9fa30d1807d8f55846690fafc0c03",
     "metal/guest/lease-gas-conduit.bundle.mjs": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6",
     "metal/guest/measured-control.mjs": "318a84ceefecbcf3bc434cfcc2705193cbb8721cbff13cedc7fe6c197011c105",
     "metal/guest/owner-nomination.mjs": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
     "metal/guest/platform-api-entry.mjs": "b704d6ced7b8922179366cf76733e67899937696170b964018655824b2257638",
-    "metal/guest/platform-api-role.mjs": "3bcee3dfe3da8bcb4cdbdc98412f1aca426a8c1a020ab99f4bea7991e3f64812",
+    "metal/guest/platform-api-role.mjs": "835ddc67ecbc489dfdaab5296ffd168a22e345f7c142c90bbc866c9ec9fabe76",
     "metal/guest/platform-api-verify.mjs": "167548660773db10639efa9f3b3a7a10dc352b63c6aa068b6e61c6e172342342",
     "metal/measured-control-verify.mjs": "2137d39e9dfb17d79ae8540c54ff28531bdd1b503ce8af4189f170a8a8f6b341",
     "network/host-services/argv-guard.mjs": "35238208b03e4377f7dfc8c82a5b42f2b55211a935928a7d31148ed8d52b35cb",

@@ -14,13 +14,15 @@
 //   - on the PRIMARY only, runs the unchanged relay (this file with --relay-child: api-relay.js on the guest RAM fs, the
 //     platform credentials in its environment) behind a response barrier: no HTTP response leaves the relay before what
 //     it wrote is on a majority of members. The relay is killed the moment the lease cannot be renewed.
-//   - on a standby, forwards API requests to the primary's control front, pinned to its attested TLS key.
+//   - on a standby, forwards API requests to the primary's control front, pinned to its attested TLS key: the TLS handshake
+//     completes and the key is compared on that socket BEFORE any request byte (connectPinned).
 // Nothing here reads or prints state, credentials or K.
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import https from "node:https";
 import net from "node:net";
+import tls from "node:tls";
 import { spawn } from "node:child_process";
 import { createHash, createHmac, timingSafeEqual, X509Certificate } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -96,7 +98,7 @@ export function openRecovery(env, { groupId, privateKey }) {
  *   transport    { post(url, Buffer|object, {pin}) -> Buffer|object } overridable for tests; default https/http
  */
 export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayArgv = null, log = (m) => console.log(`[platform-api] ${m}`),
-                                  now = Date.now, postImpl = null, archivePut = null }) {
+                                  now = Date.now, postImpl = null, archivePut = null, forwardConnectMs = 10000 }) {
   const pa = cfg.platformApi, groupId = groupIdOf(pa), self = cfg.self, members = pa.members;
   const dirs = cfg.dirs, dataDir = dirs.data;
   for (const d of [dirs.root, dataDir]) fs.mkdirSync(d, { recursive: true, mode: 0o700 });
@@ -292,11 +294,17 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
     const to = new URL(li.controlUrl), ts = String(now());
     const hopped = { ...forwardHeaders(req, client.ip), host: pa.hostname, [HOP_HEADER]: `${ts}.${hopTag(ts, client.ip, req.method, target)}`, [HOP_CLIENT_HEADER]: client.ip };
     delete hopped["x-forwarded-for"]; delete hopped["x-forwarded-host"]; delete hopped["x-forwarded-proto"];
-    const up = https.request({ host: to.hostname, port: to.port || 443, method: req.method, path: target, headers: hopped,
-      rejectUnauthorized: false, checkServerIdentity: (_h, cert) => (sha256Hex(spkiOf(cert)) === li.spki ? undefined : new Error("the primary is not the attested key")) },
-      (r) => { res.writeHead(r.statusCode || 502, r.headers); r.pipe(res); });
-    up.on("error", () => fail(503, "platform_api_unreachable", "The platform API primary could not be reached; retry shortly."));
-    req.pipe(up);
+    // the primary's attested key first, on the secure socket; only then the request (headers, credentials, body) over it
+    const pin = connectPinned({ host: to.hostname, port: Number(to.port || 443), spki: li.spki, timeoutMs: forwardConnectMs });
+    let up = null, gone = false;
+    res.on("close", () => { if (!res.writableFinished) { gone = true; pin.cancel(); if (up) up.destroy(); } });   // the client went away
+    pin.promise.then((sock) => {
+      if (gone) { sock.destroy(); return; }
+      up = http.request({ createConnection: () => sock, method: req.method, path: target, headers: hopped },
+        (r) => { res.writeHead(r.statusCode || 502, r.headers); r.pipe(res); r.on("error", () => res.destroy()); });
+      up.on("error", () => { sock.destroy(); if (res.headersSent) res.destroy(); else fail(503, "platform_api_unreachable", "The platform API primary could not be reached; retry shortly."); });
+      req.pipe(up);
+    }, () => fail(503, "platform_api_unreachable", "The platform API primary could not be reached; retry shortly."));
   });
   // websocket and other upgrades (the fleet tunnel): to the local relay on the primary only
   apiServer.on("upgrade", (req, socket, head) => {
@@ -341,6 +349,28 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
       for (const s of [peerServer, apiServer]) { s.closeAllConnections?.(); await new Promise((ok) => s.close(() => ok())); }
     },
   };
+}
+/**
+ * A TLS connection to a member's control front that is used ONLY if the peer holds the attested control key `spki`
+ * (sha256 of its SPKI): the handshake completes and the key is compared on that very socket before the caller writes a
+ * byte. rejectUnauthorized:false with a checkServerIdentity-only pin is not a pin (Node skips checkServerIdentity when chain
+ * validation already failed). No SNI is sent, so the front presents its attested control certificate, never the group's
+ * WebPKI key for the API hostname. -> { promise: Promise<TLSSocket>, cancel() }
+ */
+export function connectPinned({ host, port, spki, timeoutMs = 10000 }) {
+  let cancel = () => {};
+  const promise = new Promise((resolve, reject) => {
+    let settled = false, s = null;
+    const done = (err, v) => { if (settled) return; settled = true; clearTimeout(t); if (err) { if (s) s.destroy(); reject(err); } else resolve(v); };
+    cancel = () => done(new Error("cancelled"));
+    const t = setTimeout(() => done(new Error(`no TLS handshake with the primary within ${timeoutMs} ms`)), timeoutMs);
+    if (!/^[0-9a-f]{64}$/.test(String(spki))) return done(new Error("no attested key to pin"));
+    s = tls.connect({ host: String(host).replace(/^\[|\]$/g, ""), port, rejectUnauthorized: false, minVersion: "TLSv1.2" });
+    s.once("secureConnect", () => (sha256Hex(spkiOf(s.getPeerCertificate())) === spki ? done(null, s) : done(new Error("the primary is not the attested key"))));
+    s.once("error", (e) => done(e));
+    s.once("close", () => done(new Error("the connection closed before the TLS handshake")));
+  });
+  return { promise, cancel: () => cancel() };
 }
 /** the SPKI (DER) of a peer certificate, as the attested statement's controlTls.spkiSha256 hashes it */
 const spkiOf = (cert) => { try { return new X509Certificate(cert.raw).publicKey.export({ type: "spki", format: "der" }); } catch { return Buffer.alloc(0); } };

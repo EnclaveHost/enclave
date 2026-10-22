@@ -122,7 +122,7 @@ A response or request whose state could not be committed is never sent.
   nothing.
 - **Crash-safe.** A change is journaled before it is applied, so a crash between two files re-applies it whole.
 
-**Standbys** forward API requests to the primary's control front, pinned to the TLS key it announces in AEAD-sealed
+**Standbys** forward API requests to the primary's control front, pinned to the TLS key it announces in AEAD-sealed The standby completes the TLS handshake (without SNI, so the front presents its attested control certificate, not the WebPKI one) and compares the key on that socket before it writes any request byte. A wrong key, a silent peer (10 s handshake bound) or a client that leaves ends the forward.
 heartbeats. With no primary reachable they answer 503 with `retry-after`.
 
 ### What this guarantees, and what it does not
