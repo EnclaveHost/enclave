@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-22T23:58:15.130Z",
+  "block": "52962071",
+  "agreeing": 3,
+  "rows": {
+    "cron": {
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+      "leaseUntil": "1792715191",
+      "active": true,
+      "configCid": "{\"isolation\":{\"cpuTee\":false,\"gpuTee\":false},\"configCid\":\"bafkreigf7ewh5mzjv6zmgzyhz7kvcrlonvhhmezprjmb3i5xd2vb4seyey\"}"
+    },
+    "imageGenerator": {
+      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "runner": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "leaseUntil": "0",
+      "active": true,
+      "configCid": "{\"config\":{\"volumes\":[\"z-image-turbo-q4km-sd\"],\"sdTeOnCpu\":true,\"name\":\"z-image-turbo\",\"model_volume\":\"z-image-turbo-q4km-sd\",\"default_steps\":4,\"max_steps\":8,\"default_size\":512,\"min_size\":256,\"max_size\":512,\"default_target\":\"gpu\",\"max_images\":1,\"cfg_scale\":1,\"wasi\":\"0.2\",\"models\":null}}",
+      "reserve": {
+        "claimCooldown": 1800,
+        "lastClaimAt": "1792713077",
+        "retryAfter": "2026-10-23T00:21:17.000Z",
+        "balanceWei": "98395539764994"
+      }
+    }
+  }
+}

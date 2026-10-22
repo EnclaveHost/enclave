@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-22T23:57:02.711757+00:00",
+  "capturedAt": "2026-10-22T23:59:39.978476+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -345,11 +345,39 @@
       "bytes": 30580
     },
     {
-      "label": "ROOT STATUS NOTE: Cron placement wallet request pending; nothing confirmed",
+      "label": "Cron moved to nucbox by the existing dashboard wallet flow; native running 23:58:37Z, 3 RPCs agree at block 52962071. NOT a durable on-chain pin: the ledger configCid has no placement field. RESULT.md = source-only analysis (its setConfig placement option was not executed)",
+      "source": "work/resume-after-checkpoint-20261022/cron-placement/RESULT.md",
+      "stored": "files/cron-placement/RESULT.md",
+      "sha256": "22d7d0168162ef4174c3f36fb2af025677d1e64e8689a405c0bbc017db4de93c",
+      "bytes": 9138
+    },
+    {
+      "label": "Cron moved to nucbox by the existing dashboard wallet flow; native running 23:58:37Z, 3 RPCs agree at block 52962071. NOT a durable on-chain pin: the ledger configCid has no placement field. RESULT.md = source-only analysis (its setConfig placement option was not executed)",
       "source": "work/resume-after-checkpoint-20261022/cron-placement/ROOT-STATUS.json",
       "stored": "files/cron-placement/ROOT-STATUS.json",
-      "sha256": "76e87ef4e3e3ad554c18bda9d1de7193f5081e1df1e0ff6e394811cab767403f",
-      "bytes": 595
+      "sha256": "fcfaaf098aefa35ff2d01d6367780db1cf4cf936334dd15486b1250f4981ea20",
+      "bytes": 1010
+    },
+    {
+      "label": "Cron moved to nucbox by the existing dashboard wallet flow; native running 23:58:37Z, 3 RPCs agree at block 52962071. NOT a durable on-chain pin: the ledger configCid has no placement field. RESULT.md = source-only analysis (its setConfig placement option was not executed)",
+      "source": "work/resume-after-checkpoint-20261022/cron-placement/nucbox-after.json",
+      "stored": "files/cron-placement/nucbox-after.json",
+      "sha256": "0e92f94616820df4bab78f9a68ef617f915427a7a5ad96e19e9c572daf75e1f3",
+      "bytes": 262
+    },
+    {
+      "label": "Cron moved to nucbox by the existing dashboard wallet flow; native running 23:58:37Z, 3 RPCs agree at block 52962071. NOT a durable on-chain pin: the ledger configCid has no placement field. RESULT.md = source-only analysis (its setConfig placement option was not executed)",
+      "source": "work/resume-after-checkpoint-20261022/cron-placement/placement-confirmed.json",
+      "stored": "files/cron-placement/placement-confirmed.json",
+      "sha256": "0bc58db16654a6f881081eaaa90536f0b79c70c990e09938faec99963253f10a",
+      "bytes": 1271
+    },
+    {
+      "label": "Cron moved to nucbox by the existing dashboard wallet flow; native running 23:58:37Z, 3 RPCs agree at block 52962071. NOT a durable on-chain pin: the ledger configCid has no placement field. RESULT.md = source-only analysis (its setConfig placement option was not executed)",
+      "source": "work/resume-after-checkpoint-20261022/cron-placement/verify-placement.mjs",
+      "stored": "files/cron-placement/verify-placement.mjs",
+      "sha256": "4cb3074426cee518bbb93b8fbe275989058fd784053539ecce9789c8521e60c1",
+      "bytes": 2438
     },
     {
       "source": "work/resume-after-checkpoint-20261022/direct-hardware-canary/FROZEN-PINS.json",
@@ -3629,8 +3657,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "2ab822442b58fb2ef7480795285361073e1cde28f0d616e0469418ff36714469",
-      "bytes": 19619
+      "sha256": "3ba39003999f13c5f827f2d8f5f7d3331c14d152d6543d833385e69e7db57897",
+      "bytes": 20275
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",

@@ -1,13 +1,19 @@
 {
-  "at": "2026-10-22T23:56:31.974084+00:00",
+  "at": "2026-10-22T23:59:06.408400+00:00",
   "cron": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
-  "currentHost": "metal0",
+  "currentHost": "nucbox-k11-4",
   "targetHost": "nucbox-k11-4",
   "reservedCpuPercent": 100,
   "imageGeneratorNeedsCpuPercent": 800,
   "freeCpuPercent": 700,
-  "walletStatus": "requested in existing dashboard; no confirmation yet",
+  "walletStatus": "dashboard reported preference saved and initiated owner move; no further signature pending",
   "allowFallback": true,
   "manualReleaseSent": false,
-  "evidence": "Live journal23:47Cronreservation100%;23:48image-generator700%free800%needed. ExistingCLI grant expired1792518596; tokenforunrelatedwallet expired. No secrets extracted."
+  "evidence": "Live journal23:47Cronreservation100%;23:48image-generator700%free800%needed. ExistingCLI grant expired1792518596; tokenforunrelatedwallet expired. No secrets extracted.",
+  "nativeStatus": "running",
+  "chainVerifiedBlock": "52962071",
+  "agreeingRPCs": 3,
+  "imageGeneratorRetryAfter": "2026-10-23T00:21:17Z",
+  "remaining": "image-generator gas-reserve claim cooldown; not running yet",
+  "placementCaveat": "Dashboard reported host preference saved, but ledger configCid contains no placement field. Do not claim a durable on-chain pin."
 }

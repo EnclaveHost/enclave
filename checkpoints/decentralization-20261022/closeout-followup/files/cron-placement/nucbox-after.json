@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-22T23:58:37.6168386Z",
+  "deployments": [
+    {
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "status": "running",
+      "leaseUntil": 1792715191,
+      "reason": null,
+      "error": null
+    }
+  ]
+}

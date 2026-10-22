@@ -248,12 +248,18 @@ for directory in ('source', 'helper', 'tools', 'jobs', 'stub'):
 paths.add(release_live / 'verify-funding.mjs')
 paths.add(base / 'queued-rpc-diagnosis/RESULT.md')
 paths.add(base / 'cron-placement/ROOT-STATUS.json')
+# Root's completed Cron move (dashboard wallet flow): the read-only placement check, its 3-RPC confirmation and the public
+# nucbox state after; and the worker's finished source-only placement analysis. Never its probe logs or public-before.json.
+for name in ('verify-placement.mjs', 'placement-confirmed.json', 'nucbox-after.json', 'RESULT.md'):
+    paths.add(base / 'cron-placement' / name)
 # what each new group IS, recorded on its manifest entries (nothing here is activated by this checkpoint)
 LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent '
                                    'tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)',
           'node-activate-min/': 'SOURCE ONLY: not run natively, not activated',
           'queued-rpc-diagnosis/': 'SOURCE-ONLY PROPOSALS (read-only diagnosis); nothing implemented or activated',
-          'cron-placement/': 'ROOT STATUS NOTE: Cron placement wallet request pending; nothing confirmed'}
+          'cron-placement/': 'Cron moved to nucbox by the existing dashboard wallet flow; native running 23:58:37Z, 3 RPCs agree at block '
+                             '52962071. NOT a durable on-chain pin: the ledger configCid has no placement field. RESULT.md = '
+                             'source-only analysis (its setConfig placement option was not executed)'}
 paths.add(Path(__file__).resolve())
 # Mutation tests temporarily edit the issuer's working tree. Preserve their saved
 # unmutated inputs, never an intentionally disabled security check.
