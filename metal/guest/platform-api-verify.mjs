@@ -8,6 +8,10 @@
 //      bound operator as active with this boot's proof key. Only "verified" passes.
 //   2. the statement of THAT boot, re-read over a connection pinned to the attested key (same bootId): it names the
 //      newcomer's handoff key, which the state key is then sealed to.
+//   3. (decideHost given: the role's main() always gives it) the admin's platform host policy, decided FRESH for the attested
+//      registry id and the chip the verifier proved, as the native issuer decides it (native-issuer.mjs issuerDeps): the
+//      LAST await before the role seals, so a host or chip ban, an inactive row, another operator or an unreadable policy
+//      refuses the state key. Unknown fails closed.
 import { randomBytes } from "node:crypto";
 import { createPublicClient, http as viemHttp } from "viem";
 import { verifyMeasuredControl, tlsGet } from "../measured-control-verify.mjs";
@@ -39,8 +43,10 @@ export function quorumRegistry({ rpcs, quorum, registry, clients = null, timeout
 /**
  * productionVerifier(roleCfg) -> async ({ url, config, measurements, minTcb }) -> { ok, statementText } | { ok:false, reason }
  *   roleCfg.config is THIS guest's bound direct config: its contracts.registry, rpcs and quorum are the authority read.
+ *   collateral  the AMD collateral source (null: no chain, so nothing verifies)
+ *   decideHost  async (registryId, { chipId }) -> { admit, status, reason, host }: issuerDeps' decideHost
  */
-export function productionVerifier(roleCfg, { registry = null, collateral = null, roots = null, verify = verifyMeasuredControl } = {}) {
+export function productionVerifier(roleCfg, { registry = null, collateral = null, roots = null, verify = verifyMeasuredControl, decideHost = null } = {}) {
   const own = roleCfg.config;
   const reg = registry || quorumRegistry({ rpcs: own.rpcs, quorum: own.quorum, registry: own.contracts.registry });
   return async ({ url, config, measurements, minTcb }) => {
@@ -52,6 +58,14 @@ export function productionVerifier(roleCfg, { registry = null, collateral = null
     let ev; try { ev = JSON.parse(got.body.toString("utf8")); } catch { return { ok: false, reason: "statement re-read: not JSON" }; }
     let st; try { st = parseStatement(ev.statement); } catch (e) { return { ok: false, reason: `statement re-read: ${e.message}` }; }
     if (st.bootId !== v.identity.bootId) return { ok: false, reason: "the newcomer rebooted during verification" };
+    if (decideHost) {
+      let dec;
+      try { dec = await decideHost(v.identity.registryId, { chipId: v.identity.chipId ?? null }); }
+      catch (e) { return { ok: false, reason: `platform host policy unreadable: ${String(e?.message || e).slice(0, 160)}` }; }
+      if (!dec || dec.admit !== true) return { ok: false, reason: `refused by the platform host policy: ${dec?.reason || dec?.status || "no decision"}` };
+      if (!dec.host || String(dec.host.operator || "").toLowerCase() !== v.identity.operator || dec.host.active === false)
+        return { ok: false, reason: "the policy decision names another registry row than the attested host" };
+    }
     return { ok: true, statementText: ev.statement, identity: v.identity };
   };
 }
