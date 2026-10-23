@@ -1,98 +1,10 @@
-// The Linux supervisor's host-wallet decisions on its REAL caller paths: auditClaims, renewLeases, switchTenantVersion,
-// tryClaim, gateAppReference and the reaper/vouch set (unresumedOwnLeases), executed from supervisor.js itself with the
-// REAL shipped admission bundle (windows/node/host-admission.bundle.mjs createHostAdmission on a scripted agreeing reader,
-// as test/host-admission-runtime does) and the REAL operator-queue senders (sendLeaseTx/sendOperatorTx). Only the
-// chain/manager I/O at the edges is scripted. An UNKNOWN wallet policy (no RPC quorum) must stop service here and never
-// renew, claim or release; a definite refusal (owner policy or platform moderation) retires and releases as before.
+// The Linux supervisor's host-wallet decisions on its REAL caller paths (fixture: test/helpers/supervisor-wallet-fixture.mjs).
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import vm from 'node:vm';
 import net from 'node:net';
 import {once} from 'node:events';
-const SUPERVISOR=process.env.SUPERVISOR_JS||new URL('../supervisor.js',import.meta.url);
-const source=fs.readFileSync(SUPERVISOR,'utf8');
-const {createHostAdmission}=await import('../windows/node/host-admission.bundle.mjs');
-const {hostAdmissionPolicyHash}=await import('../network/host-admission-policy.mjs');
-function between(start,end){const a=source.indexOf(start),b=source.indexOf(end,a+start.length);assert.ok(a>=0&&b>a,`supervisor.js has ${start}`);return source.slice(a,b);}
-const host='0x'+'ab'.repeat(32),dep='0x'+'cd'.repeat(32),app='0x'+'ef'.repeat(32),catalog='0x'+'12'.repeat(20),ref=`catalog://${app}/1`;
-const ownership='0x'+'11'.repeat(20),registry='0x'+'22'.repeat(20),owner='0x'+'44'.repeat(20);
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-
-// the shipped bundle's admission: this host owner's policy document + the platform catalog, through an agreeing reader
-function admission(){
- const doc={version:1,chainId:8453,ownershipContract:ownership,hostId:host,requireCatalogApproval:false,denyDeployments:[],denyAppRefs:[]};
- const w={catalog:{active:true,approval:1,yanked:false},down:false,authorityAge:0,doc};
- const client={readContract:async q=>{
-  if(q.functionName==='registry')return registry;
-  if(q.functionName==='authority')return [owner,owner,BigInt(w.revision||1),hostAdmissionPolicyHash(w.doc)];
-  if(q.functionName==='getApp')return {appId:app,versionCount:2,...w.catalog};
-  if(q.functionName==='getVersion')return w.catalog;
-  throw Error('unexpected read '+q.functionName);
- }};
- const reader={agreed:async fn=>{if(w.down)throw Error('chain quorum unavailable');const value=await fn(client,100n);
-  return {timestamp:Date.now()-(value.owner?w.authorityAge:0),...value};}};
- w.admission=createHostAdmission({hostId:host,ownershipContract:ownership,registry,catalog,reader,loadPolicy:async()=>w.doc,now:()=>Date.now()});
- return w;
-}
-function fixture(){
- const w=admission();
- const s={events:[],writes:[],adopted:[],stopOk:true,listOk:true,keepListed:false,deleteGate:null,egressClosed:[],lease:Math.floor(Date.now()/1000)+3600,
-   instances:[{id:'vm-1',name:dep,status:'running'}]};
- // guestd's /vms at the edge: DELETE stops the guest (200, gone from the listing) or fails; GET lists what still runs
- const vmReq=async(method,path)=>{
-  if(method==='DELETE'){s.events.push('stop');if(s.deleteGate)await s.deleteGate;if(!s.stopOk)return {status:500,body:{}};
-   if(!s.keepListed)s.instances=s.instances.filter(v=>v.id!==decodeURIComponent(path.split('/').pop()));return {status:200,body:{}};}
-  if(method==='GET'&&path==='/vms')return s.listOk?{status:200,body:{vms:s.instances}}:{status:503,body:{}};
-  return {status:200,body:{}};};
- const row=(over={})=>({id:dep,appRef:ref,isPublic:true,active:true,owner,runner:host,leaseUntil:BigInt(s.lease),configCid:'',gpuMilli:0,cpuMilli:100,
-   spent6:0n,balance6:1000000n,rate:1n,...over});
- const ctx=vm.createContext({console,Date,Number,BigInt,Set,Map,Error,String,Object,Promise,JSON,Math,Array,Infinity,
-  HOST_WALLET_POLICY:true,_enclaveId:host,RPC_POOL:[],hostAdmissionFromEnv:()=>{throw Error('the test admission is preset');},
-  hostCatalogAddress:()=>catalog,CATALOG_REF_RE:/^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/,ZERO32:'0x'+'00'.repeat(32),CATALOG_ABI:[],
-  getAddress:a=>a,catSchemaRev:async()=>7,gpuOptionalOfConfig:()=>false,cpuFallbackOfConfig:()=>null,
-  approvalVerdict:()=>{throw Error('wallet mode never consults the global approval');},
-  chainClient:{readContract:async q=>{
-   if(q.functionName==='getApp')return {appId:app,versionCount:2,active:true,publisher:catalog,slug:'test'};
-   if(q.functionName==='getVersion')return {cid:'cid',version:'1',active:true,yanked:false,approval:1,config:'{}'};
-   if(q.functionName==='versionFee')return 0n;if(q.functionName==='versionConfigCid')return '';throw Error('unexpected read');}},
-  _reach:{tripped:false},RENEW_MARGIN_SEC:900,tenantProvisions:new Map(),_releaseIntents:new Map(),
-  HOST_POLICY_GATE:{enabled:false,serviceRefusal:()=>null,status:()=>({})},_stateCorrupt:null,leaseGasActive:()=>false,leaseGasRenewDue:async()=>true,
-  TERMINAL_STATUSES:new Set(['expired','failed','terminated','stopping']),lc:v=>String(v||'').toLowerCase(),
-  placementRefusal:()=>null,readLedgerContract:async()=>row(),
-  releaseGpu:()=>{s.events.push('freeGpu');},reconcileInstancesSoon:()=>{},egress:{closeDeployment:id=>{s.egressClosed.push(id);return 0;}},
-  performTenantProvision:async rec=>{rec.status='running';return true;},
-  proveAndRelease:async()=>{s.events.push('prove+release');},releaseLease:async()=>{s.events.push('release');return true;},
-  saveStateSoon:()=>{},releaseHold:()=>null,
-  // the operator queue's edge: the signer and the receipt
-  _txChain:Promise.resolve(),DEPLOYMENTS_ADDRESS:'0x'+'99'.repeat(20),CLAIM_TX_ABI:[],
-  claimSigner:()=>({account:{address:owner},wallet:{writeContract:async q=>{s.writes.push(q.functionName);return '0x'+'aa'.repeat(32);}}}),
-  awaitReceipt:async()=>({status:'success',blockNumber:7n}),leaseFromReceipt:()=>s.lease+1800,noteLeaseFloor:()=>{},
-  // the rest of the audit's healthy pass (nothing to switch, edit or relaunch)
-  shareResizeVerdict:()=>s.resize?'resize':'same',needsVersionSwitch:()=>false,envelopeEditVerdict:()=>'skip',instanceAlive:async()=>true,
-  noteProvisionFailure:()=>{},IS_GPU:true,parseDepOptions:()=>({}),bootstrapIntent:()=>false,
-  // tryClaim's edges
-  claimBondReady:async()=>true,PROVISION_BACKEND:'vm',vmReq,mgrReq:vmReq,openForUs:async()=>true,
-  adopt:async(d,g,f,sl,o)=>{s.adopted.push(o?.resume?'resume':'claim');},_ownLeases:null,_onLeaseSigned:null,deployments:new Map(),
- });
- for(const [a,b] of [['let _hostWalletAdmission = null;','\nconst hostCatalogAddress='],['async function gateAppReference(','// A paid app is servable'],
-   ['async function retireForPlacement(','\nfunction parseDepOptions('],['function sendOperatorTx(',"\n// ---- the operator's owner nomination"],
-   ['function sendLeaseTx(','\n/** A sponsored renew'],['async function renewLeases()','\nasync function switchTenantVersion('],
-   ['async function switchTenantVersion(','\nasync function applyEnvelopeEdit('],['async function auditClaims(','\nasync function fetchLedger('],
-   ['async function tryClaim(','\n// On-chain record -> local rec'],['const HOST_POLICY_EXPLICIT','\nasync function reconcileInstances()'],
-   ['function stopUnconfirmed(','\n// What app ran'],['async function listBackendInstances()','\n// ---- the heartbeat half'],
-   ['// Established upgrade streams','\nfunction depByIdOrPrefix('],['function provisionTenant(rec) {','\n// Spawn the tenant']]){
-  // an older supervisor (the 09ff3ed5 control) has no stream registry: inert stand-ins, so its cases fail on behaviour
-  if(a==='// Established upgrade streams'&&!source.includes(a)){ctx.trackDeploymentStream=()=>{};ctx.cutDeploymentStreams=()=>0;continue;}
-  vm.runInContext(between(a,b),ctx);
- }
- ctx.__adm=w.admission;vm.runInContext('_hostWalletAdmission=__adm',ctx);
- const rec=(over={})=>({id:dep,status:'running',_onchain:true,_leaseUntil:s.lease,owner,image:{reference:ref},resources:{gpuShare:0,cpuShare:0.1},
-   _vmId:'vm-1',_gpu:{cpu:true,share:0.1},...over});
- const audit=(over={})=>ctx.auditClaims(new Map([[dep,row(over)]]));
- const releases=()=>s.events.filter(e=>/release/.test(e));
- return {w,s,ctx,rec,row,audit,releases,serve:(r)=>{ctx.deployments=new Map([[dep,r]]);return r;}};
-}
+import {source,fixture,blockQueue,appFunded,sleep,host,dep,app,catalog,ref,owner} from './helpers/supervisor-wallet-fixture.mjs';
 
 test('known allow: the audit keeps serving and the due renewal is sent once, under its decision deadline',{timeout:20_000},async()=>{
  const f=fixture();const r=f.serve(f.rec());
@@ -107,7 +19,7 @@ test('explicit refusal - the platform administrator yanks the version, or the ho
   for(const action of ['audit','renew']){
    const f=fixture();set(f.w);const r=f.serve(f.rec({_leaseUntil:Math.floor(Date.now()/1000)+60}));
    if(action==='audit')await f.audit();else await f.ctx.renewLeases();
-   assert.deepEqual(f.s.events,['stop','prove+release','freeGpu'],`${why}/${action}: freed only after the confirmed stop`);assert.equal(r.status,'terminated');
+   assert.deepEqual(f.s.events,['stop','freeGpu','prove+release'],`${why}/${action}: freed only after the CONFIRMED stop, then released`);assert.equal(r.status,'terminated');
    assert.equal(r.walletHeld,undefined,'a definite refusal is no hold');assert.deepEqual(f.s.writes,[],'never renewed');
   }
  }
@@ -209,15 +121,6 @@ test('an older admission bundle (refusal() only, no decision()) is held as unkno
 });
 
 // ---- root review 1: a queued permission never outlives a withdrawal ------------------------------------------------
-const blockQueue=f=>{let open;f.ctx._txChain=new Promise(r=>{open=r;});return ()=>open();};
-// the sponsored client's documented order (client/lease-executor-client.mjs): relays read and admitted, the lease SIGNED,
-// onSigned (a throw = NotPersisted, sent to no relay), then the relay POST - stubbed at exactly that seam
-function appFunded(f,{delayMs=0}={}){
- f.ctx.leaseGasActive=()=>true;f.ctx.leaseGasError=(fn,id,e)=>e;
- f.ctx.leaseGasSender=()=>({renew:async id=>{await sleep(delayMs);
-  try{f.ctx._onLeaseSigned?.({kind:'renew',lease:{id}});}catch(e){throw Object.assign(new Error('NotPersisted: '+e.message),{code:'NotPersisted'});}
-  f.s.writes.push('relay POST renew');return {hash:'0x'+'bb'.repeat(32),receipt:{status:'success',blockNumber:7n}};}});
-}
 test('review 1: a VERIFIED refusal voids a renewal already queued under an earlier allow (operator-paid and app-funded)',{timeout:20_000},async()=>{
  for(const sponsored of [false,true]){
   const f=fixture();if(sponsored)appFunded(f);const r=f.serve(f.rec({_leaseUntil:Math.floor(Date.now()/1000)+60}));
@@ -257,7 +160,7 @@ test('review 1: a renewal that reaches the queue WHILE an owner stop is still wa
   const open=blockQueue(f);const pass=f.ctx.renewLeases();await sleep(50);
   let answer;f.s.deleteGate=new Promise(res=>{answer=res;});
   const stopping=f.audit({leaseUntil:BigInt(r._leaseUntil),active:false});await sleep(30);
-  assert.equal(r.status,'running','the owner-stop path still reads running while its DELETE is outstanding');
+  assert.equal(r.status,'terminated','the owner-stop path withdrew service BEFORE its DELETE answers');
   open();await pass;   // the queued renewal runs NOW, mid-stop
   assert.deepEqual(f.s.writes,[],`sponsored=${sponsored}: stopContainer revoked it synchronously`);
   answer();await stopping;
@@ -317,14 +220,114 @@ test('review 2: an administrator refusal with a FAILED stop still releases the l
  f.ctx.settlePendingStops([]);assert.ok(f.s.events.includes('freeGpu'));assert.equal(r._stopPending,undefined);
 });
 
+// ---- root review 3 (decision window): a permit is bound to its DECISION, never rebased at gate construction ----------
+const unclaimed=f=>f.row({leaseUntil:0n,runner:'0x'+'00'.repeat(32)});
+const slowOpen=f=>{let release;const gate=new Promise(r=>{release=r;});f.ctx.openForUs=async()=>{await gate;return true;};return ()=>release();};
+test('decision window: tryClaim decides ALLOWED, openForUs is slow, another caller gets a REFUSAL meanwhile: neither sender dispatches the claim',{timeout:20_000},async()=>{
+ for(const sponsored of [false,true]){
+  const t=fixture();if(sponsored)appFunded(t,{claim:true});const done=slowOpen(t);
+  const p=t.ctx.tryClaim(unclaimed(t),{wasmRef:'catalog'},[],{},{hinted:true});await sleep(50);   // decided (allowed), now in openForUs
+  t.w.catalog={...t.w.catalog,yanked:true};assert.ok((await t.ctx.hostWalletDecision(dep,ref,false)).refusal,'a separate admission call: refused');
+  t.w.catalog={...t.w.catalog,yanked:false};   // and admitted again before the claim's gate is even built
+  done();await p;
+  assert.deepEqual(t.s.writes,[],`sponsored=${sponsored}: the pre-refusal allow is never rebased onto the newer count`);assert.deepEqual(t.s.adopted,[]);
+ }
+});
+test('decision window: the same with an UNKNOWN answer in between (RPC outage seen by another caller): no dispatch',{timeout:20_000},async()=>{
+ const t=fixture();const done=slowOpen(t);
+ const p=t.ctx.tryClaim(unclaimed(t),{wasmRef:'catalog'},[],{},{hinted:true});await sleep(50);
+ t.w.down=true;assert.ok((await t.ctx.hostWalletDecision(dep,ref,false)).unknown);t.w.down=false;
+ done();await p;assert.deepEqual(t.s.writes,[]);
+});
+test('decision window: an OLD in-flight allow that returns after a newer refusal is read again; a fresh allow then stands, a second overlap is unknown',{timeout:20_000},async()=>{
+ // (a) overlap once: the re-read is a FRESH decision started after the refusal -> the claim goes out (fresh-allow recovery)
+ { const t=fixture();let release;t.w.holdNextRead=new Promise(r=>{release=r;});
+   const p=t.ctx.tryClaim(unclaimed(t),{wasmRef:'catalog'},[],{},{hinted:true});await sleep(50);   // its catalog read observed "allowed" and is held
+   t.w.catalog={...t.w.catalog,yanked:true};assert.ok((await t.ctx.hostWalletDecision(dep,ref,false)).refusal);
+   t.w.catalog={...t.w.catalog,yanked:false};release();
+   assert.equal(await p,undefined);assert.deepEqual(t.s.writes,['claim'],'claimed under the re-read, fresh allow');assert.ok(t.w.reads>=3,'the overlapped read was repeated'); }
+ // (b) the re-read overlaps again -> answered unknown: nothing claimed
+ { const t=fixture();let r1,r2;t.w.holdNextRead=new Promise(r=>{r1=r;});
+   const p=t.ctx.tryClaim(unclaimed(t),{wasmRef:'catalog'},[],{},{hinted:true});await sleep(50);
+   t.w.catalog={...t.w.catalog,yanked:true};await t.ctx.hostWalletDecision(dep,ref,false);t.w.catalog={...t.w.catalog,yanked:false};
+   t.w.holdNextRead=new Promise(r=>{r2=r;});r1();await sleep(50);   // the re-read is now in flight and held
+   t.w.catalog={...t.w.catalog,yanked:true};await t.ctx.hostWalletDecision(dep,ref,false);t.w.catalog={...t.w.catalog,yanked:false};r2();
+   assert.match(await p,/overlapped a refusal or an unavailable answer/);assert.deepEqual(t.s.writes,[]); }
+ // (c) control: a claim decided AFTER a refusal (fresh allow) is not blocked by that earlier refusal
+ { const t=fixture();t.w.catalog={...t.w.catalog,yanked:true};await t.ctx.hostWalletDecision(dep,ref,false);t.w.catalog={...t.w.catalog,yanked:false};
+   assert.equal(await t.ctx.tryClaim(unclaimed(t),{wasmRef:'catalog'},[],{},{hinted:true}),undefined);assert.deepEqual(t.s.writes,['claim']); }
+});
+test('decision window: a renewal permit is bound BEFORE the ledger read - a retire during that read is never rebased (both senders)',{timeout:20_000},async()=>{
+ for(const sponsored of [false,true]){
+  const f=fixture();if(sponsored)appFunded(f);const r=f.serve(f.rec({_leaseUntil:Math.floor(Date.now()/1000)+60}));
+  let release;const slow=new Promise(x=>{release=x;});const read=f.ctx.readLedgerContract;f.ctx.readLedgerContract=async(...a)=>{await slow;return read(...a);};
+  const pass=f.ctx.renewLeases();await sleep(30);   // permit taken, ledger read in flight
+  f.w.catalog={...f.w.catalog,yanked:true};f.ctx.readLedgerContract=read;await f.audit({leaseUntil:BigInt(r._leaseUntil)});   // retired
+  f.w.catalog={...f.w.catalog,yanked:false};r.status='running';   // even if the record read "running" again
+  release();await pass;
+  assert.deepEqual(f.s.writes,[],`sponsored=${sponsored}: no renewal for a record retired after its permit was taken`);
+ }
+});
+
+// ---- the other teardown paths: withdrawn first, slice only on a confirmed stop, each path's own LEASE rule kept --------
+test('teardown paths on a FAILED stop: owner stop, lost lease, eviction, abandoned claims, ledger move - routes/egress/permits withdrawn first, slice kept, lease rule unchanged',{timeout:30_000},async()=>{
+ const cases={
+  'owner-stop':async f=>f.audit({active:false}),
+  'lease-lost':async f=>{await f.audit({runner:'0x'+'99'.repeat(32),leaseUntil:BigInt(Math.floor(Date.now()/1000)+3600)});await f.audit({runner:'0x'+'99'.repeat(32),leaseUntil:BigInt(Math.floor(Date.now()/1000)+3600)});},
+  'evict':async f=>{f.s.resize=true;f.ctx.gateAppReference=async()=>({error:{status:403,msg:'not servable at the new size'}});await f.ctx.switchTenantVersion(f.ctx.deployments.get(dep),f.row({cpuMilli:200}));},
+  'abandon':async f=>f.ctx.abandonClaims('this enclave is unreachable'),
+  'ledger-move':async f=>{f.s.ledgerMoved=true;await f.ctx.ledgerMoveSweep();},
+ };
+ const releases={'owner-stop':['prove+release'],'lease-lost':[],'evict':['prove+release'],'abandon':['prove+release'],'ledger-move':[]};
+ const statuses={'owner-stop':'terminated','lease-lost':'expired','evict':'expired','abandon':'expired','ledger-move':'terminated'};
+ for(const [name,run] of Object.entries(cases)){
+  const f=fixture();const r=f.serve(f.rec());f.s.stopOk=false;let answer;f.s.deleteGate=new Promise(x=>{answer=x;});
+  const p=run(f);await sleep(40);
+  assert.equal(r.status,statuses[name],`${name}: withdrawn before the DELETE answers`);assert.ok(r._stopPending,`${name}: pending during the DELETE`);
+  assert.deepEqual(f.s.egressClosed,[dep],`${name}: egress closed`);assert.ok(r._leaseEpoch>=1);
+  answer();await p;
+  assert.ok(r._gpu,`${name}: slice kept on a failed stop`);assert.equal(f.s.events.filter(e=>e==='freeGpu').length,0);
+  assert.deepEqual(f.releases(),releases[name],`${name}: its own lease rule`);
+  assert.match(await f.ctx.tryClaim(f.row(),{wasmRef:'catalog'},[],{},{hinted:true,resume:true}),/not confirmed stopped/,`${name}: no resume/replacement`);
+  f.s.instances=[];f.ctx.settlePendingStops(f.s.instances);assert.equal(f.s.events.filter(e=>e==='freeGpu').length,1,`${name}: freed once, on confirmation`);
+ }
+});
+test('teardown path on a CONFIRMED stop frees the slice at once (owner stop control)',{timeout:20_000},async()=>{
+ const f=fixture();const r=f.serve(f.rec());await f.audit({active:false});
+ assert.deepEqual(f.s.events,['stop','freeGpu','prove+release']);assert.equal(r._stopPending,undefined);assert.equal(r._gpu,null);
+});
+test('restart and accounting: a pending stop survives loadState with its slice re-reserved, reconcilePools keeps it, confirmation frees it once',{timeout:20_000},async()=>{
+ const f=fixture();
+ const held={id:dep,status:'terminated',_onchain:true,_vmId:'vm-1',_gpu:{cpu:true,share:0.25},_stopPending:{since:'t0'},walletHeld:{why:'x',stopConfirmed:false}};
+ const gone={id:'0x'+'ee'.repeat(32),status:'terminated',_onchain:true,_gpu:{cpu:true,share:0.25}};   // a confirmed teardown's stale handle
+ f.s.stateJson=JSON.stringify({savedAt:Date.now(),deployments:[held,gone]});
+ f.ctx.loadState();
+ const rh=f.ctx.deployments.get(dep),rg=f.ctx.deployments.get(gone.id);
+ assert.ok(rh._gpu&&rh._stopPending,'the pending slice is restored');assert.equal(rg._gpu,null,'a stale handle on a confirmed teardown is dropped');
+ assert.equal(f.ctx.cpuPool.shareFree,0.75,'and re-reserved: 0.25 of the share ledger stays taken');
+ assert.deepEqual([...f.ctx.reconcilePools()],[],'the pool reconciler sees no drift: the pending slice is held, not leaked');
+ assert.ok(rh._gpu);assert.equal(f.ctx.cpuPool.shareFree,0.75);
+ f.ctx.settlePendingStops([{id:'vm-1',name:dep,status:'running'}]);assert.ok(rh._stopPending,'still listed: still pending');
+ f.ctx.settlePendingStops([]);assert.equal(f.ctx.cpuPool.shareFree,1,'freed exactly once');assert.equal(rh.walletHeld.stopConfirmed,true);
+ f.ctx.settlePendingStops([]);assert.equal(f.ctx.cpuPool.shareFree,1);
+});
+
 test('source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal',()=>{
  assert.equal(source.includes('hostWalletRefusal'),false);
  for(const s of ['sendLeaseTx("renew", [rec.id], { gate })','sendLeaseTx("claim", [rec.id, _enclaveId], { gate })',
-                 'sendLeaseTx("claim", [rec.id, _enclaveId], { gate: walletSendGate(rec, w.validUntil) })',
-                 'sendLeaseTx("claim", [d.id, _enclaveId], { gate: walletSendGate(null, wallet.validUntil, d.id) })'])
+                 'sendLeaseTx("claim", [rec.id, _enclaveId], { gate: walletSendGate(w) })',
+                 'sendLeaseTx("claim", [d.id, _enclaveId], { gate: walletSendGate(wallet) })'])
   assert.ok(source.includes(s),s);
  assert.equal((source.match(/sendLeaseTx\("(claim|renew)"/g)||[]).length,4,'no other claim/renew send');
  assert.equal((source.match(/hostWalletDecision\(/g)||[]).length,6,'definition + gate + renew + audit + held review + tryClaim');
+ for(const pin of ['if (TERMINAL_STATUSES.has(r.status) && !r._stopPending) { r._gpu = null; saveStateSoon(); continue; }',
+   'if (!(await stopContainer(rec))) return refuse("the running instance could not be verifiably stopped; the config change waits for it");',
+   'await tearDown(rec, "expired");   // claim sweep may re-adopt it if funded again (once its stop is confirmed)',
+   'const stopConfirmed = await tearDown(rec, "terminated");','status: "terminated", instanceStopConfirmed: stopConfirmed,',
+   'await settleStop(rec, true);   // the lease rule above is unchanged',
+   'onSigned: (s) => (_onLeaseSigned ? _onLeaseSigned(s) : undefined)'])
+  assert.ok(source.includes(pin),pin.slice(0,80));
+ assert.equal((source.match(/\n\s*try \{ await stopContainer\(rec\); \} catch \{\}\n\s*if \(rec\._gpu\) \{ releaseGpu/g)||[]).length,0,'no teardown frees a slice after an unchecked stop');
  for(const pin of ['async function stopContainer(rec) {\n  // every teardown and relaunch comes here first: lease permissions and established streams end NOW, before any await\n  revokeLeasePermits(rec); cutDeploymentStreams(rec.id);',
    'revokeLeasePermits(rec);   // a (re)launch starts a new serving life',
    'settlePendingStops(instances);   // unconfirmed stops',

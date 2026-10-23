@@ -604,8 +604,22 @@ let _hostWalletAdmission = null;
 // quorum, an expired snapshot, an unloadable policy, no registered identity); or neither: allowed, until validUntil (the
 // decision's own chain deadline, never extended here). Unknown is never an allow and never a refusal: nothing is claimed,
 // served or renewed on it, and nothing is released for it.
-async function hostWalletDecision(deploymentId,appRef,forPrivate=false) {
-  if(!HOST_WALLET_POLICY)return {refusal:null,unknown:null,validUntil:Infinity};
+//   Every answer carries its PERMIT (walletSendGate): the caller's record snapshot (leasePermit, taken before the caller's
+// first await) and the per-deployment count of refused/unknown answers as it stood when THIS decision started - bound
+// before the decision's own await, never at gate construction. An allow whose read overlapped a refused/unknown answer
+// for the same deployment (an older in-flight read returning after a newer withdrawal) is not trusted: it is read once
+// more, and a second overlap is answered as unknown. A decision started after a withdrawal is a fresh allow and stands.
+async function hostWalletDecision(deploymentId,appRef,forPrivate=false,permit=null) {
+  const key=String(deploymentId||'').toLowerCase();
+  if(!HOST_WALLET_POLICY)return {refusal:null,unknown:null,validUntil:Infinity,permit:{...(permit||{}),key,verdicts:walletVerdicts(key)}};
+  for(let attempt=0;;attempt++){
+    const p={...(permit||{}),key,verdicts:walletVerdicts(key)};
+    const r=await hostWalletDecisionOnce(deploymentId,appRef,forPrivate);
+    if(r.refusal||r.unknown||walletVerdicts(key)===p.verdicts)return {...r,permit:p};
+    if(attempt>=1)return {refusal:null,unknown:'host wallet decisions for it overlapped a refusal or an unavailable answer; asked again next pass',validUntil:0,permit:p};
+  }
+}
+async function hostWalletDecisionOnce(deploymentId,appRef,forPrivate) {
   try {
     if(!_enclaveId)throw new Error('registered host identity unavailable');
     if(!_hostWalletAdmission || _hostWalletAdmission.hostId!==_enclaveId)
@@ -623,29 +637,33 @@ async function hostWalletDecision(deploymentId,appRef,forPrivate=false) {
     return {refusal:null,unknown:m};
   }
 }
-// Per deployment: how many times a wallet decision has come back refused or unknown. A permission records the count it was
-// decided under; any later non-allow answer for the same id - from any caller - voids it (walletSendGate), so a claim
-// decided before a refusal never goes out even though no local record exists to revoke.
+// Per deployment: how many wallet answers came back refused or unknown, from any caller. A permit records the count its
+// decision STARTED under; any later non-allow answer for the same id voids it (walletSendGate), so a claim decided before
+// a refusal never goes out even though no local record exists to revoke.
 const _walletWithdrawn=new Map();
+const walletVerdicts=(key)=>_walletWithdrawn.get(String(key||'').toLowerCase())||0;
 function noteWalletWithdrawn(id){const k=String(id||'').toLowerCase();_walletWithdrawn.set(k,(_walletWithdrawn.get(k)||0)+1);}
-// A lease send's permission: the RECORD it was decided for (object identity: a replaced record never inherits it), that
-// record's lease epoch and status at the decision, and the decision's chain deadline. revokeLeasePermits() moves the
-// epoch, synchronously, before any await of whatever withdraws service: every stop (stopContainer), every (re)provision
-// (provisionTenant), a hold and a refusal. So a permission taken before a withdrawal never becomes valid again, not after
-// hold -> allow -> resume, nor after a refusal, an owner stop, a lapse or a restart. Asked when the operator queue reaches
-// the send (sendLeaseTx opts.gate) and, app-funded, again after the lease is signed and before any relay has it.
+// A lease send's permission on a RECORD: the record object itself (a replaced record never inherits it), its lease epoch and
+// its status, captured synchronously by the caller BEFORE its first await (renewLeases, auditClaims). revokeLeasePermits()
+// moves the epoch, synchronously, before any await of whatever withdraws service: every stop (stopContainer), every
+// (re)provision (provisionTenant), every teardown (withdrawService). So a permission taken before a withdrawal never becomes
+// valid again: not after hold -> allow -> resume, nor after a refusal, an owner stop, a lapse or a restart.
 function revokeLeasePermits(rec){
   if(rec)rec._leaseEpoch=(rec._leaseEpoch||0)+1;
 }
-function walletSendGate(rec,validUntil,id=rec?.id){
-  const epoch=rec?(rec._leaseEpoch||0):0,status=rec?.status,key=String(id||'').toLowerCase(),verdicts=_walletWithdrawn.get(key)||0;
+function leasePermit(rec){return {rec,epoch:rec._leaseEpoch||0,status:rec.status};}
+// The gate for one send, from one wallet decision (its permit + deadline). Asked when the operator queue reaches the send
+// (sendLeaseTx opts.gate) and, app-funded, again after the lease is signed and before any relay has it. It guarantees
+// nothing after that point: a signed transaction handed to the network (operator-paid) or to a relay cannot be recalled.
+function walletSendGate(decision){
+  const p=decision?.permit||{},validUntil=decision?.validUntil??0,rec=p.rec||null;
   return ()=>{
-    if((_walletWithdrawn.get(key)||0)!==verdicts)return 'a later host wallet decision for it was a refusal or unavailable';
+    if(walletVerdicts(p.key)!==(p.verdicts||0))return 'a later host wallet decision for it was a refusal or unavailable';
     if(rec){
       if(deployments.get(rec.id)!==rec)return 'the record it was decided for was replaced';
-      if((rec._leaseEpoch||0)!==epoch)return 'service was withdrawn here since it was decided';
+      if((rec._leaseEpoch||0)!==p.epoch)return 'service was withdrawn here since it was decided';
       if(rec.walletHeld)return 'the host wallet policy became unavailable (held here)';
-      if(rec.status!==status)return `the record changed since it was decided (${status} -> ${rec.status})`;
+      if(rec.status!==p.status)return `the record changed since it was decided (${p.status} -> ${rec.status})`;
     }
     return Date.now()>=validUntil?'the host wallet decision expired before the send':null;
   };
@@ -682,8 +700,20 @@ function settlePendingStops(instances){
 // bridges, the isolation splice - and egress admit only running/claimed records), established upgrade streams and egress
 // connections of it are cut, and its lease permissions are revoked. Physical shutdown is a separate, confirmed step.
 function withdrawService(rec,status,why){
-  revokeLeasePermits(rec);rec.status=status;rec.error=why;
+  revokeLeasePermits(rec);rec.status=status;if(why!==undefined)rec.error=why;
   cutDeploymentStreams(rec.id);try{egress?.closeDeployment(rec.id);}catch{}
+}
+// Every teardown that ends a record's service here (the reaper's lease-over and out-of-funds stops, owner stop, a lost lease,
+// a share-resize eviction, the ledger move, a publisher yank, abandoned claims, the admin and owner release/delete routes, a
+// wallet hold or refusal): service withdrawn first (withdrawService), the stop marked PENDING before the stop's await - so
+// no resume, claim or replacement of the id can start while its DELETE is outstanding - then stopped, and the slice freed
+// only on a confirmed stop (settleStop). -> true only when the instance is confirmed gone. What each path does with its
+// LEASE (release, keep, let lapse) stays that path's own decision; this is only the local service and its slice.
+async function tearDown(rec,status,why){
+  withdrawService(rec,status,why);
+  rec._stopPending=rec._stopPending||{since:new Date().toISOString()};
+  let stopped=false;try{stopped=await stopContainer(rec);}catch{}
+  return settleStop(rec,stopped);
 }
 // UNKNOWN host wallet policy on a deployment this host leases: stop SERVING it here and give nothing back. Linux has no
 // network-agent hold acknowledgement (the Windows channel), so service is withdrawn locally (withdrawService) and the
@@ -696,10 +726,8 @@ async function walletHoldLocal(rec,unknown){
   const why=`host wallet policy unavailable (${unknown}): not served here; the lease is kept (not renewed or released) until the policy is established`;
   const first=!rec.walletHeld;
   rec.walletHeld={since:rec.walletHeld?.since||new Date().toISOString(),why:unknown,stopConfirmed:false};   // FIRST: an in-flight send's gate sees it
-  withdrawService(rec,"terminated",why);
   if(first)console.warn(`[claim] ${rec.id} ${why}`);
-  let stopped=false;try{stopped=await stopContainer(rec);}catch{}
-  rec.walletHeld.stopConfirmed=await settleStop(rec,stopped);
+  rec.walletHeld.stopConfirmed=await tearDown(rec,"terminated",why);
   if(!rec.walletHeld.stopConfirmed)rec.error=why+"; its instance is NOT confirmed stopped yet (its slice stays reserved; retried each pass)";
   saveStateSoon();
 }
@@ -2245,11 +2273,8 @@ async function retireForPlacement(rec, why) {
   // Service withdrawn first and synchronously (routes, streams, egress, lease permissions: withdrawService), then stopped
   // before releasing: two hosts must never serve this pin concurrently. The slice is freed only on a CONFIRMED stop
   // (settleStop); an unconfirmed one keeps it reserved until the reconciler confirms the instance gone.
-  withdrawService(rec, "terminated", why);
-  let stopped = false;
-  try { stopped = await stopContainer(rec); } catch {}
+  await tearDown(rec, "terminated", why);
   await proveAndRelease(rec, why);
-  await settleStop(rec, stopped);
   rec.status = "terminated";
   rec.error = why;
   saveStateSoon();
@@ -4104,7 +4129,8 @@ function reconcilePools() {
   for (const r of deployments.values()) {
     const h = r._gpu;
     if (!h) continue;
-    if (TERMINAL_STATUSES.has(r.status)) { r._gpu = null; saveStateSoon(); continue; }
+    // a terminal record whose instance is not confirmed stopped (_stopPending, settleStop) still HOLDS its slice: not drift
+    if (TERMINAL_STATUSES.has(r.status) && !r._stopPending) { r._gpu = null; saveStateSoon(); continue; }
     if (h.cpu) { held.cpu += h.share; continue; }
     held.cpu += h.cpuShare || 0;
     for (const slice of h.cards || [h]) {
@@ -7963,9 +7989,7 @@ function startBillingTicker() {
           // The checkpoint clamps at leaseUntil, so this can only ever claim
           // time the tenant actually paid for.
           await proveFinalPeriod(rec, "lease expired").catch(() => {});
-          try { await stopContainer(rec); } catch {}
-          if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
-          rec.status = "expired";           // claim sweep may re-adopt it if funded again
+          await tearDown(rec, "expired");   // claim sweep may re-adopt it if funded again (once its stop is confirmed)
         }
         continue;
       }
@@ -7986,9 +8010,7 @@ function startBillingTicker() {
       saveStateSoon();
       if (rec.remainingMs < -GRACE_SEC * 1000) {
         console.log(`[reaper] ${rec.id} out of funded time -> teardown`);
-        try { await stopContainer(rec); } catch {}
-        if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
-        rec.status = "expired";
+        await tearDown(rec, "expired");
       }
     }
     if (_stateDirty) saveStateNow();
@@ -8066,10 +8088,7 @@ app.post("/v1/admin/deployments/:id/release", async (req, res) => {
     return fail(res, 409, "not_releasable", `Deployment is ${rec.status}.`);
   const busy = releaseBlockedReason(rec);
   if (busy) return fail(res, 409, "release_blocked", `Not released: ${busy}. Retry once it settles.`);
-  try { await stopContainer(rec); } catch {}
-  if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
-  rec.status = "expired";
-  rec.error = "released by the operator (fleet consolidation); it re-queues and another enclave picks it up";
+  await tearDown(rec, "expired", "released by the operator (fleet consolidation); it re-queues and another enclave picks it up");
   _evacuated.set(rec.id, Date.now() + EVAC_HOLDOFF_MS);
   proveAndRelease(rec, "operator release (consolidation)", { holdoffMs: EVAC_HOLDOFF_MS }).catch(() => {});
   saveStateSoon();
@@ -8142,10 +8161,8 @@ app.delete("/v1/deployments/:id", ownerAuth("api.restart"), async (req, res) => 
   // a restart or launch in flight would bring the app back up after this stop, serving with the lease handed back
   const busy = rec._onchain ? releaseBlockedReason(rec) : null;
   if (busy) return fail(res, 409, "release_blocked", `Nothing was stopped: ${busy}. Retry once it settles.`);
-  try { await stopContainer(rec); } catch {}
-  if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
-  // stopContainer was awaited: the instance is gone, so this is the final state
-  rec.status = "terminated";
+  // the final local state; the instance is gone only when the stop is CONFIRMED (stopConfirmed), never on this status alone
+  const stopConfirmed = await tearDown(rec, "terminated");
   saveStateSoon();
   if (rec._onchain) {
     // hand the lease back (refunds the unused tail to the on-chain balance).
@@ -8165,7 +8182,7 @@ app.delete("/v1/deployments/:id", ownerAuth("api.restart"), async (req, res) => 
     const evacuate = /^(1|true|yes)$/i.test(String(req.query.evacuate || ""));
     if (evacuate) _evacuated.set(rec.id, Date.now() + MOVE_HOLDOFF_MS);
     proveAndRelease(rec, evacuate ? "owner move" : "owner delete", { holdoffMs: evacuate ? MOVE_HOLDOFF_MS : 0 }).catch(() => {});
-    return res.json({ id: rec.id, status: "terminated",
+    return res.json({ id: rec.id, status: "terminated", instanceStopConfirmed: stopConfirmed,
                ranSeconds: Math.round((rec.consumedMs || 0) / 1000),
                ...(evacuate ? { standDownSec: Math.round(MOVE_HOLDOFF_MS / 1000) } : {}),
                note: "On-chain deployment: lease released (unused lease time refunded to its balance). It stays "
@@ -8173,7 +8190,7 @@ app.delete("/v1/deployments/:id", ownerAuth("api.restart"), async (req, res) => 
                    + "to stop it for good."
                    + (evacuate ? ` This enclave stands down from re-claiming it for ${Math.round(MOVE_HOLDOFF_MS / 1000)}s so another can take it; if none does, it becomes claimable here again.` : "") });
   }
-  res.json({ id: rec.id, status: "terminated",
+  res.json({ id: rec.id, status: "terminated", instanceStopConfirmed: stopConfirmed,
              paidUsdc: ((rec.paidUsdc || 0) / 1e6).toFixed(2),
              ranSeconds: Math.round((rec.consumedMs || 0) / 1000),
              note: "Pay-per-deploy: no balance is held, so unused funded time is forfeit on early stop." });
@@ -8223,7 +8240,7 @@ app.post("/v1/deployments/:id/release", ownerAuth("api.restart"), async (req, re
     return res.status(502).json({ code: "stop_unconfirmed", stopped: false, leaseHeld: true,
       message: "The app's stop was not confirmed (the instance reconciler takes over); the lease was NOT released." });
   }
-  if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+  await settleStop(rec, true);   // the lease rule above is unchanged; the slice is freed only once the listing agrees
   rec.status = "expired"; rec.error = "stopped for an owner move; handing the lease back";
   saveStateNow();
   await proveFinalPeriod(rec, "owner move");
@@ -9727,9 +9744,7 @@ async function reachTick() {
 async function abandonClaims(why) {
   for (const rec of [...deployments.values()]) {
     if (!rec._onchain || !["running", "claimed"].includes(rec.status)) continue;
-    try { await stopContainer(rec); } catch {}
-    if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
-    rec.status = "expired"; rec.error = why;      // the owner's evidence (console polls the record)
+    await tearDown(rec, "expired", why);          // the owner's evidence (console polls the record)
     proveAndRelease(rec, why).catch(() => {});
   }
   saveStateSoon();
@@ -10663,15 +10678,17 @@ async function renewLeases() {
     if ((rec._renewBackoffUntil || 0) > Date.now()) continue;   // a reverting tx must not re-fire every pass
     const lapsed = rec._leaseUntil * 1000 <= Date.now();
     if (leaseGasActive() && !lapsed && !(await leaseGasRenewDue(rec))) continue;   // a sponsored renew waits for the app's window
+    if (rec.status !== "running" || rec._renewing) continue;   // re-checked after that await
+    const permit = leasePermit(rec);   // bound NOW, before the ledger read and the wallet decision (walletSendGate)
     rec._renewing = true;
     try {
       const fresh = await readLedgerContract("get", [rec.id]);
       const pinRefusal = placementRefusal(fresh.configCid, _enclaveId);
       if (pinRefusal) { await retireForPlacement(rec, pinRefusal); continue; }
-      const w = await hostWalletDecision(rec.id,fresh.appRef,fresh.isPublic===false);
+      const w = await hostWalletDecision(rec.id,fresh.appRef,fresh.isPublic===false,permit);
       if (w.refusal) { await retireForPlacement(rec,w.refusal); continue; }
       if (w.unknown) { await walletHoldLocal(rec,w.unknown); continue; }   // not renewed, not released: held
-      const gate = walletSendGate(rec, w.validUntil);
+      const gate = walletSendGate(w);
       const sent = lapsed ? sendLeaseTx("claim", [rec.id, _enclaveId], { gate }) : sendLeaseTx("renew", [rec.id], { gate });
       await sent;
       const rcpt = await sent.receipt;
@@ -10746,10 +10763,7 @@ async function switchTenantVersion(rec, d) {
   const resize = shareResizeVerdict(rec.status, rec._shares, d.gpuMilli, d.cpuMilli) === "resize";
   const evict = async (why) => {
     console.warn(`[claim] ${rec.id} resized shares cannot be served here: ${why}; releasing so a fitting enclave claims it`);
-    try { await stopContainer(rec); } catch {}
-    if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
-    rec.status = "expired";          // CLAIM_TERMINAL: any enclave (this one included) may re-adopt at the new size
-    rec.error = "share resize: " + why;
+    await tearDown(rec, "expired", "share resize: " + why);   // CLAIM_TERMINAL: any enclave may re-adopt at the new size
     delete rec.versionChange;
     proveAndRelease(rec, "share resize: " + why).catch(() => {});
     saveStateSoon();
@@ -10919,7 +10933,9 @@ async function applyEnvelopeEdit(rec, d, verdict) {
   }
   const f = overrideConfigFields(o, g);
   console.log(`[claim] ${rec.id} owner changed the deployment config on-chain; restarting in place`);
-  try { await stopContainer(rec); } catch {}
+  // an unconfirmed stop must DEFER the relaunch (the version switch's rule): provisioning over a possibly still-live
+  // instance doubles up on its slice; the next audit pass retries
+  if (!(await stopContainer(rec))) return refuse("the running instance could not be verifiably stopped; the config change waits for it");
   rec.config = f.config;
   rec.appConfigCid = f.appConfigCid;
   if (f.configOverride) rec.configOverride = true; else delete rec.configOverride;
@@ -10962,10 +10978,7 @@ async function ledgerMoveSweep() {
       if (verdict === "stamp") { rec._ledger = DEPLOYMENTS_ADDRESS; saveStateSoon(); continue; }
       if (verdict !== "teardown") continue;
       console.log(`[claim] ${rec.id}: its ledger ${rec._ledger} was retired (book says ${DEPLOYMENTS_ADDRESS}) -> teardown`);
-      try { await stopContainer(rec); } catch {}
-      if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
-      rec.status = "terminated";
-      rec.error = `deployments ledger moved to ${DEPLOYMENTS_ADDRESS}; the lease on ${rec._ledger} is void`;
+      await tearDown(rec, "terminated", `deployments ledger moved to ${DEPLOYMENTS_ADDRESS}; the lease on ${rec._ledger} is void`);
       saveStateSoon();
     }
   } finally { _ledgerMoveBusy = false; }
@@ -11012,11 +11025,8 @@ async function yankSweep() {
     for (const rec of live) {
       if (!plan.has(rec.id)) continue;
       console.log(`[yank] ${rec.id}: its version was yanked by the publisher -> teardown + release`);
-      try { await stopContainer(rec); } catch {}
-      if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
-      rec.status = "terminated";
-      rec.error = "the app version this deployment runs was yanked by its publisher; "
-                + "switch the deployment to another version (upgrade) to revive it";
+      await tearDown(rec, "terminated", "the app version this deployment runs was yanked by its publisher; "
+                + "switch the deployment to another version (upgrade) to revive it");
       proveAndRelease(rec, "version yanked by publisher").catch(() => {});
       saveStateSoon();
     }
@@ -11044,7 +11054,7 @@ async function auditClaims(ledgerById) {
     // AND the sweep (per-record re-reads were what blew the RPC rate budget)
     const d = ledgerById.get(rec.id.toLowerCase());
     if (!d) continue;                         // not in the page (RPC anomaly): keep serving, the lease is prepaid
-    const w = await hostWalletDecision(rec.id,d.appRef,d.isPublic===false);
+    const w = await hostWalletDecision(rec.id,d.appRef,d.isPublic===false,leasePermit(rec));   // permit bound before its await
     if (w.refusal) { await retireForPlacement(rec,w.refusal); continue; }
     if (w.unknown) { await walletHoldLocal(rec,w.unknown); continue; }   // stopped here, lease kept: never released for it
     const pinRefusal = placementRefusal(d.configCid, _enclaveId);
@@ -11077,9 +11087,7 @@ async function auditClaims(ledgerById) {
               && Number(d.leaseUntil) * 1000 > Date.now();
     if (!d.active) {
       console.log(`[claim] ${rec.id} stopped by owner on-chain -> teardown + release`);
-      try { await stopContainer(rec); } catch {}
-      if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
-      rec.status = "terminated";
+      await tearDown(rec, "terminated");
       if (mine) proveAndRelease(rec, "owner setActive(false)").catch(() => {});
       saveStateSoon();
     } else if (!mine) {
@@ -11096,7 +11104,7 @@ async function auditClaims(ledgerById) {
       // helps nobody and burns the user's lease.
       if (opMine && !leaseLive && rec.status === "running") {
         try {
-          const sent = sendLeaseTx("claim", [rec.id, _enclaveId], { gate: walletSendGate(rec, w.validUntil) });
+          const sent = sendLeaseTx("claim", [rec.id, _enclaveId], { gate: walletSendGate(w) });
           await sent;
           const rcpt = await sent.receipt;
           const until = rcpt.status === "success" ? leaseFromReceipt(rcpt, "Claimed", rec.id) : null;
@@ -11122,9 +11130,7 @@ async function auditClaims(ledgerById) {
         continue;
       }
       console.log(`[claim] ${rec.id} lease lost -> teardown (chain says runner=${d.runnerOperator})`);
-      try { await stopContainer(rec); } catch {}
-      if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
-      rec.status = "expired";                 // sweep may legitimately re-claim it later
+      await tearDown(rec, "expired");         // sweep may legitimately re-claim it later (once its stop is confirmed)
       saveStateSoon();
     } else if (rec.status === "claimed") {    // crashed after claim, before provision
       rec._loseStrikes = 0;
@@ -12061,7 +12067,7 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
   if (releaseHold(d.id)) return releaseHold(d.id);
   let rcpt;
   try {
-    const sent = sendLeaseTx("claim", [d.id, _enclaveId], { gate: walletSendGate(null, wallet.validUntil, d.id) });
+    const sent = sendLeaseTx("claim", [d.id, _enclaveId], { gate: walletSendGate(wallet) });
     await sent;
     rcpt = await sent.receipt;
   } catch (e) { console.log(`[claim] ${d.id} claim tx failed (${e.shortMessage || e.message})`); return; }
