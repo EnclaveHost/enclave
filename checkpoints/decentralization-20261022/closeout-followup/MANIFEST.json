@@ -1,7 +1,14 @@
 {
-  "capturedAt": "2026-10-23T01:50:12.885539+00:00",
+  "capturedAt": "2026-10-23T02:13:57.514321+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
+    {
+      "label": "ROOT review receipt: 52 consecutive parent-linked unsafe heads (52965055-52965106) from listener f3159ea; unsafe tier, no finality, no fresh state witness availability or redundancy proof",
+      "source": "outputs/decentralization-audit/base-direct-gossip-20261023.json",
+      "stored": "files/outputs/decentralization-audit/base-direct-gossip-20261023.json",
+      "sha256": "b32958fc0f6d8ba072e4599526ad5c409b49dd97267ffcf0fa87bfab051cc443",
+      "bytes": 634
+    },
     {
       "label": "ROOT public receipt: TLS recovered through the existing retry; no production mutation; one recovery is not durable availability",
       "source": "outputs/decentralization-audit/enclavedns-tls-20261023.json",
@@ -65,11 +72,18 @@
       "bytes": 3074
     },
     {
-      "label": "ROOT receipt (01:44:57Z): corrected route script, usable: 746 tail lines since 01:19:00Z (start covered), 0 egress OFF / 0 wallet withheld up to 01:44:49Z, 3 chain-quorum-unavailable lines. Tail-limited; zero matches alone is never evidence of stability",
+      "label": "ROOT receipt (updated 01:55:06Z, was 01:44:57Z): corrected route script, usable: 957 tail lines since 01:19:00Z (start covered), 0 egress OFF / 0 wallet withheld up to the 01:54:54Z log write, 3 chain-quorum-unavailable lines. Tail-limited; zero matches alone is never evidence of stability",
       "source": "outputs/decentralization-audit/windows-route-stability-20261023.json",
       "stored": "files/outputs/decentralization-audit/windows-route-stability-20261023.json",
-      "sha256": "6ffd478e5d384da2db054f4d85f0fd07038d9f8c63c3443b131ea4121a88fdba",
+      "sha256": "6b528138410796fb301db3036a0f079dc093a3a5efc694a8196c8b8d30c6f3a8",
       "bytes": 734
+    },
+    {
+      "label": "ROOT review receipt: the 20 composed files are blob-identical to tested a6fb7aab, TLS pins kept; not a production release; hostServices/challengeReplica closure still open",
+      "source": "outputs/decentralization-audit/windows-source-composition-root-review-20261023.json",
+      "stored": "files/outputs/decentralization-audit/windows-source-composition-root-review-20261023.json",
+      "sha256": "ee91441f058b9e2c7d13740bf477ae4c59f1c02e68992f1408bf82a8183fd83a",
+      "bytes": 2223
     },
     {
       "source": "work/resume-after-checkpoint-20261022/adapter-activation-review/RESULT.md",
@@ -4270,6 +4284,223 @@
       "bytes": 1589
     },
     {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/INVENTORY.json",
+      "stored": "files/rpc-base-evm-export/INVENTORY.json",
+      "sha256": "47e09542446de3cb5e1a2e6814779cfca0ef82eaa3b71c5fb073cc8dc296306e",
+      "bytes": 38930
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/REBUILD.md",
+      "stored": "files/rpc-base-evm-export/REBUILD.md",
+      "sha256": "bdd204ca3856856930e3ab3298f78ba196ded120a286c8a96743d9717f54b640",
+      "bytes": 4564
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/REPRODUCE-CHECK.txt",
+      "stored": "files/rpc-base-evm-export/REPRODUCE-CHECK.txt",
+      "sha256": "52127d2f4d8e09aba37afb3c653c94ab96013d9a59ea9a5f742bdb2082acf3db",
+      "bytes": 720
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/TEST-EVIDENCE.txt",
+      "stored": "files/rpc-base-evm-export/TEST-EVIDENCE.txt",
+      "sha256": "2a9b8b8bcbbb63aa8c5b57299235e4666d46b663e6c20151125c1e006a944ab0",
+      "bytes": 37045
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/network/op-head-relay.mjs",
+      "stored": "files/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/network/op-head-relay.mjs",
+      "sha256": "ed71c0695230c9400d759e792ae44da3a8fc27cf065abe9dddd9bec09411fe27",
+      "bytes": 13783
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/network/witness-gateway.mjs",
+      "stored": "files/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/network/witness-gateway.mjs",
+      "sha256": "d1944b1f1e6f4aaf1e914309a9f2c68d05be9f5d93141f2a8b7d400e2c1c24c6",
+      "bytes": 9215
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/test/fixtures/op-commitment.mjs",
+      "stored": "files/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/test/fixtures/op-commitment.mjs",
+      "sha256": "13263acfb371966888b11158fefb80a82c1d0d1b739bf8203eed0a5d2b1d98b3",
+      "bytes": 3239
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/test/helios-base-head.e2e.test.mjs",
+      "stored": "files/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/test/helios-base-head.e2e.test.mjs",
+      "sha256": "3594e1bb52f6be22f93f0be9c79f5fb46f0f50ff368902bb2e00f55aab59e162",
+      "bytes": 6227
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/test/helios-base-replay.e2e.test.mjs",
+      "stored": "files/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/test/helios-base-replay.e2e.test.mjs",
+      "sha256": "a8d9c3a66b58a33ca47c58c8f61718267ba9f84ff6ce90fc73712605d2375a13",
+      "bytes": 7565
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/test/helios-witness.e2e.test.mjs",
+      "stored": "files/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/test/helios-witness.e2e.test.mjs",
+      "sha256": "e9b716a56403091f1e5f8b5da2c6e765414970466dee04d026ef8cd584738363",
+      "bytes": 17064
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/test/op-head-relay.test.mjs",
+      "stored": "files/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/test/op-head-relay.test.mjs",
+      "sha256": "33706d34b467838f6fe90ab3853ec2a0651c38554614cf6134b70d8a50e042c0",
+      "bytes": 8704
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/test/witness-gateway.test.mjs",
+      "stored": "files/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/files/test/witness-gateway.test.mjs",
+      "sha256": "ab1168def01c2036dfb5256452f44173fe39f36bb8db17d0ff0eb7c1d863bf9e",
+      "bytes": 7022
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/patches/0001-Feed-a-pinned-Helios-verifier-a-signed-OP-head-and-u.patch",
+      "stored": "files/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/patches/0001-Feed-a-pinned-Helios-verifier-a-signed-OP-head-and-u.patch",
+      "sha256": "f653807ef966d2b49ef3903bf2bc9b1832dd683669b784f44bc2d673a1dd82a6",
+      "bytes": 59974
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/patches/0002-Keep-the-e2e-setup-assertion-message-serializable.patch",
+      "stored": "files/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/patches/0002-Keep-the-e2e-setup-assertion-message-serializable.patch",
+      "sha256": "c063197bd3a293a41d3da9a1cf8c9277fb6c2cbcf46202ae65cacbdce5bf6c73",
+      "bytes": 1256
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/patches/0003-Replay-real-Base-calls-through-the-verifier-s-Base-E.patch",
+      "stored": "files/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/patches/0003-Replay-real-Base-calls-through-the-verifier-s-Base-E.patch",
+      "sha256": "bf94c1c1bfc74e6762648831bc56a683dddd84b4ec2fe19f68c7ce4fa1c82221",
+      "bytes": 17992
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/patches/0004-Test-the-head-path-with-real-Base-gossip-objects-and.patch",
+      "stored": "files/rpc-base-evm-export/enclave-rpc-priority-9fdc1418c/patches/0004-Test-the-head-path-with-real-Base-gossip-objects-and.patch",
+      "sha256": "b18559adfc3f3d60243c2ecec59e92daac210ee4cdadd10fc9b9f5bc62b8cc73",
+      "bytes": 7239
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/Cargo.lock",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/Cargo.lock",
+      "sha256": "28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4",
+      "bytes": 268320
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/common/src/fork_schedule.rs",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/common/src/fork_schedule.rs",
+      "sha256": "8e8d8de11b2a834e2ab60863b94eadf970a3c4e90571ee7c9d79aa855be0ebb9",
+      "bytes": 4546
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/Cargo.toml",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/Cargo.toml",
+      "sha256": "7eba2ca28c18d1320d48fd8d83d78218eeef89a52d9447aabcfe7fa7f1822a2a",
+      "bytes": 2670
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/bin/server.rs",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/bin/server.rs",
+      "sha256": "c541640093916edca619d918ae30d04f6c7ab62c6104bf9bb17e915407440106",
+      "bytes": 2207
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/config.rs",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/config.rs",
+      "sha256": "c96bf5ae4da4fd790cd1ac3d9d6214274385d559e996daabfa88216cd23876d6",
+      "bytes": 10811
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/consensus.rs",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/consensus.rs",
+      "sha256": "68a75ca42187a17007f5b7d8047126abb62467bca8cdace6f2f8677da0f22ee0",
+      "bytes": 17440
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/evm/base_backend.rs",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/evm/base_backend.rs",
+      "sha256": "9997fc6ce5500f52d13b5de158ca3c758a1ce34c0f72559eeb7b8327fab611aa",
+      "bytes": 15299
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/evm.rs",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/evm.rs",
+      "sha256": "0bea7e43d983c8343caae1bdd9411f55a6732ecccea3d78b71c80b84e8656926",
+      "bytes": 11264
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/server/mod.rs",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/server/mod.rs",
+      "sha256": "5377df0dfaa83301e7f88f1320f0f7ac5731463363067fffa57eaf139fcc52a2",
+      "bytes": 3302
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/server/net/block_handler.rs",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/server/net/block_handler.rs",
+      "sha256": "5b13f319fd4a14a41991c19c6f94505171f53c4d00d0ecc905a5fcc3f72597e6",
+      "bytes": 1750
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/server/objects.rs",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/files/opstack/src/server/objects.rs",
+      "sha256": "21dbfaa8e51a9664d72c8e49d14ad05fa2933321022c4258e076491d5fbfef90",
+      "bytes": 5337
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/patches/0001-opstack-v4-blocks-topic-refuse-undecodable-txs-refus.patch",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/patches/0001-opstack-v4-blocks-topic-refuse-undecodable-txs-refus.patch",
+      "sha256": "113bdfe9e715284ffb28f6b4502de47a3ac32916094a2ebad1e3312ac7690686",
+      "bytes": 8781
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/patches/0002-opstack-execute-Base-chains-with-the-maintained-Base.patch",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/patches/0002-opstack-execute-Base-chains-with-the-maintained-Base.patch",
+      "sha256": "b708072995f890c01d4ad788c037ad30d65a70c7746620f0cfe1603806b44e92",
+      "bytes": 66988
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/patches/0003-opstack-allow-Base-execution-through-Cobalt-refuse-f.patch",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/patches/0003-opstack-allow-Base-execution-through-Cobalt-refuse-f.patch",
+      "sha256": "3b9db6dcfefa1637ba9f179ffdb124ef2ce404790dd5a12c29a3e416ccc6e49b",
+      "bytes": 3653
+    },
+    {
+      "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
+      "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/patches/0004-opstack-server-serve-heads-from-a-verified-directory.patch",
+      "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/patches/0004-opstack-server-serve-heads-from-a-verified-directory.patch",
+      "sha256": "b45e01d8f8f15478798f7a5329f2a33a6f1e49ab75195f0e5ab6760b27a0b847",
+      "bytes": 10512
+    },
+    {
       "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
       "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/INITIAL.md",
       "stored": "files/rpc-peer-audit/INITIAL.md",
@@ -4450,6 +4681,587 @@
       "stored": "files/rpc-peer-audit/head-listener/upstream/PROVENANCE.json",
       "sha256": "f802da9444bef0db160e5ed52ddae40444de23d1dbd94a13d62f5c32dac5cc36",
       "bytes": 924
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/RESULT-BASE-EVM.md",
+      "stored": "files/rpc-priority/RESULT-BASE-EVM.md",
+      "sha256": "6215a4b69abe82060d4f73ed0f427cce5c8dadb647ff509c3ba9d62fe1dae633",
+      "bytes": 9711
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/RESULT.md",
+      "stored": "files/rpc-priority/RESULT.md",
+      "sha256": "08357eff5cf733dc8702677e075d89d7063d31b26158c18efc7129b10ffeb3b4",
+      "bytes": 13284
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/ROOT-RESEARCH.json",
+      "stored": "files/rpc-priority/ROOT-RESEARCH.json",
+      "sha256": "61f3065746aea8f4a8ca7892cf29eec340846181393917f3b317adb642769f83",
+      "bytes": 1946
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/WITNESS-INITIAL.md",
+      "stored": "files/rpc-priority/WITNESS-INITIAL.md",
+      "sha256": "c8578fc5271646f30dc458d77534c7893f8c5a9b4ecb8802d3ddf7fbfc18432a",
+      "bytes": 13226
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixture-tools/capture-live.mjs",
+      "stored": "files/rpc-priority/fixture-tools/capture-live.mjs",
+      "sha256": "fcdcdea66238d22b3889c4a1f4e11238be54299cd14d2670ab49ae15971ba21a",
+      "bytes": 4518
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixture-tools/record-base-calls.mjs",
+      "stored": "files/rpc-priority/fixture-tools/record-base-calls.mjs",
+      "sha256": "40122ffedbb564970b18746197145fc1202eb6bdcc4aeafa23a5eca56b005474",
+      "bytes": 7288
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixture-tools/txtypes.mjs",
+      "stored": "files/rpc-priority/fixture-tools/txtypes.mjs",
+      "sha256": "6049d73815060be635298ff4a75c9bfc05e96edb60b0f15678fd34bd0f2465f7",
+      "bytes": 1638
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/022d932948d665c8cbf67e9097b31c141c44753d9b6273e933ba47a53373f5ed.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/022d932948d665c8cbf67e9097b31c141c44753d9b6273e933ba47a53373f5ed.json",
+      "sha256": "5f10e2e1a8f7b4bf642f0adca79ec0fba420cc0df941497b0aaa0aeab1a100bf",
+      "bytes": 9809
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/02f6e66f3d135952941efd44e07ec82a8b1dae0e8a60b8ecdf2111d8a7885b2e.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/02f6e66f3d135952941efd44e07ec82a8b1dae0e8a60b8ecdf2111d8a7885b2e.json",
+      "sha256": "f411e58a60d1e1aa7c1d59b200e1e536f74b013a05a4be7d3831cf254e563cc8",
+      "bytes": 8286
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/0b75364d45fef1addd42e389bea1866a69892b6e9b2b10c2a665fd70521943a1.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/0b75364d45fef1addd42e389bea1866a69892b6e9b2b10c2a665fd70521943a1.json",
+      "sha256": "4b6bfbe707bfbd45e963d93c9318afdae31b7d57823b5fac5afde0b3cc64cee4",
+      "bytes": 9795
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/0cf9f9b92d9df367cb92d64174227d8a0f6b3d5c73072a2295ee5d5e4baf00b1.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/0cf9f9b92d9df367cb92d64174227d8a0f6b3d5c73072a2295ee5d5e4baf00b1.json",
+      "sha256": "22f2a0aea31e736677d21b7d35264d5069b2d41b7766a9d18b8ee1828dddeff7",
+      "bytes": 8222
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/10f7effc27250b0b2ec28e5a0efa2fd5c7148113678a2c7952912c5820e99695.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/10f7effc27250b0b2ec28e5a0efa2fd5c7148113678a2c7952912c5820e99695.json",
+      "sha256": "b2926b26deea29e653f1201ead1ce62c111ae108baf7d13acbedbf63ee3e251a",
+      "bytes": 9510
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/13ea31f2c8933309e377a68dde4bcdfd4845df1852b3b44f0c7d0207aecb310e.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/13ea31f2c8933309e377a68dde4bcdfd4845df1852b3b44f0c7d0207aecb310e.json",
+      "sha256": "a07c1d48cf5a9aae706463324db2b561339a9f35645e1cc6091492012411ecab",
+      "bytes": 8381
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/1635905708cb87a208e26f3eda32b889b0d0f525d06a71257a46488880b0d1a7.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/1635905708cb87a208e26f3eda32b889b0d0f525d06a71257a46488880b0d1a7.json",
+      "sha256": "9888b702be4670bc81a14c86fcadd90489c9d8d50d3ecc866c53d03b6dc2b0b9",
+      "bytes": 9560
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/1937137bed0301fcefa11da8bffbfa2c2f16b6f3e730c718ca07b5ee239f3948.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/1937137bed0301fcefa11da8bffbfa2c2f16b6f3e730c718ca07b5ee239f3948.json",
+      "sha256": "343dd86142bd66b6a5b289ea037e0b20b04a6078447625a9afe66fb415f75b1f",
+      "bytes": 9510
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/200c28aa2c710e1dcb18241e65d793723dc0b50d5e0c467b177088f67d78029b.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/200c28aa2c710e1dcb18241e65d793723dc0b50d5e0c467b177088f67d78029b.json",
+      "sha256": "b5d140bf51be9a1cdac54b12f90480f74b909ebc1d4312b3c15252df51b2e241",
+      "bytes": 4309
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/2e7b588ebc33d8435074ea6f30b4c3edfa417ee81db486c1bd784e459e1bd733.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/2e7b588ebc33d8435074ea6f30b4c3edfa417ee81db486c1bd784e459e1bd733.json",
+      "sha256": "e9579fc0cd2da1bb0aac0221913a8d154b28a1c09c3a4c494798b64438703443",
+      "bytes": 8179
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/4e6e84dfb8dc86d60cc741e92ad768e50cc89903474705745644b6346c31fdba.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/4e6e84dfb8dc86d60cc741e92ad768e50cc89903474705745644b6346c31fdba.json",
+      "sha256": "8059fc860481d72898f79a87793ed4695d57ad1153f9d9b1dbbddec364b7d33c",
+      "bytes": 9964
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/57a48de99a3b6f55239ae41ee829251e03c26e634c0d72d07e2d0636be93dfdf.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/57a48de99a3b6f55239ae41ee829251e03c26e634c0d72d07e2d0636be93dfdf.json",
+      "sha256": "4fe84f84b344bdd8780ce44210ae53f30b02db7bf951e2ba6f15e0b7c57f2883",
+      "bytes": 9664
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/593c778930517969558640a624aab31b0939a9af3fd2785c2b2f8eac6afd5f76.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/593c778930517969558640a624aab31b0939a9af3fd2785c2b2f8eac6afd5f76.json",
+      "sha256": "5dc3d93a7168d3f48f1b2b7cea13ea6627c74fdd150373fa4e02e59258cfc6ad",
+      "bytes": 9272
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/5b12be1dc8d62cb34c8a775b04ae92465d9205644528436c4de15775952a38f3.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/5b12be1dc8d62cb34c8a775b04ae92465d9205644528436c4de15775952a38f3.json",
+      "sha256": "356bcf8fb00d7aa74fdcefb19fe70d14da1389b344731912e61e7f8f54b87dea",
+      "bytes": 9859
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/5b29548033557efd8f8bd3fe65925e188c5babf9b5dfaee6d298ed42665abf5d.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/5b29548033557efd8f8bd3fe65925e188c5babf9b5dfaee6d298ed42665abf5d.json",
+      "sha256": "e742d80af7173dcec9fe58d5da91f63da3fa78c065039cd45d25772030237a04",
+      "bytes": 9795
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/5d94f96f8e512be141e825f52cef725dca2f9b473ee098f4c4199eb5669fcd8f.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/5d94f96f8e512be141e825f52cef725dca2f9b473ee098f4c4199eb5669fcd8f.json",
+      "sha256": "7245469001898b355c0d8b8c6fdd828fd1a4f6fa80dafaaf8de931425e8fb28e",
+      "bytes": 9964
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/674bdcbfa04091300e0f40e3d1aea3f444aa3e8e21541490678b2a14df528ebb.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/674bdcbfa04091300e0f40e3d1aea3f444aa3e8e21541490678b2a14df528ebb.json",
+      "sha256": "94490f2a5597708d142fdfeb7dca0dd0c3712d299e6fcb68cf399a521150567a",
+      "bytes": 4309
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/6e1bc32e8a9f6fc7dff21860bd7814254d8c47bfabe00915fec75ecbe2995f07.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/6e1bc32e8a9f6fc7dff21860bd7814254d8c47bfabe00915fec75ecbe2995f07.json",
+      "sha256": "093ab7c0fe547c355bd1629717fef5864550358e16707238e3c5e1b5e85a6fcd",
+      "bytes": 9731
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/6f261ddab71be0af132e9ddf1802dd2ee1e959a51aa3ec57a1ebdd61db7a0cce.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/6f261ddab71be0af132e9ddf1802dd2ee1e959a51aa3ec57a1ebdd61db7a0cce.json",
+      "sha256": "d2940aaaa631a54a420a0cc999cda2c5bab8484a3d6a0647e89089582ed86d30",
+      "bytes": 9681
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/7182417a5f02fe6bd3a11a31c0f4d1ce2b02718b72498abee7a7d4a81e65c5f5.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/7182417a5f02fe6bd3a11a31c0f4d1ce2b02718b72498abee7a7d4a81e65c5f5.json",
+      "sha256": "6492cdf93de42345e69bd8ef67eb1d49900846e4ff734a276418b139c0bdd998",
+      "bytes": 8179
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/7239d5c2b2074b49ce56b7e1d9c224053ec7da5a006cc818be1c605f6af1a127.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/7239d5c2b2074b49ce56b7e1d9c224053ec7da5a006cc818be1c605f6af1a127.json",
+      "sha256": "06aab2b1b4c25c8cd17c5ab4129a9663f8193c8514d11e161ce2712b1937eb74",
+      "bytes": 9914
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/79e2293126fba8f9659ade3d6bd22ae4fc3e4e4b4eb55e504ffabc9def25ea27.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/79e2293126fba8f9659ade3d6bd22ae4fc3e4e4b4eb55e504ffabc9def25ea27.json",
+      "sha256": "f318cccd851c5040e81db104ea83f086873406eaf4a458c1f1aab99bbcd7f5b7",
+      "bytes": 3817
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/7fd5bb7835a6d602be43bf77a2f7013bdc1f9f7a2f8f6737483e79b4879d104c.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/7fd5bb7835a6d602be43bf77a2f7013bdc1f9f7a2f8f6737483e79b4879d104c.json",
+      "sha256": "da8a51811fc32fa6ee877f0f3a4abeeaa6f4815fd5782178ec181fbf86bbc026",
+      "bytes": 9809
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/82295e18e0a688efe38581c622da94b036e12c4ba4bd36784c3333757709fd8a.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/82295e18e0a688efe38581c622da94b036e12c4ba4bd36784c3333757709fd8a.json",
+      "sha256": "146690fc56073a4f88bea450a2c677b4eb45a128e7409d3db9e7155cb99280d7",
+      "bytes": 9795
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/856be3884a083a22f53106bcac95d7c1f0fb46835e444845ffb5526fcda29c2f.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/856be3884a083a22f53106bcac95d7c1f0fb46835e444845ffb5526fcda29c2f.json",
+      "sha256": "c5bf42f47e4259843ee51ace8b5b49e1d22c96caa9168310f5d932a8d1d7c397",
+      "bytes": 8711
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/8e167bd6e4412505adf57addafccf0875bdf930470d6971e50e04f499247e7aa.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/8e167bd6e4412505adf57addafccf0875bdf930470d6971e50e04f499247e7aa.json",
+      "sha256": "7ba964aa8c7524ee297c732d2a4e4800a4bb6b5cc3729bd7f3fc4346c670387e",
+      "bytes": 4309
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/90b5ce6429ad3e45db7174cb9f72892c17df942523d32822609ab53004fc5cc9.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/90b5ce6429ad3e45db7174cb9f72892c17df942523d32822609ab53004fc5cc9.json",
+      "sha256": "f8a4c4bf0659d6275c68cef4788f2ce2768ef72b7e10cea9457973f4dbbeef59",
+      "bytes": 9937
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/91a70bfa9e73f9e1cb38d8d7300615bb59cfd45af4e03fb77cd911b8af961e3e.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/91a70bfa9e73f9e1cb38d8d7300615bb59cfd45af4e03fb77cd911b8af961e3e.json",
+      "sha256": "ed4191ae960ed797e4709450d3630d029e5f2b2908c5c1280b8cf962dfec03f7",
+      "bytes": 9809
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/91ae5ed12662485260751bad4e0874d2e6b6208ff99ed421955b592595b18f37.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/91ae5ed12662485260751bad4e0874d2e6b6208ff99ed421955b592595b18f37.json",
+      "sha256": "07da3fab8e38cb07e6dbfc31ece25e3159a3052d2d527e4591e7c93c97933a74",
+      "bytes": 9440
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/9346f5e25fa200421c13b22cf2e0d5a743e4622ee1c4efe406a7368bd8285066.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/9346f5e25fa200421c13b22cf2e0d5a743e4622ee1c4efe406a7368bd8285066.json",
+      "sha256": "8b92cd8561473c5eda9869b12daad6c02e05ef5a99302256397f6ae726b612fd",
+      "bytes": 9809
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/93c5a92e02cae97d6995ee21a51cb3f771043b0b6609f74c56227a34903dfaad.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/93c5a92e02cae97d6995ee21a51cb3f771043b0b6609f74c56227a34903dfaad.json",
+      "sha256": "a1af1922dcc633964b5c290ec3ed878226f572427e6a0dc3d1b41b6f7f6b3e31",
+      "bytes": 9809
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/98af7ba77b48e4253976c44e1c145955e471514749e345c9b2bdc0abba129b3a.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/98af7ba77b48e4253976c44e1c145955e471514749e345c9b2bdc0abba129b3a.json",
+      "sha256": "934361ba33077e9786db1bb0903a18cd2229f3f03329b216df0cf714a659552f",
+      "bytes": 9804
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/9da50eae36c71750128b0430f254432c82fff953290501404692f1378e01f8d3.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/9da50eae36c71750128b0430f254432c82fff953290501404692f1378e01f8d3.json",
+      "sha256": "2a5d40571db22386057f0208b625e68d94bcc239aed99b4847707b5786cf1382",
+      "bytes": 8384
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/abfddab6d86e602a9adbdf6e9a1cabb3bdfe5736d5c469e2fa29e5d39eddea49.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/abfddab6d86e602a9adbdf6e9a1cabb3bdfe5736d5c469e2fa29e5d39eddea49.json",
+      "sha256": "84c409b0be8f8e3ce4bf2f25f8d3215c98599aa3eddf8375c8f8a8614805c75d",
+      "bytes": 4309
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/ad3368cb474e0e3ee8a737b8f6d47600ac2e2c43f4869414305ba5c531339050.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/ad3368cb474e0e3ee8a737b8f6d47600ac2e2c43f4869414305ba5c531339050.json",
+      "sha256": "26b6d6289d809511958cd4c025a07201ffb0984c310e7ab553726259761f9812",
+      "bytes": 9745
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/ad38fd2d019382d8e74e76dc43db3442ba0d89f9d2c3c3211ab4a906b61da1e5.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/ad38fd2d019382d8e74e76dc43db3442ba0d89f9d2c3c3211ab4a906b61da1e5.json",
+      "sha256": "47679d7be1d6772f7b83e7b4142ac3e24fd98844c373692eec0632b6a39e072e",
+      "bytes": 8125
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/afb464ed1027f72231e7da529df7e39b699800c3d08086a56f09f05cb073081c.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/afb464ed1027f72231e7da529df7e39b699800c3d08086a56f09f05cb073081c.json",
+      "sha256": "e4ec1063dd45f6b34affd966b7d6fcb582fb820902ff3789c454637b6ae44fe3",
+      "bytes": 9795
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/bb453beffedd23383a134775134a61132a47eb163284840f4950b353556503b9.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/bb453beffedd23383a134775134a61132a47eb163284840f4950b353556503b9.json",
+      "sha256": "ad7717537f01b94b7eebc41314aef4bfbacef9bb94a679d79901ba52cedb1029",
+      "bytes": 9731
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/bbde6b52ab7bf6fce15205b358e19f0e477a9fd1217aa75260c3503388d2720a.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/bbde6b52ab7bf6fce15205b358e19f0e477a9fd1217aa75260c3503388d2720a.json",
+      "sha256": "915b7dfc2cd34d6c4e468c731229a02773021899632dd127cc507348adbc34d2",
+      "bytes": 10156
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/bd541160832b0cef88a6199bdfe3a7c5c1c05efce7dba558c4bfc511b79e26b7.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/bd541160832b0cef88a6199bdfe3a7c5c1c05efce7dba558c4bfc511b79e26b7.json",
+      "sha256": "7a6d6b3e6169cfd208dec0df4cf17492254a824e038170505cabf45d802f3022",
+      "bytes": 9510
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/bfa063135f90b0ec130e44d9421f3e1b365aaa4d16761b97e4111ce89cab549d.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/bfa063135f90b0ec130e44d9421f3e1b365aaa4d16761b97e4111ce89cab549d.json",
+      "sha256": "d2dd13d3348fe4fbd8261f242f2913567ec3026a0686931ae1ae07a51cf13e60",
+      "bytes": 9232
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/c40eed1be003e675b83c3a88d0ec34d9975131f56dc9b1e765bd7a31f4fd3810.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/c40eed1be003e675b83c3a88d0ec34d9975131f56dc9b1e765bd7a31f4fd3810.json",
+      "sha256": "c5cab1ea2480a294ab0f9f33383e622d769affa6c6b283b02de6566b3718fc41",
+      "bytes": 8380
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/cf07902c4d3fd7b35430e6b1c3d9cd68f20b07ed9fd629e268f4a06de74583d6.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/cf07902c4d3fd7b35430e6b1c3d9cd68f20b07ed9fd629e268f4a06de74583d6.json",
+      "sha256": "0323041472b679cc193ef2dfbc5e75a297090dbab8aed1e3358b597c9455f679",
+      "bytes": 9229
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/cfa599efa98c92b29dca3da1e86af63fbee31bdf0e0d0f1cbabd78eba17b7823.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/cfa599efa98c92b29dca3da1e86af63fbee31bdf0e0d0f1cbabd78eba17b7823.json",
+      "sha256": "23452c2f349a09c2d5d030756e8a997d69d7a4a994d384693d44d3067c1f444a",
+      "bytes": 9804
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/dddd28ef8ea349e7975c4e0c7f01d6c6599f98462c626ad1081411e0db2a8995.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/dddd28ef8ea349e7975c4e0c7f01d6c6599f98462c626ad1081411e0db2a8995.json",
+      "sha256": "dda210ca1943415367b18c576ad92dff3808b5996870c56bd993ba3041555f82",
+      "bytes": 9937
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/e65dd32ae40bd756adf659c59ea9fbc405bafdd51750c9c2a372ab238c426427.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/e65dd32ae40bd756adf659c59ea9fbc405bafdd51750c9c2a372ab238c426427.json",
+      "sha256": "5d5dc47a964f94b0c3370224c10aeb281e8d4f9a54f44cf1f6b191f3176b5439",
+      "bytes": 8073
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/ee1e9cb5adf7ee0787b509d9b28ef2f4c937000d7365d69bb2c606a4b333ca86.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/ee1e9cb5adf7ee0787b509d9b28ef2f4c937000d7365d69bb2c606a4b333ca86.json",
+      "sha256": "6304c0379b446dbf3357204c3183ff034839cbff104c400170b1291ad0041a6c",
+      "bytes": 8627
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/f55e928d732b8bdeb9eb57bc73b2c17e68da8e92f43cfccbac819b8c79643a2e.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/f55e928d732b8bdeb9eb57bc73b2c17e68da8e92f43cfccbac819b8c79643a2e.json",
+      "sha256": "a024163f9facc0a2d9c1c8fd5605e0417680249656552ed12d6eebcf1a214b24",
+      "bytes": 201
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/fd6056d1feeb196f0f5febef0bfd9f712b777841de20a47bd064787bdb5ef00e.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/fd6056d1feeb196f0f5febef0bfd9f712b777841de20a47bd064787bdb5ef00e.json",
+      "sha256": "3df9a416a81fc0807fa89b404e3185395a026f5d41a368a952df2ae1f4532c1f",
+      "bytes": 4309
+    },
+    {
+      "label": "REAL Base mainnet fixture (block 52965249): fixture.json + 49 block-hash-pinned witnesses, public chain state only; the head commitment is signed by a TEST key, not the sequencer. For offline replay: history at a pinned block, never freshness",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z/fixture.json",
+      "stored": "files/rpc-priority/fixtures/base-calls-20261023T014412Z/fixture.json",
+      "sha256": "141321fd458a50ab4d69c7c43a8215b5b956263914be5f7d77b8d22b71c26bff",
+      "bytes": 8928
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-evm-build-test-r1.sh",
+      "stored": "files/rpc-priority/jobs/base-evm-build-test-r1.sh",
+      "sha256": "e2b8f3c2a1770175f981a738d5342cd35442ae9eb5a7058af348a3e4427ef495",
+      "bytes": 1227
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-evm-build-test-r2.sh",
+      "stored": "files/rpc-priority/jobs/base-evm-build-test-r2.sh",
+      "sha256": "b2c144080a93fbd255e772e7c2742624b546f76282e9baa22a85aecbd77c8a60",
+      "bytes": 1357
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-evm-build-test-r3.sh",
+      "stored": "files/rpc-priority/jobs/base-evm-build-test-r3.sh",
+      "sha256": "96bb53920f4ac27bfdadb8fcf7a81d8d52f95f333138bebe6ca0c781e448dabf",
+      "bytes": 1345
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-evm-build-test-r4.sh",
+      "stored": "files/rpc-priority/jobs/base-evm-build-test-r4.sh",
+      "sha256": "8148109b4ef78e8d473ccb25a1f0adf5593b9e9d108ca2610ca7e2fe3f3359cb",
+      "bytes": 1343
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-evm-build-test-r5.sh",
+      "stored": "files/rpc-priority/jobs/base-evm-build-test-r5.sh",
+      "sha256": "7bbcd76917c38a05066ea622b82b7632acea87c6873a31ddf79c2cbcbfd723fd",
+      "bytes": 1345
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-final-tests-r1.sh",
+      "stored": "files/rpc-priority/jobs/base-final-tests-r1.sh",
+      "sha256": "6bd3da7dc93456355124357ab24a478b74c0c3915a1e322538eb0c685f92457f",
+      "bytes": 1709
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-final-tests-r2.sh",
+      "stored": "files/rpc-priority/jobs/base-final-tests-r2.sh",
+      "sha256": "89e5c018b85847c3f4e9f8992e151cab83c112513bd6d9ebc5943fc9443b6103",
+      "bytes": 1727
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-head-e2e-r1.sh",
+      "stored": "files/rpc-priority/jobs/base-head-e2e-r1.sh",
+      "sha256": "41be60657e6dd293c92e3e7c14ecb257e0ed4ca6aad3517c585650daabece3d7",
+      "bytes": 1057
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-head-e2e-r2.sh",
+      "stored": "files/rpc-priority/jobs/base-head-e2e-r2.sh",
+      "sha256": "f18717d73b9ff0d4a4a47758affa4ed2a8b961266935b67a1a9b47d597e3645c",
+      "bytes": 1163
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-record-r1.sh",
+      "stored": "files/rpc-priority/jobs/base-record-r1.sh",
+      "sha256": "5ca9fb8c199e03613c0a8a0bf1424f2410e99382f1aca571e50d6121012a5a51",
+      "bytes": 564
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-record-r2.sh",
+      "stored": "files/rpc-priority/jobs/base-record-r2.sh",
+      "sha256": "ef06c2e823119479b739866fd2542396b014c0d013a6a040192ecaf35cb3cd9a",
+      "bytes": 705
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-record-r3.sh",
+      "stored": "files/rpc-priority/jobs/base-record-r3.sh",
+      "sha256": "ff11d24ebeed9c320ba48cbfba8d0f357d58fc4569397f9d89bbfe83ca4f3f04",
+      "bytes": 683
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-replay-r1-run.sh",
+      "stored": "files/rpc-priority/jobs/base-replay-r1-run.sh",
+      "sha256": "212058809c3bf9208c2c079da30b3454f109924295f3027b0c6f7f3c15c417e2",
+      "bytes": 377
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-replay-r1.sh",
+      "stored": "files/rpc-priority/jobs/base-replay-r1.sh",
+      "sha256": "4b7464a8f8d370eea83dbc380b93eb1269375664aac440d98ab7ccdc32c56bce",
+      "bytes": 1093
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/base-replay-r2-run.sh",
+      "stored": "files/rpc-priority/jobs/base-replay-r2-run.sh",
+      "sha256": "212058809c3bf9208c2c079da30b3454f109924295f3027b0c6f7f3c15c417e2",
+      "bytes": 377
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/chain-r5.sh",
+      "stored": "files/rpc-priority/jobs/chain-r5.sh",
+      "sha256": "22c8525ebc7cf5e2f20835cdf4f8d5aeda1545e571bf8e8d1d2cdf05e62c6c13",
+      "bytes": 280
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/helios-build-r3.sh",
+      "stored": "files/rpc-priority/jobs/helios-build-r3.sh",
+      "sha256": "b39fc21795eeb5239b5563649e00a25528bac0c6fa5ad406378ea0a5b4b4f50a",
+      "bytes": 746
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/helios-build-test-r1.sh",
+      "stored": "files/rpc-priority/jobs/helios-build-test-r1.sh",
+      "sha256": "3f951d004fc00fd6ccba0545d4aaa32dff50b26173f713456a9b48c5e8b4d6b5",
+      "bytes": 873
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/helios-build-test-r2.sh",
+      "stored": "files/rpc-priority/jobs/helios-build-test-r2.sh",
+      "sha256": "a0d6be7a8f51b76f76d65cd1ee02ee8d3f634f5be9c3ca13ae79a98c6d926542",
+      "bytes": 1024
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/q-retry.sh",
+      "stored": "files/rpc-priority/jobs/q-retry.sh",
+      "sha256": "98af06999907d7a36711c19f176e37a42dc676e443315e7ffd96b3e18a9662d4",
+      "bytes": 437
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/witness-tests-r1.sh",
+      "stored": "files/rpc-priority/jobs/witness-tests-r1.sh",
+      "sha256": "7229a83df78f8717d5547e981890d3b6b163b29b1801aa08939d04a485267061",
+      "bytes": 1144
+    },
+    {
+      "label": "worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/INVENTORY.json): source/offline evidence only, not deployment or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/jobs/witness-tests-r2.sh",
+      "stored": "files/rpc-priority/jobs/witness-tests-r2.sh",
+      "sha256": "8fad94abf8b00f2e6cc5853ecfd85bfa5f4d2bf0ed24639af9ea22e093c13b7e",
+      "bytes": 1253
+    },
+    {
+      "label": "SNAPSHOT of worker E's audit at its local commit b84c5a1 (report, consumer-read inventory, allowlist only). The audit is STILL being hardened: verifier, probes, deployed-source copies and the binary fixture are DEFERRED, not preserved here",
+      "source": "work/resume-after-checkpoint-20261022/rpc-receipt-witness/ALLOWLIST.sha256",
+      "stored": "files/rpc-receipt-witness/ALLOWLIST.sha256",
+      "sha256": "393c8d8a897bddd5ca926641b4220cf71dd68319d9e0bb010deb4f644f124f02",
+      "bytes": 2732
+    },
+    {
+      "label": "SNAPSHOT of worker E's audit at its local commit b84c5a1 (report, consumer-read inventory, allowlist only). The audit is STILL being hardened: verifier, probes, deployed-source copies and the binary fixture are DEFERRED, not preserved here",
+      "source": "work/resume-after-checkpoint-20261022/rpc-receipt-witness/ALLOWLIST.txt",
+      "stored": "files/rpc-receipt-witness/ALLOWLIST.txt",
+      "sha256": "c4e492d2a4952ca080f5c2b64da2440012e39f7093dd852913fa75f2ebafc172",
+      "bytes": 1305
+    },
+    {
+      "label": "SNAPSHOT of worker E's audit at its local commit b84c5a1 (report, consumer-read inventory, allowlist only). The audit is STILL being hardened: verifier, probes, deployed-source copies and the binary fixture are DEFERRED, not preserved here",
+      "source": "work/resume-after-checkpoint-20261022/rpc-receipt-witness/RESULT.md",
+      "stored": "files/rpc-receipt-witness/RESULT.md",
+      "sha256": "3dacb49edc51dc29cbb981122a8464300db056472f118397f8cbaead66dab986",
+      "bytes": 26556
+    },
+    {
+      "label": "SNAPSHOT of worker E's audit at its local commit b84c5a1 (report, consumer-read inventory, allowlist only). The audit is STILL being hardened: verifier, probes, deployed-source copies and the binary fixture are DEFERRED, not preserved here",
+      "source": "work/resume-after-checkpoint-20261022/rpc-receipt-witness/inventory/consumer-reads.json",
+      "stored": "files/rpc-receipt-witness/inventory/consumer-reads.json",
+      "sha256": "07a37bd9a16f468f414e5686233d71761fb376d88f29b734e56ac0d609d7a1f4",
+      "bytes": 45038
     },
     {
       "label": "FINAL FROZEN CANDIDATE e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03, two-file swap): source only here; root has it staged and IDENTIFIED, NOT activated",
@@ -4671,8 +5483,15 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "9cb06950280b355cea05bf6edbff141fa7dee687515b06d68ed08c7406e16b51",
-      "bytes": 47421
+      "sha256": "49c446196089e6144db56f305e0aedbf2a58a3df6c88e0fcf714f6b17ac877e5",
+      "bytes": 55110
+    },
+    {
+      "label": "exporter for rpc-base-evm-export/ (Git objects only; no network/builds)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-base-evm.py",
+      "stored": "files/source-preservation/export-base-evm.py",
+      "sha256": "243e6c6a6195d6ed4ca206376a2cecbe5c39e10efe07c7f3c9b2d9836f34634a",
+      "bytes": 14814
     },
     {
       "label": "Git tracked-file inventory of head-listener f3159ea (blob ids + sha256) and what was deliberately not preserved",
@@ -4680,6 +5499,13 @@
       "stored": "files/source-preservation/head-listener-f3159ea-inventory.json",
       "sha256": "a3fa9aac07b540bd71c487a19179aedf55feb6fe224369b04ee0c05e03feb713",
       "bytes": 6883
+    },
+    {
+      "label": "read-only check of manifest entries against their current source bytes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/manifest-drift.py",
+      "stored": "files/source-preservation/manifest-drift.py",
+      "sha256": "1da2770dc78dfaf86974c2c7d1c9ab8b1620c518b693e0792e47a91894f0ede5",
+      "bytes": 1023
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",
@@ -4734,6 +5560,13 @@
       "stored": "files/source-preservation/review-staged-findings.py",
       "sha256": "5e8525df5e6ff33d746ee3fcfcbe7866b5f5b386bb38bc80c4462c506ea01d75",
       "bytes": 2486
+    },
+    {
+      "label": "offline check: rebuilds the 8 commit trees from the exported patches in throwaway repos (REPRODUCE-CHECK.txt)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-base-evm-export.py",
+      "stored": "files/source-preservation/verify-base-evm-export.py",
+      "sha256": "1d5fa6a9455549e554f0e1e83dda28c4fecf244c9fc2ceebd511f334cd710e68",
+      "bytes": 3018
     },
     {
       "source": "work/resume-after-checkpoint-20261022/storage-activation-next/ACTIONS.json",

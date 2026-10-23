@@ -1,0 +1,655 @@
+{
+ "format": "enclave-base-evm-export/v1",
+ "label": "SOURCE + OFFLINE/RECORDED FIXTURES ONLY. Not deployed, not activated, NOT RPC independence. Proven: 5 real Cobalt-era Base mainnet eth_call replays byte-exact (block 52965249), offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT proven: fresh proof-source independence (fresh witnesses still need a JSON-RPC execution source), finality, tx broadcast, consumer (LeaseReader) wiring, Sia witness-cache backend, release builds. Base execution refused from Denim (2026-11-05T18:00Z) until a Denim-era replay validates it.",
+ "enclave": {
+  "base": "dfe020abf1794bedc42943e43fe85eb02593dd8d",
+  "head": "9fdc1418caff88d1baa5c5967ac7eaaf9cf2a368",
+  "headTree": "5c84c3da6c3142d5fe0742e6ac6f516d84926062",
+  "commits": [
+   {
+    "commit": "97785a40cda92c42d8b8e14ab9e9d25afc3332a2",
+    "parent": "dfe020abf1794bedc42943e43fe85eb02593dd8d",
+    "tree": "11698f2c6af022124cdf2ed11b8934a10c8b5af2",
+    "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "subject": "Feed a pinned Helios verifier a signed OP head and untrusted state witnesses"
+   },
+   {
+    "commit": "36a83c89bfe9cf5bfd1045da3a3c1595c690a258",
+    "parent": "97785a40cda92c42d8b8e14ab9e9d25afc3332a2",
+    "tree": "5b273ce43fdc558b54d1e92ecce83cdd1818cf37",
+    "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "subject": "Keep the e2e setup assertion message serializable"
+   },
+   {
+    "commit": "eb707adc0e52050f38ba7352865bcba24b6f6d2e",
+    "parent": "36a83c89bfe9cf5bfd1045da3a3c1595c690a258",
+    "tree": "e2a1e3ba10c1884a6835b2cea01b78ccb17223b9",
+    "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "subject": "Replay real Base calls through the verifier's Base EVM from pinned witnesses"
+   },
+   {
+    "commit": "9fdc1418caff88d1baa5c5967ac7eaaf9cf2a368",
+    "parent": "eb707adc0e52050f38ba7352865bcba24b6f6d2e",
+    "tree": "5c84c3da6c3142d5fe0742e6ac6f516d84926062",
+    "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "subject": "Test the head path with real Base gossip objects and the real signer"
+   }
+  ],
+  "changedFiles": [
+   {
+    "path": "network/op-head-relay.mjs",
+    "status": "A",
+    "blob": "6bd88dade452a32e08e50559efb5277b7f79c92a",
+    "sha256": "ed71c0695230c9400d759e792ae44da3a8fc27cf065abe9dddd9bec09411fe27",
+    "bytes": 13783,
+    "baseBlob": null
+   },
+   {
+    "path": "network/witness-gateway.mjs",
+    "status": "A",
+    "blob": "82bf203b1ae7e19501ed0071038ccc674194a162",
+    "sha256": "d1944b1f1e6f4aaf1e914309a9f2c68d05be9f5d93141f2a8b7d400e2c1c24c6",
+    "bytes": 9215,
+    "baseBlob": null
+   },
+   {
+    "path": "test/fixtures/op-commitment.mjs",
+    "status": "A",
+    "blob": "8481f00de19a1f91c9a71a52b06d0a484ebe9e9e",
+    "sha256": "13263acfb371966888b11158fefb80a82c1d0d1b739bf8203eed0a5d2b1d98b3",
+    "bytes": 3239,
+    "baseBlob": null
+   },
+   {
+    "path": "test/helios-base-head.e2e.test.mjs",
+    "status": "A",
+    "blob": "c197b4cfbe742c88afcc6b1c7ee960d257ab4a5c",
+    "sha256": "3594e1bb52f6be22f93f0be9c79f5fb46f0f50ff368902bb2e00f55aab59e162",
+    "bytes": 6227,
+    "baseBlob": null
+   },
+   {
+    "path": "test/helios-base-replay.e2e.test.mjs",
+    "status": "A",
+    "blob": "a87d9381a0ff34aa3878b3281fa7257bf3e07d72",
+    "sha256": "a8d9c3a66b58a33ca47c58c8f61718267ba9f84ff6ce90fc73712605d2375a13",
+    "bytes": 7565,
+    "baseBlob": null
+   },
+   {
+    "path": "test/helios-witness.e2e.test.mjs",
+    "status": "A",
+    "blob": "fa753d192a03abec45c4accbd5832ea61c9be696",
+    "sha256": "e9b716a56403091f1e5f8b5da2c6e765414970466dee04d026ef8cd584738363",
+    "bytes": 17064,
+    "baseBlob": null
+   },
+   {
+    "path": "test/op-head-relay.test.mjs",
+    "status": "A",
+    "blob": "3d0aa896ae179647f4b3d11e0d4e8d7456a9607b",
+    "sha256": "33706d34b467838f6fe90ab3853ec2a0651c38554614cf6134b70d8a50e042c0",
+    "bytes": 8704,
+    "baseBlob": null
+   },
+   {
+    "path": "test/witness-gateway.test.mjs",
+    "status": "A",
+    "blob": "b994da1f2e147b27c813002235fa82617827fa77",
+    "sha256": "ab1168def01c2036dfb5256452f44173fe39f36bb8db17d0ff0eb7c1d863bf9e",
+    "bytes": 7022,
+    "baseBlob": null
+   }
+  ],
+  "patches": [
+   {
+    "file": "enclave-rpc-priority-9fdc1418c/patches/0001-Feed-a-pinned-Helios-verifier-a-signed-OP-head-and-u.patch",
+    "sha256": "f653807ef966d2b49ef3903bf2bc9b1832dd683669b784f44bc2d673a1dd82a6"
+   },
+   {
+    "file": "enclave-rpc-priority-9fdc1418c/patches/0002-Keep-the-e2e-setup-assertion-message-serializable.patch",
+    "sha256": "c063197bd3a293a41d3da9a1cf8c9277fb6c2cbcf46202ae65cacbdce5bf6c73"
+   },
+   {
+    "file": "enclave-rpc-priority-9fdc1418c/patches/0003-Replay-real-Base-calls-through-the-verifier-s-Base-E.patch",
+    "sha256": "bf94c1c1bfc74e6762648831bc56a683dddd84b4ec2fe19f68c7ce4fa1c82221"
+   },
+   {
+    "file": "enclave-rpc-priority-9fdc1418c/patches/0004-Test-the-head-path-with-real-Base-gossip-objects-and.patch",
+    "sha256": "b18559adfc3f3d60243c2ecec59e92daac210ee4cdadd10fc9b9f5bc62b8cc73"
+   }
+  ],
+  "patchesExclude": [],
+  "baseProvenance": "dfe020abf = public origin branch candidate/decentralized-control-20261022 head (EnclaveHost/enclave, ls-remote at export); the candidate branch rpc-priority sits on it. NOT merged into the normal checkpoint tree.",
+  "localBranchAtExport": "9fdc1418caff88d1baa5c5967ac7eaaf9cf2a368"
+ },
+ "helios": {
+  "base": "2af9b41887e069144ee56cd710f3ddca195473f8",
+  "head": "eeffcc980a4a9aa092e23e07b1077c1f3fdfc95e",
+  "headTree": "2171ad2bfd3c97f2e0e029e866b1a8535cbbd187",
+  "commits": [
+   {
+    "commit": "0a02256c3fcd269c97d68e7158f4e208631d1859",
+    "parent": "2af9b41887e069144ee56cd710f3ddca195473f8",
+    "tree": "31eebbb792818d49f016fb8096c8b59a9f646eb7",
+    "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "subject": "opstack: v4 blocks topic, refuse undecodable txs, refuse local execution under unimplemented Base rules"
+   },
+   {
+    "commit": "3416a24527ddc7e9915d2ec3d9072e30cd3e7dfd",
+    "parent": "0a02256c3fcd269c97d68e7158f4e208631d1859",
+    "tree": "a69714ea8f7994022a2b3dacaa277c7ed5d5f8a1",
+    "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "subject": "opstack: execute Base chains with the maintained Base EVM over proof-backed state"
+   },
+   {
+    "commit": "b93fcfdc53fac155022c3fb789ac57bbf5322e37",
+    "parent": "3416a24527ddc7e9915d2ec3d9072e30cd3e7dfd",
+    "tree": "ef08b7cfe262dd7f040b84f3f3ee4dd2cd23f122",
+    "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "subject": "opstack: allow Base execution through Cobalt, refuse from unvalidated Denim"
+   },
+   {
+    "commit": "eeffcc980a4a9aa092e23e07b1077c1f3fdfc95e",
+    "parent": "b93fcfdc53fac155022c3fb789ac57bbf5322e37",
+    "tree": "2171ad2bfd3c97f2e0e029e866b1a8535cbbd187",
+    "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "subject": "opstack-server: serve heads from a verified directory of Base v4 gossip objects"
+   }
+  ],
+  "changedFiles": [
+   {
+    "path": "Cargo.lock",
+    "status": "M",
+    "blob": "5805fa1ba9ca5b4cf51ed801db40447f75a8f5a3",
+    "sha256": "28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4",
+    "bytes": 268320,
+    "baseBlob": "41f8cc0e22b4146dcab7d87a024c0559fff69f22"
+   },
+   {
+    "path": "common/src/fork_schedule.rs",
+    "status": "M",
+    "blob": "18155c068e2e424a727311a03bd98c8da7e7e0bb",
+    "sha256": "8e8d8de11b2a834e2ab60863b94eadf970a3c4e90571ee7c9d79aa855be0ebb9",
+    "bytes": 4546,
+    "baseBlob": "56376030c3c468c40755398205b3c496b8913a68"
+   },
+   {
+    "path": "opstack/Cargo.toml",
+    "status": "M",
+    "blob": "6748e57250a199563230846608c7350edc6c2f7e",
+    "sha256": "7eba2ca28c18d1320d48fd8d83d78218eeef89a52d9447aabcfe7fa7f1822a2a",
+    "bytes": 2670,
+    "baseBlob": "0e9b091141154176b2c24e44f5150c1b1a74ad36"
+   },
+   {
+    "path": "opstack/bin/server.rs",
+    "status": "M",
+    "blob": "13576f63bc8351db9450cf071f4bb809dfdb7a86",
+    "sha256": "c541640093916edca619d918ae30d04f6c7ab62c6104bf9bb17e915407440106",
+    "bytes": 2207,
+    "baseBlob": "176d573a058982fd7049d6901e9adb5b7e969cf4"
+   },
+   {
+    "path": "opstack/src/config.rs",
+    "status": "M",
+    "blob": "86c9911ce447daff3517bad6e58be789c45174e5",
+    "sha256": "c96bf5ae4da4fd790cd1ac3d9d6214274385d559e996daabfa88216cd23876d6",
+    "bytes": 10811,
+    "baseBlob": "74dad94dd0c0276dc48ccd25c49d125f3f09d431"
+   },
+   {
+    "path": "opstack/src/consensus.rs",
+    "status": "M",
+    "blob": "8692c9279830201f1fd8a9e941a34285d034f481",
+    "sha256": "68a75ca42187a17007f5b7d8047126abb62467bca8cdace6f2f8677da0f22ee0",
+    "bytes": 17440,
+    "baseBlob": "687b2478c93d4cf2693bfba352a39b352ded3c82"
+   },
+   {
+    "path": "opstack/src/evm.rs",
+    "status": "M",
+    "blob": "3420ae0c05b038278faa1384d7ae0fc81e51b96a",
+    "sha256": "0bea7e43d983c8343caae1bdd9411f55a6732ecccea3d78b71c80b84e8656926",
+    "bytes": 11264,
+    "baseBlob": "a9b49a5bfa151336706993ac1364a5b6b119dd4b"
+   },
+   {
+    "path": "opstack/src/evm/base_backend.rs",
+    "status": "A",
+    "blob": "20c2fcfce90b75819ab1750b2df34991c011cfdb",
+    "sha256": "9997fc6ce5500f52d13b5de158ca3c758a1ce34c0f72559eeb7b8327fab611aa",
+    "bytes": 15299,
+    "baseBlob": null
+   },
+   {
+    "path": "opstack/src/server/mod.rs",
+    "status": "M",
+    "blob": "a5251a1773c4e0e67e003a31be9dc77bcc713ca0",
+    "sha256": "5377df0dfaa83301e7f88f1320f0f7ac5731463363067fffa57eaf139fcc52a2",
+    "bytes": 3302,
+    "baseBlob": "6850be3a9105910de974eba22433676d5cd8059e"
+   },
+   {
+    "path": "opstack/src/server/net/block_handler.rs",
+    "status": "M",
+    "blob": "b1080e48257d7b671577d7cff134740c5aada5ba",
+    "sha256": "5b13f319fd4a14a41991c19c6f94505171f53c4d00d0ecc905a5fcc3f72597e6",
+    "bytes": 1750,
+    "baseBlob": "ef4a825d12e1dcfe8f780723bd3d80fc7a4c4d31"
+   },
+   {
+    "path": "opstack/src/server/objects.rs",
+    "status": "A",
+    "blob": "a369dbe11d885e93e6b9eefcfcdca60e8fb3f70f",
+    "sha256": "21dbfaa8e51a9664d72c8e49d14ad05fa2933321022c4258e076491d5fbfef90",
+    "bytes": 5337,
+    "baseBlob": null
+   },
+   {
+    "path": "opstack/tests/data/ec197b9f01acd9b93c900014b5b16142183fc77b559e0e0a727687d171e3e467.v4.snappy",
+    "status": "A",
+    "blob": "9688082847396ae5c7c179cd5ef60d449704067e",
+    "sha256": "ec197b9f01acd9b93c900014b5b16142183fc77b559e0e0a727687d171e3e467",
+    "bytes": 39454,
+    "baseBlob": null,
+    "notStored": "binary; see snappy reconstruction"
+   }
+  ],
+  "patches": [
+   {
+    "file": "helios-enclave-base-evm-eeffcc9/patches/0001-opstack-v4-blocks-topic-refuse-undecodable-txs-refus.patch",
+    "sha256": "113bdfe9e715284ffb28f6b4502de47a3ac32916094a2ebad1e3312ac7690686"
+   },
+   {
+    "file": "helios-enclave-base-evm-eeffcc9/patches/0002-opstack-execute-Base-chains-with-the-maintained-Base.patch",
+    "sha256": "b708072995f890c01d4ad788c037ad30d65a70c7746620f0cfe1603806b44e92"
+   },
+   {
+    "file": "helios-enclave-base-evm-eeffcc9/patches/0003-opstack-allow-Base-execution-through-Cobalt-refuse-f.patch",
+    "sha256": "3b9db6dcfefa1637ba9f179ffdb124ef2ce404790dd5a12c29a3e416ccc6e49b"
+   },
+   {
+    "file": "helios-enclave-base-evm-eeffcc9/patches/0004-opstack-server-serve-heads-from-a-verified-directory.patch",
+    "sha256": "b45e01d8f8f15478798f7a5329f2a33a6f1e49ab75195f0e5ab6760b27a0b847"
+   }
+  ],
+  "patchesExclude": [
+   "opstack/tests/data/ec197b9f01acd9b93c900014b5b16142183fc77b559e0e0a727687d171e3e467.v4.snappy"
+  ],
+  "snappyReconstruction": {
+   "path": "opstack/tests/data/ec197b9f01acd9b93c900014b5b16142183fc77b559e0e0a727687d171e3e467.v4.snappy",
+   "sha256": "ec197b9f01acd9b93c900014b5b16142183fc77b559e0e0a727687d171e3e467",
+   "bytes": 39454,
+   "blob": "9688082847396ae5c7c179cd5ef60d449704067e",
+   "fromHexFixtureInCheckpoint": "checkpoints/decentralization-20261022/closeout-followup/files/rpc-peer-audit/head-listener/crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965074.v4.snappy.hex",
+   "how": "xxd -r -p <hex> > <path> (identical bytes; not duplicated here)"
+  },
+  "upstream": {
+   "repo": "https://github.com/a16z/helios",
+   "tag": "0.12.0",
+   "commit": "2af9b41887e069144ee56cd710f3ddca195473f8",
+   "tagVerifiedLocally": true
+  },
+  "localBranchAtExport": "eeffcc980a4a9aa092e23e07b1077c1f3fdfc95e",
+  "compatBranch": {
+   "enclave-base-compat": "0a02256c3fcd269c97d68e7158f4e208631d1859",
+   "note": "compat = first commit 0a02256 of this series (preserved in patch 0001)"
+  },
+  "dependencies": {
+   "base/base (path dependency, MIT)": {
+    "repo": "https://github.com/base/base",
+    "tag": "v1.5.1",
+    "commit": "5476069f1eb74a56bccb56fdefd4b4bb0e3cda42",
+    "relativeToHelios": "../vendor-inspect/base-v1.5.1",
+    "checkoutClean": true
+   },
+   "git": [
+    "git+https://github.com/ncitron/ethereum_hashing?rev=7ee70944ed4fabe301551da8c447e4f4ae5e6c35#7ee70944ed4fabe301551da8c447e4f4ae5e6c35"
+   ],
+   "crates.io": "every other package pinned by name+version+checksum in the preserved Cargo.lock",
+   "toolchain": "Rust 1.96.0 (base/base rust-version 1.96), selected per job with RUSTUP_TOOLCHAIN=1.96.0; helios rust-toolchain.toml (upstream, unchanged) pins 1.94.0",
+   "notPreserved": [
+    "cargo-home (1.3 GiB registry/git cache: re-fetch from Cargo.lock)",
+    "helios-target*/ (debug binaries)",
+    "vendor-inspect/ (upstream clones/tarballs: re-fetch from the pins above)"
+   ]
+  }
+ },
+ "frozenSources": {
+  "rpc-priority/RESULT-BASE-EVM.md": "6215a4b69abe82060d4f73ed0f427cce5c8dadb647ff509c3ba9d62fe1dae633",
+  "rpc-priority/RESULT.md": "08357eff5cf733dc8702677e075d89d7063d31b26158c18efc7129b10ffeb3b4",
+  "rpc-priority/WITNESS-INITIAL.md": "c8578fc5271646f30dc458d77534c7893f8c5a9b4ecb8802d3ddf7fbfc18432a",
+  "rpc-priority/ROOT-RESEARCH.json": "61f3065746aea8f4a8ca7892cf29eec340846181393917f3b317adb642769f83",
+  "rpc-priority/fixture-tools/capture-live.mjs": "fcdcdea66238d22b3889c4a1f4e11238be54299cd14d2670ab49ae15971ba21a",
+  "rpc-priority/fixture-tools/record-base-calls.mjs": "40122ffedbb564970b18746197145fc1202eb6bdcc4aeafa23a5eca56b005474",
+  "rpc-priority/fixture-tools/txtypes.mjs": "6049d73815060be635298ff4a75c9bfc05e96edb60b0f15678fd34bd0f2465f7",
+  "rpc-priority/jobs/base-evm-build-test-r1.sh": "e2b8f3c2a1770175f981a738d5342cd35442ae9eb5a7058af348a3e4427ef495",
+  "rpc-priority/jobs/base-evm-build-test-r2.sh": "b2c144080a93fbd255e772e7c2742624b546f76282e9baa22a85aecbd77c8a60",
+  "rpc-priority/jobs/base-evm-build-test-r3.sh": "96bb53920f4ac27bfdadb8fcf7a81d8d52f95f333138bebe6ca0c781e448dabf",
+  "rpc-priority/jobs/base-evm-build-test-r4.sh": "8148109b4ef78e8d473ccb25a1f0adf5593b9e9d108ca2610ca7e2fe3f3359cb",
+  "rpc-priority/jobs/base-evm-build-test-r5.sh": "7bbcd76917c38a05066ea622b82b7632acea87c6873a31ddf79c2cbcbfd723fd",
+  "rpc-priority/jobs/base-final-tests-r1.sh": "6bd3da7dc93456355124357ab24a478b74c0c3915a1e322538eb0c685f92457f",
+  "rpc-priority/jobs/base-final-tests-r2.sh": "89e5c018b85847c3f4e9f8992e151cab83c112513bd6d9ebc5943fc9443b6103",
+  "rpc-priority/jobs/base-head-e2e-r1.sh": "41be60657e6dd293c92e3e7c14ecb257e0ed4ca6aad3517c585650daabece3d7",
+  "rpc-priority/jobs/base-head-e2e-r2.sh": "f18717d73b9ff0d4a4a47758affa4ed2a8b961266935b67a1a9b47d597e3645c",
+  "rpc-priority/jobs/base-record-r1.sh": "5ca9fb8c199e03613c0a8a0bf1424f2410e99382f1aca571e50d6121012a5a51",
+  "rpc-priority/jobs/base-record-r2.sh": "ef06c2e823119479b739866fd2542396b014c0d013a6a040192ecaf35cb3cd9a",
+  "rpc-priority/jobs/base-record-r3.sh": "ff11d24ebeed9c320ba48cbfba8d0f357d58fc4569397f9d89bbfe83ca4f3f04",
+  "rpc-priority/jobs/base-replay-r1-run.sh": "212058809c3bf9208c2c079da30b3454f109924295f3027b0c6f7f3c15c417e2",
+  "rpc-priority/jobs/base-replay-r1.sh": "4b7464a8f8d370eea83dbc380b93eb1269375664aac440d98ab7ccdc32c56bce",
+  "rpc-priority/jobs/base-replay-r2-run.sh": "212058809c3bf9208c2c079da30b3454f109924295f3027b0c6f7f3c15c417e2",
+  "rpc-priority/jobs/chain-r5.sh": "22c8525ebc7cf5e2f20835cdf4f8d5aeda1545e571bf8e8d1d2cdf05e62c6c13",
+  "rpc-priority/jobs/helios-build-r3.sh": "b39fc21795eeb5239b5563649e00a25528bac0c6fa5ad406378ea0a5b4b4f50a",
+  "rpc-priority/jobs/helios-build-test-r1.sh": "3f951d004fc00fd6ccba0545d4aaa32dff50b26173f713456a9b48c5e8b4d6b5",
+  "rpc-priority/jobs/helios-build-test-r2.sh": "a0d6be7a8f51b76f76d65cd1ee02ee8d3f634f5be9c3ca13ae79a98c6d926542",
+  "rpc-priority/jobs/q-retry.sh": "98af06999907d7a36711c19f176e37a42dc676e443315e7ffd96b3e18a9662d4",
+  "rpc-priority/jobs/witness-tests-r1.sh": "7229a83df78f8717d5547e981890d3b6b163b29b1801aa08939d04a485267061",
+  "rpc-priority/jobs/witness-tests-r2.sh": "8fad94abf8b00f2e6cc5853ecfd85bfa5f4d2bf0ed24639af9ea22e093c13b7e",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/fixture.json": "141321fd458a50ab4d69c7c43a8215b5b956263914be5f7d77b8d22b71c26bff",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/022d932948d665c8cbf67e9097b31c141c44753d9b6273e933ba47a53373f5ed.json": "5f10e2e1a8f7b4bf642f0adca79ec0fba420cc0df941497b0aaa0aeab1a100bf",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/02f6e66f3d135952941efd44e07ec82a8b1dae0e8a60b8ecdf2111d8a7885b2e.json": "f411e58a60d1e1aa7c1d59b200e1e536f74b013a05a4be7d3831cf254e563cc8",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/0b75364d45fef1addd42e389bea1866a69892b6e9b2b10c2a665fd70521943a1.json": "4b6bfbe707bfbd45e963d93c9318afdae31b7d57823b5fac5afde0b3cc64cee4",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/0cf9f9b92d9df367cb92d64174227d8a0f6b3d5c73072a2295ee5d5e4baf00b1.json": "22f2a0aea31e736677d21b7d35264d5069b2d41b7766a9d18b8ee1828dddeff7",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/10f7effc27250b0b2ec28e5a0efa2fd5c7148113678a2c7952912c5820e99695.json": "b2926b26deea29e653f1201ead1ce62c111ae108baf7d13acbedbf63ee3e251a",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/13ea31f2c8933309e377a68dde4bcdfd4845df1852b3b44f0c7d0207aecb310e.json": "a07c1d48cf5a9aae706463324db2b561339a9f35645e1cc6091492012411ecab",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/1635905708cb87a208e26f3eda32b889b0d0f525d06a71257a46488880b0d1a7.json": "9888b702be4670bc81a14c86fcadd90489c9d8d50d3ecc866c53d03b6dc2b0b9",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/1937137bed0301fcefa11da8bffbfa2c2f16b6f3e730c718ca07b5ee239f3948.json": "343dd86142bd66b6a5b289ea037e0b20b04a6078447625a9afe66fb415f75b1f",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/200c28aa2c710e1dcb18241e65d793723dc0b50d5e0c467b177088f67d78029b.json": "b5d140bf51be9a1cdac54b12f90480f74b909ebc1d4312b3c15252df51b2e241",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/2e7b588ebc33d8435074ea6f30b4c3edfa417ee81db486c1bd784e459e1bd733.json": "e9579fc0cd2da1bb0aac0221913a8d154b28a1c09c3a4c494798b64438703443",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/4e6e84dfb8dc86d60cc741e92ad768e50cc89903474705745644b6346c31fdba.json": "8059fc860481d72898f79a87793ed4695d57ad1153f9d9b1dbbddec364b7d33c",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/57a48de99a3b6f55239ae41ee829251e03c26e634c0d72d07e2d0636be93dfdf.json": "4fe84f84b344bdd8780ce44210ae53f30b02db7bf951e2ba6f15e0b7c57f2883",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/593c778930517969558640a624aab31b0939a9af3fd2785c2b2f8eac6afd5f76.json": "5dc3d93a7168d3f48f1b2b7cea13ea6627c74fdd150373fa4e02e59258cfc6ad",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/5b12be1dc8d62cb34c8a775b04ae92465d9205644528436c4de15775952a38f3.json": "356bcf8fb00d7aa74fdcefb19fe70d14da1389b344731912e61e7f8f54b87dea",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/5b29548033557efd8f8bd3fe65925e188c5babf9b5dfaee6d298ed42665abf5d.json": "e742d80af7173dcec9fe58d5da91f63da3fa78c065039cd45d25772030237a04",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/5d94f96f8e512be141e825f52cef725dca2f9b473ee098f4c4199eb5669fcd8f.json": "7245469001898b355c0d8b8c6fdd828fd1a4f6fa80dafaaf8de931425e8fb28e",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/674bdcbfa04091300e0f40e3d1aea3f444aa3e8e21541490678b2a14df528ebb.json": "94490f2a5597708d142fdfeb7dca0dd0c3712d299e6fcb68cf399a521150567a",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/6e1bc32e8a9f6fc7dff21860bd7814254d8c47bfabe00915fec75ecbe2995f07.json": "093ab7c0fe547c355bd1629717fef5864550358e16707238e3c5e1b5e85a6fcd",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/6f261ddab71be0af132e9ddf1802dd2ee1e959a51aa3ec57a1ebdd61db7a0cce.json": "d2940aaaa631a54a420a0cc999cda2c5bab8484a3d6a0647e89089582ed86d30",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/7182417a5f02fe6bd3a11a31c0f4d1ce2b02718b72498abee7a7d4a81e65c5f5.json": "6492cdf93de42345e69bd8ef67eb1d49900846e4ff734a276418b139c0bdd998",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/7239d5c2b2074b49ce56b7e1d9c224053ec7da5a006cc818be1c605f6af1a127.json": "06aab2b1b4c25c8cd17c5ab4129a9663f8193c8514d11e161ce2712b1937eb74",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/79e2293126fba8f9659ade3d6bd22ae4fc3e4e4b4eb55e504ffabc9def25ea27.json": "f318cccd851c5040e81db104ea83f086873406eaf4a458c1f1aab99bbcd7f5b7",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/7fd5bb7835a6d602be43bf77a2f7013bdc1f9f7a2f8f6737483e79b4879d104c.json": "da8a51811fc32fa6ee877f0f3a4abeeaa6f4815fd5782178ec181fbf86bbc026",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/82295e18e0a688efe38581c622da94b036e12c4ba4bd36784c3333757709fd8a.json": "146690fc56073a4f88bea450a2c677b4eb45a128e7409d3db9e7155cb99280d7",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/856be3884a083a22f53106bcac95d7c1f0fb46835e444845ffb5526fcda29c2f.json": "c5bf42f47e4259843ee51ace8b5b49e1d22c96caa9168310f5d932a8d1d7c397",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/8e167bd6e4412505adf57addafccf0875bdf930470d6971e50e04f499247e7aa.json": "7ba964aa8c7524ee297c732d2a4e4800a4bb6b5cc3729bd7f3fc4346c670387e",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/90b5ce6429ad3e45db7174cb9f72892c17df942523d32822609ab53004fc5cc9.json": "f8a4c4bf0659d6275c68cef4788f2ce2768ef72b7e10cea9457973f4dbbeef59",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/91a70bfa9e73f9e1cb38d8d7300615bb59cfd45af4e03fb77cd911b8af961e3e.json": "ed4191ae960ed797e4709450d3630d029e5f2b2908c5c1280b8cf962dfec03f7",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/91ae5ed12662485260751bad4e0874d2e6b6208ff99ed421955b592595b18f37.json": "07da3fab8e38cb07e6dbfc31ece25e3159a3052d2d527e4591e7c93c97933a74",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/9346f5e25fa200421c13b22cf2e0d5a743e4622ee1c4efe406a7368bd8285066.json": "8b92cd8561473c5eda9869b12daad6c02e05ef5a99302256397f6ae726b612fd",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/93c5a92e02cae97d6995ee21a51cb3f771043b0b6609f74c56227a34903dfaad.json": "a1af1922dcc633964b5c290ec3ed878226f572427e6a0dc3d1b41b6f7f6b3e31",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/98af7ba77b48e4253976c44e1c145955e471514749e345c9b2bdc0abba129b3a.json": "934361ba33077e9786db1bb0903a18cd2229f3f03329b216df0cf714a659552f",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/9da50eae36c71750128b0430f254432c82fff953290501404692f1378e01f8d3.json": "2a5d40571db22386057f0208b625e68d94bcc239aed99b4847707b5786cf1382",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/abfddab6d86e602a9adbdf6e9a1cabb3bdfe5736d5c469e2fa29e5d39eddea49.json": "84c409b0be8f8e3ce4bf2f25f8d3215c98599aa3eddf8375c8f8a8614805c75d",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/ad3368cb474e0e3ee8a737b8f6d47600ac2e2c43f4869414305ba5c531339050.json": "26b6d6289d809511958cd4c025a07201ffb0984c310e7ab553726259761f9812",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/ad38fd2d019382d8e74e76dc43db3442ba0d89f9d2c3c3211ab4a906b61da1e5.json": "47679d7be1d6772f7b83e7b4142ac3e24fd98844c373692eec0632b6a39e072e",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/afb464ed1027f72231e7da529df7e39b699800c3d08086a56f09f05cb073081c.json": "e4ec1063dd45f6b34affd966b7d6fcb582fb820902ff3789c454637b6ae44fe3",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/bb453beffedd23383a134775134a61132a47eb163284840f4950b353556503b9.json": "ad7717537f01b94b7eebc41314aef4bfbacef9bb94a679d79901ba52cedb1029",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/bbde6b52ab7bf6fce15205b358e19f0e477a9fd1217aa75260c3503388d2720a.json": "915b7dfc2cd34d6c4e468c731229a02773021899632dd127cc507348adbc34d2",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/bd541160832b0cef88a6199bdfe3a7c5c1c05efce7dba558c4bfc511b79e26b7.json": "7a6d6b3e6169cfd208dec0df4cf17492254a824e038170505cabf45d802f3022",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/bfa063135f90b0ec130e44d9421f3e1b365aaa4d16761b97e4111ce89cab549d.json": "d2dd13d3348fe4fbd8261f242f2913567ec3026a0686931ae1ae07a51cf13e60",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/c40eed1be003e675b83c3a88d0ec34d9975131f56dc9b1e765bd7a31f4fd3810.json": "c5cab1ea2480a294ab0f9f33383e622d769affa6c6b283b02de6566b3718fc41",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/cf07902c4d3fd7b35430e6b1c3d9cd68f20b07ed9fd629e268f4a06de74583d6.json": "0323041472b679cc193ef2dfbc5e75a297090dbab8aed1e3358b597c9455f679",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/cfa599efa98c92b29dca3da1e86af63fbee31bdf0e0d0f1cbabd78eba17b7823.json": "23452c2f349a09c2d5d030756e8a997d69d7a4a994d384693d44d3067c1f444a",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/dddd28ef8ea349e7975c4e0c7f01d6c6599f98462c626ad1081411e0db2a8995.json": "dda210ca1943415367b18c576ad92dff3808b5996870c56bd993ba3041555f82",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/e65dd32ae40bd756adf659c59ea9fbc405bafdd51750c9c2a372ab238c426427.json": "5d5dc47a964f94b0c3370224c10aeb281e8d4f9a54f44cf1f6b191f3176b5439",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/ee1e9cb5adf7ee0787b509d9b28ef2f4c937000d7365d69bb2c606a4b333ca86.json": "6304c0379b446dbf3357204c3183ff034839cbff104c400170b1291ad0041a6c",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/f55e928d732b8bdeb9eb57bc73b2c17e68da8e92f43cfccbac819b8c79643a2e.json": "a024163f9facc0a2d9c1c8fd5605e0417680249656552ed12d6eebcf1a214b24",
+  "rpc-priority/fixtures/base-calls-20261023T014412Z/cache/0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5/fd6056d1feeb196f0f5febef0bfd9f712b777841de20a47bd064787bdb5ef00e.json": "3df9a416a81fc0807fa89b404e3185395a026f5d41a368a952df2ae1f4532c1f"
+ },
+ "fixture": {
+  "dir": "rpc-priority/fixtures/base-calls-20261023T014412Z",
+  "block": {
+   "number": 52965249,
+   "hash": "0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5",
+   "stateRoot": "0x3b94c43efbb24d38900eb3ff1edf25419c5139cbbc4b1e35fc97697128f1f1b4",
+   "timestamp": 1792719845
+  },
+  "providers": [
+   "https://mainnet.base.org",
+   "https://base.gateway.tenderly.co"
+  ],
+  "calls": [
+   "EnclaveAddressBook.addr(\"registry\")",
+   "EnclaveAddressBook.all()",
+   "Base ActivationRegistry.admin() (Beryl/Cobalt state-backed precompile 0x8453..01)",
+   "Osaka CLZ in a creation call (initcode returns clz(1) word)",
+   "P256VERIFY (0x100) revm-precompile vector ok_1"
+  ],
+  "witnessEntries": 49,
+  "testSequencerSigner": "0xd8291E50E2e68fb2c70d77cCDc707D291a89f209",
+  "note": "public chain state only (block header fields, eth_call results, eth_getProof/eth_getCode witnesses). The head commitment is signed by a TEST key (\"5e\" x 32, in record-base-calls.mjs), not the Base sequencer. Not preserved: helios.log (raw run log), home/.helios/helios.toml (regenerated by the test)."
+ },
+ "baseHeadsReferencedNotCopied": {
+  "dir": "rpc-priority/fixtures/base-heads-b-live-20261023T013719Z",
+  "objects": [
+   {
+    "name": "05e87666411de18f6980dc9809b6915aab5f7d5e5b554b264781530f80d054d3.v4.snappy",
+    "bytes": 49234
+   },
+   {
+    "name": "07df6a36db1ca9a1b60d87b3823859d9d426d35e4a99b6f38b66851c9ff55036.v4.snappy",
+    "bytes": 50531
+   },
+   {
+    "name": "08006e4f1ba97f0eb4e35782c210ea0263f1a3d5010749cd0eeb4a408f8178b3.v4.snappy",
+    "bytes": 65107
+   },
+   {
+    "name": "0c7db29d6aed7f8bd22bf58af350e3f2e3af6c610d9dcf8431784d5c4c001977.v4.snappy",
+    "bytes": 64674
+   },
+   {
+    "name": "0cf8375fb40acd9e8094afafc3bf4b87b4a0a9f704e6f0743df1e8255cedc4ad.v4.snappy",
+    "bytes": 47389
+   },
+   {
+    "name": "0d3b0e2b40f50667e7639e76084087dd2a31a6a25d69551c7f2ea10055449669.v4.snappy",
+    "bytes": 41162
+   },
+   {
+    "name": "11e4a8b0c83f12e83ebd1e24f40356225763012374b6f3faf0aefd9c2fae231b.v4.snappy",
+    "bytes": 60742
+   },
+   {
+    "name": "14bc0f4751578a3d18ceeda0f81b950cc70e306d1fedfd64ccd668cb3d8ce678.v4.snappy",
+    "bytes": 55858
+   },
+   {
+    "name": "1aa6832e2e5093e752a7bb442145238851afab03f91e770fd267fc964669bb7a.v4.snappy",
+    "bytes": 55115
+   },
+   {
+    "name": "1e1c066ec3c5e393a190f2693c38622cf5391efcb2f242651414ea46ff7c080f.v4.snappy",
+    "bytes": 71507
+   },
+   {
+    "name": "1ef68f5473b4f0623935e33b23b2e9a61045a12fd3a4d4af74b7a8798f6a8e12.v4.snappy",
+    "bytes": 46476
+   },
+   {
+    "name": "21bfa4b0534bfbcf895012468665e787ac5e96550edddc87675dc934c018fd35.v4.snappy",
+    "bytes": 57225
+   },
+   {
+    "name": "27578658d1481fcbbedcf50843f79dba5515c39670c01101e18efdb28c182383.v4.snappy",
+    "bytes": 48586
+   },
+   {
+    "name": "28207800f10c22f2b841414b4b2b94f25bbf6f13f4ec3c23cc6c824414227eca.v4.snappy",
+    "bytes": 58913
+   },
+   {
+    "name": "354283f9b57bf9e9fc5397e7e0a55973137803e5ee38aab09808db13f378904a.v4.snappy",
+    "bytes": 43349
+   },
+   {
+    "name": "39327ce4ef4f97ea3a37ad7f094b4ec28ca6d02c5b3090448900c46d3fb0dbb4.v4.snappy",
+    "bytes": 54298
+   },
+   {
+    "name": "3b6ebbacadff242e73f202e2151af5dc0501d9f9f5648e65b37acffd9594589e.v4.snappy",
+    "bytes": 47933
+   },
+   {
+    "name": "3baeff047422737fa19c5163e376dd88480a0db27e14e2845cfd6d0db9a6ad7d.v4.snappy",
+    "bytes": 51731
+   },
+   {
+    "name": "3ce5d7439a11f15a2ab7718e31ff83fce95aa8535e139acacca47bcc665f79a6.v4.snappy",
+    "bytes": 55830
+   },
+   {
+    "name": "469f99f4e8eff00e7a09da899b57356f2e5204a6493af3e98ec06985858b6828.v4.snappy",
+    "bytes": 57612
+   },
+   {
+    "name": "4deac88d2174b74b8c5221b034accb4900f3f4f0cb746303b6c26069f045708b.v4.snappy",
+    "bytes": 50977
+   },
+   {
+    "name": "4e9cddc892e6a21bd2bd7799c56cc5900827fa632381d4fe5d8e07998efcb7db.v4.snappy",
+    "bytes": 52807
+   },
+   {
+    "name": "50b82c0287a93b2da97147324fcb1887ac5ed77cb790ce76a68880f95c298c58.v4.snappy",
+    "bytes": 58843
+   },
+   {
+    "name": "67779f6071898e16b0d387b0404a8cc03b51ca2fc806bef4e8b6a9347afe6d34.v4.snappy",
+    "bytes": 45373
+   },
+   {
+    "name": "697ad7adca420f3f7e47fe59f21085bd60ef871a7c43841b333f55229f7b0c07.v4.snappy",
+    "bytes": 44841
+   },
+   {
+    "name": "6a1c4c6f334812a646f5924a149189bfe5865db8cea6a4e7d5dc360bcd91b2fe.v4.snappy",
+    "bytes": 55159
+   },
+   {
+    "name": "74ccc70853833a462d0d35ba2689cac9ee8478d7791969f2698badbf1cbe6b54.v4.snappy",
+    "bytes": 55743
+   },
+   {
+    "name": "89b12d3bab06c377208e318d255926459782f29431b89a95a2d84c8a9d9fa193.v4.snappy",
+    "bytes": 56209
+   },
+   {
+    "name": "924d683bc9c92fa2c39edff9aad4ab06bc6ad9dc64e9c9595951c2d354dbb2df.v4.snappy",
+    "bytes": 47501
+   },
+   {
+    "name": "991b20f6a714230b1be621820bb0d3fe59668d4ba374cd422d55663c5e13c01e.v4.snappy",
+    "bytes": 56706
+   },
+   {
+    "name": "a085bd36d48e059a50ab11363a7bb692abdf86e9d8b8163cd30f5240f5c3c7c3.v4.snappy",
+    "bytes": 49850
+   },
+   {
+    "name": "a5ef65d0f4b972401265e769712ea4fea3ebe54c49ef005bff2ea26596e7fd40.v4.snappy",
+    "bytes": 51568
+   },
+   {
+    "name": "a847d74bb4b2e897483cac9022e0ea6d396f313b1212ad8c1955f37e2e849e12.v4.snappy",
+    "bytes": 49988
+   },
+   {
+    "name": "acc0d8a4d1d58bf32cbbd934c7196746831d0f94b14949087e39f01b6d8e70be.v4.snappy",
+    "bytes": 49826
+   },
+   {
+    "name": "b82e52e2176e729849059e21cd3de3f7d3cd0660a13d3cbde63a5b7349fa5ae2.v4.snappy",
+    "bytes": 74151
+   },
+   {
+    "name": "bc31420eacc81605d193eeaf61647ce810666109f882cfb41e587b103628d4e3.v4.snappy",
+    "bytes": 61596
+   },
+   {
+    "name": "c20a20a267e2e3006094edc6751db88b6a009d1577a37869662b2da1e993522a.v4.snappy",
+    "bytes": 51737
+   },
+   {
+    "name": "c94c472b52ade4abc10358767951160ae5a39fb34848e22022f0f18ae50d28a4.v4.snappy",
+    "bytes": 64787
+   },
+   {
+    "name": "caafd8e21f62a54d5209d50429a8c885e3fbb5e0ba8f31f628015a669088d890.v4.snappy",
+    "bytes": 70298
+   },
+   {
+    "name": "cc69858d9205409317fd1fa00d9d391db40c7ea7767d0dcd17b0fe2f39219bcc.v4.snappy",
+    "bytes": 42379
+   },
+   {
+    "name": "cef62382f2d7b55889acefb4319fa7a9e1896f3a080ce15e33e8a7f75b4c87c5.v4.snappy",
+    "bytes": 63545
+   },
+   {
+    "name": "d08c46b8c24da5bdfe557b2b4cd2b26498596220744f023e25f2091095a388a3.v4.snappy",
+    "bytes": 75497
+   },
+   {
+    "name": "d6c5a7f7ec2d4c2b3fc19c31ee8c527ffd75493f7b2a66e438127fbc732b3521.v4.snappy",
+    "bytes": 53239
+   },
+   {
+    "name": "ddc0270764a7afa5f29d04059be35df62a7a10bc00a25d7ec9c7beec11fd0a40.v4.snappy",
+    "bytes": 50411
+   },
+   {
+    "name": "e0334414d9a7a69a788785ace45b5d83d24fa7a69ccad0881b33214b59d14c95.v4.snappy",
+    "bytes": 58214
+   },
+   {
+    "name": "e0a776585ad4d0ffdf76dd740b1a7c28ea01cdcfe6fbd271edafdb88e0903d5e.v4.snappy",
+    "bytes": 60926
+   },
+   {
+    "name": "e60a549788ead4b12d4edf14f05100764fea1116cfd07aee668473f052b039a5.v4.snappy",
+    "bytes": 61544
+   },
+   {
+    "name": "eb7aa587f90c8f4e3d41281bc6854f776588e4b74b3f5423c2ca5f1bb86c3a2a.v4.snappy",
+    "bytes": 57231
+   },
+   {
+    "name": "ec197b9f01acd9b93c900014b5b16142183fc77b559e0e0a727687d171e3e467.v4.snappy",
+    "bytes": 39454
+   },
+   {
+    "name": "ec6e9f0be99156e25206073a1b447c071690416b97fcdc3b6ed82f78545d4c9e.v4.snappy",
+    "bytes": 80194
+   },
+   {
+    "name": "ecb892c7285002fefc444cab2e8cafaa33da45522af4ace880807d896fe9a35e.v4.snappy",
+    "bytes": 47492
+   },
+   {
+    "name": "fe895249dc28e03854bfdf547d5d2ec4eb2be1ffd0c66108f8f1498040d355f4.v4.snappy",
+    "bytes": 74218
+   }
+  ],
+  "note": "Worker B's 52 real Base v4 gossip objects (content-addressed names). Raw binaries are NOT duplicated here; the head E2E (test/helios-base-head.e2e.test.mjs) needs this local directory (BASE_HEADS_DIR) or B's preserved objects. One of them (52965074) is in the checkpoint as a hex fixture."
+ },
+ "notPreserved": [
+  "the dirty worktrees (rpc-priority/repo has untracked node_modules, contracts/foundry/out)",
+  "helios-target/, helios-target-base/ (debug binaries: helios cc962e2b, opstack-server 35e2f012; compat helios 0929f7f3)",
+  "cargo-home/ registry/git caches",
+  "vendor-inspect/ upstream copies (stock 0.12.0 release helios a7f777b4, npm package, crate tarballs)",
+  "raw job logs (digest only)",
+  "test-scratch/, probes/ outputs",
+  "fixtures base-calls-20261023T014145Z/014245Z (failed recordings r1/r2), live-*/ (earlier synthetic runs)",
+  "WITNESS-INITIAL.v1-superseded.md"
+ ]
+}

@@ -1,0 +1,2218 @@
+From 3416a24527ddc7e9915d2ec3d9072e30cd3e7dfd Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 18:41:20 -0700
+Subject: [PATCH 2/4] opstack: execute Base chains with the maintained Base EVM
+ over proof-backed state
+
+Base mainnet/Sepolia run base/base v1.5.1 base-common-evm (BaseEvmFactory,
+BaseSpecId by timestamp from base-common-chains, Base precompile sets incl. the
+Beryl/Cobalt activation registry with the Base admin) on REVM 42, fed only by
+Helios's ProofDB through a REVM 43->42 database bridge. Other OP Stack chains
+keep op-revm; wasm builds refuse Base execution. The Base fork horizon refusal
+stays the shipped default. Requires Rust 1.96 (base/base rust-version).
+---
+ Cargo.lock                      | 884 ++++++++++++++++++++++++--------
+ opstack/Cargo.toml              |  11 +
+ opstack/src/evm.rs              |  94 +++-
+ opstack/src/evm/base_backend.rs | 359 +++++++++++++
+ 4 files changed, 1124 insertions(+), 224 deletions(-)
+ create mode 100644 opstack/src/evm/base_backend.rs
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 41f8cc0e22b4146dcab7d87a024c0559fff69f22..5805fa1ba9ca5b4cf51ed801db40447f75a8f5a3 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -97,14 +97,15 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
+ 
+ [[package]]
+ name = "alloy"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d1172e33a862030da77768c11cf17a1f801590de94cf518392b65207f15810c8"
++checksum = "f5a08ebfa51fdc243e0c6a662f5cf3428f04d1ad858e3fe77238cc78063eb86d"
+ dependencies = [
+  "alloy-consensus",
+  "alloy-contract",
+  "alloy-core",
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
++ "alloy-ens",
+  "alloy-genesis",
+  "alloy-json-rpc",
+  "alloy-network",
+@@ -112,7 +113,7 @@ dependencies = [
+  "alloy-pubsub",
+  "alloy-rpc-client",
+  "alloy-rpc-types",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "alloy-signer",
+  "alloy-signer-local",
+  "alloy-transport",
+@@ -124,25 +125,26 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-chains"
+-version = "0.2.6"
++version = "0.2.39"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "4195a29a4b87137b2bb02105e746102873bc03561805cf45c0e510c961f160e6"
++checksum = "c1c4f6f6f020f38a4ef079428b5c7009e913bf8102e4d65a90c6cb2cf93800eb"
+ dependencies = [
+  "alloy-primitives",
+  "num_enum",
+- "strum 0.27.2",
++ "phf 0.14.0",
++ "serde",
+ ]
+ 
+ [[package]]
+ name = "alloy-consensus"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b44937ce84d2cbf1ee4010667bd9214bb7db134a91dd9ffa6b1b8b1d6b030449"
++checksum = "727016fed834c2392d014dd697ea473f3e47bcec31ba31ccffa9c1d18ed904e5"
+ dependencies = [
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
+  "alloy-primitives",
+  "alloy-rlp",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "alloy-trie",
+  "alloy-tx-macros",
+  "auto_impl",
+@@ -162,23 +164,23 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-consensus-any"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7bb0bdd61ddff726026676450e7e6a52c68aa39d98f2d60d05ad7caaea5b8100"
++checksum = "6ea5ae60bbb3ce9dc52685a70a3755ad4432045fd38079b763cfe5127c706134"
+ dependencies = [
+  "alloy-consensus",
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
+  "alloy-primitives",
+  "alloy-rlp",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "serde",
+ ]
+ 
+ [[package]]
+ name = "alloy-contract"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b1475c7edc6780b1759ccdb7960e28d29856ecbed47cfcf9e25be6a5f48b0cfb"
++checksum = "8c807c974ae5ac07fa98431310b498d85f029da0d2f9a088b3ea673e5e33bb81"
+ dependencies = [
+  "alloy-consensus",
+  "alloy-dyn-abi",
+@@ -195,7 +197,9 @@ dependencies = [
+  "futures-util",
+  "serde_json",
+  "thiserror 2.0.18",
++ "tokio",
+  "tracing",
++ "wasmtimer",
+ ]
+ 
+ [[package]]
+@@ -294,6 +298,19 @@ dependencies = [
+  "thiserror 2.0.18",
+ ]
+ 
++[[package]]
++name = "alloy-eip8141"
++version = "0.1.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "36422c14bd57dcd638e276c8c9d7ac09eb16598e3a9dbd34e4b55267d4565b5e"
++dependencies = [
++ "alloy-primitives",
++ "alloy-rlp",
++ "borsh",
++ "serde",
++ "thiserror 2.0.18",
++]
++
+ [[package]]
+ name = "alloy-eips"
+ version = "1.8.3"
+@@ -319,17 +336,18 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-eips"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "154b0f566ebbfc256b63c8d643c6a299f40a6fcd50a9d756c1d191487dd06483"
++checksum = "e01905444bd2fc330673f11d2466c0f54e8488f7ce3132b6a5e6497916fca765"
+ dependencies = [
+  "alloy-eip2124",
+  "alloy-eip2930",
+  "alloy-eip7702",
+  "alloy-eip7928 0.4.11",
++ "alloy-eip8141",
+  "alloy-primitives",
+  "alloy-rlp",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "auto_impl",
+  "borsh",
+  "c-kzg",
+@@ -342,26 +360,73 @@ dependencies = [
+  "sha2 0.10.9",
+ ]
+ 
++[[package]]
++name = "alloy-ens"
++version = "2.5.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "22fad0811d511f8bb0d64599b9ea885282f61be924e36cee3362667115482e2b"
++dependencies = [
++ "alloy-contract",
++ "alloy-primitives",
++ "alloy-provider",
++ "alloy-sol-types",
++ "async-trait",
++ "thiserror 2.0.18",
++]
++
++[[package]]
++name = "alloy-evm"
++version = "0.38.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6b307a52f91f7f3aad56b5cb4f54e5eb17dd0b3f4b2c82823301499fe1c6fdaf"
++dependencies = [
++ "alloy-consensus",
++ "alloy-eips 2.5.0",
++ "alloy-hardforks",
++ "alloy-primitives",
++ "alloy-rpc-types-engine",
++ "alloy-rpc-types-eth",
++ "alloy-sol-types",
++ "auto_impl",
++ "derive_more",
++ "revm 42.0.1",
++ "thiserror 2.0.18",
++ "tracing",
++]
++
+ [[package]]
+ name = "alloy-genesis"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "a0a930a68a6f0ac19231bc2f5f0bf13fad3a26fa7df2525354890c72366c2998"
++checksum = "53cfa407c1d874cb306187996e30eb551bd98025e60e913e69e298ed2c8ea045"
+ dependencies = [
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
+  "alloy-primitives",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "alloy-trie",
+  "borsh",
+  "serde",
+  "serde_with",
+ ]
+ 
++[[package]]
++name = "alloy-hardforks"
++version = "0.4.10"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "67bc1e34b9e64d1cff9fe7f65627f6e09e3db5893c918cc4b90b8e2a09da1aa5"
++dependencies = [
++ "alloy-chains",
++ "alloy-eip2124",
++ "alloy-primitives",
++ "auto_impl",
++ "dyn-clone",
++]
++
+ [[package]]
+ name = "alloy-json-abi"
+-version = "1.6.0"
++version = "1.6.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7c36c9d7f9021601b04bfef14a4b64849f6d73116a4e91e071d7fbfe10247901"
++checksum = "6cee30dd4c2f4b23f434fdf675e7bf9681b86768141277266c6f548ef25cba0a"
+ dependencies = [
+  "alloy-primitives",
+  "alloy-sol-type-parser",
+@@ -371,9 +436,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-json-rpc"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2e92108767c8c95b5e521570e039e374e65198c4179a98d200412c083d6c26d5"
++checksum = "fff9cb760601d352d1e59aab5803c3fb6dc99824b6883f5c7a781aacd4b54c66"
+ dependencies = [
+  "alloy-primitives",
+  "alloy-sol-types",
+@@ -386,19 +451,19 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-network"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "c4546c9fae2861d4159ee3b25c44ab3edb90f21b849e86cf2086cacb1d56d8ac"
++checksum = "e11dfba13dac9e54576bf41e1b7461491367e0bce6a2a4293b9e40ffa3ebd5e9"
+ dependencies = [
+  "alloy-consensus",
+  "alloy-consensus-any",
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
+  "alloy-json-rpc",
+  "alloy-network-primitives",
+  "alloy-primitives",
+  "alloy-rpc-types-any",
+  "alloy-rpc-types-eth",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "alloy-signer",
+  "alloy-sol-types",
+  "async-trait",
+@@ -412,28 +477,29 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-network-primitives"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ca2c325d5934445209c8d22fc67d27e2cf9fb79054b8154d9e522d6a4ee3a4f7"
++checksum = "3819bf6794d25f679d42c3f2b168e12cae08c56bb41d393cb6249b55e6d5933e"
+ dependencies = [
+  "alloy-consensus",
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
+  "alloy-primitives",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "serde",
+ ]
+ 
+ [[package]]
+ name = "alloy-primitives"
+-version = "1.6.0"
++version = "1.6.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "4885c1409b6936c4898e646ef58baf6ec54edaf6d8179f79df805a7b85b7cf3e"
++checksum = "f007e257069855bdf21d27762fd3f3705a613f805c9a08309bf353503f081d71"
+ dependencies = [
+  "alloy-rlp",
+  "bytes",
+  "cfg-if",
+  "const-hex",
+  "derive_more",
++ "fixed-cache",
+  "foldhash 0.2.0",
+  "getrandom 0.4.3",
+  "hashbrown 0.17.1",
+@@ -454,13 +520,13 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-provider"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ff4536d25780fcf51a338c26153c526c99649be1273600684ef10b397a207d4a"
++checksum = "9f8250dbbc93fab5b00fe0d3c1db3ede67d2a5fdbae8255de70b34ae39da244b"
+ dependencies = [
+  "alloy-chains",
+  "alloy-consensus",
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
+  "alloy-json-rpc",
+  "alloy-network",
+  "alloy-network-primitives",
+@@ -485,7 +551,8 @@ dependencies = [
+  "either",
+  "futures",
+  "futures-utils-wasm",
+- "lru 0.16.4",
++ "http 1.3.1",
++ "lru 0.18.5",
+  "parking_lot 0.12.4",
+  "pin-project",
+  "reqwest 0.13.4",
+@@ -500,9 +567,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-pubsub"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9393d7f1fbe02ec0cff205943cf1b899200312bed0d150b2b99dc6c729203414"
++checksum = "fcf12a49e488baefa21619f3ec2ce39f20857153aa1e91619fb5c1ce4d69d893"
+ dependencies = [
+  "alloy-json-rpc",
+  "alloy-primitives",
+@@ -522,9 +589,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-rlp"
+-version = "0.3.15"
++version = "0.3.16"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "dc90b1e703d3c03f4ff7f48e82dd0bc1c8211ab7d079cd836a06fcfeb06651cb"
++checksum = "24671b1f62edcf0f9b62994c7bf72cd621a04a4b99f5020ece1a647b40e2f103"
+ dependencies = [
+  "alloy-rlp-derive",
+  "arrayvec",
+@@ -533,9 +600,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-rlp-derive"
+-version = "0.3.15"
++version = "0.3.16"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f36834a5c0a2fa56e171bf256c34d70fca07d0c0031583edea1c4946b7889c9e"
++checksum = "9d4311c03125e8a18296504560b9de3d75ecbd0dcda7f71e6cf2a196d57e6fba"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+@@ -544,9 +611,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-rpc-client"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7f8d765656f02f993fa0565abeb3554ccd6a0d72ea44ce0558b983136639bd6b"
++checksum = "1f73519dc8f4ab73dafe90ac47aec4b9055c421c762d770d911eed83fcbef28d"
+ dependencies = [
+  "alloy-json-rpc",
+  "alloy-primitives",
+@@ -570,9 +637,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-rpc-types"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2a05ef5b11fad72068e6f011c21445bc5b596ac850644c4a14c30d845ce56de8"
++checksum = "e30da7fc40ff208becb4ebe462a149045c8613f60ee84f65731a522c67c351fd"
+ dependencies = [
+  "alloy-primitives",
+  "alloy-rpc-types-anvil",
+@@ -582,44 +649,44 @@ dependencies = [
+  "alloy-rpc-types-eth",
+  "alloy-rpc-types-trace",
+  "alloy-rpc-types-txpool",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "serde",
+ ]
+ 
+ [[package]]
+ name = "alloy-rpc-types-anvil"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7c1fa8062c379d4fb51d28361cd02cd6a18a49fa79831c16831449b65408aa6c"
++checksum = "ad4774d898cc10846f65c426a385071f3e2872876d7f0e7836f1f75ffa54d448"
+ dependencies = [
+  "alloy-primitives",
+  "alloy-rpc-types-eth",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "serde",
+ ]
+ 
+ [[package]]
+ name = "alloy-rpc-types-any"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b06bfe79149dd53de5b196aa3c96db0500b7cf0ed72dbd1a31bac7660bc7cc65"
++checksum = "9c5d320312e4a9481b18185429e57fa161dbf9468414ba5667aff4ebe7bd37e7"
+ dependencies = [
+  "alloy-consensus-any",
+  "alloy-network-primitives",
+  "alloy-primitives",
+  "alloy-rpc-types-eth",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "serde",
+  "serde_json",
+ ]
+ 
+ [[package]]
+ name = "alloy-rpc-types-beacon"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "57af0eb1ee47312e8c92ddf2669308249015fc2cf733eb17251e7343c27b70c7"
++checksum = "01f0837510a7e7789f99cf86bc0d0e3b54cfa663f25de803dad613364eef9fd3"
+ dependencies = [
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
+  "alloy-primitives",
+  "alloy-rpc-types-engine",
+  "derive_more",
+@@ -635,9 +702,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-rpc-types-debug"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5ff0a296b58194c7464aa56f2bdad065c5a24b43a6de5d62b8a985ae3969ecd0"
++checksum = "ce17ebd75d90c490897ca320e34bd5c95e0d8620d35ba5842aee9e7b5a90ea21"
+ dependencies = [
+  "alloy-primitives",
+  "alloy-rlp",
+@@ -648,15 +715,15 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-rpc-types-engine"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "851167851209fac75c31833b3a4ec5d9c3efa2b14563605dc6a1d58f576e390c"
++checksum = "77b967576e97165fed3fae1cf6adad964e192293e4ee61d9187afe3ecaa12323"
+ dependencies = [
+  "alloy-consensus",
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
+  "alloy-primitives",
+  "alloy-rlp",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "derive_more",
+  "ethereum_ssz 0.10.4",
+  "ethereum_ssz_derive 0.10.4",
+@@ -667,18 +734,19 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-rpc-types-eth"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b41d1a11f58b456c199e04591befc64cb236fa2574a7275a07b98b173727bd39"
++checksum = "32c475e21fe8a8caa02166b326ed22207a1a0597fc9b0dcdfb46e2fe6f80dadf"
+ dependencies = [
+  "alloy-consensus",
+  "alloy-consensus-any",
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
+  "alloy-network-primitives",
+  "alloy-primitives",
+  "alloy-rlp",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "alloy-sol-types",
++ "alloy-trie",
+  "itertools 0.14.0",
+  "serde",
+  "serde_json",
+@@ -688,13 +756,13 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-rpc-types-trace"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f813a34cce29d4a340633310e5da5ac182450887333be38490c51f7776543ac2"
++checksum = "e3d8edefcef7d45a3da4bb869bbee1ee4c71b7437b22b87794f0912c89b5702c"
+ dependencies = [
+  "alloy-primitives",
+  "alloy-rpc-types-eth",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "serde",
+  "serde_json",
+  "thiserror 2.0.18",
+@@ -702,13 +770,13 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-rpc-types-txpool"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e6149b3ef1ec411016127baeb3ff2f479290721da9f2d936b882df50d83c3133"
++checksum = "2fcacd9928d9788790afcd1d3fd8d0206329d2ef2391070867bafcc20ecf278f"
+ dependencies = [
+  "alloy-primitives",
+  "alloy-rpc-types-eth",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "serde",
+ ]
+ 
+@@ -725,9 +793,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-serde"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "bcf028ac8bcb161ad7c104243e710cece8e1a794f65ee6c35c4c4d693c8e80ee"
++checksum = "4f44f297d3b9e3ca2c3039e3c0ed69acde9b35edda15381cf78f725b7263fbe2"
+ dependencies = [
+  "alloy-primitives",
+  "serde",
+@@ -736,9 +804,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-signer"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1a5f392f2f56b2417ea6b74e1e116c6f35df5ab5fce4dc422e277d72ee18ff7b"
++checksum = "e7de6fd34b5ba1789d482fa800dd97219b34765d6b07633a989a24d2dace770e"
+ dependencies = [
+  "alloy-primitives",
+  "async-trait",
+@@ -751,9 +819,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-signer-local"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "78de3d4ed62e2c90e16be166d0ddfe41944bb5979752703199073acf976083f2"
++checksum = "d6909c09d586c7b55eced688754d57dde8a6bcbae2b83e69a9b9250e74cfd79e"
+ dependencies = [
+  "alloy-consensus",
+  "alloy-network",
+@@ -767,13 +835,13 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-sol-macro"
+-version = "1.6.0"
++version = "1.6.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "840128ed2b2971d6d4668a553fe403a82683d3acc646c73e75887e7157408033"
++checksum = "b5655c38d5f84955bf727b2eeb62fddd91ebb98fd1d7ae6eb77f73ea88f9b9cf"
+ dependencies = [
+  "alloy-sol-macro-expander",
+  "alloy-sol-macro-input",
+- "proc-macro-error2",
++ "proc-macro-error3",
+  "proc-macro2",
+  "quote",
+  "syn 2.0.104",
+@@ -781,16 +849,16 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-sol-macro-expander"
+-version = "1.6.0"
++version = "1.6.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "63ec265e5d65d725175f6ca7711c970824c90ef9c0d1f1973711d4150ee612dd"
++checksum = "6277c780e07b76951e09a59788dde230d1582612324177d11a43a61e21a6bb83"
+ dependencies = [
+  "alloy-json-abi",
+  "alloy-sol-macro-input",
+  "const-hex",
+  "heck 0.5.0",
+  "indexmap 2.10.0",
+- "proc-macro-error2",
++ "proc-macro-error3",
+  "proc-macro2",
+  "quote",
+  "sha3 0.11.0",
+@@ -800,9 +868,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-sol-macro-input"
+-version = "1.6.0"
++version = "1.6.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "89bf01077f18650876cfa682eb1f949967b5cde03f1a51c955c469d2c9b4aa67"
++checksum = "9762b2ad3e5a0c09886de54fe549ab0056681df843cb082e2df7e1c0eb270d30"
+ dependencies = [
+  "alloy-json-abi",
+  "const-hex",
+@@ -818,9 +886,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-sol-type-parser"
+-version = "1.6.0"
++version = "1.7.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "857b470ecdd2ed38beaf82ad1a38c516a8ff75266750f38b9eeed001d575241b"
++checksum = "77c2a8abc3334044013b23d5e438cc5dc802e5544cc42b713d0840d5185967cc"
+ dependencies = [
+  "serde",
+  "winnow 1.0.3",
+@@ -828,9 +896,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-sol-types"
+-version = "1.6.0"
++version = "1.6.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "384cf252de0db2dec52821eac037a7f57e2aa33fe5b900ce6fe39973402341f1"
++checksum = "d96e74d6213180f78dbdccddce8af02a639c160c94b0a543fa35c77c58b8a7fc"
+ dependencies = [
+  "alloy-json-abi",
+  "alloy-primitives",
+@@ -840,9 +908,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-transport"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "39f42ee1ef30d4d3d8b4ea5794937fccfc69e2bb1cd5bcf42d62afc57b049081"
++checksum = "e10be13ab13ddadcfaec3320cc6cee83548a1ae32ada214ff864604cbf5c6f77"
+ dependencies = [
+  "alloy-json-rpc",
+  "auto_impl",
+@@ -863,9 +931,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-transport-http"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ee68bc7d713e033eeaaecb8fd13d5d8a41af97226c4388930ad459285b8e9f70"
++checksum = "df948f2f9530ed0325d789ad98aa08403aaeaf55ddd6eeaf0cda143e02afab39"
+ dependencies = [
+  "alloy-json-rpc",
+  "alloy-transport",
+@@ -879,9 +947,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-transport-ipc"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d110e862e4869de0b3a6b7f7382cf035ab5a7e0668eb56df32efd7c39eb1a5da"
++checksum = "a757d266eb7927d59a04878c99b450df0da49125e61d641f48fa7c6a82dd4418"
+ dependencies = [
+  "alloy-json-rpc",
+  "alloy-pubsub",
+@@ -889,6 +957,7 @@ dependencies = [
+  "bytes",
+  "futures",
+  "interprocess",
++ "memchr",
+  "pin-project",
+  "serde",
+  "serde_json",
+@@ -899,9 +968,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-transport-ws"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2bc2011694071e6dcf8ad418479ee21c4ed0e9ca20906484ea9336b99f28a59f"
++checksum = "8c799e5804cadb4a09e0ff21be230cc1025e5a21e02a41aa9c0022fdb41f830f"
+ dependencies = [
+  "alloy-pubsub",
+  "alloy-transport",
+@@ -918,9 +987,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-trie"
+-version = "0.9.5"
++version = "0.9.8"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3f14b5d9b2c2173980202c6ff470d96e7c5e202c65a9f67884ad565226df7fbb"
++checksum = "b94e3e0a88f8db47250ac8a95fb825d020719f833eb1dc661bd3609c3bbece7d"
+ dependencies = [
+  "alloy-primitives",
+  "alloy-rlp",
+@@ -934,9 +1003,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "alloy-tx-macros"
+-version = "2.1.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "dc2cd27809c88c413e5542dbd5a8eff8c12f0086af920e881ae586d3a787d5e5"
++checksum = "60fa90c57738ace5b38106c9f743f3d6d47de09a82e82ecfc42702c1acf116ee"
+ dependencies = [
+  "darling 0.23.0",
+  "proc-macro2",
+@@ -944,6 +1013,18 @@ dependencies = [
+  "syn 2.0.104",
+ ]
+ 
++[[package]]
++name = "ambassador"
++version = "0.4.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e68de4cdc6006162265d0957edb4a860fe4e711b1dc17a5746fd95f952f08285"
++dependencies = [
++ "itertools 0.10.5",
++ "proc-macro2",
++ "quote",
++ "syn 1.0.109",
++]
++
+ [[package]]
+ name = "android-tzdata"
+ version = "0.1.1"
+@@ -1851,6 +1932,168 @@ dependencies = [
+  "windows-targets 0.52.6",
+ ]
+ 
++[[package]]
++name = "base-common-chains"
++version = "1.5.1"
++dependencies = [
++ "alloy-chains",
++ "alloy-eips 2.5.0",
++ "alloy-genesis",
++ "alloy-hardforks",
++ "alloy-primitives",
++ "auto_impl",
++ "base-common-genesis",
++ "revm 42.0.1",
++ "spin 0.10.1",
++]
++
++[[package]]
++name = "base-common-consensus"
++version = "1.5.1"
++dependencies = [
++ "alloy-consensus",
++ "alloy-eips 2.5.0",
++ "alloy-evm",
++ "alloy-genesis",
++ "alloy-primitives",
++ "alloy-rlp",
++ "alloy-rpc-types-eth",
++ "alloy-serde 2.5.0",
++ "alloy-sol-types",
++ "ambassador",
++ "base-common-genesis",
++ "reth-codecs 0.6.0",
++ "reth-primitives-traits 0.6.0",
++ "reth-zstd-compressors 0.6.0",
++ "revm 42.0.1",
++ "serde",
++ "thiserror 2.0.18",
++]
++
++[[package]]
++name = "base-common-eip8130"
++version = "1.5.1"
++dependencies = [
++ "alloy-primitives",
++ "base-common-consensus",
++ "thiserror 2.0.18",
++]
++
++[[package]]
++name = "base-common-evm"
++version = "1.5.1"
++dependencies = [
++ "alloy-consensus",
++ "alloy-eips 2.5.0",
++ "alloy-evm",
++ "alloy-primitives",
++ "auto_impl",
++ "base-common-chains",
++ "base-common-consensus",
++ "base-common-flz",
++ "base-common-genesis",
++ "base-common-l1-fees",
++ "base-common-precompiles",
++ "base-execution-eip8130",
++ "base-metrics",
++ "base-precompile-storage",
++ "revm 42.0.1",
++ "serde",
++ "thiserror 2.0.18",
++]
++
++[[package]]
++name = "base-common-flz"
++version = "1.5.1"
++
++[[package]]
++name = "base-common-genesis"
++version = "1.5.1"
++dependencies = [
++ "alloy-chains",
++ "alloy-consensus",
++ "alloy-eips 2.5.0",
++ "alloy-hardforks",
++ "alloy-primitives",
++ "alloy-sol-types",
++ "derive_more",
++ "serde",
++ "spin 0.10.1",
++ "thiserror 2.0.18",
++ "tracing",
++]
++
++[[package]]
++name = "base-common-l1-fees"
++version = "1.5.1"
++dependencies = [
++ "alloy-primitives",
++ "base-common-flz",
++ "base-common-genesis",
++]
++
++[[package]]
++name = "base-common-precompiles"
++version = "1.5.1"
++dependencies = [
++ "alloy-evm",
++ "alloy-primitives",
++ "alloy-sol-types",
++ "base-common-chains",
++ "base-common-eip8130",
++ "base-common-genesis",
++ "base-precompile-macros",
++ "base-precompile-storage",
++ "revm 42.0.1",
++]
++
++[[package]]
++name = "base-execution-eip8130"
++version = "1.5.1"
++dependencies = [
++ "alloy-primitives",
++ "alloy-sol-types",
++ "base-common-consensus",
++ "base-common-eip8130",
++ "base-common-precompiles",
++ "base-precompile-macros",
++ "base-precompile-storage",
++ "base64 0.22.1",
++ "k256",
++ "p256",
++ "revm 42.0.1",
++ "sha2 0.10.9",
++ "thiserror 2.0.18",
++]
++
++[[package]]
++name = "base-metrics"
++version = "1.5.1"
++
++[[package]]
++name = "base-precompile-macros"
++version = "1.5.1"
++dependencies = [
++ "alloy-primitives",
++ "proc-macro2",
++ "quote",
++ "syn 2.0.104",
++]
++
++[[package]]
++name = "base-precompile-storage"
++version = "1.5.1"
++dependencies = [
++ "alloy-evm",
++ "alloy-primitives",
++ "alloy-sol-types",
++ "base-precompile-macros",
++ "derive_more",
++ "revm 42.0.1",
++ "thiserror 2.0.18",
++ "tracing",
++]
++
+ [[package]]
+ name = "base-x"
+ version = "0.2.11"
+@@ -1902,21 +2145,6 @@ version = "0.6.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "230c5f1ca6a325a32553f8640d31ac9b49f2411e901e427570154868b46da4f7"
+ 
+-[[package]]
+-name = "bit-set"
+-version = "0.8.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "08807e080ed7f9d5433fa9b275196cfc35414f66a0c79d864dc51a0d825231a3"
+-dependencies = [
+- "bit-vec",
+-]
+-
+-[[package]]
+-name = "bit-vec"
+-version = "0.8.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
+-
+ [[package]]
+ name = "bitcoin-io"
+ version = "0.1.3"
+@@ -2890,6 +3118,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "e7c1832837b905bbfb5101e07cc24c8deddf52f93225eee6ead5f4d63d53ddcb"
+ dependencies = [
+  "const-oid",
++ "pem-rfc7468",
+  "zeroize",
+ ]
+ 
+@@ -3206,6 +3435,7 @@ dependencies = [
+  "ff",
+  "generic-array",
+  "group",
++ "pem-rfc7468",
+  "pkcs8",
+  "rand_core 0.6.4",
+  "sec1",
+@@ -3494,6 +3724,16 @@ version = "0.1.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
+ 
++[[package]]
++name = "fixed-cache"
++version = "0.1.11"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "57b811067c17dd16568d50c522f03fa65227c7f602c88f77d38e7842c51ba964"
++dependencies = [
++ "equivalent",
++ "rapidhash",
++]
++
+ [[package]]
+ name = "fixed-hash"
+ version = "0.8.0"
+@@ -3961,17 +4201,6 @@ dependencies = [
+  "foldhash 0.1.5",
+ ]
+ 
+-[[package]]
+-name = "hashbrown"
+-version = "0.16.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
+-dependencies = [
+- "allocator-api2",
+- "equivalent",
+- "foldhash 0.2.0",
+-]
+-
+ [[package]]
+ name = "hashbrown"
+ version = "0.17.1"
+@@ -4197,10 +4426,13 @@ name = "helios-opstack"
+ version = "0.12.0"
+ dependencies = [
+  "alloy",
++ "alloy-evm",
+  "alloy-rlp",
+  "alloy-trie",
+  "async-trait",
+  "axum 0.7.9",
++ "base-common-chains",
++ "base-common-evm",
+  "clap",
+  "discv5",
+  "ethereum_ssz 0.9.0",
+@@ -4224,6 +4456,7 @@ dependencies = [
+  "op-revm",
+  "parking_lot 0.12.4",
+  "reqwest 0.12.22",
++ "revm 42.0.1",
+  "revm 43.0.3",
+  "serde",
+  "serde_json",
+@@ -5689,11 +5922,11 @@ dependencies = [
+ 
+ [[package]]
+ name = "lru"
+-version = "0.16.4"
++version = "0.18.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7f66e8d5d03f609abc3a39e6f08e4164ebf1447a732906d39eb9b99b7919ef39"
++checksum = "ef9ac18847474e638e3702b76c65d4eb93428471a74778ef0f1be711717f89b5"
+ dependencies = [
+- "hashbrown 0.16.1",
++ "hashbrown 0.17.1",
+ ]
+ 
+ [[package]]
+@@ -6218,16 +6451,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "6ca73133d6cb8d0b1cd042433bca9a394e4eaeb8ec1f96c210adf3f45cb74040"
+ dependencies = [
+  "alloy-consensus",
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
+  "alloy-network",
+  "alloy-primitives",
+  "alloy-rlp",
+  "alloy-rpc-types-eth",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "bytes",
+  "derive_more",
+- "reth-codecs",
+- "reth-zstd-compressors",
++ "reth-codecs 0.3.2",
++ "reth-zstd-compressors 0.3.2",
+  "serde",
+  "serde_with",
+  "thiserror 2.0.18",
+@@ -6254,12 +6487,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "e322e7437d5fb4aea6d98879046d42516137fe489d867a1b0d53275da76cbd2d"
+ dependencies = [
+  "alloy-consensus",
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
+  "alloy-network",
+  "alloy-network-primitives",
+  "alloy-primitives",
+  "alloy-rpc-types-eth",
+- "alloy-serde 2.1.0",
++ "alloy-serde 2.5.0",
+  "derive_more",
+  "op-alloy-consensus",
+  "reth-rpc-traits",
+@@ -6518,6 +6751,15 @@ dependencies = [
+  "base64 0.13.1",
+ ]
+ 
++[[package]]
++name = "pem-rfc7468"
++version = "0.7.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "88b39c9bfcfc231068454382784bb460aae594343fb030d46e9f50a645418412"
++dependencies = [
++ "base64ct",
++]
++
+ [[package]]
+ name = "percent-encoding"
+ version = "2.3.1"
+@@ -6879,22 +7121,22 @@ dependencies = [
+ ]
+ 
+ [[package]]
+-name = "proc-macro-error-attr2"
+-version = "2.0.0"
++name = "proc-macro-error-attr3"
++version = "3.0.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "96de42df36bb9bba5542fe9f1a054b8cc87e172759a1868aa05c1f3acc89dfc5"
++checksum = "82366fd7d8b7a440d66d13418820c69df9b3908bcb1a0476d7f5ce5d12f5a04d"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+ ]
+ 
+ [[package]]
+-name = "proc-macro-error2"
+-version = "2.0.1"
++name = "proc-macro-error3"
++version = "3.0.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "11ec05c52be0a07b08061f7dd003e7d7092e0472bc731b4af7bb1ef876109802"
++checksum = "b511283ea8a74b4b39447b128c5d00f03a356b7424554b13e298a5550100d9ac"
+ dependencies = [
+- "proc-macro-error-attr2",
++ "proc-macro-error-attr3",
+  "proc-macro2",
+  "quote",
+  "syn 2.0.104",
+@@ -6951,8 +7193,6 @@ version = "1.7.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "6fcdab19deb5195a31cf7726a210015ff1496ba1464fd42cb4f537b8b01b471f"
+ dependencies = [
+- "bit-set",
+- "bit-vec",
+  "bitflags 2.13.0",
+  "lazy_static",
+  "num-traits",
+@@ -6960,17 +7200,9 @@ dependencies = [
+  "rand_chacha 0.9.0",
+  "rand_xorshift",
+  "regex-syntax 0.8.5",
+- "rusty-fork",
+- "tempfile",
+  "unarray",
+ ]
+ 
+-[[package]]
+-name = "quick-error"
+-version = "1.2.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "a1d01941d82fa2ab50be1e79e6714289dd7cde78eba4c074bc5a4374f650dfe0"
+-
+ [[package]]
+ name = "quick-protobuf"
+ version = "0.8.1"
+@@ -7518,15 +7750,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "4ee9f6a4b8f4992c030c82fb8c2dcc872349452009b4127055f678f7d5a3dea3"
+ dependencies = [
+  "alloy-consensus",
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
++ "alloy-genesis",
++ "alloy-primitives",
++ "alloy-trie",
++ "bytes",
++ "modular-bitfield",
++ "parity-scale-codec",
++ "reth-codecs-derive 0.3.2",
++ "reth-zstd-compressors 0.3.2",
++ "serde",
++]
++
++[[package]]
++name = "reth-codecs"
++version = "0.6.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1f0dd7f542fbcae0e490ebe13f3eababcc05547375246ff7f62700b533cf3f01"
++dependencies = [
++ "alloy-consensus",
++ "alloy-eips 2.5.0",
+  "alloy-genesis",
+  "alloy-primitives",
+  "alloy-trie",
+  "bytes",
+  "modular-bitfield",
+  "parity-scale-codec",
+- "reth-codecs-derive",
+- "reth-zstd-compressors",
++ "reth-codecs-derive 0.6.0",
++ "reth-zstd-compressors 0.6.0",
+  "serde",
+ ]
+ 
+@@ -7541,6 +7792,17 @@ dependencies = [
+  "syn 2.0.104",
+ ]
+ 
++[[package]]
++name = "reth-codecs-derive"
++version = "0.6.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e7e508fcbb8cb775639dbbb56b81b62756d4322f28e76c60a52aa32575f993fe"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 2.0.104",
++]
++
+ [[package]]
+ name = "reth-primitives-traits"
+ version = "0.3.2"
+@@ -7548,7 +7810,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "e83138080a41e35a6aa876410ca67231fb35da7e2ca494315d8b8be15e9ed9c0"
+ dependencies = [
+  "alloy-consensus",
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
+  "alloy-genesis",
+  "alloy-primitives",
+  "alloy-rlp",
+@@ -7565,6 +7827,30 @@ dependencies = [
+  "thiserror 2.0.18",
+ ]
+ 
++[[package]]
++name = "reth-primitives-traits"
++version = "0.6.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4666a8d5b246650b23e6767a45e46334d352557f473e91c2ea7211cc29291cca"
++dependencies = [
++ "alloy-consensus",
++ "alloy-eips 2.5.0",
++ "alloy-genesis",
++ "alloy-primitives",
++ "alloy-rlp",
++ "alloy-rpc-types-eth",
++ "alloy-trie",
++ "bytes",
++ "derive_more",
++ "once_cell",
++ "revm-bytecode 42.0.0",
++ "revm-primitives 42.0.0",
++ "revm-state 42.0.0",
++ "secp256k1 0.30.0",
++ "serde",
++ "thiserror 2.0.18",
++]
++
+ [[package]]
+ name = "reth-rpc-traits"
+ version = "0.3.2"
+@@ -7576,7 +7862,7 @@ dependencies = [
+  "alloy-primitives",
+  "alloy-rpc-types-eth",
+  "alloy-signer",
+- "reth-primitives-traits",
++ "reth-primitives-traits 0.3.2",
+  "thiserror 2.0.18",
+ ]
+ 
+@@ -7589,6 +7875,15 @@ dependencies = [
+  "zstd",
+ ]
+ 
++[[package]]
++name = "reth-zstd-compressors"
++version = "0.6.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "80addacffc5df9398c55919f8993922d2b688f2aa5753708fdd658ca3cc63e39"
++dependencies = [
++ "zstd",
++]
++
+ [[package]]
+ name = "retri"
+ version = "0.1.1"
+@@ -7627,6 +7922,25 @@ dependencies = [
+  "revm-state 11.0.1",
+ ]
+ 
++[[package]]
++name = "revm"
++version = "42.0.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b7c7fcd426beab3b91300a6d0d5eb8d583c0fad0fba451126e19fd51443eca62"
++dependencies = [
++ "revm-bytecode 42.0.0",
++ "revm-context 42.0.0",
++ "revm-context-interface 42.0.0",
++ "revm-database 42.0.0",
++ "revm-database-interface 42.0.0",
++ "revm-handler 42.0.1",
++ "revm-inspector 42.0.1",
++ "revm-interpreter 42.0.0",
++ "revm-precompile 42.0.1",
++ "revm-primitives 42.0.0",
++ "revm-state 42.0.0",
++]
++
+ [[package]]
+ name = "revm"
+ version = "43.0.3"
+@@ -7658,6 +7972,18 @@ dependencies = [
+  "serde",
+ ]
+ 
++[[package]]
++name = "revm-bytecode"
++version = "42.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "537356bdec80dbc04e4e6bb688b3441ff7cf18eecdcf3cac23150633c46467f1"
++dependencies = [
++ "bitvec",
++ "phf 0.14.0",
++ "revm-primitives 42.0.0",
++ "serde",
++]
++
+ [[package]]
+ name = "revm-bytecode"
+ version = "43.0.0"
+@@ -7687,6 +8013,23 @@ dependencies = [
+  "serde",
+ ]
+ 
++[[package]]
++name = "revm-context"
++version = "42.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "cc6512f05f83378e29b2b016fa5bd7f5a533e3625548be4113732e1a536c2564"
++dependencies = [
++ "bitvec",
++ "cfg-if",
++ "derive-where",
++ "revm-bytecode 42.0.0",
++ "revm-context-interface 42.0.0",
++ "revm-database-interface 42.0.0",
++ "revm-primitives 42.0.0",
++ "revm-state 42.0.0",
++ "serde",
++]
++
+ [[package]]
+ name = "revm-context"
+ version = "43.0.3"
+@@ -7720,6 +8063,22 @@ dependencies = [
+  "serde",
+ ]
+ 
++[[package]]
++name = "revm-context-interface"
++version = "42.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "103fff818b10311034c0c11ff8760294ee0e3c320daab3c5717990fe8ee2617b"
++dependencies = [
++ "alloy-eip2930",
++ "alloy-eip7702",
++ "auto_impl",
++ "either",
++ "revm-database-interface 42.0.0",
++ "revm-primitives 42.0.0",
++ "revm-state 42.0.0",
++ "serde",
++]
++
+ [[package]]
+ name = "revm-context-interface"
+ version = "43.0.2"
+@@ -7750,13 +8109,29 @@ dependencies = [
+  "serde",
+ ]
+ 
++[[package]]
++name = "revm-database"
++version = "42.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "df72760eab0852100e748c7cb03ce0221626d60ac14534118c84c5cc894fb4c9"
++dependencies = [
++ "alloy-eips 2.5.0",
++ "derive_more",
++ "either",
++ "revm-bytecode 42.0.0",
++ "revm-database-interface 42.0.0",
++ "revm-primitives 42.0.0",
++ "revm-state 42.0.0",
++ "serde",
++]
++
+ [[package]]
+ name = "revm-database"
+ version = "43.0.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "8db6fb10912d7fba0161e91d4577ce71fa9726ec38a4d420e4242e504a47aa8f"
+ dependencies = [
+- "alloy-eips 2.1.0",
++ "alloy-eips 2.5.0",
+  "derive_more",
+  "either",
+  "revm-bytecode 43.0.0",
+@@ -7780,6 +8155,20 @@ dependencies = [
+  "thiserror 2.0.18",
+ ]
+ 
++[[package]]
++name = "revm-database-interface"
++version = "42.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d9286c059a11be1dee814cafdc3a3ade57521c8caa050785a52c19a9d894f400"
++dependencies = [
++ "auto_impl",
++ "either",
++ "revm-primitives 42.0.0",
++ "revm-state 42.0.0",
++ "serde",
++ "thiserror 2.0.18",
++]
++
+ [[package]]
+ name = "revm-database-interface"
+ version = "43.0.1"
+@@ -7813,6 +8202,25 @@ dependencies = [
+  "serde",
+ ]
+ 
++[[package]]
++name = "revm-handler"
++version = "42.0.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "09126175c3fa482e71e80cc28c6bb17e681911e472b94d4f7f73dd6780411798"
++dependencies = [
++ "auto_impl",
++ "derive-where",
++ "revm-bytecode 42.0.0",
++ "revm-context 42.0.0",
++ "revm-context-interface 42.0.0",
++ "revm-database-interface 42.0.0",
++ "revm-interpreter 42.0.0",
++ "revm-precompile 42.0.1",
++ "revm-primitives 42.0.0",
++ "revm-state 42.0.0",
++ "serde",
++]
++
+ [[package]]
+ name = "revm-handler"
+ version = "43.0.3"
+@@ -7850,6 +8258,24 @@ dependencies = [
+  "serde_json",
+ ]
+ 
++[[package]]
++name = "revm-inspector"
++version = "42.0.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4aa55b208b52f0c083ea68147c78866eeecadd7c0071a614f477de316b60648e"
++dependencies = [
++ "auto_impl",
++ "either",
++ "revm-context 42.0.0",
++ "revm-database-interface 42.0.0",
++ "revm-handler 42.0.1",
++ "revm-interpreter 42.0.0",
++ "revm-primitives 42.0.0",
++ "revm-state 42.0.0",
++ "serde",
++ "serde_json",
++]
++
+ [[package]]
+ name = "revm-inspector"
+ version = "43.0.3"
+@@ -7881,6 +8307,19 @@ dependencies = [
+  "serde",
+ ]
+ 
++[[package]]
++name = "revm-interpreter"
++version = "42.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "fd310927437752ce4bac6997b385772823b84843f04c82e151993bec1265a5ed"
++dependencies = [
++ "revm-bytecode 42.0.0",
++ "revm-context-interface 42.0.0",
++ "revm-primitives 42.0.0",
++ "revm-state 42.0.0",
++ "serde",
++]
++
+ [[package]]
+ name = "revm-interpreter"
+ version = "43.0.2"
+@@ -7918,6 +8357,31 @@ dependencies = [
+  "sha2 0.10.9",
+ ]
+ 
++[[package]]
++name = "revm-precompile"
++version = "42.0.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f2431091420999795df6a200b9f7933defe3d654710560a895e6bcabbd9954a5"
++dependencies = [
++ "ark-bls12-381 0.6.0",
++ "ark-bn254 0.6.0",
++ "ark-ec 0.6.0",
++ "ark-ff 0.6.0",
++ "ark-serialize 0.6.0",
++ "arrayref",
++ "aurora-engine-modexp",
++ "blst",
++ "c-kzg",
++ "cfg-if",
++ "k256",
++ "p256",
++ "revm-context-interface 42.0.0",
++ "revm-primitives 42.0.0",
++ "ripemd 0.2.0",
++ "secp256k1 0.31.1",
++ "sha2 0.11.0",
++]
++
+ [[package]]
+ name = "revm-precompile"
+ version = "43.0.3"
+@@ -7954,6 +8418,17 @@ dependencies = [
+  "serde",
+ ]
+ 
++[[package]]
++name = "revm-primitives"
++version = "42.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2ef5564c1bce219fd08beca43d4f39fdcbc19193fa4f604c0c6b58950a13194a"
++dependencies = [
++ "alloy-primitives",
++ "once_cell",
++ "serde",
++]
++
+ [[package]]
+ name = "revm-primitives"
+ version = "43.0.0"
+@@ -7978,6 +8453,20 @@ dependencies = [
+  "serde",
+ ]
+ 
++[[package]]
++name = "revm-state"
++version = "42.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2c4ae66db3abfcb565854dbfc95513bfa440b3dc390ddf8e50b0363d12a6fa79"
++dependencies = [
++ "alloy-eip7928 0.4.11",
++ "bitflags 2.13.0",
++ "nonmax",
++ "revm-bytecode 42.0.0",
++ "revm-primitives 42.0.0",
++ "serde",
++]
++
+ [[package]]
+ name = "revm-state"
+ version = "43.0.1"
+@@ -8012,7 +8501,7 @@ dependencies = [
+  "cc",
+  "libc",
+  "once_cell",
+- "spin",
++ "spin 0.5.2",
+  "untrusted 0.7.1",
+  "web-sys",
+  "winapi",
+@@ -8281,18 +8770,6 @@ version = "1.0.21"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "8a0d197bd2c9dc6e53b84da9556a69ba4cdfab8619eb41a8bd1cc2027a0f6b1d"
+ 
+-[[package]]
+-name = "rusty-fork"
+-version = "0.3.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "cb3dcc6e454c328bb824492db107ab7c0ae8fcffe4ad210136ef014458c1bc4f"
+-dependencies = [
+- "fnv",
+- "quick-error",
+- "tempfile",
+- "wait-timeout",
+-]
+-
+ [[package]]
+ name = "rw-stream-sink"
+ version = "0.3.0"
+@@ -8957,6 +9434,15 @@ version = "0.5.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
+ 
++[[package]]
++name = "spin"
++version = "0.10.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "023a211cb3138dbc438680b32560ad89f699977624c9f8dbb95a47d5b4c07dd3"
++dependencies = [
++ "lock_api",
++]
++
+ [[package]]
+ name = "spki"
+ version = "0.7.3"
+@@ -9104,9 +9590,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "syn-solidity"
+-version = "1.6.0"
++version = "1.7.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ec005042c7d952febc1a3ef5b0f6674e9054aa836877a31c90b20e25b3d31744"
++checksum = "eb6a2e3c7f7a3e4e83d1752cec5d1e357ced0cf96e85419b6a07f227db3def3a"
+ dependencies = [
+  "paste",
+  "proc-macro2",
+@@ -9401,9 +9887,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "tokio-tungstenite"
+-version = "0.28.0"
++version = "0.29.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
++checksum = "8f72a05e828585856dacd553fba484c242c46e391fb0e58917c942ee9202915c"
+ dependencies = [
+  "futures-util",
+  "log",
+@@ -9544,9 +10030,9 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
+ 
+ [[package]]
+ name = "tracing"
+-version = "0.1.41"
++version = "0.1.44"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "784e0ac535deb450455cbfa28a6f0df145ea1bb7ae51b821cf5e7927fdcfbdd0"
++checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
+ dependencies = [
+  "log",
+  "pin-project-lite",
+@@ -9556,9 +10042,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "tracing-attributes"
+-version = "0.1.30"
++version = "0.1.31"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "81383ab64e72a7a8b8e13130c49e3dab29def6d0c7d76a03087b3cf71c5c6903"
++checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+@@ -9567,9 +10053,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "tracing-core"
+-version = "0.1.34"
++version = "0.1.36"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b9d12581f227e93f094d3af2ae690a574abb8a2b9b7a96e7cfe9647b2b617678"
++checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
+ dependencies = [
+  "once_cell",
+  "valuable",
+@@ -9753,9 +10239,9 @@ checksum = "17f77d76d837a7830fe1d4f12b7b4ba4192c1888001c7164257e4bc6d21d96b4"
+ 
+ [[package]]
+ name = "tungstenite"
+-version = "0.28.0"
++version = "0.29.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "8628dcc84e5a09eb3d8423d6cb682965dea9133204e8fb3efee74c2a0c259442"
++checksum = "6c01152af293afb9c7c2a57e4b559c5620b421f6d133261c60dd2d0cdb38e6b8"
+ dependencies = [
+  "bytes",
+  "data-encoding",
+@@ -9767,7 +10253,6 @@ dependencies = [
+  "rustls-pki-types",
+  "sha1",
+  "thiserror 2.0.18",
+- "utf-8",
+ ]
+ 
+ [[package]]
+@@ -9909,12 +10394,6 @@ dependencies = [
+  "serde",
+ ]
+ 
+-[[package]]
+-name = "utf-8"
+-version = "0.7.6"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
+-
+ [[package]]
+ name = "utf8_iter"
+ version = "1.0.4"
+@@ -9951,15 +10430,6 @@ version = "1.0.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
+ 
+-[[package]]
+-name = "wait-timeout"
+-version = "0.2.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "09ac3b126d3914f9849036f826e054cbabdc8519970b8998ddaf3b5bd3c65f11"
+-dependencies = [
+- "libc",
+-]
+-
+ [[package]]
+ name = "walkdir"
+ version = "2.5.0"
+diff --git a/opstack/Cargo.toml b/opstack/Cargo.toml
+index 0e9b091141154176b2c24e44f5150c1b1a74ad36..6748e57250a199563230846608c7350edc6c2f7e 100644
+--- a/opstack/Cargo.toml
++++ b/opstack/Cargo.toml
+@@ -52,6 +52,17 @@ helios-consensus-core = { path = "../ethereum/consensus-core" }
+ helios-revm-utils = { path = "../revm-utils" }
+ 
+ [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
++# Base execution rules (base/base v1.5.1 = 5476069f1eb74a56bccb56fdefd4b4bb0e3cda42, MIT): the maintained Base EVM
++# (BaseSpecId per upgrade, Base precompile sets incl. state-backed Cobalt precompiles) on its own REVM 42.
++base-common-evm = { path = "../../vendor-inspect/base-v1.5.1/crates/common/evm", features = [
++    "optional_block_gas_limit",
++    "optional_eip3607",
++    "optional_no_base_fee",
++] }
++base-common-chains = { path = "../../vendor-inspect/base-v1.5.1/crates/common/chains" }
++alloy-evm = { version = "0.38.0", default-features = false, features = ["std"] }
++base-revm = { package = "revm", version = "42.0.1", default-features = false, features = ["std"] }
++
+ # server
+ axum = "0.7.6"
+ clap = { version = "4.5.4", features = ["derive", "env"] }
+diff --git a/opstack/src/evm.rs b/opstack/src/evm.rs
+index e6497f6fef1ff4aa182c7c430e1bc59fe01c64e5..3420ae0c05b038278faa1384d7ae0fc81e51b96a 100644
+--- a/opstack/src/evm.rs
++++ b/opstack/src/evm.rs
+@@ -30,9 +30,14 @@ use helios_revm_utils::proof_db::ProofDB;
+ 
+ use crate::spec::OpStack;
+ 
++#[cfg(not(target_arch = "wasm32"))]
++mod base_backend;
+ mod revm_compat;
+ use revm_compat::{execution_result, LegacyDb};
+ 
++/// Chains whose execution rules are Base's own (Azul+ = Osaka + Base precompiles), never op-revm's.
++const BASE_CHAIN_IDS: [u64; 2] = [8453, 84532];
++
+ pub struct OpStackEvm<E: ExecutionProvider<OpStack>> {
+     execution: Arc<E>,
+     chain_id: u64,
+@@ -103,31 +108,86 @@ impl<E: ExecutionProvider<OpStack>> OpStackEvm<E> {
+                     .map_err(|e| EvmError::Generic(e.to_string()))?;
+             }
+ 
+-            // Create EVM after any async operations
+-            let context = self.get_context(tx, &block, validate_tx);
+-
+-            // Execute in a scope to ensure EVM is dropped before any potential async operations
+-            let (result, needs_update) = {
+-                let mut evm = context.with_db(LegacyDb(&mut db)).build_op();
+-                let res = evm.replay();
+-                drop(evm);
+-                let needs_update = db.state.needs_update();
+-                (res, needs_update)
+-            };
++            // Create the EVM after any async operations; it is dropped inside execute()
++            let result = self.execute(tx, &block, validate_tx, &mut db);
++            let needs_update = db.state.needs_update();
+ 
+             if result.is_ok() || !needs_update {
+-                break result.map(|res| {
+-                    (
+-                        execution_result(res.result),
+-                        mem::take(&mut db.state.accounts),
+-                    )
+-                });
++                break result.map(|res| (res, mem::take(&mut db.state.accounts)));
+             }
+         };
+ 
+         tx_res.map_err(|err| EvmError::Generic(format!("generic: {err}")))
+     }
+ 
++    /// One execution attempt against proof-backed state. Base chains run the maintained Base EVM
++    /// (base_backend.rs); every other OP Stack chain runs op-revm.
++    fn execute<D: revm::Database>(
++        &self,
++        tx: &OpTransactionRequest,
++        block: &Block<Transaction>,
++        validate_tx: bool,
++        db: &mut D,
++    ) -> Result<ExecutionResult<OpHaltReason>, String> {
++        if BASE_CHAIN_IDS.contains(&self.chain_id) {
++            #[cfg(not(target_arch = "wasm32"))]
++            return base_backend::transact(
++                db,
++                base_backend::BaseCall {
++                    chain_id: self.chain_id,
++                    timestamp: block.header.timestamp,
++                    block: Self::base_block_env(block),
++                    tx: Self::base_tx_env(tx, self.chain_id),
++                    validate_tx,
++                },
++            );
++            #[cfg(target_arch = "wasm32")]
++            return Err("Base execution rules are not available in this build".to_string());
++        }
++        let context = self.get_context(tx, block, validate_tx);
++        let mut evm = context.with_db(LegacyDb(db)).build_op();
++        evm.replay()
++            .map(|res| execution_result(res.result))
++            .map_err(|err| err.to_string())
++    }
++
++    #[cfg(not(target_arch = "wasm32"))]
++    fn base_tx_env(tx: &OpTransactionRequest, chain_id: u64) -> base_revm::context::TxEnv {
++        let t = Self::tx_env(tx);
++        let legacy = NetworkTransactionBuilder::<OpStack>::output_tx_type(tx) == OpTxType::Legacy;
++        base_revm::context::TxEnv {
++            tx_type: t.tx_type,
++            caller: t.caller,
++            gas_limit: t.gas_limit,
++            gas_price: t.gas_price,
++            kind: t.kind,
++            value: t.value,
++            data: t.data,
++            nonce: t.nonce,
++            chain_id: if legacy { None } else { Some(chain_id) },
++            access_list: t.access_list,
++            gas_priority_fee: t.gas_priority_fee,
++            blob_hashes: t.blob_hashes,
++            max_fee_per_blob_gas: t.max_fee_per_blob_gas,
++            ..Default::default()
++        }
++    }
++
++    #[cfg(not(target_arch = "wasm32"))]
++    fn base_block_env(block: &Block<Transaction, Header>) -> base_revm::context::BlockEnv {
++        base_backend::block_env(
++            block.header.number(),
++            block.header.beneficiary(),
++            block.header.timestamp(),
++            block.header.gas_limit(),
++            block.header.base_fee_per_gas().unwrap_or(0_u64),
++            block.header.difficulty(),
++            block.header.mix_hash().unwrap_or_default(),
++            block.header.excess_blob_gas().unwrap_or(0),
++            block.header.slot_number().unwrap_or_default(),
++        )
++    }
++
+     fn get_context(
+         &self,
+         tx: &OpTransactionRequest,
+diff --git a/opstack/src/evm/base_backend.rs b/opstack/src/evm/base_backend.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..20c2fcfce90b75819ab1750b2df34991c011cfdb
+--- /dev/null
++++ b/opstack/src/evm/base_backend.rs
+@@ -0,0 +1,359 @@
++// Base execution rules for the proof-backed EVM (Base mainnet 8453, Base Sepolia 84532).
++//
++// op-revm 20 implements Base only up to Isthmus/Jovian (Prague). Since Azul, Base executes Osaka plus Base-only
++// precompile sets, and Cobalt adds state-backed precompiles. This backend runs the MAINTAINED Base EVM instead:
++// base/base v1.5.1 (5476069f) `base-common-evm` (BaseEvmFactory, BaseSpecId, BasePrecompiles) on its REVM 42,
++// with the fork ladder from `base-common-chains` and the Beryl/Cobalt activation-registry admin the Base node uses
++// (`ChainConfig::beryl_activation_admin_address_by_chain_id`, as `BaseChainSpec::activation_admin_address`).
++//
++// State comes ONLY from Helios's ProofDB (REVM 43): every account, code and storage value it serves was verified
++// against the trusted block's state root. `BaseDb` is the REVM 43 -> 42 database boundary, like `LegacyDb` is for
++// op-revm's REVM 38. Nothing here contacts an RPC.
++use std::fmt;
++
++use alloy::primitives::{Address, Bytes, B256, U256};
++use alloy_evm::{Evm, EvmEnv, EvmFactory};
++use base_common_chains::{ChainConfig, ChainUpgrades};
++use base_common_evm::{BaseEvmFactory, BaseHaltReason, BaseSpecId, BaseTransaction};
++use base_revm::{
++    context::{BlockEnv, CfgEnv, TxEnv},
++    context_interface::{block::BlobExcessGasAndPrice, result as base_result},
++    database_interface::ErasedError,
++};
++use op_revm::OpHaltReason;
++use revm::context::result::{ExecutionResult, Output, ResultGas, SuccessReason};
++
++/// The Base upgrade ladder this build executes, or None for a chain that is not Base.
++pub(super) fn upgrades(chain_id: u64) -> Option<ChainUpgrades> {
++    match chain_id {
++        8453 => Some(ChainUpgrades::mainnet()),
++        84532 => Some(ChainUpgrades::sepolia()),
++        _ => None,
++    }
++}
++
++/// The Base spec (upgrade) in force at `timestamp` on `chain_id`.
++pub(super) fn spec_at(chain_id: u64, timestamp: u64) -> Option<BaseSpecId> {
++    upgrades(chain_id).map(|u| BaseSpecId::from_timestamp(u, timestamp))
++}
++
++pub(super) struct BaseDb<'a, D>(pub &'a mut D);
++
++impl<D> fmt::Debug for BaseDb<'_, D> {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        f.write_str("BaseDb")
++    }
++}
++
++impl<D: revm::Database> base_revm::Database for BaseDb<'_, D> {
++    type Error = ErasedError;
++
++    fn basic(
++        &mut self,
++        address: Address,
++    ) -> Result<Option<base_revm::state::AccountInfo>, Self::Error> {
++        self.0
++            .basic(address)
++            .map(|account| {
++                account.map(|info| base_revm::state::AccountInfo {
++                    balance: info.balance,
++                    nonce: info.nonce,
++                    code_hash: info.code_hash,
++                    code: info
++                        .code
++                        .map(|code| base_revm::state::Bytecode::new_raw(code.original_bytes())),
++                    ..Default::default()
++                })
++            })
++            .map_err(Self::Error::new)
++    }
++
++    fn code_by_hash(&mut self, hash: B256) -> Result<base_revm::state::Bytecode, Self::Error> {
++        self.0
++            .code_by_hash(hash)
++            .map(|code| base_revm::state::Bytecode::new_raw(code.original_bytes()))
++            .map_err(Self::Error::new)
++    }
++
++    fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
++        self.0.storage(address, index).map_err(Self::Error::new)
++    }
++
++    fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
++        self.0.block_hash(number).map_err(Self::Error::new)
++    }
++}
++
++/// One call or transaction executed under Base rules at a trusted block.
++pub(super) struct BaseCall {
++    pub chain_id: u64,
++    pub timestamp: u64,
++    pub block: BlockEnv,
++    pub tx: TxEnv,
++    pub validate_tx: bool,
++}
++
++/// Execute `call` against `db` with the Base EVM. Errors are database misses (the caller fetches proofs and retries)
++/// or validation failures; the string never claims a result.
++pub(super) fn transact<D: revm::Database>(
++    db: &mut D,
++    call: BaseCall,
++) -> Result<ExecutionResult<OpHaltReason>, String> {
++    let spec = spec_at(call.chain_id, call.timestamp)
++        .ok_or_else(|| format!("chain {} has no Base execution rules", call.chain_id))?;
++    let mut cfg = CfgEnv::new_with_spec(spec);
++    cfg.chain_id = call.chain_id;
++    // the same relaxations Helios applies to op-revm for an unvalidated call (eth_call)
++    cfg.disable_block_gas_limit = !call.validate_tx;
++    cfg.disable_eip3607 = !call.validate_tx;
++    cfg.disable_base_fee = !call.validate_tx;
++    cfg.disable_nonce_check = !call.validate_tx;
++    if !call.validate_tx {
++        // Osaka's per-transaction gas cap (EIP-7825) applies to transactions, not to an unvalidated call whose
++        // gas defaults to u64::MAX.
++        cfg.tx_gas_limit_cap = Some(u64::MAX);
++    }
++    let factory = BaseEvmFactory::new(ChainConfig::beryl_activation_admin_address_by_chain_id(
++        call.chain_id,
++    ));
++    let mut evm = factory.create_evm(BaseDb(db), EvmEnv::new(cfg, call.block));
++    // as base/base's BaseTransactionRequest::try_into_tx_env builds an eth_call: an empty envelope (no L1 data
++    // cost), no deposit, no EIP-8130 parts
++    let tx = BaseTransaction {
++        base: call.tx,
++        enveloped_tx: Some(Bytes::new()),
++        deposit: Default::default(),
++        eip8130: None,
++    };
++    evm.transact_raw(tx)
++        .map(|out| execution_result(out.result))
++        .map_err(|e| e.to_string())
++}
++
++/// The block environment of a trusted header, for the Base EVM.
++pub(super) fn block_env(
++    number: u64,
++    beneficiary: Address,
++    timestamp: u64,
++    gas_limit: u64,
++    basefee: u64,
++    difficulty: U256,
++    prevrandao: B256,
++    excess_blob_gas: u64,
++    slot_num: u64,
++) -> BlockEnv {
++    BlockEnv {
++        number: U256::from(number),
++        beneficiary,
++        timestamp: U256::from(timestamp),
++        gas_limit,
++        basefee,
++        difficulty,
++        prevrandao: Some(prevrandao),
++        // Base inherits Prague's blob fee schedule (L2 blocks carry excess_blob_gas 0)
++        blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(
++            excess_blob_gas,
++            base_revm::primitives::eip4844::BLOB_BASE_FEE_UPDATE_FRACTION_PRAGUE,
++        )),
++        slot_num,
++    }
++}
++
++fn execution_result(
++    result: base_result::ExecutionResult<BaseHaltReason>,
++) -> ExecutionResult<OpHaltReason> {
++    use base_result::{ExecutionResult as B, Output as BOut, SuccessReason as BReason};
++    let gas = result.gas();
++    let gas = ResultGas::new_with_state_gas(
++        gas.total_gas_spent(),
++        gas.inner_refunded(),
++        gas.floor_gas(),
++        gas.state_gas_spent_final(),
++    );
++    match result {
++        B::Success {
++            reason,
++            logs,
++            output,
++            ..
++        } => ExecutionResult::Success {
++            reason: match reason {
++                BReason::Stop => SuccessReason::Stop,
++                BReason::Return => SuccessReason::Return,
++                BReason::SelfDestruct => SuccessReason::SelfDestruct,
++            },
++            gas,
++            logs,
++            output: match output {
++                BOut::Call(data) => Output::Call(data),
++                BOut::Create(data, address) => Output::Create(data, address),
++            },
++        },
++        B::Revert { output, logs, .. } => ExecutionResult::Revert { gas, output, logs },
++        B::Halt { reason, logs, .. } => ExecutionResult::Halt {
++            gas,
++            reason: halt_reason(reason),
++            logs,
++        },
++    }
++}
++
++/// Base's halt reasons in the opstack client's halt type. The REVM 42 and op-revm (REVM 38) HaltReason enums have
++/// the same variants, mapped one to one.
++fn halt_reason(reason: BaseHaltReason) -> OpHaltReason {
++    use base_result::{HaltReason as N, OutOfGasError as NG};
++    use op_revm::revm::context::result::{HaltReason as O, OutOfGasError as OG};
++    let base = match reason {
++        BaseHaltReason::FailedDeposit => return OpHaltReason::FailedDeposit,
++        BaseHaltReason::Base(h) => h,
++    };
++    OpHaltReason::Base(match base {
++        N::OutOfGas(g) => O::OutOfGas(match g {
++            NG::Basic => OG::Basic,
++            NG::MemoryLimit => OG::MemoryLimit,
++            NG::Memory => OG::Memory,
++            NG::Precompile => OG::Precompile,
++            NG::InvalidOperand => OG::InvalidOperand,
++            NG::ReentrancySentry => OG::ReentrancySentry,
++        }),
++        N::OpcodeNotFound => O::OpcodeNotFound,
++        N::InvalidFEOpcode => O::InvalidFEOpcode,
++        N::InvalidJump => O::InvalidJump,
++        N::NotActivated => O::NotActivated,
++        N::StackUnderflow => O::StackUnderflow,
++        N::StackOverflow => O::StackOverflow,
++        N::OutOfOffset => O::OutOfOffset,
++        N::CreateCollision => O::CreateCollision,
++        N::PrecompileError => O::PrecompileError,
++        N::PrecompileErrorWithContext(s) => O::PrecompileErrorWithContext(s),
++        N::NonceOverflow => O::NonceOverflow,
++        N::CreateContractSizeLimit => O::CreateContractSizeLimit,
++        N::CreateContractStartingWithEF => O::CreateContractStartingWithEF,
++        N::CreateInitCodeSizeLimit => O::CreateInitCodeSizeLimit,
++        N::OverflowPayment => O::OverflowPayment,
++        N::StateChangeDuringStaticCall => O::StateChangeDuringStaticCall,
++        N::CallNotAllowedInsideStatic => O::CallNotAllowedInsideStatic,
++        N::OutOfFunds => O::OutOfFunds,
++        N::CallTooDeep => O::CallTooDeep,
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use alloy::primitives::{address, bytes, Address};
++    use base_common_chains::MAINNET_BERYL_ACTIVATION_ADMIN_ADDRESS;
++    use base_common_evm::BaseUpgrade;
++    use base_revm::primitives::hardfork::SpecId;
++    use revm::{
++        database::InMemoryDB,
++        state::{AccountInfo, Bytecode},
++    };
++
++    // base/base 5476069f crates/common/chains/src/config.rs MAINNET
++    const JOVIAN: u64 = 1_764_691_201;
++    const AZUL: u64 = 1_779_991_200;
++    const BERYL: u64 = 1_782_410_400;
++    const COBALT: u64 = 1_790_791_200;
++    const DENIM: u64 = 1_793_901_600;
++    const CALLER: Address = address!("0x00000000000000000000000000000000000c0de1");
++    const TARGET: Address = address!("0x0000000000000000000000000000000000c0ffee");
++    const ACTIVATION_REGISTRY: Address = address!("0x8453000000000000000000000000000000000001");
++    const P256VERIFY: Address = address!("0x0000000000000000000000000000000000000100");
++
++    fn with_code(code: Bytes) -> InMemoryDB {
++        let mut db = InMemoryDB::default();
++        db.insert_account_info(TARGET, AccountInfo::default().with_code(Bytecode::new_raw(code)));
++        db
++    }
++
++    fn call(db: &mut InMemoryDB, timestamp: u64, to: Address, data: Bytes) -> ExecutionResult<OpHaltReason> {
++        transact(
++            db,
++            BaseCall {
++                chain_id: 8453,
++                timestamp,
++                block: block_env(1, Address::ZERO, timestamp, 30_000_000, 0, U256::ZERO, B256::ZERO, 0, 0),
++                // legacy-typed, no chain id (TxEnv::default() carries chain id 1)
++                tx: TxEnv { caller: CALLER, kind: to.into(), data, gas_limit: 5_000_000, chain_id: None, ..Default::default() },
++                validate_tx: false,
++            },
++        )
++        .expect("execution")
++    }
++
++    #[test]
++    fn base_upgrade_ladder_selects_the_spec_in_force() {
++        let at = |ts| spec_at(8453, ts).unwrap().upgrade();
++        assert_eq!(at(JOVIAN), BaseUpgrade::Jovian);
++        assert_eq!(at(AZUL - 1), BaseUpgrade::Jovian);
++        assert_eq!(at(AZUL), BaseUpgrade::Azul);
++        assert_eq!(at(BERYL), BaseUpgrade::Beryl);
++        assert_eq!(at(COBALT), BaseUpgrade::Cobalt);
++        assert_eq!(at(DENIM), BaseUpgrade::Denim);
++        // Everest (EIP-8130 0x79) is not scheduled on mainnet in this release: never selected
++        assert_eq!(at(u64::MAX), BaseUpgrade::Denim);
++        assert_eq!(spec_at(84532, 1_776_708_000).unwrap().upgrade(), BaseUpgrade::Azul);
++        assert!(spec_at(10, AZUL).is_none(), "OP mainnet is not Base");
++        assert_eq!(SpecId::from(spec_at(8453, AZUL).unwrap()), SpecId::OSAKA);
++        assert_eq!(SpecId::from(spec_at(8453, JOVIAN).unwrap()), SpecId::PRAGUE);
++    }
++
++    #[test]
++    fn osaka_clz_runs_from_azul_and_is_invalid_before() {
++        // PUSH1 1; CLZ; PUSH1 0; MSTORE; PUSH1 32; PUSH1 0; RETURN  -> clz(1) = 255
++        let code = bytes!("60011e60005260206000f3");
++        let out = call(&mut with_code(code.clone()), AZUL, TARGET, Bytes::new());
++        assert!(out.is_success(), "{out:?}");
++        assert_eq!(out.output().unwrap().as_ref(), U256::from(255).to_be_bytes::<32>());
++        let before = call(&mut with_code(code), AZUL - 1, TARGET, Bytes::new());
++        assert!(matches!(
++            before,
++            // REVM 42 reports an opcode outside the active spec as NotActivated
++            ExecutionResult::Halt { reason: OpHaltReason::Base(op_revm::revm::context::result::HaltReason::NotActivated), .. }
++        ), "{before:?}");
++    }
++
++    #[test]
++    fn azul_prices_p256verify_like_osaka() {
++        let jovian = call(&mut InMemoryDB::default(), AZUL - 1, P256VERIFY, Bytes::new());
++        let azul = call(&mut InMemoryDB::default(), AZUL, P256VERIFY, Bytes::new());
++        assert!(jovian.is_success() && azul.is_success(), "{jovian:?} {azul:?}");
++        // RIP-7212 3450 gas (Fjord..Jovian) vs Osaka P256VERIFY 6900
++        assert_eq!(azul.tx_gas_used() - jovian.tx_gas_used(), 3450);
++    }
++
++    #[test]
++    fn beryl_installs_the_activation_registry_with_the_base_admin() {
++        let admin = bytes!("f851a440"); // admin()
++        let azul = call(&mut InMemoryDB::default(), AZUL, ACTIVATION_REGISTRY, admin.clone());
++        assert!(azul.is_success() && azul.output().unwrap().is_empty(), "no precompile before Beryl: {azul:?}");
++        let beryl = call(&mut InMemoryDB::default(), BERYL, ACTIVATION_REGISTRY, admin.clone());
++        assert!(beryl.is_success(), "{beryl:?}");
++        assert_eq!(beryl.output().unwrap().as_ref(), MAINNET_BERYL_ACTIVATION_ADMIN_ADDRESS.into_word().as_slice());
++        let cobalt = call(&mut InMemoryDB::default(), COBALT, ACTIVATION_REGISTRY, admin);
++        assert!(cobalt.is_success() && cobalt.output().unwrap().len() == 32, "state-backed admin read: {cobalt:?}");
++    }
++
++    #[test]
++    fn code_and_storage_come_from_the_shared_proof_database() {
++        // PUSH1 0; SLOAD; PUSH1 0; MSTORE; PUSH1 32; PUSH1 0; RETURN
++        let mut db = with_code(bytes!("60005460005260206000f3"));
++        db.insert_account_storage(TARGET, U256::ZERO, U256::from(42)).unwrap();
++        let out = call(&mut db, COBALT, TARGET, Bytes::new());
++        assert!(out.is_success(), "{out:?}");
++        assert_eq!(out.output().unwrap().as_ref(), U256::from(42).to_be_bytes::<32>());
++    }
++
++    #[test]
++    fn halts_and_reverts_keep_their_meaning() {
++        let halt = call(&mut with_code(bytes!("fe")), COBALT, TARGET, Bytes::new());
++        assert!(matches!(
++            halt,
++            ExecutionResult::Halt { reason: OpHaltReason::Base(op_revm::revm::context::result::HaltReason::InvalidFEOpcode), .. }
++        ), "{halt:?}");
++        // PUSH1 0; PUSH1 0; REVERT
++        let revert = call(&mut with_code(bytes!("60006000fd")), COBALT, TARGET, Bytes::new());
++        assert!(matches!(revert, ExecutionResult::Revert { .. }), "{revert:?}");
++    }
++}

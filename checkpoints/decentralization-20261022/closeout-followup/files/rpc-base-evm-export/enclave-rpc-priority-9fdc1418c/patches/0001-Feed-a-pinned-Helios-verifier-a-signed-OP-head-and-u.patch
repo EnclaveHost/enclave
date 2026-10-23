@@ -1,0 +1,846 @@
+From 97785a40cda92c42d8b8e14ab9e9d25afc3332a2 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 17:56:30 -0700
+Subject: [PATCH 1/4] Feed a pinned Helios verifier a signed OP head and
+ untrusted state witnesses
+
+op-head-relay serves Helios's consensus API from untrusted commitment sources:
+pinned signer and chain, highest fresh block, nothing once stale, equivocation
+stops serving, and blocks with transaction types the pinned verifier cannot
+decode are refused. witness-gateway is the verifier's execution endpoint:
+allowlisted methods, ordered failover, a create-only block-hash-pinned witness
+cache used only when every upstream fails, and broadcast fan-out. Tests are
+unit plus an offline end-to-end run against Anvil with synthetic test-key heads.
+---
+ network/op-head-relay.mjs        | 195 ++++++++++++++++++++++++++++++
+ network/witness-gateway.mjs      | 125 ++++++++++++++++++++
+ test/fixtures/op-commitment.mjs  |  43 +++++++
+ test/helios-witness.e2e.test.mjs | 196 +++++++++++++++++++++++++++++++
+ test/op-head-relay.test.mjs      | 120 +++++++++++++++++++
+ test/witness-gateway.test.mjs    | 103 ++++++++++++++++
+ 6 files changed, 782 insertions(+)
+ create mode 100644 network/op-head-relay.mjs
+ create mode 100644 network/witness-gateway.mjs
+ create mode 100644 test/fixtures/op-commitment.mjs
+ create mode 100644 test/helios-witness.e2e.test.mjs
+ create mode 100644 test/op-head-relay.test.mjs
+ create mode 100644 test/witness-gateway.test.mjs
+
+diff --git a/network/op-head-relay.mjs b/network/op-head-relay.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6bd88dade452a32e08e50559efb5277b7f79c92a
+--- /dev/null
++++ b/network/op-head-relay.mjs
+@@ -0,0 +1,195 @@
++// A loopback head source for the Helios OP-stack verifier (network/helios-verifier.mjs), fed by UNTRUSTED commitment
++// sources. It speaks Helios's consensus API (GET /latest -> SequencerCommitment JSON or null, GET /chain_id), the same API
++// Helios's own opstack-server serves, so Helios 0.12.0 (a16z/helios 2af9b418) is pointed at it with --consensus-rpc.
++//
++// What a commitment is: the OP-stack gossip message for one unsafe L2 block, `signature(65) || parentBeaconRoot(32) ||
++// SSZ ExecutionPayload`, signed by the chain's unsafe-block signer over keccak256(0^32 || chainId || keccak256(data))
++// (helios opstack/src/lib.rs signature_msg). It proves the SEQUENCER said "block N has this hash and state root". It is
++// NOT L1-safe or finalized: one sequencer can equivocate, reorg unsafe blocks or withhold. Nothing here claims more.
++//
++// Why a relay and not Helios alone: Helios takes ONE consensus URL and accepts any validly signed commitment whose number
++// is higher than the last, however old (opstack/src/consensus.rs advance: age is only logged). This relay
++//   * polls several sources (Enclave-hosted opstack-server replicas, operator-chosen sources; none is built in),
++//   * keeps only commitments that recover to the PINNED signer for the PINNED chain (viem recoverAddress; Helios verifies
++//     the same signature again - this check only stops a source steering Helios at a block it would reject),
++//   * serves the highest such block, and nothing at all once that block is older than maxAgeMs (Helios then makes no
++//     progress and every consumer read fails its own freshness check - fail-closed, never a stale answer),
++//   * stops serving a height at which two different signed blocks were seen (sequencer equivocation) until a strictly
++//     higher block arrives, and records it.
++// Sources are untrusted: a lying source costs nothing but its own poll. The relay never fetches anything else.
++import http from 'node:http';
++import { concat, hexToBytes, keccak256, numberToHex, pad, recoverAddress, toHex } from 'viem';
++import { rpcEndpoint, rpcLabel } from './rpc-identity.mjs';
++
++/** The Base mainnet values Helios 0.12.0 ships (opstack/src/config.rs). The signer is a pin, not an L1-verified value:
++ *  Helios's verify_unsafe_signer path defaults off and needs a consensus route opstack-server does not serve. */
++export const BASE_MAINNET = Object.freeze({ chainId: 8453, unsafeSigner: '0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a',
++  systemConfig: '0x73a79fab69143498ed3712e519a88a918e1f4072', source: 'a16z/helios 0.12.0 opstack/src/config.rs' });
++
++const ADDR = /^0x[0-9a-fA-F]{40}$/, WORD = /^0x[0-9a-fA-F]{1,64}$/;
++// ExecutionPayload SSZ fixed part as Helios decodes it (opstack/src/types.rs, the Isthmus/V4 layout): byte offsets inside
++// the payload, which follows the 32-byte parentBeaconRoot in the signed data.
++const PAYLOAD_FIXED = 560, AT = { parentHash: 0, stateRoot: 52, blockNumber: 404, timestamp: 428, blockHash: 472 };
++const MAX_DATA = 4 * 1024 * 1024;
++
++const u64 = (b, at) => { let v = 0n; for (let i = 7; i >= 0; i--) v = (v << 8n) | BigInt(b[at + i]); return v; };
++const hex = (b) => toHex(b);
++
++/** The digest the unsafe signer signs for `data` on `chainId`. */
++export function commitmentDigest(data, chainId) {
++  return keccak256(concat([pad('0x', { size: 32 }), pad(numberToHex(BigInt(chainId)), { size: 32 }), keccak256(data)]));
++}
++
++/** {number, timestamp (s), hash, stateRoot, parentHash} read from the signed data's fixed fields, bounds-checked. */
++export function payloadHead(data) {
++  const b = hexToBytes(data);
++  if (b.length < 32 + PAYLOAD_FIXED || b.length > MAX_DATA) throw new Error('commitment payload has the wrong size');
++  const p = 32;
++  return { number: u64(b, p + AT.blockNumber), timestamp: u64(b, p + AT.timestamp), hash: hex(b.subarray(p + AT.blockHash, p + AT.blockHash + 32)),
++    stateRoot: hex(b.subarray(p + AT.stateRoot, p + AT.stateRoot + 32)), parentHash: hex(b.subarray(p + AT.parentHash, p + AT.parentHash + 32)) };
++}
++
++const u32 = (b, at) => b[at] | (b[at + 1] << 8) | (b[at + 2] << 16) | (b[at + 3] * 2 ** 24);
++/** The payload's raw transactions (SSZ list of variable-size items between the transactions and withdrawals offsets). */
++export function payloadTransactions(data) {
++  const b = hexToBytes(data), p = 32;
++  if (b.length < p + PAYLOAD_FIXED) throw new Error('commitment payload has the wrong size');
++  const len = b.length - p, start = u32(b, p + 504), end = u32(b, p + 508), extra = u32(b, p + 436);
++  if (extra !== PAYLOAD_FIXED || start < extra || start > end || end > len) throw new Error('commitment payload offsets are malformed');
++  const list = b.subarray(p + start, p + end);
++  if (!list.length) return [];
++  const first = u32(list, 0);
++  if (first % 4 || first > list.length || first === 0) throw new Error('commitment transaction list is malformed');
++  const offs = []; for (let i = 0; i < first; i += 4) offs.push(u32(list, i));
++  offs.push(list.length);
++  const txs = [];
++  for (let i = 0; i + 1 < offs.length; i++) {
++    if (offs[i + 1] < offs[i] || offs[i] < first) throw new Error('commitment transaction list is malformed');
++    if (offs[i + 1] === offs[i]) throw new Error('commitment carries an empty transaction');
++    txs.push(list.subarray(offs[i], offs[i + 1]));
++  }
++  return txs;
++}
++// EIP-2718 types the PINNED verifier decodes (op-alloy-consensus 2.0.0 OpTxEnvelope: legacy, 0x01, 0x02, 0x04, deposit
++// 0x7E, post-exec 0x7D). Helios's payload_to_block unwrap()s that decode, so a commitment carrying any other type (Base's
++// EIP-8130 0x79, gated behind the not-yet-scheduled Everest fork at base/base 5476069f) would panic the verifier process;
++// such a commitment is refused here instead. 0x7D is an OP type Base does not use; it is refused too (not a Base type).
++export const VERIFIER_TX_TYPES = Object.freeze([0x01, 0x02, 0x04, 0x7e]);
++/** The first unsupported transaction type byte in a commitment, or null. Legacy txs start with an RLP list byte >= 0xc0. */
++export function unsupportedTxType(data, allowed = VERIFIER_TX_TYPES) {
++  for (const tx of payloadTransactions(data)) if (tx[0] < 0xc0 && !allowed.includes(tx[0])) return tx[0];
++  return null;
++}
++
++/** A SequencerCommitment as JSON ({data, signature:{r,s,yParity|v}}) -> the canonical form this relay serves. */
++export function normalizeCommitment(c) {
++  if (!c || typeof c !== 'object' || typeof c.data !== 'string' || !/^0x([0-9a-fA-F]{2})+$/.test(c.data) || c.data.length > 2 + 2 * MAX_DATA) throw new Error('malformed commitment');
++  const s = c.signature;
++  if (!s || typeof s !== 'object' || !WORD.test(String(s.r)) || !WORD.test(String(s.s))) throw new Error('malformed commitment signature');
++  let y = s.yParity ?? s.v;
++  y = typeof y === 'string' ? Number(BigInt(y)) : Number(y);
++  if (y === 27 || y === 28) y -= 27;
++  if (y !== 0 && y !== 1) throw new Error('malformed commitment signature parity');
++  return { data: c.data.toLowerCase(), signature: { r: pad(String(s.r).toLowerCase(), { size: 32 }), s: pad(String(s.s).toLowerCase(), { size: 32 }), yParity: numberToHex(y) } };
++}
++
++/** Verify a commitment against the pinned chain and signer. -> {commitment (canonical), head} or throws. */
++export async function verifyCommitment(raw, { chainId, signer }) {
++  const commitment = normalizeCommitment(raw);
++  const head = payloadHead(commitment.data);
++  const { r, s, yParity } = commitment.signature;
++  const who = await recoverAddress({ hash: commitmentDigest(commitment.data, chainId), signature: { r, s, yParity: Number(yParity) } });
++  if (who.toLowerCase() !== signer) throw new Error('commitment is not signed by the pinned unsafe signer');
++  return { commitment, head };
++}
++
++function validateConfig({ sources, chainId, signer, maxAgeMs, pollMs, timeoutMs }) {
++  if (!Array.isArray(sources) || sources.length > 16) throw new Error('0 to 16 commitment sources');
++  const ids = sources.map((u) => rpcEndpoint(u).identity);   // https, or plain http on loopback only; no credentials
++  if (new Set(ids).size !== ids.length) throw new Error('commitment sources must be distinct endpoints');
++  if (!Number.isSafeInteger(chainId) || chainId <= 0) throw new Error('chain id required');
++  if (!ADDR.test(signer || '') || /^0x0{40}$/i.test(signer)) throw new Error('unsafe signer address required');
++  for (const [k, v, lo, hi] of [['maxAgeMs', maxAgeMs, 1000, 600000], ['pollMs', pollMs, 100, 60000], ['timeoutMs', timeoutMs, 100, 30000]])
++    if (!Number.isSafeInteger(v) || v < lo || v > hi) throw new Error(`invalid ${k}`);
++}
++
++/**
++ * sources: base URLs of untrusted Helios-consensus-API servers (each read as <base>/latest). Empty is allowed (offer()
++ * still feeds the relay; e.g. a future gossip listener in this process). -> relay with offer(), latest(), status(),
++ * poll(), listen(port) (127.0.0.1 only) and close().
++ */
++export function createHeadRelay({ sources = [], chainId, signer, maxAgeMs = 60000, pollMs = 1000, timeoutMs = 2000, fetch = globalThis.fetch, now = Date.now } = {}) {
++  validateConfig({ sources, chainId, signer, maxAgeMs, pollMs, timeoutMs });
++  const pinned = signer.toLowerCase();
++  let best = null, server = null, timer = null, polling = null;
++  const seen = new Map();            // number -> first verified hash at that height (recent heights only)
++  const equivocations = [];          // [{number, hashes}]
++  const unsupported = [];            // [{number, type}]: signed blocks refused for a transaction type the verifier cannot decode
++  let blockedAt = null;               // a height with two signed blocks: nothing at or below it is served
++  const perSource = new Map(sources.map((u) => [u, { label: rpcLabel(u), ok: 0, rejected: 0, failed: 0, last: null }]));
++
++  const fresh = (head) => Number(head.timestamp) * 1000 + maxAgeMs > now() && Number(head.timestamp) * 1000 <= now() + 5000;
++  async function offer(raw, from = 'offer') {
++    const v = await verifyCommitment(raw, { chainId, signer: pinned });
++    // a block the pinned verifier cannot decode is never handed to it (Helios 0.12.0 would abort on it)
++    const bad = unsupportedTxType(v.commitment.data);
++    if (bad !== null) { unsupported.push({ number: String(v.head.number), type: '0x' + bad.toString(16).padStart(2, '0'), from }); if (unsupported.length > 8) unsupported.shift(); return { accepted: false, reason: 'unsupported transaction type 0x' + bad.toString(16).padStart(2, '0') }; }
++    const n = v.head.number;
++    const prior = seen.get(n);
++    if (prior && prior !== v.head.hash) {
++      equivocations.push({ number: String(n), hashes: [prior, v.head.hash], from });
++      if (blockedAt === null || n > blockedAt) blockedAt = n;
++      if (best && best.head.number <= n) best = null;
++      return { accepted: false, reason: 'equivocation' };
++    }
++    if (!prior) { seen.set(n, v.head.hash); if (seen.size > 512) seen.delete(seen.keys().next().value); }
++    if (blockedAt !== null && n <= blockedAt) return { accepted: false, reason: 'at or below an equivocated height' };
++    if (!fresh(v.head)) return { accepted: false, reason: 'stale or future block' };
++    if (!best || n > best.head.number) best = { ...v, from };
++    return { accepted: true, number: n };
++  }
++  async function pollOne(url) {
++    const st = perSource.get(url);
++    try {
++      const r = await fetch(new URL('latest', url.endsWith('/') ? url : url + '/'), { redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(timeoutMs) });
++      if (!r.ok) throw new Error('HTTP ' + r.status);
++      const text = await r.text();
++      if (text.length > 2 + 2 * MAX_DATA + 4096) throw new Error('response too large');
++      const body = JSON.parse(text);
++      if (body === null) { st.last = 'no commitment'; return; }
++      const out = await offer(body, st.label);
++      if (out.accepted) st.ok++; else st.rejected++;
++      st.last = out.accepted ? 'accepted ' + out.number : out.reason;
++    } catch (e) { st.failed++; st.last = String(e?.message || e).slice(0, 160); }
++  }
++  const poll = () => (polling ||= Promise.allSettled(sources.map(pollOne)).finally(() => { polling = null; }));
++  /** The commitment to serve now, or null (none, stale, or equivocated). */
++  function latest() {
++    if (!best || !fresh(best.head)) return null;
++    if (blockedAt !== null && best.head.number <= blockedAt) return null;
++    return best.commitment;
++  }
++  function status() {
++    const head = best && latest() ? { number: String(best.head.number), hash: best.head.hash, stateRoot: best.head.stateRoot, timestamp: Number(best.head.timestamp), from: best.from } : null;
++    return { trust: 'op-sequencer-signed-unsafe-head', chainId, signer: pinned, maxAgeMs, head, equivocations: equivocations.slice(-8), unsupported: unsupported.slice(),
++      sources: [...perSource.values()].map((s) => ({ ...s })) };
++  }
++  function handler(req, res) {
++    const path = new URL(req.url, 'http://relay').pathname;
++    if (req.method !== 'GET' || !['/latest', '/chain_id'].includes(path)) { res.writeHead(404).end(); return; }
++    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
++    res.end(JSON.stringify(path === '/chain_id' ? chainId : latest()));
++  }
++  async function listen(port = 0) {
++    server = http.createServer(handler);
++    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
++    if (sources.length) { await poll(); timer = setInterval(poll, pollMs); timer.unref?.(); }
++    return `http://127.0.0.1:${server.address().port}/`;
++  }
++  async function close() {
++    clearInterval(timer); timer = null;
++    await polling?.catch(() => {});
++    if (server) { server.closeAllConnections?.(); await new Promise((r) => server.close(() => r())); server = null; }
++  }
++  return { offer, poll, latest, status, handler, listen, close };
++}
+diff --git a/network/witness-gateway.mjs b/network/witness-gateway.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..cc4f0a423c7e5dba492e910fefe27ae0e5960e90
+--- /dev/null
++++ b/network/witness-gateway.mjs
+@@ -0,0 +1,125 @@
++// The loopback execution endpoint a Helios verifier reads state WITNESSES from (helios --execution-rpc). Helios takes
++// ONE execution URL and verifies everything it gets from it against its signed head (account/storage proofs against the
++// block's state root, code against the proven code hash, receipts against the receipts root), so the sources behind
++// this gateway are untrusted: any one honest, available source is enough, and none of them is a vote.
++//
++//   * Ordered failover over untrusted JSON-RPC upstreams (https, or plain http on loopback; network/rpc-identity.mjs).
++//   * A method allowlist: only what Helios's execution provider calls (a16z/helios 2af9b418 core/src/execution/providers/
++//     rpc.rs, opstack evm) plus broadcast. Anything else is refused, so the gateway is not a general RPC proxy.
++//   * Witnesses Helios pins BY BLOCK HASH (eth_getProof, eth_getCode with {blockHash}) are immutable: they may be kept in
++//     an immutable cache and served from it when every upstream fails. A cache hit is availability for THAT block only -
++//     never freshness: the verifier still needs a fresh signed head, and Helios rejects a witness that does not match it.
++//     Cache entries are create-only, and a wrong entry costs nothing but a failed verification.
++//   * eth_sendRawTransaction goes to every upstream. A broadcast proves nothing about inclusion (a receipt in a verified
++//     block does), and with every upstream down nothing can be sent: the gateway says so.
++// No P2P witness transport exists for Base today (rpc-peer-audit RESULT §2: snap/2 off by default, no flag; GetNodeData
++// empty), so none is offered; a future transport is one more entry in `upstreams` behind the same interface.
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import { createHash } from 'node:crypto';
++import { rpcEndpoint, rpcLabel } from './rpc-identity.mjs';
++
++export const WITNESS_METHODS = Object.freeze(['eth_chainId', 'eth_blockNumber', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_getProof', 'eth_getCode',
++  'eth_createAccessList', 'eth_getBlockReceipts', 'eth_getTransactionReceipt', 'eth_getTransactionByHash', 'eth_getLogs', 'eth_gasPrice',
++  'eth_maxPriorityFeePerGas', 'eth_feeHistory', 'eth_sendRawTransaction']);
++const PINNED = new Set(['eth_getProof', 'eth_getCode']);
++const MAX_BODY = 1 << 20, MAX_RESPONSE = 16 << 20, HASH = /^0x[0-9a-fA-F]{64}$/;
++
++/** The cache key of a block-hash-pinned witness request, or null when the request is not immutable. */
++export function witnessKey(method, params) {
++  if (!PINNED.has(method) || !Array.isArray(params) || !params.length) return null;
++  const at = params[params.length - 1];
++  if (!at || typeof at !== 'object' || Array.isArray(at) || !HASH.test(at.blockHash || '') || Object.keys(at).some((k) => k !== 'blockHash' && k !== 'requireCanonical')) return null;
++  const norm = JSON.stringify([method, JSON.parse(JSON.stringify(params).toLowerCase())]);
++  return { key: createHash('sha256').update(norm).digest('hex'), blockHash: at.blockHash.toLowerCase(), norm };
++}
++
++/** Create-only directory cache of block-hash-pinned witnesses: <dir>/<blockHash>/<sha256(request)>.json. */
++export function dirWitnessCache(dir) {
++  const file = (w) => path.join(dir, w.blockHash, w.key + '.json');
++  return {
++    async get(w) {
++      try {
++        const e = JSON.parse(await fs.promises.readFile(file(w), 'utf8'));
++        return e?.format === 'enclave-witness-rpc/v1' && e.request === w.norm ? e.result : undefined;
++      } catch { return undefined; }
++    },
++    async put(w, result) {
++      await fs.promises.mkdir(path.dirname(file(w)), { recursive: true });
++      try { await fs.promises.writeFile(file(w), JSON.stringify({ format: 'enclave-witness-rpc/v1', request: w.norm, result }), { flag: 'wx' }); }
++      catch (e) { if (e.code !== 'EEXIST') throw e; }
++    },
++  };
++}
++
++async function call(url, body, fetch, timeoutMs) {
++  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body, redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(timeoutMs) });
++  if (!r.ok) throw new Error('HTTP ' + r.status);
++  const text = await r.text();
++  if (text.length > MAX_RESPONSE) throw new Error('response too large');
++  const j = JSON.parse(text);
++  if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('malformed JSON-RPC response');
++  return j;
++}
++
++/**
++ * upstreams: untrusted execution JSON-RPC URLs, tried in order. cache: optional {get(w), put(w, result)} (dirWitnessCache).
++ * -> {handle(request) -> response, listen(port) -> url (127.0.0.1 only), close(), stats()}
++ */
++export function createWitnessGateway({ upstreams = [], cache = null, timeoutMs = 8000, fetch = globalThis.fetch } = {}) {
++  if (!Array.isArray(upstreams) || upstreams.length > 16) throw new Error('0 to 16 upstreams');
++  const ids = upstreams.map((u) => rpcEndpoint(u).identity);
++  if (new Set(ids).size !== ids.length) throw new Error('upstreams must be distinct endpoints');
++  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60000) throw new Error('invalid timeoutMs');
++  const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0 }])), cacheHits: 0, cachePuts: 0, refused: {}, unavailable: 0 };
++  let server = null;
++  const err = (id, code, message) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } });
++
++  async function handle(req) {
++    if (!req || typeof req !== 'object' || req.jsonrpc !== '2.0' || typeof req.method !== 'string') return err(req?.id, -32600, 'invalid request');
++    const params = req.params === undefined ? [] : req.params;
++    if (!WITNESS_METHODS.includes(req.method)) { stats.refused[req.method.slice(0, 64)] = (stats.refused[req.method.slice(0, 64)] || 0) + 1; return err(req.id, -32601, 'method not offered by the witness gateway'); }
++    const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: req.method, params });
++    const w = cache ? witnessKey(req.method, params) : null;
++    const broadcast = req.method === 'eth_sendRawTransaction';
++    let lastError = null, sent = null;
++    for (const u of upstreams) {
++      const s = stats.upstream[rpcLabel(u)];
++      try {
++        const j = await call(u, body, fetch, timeoutMs);
++        if (j.error) { s.failed++; lastError = j.error; continue; }
++        s.ok++;
++        if (w) cache.put(w, j.result).then(() => { stats.cachePuts++; }, () => {});
++        if (!broadcast) return { jsonrpc: '2.0', id: req.id ?? null, result: j.result };
++        sent ??= j.result;
++      } catch (e) { s.failed++; lastError = { code: -32000, message: `${rpcLabel(u)}: ${String(e?.message || e).slice(0, 120)}` }; }
++    }
++    if (sent !== null) return { jsonrpc: '2.0', id: req.id ?? null, result: sent };
++    if (w) {
++      const hit = await cache.get(w);
++      if (hit !== undefined) { stats.cacheHits++; return { jsonrpc: '2.0', id: req.id ?? null, result: hit }; }
++    }
++    stats.unavailable++;
++    return err(req.id, lastError?.code ?? -32000, broadcast ? 'no upstream accepted the transaction; nothing was sent' : `no witness source answered${lastError?.message ? ': ' + String(lastError.message).slice(0, 160) : ''}`);
++  }
++
++  function onRequest(req, res) {
++    if (req.method !== 'POST') { res.writeHead(405).end(); return; }
++    let size = 0; const chunks = [];
++    req.on('data', (c) => { size += c.length; if (size > MAX_BODY) { res.writeHead(413).end(); req.destroy(); } else chunks.push(c); });
++    req.on('end', async () => {
++      if (size > MAX_BODY) return;
++      let parsed; try { parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(err(null, -32700, 'parse error'))); return; }
++      const out = Array.isArray(parsed) ? (parsed.length > 100 ? [err(null, -32600, 'batch too large')] : await Promise.all(parsed.map(handle))) : await handle(parsed);
++      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(out));
++    });
++  }
++  async function listen(port = 0) {
++    server = http.createServer(onRequest);
++    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
++    return `http://127.0.0.1:${server.address().port}/`;
++  }
++  async function close() { if (server) { server.closeAllConnections?.(); await new Promise((r) => server.close(() => r())); server = null; } }
++  return { handle, listen, close, stats: () => structuredClone(stats) };
++}
+diff --git a/test/fixtures/op-commitment.mjs b/test/fixtures/op-commitment.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..8481f00de19a1f91c9a71a52b06d0a484ebe9e9e
+--- /dev/null
++++ b/test/fixtures/op-commitment.mjs
+@@ -0,0 +1,43 @@
++// TEST-ONLY: build OP-stack sequencer commitments (the gossip message Helios's consensus API serves) from a block's
++// fields and sign them with a TEST key. The layout is Helios's ExecutionPayload (a16z/helios 2af9b418
++// opstack/src/types.rs) = base/base BaseExecutionPayloadV4 (ExecutionPayloadV3 + withdrawals_root); the signed data is
++// parentBeaconRoot || SSZ(payload). A commitment made here is a synthetic fixture: it never proves live-chain behaviour.
++import { concat, hexToBytes, numberToHex, pad, toHex } from 'viem';
++import { sign } from 'viem/accounts';
++import { commitmentDigest } from '../../network/op-head-relay.mjs';
++
++const le = (v, n) => { const b = new Uint8Array(n); let x = BigInt(v); for (let i = 0; i < n; i++) { b[i] = Number(x & 0xffn); x >>= 8n; } return b; };
++const fixed = (hex, n) => { const b = hexToBytes(hex); if (b.length !== n) throw new Error(`expected ${n} bytes`); return b; };
++
++/** SSZ ExecutionPayload (V4 layout). txs: array of hex raw transactions. */
++export function encodePayload(f, txs = []) {
++  const extra = hexToBytes(f.extraData || '0x');
++  if (extra.length > 32) throw new Error('extraData > 32 bytes');
++  const txb = txs.map((t) => hexToBytes(t));
++  const txList = new Uint8Array(4 * txb.length + txb.reduce((a, t) => a + t.length, 0));
++  let off = 4 * txb.length;
++  txb.forEach((t, i) => { txList.set(le(off, 4), 4 * i); txList.set(t, off); off += t.length; });
++  const FIXED = 560;
++  const extraOff = FIXED, txOff = extraOff + extra.length, wdOff = txOff + txList.length;
++  const parts = [
++    fixed(f.parentHash, 32), fixed(f.miner, 20), fixed(f.stateRoot, 32), fixed(f.receiptsRoot, 32), fixed(f.logsBloom, 256), fixed(f.mixHash, 32),
++    le(f.number, 8), le(f.gasLimit, 8), le(f.gasUsed, 8), le(f.timestamp, 8), le(extraOff, 4), le(f.baseFeePerGas ?? 0, 32), fixed(f.hash, 32),
++    le(txOff, 4), le(wdOff, 4), le(f.blobGasUsed ?? 0, 8), le(f.excessBlobGas ?? 0, 8), fixed(f.withdrawalsRoot ?? pad('0x', { size: 32 }), 32),
++  ];
++  const head = concat(parts.map((p) => toHex(p)));
++  if (hexToBytes(head).length !== FIXED) throw new Error('payload fixed part size');
++  return concat([head, toHex(extra), toHex(txList)]);
++}
++
++/** {data, signature:{r,s,yParity}} for block fields `f`, signed by `privateKey` for `chainId`. */
++export async function makeCommitment(f, { chainId, privateKey, txs = [], parentBeaconRoot = pad('0x', { size: 32 }) }) {
++  const data = concat([parentBeaconRoot, encodePayload(f, txs)]);
++  const s = await sign({ hash: commitmentDigest(data, chainId), privateKey });
++  return { data, signature: { r: s.r, s: s.s, yParity: numberToHex(s.yParity ?? (Number(s.v) - 27)) } };
++}
++
++/** Block fields for makeCommitment from an eth_getBlockByNumber JSON result. */
++export const blockFields = (b) => ({ parentHash: b.parentHash, miner: b.miner, stateRoot: b.stateRoot, receiptsRoot: b.receiptsRoot, logsBloom: b.logsBloom,
++  mixHash: b.mixHash, number: BigInt(b.number), gasLimit: BigInt(b.gasLimit), gasUsed: BigInt(b.gasUsed), timestamp: BigInt(b.timestamp), extraData: b.extraData,
++  baseFeePerGas: BigInt(b.baseFeePerGas ?? 0), hash: b.hash, blobGasUsed: BigInt(b.blobGasUsed ?? 0), excessBlobGas: BigInt(b.excessBlobGas ?? 0),
++  withdrawalsRoot: b.withdrawalsRoot });
+diff --git a/test/helios-witness.e2e.test.mjs b/test/helios-witness.e2e.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..7eccc5c52abf6a9256ceead444a7e1c85c15c429
+--- /dev/null
++++ b/test/helios-witness.e2e.test.mjs
+@@ -0,0 +1,196 @@
++// END-TO-END (offline): the pinned maintained verifier (Helios, patched branch enclave-base-compat on 2af9b418) reads
++// Enclave contract state through network/op-head-relay.mjs (signed head) and network/witness-gateway.mjs (untrusted
++// witnesses), against a local Anvil chain with chain id 8453. Meant to run inside `unshare -r -n` (no external network
++// at all, i.e. every external RPC provider is down).
++//
++// SYNTHETIC: the sequencer key is a TEST key (Helios [base.chain] unsafe_signer override in a private HOME) signing
++// Anvil blocks. This proves the verifier and bridge mechanics and the refusal rules, NOT live Base compatibility.
++//   env: HELIOS_BIN (patched), HELIOS_STOCK_BIN (stock 0.12.0, optional), ANVIL_BIN, TEST_TMP (disk scratch dir)
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { spawn } from 'node:child_process';
++import fs from 'node:fs';
++import path from 'node:path';
++import http from 'node:http';
++import net from 'node:net';
++import { createPublicClient, createWalletClient, http as viemHttp, encodeAbiParameters, keccak256, stringToHex, pad, encodeFunctionData, defineChain } from 'viem';
++import { privateKeyToAccount } from 'viem/accounts';
++import { createHeadRelay } from '../network/op-head-relay.mjs';
++import { createWitnessGateway, dirWitnessCache } from '../network/witness-gateway.mjs';
++import { makeCommitment, blockFields } from './fixtures/op-commitment.mjs';
++
++const { HELIOS_BIN, HELIOS_STOCK_BIN, ANVIL_BIN = 'anvil' } = process.env;
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'helios-e2e-'));
++const SEQ_KEY = '0x' + '5e'.repeat(32), seqSigner = privateKeyToAccount(SEQ_KEY).address;
++const DEPLOYER = privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80');
++const REGISTRY = '0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac', DEPLOYMENTS = '0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b';
++const artifact = JSON.parse(fs.readFileSync(new URL('../contracts/foundry/out/EnclaveAddressBook.sol/EnclaveAddressBook.json', import.meta.url)));
++const chain = defineChain({ id: 8453, name: 'anvil-8453', nativeCurrency: { name: 'E', symbol: 'E', decimals: 18 }, rpcUrls: { default: { http: [] } } });
++const children = new Set(), closers = [];
++const freePort = () => new Promise((r) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++async function rpc(url, method, params = []) {
++  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(20000) });
++  const j = await r.json();
++  if (j.error) throw Object.assign(new Error(j.error.message || JSON.stringify(j.error)), { rpc: j.error });
++  return j.result;
++}
++async function until(fn, ms, what) {
++  const end = Date.now() + ms; let last;
++  while (Date.now() < end) { try { const v = await fn(); if (v) return v; } catch (e) { last = e; } await sleep(250); }
++  throw new Error(`timed out waiting for ${what}${last ? ': ' + last.message : ''}`);
++}
++function start(cmd, args, opts) {
++  const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], ...opts });
++  p.log = ''; const keep = (d) => { p.log = (p.log + d).slice(-20000); };
++  p.stdout.on('data', keep); p.stderr.on('data', keep);
++  p.exited = new Promise((r) => p.on('exit', (code, signal) => { children.delete(p); r({ code, signal }); }));
++  children.add(p); return p;
++}
++async function startHelios(bin, { consensus, execution, tag }) {
++  const home = path.join(TMP, 'home-' + tag); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
++  // TEST-ONLY override of the pinned Base unsafe signer, so Helios accepts commitments signed by the test key
++  fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${seqSigner}"\n`);
++  const port = await freePort();
++  const p = start(bin, ['opstack', '--network', 'base', '--consensus-rpc', consensus, '--execution-rpc', execution, '--rpc-port', String(port)],
++    { env: { HOME: home, PATH: process.env.PATH, RUST_LOG: 'info' } });
++  p.url = `http://127.0.0.1:${port}/`;
++  return p;
++}
++const stop = async (p) => { if (p && p.exitCode === null && p.signalCode === null) { p.kill('SIGTERM'); await Promise.race([p.exited, sleep(5000)]); if (p.exitCode === null && p.signalCode === null) p.kill('SIGKILL'); await p.exited; } };
++const slotOf = (name, n) => keccak256(encodeAbiParameters([{ type: 'bytes32' }, { type: 'uint256' }], [stringToHex(name, { size: 32 }), n]));
++const word = (a) => pad(a.toLowerCase(), { size: 32 });
++
++let anvil, anvilUrl, book, relay, relayUrl, gateway, gatewayUrl, head;
++test.before(async () => {
++  const port = await freePort();
++  anvil = start(ANVIL_BIN, ['--port', String(port), '--chain-id', '8453', '--silent']);
++  anvilUrl = `http://127.0.0.1:${port}/`;
++  await until(() => rpc(anvilUrl, 'eth_chainId'), 20000, 'anvil');
++  const wallet = createWalletClient({ account: DEPLOYER, chain, transport: viemHttp(anvilUrl) });
++  const pub = createPublicClient({ chain, transport: viemHttp(anvilUrl) });
++  const hash = await wallet.deployContract({ abi: artifact.abi, bytecode: artifact.bytecode.object });
++  book = (await pub.waitForTransactionReceipt({ hash })).contractAddress;
++  for (const [k, v] of [['registry', REGISTRY], ['deployments', DEPLOYMENTS]])
++    await pub.waitForTransactionReceipt({ hash: await wallet.writeContract({ address: book, abi: artifact.abi, functionName: 'set', args: [stringToHex(k, { size: 32 }), v] }) });
++  // the head Helios will verify against: the latest Anvil block, its raw transactions, signed by the test sequencer key
++  const b = await rpc(anvilUrl, 'eth_getBlockByNumber', ['latest', false]);
++  const txs = await Promise.all(b.transactions.map((h) => rpc(anvilUrl, 'eth_getRawTransactionByHash', [h])));
++  head = { number: BigInt(b.number), hash: b.hash, stateRoot: b.stateRoot, txs };
++  relay = createHeadRelay({ chainId: 8453, signer: seqSigner, maxAgeMs: 300000 });
++  const offered = await relay.offer(await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs }));
++  assert.equal(offered.accepted, true, JSON.stringify(offered));
++  relayUrl = await relay.listen(0);
++  gateway = createWitnessGateway({ upstreams: [anvilUrl], cache: dirWitnessCache(path.join(TMP, 'witness-cache')) });
++  gatewayUrl = await gateway.listen(0);
++  closers.push(() => relay.close(), () => gateway.close());
++});
++test.after(async () => {
++  for (const c of closers.reverse()) await c().catch(() => {});
++  for (const p of [...children]) await stop(p);
++  fs.rmSync(TMP, { recursive: true, force: true });
++});
++
++const T = { timeout: 120000 };
++test('patched Helios follows the signed head and returns proof-verified Enclave contract state', T, async (t) => {
++  assert.ok(HELIOS_BIN, 'HELIOS_BIN required');
++  const h = await startHelios(HELIOS_BIN, { consensus: relayUrl, execution: gatewayUrl, tag: 'patched-1' });
++  t.after(() => stop(h));
++  await until(async () => BigInt(await rpc(h.url, 'eth_blockNumber')) === head.number, 60000, 'Helios to adopt the signed head');
++  assert.equal(await rpc(h.url, 'eth_chainId'), '0x2105');
++  const blk = await rpc(h.url, 'eth_getBlockByNumber', ['latest', false]);
++  assert.equal(blk.hash, head.hash); assert.equal(blk.stateRoot, head.stateRoot);
++  // AddressBook addr["registry"] is at mapping slot 3 in the CURRENT source (the deployed book predates pendingOwner: slot 2)
++  assert.equal(await rpc(h.url, 'eth_getStorageAt', [book, slotOf('registry', 3n), 'latest']), word(REGISTRY));
++  assert.equal(await rpc(h.url, 'eth_getStorageAt', [book, slotOf('registry', 2n), 'latest']), pad('0x0', { size: 32 }));
++  assert.equal(await rpc(h.url, 'eth_getCode', [book, 'latest']), await rpc(anvilUrl, 'eth_getCode', [book, 'latest']));
++  assert.equal(await rpc(h.url, 'eth_getBalance', [DEPLOYER.address, 'latest']), await rpc(anvilUrl, 'eth_getBalance', [DEPLOYER.address, head.hash ? { blockHash: head.hash } : 'latest']));
++  const proof = await rpc(h.url, 'eth_getProof', [book, [slotOf('deployments', 3n)], 'latest']);
++  assert.equal(BigInt(proof.storageProof[0].value), BigInt(DEPLOYMENTS));
++  // local EVM execution is REFUSED: Base mainnet has run Azul+ (Osaka + Base precompiles) since 1779991200 and the
++  // pinned op-revm only implements up to Prague for this chain
++  const data = encodeFunctionData({ abi: artifact.abi, functionName: 'addr', args: [stringToHex('registry', { size: 32 })] });
++  await assert.rejects(rpc(h.url, 'eth_call', [{ to: book, data }, 'latest']), /local execution refused/);
++  assert.equal(h.exitCode, null, 'verifier still running');
++});
++
++test('a tampered witness is rejected by the verifier, never returned', T, async (t) => {
++  // a proxy between the gateway and Anvil that rewrites every proven storage value
++  const tamper = http.createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', async () => {
++    const up = await fetch(anvilUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: b });
++    const j = await up.json();
++    if (j.result?.storageProof) for (const s of j.result.storageProof) s.value = '0x' + 'beef'.padStart(40, '0');
++    res.end(JSON.stringify(j));
++  }); });
++  await new Promise((r) => tamper.listen(0, '127.0.0.1', r));
++  const g = createWitnessGateway({ upstreams: [`http://127.0.0.1:${tamper.address().port}/`] });
++  const gUrl = await g.listen(0);
++  const h = await startHelios(HELIOS_BIN, { consensus: relayUrl, execution: gUrl, tag: 'tamper' });
++  t.after(async () => { await stop(h); await g.close(); tamper.close(); });
++  await until(async () => BigInt(await rpc(h.url, 'eth_blockNumber')) === head.number, 60000, 'head');
++  await assert.rejects(rpc(h.url, 'eth_getStorageAt', [book, slotOf('registry', 3n), 'latest']));
++  await assert.rejects(rpc(h.url, 'eth_getProof', [book, [slotOf('registry', 3n)], 'latest']));
++});
++
++// A raw consensus stub (no relay rules) to show what the VERIFIER does with heads the relay would never serve.
++async function rawConsensus() {
++  let body = null;
++  const s = http.createServer((q, res) => res.end(JSON.stringify(q.url === '/chain_id' ? 8453 : body)));
++  await new Promise((r) => s.listen(0, '127.0.0.1', r));
++  return { url: `http://127.0.0.1:${s.address().port}/`, set: (b) => { body = b; }, close: () => s.close() };
++}
++async function nextFields(n, salt) {
++  const b = await rpc(anvilUrl, 'eth_getBlockByNumber', ['latest', false]);
++  return { ...blockFields(b), number: head.number + BigInt(n), hash: pad(`0x${(0xc0de00 + n + salt).toString(16)}`, { size: 32 }), timestamp: BigInt(Math.floor(Date.now() / 1000)) };
++}
++
++test('wrong-signer heads are ignored; a signed head with a 0x79 transaction is refused without killing the patched verifier', T, async (t) => {
++  const stub = await rawConsensus();
++  const b = await rpc(anvilUrl, 'eth_getBlockByNumber', ['latest', false]);
++  stub.set(await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs: head.txs }));
++  const h = await startHelios(HELIOS_BIN, { consensus: stub.url, execution: gatewayUrl, tag: 'raw-patched' });
++  t.after(async () => { await stop(h); stub.close(); });
++  await until(async () => BigInt(await rpc(h.url, 'eth_blockNumber')) === head.number, 60000, 'head');
++  stub.set(await makeCommitment(await nextFields(1, 0), { chainId: 8453, privateKey: '0x' + '77'.repeat(32) }));
++  await sleep(3500);
++  assert.equal(BigInt(await rpc(h.url, 'eth_blockNumber')), head.number, 'a head signed by another key is not adopted');
++  stub.set(await makeCommitment(await nextFields(2, 0), { chainId: 8453, privateKey: SEQ_KEY, txs: ['0x79c0'] }));
++  await sleep(3500);
++  assert.equal(h.exitCode, null, 'patched verifier must survive an undecodable transaction type');
++  assert.equal(h.signalCode, null);
++  assert.equal(BigInt(await rpc(h.url, 'eth_blockNumber')), head.number, 'the undecodable block is not adopted');
++  // This debug build unwinds panics, so an unwrap() panic would only kill the head task, silently and for good. The
++  // head loop must still be alive: a valid higher head is adopted.
++  stub.set(await makeCommitment(await nextFields(4, 0), { chainId: 8453, privateKey: SEQ_KEY, txs: head.txs }));
++  await until(async () => BigInt(await rpc(h.url, 'eth_blockNumber')) === head.number + 4n, 15000, 'the head loop to adopt a valid higher block');
++});
++
++test('stock Helios 0.12.0 (comparison only): executes eth_call under the wrong spec and dies on a 0x79 transaction', { ...T, skip: !HELIOS_STOCK_BIN && 'HELIOS_STOCK_BIN not set' }, async (t) => {
++  const stub = await rawConsensus();
++  const b = await rpc(anvilUrl, 'eth_getBlockByNumber', ['latest', false]);
++  stub.set(await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs: head.txs }));
++  const h = await startHelios(HELIOS_STOCK_BIN, { consensus: stub.url, execution: gatewayUrl, tag: 'raw-stock' });
++  t.after(async () => { await stop(h); stub.close(); });
++  await until(async () => BigInt(await rpc(h.url, 'eth_blockNumber')) === head.number, 60000, 'head');
++  const data = encodeFunctionData({ abi: artifact.abi, functionName: 'addr', args: [stringToHex('registry', { size: 32 })] });
++  const out = await rpc(h.url, 'eth_call', [{ to: book, data }, 'latest']);
++  t.diagnostic(`stock eth_call result (Prague rules on a Base Azul+ timestamp): ${out}`);
++  stub.set(await makeCommitment(await nextFields(3, 0), { chainId: 8453, privateKey: SEQ_KEY, txs: ['0x79c0'] }));
++  const exit = await Promise.race([h.exited, sleep(8000).then(() => null)]);
++  t.diagnostic(`stock verifier after a 0x79 head: ${exit ? JSON.stringify(exit) : 'still running'}; log tail: ${h.log.slice(-300).replace(/\s+/g, ' ')}`);
++  assert.ok(exit, 'stock 0.12.0 is expected to abort (unwrap with panic=abort)');
++});
++
++test('outage of EVERY execution source: a restarted verifier still proves state for the pinned block from the witness cache; anything else and any tx refuse', T, async (t) => {
++  // the first test populated the gateway cache with the witnesses Helios fetched for the signed head (by block hash)
++  await stop(anvil);                                    // the only execution source is gone; no network exists at all
++  const h = await startHelios(HELIOS_BIN, { consensus: relayUrl, execution: gatewayUrl, tag: 'outage' });
++  t.after(() => stop(h));
++  await until(async () => BigInt(await rpc(h.url, 'eth_blockNumber')) === head.number, 60000, 'head');
++  assert.equal(await rpc(h.url, 'eth_getStorageAt', [book, slotOf('registry', 3n), 'latest']), word(REGISTRY));
++  assert.ok(gateway.stats().cacheHits >= 1, 'served from the witness cache');
++  // a slot never fetched before has no source: refused, not guessed
++  await assert.rejects(rpc(h.url, 'eth_getStorageAt', [book, slotOf('featured', 3n), 'latest']));
++  await assert.rejects(rpc(h.url, 'eth_sendRawTransaction', ['0x02f86b822105808080809400000000000000000000000000000000000000008080c080a0' + '11'.repeat(32) + 'a0' + '22'.repeat(32)]));
++  t.diagnostic(`gateway stats: ${JSON.stringify(gateway.stats())}`);
++});
+diff --git a/test/op-head-relay.test.mjs b/test/op-head-relay.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..3d0aa896ae179647f4b3d11e0d4e8d7456a9607b
+--- /dev/null
++++ b/test/op-head-relay.test.mjs
+@@ -0,0 +1,120 @@
++// network/op-head-relay.mjs: signer/chain pinning, freshness, highest pick, equivocation, unsupported tx types, HTTP API.
++// Commitments here are SYNTHETIC (test key, made-up blocks): they test the relay's rules, not live Base compatibility.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import { privateKeyToAccount } from 'viem/accounts';
++import { pad, toHex } from 'viem';
++import { createHeadRelay, verifyCommitment, payloadHead, payloadTransactions, unsupportedTxType, BASE_MAINNET } from '../network/op-head-relay.mjs';
++import { makeCommitment } from './fixtures/op-commitment.mjs';
++
++const KEY = '0x' + '11'.repeat(32), OTHER = '0x' + '22'.repeat(32);
++const signer = privateKeyToAccount(KEY).address.toLowerCase();
++const NOW = 1_800_000_000_000;
++const h = (n, b) => pad(toHex(n * 256 + b), { size: 32 });
++const fields = (number, ts, salt = 0) => ({ parentHash: h(number - 1, salt), miner: '0x' + '42'.repeat(20), stateRoot: h(number, 0xa0 + salt), receiptsRoot: h(number, 2),
++  logsBloom: '0x' + '00'.repeat(256), mixHash: h(number, 3), number: BigInt(number), gasLimit: 30_000_000n, gasUsed: 21000n, timestamp: BigInt(ts),
++  extraData: '0x', baseFeePerGas: 1000n, hash: h(number, 0xb0 + salt), withdrawalsRoot: h(number, 4) });
++const legacy = '0xf86c808504a817c800825208940000000000000000000000000000000000000000880de0b6b3a76400008025a0' + '01'.repeat(32) + 'a0' + '02'.repeat(32);
++const typed = (ty) => '0x' + ty.toString(16).padStart(2, '0') + 'c0';
++const relayAt = (now = () => NOW, extra = {}) => createHeadRelay({ chainId: 8453, signer, maxAgeMs: 60000, now, ...extra });
++
++test('a commitment verifies only for the pinned signer and chain, and its head fields decode', async () => {
++  const f = fields(100, NOW / 1000 - 2);
++  const c = await makeCommitment(f, { chainId: 8453, privateKey: KEY, txs: [legacy, typed(2), typed(0x7e)] });
++  const v = await verifyCommitment(c, { chainId: 8453, signer });
++  assert.deepEqual({ ...payloadHead(c.data) }, { number: 100n, timestamp: BigInt(NOW / 1000 - 2), hash: f.hash, stateRoot: f.stateRoot, parentHash: f.parentHash });
++  assert.equal(v.head.hash, f.hash);
++  assert.equal(payloadTransactions(c.data).length, 3);
++  await assert.rejects(verifyCommitment(c, { chainId: 10, signer }), /not signed by the pinned unsafe signer/);
++  await assert.rejects(verifyCommitment(await makeCommitment(f, { chainId: 8453, privateKey: OTHER }), { chainId: 8453, signer }), /not signed/);
++  // one flipped payload byte (the state root) breaks the signature
++  const bad = { ...c, data: c.data.slice(0, 2 + 2 * (32 + 52)) + (c.data[2 + 2 * (32 + 52)] === 'f' ? '0' : 'f') + c.data.slice(3 + 2 * (32 + 52)) };
++  await assert.rejects(verifyCommitment(bad, { chainId: 8453, signer }), /not signed/);
++  assert.equal(BASE_MAINNET.unsafeSigner, '0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a');
++});
++
++test('transaction types the pinned verifier cannot decode are named; legacy, 0x01, 0x02, 0x04 and deposits pass', async () => {
++  const mk = async (txs) => (await makeCommitment(fields(5, NOW / 1000), { chainId: 8453, privateKey: KEY, txs })).data;
++  assert.equal(unsupportedTxType(await mk([legacy, typed(1), typed(2), typed(4), typed(0x7e)])), null);
++  assert.equal(unsupportedTxType(await mk([typed(2), typed(0x79)])), 0x79);     // Base EIP-8130 (Everest, not scheduled at 5476069f)
++  assert.equal(unsupportedTxType(await mk([typed(0x7d)])), 0x7d);              // OP post-exec: not a Base type
++  assert.equal(unsupportedTxType(await mk([typed(3)])), 0x03);                 // blob txs do not exist on L2
++  assert.equal(unsupportedTxType(await mk([])), null);
++});
++
++test('malformed payload offsets and sizes are refused, never read past', async () => {
++  const c = await makeCommitment(fields(5, NOW / 1000), { chainId: 8453, privateKey: KEY, txs: [typed(2)] });
++  assert.throws(() => payloadHead(c.data.slice(0, 2 + 2 * 100)), /wrong size/);
++  const b = Buffer.from(c.data.slice(2), 'hex');
++  b.writeUInt32LE(b.length + 10, 32 + 504);   // transactions offset past the end
++  assert.throws(() => payloadTransactions('0x' + b.toString('hex')), /malformed/);
++});
++
++test('the relay serves the highest fresh signed block and nothing once it is stale', async () => {
++  let now = NOW;
++  const relay = relayAt(() => now);
++  assert.equal(relay.latest(), null);
++  const a = await makeCommitment(fields(100, NOW / 1000 - 4), { chainId: 8453, privateKey: KEY });
++  const b = await makeCommitment(fields(101, NOW / 1000 - 2), { chainId: 8453, privateKey: KEY });
++  assert.equal((await relay.offer(b)).accepted, true);
++  assert.equal((await relay.offer(a)).accepted, true);             // accepted, but lower: b stays
++  assert.equal(payloadHead(relay.latest().data).number, 101n);
++  now = NOW + 61000;                                                // b is now older than maxAgeMs
++  assert.equal(relay.latest(), null);
++  assert.equal(relay.status().head, null);
++  // a far-future block is not accepted either
++  assert.equal((await relay.offer(await makeCommitment(fields(200, now / 1000 + 60), { chainId: 8453, privateKey: KEY }))).accepted, false);
++});
++
++test('a wrong-signer offer throws instead of being served', async () => {
++  const relay = relayAt();
++  await assert.rejects(relay.offer(await makeCommitment(fields(7, NOW / 1000), { chainId: 8453, privateKey: OTHER })), /not signed/);
++  assert.equal(relay.latest(), null);
++});
++
++test('two signed blocks at one height stop the relay until a strictly higher block arrives', async () => {
++  const relay = relayAt();
++  await relay.offer(await makeCommitment(fields(50, NOW / 1000 - 1, 0), { chainId: 8453, privateKey: KEY }));
++  const out = await relay.offer(await makeCommitment(fields(50, NOW / 1000 - 1, 1), { chainId: 8453, privateKey: KEY }));
++  assert.equal(out.reason, 'equivocation');
++  assert.equal(relay.latest(), null);
++  assert.equal(relay.status().equivocations.length, 1);
++  assert.equal((await relay.offer(await makeCommitment(fields(49, NOW / 1000 - 1), { chainId: 8453, privateKey: KEY }))).accepted, false);
++  assert.equal((await relay.offer(await makeCommitment(fields(51, NOW / 1000), { chainId: 8453, privateKey: KEY }))).accepted, true);
++  assert.equal(payloadHead(relay.latest().data).number, 51n);
++});
++
++test('a signed block carrying an unsupported transaction type is refused and recorded', async () => {
++  const relay = relayAt();
++  await relay.offer(await makeCommitment(fields(60, NOW / 1000 - 2), { chainId: 8453, privateKey: KEY, txs: [typed(2)] }));
++  const out = await relay.offer(await makeCommitment(fields(61, NOW / 1000), { chainId: 8453, privateKey: KEY, txs: [typed(2), typed(0x79)] }));
++  assert.equal(out.accepted, false);
++  assert.match(out.reason, /unsupported transaction type 0x79/);
++  assert.equal(payloadHead(relay.latest().data).number, 60n);
++  assert.deepEqual(relay.status().unsupported.map((u) => u.type), ['0x79']);
++});
++
++test('the HTTP API polls untrusted sources, serves /latest and /chain_id, and ignores a lying source', async (t) => {
++  const good = await makeCommitment(fields(300, Date.now() / 1000 - 1 | 0), { chainId: 8453, privateKey: KEY });
++  const forged = await makeCommitment(fields(999, Date.now() / 1000 - 1 | 0), { chainId: 8453, privateKey: OTHER });
++  const serve = (body) => new Promise((r) => { const s = http.createServer((q, res) => res.end(JSON.stringify(q.url === '/latest' ? body : 8453))); s.listen(0, '127.0.0.1', () => r(s)); });
++  const s1 = await serve(forged), s2 = await serve(good), s3 = await serve(null);
++  const relay = createHeadRelay({ sources: [s1, s2, s3].map((s) => `http://127.0.0.1:${s.address().port}/`), chainId: 8453, signer, maxAgeMs: 60000, pollMs: 60000 });
++  t.after(async () => { await relay.close(); for (const s of [s1, s2, s3]) s.close(); });
++  const url = await relay.listen(0);
++  const latest = await (await fetch(url + 'latest')).json();
++  assert.equal(payloadHead(latest.data).number, 300n);
++  assert.equal(await (await fetch(url + 'chain_id')).json(), 8453);
++  assert.equal((await fetch(url + 'other')).status, 404);
++  const st = relay.status().sources;
++  assert.equal(st[0].failed, 1);            // forged signature: an error, never served
++  assert.equal(st[1].ok, 1);
++  assert.equal(st[2].last, 'no commitment');
++});
++
++test('configuration refuses plain-http public sources, duplicates and a missing signer', () => {
++  assert.throws(() => createHeadRelay({ sources: ['http://example.org/'], chainId: 8453, signer }), /./);
++  assert.throws(() => createHeadRelay({ sources: ['https://a.example.org/', 'https://A.example.org./x'], chainId: 8453, signer }), /distinct/);
++  assert.throws(() => createHeadRelay({ chainId: 8453, signer: '0x' + '00'.repeat(20) }), /signer/);
++});
+diff --git a/test/witness-gateway.test.mjs b/test/witness-gateway.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..170b4468c60c4f5144e44152e3925662030f282a
+--- /dev/null
++++ b/test/witness-gateway.test.mjs
+@@ -0,0 +1,103 @@
++// network/witness-gateway.mjs: allowlist, ordered failover, block-hash-pinned cache (create-only, outage fallback only),
++// broadcast fan-out and refusal when every upstream is down. Upstreams are local stubs.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { createWitnessGateway, dirWitnessCache, witnessKey } from '../network/witness-gateway.mjs';
++
++const H = '0x' + 'ab'.repeat(32);
++function stub(answer) {
++  const seen = [];
++  const s = http.createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => {
++    const j = JSON.parse(b); seen.push(j.method);
++    const out = answer(j);
++    if (out === 500) { res.writeHead(500).end(); return; }
++    res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, ...out }));
++  }); });
++  return new Promise((r) => s.listen(0, '127.0.0.1', () => r({ s, seen, url: `http://127.0.0.1:${s.address().port}/` })));
++}
++const req = (method, params, id = 1) => ({ jsonrpc: '2.0', id, method, params });
++const tmp = () => fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 'wg-'));
++
++test('only block-hash-pinned proof and code requests are cache keys', () => {
++  assert.ok(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], { blockHash: H }]));
++  assert.ok(witnessKey('eth_getCode', ['0x' + '01'.repeat(20), { blockHash: H, requireCanonical: false }]));
++  assert.equal(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], 'latest']), null);
++  assert.equal(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], '0x10']), null);
++  assert.equal(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], { blockNumber: '0x10' }]), null);
++  assert.equal(witnessKey('eth_call', [{}, { blockHash: H }]), null);
++  // case does not split keys
++  assert.equal(witnessKey('eth_getCode', ['0xAB' + '01'.repeat(19), { blockHash: H.toUpperCase().replace('0X', '0x') }]).key, witnessKey('eth_getCode', ['0xab' + '01'.repeat(19), { blockHash: H }]).key);
++});
++
++test('methods outside the witness allowlist are refused without touching an upstream', async (t) => {
++  const up = await stub(() => ({ result: '0x1' }));
++  t.after(() => up.s.close());
++  const g = createWitnessGateway({ upstreams: [up.url] });
++  for (const m of ['eth_accounts', 'eth_sign', 'debug_traceTransaction', 'admin_peers', 'eth_call', 'personal_unlockAccount'])
++    assert.equal((await g.handle(req(m, []))).error.code, -32601, m);
++  assert.deepEqual(up.seen, []);
++  assert.equal((await g.handle({ id: 1, method: 'eth_chainId' })).error.code, -32600);
++});
++
++test('upstreams are tried in order; a failed or erroring one costs a try, not the answer', async (t) => {
++  const a = await stub(() => 500), b = await stub(() => ({ error: { code: -32000, message: 'missing trie node' } })), c = await stub(() => ({ result: '0x2105' }));
++  t.after(() => { a.s.close(); b.s.close(); c.s.close(); });
++  const g = createWitnessGateway({ upstreams: [a.url, b.url, c.url] });
++  assert.equal((await g.handle(req('eth_chainId', []))).result, '0x2105');
++  const st = g.stats();
++  assert.deepEqual(Object.values(st.upstream).map((x) => [x.ok, x.failed]), [[0, 1], [0, 1], [1, 0]]);
++});
++
++test('pinned witnesses are cached create-only and served from the cache only when every upstream fails', async (t) => {
++  const dir = tmp(); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  let value = '0xproof-1', up = await stub((j) => ({ result: j.method === 'eth_getProof' ? { v: value } : '0x1' }));
++  const cache = dirWitnessCache(dir);
++  const g = createWitnessGateway({ upstreams: [up.url], cache });
++  const p = req('eth_getProof', ['0x' + '01'.repeat(20), ['0x0'], { blockHash: H }]);
++  assert.deepEqual((await g.handle(p)).result, { v: '0xproof-1' });
++  await new Promise((r) => setTimeout(r, 50));
++  value = '0xproof-2';                                  // upstream answers differently: upstream wins while it is up
++  assert.deepEqual((await g.handle(p)).result, { v: '0xproof-2' });
++  await new Promise((r) => setTimeout(r, 50));
++  up.s.close();                                         // every upstream down
++  assert.deepEqual((await g.handle(p)).result, { v: '0xproof-1' }, 'create-only: the first entry stands');
++  assert.equal(g.stats().cacheHits, 1);
++  // a request at a block NUMBER is never cached, so it is simply unavailable now
++  assert.match((await g.handle(req('eth_getProof', ['0x' + '01'.repeat(20), ['0x0'], 'latest']))).error.message, /no witness source answered/);
++  // an entry whose recorded request differs (a misfiled or tampered file) is a miss
++  const w = witnessKey(p.method, p.params);
++  const f = path.join(dir, w.blockHash, w.key + '.json');
++  fs.writeFileSync(f, JSON.stringify({ format: 'enclave-witness-rpc/v1', request: '["eth_getProof",[]]', result: { v: 'evil' } }));
++  assert.match((await g.handle(p)).error.message, /no witness source answered/);
++});
++
++test('a transaction goes to every upstream; with every upstream down nothing is sent and the caller is told', async (t) => {
++  const a = await stub(() => ({ result: '0x' + 'cd'.repeat(32) })), b = await stub(() => ({ result: '0x' + 'cd'.repeat(32) }));
++  const g = createWitnessGateway({ upstreams: [a.url, b.url] });
++  assert.equal((await g.handle(req('eth_sendRawTransaction', ['0x02']))).result, '0x' + 'cd'.repeat(32));
++  assert.deepEqual([a.seen, b.seen], [['eth_sendRawTransaction'], ['eth_sendRawTransaction']]);
++  a.s.close(); b.s.close();
++  await new Promise((r) => setTimeout(r, 20));
++  assert.match((await g.handle(req('eth_sendRawTransaction', ['0x02']))).error.message, /nothing was sent/);
++});
++
++test('the HTTP endpoint is loopback-only, bounds bodies and answers batches', async (t) => {
++  const up = await stub(() => ({ result: '0x2105' }));
++  const g = createWitnessGateway({ upstreams: [up.url] });
++  const url = await g.listen(0);
++  t.after(async () => { await g.close(); up.s.close(); });
++  assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/$/);
++  const r = await (await fetch(url, { method: 'POST', body: JSON.stringify([req('eth_chainId', [], 1), req('eth_accounts', [], 2)]) })).json();
++  assert.equal(r[0].result, '0x2105'); assert.equal(r[1].error.code, -32601);
++  assert.equal((await fetch(url, { method: 'POST', body: 'x'.repeat((1 << 20) + 10) }).catch(() => ({ status: 413 }))).status, 413);
++  assert.equal((await fetch(url)).status, 405);
++});
++
++test('configuration refuses plain-http public upstreams and duplicates', () => {
++  assert.throws(() => createWitnessGateway({ upstreams: ['http://rpc.example.org'] }), /./);
++  assert.throws(() => createWitnessGateway({ upstreams: ['https://rpc.example.org/a', 'https://RPC.example.org/b'] }), /distinct/);
++});

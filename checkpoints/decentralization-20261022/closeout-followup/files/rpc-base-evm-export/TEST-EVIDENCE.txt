@@ -1,0 +1,465 @@
+# rpc-priority (Base EVM) terminal test evidence digest, generated from rpc-priority/jobs/*.out (the full logs stay local).
+# Per log: sha256/size of the full log, its .rc and .guard.log, then only queue/guard/summary/failure/hash lines.
+# Exit 99 = memory guard stop (not a pass); exit 98 = not started. See RESULT-BASE-EVM.md section 4 for the reading.
+
+## base-evm-build-test-r1.out  sha256 0f83cb05ae9e889c8020a57f68eeb0561bf8ca72745a52850e9a12455ad70b36  bytes 26420  rc 101
+    guard: [memory-guard] exit=101 peakTreeRssMiB=1119 minHostAvailableMiB=23234
+    [queue] START available=25287MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    rustc 1.96.0 (ac68faa20 2026-05-25)
+    0a02256 opstack: v4 blocks topic, refuse undecodable txs, refuse local execution under unimplemented Base rules
+    == unit tests (helios-opstack lib)
+    test consensus::tests::base_schedules_refuse_execution_from_azul ... ok
+    test consensus::tests::preserves_payload_log_filter_matches ... ok
+    test consensus::tests::preserves_payload_logs_bloom ... ok
+    test consensus::tests::unsupported_transaction_type_is_an_error_not_a_panic ... ok
+    test evm::base_backend::tests::azul_prices_p256verify_like_osaka ... FAILED
+    test evm::base_backend::tests::base_upgrade_ladder_selects_the_spec_in_force ... ok
+    test evm::base_backend::tests::beryl_installs_the_activation_registry_with_the_base_admin ... FAILED
+    test evm::base_backend::tests::code_and_storage_come_from_the_shared_proof_database ... FAILED
+    test evm::base_backend::tests::halts_and_reverts_keep_their_meaning ... FAILED
+    test evm::base_backend::tests::osaka_clz_runs_from_azul_and_is_invalid_before ... FAILED
+    test evm::revm_compat::tests::op_evm_reads_code_and_storage_from_shared_database ... ok
+    test server::net::block_handler::tests::subscribes_to_the_isthmus_v4_blocks_topic ... ok
+    thread 'evm::base_backend::tests::azul_prices_p256verify_like_osaka' (2264595) panicked at opstack/src/evm/base_backend.rs:281:10:
+    thread 'evm::base_backend::tests::beryl_installs_the_activation_registry_with_the_base_admin' (2264597) panicked at opstack/src/evm/base_backend.rs:281:10:
+    thread 'evm::base_backend::tests::code_and_storage_come_from_the_shared_proof_database' (2264598) panicked at opstack/src/evm/base_backend.rs:281:10:
+    thread 'evm::base_backend::tests::halts_and_reverts_keep_their_meaning' (2264599) panicked at opstack/src/evm/base_backend.rs:281:10:
+    thread 'evm::base_backend::tests::osaka_clz_runs_from_azul_and_is_invalid_before' (2264600) panicked at opstack/src/evm/base_backend.rs:281:10:
+    test result: FAILED. 7 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+    error: test failed, to rerun pass `-p helios-opstack --lib`
+    [memory-guard] exit=101 peakTreeRssMiB=1119 minHostAvailableMiB=23234
+    [memory-guard] at peak: rust-lld:551 rustc:354 cargo:198 base-evm-build-:6 timeout:4 cc:3 collect2:3
+    [queue] EXIT 101
+
+## base-evm-build-test-r2.out  sha256 64acdebd35eb003a3416986c2e617c0250179715aa2eaff225bdb90af9e612d9  bytes 2755  rc 101
+    guard: [memory-guard] exit=101 peakTreeRssMiB=1036 minHostAvailableMiB=24829
+    [queue] NOT STARTED: test allocation held
+    [queue] NOT STARTED: test allocation held
+    [queue] START available=25222MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    rustc 1.96.0 (ac68faa20 2026-05-25)
+    0a02256 opstack: v4 blocks topic, refuse undecodable txs, refuse local execution under unimplemented Base rules
+    == unit tests (helios-opstack lib)
+    test consensus::tests::base_schedules_refuse_execution_from_azul ... ok
+    test consensus::tests::preserves_payload_log_filter_matches ... ok
+    test consensus::tests::preserves_payload_logs_bloom ... ok
+    test consensus::tests::unsupported_transaction_type_is_an_error_not_a_panic ... ok
+    test evm::base_backend::tests::azul_prices_p256verify_like_osaka ... ok
+    test evm::base_backend::tests::base_upgrade_ladder_selects_the_spec_in_force ... ok
+    test evm::base_backend::tests::beryl_installs_the_activation_registry_with_the_base_admin ... ok
+    test evm::base_backend::tests::code_and_storage_come_from_the_shared_proof_database ... ok
+    test evm::base_backend::tests::halts_and_reverts_keep_their_meaning ... ok
+    test evm::base_backend::tests::osaka_clz_runs_from_azul_and_is_invalid_before ... FAILED
+    test evm::revm_compat::tests::op_evm_reads_code_and_storage_from_shared_database ... ok
+    test server::net::block_handler::tests::subscribes_to_the_isthmus_v4_blocks_topic ... ok
+    thread 'evm::base_backend::tests::osaka_clz_runs_from_azul_and_is_invalid_before' (2284815) panicked at opstack/src/evm/base_backend.rs:310:9:
+    test result: FAILED. 11 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+    error: test failed, to rerun pass `-p helios-opstack --lib`
+    [memory-guard] exit=101 peakTreeRssMiB=1036 minHostAvailableMiB=24829
+    [memory-guard] at peak: rust-lld:492 rustc:356 cargo:172 base-evm-build-:6 timeout:4 cc:3 collect2:3
+    [queue] EXIT 101
+
+## base-evm-build-test-r3.out  sha256 59d03ebb1911231701692016046b83413f08e2535a3b0dca67ac37606a17c12b  bytes 3725  rc 0
+    guard: [memory-guard] exit=0 peakTreeRssMiB=1166 minHostAvailableMiB=24230
+    [queue] START available=24791MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    rustc 1.96.0 (ac68faa20 2026-05-25)
+    0a02256 opstack: v4 blocks topic, refuse undecodable txs, refuse local execution under unimplemented Base rules
+    == unit tests (helios-opstack lib)
+    test consensus::tests::base_schedules_refuse_execution_from_azul ... ok
+    test consensus::tests::preserves_payload_log_filter_matches ... ok
+    test consensus::tests::preserves_payload_logs_bloom ... ok
+    test consensus::tests::unsupported_transaction_type_is_an_error_not_a_panic ... ok
+    test evm::base_backend::tests::azul_prices_p256verify_like_osaka ... ok
+    test evm::base_backend::tests::base_upgrade_ladder_selects_the_spec_in_force ... ok
+    test evm::base_backend::tests::beryl_installs_the_activation_registry_with_the_base_admin ... ok
+    test evm::base_backend::tests::code_and_storage_come_from_the_shared_proof_database ... ok
+    test evm::base_backend::tests::halts_and_reverts_keep_their_meaning ... ok
+    test evm::base_backend::tests::osaka_clz_runs_from_azul_and_is_invalid_before ... ok
+    test evm::revm_compat::tests::op_evm_reads_code_and_storage_from_shared_database ... ok
+    test server::net::block_handler::tests::subscribes_to_the_isthmus_v4_blocks_topic ... ok
+    test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+    == build helios CLI
+    == build opstack-server
+    e1b4933d66cba1b86e2490d39d0c99251a73915b7a60d378d56640129cd68c50  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios
+    3d79715ffee54393720a66e13567be3b7b313af78fe094741522f242c201f05f  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/opstack-server
+    BUILD_TEST_OK
+    [memory-guard] exit=0 peakTreeRssMiB=1166 minHostAvailableMiB=24230
+    [memory-guard] at peak: rust-lld:718 rustc:257 cargo:176 base-evm-build-:6 timeout:4 cc:3 collect2:3
+    [queue] EXIT 0
+
+## base-evm-build-test-r4.out  sha256 3f03e07a00ef4a1269d1f0f7398e13352e4c8e7d499259cd2d3951787228290a  bytes 3023  rc 0
+    guard: [memory-guard] exit=0 peakTreeRssMiB=1177 minHostAvailableMiB=24591
+    [queue] START available=25286MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    rustc 1.96.0 (ac68faa20 2026-05-25)
+    3416a24 opstack: execute Base chains with the maintained Base EVM over proof-backed state
+    == unit tests (helios-opstack lib)
+    test consensus::tests::base_schedules_refuse_execution_from_unvalidated_denim ... ok
+    test consensus::tests::preserves_payload_log_filter_matches ... ok
+    test consensus::tests::preserves_payload_logs_bloom ... ok
+    test consensus::tests::unsupported_transaction_type_is_an_error_not_a_panic ... ok
+    test evm::base_backend::tests::azul_prices_p256verify_like_osaka ... ok
+    test evm::base_backend::tests::base_upgrade_ladder_selects_the_spec_in_force ... ok
+    test evm::base_backend::tests::beryl_installs_the_activation_registry_with_the_base_admin ... ok
+    test evm::base_backend::tests::code_and_storage_come_from_the_shared_proof_database ... ok
+    test evm::base_backend::tests::halts_and_reverts_keep_their_meaning ... ok
+    test evm::base_backend::tests::osaka_clz_runs_from_azul_and_is_invalid_before ... ok
+    test evm::revm_compat::tests::op_evm_reads_code_and_storage_from_shared_database ... ok
+    test server::net::block_handler::tests::subscribes_to_the_isthmus_v4_blocks_topic ... ok
+    test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+    == build helios CLI
+    == build opstack-server
+    400e593e50fcd6687840704d03f59a8a71f7c02012ba33c18b4ca1a7fa079948  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios
+    bc44d77b244bd23fe1fa4a99ab7040a2e6df6ef9e4e44dfd2d9f7335f64c7246  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/opstack-server
+    BUILD_TEST_OK
+    [memory-guard] exit=0 peakTreeRssMiB=1177 minHostAvailableMiB=24591
+    [memory-guard] at peak: rust-lld:722 rustc:264 cargo:175 base-evm-build-:6 timeout:4 cc:3 collect2:3
+    [queue] EXIT 0
+
+## base-final-tests-r1.out  sha256 56a8db8f1c083775c48054150fb5c0cfca4c874a8d67722707846d7260910b20  bytes 9930  rc 1
+    guard: [memory-guard] exit=1 peakTreeRssMiB=247 minHostAvailableMiB=25208
+    [queue] START available=25326MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    400e593e50fcd6687840704d03f59a8a71f7c02012ba33c18b4ca1a7fa079948  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios
+    b93fcfd opstack: allow Base execution through Cobalt, refuse from unvalidated Denim
+    36a83c89b Keep the e2e setup assertion message serializable
+    external network: unreachable (as intended)
+    ok 1 - the fixture is what it claims: two providers agreed on the block and on every call both answered
+    ok 2 - offline, from verified witnesses only, the Base EVM reproduces every provider eth_call result
+    ok 3 - a call whose witnesses were never recorded fails closed: no unchecked answer, no provider
+    ok 4 - control: the earlier compat build (op-revm, Prague rules) still refuses Base execution
+    ok 5 - shipped default of the Base build: execution follows the configured fork horizon
+    ok 6 - patched Helios follows the signed head and returns proof-verified Enclave contract state
+    ok 7 - a tampered witness is rejected by the verifier, never returned
+    ok 8 - wrong-signer heads are ignored; a signed head with a 0x79 transaction is refused without killing the patched verifier
+    not ok 9 - a Denim-era block (beyond the validated Base horizon) refuses execution while proof reads still work
+    ok 10 - stock Helios 0.12.0 (comparison only): executes eth_call under the wrong spec and dies on a 0x79 transaction
+    # stock verifier after a 0x79 head: {"code":null,"signal":"SIGABRT"}; log tail: mhelios::client: latest block number=3 age=9s thread 'tokio-runtime-worker' (2303396) panicked at opstack/src/consensus.rs:296:73: called `Result::unwrap()` on an `Err` value: Custom("unexpected tx type") note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace 
+    ok 11 - outage of EVERY execution source: a restarted verifier still proves state for the pinned block from the witness cache; anything else and any tx refuse
+    ok 12 - a commitment verifies only for the pinned signer and chain, and its head fields decode
+    ok 13 - transaction types the pinned verifier cannot decode are named; legacy, 0x01, 0x02, 0x04 and deposits pass
+    ok 14 - malformed payload offsets and sizes are refused, never read past
+    ok 15 - the relay serves the highest fresh signed block and nothing once it is stale
+    ok 16 - a wrong-signer offer throws instead of being served
+    ok 17 - two signed blocks at one height stop the relay until a strictly higher block arrives
+    ok 18 - a signed block carrying an unsupported transaction type is refused and recorded
+    ok 19 - the HTTP API polls untrusted sources, serves /latest and /chain_id, and ignores a lying source
+    ok 20 - configuration refuses plain-http public sources, duplicates and a missing signer
+    ok 21 - only block-hash-pinned proof and code requests are cache keys
+    ok 22 - methods outside the witness allowlist are refused without touching an upstream
+    ok 23 - upstreams are tried in order; a failed or erroring one costs a try, not the answer
+    ok 24 - pinned witnesses are cached create-only and served from the cache only when every upstream fails
+    ok 25 - a transaction goes to every upstream; with every upstream down nothing is sent and the caller is told
+    ok 26 - the HTTP endpoint is loopback-only, bounds bodies and answers batches
+    ok 27 - configuration refuses plain-http public upstreams and duplicates
+    # tests 27
+    # suites 0
+    # pass 26
+    # fail 1
+    # cancelled 0
+    # skipped 0
+    # todo 0
+    # duration_ms 13128.735181
+    [memory-guard] exit=1 peakTreeRssMiB=247 minHostAvailableMiB=25208
+    [memory-guard] at peak: node:85 node:59 helios:47 anvil:29 anvil:23 timeout:4
+    [queue] EXIT 1
+
+## base-final-tests-r2.out  sha256 e6023d7e3cc7d171cfa9c594c9e3a3401be3cd762060a9204bf85e9bdc219792  bytes 3365  rc 0
+    guard: [memory-guard] exit=0 peakTreeRssMiB=243 minHostAvailableMiB=25036
+    [queue] START available=25178MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    400e593e50fcd6687840704d03f59a8a71f7c02012ba33c18b4ca1a7fa079948  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios
+    b93fcfd opstack: allow Base execution through Cobalt, refuse from unvalidated Denim
+    36a83c89b Keep the e2e setup assertion message serializable
+    external network: unreachable (as intended)
+    ok 1 - patched Helios follows the signed head and returns proof-verified Enclave contract state
+    ok 2 - a tampered witness is rejected by the verifier, never returned
+    ok 3 - wrong-signer heads are ignored; a signed head with a 0x79 transaction is refused without killing the patched verifier
+    ok 4 - a Denim-era block (beyond the validated Base horizon) refuses execution while proof reads still work
+    ok 5 - stock Helios 0.12.0 (comparison only): executes eth_call under the wrong spec and dies on a 0x79 transaction
+    # stock verifier after a 0x79 head: {"code":null,"signal":"SIGABRT"}; log tail: mhelios::client: latest block number=3 age=9s thread 'tokio-runtime-worker' (2305826) panicked at opstack/src/consensus.rs:296:73: called `Result::unwrap()` on an `Err` value: Custom("unexpected tx type") note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace 
+    ok 6 - outage of EVERY execution source: a restarted verifier still proves state for the pinned block from the witness cache; anything else and any tx refuse
+    # tests 6
+    # suites 0
+    # pass 6
+    # fail 0
+    # cancelled 0
+    # skipped 0
+    # todo 0
+    # duration_ms 11249.969066
+    [memory-guard] exit=0 peakTreeRssMiB=243 minHostAvailableMiB=25036
+    [memory-guard] at peak: node:84 node:54 helios:48 anvil:28 anvil:25 timeout:4
+    [queue] EXIT 0
+
+## base-head-e2e-r2.out  sha256 d30a9313b9743a4f27761f702337fa31a22203019a2b9e349d9c9fcc9f456736  bytes 1654  rc 0
+    guard: [memory-guard] exit=0 peakTreeRssMiB=233 minHostAvailableMiB=25061
+    [queue] START available=25159MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios
+    35e2f0127d13a9f054cae1751d61578267802c0511ecdf511e17ca1030b95fee  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/opstack-server
+    external network: unreachable (as intended)
+    ok 1 - the server serves the highest real Base head, verified against the real Base signer; the tampered object is skipped
+    ok 2 - our relay accepts the real signature but refuses to serve heads that are not fresh
+    ok 3 - the patched Helios client adopts the real Base head with the real signer, and refuses "latest" because it is stale
+    # tests 3
+    # suites 0
+    # pass 3
+    # fail 0
+    # cancelled 0
+    # skipped 0
+    # todo 0
+    # duration_ms 3375.405144
+    [memory-guard] exit=0 peakTreeRssMiB=233 minHostAvailableMiB=25061
+    [memory-guard] at peak: node:91 node:55 helios:49 opstack-server:34 timeout:4
+    [queue] EXIT 0
+
+## base-record-r1.out  sha256 1fff4e11cb6063527d43370b6ae68a5d70405e288068f23420682f64a9cef5bf  bytes 1071  rc 1
+    guard: [memory-guard] exit=1 peakTreeRssMiB=155 minHostAvailableMiB=23937
+    [queue] START available=25321MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    e1b4933d66cba1b86e2490d39d0c99251a73915b7a60d378d56640129cd68c50  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios
+    [memory-guard] exit=1 peakTreeRssMiB=155 minHostAvailableMiB=23937
+    [memory-guard] at peak: node:92 helios:53 base-record-r1.:6 timeout:4
+    [queue] EXIT 1
+
+## base-record-r2.out  sha256 f932e18705141b0ebc5ac087ff3d035d62ff45ae8361cd0d08d58cbe0272939a  bytes 7186  rc 0
+    guard: [memory-guard] exit=0 peakTreeRssMiB=156 minHostAvailableMiB=23511
+    [queue] START available=25265MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
+    e1b4933d66cba1b86e2490d39d0c99251a73915b7a60d378d56640129cd68c50  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios
+    FIXTURE /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014245Z
+    [memory-guard] exit=0 peakTreeRssMiB=156 minHostAvailableMiB=23511
+    [memory-guard] at peak: node:92 helios:54 base-record-r2.:6 timeout:4
+    [queue] EXIT 0
+
+## base-record-r3.out  sha256 1576cbfcf5d6c733ec2dda6473e9624ec8f5971e3680c6bb64d557d63ebf81c5  bytes 7191  rc 0
+    guard: [memory-guard] exit=0 peakTreeRssMiB=154 minHostAvailableMiB=24996
+    [queue] START available=25037MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    e1b4933d66cba1b86e2490d39d0c99251a73915b7a60d378d56640129cd68c50  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios
+    FIXTURE /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/fixtures/base-calls-20261023T014412Z
+    [memory-guard] exit=0 peakTreeRssMiB=154 minHostAvailableMiB=24996
+    [memory-guard] at peak: node:90 helios:54 base-record-r3.:6 timeout:4
+    [queue] EXIT 0
+
+## base-replay-r1.out  sha256 88c27d7085ff64c585f70c13889cbbad7a06063d72f776933e4c1ef49731f023  bytes 6807  rc 1
+    guard: [memory-guard] exit=1 peakTreeRssMiB=342 minHostAvailableMiB=23906
+    [queue] START available=24983MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
+    e1b4933d66cba1b86e2490d39d0c99251a73915b7a60d378d56640129cd68c50  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios
+    external network: unreachable (as intended)
+    ok 1 - the fixture is what it claims: two providers agreed on the block and on every call both answered
+    not ok 2 - offline, from verified witnesses only, the Base EVM reproduces every provider eth_call result
+    not ok 3 - a call whose witnesses were never recorded fails closed: no unchecked answer, no provider
+    not ok 4 - control: the earlier compat build (op-revm, Prague rules) still refuses Base execution
+    not ok 5 - shipped default of the Base build: execution follows the configured fork horizon
+    ok 6 - only block-hash-pinned proof and code requests are cache keys
+    ok 7 - methods outside the witness allowlist are refused without touching an upstream
+    ok 8 - upstreams are tried in order; a failed or erroring one costs a try, not the answer
+    ok 9 - pinned witnesses are cached create-only and served from the cache only when every upstream fails
+    ok 10 - a transaction goes to every upstream; with every upstream down nothing is sent and the caller is told
+    ok 11 - the HTTP endpoint is loopback-only, bounds bodies and answers batches
+    ok 12 - configuration refuses plain-http public upstreams and duplicates
+    # tests 12
+    # suites 0
+    # pass 8
+    # fail 4
+    # cancelled 0
+    # skipped 0
+    # todo 0
+    # duration_ms 242118.429665
+    [memory-guard] exit=1 peakTreeRssMiB=342 minHostAvailableMiB=23906
+    [memory-guard] at peak: node:97 node:54 helios:47 helios:47 helios:47 helios:46 timeout:4
+    [queue] EXIT 1
+
+## base-replay-r2.out  sha256 16e4e5140231564b1376c4c3b9b83b125a841e09bb079292b326ae9b3017e1f0  bytes 4323  rc 0
+    guard: [memory-guard] exit=0 peakTreeRssMiB=180 minHostAvailableMiB=25235
+    [queue] START available=25286MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    e1b4933d66cba1b86e2490d39d0c99251a73915b7a60d378d56640129cd68c50  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios
+    external network: unreachable (as intended)
+    ok 1 - the fixture is what it claims: two providers agreed on the block and on every call both answered
+    ok 2 - offline, from verified witnesses only, the Base EVM reproduces every provider eth_call result
+    ok 3 - a call whose witnesses were never recorded fails closed: no unchecked answer, no provider
+    ok 4 - control: the earlier compat build (op-revm, Prague rules) still refuses Base execution
+    ok 5 - shipped default of the Base build: execution follows the configured fork horizon
+    ok 6 - only block-hash-pinned proof and code requests are cache keys
+    ok 7 - methods outside the witness allowlist are refused without touching an upstream
+    ok 8 - upstreams are tried in order; a failed or erroring one costs a try, not the answer
+    ok 9 - pinned witnesses are cached create-only and served from the cache only when every upstream fails
+    ok 10 - a transaction goes to every upstream; with every upstream down nothing is sent and the caller is told
+    ok 11 - the HTTP endpoint is loopback-only, bounds bodies and answers batches
+    ok 12 - configuration refuses plain-http public upstreams and duplicates
+    # tests 12
+    # suites 0
+    # pass 12
+    # fail 0
+    # cancelled 0
+    # skipped 0
+    # todo 0
+    # duration_ms 1542.224643
+    [memory-guard] exit=0 peakTreeRssMiB=180 minHostAvailableMiB=25235
+    [memory-guard] at peak: node:77 node:56 helios:44 timeout:4
+    [queue] EXIT 0
+
+## chain-r5.out  sha256 8df70cb1169ccd33b18f1e5e46544780879abfb4469a81d0a400ce054d2385b4  bytes 5648  rc 1
+    guard: [memory-guard] exit=1 peakTreeRssMiB=1190 minHostAvailableMiB=24394
+    [queue] START available=25136MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    rustc 1.96.0 (ac68faa20 2026-05-25)
+    b93fcfd opstack: allow Base execution through Cobalt, refuse from unvalidated Denim
+    == unit tests (helios-opstack lib)
+    test consensus::tests::a_real_base_mainnet_block_converts_with_every_transaction_decoded ... ok
+    test consensus::tests::base_schedules_refuse_execution_from_unvalidated_denim ... ok
+    test consensus::tests::preserves_payload_log_filter_matches ... ok
+    test consensus::tests::preserves_payload_logs_bloom ... ok
+    test consensus::tests::unsupported_transaction_type_is_an_error_not_a_panic ... ok
+    test evm::base_backend::tests::azul_prices_p256verify_like_osaka ... ok
+    test evm::base_backend::tests::base_upgrade_ladder_selects_the_spec_in_force ... ok
+    test evm::base_backend::tests::beryl_installs_the_activation_registry_with_the_base_admin ... ok
+    test evm::base_backend::tests::code_and_storage_come_from_the_shared_proof_database ... ok
+    test evm::base_backend::tests::halts_and_reverts_keep_their_meaning ... ok
+    test evm::base_backend::tests::osaka_clz_runs_from_azul_and_is_invalid_before ... ok
+    test evm::revm_compat::tests::op_evm_reads_code_and_storage_from_shared_database ... ok
+    test server::net::block_handler::tests::subscribes_to_the_isthmus_v4_blocks_topic ... ok
+    test server::objects::tests::a_real_base_gossip_object_verifies_against_the_base_signer ... ok
+    test server::objects::tests::wrong_signer_chain_name_or_bytes_are_refused ... ok
+    test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+    == build helios CLI
+    == build opstack-server
+    cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios
+    35e2f0127d13a9f054cae1751d61578267802c0511ecdf511e17ca1030b95fee  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/opstack-server
+    BUILD_TEST_OK
+    == head-path E2E
+    cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios
+    35e2f0127d13a9f054cae1751d61578267802c0511ecdf511e17ca1030b95fee  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/opstack-server
+    external network: unreachable (as intended)
+    not ok 1 - the server serves the highest real Base head, verified against the real Base signer; the tampered object is skipped
+    ok 2 - our relay accepts the real signature but refuses to serve heads that are not fresh
+    ok 3 - the patched Helios client adopts the real Base head with the real signer, and refuses "latest" because it is stale
+    # tests 3
+    # suites 0
+    # pass 2
+    # fail 1
+    # cancelled 0
+    # skipped 0
+    # todo 0
+    # duration_ms 3027.349703
+    [memory-guard] exit=1 peakTreeRssMiB=1190 minHostAvailableMiB=24394
+    [memory-guard] at peak: rust-lld:724 rustc:270 cargo:175 chain-r5.sh:6 base-evm-build-:6 timeout:4 cc:3 collect2:3
+    [queue] EXIT 1
+
+## helios-build-r3.out  sha256 14f22977f3bdf4087f7f145d271486fcb346310abbb7a34aa75f2a26ec6043c8  bytes 1647  rc 0
+    guard: [memory-guard] exit=0 peakTreeRssMiB=1196 minHostAvailableMiB=24734
+    [queue] START available=25375MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    0a02256 opstack: v4 blocks topic, refuse undecodable txs, refuse local execution under unimplemented Base rules
+    0929f7f383a082b8aa7fda97c3058e72a4acc93cbf250a24c7a08ae4e1df98fc  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target/debug/helios
+    9568ae50ac09359015cf47cfeb54988206d620a410ee7c3e9b69860f2b5eb6c8  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target/debug/opstack-server
+    [memory-guard] exit=0 peakTreeRssMiB=1196 minHostAvailableMiB=24734
+    [memory-guard] at peak: rust-lld:747 rustc:266 cargo:167 helios-build-r3:6 timeout:4 cc:3 collect2:3
+    [queue] EXIT 0
+
+## helios-build-test-r1.out  sha256 c7b5c9aa48cedae58c8dfdcdc0534d4df1178add2581039c35063b16aced5bf3  bytes 21219  rc 99
+    guard: [memory-guard] exit=SIGTERM peakTreeRssMiB=1545 minHostAvailableMiB=24045 STOPPED: process tree RSS 1545 MiB > 1536 MiB
+    [queue] NOT STARTED: test allocation held
+    [queue] START available=31284MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    0a02256 opstack: v4 blocks topic, refuse undecodable txs, refuse local execution under unimplemented Base rules
+    == unit tests (helios-opstack lib)
+    test consensus::tests::base_schedules_refuse_execution_from_azul ... ok
+    test consensus::tests::preserves_payload_log_filter_matches ... ok
+    test consensus::tests::preserves_payload_logs_bloom ... ok
+    test consensus::tests::unsupported_transaction_type_is_an_error_not_a_panic ... ok
+    test evm::revm_compat::tests::op_evm_reads_code_and_storage_from_shared_database ... ok
+    test server::net::block_handler::tests::subscribes_to_the_isthmus_v4_blocks_topic ... ok
+    test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+    == build opstack-server + helios CLI
+    [memory-guard] STOPPING own job: process tree RSS 1545 MiB > 1536 MiB
+    [memory-guard] exit=SIGTERM peakTreeRssMiB=1545 minHostAvailableMiB=24045 STOPPED: process tree RSS 1545 MiB > 1536 MiB
+    [memory-guard] at peak: rust-lld:1187 rustc:176 cargo:166 helios-build-te:6 timeout:4 cc:3 collect2:3
+    [queue] EXIT 99
+
+## helios-build-test-r2.out  sha256 f08a9e59402b9979016b6155729eb5f2fd1a3c65a4ba9a4cb5c9c1126919ecd1  bytes 21459  rc 2
+    guard: [memory-guard] exit=2 peakTreeRssMiB=1107 minHostAvailableMiB=24458
+    [queue] NOT STARTED: test allocation held
+    [queue] START available=25661MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    0a02256 opstack: v4 blocks topic, refuse undecodable txs, refuse local execution under unimplemented Base rules
+    == unit tests (helios-opstack lib)
+    test consensus::tests::base_schedules_refuse_execution_from_azul ... ok
+    test consensus::tests::preserves_payload_log_filter_matches ... ok
+    test consensus::tests::preserves_payload_logs_bloom ... ok
+    test consensus::tests::unsupported_transaction_type_is_an_error_not_a_panic ... ok
+    test evm::revm_compat::tests::op_evm_reads_code_and_storage_from_shared_database ... ok
+    test server::net::block_handler::tests::subscribes_to_the_isthmus_v4_blocks_topic ... ok
+    test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+    == build opstack-server + helios CLI
+    [memory-guard] exit=2 peakTreeRssMiB=1107 minHostAvailableMiB=24458
+    [memory-guard] at peak: rustc:931 cargo:166 helios-build-te:6 timeout:4
+    [queue] EXIT 2
+
+## witness-tests-r1.out  sha256 ff6a860921b538a97e0a3ff2dfad5cc97c76c332c5dd01c629ab4441d29565ff  bytes 9144  rc 1
+    guard: [memory-guard] exit=1 peakTreeRssMiB=188 minHostAvailableMiB=25231
+    [queue] START available=25337MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
+    0929f7f383a082b8aa7fda97c3058e72a4acc93cbf250a24c7a08ae4e1df98fc  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target/debug/helios
+    97785a40c Feed a pinned Helios verifier a signed OP head and untrusted state witnesses
+    external network: unreachable (as intended)
+    not ok 1 - patched Helios follows the signed head and returns proof-verified Enclave contract state
+    not ok 2 - a tampered witness is rejected by the verifier, never returned
+    not ok 3 - wrong-signer heads are ignored; a signed head with a 0x79 transaction is refused without killing the patched verifier
+    not ok 4 - stock Helios 0.12.0 (comparison only): executes eth_call under the wrong spec and dies on a 0x79 transaction
+    not ok 5 - outage of EVERY execution source: a restarted verifier still proves state for the pinned block from the witness cache; anything else and any tx refuse
+    ok 6 - a commitment verifies only for the pinned signer and chain, and its head fields decode
+    ok 7 - transaction types the pinned verifier cannot decode are named; legacy, 0x01, 0x02, 0x04 and deposits pass
+    ok 8 - malformed payload offsets and sizes are refused, never read past
+    ok 9 - the relay serves the highest fresh signed block and nothing once it is stale
+    ok 10 - a wrong-signer offer throws instead of being served
+    ok 11 - two signed blocks at one height stop the relay until a strictly higher block arrives
+    ok 12 - a signed block carrying an unsupported transaction type is refused and recorded
+    ok 13 - the HTTP API polls untrusted sources, serves /latest and /chain_id, and ignores a lying source
+    ok 14 - configuration refuses plain-http public sources, duplicates and a missing signer
+    ok 15 - only block-hash-pinned proof and code requests are cache keys
+    ok 16 - methods outside the witness allowlist are refused without touching an upstream
+    ok 17 - upstreams are tried in order; a failed or erroring one costs a try, not the answer
+    ok 18 - pinned witnesses are cached create-only and served from the cache only when every upstream fails
+    ok 19 - a transaction goes to every upstream; with every upstream down nothing is sent and the caller is told
+    ok 20 - the HTTP endpoint is loopback-only, bounds bodies and answers batches
+    ok 21 - configuration refuses plain-http public upstreams and duplicates
+    # tests 21
+    # suites 0
+    # pass 16
+    # fail 5
+    # cancelled 0
+    # skipped 0
+    # todo 0
+    # duration_ms 1476.885889
+    [memory-guard] exit=1 peakTreeRssMiB=188 minHostAvailableMiB=25231
+    [memory-guard] at peak: node:85 node:55 anvil:44 timeout:4
+    [queue] EXIT 1
+
+## witness-tests-r2.out  sha256 8ada5a10219a5ec27b352167fcf6fa0093d155105a84c53b2408bec8f8725bcf  bytes 6595  rc 0
+    guard: [memory-guard] exit=0 peakTreeRssMiB=237 minHostAvailableMiB=25204
+    [queue] START available=25310MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    0929f7f383a082b8aa7fda97c3058e72a4acc93cbf250a24c7a08ae4e1df98fc  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target/debug/helios
+    97785a40c Feed a pinned Helios verifier a signed OP head and untrusted state witnesses
+    external network: unreachable (as intended)
+    ok 1 - patched Helios follows the signed head and returns proof-verified Enclave contract state
+    ok 2 - a tampered witness is rejected by the verifier, never returned
+    ok 3 - wrong-signer heads are ignored; a signed head with a 0x79 transaction is refused without killing the patched verifier
+    ok 4 - stock Helios 0.12.0 (comparison only): executes eth_call under the wrong spec and dies on a 0x79 transaction
+    # stock verifier after a 0x79 head: {"code":null,"signal":"SIGABRT"}; log tail: mhelios::client: latest block number=3 age=9s thread 'tokio-runtime-worker' (2204607) panicked at opstack/src/consensus.rs:296:73: called `Result::unwrap()` on an `Err` value: Custom("unexpected tx type") note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace 
+    ok 5 - outage of EVERY execution source: a restarted verifier still proves state for the pinned block from the witness cache; anything else and any tx refuse
+    ok 6 - a commitment verifies only for the pinned signer and chain, and its head fields decode
+    ok 7 - transaction types the pinned verifier cannot decode are named; legacy, 0x01, 0x02, 0x04 and deposits pass
+    ok 8 - malformed payload offsets and sizes are refused, never read past
+    ok 9 - the relay serves the highest fresh signed block and nothing once it is stale
+    ok 10 - a wrong-signer offer throws instead of being served
+    ok 11 - two signed blocks at one height stop the relay until a strictly higher block arrives
+    ok 12 - a signed block carrying an unsupported transaction type is refused and recorded
+    ok 13 - the HTTP API polls untrusted sources, serves /latest and /chain_id, and ignores a lying source
+    ok 14 - configuration refuses plain-http public sources, duplicates and a missing signer
+    ok 15 - only block-hash-pinned proof and code requests are cache keys
+    ok 16 - methods outside the witness allowlist are refused without touching an upstream
+    ok 17 - upstreams are tried in order; a failed or erroring one costs a try, not the answer
+    ok 18 - pinned witnesses are cached create-only and served from the cache only when every upstream fails
+    ok 19 - a transaction goes to every upstream; with every upstream down nothing is sent and the caller is told
+    ok 20 - the HTTP endpoint is loopback-only, bounds bodies and answers batches
+    ok 21 - configuration refuses plain-http public upstreams and duplicates
+    # tests 21
+    # suites 0
+    # pass 21
+    # fail 0
+    # cancelled 0
+    # skipped 0
+    # todo 0
+    # duration_ms 11774.344426
+    [memory-guard] exit=0 peakTreeRssMiB=237 minHostAvailableMiB=25204
+    [memory-guard] at peak: node:93 node:55 helios:47 anvil:38 timeout:4
+    [queue] EXIT 0

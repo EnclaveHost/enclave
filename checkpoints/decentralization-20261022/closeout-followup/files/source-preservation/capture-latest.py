@@ -353,7 +353,7 @@ FROZEN_RENEWAL = {
     'outputs/decentralization-audit/windows-node-renewal-log-20261023.json': '28bca996beba7451b04d30864c25ce5a1f1b34011fdc9a8d8a8c242685f637c0',
     'outputs/decentralization-audit/windows-node-renewal-chain-20261023.json': '09ff59c9548514bdaa83aa71ad9e6fe191e10583d042205ebee1bcb17374cac2',   # root 01:43Z update (was 261477b6)
     'work/resume-after-checkpoint-20261022/production-run/observe-route-stability.py': '6556b63bfc495bb349fe31ca954346cab20dbdad60c059a36ea991c7c0d9cc11',
-    'outputs/decentralization-audit/windows-route-stability-20261023.json': '6ffd478e5d384da2db054f4d85f0fd07038d9f8c63c3443b131ea4121a88fdba',
+    'outputs/decentralization-audit/windows-route-stability-20261023.json': '6b528138410796fb301db3036a0f079dc093a3a5efc694a8196c8b8d30c6f3a8',   # root 01:55Z update (was 6ffd478e)
     'outputs/decentralization-audit/storage-whole-recovery-live-20261023.json': 'c6bfa9e5a835d4d7fa1e0d89bc4b766d0cd9bed5389f8884c40c6ed3ef1ad57a',
 }
 for name, want in FROZEN_RENEWAL.items():
@@ -417,6 +417,54 @@ for name, want in {'rpc-peer-audit/RESULT.md': '77df7063da9e128cf10383a698334af1
 # Root's public receipts: the EnclaveDNS TLS recovery observation and the 00:40Z progress snapshot.
 outputs += [root / 'outputs/decentralization-audit/enclavedns-tls-20261023.json',
             root / 'outputs/decentralization-audit/progress-20261023T0040.json']
+# The FINISHED Base EVM work (worker A, rpc-priority), exported from Git OBJECTS by source-preservation/export-base-evm.py:
+# Enclave 9fdc1418c (4 patches on public dfe020abf + its 8 authored files) and patched Helios eeffcc9 (4 patches on upstream
+# 0.12.0 2af9b418 + Cargo.lock and changed files; its one binary test object is rebuilt from the checkpoint's hex fixture).
+# REPRODUCE-CHECK.txt records all 8 commit trees rebuilt exactly. Plus A's reports, recorder/tools, FINISHED job recipes and
+# the real-mainnet call fixture (fixture.json + 49 witnesses), each re-checked against INVENTORY.json. Never the dirty
+# worktrees, binaries, cargo caches, vendor copies, raw logs or B's 52 raw gossip objects (listed by content hash only).
+bevm = base / 'rpc-base-evm-export'
+assert hashlib.sha256((bevm / 'INVENTORY.json').read_bytes()).hexdigest() == '47e09542446de3cb5e1a2e6814779cfca0ef82eaa3b71c5fb073cc8dc296306e'
+bevm_inventory = json.loads((bevm / 'INVENTORY.json').read_text())
+for name, want in bevm_inventory['frozenSources'].items():
+    p = base / name
+    assert hashlib.sha256(p.read_bytes()).hexdigest() == want, f'NOT CAPTURED: {name} changed after the Base EVM export'
+    paths.add(p)
+for side in ('enclave', 'helios'):
+    exported = [bevm / patch['file'] for patch in bevm_inventory[side]['patches']]
+    for patch, p in zip(bevm_inventory[side]['patches'], exported):
+        assert hashlib.sha256(p.read_bytes()).hexdigest() == patch['sha256'], f'NOT CAPTURED: {patch["file"]} differs'
+        paths.add(p)
+    for f in bevm_inventory[side]['changedFiles']:
+        if 'notStored' in f:
+            continue
+        p = exported[0].parents[1] / 'files' / f['path']
+        assert hashlib.sha256(p.read_bytes()).hexdigest() == f['sha256'], f'NOT CAPTURED: {p} differs from its commit blob'
+        paths.add(p)
+for name, want in {'INVENTORY.json': '47e09542446de3cb5e1a2e6814779cfca0ef82eaa3b71c5fb073cc8dc296306e',
+                   'REBUILD.md': 'bdd204ca3856856930e3ab3298f78ba196ded120a286c8a96743d9717f54b640',
+                   'REPRODUCE-CHECK.txt': '52127d2f4d8e09aba37afb3c653c94ab96013d9a59ea9a5f742bdb2082acf3db',
+                   'TEST-EVIDENCE.txt': '2a9b8b8bcbbb63aa8c5b57299235e4666d46b663e6c20151125c1e006a944ab0'}.items():
+    assert hashlib.sha256((bevm / name).read_bytes()).hexdigest() == want, f'NOT CAPTURED: rpc-base-evm-export/{name} changed'
+    paths.add(bevm / name)
+for name in ('export-base-evm.py', 'verify-base-evm-export.py', 'manifest-drift.py'):
+    paths.add(base / 'source-preservation' / name)
+# Worker E's receipt-witness audit is STILL being hardened: only its read-only report, consumer-read inventory and
+# allowlist, at the bytes of its local commit b84c5a1. Its verifier, probes, deployed-source copies and the binary
+# fixture-1.json.gz are DEFERRED (not captured).
+for name, want in {'RESULT.md': '3dacb49edc51dc29cbb981122a8464300db056472f118397f8cbaead66dab986',
+                   'inventory/consumer-reads.json': '07a37bd9a16f468f414e5686233d71761fb376d88f29b734e56ac0d609d7a1f4',
+                   'ALLOWLIST.txt': 'c4e492d2a4952ca080f5c2b64da2440012e39f7093dd852913fa75f2ebafc172',
+                   'ALLOWLIST.sha256': '393c8d8a897bddd5ca926641b4220cf71dd68319d9e0bb010deb4f644f124f02'}.items():
+    p = base / 'rpc-receipt-witness' / name
+    assert hashlib.sha256(p.read_bytes()).hexdigest() == want, f'NOT CAPTURED: rpc-receipt-witness/{name} changed after review'
+    paths.add(p)
+# Root's public review receipts for the direct-gossip listener and the Windows source composition.
+for name, want in {'base-direct-gossip-20261023.json': 'b32958fc0f6d8ba072e4599526ad5c409b49dd97267ffcf0fa87bfab051cc443',
+                   'windows-source-composition-root-review-20261023.json': 'ee91441f058b9e2c7d13740bf477ae4c59f1c02e68992f1408bf82a8183fd83a'}.items():
+    p = root / 'outputs/decentralization-audit' / name
+    assert hashlib.sha256(p.read_bytes()).hexdigest() == want, f'NOT CAPTURED: {name} changed after review'
+    outputs.append(p)
 # what each new group IS, recorded on its manifest entries (nothing here is activated by this checkpoint)
 LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent '
                                    'tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)',
@@ -511,10 +559,39 @@ LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; n
                                                                       'sha256) and what was deliberately not preserved',
           'production-run/observe-route-stability.py': 'ROOT source: read-only aggregate of the native network.log tail (one remote '
                                                        'status query); emits counts only, no config, keys or raw logs',
-          'outputs/decentralization-audit/windows-route-stability': 'ROOT receipt (01:44:57Z): corrected route script, usable: 746 tail '
-                                                                    'lines since 01:19:00Z (start covered), 0 egress OFF / 0 wallet '
-                                                                    'withheld up to 01:44:49Z, 3 chain-quorum-unavailable lines. '
-                                                                    'Tail-limited; zero matches alone is never evidence of stability',
+          'outputs/decentralization-audit/windows-route-stability': 'ROOT receipt (updated 01:55:06Z, was 01:44:57Z): corrected route '
+                                                                    'script, usable: 957 tail lines since 01:19:00Z (start covered), '
+                                                                    '0 egress OFF / 0 wallet withheld up to the 01:54:54Z log write, '
+                                                                    '3 chain-quorum-unavailable lines. Tail-limited; zero matches '
+                                                                    'alone is never evidence of stability',
+          'rpc-base-evm-export/': 'FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c '
+                                  '(4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 '
+                                  '(enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 '
+                                  '5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. '
+                                  'Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, '
+                                  'real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh '
+                                  'proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base '
+                                  'execution refused from Denim (2026-11-05T18:00Z) until validated',
+          'rpc-priority/': 'worker A Base EVM reports, recorder/tools and FINISHED job recipes (frozen by hash in rpc-base-evm-export/'
+                           'INVENTORY.json): source/offline evidence only, not deployment or RPC independence',
+          'rpc-priority/fixtures/base-calls-20261023T014412Z/': 'REAL Base mainnet fixture (block 52965249): fixture.json + 49 '
+                                                                'block-hash-pinned witnesses, public chain state only; the head '
+                                                                'commitment is signed by a TEST key, not the sequencer. For offline '
+                                                                'replay: history at a pinned block, never freshness',
+          'rpc-receipt-witness/': 'SNAPSHOT of worker E\'s audit at its local commit b84c5a1 (report, consumer-read inventory, '
+                                  'allowlist only). The audit is STILL being hardened: verifier, probes, deployed-source copies '
+                                  'and the binary fixture are DEFERRED, not preserved here',
+          'source-preservation/export-base-evm.py': 'exporter for rpc-base-evm-export/ (Git objects only; no network/builds)',
+          'source-preservation/verify-base-evm-export.py': 'offline check: rebuilds the 8 commit trees from the exported patches '
+                                                           'in throwaway repos (REPRODUCE-CHECK.txt)',
+          'source-preservation/manifest-drift.py': 'read-only check of manifest entries against their current source bytes',
+          'outputs/decentralization-audit/base-direct-gossip': 'ROOT review receipt: 52 consecutive parent-linked unsafe heads '
+                                                               '(52965055-52965106) from listener f3159ea; unsafe tier, no finality, '
+                                                               'no fresh state witness availability or redundancy proof',
+          'outputs/decentralization-audit/windows-source-composition-root-review': 'ROOT review receipt: the 20 composed files are '
+                                                                                   'blob-identical to tested a6fb7aab, TLS pins kept; '
+                                                                                   'not a production release; hostServices/'
+                                                                                   'challengeReplica closure still open',
           'cron-placement/': 'Cron moved to nucbox by the existing dashboard wallet flow; native running 23:58:37Z, 3 RPCs agree at block '
                              '52962071. NOT a durable on-chain pin: the ledger configCid has no placement field. RESULT.md = '
                              'source-only analysis (its setConfig placement option was not executed)'}

@@ -1,0 +1,69 @@
+From b93fcfdc53fac155022c3fb789ac57bbf5322e37 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 18:51:50 -0700
+Subject: [PATCH 3/4] opstack: allow Base execution through Cobalt, refuse from
+ unvalidated Denim
+
+The maintained Base EVM reproduced real Cobalt-era mainnet eth_call results from
+verified witnesses (incl. the state-backed activation registry and Osaka CLZ).
+Denim (mainnet 1793901600, Sepolia 1792605600) stays refused until a Denim-era
+block is validated with this build's Base EVM release.
+---
+ opstack/src/config.rs    | 12 ++++++------
+ opstack/src/consensus.rs |  6 +++---
+ 2 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/opstack/src/config.rs b/opstack/src/config.rs
+index e42202126ada31ed83ff6d99d7af276f8bb6bab9..86c9911ce447daff3517bad6e58be789c45174e5 100644
+--- a/opstack/src/config.rs
++++ b/opstack/src/config.rs
+@@ -235,22 +235,22 @@ impl SuperchainForkSchedule {
+     }
+ 
+     /// Base mainnet schedule (base/base 5476069f crates/common/chains/src/config.rs MAINNET). Base's Isthmus is
+-    /// 1746806401, not the OP mainnet value. From Azul (1779991200) Base executes Osaka rules plus Base-only
+-    /// precompiles (base/base crates/common/evm/src/spec.rs, precompiles/src/provider.rs), which op-revm's ISTHMUS
+-    /// (Prague) spec does not implement, so local execution is refused from Azul on.
++    /// 1746806401, not the OP mainnet value. Base chains execute with the maintained Base EVM (evm/base_backend.rs:
++    /// Azul+ = Osaka + Base precompiles). Execution is validated against real Cobalt-era mainnet state; it is refused
++    /// from Denim (1793901600) until a Denim-era block has been validated with this build's Base EVM release.
+     pub fn base_mainnet() -> ForkSchedule {
+         ForkSchedule {
+             isthmus_timestamp: 1746806401,
+             jovian_timestamp: 1764691201,
+-            execution_unsupported_from_timestamp: 1779991200,
++            execution_unsupported_from_timestamp: 1793901600,
+             ..Self::mainnet()
+         }
+     }
+ 
+-    /// Base Sepolia schedule (base/base 5476069f SEPOLIA): Azul at 1776708000.
++    /// Base Sepolia schedule (base/base 5476069f SEPOLIA): execution refused from its Denim (1792605600), unvalidated.
+     pub fn base_sepolia() -> ForkSchedule {
+         ForkSchedule {
+-            execution_unsupported_from_timestamp: 1776708000,
++            execution_unsupported_from_timestamp: 1792605600,
+             ..Self::sepolia()
+         }
+     }
+diff --git a/opstack/src/consensus.rs b/opstack/src/consensus.rs
+index 05cecf34bfe6854c721a3fdc1aea0e409913f8a5..17b1fa4c4e437f11dc1bbd7b1f928ef25895a5e2 100644
+--- a/opstack/src/consensus.rs
++++ b/opstack/src/consensus.rs
+@@ -420,13 +420,13 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn base_schedules_refuse_execution_from_azul() {
++    fn base_schedules_refuse_execution_from_unvalidated_denim() {
+         use crate::config::{Network, NetworkConfig};
+         let base = NetworkConfig::from(Network::Base).chain.forks;
+         assert_eq!(base.isthmus_timestamp, 1746806401);
+-        assert_eq!(base.execution_unsupported_from_timestamp, 1779991200);
++        assert_eq!(base.execution_unsupported_from_timestamp, 1793901600);
+         let sepolia = NetworkConfig::from(Network::BaseSepolia).chain.forks;
+-        assert_eq!(sepolia.execution_unsupported_from_timestamp, 1776708000);
++        assert_eq!(sepolia.execution_unsupported_from_timestamp, 1792605600);
+         let op = NetworkConfig::from(Network::OpMainnet).chain.forks;
+         assert_eq!(op.execution_unsupported_from_timestamp, u64::MAX);
+     }

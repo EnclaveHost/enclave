@@ -1,0 +1,1 @@
+{"format":"enclave-witness-rpc/v1","request":"[\"eth_getCode\",[\"0x8453000000000000000000000000000000000001\",\"0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5\"]]","result":"0xef"}

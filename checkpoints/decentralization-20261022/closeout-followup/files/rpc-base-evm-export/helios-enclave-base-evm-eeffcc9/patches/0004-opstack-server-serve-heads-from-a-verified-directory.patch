@@ -1,0 +1,246 @@
+From eeffcc980a4a9aa092e23e07b1077c1f3fdfc95e Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 18:58:29 -0700
+Subject: [PATCH 4/4] opstack-server: serve heads from a verified directory of
+ Base v4 gossip objects
+
+--objects-dir ingests write-once <sha256>.v4.snappy envelopes produced by an
+external listener on the maintained base-consensus-gossip crate; each file must
+be named by its content hash and recover to the pinned signer. --no-gossip
+leaves head production to that listener. Tests use a real Base mainnet gossip
+object (block 52965074) as a public vector.
+---
+ opstack/bin/server.rs         |   8 +++
+ opstack/src/consensus.rs      |  17 +++++
+ opstack/src/server/mod.rs     |  17 ++++-
+ opstack/src/server/objects.rs | 118 ++++++++++++++++++++++++++++++++++
+ 4 files changed, 157 insertions(+), 3 deletions(-)
+ create mode 100644 opstack/src/server/objects.rs
+
+diff --git a/opstack/bin/server.rs b/opstack/bin/server.rs
+index 176d573a058982fd7049d6901e9adb5b7e969cf4..13576f63bc8351db9450cf071f4bb809dfdb7a86 100644
+--- a/opstack/bin/server.rs
++++ b/opstack/bin/server.rs
+@@ -31,6 +31,8 @@ async fn main() -> Result<()> {
+         chain_id,
+         unsafe_signer,
+         replica_urls,
++        cli.objects_dir,
++        !cli.no_gossip,
+     )
+     .await?;
+ 
+@@ -69,4 +71,10 @@ struct Cli {
+     replica_urls: Option<Vec<Url>>,
+     #[arg(short, long)]
+     execution_rpc: Url,
++    /// Directory of verified-on-read Base v4 gossip objects (<sha256>.v4.snappy) from an external listener
++    #[arg(long)]
++    objects_dir: Option<std::path::PathBuf>,
++    /// Do not join gossip here (heads come from --objects-dir and/or --replica-urls only)
++    #[arg(long, default_value_t = false)]
++    no_gossip: bool,
+ }
+diff --git a/opstack/src/consensus.rs b/opstack/src/consensus.rs
+index 17b1fa4c4e437f11dc1bbd7b1f928ef25895a5e2..8692c9279830201f1fd8a9e941a34285d034f481 100644
+--- a/opstack/src/consensus.rs
++++ b/opstack/src/consensus.rs
+@@ -405,6 +405,23 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn a_real_base_mainnet_block_converts_with_every_transaction_decoded() {
++        // real Base gossip object (block 52965074; see server::objects tests): today's Base transaction types decode
++        let bytes = std::fs::read(concat!(
++            env!("CARGO_MANIFEST_DIR"),
++            "/tests/data/ec197b9f01acd9b93c900014b5b16142183fc77b559e0e0a727687d171e3e467.v4.snappy"
++        ))
++        .unwrap();
++        let commitment = SequencerCommitment::new(&bytes).unwrap();
++        let payload = ExecutionPayload::try_from(&commitment).unwrap();
++        let txs = payload.transactions.len();
++        let block = payload_to_block(payload).expect("every transaction decodes");
++        assert!(txs > 0);
++        assert_eq!(block.transactions.len(), txs);
++        assert_eq!(block.header.number, 52965074);
++    }
++
+     #[test]
+     fn unsupported_transaction_type_is_an_error_not_a_panic() {
+         // Base EIP-8130 (type 0x79, base/base 5476069f tx_type.rs) is not an OpTxEnvelope variant in
+diff --git a/opstack/src/server/mod.rs b/opstack/src/server/mod.rs
+index 6850be3a9105910de974eba22433676d5cd8059e..a5251a1773c4e0e67e003a31be9dc77bcc713ca0 100644
+--- a/opstack/src/server/mod.rs
++++ b/opstack/src/server/mod.rs
+@@ -17,6 +17,7 @@ use crate::{types::ExecutionPayload, SequencerCommitment};
+ use self::net::{block_handler::BlockHandler, gossip::GossipService};
+ 
+ pub mod net;
++pub mod objects;
+ mod poller;
+ 
+ pub async fn start_server(
+@@ -25,12 +26,16 @@ pub async fn start_server(
+     chain_id: u64,
+     signer: Address,
+     replica_urls: Vec<Url>,
++    objects_dir: Option<std::path::PathBuf>,
++    gossip: bool,
+ ) -> Result<()> {
+     let state = Arc::new(RwLock::new(ServerState::new(
+         gossip_addr,
+         chain_id,
+         signer,
+         replica_urls,
++        objects_dir,
++        gossip,
+     )?));
+ 
+     let state_copy = state.clone();
+@@ -74,12 +79,18 @@ impl ServerState {
+         chain_id: u64,
+         signer: Address,
+         replica_urls: Vec<Url>,
++        objects_dir: Option<std::path::PathBuf>,
++        gossip: bool,
+     ) -> Result<Self> {
+         let (send, commitment_recv) = channel(256);
+         poller::start(replica_urls, signer, chain_id, send.clone());
+-        let handler = BlockHandler::new(signer, chain_id, send);
+-        let gossip = GossipService::new(addr, chain_id, handler);
+-        gossip.start()?;
++        if let Some(dir) = objects_dir {
++            objects::start(dir, signer, chain_id, send.clone());
++        }
++        if gossip {
++            let handler = BlockHandler::new(signer, chain_id, send);
++            GossipService::new(addr, chain_id, handler).start()?;
++        }
+ 
+         Ok(Self {
+             chain_id,
+diff --git a/opstack/src/server/objects.rs b/opstack/src/server/objects.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..a369dbe11d885e93e6b9eefcfcdca60e8fb3f70f
+--- /dev/null
++++ b/opstack/src/server/objects.rs
+@@ -0,0 +1,118 @@
++//! Commitment source: a directory of write-once Base v4 gossip envelopes, `<sha256>.v4.snappy`, written by an external
++//! listener built on the maintained base/base `base-consensus-gossip` crate (enclave-base-unsafe-head/v1; rpc-peer-audit
++//! head-listener). Each file is `snappy(signature(65) || parentBeaconRoot(32) || SSZ payload)`, exactly what
++//! `SequencerCommitment::new` decodes from gossip. Files are untrusted: the name must be the content's sha256, and the
++//! commitment must recover to the pinned signer for the pinned chain, or the file is skipped.
++use std::{
++    collections::HashSet,
++    path::{Path, PathBuf},
++    time::Duration,
++};
++
++use alloy::primitives::Address;
++use eyre::{bail, Result};
++use sha2::{Digest, Sha256};
++use tokio::{sync::mpsc::Sender, time::sleep};
++use tracing::warn;
++
++use crate::SequencerCommitment;
++
++const SUFFIX: &str = ".v4.snappy";
++const MAX_OBJECT_BYTES: u64 = 4 * 1024 * 1024;
++
++/// Read and verify one object file.
++pub fn read_object(path: &Path, signer: Address, chain_id: u64) -> Result<SequencerCommitment> {
++    let name = path
++        .file_name()
++        .and_then(|n| n.to_str())
++        .and_then(|n| n.strip_suffix(SUFFIX))
++        .ok_or_else(|| eyre::eyre!("not a {SUFFIX} object"))?;
++    let meta = std::fs::symlink_metadata(path)?;
++    if !meta.is_file() || meta.len() > MAX_OBJECT_BYTES {
++        bail!("object is not a regular file of at most {MAX_OBJECT_BYTES} bytes");
++    }
++    let bytes = std::fs::read(path)?;
++    if hex::encode(Sha256::digest(&bytes)) != name {
++        bail!("object name is not its content sha256");
++    }
++    let commitment = SequencerCommitment::new(&bytes)?;
++    commitment.verify(signer, chain_id)?;
++    Ok(commitment)
++}
++
++/// Poll `dir` for new objects and send every verified commitment (each file at most once).
++pub fn start(dir: PathBuf, signer: Address, chain_id: u64, sender: Sender<SequencerCommitment>) {
++    tokio::spawn(async move {
++        let mut seen = HashSet::new();
++        loop {
++            if let Ok(entries) = std::fs::read_dir(&dir) {
++                for entry in entries.flatten() {
++                    let path = entry.path();
++                    let Some(name) = path.file_name().and_then(|n| n.to_str()).map(str::to_owned)
++                    else {
++                        continue;
++                    };
++                    if !name.ends_with(SUFFIX) || !seen.insert(name.clone()) {
++                        continue;
++                    }
++                    match read_object(&path, signer, chain_id) {
++                        Ok(commitment) => {
++                            if sender.send(commitment).await.is_err() {
++                                return;
++                            }
++                        }
++                        Err(e) => warn!(target: "helios::opstack", "skipped object {name}: {e}"),
++                    }
++                }
++            }
++            sleep(Duration::from_millis(250)).await;
++        }
++    });
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use alloy::primitives::{address, b256};
++
++    use crate::types::ExecutionPayload;
++
++    // A REAL Base mainnet unsafe-block gossip object (block 52965074), captured 2026-10-23 by the rpc-peer-audit
++    // head-listener (base-consensus-gossip @ base/base 5476069f) and accepted there by BlockHandler::block_valid.
++    const OBJECT: &str = "ec197b9f01acd9b93c900014b5b16142183fc77b559e0e0a727687d171e3e467.v4.snappy";
++    const BASE_SIGNER: Address = address!("Af6E19BE0F9cE7f8afd49a1824851023A8249e8a");
++
++    fn data() -> PathBuf {
++        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data")
++    }
++
++    #[test]
++    fn a_real_base_gossip_object_verifies_against_the_base_signer() {
++        let commitment = read_object(&data().join(OBJECT), BASE_SIGNER, 8453).expect("verifies");
++        let payload = ExecutionPayload::try_from(&commitment).expect("V4 payload decodes");
++        assert_eq!(payload.block_number, 52965074);
++        assert_eq!(payload.block_hash, b256!("39aa5527e39d83183030676fd86b70a2ce3fa9d0896e7cfbe19a272d80e9e172"));
++        assert_eq!(payload.state_root, b256!("c42be07080537d7551a617343a34317e95923c32e1f160dbd66f36df5c46efd6"));
++        assert_eq!(payload.timestamp, 1792719495);
++    }
++
++    #[test]
++    fn wrong_signer_chain_name_or_bytes_are_refused() {
++        let real = data().join(OBJECT);
++        assert!(read_object(&real, Address::repeat_byte(0x11), 8453).is_err(), "wrong signer");
++        assert!(read_object(&real, BASE_SIGNER, 10).is_err(), "wrong chain");
++        let dir = std::env::temp_dir().join(format!("objects-test-{}", std::process::id()));
++        std::fs::create_dir_all(&dir).unwrap();
++        let bytes = std::fs::read(&real).unwrap();
++        let misnamed = dir.join(format!("{}{SUFFIX}", "00".repeat(32)));
++        std::fs::write(&misnamed, &bytes).unwrap();
++        assert!(read_object(&misnamed, BASE_SIGNER, 8453).is_err(), "name is not the content hash");
++        let mut flipped = bytes.clone();
++        let last = flipped.len() - 1;
++        flipped[last] ^= 1;
++        let renamed = dir.join(format!("{}{SUFFIX}", hex::encode(Sha256::digest(&flipped))));
++        std::fs::write(&renamed, &flipped).unwrap();
++        assert!(read_object(&renamed, BASE_SIGNER, 8453).is_err(), "tampered object, correctly renamed");
++        std::fs::remove_dir_all(&dir).unwrap();
++    }
++}

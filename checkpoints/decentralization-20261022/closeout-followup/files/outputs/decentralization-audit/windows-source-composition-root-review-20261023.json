@@ -1,0 +1,93 @@
+{
+  "checkpoint": "2bbea8987ddc3d127c15e9709b5db2f867eae30d",
+  "normalTreeIntegratedCommit": "363a8cd71",
+  "testedCandidate": "a6fb7aabb8931116b8bd8c95aa1bad9d136cc1fc",
+  "identicalChangedFiles": [
+    {
+      "file": "network/host-admission-runtime.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "network/local-app-router.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "network/privacy-agent.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "network/wallet-admission.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "network/wg-manager.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "test/helpers/windows-lease-scripted-fixture.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "test/host-admission-runtime.test.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "test/windows-node-appzone-wallet-hold.test.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "test/windows-node-lease-readiness.test.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "test/windows-node-lease-renewal-keeper.test.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "test/windows-node-wallet-channel-bundle.test.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "test/windows-node-wallet-enroll.test.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "test/windows-node-wallet-grant-refresh.test.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "test/windows-node-wallet-network-hold.test.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "windows/node/agent.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "windows/node/appzone.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "windows/node/chain.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "windows/node/host-admission.bundle.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "windows/node/host.mjs",
+      "sameBlob": true
+    },
+    {
+      "file": "windows/node/network-enroll.mjs",
+      "sameBlob": true
+    }
+  ],
+  "tlsPinsPreserved": {
+    "relay/certs.js": true,
+    "relay/measurement-predict.mjs": true
+  },
+  "productionRelease": false,
+  "remaining": "HostServices/challengeReplica closure still being composed; no full Windows/Linux parity claim."
+}

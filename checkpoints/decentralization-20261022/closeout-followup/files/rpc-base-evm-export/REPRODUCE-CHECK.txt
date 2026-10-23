@@ -1,0 +1,9 @@
+enclave 97785a40c: tree 11698f2c6af022124cdf2ed11b8934a10c8b5af2 OK
+enclave 36a83c89b: tree 5b273ce43fdc558b54d1e92ecce83cdd1818cf37 OK
+enclave eb707adc0: tree e2a1e3ba10c1884a6835b2cea01b78ccb17223b9 OK
+enclave 9fdc1418c: tree 5c84c3da6c3142d5fe0742e6ac6f516d84926062 OK
+helios 0a02256c3: tree 31eebbb792818d49f016fb8096c8b59a9f646eb7 OK
+helios 3416a2452: tree a69714ea8f7994022a2b3dacaa277c7ed5d5f8a1 OK
+helios b93fcfdc5: tree ef08b7cfe262dd7f040b84f3f3ee4dd2cd23f122 OK
+helios eeffcc980: tree 2171ad2bfd3c97f2e0e029e866b1a8535cbbd187 OK
+RESULT enclave head tree reproduced from dfe020abf + 4 patches: True; helios head tree reproduced from 0.12.0 (2af9b418) + 4 patches + snappy from the checkpoint hex fixture: True

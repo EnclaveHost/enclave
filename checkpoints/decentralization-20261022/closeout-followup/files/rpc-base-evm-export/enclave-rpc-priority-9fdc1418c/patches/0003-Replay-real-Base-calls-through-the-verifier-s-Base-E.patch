@@ -1,0 +1,243 @@
+From eb707adc0e52050f38ba7352865bcba24b6f6d2e Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 18:54:21 -0700
+Subject: [PATCH 3/4] Replay real Base calls through the verifier's Base EVM
+ from pinned witnesses
+
+The witness gateway keys the bare block hash newer alloy sends as well as the
+EIP-1898 object, and can offer a subset of methods so a recording without the
+access-list hint replays deterministically. The e2e suite checks Base-EVM
+execution against the chain's own node and refusal beyond the validated Denim
+horizon; the replay suite recomputes recorded mainnet eth_call results offline
+and fails closed on a missing witness or a stale latest head.
+---
+ network/witness-gateway.mjs          |  15 +++-
+ test/helios-base-replay.e2e.test.mjs | 109 +++++++++++++++++++++++++++
+ test/helios-witness.e2e.test.mjs     |  33 +++++++-
+ test/witness-gateway.test.mjs        |   2 +
+ 4 files changed, 152 insertions(+), 7 deletions(-)
+ create mode 100644 test/helios-base-replay.e2e.test.mjs
+
+diff --git a/network/witness-gateway.mjs b/network/witness-gateway.mjs
+index cc4f0a423c7e5dba492e910fefe27ae0e5960e90..82bf203b1ae7e19501ed0071038ccc674194a162 100644
+--- a/network/witness-gateway.mjs
++++ b/network/witness-gateway.mjs
+@@ -30,9 +30,13 @@ const MAX_BODY = 1 << 20, MAX_RESPONSE = 16 << 20, HASH = /^0x[0-9a-fA-F]{64}$/;
+ export function witnessKey(method, params) {
+   if (!PINNED.has(method) || !Array.isArray(params) || !params.length) return null;
+   const at = params[params.length - 1];
+-  if (!at || typeof at !== 'object' || Array.isArray(at) || !HASH.test(at.blockHash || '') || Object.keys(at).some((k) => k !== 'blockHash' && k !== 'requireCanonical')) return null;
++  // EIP-1898 {blockHash[, requireCanonical]}, or the bare 32-byte hash alloy sends when requireCanonical is unset
++  // (alloy-eips BlockId::serialize). A 64-hex-digit value is never a block number.
++  const hash = typeof at === 'string' ? (HASH.test(at) ? at : null)
++    : at && typeof at === 'object' && !Array.isArray(at) && HASH.test(at.blockHash || '') && Object.keys(at).every((k) => k === 'blockHash' || k === 'requireCanonical') ? at.blockHash : null;
++  if (!hash) return null;
+   const norm = JSON.stringify([method, JSON.parse(JSON.stringify(params).toLowerCase())]);
+-  return { key: createHash('sha256').update(norm).digest('hex'), blockHash: at.blockHash.toLowerCase(), norm };
++  return { key: createHash('sha256').update(norm).digest('hex'), blockHash: hash.toLowerCase(), norm };
+ }
+ 
+ /** Create-only directory cache of block-hash-pinned witnesses: <dir>/<blockHash>/<sha256(request)>.json. */
+@@ -65,9 +69,12 @@ async function call(url, body, fetch, timeoutMs) {
+ 
+ /**
+  * upstreams: untrusted execution JSON-RPC URLs, tried in order. cache: optional {get(w), put(w, result)} (dirWitnessCache).
++ * methods: a subset of WITNESS_METHODS to offer (e.g. without the eth_createAccessList prefetch hint, so the verifier
++ * fetches exactly the witnesses execution touches and a recorded cache replays deterministically).
+  * -> {handle(request) -> response, listen(port) -> url (127.0.0.1 only), close(), stats()}
+  */
+-export function createWitnessGateway({ upstreams = [], cache = null, timeoutMs = 8000, fetch = globalThis.fetch } = {}) {
++export function createWitnessGateway({ upstreams = [], cache = null, timeoutMs = 8000, fetch = globalThis.fetch, methods = WITNESS_METHODS } = {}) {
++  if (!Array.isArray(methods) || methods.some((m) => !WITNESS_METHODS.includes(m))) throw new Error('methods must be a subset of WITNESS_METHODS');
+   if (!Array.isArray(upstreams) || upstreams.length > 16) throw new Error('0 to 16 upstreams');
+   const ids = upstreams.map((u) => rpcEndpoint(u).identity);
+   if (new Set(ids).size !== ids.length) throw new Error('upstreams must be distinct endpoints');
+@@ -79,7 +86,7 @@ export function createWitnessGateway({ upstreams = [], cache = null, timeoutMs =
+   async function handle(req) {
+     if (!req || typeof req !== 'object' || req.jsonrpc !== '2.0' || typeof req.method !== 'string') return err(req?.id, -32600, 'invalid request');
+     const params = req.params === undefined ? [] : req.params;
+-    if (!WITNESS_METHODS.includes(req.method)) { stats.refused[req.method.slice(0, 64)] = (stats.refused[req.method.slice(0, 64)] || 0) + 1; return err(req.id, -32601, 'method not offered by the witness gateway'); }
++    if (!methods.includes(req.method)) { stats.refused[req.method.slice(0, 64)] = (stats.refused[req.method.slice(0, 64)] || 0) + 1; return err(req.id, -32601, 'method not offered by the witness gateway'); }
+     const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: req.method, params });
+     const w = cache ? witnessKey(req.method, params) : null;
+     const broadcast = req.method === 'eth_sendRawTransaction';
+diff --git a/test/helios-base-replay.e2e.test.mjs b/test/helios-base-replay.e2e.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..a87d9381a0ff34aa3878b3281fa7257bf3e07d72
+--- /dev/null
++++ b/test/helios-base-replay.e2e.test.mjs
+@@ -0,0 +1,109 @@
++// OFFLINE REPLAY of REAL Base mainnet calls (run inside `unshare -r -n`: no network, every provider unreachable).
++// The fixture (rpc-priority/fixture-tools/record-base-calls.mjs) holds a real block two public providers reported
++// identically, the providers' eth_call results at that block hash, and the execution witnesses Helios fetched for it,
++// keyed by block hash. Here the patched Helios (Base EVM backend) recomputes every call from those witnesses alone,
++// verified against the block's state root, and must match the providers byte for byte.
++// The head signature is a TEST key over the real block (Helios unsafe_signer override): this proves Base EXECUTION
++// compatibility on real state, not head authenticity.
++//   env: HELIOS_BASE_BIN (enclave-base-evm), HELIOS_COMPAT_BIN (enclave-base-compat 0a02256), BASE_FIXTURE_DIR, TEST_TMP
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { spawn } from 'node:child_process';
++import fs from 'node:fs';
++import path from 'node:path';
++import http from 'node:http';
++import net from 'node:net';
++import { createWitnessGateway, dirWitnessCache, WITNESS_METHODS } from '../network/witness-gateway.mjs';
++
++const { HELIOS_BASE_BIN, HELIOS_COMPAT_BIN, BASE_FIXTURE_DIR } = process.env;
++const fixture = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'fixture.json'), 'utf8'));
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'base-replay-'));
++const children = new Set();
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const freePort = () => new Promise((r) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
++async function rpc(url, method, params = []) {
++  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(60000) });
++  const j = await r.json();
++  if (j.error) throw Object.assign(new Error(j.error.message || JSON.stringify(j.error)), { rpc: j.error });
++  return j.result;
++}
++let consensus, gateway, gatewayUrl;
++test.before(async () => {
++  consensus = http.createServer((q, res) => res.end(JSON.stringify(q.url === '/chain_id' ? 8453 : fixture.commitment)));
++  await new Promise((r) => consensus.listen(0, '127.0.0.1', r));
++  // NO upstream at all: witnesses come only from the recorded block-hash-pinned cache (copied, so the fixture is untouched)
++  fs.cpSync(path.join(BASE_FIXTURE_DIR, 'cache'), path.join(TMP, 'cache'), { recursive: true });
++  gateway = createWitnessGateway({ upstreams: [], cache: dirWitnessCache(path.join(TMP, 'cache')), methods: WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList') });
++  gatewayUrl = await gateway.listen(0);
++});
++test.after(async () => {
++  for (const p of [...children]) { p.kill('SIGKILL'); }
++  await gateway?.close(); consensus?.close();
++  fs.rmSync(TMP, { recursive: true, force: true });
++});
++async function helios(bin, tag, { executionOverride }) {
++  const home = path.join(TMP, 'home-' + tag); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
++  fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${fixture.testSequencerSigner}"\n`
++    + (executionOverride ? `\n[base.chain.forks]\nexecution_unsupported_from_timestamp = 9223372036854775807\n` : ''));
++  const port = await freePort();
++  const p = spawn(bin, ['opstack', '--network', 'base', '--consensus-rpc', `http://127.0.0.1:${consensus.address().port}/`, '--execution-rpc', gatewayUrl, '--rpc-port', String(port)],
++    { env: { HOME: home, PATH: process.env.PATH }, stdio: 'ignore' });
++  children.add(p); p.on('exit', () => children.delete(p));
++  const url = `http://127.0.0.1:${port}/`;
++  // readiness by the pinned block itself: eth_blockNumber is refused once the head is >60 s old (Helios check_head_age)
++  const num = '0x' + fixture.block.number.toString(16);
++  for (let i = 0; i < 240; i++) { try { if ((await rpc(url, 'eth_getBlockByNumber', [num, false]))?.hash === fixture.block.hash) return { p, url }; } catch {} await sleep(250); }
++  throw new Error('helios did not adopt the fixture head');
++}
++const T = { timeout: 300000 };
++const AT = () => ({ blockHash: fixture.block.hash });   // queries pinned to the recorded block (not age-checked)
++
++test('the fixture is what it claims: two providers agreed on the block and on every call both answered', (t) => {
++  assert.equal(fixture.format, 'enclave-base-call-fixture/v1');
++  assert.ok(fixture.block.timestamp >= 1790791200, 'a Cobalt-era (Osaka + Base precompiles) block');
++  // agree = both providers answered identically AND the recording Helios matched them
++  const agreeing = fixture.calls.filter((c) => c.agree);
++  assert.ok(agreeing.length >= 4, `at least four fully agreeing calls, got ${agreeing.length}`);
++  for (const c of fixture.calls) {
++    assert.ok(c.p1.result !== undefined, `primary provider answered: ${c.name}`);
++    if (c.p2.result !== undefined) assert.equal(c.p2.result, c.p1.result, `providers agree: ${c.name}`);
++    else t.diagnostic(`second provider did not answer (${JSON.stringify(c.p2.error)}): ${c.name} is single-provider-confirmed`);
++  }
++});
++
++test('offline, from verified witnesses only, the Base EVM reproduces every provider eth_call result', T, async (t) => {
++  const { p, url } = await helios(HELIOS_BASE_BIN, 'base', { executionOverride: true });
++  t.after(() => p.kill('SIGKILL'));
++  for (const c of fixture.calls.filter((x) => x.helios?.result !== undefined && x.helios.result === x.p1.result)) {
++    const got = await rpc(url, 'eth_call', [c.tx, AT()]);
++    assert.equal(got, c.p1.result, c.name);
++    t.diagnostic(`${c.name}: ${got.slice(0, 66)}${got.length > 66 ? '…' : ''}`);
++  }
++  assert.equal(gateway.stats().unavailable, 0, 'no witness was missing');
++  // the same verifier refuses LATEST: the recorded head is minutes old (Helios check_head_age: > 60 s = out of sync)
++  await assert.rejects(rpc(url, 'eth_call', [fixture.calls[0].tx, 'latest']), /sync/i);
++  await assert.rejects(rpc(url, 'eth_blockNumber'), /sync/i);
++});
++
++test('a call whose witnesses were never recorded fails closed: no unchecked answer, no provider', T, async (t) => {
++  const { p, url } = await helios(HELIOS_BASE_BIN, 'missing', { executionOverride: true });
++  t.after(() => p.kill('SIGKILL'));
++  // a contract account never touched while recording: its proof is not in the cache and no upstream exists
++  await assert.rejects(rpc(url, 'eth_call', [{ to: '0x4200000000000000000000000000000000000006', data: '0x06fdde03' }, AT()]));
++  await assert.rejects(rpc(url, 'eth_getBalance', ['0x000000000000000000000000000000000000dEaD', AT()]));
++});
++
++test('control: the earlier compat build (op-revm, Prague rules) still refuses Base execution', T, async (t) => {
++  const { p, url } = await helios(HELIOS_COMPAT_BIN, 'compat', { executionOverride: false });
++  t.after(() => p.kill('SIGKILL'));
++  await assert.rejects(rpc(url, 'eth_call', [fixture.calls[0].tx, AT()]), /local execution refused/);
++});
++
++test('shipped default of the Base build: execution follows the configured fork horizon', T, async (t) => {
++  const { p, url } = await helios(HELIOS_BASE_BIN, 'default', { executionOverride: false });
++  t.after(() => p.kill('SIGKILL'));
++  const expectRefusal = process.env.BASE_DEFAULT_REFUSES !== '0';
++  const run = rpc(url, 'eth_call', [fixture.calls[0].tx, AT()]);
++  if (expectRefusal) await assert.rejects(run, /local execution refused/);
++  else assert.equal(await run, fixture.calls[0].p1.result);
++});
+diff --git a/test/helios-witness.e2e.test.mjs b/test/helios-witness.e2e.test.mjs
+index bbe7f4c88512033fcdaff054fd6c8d0d81230eca..fa753d192a03abec45c4accbd5832ea61c9be696 100644
+--- a/test/helios-witness.e2e.test.mjs
++++ b/test/helios-witness.e2e.test.mjs
+@@ -107,10 +107,14 @@ test('patched Helios follows the signed head and returns proof-verified Enclave
+   assert.equal(await rpc(h.url, 'eth_getBalance', [DEPLOYER.address, 'latest']), await rpc(anvilUrl, 'eth_getBalance', [DEPLOYER.address, head.hash ? { blockHash: head.hash } : 'latest']));
+   const proof = await rpc(h.url, 'eth_getProof', [book, [slotOf('deployments', 3n)], 'latest']);
+   assert.equal(BigInt(proof.storageProof[0].value), BigInt(DEPLOYMENTS));
+-  // local EVM execution is REFUSED: Base mainnet has run Azul+ (Osaka + Base precompiles) since 1779991200 and the
+-  // pinned op-revm only implements up to Prague for this chain
+   const data = encodeFunctionData({ abi: artifact.abi, functionName: 'addr', args: [stringToHex('registry', { size: 32 })] });
+-  await assert.rejects(rpc(h.url, 'eth_call', [{ to: book, data }, 'latest']), /local execution refused/);
++  if (process.env.EXPECT_BASE_EXECUTION === '1') {
++    // enclave-base-evm: Base EVM over proof-backed state; same answer as the chain's own node (Anvil)
++    assert.equal(await rpc(h.url, 'eth_call', [{ to: book, data }, 'latest']), await rpc(anvilUrl, 'eth_call', [{ to: book, data }, { blockHash: head.hash }]));
++  } else {
++    // enclave-base-compat: op-revm only implements Prague for Base, so local execution is REFUSED from Azul
++    await assert.rejects(rpc(h.url, 'eth_call', [{ to: book, data }, 'latest']), /local execution refused/);
++  }
+   assert.equal(h.exitCode, null, 'verifier still running');
+ });
+ 
+@@ -165,6 +169,29 @@ test('wrong-signer heads are ignored; a signed head with a 0x79 transaction is r
+   await until(async () => BigInt(await rpc(h.url, 'eth_blockNumber')) === head.number + 4n, 15000, 'the head loop to adopt a valid higher block');
+ });
+ 
++test('a Denim-era block (beyond the validated Base horizon) refuses execution while proof reads still work', { ...T, skip: process.env.EXPECT_BASE_EXECUTION !== '1' && 'compat build' }, async (t) => {
++  const port = await freePort();
++  const denim = 1_793_901_600;
++  const a2 = start(ANVIL_BIN, ['--port', String(port), '--chain-id', '8453', '--silent', '--timestamp', String(denim + 100)]);
++  const a2Url = `http://127.0.0.1:${port}/`;
++  t.after(() => stop(a2));
++  await until(() => rpc(a2Url, 'eth_chainId'), 20000, 'anvil (Denim era)');
++  // mine past genesis: Helios rejected the genesis block's account proof (Anvil's genesis header root did not verify)
++  await rpc(a2Url, 'evm_mine', []);
++  const b = await rpc(a2Url, 'eth_getBlockByNumber', ['latest', false]);
++  assert.ok(Number(b.timestamp) >= denim, 'block is in the Denim era');
++  const stub = await rawConsensus();
++  stub.set(await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY }));
++  const g = createWitnessGateway({ upstreams: [a2Url] });
++  const gUrl = await g.listen(0);
++  const h = await startHelios(HELIOS_BIN, { consensus: stub.url, execution: gUrl, tag: 'denim' });
++  t.after(async () => { await stop(h); await g.close(); stub.close(); });
++  await until(async () => (await rpc(h.url, 'eth_getBlockByNumber', ['latest', false]))?.hash === b.hash, 60000, 'Denim-era head');
++  const dev = DEPLOYER.address;
++  assert.equal(await rpc(h.url, 'eth_getBalance', [dev, 'latest']), await rpc(a2Url, 'eth_getBalance', [dev, { blockHash: b.hash }]));
++  await assert.rejects(rpc(h.url, 'eth_call', [{ to: dev, data: '0x' }, 'latest']), /local execution refused/);
++});
++
+ test('stock Helios 0.12.0 (comparison only): executes eth_call under the wrong spec and dies on a 0x79 transaction', { ...T, skip: !HELIOS_STOCK_BIN && 'HELIOS_STOCK_BIN not set' }, async (t) => {
+   const stub = await rawConsensus();
+   const b = await rpc(anvilUrl, 'eth_getBlockByNumber', ['latest', false]);
+diff --git a/test/witness-gateway.test.mjs b/test/witness-gateway.test.mjs
+index 170b4468c60c4f5144e44152e3925662030f282a..b994da1f2e147b27c813002235fa82617827fa77 100644
+--- a/test/witness-gateway.test.mjs
++++ b/test/witness-gateway.test.mjs
+@@ -25,6 +25,8 @@ const tmp = () => fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(),
+ test('only block-hash-pinned proof and code requests are cache keys', () => {
+   assert.ok(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], { blockHash: H }]));
+   assert.ok(witnessKey('eth_getCode', ['0x' + '01'.repeat(20), { blockHash: H, requireCanonical: false }]));
++  assert.equal(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], H]).blockHash, H, 'bare hash (alloy without requireCanonical)');
++  assert.equal(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], H]).key, witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], H]).key);
+   assert.equal(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], 'latest']), null);
+   assert.equal(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], '0x10']), null);
+   assert.equal(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], { blockNumber: '0x10' }]), null);

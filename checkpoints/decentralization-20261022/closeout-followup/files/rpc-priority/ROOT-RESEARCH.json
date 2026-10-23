@@ -1,0 +1,35 @@
+{
+  "at": "2026-10-23T00:18:39.290472+00:00",
+  "direction": "Witness/light verifier app with Sia-S3 verified immutable data storage; no full node sync started",
+  "sources": [
+    {
+      "url": "https://docs.base.org/specifications/node-operators/run-a-node",
+      "finding": "Current Base node requires L1 execution and beacon. Historical proof generation ExEx is separate, heavy work."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/a16z/helios/master/opstack/src/consensus.rs",
+      "finding": "OP Stack latest path authenticates sequencer commitments from consensus RPC; not proof of independent finality or availability."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/a16z/helios/master/opstack/src/config.rs",
+      "finding": "Base default consensus endpoint is hosted and verify_unsafe_signer defaults false."
+    },
+    {
+      "url": "https://github.com/ethereum/portal-network-specs",
+      "finding": "Work in progress Ethereum data overlay; no Base witness support established by this review."
+    },
+    {
+      "url": "https://specs.optimism.io/fault-proof/",
+      "finding": "Stateless execution uses authenticated preimages; existence of spec does not prove a public live witness supply network."
+    }
+  ],
+  "remaining": [
+    "Authenticate current Base roots without a new mandatory hosted source",
+    "Obtain fresh witnesses when all public RPC providers refuse",
+    "Expose actual contract reads and transaction broadcast; distinguish read proofs from inclusion",
+    "Cold bootstrap independent of RPC app lease and Sia app availability",
+    "Reject stale/reorged cached objects; Sia content hash alone does not establish canonical chain state"
+  ],
+  "arrayProbe": "outputs/decentralization-audit/rpc-array-probe-20261023.json",
+  "arrayProbeCaveat": "20 durable random writes/sec measured on small scratch workload, reads likely cache-assisted; not a full-node feasibility verdict"
+}

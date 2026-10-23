@@ -1,0 +1,1463 @@
+{
+ "tree": "work/source-checkpoint-20261022/main-repo",
+ "commit": "225695d6e9292150c9cfac76a2c4a4031085ce1d",
+ "excluded": [
+  ".git",
+  "__tests__",
+  "checkpoints",
+  "dist",
+  "fixtures",
+  "node_modules",
+  "out",
+  "test",
+  "tests",
+  "vendor",
+  "*.bundle.mjs",
+  "*.min.*"
+ ],
+ "functionNames": {
+  "SUPPORTED_ENTRYPOINT": [
+   "site/js/core/identity.js:111"
+  ],
+  "VERSION": [
+   "network/lease-gas-owner.mjs:213"
+  ],
+  "acceptOwnership": [
+   "scripts/migrate-contract.mjs:162",
+   "scripts/migrate-contract.mjs:231",
+   "scripts/migrate-ledger-delegates.mjs:246",
+   "scripts/migrate-ledger-delegates.mjs:247"
+  ],
+  "addOwnerWithThreshold": [
+   "site/js/core/passkey-account.js:329"
+  ],
+  "addr": [
+   "network/bootstrap/release-bootstrap-direct.mjs:79",
+   "network/lease-reader.mjs:330",
+   "network/onchain-qualification.mjs:26",
+   "network/owner-signature.mjs:19",
+   "relay/api-relay.js:2408",
+   "relay/api-relay.js:2425",
+   "relay/api-relay.js:723",
+   "relay/api-relay.js:836",
+   "relay/billing.js:146",
+   "relay/fleet.mjs:246",
+   "relay/fleet.mjs:532",
+   "relay/sessions.mjs:1115",
+   "relay/sessions.mjs:424",
+   "relay/sessions.mjs:438",
+   "relay/vaultsvc.js:106",
+   "relay/vaultsvc.js:452",
+   "scripts/deploy-proof-of-time.mjs:133",
+   "scripts/deploy-secret-vault-v2.mjs:88",
+   "scripts/ledger-cutover-rehearsal.mjs:51",
+   "scripts/migrate-ledger-delegates.mjs:64",
+   "scripts/network/audit-rollout.mjs:22",
+   "scripts/network/browser-profile.mjs:145",
+   "scripts/network/capture-contract-pins.mjs:16",
+   "scripts/network/capture-network-authorities.mjs:12",
+   "scripts/network/provider-register.mjs:23",
+   "scripts/network/wg-qualify.mjs:56",
+   "scripts/sessions-fork-rehearsal.mjs:111",
+   "sdk/sessions/src/client.ts:147",
+   "site/js/core/sessions.js:483",
+   "site/js/pages/sessions.js:187",
+   "site/js/pages/sessions.js:193",
+   "windows/node/session-api-auth.mjs:256"
+  ],
+  "all": [
+   ".led3.mjs:5",
+   "addressbook.js:61",
+   "cli/enclave.mjs:5914",
+   "lease-check.mjs:8",
+   "scripts/deploy-payment-router.mjs:118",
+   "scripts/nan-pin-cleanup.mjs:110",
+   "scripts/update-address-book.mjs:128",
+   "windows/node/chain.mjs:171"
+  ],
+  "allowance": [
+   "relay/provisioner.js:233",
+   "supervisor.js:10033"
+  ],
+  "appCount": [
+   "scripts/nan-pin-cleanup.mjs:122"
+  ],
+  "approve": [
+   "relay/mcp.js:313",
+   "relay/provisioner.js:236",
+   "scripts/network/paid-fork-e2e.mjs:70",
+   "scripts/network/paid-fork-e2e.mjs:96",
+   "scripts/network/rehearse-bandwidth-rollout.mjs:80"
+  ],
+  "attest": [
+   "relay/sessions.mjs:1002",
+   "relay/sessions.mjs:1012"
+  ],
+  "attestations": [
+   "network/onchain-qualification.mjs:57"
+  ],
+  "authority": [
+   "cli/host-independent-lifecycle.mjs:496",
+   "network/host-admission-policy.mjs:10",
+   "network/host-admission-runtime.mjs:92",
+   "network/host-owner-nomination.mjs:157",
+   "network/host-owner-nomination.mjs:160",
+   "scripts/network/prepare-host-policy.mjs:30",
+   "windows/node/host-ownership.mjs:77"
+  ],
+  "authorizeProbeTrust": [
+   "scripts/network/paid-fork-e2e.mjs:80"
+  ],
+  "authorizeTuna": [
+   "scripts/network/paid-fork-e2e.mjs:92"
+  ],
+  "balanceOf": [
+   "availability/fee-chain-adapter.mjs:17",
+   "relay/provisioner.js:185",
+   "relay/vaultsvc.js:127",
+   "relay/vaultsvc.js:135",
+   "relay/vaultsvc.js:297",
+   "relay/vaultsvc.js:357",
+   "relay/vaultsvc.js:375",
+   "scripts/ledger-cutover-rehearsal.mjs:89",
+   "scripts/network/audit-rollout.mjs:38",
+   "scripts/network/audit-rollout.mjs:54",
+   "scripts/network/rehearse-bandwidth-rollout.mjs:79",
+   "scripts/network/rehearse-bandwidth-rollout.mjs:91",
+   "scripts/network/rehearse-bandwidth-rollout.mjs:92",
+   "scripts/sessions-fork-rehearsal.mjs:75",
+   "scripts/sessions-prod-smoke.mjs:288",
+   "site/js/core/account-transport.js:195",
+   "site/js/core/account-transport.js:235"
+  ],
+  "bandwidthBackingRequired6": [
+   "network/lease-reader.mjs:304"
+  ],
+  "bindingOf": [
+   "relay/sessions.mjs:1015"
+  ],
+  "bondOf": [
+   "supervisor.js:10019"
+  ],
+  "book": [
+   "network/session-factories.mjs:41",
+   "scripts/deploy-secret-vault.mjs:67"
+  ],
+  "bytesServed": [
+   "network/usdc-bandwidth.mjs:114",
+   "network/usdc-bandwidth.mjs:44"
+  ],
+  "capOf": [
+   "isolation/m4/evidence/pool-rollout-2026-09-25/scripts/chain.mjs:15",
+   "site/js/core/sessions.js:603",
+   "supervisor.js:6987"
+  ],
+  "catalogSchema": [
+   "supervisor.js:6818",
+   "windows/node/chain.mjs:120"
+  ],
+  "changeThreshold": [
+   "site/js/core/passkey-account.js:332"
+  ],
+  "checkpoint": [
+   "windows/node/verification-checkpoints.mjs:37"
+  ],
+  "claim": [
+   "scripts/network/paid-fork-e2e.mjs:72",
+   "supervisor.js:5909"
+  ],
+  "claimBond6": [
+   "supervisor.js:10016"
+  ],
+  "claimPolicy": [
+   "cli/custody-independent.mjs:247"
+  ],
+  "claimPolicyBySig": [
+   "cli/custody-independent.mjs:243"
+  ],
+  "claimable": [
+   "supervisor.js:11823"
+  ],
+  "claimableBy": [
+   "relay/api-relay.js:2086",
+   "relay/api-relay.js:2659",
+   "supervisor.js:11820",
+   "windows/node/chain.mjs:196"
+  ],
+  "close": [
+   "relay/sessions.mjs:662"
+  ],
+  "committeeOf": [
+   "custody/chain.mjs:121"
+  ],
+  "configure": [
+   "site/js/core/passkey-account.js:127"
+  ],
+  "count": [
+   ".led3.mjs:9",
+   "cli/independent.mjs:312",
+   "lease-check.mjs:14",
+   "network/app-zone-challenge.mjs:119",
+   "network/bootstrap/release-bootstrap-direct.mjs:82",
+   "relay/api-relay.js:732",
+   "relay/api-relay.js:853",
+   "relay/fleet.mjs:278",
+   "relay/fleet.mjs:542",
+   "scripts/enclave-discover.mjs:116",
+   "scripts/ledger-cutover-rehearsal.mjs:104",
+   "scripts/ledger-cutover-rehearsal.mjs:64",
+   "supervisor.js:11132",
+   "windows/node/chain.mjs:188"
+  ],
+  "cpuPricePerSec6": [
+   "relay/billing.js:450",
+   "scripts/set-prices.mjs:120",
+   "scripts/set-prices.mjs:163"
+  ],
+  "create": [
+   "availability/chain-adapter.mjs:70",
+   "cli/enclave.mjs:2379",
+   "relay/mcp.js:291",
+   "relay/provisioner.js:214",
+   "relay/vaultsvc.js:195",
+   "scripts/ledger-cutover-rehearsal.mjs:146",
+   "scripts/network/paid-fork-e2e.mjs:67",
+   "site/js/core/credit-vault-independent.js:320",
+   "windows/node/host-onchain.mjs:125"
+  ],
+  "createIndependentCommittee": [
+   "custody/v2/coordinate-genesis.mjs:44"
+  ],
+  "createJob": [
+   "availability/fee-chain-adapter.mjs:35"
+  ],
+  "createProxyWithNonce": [
+   "site/js/core/passkey-account.js:157",
+   "site/js/core/passkey-account.js:158"
+  ],
+  "createSigner": [
+   "site/js/core/passkey-account.js:104"
+  ],
+  "createVault": [
+   "cli/credit-vault.mjs:259",
+   "relay/vaultsvc.js:280",
+   "site/recover/recover.js:98"
+  ],
+  "dealsOf": [
+   "custody/chain.mjs:125"
+  ],
+  "deploymentsSchema": [
+   "network/lease-reader.mjs:284",
+   "relay/api-relay.js:815",
+   "relay/billing.js:433",
+   "relay/fleet.mjs:259",
+   "relay/provisioner.js:149",
+   "relay/vaultsvc.js:180",
+   "scripts/deploy-proof-of-time.mjs:153",
+   "scripts/guest-bootstrap-vectors.mjs:15",
+   "scripts/set-prices.mjs:111",
+   "supervisor.js:9643"
+  ],
+  "deposit": [
+   "scripts/deploy-host-paymaster.mjs:120",
+   "site/js/core/credit-vault-reserve.js:324"
+  ],
+  "earned6": [
+   "supervisor.js:12512",
+   "windows/node/chain.mjs:351"
+  ],
+  "enableModules": [
+   "site/js/core/passkey-account.js:122"
+  ],
+  "epoch": [
+   "relay/sessions.mjs:659"
+  ],
+  "epochOf": [
+   "custody/chain.mjs:117"
+  ],
+  "execTransaction": [
+   "site/js/core/passkey-account.js:356"
+  ],
+  "execute": [
+   "mcp/independent-tools.mjs:549",
+   "relay/sessions.mjs:777",
+   "sdk/sessions/src/client.ts:222",
+   "windows/node/sponsor.mjs:55"
+  ],
+  "executeUserOp": [
+   "site/js/core/passkey-account.js:374"
+  ],
+  "feeOf": [
+   "supervisor.js:7048",
+   "supervisor.js:7065"
+  ],
+  "feeRouter": [
+   "scripts/ledger-cutover-rehearsal.mjs:106",
+   "scripts/migrate-ledger-delegates.mjs:215"
+  ],
+  "free": [
+   "site/js/pages/sessions.js:55"
+  ],
+  "fund": [
+   "relay/mcp.js:315",
+   "relay/provisioner.js:240",
+   "scripts/network/paid-fork-e2e.mjs:71"
+  ],
+  "fundEscrow": [
+   "scripts/network/paid-fork-e2e.mjs:97"
+  ],
+  "fundEth": [
+   "cli/enclave.mjs:1472",
+   "cli/enclave.mjs:2446",
+   "relay/mcp.js:302"
+  ],
+  "fundJob": [
+   "availability/chain-adapter.mjs:97",
+   "availability/fee-chain-adapter.mjs:45"
+  ],
+  "fundWithAuthorization": [
+   "cli/enclave.mjs:1076",
+   "site/js/core/sessions.js:1037"
+  ],
+  "get": [
+   "cli/enclave.mjs:1103",
+   "cli/independent.mjs:244",
+   "client/lease-executor-client.mjs:183",
+   "client/lease-executor-client.mjs:189",
+   "client/lease-executor-client.mjs:264",
+   "client/lease-executor-client.mjs:612",
+   "client/lease-executor-client.mjs:665",
+   "isolation/m4/evidence/pool-rollout-2026-09-25/scripts/chain.mjs:14",
+   "metal/guest/platform-api-verify.mjs:25",
+   "network/app-zone-challenge.mjs:153",
+   "network/app-zone-challenge.mjs:157",
+   "network/connectivity-chain.mjs:26",
+   "network/host-owner-nomination.mjs:158",
+   "network/host-owner-nomination.mjs:161",
+   "network/lease-gas-owner.mjs:494",
+   "network/lease-gas-owner.mjs:506",
+   "network/lease-reader.mjs:286",
+   "network/lease-reader.mjs:291",
+   "network/lease-reader.mjs:341",
+   "network/service-index.mjs:420",
+   "relay/api-relay.js:2080",
+   "relay/api-relay.js:2437",
+   "relay/api-relay.js:2470",
+   "relay/api-relay.js:2625",
+   "relay/api-relay.js:2697",
+   "relay/dns-challenge-shield.mjs:110",
+   "scripts/availability/service.mjs:201",
+   "scripts/availability/service.mjs:61",
+   "scripts/guest-bootstrap-vectors.mjs:12",
+   "scripts/ledger-cutover-rehearsal.mjs:162",
+   "scripts/network/prepare-host-policy.mjs:29",
+   "scripts/network/provider-register.mjs:25",
+   "scripts/network/shield-verifier.mjs:44",
+   "scripts/network/wg-qualify.mjs:57",
+   "scripts/sessions-fork-rehearsal.mjs:112",
+   "site/js/core/sessions.js:495",
+   "site/js/pages/sessions.js:190",
+   "supervisor.js:11153",
+   "supervisor.js:716",
+   "windows/node/chain.mjs:182",
+   "windows/node/chain.mjs:183",
+   "windows/node/host-identity.mjs:304",
+   "windows/node/shield-startup.mjs:141"
+  ],
+  "getApp": [
+   "network/app-zone-challenge.mjs:163",
+   "network/host-admission-runtime.mjs:116",
+   "relay/measurement-predict.mjs:738",
+   "site/js/core/sessions.js:509",
+   "supervisor.js:6858"
+  ],
+  "getAppsPage": [
+   "scripts/nan-pin-cleanup.mjs:128"
+  ],
+  "getBinding": [
+   "relay/sessions.mjs:928"
+  ],
+  "getL1FeeUpperBound": [
+   "client/lease-executor-client.mjs:147",
+   "network/lease-gas-owner.mjs:490"
+  ],
+  "getNonce": [
+   "site/js/core/account-transport.js:110",
+   "windows/node/sponsor.mjs:56"
+  ],
+  "getPage": [
+   ".led3.mjs:10",
+   "cli/independent.mjs:316",
+   "lease-check.mjs:16",
+   "network/bootstrap/release-bootstrap-direct.mjs:84",
+   "relay/api-relay.js:736",
+   "relay/api-relay.js:857",
+   "relay/fleet.mjs:282",
+   "relay/fleet.mjs:546",
+   "scripts/catalog-pin-sweep.mjs:120",
+   "scripts/catalog-pin-sweep.mjs:122",
+   "scripts/enclave-discover.mjs:119",
+   "scripts/ledger-cutover-rehearsal.mjs:144",
+   "windows/node/chain.mjs:191"
+  ],
+  "getUserOpHash": [
+   "windows/node/sponsor.mjs:78"
+  ],
+  "getVersion": [
+   "network/app-zone-challenge.mjs:164",
+   "network/host-admission-runtime.mjs:117",
+   "relay/measurement-predict.mjs:740",
+   "relay/measurement-predict.mjs:759",
+   "site/js/core/sessions.js:506",
+   "supervisor.js:10833",
+   "supervisor.js:6860",
+   "windows/node/chain.mjs:377",
+   "windows/node/shield-startup.mjs:143"
+  ],
+  "getVersionsPage": [
+   "scripts/nan-pin-cleanup.mjs:142"
+  ],
+  "handleOps": [
+   "relay/host-sponsor.mjs:183",
+   "site/js/core/account-transport.js:249"
+  ],
+  "hardwareSponsored": [
+   "relay/host-sponsor.mjs:127"
+  ],
+  "held": [
+   "relay/api-relay.js:618",
+   "relay/sessions.mjs:1078",
+   "relay/sessions.mjs:1157",
+   "relay/sessions.mjs:1164",
+   "relay/sessions.mjs:1190",
+   "windows/node/session-api-auth.mjs:290"
+  ],
+  "hosts": [
+   "network/onchain-qualification.mjs:68"
+  ],
+  "idAt": [
+   "network/app-zone-challenge.mjs:125"
+  ],
+  "implementation": [
+   "network/session-factories.mjs:40",
+   "relay/vaultsvc.js:344",
+   "scripts/deploy-session-vault.mjs:118"
+  ],
+  "importsSealed": [
+   "scripts/ledger-cutover-rehearsal.mjs:103",
+   "scripts/migrate-ledger-delegates.mjs:236"
+  ],
+  "isAttestor": [
+   "relay/sessions.mjs:930",
+   "relay/sessions.mjs:966"
+  ],
+  "isValidSignature": [
+   "network/owner-signature.mjs:14",
+   "relay/contract-owner-signature.mjs:9"
+  ],
+  "isVault": [
+   "cli/independent.mjs:372",
+   "network/lease-gas-owner.mjs:202",
+   "network/owner-signature.mjs:21",
+   "relay/sessions.mjs:1134",
+   "relay/sessions.mjs:476",
+   "windows/node/session-api-auth.mjs:274"
+  ],
+  "l1Oracle": [
+   "client/lease-executor-client.mjs:141"
+  ],
+  "latestRoundData": [
+   "relay/sessions.mjs:509",
+   "supervisor.js:6588"
+  ],
+  "lease": [
+   "client/lease-executor-client.mjs:114"
+  ],
+  "leaseSec": [
+   "scripts/deploy-proof-of-time.mjs:154"
+  ],
+  "ledger": [
+   "client/lease-executor-client.mjs:263",
+   "relay/vaultsvc.js:454"
+  ],
+  "limits": [
+   "client/lease-executor-client.mjs:140",
+   "client/lease-executor-client.mjs:266"
+  ],
+  "maxGpuMilli": [
+   "relay/billing.js:432"
+  ],
+  "mint": [
+   "e2e/setup-chain.mjs:87"
+  ],
+  "multiSend": [
+   "site/js/core/account-ui.js:236",
+   "site/js/core/passkey-account.js:129"
+  ],
+  "multicall": [
+   "cli/enclave.mjs:2056",
+   "relay/mcp.js:357",
+   "relay/vaultsvc.js:245"
+  ],
+  "name": [
+   "relay/billing.js:1051",
+   "sdk/sessions/src/client.ts:357",
+   "supervisor.js:6624"
+  ],
+  "nonce": [
+   "relay/vaultsvc.js:139"
+  ],
+  "nonceOf": [
+   "client/lease-executor-client.mjs:185",
+   "client/lease-executor-client.mjs:190",
+   "client/lease-executor-client.mjs:256",
+   "client/lease-executor-client.mjs:606",
+   "client/lease-executor-client.mjs:848"
+  ],
+  "offerJobRate": [
+   "availability/host-acceptor.mjs:35"
+  ],
+  "openFor": [
+   "mcp/independent-tools.mjs:498",
+   "relay/sessions.mjs:800",
+   "sdk/sessions/src/client.ts:420"
+  ],
+  "openWithDepositFor": [
+   "relay/sessions.mjs:796",
+   "sdk/sessions/src/client.ts:417"
+  ],
+  "operatorSponsored": [
+   "relay/host-sponsor.mjs:129"
+  ],
+  "owner": [
+   "cli/enclave.mjs:4115",
+   "network/owner-signature.mjs:22",
+   "relay/sessions.mjs:1069",
+   "relay/sessions.mjs:1136",
+   "relay/sessions.mjs:740",
+   "relay/sessions.mjs:812",
+   "scripts/deploy-proof-of-time.mjs:155",
+   "scripts/ledger-cutover-rehearsal.mjs:102",
+   "scripts/migrate-ledger-delegates.mjs:163",
+   "scripts/migrate-ledger-delegates.mjs:239",
+   "scripts/migrate-ledger-delegates.mjs:242",
+   "scripts/set-prices.mjs:121",
+   "scripts/update-address-book.mjs:129",
+   "sdk/sessions/src/client.ts:513",
+   "sdk/sessions/src/client.ts:541",
+   "windows/node/session-api-auth.mjs:288"
+  ],
+  "ownerCall": [
+   "network/lease-gas-owner.mjs:255"
+  ],
+  "page": [
+   "network/service-index.mjs:413"
+  ],
+  "pendingOwner": [
+   "scripts/migrate-ledger-delegates.mjs:238",
+   "scripts/migrate-ledger-delegates.mjs:241"
+  ],
+  "policies": [
+   "relay/vaultsvc.js:459"
+  ],
+  "post": [
+   "relay/mcp.js:1756"
+  ],
+  "pricePerSec6": [
+   "relay/billing.js:449",
+   "scripts/set-prices.mjs:119",
+   "scripts/set-prices.mjs:162"
+  ],
+  "proofRequired": [
+   "supervisor.js:12624"
+  ],
+  "proofRequiredFrom": [
+   "scripts/deploy-proof-of-time.mjs:157"
+  ],
+  "proofWindowSec": [
+   "scripts/migrate-ledger-delegates.mjs:202",
+   "scripts/migrate-ledger-delegates.mjs:203"
+  ],
+  "proposeOwner": [
+   "network/host-owner-nomination.mjs:147",
+   "network/host-owner-nomination.mjs:67"
+  ],
+  "prover": [
+   "scripts/deploy-proof-of-time.mjs:156",
+   "scripts/ledger-cutover-rehearsal.mjs:105",
+   "scripts/migrate-ledger-delegates.mjs:205"
+  ],
+  "publish": [
+   "scripts/network/service-index.mjs:153",
+   "scripts/network/service-index.mjs:183"
+  ],
+  "publishFor": [
+   "scripts/network/service-index.mjs:178"
+  ],
+  "qualificationDigest": [
+   "network/onchain-qualification.mjs:43",
+   "network/onchain-qualification.mjs:55"
+  ],
+  "qualify": [
+   "network/onchain-qualification.mjs:59",
+   "scripts/network/qualify-provider.mjs:37",
+   "scripts/network/qualify-provider.mjs:38"
+  ],
+  "rateFor": [
+   "relay/api-relay.js:2085",
+   "relay/api-relay.js:2658",
+   "scripts/availability/service.mjs:155"
+  ],
+  "refund": [
+   "availability/chain-adapter.mjs:112",
+   "cli/enclave.mjs:1768",
+   "cli/enclave.mjs:1830",
+   "relay/mcp.js:323",
+   "relay/vaultsvc.js:234"
+  ],
+  "register": [
+   "scripts/network/paid-fork-e2e.mjs:63",
+   "scripts/network/provider-register.mjs:27",
+   "windows/node/sponsor.mjs:53"
+  ],
+  "registry": [
+   "cli/host-independent-lifecycle.mjs:495",
+   "network/host-admission-runtime.mjs:91",
+   "network/host-owner-nomination.mjs:156",
+   "network/host-owner-nomination.mjs:167",
+   "scripts/network/prepare-host-policy.mjs:26",
+   "windows/node/host-ownership.mjs:76"
+  ],
+  "registrySchema": [
+   "cli/independent.mjs:241",
+   "network/host-capacity-http.mjs:71",
+   "relay/api-relay.js:562",
+   "relay/dns-challenge-shield.mjs:106",
+   "relay/fleet.mjs:152",
+   "scripts/deploy-deployments.mjs:367",
+   "scripts/deploy-proof-of-time.mjs:159",
+   "scripts/enclave-discover.mjs:106",
+   "supervisor.js:556"
+  ],
+  "release": [
+   "supervisor.js:10336"
+  ],
+  "removeOwner": [
+   "site/js/core/passkey-account.js:330"
+  ],
+  "reserve": [
+   "network/lease-gas-owner.mjs:158"
+  ],
+  "reserveOf": [
+   "client/lease-executor-client.mjs:265",
+   "client/lease-executor-client.mjs:613",
+   "client/lease-executor-client.mjs:664"
+  ],
+  "retire": [
+   "scripts/ledger-cutover-rehearsal.mjs:84"
+  ],
+  "retired": [
+   "scripts/ledger-cutover-rehearsal.mjs:107"
+  ],
+  "sealImports": [
+   "scripts/migrate-contract.mjs:217",
+   "scripts/migrate-ledger-delegates.mjs:237"
+  ],
+  "seqOf": [
+   "relay/sessions.mjs:761",
+   "sdk/sessions/src/client.ts:274"
+  ],
+  "sequenceOf": [
+   "scripts/network/service-index.mjs:102"
+  ],
+  "sessionOf": [
+   "relay/sessions.mjs:489",
+   "sdk/sessions/src/client.ts:140",
+   "windows/node/session-api-auth.mjs:284"
+  ],
+  "set": [
+   "e2e/setup-chain.mjs:104",
+   "scripts/deploy-secret-vault-v2.mjs:110",
+   "scripts/deploy-secret-vault.mjs:74"
+  ],
+  "setActive": [
+   "availability/chain-adapter.mjs:108",
+   "cli/enclave.mjs:1534",
+   "cli/enclave.mjs:1865",
+   "relay/mcp.js:337",
+   "relay/vaultsvc.js:214"
+  ],
+  "setAppRef": [
+   "cli/enclave.mjs:2057",
+   "cli/enclave.mjs:2064",
+   "relay/mcp.js:341",
+   "relay/mcp.js:354",
+   "relay/vaultsvc.js:210"
+  ],
+  "setClaimBond": [
+   "scripts/migrate-ledger-delegates.mjs:193"
+  ],
+  "setConfig": [
+   "cli/enclave.mjs:3372",
+   "cli/enclave.mjs:3611",
+   "isolation/restore/owner-payloads.mjs:275",
+   "isolation/restore/owner-payloads.mjs:413",
+   "relay/mcp.js:361",
+   "relay/vaultsvc.js:219"
+  ],
+  "setDelegate": [
+   "cli/enclave.mjs:4363",
+   "mcp/independent-tools.mjs:591",
+   "relay/mcp.js:1981",
+   "scripts/ledger-cutover-rehearsal.mjs:167",
+   "scripts/ledger-cutover-rehearsal.mjs:173",
+   "sdk/sessions/src/delegate.ts:64"
+  ],
+  "setFeeRouter": [
+   "scripts/migrate-ledger-delegates.mjs:216"
+  ],
+  "setHost": [
+   "network/onchain-qualification.mjs:70"
+  ],
+  "setMany": [
+   "network/platform-host-policy.mjs:102",
+   "scripts/deploy-address-book.mjs:218",
+   "scripts/migrate-ledger-delegates.mjs:252",
+   "scripts/update-address-book.mjs:202"
+  ],
+  "setMaxRate": [
+   "cli/enclave.mjs:1713",
+   "relay/mcp.js:296",
+   "relay/vaultsvc.js:224"
+  ],
+  "setOwner": [
+   "scripts/migrate-ledger-delegates.mjs:240"
+  ],
+  "setPayoutWallet": [
+   "windows/node/host-onchain.mjs:112"
+  ],
+  "setProofWindow": [
+   "scripts/migrate-ledger-delegates.mjs:204"
+  ],
+  "setProver": [
+   "scripts/deploy-proof-of-time.mjs:219",
+   "scripts/deploy-proof-of-time.mjs:230",
+   "scripts/migrate-ledger-delegates.mjs:206"
+  ],
+  "setShares": [
+   "cli/enclave.mjs:2058",
+   "cli/enclave.mjs:2061",
+   "relay/mcp.js:345",
+   "relay/mcp.js:355",
+   "relay/vaultsvc.js:238"
+  ],
+  "settle": [
+   "network/usdc-bandwidth.mjs:93"
+  ],
+  "settleTuna": [
+   "network/provider-settlement.mjs:50"
+  ],
+  "setup": [
+   "site/js/core/passkey-account.js:132"
+  ],
+  "statusOf": [
+   "client/lease-executor-client.mjs:133"
+  ],
+  "stopJob": [
+   "availability/fee-chain-adapter.mjs:55"
+  ],
+  "swapOwner": [
+   "site/js/core/passkey-account.js:331"
+  ],
+  "terminateBySession": [
+   "mcp/independent-tools.mjs:576",
+   "relay/sessions.mjs:871",
+   "sdk/sessions/src/client.ts:232"
+  ],
+  "topUpWithAuthorization": [
+   "sdk/sessions/src/client.ts:550"
+  ],
+  "transfer": [
+   "relay/vaultsvc.js:300",
+   "relay/vaultsvc.js:379",
+   "scripts/ledger-cutover-rehearsal.mjs:156",
+   "scripts/ledger-cutover-rehearsal.mjs:94",
+   "scripts/sessions-fork-rehearsal.mjs:74"
+  ],
+  "transferDeployment": [
+   "cli/enclave.mjs:1812",
+   "cli/enclave.mjs:1839",
+   "relay/mcp.js:333"
+  ],
+  "transferOwnership": [
+   "scripts/deploy-host-paymaster.mjs:124",
+   "scripts/migrate-contract.mjs:169",
+   "scripts/migrate-contract.mjs:224",
+   "scripts/migrate-ledger-delegates.mjs:243"
+  ],
+  "treasury": [
+   "relay/vaultsvc.js:345"
+  ],
+  "unprovenSec": [
+   "windows/node/chain.mjs:762"
+  ],
+  "update": [
+   "cli/custody-independent.mjs:166",
+   "cli/custody-v2.mjs:57",
+   "cli/custody-v2.mjs:80",
+   "cli/custody.mjs:106",
+   "cli/custody.mjs:80",
+   "custody/v2/rewrap.mjs:411",
+   "mcp/independent-secrets.mjs:87",
+   "site/js/core/custody.js:72"
+  ],
+  "updateBySig": [
+   "cli/custody-independent.mjs:164"
+  ],
+  "usdc": [
+   "scripts/sessions-prod-smoke.mjs:213"
+  ],
+  "vaultFor": [
+   "cli/independent.mjs:363",
+   "relay/sessions.mjs:790",
+   "relay/sessions.mjs:886",
+   "relay/vaultsvc.js:117",
+   "sdk/sessions/src/client.ts:151"
+  ],
+  "version": [
+   "relay/billing.js:1052",
+   "sdk/sessions/src/client.ts:358",
+   "supervisor.js:6625"
+  ],
+  "versionConfigCid": [
+   "relay/measurement-predict.mjs:761",
+   "supervisor.js:6905",
+   "windows/node/chain.mjs:385"
+  ],
+  "versionFee": [
+   "supervisor.js:6890"
+  ],
+  "withdraw": [
+   "scripts/network/service-index.mjs:156",
+   "scripts/network/service-index.mjs:184"
+  ],
+  "withdrawFor": [
+   "scripts/network/service-index.mjs:179"
+  ]
+ },
+ "rawRpc": {
+  "estimateFeesPerGas": [
+   "cli/independent-signer.mjs:265",
+   "cli/independent.mjs:422",
+   "scripts/network/rehearse-bandwidth-rollout.mjs:25",
+   "windows/node/chain.mjs:241"
+  ],
+  "estimateGas": [
+   "cli/independent-signer.mjs:262",
+   "cli/independent.mjs:419",
+   "relay/sessions.mjs:165",
+   "scripts/migrate-contract.mjs:192",
+   "scripts/migrate-ledger-delegates.mjs:110",
+   "scripts/network/rehearse-bandwidth-rollout.mjs:31",
+   "scripts/network/rehearse-bandwidth-rollout.mjs:36",
+   "site/js/core/account-transport.js:159",
+   "site/js/core/quorum.js:173"
+  ],
+  "eth_blockNumber": [
+   "client/lease-executor-authority.mjs:101",
+   "network/host-owner-nomination.mjs:135",
+   "network/lease-executor-authority.mjs:101",
+   "relay/lease-generation.mjs:208",
+   "scripts/test-fixtures/snapshot-aa-code.mjs:19",
+   "scripts/test-fixtures/snapshot-aa-code.mjs:2",
+   "scripts/test-fixtures/snapshot-safe-code.mjs:26",
+   "scripts/test-fixtures/snapshot-safe-code.mjs:3",
+   "site/components/admin-console/metrics.js:147",
+   "site/components/admin-console/vaultmig.js:82",
+   "site/js/core/quorum.js:68"
+  ],
+  "eth_call": [
+   "cli/enclave.mjs:2884",
+   "cli/enclave.mjs:5892",
+   "client/lease-executor-authority.mjs:120",
+   "client/lease-executor-client.mjs:183",
+   "client/lease-executor-client.mjs:184",
+   "client/lease-executor-client.mjs:322",
+   "custody/v2/chain.mjs:92",
+   "custody/v2/chain.mjs:95",
+   "isolation/restore/owner-payloads.mjs:9",
+   "network/host-owner-nomination.mjs:146",
+   "network/host-policy-runtime.mjs:41",
+   "network/lease-executor-authority.mjs:120",
+   "network/lease-reader.mjs:209",
+   "network/lease-reader.mjs:92",
+   "relay/api-relay.js:783",
+   "relay/lease-generation.mjs:221",
+   "relay/lease-generation.mjs:222",
+   "scripts/catalog-pin-sweep.mjs:24",
+   "scripts/catalog-pin-sweep.mjs:66",
+   "scripts/catalog-status.mjs:68",
+   "scripts/independent-authorities.mjs:86",
+   "scripts/test-fixtures/snapshot-aa-code.mjs:2",
+   "scripts/test-fixtures/snapshot-aa-code.mjs:29",
+   "scripts/test-fixtures/snapshot-safe-code.mjs:3",
+   "scripts/test-fixtures/snapshot-safe-code.mjs:41",
+   "scripts/test-fixtures/snapshot-safe-code.mjs:45",
+   "site/components/admin-console/admin-console.js:148",
+   "site/components/admin-console/admin-console.js:36",
+   "site/components/admin-console/admin-console.js:65",
+   "site/components/admin-console/escrow.js:108",
+   "site/components/admin-console/escrow.js:111",
+   "site/components/admin-console/escrow.js:117",
+   "site/components/admin-console/escrow.js:42",
+   "site/components/admin-console/metrics.js:33",
+   "site/components/admin-console/metrics.js:37",
+   "site/components/admin-console/migrate.js:89",
+   "site/components/admin-console/provermig.js:168",
+   "site/components/admin-console/provermig.js:37",
+   "site/components/admin-console/vaultmig.js:44",
+   "site/components/fleet-list/fleet-list.js:374",
+   "site/js/core/addressbook.js:24",
+   "site/js/core/addressbook.js:9",
+   "site/js/core/catalog.js:7",
+   "site/js/core/chain.js:160",
+   "site/js/core/chain.js:190",
+   "site/js/core/chain.js:236",
+   "site/js/core/chain.js:269",
+   "site/js/core/chain.js:296",
+   "site/js/core/chain.js:308",
+   "site/js/core/chain.js:311",
+   "site/js/core/chain.js:591",
+   "site/js/core/chain.js:66",
+   "site/js/core/enclave-network.js:260",
+   "site/js/core/owner-signature.js:16",
+   "site/js/core/pay.js:47",
+   "site/js/core/pay.js:50",
+   "site/js/core/pay.js:55",
+   "site/js/core/pay.js:58",
+   "site/js/core/quorum.js:102",
+   "site/js/core/quorum.js:109",
+   "site/js/core/quorum.js:8",
+   "site/js/core/reviews.js:6",
+   "site/js/core/wallet.js:323",
+   "site/js/core/wallet.js:326",
+   "site/js/core/wallet.js:800",
+   "site/js/core/wallet.js:804",
+   "site/js/pages/apps.js:176",
+   "supervisor.js:11075",
+   "supervisor.js:685",
+   "supervisor.js:735",
+   "supervisor.js:9661",
+   "windows/node/chain.mjs:184",
+   "windows/node/chain.mjs:58"
+  ],
+  "eth_chainId": [
+   "cli/independent-signer.mjs:396",
+   "client/lease-executor-authority.mjs:99",
+   "network/host-owner-nomination.mjs:134",
+   "network/lease-executor-authority.mjs:99",
+   "relay/lease-generation.mjs:207",
+   "scripts/test-fixtures/snapshot-aa-code.mjs:21",
+   "scripts/test-fixtures/snapshot-safe-code.mjs:24",
+   "scripts/test-fixtures/snapshot-safe-code.mjs:3",
+   "site/credit/credit.js:182",
+   "site/js/core/quorum.js:53",
+   "site/js/core/quorum.js:58",
+   "site/js/core/wallet.js:374",
+   "site/js/core/wallet.js:418",
+   "site/js/core/wallet.js:566",
+   "site/js/core/wallet.js:743",
+   "site/js/pages/apps.js:1134"
+  ],
+  "eth_estimateGas": [
+   "site/components/admin-console/admin-console.js:1854",
+   "site/components/admin-console/migrate.js:292",
+   "site/components/admin-console/migrate.js:298",
+   "site/components/admin-console/migrate.js:573",
+   "site/components/admin-console/migrate.js:597",
+   "site/components/admin-console/migrate.js:615",
+   "site/components/admin-console/migrator.js:154",
+   "site/js/core/quorum.js:176",
+   "site/js/core/wallet.js:754",
+   "site/js/core/wallet.js:772",
+   "site/js/core/wallet.js:776",
+   "site/js/core/wallet.js:789",
+   "site/js/core/wallet.js:790"
+  ],
+  "eth_getBalance": [
+   "network/lease-relay-migration-check.mjs:86",
+   "network/lease-relay-service.mjs:54",
+   "site/components/admin-console/migrator.js:125",
+   "site/js/core/quorum.js:163",
+   "site/js/core/wallet.js:332",
+   "site/js/core/wallet.js:335"
+  ],
+  "eth_getBlockByNumber": [
+   "client/lease-executor-authority.mjs:109",
+   "network/host-owner-nomination.mjs:140",
+   "network/lease-executor-authority.mjs:109",
+   "relay/lease-generation.mjs:219",
+   "relay/lease-generation.mjs:223",
+   "relay/lease-generation.mjs:301",
+   "site/components/admin-console/metrics.js:148",
+   "site/components/admin-console/metrics.js:151",
+   "site/components/admin-console/metrics.js:20",
+   "site/components/admin-console/migrator.js:132",
+   "site/js/core/chain.js:323",
+   "site/js/core/quorum.js:80"
+  ],
+  "eth_getCode": [
+   "client/lease-executor-authority.mjs:126",
+   "client/lease-executor-authority.mjs:149",
+   "client/lease-executor-client.mjs:181",
+   "client/lease-executor-client.mjs:182",
+   "custody/v2/chain.mjs:141",
+   "custody/v2/chain.mjs:151",
+   "custody/v2/chain.mjs:206",
+   "custody/v2/chain.mjs:209",
+   "custody/v2/chain.mjs:233",
+   "custody/v2/chain.mjs:264",
+   "network/host-owner-nomination.mjs:155",
+   "network/host-policy-runtime.mjs:42",
+   "network/lease-executor-authority.mjs:126",
+   "network/lease-executor-authority.mjs:149",
+   "scripts/catalog-status.mjs:61",
+   "scripts/independent-authorities.mjs:85",
+   "scripts/test-fixtures/snapshot-aa-code.mjs:2",
+   "scripts/test-fixtures/snapshot-aa-code.mjs:33",
+   "scripts/test-fixtures/snapshot-safe-code.mjs:3",
+   "scripts/test-fixtures/snapshot-safe-code.mjs:35",
+   "site/components/admin-console/admin-console.js:1061",
+   "site/components/admin-console/provermig.js:55",
+   "site/components/admin-console/vaultmig.js:147",
+   "site/components/admin-console/vaultmig.js:61",
+   "site/components/admin-console/vaultmig.js:78",
+   "site/components/admin-console/vaultmig.js:87",
+   "site/js/core/fund.js:68",
+   "site/js/core/fund.js:71",
+   "site/js/core/quorum.js:125"
+  ],
+  "eth_getLogs": [
+   "mcp/independent.mjs:216",
+   "mcp/independent.mjs:220",
+   "relay/lease-generation.mjs:110",
+   "relay/lease-generation.mjs:111",
+   "relay/lease-generation.mjs:161",
+   "relay/lease-generation.mjs:244",
+   "scripts/network/browser-profile.mjs:117",
+   "scripts/network/browser-profile.mjs:118",
+   "site/components/admin-console/metrics.js:14",
+   "site/components/admin-console/metrics.js:157",
+   "site/components/admin-console/metrics.js:175",
+   "site/components/admin-console/metrics.js:39",
+   "site/components/admin-console/vaultmig.js:100",
+   "site/components/admin-console/vaultmig.js:79",
+   "site/js/core/independent-list.js:33",
+   "site/js/core/platform-addresses.js:64",
+   "site/js/core/quorum.js:142"
+  ],
+  "eth_getStorageAt": [
+   "site/js/core/quorum.js:192"
+  ],
+  "eth_getTransactionCount": [
+   "client/lease-executor-authority.mjs:151",
+   "client/lease-executor-client.mjs:645",
+   "network/host-owner-nomination.mjs:195",
+   "network/lease-executor-authority.mjs:151",
+   "network/lease-relay-migration-check.mjs:84",
+   "site/components/admin-console/admin-console.js:115",
+   "site/components/admin-console/admin-console.js:125",
+   "site/components/admin-console/migrator.js:126"
+  ],
+  "eth_getTransactionReceipt": [
+   "network/host-owner-nomination.mjs:190",
+   "network/lease-relay-migration-check.mjs:93",
+   "site/components/admin-console/migrator.js:167",
+   "site/js/core/chain.js:619",
+   "site/js/core/credit-vault-independent.js:528",
+   "supervisor.js:9795"
+  ],
+  "eth_sendRawTransaction": [
+   "cli/independent-signer.mjs:573",
+   "cli/independent.mjs:433",
+   "client/lease-executor-client.mjs:284",
+   "site/components/admin-console/admin-console.js:108",
+   "site/components/admin-console/migrate.js:613",
+   "site/components/admin-console/migrator.js:119"
+  ],
+  "getBalance": [
+   "cli/enclave.mjs:4976",
+   "cli/enclave.mjs:5050",
+   "cli/enclave.mjs:639",
+   "cli/independent.mjs:156",
+   "mcp/independent.mjs:212",
+   "network/lease-gas-owner.mjs:502",
+   "relay/provisioner.js:184",
+   "relay/sessions.mjs:673",
+   "relay/vaultsvc.js:358",
+   "scripts/deploy-address-book.mjs:165",
+   "scripts/deploy-app-catalog.mjs:158",
+   "scripts/deploy-deployments.mjs:354",
+   "scripts/deploy-enclave-pay.mjs:186",
+   "scripts/deploy-host-paymaster.mjs:83",
+   "scripts/deploy-key-attestations.mjs:84",
+   "scripts/deploy-payment-router.mjs:170",
+   "scripts/deploy-proof-of-time.mjs:182",
+   "scripts/deploy-registry.mjs:148",
+   "scripts/deploy-session-vault.mjs:93",
+   "scripts/migrate-contract.mjs:130",
+   "scripts/migrate-ledger-delegates.mjs:167",
+   "scripts/sessions-prod-smoke.mjs:155",
+   "windows/node/chain.mjs:163",
+   "windows/node/host-onchain.mjs:100",
+   "windows/node/host-onchain.mjs:106",
+   "windows/node/host-onchain.mjs:109"
+  ],
+  "getBlock": [
+   "availability/chain-observation.mjs:14",
+   "availability/chain-observation.mjs:18",
+   "availability/chain-observation.mjs:80",
+   "cli/independent-signer.mjs:279",
+   "cli/independent-signer.mjs:296",
+   "cli/independent.mjs:126",
+   "cli/independent.mjs:130",
+   "cli/independent.mjs:455",
+   "cli/independent.mjs:483",
+   "client/lease-executor-client.mjs:154",
+   "client/lease-executor-client.mjs:238",
+   "client/lease-executor-client.mjs:849",
+   "custody/chain.mjs:70",
+   "custody/v2/quorum.mjs:117",
+   "custody/v2/quorum.mjs:119",
+   "mcp/independent.mjs:155",
+   "mcp/independent.mjs:178",
+   "network/host-capacity-http.mjs:67",
+   "network/lease-gas-owner.mjs:467",
+   "network/lease-gas-owner.mjs:485",
+   "network/lease-reader.mjs:203",
+   "network/lease-reader.mjs:210",
+   "network/provider-settlement.mjs:67",
+   "network/service-index.mjs:278",
+   "network/service-index.mjs:285",
+   "network/usdc-bandwidth.mjs:131",
+   "relay/custody-state.mjs:106",
+   "relay/sessions.mjs:130",
+   "scripts/availability/test-chain.mjs:35",
+   "scripts/availability/test-fee-chain.mjs:53",
+   "scripts/make-deployment-record.mjs:101",
+   "scripts/make-deployment-record.mjs:87",
+   "scripts/network/audit-rollout.mjs:19",
+   "scripts/network/audit-rollout.mjs:56",
+   "scripts/network/connectivity.mjs:31",
+   "scripts/network/rehearse-bandwidth-rollout.mjs:18",
+   "scripts/sessions-prod-smoke.mjs:324",
+   "sdk/sessions/src/client.ts:185",
+   "sdk/sessions/src/client.ts:490",
+   "supervisor.js:12335",
+   "supervisor.js:12472",
+   "windows/node/chain.mjs:768",
+   "windows/node/chain.mjs:770",
+   "windows/node/chain.mjs:790",
+   "windows/node/chain.mjs:792",
+   "windows/node/host-identity.mjs:233",
+   "windows/node/host-identity.mjs:238",
+   "windows/node/sponsor.mjs:57"
+  ],
+  "getBlockNumber": [
+   ".led3.mjs:12",
+   "cli/enclave.mjs:485",
+   "cli/independent.mjs:107",
+   "custody/chain.mjs:95",
+   "custody/v2/quorum.mjs:105",
+   "isolation/m4/evidence/pool-rollout-2026-09-25/scripts/chain.mjs:12",
+   "isolation/m4/evidence/pool-rollout-2026-09-25/scripts/noncanary.mjs:15",
+   "isolation/restore/owner-payloads.mjs:102",
+   "metal/guest/platform-api-verify.mjs:22",
+   "network/lease-reader.mjs:264",
+   "network/service-index.mjs:340",
+   "relay/custody-state.mjs:96",
+   "relay/indexer.js:61",
+   "relay/provisioner.js:266",
+   "relay/sessions.mjs:630",
+   "scripts/ledger-cutover-rehearsal.mjs:132",
+   "scripts/ledger-cutover-rehearsal.mjs:61",
+   "scripts/ledger-cutover-rehearsal.mjs:62",
+   "scripts/make-deployment-record.mjs:101",
+   "scripts/make-deployment-record.mjs:83",
+   "scripts/network/audit-rollout.mjs:16",
+   "scripts/network/connectivity.mjs:29",
+   "scripts/sessions-fork-rehearsal.mjs:27",
+   "scripts/sessions-fork-rehearsal.mjs:28",
+   "scripts/sessions-fork-rehearsal.mjs:58",
+   "scripts/sessions-prod-smoke.mjs:302",
+   "scripts/sessions-prod-smoke.mjs:318",
+   "supervisor.js:10181",
+   "supervisor.js:10260",
+   "supervisor.js:10370",
+   "supervisor.js:11210",
+   "supervisor.js:7628",
+   "supervisor.js:7655",
+   "windows/node/chain.mjs:357",
+   "windows/node/chain.mjs:359",
+   "windows/node/host-identity.mjs:270"
+  ],
+  "getChainId": [
+   "availability/chain-adapter.mjs:47",
+   "availability/fee-chain-adapter.mjs:21",
+   "cli/independent.mjs:107",
+   "custody/v2/quorum.mjs:104",
+   "network/lease-reader.mjs:264",
+   "network/service-index.mjs:277",
+   "network/service-index.mjs:340",
+   "scripts/availability/test-chain.mjs:23",
+   "scripts/availability/test-fee-chain.mjs:38",
+   "scripts/deploy-key-attestations.mjs:78",
+   "scripts/deploy-secret-vault-v2.mjs:83",
+   "scripts/deploy-secret-vault.mjs:56",
+   "scripts/deploy-session-vault.mjs:87",
+   "scripts/make-deployment-record.mjs:83",
+   "scripts/network/audit-rollout.mjs:18",
+   "scripts/network/connectivity.mjs:29",
+   "scripts/network/qualify-provider.mjs:35",
+   "scripts/network/rehearse-bandwidth-rollout.mjs:44",
+   "scripts/network/rehearse-bandwidth-rollout.mjs:45",
+   "scripts/network/service-index.mjs:174",
+   "scripts/sessions-prod-smoke.mjs:142",
+   "sdk/sessions/src/client.ts:184",
+   "sdk/sessions/src/client.ts:407",
+   "sdk/sessions/src/client.ts:489",
+   "windows/node/host-identity.mjs:270"
+  ],
+  "getCode": [
+   "availability/chain-observation.mjs:25",
+   "cli/enclave.mjs:4318",
+   "cli/independent-login.mjs:140",
+   "cli/independent.mjs:181",
+   "cli/independent.mjs:364",
+   "cli/independent.mjs:488",
+   "client/lease-executor-client.mjs:241",
+   "client/lease-executor-client.mjs:604",
+   "client/lease-executor-client.mjs:643",
+   "client/lease-executor-client.mjs:671",
+   "client/lease-executor-client.mjs:847",
+   "mcp/independent-tools.mjs:478",
+   "mcp/independent-tools.mjs:587",
+   "mcp/independent.mjs:207",
+   "network/authority-profile.mjs:219",
+   "network/host-capacity-http.mjs:68",
+   "network/host-policy-runtime.mjs:47",
+   "network/lease-gas-owner.mjs:157",
+   "network/lease-gas-owner.mjs:186",
+   "network/lease-gas-owner.mjs:198",
+   "network/lease-gas-owner.mjs:206",
+   "network/lease-gas-owner.mjs:501",
+   "network/management-auth.mjs:71",
+   "network/owner-signature.mjs:13",
+   "network/service-index.mjs:406",
+   "network/session-factories.mjs:39",
+   "relay/contract-owner-signature.mjs:8",
+   "relay/dns-challenge-shield.mjs:102",
+   "relay/sessions.mjs:1130",
+   "relay/sessions.mjs:1145",
+   "relay/sessions.mjs:451",
+   "relay/sessions.mjs:890",
+   "relay/vaultsvc.js:134",
+   "scripts/deploy-address-book.mjs:189",
+   "scripts/deploy-app-catalog.mjs:180",
+   "scripts/deploy-deployments.mjs:330",
+   "scripts/deploy-deployments.mjs:400",
+   "scripts/deploy-enclave-pay.mjs:209",
+   "scripts/deploy-host-paymaster.mjs:115",
+   "scripts/deploy-host-paymaster.mjs:74",
+   "scripts/deploy-key-attestations.mjs:100",
+   "scripts/deploy-payment-router.mjs:191",
+   "scripts/deploy-registry.mjs:170",
+   "scripts/deploy-secret-vault-v2.mjs:84",
+   "scripts/deploy-secret-vault.mjs:57",
+   "scripts/deploy-session-vault.mjs:128",
+   "scripts/deploy-session-vault.mjs:91",
+   "scripts/lib/governance-review.mjs:52",
+   "scripts/lib/governance-review.mjs:67",
+   "scripts/make-deployment-record.mjs:91",
+   "scripts/migrate-ledger-delegates.mjs:181",
+   "scripts/network/browser-profile.mjs:133",
+   "scripts/network/browser-profile.mjs:199",
+   "scripts/network/capture-contract-pins.mjs:19",
+   "scripts/network/capture-network-authorities.mjs:22",
+   "scripts/network/prepare-host-policy.mjs:24",
+   "scripts/network/service-index.mjs:100",
+   "scripts/network/service-index.mjs:115",
+   "scripts/network/verify-deployed-sources.mjs:236",
+   "scripts/sessions-prod-smoke.mjs:153",
+   "scripts/sessions-prod-smoke.mjs:172",
+   "scripts/sessions-prod-smoke.mjs:187",
+   "scripts/update-address-book.mjs:170",
+   "sdk/sessions/src/delegate.ts:41",
+   "site/js/lib/qr.js:1694",
+   "site/js/lib/qr.js:1695",
+   "site/js/lib/qr.js:1700",
+   "windows/node/session-api-auth.mjs:302"
+  ],
+  "getLogs": [
+   "availability/chain-observation.mjs:36",
+   "cli/independent-login.mjs:210",
+   "relay/indexer.js:101",
+   "relay/indexer.js:84",
+   "relay/provisioner.js:268",
+   "relay/sessions.mjs:635",
+   "relay/sessions.mjs:639",
+   "supervisor.js:11173",
+   "supervisor.js:7629",
+   "supervisor.js:7673",
+   "windows/node/chain.mjs:363"
+  ],
+  "getStorageAt": [
+   "cli/independent.mjs:489",
+   "network/management-auth.mjs:73",
+   "relay/sessions.mjs:457",
+   "scripts/ledger-cutover-rehearsal.mjs:168",
+   "scripts/network/verify-deployed-sources.mjs:243",
+   "sdk/sessions/src/delegate.ts:58",
+   "windows/node/session-api-auth.mjs:308"
+  ],
+  "getTransactionCount": [
+   "cli/independent-signer.mjs:260",
+   "cli/independent-signer.mjs:280",
+   "cli/independent-signer.mjs:289",
+   "cli/independent.mjs:415",
+   "client/lease-executor-client.mjs:251",
+   "client/lease-executor-client.mjs:308",
+   "client/lease-executor-client.mjs:644",
+   "client/lease-executor-client.mjs:672",
+   "client/lease-executor-client.mjs:853",
+   "network/lease-relay-migration-check.mjs:81",
+   "network/usdc-bandwidth.mjs:108",
+   "relay/sessions.mjs:159",
+   "scripts/migrate-contract.mjs:137",
+   "scripts/migrate-ledger-delegates.mjs:107",
+   "scripts/sessions-prod-smoke.mjs:301",
+   "scripts/sessions-prod-smoke.mjs:313",
+   "scripts/sessions-prod-smoke.mjs:319",
+   "supervisor.js:10384",
+   "supervisor.js:10387",
+   "supervisor.js:10450",
+   "supervisor.js:10452",
+   "windows/node/chain.mjs:209",
+   "windows/node/sponsor.mjs:82"
+  ],
+  "getTransactionReceipt": [
+   "cli/enclave.mjs:3868",
+   "cli/independent-signer.mjs:278",
+   "cli/independent-signer.mjs:299",
+   "cli/independent.mjs:453",
+   "client/lease-executor-client.mjs:161",
+   "isolation/restore/owner-payloads.mjs:442",
+   "network/usdc-bandwidth.mjs:101",
+   "relay/billing.js:324",
+   "relay/provisioner.js:163",
+   "relay/sessions.mjs:206",
+   "scripts/deploy-deployments.mjs:324",
+   "supervisor.js:10368",
+   "supervisor.js:9806"
+  ],
+  "multicall": [
+   "relay/mcp.js:358",
+   "scripts/network/audit-rollout.mjs:20",
+   "scripts/network/audit-rollout.mjs:46",
+   "scripts/network/rehearse-bandwidth-rollout.mjs:55",
+   "site/components/admin-console/migrate.js:568",
+   "supervisor.js:11152"
+  ],
+  "sendRawTransaction": [
+   "cli/independent-signer.mjs:573",
+   "cli/independent.mjs:433",
+   "client/lease-executor-client.mjs:284",
+   "network/usdc-bandwidth.mjs:121",
+   "network/usdc-bandwidth.mjs:139",
+   "site/components/admin-console/admin-console.js:108",
+   "site/components/admin-console/migrate.js:613",
+   "site/components/admin-console/migrator.js:119",
+   "supervisor.js:10343",
+   "supervisor.js:9840"
+  ],
+  "waitForTransactionReceipt": [
+   "availability/chain-adapter.mjs:36",
+   "availability/host-acceptor.mjs:36",
+   "availability/transaction-journal.mjs:19",
+   "cli/enclave.mjs:4973",
+   "cli/enclave.mjs:668",
+   "custody/v2/host.mjs:80",
+   "e2e/setup-chain.mjs:105",
+   "e2e/setup-chain.mjs:136",
+   "e2e/setup-chain.mjs:153",
+   "e2e/setup-chain.mjs:42",
+   "e2e/setup-chain.mjs:76",
+   "e2e/setup-chain.mjs:83",
+   "e2e/setup-chain.mjs:89",
+   "network/onchain-qualification.mjs:61",
+   "network/onchain-qualification.mjs:71",
+   "network/usdc-bandwidth.mjs:140",
+   "relay/host-sponsor.mjs:190",
+   "relay/provisioner.js:217",
+   "relay/provisioner.js:237",
+   "relay/provisioner.js:243",
+   "relay/sessions.mjs:186",
+   "relay/vaultsvc.js:281",
+   "relay/vaultsvc.js:302",
+   "relay/vaultsvc.js:380",
+   "relay/vaultsvc.js:405",
+   "relay/vaultsvc.js:478",
+   "scripts/availability/test-chain.mjs:19",
+   "scripts/availability/test-chain.mjs:20",
+   "scripts/availability/test-fee-chain.mjs:27",
+   "scripts/availability/test-fee-chain.mjs:33",
+   "scripts/deploy-address-book.mjs:210",
+   "scripts/deploy-address-book.mjs:226",
+   "scripts/deploy-app-catalog.mjs:200",
+   "scripts/deploy-deployments.mjs:422",
+   "scripts/deploy-deployments.mjs:430",
+   "scripts/deploy-enclave-pay.mjs:230",
+   "scripts/deploy-host-paymaster.mjs:95",
+   "scripts/deploy-key-attestations.mjs:95",
+   "scripts/deploy-payment-router.mjs:214",
+   "scripts/deploy-proof-of-time.mjs:208",
+   "scripts/deploy-proof-of-time.mjs:221",
+   "scripts/deploy-registry.mjs:190",
+   "scripts/deploy-secret-vault-v2.mjs:92",
+   "scripts/deploy-secret-vault.mjs:60",
+   "scripts/deploy-session-vault.mjs:105",
+   "scripts/ledger-cutover-rehearsal.mjs:124",
+   "scripts/ledger-cutover-rehearsal.mjs:146",
+   "scripts/ledger-cutover-rehearsal.mjs:155",
+   "scripts/ledger-cutover-rehearsal.mjs:167",
+   "scripts/ledger-cutover-rehearsal.mjs:173",
+   "scripts/ledger-cutover-rehearsal.mjs:55",
+   "scripts/ledger-cutover-rehearsal.mjs:94",
+   "scripts/migrate-contract.mjs:144",
+   "scripts/migrate-contract.mjs:163",
+   "scripts/migrate-contract.mjs:198",
+   "scripts/migrate-contract.mjs:218",
+   "scripts/migrate-contract.mjs:226",
+   "scripts/migrate-ledger-delegates.mjs:113",
+   "scripts/network/connectivity.mjs:66",
+   "scripts/network/paid-fork-e2e.mjs:31",
+   "scripts/network/paid-fork-e2e.mjs:53",
+   "scripts/network/paid-fork-e2e.mjs:57",
+   "scripts/network/provider-register.mjs:30",
+   "scripts/network/qualify-provider.mjs:39",
+   "scripts/network/rehearse-bandwidth-rollout.mjs:30",
+   "scripts/network/service-index.mjs:188",
+   "scripts/sessions-fork-rehearsal.mjs:46",
+   "scripts/sessions-fork-rehearsal.mjs:74",
+   "scripts/sessions-prod-smoke.mjs:183",
+   "scripts/sessions-prod-smoke.mjs:380",
+   "scripts/sessions-prod-smoke.mjs:430",
+   "scripts/set-prices.mjs:158",
+   "scripts/update-address-book.mjs:207",
+   "supervisor.js:9796",
+   "windows/node/chain.mjs:225",
+   "windows/node/host-onchain.mjs:108",
+   "windows/node/host-onchain.mjs:92"
+  ]
+ }
+}

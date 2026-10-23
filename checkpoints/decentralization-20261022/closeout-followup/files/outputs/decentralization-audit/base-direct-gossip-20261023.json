@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-10-23T01:49:21.961063+00:00",
+  "source": "rpc-peer-audit/head-listener, local commit f3159ea",
+  "observedBlockCount": 52,
+  "firstBlock": 52965055,
+  "lastBlock": 52965106,
+  "consecutiveAndParentLinked": true,
+  "tier": "unsafe",
+  "finality": "none",
+  "peersMax": 6,
+  "identifiedPeers": 2,
+  "meshPeersMax": 1,
+  "elapsedMs": 120001,
+  "outputBytes": 2938036,
+  "limitation": "Root checked the recorded chain continuity; maintained native validation and 52 offline signature checks are recorded by worker. No independent L1 finality, fresh state witness availability or long-duration redundancy proof."
+}

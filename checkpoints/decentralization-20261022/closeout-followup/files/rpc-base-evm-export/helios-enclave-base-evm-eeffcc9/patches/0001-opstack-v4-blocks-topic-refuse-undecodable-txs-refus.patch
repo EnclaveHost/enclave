@@ -1,0 +1,188 @@
+From 0a02256c3fcd269c97d68e7158f4e208631d1859 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 17:41:13 -0700
+Subject: [PATCH 1/4] opstack: v4 blocks topic, refuse undecodable txs, refuse
+ local execution under unimplemented Base rules
+
+---
+ common/src/fork_schedule.rs             | 10 +++++++++
+ opstack/src/config.rs                   | 25 +++++++++++++++++++--
+ opstack/src/consensus.rs                | 29 ++++++++++++++++++++++++-
+ opstack/src/evm.rs                      |  7 ++++++
+ opstack/src/server/net/block_handler.rs | 16 +++++++++++++-
+ 5 files changed, 83 insertions(+), 4 deletions(-)
+
+diff --git a/common/src/fork_schedule.rs b/common/src/fork_schedule.rs
+index 56376030c3c468c40755398205b3c496b8913a68..18155c068e2e424a727311a03bd98c8da7e7e0bb 100644
+--- a/common/src/fork_schedule.rs
++++ b/common/src/fork_schedule.rs
+@@ -37,6 +37,15 @@ pub struct ForkSchedule {
+     pub holocene_timestamp: u64,
+     pub isthmus_timestamp: u64,
+     pub jovian_timestamp: u64,
++
++    /// Local EVM execution (eth_call, eth_estimateGas, eth_createAccessList) is refused for blocks at or after this
++    /// timestamp: the chain runs execution rules this build does not implement. u64::MAX = never.
++    #[serde(default = "never")]
++    pub execution_unsupported_from_timestamp: u64,
++}
++
++fn never() -> u64 {
++    u64::MAX
+ }
+ 
+ impl Default for ForkSchedule {
+@@ -76,6 +85,7 @@ impl Default for ForkSchedule {
+             holocene_timestamp: u64::MAX,
+             isthmus_timestamp: u64::MAX,
+             jovian_timestamp: u64::MAX,
++            execution_unsupported_from_timestamp: u64::MAX,
+         }
+     }
+ }
+diff --git a/opstack/src/config.rs b/opstack/src/config.rs
+index 74dad94dd0c0276dc48ccd25c49d125f3f09d431..e42202126ada31ed83ff6d99d7af276f8bb6bab9 100644
+--- a/opstack/src/config.rs
++++ b/opstack/src/config.rs
+@@ -107,7 +107,7 @@ impl From<Network> for NetworkConfig {
+                     unsafe_signer: address!("Af6E19BE0F9cE7f8afd49a1824851023A8249e8a"),
+                     system_config_contract: address!("73a79Fab69143498Ed3712e519A88a918e1f4072"),
+                     eth_network: EthNetwork::Mainnet,
+-                    forks: SuperchainForkSchedule::mainnet(),
++                    forks: SuperchainForkSchedule::base_mainnet(),
+                 },
+                 verify_unsafe_signer: false,
+             },
+@@ -122,7 +122,7 @@ impl From<Network> for NetworkConfig {
+                     unsafe_signer: address!("0xb830b99c95Ea32300039624Cb567d324D4b1D83C"),
+                     system_config_contract: address!("0xf272670eb55e895584501d564AfEB048bEd26194"),
+                     eth_network: EthNetwork::Sepolia,
+-                    forks: SuperchainForkSchedule::sepolia(),
++                    forks: SuperchainForkSchedule::base_sepolia(),
+                 },
+                 verify_unsafe_signer: false,
+             },
+@@ -234,6 +234,27 @@ impl SuperchainForkSchedule {
+         }
+     }
+ 
++    /// Base mainnet schedule (base/base 5476069f crates/common/chains/src/config.rs MAINNET). Base's Isthmus is
++    /// 1746806401, not the OP mainnet value. From Azul (1779991200) Base executes Osaka rules plus Base-only
++    /// precompiles (base/base crates/common/evm/src/spec.rs, precompiles/src/provider.rs), which op-revm's ISTHMUS
++    /// (Prague) spec does not implement, so local execution is refused from Azul on.
++    pub fn base_mainnet() -> ForkSchedule {
++        ForkSchedule {
++            isthmus_timestamp: 1746806401,
++            jovian_timestamp: 1764691201,
++            execution_unsupported_from_timestamp: 1779991200,
++            ..Self::mainnet()
++        }
++    }
++
++    /// Base Sepolia schedule (base/base 5476069f SEPOLIA): Azul at 1776708000.
++    pub fn base_sepolia() -> ForkSchedule {
++        ForkSchedule {
++            execution_unsupported_from_timestamp: 1776708000,
++            ..Self::sepolia()
++        }
++    }
++
+     /// Sepolia network upgrade schedule
+     /// https://docs.optimism.io/op-stack/protocol/network-upgrades
+     pub fn sepolia() -> ForkSchedule {
+diff --git a/opstack/src/consensus.rs b/opstack/src/consensus.rs
+index 687b2478c93d4cf2693bfba352a39b352ded3c82..05cecf34bfe6854c721a3fdc1aea0e409913f8a5 100644
+--- a/opstack/src/consensus.rs
++++ b/opstack/src/consensus.rs
+@@ -293,7 +293,8 @@ fn payload_to_block(value: ExecutionPayload) -> Result<Block<Transaction>> {
+         .map(|(i, tx_bytes)| {
+             let tx_bytes = tx_bytes.to_vec();
+             let mut tx_bytes_slice = tx_bytes.as_slice();
+-            let tx_envelope = OpTxEnvelope::decode(&mut tx_bytes_slice).unwrap();
++            let tx_envelope = OpTxEnvelope::decode(&mut tx_bytes_slice)
++                .map_err(|e| eyre!("unsupported or malformed transaction {i} in block {}: {e}", value.block_number))?;
+             let base_fee = tx_envelope.effective_gas_price(Some(value.base_fee_per_gas.to()));
+             let recovered = tx_envelope.try_into_recovered()?;
+ 
+@@ -404,6 +405,32 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn unsupported_transaction_type_is_an_error_not_a_panic() {
++        // Base EIP-8130 (type 0x79, base/base 5476069f tx_type.rs) is not an OpTxEnvelope variant in
++        // op-alloy-consensus 2.0.0; an unknown type byte must refuse the block instead of panicking the client.
++        for ty in [0x79u8, 0x7d, 0x03, 0x05, 0x80] {
++            let mut payload = payload_with_logs_bloom(Bloom::ZERO);
++            let tx: crate::types::Transaction = ssz_types::VariableList::new(vec![ty, 0xc0]).unwrap();
++            payload.transactions = ssz_types::VariableList::new(vec![tx]).unwrap();
++            let res = std::panic::catch_unwind(|| payload_to_block(payload));
++            let res = res.expect("payload_to_block must not panic");
++            assert!(res.is_err(), "type {ty:#x} must be refused");
++        }
++    }
++
++    #[test]
++    fn base_schedules_refuse_execution_from_azul() {
++        use crate::config::{Network, NetworkConfig};
++        let base = NetworkConfig::from(Network::Base).chain.forks;
++        assert_eq!(base.isthmus_timestamp, 1746806401);
++        assert_eq!(base.execution_unsupported_from_timestamp, 1779991200);
++        let sepolia = NetworkConfig::from(Network::BaseSepolia).chain.forks;
++        assert_eq!(sepolia.execution_unsupported_from_timestamp, 1776708000);
++        let op = NetworkConfig::from(Network::OpMainnet).chain.forks;
++        assert_eq!(op.execution_unsupported_from_timestamp, u64::MAX);
++    }
++
+     #[test]
+     fn preserves_payload_logs_bloom() {
+         for bloom in [
+diff --git a/opstack/src/evm.rs b/opstack/src/evm.rs
+index a9b49a5bfa151336706993ac1364a5b6b119dd4b..e6497f6fef1ff4aa182c7c430e1bc59fe01c64e5 100644
+--- a/opstack/src/evm.rs
++++ b/opstack/src/evm.rs
+@@ -71,6 +71,13 @@ impl<E: ExecutionProvider<OpStack>> OpStackEvm<E> {
+             .ok_or(ExecutionError::BlockNotFound(self.block_id))
+             .map_err(|err| EvmError::Generic(err.to_string()))?;
+ 
++        if block.header.timestamp >= self.fork_schedule.execution_unsupported_from_timestamp {
++            return Err(EvmError::Generic(format!(
++                "local execution refused: block {} (timestamp {}) runs execution rules this build does not implement",
++                block.header.number, block.header.timestamp
++            )));
++        }
++
+         // Pin block to a specific hash for the entire EVM run.
+         let pinned_block: RpcBlockHash = block.header.hash.into();
+ 
+diff --git a/opstack/src/server/net/block_handler.rs b/opstack/src/server/net/block_handler.rs
+index ef4a825d12e1dcfe8f780723bd3d80fc7a4c4d31..b1080e48257d7b671577d7cff134740c5aada5ba 100644
+--- a/opstack/src/server/net/block_handler.rs
++++ b/opstack/src/server/net/block_handler.rs
+@@ -17,7 +17,9 @@ impl BlockHandler {
+             chain_id,
+             signer,
+             commitment_sender: sender,
+-            blocks_v3_topic: IdentTopic::new(format!("/optimism/{chain_id}/2/blocks")),
++            // Isthmus+ unsafe blocks are published only on the V4 topic (op-node p2p/gossip.go publishRawSignedPayload,
++            // base/base crates/consensus/gossip/src/handler.rs topic()); ExecutionPayload already decodes the V4 layout.
++            blocks_v3_topic: IdentTopic::new(format!("/optimism/{chain_id}/3/blocks")),
+         }
+     }
+ 
+@@ -38,3 +40,15 @@ impl BlockHandler {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn subscribes_to_the_isthmus_v4_blocks_topic() {
++        let (send, _recv) = tokio::sync::mpsc::channel(1);
++        let handler = BlockHandler::new(Address::ZERO, 8453, send);
++        assert_eq!(handler.topics(), vec![IdentTopic::new("/optimism/8453/3/blocks").hash()]);
++    }
++}
