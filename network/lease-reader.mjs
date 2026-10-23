@@ -384,7 +384,7 @@ export class LeaseReader {
       if(b<this.lastBlock)b=this.lastBlock;
       const first=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
       if(!fresh(first.timestamp))throw new Error('stale chain block');
-      const value=await read(this.pinnedClient(b,first.hash,call),b);
+      const value=await read(this.pinnedClient(b,first.hash,call,op.assertOpen),b);
       if(!value||typeof value!=='object'||Array.isArray(value))throw Object.assign(new Error('the chain read function must return an object'),{readerBug:true});
       const reserved=reservedFields.find(k=>Object.hasOwn(value,k));
       if(reserved)throw Object.assign(new Error('the chain read function returned the reserved field '+reserved),{readerBug:true});
@@ -437,8 +437,10 @@ export class LeaseReader {
     return {call,run,assertOpen};
   }
   // The only client a read callback sees under the verifier: every answer is AT the verified block (by hash) and
-  // proof-backed; a read at any other block, or any method outside PINNED_METHODS, refuses by name.
-  pinnedClient(b,hash,call) {
+  // proof-backed; a read at any other block, or any method outside PINNED_METHODS, refuses by name. `assertOpen` (the
+  // operation's): once the operation has settled even the methods that send nothing (chain id, block number) refuse, so a
+  // retained client never answers for a closed snapshot.
+  pinnedClient(b,hash,call,assertOpen=()=>{}) {
     const at=(blockNumber,blockTag)=>{
       if(blockTag!==undefined)throw new Error('verified reads are pinned to block '+b+' (no block tags)');
       if(blockNumber!==undefined&&BigInt(blockNumber)!==b)throw new Error('verified reads are pinned to block '+b);
@@ -446,8 +448,8 @@ export class LeaseReader {
     };
     const code=async({address,blockNumber,blockTag})=>{const c=await call('eth_getCode',[address,at(blockNumber,blockTag)]);return c&&c!=='0x'?c:undefined;};
     const methods={
-      getChainId:async()=>this.chainId,
-      getBlockNumber:async()=>b,
+      getChainId:async()=>{assertOpen();return this.chainId;},
+      getBlockNumber:async()=>{assertOpen();return b;},
       getBlock:async({blockNumber,blockTag,blockHash}={})=>{
         if(blockHash!==undefined&&String(blockHash).toLowerCase()!==hash)throw new Error('verified reads are pinned to block '+b);
         at(blockNumber,blockTag);
@@ -495,7 +497,7 @@ export class LeaseReader {
       return op.run(async()=>{
         const h=verifiedHeader(await op.call('eth_getBlockByNumber',[hexBlock(b),false]),b);
         if(blockHash!==undefined&&h.hash!==String(blockHash).toLowerCase())throw new Error('the pinned block is no longer canonical at '+b);
-        return read(this.pinnedClient(b,h.hash,op.call),b);
+        return read(this.pinnedClient(b,h.hash,op.call,op.assertOpen),b);
       });
     }
     const key=v=>JSON.stringify(v,(_k,x)=>typeof x==='bigint'?x.toString():x);
