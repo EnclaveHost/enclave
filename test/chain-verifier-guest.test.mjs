@@ -92,7 +92,11 @@ test('the guest view and the supervisor names: absent unchanged; valid sets exac
 test('gsup: the verifier starts before the supervisor, as a supervised child, and its names wrap the supervisor env last', () => {
   const g = fs.readFileSync(path.join(REPO, 'metal/guest/gsup.mjs'), 'utf8');
   assert.match(g, /import \{ guestChainVerifier, withChainVerifierEnv, writeChainVerifierConfig \} from '\.\/chain-verifier\.mjs';/);
-  const a = g.indexOf('// --- chain verifier (opt-in'), b = g.indexOf('// --- end chain verifier'), s = g.indexOf("start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], ");
+  // two supervisor starts: the direct control guest's (indented, in startDirectControl: its bound plan, no verifier) and the
+  // legacy one (top level, after the verifier block)
+  assert.equal(g.match(/start\('supervisor', /g).length, 2);
+  assert.match(g, /^ {2}start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], plan\.env, \{ cwd: '\/app' \}\);$/m);
+  const a = g.indexOf('// --- chain verifier (opt-in'), b = g.indexOf('// --- end chain verifier'), s = g.indexOf("\nstart('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], ");
   assert.ok(a > 0 && b > a && s > b, 'the verifier block precedes the legacy supervisor start');
   assert.match(g.slice(a, b), /const CHAIN_VERIFIER = CONTROL \? null : guestChainVerifier\(fw\.chainVerifier\);/);
   assert.match(g.slice(a, b), /start\('chain-verifier', CHAIN_VERIFIER\.argv\(writeChainVerifierConfig\(CHAIN_VERIFIER\)\), CHAIN_VERIFIER\.env, \{ cwd: '\/app' \}\);/);

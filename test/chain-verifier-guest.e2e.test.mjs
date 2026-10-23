@@ -42,7 +42,7 @@ const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); }
 async function until(pred, ms, what) {
   const end = Date.now() + ms;
   while (Date.now() < end) { try { if (await pred()) return; } catch {} await sleep(250); }
-  throw new Error(`timed out: ${what} | guest log: ${guest?.log().slice(-1500)}`);
+  throw new Error(`timed out: ${what} | last decision: ${JSON.stringify(lastDecision)} | guest log: ${guest?.log().slice(-1500)}`);
 }
 async function rpc(url, method, params = []) {
   const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(10000) });
@@ -125,7 +125,11 @@ function admission(env) {
     ENCLAVE_HOST_POLICY_DIR: policyDir, ENCLAVE_HOST_ID: rig.runner, ENCLAVE_CONTRACT_PINS_FILE: pinsFile } });
 }
 const request = () => ({ deploymentId: leaseId, appRef: `catalog://${rig.appId}/1` });
-async function decide(env) { try { return await admission(env).decision(request()); } catch (e) { return { unknown: String(e.message) }; } }
+let lastDecision;   // named in until()'s timeout message
+// refused as UNKNOWN for a chain reason: never admitted, never a policy refusal, and never the consumer's own configuration
+// (a missing pin also yields unknown, which would make these checks pass for the wrong reason)
+const unknownForChain = (d, why) => { assert.ok(d.unknown && !d.refusal, `${why}: ${JSON.stringify(d)}`); assert.doesNotMatch(d.unknown, /contract pin|policy dir|ENCLAVE_HOST_/, why); };
+async function decide(env) { try { return (lastDecision = await admission(env).decision(request())); } catch (e) { return (lastDecision = { unknown: String(e.message) }); } }
 function startProxy() {
   const st = { mode: 'ok' };
   const srv = http.createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', async () => {
@@ -156,7 +160,9 @@ test.before(async () => {
   await rig.write(rig.wc(KEYS.owner), own, ownAbi, 'acceptOwner', [rig.runner]);
   policyDir = path.join(TMP, 'host-policy'); fs.mkdirSync(policyDir);
   pinsFile = path.join(TMP, 'contract-pins.json');
-  fs.writeFileSync(pinsFile, JSON.stringify({ version: 1, chainId: 8453, contracts: { registry: rig.addresses.registry, deployments: rig.addresses.ledger, appCatalog: rig.addresses.catalog, proofOfTime: book } }));
+  const none = '0x' + '00'.repeat(20);   // network/contract-pins.mjs: the optional pins are present, zero when not deployed
+  fs.writeFileSync(pinsFile, JSON.stringify({ version: 1, chainId: 8453, contracts: { registry: rig.addresses.registry, deployments: rig.addresses.ledger, appCatalog: rig.addresses.catalog, proofOfTime: book,
+    enclavePay: none, verificationFees: none, sessionVaultFactory: none, secretVaultV2: none } }));
   proxy = await startProxy(); providers = await startProviders();
   HA = await import(path.join(REPO, 'windows/node/host-admission.bundle.mjs'));
   port = await freePort();
@@ -184,7 +190,7 @@ test('absent opt-in: legacy unchanged (no names, no verifier); invalid opt-in: t
   assert.match(invalid.log(), /chain verifier REFUSED .*guest's own ports.*no provider fallback/);
   assert.deepEqual(invalid.pids(), [], 'nothing started');
   const d = await decide(e2);
-  assert.ok(d.unknown && !d.refusal, `refused as unknown, never admitted: ${JSON.stringify(d)}`);
+  unknownForChain(d, 'refused as unknown, never admitted');
   assert.equal(providers.st.hits, 0, 'the provider quorum was never asked');
   powerOff(invalid); await invalid.exited;
 });
@@ -203,7 +209,7 @@ test('cold start in the guest userland: the verifier starts before the superviso
   await sleep(4000);
   assert.equal(fs.existsSync(path.join(STATE, 'ready.json')), false);
   let d = await decide(env);
-  assert.ok(d.unknown && !d.refusal, JSON.stringify(d));
+  unknownForChain(d, 'booting: no verified decision yet');
   setControl({});                                                         // heads flow; proof sources still down
   await until(() => fs.existsSync(path.join(STATE, 'ready.json')), 300000, 'verifier ready');
   assert.equal(Number(await rpc(env.ENCLAVE_CHAIN_VERIFIER, 'eth_chainId')), 8453);
@@ -214,7 +220,7 @@ test('cold start in the guest userland: the verifier starts before the superviso
   assert.deepEqual(cmdline(helios.pid).slice(0, 4), ['/opt/rpc-runtime/glibc/ld-linux-x86-64.so.2', '--library-path', '/opt/rpc-runtime/glibc', '/opt/rpc-runtime/helios'],
     'Helios runs in place through the pinned glibc runtime (the guest glibc 2.36 cannot run it)');
   d = await decide(env);
-  assert.ok(d.unknown && !d.refusal, `ready but no proof source answers: refused as unknown, not admitted (${JSON.stringify(d)})`);
+  unknownForChain(d, 'ready but no proof source answers: refused as unknown, not admitted');
   proxy.st.mode = 'ok';
   await until(async () => (await decide(env)).refusal === null, 60000, 'admitted once a proof source answers');
   assert.equal(providers.st.hits, 0, 'no provider fallback at any point');
